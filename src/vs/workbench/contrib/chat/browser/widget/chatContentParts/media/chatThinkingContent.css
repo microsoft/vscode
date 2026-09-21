@@ -3,6 +3,265 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+/* The feature gate must not increase the specificity of the legacy shimmer rules. */
+.interactive-session .interactive-response:where(:not(.chat-persistent-progress)) .value .chat-thinking-box.chat-thinking-active.chat-used-context-collapsed > .chat-used-context-label .monaco-button.monaco-icon-button .chat-thinking-title-shimmer,
+.interactive-session .interactive-response:where(:not(.chat-persistent-progress)) .value .chat-thinking-box .chat-thinking-spinner-item .chat-thinking-spinner-label {
+	background: linear-gradient(90deg,
+			var(--vscode-descriptionForeground) 0%,
+			var(--vscode-descriptionForeground) 30%,
+			var(--vscode-chat-thinkingShimmer) 50%,
+			var(--vscode-descriptionForeground) 70%,
+			var(--vscode-descriptionForeground) 100%);
+	background-size: 400% 100%;
+	background-clip: text;
+	-webkit-background-clip: text;
+	-webkit-text-fill-color: transparent;
+	animation: chat-thinking-shimmer 2s linear infinite;
+	will-change: background-position;
+}
+
+/* Only while the footer owns progress: a background subagent can keep working after its parent
+	response completes, and then its own working row is the only indicator left. */
+.interactive-session .interactive-response.chat-persistent-progress.chat-response-loading .value .chat-thinking-box .chat-thinking-spinner-item {
+	display: none;
+}
+
+/* The gutter icon only has a home inside a persistent response; any other host (e.g. the tool
+	confirmation carousel in the input part) must not show it or reserve space for it. Specific
+	enough to beat the codicon display rule. */
+.chat-tool-invocation-part.chat-tool-call-with-icon > .chat-tool-call-icon {
+	display: none;
+}
+
+.interactive-session .interactive-response.chat-persistent-progress .value .chat-tool-call-with-icon {
+	position: relative;
+	padding-left: var(--vscode-spacing-size240);
+}
+
+.interactive-session .interactive-response.chat-persistent-progress .value .chat-tool-call-with-icon > .chat-tool-call-icon,
+.interactive-session .interactive-response.chat-persistent-progress .value .chat-thinking-box:is(.chat-tool-chain, .chat-persistent-reasoning) .chat-used-context-list.chat-thinking-collapsible > :is(.chat-thinking-tool-wrapper, .chat-thinking-item.markdown-content) > .chat-thinking-icon {
+	position: absolute;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	left: calc(var(--vscode-codiconFontSize-compact) * 0.2);
+	top: var(--chat-chain-icon-top, var(--chat-persistent-icon-top));
+	font-size: inherit;
+	width: var(--vscode-codiconFontSize-compact);
+	height: var(--vscode-codiconFontSize-compact);
+
+	/* Position in the activity's font context, without scaling the glyph. */
+	&::before {
+		font-size: var(--vscode-codiconFontSize-compact);
+		line-height: 1;
+	}
+}
+
+.interactive-session .interactive-response .value .chat-tool-call-with-icon > .chat-tool-call-icon {
+	color: var(--vscode-descriptionForeground);
+}
+
+.chat-thinking-tool-wrapper .chat-tool-call-icon,
+.interactive-session .interactive-response.chat-persistent-progress .value .chat-thinking-tool-wrapper .chat-tool-call-icon {
+	display: none;
+}
+
+.interactive-session .interactive-response.chat-persistent-progress .value .chat-thinking-box:is(.chat-tool-chain, .chat-persistent-reasoning) .chat-used-context-list.chat-thinking-collapsible > :is(.chat-thinking-tool-wrapper, .chat-thinking-item.markdown-content) {
+	--chat-chain-icon-top: var(--chat-persistent-icon-top);
+	--chat-chain-icon-start: calc(var(--chat-chain-icon-top) - var(--vscode-spacing-size40) - var(--chat-chain-rail-top, 0px));
+	--chat-chain-icon-end: calc(var(--chat-chain-icon-top) + var(--vscode-codiconFontSize-compact) + var(--vscode-spacing-size40) - var(--chat-chain-rail-top, 0px));
+
+	/* Borders keep straight and curved strokes equally crisp at fractional zoom. */
+	&::before {
+		box-sizing: border-box;
+		left: var(--chat-persistent-rail-left);
+		top: var(--chat-chain-rail-top, 0px);
+		width: var(--vscode-strokeThickness);
+		border-left: var(--vscode-strokeThickness) solid var(--vscode-chat-requestBorder);
+		background: none;
+		pointer-events: none;
+		mask-image: linear-gradient(to bottom, #000 0 var(--chat-chain-icon-start), transparent var(--chat-chain-icon-start) var(--chat-chain-icon-end), #000 var(--chat-chain-icon-end) 100%);
+	}
+
+	&:first-child::before {
+		mask-image: linear-gradient(to bottom, transparent 0 var(--chat-chain-icon-end), #000 var(--chat-chain-icon-end) 100%);
+	}
+
+	&:last-child::before {
+		mask-image: linear-gradient(to bottom, #000 0 var(--chat-chain-icon-start), transparent var(--chat-chain-icon-start) 100%);
+	}
+
+	&:only-child::before {
+		border-left: 0;
+	}
+}
+
+.interactive-session .interactive-response.chat-persistent-progress .value .chat-thinking-box.chat-tool-chain > .chat-used-context-list.chat-thinking-collapsible {
+	margin-left: 0;
+	padding: 0;
+	overflow: visible;
+	max-height: none;
+
+	> .chat-thinking-tool-wrapper {
+		--chat-chain-rail-top: calc(-1 * var(--chat-persistent-item-gap) / 2);
+		margin-bottom: var(--chat-persistent-item-gap);
+
+		/* Split the gap so each icon's clearance can extend beyond its row at small font sizes. */
+		&::before {
+			bottom: calc(-1 * var(--chat-persistent-item-gap) / 2);
+		}
+
+		&:first-child {
+			--chat-chain-rail-top: 0px;
+		}
+
+		&:last-child {
+			margin-bottom: 0;
+
+			&::before {
+				bottom: 0;
+			}
+		}
+
+		> .chat-tool-invocation-part,
+		> .chat-codeblock-pill-container,
+		> .chat-markdown-part.rendered-markdown {
+			padding-block: 0;
+		}
+
+		> .chat-markdown-part.rendered-markdown {
+			> :not(:last-child) {
+				margin-bottom: var(--chat-persistent-item-gap);
+			}
+
+			> p {
+				margin-top: 0;
+			}
+		}
+	}
+}
+
+.interactive-session .interactive-response.chat-persistent-progress .value .chat-thinking-box.chat-persistent-reasoning {
+	&:not(.chat-used-context-collapsed) > .chat-used-context-label::after {
+		box-sizing: border-box;
+		left: var(--chat-persistent-rail-left);
+		width: calc(var(--vscode-spacing-size120) - var(--vscode-codiconFontSize-compact) / 2 + var(--vscode-strokeThickness) / 2);
+		height: calc(var(--vscode-spacing-size60) + var(--vscode-chat-font-size-body-s) * 0.75 + var(--vscode-strokeThickness) / 2);
+		border-width: var(--vscode-strokeThickness);
+		border-bottom-left-radius: var(--vscode-cornerRadius-medium);
+		pointer-events: none;
+	}
+
+	.chat-used-context-list.chat-thinking-collapsible {
+		margin-left: var(--vscode-spacing-size120);
+		padding-inline: 0;
+
+		> .chat-thinking-item.markdown-content {
+			--chat-chain-icon-top: calc(var(--chat-persistent-icon-top) + var(--vscode-spacing-size60));
+			padding-block: var(--vscode-spacing-size60);
+		}
+	}
+}
+
+.interactive-session .interactive-response.chat-persistent-progress > .value {
+	--chat-persistent-item-gap: var(--vscode-spacing-size160);
+	--chat-persistent-icon-top: calc((var(--vscode-chat-font-size-body-m) * 1.5 - var(--vscode-codiconFontSize-compact)) / 2);
+	--chat-persistent-rail-left: calc(var(--vscode-codiconFontSize-compact) * 0.7 - var(--vscode-strokeThickness) / 2);
+}
+
+/* The row container class keeps these ahead of the legacy `.interactive-item-container .value > …`
+	spacing rules, which otherwise tie on specificity and fall back to stylesheet order. */
+.interactive-session .interactive-item-container.interactive-response.chat-persistent-progress :is(.value, .completed-response-disclosure) {
+	> .completed-response-disclosure,
+	> .chat-tool-chain,
+	> .chat-persistent-reasoning,
+	> .chat-tool-call-with-icon,
+	> .progress-container,
+	> .chat-markdown-part,
+	> .chat-confirmation-widget-container,
+	> .chat-question-carousel-container,
+	> .chat-mcp-servers-interaction {
+		margin-block: 0 var(--chat-persistent-item-gap);
+
+		&:last-child {
+			margin-bottom: 0;
+		}
+	}
+
+	> .chat-tool-call-with-icon,
+	> .progress-container {
+		padding-block: 0;
+	}
+
+	> .chat-persistent-reasoning,
+	.chat-tool-call-with-icon :is(.chat-terminal-thinking-collapsible, .chat-confirmation-widget-collapsible) {
+		gap: 0;
+
+		> .chat-used-context-label .monaco-button.monaco-icon-button,
+		> .chat-confirmation-widget-title.monaco-button {
+			padding-block: var(--vscode-spacing-size40);
+			vertical-align: top;
+			/* Preserve the padded hit target without adding a second visual gap. */
+			margin-block: calc(-1 * var(--vscode-spacing-size40));
+		}
+
+		/* Chromium builds disagree on whether the label's line box honors the header line height
+			over its smaller inline text, so give the text that line height directly. */
+		> .chat-confirmation-widget-title.monaco-button .rendered-markdown {
+			line-height: inherit;
+		}
+	}
+
+	> .chat-persistent-reasoning > .chat-used-context-label .monaco-button.monaco-icon-button {
+		margin-left: calc(-1 * var(--vscode-spacing-size20));
+		gap: 0;
+	}
+
+	.chat-tool-call-with-icon .chat-terminal-thinking-collapsible {
+		margin-block: 0;
+
+		> .chat-used-context-label .monaco-button-mdlabel code {
+			line-height: 1;
+		}
+	}
+
+	> .chat-markdown-part {
+		> p {
+			margin-block: 0 var(--chat-persistent-item-gap);
+		}
+
+		> :first-child {
+			margin-top: 0;
+		}
+
+		> :last-child {
+			margin-bottom: 0;
+		}
+	}
+
+	> .chat-working-progress {
+		gap: 0;
+		line-height: 1.5em;
+	}
+
+	.chat-tool-call-with-icon .progress-container {
+		margin-block: 0;
+		padding-block: 0;
+	}
+}
+
+.interactive-session .interactive-response .value .chat-thinking-box.chat-persistent-reasoning > .chat-used-context-label .monaco-button.monaco-icon-button > .codicon.codicon-thinking {
+	display: inline-flex;
+	width: var(--vscode-codiconFontSize-compact);
+	flex-shrink: 0;
+}
+
+/* Reserve the tool text gutter without shifting the leading icons. */
+.interactive-session .interactive-response.chat-persistent-progress > .value > .chat-working-progress > .chat-progress-icon,
+.interactive-session .interactive-response .value .chat-thinking-box.chat-persistent-reasoning > .chat-used-context-label .monaco-button.monaco-icon-button > .codicon.codicon-thinking {
+	margin-right: calc(var(--vscode-spacing-size240) - var(--vscode-codiconFontSize-compact) - 0.2em);
+}
+
 .interactive-session .interactive-response .value .chat-thinking-box {
 	outline: none;
 	position: relative;
@@ -65,42 +324,6 @@
 		cursor: pointer;
 	}
 
-	> .chat-used-context-label > .chat-thinking-title-diff.monaco-button {
-		display: inline-flex;
-		align-items: center;
-		padding: var(--vscode-spacing-size20) var(--vscode-spacing-size40);
-		margin-left: var(--vscode-spacing-sizeNone);
-		border-radius: var(--vscode-cornerRadius-small);
-		gap: var(--vscode-spacing-size40);
-		background: transparent;
-		color: inherit;
-		line-height: 1.5em;
-		cursor: pointer;
-
-		> .label-added {
-			color: var(--vscode-chat-linesAddedForeground);
-		}
-
-		> .label-removed {
-			color: var(--vscode-chat-linesRemovedForeground);
-		}
-
-		&:hover,
-		&.hovered {
-			background-color: var(--vscode-toolbar-hoverBackground);
-			color: var(--vscode-foreground);
-		}
-
-		&:focus {
-			outline: none;
-		}
-
-		&:focus-visible {
-			outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
-			outline-offset: calc(-1 * var(--vscode-strokeThickness));
-		}
-	}
-
 	> .chat-used-context-label > .chat-collapsible-hover-chevron {
 		vertical-align: middle;
 	}
@@ -114,40 +337,6 @@
 		.codicon.codicon-circle-filled-compact {
 			display: none;
 		}
-	}
-
-	&.chat-thinking-active.chat-used-context-collapsed > .chat-used-context-label .monaco-button.monaco-icon-button {
-
-		.chat-thinking-title-shimmer {
-			background: linear-gradient(90deg,
-					var(--vscode-descriptionForeground) 0%,
-					var(--vscode-descriptionForeground) 30%,
-					var(--vscode-chat-thinkingShimmer) 50%,
-					var(--vscode-descriptionForeground) 70%,
-					var(--vscode-descriptionForeground) 100%);
-			background-size: 400% 100%;
-			background-clip: text;
-			-webkit-background-clip: text;
-			-webkit-text-fill-color: transparent;
-			animation: chat-thinking-shimmer 2s linear infinite;
-			will-change: background-position;
-		}
-	}
-
-	/* shimmer animation stuffs */
-	.chat-thinking-spinner-item .chat-thinking-spinner-label {
-		background: linear-gradient(90deg,
-				var(--vscode-descriptionForeground) 0%,
-				var(--vscode-descriptionForeground) 30%,
-				var(--vscode-chat-thinkingShimmer) 50%,
-				var(--vscode-descriptionForeground) 70%,
-				var(--vscode-descriptionForeground) 100%);
-		background-size: 400% 100%;
-		background-clip: text;
-		-webkit-background-clip: text;
-		-webkit-text-fill-color: transparent;
-		animation: chat-thinking-shimmer 2s linear infinite;
-		will-change: background-position;
 	}
 
 	&:not(.chat-used-context-collapsed) .chat-used-context-list.chat-thinking-collapsible {

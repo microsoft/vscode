@@ -24,6 +24,7 @@ import { hasSendableNewChatContent, NewChatInputWidget } from '../../browser/new
 import { ChatPasteAttachmentMetadata, IChatRequestVariableEntry, toPasteVariableEntry } from '../../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { NewChatContextAttachments } from '../../browser/newChatContextAttachments.js';
 import { getAdditionalFolderContextId, getAdditionalRepositoryContextId } from '../../common/newChatContextIds.js';
+import { IChatDraft } from '../../../../../workbench/contrib/chat/common/attachments/chatDraft.js';
 
 interface IInputModelReferenceHarness {
 	readonly _store: DisposableStore;
@@ -182,6 +183,34 @@ class InputModelReferenceHarness implements IInputModelReferenceHarness, IDispos
 
 suite('NewChatInputWidget', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	for (const existing of ['empty', 'text', 'attachments', 'sending'] as const) {
+		test(`applies an incoming draft only to an empty idle input (${existing})`, () => {
+			let inputText = existing === 'text' ? 'Keep me' : '';
+			let attachments: readonly IChatRequestVariableEntry[] = existing === 'attachments' ? [toPasteVariableEntry('Context', 'Keep context', { id: 'existing' })] : [];
+			let saved: IChatDraft | undefined;
+			let focusCount = 0;
+			const input: NewChatInputWidget = Object.assign(Object.create(NewChatInputWidget.prototype), {
+				_editor: { getValue: () => inputText, getModel: () => ({}) },
+				_contextAttachments: {
+					get attachments() { return attachments; },
+					addAttachments: (...entries: IChatRequestVariableEntry[]) => { attachments = entries; },
+				},
+				_sending: existing === 'sending',
+				prefillInput: (text: string) => { inputText = text; focusCount++; },
+				_updateAndSaveDraftState: () => { saved = { inputText, attachments }; },
+			});
+			const incoming = { inputText: 'Incoming', attachments: [toPasteVariableEntry('Incoming context', 'Text', { id: 'incoming' })] };
+			const applied = input.applyDraft(incoming);
+			assert.deepStrictEqual({ applied, inputText, attachments, saved, focusCount }, {
+				applied: existing === 'empty',
+				inputText: existing === 'empty' ? incoming.inputText : existing === 'text' ? 'Keep me' : '',
+				attachments: existing === 'empty' ? incoming.attachments : existing === 'attachments' ? [toPasteVariableEntry('Context', 'Keep context', { id: 'existing' })] : [],
+				saved: existing === 'empty' ? incoming : undefined,
+				focusCount: existing === 'empty' ? 1 : 0,
+			});
+		});
+	}
 
 	test('only keeps the input frame focused while editor text has focus', () => {
 		const stack = document.createElement('div');
@@ -359,6 +388,15 @@ suite('NewChatInputWidget', () => {
 			empty: false,
 			additionalFolder: true,
 		});
+	});
+
+	test('keeps a handed-off explicit file snapshot sendable without inventing prompt text', () => {
+		const snapshot = toPasteVariableEntry('Unsaved file', 'Draft contents', { _meta: { [ChatPasteAttachmentMetadata.FileSnapshot]: true } });
+		const paste = toPasteVariableEntry('Context', 'Pasted context');
+		assert.deepStrictEqual({
+			fileSnapshot: hasSendableNewChatContent('', [snapshot]),
+			ordinaryPaste: hasSendableNewChatContent('', [paste]),
+		}, { fileSnapshot: true, ordinaryPaste: false });
 	});
 
 	test('persists and restores additional folder and repository context with URI values', () => {

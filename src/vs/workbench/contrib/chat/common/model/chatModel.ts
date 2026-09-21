@@ -15,7 +15,7 @@ import { ResourceMap } from '../../../../../base/common/map.js';
 import { revive } from '../../../../../base/common/marshalling.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { equals } from '../../../../../base/common/objects.js';
-import { IObservable, autorun, constObservable, derived, observableFromEvent, observableSignal, observableSignalFromEvent, observableValue, observableValueOpts } from '../../../../../base/common/observable.js';
+import { IObservable, autorun, constObservable, derived, observableFromEvent, observableSignal, observableSignalFromEvent, observableValue, observableValueOpts, registerAutorunSelfDisposable } from '../../../../../base/common/observable.js';
 import { basename, isEqual } from '../../../../../base/common/resources.js';
 import { hasKey, WithDefinedProps } from '../../../../../base/common/types.js';
 import { URI, UriDto } from '../../../../../base/common/uri.js';
@@ -155,6 +155,8 @@ export interface IChatRequestModel {
 	readonly shouldBeBlocked: IObservable<boolean>;
 	setShouldBeBlocked(value: boolean): void;
 	readonly modelId?: string;
+	/** The selected model's configuration when this request was submitted. */
+	readonly modelConfiguration?: IStringDictionary<unknown>;
 	readonly userSelectedTools?: UserSelectedTools;
 	readonly isSystemInitiated?: boolean;
 	/** The request source, independent of the request text or responding participant. */
@@ -408,6 +410,7 @@ export interface IChatRequestModelParameters {
 	attachedContext?: IChatRequestVariableEntry[];
 	isCompleteAddedRequest?: boolean;
 	modelId?: string;
+	modelConfiguration?: IStringDictionary<unknown>;
 	restoredId?: string;
 	editedFileEvents?: IChatAgentEditedFileEvent[];
 	userSelectedTools?: UserSelectedTools;
@@ -431,6 +434,7 @@ export class ChatRequestModel implements IChatRequestModel {
 	public readonly message: IParsedChatRequest;
 	public readonly isCompleteAddedRequest: boolean;
 	public readonly modelId?: string;
+	public readonly modelConfiguration?: IStringDictionary<unknown>;
 	public readonly modeInfo?: IChatRequestModeInfo;
 	public readonly userSelectedTools?: UserSelectedTools;
 	public readonly isSystemInitiated?: boolean;
@@ -510,6 +514,7 @@ export class ChatRequestModel implements IChatRequestModel {
 		this._attachedContext = params.attachedContext;
 		this.isCompleteAddedRequest = params.isCompleteAddedRequest ?? false;
 		this.modelId = params.modelId;
+		this.modelConfiguration = params.modelConfiguration;
 		this.id = params.restoredId ?? 'request_' + generateUuid();
 		this._editedFileEvents = params.editedFileEvents;
 		this.userSelectedTools = params.userSelectedTools;
@@ -896,7 +901,9 @@ export class Response extends AbstractResponse implements IDisposable {
 	}
 
 	updateContent(progress: IChatProgressResponseContent | IChatTextEdit | IChatNotebookEdit | IChatTask | IChatExternalToolInvocationUpdate, quiet?: boolean): void {
-		if (progress.kind !== 'thinking') {
+		// Nested subagent progress renders inside its parent card, so it neither ends the parent's
+		// reasoning section nor its reasoning timer.
+		if (progress.kind !== 'thinking' && !isNestedSubagentResponsePart(progress)) {
 			this.finalizeReasoningDuration();
 		}
 
@@ -936,8 +943,9 @@ export class Response extends AbstractResponse implements IDisposable {
 		} else if (progress.kind === 'thinking') {
 
 			// tries to split thinking chunks if it is an array. only while certain models give us array chunks.
+			// Nested subagent parts render inside their parent card and must not split parent reasoning.
 			const lastResponsePart = this._responseParts
-				.filter(p => p.kind !== 'textEditGroup')
+				.filter(p => p.kind !== 'textEditGroup' && !isNestedSubagentResponsePart(p))
 				.at(-1);
 
 			const lastText = lastResponsePart && lastResponsePart.kind === 'thinking'
@@ -1019,6 +1027,17 @@ export class Response extends AbstractResponse implements IDisposable {
 			}));
 			this._responseParts.push(progress);
 			this._contentChanged(quiet);
+		} else if (progress.kind === 'mcpAuthenticationRequired') {
+			this._responseParts.push(progress);
+			let initialUpdate = true;
+			registerAutorunSelfDisposable(this._store, reader => {
+				progress.servers.read(reader);
+				this._contentChanged(initialUpdate ? quiet : false);
+				initialUpdate = false;
+				if (progress.isUsed) {
+					reader.dispose();
+				}
+			});
 		} else if (progress.kind === 'externalToolInvocationUpdate') {
 			this._handleExternalToolInvocationUpdate(progress);
 			this._contentChanged(quiet);
@@ -1939,6 +1958,7 @@ export interface ISerializableChatRequestData extends ISerializableChatResponseD
 	confirmation?: string;
 	editedFileEvents?: IChatAgentEditedFileEvent[];
 	modelId?: string;
+	modelConfiguration?: IStringDictionary<unknown>;
 	modeInfo?: IChatRequestModeInfo;
 	isSystemInitiated?: boolean;
 	requestSource?: ChatRequestSource;
@@ -2976,6 +2996,7 @@ export class ChatModel extends Disposable implements IChatModel {
 			confirmation: raw.confirmation,
 			editedFileEvents: raw.editedFileEvents,
 			modelId: raw.modelId,
+			modelConfiguration: raw.modelConfiguration,
 			modeInfo: raw.modeInfo,
 			isSystemInitiated: raw.isSystemInitiated,
 			requestSource: getRestoredChatRequestSource(raw, parsedRequest.text),
@@ -3191,6 +3212,7 @@ export class ChatModel extends Disposable implements IChatModel {
 		origin?: IChatRequestOrigin,
 		isRequestHiddenFromTranscript?: boolean,
 		requestSource?: ChatRequestSource,
+		modelConfiguration?: IStringDictionary<unknown>,
 	): ChatRequestModel {
 		const editedFileEvents = [...this.currentEditedFileEvents.values()];
 		this.currentEditedFileEvents.clear();
@@ -3213,6 +3235,7 @@ export class ChatModel extends Disposable implements IChatModel {
 			attachedContext: attachments,
 			isCompleteAddedRequest,
 			modelId,
+			modelConfiguration,
 			editedFileEvents: editedFileEvents.length ? editedFileEvents : undefined,
 			userSelectedTools,
 			isSystemInitiated,
@@ -3380,6 +3403,7 @@ export class ChatModel extends Disposable implements IChatModel {
 					confirmation: r.confirmation,
 					editedFileEvents: r.editedFileEvents,
 					modelId: r.modelId,
+					modelConfiguration: r.modelConfiguration,
 					modeInfo: r.modeInfo,
 					isSystemInitiated: r.isSystemInitiated || undefined,
 					...(r.requestSource !== undefined ? { requestSource: r.requestSource } : {}),
@@ -3472,7 +3496,7 @@ export function canMergeMarkdownStrings(md1: IMarkdownString, md2: IMarkdownStri
 		md1.supportThemeIcons === md2.supportThemeIcons;
 }
 
-function isNestedSubagentResponsePart(part: IChatProgressResponseContent): boolean {
+function isNestedSubagentResponsePart(part: object): boolean {
 	return 'subAgentInvocationId' in part && !!part.subAgentInvocationId;
 }
 

@@ -525,6 +525,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private readonly _onDidChangeChatPetHorizontalPlatforms = this._register(new Emitter<void>());
 	readonly onDidChangeChatPetHorizontalPlatforms = this._onDidChangeChatPetHorizontalPlatforms.event;
 	private inputContainer!: HTMLElement;
+	private inputEnabled = true;
 	private inputAndSideToolbar!: HTMLElement;
 	private readonly _notificationWidget = this._register(new MutableDisposable<ChatInputNotificationWidget>());
 	private readonly _goalBannerWidget = this._register(new MutableDisposable<ChatGoalBannerWidget>());
@@ -1079,6 +1080,12 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		// snapshot that overwrites the newer config on reopen. The `_syncFromModel` guard
 		// and the store's redundant-update short-circuit prevent feedback loops on restore.
 		this._register(this._modelConfigStore.onDidChange(() => this._syncInputStateToModel()));
+		this._register(this._modelConfigStore.onDidSelectConfiguration(modelId => {
+			const model = this._currentLanguageModel.get();
+			if (model?.identifier === modelId) {
+				this.setCurrentLanguageModel(model, true, false);
+			}
+		}));
 		this.selectedToolsModel = this._register(this.instantiationService.createInstance(ChatSelectedTools, this.currentModeObs, this._currentLanguageModel));
 		this.dnd = this._register(this.instantiationService.createInstance(ChatDragAndDrop, () => this._widget, {
 			get attachments() { return attachmentModel.attachments; },
@@ -1338,7 +1345,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		return false;
 	}
 
-	public requestModelByIdentifier(identifier: string): Promise<boolean> {
+	public requestModelByIdentifier(identifier: string, configuration?: IStringDictionary<unknown>): Promise<boolean> {
+		this.restoreModelConfiguration(identifier, configuration, false);
 		return this._requestProgrammaticLanguageModel(() => this.getModels().find(model => model.identifier === identifier));
 	}
 
@@ -1465,9 +1473,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	 * the configuration follows the model through the same resolution hierarchy.
 	 * No-op for sessions that pre-date configuration capture (no value stored).
 	 */
-	private restoreModelConfiguration(modelId: string, modelConfiguration: IStringDictionary<unknown> | undefined): void {
+	private restoreModelConfiguration(modelId: string, modelConfiguration: IStringDictionary<unknown> | undefined, persist = true): void {
 		if (modelConfiguration) {
-			this._modelConfigStore.restoreModelConfiguration(modelId, modelConfiguration);
+			this._modelConfigStore.restoreModelConfiguration(modelId, modelConfiguration, persist);
 		}
 	}
 
@@ -2340,7 +2348,26 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	}
 
 	focus() {
-		this._inputEditor.focus();
+		if (this.inputEnabled) {
+			this._inputEditor.focus();
+		} else {
+			this.executeToolbar.focus();
+		}
+	}
+
+	/** Disable draft editing during session preparation without disabling the Stop toolbar. */
+	setInputEnabled(enabled: boolean): void {
+		const hadFocus = this.hasFocus();
+		this.inputEnabled = enabled;
+		this._inputEditor.updateOptions({ readOnly: !enabled });
+		this._inputEditorElement.inert = !enabled;
+		this.attachmentsContainer.inert = !enabled;
+		this.inputActionsToolbar.getElement().inert = !enabled;
+		this.secondaryToolbarContainer.inert = !enabled;
+		this.dnd.setDisabledOverlay(!enabled);
+		if (hadFocus) {
+			this.focus();
+		}
 	}
 
 	hasFocus(): boolean {
@@ -2879,6 +2906,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			// the user creates a session and `sessionTypes`-gated
 			// notifications never render.
 			this._notificationWidget.value = this.instantiationService.createInstance(ChatInputNotificationWidget, {
+				inputUri: this.inputUri,
 				modelTargetChatSessionType: this._notificationModelTargetChatSessionType,
 				sessionResource: this._currentSessionResourceObservable,
 				deferredNotificationsEnabled: this._deferredNotificationsEnabled,
@@ -2899,6 +2927,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	private getNotificationContext(): IChatInputNotificationContext {
 		return {
+			inputUri: this.inputUri,
 			sessionType: this._notificationModelTargetChatSessionType.get(),
 			sessionResource: this._currentSessionResourceObservable.get(),
 			deferredNotificationsEnabled: this._deferredNotificationsEnabled.get(),
@@ -4533,7 +4562,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	renderToolConfirmationCarousel(tool: IChatToolInvocation, factory: ToolInvocationPartFactory, subAgentInvocationId?: string, subagentTitle?: string, revealSubagent?: RevealSubagentCallback, revealSubagentLabel?: string, toolPart?: ChatToolInvocationPart): ChatToolConfirmationCarouselPart {
 		const existing = this._currentToolConfirmationCarousel;
 		if (existing) {
-			existing.addToolInvocation(tool, subAgentInvocationId, subagentTitle, revealSubagent, revealSubagentLabel, toolPart);
+			existing.addToolInvocation(tool, subAgentInvocationId, subagentTitle, revealSubagent, revealSubagentLabel, toolPart, factory);
 			this.updateToolConfirmationCarouselMaxHeight();
 			return existing;
 		}
@@ -4544,10 +4573,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}
 
 		const part = new ChatToolConfirmationCarouselPart(factory, [], revealSubagent, revealSubagentLabel, subAgentInvocationId, subagentTitle);
-		part.addToolInvocation(tool, subAgentInvocationId, subagentTitle, revealSubagent, revealSubagentLabel, toolPart);
+		part.addToolInvocation(tool, subAgentInvocationId, subagentTitle, revealSubagent, revealSubagentLabel, toolPart, factory);
 		this._chatToolConfirmationCarousels.set(key, part);
 		const capturedKey = key;
-		this._register(part.onDidChangeActiveSubagent(id => {
+		part.addDisposable(part.onDidChangeActiveSubagent(id => {
 			if (this._currentSessionKey === capturedKey) {
 				this._onDidChangeActiveConfirmationSubagent.fire(id);
 			}
@@ -4559,7 +4588,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		dom.show(this.chatToolConfirmationCarouselContainer);
 		this.updateToolConfirmationCarouselMaxHeight();
 
-		this._register(Event.once(part.onDidEmpty)(() => {
+		part.addDisposable(Event.once(part.onDidEmpty)(() => {
 			this._chatToolConfirmationCarousels.deleteAndDispose(capturedKey);
 			if (this._currentSessionKey === capturedKey) {
 				this._onDidChangeActiveConfirmationSubagent.fire(undefined);
@@ -4574,15 +4603,27 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	addToolToConfirmationCarousel(tool: IChatToolInvocation, factory: ToolInvocationPartFactory, subAgentInvocationId?: string, subagentTitle?: string, revealSubagent?: RevealSubagentCallback, revealSubagentLabel?: string, toolPart?: ChatToolInvocationPart): void {
 		const existing = this._currentToolConfirmationCarousel;
 		if (existing) {
-			existing.addToolInvocation(tool, subAgentInvocationId, subagentTitle, revealSubagent, revealSubagentLabel, toolPart);
+			existing.addToolInvocation(tool, subAgentInvocationId, subagentTitle, revealSubagent, revealSubagentLabel, toolPart, factory);
 			this.updateToolConfirmationCarouselMaxHeight();
 		} else {
 			this.renderToolConfirmationCarousel(tool, factory, subAgentInvocationId, subagentTitle, revealSubagent, revealSubagentLabel, toolPart);
 		}
 	}
 
+	removeToolFromConfirmationCarousel(tool: IChatToolInvocation, sessionResource: URI): void {
+		this._chatToolConfirmationCarousels.get(sessionResource.toString())?.removeToolInvocation(tool);
+	}
+
 	get activeConfirmationSubagentId(): string | undefined {
 		return this._currentToolConfirmationCarousel?.activeSubAgentInvocationId;
+	}
+
+	get activeToolConfirmation(): IChatToolInvocation | undefined {
+		return this._currentToolConfirmationCarousel?.activeToolConfirmation;
+	}
+
+	acceptActiveToolConfirmation(): void {
+		this._currentToolConfirmationCarousel?.acceptActiveConfirmation();
 	}
 
 	/**
@@ -4841,6 +4882,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 					arg: {
 						$mid: MarshalledId.ChatViewContext,
 						sessionResource,
+						inputUri: this.inputUri,
 					} satisfies IChatViewTitleActionContext,
 				}) : undefined,
 				disableWhileRunning: isSessionMenu,

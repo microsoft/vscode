@@ -26,6 +26,7 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { AICustomizationManagementEditor, isCurrentPluginContributionNavigation } from '../../../browser/aiCustomization/aiCustomizationManagementEditor.js';
 import { ChatConfiguration } from '../../../common/constants.js';
 import { CustomizationMigration, CustomizationMigrationCandidate, CustomizationMigrationType, ICustomizationMigrationService, IMcpServerCustomizationMigrationCandidate, isMcpServerCustomizationMigrationCandidate, McpServerCustomizationMigrationFailureReason, MigratableConfiguration } from '../../../common/promptSyntax/service/customizationMigrationService.js';
+import type { ICustomizationMigrationTelemetryService } from '../../../common/promptSyntax/service/customizationMigrationTelemetryService.js';
 import { PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
 import { IHeaderAttribute } from '../../../common/promptSyntax/promptFileParser.js';
 import { PromptFileSource, PromptsType, Target } from '../../../common/promptSyntax/promptTypes.js';
@@ -80,6 +81,7 @@ suite('aiCustomizationManagementEditor', () => {
 		customizationMigrationWritesInProgress: boolean;
 		customizationMigrationLoading: boolean;
 		customizationMigrationLoadError: string | undefined;
+		customizationMigrationResultsSettled: boolean;
 		customizationMigrationRefreshSequence: number;
 		customizationMigrationRefreshDelayer: Delayer<void>;
 		customizationMigrationRequest: DisposableStore;
@@ -133,6 +135,7 @@ suite('aiCustomizationManagementEditor', () => {
 		customizationMigrationService: Pick<ICustomizationMigrationService, 'migrateMcpServers'> & {
 			computeMigration?(session: URI, type: CustomizationMigrationType, token?: CancellationToken): Promise<CustomizationMigration>;
 		};
+		customizationMigrationTelemetryService: ICustomizationMigrationTelemetryService;
 		dialogService: { confirm(): Promise<{ confirmed: boolean }> };
 		quickInputService: {
 			pick(items: readonly { label: string; description?: string; folder?: ICustomizationSourceFolder; chooseAnother?: boolean }[]): Promise<{ label?: string; folder?: ICustomizationSourceFolder; chooseAnother?: boolean } | undefined>;
@@ -209,6 +212,7 @@ suite('aiCustomizationManagementEditor', () => {
 		editor.customizationMigrationInProgress = false;
 		editor.customizationMigrationWritesInProgress = false;
 		editor.customizationMigrationLoading = false;
+		editor.customizationMigrationResultsSettled = false;
 		editor.selectedCustomizationMigrationTargets = new Map();
 		editor.explicitlySelectedCustomizationMigrationTargets = new Set();
 		editor.activeMigrationCategoryId = undefined;
@@ -262,6 +266,16 @@ suite('aiCustomizationManagementEditor', () => {
 		};
 		editor.customizationMigrationService = {
 			migrateMcpServers: async () => ({ migratedCount: 0, failures: [] }),
+		};
+		editor.customizationMigrationTelemetryService = {
+			_serviceBrand: undefined,
+			hintComputed: () => { },
+			hintShown: () => { },
+			hintClicked: () => { },
+			pageShown: () => { },
+			actionClicked: () => { },
+			migrationClicked: () => { },
+			migrationCompleted: () => { },
 		};
 		editor.dialogService = {
 			confirm: async () => ({ confirmed: false }),
@@ -930,16 +944,19 @@ suite('aiCustomizationManagementEditor', () => {
 		editor.editorPreviewDisposables.dispose();
 	});
 
-	function createMigrationRefreshEditor(compute: (session: URI, token: CancellationToken) => Promise<readonly IMcpServerCustomizationMigrationCandidate[]>) {
+	function createMigrationRefreshEditor(compute: (session: URI, token: CancellationToken) => Promise<readonly IMcpServerCustomizationMigrationCandidate[]>, mcpServerMigrationEnabled = true) {
 		const editor = createTestEditor(undefined, createConfigurationServiceStub({
-			[ChatConfiguration.ChatCustomizationsMcpServerMigrationEnabled]: true,
+			[ChatConfiguration.ChatCustomizationsMcpServerMigrationEnabled]: mcpServerMigrationEnabled,
 		}));
 		store.add(editor.editorPreviewDisposables);
 		const renders: boolean[] = [];
 		const applied: (readonly CustomizationMigrationCandidate[])[] = [];
 		editor.renderCustomizationMigrationPage = () => renders.push(editor.customizationMigrationLoading);
-		editor.setCustomizationsToMigrate = candidates => {
+		editor.setCustomizationsToMigrate = (candidates, targetFoldersByType) => {
 			applied.push([...candidates.values()].flat());
+			editor.customizationsByMigrationCategory = candidates;
+			editor.customizationMigrationTargetFoldersByType = targetFoldersByType;
+			editor.customizationMigrationResultsSettled = true;
 			editor.renderCustomizationMigrationPage();
 		};
 		editor.customizationMigrationService.computeMigration = async (session, type, token = CancellationToken.None) => {
@@ -955,7 +972,7 @@ suite('aiCustomizationManagementEditor', () => {
 		return { editor, renders, applied };
 	}
 
-	test('coalesces migration invalidations into one computation and loading transition', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+	test('coalesces migration invalidations and retains settled content during background refresh', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		let computations = 0;
 		const { editor, renders, applied } = createMigrationRefreshEditor(async () => {
 			computations++;
@@ -970,7 +987,88 @@ suite('aiCustomizationManagementEditor', () => {
 		await editor.refreshCustomizationMigrationInfo();
 		assert.deepStrictEqual({ firstBurst, computations, renders, applied }, {
 			firstBurst: { computations: 1, renders: [true, false], applied: [[]] },
-			computations: 2, renders: [true, false, true, false], applied: [[], []],
+			computations: 2, renders: [true, false, false], applied: [[], []],
+		});
+	}));
+
+	test('keeps a new context loading when its first refresh is superseded', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const serverA: IMcpServerCustomizationMigrationCandidate = {
+			type: CustomizationMigrationType.McpServers,
+			id: 'server-a',
+			name: 'server-a',
+			sourceUri: URI.file('/workspace-a/.vscode/mcp.json'),
+			targetUri: URI.file('/workspace-a/.mcp.json'),
+			projectedConfiguration: { type: McpServerType.LOCAL, command: 'node' },
+		};
+		const firstBStarted = new DeferredPromise<void>();
+		const secondBStarted = new DeferredPromise<void>();
+		const firstBBlocked = new DeferredPromise<void>();
+		const secondBBlocked = new DeferredPromise<void>();
+		const requests: { session: string; token: CancellationToken }[] = [];
+		const { editor, applied } = createMigrationRefreshEditor(async (session, token) => {
+			requests.push({ session: session.path, token });
+			if (session.path === '/session-a') {
+				return [serverA];
+			}
+			if (requests.filter(request => request.session === '/session-b').length === 1) {
+				firstBStarted.complete();
+				await raceCancellationError(firstBBlocked.p, token);
+			} else {
+				secondBStarted.complete();
+				await raceCancellationError(secondBBlocked.p, token);
+			}
+			return [];
+		});
+		await editor.refreshCustomizationMigrationInfo();
+		editor.customizationMigrationTargetFoldersByType.set(PromptsType.agent, [{
+			uri: URI.file('/workspace-a/.github/agents'),
+			label: '.github/agents',
+			source: AICustomizationSources.local,
+		}]);
+
+		editor.harnessService.activeSessionResource.set(URI.parse('agent-host-test:/session-b'), undefined);
+		const firstB = editor.refreshCustomizationMigrationInfo();
+		await firstBStarted.p;
+		const secondB = editor.refreshCustomizationMigrationInfo();
+		await secondBStarted.p;
+		editor.renderCustomizationMigrationPage();
+		const pendingState = {
+			loading: editor.customizationMigrationLoading,
+			settled: editor.customizationMigrationResultsSettled,
+			candidates: [...editor.customizationsByMigrationCategory.values()].flat(),
+			targetFolders: [...editor.customizationMigrationTargetFoldersByType.values()].flat(),
+		};
+		firstBBlocked.complete();
+		secondBBlocked.complete();
+		await Promise.all([firstB, secondB]);
+
+		assert.deepStrictEqual({
+			firstBCancelled: requests[1].token.isCancellationRequested,
+			sessions: requests.map(request => request.session),
+			pendingState,
+			applied,
+		}, {
+			firstBCancelled: true,
+			sessions: ['/session-a', '/session-b', '/session-b'],
+			pendingState: { loading: true, settled: false, candidates: [], targetFolders: [] },
+			applied: [[serverA], []],
+		});
+	}));
+
+	test('does not show loading when refreshing a settled empty context', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const { editor, renders, applied } = createMigrationRefreshEditor(async () => [], false);
+
+		await editor.refreshCustomizationMigrationInfo();
+		await editor.refreshCustomizationMigrationInfo();
+
+		assert.deepStrictEqual({
+			settled: editor.customizationMigrationResultsSettled,
+			renders,
+			applied,
+		}, {
+			settled: true,
+			renders: [true, false, false],
+			applied: [[], []],
 		});
 	}));
 

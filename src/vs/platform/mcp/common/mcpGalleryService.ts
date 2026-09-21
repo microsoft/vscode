@@ -13,7 +13,7 @@ import { localize } from '../../../nls.js';
 import { IFileService } from '../../files/common/files.js';
 import { ILogService } from '../../log/common/log.js';
 import { asJson, asText, isSuccess, IRequestService } from '../../request/common/request.js';
-import { GalleryMcpServerStatus, IGalleryMcpServer, IMcpGalleryServerResolveResult, IMcpGalleryService, IMcpServerArgument, IMcpServerInput, IMcpServerKeyValueInput, IMcpServerPackage, IQueryOptions, McpGalleryResolveStatus, RegistryType, SseTransport, StreamableHttpTransport, Transport, TransportType } from './mcpManagement.js';
+import { GalleryMcpServerStatus, IGalleryMcpServer, IMcpGalleryServerResolveResult, IMcpGalleryService, IMcpServerArgument, IMcpServerInput, IMcpServerKeyValueInput, IMcpServerPackage, IQueryOptions, McpGalleryResolveStatus, RegistryType, RemoteTransport, Transport, TransportType } from './mcpManagement.js';
 import { IMcpGalleryManifestService, McpGalleryManifestStatus, getMcpGalleryManifestResourceUri, McpGalleryResourceType, IMcpGalleryManifest } from './mcpGalleryManifest.js';
 import { IIterativePager, IIterativePage } from '../../../base/common/paging.js';
 import { CancellationError, isCancellationError } from '../../../base/common/errors.js';
@@ -142,7 +142,7 @@ interface IRawGalleryMcpServer {
 	readonly createdAt?: string;
 	readonly updatedAt?: string;
 	readonly packages?: readonly IMcpServerPackage[];
-	readonly remotes?: ReadonlyArray<SseTransport | StreamableHttpTransport>;
+	readonly remotes?: readonly RemoteTransport[];
 	readonly registryInfo?: IMcpRegistryInfo;
 	readonly githubInfo?: IGitHubInfo;
 	readonly apicInfo?: IAzureAPICenterInfo;
@@ -532,7 +532,9 @@ namespace McpServerSchemaVersion_v0_1 {
 
 	type RawGalleryMcpServerArgument = RawGalleryMcpServerPositionalArgument | RawGalleryMcpServerNamedArgument;
 
-	type RawGalleryMcpServerRemotes = ReadonlyArray<SseTransport | StreamableHttpTransport>;
+	type RawGalleryMcpServerRemotes = ReadonlyArray<(SseTransport | StreamableHttpTransport) & {
+		readonly variables?: Record<string, RawGalleryMcpServerInput>;
+	}>;
 
 	type RawGalleryTransport = StdioTransport | StreamableHttpTransport | SseTransport;
 

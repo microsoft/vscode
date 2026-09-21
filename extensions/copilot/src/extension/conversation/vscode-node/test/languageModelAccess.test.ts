@@ -215,8 +215,6 @@ suite('LanguageModelAccess model info', () => {
 			resolveAutoModeEndpoint: async () => endpoint,
 			resolveAutoModePickerEndpoint: async () => endpoint,
 			getAutoPickerMetadata: () => ({ discountRange: { low: 0, high: 0 } }),
-			areAutoModeTiersSupported: () => false,
-			onDidChangeAutoModeTierSupport: Event.None,
 			invalidateRouterCache: () => { },
 		} as unknown as IAutomodeService);
 		testingServiceCollection.define(IEndpointProvider, {
@@ -406,8 +404,6 @@ suite('LanguageModelAccess model info', () => {
 			resolveAutoModeEndpoint: async () => endpoint,
 			resolveAutoModePickerEndpoint: async () => endpoint,
 			getAutoPickerMetadata: () => ({ discountRange: { low: 0, high: 0 } }),
-			areAutoModeTiersSupported: () => false,
-			onDidChangeAutoModeTierSupport: Event.None,
 			consumeLastRoutingDecision: () => undefined,
 			invalidateRouterCache: () => { },
 		} as unknown as IAutomodeService);
@@ -471,8 +467,6 @@ suite('LanguageModelAccess model info', () => {
 			resolveAutoModeEndpoint: async () => lunaEndpoint,
 			resolveAutoModePickerEndpoint: () => autoPickerEndpoint.p,
 			getAutoPickerMetadata: () => ({ discountRange: { low: 0, high: 0 } }),
-			areAutoModeTiersSupported: () => false,
-			onDidChangeAutoModeTierSupport: Event.None,
 			consumeLastRoutingDecision: () => undefined,
 			invalidateRouterCache: () => { },
 		} as unknown as IAutomodeService);

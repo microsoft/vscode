@@ -156,7 +156,7 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 
 		this._contentContainer = $('.chat-group-view-content');
 		this.element.appendChild(this._contentContainer);
-		this._remoteHostUnavailableEmptyState = this._register(new RemoteHostUnavailableEmptyState());
+		this._remoteHostUnavailableEmptyState = this._register(this._instantiationService.createInstance(RemoteHostUnavailableEmptyState));
 		this._contentContainer.appendChild(this._remoteHostUnavailableEmptyState.domNode);
 
 		this._register(this._compositeBar.onDidChangeVisibility(() => this._layoutChildren()));
@@ -180,6 +180,14 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 		this.element.setAttribute('role', 'region');
 		this.element.setAttribute('aria-label', localize('chatGroupAriaLabel', "Chat Group {0} of {1}", index + 1, count));
 		this._compositeBar.setAriaLabel(localize('chatGroupTabsAriaLabel', "Chats, Group {0} of {1}", index + 1, count));
+	}
+
+	startFocusedChatTitleEditing(): boolean {
+		return this._compositeBar.startFocusedTabEditing();
+	}
+
+	startChatTitleEditing(chatResource: URI): boolean {
+		return this._compositeBar.startTabEditing(chatResource);
 	}
 
 	/** Sets (or clears) the group this view renders. */

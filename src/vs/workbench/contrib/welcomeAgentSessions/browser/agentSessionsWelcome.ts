@@ -569,6 +569,7 @@ export class AgentSessionsWelcomePage extends EditorPane {
 			createNewChat: () => this.commandService.executeCommand(ACTION_ID_NEW_CHAT, this.chatWidget?.viewModel ? {
 				$mid: MarshalledId.ChatViewContext,
 				sessionResource: this.chatWidget.viewModel.sessionResource,
+				inputUri: this.chatWidget.inputPart.inputUri,
 			} satisfies IChatViewTitleActionContext : undefined),
 			getHoverPosition: () => HoverPosition.BELOW,
 			trackActiveEditorSession: () => false,
@@ -615,6 +616,7 @@ export class AgentSessionsWelcomePage extends EditorPane {
 				},
 				this.commandService,
 				this.telemetryService,
+				this.configurationService,
 			);
 			this.sessionsControlDisposables.add(agentsBanner.disposables);
 			append(container, agentsBanner.element);

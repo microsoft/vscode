@@ -22,7 +22,8 @@ import { ActiveSessionsContext, MultipleSessionsVisibleContext, SessionsFocusCon
 import { $, addDisposableGenericMouseDownListener, addDisposableListener, EventType, isAncestor, isAncestorOfActiveElement, trackFocus } from '../../../base/browser/dom.js';
 import { IActiveSession } from '../../services/sessions/common/sessionsManagement.js';
 import { SessionView } from './sessionView.js';
-import { DisposableStore } from '../../../base/common/lifecycle.js';
+import { DisposableStore, MutableDisposable } from '../../../base/common/lifecycle.js';
+import { autorun } from '../../../base/common/observable.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Color } from '../../../base/common/color.js';
 import { contrastBorder } from '../../../platform/theme/common/colorRegistry.js';
@@ -35,6 +36,7 @@ import { IAgentWorkbenchLayoutService } from '../workbench.js';
 import { applyAgentsPartCardStyles, getAgentsPartCardContentSize } from './agentsPartCard.js';
 import { SessionsChatBackgroundRenderer } from '../../services/chatBackground/browser/chatBackgroundRenderer.js';
 import { ISessionsChatBackgroundService } from '../../services/chatBackground/browser/chatBackgroundService.js';
+import { noSessionPickerVisibility, SessionPickerVisibilityContextKeys } from '../../services/sessions/common/sessionPickerVisibility.js';
 
 interface IGridSlot {
 	readonly view: SessionView;
@@ -78,14 +80,16 @@ export class SessionsPart extends Part {
 	 */
 	private readonly _slots: IGridSlot[] = [];
 
-	private readonly _onDidFocusSession = this._register(new Emitter<string>());
+	private readonly _onDidFocusSession = this._register(new Emitter<string | undefined>());
 	/** Fired when a session view in the grid receives keyboard focus. */
-	readonly onDidFocusSession: Event<string> = this._onDidFocusSession.event;
+	readonly onDidFocusSession: Event<string | undefined> = this._onDidFocusSession.event;
 
 	protected _lastLayout: { readonly width: number; readonly height: number; readonly top: number; readonly left: number } | undefined;
 
 	private readonly _multipleSessionsVisibleKey: IContextKey<boolean>;
 	private readonly _sessionsFocusKey: IContextKey<boolean>;
+	private readonly _pickerVisibilityContextKeys: SessionPickerVisibilityContextKeys;
+	private readonly _activeViewPickerVisibility = this._register(new MutableDisposable());
 
 	/**
 	 * Whether the part itself is visible in the workbench grid. Starts `true`
@@ -128,6 +132,7 @@ export class SessionsPart extends Part {
 		ActiveSessionsContext.bindTo(contextKeyService);
 		this._sessionsFocusKey = SessionsFocusContext.bindTo(contextKeyService);
 		this._multipleSessionsVisibleKey = MultipleSessionsVisibleContext.bindTo(contextKeyService);
+		this._pickerVisibilityContextKeys = this._register(new SessionPickerVisibilityContextKeys(contextKeyService));
 	}
 
 	override create(parent: HTMLElement): void {
@@ -209,6 +214,9 @@ export class SessionsPart extends Part {
 			return;
 		}
 
+		// Rebinding or disposing the old slot must not publish an intermediate active-view state.
+		this._activeViewPickerVisibility.clear();
+
 		// Always keep at least one slot (a placeholder when no sessions are visible).
 		const desiredCount = Math.max(visible.length, 1);
 
@@ -237,8 +245,10 @@ export class SessionsPart extends Part {
 
 		// Mark the active session's element for styling/focus indication.
 		const activeId = active?.sessionId;
+		const activeSlot = this._slots.find(slot => slot.boundSessionId === activeId)
+			?? (this._slots.length === 1 ? this._slots[0] : undefined);
 		for (const slot of this._slots) {
-			const isActive = (slot.boundSessionId !== undefined && slot.boundSessionId === activeId) || this._slots.length === 1;
+			const isActive = slot === activeSlot;
 			slot.view.element.classList.toggle('is-active', isActive);
 			slot.view.setActive(isActive);
 		}
@@ -254,6 +264,9 @@ export class SessionsPart extends Part {
 		}
 
 		this._updateContextKeys(visible);
+		this._activeViewPickerVisibility.value = autorun(reader => {
+			this._pickerVisibilityContextKeys.set(activeSlot?.view.pickerVisibility.read(reader) ?? noSessionPickerVisibility);
+		});
 	}
 
 	private _updateContextKeys(visible: readonly (IActiveSession | undefined)[]): void {
@@ -374,16 +387,10 @@ export class SessionsPart extends Part {
 		const view = disposables.add(this.instantiationService.createInstance(SessionView));
 		view.setPartVisible(this._sessionViewsVisible);
 		const slot: IGridSlot = { view, disposables, boundSessionId: undefined };
-		// Promote a visible session to the active session when its view receives
-		// focus or is clicked. Pointer-down covers clicks on non-focusable chrome
-		// (e.g. the new chat widget's workspace picker area) where focus would
-		// not otherwise move into the view. The placeholder slot (no bound
-		// session) has nothing to activate.
+		// Pointer-down also activates non-focusable chrome and the empty new-session slot.
 		const fireFocus = () => {
-			if (slot.boundSessionId !== undefined) {
-				this._restoreSessionOnActivation(view);
-				this._onDidFocusSession.fire(slot.boundSessionId);
-			}
+			this._restoreSessionOnActivation(view);
+			this._onDidFocusSession.fire(slot.boundSessionId);
 		};
 		disposables.add(addDisposableListener(view.element, EventType.FOCUS_IN, fireFocus, true));
 		disposables.add(addDisposableGenericMouseDownListener(view.element, fireFocus, true));
@@ -461,6 +468,7 @@ export class SessionsPart extends Part {
 	}
 
 	override dispose(): void {
+		this._activeViewPickerVisibility.clear();
 		for (const slot of this._slots) {
 			slot.disposables.dispose();
 		}

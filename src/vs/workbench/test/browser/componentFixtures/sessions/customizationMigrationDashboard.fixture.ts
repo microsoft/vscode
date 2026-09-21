@@ -91,6 +91,7 @@ function renderDashboard(ctx: ComponentFixtureContext, width: number, state: 'ov
 		};
 	}
 	const dashboard = disposableStore.add(instantiationService.createInstance(CustomizationMigrationDashboard, container, {
+		actionClicked: () => { },
 		configureLocations: () => { },
 		reviewCategory: () => { },
 		setWorkspaceSkipped: skipped => {

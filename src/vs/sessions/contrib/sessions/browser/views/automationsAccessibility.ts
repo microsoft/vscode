@@ -10,7 +10,7 @@ import { AccessibleViewRegistry, IAccessibleViewImplementation } from '../../../
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { AccessibilityVerbositySettingId } from '../../../../../workbench/contrib/accessibility/browser/accessibilityConfiguration.js';
 import { IAutomationDescriptor, IAutomationRun, IAutomationSchedule } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
-import { AutomationCatalogueState, IAutomationService } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
+import { AutomationCatalogueState, type IAutomationProviderDescriptor, IAutomationService } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { DAYS_OF_WEEK } from '../../../../../workbench/contrib/chat/common/automations/schedule.js';
 import { IAgentPluginService } from '../../../../../workbench/contrib/chat/common/plugins/agentPluginService.js';
 import { Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
@@ -18,6 +18,7 @@ import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
 import { AutomationsCustomViewFocusContext } from '../../../../common/contextkeys.js';
 import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { IAutomationTemplate, readAutomationTemplates } from './automationTemplates.js';
+import { formatUnavailableAutomationsMessage } from './automationCataloguePresentation.js';
 
 class AutomationsCustomViewAccessibilityHelp implements IAccessibleViewImplementation {
 	readonly type = AccessibleViewType.Help;
@@ -84,6 +85,7 @@ class AutomationsCustomViewAccessibleView implements IAccessibleViewImplementati
 				),
 				automationService.catalogueState.get(),
 				readAutomationTemplates(agentPluginService.plugins.get()),
+				automationService.unavailableProviders.get(),
 			),
 			restoreFocus,
 			AccessibilityVerbositySettingId.Automations,
@@ -102,18 +104,11 @@ function createFocusRestorer(layoutService: IAgentWorkbenchLayoutService): () =>
 	};
 }
 
-export function buildAutomationsAccessibleContent(automations: readonly IAutomationDescriptor[], runs: readonly IAutomationRun[], catalogueState: AutomationCatalogueState, templates: readonly IAutomationTemplate[] = readAutomationTemplates([])): string {
+export function buildAutomationsAccessibleContent(automations: readonly IAutomationDescriptor[], runs: readonly IAutomationRun[], catalogueState: AutomationCatalogueState, templates: readonly IAutomationTemplate[] = readAutomationTemplates([]), unavailableProviders: readonly IAutomationProviderDescriptor[] = []): string {
 	const lines = [localize('automationsAccessibleView.title', "Automations")];
 	const builtInTemplates = templates.filter(template => !template.source);
 	const pluginTemplates = templates.filter(template => !!template.source);
 	if (automations.length > 0) {
-		if (catalogueState === 'loading') {
-			lines.push(localize('automationsAccessibleView.partialLoading', "Additional automations are loading."));
-		} else if (catalogueState === 'unavailable') {
-			lines.push(localize('automationsAccessibleView.partialUnavailable', "Some automations are unavailable."));
-		} else if (catalogueState === 'error') {
-			lines.push(localize('automationsAccessibleView.partialLoadError', "Some automations could not be loaded."));
-		}
 		for (const automation of automations) {
 			lines.push('');
 			lines.push(automation.enabled
@@ -122,10 +117,22 @@ export function buildAutomationsAccessibleContent(automations: readonly IAutomat
 			lines.push(localize('automationsAccessibleView.schedule', "Schedule: {0}", formatSchedule(automation.schedule)));
 			lines.push(localize('automationsAccessibleView.prompt', "Prompt: {0}", automation.prompt));
 		}
+		if (catalogueState === 'loading') {
+			lines.push('');
+			lines.push(localize('automationsAccessibleView.partialLoading', "Additional automations are loading."));
+		} else if (catalogueState === 'unavailable') {
+			lines.push('');
+			lines.push(formatUnavailableAutomationsMessage(unavailableProviders));
+		} else if (catalogueState === 'error') {
+			lines.push('');
+			lines.push(localize('automationsAccessibleView.partialLoadError', "Some automations could not be loaded."));
+		}
 	} else if (catalogueState === 'loading') {
 		lines.push(localize('automationsAccessibleView.loading', "Loading automations."));
 	} else if (catalogueState === 'unavailable') {
-		lines.push(localize('automationsAccessibleView.unavailable', "Some automations are unavailable. One or more providers are disconnected, disabled, or do not support automations."));
+		lines.push(unavailableProviders.length > 0
+			? formatUnavailableAutomationsMessage(unavailableProviders)
+			: localize('automationsAccessibleView.unavailable', "Some automations are unavailable. One or more providers are disconnected, disabled, or do not support automations."));
 	} else if (catalogueState === 'error') {
 		lines.push(localize('automationsAccessibleView.loadError', "Unable to load automations."));
 	} else {

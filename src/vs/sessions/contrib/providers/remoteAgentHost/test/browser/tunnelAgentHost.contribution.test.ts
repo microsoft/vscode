@@ -141,6 +141,11 @@ class StubTunnelService extends Disposable implements ITunnelAgentHostService {
 
 class StubRemoteAgentHostService extends Disposable {
 	declare readonly _serviceBrand: undefined;
+	readonly pendingConnections: { address: string; startedAt: number; userInitiated: boolean }[] = [];
+	private readonly _onDidChangePendingConnections = this._register(new Emitter<void>());
+	readonly onDidChangePendingConnections = this._onDidChangePendingConnections.event;
+
+	firePendingChange(): void { this._onDidChangePendingConnections.fire(); }
 
 	private readonly _onDidChangeConnections = this._register(new Emitter<void>());
 	readonly onDidChangeConnections = this._onDidChangeConnections.event;
@@ -246,10 +251,11 @@ class StubSessionsProvidersService extends Disposable {
 class StubFilterService {
 	declare readonly _serviceBrand: undefined;
 	registerDiscoveryHandler(_handler: () => Promise<void>): IDisposable { return toDisposable(() => { }); }
-	async rediscover(): Promise<void> { /* noop — production routes through the discovery handler */ }
+	async rediscover(): Promise<boolean> { return true; }
 }
 
 class TestTunnelContribution extends TunnelAgentHostContribution {
+	protected override get isWebPlatform(): boolean { return true; }
 	readonly stubProviders = new Map<string, StubProvider>();
 
 	protected override _instantiateProvider(address: string, name: string): RemoteAgentHostSessionsProvider {
@@ -266,7 +272,7 @@ suite('TunnelAgentHostContribution', () => {
 	function createInstantiationService(): TestInstantiationService {
 		const instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(IConnectionDiagnosticsService, {
-			trackDiscovery: (_trigger, discover) => discover(),
+			trackDiscovery: (_trigger, discover) => discover(() => { }),
 			recordHostAction: () => { },
 		});
 		return instantiationService;
@@ -308,6 +314,19 @@ suite('TunnelAgentHostContribution', () => {
 		assert.ok(provider, 'provider should be created for the cached tunnel');
 		assert.strictEqual(provider!.setConnectionCalls.length, 0, 'no live connection yet — wire-up must wait');
 
+		remoteService.pendingConnections.push({ address, startedAt: Date.now(), userInitiated: false });
+		remoteService.firePendingChange();
+		tunnelService.setListed([{ tunnelId, clusterId: 'use', name: 'My Tunnel', hostConnectionCount: 1, protocolVersion: 6, tags: [] }]);
+		await (contribution as unknown as { _silentStatusCheck(): Promise<void> })._silentStatusCheck();
+		assert.deepStrictEqual({
+			status: provider!.connectionStatus.get().kind,
+			connectionEntries: remoteService.connections.length,
+		}, { status: 'connecting', connectionEntries: 0 });
+
+		remoteService.pendingConnections.length = 0;
+		remoteService.firePendingChange();
+		assert.strictEqual(provider!.connectionStatus.get().kind, 'disconnected');
+
 		// Step 2: announce the live connection — `_wireConnections` should bind it.
 		remoteService.addConnection({
 			address,
@@ -329,49 +348,56 @@ suite('TunnelAgentHostContribution', () => {
 		assert.deepStrictEqual(providersService.getProviders(), []);
 	});
 
-	test('on-demand connect threads userInitiated to tunnelService.connect', async () => {
-		const tunnelService = store.add(new StubTunnelService());
-		const remoteService = store.add(new StubRemoteAgentHostService());
-		const providersService = store.add(new StubSessionsProvidersService());
-		const configurationService = new TestConfigurationService({ [RemoteAgentHostsEnabledSettingId]: true });
-		const hostService = new StubHostService();
+	for (const web of [false, true]) {
+		test(`on-demand ${web ? 'web' : 'native'} connect leaves suppression clearing to connection staging`, async () => {
+			const tunnelService = store.add(new StubTunnelService());
+			const remoteService = store.add(new StubRemoteAgentHostService());
+			const providersService = store.add(new StubSessionsProvidersService());
+			const configurationService = new TestConfigurationService({ [RemoteAgentHostsEnabledSettingId]: true });
+			const hostService = new StubHostService();
 
-		const instantiationService = createInstantiationService();
-		instantiationService.stub(ITunnelAgentHostService, tunnelService);
-		instantiationService.stub(IRemoteAgentHostService, remoteService as unknown as IRemoteAgentHostService);
-		instantiationService.stub(ISessionsProvidersService, providersService as unknown as ISessionsProvidersService);
-		instantiationService.stub(IConfigurationService, configurationService);
-		instantiationService.stub(INotificationService, { notify: () => ({ close() { } }) } as unknown as INotificationService);
-		instantiationService.stub(ILogService, new NullLogService());
-		instantiationService.stub(IAuthenticationService, { onDidChangeSessions: Event.None } as unknown as IAuthenticationService);
-		instantiationService.stub(ITelemetryService, { publicLog2: () => { } } as unknown as ITelemetryService);
-		instantiationService.stub(IHostService, hostService);
-		instantiationService.stub(IRemoteTunnelService, store.add(new StubRemoteTunnelService()));
-		instantiationService.stub(IAgentHostFilterService, new StubFilterService() as unknown as IAgentHostFilterService);
+			const instantiationService = createInstantiationService();
+			instantiationService.stub(ITunnelAgentHostService, tunnelService);
+			instantiationService.stub(IRemoteAgentHostService, remoteService as unknown as IRemoteAgentHostService);
+			instantiationService.stub(ISessionsProvidersService, providersService as unknown as ISessionsProvidersService);
+			instantiationService.stub(IConfigurationService, configurationService);
+			instantiationService.stub(INotificationService, { notify: () => ({ close() { } }) } as unknown as INotificationService);
+			instantiationService.stub(ILogService, new NullLogService());
+			instantiationService.stub(IAuthenticationService, { onDidChangeSessions: Event.None } as unknown as IAuthenticationService);
+			instantiationService.stub(ITelemetryService, { publicLog2: () => { } } as unknown as ITelemetryService);
+			instantiationService.stub(IHostService, hostService);
+			instantiationService.stub(IRemoteTunnelService, store.add(new StubRemoteTunnelService()));
+			instantiationService.stub(IAgentHostFilterService, new StubFilterService() as unknown as IAgentHostFilterService);
 
-		const contribution = store.add(instantiationService.createInstance(TestTunnelContribution));
+			const contribution = store.add(instantiationService.createInstance(class extends TestTunnelContribution {
+				protected override get isWebPlatform(): boolean { return web; }
+			}));
 
-		const tunnelId = 'tunnel-bg';
-		const address = `${TUNNEL_ADDRESS_PREFIX}${tunnelId}`;
-		tunnelService.setCached([{ tunnelId, clusterId: 'use', name: 'Background Tunnel' }]);
+			const tunnelId = 'tunnel-bg';
+			const address = `${TUNNEL_ADDRESS_PREFIX}${tunnelId}`;
+			tunnelService.setCached([{ tunnelId, clusterId: 'use', name: 'Background Tunnel' }]);
 
-		// Access the private on-demand orchestration method via a typed seam.
-		const testable = contribution as unknown as {
-			_connectTunnel(address: string, options: { readonly userInitiated: boolean }): Promise<void>;
-		};
+			// Access the private on-demand orchestration method via a typed seam.
+			const testable = contribution as unknown as {
+				_connectTunnel(address: string, options: { readonly userInitiated: boolean }): Promise<void>;
+			};
 
-		tunnelService.dismissTunnel(tunnelId);
-		await testable._connectTunnel(address, { userInitiated: true });
-		assert.deepStrictEqual({
-			dismissed: tunnelService.isTunnelDismissed(tunnelId),
-			connectCalls: tunnelService.connectCalls.map(call => call.options?.userInitiated),
-			providers: providersService.getProviders().map(provider => provider.id),
-		}, {
-			dismissed: false,
-			connectCalls: [true],
-			providers: [`agenthost-${address}`],
+			tunnelService.dismissTunnel(tunnelId);
+			tunnelService.suppressAutoConnect(tunnelId);
+			await testable._connectTunnel(address, { userInitiated: true });
+			assert.deepStrictEqual({
+				dismissed: tunnelService.isTunnelDismissed(tunnelId),
+				suppressed: tunnelService.isAutoConnectSuppressed(tunnelId),
+				connectCalls: tunnelService.connectCalls.map(call => call.options?.userInitiated),
+				providers: providersService.getProviders().map(provider => provider.id),
+			}, {
+				dismissed: false,
+				suppressed: true,
+				connectCalls: [true],
+				providers: [`agenthost-${address}`],
+			});
 		});
-	});
+	}
 
 	test('failed discovery preserves cached tunnels and providers', async () => {
 		const tunnelService = store.add(new StubTunnelService());
@@ -383,7 +409,7 @@ suite('TunnelAgentHostContribution', () => {
 		instantiationService.stub(IConnectionDiagnosticsService, {
 			trackDiscovery: async (trigger, discover) => {
 				recorded.push(trigger);
-				return discover();
+				return discover(() => { });
 			},
 		});
 		instantiationService.stub(ITunnelAgentHostService, tunnelService);
@@ -455,83 +481,92 @@ suite('TunnelAgentHostContribution', () => {
 		assert.strictEqual(tunnelService.isAutoConnectSuppressed(tunnelId), false);
 	});
 
-	test('dismissed tunnel stays removed through discovery until explicitly restored', async () => {
-		const tunnelService = store.add(new StubTunnelService());
-		const remoteService = store.add(new StubRemoteAgentHostService());
-		const providersService = store.add(new StubSessionsProvidersService());
-		const configurationService = new TestConfigurationService({ [RemoteAgentHostsEnabledSettingId]: true });
-		const instantiationService = createInstantiationService();
-		instantiationService.stub(ITunnelAgentHostService, tunnelService);
-		instantiationService.stub(IRemoteAgentHostService, remoteService as unknown as IRemoteAgentHostService);
-		instantiationService.stub(ISessionsProvidersService, providersService as unknown as ISessionsProvidersService);
-		instantiationService.stub(IConfigurationService, configurationService);
-		instantiationService.stub(INotificationService, { notify: () => ({ close() { } }) } as unknown as INotificationService);
-		instantiationService.stub(ILogService, new NullLogService());
-		instantiationService.stub(IAuthenticationService, { onDidChangeSessions: Event.None } as unknown as IAuthenticationService);
-		instantiationService.stub(ITelemetryService, { publicLog2: () => { } } as unknown as ITelemetryService);
-		instantiationService.stub(IHostService, new StubHostService());
-		instantiationService.stub(IRemoteTunnelService, store.add(new StubRemoteTunnelService()));
-		instantiationService.stub(IAgentHostFilterService, new StubFilterService() as unknown as IAgentHostFilterService);
-		const contribution = store.add(instantiationService.createInstance(TestTunnelContribution));
-		const tunnel: ITunnelInfo = {
-			tunnelId: 'tunnel-dismissed',
-			clusterId: 'use',
-			name: 'Dismissed Tunnel',
-			tags: [],
-			protocolVersion: 5,
-			hostConnectionCount: 1,
-		};
-		const address = `${TUNNEL_ADDRESS_PREFIX}${tunnel.tunnelId}`;
-		tunnelService.setCached([{ tunnelId: tunnel.tunnelId, clusterId: tunnel.clusterId, name: tunnel.name }]);
-		tunnelService.setListed([tunnel]);
-		const testable = contribution as unknown as {
-			_disconnectTunnel(address: string): Promise<void>;
-			_silentStatusCheck(): Promise<void>;
-		};
+	for (const web of [false, true]) {
+		test(`intentional disconnect ${web ? 'keeps the web tunnel selectable' : 'preserves native persistent removal'}`, async () => {
+			const tunnelService = store.add(new StubTunnelService());
+			const remoteService = store.add(new StubRemoteAgentHostService());
+			const providersService = store.add(new StubSessionsProvidersService());
+			const configurationService = new TestConfigurationService({ [RemoteAgentHostsEnabledSettingId]: true });
+			const instantiationService = createInstantiationService();
+			instantiationService.stub(ITunnelAgentHostService, tunnelService);
+			instantiationService.stub(IRemoteAgentHostService, remoteService as unknown as IRemoteAgentHostService);
+			instantiationService.stub(ISessionsProvidersService, providersService as unknown as ISessionsProvidersService);
+			instantiationService.stub(IConfigurationService, configurationService);
+			instantiationService.stub(INotificationService, { notify: () => ({ close() { } }) } as unknown as INotificationService);
+			instantiationService.stub(ILogService, new NullLogService());
+			instantiationService.stub(IAuthenticationService, { onDidChangeSessions: Event.None } as unknown as IAuthenticationService);
+			instantiationService.stub(ITelemetryService, { publicLog2: () => { } } as unknown as ITelemetryService);
+			instantiationService.stub(IHostService, new StubHostService());
+			instantiationService.stub(IRemoteTunnelService, store.add(new StubRemoteTunnelService()));
+			instantiationService.stub(IAgentHostFilterService, new StubFilterService() as unknown as IAgentHostFilterService);
+			const contribution = store.add(instantiationService.createInstance(class extends TestTunnelContribution {
+				protected override get isWebPlatform(): boolean { return web; }
+			}));
+			const tunnel: ITunnelInfo = {
+				tunnelId: 'tunnel-dismissed',
+				clusterId: 'use',
+				name: 'Dismissed Tunnel',
+				tags: [],
+				protocolVersion: 5,
+				hostConnectionCount: 1,
+			};
+			const address = `${TUNNEL_ADDRESS_PREFIX}${tunnel.tunnelId}`;
+			tunnelService.setCached([{ tunnelId: tunnel.tunnelId, clusterId: tunnel.clusterId, name: tunnel.name }]);
+			tunnelService.setListed([tunnel]);
+			const testable = contribution as unknown as {
+				_disconnectTunnel(address: string): Promise<void>;
+				_removeTunnel(address: string): Promise<void>;
+				_silentStatusCheck(): Promise<void>;
+			};
 
-		await testable._disconnectTunnel(address);
-		const afterRemove = {
-			cached: tunnelService.getCachedTunnels().map(cached => cached.tunnelId),
-			dismissed: tunnelService.isTunnelDismissed(tunnel.tunnelId),
-			disconnectCalls: tunnelService.disconnectCalls,
-			providers: providersService.getProviders().map(provider => provider.id),
-		};
-		await testable._silentStatusCheck();
-		const afterDiscovery = {
-			cached: tunnelService.getCachedTunnels().map(cached => cached.tunnelId),
-			dismissed: tunnelService.isTunnelDismissed(tunnel.tunnelId),
-			providers: providersService.getProviders().map(provider => provider.id),
-		};
-
-		tunnelService.clearTunnelDismissal(tunnel.tunnelId);
-		tunnelService.cacheTunnel(tunnel, 'github');
-		assert.deepStrictEqual({
-			afterRemove,
-			afterDiscovery,
-			afterExplicitRestore: {
+			await testable._disconnectTunnel(address);
+			const afterDisconnect = {
+				cached: tunnelService.getCachedTunnels().map(cached => cached.tunnelId),
+				dismissed: tunnelService.isTunnelDismissed(tunnel.tunnelId),
+				autoConnectSuppressed: tunnelService.isAutoConnectSuppressed(tunnel.tunnelId),
+				disconnectCalls: [...tunnelService.disconnectCalls],
+				providers: providersService.getProviders().map(provider => provider.id),
+			};
+			await testable._silentStatusCheck();
+			const afterDiscovery = {
+				cached: tunnelService.getCachedTunnels().map(cached => cached.tunnelId),
+				dismissed: tunnelService.isTunnelDismissed(tunnel.tunnelId),
+				autoConnectSuppressed: tunnelService.isAutoConnectSuppressed(tunnel.tunnelId),
+				providers: providersService.getProviders().map(provider => provider.id),
+			};
+			await testable._removeTunnel(address);
+			const afterRemove = {
 				cached: tunnelService.getCachedTunnels().map(cached => cached.tunnelId),
 				dismissed: tunnelService.isTunnelDismissed(tunnel.tunnelId),
 				providers: providersService.getProviders().map(provider => provider.id),
-			},
-		}, {
-			afterRemove: {
-				cached: [],
-				dismissed: true,
-				disconnectCalls: [address],
-				providers: [],
-			},
-			afterDiscovery: {
-				cached: [],
-				dismissed: true,
-				providers: [],
-			},
-			afterExplicitRestore: {
-				cached: [tunnel.tunnelId],
-				dismissed: false,
-				providers: [`agenthost-${address}`],
-			},
+			};
+
+			assert.deepStrictEqual({
+				afterDisconnect,
+				afterDiscovery,
+				afterRemove,
+			}, {
+				afterDisconnect: {
+					cached: web ? [tunnel.tunnelId] : [],
+					dismissed: !web,
+					autoConnectSuppressed: web,
+					disconnectCalls: [address],
+					providers: web ? [`agenthost-${address}`] : [],
+				},
+				afterDiscovery: {
+					cached: web ? [tunnel.tunnelId] : [],
+					dismissed: !web,
+					autoConnectSuppressed: web,
+					providers: web ? [`agenthost-${address}`] : [],
+				},
+				afterRemove: {
+					cached: [],
+					dismissed: true,
+					providers: [],
+				},
+			});
 		});
-	});
+	}
 
 	test('clears the provider connection only after a connected transport disconnects', () => {
 		const tunnelService = store.add(new StubTunnelService());

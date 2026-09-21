@@ -102,10 +102,12 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 
 		const { title, message, disclaimer, terminalCustomActions } = state.confirmationMessages;
 
-		// Use pre-computed confirmation data from runInTerminalTool (cd prefix extraction happens there for localization)
-		// Use presentationOverrides for display if available (e.g., extracted Python code)
-		const initialContent = terminalData.presentationOverrides?.commandLine ?? terminalData.confirmation?.commandLine ?? (terminalData.commandLine.toolEdited ?? terminalData.commandLine.original).trimStart();
 		const cdPrefix = terminalData.confirmation?.cdPrefix ?? '';
+		const originalContent = terminalData.confirmation?.commandLine ?? (terminalData.commandLine.toolEdited ?? terminalData.commandLine.original).trimStart();
+		const userEdited = terminalData.commandLine.userEdited;
+		const initialContent = terminalData.presentationOverrides?.commandLine
+			?? (userEdited?.startsWith(cdPrefix) ? userEdited.slice(cdPrefix.length) : userEdited)
+			?? originalContent;
 		// When presentationOverrides is set, the editor should be read-only since the displayed content
 		// differs from the actual command (e.g., extracted Python code vs full python -c command).
 		// A producer that cannot apply an edited command opts out the same way.
@@ -180,9 +182,8 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 		if (!isReadOnly) {
 			this._register(model.onDidChangeContent(() => {
 				const currentValue = model.getValue();
-				// Only set userEdited if the content actually differs from the initial value
-				// Prepend cd prefix back if it was extracted for display
-				if (currentValue !== initialContent) {
+				// Compare with the original command, not a restored user edit.
+				if (currentValue !== originalContent) {
 					terminalData.commandLine.userEdited = cdPrefix + currentValue;
 				} else {
 					terminalData.commandLine.userEdited = undefined;
@@ -221,6 +222,7 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 				buttons: this._createButtons(buildMoreActions())
 			},
 		));
+		this.primaryAction = () => confirmWidget.runPrimaryAction();
 
 		// Agent Host Copilot confirmations need client-generated persistent rule actions.
 		if (autoApproveEnabled && !customActions && terminalData.autoApproveRuleResolvable && getChatSessionType(this.context.element.sessionResource) === SessionType.AgentHostCopilot) {
@@ -554,7 +556,7 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 			this.codeBlockStartIndex,
 			this.renderer,
 			undefined,
-			this.currentWidthDelegate(),
+			this.currentWidthDelegate,
 			{ codeBlockRenderOptions },
 		));
 		append(container, part.domNode);

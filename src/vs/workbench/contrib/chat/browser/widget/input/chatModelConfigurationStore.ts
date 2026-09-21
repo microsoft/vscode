@@ -33,6 +33,10 @@ export class ChatModelConfigurationStore extends Disposable implements IModelCon
 	private readonly _onDidChange = this._register(new Emitter<string>());
 	readonly onDidChange: Event<string> = this._onDidChange.event;
 
+	private readonly _onDidSelectConfiguration = this._register(new Emitter<string>());
+	/** Explicit selections, including reselecting a value; restores and schema updates do not fire. */
+	readonly onDidSelectConfiguration: Event<string> = this._onDidSelectConfiguration.event;
+
 	constructor(
 		private readonly getStorageKey: () => string,
 		private readonly languageModelsService: ILanguageModelsService,
@@ -98,6 +102,7 @@ export class ChatModelConfigurationStore extends Disposable implements IModelCon
 
 	async setModelConfiguration(modelId: string, values: IStringDictionary<unknown>): Promise<void> {
 		const changed = this._applyLocalModelConfiguration(modelId, values);
+		this._onDidSelectConfiguration.fire(modelId);
 		if (!changed) {
 			// No-op (e.g. re-selecting the already-current value): skip the global
 			// write to avoid a redundant profile-file write and the resulting
@@ -124,10 +129,10 @@ export class ChatModelConfigurationStore extends Disposable implements IModelCon
 
 	/**
 	 * Applies the change to this editor's scoped state only (in-memory snapshot
-	 * and persisted bucket). Returns `true` when something actually changed, so
+	 * and optionally persisted bucket). Returns `true` when something actually changed, so
 	 * callers can skip propagating no-op updates to the profile-global value.
 	 */
-	private _applyLocalModelConfiguration(modelId: string, values: IStringDictionary<unknown>): boolean {
+	private _applyLocalModelConfiguration(modelId: string, values: IStringDictionary<unknown>, persist = true): boolean {
 		const schemaDefaults = this._schemaDefaults(modelId);
 		const stored = computeStoredConfiguration(this.getModelConfiguration(modelId) ?? {}, values, schemaDefaults);
 		const nextOverride = { ...schemaDefaults, ...stored };
@@ -135,8 +140,8 @@ export class ChatModelConfigurationStore extends Disposable implements IModelCon
 		// Skip redundant updates. `restoreModelConfiguration` can be invoked on
 		// every input-state sync while a session stays selected, so avoid storming
 		// storage writes and onDidChange listeners when nothing actually changes.
-		const bucket = this._readBucket();
-		if (equals(this._overrides.get(modelId), nextOverride) && equals(bucket[modelId], stored)) {
+		const bucket = persist ? this._readBucket() : undefined;
+		if (equals(this._overrides.get(modelId), nextOverride) && (!bucket || equals(bucket[modelId], stored))) {
 			return false;
 		}
 
@@ -148,8 +153,10 @@ export class ChatModelConfigurationStore extends Disposable implements IModelCon
 		// remembered and does not fall back to the profile-global value on the
 		// next read. Already-open editors keep their own in-memory snapshot and
 		// are unaffected because nothing listens to storage changes for this key.
-		bucket[modelId] = stored;
-		this._writeBucket(bucket);
+		if (bucket) {
+			bucket[modelId] = stored;
+			this._writeBucket(bucket);
+		}
 
 		this._onDidChange.fire(modelId);
 		return true;
@@ -166,7 +173,7 @@ export class ChatModelConfigurationStore extends Disposable implements IModelCon
 	/**
 	 * Restores a previously captured configuration for a model (e.g. when
 	 * reopening a chat session). Seeds this editor's in-memory snapshot and
-	 * persists it as the scoped default so the restored value participates in
+	 * optionally persists it as the scoped default so the restored value participates in
 	 * the same resolution hierarchy as a user-made change — mirroring how the
 	 * restored model selection is persisted to its scoped storage key.
 	 *
@@ -184,7 +191,7 @@ export class ChatModelConfigurationStore extends Disposable implements IModelCon
 	 * session's own configuration in that race, the captured values are restored
 	 * as-is; a later sync re-validates them once the schema loads. See #320393.
 	 */
-	restoreModelConfiguration(modelId: string, values: IStringDictionary<unknown>): void {
+	restoreModelConfiguration(modelId: string, values: IStringDictionary<unknown>, persist = true): void {
 		const metadata = this.languageModelsService.lookupLanguageModel(modelId);
 		const filtered = metadata
 			? filterConfigurationToSchema(values, metadata.configurationSchema)
@@ -193,7 +200,7 @@ export class ChatModelConfigurationStore extends Disposable implements IModelCon
 		// change it must NOT write the profile-global value, since restoring a
 		// session is not an intentional reconfiguration and runs on every
 		// input-state sync.
-		this._applyLocalModelConfiguration(modelId, filtered);
+		this._applyLocalModelConfiguration(modelId, filtered, persist);
 	}
 
 	/**

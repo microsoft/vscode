@@ -13,6 +13,7 @@ import { AgentSessionRegistry } from '../../node/agentSessionRegistry.js';
 class TestAgentHostDatabase implements IAgentHostDatabase {
 	readonly sessions = new Map<string, IAgentHostDatabaseSession>();
 	readonly agentMergeEnabled = new Set<string>();
+	readonly provisionalSessions = new Set<string>();
 	backfilled = false;
 	private readonly _providerBackfilled = new Set<string>();
 	private readonly _sessionsV2Backfilled = new Set<string>();
@@ -185,7 +186,11 @@ class TestAgentHostDatabase implements IAgentHostDatabase {
 	}
 
 	async registerRuntimeSession(session: string, sessionOptions: IAgentHostDatabaseSessionOptions, registerOptions: IAgentHostDatabaseRegisterOptions): Promise<boolean> {
-		return this.registerSessionV2(session, sessionOptions, registerOptions);
+		const registered = await this.registerSessionV2(session, sessionOptions, registerOptions);
+		if (registerOptions.provisional) {
+			this.provisionalSessions.add(session);
+		}
+		return registered;
 	}
 
 	unregisterRuntimeSession(session: string): Promise<void> {
@@ -212,6 +217,20 @@ class TestAgentHostDatabase implements IAgentHostDatabase {
 	async listAgentMergeEnabledSessions(): Promise<readonly string[]> {
 		this._throwReadFailure();
 		return [...this.agentMergeEnabled];
+	}
+
+	async setSessionProvisional(session: string, provisional: boolean): Promise<void> {
+		this._throwWriteFailure();
+		if (provisional) {
+			this.provisionalSessions.add(session);
+		} else {
+			this.provisionalSessions.delete(session);
+		}
+	}
+
+	async listProvisionalSessions(): Promise<readonly string[]> {
+		this._throwReadFailure();
+		return [...this.provisionalSessions];
 	}
 
 	async registerSessionV2(session: string, sessionOptions: IAgentHostDatabaseSessionOptions, registerOptions: IAgentHostDatabaseRegisterOptions): Promise<boolean> {

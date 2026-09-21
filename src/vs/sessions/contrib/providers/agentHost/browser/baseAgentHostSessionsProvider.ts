@@ -64,8 +64,8 @@ import { buildMutableConfigSchema, IAgentHostMcpServer, IAgentHostSessionsProvid
 import { agentHostSessionWorkspaceKey } from '../../../../common/agentHostSessionWorkspace.js';
 import { USE_WORKTREE_SETTING, isSessionConfigComplete } from '../../../../common/sessionConfig.js';
 import { linkKey } from '../../../../common/sessionLinks.js';
-import { ChatInteractivity, ChatModelSource, ChatOriginKind, DEFAULT_CHAT_CAPABILITIES, effectiveChatInteractivity, getGitHubPullRequestRefs, getHighestPriorityPullRequestIcon, IChat, IChatCapabilities, IGitHubInfo, IGitHubIssueRef, IGitHubPullRequestRef, isActiveSessionStatus, ISession, ISessionAgentRef, ISessionArtifact, ISessionCapabilities, ISessionChangesSummary, ISessionChatCustomization, ISessionChangeset, ISessionCreationReference, ISessionFileChange, ISessionTurnFileChange, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction, ISideChatSelection, sessionFileChangesEqual, sessionWorkspaceEqual, SessionRemoteConnectionFailureReason, SessionRemoteConnectionStatus, SessionStatus, SessionTypeAuthRequirement, toSessionId, TURN_CHANGES_CHANGESET_ID } from '../../../../services/sessions/common/session.js';
-import { dedupeLinks, partitionSessionArtifacts } from './agentHostSessionArtifacts.js';
+import { ChatInteractivity, ChatModelSource, ChatOriginKind, DEFAULT_CHAT_CAPABILITIES, effectiveChatInteractivity, getGitHubPullRequestRefs, getHighestPriorityPullRequestIcon, getSessionOwnedGitHubPullRequestRefs, IChat, IChatCapabilities, IGitHubInfo, IGitHubIssueRef, IGitHubPullRequestRef, isActiveSessionStatus, ISession, ISessionAgentRef, ISessionArtifact, ISessionCapabilities, ISessionChangesSummary, ISessionChatCustomization, ISessionChangeset, ISessionCreationReference, ISessionFileChange, ISessionPreparationProgress, ISessionTurnFileChange, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction, ISideChatSelection, sessionFileChangesEqual, sessionWorkspaceEqual, SessionRemoteConnectionFailureReason, SessionRemoteConnectionStatus, SessionStatus, SessionTypeAuthRequirement, toSessionId, TURN_CHANGES_CHANGESET_ID } from '../../../../services/sessions/common/session.js';
+import { dedupeLinks, partitionSessionArtifacts, type IRecordedGitHubReference } from './agentHostSessionArtifacts.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { IAutomationSessionConfiguration, IDeleteChatOptions, ISendRequestOptions, ISessionChangeEvent, ISessionConfigurationSnapshot, ISessionModelPickerOptions, ISessionModelsSnapshot, ISessionsProviderCreateSessionOptions, ISessionWorktreeConfiguration } from '../../../../services/sessions/common/sessionsProvider.js';
 import { IGitHubService } from '../../../github/browser/githubService.js';
@@ -333,7 +333,9 @@ function isGitHubInfoEqual(a: IGitHubInfo | undefined, b: IGitHubInfo | undefine
 			x.icon?.id === y.icon?.id &&
 			x.state === y.state &&
 			x.liveState === y.liveState &&
-			x.title === y.title) &&
+			x.title === y.title &&
+			x.createdByThisSession === y.createdByThisSession &&
+			x.recordedReferenceId === y.recordedReferenceId) &&
 		a.pullRequest?.number === b.pullRequest?.number &&
 		a.pullRequest?.icon?.id === b.pullRequest?.icon?.id &&
 		a.pullRequest?.state === b.pullRequest?.state &&
@@ -346,7 +348,8 @@ function isGitHubInfoEqual(a: IGitHubInfo | undefined, b: IGitHubInfo | undefine
 			x.repo === y.repo &&
 			x.number === y.number &&
 			isEqual(x.uri, y.uri) &&
-			x.title === y.title);
+			x.title === y.title &&
+			x.recordedReferenceId === y.recordedReferenceId);
 }
 
 function dateEquals(a: Date | undefined, b: Date | undefined): boolean {
@@ -357,17 +360,24 @@ function markdownStringEquals(a: IMarkdownString | undefined, b: IMarkdownString
 	return a === b || !!a && !!b && markdownStringEqual(a, b);
 }
 
-/** Maps the GitHub issue URLs recorded on the session's metadata to issue references. */
-function toGitHubIssueRefs(issueUrls: readonly string[] | undefined, titles: ReadonlyMap<string, string>): readonly IGitHubIssueRef[] | undefined {
+/**
+ * A GitHub link fed into the ref mappers. Recorded entries arrive as a full
+ * {@link IRecordedGitHubReference} and carry their stable removal id; entries
+ * discovered from git or session state supply only a url.
+ */
+type IGitHubReferenceSource = Partial<IRecordedGitHubReference> & { readonly url: string };
+
+/** Maps GitHub issue records from the session metadata to issue references. */
+function toGitHubIssueRefs(issues: readonly IGitHubReferenceSource[]): readonly IGitHubIssueRef[] | undefined {
 	const refs: IGitHubIssueRef[] = [];
-	for (const url of issueUrls ?? []) {
-		const reference = parseGitHubIssueUrl(url);
+	for (const issue of issues) {
+		const reference = parseGitHubIssueUrl(issue.url);
 		if (reference) {
-			const title = titles.get(linkKey(url));
 			refs.push({
 				...reference,
-				uri: URI.parse(url),
-				...(title ? { title } : {}),
+				uri: URI.parse(issue.url),
+				...(issue.title ? { title: issue.title } : {}),
+				...(issue.recordedReferenceId ? { recordedReferenceId: issue.recordedReferenceId } : {}),
 			});
 		}
 	}
@@ -377,22 +387,21 @@ function toGitHubIssueRefs(issueUrls: readonly string[] | undefined, titles: Rea
 /**
  * Maps session pull request URLs to references, preserving recency order.
  *
- * `titles` is keyed by {@link linkKey}; a URL missing from it simply carries no
- * title. Every pull request published here belongs to the session — it either
- * produced it or its branch relates to it — so all are marked as such.
+ * Recorded entries retain their stable removal IDs. A discovered association
+ * makes a matching recorded entry session-owned without dropping its identity.
  */
-function toGitHubPullRequestRefs(state: ISessionGitHubState | undefined, pullRequestUrls: readonly string[] | undefined, titles: ReadonlyMap<string, string>): readonly IGitHubPullRequestRef[] | undefined {
+function toGitHubPullRequestRefs(state: ISessionGitHubState | undefined, pullRequests: readonly IGitHubReferenceSource[]): readonly IGitHubPullRequestRef[] | undefined {
 	const refs: IGitHubPullRequestRef[] = [];
-	for (const url of pullRequestUrls ?? []) {
-		const reference = parseGitHubPullRequestUrl(url);
+	for (const pullRequest of pullRequests) {
+		const reference = parseGitHubPullRequestUrl(pullRequest.url);
 		if (reference) {
-			const title = titles.get(linkKey(url));
 			refs.push({
 				...reference,
-				uri: URI.parse(url),
-				state: state?.pullRequestStateUrl && linkKey(state.pullRequestStateUrl) === linkKey(url) ? state.pullRequestState : undefined,
-				...(title ? { title } : {}),
-				createdByThisSession: true,
+				uri: URI.parse(pullRequest.url),
+				state: state?.pullRequestStateUrl && linkKey(state.pullRequestStateUrl) === linkKey(pullRequest.url) ? state.pullRequestState : undefined,
+				...(pullRequest.title ? { title: pullRequest.title } : {}),
+				...(pullRequest.recordedReferenceId ? { recordedReferenceId: pullRequest.recordedReferenceId } : {}),
+				createdByThisSession: pullRequest.recordedReferenceId ? pullRequest.isArtifact === true : true,
 			});
 		}
 	}
@@ -402,10 +411,24 @@ function toGitHubPullRequestRefs(state: ISessionGitHubState | undefined, pullReq
 function toGitHubInfo(meta: SessionMeta | undefined): IGitHubInfo | undefined {
 	const state = readSessionGitHubState(meta);
 	const gitState = readSessionGitState(meta);
-	const { pullRequestUrls, pullRequestTitles, issueUrls, issueTitles } = partitionSessionArtifacts(meta);
+	const { pullRequests: recordedPullRequests, issues: recordedIssues } = partitionSessionArtifacts(meta);
+	const discoveredPullRequests = dedupeLinks(getSessionRelatedPullRequestUrls(state))
+		.map(url => ({ url }));
 
-	// Recorded pull requests lead discovered ones, so the first is the newest.
-	const allPullRequests = toGitHubPullRequestRefs(state, dedupeLinks(pullRequestUrls, getSessionRelatedPullRequestUrls(state)), pullRequestTitles);
+	const allPullRequests = [...(toGitHubPullRequestRefs(state, recordedPullRequests) ?? [])];
+	const pullRequestLinks = new Map(allPullRequests.map((pullRequest, index) => [linkKey(pullRequest.uri.toString()), index]));
+	for (const pullRequest of discoveredPullRequests) {
+		const existingIndex = pullRequestLinks.get(linkKey(pullRequest.url));
+		if (existingIndex !== undefined) {
+			allPullRequests[existingIndex] = { ...allPullRequests[existingIndex], createdByThisSession: true };
+			continue;
+		}
+		const discovered = toGitHubPullRequestRefs(state, [pullRequest])?.[0];
+		if (discovered) {
+			pullRequestLinks.set(linkKey(pullRequest.url), allPullRequests.length);
+			allPullRequests.push(discovered);
+		}
+	}
 	const repository = state?.owner && state.repo
 		? { owner: state.owner, repo: state.repo }
 		: gitState?.githubOwner && gitState.githubRepo
@@ -422,8 +445,8 @@ function toGitHubInfo(meta: SessionMeta | undefined): IGitHubInfo | undefined {
 		ref.owner.toLowerCase() === repository.owner.toLowerCase() && ref.repo.toLowerCase() === repository.repo.toLowerCase();
 
 	const pullRequests = allPullRequests?.filter(belongsToRepository);
-	const pullRequest = pullRequests?.at(0);
-	const issues = toGitHubIssueRefs(dedupeLinks(issueUrls), issueTitles)?.filter(belongsToRepository);
+	const pullRequest = pullRequests?.find(pullRequest => pullRequest.createdByThisSession);
+	const issues = toGitHubIssueRefs(recordedIssues)?.filter(belongsToRepository);
 
 	return {
 		owner: repository.owner,
@@ -530,7 +553,7 @@ export interface IAgentHostAdapterOptions {
 	readonly loading: IObservable<boolean>;
 	/** Builds the session workspace from session metadata; provider-specific (icon, providerLabel, requiresWorkspaceTrust). */
 	readonly buildWorkspace: (project: IAgentSessionMetadata['project'], workingDirectories: readonly URI[] | undefined, gitHubInfo: IObservable<IGitHubInfo | undefined>, gitState: ISessionGitState | undefined) => ISessionWorkspace | undefined;
-	/** Optional URI mapping for diff entries (remote uses `toAgentHostUri`; local uses identity). */
+	/** Optional URI mapping for host-side file resources (remote uses `toAgentHostUri`; local uses identity). */
 	readonly mapDiffUri?: AgentHostUriMapper;
 	/**
 	 * GitHub service used to resolve the pull request that targets the
@@ -1038,7 +1061,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 		});
 		this.artifacts = derivedOpts<readonly ISessionArtifact[]>({ owner: this, equalsFn: structuralEquals }, reader => {
 			const meta = this._metaObs.read(reader);
-			return partitionSessionArtifacts(meta).entries.map(entry => entry.artifact);
+			return partitionSessionArtifacts(meta, this._options.mapDiffUri).entries.map(entry => entry.artifact);
 		});
 
 		const baseGitHubInfoObs = derivedOpts<IGitHubInfo | undefined>({
@@ -1053,27 +1076,30 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 				return baseGitHubInfo;
 			}
 
-			const pullRequests = getGitHubPullRequestRefs(baseGitHubInfo).map((pullRequest, index) => ({
+			const isPrimaryPullRequest = (pullRequest: IGitHubPullRequestRef) =>
+				pullRequest.number === baseGitHubInfo.pullRequest?.number &&
+				isEqual(pullRequest.uri, baseGitHubInfo.pullRequest.uri);
+			const baseRefs = getGitHubPullRequestRefs(baseGitHubInfo);
+			const primaryIndex = Math.max(0, baseRefs.findIndex(isPrimaryPullRequest));
+			const pullRequests = baseRefs.map((pullRequest, index) => ({
 				...pullRequest,
 				...computePullRequestRefPresentation(
 					reader,
 					this._gitHubService,
 					this._pullRequestIconCache,
 					pullRequest,
-					index === 0 ? computePullRequestIcon(GitHubPullRequestState.Open) : undefined,
+					index === primaryIndex ? computePullRequestIcon(GitHubPullRequestState.Open) : undefined,
 				)
 			}));
-			const icon = pullRequests[0].icon;
-			const liveState = pullRequests[0].liveState;
-			const title = pullRequests[0].title;
+			const primaryPullRequest = pullRequests[primaryIndex];
 			return {
 				...baseGitHubInfo,
 				pullRequests: baseGitHubInfo.pullRequests ? pullRequests : undefined,
 				pullRequest: {
 					...baseGitHubInfo.pullRequest,
-					icon,
-					liveState,
-					title,
+					icon: primaryPullRequest.icon,
+					liveState: primaryPullRequest.liveState,
+					title: primaryPullRequest.title,
 				}
 			};
 		});
@@ -1084,7 +1110,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 				return { ...Codicon.gitMerge, color: themeColorFromId('charts.purple') };
 			}
 			const gitHubInfo = this.gitHubInfo.read(reader);
-			return getHighestPriorityPullRequestIcon(getGitHubPullRequestRefs(gitHubInfo).map(pullRequest => pullRequest.icon));
+			return getHighestPriorityPullRequestIcon(getSessionOwnedGitHubPullRequestRefs(gitHubInfo).map(pullRequest => pullRequest.icon));
 		});
 
 		const initialWorkspace = this._computeWorkspace();
@@ -2037,6 +2063,7 @@ class NewSession extends Disposable {
 	private readonly _worktreePending = observableValue<boolean>(this, false);
 	private readonly _description: ISettableObservable<IMarkdownString | undefined>;
 	private readonly _isNewSessionRequestInProgress = observableValue(this, false);
+	readonly preparationProgress = observableValue<ISessionPreparationProgress | undefined>(this, undefined);
 	private readonly _newSessionRequestActivities = new Map<number, string | undefined>();
 	private _newSessionRequestId = 0;
 	private readonly _isActiveSessionObs: IObservable<boolean>;
@@ -2211,6 +2238,7 @@ class NewSession extends Disposable {
 			mode,
 			loading: derived(reader => loading.read(reader) || authPending.read(reader)),
 			isNewSessionRequestInProgress: this._isNewSessionRequestInProgress,
+			preparationProgress: this.preparationProgress,
 			isArchived,
 			isRead,
 			description: this._description,

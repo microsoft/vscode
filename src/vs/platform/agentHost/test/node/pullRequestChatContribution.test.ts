@@ -13,7 +13,7 @@ import { IAgentHostChatContributions } from '../../common/agentHostChatContribut
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import { platformSessionSchema } from '../../common/agentHostSchema.js';
 import { createUnknownAgentHostClientTelemetryContext } from '../../common/agentHostTelemetry.js';
-import { createPullRequestOperationMeta, IPullRequestCreateOptions } from '../../common/meta/agentPullRequestOperationMeta.js';
+import { createPullRequestChatMeta, IPullRequestChatOptions } from '../../common/meta/agentPullRequestOperationMeta.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import { buildDefaultChatUri, MessageKind, SessionStatus } from '../../common/state/sessionState.js';
@@ -25,12 +25,12 @@ import { TurnAdmissionContribution } from '../../node/chatContributions/turnAdmi
 
 suite('PullRequestChatContribution', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
-	const options: IPullRequestCreateOptions = {
-		title: 'Create PR', description: '', draft: false, agentMerge: true,
+	const options: IPullRequestChatOptions = {
+		draft: false, agentMerge: true,
 		agentMergeOptions: { addressReviews: true, fixCI: true, resolveConflicts: false, mergePullRequest: 'never' },
 	};
 
-	function setup(selected: IPullRequestCreateOptions = options, archived = false) {
+	function setup(selected: IPullRequestChatOptions = options, archived = false) {
 		const log = new NullLogService();
 		const state = store.add(new AgentHostStateManager(log));
 		const config = store.add(new AgentConfigurationService(state, log));
@@ -51,7 +51,7 @@ suite('PullRequestChatContribution', () => {
 		store.add(contributions.registerContribution(PullRequestChatContribution));
 		const turn = {
 			session, chat, turnId: 'create-pr',
-			message: { text: 'Create a pull request', origin: { kind: MessageKind.User }, _meta: createPullRequestOperationMeta(selected) },
+			message: { text: 'Create a pull request', origin: { kind: MessageKind.User }, _meta: createPullRequestChatMeta(selected) },
 		};
 		const incoming = {
 			...turn, turnChannel: chat, source: 'direct' as const, clientId: undefined,

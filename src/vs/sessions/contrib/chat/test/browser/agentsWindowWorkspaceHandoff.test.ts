@@ -8,6 +8,7 @@ import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { observableValue } from '../../../../../base/common/observable.js';
+import { Schemas } from '../../../../../base/common/network.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
@@ -29,6 +30,10 @@ import { ISessionsPartService } from '../../../../services/sessions/browser/sess
 import { WorkspaceHandoffState } from '../../../sessions/browser/sessionsWindowOpenTelemetry.js';
 import { AgentsWindowWorkspaceHandoff, WORKSPACE_HANDOFF_TIMEOUT_MS } from '../../browser/agentsWindowWorkspaceHandoff.js';
 import { INewSessionComposerService, NewSessionComposerService } from '../../browser/newSessionComposerService.js';
+import { InMemoryStorageService, IStorageService } from '../../../../../platform/storage/common/storage.js';
+import { IChatDraft, reviveChatDraft, serializeChatDraft } from '../../../../../workbench/contrib/chat/common/attachments/chatDraft.js';
+import { toFileVariableEntry } from '../../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
+import { writeNewChatDraftState } from '../../common/newChatDraftState.js';
 
 suite('Agents Window workspace handoff', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -41,16 +46,23 @@ suite('Agents Window workspace handoff', () => {
 		const initialRestoreComplete = observableValue('restored', true);
 		const navigationRequest = observableValue<ISessionNavigationRequest | undefined>('navigationRequest', undefined);
 		const onWillSend = disposables.add(new Emitter<ISession>());
+		const inputChanged = disposables.add(new Emitter<void>());
+		const storage = disposables.add(new InMemoryStorageService());
+		const drafts: IChatDraft[] = [];
 		const selections: { folder: URI; options?: ISelectWorkspaceOptions }[] = [];
 		const notifications: (IPromptChoice | IPromptChoiceWithMenu)[][] = [];
 		const states: WorkspaceHandoffState[] = [];
 		const openingOptions: boolean[] = [];
 		let providerReady = true;
+		let acceptsWorkspace = (_folder: URI) => true;
 		let viewReady = true;
 		let applies = true;
 		let defaultAllowed = true;
 		let welcome = Promise.resolve();
 		let resolutionError: Error | undefined;
+		let input: IChatDraft = { inputText: '', attachments: [] };
+		let inputReady = true;
+		let draftReady = Promise.resolve();
 		const sessionsService = upcastPartial<ISessionsService>({
 			activeSession,
 			initialRestoreComplete,
@@ -67,11 +79,11 @@ suite('Agents Window workspace handoff', () => {
 		instantiationService.stub(ISessionsService, sessionsService);
 		instantiationService.stub(ISessionsManagementService, upcastPartial<ISessionsManagementService>({
 			onWillSendRequest: onWillSend.event,
-			resolveWorkspace: () => {
+			resolveWorkspace: folder => {
 				if (resolutionError) {
 					throw resolutionError;
 				}
-				return providerReady ? { providerId: 'local', workspace: upcastPartial({}) } : undefined;
+				return providerReady && acceptsWorkspace(folder) ? { providerId: 'local', workspace: upcastPartial({}) } : undefined;
 			},
 		}));
 		const sessionsPartService = upcastPartial<ISessionsPartService>({
@@ -83,13 +95,32 @@ suite('Agents Window workspace handoff', () => {
 					selections.push({ folder, options });
 					return applies ? 'applied' : 'notReady';
 				},
+				applyDraft: async (draft, folder, options, token) => {
+					await draftReady;
+					if (token.isCancellationRequested || input.inputText || input.attachments.length) {
+						return 'preserved';
+					}
+					if (!inputReady) {
+						return 'notReady';
+					}
+					if (folder) {
+						selections.push({ folder, options });
+					}
+					input = reviveChatDraft(draft);
+					drafts.push(input);
+					return 'applied';
+				},
 			}) : undefined,
 		});
 		instantiationService.stub(ISessionsPartService, sessionsPartService);
 		instantiationService.stub(ISessionsSetUpService, upcastPartial<ISessionsSetUpService>({ whenWelcomeDone: () => welcome }));
 		instantiationService.stub(INewSessionComposerService, composerService);
+		instantiationService.stub(IStorageService, storage);
 		disposables.add(composerService.registerComposer({
 			get canApplyWorkspaceDefault() { return defaultAllowed; },
+			get isInputReady() { return inputReady; },
+			get hasInput() { return !!input.inputText || input.attachments.length > 0; },
+			onDidChangeInput: inputChanged.event,
 			animatePrompt: async () => false,
 			showPromptOptions: () => false,
 		}));
@@ -105,13 +136,19 @@ suite('Agents Window workspace handoff', () => {
 		instantiationService.stub(ILogService, upcastPartial<ILogService>({ warn: () => { }, error: () => { } }));
 		const handoff = disposables.add(instantiationService.createInstance(AgentsWindowWorkspaceHandoff));
 		return {
-			handoff, composerService, sessionsService, sessionsPartService, activeSession, initialRestoreComplete, onWillSend, states, selections, notifications, openingOptions,
+			handoff, composerService, sessionsService, sessionsPartService, activeSession, initialRestoreComplete, onWillSend, states, selections, notifications, openingOptions, storage, drafts,
 			set providerReady(value: boolean) { providerReady = value; },
+			set acceptsWorkspace(value: (folder: URI) => boolean) { acceptsWorkspace = value; },
 			set viewReady(value: boolean) { viewReady = value; },
 			set applies(value: boolean) { applies = value; },
 			set defaultAllowed(value: boolean) { defaultAllowed = value; },
 			set welcome(value: Promise<void>) { welcome = value; },
 			set resolutionError(value: Error) { resolutionError = value; },
+			set inputReady(value: boolean) { inputReady = value; },
+			set draftReady(value: Promise<void>) { draftReady = value; },
+			get input() { return input; },
+			edit: (value: IChatDraft) => { input = value; inputChanged.fire(); },
+			openDraft: (draft: IChatDraft, folder: URI | undefined = folderUri) => handoff.selectWorkspace({ folderUri: folder, preferDevContainer: true, isDefault: false, draft: serializeChatDraft(draft) }, state => states.push(state)),
 			open: (isDefault = false, folder = folderUri) => handoff.selectWorkspace({ folderUri: folder, preferDevContainer: true, isDefault }, state => states.push(state)),
 		};
 	}
@@ -141,6 +178,172 @@ suite('Agents Window workspace handoff', () => {
 				openingOptions: [true],
 				selections: [{ folder: folderUri.toString(), options: { providerId: 'local', preferDevContainer: true, selectionOrigin: WorkspaceSelectionOrigin.WindowOpen, isDefault: false } }],
 				notifications: 0,
+			});
+		});
+
+	});
+
+	for (const content of [
+		{ inputText: 'Keep this draft', attachments: [] },
+		{ inputText: '', attachments: [toFileVariableEntry(URI.file('/already-attached'))] },
+	]) {
+		for (const restored of [false, true]) {
+			test(`preserves ${content.inputText ? 'text' : 'attachments'} in a ${restored ? 'hidden restored' : 'mounted'} draft before navigation or workspace changes`, async () => {
+				const harness = createHarness();
+				if (restored) {
+					harness.inputReady = false;
+					writeNewChatDraftState(harness.storage, content);
+				} else {
+					harness.edit(content);
+				}
+				await harness.openDraft({ inputText: 'Incoming', attachments: [] });
+				assert.deepStrictEqual({
+					state: harness.states.at(-1), openings: harness.openingOptions, selections: harness.selections, drafts: harness.drafts,
+				}, { state: 'preservedSession', openings: [], selections: [], drafts: [] });
+			});
+		}
+	}
+
+	test('applies a draft after setup, provider and view readiness without sending', async () => {
+		await runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const harness = createHarness();
+			const welcome = new DeferredPromise<void>();
+			harness.welcome = welcome.p;
+			harness.providerReady = false;
+			harness.viewReady = false;
+			let sends = 0;
+			disposables.add(harness.onWillSend.event(() => sends++));
+			const draft = { inputText: 'Incoming', attachments: [toFileVariableEntry(URI.file('/source/context'))] };
+			const opening = harness.openDraft(draft);
+			await timeout(100);
+			await welcome.complete();
+			await timeout(100);
+			harness.providerReady = true;
+			await timeout(100);
+			harness.viewReady = true;
+			await opening;
+			assert.deepStrictEqual({
+				state: harness.states.at(-1), drafts: harness.drafts, folder: harness.selections[0].folder, sends,
+			}, { state: 'applied', drafts: [draft], folder: folderUri, sends: 0 });
+		});
+	});
+
+	test('an empty composer accepts the source workspace even when defaults are not allowed', async () => {
+		const harness = createHarness();
+		harness.defaultAllowed = false;
+		await harness.openDraft({ inputText: 'New task', attachments: [] });
+		assert.deepStrictEqual({
+			state: harness.states.at(-1), folder: harness.selections[0].folder, options: harness.selections[0].options,
+		}, {
+			state: 'applied', folder: folderUri,
+			options: { providerId: 'local', preferDevContainer: true, selectionOrigin: WorkspaceSelectionOrigin.WindowOpen, isDefault: false },
+		});
+	});
+
+	test('copies a workspace-less draft into the new-session composer', async () => {
+		const harness = createHarness();
+		await harness.handoff.selectWorkspace({
+			preferDevContainer: false, isDefault: false, draft: serializeChatDraft({ inputText: 'No workspace yet', attachments: [] }),
+		}, state => harness.states.push(state));
+		assert.deepStrictEqual({ state: harness.states.at(-1), input: harness.input.inputText, selections: harness.selections }, {
+			state: 'applied', input: 'No workspace yet', selections: [],
+		});
+	});
+
+	for (const authority of ['ssh-remote+host', 'tunnel+host']) {
+		test(`unresolvable ${authority} draft does not change the current session, workspace or input`, async () => {
+			await runWithFakedTimers({ useFakeTimers: true, maxTaskCount: 200 }, async () => {
+				const harness = createHarness();
+				const destinationSession = upcastPartial<IActiveSession>({ sessionId: 'destination', isCreated: observableValue('created', true) });
+				harness.activeSession.set(destinationSession, undefined);
+				harness.acceptsWorkspace = folder => folder.scheme === Schemas.file;
+				await harness.openDraft({ inputText: 'Source project task', attachments: [] }, URI.from({ scheme: Schemas.vscodeRemote, authority, path: '/source' }));
+				assert.deepStrictEqual({
+					state: harness.states.at(-1), active: harness.activeSession.get(),
+					openings: harness.openingOptions, selections: harness.selections, drafts: harness.drafts,
+					input: harness.input, recovery: harness.notifications[0]?.map(choice => choice.label),
+				}, {
+					state: 'providerUnavailable', active: destinationSession,
+					openings: [], selections: [], drafts: [],
+					input: { inputText: '', attachments: [] }, recovery: ['Retry', 'Choose Workspace'],
+				});
+			});
+		});
+	}
+
+	test('an unresolved remote workspace preserves an occupied draft quietly', async () => {
+		const harness = createHarness();
+		harness.acceptsWorkspace = folder => folder.scheme === Schemas.file;
+		const input = { inputText: 'Existing task', attachments: [toFileVariableEntry(URI.file('/destination/context'))] };
+		harness.edit(input);
+		await harness.openDraft({ inputText: 'Remote task', attachments: [] }, URI.from({ scheme: Schemas.vscodeRemote, authority: 'ssh-remote+host', path: '/source' }));
+		assert.deepStrictEqual({
+			state: harness.states.at(-1), input: harness.input, openings: harness.openingOptions, selections: harness.selections, notifications: harness.notifications,
+		}, { state: 'preservedSession', input, openings: [], selections: [], notifications: [] });
+	});
+
+	test('waits for the requested workspace provider before navigating or applying a draft', async () => {
+		await runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const harness = createHarness();
+			const current = upcastPartial<IActiveSession>({ sessionId: 'current', isCreated: observableValue('created', true) });
+			harness.activeSession.set(current, undefined);
+			harness.providerReady = false;
+			const requested = URI.from({ scheme: 'provider-workspace', path: '/source' });
+			const input = { inputText: 'Source task', attachments: [] };
+			const opening = harness.openDraft(input, requested);
+			await timeout(100);
+			const beforeReady = { openings: [...harness.openingOptions], active: harness.activeSession.get(), drafts: [...harness.drafts] };
+			harness.providerReady = true;
+			await opening;
+			assert.deepStrictEqual({
+				beforeReady, state: harness.states.at(-1), openings: harness.openingOptions,
+				folder: harness.selections[0]?.folder, drafts: harness.drafts,
+			}, {
+				beforeReady: { openings: [], active: current, drafts: [] },
+				state: 'applied', openings: [true], folder: requested, drafts: [input],
+			});
+		});
+	});
+
+	for (const waitingFor of ['setup', 'provider', 'workspace'] as const) {
+		test(`a newer input edit cancels a draft while waiting for ${waitingFor}`, async () => {
+			await runWithFakedTimers({ useFakeTimers: true }, async () => {
+				const harness = createHarness();
+				const ready = new DeferredPromise<void>();
+				if (waitingFor === 'setup') {
+					harness.welcome = ready.p;
+				} else if (waitingFor === 'provider') {
+					harness.providerReady = false;
+				} else {
+					harness.draftReady = ready.p;
+				}
+				const opening = harness.openDraft({ inputText: 'Stale incoming text', attachments: [] });
+				await timeout(100);
+				harness.edit({ inputText: 'New destination edit', attachments: [] });
+				harness.providerReady = true;
+				await ready.complete();
+				await opening;
+				assert.deepStrictEqual({ state: harness.states.at(-1), input: harness.input.inputText, drafts: harness.drafts, selections: harness.selections }, {
+					state: 'userChanged', input: 'New destination edit', drafts: [], selections: [],
+				});
+			});
+		});
+	}
+
+	test('a superseded opening cannot overwrite a newer handed-off draft', async () => {
+		await runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const harness = createHarness();
+			const firstReady = new DeferredPromise<void>();
+			harness.draftReady = firstReady.p;
+			const first = harness.openDraft({ inputText: 'First', attachments: [] });
+			await timeout(100);
+			harness.draftReady = Promise.resolve();
+			await harness.openDraft({ inputText: 'Second', attachments: [] });
+			await firstReady.complete();
+			await first;
+			await harness.openDraft({ inputText: 'Third', attachments: [] });
+			assert.deepStrictEqual({ drafts: harness.drafts.map(draft => draft.inputText), input: harness.input.inputText, last: harness.states.at(-1) }, {
+				drafts: ['Second'], input: 'Second', last: 'preservedSession',
 			});
 		});
 	});

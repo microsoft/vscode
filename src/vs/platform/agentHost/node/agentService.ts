@@ -53,6 +53,7 @@ import { IGitBlobUriFields, parseGitBlobUri } from './gitDiffContent.js';
 import { resolveSessionRepositories } from './agentHostSessionRepositories.js';
 import { findDeepestContainingWorkingDirectory, isMultiRootSession } from '../common/agentHostWorkingDirectories.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
+import { IAgentHostSessionTitleController } from './agentHostSessionTitleController.js';
 import { AgentHostAutomationService } from './agentHostAutomationService.js';
 import { createAgentChatContext } from './agentChatContext.js';
 import { AgentHostDebugLogsCollector, type IAgentHostDebugLogsEnvironment } from './agentHostDebugLogs.js';
@@ -100,7 +101,7 @@ import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { AgentHostAuthenticationService } from './agentHostAuthenticationService.js';
 import { updateAgentHostTelemetryLevelFromConfig } from './agentHostTelemetryService.js';
 import type { IAgentHostCopilotSkuClassification, IAgentHostCopilotSkuTelemetry } from './agentHostTelemetryReporter.js';
-import { AgentHostActiveAgentTitleGenerationConfigKey, AgentHostArtifactToolsConfigKey, AgentHostEditTelemetryEnabledConfigKey, AgentHostExternalSessionsMode, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostSessionCatalogEnabledConfigKey, AgentHostShowExternalSessionsConfigKey, platformRootSchema } from '../common/agentHostSchema.js';
+import { AgentHostActiveAgentTitleGenerationConfigKey, AgentHostArtifactToolsCompactPromptsConfigKey, AgentHostArtifactToolsConfigKey, AgentHostEditTelemetryEnabledConfigKey, AgentHostExternalSessionsMode, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostSessionCatalogEnabledConfigKey, AgentHostShowExternalSessionsConfigKey, platformRootSchema } from '../common/agentHostSchema.js';
 import { IAgentHostChangesetService, CHANGESET_DB_METADATA_KEYS, CHANGES_SUMMARY_METADATA_KEYS, META_CHANGES_SUMMARY } from '../common/agentHostChangesetService.js';
 import { GIT_DB_METADATA_KEYS, IAgentHostGitStateService, META_GIT_STATE, META_GITHUB_STATE, META_SOURCE_CONTROL_STATE } from '../common/agentHostGitStateService.js';
 import { IAgentHostChangesetOperationService } from '../common/agentHostChangesetOperationService.js';
@@ -504,6 +505,14 @@ export class AgentService extends Disposable implements IAgentService {
 	private readonly _providerDiscoveryRegistrations = new Map<AgentProvider, Promise<void>>();
 	private readonly _deferredProviderMigrations = new Set<AgentProvider>();
 	private readonly _readableProviderCatalogs = new Set<AgentProvider>();
+	/**
+	 * In-memory mirror of the durable provisional markers. Listing consults it
+	 * synchronously: the phase ordering there drives provider catalog migration,
+	 * so an extra read would change when migration passes run. An unloaded
+	 * mirror is empty, which surfaces sessions rather than hiding them.
+	 */
+	private readonly _provisionalSessionKeys = new Set<string>();
+	private _provisionalSessionKeysLoaded: Promise<void> | undefined;
 
 	/**
 	 * Backing-session URIs suppressed until `sessions_v2` acknowledges their
@@ -635,12 +644,14 @@ export class AgentService extends Disposable implements IAgentService {
 		@IAgentHostWorktreeIsolation private readonly _worktree: IAgentHostWorktreeIsolation,
 		@IAgentHostProviderService private readonly _providerService: IAgentHostProviderService,
 		@IAgentHostTurnService private readonly _turnService: IAgentHostTurnService,
+		@IAgentHostSessionTitleController private readonly _titleController: IAgentHostSessionTitleController,
 	) {
 		super();
 		this._authService = core.authenticationService;
 		this._orchestratorDatabase = core.orchestratorDatabase;
 		this._debugLogsCollector = core.debugLogsCollector;
 		this._sessionRegistry = core.sessionRegistry;
+		void this._whenProvisionalSessionKeysLoaded();
 		this._stateManager = core.stateManager;
 		this._configurationService = core.configurationService;
 		this._recentLocalSessionUpdateSnapshot = this._readRecentLocalSessionUpdates();
@@ -824,6 +835,10 @@ export class AgentService extends Disposable implements IAgentService {
 				...options.catalogReconciliationOptions,
 				canSchedule: () => this._startupSettled.isOpen() && this._isSessionCatalogEnabled(),
 				isSourceAvailable: registered => !!this._providerService.getProvider(registered.provider),
+				onDidMarkSessionProvisional: session => {
+					this._provisionalSessionKeys.add(session);
+					this._invalidateSessionList();
+				},
 			},
 		));
 		this._runWhenStartupSettled('catalog reconciliation', () => {
@@ -880,6 +895,11 @@ export class AgentService extends Disposable implements IAgentService {
 
 	/** Test surface: settles once all deferred work queued so far has run. */
 	async whenDeferredWorkSettled(): Promise<void> {
+		// The marker load runs outside the deferred-work chain, and listing reads
+		// its mirror synchronously. Without joining it here a "settled" listing
+		// could still miss suppression, so a test could pass on load ordering
+		// rather than on the behaviour it asserts.
+		await this._whenProvisionalSessionKeysLoaded();
 		await this._deferredWork;
 	}
 
@@ -1139,6 +1159,9 @@ export class AgentService extends Disposable implements IAgentService {
 		const subscriptions = new DisposableStore();
 		try {
 			this._invalidateSessionList();
+			// A newly registered provider may resolve sessions that were parked
+			// while it was absent or still downloading its SDK.
+			this._catalogReconciliationService.wakeParkedSessions();
 			this._catalogReconciliationService.schedule();
 			provider.setServerToolHost?.(this._serverToolHost);
 			provider.setKnownSessionsFilter?.(sessions => this._filterKnownSessions(sessions));
@@ -1254,6 +1277,7 @@ export class AgentService extends Disposable implements IAgentService {
 	private _createSessionServerToolAccessor(): IAgentServiceSessionServerToolAccessor {
 		return {
 			isActiveAgentTitleGenerationEnabled: () => this._isActiveAgentTitleGenerationEnabled(),
+			getAutomaticTitleGenerationStrategy: session => this._titleController.getAutomaticTitleGenerationStrategy(session),
 			canConvertWorkspace: session => this._providerService.getProviderForSession(session)?.agentHostCapabilities.workspaceConversion === true
 				&& readSessionWorkspaceless(this._stateManager.getSessionState(session.toString())?._meta),
 			listSessions: () => this.listSessions(),
@@ -1294,6 +1318,7 @@ export class AgentService extends Disposable implements IAgentService {
 	private _createArtifactServerToolAccessor(): IArtifactServerToolAccessor {
 		return {
 			isEnabled: () => this._isArtifactToolsEnabled(),
+			useCompactPrompts: () => this._configurationService.getRootValue(platformRootSchema, AgentHostArtifactToolsCompactPromptsConfigKey) === true,
 			persist: async (session, artifacts) => {
 				try {
 					await this._persistOrderedListVisibleSessionState(URI.parse(session), { [SESSION_ARTIFACTS_KEY]: stringifySessionArtifacts(artifacts) });
@@ -1514,6 +1539,10 @@ export class AgentService extends Disposable implements IAgentService {
 			throw new Error(`Invalid ${SessionServerToolName.RenameChat} input: chat must match a known non-default chat.`);
 		}
 
+		if (isDefaultChat) {
+			this._sideEffects.markTitleRenamed(session.toString());
+		}
+		this._sideEffects.markTitleRenamed(session.toString(), chat.toString());
 		await persistSessionMetadataValues(this._sessionDataService, chat.toString(), {
 			[SESSION_CUSTOM_TITLE_KEY]: title,
 			[SESSION_CUSTOM_TITLE_SOURCE_KEY]: AGENT_HOST_TITLE_SOURCE_AGENT,
@@ -1533,10 +1562,6 @@ export class AgentService extends Disposable implements IAgentService {
 			}
 			this._stateManager.updateChatTitle(session.toString(), chat.toString(), title);
 		}
-		if (isDefaultChat) {
-			this._sideEffects.markTitleRenamed(session.toString());
-		}
-		this._sideEffects.markTitleRenamed(session.toString(), chat.toString());
 		return { title };
 	}
 
@@ -1593,6 +1618,88 @@ export class AgentService extends Disposable implements IAgentService {
 			...sessionMetadata,
 			_meta: withSessionExternal(sessionMetadata._meta, external),
 		};
+	}
+
+	/**
+	 * Loads the durable provisional markers into {@link _provisionalSessionKeys}
+	 * once. Started at construction so listing can read the mirror synchronously;
+	 * a read failure leaves the mirror empty, surfacing sessions rather than
+	 * hiding them.
+	 *
+	 * A listing that starts before this read lands cannot suppress anything, but
+	 * it consults the mirror after its provider phase, so one still running when
+	 * the markers arrive suppresses them; a settled one is evicted, so the next
+	 * listing recomputes. The window is therefore bounded by this read alone.
+	 */
+	private _whenProvisionalSessionKeysLoaded(): Promise<void> {
+		return this._provisionalSessionKeysLoaded ??= (async () => {
+			try {
+				for (const session of await this._sessionRegistry.listProvisional()) {
+					this._provisionalSessionKeys.add(session);
+				}
+			} catch (err) {
+				this._logService.warn('[AgentService] Failed to read provisional session markers', err);
+			}
+		})();
+	}
+
+	/**
+	 * Clears a session's provisional marker durably and in the mirror listing
+	 * reads. Setting it happens in the registration transaction instead, so a
+	 * crash cannot separate a registration from its marker.
+	 */
+	private async _clearSessionProvisional(session: URI): Promise<void> {
+		await this._sessionRegistry.setProvisional(session, false);
+		this._provisionalSessionKeys.delete(session.toString());
+	}
+
+	/**
+	 * Drops sessions that are still marked provisional and whose provider cannot
+	 * describe them: their registration points at a backing that was never
+	 * created, so no later run can resolve them (#321269).
+	 *
+	 * Three conditions are required, and each guards a way real content could
+	 * otherwise be hidden: the marker must still be set; the provider's catalog
+	 * must be known readable this run, since a provider that cannot yet answer
+	 * returns `undefined` without throwing and that is not evidence of absence;
+	 * and the provider must then decline to describe the session. A materialized
+	 * session whose marker-clear never landed is kept visible by the third
+	 * condition, and one whose provider is merely unavailable by the second.
+	 *
+	 * Erring towards a visible junk row is deliberate: under-suppressing costs a
+	 * row the user can delete, over-suppressing costs their work.
+	 */
+	private async _withoutUnmaterializedProvisionalSessions(sessions: readonly IAgentSessionMetadata[], registered: readonly IRegisteredSession[]): Promise<readonly IAgentSessionMetadata[]> {
+		if (sessions.length === 0 || this._provisionalSessionKeys.size === 0) {
+			return sessions;
+		}
+		const registeredByKey = new Map(registered.map(entry => [entry.session.toString(), entry]));
+		const unmaterialized = new Set<string>();
+		await Promise.all(sessions.map(async metadata => {
+			const key = metadata.session.toString();
+			const entry = this._provisionalSessionKeys.has(key) ? registeredByKey.get(key) : undefined;
+			if (!entry) {
+				return;
+			}
+			const agent = this._providerService.getProvider(entry.provider);
+			// Read synchronously: this runs inside the listing, whose phase ordering
+			// drives provider catalog migration, so awaiting a readability signal
+			// here would change when those passes run.
+			if (!agent || !this._readableProviderCatalogs.has(entry.provider)) {
+				return;
+			}
+			try {
+				if (!await this._registeredSessionMetadata(agent, entry.session, entry.external, entry)) {
+					unmaterialized.add(key);
+				}
+			} catch (err) {
+				// An erroring provider is not evidence that the backing is missing.
+				this._logService.warn(`[AgentService] listSessions: failed to confirm provisional session ${key}`, err);
+			}
+		}));
+		return unmaterialized.size === 0
+			? sessions
+			: sessions.filter(metadata => !unmaterialized.has(metadata.session.toString()));
 	}
 
 	private async _legacyRegisteredSessionMetadata(registered: IRegisteredSession): Promise<ILegacyRegisteredSessionMetadata | undefined> {
@@ -1879,10 +1986,16 @@ export class AgentService extends Disposable implements IAgentService {
 		if (!agent) {
 			return { status: 'providerUnavailable' };
 		}
-		const isChatBacking = await this._isChatBacking(registered.session);
-		const metadata = await this._getCatalogReconciliationMetadata(agent, registered, isChatBacking);
+		const metadata = await this._getCatalogReconciliationMetadata(agent, registered, () => this._isChatBacking(registered.session));
 		if (!metadata) {
-			return { status: 'providerUnavailable' };
+			if (!this._readableProviderCatalogs.has(registered.provider)) {
+				return { status: 'providerUnavailable' };
+			}
+			// The provider is registered but cannot vouch for this session, so
+			// there is nothing authoritative to project. Reported distinctly from
+			// an unregistered provider so reconciliation can park it instead of
+			// re-opening its storage on every pass.
+			return { status: 'sourceUnresolvable' };
 		}
 		let status = metadata.status ?? SessionStatus.Idle;
 		let metadataFallbacks: Readonly<Record<string, string>> = {};
@@ -1967,7 +2080,12 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 	}
 
-	private async _getCatalogReconciliationMetadata(agent: IAgent, registered: IRegisteredSession, isChatBacking: boolean): Promise<IAgentSessionMetadata | undefined> {
+	/**
+	 * `isChatBacking` is resolved lazily: it reads session storage, and a
+	 * session whose provider returns no metadata never reaches the branch that
+	 * needs it.
+	 */
+	private async _getCatalogReconciliationMetadata(agent: IAgent, registered: IRegisteredSession, isChatBacking: () => Promise<boolean>): Promise<IAgentSessionMetadata | undefined> {
 		const providerMetadata = await this._registeredSessionMetadata(agent, registered.session, registered.external);
 		const liveSummary = this._stateManager.getSessionSummary(registered.session.toString());
 		if (!providerMetadata) {
@@ -1977,7 +2095,7 @@ export class AgentService extends Disposable implements IAgentService {
 				modifiedTime: Date.parse(liveSummary.modifiedAt),
 			}, liveSummary) : undefined;
 		}
-		if (isChatBacking || !liveSummary) {
+		if (!liveSummary || await isChatBacking()) {
 			return providerMetadata;
 		}
 		return this._withLiveSessionMetadata(providerMetadata, liveSummary, false, !this._stateManager.getSurfacedSessionSummary(registered.session.toString()));
@@ -2421,6 +2539,13 @@ export class AgentService extends Disposable implements IAgentService {
 				await this._orchestratorDatabase.markSessionsV2PayloadsDirty(changedTitleSessions);
 			} catch (error) {
 				this._logService.warn('[AgentService] Failed to mark discovered title changes dirty', error);
+			}
+			// Discovery is direct evidence that these sources resolve, so a parked
+			// row must be re-attempted; otherwise it keeps its stale title until the
+			// periodic verification. Waking after the dirty write so a pass that is
+			// concurrently deciding to park one of them observes the newer revision.
+			for (const session of changedTitleSessions) {
+				this._catalogReconciliationService.wakeParkedSessions(session);
 			}
 		}
 		if (registryChanged || surfacedMetadataChanged) {
@@ -3111,6 +3236,12 @@ export class AgentService extends Disposable implements IAgentService {
 			}, 0);
 		}
 		const result = results.filter((s): s is IAgentSessionMetadata => s !== undefined);
+		// Skipped without awaiting when no session is provisional: the phases above
+		// drive provider catalog migration, so an unconditional await here would
+		// change when those passes run.
+		const materialized = this._provisionalSessionKeys.size === 0
+			? result
+			: await this._withoutUnmaterializedProvisionalSessions(result, registered);
 
 		// Overlay live session state from the state manager.
 		// For the title, prefer the state manager's value when it is
@@ -3122,7 +3253,7 @@ export class AgentService extends Disposable implements IAgentService {
 		// surfaced here so a fresh `listSessions` call returns the same values
 		// subscribers see via the per-session action stream and
 		// `notify/sessionSummaryChanged`.
-		const withStatus = result.map(s => {
+		const withStatus = materialized.map(s => {
 			const liveSummary = this._stateManager.getSessionSummary(s.session.toString());
 			const metadata = liveSummary
 				? this._withLiveSessionMetadata(s, liveSummary, false, !this._stateManager.getSurfacedSessionSummary(s.session.toString()))
@@ -3814,11 +3945,21 @@ export class AgentService extends Disposable implements IAgentService {
 		} else {
 			try {
 				const registeredAt = Date.now();
+				// The provider deferred this session's backing, so nothing exists on
+				// its side until the first send. That fact is recorded durably in the
+				// same transaction as the registration: the in-memory
+				// `isIdleProvisionalSession` guard reports `false` for a session it no
+				// longer tracks, so after a crash it stops hiding this registration and
+				// the session surfaces as a row that can never be described (#321269).
+				// Writing the marker separately would leave a window where a crash
+				// produces exactly the unmarked orphan this marker exists to catch.
 				await this._retryRegistryMutation(
-					() => this._sessionRegistry.register(session, { provider: provider.id, startTime: registeredAt, modifiedTime: registeredAt, source: 'explicit' }, { checkTombstone: false }),
+					() => this._sessionRegistry.register(session, { provider: provider.id, startTime: registeredAt, modifiedTime: registeredAt, source: 'explicit' }, { checkTombstone: false, provisional: isIdleProvisional }),
 					`registration for ${session.toString()}`,
 				);
-				if (!isIdleProvisional) {
+				if (isIdleProvisional) {
+					this._provisionalSessionKeys.add(session.toString());
+				} else {
 					this._invalidateSessionList();
 				}
 			} catch (err) {
@@ -4403,10 +4544,10 @@ export class AgentService extends Disposable implements IAgentService {
 			this._worktree.notePending(requestedSessionId);
 		}
 
+		const session = config?.session ?? this._mintSessionUri(provider);
 		let created: IAgentCreateSessionResult | undefined;
 		try {
 			const providerConfig = config ? this._toProviderConfig(config) : undefined;
-			const session = config?.session ?? this._mintSessionUri(provider);
 			const defaultChatUri = URI.parse(buildDefaultChatUri(session));
 			const boundConfig: IAgentCreateSessionConfig = { ...(providerConfig ?? {}), session };
 			const result = await provider.chats.createChat(defaultChatUri, this._chatContext(session, defaultChatUri), this._toCreateChatOptions(boundConfig));
@@ -4425,6 +4566,8 @@ export class AgentService extends Disposable implements IAgentService {
 		} catch (err) {
 			if (created) {
 				await this._rollbackProviderSession(provider, created.session);
+			} else {
+				this._titleController.clearSession(session.toString(), []);
 			}
 			throw err;
 		} finally {
@@ -4446,6 +4589,8 @@ export class AgentService extends Disposable implements IAgentService {
 			await provider.chats.disposeChat(defaultChatUri, this._chatContext(session, defaultChatUri));
 		} catch (disposeError) {
 			this._logService.error(disposeError, `[AgentService] Failed to roll back default chat of provider session ${session.toString()}`);
+		} finally {
+			this._titleController.clearSession(session.toString(), []);
 		}
 	}
 
@@ -4847,6 +4992,15 @@ export class AgentService extends Disposable implements IAgentService {
 		// Persist the AH-owned workspace-less marker now that the session has a
 		// real on-disk database (deferred from create for provisional sessions).
 		this._queueCatalogSync(session, this._creationMetadataOverrides(state._meta));
+		// The provider now has a real backing for this session, so it is no longer
+		// provisional. Clearing is retried but still best-effort: a clear that never
+		// lands leaves the marker set, which is why suppression additionally
+		// requires that the provider cannot describe the session — a materialized
+		// session it can describe is never hidden by a stale marker.
+		void this._retryRegistryMutation(
+			() => this._clearSessionProvisional(session),
+			`provisional clearing for ${sessionKey}`,
+		).catch(err => this._logService.error(err, `[AgentService] Failed to clear the provisional marker for ${sessionKey}`));
 		// `markSessionPersisted` writes the summary into state and fires
 		// the deferred `SessionAdded` notification atomically so subscribers
 		// see consistent state through both paths.
@@ -5227,6 +5381,9 @@ export class AgentService extends Disposable implements IAgentService {
 			this._sideEffects.removeSubagentSessions(session.toString());
 			this._stateManager.deleteSession(session.toString());
 			this._externalReconciliationModifiedAt.delete(sessionKey);
+			// The durable marker is dropped with the registration itself; keep the
+			// mirror listing reads in step with it.
+			this._provisionalSessionKeys.delete(sessionKey);
 			if (isEphemeral) {
 				await this._retryRegistryMutation(
 					() => this._sessionRegistry.clearTombstone(session),
@@ -6656,13 +6813,23 @@ export class AgentService extends Disposable implements IAgentService {
 			// concluding the session is unknown.
 			const knownToRegistry = sessionKnownToRegistry || (await this._listRegisteredSessions()).some(entry => entry.session.toString() === sessionStr);
 			if (!meta) {
+				// A session still marked provisional never materialized, so its
+				// provider never created a backing for it to describe — but only a
+				// readable catalog makes that miss authoritative. An unreadable one
+				// returns `undefined` without throwing, which says nothing about
+				// whether the session exists, and a materialized session whose
+				// marker-clear never landed would otherwise be reported as absent.
+				await this._whenProvisionalSessionKeysLoaded();
+				if (catalogReadable && this._provisionalSessionKeys.has(sessionStr)) {
+					throw new ProtocolError(AHP_SESSION_NOT_FOUND, `Session was never created on the backend: ${sessionStr}`);
+				}
 				// Authoritative absence only when the catalog was readable this run and
 				// the registry has no record of the session; a miss for a known
 				// (registered) session, or while the catalog was unavailable, is
 				// transient — e.g. a provider whose SDK is not downloaded yet (#331648).
 				throw catalogReadable && !knownToRegistry
 					? new ProtocolError(AHP_SESSION_NOT_FOUND, `Session not found on backend: ${sessionStr}`)
-					: new ProtocolError(JSON_RPC_INTERNAL_ERROR, `Provider ${agent.id} could not describe ${sessionStr} yet`);
+					: new ProtocolError(JSON_RPC_INTERNAL_ERROR, `Provider ${agent.id} is not ready to open ${sessionStr}; it may still be starting, so try again shortly`);
 			}
 		}
 		this._logService.trace(`[AgentService] restore: provider metadata resolved for ${sessionStr}`);
@@ -6722,6 +6889,11 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 
 		const defaultChatUri = URI.parse(buildDefaultChatUri(sessionStr));
+		// Restore host-owned tool strategy before the provider materializes its tool inventory.
+		const { draft: defaultDraft, title: defaultChatTitle } = await this._chatContributions.hydrateChat({
+			session: sessionStr,
+			chat: defaultChatUri.toString(),
+		}, {});
 		const defaultChatProviderData = await this._readDefaultChatProviderData(session);
 		// Default-chat restore always goes through {@link IAgent.materializeChat};
 		// there is no identity-reuse fallback. Always offer the persisted blob,
@@ -6933,10 +7105,6 @@ export class AgentService extends Disposable implements IAgentService {
 			_meta: restoredMeta,
 		};
 
-		const { draft: defaultDraft, title: defaultChatTitle } = await this._chatContributions.hydrateChat({
-			session: sessionStr,
-			chat: defaultChatUri.toString(),
-		}, {});
 		// This overlay stays here rather than moving into `ChatDraftContribution`: it seeds
 		// the draft's model from `IAgent`-supplied session metadata, so it is provider-shaped,
 		// and moving it would put provider metadata into `IHydrationContext` for one consumer.
@@ -7509,6 +7677,11 @@ export class AgentService extends Disposable implements IAgentService {
 		} catch (error) {
 			this._logService.warn(`[AgentService] Failed to mark catalog payload dirty for ${session}`, error);
 		}
+		// A mutation is fresh evidence about this session, so a parked row must
+		// be re-attempted rather than waiting for the periodic verification. The
+		// wake follows the dirty write so a pass that is concurrently deciding to
+		// park this session observes the newer revision and declines.
+		this._catalogReconciliationService.wakeParkedSessions(session);
 	}
 
 	private async _getChatDraft(session: URI, chatUri: URI): Promise<Message | undefined> {
