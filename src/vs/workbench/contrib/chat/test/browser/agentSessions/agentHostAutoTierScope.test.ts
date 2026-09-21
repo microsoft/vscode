@@ -51,8 +51,9 @@ suite('AgentHostAutoTierScope', () => {
 		const auth = upcastPartial<IAuthenticationService>({
 			onDidChangeSessions: Event.map(changed.event, () => ({ providerId: 'github', label: 'GitHub', event: { added: [], removed: [], changed: [] } })),
 			onDidRegisterAuthenticationProvider: Event.None,
+			onDidUnregisterAuthenticationProvider: Event.None,
 			getOrActivateProviderIdForServer: async () => selectedProvider,
-			getSessions: async provider => { reads++; return provider === 'github' ? sessions : [{ ...session, id: 'other-provider-session' }]; },
+			getSessions: async provider => { reads++; return provider === 'github' ? sessions : [session]; },
 		});
 		const defaults = upcastPartial<IDefaultAccountService>({
 			onDidChangeDefaultAccount: accountChanged.event,

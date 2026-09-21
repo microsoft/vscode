@@ -39,6 +39,7 @@ export class AgentHostAutoTierScope extends Disposable {
 			defaultAccountService.onDidChangeDefaultAccount,
 			authenticationService.onDidChangeSessions,
 			authenticationService.onDidRegisterAuthenticationProvider,
+			authenticationService.onDidUnregisterAuthenticationProvider,
 			agentHostService.rootState.onDidChange,
 			Event.fromObservableLight(agentHostService.authenticationPending),
 			Event.filter(configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('chat.agentHost.unsafeTestToken')),
@@ -79,6 +80,12 @@ export class AgentHostAutoTierScope extends Disposable {
 			return false;
 		}
 		for (const resource of resources) {
+			// Account and session IDs are provider-scoped, not globally unique.
+			for (const server of resource.authorization_servers ?? []) {
+				if (await this.authenticationService.getOrActivateProviderIdForServer(URI.parse(server), URI.parse(resource.resource)) !== account.authenticationProvider.id) {
+					return false;
+				}
+			}
 			const selected = await resolveSessionForResource(
 				URI.parse(resource.resource), resource.authorization_servers ?? [], resource.scopes_supported ?? [],
 				this.authenticationService, this.logService, '[Chat Auto default]',
