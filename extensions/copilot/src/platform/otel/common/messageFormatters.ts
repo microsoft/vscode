@@ -406,12 +406,17 @@ function normalizeToolResultContent(content: unknown, resolveAttachment?: Attach
 function normalizeToolResultBlocks(content: readonly unknown[], resolveAttachment?: AttachmentResolver): { blocks: unknown[]; typed: number } {
 	let typed = 0;
 	const blocks = content.map(block => {
-		const part = isAttachmentBlock(block) ? normalizeAttachmentBlock(block, resolveAttachment) : undefined;
+		if (!isAttachmentBlock(block)) {
+			return block;
+		}
+		const part = normalizeAttachmentBlock(block, resolveAttachment);
 		if (part) {
 			typed++;
 			return part;
 		}
-		return block;
+		// Same fallback as top-level content: an attachment without a usable
+		// source is serialised as text rather than passed through as a raw block.
+		return { type: 'text', content: JSON.stringify(block) };
 	});
 	return { blocks, typed };
 }

@@ -783,6 +783,32 @@ describe('normalizeProviderMessages attachment parts', () => {
 		expect(textOnly[0].parts[0]).toEqual({ type: 'tool_call_response', id: 'call_2', response: 'ab' });
 	});
 
+	it('serialises an unusable attachment as text inside a mixed tool output', () => {
+		const unusable = { type: 'input_image', image_url: '', detail: 'auto' };
+		const result = normalizeProviderMessages([{
+			type: 'function_call_output',
+			call_id: 'call_1',
+			output: [
+				{ type: 'input_image', image_url: pngDataUrl, detail: 'auto' },
+				unusable,
+				{ type: 'input_text', text: 'done' },
+			],
+		}, {
+			role: 'user',
+			content: [{ type: 'tool_result', tool_use_id: 'toolu_1', content: [{ type: 'image', source: { type: 'url', url: '' } }] }],
+		}]);
+		expect(result[0].parts[0]).toMatchObject({
+			response: [
+				{ type: 'blob', modality: 'image', content: pngBase64 },
+				{ type: 'text', content: JSON.stringify(unusable) },
+				{ type: 'input_text', text: 'done' },
+			],
+		});
+		expect(result[1].parts[0]).toMatchObject({
+			response: [{ type: 'text', content: JSON.stringify({ type: 'image', source: { type: 'url', url: '' } }) }],
+		});
+	});
+
 	it('emits an inline Anthropic PDF as a document blob with a size-based token estimate', () => {
 		// 48 bytes encode without padding; the estimate is one token per eight bytes.
 		const pdfBase64 = Buffer.alloc(48, '%PDF-1.4').toString('base64');
