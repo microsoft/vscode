@@ -6,8 +6,10 @@
 import './media/inboxNotificationsView.css';
 import { $, clearNode, trackFocus } from '../../../../base/browser/dom.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
+import { DomScrollableElement } from '../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { autorun, constObservable, IObservable, observableValue } from '../../../../base/common/observable.js';
+import { ScrollbarVisibility } from '../../../../base/common/scrollable.js';
 import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { localize } from '../../../../nls.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
@@ -33,7 +35,15 @@ export class InboxNotificationsView extends AbstractCustomView {
 	readonly title: IObservable<string> = constObservable(localize('inboxNotifications.title', "Inbox"));
 	override readonly description: IObservable<string | undefined>;
 
+	private readonly scrollableContentElement = $('div.inbox-notifications-list-scrollable');
 	private readonly listContainer = observableValue<HTMLElement | undefined>('inboxNotificationsListContainer', undefined);
+	private readonly listElement = $('div.inbox-notifications-list');
+	private readonly scrollableElement = this._register(new DomScrollableElement(this.scrollableContentElement, {
+		horizontal: ScrollbarVisibility.Hidden,
+		vertical: ScrollbarVisibility.Auto,
+		consumeMouseWheelIfScrollbarIsNeeded: true,
+		className: 'inbox-notifications-scrollable',
+	}));
 	private readonly renderedListDisposables = this._register(new DisposableStore());
 
 	constructor(
@@ -58,6 +68,9 @@ export class InboxNotificationsView extends AbstractCustomView {
 	render(container: HTMLElement): void {
 		container.classList.add('inbox-notifications-view');
 		container.tabIndex = -1;
+		if (!this.listElement.parentElement) {
+			this.scrollableContentElement.appendChild(this.listElement);
+		}
 
 		const focusContext = InboxCustomViewFocusContext.bindTo(this.contextKeyService);
 		const focusTracker = this._register(trackFocus(container));
@@ -78,7 +91,8 @@ export class InboxNotificationsView extends AbstractCustomView {
 			this.inboxNotificationsService.clearDismissedNotifications();
 		}));
 
-		const list = container.appendChild($('.inbox-notifications-list'));
+		container.appendChild(this.scrollableElement.getDomNode());
+		const list = this.listElement;
 		list.setAttribute('role', 'list');
 		list.setAttribute('aria-label', localize('inboxNotifications.listAriaLabel', "Prioritized notifications"));
 		this.listContainer.set(list, undefined);
@@ -106,6 +120,8 @@ export class InboxNotificationsView extends AbstractCustomView {
 		for (const item of items) {
 			list.appendChild(this.renderItem(item));
 		}
+
+		this.scrollableElement.scanDomNode();
 	}
 
 	private renderItem(item: IInboxNotificationItem): HTMLElement {
@@ -123,8 +139,10 @@ export class InboxNotificationsView extends AbstractCustomView {
 
 		const heading = card.appendChild($('.inbox-notifications-item-header'));
 		heading.appendChild($('.inbox-notifications-item-title', undefined, item.title));
-		heading.appendChild($('.inbox-notifications-item-kind', undefined, this.kindLabel(item.kind)));
-		heading.appendChild($('.inbox-notifications-item-priority', undefined, this.priorityLabel(item.priority)));
+
+		const badges = card.appendChild($('.inbox-notifications-item-badges'));
+		badges.appendChild($('.inbox-notifications-item-badge kind', undefined, this.kindLabel(item.kind)));
+		badges.appendChild($('.inbox-notifications-item-badge priority', undefined, this.priorityLabel(item.priority)));
 
 		card.appendChild($('.inbox-notifications-item-description', undefined, item.description));
 		card.appendChild($('.inbox-notifications-item-time', undefined, fromNowByDay(item.timestamp, true, true)));
@@ -188,5 +206,7 @@ export class InboxNotificationsView extends AbstractCustomView {
 		}
 	}
 
-	layout(_width: number, _height: number): void { }
+	layout(_width: number, _height: number): void {
+		this.scrollableElement.scanDomNode();
+	}
 }
