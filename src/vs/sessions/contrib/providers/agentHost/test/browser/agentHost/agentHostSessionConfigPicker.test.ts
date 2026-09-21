@@ -559,7 +559,9 @@ suite('Agent Host Session Config Picker', () => {
 		const primary = findModePicker(MenuId.ChatInput);
 		const secondary = findModePicker(MenuId.ChatInputSecondary);
 		const visible = (item: typeof primary, values: Record<string, boolean>) => item.when?.evaluate({
-			getValue: key => values[key],
+			getValue<T>(key: string): T | undefined {
+				return values[key] as T | undefined;
+			},
 		}) ?? true;
 		const agentHost = { [ChatContextKeys.chatIsAgentHostSession.key]: true };
 		const experiment = {
