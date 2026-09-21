@@ -15,6 +15,7 @@ import { IExperimentationService } from '../../../platform/telemetry/common/null
 import { ITokenizerProvider } from '../../../platform/tokenizer/node/tokenizer';
 import { IInstantiationService } from '../../../util/vs/platform/instantiation/common/instantiation';
 import { resolveModelInfo } from '../common/byokProvider';
+import { mergeRequestHeaders } from '../common/requestHeaders';
 import { OpenAIEndpoint } from '../node/openAIEndpoint';
 import { AbstractOpenAICompatibleLMProvider, LanguageModelChatConfiguration, OpenAICompatibleLanguageModelChatInformation } from './abstractLanguageModelChatProvider';
 import { byokKnownModelToAPIInfoWithEffort } from './byokModelInfo';
@@ -289,9 +290,11 @@ export class CustomEndpointOAIEndpoint extends OpenAIEndpoint {
 				headers['Authorization'] = `Bearer ${this._apiKey}`;
 			}
 		}
+		const customHeaders: Record<string, string> = {};
 		for (const [key, value] of Object.entries(this._customHeaders)) {
-			headers[key] = this._interpolateApiKey(value);
+			customHeaders[key] = this._interpolateApiKey(value);
 		}
+		mergeRequestHeaders(headers, customHeaders);
 		return headers;
 	}
 
