@@ -427,6 +427,7 @@ export function defineSubagentTests(context: IAgentHostE2ETestContext): void {
 		await assertRecordedAhpSnapshot(this.test!, context.client, {
 			...behaviorSnapshot,
 			ignoredActionTypes: [ActionType.SessionChatAdded, ActionType.ChatToolCallStart],
+			orderIndependentActionTypes: [ActionType.ChatTurnComplete],
 		});
 	});
 

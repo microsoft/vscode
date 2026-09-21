@@ -62,7 +62,7 @@ export class SessionsAICustomizationWorkspaceService implements IAICustomization
 				return override;
 			}
 			const session = this.sessionsService.activeSession.read(reader);
-			const folder = session?.workspace.read(reader)?.folders[0];
+			const folder = session?.activeChat.read(reader).workspace.read(reader)?.folders[0];
 			const root = folder?.workingDirectory;
 			if (root?.scheme === AGENT_HOST_SCHEME) {
 				return undefined;
@@ -76,7 +76,7 @@ export class SessionsAICustomizationWorkspaceService implements IAICustomization
 				return this.labelService.getUriBasenameLabel(override);
 			}
 			const session = this.sessionsService.activeSession.read(reader);
-			return session?.workspace.read(reader)?.folders[0]?.name;
+			return session?.activeChat.read(reader).workspace.read(reader)?.folders[0]?.name;
 		});
 
 		this.hasOverrideProjectRoot = derived(reader => {
@@ -90,7 +90,7 @@ export class SessionsAICustomizationWorkspaceService implements IAICustomization
 			return override;
 		}
 		const session = this.sessionsService.activeSession.get();
-		const folder = session?.workspace.get()?.folders[0];
+		const folder = session?.activeChat.get().workspace.get()?.folders[0];
 		const root = folder?.workingDirectory;
 		if (root?.scheme === AGENT_HOST_SCHEME) {
 			return undefined;
@@ -131,7 +131,7 @@ export class SessionsAICustomizationWorkspaceService implements IAICustomization
 	 */
 	async commitFiles(_projectRoot: URI, fileUris: URI[]): Promise<void> {
 		const session = this.sessionsService.activeSession.get();
-		const folder = session?.workspace.get()?.folders[0];
+		const folder = session?.activeChat.get().workspace.get()?.folders[0];
 		if (!folder?.root) {
 			return;
 		}
@@ -148,7 +148,7 @@ export class SessionsAICustomizationWorkspaceService implements IAICustomization
 	 */
 	async deleteFiles(_projectRoot: URI, fileUris: URI[]): Promise<void> {
 		const session = this.sessionsService.activeSession.get();
-		const folder = session?.workspace.get()?.folders[0];
+		const folder = session?.activeChat.get().workspace.get()?.folders[0];
 		if (!folder?.root) {
 			return;
 		}

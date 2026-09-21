@@ -707,15 +707,16 @@ function _asFormatted(uri: URI, skipEncoding: boolean): string {
 		}
 	}
 	if (path) {
-		// lower-case windows drive letters in /C:/fff or C:/fff
+		// HTTP paths are case-sensitive, even when their first segment resembles a drive letter.
+		const lowerScheme = scheme.toLowerCase();
 		if (path.length >= 3 && path.charCodeAt(0) === CharCode.Slash && path.charCodeAt(2) === CharCode.Colon) {
 			const code = path.charCodeAt(1);
-			if (code >= CharCode.A && code <= CharCode.Z) {
+			if (code >= CharCode.A && code <= CharCode.Z && lowerScheme !== 'http' && lowerScheme !== 'https') {
 				path = `/${String.fromCharCode(code + 32)}:${path.substr(3)}`; // "/c:".length === 3
 			}
 		} else if (path.length >= 2 && path.charCodeAt(1) === CharCode.Colon) {
 			const code = path.charCodeAt(0);
-			if (code >= CharCode.A && code <= CharCode.Z) {
+			if (code >= CharCode.A && code <= CharCode.Z && lowerScheme !== 'http' && lowerScheme !== 'https') {
 				path = `${String.fromCharCode(code + 32)}:${path.substr(2)}`; // "/c:".length === 3
 			}
 		}
