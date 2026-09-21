@@ -454,5 +454,69 @@ suite('File Service', () => {
 		assert.strictEqual(atomicDeleteCounter, 1);
 	});
 
+	for (const [writeFails, streamFails] of [[false, false], [true, false], [false, true], [true, true]]) {
+		test(`buffered stream waits for pending writes before closing (write error: ${writeFails}, stream error: ${streamFails})`, async () => {
+			const service = disposables.add(new FileService(new NullLogService()));
+			const writeStarted = new DeferredPromise<void>();
+			const finishWrite = new DeferredPromise<void>();
+			const writeFinished = new DeferredPromise<void>();
+			const events: string[] = [];
+			const provider = new class extends NullFileSystemProvider {
+				override async stat(): Promise<IStat> {
+					return { type: FileType.File, ctime: 0, mtime: 0, size: 0 };
+				}
+
+				override async open(): Promise<number> {
+					return 1;
+				}
+
+				override async write(_fd: number, _pos: number, _data: Uint8Array, _offset: number, length: number): Promise<number> {
+					events.push('write started');
+					writeStarted.complete();
+					await finishWrite.p;
+					events.push('write finished');
+					writeFinished.complete();
+					if (writeFails) {
+						throw new Error('write failed');
+					}
+					return length;
+				}
+
+				override async close(): Promise<void> {
+					events.push('close');
+				}
+			};
+			provider.setCapabilities(FileSystemProviderCapabilities.FileOpenReadWriteClose);
+			disposables.add(service.registerProvider('test', provider));
+
+			const stream = newWriteableStream<VSBuffer>(chunks => VSBuffer.concat(chunks));
+			disposables.add(toDisposable(() => stream.destroy()));
+			stream.write(VSBuffer.fromString('content'));
+			if (streamFails) {
+				stream.error(new Error('stream failed'));
+			}
+			stream.end();
+
+			const result = service.writeFile(URI.parse('test:///file'), stream).then(
+				() => 'success',
+				(error: Error) => error.message
+			);
+			await writeStarted.p;
+			await timeout(0);
+			finishWrite.complete();
+			const outcome = await result;
+			await writeFinished.p;
+
+			const expectedError = streamFails ? 'stream failed' : writeFails ? 'write failed' : undefined;
+			assert.deepStrictEqual({
+				events,
+				outcome: expectedError ? outcome.includes(expectedError) : outcome
+			}, {
+				events: ['write started', 'write finished', 'close'],
+				outcome: expectedError ? true : 'success'
+			});
+		});
+	}
+
 	ensureNoDisposablesAreLeakedInTestSuite();
 });
