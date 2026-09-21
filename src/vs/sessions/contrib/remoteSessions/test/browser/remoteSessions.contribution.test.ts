@@ -22,9 +22,20 @@ import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/ac
 import { areRemoteSessionToolsEnabled, RemoteSessionToolsEnabledSettingId, remoteSessionToolsWhen } from '../../common/remoteSessions.js';
 import '../../browser/remoteSessions.contribution.js';
 
+const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
+// Configuration suites can clear registrations before this suite runs.
+const remoteSessionToolsConfiguration = configurationRegistry.getConfigurations().find(configuration => configuration.properties?.[RemoteSessionToolsEnabledSettingId]);
+
 suite('Remote Sessions Contribution', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
-	const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
+
+	setup(() => {
+		assert.ok(remoteSessionToolsConfiguration);
+		if (!configurationRegistry.getConfigurationProperties()[RemoteSessionToolsEnabledSettingId]) {
+			configurationRegistry.registerConfiguration(remoteSessionToolsConfiguration);
+			store.add(toDisposable(() => configurationRegistry.deregisterConfigurations([remoteSessionToolsConfiguration])));
+		}
+	});
 
 	test('registers an application-scoped default-off setting with automatic experiments', () => {
 		const property = configurationRegistry.getConfigurationProperties()[RemoteSessionToolsEnabledSettingId];
