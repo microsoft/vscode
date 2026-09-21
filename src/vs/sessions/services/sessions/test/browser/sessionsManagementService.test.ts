@@ -793,7 +793,7 @@ suite('SessionsManagementService', () => {
 		assert.strictEqual(view.activeSession.get()?.sessionId, 'new-draft');
 	});
 
-	test('openNewSession applies a requested Dev Container preference before activating the draft', async () => {
+	test('openNewSession requires Dev Container execution before activating the draft', async () => {
 		const folderUri = URI.file('/test/workspace');
 		const workspace: ISessionWorkspace = {
 			uri: folderUri,
@@ -808,23 +808,31 @@ suite('SessionsManagementService', () => {
 			providerId: LOCAL_AGENT_HOST_PROVIDER_ID,
 			workspace: constObservable(workspace),
 		});
-		const preferredSessions: string[] = [];
+		const events: string[] = [];
 		const provider = new class extends TestSessionsProvider {
 			override readonly id = LOCAL_AGENT_HOST_PROVIDER_ID;
 			override resolveWorkspace(): ISessionWorkspace { return workspace; }
 			override createNewSession(): ISession { return newDraftSession; }
-			preferDevContainer(sessionId: string): void { preferredSessions.push(sessionId); }
+			preferDevContainer(sessionId: string, options?: { readonly required?: boolean }): void {
+				events.push(`require:${sessionId}:${options?.required}`);
+			}
 		}(newDraftSession);
 		const { view } = createSessionsManagementService(newDraftSession, disposables, provider);
+		disposables.add(autorun(reader => {
+			const session = view.activeSession.read(reader);
+			if (session) {
+				events.push(`activate:${session.sessionId}`);
+			}
+		}));
 
-		const result = await view.openNewSession({ folderUri, preferDevContainer: true });
+		const result = await view.openNewSession({ folderUri, requireDevContainer: true });
 
 		assert.deepStrictEqual({
-			preferredSessions,
+			events,
 			result: result.session?.sessionId,
 			active: view.activeSession.get()?.sessionId,
 		}, {
-			preferredSessions: ['new-draft'],
+			events: ['require:new-draft:true', 'activate:new-draft'],
 			result: 'new-draft',
 			active: 'new-draft',
 		});

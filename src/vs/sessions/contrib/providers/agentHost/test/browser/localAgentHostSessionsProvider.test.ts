@@ -7,7 +7,7 @@ import assert from 'assert';
 import { spy } from 'sinon';
 import { renderAsPlaintext } from '../../../../../../base/browser/markdownRenderer.js';
 import { DeferredPromise, raceCancellationError, raceTimeout, timeout } from '../../../../../../base/common/async.js';
-import { CancellationToken } from '../../../../../../base/common/cancellation.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { DisposableMap, DisposableStore, ImmortalReference, toDisposable, type IReference } from '../../../../../../base/common/lifecycle.js';
@@ -3693,6 +3693,90 @@ suite('LocalAgentHostSessionsProvider', () => {
 			canceledAvailable: true,
 			canceledEnabled: false,
 		});
+	});
+
+	for (const outcome of ['unavailable', 'error'] as const) {
+		for (const sendWhilePending of [false, true]) {
+			test(`required Dev Container does not fall back on ${outcome} (send while pending: ${sendWhilePending})`, async () => {
+				const availability = new DeferredPromise<boolean>();
+				let connectCalls = 0;
+				let hostRequests = 0;
+				const provider = createProvider(disposables, agentHost, undefined, {
+					devContainerAgentHostService: new class extends mock<IDevContainerAgentHostService>() {
+						override isAvailable(): Promise<boolean> { return availability.p; }
+						override async connect(): Promise<never> {
+							connectCalls++;
+							throw new Error('Unexpected connection');
+						}
+					}(),
+				});
+				const session = provider.createNewSession(URI.file('/project'), provider.sessionTypes[0].id);
+				provider.preferDevContainer(session.sessionId, { required: true });
+				const pendingEnabled = provider.isDevContainerEnabled(session.sessionId);
+				const send = () => provider.prepareNewSession(session.sessionId, CancellationToken.None, 'hello').then(() => hostRequests++);
+				const rejected = sendWhilePending ? assert.rejects(send(), /selected Dev Container is not available/) : undefined;
+				if (outcome === 'error') {
+					await availability.error(new Error('Configuration probe failed'));
+				} else {
+					await availability.complete(false);
+				}
+				await timeout(0);
+				await (rejected ?? assert.rejects(send(), /selected Dev Container is not available/));
+				const failedEnabled = provider.isDevContainerEnabled(session.sessionId);
+				provider.setDevContainerEnabled(session.sessionId, false);
+				const host = await provider.prepareNewSession(session.sessionId, CancellationToken.None, 'hello');
+				assert.deepStrictEqual({
+					pendingEnabled, failedEnabled, hostRequests, connectCalls,
+					afterOptOut: provider.isDevContainerEnabled(session.sessionId),
+					hostSession: host.session.sessionId,
+				}, {
+					pendingEnabled: true, failedEnabled: true, hostRequests: 0, connectCalls: 0,
+					afterOptOut: false,
+					hostSession: session.sessionId,
+				});
+			});
+		}
+	}
+
+	test('required Dev Container waits for availability and honors trust and cancellation', async () => {
+		const availability = new DeferredPromise<boolean>();
+		let trustRequests = 0;
+		const provider = createProvider(disposables, agentHost, undefined, {
+			devContainerAgentHostService: new class extends mock<IDevContainerAgentHostService>() {
+				override isAvailable(): Promise<boolean> { return availability.p; }
+			}(),
+			requestWorkspaceTrust: async () => { trustRequests++; return false; },
+		});
+		const session = provider.createNewSession(URI.file('/project'), provider.sessionTypes[0].id);
+		provider.preferDevContainer(session.sessionId, { required: true });
+		const cancellation = disposables.add(new CancellationTokenSource());
+		const canceled = assert.rejects(provider.prepareNewSession(session.sessionId, cancellation.token, 'hello'), /Canceled/);
+		cancellation.cancel();
+		await canceled;
+		const trustDeclined = assert.rejects(provider.prepareNewSession(session.sessionId, CancellationToken.None, 'hello'), WorkspaceNotTrustedError);
+		const beforeResolution = trustRequests;
+		await availability.complete(true);
+		await trustDeclined;
+		assert.deepStrictEqual({ beforeResolution, trustRequests, enabled: provider.isDevContainerEnabled(session.sessionId) }, {
+			beforeResolution: 0, trustRequests: 1, enabled: true,
+		});
+	});
+
+	test('required Dev Container retries availability without losing its selection', async () => {
+		let available = false;
+		const provider = createProvider(disposables, agentHost, undefined, {
+			devContainerAgentHostService: new class extends mock<IDevContainerAgentHostService>() {
+				override async isAvailable(): Promise<boolean> { return available; }
+			}(),
+			requestWorkspaceTrust: async () => false,
+		});
+		const session = provider.createNewSession(URI.file('/project'), provider.sessionTypes[0].id);
+		provider.preferDevContainer(session.sessionId, { required: true });
+		await assert.rejects(provider.prepareNewSession(session.sessionId, CancellationToken.None, 'hello'), /selected Dev Container is not available/);
+		available = true;
+		await assert.rejects(provider.prepareNewSession(session.sessionId, CancellationToken.None, 'hello'), WorkspaceNotTrustedError);
+		provider.deleteNewSession(session.sessionId);
+		assert.strictEqual(provider.isDevContainerEnabled(session.sessionId), false);
 	});
 
 	test('prepareNewSession does not start a Dev Container when workspace trust is denied', async () => {

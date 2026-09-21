@@ -1022,7 +1022,7 @@ suite('Sessions - Actions', () => {
 			toSide: undefined,
 			providerId: `agenthost-${agentHostAuthority(sourceAddress)}`,
 			sessionTypeId: activeSession.sessionType,
-			preferDevContainer: true,
+			requireDevContainer: true,
 		}]);
 	});
 

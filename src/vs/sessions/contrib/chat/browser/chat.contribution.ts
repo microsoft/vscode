@@ -230,7 +230,7 @@ class NewChatInSessionsWindowAction extends Action2 {
 			toSide: options?.toSide,
 			...(devContainerSource ? { providerId: devContainerSource.providerId } : {}),
 			...inheritedTarget,
-			...(devContainerSource ? { preferDevContainer: true } : {}),
+			...(devContainerSource ? { requireDevContainer: true } : {}),
 		});
 	}
 }

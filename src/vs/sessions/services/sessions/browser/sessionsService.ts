@@ -78,8 +78,8 @@ export interface IOpenNewSessionOptions extends ICreateNewSessionOptions {
 	 * of the active session in the grid instead of replacing it in place.
 	 */
 	readonly toSide?: boolean;
-	/** Configure the created draft to start in a Dev Container. */
-	readonly preferDevContainer?: boolean;
+	/** Require the created draft to start in a Dev Container rather than falling back to host execution. */
+	readonly requireDevContainer?: boolean;
 }
 
 /**
@@ -1136,14 +1136,14 @@ export class SessionsService extends Disposable implements ISessionsService {
 			this._startOpenSession();
 			try {
 				const session = this.sessionsManagementService.createNewSession(folderUri, options);
-				if (options?.preferDevContainer) {
+				if (options?.requireDevContainer) {
 					const provider = this.sessionsProvidersService.getProvider(session.providerId);
 					if (!provider || !isAgentHostProvider(provider) || !provider.preferDevContainer) {
 						this.sessionsManagementService.discardNewSession(session);
 						throw new Error(`Session provider '${session.providerId}' does not support Dev Container drafts.`);
 					}
 					try {
-						provider.preferDevContainer(session.sessionId);
+						provider.preferDevContainer(session.sessionId, { required: true });
 					} catch (error) {
 						this.sessionsManagementService.discardNewSession(session);
 						throw error;
