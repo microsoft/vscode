@@ -21,14 +21,25 @@ import { SESSION_ARCHIVE_NUDGE_SETTING } from '../../browser/sessionArchiveNudge
 import { SessionsChatAccessibilityHelp } from '../../browser/sessionsChatAccessibilityHelp.js';
 import { SessionsListPromoteNewChatActionContext } from '../../../../common/contextkeys.js';
 import { SESSIONS_CHAT_TABS_SETTING, SessionsChatTabsMode } from '../../../../common/sessionConfig.js';
+import { RemoteSessionToolsEnabledSettingId } from '../../../remoteSessions/common/remoteSessions.js';
 
 suite('SessionsChatAccessibilityHelp', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	for (const enabled of [true, false]) {
-		test(`describes remote delegation only when remote hosts are enabled: ${enabled}`, () => {
+	for (const { name, hostsEnabled, toolsEnabled, aiDisabled, enabled } of [
+		{ name: 'default', hostsEnabled: true, toolsEnabled: undefined, aiDisabled: false, enabled: false },
+		{ name: 'enabled', hostsEnabled: true, toolsEnabled: true, aiDisabled: false, enabled: true },
+		{ name: 'tools disabled', hostsEnabled: true, toolsEnabled: false, aiDisabled: false, enabled: false },
+		{ name: 'hosts disabled', hostsEnabled: false, toolsEnabled: true, aiDisabled: false, enabled: false },
+		{ name: 'AI disabled', hostsEnabled: true, toolsEnabled: true, aiDisabled: true, enabled: false },
+	]) {
+		test(`describes remote delegation only when available: ${name}`, () => {
 			const instantiationService = store.add(new TestInstantiationService());
-			const configuration = new TestConfigurationService({ [RemoteAgentHostsEnabledSettingId]: enabled });
+			const configuration = new TestConfigurationService({
+				[RemoteAgentHostsEnabledSettingId]: hostsEnabled,
+				[RemoteSessionToolsEnabledSettingId]: toolsEnabled,
+				'chat.disableAIFeatures': aiDisabled,
+			});
 			store.add(configuration.onDidChangeConfigurationEmitter);
 			instantiationService.stub(IConfigurationService, configuration);
 			stubContextKeyService(instantiationService, configuration);

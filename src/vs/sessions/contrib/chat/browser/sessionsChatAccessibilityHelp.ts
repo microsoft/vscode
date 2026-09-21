@@ -19,7 +19,7 @@ import { ISessionsService } from '../../../services/sessions/browser/sessionsSer
 import { REPLACE_PROMPT_TEMPLATE_PLACEHOLDER_COMMAND_ID } from './promptTemplatePlaceholder.js';
 import { ARCHIVE_SESSION_COMMAND_ID, FOCUS_ACTIVE_SESSION_COMMAND_ID, FOCUS_NEXT_CHAT_GROUP_COMMAND_ID, FOCUS_PREVIOUS_CHAT_GROUP_COMMAND_ID, MOVE_CHAT_TO_NEXT_GROUP_COMMAND_ID, MOVE_CHAT_TO_PREVIOUS_GROUP_COMMAND_ID, RENAME_CHAT_COMMAND_ID, RENAME_SESSION_COMMAND_ID, SPLIT_CHAT_GROUP_DOWN_COMMAND_ID, SPLIT_CHAT_GROUP_RIGHT_COMMAND_ID } from '../../../common/sessionCommands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { RemoteAgentHostsEnabledSettingId } from '../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { areRemoteSessionToolsEnabled } from '../../remoteSessions/common/remoteSessions.js';
 import { ChatSessionArchiveActionWording, getChatSessionArchiveActionWording } from '../../../../platform/chat/common/sessionArchiveActions.js';
 import { SESSION_ARCHIVE_NUDGE_SETTING } from './sessionArchiveNudge.js';
 import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/browser/layoutService.js';
@@ -51,7 +51,7 @@ export class SessionsChatAccessibilityHelp implements IAccessibleViewImplementat
 		content.push(localize('sessionsChat.externalSessionBanner', "When you first open a session created in another application, a banner appears at the top of the chat. Use Tab to reach its external-session picker, choose an option, and activate Save. The Close action dismisses the banner without changing the setting. Saving or closing permanently dismisses the banner."));
 		content.push(localize('sessionsChat.delegatedMessage', "Messages sent by another session or chat show a source annotation above the message. Press Tab to focus the annotation, then press Enter or Space to open the source chat."));
 		content.push(localize('sessionsChat.createdBySession', "When a session was created by another session, focus it in the Sessions list and use the Show Hover command{0}. Move focus to the Created by link, then press Enter or Space to open the creator session.", '<keybinding:workbench.action.showHover>'));
-		if (accessor.get(IConfigurationService).getValue<boolean>(RemoteAgentHostsEnabledSettingId)) {
+		if (areRemoteSessionToolsEnabled(configurationService)) {
 			content.push(localize('sessionsChat.remoteDelegation', "Ask the agent to list remote agent hosts or create a remote session with platform and resource requirements. Creation uses the standard tool confirmation and does not change the focused chat. The result includes a link to the remote session. Remote sessions can send messages back to the originating chat while this Agents window remains connected."));
 			content.push(localize('sessionsChat.remoteInspection', "Ask the agent to inspect a remote session using its session link. Inspection reads its current state and latest response or error without changing focus, marking the chat as read, or approving pending requests. If the host is unavailable, the result explains why; inspection does not reconnect it."));
 		}

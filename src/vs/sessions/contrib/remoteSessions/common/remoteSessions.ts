@@ -8,7 +8,25 @@ import { Schemas } from '../../../../base/common/network.js';
 import { URI } from '../../../../base/common/uri.js';
 import { AGENT_HOST_SCHEME, fromAgentHostUri } from '../../../../platform/agentHost/common/agentHostUri.js';
 import { IAgentHostResources } from '../../../../platform/agentHost/common/meta/agentHostResources.js';
+import { RemoteAgentHostsEnabledSettingId } from '../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
+
+export const RemoteSessionToolsEnabledSettingId = 'chat.remoteSessions.tools.enabled';
+
+export const remoteSessionToolsWhen = ContextKeyExpr.and(
+	ChatContextKeys.enabled,
+	ContextKeyExpr.equals(`config.${RemoteAgentHostsEnabledSettingId}`, true),
+	ContextKeyExpr.equals(`config.${RemoteSessionToolsEnabledSettingId}`, true),
+);
+
+export function areRemoteSessionToolsEnabled(configurationService: IConfigurationService): boolean {
+	return !configurationService.getValue<boolean>('chat.disableAIFeatures')
+		&& configurationService.getValue<boolean>(RemoteAgentHostsEnabledSettingId) === true
+		&& configurationService.getValue<boolean>(RemoteSessionToolsEnabledSettingId) === true;
+}
 
 export interface IRemoteSessionRequirements {
 	readonly platform?: 'windows' | 'linux' | 'macos';

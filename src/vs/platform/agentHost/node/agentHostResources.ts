@@ -10,7 +10,7 @@ interface IHostResourceSource {
 	readonly platform: string;
 	readonly architecture: string;
 	availableParallelism(): number;
-	totalmem(): number;
+	totalMemory(): number;
 	constrainedMemory(): number | undefined;
 }
 
@@ -19,7 +19,7 @@ export function collectAgentHostResources(source: IHostResourceSource = {
 	platform: process.platform,
 	architecture: process.arch,
 	availableParallelism,
-	totalmem,
+	totalMemory: totalmem,
 	constrainedMemory: () => process.constrainedMemory?.(),
 }): IAgentHostResources {
 	const platform = source.platform === 'win32' ? 'windows'
@@ -27,7 +27,7 @@ export function collectAgentHostResources(source: IHostResourceSource = {
 			: source.platform === 'linux' ? 'linux' : undefined;
 	const architecture = source.architecture.trim().length > 0 ? source.architecture : undefined;
 	const cpuCount = readCapacity(() => source.availableParallelism());
-	const totalMemoryBytes = readCapacity(() => source.totalmem());
+	const totalMemoryBytes = readCapacity(() => source.totalMemory());
 	const constrainedMemoryBytes = readCapacity(() => source.constrainedMemory());
 	const memoryBytes = totalMemoryBytes === undefined ? constrainedMemoryBytes
 		: constrainedMemoryBytes === undefined ? totalMemoryBytes : Math.min(totalMemoryBytes, constrainedMemoryBytes);

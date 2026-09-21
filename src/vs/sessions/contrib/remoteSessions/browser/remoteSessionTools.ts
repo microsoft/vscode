@@ -7,14 +7,9 @@ import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { localize } from '../../../../nls.js';
-import { RemoteAgentHostsEnabledSettingId } from '../../../../platform/agentHost/common/remoteAgentHostService.js';
-import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
-import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { CountTokensCallback, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, ToolDataSource, ToolProgress } from '../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
-import { IRemoteSessionService, parseCreateRemoteSessionOptions } from '../common/remoteSessions.js';
+import { IRemoteSessionService, parseCreateRemoteSessionOptions, remoteSessionToolsWhen } from '../common/remoteSessions.js';
 import { assertRemoteSessionCaller } from './remoteSessionSource.js';
-
-const remoteSessionToolsWhen = ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.equals(`config.${RemoteAgentHostsEnabledSettingId}`, true));
 
 export class ListAgentHostsTool implements IToolImpl {
 	constructor(

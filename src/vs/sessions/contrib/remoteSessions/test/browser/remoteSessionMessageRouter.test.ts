@@ -47,6 +47,7 @@ import { maxRemoteMessageLength, parseSendRemoteMessageOptions, RemoteSessionMes
 import { SendRemoteMessageTool } from '../../browser/sendRemoteMessageTool.js';
 import { resolveRemoteSessionSource } from '../../browser/remoteSessionSource.js';
 import { IRemoteSessionChatService, RemoteSessionChatService } from '../../browser/remoteSessionChatService.js';
+import { RemoteSessionToolsEnabledSettingId } from '../../common/remoteSessions.js';
 
 class TestSubscription<T> implements IAgentSubscription<T> {
 	value: T | Error | undefined;
@@ -232,14 +233,14 @@ suite('RemoteSessionMessageRouter', () => {
 				return undefined;
 			}
 		}();
-		const config = new TestConfigurationService({ chat: { remoteAgentHosts: { enabled: true } } });
-		config.setUserConfiguration(RemoteAgentHostsEnabledSettingId, true);
+		const config = new TestConfigurationService({ [RemoteAgentHostsEnabledSettingId]: true, [RemoteSessionToolsEnabledSettingId]: true });
+		store.add(config.onDidChangeConfigurationEmitter);
 		const backgroundEvents: { resource: string; event: string; claim?: boolean }[] = [];
 		const pendingChanged = store.add(new Emitter<void>());
 		const modelDisposed = store.add(new Emitter<void>());
 		const active = observableValue('active', false);
 		const pending: IChatPendingRequest[] = [];
-		const backgroundState = { references: 0, beforeAcquire: () => { } };
+		const backgroundState = { references: 0, beforeAcquire: (): void | Promise<void> => { } };
 		const model = upcastPartial<IChatModel>({
 			hasActiveRequest: active, getPendingRequests: () => pending,
 			onDidChangePendingRequests: pendingChanged.event, onDidDispose: modelDisposed.event,
@@ -260,7 +261,7 @@ suite('RemoteSessionMessageRouter', () => {
 		)) : undefined;
 		const backgroundChats = new class extends mock<IRemoteSessionChatService>() {
 			override async acquire(resource: URI, _token: CancellationToken, claim?: boolean) {
-				backgroundState.beforeAcquire();
+				await backgroundState.beforeAcquire();
 				backgroundEvents.push({ resource: resource.toString(), event: 'acquire', claim });
 				const reference = await realBackground?.acquire(resource, _token, claim);
 				return {
@@ -566,7 +567,40 @@ suite('RemoteSessionMessageRouter', () => {
 		assert.deepStrictEqual(local.dispatched, []);
 	});
 
-	test('AI and remote host gates are enforced at invocation, not just tool visibility', async () => {
+	for (const enabled of [undefined, false]) {
+		test(`remote tools require opt-in to send messages: ${enabled}`, async () => {
+			const { router, config, sessions, first, backgroundEvents } = setup();
+			await config.setUserConfiguration(RemoteSessionToolsEnabledSettingId, enabled);
+			assert.throws(() => router.send(sessions[0].resource, { session: sessions[1].resource.toString(), message: 'Hi' }, 'disabled', CancellationToken.None), /disabled/);
+			assert.deepStrictEqual({ dispatches: first.dispatched, references: first.references, backgroundEvents }, { dispatches: [], references: 0, backgroundEvents: [] });
+		});
+	}
+
+	test('disabling remote tools during message preparation prevents dispatch and releases the reference', async () => {
+		const { router, config, sessions, first, backgroundState, backgroundEvents } = setup();
+		backgroundState.beforeAcquire = async () => { await config.setUserConfiguration(RemoteSessionToolsEnabledSettingId, false); };
+		await assert.rejects(router.send(sessions[0].resource, { session: sessions[1].resource.toString(), message: 'Hi' }, 'disabled', CancellationToken.None), /disabled/);
+		assert.deepStrictEqual({
+			dispatches: first.dispatched,
+			references: first.references,
+			backgroundEvents: backgroundEvents.map(event => event.event),
+		}, { dispatches: [], references: 0, backgroundEvents: ['acquire', 'dispose'] });
+	});
+
+	test('disabling remote tools after dispatch retains existing work until idle but blocks new sends', async () => {
+		const { router, config, sessions, first, backgroundState, active } = setup(true);
+		active.set(true, undefined);
+		const source = sessions[0].resource;
+		const message = { session: sessions[1].resource.toString(), message: 'Hi' };
+		await router.send(source, message, 'enabled', CancellationToken.None);
+		await config.setUserConfiguration(RemoteSessionToolsEnabledSettingId, false);
+		assert.throws(() => router.send(source, message, 'disabled', CancellationToken.None), /disabled/);
+		const retained = backgroundState.references;
+		active.set(false, undefined);
+		assert.deepStrictEqual({ retained, released: backgroundState.references, dispatches: first.dispatched.length }, { retained: 1, released: 0, dispatches: 1 });
+	});
+
+	test('AI and remote host gates are enforced at invocation even with remote tools enabled', async () => {
 		const { router, config, sessions } = setup();
 		await config.setUserConfiguration(RemoteAgentHostsEnabledSettingId, false);
 		assert.throws(() => router.send(sessions[0].resource, { session: sessions[1].resource.toString(), message: 'Hi' }, 'disabled', CancellationToken.None), /disabled/);
@@ -862,7 +896,7 @@ suite('RemoteSessionMessageRouter', () => {
 			dispatches: first.dispatched.length,
 		}, {
 			name: 'send_remote_message', runsInWorkspace: false, requestsApproval: true,
-			keys: [ChatContextKeys.enabled.key, `config.${RemoteAgentHostsEnabledSettingId}`].sort(),
+			keys: [ChatContextKeys.enabled.key, `config.${RemoteAgentHostsEnabledSettingId}`, `config.${RemoteSessionToolsEnabledSettingId}`].sort(),
 			confirmedHost: true, confirmedChat: true, trusted: false, dispatches: 0,
 		});
 		await tool.invoke(invocation, async () => 0, { report: () => { } }, CancellationToken.None);

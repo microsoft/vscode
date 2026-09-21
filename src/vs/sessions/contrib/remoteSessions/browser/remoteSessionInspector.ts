@@ -14,13 +14,13 @@ import { localize } from '../../../../nls.js';
 import { IAgentHostConnectionsService } from '../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { agentHostAuthority } from '../../../../platform/agentHost/common/agentHostUri.js';
 import { buildOpenSessionLinkUri } from '../../../../platform/agentHost/common/openSessionLink.js';
-import { RemoteAgentHostsEnabledSettingId } from '../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { DEFAULT_CHAT_ID, getSessionChatResource, parseChatUri, StateComponents } from '../../../../platform/agentHost/common/state/sessionState.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { isAgentHostProvider } from '../../../common/agentHostSessionsProvider.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { IRemoteSessionInspectionResult, remoteSessionSnapshot } from '../common/remoteSessionInspection.js';
+import { areRemoteSessionToolsEnabled } from '../common/remoteSessions.js';
 import { readRemoteSessionState, resolveRemoteSessionReference } from './remoteSessionSource.js';
 
 export class RemoteSessionInspector {
@@ -119,9 +119,8 @@ export class RemoteSessionInspector {
 	}
 
 	private checkEnabled(): void {
-		if (this.configurationService.getValue<boolean>('chat.disableAIFeatures')
-			|| this.configurationService.getValue<boolean>(RemoteAgentHostsEnabledSettingId) !== true) {
-			throw new Error(localize('remoteInspection.disabled', "Remote agent hosts are disabled."));
+		if (!areRemoteSessionToolsEnabled(this.configurationService)) {
+			throw new Error(localize('remoteInspection.disabled', "Remote session tools are disabled."));
 		}
 	}
 }

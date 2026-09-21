@@ -4,11 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from '../../../../base/common/lifecycle.js';
+import { localize } from '../../../../nls.js';
+import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { Registry } from '../../../../platform/registry/common/platform.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { ILanguageModelToolsService } from '../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
-import { IRemoteSessionService } from '../common/remoteSessions.js';
+import { IRemoteSessionService, RemoteSessionToolsEnabledSettingId } from '../common/remoteSessions.js';
 import { RemoteSessionService } from './remoteSessionService.js';
 import { CreateRemoteSessionTool, ListAgentHostsTool } from './remoteSessionTools.js';
 import { SendRemoteMessageTool } from './sendRemoteMessageTool.js';
@@ -17,6 +20,20 @@ import { IRemoteSessionChatService, RemoteSessionChatService } from './remoteSes
 
 registerSingleton(IRemoteSessionService, RemoteSessionService, InstantiationType.Delayed);
 registerSingleton(IRemoteSessionChatService, RemoteSessionChatService, InstantiationType.Delayed);
+
+Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
+	id: 'chat',
+	properties: {
+		[RemoteSessionToolsEnabledSettingId]: {
+			type: 'boolean',
+			default: false,
+			scope: ConfigurationScope.APPLICATION,
+			tags: ['experimental', 'advanced'],
+			markdownDescription: localize('remoteSessions.tools.enabled', "Enable built-in tools to discover remote agent hosts, create and inspect remote sessions, and send messages between sessions in the Agents window. Requires {0}. Disabling this setting does not disconnect hosts or stop sessions already running.", '`#chat.remoteAgentHostsEnabled#`'),
+			experiment: { mode: 'auto' },
+		},
+	},
+});
 
 class RemoteSessionToolsContribution extends Disposable implements IWorkbenchContribution {
 	static readonly ID = 'workbench.contrib.remoteSessionTools';

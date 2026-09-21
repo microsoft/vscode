@@ -16,7 +16,6 @@ import { IAgentHostConnectionsService } from '../../../../platform/agentHost/com
 import { resolveAgentHostSessionTrustFolders } from '../../../../platform/agentHost/common/agentHostWorkspaceTrust.js';
 import { toRemoteSessionMessageMetadata } from '../../../../platform/agentHost/common/meta/agentRemoteSessionMeta.js';
 import { buildOpenSessionLinkUri } from '../../../../platform/agentHost/common/openSessionLink.js';
-import { RemoteAgentHostsEnabledSettingId } from '../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { ChatInteractivity as ProtocolChatInteractivity } from '../../../../platform/agentHost/common/state/protocol/state.js';
 import { ActionType } from '../../../../platform/agentHost/common/state/sessionActions.js';
 import { DEFAULT_CHAT_ID, effectiveChatInteractivity, getSessionChatResource, isSessionStatusArchived, MessageKind, parseChatUri, PendingMessageKind, readSessionWorkspaceless, SessionState, StateComponents } from '../../../../platform/agentHost/common/state/sessionState.js';
@@ -28,6 +27,7 @@ import { ChatInteractivity } from '../../../services/sessions/common/session.js'
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { IRemoteSessionChat, readRemoteSessionState, resolveRemoteSessionChat, resolveRemoteSessionReference, resolveRemoteSessionSource } from './remoteSessionSource.js';
 import { IRemoteSessionChatReference, IRemoteSessionChatService } from './remoteSessionChatService.js';
+import { areRemoteSessionToolsEnabled } from '../common/remoteSessions.js';
 
 const maxRemoteMessages = 50;
 export const maxRemoteMessageLength = 64 * 1024;
@@ -108,9 +108,8 @@ export class RemoteSessionMessageRouter {
 	}
 
 	private checkEnabled(): void {
-		if (this.configurationService.getValue<boolean>('chat.disableAIFeatures')
-			|| this.configurationService.getValue<boolean>(RemoteAgentHostsEnabledSettingId) !== true) {
-			throw new Error(localize('remoteMessage.disabled', "Remote agent hosts are disabled."));
+		if (!areRemoteSessionToolsEnabled(this.configurationService)) {
+			throw new Error(localize('remoteMessage.disabled', "Remote session tools are disabled."));
 		}
 	}
 

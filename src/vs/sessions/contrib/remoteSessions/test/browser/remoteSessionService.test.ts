@@ -38,7 +38,7 @@ import { ISessionsProvidersService } from '../../../../services/sessions/browser
 import { IChat, ISession, ISessionGitRepository, ISessionType, ISessionWorkspace, SessionTypeAuthRequirement } from '../../../../services/sessions/common/session.js';
 import { ICreateNewSessionOptions, ISendRequestOptions, ISessionsManagementService, NewSessionRequestOptions } from '../../../../services/sessions/common/sessionsManagement.js';
 import { RemoteSessionService } from '../../browser/remoteSessionService.js';
-import { parseCreateRemoteSessionOptions } from '../../common/remoteSessions.js';
+import { parseCreateRemoteSessionOptions, RemoteSessionToolsEnabledSettingId } from '../../common/remoteSessions.js';
 import { IRemoteSessionChatService } from '../../browser/remoteSessionChatService.js';
 
 class RemoteConnection extends mock<IAgentConnection>() {
@@ -207,7 +207,7 @@ suite('RemoteSessionService', () => {
 					: undefined;
 			}
 		}();
-		const configuration = new TestConfigurationService({ [RemoteAgentHostsEnabledSettingId]: true });
+		const configuration = new TestConfigurationService({ [RemoteAgentHostsEnabledSettingId]: true, [RemoteSessionToolsEnabledSettingId]: true });
 		store.add(configuration.onDidChangeConfigurationEmitter);
 		const files = new class extends mock<IFileService>() {
 			override async stat(resource: URI): Promise<IFileStatWithMetadata> {
@@ -827,7 +827,36 @@ suite('RemoteSessionService', () => {
 		}, { requestedHosts: [host.id], committed: false, released: 'dispose' });
 	});
 
-	test('disabled remote hosts and AI features prevent invocation', async () => {
+	for (const enabled of [undefined, false]) {
+		test(`remote tools require opt-in for discovery and creation: ${enabled}`, async () => {
+			const { service, create, configuration, calls } = setup([new RemoteProvider('host')]);
+			await configuration.setUserConfiguration(RemoteSessionToolsEnabledSettingId, enabled);
+			assert.throws(() => service.listHosts(), /disabled/);
+			assert.throws(() => create(), /disabled/);
+			assert.deepStrictEqual(calls, []);
+		});
+	}
+
+	test('disabling remote tools during workspace inspection prevents creation', async () => {
+		const { create, configuration, calls, state } = setup([new RemoteProvider('host')]);
+		state.beforeStat = async () => { await configuration.setUserConfiguration(RemoteSessionToolsEnabledSettingId, false); };
+		await assert.rejects(create({ workspace: { uri: 'file:///repo' } }), /disabled/);
+		assert.deepStrictEqual(calls, []);
+	});
+
+	test('disabling remote tools during child preparation prevents the first prompt and releases its reference', async () => {
+		const { create, configuration, state, backgroundEvents } = setup([new RemoteProvider('host')]);
+		let committed = false;
+		state.beforeAcquire = async () => { await configuration.setUserConfiguration(RemoteSessionToolsEnabledSettingId, false); };
+		state.beforeCommit = async () => { committed = true; };
+		await assert.rejects(create(), /disabled/);
+		assert.deepStrictEqual({
+			committed,
+			backgroundEvents: backgroundEvents.map(event => event.split(':')[0]),
+		}, { committed: false, backgroundEvents: ['acquire', 'dispose'] });
+	});
+
+	test('disabled remote hosts and AI features prevent invocation even with remote tools enabled', async () => {
 		const { create, configuration, calls } = setup([new RemoteProvider('host')]);
 		await configuration.setUserConfiguration(RemoteAgentHostsEnabledSettingId, false);
 		assert.throws(() => create({}, 'disabled-hosts'), /disabled/);

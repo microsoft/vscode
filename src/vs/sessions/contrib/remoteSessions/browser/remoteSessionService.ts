@@ -9,6 +9,7 @@ import { toErrorMessage } from '../../../../base/common/errorMessage.js';
 import { CancellationError } from '../../../../base/common/errors.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
+import { localize } from '../../../../nls.js';
 import { IAgentHostConnectionsService } from '../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { remoteAgentHostSessionTypeId } from '../../../../platform/agentHost/common/agentHostSessionType.js';
 import { AGENT_HOST_SCHEME, agentHostAuthority } from '../../../../platform/agentHost/common/agentHostUri.js';
@@ -16,7 +17,6 @@ import { IAgentConnection } from '../../../../platform/agentHost/common/agentSer
 import { readAgentHostResources } from '../../../../platform/agentHost/common/meta/agentHostResources.js';
 import { supportsRemoteSessions, toRemoteSessionMessageMetadata, withRemoteSessionOrigin } from '../../../../platform/agentHost/common/meta/agentRemoteSessionMeta.js';
 import { buildOpenSessionLinkUri } from '../../../../platform/agentHost/common/openSessionLink.js';
-import { RemoteAgentHostsEnabledSettingId } from '../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { PolicyState } from '../../../../platform/agentHost/common/state/protocol/channels-root/state.js';
 import { withSessionCreationReference } from '../../../../platform/agentHost/common/state/sessionState.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -30,7 +30,7 @@ import { IAgentHostSessionsProvider, isAgentHostProvider } from '../../../common
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionType, SessionTypeAuthRequirement } from '../../../services/sessions/common/session.js';
 import { ICreateNewSessionOptions, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
-import { ICreatedRemoteSession, ICreateRemoteSessionOptions, IRemoteSessionHost, IRemoteSessionService, remoteSessionHostRejections } from '../common/remoteSessions.js';
+import { areRemoteSessionToolsEnabled, ICreatedRemoteSession, ICreateRemoteSessionOptions, IRemoteSessionHost, IRemoteSessionService, remoteSessionHostRejections } from '../common/remoteSessions.js';
 import { assertRemoteSessionSource, resolveRemoteSessionSource } from './remoteSessionSource.js';
 import { IRemoteSessionChatReference, IRemoteSessionChatService } from './remoteSessionChatService.js';
 
@@ -96,9 +96,8 @@ export class RemoteSessionService implements IRemoteSessionService {
 	}
 
 	private checkEnabled(): void {
-		if (this.configurationService.getValue<boolean>('chat.disableAIFeatures')
-			|| this.configurationService.getValue<boolean>(RemoteAgentHostsEnabledSettingId) !== true) {
-			throw new Error('Remote agent hosts are disabled.');
+		if (!areRemoteSessionToolsEnabled(this.configurationService)) {
+			throw new Error(localize('remoteSessions.disabled', "Remote session tools are disabled."));
 		}
 	}
 
@@ -284,6 +283,7 @@ export class RemoteSessionService implements IRemoteSessionService {
 				metadata,
 				onSessionCreated: async session => {
 					background = await this.backgroundChats.acquire(session.mainChat.get().resource, token);
+					this.checkEnabled();
 					assertRemoteSessionSource(source, this.sessionsService, this.connectionsService);
 					this.assertTargetConnection(target);
 				},

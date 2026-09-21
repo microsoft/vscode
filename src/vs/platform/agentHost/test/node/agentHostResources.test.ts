@@ -16,7 +16,7 @@ suite('Agent host resource collection', () => {
 		platform: 'linux',
 		architecture: 'x64',
 		availableParallelism: () => 8,
-		totalmem: () => totalMemoryBytes,
+		totalMemory: () => totalMemoryBytes,
 		constrainedMemory: (): number | undefined => 0,
 	};
 
@@ -44,14 +44,14 @@ suite('Agent host resource collection', () => {
 	test('uses a valid constraint when total memory is unknown', () => {
 		const values = [0, -1, NaN, Infinity, -Infinity, 1.5, Number.MAX_SAFE_INTEGER + 1];
 		assert.deepStrictEqual(values.map(value => collectAgentHostResources({
-			...source, totalmem: () => value, constrainedMemory: () => constrainedMemoryBytes,
+			...source, totalMemory: () => value, constrainedMemory: () => constrainedMemoryBytes,
 		}).memoryBytes), values.map(() => constrainedMemoryBytes));
 	});
 
 	test('omits invalid capacities rather than fabricating defaults', () => {
 		const values = [0, -1, NaN, Infinity, -Infinity, 1.5, Number.MAX_SAFE_INTEGER + 1];
 		assert.deepStrictEqual(values.map(value => collectAgentHostResources({
-			...source, availableParallelism: () => value, totalmem: () => value,
+			...source, availableParallelism: () => value, totalMemory: () => value,
 		})), values.map(() => ({ platform: 'linux', architecture: 'x64' })));
 	});
 
@@ -63,7 +63,7 @@ suite('Agent host resource collection', () => {
 		const fail = () => { throw new Error('Unavailable'); };
 		assert.deepStrictEqual([
 			collectAgentHostResources({ ...source, constrainedMemory: fail }),
-			collectAgentHostResources({ ...source, availableParallelism: fail, totalmem: fail, constrainedMemory: fail }),
+			collectAgentHostResources({ ...source, availableParallelism: fail, totalMemory: fail, constrainedMemory: fail }),
 		], [
 			{ platform: 'linux', architecture: 'x64', cpuCount: 8, memoryBytes: totalMemoryBytes },
 			{ platform: 'linux', architecture: 'x64' },

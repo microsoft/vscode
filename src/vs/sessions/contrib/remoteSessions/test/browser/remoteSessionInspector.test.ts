@@ -31,6 +31,7 @@ import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/ac
 import { IAgentHostSessionsProvider } from '../../../../common/agentHostSessionsProvider.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { GetRemoteSessionTool } from '../../browser/getRemoteSessionTool.js';
+import { RemoteSessionToolsEnabledSettingId } from '../../common/remoteSessions.js';
 import { RemoteSessionInspector } from '../../browser/remoteSessionInspector.js';
 import { readRemoteSessionState } from '../../browser/remoteSessionSource.js';
 
@@ -133,7 +134,7 @@ suite('RemoteSessionInspector', () => {
 		const providersService = new class extends mock<ISessionsProvidersService>() {
 			override getProviders() { return providers; }
 		}();
-		const configuration = new TestConfigurationService({ [RemoteAgentHostsEnabledSettingId]: true });
+		const configuration = new TestConfigurationService({ [RemoteAgentHostsEnabledSettingId]: true, [RemoteSessionToolsEnabledSettingId]: true });
 		store.add(configuration.onDidChangeConfigurationEmitter);
 		const warnings: string[] = [];
 		const logService = new class extends NullLogService {
@@ -310,6 +311,15 @@ suite('RemoteSessionInspector', () => {
 		assert.deepStrictEqual({ remaining: first.manager.getActiveSubscriptions(), warnings }, { remaining: [], warnings: [] });
 	});
 
+	for (const enabled of [undefined, false]) {
+		test(`remote tools require opt-in to inspect sessions: ${enabled}`, async () => {
+			const { inspect, first, configuration } = setup();
+			await configuration.setUserConfiguration(RemoteSessionToolsEnabledSettingId, enabled);
+			await assert.rejects(inspect(), /disabled/);
+			assert.deepStrictEqual(first.subscribed, []);
+		});
+	}
+
 	test('disabled remote hosts, disabled AI and pre-cancelled calls never subscribe', async () => {
 		const { inspect, first, configuration } = setup();
 		await configuration.setUserConfiguration(RemoteAgentHostsEnabledSettingId, false);
@@ -324,21 +334,23 @@ suite('RemoteSessionInspector', () => {
 		assert.deepStrictEqual(first.subscribed, []);
 	});
 
-	test('disabling the feature during a read prevents returning remote content', async () => {
-		const { inspect, first, configuration } = setup();
-		const snapshot = first.snapshots.get(backendSession.toString());
-		assert.ok(snapshot);
-		const pending = new DeferredPromise<IStateSnapshot>();
-		first.snapshots.set(backendSession.toString(), pending.p);
-		const operation = inspect();
-		await first.didSubscribe.p;
-		await configuration.setUserConfiguration(RemoteAgentHostsEnabledSettingId, false);
-		await pending.complete(await snapshot);
-		await assert.rejects(operation, /disabled/);
-		assert.deepStrictEqual({
-			subscriptions: first.subscribed, remaining: first.manager.getActiveSubscriptions(),
-		}, { subscriptions: [backendSession.toString()], remaining: [] });
-	});
+	for (const setting of [RemoteAgentHostsEnabledSettingId, RemoteSessionToolsEnabledSettingId]) {
+		test(`disabling ${setting} during a read prevents returning remote content`, async () => {
+			const { inspect, first, configuration } = setup();
+			const snapshot = first.snapshots.get(backendSession.toString());
+			assert.ok(snapshot);
+			const pending = new DeferredPromise<IStateSnapshot>();
+			first.snapshots.set(backendSession.toString(), pending.p);
+			const operation = inspect();
+			await first.didSubscribe.p;
+			await configuration.setUserConfiguration(setting, false);
+			await pending.complete(await snapshot);
+			await assert.rejects(operation, /disabled/);
+			assert.deepStrictEqual({
+				subscriptions: first.subscribed, remaining: first.manager.getActiveSubscriptions(),
+			}, { subscriptions: [backendSession.toString()], remaining: [] });
+		});
+	}
 
 	test('tool advertises read-only scoped inspection and does not read during preparation', async () => {
 		const { tool, first } = setup();
@@ -353,7 +365,7 @@ suite('RemoteSessionInspector', () => {
 			exactReference: data.modelDescription.includes('not a bare backend ID or "origin"'),
 		}, {
 			name: 'get_remote_session', runsInWorkspace: false,
-			keys: [ChatContextKeys.enabled.key, `config.${RemoteAgentHostsEnabledSettingId}`].sort(),
+			keys: [ChatContextKeys.enabled.key, `config.${RemoteAgentHostsEnabledSettingId}`, `config.${RemoteSessionToolsEnabledSettingId}`].sort(),
 			confirmation: undefined, subscriptions: [], noPolling: true, readOnly: true, noReasoning: true, exactReference: true,
 		});
 	});

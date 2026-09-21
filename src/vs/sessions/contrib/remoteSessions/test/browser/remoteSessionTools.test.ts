@@ -12,7 +12,7 @@ import { RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentH
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { IToolInvocation } from '../../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
 import { CreateRemoteSessionTool, ListAgentHostsTool } from '../../browser/remoteSessionTools.js';
-import { ICreatedRemoteSession, ICreateRemoteSessionOptions, IRemoteSessionHost, IRemoteSessionService } from '../../common/remoteSessions.js';
+import { ICreatedRemoteSession, ICreateRemoteSessionOptions, IRemoteSessionHost, IRemoteSessionService, RemoteSessionToolsEnabledSettingId } from '../../common/remoteSessions.js';
 
 suite('RemoteSessionTools', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -41,7 +41,7 @@ suite('RemoteSessionTools', () => {
 		return { calls, create: new CreateRemoteSessionTool(service), list: new ListAgentHostsTool(service) };
 	}
 
-	test('registers non-workspace tools gated by AI and remote host enablement', () => {
+	test('registers non-workspace tools gated by AI, remote host and remote tool enablement', () => {
 		const { list, create } = setup();
 		assert.deepStrictEqual([list, create].map(tool => {
 			const data = tool.getToolData();
@@ -51,8 +51,8 @@ suite('RemoteSessionTools', () => {
 				keys: data.when?.keys().sort(),
 			};
 		}), [
-			{ name: 'list_agent_hosts', runsInWorkspace: false, keys: [ChatContextKeys.enabled.key, `config.${RemoteAgentHostsEnabledSettingId}`].sort() },
-			{ name: 'create_remote_session', runsInWorkspace: false, keys: [ChatContextKeys.enabled.key, `config.${RemoteAgentHostsEnabledSettingId}`].sort() },
+			{ name: 'list_agent_hosts', runsInWorkspace: false, keys: [ChatContextKeys.enabled.key, `config.${RemoteAgentHostsEnabledSettingId}`, `config.${RemoteSessionToolsEnabledSettingId}`].sort() },
+			{ name: 'create_remote_session', runsInWorkspace: false, keys: [ChatContextKeys.enabled.key, `config.${RemoteAgentHostsEnabledSettingId}`, `config.${RemoteSessionToolsEnabledSettingId}`].sort() },
 		]);
 	});
 
