@@ -22,8 +22,6 @@ import { NullTelemetryService } from '../../../../../platform/telemetry/common/t
 import { IChatSessionsService, ResolvedChatSessionsExtensionPoint, SessionType } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ILanguageModelsService } from '../../../../../workbench/contrib/chat/common/languageModels.js';
 import { ChatEntitlement, IChatEntitlementService } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
-import { IAgentSdkSetupService } from '../../../../../workbench/services/agentHost/browser/agentSdkSetupService.js';
-import { ICodexAccountService } from '../../../../../workbench/services/agentHost/browser/codexAccountService.js';
 import { TestStorageService } from '../../../../../workbench/test/common/workbenchTestServices.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { IProviderSessionType, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
@@ -81,8 +79,18 @@ function createFakeQuickChatSession(providerId: string, sessionTypeId: string): 
 	} as unknown as ISession;
 }
 
-function sessionType(providerId: string, id: string, label: string, chatSessionType?: string): IProviderSessionType {
-	return { providerId, sessionType: { id, label, icon: Codicon.terminal, chatSessionType, authRequirement: SessionTypeAuthRequirement.GitHub } };
+function sessionType(providerId: string, id: string, label: string, chatSessionType?: string, canInitializeWithoutGitHub?: boolean): IProviderSessionType {
+	return {
+		providerId,
+		sessionType: {
+			id,
+			label,
+			icon: Codicon.terminal,
+			chatSessionType,
+			authRequirement: SessionTypeAuthRequirement.GitHub,
+			initializationOnSelection: canInitializeWithoutGitHub === undefined ? undefined : { canInitializeWithoutGitHub },
+		},
+	};
 }
 
 function createFakeSession(providerId: string, sessionTypeId: string, folderUri: URI, status = SessionStatus.Untitled): ISession {
@@ -126,8 +134,6 @@ class TestSessionTypePicker extends SessionTypePicker {
 interface ITestPickerServices {
 	readonly chatSessionsService?: IChatSessionsService;
 	readonly chatEntitlementService?: IChatEntitlementService;
-	readonly agentSdkSetupService?: IAgentSdkSetupService;
-	readonly codexAccountService?: ICodexAccountService;
 }
 
 function createPicker(
@@ -163,8 +169,6 @@ function createPicker(
 		lookupLanguageModel: () => undefined,
 	});
 	instantiationService.stub(IConfigurationService, new TestConfigurationService());
-	instantiationService.stub(IAgentSdkSetupService, services.agentSdkSetupService ?? { setups: [] });
-	instantiationService.stub(ICodexAccountService, services.codexAccountService ?? { account: { status: 'unknown' } });
 	return disposables.add(instantiationService.createInstance(TestSessionTypePicker, session, options));
 }
 
@@ -213,20 +217,7 @@ suite('SessionTypePicker', () => {
 		assert.deepStrictEqual(visibility, [false, true, false, true, false]);
 	});
 
-	test('keeps setup-backed Codex selectable before its models are discovered', () => {
-		management.setSessionTypesForFolder(folder, [
-			sessionType('local', 'local', 'Local'),
-			sessionType('agent-host', 'codex', 'Codex', SessionType.AgentHostCodex),
-		]);
-		session.set(createFakeSession('local', 'local', folder), undefined);
-		let codexDisabled: boolean | undefined;
-		const actionWidgetService = new class extends mock<IActionWidgetService>() {
-			override show<T>(_user: string, _supportsPreview: boolean, items: readonly IActionListItem<T>[]): void {
-				const codex = items.find(item => item.label === 'Codex');
-				assert.ok(codex);
-				codexDisabled = codex.disabled;
-			}
-		}();
+	test('uses provider initialization metadata before models are discovered', () => {
 		const chatSessionsService = new class extends mock<IChatSessionsService>() {
 			override getChatSessionContribution(type: string): ResolvedChatSessionsExtensionPoint | undefined {
 				return type === SessionType.AgentHostCodex
@@ -237,24 +228,45 @@ suite('SessionTypePicker', () => {
 			override supportsAutoModelForSessionType(): boolean { return false; }
 			override requiresCustomModelsForSessionType(): boolean { return true; }
 		}();
-		const chatEntitlementService = new class extends mock<IChatEntitlementService>() {
-			override readonly entitlement = ChatEntitlement.Free;
-			override readonly anonymous = false;
-			override readonly clientByokEnabled = false;
-		}();
-		const agentSdkSetupService = new class extends mock<IAgentSdkSetupService>() {
-			override readonly setups = [{ agent: 'codex', download: 'ready' as const }];
-		}();
-		const picker = createPicker(disposables, session, management, storage, undefined, actionWidgetService, [], {
-			chatSessionsService,
-			chatEntitlementService,
-			agentSdkSetupService,
+		const isCodexDisabled = (entitlement: ChatEntitlement, canInitializeWithoutGitHub: boolean): boolean | undefined => {
+			management.setSessionTypesForFolder(folder, [
+				sessionType('local', 'local', 'Local'),
+				sessionType('agent-host', 'codex', 'Codex', SessionType.AgentHostCodex, canInitializeWithoutGitHub),
+			]);
+			session.set(createFakeSession('local', 'local', folder), undefined);
+			let codexDisabled: boolean | undefined;
+			const actionWidgetService = new class extends mock<IActionWidgetService>() {
+				override show<T>(_user: string, _supportsPreview: boolean, items: readonly IActionListItem<T>[]): void {
+					const codex = items.find(item => item.label === 'Codex');
+					assert.ok(codex);
+					codexDisabled = codex.disabled;
+				}
+			}();
+			const chatEntitlementService = new class extends mock<IChatEntitlementService>() {
+				override readonly entitlement = entitlement;
+				override readonly anonymous = false;
+				override readonly clientByokEnabled = false;
+			}();
+			const picker = createPicker(disposables, session, management, storage, undefined, actionWidgetService, [], {
+				chatSessionsService,
+				chatEntitlementService,
+			});
+			picker.render(document.createElement('div'));
+			picker.showPicker();
+			return codexDisabled;
+		};
+
+		assert.deepStrictEqual({
+			copilotFree: isCodexDisabled(ChatEntitlement.Free, false),
+			providerAuthenticated: isCodexDisabled(ChatEntitlement.Unknown, true),
+			signedOut: isCodexDisabled(ChatEntitlement.Unknown, false),
+			unresolved: isCodexDisabled(ChatEntitlement.Unresolved, false),
+		}, {
+			copilotFree: false,
+			providerAuthenticated: false,
+			signedOut: true,
+			unresolved: true,
 		});
-		picker.render(document.createElement('div'));
-
-		picker.showPicker();
-
-		assert.strictEqual(codexDisabled, false);
 	});
 
 	test('preferred session type is the first one and follows session-type changes', () => {
