@@ -14,16 +14,16 @@ import { IConfigurationChangeEvent } from '../../../../../../platform/configurat
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { NullTelemetryService } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
-import { AgentsWindowOpenSource } from '../../../../../../platform/window/common/window.js';
+import { AgentsWindowOpenSource, isAgentsWindowOpenSource } from '../../../../../../platform/window/common/window.js';
 import { IChatEntitlementService, IChatSentiment } from '../../../../../services/chat/common/chatEntitlementService.js';
-import { canShowAgentsBanner, createAgentsBanner } from '../../../browser/agentSessions/agentSessionsBanner.js';
+import { canShowAgentsBanner, createAgentsBanner, IAgentsBannerOptions } from '../../../browser/agentSessions/agentSessionsBanner.js';
 import { ChatConfiguration, OPEN_WORKSPACE_IN_AGENTS_WINDOW_COMMAND_ID } from '../../../common/constants.js';
 
 suite('AgentsBanner', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	const account = new class extends mock<IDefaultAccount>() { }();
 
-	function createBanner(initialAccount: IDefaultAccount | null, options: { offerSignIn?: boolean; label?: string; initialAccountResolution?: Promise<IDefaultAccount | null>; configuration?: TestConfigurationService; sentiment?: IChatSentiment } = {}) {
+	function createBanner(initialAccount: IDefaultAccount | null, options: { source?: IAgentsBannerOptions['source']; offerSignIn?: boolean; label?: string; initialAccountResolution?: Promise<IDefaultAccount | null>; configuration?: TestConfigurationService; sentiment?: IChatSentiment } = {}) {
 		const onDidChangeDefaultAccount = store.add(new Emitter<IDefaultAccount | null>());
 		const onDidChangeSentiment = store.add(new Emitter<void>());
 		const configurationService = options.configuration ?? new TestConfigurationService({ [ChatConfiguration.WelcomePageSignInEnabled]: true });
@@ -64,7 +64,7 @@ suite('AgentsBanner', () => {
 		const banner = createAgentsBanner(
 			{
 				cssClass: 'agents-banner',
-				source: 'welcomePage',
+				source: options.source ?? 'welcomePage',
 				label: options.label,
 				onButtonClick: () => onButtonClickCalls++,
 			},
@@ -214,6 +214,24 @@ suite('AgentsBanner', () => {
 		});
 	});
 
+	for (const [source, windowOpenSource] of [
+		['welcomePage', 'welcomeTryOut'],
+		['agentSessionsWelcome', 'welcomeViewAll'],
+	] as const) {
+		test(`reports ${windowOpenSource} when opening Agents from ${source}`, () => {
+			const banner = createBanner(account, { source });
+			banner.button.click();
+
+			assert.deepStrictEqual({
+				commands: banner.state().commands,
+				accepted: isAgentsWindowOpenSource(windowOpenSource),
+			}, {
+				commands: [{ id: OPEN_WORKSPACE_IN_AGENTS_WINDOW_COMMAND_ID, args: [{ source: windowOpenSource }] }],
+				accepted: true,
+			});
+		});
+	}
+
 	test('signed-in users keep the Agents window action', () => {
 		const banner = createBanner(account);
 		banner.button.click();
@@ -225,7 +243,7 @@ suite('AgentsBanner', () => {
 			iconHidden: 'true',
 			signInCalls: 0,
 			onButtonClickCalls: 1,
-			commands: [{ id: OPEN_WORKSPACE_IN_AGENTS_WINDOW_COMMAND_ID, args: [{ source: AgentsWindowOpenSource.Banner }] }],
+			commands: [{ id: OPEN_WORKSPACE_IN_AGENTS_WINDOW_COMMAND_ID, args: [{ source: AgentsWindowOpenSource.WelcomeTryOut }] }],
 		});
 	});
 
@@ -251,12 +269,12 @@ suite('AgentsBanner', () => {
 			sameButton: true,
 			signInCalls: 1,
 			onButtonClickCalls: 1,
-			commands: [{ id: OPEN_WORKSPACE_IN_AGENTS_WINDOW_COMMAND_ID, args: [{ source: AgentsWindowOpenSource.Banner }] }],
+			commands: [{ id: OPEN_WORKSPACE_IN_AGENTS_WINDOW_COMMAND_ID, args: [{ source: AgentsWindowOpenSource.WelcomeTryOut }] }],
 		});
 	});
 
 	test('preserves banners that do not offer sign-in and their custom labels', () => {
-		const banner = createBanner(null, { offerSignIn: false, label: 'View All Sessions' });
+		const banner = createBanner(null, { source: 'agentSessionsWelcome', offerSignIn: false, label: 'View All Sessions' });
 		banner.button.click();
 
 		assert.deepStrictEqual(banner.state(), {
@@ -266,7 +284,7 @@ suite('AgentsBanner', () => {
 			iconHidden: 'true',
 			signInCalls: 0,
 			onButtonClickCalls: 1,
-			commands: [{ id: OPEN_WORKSPACE_IN_AGENTS_WINDOW_COMMAND_ID, args: [{ source: AgentsWindowOpenSource.Banner }] }],
+			commands: [{ id: OPEN_WORKSPACE_IN_AGENTS_WINDOW_COMMAND_ID, args: [{ source: AgentsWindowOpenSource.WelcomeViewAll }] }],
 		});
 	});
 
@@ -284,7 +302,7 @@ suite('AgentsBanner', () => {
 				iconHidden: 'true',
 				signInCalls: 0,
 				onButtonClickCalls: 1,
-				commands: [{ id: OPEN_WORKSPACE_IN_AGENTS_WINDOW_COMMAND_ID, args: [{ source: AgentsWindowOpenSource.Banner }] }],
+				commands: [{ id: OPEN_WORKSPACE_IN_AGENTS_WINDOW_COMMAND_ID, args: [{ source: AgentsWindowOpenSource.WelcomeTryOut }] }],
 			});
 		});
 	}
@@ -309,7 +327,7 @@ suite('AgentsBanner', () => {
 			disabled: { label: 'Try out the new Agents window', title: 'Try out the new Agents window', icon: 'codicon icon-widget codicon-agent' },
 			signInCalls: 1,
 			onButtonClickCalls: 1,
-			commands: [{ id: OPEN_WORKSPACE_IN_AGENTS_WINDOW_COMMAND_ID, args: [{ source: AgentsWindowOpenSource.Banner }] }],
+			commands: [{ id: OPEN_WORKSPACE_IN_AGENTS_WINDOW_COMMAND_ID, args: [{ source: AgentsWindowOpenSource.WelcomeTryOut }] }],
 		});
 	});
 
@@ -325,7 +343,7 @@ suite('AgentsBanner', () => {
 			await initialAccountResolution.complete(resolvedAccount);
 			banner.button.click();
 
-			const openAgentsCommand = { id: OPEN_WORKSPACE_IN_AGENTS_WINDOW_COMMAND_ID, args: [{ source: AgentsWindowOpenSource.Banner }] };
+			const openAgentsCommand = { id: OPEN_WORKSPACE_IN_AGENTS_WINDOW_COMMAND_ID, args: [{ source: AgentsWindowOpenSource.WelcomeTryOut }] };
 			assert.deepStrictEqual({ beforeResolution, afterResolution: banner.state() }, {
 				beforeResolution: {
 					label: 'Try out the new Agents window',
