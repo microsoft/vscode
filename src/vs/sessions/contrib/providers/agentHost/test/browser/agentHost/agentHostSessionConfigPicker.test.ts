@@ -503,7 +503,7 @@ suite('Agent Host Session Config Picker', () => {
 		});
 	});
 
-	test('places mode immediately before approvals in secondary toolbars', () => {
+	test('places mode immediately before approvals in new and running session toolbars', () => {
 		const summarize = (menu: MenuId, ids: readonly string[]) => MenuRegistry.getMenuItems(menu)
 			.filter(isIMenuItem)
 			.filter(item => ids.includes(item.command.id))
@@ -533,7 +533,11 @@ suite('Agent Host Session Config Picker', () => {
 				{ id: 'sessions.agentHost.newSessionApprovePicker', order: 1 },
 				{ id: 'sessions.agentHost.newSessionPermissionModePicker', order: 2 },
 			],
-			runningSessionPrimary: [],
+			runningSessionPrimary: [
+				{ id: 'sessions.agentHost.runningSessionModePicker', order: 0.1 },
+				{ id: 'sessions.agentHost.runningSessionConfigPicker', order: 0.2 },
+				{ id: 'sessions.agentHost.runningSessionPermissionModePicker', order: 0.3 },
+			],
 			runningSessionSecondary: [
 				{ id: 'sessions.agentHost.runningSessionModePicker', order: 9 },
 				{ id: 'sessions.agentHost.runningSessionConfigPicker', order: 10 },
