@@ -1185,6 +1185,38 @@ suite('AgentHostStateManager', () => {
 			});
 		});
 
+		test('restore preserves a listed peer catalog in the first live summary', () => {
+			const defaultChat = buildDefaultChatUri(sessionUri);
+			const summary: SessionSummary = {
+				...makeSessionSummary(),
+				chats: [
+					{ resource: defaultChat, title: '' },
+					{ resource: peerChat, title: 'Peer' },
+				],
+				defaultChat,
+			};
+			manager.prepareSessionSummariesForListing([summary]);
+			const publishedChatCatalogs: string[][] = [];
+			disposables.add(manager.onDidEmitNotification(notification => {
+				if (notification.type === NotificationType.SessionSummaryChanged && notification.changes.chats) {
+					publishedChatCatalogs.push(notification.changes.chats.map(chat => chat.resource));
+				}
+			}));
+
+			manager.restoreSession(summary, []);
+			const listed = manager.prepareSessionSummariesForListing([summary])[0];
+
+			assert.deepStrictEqual({
+				state: manager.getSessionState(sessionUri)?.chats.map(chat => chat.resource),
+				listed: listed.chats?.map(chat => chat.resource),
+				publishedChatCatalogs,
+			}, {
+				state: [defaultChat, peerChat],
+				listed: [defaultChat, peerChat],
+				publishedChatCatalogs: [[defaultChat, peerChat]],
+			});
+		});
+
 		test('adding a chat snapshots the canonical default when routing defaults to a peer', () => {
 			manager.createSession(makeSessionSummary());
 			const canonicalDefault = buildDefaultChatUri(sessionUri);

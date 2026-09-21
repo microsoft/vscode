@@ -1374,12 +1374,15 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 		// Tool-origin subagents and user-created side (`/btw`) chats must reach
 		// the peer-chat catalog even when the backing session type is otherwise
 		// single-chat; the UI later decides whether to show them by default.
-		const surfacesAsPeer = (summary: ChatSummary): boolean =>
-			!isDefault(summary)
-			&& !!parseChatUri(summary.resource)?.chatId
-			&& (this.capabilities.get().supportsMultipleChats
-				|| summary.origin?.kind === ProtocolChatOriginKind.Tool
-				|| summary.origin?.kind === ProtocolChatOriginKind.SideChat);
+		const surfacesAsPeer = (summary: ChatSummary): boolean => {
+			const chatId = parseChatUri(summary.resource)?.chatId;
+			return !isDefault(summary)
+				&& !!chatId
+				&& (this.capabilities.get().supportsMultipleChats
+					|| (!this.isQuickChat.get() && this._additionalChats.has(chatId))
+					|| summary.origin?.kind === ProtocolChatOriginKind.Tool
+					|| summary.origin?.kind === ProtocolChatOriginKind.SideChat);
+		};
 
 		const survivingPeers = new Set<string>();
 		for (const summary of state.chats) {

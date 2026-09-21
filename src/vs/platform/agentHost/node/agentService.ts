@@ -6837,6 +6837,7 @@ export class AgentService extends Disposable implements IAgentService {
 			}
 		}
 		this._logService.trace(`[AgentService] restore: provider metadata resolved for ${sessionStr}`);
+		const cachedChatCatalogPromise = this._readCachedChatCatalog(session);
 
 		// A freshly-adopted legacy session whose working directory is a
 		// pre-existing git worktree keeps no worktree metadata (adoption seeds
@@ -7096,6 +7097,14 @@ export class AgentService extends Disposable implements IAgentService {
 		let restoredMeta = (sessionMetadata || providerMeta) ? { ...(providerMeta ?? {}), ...(sessionMetadata ?? {}) } : undefined;
 		restoredMeta = withSessionMultiRootMetadata(restoredMeta, readSessionMultiRootMetadata(sessionMetadata));
 		restoredMeta = withSessionExternal(restoredMeta, external);
+		const cachedChatCatalog = await cachedChatCatalogPromise;
+		const restoredChats = cachedChatCatalog?.map(chat => ({
+			resource: chat.uri,
+			title: chat.title ?? '',
+			...(chat.origin !== undefined ? { origin: chat.origin } : {}),
+			...(chat.interactivity !== undefined ? { interactivity: chat.interactivity } : {}),
+		}));
+		const restoredDefaultChat = cachedChatCatalog?.find(chat => chat.kind === 'default')?.uri;
 		const summary: SessionSummary = {
 			resource: sessionStr,
 			provider: agent.id,
@@ -7106,6 +7115,8 @@ export class AgentService extends Disposable implements IAgentService {
 			...(meta.project ? { project: { uri: meta.project.uri.toString(), displayName: meta.project.displayName } } : {}),
 			changes: meta.changes ?? changes,
 			workingDirectories: meta.workingDirectories?.map(d => d.toString()),
+			...(restoredChats !== undefined ? { chats: restoredChats } : {}),
+			...(restoredDefaultChat !== undefined ? { defaultChat: restoredDefaultChat } : {}),
 			_meta: restoredMeta,
 		};
 
@@ -7164,7 +7175,7 @@ export class AgentService extends Disposable implements IAgentService {
 
 		// Register persisted peer-chat catalog metadata. Their provider backings
 		// and histories are restored when a peer chat is first requested.
-		promises.push(this._restorePeerChats(agent, session));
+		promises.push(this._restorePeerChats(agent, session, cachedChatCatalog));
 
 		// Register the static changeset URIs and reseed them from any
 		// persisted file lists in the batched metadata read. The catalogue
@@ -7232,8 +7243,8 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	/** Restores authoritative central peer membership after importing cooling-period legacy changes. */
-	private async _restorePeerChats(agent: IAgent, session: URI): Promise<void> {
-		const cached = await this._readCachedChatCatalog(session);
+	private async _restorePeerChats(agent: IAgent, session: URI, cached?: readonly ICatalogChat[]): Promise<void> {
+		cached ??= await this._readCachedChatCatalog(session);
 		let entries: readonly IPersistedPeerChat[];
 		try {
 			entries = await this._readOrMigrateLegacyPeerChatCatalog(agent, session);

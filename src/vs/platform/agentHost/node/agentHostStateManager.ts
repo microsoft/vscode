@@ -1095,6 +1095,16 @@ export class AgentHostStateManager extends Disposable {
 		const entry = this._newEntry(state, summary, SessionUse.Used);
 		this._sessionStates.set(key, entry);
 		this._ensureDefaultChat(key, summary, turns, options?.draft, options?.defaultChatTitle);
+		for (const chat of summary.chats ?? []) {
+			if (chat.resource === state.defaultChat || isDefaultChatUri(chat.resource)) {
+				continue;
+			}
+			this.registerRestoredChatSummary(key, chat.resource, {
+				title: chat.title,
+				origin: chat.origin,
+				interactivity: chat.interactivity,
+			});
+		}
 		// A session that was previously surfaced (e.g. announced as an
 		// adoptable-legacy session) is already known to clients with a different
 		// summary. Emit the delta so they update the entry in place — clearing the

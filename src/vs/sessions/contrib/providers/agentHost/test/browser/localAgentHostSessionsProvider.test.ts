@@ -5908,6 +5908,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		}
 
 		test('list metadata surfaces peer titles without subscribing and hydrates stable chats on demand', async () => {
+			agentHost.setAgents([{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [], capabilities: {} } as AgentInfo]);
 			const rawId = 'multi-catalog-list';
 			const sessionUri = AgentSession.uri('copilotcli', rawId);
 			const defaultChat = URI.parse(buildDefaultChatUri(sessionUri));
@@ -5947,11 +5948,13 @@ suite('LocalAgentHostSessionsProvider', () => {
 				peerIdentityPreserved: session.chats.get()[1] === initialPeer,
 				peerTitle: session.chats.get()[1].title.get(),
 				peerStatus: session.chats.get()[1].status.get(),
+				supportsMultipleChats: session.capabilities.get().supportsMultipleChats,
 			}, {
 				sessionSubscriptions: 1,
 				peerIdentityPreserved: true,
 				peerTitle: 'Hydrated Peer',
 				peerStatus: SessionStatus.InProgress,
+				supportsMultipleChats: false,
 			});
 		});
 
