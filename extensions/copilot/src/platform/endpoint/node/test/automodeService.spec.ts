@@ -576,6 +576,21 @@ describe('AutomodeService', () => {
 	});
 
 	describe('routing tiers', () => {
+		for (const source of ['managed', 'explicit']) {
+			it(`preserves ${source} Balance on the actual inline Auto routing request`, async () => {
+				const endpoint = createEndpoint('gpt-4o', 'OpenAI');
+				mockAuto(autoResponse('gpt-4o'));
+				automodeService = createService();
+				await automodeService.resolveAutoModeEndpoint({
+					location: ChatLocation.Editor,
+					prompt: 'test prompt',
+					sessionId: `auto-balance-${source}`,
+					modelConfiguration: { tier: 'balance', tierSource: source },
+				}, [mockChatEndpoint, endpoint]);
+				expect(autoRequestBodies()).toEqual([{ prompt: 'test prompt', tier: 'balance' }]);
+			});
+		}
+
 		it('routes inline chat with the fast tier', async () => {
 			const gpt4oEndpoint = createEndpoint('gpt-4o', 'OpenAI');
 			mockAuto(autoResponse('gpt-4o'));

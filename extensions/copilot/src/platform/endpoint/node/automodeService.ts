@@ -17,7 +17,7 @@ import { isAbortError } from '../../networking/common/fetcherService';
 import { IChatEndpoint } from '../../networking/common/networking';
 import { IRequestLogger } from '../../requestLogger/common/requestLogger';
 import { ITelemetryService } from '../../telemetry/common/telemetry';
-import { AUTO_MODE_TIER_PROPERTY, autoModeTiers, defaultAutoModeTier, inlineChatAutoModeTier, isSelectableAutoModeTier, normalizeAutoModeTier, type AutoModeTier } from '../common/autoModeTiers';
+import { AUTO_MODE_TIER_PROPERTY, autoModeTiers, defaultAutoModeTier, inlineChatAutoModeTier, isAutoModeTier, isSelectableAutoModeTier, normalizeAutoModeTier, type AutoModeTier } from '../common/autoModeTiers';
 import { ICAPIClientService } from '../common/capiClient';
 import type { IChatModelCapabilities, IChatModelInformation } from '../common/endpointProvider';
 import { AutoChatEndpoint } from './autoChatEndpoint';
@@ -346,14 +346,23 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 	 * The workbench materializes picker defaults, so only non-default selections override the inline-chat tier.
 	 */
 	private _resolveTier(chatRequest: IAutoModeRoutingRequest | undefined): AutoModeTier {
+		const source = chatRequest?.modelConfiguration?.tierSource;
+		const selected = normalizeAutoModeTier(chatRequest?.modelConfiguration?.[AUTO_MODE_TIER_PROPERTY]);
+		if (((source === 'managed' || source === 'session') && isAutoModeTier(selected))
+			|| (source === 'explicit' && isSelectableAutoModeTier(selected))) {
+			return selected;
+		}
 		const override = this._configurationService.getConfig(ConfigKey.Shared.AutoModeTierOverride);
 		if (override) {
 			const normalized = normalizeAutoModeTier(override);
 			// The override is internal, so unlike the picker it may select `fast`.
-			if (autoModeTiers.some(tier => tier === normalized)) {
-				return normalized as AutoModeTier;
+			if (isAutoModeTier(normalized)) {
+				return normalized;
 			}
 			this._logService.warn(`[AutomodeService] Ignoring auto tier override '${override}' — not one of [${autoModeTiers.join(', ')}].`);
+		}
+		if (source === 'managedFallback' && isAutoModeTier(selected)) {
+			return selected;
 		}
 		const configured = normalizeAutoModeTier(chatRequest?.modelConfiguration?.[AUTO_MODE_TIER_PROPERTY]);
 		if (isSelectableAutoModeTier(configured) && configured !== defaultAutoModeTier) {
