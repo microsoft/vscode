@@ -52,6 +52,8 @@ import { IAgentHostUntitledProvisionalSessionService } from '../../../../contrib
 import { IAgentHostSessionWorkingDirectoryResolver } from '../../../../contrib/chat/browser/agentSessions/agentHost/agentHostSessionWorkingDirectoryResolver.js';
 import { IAgentHostNewSessionFolderService } from '../../../../contrib/chat/browser/agentSessions/agentHost/agentHostNewSessionFolderService.js';
 import { IAgentHostCustomizationService } from '../../../../contrib/chat/browser/agentSessions/agentHost/agentHostCustomizationService.js';
+import { IAgentSdkSetupService } from '../../../../services/agentHost/browser/agentSdkSetupService.js';
+import { ICodexAccountService } from '../../../../services/agentHost/browser/codexAccountService.js';
 import { IVoiceModeOnboardingService } from '../../../../contrib/agentsVoice/browser/voiceModeOnboarding.js';
 import { IChatAccessibilityService, IChatWidget, IChatWidgetService } from '../../../../contrib/chat/browser/chat.js';
 import { IChatResponseFileChangesService } from '../../../../contrib/chat/browser/chatResponseFileChangesService.js';
@@ -369,6 +371,14 @@ export function registerChatFixtureServices(reg: ServiceRegistration, options: I
 		override readonly onDidChange = Event.None;
 		override getActiveNotification() { return options.notification; }
 		override announceRendered() { }
+	}());
+	reg.defineInstance(IAgentSdkSetupService, new class extends mock<IAgentSdkSetupService>() {
+		override readonly setups = [];
+		override readonly onDidChangeSetups = Event.None;
+	}());
+	reg.defineInstance(ICodexAccountService, new class extends mock<ICodexAccountService>() {
+		override readonly account = { status: 'unknown' as const };
+		override readonly onDidChangeAccount = Event.None;
 	}());
 	reg.defineInstance(IChatSubmitRequestHandlerService, new ChatSubmitRequestHandlerService());
 	reg.defineInstance(IChatStatusItemService, new class extends mock<IChatStatusItemService>() {

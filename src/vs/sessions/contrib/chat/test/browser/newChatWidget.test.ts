@@ -620,6 +620,37 @@ suite('NewChatWidget', () => {
 			});
 	});
 
+	test('labels selected remote quick chats with their provider', () => {
+		const providers = [
+			upcastPartial<ISessionsProvider>({
+				id: LOCAL_AGENT_HOST_PROVIDER_ID,
+				label: 'Local Agent Host',
+				supportsQuickChats: true,
+			}),
+			upcastPartial<ISessionsProvider>({
+				id: 'agenthost-remote-test',
+				label: 'Test Remote',
+				supportsQuickChats: true,
+			}),
+		];
+		const selectedLabels = [
+			LOCAL_AGENT_HOST_PROVIDER_ID,
+			'agenthost-remote-test',
+			'agenthost-missing',
+		].map(providerId => getNoWorkspaceOption.call({
+			_useConsolidatedRemoteWorkspaces: constObservable(true),
+			_isWorkspacePickerQuickChat: constObservable(true),
+			_session: constObservable({ providerId }),
+			sessionsProvidersService: { getProviders: () => providers },
+			sessionsManagementService: { isQuickChatTargetAvailable: () => true },
+			selectNoWorkspace: () => { },
+		})?.selectedLabel);
+
+		assert.deepStrictEqual(selectedLabels, isWeb
+			? [undefined, undefined, undefined]
+			: [undefined, 'Chat [Test Remote]', undefined]);
+	});
+
 	test('selects the sole quick chat provider directly', () => {
 		const selections: Array<ICreateNewSessionOptions | undefined> = [];
 		const provider = upcastPartial<ISessionsProvider>({

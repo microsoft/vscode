@@ -66,14 +66,6 @@ registerAction2(class CloseSessionAction extends Action2 {
 	}
 });
 
-KeybindingsRegistry.registerKeybindingRule({
-	id: CLOSE_SESSION_COMMAND_ID,
-	weight: KeybindingWeight.SessionsContrib,
-	when: ContextKeyExpr.and(IsNewChatSessionContext.negate(), EditorsVisibleContext.negate()),
-	primary: KeyMod.CtrlCmd | KeyCode.KeyW,
-	win: { primary: KeyMod.CtrlCmd | KeyCode.F4, secondary: [KeyMod.CtrlCmd | KeyCode.KeyW] },
-});
-
 //  Open Session at Index (Ctrl/Cmd+1..9)
 
 const OPEN_SESSION_AT_INDEX_COMMAND_ID = 'sessionsViewPane.openSessionAtIndex';

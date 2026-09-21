@@ -319,6 +319,13 @@ export interface ISessionsProvider {
 	resolveWorkspace(workspaceUri: URI): ISessionWorkspace | undefined;
 
 	/**
+	 * Returns the canonical URI for a workspace represented by this provider.
+	 * Providers may use this to collapse alternate execution environments onto
+	 * the user-selected source workspace.
+	 */
+	canonicalizeWorkspaceUri?(workspaceUri: URI): URI;
+
+	/**
 	 * Create a new session for the given workspace URI.
 	 * The provider should not add this session to its session list until the first request is sent.
 	 * Multiple new sessions may be created and tracked concurrently; each is

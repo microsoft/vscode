@@ -106,6 +106,7 @@ export interface IOpenSessionOptions {
 	readonly preserveFocus?: boolean;
 	readonly source?: SessionOpenSource;
 	readonly restoreOnlySideOrToolChat?: boolean;
+	readonly forceMainChat?: boolean;
 }
 
 /**
@@ -904,12 +905,12 @@ export class SessionsService extends Disposable implements ISessionsService {
 		});
 	}
 
-	private _applyActiveChatSelection(session: ISession, restoreOnlySideOrToolChat: boolean | undefined): void {
-		if (!restoreOnlySideOrToolChat) {
+	private _applyActiveChatSelection(session: ISession, options: IOpenSessionOptions | undefined): void {
+		if (!options?.forceMainChat && !options?.restoreOnlySideOrToolChat) {
 			return;
 		}
 		const state = this._sessionStates.get(session.resource);
-		if (state?.activeChatOrigin === ChatOriginKind.SideChat || state?.activeChatOrigin === ChatOriginKind.Tool) {
+		if (!options.forceMainChat && (state?.activeChatOrigin === ChatOriginKind.SideChat || state?.activeChatOrigin === ChatOriginKind.Tool)) {
 			return;
 		}
 		const mainChat = session.mainChat.get();
@@ -997,7 +998,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 			if (token.isCancellationRequested) {
 				return;
 			}
-			this._applyActiveChatSelection(sessionData, options?.restoreOnlySideOrToolChat);
+			this._applyActiveChatSelection(sessionData, options);
 			this.sessionOpenTelemetryService.sessionResolved(
 				telemetryAttempt,
 				sessionData.resource,
@@ -1081,7 +1082,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 		if (options?.chatResource) {
 			await this.openChat(session, options.chatResource, { preserveFocus: options.preserveFocus, source: options.source });
 		} else {
-			await this.openSession(session.resource, { preserveFocus: options?.preserveFocus, source: options?.source, restoreOnlySideOrToolChat: options?.restoreOnlySideOrToolChat });
+			await this.openSession(session.resource, { preserveFocus: options?.preserveFocus, source: options?.source, restoreOnlySideOrToolChat: options?.restoreOnlySideOrToolChat, forceMainChat: options?.forceMainChat });
 		}
 	}
 

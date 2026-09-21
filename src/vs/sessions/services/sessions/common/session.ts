@@ -41,6 +41,14 @@ export interface ISessionType {
 	 * credentials come and go).
 	 */
 	readonly authRequirement: SessionTypeAuthRequirement;
+	/**
+	 * Selection-time initialization advertised by the provider while this type
+	 * is not usable yet. Absent when selecting the type cannot make progress.
+	 */
+	readonly initializationOnSelection?: {
+		/** Whether the provider already has non-GitHub authentication for initialization. */
+		readonly canInitializeWithoutGitHub: boolean;
+	};
 }
 
 /**
@@ -662,6 +670,8 @@ export interface IChat {
 
 	// Reactive properties
 
+	/** The effective workspace available to this chat. */
+	readonly workspace: IObservable<ISessionWorkspace | undefined>;
 	/** Chat display title (changes when auto-titled or renamed). */
 	readonly title: IObservable<string>;
 	/** When the chat was last updated. */
@@ -725,6 +735,13 @@ export interface IChat {
 	 * {@link getChatCapabilities}.
 	 */
 	readonly capabilities?: IObservable<IChatCapabilities>;
+}
+
+/** Whether the chat is a side chat spawned by the given parent chat. */
+export function isSideChatOf(chat: IChat, parentChat: URI): boolean {
+	return chat.origin?.kind === ChatOriginKind.SideChat
+		&& !!chat.origin.parentChat
+		&& isEqual(chat.origin.parentChat, parentChat);
 }
 
 /**

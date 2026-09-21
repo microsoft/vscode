@@ -500,8 +500,12 @@ suite('WorkspacePicker - Connection Status', () => {
 		assert.deepStrictEqual({
 			tabbed: getRemoteItems(tabbedPicker),
 			unifiedTopLevel: getRemoteItems(unifiedPicker),
+			tabbedListOptions: {
+				submenuHoverDelay: tabbedPicker.getListOptions().submenuHoverDelay,
+			},
 			unifiedListOptions: {
 				submenuPointerIntent: unifiedPicker.getListOptions().submenuPointerIntent,
+				submenuHoverDelay: unifiedPicker.getListOptions().submenuHoverDelay,
 				preserveVerticalPosition: unifiedRemoteItem?.hover?.preserveVerticalPosition,
 				alignToAnchorTop: unifiedRemoteItem?.hover?.alignToAnchorTop,
 				submenuFilter: unifiedRemoteItem?.submenuOptions?.showFilter,
@@ -532,8 +536,12 @@ suite('WorkspacePicker - Connection Status', () => {
 				{ label: 'Provider agenthost-wsl', description: 'Online · 2 active sessions', ariaLabel: 'Provider agenthost-wsl, Online · 2 active sessions' },
 			],
 			unifiedTopLevel: [],
+			tabbedListOptions: {
+				submenuHoverDelay: undefined,
+			},
 			unifiedListOptions: {
 				submenuPointerIntent: undefined,
+				submenuHoverDelay: 0,
 				preserveVerticalPosition: true,
 				alignToAnchorTop: true,
 				submenuFilter: true,
@@ -922,9 +930,7 @@ suite('WorkspacePicker - Connection Status', () => {
 				picker.getItems();
 				await timeout(0);
 
-				const selectMode = (label: string) => consolidated
-					? picker.selectSubmenu('Remote', ['remote/project', label])
-					: picker.selectSubmenu('remote/project', label);
+				const selectMode = (label: string) => picker.selectSubmenu('remote/project', label);
 				await selectMode('Use Dev Container');
 				const selected = {
 					providerId: picker.selectedResolved?.providerId,
@@ -4429,12 +4435,32 @@ suite('WorkspacePicker - Tab discovery', () => {
 		}, {
 			usesTabs: false,
 			tabs: [SESSION_WORKSPACE_GROUP_LOCAL, SESSION_WORKSPACE_GROUP_REMOTE],
-			items: ['Open Folder...', 'Repository', 'Remote'],
-			itemIcons: ['folder', 'folder', 'remote'],
+			items: ['Open Folder...', 'Select Remote', 'Repository'],
+			itemIcons: ['folder', 'folder', 'folder'],
 			showsFilter: true,
 			focusesFilter: true,
 			filterPlaceholder: 'Search',
 		});
+	});
+
+	test('caps recent workspaces in the unified picker so Remote remains visible', () => {
+		const storage = disposables.add(new TestStorageService());
+		seedStorage(storage, Array.from({ length: 11 }, (_, index) => ({
+			uri: URI.file(`/local/folder-${index}`),
+			providerId: 'local-1',
+			checked: false,
+		})));
+		providersService.setProviders([
+			createMockProvider('remote', { browseActions: [makeBrowseAction('remote', SESSION_WORKSPACE_GROUP_REMOTE, 'Select Remote...')] }),
+			{ ...createMockProvider('local-1'), supportsLocalWorkspaces: true },
+		]);
+		const picker = createTestablePicker(disposables, providersService, true, {}, undefined, storage, true);
+
+		assert.deepStrictEqual(picker.getItemLabels(), [
+			...Array.from({ length: 10 }, (_, index) => `local/folder-${index}`),
+			'Open Folder...',
+			'Select Remote',
+		]);
 	});
 
 	test('strips only trailing ellipses from unified browse action labels', () => {
@@ -4596,13 +4622,13 @@ suite('WorkspacePicker - Tab discovery', () => {
 		};
 		const picker = createTestablePicker(disposables, providersService, true, options, undefined, undefined, true);
 
-		await picker.selectSubmenu('Remote', 'Select Remote');
+		await picker.select('Select Remote');
 
 		assert.deepStrictEqual({
 			items: picker.getItemLabels(),
 			selectedActions,
 		}, {
-			items: ['Sign in to GitHub', 'Open Folder...', 'Remote'],
+			items: ['Sign in to GitHub', 'Open Folder...', 'Select Remote'],
 			selectedActions: ['remote'],
 		});
 	});
@@ -4629,12 +4655,13 @@ suite('WorkspacePicker - Tab discovery', () => {
 		assert.deepStrictEqual(picker.getItemLabels(), ['Open Folder...']);
 	});
 
-	test('selects Chat through the consolidated picker', async () => {
+	test('shows the selected remote Chat label only in the trigger', async () => {
 		let noWorkspaceSelected = false;
 		const picker = createTestablePicker(disposables, providersService, true, {
 			getNoWorkspaceOption: () => ({
 				description: 'Start without a backing workspace',
 				isSelected: noWorkspaceSelected,
+				selectedLabel: 'Chat [Test Remote]',
 				select: () => noWorkspaceSelected = true,
 			}),
 		}, undefined, undefined, true);
@@ -4694,8 +4721,8 @@ suite('WorkspacePicker - Tab discovery', () => {
 					icon: 'comment',
 					checked: true,
 				}],
-				triggerLabel: 'Chat',
-				triggerAriaLabel: 'Workspace: Chat',
+				triggerLabel: 'Chat [Test Remote]',
+				triggerAriaLabel: 'Workspace: Chat [Test Remote]',
 			},
 		});
 	});
@@ -4955,7 +4982,7 @@ suite('WorkspacePicker - Tab discovery', () => {
 		});
 	});
 
-	test('shows GitHub sign-in with remote and GitHub workspaces when groups are combined', () => {
+	test('promotes remote workspaces alongside GitHub workspaces when groups are combined', () => {
 		const storage = disposables.add(new TestStorageService());
 		const remoteUri = URI.parse('vscode-remote://host/remote-project');
 		const gitHubUri = URI.parse('vscode-vfs://github/microsoft/vscode/HEAD');
@@ -4965,7 +4992,10 @@ suite('WorkspacePicker - Tab discovery', () => {
 		]);
 		const remoteProvider = createMockProvider('agenthost-menu', {
 			connectionStatus: observableValue('remoteStatus', RemoteAgentHostConnectionStatus.disconnected),
-			browseActions: [makeBrowseAction('agenthost-menu', SESSION_WORKSPACE_GROUP_REMOTE, 'Select Remote...')],
+			browseActions: [{
+				...makeBrowseAction('agenthost-menu', SESSION_WORKSPACE_GROUP_REMOTE, 'Folders'),
+				description: 'Provider agenthost-menu',
+			}],
 		});
 		const gitHubProvider = createMockProvider('github', {
 			browseActions: [{ ...makeBrowseAction('github', SESSION_WORKSPACE_GROUP_GITHUB, 'Repository...'), attachesContext: false, supportsContextAttachment: true }],
@@ -5010,15 +5040,15 @@ suite('WorkspacePicker - Tab discovery', () => {
 			})) : undefined,
 		}, {
 			items: [
+				'remote-project',
 				'microsoft/vscode/HEAD',
 				'Sign in to GitHub',
+				'Provider agenthost-menu',
 				'Repository',
 				'Attach Repository',
 				'Remote',
 			],
 			remoteItems: [
-				{ label: 'remote-project', enabled: false, removable: true },
-				{ label: 'Select Remote', enabled: false, removable: false },
 				{ label: 'Manage Provider agenthost-menu', enabled: true, removable: false },
 			],
 		});
