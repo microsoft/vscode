@@ -20,6 +20,7 @@ export const enum InboxNotificationKind {
 	ConfirmationRequested = 'confirmationRequested',
 	NeedsInput = 'needsInput',
 	FailingCI = 'failingCi',
+	PassingCI = 'passingCi',
 	ReviewComments = 'reviewComments',
 	Completed = 'completed',
 	External = 'external',

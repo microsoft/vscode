@@ -6,16 +6,22 @@
 import assert from 'assert';
 import { Emitter } from '../../../../../base/common/event.js';
 import { type IMarkdownString } from '../../../../../base/common/htmlContent.js';
-import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { DisposableStore, IReference, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../../base/common/observable.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
-import { SessionStatus, type ISession } from '../../../../services/sessions/common/session.js';
+import { IGitHubService } from '../../../github/browser/githubService.js';
+import { GitHubCIOverallStatus, GitHubCheckConclusion, GitHubCheckStatus, GitHubPullRequestState, IGitHubCICheck, IGitHubPullRequest, IGitHubPullRequestReviewThread } from '../../../github/common/types.js';
+import { SessionStatus, type IGitHubInfo, type ISession, type ISessionWorkspace } from '../../../../services/sessions/common/session.js';
 import { ISessionsChangeEvent, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { InboxNotificationsService } from '../../browser/inboxNotificationsService.js';
 import { InboxNotificationActionKind, InboxNotificationKind, InboxNotificationPriority } from '../../common/inboxNotificationsService.js';
+import { GitHubPullRequestModel } from '../../../github/browser/models/githubPullRequestModel.js';
+import { GitHubPullRequestCIModel } from '../../../github/browser/models/githubPullRequestCIModel.js';
+import { GitHubPullRequestReviewThreadsModel } from '../../../github/browser/models/githubPullRequestReviewThreadsModel.js';
 
 suite('InboxNotificationsService', () => {
 	const dismissedStorageKey = 'sessions.inboxNotifications.dismissedIds';
@@ -34,8 +40,41 @@ suite('InboxNotificationsService', () => {
 		readonly description?: string;
 		readonly isRead?: boolean;
 		readonly isArchived?: boolean;
+		readonly pullRequest?: {
+			readonly owner: string;
+			readonly repo: string;
+			readonly number: number;
+		};
 	}): ISession {
 		const key = `inboxNotificationsService/${options.id}`;
+		const gitHubInfo: IGitHubInfo | undefined = options.pullRequest ? {
+			owner: options.pullRequest.owner,
+			repo: options.pullRequest.repo,
+			pullRequest: {
+				number: options.pullRequest.number,
+				uri: URI.parse(`https://github.com/${options.pullRequest.owner}/${options.pullRequest.repo}/pull/${options.pullRequest.number}`),
+				state: 'open',
+			},
+		} : undefined;
+		const workspace: ISessionWorkspace | undefined = gitHubInfo ? {
+			uri: URI.parse(`test:///workspace/${options.id}`),
+			label: options.id,
+			icon: Codicon.folder,
+			folders: [{
+				root: URI.parse(`test:///workspace/${options.id}/root`),
+				workingDirectory: URI.parse(`test:///workspace/${options.id}/root`),
+				name: options.id,
+				description: undefined,
+				gitRepository: {
+					uri: URI.parse(`test:///workspace/${options.id}/root`),
+					workTreeUri: URI.parse(`test:///workspace/${options.id}/root`),
+					baseBranchName: undefined,
+					gitHubInfo: observableValue<IGitHubInfo | undefined>(`${key}/gitHubInfo`, gitHubInfo),
+				},
+			}],
+			requiresWorkspaceTrust: false,
+			isVirtualWorkspace: false,
+		} : undefined;
 		return upcastPartial<ISession>({
 			sessionId: options.id,
 			resource: URI.parse(`test:///session/${options.id}`),
@@ -45,12 +84,18 @@ suite('InboxNotificationsService', () => {
 			description: observableValue<IMarkdownString | undefined>(`${key}/description`, options.description ? { value: options.description } : undefined),
 			isRead: observableValue(`${key}/isRead`, options.isRead ?? true),
 			isArchived: observableValue(`${key}/isArchived`, options.isArchived ?? false),
+			workspace: observableValue<ISessionWorkspace | undefined>(`${key}/workspace`, workspace),
 		});
 	}
 
-	function createFixture(initialSessions: readonly ISession[], storageService?: InMemoryStorageService): {
+	function createFixture(
+		initialSessions: readonly ISession[],
+		storageService?: InMemoryStorageService,
+		gitHubService?: TestGitHubService,
+	): {
 		readonly service: InboxNotificationsService;
 		readonly storageService: InMemoryStorageService;
+		readonly gitHubService: TestGitHubService;
 		setSessions(sessions: readonly ISession[]): void;
 	} {
 		const store = disposables.add(new DisposableStore());
@@ -61,10 +106,12 @@ suite('InboxNotificationsService', () => {
 			getSessions: () => sessions,
 		});
 		const effectiveStorageService = storageService ?? store.add(new InMemoryStorageService());
-		const service = store.add(new InboxNotificationsService(managementService, effectiveStorageService));
+		const effectiveGitHubService = gitHubService ?? new TestGitHubService();
+		const service = store.add(new InboxNotificationsService(managementService, upcastPartial<IGitHubService>(effectiveGitHubService), effectiveStorageService));
 		return {
 			service,
 			storageService: effectiveStorageService,
+			gitHubService: effectiveGitHubService,
 			setSessions(nextSessions: readonly ISession[]) {
 				sessions = [...nextSessions];
 				sessionsChangeEmitter.fire({ added: [], removed: [], changed: sessions });
@@ -96,6 +143,90 @@ suite('InboxNotificationsService', () => {
 				actionKinds: [InboxNotificationActionKind.OpenSession, InboxNotificationActionKind.MarkSessionRead, InboxNotificationActionKind.Dismiss],
 			},
 		]);
+	});
+
+	test('surfaces failing and passing CI notifications for session pull requests', () => {
+		const gitHubService = new TestGitHubService();
+		const fixture = createFixture([createSession({
+			id: 'ci',
+			status: SessionStatus.Completed,
+			updatedAt: 100,
+			isRead: true,
+			pullRequest: { owner: 'owner', repo: 'repo', number: 42 },
+		})], undefined, gitHubService);
+
+		gitHubService.setPullRequest('owner', 'repo', 42, openPullRequest(42, 'sha42'));
+		gitHubService.setCIStatus('owner', 'repo', 42, 'sha42', GitHubCIOverallStatus.Failure, [{
+			id: 1,
+			name: 'CI',
+			status: GitHubCheckStatus.Completed,
+			conclusion: GitHubCheckConclusion.Failure,
+			startedAt: '2026-09-21T16:00:00Z',
+			completedAt: '2026-09-21T16:01:00Z',
+			detailsUrl: undefined,
+		}]);
+		assert.deepStrictEqual(fixture.service.notifications.get().map(item => item.kind), [InboxNotificationKind.FailingCI]);
+
+		gitHubService.setCIStatus('owner', 'repo', 42, 'sha42', GitHubCIOverallStatus.Success, [{
+			id: 2,
+			name: 'CI',
+			status: GitHubCheckStatus.Completed,
+			conclusion: GitHubCheckConclusion.Success,
+			startedAt: '2026-09-21T16:02:00Z',
+			completedAt: '2026-09-21T16:03:00Z',
+			detailsUrl: undefined,
+		}]);
+		assert.deepStrictEqual(fixture.service.notifications.get().map(item => item.kind), [InboxNotificationKind.PassingCI]);
+	});
+
+	test('surfaces unresolved Copilot review comments only', () => {
+		const gitHubService = new TestGitHubService();
+		const fixture = createFixture([createSession({
+			id: 'comments',
+			status: SessionStatus.Completed,
+			updatedAt: 100,
+			isRead: true,
+			pullRequest: { owner: 'owner', repo: 'repo', number: 43 },
+		})], undefined, gitHubService);
+
+		gitHubService.setPullRequest('owner', 'repo', 43, openPullRequest(43, 'sha43'));
+		gitHubService.setReviewThreads('owner', 'repo', 43, [{
+			id: 'thread-human',
+			isResolved: false,
+			path: 'src/test.ts',
+			startLine: 10,
+			line: 10,
+			comments: [{
+				id: 1,
+				body: 'Please adjust this.',
+				author: { login: 'reviewer', avatarUrl: '' },
+				createdAt: '2026-09-21T16:00:00Z',
+				updatedAt: '2026-09-21T16:00:00Z',
+				path: 'src/test.ts',
+				line: 10,
+				threadId: 'thread-human',
+				inReplyToId: undefined,
+			}],
+		}, {
+			id: 'thread-copilot',
+			isResolved: false,
+			path: 'src/test.ts',
+			startLine: 20,
+			line: 20,
+			comments: [{
+				id: 2,
+				body: 'Copilot suggestion',
+				author: { login: 'copilot[bot]', avatarUrl: '' },
+				createdAt: '2026-09-21T16:05:00Z',
+				updatedAt: '2026-09-21T16:05:00Z',
+				path: 'src/test.ts',
+				line: 20,
+				threadId: 'thread-copilot',
+				inReplyToId: undefined,
+			}],
+		}]);
+
+		assert.deepStrictEqual(fixture.service.notifications.get().map(item => item.kind), [InboxNotificationKind.ReviewComments]);
 	});
 
 	test('persists dismissed notifications across instances', () => {
@@ -178,3 +309,126 @@ suite('InboxNotificationsService', () => {
 		assert.deepStrictEqual(fixture.service.notifications.get().map(item => item.kind), [InboxNotificationKind.Completed]);
 	});
 });
+
+function openPullRequest(number: number, headSha: string): IGitHubPullRequest {
+	return upcastPartial<IGitHubPullRequest>({
+		number,
+		headSha,
+		isDraft: false,
+		state: GitHubPullRequestState.Open,
+	});
+}
+
+class TestGitHubService {
+	private readonly _prModels = new Map<string, TestPullRequestModel>();
+	private readonly _ciModels = new Map<string, TestCIModel>();
+	private readonly _reviewThreadModels = new Map<string, TestReviewThreadsModel>();
+
+	createPullRequestModelReference(owner: string, repo: string, prNumber: number): IReference<GitHubPullRequestModel> {
+		return { object: upcastPartial<GitHubPullRequestModel>(this._prModel(owner, repo, prNumber)), dispose: () => { } };
+	}
+
+	createPullRequestCIModelReference(owner: string, repo: string, prNumber: number, headSha: string): IReference<GitHubPullRequestCIModel> {
+		return { object: upcastPartial<GitHubPullRequestCIModel>(this._ciModel(owner, repo, prNumber, headSha)), dispose: () => { } };
+	}
+
+	createPullRequestReviewThreadsModelReference(owner: string, repo: string, prNumber: number): IReference<GitHubPullRequestReviewThreadsModel> {
+		return { object: upcastPartial<GitHubPullRequestReviewThreadsModel>(this._reviewThreadModel(owner, repo, prNumber)), dispose: () => { } };
+	}
+
+	setPullRequest(owner: string, repo: string, prNumber: number, pullRequest: IGitHubPullRequest): void {
+		this._prModel(owner, repo, prNumber).set(pullRequest);
+	}
+
+	setCIStatus(owner: string, repo: string, prNumber: number, headSha: string, status: GitHubCIOverallStatus, checks: readonly IGitHubCICheck[]): void {
+		this._ciModel(owner, repo, prNumber, headSha).set(status, checks);
+	}
+
+	setReviewThreads(owner: string, repo: string, prNumber: number, threads: readonly IGitHubPullRequestReviewThread[]): void {
+		this._reviewThreadModel(owner, repo, prNumber).set(threads);
+	}
+
+	private _prModel(owner: string, repo: string, prNumber: number): TestPullRequestModel {
+		const key = `${owner}/${repo}/${prNumber}`;
+		let model = this._prModels.get(key);
+		if (!model) {
+			model = new TestPullRequestModel();
+			this._prModels.set(key, model);
+		}
+		return model;
+	}
+
+	private _ciModel(owner: string, repo: string, prNumber: number, headSha: string): TestCIModel {
+		const key = `${owner}/${repo}/${prNumber}/${headSha}`;
+		let model = this._ciModels.get(key);
+		if (!model) {
+			model = new TestCIModel();
+			this._ciModels.set(key, model);
+		}
+		return model;
+	}
+
+	private _reviewThreadModel(owner: string, repo: string, prNumber: number): TestReviewThreadsModel {
+		const key = `${owner}/${repo}/${prNumber}`;
+		let model = this._reviewThreadModels.get(key);
+		if (!model) {
+			model = new TestReviewThreadsModel();
+			this._reviewThreadModels.set(key, model);
+		}
+		return model;
+	}
+}
+
+class TestPullRequestModel {
+	private readonly _pullRequest = observableValue<IGitHubPullRequest | undefined>('test.pullRequest', undefined);
+	readonly pullRequest = this._pullRequest;
+
+	set(pullRequest: IGitHubPullRequest): void {
+		this._pullRequest.set(pullRequest, undefined);
+	}
+
+	refresh(): Promise<void> {
+		return Promise.resolve();
+	}
+
+	startPolling() {
+		return toDisposable(() => { });
+	}
+}
+
+class TestCIModel {
+	private readonly _overallStatus = observableValue<GitHubCIOverallStatus>('test.ciStatus', GitHubCIOverallStatus.Neutral);
+	readonly overallStatus = this._overallStatus;
+	private readonly _checks = observableValue<readonly IGitHubCICheck[]>('test.ciChecks', []);
+	readonly checks = this._checks;
+
+	set(status: GitHubCIOverallStatus, checks: readonly IGitHubCICheck[]): void {
+		this._overallStatus.set(status, undefined);
+		this._checks.set(checks, undefined);
+	}
+
+	refresh(): Promise<void> {
+		return Promise.resolve();
+	}
+
+	startPolling() {
+		return toDisposable(() => { });
+	}
+}
+
+class TestReviewThreadsModel {
+	private readonly _reviewThreads = observableValue<readonly IGitHubPullRequestReviewThread[]>('test.reviewThreads', []);
+	readonly reviewThreads = this._reviewThreads;
+
+	set(threads: readonly IGitHubPullRequestReviewThread[]): void {
+		this._reviewThreads.set(threads, undefined);
+	}
+
+	refresh(): Promise<void> {
+		return Promise.resolve();
+	}
+
+	startPolling() {
+		return toDisposable(() => { });
+	}
+}

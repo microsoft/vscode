@@ -14,6 +14,8 @@ export function getInboxNotificationKindLabel(kind: InboxNotificationKind): stri
 			return localize('inboxNotifications.kind.needsInput', "Needs Input");
 		case InboxNotificationKind.FailingCI:
 			return localize('inboxNotifications.kind.failingCi', "CI");
+		case InboxNotificationKind.PassingCI:
+			return localize('inboxNotifications.kind.passingCi', "Merge Ready");
 		case InboxNotificationKind.ReviewComments:
 			return localize('inboxNotifications.kind.reviewComments', "Comments");
 		case InboxNotificationKind.Completed:
