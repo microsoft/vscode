@@ -58,6 +58,7 @@
 	background-color: transparent !important;
 	cursor: default;
 	--editor-group-tab-height: 24px !important;
+	--modern-ui-editor-tab-row-height: calc(var(--editor-group-tab-height) + var(--vscode-spacing-size80));
 }
 
 /* Compact tab height: 20px tab + 4px top + 4px bottom padding = 28px total.
@@ -240,7 +241,7 @@
 
 .modern-ui-tabs.monaco-workbench .part.editor .tabs-and-actions-container:not(.wrapping) .tabs-container,
 .modern-ui-tabs.monaco-workbench .part.editor .tabs-and-actions-container:not(.wrapping) .tabs-container > .tab {
-	min-height: calc(var(--editor-group-tab-height) + var(--vscode-spacing-size40) * 2);
+	min-height: var(--modern-ui-editor-tab-row-height);
 }
 
 .modern-ui-tabs.monaco-workbench .part.editor .tabs-and-actions-container:not(.wrapping) .tabs-container > .tab {

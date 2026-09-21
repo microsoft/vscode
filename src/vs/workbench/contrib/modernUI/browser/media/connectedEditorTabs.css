@@ -96,7 +96,7 @@
 }
 
 .modern-ui.modern-ui-connected-editor-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs > .tabs-and-actions-container:not(.wrapping) > .editor-actions {
-	height: calc(var(--editor-group-tab-height) + var(--vscode-spacing-size80));
+	height: var(--modern-ui-editor-tab-row-height);
 }
 
 .modern-ui.modern-ui-connected-editor-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs .tabs-container {
