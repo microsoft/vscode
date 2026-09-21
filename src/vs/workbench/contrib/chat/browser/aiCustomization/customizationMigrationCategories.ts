@@ -12,7 +12,7 @@ import type { IConfigurationService } from '../../../../../platform/configuratio
 import { ChatConfiguration } from '../../common/constants.js';
 import { PromptsConfig } from '../../common/promptSyntax/config/config.js';
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
-import { CustomizationMigrationCandidate, CustomizationMigrationType, getCustomizationMigrationEnablementSetting, IMcpServerCustomizationMigrationFailure, isConfiguredLocationMigrationCandidate, isMcpServerCustomizationMigrationCandidate, isPromptFileMigrationCandidate, isUserDataMigrationCandidate, McpServerCustomizationMigrationFailureReason, MigratableConfiguration } from '../../common/promptSyntax/service/customizationMigrationService.js';
+import { CustomizationMigrationCandidate, CustomizationMigrationType, getCustomizationMigrationEnablementSetting, IMcpServerCustomizationMigrationExclusion, IMcpServerCustomizationMigrationFailure, isConfiguredLocationMigrationCandidate, isMcpServerCustomizationMigrationCandidate, isPromptFileMigrationCandidate, isUserDataMigrationCandidate, McpServerCustomizationMigrationFailureReason, MigratableConfiguration } from '../../common/promptSyntax/service/customizationMigrationService.js';
 import { PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
 
 export const enum CustomizationMigrationCategoryId {
@@ -89,6 +89,7 @@ export interface ICustomizationMigrationCategory {
 	getMigratedWithReviewMessage?(migratedCount: number, unsupportedHeaderKeys: string): string;
 	getFailedMessage(failedFileNames: readonly string[], hiddenFileCount: number): string;
 	getMcpServerFailureMessage?(failures: readonly IMcpServerCustomizationMigrationFailure[]): string;
+	getMcpServerExclusionReason?(exclusion: IMcpServerCustomizationMigrationExclusion): string;
 }
 
 const SKILLS_DOCUMENTATION_URL = 'https://code.visualstudio.com/docs/agent-customization/agent-skills?referrer=in-product';
@@ -610,6 +611,10 @@ const mcpServersMigrationCategory: ICustomizationMigrationCategory = {
 		return migratedCount === 1
 			? localize('mcpMigrationCompletedSingle', "Migrated 1 MCP server.")
 			: localize('mcpMigrationCompletedMultiple', "Migrated {0} MCP servers.", migratedCount);
+	},
+
+	getMcpServerExclusionReason(exclusion) {
+		return exclusion.details.join(' ');
 	},
 
 	getFailedMessage(failedServerNames, hiddenServerCount) {

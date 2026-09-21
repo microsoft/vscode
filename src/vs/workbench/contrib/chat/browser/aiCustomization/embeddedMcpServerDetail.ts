@@ -4,14 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as DOM from '../../../../../base/browser/dom.js';
+import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
+import { getErrorMessage } from '../../../../../base/common/errors.js';
+import { findNodeAtLocation, parseTree } from '../../../../../base/common/json.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, IObservable } from '../../../../../base/common/observable.js';
 import { basename } from '../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { CodeEditorWidget } from '../../../../../editor/browser/widget/codeEditor/codeEditorWidget.js';
-import { IRange } from '../../../../../editor/common/core/range.js';
+import { IRange, Range } from '../../../../../editor/common/core/range.js';
 import { ILanguageService } from '../../../../../editor/common/languages/language.js';
 import { ITextModel } from '../../../../../editor/common/model.js';
 import { IModelService } from '../../../../../editor/common/services/model.js';
@@ -20,6 +23,8 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IMcpServerConfiguration } from '../../../../../platform/mcp/common/mcpPlatformTypes.js';
+import { INotificationService } from '../../../../../platform/notification/common/notification.js';
+import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { getSimpleEditorOptions } from '../../../codeEditor/browser/simpleEditorOptions.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { CustomizationMcpServerCompatibilityKind, ICustomizationHarnessService, ICustomizationMcpServerCompatibility } from '../../common/customizationHarnessService.js';
@@ -83,6 +88,7 @@ export class EmbeddedMcpServerDetail extends Disposable {
 	private readonly leadingSlotEl: HTMLElement;
 	private readonly nameEl: HTMLElement;
 	private readonly pathEl: HTMLAnchorElement;
+	private readonly editConfigurationButton: Button;
 	private readonly bodyEl: HTMLElement;
 	private readonly diagnosticsEmpty: HTMLElement;
 	private readonly definitionEditorContainer: HTMLElement;
@@ -114,6 +120,7 @@ export class EmbeddedMcpServerDetail extends Disposable {
 		@IFileService private readonly fileService: IFileService,
 		@IEditorService private readonly editorService: IEditorService,
 		@ICustomizationHarnessService private readonly customizationHarnessService: ICustomizationHarnessService,
+		@INotificationService private readonly notificationService: INotificationService,
 	) {
 		super();
 
@@ -124,6 +131,15 @@ export class EmbeddedMcpServerDetail extends Disposable {
 		const headerText = DOM.append(this.headerEl, $('.editor-item-info'));
 		this.nameEl = DOM.append(headerText, $('.editor-item-name'));
 		this.pathEl = DOM.append(headerText, $('a.editor-item-path')) as HTMLAnchorElement;
+		const headerActions = DOM.append(this.headerEl, $('.embedded-detail-title-actions'));
+		const editConfigurationLabel = localize('editMcpConfiguration', "Edit Configuration");
+		this.editConfigurationButton = this._register(new Button(headerActions, {
+			...defaultButtonStyles,
+			secondary: true,
+			ariaLabel: editConfigurationLabel,
+		}));
+		this.editConfigurationButton.label = editConfigurationLabel;
+		this._register(this.editConfigurationButton.onDidClick(() => void this.editConfiguration()));
 		this._register(DOM.addDisposableListener(this.pathEl, DOM.EventType.CLICK, event => {
 			const source = this.current?.source;
 			if (!source) {
@@ -226,6 +242,7 @@ export class EmbeddedMcpServerDetail extends Disposable {
 			this.pathEl.removeAttribute('href');
 			this.pathEl.removeAttribute('aria-label');
 			this.pathEl.classList.remove('source-link');
+			this.editConfigurationButton.element.style.display = 'none';
 			this.setDefinition(undefined);
 			this.definitionEmptyEl.style.display = 'none';
 			return;
@@ -238,9 +255,11 @@ export class EmbeddedMcpServerDetail extends Disposable {
 		if (server.source) {
 			this.pathEl.href = '#';
 			this.pathEl.setAttribute('aria-label', localize('openMcpServerSource', "Open {0}", sourceLabel));
+			this.editConfigurationButton.element.style.display = '';
 		} else {
 			this.pathEl.removeAttribute('href');
 			this.pathEl.removeAttribute('aria-label');
+			this.editConfigurationButton.element.style.display = 'none';
 		}
 		if (server.installState !== McpServerInstallState.Installed) {
 			this.setDefinition(undefined, localize('mcpDefinitionAvailableAfterInstall', "Details are available after install when the MCP server can be inspected locally."));
@@ -251,6 +270,51 @@ export class EmbeddedMcpServerDetail extends Disposable {
 			void this.loadSourceDefinition(server, server.source, renderGeneration);
 		} else {
 			this.setDefinition(undefined);
+		}
+	}
+
+	private async editConfiguration(): Promise<void> {
+		const server = this.current;
+		const source = server?.source;
+		if (!server || !source) {
+			return;
+		}
+
+		let selection = source.range;
+		if (!selection) {
+			try {
+				const content = (await this.fileService.readFile(source.uri)).value.toString();
+				selection = getMcpServerConfigurationRange(content, server.name);
+				if (!selection) {
+					this.notificationService.warn(localize(
+						'mcpConfigurationLocationNotFound',
+						"Could not locate the configuration for '{0}'. Opening the source file instead.",
+						server.label || server.name,
+					));
+				}
+			} catch (error) {
+				this.notificationService.error(localize(
+					'mcpConfigurationReadFailed',
+					"Could not read the configuration for '{0}': {1}",
+					server.label || server.name,
+					getErrorMessage(error),
+				));
+				return;
+			}
+		}
+
+		try {
+			await this.editorService.openEditor({
+				resource: source.uri,
+				options: { selection, pinned: true },
+			});
+		} catch (error) {
+			this.notificationService.error(localize(
+				'mcpConfigurationOpenFailed',
+				"Could not open the configuration for '{0}': {1}",
+				server.label || server.name,
+				getErrorMessage(error),
+			));
 		}
 	}
 
@@ -497,6 +561,40 @@ function resolveCompatibilityState(resolved: boolean, compatibility: ICustomizat
 		return { kind: 'unknown', details: [] };
 	}
 	return { kind: compatibility.kind, details: compatibility.details ?? [] };
+}
+
+function getMcpServerConfigurationRange(content: string, serverName: string): Range | undefined {
+	const root = parseTree(content);
+	const node = findNodeAtLocation(root, ['servers', serverName])
+		?? findNodeAtLocation(root, ['mcpServers', serverName])
+		?? findNodeAtLocation(root, ['mcp', 'servers', serverName]);
+	if (!node) {
+		return undefined;
+	}
+	const start = positionAt(content, node.offset);
+	const end = positionAt(content, node.offset + node.length);
+	return new Range(start.lineNumber, start.column, end.lineNumber, end.column);
+}
+
+function positionAt(content: string, offset: number): { lineNumber: number; column: number } {
+	let lineNumber = 1;
+	let column = 1;
+	for (let index = 0; index < offset; index++) {
+		const character = content.charCodeAt(index);
+		if (character === 13) {
+			if (content.charCodeAt(index + 1) === 10 && index + 1 < offset) {
+				index++;
+			}
+			lineNumber++;
+			column = 1;
+		} else if (character === 10) {
+			lineNumber++;
+			column = 1;
+		} else {
+			column++;
+		}
+	}
+	return { lineNumber, column };
 }
 
 function getTextInRange(content: string, range: IRange): string {

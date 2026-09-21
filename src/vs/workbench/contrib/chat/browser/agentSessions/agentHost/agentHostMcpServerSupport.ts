@@ -71,6 +71,7 @@ export const enum AgentHostMcpSupportReason {
 	UnresolvedConfiguration = 'unresolvedConfiguration',
 	LaunchNotRepresentable = 'launchNotRepresentable',
 	EnvironmentFileIgnored = 'environmentFileIgnored',
+	WorkingDirectoryNotPortable = 'workingDirectoryNotPortable',
 	SandboxConfigurationIgnored = 'sandboxConfigurationIgnored',
 	DevelopmentModeIgnored = 'developmentModeIgnored',
 	OAuthClientConfigurationIgnored = 'oauthClientConfigurationIgnored',
@@ -675,6 +676,9 @@ function getPartialSupportReasons(launch: McpServerLaunch, sandboxEnabled: boole
 	if (launch.type === McpServerTransportType.Stdio) {
 		if (launch.envFile) {
 			reasons.push(AgentHostMcpSupportReason.EnvironmentFileIgnored);
+		}
+		if (launch.cwd !== undefined) {
+			reasons.push(AgentHostMcpSupportReason.WorkingDirectoryNotPortable);
 		}
 		if (launch.sandbox || sandboxEnabled) {
 			reasons.push(AgentHostMcpSupportReason.SandboxConfigurationIgnored);

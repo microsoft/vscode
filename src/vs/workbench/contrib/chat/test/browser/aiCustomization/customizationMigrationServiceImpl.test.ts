@@ -38,7 +38,7 @@ import { SessionType } from '../../../common/chatSessionsService.js';
 import { IChatService } from '../../../common/chatService/chatService.js';
 import { ICustomizationHarnessService, IHarnessDescriptor } from '../../../common/customizationHarnessService.js';
 import { PromptFileSource, PromptsType } from '../../../common/promptSyntax/promptTypes.js';
-import { CustomizationMigrationHintTarget, CustomizationMigrationType, getCustomizationMigrationEnablementSetting } from '../../../common/promptSyntax/service/customizationMigrationService.js';
+import { CustomizationMigrationHintTarget, CustomizationMigrationType, getCustomizationMigrationEnablementSetting, McpServerCustomizationMigrationFailureReason } from '../../../common/promptSyntax/service/customizationMigrationService.js';
 import { IPromptPath, PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
 import { MockPromptsService } from '../../common/promptSyntax/service/mockPromptsService.js';
 
@@ -362,6 +362,7 @@ suite('CustomizationMigrationService', () => {
 					? {
 						servers: migration.servers,
 						candidates: migration.candidates,
+						exclusions: migration.exclusions,
 						discoveryComplete: migration.discoveryComplete,
 						coverage: migration.coverage,
 					}
@@ -414,6 +415,7 @@ suite('CustomizationMigrationService', () => {
 						{ id: 'unsupported', name: 'Unsupported server', supported: false },
 					],
 					candidates: [],
+					exclusions: [],
 					discoveryComplete: false,
 					coverage: {
 						restrictedByMcpAccess: true,
@@ -429,6 +431,7 @@ suite('CustomizationMigrationService', () => {
 					type: 'mcpServers',
 					servers: [],
 					candidates: [],
+					exclusions: [],
 					discoveryComplete: true,
 					coverage: {
 						restrictedByMcpAccess: false,
@@ -854,6 +857,7 @@ suite('CustomizationMigrationService', () => {
 			migration: {
 				servers: migration.servers,
 				candidates: migration.candidates,
+				exclusions: migration.exclusions,
 			},
 			hint,
 			fileReads: fileProvider.readRequests.map(resource => resource.path),
@@ -864,6 +868,7 @@ suite('CustomizationMigrationService', () => {
 					{ id: 'mcp.config.ws0.unsupported', name: 'unsupported', supported: false },
 				],
 				candidates: [],
+				exclusions: [],
 			},
 			hint: {
 				message: 'Found 1 MCP server that is not fully supported by Copilot.',
@@ -1017,6 +1022,50 @@ suite('CustomizationMigrationService', () => {
 			sourceBeforeSupportSettled: '{"servers":{"server":{"command":"node"}}}',
 			source: '{"servers":{"server":{"command":"node"}}}',
 			target: '{"mcpServers":{}}',
+		});
+	});
+
+	test('reports why workspace MCP servers are not available to migrate', async () => {
+		const root = URI.file('/workspace');
+		const sourceUri = URI.joinPath(root, '.vscode', 'mcp.json');
+		const fileService = store.add(new FileService(new NullLogService()));
+		const fileProvider = store.add(new InMemoryFileSystemProvider());
+		store.add(fileService.registerProvider(Schemas.file, fileProvider));
+		await fileService.writeFile(sourceUri, VSBuffer.fromString('{"servers":{"server":{"command":"node"}}}'));
+		const snapshot = createWorkspaceMcpSupportSnapshot(root, {
+			compatibility: { kind: 'unsupported', reasons: [AgentHostMcpSupportReason.LaunchNotRepresentable] },
+		});
+		const harnessService = new TestCustomizationHarnessService();
+		const activeClientService = {
+			acquireMcpServerSupportScope: () => ({
+				support: constObservable(snapshot),
+				isResolved: constObservable(true),
+				whenResolved: () => Promise.resolve(),
+				dispose: () => { },
+			}),
+		} as Partial<IAgentHostActiveClientService> as IAgentHostActiveClientService;
+		const agentHostCustomizationService = {
+			onDidChangeCustomizations: Event.None,
+			getClientWorkingDirectoryUris: () => [root],
+		} as Partial<IAgentHostCustomizationService> as IAgentHostCustomizationService;
+		const service = store.add(new CustomizationMigrationService(store.add(new TestPromptsService([])), harnessService, activeClientService, agentHostCustomizationService, fileService, new NullLogService(), store.add(createMigrationConfiguration()), configurationResolverService));
+
+		const migration = await service.computeMigration(harnessService.activeSessionResource.get(), CustomizationMigrationType.McpServers);
+
+		assert.deepStrictEqual({
+			candidates: migration.candidates,
+			exclusions: migration.exclusions.map(exclusion => ({
+				name: exclusion.name,
+				reason: exclusion.reason,
+				details: exclusion.details,
+			})),
+		}, {
+			candidates: [],
+			exclusions: [{
+				name: 'server',
+				reason: McpServerCustomizationMigrationFailureReason.NoLongerEligible,
+				details: ['The launch configuration for this server is not supported by the Copilot harness.\nTo migrate this server, add a command for a local server or a valid URL for a remote server.'],
+			}],
 		});
 	});
 

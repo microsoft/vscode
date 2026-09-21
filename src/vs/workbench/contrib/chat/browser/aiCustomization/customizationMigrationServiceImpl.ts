@@ -23,8 +23,8 @@ import { CustomizationMigration, CustomizationMigrationHintTarget, Customization
 import { IPromptsService, PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
 import { IAgentHostActiveClientService } from '../agentSessions/agentHost/agentHostActiveClientService.js';
 import { IAgentHostCustomizationService } from '../agentSessions/agentHost/agentHostCustomizationService.js';
-import { AgentHostMcpServerApplicability, IAgentHostMcpServerSupportSnapshot } from '../agentSessions/agentHost/agentHostMcpServerSupport.js';
-import { IAgentHostMcpServerSupportScope } from '../agentSessions/agentHost/agentHostMcpServerSupportScope.js';
+import { AgentHostMcpServerApplicability, AgentHostMcpServerDelivery, IAgentHostMcpServerSupport, IAgentHostMcpServerSupportSnapshot } from '../agentSessions/agentHost/agentHostMcpServerSupport.js';
+import { getMcpCompatibilityDetail, IAgentHostMcpServerSupportScope } from '../agentSessions/agentHost/agentHostMcpServerSupportScope.js';
 import { isMcpServerMigrationDeliverable, McpServerCustomizationMigrator } from './mcpServerCustomizationMigration.js';
 
 export class CustomizationMigrationService extends Disposable implements ICustomizationMigrationService {
@@ -275,11 +275,13 @@ export class CustomizationMigrationService extends Disposable implements ICustom
 				return this.emptyMcpServerMigration();
 			}
 			const snapshot = scope.support.get();
-			const candidates = this.isMigrationEnabled(CustomizationMigrationType.McpServers)
-				? (await this.mcpServerMigration.createPlan(snapshot, roots, token)).candidates
-				: [];
+			const plan = this.isMigrationEnabled(CustomizationMigrationType.McpServers)
+				? await this.mcpServerMigration.createPlan(snapshot, roots, token)
+				: { candidates: [], exclusions: [] };
+			const candidates = plan.candidates;
 			if (!await this.waitForMcpServerSupport(scope, token)
 				|| !this.areRootsEqual(roots, this.agentHostCustomizationService.getClientWorkingDirectoryUris(sessionResource))
+				|| !equals(scope.support.get().servers, snapshot.servers)
 				|| !this.isMcpSupportContextCurrent(scope.support.get(), snapshot, candidates)) {
 				return this.emptyMcpServerMigration();
 			}
@@ -294,6 +296,15 @@ export class CustomizationMigrationService extends Disposable implements ICustom
 						supported: server.compatibility.kind === 'supported',
 					})),
 				candidates: this.isMigrationEnabled(CustomizationMigrationType.McpServers) ? candidates : [],
+				exclusions: this.isMigrationEnabled(CustomizationMigrationType.McpServers)
+					? plan.exclusions.map(exclusion => ({
+						...exclusion,
+						details: this.getMcpServerMigrationExclusionDetails(
+							settledSnapshot.servers.find(server => server.id === exclusion.id),
+							exclusion.reason,
+						),
+					}))
+					: [],
 				discoveryComplete: settledSnapshot.discoveryComplete,
 				coverage: settledSnapshot.coverage,
 			};
@@ -307,12 +318,38 @@ export class CustomizationMigrationService extends Disposable implements ICustom
 			type: CustomizationMigrationType.McpServers,
 			servers: [],
 			candidates: [],
+			exclusions: [],
 			discoveryComplete: true,
 			coverage: {
 				restrictedByMcpAccess: false,
 				restrictedByCustomizationPolicy: false,
 			},
 		};
+	}
+
+	private getMcpServerMigrationExclusionDetails(server: IAgentHostMcpServerSupport | undefined, reason: McpServerCustomizationMigrationFailureReason): readonly string[] {
+		if (server && !server.enablement.enabled) {
+			return [localize('mcpMigrationServerDisabled', "This server is disabled.")];
+		}
+		if (server && server.applicability !== AgentHostMcpServerApplicability.Applicable) {
+			return [localize('mcpMigrationServerNotApplicable', "This server is not associated with the current workspace.")];
+		}
+		if (server && server.compatibility.kind !== 'supported') {
+			return server.compatibility.reasons.map(getMcpCompatibilityDetail);
+		}
+		if (server && server.delivery !== AgentHostMcpServerDelivery.ClientForwarded) {
+			return [localize('mcpMigrationServerNotForwarded', "This server is not forwarded from its current configuration to the active agent.")];
+		}
+		switch (reason) {
+			case McpServerCustomizationMigrationFailureReason.SourceUnavailable:
+				return [localize('mcpMigrationServerSourceUnavailable', "The source MCP configuration could not be read.")];
+			case McpServerCustomizationMigrationFailureReason.InvalidSource:
+				return [localize('mcpMigrationServerInvalidSource', "The source MCP configuration or server definition is invalid.")];
+			case McpServerCustomizationMigrationFailureReason.UnrepresentableConfiguration:
+				return [localize('mcpMigrationServerUnrepresentable', "The server configuration cannot be moved without changing its behavior.")];
+			default:
+				return [localize('mcpMigrationServerIneligible', "This server no longer meets the migration requirements.")];
+		}
 	}
 
 	private isExecutionContextCurrent(sessionResource: URI, roots: readonly URI[], generation: number): boolean {
