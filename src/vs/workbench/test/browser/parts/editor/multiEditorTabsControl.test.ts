@@ -355,15 +355,22 @@ suite('MultiEditorTabsControl', () => {
 			const tab = container.querySelector<HTMLElement>('.tab.active')!;
 			const fill = tab.querySelector<HTMLElement>('.tab-fill')!;
 			const action = tab.querySelector<HTMLElement>('.action-label')!;
+			const actions = tab.querySelector<HTMLElement>('.tab-actions')!;
 			const label = tab.querySelector<HTMLElement>('.monaco-icon-label-container')!;
 			const fillBounds = fill.getBoundingClientRect();
 			const actionBounds = action.getBoundingClientRect();
+			const actionsBounds = actions.getBoundingClientRect();
 			const actionStyle = mainWindow.getComputedStyle(action);
+			const actionsStyle = mainWindow.getComputedStyle(actions);
 			return {
 				top: actionBounds.top - fillBounds.top,
 				right: fillBounds.right - actionBounds.right,
 				left: actionBounds.left - label.getBoundingClientRect().right,
 				width: fillBounds.width,
+				actionInsets: [
+					actionBounds.left - actionsBounds.left - Number.parseFloat(actionsStyle.borderLeftWidth),
+					actionsBounds.right - Number.parseFloat(actionsStyle.borderRightWidth) - actionBounds.right,
+				],
 				padding: [actionStyle.paddingTop, actionStyle.paddingRight, actionStyle.paddingBottom, actionStyle.paddingLeft],
 			};
 		};
@@ -425,6 +432,7 @@ suite('MultiEditorTabsControl', () => {
 				left: leftSingle.left === leftMultiple.left,
 				width: leftSingle.width === leftMultiple.width,
 			},
+			balancedActionSurface: [...measurements, leftMultiple, leftSingle].every(measurement => Math.abs(measurement.actionInsets[0] - measurement.actionInsets[1]) <= stroke),
 			balancedActionInsets: measurements.every(measurement => Math.abs(measurement.right - measurement.left) <= stroke),
 			actionPadding: measurements.every(measurement => new Set(measurement.padding).size === 1 && measurement.padding[0] === multiple.padding[0]),
 		}, {
@@ -432,6 +440,7 @@ suite('MultiEditorTabsControl', () => {
 			wrapped: { top: true, right: true, left: true },
 			horizontal: { right: true, left: true },
 			leftAction: { top: true, right: true, left: true, width: true },
+			balancedActionSurface: true,
 			balancedActionInsets: true,
 			actionPadding: true,
 		});
