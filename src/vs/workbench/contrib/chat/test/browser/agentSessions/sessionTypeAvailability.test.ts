@@ -154,9 +154,11 @@ suite('getSessionTypeAvailability', () => {
 		test('a signed-out user still needs the experiment when the harness has no models', () => {
 			assert.deepStrictEqual({
 				disabled: pickerAvailability(SessionTypeAvailability.NoModels, true, ChatEntitlement.Unknown, false),
+				unresolved: pickerAvailability(SessionTypeAvailability.NoModels, true, ChatEntitlement.Unresolved, false),
 				enabled: pickerAvailability(SessionTypeAvailability.NoModels, true, ChatEntitlement.Unknown, true),
 			}, {
 				disabled: SessionTypeAvailability.NoModels,
+				unresolved: SessionTypeAvailability.NoModels,
 				enabled: SessionTypeAvailability.Available,
 			});
 		});
