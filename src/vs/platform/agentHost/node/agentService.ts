@@ -69,6 +69,7 @@ import { type IAgentServiceSessionServerToolAccessor, type IChatContextSnapshot,
 import { AGENT_HOST_TITLE_SOURCE_AGENT, AGENT_HOST_TITLE_SOURCE_AUTO, customChatTitleMetadataKey, customChatTitleSourceMetadataKey, persistSessionMetadataValues, SESSION_ARTIFACTS_KEY, SESSION_CUSTOM_TITLE_KEY, SESSION_CUSTOM_TITLE_SOURCE_KEY } from './shared/persistSessionMetadata.js';
 import { type IArtifactServerToolAccessor } from './shared/artifactServerTools.js';
 import { SessionArtifacts } from './shared/sessionArtifacts.js';
+import { readSessionAdditionalWorktrees } from './shared/sessionAdditionalWorktrees.js';
 import { parseSessionArtifacts, stringifySessionArtifacts, withSessionArtifacts, type ISessionArtifact } from '../common/sessionArtifacts.js';
 import { AgentHostCatalogDatabaseReference, AgentHostCatalogSyncService, IAgentHostCatalogSyncRequest } from './agentHostCatalogSyncService.js';
 import { AGENT_HOST_CATALOG_PAYLOAD_VERSION, AgentHostCatalogData, decodeAgentHostCatalogPayload } from './agentHostCatalogProjection.js';
@@ -409,6 +410,7 @@ export interface IAgentServiceCallbacks {
 	readonly postAgentMergeNotice: IAgentMergeControllerOptions['postNotice'];
 	readonly resolveWorkingDirectoryBeforeSend: NonNullable<IAgentSideEffectsOptions['resolveWorkingDirectoryBeforeSend']>;
 	readonly resolveChatAttachmentTurns: NonNullable<IAgentSideEffectsOptions['resolveChatAttachmentTurns']>;
+	readonly setAdditionalWorktreesArchived: NonNullable<IAgentSideEffectsOptions['setAdditionalWorktreesArchived']>;
 	readonly sessionServerToolAccessor: IAgentServiceSessionServerToolAccessor;
 	readonly artifactServerToolAccessor: IArtifactServerToolAccessor;
 	/** Writes list-visible session metadata through the `sessions_v2` catalog and awaits the sync receipt. */
@@ -731,6 +733,7 @@ export class AgentService extends Disposable implements IAgentService {
 			postAgentMergeNotice: (session, kind, content) => this._postAgentMergeNotice(session, kind, content),
 			resolveWorkingDirectoryBeforeSend: params => this._resolveWorkingDirectoryBeforeSend(params),
 			resolveChatAttachmentTurns: resource => this._resolveChatAttachmentTurns(resource),
+			setAdditionalWorktreesArchived: (session, archived, strictCleanup) => this._setAdditionalWorktreesArchived(session, archived, strictCleanup),
 			sessionServerToolAccessor: this._createSessionServerToolAccessor(),
 			artifactServerToolAccessor: this._createArtifactServerToolAccessor(),
 			persistListVisibleSessionState: (session, values) => this._persistListVisibleSessionState(URI.parse(session), values),
@@ -5322,8 +5325,17 @@ export class AgentService extends Disposable implements IAgentService {
 		});
 	}
 
-	canAutomaticallyDeleteArchivedSession(session: URI): Promise<boolean> {
-		return this._worktree.canAutomaticallyDeleteArchivedSession(session);
+	async canAutomaticallyDeleteArchivedSession(session: URI): Promise<boolean> {
+		if (!await this._worktree.canAutomaticallyDeleteArchivedSession(session)) {
+			return false;
+		}
+		const additionalWorktrees = await readSessionAdditionalWorktrees(this._sessionDataService, session);
+		for (const worktree of additionalWorktrees) {
+			if (!await this._worktree.canAutomaticallyDeleteDetachedWorktree(worktree.handle)) {
+				return false;
+			}
+		}
+		return true;
 	}
 
 	archiveSession(session: URI): void {
@@ -5337,8 +5349,16 @@ export class AgentService extends Disposable implements IAgentService {
 		this._queueCatalogSync(session, { [AH_META_IS_ARCHIVED_DB_KEY]: 'true' });
 	}
 
-	cleanupWorktree(session: URI, sessionId: string): Promise<void> {
-		return this._worktree.cleanupWorktree(session, sessionId);
+	async cleanupWorktree(session: URI, sessionId: string): Promise<void> {
+		await Promise.all([
+			this._worktree.cleanupWorktree(session, sessionId),
+			this._setAdditionalWorktreesArchived(session, true, true),
+		]);
+	}
+
+	private async _setAdditionalWorktreesArchived(session: URI, archived: boolean, strictCleanup: boolean): Promise<void> {
+		const worktrees = await readSessionAdditionalWorktrees(this._sessionDataService, session);
+		await Promise.all(worktrees.map(worktree => this._worktree.setDetachedWorktreeArchived(worktree.handle, archived, strictCleanup)));
 	}
 
 	private async _doDisposeSession(session: URI): Promise<void> {
@@ -5364,9 +5384,23 @@ export class AgentService extends Disposable implements IAgentService {
 			const sessionId = AgentSession.id(session);
 			const persistedPeerChats = sessionChats.length === 0 ? await this._peerChatStore.tryRead(session) : undefined;
 			const worktree = await this._worktree.prepareSessionDeletion(session, sessionId);
-			const cleanupWorkingDirectories = worktree?.repositoryRoot
+			const additionalWorktrees = await readSessionAdditionalWorktrees(this._sessionDataService, session);
+			const cleanupWorkingDirectoryUris = (worktree?.repositoryRoot
 				? [worktree.repositoryRoot.toString(), ...(workingDirectories?.slice(1) ?? [])]
-				: workingDirectories;
+				: workingDirectories ?? []).map(directory => URI.parse(directory, true));
+			for (const additionalWorktree of additionalWorktrees) {
+				const workingDirectory = URI.parse(additionalWorktree.workingDirectory, true);
+				const repositoryRoot = URI.parse(additionalWorktree.repositoryRoot, true);
+				const index = cleanupWorkingDirectoryUris.findIndex(directory => isEqual(directory, workingDirectory));
+				if (index !== -1) {
+					cleanupWorkingDirectoryUris[index] = repositoryRoot;
+				} else if (!cleanupWorkingDirectoryUris.some(directory => isEqual(directory, repositoryRoot))) {
+					cleanupWorkingDirectoryUris.push(repositoryRoot);
+				}
+			}
+			const cleanupWorkingDirectories = cleanupWorkingDirectoryUris.length > 0
+				? cleanupWorkingDirectoryUris.map(directory => directory.toString())
+				: undefined;
 			await this._peerChatStore.beginSessionDeletion(session);
 			peerChatDeletionBegun = true;
 			const provider = this._providerService.getProviderForSession(session);
@@ -5406,6 +5440,9 @@ export class AgentService extends Disposable implements IAgentService {
 			// session the working directory *is* the worktree, so once it is gone
 			// the repository can no longer be resolved and the refs would leak
 			// into the main repository (`refs/agents/*` is shared, not per-worktree).
+			for (const additionalWorktree of additionalWorktrees) {
+				await this._worktree.deleteDetachedWorktree(additionalWorktree.handle);
+			}
 			await this._sessionDataService.deleteSessionData(session, cleanupWorkingDirectories);
 			await this._worktree.removeSessionWorktree(sessionId, worktree);
 			this._changesetCoordinator.onSessionDisposed(session.toString());

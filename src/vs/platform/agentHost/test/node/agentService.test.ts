@@ -66,6 +66,7 @@ import { buildGitBlobUri } from '../../node/gitDiffContent.js';
 import { AGENT_MERGE_CHANGESET_ID, buildBranchChangesetUri, buildSessionChangesetUri, buildUncommittedChangesetUri } from '../../common/changesetUri.js';
 import { type ICopilotApiService, type ICopilotApiServiceRequestOptions, type ICopilotUtilityChatCompletionRequest } from '../../node/shared/copilotApiService.js';
 import { getWorktreesRoot, WorktreeIsolation, WORKTREE_META_REPOSITORY_ROOT } from '../../node/shared/worktreeIsolation.js';
+import { writeSessionAdditionalWorktrees } from '../../node/shared/sessionAdditionalWorktrees.js';
 import { AhpErrorCodes, AHP_SESSION_NOT_FOUND, ContentEncoding, JSON_RPC_INTERNAL_ERROR, ProtocolError } from '../../common/state/sessionProtocol.js';
 import type { IAgentServerToolHost } from '../../common/agentServerTools.js';
 import { ArtifactServerToolName, SessionServerToolName } from '../../common/serverToolNames.js';
@@ -4494,9 +4495,15 @@ suite('AgentService (node dispatcher)', () => {
 			const perSession = createPerSessionDataService();
 			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, perSession.service, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			const cleaned: string[] = [];
+			const archivedWorktrees: { handle: string; archived: boolean; strictCleanup: boolean | undefined }[] = [];
+			const additionalWorktreesArchived = new DeferredPromise<void>();
 			setTestAgentHostWorktreeIsolation(svc, createTestAgentHostWorktreeIsolation({
 				cleanupWorktree: async session => { cleaned.push(session.toString()); },
 				cleanupWorktreeOnArchive: async () => { assert.fail('Automatic archive must not use manual worktree cleanup'); },
+				setDetachedWorktreeArchived: async (handle, archived, strictCleanup) => {
+					archivedWorktrees.push({ handle, archived, strictCleanup });
+					additionalWorktreesArchived.complete();
+				},
 			}));
 			getConfigurationService(svc).updateRootConfig({
 				[AgentHostAutoArchiveMergedSessionsAfterDaysConfigKey]: 1,
@@ -4511,17 +4518,87 @@ suite('AgentService (node dispatcher)', () => {
 				createdAt: new Date().toISOString(),
 				modifiedAt: new Date().toISOString(),
 			});
+			const handle = generateUuid();
+			await writeSessionAdditionalWorktrees(perSession.service, session, [{
+				handle,
+				workingDirectory: URI.file('/workspace/repository.worktrees/chat').toString(),
+				repositoryRoot: URI.file('/workspace/repository').toString(),
+			}]);
 
 			svc.archiveSession(session);
-			await timeout(0);
+			await additionalWorktreesArchived.p;
 
 			assert.deepStrictEqual({
 				archived: isSessionStatusArchived(getStateManager(svc).getSessionSummary(session.toString())?.status),
 				cleaned,
+				archivedWorktrees,
 			}, {
 				archived: true,
 				cleaned: [session.toString()],
+				archivedWorktrees: [{ handle, archived: true, strictCleanup: true }],
 			});
+		});
+
+		test('additional worktrees participate in automatic deletion safety', async () => {
+			const perSession = createPerSessionDataService();
+			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, perSession.service, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const session = AgentSession.uri('copilot', 'additional-worktree-delete-safety');
+			const handles = [generateUuid(), generateUuid()];
+			await writeSessionAdditionalWorktrees(perSession.service, session, handles.map((handle, index) => ({
+				handle,
+				workingDirectory: URI.file(`/workspace/repository.worktrees/chat-${index}`).toString(),
+				repositoryRoot: URI.file('/workspace/repository').toString(),
+			})));
+			const inspected: string[] = [];
+			setTestAgentHostWorktreeIsolation(svc, createTestAgentHostWorktreeIsolation({
+				canAutomaticallyDeleteArchivedSession: async () => true,
+				canAutomaticallyDeleteDetachedWorktree: async handle => {
+					inspected.push(handle);
+					return handle !== handles[1];
+				},
+			}));
+
+			const canDelete = await svc.canAutomaticallyDeleteArchivedSession(session);
+
+			assert.deepStrictEqual({
+				canDelete,
+				inspected,
+			}, {
+				canDelete: false,
+				inspected: handles,
+			});
+		});
+
+		test('manual archive and unarchive update additional worktrees', async () => {
+			const perSession = createPerSessionDataService();
+			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, perSession.service, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			registerTestAgentProvider(svc, copilotAgent);
+			const session = await svc.createSession({ provider: 'copilot' });
+			const handle = generateUuid();
+			await writeSessionAdditionalWorktrees(perSession.service, session, [{
+				handle,
+				workingDirectory: URI.file('/workspace/repository.worktrees/chat').toString(),
+				repositoryRoot: URI.file('/workspace/repository').toString(),
+			}]);
+			const archivedWorktrees: { handle: string; archived: boolean; strictCleanup: boolean | undefined }[] = [];
+			const archived = new DeferredPromise<void>();
+			const unarchived = new DeferredPromise<void>();
+			setTestAgentHostWorktreeIsolation(svc, createTestAgentHostWorktreeIsolation({
+				setDetachedWorktreeArchived: async (actualHandle, isArchived, strictCleanup) => {
+					archivedWorktrees.push({ handle: actualHandle, archived: isArchived, strictCleanup });
+					(isArchived ? archived : unarchived).complete();
+				},
+			}));
+
+			svc.dispatchAction(session.toString(), { type: ActionType.SessionIsArchivedChanged, isArchived: true }, 'test-client', 1, AgentHostClientType.EditorWindow);
+			await archived.p;
+			svc.dispatchAction(session.toString(), { type: ActionType.SessionIsArchivedChanged, isArchived: false }, 'test-client', 2, AgentHostClientType.EditorWindow);
+			await unarchived.p;
+
+			assert.deepStrictEqual(archivedWorktrees, [
+				{ handle, archived: true, strictCleanup: false },
+				{ handle, archived: false, strictCleanup: false },
+			]);
 		});
 
 		test('filters the registry before reading only lifecycle metadata', async () => {
@@ -4839,8 +4916,9 @@ suite('AgentService (node dispatcher)', () => {
 			// removing it first would strand the refs in the main repository.
 			const order: string[] = [];
 			let cleanupWorkingDirectories: readonly string[] | undefined;
+			const database = new TestSessionDatabase();
 			const sessionDataService: ISessionDataService = {
-				...nullSessionDataService,
+				...createSessionDataService(database),
 				deleteSessionData: async (_session, workingDirectories) => {
 					order.push('deleteSessionData');
 					cleanupWorkingDirectories = workingDirectories;
@@ -4848,7 +4926,17 @@ suite('AgentService (node dispatcher)', () => {
 			};
 			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			registerTestAgentProvider(svc, copilotAgent);
-			const session = await svc.createSession({ provider: 'copilot' });
+			const additionalWorktree = URI.file('/additional-worktree');
+			const session = await svc.createSession({
+				provider: 'copilot',
+				workingDirectories: [URI.file('/worktree'), additionalWorktree],
+			});
+			const additionalWorktreeHandle = generateUuid();
+			await writeSessionAdditionalWorktrees(sessionDataService, session, [{
+				handle: additionalWorktreeHandle,
+				workingDirectory: additionalWorktree.toString(),
+				repositoryRoot: URI.file('/additional-repository').toString(),
+			}]);
 			const workingDirectoryPendingChange = disposables.add(new Emitter<string>());
 			setTestAgentHostWorktreeIsolation(svc, createTestAgentHostWorktreeIsolation({
 				onDidChangeWorkingDirectoryPending: workingDirectoryPendingChange.event,
@@ -4859,6 +4947,9 @@ suite('AgentService (node dispatcher)', () => {
 				removeSessionWorktree: async (_sessionId: string, worktree: { readonly worktree: URI } | undefined) => {
 					order.push(`removeSessionWorktree:${worktree?.worktree.toString()}`);
 				},
+				deleteDetachedWorktree: async handle => {
+					order.push(`deleteDetachedWorktree:${handle}`);
+				},
 			}));
 
 			await svc.disposeSession(session);
@@ -4867,8 +4958,8 @@ suite('AgentService (node dispatcher)', () => {
 				order,
 				cleanupWorkingDirectories,
 			}, {
-				order: ['prepareSessionDeletion', 'deleteSessionData', 'deleteSessionData', 'removeSessionWorktree:file:///worktree'],
-				cleanupWorkingDirectories: ['file:///repo'],
+				order: ['prepareSessionDeletion', 'deleteSessionData', `deleteDetachedWorktree:${additionalWorktreeHandle}`, 'deleteSessionData', 'removeSessionWorktree:file:///worktree'],
+				cleanupWorkingDirectories: ['file:///repo', 'file:///additional-repository'],
 			});
 		});
 
