@@ -686,9 +686,7 @@ suite('Sessions - SessionsList', () => {
 			};
 
 			await configurationService.setUserConfiguration(SESSIONS_CUSTOMIZATIONS_IN_LIST_SETTING, false);
-			configurationService.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({
-				affectsConfiguration: key => key === SESSIONS_CUSTOMIZATIONS_IN_LIST_SETTING,
-			}));
+			list.updateCustomizationsVisibility();
 			const control = {
 				labels: shortcutLabels(),
 				navigationLabels: navigationLabels(),
