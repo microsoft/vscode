@@ -690,6 +690,23 @@ describe('normalizeProviderMessages attachment parts', () => {
 		expect(noDimensions[0].parts[0]).toMatchObject({ type: 'uri', size_bytes: 10, estimated_tokens: 1105 });
 	});
 
+	it('keeps the resolver estimate when its dimensions cannot be priced', () => {
+		const result = normalizeProviderMessages([{
+			role: 'user',
+			content: [{ type: 'image_url', image_url: { url: uploadedUrl, detail: 'high' } }],
+		}], { resolveAttachment: () => ({ mimeType: 'image/png', sizeBytes: 10, width: 0, height: 50, estimatedTokens: 1105 }) });
+		expect(result[0].parts[0]).toEqual({ type: 'uri', modality: 'image', mime_type: 'image/png', uri: uploadedUrl, size_bytes: 10, width: 0, height: 50, estimated_tokens: 1105 });
+	});
+
+	it('reports only the bytes of an inline image whose header gives a zero dimension', () => {
+		const zeroWidthPng = createPngDataUrl(0, 50);
+		const result = normalizeProviderMessages([{
+			role: 'user',
+			content: [{ type: 'image_url', image_url: { url: zeroWidthPng } }],
+		}]);
+		expect(result[0].parts[0]).toEqual({ type: 'blob', modality: 'image', mime_type: 'image/png', content: zeroWidthPng.split(',')[1], size_bytes: 24 });
+	});
+
 	it('types attachments nested in an Anthropic tool_result and leaves its other blocks alone', () => {
 		const result = normalizeProviderMessages([{
 			role: 'user',

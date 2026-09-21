@@ -501,9 +501,10 @@ function referencedPart(modality: OTelAttachmentModality, url: string, mimeType:
 	const known = resolveAttachment?.(url);
 	// The resolver's estimate was made without knowing how this request asks for
 	// the image; when it has the dimensions, price them at this block's detail.
-	const estimatedTokens = modality === 'image' && known?.width !== undefined && known?.height !== undefined
-		? calculateImageTokenCostForDimensions(known.width, known.height, detail)
-		: known?.estimatedTokens;
+	// Dimensions the formula rejects fall back to whatever the resolver estimated.
+	const estimatedTokens = (modality === 'image' && known?.width !== undefined && known?.height !== undefined
+		? tryCalculateImageTokenCost(known.width, known.height, detail)
+		: undefined) ?? known?.estimatedTokens;
 	return {
 		type: 'uri',
 		modality,
@@ -524,10 +525,11 @@ function blobPart(modality: OTelAttachmentModality, base64Data: string, mimeType
 	let estimatedTokens: number | undefined;
 	if (modality === 'image') {
 		try {
-			({ width, height } = getImageDimensions(`data:${mimeType ?? 'image/png'};base64,${base64Data}`));
-			estimatedTokens = calculateImageTokenCostForDimensions(width, height, detail);
+			const dimensions = getImageDimensions(`data:${mimeType ?? 'image/png'};base64,${base64Data}`);
+			estimatedTokens = calculateImageTokenCostForDimensions(dimensions.width, dimensions.height, detail);
+			({ width, height } = dimensions);
 		} catch {
-			// Unreadable header: report the bytes only.
+			// Unreadable header or dimensions the formula rejects: report the bytes only.
 		}
 	} else {
 		estimatedTokens = estimateDocumentTokenCost(base64Data);
@@ -540,6 +542,14 @@ function blobPart(modality: OTelAttachmentModality, base64Data: string, mimeType
 		size_bytes: base64ByteLength(base64Data),
 		...definedFields({ width, height, estimated_tokens: estimatedTokens }),
 	};
+}
+
+function tryCalculateImageTokenCost(width: number, height: number, detail: ImageDetail): number | undefined {
+	try {
+		return calculateImageTokenCostForDimensions(width, height, detail);
+	} catch {
+		return undefined;
+	}
 }
 
 function filePart(modality: OTelAttachmentModality, fileId: string, mimeType: string | undefined): OTelMessagePart {

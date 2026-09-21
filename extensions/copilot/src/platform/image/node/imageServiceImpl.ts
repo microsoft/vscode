@@ -68,12 +68,14 @@ export class ImageServiceImpl implements IImageService {
 		const metadata: UploadedAttachmentMetadata = { mimeType, sizeBytes: binaryData.byteLength };
 		try {
 			const { width, height } = getImageDimensionsFromBytes(binaryData, mimeType);
+			// Attachments are sent at `detail: 'high'`, which is also the formula's default.
+			// Priced first so a header reporting a zero dimension leaves no dimensions behind.
+			const estimatedTokens = calculateImageTokenCostForDimensions(width, height, 'high');
 			metadata.width = width;
 			metadata.height = height;
-			// Attachments are sent at `detail: 'high'`, which is also the formula's default.
-			metadata.estimatedTokens = calculateImageTokenCostForDimensions(width, height, 'high');
+			metadata.estimatedTokens = estimatedTokens;
 		} catch {
-			// Unreadable header: keep the size only.
+			// Unreadable header or dimensions the formula rejects: keep the size only.
 		}
 		if (this._uploadedAttachments.size >= MAX_REMEMBERED_UPLOADS) {
 			const oldest = this._uploadedAttachments.keys().next().value;

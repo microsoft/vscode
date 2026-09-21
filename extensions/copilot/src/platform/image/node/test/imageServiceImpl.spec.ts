@@ -43,6 +43,15 @@ describe('ImageServiceImpl uploaded attachment metadata', () => {
 		expect(service.getUploadedAttachmentMetadata(uri.toString())).toEqual({ mimeType: 'image/png', sizeBytes: bytes.byteLength });
 	});
 
+	it('keeps only the size when the header reports a zero dimension', async () => {
+		const { service } = createService();
+		const bytes = createPngBytes(0, 32);
+
+		const uri = await service.uploadChatImageAttachment(bytes, 'blob', 'image/png', 'token');
+
+		expect(service.getUploadedAttachmentMetadata(uri.toString())).toEqual({ mimeType: 'image/png', sizeBytes: bytes.byteLength });
+	});
+
 	it('knows nothing about URLs it did not upload', () => {
 		const { service } = createService();
 		expect(service.getUploadedAttachmentMetadata('https://example.com/other.png')).toBeUndefined();
