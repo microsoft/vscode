@@ -97,6 +97,7 @@ import { getSessionDiffStats, getSessionSummaryHoverData } from '../sessionHover
 import { SessionSummaryHoverWidget } from '../../../../../workbench/contrib/chat/browser/agentSessions/sessionSummaryHover.js';
 import { SessionStatusIcon } from '../../../../browser/sessionStatusIcon.js';
 import { ChatAutomationsEnabledContext } from '../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
+import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { IAutomationService } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { ICustomViewService } from '../../../../services/customView/browser/customViewService.js';
 import { AUTOMATIONS_CUSTOM_VIEW_ID } from '../automationsConstants.js';
@@ -105,9 +106,11 @@ import { Menus } from '../../../../browser/menus.js';
 import { getSessionConversationStatusAriaLabel } from '../../../../browser/sessionConversationGroups.js';
 import { getAgentMergeAwarePullRequestIcon, getSessionAgentMergeConfigurationObservable, ISessionAgentMergeConfiguration, isAgentMergePullRequestIcon } from '../../../../browser/sessionAgentMerge.js';
 import { BlockedSessionReason, BlockedSessions } from '../../../blockedSessions/browser/blockedSessions.js';
+import { INBOX_NOTIFICATIONS_VIEW_ID, SHOW_INBOX_NOTIFICATIONS_COMMAND_ID } from '../../../inboxOne/browser/inboxNotificationsConstants.js';
 
 const $ = DOM.$;
 
+const INBOX_NOTIFICATIONS_SECTION_ID = 'inboxNotifications';
 const AUTOMATIONS_SECTION_ID = 'automations';
 const SESSION_SECTION_FOCUS_FROM_POINTER_CLASS = 'session-section-focus-from-pointer';
 const SESSION_HEADER_DROP_TARGET_CLASS = 'session-header-drop-target';
@@ -256,6 +259,8 @@ function getSessionSectionIcon(sectionId: string): ThemeIcon | undefined {
 			return Codicon.pinned;
 		case AUTOMATIONS_SECTION_ID:
 			return Codicon.calendar;
+		case INBOX_NOTIFICATIONS_SECTION_ID:
+			return Codicon.inbox;
 		case 'archived':
 			return Codicon.archive;
 		case 'recent':
@@ -1866,13 +1871,14 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 		this.templatesById.set(element.id, template);
 		template.container.classList.remove(SESSION_HEADER_DROP_TARGET_CLASS);
 		template.container.classList.remove('session-section-shortcut');
+		template.container.classList.remove('active');
 		template.newBadge.style.display = 'none';
 		template.newBadge.classList.remove(
 			'session-section-new-badge-accent',
 			'session-section-new-badge-soft',
 			'session-section-new-badge-outline',
 		);
-		if (element.id === AUTOMATIONS_SECTION_ID) {
+		if (element.id === AUTOMATIONS_SECTION_ID || element.id === INBOX_NOTIFICATIONS_SECTION_ID) {
 			template.container.classList.add('session-section-shortcut');
 		}
 
@@ -1911,12 +1917,19 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 					template.icon.className = `session-section-icon ${ThemeIcon.asClassName(Codicon.calendar)}`;
 				}
 			}));
+		} else if (element.id === INBOX_NOTIFICATIONS_SECTION_ID) {
+			template.icon.style.display = '';
+			template.elementDisposables.add(autorun(reader => {
+				const activeCustomView = this.customViewService.activeCustomView.read(reader);
+				template.container.classList.toggle('active', activeCustomView?.id === INBOX_NOTIFICATIONS_VIEW_ID);
+			}));
+			renderSessionHeaderIcon(template, element.sessions, getSessionSectionIcon(element.id), this.showUnreadInCollapsedSections, this.sessionsWithFailingCI, this.instantiationService);
 		} else {
 			renderSessionHeaderIcon(template, element.sessions, getSessionSectionIcon(element.id), this.showUnreadInCollapsedSections, this.sessionsWithFailingCI, this.instantiationService);
 		}
 
 		template.label.textContent = element.label;
-		if (this.hideSectionCount || element.id === AUTOMATIONS_SECTION_ID) {
+		if (this.hideSectionCount || element.id === AUTOMATIONS_SECTION_ID || element.id === INBOX_NOTIFICATIONS_SECTION_ID) {
 			template.count.textContent = '';
 			template.count.style.display = 'none';
 		} else {
@@ -2279,6 +2292,9 @@ class SessionsAccessibilityProvider {
 						? localize('automationsNewFeatureAria', "{0}, new feature", label)
 						: label;
 				});
+			}
+			if (element.id === INBOX_NOTIFICATIONS_SECTION_ID) {
+				return localize('inboxNotificationsAriaLabel', "{0}, open inbox notifications", element.label);
 			}
 			return this.getSectionAriaLabel(element.label, element.sessions);
 		}
@@ -3389,6 +3405,11 @@ export class SessionsList extends Disposable implements ISessionsList {
 				this.commandService.executeCommand('sessionsView.manageAutomations');
 				return;
 			}
+			if (isSessionSection(element) && element.id === INBOX_NOTIFICATIONS_SECTION_ID) {
+				this.tree.setSelection([]);
+				this.commandService.executeCommand(SHOW_INBOX_NOTIFICATIONS_COMMAND_ID);
+				return;
+			}
 			if (!isSessionSection(element) && !isSessionGroupItem(element)) {
 				// Gate the open on workspace trust before any side effect (mark-read,
 				// activation, folder mount). A refused open leaves the current
@@ -3434,9 +3455,9 @@ export class SessionsList extends Disposable implements ISessionsList {
 		// the `IsPhoneLayoutContext` reactive signal already maintained by
 		// the agents workbench.
 		const phoneKeys = new Set<string>([IsPhoneLayoutContext.key]);
-		const automationKeys = new Set<string>([ChatAutomationsEnabledContext.key]);
+		const sectionVisibilityKeys = new Set<string>([ChatAutomationsEnabledContext.key, ChatContextKeys.enabled.key]);
 		this._register(this.contextKeyService.onDidChangeContext(e => {
-			if (e.affectsSome(automationKeys)) {
+			if (e.affectsSome(sectionVisibilityKeys)) {
 				this.update();
 			}
 			if (!e.affectsSome(phoneKeys)) {
@@ -3777,7 +3798,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		};
 
 		const renderSection = (section: ISessionSection): IObjectTreeElement<SessionListItem> => {
-			if (section.id === AUTOMATIONS_SECTION_ID) {
+			if (section.id === AUTOMATIONS_SECTION_ID || section.id === INBOX_NOTIFICATIONS_SECTION_ID) {
 				return {
 					element: section as SessionListItem,
 					children: [],
@@ -3843,6 +3864,10 @@ export class SessionsList extends Disposable implements ISessionsList {
 				children: groupChildren,
 			};
 		};
+
+		if (this.contextKeyService.getContextKeyValue<boolean>(ChatContextKeys.enabled.key)) {
+			children.push(renderSection({ id: INBOX_NOTIFICATIONS_SECTION_ID, label: localize('inboxNotifications', "Inbox"), sessions: [] }));
+		}
 
 		if (this.contextKeyService.getContextKeyValue<boolean>(ChatAutomationsEnabledContext.key)) {
 			void this.automationsNewBadgeState.initialize().catch(onUnexpectedError);

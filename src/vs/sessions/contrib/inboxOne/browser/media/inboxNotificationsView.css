@@ -1,0 +1,118 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.inbox-notifications-view {
+	display: flex;
+	flex-direction: column;
+	gap: var(--vscode-spacing-size200);
+	width: 100%;
+	height: 100%;
+	padding: var(--vscode-spacing-size200) var(--vscode-spacing-size300);
+	box-sizing: border-box;
+}
+
+.inbox-notifications-toolbar {
+	display: flex;
+	justify-content: flex-end;
+}
+
+.inbox-notifications-toolbar-button {
+	border: 1px solid var(--vscode-button-border, transparent);
+	background-color: var(--vscode-button-secondaryBackground);
+	color: var(--vscode-button-secondaryForeground);
+	border-radius: var(--vscode-corner-radius-round);
+	padding: var(--vscode-spacing-size100) var(--vscode-spacing-size200);
+	cursor: pointer;
+}
+
+.inbox-notifications-toolbar-button:hover {
+	background-color: var(--vscode-button-secondaryHoverBackground);
+}
+
+.inbox-notifications-list {
+	display: flex;
+	flex-direction: column;
+	gap: var(--vscode-spacing-size150);
+	overflow: auto;
+	padding-inline-end: var(--vscode-spacing-size100);
+}
+
+.inbox-notifications-item {
+	display: flex;
+	flex-direction: column;
+	gap: var(--vscode-spacing-size100);
+	border: 1px solid var(--vscode-widget-border);
+	border-radius: var(--vscode-corner-radius-round);
+	padding: var(--vscode-spacing-size200);
+	background-color: var(--vscode-editorWidget-background);
+}
+
+.inbox-notifications-item.priority-0 {
+	border-inline-start: var(--vscode-spacing-size050) solid var(--vscode-errorForeground);
+}
+
+.inbox-notifications-item.priority-1 {
+	border-inline-start: var(--vscode-spacing-size050) solid var(--vscode-notificationsWarningIcon-foreground);
+}
+
+.inbox-notifications-item.priority-2,
+.inbox-notifications-item.priority-3 {
+	border-inline-start: var(--vscode-spacing-size050) solid var(--vscode-descriptionForeground);
+}
+
+.inbox-notifications-item-header {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: var(--vscode-spacing-size200);
+}
+
+.inbox-notifications-item-title {
+	font-weight: 600;
+}
+
+.inbox-notifications-item-kind,
+.inbox-notifications-item-time {
+	color: var(--vscode-descriptionForeground);
+	font-size: 0.9em;
+}
+
+.inbox-notifications-item-description {
+	color: var(--vscode-editor-foreground);
+}
+
+.inbox-notifications-item-actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--vscode-spacing-size100);
+}
+
+.inbox-notifications-action {
+	border: 1px solid var(--vscode-button-border, transparent);
+	background-color: var(--vscode-button-secondaryBackground);
+	color: var(--vscode-button-secondaryForeground);
+	border-radius: var(--vscode-corner-radius-round);
+	padding: var(--vscode-spacing-size100) var(--vscode-spacing-size200);
+	cursor: pointer;
+}
+
+.inbox-notifications-action:hover {
+	background-color: var(--vscode-button-secondaryHoverBackground);
+}
+
+.inbox-notifications-action.primary {
+	background-color: var(--vscode-button-background);
+	color: var(--vscode-button-foreground);
+}
+
+.inbox-notifications-action.primary:hover {
+	background-color: var(--vscode-button-hoverBackground);
+}
+
+.inbox-notifications-empty {
+	color: var(--vscode-descriptionForeground);
+	padding: var(--vscode-spacing-size300) var(--vscode-spacing-size100);
+}
+
