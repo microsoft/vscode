@@ -365,7 +365,7 @@ export class McpServerItemRenderer extends Disposable implements IListRenderer<I
 			templateData.sourcePath.style.display = '';
 			templateData.sourcePathHover.update(source.hover);
 			templateData.sourcePath.classList.toggle('source-link', source.open !== undefined);
-			if (source.open) {
+			if (source.open && source.ariaLabel) {
 				templateData.sourcePath.setAttribute('href', '#');
 				templateData.sourcePath.setAttribute('aria-label', source.ariaLabel);
 				templateData.elementDisposables.add(DOM.addDisposableListener(templateData.sourcePath, DOM.EventType.MOUSE_DOWN, event => event.stopPropagation()));
@@ -1400,14 +1400,14 @@ export function getServerItemContextMenuActions(menuActionGroups: readonly (read
 	return actions;
 }
 
-function createBuiltinEntry(server: IMcpServer, activeSessionServer?: AgentHostMcpServer): IMcpBuiltinItemEntry {
+function createBuiltinEntry(server: IMcpServer, activeSessionServer?: AgentHostMcpServer, extensionId?: ExtensionIdentifier): IMcpBuiltinItemEntry {
 	return {
 		type: 'builtin-item',
 		id: `builtin-${server.definition.id}`,
 		label: server.definition.label,
 		description: '',
 		collectionId: server.collection.id,
-		extensionId: server.collection.source instanceof ExtensionIdentifier ? server.collection.source : undefined,
+		extensionId,
 		activeSessionServer,
 		localServer: server,
 	};
@@ -2593,7 +2593,7 @@ export class McpListWidget extends Disposable {
 		// are treated as built-in; servers from other extensions go under "Extensions".
 		const collectionSources = new Map(this.mcpRegistry.collections.get().map(c => [c.id, c.source]));
 		const pluginServers: Array<{ server: IMcpServer; activeSessionServer?: AgentHostMcpServer }> = [];
-		const extensionServers: Array<{ server: IMcpServer; activeSessionServer?: AgentHostMcpServer }> = [];
+		const extensionServers: Array<{ server: IMcpServer; activeSessionServer?: AgentHostMcpServer; extensionId: ExtensionIdentifier }> = [];
 		const otherBuiltinServers: Array<{ server: IMcpServer; activeSessionServer?: AgentHostMcpServer }> = [];
 		for (const server of builtinServers) {
 			const entry = { server, activeSessionServer: activeSessionMatcher.take(getRuntimeServerMatchKeys(server)) };
@@ -2601,7 +2601,7 @@ export class McpListWidget extends Disposable {
 			if (server.collection.id.startsWith(PLUGIN_COLLECTION_PREFIX)) {
 				pluginServers.push(entry);
 			} else if (source instanceof ExtensionIdentifier && !isCopilotExtension(source)) {
-				extensionServers.push(entry);
+				extensionServers.push({ ...entry, extensionId: source });
 			} else {
 				otherBuiltinServers.push(entry);
 			}
@@ -2611,7 +2611,7 @@ export class McpListWidget extends Disposable {
 		this.installedEntries = [
 			...groups.flatMap(group => group.entries.map(entry => ({ entry }))),
 			...pluginServers.map(({ server, activeSessionServer }) => ({ entry: createBuiltinEntry(server, activeSessionServer) })),
-			...extensionServers.map(({ server, activeSessionServer }) => ({ entry: createBuiltinEntry(server, activeSessionServer) })),
+			...extensionServers.map(({ server, activeSessionServer, extensionId }) => ({ entry: createBuiltinEntry(server, activeSessionServer, extensionId) })),
 			...otherBuiltinServers.map(({ server, activeSessionServer }) => ({ entry: createBuiltinEntry(server, activeSessionServer) })),
 			...activeSessionBuiltinEntries.map(entry => ({ entry })),
 		];
