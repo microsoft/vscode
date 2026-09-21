@@ -322,6 +322,17 @@ suite('SessionPermissionManager', () => {
 		assert.strictEqual(result, ToolCallConfirmationReason.NotNeeded);
 	});
 
+	test('shell redirects use canonical containment for symlink ancestors', async () => {
+		mkdirSync(join(workDir, 'shell-real'));
+		symlinkSync(join(workDir, 'shell-real'), join(workDir, 'shell-link-in'), directoryLinkType);
+		symlinkSync(outsideDir, join(workDir, 'shell-link-out'), directoryLinkType);
+
+		const inside = await permissions.getAutoApproval(shellEvent('echo hi > shell-link-in/note.txt', 'bash'), sessionUri);
+		const outside = await permissions.getAutoApproval(shellEvent('echo hi > shell-link-out/note.txt', 'bash'), sessionUri);
+
+		assert.deepStrictEqual([inside, outside], [ToolCallConfirmationReason.NotNeeded, undefined]);
+	});
+
 	test('requires confirmation for home-directory dotfiles', async () => {
 		const homeSession = URI.from({ scheme: 'copilot', path: '/home' }).toString();
 		manager.createSession(makeSummary(homeSession, URI.file(homedir()).toString()));
@@ -517,6 +528,38 @@ suite('SessionPermissionManager', () => {
 			dynamicResults: [undefined, undefined, undefined, undefined, undefined, undefined],
 			literalWorkspaceDestination: ToolCallConfirmationReason.NotNeeded,
 			nullSink: ToolCallConfirmationReason.NotNeeded,
+		});
+	});
+
+	test('redirect pathname globs require confirmation', async () => {
+		const events = [
+			shellEvent('echo hi > .[g]it/config', 'bash'),
+			shellEvent('echo hi > .[e]nv', 'bash'),
+			shellEvent('echo hi > packag?.json', 'bash'),
+			shellEvent('echo hi > "packag"[e]".json"', 'bash'),
+			powershellEvent(`Write-Host hi >'.[m]cp.json'`),
+			powershellEvent(`Write-Host hi >".[c]odex/hooks.json"`),
+		];
+		assert.deepStrictEqual(
+			await Promise.all(events.map(event => permissions.getAutoApproval(event, sessionUri))),
+			events.map(() => undefined)
+		);
+		assert.deepStrictEqual(events.map(event => permissions.isAutoApproveRuleResolvable(event, sessionUri)), events.map(() => false));
+	});
+
+	test('quoted non-glob redirects outside the working directory require confirmation', async () => {
+		const events = [
+			shellEvent(`echo hi > "${outsideDir}/"report".txt"`, 'bash'),
+			shellEvent(`echo hi >> '${outsideDir}/'report'.txt'`, 'bash'),
+			powershellEvent(`Write-Host hi > '${outsideDir}/report''s.txt'`),
+			powershellEvent(`Write-Host hi >>'${outsideDir}/report''s.txt'`),
+		];
+		assert.deepStrictEqual({
+			approvals: await Promise.all(events.map(event => permissions.getAutoApproval(event, sessionUri))),
+			ruleResolvable: events.map(event => permissions.isAutoApproveRuleResolvable(event, sessionUri)),
+		}, {
+			approvals: events.map(() => undefined),
+			ruleResolvable: events.map(() => false),
 		});
 	});
 
@@ -762,7 +805,8 @@ suite('SessionPermissionManager', () => {
 			symlinkSync(workDir2, join(workDir, 'cross-link'), directoryLinkType);
 			const read = await permissions.getAutoApproval(readEvent(join(workDir, 'cross-link', 'note.txt'), multiUri), multiUri);
 			const write = await permissions.getAutoApproval(writeEvent(join(workDir, 'cross-link', 'note.txt')), multiUri);
-			assert.deepStrictEqual([read, write], [undefined, undefined]);
+			const shellWrite = await permissions.getAutoApproval(shellEvent('echo hi > cross-link/note.txt', 'bash'), multiUri);
+			assert.deepStrictEqual([read, write, shellWrite], [undefined, undefined, undefined]);
 		});
 	});
 });

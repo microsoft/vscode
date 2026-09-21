@@ -26,7 +26,7 @@ import { IProductService } from '../../../../platform/product/common/productServ
 import { ISessionsSetUpService } from '../../../browser/sessionsSetUpService.js';
 import { ISessionsPartService } from '../../../services/sessions/browser/sessionsPartService.js';
 import { SessionsCopilotConfigSlashSubmitHandlerContribution } from '../browser/copilotConfigSlashSubmitHandler.js';
-import { AgentsWindowOpenSource, isAgentsWindowOpenSource } from '../../../../platform/window/common/window.js';
+import { AgentsWindowOpenSource, IAgentsWindowDraft, isAgentsWindowDraft, isAgentsWindowOpenSource } from '../../../../platform/window/common/window.js';
 import { IStorageService, StorageScope } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { isAgentHostProvider } from '../../../common/agentHostSessionsProvider.js';
@@ -73,18 +73,23 @@ export class SelectAgentsFolderContribution extends Disposable implements IWorkb
 			const cancellation = new CancellationTokenSource();
 			this._openIntent.value = toDisposable(() => cancellation.dispose(true));
 			const workspaceUri = args[0] ? URI.revive(args[0] as UriComponents) : undefined;
-			const { folderUri, preferDevContainer } = resolveAgentsWindowFolderIntent(workspaceUri, this.configurationService);
 			const sessionResource = args[1] ? URI.revive(args[1] as UriComponents) : undefined;
 			const source = isAgentsWindowOpenSource(args[2]) ? args[2] : AgentsWindowOpenSource.Unknown;
 			const workspaceArgumentIsDefault = args[3] === true;
-			this.logService.info(`[AgentsHandoff] IPC received: folderUri=${folderUri?.toString() ?? '(none)'} sessionResource=${sessionResource?.toString() ?? '(none)'}`);
+			if (args[4] !== undefined && !isAgentsWindowDraft(args[4])) {
+				this.logService.error('[AgentsHandoff] Invalid draft payload');
+				this.notificationService.warn(localize('agentsHandoff.invalidDraft', "The draft could not be copied. Your prompt and attachments are still in the editor."));
+				return;
+			}
+			const draft = args[4];
+			this.logService.info(`[AgentsHandoff] IPC received: folderUri=${workspaceUri?.toString() ?? '(none)'} sessionResource=${sessionResource?.toString() ?? '(none)'}`);
 			const telemetry = this._startWindowOpenTelemetry(source, {
 				workspaceArgumentKind: getAgentsWindowWorkspaceArgumentKind(workspaceUri),
 				hasSessionArgument: sessionResource !== undefined,
 				workspaceArgumentIsDefault,
 			});
 
-			this._handleOpenIntentAndCaptureInitialState(folderUri, sessionResource, preferDevContainer, workspaceArgumentIsDefault, cancellation.token, telemetry)
+			this._handleOpenIntentAndCaptureInitialState(workspaceUri, sessionResource, workspaceArgumentIsDefault, cancellation.token, telemetry, draft)
 				.catch(err => this.logService.error('[AgentsHandoff] handleOpenIntent failed', err));
 		};
 		ipcRenderer.on('vscode:selectAgentsFolder', handleSelectAgentsFolder);
@@ -110,6 +115,7 @@ export class SelectAgentsFolderContribution extends Disposable implements IWorkb
 			() => getNonArchivedSessionListCount(this.sessionsManagementService.getSessions()),
 			this.telemetryService,
 			this.lifecycleService,
+			this.storageService,
 		);
 		if (!context.hasSessionArgument) {
 			this._workspaceSelectionTelemetry.value = this.instantiationService.createInstance(SessionsWorkspaceSelectionTelemetry, source, context);
@@ -122,9 +128,9 @@ export class SelectAgentsFolderContribution extends Disposable implements IWorkb
 		telemetry?.captureInitialViewState();
 	}
 
-	private async _handleOpenIntentAndCaptureInitialState(folderUri: URI | undefined, sessionResource: URI | undefined, preferDevContainer: boolean, isDefault: boolean, token: CancellationToken, telemetry: SessionsWindowOpenTelemetry | undefined): Promise<void> {
+	private async _handleOpenIntentAndCaptureInitialState(workspaceUri: URI | undefined, sessionResource: URI | undefined, isDefault: boolean, token: CancellationToken, telemetry: SessionsWindowOpenTelemetry | undefined, draft?: IAgentsWindowDraft): Promise<void> {
 		try {
-			await this.handleOpenIntent(folderUri, sessionResource, preferDevContainer, isDefault, token, telemetry);
+			await this.handleOpenIntent(workspaceUri, sessionResource, isDefault, token, telemetry, draft);
 		} catch (error) {
 			telemetry?.recordWorkspaceHandoffState('error');
 			throw error;
@@ -156,7 +162,7 @@ export class SelectAgentsFolderContribution extends Disposable implements IWorkb
 		};
 	}
 
-	private async handleOpenIntent(folderUri: URI | undefined, sessionResource: URI | undefined, preferDevContainer: boolean, isDefault: boolean, token: CancellationToken, telemetry: SessionsWindowOpenTelemetry | undefined): Promise<void> {
+	private async handleOpenIntent(workspaceUri: URI | undefined, sessionResource: URI | undefined, isDefault: boolean, token: CancellationToken, telemetry: SessionsWindowOpenTelemetry | undefined, draft?: IAgentsWindowDraft): Promise<void> {
 		// Opening an existing session establishes its own workspace context, so
 		// the folder selection is only needed for the folder-only handoff (no
 		// session to restore).
@@ -164,8 +170,10 @@ export class SelectAgentsFolderContribution extends Disposable implements IWorkb
 			await this.openExistingSession(sessionResource, token);
 			return;
 		}
-		if (folderUri) {
-			await this._workspaceHandoff.selectWorkspace({ folderUri, preferDevContainer, isDefault }, state => telemetry?.recordWorkspaceHandoffState(state));
+		const resolved = resolveAgentsWindowFolderIntent(workspaceUri, this.configurationService);
+		const folderUri = resolved.folderUri ?? (draft ? workspaceUri : undefined);
+		if (folderUri || draft) {
+			await this._workspaceHandoff.selectWorkspace({ folderUri, preferDevContainer: resolved.preferDevContainer, isDefault, draft }, state => telemetry?.recordWorkspaceHandoffState(state));
 		}
 	}
 

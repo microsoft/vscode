@@ -14,6 +14,8 @@ import { ShutdownReason } from '../../../../../workbench/services/lifecycle/comm
 import { FIRST_TIME_WINDOW_OPEN_DURATION_LIMIT_MS, ISessionsWindowOpenViewState, SessionsWindowOpenTelemetry, SessionsWindowSessionStartTelemetry } from '../../browser/sessionsWindowOpenTelemetry.js';
 import { IWorkspaceSelectionSnapshot, WorkspaceSelectionOrigin } from '../../../../common/workspaceSelection.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { InMemoryStorageService } from '../../../../../platform/storage/common/storage.js';
+import { EditorChatUsage } from '../../../../../workbench/contrib/chat/common/editorChatUsage.js';
 
 function isTelemetryData(data: unknown): data is Record<string, unknown> {
 	return typeof data === 'object' && data !== null;
@@ -32,6 +34,13 @@ class TestTelemetryService extends NullTelemetryServiceShape {
 suite('SessionsWindowOpenTelemetry', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+	const emptyEditorUsage = {
+		editorSessionsByProvider: '{}',
+		editorMessages: 0,
+		editorMessagesWithOtherSessionInProgress: 0,
+		editorMessagesWithOtherSessionInProgressAcrossWindows: 0,
+		editorLastMessageSecondsAgo: undefined,
+	};
 
 	test('emits one window session start when initialized', () => {
 		const telemetryService = new TestTelemetryService();
@@ -66,6 +75,7 @@ suite('SessionsWindowOpenTelemetry', () => {
 				() => nonArchivedSessionListCount,
 				telemetryService,
 				lifecycleService,
+				disposables.add(new InMemoryStorageService()),
 			));
 
 			tracker.captureInitialViewState();
@@ -79,6 +89,7 @@ suite('SessionsWindowOpenTelemetry', () => {
 			assert.deepStrictEqual(telemetryService.events, [{
 				name: 'agents/firstTimeWindowOpen',
 				data: {
+					...emptyEditorUsage,
 					source: 'titleBar',
 					signInDialogShown: true,
 					workspacePreselected: true,
@@ -123,6 +134,7 @@ suite('SessionsWindowOpenTelemetry', () => {
 				() => 3,
 				telemetryService,
 				lifecycleService,
+				disposables.add(new InMemoryStorageService()),
 			));
 
 			await timeout(FIRST_TIME_WINDOW_OPEN_DURATION_LIMIT_MS);
@@ -131,6 +143,7 @@ suite('SessionsWindowOpenTelemetry', () => {
 			assert.deepStrictEqual(telemetryService.events, [{
 				name: 'agents/firstTimeWindowOpen',
 				data: {
+					...emptyEditorUsage,
 					source: 'commandPalette',
 					signInDialogShown: false,
 					workspacePreselected: undefined,
@@ -181,6 +194,7 @@ suite('SessionsWindowOpenTelemetry', () => {
 				() => 0,
 				telemetryService,
 				lifecycleService,
+				disposables.add(new InMemoryStorageService()),
 			));
 
 			lifecycleService.fireShutdown(shutdownReason);
@@ -226,6 +240,7 @@ suite('SessionsWindowOpenTelemetry', () => {
 				() => 0,
 				telemetryService,
 				lifecycleService,
+				disposables.add(new InMemoryStorageService()),
 			));
 			tracker.recordWorkspaceHandoffState('waitingForSetup');
 			await timeout(1_000);
@@ -277,6 +292,7 @@ suite('SessionsWindowOpenTelemetry', () => {
 				() => 0,
 				telemetryService,
 				lifecycleService,
+				disposables.add(new InMemoryStorageService()),
 			));
 			tracker.recordWorkspaceHandoffState('waitingForProvider');
 			await timeout(100);
@@ -335,6 +351,7 @@ suite('SessionsWindowOpenTelemetry', () => {
 			() => 0,
 			telemetryService,
 			lifecycleService,
+			disposables.add(new InMemoryStorageService()),
 		));
 		lifecycleService.fireShutdown(ShutdownReason.CLOSE);
 
@@ -355,5 +372,29 @@ suite('SessionsWindowOpenTelemetry', () => {
 			containsPath: false,
 		});
 		tracker.dispose();
+	});
+
+	test('includes editor usage and elapsed seconds without the stored timestamp', async () => {
+		await runWithFakedTimers({ useFakeTimers: true, startTime: 10_000 }, async () => {
+			const storage = disposables.add(new InMemoryStorageService());
+			new EditorChatUsage(storage).recordSubmission('local', true, true, false, 7_500);
+			const lifecycle = disposables.add(new TestLifecycleService());
+			const telemetry = new TestTelemetryService();
+			disposables.add(new SessionsWindowOpenTelemetry(
+				AgentsWindowOpenSource.TitleBar,
+				{ workspaceArgumentKind: 'none', hasSessionArgument: false },
+				() => false,
+				() => ({ workspacePreselected: false, workspacePreselectionSource: 'none', viewKind: 'newSession' }),
+				() => 0, telemetry, lifecycle, storage,
+			));
+			lifecycle.fireShutdown(ShutdownReason.CLOSE);
+			assert.deepStrictEqual(Object.fromEntries(Object.entries(telemetry.events[0].data).filter(([key]) => key.startsWith('editor'))), {
+				editorSessionsByProvider: '{"local":1}',
+				editorMessages: 1,
+				editorMessagesWithOtherSessionInProgress: 1,
+				editorMessagesWithOtherSessionInProgressAcrossWindows: 1,
+				editorLastMessageSecondsAgo: 2,
+			});
+		});
 	});
 });

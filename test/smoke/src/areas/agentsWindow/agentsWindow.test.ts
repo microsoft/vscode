@@ -73,10 +73,17 @@ function prepareDevContainerWorkspace(workspacePath: string, port: number): void
 
 function cleanupDevContainerWorkspace(workspacePath: string): void {
 	fs.rmSync(path.join(workspacePath, '.devcontainer'), { recursive: true, force: true });
-	const containerIds = cp.execFileSync('docker', ['ps', '-aq', '--filter', `label=devcontainer.local_folder=${workspacePath}`], { encoding: 'utf8' }).trim().split(/\s+/).filter(Boolean);
+	removeDevContainer(workspacePath);
+}
+
+function removeDevContainer(workspacePath: string): number {
+	// URI.fsPath normalizes the Windows drive letter in the container label.
+	const labeledPath = process.platform === 'win32' ? workspacePath.replace(/^[A-Z]:/, drive => drive.toLowerCase()) : workspacePath;
+	const containerIds = cp.execFileSync('docker', ['ps', '-aq', '--filter', `label=devcontainer.local_folder=${labeledPath}`], { encoding: 'utf8' }).trim().split(/\s+/).filter(Boolean);
 	if (containerIds.length > 0) {
 		cp.execFileSync('docker', ['rm', '--force', ...containerIds], { stdio: 'pipe' });
 	}
+	return containerIds.length;
 }
 
 const AGENT_HOST_SDK_SANDBOX_SCENARIO_ID = 'smoke-hello-agent-host-sdk-sandbox';
@@ -231,9 +238,16 @@ export function setup(logger: Logger, quality: Quality) {
 				await app.workbench.agentsWindow.waitForNewSessionView();
 				await app.workbench.agentsWindow.selectSessionType('Copilot');
 				await app.workbench.agentsWindow.selectDevContainer();
-				await app.workbench.agentsWindow.submitNewSessionPrompt(`start Dev Container [scenario:${DEV_CONTAINER_SCENARIO_ID}]`, 1_800);
+				const prompt = `start Dev Container [scenario:${DEV_CONTAINER_SCENARIO_ID}]`;
+				await app.workbench.agentsWindow.submitNewSessionPrompt(prompt, 1_800);
+				await app.workbench.agentsWindow.waitForSessionPreparation();
+				await app.workbench.agentsWindow.showSessionPreparationLog();
+				await app.workbench.agentsWindow.cancelSessionPreparation(prompt);
+				await app.workbench.agentsWindow.retrySessionPreparation();
+				await app.workbench.agentsWindow.waitForSessionPreparation();
 				await app.workbench.agentsWindow.waitForActiveSessionView(5 * 60 * 1000);
 				const text = await app.workbench.agentsWindow.waitForAssistantText('OK', 2 * 60 * 1000);
+				await app.workbench.agentsWindow.verifyInputEnabledAfterPreparation();
 				logger.log(`Agents Window (Dev Container AgentHost) response: ${text}`);
 				assert.ok(
 					devContainer.mockServer.requestCount() > requestsBefore,
@@ -254,6 +268,21 @@ export function setup(logger: Logger, quality: Quality) {
 					30_000,
 				);
 				assert.match(rendererLogs, /\[AgentHost\] _invokeAgent called for resource: remote-devcontainer__/);
+
+				await app.workbench.agentsWindow.startNewSession();
+				await app.workbench.agentsWindow.selectDevContainer();
+				await app.workbench.agentsWindow.selectSessionType('Copilot');
+				assert.strictEqual(removeDevContainer(app.workspacePathOrFolder), 1, 'Expected to remove the fixture container');
+				await waitForLogContent(
+					() => readRendererLogs(devContainer.logsPath),
+					/\[RemoteAgentHostProtocol\] Reconnecting to devcontainer:/,
+					30_000,
+				);
+				const requestsBeforeReconnect = devContainer.mockServer.requestCount();
+				await app.workbench.agentsWindow.submitNewSessionPrompt(`join reconnecting Dev Container [scenario:${DEV_CONTAINER_SCENARIO_ID}]`, 1_800);
+				await app.workbench.agentsWindow.waitForSessionPreparation();
+				await app.workbench.agentsWindow.waitForAssistantText('OK', 5 * 60 * 1000);
+				assert.ok(devContainer.mockServer.requestCount() > requestsBeforeReconnect, 'Expected a request after joining the automatic reconnect');
 			} catch (error) {
 				logger.log(`Agents Window (Dev Container AgentHost) FAILURE: ${error instanceof Error ? error.stack ?? error.message : String(error)}`);
 				await dumpFailureDiagnostics(app, logger, 'Agents Window (Dev Container AgentHost)', { sendButtonSelector: AGENTS_SEND_BUTTON_SELECTOR });
@@ -321,10 +350,11 @@ export function setup(logger: Logger, quality: Quality) {
 					} else {
 						await app.workbench.agentsWindow.connectTunnelHost(fixture.name, workspacePath);
 					}
-					await app.workbench.agentsWindow.selectSessionType(`Copilot [${fixture.name}]`);
+					await app.workbench.agentsWindow.selectSessionType('Copilot', { providerLabel: fixture.name });
 					await app.workbench.agentsWindow.selectDevContainer(workspaceLabel);
 					const requestsBefore = context.mockServer.requestCount();
 					await app.workbench.agentsWindow.submitNewSessionPrompt(prompt, 1_800);
+					await app.workbench.agentsWindow.waitForSessionPreparation();
 					await app.workbench.agentsWindow.waitForActiveSessionView(5 * 60 * 1000);
 					await app.workbench.agentsWindow.waitForAssistantText(reply, 2 * 60 * 1000);
 					assert.ok(context.mockServer.requestCount() > requestsBefore, 'Expected a new request at the mock LLM server');

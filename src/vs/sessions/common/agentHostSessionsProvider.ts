@@ -121,6 +121,8 @@ export interface IAgentHostSessionsProvider extends ISessionsProvider {
 	readonly connectionStatus?: IObservable<RemoteAgentHostConnectionStatus>;
 	/** Progress messages during on-demand connect. */
 	readonly onDidReportConnectProgress?: Event<IAgentHostConnectProgress>;
+	/** Opens this host's connection log, including while connecting. */
+	readonly showConnectionLog?: () => Promise<void>;
 	/** Remote address string, present on remote providers. */
 	readonly remoteAddress?: string;
 	/**

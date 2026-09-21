@@ -5,6 +5,15 @@
 
 import { MenuId } from '../../platform/actions/common/actions.js';
 
+const NEW_SESSION_REPOSITORY_CONFIG_GROUP_PREFIX = 'navigation/';
+
+/**
+ * Returns a stable, ordered group for one action in the new-session repository toolbar.
+ */
+export function getNewSessionRepositoryConfigGroup(order: number, actionId: string): string {
+	return `${NEW_SESSION_REPOSITORY_CONFIG_GROUP_PREFIX}${order.toString().padStart(16, '0')}/${actionId}`;
+}
+
 /**
  * Menu IDs for the Agent Sessions workbench layout.
  */
@@ -30,7 +39,6 @@ export const Menus = {
 	SessionsViewExternalFilter: new MenuId('SessionsViewExternalFilter'),
 	AuxiliaryBarTitle: new MenuId('SessionsAuxiliaryBarTitle'),
 	SidebarFooter: new MenuId('SessionsSidebarFooter'),
-	SidebarCustomizations: new MenuId('SessionsSidebarCustomizations'),
 	SidebarAgentHost: new MenuId('SessionsSidebarAgentHost'),
 	AccountMenu: new MenuId('SessionsAccountMenu'),
 	GoMenu: new MenuId('SessionsGoMenu'),
@@ -57,6 +65,7 @@ export const Menus = {
 	NewSessionRepositoryConfig: new MenuId('NewSessions.RepositoryConfigMenu'),
 	SessionWorkspaceManage: new MenuId('Sessions.SessionWorkspaceManage'),
 	SessionBarToolbar: new MenuId('SessionsSessionBarToolbar'),
+	SessionChatTabs: new MenuId('SessionsSessionChatTabs'),
 	SessionConversations: new MenuId('SessionsSessionConversations'),
 	SessionChatTab: new MenuId('SessionsSessionChatTab'),
 	SessionChatItemContext: new MenuId('SessionsSessionChatItemContext'),

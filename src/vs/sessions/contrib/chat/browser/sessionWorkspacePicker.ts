@@ -77,6 +77,7 @@ const RESTORE_CONNECT_GRACE_MS = 5000;
  * Item type used in the action list.
  */
 export interface IWorkspacePickerItem {
+	readonly id?: string;
 	readonly folderUri?: URI;
 	readonly ariaLabel?: string;
 	/** The resolved workspace (used for unavailable-provider checks). */
@@ -116,6 +117,7 @@ export interface IWorkspacePickerNoWorkspaceOption {
 	readonly description: string;
 	readonly isSelected: boolean;
 	readonly select: () => void;
+	readonly submenuActions?: readonly IAction[];
 }
 
 export interface IWorkspacePickerTrigger {
@@ -265,10 +267,12 @@ export class WorkspacePicker extends Disposable {
 		if (!activeTrigger || (!this.actionWidgetService.isVisible && !this._tabbedWidget.isVisible)) {
 			return;
 		}
-		if (this._tabbedWidget.isVisible) {
+		if (this._showTabs()) {
+			this.showPicker(true, activeTrigger, this._directPickerGroup, this._directPickerAttachesContext);
+		} else if (this._tabbedWidget.isVisible) {
 			this._tabbedWidget.refreshActiveList();
 		} else {
-			this.showPicker(true, activeTrigger, this._directPickerGroup, this._directPickerAttachesContext);
+			this.actionWidgetService.updateItems(this._buildItems(), undefined, { preserveHover: true });
 		}
 	}, 50));
 	private _attachedContext: readonly IChatRequestVariableEntry[] = [];
@@ -492,7 +496,13 @@ export class WorkspacePicker extends Disposable {
 			this._syncAttachedContext();
 			const activeTrigger = this._activeTriggerElement;
 			if (activeTrigger && (this.actionWidgetService.isVisible || this._tabbedWidget.isVisible)) {
-				this.showPicker(true, activeTrigger, this._directPickerGroup, this._directPickerAttachesContext);
+				if (this._showTabs()) {
+					this.showPicker(true, activeTrigger, this._directPickerGroup, this._directPickerAttachesContext);
+				} else if (this._tabbedWidget.isVisible) {
+					this._tabbedWidget.refreshActiveList();
+				} else {
+					this.actionWidgetService.updateItems(this._buildItems(), undefined, { preserveHover: true });
+				}
 			}
 		}));
 
@@ -1043,7 +1053,13 @@ export class WorkspacePicker extends Disposable {
 			store.add(provider.onDidChangeSessionTypes(() => {
 				const activeTrigger = this._activeTriggerElement;
 				if (activeTrigger && (this.actionWidgetService.isVisible || this._tabbedWidget.isVisible)) {
-					this.showPicker(true, activeTrigger, this._directPickerGroup, this._directPickerAttachesContext);
+					if (this._showTabs()) {
+						this.showPicker(true, activeTrigger, this._directPickerGroup, this._directPickerAttachesContext);
+					} else if (this._tabbedWidget.isVisible) {
+						this._tabbedWidget.refreshActiveList();
+					} else {
+						this.actionWidgetService.updateItems(this._buildItems(), undefined, { preserveHover: true });
+					}
 				}
 			}));
 			if (isAgentHostProvider(provider) && provider.onDidChangeDevContainerAvailability) {
@@ -1482,12 +1498,13 @@ export class WorkspacePicker extends Disposable {
 			: undefined;
 		const useRemoteSubmenu = this._useConsolidatedRemoteWorkspaces() && this._directPickerGroup === undefined;
 		const remotePickerItem: {
+			id: string;
 			folderUri?: URI;
 			providerId?: string;
 			browseAction?: ISessionWorkspaceBrowseAction;
 			run?: () => void;
 			preferDevContainer?: boolean;
-		} = {};
+		} = { id: 'workspacePicker.remote' };
 		const remoteSubmenuActions: IAction[] = [];
 		const remoteFilterItems: IActionListItem<IWorkspacePickerItem>[] = [];
 		let devContainerActionIndex = 0;
@@ -1832,6 +1849,7 @@ export class WorkspacePicker extends Disposable {
 					focusFilterOnOpen: true,
 					minWidth: 180,
 					hideDefaultKeybindingTooltip: true,
+					stopToolbarPointerPropagation: true,
 				},
 			});
 		}
@@ -1878,13 +1896,16 @@ export class WorkspacePicker extends Disposable {
 			ariaDescription: noWorkspaceAriaDescription,
 			group: { title: '', icon: this._useConsolidatedRemoteWorkspaces() ? Codicon.comment : Codicon.commentDiscussion },
 			item: {
+				id: 'workspacePicker.chat',
 				checked: noWorkspaceOption.isSelected || undefined,
-				run: () => {
+				run: noWorkspaceOption.submenuActions?.length ? undefined : () => {
 					noWorkspaceOption.select();
 					this._updateTriggerLabel();
 					this._onDidChangeSelection.fire();
 				},
 			},
+			submenuActions: noWorkspaceOption.submenuActions ? [...noWorkspaceOption.submenuActions] : undefined,
+			openSubmenuOnClick: !!noWorkspaceOption.submenuActions?.length,
 		};
 		return items.length > 0
 			? [noWorkspace, { kind: ActionListItemKind.Separator, label: '' }, ...items]

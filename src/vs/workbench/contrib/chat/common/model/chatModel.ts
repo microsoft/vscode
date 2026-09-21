@@ -901,7 +901,9 @@ export class Response extends AbstractResponse implements IDisposable {
 	}
 
 	updateContent(progress: IChatProgressResponseContent | IChatTextEdit | IChatNotebookEdit | IChatTask | IChatExternalToolInvocationUpdate, quiet?: boolean): void {
-		if (progress.kind !== 'thinking') {
+		// Nested subagent progress renders inside its parent card, so it neither ends the parent's
+		// reasoning section nor its reasoning timer.
+		if (progress.kind !== 'thinking' && !isNestedSubagentResponsePart(progress)) {
 			this.finalizeReasoningDuration();
 		}
 
@@ -941,8 +943,9 @@ export class Response extends AbstractResponse implements IDisposable {
 		} else if (progress.kind === 'thinking') {
 
 			// tries to split thinking chunks if it is an array. only while certain models give us array chunks.
+			// Nested subagent parts render inside their parent card and must not split parent reasoning.
 			const lastResponsePart = this._responseParts
-				.filter(p => p.kind !== 'textEditGroup')
+				.filter(p => p.kind !== 'textEditGroup' && !isNestedSubagentResponsePart(p))
 				.at(-1);
 
 			const lastText = lastResponsePart && lastResponsePart.kind === 'thinking'
@@ -3493,7 +3496,7 @@ export function canMergeMarkdownStrings(md1: IMarkdownString, md2: IMarkdownStri
 		md1.supportThemeIcons === md2.supportThemeIcons;
 }
 
-function isNestedSubagentResponsePart(part: IChatProgressResponseContent): boolean {
+function isNestedSubagentResponsePart(part: object): boolean {
 	return 'subAgentInvocationId' in part && !!part.subAgentInvocationId;
 }
 

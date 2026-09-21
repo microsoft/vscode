@@ -49,7 +49,7 @@ import { IWorkspaceContextService } from '../../../../../../platform/workspace/c
 import type { IChatWidget } from '../../chat.js';
 import { ChatConfiguration, ChatPermissionLevel, isChatPermissionLevel } from '../../../common/constants.js';
 import { SessionType } from '../../../common/chatSessionsService.js';
-import { isAssistedPermissionsEnabled, isAutoApprovePolicyRestricted, isAutoApproveValuePolicyRestricted, isPermissionLevelVisible, normalizeSessionConfigValue } from '../../../common/agentHostConfigPolicy.js';
+import { isAutoApprovePolicyRestricted, isAutoApproveValuePolicyRestricted, normalizeSessionConfigValue } from '../../../common/agentHostConfigPolicy.js';
 import { maybeConfirmElevatedPermissionLevel } from '../../../common/chatPermissionWarnings.js';
 import { getChatSessionType, isUntitledChatSession } from '../../../common/model/chatUri.js';
 import { withChatInputPickerMotion } from '../../widget/input/chatInputPickerActionItem.js';
@@ -60,7 +60,7 @@ import { resolveAgentHostChatSession, toAgentHostBackendSessionUri } from './age
 import { retrySessionConfigSubscriptionOnCreation } from './agentHostSessionConfigSubscription.js';
 import { getCompactCodicon } from '../../chatIcons.js';
 import { IChatPhoneInputPresenter } from '../../widget/input/chatPhoneInputPresenter.js';
-import { AGENT_HOST_PERMISSIONS_SETTINGS_QUERY, createModePickerModeItems, createModePickerPermissionsItems, getModePermissionsPickerAccessibilityProvider, getModePermissionsPickerOptions, getModePickerAriaLabel, IModePickerPermissions, IModePickerTrigger, isWellKnownAutoApproveSchema, MODE_PERMISSIONS_PICKER_OPEN_ATTRIBUTE, renderModePickerTrigger, shouldCombineModeAndPermissions } from './agentHostModePickerPresentation.js';
+import { AGENT_HOST_PERMISSIONS_SETTINGS_QUERY, createModePickerModeItems, createModePickerPermissionsItems, getModePermissionsPickerAccessibilityProvider, getModePermissionsPickerOptions, getModePickerAriaLabel, getPermissionLevelBadge, IModePickerPermissions, IModePickerTrigger, isWellKnownAutoApproveSchema, MODE_PERMISSIONS_PICKER_OPEN_ATTRIBUTE, renderModePickerTrigger, shouldCombineModeAndPermissions } from './agentHostModePickerPresentation.js';
 import { IPreferencesService } from '../../../../../services/preferences/common/preferences.js';
 
 const FILTER_THRESHOLD = 10;
@@ -138,6 +138,7 @@ function toActionItems(property: string, items: readonly IConfigPickerItem[], cu
 		return {
 			kind: ActionListItemKind.Action,
 			label: item.label,
+			...(property === SessionConfigKey.AutoApprove ? getPermissionLevelBadge(item.value) : {}),
 			detail: disabled ? hover : item.description,
 			group: { title: '', icon: getConfigIcon(property, item.value) },
 			disabled,
@@ -261,7 +262,7 @@ export function getConfigPickerListOptions(property: string): IActionListOptions
 		case SessionConfigKey.Mode:
 			return { minWidth: 260 };
 		case SessionConfigKey.AutoApprove:
-			return { minWidth: 255 };
+			return { minWidth: 300 };
 		case CodexSessionConfigKey.PermissionsPreset:
 			return getCodexApprovalsPickerListOptions();
 		default:
@@ -445,7 +446,7 @@ export class AgentHostChatInputPicker extends Disposable {
 				this._renderChip();
 				return;
 			}
-			if (this._isModePickerCombined() && (e.affectsConfiguration(ChatConfiguration.GlobalAutoApprove) || e.affectsConfiguration(ChatConfiguration.AssistedPermissionsEnabled))) {
+			if (e.affectsConfiguration(ChatConfiguration.GlobalAutoApprove)) {
 				this._hidePicker();
 			}
 			const sandboxSettingId = this._getSandboxSettingId();
@@ -1039,22 +1040,14 @@ export class AgentHostChatInputPicker extends Disposable {
 				throw new CancellationError();
 			}
 			if (result) {
-				return this._filterAutoApproveItems(result.items.map(item => this._fromCompletion(item)), property);
+				return result.items.map(item => this._fromCompletion(item));
 			}
 		}
-		return this._filterAutoApproveItems((schema.enum ?? []).map((value, index) => ({
+		return (schema.enum ?? []).map((value, index) => ({
 			value: String(value),
 			label: schema.enumLabels?.[index] ?? String(value),
 			description: schema.enumDescriptions?.[index],
-		})), property);
-	}
-
-	private _filterAutoApproveItems(items: readonly IConfigPickerItem[], property = this._property): readonly IConfigPickerItem[] {
-		if (property !== SessionConfigKey.AutoApprove) {
-			return items;
-		}
-		const assistedPermissionsEnabled = isAssistedPermissionsEnabled(this._configurationService);
-		return items.filter(item => isPermissionLevelVisible(item.value, assistedPermissionsEnabled));
+		}));
 	}
 
 	private _fromCompletion(item: SessionConfigValueItem): IConfigPickerItem {
@@ -1092,9 +1085,6 @@ export class AgentHostChatInputPicker extends Disposable {
 	 */
 	private async _confirmAndSetValue(context: IConfigPickerContext, item: IConfigPickerItem, property = this._property): Promise<void> {
 		const value = item.value;
-		if (property === SessionConfigKey.AutoApprove && !isPermissionLevelVisible(value, isAssistedPermissionsEnabled(this._configurationService))) {
-			return;
-		}
 		if (property === SessionConfigKey.AutoApprove) {
 			const levelToConfirm = isChatPermissionLevel(value)
 				? value

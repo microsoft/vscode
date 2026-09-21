@@ -19,6 +19,7 @@ export class TestSessionDatabase implements ISessionDatabase {
 	private _catalogSyncSnapshot: ISessionCatalogSyncSnapshot | undefined;
 	private readonly _drafts = new Map<string, Message>();
 	private readonly _reviewedFiles: IReviewedFileRecord[] = [];
+	private readonly _turns = new Set<string>();
 	private readonly _localTurns = new Map<string, ILocalTurnRecord>();
 	private readonly _turnUsages = new Map<string, string>();
 	private readonly _turnDelegations = new Map<string, string>();
@@ -37,9 +38,12 @@ export class TestSessionDatabase implements ISessionDatabase {
 		this._edits.push(edit);
 	}
 
-	async createTurn(): Promise<void> { }
+	async createTurn(turnId: string): Promise<void> {
+		this._turns.add(turnId);
+	}
 
 	async deleteTurn(turnId: string): Promise<void> {
+		this._turns.delete(turnId);
 		this._turnDelegations.delete(turnId);
 		this._turnWorkspaceTransitions.delete(turnId);
 		this._turnEventIds.delete(turnId);
@@ -52,6 +56,7 @@ export class TestSessionDatabase implements ISessionDatabase {
 	}
 
 	async storeFileEdit(edit: IFileEditRecord & IFileEditContent): Promise<void> {
+		this._turns.add(edit.turnId);
 		const existingIndex = this._edits.findIndex(e => e.toolCallId === edit.toolCallId && e.filePath === edit.filePath);
 		if (existingIndex >= 0) {
 			this._edits[existingIndex] = edit;
@@ -219,6 +224,7 @@ export class TestSessionDatabase implements ISessionDatabase {
 
 	async setTurnEventId(turnId: string, eventId: string): Promise<void> {
 		this.setTurnEventIdCalls.push({ turnId, eventId });
+		this._turns.add(turnId);
 		this._turnEventIds.set(turnId, eventId);
 	}
 
@@ -230,13 +236,19 @@ export class TestSessionDatabase implements ISessionDatabase {
 
 	async getFirstTurnEventId(): Promise<string | undefined> { return undefined; }
 
+	async hasConversationTurns(): Promise<boolean> {
+		return this._turns.size > 0 || this._localTurns.size > 0;
+	}
+
 	async setTurnUsage(turnId: string, usage: string): Promise<void> {
+		this._turns.add(turnId);
 		this._turnUsages.set(turnId, usage);
 	}
 
 	async getTurnUsages(): Promise<Map<string, string>> { return new Map(this._turnUsages); }
 
 	async setTurnDelegation(turnId: string, delegation: string): Promise<void> {
+		this._turns.add(turnId);
 		this._turnDelegations.set(turnId, delegation);
 	}
 
@@ -252,11 +264,13 @@ export class TestSessionDatabase implements ISessionDatabase {
 	}
 
 	async setTurnWorkspaceTransition(turnId: string, transition: string): Promise<void> {
+		this._turns.add(turnId);
 		this._turnWorkspaceTransitions.set(turnId, transition);
 		this._metadata.set(AH_META_HAS_WORKSPACE_TRANSITIONS_DB_KEY, 'true');
 	}
 
 	async setWorkspaceConversion(turnId: string, transition: string, metadata: Readonly<Record<string, string>>): Promise<void> {
+		this._turns.add(turnId);
 		for (const [key, value] of Object.entries(metadata)) {
 			this._metadata.set(key, value);
 		}
@@ -289,11 +303,13 @@ export class TestSessionDatabase implements ISessionDatabase {
 
 	async deleteAllTurns(): Promise<void> {
 		this.deleteAllTurnsCalls++;
+		this._turns.clear();
 		this._edits.length = 0;
 		this._turnDelegations.clear();
 		this._turnWorkspaceTransitions.clear();
 		this._metadata.delete(AH_META_HAS_WORKSPACE_TRANSITIONS_DB_KEY);
 		this._turnEventIds.clear();
+		this._localTurns.clear();
 	}
 
 	async insertLocalTurn(record: ILocalTurnRecord): Promise<void> {
@@ -310,6 +326,16 @@ export class TestSessionDatabase implements ISessionDatabase {
 		}
 	}
 	async remapTurnIds(mapping: ReadonlyMap<string, string>, eventIds?: ReadonlyMap<string, string>): Promise<void> {
+		for (const turnId of [...this._turns]) {
+			if (!mapping.has(turnId)) {
+				this._turns.delete(turnId);
+			}
+		}
+		for (const [oldId, newId] of mapping) {
+			if (this._turns.delete(oldId)) {
+				this._turns.add(newId);
+			}
+		}
 		for (const turnId of [...this._turnDelegations.keys()]) {
 			if (!mapping.has(turnId)) {
 				this._turnDelegations.delete(turnId);

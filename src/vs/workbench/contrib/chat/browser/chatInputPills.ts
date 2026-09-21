@@ -292,13 +292,14 @@ export class ChatInputPills extends Disposable {
 			},
 		});
 		const targetActions: IAction[] = [];
+		const pullRequestActions: IAction[] = [];
 		if (targetKind) {
 			for (const source of this._options.sources.get()) {
 				if (source.kind === targetKind && this._options.offeredKinds.includes(targetKind)) {
 					// A primary action can remove the entry the menu was opened from,
 					// taking its pill with it, so focus has to be placed again once the
 					// action settles instead of being left on the detached anchor.
-					targetActions.push(...(source.getContextMenuPrimaryActions?.() ?? []).map(action => toAction({
+					const primaryActions = (source.getContextMenuPrimaryActions?.() ?? []).map(action => toAction({
 						id: action.id,
 						label: action.label,
 						enabled: action.enabled,
@@ -312,7 +313,8 @@ export class ChatInputPills extends Disposable {
 								restoreFocus();
 							}
 						},
-					})));
+					}));
+					(source.kind === SessionChatPillKind.PullRequests ? pullRequestActions : targetActions).push(...primaryActions);
 				}
 			}
 			if (targetActions.length) {
@@ -330,7 +332,6 @@ export class ChatInputPills extends Disposable {
 				},
 			}));
 		}
-		const pullRequestOptions: IAction[] = [];
 		for (const source of this._options.sources.get()) {
 			const allPullRequestsFilteredOut = source.kind === SessionChatPillKind.PullRequests
 				&& kindsWithData.has(source.kind) && source.isVisible?.get() === false;
@@ -340,7 +341,7 @@ export class ChatInputPills extends Disposable {
 			}
 			const actions = source.getContextMenuActions?.();
 			if (actions?.length) {
-				const options = source.kind === SessionChatPillKind.PullRequests ? pullRequestOptions : targetActions;
+				const options = source.kind === SessionChatPillKind.PullRequests ? pullRequestActions : targetActions;
 				options.push(new SubmenuAction(
 					`chatInputPills.options.${source.kind}`,
 					localize('chatInputPills.options', "{0} Options", getSessionChatPillLabel(source.kind)),
@@ -348,7 +349,7 @@ export class ChatInputPills extends Disposable {
 				));
 			}
 		}
-		return Separator.join(targetActions, pullRequestOptions, menu.withData.map(toggleAction), menu.withoutData.map(toggleAction));
+		return Separator.join(targetActions, pullRequestActions, menu.withData.map(toggleAction), menu.withoutData.map(toggleAction));
 	}
 }
 

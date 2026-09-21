@@ -33,6 +33,8 @@ export function isMobilePickerSheetTarget(target: HTMLElement): boolean {
 export interface IMobilePickerSheetItem {
 	readonly id: string;
 	readonly label: string;
+	/** Optional badge displayed beside the label and included in its accessible name. */
+	readonly badge?: string;
 	readonly description?: string;
 	readonly icon?: ThemeIcon;
 	readonly checked?: boolean;
@@ -933,7 +935,14 @@ function renderRow(
 
 	// Text column — label on top, optional description beneath.
 	const textCol = DOM.append(row, $('span.mobile-picker-sheet-text'));
-	DOM.append(textCol, $('span.mobile-picker-sheet-label')).textContent = item.label;
+	const labelRow = item.badge ? DOM.append(textCol, $('span.mobile-picker-sheet-label-row')) : textCol;
+	DOM.append(labelRow, $('span.mobile-picker-sheet-label')).textContent = item.label;
+	if (item.badge) {
+		DOM.append(labelRow, $('span.mobile-picker-sheet-badge', { 'aria-hidden': 'true' })).textContent = item.badge;
+		row.setAttribute('aria-label', item.description
+			? localize('mobilePickerSheet.itemAriaLabelWithBadgeAndDescription', "{0}, {1}, {2}", item.label, item.badge, item.description)
+			: localize('mobilePickerSheet.itemAriaLabelWithBadge', "{0}, {1}", item.label, item.badge));
+	}
 	if (item.description) {
 		DOM.append(textCol, $('span.mobile-picker-sheet-description')).textContent = item.description;
 	}

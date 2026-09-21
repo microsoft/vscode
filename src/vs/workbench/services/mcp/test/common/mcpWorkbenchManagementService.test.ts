@@ -74,6 +74,7 @@ suite('WorkbenchMcpManagementService - workspace configurations', () => {
 			[IAllowedMcpServersService, upcastPartial<IAllowedMcpServersService>({
 				onDidChangeAllowedMcpServers: Event.None,
 				isAllowed: () => options.allowed === false ? new MarkdownString('Blocked by policy') : true,
+				isServerAllowedBeforeResolution: () => true,
 				isServerAllowed: () => true,
 			})],
 			[ILogService, logService],

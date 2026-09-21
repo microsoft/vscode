@@ -137,11 +137,11 @@ suite('StandardChatInputPillSources', () => {
 		});
 	});
 
-	test('offers single PR removal directly for mouse and keyboard but not on the toolbar background', async () => {
+	test('groups single PR removal with options for mouse and keyboard but not on the toolbar background', async () => {
 		let removed = 0;
 		const entry: IChatPullRequestPillEntry = {
 			...pullRequestEntry('#1', 'open'),
-			promotedAction: toAction({ id: 'remove-pr', label: 'Remove Pull Request Artifact from Session', run: () => { removed++; } }),
+			promotedAction: toAction({ id: 'remove-pr', label: 'Remove Pull Request Reference from Session', run: () => { removed++; } }),
 		};
 		const data = createSessionPullRequestPillData(constObservable([{ title: 'Pull Requests', entries: [entry] }]), createPullRequestVisibility());
 		const pills = createPills({ pullRequests: data });
@@ -149,17 +149,17 @@ suite('StandardChatInputPillSources', () => {
 		const mouseMenu = pills.openContextMenu(target);
 		const keyboardMenu = pills.openContextMenu(target, true);
 		const backgroundMenu = pills.openContextMenu(pills.inputPills.element);
-		await mouseMenu[0].run();
-		await keyboardMenu[0].run();
+		await mouseMenu.find(action => action.id === 'remove-pr')?.run();
+		await keyboardMenu.find(action => action.id === 'remove-pr')?.run();
 
 		assert.deepStrictEqual({
-			mouse: mouseMenu.slice(0, 6).map(action => action.label),
-			keyboard: keyboardMenu.slice(0, 6).map(action => action.label),
+			mouse: mouseMenu.slice(0, 5).map(action => action.label),
+			keyboard: keyboardMenu.slice(0, 5).map(action => action.label),
 			backgroundRemoval: backgroundMenu.some(action => action.id === 'remove-pr'),
 			removed,
 		}, {
-			mouse: ['Remove Pull Request Artifact from Session', '', 'Hide Pull Requests', '', 'Pull Requests Options', ''],
-			keyboard: ['Remove Pull Request Artifact from Session', '', 'Hide Pull Requests', '', 'Pull Requests Options', ''],
+			mouse: ['Hide Pull Requests', '', 'Remove Pull Request Reference from Session', 'Pull Requests Options', ''],
+			keyboard: ['Hide Pull Requests', '', 'Remove Pull Request Reference from Session', 'Pull Requests Options', ''],
 			backgroundRemoval: false,
 			removed: 2,
 		});
@@ -190,11 +190,13 @@ suite('StandardChatInputPillSources', () => {
 		// The real context menu widget holds focus while it is open, so the pill is no longer focused
 		// by the time the promoted action resolves.
 		target.blur();
-		await menu[0].run();
+		const removeAction = menu.find(action => action.id === 'remove-pr');
+		assert.ok(removeAction);
+		await removeAction.run();
 		await timeout(10);
 
 		assert.deepStrictEqual({
-			action: menu[0].label,
+			action: removeAction.label,
 			labels: pills.labels(),
 			focusedLivePill: document.activeElement === pills.inputPills.getPillElements().at(0),
 		}, {

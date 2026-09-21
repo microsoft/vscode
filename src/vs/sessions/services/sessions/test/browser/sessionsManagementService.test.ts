@@ -6,6 +6,7 @@
 import assert from 'assert';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
+import { CancellationError } from '../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, constObservable, observableValue } from '../../../../../base/common/observable.js';
@@ -21,6 +22,7 @@ import { SyncDescriptor } from '../../../../../platform/instantiation/common/des
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
+import { INotificationService, NotificationMessage } from '../../../../../platform/notification/common/notification.js';
 import { IProgress, IProgressService, IProgressStep } from '../../../../../platform/progress/common/progress.js';
 import { InMemoryStorageService, IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
@@ -233,8 +235,10 @@ function createSessionsManagementService(
 	workspaceTrustManagementService = new TestWorkspaceTrustManagementService(),
 	workspaceTrustRequestService?: IWorkspaceTrustRequestService,
 	configurationService: IConfigurationService = new TestConfigurationService(),
-): { service: ISessionsManagementService; view: SessionsService; chatWidgetService: TestChatWidgetService; chatService: TestChatService; contextKeyService: MockContextKeyService; customViewService: ICustomViewService; focusSession: Emitter<string | undefined>; sessionsPartService: TestSessionsPartService } {
+): { service: ISessionsManagementService; view: SessionsService; chatWidgetService: TestChatWidgetService; chatService: TestChatService; contextKeyService: MockContextKeyService; customViewService: ICustomViewService; focusSession: Emitter<string | undefined>; sessionsPartService: TestSessionsPartService; notifications: (NotificationMessage | NotificationMessage[])[] } {
 	const instantiationService = disposables.add(new TestInstantiationService());
+	const notifications: (NotificationMessage | NotificationMessage[])[] = [];
+	instantiationService.stub(INotificationService, { error: message => notifications.push(message) });
 	const chatWidgetService = new TestChatWidgetService();
 	const chatService = disposables.add(new TestChatService());
 	const providers = Array.isArray(provider) ? provider : [provider];
@@ -262,7 +266,7 @@ function createSessionsManagementService(
 	const focusSession = disposables.add(new Emitter<string | undefined>());
 	const sessionsPartService = new TestSessionsPartService(focusSession.event);
 	const view = createView(instantiationService, service, disposables, customViewService, sessionsPartService);
-	return { service, view, chatWidgetService, chatService, contextKeyService, customViewService, focusSession, sessionsPartService };
+	return { service, view, chatWidgetService, chatService, contextKeyService, customViewService, focusSession, sessionsPartService, notifications };
 }
 
 /** Sessions part stub that records focus requests without rendering views. */
@@ -2163,6 +2167,39 @@ suite('SessionsManagementService', () => {
 			afterSend: [],
 		});
 	});
+
+	for (const { error, expectedNotifications } of [
+		{ error: new Error('Container setup failed'), expectedNotifications: ['Failed to start session: Container setup failed'] },
+		{ error: new CancellationError(), expectedNotifications: [] },
+		{ error: new WorkspaceNotTrustedError(), expectedNotifications: [] },
+	]) {
+		test(`background preparation reports only unexpected failures: ${error.name} ${error.message}`, async () => {
+			const session = stubSession({ sessionId: 's1', providerId: 'test', status: constObservable(SessionStatus.Untitled) });
+			const preparation = new DeferredPromise<never>();
+			const deleted: string[] = [];
+			const provider = new class extends TestSessionsProvider {
+				override prepareNewSession(): Promise<never> {
+					return preparation.p;
+				}
+				override deleteNewSession(sessionId: string): void {
+					deleted.push(sessionId);
+				}
+			}(session);
+			const { service, notifications } = createSessionsManagementService(session, disposables, provider);
+			await service.sendNewChatRequest(session, { query: 'hi', background: true });
+			await preparation.error(error);
+			await timeout(0);
+			assert.deepStrictEqual({
+				notifications,
+				deleted,
+				inFlight: service.getInFlightNewSessionRequests(),
+			}, {
+				notifications: expectedNotifications,
+				deleted: ['s1'],
+				inFlight: [],
+			});
+		});
+	}
 
 	test('sendRequest with background is fire-and-forget and does not fire onWillSendRequest', async () => {
 		const chat: IChat = { ...stubChat, resource: URI.parse('test:///chat'), status: constObservable(SessionStatus.Untitled) };
