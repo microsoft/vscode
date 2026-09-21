@@ -8,6 +8,7 @@ import { DeferredPromise } from '../../../../../../base/common/async.js';
 import { VSBuffer } from '../../../../../../base/common/buffer.js';
 import { CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { isCancellationError } from '../../../../../../base/common/errors.js';
+import { parse as parseJson, ParseError } from '../../../../../../base/common/json.js';
 import { parse } from '../../../../../../base/common/jsonc.js';
 import { Schemas } from '../../../../../../base/common/network.js';
 import { sep } from '../../../../../../base/common/path.js';
@@ -421,6 +422,56 @@ suite('McpServerCustomizationMigration', () => {
 			commentPreserved: true,
 		});
 	});
+
+	for (const existingTarget of [false, true]) {
+		for (const order of [['migrate-me', 'leave-me'], ['leave-me', 'migrate-me']]) {
+			test(`moves every server from a trailing-comma source into ${existingTarget ? 'an equivalent existing' : 'a new'} target in ${order.join(', ')} order`, async () => {
+				const root = URI.file('/move-all');
+				const sourceUri = URI.joinPath(root, '.vscode', 'mcp.json');
+				const targetUri = URI.joinPath(root, '.mcp.json');
+				const source = `{
+					// preserved
+					"servers": {
+						"migrate-me": { "type": "stdio", "command": "node" },
+						"leave-me": { "type": "stdio", "command": "node" },
+					},
+					"inputs": []
+				}`;
+				const target = {
+					mcpServers: {
+						'migrate-me': { type: McpServerType.LOCAL, command: 'node' },
+						'leave-me': { type: McpServerType.LOCAL, command: 'node' },
+					}
+				};
+				const fileService = createFileService();
+				await fileService.writeFile(sourceUri, VSBuffer.fromString(source));
+				if (existingTarget) {
+					await fileService.writeFile(targetUri, VSBuffer.fromString(JSON.stringify(target)));
+				}
+
+				const result = await createMigrator(fileService).migrate(order.map(name => candidate(root, name)), { roots: [root] });
+				const sourceContent = (await fileService.readFile(sourceUri)).value.toString();
+				const errors: ParseError[] = [];
+				const remaining = parseJson(sourceContent, errors, { allowTrailingComma: true });
+
+				assert.deepStrictEqual({
+					migratedCount: result.migratedCount,
+					failures: result.failures.map(failure => failure.reason),
+					source: remaining,
+					sourceErrors: errors,
+					commentPreserved: sourceContent.includes('// preserved'),
+					target: parse((await fileService.readFile(targetUri)).value.toString()),
+				}, {
+					migratedCount: 2,
+					failures: [],
+					source: { servers: {}, inputs: [] },
+					sourceErrors: [],
+					commentPreserved: true,
+					target,
+				});
+			});
+		}
+	}
 
 	test('accepts an equivalent target and rejects a conflicting target', async () => {
 		const root = URI.file('/targets');
