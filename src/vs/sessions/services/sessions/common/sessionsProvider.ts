@@ -213,11 +213,6 @@ export interface ISessionsProvider {
 	 */
 	getSessions(): ISession[];
 	/**
-	 * Optional. Requests non-catalog chat details for a listed session. Providers
-	 * should deduplicate and release any temporary resources after an idle period.
-	 */
-	hydrateSessionChats?(session: ISession): void;
-	/**
 	 * Event that fires when sessions are added, removed, or changed. Consumers should update their session lists and any related UI when this occurs.
 	 */
 	readonly onDidChangeSessions: Event<ISessionChangeEvent>;

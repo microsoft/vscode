@@ -521,7 +521,6 @@ class SessionChatItemRenderer implements ITreeRenderer<SessionListItem, FuzzySco
 
 		template.elementDisposables.clear();
 		template.elementDisposables.add(toDisposable(() => template.container.classList.remove('renaming')));
-		this.sessionsManagementService.hydrateSessionChats(element.session);
 		const chats = getSessionListChats(element.session);
 		template.container.classList.toggle('last-chat', isEqual(chats.at(-1)?.resource, element.chat.resource));
 		template.elementDisposables.add(autorun(reader => {

@@ -6028,7 +6028,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 			return session!;
 		}
 
-		test('list metadata surfaces peer titles without subscribing and hydrates stable chats on demand', async () => {
+		test('list metadata surfaces peer titles without subscribing and loads stable chat details while observed', async () => {
 			agentHost.setAgents([{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [], capabilities: {} } as AgentInfo]);
 			const rawId = 'multi-catalog-list';
 			const sessionUri = AgentSession.uri('copilotcli', rawId);
@@ -6058,7 +6058,10 @@ suite('LocalAgentHostSessionsProvider', () => {
 				sessionSubscriptions: 0,
 			});
 
-			provider.hydrateSessionChats(session);
+			disposables.add(autorun(reader => {
+				initialPeer.title.read(reader);
+				initialPeer.status.read(reader);
+			}));
 			agentHost.setSessionState(rawId, 'copilotcli', makeState([
 				makeChatSummary(defaultChat.toString(), 'Default'),
 				makeChatSummary(peerChat.toString(), 'Hydrated Peer', ProtocolSessionStatus.InProgress),
@@ -6392,6 +6395,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 				'copilotcli',
 				options,
 				constObservable(false),
+				() => toDisposable(() => { }),
 			)));
 			const sessionUri = AgentSession.uri('copilotcli', 'lazy-capabilities-0').toString();
 			const defaultChat = buildDefaultChatUri(sessionUri);
@@ -8115,6 +8119,39 @@ suite('LocalAgentHostSessionsProvider', () => {
 		// Re-access after release re-subscribes.
 		provider.getSessionConfig(session!.sessionId);
 		assert.strictEqual(agentHost.sessionSubscribeCounts.get(sessionUriStr), 2, 'fresh subscribe after release');
+	}));
+
+	test('session chat details lease holds the state subscription until released', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const rawId = 'chat-details-lease';
+		const sessionUri = AgentSession.uri('copilotcli', rawId);
+		const defaultChat = URI.parse(buildDefaultChatUri(sessionUri));
+		const peerChat = URI.parse(buildChatUri(sessionUri, 'peer-1'));
+		agentHost.addSession(createSession(rawId, {
+			summary: 'Session',
+			chats: [
+				{ chat: defaultChat, kind: 'default', summary: 'Default' },
+				{ chat: peerChat, kind: 'peer', summary: 'Peer' },
+			],
+		}));
+		const provider = createProvider(disposables, agentHost);
+		provider.getSessions();
+		await timeout(0);
+		const session = provider.getSessions().find(s => s.title.get() === 'Session');
+		assert.ok(session);
+
+		const detailsObserver = disposables.add(autorun(reader => session.chats.read(reader)[1]?.status.read(reader)));
+		await timeout(31_000);
+		assert.deepStrictEqual({
+			subscriptions: agentHost.sessionSubscribeCounts.get(sessionUri.toString()),
+			unsubscriptions: agentHost.sessionUnsubscribeCounts.get(sessionUri.toString()) ?? 0,
+		}, {
+			subscriptions: 1,
+			unsubscriptions: 0,
+		});
+
+		detailsObserver.dispose();
+		await timeout(31_000);
+		assert.strictEqual(agentHost.sessionUnsubscribeCounts.get(sessionUri.toString()), 1);
 	}));
 
 	// ---- gitHubInfo / PR icon -------

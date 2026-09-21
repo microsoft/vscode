@@ -2652,28 +2652,6 @@ suite('Sessions - SessionsList', () => {
 			);
 		});
 
-		test('requests chat hydration only when a peer row is rendered', () => {
-			const main = createChat('Main chat');
-			const peer = createChat('Peer chat', ChatOriginKind.User);
-			const withPeer: ISession = {
-				...createTestSession('Session with peer').session,
-				chats: constObservable([main, peer]),
-				mainChat: constObservable(main),
-				capabilities: constObservable({ supportsMultipleChats: true }),
-			};
-			const rendered = renderSessionChatsList(withPeer);
-			assert.deepStrictEqual(rendered.managementService.hydratedChatSessions, [withPeer]);
-
-			const defaultOnly: ISession = {
-				...createTestSession('Session without peer').session,
-				chats: constObservable([main]),
-				mainChat: constObservable(main),
-				capabilities: constObservable({ supportsMultipleChats: false }),
-			};
-			const defaultRendered = renderSessionChatsList(defaultOnly);
-			assert.deepStrictEqual(defaultRendered.managementService.hydratedChatSessions, []);
-		});
-
 		test('updates nested chat rows when the session chat catalog changes', () => {
 			const main = createChat('Main chat');
 			const peer = createChat('Peer chat', ChatOriginKind.User);

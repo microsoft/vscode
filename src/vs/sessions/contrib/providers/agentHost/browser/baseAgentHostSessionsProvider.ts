@@ -9,7 +9,7 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { arrayEquals, structuralEquals } from '../../../../../base/common/equals.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { IMarkdownString, MarkdownString, markdownStringEqual } from '../../../../../base/common/htmlContent.js';
-import { Disposable, DisposableMap, DisposableStore, IDisposable, IReference, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableStore, IDisposable, IReference, MutableDisposable, ReferenceCollection, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { mapsStrictEqualIgnoreOrder } from '../../../../../base/common/map.js';
 import { deepClone, equals } from '../../../../../base/common/objects.js';
 import { constObservable, derived, derivedOpts, IObservable, IReader, ISettableObservable, ITransaction, observableFromEvent, observableValueOpts, subtransaction, transaction, waitForState, autorun, observableValue } from '../../../../../base/common/observable.js';
@@ -718,6 +718,33 @@ interface IChatOutputObs {
 	readonly customizations: IObservable<readonly ISessionChatCustomization[]>;
 }
 
+/** Shares one retained session-state subscription across all observed peer-chat details. */
+class SessionChatDetailsReferenceCollection extends ReferenceCollection<void> {
+
+	private readonly _activeSessions = new Set<string>();
+
+	constructor(
+		private readonly _onFirstReference: (sessionId: string) => void,
+		private readonly _onLastReference: (sessionId: string) => void,
+	) {
+		super();
+	}
+
+	hasReferences(sessionId: string): boolean {
+		return this._activeSessions.has(sessionId);
+	}
+
+	protected createReferencedObject(sessionId: string): void {
+		this._activeSessions.add(sessionId);
+		this._onFirstReference(sessionId);
+	}
+
+	protected destroyReferencedObject(sessionId: string): void {
+		this._activeSessions.delete(sessionId);
+		this._onLastReference(sessionId);
+	}
+}
+
 /**
  * A non-default peer chat within an {@link AgentHostSessionAdapter}. Holds its
  * own observables seeded from the protocol {@link ChatSummary} so the chat tab
@@ -740,7 +767,7 @@ class AdditionalChat extends Disposable {
 	private readonly _interactivity: ISettableObservable<ChatInteractivity>;
 	private readonly _isNew: ISettableObservable<boolean>;
 
-	constructor(resource: URI, summary: ChatSummary, isNew: boolean = false, parentChat?: URI, sessionIsArchived: IObservable<boolean> = constObservable(false), output?: IChatOutputObs, sessionIsReadOnly: IObservable<boolean> = constObservable(false), connectionStatus?: IObservable<RemoteAgentHostConnectionStatus>) {
+	constructor(resource: URI, summary: ChatSummary, private readonly _acquireDetails: () => IDisposable, isNew: boolean = false, parentChat?: URI, sessionIsArchived: IObservable<boolean> = constObservable(false), output?: IChatOutputObs, sessionIsReadOnly: IObservable<boolean> = constObservable(false), connectionStatus?: IObservable<RemoteAgentHostConnectionStatus>) {
 		super();
 		const modifiedAt = summary.modifiedAt ? new Date(summary.modifiedAt) : new Date();
 		this._title = observableValue('chatTitle', summary.title || localize('newChatTab', "New Chat"));
@@ -754,29 +781,30 @@ class AdditionalChat extends Disposable {
 		this._interactivity = observableValue<ChatInteractivity>('chatInteractivity', toChatInteractivity(summary.interactivity));
 		this._isNew = observableValue<boolean>('chatIsNew', isNew);
 		const status = derived(this, reader => this._isNew.read(reader) ? SessionStatus.Untitled : this._status.read(reader));
+		const interactivity = derived(reader => effectiveChatInteractivity(
+			sessionIsArchived.read(reader) || sessionIsReadOnly.read(reader),
+			this._interactivity.read(reader)));
 		this.chat = {
 			resource,
 			createdAt: modifiedAt,
-			title: this._title,
-			updatedAt: this._updatedAt,
-			status: toPresentedSessionStatus(this, status, connectionStatus),
+			title: this._withDetails(this._title),
+			updatedAt: this._withDetails(this._updatedAt),
+			status: this._withDetails(toPresentedSessionStatus(this, status, connectionStatus)),
 			changes: constObservable([]),
 			lastTurnChanges: output?.lastTurnChanges,
 			customizations: output?.customizations,
 			checkpoints: observableValue(this, undefined),
-			modelId: this._modelId,
-			modelSource: this._modelSource,
-			mode: this._mode,
+			modelId: this._withDetails(this._modelId),
+			modelSource: this._withDetails(this._modelSource),
+			mode: this._withDetails(this._mode),
 			isArchived: sessionIsArchived,
 			isRead: constObservable(true),
 			// An archived session is read-only, as is one whose environment is gone and whose
 			// history is being replayed: force every chat's interactivity to ReadOnly so the chat
 			// view hides the composer and gates mutating actions.
-			interactivity: derived(reader => effectiveChatInteractivity(
-				sessionIsArchived.read(reader) || sessionIsReadOnly.read(reader),
-				this._interactivity.read(reader))),
-			description: this._description,
-			lastTurnEnd: this._lastTurnEnd,
+			interactivity: this._withDetails(interactivity),
+			description: this._withDetails(this._description),
+			lastTurnEnd: this._withDetails(this._lastTurnEnd),
 			origin: summary.origin ? {
 				kind: toSessionChatOriginKind(summary.origin.kind),
 				parentChat,
@@ -790,6 +818,16 @@ class AdditionalChat extends Disposable {
 					? { canRename: false, canDelete: false }
 					: DEFAULT_CHAT_CAPABILITIES),
 		};
+	}
+
+	private _withDetails<T>(observable: IObservable<T>): IObservable<T> {
+		const onDidChange = Event.fromObservableLight(observable);
+		return observableFromEvent(this, listener => {
+			const store = new DisposableStore();
+			store.add(this._acquireDetails());
+			store.add(onDidChange(listener));
+			return store;
+		}, () => observable.get());
 	}
 
 	update(summary: ChatSummary): void {
@@ -1055,6 +1093,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 		logicalSessionType: string,
 		private readonly _options: IAgentHostAdapterOptions,
 		chatCatalogLoading: IObservable<boolean>,
+		private readonly _acquireChatDetails: (sessionId: string) => IDisposable,
 		@IGitHubService private readonly _gitHubService: IGitHubService,
 		@ISessionsService private readonly _sessionsService: ISessionsService,
 		@IPullRequestIconCache private readonly _pullRequestIconCache: IPullRequestIconCache,
@@ -1477,7 +1516,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 			lastTurnChanges: this._sessionOutput.getLastTurnChanges(backendUri),
 			customizations: this._sessionOutput.getChatCustomizations(backendUri),
 		};
-		const chat = new AdditionalChat(resource, summary, this._newChatIds.has(chatId), this._resolveParentChatResource(summary.origin), this.isArchived, output, this._options.readOnly, this._options.connectionStatus);
+		const chat = new AdditionalChat(resource, summary, () => this._acquireChatDetails(this.sessionId), this._newChatIds.has(chatId), this._resolveParentChatResource(summary.origin), this.isArchived, output, this._options.readOnly, this._options.connectionStatus);
 		const selection = this._chatModelSelections.get(chatId);
 		if (selection) {
 			chat.setModelId(selection.modelId, selection.source);
@@ -3107,6 +3146,17 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	 * refcount to the agent host.
 	 */
 	private readonly _sessionStateIdleTimers = this._register(new DisposableMap<string, IDisposable>());
+	private readonly _sessionChatDetailsReferences = new SessionChatDetailsReferenceCollection(
+		sessionId => {
+			this._ensureSessionStateSubscription(sessionId);
+			this._sessionStateIdleTimers.deleteAndDispose(sessionId);
+		},
+		sessionId => {
+			if (!this._store.isDisposed) {
+				this._keepSessionStateAlive(sessionId);
+			}
+		},
+	);
 	private readonly _chatModelRetentionLeases = this._register(new DisposableMap<string, IDisposable>());
 
 	/**
@@ -3300,7 +3350,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 
 		const rawId = AgentSession.id(meta.session);
 		this._metaByRawId.set(rawId, meta);
-		return this._instantiationService.createInstance(AgentHostSessionAdapter, meta, this.id, resourceScheme, provider, options, this._getChatCatalogLoading(rawId));
+		return this._instantiationService.createInstance(AgentHostSessionAdapter, meta, this.id, resourceScheme, provider, options, this._getChatCatalogLoading(rawId), sessionId => this._acquireSessionChatDetails(sessionId));
 	}
 
 	private _getChatCatalogLoading(rawId: string): ISettableObservable<boolean> {
@@ -5588,11 +5638,12 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		}
 	}
 
-	hydrateSessionChats(session: ISession): void {
-		const rawId = this._rawIdFromChatId(session.sessionId);
-		if (rawId && this._sessionCache.get(rawId) === session) {
-			this._keepSessionStateAlive(session.sessionId);
+	private _acquireSessionChatDetails(sessionId: string): IDisposable {
+		const rawId = this._rawIdFromChatId(sessionId);
+		if (!rawId || !this._sessionCache.has(rawId)) {
+			return Disposable.None;
 		}
+		return this._sessionChatDetailsReferences.acquire(sessionId);
 	}
 
 	/**
@@ -5718,7 +5769,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			return;
 		}
 		// A visible session's subscription is pinned open.
-		if (this._pinnedSessionStates.has(sessionId)) {
+		if (this._pinnedSessionStates.has(sessionId) || this._sessionChatDetailsReferences.hasReferences(sessionId)) {
 			this._sessionStateIdleTimers.deleteAndDispose(sessionId);
 			return;
 		}

@@ -147,8 +147,6 @@ A provider that supersedes sessions from another provider may implement `resolve
 
 A provider that must establish backend state before presenting a session may implement `prepareSessionForOpen`. Explicit opens await preparation; startup restoration invokes it asynchronously only for the active session so inactive restored slots stay lazy and one slow provider cannot block the grid.
 
-A provider whose session catalog contains only lightweight chat navigation data may implement `hydrateSessionChats`. The management service invokes it when a virtualized peer-chat row is rendered. Providers deduplicate the request and release temporary subscriptions after an idle period; shared list code does not access provider implementations.
-
 ### Drafts
 
 `createNewSession` and `createQuickChat` return untitled drafts. A draft remains `Untitled` while its first request is prepared; `isNewSessionRequestInProgress` separately lets the UI present that activity without treating the session as committed. Draft preparation receives the first query so a provider can materialize query-dependent execution state before replacing the draft. A draft enters the committed catalog when its first request is sent. The management service owns the currently presented draft; the provider owns its backend resources. `deleteNewSession` disposes an abandoned draft.

@@ -49,7 +49,6 @@ export class TestSessionsManagementService extends mock<ISessionsManagementServi
 	readonly renamedChats: { readonly session: ISession; readonly chatResource: URI; readonly title: string }[] = [];
 	readonly deletedChats: { readonly session: ISession; readonly chatResource: URI }[] = [];
 	readonly deleteChatOptions: (IDeleteChatOptions | undefined)[] = [];
-	readonly hydratedChatSessions: ISession[] = [];
 	renameError: Error | undefined;
 	renameChatError: Error | undefined;
 
@@ -64,10 +63,6 @@ export class TestSessionsManagementService extends mock<ISessionsManagementServi
 
 	override async markRead(session: ISession): Promise<void> {
 		this.readSessions.push(session);
-	}
-
-	override hydrateSessionChats(session: ISession): void {
-		this.hydratedChatSessions.push(session);
 	}
 
 	override async markAllRead(sessions: readonly ISession[]): Promise<void> {

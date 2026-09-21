@@ -254,9 +254,6 @@ export interface ISessionsManagementService {
 	 */
 	getSession(resource: URI): ISession | undefined;
 
-	/** Request non-catalog chat details from the session's owning provider. */
-	hydrateSessionChats(session: ISession): void;
-
 	/**
 	 * Resolves a session resource to the one that should actually be opened.
 	 * Open paths address sessions by URI, so a superseded resource (a legacy
