@@ -204,6 +204,10 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	 * so an unresolvable session still opens the way it does today.
 	 */
 	async resolveSessionResource(resource: URI, reason?: SessionResourceResolveReason): Promise<URI> {
+		const aliased = this._getAliasedSession(resource);
+		if (aliased) {
+			return aliased.resource;
+		}
 		for (const provider of this.sessionsProvidersService.getProviders()) {
 			if (!provider.resolveSessionResource) {
 				continue;
@@ -224,7 +228,14 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		// `getSessionForChatResource`) use the raw merged set so a hidden EH row can
 		// still be resolved by resource, and {@link resolveSessionResource} redirects
 		// it to its agent-host twin when it is opened.
-		return this._dedupeMigratedCopilotCliSessions(this._getMergedSessions());
+		const sessions = this._getMergedSessions();
+		const aliases = new ResourceMap<boolean>();
+		for (const session of sessions) {
+			for (const resource of session.resourceAliases?.get() ?? []) {
+				aliases.set(resource, true);
+			}
+		}
+		return this._dedupeMigratedCopilotCliSessions(sessions.filter(session => !aliases.has(session.resource)));
 	}
 
 	getInFlightNewSessionRequests(): readonly ISession[] {
@@ -277,13 +288,23 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		if (unlistedSession) {
 			return unlistedSession;
 		}
-		return this._getMergedSessions().find(s =>
+		const sessions = this._getMergedSessions();
+		const aliased = this._getAliasedSession(resource, sessions);
+		if (aliased) {
+			return aliased;
+		}
+		return sessions.find(s =>
 			this.uriIdentityService.extUri.isEqual(s.resource, resource)
 		);
 	}
 
 	getSessionForChatResource(resource: URI): { session: ISession; chat: IChat } | undefined {
-		for (const session of this._getMergedSessions()) {
+		const sessions = this._getMergedSessions();
+		const aliased = this._getAliasedSession(resource, sessions);
+		if (aliased) {
+			return { session: aliased, chat: aliased.mainChat.get() };
+		}
+		for (const session of sessions) {
 			const chat = session.chats.get().find(c => this.uriIdentityService.extUri.isEqual(c.resource, resource));
 			if (chat) {
 				return { session, chat };
@@ -295,6 +316,10 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 			}
 		}
 		return undefined;
+	}
+
+	private _getAliasedSession(resource: URI, sessions: readonly ISession[] = this._getMergedSessions()): ISession | undefined {
+		return sessions.find(session => session.resourceAliases?.get().some(alias => this.uriIdentityService.extUri.isEqual(alias, resource)));
 	}
 
 	getAllSessionTypes(): ISessionType[] {
@@ -442,7 +467,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 			}
 			return (requiresWorktreeConfiguration
 				? sessionTypes.find(type => type.supportsWorktreeConfiguration === true)
-				: sessionTypes[0])?.id;
+				: sessionTypes.find(type => type.presentation !== 'terminal'))?.id;
 		};
 
 		if (options?.providerId) {

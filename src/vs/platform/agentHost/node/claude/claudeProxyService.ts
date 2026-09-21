@@ -53,6 +53,8 @@ export interface IClaudeProxyHandle extends ILoopbackProxyHandle {
 	readonly baseUrl: string;
 	/** 256-bit hex string. Combine with a session id as `Bearer <nonce>.<sessionId>`. */
 	readonly nonce: string;
+	/** Rotates or revokes the upstream credential without changing the local endpoint. */
+	setToken(githubToken: string): void;
 }
 
 /**
@@ -190,10 +192,19 @@ export class ClaudeProxyService extends LoopbackProxyServer<IClaudeProxyState, s
 		// concurrent callers awaited the same bind — last caller's token
 		// wins, matching the single-tenant contract.
 		runtime.state.githubToken = githubToken;
+		let disposed = false;
 		return {
 			baseUrl: runtime.baseUrl,
 			nonce: runtime.nonce,
-			dispose: release,
+			setToken: token => {
+				if (!disposed) {
+					runtime.state.githubToken = token;
+				}
+			},
+			dispose: () => {
+				disposed = true;
+				release();
+			},
 		};
 	}
 

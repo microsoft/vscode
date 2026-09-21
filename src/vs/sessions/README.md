@@ -42,6 +42,7 @@ Do not turn those files into general Sessions guidance.
 | Copilot Chat provider | [COPILOT_CHAT_SESSIONS_PROVIDER.md](contrib/providers/copilotChatSessions/COPILOT_CHAT_SESSIONS_PROVIDER.md) |
 | Agent Host provider | [AGENT_HOST_SESSIONS_PROVIDER.md](contrib/providers/agentHost/AGENT_HOST_SESSIONS_PROVIDER.md) |
 | Remote Agent Host provider | [REMOTE_AGENT_HOST_SESSIONS_PROVIDER.md](contrib/providers/remoteAgentHost/REMOTE_AGENT_HOST_SESSIONS_PROVIDER.md) |
+| Native CLI provider | [README.md](contrib/providers/nativeCli/README.md) |
 
 ## Structural boundaries
 

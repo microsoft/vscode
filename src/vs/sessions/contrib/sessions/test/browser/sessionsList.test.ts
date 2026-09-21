@@ -3633,8 +3633,42 @@ suite('Sessions - SessionsList', () => {
 		});
 	});
 
-	suite('SessionsFlatList quick-chat presentation', () => {
+	suite('SessionsFlatList terminal presentation', () => {
 
+		test('terminal rows retain their identity and use the same working details as chat', () => {
+			const changesSummary = constObservable({ files: 1, additions: 3, deletions: 1 });
+			const terminal: ISession = {
+				...createTestSession('Native terminal', { workspaceLabel: 'Repository', status: SessionStatus.InProgress }).session,
+				presentation: 'terminal',
+				presentationLabel: 'Claude Code',
+				icon: Codicon.claude,
+				changesSummary,
+			};
+			const chat: ISession = {
+				...createTestSession('Normal chat', { workspaceLabel: 'Repository', status: SessionStatus.InProgress }).session,
+				changesSummary,
+			};
+			const harness = createListHarness(disposables, [terminal, chat]);
+			const container = harness.createContainer();
+			const list = harness.store.add(harness.instantiationService.createInstance(SessionsFlatList, container, { showSessionHover: false, onSessionOpen: () => { } }));
+			list.setSessions([terminal, chat]);
+			list.layout(list.getContentHeight(), 400);
+			assert.deepStrictEqual([...container.querySelectorAll<HTMLElement>('.session-item')].map(item => ({
+				icon: item.querySelector<HTMLElement>('.session-presentation-icon')?.style.display,
+				insertions: item.querySelector('.session-diff-added')?.textContent,
+				deletions: item.querySelector('.session-diff-removed')?.textContent,
+				working: item.querySelector('.session-description')?.textContent,
+				brand: !!item.querySelector('.session-presentation-icon .codicon-claude'),
+				terminalMarker: !!item.querySelector('.session-terminal-marker'),
+				terminalLabel: item.closest('.monaco-list-row')?.getAttribute('aria-label')?.includes('Claude Code terminal session'),
+			})), [
+				{ icon: '', insertions: undefined, deletions: undefined, working: 'Working...', brand: true, terminalMarker: true, terminalLabel: true },
+				{ icon: 'none', insertions: undefined, deletions: undefined, working: 'Working...', brand: false, terminalMarker: false, terminalLabel: false },
+			]);
+		});
+	});
+
+	suite('SessionsFlatList quick-chat presentation', () => {
 		function renderQuickChat(useCompactQuickChatRows: boolean) {
 			const quickChat = createTestSession('Investigate failure', { isQuickChat: true }).session;
 			const harness = createListHarness(disposables, [quickChat]);

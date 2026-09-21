@@ -27,7 +27,7 @@ import { ChatEntitlement, IChatEntitlementService } from '../../../../../workben
 import { TestStorageService } from '../../../../../workbench/test/common/workbenchTestServices.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { IProviderSessionType, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
-import { GITHUB_REMOTE_FILE_SCHEME, SessionTypeAuthRequirement, ISession, ISessionWorkspace, SessionStatus } from '../../../../services/sessions/common/session.js';
+import { GITHUB_REMOTE_FILE_SCHEME, SessionTypeAuthRequirement, ISession, ISessionWorkspace, SessionPresentation, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
 import { IPickedSessionType, IPreferredSessionType, ISessionTypePickerOptions, SessionTypePicker } from '../../browser/sessionTypePicker.js';
 
@@ -183,6 +183,81 @@ suite('SessionTypePicker', () => {
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('terminal types are opt-in and do not change the default chat selection', () => {
+		const native = sessionType('native', 'terminal-copilot', 'Copilot CLI');
+		management.setSessionTypes([{ ...native, sessionType: { ...native.sessionType, presentation: 'terminal' } }, sessionType('chat', 'chat', 'Chat')]);
+		const picker = createPicker(disposables, session, management, storage);
+		picker.setFolderSource(constObservable(folder));
+
+		assert.deepStrictEqual({
+			offered: picker.offeredSessionTypeIds,
+			preferred: picker.getPreferredSessionType(folder),
+			selected: picker.selectedPick,
+		}, {
+			offered: ['chat'],
+			preferred: { providerId: 'chat', sessionTypeId: 'chat' },
+			selected: { providerId: 'chat', sessionTypeId: 'chat' },
+		});
+	});
+
+	test('a CLI can be chosen before its workspace without offering workspace-less chat types', () => {
+		const presentation = observableValue<SessionPresentation>('presentation', 'chat');
+		const nativeTypes = ['terminal-copilot', 'terminal-claude', 'terminal-codex'].map(id => {
+			const type = sessionType('native', id, id);
+			return { ...type, sessionType: { ...type.sessionType, presentation: 'terminal' as const } };
+		});
+		management.setSessionTypes([sessionType('chat', 'chat', 'Chat'), ...nativeTypes]);
+		const picker = createPicker(disposables, session, management, storage, { presentation });
+		const selectedFolder = observableValue<URI | undefined>('folder', undefined);
+		picker.setSessionWorkspaceFolderSource(selectedFolder);
+		const chatTypes = picker.offeredSessionTypeIds;
+		presentation.set('terminal', undefined);
+		const terminalTypes = picker.offeredSessionTypeIds;
+		picker.pick({ providerId: 'native', sessionTypeId: 'terminal-codex' });
+		selectedFolder.set(folder, undefined);
+
+		assert.deepStrictEqual({
+			chatTypes, terminalTypes,
+			selected: picker.selectedPick,
+			preference: picker.getUserPickedSessionType(),
+		}, {
+			chatTypes: [],
+			terminalTypes: ['terminal-copilot', 'terminal-claude', 'terminal-codex'],
+			selected: { providerId: 'native', sessionTypeId: 'terminal-codex' },
+			preference: { providerId: 'native', sessionTypeId: 'terminal-codex' },
+		});
+	});
+
+	test('chat and terminal harness preferences remain independent when switching modes', () => {
+		const presentation = observableValue<SessionPresentation>('presentation', 'chat');
+		const nativeTypes = ['terminal-copilot', 'terminal-claude'].map(id => {
+			const type = sessionType('native', id, id);
+			return { ...type, sessionType: { ...type.sessionType, presentation: 'terminal' as const } };
+		});
+		management.setSessionTypes([sessionType('chat', 'default', 'Default'), sessionType('chat', 'claude', 'Claude'), ...nativeTypes]);
+		const picker = createPicker(disposables, session, management, storage, { presentation });
+		picker.setFolderSource(constObservable(folder));
+		picker.pick({ providerId: 'chat', sessionTypeId: 'claude' });
+		presentation.set('terminal', undefined);
+		const terminalDefault = picker.selectedPick;
+		picker.pick({ providerId: 'native', sessionTypeId: 'terminal-claude' });
+		presentation.set('chat', undefined);
+		const chatPick = picker.selectedPick;
+		presentation.set('terminal', undefined);
+
+		assert.deepStrictEqual({
+			terminalDefault,
+			chatPick,
+			terminalPick: picker.selectedPick,
+			offered: picker.offeredSessionTypeIds,
+		}, {
+			terminalDefault: { providerId: 'native', sessionTypeId: 'terminal-copilot' },
+			chatPick: { providerId: 'chat', sessionTypeId: 'claude' },
+			terminalPick: { providerId: 'native', sessionTypeId: 'terminal-claude' },
+			offered: ['terminal-copilot', 'terminal-claude'],
+		});
+	});
 
 	test('preferred session type is the first one and follows session-type changes', () => {
 		management.setSessionTypes([

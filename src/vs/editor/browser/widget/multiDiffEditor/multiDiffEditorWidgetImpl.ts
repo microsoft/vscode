@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Dimension, h } from '../../../../base/browser/dom.js';
+import { Dimension, getWindow, h, scheduleAtNextAnimationFrame } from '../../../../base/browser/dom.js';
 import { BugIndicatingError } from '../../../../base/common/errors.js';
-import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { IObservable, IReader, ITransaction, autorun, autorunWithStore, constObservable, derived, mapObservableArrayCached, observableValue, transaction } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
@@ -56,6 +56,8 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 	private readonly _instantiationService;
 
 	private readonly _logger: MultiDiffEditorLogger;
+	private readonly _pendingNavigation = this._register(new MutableDisposable());
+	private readonly _pendingFocus = this._register(new MutableDisposable());
 
 	/**
 	 * When `true`, the automatic "select the first change" initialization that
@@ -108,6 +110,7 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 						if (item.collapsed.read(reader)) {
 							return headerHeight;
 						}
+						item.isLoading.read(reader);
 						if (item.isBinary) {
 							return headerHeight
 								+ this._variantConfiguration.contentBottomPadding
@@ -406,6 +409,7 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 	}
 
 	public reveal(resource: IMultiDiffResourceId, options?: RevealOptions): void {
+		this._pendingFocus.clear();
 		const viewItems = this._viewItems.get();
 		const index = viewItems.findIndex(
 			(item) => item.viewModel.originalUri?.toString() === resource.original?.toString()
@@ -429,11 +433,17 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 		});
 		this._scrollView.setLogicalScrollPosition(scrollTop);
 
-		const diffEditor = viewItem.template.get()?.editor;
-		const editor = 'original' in resource ? diffEditor?.getOriginalEditor() : diffEditor?.getModifiedEditor();
-		if (editor && options?.range) {
-			editor.revealRangeInCenter(options.range);
-			highlightRange(editor, options.range);
+		this._pendingNavigation.clear();
+		const range = options?.range;
+		if (range) {
+			this._whenItemReady(viewItem, () => {
+				const diffEditor = viewItem.template.get()?.editor;
+				const editor = viewItem.viewModel.modifiedUri ? diffEditor?.getModifiedEditor() : diffEditor?.getOriginalEditor();
+				if (editor) {
+					editor.revealRangeInCenter(range);
+					highlightRange(editor, range);
+				}
+			});
 		}
 	}
 
@@ -569,7 +579,7 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 			|| v.viewModel.originalUri?.toString() === resource.toString()
 		);
 		const editor = item?.template.get()?.editor;
-		if (!editor || item.viewModel.isBinary) {
+		if (!editor || item.viewModel.isLoading.get() || item.viewModel.isBinary) {
 			return undefined;
 		}
 
@@ -639,20 +649,85 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 
 		this.reveal({ original: item.viewModel.originalUri, modified: item.viewModel.modifiedUri });
 
-		const editor = item.template.get()?.editor;
-		if (editor?.getDiffComputationResult()?.changes2?.length) {
-			if (position === 'first') {
-				editor.revealFirstDiff();
-			} else {
-				const lastChange = editor.getDiffComputationResult()!.changes2!.at(-1)!;
-				const modifiedEditor = editor.getModifiedEditor();
-				modifiedEditor.setPosition({ lineNumber: lastChange.modified.startLineNumber, column: 1 });
-				modifiedEditor.revealLineInCenter(lastChange.modified.startLineNumber);
+		this._whenItemReady(item, () => {
+			const editor = item.template.get()?.editor;
+			if (editor?.getDiffComputationResult()?.changes2?.length) {
+				if (position === 'first') {
+					editor.revealFirstDiff();
+				} else {
+					const lastChange = editor.getDiffComputationResult()!.changes2!.at(-1)!;
+					const modifiedEditor = editor.getModifiedEditor();
+					modifiedEditor.setPosition({ lineNumber: lastChange.modified.startLineNumber, column: 1 });
+					modifiedEditor.revealLineInCenter(lastChange.modified.startLineNumber);
+				}
 			}
-		}
+		});
 		if (focusEditor) {
-			item.binding.get()?.focus();
+			this._focusItem(item);
 		}
+	}
+
+	private _focusItem(item: VirtualizedViewItem): void {
+		const targetWindow = getWindow(this._element);
+		const origin = targetWindow.document.activeElement;
+		const viewModel = this._viewModel.get();
+		item.binding.get()?.focus();
+		if (item.viewModel.isFocused.get()) {
+			return;
+		}
+		let completed = false;
+		this._pendingFocus.value = autorun(reader => {
+			if (completed) {
+				return;
+			}
+			if (this._viewModel.read(reader) !== viewModel) {
+				completed = true;
+				return;
+			}
+			const binding = item.binding.read(reader);
+			if (binding) {
+				reader.store.add(scheduleAtNextAnimationFrame(targetWindow, () => {
+					completed = true;
+					const activeElement = targetWindow.document.activeElement;
+					const originWasRemoved = activeElement === targetWindow.document.body && !origin?.isConnected;
+					if (!item.viewModel.isFocused.read(undefined) && (activeElement === origin || originWasRemoved)) {
+						binding.focus();
+					}
+				}));
+			}
+		});
+	}
+
+	private _whenItemReady(item: VirtualizedViewItem, callback: () => void): void {
+		let completed = false;
+		const viewModel = this._viewModel.get();
+		const initialActiveItem = viewModel?.activeDiffItem.get();
+		let targetWasActive = false;
+		this._pendingNavigation.value = autorun(reader => {
+			if (completed) {
+				return;
+			}
+			if (this._viewModel.read(reader) !== viewModel) {
+				completed = true;
+				return;
+			}
+			const activeItem = viewModel?.activeDiffItem.read(reader);
+			if (activeItem === item.viewModel) {
+				targetWasActive = true;
+			} else if (targetWasActive || activeItem !== initialActiveItem) {
+				completed = true;
+				return;
+			}
+			if (item.viewModel.isLoading.read(reader)) {
+				return;
+			}
+			const model = item.viewModel.diffEditorViewModel;
+			if (model && !model.isDiffUpToDate.read(reader)) {
+				return;
+			}
+			completed = true;
+			callback();
+		});
 	}
 
 }
@@ -798,7 +873,7 @@ class VirtualizedViewItem extends Disposable implements ILoggedDiffItem, ICompre
 		this.viewModel = _managedItem.item;
 		this._isFocused = derived(this, reader => this.template.read(reader)?.isFocused.read(reader) ?? false);
 
-		this.viewModel.setIsFocused(this._isFocused, undefined);
+		this._register(this.viewModel.setIsFocused(this._isFocused, undefined));
 
 		this._register(autorun((reader) => {
 			const scrollLeft = this._scrollLeft.read(reader);

@@ -119,7 +119,9 @@
 	.monaco-list:focus .monaco-list-row.selected .session-icon > .codicon,
 	.monaco-list:focus .monaco-list-row.selected .session-icon > .monaco-pixel-spinner,
 	.monaco-list:focus .monaco-list-row.selected .session-chat-icon > .codicon,
-	.monaco-list:focus .monaco-list-row.selected .session-chat-icon > .monaco-pixel-spinner {
+	.monaco-list:focus .monaco-list-row.selected .session-chat-icon > .monaco-pixel-spinner,
+	.monaco-list:focus .monaco-list-row.selected .session-presentation-icon,
+	.monaco-list:focus .monaco-list-row.selected .session-presentation-icon > .codicon {
 		color: var(--vscode-list-activeSelectionForeground) !important;
 	}
 
@@ -294,6 +296,21 @@
 	.session-title-row {
 		line-height: 17px;
 		padding-bottom: 4px;
+	}
+
+	.session-presentation-icon {
+		display: inline-flex;
+		align-items: center;
+		gap: var(--vscode-spacing-size20);
+		flex-shrink: 0;
+		margin-right: var(--vscode-spacing-size40);
+		color: var(--vscode-descriptionForeground);
+
+		/* Both halves read as one mark, so they share the compact icon tier. */
+		> .codicon,
+		.session-terminal-marker {
+			font-size: var(--vscode-codiconFontSize-compact);
+		}
 	}
 
 	.session-details-row {

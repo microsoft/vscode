@@ -6,10 +6,11 @@
 import { Sequencer } from '../../../base/common/async.js'; import { CancellationToken } from '../../../base/common/cancellation.js';
 import { Disposable, DisposableMap } from '../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../base/common/map.js';
+import { isEqual } from '../../../base/common/resources.js';
 import { waitForState } from '../../../base/common/observable.js';
 import { URI } from '../../../base/common/uri.js';
 import { GitRepository } from '../../contrib/git/browser/gitService.js';
-import { IGitExtensionDelegate, IGitService, GitRef, GitRefQuery, GitRefType, GitRepositoryState, GitBranch, GitChange, GitDiffChange, IGitRepository } from '../../contrib/git/common/gitService.js';
+import { IGitExtensionDelegate, IGitService, GitRef, GitRefQuery, GitRefType, GitRepositoryState, GitBranch, GitChange, GitDiffChange, IGitRepository, IGitDiffOptions } from '../../contrib/git/common/gitService.js';
 import { extHostNamedCustomer, IExtHostContext } from '../../services/extensions/common/extHostCustomers.js';
 import { ExtHostContext, ExtHostGitExtensionShape, GitDiffChangeDto, GitRefTypeDto, GitRepositoryStateDto, MainContext, MainThreadGitExtensionShape } from '../common/extHost.protocol.js';
 
@@ -110,11 +111,22 @@ export class MainThreadGitExtensionService extends Disposable implements MainThr
 
 			const repositoryRootUri = URI.revive(result.rootUri);
 
-			// Create a new repository and store it in the maps
 			const state = toGitRepositoryState(result.state);
-			const repository = new GitRepository(repositoryRootUri, state, this);
-
-			this._repositories.set(result.handle, repository);
+			let repository = this._repositories.get(result.handle);
+			if (repository && isEqual(repository.rootUri, repositoryRootUri)) {
+				// Reopening a shared handle must preserve existing state subscriptions.
+				// A freshly constructed repository reports no HEAD, so publishing it would
+				// momentarily show every observer a branch-less, change-less repository.
+				if (state.HEAD !== undefined || repository.state.get().HEAD === undefined) {
+					repository.updateState(state);
+				}
+			} else {
+				if (repository) {
+					this._repositoryHandles.delete(repository.rootUri);
+				}
+				repository = new GitRepository(repositoryRootUri, state, this);
+				this._repositories.set(result.handle, repository);
+			}
 			this._repositoryHandles.set(repositoryRootUri, result.handle);
 
 			// Wait for the repository to be fully initialized before returning it
@@ -152,13 +164,16 @@ export class MainThreadGitExtensionService extends Disposable implements MainThr
 		return result.map(toGitDiffChange);
 	}
 
-	async diffBetweenWithStats2(root: URI, ref: string, path?: string): Promise<GitDiffChange[]> {
+	async diffBetweenWithStats2(root: URI, ref: string, path?: string, options?: IGitDiffOptions): Promise<GitDiffChange[]> {
 		const handle = this._repositoryHandles.get(root);
 		if (handle === undefined) {
+			if (options?.throwOnError) {
+				throw new Error(`Git repository is not open: ${root.toString()}`);
+			}
 			return [];
 		}
 
-		const result = await this._proxy.$diffBetweenWithStats2(handle, ref, path);
+		const result = await this._proxy.$diffBetweenWithStats2(handle, ref, path, options);
 		return result.map(toGitDiffChange);
 	}
 
@@ -175,5 +190,12 @@ export class MainThreadGitExtensionService extends Disposable implements MainThr
 
 		// Update the repository state
 		repository.updateState(toGitRepositoryState(state));
+	}
+
+	override dispose(): void {
+		// The extension host is gone; stale handles would otherwise keep resolving and
+		// forwarding calls to a dead proxy, which rejects as cancellation forever.
+		this._repositoryHandles.clear();
+		super.dispose();
 	}
 }

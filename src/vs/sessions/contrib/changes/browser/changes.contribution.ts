@@ -33,6 +33,7 @@ import { IChangesViewService } from '../common/changesViewService.js';
 import { AccessibleViewRegistry } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
 import { SessionsChangesAccessibilityHelp } from './sessionsChangesAccessibilityHelp.js';
 import { IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
+import { ISessionChangesModelService, SessionChangesModelService } from './sessionChangesModelService.js';
 
 /**
  * Registers the custom single-pane Changes editor (multi-diff pane with the header
@@ -147,3 +148,4 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 
 registerSingleton(IChangesViewService, ChangesViewService, InstantiationType.Delayed);
 registerSingleton(ISessionChangesService, SessionChangesService, InstantiationType.Delayed);
+registerSingleton(ISessionChangesModelService, new SyncDescriptor(SessionChangesModelService, [undefined], true));

@@ -16,7 +16,7 @@ import { ActionListItemKind, IActionListDelegate, IActionListItem } from '../../
 import { IProviderSessionType, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { autorun, IObservable, observableValue } from '../../../../base/common/observable.js';
-import { GITHUB_REMOTE_FILE_SCHEME, ISession, SessionStatus } from '../../../services/sessions/common/session.js';
+import { GITHUB_REMOTE_FILE_SCHEME, ISession, SessionPresentation, SessionStatus } from '../../../services/sessions/common/session.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -31,7 +31,7 @@ import { IChatEntitlementService } from '../../../../workbench/services/chat/com
 import { markOnboardingTarget } from '../../../../workbench/contrib/onboarding/browser/spotlight/onboardingTarget.js';
 import { reportNewChatPickerClosed } from './newChatPickerTelemetry.js';
 import { SessionHarnessPickerVisibleContext } from '../../../common/contextkeys.js';
-import { isAllowSignedOutWhenUsableEnabled } from '../../../browser/sessionsAuthGate.js';
+import { isAllowSignedOutWhenUsableEnabled, isSignedOutWindowUsable } from '../../../browser/sessionsAuthGate.js';
 
 const STORAGE_KEY_LAST_SESSION_TYPE = 'sessions.userSelectedSessionType';
 
@@ -75,6 +75,8 @@ const DEFAULT_TELEMETRY_SOURCE = 'NewChatSessionTypePicker';
  * new-chat telemetry would be incorrect side effects.
  */
 export interface ISessionTypePickerOptions {
+	/** Restricts the picker to one presentation without changing the default chat preference. */
+	readonly presentation?: IObservable<SessionPresentation>;
 	/**
 	 * When `false` (e.g. the automations dialog), an explicit pick is
 	 * never written to or cleared from the profile-wide
@@ -190,6 +192,7 @@ export class SessionTypePicker extends Disposable {
 
 		this._register(autorun(reader => {
 			this._session.read(reader);
+			this._options?.presentation?.read(reader);
 			this._recompute();
 		}));
 		// Re-read when a provider advertises/removes session types at runtime
@@ -225,6 +228,14 @@ export class SessionTypePicker extends Disposable {
 	 * is set (see {@link setFolderSource}), otherwise from the active session.
 	 */
 	protected _resolveFolderSessionTypes(): IProviderSessionType[] {
+		return this._resolveUnfilteredSessionTypes().filter(type => this._matchesPresentation(type));
+	}
+
+	private _matchesPresentation(type: IProviderSessionType): boolean {
+		return (type.sessionType.presentation ?? 'chat') === (this._options?.presentation?.get() ?? 'chat');
+	}
+
+	private _resolveUnfilteredSessionTypes(): IProviderSessionType[] {
 		if (this._folderSource) {
 			if (this._quickChatSource?.get()) {
 				return this.sessionsManagementService.getQuickChatSessionTypes();
@@ -250,7 +261,10 @@ export class SessionTypePicker extends Disposable {
 			return sessionTypes;
 		}
 		const session = this._session.get();
-		return session ? this._sessionTypesForSession(session) : [];
+		if (session) {
+			return this._sessionTypesForSession(session);
+		}
+		return this._options?.presentation?.get() === 'terminal' ? this.sessionsManagementService.getAllProviderSessionTypes() : [];
 	}
 
 	/** The pick to display for the current source: the active session's type, otherwise the folder or stored default. */
@@ -396,7 +410,7 @@ export class SessionTypePicker extends Disposable {
 	 * explicit pick.
 	 */
 	getPreferredSessionType(folderUri: URI): IPreferredSessionType | undefined {
-		const first = this.sessionsManagementService.getSessionTypesForFolder(folderUri)[0];
+		const first = this.sessionsManagementService.getSessionTypesForFolder(folderUri).find(type => this._matchesPresentation(type));
 		return first ? { providerId: first.providerId, sessionTypeId: first.sessionType.id } : undefined;
 	}
 
@@ -524,8 +538,11 @@ export class SessionTypePicker extends Disposable {
 			for (const { providerId, sessionType } of types) {
 				const isCurrent = this._picked?.providerId === providerId && this._picked?.sessionTypeId === sessionType.id;
 				const modelTarget = sessionType.chatSessionType ?? sessionType.id;
-				const allowSignedOutWhenUsable = isAllowSignedOutWhenUsableEnabled(this.configurationService);
-				const availability = getSessionTypePickerAvailability(
+				const allowSignedOutWhenUsable = isSignedOutWindowUsable(
+					isAllowSignedOutWhenUsableEnabled(this.configurationService),
+					types.map(({ sessionType }) => sessionType),
+				);
+				const availability = sessionType.presentation === 'terminal' ? SessionTypeAvailability.Available : getSessionTypePickerAvailability(
 					modelTarget,
 					getSessionTypeAvailability(this.chatSessionsService, this.chatEntitlementService, this.languageModelsService, modelTarget, allowSignedOutWhenUsable),
 					allowSignedOutWhenUsable,
@@ -667,7 +684,7 @@ export class SessionTypePicker extends Disposable {
 	}
 
 	private _readStoredPick(): IPreferredSessionType | undefined {
-		const raw = this.storageService.get(STORAGE_KEY_LAST_SESSION_TYPE, StorageScope.PROFILE);
+		const raw = this.storageService.get(this._storageKey, StorageScope.PROFILE);
 		if (!raw) {
 			return undefined;
 		}
@@ -690,7 +707,7 @@ export class SessionTypePicker extends Disposable {
 
 	private _writeStoredPick(pick: IPickedSessionType): void {
 		const stored: IStoredSessionTypePick = { providerId: pick.providerId, sessionTypeId: pick.sessionTypeId };
-		this.storageService.store(STORAGE_KEY_LAST_SESSION_TYPE, JSON.stringify(stored), StorageScope.PROFILE, StorageTarget.MACHINE);
+		this.storageService.store(this._storageKey, JSON.stringify(stored), StorageScope.PROFILE, StorageTarget.MACHINE);
 	}
 
 	/**
@@ -699,7 +716,11 @@ export class SessionTypePicker extends Disposable {
 	 * reading {@link getUserPickedSessionType} fall back to the preferred type.
 	 */
 	private _clearStoredPick(): void {
-		this.storageService.remove(STORAGE_KEY_LAST_SESSION_TYPE, StorageScope.PROFILE);
+		this.storageService.remove(this._storageKey, StorageScope.PROFILE);
+	}
+
+	private get _storageKey(): string {
+		return this._options?.presentation?.get() === 'terminal' ? `${STORAGE_KEY_LAST_SESSION_TYPE}.terminal` : STORAGE_KEY_LAST_SESSION_TYPE;
 	}
 
 	private _updateTriggerLabel(): void {

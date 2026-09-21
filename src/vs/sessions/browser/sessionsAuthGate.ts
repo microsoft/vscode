@@ -114,3 +114,15 @@ export function observeAllowSignedOutWhenUsable(configurationService: IConfigura
 		Event.filter(configurationService.onDidChangeConfiguration, e => e.affectsConfiguration(AgentHostAllowSignedOutWhenUsableSettingId)),
 		() => isAllowSignedOutWhenUsableEnabled(configurationService));
 }
+
+/**
+ * Whether the window may be used while signed out: either the experimentation opt-in is
+ * set, or a provider advertises a session type that needs no GitHub account.
+ *
+ * Every conditional-auth surface must agree on this. If the window gate widens but the
+ * workspace picker and type picker do not, a signed-out user is admitted to a window where
+ * every chat type is unavailable and no sign-in action is offered.
+ */
+export function isSignedOutWindowUsable(configured: boolean, sessionTypes: readonly { readonly authRequirement?: SessionTypeAuthRequirement }[]): boolean {
+	return configured || !isWeb && sessionTypes.some(sessionType => sessionType.authRequirement === SessionTypeAuthRequirement.None);
+}

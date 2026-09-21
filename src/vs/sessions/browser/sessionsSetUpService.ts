@@ -5,7 +5,7 @@
 
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../base/common/lifecycle.js';
 import { CancellationTokenSource } from '../../base/common/cancellation.js';
-import { IObservable, runOnChange } from '../../base/common/observable.js';
+import { derived, IObservable, observableSignalFromEvent, runOnChange } from '../../base/common/observable.js';
 import { DeferredPromise, disposableTimeout } from '../../base/common/async.js';
 import { createDecorator, IInstantiationService } from '../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../platform/log/common/log.js';
@@ -27,7 +27,7 @@ import { IHostService } from '../../workbench/services/host/browser/host.js';
 import { IMarkdownRendererService } from '../../platform/markdown/browser/markdownRenderer.js';
 import { WELCOME_COMPLETE_KEY } from '../common/welcome.js';
 import { SessionsWelcomeVisibleContext } from '../common/contextkeys.js';
-import { ConditionalAuthState, conditionalAuthState, observeAllowSignedOutWhenUsable, resolveSignedOutWindowGate, SignedOutWindowGate } from './sessionsAuthGate.js';
+import { ConditionalAuthState, conditionalAuthState, isSignedOutWindowUsable, observeAllowSignedOutWhenUsable, resolveSignedOutWindowGate, SignedOutWindowGate } from './sessionsAuthGate.js';
 
 import { IConfigurationService } from '../../platform/configuration/common/configuration.js';
 import { Codicon } from '../../base/common/codicons.js';
@@ -115,7 +115,12 @@ class SessionsSetUpWidget extends Disposable {
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 	) {
 		super();
-		this._allowSignedOutWhenUsable = observeAllowSignedOutWhenUsable(this.configurationService);
+		const configuredSignedOut = observeAllowSignedOutWhenUsable(this.configurationService);
+		const typesChanged = observableSignalFromEvent(this, this.sessionsManagementService.onDidChangeSessionTypes);
+		this._allowSignedOutWhenUsable = derived(this, reader => {
+			typesChanged.read(reader);
+			return isSignedOutWindowUsable(configuredSignedOut.read(reader), this.sessionsManagementService.getAllProviderSessionTypes().map(({ sessionType }) => sessionType));
+		});
 		this._register(runOnChange(this._allowSignedOutWhenUsable, () => this._onAllowSignedOutWhenUsableChanged()));
 		this._register(this.sessionsManagementService.onDidChangeSessionTypes(() => this._onSessionTypesChanged()));
 		this._start();

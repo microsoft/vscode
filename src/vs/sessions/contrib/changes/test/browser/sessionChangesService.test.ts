@@ -4,9 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
+import { CancellationError } from '../../../../../base/common/errors.js';
 import { Event } from '../../../../../base/common/event.js';
-import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
@@ -26,6 +27,7 @@ import { ISessionChangeset, ISessionFileChange, TURN_CHANGES_CHANGESET_ID, UNCOM
 import { SessionChangesEditorInput } from '../../browser/sessionChangesEditorInput.js';
 import { ISessionChangesService, SessionChangesService } from '../../browser/sessionChangesService.js';
 import { IChangesViewService } from '../../common/changesViewService.js';
+import { ISessionChangesModelService } from '../../browser/sessionChangesModelService.js';
 
 suite('SessionChangesService', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -78,6 +80,12 @@ suite('SessionChangesService', () => {
 			instantiationService.stubInstance(MultiDiffEditorInput, {
 				dispose: () => { },
 				getViewModel: async () => viewModel,
+			});
+			instantiationService.stub(ISessionChangesModelService, new class extends mock<ISessionChangesModelService>() {
+				override acquire(resource: URI) {
+					const input = MultiDiffEditorInput.fromResourceMultiDiffEditorInput({ multiDiffSource: resource }, instantiationService);
+					return Object.assign(toDisposable(() => input.dispose()), { object: input });
+				}
 			});
 			const editorService = new class extends mock<IEditorService>() {
 				override async openEditor(...args: unknown[]): Promise<ITextDiffEditorPane | undefined> {
@@ -158,6 +166,49 @@ suite('SessionChangesService', () => {
 			changesetSelection: { kind: 'transient', changeset: upcastPartial<ISessionChangeset>({ id: 'turn:request' }) },
 		});
 
+		test('cancels a managed open before resolution starts and releases its cancellation scope', async () => {
+			const instantiationService = disposables.add(new TestInstantiationService());
+			const cancellation = disposables.add(new CancellationTokenSource());
+			let openedInput: SessionChangesEditorInput | undefined;
+			let modelAcquisitions = 0;
+			instantiationService.stub(ISessionChangesModelService, new class extends mock<ISessionChangesModelService>() {
+				override acquire(): never {
+					modelAcquisitions++;
+					throw new Error('Resolution attempted');
+				}
+			});
+			const layoutService = new class extends mock<IAgentWorkbenchLayoutService>() {
+				override readonly isSinglePaneLayoutEnabled = true;
+				override readonly onDidChangePartVisibility = Event.None;
+				override isVisible(): boolean { return true; }
+			};
+			const changesViewService = new class extends mock<IChangesViewService>() {
+				override readonly activeSessionResourceObs = noActiveSessionResource;
+				override readonly activeSessionChangesetObs = constObservable<ISessionChangeset | undefined>(undefined);
+				override readonly activeSessionChangesObs = noChanges;
+			};
+			instantiationService.stub(IWorkbenchLayoutService, layoutService);
+			const editorService = new class extends mock<IEditorService>() {
+				override async openEditor(...args: unknown[]): Promise<undefined> {
+					const input = args[0];
+					assert.ok(input instanceof SessionChangesEditorInput);
+					openedInput = disposables.add(input);
+					cancellation.cancel();
+					await assert.rejects(input.getViewModel(), CancellationError);
+					return undefined;
+				}
+			};
+			const service = disposables.add(new SessionChangesService(editorService, instantiationService, layoutService, changesViewService, emptyDecorationsService));
+			instantiationService.stub(ISessionChangesService, service);
+			const result = await service.openChangesEditor(URI.parse('test-session:session'), undefined, undefined, cancellation.token);
+			const acquiredWhileCancelled = modelAcquisitions;
+			assert.ok(openedInput);
+			await assert.rejects(openedInput.getViewModel(), /Resolution attempted/);
+			assert.deepStrictEqual({ result, acquiredWhileCancelled, modelAcquisitions, disposed: openedInput.isDisposed() }, {
+				result: undefined, acquiredWhileCancelled: 0, modelAcquisitions: 1, disposed: false,
+			});
+		});
+
 		assert.deepStrictEqual({ selections, opened }, {
 			selections: [
 				{ changesetId: TURN_CHANGES_CHANGESET_ID },
@@ -184,6 +235,7 @@ suite('SessionChangesService', () => {
 	test('selects the requested changeset in the single-pane layout', async () => {
 		const selections: string[] = [];
 		const instantiationService = disposables.add(new TestInstantiationService());
+		instantiationService.stub(ISessionChangesModelService, new class extends mock<ISessionChangesModelService>() { });
 		instantiationService.stub(IWorkbenchLayoutService, new class extends mock<IWorkbenchLayoutService>() {
 			override readonly onDidChangePartVisibility = Event.None;
 			override isVisible(): boolean {
@@ -255,6 +307,7 @@ suite('SessionChangesService', () => {
 			[IWorkbenchLayoutService, layoutService],
 			[IChangesViewService, changesViewService],
 		)));
+		instantiationService.stub(ISessionChangesModelService, new class extends mock<ISessionChangesModelService>() { });
 		const editorService = new class extends mock<IEditorService>() {
 			override async openEditor(...args: unknown[]): Promise<undefined> {
 				const input = args[0];

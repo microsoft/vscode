@@ -235,6 +235,9 @@ export class VisibleSession extends Disposable implements IActiveSession {
 	get resource() { return this._session.resource; }
 	get providerId() { return this._session.providerId; }
 	get sessionType() { return this._session.sessionType; }
+	get presentation() { return this._session.presentation; }
+	get presentationLabel() { return this._session.presentationLabel; }
+	get resourceAliases() { return this._session.resourceAliases; }
 	get icon() { return this._session.icon; }
 	get createdAt() { return this._session.createdAt; }
 	get workspace() { return this._session.workspace; }
@@ -287,6 +290,9 @@ class ResourceOverrideSession implements ISession {
 	get sessionId() { return this._session.sessionId; }
 	get providerId() { return this._session.providerId; }
 	get sessionType() { return this._session.sessionType; }
+	get presentation() { return this._session.presentation; }
+	get presentationLabel() { return this._session.presentationLabel; }
+	get resourceAliases() { return this._session.resourceAliases; }
 	get icon() { return this._session.icon; }
 	get createdAt() { return this._session.createdAt; }
 	get workspace() { return this._session.workspace; }

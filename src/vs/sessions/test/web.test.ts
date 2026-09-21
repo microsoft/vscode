@@ -535,6 +535,7 @@ registerWorkbenchContribution2(MockChatAgentContribution.ID, MockChatAgentContri
 class MockGitService implements IGitService {
 	declare readonly _serviceBrand: undefined;
 	readonly repositories: Iterable<IGitRepository> = [];
+	readonly onDidOpenRepository = Event.None;
 	setDelegate(_delegate: IGitExtensionDelegate) { return Disposable.None; }
 	async openRepository(_uri: URI) { return undefined; }
 }

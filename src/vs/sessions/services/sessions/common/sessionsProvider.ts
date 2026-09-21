@@ -293,7 +293,7 @@ export interface ISessionsProvider {
 	createNewSession(workspaceUri: URI, sessionTypeId: string, options?: ISessionsProviderCreateSessionOptions): ISession;
 
 	/**
-	 * Asynchronously replace a draft before its first chat is created.
+	 * Asynchronously prepare a draft before its first chat is created, optionally replacing it.
 	 * Providers use this to materialize execution environments that can change
 	 * the provider or workspace backing the session. The first query is supplied
 	 * so preparation that depends on it, such as worktree branch naming, does not

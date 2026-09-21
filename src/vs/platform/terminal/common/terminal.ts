@@ -213,6 +213,8 @@ export interface IPtyHostAttachTarget {
 export interface IReconnectionProperties {
 	ownerId: string;
 	data?: unknown;
+	/** Whether process revival may relaunch the original command after an application restart. Defaults to true. */
+	canRevive?: boolean;
 }
 
 export type TerminalType = 'Task' | 'Local' | undefined;

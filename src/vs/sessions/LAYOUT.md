@@ -45,6 +45,10 @@ The single-pane presentation may place the Auxiliary Bar inside the Editor's gri
 
 Each visible session has one Sessions-owned view. The view presents the active chat for that session and scopes commands, menus, and context keys to the represented session.
 
+The active surface is selected by the session's presentation contract: the standard chat widget or a provider-owned terminal. Terminal presentation replaces only the center surface, not the session header, Sessions list, detail pane, or panel. Terminal processes outlive their attached views; opening another session must not dispose the previous session's process.
+
+A native conversation switch can transfer one terminal between session views. Only the view currently containing its DOM may change its layout, visibility, or attachment; disposing the outgoing view cannot disturb the new owner.
+
 `ISessionsService` owns:
 
 - visible-session identity and order;
@@ -75,6 +79,8 @@ The main Editor supports exactly one editor group. Its shared multiple-group cap
 The durable state and transition catalog lives in [SINGLE_PANE_SCENARIOS.md](SINGLE_PANE_SCENARIOS.md). Implementation behavior is covered by the layout-controller and single-pane strategy tests.
 
 Editors must be opened through `IEditorService`. Sessions-specific presentation must not bypass editor service behavior by opening directly on an editor group.
+
+Changes editor inputs lease their multi-diff models from a Sessions-owned, bounded cache. Closing, replacing, or cancelling an input releases its lease and pending resolutions without discarding its restorable identity; inactive models may survive a session switch, but eviction, session removal, and shutdown release them. Diff rows resolve their contents on demand without holding up the active session surface.
 
 Chat input status-pill composition is owned by the shared workbench `ChatInputPills` and `StandardChatInputPillSources` components. The Agents Window and Agent Host editor/panel surfaces supply observable data adapters and their allowed pill kinds only; ordering, per-kind presentation, visibility, context menus, keyboard behavior, compact layout, and lifecycle rendering must not be reimplemented per surface. Per-kind visibility preferences belong to `ISessionChatPillVisibilityService`; data adapters apply them before supplying pill data and option actions to the shared renderer.
 

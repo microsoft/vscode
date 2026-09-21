@@ -87,7 +87,7 @@ export class SinglePaneLayoutController extends BaseLayoutController {
 			if (this._store.isDisposed) {
 				return;
 			}
-			this._managedTabs = this._register(this._instantiationService.createInstance(SinglePaneDockedTabsCoordinator, this._ctx));
+			this._managedTabs = this._register(this._instantiationService.createInstance(SinglePaneDockedTabsCoordinator, this._ctx, token => this._waitForSessionSwitchPaint(token)));
 			this._existingSession?.registerManagedTabs(this._managedTabs);
 		});
 	}

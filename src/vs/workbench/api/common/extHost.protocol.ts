@@ -4032,13 +4032,18 @@ export interface GitUpstreamRefDto {
 	readonly commit?: string;
 }
 
+/** Wire form of `IGitDiffOptions`; declared once so a new field cannot be silently dropped. */
+export interface GitDiffOptionsDto {
+	readonly throwOnError?: boolean;
+}
+
 export interface ExtHostGitExtensionShape {
 	$isGitExtensionAvailable(): Promise<boolean>;
 	$openRepository(root: UriComponents): Promise<{ handle: number; rootUri: UriComponents; state: GitRepositoryStateDto } | undefined>;
 	$getRefs(handle: number, query: GitRefQueryDto, token?: CancellationToken): Promise<GitRefDto[]>;
 	$getRepositoryState(handle: number): Promise<GitRepositoryStateDto | undefined>;
 	$diffBetweenWithStats(handle: number, ref1: string, ref2: string, path?: string): Promise<GitDiffChangeDto[]>;
-	$diffBetweenWithStats2(handle: number, ref: string, path?: string): Promise<GitDiffChangeDto[]>;
+	$diffBetweenWithStats2(handle: number, ref: string, path?: string, options?: GitDiffOptionsDto): Promise<GitDiffChangeDto[]>;
 }
 
 // --- proxy identifiers

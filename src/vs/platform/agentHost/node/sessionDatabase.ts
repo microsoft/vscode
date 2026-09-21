@@ -329,11 +329,21 @@ export class SessionDatabase implements ISessionDatabase {
 	 * Always acquire sequencers in metadata, turn-data, mutation order.
 	 */
 	protected _mutateMetadataAndTurnUsage(operation: (db: Database) => Promise<void>): Promise<void> {
-		return this._track(() => this._metadataSequencer.queue(() =>
+		return this._mutateMetadata(() =>
 			this._turnUsageSequencer.queue(() =>
 				this._queueTransaction(operation)
 			)
-		));
+		);
+	}
+
+	private _mutateMetadata<T>(operation: () => Promise<T>): Promise<T> {
+		return this._track(async () => {
+			const result = await this._metadataSequencer.queue(operation);
+			if (result !== false) {
+				this._onDidChangeMetadata?.();
+			}
+			return result;
+		});
 	}
 
 	private async _deleteWorkspaceTransitionMarkerIfEmpty(db: Database): Promise<void> {
@@ -360,6 +370,7 @@ export class SessionDatabase implements ISessionDatabase {
 	constructor(
 		private readonly _path: string,
 		private readonly _migrations: readonly ISessionDatabaseMigration[] = sessionDatabaseMigrations,
+		private readonly _onDidChangeMetadata?: () => void,
 	) { }
 
 	/**
@@ -824,23 +835,23 @@ export class SessionDatabase implements ISessionDatabase {
 	}
 
 	setMetadata(key: string, value: string): Promise<void> {
-		return this._track(() => this._metadataSequencer.queue(() => this._queueMutation(async db => {
+		return this._mutateMetadata(() => this._queueMutation(async db => {
 			await dbRun(db, 'INSERT OR REPLACE INTO session_metadata (key, value) VALUES (?, ?)', [key, value]);
-		})));
+		}));
 	}
 
 	setMetadataValues(values: Readonly<Record<string, string>>): Promise<void> {
-		return this._track(() => this._metadataSequencer.queue(() =>
+		return this._mutateMetadata(() =>
 			this._queueTransaction(async db => {
 				for (const [key, value] of Object.entries(values)) {
 					await dbRun(db, 'INSERT OR REPLACE INTO session_metadata (key, value) VALUES (?, ?)', [key, value]);
 				}
 			})
-		));
+		);
 	}
 
 	deleteMetadata(keys: readonly string[]): Promise<void> {
-		return this._track(() => this._metadataSequencer.queue(() => {
+		return this._mutateMetadata(() => {
 			if (keys.length === 0) {
 				return Promise.resolve();
 			}
@@ -848,11 +859,11 @@ export class SessionDatabase implements ISessionDatabase {
 				const placeholders = keys.map(() => '?').join(',');
 				await dbRun(db, `DELETE FROM session_metadata WHERE key IN (${placeholders})`, [...keys]);
 			});
-		}));
+		});
 	}
 
 	setMetadataValuesIfAbsent(key: string, values: Readonly<Record<string, string>>, copies: Readonly<Record<string, string>> = {}): Promise<boolean> {
-		return this._track(() => this._metadataSequencer.queue(() =>
+		return this._mutateMetadata(() =>
 			this._queueTransaction(async db => {
 				const existing = await dbGet(db, 'SELECT 1 FROM session_metadata WHERE key = ?', [key]);
 				if (existing) {
@@ -866,7 +877,7 @@ export class SessionDatabase implements ISessionDatabase {
 				}
 				return true;
 			})
-		));
+		);
 	}
 
 	setChatDraft(chat: URI, draft: Message | undefined): Promise<void> {

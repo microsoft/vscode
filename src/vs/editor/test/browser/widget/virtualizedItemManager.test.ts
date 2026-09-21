@@ -82,6 +82,40 @@ suite('VirtualizedItemManager', () => {
 		assert.deepStrictEqual(createdTemplateIds, ['text', 'image']);
 	});
 
+	test('does not reenter binding disposal when removing a focused hidden item', () => {
+		let disposalCalls = 0;
+		class FocusLossBinding extends TestBinding {
+			override readonly shouldKeepAlive = observableValue(this, true);
+
+			override dispose(): void {
+				disposalCalls++;
+				this.shouldKeepAlive.set(false, undefined);
+				super.dispose();
+			}
+		}
+		class FocusLossTemplate extends TestTemplate {
+			protected override createBinding(item: TestItem): TestBinding {
+				return new FocusLossBinding(item, this);
+			}
+		}
+		const items = observableValue<readonly TestItem[]>('items', [new TestItem('a', 100)]);
+		const manager = disposables.add(new VirtualizedItemManager<TestItem, TestBinding, TestTemplate>(items, createContext(), {
+			getId: item => item.id,
+			getTemplateId: () => 'test',
+			getUnboundSize: item => item.size,
+			createTemplate: () => new FocusLossTemplate(),
+		}));
+		const item = manager.virtualizedItems.get()[0];
+		const range = new OffsetRange(0, 100);
+		item.render(range, 0, 800, range);
+		const binding = item.binding.get();
+		item.hide();
+		items.set([], undefined);
+		assert.deepStrictEqual({ disposalCalls, disposed: binding?.didDispose, binding: item.binding.get() }, {
+			disposalCalls: 1, disposed: true, binding: undefined,
+		});
+	});
+
 	test('isolates a failed binding without changing cached layout state', () => {
 		const itemA = new TestItem('a', 100);
 		const itemB = new TestItem('b', 200);

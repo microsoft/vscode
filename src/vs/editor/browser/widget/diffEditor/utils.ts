@@ -434,7 +434,9 @@ export function filterWithPrevious<T>(arr: T[], filter: (cur: T, prev: T | undef
 	let prev: T | undefined;
 	return arr.filter(cur => {
 		const result = filter(cur, prev);
-		prev = cur;
+		if (result) {
+			prev = cur;
+		}
 		return result;
 	});
 }

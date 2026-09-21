@@ -4,30 +4,44 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { timeout } from '../../../../../base/common/async.js';
+import { mainWindow } from '../../../../../base/browser/window.js';
+import { DeferredPromise, raceCancellation, timeout } from '../../../../../base/common/async.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
-import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { Event } from '../../../../../base/common/event.js';
+import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { StorageScope, WillSaveStateReason } from '../../../../../platform/storage/common/storage.js';
+import { IEditorWorkingSet } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
 import { Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { ViewContainerLocation } from '../../../../../workbench/common/views.js';
 import { TERMINAL_VIEW_ID } from '../../../../../workbench/contrib/terminal/common/terminal.js';
 import { BaseLayoutController } from '../../browser/baseSessionLayoutController.js';
+import { waitForSessionSwitchPaint } from '../../browser/sessionLayoutScheduling.js';
 import { createTestHarness, ICreateOptions, ITestLayoutHarness, makePaneComposite, makeSession } from './layoutControllerTestUtils.js';
-
-/** Concrete, behaviourless subclass so the abstract base (its view-state hook is a no-op) can be instantiated. */
-class TestBaseLayoutController extends BaseLayoutController { }
-
-/** Mirrors the single-pane panel model: workbench-level visibility, per-session view. */
-class TestWorkbenchPanelLayoutController extends BaseLayoutController {
-	protected override get _isPanelVisibilityPerSession(): boolean { return false; }
-}
 
 suite('BaseLayoutController', () => {
 
 	const store = new DisposableStore();
 	let harness: ITestLayoutHarness;
+
+	class TestBaseLayoutController extends BaseLayoutController {
+		readonly preparedWorkingSets: (IEditorWorkingSet | 'empty')[] = [];
+		protected override _waitForSessionSwitchPaint(token: CancellationToken): Promise<void> {
+			return harness.waitForSessionSwitchPaint?.(token) ?? Promise.resolve();
+		}
+		protected override _onWillApplyWorkingSet(workingSet: IEditorWorkingSet | 'empty'): void {
+			this.preparedWorkingSets.push(workingSet);
+		}
+		get isRestoring(): boolean { return this._isRestoringSessionLayout; }
+		readonly onDidEndRestore = this.onDidEndSessionLayoutRestore;
+		getWorkingSet(resource: URI): IEditorWorkingSet | undefined { return this._workingSets.get(resource); }
+	}
+
+	class TestWorkbenchPanelLayoutController extends TestBaseLayoutController {
+		protected override get _isPanelVisibilityPerSession(): boolean { return false; }
+	}
 
 	function createController(options: ICreateOptions = {}): TestBaseLayoutController {
 		harness = createTestHarness(store, options);
@@ -412,6 +426,391 @@ suite('BaseLayoutController', () => {
 		);
 		assert.deepStrictEqual(harness.applyWorkingSetCalls, [], 'the gated apply should hold back while the incoming workspace is not ready');
 	});
+
+	test('[B2] rapid A to B to C restores load only the latest working set', async () => {
+		const workingSetB = { id: 'ws-b', name: 'B' };
+		const workingSetC = { id: 'ws-c', name: 'C' };
+		const controller = createController({
+			layoutState: [
+				{ sessionResource: 'session:b', editorWorkingSet: workingSetB },
+				{ sessionResource: 'session:c', editorWorkingSet: workingSetC },
+			],
+		});
+		harness.visibleEditorsList = [{}];
+		harness.activeSessionObs.set(makeSession(URI.parse('session:a')), undefined);
+		const restored = Event.toPromise(controller.onDidEndRestore);
+
+		harness.activeSessionObs.set(makeSession(URI.parse('session:b')), undefined);
+		harness.activeSessionObs.set(makeSession(URI.parse('session:c')), undefined);
+		await restored;
+
+		assert.deepStrictEqual({
+			loaded: harness.applyWorkingSetCalls,
+			prepared: controller.preparedWorkingSets,
+			options: harness.applyWorkingSetOptions,
+			saved: harness.saveWorkingSetCalls,
+			savedB: controller.getWorkingSet(URI.parse('session:b')),
+			restoring: controller.isRestoring,
+		}, {
+			loaded: [workingSetC],
+			prepared: [workingSetC],
+			options: [{ preserveFocus: true }],
+			saved: ['session-working-set:session:a'],
+			savedB: workingSetB,
+			restoring: false,
+		});
+	});
+
+	test('[B2] a newer session cancels the deferred paint wait before stale editors load', async () => {
+		const workingSetC = { id: 'ws-c', name: 'C' };
+		const controller = createController({
+			layoutState: [
+				{ sessionResource: 'session:b', editorWorkingSet: { id: 'ws-b', name: 'B' } },
+				{ sessionResource: 'session:c', editorWorkingSet: workingSetC },
+			],
+		});
+		harness.activeSessionObs.set(makeSession(URI.parse('session:a')), undefined);
+		const paint = new DeferredPromise<void>();
+		const waits = [new DeferredPromise<void>(), new DeferredPromise<void>()];
+		const tokens: CancellationToken[] = [];
+		harness.waitForSessionSwitchPaint = token => {
+			tokens.push(token);
+			void waits[tokens.length - 1].complete();
+			return raceCancellation(paint.p, token);
+		};
+
+		harness.activeSessionObs.set(makeSession(URI.parse('session:b')), undefined);
+		await waits[0].p;
+		harness.activeSessionObs.set(makeSession(URI.parse('session:c')), undefined);
+		await waits[1].p;
+		const beforePaint = [...harness.applyWorkingSetCalls];
+		const restored = Event.toPromise(controller.onDidEndRestore);
+		await paint.complete();
+		await restored;
+
+		assert.deepStrictEqual({
+			beforePaint,
+			cancelledWaits: tokens.map(token => token.isCancellationRequested),
+			loaded: harness.applyWorkingSetCalls,
+			prepared: controller.preparedWorkingSets,
+		}, {
+			beforePaint: [],
+			cancelledWaits: [true, false],
+			loaded: [workingSetC],
+			prepared: [workingSetC],
+		});
+	});
+
+	test('[B2] an obsolete in-flight apply cannot reveal the current session or overwrite saved state', async () => {
+		const workingSetB = { id: 'ws-b', name: 'B' };
+		const workingSetC = { id: 'ws-c', name: 'C' };
+		const controller = createController({
+			useModal: 'some',
+			layoutState: [
+				{ sessionResource: 'session:b', editorWorkingSet: workingSetB },
+				{ sessionResource: 'session:c', editorWorkingSet: workingSetC, editorPartHidden: true },
+			],
+		});
+		harness.activeSessionObs.set(makeSession(URI.parse('session:a')), undefined);
+		harness.visibleEditorsList = [{}];
+		const applyStarted = new DeferredPromise<void>();
+		const finishApply = new DeferredPromise<void>();
+		let lateAutoVisibilitySuppressed = false;
+		harness.onApplyWorkingSet = async workingSet => {
+			if (workingSet !== 'empty' && workingSet.id === workingSetB.id) {
+				await applyStarted.complete();
+				await finishApply.p;
+				lateAutoVisibilitySuppressed = harness.layoutService.isEditorPartAutoVisibilitySuppressed();
+				if (!lateAutoVisibilitySuppressed) {
+					harness.layoutService.setPartHidden(false, Parts.EDITOR_PART);
+				}
+			}
+		};
+
+		harness.activeSessionObs.set(makeSession(URI.parse('session:b')), undefined);
+		await applyStarted.p;
+		harness.activeSessionObs.set(makeSession(URI.parse('session:c')), undefined);
+		harness.partVisibility.set(Parts.EDITOR_PART, false);
+		harness.setPartHiddenCalls = [];
+		harness.storageService.testEmitWillSaveState(WillSaveStateReason.SHUTDOWN);
+		const savedWhilePending = [...harness.saveWorkingSetCalls];
+		const restored = Event.toPromise(controller.onDidEndRestore);
+		await finishApply.complete();
+		await restored;
+
+		assert.deepStrictEqual({
+			loaded: harness.applyWorkingSetCalls,
+			options: harness.applyWorkingSetOptions,
+			lateAutoVisibilitySuppressed,
+			editorVisibilityChanges: harness.setPartHiddenCalls.filter(call => call.part === Parts.EDITOR_PART),
+			savedWhilePending,
+			savedB: controller.getWorkingSet(URI.parse('session:b')),
+			suppressionDepth: harness.editorPartAutoVisibilitySuppressionDepth,
+		}, {
+			loaded: [workingSetB, workingSetC],
+			options: [{ preserveFocus: true }, { preserveFocus: true }],
+			lateAutoVisibilitySuppressed: true,
+			editorVisibilityChanges: [],
+			savedWhilePending: ['session-working-set:session:a'],
+			savedB: workingSetB,
+			suppressionDepth: 0,
+		});
+	});
+
+	test('[B2] workspace readiness restores the latest target without saving intermediate sessions', async () => {
+		const workingSetB = { id: 'ws-b', name: 'B' };
+		const workingSetC = { id: 'ws-c', name: 'C' };
+		const controller = createController({
+			workspaceFolders: [{ uri: URI.file('/repo') }],
+			layoutState: [
+				{ sessionResource: 'session:b', editorWorkingSet: workingSetB },
+				{ sessionResource: 'session:c', editorWorkingSet: workingSetC },
+			],
+		});
+		harness.activeSessionObs.set(makeSession(URI.parse('session:a')), undefined);
+		harness.visibleEditorsList = [{}];
+		const workspace = (directory: string) => ({
+			uri: URI.file(directory), label: directory, icon: Codicon.repo,
+			folders: [{ root: URI.file(directory), workingDirectory: URI.file(directory), name: directory, description: undefined }],
+			requiresWorkspaceTrust: false, isVirtualWorkspace: false,
+		});
+		harness.activeSessionObs.set(makeSession(URI.parse('session:b'), { workspace: workspace('/b') }), undefined);
+		harness.activeSessionObs.set(makeSession(URI.parse('session:c'), { workspace: workspace('/c') }), undefined);
+		harness.storageService.testEmitWillSaveState(WillSaveStateReason.SHUTDOWN);
+		const beforeWorkspaceReady = [...harness.applyWorkingSetCalls];
+
+		const restored = Event.toPromise(controller.onDidEndRestore);
+		harness.workspaceFolders = [{ uri: URI.file('/c') }];
+		harness.onDidChangeWorkspaceFolders.fire({ added: [], removed: [], changed: [] });
+		await restored;
+
+		assert.deepStrictEqual({
+			beforeWorkspaceReady,
+			loaded: harness.applyWorkingSetCalls,
+			saved: harness.saveWorkingSetCalls,
+			savedB: controller.getWorkingSet(URI.parse('session:b')),
+		}, {
+			beforeWorkspaceReady: [],
+			loaded: [workingSetC],
+			saved: ['session-working-set:session:a'],
+			savedB: workingSetB,
+		});
+	});
+
+	test('[B2] returning to A before B workspace resolves restores A instead of leaving a cancelled target', async () => {
+		const controller = createController({ workspaceFolders: [{ uri: URI.file('/repo') }] });
+		const sessionA = makeSession(URI.parse('session:a'));
+		harness.activeSessionObs.set(sessionA, undefined);
+		harness.visibleEditorsList = [{}];
+		harness.activeSessionObs.set(makeSession(URI.parse('session:b'), {
+			workspace: {
+				uri: URI.file('/b'), label: 'B', icon: Codicon.repo,
+				folders: [{ root: URI.file('/b'), workingDirectory: URI.file('/b'), name: 'B', description: undefined }],
+				requiresWorkspaceTrust: false, isVirtualWorkspace: false,
+			},
+		}), undefined);
+		const restored = Event.toPromise(controller.onDidEndRestore);
+		harness.activeSessionObs.set(sessionA, undefined);
+		await restored;
+
+		assert.deepStrictEqual({
+			loaded: harness.applyWorkingSetCalls,
+			saved: harness.saveWorkingSetCalls,
+			restoring: controller.isRestoring,
+		}, {
+			loaded: [{ id: 'session-working-set:session:a', name: 'session-working-set:session:a' }],
+			saved: ['session-working-set:session:a'],
+			restoring: false,
+		});
+	});
+
+	test('[B2] disposing cancels deferred restores without loading editors or publishing a settled layout', async () => {
+		const controller = createController();
+		harness.activeSessionObs.set(makeSession(URI.parse('session:a')), undefined);
+		const paint = new DeferredPromise<void>();
+		const waitStarted = new DeferredPromise<CancellationToken>();
+		harness.waitForSessionSwitchPaint = token => {
+			void waitStarted.complete(token);
+			return raceCancellation(paint.p, token);
+		};
+		let settled = 0;
+		store.add(controller.onDidEndRestore(() => settled++));
+		harness.activeSessionObs.set(makeSession(URI.parse('session:b')), undefined);
+		const token = await waitStarted.p;
+		controller.dispose();
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			cancelled: token.isCancellationRequested,
+			loaded: harness.applyWorkingSetCalls,
+			prepared: controller.preparedWorkingSets,
+			restoring: controller.isRestoring,
+			suppressionDepth: harness.editorPartAutoVisibilitySuppressionDepth,
+			settled,
+		}, {
+			cancelled: true,
+			loaded: [],
+			prepared: [],
+			restoring: false,
+			suppressionDepth: 0,
+			settled: 0,
+		});
+	});
+
+	test('[B2] queued restores never start paint waits after controller disposal', async () => {
+		const controller = createController();
+		harness.activeSessionObs.set(makeSession(URI.parse('session:a')), undefined);
+		const scheduler = createPaintScheduler();
+		let paintWaits = 0;
+		harness.waitForSessionSwitchPaint = token => {
+			paintWaits++;
+			return scheduler.wait(token);
+		};
+		harness.activeSessionObs.set(makeSession(URI.parse('session:b')), undefined);
+		controller.dispose();
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			paintWaits,
+			scheduler: scheduler.snapshot(),
+			loaded: harness.applyWorkingSetCalls,
+			restoring: controller.isRestoring,
+		}, {
+			paintWaits: 0,
+			scheduler: { frames: 0, idle: 0, scheduledFrames: 0, scheduledIdle: 0 },
+			loaded: [],
+			restoring: false,
+		});
+	});
+
+	test('[B2] disposing an in-flight restore releases suppression and drops queued targets', async () => {
+		const controller = createController();
+		harness.activeSessionObs.set(makeSession(URI.parse('session:a')), undefined);
+		const applyStarted = new DeferredPromise<void>();
+		const finishApply = new DeferredPromise<void>();
+		harness.onApplyWorkingSet = async () => {
+			await applyStarted.complete();
+			await finishApply.p;
+		};
+		let settled = 0;
+		store.add(controller.onDidEndRestore(() => settled++));
+		harness.activeSessionObs.set(makeSession(URI.parse('session:b')), undefined);
+		await applyStarted.p;
+		harness.activeSessionObs.set(makeSession(URI.parse('session:c')), undefined);
+		controller.dispose();
+		const suppressionAfterDispose = harness.editorPartAutoVisibilitySuppressionDepth;
+		harness.setPartHiddenCalls = [];
+		await finishApply.complete();
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			loaded: harness.applyWorkingSetCalls,
+			suppressionAfterDispose,
+			suppressionAfterSettle: harness.editorPartAutoVisibilitySuppressionDepth,
+			lateLayoutChanges: harness.setPartHiddenCalls,
+			settled,
+		}, {
+			loaded: ['empty'],
+			suppressionAfterDispose: 0,
+			suppressionAfterSettle: 0,
+			lateLayoutChanges: [],
+			settled: 0,
+		});
+	});
+
+	test('[B2] a vetoed restore keeps its saved working set instead of capturing another session editors', async () => {
+		const workingSetB = { id: 'ws-b', name: 'B' };
+		const controller = createController({
+			layoutState: [{ sessionResource: 'session:b', editorWorkingSet: workingSetB }],
+		});
+		harness.activeSessionObs.set(makeSession(URI.parse('session:a')), undefined);
+		harness.visibleEditorsList = [{}];
+		harness.onApplyWorkingSet = () => false;
+		const restored = Event.toPromise(controller.onDidEndRestore);
+		harness.activeSessionObs.set(makeSession(URI.parse('session:b')), undefined);
+		await restored;
+		harness.storageService.testEmitWillSaveState(WillSaveStateReason.SHUTDOWN);
+
+		assert.deepStrictEqual({
+			saved: harness.saveWorkingSetCalls,
+			savedB: controller.getWorkingSet(URI.parse('session:b')),
+		}, {
+			saved: ['session-working-set:session:a'],
+			savedB: workingSetB,
+		});
+	});
+
+	function createPaintScheduler() {
+		const frames = new Set<() => void>();
+		const idle = new Set<() => void>();
+		let scheduledFrames = 0;
+		let scheduledIdle = 0;
+		const schedule = (queue: Set<() => void>, callback: () => void) => {
+			queue.add(callback);
+			return toDisposable(() => queue.delete(callback));
+		};
+		const runNext = (queue: Set<() => void>) => {
+			const callback = [...queue][0];
+			assert.ok(callback);
+			queue.delete(callback);
+			callback();
+		};
+		return {
+			wait: (token: CancellationToken) => waitForSessionSwitchPaint(mainWindow, token, (_window, callback) => {
+				scheduledFrames++;
+				return schedule(frames, callback);
+			}, (_window, callback) => {
+				scheduledIdle++;
+				return schedule(idle, () => callback({ didTimeout: false, timeRemaining: () => 50 }));
+			}),
+			runFrame: () => runNext(frames),
+			runIdle: () => runNext(idle),
+			snapshot: () => ({ frames: frames.size, idle: idle.size, scheduledFrames, scheduledIdle }),
+		};
+	}
+
+	test('[B2] editor restoration resumes after a frame and idle callback, not before paint', async () => {
+		const scheduler = createPaintScheduler();
+		const events: string[] = [];
+		const restored = scheduler.wait(CancellationToken.None).then(() => events.push('editors'));
+		scheduler.runFrame();
+		events.push('paint opportunity');
+		await Promise.resolve();
+		const beforeIdle = [...events];
+		scheduler.runIdle();
+		await restored;
+
+		assert.deepStrictEqual({ beforeIdle, events, scheduler: scheduler.snapshot() }, {
+			beforeIdle: ['paint opportunity'],
+			events: ['paint opportunity', 'editors'],
+			scheduler: { frames: 0, idle: 0, scheduledFrames: 1, scheduledIdle: 1 },
+		});
+	});
+
+	for (const phase of ['before scheduling', 'before frame', 'before idle'] as const) {
+		test(`[B2] cancelling ${phase} synchronously disposes the pending paint callbacks`, async () => {
+			const scheduler = createPaintScheduler();
+			const cancellation = store.add(new CancellationTokenSource());
+			if (phase === 'before scheduling') {
+				cancellation.cancel();
+			}
+			const restored = scheduler.wait(cancellation.token);
+			if (phase === 'before idle') {
+				scheduler.runFrame();
+			}
+			cancellation.cancel();
+			const immediatelyAfterCancellation = scheduler.snapshot();
+			await restored;
+
+			const expected = {
+				frames: 0,
+				idle: 0,
+				scheduledFrames: phase === 'before scheduling' ? 0 : 1,
+				scheduledIdle: phase === 'before idle' ? 1 : 0,
+			};
+			assert.deepStrictEqual([immediatelyAfterCancellation, scheduler.snapshot()], [expected, expected]);
+		});
+	}
 
 	// --- [B3] Persistence & migration / [B4] Save ---
 

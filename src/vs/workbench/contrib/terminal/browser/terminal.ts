@@ -564,6 +564,9 @@ export interface ITerminalService extends ITerminalInstanceHost {
 	 */
 	createTerminal(options?: ICreateTerminalOptions): Promise<ITerminalInstance>;
 
+	/** Keeps a terminal hosted by another surface out of the panel and editor groups. */
+	registerEmbeddedTerminal(instance: ITerminalInstance, reveal: () => Promise<void>): IDisposable;
+
 	/**
 	 * Creates and focuses a terminal.
 	 * @param options The options to create the terminal with, when not specified the default

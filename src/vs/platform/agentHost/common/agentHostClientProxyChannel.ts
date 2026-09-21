@@ -18,6 +18,13 @@ import { AuthInfo, Credentials, IRequestService } from '../../request/common/req
  */
 export const AGENT_HOST_CLIENT_PROXY_CHANNEL = 'agentHostClientProxy';
 
+/** The main-process control connection has no renderer reverse channels. */
+export const AGENT_HOST_CONTROL_CLIENT_ID = 'agentHost';
+
+export function isAgentHostRendererClient(clientId: unknown): clientId is string {
+	return typeof clientId === 'string' && clientId.length > 0 && clientId !== AGENT_HOST_CONTROL_CLIENT_ID;
+}
+
 /**
  * Node end of the proxy-resolution bridge: `resolveProxy()` ships the target
  * URL to the renderer and resolves with the *raw* result of VS Code's

@@ -418,6 +418,9 @@ export interface ISessionDatabase extends IDisposable {
 export interface ISessionDataService {
 	readonly _serviceBrand: undefined;
 
+	/** Fires after host-owned session metadata changes. Services without this signal must not cache catalog reads. */
+	readonly onDidChangeSessionMetadata?: Event<URI>;
+
 	/**
 	 * Returns the root data directory URI for a session.
 	 * Does **not** create the directory on disk; callers use

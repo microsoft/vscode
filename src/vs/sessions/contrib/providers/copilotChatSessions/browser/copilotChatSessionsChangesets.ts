@@ -435,7 +435,7 @@ function sortDateDesc(dateA: Date | undefined, dateB: Date | undefined): number 
 	return chatBLastTurnEnd - chatALastTurnEnd;
 }
 
-function toIChatSessionFileChange2(changes: GitDiffChange[], originalRef: string | undefined, modifiedRef: string | undefined): IChatSessionFileChange2[] {
+export function toIChatSessionFileChange2(changes: readonly GitDiffChange[], originalRef: string | undefined, modifiedRef: string | undefined): IChatSessionFileChange2[] {
 	return changes.map(change => ({
 		uri: change.uri,
 		originalUri: change.originalUri

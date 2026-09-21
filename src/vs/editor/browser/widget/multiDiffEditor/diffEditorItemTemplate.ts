@@ -19,7 +19,6 @@ import { ServiceCollection } from '../../../../platform/instantiation/common/ser
 import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { IDiffEditorOptions } from '../../../common/config/editorOptions.js';
 import { OffsetRange } from '../../../common/core/ranges/offsetRange.js';
-import { observableCodeEditor } from '../../observableCodeEditor.js';
 import { DiffEditorWidget } from '../diffEditor/diffEditorWidget.js';
 import { DocumentDiffItemViewModel } from './multiDiffEditorViewModel.js';
 import { IMultiDiffEditorVariantConfiguration } from './multiDiffEditorOptions.js';
@@ -49,10 +48,8 @@ export class DiffEditorItemTemplate extends VirtualizedItemTemplate<DocumentDiff
 
 	public readonly editor;
 
-	private readonly isModifedFocused;
-	private readonly isOriginalFocused;
-	private readonly isBinaryFilePlaceholderFocused;
 	public readonly isFocused;
+	private readonly _focusTracker;
 
 	private readonly _resourceLabel;
 
@@ -61,6 +58,7 @@ export class DiffEditorItemTemplate extends VirtualizedItemTemplate<DocumentDiff
 	private readonly _verticalStateUpdate = this._register(new MutableDisposable());
 	private _observedEditorContentHeight = 500;
 	private _isSettingData = false;
+	private _focusAfterLoad = false;
 	private _bindingContext: IVirtualizedItemBindingContext | undefined;
 
 	private readonly _outerEditorHeight: number;
@@ -117,6 +115,7 @@ export class DiffEditorItemTemplate extends VirtualizedItemTemplate<DocumentDiff
 
 			h('div.editorParent', [
 				h('div.editorContainer@editor'),
+				h('div.file-loading-placeholder@loadingPlaceholder', { role: 'group', tabIndex: 0 }),
 				h('div.binary-file-placeholder@binaryFilePlaceholder', { role: 'group', 'aria-label': binaryFileChangedLabel }, [
 					h('div.binary-file-placeholder-content', [
 						h('span', [binaryFileChangedLabel]),
@@ -138,17 +137,10 @@ export class DiffEditorItemTemplate extends VirtualizedItemTemplate<DocumentDiff
 				update
 			),
 		}));
-		this.isModifedFocused = observableCodeEditor(this.editor.getModifiedEditor()).isFocused;
-		this.isOriginalFocused = observableCodeEditor(this.editor.getOriginalEditor()).isFocused;
-		this.isBinaryFilePlaceholderFocused = observableValue(this, false);
-		const binaryFilePlaceholderFocus = this._register(trackFocus(this._elements.binaryFilePlaceholder));
-		this._register(binaryFilePlaceholderFocus.onDidFocus(() => this.isBinaryFilePlaceholderFocused.set(true, undefined)));
-		this._register(binaryFilePlaceholderFocus.onDidBlur(() => this.isBinaryFilePlaceholderFocused.set(false, undefined)));
-		this.isFocused = derived(this, reader =>
-			this.isModifedFocused.read(reader)
-			|| this.isOriginalFocused.read(reader)
-			|| this.isBinaryFilePlaceholderFocused.read(reader)
-		);
+		this.isFocused = observableValue(this, false);
+		this._focusTracker = this._register(trackFocus(this._elements.root));
+		this._register(this._focusTracker.onDidFocus(() => this.isFocused.set(true, undefined)));
+		this._register(this._focusTracker.onDidBlur(() => this.isFocused.set(false, undefined)));
 		this._elements.binaryFilePlaceholder.tabIndex = 0;
 		if (this._workbenchUIElementFactory.openDiffEditor) {
 			this._openBinaryDiffButton = this._register(new Button(this._elements.binaryFilePlaceholderActions, { ...defaultButtonStyles, secondary: true }));
@@ -243,14 +235,27 @@ export class DiffEditorItemTemplate extends VirtualizedItemTemplate<DocumentDiff
 		this._register(autorun(reader => {
 			const collapsed = this._collapsed.read(reader);
 			const item = this._viewModel.read(reader);
+			const loading = item?.isLoading.read(reader) === true;
+			const failed = item?.loadFailed.read(reader) === true;
 			const isBinary = item?.isBinary === true;
 			const canOpenDiff = !!(item?.originalUri && item.modifiedUri && this._openBinaryDiffButton);
-			this._elements.editor.style.display = collapsed || isBinary ? 'none' : 'block';
+			const placeholderFocused = getWindow(this._elements.loadingPlaceholder).document.activeElement === this._elements.loadingPlaceholder;
+			this._elements.editor.style.display = collapsed || isBinary || loading ? 'none' : 'block';
+			this._elements.loadingPlaceholder.style.display = !collapsed && loading ? 'grid' : 'none';
+			const message = failed
+				? localize('fileLoadingFailed', "Unable to load file.")
+				: localize('fileLoading', "Loading file...");
+			this._elements.loadingPlaceholder.textContent = message;
+			this._elements.loadingPlaceholder.setAttribute('aria-label', message);
+			this._elements.loadingPlaceholder.setAttribute('aria-busy', String(loading && !failed));
 			this._elements.binaryFilePlaceholder.style.display = !collapsed && isBinary ? 'grid' : 'none';
 			this._elements.binaryFilePlaceholder.tabIndex = canOpenDiff ? -1 : 0;
 			this._elements.binaryFilePlaceholderActions.style.display = canOpenDiff ? '' : 'none';
 			if (this._variantConfiguration.headerClickToCollapse) {
 				this._elements.header.setAttribute('aria-expanded', String(!collapsed));
+			}
+			if (item && placeholderFocused && !loading && !collapsed) {
+				this._focusLoadedItem(item);
 			}
 		}));
 
@@ -270,7 +275,7 @@ export class DiffEditorItemTemplate extends VirtualizedItemTemplate<DocumentDiff
 				this._originalContentWidth.set(this.editor.getOriginalEditor().getContentWidth(), tx);
 			});
 			const viewModel = this._viewModel.get();
-			if (this._isSettingData || viewModel?.isBinary || !viewModel?.diffEditorViewModel.isDiffUpToDate.get()) {
+			if (this._isSettingData || viewModel?.isBinary || !viewModel?.diffEditorViewModel?.isDiffUpToDate.get()) {
 				return;
 			}
 			this._observedEditorContentHeight = e.contentHeight;
@@ -366,6 +371,7 @@ export class DiffEditorItemTemplate extends VirtualizedItemTemplate<DocumentDiff
 
 	private setItem(item: DocumentDiffItemViewModel | undefined, initialSize = 0): void {
 		this._verticalStateUpdate.clear();
+		this._focusAfterLoad = false;
 		const optionsOverride = this._optionsOverride;
 		function updateOptions(options: IDiffEditorOptions): IDiffEditorOptions {
 			return {
@@ -401,7 +407,6 @@ export class DiffEditorItemTemplate extends VirtualizedItemTemplate<DocumentDiff
 			return;
 		}
 
-		const value = item.documentDiffItem;
 		const editorContentHeight = item.isBinary
 			? binaryFilePlaceholderContentHeight
 			: Math.max(0, Math.max(initialSize, item.lastTemplateData.get().expandedContentHeight) - this._outerEditorHeight);
@@ -435,18 +440,56 @@ export class DiffEditorItemTemplate extends VirtualizedItemTemplate<DocumentDiff
 
 				this._dataStore.clear();
 				this._viewModel.set(item, tx);
-				this.editor.updateOptions(updateOptions(value.options ?? {}));
-				this.editor.setDiffModel(item.diffEditorViewModelRef, tx);
 			});
 		} finally {
 			this._isSettingData = false;
 		}
 		this._dataStore.add(autorun(reader => {
+			if (!item.collapsed.read(reader)) {
+				reader.store.add(item.acquire());
+			}
+		}));
+		this._dataStore.add(autorun(reader => {
+			if (item.isLoading.read(reader)) {
+				return;
+			}
+			const value = item.documentDiffItem;
+			this._isSettingData = true;
+			try {
+				this.editor.updateOptions(updateOptions(value.options ?? {}));
+				this.editor.setDiffModel(item.diffEditorViewModelRef ?? null);
+				const selections = item.lastTemplateData.read(undefined).selections;
+				if (selections) {
+					this.editor.setSelections(selections);
+				}
+				if (this._focusAfterLoad) {
+					this._focusLoadedItem(item);
+				}
+			} finally {
+				this._isSettingData = false;
+			}
 			if (item.isBinary) {
+				this._observedEditorContentHeight = binaryFilePlaceholderContentHeight;
+				this._scheduleVerticalStateUpdate();
+			}
+			if (value.onOptionsDidChange) {
+				reader.store.add(value.onOptionsDidChange(() => {
+					this.editor.updateOptions(updateOptions(value.options ?? {}));
+				}));
+			}
+			if (optionsOverride) {
+				reader.store.add(autorun(reader => {
+					optionsOverride.read(reader);
+					this.editor.updateOptions(updateOptions(value.options ?? {}));
+				}));
+			}
+		}));
+		this._dataStore.add(autorun(reader => {
+			if (item.isLoading.read(reader) || item.isBinary) {
 				return;
 			}
 			const viewModel = item.diffEditorViewModel;
-			if (!viewModel.isDiffUpToDate.read(reader)) {
+			if (!viewModel?.isDiffUpToDate.read(reader)) {
 				return;
 			}
 			const hasChanges = (viewModel.diff.read(reader)?.mappings.length ?? 0) > 0;
@@ -456,17 +499,6 @@ export class DiffEditorItemTemplate extends VirtualizedItemTemplate<DocumentDiff
 			this._observedEditorContentHeight = this.editor.getContentHeight();
 			this._scheduleVerticalStateUpdate();
 		}));
-		if (value.onOptionsDidChange) {
-			this._dataStore.add(value.onOptionsDidChange(() => {
-				this.editor.updateOptions(updateOptions(value.options ?? {}));
-			}));
-		}
-		if (optionsOverride) {
-			this._dataStore.add(autorun(reader => {
-				optionsOverride.read(reader);
-				this.editor.updateOptions(updateOptions(value.options ?? {}));
-			}));
-		}
 		if (item.documentDiffItem.contextKeys) {
 			for (const [key, value] of Object.entries(item.documentDiffItem.contextKeys)) {
 				this._contextKeyService.createKey(key, value);
@@ -528,6 +560,7 @@ export class DiffEditorItemTemplate extends VirtualizedItemTemplate<DocumentDiff
 		} else {
 			this._elements.binaryFilePlaceholder.focus();
 		}
+		this._focusTracker.refreshState();
 	}
 
 	public unbind(item: DocumentDiffItemViewModel): void {
@@ -536,6 +569,28 @@ export class DiffEditorItemTemplate extends VirtualizedItemTemplate<DocumentDiff
 		}
 		this.setItem(undefined);
 		this._bindingContext = undefined;
+	}
+
+	public focusLoadingPlaceholder(): void {
+		this._elements.loadingPlaceholder.focus();
+		this._focusTracker.refreshState();
+	}
+
+	public focusEditor(): void {
+		this.editor.focus();
+		this._focusTracker.refreshState();
+	}
+
+	private _focusLoadedItem(item: DocumentDiffItemViewModel): void {
+		this._focusAfterLoad = this.editor.getModel() !== item.diffEditorViewModel?.model;
+		if (this._focusAfterLoad) {
+			return;
+		}
+		if (item.isBinary) {
+			this.focusBinaryFilePlaceholder();
+		} else {
+			this.focusEditor();
+		}
 	}
 }
 
@@ -573,10 +628,12 @@ export class DiffEditorItemBinding extends VirtualizedItemBinding<DocumentDiffIt
 	}
 
 	focus(): void {
-		if (this.item.isBinary) {
+		if (this.item.isLoading.get()) {
+			this._template.focusLoadingPlaceholder();
+		} else if (this.item.isBinary) {
 			this._template.focusBinaryFilePlaceholder();
 		} else {
-			this.editor.focus();
+			this._template.focusEditor();
 		}
 	}
 

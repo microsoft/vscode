@@ -36,7 +36,7 @@ import { ChatAgentLocation, ChatModeKind } from '../../../../workbench/contrib/c
 import { getChatSessionType } from '../../../../workbench/contrib/chat/common/model/chatUri.js';
 import { IChatSessionsService, localChatSessionType } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { AbstractChatView, ChatViewKind, IChatViewOptions, ISelectWorkspaceOptions, WorkspaceSelectionResult } from '../../../browser/parts/chatView.js';
-import { ChatInteractivity, getSessionStatusMessage, IChat, isActiveSessionStatus, ISession, SessionStatus } from '../../../services/sessions/common/session.js';
+import { ChatInteractivity, getSessionStatusMessage, IChat, isActiveSessionStatus, ISession, SessionPresentation, SessionStatus } from '../../../services/sessions/common/session.js';
 import { IChatViewFactory } from '../../../services/chatView/browser/chatViewFactory.js';
 import { NewChatWidget } from './newChatWidget.js';
 import { NewChatInSessionWidget } from './newChatInSessionWidget.js';
@@ -54,6 +54,7 @@ import { ISessionOpenTelemetryService } from '../../../services/sessions/browser
 import { SessionArchiveNudge } from './sessionArchiveNudge.js';
 import { SessionsChatBackgroundReplica } from '../../../services/chatBackground/browser/chatBackgroundRenderer.js';
 import { ISessionsChatBackgroundService } from '../../../services/chatBackground/browser/chatBackgroundService.js';
+import { TerminalChatView } from '../../terminal/browser/terminalChatView.js';
 
 const SESSION_CHAT_RESPONSE_INTERNAL_HORIZONTAL_PADDING = 12;
 
@@ -836,7 +837,9 @@ export class ChatViewFactory implements IChatViewFactory {
 		return instantiationService.createInstance(NewChatView, isNewChatInSession, options);
 	}
 
-	createChatView(instantiationService = this.instantiationService): AbstractChatView {
-		return instantiationService.createInstance(ChatView);
+	createChatView(instantiationService = this.instantiationService, presentation: SessionPresentation = 'chat'): AbstractChatView {
+		return presentation === 'terminal'
+			? instantiationService.createInstance(TerminalChatView)
+			: instantiationService.createInstance(ChatView);
 	}
 }

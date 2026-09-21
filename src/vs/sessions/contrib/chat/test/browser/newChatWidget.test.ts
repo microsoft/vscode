@@ -4,17 +4,25 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { Dimension } from '../../../../../base/browser/dom.js';
+import { mainWindow } from '../../../../../base/browser/window.js';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { autorun, constObservable, IObservable, observableValue } from '../../../../../base/common/observable.js';
+import { autorun, constObservable, derived, IObservable, ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
 import { isWeb } from '../../../../../base/common/platform.js';
 import { extUri } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { ISession, ISessionWorkspace, SESSION_WORKSPACE_GROUP_GITHUB } from '../../../../services/sessions/common/session.js';
+import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
+import { INotificationService } from '../../../../../platform/notification/common/notification.js';
+import { ITerminalInstance, ITerminalService } from '../../../../../workbench/contrib/terminal/browser/terminal.js';
+import { ISessionTerminalService, SessionTerminalService } from '../../../../services/terminal/browser/sessionTerminalService.js';
+import { TerminalChatView } from '../../../terminal/browser/terminalChatView.js';
+import { IChat, ISession, ISessionType, ISessionWorkspace, SESSION_WORKSPACE_GROUP_GITHUB, SessionPresentation, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISendRequestOptions } from '../../../../services/sessions/common/sessionsProvider.js';
 import { IOpenNewSessionOptions, IOpenNewSessionResult } from '../../../../services/sessions/browser/sessionsService.js';
@@ -51,6 +59,8 @@ interface IRecreateHarness {
 
 /** The collaborators `_createSessionNow` reads while assembling the `openNewSession` options. */
 interface ICreateSessionNowHarness {
+	readonly _presentation: IObservable<SessionPresentation>;
+	readonly sessionsProvidersService: { getProvider(id: string): { readonly sessionTypes: readonly ISessionType[] } | undefined };
 	readonly _newChatInput: {
 		readonly sessionTypePicker: {
 			getPreferredSessionType(folderUri: URI): IPreferredSessionType | undefined;
@@ -64,6 +74,7 @@ interface ICreateSessionNowHarness {
 
 interface INewChatWidgetHarness extends IRecreateHarness {
 	readonly _newSessionCreation: MutableDisposable<IDisposable>;
+	readonly _sessionCreationInProgress: ISettableObservable<boolean>;
 	_createdSessionId: string | undefined;
 	readonly sessionsManagementService: { readonly onDidChangeSessionTypes: Event<void> };
 	readonly _newChatInput: {
@@ -77,6 +88,42 @@ interface INewChatWidgetHarness extends IRecreateHarness {
 	_scheduleRecreateOnProviderChange(folderUri: URI, userPick: IPreferredSessionType | undefined, created: ISession | undefined, replayMissedChange: boolean): void;
 	_recreateOnProviderChange(folderUri: URI, userPick: IPreferredSessionType | undefined, created: ISession | undefined): void;
 }
+
+interface IWorkspaceSelectedHarness {
+	readonly _pendingPreferredUpgrade: MutableDisposable<IDisposable>;
+	_preferredDevContainerFolderUri: URI | undefined;
+	readonly uriIdentityService: { readonly extUri: typeof extUri };
+	readonly _session: IObservable<ISession | undefined>;
+	readonly _newChatInput: { preparePromptOptionsRefresh(): boolean; showPromptOptions(session: ISession | undefined): void };
+	readonly sessionsService: { unsetNewSession(): void };
+	readonly _store: { readonly isDisposed: boolean };
+	readonly _workspacePicker: { removeFromRecents(uri: URI): void };
+	_createNewSession(folder: URI, pick?: IPreferredSessionType): Promise<IOpenNewSessionResult>;
+	_startTerminalSession(query?: string): Promise<boolean>;
+}
+
+interface ITerminalComposerHarness {
+	_register<T extends IDisposable>(value: T): T;
+	readonly instantiationService: TestInstantiationService;
+	readonly sessionTerminalService: ISessionTerminalService;
+	readonly _session: IObservable<IActiveSession | undefined>;
+	readonly _startingTerminal: ISettableObservable<boolean>;
+	readonly _sessionCreationInProgress: IObservable<boolean>;
+	_terminalWarmupView: TerminalChatView | undefined;
+	readonly _terminalDimensions: Dimension;
+	readonly _workspacePicker: { readonly onDidChangeSelection: Event<void>; readonly selectedFolderUri: URI };
+	readonly _newChatInput: { readonly sessionTypePicker: { readonly onDidChangeSelectedPick: Event<IPreferredSessionType | undefined>; readonly selectedPick: IPreferredSessionType } };
+	readonly uriIdentityService: { readonly extUri: typeof extUri };
+	_startTerminalSession(): Promise<boolean>;
+}
+
+const renderTerminalComposer = Reflect.get(NewChatWidget.prototype, '_renderTerminalComposer') as (
+	this: ITerminalComposerHarness, container: HTMLElement,
+) => void;
+
+const onWorkspaceSelected = Reflect.get(NewChatWidget.prototype, '_onWorkspaceSelected') as (
+	this: IWorkspaceSelectedHarness, folder: URI | undefined, pick?: IPreferredSessionType,
+) => Promise<void>;
 
 const createNewSession = Reflect.get(NewChatWidget.prototype, '_createNewSession') as (
 	this: INewChatWidgetHarness,
@@ -193,6 +240,7 @@ interface IRenderWorkspacePickerHarness extends IRenderSessionTypePickerHarness 
 interface ISelectNoWorkspaceHarness {
 	readonly _pendingPreferredUpgrade: MutableDisposable<IDisposable>;
 	readonly _newSessionCreation: MutableDisposable<IDisposable>;
+	readonly _sessionCreationInProgress: ISettableObservable<boolean>;
 	readonly _workspacePicker: { selectNoWorkspace(): void };
 	readonly sessionsService: { openQuickChat(): { readonly sessionId: string } };
 	_openQuickChat(options?: undefined): { readonly sessionId: string } | undefined;
@@ -234,6 +282,7 @@ function createHarness(
 	const harness: INewChatWidgetHarness = {
 		_pendingPreferredUpgrade: pendingPreferredUpgrade,
 		_newSessionCreation: newSessionCreation,
+		_sessionCreationInProgress: observableValue('sessionCreationInProgress', false),
 		_createdSessionId: undefined,
 		sessionsManagementService: { onDidChangeSessionTypes },
 		_session: observableValue<IActiveDraft | undefined>('session', undefined),
@@ -364,9 +413,11 @@ suite('NewChatWidget', () => {
 		pendingPreferredUpgrade.value = toDisposable(() => pendingUpgradeDisposed = true);
 		newSessionCreation.value = toDisposable(() => sessionCreationDisposed = true);
 
+		const sessionCreationInProgress = observableValue<boolean>('sessionCreationInProgress', true);
 		const harness: ISelectNoWorkspaceHarness = {
 			_pendingPreferredUpgrade: pendingPreferredUpgrade,
 			_newSessionCreation: newSessionCreation,
+			_sessionCreationInProgress: sessionCreationInProgress,
 			_workspacePicker: { selectNoWorkspace: () => noWorkspaceSelectCount++ },
 			sessionsService: {
 				openQuickChat: () => {
@@ -383,11 +434,13 @@ suite('NewChatWidget', () => {
 			sessionCreationDisposed,
 			noWorkspaceSelectCount,
 			quickChatOpenCount,
+			creationInProgress: sessionCreationInProgress.get(),
 		}, {
 			pendingUpgradeDisposed: true,
 			sessionCreationDisposed: true,
 			noWorkspaceSelectCount: 1,
 			quickChatOpenCount: 1,
+			creationInProgress: false,
 		});
 	});
 
@@ -666,6 +719,8 @@ suite('NewChatWidget', () => {
 		const requested = await Promise.all(cases.map(async ({ pick, servable, preferred }) => {
 			let options: IOpenNewSessionOptions | undefined;
 			await createSessionNow.call({
+				_presentation: constObservable<SessionPresentation>('chat'),
+				sessionsProvidersService: { getProvider: () => undefined },
 				_newChatInput: { sessionTypePicker: { getPreferredSessionType: () => preferred } },
 				_workspacePicker: { selectedResolved: { providerId: 'workspace-provider' } },
 				sessionsService: {
@@ -686,6 +741,130 @@ suite('NewChatWidget', () => {
 			{ providerId: 'copilot', sessionTypeId: 'copilot-cli', preserveNavigation: true },
 			{ providerId: 'workspace-provider', sessionTypeId: undefined, preserveNavigation: true },
 		]);
+	});
+
+	test('terminal mode never falls back to a chat provider for an unsupported workspace', async () => {
+		let opens = 0;
+		const result = await createSessionNow.call({
+			_presentation: constObservable<SessionPresentation>('terminal'),
+			sessionsProvidersService: { getProvider: () => undefined },
+			_newChatInput: { sessionTypePicker: { getPreferredSessionType: () => undefined } },
+			_workspacePicker: { selectedResolved: { providerId: 'remote' } },
+			sessionsService: {
+				openNewSession: async () => {
+					opens++;
+					return { session: undefined, trustDeclined: false };
+				},
+			},
+			logService: { error: () => { } },
+			_isPreferredServable: () => false,
+		}, URI.parse('vscode-remote://host/repository'), undefined, CancellationToken.None);
+		assert.deepStrictEqual({ opens, result }, { opens: 0, result: { session: undefined, trustDeclined: false } });
+	});
+
+	test('workspace and harness selections only prepare drafts without starting a CLI', async () => {
+		const results = [];
+		for (const scenario of ['terminal', 'harness', 'chat', 'declined', 'superseded', 'disposed'] as const) {
+			const draft = upcastPartial<ISession>({
+				sessionId: 'draft', presentation: scenario === 'chat' ? 'chat' : 'terminal',
+				workspace: constObservable(undefined),
+			});
+			const queries: (string | undefined)[] = [];
+			const picks: (IPreferredSessionType | undefined)[] = [];
+			let removed = 0;
+			await onWorkspaceSelected.call({
+				_pendingPreferredUpgrade: disposables.add(new MutableDisposable()),
+				_preferredDevContainerFolderUri: undefined,
+				uriIdentityService: { extUri },
+				_session: constObservable(scenario === 'superseded' ? undefined : draft),
+				_newChatInput: { preparePromptOptionsRefresh: () => false, showPromptOptions: () => { } },
+				sessionsService: { unsetNewSession: () => { } },
+				_store: { isDisposed: scenario === 'disposed' },
+				_workspacePicker: { removeFromRecents: () => { removed++; } },
+				_createNewSession: async (_folder, pick) => {
+					picks.push(pick);
+					return { session: scenario === 'declined' ? undefined : draft, trustDeclined: scenario === 'declined' };
+				},
+				_startTerminalSession: async query => { queries.push(query); return true; },
+			}, URI.file('/repo'), scenario === 'harness' ? { providerId: 'native-cli', sessionTypeId: 'terminal-codex' } : undefined);
+			results.push({ scenario, queries, picks, removed });
+		}
+		assert.deepStrictEqual(results, [
+			{ scenario: 'terminal', queries: [], picks: [undefined], removed: 0 },
+			{ scenario: 'harness', queries: [], picks: [{ providerId: 'native-cli', sessionTypeId: 'terminal-codex' }], removed: 0 },
+			{ scenario: 'chat', queries: [], picks: [undefined], removed: 0 },
+			{ scenario: 'declined', queries: [], picks: [undefined], removed: 1 },
+			{ scenario: 'superseded', queries: [], picks: [undefined], removed: 0 },
+			{ scenario: 'disposed', queries: [], picks: [], removed: 0 },
+		]);
+	});
+
+	test('CLI startup shows a pixel spinner and warms the terminal without exposing or focusing its screen', () => {
+		const instantiation = disposables.add(new TestInstantiationService());
+		const registry = new SessionTerminalService();
+		instantiation.stub(ISessionTerminalService, registry);
+		instantiation.stub(ILogService, new NullLogService());
+		instantiation.stub(INotificationService, upcastPartial<INotificationService>({ error: () => { } }));
+		instantiation.stub(ITerminalService, upcastPartial<ITerminalService>({ setActiveInstance: () => { } }));
+		const starting = observableValue('starting', false);
+		const launching = observableValue('launching', false);
+		const instance = observableValue<ITerminalInstance | undefined>('instance', undefined);
+		let starts = 0;
+		let focused = 0;
+		const terminalElement = mainWindow.document.createElement('div');
+		const terminal = upcastPartial<ITerminalInstance>({
+			domElement: terminalElement, isDisposed: false, exitReason: undefined,
+			attachToElement: container => container.appendChild(terminalElement),
+			detachFromElement: () => terminalElement.remove(),
+			layout: () => { }, setVisible: () => { },
+			focusWhenReady: async () => { focused++; },
+		});
+		const folder = URI.file('/repo');
+		const session = upcastPartial<IActiveSession>({
+			sessionId: 'draft', providerId: 'native-cli', sessionType: 'terminal-copilot', presentation: 'terminal',
+			mainChat: constObservable(upcastPartial<IChat>({})),
+			workspace: constObservable(upcastPartial<ISessionWorkspace>({ folders: [{ root: folder, workingDirectory: folder, name: 'repo', description: undefined }] })),
+			loading: constObservable(false), status: constObservable(SessionStatus.Untitled), isArchived: constObservable(false),
+			isNewSessionRequestInProgress: starting,
+		});
+		disposables.add(registry.registerSessionTerminal(session.sessionId, {
+			instance, isRunning: derived(reader => !!instance.read(reader)), isStarting: starting, error: constObservable(undefined),
+			start: async () => { starts++; },
+		}));
+		const container = mainWindow.document.createElement('div');
+		mainWindow.document.body.appendChild(container);
+		disposables.add(toDisposable(() => container.remove()));
+		const harness: ITerminalComposerHarness = {
+			_register: value => disposables.add(value),
+			instantiationService: instantiation, sessionTerminalService: registry,
+			_session: constObservable(session), _startingTerminal: launching,
+			_sessionCreationInProgress: constObservable(false),
+			_terminalWarmupView: undefined, _terminalDimensions: new Dimension(500, 400),
+			_workspacePicker: { onDidChangeSelection: Event.None, selectedFolderUri: folder },
+			_newChatInput: { sessionTypePicker: { onDidChangeSelectedPick: Event.None, selectedPick: { providerId: session.providerId, sessionTypeId: session.sessionType } } },
+			uriIdentityService: { extUri },
+			_startTerminalSession: async () => { starts++; return true; },
+		};
+		renderTerminalComposer.call(harness, container);
+		launching.set(true, undefined);
+		starting.set(true, undefined);
+		instance.set(terminal, undefined);
+		const warmup = container.querySelector<HTMLElement>('.new-session-terminal-warmup')!;
+		const progress = container.querySelector<HTMLElement>('.new-session-terminal-progress')!;
+		const duringStartup = {
+			attached: warmup.contains(terminalElement), hidden: warmup.getAttribute('aria-hidden'), inert: warmup.inert,
+			spinner: !!progress.querySelector('.monaco-pixel-spinner'), message: progress.textContent, display: progress.style.display,
+		};
+		starting.set(false, undefined);
+		launching.set(false, undefined);
+		assert.deepStrictEqual({
+			duringStartup, starts, focused,
+			warmupDisposed: harness._terminalWarmupView === undefined,
+			progressHidden: progress.style.display === 'none',
+		}, {
+			duringStartup: { attached: true, hidden: 'true', inert: true, spinner: true, message: 'Starting the CLI terminal...', display: '' },
+			starts: 0, focused: 0, warmupDisposed: true, progressHidden: true,
+		});
 	});
 
 	test('clones a cloud repository only when switching to a local harness', async () => {

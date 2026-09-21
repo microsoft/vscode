@@ -25,6 +25,7 @@ ISessionsProvidersService ----------- provider registry
         +--> ISessionsProvider (Copilot Chat)
         +--> ISessionsProvider (Agent Host)
         +--> ISessionsProvider (Remote Agent Host)
+        +--> ISessionsProvider (Native CLI)
 ```
 
 The implementation follows [LAYERS.md](LAYERS.md). Shared Sessions code remains provider-neutral: provider implementations may consume shared contracts, but shared services and contributions must not depend on provider internals.
@@ -78,6 +79,8 @@ Provider-neutral interfaces live in `services/sessions/common/session.ts`.
 
 An `ISession` has a provider-owned resource URI, provider identifier, session type, and globally unique session identifier. An `IChat` has its own provider-owned resource URI. Consumers compare resource identity and do not parse provider URI formats.
 
+Providers may publish `resourceAliases` for other resources identifying the same underlying session. Management resolves these aliases to the owning facade and suppresses duplicate imported rows. This lets a native terminal session remain canonical when its CLI history is also discovered by a chat provider.
+
 ### Observable state
 
 `ISession` and `IChat` are stable facades. Mutable state is exposed through `IObservable`, including status, title, workspace, chats, model, changes, archive state, and capabilities.
@@ -98,6 +101,14 @@ publication.
 A session groups one or more chats and exposes a main chat. Providers advertise multi-chat, fork, side-chat, and other operations through observable capabilities. Shared code gates affordances on those capabilities rather than provider identifiers.
 
 Chat origin and interactivity describe whether a chat is user-created, tool-created, interactive, read-only, or hidden. Presentation code uses those contracts instead of inferring behavior from resource shape.
+
+### Presentation
+
+Session types and sessions may declare `presentation: 'terminal'`; omission means the existing chat presentation. Terminal types require an explicit selection and never become the default for ordinary chat creation. Both presentations retain the same workspace, identity, lifecycle, and side-panel contracts.
+
+`ISessionTerminalService` registers provider-owned terminal state for the Sessions view factory. The provider owns launch, restoration, and termination; the view owns attachment, layout, visibility, and focus. Switching or closing a visible surface detaches its terminal without terminating the session's process. The shared terminal service routes focus, reveal, and accessibility to the embedded surface rather than moving it into the panel.
+
+A native runtime and a conversation facade have separate lifetimes. A CLI can select another native conversation without replacing its process. The provider transfers runtime ownership between stable facades and routes foreground selection through `ISessionsService`; the outgoing view must not detach a terminal already attached elsewhere. Persisted ownership distinguishes detached conversations from live reconnection targets. Activity describes native work or input waits, not merely process liveness.
 
 ### Workspaces and quick chats
 
@@ -147,6 +158,10 @@ A provider that must establish backend state before presenting a session may imp
 
 `createNewSession` and `createQuickChat` return untitled drafts. A draft remains `Untitled` while its first request is prepared; `isNewSessionRequestInProgress` separately lets the UI present that activity without treating the session as committed. Draft preparation receives the first query so a provider can materialize query-dependent execution state before replacing the draft. A draft enters the committed catalog when its first request is sent. The management service owns the currently presented draft; the provider owns its backend resources. `deleteNewSession` disposes an abandoned draft.
 
+For terminal presentation, workspace, harness, presentation, and account selection only configure an uncommitted draft. The explicit start action commits it by opening its interactive CLI with an empty query, without submitting a model request. Account configuration belongs to the creation surface and is fixed once the process launches; the running session surface contains only the native interaction and session chrome.
+
+Native providers complete initial screen readiness during draft preparation, before management clears the creation surface. The creation UI owns a hidden terminal warmup view for layout and terminal-query handling; the provider owns the unpublished process and cancels it with the draft. Only the subsequent send commits the prepared session, so startup errors never publish an empty or stopped session.
+
 Automation editing uses an independent draft so it cannot replace the ordinary New Session composer. Providers advertise `supportsAutomationSessionConfiguration` when they restore `ISessionsProviderCreateSessionOptions.automationConfiguration` before the draft's first configuration resolution and implement `getAutomationSessionConfiguration` to capture the current template. The management service rejects canonical templates for providers without this capability, while deprecated flat aliases continue through ordinary model, mode, and permission operations. It distinguishes unsupported capture from a valid empty template, a replaced draft, and capture failure.
 
 Provider-specific configuration remains opaque to shared Sessions code. Scoped Automation and New Session surfaces consume the same provider menu contributions and `ISessionContext`; providers may advertise presentation capabilities such as a combined phone Mode/Model picker without exposing provider identity checks to shared UI.
@@ -159,11 +174,16 @@ Providers implement only operations advertised by their contracts, including req
 
 Backend state, transport, URI formats, recovery, and authentication remain inside provider contributions. Providers adapt those details into `ISession`, `IChat`, and shared operations.
 
+Native CLI sessions persist their catalog, repository baseline, and account selection in machine-local profile storage; the CLI owns model selection, approvals, native configuration, and conversation history. A Copilot-backed launch can choose a compatible initial default without a separate model-selection step; resume preserves the native model choice. Native account selection inherits the CLI's authentication unchanged. Copilot account selection uses a local agent-host management service to lease an isolated loopback proxy; upstream credentials never enter the CLI or persisted session metadata. Leases survive renderer reconnection, expire without renewal, and are released when their terminal stops. Loss of the selected account route never falls back to another billing source.
+
+Live terminals reconnect across window reloads when terminal persistence is enabled; with it disabled the process is terminated on reload and the session offers a resume instead. After an application restart, the provider resumes through the CLI rather than letting terminal process revival replay the original launch command. If an exact native conversation identifier is unavailable, the CLI's own resume picker is used instead of guessing the most recent conversation. Archiving or deleting a terminal session stops its process but does not delete CLI-owned history.
+
 Provider-specific contracts are documented in:
 
 - [Copilot Chat provider](contrib/providers/copilotChatSessions/COPILOT_CHAT_SESSIONS_PROVIDER.md)
 - [Agent Host provider](contrib/providers/agentHost/AGENT_HOST_SESSIONS_PROVIDER.md)
 - [Remote Agent Host provider](contrib/providers/remoteAgentHost/REMOTE_AGENT_HOST_SESSIONS_PROVIDER.md)
+- [Native CLI provider](contrib/providers/nativeCli/README.md)
 
 ## Principal lifecycle
 
@@ -213,7 +233,7 @@ Do not mirror observable state with events or use storage and provider internals
 
 ## Provider checklist
 
-1. Implement `ISessionsProvider` under `contrib/providers/<provider>/browser/`.
+1. Implement `ISessionsProvider` under `contrib/providers/<provider>/browser/`, or `electron-browser/` when the provider needs desktop-only services.
 2. Adapt backend state into stable `ISession` and `IChat` facades.
 3. Advertise types and capabilities truthfully and reactively.
 4. Register through the appropriate `sessions.*.main.ts` entry point.

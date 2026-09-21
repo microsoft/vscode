@@ -68,6 +68,8 @@ import type { FetchAutomationRunsParams, FetchAutomationRunsResult, ListAutomati
 import type { CreateResourceWatchParams, CreateResourceWatchResult, ResourceCopyParams, ResourceCopyResult, ResourceDeleteParams, ResourceDeleteResult, ResourceListResult, ResourceMkdirParams, ResourceMkdirResult, ResourceMoveParams, ResourceMoveResult, ResourceReadResult, ResourceResolveParams, ResourceResolveResult, ResourceWriteParams, ResourceWriteResult } from '../common/state/sessionProtocol.js';
 import type { ActionEnvelope, ChatAction, ClientAnnotationsAction, ClientAutomationAction, ClientAutomationRunAction, ClientChangesetAction, INotification, IRootConfigChangedAction, SessionAction, TerminalAction } from '../common/state/sessionActions.js';
 import type { ComponentToState, RootState, StateComponents } from '../common/state/sessionState.js';
+import { INativeCliProxyService } from '../common/nativeCliProxy.js';
+import { INativeCliLifecycleService } from '../common/nativeCliLifecycle.js';
 
 const LOG_PREFIX = '[AgentHost:renderer]';
 
@@ -143,6 +145,14 @@ export class LocalAgentHostManagementConnection extends Disposable {
  */
 export class LocalAgentHostServiceClient extends Disposable implements IAgentHostService {
 	declare readonly _serviceBrand: undefined;
+	get nativeCliProxy(): INativeCliProxyService {
+		this.startAgentHost();
+		return this._getManagementService();
+	}
+	get nativeCliLifecycle(): INativeCliLifecycleService {
+		this.startAgentHost();
+		return this._getManagementService();
+	}
 
 	readonly clientId = generateUuid();
 	get resourceUris() { return this._protocolClient?.resourceUris ?? identityAgentHostResourceUriMapper; }

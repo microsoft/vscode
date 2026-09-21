@@ -4,14 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { timeout } from '../../../../../base/common/async.js';
-import { errorHandler } from '../../../../../base/common/errors.js';
+import { DeferredPromise, raceCancellation, raceCancellationError, timeout } from '../../../../../base/common/async.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { errorHandler, isCancellationError } from '../../../../../base/common/errors.js';
 import { isEqual } from '../../../../../base/common/resources.js';
-import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { ISettableObservable, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { mock } from '../../../../../base/test/common/mock.js';
+import { MultiDiffEditorViewModel } from '../../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorViewModel.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { isIMenuItem, MenuId, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
@@ -34,6 +37,8 @@ import { IEditorWillOpenEvent, isResourceEditorInput } from '../../../../../work
 import { LayoutController } from '../../browser/desktopSessionLayoutController.js';
 import { SinglePaneLayoutController, TOGGLE_DETAILS_COMMAND_ID } from '../../browser/singlePaneLayoutController.js';
 import { CHANGES_VIEW_CONTAINER_ID, CHANGES_VIEW_ID } from '../../../changes/common/changes.js';
+import { SessionChangesEditorInput } from '../../../changes/browser/sessionChangesEditorInput.js';
+import { ISessionChangesModelService } from '../../../changes/browser/sessionChangesModelService.js';
 import '../../../changes/browser/changesActions.js';
 import { SESSIONS_FILES_CONTAINER_ID } from '../../../files/browser/files.contribution.js';
 import { NewChangesTabAction, NewFileTabAction } from '../../../editor/browser/addTabActions.js';
@@ -46,6 +51,9 @@ suite('LayoutController (desktop)', () => {
 	let harness: ITestLayoutHarness;
 
 	class TestLayoutController extends LayoutController {
+		protected override _waitForSessionSwitchPaint(token: CancellationToken): Promise<void> {
+			return harness.waitForSessionSwitchPaint?.(token) ?? Promise.resolve();
+		}
 		readonly sidePaneToggles: { collapsed: boolean; previousAuxiliaryBarVisible: boolean; auxiliaryBarVisible: boolean }[] = [];
 		get isTogglingSidePane(): boolean { return this._togglingSidePane; }
 		protected override _onSidePaneToggled(collapsed: boolean, previousAuxiliaryBarVisible: boolean, auxiliaryBarVisible: boolean): void {
@@ -64,6 +72,9 @@ suite('LayoutController (desktop)', () => {
 	}
 
 	class TestSinglePaneController extends SinglePaneLayoutController {
+		protected override _waitForSessionSwitchPaint(token: CancellationToken): Promise<void> {
+			return harness.waitForSessionSwitchPaint?.(token) ?? Promise.resolve();
+		}
 		/** Runs `work` while a session-switch layout restore is held (see `_withSessionLayoutRestore`). */
 		runWithRestore(work: () => void | Promise<unknown>): void {
 			this._withSessionLayoutRestore(work);
@@ -2961,6 +2972,421 @@ suite('LayoutController (desktop)', () => {
 		}]);
 	});
 
+	test('[managed tabs / latest wins] rapid A to B to C replaces Changes only for C and preserves focus', async () => {
+		const workingSetC = { id: 'ws-c', name: 'C' };
+		createSinglePaneController({
+			activateAux: true,
+			sidePaneVisibilityState: { editorVisible: true, auxiliaryBarVisible: false },
+			layoutState: [
+				{ sessionResource: 'session:b', editorWorkingSet: { id: 'ws-b', name: 'B' } },
+				{ sessionResource: 'session:c', editorWorkingSet: workingSetC },
+			],
+		});
+		await settle();
+		harness.activeSessionObs.set(makeSession(URI.parse('session:a')), undefined);
+		await settle();
+		harness.activeEditorInput = harness.activeGroupEditors.find(editor => !!editor.resource);
+		const replacements: { session: string | undefined; preserveFocus: boolean | undefined }[] = [];
+		harness.onReplaceEditors = editors => {
+			replacements.push(...editors.map(editor => ({
+				session: editor.replacement.resource && harness.sessionChangesService.getSessionResource(editor.replacement.resource)?.toString(),
+				preserveFocus: editor.options?.preserveFocus,
+			})));
+		};
+		harness.openChangesEditorCalls = [];
+		harness.applyWorkingSetCalls = [];
+		harness.activeSessionObs.set(makeSession(URI.parse('session:b')), undefined);
+		harness.activeSessionObs.set(makeSession(URI.parse('session:c')), undefined);
+		await settle();
+
+		assert.deepStrictEqual({
+			workingSetsLoaded: harness.applyWorkingSetCalls,
+			replacements,
+			extraChangesOpens: harness.openChangesEditorCalls,
+			activeChanges: harness.activeEditorInput?.resource && harness.sessionChangesService.getSessionResource(harness.activeEditorInput.resource)?.toString(),
+			suppressionDepth: harness.editorPartAutoVisibilitySuppressionDepth,
+		}, {
+			workingSetsLoaded: [workingSetC],
+			replacements: [{ session: 'session:c', preserveFocus: true }],
+			extraChangesOpens: [],
+			activeChanges: 'session:c',
+			suppressionDepth: 0,
+		});
+	});
+
+	test('[managed tabs / latest wins] waits for the working set instead of loading a duplicate Changes input', async () => {
+		const workingSetB = { id: 'ws-b', name: 'B' };
+		createSinglePaneController({
+			activateAux: true,
+			sidePaneVisibilityState: { editorVisible: true, auxiliaryBarVisible: false },
+			layoutState: [{ sessionResource: 'session:b', editorWorkingSet: workingSetB }],
+		});
+		await settle();
+		harness.activeSessionObs.set(makeSession(URI.parse('session:a')), undefined);
+		await settle();
+		harness.openChangesEditorCalls = [];
+		let replacements = 0;
+		harness.onReplaceEditors = () => { replacements++; };
+		const started = new DeferredPromise<void>();
+		const finishApply = new DeferredPromise<void>();
+		const restoredChanges = store.add(new TestStubEditorInput(harness.sessionChangesService.getChangesEditorResource(URI.parse('session:b'))));
+		const restoredFile = store.add(new TestStubEditorInput(URI.file('/repo/b.ts')));
+		harness.onApplyWorkingSet = async () => {
+			await started.complete();
+			await finishApply.p;
+			harness.activeGroupEditors.splice(0, harness.activeGroupEditors.length, restoredChanges, restoredFile);
+			harness.activeEditorInput = restoredFile;
+			harness.onDidEditorsChange.fire();
+		};
+		harness.activeSessionObs.set(makeSession(URI.parse('session:b')), undefined);
+		await started.p;
+		await settle();
+		const changesOpenedDuringRestore = harness.openChangesEditorCalls.length;
+		await finishApply.complete();
+		await settle();
+
+		assert.deepStrictEqual({
+			changesOpenedDuringRestore,
+			changesOpenedAfterRestore: harness.openChangesEditorCalls.length,
+			replacements,
+			activeEditor: harness.activeEditorInput?.resource?.toString(),
+			editors: harness.activeGroupEditors.map(editor => editor.resource?.toString()),
+			suppressionDepth: harness.editorPartAutoVisibilitySuppressionDepth,
+		}, {
+			changesOpenedDuringRestore: 0,
+			changesOpenedAfterRestore: 0,
+			replacements: 0,
+			activeEditor: restoredFile.resource.toString(),
+			editors: [restoredChanges.resource.toString(), restoredFile.resource.toString()],
+			suppressionDepth: 0,
+		});
+	});
+
+	test('[managed tabs / latest wins] terminal paint precedes the only Changes load after rapid switches', async () => {
+		createSinglePaneController({ activateAux: true });
+		await settle();
+		const paint = new DeferredPromise<void>();
+		const waitStarted = new DeferredPromise<void>();
+		let firstToken: CancellationToken | undefined;
+		harness.waitForSessionSwitchPaint = token => {
+			if (!firstToken) {
+				firstToken = token;
+				void waitStarted.complete();
+			}
+			return raceCancellation(paint.p, token);
+		};
+		const events: string[] = [];
+		harness.onOpenChangesEditor = () => {
+			events.push(`changes:${harness.activeSessionObs.get()?.resource.toString()}`);
+		};
+		harness.activeSessionObs.set(makeSession(URI.parse('session:a')), undefined);
+		await waitStarted.p;
+		harness.activeSessionObs.set(makeSession(URI.parse('session:b')), undefined);
+		harness.activeSessionObs.set(makeSession(URI.parse('session:c')), undefined);
+		events.push('terminal paint');
+		await paint.complete();
+		await settle();
+
+		assert.deepStrictEqual({
+			firstWaitCancelled: firstToken?.isCancellationRequested,
+			events,
+			loadedSessions: harness.openChangesEditorCalls.map(call => call.sessionResource.toString()),
+			filesPresent: hasFilesTab(),
+		}, {
+			firstWaitCancelled: true,
+			events: ['terminal paint', 'changes:session:c'],
+			loadedSessions: ['session:c'],
+			filesPresent: true,
+		});
+	});
+
+	for (const disposal of ['controller', 'editor group'] as const) {
+		test(`[managed tabs / latest wins] ${disposal} disposal cancels a deferred Changes load`, async () => {
+			const controller = createSinglePaneController({ activateAux: true });
+			await settle();
+			const paint = new DeferredPromise<void>();
+			const waitStarted = new DeferredPromise<CancellationToken>();
+			harness.waitForSessionSwitchPaint = token => {
+				void waitStarted.complete(token);
+				return raceCancellation(paint.p, token);
+			};
+			harness.activeSessionObs.set(makeSession(URI.parse('session:a')), undefined);
+			const token = await waitStarted.p;
+			if (disposal === 'controller') {
+				controller.dispose();
+			} else {
+				harness.onWillDisposeActiveGroup.fire();
+			}
+			await settle();
+
+			assert.deepStrictEqual({
+				cancelled: token.isCancellationRequested,
+				loadedSessions: harness.openChangesEditorCalls,
+				filesPresent: hasFilesTab(),
+				suppressionDepth: harness.editorPartAutoVisibilitySuppressionDepth,
+			}, {
+				cancelled: true,
+				loadedSessions: [],
+				filesPresent: false,
+				suppressionDepth: 0,
+			});
+		});
+	}
+
+	test('[managed tabs / latest wins] a queued editor reveal never reopens the previous session collapsed files', async () => {
+		createSinglePaneController({
+			activateAux: true,
+			sidePaneVisibilityState: { editorVisible: true, auxiliaryBarVisible: true },
+		});
+		await settle();
+		harness.activeSessionObs.set(makeSession(URI.parse('session:a')), undefined);
+		await settle();
+		const file = store.add(new TestStubEditorInput(URI.file('/repo/a.ts')));
+		harness.activeGroupEditors.push(file);
+		harness.layoutService.setPartHidden(true, Parts.EDITOR_PART);
+		await settle();
+		harness.openedEditors = [];
+
+		harness.layoutService.setPartHidden(false, Parts.EDITOR_PART);
+		harness.activeSessionObs.set(makeSession(URI.parse('session:b')), undefined);
+		await settle();
+
+		assert.deepStrictEqual({
+			reopenedEditors: harness.openedEditors,
+			oldFilePresent: harness.activeGroupEditors.includes(file),
+			changesSessions: harness.activeGroupEditors.flatMap(editor => {
+				const session = editor.resource && harness.sessionChangesService.getSessionResource(editor.resource);
+				return session ? [session.toString()] : [];
+			}),
+		}, {
+			reopenedEditors: [],
+			oldFilePresent: false,
+			changesSessions: ['session:b'],
+		});
+	});
+
+	function stubChangesModelResolver(getViewModel: () => Promise<MultiDiffEditorViewModel>): string[] {
+		const released: string[] = [];
+		harness.instaService.stub(ISessionChangesModelService, new class extends mock<ISessionChangesModelService>() {
+			override acquire(resource: URI) {
+				const input = new class extends mock<MultiDiffEditorInput>() {
+					override getViewModel(): Promise<MultiDiffEditorViewModel> { return getViewModel(); }
+				};
+				return Object.assign(toDisposable(() => {
+					released.push(harness.sessionChangesService.getSessionResource(resource)?.toString() ?? resource.toString());
+				}), { object: input });
+			}
+		});
+		return released;
+	}
+
+	for (const interruption of ['session switch', 'workspace removal', 'group disposal', 'controller disposal'] as const) {
+		test(`[managed tabs / cancellation] ${interruption} unblocks a pending Changes replacement`, async () => {
+			const controller = createSinglePaneController({ activateAux: true });
+			await settle();
+			harness.activeSessionObs.set(makeSession(URI.parse('session:a')), undefined);
+			await settle();
+			const unresolvedModel = new DeferredPromise<MultiDiffEditorViewModel>();
+			const released = stubChangesModelResolver(() => unresolvedModel.p);
+			const started = new DeferredPromise<void>();
+			const cancelled = new DeferredPromise<void>();
+			const replacements: string[] = [];
+			let cancelledInputDisposed: boolean | undefined;
+			harness.onReplaceEditors = async editors => {
+				const input = editors[0].replacement;
+				assert.ok(input instanceof SessionChangesEditorInput);
+				const session = harness.sessionChangesService.getSessionResource(input.resource)?.toString();
+				assert.ok(session);
+				replacements.push(session);
+				if (session === 'session:b') {
+					const resolving = input.getViewModel();
+					void started.complete();
+					try {
+						await resolving;
+					} catch (error) {
+						if (!isCancellationError(error)) {
+							throw error;
+						}
+						cancelledInputDisposed = input.isDisposed();
+						void cancelled.complete();
+					}
+				}
+			};
+			harness.activeSessionObs.set(makeSession(URI.parse('session:b')), undefined);
+			await started.p;
+			if (interruption === 'session switch') {
+				harness.activeSessionObs.set(makeSession(URI.parse('session:c')), undefined);
+			} else if (interruption === 'workspace removal') {
+				(harness.activeSessionObs.get()!.workspace as ISettableObservable<ISessionWorkspace | undefined>).set(undefined, undefined);
+			} else if (interruption === 'group disposal') {
+				harness.onWillDisposeActiveGroup.fire();
+			} else {
+				controller.dispose();
+			}
+			await cancelled.p;
+			await settle();
+
+			assert.deepStrictEqual({
+				unresolvedModelSettled: unresolvedModel.isSettled,
+				cancelledInputDisposed,
+				released,
+				replacements,
+				suppressionDepth: harness.editorPartAutoVisibilitySuppressionDepth,
+			}, {
+				unresolvedModelSettled: false,
+				cancelledInputDisposed: false,
+				released: ['session:b'],
+				replacements: interruption === 'session switch' ? ['session:b', 'session:c'] : ['session:b'],
+				suppressionDepth: 0,
+			});
+		});
+
+		test(`[managed tabs / cancellation] ${interruption} unblocks a pending Changes open`, async () => {
+			const controller = createSinglePaneController({ activateAux: true });
+			await settle();
+			const unresolvedOpen = new DeferredPromise<void>();
+			const started = new DeferredPromise<CancellationToken>();
+			const cancelled = new DeferredPromise<void>();
+			let firstOpen = true;
+			harness.onOpenChangesEditor = async token => {
+				if (!firstOpen) {
+					return;
+				}
+				firstOpen = false;
+				const opening = raceCancellationError(unresolvedOpen.p, token);
+				void started.complete(token);
+				try {
+					await opening;
+				} catch (error) {
+					if (isCancellationError(error)) {
+						void cancelled.complete();
+					}
+					throw error;
+				}
+			};
+			harness.activeSessionObs.set(makeSession(URI.parse('session:a')), undefined);
+			const token = await started.p;
+			if (interruption === 'session switch') {
+				harness.activeSessionObs.set(makeSession(URI.parse('session:b')), undefined);
+				harness.activeSessionObs.set(makeSession(URI.parse('session:c')), undefined);
+			} else if (interruption === 'workspace removal') {
+				(harness.activeSessionObs.get()!.workspace as ISettableObservable<ISessionWorkspace | undefined>).set(undefined, undefined);
+			} else if (interruption === 'group disposal') {
+				harness.onWillDisposeActiveGroup.fire();
+			} else {
+				controller.dispose();
+			}
+			await cancelled.p;
+			await settle();
+
+			assert.deepStrictEqual({
+				cancelled: token.isCancellationRequested,
+				unresolvedOpenSettled: unresolvedOpen.isSettled,
+				openedSessions: harness.openChangesEditorCalls.map(call => call.sessionResource.toString()),
+				filesPresent: hasFilesTab(),
+				suppressionDepth: harness.editorPartAutoVisibilitySuppressionDepth,
+			}, {
+				cancelled: true,
+				unresolvedOpenSettled: false,
+				openedSessions: interruption === 'session switch' ? ['session:a', 'session:c'] : ['session:a'],
+				filesPresent: interruption === 'session switch',
+				suppressionDepth: 0,
+			});
+		});
+	}
+
+	test('[managed tabs / cancellation] coalesces same-target refreshes while the existing Changes tab is unresolved', async () => {
+		createSinglePaneController({ activateAux: true });
+		await settle();
+		harness.activeSessionObs.set(makeSession(URI.parse('session:a')), undefined);
+		await settle();
+		const model = new DeferredPromise<MultiDiffEditorViewModel>();
+		const released = stubChangesModelResolver(() => model.p);
+		const started = new DeferredPromise<{ original: EditorInput; replacement: SessionChangesEditorInput }>();
+		let replacements = 0;
+		let completed = 0;
+		let cancellations = 0;
+		harness.onReplaceEditors = async editors => {
+			const { editor: original, replacement } = editors[0];
+			assert.ok(replacement instanceof SessionChangesEditorInput);
+			replacements++;
+			const resolving = replacement.getViewModel();
+			void started.complete({ original, replacement });
+			try {
+				await resolving;
+				completed++;
+			} catch (error) {
+				if (isCancellationError(error)) {
+					cancellations++;
+				}
+				throw error;
+			}
+		};
+		harness.openChangesEditorCalls = [];
+		const sessionB = makeSession(URI.parse('session:b'));
+		harness.activeSessionObs.set(sessionB, undefined);
+		const { original, replacement } = await started.p;
+		// The workbench can publish the replacement tab before its model finishes resolving.
+		harness.activeGroupEditors = harness.activeGroupEditors.map(editor => editor === original ? replacement : editor);
+		harness.activeEditorInput = replacement;
+		harness.onDidEditorsChange.fire();
+		harness.activeSessionObs.set(makeSession(sessionB.resource, {
+			workspace: { ...sessionB.workspace.get()!, label: 'Updated metadata' },
+		}), undefined);
+		harness.onDidRevealSidePane.fire();
+		await settle();
+		const pending = { replacements, completed, cancellations, released: [...released] };
+
+		await model.complete(new class extends mock<MultiDiffEditorViewModel>() { });
+		await settle();
+		const files = harness.activeGroupEditors.find(editor => editor instanceof EmptyFileEditorInput);
+		assert.deepStrictEqual({
+			pending,
+			replacements,
+			completed,
+			cancellations,
+			released,
+			changesReopened: harness.openChangesEditorCalls.length,
+			activeInputPreserved: harness.activeEditorInput === replacement,
+			filesWorkspaceLabel: files?.workspace?.label,
+		}, {
+			pending: { replacements: 1, completed: 0, cancellations: 0, released: [] },
+			replacements: 1,
+			completed: 1,
+			cancellations: 0,
+			released: [],
+			changesReopened: 0,
+			activeInputPreserved: true,
+			filesWorkspaceLabel: 'Updated metadata',
+		});
+	});
+
+	test('[managed tabs / cancellation] ambient editor events do not clear a relevant model or retain a completed replacement listener', async () => {
+		createSinglePaneController({ activateAux: true });
+		await settle();
+		harness.activeSessionObs.set(makeSession(URI.parse('session:a')), undefined);
+		await settle();
+		const viewModel = new class extends mock<MultiDiffEditorViewModel>() { };
+		const released = stubChangesModelResolver(() => Promise.resolve(viewModel));
+		const replacements: string[] = [];
+		harness.onReplaceEditors = async editors => {
+			const input = editors[0].replacement;
+			assert.ok(input instanceof SessionChangesEditorInput);
+			await input.getViewModel();
+			replacements.push(harness.sessionChangesService.getSessionResource(input.resource)!.toString());
+			harness.onDidEditorsChange.fire();
+		};
+		harness.activeSessionObs.set(makeSession(URI.parse('session:b')), undefined);
+		await settle();
+		harness.activeSessionObs.set(makeSession(URI.parse('session:c')), undefined);
+		await settle();
+
+		assert.deepStrictEqual({ replacements, released }, {
+			replacements: ['session:b', 'session:c'],
+			released: [],
+		});
+	});
+
 	test('[managed tabs / Changes pill] reveals the editor area before opening the managed Changes editor', async () => {
 		createSinglePaneController({ activateAux: true });
 		await settle();
@@ -3032,6 +3458,32 @@ suite('LayoutController (desktop)', () => {
 		await settle();
 
 		assert.deepStrictEqual({ hasChangesTab: hasChangesTab(), hasFilesTab: hasFilesTab() }, { hasChangesTab: true, hasFilesTab: true });
+	});
+
+	test('[managed tabs / new session] keeps Files when a restore settles without an active session or dismissal record', async () => {
+		const controller = createSinglePaneController({ activateAux: true });
+		await settle();
+		harness.activeSessionObs.set(makeSession(URI.parse('session:created')), undefined);
+		await settle();
+		const files = harness.activeGroupEditors.find(editor => editor instanceof EmptyFileEditorInput);
+		assert.ok(files);
+
+		harness.activeSessionObs.set(undefined, undefined);
+		await settle();
+		controller.runWithRestore(() => harness.onDidEditorsChange.fire());
+		await settle();
+
+		assert.deepStrictEqual({
+			filesPreserved: harness.activeGroupEditors.includes(files),
+			filesClosed: harness.closedEditors.includes(files),
+			changesPresent: hasChangesTab(),
+			suppressionDepth: harness.editorPartAutoVisibilitySuppressionDepth,
+		}, {
+			filesPreserved: true,
+			filesClosed: false,
+			changesPresent: false,
+			suppressionDepth: 0,
+		});
 	});
 
 	test('[managed tabs / submit] activates Changes only after a submitted session reports changes', async () => {

@@ -239,6 +239,7 @@ suite('claudeSdkOptions / buildOptions plugins projection', () => {
 	const proxyHandle: IClaudeProxyHandle = {
 		baseUrl: 'http://127.0.0.1:0',
 		nonce: 'n',
+		setToken: () => { },
 		dispose: () => { },
 	};
 	const proxyTransport: ClaudeTransport = { kind: 'proxy', handle: proxyHandle };
@@ -381,6 +382,7 @@ suite('claudeSdkOptions / buildOptions resumeSessionAt projection', () => {
 	const proxyHandle: IClaudeProxyHandle = {
 		baseUrl: 'http://127.0.0.1:0',
 		nonce: 'n',
+		setToken: () => { },
 		dispose: () => { },
 	};
 	const proxyTransport: ClaudeTransport = { kind: 'proxy', handle: proxyHandle };
@@ -432,6 +434,7 @@ suite('claudeSdkOptions / buildOptions additionalDirectories projection', () => 
 	const proxyHandle: IClaudeProxyHandle = {
 		baseUrl: 'http://127.0.0.1:0',
 		nonce: 'n',
+		setToken: () => { },
 		dispose: () => { },
 	};
 	const proxyTransport: ClaudeTransport = { kind: 'proxy', handle: proxyHandle };

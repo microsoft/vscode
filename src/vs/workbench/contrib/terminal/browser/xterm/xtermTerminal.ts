@@ -1129,7 +1129,10 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 	}
 
 	private _updateTheme(theme?: IColorTheme): void {
-		this.raw.options.theme = this.getXtermTheme(theme);
+		const nextTheme = this.getXtermTheme(theme);
+		if (!equals(this.raw.options.theme, nextTheme)) {
+			this.raw.options.theme = nextTheme;
+		}
 	}
 
 	/**

@@ -30,7 +30,7 @@ import { IChatViewFactory } from '../../services/chatView/browser/chatViewFactor
 import { ISessionsProvidersService } from '../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsPartService } from '../../services/sessions/browser/sessionsPartService.js';
 import { ISessionsService } from '../../services/sessions/browser/sessionsService.js';
-import { ChatInteractivity, ChatOriginKind, IChat, ISession, ISessionCapabilities, SessionRemoteConnectionFailureReason, SessionRemoteConnectionStatus, SessionStatus } from '../../services/sessions/common/session.js';
+import { ChatInteractivity, ChatOriginKind, IChat, ISession, ISessionCapabilities, SessionPresentation, SessionRemoteConnectionFailureReason, SessionRemoteConnectionStatus, SessionStatus } from '../../services/sessions/common/session.js';
 import { IActiveSession, ISessionsManagementService } from '../../services/sessions/common/sessionsManagement.js';
 import { ISessionsProvider } from '../../services/sessions/common/sessionsProvider.js';
 
@@ -75,8 +75,8 @@ class TestChatViewFactory extends mock<IChatViewFactory>() {
 		return this._createView(isNewChatInSession ? 'newChatInSession' : 'newSession', instantiationService);
 	}
 
-	override createChatView(instantiationService?: IInstantiationService): AbstractChatView {
-		return this._createView('chat', instantiationService);
+	override createChatView(instantiationService?: IInstantiationService, presentation?: SessionPresentation): AbstractChatView {
+		return this._createView(presentation === 'terminal' ? 'terminal' : 'chat', instantiationService);
 	}
 
 	private _createView(kind: ChatViewKind, instantiationService?: IInstantiationService): TestChatView {
@@ -110,6 +110,7 @@ function createChat(id: string, status: SessionStatus = SessionStatus.Completed,
 }
 
 class TestActiveSession extends mock<IActiveSession>() {
+	override presentation: SessionPresentation | undefined;
 	override readonly sessionId = 'session';
 	override readonly resource = URI.parse('test-session://session');
 	override readonly providerId: string;
@@ -556,6 +557,26 @@ suite('Sessions - ChatGroupsView', () => {
 			during: ['chat'],
 			after: ['newSession'],
 		});
+	});
+
+	test('terminal sessions use the terminal surface while chat sessions keep their renderer', () => {
+		const { view } = createHarness(disposables);
+		const draft = new TestActiveSession([createChat('draft', SessionStatus.Untitled)], undefined, false);
+		draft.presentation = 'terminal';
+		view.setSession(draft, options);
+		const creationView = view.element.querySelector<HTMLElement>('.chat-view');
+		const before = view.element.querySelector<HTMLElement>('.chat-view')?.dataset.kind;
+		draft.isNewSessionRequestInProgress.set(true, undefined);
+		const starting = view.element.querySelector<HTMLElement>('.chat-view')?.dataset.kind;
+		const keptCreationView = view.element.querySelector<HTMLElement>('.chat-view') === creationView;
+		const terminal = new TestActiveSession([createChat('terminal')]);
+		terminal.presentation = 'terminal';
+		view.setSession(terminal, options);
+		const running = view.element.querySelector<HTMLElement>('.chat-view')?.dataset.kind;
+		view.setSession(new TestActiveSession([createChat('chat')]), options);
+		const chat = view.element.querySelector<HTMLElement>('.chat-view')?.dataset.kind;
+
+		assert.deepStrictEqual({ before, starting, keptCreationView, running, chat }, { before: 'newSession', starting: 'newSession', keptCreationView: true, running: 'terminal', chat: 'chat' });
 	});
 
 	test('opening a hidden chat to the side removes its temporary active-group assignment', async () => {

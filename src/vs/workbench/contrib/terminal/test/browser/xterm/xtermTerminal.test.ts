@@ -7,6 +7,7 @@ import type { Terminal } from '@xterm/xterm';
 import { deepStrictEqual, ok, strictEqual } from 'assert';
 import { importAMDNodeModule } from '../../../../../../amdX.js';
 import { timeout } from '../../../../../../base/common/async.js';
+import { mainWindow } from '../../../../../../base/browser/window.js';
 import { Color, RGBA } from '../../../../../../base/common/color.js';
 import { Emitter } from '../../../../../../base/common/event.js';
 import { toDisposable } from '../../../../../../base/common/lifecycle.js';
@@ -123,6 +124,28 @@ suite('XtermTerminal', () => {
 	test('should use fallback dimensions of 80x30', () => {
 		strictEqual(xterm.raw.cols, 80);
 		strictEqual(xterm.raw.rows, 30);
+	});
+
+	test('refreshing an unchanged theme preserves colors set by the terminal process', async () => {
+		const container = mainWindow.document.createElement('div');
+		mainWindow.document.body.appendChild(container);
+		store.add(toDisposable(() => container.remove()));
+		xterm.attachToElement(container, { enableGpu: false });
+		const responses: string[] = [];
+		store.add(xterm.raw.onData(data => responses.push(data)));
+		await write('\x1b]10;#aabbcc\x07\x1b]11;#0d1117\x07\x1b]4;1;#123456\x07');
+		const query = '\x1b]10;?\x07\x1b]11;?\x07\x1b]4;1;?\x07';
+		await write(query);
+		const initial = responses.splice(0);
+		xterm.raw.open(xterm.raw.element!);
+		xterm.refresh();
+		await write(query);
+		const expected = [
+			'\x1b]10;rgb:aaaa/bbbb/cccc\x1b\\',
+			'\x1b]11;rgb:0d0d/1111/1717\x1b\\',
+			'\x1b]4;1;rgb:1212/3434/5656\x1b\\',
+		];
+		deepStrictEqual({ initial, refreshed: responses }, { initial: expected, refreshed: expected });
 	});
 
 	test('detached terminals do not register decoration shutdown listeners', () => {

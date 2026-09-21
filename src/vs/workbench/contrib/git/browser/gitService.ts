@@ -5,11 +5,13 @@
 
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { BugIndicatingError } from '../../../../base/common/errors.js';
+import { Emitter } from '../../../../base/common/event.js';
 import { Disposable, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
-import { IGitService, IGitExtensionDelegate, GitRef, GitRefQuery, IGitRepository, GitRepositoryState, GitDiffChange } from '../common/gitService.js';
+import { IGitService, IGitExtensionDelegate, GitRef, GitRefQuery, IGitRepository, GitRepositoryState, GitChange, GitDiffChange, IGitDiffOptions } from '../common/gitService.js';
 import { ISettableObservable, observableValueOpts } from '../../../../base/common/observable.js';
 import { structuralEquals } from '../../../../base/common/equals.js';
+import { isEqual } from '../../../../base/common/resources.js';
 import { AutoOpenBarrier } from '../../../../base/common/async.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 
@@ -18,6 +20,8 @@ export class GitService extends Disposable implements IGitService {
 
 	private _delegate: IGitExtensionDelegate | undefined;
 	private _delegateBarrier = new AutoOpenBarrier(10_000);
+	private readonly _onDidOpenRepository = this._register(new Emitter<IGitRepository>());
+	readonly onDidOpenRepository = this._onDidOpenRepository.event;
 
 	get repositories(): Iterable<IGitRepository> {
 		return this._delegate?.repositories ?? [];
@@ -55,8 +59,31 @@ export class GitService extends Disposable implements IGitService {
 			return undefined;
 		}
 
-		return this._delegate.openRepository(uri);
+		const repository = await this._delegate.openRepository(uri);
+		if (repository) {
+			this._onDidOpenRepository.fire(repository);
+		}
+		return repository;
 	}
+}
+
+/**
+ * `structuralEquals` bails out on any value whose prototype is not `Object.prototype`, so a
+ * state holding revived `URI` instances always compares unequal. Without this, every
+ * `updateState` on a repository with any change wakes all of its observers.
+ */
+function gitRepositoryStateEquals(a: GitRepositoryState, b: GitRepositoryState): boolean {
+	const changesEqual = (left: readonly GitChange[], right: readonly GitChange[]) =>
+		left.length === right.length && left.every((change, index) =>
+			isEqual(change.uri, right[index].uri)
+			&& isEqual(change.originalUri, right[index].originalUri)
+			&& isEqual(change.modifiedUri, right[index].modifiedUri));
+	return structuralEquals(a.HEAD, b.HEAD)
+		&& structuralEquals(a.remotes, b.remotes)
+		&& changesEqual(a.mergeChanges, b.mergeChanges)
+		&& changesEqual(a.indexChanges, b.indexChanges)
+		&& changesEqual(a.workingTreeChanges, b.workingTreeChanges)
+		&& changesEqual(a.untrackedChanges, b.untrackedChanges);
 }
 
 export class GitRepository extends Disposable implements IGitRepository {
@@ -75,7 +102,7 @@ export class GitRepository extends Disposable implements IGitRepository {
 		super();
 
 		this.rootUri = rootUri;
-		this.state = observableValueOpts({ owner: this, equalsFn: structuralEquals }, initialState);
+		this.state = observableValueOpts({ owner: this, equalsFn: gitRepositoryStateEquals }, initialState);
 	}
 
 	async getRefs(query: GitRefQuery, token?: CancellationToken): Promise<GitRef[]> {
@@ -86,7 +113,7 @@ export class GitRepository extends Disposable implements IGitRepository {
 		return this.delegate.diffBetweenWithStats(this.rootUri, ref1, ref2, path);
 	}
 
-	async diffBetweenWithStats2(ref: string, path?: string): Promise<GitDiffChange[]> {
-		return this.delegate.diffBetweenWithStats2(this.rootUri, ref, path);
+	async diffBetweenWithStats2(ref: string, path?: string, options?: IGitDiffOptions): Promise<GitDiffChange[]> {
+		return this.delegate.diffBetweenWithStats2(this.rootUri, ref, path, options);
 	}
 }

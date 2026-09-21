@@ -67,6 +67,12 @@ export class MultiDiffEditorWidget extends Disposable {
 		return new MultiDiffEditorViewModel(model, this._instantiationService);
 	}
 
+	override dispose(): void {
+		// Detach the model before binding disposal can trigger another virtualized layout.
+		this._viewModel.set(undefined, undefined);
+		super.dispose();
+	}
+
 	public setViewModel(viewModel: MultiDiffEditorViewModel | undefined, options?: { readonly preserveFocus?: boolean; readonly viewState?: IMultiDiffEditorViewState }): void {
 		// `MultiDiffEditor.clearInput()` awaits `super.clearInput()` before it
 		// calls `setViewModel(undefined)`; during that await the editor pane and

@@ -44,6 +44,7 @@ import { CopilotCliConfigKey, CopilotCliVSCodeAssignmentContextKey, copilotCliCo
 import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostByokModelsEnabledConfigKey, AgentHostMcpServersConfigKey, AgentHostGitHubMcpServerEnabledConfigKey, AgentHostCopilotMultiRootEnabledConfigKey, AgentHostSessionSyncEnabledConfigKey, AgentHostSystemProxyEnabledConfigKey, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostProxyConfigKey, agentHostProxyConfigSchema, AutoApproveLevel, SessionMode, migrateLegacyAutopilotConfig, platformRootSchema, platformSessionSchema, type AgentHostMcpServers } from '../../common/agentHostSchema.js';
 import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { decodeProviderData, encodeProviderData, type IPersistedChat } from '../agentChatBackings.js';
+import { SessionCatalogCache } from '../sessionCatalogCache.js';
 import { AgentChatOperationContext, AgentSession, AgentSignal, AuthenticateParams, IActiveClient, IAgent, IAgentChatAdoptionResult, type IAgentAdoptedWorktree, IAgentChatConfigCompletionsParams, IAgentChatContext, IAgentChatDataChange, IAgentChatMetadata, IAgentChats, IAgentLegacyChat, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentDescriptor, IAgentDiscoveredChat, IAgentHostManagedSettingsSnapshot, IAgentHostNetworkEndpoint, IAgentKnownSessionsFilter, IAgentMaterializeChatEvent, IAgentModelInfo, IAgentResolveChatConfigParams, IAgentSessionProjectInfo, IAgentSpawnChatEvent, IMcpNotification, SubagentChatSignal, resolveAgentChatContext, resolveAgentHostCustomizations, resolveAgentHostInstructions, resolveSubagentChatParent, type IAgentTurnDiagnosticSnapshot, type IAgentTurnTokenUsage } from '../../common/agent.js';
 import { getReasoningEffortDescription, getReasoningEffortLabel, resolveDefaultReasoningEffort } from '../../common/reasoningEffort.js';
 import { autoModeTiers, defaultAutoModeTier, getAutoModeTierDescription, getAutoModeTierLabel } from '../../common/autoModeTiers.js';
@@ -350,6 +351,15 @@ interface IWorkingDirectoryMetadataSnapshot {
 	readonly workingDirectories: string | undefined;
 	readonly customizationDirectory: string | undefined;
 }
+
+type CopilotSdkSessionList = Awaited<ReturnType<CopilotClient['rpc']['sessions']['list']>>['sessions'];
+
+interface ICopilotSessionCatalog {
+	readonly sessions: CopilotSdkSessionList;
+	readonly metadata: ReadonlyMap<string, SessionMetadata>;
+}
+
+type CopilotChatDiscoveryResult = 'unavailable' | 'incomplete' | 'complete';
 
 interface IWorkingDirectoryChangeTransactionOptions {
 	readonly resource: URI;
@@ -2157,6 +2167,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	private _stopClient(): Promise<void> {
+		this._sdkSessionCatalog.clear();
+		this._prewarmedSessionMetadata = undefined;
 		// Any parked restart is satisfied by this stop: the next `_ensureClient`
 		// starts from the current config, so nothing is left to re-apply. Cleared
 		// synchronously so a concurrent `_applyPendingClientRestart` bails rather
@@ -2585,15 +2597,32 @@ export class CopilotAgent extends Disposable implements IAgent {
 		return undefined;
 	}
 
-	async listChatsToMigrate(): Promise<IAgentChatMetadata[] | undefined> {
-		const sessions = await this._listSdkSessions('chats to migrate', client => client.listSessions());
-		if (!sessions) {
+	private _legacyChatListing: Promise<IAgentChatMetadata[] | undefined> | undefined;
+	private readonly _sdkSessionCatalog = this._register(new SessionCatalogCache<ICopilotSessionCatalog>(0));
+
+	listChatsToMigrate(): Promise<IAgentChatMetadata[] | undefined> {
+		if (!this._legacyChatListing) {
+			const pending = this._listChatsToMigrate();
+			this._legacyChatListing = pending;
+			const clear = () => {
+				if (this._legacyChatListing === pending) {
+					this._legacyChatListing = undefined;
+				}
+			};
+			void pending.then(clear, clear);
+		}
+		return this._legacyChatListing;
+	}
+
+	private async _listChatsToMigrate(): Promise<IAgentChatMetadata[] | undefined> {
+		const catalog = await this._listSdkSessionCatalog();
+		if (!catalog) {
 			return undefined;
 		}
 		const projectLimiter = new Limiter<IAgentSessionProjectInfo | undefined>(4);
 		const metadataLimiter = new Limiter<IAgentChatMetadata | undefined>(4);
 		const projectByContext = new Map<string, Promise<IAgentSessionProjectInfo | undefined>>();
-		const mapped = await Promise.all(sessions.map(s => metadataLimiter.queue(async () => {
+		const mapped = await Promise.all([...catalog.metadata.values()].map(s => metadataLimiter.queue(async () => {
 			const session = AgentSession.uri(this.id, s.sessionId);
 			const chat = URI.parse(buildDefaultChatUri(session));
 			const metadata = await this._readStoredSessionMetadata(session);
@@ -2685,24 +2714,35 @@ export class CopilotAgent extends Disposable implements IAgent {
 	 */
 	private _startCopilotChatDiscovery(): Promise<void> {
 		if (!this._copilotChatDiscovery) {
-			this._copilotChatDiscovery = this._runCopilotChatDiscovery();
+			const pending = this._runCopilotChatDiscovery().then(completed => {
+				if (!completed && this._copilotChatDiscovery === pending) {
+					this._copilotChatDiscovery = undefined;
+				}
+			}, error => {
+				if (this._copilotChatDiscovery === pending) {
+					this._copilotChatDiscovery = undefined;
+				}
+				throw error;
+			});
+			this._copilotChatDiscovery = pending;
 		}
 		return this._copilotChatDiscovery;
 	}
 
-	private _runCopilotChatDiscovery(): Promise<void> {
+	private _runCopilotChatDiscovery(): Promise<boolean> {
 		return this._copilotChatDiscoverySequencer.queue(async () => {
 			for (let attempt = 0; ; attempt++) {
 				if (this._shutdownPromise || this._store.isDisposed) {
 					// Teardown began between attempts; stop rather than sleep on a dead client.
-					return;
+					return false;
 				}
-				if (await this._emitCopilotChats()) {
-					return;
+				const result = await this._emitCopilotChats();
+				if (result !== 'unavailable') {
+					return result === 'complete';
 				}
 				if (attempt >= CHAT_DISCOVERY_RETRY_DELAYS_MS.length) {
 					this._logService.warn('[Copilot] Chat discovery failed: catalog never became available');
-					return;
+					return false;
 				}
 				await timeout(CHAT_DISCOVERY_RETRY_DELAYS_MS[attempt]);
 			}
@@ -2715,17 +2755,16 @@ export class CopilotAgent extends Disposable implements IAgent {
 	 * while in-place migration is enabled, because they are surfaced so the
 	 * user can adopt them rather than as someone else's session.
 	 *
-	 * Returns whether the provider catalog could be enumerated at all, which is
-	 * what {@link _startCopilotChatDiscovery} retries on.
+	 * Unavailable catalogs are retried; partial publication remains retryable on the next discovery request.
 	 */
-	private async _emitCopilotChats(): Promise<boolean> {
+	private async _emitCopilotChats(): Promise<CopilotChatDiscoveryResult> {
 		const migrateLegacyAtStart = this._isMigrateLegacyCopilotCliEnabled();
 		try {
 			const enumerated = await this._discoverCopilotChats(chats => this._publishDiscoveredChats(chats, migrateLegacyAtStart));
 			return enumerated;
 		} catch (err) {
 			this._logService.warn('[Copilot] Failed to emit discovered chats', err);
-			return false;
+			return 'unavailable';
 		}
 	}
 
@@ -2781,14 +2820,14 @@ export class CopilotAgent extends Disposable implements IAgent {
 	 * would otherwise withhold the whole catalog and fail every retry — so a
 	 * failing chat is logged and skipped while its siblings still surface.
 	 *
-	 * `undefined` means the catalog could not be enumerated yet — not an
-	 * authoritative empty result.
+	 * An unavailable catalog or an incomplete classification is not memoized as successful discovery.
 	 */
-	private async _discoverCopilotChats(publish: (chats: readonly IAgentDiscoveredChat[]) => void): Promise<boolean> {
-		const sessions = await this._listSdkSessions('discoverable chats', async client => (await client.rpc.sessions.list({})).sessions);
-		if (!sessions) {
-			return false;
+	private async _discoverCopilotChats(publish: (chats: readonly IAgentDiscoveredChat[]) => void): Promise<CopilotChatDiscoveryResult> {
+		const catalog = await this._listSdkSessionCatalog();
+		if (!catalog) {
+			return 'unavailable';
 		}
+		const sessions = catalog.sessions;
 		// Filter registered candidates with one registry query.
 		const knownSessions = this._knownSessionsFilter
 			? await this._knownSessionsFilter(sessions.map(s => AgentSession.uri(this.id, s.sessionId)))
@@ -2883,7 +2922,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		});
 		for (let i = 0; i < sessions.length; i += COPILOT_DISCOVERY_BATCH_SIZE) {
 			if (this._shutdownPromise || this._store.isDisposed) {
-				return true;
+				return 'incomplete';
 			}
 			const mapped = await Promise.all(sessions.slice(i, i + COPILOT_DISCOVERY_BATCH_SIZE).map(classify));
 			const chats = mapped.filter((chat): chat is IAgentDiscoveredChat => chat !== undefined);
@@ -2894,7 +2933,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			}
 		}
 		this._logService.info(`[Copilot] Chat discovery: ${sessions.length} SDK session(s) -> ${external} external, ${discovered - external} adoptable legacy extension-host, ${suppressedAdoptable} suppressed adoptable legacy extension-host, ${suppressedArchived} suppressed archived legacy extension-host, ${known} already known to Agent Host, ${withoutWorkingDirectory} without a working directory, ${unsupportedClientName} with unsupported or missing client name, ${outsideImportWindow} outside the import window, ${withoutRepository} without repository metadata, ${failed} failed to classify (adopt legacy extension-host chats: ${emitAdoptable})`);
-		return true;
+		return failed === 0 ? 'complete' : 'incomplete';
 	}
 
 	private async _listSdkSessions<T>(reason: string, listSessions: (client: CopilotClient) => Promise<readonly T[]>): Promise<readonly T[] | undefined> {
@@ -2908,16 +2947,43 @@ export class CopilotAgent extends Disposable implements IAgent {
 				this._logService.info(`[Copilot] Client unavailable while listing ${reason}: ${err instanceof Error ? err.message : String(err)}`);
 				return undefined;
 			}
+
 			throw err;
 		}
+	}
+
+	private _listSdkSessionCatalog(): Promise<ICopilotSessionCatalog | undefined> {
+		return this._sdkSessionCatalog.get('copilot', '', async () => {
+			const sessions = await this._listSdkSessions('session catalog', async client => (await client.rpc.sessions.list({})).sessions);
+			if (!sessions) {
+				return undefined;
+			}
+			const metadata = new Map<string, SessionMetadata>();
+			for (const session of sessions) {
+				metadata.set(session.sessionId, {
+					sessionId: session.sessionId,
+					startTime: new Date(session.startTime),
+					modifiedTime: new Date(session.modifiedTime),
+					summary: session.summary,
+					isRemote: session.isRemote,
+					context: session.context ? {
+						workingDirectory: session.context.cwd,
+						gitRoot: session.context.gitRoot,
+						repository: session.context.repository,
+						branch: session.context.branch,
+					} : undefined,
+				});
+			}
+			return { sessions: [...sessions], metadata };
+		});
 	}
 
 	/**
 	 * Short-lived cache of per-session SDK metadata, warmed by
 	 * {@link prewarmSessionMetadata} from a single bulk `listSessions()` call so a
 	 * `listSessions` pass over a large catalogue serves {@link getChatMetadata}
-	 * from memory instead of one `getSessionMetadata` RPC per session. Ref-counted
-	 * so overlapping passes share one warm set and clear it once all release.
+	 * from memory instead of one `getSessionMetadata` RPC per session. Discovery
+	 * and migration share the same in-flight SDK enumeration.
 	 */
 	private _prewarmedSessionMetadata: ReadonlyMap<string, SessionMetadata> | undefined;
 	private _prewarmSessionMetadataRefs = 0;
@@ -2926,15 +2992,16 @@ export class CopilotAgent extends Disposable implements IAgent {
 		// One bulk read replaces N per-session `getSessionMetadata` round-trips
 		// during the metadata phase. Best-effort: when the client cannot enumerate
 		// (SDK not ready), callers transparently fall back to per-session reads.
-		const sessions = await this._listSdkSessions('prewarm session metadata', client => client.listSessions());
-		if (!sessions) {
+		if (this._shutdownPromise || this._store.isDisposed) {
 			return Disposable.None;
 		}
-		const byId = new Map<string, SessionMetadata>();
-		for (const metadata of sessions) {
-			byId.set(metadata.sessionId, metadata);
+		if (!this._prewarmedSessionMetadata) {
+			const catalog = await this._listSdkSessionCatalog();
+			if (!catalog || this._shutdownPromise || this._store.isDisposed) {
+				return Disposable.None;
+			}
+			this._prewarmedSessionMetadata ??= catalog.metadata;
 		}
-		this._prewarmedSessionMetadata = byId;
 		this._prewarmSessionMetadataRefs++;
 		return toDisposable(() => {
 			if (--this._prewarmSessionMetadataRefs <= 0) {
@@ -4746,6 +4813,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 	 * teardown retry-safe.
 	 */
 	private async _deleteSdkSession(sdkSessionId: string, chatKey: string): Promise<void> {
+		this._sdkSessionCatalog.clear();
+		this._prewarmedSessionMetadata = undefined;
 		const client = await this._ensureClient();
 		try {
 			await client.deleteSession(sdkSessionId);
@@ -5110,6 +5179,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 	async shutdown(): Promise<void> {
 		if (!this._shutdownPromise) {
+			this._sdkSessionCatalog.clear();
+			this._prewarmedSessionMetadata = undefined;
 			this._isShuttingDown = true;
 			this._sessionsPendingRegistration.clearAndDisposeAll();
 			this._githubCredentials.shutdown();

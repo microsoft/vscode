@@ -682,6 +682,7 @@ interface ISessionItemTemplate {
 	readonly statusIcon: SessionStatusIcon;
 	readonly title: HighlightedLabel;
 	readonly titleContainer: HTMLElement;
+	readonly presentationIcon: HTMLElement;
 	readonly titleToolbar: MenuWorkbenchToolBar | undefined;
 	readonly renderedSession: ISettableObservable<ISession | undefined>;
 	readonly pendingVoiceIndicator: HTMLElement;
@@ -808,6 +809,10 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 		const statusIcon = disposables.add(this.instantiationService.createInstance(SessionStatusIcon, iconContainer));
 		const mainCol = DOM.append(container, $('.session-main'));
 		const titleRow = DOM.append(mainCol, $('.session-title-row'));
+		const presentationIcon = DOM.append(titleRow, $('span.session-presentation-icon'));
+		presentationIcon.setAttribute('aria-hidden', 'true');
+		presentationIcon.style.display = 'none';
+		disposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), presentationIcon, localize('sessionTerminalIcon', "Native CLI terminal session")));
 		const titleContainer = DOM.append(titleRow, $('.session-title'));
 		const title = disposables.add(new HighlightedLabel(titleContainer));
 		// The shimmer's CSS animation restarts from zero whenever it (re)starts —
@@ -892,7 +897,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 			}));
 		}
 
-		return { container, statusIcon, title, titleContainer, titleToolbar, renderedSession, pendingVoiceIndicator, detailsRow, approvalRow, approvalLabel, approvalButtonContainer, ciRow, ciLabel, ciButtonContainer, contextKeyService, statusContext, isReadContext, isArchivedContext, supportsDeleteContext, disposables, elementDisposables };
+		return { container, statusIcon, title, titleContainer, presentationIcon, titleToolbar, renderedSession, pendingVoiceIndicator, detailsRow, approvalRow, approvalLabel, approvalButtonContainer, ciRow, ciLabel, ciButtonContainer, contextKeyService, statusContext, isReadContext, isArchivedContext, supportsDeleteContext, disposables, elementDisposables };
 	}
 
 	renderElement(node: ITreeNode<SessionListItem, FuzzyScore>, _index: number, template: ISessionItemTemplate): void {
@@ -1036,6 +1041,12 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 		}));
 
 		// Title — reactive
+		template.presentationIcon.style.display = element.presentation === 'terminal' ? '' : 'none';
+		DOM.clearNode(template.presentationIcon);
+		if (element.presentation === 'terminal') {
+			DOM.append(template.presentationIcon, $(`span${ThemeIcon.asCSSSelector(element.icon)}`));
+			DOM.append(template.presentationIcon, $(`span.session-terminal-marker${ThemeIcon.asCSSSelector(Codicon.terminal)}`));
+		}
 		template.elementDisposables.add(autorun(reader => {
 			const titleText = element.title.read(reader);
 			template.title.set(titleText, matches);
@@ -1911,7 +1922,9 @@ class SessionsAccessibilityProvider {
 			const title = element.title.read(reader);
 			const updated = fromNow(element.updatedAt.read(reader), true);
 			let label: string;
-			if (this.options?.includeQuickChatInAriaLabel && element.isQuickChat?.read(reader)) {
+			if (element.presentation === 'terminal') {
+				label = localize('sessionItemTerminalAria', "{0}, {1} terminal session, updated {2}", title, element.presentationLabel ?? localize('sessionItemCli', "CLI"), updated);
+			} else if (this.options?.includeQuickChatInAriaLabel && element.isQuickChat?.read(reader)) {
 				label = localize('sessionItemQuickChatAria', "{0}, chat, updated {1}", title, updated);
 			} else if (element.worktreePending?.read(reader)) {
 				label = localize('sessionItemWorktreePendingAria', "{0}, creating worktree, updated {1}", title, updated);

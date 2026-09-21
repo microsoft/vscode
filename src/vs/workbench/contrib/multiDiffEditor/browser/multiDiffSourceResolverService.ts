@@ -28,6 +28,8 @@ export interface IMultiDiffSourceResolver {
 
 export interface IResolvedMultiDiffSource {
 	readonly resources: IValueWithChangeEvent<readonly MultiDiffEditorItem[]>;
+	/** Defers file contents and diff computation until a row is visible or explicitly requested. */
+	readonly loadOnDemand?: boolean;
 	readonly label?: IValueWithChangeEvent<string>;
 	readonly contextKeys?: Record<string, ContextKeyValue>;
 }

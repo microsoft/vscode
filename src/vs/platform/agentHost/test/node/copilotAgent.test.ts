@@ -19,6 +19,7 @@ import { Schemas } from '../../../../base/common/network.js';
 import { autorun, observableValue, waitForState } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
 import { INativeEnvironmentService } from '../../../environment/common/environment.js';
 import { FileService } from '../../../files/common/fileService.js';
 import { IFileService, type IStat } from '../../../files/common/files.js';
@@ -407,6 +408,12 @@ class TestSessionDatabase extends SessionDatabase {
 	private _metadataWriteFailure: { readonly key: string; readonly error: Error } | undefined;
 	private _metadataWriteGate: { readonly key: string; readonly wait: Promise<void>; readonly entered: DeferredPromise<void> } | undefined;
 	readonly metadataWrites: { readonly key: string; readonly value: string }[] = [];
+	metadataReadCount = 0;
+
+	override async getMetadataObject<T extends Record<string, unknown>>(keys: T): Promise<{ [K in keyof T]: string | undefined }> {
+		this.metadataReadCount++;
+		return super.getMetadataObject(keys);
+	}
 
 	failNextMetadataWrite(key: string, error: Error): void {
 		this._metadataWriteFailure = { key, error };
@@ -485,6 +492,10 @@ class TestSessionDataService extends Disposable implements ISessionDataService {
 		const db = this._databases.get(AgentSession.id(session));
 		assert.ok(db, `No database exists for ${session.toString()}`);
 		return db.metadataWrites;
+	}
+
+	metadataReadCount(session: URI): number {
+		return this._databases.get(AgentSession.id(session))?.metadataReadCount ?? 0;
 	}
 
 	deleteSessionData(): Promise<void> { return Promise.resolve(); }
@@ -606,8 +617,12 @@ class TestCopilotClient implements ITestCopilotClient {
 		sessions: {
 			fork: async () => ({ sessionId: 'forked-session' }),
 			list: async () => {
+				this.listSessionCallCount++;
 				this.sessionListStarted?.complete();
 				await this.sessionListGate;
+				if (this.sessionListError) {
+					throw this.sessionListError;
+				}
 				return {
 					sessions: this._sessions.map(session => ({
 						sessionId: session.sessionId,
@@ -650,6 +665,7 @@ class TestCopilotClient implements ITestCopilotClient {
 	listSessionCallCount = 0;
 	sessionListStarted: DeferredPromise<void> | undefined;
 	sessionListGate: Promise<void> | undefined;
+	sessionListError: Error | undefined;
 	readonly modelListRequests: Parameters<CopilotModelsList>[0][] = [];
 	readonly modelListErrors: Error[] = [];
 	/** When set, `models.list` records its request then blocks on this until resolved. */
@@ -3409,7 +3425,7 @@ suite('CopilotAgent', () => {
 				startupEvents,
 			}, {
 				startCallCount: 1,
-				listSessionCallCount: 2,
+				listSessionCallCount: 1,
 				startupEvents: [{
 					outcome: 'success',
 					durationMs: 'number',
@@ -5276,6 +5292,185 @@ suite('CopilotAgent', () => {
 	});
 
 	suite('prewarmSessionMetadata cache', () => {
+		async function seedCatalogMetadata(service: TestSessionDataService, sessions: readonly URI[]): Promise<void> {
+			for (const session of sessions) {
+				const ref = service.openDatabase(session);
+				try {
+					await ref.object.setMetadataValues({ 'copilot.workingDirectory': URI.file('/workspace').toString(), 'copilot.project.resolved': 'true' });
+				} finally {
+					ref.dispose();
+				}
+			}
+		}
+
+		test('migration, discovery and overlapping prewarm leases share SDK enumeration and per-session database reads', async () => {
+			const sessions = ['shared-a', 'shared-b'].map(id => AgentSession.uri('copilotcli', id));
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			await seedCatalogMetadata(sessionDataService, sessions);
+			const client = new TestCopilotClient(sessions.map(session => sdkSession(AgentSession.id(session))));
+			const gate = new DeferredPromise<void>();
+			client.sessionListStarted = new DeferredPromise<void>();
+			client.sessionListGate = gate.p;
+			const agent = createTestAgent(disposables, { copilotClient: client, sessionDataService });
+			let filterCalls = 0;
+			agent.setKnownSessionsFilter(async candidates => {
+				filterCalls++;
+				return new Set(candidates.map(session => session.toString()));
+			});
+			const firstMigration = agent.listChatsToMigrate();
+			const secondMigration = agent.listChatsToMigrate();
+			const firstDiscovery = agent.startChatDiscovery();
+			const secondDiscovery = agent.startChatDiscovery();
+			const firstWarm = agent.prewarmSessionMetadata().then(warm => disposables.add(warm));
+			const secondWarm = agent.prewarmSessionMetadata().then(warm => disposables.add(warm));
+			try {
+				await client.sessionListStarted.p;
+				gate.complete();
+				const [first, second, , , warmA, warmB] = await Promise.all([firstMigration, secondMigration, firstDiscovery, secondDiscovery, firstWarm, secondWarm]);
+				const migrationReads = sessions.map(session => sessionDataService.metadataReadCount(session));
+				warmA.dispose();
+				await agent.getChatMetadata(defaultChatUri(sessions[0]), sessions[0]);
+				const beforeLastRelease = [...client.getSessionMetadataCalls];
+				warmB.dispose();
+				await agent.getChatMetadata(defaultChatUri(sessions[1]), sessions[1]);
+				assert.deepStrictEqual({
+					migrations: [first?.length, second?.length],
+					migrationReads,
+					finalReads: sessions.map(session => sessionDataService.metadataReadCount(session)),
+					listCalls: client.listSessionCallCount,
+					filterCalls,
+					beforeLastRelease,
+					afterLastRelease: client.getSessionMetadataCalls,
+				}, {
+					migrations: [2, 2],
+					migrationReads: [1, 1],
+					finalReads: [2, 2],
+					listCalls: 1,
+					filterCalls: 1,
+					beforeLastRelease: [],
+					afterLastRelease: ['shared-b'],
+				});
+			} finally {
+				gate.complete();
+				await Promise.allSettled([firstMigration, secondMigration, firstDiscovery, secondDiscovery, firstWarm, secondWarm]);
+				await disposeAgent(agent);
+			}
+		});
+
+		test('a later prewarm observes added, removed and renamed SDK sessions', async () => {
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			const sessions = ['refresh-a', 'refresh-b', 'refresh-c'].map(id => AgentSession.uri('copilotcli', id));
+			await seedCatalogMetadata(sessionDataService, sessions);
+			const catalog = [sdkSession('refresh-a'), sdkSession('refresh-b')];
+			const client = new TestCopilotClient(catalog);
+			const agent = createTestAgent(disposables, { copilotClient: client, sessionDataService });
+			try {
+				const first = disposables.add(await agent.prewarmSessionMetadata());
+				first.dispose();
+				catalog.splice(0, catalog.length, { ...sdkSession('refresh-a'), summary: 'Renamed' }, sdkSession('refresh-c'));
+				const second = disposables.add(await agent.prewarmSessionMetadata());
+				const metadata = await Promise.all(sessions.map(session => agent.getChatMetadata(defaultChatUri(session), session)));
+				second.dispose();
+				assert.deepStrictEqual({
+					summaries: metadata.map(entry => entry?.summary),
+					listCalls: client.listSessionCallCount,
+					fallbackReads: client.getSessionMetadataCalls,
+				}, {
+					summaries: ['Renamed', undefined, 'SDK refresh-c'],
+					listCalls: 2,
+					fallbackReads: ['refresh-b'],
+				});
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('a failed shared enumeration is not cached by prewarm or migration', async () => {
+			const client = new TestCopilotClient([]);
+			client.sessionListError = new Error('catalog read failed');
+			const agent = createTestAgent(disposables, { copilotClient: client });
+			try {
+				await assert.rejects(Promise.all([agent.prewarmSessionMetadata(), agent.listChatsToMigrate()]), /catalog read failed/);
+				client.sessionListError = undefined;
+				const warm = disposables.add(await agent.prewarmSessionMetadata());
+				warm.dispose();
+				assert.strictEqual(client.listSessionCallCount, 2);
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('single-session metadata does not wait for an unrelated bulk scan', async () => {
+			const session = AgentSession.uri('copilotcli', 'direct-metadata');
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			await seedCatalogMetadata(sessionDataService, [session]);
+			const client = new TestCopilotClient([sdkSession(AgentSession.id(session))]);
+			const gate = new DeferredPromise<void>();
+			client.sessionListStarted = new DeferredPromise<void>();
+			client.sessionListGate = gate.p;
+			const agent = createTestAgent(disposables, { copilotClient: client, sessionDataService });
+			const listing = agent.listChatsToMigrate();
+			try {
+				await client.sessionListStarted.p;
+				const metadata = await raceTimeout(agent.getChatMetadata(defaultChatUri(session), session), 1000);
+				assert.deepStrictEqual({ title: metadata?.summary, reads: client.getSessionMetadataCalls }, {
+					title: 'SDK direct-metadata',
+					reads: ['direct-metadata'],
+				});
+			} finally {
+				gate.complete();
+				await listing;
+				await disposeAgent(agent);
+			}
+		});
+
+		test('exhausted discovery can be retried after the catalog recovers', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const client = new TestCopilotClient([]);
+			client.sessionListError = new Error('catalog unavailable');
+			const agent = createTestAgent(disposables, { copilotClient: client });
+			try {
+				await agent.startChatDiscovery();
+				const failedAttempts = client.listSessionCallCount;
+				client.sessionListError = undefined;
+				await Promise.all([agent.startChatDiscovery(), agent.startChatDiscovery()]);
+				assert.deepStrictEqual({ failed: failedAttempts > 0, recoveryReads: client.listSessionCallCount - failedAttempts }, { failed: true, recoveryReads: 1 });
+			} finally {
+				await disposeAgent(agent);
+			}
+		}));
+
+		test('partial classification does not cache a failed session as completed discovery', async () => {
+			class FailingSessionDataService extends TestSessionDataService {
+				fail = true;
+
+				override async tryOpenDatabase(session: URI): Promise<IReference<SessionDatabase> | undefined> {
+					if (this.fail && AgentSession.id(session) === 'failed-classification') {
+						this.fail = false;
+						throw new Error('database unavailable');
+					}
+					return super.tryOpenDatabase(session);
+				}
+			}
+			const sessions = ['failed-classification', 'known-classification'].map(id => AgentSession.uri('copilotcli', id));
+			const sessionDataService = disposables.add(new FailingSessionDataService());
+			await seedCatalogMetadata(sessionDataService, sessions);
+			const client = new TestCopilotClient(sessions.map(session => sdkSession(AgentSession.id(session))));
+			const agent = createTestAgent(disposables, { copilotClient: client, sessionDataService });
+			try {
+				await agent.startChatDiscovery();
+				const firstReads = sessions.map(session => sessionDataService.metadataReadCount(session));
+				await agent.startChatDiscovery();
+				await agent.startChatDiscovery();
+				assert.deepStrictEqual({
+					firstReads,
+					retriedReads: sessions.map(session => sessionDataService.metadataReadCount(session)),
+					listCalls: client.listSessionCallCount,
+				}, { firstReads: [0, 1], retriedReads: [1, 2], listCalls: 2 });
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
 		test('serves getChatMetadata from one bulk list, falls back on miss, and reverts after disposal', async () => {
 			const sessionA = AgentSession.uri('copilotcli', 'prewarm-a');
 			const sessionB = AgentSession.uri('copilotcli', 'prewarm-b');
@@ -6206,7 +6401,9 @@ suite('CopilotAgent', () => {
 		});
 
 		test('resolves the proxy on first client start without a bridge', async () => {
-			const client = new TestCopilotClient([]);
+			const client = new StopCountingClient([]);
+			const stopGate = new DeferredPromise<void>();
+			client.stopGate = stopGate.p;
 			const proxyResolver = new TestProxyResolver();
 			const proxy = 'http://late-system-proxy.example:8080';
 			const { agent } = createTestAgentContext(disposables, { copilotClient: client, proxyResolver });
@@ -6214,18 +6411,35 @@ suite('CopilotAgent', () => {
 				await timeout(0);
 				proxyResolver.resolvedProxy = proxy;
 				await agent.listChatsToMigrate();
-				for (let i = 0; i < 20 && client.stopCallCount < 1; i++) {
+				for (let i = 0; i < 20 && client.stopCount < 1; i++) {
 					await timeout(0);
 				}
-				await agent.listChatsToMigrate();
+				// Keep the replacement inside the original proxy refresh regardless of catalog latency.
+				const replacement = agent.listChatsToMigrate();
+				await timeout(0);
+				const whileStopping = {
+					startCallCount: client.startCallCount,
+					stopCallCount: client.stopCallCount,
+					stopRequests: client.stopCount,
+					resolveProxyCalls: proxyResolver.resolveProxyCalls,
+				};
+				stopGate.complete();
+				await replacement;
 
 				assert.deepStrictEqual({
+					whileStopping,
 					startCallCount: client.startCallCount,
 					stopCallCount: client.stopCallCount,
 					resolveProxyCalls: proxyResolver.resolveProxyCalls,
 					httpProxy: getCreatedClientOptions(agent).at(-1)?.env?.['HTTP_PROXY'],
 					httpsProxy: getCreatedClientOptions(agent).at(-1)?.env?.['HTTPS_PROXY'],
 				}, {
+					whileStopping: {
+						startCallCount: 1,
+						stopCallCount: 0,
+						stopRequests: 1,
+						resolveProxyCalls: 1,
+					},
 					startCallCount: 2,
 					stopCallCount: 1,
 					resolveProxyCalls: 1,
@@ -6233,6 +6447,7 @@ suite('CopilotAgent', () => {
 					httpsProxy: proxy,
 				});
 			} finally {
+				stopGate.complete();
 				await disposeAgent(agent);
 			}
 		});

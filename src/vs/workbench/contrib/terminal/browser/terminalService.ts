@@ -69,6 +69,7 @@ export class TerminalService extends Disposable implements ITerminalService {
 	private _hostActiveTerminals: Map<ITerminalInstanceHost, ITerminalInstance | undefined> = new Map();
 
 	private _detachedXterms = new Set<IDetachedTerminalInstance>();
+	private readonly _embeddedTerminals = new Map<ITerminalInstance, () => Promise<void>>();
 	private _detachedListenersRegistered = false;
 	private readonly _terminalShellTypeContextKey: IContextKey<string>;
 
@@ -114,6 +115,11 @@ export class TerminalService extends Disposable implements ITerminalService {
 
 	private _activeInstance: ITerminalInstance | undefined;
 	get activeInstance(): ITerminalInstance | undefined {
+		for (const instance of this._embeddedTerminals.keys()) {
+			if (instance.hasFocus) {
+				return instance;
+			}
+		}
 		// Check if either an editor or panel terminal has focus and return that, regardless of the
 		// value of _activeInstance. This avoids terminals created in the panel for example stealing
 		// the active status even when it's not focused.
@@ -380,6 +386,11 @@ export class TerminalService extends Disposable implements ITerminalService {
 		if (!value) {
 			return;
 		}
+		if (this._embeddedTerminals.has(value)) {
+			this._activeInstance = value;
+			this._onDidChangeActiveInstance.fire(value);
+			return;
+		}
 		// If this was a hideFromUser terminal created by the API this was triggered by show,
 		// in which case we need to create the terminal group
 		if (value.shellLaunchConfig.hideFromUser) {
@@ -393,6 +404,15 @@ export class TerminalService extends Disposable implements ITerminalService {
 	}
 
 	async focusInstance(instance: ITerminalInstance): Promise<void> {
+		const reveal = this._embeddedTerminals.get(instance);
+		if (reveal) {
+			await reveal();
+			this.setActiveInstance(instance);
+			// `force`, like both terminal hosts: without it any selection in the window
+			// suppresses the focus and keystrokes silently go elsewhere.
+			await instance.focusWhenReady(true);
+			return;
+		}
 		if (this._activeInstance !== instance) {
 			this.setActiveInstance(instance);
 		}
@@ -593,6 +613,16 @@ export class TerminalService extends Disposable implements ITerminalService {
 	}
 
 	async revealTerminal(source: ITerminalInstance, preserveFocus?: boolean): Promise<void> {
+		const reveal = this._embeddedTerminals.get(source);
+		if (reveal) {
+			if (preserveFocus) {
+				await reveal();
+			} else {
+				// `focusInstance` reveals first, so this must not reveal twice.
+				await this.focusInstance(source);
+			}
+			return;
+		}
 		if (source.target === TerminalLocation.Editor) {
 			await this._terminalEditorService.revealActiveEditor(preserveFocus);
 		} else {
@@ -970,6 +1000,36 @@ export class TerminalService extends Disposable implements ITerminalService {
 			}
 		}
 		return this;
+	}
+
+	registerEmbeddedTerminal(instance: ITerminalInstance, reveal: () => Promise<void>): DisposableStore {
+		if (this._embeddedTerminals.has(instance)) {
+			throw new Error(`Terminal ${instance.instanceId} is already embedded`);
+		}
+		const store = new DisposableStore();
+		this._embeddedTerminals.set(instance, reveal);
+		store.add(toDisposable(() => {
+			this._embeddedTerminals.delete(instance);
+			if (this._activeInstance === instance) {
+				// Fall back to a host's last active terminal rather than clearing: both kinds
+				// coexist in the Agents window, and clearing would make
+				// `getActiveOrCreateInstance` spawn a redundant terminal.
+				let next: ITerminalInstance | undefined;
+				for (const active of this._hostActiveTerminals.values()) {
+					if (active) {
+						next = active;
+					}
+				}
+				this._activeInstance = next;
+				this._onDidChangeActiveInstance.fire(next);
+			}
+		}));
+		store.add(instance.onDidFocus(() => {
+			this.setActiveInstance(instance);
+			this._onDidFocusInstance.fire(instance);
+		}));
+		store.add(instance.onDisposed(() => store.dispose()));
+		return store;
 	}
 
 	async createTerminal(options?: ICreateTerminalOptions): Promise<ITerminalInstance> {

@@ -100,7 +100,7 @@ export class MobileSessionTypePicker extends SessionTypePicker {
 		for (const [groupTitle, types] of groups) {
 			let isFirstInGroup = true;
 			for (const { providerId, sessionType } of types) {
-				const availability = getSessionTypeAvailability(this.chatSessionsService, this.chatEntitlementService, this.languageModelsService, sessionType.chatSessionType ?? sessionType.id);
+				const availability = sessionType.presentation === 'terminal' ? SessionTypeAvailability.Available : getSessionTypeAvailability(this.chatSessionsService, this.chatEntitlementService, this.languageModelsService, sessionType.chatSessionType ?? sessionType.id);
 				sheetItems.push({
 					id: `${providerId}\u0000${sessionType.id}`,
 					label: sessionType.label,

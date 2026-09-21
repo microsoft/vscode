@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { Event } from '../../../../base/common/event.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { IObservable } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -38,6 +39,11 @@ export interface GitChange {
 export interface GitDiffChange extends GitChange {
 	readonly insertions: number;
 	readonly deletions: number;
+}
+
+export interface IGitDiffOptions {
+	/** Reject failures instead of returning an empty diff. */
+	readonly throwOnError?: boolean;
 }
 
 export interface GitRemote {
@@ -81,7 +87,7 @@ export interface IGitRepository {
 
 	getRefs(query: GitRefQuery, token?: CancellationToken): Promise<GitRef[]>;
 	diffBetweenWithStats(ref1: string, ref2: string, path?: string): Promise<GitDiffChange[]>;
-	diffBetweenWithStats2(ref: string, path?: string): Promise<GitDiffChange[]>;
+	diffBetweenWithStats2(ref: string, path?: string, options?: IGitDiffOptions): Promise<GitDiffChange[]>;
 }
 
 export interface IGitExtensionDelegate {
@@ -90,7 +96,7 @@ export interface IGitExtensionDelegate {
 
 	getRefs(root: URI, query?: GitRefQuery, token?: CancellationToken): Promise<GitRef[]>;
 	diffBetweenWithStats(root: URI, ref1: string, ref2: string, path?: string): Promise<GitDiffChange[]>;
-	diffBetweenWithStats2(root: URI, ref: string, path?: string): Promise<GitDiffChange[]>;
+	diffBetweenWithStats2(root: URI, ref: string, path?: string, options?: IGitDiffOptions): Promise<GitDiffChange[]>;
 }
 
 export const IGitService = createDecorator<IGitService>('gitService');
@@ -99,6 +105,8 @@ export interface IGitService {
 	readonly _serviceBrand: undefined;
 
 	readonly repositories: Iterable<IGitRepository>;
+	/** A repository facade was opened or replaced. */
+	readonly onDidOpenRepository: Event<IGitRepository>;
 
 	setDelegate(delegate: IGitExtensionDelegate): IDisposable;
 

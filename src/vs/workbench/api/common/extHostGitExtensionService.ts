@@ -11,7 +11,7 @@ import { ExtensionIdentifier } from '../../../platform/extensions/common/extensi
 import { createDecorator } from '../../../platform/instantiation/common/instantiation.js';
 import { IExtHostExtensionService } from './extHostExtensionService.js';
 import { IExtHostRpcService } from './extHostRpcService.js';
-import { ExtHostGitExtensionShape, GitBranchDto, GitChangeDto, GitDiffChangeDto, GitRefDto, GitRefQueryDto, GitRefTypeDto, GitRepositoryStateDto, GitUpstreamRefDto, MainContext, MainThreadGitExtensionShape } from './extHost.protocol.js';
+import { ExtHostGitExtensionShape, GitBranchDto, GitChangeDto, GitDiffChangeDto, GitDiffOptionsDto, GitRefDto, GitRefQueryDto, GitRefTypeDto, GitRepositoryStateDto, GitUpstreamRefDto, MainContext, MainThreadGitExtensionShape } from './extHost.protocol.js';
 import { ResourceMap } from '../../../base/common/map.js';
 
 const GIT_EXTENSION_ID = 'vscode.git';
@@ -316,9 +316,12 @@ export class ExtHostGitExtensionService extends Disposable implements IExtHostGi
 		}
 	}
 
-	async $diffBetweenWithStats2(handle: number, ref: string, path?: string): Promise<GitDiffChangeDto[]> {
+	async $diffBetweenWithStats2(handle: number, ref: string, path?: string, options?: GitDiffOptionsDto): Promise<GitDiffChangeDto[]> {
 		const repository = this._repositories.get(handle);
 		if (!repository) {
+			if (options?.throwOnError) {
+				throw new Error(`Git repository ${handle} is no longer available`);
+			}
 			return [];
 		}
 
@@ -329,7 +332,10 @@ export class ExtHostGitExtensionService extends Disposable implements IExtHostGi
 				insertions: c.insertions,
 				deletions: c.deletions,
 			}));
-		} catch {
+		} catch (error) {
+			if (options?.throwOnError) {
+				throw error;
+			}
 			return [];
 		}
 	}

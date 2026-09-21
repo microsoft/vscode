@@ -807,7 +807,9 @@ export class SessionsService extends Disposable implements ISessionsService {
 				session.providerId,
 				this.activeSession.get()?.sessionId === session.sessionId,
 				session.loading.get(),
+				session.presentation,
 			);
+			this.sessionOpenTelemetryService.sessionActivationStarted(telemetryAttempt);
 			this.sessionOpenTelemetryService.sessionActivated(telemetryAttempt, chatUri);
 		}
 		this.logService.trace(`[SessionsView] openChat start uri=${chatUri.toString()} provider=${session.providerId}`);
@@ -942,7 +944,9 @@ export class SessionsService extends Disposable implements ISessionsService {
 				sessionData.providerId,
 				this.activeSession.get()?.sessionId === sessionData.sessionId,
 				sessionData.loading.get(),
+				sessionData.presentation,
 			);
+			this.sessionOpenTelemetryService.sessionActivationStarted(telemetryAttempt);
 			this._showSession(sessionData, options);
 			await this._waitForOpenSessionToLoad(sessionData, token, telemetryAttempt);
 		});

@@ -14,7 +14,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { NullLogService } from '../../../log/common/log.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { AuthInfo, IRequestService } from '../../../request/common/request.js';
-import { AgentHostClientProxyChannel, createAgentHostClientProxyConnection, type IAgentHostClientProxyConnection } from '../../common/agentHostClientProxyChannel.js';
+import { AGENT_HOST_CONTROL_CLIENT_ID, AgentHostClientProxyChannel, createAgentHostClientProxyConnection, isAgentHostRendererClient, type IAgentHostClientProxyConnection } from '../../common/agentHostClientProxyChannel.js';
 import { AgentHostProxyConfigKey } from '../../common/agentHostSchema.js';
 import { AgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
@@ -67,6 +67,16 @@ function createAgentConfigurationService(disposables: Pick<DisposableStore, 'add
 
 suite('AgentHostProxyResolver', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('the main-process control connection is not a renderer reverse-channel target', () => {
+		assert.deepStrictEqual([
+			isAgentHostRendererClient(AGENT_HOST_CONTROL_CLIENT_ID),
+			isAgentHostRendererClient(''),
+			isAgentHostRendererClient(undefined),
+			isAgentHostRendererClient({ clientId: 'renderer' }),
+			isAgentHostRendererClient('renderer'),
+		], [false, false, false, false, true]);
+	});
 
 	test('fires when the first connection registers and after all connections reconnect', () => {
 		const configurationService = createAgentConfigurationService(disposables);

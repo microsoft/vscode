@@ -972,6 +972,21 @@
             "included": false
         },
         {
+            "key": "sessions.terminal.enabled",
+            "name": "AgentsWindowTerminalSessions",
+            "category": "InteractiveSession",
+            "minimumVersion": "1.139",
+            "localization": {
+                "description": {
+                    "key": "sessions.terminal.enabled.policy",
+                    "value": "Enable CLI terminal sessions in the Agents window. Users can run agent CLIs such as Copilot CLI, Claude Code, and Codex in an embedded terminal against a local folder."
+                }
+            },
+            "type": "boolean",
+            "default": true,
+            "included": true
+        },
+        {
             "key": "telemetry.feedback.enabled",
             "name": "EnableFeedback",
             "category": "Telemetry",

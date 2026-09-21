@@ -1035,6 +1035,30 @@ suite('SessionDatabase', () => {
 
 	suite('session metadata', () => {
 
+		test('notifies catalog invalidation after committed metadata mutations, not failed or conditional no-op writes', async () => {
+			let notifications = 0;
+			const database = disposables.add(new TestableSessionDatabase(':memory:', undefined, () => notifications++));
+			db = database;
+			await database.setMetadata('title', 'first');
+			await database.setMetadataValues({ title: 'second', archived: 'true' });
+			await database.deleteMetadata(['archived']);
+			await database.setMetadataValuesIfAbsent('migration', { migration: 'true' });
+			await database.setMetadataValuesIfAbsent('migration', { title: 'ignored' });
+			await database.setWorkspaceConversion('turn', '{}', { title: 'converted' });
+			await database.deleteTurn('turn');
+			await database.runRaw(`CREATE TRIGGER fail_metadata BEFORE INSERT ON session_metadata
+				WHEN NEW.key = 'fail' BEGIN SELECT RAISE(ABORT, 'metadata write failed'); END`);
+			await assert.rejects(database.setMetadataValues({ title: 'rolled back', fail: 'true' }), /metadata write failed/);
+
+			assert.deepStrictEqual({
+				notifications,
+				metadata: await database.getMetadataObject({ title: true, archived: true, [AH_META_HAS_WORKSPACE_TRANSITIONS_DB_KEY]: true }),
+			}, {
+				notifications: 6,
+				metadata: { title: 'converted', archived: undefined, [AH_META_HAS_WORKSPACE_TRANSITIONS_DB_KEY]: undefined },
+			});
+		});
+
 		test('getMetadata returns undefined for missing key', async () => {
 			db = disposables.add(await SessionDatabase.open(':memory:'));
 			assert.strictEqual(await db.getMetadata('nonexistent'), undefined);

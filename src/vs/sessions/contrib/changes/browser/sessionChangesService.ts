@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter } from '../../../../base/common/event.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { CancellationError } from '../../../../base/common/errors.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { autorun, derived, IObservable } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -120,7 +122,10 @@ export class SessionChangesService extends Disposable implements ISessionChanges
 		return URI.parse(fields.sessionResource);
 	}
 
-	async openChangesEditor(sessionResource: URI, options?: ISessionChangesEditorOptions, group?: PreferredGroup): Promise<IEditorGroup | undefined> {
+	async openChangesEditor(sessionResource: URI, options?: ISessionChangesEditorOptions, group?: PreferredGroup, cancellationToken: CancellationToken = CancellationToken.None): Promise<IEditorGroup | undefined> {
+		if (cancellationToken.isCancellationRequested) {
+			throw new CancellationError();
+		}
 		if (options?.changesetSelection) {
 			if (options.changesetSelection.kind === 'transient') {
 				this.changesViewService.showChangeset(options.changesetSelection.changeset);
@@ -137,9 +142,17 @@ export class SessionChangesService extends Disposable implements ISessionChanges
 
 		if (this.layoutService.isSinglePaneLayoutEnabled) {
 			const input = this.instantiationService.createInstance(SessionChangesEditorInput, multiDiffSource);
-			const pane = await this.editorService.openEditor(input, { ...editorOptions, pinned: true }, group);
-			await this.expandRevealTarget(pane?.input, editorOptions);
-			return pane?.group;
+			const cancellation = input.bindCancellationToken(cancellationToken);
+			try {
+				const pane = await this.editorService.openEditor(input, { ...editorOptions, pinned: true }, group);
+				if (cancellationToken.isCancellationRequested) {
+					return undefined;
+				}
+				await this.expandRevealTarget(pane?.input, editorOptions);
+				return pane?.group;
+			} finally {
+				cancellation.dispose();
+			}
 		}
 
 		const pane = await this.editorService.openEditor({
@@ -147,6 +160,9 @@ export class SessionChangesService extends Disposable implements ISessionChanges
 			label: localize('sessions.changes.title', 'Session Changes'),
 			options: editorOptions,
 		}, group);
+		if (cancellationToken.isCancellationRequested) {
+			return undefined;
+		}
 		await this.expandRevealTarget(pane?.input, editorOptions);
 		return pane?.group;
 	}

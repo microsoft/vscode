@@ -6,6 +6,7 @@
 import { ServicesAccessor } from '../../../../editor/browser/editorExtensions.js';
 import { getActiveElement, isHTMLElement } from '../../../../base/browser/dom.js';
 import { AccessibleViewProviderId, AccessibleViewType, AccessibleContentProvider } from '../../../../platform/accessibility/browser/accessibleView.js';
+import { accessibleViewCurrentProviderId, accessibleViewIsShown } from '../../../../workbench/contrib/accessibility/browser/accessibilityConfiguration.js';
 import { getModePickerAccessibilityHelp } from '../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostModePickerPresentation.js';
 import { IAccessibleViewImplementation } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
 import { AccessibilityVerbositySettingId } from '../../../../workbench/contrib/accessibility/browser/accessibilityConfiguration.js';
@@ -23,12 +24,21 @@ import { ChatSessionArchiveActionWording, getChatSessionArchiveActionWording } f
 import { SESSION_ARCHIVE_NUDGE_SETTING } from './sessionArchiveNudge.js';
 import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { isPhoneLayout } from '../../../browser/parts/mobile/mobileLayout.js';
+import { TerminalContextKeys } from '../../../../workbench/contrib/terminal/common/terminalContextKey.js';
+import { isWeb } from '../../../../base/common/platform.js';
 export class SessionsChatAccessibilityHelp implements IAccessibleViewImplementation {
 	readonly priority = 120;
 	readonly name = 'sessionsChat';
 	readonly type = AccessibleViewType.Help;
 	// A custom view replaces the chat surface this help describes, so it does not apply then.
-	readonly when = ContextKeyExpr.and(IsSessionsWindowContext, CustomViewVisibleContext.negate());
+	// The terminal's own help (priority 105) is also registered for its Accessible View, so
+	// this must stand down there too or it would win on priority and describe the wrong surface.
+	readonly when = ContextKeyExpr.and(
+		IsSessionsWindowContext,
+		CustomViewVisibleContext.negate(),
+		TerminalContextKeys.focus.negate(),
+		ContextKeyExpr.and(accessibleViewIsShown, accessibleViewCurrentProviderId.isEqualTo(AccessibleViewProviderId.Terminal))!.negate(),
+	);
 
 	getProvider(accessor: ServicesAccessor) {
 		const sessionsPartService = accessor.get(ISessionsPartService);
@@ -37,6 +47,10 @@ export class SessionsChatAccessibilityHelp implements IAccessibleViewImplementat
 
 		const content: string[] = [];
 		content.push(localize('sessionsChat.overview', "You are in the Agents window. The Agents window is a dedicated workspace for working with AI agents. It provides a chat interface, a changes view for reviewing agent-generated changes, a file explorer, and customization options."));
+		if (!isWeb) {
+			content.push(localize('sessionsChat.terminalSessions', "When creating a workspace session, the Session interface radio group lets you choose Chat or CLI Terminal. Use the arrow keys to focus an option and Enter or Space to select it. Choose a CLI and local folder, then activate Start Terminal Session to open its idle terminal without submitting a prompt. Changing pickers does not start a session. New Claude Code and Codex sessions default to GitHub Copilot; the CLI account source radio group on the creation screen lets you explicitly choose the native account instead. The source determines which account's usage limits apply and cannot be changed after starting. Account controls are not shown above the running terminal. Model selection stays in the CLI using /model; no pre-launch model choice is required. Terminal sessions show their CLI's icon with a terminal marker and remain grouped with their repository. Native conversation switches update the selected session and its repository details. Progress reflects native work rather than an idle terminal. Files and Changes remain available. Inside the terminal, Accessibility Help describes terminal navigation and Accessible View reads its output."));
+			content.push(localize('sessionsChat.terminalStartup', "After starting a CLI, the creation screen announces startup progress and remains visible until the CLI has an initial screen to display. Native sign-in and trust prompts appear in the terminal when they need your input. Startup failures leave the creation screen available for retry."));
+		}
 		content.push(localize('sessionsChat.input', "You are in the chat input. Type a message and press Enter to send it."));
 		content.push(getModePickerAccessibilityHelp());
 		content.push(localize('sessionsChat.inputPills', "When session metadata or active-turn status pills appear above the input, press Shift+Tab to reach them, use the Left and Right arrow keys to move between them, and press Enter or Space to activate one. Open the context menu{0} to choose which pills are shown. Pull Requests Options lets you show all pull requests or only open and draft ones, remembered across sessions. If every pull request is filtered out, use the toolbar context menu to show all again.", '<keybinding:editor.action.showContextMenu>'));

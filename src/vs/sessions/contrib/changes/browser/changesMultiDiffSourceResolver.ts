@@ -90,6 +90,6 @@ export class ChangesMultiDiffSourceResolver extends Disposable implements IMulti
 			});
 		});
 
-		return { resources: new ValueWithChangeEventFromObservable(resourcesObs) };
+		return { resources: new ValueWithChangeEventFromObservable(resourcesObs), loadOnDemand: true };
 	}
 }

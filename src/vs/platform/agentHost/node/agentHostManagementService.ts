@@ -9,6 +9,8 @@ import { ILogService } from '../../log/common/log.js';
 import { IAgentCreateChatRequestOptions, IAgentCreateSessionConfig } from '../common/agent.js';
 import { IAgentHostInspectInfo, IAgentHostManagedSettingsDiagnostics, IAgentHostManagementService, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult, IAgentHostSocketInfo, IAgentService, IConnectionTrackerService, type AgentHostDebugLogsArtifactKind, type IAgentHostDebugLogsArtifact, type IAgentHostDebugLogsChunk } from '../common/agentService.js';
 import { ISessionDataService } from '../common/sessionDataService.js';
+import { INativeCliProxyService, NativeCliProxyKind } from '../common/nativeCliProxy.js';
+import { INativeCliLifecycleService, INativeCliLifecycleLaunch, NativeCliLifecycleKind } from '../common/nativeCliLifecycle.js';
 
 const SHUTDOWN_DRAIN_TIMEOUT_MS = 1000;
 const PROVIDER_SHUTDOWN_TIMEOUT_MS = 1500;
@@ -27,7 +29,38 @@ export class AgentHostManagementService implements IAgentHostManagementService {
 		private readonly _shutdownProtocolIngress: () => Promise<void>,
 		@ISessionDataService private readonly _sessionDataService: ISessionDataService,
 		@ILogService private readonly _logService: ILogService,
+		@INativeCliProxyService private readonly _nativeCliProxyService: INativeCliProxyService,
+		@INativeCliLifecycleService private readonly _nativeCliLifecycleService: INativeCliLifecycleService,
 	) { }
+
+	getNativeCliModels(kind: NativeCliProxyKind) {
+		return this._nativeCliProxyService.getNativeCliModels(kind);
+	}
+
+	createNativeCliLifecycle(kind: NativeCliLifecycleKind, execPath: string, launch?: INativeCliLifecycleLaunch) {
+		return this._runMutation(() => this._nativeCliLifecycleService.createNativeCliLifecycle(kind, execPath, launch));
+	}
+
+	releaseNativeCliLifecycle(id: string): Promise<void> {
+		return this._nativeCliLifecycleService.releaseNativeCliLifecycle(id);
+	}
+
+	startNativeCliProxy(sessionId: string, kind: NativeCliProxyKind, modelId?: string) {
+		return this._runMutation(() => this._nativeCliProxyService.startNativeCliProxy(sessionId, kind, modelId));
+	}
+
+	retainNativeCliProxy(sessionId: string, leaseId: string) {
+		return this._nativeCliProxyService.retainNativeCliProxy(sessionId, leaseId);
+	}
+
+	releaseNativeCliProxy(sessionId: string, leaseId: string) {
+		return this._nativeCliProxyService.releaseNativeCliProxy(sessionId, leaseId);
+	}
+
+	releaseNativeCliResources(): void {
+		this._nativeCliProxyService.releaseNativeCliResources();
+		this._nativeCliLifecycleService.releaseNativeCliResources();
+	}
 
 	createSessionWithExtensions(config: IAgentCreateSessionConfig): Promise<URI> {
 		return this._runMutation(() => this._agentService.createSession(config));
@@ -88,6 +121,14 @@ export class AgentHostManagementService implements IAgentHostManagementService {
 			this._logService.warn(`Agent Host management operations did not finish within ${SHUTDOWN_DRAIN_TIMEOUT_MS}ms during shutdown.`);
 		}).catch(error => this._logService.error('An in-flight Agent Host management operation failed during shutdown.', error));
 		await Promise.all([protocolDrain, managementDrain]);
+		// Dispose the native CLI services here rather than relying on the `process.exit`
+		// handler: the utility process is killed as soon as `shutdown()` resolves, so their
+		// temp directories and loopback gateways would otherwise be orphaned.
+		try {
+			this.releaseNativeCliResources();
+		} catch (error) {
+			this._logService.error('Agent Host native CLI shutdown failed.', error);
+		}
 		try {
 			await raceTimeout(this._agentService.shutdown(), PROVIDER_SHUTDOWN_TIMEOUT_MS, () => {
 				this._logService.warn(`Agent Host providers did not finish shutting down within ${PROVIDER_SHUTDOWN_TIMEOUT_MS}ms.`);

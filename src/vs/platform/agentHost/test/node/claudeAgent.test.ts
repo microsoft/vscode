@@ -355,6 +355,7 @@ class FakeClaudeProxyService implements IClaudeProxyService {
 		return {
 			baseUrl: 'http://127.0.0.1:0',
 			nonce: `nonce-for-${token}`,
+			setToken: () => { },
 			dispose: () => { this.disposeCount++; },
 		};
 	}
@@ -1735,7 +1736,7 @@ suite('ClaudeAgent', () => {
 				failNext = false;
 				throw new Error('proxy bind failed');
 			}
-			return { baseUrl: 'http://127.0.0.1:0', nonce: `nonce-for-${token}`, dispose: () => { proxy.disposeCount++; } };
+			return { baseUrl: 'http://127.0.0.1:0', nonce: `nonce-for-${token}`, setToken: () => { }, dispose: () => { proxy.disposeCount++; } };
 		};
 
 		// First authenticate: start fails softly, leaving token 'T' uncommitted and
@@ -2038,6 +2039,7 @@ suite('ClaudeAgent', () => {
 			return {
 				baseUrl: 'http://127.0.0.1:0',
 				nonce: `nonce-for-${token}`,
+				setToken: () => { },
 				dispose: () => { proxy.disposeCount++; },
 			};
 		};
@@ -5530,6 +5532,7 @@ suite('ClaudeAgent', () => {
 				return {
 					baseUrl: 'http://127.0.0.1:0',
 					nonce: 'n',
+					setToken: () => { },
 					dispose: () => { proxyDisposed = true; },
 				};
 			}
@@ -6760,7 +6763,7 @@ suite('ClaudeAgent — per-session provider', () => {
 			if (failNext) {
 				throw new Error('proxy bind failed');
 			}
-			return { baseUrl: 'http://127.0.0.1:0', nonce: `nonce-for-${token}`, dispose: () => { proxy.disposeCount++; } };
+			return { baseUrl: 'http://127.0.0.1:0', nonce: `nonce-for-${token}`, setToken: () => { }, dispose: () => { proxy.disposeCount++; } };
 		};
 
 		// Account A signs in cleanly: start() succeeds and the merged catalog populates.
@@ -6846,7 +6849,7 @@ suite('ClaudeAgentSession (Phase 7 §3.2)', () => {
 			instantiationService,
 		));
 		await session.materialize({
-			transport: { kind: 'proxy', handle: { baseUrl: 'http://127.0.0.1:0', nonce: 'n', dispose: () => { } } },
+			transport: { kind: 'proxy', handle: { baseUrl: 'http://127.0.0.1:0', nonce: 'n', setToken: () => { }, dispose: () => { } } },
 			canUseTool: async () => ({ behavior: 'deny', message: 'unused' }),
 			onElicitation: async () => ({ action: 'cancel' }),
 			isResume: false,

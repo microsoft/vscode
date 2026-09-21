@@ -16,6 +16,8 @@ import { IChatSessionFileChange, IChatSessionFileChange2, isIChatSessionFileChan
 
 export { getHighestPriorityPullRequestIcon };
 
+export type SessionPresentation = 'chat' | 'terminal';
+
 export interface ISessionType {
 	/** Unique identifier (e.g., 'copilot-cli', 'copilot-cloud', 'agent-host-claude'). */
 	readonly id: string;
@@ -23,6 +25,8 @@ export interface ISessionType {
 	readonly label: string;
 	/** Icon for this session type. */
 	readonly icon: ThemeIcon;
+	/** The surface used for sessions of this type. Defaults to chat. */
+	readonly presentation?: SessionPresentation;
 	/** Whether new sessions of this type support Worktree isolation and base-branch selection. */
 	readonly supportsWorktreeConfiguration?: boolean;
 	/**
@@ -735,6 +739,12 @@ export interface ISession {
 	readonly providerId: string;
 	/** Session type ID (e.g., 'copilot-cli', 'copilot-cloud', 'local'). */
 	readonly sessionType: string;
+	/** The surface used to interact with this session. Defaults to chat. */
+	readonly presentation?: SessionPresentation;
+	/** Localized name of an alternate presentation, for example its native CLI. */
+	readonly presentationLabel?: string;
+	/** Other resources for the same underlying session, represented by this facade. */
+	readonly resourceAliases?: IObservable<readonly URI[]>;
 	/** Icon for this session. */
 	readonly icon: ThemeIcon;
 	/** When the session was created. */

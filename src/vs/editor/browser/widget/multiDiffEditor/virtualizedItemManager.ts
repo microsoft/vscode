@@ -230,16 +230,14 @@ export class ManagedVirtualizedItem<TItem, TBinding extends IVirtualizedItemBind
 		}
 		transaction(tx => {
 			this._delegate.onWillUnbind?.(binding, tx);
-		});
-		binding.hide();
-		binding.dispose();
-		if (templateReference.object.currentBinding.get()) {
-			throw new BugIndicatingError('Virtualized binding did not release its template when disposed');
-		}
-		transaction(tx => {
 			this._templateReference.set(undefined, tx);
+			binding.hide();
+			binding.dispose();
+			if (templateReference.object.currentBinding.get()) {
+				throw new BugIndicatingError('Virtualized binding did not release its template when disposed');
+			}
+			templateReference.dispose();
 		});
-		templateReference.dispose();
 	}
 
 	override dispose(): void {

@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IObservable } from '../../../../base/common/observable.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IMultiDiffEditorOptions } from '../../../../editor/common/multiDiffEditor.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
@@ -32,5 +33,5 @@ export interface ISessionChangesService {
 	getSessionResource(editorResource: URI): URI | undefined;
 
 	/** Opens the Changes editor for a session. */
-	openChangesEditor(sessionResource: URI, options?: ISessionChangesEditorOptions, group?: PreferredGroup): Promise<IEditorGroup | undefined>;
+	openChangesEditor(sessionResource: URI, options?: ISessionChangesEditorOptions, group?: PreferredGroup, cancellationToken?: CancellationToken): Promise<IEditorGroup | undefined>;
 }

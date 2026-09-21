@@ -65,6 +65,10 @@ import { EditSurvivalReporterFactory, IEditSurvivalReporterFactory } from './sha
 import { IAgentHostWorktreeIsolation, WorktreeIsolation } from './shared/worktreeIsolation.js';
 import { AgentBranchNameGenerator, IAgentBranchNameGenerator } from './shared/agentBranchNameGenerator.js';
 import { AgentHostTurnService, IAgentHostTurnService } from './agentHostTurnService.js';
+import { INativeCliProxyService } from '../common/nativeCliProxy.js';
+import { NativeCliProxyService } from './nativeCliProxyService.js';
+import { INativeCliLifecycleService } from '../common/nativeCliLifecycle.js';
+import { NativeCliLifecycleService } from './nativeCliLifecycleService.js';
 
 export interface IAgentHostCoreServiceInputs {
 	readonly storageResource: URI | undefined;
@@ -124,6 +128,8 @@ export function registerAgentHostHostServices(services: ServiceCollection, input
 	services.set(IClaudeAgentSdkService, new SyncDescriptor(ClaudeAgentSdkService));
 	services.set(IClaudeProxyService, new SyncDescriptor(ClaudeProxyService));
 	services.set(ICodexProxyService, new SyncDescriptor(CodexProxyService, [undefined]));
+	services.set(INativeCliProxyService, new SyncDescriptor(NativeCliProxyService));
+	services.set(INativeCliLifecycleService, new SyncDescriptor(NativeCliLifecycleService));
 	services.set(IAgentHostOTelService, new SyncDescriptor(AgentHostOTelService, [inputs.fetchFn]));
 	services.set(
 		IByokLmProxyService,

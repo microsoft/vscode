@@ -5,13 +5,16 @@
 
 import './media/chatWidget.css';
 import * as dom from '../../../../base/browser/dom.js';
+import { Button } from '../../../../base/browser/ui/button/button.js';
+import { Radio } from '../../../../base/browser/ui/radio/radio.js';
+import { createPixelSpinner } from '../../../../base/browser/ui/pixelSpinner/pixelSpinner.js';
 import { StandardMouseEvent } from '../../../../base/browser/mouseEvent.js';
 import { Action } from '../../../../base/common/actions.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { isCancellationError, onUnexpectedError } from '../../../../base/common/errors.js';
 import { Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { constObservable, derived, derivedObservableWithCache, autorun, IObservable, observableFromEvent, observableSignalFromEvent } from '../../../../base/common/observable.js';
+import { constObservable, derived, derivedObservableWithCache, autorun, IObservable, observableFromEvent, observableSignalFromEvent, observableValue } from '../../../../base/common/observable.js';
 import { isWeb } from '../../../../base/common/platform.js';
 import { basename } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -24,10 +27,10 @@ import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uri
 import { IDefaultAccountService } from '../../../../platform/defaultAccount/common/defaultAccount.js';
 import { localize } from '../../../../nls.js';
 import { IActiveSession, ICreateNewSessionOptions, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
-import { GITHUB_REMOTE_FILE_SCHEME, ISession, ISessionWorkspace, SESSION_WORKSPACE_GROUP_GITHUB } from '../../../services/sessions/common/session.js';
+import { GITHUB_REMOTE_FILE_SCHEME, ISession, ISessionWorkspace, SESSION_WORKSPACE_GROUP_GITHUB, SessionPresentation } from '../../../services/sessions/common/session.js';
 import { IOpenNewSessionResult, ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
-import { isAllowSignedOutWhenUsableEnabled, shouldShowGitHubWorkspaceGroupSignIn } from '../../../browser/sessionsAuthGate.js';
+import { isAllowSignedOutWhenUsableEnabled, isSignedOutWindowUsable, shouldShowGitHubWorkspaceGroupSignIn } from '../../../browser/sessionsAuthGate.js';
 import { AGENTIC_SIGN_IN_COMMAND_ID } from '../../../common/sessionCommands.js';
 import { isAgentHostProvider } from '../../../common/agentHostSessionsProvider.js';
 import { IAquariumService, IMountedToggleHandle } from '../../aquarium/browser/aquariumOverlay.js';
@@ -59,16 +62,51 @@ import { Menus } from '../../../browser/menus.js';
 import { getAdditionalFolderContextId, getAdditionalRepositoryContextId } from '../common/newChatContextIds.js';
 import { UNIFIED_WORKSPACE_PICKER_SETTING } from '../common/constants.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
+import { INotificationService } from '../../../../platform/notification/common/notification.js';
+import { TerminalSessionAuthenticationWidget } from '../../terminal/browser/terminalSessionAuthenticationWidget.js';
+import { TerminalChatView } from '../../terminal/browser/terminalChatView.js';
+import { ISessionTerminalService } from '../../../services/terminal/browser/sessionTerminalService.js';
 
 // #region --- New Chat Widget ---
 
 /** Minimum number of started sessions required before showing tips and promotions. */
 const MIN_SESSIONS_FOR_FIRST_RUN_NOTICES = 2;
 
+/**
+ * Writes into an ARIA live region only when the text actually changes. Assigning
+ * `textContent` replaces the text node, which makes assistive technology re-announce
+ * an unchanged message.
+ */
+function setLiveText(element: HTMLElement, text: string): void {
+	if (element.textContent !== text) {
+		element.textContent = text;
+	}
+}
+
 export class NewChatWidget extends Disposable {
 
 	private readonly _workspacePicker: WorkspacePicker;
 	private readonly _newChatInput: NewChatInputWidget;
+	private readonly _presentation = observableValue<SessionPresentation>(this, 'chat');
+	private readonly _sessionTypesChanged = observableSignalFromEvent(this, this.sessionsManagementService.onDidChangeSessionTypes);
+	/**
+	 * The presentation actually in effect. Quick chat forces the chat composer back on, and
+	 * a provider can stop advertising terminal types, so the raw `_presentation` pick is not
+	 * authoritative on its own — every consumer must agree or input is routed to a hidden
+	 * surface and silently dropped.
+	 */
+	private readonly _effectivePresentation = derived(this, reader => {
+		this._sessionTypesChanged.read(reader);
+		const available = !isWeb && !this._isQuickChatComposer.read(reader)
+			&& this.sessionsManagementService.getAllProviderSessionTypes().some(type => type.sessionType.presentation === 'terminal');
+		return available && this._presentation.read(reader) === 'terminal' ? 'terminal' : 'chat';
+	});
+	private readonly _startingTerminal = observableValue(this, false);
+	private readonly _sessionCreationInProgress = observableValue(this, false);
+	private _terminalStartButton: Button | undefined;
+	private _terminalWarmupView: TerminalChatView | undefined;
+	private _terminalDimensions: dom.Dimension | undefined;
 	private readonly _chatTipPresenter = this._register(new MutableDisposable<ChatInputTipPresenter>());
 	private _isChatTipSessionInitialized = false;
 	private _aquariumToggle: IMountedToggleHandle | undefined;
@@ -133,6 +171,8 @@ export class NewChatWidget extends Disposable {
 		@IStorageService private readonly storageService: IStorageService,
 		@INewSessionComposerService private readonly newSessionComposerService: INewSessionComposerService,
 		@ICommandService private readonly commandService: ICommandService,
+		@INotificationService private readonly notificationService: INotificationService,
+		@ISessionTerminalService private readonly sessionTerminalService: ISessionTerminalService,
 	) {
 		super();
 		this._workspacePickerVisibleKey = SessionWorkspacePickerVisibleContext.bindTo(contextKeyService);
@@ -148,6 +188,7 @@ export class NewChatWidget extends Disposable {
 			}
 			return activeSession;
 		});
+		this._presentation.set(this._session.get()?.presentation ?? 'chat', undefined);
 
 		// A quick chat is workspace-less; the composer hides the workspace picker
 		// (nothing to pick) and surfaces the session-type picker in the controls.
@@ -176,7 +217,10 @@ export class NewChatWidget extends Disposable {
 			getWorkspaceGroupAction: group => {
 				if (group === SESSION_WORKSPACE_GROUP_GITHUB && shouldShowGitHubWorkspaceGroupSignIn(
 					this.defaultAccountService.currentDefaultAccount !== null,
-					isAllowSignedOutWhenUsableEnabled(this.configurationService),
+					isSignedOutWindowUsable(
+						isAllowSignedOutWhenUsableEnabled(this.configurationService),
+						this.sessionsManagementService.getAllProviderSessionTypes().map(({ sessionType }) => sessionType),
+					),
 				)) {
 					return {
 						label: localize('workspacePicker.signInGitHub', "Sign in to GitHub"),
@@ -261,6 +305,7 @@ export class NewChatWidget extends Disposable {
 			getChatPetPlatformElements: () => this._workspacePicker.getChatPetPlatformElements(),
 			onDidChangeChatPetPlatform: this._workspacePicker.onDidChangeChatPetPlatform,
 			sessionTypePickerOptions: {
+				presentation: this._presentation,
 				prepareSessionTypeSelection: pick => this._prepareSessionTypeSelection(pick),
 			},
 		});
@@ -307,7 +352,7 @@ export class NewChatWidget extends Disposable {
 
 		this._register(this._workspacePicker.onDidSelectWorkspace(async folderUri => {
 			await this._onWorkspaceSelected(folderUri);
-			this._newChatInput.focus();
+			this.focusInput();
 		}));
 		this._register(this._workspacePicker.onDidSelectWorkspaceMode(({ folderUri, preferDevContainer }) => {
 			this._preferredDevContainerFolderUri = preferDevContainer ? folderUri : undefined;
@@ -320,7 +365,7 @@ export class NewChatWidget extends Disposable {
 				context.icon,
 				`github-context:${contextUri}`,
 			);
-			this._newChatInput.focus();
+			this.focusInput();
 		}));
 		this._register(this._workspacePicker.onDidSelectFolderContext(folderUri => {
 			this._newChatInput.addAttachments({
@@ -431,6 +476,7 @@ export class NewChatWidget extends Disposable {
 		const element = dom.append(parent, dom.$('.sessions-chat-widget'));
 		const chatWidgetContainer = dom.append(element, dom.$('.new-chat-widget-container'));
 		const chatWidgetContent = dom.append(chatWidgetContainer, dom.$(`.new-chat-widget-content.${chatInputStackClass}`));
+		this._renderPresentationPicker(chatWidgetContent);
 
 		this._aquariumToggle = this._register(this.aquariumService.mountToggle(element));
 		const aquariumAction = this._register(new Action(
@@ -484,6 +530,7 @@ export class NewChatWidget extends Disposable {
 
 		this._renderFeedbackBanner(chatWidgetContent);
 		this._newChatInput.render(chatWidgetContent, parent);
+		this._renderTerminalComposer(chatWidgetContent);
 
 		// The tip lives in the input's notice slot, so the presenter is created
 		// after the input has rendered it.
@@ -707,6 +754,7 @@ export class NewChatWidget extends Disposable {
 		const creationCts = new CancellationTokenSource();
 		const creationLifecycle = toDisposable(() => creationCts.dispose(true));
 		this._newSessionCreation.value = creationLifecycle;
+		this._sessionCreationInProgress.set(true, undefined);
 		// Session creation is async, so a provider can start serving the folder
 		// (e.g. the local agent host finishing its handshake) between the call
 		// below and the listener installed after it. That change would land in
@@ -721,6 +769,9 @@ export class NewChatWidget extends Disposable {
 			result = await this._createSessionNow(folderUri, userPick, creationCts.token);
 		} finally {
 			pendingChange.dispose();
+			if (this._newSessionCreation.value === creationLifecycle) {
+				this._sessionCreationInProgress.set(false, undefined);
+			}
 		}
 		const isCurrentCreation = this._newSessionCreation.value === creationLifecycle;
 		if (isCurrentCreation) {
@@ -775,6 +826,12 @@ export class NewChatWidget extends Disposable {
 			? userPick
 			: this._newChatInput.sessionTypePicker.getPreferredSessionType(folderUri);
 		const fallbackProviderId = this._workspacePicker.selectedResolved?.providerId;
+		if (this._presentation.get() === 'terminal' && !preferredPick) {
+			return { session: undefined, trustDeclined: false };
+		}
+		if (!preferredPick && fallbackProviderId && this.sessionsProvidersService.getProvider(fallbackProviderId)?.sessionTypes.some(type => type.presentation === 'terminal')) {
+			return { session: undefined, trustDeclined: false };
+		}
 		try {
 			return await this.sessionsService.openNewSession({
 				folderUri,
@@ -838,6 +895,9 @@ export class NewChatWidget extends Disposable {
 	selectNoWorkspace(): void {
 		this._pendingPreferredUpgrade.clear();
 		this._newSessionCreation.clear();
+		// Clearing the lifecycle above means an in-flight `_createNewSession` no longer
+		// owns the flag, so its `finally` will skip the reset and pin the Start button.
+		this._sessionCreationInProgress.set(false, undefined);
 		this._workspacePicker.selectNoWorkspace();
 		this._openQuickChat();
 	}
@@ -985,6 +1045,133 @@ export class NewChatWidget extends Disposable {
 
 	// --- Send ---
 
+	private _renderPresentationPicker(container: HTMLElement): void {
+		const row = dom.append(container, dom.$('.new-session-presentation-picker'));
+		const picker = this._register(new Radio({
+			ariaLabel: localize('newSessionPresentation', "Session interface"),
+			className: 'segmented',
+			arrowKeyBehavior: 'focus',
+			items: [
+				{ text: localize('newSessionPresentation.chat', "Chat"), isActive: this._presentation.get() === 'chat' },
+				{ text: localize('newSessionPresentation.terminal', "CLI Terminal"), isActive: this._presentation.get() === 'terminal' },
+			],
+		}));
+		row.appendChild(picker.domNode);
+		this._register(picker.onDidSelect(index => {
+			if (this._startingTerminal.get()) {
+				picker.setActiveItem(this._presentation.get() === 'terminal' ? 1 : 0);
+				return;
+			}
+			this._presentation.set(index === 1 ? 'terminal' : 'chat', undefined);
+			const folder = this._workspacePicker.selectedFolderUri;
+			if (folder) {
+				void this._createNewSession(folder).catch(error => {
+					this.logService.error('Failed to change session interface', error);
+					this.notificationService.error(error);
+				});
+			}
+		}));
+		const typesChanged = this._sessionTypesChanged;
+		this._register(autorun(reader => {
+			typesChanged.read(reader);
+			const available = !isWeb && !this._isQuickChatComposer.read(reader)
+				&& this.sessionsManagementService.getAllProviderSessionTypes().some(type => type.sessionType.presentation === 'terminal');
+			row.style.display = available ? '' : 'none';
+			const terminal = this._effectivePresentation.read(reader) === 'terminal';
+			container.classList.toggle('terminal-session-mode', terminal);
+			picker.setActiveItem(terminal ? 1 : 0);
+		}));
+	}
+
+	private _renderTerminalComposer(container: HTMLElement): void {
+		const composer = dom.append(container, dom.$('.new-session-terminal-composer'));
+		const description = dom.append(composer, dom.$('p'));
+		description.textContent = localize('newSessionTerminalDescription', "Use the CLI's own terminal interface and approval prompts. Files and Changes stay available beside it. Changes reflect the selected repository, including edits made outside this session.");
+		const authentication = this._register(this.instantiationService.createInstance(TerminalSessionAuthenticationWidget, this._session));
+		composer.appendChild(authentication.element);
+		const availability = dom.append(composer, dom.$('p.new-session-terminal-availability'));
+		availability.setAttribute('role', 'status');
+		const progress = dom.append(composer, dom.$('.new-session-terminal-progress'));
+		progress.setAttribute('role', 'status');
+		this._register(createPixelSpinner(progress));
+		const progressLabel = dom.append(progress, dom.$('span'));
+		const warmup = dom.append(composer, dom.$('.new-session-terminal-warmup'));
+		warmup.setAttribute('aria-hidden', 'true');
+		warmup.inert = true;
+		this._register(autorun(reader => {
+			const session = this._session.read(reader);
+			const state = session && this.sessionTerminalService.getSessionTerminal(session.sessionId);
+			if (!this._startingTerminal.read(reader) || session?.presentation !== 'terminal' || !state?.isStarting.read(reader)) {
+				return;
+			}
+			const view = reader.store.add(this.instantiationService.createInstance(TerminalChatView));
+			this._terminalWarmupView = view;
+			warmup.appendChild(view.element);
+			reader.store.add(toDisposable(() => {
+				if (this._terminalWarmupView === view) {
+					this._terminalWarmupView = undefined;
+				}
+				view.element.remove();
+			}));
+			view.setChat(session.mainChat.read(reader), undefined, session);
+			view.layout(this._terminalDimensions?.width ?? container.clientWidth, this._terminalDimensions?.height ?? container.clientHeight, 0, 0);
+		}));
+		const button = this._terminalStartButton = this._register(new Button(composer, defaultButtonStyles));
+		button.label = localize('startTerminalSession', "Start Terminal Session");
+		this._register(button.onDidClick(() => {
+			void this._startTerminalSession();
+		}));
+		const selectionChanged = observableSignalFromEvent(this, Event.any(this._workspacePicker.onDidChangeSelection, this._newChatInput.sessionTypePicker.onDidChangeSelectedPick));
+		this._register(autorun(reader => {
+			selectionChanged.read(reader);
+			const session = this._session.read(reader);
+			const launching = this._startingTerminal.read(reader) || session?.isNewSessionRequestInProgress?.read(reader);
+			const starting = launching || this._sessionCreationInProgress.read(reader);
+			const folder = session?.workspace.read(reader)?.folders[0]?.root;
+			const pick = this._newChatInput.sessionTypePicker.selectedPick;
+			const available = session?.presentation === 'terminal'
+				&& this.uriIdentityService.extUri.isEqual(folder, this._workspacePicker.selectedFolderUri)
+				&& pick?.providerId === session.providerId && pick.sessionTypeId === session.sessionType;
+			button.enabled = available && !starting && !session.loading.read(reader) && authentication.ready.read(reader);
+			button.label = starting ? localize('startingTerminalSession', "Starting...") : localize('startTerminalSession', "Start Terminal Session");
+			progress.style.display = starting ? '' : 'none';
+			// Live regions re-announce whenever their text node is replaced, so only write
+			// on a real change or a screen reader repeats itself throughout startup.
+			setLiveText(progressLabel, launching
+				? localize('waitingForTerminalSession', "Starting the CLI terminal...")
+				: localize('preparingTerminalSession', "Preparing the session..."));
+			// While starting, the session is still being reconciled, so the folder hint
+			// would contradict the progress message the user just heard.
+			const showAvailability = !available && !starting;
+			availability.style.display = showAvailability ? '' : 'none';
+			setLiveText(availability, showAvailability ? localize('terminalSessionLocalFolder', "Select a local folder to start a CLI terminal session.") : '');
+		}));
+	}
+
+	private async _startTerminalSession(query = ''): Promise<boolean> {
+		const session = this._session.get();
+		const folder = this._workspacePicker.selectedFolderUri;
+		const pick = this._newChatInput.sessionTypePicker.selectedPick;
+		if (this._presentation.get() !== 'terminal' || session?.presentation !== 'terminal' || this._startingTerminal.get() || this._sessionCreationInProgress.get()
+			|| !folder || !this.uriIdentityService.extUri.isEqual(session.workspace.get()?.folders[0]?.root, folder)
+			|| pick?.providerId !== session.providerId || pick.sessionTypeId !== session.sessionType) {
+			return false;
+		}
+		this._startingTerminal.set(true, undefined);
+		try {
+			await this.sessionsManagementService.sendNewChatRequest(session, { query });
+			return true;
+		} catch (error) {
+			if (!isCancellationError(error)) {
+				this.logService.error('Failed to start terminal session', error);
+				this.notificationService.error(error);
+			}
+			return false;
+		} finally {
+			this._startingTerminal.set(false, undefined);
+		}
+	}
+
 	private async _send(query: string, attachedContext?: IChatRequestVariableEntry[], background?: boolean): Promise<boolean> {
 		const session = this._session.get();
 		if (!session) {
@@ -1106,6 +1293,8 @@ export class NewChatWidget extends Disposable {
 
 	layout(_height: number, _width: number): void {
 		this._newChatInput.layout(_height, _width);
+		this._terminalDimensions = new dom.Dimension(_width, _height);
+		this._terminalWarmupView?.layout(_width, _height, 0, 0);
 	}
 
 	focusInput(): void {
@@ -1115,6 +1304,10 @@ export class NewChatWidget extends Disposable {
 		// heading instead so the user has a visible focus target.
 		if (this._activeEmptyState) {
 			this._activeEmptyState.focus();
+			return;
+		}
+		if (this._effectivePresentation.get() === 'terminal') {
+			this._terminalStartButton?.focus();
 			return;
 		}
 		this._newChatInput.focus();
@@ -1174,6 +1367,10 @@ export class NewChatWidget extends Disposable {
 	}
 
 	sendQuery(text: string): void {
+		if (this._effectivePresentation.get() === 'terminal') {
+			void this._startTerminalSession(text);
+			return;
+		}
 		this._newChatInput.sendQuery(text);
 	}
 
@@ -1181,6 +1378,9 @@ export class NewChatWidget extends Disposable {
 		if (!this._session.get()) {
 			this._workspacePicker.showPicker();
 			return Promise.resolve(false);
+		}
+		if (this._effectivePresentation.get() === 'terminal') {
+			return this._startTerminalSession();
 		}
 		return this._newChatInput.submit();
 	}

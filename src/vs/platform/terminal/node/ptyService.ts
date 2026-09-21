@@ -139,11 +139,11 @@ export class PtyService extends Disposable implements IPtyService {
 	readonly onDidChangeProperty = this._traceEvent('_onDidChangeProperty', this._onDidChangeProperty.event);
 
 	private _traceEvent<T>(name: string, event: Event<T>): Event<T> {
-		event(e => {
+		this._register(event(e => {
 			if (this._logService.getLevel() === LogLevel.Trace) {
 				this._logService.trace(`[RPC Event] PtyService#${name}.fire(${JSON.stringify(e)})`);
 			}
-		});
+		}));
 		return event;
 	}
 
@@ -256,6 +256,9 @@ export class PtyService extends Disposable implements IPtyService {
 	async reviveTerminalProcesses(workspaceId: string, state: ISerializedTerminalState[], dateTimeFormatLocale: string) {
 		const promises: Promise<void>[] = [];
 		for (const terminal of state) {
+			if (terminal.shellLaunchConfig.reconnectionProperties?.canRevive === false) {
+				continue;
+			}
 			promises.push(this._reviveTerminalProcess(workspaceId, terminal));
 		}
 		await Promise.all(promises);

@@ -29,6 +29,9 @@ import { FileService } from '../../../files/common/fileService.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
 import { AgentChatMigrationDeferred, AgentSession, GITHUB_COPILOT_PROTECTED_RESOURCE, SubagentChatSignal, resolveAgentChatContext, type IAgent, type IAgentChatAdoptionResult, type IAgentChatContext, type IAgentChatDataChange, type IAgentChatMetadata, type IAgentChatMetadataOptions, type IAgentChats, type IAgentCreateChatForkSource, type IAgentCreateChatOptions, type IAgentCreateChatResult, type IAgentCreateSessionConfig, type IAgentCreateSessionResult, type IAgentDescriptor, type IAgentDiscoveredChat, type IAgentLegacyChat, type IAgentMaterializeChatEvent, type IAgentSessionMetadata, type IAgentSpawnChatEvent } from '../../common/agent.js';
 import { IConnectionTrackerService } from '../../common/agentService.js';
+import { INativeCliProxyService } from '../../common/nativeCliProxy.js';
+import { INativeCliLifecycleService } from '../../common/nativeCliLifecycle.js';
+import { mock } from '../../../../base/test/common/mock.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import { AgentHostActiveAgentTitleGenerationConfigKey, AgentHostAutoArchiveMergedSessionsAfterDaysConfigKey, AgentHostAutoDeleteArchivedMergedSessionsAfterDaysConfigKey, AgentHostExternalSessionsMode, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostShowExternalSessionsConfigKey } from '../../common/agentHostSchema.js';
 import { buildAnnotationsUri } from '../../common/annotationsUri.js';
@@ -972,7 +975,7 @@ suite('AgentService (node dispatcher)', () => {
 				managedKeys: ['permissions'],
 			});
 			registerTestAgentProvider(service, provider);
-			const managementService = new AgentHostManagementService(service, {} as IConnectionTrackerService, async () => { }, nullSessionDataService, new NullLogService());
+			const managementService = new AgentHostManagementService(service, {} as IConnectionTrackerService, async () => { }, nullSessionDataService, new NullLogService(), new class extends mock<INativeCliProxyService>() { }(), new class extends mock<INativeCliLifecycleService>() { }());
 
 			assert.deepStrictEqual(await managementService.getManagedSettingsDiagnostics(), [{
 				provider: 'copilot',
@@ -2902,7 +2905,7 @@ suite('AgentService (node dispatcher)', () => {
 			const provider: IAgent = copilotAgent;
 			provider.getSessionStateFile = async session => URI.file(`/state/${AgentSession.id(session)}/events.jsonl`);
 			registerTestAgentProvider(service, provider);
-			const managementService = new AgentHostManagementService(service, {} as IConnectionTrackerService, async () => { }, nullSessionDataService, new NullLogService());
+			const managementService = new AgentHostManagementService(service, {} as IConnectionTrackerService, async () => { }, nullSessionDataService, new NullLogService(), new class extends mock<INativeCliProxyService>() { }(), new class extends mock<INativeCliLifecycleService>() { }());
 
 			assert.deepStrictEqual({
 				supported: (await managementService.getSessionStateFile(AgentSession.uri('copilot', 'session-1')))?.toString(),
@@ -4662,6 +4665,312 @@ suite('AgentService (node dispatcher)', () => {
 				thirdIntact: 1,
 				distinctArrays: true,
 			});
+		});
+
+		suite('incremental session catalog', () => {
+			class CatalogDatabase extends TestSessionDatabase {
+				singleReads = 0;
+				batchReads = 0;
+				failOverlay = false;
+				overlayGate: { started: DeferredPromise<void>; release: DeferredPromise<void> } | undefined;
+
+				constructor(private readonly _changed: () => void) { super(); }
+
+				override async getMetadata(key: string): Promise<string | undefined> {
+					this.singleReads++;
+					return super.getMetadata(key);
+				}
+
+				override async getMetadataObject<T extends Record<string, unknown>>(keys: T): Promise<{ [K in keyof T]: string | undefined }> {
+					this.batchReads++;
+					const value = await super.getMetadataObject(keys);
+					if (Object.hasOwn(keys, 'customTitle')) {
+						if (this.failOverlay) {
+							this.failOverlay = false;
+							throw new Error('overlay unavailable');
+						}
+						const gate = this.overlayGate;
+						this.overlayGate = undefined;
+						if (gate) {
+							gate.started.complete();
+							await gate.release.p;
+						}
+					}
+					return value;
+				}
+
+				override async setMetadata(key: string, value: string): Promise<void> {
+					await super.setMetadata(key, value);
+					this._changed();
+				}
+
+				override async setMetadataValues(values: Readonly<Record<string, string>>): Promise<void> {
+					await super.setMetadataValues(values);
+					this._changed();
+				}
+
+				override async deleteMetadata(keys: readonly string[]): Promise<void> {
+					await super.deleteMetadata(keys);
+					this._changed();
+				}
+			}
+
+			class CatalogAgent extends MockAgent {
+				readonly metadata = new Map<string, IAgentChatMetadata>();
+				readonly reads: string[] = [];
+				readonly failures = new Set<string>();
+				prewarmCalls = 0;
+				prewarmReferences = 0;
+
+				override async getChatMetadata(chat: URI, context: URI | IAgentChatContext): Promise<IAgentChatMetadata | undefined> {
+					const key = resolveAgentChatContext(context, chat).configurationResource.toString();
+					this.reads.push(key);
+					if (this.failures.delete(key)) {
+						throw new Error('provider metadata unavailable');
+					}
+					return this.metadata.get(key);
+				}
+
+				async prewarmSessionMetadata() {
+					this.prewarmCalls++;
+					this.prewarmReferences++;
+					return toDisposable(() => this.prewarmReferences--);
+				}
+			}
+
+			async function createCatalog() {
+				const changed = disposables.add(new Emitter<URI>());
+				const databases = new Map<string, CatalogDatabase>();
+				const opens: string[] = [];
+				const database = (session: URI) => {
+					const key = session.toString();
+					let value = databases.get(key);
+					if (!value) {
+						value = new CatalogDatabase(() => changed.fire(session));
+						databases.set(key, value);
+					}
+					return value;
+				};
+				const sessionData: ISessionDataService = {
+					...createSessionDataService(),
+					onDidChangeSessionMetadata: changed.event,
+					openDatabase: session => ({ object: database(session), dispose: () => { } }),
+					tryOpenDatabase: async session => {
+						opens.push(session.toString());
+						const value = databases.get(session.toString());
+						return value ? { object: value, dispose: () => { } } : undefined;
+					},
+					deleteSessionData: async session => {
+						databases.delete(session.toString());
+						changed.fire(session);
+					},
+				};
+				const registry = new TransientRegistryWriteDatabase();
+				const agent = disposables.add(new CatalogAgent('copilot'));
+				const sessions = ['catalog-a', 'catalog-b'].map(id => AgentSession.uri(agent.id, id));
+				for (const session of sessions) {
+					database(session);
+					agent.metadata.set(session.toString(), {
+						chat: URI.parse(buildDefaultChatUri(session)),
+						startTime: 1,
+						modifiedTime: 2,
+						summary: AgentSession.id(session),
+					});
+					await registry.registerSession(session.toString(), { provider: agent.id, startTime: 1, modifiedTime: 2, source: 'explicit' }, { checkTombstone: false });
+				}
+				await registry.markProviderBackfilled(agent.id);
+				const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, sessionData, { _serviceBrand: undefined } as IProductService, createNoopGitService(), undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, registry));
+				registerTestAgentProvider(svc, agent);
+				const counts = () => ({
+					providerReads: agent.reads.map(key => AgentSession.id(URI.parse(key))),
+					databases: sessions.map(session => {
+						const db = database(session);
+						return { single: db.singleReads, batch: db.batchReads };
+					}),
+					opens: opens.length,
+					prewarmCalls: agent.prewarmCalls,
+					prewarmReferences: agent.prewarmReferences,
+				});
+				return { svc, agent, sessions, database, registry, counts };
+			}
+
+			test('unchanged listings reuse provider and database reads across modes and concurrent callers', async () => {
+				const { svc, counts } = await createCatalog();
+				const [first, second] = await Promise.all([svc.listSessions(), svc.listSessions()]);
+				first.length = 0;
+				await Promise.all([svc.listSessions(), svc.listSessions(AgentHostExternalSessionsMode.Last30Days)]);
+				assert.deepStrictEqual({ secondLength: second.length, ...counts() }, {
+					secondLength: 2,
+					providerReads: ['catalog-a', 'catalog-b'],
+					databases: [{ single: 1, batch: 1 }, { single: 1, batch: 1 }],
+					opens: 4,
+					prewarmCalls: 1,
+					prewarmReferences: 0,
+				});
+			});
+
+			test('provider timestamp advances do not trigger another full hydration on the next listing', async () => {
+				const { svc, agent, sessions, registry, counts } = await createCatalog();
+				agent.metadata.set(sessions[0].toString(), { ...agent.metadata.get(sessions[0].toString())!, modifiedTime: 20 });
+				await svc.listSessions();
+				await svc.listSessions();
+				assert.deepStrictEqual({ modifiedTime: (await registry.getSession(sessions[0].toString()))?.modifiedTime, ...counts() }, {
+					modifiedTime: 20,
+					providerReads: ['catalog-a', 'catalog-b'],
+					databases: [{ single: 1, batch: 1 }, { single: 1, batch: 1 }],
+					opens: 4,
+					prewarmCalls: 1,
+					prewarmReferences: 0,
+				});
+			});
+
+			test('rename, archive, read-state changes and metadata deletion only reload the affected session', async () => {
+				const { svc, sessions, database, counts } = await createCatalog();
+				await svc.listSessions();
+				await database(sessions[0]).setMetadataValues({ customTitle: 'Renamed', [AH_META_IS_ARCHIVED_DB_KEY]: 'true', [AH_META_IS_READ_DB_KEY]: 'false' });
+				const renamed = (await svc.listSessions())[0];
+				await database(sessions[0]).deleteMetadata(['customTitle', AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_READ_DB_KEY]);
+				const cleared = (await svc.listSessions())[0];
+				assert.deepStrictEqual({
+					renamed: { title: renamed.summary, archived: isSessionStatusArchived(renamed.status ?? SessionStatus.Idle), read: !!((renamed.status ?? 0) & SessionStatus.IsRead) },
+					cleared: { title: cleared.summary, archived: isSessionStatusArchived(cleared.status ?? SessionStatus.Idle) },
+					...counts(),
+				}, {
+					renamed: { title: 'Renamed', archived: true, read: false },
+					cleared: { title: 'catalog-a', archived: false },
+					providerReads: ['catalog-a', 'catalog-b', 'catalog-a', 'catalog-a'],
+					databases: [{ single: 3, batch: 3 }, { single: 1, batch: 1 }],
+					opens: 8,
+					prewarmCalls: 1,
+					prewarmReferences: 0,
+				});
+			});
+
+			test('live summaries are applied afresh over cached persisted metadata', async () => {
+				const { svc, sessions, counts } = await createCatalog();
+				await svc.listSessions();
+				getStateManager(svc).restoreSession({
+					resource: sessions[0].toString(),
+					provider: 'copilot',
+					title: 'Live title',
+					status: SessionStatus.Idle | SessionStatus.IsArchived,
+					changes: { files: 1, additions: 3 },
+					createdAt: new Date(1).toISOString(),
+					modifiedAt: new Date(2).toISOString(),
+				}, []);
+				await svc.listSessions();
+				getStateManager(svc).setSessionSummaryChanges(sessions[0].toString(), { files: 2, additions: 4 });
+				const live = (await svc.listSessions())[0];
+				assert.deepStrictEqual({ title: live.summary, archived: isSessionStatusArchived(live.status ?? SessionStatus.Idle), changes: live.changes, ...counts() }, {
+					title: 'Live title',
+					archived: true,
+					changes: { files: 2, additions: 4 },
+					providerReads: ['catalog-a', 'catalog-b'],
+					databases: [{ single: 1, batch: 2 }, { single: 1, batch: 1 }],
+					opens: 5,
+					prewarmCalls: 1,
+					prewarmReferences: 0,
+				});
+			});
+
+			test('provider discovery notifications invalidate changed titles without rehydrating unchanged entries', async () => {
+				const { svc, agent, sessions, counts } = await createCatalog();
+				await svc.listSessions();
+				const unchanged = [...agent.metadata.values()].map(metadata => ({ ...metadata, external: false }));
+				agent.fireDiscoveredChats(unchanged);
+				await timeout(0);
+				await svc.listSessions();
+				const metadata = { ...agent.metadata.get(sessions[0].toString())!, summary: 'Provider rename' };
+				agent.metadata.set(sessions[0].toString(), metadata);
+				agent.fireDiscoveredChats([{ ...metadata, external: false }]);
+				await timeout(0);
+				const listed = await svc.listSessions();
+				assert.deepStrictEqual({ title: listed[0].summary, ...counts() }, {
+					title: 'Provider rename',
+					providerReads: ['catalog-a', 'catalog-b', 'catalog-a'],
+					databases: [{ single: 2, batch: 1 }, { single: 1, batch: 1 }],
+					opens: 5,
+					prewarmCalls: 1,
+					prewarmReferences: 0,
+				});
+			});
+
+			test('an overlay change racing a different-mode scan cannot repopulate stale cache entries', async () => {
+				const { svc, sessions, database, counts } = await createCatalog();
+				const gate = { started: new DeferredPromise<void>(), release: new DeferredPromise<void>() };
+				await database(sessions[0]).setMetadata('customTitle', 'Before');
+				database(sessions[0]).overlayGate = gate;
+				const oldListing = svc.listSessions();
+				try {
+					await gate.started.p;
+					await database(sessions[0]).setMetadata('customTitle', 'After');
+					const newListing = await svc.listSessions(AgentHostExternalSessionsMode.Last30Days);
+					gate.release.complete();
+					await oldListing;
+					const subsequent = await svc.listSessions();
+					assert.deepStrictEqual({ newTitle: newListing[0].summary, subsequentTitle: subsequent[0].summary, ...counts() }, {
+						newTitle: 'After',
+						subsequentTitle: 'After',
+						providerReads: ['catalog-a', 'catalog-b', 'catalog-a'],
+						databases: [{ single: 2, batch: 2 }, { single: 1, batch: 1 }],
+						opens: 6,
+						prewarmCalls: 1,
+						prewarmReferences: 0,
+					});
+				} finally {
+					gate.release.complete();
+					await oldListing;
+				}
+			});
+
+			test('provider failures and overlay failures are retried without rereading successful siblings', async () => {
+				const { svc, agent, sessions, database, counts } = await createCatalog();
+				agent.failures.add(sessions[0].toString());
+				await database(sessions[0]).setMetadata('customTitle', 'Persisted');
+				database(sessions[0]).failOverlay = true;
+				const failedProvider = await svc.listSessions();
+				const failedOverlay = await svc.listSessions();
+				const recovered = await svc.listSessions();
+				assert.deepStrictEqual({
+					failedProvider: failedProvider.map(session => session.summary),
+					failedOverlay: failedOverlay.map(session => session.summary),
+					recovered: recovered.map(session => session.summary),
+					...counts(),
+				}, {
+					failedProvider: ['catalog-b'],
+					failedOverlay: ['catalog-a', 'catalog-b'],
+					recovered: ['Persisted', 'catalog-b'],
+					providerReads: ['catalog-a', 'catalog-b', 'catalog-a'],
+					databases: [{ single: 2, batch: 2 }, { single: 1, batch: 1 }],
+					opens: 6,
+					prewarmCalls: 1,
+					prewarmReferences: 0,
+				});
+			});
+
+			test('deletion removes cached rows and explicit recreation does not inherit the old overlay', async () => {
+				const { svc, agent, sessions, database } = await createCatalog();
+				await database(sessions[0]).setMetadata('customTitle', 'Deleted title');
+				await svc.listSessions();
+				await svc.disposeSession(sessions[0]);
+				const afterDelete = await svc.listSessions();
+				agent.metadata.set(sessions[0].toString(), { ...agent.metadata.get(sessions[0].toString())!, summary: 'Recreated' });
+				await svc.createSession({ provider: 'copilot', session: sessions[0] });
+				const afterRecreation = await svc.listSessions();
+				assert.deepStrictEqual({
+					afterDelete: afterDelete.map(session => session.summary),
+					recreated: afterRecreation.find(session => session.session.toString() === sessions[0].toString())?.summary,
+				}, { afterDelete: ['catalog-b'], recreated: 'Recreated' });
+			});
+
+			test('unannounced provider changes are refreshed after the bounded cache lifetime', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+				const { svc, agent, sessions } = await createCatalog();
+				await svc.listSessions();
+				agent.metadata.set(sessions[0].toString(), { ...agent.metadata.get(sessions[0].toString())!, summary: 'Changed on disk' });
+				await timeout(60_001);
+				const refreshed = await svc.listSessions();
+				assert.deepStrictEqual({ title: refreshed[0].summary, reads: agent.reads.length }, { title: 'Changed on disk', reads: 4 });
+			}));
 		});
 
 		test('callers after registry mutations share one trailing computation', async () => {
@@ -7848,7 +8157,7 @@ suite('AgentService (node dispatcher)', () => {
 			service.claimDetachedWorktree = async handle => { calls.push(`claim:${handle}`); };
 			service.deleteDetachedWorktree = async handle => { calls.push(`delete:${handle}`); };
 			service.reconcileDetachedWorktrees = async (scope, activeHandles) => { calls.push(`reconcile:${scope}:${activeHandles.join(',')}`); };
-			const managementService = new AgentHostManagementService(service, {} as IConnectionTrackerService, async () => { }, nullSessionDataService, new NullLogService());
+			const managementService = new AgentHostManagementService(service, {} as IConnectionTrackerService, async () => { }, nullSessionDataService, new NullLogService(), new class extends mock<INativeCliProxyService>() { }(), new class extends mock<INativeCliLifecycleService>() { }());
 
 			const created = await managementService.createDetachedWorktree(session, 'prepare');
 			await managementService.setDetachedWorktreeArchived(created.handle, true);
@@ -7961,7 +8270,7 @@ suite('AgentService (node dispatcher)', () => {
 			};
 			nullSessionDataService.whenIdle = async () => { flushCount++; };
 			let ingressShutdownCount = 0;
-			const managementService = new AgentHostManagementService(service, {} as IConnectionTrackerService, async () => { ingressShutdownCount++; }, nullSessionDataService, new NullLogService());
+			const managementService = new AgentHostManagementService(service, {} as IConnectionTrackerService, async () => { ingressShutdownCount++; }, nullSessionDataService, new NullLogService(), new class extends mock<INativeCliProxyService>() { }(), new class extends mock<INativeCliLifecycleService>() { }());
 
 			const first = managementService.shutdown();
 			const second = managementService.shutdown();
@@ -7990,7 +8299,7 @@ suite('AgentService (node dispatcher)', () => {
 			};
 			service.shutdown = async () => { providerShutdownCount++; };
 			nullSessionDataService.whenIdle = async () => { flushCount++; };
-			const managementService = new AgentHostManagementService(service, {} as IConnectionTrackerService, () => stalled.p, nullSessionDataService, new NullLogService());
+			const managementService = new AgentHostManagementService(service, {} as IConnectionTrackerService, () => stalled.p, nullSessionDataService, new NullLogService(), new class extends mock<INativeCliProxyService>() { }(), new class extends mock<INativeCliLifecycleService>() { }());
 
 			void managementService.createSessionWithExtensions({});
 			await managementService.shutdown();
@@ -8012,7 +8321,7 @@ suite('AgentService (node dispatcher)', () => {
 			service.createSession = () => createSession.p;
 			service.shutdown = async () => { providerShutdownCount++; };
 			nullSessionDataService.whenIdle = async () => { flushCount++; };
-			const managementService = new AgentHostManagementService(service, {} as IConnectionTrackerService, async () => { }, nullSessionDataService, new NullLogService());
+			const managementService = new AgentHostManagementService(service, {} as IConnectionTrackerService, async () => { }, nullSessionDataService, new NullLogService(), new class extends mock<INativeCliProxyService>() { }(), new class extends mock<INativeCliLifecycleService>() { }());
 
 			const mutation = managementService.createSessionWithExtensions({});
 			const shutdown = managementService.shutdown();

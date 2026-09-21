@@ -17,6 +17,8 @@ import type { IActiveSubscriptionInfo, IAgentSubscription } from './state/agentS
 import type { IRemoteWatchHandle } from './agentHostFileSystemProvider.js';
 import type { IAgentHostResourceUriMapper } from './agentHostUri.js';
 import type { IAgentHostClientTelemetryContext } from './agentHostTelemetry.js';
+import type { INativeCliProxyService } from './nativeCliProxy.js';
+import type { INativeCliLifecycleService } from './nativeCliLifecycle.js';
 import type { CompletionsParams, CompletionsResult, CreateTerminalParams, ResolveSessionConfigResult, SessionConfigCompletionsResult } from './state/protocol/commands.js';
 import type { AutomationCapabilities, InitializeResult } from './state/protocol/common/commands.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from './state/protocol/channels-changeset/commands.js';
@@ -763,7 +765,7 @@ export interface IConnectionTrackerService {
  * Narrow renderer-to-local-agent-host control surface. All stateful agent
  * operations travel over {@link AgentHostIpcChannels.Protocol}.
  */
-export interface IAgentHostManagementService {
+export interface IAgentHostManagementService extends INativeCliProxyService, INativeCliLifecycleService {
 	readonly _serviceBrand: undefined;
 
 	/**
@@ -1230,6 +1232,10 @@ export const IAgentHostService = createDecorator<IAgentHostService>('agentHostSe
 export interface IAgentHostService extends IAgentConnection {
 
 	readonly _serviceBrand: undefined;
+
+	/** Local-only Copilot API routing for native CLI terminals. */
+	readonly nativeCliProxy?: INativeCliProxyService;
+	readonly nativeCliLifecycle?: INativeCliLifecycleService;
 
 	readonly onAgentHostExit: Event<number>;
 	readonly onAgentHostStart: Event<void>;

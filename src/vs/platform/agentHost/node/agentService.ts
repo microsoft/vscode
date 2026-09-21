@@ -22,6 +22,7 @@ import { ILogService } from '../../log/common/log.js';
 import { AgentChatMigrationDeferred, AgentProvider, AgentSession, AgentSignal, IAgent, type IAgentAdoptedWorktree, IAgentChatContext, IAgentChatDataChange, IAgentChatMetadata, IAgentCreateChatOptions, IAgentCreateChatRequestOptions, IAgentCreateChatResult, IAgentCreateChatSideChatSelection, IAgentCreateChatSideChatSource, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentDiscoveredChat, IAgentMaterializeChatEvent, IAgentModelInfo, IAgentResolveSessionConfigParams, IAgentChatAdoptionResult, type AgentChatAdoptionReason, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, IAgentSpawnChatEvent, AuthenticateParams, AuthenticateResult, SubagentChatSignal, subagentChatTitle } from '../common/agent.js';
 import { type AgentHostDebugLogsArtifactKind, type IAgentHostDebugLogsArtifact, type IAgentHostDebugLogsChunk, IAgentHostManagedSettingsDiagnostics, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult, IAgentService } from '../common/agentService.js';
 import { ISessionDatabase, ISessionDataService, SESSION_ATTACHMENTS_DIRNAME } from '../common/sessionDataService.js';
+import { SessionCatalogCache } from './sessionCatalogCache.js';
 import { IAgentEditAttributionService, ICancelEditAttributionFlushParams, ICommitEditAttributionFlushParams, IEditAttributionFlushResult, IPrepareEditAttributionFlushParams, IPreparedEditAttributionFlush, parseEditAttributionResource } from '../common/fileEditAttribution.js';
 import { omitTransientSessionConfigValues, SessionConfigKey } from '../common/sessionConfigKeys.js';
 import type { IAgentCustomizationSettingsRegistration } from '../common/agentCustomizationSettings.js';
@@ -206,6 +207,12 @@ const RESOURCE_WATCH_GRACE_MS = 30_000;
 
 /** Bound on how long {@link AgentService.subscribe} waits for a pending subagent chat to register before giving up. */
 const SUBAGENT_CHAT_PENDING_TIMEOUT_MS = 15_000;
+
+/** Bounds staleness for provider-side edits that do not emit host metadata notifications. */
+const SESSION_LIST_METADATA_CACHE_TTL_MS = 60_000;
+
+/** Avoid retaining large legacy changeset blobs in catalog snapshots. */
+const MAX_CACHED_SESSION_METADATA_LENGTH = 16_384;
 
 /**
  * Session-database metadata key for the orchestrator-owned catalog of
@@ -474,6 +481,8 @@ export class AgentService extends Disposable implements IAgentService {
 	private readonly _initialProviderMigrations = new Map<AgentProvider, Promise<void>>();
 	private readonly _deferredProviderMigrations = new Set<AgentProvider>();
 	private readonly _readableProviderCatalogs = new Set<AgentProvider>();
+	private readonly _sessionListMetadata: SessionCatalogCache<IAgentSessionMetadata>;
+	private readonly _sessionListOverlays: SessionCatalogCache<Record<string, string | undefined>>;
 
 	/**
 	 * Backing-session URIs (as strings) whose {@link CHAT_BACKING_METADATA_KEY}
@@ -623,6 +632,17 @@ export class AgentService extends Disposable implements IAgentService {
 		@IAgentHostStorageService private readonly _storageService: IAgentHostStorageService,
 	) {
 		super();
+		const catalogCacheLifetime = this._sessionDataService.onDidChangeSessionMetadata ? SESSION_LIST_METADATA_CACHE_TTL_MS : 0;
+		this._sessionListMetadata = this._register(new SessionCatalogCache<IAgentSessionMetadata>(catalogCacheLifetime));
+		this._sessionListOverlays = this._register(new SessionCatalogCache<Record<string, string | undefined>>(
+			catalogCacheLifetime,
+			undefined,
+			metadata => Object.values(metadata).reduce((length, value) => length + (value?.length ?? 0), 0) <= MAX_CACHED_SESSION_METADATA_LENGTH,
+		));
+		if (this._sessionDataService.onDidChangeSessionMetadata) {
+			this._register(this._sessionDataService.onDidChangeSessionMetadata(session => this._invalidateSessionList(session)));
+		}
+		this._register(this._sessionDataService.onWillDeleteSessionData(({ session }) => this._invalidateSessionList(session)));
 		this._authService = core.authenticationService;
 		this._orchestratorDatabase = core.orchestratorDatabase;
 		this._debugLogsCollector = core.debugLogsCollector;
@@ -1062,6 +1082,7 @@ export class AgentService extends Disposable implements IAgentService {
 		const subscriptions = new DisposableStore();
 		try {
 			this._invalidateSessionList();
+			this._sessionListMetadata.deleteMatching(key => AgentSession.provider(URI.parse(key)) === provider.id);
 			provider.setServerToolHost?.(this._serverToolHost);
 			provider.setKnownSessionsFilter?.(sessions => this._filterKnownSessions(sessions));
 			// Deterministic subagent membership ordering: apply a spawned subagent's
@@ -1086,6 +1107,8 @@ export class AgentService extends Disposable implements IAgentService {
 				this._providerSubscriptions.deleteAndDispose(provider.id);
 				this._deferredProviderMigrations.delete(provider.id);
 				this._readableProviderCatalogs.delete(provider.id);
+				this._sessionListMetadata.deleteMatching(key => AgentSession.provider(URI.parse(key)) === provider.id);
+				this._invalidateSessionList();
 			});
 		} catch (error) {
 			subscriptions.dispose();
@@ -1488,9 +1511,7 @@ export class AgentService extends Disposable implements IAgentService {
 			return undefined;
 		}
 		if (fallback && metadata.modifiedTime > fallback.modifiedTime) {
-			// This computation already returns the fresher metadata, and settled
-			// list computations are not cached. Persist without invalidating the
-			// in-flight computation into a redundant second pass.
+			// The cached entry records this newer timestamp without invalidating its own read.
 			await this._advanceSessionModifiedTime(session, metadata.modifiedTime, false);
 		}
 		const sessionMetadata = this._toSessionMetadata(metadata);
@@ -1811,6 +1832,7 @@ export class AgentService extends Disposable implements IAgentService {
 		let alreadyRegistered = 0;
 		let registryChanged = false;
 		let surfacedMetadataChanged = false;
+		let cachedMetadataChanged = false;
 		const untitledExternal: IAgentSessionMetadata[] = [];
 		const modifiedTimeAdvances: { readonly session: URI; readonly modifiedTime: number }[] = [];
 		const results = await Promise.all(chats.map(({ external: reportedExternal, ...metadata }) => discoveryLimiter.queue(async () => {
@@ -1823,6 +1845,16 @@ export class AgentService extends Disposable implements IAgentService {
 				// steady-state startup issues no recency writes at all.
 				if (registeredKeys.has(session.toString())) {
 					alreadyRegistered++;
+					const cached = this._sessionListMetadata.peek(session.toString());
+					if (!cached
+						|| cached.summary !== sessionMetadata.summary
+						|| cached.modifiedTime !== sessionMetadata.modifiedTime
+						|| !isEqual(cached.project?.uri, sessionMetadata.project?.uri)
+						|| cached.project?.displayName !== sessionMetadata.project?.displayName
+						|| cached.workingDirectories?.length !== sessionMetadata.workingDirectories?.length
+						|| cached.workingDirectories?.some((directory, index) => !isEqual(directory, sessionMetadata.workingDirectories?.[index]))) {
+						cachedMetadataChanged = this._sessionListMetadata.delete(session.toString()) || cachedMetadataChanged;
+					}
 					const surfaced = this._stateManager.getSurfacedSessionSummary(session.toString());
 					if (surfaced && sessionMetadata.summary && surfaced.title !== sessionMetadata.summary) {
 						surfacedMetadataChanged = true;
@@ -1887,8 +1919,10 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 		if (registryChanged || surfacedMetadataChanged) {
 			this._invalidateSessionList();
+		} else if (cachedMetadataChanged && modifiedTimeAdvances.length === 0) {
+			this._invalidateSessionList();
 		}
-		if (registeredExternal || surfacedMetadataChanged) {
+		if (registeredExternal || surfacedMetadataChanged || cachedMetadataChanged) {
 			this._queueSessionListReconciliation();
 		}
 		if (untitledExternal.length > 0) {
@@ -2048,7 +2082,7 @@ export class AgentService extends Disposable implements IAgentService {
 			`modified-time update for ${session.toString()}`,
 		);
 		if (changed && invalidate) {
-			this._invalidateSessionList();
+			this._invalidateSessionList(session);
 		}
 	}
 
@@ -2085,8 +2119,31 @@ export class AgentService extends Disposable implements IAgentService {
 
 	private _registryEpoch = 0;
 
-	private _invalidateSessionList(): void {
+	private _invalidateSessionList(session?: URI): void {
+		if (session) {
+			const key = session.toString();
+			this._sessionListMetadata.delete(key);
+			this._sessionListOverlays.delete(key);
+		}
 		this._registryEpoch++;
+	}
+
+	private _sessionListMetadataVersion(entry: IRegisteredSession): string {
+		return JSON.stringify([entry.provider, entry.startTime, entry.modifiedTime, entry.external, entry.source]);
+	}
+
+	private _readSessionListOverlay(session: URI, keys: Record<string, true>): Promise<Record<string, string | undefined> | undefined> {
+		return this._sessionListOverlays.get(session.toString(), Object.keys(keys).sort().join(','), async () => {
+			const ref = await this._sessionDataService.tryOpenDatabase(session);
+			if (!ref) {
+				return undefined;
+			}
+			try {
+				return await ref.object.getMetadataObject(keys);
+			} finally {
+				ref.dispose();
+			}
+		});
 	}
 
 	async listSessions(mode = this._getExternalSessionsMode()): Promise<IAgentSessionMetadata[]> {
@@ -2216,6 +2273,9 @@ export class AgentService extends Disposable implements IAgentService {
 		// are tombstoned at creation. A transiently missing provider snapshot no
 		// longer evicts a session.
 		const allRegistered = await this._listRegisteredSessions();
+		const registeredKeys = new Set(allRegistered.map(entry => entry.session.toString()));
+		this._sessionListMetadata.retain(registeredKeys);
+		this._sessionListOverlays.retain(registeredKeys);
 		// External sessions that the current mode hides outright are dropped
 		// before any provider or database read. On a large catalogue these are
 		// most of the registry, and each one otherwise costs a provider metadata
@@ -2227,22 +2287,26 @@ export class AgentService extends Disposable implements IAgentService {
 		const registered = hiddenExternal.size > 0
 			? allRegistered.filter(entry => !hiddenExternal.has(entry.session.toString()))
 			: allRegistered;
-		// Warm each involved provider's bulk metadata cache once, so the
-		// per-session metadata reads below are served from memory instead of one
-		// provider round-trip per session (the dominant cost on a large
-		// catalogue). Best-effort and provider-optional; disposed once the
-		// metadata phase completes.
+		// Only a catalog miss needs provider prewarming; warm selection never waits for a bulk scan.
 		const prewarmStore = new DisposableStore();
-		const involvedProviders = new Map<AgentProvider, IAgent>();
+		const providerEntries = new Map<AgentProvider, { agent: IAgent; total: number; missing: number }>();
 		for (const entry of registered) {
-			if (!involvedProviders.has(entry.provider)) {
-				const agent = this._providerService.getProvider(entry.provider);
-				if (agent?.prewarmSessionMetadata) {
-					involvedProviders.set(entry.provider, agent);
-				}
+			if (this._stateManager.isIdleProvisionalSession(entry.session.toString())) {
+				continue;
 			}
+			const agent = this._providerService.getProvider(entry.provider);
+			if (!agent?.prewarmSessionMetadata) {
+				continue;
+			}
+			const counts = providerEntries.get(entry.provider) ?? { agent, total: 0, missing: 0 };
+			counts.total++;
+			if (!this._sessionListMetadata.has(entry.session.toString(), this._sessionListMetadataVersion(entry))) {
+				counts.missing++;
+			}
+			providerEntries.set(entry.provider, counts);
 		}
-		await Promise.all([...involvedProviders.values()].map(async agent => {
+		const coldProviders = [...providerEntries.values()].filter(entry => entry.missing > 1 && entry.missing === entry.total);
+		await Promise.all(coldProviders.map(async ({ agent }) => {
 			try {
 				prewarmStore.add(await agent.prewarmSessionMetadata!());
 			} catch (err) {
@@ -2267,7 +2331,12 @@ export class AgentService extends Disposable implements IAgentService {
 					return undefined;
 				}
 				try {
-					return await this._registeredSessionMetadata(agent, session, external, registeredSession);
+					return await this._sessionListMetadata.get(
+						session.toString(),
+						this._sessionListMetadataVersion(registeredSession),
+						() => this._registeredSessionMetadata(agent, session, external, registeredSession),
+						metadata => this._sessionListMetadataVersion({ ...registeredSession, modifiedTime: Math.max(registeredSession.modifiedTime, metadata.modifiedTime) }),
+					);
 				} catch (err) {
 					this._logService.warn(`[AgentService] listSessions: failed to read metadata for ${session}`, err);
 					return undefined;
@@ -2292,120 +2361,109 @@ export class AgentService extends Disposable implements IAgentService {
 				return undefined;
 			}
 			try {
-				const ref = await this._sessionDataService.tryOpenDatabase(s.session);
-				if (!ref) {
+				const sessionStr = s.session.toString();
+				const changesetKeys = this._changesetCoordinator.getListMetadataKeys(sessionStr);
+				const metadataKeys: Record<string, true> = changesetKeys
+					? { customTitle: true, configValues: true, [AH_META_IS_READ_DB_KEY]: true, [AH_META_IS_ARCHIVED_DB_KEY]: true, [AH_META_IS_DONE_DB_KEY]: true, [AH_META_CREATED_BY_SESSION_DB_KEY]: true, [AH_META_DEV_CONTAINER_WORKTREE_DB_KEY]: true, [AH_META_HAS_WORKSPACE_TRANSITIONS_DB_KEY]: true, [AH_META_WORKSPACELESS_DB_KEY]: true, [AH_META_EHCLI_ADOPTED_DB_KEY]: true, [AH_META_EHCLI_LAST_TURN_DB_KEY]: true, [SESSION_META_MULTI_ROOT_KEY]: true, [SESSION_META_FOLDER_PICKER_KEY]: true, [SESSION_ARTIFACTS_KEY]: true, [CHAT_BACKING_METADATA_KEY]: true, [WORKTREE_META_REPOSITORY_ROOT]: true, ...GIT_DB_METADATA_KEYS, ...changesetKeys }
+					: { customTitle: true, [AH_META_IS_READ_DB_KEY]: true, [AH_META_IS_ARCHIVED_DB_KEY]: true, [AH_META_IS_DONE_DB_KEY]: true, [AH_META_CREATED_BY_SESSION_DB_KEY]: true, [AH_META_DEV_CONTAINER_WORKTREE_DB_KEY]: true, [AH_META_HAS_WORKSPACE_TRANSITIONS_DB_KEY]: true, [AH_META_WORKSPACELESS_DB_KEY]: true, [AH_META_EHCLI_ADOPTED_DB_KEY]: true, [AH_META_EHCLI_LAST_TURN_DB_KEY]: true, [SESSION_META_MULTI_ROOT_KEY]: true, [SESSION_META_FOLDER_PICKER_KEY]: true, [SESSION_ARTIFACTS_KEY]: true, [CHAT_BACKING_METADATA_KEY]: true, [WORKTREE_META_REPOSITORY_ROOT]: true, ...GIT_DB_METADATA_KEYS };
+				const m = await this._readSessionListOverlay(s.session, metadataKeys);
+				if (!m) {
 					return sanitized;
 				}
-				try {
-					// Batch the always-required keys (title / read / archive
-					// flags) with any keys the changeset coordinator asks for
-					// so the session DB is hit exactly once. The coordinator
-					// returns `undefined` when a live source can already
-					// answer the catalogue question, avoiding the
-					// potentially-large persisted blobs entirely.
-					const sessionStr = s.session.toString();
-					const changesetKeys = this._changesetCoordinator.getListMetadataKeys(sessionStr);
-					const metadataKeys: Record<string, true> = changesetKeys
-						? { customTitle: true, configValues: true, [AH_META_IS_READ_DB_KEY]: true, [AH_META_IS_ARCHIVED_DB_KEY]: true, [AH_META_IS_DONE_DB_KEY]: true, [AH_META_CREATED_BY_SESSION_DB_KEY]: true, [AH_META_DEV_CONTAINER_WORKTREE_DB_KEY]: true, [AH_META_HAS_WORKSPACE_TRANSITIONS_DB_KEY]: true, [AH_META_WORKSPACELESS_DB_KEY]: true, [AH_META_EHCLI_ADOPTED_DB_KEY]: true, [AH_META_EHCLI_LAST_TURN_DB_KEY]: true, [SESSION_META_MULTI_ROOT_KEY]: true, [SESSION_META_FOLDER_PICKER_KEY]: true, [SESSION_ARTIFACTS_KEY]: true, [CHAT_BACKING_METADATA_KEY]: true, [WORKTREE_META_REPOSITORY_ROOT]: true, ...GIT_DB_METADATA_KEYS, ...changesetKeys }
-						: { customTitle: true, [AH_META_IS_READ_DB_KEY]: true, [AH_META_IS_ARCHIVED_DB_KEY]: true, [AH_META_IS_DONE_DB_KEY]: true, [AH_META_CREATED_BY_SESSION_DB_KEY]: true, [AH_META_DEV_CONTAINER_WORKTREE_DB_KEY]: true, [AH_META_HAS_WORKSPACE_TRANSITIONS_DB_KEY]: true, [AH_META_WORKSPACELESS_DB_KEY]: true, [AH_META_EHCLI_ADOPTED_DB_KEY]: true, [AH_META_EHCLI_LAST_TURN_DB_KEY]: true, [SESSION_META_MULTI_ROOT_KEY]: true, [SESSION_META_FOLDER_PICKER_KEY]: true, [SESSION_ARTIFACTS_KEY]: true, [CHAT_BACKING_METADATA_KEY]: true, [WORKTREE_META_REPOSITORY_ROOT]: true, ...GIT_DB_METADATA_KEYS };
-					const m = await ref.object.getMetadataObject(metadataKeys);
-					// This session is an internal peer-chat backing (e.g. a
-					// Claude peer chat's SDK session, enumerated by the agent's
-					// own `listSessions`). Drop it so it never leaks as a
-					// standalone top-level session — mirrors the subagent filter
-					// on the state-manager overlay path below.
-					if (m[CHAT_BACKING_METADATA_KEY]) {
-						return undefined;
-					}
-					let updated = sanitized;
-					if (m.customTitle) {
-						updated = { ...updated, summary: m.customTitle };
-					}
-					// `isDone` is the legacy key for `isArchived`.
-					if (m[AH_META_IS_READ_DB_KEY] !== undefined) {
-						updated = { ...updated, status: withSessionStatusFlag(updated.status ?? SessionStatus.Idle, SessionStatus.IsRead, m[AH_META_IS_READ_DB_KEY] === 'true') };
-					}
-					const persistedArchived = m[AH_META_IS_ARCHIVED_DB_KEY] ?? m[AH_META_IS_DONE_DB_KEY];
-					if (persistedArchived !== undefined) {
-						updated = { ...updated, status: withSessionStatusFlag(updated.status ?? SessionStatus.Idle, SessionStatus.IsArchived, persistedArchived === 'true') };
-					}
-					const creationReference = parseSessionCreationReference(m[AH_META_CREATED_BY_SESSION_DB_KEY]);
-					if (creationReference) {
-						updated = { ...updated, _meta: withSessionCreationReference(updated._meta, creationReference) };
-					}
-					if (m[AH_META_HAS_WORKSPACE_TRANSITIONS_DB_KEY] !== undefined) {
-						updated = { ...updated, _meta: withSessionHasWorkspaceTransitions(updated._meta, m[AH_META_HAS_WORKSPACE_TRANSITIONS_DB_KEY] === 'true') };
-					}
-					if (m[AH_META_DEV_CONTAINER_WORKTREE_DB_KEY]) {
-						try {
-							const metadata = readAgentDevContainerWorktreeMetadata({
-								[AH_META_DEV_CONTAINER_WORKTREE_DB_KEY]: JSON.parse(m[AH_META_DEV_CONTAINER_WORKTREE_DB_KEY]),
-							});
-							if (metadata) {
-								updated = { ...updated, _meta: withAgentDevContainerWorktreeMetadata(updated._meta, metadata.handle) };
-							}
-						} catch (err) {
-							this._logService.warn(`[AgentService][listSessions] Failed to parse Dev Container worktree metadata for ${s.session}`, err);
-						}
-					}
-					if (m[META_GIT_STATE]) {
-						try {
-							const gitState = JSON.parse(m[META_GIT_STATE]) as ISessionGitState;
-							updated = { ...updated, _meta: withSessionGitState(updated._meta, gitState) };
-						} catch (e) {
-							this._logService.warn(`[AgentService][listSessions] Failed to parse Git state for ${s.session}`, e);
-						}
-					}
-					if (m[META_GITHUB_STATE]) {
-						try {
-							const gitHubState = JSON.parse(m[META_GITHUB_STATE]) as ISessionGitHubState;
-							updated = { ...updated, _meta: withSessionGitHubState(updated._meta, gitHubState) };
-						} catch (e) {
-							this._logService.warn(`[AgentService][listSessions] Failed to parse GitHub state for ${s.session}`, e);
-						}
-					}
-					if (m[META_SOURCE_CONTROL_STATE]) {
-						try {
-							const sourceControlState = parsePersistedSourceControlState(m[META_SOURCE_CONTROL_STATE]);
-							updated = { ...updated, _meta: withSessionSourceControlState(updated._meta, sourceControlState) };
-						} catch (e) {
-							this._logService.warn(`[AgentService][listSessions] Failed to parse source-control state for ${s.session}`, e);
-						}
-					}
-
-					if (m[AH_META_WORKSPACELESS_DB_KEY] !== undefined) {
-						updated = { ...updated, _meta: withSessionWorkspaceless(updated._meta, m[AH_META_WORKSPACELESS_DB_KEY] === 'true') };
-					}
-					if (m[AH_META_EHCLI_ADOPTED_DB_KEY] !== undefined) {
-						updated = { ...updated, _meta: withSessionEhcliAdopted(updated._meta, m[AH_META_EHCLI_ADOPTED_DB_KEY] === 'true') };
-					}
-					if (m[AH_META_EHCLI_LAST_TURN_DB_KEY] !== undefined) {
-						updated = { ...updated, _meta: withSessionEhcliLastMigratedTurn(updated._meta, m[AH_META_EHCLI_LAST_TURN_DB_KEY]) };
-					}
-					const multiRoot = parseSessionMultiRootMetadata(m[SESSION_META_MULTI_ROOT_KEY]);
-					if (multiRoot) {
-						updated = { ...updated, _meta: withSessionMultiRootMetadata(updated._meta, multiRoot) };
-					}
-					const artifacts = this._readPersistedArtifacts(m[SESSION_ARTIFACTS_KEY], sessionStr, '[AgentService][listSessions]');
-					if (artifacts.length > 0) {
-						updated = { ...updated, _meta: withSessionArtifacts(updated._meta, artifacts) };
-					}
-					const folderPickerDecision = parseSessionFolderPickerDecision(m[SESSION_META_FOLDER_PICKER_KEY]);
-					if (folderPickerDecision) {
-						updated = { ...updated, _meta: withSessionFolderPickerDecision(updated._meta, folderPickerDecision) };
-					}
-
-					// Use the persisted root as-is to keep listing off Git; the metadata reader re-canonicalizes it on open.
-					const worktreeProject = worktreeProjectFromRepositoryRoot(m[WORKTREE_META_REPOSITORY_ROOT]);
-					if (worktreeProject) {
-						updated = { ...updated, project: worktreeProject };
-					}
-
-					return this._changesetCoordinator.decorateListEntry(updated, m as Record<string, string | undefined>);
-				} finally {
-					ref.dispose();
+				if (m[CHAT_BACKING_METADATA_KEY]) {
+					return undefined;
 				}
+				let updated = sanitized;
+				if (m.customTitle) {
+					updated = { ...updated, summary: m.customTitle };
+				}
+				// `isDone` is the legacy key for `isArchived`.
+				if (m[AH_META_IS_READ_DB_KEY] !== undefined) {
+					updated = { ...updated, status: withSessionStatusFlag(updated.status ?? SessionStatus.Idle, SessionStatus.IsRead, m[AH_META_IS_READ_DB_KEY] === 'true') };
+				}
+				const persistedArchived = m[AH_META_IS_ARCHIVED_DB_KEY] ?? m[AH_META_IS_DONE_DB_KEY];
+				if (persistedArchived !== undefined) {
+					updated = { ...updated, status: withSessionStatusFlag(updated.status ?? SessionStatus.Idle, SessionStatus.IsArchived, persistedArchived === 'true') };
+				}
+				const creationReference = parseSessionCreationReference(m[AH_META_CREATED_BY_SESSION_DB_KEY]);
+				if (creationReference) {
+					updated = { ...updated, _meta: withSessionCreationReference(updated._meta, creationReference) };
+				}
+				if (m[AH_META_HAS_WORKSPACE_TRANSITIONS_DB_KEY] !== undefined) {
+					updated = { ...updated, _meta: withSessionHasWorkspaceTransitions(updated._meta, m[AH_META_HAS_WORKSPACE_TRANSITIONS_DB_KEY] === 'true') };
+				}
+				if (m[AH_META_DEV_CONTAINER_WORKTREE_DB_KEY]) {
+					try {
+						const metadata = readAgentDevContainerWorktreeMetadata({
+							[AH_META_DEV_CONTAINER_WORKTREE_DB_KEY]: JSON.parse(m[AH_META_DEV_CONTAINER_WORKTREE_DB_KEY]),
+						});
+						if (metadata) {
+							updated = { ...updated, _meta: withAgentDevContainerWorktreeMetadata(updated._meta, metadata.handle) };
+						}
+					} catch (err) {
+						this._sessionListOverlays.delete(sessionStr);
+						this._logService.warn(`[AgentService][listSessions] Failed to parse Dev Container worktree metadata for ${s.session}`, err);
+					}
+				}
+				if (m[META_GIT_STATE]) {
+					try {
+						const gitState = JSON.parse(m[META_GIT_STATE]) as ISessionGitState;
+						updated = { ...updated, _meta: withSessionGitState(updated._meta, gitState) };
+					} catch (e) {
+						this._sessionListOverlays.delete(sessionStr);
+						this._logService.warn(`[AgentService][listSessions] Failed to parse Git state for ${s.session}`, e);
+					}
+				}
+				if (m[META_GITHUB_STATE]) {
+					try {
+						const gitHubState = JSON.parse(m[META_GITHUB_STATE]) as ISessionGitHubState;
+						updated = { ...updated, _meta: withSessionGitHubState(updated._meta, gitHubState) };
+					} catch (e) {
+						this._sessionListOverlays.delete(sessionStr);
+						this._logService.warn(`[AgentService][listSessions] Failed to parse GitHub state for ${s.session}`, e);
+					}
+				}
+				if (m[META_SOURCE_CONTROL_STATE]) {
+					try {
+						const sourceControlState = parsePersistedSourceControlState(m[META_SOURCE_CONTROL_STATE]);
+						updated = { ...updated, _meta: withSessionSourceControlState(updated._meta, sourceControlState) };
+					} catch (e) {
+						this._sessionListOverlays.delete(sessionStr);
+						this._logService.warn(`[AgentService][listSessions] Failed to parse source-control state for ${s.session}`, e);
+					}
+				}
+
+				if (m[AH_META_WORKSPACELESS_DB_KEY] !== undefined) {
+					updated = { ...updated, _meta: withSessionWorkspaceless(updated._meta, m[AH_META_WORKSPACELESS_DB_KEY] === 'true') };
+				}
+				if (m[AH_META_EHCLI_ADOPTED_DB_KEY] !== undefined) {
+					updated = { ...updated, _meta: withSessionEhcliAdopted(updated._meta, m[AH_META_EHCLI_ADOPTED_DB_KEY] === 'true') };
+				}
+				if (m[AH_META_EHCLI_LAST_TURN_DB_KEY] !== undefined) {
+					updated = { ...updated, _meta: withSessionEhcliLastMigratedTurn(updated._meta, m[AH_META_EHCLI_LAST_TURN_DB_KEY]) };
+				}
+				const multiRoot = parseSessionMultiRootMetadata(m[SESSION_META_MULTI_ROOT_KEY]);
+				if (multiRoot) {
+					updated = { ...updated, _meta: withSessionMultiRootMetadata(updated._meta, multiRoot) };
+				}
+				const artifacts = this._readPersistedArtifacts(m[SESSION_ARTIFACTS_KEY], sessionStr, '[AgentService][listSessions]');
+				if (artifacts.length > 0) {
+					updated = { ...updated, _meta: withSessionArtifacts(updated._meta, artifacts) };
+				}
+				const folderPickerDecision = parseSessionFolderPickerDecision(m[SESSION_META_FOLDER_PICKER_KEY]);
+				if (folderPickerDecision) {
+					updated = { ...updated, _meta: withSessionFolderPickerDecision(updated._meta, folderPickerDecision) };
+				}
+
+				// Use the persisted root as-is to keep listing off Git; the metadata reader re-canonicalizes it on open.
+				const worktreeProject = worktreeProjectFromRepositoryRoot(m[WORKTREE_META_REPOSITORY_ROOT]);
+				if (worktreeProject) {
+					updated = { ...updated, project: worktreeProject };
+				}
+
+				return this._changesetCoordinator.decorateListEntry(updated, m);
 			} catch (e) {
+				this._sessionListOverlays.delete(s.session.toString());
 				this._logService.warn(`[AgentService] Failed to read session metadata overlay for ${s.session}`, e);
 			}
 			return sanitized;
@@ -2496,7 +2554,7 @@ export class AgentService extends Disposable implements IAgentService {
 		const total = combined.length + hiddenExternal.size;
 		this._logHiddenSessions(hiddenByExternalMode, total, mode);
 
-		// A catalog pass opens every registered session's database, so it can be slow.
+		// Only changed or expired entries need provider/database reads.
 		const duration = Date.now() - startedAt;
 		const message = `[AgentService] listSessions computed ${visible.length} of ${total} session(s) for mode '${mode}' in ${duration}ms (metadata ${metadataPhaseMs}ms, overlay ${overlayPhaseMs}ms, ${additions.length} state-manager fallback)`;
 		if (duration >= SLOW_LIST_SESSIONS_THRESHOLD_MS) {

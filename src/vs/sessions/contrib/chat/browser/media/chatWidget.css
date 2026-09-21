@@ -89,6 +89,57 @@
 	align-self: center;
 }
 
+.new-session-presentation-picker {
+	align-self: flex-start;
+	margin-bottom: var(--vscode-spacing-size160);
+}
+
+.new-session-terminal-composer {
+	display: none;
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-body1);
+	line-height: 1.5;
+}
+
+.new-session-terminal-composer > .monaco-button {
+	width: fit-content;
+	margin-top: var(--vscode-spacing-size160);
+}
+
+.new-session-terminal-progress {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size80);
+	margin: var(--vscode-spacing-size120) 0;
+	color: var(--vscode-descriptionForeground);
+}
+
+.new-session-terminal-progress .monaco-pixel-spinner {
+	color: var(--vscode-textLink-foreground);
+}
+
+.new-session-terminal-warmup {
+	position: absolute;
+	inset: 0;
+	visibility: hidden;
+	opacity: 0;
+	pointer-events: none;
+	overflow: hidden;
+	contain: strict;
+}
+
+.new-chat-widget-content.terminal-session-mode > .new-session-terminal-composer {
+	display: block;
+}
+
+.new-session-terminal-composer > p {
+	margin: 0;
+}
+
+.new-chat-widget-content.terminal-session-mode > .new-chat-input-container {
+	display: none;
+}
+
 /* Flex centering shares attachment growth above and below the midpoint. Offset
  * that growth so the bottom controls stay anchored and the composer grows up. */
 .sessions-chat-widget:not(.new-chat-in-session) > .new-chat-widget-container > .new-chat-widget-content {
@@ -111,6 +162,12 @@
 
 .new-chat-widget-container.revealed .new-chat-bottom-container {
 	display: flex;
+}
+
+/* Must follow the `.revealed` rule above: both are three-class selectors, so the
+ * later declaration wins and the chat controls would stay visible in terminal mode. */
+.new-chat-widget-content.terminal-session-mode > .new-chat-bottom-container {
+	display: none;
 }
 
 .agent-sessions-workbench:not(.phone-layout) .new-chat-widget-container .new-chat-bottom-container {

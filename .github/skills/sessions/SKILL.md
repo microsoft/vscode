@@ -36,6 +36,7 @@ Start with `src/vs/sessions/README.md`, then read only the specifications releva
 | Copilot Chat provider | `src/vs/sessions/contrib/providers/copilotChatSessions/COPILOT_CHAT_SESSIONS_PROVIDER.md` |
 | Agent Host provider | `src/vs/sessions/contrib/providers/agentHost/AGENT_HOST_SESSIONS_PROVIDER.md` |
 | Remote Agent Host provider | `src/vs/sessions/contrib/providers/remoteAgentHost/REMOTE_AGENT_HOST_SESSIONS_PROVIDER.md` |
+| Native CLI provider | `src/vs/sessions/contrib/providers/nativeCli/README.md` |
 
 Do not load the learning inbox by default. Search its headings and scopes, then read only matching entries after the authoritative specification.
 

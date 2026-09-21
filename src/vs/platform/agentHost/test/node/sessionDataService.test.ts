@@ -136,6 +136,21 @@ suite('SessionDataService — openDatabase ref-counting', () => {
 		await ref.object.close();
 	});
 
+	test('catalog invalidation identifies the metadata owner and data deletion', async () => {
+		const session = AgentSession.uri('copilot', 'metadata-owner');
+		const chat = URI.parse(buildChatUri(session, 'peer'));
+		const notifications: string[] = [];
+		disposables.add(service.onDidChangeSessionMetadata(resource => notifications.push(resource.toString())));
+		const sessionRef = disposables.add(service.openDatabase(session));
+		const chatRef = disposables.add(service.openDatabase(chat));
+		await sessionRef.object.setMetadata('customTitle', 'Renamed');
+		await chatRef.object.setMetadataValues({ customTitle: 'Peer' });
+		await fileService.createFolder(service.getSessionDataDir(session));
+		await service.deleteSessionData(session);
+		assert.deepStrictEqual(notifications, [session.toString(), chat.toString(), session.toString()]);
+		await Promise.all([sessionRef.object.close(), chatRef.object.close()]);
+	});
+
 	test('tryOpenDatabase returns undefined only for a missing database', async () => {
 		const session = AgentSession.uri('copilot', 'strict-existing-test');
 		const missing = await service.tryOpenDatabase(session);

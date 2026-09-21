@@ -2499,6 +2499,57 @@ suite('SessionsManagementService', () => {
 		);
 	});
 
+	test('terminal sessions require an explicit type instead of becoming the chat default', () => {
+		const folder = URI.file('/repository');
+		const session = stubSession({ sessionId: 'terminal', providerId: 'test', presentation: 'terminal' });
+		const provider = new class extends TestSessionsProvider {
+			override readonly sessionTypes: readonly ISessionType[] = [{ id: 'terminal', label: 'Terminal', icon: Codicon.terminal, presentation: 'terminal', authRequirement: SessionTypeAuthRequirement.None }];
+			override resolveWorkspace(): ISessionWorkspace {
+				return { uri: folder, label: 'Repository', icon: Codicon.folder, folders: [], requiresWorkspaceTrust: false, isVirtualWorkspace: false };
+			}
+		}(session);
+		const { service } = createSessionsManagementService(session, disposables, provider);
+
+		assert.throws(() => service.createNewSession(folder), /No sessions provider/);
+		assert.strictEqual(service.createNewSession(folder, { sessionTypeId: 'terminal' }), session);
+	});
+
+	test('resource aliases keep a native session canonical instead of duplicating an imported chat', async () => {
+		const imported = stubSession({ sessionId: 'imported', providerId: 'importer' });
+		const terminal = stubSession({
+			sessionId: 'terminal',
+			providerId: 'terminal',
+			presentation: 'terminal',
+			resourceAliases: constObservable([imported.resource]),
+		});
+		const provider = new class extends TestSessionsProvider {
+			override getSessions(): ISession[] { return [imported, terminal]; }
+		}(terminal);
+		const { service } = createSessionsManagementService(terminal, disposables, provider);
+
+		assert.deepStrictEqual({
+			list: service.getSessions().map(session => session.sessionId),
+			lookup: service.getSession(imported.resource)?.sessionId,
+			chat: service.getSessionForChatResource(imported.resource)?.session.sessionId,
+			resolved: (await service.resolveSessionResource(imported.resource)).toString(),
+		}, { list: ['terminal'], lookup: 'terminal', chat: 'terminal', resolved: terminal.resource.toString() });
+	});
+
+	test('warm session lookup work counts collect the provider catalog once', () => {
+		const session = stubSession({ sessionId: 'warm', providerId: 'test' });
+		let catalogReads = 0;
+		const provider = new class extends TestSessionsProvider {
+			override getSessions(): ISession[] { catalogReads++; return [session]; }
+		}(session);
+		const { service } = createSessionsManagementService(session, disposables, provider);
+		catalogReads = 0;
+		for (let index = 0; index < 20; index++) {
+			service.getSession(session.resource);
+			service.getSessionForChatResource(session.mainChat.get().resource);
+		}
+		assert.strictEqual(catalogReads, 40);
+	});
+
 	test('inheritableSessionTarget drops a harness the folder no longer offers', () => {
 		const folderUri = URI.parse('test:///folder');
 		// The provider still resolves the folder (its existing sessions stay

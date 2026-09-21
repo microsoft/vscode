@@ -3,11 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { LazyStatefulPromise, raceTimeout } from '../../../../base/common/async.js';
+import { LazyStatefulPromise, Limiter, raceTimeout } from '../../../../base/common/async.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { BugIndicatingError, CancellationError, onUnexpectedError } from '../../../../base/common/errors.js';
 import { Event, ValueWithChangeEvent } from '../../../../base/common/event.js';
 import { IMarkdownString } from '../../../../base/common/htmlContent.js';
-import { Disposable, DisposableStore, IDisposable, IReference } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
 import { parse } from '../../../../base/common/marshalling.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { deepClone } from '../../../../base/common/objects.js';
@@ -19,7 +20,7 @@ import { RefCounted } from '../../../../editor/browser/widget/diffEditor/utils.j
 import { DiffItemSource, IDocumentDiffItem, IMultiDiffEditorModel } from '../../../../editor/browser/widget/multiDiffEditor/model.js';
 import { MultiDiffEditorViewModel } from '../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorViewModel.js';
 import { IDiffEditorOptions } from '../../../../editor/common/config/editorOptions.js';
-import { IResolvedTextEditorModel, ITextModelService } from '../../../../editor/common/services/resolverService.js';
+import { ITextModelService } from '../../../../editor/common/services/resolverService.js';
 import { ITextResourceConfigurationService } from '../../../../editor/common/services/textResourceConfiguration.js';
 import { localize } from '../../../../nls.js';
 import { ConfirmResult } from '../../../../platform/dialogs/common/dialogs.js';
@@ -200,73 +201,48 @@ export class MultiDiffEditorInput extends EditorInput implements ILanguageSuppor
 
 	private readonly _viewModel;
 
+	public getViewModelIfResolved(): MultiDiffEditorViewModel | undefined {
+		return this._viewModel.currentValue;
+	}
+
+	private readonly _documentLoader = this._register(new Limiter<RefCounted<IDocumentDiffItem>>(4));
+
 	private async _createModel(): Promise<IMultiDiffEditorModel & IDisposable> {
 		const source = await this._resolvedSource.getPromise();
-		const textResourceConfigurationService = this._textResourceConfigurationService;
 
-		const documentsWithPromises = mapObservableArrayCached(this, source.resources, async (r, store) => {
-			/** @description documentsWithPromises */
-			let original: IReference<IResolvedTextEditorModel> | undefined;
-			let modified: IReference<IResolvedTextEditorModel> | undefined;
-
-			const multiDiffItemStore = new DisposableStore();
-			const createModelReference = async (resource: URI | undefined) => resource ? this._textModelService.createModelReference(resource) : undefined;
-
-			const [originalResult, modifiedResult] = await Promise.allSettled([
-				createModelReference(r.originalUri),
-				createModelReference(r.modifiedUri),
-			]);
-
-			if (originalResult.status === 'fulfilled') {
-				original = originalResult.value;
-				if (original) { multiDiffItemStore.add(original); }
-			}
-			if (modifiedResult.status === 'fulfilled') {
-				modified = modifiedResult.value;
-				if (modified) { multiDiffItemStore.add(modified); }
-			}
-
-			if (store.isDisposed) {
-				multiDiffItemStore.dispose();
-				return undefined;
-			}
-
-			const errorResults = [originalResult, modifiedResult].filter((result): result is PromiseRejectedResult => result.status === 'rejected');
-			const errorResult = errorResults.find(result => !isBinaryTextFileOperationError(result.reason));
-			if (errorResult) {
-				multiDiffItemStore.dispose();
-				console.error(errorResult.reason);
-				onUnexpectedError(errorResult.reason);
-				return undefined;
-			}
-
-			const isBinary = errorResults.length > 0;
-			if (isBinary) {
-				multiDiffItemStore.clear();
-				original = undefined;
-				modified = undefined;
-			}
-
-			const uri = (r.modifiedUri ?? r.originalUri)!;
-			const result: IDocumentDiffItemWithMultiDiffEditorItem = {
-				multiDiffEditorItem: r,
-				original: r.originalUri ? new DiffItemSource(r.originalUri, original?.object.textEditorModel) : undefined,
-				modified: r.modifiedUri ? new DiffItemSource(r.modifiedUri, modified?.object.textEditorModel) : undefined,
-				contextKeys: r.contextKeys,
-				get options() {
-					return {
-						...getReadonlyConfiguration(modified?.object.isReadonly() ?? true),
-						...computeOptions(textResourceConfigurationService.getValue(uri)),
-					} satisfies IDiffEditorOptions;
-				},
-				onOptionsDidChange: h => this._textResourceConfigurationService.onDidChangeConfiguration(e => {
-					if (e.affectsConfiguration(uri, 'editor') || e.affectsConfiguration(uri, 'diffEditor')) {
-						h();
-					}
-				}),
+		if (source.source?.loadOnDemand) {
+			const documents = mapObservableArrayCached(this, source.resources, (resource, store) => {
+				const item: IDocumentDiffItemWithMultiDiffEditorItem = {
+					multiDiffEditorItem: resource,
+					original: resource.originalUri ? new DiffItemSource(resource.originalUri, undefined) : undefined,
+					modified: resource.modifiedUri ? new DiffItemSource(resource.modifiedUri, undefined) : undefined,
+					contextKeys: resource.contextKeys,
+					load: token => this._documentLoader.queue(() => this._resolveDocument(resource, token)),
+				};
+				return store.add(RefCounted.createOfNonDisposable(item, Disposable.None, this));
+			}, resource => resource.getKey());
+			const store = new DisposableStore();
+			const observer = documents.recomputeInitiallyAndOnChange(store);
+			return {
+				documents: new ValueWithChangeEventFromObservable(observer),
+				contextKeys: source.source.contextKeys,
+				dispose: () => store.dispose(),
 			};
-			return store.add(RefCounted.createOfNonDisposable(result, multiDiffItemStore, this));
-		}, i => JSON.stringify([i.modifiedUri?.toString(), i.originalUri?.toString()]));
+		}
+
+		const documentsWithPromises = mapObservableArrayCached(this, source.resources, async (resource, store) => {
+			try {
+				const document = await this._resolveDocument(resource, CancellationToken.None);
+				if (store.isDisposed) {
+					document.dispose();
+					return undefined;
+				}
+				return store.add(document);
+			} catch (error) {
+				onUnexpectedError(error);
+				return undefined;
+			}
+		}, resource => resource.getKey());
 
 		const documents = observableValue<readonly RefCounted<IDocumentDiffItem>[] | 'loading'>('documents', 'loading');
 
@@ -287,6 +263,58 @@ export class MultiDiffEditorInput extends EditorInput implements ILanguageSuppor
 			contextKeys: source.source?.contextKeys,
 		};
 		return result;
+	}
+
+	private async _resolveDocument(resource: MultiDiffEditorItem, token: CancellationToken): Promise<RefCounted<IDocumentDiffItem>> {
+		if (token.isCancellationRequested || this._store.isDisposed) {
+			throw new CancellationError();
+		}
+		const store = new DisposableStore();
+		try {
+			const createModelReference = async (uri: URI | undefined) => uri ? this._textModelService.createModelReference(uri) : undefined;
+			const results = await Promise.allSettled([
+				createModelReference(resource.originalUri),
+				createModelReference(resource.modifiedUri),
+			]);
+			const references = results.map(result => result.status === 'fulfilled' && result.value ? store.add(result.value) : undefined);
+			if (token.isCancellationRequested || this._store.isDisposed) {
+				throw new CancellationError();
+			}
+			const errors = results.filter((result): result is PromiseRejectedResult => result.status === 'rejected');
+			const error = errors.find(result => !isBinaryTextFileOperationError(result.reason));
+			if (error) {
+				throw error.reason;
+			}
+			let [original, modified] = references;
+			if (errors.length > 0) {
+				store.clear();
+				original = undefined;
+				modified = undefined;
+			}
+			const uri = (resource.modifiedUri ?? resource.originalUri)!;
+			const configurationService = this._textResourceConfigurationService;
+			const item: IDocumentDiffItemWithMultiDiffEditorItem = {
+				multiDiffEditorItem: resource,
+				original: resource.originalUri ? new DiffItemSource(resource.originalUri, original?.object.textEditorModel) : undefined,
+				modified: resource.modifiedUri ? new DiffItemSource(resource.modifiedUri, modified?.object.textEditorModel) : undefined,
+				contextKeys: resource.contextKeys,
+				get options() {
+					return {
+						...getReadonlyConfiguration(modified?.object.isReadonly() ?? true),
+						...computeOptions(configurationService.getValue(uri)),
+					} satisfies IDiffEditorOptions;
+				},
+				onOptionsDidChange: listener => configurationService.onDidChangeConfiguration(event => {
+					if (event.affectsConfiguration(uri, 'editor') || event.affectsConfiguration(uri, 'diffEditor')) {
+						listener();
+					}
+				}),
+			};
+			return RefCounted.createOfNonDisposable(item, store, this);
+		} catch (error) {
+			store.dispose();
+			throw error;
+		}
 	}
 
 	private readonly _resolvedSource;
@@ -331,12 +359,14 @@ export class MultiDiffEditorInput extends EditorInput implements ILanguageSuppor
 				if (item.isBinary) {
 					return;
 				}
-				const model = item.diffEditorViewModel.model;
-				const handleOriginal = model.original.uri.scheme !== Schemas.untitled && this._textFileService.isDirty(model.original.uri); // match diff editor behaviour
+				const original = item.originalUri;
+				const modified = item.modifiedUri;
+				const handleOriginal = original && original.scheme !== Schemas.untitled && this._textFileService.isDirty(original);
+				const handleModified = modified && (item.diffEditorViewModel || this._textFileService.isDirty(modified));
 
 				await Promise.all([
-					handleOriginal ? mode === 'save' ? this._textFileService.save(model.original.uri, options) : this._textFileService.revert(model.original.uri, options) : Promise.resolve(),
-					mode === 'save' ? this._textFileService.save(model.modified.uri, options) : this._textFileService.revert(model.modified.uri, options),
+					handleOriginal ? mode === 'save' ? this._textFileService.save(original, options) : this._textFileService.revert(original, options) : Promise.resolve(),
+					handleModified ? mode === 'save' ? this._textFileService.save(modified, options) : this._textFileService.revert(modified, options) : Promise.resolve(),
 				]);
 			}));
 		}

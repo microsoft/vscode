@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event, IValueWithChangeEvent } from '../../../../base/common/event.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { URI } from '../../../../base/common/uri.js';
 import { RefCounted } from '../diffEditor/utils.js';
 import { IDiffEditorOptions } from '../../../common/config/editorOptions.js';
@@ -26,6 +27,9 @@ export class DiffItemSource {
 }
 
 export interface IDocumentDiffItem {
+	/** Resolves deferred text models when the row is needed. The caller owns the returned reference. */
+	readonly load?: (token: CancellationToken) => Promise<RefCounted<IDocumentDiffItem>>;
+
 	/**
 	 * undefined if the file was created.
 	 */

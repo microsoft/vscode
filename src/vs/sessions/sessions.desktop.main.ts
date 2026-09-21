@@ -250,6 +250,7 @@ import './contrib/chat/electron-browser/chat.contribution.js';
 
 // Local Agent Host
 import './contrib/providers/agentHost/browser/localAgentHost.contribution.js';
+import './contrib/providers/nativeCli/electron-browser/nativeCli.contribution.js';
 import './contrib/providers/agentHost/electron-browser/localAgentHostLifecycle.contribution.js';
 import './contrib/providers/agentHost/browser/agentSessionSettings.contribution.js';
 import './contrib/providers/agentHost/browser/agentHostSettings.contribution.js';

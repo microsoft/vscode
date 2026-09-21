@@ -8,7 +8,10 @@ import { localize } from '../../../../nls.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Event } from '../../../../base/common/event.js';
-import { MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { CancelablePromise, createCancelablePromise, raceCancellationError } from '../../../../base/common/async.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { CancellationError } from '../../../../base/common/errors.js';
+import { IDisposable, IReference, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { EditorInputCapabilities, IEditorSerializer, IUntypedEditorInput, Verbosity } from '../../../../workbench/common/editor.js';
@@ -20,6 +23,7 @@ import { IWorkbenchLayoutService, Parts } from '../../../../workbench/services/l
 import { DockedEditorInput } from '../../../common/dockedEditorInput.js';
 import { getSessionChangesFileCountLabel } from '../common/changes.js';
 import { ISessionChangesService } from '../common/sessionChangesService.js';
+import { ISessionChangesModelService } from './sessionChangesModelService.js';
 
 /**
  * Editor input for the Agents window Changes tab. It wraps the session's
@@ -31,11 +35,13 @@ export class SessionChangesEditorInput extends DockedEditorInput {
 	static readonly ID = 'workbench.input.agentSessions.sessionChanges';
 	static readonly EDITOR_ID = 'workbench.editor.agentSessions.sessionChanges';
 
-	private readonly _innerInput = this._register(new MutableDisposable<MultiDiffEditorInput>());
+	private readonly _innerInput = this._register(new MutableDisposable<IReference<MultiDiffEditorInput>>());
+	private readonly _pendingResolutions = new Set<CancelablePromise<MultiDiffEditorViewModel>>();
+	private _openCancellation: { readonly token: CancellationToken } | undefined;
 
 	constructor(
 		readonly multiDiffSource: URI,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@ISessionChangesModelService private readonly modelService: ISessionChangesModelService,
 		@ISessionChangesService private readonly sessionChangesService: ISessionChangesService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 	) {
@@ -91,13 +97,13 @@ export class SessionChangesEditorInput extends DockedEditorInput {
 	}
 
 	private get innerInput(): MultiDiffEditorInput {
-		if (!this._innerInput.value) {
-			this._innerInput.value = MultiDiffEditorInput.fromResourceMultiDiffEditorInput({
-				multiDiffSource: this.multiDiffSource,
-				label: this.getName(),
-			}, this.instantiationService);
+		if (this.isDisposed()) {
+			throw new CancellationError();
 		}
-		return this._innerInput.value;
+		if (!this._innerInput.value) {
+			this._innerInput.value = this.modelService.acquire(this.multiDiffSource);
+		}
+		return this._innerInput.value.object;
 	}
 
 	/**
@@ -109,12 +115,53 @@ export class SessionChangesEditorInput extends DockedEditorInput {
 		return this.innerInput;
 	}
 
-	async getViewModel(): Promise<MultiDiffEditorViewModel> {
-		return this.innerInput.getViewModel();
+	async getViewModel(token: CancellationToken = CancellationToken.None): Promise<MultiDiffEditorViewModel> {
+		if (token.isCancellationRequested || this._openCancellation?.token.isCancellationRequested) {
+			throw new CancellationError();
+		}
+		const input = this.innerInput;
+		const resolution = createCancelablePromise(token => raceCancellationError(input.getViewModel(), token));
+		this._pendingResolutions.add(resolution);
+		try {
+			return await raceCancellationError(resolution, token);
+		} finally {
+			this._pendingResolutions.delete(resolution);
+			resolution.cancel();
+		}
+	}
+
+	/** Scopes an opener's cancellation to this attempt without poisoning later restores of the input. */
+	bindCancellationToken(token: CancellationToken): IDisposable {
+		const scope = { token };
+		this._openCancellation = scope;
+		const listener = token.onCancellationRequested(() => {
+			if (this._openCancellation === scope) {
+				this.clear();
+			}
+		});
+		if (token.isCancellationRequested) {
+			this.clear();
+		}
+		return toDisposable(() => {
+			listener.dispose();
+			if (this._openCancellation === scope) {
+				this._openCancellation = undefined;
+			}
+		});
 	}
 
 	clear(): void {
+		const resolutions = [...this._pendingResolutions];
+		this._pendingResolutions.clear();
+		for (const resolution of resolutions) {
+			resolution.cancel();
+		}
 		this._innerInput.clear();
+	}
+
+	override dispose(): void {
+		this.clear();
+		super.dispose();
 	}
 
 	override matches(otherInput: EditorInput | IUntypedEditorInput): boolean {

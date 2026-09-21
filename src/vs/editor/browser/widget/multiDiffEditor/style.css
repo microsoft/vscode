@@ -115,7 +115,8 @@
 			flex: 1;
 		}
 
-		.binary-file-placeholder {
+		.binary-file-placeholder,
+		.file-loading-placeholder {
 			display: none;
 			flex: 1;
 			place-items: center;

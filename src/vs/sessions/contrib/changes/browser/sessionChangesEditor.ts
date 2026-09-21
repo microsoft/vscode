@@ -6,6 +6,8 @@
 import './media/sessionChangesEditor.css';
 import { $, append, Dimension } from '../../../../base/browser/dom.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { isCancellationError } from '../../../../base/common/errors.js';
+import { StopWatch } from '../../../../base/common/stopwatch.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, derivedObservableWithCache, IObservable, observableValue } from '../../../../base/common/observable.js';
 import { Range } from '../../../../editor/common/core/range.js';
@@ -328,13 +330,22 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 	}
 
 	override async setInput(input: SessionChangesEditorInput, options: IMultiDiffEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
+		const stopwatch = StopWatch.create();
 		await super.setInput(input, options, context, token);
 		if (token.isCancellationRequested) {
 			return;
 		}
 		const sessionResource = this.sessionChangesService.getSessionResource(input.multiDiffSource);
 		this._inputSessionResource.set(sessionResource, undefined);
-		const viewModel = await input.getViewModel();
+		let viewModel: MultiDiffEditorViewModel;
+		try {
+			viewModel = await input.getViewModel(token);
+		} catch (error) {
+			if (isCancellationError(error)) {
+				return;
+			}
+			throw error;
+		}
 		if (token.isCancellationRequested) {
 			return;
 		}
@@ -344,13 +355,14 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 		// automatic first-change navigation sees the restored active item instead
 		// of navigating to (and focusing) the first file.
 		const viewState = this.loadEditorViewState(input, context);
+		this.widget?.setViewModel(viewModel, { preserveFocus: options?.preserveFocus, viewState });
+		this._applyOptions(options);
 		this._logger.log('changes editor set input', {
 			session: sessionResource,
 			preserveFocus: !!options?.preserveFocus,
 			hasPersistedViewState: !!viewState,
+			modelBoundDurationMs: stopwatch.elapsed(),
 		});
-		this.widget?.setViewModel(viewModel, { preserveFocus: options?.preserveFocus, viewState });
-		this._applyOptions(options);
 	}
 
 	protected override setEditorVisible(visible: boolean): void {

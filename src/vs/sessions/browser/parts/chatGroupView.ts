@@ -272,7 +272,9 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 			const chat = activeChat.read(reader);
 
 			let desiredKind: ChatViewKind;
-			if (session.isCreated.read(reader) === false) {
+			if (session.presentation === 'terminal') {
+				desiredKind = session.isCreated.read(reader) ? 'terminal' : 'newSession';
+			} else if (session.isCreated.read(reader) === false) {
 				desiredKind = session.isNewSessionRequestInProgress?.read(reader) === true
 					? 'chat'
 					: 'newSession';
@@ -284,8 +286,8 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 
 			let view = this._currentView.value;
 			if (!view || view.kind !== desiredKind) {
-				view = desiredKind === 'chat'
-					? this._chatViewFactory.createChatView(this._scopedInstantiationService)
+				view = desiredKind === 'chat' || desiredKind === 'terminal'
+					? this._chatViewFactory.createChatView(this._scopedInstantiationService, session.presentation)
 					: this._chatViewFactory.createNewChatView(desiredKind === 'newChatInSession', context.options, this._scopedInstantiationService);
 				this._contentContainer.replaceChildren(view.element, this._remoteHostUnavailableEmptyState.domNode);
 				this._currentView.value = view;
