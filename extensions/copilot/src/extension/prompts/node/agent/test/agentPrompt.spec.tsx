@@ -89,7 +89,11 @@ test.each([
 		});
 		const { messages } = await renderer.render();
 
-		addCacheBreakpoints(messages, 'responses');
+		addCacheBreakpoints(messages, {
+			apiType: 'responses',
+			model: endpoint,
+			responsesCacheBreakpointsEnabled: true,
+		});
 
 		const marked = messages.filter(message => message.content.some(part => part.type === Raw.ChatCompletionContentPartKind.CacheBreakpoint));
 		expect(marked).toHaveLength(22);
@@ -187,7 +191,11 @@ testFamilies.forEach(family => {
 
 			const r = await renderer.render();
 			if (!isMessagesApi) {
-				addCacheBreakpoints(r.messages, 'chatCompletions');
+				addCacheBreakpoints(r.messages, {
+					apiType: 'chatCompletions',
+					model: endpoint,
+					responsesCacheBreakpointsEnabled: false,
+				});
 			}
 			return r.messages
 				.map(m => messageToMarkdown(m))

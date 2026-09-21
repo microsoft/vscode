@@ -1047,9 +1047,11 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 			}
 		}
 
-		if (this.endpoint.apiType !== 'messages') {
-			addCacheBreakpoints(result.messages, this.endpoint.apiType);
-		}
+		addCacheBreakpoints(result.messages, {
+			apiType: this.endpoint.apiType,
+			model: this.endpoint,
+			responsesCacheBreakpointsEnabled: this.configurationService.getExperimentBasedConfig(ConfigKey.ResponsesApiPromptCacheBreakpointEnabled, this.expService),
+		});
 
 		if (this.request.command === 'error') {
 			// Should trigger a 400
