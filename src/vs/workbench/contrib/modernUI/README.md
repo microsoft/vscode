@@ -11,10 +11,12 @@ The Modern UI colors below are experimental and require a build that supports th
 
 `workbench.experimental.modernUIEditorTabStyle` chooses the editor tab treatment when `workbench.experimental.modernUI` is enabled:
 
-- `connected` (default): the bottom tab row spans the strip height without gaps. Its active tab joins the editor surface with an outside stroke and curved shoulders, and the first tab has a straight left edge. Upper wrapped rows and a separate pinned row retain the original rounded pills.
+- `connected` (default): the bottom tab row spans the strip height without gaps. Its active tab joins the editor surface with an outside stroke and curved shoulders. First tabs and wrapped-row starts omit the outside shoulder and share the editor body's left stroke. Upper wrapped rows and a separate pinned row retain the original rounded pills.
 - `pill`: separate rounded tabs, without the connected stroke or shoulders.
 
 Changes apply immediately, including in auxiliary editor windows. This setting does not enable Modern UI by itself and does not change the Agents window's pill tabs.
+
+The connected root marker is defined with the editor control constants and shared by editor layout, the Modern UI contribution, and theming. The contribution owns toggling the marker on workbench containers. `connectedEditorTabs.css` owns all marker-gated geometry, while `connectedEditorTabs.ts` owns marker-gated theme derivations. Core editor-tab code only handles behavior that CSS cannot provide: row classification, label compression, shoulder-aware reveal, and viewport clipping.
 
 Connected tabs preserve at least the first basename character, an ellipsis, the extension, any decoration badge, and the action column when shrinking. File icons collapse first and return when the editor is widened; full names remain available in the hover and accessible label. Default `fit` sizing remains content-sized: the measured minimum is a compression safeguard, not a preferred tab width. Active close actions and dirty indicators remain visible, while clean inactive close actions appear on hover or keyboard focus. The final tab and the right viewport boundary keep an inset curved shoulder instead of a straight clipped edge. Explicit compact pinned tabs retain their icon-only sizing.
 
@@ -22,9 +24,9 @@ The top cap and bottom shoulders share the same control radius plus the outside 
 
 Automatic reveal includes the complete shoulder and rounds fractional layout bounds outward so the selected action is not clipped. Manual scrolling can still move part of the selected tab, including its action, offscreen. In that case a stationary cap and shoulder finish the visible outline; their stroke is aligned with the document separator, and the clipping mask falls back to `editor.background` when the theme does not define a tab-strip background.
 
-The connected design uses `editor.background` for the active tab on every row, its action area, outside stroke, both shoulders, and the strip separator so the selected tab and editor body read as one document well. Upper wrapped and separate pinned rows change only the tab shape, not its selected background. The strip and inactive tabs use `editorGroupHeader.tabsBackground`, and their hover fill is derived from `foreground` over that background. Existing tab foreground customizations continue to apply. `modernEditorTab.activeBackground` remains available to the pill style.
+The connected design uses `editor.background` for the active tab and its action area so the selected tab and editor body read as one document well. Its outside stroke, shoulders, and strip separator use `editorGroupHeader.tabsBorder`, falling back to `tab.border`. Upper wrapped and separate pinned rows change only the tab shape, not its selected background. The strip and inactive tabs use `editorGroupHeader.connectedTabsBackground`, and their hover fill is derived from `foreground` over that background. Existing tab foreground customizations continue to apply. `modernEditorTab.activeBackground` remains available to the pill style.
 
-The default palettes give `editorGroupHeader.tabsBackground` a restrained neutral fill using existing palette colors: Dark 2026 uses `#202122`, Light 2026 uses `#EAEAEA`, Dark Modern uses `#2B2B2B`, Light Modern uses `#E5E5E5`, the classic dark themes use `#303031`, and the classic light themes use `#E8E8E8`. `tab.inactiveBackground` matches the strip. These are theme-level values, so classic tabs also receive the updated inactive fill. Dark+/Light+ inherit the change from their Visual Studio base themes; HC and the other bundled background palettes are unchanged. No new color ID or cross-component token dependency is introduced.
+`editorGroupHeader.connectedTabsBackground` defaults to `editorGroupHeader.tabsBackground`, so themes can keep their established strip palette without customization. Dark 2026 and Light 2026 use connected-specific neutral fills (`#202122` and `#EAEAEA`) while retaining their original global `editorGroupHeader.tabsBackground` and `tab.inactiveBackground` values. Classic editor tabs, pill tabs, and Agents/session tab surfaces therefore do not inherit connected-document colors.
 
 Connected tabs use `tab.inactiveForeground` rather than dimming the general foreground to 50% opacity. The default palettes pair these fills with readable inactive text (at least 4.5:1), including in inactive editor groups. Light Modern and the classic light themes use the existing neutral `#616161`; the classic dark themes use `#A6A6A6`. Explicit legacy foreground customizations still take precedence. HC styling and the original pill label defaults are unchanged.
 
@@ -46,6 +48,7 @@ In high contrast, the connected boundary uses `focusBorder` for the active edito
 | `modernTab.activeForeground` | Foreground of active Modern UI tabs | `list.inactiveSelectionForeground`, then `foreground` |
 | `modernTab.hoverBackground` | Background of hovered Modern UI tabs | `list.hoverBackground` |
 | `modernTab.hoverForeground` | Foreground of hovered Modern UI tabs | `list.hoverForeground`, then `foreground` |
+| `editorGroupHeader.connectedTabsBackground` | Background of connected tabs in editor group title headers | `editorGroupHeader.tabsBackground` |
 | `modernEditorTab.activeBackground` | Background of active Modern UI editor tabs | `modernTab.activeBackground` |
 | `modernEditorTab.activeActionBackground` | Opaque background of actions on active Modern UI editor tabs | `modernEditorTab.activeBackground` composited over `editor.background` |
 | `modernEditorTab.activeForeground` | Foreground of active Modern UI editor tabs | `modernTab.activeForeground` |
