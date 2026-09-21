@@ -1,6 +1,6 @@
-<!-- BEGIN MICROSOFT SECURITY.MD V1.0.0 BLOCK -->
 
-## Security
+
+.github
 
 Microsoft takes the security of our software products and services seriously, which
 includes all source code repositories in our GitHub organizations.
@@ -10,5 +10,6 @@ includes all source code repositories in our GitHub organizations.
 For security reporting information, locations, contact information, and policies,
 please review the latest guidance for Microsoft repositories at
 [https://aka.ms/SECURITY.md](https://aka.ms/SECURITY.md).
-
-<!-- END MICROSOFT SECURITY.MD BLOCK -->
+<!-- BEGIN MICROSOFT SECURITY.MD HERE V1.0.0 BLOCK -->
+# SECURITY
+<!-- END MICROSOFT SECURITY.MD THERE BLOCK -->
