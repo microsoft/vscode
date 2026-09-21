@@ -104,7 +104,7 @@ import { IEditorService } from '../../../../../workbench/services/editor/common/
 import { ICustomViewService } from '../../../../services/customView/browser/customViewService.js';
 import { AUTOMATIONS_CUSTOM_VIEW_ID } from '../automationsConstants.js';
 import { AutomationsNewBadgeState, type AutomationsNewBadgeStyle } from '../automationsNewBadge.js';
-import { OPEN_AI_CUSTOMIZATIONS_COMMAND_ID } from '../customizationsConstants.js';
+import { OPEN_AI_CUSTOMIZATIONS_COMMAND_ID, SESSIONS_CUSTOMIZATIONS_IN_LIST_SETTING } from '../customizationsConstants.js';
 import { Menus } from '../../../../browser/menus.js';
 import { getSessionConversationStatusAriaLabel } from '../../../../browser/sessionConversationGroups.js';
 import { getAgentMergeAwarePullRequestIcon, getSessionAgentMergeConfigurationObservable, ISessionAgentMergeConfiguration, isAgentMergePullRequestIcon } from '../../../../browser/sessionAgentMerge.js';
@@ -3190,7 +3190,11 @@ export class SessionsList extends Disposable implements ISessionsList {
 			this.update();
 		}));
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(SESSIONS_LIST_SHOW_EMPTY_DEFAULT_GROUPS_SETTING) || e.affectsConfiguration(ChatSessionArchiveActionWordingSettingId)) {
+			if (
+				e.affectsConfiguration(SESSIONS_LIST_SHOW_EMPTY_DEFAULT_GROUPS_SETTING)
+				|| e.affectsConfiguration(ChatSessionArchiveActionWordingSettingId)
+				|| e.affectsConfiguration(SESSIONS_CUSTOMIZATIONS_IN_LIST_SETTING)
+			) {
 				this.update();
 			}
 		}));
@@ -3977,11 +3981,12 @@ export class SessionsList extends Disposable implements ISessionsList {
 			void this.automationsNewBadgeState.initialize().catch(onUnexpectedError);
 			children.push(renderSection({ id: AUTOMATIONS_SECTION_ID, label: localize('automations', "Automations"), sessions: [] }));
 		}
-		if (ChatContextKeys.enabled.getValue(this.contextKeyService) && !IsPhoneLayoutContext.getValue(this.contextKeyService)) {
+		const customizationsInList = this.configurationService.getValue<boolean>(SESSIONS_CUSTOMIZATIONS_IN_LIST_SETTING) === true;
+		if (customizationsInList && ChatContextKeys.enabled.getValue(this.contextKeyService) && !IsPhoneLayoutContext.getValue(this.contextKeyService)) {
 			children.push(renderSection({ id: CUSTOMIZATIONS_SECTION_ID, label: localize('customizations', "Customizations"), sessions: [] }));
 		}
 		const isPhone = !!IsPhoneLayoutContext.getValue(this.contextKeyService);
-		if (this.options.sessionsHeader && !isPhone) {
+		if (customizationsInList && this.options.sessionsHeader && !isPhone) {
 			children.push({ element: SESSIONS_HEADER_SECTION });
 		} else if (this.options.sessionsHeader && this.options.sessionsHeaderContainer) {
 			this.options.sessionsHeaderContainer.append(this.options.sessionsHeader);

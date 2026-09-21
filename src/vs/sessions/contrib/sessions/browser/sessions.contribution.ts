@@ -26,6 +26,7 @@ import './sessionDetailsAction.js';
 import { SESSIONS_MARK_AS_DONE_CONFETTI_SETTING } from '../../../../platform/chat/common/sessionArchiveActions.js';
 import { SessionsWindowNotifier } from './sessionsWindowNotifier.js';
 import { SESSIONS_CHAT_TABS_DEFAULT, SESSIONS_CHAT_TABS_SETTING, SessionsChatTabsMode, USE_WORKTREE_SETTING, USE_WORKTREE_SETTING_TREATMENT } from '../../../common/sessionConfig.js';
+import { SESSIONS_CUSTOMIZATIONS_IN_LIST_SETTING, SESSIONS_CUSTOMIZATIONS_IN_LIST_TREATMENT } from './customizationsConstants.js';
 
 const agentSessionsViewIcon = registerIcon('chat-sessions-icon', Codicon.commentDiscussionSparkle, localize('agentSessionsViewIcon', 'Icon for Agent Sessions View'));
 const AGENT_SESSIONS_VIEW_TITLE = localize2('agentSessions.view.label', "Sessions");
@@ -123,6 +124,18 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 				name: NEW_SESSION_BUTTON_STYLE_TREATMENT,
 			},
 			description: localize('sessions.newSessionButton.style', "Controls the visual style of the New Session button."),
+		},
+		[SESSIONS_CUSTOMIZATIONS_IN_LIST_SETTING]: {
+			type: 'boolean',
+			default: false,
+			scope: ConfigurationScope.APPLICATION,
+			included: false,
+			tags: ['experimental'],
+			experiment: {
+				mode: 'auto',
+				name: SESSIONS_CUSTOMIZATIONS_IN_LIST_TREATMENT,
+			},
+			description: localize('sessions.customizations.inList', "Controls whether Customizations appears as a single entry next to Automations in the Sessions list."),
 		},
 		[USE_WORKTREE_SETTING]: {
 			type: 'boolean',

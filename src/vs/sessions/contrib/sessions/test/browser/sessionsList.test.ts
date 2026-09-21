@@ -71,6 +71,7 @@ import { AUTOMATIONS_CUSTOM_VIEW_ID } from '../../browser/automationsConstants.j
 import { AUTOMATIONS_NEW_BADGE_STYLE_SETTING, type AutomationsNewBadgeStyle } from '../../browser/automationsNewBadge.js';
 import { BlockedSessionReason, BlockedSessions } from '../../../blockedSessions/browser/blockedSessions.js';
 import { Menus } from '../../../../browser/menus.js';
+import { SESSIONS_CUSTOMIZATIONS_IN_LIST_SETTING } from '../../browser/customizationsConstants.js';
 
 function createSession(id: string, opts: {
 	workspaceLabel?: string;
@@ -551,7 +552,7 @@ suite('Sessions - SessionsList', () => {
 	});
 
 	suite('shortcut entries', () => {
-		test('places the Sessions header after Automations and Customizations on desktop', () => {
+		test('places the Sessions header after Automations and Customizations in the experiment treatment', async () => {
 			const activeEditorChanged = disposables.add(new Emitter<void>());
 			let activeEditor: AICustomizationManagementEditorInput | undefined;
 			let contextMenuCount = 0;
@@ -579,6 +580,8 @@ suite('Sessions - SessionsList', () => {
 				});
 			});
 			const contextKeyService = harness.instantiationService.get(IContextKeyService);
+			const configurationService = harness.instantiationService.get(IConfigurationService) as TestConfigurationService;
+			await configurationService.setUserConfiguration(SESSIONS_CUSTOMIZATIONS_IN_LIST_SETTING, true);
 			ChatAutomationsEnabledContext.bindTo(contextKeyService).set(true);
 			ChatContextKeys.enabled.bindTo(contextKeyService).set(true);
 			const phoneLayout = IsPhoneLayoutContext.bindTo(contextKeyService);
@@ -682,7 +685,18 @@ suite('Sessions - SessionsList', () => {
 				headerLayoutRecomputed: headerLayoutCount > initialHeaderLayoutCount,
 			};
 
-			assert.deepStrictEqual({ desktop, phone, desktopAgain }, {
+			await configurationService.setUserConfiguration(SESSIONS_CUSTOMIZATIONS_IN_LIST_SETTING, false);
+			configurationService.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({
+				affectsConfiguration: key => key === SESSIONS_CUSTOMIZATIONS_IN_LIST_SETTING,
+			}));
+			const control = {
+				labels: shortcutLabels(),
+				navigationLabels: navigationLabels(),
+				headerInTree: sessionsHeader.closest('.sessions-list-header') !== null,
+				headerInContainer: sessionsHeader.parentElement === sessionsHeaderContainer,
+			};
+
+			assert.deepStrictEqual({ desktop, phone, desktopAgain, control }, {
 				desktop: {
 					labels: ['Automations', 'Customizations'],
 					navigationLabels: ['Automations', 'Customizations', 'Sessions'],
@@ -713,6 +727,12 @@ suite('Sessions - SessionsList', () => {
 					navigationLabels: ['Automations', 'Customizations', 'Sessions'],
 					focused: 'Customizations',
 					headerLayoutRecomputed: true,
+				},
+				control: {
+					labels: ['Automations'],
+					navigationLabels: ['Automations'],
+					headerInTree: false,
+					headerInContainer: true,
 				},
 			});
 		});

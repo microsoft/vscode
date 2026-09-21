@@ -9,6 +9,7 @@ import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurati
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING } from '../../browser/views/sessionsList.js';
 import { SESSIONS_CHAT_TABS_DEFAULT, SESSIONS_CHAT_TABS_SETTING, SessionsChatTabsMode } from '../../../../common/sessionConfig.js';
+import { SESSIONS_CUSTOMIZATIONS_IN_LIST_SETTING, SESSIONS_CUSTOMIZATIONS_IN_LIST_TREATMENT } from '../../browser/customizationsConstants.js';
 
 import '../../browser/sessions.contribution.js';
 
@@ -16,6 +17,7 @@ const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationE
 // Capture the registered schema before configuration tests reset the shared registry.
 const collapsedSectionStatusProperty = configurationRegistry.getConfigurationProperties()[SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING];
 const showChatTabsProperty = configurationRegistry.getConfigurationProperties()[SESSIONS_CHAT_TABS_SETTING];
+const customizationsInListProperty = configurationRegistry.getExcludedConfigurationProperties()[SESSIONS_CUSTOMIZATIONS_IN_LIST_SETTING];
 
 suite('Sessions Contribution', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -43,6 +45,25 @@ suite('Sessions Contribution', () => {
 			enum: [SessionsChatTabsMode.Multiple, SessionsChatTabsMode.Single],
 			default: SESSIONS_CHAT_TABS_DEFAULT,
 			scope: ConfigurationScope.WINDOW,
+		});
+	});
+
+	test('keeps the Customizations list entry behind an automatic experiment', () => {
+		assert.deepStrictEqual({
+			type: customizationsInListProperty.type,
+			default: customizationsInListProperty.default,
+			scope: customizationsInListProperty.scope,
+			included: customizationsInListProperty.included,
+			experiment: customizationsInListProperty.experiment,
+		}, {
+			type: 'boolean',
+			default: false,
+			scope: ConfigurationScope.APPLICATION,
+			included: false,
+			experiment: {
+				mode: 'auto',
+				name: SESSIONS_CUSTOMIZATIONS_IN_LIST_TREATMENT,
+			},
 		});
 	});
 });

@@ -72,6 +72,8 @@ import { renderSessionsHeader } from '../../../../../sessions/contrib/sessions/b
 // eslint-disable-next-line local/code-import-patterns
 import { NEW_SESSION_BUTTON_STYLE_SETTING, NEW_SESSION_BUTTON_STYLE_TREATMENT, NewSessionActionViewItemContribution, type NewSessionButtonStyle } from '../../../../../sessions/contrib/sessions/browser/sessionsActions.js';
 // eslint-disable-next-line local/code-import-patterns
+import { SESSIONS_CUSTOMIZATIONS_IN_LIST_SETTING } from '../../../../../sessions/contrib/sessions/browser/customizationsConstants.js';
+// eslint-disable-next-line local/code-import-patterns
 import { NEW_SESSION_ACTION_ID } from '../../../../../sessions/contrib/chat/common/constants.js';
 // eslint-disable-next-line local/code-import-patterns
 import { IsPhoneLayoutContext } from '../../../../../sessions/common/contextkeys.js';
@@ -459,6 +461,7 @@ async function renderSessionsList(ctx: ComponentFixtureContext, options: IRender
 	// Render terminal-approval labels as real (monospace) code blocks — otherwise
 	// the markdown renderer emits empty code-block spans and the command is blank.
 	(instantiationService.get(IConfigurationService) as TestConfigurationService).setUserConfiguration('editor', { fontFamily: 'monospace' });
+	await (instantiationService.get(IConfigurationService) as TestConfigurationService).setUserConfiguration(SESSIONS_CUSTOMIZATIONS_IN_LIST_SETTING, true);
 	if (options.automationBadgeStyle) {
 		await (instantiationService.get(IConfigurationService) as TestConfigurationService).setUserConfiguration(AUTOMATIONS_NEW_BADGE_STYLE_SETTING, options.automationBadgeStyle);
 	}
