@@ -679,7 +679,7 @@ suite('MultiEditorTabsControl', () => {
 
 	test('connected tabs fill row edges without inter-tab gutters', () => {
 		const root = $('.monaco-workbench.modern-ui.modern-ui-tabs.modern-ui-connected-editor-tabs');
-		root.style.cssText = '--vscode-spacing-size40: 4px; --vscode-strokeThickness: 1px;';
+		root.style.cssText = '--vscode-spacing-size40: 4px; --vscode-spacing-size80: 8px; --vscode-strokeThickness: 1px;';
 		mainWindow.document.body.appendChild(root);
 		disposables.add(toDisposable(() => root.remove()));
 		const editor = $('.part.editor');
@@ -693,16 +693,26 @@ suite('MultiEditorTabsControl', () => {
 		const [activeTab, inactiveTab] = container.querySelectorAll<HTMLElement>('.tabs-container > .tab');
 		const activeFillStyle = mainWindow.getComputedStyle(activeTab.querySelector<HTMLElement>('.tab-fill')!);
 		const inactiveFillStyle = mainWindow.getComputedStyle(inactiveTab.querySelector<HTMLElement>('.tab-fill')!);
-		const rowStyle = mainWindow.getComputedStyle(container.querySelector<HTMLElement>('.tabs-and-actions-container')!);
+		const row = container.querySelector<HTMLElement>('.tabs-and-actions-container')!;
+		const rowStyle = mainWindow.getComputedStyle(row);
+		const editorActions = row.querySelector<HTMLElement>('.editor-actions')!;
+		editorActions.classList.remove('hidden');
+		const editorActionsStyle = mainWindow.getComputedStyle(editorActions);
 
 		assert.deepStrictEqual({
 			active: { top: activeFillStyle.top, left: activeFillStyle.left, right: activeFillStyle.right, bottom: activeFillStyle.bottom },
 			inactive: { top: inactiveFillStyle.top, left: inactiveFillStyle.left, right: inactiveFillStyle.right, bottom: inactiveFillStyle.bottom },
+			alignItems: rowStyle.alignItems,
+			editorActionsHeight: editorActionsStyle.height,
 			rowPaddingLeft: rowStyle.paddingLeft,
+			rowPaddingTop: rowStyle.paddingTop,
 		}, {
 			active: { top: '0px', left: '0px', right: '0px', bottom: '-2px' },
 			inactive: { top: '0px', left: '0px', right: '0px', bottom: '-1px' },
+			alignItems: 'flex-start',
+			editorActionsHeight: '32px',
 			rowPaddingLeft: '0px',
+			rowPaddingTop: '0px',
 		});
 	});
 

@@ -90,6 +90,15 @@
 	padding-left: 0;
 }
 
+.modern-ui.modern-ui-connected-editor-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs > .tabs-and-actions-container:not(.wrapping) {
+	align-items: flex-start;
+	padding-top: 0;
+}
+
+.modern-ui.modern-ui-connected-editor-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs > .tabs-and-actions-container:not(.wrapping) > .editor-actions {
+	height: calc(var(--editor-group-tab-height) + var(--vscode-spacing-size80));
+}
+
 .modern-ui.modern-ui-connected-editor-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs .tabs-container {
 	padding-bottom: var(--vscode-strokeThickness);
 }
