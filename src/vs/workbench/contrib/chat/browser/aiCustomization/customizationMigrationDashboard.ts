@@ -56,6 +56,7 @@ export interface ICustomizationMigrationDashboardActivity {
 		readonly sourceLabel: string;
 		readonly targetLabel: string;
 		readonly operation: 'converted' | 'moved' | 'copied' | 'server';
+		readonly migrationKey?: string;
 	}[];
 }
 

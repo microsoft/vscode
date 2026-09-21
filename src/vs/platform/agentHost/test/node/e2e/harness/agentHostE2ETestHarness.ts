@@ -196,6 +196,11 @@ const STALE_RECORDED_REQUEST_EXCEPTIONS = new Set<string>([
 	'claude:side chat receives bounded source context without copied history',
 ]);
 
+/** Captures whose providers can issue recorded parent and subagent turns concurrently. */
+const PROJECTED_REQUEST_MATCHING_CAPTURES = new Set<string>([
+	'copilotcli:retained background subagent completes repeated follow-up turns',
+]);
+
 const RECOVERABLE_RECORDING_MODEL_RESPONSE: ICapiReplayResponse = {
 	status: 400,
 	headers: {
@@ -220,14 +225,15 @@ function captureKey(provider: string, testTitle: string): string {
  * `AGENT_HOST_REPLAY_RECORD=1` or `AGENT_HOST_UPDATE_SNAPSHOTS=1`. Tests that
  * declare no model traffic always use the strict shared empty replay fixture.
  */
-export function capiReplayFor(provider: string, testTitle: string, modelTraffic: AgentHostE2EModelTraffic = 'recorded'): { fixturePath: string; real: true; mode: CapiReplayMode; allowPosixCommands: boolean; allowStaleRecordedRequest: boolean; recordingModelResponse?: ICapiReplayResponse } {
+export function capiReplayFor(provider: string, testTitle: string, modelTraffic: AgentHostE2EModelTraffic = 'recorded'): { fixturePath: string; real: true; mode: CapiReplayMode; allowPosixCommands: boolean; allowStaleRecordedRequest: boolean; matchModelRequestsByProjection: boolean; recordingModelResponse?: ICapiReplayResponse } {
 	const key = captureKey(provider, testTitle);
 	const allowPosixCommands = POSIX_COMMAND_EXCEPTIONS.has(key);
 	const allowStaleRecordedRequest = STALE_RECORDED_REQUEST_EXCEPTIONS.has(key);
+	const matchModelRequestsByProjection = PROJECTED_REQUEST_MATCHING_CAPTURES.has(key);
 	if (modelTraffic === 'none') {
-		return { fixturePath: EMPTY_CAPTURE_PATH, real: true, mode: 'replay', allowPosixCommands, allowStaleRecordedRequest };
+		return { fixturePath: EMPTY_CAPTURE_PATH, real: true, mode: 'replay', allowPosixCommands, allowStaleRecordedRequest, matchModelRequestsByProjection };
 	}
-	return { fixturePath: fixturePathFor(provider, testTitle), real: true, mode: REPLAY_MODE, allowPosixCommands, allowStaleRecordedRequest, recordingModelResponse: RECORDING_MODEL_RESPONSES.get(key) };
+	return { fixturePath: fixturePathFor(provider, testTitle), real: true, mode: REPLAY_MODE, allowPosixCommands, allowStaleRecordedRequest, matchModelRequestsByProjection, recordingModelResponse: RECORDING_MODEL_RESPONSES.get(key) };
 }
 
 // #endregion
@@ -937,7 +943,10 @@ export class AgentHostE2EServerLease {
 			if (!proxy) {
 				throw new Error('[agent-host-e2e] shared replay server has no capiReplay proxy to reset');
 			}
-			proxy.resetForReplay(capiReplay.fixturePath, capiReplay.allowStaleRecordedRequest);
+			proxy.resetForReplay(capiReplay.fixturePath, {
+				allowStaleRecordedRequest: capiReplay.allowStaleRecordedRequest,
+				matchModelRequestsByProjection: capiReplay.matchModelRequestsByProjection,
+			});
 		} else {
 			// Only the Copilot CLI provider writes the `@github/copilot` runtime logs we
 			// capture, so only it is run verbosely; Claude/Codex use their own runtimes.
