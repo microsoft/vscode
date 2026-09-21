@@ -321,6 +321,7 @@ suite('NewChatWidget', () => {
 		}, {
 			items: [
 				{ label: 'Workspace', className: '' },
+				{ label: '', className: 'new-chat-repository-controls-host' },
 				{ label: 'Copilot', className: 'sessions-chat-session-type-picker sessions-workspace-category-picker-slot' },
 			],
 			workspaceTriggers: [{ tooltip: 'Choose where the new session runs', icon: 'project', attachesContext: false }],
