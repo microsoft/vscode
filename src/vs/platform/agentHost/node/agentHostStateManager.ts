@@ -13,7 +13,7 @@ import { TelemetryLevel } from '../../telemetry/common/telemetry.js';
 import { ActionType, ActionEnvelope, ActionOrigin, INotification, IRootConfigChangedAction, SessionAction, ChatAction, RootAction, StateAction, TerminalAction, ChangesetAction, ClientChangesetAction, AnnotationsAction, ClientAnnotationsAction, isRootAction, isSessionAction, isChatAction, isChangesetAction, isAnnotationsAction, isAutomationAction, isAutomationRunAction, isPassiveSessionMetadataAction, type AuthRequiredParams, type ClientAutomationAction, type ClientAutomationRunAction, type ProgressParams, type SessionSummaryChangedParams, type SessionSummaryChanges } from '../common/state/sessionActions.js';
 import type { IStateSnapshot } from '../common/state/sessionProtocol.js';
 import { rootReducer, sessionReducer, chatReducer, changesetReducer, annotationsReducer, automationReducer, automationRunReducer } from '../common/state/sessionReducers.js';
-import { createRootState, createSessionState, createChatState, createDefaultChatSummary, chatSummaryFromState, buildDefaultChatUri, parseDefaultChatUri, parseRequiredSessionUriFromChatUri, parseSubagentSessionUri, isAhpChatChannel, isAhpAutomationCatalogChannel, isAhpAutomationRunChannel, isDefaultChatUri, mergeSessionWithDefaultChat, isAhpRootChannel, readSessionExternal, SessionLifecycle, withHostBuildInfo, withSessionStatusFlag, type AutomationState, type AutomationRunState, type Changeset, type ChangesetState, type AnnotationsState, type ChatState, type ChatSummary, type Customization, type ISessionWithDefaultChat, type Message, type RootState, type SessionConfigState, type SessionMeta, type SessionState, type SessionSummary, type Turn, type URI, ROOT_STATE_URI, ChangesetStatus, IHostBuildInfo, SessionStatus } from '../common/state/sessionState.js';
+import { createRootState, createSessionState, createChatState, createDefaultChatSummary, chatSummaryFromState, buildDefaultChatUri, parseDefaultChatUri, parseRequiredSessionUriFromChatUri, parseSubagentSessionUri, isAhpChatChannel, isAhpAutomationCatalogChannel, isAhpAutomationRunChannel, isDefaultChatUri, mergeSessionWithDefaultChat, isAhpRootChannel, readSessionExternal, SessionLifecycle, withHostBuildInfo, withSessionStatusFlag, type AutomationState, type AutomationRunState, type Changeset, type ChangesetState, type AnnotationsState, type ChatState, type ChatSummary, type Customization, type ISessionWithDefaultChat, type Message, type RootState, type SessionChatSummary, type SessionConfigState, type SessionMeta, type SessionState, type SessionSummary, type Turn, type URI, ROOT_STATE_URI, ChangesetStatus, ChatOriginKind, IHostBuildInfo, SessionStatus } from '../common/state/sessionState.js';
 import { AgentHostTelemetryLevelConfigKey, IPermissionsValue, platformRootSchema, telemetryLevelToAgentHostConfigValue } from '../common/agentHostSchema.js';
 import { SessionConfigKey } from '../common/sessionConfigKeys.js';
 import { parseChangesetUri } from '../common/changesetUri.js';
@@ -207,6 +207,11 @@ class SessionSummaryNotifier extends Disposable {
 		if (current.project !== lastNotified.project) { changes.project = current.project; }
 		if (current.changes !== lastNotified.changes) { changes.changes = current.changes; }
 		if (current.workingDirectories !== lastNotified.workingDirectories) { changes.workingDirectories = current.workingDirectories; }
+		if (!structuralEquals(current.chats, lastNotified.chats)) { changes.chats = current.chats; }
+		if (current.defaultChat !== lastNotified.defaultChat) {
+			changes.defaultChat = current.defaultChat;
+			changes.chats = current.chats;
+		}
 		if (current._meta !== lastNotified._meta) { changes._meta = current._meta; }
 
 		this._lastNotified.set(session, current);
@@ -243,6 +248,7 @@ export class AgentHostStateManager extends Disposable {
 	 * `root/sessionSummaryChanged`.
 	 */
 	private readonly _sessionStates = new Map<string, ISessionEntry>();
+	private readonly _sessionSummaryChats = new WeakMap<readonly ChatSummary[], SessionChatSummary[]>();
 
 	/**
 	 * Authoritative chat catalog, keyed by chat channel URI. Every catalog
@@ -478,7 +484,24 @@ export class AgentHostStateManager extends Disposable {
 		if (state.annotations !== undefined) { summary.annotations = state.annotations; }
 		if (entry.changes !== undefined) { summary.changes = entry.changes; }
 		if (state._meta !== undefined) { summary._meta = state._meta; }
+		summary.chats = this._toSessionSummaryChats(state.chats);
+		if (state.defaultChat !== undefined) { summary.defaultChat = state.defaultChat; }
 		return summary;
+	}
+
+	private _toSessionSummaryChats(chats: readonly ChatSummary[]): SessionChatSummary[] {
+		let result = this._sessionSummaryChats.get(chats);
+		if (!result) {
+			result = chats
+				.filter(chat => chat.origin?.kind !== ChatOriginKind.Tool)
+				.map(chat => ({
+					resource: chat.resource,
+					title: chat.title,
+					origin: chat.origin,
+				}));
+			this._sessionSummaryChats.set(chats, result);
+		}
+		return result;
 	}
 
 	/**
@@ -493,6 +516,8 @@ export class AgentHostStateManager extends Disposable {
 			&& a.project === b.project
 			&& a.workingDirectories === b.workingDirectories
 			&& a.annotations === b.annotations
+			&& structuralEquals(this._toSessionSummaryChats(a.chats), this._toSessionSummaryChats(b.chats))
+			&& a.defaultChat === b.defaultChat
 			&& a._meta === b._meta;
 	}
 
@@ -814,7 +839,8 @@ export class AgentHostStateManager extends Disposable {
 		}
 
 		const state = createSessionState(summary);
-		this._sessionStates.set(key, this._newEntry(state, summary, SessionUse.UnusedDraft));
+		const entry = this._newEntry(state, summary, SessionUse.UnusedDraft);
+		this._sessionStates.set(key, entry);
 		this._ensureDefaultChat(key, summary);
 
 		this._logService.trace(`[AgentHostStateManager] Created session: ${key}`);
@@ -824,7 +850,7 @@ export class AgentHostStateManager extends Disposable {
 			// its later flush emit incremental updates and what makes
 			// `markSessionPersisted` a no-op. Provisional sessions
 			// intentionally skip both until they are persisted.
-			this._emitSessionAdded(summary);
+			this._emitSessionAdded(this._toSummary(key, entry));
 		}
 
 		return state;
@@ -1013,6 +1039,8 @@ export class AgentHostStateManager extends Disposable {
 			project: current.project ?? listed.project,
 			workingDirectories: current.workingDirectories ?? listed.workingDirectories,
 			changes: current.changes ?? listed.changes,
+			chats: current.chats ?? listed.chats,
+			defaultChat: current.defaultChat ?? listed.defaultChat,
 			...(meta !== undefined ? { _meta: meta } : {}),
 		};
 	}

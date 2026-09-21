@@ -1078,12 +1078,19 @@ suite('AgentHostStateManager', () => {
 				{
 					addedTitle: summary?.title,
 					chatResources: manager.getSessionState(sessionUri)?.chats.map(c => c.resource.toString()).sort(),
+					summaryChats: manager.getSessionSummary(sessionUri)?.chats,
+					defaultChat: manager.getSessionSummary(sessionUri)?.defaultChat,
 					peerTurns: manager.getChatState(peerChat)?.turns.length,
 					chatAddedEvents: envelopes.filter(e => e.action.type === ActionType.SessionChatAdded).length,
 				},
 				{
 					addedTitle: 'Peer',
 					chatResources: [buildDefaultChatUri(sessionUri), peerChat].sort(),
+					summaryChats: [
+						{ resource: buildDefaultChatUri(sessionUri), title: 'Test', origin: { kind: MessageKind.User } },
+						{ resource: peerChat, title: 'Peer', origin: { kind: MessageKind.User } },
+					],
+					defaultChat: buildDefaultChatUri(sessionUri),
 					peerTurns: 0,
 					chatAddedEvents: 1,
 				},

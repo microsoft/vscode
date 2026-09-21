@@ -139,7 +139,8 @@ suite('AgentHostCatalogListReader', () => {
 			sourceControl: readSessionSourceControlState(result.metadata._meta),
 			artifacts: readSessionArtifacts(result.metadata._meta),
 			creationReference: readSessionCreationReference(result.metadata._meta),
-			chats: result.data.chats.map(chat => ({ ...chat, uri: chat.uri.toString() })),
+			metadataChats: result.metadata.chats?.map(chat => ({ ...chat, chat: chat.chat.toString() })),
+			catalogChats: result.data.chats.map(chat => ({ ...chat, uri: chat.uri.toString() })),
 		}, {
 			session: session.toString(),
 			startTime: 100,
@@ -160,7 +161,13 @@ suite('AgentHostCatalogListReader', () => {
 			sourceControl: data._meta?.[SESSION_META_SOURCE_CONTROL_KEY],
 			artifacts: data._meta?.[SESSION_META_ARTIFACTS_KEY],
 			creationReference: data._meta?.[SESSION_META_CREATED_BY_SESSION_KEY],
-			chats: data.chats,
+			metadataChats: data.chats.map(chat => ({
+				chat: chat.uri,
+				summary: chat.summary,
+				kind: chat.kind,
+				origin: chat.origin,
+			})),
+			catalogChats: data.chats,
 		});
 	});
 

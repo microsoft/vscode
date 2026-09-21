@@ -85,6 +85,12 @@ export class AgentHostCatalogListReader {
 			project: data.project,
 			workingDirectories: [...data.workingDirectories],
 			changes: data.changes,
+			chats: data.chats.map(chat => ({
+				chat: chat.uri,
+				summary: chat.summary,
+				kind: chat.kind,
+				origin: chat.origin,
+			})),
 			...(meta !== undefined ? { _meta: meta } : {}),
 		};
 	}

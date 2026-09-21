@@ -10,8 +10,8 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { AgentSession } from '../../../../../../platform/agentHost/common/agentService.js';
 import { withEphemeralSessionMeta } from '../../../../../../platform/agentHost/common/meta/agentEphemeralSessionMeta.js';
-import type { ChangesSummary } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
-import { SessionStatus, readSessionEhcliAdoptable, SESSION_META_EHCLI_ADOPTABLE_KEY, type SessionSummary } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import type { ChangesSummary, SessionChatSummary } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { isDefaultChatUri, parseChatUri, SessionStatus, readSessionEhcliAdoptable, SESSION_META_EHCLI_ADOPTABLE_KEY, type SessionSummary } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { IChatService } from '../../../common/chatService/chatService.js';
 import { ChatSessionStatus, IChatNewSessionRequest, IChatSessionItem, IChatSessionItemController, IChatSessionItemsDelta } from '../../../common/chatSessionsService.js';
@@ -37,12 +37,13 @@ function mapSessionStatus(status: SessionStatus | undefined): ChatSessionStatus 
 /**
  * Provides provider-specific session list items for the chat sessions sidebar
  * by projecting the shared {@link AgentHostSessionListStore} state. The
- * controller is a stateless view: items are derived from the store on demand
- * and change events are a filtered/mapped projection of the store's event.
+ * controller derives items from the store on demand and retains only the
+ * projected resources needed to emit precise removals when a chat disappears.
  */
 export class AgentHostSessionListController extends Disposable implements IChatSessionItemController {
 
 	readonly onDidChangeChatSessionItems: Event<IChatSessionItemsDelta>;
+	private readonly _projectedResources = new Map<string, readonly URI[]>();
 
 	constructor(
 		private readonly _sessionType: string,
@@ -58,6 +59,10 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 	) {
 		super();
 		void _connectionAuthority;
+
+		for (const entry of this._sessionListStore.getSessions(this._provider)) {
+			this._projectedResources.set(entry.rawId, this._makeItemsFromSummary(entry.rawId, entry.summary, entry.statusKnown).map(item => item.resource));
+		}
 
 		this._register(chatService.onDidDisposeSession(event => {
 			for (const resource of event.sessionResources) {
@@ -79,8 +84,15 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 	}
 
 	get items(): readonly IChatSessionItem[] {
-		return this._sessionListStore.getSessions(this._provider)
-			.map(entry => this._makeItemFromSummary(entry.rawId, entry.summary, entry.statusKnown));
+		const items: IChatSessionItem[] = [];
+		for (const entry of this._sessionListStore.getSessions(this._provider)) {
+			const projected = this._makeItemsFromSummary(entry.rawId, entry.summary, entry.statusKnown);
+			if (!this._projectedResources.has(entry.rawId)) {
+				this._projectedResources.set(entry.rawId, projected.map(item => item.resource));
+			}
+			items.push(...projected);
+		}
+		return items;
 	}
 
 	isNewSession(resource: URI): boolean {
@@ -148,6 +160,16 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 		}
 
 		const rawId = AgentSession.id(resource);
+		if (resource.fragment) {
+			const entry = this._sessionListStore.getSessions(this._provider).find(entry => entry.rawId === rawId);
+			const chat = entry?.summary.chats?.find(chat => parseChatUri(chat.resource)?.chatId === resource.fragment);
+			if (!chat) {
+				throw new Error(`Cannot resolve chat '${resource.fragment}' in session '${rawId}'`);
+			}
+			await this._sessionListStore.disposeChat(URI.parse(chat.resource));
+			return;
+		}
+
 		await this._sessionListStore.disposeSession(this._provider, rawId);
 
 		// `root/sessionRemoved` only fires for sessions the backend had previously announced, so remove the session from
@@ -181,19 +203,30 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 
 	private _projectDelta(delta: IAgentHostSessionListDelta): IChatSessionItemsDelta | undefined {
 		let addedOrUpdated: IChatSessionItem[] | undefined;
+		let removed: URI[] | undefined;
 		for (const entry of delta.addedOrUpdated ?? []) {
 			if (entry.provider !== this._provider) {
 				continue;
 			}
-			(addedOrUpdated ??= []).push(this._makeItemFromSummary(entry.rawId, entry.summary, entry.statusKnown));
+			const previous = this._projectedResources.get(entry.rawId) ?? [];
+			const projected = this._makeItemsFromSummary(entry.rawId, entry.summary, entry.statusKnown);
+			const current = projected.map(item => item.resource);
+			const currentKeys = new Set(current.map(resource => resource.toString()));
+			for (const resource of previous) {
+				if (!currentKeys.has(resource.toString())) {
+					(removed ??= []).push(resource);
+				}
+			}
+			this._projectedResources.set(entry.rawId, current);
+			(addedOrUpdated ??= []).push(...projected);
 		}
 
-		let removed: URI[] | undefined;
 		for (const removal of delta.removed ?? []) {
 			if (removal.provider !== this._provider) {
 				continue;
 			}
-			(removed ??= []).push(this._resource(removal.rawId));
+			(removed ??= []).push(...(this._projectedResources.get(removal.rawId) ?? [this._resource(removal.rawId)]));
+			this._projectedResources.delete(removal.rawId);
 		}
 
 		if (!addedOrUpdated && !removed) {
@@ -202,9 +235,9 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 		return { ...(addedOrUpdated ? { addedOrUpdated } : undefined), ...(removed ? { removed } : undefined) };
 	}
 
-	private _makeItemFromSummary(rawId: string, summary: SessionSummary, statusKnown: boolean): IChatSessionItem {
+	private _makeItemsFromSummary(rawId: string, summary: SessionSummary, statusKnown: boolean): IChatSessionItem[] {
 		const workingDir = typeof summary.workingDirectories?.[0] === 'string' ? URI.parse(summary.workingDirectories?.[0]) : summary.workingDirectories?.[0];
-		return this._makeItem(rawId, {
+		const base = {
 			title: summary.title,
 			status: summary.status,
 			statusKnown,
@@ -214,7 +247,17 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 			modifiedAt: Date.parse(summary.modifiedAt),
 			changesSummary: summary.changes,
 			adoptable: readSessionEhcliAdoptable(summary._meta),
-		});
+		};
+		if (!summary.chats?.length) {
+			return [this._makeItem(rawId, base)];
+		}
+
+		return summary.chats.map(chat => this._makeItem(rawId, {
+			...base,
+			title: chat.title || summary.title,
+			chat,
+			isDefaultChat: this._isDefaultChat(summary, chat),
+		}));
 	}
 
 	private _makeItem(rawId: string, opts: {
@@ -229,6 +272,8 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 		changesSummary?: ChangesSummary;
 		/** Un-adopted legacy Copilot CLI session surfaced as adoptable; must not be passively restored. */
 		adoptable?: boolean;
+		chat?: SessionChatSummary;
+		isDefaultChat?: boolean;
 	}): IChatSessionItem {
 		const inProgress = opts.status !== undefined && (opts.status & SessionStatus.InProgress) !== 0;
 		const description = inProgress && opts.activity ? opts.activity : this._description;
@@ -236,7 +281,7 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 			? { ...(this._buildMetadata(opts.workingDirectory) ?? {}), [SESSION_META_EHCLI_ADOPTABLE_KEY]: true }
 			: this._buildMetadata(opts.workingDirectory);
 		return {
-			resource: this._resource(rawId),
+			resource: opts.chat ? this._chatResource(rawId, opts.chat, opts.isDefaultChat === true) : this._resource(rawId),
 			label: opts.title || `Session ${rawId.substring(0, 8)}`,
 			description,
 			iconPath: getAgentSessionProviderIcon(this._sessionType),
@@ -262,6 +307,23 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 				}
 				: undefined,
 		};
+	}
+
+	private _chatResource(rawId: string, chat: SessionChatSummary, isDefaultChat: boolean): URI {
+		if (isDefaultChat) {
+			return this._resource(rawId);
+		}
+		const parsed = parseChatUri(chat.resource);
+		if (!parsed) {
+			throw new Error(`Invalid chat URI '${chat.resource}' in session '${rawId}'`);
+		}
+		return this._resource(rawId).with({ fragment: parsed.chatId });
+	}
+
+	private _isDefaultChat(summary: SessionSummary, chat: SessionChatSummary): boolean {
+		return summary.defaultChat !== undefined
+			? summary.defaultChat === chat.resource
+			: isDefaultChatUri(chat.resource);
 	}
 
 	private _resource(rawId: string): URI {

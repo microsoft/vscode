@@ -1704,6 +1704,12 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 			workingDirectory: typeof s.workingDirectories?.[0] === 'string' ? this._toClientUri(URI.parse(s.workingDirectories[0])) : undefined,
 			workingDirectories: s.workingDirectories?.map(d => this._toClientUri(URI.parse(d))),
 			changes: s.changes,
+			chats: s.chats?.map(chat => ({
+				chat: URI.parse(chat.resource),
+				summary: chat.title,
+				kind: s.defaultChat === chat.resource || isDefaultChatUri(chat.resource) ? 'default' : 'peer',
+				origin: chat.origin,
+			})),
 			// Carry durable host provenance for sessions first materialized from a listing.
 			...(s._meta !== undefined ? { _meta: s._meta } : {}),
 		}));

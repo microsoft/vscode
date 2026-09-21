@@ -168,8 +168,17 @@ export interface IAgentDiscoveredChat extends IAgentChatMetadata {
 /** Returns the candidate session URI keys already present in the host registry. */
 export type IAgentKnownSessionsFilter = (sessions: readonly URI[]) => Promise<ReadonlySet<string>>;
 
+/** Lightweight ordered chat metadata for session-list presentation. */
+export interface IAgentSessionChatMetadata {
+	readonly chat: URI;
+	readonly summary?: string;
+	readonly kind: 'default' | 'peer';
+	readonly origin?: ChatOrigin;
+}
+
 export interface IAgentSessionMetadata extends Omit<IAgentChatMetadata, 'chat'> {
 	readonly session: URI;
+	readonly chats?: readonly IAgentSessionChatMetadata[];
 }
 
 export interface IAgentSessionProjectInfo {
