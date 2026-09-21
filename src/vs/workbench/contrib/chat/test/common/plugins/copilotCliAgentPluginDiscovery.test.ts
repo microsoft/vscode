@@ -5,11 +5,11 @@
 
 import assert from 'assert';
 import sinon from 'sinon';
-import { DeferredPromise } from '../../../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
 import { VSBuffer } from '../../../../../../base/common/buffer.js';
 import { Emitter } from '../../../../../../base/common/event.js';
 import { Schemas } from '../../../../../../base/common/network.js';
-import { waitForState } from '../../../../../../base/common/observable.js';
+import { autorun, waitForState } from '../../../../../../base/common/observable.js';
 import { joinPath } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
@@ -30,8 +30,15 @@ import { ConfiguredAgentPluginDiscovery, CopilotCliAgentPluginDiscovery } from '
 import { IPluginMarketplaceService } from '../../../common/plugins/pluginMarketplaceService.js';
 
 class TestCopilotCliAgentPluginDiscovery extends CopilotCliAgentPluginDiscovery {
+	public discoveryCount = 0;
+
 	public discoverPluginSources() {
 		return this._discoverPluginSources();
+	}
+
+	protected override _discoverPluginSources() {
+		this.discoveryCount++;
+		return super._discoverPluginSources();
 	}
 }
 
@@ -141,6 +148,59 @@ suite('CopilotCliAgentPluginDiscovery', () => {
 				resource: installedPluginsRoot.toString(),
 				recursive: true,
 			}],
+		});
+	}));
+
+	test('ignores unrelated Copilot runtime writes while refreshing real plugin changes', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const initialPluginUri = joinPath(marketplaceRoot, 'spark');
+		await writePlugin(initialPluginUri, 'spark');
+		await timeout(10);
+
+		const rootWatcherReady = new DeferredPromise<void>();
+		const originalWatch = fileService.watch.bind(fileService);
+		sinon.stub(fileService, 'watch').callsFake((resource, options) => {
+			rootWatcherReady.complete();
+			return originalWatch(resource, options);
+		});
+
+		const discovery = createDiscovery();
+		let publicationCount = 0;
+		store.add(autorun(reader => {
+			discovery.plugins.read(reader);
+			publicationCount++;
+		}));
+		discovery.start(enablementModel);
+
+		const initialPlugins = await waitForState(discovery.plugins, plugins => plugins?.length === 1);
+		assert.ok(initialPlugins);
+		await rootWatcherReady.p;
+		const initialDiscoveryCount = discovery.discoveryCount;
+		const initialPublicationCount = publicationCount;
+
+		await fileService.writeFile(joinPath(userHome, '.copilot', 'data.db'), VSBuffer.fromString('runtime churn'));
+		await timeout(500);
+
+		assert.deepStrictEqual({
+			discoveryCount: discovery.discoveryCount,
+			publicationCount,
+			reusedPublishedArray: discovery.plugins.get() === initialPlugins,
+		}, {
+			discoveryCount: initialDiscoveryCount,
+			publicationCount: initialPublicationCount,
+			reusedPublishedArray: true,
+		});
+
+		await writePlugin(joinPath(marketplaceRoot, 'second'), 'second');
+		const updatedPlugins = await waitForState(discovery.plugins, plugins => plugins?.length === 2);
+		assert.ok(updatedPlugins);
+		assert.deepStrictEqual({
+			discoveryRefreshed: discovery.discoveryCount > initialDiscoveryCount,
+			inventoryPublished: publicationCount > initialPublicationCount,
+			labels: updatedPlugins.map(plugin => plugin.label),
+		}, {
+			discoveryRefreshed: true,
+			inventoryPublished: true,
+			labels: ['second', 'spark'],
 		});
 	}));
 
