@@ -53,7 +53,10 @@ suite('ExecutionSubagentPrompt', () => {
 		expect(await renderPrompt(false, 2)).toContain('OK, your allotted iterations are finished. Show the <final_answer>.');
 	});
 
-	test('shows the remaining iterations when turn-wise prompting is enabled', async () => {
+	test('shows the remaining iterations on every turn when turn-wise prompting is enabled', async () => {
 		expect(await renderPrompt(true, 1)).toContain('You have 2 of 3 allotted iterations remaining. When one iteration remains, do not call tools; return only the <final_answer>.');
+		const finalTurnPrompt = await renderPrompt(true, 2);
+		expect(finalTurnPrompt).toContain('You have 1 of 3 allotted iterations remaining. When one iteration remains, do not call tools; return only the <final_answer>.');
+		expect(finalTurnPrompt).not.toContain('OK, your allotted iterations are finished.');
 	});
 });
