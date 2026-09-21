@@ -2380,20 +2380,24 @@ suite('SessionsManagementService', () => {
 	});
 
 	for (const scenario of [
-		{ sourceSupport: false, revisionSupport: false, revision: undefined, accepted: false },
-		{ sourceSupport: true, revisionSupport: false, revision: 'main', accepted: false },
-		{ sourceSupport: true, revisionSupport: false, revision: undefined, accepted: true },
-		{ sourceSupport: true, revisionSupport: true, revision: 'main', accepted: true },
+		{ sourceSupport: false, revisionSupport: false, multipleSupport: false, count: 1, revision: undefined, accepted: false },
+		{ sourceSupport: true, revisionSupport: false, multipleSupport: false, count: 1, revision: 'main', accepted: false },
+		{ sourceSupport: true, revisionSupport: false, multipleSupport: false, count: 1, revision: undefined, accepted: true },
+		{ sourceSupport: true, revisionSupport: true, multipleSupport: false, count: 1, revision: 'main', accepted: true },
+		{ sourceSupport: true, revisionSupport: true, multipleSupport: false, count: 2, revision: 'main', accepted: false },
+		{ sourceSupport: true, revisionSupport: true, multipleSupport: true, count: 2, revision: 'main', accepted: true },
 	]) {
 		test(`typed repository source inputs require a supporting session type (${JSON.stringify(scenario)})`, () => {
 			const session = stubSession({ sessionId: 'repository-draft', providerId: 'test' });
 			const repositorySource = URI.parse('https://git.example.org/team/app.git');
+			const repositories = Array.from({ length: scenario.count }, () => ({ source: repositorySource, ...(scenario.revision !== undefined ? { revision: scenario.revision } : {}) }));
 			const calls: (ISessionsProviderCreateSessionOptions | undefined)[] = [];
 			const provider = new class extends TestSessionsProvider {
 				override readonly sessionTypes: readonly ISessionType[] = [{
 					id: 'test', label: 'Test', icon: Codicon.repo, authRequirement: SessionTypeAuthRequirement.None,
-					supportsRepositorySource: scenario.sourceSupport,
+					supportsRepositoryPreparation: scenario.sourceSupport,
 					supportsRepositoryRevision: scenario.revisionSupport,
+					supportsMultipleRepositories: scenario.multipleSupport,
 				}];
 				override resolveWorkspace(): ISessionWorkspace {
 					return {
@@ -2409,8 +2413,7 @@ suite('SessionsManagementService', () => {
 			const { service } = createSessionsManagementService(session, disposables, provider);
 			const create = () => service.createNewSession(repositorySource, {
 				providerId: provider.id,
-				repositorySource,
-				repositoryRevision: scenario.revision,
+				repositories,
 			});
 			if (scenario.accepted) {
 				create();
@@ -2419,8 +2422,7 @@ suite('SessionsManagementService', () => {
 			}
 			assert.deepStrictEqual(calls, scenario.accepted ? [{
 				metadata: undefined,
-				repositorySource,
-				...(scenario.revision !== undefined ? { repositoryRevision: scenario.revision } : {}),
+				repositories,
 			}] : []);
 		});
 	}
@@ -2428,8 +2430,8 @@ suite('SessionsManagementService', () => {
 	test('typed repository source options are rejected for invalid session modes', () => {
 		const session = stubSession({ sessionId: 'invalid-source', providerId: 'test' });
 		const { service } = createSessionsManagementService(session, disposables);
-		assert.throws(() => service.createNewSession(URI.file('/workspace'), { repositoryRevision: 'main' }), /requires a repository source/);
-		assert.throws(() => service.createQuickChat({ repositorySource: URI.parse('https://example.com/team/project') }), /Repository inputs require a workspace-bound session/);
+		assert.throws(() => service.createNewSession(URI.file('/workspace'), { repositories: [] }), /nonempty list/);
+		assert.throws(() => service.createQuickChat({ repositories: [{ source: URI.parse('https://example.com/team/project') }] }), /Repository inputs require a workspace-bound session/);
 	});
 
 	test('createAndSendNewChatRequest rejects canonical Automation templates for providers without restoration support', async () => {

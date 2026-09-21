@@ -24,6 +24,7 @@ import { RemoteAgentHostConnectionStatus } from '../../../../../../platform/agen
 import { AgentHostTransportFailureReason } from '../../../../../../platform/agentHost/common/state/sessionTransport.js';
 import { SessionArtifactType, withSessionArtifacts } from '../../../../../../platform/agentHost/common/sessionArtifacts.js';
 import type { ResolveSessionConfigResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
+import type { InitializeResult, RepositoryPreparationCapabilities } from '../../../../../../platform/agentHost/common/state/protocol/common/commands.js';
 import { CustomizationType, MessageKind, SessionLifecycle, type AgentCustomization, type AgentInfo, type AutomationState, type RootState, type SessionConfigState, type SessionState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ActionType, NotificationType, type ActionEnvelope, type IRootConfigChangedAction, type SessionAction, type TerminalAction, type INotification, type ClientAnnotationsAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { buildDefaultChatUri, isAhpAutomationCatalogChannel, SessionStatus as ProtocolSessionStatus, StateComponents } from '../../../../../../platform/agentHost/common/state/sessionState.js';
@@ -53,7 +54,7 @@ import { IGitHubService } from '../../../../github/browser/githubService.js';
 import { IPullRequestIconCache, PullRequestIconCache } from '../../../../github/browser/pullRequestIconCache.js';
 import { IAgentHostActiveClientService } from '../../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostActiveClientService.js';
 import { CopilotCLISessionType } from '../../../agentHost/browser/baseAgentHostSessionsProvider.js';
-import { IObservable, constObservable } from '../../../../../../base/common/observable.js';
+import { IObservable, constObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { IActiveSession, WorkspaceNotTrustedError } from '../../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../../../services/sessions/browser/sessionsService.js';
 import { MockLabelService } from '../../../../../../workbench/services/label/test/common/mockLabelService.js';
@@ -71,12 +72,17 @@ class MockAgentConnection extends mock<IAgentConnection>() {
 	private readonly _onDidRootStateChange = new Emitter<RootState>();
 	private _rootStateValue: RootState = { agents: [{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [] } as AgentInfo] };
 	override readonly rootState: IAgentSubscription<RootState>;
-	override readonly initializeResult = constObservable({
+	private readonly _initializeResult = observableValue<InitializeResult>(this, {
 		protocolVersion: '1',
 		serverSeq: 0,
 		snapshots: [],
 		automations: { create: {}, schedules: {}, runCancellation: {} },
 	});
+	override readonly initializeResult: IObservable<InitializeResult> = this._initializeResult;
+
+	setRepositoryPreparation(capability: RepositoryPreparationCapabilities | undefined): void {
+		this._initializeResult.set({ ...this._initializeResult.get(), repositoryPreparation: capability }, undefined);
+	}
 
 	override readonly clientId = 'test-client-1';
 	private readonly _sessions = new Map<string, IAgentSessionMetadata>();
@@ -470,33 +476,29 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		]);
 	});
 
-	test('session types track repository source capability changes', () => {
+	test('session types track the host repository preparation capability across initialization changes', () => {
 		const provider = createProvider(disposables, connection);
 		let changes = 0;
 		disposables.add(provider.onDidChangeSessionTypes!(() => changes++));
 		const read = () => ({
-			source: provider.sessionTypes[0].supportsRepositorySource,
+			source: provider.sessionTypes[0].supportsRepositoryPreparation,
 			revision: provider.sessionTypes[0].supportsRepositoryRevision,
+			multiple: provider.sessionTypes[0].supportsMultipleRepositories,
 		});
 		const snapshots = [read()];
-		for (const capability of [{}, { revision: true }, undefined]) {
-			connection.setAgents([{
-				provider: 'copilotcli',
-				displayName: 'Copilot',
-				description: '',
-				models: [],
-				capabilities: { repositorySource: capability },
-			}]);
+		for (const capability of [{}, { revision: true }, { revision: true, multipleRepositories: true }, undefined]) {
+			connection.setRepositoryPreparation(capability);
 			snapshots.push(read());
 		}
 		assert.deepStrictEqual({ snapshots, changes }, {
 			snapshots: [
-				{ source: undefined, revision: undefined },
-				{ source: true, revision: false },
-				{ source: true, revision: true },
-				{ source: undefined, revision: undefined },
+				{ source: undefined, revision: undefined, multiple: undefined },
+				{ source: true, revision: false, multiple: false },
+				{ source: true, revision: true, multiple: false },
+				{ source: true, revision: true, multiple: true },
+				{ source: undefined, revision: undefined, multiple: undefined },
 			],
-			changes: 3,
+			changes: 4,
 		});
 	});
 
@@ -712,33 +714,46 @@ suite('RemoteAgentHostSessionsProvider', () => {
 	});
 
 	test('createNewSession resolves typed repository inputs without eagerly preparing a checkout', async () => {
-		connection.setAgents([{
-			provider: 'copilotcli', displayName: 'Copilot', description: '', models: [],
-			capabilities: { repositorySource: { revision: true } },
-		}]);
+		connection.setRepositoryPreparation({ revision: true });
 		const provider = createProvider(disposables, connection);
 		const repositorySource = URI.parse('https://git.example.org:8443/team/app.git');
 		const draft = provider.createNewSession(
 			URI.parse('vscode-agent-host://localhost__4321/workspace'),
 			provider.sessionTypes[0].id,
-			{ repositorySource, repositoryRevision: 'main' },
+			{ repositories: [{ source: repositorySource, revision: 'main' }] },
 		);
 		provider.setAuthenticationPending(false);
 		await waitForSessionConfig(provider, draft.sessionId, config => config?.values.isolation === 'worktree');
 		await timeout(0);
 		const resolution = connection.resolveSessionConfigCalls.map(call => ({
-			source: call.repositorySource?.toString(), revision: call.repositoryRevision, directory: call.workingDirectory,
+			repositories: call.repositories, directory: call.workingDirectory,
 		}));
 		assert.ok(resolution.length > 0);
 		assert.deepStrictEqual({
 			resolution,
 			creation: connection.createdSessionConfigs.map(call => ({
-				source: call.repositorySource?.toString(), revision: call.repositoryRevision, directories: call.workingDirectories, config: call.config,
+				repositories: call.repositories, directories: call.workingDirectories, config: call.config,
 			})),
 		}, {
-			resolution: resolution.map(() => ({ source: repositorySource.toString(), revision: 'main', directory: undefined })),
+			resolution: resolution.map(() => ({ repositories: [{ source: repositorySource, revision: 'main' }], directory: undefined })),
 			creation: [],
 		});
+	});
+
+	test('repository drafts reject multiple sources before querying a single-repository host', () => {
+		connection.setRepositoryPreparation({ revision: true });
+		const provider = createProvider(disposables, connection);
+		assert.throws(() => provider.createNewSession(
+			URI.parse('vscode-agent-host://localhost__4321/workspace'),
+			provider.sessionTypes[0].id,
+			{
+				repositories: [
+					{ source: URI.parse('https://example.com/team/api') },
+					{ source: URI.parse('https://example.com/team/web') },
+				]
+			},
+		), /multiple repositories/);
+		assert.deepStrictEqual({ queries: connection.resolveSessionConfigCalls, creates: connection.createdSessionConfigs }, { queries: [], creates: [] });
 	});
 
 	// ---- Browse actions -------
@@ -1830,10 +1845,7 @@ suite('RemoteAgentHostSessionsProvider', () => {
 	});
 
 	test('sendRequest carries typed repository source inputs separately from provider config', async () => {
-		connection.setAgents([{
-			provider: 'copilotcli', displayName: 'Copilot', description: '', models: [],
-			capabilities: { repositorySource: { revision: true } },
-		}]);
+		connection.setRepositoryPreparation({ revision: true });
 		const sendOptions: IChatSendRequestOptions[] = [];
 		const provider = createProvider(disposables, connection, {
 			openSession: true,
@@ -1849,17 +1861,16 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		const session = provider.createNewSession(
 			URI.parse('vscode-agent-host://localhost__4321/workspace'),
 			provider.sessionTypes[0].id,
-			{ repositorySource, repositoryRevision: 'main' },
+			{ repositories: [{ source: repositorySource, revision: 'main' }] },
 		);
 		provider.setAuthenticationPending(false);
 		await waitForSessionConfig(provider, session.sessionId, config => config?.values.isolation === 'worktree');
 		const chat = await provider.createNewChat(session.sessionId);
 		await provider.sendRequest(session.sessionId, chat.resource, { query: 'hello' });
 		assert.deepStrictEqual(sendOptions.map(options => ({
-			source: options.agentHostRepositorySource?.toString(),
-			revision: options.agentHostRepositoryRevision,
+			repositories: options.agentHostRepositories,
 			config: options.agentHostSessionConfig,
-		})), [{ source: repositorySource.toString(), revision: 'main', config: { isolation: 'worktree' } }]);
+		})), [{ repositories: [{ source: repositorySource, revision: 'main' }], config: { isolation: 'worktree' } }]);
 	});
 
 	// ---- Session data adapter -------

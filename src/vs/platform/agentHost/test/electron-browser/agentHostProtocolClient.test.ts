@@ -776,20 +776,17 @@ suite('AgentHostProtocolClient', () => {
 					status: SessionStatus.Idle,
 					createdAt: new Date(1000).toISOString(),
 					modifiedAt: new Date(2000).toISOString(),
-					repositorySource: 'file:///sources/project',
-					repositoryRevision: 'main',
+					repositories: [{ source: 'file:///sources/project', revision: 'main' }],
 					workingDirectories: ['file:///worktrees/project'],
 				}],
 			},
 		});
 		const sessions = await resultPromise;
 		assert.deepStrictEqual(sessions.map(session => ({
-			source: session.repositorySource?.toString(),
-			revision: session.repositoryRevision,
+			repositories: session.repositories?.map(repository => ({ source: repository.source.toString(), revision: repository.revision })),
 			directories: session.workingDirectories,
 		})), [{
-			source: 'file:///sources/project',
-			revision: 'main',
+			repositories: [{ source: 'file:///sources/project', revision: 'main' }],
 			directories: [toAgentHostUri(URI.file('/worktrees/project'), agentHostAuthority('test.example:1234'))],
 		}]);
 	});
@@ -999,8 +996,7 @@ suite('AgentHostProtocolClient', () => {
 			const creation = client.createSession({
 				provider: 'copilot',
 				session,
-				repositorySource,
-				repositoryRevision: 'refs/tags/v1',
+				repositories: [{ source: repositorySource, revision: 'refs/tags/v1' }],
 				config: { mode: 'plan' },
 			});
 			const request = transport.sentMessages[0] as JsonRpcRequest;
@@ -1009,8 +1005,7 @@ suite('AgentHostProtocolClient', () => {
 				provider: 'copilot',
 				_meta: undefined,
 				workingDirectories: undefined,
-				repositorySource: repositorySource.toString(),
-				repositoryRevision: 'refs/tags/v1',
+				repositories: [{ source: repositorySource.toString(), revision: 'refs/tags/v1' }],
 				config: { mode: 'plan' },
 				activeClient: undefined,
 				progressToken: undefined,
@@ -1025,8 +1020,11 @@ suite('AgentHostProtocolClient', () => {
 			const { client, transport } = createClient();
 			const context = {
 				provider: 'copilot',
-				repositorySource: URI.parse('https://git.example.org:8443/team/app.git'),
-				repositoryRevision: 'main',
+				workingDirectory: URI.file('/existing/checkout'),
+				repositories: [
+					{ source: URI.parse('https://git.example.org:8443/team/app.git'), revision: 'main' },
+					{ source: URI.file('/source/other') },
+				],
 				config: { target: 'worktree' },
 			};
 			const resultPromise = method === 'resolveSessionConfig'
@@ -1038,9 +1036,11 @@ suite('AgentHostProtocolClient', () => {
 				params: {
 					channel: ROOT_STATE_URI,
 					provider: 'copilot',
-					workingDirectory: undefined,
-					repositorySource: context.repositorySource.toString(),
-					repositoryRevision: 'main',
+					workingDirectory: 'file:///existing/checkout',
+					repositories: [
+						{ source: 'https://git.example.org:8443/team/app.git', revision: 'main' },
+						{ source: 'file:///source/other' },
+					],
 					config: { target: 'worktree' },
 					...(method === 'sessionConfigCompletions' ? { property: 'branch', query: 'feature' } : {}),
 				},

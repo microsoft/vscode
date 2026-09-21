@@ -4128,17 +4128,17 @@ suite('AgentService (node dispatcher)', () => {
 
 		test('native host rejects repository source inputs without provisioning', async () => {
 			registerTestAgentProvider(service, copilotAgent);
-			const repositorySource = URI.parse('https://example.com/team/project');
-			await assert.rejects(service.createSession({ provider: 'copilot', repositorySource }), /does not support repository-backed/);
-			await assert.rejects(service.resolveSessionConfig({ provider: 'copilot', repositorySource }), /does not support repository-backed/);
-			await assert.rejects(service.sessionConfigCompletions({ provider: 'copilot', repositorySource, property: 'branch' }), /does not support repository-backed/);
+			const repositories = [{ source: URI.parse('https://example.com/team/project') }];
+			await assert.rejects(service.createSession({ provider: 'copilot', repositories }), /does not support repository-backed/);
+			await assert.rejects(service.resolveSessionConfig({ provider: 'copilot', repositories }), /does not support repository-backed/);
+			await assert.rejects(service.sessionConfigCompletions({ provider: 'copilot', repositories, property: 'branch' }), /does not support repository-backed/);
 			assert.deepStrictEqual(await service.listSessions(), []);
 		});
 
 		test('native host rejects repository source config aliases instead of silently choosing a directory', async () => {
 			registerTestAgentProvider(service, copilotAgent);
-			for (const property of ['repositorySource', 'repositoryRevision', 'repositoryUrl']) {
-				await assert.rejects(service.createSession({ provider: 'copilot', config: { [property]: null } }), /request fields, not configuration/);
+			for (const property of ['repositories', 'repositorySource', 'repositoryRevision', 'repositoryUrl']) {
+				await assert.rejects(service.createSession({ provider: 'copilot', config: { [property]: null } }), /request field, not configuration/);
 			}
 			assert.deepStrictEqual(await service.listSessions(), []);
 		});

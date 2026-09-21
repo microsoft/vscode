@@ -88,6 +88,20 @@ export interface AutomationSessionOrigin {
 export type SessionOrigin = AutomationSessionOrigin;
 
 /**
+ * Requested repository intent, independent of any host-resolved checkout.
+ * The same source may appear more than once with different revisions; a source
+ * URI is not a checkout identity.
+ *
+ * @category Session State
+ */
+export interface RepositorySource {
+	/** Credential-free repository source URI. */
+	source: URI;
+	/** Requested branch, tag, or commit. Omit to use the host's default revision. */
+	revision?: string;
+}
+
+/**
  * Metadata shared between the full {@link SessionState} (delivered when a
  * client subscribes to a session's URI) and the lightweight
  * {@link SessionSummary} (carried in the root-channel session catalog).
@@ -126,10 +140,15 @@ export interface SessionMetadata {
 	 * chat that sets none operates against this full set.
 	 */
 	workingDirectories?: URI[];
-	/** Immutable requested source, separate from the host-resolved working directories. */
-	repositorySource?: URI;
-	/** Immutable requested revision, not the checkout's current HEAD. */
-	repositoryRevision?: string;
+	/**
+	 * Immutable repository intent accepted at creation. When present, this list
+	 * is non-empty and retained exactly, including order and omitted revisions,
+	 * from `creating` through `ready` or `failed` and in session summaries.
+	 * Entries have no one-to-one or positional mapping to `workingDirectories`.
+	 *
+	 * @minItems 1
+	 */
+	repositories?: RepositorySource[];
 	/**
 	 * Lightweight summary of this session's inline annotations channel
 	 * (`ahp-session:/<uuid>/annotations`). Surfaced so badge UI can render
@@ -178,7 +197,7 @@ export interface SessionState extends SessionMetadata {
 	 * this over the session's lifetime.
 	 */
 	defaultChat?: URI;
-	/** Provider-specific session configuration schema and current values. */
+	/** Session configuration schema and current values */
 	config?: SessionConfigState;
 	/**
 	 * Top-level customizations active in this session.

@@ -20,7 +20,7 @@ import { FileChangeType, FileOperationResult, IFileChange, IFileService, toFileO
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
 import { ILogService } from '../../log/common/log.js';
 import { AgentChatMigrationDeferred, AgentProvider, AgentSession, AgentSignal, IAgent, type IAgentAdoptedWorktree, IAgentChatContext, IAgentChatDataChange, IAgentChatMetadata, IAgentCreateChatOptions, IAgentCreateChatRequestOptions, IAgentCreateChatResult, IAgentCreateChatSideChatSelection, IAgentCreateChatSideChatSource, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentDiscoveredChat, IAgentLegacyChat, IAgentMaterializeChatEvent, IAgentModelInfo, IAgentResolveSessionConfigParams, IAgentChatAdoptionResult, type AgentChatAdoptionReason, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, IAgentSpawnChatEvent, AuthenticateParams, AuthenticateResult, SubagentChatSignal, subagentChatTitle } from '../common/agent.js';
-import { validateRepositorySource } from '../common/agentHostRepositorySource.js';
+import { serializeRepositorySources, validateRepositories } from '../common/agentHostRepositorySource.js';
 import { type AgentHostDebugLogsArtifactKind, type IAgentHostDebugLogsArtifact, type IAgentHostDebugLogsChunk, IAgentHostManagedSettingsDiagnostics, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult, IAgentService } from '../common/agentService.js';
 import { ISessionDatabase, ISessionDataService, ISessionStorageAccessCounts, SESSION_ATTACHMENTS_DIRNAME } from '../common/sessionDataService.js';
 import { IAgentEditAttributionService, ICancelEditAttributionFlushParams, ICommitEditAttributionFlushParams, IEditAttributionFlushResult, IPrepareEditAttributionFlushParams, IPreparedEditAttributionFlush, parseEditAttributionResource } from '../common/fileEditAttribution.js';
@@ -3852,15 +3852,14 @@ export class AgentService extends Disposable implements IAgentService {
 			modifiedAt: new Date(meta.modifiedTime).toISOString(),
 			...(meta.project ? { project: { uri: meta.project.uri.toString(), displayName: meta.project.displayName } } : {}),
 			workingDirectories: meta.workingDirectories?.map(d => d.toString()),
-			...(meta.repositorySource !== undefined ? { repositorySource: meta.repositorySource.toString() } : {}),
-			...(meta.repositoryRevision !== undefined ? { repositoryRevision: meta.repositoryRevision } : {}),
+			...(meta.repositories !== undefined ? { repositories: serializeRepositorySources(meta.repositories) } : {}),
 			_meta: meta._meta,
 		};
 	}
 
 	async createSession(config?: IAgentCreateSessionConfig): Promise<URI> {
 		// This host does not advertise repository preparation.
-		validateRepositorySource(config, undefined);
+		validateRepositories(config, undefined);
 		const provider = this._providerService.resolveProvider(config?.provider);
 		const isEphemeral = config ? readEphemeralSessionMeta(config).isEphemeral === true : false;
 		if (!provider) {
@@ -5161,7 +5160,7 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	async resolveSessionConfig(params: IAgentResolveSessionConfigParams): Promise<ResolveSessionConfigResult> {
-		validateRepositorySource(params, undefined);
+		validateRepositories(params, undefined);
 		const provider = this._providerService.resolveProvider(params.provider);
 		if (!provider) {
 			throw new Error(`No agent provider registered for: ${params.provider ?? '(none)'}`);
@@ -5236,7 +5235,7 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	async sessionConfigCompletions(params: IAgentSessionConfigCompletionsParams): Promise<SessionConfigCompletionsResult> {
-		validateRepositorySource(params, undefined);
+		validateRepositories(params, undefined);
 		// The host owns branch completions for every agent (they share the same
 		// git-backed branch list); all other properties stay provider-specific.
 		if (params.property === SessionConfigKey.Branch && this._worktree.supported) {

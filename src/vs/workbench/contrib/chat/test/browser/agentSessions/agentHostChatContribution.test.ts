@@ -294,8 +294,7 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 				createdAt: new Date().toISOString(),
 				modifiedAt: new Date().toISOString(),
 				workingDirectories: resolvedWorkingDir ? [resolvedWorkingDir] : undefined,
-				...(config.repositorySource !== undefined ? { repositorySource: config.repositorySource.toString() } : {}),
-				...(config.repositoryRevision !== undefined ? { repositoryRevision: config.repositoryRevision } : {}),
+				...(config.repositories !== undefined ? { repositories: config.repositories.map(repository => ({ source: repository.source.toString(), ...(repository.revision !== undefined ? { revision: repository.revision } : {}) })) } : {}),
 			};
 			const state: SessionState = {
 				...this._withDefaultChatCatalog(createSessionState(summary), session.toString()),
@@ -405,10 +404,7 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 	}
 
 	enableRepositorySource(): void {
-		this.setRootState({
-			agents: [{ provider: 'copilot', displayName: 'Test', description: 'test', models: [], capabilities: { repositorySource: { revision: true } } }],
-			activeSessions: 0,
-		});
+		this.setInitializeResult({ repositoryPreparation: { revision: true } });
 	}
 
 	public authenticateCalls: { resource: string; scopes?: readonly string[]; token: string }[] = [];
@@ -1160,7 +1156,7 @@ function createByokLanguageModelTestData(groupName?: string): { languageModels: 
 	};
 }
 
-function makeRequest(overrides: Partial<{ message: string; sessionResource: URI; variables: IChatAgentRequest['variables']; userSelectedModelId: string; modelConfiguration: Record<string, unknown>; agentHostSessionConfig: Record<string, string>; agentHostRepositorySource: URI; agentHostRepositoryRevision: string; agentId: string; requestId: string; acceptedConfirmationData: unknown[]; metadata: Record<string, unknown> }> = {}): IChatAgentRequest {
+function makeRequest(overrides: Partial<{ message: string; sessionResource: URI; variables: IChatAgentRequest['variables']; userSelectedModelId: string; modelConfiguration: Record<string, unknown>; agentHostSessionConfig: Record<string, string>; agentHostRepositories: IChatAgentRequest['agentHostRepositories']; agentId: string; requestId: string; acceptedConfirmationData: unknown[]; metadata: Record<string, unknown> }> = {}): IChatAgentRequest {
 	return upcastPartial<IChatAgentRequest>({
 		sessionResource: overrides.sessionResource ?? URI.from({ scheme: 'untitled', path: '/chat-1' }),
 		requestId: overrides.requestId ?? 'req-1',
@@ -1171,8 +1167,7 @@ function makeRequest(overrides: Partial<{ message: string; sessionResource: URI;
 		userSelectedModelId: overrides.userSelectedModelId,
 		modelConfiguration: overrides.modelConfiguration,
 		agentHostSessionConfig: overrides.agentHostSessionConfig,
-		agentHostRepositorySource: overrides.agentHostRepositorySource,
-		agentHostRepositoryRevision: overrides.agentHostRepositoryRevision,
+		agentHostRepositories: overrides.agentHostRepositories,
 		acceptedConfirmationData: overrides.acceptedConfirmationData,
 		metadata: overrides.metadata,
 	});
@@ -11354,7 +11349,7 @@ suite('AgentHostChatContribution', () => {
 					disposables.add(toDisposable(() => chat.dispose()));
 					const registered = chatAgentService.registeredAgents.get('repository-session');
 					assert.ok(registered);
-					const turn = registered.impl.invoke(makeRequest({ agentId: 'repository-session', sessionResource: resource, agentHostRepositorySource: repository, agentHostRepositoryRevision: 'main' }), () => { }, [], CancellationToken.None);
+					const turn = registered.impl.invoke(makeRequest({ agentId: 'repository-session', sessionResource: resource, agentHostRepositories: [{ source: repository, revision: 'main' }] }), () => { }, [], CancellationToken.None);
 					await timeout(25);
 					const dispatch = agentHostService.turnActions[0];
 					assert.ok(dispatch);
@@ -11366,20 +11361,18 @@ suite('AgentHostChatContribution', () => {
 					assert.deepStrictEqual({
 						config: agentHostService.createSessionCalls[0].config,
 						initialCustomizations: agentHostService.createSessionCalls[0].activeClient?.customizations,
-						source: agentHostService.createSessionCalls[0].repositorySource?.toString(),
-						revision: agentHostService.createSessionCalls[0].repositoryRevision,
+						repositories: agentHostService.createSessionCalls[0].repositories,
 						workingDirectories: agentHostService.createSessionCalls[0].workingDirectories,
 						discoveryDirectories: agentHostService.resolveSessionConfigCalls.map(call => call.workingDirectory),
-						discoverySources: agentHostService.resolveSessionConfigCalls.map(call => call.repositorySource?.toString()),
+						discoverySources: agentHostService.resolveSessionConfigCalls.map(call => call.repositories),
 						customizations: lastActiveClient?.type === ActionType.SessionActiveClientSet ? lastActiveClient.activeClient.customizations : undefined,
 					}, {
 						config: {},
 						initialCustomizations: [],
-						source: repository.toString(),
-						revision: 'main',
+						repositories: [{ source: repository, revision: 'main' }],
 						workingDirectories: undefined,
 						discoveryDirectories: [undefined],
-						discoverySources: [repository.toString()],
+						discoverySources: [[{ source: repository, revision: 'main' }]],
 						customizations,
 					});
 				}));

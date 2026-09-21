@@ -8,7 +8,7 @@
 
 import type { URI } from '../common/state.js';
 import type { BaseParams } from '../common/commands.js';
-import type { SessionActiveClient } from './state.js';
+import type { RepositorySource, SessionActiveClient } from './state.js';
 import type { MessageAttachment } from '../channels-chat/state.js';
 
 // ─── createSession ───────────────────────────────────────────────────────────
@@ -67,18 +67,21 @@ export interface CreateSessionParams extends BaseParams {
 	 * and ignores the rest. Dispatch working-directory actions to change the set
 	 * after the session has started.
 	 *
-	 * A non-empty list and `repositorySource` are mutually exclusive.
-	 * A repository URI identifies the source, not a working-directory URI; one
-	 * source may produce multiple directories.
+	 * A non-empty list and `repositories` are mutually exclusive.
 	 */
 	workingDirectories?: URI[];
-	/** Credential-free source to prepare; requires the agent's repositorySource capability. */
-	repositorySource?: URI;
-	/** Requested branch, tag, or commit; requires a source and the capability's revision option. */
-	repositoryRevision?: string;
 	/**
-	 * Session configuration values collected via `resolveSessionConfig`.
-	 * Keys and values follow the advertised {@link SessionConfigSchema}.
+	 * Non-empty repository list to prepare, supported only when the host
+	 * advertises {@link InitializeResult.repositoryPreparation}. Omit to retain
+	 * directory/default creation. The resulting working directories MUST fit
+	 * the selected agent's existing directory capabilities.
+	 *
+	 * @minItems 1
+	 */
+	repositories?: RepositorySource[];
+	/**
+	 * Agent-specific configuration values collected via `resolveSessionConfig`.
+	 * Keys and values correspond to the schema returned by the server.
 	 */
 	config?: Record<string, unknown>;
 	/**
@@ -111,9 +114,6 @@ export interface CreateSessionParams extends BaseParams {
  * Disposes a session and cleans up server-side resources.
  *
  * The server broadcasts a `root/sessionRemoved` notification to all clients.
- * Disposal MUST NOT erase a shared checkout or uncommitted user changes.
- * Repository cleanup remains host-owned; ending a client's wait or subscription
- * does not grant permission to delete repository data.
  *
  * @category Commands
  * @method disposeSession

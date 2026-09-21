@@ -29,6 +29,7 @@ import type { ClientNotificationMap, CommandMap, JsonRpcErrorResponse, JsonRpcRe
 import { ActionType, type ActionEnvelope, type ChatAction, type ClientAnnotationsAction, type ClientAutomationAction, type ClientAutomationRunAction, type ClientChangesetAction, type INotification, type IRootConfigChangedAction, type SessionAction, type TerminalAction } from '../common/state/sessionActions.js';
 import { MessageAttachmentKind, SessionSummary, ROOT_STATE_URI, StateComponents, isAhpRootChannel, isDefaultChatUri, type ClientPluginCustomization, type Message, type RootState } from '../common/state/sessionState.js';
 import { normalizeLegacyActionEnvelope } from '../common/state/legacyProtocolCompatibility.js';
+import { parseRepositorySources, serializeRepositorySources } from '../common/agentHostRepositorySource.js';
 import { SUPPORTED_PROTOCOL_VERSIONS } from '../common/state/protocol/version/registry.js';
 import { isJsonRpcNotification, isJsonRpcRequest, isJsonRpcResponse, ProtocolError, ReconnectResultType, type ProtocolMessage, type IStateSnapshot } from '../common/state/sessionProtocol.js';
 import { type IVscodeUpgradeResult } from '../common/state/protocolUpgrade.js';
@@ -1383,8 +1384,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 			_meta: config?._meta,
 			provider,
 			workingDirectories: config?.workingDirectories?.map(d => fromAgentHostUri(d).toString()),
-			...(config?.repositorySource !== undefined ? { repositorySource: config.repositorySource.toString() } : {}),
-			...(config?.repositoryRevision !== undefined ? { repositoryRevision: config.repositoryRevision } : {}),
+			...(config?.repositories !== undefined ? { repositories: serializeRepositorySources(config.repositories) } : {}),
 			config: config?.config,
 			activeClient: config?.activeClient,
 			progressToken: config?.progressToken,
@@ -1432,8 +1432,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 			channel: ROOT_STATE_URI,
 			provider: params.provider,
 			workingDirectory: params.workingDirectory ? fromAgentHostUri(params.workingDirectory).toString() : undefined,
-			...(params.repositorySource !== undefined ? { repositorySource: params.repositorySource.toString() } : {}),
-			...(params.repositoryRevision !== undefined ? { repositoryRevision: params.repositoryRevision } : {}),
+			...(params.repositories !== undefined ? { repositories: serializeRepositorySources(params.repositories) } : {}),
 			config: params.config,
 		});
 	}
@@ -1443,8 +1442,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 			channel: ROOT_STATE_URI,
 			provider: params.provider,
 			workingDirectory: params.workingDirectory ? fromAgentHostUri(params.workingDirectory).toString() : undefined,
-			...(params.repositorySource !== undefined ? { repositorySource: params.repositorySource.toString() } : {}),
-			...(params.repositoryRevision !== undefined ? { repositoryRevision: params.repositoryRevision } : {}),
+			...(params.repositories !== undefined ? { repositories: serializeRepositorySources(params.repositories) } : {}),
 			config: params.config,
 			property: params.property,
 			query: params.query,
@@ -1709,8 +1707,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 			activity: s.activity,
 			workingDirectory: typeof s.workingDirectories?.[0] === 'string' ? this._toClientUri(URI.parse(s.workingDirectories[0])) : undefined,
 			workingDirectories: s.workingDirectories?.map(d => this._toClientUri(URI.parse(d))),
-			...(s.repositorySource !== undefined ? { repositorySource: URI.parse(s.repositorySource) } : {}),
-			...(s.repositoryRevision !== undefined ? { repositoryRevision: s.repositoryRevision } : {}),
+			...(s.repositories !== undefined ? { repositories: parseRepositorySources(s.repositories) } : {}),
 			changes: s.changes,
 			// Carry durable host provenance for sessions first materialized from a listing.
 			...(s._meta !== undefined ? { _meta: s._meta } : {}),

@@ -955,8 +955,7 @@ export function createSessionState(summary: SessionSummary): SessionState {
 	if (summary.activity !== undefined) { state.activity = summary.activity; }
 	if (summary.project !== undefined) { state.project = summary.project; }
 	if (summary.workingDirectories !== undefined) { state.workingDirectories = summary.workingDirectories; }
-	if (summary.repositorySource !== undefined) { state.repositorySource = summary.repositorySource; }
-	if (summary.repositoryRevision !== undefined) { state.repositoryRevision = summary.repositoryRevision; }
+	if (summary.repositories !== undefined) { state.repositories = summary.repositories; }
 	if (summary.annotations !== undefined) { state.annotations = summary.annotations; }
 	if (summary._meta !== undefined) { state._meta = summary._meta; }
 	return state;

@@ -30,7 +30,7 @@ import type { ITextModel } from '../../../../../../editor/common/model.js';
 import { IModelService } from '../../../../../../editor/common/services/model.js';
 import { localize } from '../../../../../../nls.js';
 import { AgentHostAllowSignedOutWhenUsableSettingId, AgentProvider, AgentSession, CODEX_AGENT_PROVIDER_ID, type IAgentConnection, type IAgentCreateSessionConfig } from '../../../../../../platform/agentHost/common/agentService.js';
-import { validateRepositorySource } from '../../../../../../platform/agentHost/common/agentHostRepositorySource.js';
+import { IRepositorySource, validateRepositories } from '../../../../../../platform/agentHost/common/agentHostRepositorySource.js';
 import { agentHostAuthority, LOCAL_AGENT_HOST_AUTHORITY } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { isCustomizationEnabled } from '../../../../../../platform/agentHost/common/customizationEnablement.js';
 import { findDeepestContainingWorkingDirectory } from '../../../../../../platform/agentHost/common/agentHostWorkingDirectories.js';
@@ -53,7 +53,7 @@ import { compareProtocolVersions } from '../../../../../../platform/agentHost/co
 import { ActionType, ChatTurnStartedAction, isChatAction, type ClientChatAction, type ClientSessionAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { AHP_AUTH_REQUIRED, AHP_NOT_FOUND, ProtocolError } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
 import { AhpErrorCodes } from '../../../../../../platform/agentHost/common/state/protocol/errors.js';
-import { getRepositorySessionSource, getRepositorySourceCapability, getRepositorySourceFromSelection, resolveAgentHostRepositoryConfig, waitForRepositorySessionReady } from './agentHostRepositoryConfig.js';
+import { getSessionRepositories, getRepositoryPreparationCapability, getRepositoriesFromSelection, resolveAgentHostRepositoryConfig, waitForRepositorySessionReady } from './agentHostRepositoryConfig.js';
 import { buildChatUri, buildDefaultChatUri, buildSubagentChatUri, ChatOriginKind, getErrorResponsePart, getInlineToolInput, getToolSubagentContent, getTurnError, isChatReadOnly, isDefaultChatUri, isSubagentChatUri, isMessageHiddenFromTranscript, isMessageRequestHiddenFromTranscript, MessageAttachmentKind, MessageKind, PendingMessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, SessionStatus, StateComponents, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, TurnState, parseChatUri, mergeSessionWithDefaultChat, readMessageSystemInitiatedLabel, readSessionWorkspaceless, readUsageInfoMeta, withMessageHiddenFromTranscript, type ChatState, type ISessionWithDefaultChat, type ICompletedToolCall, type InputRequestResponsePart, type MarkdownResponsePart, type Message, type MessageAttachment, type MessageAnnotationsAttachment, type MessageChatAttachment, type MessageResourceAttachment, type MessageEmbeddedResourceAttachment, type ModelSelection, type PendingMessage, type ReasoningResponsePart, type RootState, type ChatInputAnswer, type ChatInputQuestion, type ChatInputRequest, type ChatSummary, type SessionState, type StringOrMarkdown, type ToolCallPendingConfirmationState, type ToolCallResponsePart, type ToolCallRunningState, type ToolCallState, type ToolInput, type Turn, type UsageInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { ExtensionIdentifier } from '../../../../../../platform/extensions/common/extensions.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
@@ -1834,7 +1834,8 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		let failureStage: AgentHostInvocationFailureStage = 'resolveSession';
 		try {
 			this._logService.info(`[AgentHost] _invokeAgent called for resource: ${request.sessionResource.toString()}`);
-			const requestedRepository = request.agentHostRepositorySource ?? this._repositorySourceFromSelection(request.sessionResource);
+			const selectedRepositories = request.agentHostRepositories !== undefined ? request.agentHostRepositories : this._repositoriesFromSelection(request.sessionResource);
+			const requestedRepositories = validateRepositories({ repositories: selectedRepositories }, selectedRepositories !== undefined ? getRepositoryPreparationCapability(this._config.connection) : undefined);
 			const invocationChat = this._getChatURIOrDefault(request.sessionResource, this._resolveSessionUri(request.sessionResource));
 			if (!isSubagentChatUri(invocationChat)) {
 				rendererRootInvocationOrdinal = nextRendererRootInvocationOrdinal();
@@ -1851,7 +1852,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			// `undefined` and skips the gate entirely: its only cwd is an internal
 			// scratch dir, not a user workspace. If the user declines, abort without
 			// starting a session.
-			const trustFolders = await this._resolveSessionTrustFolders(request.sessionResource, cancellationToken, requestedRepository);
+			const trustFolders = await this._resolveSessionTrustFolders(request.sessionResource, cancellationToken, requestedRepositories);
 			if (cancellationToken.isCancellationRequested) {
 				return {};
 			}
@@ -1886,7 +1887,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			// open with hydrated state. Use the unmanaged accessor to peek
 			// without taking a fresh subscription, which would trigger a
 			// duplicate snapshot fetch and (in tests) unrelated mock behaviour.
-			const existingState = await this._readEagerlyCreatedSessionState(resolvedSession, cancellationToken, requestedRepository, request.agentHostRepositoryRevision);
+			const existingState = await this._readEagerlyCreatedSessionState(resolvedSession, cancellationToken, requestedRepositories);
 			if (cancellationToken.isCancellationRequested) {
 				return {};
 			}
@@ -1919,15 +1920,14 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 						model,
 						config: Object.keys(initialConfig).length > 0 ? initialConfig : undefined,
 						importConversation: imported ? { turns: imported.turns, model: imported.model } : undefined,
-						repositorySource: requestedRepository,
-						repositoryRevision: request.agentHostRepositoryRevision,
+						repositories: requestedRepositories,
 						onTrustInteractionRequired: () => trustInteractionRequired = true,
 					},
 					stage => failureStage = stage,
 					cancellationToken,
 				);
 			} else {
-				if (getRepositorySessionSource(existingState) !== undefined) {
+				if (getSessionRepositories(existingState) !== undefined) {
 					const roots = existingState.workingDirectories?.map(directory => this._config.connection.resourceUris.fromAgentHost(URI.parse(directory))) ?? [];
 					if (roots.some(root => root.scheme === Schemas.file) && !await this._ensureFoldersTrusted(roots, () => trustInteractionRequired = true)) {
 						throw new CancellationError();
@@ -2096,7 +2096,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	 * returning. This closes a race where the chat request arrives between
 	 * `createSession` resolving and the snapshot landing.
 	 */
-	private async _readEagerlyCreatedSessionState(resolvedSession: URI, token: CancellationToken, repositorySource?: URI, repositoryRevision?: string): Promise<SessionState | undefined> {
+	private async _readEagerlyCreatedSessionState(resolvedSession: URI, token: CancellationToken, repositories?: readonly IRepositorySource[]): Promise<SessionState | undefined> {
 		// If the sessions provider's eager `createSession` is still in flight, wait for it so its IIFE has a chance to
 		// open the state subscription before we fall through to a duplicate `_createAndSubscribe` below. Both we and
 		// the IIFE await the same promise object, so microtask FIFO runs the IIFE's continuation first (it registered
@@ -2120,7 +2120,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		if (sub.value instanceof Error) {
 			return undefined;
 		}
-		if (sub.value !== undefined && !repositorySource && getRepositorySessionSource(sub.value) === undefined) {
+		if (sub.value !== undefined && !repositories && getSessionRepositories(sub.value) === undefined) {
 			return sub.value;
 		}
 
@@ -2138,7 +2138,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			await this._whenSubscriptionHydrated(pinRef.object, token);
 			const value = pinRef.object.value;
 			this._logService.info(`[AgentHost] _readEagerlyCreatedSessionState: hydrated value=${value === undefined ? 'undefined' : value instanceof Error ? `error(${value.message})` : 'state'} cancelled=${token.isCancellationRequested} for ${resolvedSession.toString()}`);
-			return value instanceof Error || value === undefined ? undefined : await waitForRepositorySessionReady(pinRef.object, token, repositorySource, repositoryRevision);
+			return value instanceof Error || value === undefined ? undefined : await waitForRepositorySessionReady(pinRef.object, token, repositories);
 		} finally {
 			pinRef.dispose();
 		}
@@ -5661,8 +5661,8 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	}
 
 	/** Creates a new backend session and subscribes to its state. */
-	private async _createAndSubscribe(sessionResource: URI, options: Pick<IAgentCreateSessionConfig, 'model' | 'config' | 'importConversation' | 'repositorySource' | 'repositoryRevision'> & { readonly onTrustInteractionRequired: () => void }, onFailureStage?: (stage: AgentHostInvocationFailureStage) => void, cancellationToken: CancellationToken = CancellationToken.None): Promise<URI> {
-		const { model, importConversation, repositoryRevision } = options;
+	private async _createAndSubscribe(sessionResource: URI, options: Pick<IAgentCreateSessionConfig, 'model' | 'config' | 'importConversation' | 'repositories'> & { readonly onTrustInteractionRequired: () => void }, onFailureStage?: (stage: AgentHostInvocationFailureStage) => void, cancellationToken: CancellationToken = CancellationToken.None): Promise<URI> {
+		const { model, importConversation } = options;
 		let { config } = options;
 		let workingDirectories = this._resolveRequestedWorkingDirectories(sessionResource);
 		const requestedSession = this._resolveSessionUri(sessionResource);
@@ -5673,17 +5673,17 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		onFailureStage?.('authentication');
 		const protectedResources = await this._ensureRequiredAuthentication(model);
 
-		const repository = options.repositorySource ?? this._repositorySourceFromSelection(sessionResource);
-		validateRepositorySource({ repositorySource: repository, repositoryRevision, config }, repository || repositoryRevision !== undefined ? getRepositorySourceCapability(this._config.connection, this._config.provider) : undefined);
-		if (repository) {
-			config = await resolveAgentHostRepositoryConfig(this._config.connection, this._config.provider, repository, config, cancellationToken, repositoryRevision);
+		const selectedRepositories = options.repositories !== undefined ? options.repositories : this._repositoriesFromSelection(sessionResource);
+		const repositories = validateRepositories({ repositories: selectedRepositories, config }, selectedRepositories !== undefined ? getRepositoryPreparationCapability(this._config.connection) : undefined);
+		if (repositories) {
+			config = await resolveAgentHostRepositoryConfig(this._config.connection, this._config.provider, repositories, config, cancellationToken);
 			workingDirectories = undefined;
 		}
 		if (cancellationToken.isCancellationRequested) {
 			throw new CancellationError();
 		}
 
-		const activeClientEntry = this._ensureActiveClientEntry(sessionResource, repository ? [] : undefined);
+		const activeClientEntry = this._ensureActiveClientEntry(sessionResource, repositories ? [] : undefined);
 		await raceCancellationError(activeClientEntry.whenSettled(), cancellationToken);
 		const activeClient = this._getCurrentActiveClient(sessionResource);
 
@@ -5702,8 +5702,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				model,
 				provider: this._config.provider,
 				workingDirectories,
-				...(repository !== undefined ? { repositorySource: repository } : {}),
-				...(repositoryRevision !== undefined ? { repositoryRevision } : {}),
+				...(repositories !== undefined ? { repositories } : {}),
 				config,
 				importConversation,
 				activeClient,
@@ -5711,7 +5710,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			});
 		} catch (err) {
 			// If authentication is required (e.g. token expired), try interactive auth and retry once
-			if (repository && err instanceof ProtocolError && err.code === AhpErrorCodes.SessionAlreadyExists) {
+			if (repositories && err instanceof ProtocolError && err.code === AhpErrorCodes.SessionAlreadyExists) {
 				session = requestedSession;
 			} else if (this._isAuthRequiredError(err) && this._config.resolveAuthentication) {
 				onFailureStage?.('authentication');
@@ -5725,8 +5724,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 						model,
 						provider: this._config.provider,
 						workingDirectories,
-						...(repository !== undefined ? { repositorySource: repository } : {}),
-						...(repositoryRevision !== undefined ? { repositoryRevision } : {}),
+						...(repositories !== undefined ? { repositories } : {}),
 						config,
 						importConversation,
 						activeClient,
@@ -5751,7 +5749,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		// Subscribe to the new session's state
 		onFailureStage?.('subscribeSession');
 		const newSub = this._ensureSessionSubscription(session.toString());
-		if (!repository) {
+		if (!repositories) {
 			this._configureActiveClientReconciliation(sessionResource, session, newSub);
 		}
 		if (!this._getSessionState(session.toString())) {
@@ -5767,8 +5765,8 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			await this._whenSubscriptionHydrated(newSub, cancellationToken);
 		}
 
-		const rawState = await waitForRepositorySessionReady(newSub, cancellationToken, repository, repositoryRevision);
-		if (getRepositorySessionSource(rawState) !== undefined) {
+		const rawState = await waitForRepositorySessionReady(newSub, cancellationToken, repositories);
+		if (getSessionRepositories(rawState) !== undefined) {
 			const roots = rawState.workingDirectories?.map(directory => this._config.connection.resourceUris.fromAgentHost(URI.parse(directory))) ?? [];
 			if (roots.some(root => root.scheme === Schemas.file) && !await this._ensureFoldersTrusted(roots, options.onTrustInteractionRequired)) {
 				throw new CancellationError();
@@ -6179,8 +6177,8 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			?? this._workspaceContextService.getWorkspace().folders[0]?.uri;
 	}
 
-	private _repositorySourceFromSelection(sessionResource: URI): URI | undefined {
-		return getRepositorySourceFromSelection(this._config.connection, this._config.provider, this._resolveRequestedWorkingDirectory(sessionResource));
+	private _repositoriesFromSelection(sessionResource: URI): readonly IRepositorySource[] | undefined {
+		return getRepositoriesFromSelection(this._config.connection, this._resolveRequestedWorkingDirectory(sessionResource));
 	}
 
 	/** `undefined` is preserved for createSession to let the host choose its working directories. */
@@ -6254,9 +6252,9 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	}
 
 	/** Resolve directory-session trust roots; repository sessions check their resolved roots after readiness. */
-	private async _resolveSessionTrustFolders(sessionResource: URI, token: CancellationToken, repositorySource?: URI): Promise<readonly URI[] | undefined> {
+	private async _resolveSessionTrustFolders(sessionResource: URI, token: CancellationToken, repositories?: readonly IRepositorySource[]): Promise<readonly URI[] | undefined> {
 		// Repository sessions check the host-resolved roots after preparation, not the current workspace.
-		if (repositorySource) {
+		if (repositories) {
 			return undefined;
 		}
 		if (!this._isNewSessionResource(sessionResource)) {
@@ -6271,7 +6269,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			if (state?.workingDirectories === undefined) {
 				state = await this._readEagerlyCreatedSessionState(backendSession, token) ?? state;
 			}
-			if (getRepositorySessionSource(state) !== undefined) {
+			if (getSessionRepositories(state) !== undefined) {
 				return undefined;
 			}
 			// A workspace-less session (quick chat) runs only in an internal scratch

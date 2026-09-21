@@ -8,7 +8,7 @@
 
 import type { URI } from '../common/state.js';
 import type { BaseParams, PaginatedParams, PaginatedResult } from '../common/commands.js';
-import type { SessionSummary, SessionConfigSchema } from '../channels-session/state.js';
+import type { RepositorySource, SessionSummary, SessionConfigSchema } from '../channels-session/state.js';
 
 // Re-export schema types so the legacy `commands.ts` aggregator continues to
 // expose them from the same import path.
@@ -79,8 +79,8 @@ export interface ListSessionsResult extends PaginatedResult {
  * the full current property set (not a delta). The returned `values` contain
  * server-resolved defaults to pass to `createSession`.
  *
- * This command MUST NOT clone or prepare a repository. Repository context
- * requires the agent's `repositorySource` capability.
+ * `resolveSessionConfig` and `sessionConfigCompletions` MUST NOT clone or
+ * prepare repositories: editing a draft should not create checkouts.
  *
  * @category Commands
  * @method resolveSessionConfig
@@ -133,11 +133,14 @@ export interface ResolveSessionConfigParams extends BaseParams {
 	provider?: string;
 	/** Working directory for the session */
 	workingDirectory?: URI;
-	/** Credential-free source context; not a working-directory URI. */
-	repositorySource?: URI;
-	/** Requested revision; requires a source and the capability's revision option. */
-	repositoryRevision?: string;
-	/** Current user-filled configuration values; see {@link SessionConfigSchema}. */
+	/**
+	 * Non-empty repository context, subject to
+	 * {@link InitializeResult.repositoryPreparation}. May accompany `workingDirectory`.
+	 *
+	 * @minItems 1
+	 */
+	repositories?: RepositorySource[];
+	/** Current user-filled configuration values */
 	config?: Record<string, unknown>;
 }
 
@@ -202,10 +205,13 @@ export interface SessionConfigCompletionsParams extends BaseParams {
 	provider?: string;
 	/** Working directory for the session */
 	workingDirectory?: URI;
-	/** Repository context for configuration completions; this MUST NOT prepare a checkout. */
-	repositorySource?: URI;
-	/** Requested revision; requires a source and the capability's revision option. */
-	repositoryRevision?: string;
+	/**
+	 * Non-empty repository context, subject to
+	 * {@link InitializeResult.repositoryPreparation}. May accompany `workingDirectory`.
+	 *
+	 * @minItems 1
+	 */
+	repositories?: RepositorySource[];
 	/** Current user-filled configuration values (provides context for the query) */
 	config?: Record<string, unknown>;
 	/** Property id from the schema to query values for */

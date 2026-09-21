@@ -1972,6 +1972,12 @@ suite('ProtocolServerHandler', () => {
 		test(`${method} rejects unsupported repository source inputs before calling the native host`, async () => {
 			const transport = connectClient('repository-source-client');
 			const inputs = [
+				{ repositories: [{ source: 'https://example.com/team/project' }] },
+				{ repositories: [{ source: 'https://example.com/team/project', revision: 'main' }] },
+				{ repositories: [] },
+				{ repositories: null },
+				{ repositories: [{ revision: 'main' }] },
+				{ config: { repositories: [{ source: 'https://example.com/team/project' }] } },
 				{ repositorySource: 'https://example.com/team/project' },
 				{ repositoryRevision: 'main' },
 				{ repositorySource: null },
