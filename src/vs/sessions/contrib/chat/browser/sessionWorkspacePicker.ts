@@ -1498,23 +1498,12 @@ export class WorkspacePicker extends Disposable {
 			? (w: IResolvedFolderWorkspace) => this._isGroupInActiveTab(w.workspace.group)
 			: undefined;
 		const useRemoteSubmenu = this._useConsolidatedRemoteWorkspaces() && this._directPickerGroup === undefined;
-		const remotePickerItem: {
-			id: string;
-			folderUri?: URI;
-			providerId?: string;
-			browseAction?: ISessionWorkspaceBrowseAction;
-			run?: () => void;
-			preferDevContainer?: boolean;
-		} = { id: 'workspacePicker.remote' };
+		const remotePickerItem: { id: string; run?: () => void } = { id: 'workspacePicker.remote' };
 		const remoteSubmenuActions: IAction[] = [];
 		const remoteFilterItems: IActionListItem<IWorkspacePickerItem>[] = [];
 		let devContainerActionIndex = 0;
-		const setRemotePickerItem = (item: IWorkspacePickerItem): void => {
-			remotePickerItem.folderUri = item.folderUri;
-			remotePickerItem.providerId = item.providerId;
-			remotePickerItem.browseAction = item.browseAction;
-			remotePickerItem.run = item.run;
-			remotePickerItem.preferDevContainer = item.preferDevContainer;
+		const setRemotePickerRun = (run: () => void): void => {
+			remotePickerItem.run = run;
 		};
 		const createWorkspaceModeActions = (workspace: ISessionWorkspace, folderUri: URI, providerId: string, item: IWorkspacePickerItem): IAction[] | undefined => {
 			if ((workspace.group !== SESSION_WORKSPACE_GROUP_LOCAL && workspace.group !== SESSION_WORKSPACE_GROUP_REMOTE)
@@ -1653,32 +1642,15 @@ export class WorkspacePicker extends Disposable {
 				: this._useConsolidatedRemoteWorkspaces()
 					? action.label.replace(/(?:\.\.\.|\u2026)$/, '')
 					: action.label;
+			const isPromotedRemoteBrowseAction = useRemoteSubmenu && action.group === SESSION_WORKSPACE_GROUP_REMOTE;
+			const itemLabel = isPromotedRemoteBrowseAction ? action.description || actionLabel : actionLabel;
+			const itemDescription = isPromotedRemoteBrowseAction && action.description ? actionLabel : action.description;
 			const isUnavailable = this._isProviderUnavailable(action.providerId);
-			if (useRemoteSubmenu && action.group === SESSION_WORKSPACE_GROUP_REMOTE) {
-				const submenuAction = toAction({
-					id: `workspacePicker.remote.browse.${action.providerId}.${index}`,
-					label: action.description || actionLabel,
-					tooltip: action.description ? actionLabel : undefined,
-					enabled: !isUnavailable,
-					run: () => setRemotePickerItem({ browseAction: action }),
-				});
-				Object.assign(submenuAction, { icon: actionIcon });
-				remoteSubmenuActions.push(submenuAction);
-				remoteFilterItems.push({
-					kind: ActionListItemKind.Action,
-					label: submenuAction.label,
-					description: submenuAction.tooltip || undefined,
-					group: { title: '', icon: actionIcon },
-					disabled: isUnavailable,
-					item: { browseAction: action },
-				});
-				return;
-			}
 			const isRepositoryAction = action.group === SESSION_WORKSPACE_GROUP_GITHUB && action.attachesContext !== true;
 			items.push({
 				kind: ActionListItemKind.Action,
-				label: actionLabel,
-				description: action.description,
+				label: itemLabel,
+				description: itemDescription,
 				group: { title: '', icon: actionIcon },
 				disabled: isUnavailable,
 				item: { browseActionIndex: index },
@@ -1746,7 +1718,7 @@ export class WorkspacePicker extends Disposable {
 						label: localize('workspacePicker.manageRemoteHost', "Manage {0}", action.label),
 						tooltip: action.tooltip,
 						enabled: action.enabled,
-						run: () => setRemotePickerItem({ run: () => action.run() }),
+						run: () => setRemotePickerRun(() => action.run()),
 					});
 					Object.assign(submenuAction, {
 						icon: extended.icon,
@@ -1782,7 +1754,7 @@ export class WorkspacePicker extends Disposable {
 							label: menuAction.label,
 							tooltip: menuAction.tooltip,
 							enabled: menuAction.enabled,
-							run: () => setRemotePickerItem({ run: () => menuAction.run() }),
+							run: () => setRemotePickerRun(() => menuAction.run()),
 						});
 						Object.assign(submenuAction, { icon });
 						remoteSubmenuActions.push(submenuAction);

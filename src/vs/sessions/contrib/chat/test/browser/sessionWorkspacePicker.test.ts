@@ -4384,8 +4384,8 @@ suite('WorkspacePicker - Tab discovery', () => {
 		}, {
 			usesTabs: false,
 			tabs: [SESSION_WORKSPACE_GROUP_LOCAL, SESSION_WORKSPACE_GROUP_REMOTE],
-			items: ['Open Folder...', 'Repository', 'Remote'],
-			itemIcons: ['folder', 'folder', 'remote'],
+			items: ['Open Folder...', 'Select Remote', 'Repository'],
+			itemIcons: ['folder', 'folder', 'folder'],
 			showsFilter: true,
 			focusesFilter: true,
 			filterPlaceholder: 'Search',
@@ -4551,13 +4551,13 @@ suite('WorkspacePicker - Tab discovery', () => {
 		};
 		const picker = createTestablePicker(disposables, providersService, true, options, undefined, undefined, true);
 
-		await picker.selectSubmenu('Remote', 'Select Remote');
+		await picker.select('Select Remote');
 
 		assert.deepStrictEqual({
 			items: picker.getItemLabels(),
 			selectedActions,
 		}, {
-			items: ['Sign in to GitHub', 'Open Folder...', 'Remote'],
+			items: ['Sign in to GitHub', 'Open Folder...', 'Select Remote'],
 			selectedActions: ['remote'],
 		});
 	});
@@ -4921,7 +4921,10 @@ suite('WorkspacePicker - Tab discovery', () => {
 		]);
 		const remoteProvider = createMockProvider('agenthost-menu', {
 			connectionStatus: observableValue('remoteStatus', RemoteAgentHostConnectionStatus.disconnected),
-			browseActions: [makeBrowseAction('agenthost-menu', SESSION_WORKSPACE_GROUP_REMOTE, 'Select Remote...')],
+			browseActions: [{
+				...makeBrowseAction('agenthost-menu', SESSION_WORKSPACE_GROUP_REMOTE, 'Folders'),
+				description: 'Provider agenthost-menu',
+			}],
 		});
 		const gitHubProvider = createMockProvider('github', {
 			browseActions: [{ ...makeBrowseAction('github', SESSION_WORKSPACE_GROUP_GITHUB, 'Repository...'), attachesContext: false, supportsContextAttachment: true }],
@@ -4969,12 +4972,12 @@ suite('WorkspacePicker - Tab discovery', () => {
 				'remote-project',
 				'microsoft/vscode/HEAD',
 				'Sign in to GitHub',
+				'Provider agenthost-menu',
 				'Repository',
 				'Attach Repository',
 				'Remote',
 			],
 			remoteItems: [
-				{ label: 'Select Remote', enabled: false, removable: false },
 				{ label: 'Manage Provider agenthost-menu', enabled: true, removable: false },
 			],
 		});
