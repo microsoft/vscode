@@ -1302,12 +1302,12 @@ suite('mcpListWidget', () => {
 			}, {
 				workspace: {
 					path: '.vscode/mcp.json',
-					hover: '/workspace/.vscode/mcp.json',
+					hover: URI.file('/workspace/.vscode/mcp.json').fsPath,
 					ariaLabel: 'Workspace Server, configured in .vscode/mcp.json',
 				},
 				home: {
 					path: '~/.config/mcp.json',
-					hover: '/Users/test/.config/mcp.json',
+					hover: URI.file('/Users/test/.config/mcp.json').fsPath,
 					ariaLabel: 'User Server, configured in ~/.config/mcp.json',
 				},
 			});
@@ -1342,7 +1342,7 @@ suite('mcpListWidget', () => {
 			}, {
 				source: {
 					label: 'Plugin: Example Plugin',
-					hover: '/Users/test/.config/plugins/example/.mcp.json',
+					hover: sourceUri.fsPath,
 					tagName: 'A',
 					ariaLabel: 'Open plugin details for Example Plugin',
 					tabIndex: 0,
@@ -1413,7 +1413,7 @@ suite('mcpListWidget', () => {
 			}, {
 				source: {
 					label: 'Extension: Example Extension',
-					hover: '/Users/test/.vscode/extensions/publisher.extension/mcp.json',
+					hover: sourceUri.fsPath,
 					tagName: 'A',
 					ariaLabel: 'Open extension details for Example Extension',
 					tabIndex: 0,
