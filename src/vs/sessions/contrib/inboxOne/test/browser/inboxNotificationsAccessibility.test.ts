@@ -4,10 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { InboxNotificationKind, InboxNotificationPriority } from '../../common/inboxNotificationsService.js';
 import { buildInboxNotificationsAccessibleContent } from '../../browser/inboxNotificationsAccessibility.js';
 
 suite('InboxNotificationsAccessibility', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	test('builds empty accessible content', () => {
 		assert.strictEqual(
 			buildInboxNotificationsAccessibleContent([]),

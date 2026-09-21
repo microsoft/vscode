@@ -12,8 +12,7 @@ import { AccessibilityVerbositySettingId } from '../../../../workbench/contrib/a
 import { Parts } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
 import { InboxCustomViewFocusContext } from '../../../common/contextkeys.js';
-import { IInboxNotificationItem } from '../common/inboxNotificationsService.js';
-import { IInboxNotificationsService } from '../common/inboxNotificationsService.js';
+import { IInboxNotificationItem, IInboxNotificationsService } from '../common/inboxNotificationsService.js';
 import { getInboxNotificationKindLabel, getInboxNotificationPriorityLabel } from './inboxNotificationsLabels.js';
 
 class InboxNotificationsAccessibilityHelp implements IAccessibleViewImplementation {
