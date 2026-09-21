@@ -150,7 +150,7 @@ export class SessionsPolicyBlockedOverlay extends Disposable {
 			this._register(updateButton.onDidClick(() => this.openerService.open(action.href, { allowCommands: true })));
 		}
 		const button = this._register(new Button(card, { ...defaultButtonStyles, secondary: true }));
-		button.label = localize('managedSettingsUpdate.openVSCode', "Open VS Code");
+		button.label = localize('managedSettingsUpdate.openEditorWindow', "Open Editor Window");
 		this._register(button.onDidClick(() => this._openVSCode()));
 		return updateButton ?? button;
 	}

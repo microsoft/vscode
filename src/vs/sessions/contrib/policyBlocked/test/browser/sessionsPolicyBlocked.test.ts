@@ -9,6 +9,7 @@ import { mainWindow } from '../../../../../base/browser/window.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../../base/common/observable.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
@@ -66,7 +67,7 @@ suite('Sessions policy update explanation', () => {
 		services.stub(IProductService, product);
 		services.stub(ICommandService, new class extends mock<ICommandService>() { }());
 		services.stub(IOpenerService, new class extends mock<IOpenerService>() {
-			override async open(target: string) { opened.push(target); return true; }
+			override async open(target: string | URI) { opened.push(target.toString()); return true; }
 		}());
 		const contribution = store.add(services.createInstance(SessionsPolicyBlockedContribution));
 		return { root, content, updateInfo, opened, contribution, layout, layoutEvent, gateChange };
@@ -81,18 +82,20 @@ suite('Sessions policy update explanation', () => {
 			message: overlay.querySelector('p')?.textContent,
 			details: [...overlay.querySelectorAll('p')].map(p => p.textContent),
 			button: button.textContent,
+			recoveryButtons: [...overlay.querySelectorAll('.monaco-button')].map(button => button.textContent),
 			focused: mainWindow.document.activeElement === button,
 			top: overlay.style.top,
 			inert: content.inert,
 		};
 		button.click();
+		overlay.querySelector<HTMLElement>('.monaco-button.secondary')!.click();
 		layout.mainContainerOffset = { top: 48, quickPickTop: 48 };
 		layoutEvent.fire({ width: 800, height: 600 });
 		const newTop = overlay.style.top;
 		contribution.dispose();
 		assert.deepStrictEqual({ initial, opened, newTop, inert: content.inert, overlays: root.querySelectorAll('.sessions-policy-blocked-overlay').length }, {
-			initial: { title: info.title, message: info.message, details: [info.message, info.detail], button: 'Check for Updates', focused: true, top: '30px', inert: true },
-			opened: ['command:update.checkForUpdate'],
+			initial: { title: info.title, message: info.message, details: [info.message, info.detail], button: 'Check for Updates', recoveryButtons: ['Check for Updates', 'Open Editor Window'], focused: true, top: '30px', inert: true },
+			opened: ['command:update.checkForUpdate', URI.from({ scheme: 'code-oss', query: 'windowId=_blank' }).toString()],
 			newTop: '48px',
 			inert: false,
 			overlays: 0,
