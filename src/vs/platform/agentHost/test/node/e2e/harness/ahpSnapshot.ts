@@ -477,14 +477,14 @@ function canonicalizeActionInterleaving(entries: object[], actionTypes: Readonly
 		return entries;
 	}
 
+	const participatingChannels = new Set(entries.filter(entry => hasActionType(entry, actionTypes)).map(entry => actionChannel(entry)));
 	const channelCounts = new Map<string, number>();
 	const canonicalEntries: Array<{ entry: object; channel: string; channelIndex: number }> = [];
 	for (const entry of entries) {
-		if (!hasActionType(entry, actionTypes)) {
+		const channel = actionChannel(entry);
+		if (!channel || !participatingChannels.has(channel)) {
 			continue;
 		}
-		const entryRecord = asRecord(entry);
-		const channel = typeof entryRecord?.channel === 'string' ? entryRecord.channel : '';
 		const channelIndex = channelCounts.get(channel) ?? 0;
 		channelCounts.set(channel, channelIndex + 1);
 		canonicalEntries.push({ entry, channel, channelIndex });
@@ -492,12 +492,20 @@ function canonicalizeActionInterleaving(entries: object[], actionTypes: Readonly
 	canonicalEntries.sort((a, b) => a.channel < b.channel ? -1 : a.channel > b.channel ? 1 : a.channelIndex - b.channelIndex);
 
 	let nextCanonicalEntry = 0;
-	return entries.map(entry => hasActionType(entry, actionTypes) ? canonicalEntries[nextCanonicalEntry++].entry : entry);
+	return entries.map(entry => {
+		const channel = actionChannel(entry);
+		return channel && participatingChannels.has(channel) ? canonicalEntries[nextCanonicalEntry++].entry : entry;
+	});
 }
 
 function hasActionType(entry: object, actionTypes: ReadonlySet<string>): boolean {
 	const action = asRecord(asRecord(entry)?.action);
 	return typeof action?.type === 'string' && actionTypes.has(action.type);
+}
+
+function actionChannel(entry: object): string | undefined {
+	const entryRecord = asRecord(entry);
+	return asRecord(entryRecord?.action) && typeof entryRecord?.channel === 'string' ? entryRecord.channel : undefined;
 }
 
 /**

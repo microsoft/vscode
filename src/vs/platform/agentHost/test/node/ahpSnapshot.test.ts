@@ -6,6 +6,7 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { ActionType } from '../../common/state/sessionActions.js';
+import { ResponsePartKind } from '../../common/state/sessionState.js';
 import { AhpSnapshotRecorder } from './e2e/harness/ahpSnapshot.js';
 
 suite('AhpSnapshotRecorder', () => {
@@ -55,12 +56,11 @@ suite('AhpSnapshotRecorder', () => {
 	});
 
 	test('canonicalizes opted-in server action interleaving across channels', () => {
-		const turns = [
-			{ channel: 'ahp-chat://session/parent', turnId: 'parent-turn-1' },
-			{ channel: 'ahp-chat://session/child', turnId: 'child-turn' },
-			{ channel: 'ahp-chat://session/parent', turnId: 'parent-turn-2' },
-		] as const;
-		const serialize = (completionOrder: readonly (typeof turns)[number][], canonicalize: boolean): string => {
+		const parent = { channel: 'ahp-chat://session/parent', turnId: 'parent-turn' } as const;
+		const child = { channel: 'ahp-chat://session/child', turnId: 'child-turn' } as const;
+		const turns = [parent, child];
+		type ScheduledAction = { readonly turn: (typeof turns)[number]; readonly type: 'response' | 'complete' };
+		const serialize = (schedule: readonly ScheduledAction[], canonicalize: boolean): string => {
 			const recorder = new AhpSnapshotRecorder();
 			for (const turn of turns) {
 				recorder.record('s2c', {
@@ -75,14 +75,22 @@ suite('AhpSnapshotRecorder', () => {
 					},
 				});
 			}
-			for (const turn of completionOrder) {
+			for (const scheduled of schedule) {
 				recorder.record('s2c', {
 					method: 'action',
 					params: {
-						channel: turn.channel,
-						action: {
+						channel: scheduled.turn.channel,
+						action: scheduled.type === 'response' ? {
+							type: ActionType.ChatResponsePart,
+							turnId: scheduled.turn.turnId,
+							part: {
+								id: `${scheduled.turn.turnId}-response`,
+								kind: ResponsePartKind.Markdown,
+								content: scheduled.turn.turnId,
+							},
+						} : {
 							type: ActionType.ChatTurnComplete,
-							turnId: turn.turnId,
+							turnId: scheduled.turn.turnId,
 						},
 					},
 				});
@@ -92,9 +100,24 @@ suite('AhpSnapshotRecorder', () => {
 			} : undefined);
 		};
 
-		const recordedOrder = [turns[0], turns[1], turns[2]];
-		const crossChannelReorder = [turns[1], turns[0], turns[2]];
-		const sameChannelReorder = [turns[2], turns[1], turns[0]];
+		const recordedOrder: ScheduledAction[] = [
+			{ turn: child, type: 'response' },
+			{ turn: child, type: 'complete' },
+			{ turn: parent, type: 'response' },
+			{ turn: parent, type: 'complete' },
+		];
+		const crossChannelReorder: ScheduledAction[] = [
+			{ turn: parent, type: 'response' },
+			{ turn: parent, type: 'complete' },
+			{ turn: child, type: 'response' },
+			{ turn: child, type: 'complete' },
+		];
+		const sameChannelReorder: ScheduledAction[] = [
+			{ turn: child, type: 'complete' },
+			{ turn: child, type: 'response' },
+			{ turn: parent, type: 'response' },
+			{ turn: parent, type: 'complete' },
+		];
 		assert.deepStrictEqual({
 			exactCrossChannelOrderMatches: serialize(recordedOrder, false) === serialize(crossChannelReorder, false),
 			canonicalCrossChannelOrderMatches: serialize(recordedOrder, true) === serialize(crossChannelReorder, true),
