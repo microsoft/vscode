@@ -5,11 +5,13 @@
 
 import { ChildProcess, fork } from 'child_process';
 import { cp, lstat, mkdir, readFile, readdir, realpath, rename, rm, stat, writeFile } from 'fs/promises';
-import { raceTimeout } from '../../../../base/common/async.js';
+import { Promises, raceTimeout } from '../../../../base/common/async.js';
+import { getErrorCode } from '../../../../base/common/errors.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { createRequire } from 'module';
 import { mkdirSync } from 'fs';
 import { userInfo } from 'os';
+import { promisify } from 'util';
 import { fileURLToPath } from 'url';
 import { WebSocket } from 'ws';
 import { CapiReplayProxy, type CapiReplayMode, type ICapiReplayResponse } from './e2e/harness/capiReplayProxy.js';
@@ -662,13 +664,23 @@ export interface IServerHandle {
 
 const SERVER_SHUTDOWN_TIMEOUT_MS = isCI || isWindows || AGENT_HOST_E2E_COVERAGE ? 30_000 : 5_000;
 
+async function getServerDescendants(pid: number): Promise<number[]> {
+	if (!isWindows) {
+		return [];
+	}
+	// Once the parent exits, taskkill /T can no longer discover its descendants.
+	const { getProcessList } = await import('@vscode/windows-process-tree');
+	return (await promisify(getProcessList)(pid)).filter(process => process.pid !== pid).map(process => process.pid);
+}
+
 /** Gracefully stop an Agent Host test server, killing it if shutdown stalls. */
-export async function stopServer(server: IServerHandle | undefined): Promise<void> {
+export async function stopServer(server: IServerHandle | undefined, getDescendants = getServerDescendants, timeoutMs = SERVER_SHUTDOWN_TIMEOUT_MS): Promise<void> {
 	const serverProcess = server?.process;
 	if (!serverProcess || serverProcess.exitCode !== null || serverProcess.signalCode !== null) {
 		return;
 	}
 
+	const deadline = Date.now() + timeoutMs;
 	const serverExit = new Promise<void>(resolve => {
 		const onExit = () => resolve();
 		serverProcess.once('exit', onExit);
@@ -677,8 +689,21 @@ export async function stopServer(server: IServerHandle | undefined): Promise<voi
 			resolve();
 		}
 	});
+	let descendants: number[] = [];
+	let snapshotError: Error | undefined;
+	try {
+		if (serverProcess.pid !== undefined) {
+			const snapshot = await raceTimeout(getDescendants(serverProcess.pid), Math.max(0, deadline - Date.now()));
+			if (snapshot === undefined) {
+				throw new Error('Timed out capturing Agent Host test server descendants');
+			}
+			descendants = snapshot;
+		}
+	} catch (error) {
+		snapshotError = new Error('Failed to capture Agent Host test server descendants', { cause: error });
+	}
 	serverProcess.stdin?.end();
-	if (!await raceTimeout(serverExit.then(() => true), SERVER_SHUTDOWN_TIMEOUT_MS)) {
+	if (!await raceTimeout(serverExit.then(() => true), Math.max(0, deadline - Date.now()))) {
 		try {
 			if (serverProcess.exitCode === null && serverProcess.signalCode === null) {
 				const pid = serverProcess.pid;
@@ -694,6 +719,25 @@ export async function stopServer(server: IServerHandle | undefined): Promise<voi
 		}
 		await serverExit;
 	}
+	if (snapshotError) {
+		throw snapshotError;
+	}
+
+	await Promises.settled(descendants.map(async pid => {
+		try {
+			await killTree(pid, true);
+		} catch (error) {
+			try {
+				process.kill(pid, 0);
+			} catch (probeError) {
+				if (getErrorCode(probeError) === 'ESRCH') {
+					return; // The descendant already exited during graceful shutdown.
+				}
+				throw probeError;
+			}
+			throw error;
+		}
+	}));
 }
 
 /** Forcefully kill an Agent Host test server and its child processes without graceful shutdown. */
