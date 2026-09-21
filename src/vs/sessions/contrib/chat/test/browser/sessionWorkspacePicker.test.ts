@@ -4400,6 +4400,26 @@ suite('WorkspacePicker - Tab discovery', () => {
 		});
 	});
 
+	test('caps recent workspaces in the unified picker so Remote remains visible', () => {
+		const storage = disposables.add(new TestStorageService());
+		seedStorage(storage, Array.from({ length: 11 }, (_, index) => ({
+			uri: URI.file(`/local/folder-${index}`),
+			providerId: 'local-1',
+			checked: false,
+		})));
+		providersService.setProviders([
+			createMockProvider('remote', { browseActions: [makeBrowseAction('remote', SESSION_WORKSPACE_GROUP_REMOTE, 'Select Remote...')] }),
+			{ ...createMockProvider('local-1'), supportsLocalWorkspaces: true },
+		]);
+		const picker = createTestablePicker(disposables, providersService, true, {}, undefined, storage, true);
+
+		assert.deepStrictEqual(picker.getItemLabels(), [
+			...Array.from({ length: 10 }, (_, index) => `local/folder-${index}`),
+			'Open Folder...',
+			'Select Remote',
+		]);
+	});
+
 	test('strips only trailing ellipses from unified browse action labels', () => {
 		const labels = ['Repository...', 'Repository\u2026', 'Repo...sitory', 'Repo\u2026sitory', 'Repository'];
 		providersService.setProviders([
