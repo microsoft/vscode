@@ -339,8 +339,11 @@ export class ChatGroupsView extends Themable {
 			return;
 		}
 
+		const catalogIds = new Set<string>();
 		for (const chat of session.chats.read(reader)) {
-			this._knownChatsByResource.set(chat.resource.toString(), chat);
+			const resourceId = chat.resource.toString();
+			catalogIds.add(resourceId);
+			this._knownChatsByResource.set(resourceId, chat);
 		}
 		const chats = session.visibleChatTabs.read(reader);
 		const sessionActiveChat = session.activeChat.read(reader);
@@ -357,6 +360,11 @@ export class ChatGroupsView extends Themable {
 			? this._getOwningChatToRestoreOnClose(this._activeGroup, removedGroupActiveChat)
 			: undefined;
 		const owningChatToRestore = owningChat && validIds.has(owningChat.resource.toString()) ? owningChat : undefined;
+		for (const resourceId of this._knownChatsByResource.keys()) {
+			if (!catalogIds.has(resourceId) && !validIds.has(resourceId)) {
+				this._knownChatsByResource.delete(resourceId);
+			}
+		}
 		const activeChat = owningChatToRestore ?? sessionActiveChat;
 		const activeId = activeChat?.resource.toString();
 		const hasUnassignedVisibleChats = orderedIds.some(id => !this._groups.some(group => group.resourceIds.get().includes(id)));

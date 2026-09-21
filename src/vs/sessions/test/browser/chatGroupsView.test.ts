@@ -712,6 +712,36 @@ suite('Sessions - ChatGroupsView', () => {
 			groupCount: 1,
 			groups: 1,
 		});
+
+		test('forgets removed chat models after catalog and visible tabs converge', () => {
+			const { view } = createHarness(disposables);
+			const main = createChat('main');
+			const visibleFirst = createChat('visible-first');
+			const catalogFirst = createChat('catalog-first');
+			const session = new TestActiveSession([main, visibleFirst, catalogFirst]);
+			view.setSession(session, options);
+			const knownChats = Reflect.get(view, '_knownChatsByResource') as Map<string, IChat>;
+
+			session.visibleChatTabs.set([main, catalogFirst], undefined);
+			const afterVisibleRemoval = [...knownChats.keys()];
+			session.allChats.set([main, catalogFirst], undefined);
+			const afterVisibleAndCatalogRemoval = [...knownChats.keys()];
+			session.allChats.set([main], undefined);
+			const afterCatalogRemoval = [...knownChats.keys()];
+			session.visibleChatTabs.set([main], undefined);
+
+			assert.deepStrictEqual({
+				afterVisibleRemoval,
+				afterVisibleAndCatalogRemoval,
+				afterCatalogRemoval,
+				afterCatalogAndVisibleRemoval: [...knownChats.keys()],
+			}, {
+				afterVisibleRemoval: [main.resource.toString(), visibleFirst.resource.toString(), catalogFirst.resource.toString()],
+				afterVisibleAndCatalogRemoval: [main.resource.toString(), catalogFirst.resource.toString()],
+				afterCatalogRemoval: [main.resource.toString(), catalogFirst.resource.toString()],
+				afterCatalogAndVisibleRemoval: [main.resource.toString()],
+			});
+		});
 	});
 
 	test('restores subagent groups, tab order, and active chat', async () => {

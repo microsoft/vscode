@@ -43,7 +43,7 @@ import { INewSessionComposerService, NewSessionComposerService } from '../../../
 import { ISessionSection, NEW_SESSION_FOR_WORKSPACE_ACTION_ID } from '../../browser/views/sessionsList.js';
 import { ISelectWorkspaceOptions } from '../../../../browser/parts/chatView.js';
 import { WorkspaceSelectionOrigin } from '../../../../common/workspaceSelection.js';
-import { ARCHIVE_SESSION_COMMAND_ID, CLOSE_CHAT_COMMAND_ID, CLOSE_SESSION_COMMAND_ID, MARK_SESSION_READ_COMMAND_ID, MARK_SESSION_UNREAD_COMMAND_ID, TOGGLE_PIN_CHAT_COMMAND_ID, TOGGLE_PIN_SESSION_COMMAND_ID } from '../../../../common/sessionCommands.js';
+import { ARCHIVE_SESSION_COMMAND_ID, CLOSE_CHAT_COMMAND_ID, CLOSE_SESSION_COMMAND_ID, MARK_SESSION_READ_COMMAND_ID, MARK_SESSION_UNREAD_COMMAND_ID, RENAME_CHAT_COMMAND_ID, TOGGLE_PIN_CHAT_COMMAND_ID, TOGGLE_PIN_SESSION_COMMAND_ID } from '../../../../common/sessionCommands.js';
 import { SessionActiveChatHasSideChatsContext, SessionActiveChatResourceContext, SessionIdContext, SessionIsArchivedContext, SessionIsCreatedContext, SessionsListPromoteNewChatActionContext } from '../../../../common/contextkeys.js';
 import { SESSIONS_CHAT_TABS_SETTING, SessionsChatTabsMode } from '../../../../common/sessionConfig.js';
 
@@ -528,6 +528,33 @@ suite('Sessions - Actions', () => {
 				session: 'multipleSessionsVisible && !sessionHeaderShowsChat || sessionIsCreated && !sessionHeaderShowsChat',
 			},
 		});
+
+		test('uses chat rename only for chat group headers', () => {
+			const getRenameWhen = (menu: MenuId, commandId: string) => MenuRegistry.getMenuItems(menu)
+				.filter(isIMenuItem)
+				.find(item => item.command.id === commandId)
+				?.when?.serialize();
+
+			assert.deepStrictEqual({
+				toolbar: {
+					chat: getRenameWhen(Menus.SessionBarToolbar, RENAME_CHAT_COMMAND_ID),
+					session: getRenameWhen(Menus.SessionBarToolbar, 'sessions.sessionHeader.rename'),
+				},
+				contextMenu: {
+					chat: getRenameWhen(Menus.SessionHeaderContext, RENAME_CHAT_COMMAND_ID),
+					session: getRenameWhen(Menus.SessionHeaderContext, 'sessions.sessionHeader.rename'),
+				},
+			}, {
+				toolbar: {
+					chat: 'sessionFocusedChatIsRenameTarget && sessionHeaderShowsChat && sessionIsCreated && !sessionIsArchived',
+					session: 'sessionIsCreated && !sessionHeaderShowsChat && !sessionIsArchived && sessionSupportsRename',
+				},
+				contextMenu: {
+					chat: 'sessionFocusedChatIsRenameTarget && sessionHeaderShowsChat',
+					session: 'sessionProviderId =~ /^(?:copilotcli|claude-agent|codex|copilotcloud|cloudagent|background|copilotcli-remote|agent-host):/ && !sessionHeaderShowsChat',
+				},
+			});
+		});
 	});
 
 	test('associates the close shortcut with the header close commands', () => {
@@ -636,6 +663,35 @@ suite('Sessions - Actions', () => {
 		const activeSession = upcastPartial<IActiveSession>({
 			...session,
 			activeChat: constObservable(mainChat),
+		});
+
+		test('renames the chat represented by a chat group header', async () => {
+			const instantiationService = disposables.add(workbenchInstantiationService(undefined, disposables));
+			const { session } = createTestSession('rename-header-chat');
+			const headerChat: IChat = {
+				...session.mainChat.get(),
+				resource: URI.parse('test-chat://header-chat'),
+				title: constObservable('Header Chat'),
+				status: constObservable(SessionStatus.Completed),
+			};
+			const activeSession = upcastPartial<IActiveSession>(session);
+			const renamedChats: string[] = [];
+			instantiationService.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() {
+				override getSessionView(): SessionView {
+					return new class extends mock<SessionView>() {
+						override startChatTitleEditing(chatResource: URI): boolean {
+							renamedChats.push(chatResource.toString());
+							return true;
+						}
+					}();
+				}
+			});
+
+			const command = CommandsRegistry.getCommand(RENAME_CHAT_COMMAND_ID);
+			assert.ok(command);
+			await command.handler(instantiationService, activeSession, headerChat);
+
+			assert.deepStrictEqual(renamedChats, [headerChat.resource.toString()]);
 		});
 		const calls: string[] = [];
 		const closedGroups: string[] = [];

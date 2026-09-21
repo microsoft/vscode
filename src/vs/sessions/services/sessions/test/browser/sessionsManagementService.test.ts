@@ -1658,7 +1658,15 @@ suite('SessionsManagementService', () => {
 
 	test('openSessionToSide prepares the provider when selecting the main chat', async () => {
 		const active = stubSession({ sessionId: 'active', providerId: 'test' });
-		const target = stubSession({ sessionId: 'target', providerId: 'test' });
+		const targetMain = { ...stubChat, resource: URI.parse('test:///target/main'), title: constObservable('Main') };
+		const targetSide = { ...stubChat, resource: URI.parse('test:///target/side'), title: constObservable('Side'), origin: { kind: ChatOriginKind.SideChat, parentChat: targetMain.resource } };
+		const target = stubSession({
+			sessionId: 'target',
+			providerId: 'test',
+			chats: constObservable([targetMain, targetSide]),
+			mainChat: constObservable(targetMain),
+			capabilities: constObservable({ supportsMultipleChats: true }),
+		});
 		const preparations: { sessionId: string; reason: string }[] = [];
 		const provider = new class extends TestSessionsProvider {
 			override getSessions(): ISession[] { return [active, target]; }
@@ -1668,15 +1676,19 @@ suite('SessionsManagementService', () => {
 		}(active);
 		const { view } = createSessionsManagementService(active, disposables, provider);
 
+		await view.openSession(target.resource);
+		await view.openChat(target, targetSide.resource);
 		await view.openSession(active.resource);
 		preparations.length = 0;
 		await view.openSessionToSide(target, { forceMainChat: true });
 
 		assert.deepStrictEqual({
 			active: view.activeSession.get()?.sessionId,
+			activeChat: view.activeSession.get()?.activeChat.get().resource.toString(),
 			preparations,
 		}, {
 			active: 'target',
+			activeChat: targetMain.resource.toString(),
 			preparations: [{ sessionId: 'target', reason: 'open' }],
 		});
 	});

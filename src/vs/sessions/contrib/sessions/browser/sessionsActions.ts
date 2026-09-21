@@ -13,6 +13,7 @@ import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposab
 import { autorun, IObservable, IReader, observableSignalFromEvent, observableValue } from '../../../../base/common/observable.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
+import { hasKey } from '../../../../base/common/types.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { Action2, MenuRegistry, MenuId, registerAction2, MenuItemAction } from '../../../../platform/actions/common/actions.js';
 import { IActionViewItemService } from '../../../../platform/actions/browser/actionViewItemService.js';
@@ -637,30 +638,46 @@ registerAction2(class RenameChatAction extends Action2 {
 					),
 				),
 			},
-			menu: {
+			menu: [{
 				id: Menus.SessionChatItemContext,
 				group: '1_chat',
 				order: 1,
 				when: ContextKeyExpr.and(SessionChatItemCanRenameContext, SessionChatItemIsUntitledContext.negate()),
-			},
+			}, {
+				id: Menus.SessionHeaderContext,
+				group: '2_edit',
+				order: 1,
+				when: ContextKeyExpr.and(SessionHeaderShowsChatContext, SessionFocusedChatIsRenameTargetContext),
+			}, {
+				id: Menus.SessionBarToolbar,
+				group: 'secondary/1_session',
+				order: 20,
+				when: ContextKeyExpr.and(SessionIsCreatedContext, SessionHeaderShowsChatContext, SessionFocusedChatIsRenameTargetContext, SessionIsArchivedContext.negate()),
+			}],
 		});
 	}
 
-	override async run(accessor: ServicesAccessor, context?: IChatRenameContext): Promise<void> {
-		if (!context) {
+	override async run(accessor: ServicesAccessor, context?: IChatRenameContext | IActiveSession, chat?: IChat): Promise<void> {
+		let renameContext: IChatRenameContext | undefined;
+		if (context && hasKey(context, { session: true })) {
+			renameContext = context;
+		} else if (context && chat) {
+			renameContext = { session: context, chat, inline: true };
+		}
+		if (!renameContext) {
 			const sessionsList = getSessionsList(accessor);
 			const focusedChat = sessionsList?.getFocusedChatItem();
 			if (focusedChat && sessionsList?.beginRenameChat(focusedChat)) {
 				return;
 			}
 		}
-		if (context?.inline && accessor.get(ISessionsPartService).getSessionView(context.session.sessionId)?.startChatTitleEditing(context.chat.resource)) {
+		if (renameContext?.inline && accessor.get(ISessionsPartService).getSessionView(renameContext.session.sessionId)?.startChatTitleEditing(renameContext.chat.resource)) {
 			return;
 		}
-		if (!context && accessor.get(ISessionsPartService).getFocusedSessionView()?.startFocusedChatTitleEditing?.()) {
+		if (!renameContext && accessor.get(ISessionsPartService).getFocusedSessionView()?.startFocusedChatTitleEditing?.()) {
 			return;
 		}
-		const target = getChatRenameContext(accessor, context);
+		const target = getChatRenameContext(accessor, renameContext);
 		if (target) {
 			await renameChatWithQuickInput(accessor, target);
 		}
@@ -1837,12 +1854,12 @@ registerAction2(class RenameSessionHeaderAction extends Action2 {
 				id: Menus.SessionHeaderContext,
 				group: '2_edit',
 				order: 1,
-				when: ContextKeyExpr.regex(SessionProviderIdContext.key, ANY_AGENT_HOST_PROVIDER_RE),
+				when: ContextKeyExpr.and(ContextKeyExpr.regex(SessionProviderIdContext.key, ANY_AGENT_HOST_PROVIDER_RE), SessionHeaderShowsChatContext.negate()),
 			}, {
 				id: Menus.SessionBarToolbar,
 				group: 'secondary/1_session',
 				order: 20,
-				when: ContextKeyExpr.and(SessionIsCreatedContext, SessionSupportsRenameContext, SessionIsArchivedContext.negate()),
+				when: ContextKeyExpr.and(SessionIsCreatedContext, SessionSupportsRenameContext, SessionHeaderShowsChatContext.negate(), SessionIsArchivedContext.negate()),
 			}],
 		});
 	}
