@@ -5,11 +5,13 @@
 
 import { ChildProcess, fork } from 'child_process';
 import { cp, lstat, mkdir, readFile, readdir, realpath, rename, rm, stat, writeFile } from 'fs/promises';
-import { raceTimeout } from '../../../../base/common/async.js';
+import { Promises, raceTimeout } from '../../../../base/common/async.js';
+import { getErrorCode } from '../../../../base/common/errors.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { createRequire } from 'module';
 import { mkdirSync } from 'fs';
 import { userInfo } from 'os';
+import { promisify } from 'util';
 import { fileURLToPath } from 'url';
 import { WebSocket } from 'ws';
 import { CapiReplayProxy, type CapiReplayMode, type ICapiReplayResponse } from './e2e/harness/capiReplayProxy.js';
@@ -677,6 +679,18 @@ export async function stopServer(server: IServerHandle | undefined): Promise<voi
 			resolve();
 		}
 	});
+	let descendants: number[] = [];
+	let snapshotError: Error | undefined;
+	try {
+		if (isWindows && serverProcess.pid !== undefined) {
+			// Once the parent exits, taskkill /T can no longer discover its descendants.
+			const { getProcessList } = await import('@vscode/windows-process-tree');
+			descendants = (await promisify(getProcessList)(serverProcess.pid))
+				.filter(process => process.pid !== serverProcess.pid).map(process => process.pid);
+		}
+	} catch (error) {
+		snapshotError = new Error('Failed to capture Agent Host test server descendants', { cause: error });
+	}
 	serverProcess.stdin?.end();
 	if (!await raceTimeout(serverExit.then(() => true), SERVER_SHUTDOWN_TIMEOUT_MS)) {
 		try {
@@ -694,6 +708,25 @@ export async function stopServer(server: IServerHandle | undefined): Promise<voi
 		}
 		await serverExit;
 	}
+	if (snapshotError) {
+		throw snapshotError;
+	}
+
+	await Promises.settled(descendants.map(async pid => {
+		try {
+			await killTree(pid, true);
+		} catch (error) {
+			try {
+				process.kill(pid, 0);
+			} catch (probeError) {
+				if (getErrorCode(probeError) === 'ESRCH') {
+					return; // The descendant already exited during graceful shutdown.
+				}
+				throw probeError;
+			}
+			throw error;
+		}
+	}));
 }
 
 /** Forcefully kill an Agent Host test server and its child processes without graceful shutdown. */
