@@ -3186,9 +3186,21 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	}
 
 	protected updateAdapter(adapter: AgentHostSessionAdapter, meta: IAgentSessionMetadata): boolean {
-		this._metaByRawId.set(AgentSession.id(meta.session), meta);
+		const rawId = AgentSession.id(meta.session);
+		if (meta.status !== undefined) {
+			const status = withSessionStatusFlag(meta.status, ProtocolSessionStatus.IsArchived, this._resolveArchivedState(rawId, isSessionStatusArchived(meta.status)));
+			if (status !== meta.status) {
+				meta = { ...meta, status };
+			}
+		}
+		this._metaByRawId.set(rawId, meta);
 		this._cacheDirty = true;
 		return adapter.update(meta);
+	}
+
+	/** Resolve host archive state before applying it to the client cache. */
+	protected _resolveArchivedState(_rawId: string, isArchived: boolean): boolean {
+		return isArchived;
 	}
 
 	/**
@@ -6390,7 +6402,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		const rawId = AgentSession.id(session);
 		const cached = this._sessionCache.get(rawId);
 		if (cached) {
-			cached.isArchived.set(isArchived, undefined);
+			cached.isArchived.set(this._resolveArchivedState(rawId, isArchived), undefined);
 			this._onDidChangeSessions.fire({ added: [], removed: [], changed: [cached] });
 		}
 	}
@@ -6425,7 +6437,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 					didChange = true;
 				}
 
-				const isArchived = !!(changes.status & ProtocolSessionStatus.IsArchived);
+				const isArchived = this._resolveArchivedState(rawId, !!(changes.status & ProtocolSessionStatus.IsArchived));
 				if (isArchived !== cached.isArchived.get()) {
 					cached.isArchived.set(isArchived, tx);
 					didChange = true;

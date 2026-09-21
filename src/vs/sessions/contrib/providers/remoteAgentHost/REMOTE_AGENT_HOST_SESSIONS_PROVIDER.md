@@ -65,6 +65,8 @@ Drafts expose the shared untitled `ISession` contract and use remote workspace m
 
 Remote session and chat resources preserve connection-specific routing identity through creation, hydration, and replacement. Backend session identifiers are translated only inside the provider.
 
+For cloud sandbox sessions, archive and unarchive update the client session cache without requiring a live host. Host refreshes preserve the cached archive flag; cross-client archive synchronization is not yet supported.
+
 ## Authentication and recovery
 
 Authentication challenges, credential refresh, and transport retries remain connection policy. The request that encountered a challenge observes its actual success, cancellation, or failure; provider operations do not silently convert authentication failures into availability results.
