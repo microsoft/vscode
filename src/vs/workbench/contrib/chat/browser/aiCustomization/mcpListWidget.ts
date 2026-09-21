@@ -8,6 +8,7 @@ import * as DOM from '../../../../../base/browser/dom.js';
 import { IMouseEvent } from '../../../../../base/browser/mouseEvent.js';
 import { Disposable, DisposableStore, isDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { Emitter } from '../../../../../base/common/event.js';
+import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { localize } from '../../../../../nls.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IListRenderer, IListVirtualDelegate } from '../../../../../base/browser/ui/list/list.js';
@@ -70,6 +71,7 @@ const $ = DOM.$;
 
 const PLUGIN_COLLECTION_PREFIX = MCP_PLUGIN_COLLECTION_ID_PREFIX;
 const MCP_INSTALLED_ITEM_HEIGHT = 44;
+const MCP_INSTALLED_ITEM_HEIGHT_WITH_SOURCE_AND_DESCRIPTION = 58;
 const MCP_MARKETPLACE_ITEM_HEIGHT = 66;
 export const MCP_ERROR_PREVIEW_LENGTH = 300;
 
@@ -149,6 +151,7 @@ type IMcpSectionEntry = IMcpInstalledEntry | IMcpMarketplaceEntry;
 
 interface IMcpSectionList {
 	readonly list: WorkbenchList<IMcpSectionEntry>;
+	readonly delegate: McpSectionDelegate;
 	readonly entries: readonly IMcpSectionEntry[];
 	readonly container: HTMLElement;
 	readonly key: string;
@@ -157,8 +160,10 @@ interface IMcpSectionList {
 }
 
 class McpSectionDelegate implements IListVirtualDelegate<IMcpSectionEntry> {
+	constructor(private readonly getInstalledHeight: (element: IMcpInstalledEntry) => number) { }
+
 	getHeight(element: IMcpSectionEntry): number {
-		return element.type === 'marketplace-item' ? MCP_MARKETPLACE_ITEM_HEIGHT : MCP_INSTALLED_ITEM_HEIGHT;
+		return element.type === 'marketplace-item' ? MCP_MARKETPLACE_ITEM_HEIGHT : this.getInstalledHeight(element);
 	}
 
 	getTemplateId(element: IMcpSectionEntry): string {
@@ -369,6 +374,11 @@ export class McpServerItemRenderer extends Disposable implements IListRenderer<I
 				templateData.sourcePath.setAttribute('href', '#');
 				templateData.sourcePath.setAttribute('aria-label', source.ariaLabel);
 				templateData.elementDisposables.add(DOM.addDisposableListener(templateData.sourcePath, DOM.EventType.MOUSE_DOWN, event => event.stopPropagation()));
+				templateData.elementDisposables.add(DOM.addStandardDisposableListener(templateData.sourcePath, DOM.EventType.KEY_DOWN, event => {
+					if (event.keyCode === KeyCode.Enter) {
+						event.stopPropagation();
+					}
+				}));
 				templateData.elementDisposables.add(DOM.addDisposableListener(templateData.sourcePath, DOM.EventType.CLICK, event => {
 					event.preventDefault();
 					event.stopPropagation();
@@ -1951,7 +1961,11 @@ export class McpListWidget extends Disposable {
 
 	private createMcpSectionList(container: HTMLElement, label: string, entries: readonly IMcpSectionEntry[]): void {
 		const key = container.dataset.virtualizedSectionKey ?? label;
-		const delegate = new McpSectionDelegate();
+		const delegate = new McpSectionDelegate(entry => {
+			const description = entry.type === 'server-item' ? entry.server.description?.trim() : entry.type === 'builtin-item' ? entry.description : undefined;
+			const source = getMcpEntrySource(entry, this.labelService, this.agentPluginService, this.extensionsWorkbenchService);
+			return description && source ? MCP_INSTALLED_ITEM_HEIGHT_WITH_SOURCE_AND_DESCRIPTION : MCP_INSTALLED_ITEM_HEIGHT;
+		});
 		container.style.height = `${entries.length > 0 ? delegate.getHeight(entries[0]) : MCP_INSTALLED_ITEM_HEIGHT}px`;
 		container.classList.add('virtualized-section-list');
 		this.cardListControllers.get(container)?.dispose();
@@ -1991,7 +2005,7 @@ export class McpListWidget extends Disposable {
 		));
 		this.cardDisposables.add(list.onDidChangeContentHeight(() => this.scheduleMcpSectionLayout()));
 		list.splice(0, 0, entries);
-		const section: IMcpSectionList = { list, entries, container, key, pendingMeasurements: new Set(), deferredMeasurements: new Set() };
+		const section: IMcpSectionList = { list, delegate, entries, container, key, pendingMeasurements: new Set(), deferredMeasurements: new Set() };
 		this.sectionLists.push(section);
 		this.cardDisposables.add(list.onDidScroll(() => {
 			if ([...section.deferredMeasurements].some(index => index >= list.firstVisibleIndex && index <= list.lastVisibleIndex)) {
@@ -2198,7 +2212,7 @@ export class McpListWidget extends Disposable {
 						section.list.updateElementHeight(index, undefined);
 					} else {
 						// Use the delegate's estimate until the row is rendered; probing it would subscribe offscreen ARIA.
-						section.list.updateElementHeight(index, MCP_INSTALLED_ITEM_HEIGHT);
+						section.list.updateElementHeight(index, section.delegate.getHeight(section.entries[index]));
 						section.deferredMeasurements.add(index);
 					}
 				}

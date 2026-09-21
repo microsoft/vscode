@@ -1261,6 +1261,38 @@ suite('mcpListWidget', () => {
 			});
 		});
 
+		test('allows Enter to activate source links without opening the list row', () => {
+			const ctx = createRenderer(createAgentHostServer(), false);
+			disposables.add(ctx.store);
+			const detailServer = createMcpDetailTestServer();
+			const entry: Entry = {
+				type: 'builtin-item',
+				id: 'plugin-server',
+				label: 'Plugin Server',
+				description: '',
+				collectionId: `${MCP_PLUGIN_COLLECTION_ID_PREFIX}${URI.file('/plugins/example').toString()}`,
+				localServer: {
+					...detailServer,
+					definition: detailServer.readDefinitions().get().server,
+					enablement: observableValue('enablement', ContributionEnablementState.EnabledProfile),
+					connectionState: observableValue<McpConnectionState>('connectionState', { state: McpConnectionState.Kind.Running }),
+				} as IMcpServer,
+			};
+			ctx.render(entry);
+			let bubbled = false;
+			ctx.templateData.container.addEventListener('keydown', () => bubbled = true);
+			const event = new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true, cancelable: true });
+			ctx.templateData.sourcePath.dispatchEvent(event);
+
+			assert.deepStrictEqual({
+				bubbled,
+				defaultPrevented: event.defaultPrevented,
+			}, {
+				bubbled: false,
+				defaultPrevented: false,
+			});
+		});
+
 		test('shows the extension name as a link with the full configuration location in the hover', () => {
 			const ctx = createRenderer(createAgentHostServer(), false);
 			disposables.add(ctx.store);
@@ -1501,6 +1533,37 @@ suite('mcpListWidget', () => {
 				})),
 				Array.from({ length: 3 }, () => ({ height: 44, matchingPadding: true, nameInset: 16 })),
 			);
+		});
+
+		test('sourced rows preserve descriptions with a taller initial height', async () => {
+			const ctx = createRenderer(createAgentHostServer());
+			disposables.add(ctx.store);
+			const sourcedServer = new class extends mock<IWorkbenchMcpServer>() {
+				override readonly id = 'sourced';
+				override readonly label = 'Sourced';
+				override readonly description = 'Ordinary description';
+				override readonly name = 'Sourced';
+				override readonly installState = McpServerInstallState.Installed;
+				override readonly local = new class extends mock<IWorkbenchLocalMcpServer>() {
+					override readonly mcpResource = URI.file('/workspace/.vscode/mcp.json');
+				}();
+			}();
+			const section = ctx.createSection([{ type: 'server-item', server: sourcedServer }]);
+			await section.settle();
+			const row = section.container.querySelector<HTMLElement>('.mcp-server-item')!;
+			const description = row.querySelector<HTMLElement>('.mcp-server-description')!;
+
+			assert.deepStrictEqual({
+				height: section.list.getElementHeight(0),
+				sourceVisible: row.querySelector<HTMLElement>('.mcp-server-source-path')!.style.display !== 'none',
+				description: description.textContent,
+				descriptionVisible: description.getBoundingClientRect().bottom <= row.getBoundingClientRect().bottom,
+			}, {
+				height: 58,
+				sourceVisible: true,
+				description: 'Ordinary description',
+				descriptionVisible: true,
+			});
 		});
 
 		test('explicitly expanded errors show every line and unbroken token, resize and preserve actions', async () => {
