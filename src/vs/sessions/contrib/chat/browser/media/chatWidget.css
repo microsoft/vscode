@@ -92,8 +92,8 @@
 
 .agent-sessions-workbench:not(.phone-layout) .experimental-new-session-composer .new-session-workspace-picker-container,
 .agent-sessions-workbench:not(.phone-layout) .experimental-new-session-composer .new-session-quick-chat-header {
-	width: calc(100% - 2 * var(--vscode-spacing-size160));
-	margin: 0 auto;
+	width: 100%;
+	margin: 0;
 	padding: var(--vscode-spacing-size40) var(--vscode-spacing-size80) var(--vscode-spacing-size60);
 	background-color: transparent;
 	border-radius: 0 0 var(--vscode-cornerRadius-large) var(--vscode-cornerRadius-large);
