@@ -440,6 +440,7 @@ Getting the host into that configuration needs a feature that genuinely reaches 
 | `fileOperationStrategy` | Selects native file-tool prompts or pinned portable shell commands for shared file-operation scenarios. |
 | `shellToolReplayUnstableOnLinux` | Skips shell-dependent replay tests on **Linux** for that provider. Recording and other platforms remain enabled. |
 | `fileDeleteReplayUnstableOnWindows` | Skips the file-deletion replay test on **Windows** for that provider. Recording and other platforms remain enabled. |
+| `fileCreateReplayUnstableOnWindows` | Skips the file-creation replay test on **Windows** for that provider. Recording and other platforms remain enabled. |
 | `subagentReplayUnstableOnWindows` | Skips the subagent-reopen ("replay path") test on **Windows** for that provider (e.g. Claude rebuilds the transcript from the SDK's on-disk `subagents/*.jsonl`, not reliably visible there right after the turn). |
 | `RECORD` (env) | Set by `AGENT_HOST_REPLAY_RECORD=1` and internally during the first `AGENT_HOST_UPDATE_SNAPSHOTS=1` pass. The `can abort a running turn` test runs only for direct record mode, not bulk snapshot updates. |
 | `isWindows` | The worktree test is skipped on Windows (POSIX-shaped `.worktrees` paths + host-terminal `pwd`). |
