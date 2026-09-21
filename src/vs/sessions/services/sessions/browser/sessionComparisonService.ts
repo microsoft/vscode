@@ -20,7 +20,7 @@ import { localize } from '../../../../nls.js';
 import { IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { IChatService } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { aggregateChatUsage } from '../../../../workbench/contrib/chat/common/chatUsage.js';
-import { SessionStatus } from '../common/session.js';
+import { isActiveSessionStatus, ISession, SessionStatus } from '../common/session.js';
 import { ISessionGroupsService } from './sessionGroupsService.js';
 import { ISessionsManagementService } from '../common/sessionsManagement.js';
 import { getSessionComparisonAttemptLabel, getSessionComparisonHarnessLabel, ISessionComparison, ISessionComparisonHarness, ISessionComparisonParticipant, ISessionComparisonService, ISessionComparisonSynthesisPlan, ISessionComparisonVerdict, IStartSessionComparisonOptions, SESSION_COMPARISON_SYNTHESIS_INSTRUCTIONS_MAX_LENGTH, SessionComparisonDecisionAssessment, SessionComparisonParticipantRole } from '../common/sessionComparison.js';
@@ -149,6 +149,12 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 		if (successfulAttemptCount < 2) {
 			this._removeComparison(comparison.id);
 			this.sessionGroupsService.deleteGroup(comparison.groupId);
+			await this._cancelAndDeleteSessions(
+				attempts
+					.map(participant => participant.sessionResource ? this.sessionsManagementService.getSession(participant.sessionResource) : undefined)
+					.filter((session): session is ISession => session !== undefined),
+				'attempt startup cleanup',
+			);
 			const launchFailures = attempts
 				.filter(participant => participant.launchError)
 				.map(participant => `${getSessionComparisonHarnessLabel(participant)}: ${participant.launchError}`)
@@ -524,6 +530,13 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 				attemptCount: comparison.participants.filter(participant => participant.role === SessionComparisonParticipantRole.Attempt).length,
 			}),
 		});
+		const current = this.getComparison(comparison.id);
+		if (!current) {
+			if (session) {
+				await this._cancelAndDeleteSessions([session], 'orphaned Judge cleanup');
+			}
+			return;
+		}
 		if (session) {
 			this.sessionGroupsService.addToGroup(session.sessionId, comparison.groupId);
 		}
@@ -534,10 +547,25 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 			sessionResource: session?.resource,
 			...(!session ? { launchError: localize('sessionComparison.judgeUnavailable', "The judge session did not start.") } : {}),
 		};
-		const current = this._requireComparison(comparison.id);
 		const updated = { ...current, participants: [...current.participants, judge] };
 		this._replaceComparison(updated);
 		this._checkComparison(updated);
+	}
+
+	private async _cancelAndDeleteSessions(sessions: readonly ISession[], context: string): Promise<void> {
+		const activeSessions = sessions.filter(session => isActiveSessionStatus(session.status.get()));
+		const cancellationResults = await Promise.allSettled(activeSessions.map(session => this.sessionsManagementService.cancelCurrentRequest(session)));
+		for (const result of cancellationResults) {
+			if (result.status === 'rejected') {
+				this.logService.error(`[SessionComparisonService] Failed to cancel a session during ${context}.`, result.reason);
+			}
+		}
+		const deletionResults = await Promise.allSettled(sessions.map(session => this.sessionsManagementService.deleteSession(session)));
+		for (const result of deletionResults) {
+			if (result.status === 'rejected') {
+				this.logService.error(`[SessionComparisonService] Failed to delete a session during ${context}.`, result.reason);
+			}
+		}
 	}
 
 	private _getJudgePrompt(comparisonId: string): string {

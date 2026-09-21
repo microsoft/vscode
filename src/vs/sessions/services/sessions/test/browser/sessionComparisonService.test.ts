@@ -66,6 +66,7 @@ suite('SessionComparisonService', () => {
 		const deferredAttempt = new DeferredPromise<ISession | undefined>();
 		sessionsManagementService.enqueuePromise(deferredAttempt.p);
 		sessionsManagementService.enqueueError(new Error('provider unavailable'));
+		sessionsManagementService.cancelError = new Error('cancel failed');
 
 		const comparisonPromise = service.startComparison(startOptions());
 		await timeout(0);
@@ -76,10 +77,14 @@ suite('SessionComparisonService', () => {
 		assert.deepStrictEqual({
 			comparisons: service.comparisons.get(),
 			deletedGroupIds: groupsService.deletedGroupIds,
+			cancelledSessionIds: sessionsManagementService.cancelledSessionIds,
+			deletedSessionIds: sessionsManagementService.deletedSessionIds,
 			storedComparisons: JSON.parse(storageService.get('sessions.comparisons', StorageScope.PROFILE) ?? '[]'),
 		}, {
 			comparisons: [],
 			deletedGroupIds: ['group'],
+			cancelledSessionIds: ['attempt-one'],
+			deletedSessionIds: ['attempt-one'],
 			storedComparisons: [],
 		});
 	});
@@ -118,6 +123,37 @@ suite('SessionComparisonService', () => {
 				SessionComparisonParticipantRole.Attempt,
 			],
 			groupedSessionIds: ['attempt-one', 'attempt-two'],
+		});
+	});
+
+	test('deletes a Judge that finishes starting after its comparison is removed', async () => {
+		const { service, sessionsManagementService, groupsService } = createServices();
+		const firstStatus = observableValue('firstStatus', SessionStatus.InProgress);
+		const secondStatus = observableValue('secondStatus', SessionStatus.InProgress);
+		const deferredJudge = new DeferredPromise<ISession | undefined>();
+		sessionsManagementService.enqueue(stubSession('attempt-one', firstStatus));
+		sessionsManagementService.enqueue(stubSession('attempt-two', secondStatus));
+		sessionsManagementService.enqueuePromise(deferredJudge.p);
+
+		const comparison = await service.startComparison(startOptions());
+		firstStatus.set(SessionStatus.Completed, undefined);
+		secondStatus.set(SessionStatus.Completed, undefined);
+		sessionsManagementService.fireChange();
+		await timeout(0);
+		groupsService.deleteGroup(comparison.groupId);
+		deferredJudge.complete(stubSession('judge'));
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			comparison: service.getComparison(comparison.id),
+			judgeWasGrouped: groupsService.groupedSessionIds.includes('judge'),
+			cancelledSessionIds: sessionsManagementService.cancelledSessionIds,
+			deletedSessionIds: sessionsManagementService.deletedSessionIds,
+		}, {
+			comparison: undefined,
+			judgeWasGrouped: false,
+			cancelledSessionIds: ['judge'],
+			deletedSessionIds: ['judge'],
 		});
 	});
 
@@ -838,6 +874,9 @@ class TestSessionsManagementService extends mock<ISessionsManagementService>() i
 	private readonly _sessions = new Map<string, ISession>();
 	readonly createCalls: Array<{ folderUri: URI; options: ISendRequestOptions; createOptions?: ICreateNewSessionOptions; token?: CancellationToken }> = [];
 	readonly renameCalls: Array<{ sessionId: string; title: string }> = [];
+	readonly cancelledSessionIds: string[] = [];
+	readonly deletedSessionIds: string[] = [];
+	cancelError: Error | undefined;
 	beforeCreateAndSendReturn: (() => void) | undefined;
 
 	enqueue(session: ISession): void {
@@ -878,6 +917,18 @@ class TestSessionsManagementService extends mock<ISessionsManagementService>() i
 
 	override async renameSession(session: ISession, title: string): Promise<void> {
 		this.renameCalls.push({ sessionId: session.sessionId, title });
+	}
+
+	override async cancelCurrentRequest(session: ISession): Promise<void> {
+		this.cancelledSessionIds.push(session.sessionId);
+		if (this.cancelError) {
+			throw this.cancelError;
+		}
+	}
+
+	override async deleteSession(session: ISession): Promise<void> {
+		this.deletedSessionIds.push(session.sessionId);
+		this._sessions.delete(session.resource.toString());
 	}
 
 	fireChange(): void {
