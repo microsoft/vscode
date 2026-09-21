@@ -9,6 +9,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { IInstantiationService } from '../../../../instantiation/common/instantiation.js';
 import { ILogService } from '../../../../log/common/log.js';
+import type { IAgentPendingMessageSender } from '../../../common/agent.js';
 import { AgentHostClientType } from '../../../common/agentHostClientInfo.js';
 import { createUnknownAgentHostClientTelemetryContext } from '../../../common/agentHostTelemetry.js';
 import { IAgentHostChatContributions, createChatMementoKey, type IAgentHostChatContribution, type IAgentHostChatContributionContext, type IAgentHostChatContributionHost, type IAppliedClientAction, type IQueuedMessageSender, type ITurnEnd } from '../../../common/agentHostChatContributionsService.js';
@@ -17,8 +18,10 @@ import { getErrorResponsePart, isAhpChatChannel, parseRequiredSessionUriFromChat
 import { AgentHostStateManager, IAgentHostStateManager } from '../../agentHostStateManager.js';
 import { IAgentHostProviderService } from '../../agentHostProviderService.js';
 import { startTurn } from '../../agentHostTurnStarter.js';
+import { ISessionWorkspaceConversionService } from '../sessionWorkspaceConversion/sessionWorkspaceConversionService.js';
 
 const QueuedSender = createChatMementoKey<IQueuedMessageSender | undefined, [messageId: string]>('queueDrain.sender', () => undefined);
+const SteeringSender = createChatMementoKey<{ readonly messageId: string; readonly sender: IAgentPendingMessageSender } | undefined>('queueDrain.steeringSender', () => undefined);
 
 /** Owns queued-message sender state and decides when a queued turn can be admitted. */
 export class QueueDrainContribution extends Disposable implements IAgentHostChatContribution {
@@ -33,6 +36,7 @@ export class QueueDrainContribution extends Disposable implements IAgentHostChat
 		@IAgentHostStateManager private readonly _stateManager: AgentHostStateManager,
 		@IAgentHostProviderService private readonly _providerService: IAgentHostProviderService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@ISessionWorkspaceConversionService private readonly _conversionService: ISessionWorkspaceConversionService,
 	) {
 		super();
 	}
@@ -51,11 +55,19 @@ export class QueueDrainContribution extends Disposable implements IAgentHostChat
 		const action = observed.action;
 		switch (action.type) {
 			case ActionType.ChatPendingMessageSet: {
-				const queuedMessageExists = this._stateManager.getChatState(observed.channel)?.queuedMessages?.some(message => message.id === action.id) === true;
-				if (action.kind === PendingMessageKind.Queued && queuedMessageExists) {
+				const state = this._stateManager.getChatState(observed.channel);
+				if (action.kind === PendingMessageKind.Queued && state?.queuedMessages?.some(message => message.id === action.id) === true) {
 					this._context.memento(QueuedSender, observed.channel, action.id).set({
 						clientId: observed.clientId,
 						clientContext: observed.clientContext,
+					}, undefined);
+				} else if (action.kind === PendingMessageKind.Steering && state?.steeringMessage?.id === action.id) {
+					this._context.memento(SteeringSender, observed.channel).set({
+						messageId: action.id,
+						sender: {
+							clientId: observed.clientId,
+							clientContext: observed.clientContext,
+						},
 					}, undefined);
 				}
 				this._syncPendingMessages(observed.channel);
@@ -64,6 +76,11 @@ export class QueueDrainContribution extends Disposable implements IAgentHostChat
 			case ActionType.ChatPendingMessageRemoved: {
 				if (action.kind === PendingMessageKind.Queued) {
 					this._context.deleteMemento(QueuedSender, observed.channel, action.id);
+				} else {
+					const steeringSender = this._context.memento(SteeringSender, observed.channel);
+					if (steeringSender.get()?.messageId === action.id) {
+						steeringSender.set(undefined, undefined);
+					}
 				}
 				this._syncPendingMessages(observed.channel);
 				break;
@@ -84,11 +101,20 @@ export class QueueDrainContribution extends Disposable implements IAgentHostChat
 			return;
 		}
 		const session = parseRequiredSessionUriFromChatUri(channel);
-		this._providerService.getProviderForSession(session)?.setPendingMessages?.(URI.parse(channel), state.steeringMessage, []);
+		const steeringSender = this._context.memento(SteeringSender, channel).get();
+		this._providerService.getProviderForSession(session)?.setPendingMessages?.(
+			URI.parse(channel),
+			state.steeringMessage,
+			[],
+			steeringSender && steeringSender.messageId === state.steeringMessage?.id ? steeringSender.sender : undefined,
+		);
 		this._tryConsumeNextQueuedMessage(channel);
 	}
 
 	private _tryConsumeNextQueuedMessage(channel: ProtocolURI): void {
+		if (this._conversionService.isPending(channel)) {
+			return;
+		}
 		if (this._stateManager.getActiveTurnId(channel)) {
 			return;
 		}

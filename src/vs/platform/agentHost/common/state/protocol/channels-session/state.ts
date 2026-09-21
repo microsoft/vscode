@@ -10,7 +10,7 @@ import type { Changeset } from '../channels-changeset/state.js';
 import type { AnnotationsSummary } from '../channels-annotations/state.js';
 import type { ChatSummary, ChatInputRequest, ToolCallConfirmationState, ToolCallRunningState, ToolCallAuthRequiredState } from '../channels-chat/state.js';
 import type { AutomationRunState } from '../channels-automation-run/state.js';
-import type { AutomationState } from '../channels-automation/state.js';
+import type { AutomationEntry } from '../channels-automation/state.js';
 import type { ConfigPropertySchema, ErrorInfo, Icon, ProtectedResourceMetadata, TextRange, URI } from '../common/state.js';
 
 // ─── Session State ───────────────────────────────────────────────────────────
@@ -74,7 +74,7 @@ export const enum SessionOriginKind {
  */
 export interface AutomationSessionOrigin {
 	kind: SessionOriginKind.Automation;
-	/** Owning {@link AutomationState.resource}. */
+	/** Owning {@link AutomationEntry.resource}. */
 	automation: URI;
 	/** Owning {@link AutomationRunState.resource}. */
 	run: URI;

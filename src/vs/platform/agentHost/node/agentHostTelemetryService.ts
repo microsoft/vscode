@@ -203,7 +203,7 @@ export class AgentHostTelemetryService extends Disposable implements IAgentHostT
 		this._delegate.setExperimentProperty(name, value);
 	}
 
-	setCommonProperty(name: string, value: string | boolean): void {
+	setCommonProperty(name: string, value: string | boolean | undefined): void {
 		this._delegate.setCommonProperty(name, value);
 		this._restricted?.setCommonProperty(name, value);
 	}
@@ -252,7 +252,7 @@ export async function createAgentHostTelemetryService(options: IAgentHostTelemet
 	const internalTelemetry = verifyMicrosoftInternalDomain(productService.msftInternalDomains ?? []);
 
 	const appenders: ITelemetryAppender[] = [
-		disposables.add(new TelemetryLogAppender('', false, loggerService, environmentService, productService)),
+		disposables.add(new TelemetryLogAppender({ prefix: '', loggerId: 'agentHostTelemetry' }, false, loggerService, environmentService, productService)),
 	];
 	const loggingOnly = isLoggingOnly(productService, environmentService);
 	if (!loggingOnly && productService.aiConfig?.ariaKey) {

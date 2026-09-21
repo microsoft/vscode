@@ -25,6 +25,7 @@ Start with `src/vs/sessions/README.md`, then read only the specifications releva
 |------|---------------|
 | Layering, folder ownership, cross-module imports | `src/vs/sessions/LAYERS.md` |
 | Session/chat model, services, provider contract, core data flow | `src/vs/sessions/SESSIONS.md` |
+| Automations ownership, routing, migration, persistence, and run lifecycle | `src/vs/sessions/AUTOMATIONS.md` |
 | Workbench parts, grid, title bar, editor presentation | `src/vs/sessions/LAYOUT.md` |
 | Session-aware layout state and restoration | `src/vs/sessions/LAYOUT_CONTROLLER.md` |
 | Single-pane behavior and expected compositions | `src/vs/sessions/SINGLE_PANE_SCENARIOS.md` |

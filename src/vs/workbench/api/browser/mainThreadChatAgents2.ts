@@ -812,6 +812,7 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 					uri: URI.revive(folder.uri),
 					label: folder.label,
 					source: folder.source,
+					destinationGroupId: folder.destinationGroupId,
 				}));
 			},
 		};

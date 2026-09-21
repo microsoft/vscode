@@ -27,6 +27,8 @@ export interface IChatInputPickerOptions {
 
 	readonly compact: IObservable<boolean>;
 
+	readonly minimal?: IObservable<boolean>;
+
 	readonly listOptions?: IActionListOptions;
 }
 
@@ -104,6 +106,27 @@ export abstract class ChatInputPickerActionViewItem extends ActionWidgetDropdown
 		if (this.element) {
 			this.element.classList.toggle('compact', compact);
 			this.renderLabel(this.element);
+		}
+	}
+
+	override setFocusable(_focusable: boolean): void {
+		// Chat input pickers are distinct Tab stops, not only roving toolbar items.
+		this._updateTabIndex();
+	}
+
+	override blur(): void {
+		super.blur();
+		this._updateTabIndex();
+	}
+
+	protected override updateEnabled(): void {
+		super.updateEnabled();
+		this._updateTabIndex();
+	}
+
+	private _updateTabIndex(): void {
+		if (this.element) {
+			this.element.tabIndex = this.isEnabled() ? 0 : -1;
 		}
 	}
 }

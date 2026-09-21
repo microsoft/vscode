@@ -35,6 +35,7 @@ import { IChatResponseViewModel } from '../../../../common/model/chatViewModel.j
 import { ToolDataSource, type ToolDataSource as ToolDataSourceType } from '../../../../common/tools/languageModelToolsService.js';
 import { CollapsibleListPool } from '../../../../browser/widget/chatContentParts/chatReferencesContentPart.js';
 import { IChatTodoListService } from '../../../../common/tools/chatTodoListService.js';
+import { MockChatWidgetService } from '../mockChatWidget.js';
 
 class TestToolInvocationSubPart extends BaseChatToolInvocationSubPart {
 	readonly domNode = mainWindow.document.createElement('div');
@@ -45,6 +46,14 @@ class TestToolInvocationSubPart extends BaseChatToolInvocationSubPart {
 		this.domNode.dataset.terminalToolSessionId = terminalData.terminalToolSessionId ?? '';
 	}
 }
+
+const mockTodoListService = {
+	_serviceBrand: undefined,
+	onDidUpdateTodos: Event.None,
+	getTodos: () => [],
+	setTodos() { },
+	migrateTodos() { },
+} satisfies IChatTodoListService;
 
 suite('ChatToolProgressSubPart', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -216,13 +225,9 @@ suite('ChatToolProgressSubPart', () => {
 			undefined,
 			0,
 			instantiationService,
-			{
-				_serviceBrand: undefined,
-				onDidUpdateTodos: Event.None,
-				getTodos: () => [],
-				setTodos() { },
-				migrateTodos() { },
-			} satisfies IChatTodoListService,
+			mockTodoListService,
+			mockConfigurationService,
+			new MockChatWidgetService(),
 		));
 	}
 
@@ -327,7 +332,7 @@ suite('ChatToolProgressSubPart', () => {
 		assert.strictEqual(createInstanceStub.firstCall.args[0], ChatAutomationConfiguredResultSubPart);
 	});
 
-	test('renders a created session as a plain title link', () => {
+	test('renders a created session as a rich session link', () => {
 		const updateHover = sinon.spy();
 		const setupManagedHoverStub = sinon.stub(mockHoverService, 'setupManagedHover').returns({
 			dispose() { },
@@ -357,17 +362,17 @@ suite('ChatToolProgressSubPart', () => {
 		const link = part.domNode.querySelector<HTMLAnchorElement>('a.monaco-link');
 
 		assert.deepStrictEqual({
-			text: link?.textContent,
+			title: link?.querySelector('.chat-rich-link-title')?.textContent,
 			href: link?.getAttribute('href'),
 			hoverTitle: updateHover.lastCall.args[0],
-			role: link?.getAttribute('role'),
-			hasButton: !!part.domNode.querySelector('.monaco-button'),
+			kind: link?.dataset.chatRichLinkKind,
+			hasRichLink: link?.classList.contains('chat-rich-link'),
 		}, {
-			text: `${runningTitle.slice(0, 57)}…`,
+			title: runningTitle,
 			href: 'agent-host-session://copilot/task-a',
 			hoverTitle: runningTitle,
-			role: null,
-			hasButton: false,
+			kind: 'session',
+			hasRichLink: true,
 		});
 
 		sessionLinkPresentation.set({
@@ -376,10 +381,10 @@ suite('ChatToolProgressSubPart', () => {
 			status: { kind: 'success', label: 'Completed' },
 		}, undefined);
 		assert.deepStrictEqual({
-			text: link?.textContent,
+			title: link?.querySelector('.chat-rich-link-title')?.textContent,
 			hoverTitle: updateHover.lastCall.args[0],
 		}, {
-			text: 'Finished weather session',
+			title: 'Finished weather session',
 			hoverTitle: 'Finished weather session',
 		});
 	});
@@ -458,13 +463,9 @@ suite('ChatToolProgressSubPart', () => {
 			undefined,
 			0,
 			instantiationService,
-			{
-				_serviceBrand: undefined,
-				onDidUpdateTodos: Event.None,
-				getTodos: () => [],
-				setTodos() { },
-				migrateTodos() { },
-			} satisfies IChatTodoListService,
+			mockTodoListService,
+			mockConfigurationService,
+			new MockChatWidgetService(),
 		));
 		const sessionIdBeforeUpdate = part.domNode.firstElementChild?.getAttribute('data-terminal-tool-session-id');
 

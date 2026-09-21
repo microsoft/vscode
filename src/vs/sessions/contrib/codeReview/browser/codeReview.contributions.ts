@@ -71,7 +71,7 @@ class RunSessionCodeReviewAction extends Action2 {
 					when: codeReviewChangesToolbarWhen,
 				},
 				{
-					id: Menus.SessionsEditorTitle,
+					id: Menus.SessionsEditorHeaderLayout,
 					group: 'navigation',
 					order: 10,
 					when: singlePaneCodeReviewWhen,

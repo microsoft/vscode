@@ -6,35 +6,179 @@
 import assert from 'assert';
 import * as DOM from '../../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../../base/browser/keyboardEvent.js';
+import { Dialog } from '../../../../../base/browser/ui/dialog/dialog.js';
+import { SelectBox } from '../../../../../base/browser/ui/selectBox/selectBox.js';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { StandardMouseEvent } from '../../../../../base/browser/mouseEvent.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Action, IAction } from '../../../../../base/common/actions.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import { observableValue } from '../../../../../base/common/observable.js';
+import { getErrorMessage } from '../../../../../base/common/errors.js';
+import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { EditorContextKeys } from '../../../../../editor/common/editorContextKeys.js';
+import { Context as SuggestContext } from '../../../../../editor/contrib/suggest/browser/suggest.js';
 import { IActionWidgetService } from '../../../../../platform/actionWidget/browser/actionWidget.js';
 import { IActionListDelegate, IActionListItem, IActionListOptions } from '../../../../../platform/actionWidget/browser/actionList.js';
 import { IAnchor } from '../../../../../base/browser/ui/contextview/contextview.js';
 import { IListAccessibilityProvider } from '../../../../../base/browser/ui/list/listWidget.js';
+import { IMenuService, isIMenuItem, MenuId, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
+import { MenuService } from '../../../../../platform/actions/common/menuService.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { IContext } from '../../../../../platform/contextkey/common/contextkey.js';
+import { ContextViewHandler } from '../../../../../platform/contextview/browser/contextViewService.js';
+import { IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { ResultKind } from '../../../../../platform/keybinding/common/keybindingResolver.js';
+import { KeybindingsRegistry } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { ILayoutService } from '../../../../../platform/layout/browser/layoutService.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
+import { defaultButtonStyles, defaultCheckboxStyles, defaultDialogStyles, defaultInputBoxStyles, defaultSelectBoxStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { IWorkspaceTrustRequestService, ResourceTrustRequestOptions } from '../../../../../platform/workspace/common/workspaceTrust.js';
 import { createWorkbenchDialogOptions } from '../../../../../workbench/browser/parts/dialogs/dialog.js';
-import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../../../../workbench/contrib/chat/common/languageModels.js';
+import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
+import { ChatInputPart } from '../../../../../workbench/contrib/chat/browser/widget/input/chatInputPart.js';
+import { IAutomationSessionTemplate } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
 import { GitRefType, IGitRepository, IGitService } from '../../../../../workbench/contrib/git/common/gitService.js';
 import { IHostService } from '../../../../../workbench/services/host/browser/host.js';
+import { IWorkbenchLayoutService } from '../../../../../workbench/services/layout/browser/layoutService.js';
+import { workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
+import { Menus } from '../../../../browser/menus.js';
+import { MobileSessionTypePicker } from '../../../chat/browser/mobile/mobileSessionTypePicker.js';
+import { ModelPicker } from '../../../chat/browser/modelPicker.js';
+import { SessionModelSelection } from '../../../chat/browser/sessionModelSelection.js';
 import { ISession, ISessionWorkspace, SessionTypeAuthRequirement } from '../../../../services/sessions/common/session.js';
+import { IAutomationSessionConfiguration } from '../../../../services/sessions/common/sessionsProvider.js';
 import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
-import { AutomationIsolationGroupActionViewItem, AutomationSessionDraftSynchronizer, canSelectAutomationWorkspace, IFormState, IValidationState, isAutomationDialogEditCommand, isAutomationDialogPopupTarget, registerAutomationDialogKeyboardNavigation, resolveAutomationModelIdentifier, updateSaveButtonState } from '../../browser/automationDialog.js';
+import { AutomationIsolationGroupActionViewItem, AutomationSessionDraftSynchronizer, canSelectAutomationWorkspace, IFormState, IValidationState, isAutomationDialogPopupTarget, MobileAutomationsWorkspacePicker, registerAutomationDialogKeyboardNavigation, renderForm, shouldPassThroughAutomationDialogCommand, updateSaveButtonState } from '../../browser/automationDialog.js';
+import { AutomationInputCompletions } from '../../browser/automationInputCompletions.js';
 import { AutomationIsolationModel } from '../../common/isolationGroupModel.js';
 
 const FOLDER = URI.file('/workspace');
+
+suite('Automation dialog layout', () => {
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('renders a single workspace picker before the prompt in DOM and keyboard order', () => {
+		const configurationService = new TestConfigurationService();
+		const contextKeyService = disposables.add(new ContextKeyService(configurationService));
+		const instantiationService = workbenchInstantiationService({
+			configurationService: () => configurationService,
+			contextKeyService: () => contextKeyService,
+		}, disposables);
+		instantiationService.stub(ICommandService, new class extends mock<ICommandService>() { });
+		instantiationService.stub(IMenuService, disposables.add(instantiationService.createInstance(MenuService)));
+		instantiationService.stub(IActionWidgetService, new RecordingActionWidgetService());
+		instantiationService.stub(IGitService, upcastPartial<IGitService>({ openRepository: async () => undefined }));
+		const sessionsManagementService = instantiationService.stub(ISessionsManagementService, upcastPartial<ISessionsManagementService>({
+			automationSession: constObservable(undefined),
+			onDidChangeSessionTypes: Event.None,
+			getSessionTypesForFolder: () => [],
+			getQuickChatSessionTypes: () => [],
+		}));
+		ChatContextKeys.enabled.bindTo(contextKeyService).set(true);
+
+		const workspaceButton = DOM.$('button', { type: 'button' }, 'Select workspace');
+		let targetModel: AutomationIsolationModel | undefined;
+		instantiationService.stubInstance(MobileAutomationsWorkspacePicker, {
+			setTargetModel: model => { targetModel = model; },
+			setLayoutService: () => { },
+			onDidSelectWorkspace: Event.None,
+			render: container => container.appendChild(workspaceButton),
+			dispose: () => { },
+		});
+		instantiationService.stubInstance(MobileSessionTypePicker, {
+			setQuickChatSource: () => { },
+			setFolderSource: () => { },
+			modelTargetChatSessionType: constObservable(undefined),
+			onDidChangeSelectedPick: Event.None,
+			selectedPick: undefined,
+			render: () => { },
+			dispose: () => { },
+		});
+		instantiationService.stubInstance(SessionModelSelection, { dispose: () => { } });
+		instantiationService.stubInstance(ModelPicker, { render: () => { }, dispose: () => { } });
+		instantiationService.stubInstance(AutomationInputCompletions, { dispose: () => { } });
+		const promptInput = document.createElement('textarea');
+		promptInput.setAttribute('aria-label', 'Prompt');
+		instantiationService.stubInstance(ChatInputPart, {
+			render: (container, value) => {
+				promptInput.value = value ?? '';
+				container.appendChild(promptInput);
+			},
+			inputEditor: upcastPartial<ChatInputPart['inputEditor']>({
+				updateOptions: () => { },
+				onDidChangeModelContent: Event.None,
+				getValue: () => promptInput.value,
+			}),
+			layout: () => { },
+			dispose: () => { },
+		});
+
+		const form = DOM.append(document.body, DOM.$('.automation-form'));
+		disposables.add(toDisposable(() => form.remove()));
+		const formDisposables = disposables.add(new DisposableStore());
+		const state = { ...createFormState(), folderUri: undefined, providerId: undefined, sessionTypeId: undefined };
+		const validation: IValidationState = { nameError: undefined, promptError: undefined, folderError: undefined, sessionTypeError: undefined, branchError: undefined };
+		const handle = renderForm(
+			form, state, formDisposables, validation, () => { }, instantiationService, contextKeyService,
+			instantiationService.get(IContextViewService), configurationService, instantiationService.get(IWorkbenchLayoutService),
+			new NullLogService(), sessionsManagementService, instantiationService.get(IWorkspaceTrustRequestService),
+			'Review the workspace', undefined, undefined,
+		);
+		disposables.add(registerAutomationDialogKeyboardNavigation(DOM.getWindow(form), handle.getFocusableElements, () => false));
+		workspaceButton.focus();
+		dispatchKey(workspaceButton, 'keydown', 'Tab');
+
+		const targetRow = form.querySelector('.automation-target-row')!;
+		const promptSection = form.querySelector('.automation-prompt-section')!;
+		assert.deepStrictEqual({
+			targetLabel: targetRow.querySelector('.automation-form-label')?.textContent,
+			targetContainsWorkspace: targetRow.contains(workspaceButton),
+			targetBeforePrompt: !!(targetRow.compareDocumentPosition(promptSection) & Node.DOCUMENT_POSITION_FOLLOWING),
+			targetControls: Array.from(targetRow.querySelectorAll('button, a[href]'), element => element.textContent),
+			hintInTarget: !!targetRow.querySelector('.automation-target-hint'),
+			promptFocused: document.activeElement === promptInput,
+			prompt: handle.getPrompt(),
+			targetUnselected: !state.isQuickChat && state.folderUri === undefined && state.sessionTypeId === undefined,
+		}, {
+			targetLabel: 'Target',
+			targetContainsWorkspace: true,
+			targetBeforePrompt: true,
+			targetControls: ['Select workspace'],
+			hintInTarget: false,
+			promptFocused: true,
+			prompt: 'Review the workspace',
+			targetUnselected: true,
+		});
+
+		assert.ok(targetModel);
+		targetModel.setQuickChat(true);
+		assert.strictEqual(form.querySelector('.automation-session-configuration-unavailable')?.textContent, 'Session configuration unavailable');
+	});
+
+	test('keeps target actions out of the prompt toolbar', () => {
+		const targetActions = MenuRegistry.getMenuItems(Menus.AutomationsDialogTargetToolbar).filter(isIMenuItem);
+		const promptActions = MenuRegistry.getMenuItems(MenuId.ChatInputSecondary).filter(isIMenuItem);
+		assert.deepStrictEqual({
+			target: targetActions.sort((a, b) => (a.order ?? 0) - (b.order ?? 0)).map(item => item.command.id),
+			duplicatedInPrompt: promptActions.some(item => targetActions.some(target => target.command.id === item.command.id)),
+		}, {
+			target: [
+				'workbench.action.chat.renderAutomationsWorkspacePicker',
+				'workbench.action.chat.renderAutomationsHarnessChip',
+				'workbench.action.chat.renderAutomationsIsolationGroup',
+			],
+			duplicatedInPrompt: false,
+		});
+	});
+});
 
 function dispatchKey(target: HTMLElement, type: 'keydown' | 'keyup', key: string, shiftKey = false): KeyboardEvent {
 	const event = new KeyboardEvent(type, { key, bubbles: true, cancelable: true, shiftKey });
@@ -51,7 +195,7 @@ function dispatchAutomationDialogCommand(target: HTMLElement, commandId: string)
 		upcastPartial<ILayoutService>({ activeContainer: document.body }),
 		upcastPartial<IHostService>({}),
 		new Set(),
-		(id, event) => isAutomationDialogEditCommand(id, event.target),
+		(id, event) => shouldPassThroughAutomationDialogCommand(id, event.target),
 	);
 	target.addEventListener('keydown', event => options.keyEventProcessor?.(new StandardKeyboardEvent(event)), { once: true });
 	return dispatchKey(target, 'keydown', 'z');
@@ -141,12 +285,18 @@ function createWorkspace(requiresWorkspaceTrust: boolean): ISessionWorkspace {
 	};
 }
 
-function createAutomationDraftService() {
+function createAutomationDraftService(
+	captureSupported = true,
+	captureError?: Error,
+	capturePromise?: Promise<IAutomationSessionConfiguration | null | undefined>,
+	targetAvailability: { readonly workspace?: boolean; readonly quickChat?: boolean } = {},
+) {
 	const automationSession = observableValue<ISession | undefined>('automationSession', undefined);
-	const created: Array<{ kind: 'workspace' | 'quickChat'; providerId: string | undefined; sessionTypeId: string; folderUri?: string }> = [];
+	const created: Array<{ kind: 'workspace' | 'quickChat'; providerId: string | undefined; sessionTypeId: string; folderUri?: string; sessionTemplate?: IAutomationSessionTemplate }> = [];
 	const discarded: string[] = [];
+	const sessionConfigurations = new Map<string, IAutomationSessionConfiguration>();
 	let nextId = 1;
-	const createDraft = (kind: 'workspace' | 'quickChat', providerId: string | undefined, sessionTypeId: string, folderUri?: URI): ISession => {
+	const createDraft = (kind: 'workspace' | 'quickChat', providerId: string | undefined, sessionTypeId: string, folderUri?: URI, sessionTemplate?: IAutomationSessionTemplate): ISession => {
 		const previous = automationSession.get();
 		if (previous) {
 			discarded.push(previous.sessionId);
@@ -156,14 +306,27 @@ function createAutomationDraftService() {
 			providerId: providerId ?? 'resolved-provider',
 			sessionType: sessionTypeId,
 		});
-		created.push({ kind, providerId, sessionTypeId, folderUri: folderUri?.toString() });
+		created.push({ kind, providerId, sessionTypeId, folderUri: folderUri?.toString(), ...(sessionTemplate ? { sessionTemplate } : {}) });
+		sessionConfigurations.set(session.sessionId, { sessionTemplate });
 		automationSession.set(session, undefined);
 		return session;
 	};
 	const service = upcastPartial<ISessionsManagementService>({
 		automationSession,
-		createAutomationSession: (folderUri, options) => createDraft('workspace', options?.providerId, options?.sessionTypeId ?? 'default', folderUri),
-		createAutomationQuickChat: options => createDraft('quickChat', options?.providerId, options?.sessionTypeId ?? 'default'),
+		createAutomationSession: (folderUri, options) => createDraft('workspace', options?.providerId, options?.sessionTypeId ?? 'default', folderUri, options?.sessionTemplate),
+		createAutomationQuickChat: options => createDraft('quickChat', options?.providerId, options?.sessionTypeId ?? 'default', undefined, options?.sessionTemplate),
+		isNewSessionTargetAvailable: () => targetAvailability.workspace !== false,
+		isQuickChatTargetAvailable: () => targetAvailability.quickChat !== false,
+		supportsAutomationSessionConfiguration: () => captureSupported,
+		getAutomationSessionConfiguration: async session => {
+			if (captureError) {
+				throw captureError;
+			}
+			if (capturePromise) {
+				return capturePromise;
+			}
+			return captureSupported ? sessionConfigurations.get(session.sessionId) : null;
+		},
 		discardAutomationSession: session => {
 			const current = automationSession.get();
 			if (!current || (session && session.sessionId !== current.sessionId)) {
@@ -173,7 +336,7 @@ function createAutomationDraftService() {
 			automationSession.set(undefined, undefined);
 		},
 	});
-	return { service, created, discarded };
+	return { service, created, discarded, sessionConfigurations };
 }
 
 suite('Automation session draft synchronization', () => {
@@ -203,6 +366,7 @@ suite('Automation session draft synchronization', () => {
 			discarded,
 			currentSession: service.automationSession.get()?.sessionId,
 			errorCount,
+			availability: synchronizer.availability.get(),
 		}, {
 			created: [
 				{ kind: 'workspace', providerId: 'provider-a', sessionTypeId: 'type-a', folderUri: 'file:///workspace' },
@@ -213,7 +377,273 @@ suite('Automation session draft synchronization', () => {
 			discarded: ['automation-1', 'automation-2', 'automation-3', 'automation-4'],
 			currentSession: undefined,
 			errorCount: 0,
+			availability: 'idle',
 		});
+	});
+
+	test('restores and captures the target session template', async () => {
+		const { service, created } = createAutomationDraftService();
+		const synchronizer = disposables.add(new AutomationSessionDraftSynchronizer(service, async () => true, () => { }));
+		const sessionTemplate = {
+			modelId: 'model',
+			agent: { uri: 'file:///agent.md' },
+			config: { mode: 'plan' },
+		};
+
+		synchronizer.update({
+			kind: 'workspace',
+			folderUri: URI.parse('file:///workspace'),
+			providerId: 'provider',
+			sessionTypeId: 'type',
+			sessionConfiguration: { sessionTemplate },
+		});
+
+		const captured = await synchronizer.getSessionConfiguration();
+
+		assert.deepStrictEqual({
+			created,
+			captured,
+		}, {
+			created: [{
+				kind: 'workspace',
+				providerId: 'provider',
+				sessionTypeId: 'type',
+				folderUri: 'file:///workspace',
+				sessionTemplate,
+			}],
+			captured: { kind: 'captured', configuration: { sessionTemplate } },
+		});
+	});
+
+	test('preserves saved configuration when workspace and quick-chat targets are unavailable', async () => {
+		const workspaceConfiguration: IAutomationSessionConfiguration = {
+			sessionTemplate: { config: { mode: 'plan' } },
+		};
+		const quickChatConfiguration: IAutomationSessionConfiguration = {
+			sessionTemplate: { config: { mode: 'autopilot', autoApprove: 'assisted' } },
+		};
+		const { service, created } = createAutomationDraftService(true, undefined, undefined, { workspace: false, quickChat: false });
+		const synchronizer = disposables.add(new AutomationSessionDraftSynchronizer(service, async () => true, () => { }));
+
+		synchronizer.update({
+			kind: 'workspace',
+			folderUri: URI.parse('file:///workspace'),
+			providerId: 'provider',
+			sessionTypeId: 'type',
+			sessionConfiguration: workspaceConfiguration,
+		});
+		const workspaceCapture = await synchronizer.getSessionConfiguration();
+		const workspaceAvailability = synchronizer.availability.get();
+
+		synchronizer.update({
+			kind: 'quickChat',
+			providerId: 'provider',
+			sessionTypeId: 'type',
+			sessionConfiguration: quickChatConfiguration,
+		});
+		const quickChatCapture = await synchronizer.getSessionConfiguration();
+
+		assert.deepStrictEqual({
+			created,
+			workspaceCapture,
+			workspaceAvailability,
+			quickChatCapture,
+			quickChatAvailability: synchronizer.availability.get(),
+		}, {
+			created: [],
+			workspaceCapture: { kind: 'preserved', configuration: workspaceConfiguration },
+			workspaceAvailability: 'unavailable',
+			quickChatCapture: { kind: 'preserved', configuration: quickChatConfiguration },
+			quickChatAvailability: 'unavailable',
+		});
+	});
+
+	test('distinguishes a valid empty capture from unsupported capture', async () => {
+		const sessionConfiguration: IAutomationSessionConfiguration = {
+			sessionTemplate: {
+				modelId: 'model',
+				config: { mode: 'plan' },
+			},
+			modelId: 'model',
+			mode: 'plan',
+		};
+		const supported = createAutomationDraftService();
+		const supportedSynchronizer = disposables.add(new AutomationSessionDraftSynchronizer(supported.service, async () => true, () => { }));
+		supportedSynchronizer.update({
+			kind: 'workspace',
+			folderUri: URI.parse('file:///workspace'),
+			providerId: 'provider',
+			sessionTypeId: 'type',
+			sessionConfiguration,
+		});
+		await supportedSynchronizer.waitForSync();
+		const supportedSessionId = supported.service.automationSession.get()!.sessionId;
+		supported.sessionConfigurations.set(supportedSessionId, {});
+
+		const unsupported = createAutomationDraftService(false);
+		const unsupportedSynchronizer = disposables.add(new AutomationSessionDraftSynchronizer(unsupported.service, async () => true, () => { }));
+		unsupportedSynchronizer.update({
+			kind: 'workspace',
+			folderUri: URI.parse('file:///workspace'),
+			providerId: 'provider',
+			sessionTypeId: 'type',
+			sessionConfiguration,
+		});
+
+		assert.deepStrictEqual({
+			supported: await supportedSynchronizer.getSessionConfiguration(),
+			unsupported: await unsupportedSynchronizer.getSessionConfiguration(),
+		}, {
+			supported: { kind: 'captured', configuration: {} },
+			unsupported: { kind: 'preserved', configuration: sessionConfiguration },
+		});
+	});
+
+	test('reports capture failures instead of silently preserving configuration', async () => {
+		const sessionConfiguration: IAutomationSessionConfiguration = {
+			sessionTemplate: { config: { mode: 'plan' } },
+		};
+		const { service } = createAutomationDraftService(true, new Error('capture failed'));
+		let errorCount = 0;
+		const synchronizer = disposables.add(new AutomationSessionDraftSynchronizer(service, async () => true, () => errorCount++));
+		synchronizer.update({
+			kind: 'workspace',
+			folderUri: URI.parse('file:///workspace'),
+			providerId: 'provider',
+			sessionTypeId: 'type',
+			sessionConfiguration,
+		});
+
+		const capture = await synchronizer.getSessionConfiguration();
+		assert.deepStrictEqual({
+			capture: capture.kind === 'failed' ? { kind: capture.kind, message: getErrorMessage(capture.error) } : capture,
+			errorCount,
+		}, {
+			capture: { kind: 'failed', message: 'capture failed' },
+			errorCount: 1,
+		});
+	});
+
+	test('bounds complete configuration capture and reports timeouts', async () => {
+		const sessionConfiguration: IAutomationSessionConfiguration = {
+			sessionTemplate: { config: { mode: 'plan' } },
+		};
+		const { service } = createAutomationDraftService(true, undefined, new Promise(() => { }));
+		let errorCount = 0;
+		const synchronizer = disposables.add(new AutomationSessionDraftSynchronizer(service, async () => true, () => errorCount++, 1));
+		synchronizer.update({
+			kind: 'workspace',
+			folderUri: URI.parse('file:///workspace'),
+			providerId: 'provider',
+			sessionTypeId: 'type',
+			sessionConfiguration,
+		});
+
+		const capture = await synchronizer.getSessionConfiguration();
+		assert.deepStrictEqual({
+			capture: capture.kind === 'failed' ? { kind: capture.kind, timedOut: getErrorMessage(capture.error).includes('Timed out') } : capture,
+			errorCount,
+		}, {
+			capture: { kind: 'failed', timedOut: true },
+			errorCount: 1,
+		});
+	});
+
+	test('coalesces an equal target while synchronization is pending', async () => {
+		const validation = new DeferredPromise<boolean>();
+		const { service, created } = createAutomationDraftService();
+		const synchronizer = disposables.add(new AutomationSessionDraftSynchronizer(service, () => validation.p, () => { }));
+		const target = {
+			kind: 'workspace',
+			folderUri: URI.parse('file:///workspace'),
+			providerId: 'provider',
+			sessionTypeId: 'type',
+		} as const;
+
+		synchronizer.update(target);
+		await Promise.resolve();
+		synchronizer.update(target);
+		validation.complete(true);
+		await synchronizer.waitForSync();
+
+		assert.deepStrictEqual(created, [{
+			kind: 'workspace',
+			providerId: 'provider',
+			sessionTypeId: 'type',
+			folderUri: 'file:///workspace',
+		}]);
+	});
+
+	test('serializes synchronization when the target changes during validation', async () => {
+		const firstValidation = new DeferredPromise<boolean>();
+		const validated: string[] = [];
+		const { service, created } = createAutomationDraftService();
+		const synchronizer = disposables.add(new AutomationSessionDraftSynchronizer(service, async folderUri => {
+			validated.push(folderUri.path);
+			return folderUri.path === '/first' ? firstValidation.p : true;
+		}, () => { }));
+
+		synchronizer.update({ kind: 'workspace', folderUri: URI.parse('file:///first'), providerId: 'provider', sessionTypeId: 'type' });
+		await Promise.resolve();
+		synchronizer.update({ kind: 'workspace', folderUri: URI.parse('file:///second'), providerId: 'provider', sessionTypeId: 'type' });
+		const beforeFirstSettled = [...validated];
+		firstValidation.complete(true);
+		await synchronizer.waitForSync();
+
+		assert.deepStrictEqual({
+			beforeFirstSettled,
+			validated,
+			created,
+		}, {
+			beforeFirstSettled: ['/first'],
+			validated: ['/first', '/second'],
+			created: [{
+				kind: 'workspace',
+				providerId: 'provider',
+				sessionTypeId: 'type',
+				folderUri: 'file:///second',
+			}],
+		});
+	});
+
+	test('carries captured configuration when returning to a previous target', async () => {
+		const initialConfiguration: IAutomationSessionConfiguration = {
+			sessionTemplate: { modelId: 'model', modelConfiguration: { thinkingLevel: 'high' }, config: { mode: 'interactive' } },
+		};
+		const capturedConfiguration: IAutomationSessionConfiguration = {
+			sessionTemplate: { modelId: 'model', modelConfiguration: { thinkingLevel: 'low' }, config: { mode: 'plan', autoApprove: 'assisted' } },
+		};
+		const { service, created, sessionConfigurations } = createAutomationDraftService();
+		const synchronizer = disposables.add(new AutomationSessionDraftSynchronizer(service, async () => true, () => { }));
+		const firstTarget = {
+			kind: 'workspace',
+			folderUri: URI.parse('file:///first'),
+			providerId: 'provider',
+			sessionTypeId: 'type',
+			sessionConfiguration: initialConfiguration,
+		} as const;
+
+		synchronizer.update(firstTarget);
+		await synchronizer.waitForSync();
+		sessionConfigurations.set(service.automationSession.get()!.sessionId, capturedConfiguration);
+		synchronizer.update({ kind: 'workspace', folderUri: URI.parse('file:///second'), providerId: 'provider', sessionTypeId: 'type' });
+		await synchronizer.waitForSync();
+		synchronizer.update(firstTarget);
+		await synchronizer.waitForSync();
+
+		assert.deepStrictEqual(created.map(entry => ({
+			folderUri: entry.folderUri,
+			sessionTemplate: entry.sessionTemplate,
+		})), [{
+			folderUri: 'file:///first',
+			sessionTemplate: initialConfiguration.sessionTemplate,
+		}, {
+			folderUri: 'file:///second',
+			sessionTemplate: undefined,
+		}, {
+			folderUri: 'file:///first',
+			sessionTemplate: capturedConfiguration.sessionTemplate,
+		}]);
 	});
 
 	test('ignores stale workspace validation', async () => {
@@ -228,9 +658,8 @@ suite('Automation session draft synchronization', () => {
 		synchronizer.update({ kind: 'workspace', folderUri: URI.parse('file:///first'), providerId: 'provider', sessionTypeId: 'type' });
 		await Promise.resolve();
 		synchronizer.update({ kind: 'workspace', folderUri: URI.parse('file:///second'), providerId: 'provider', sessionTypeId: 'type' });
-		await synchronizer.waitForSync();
 		firstWorkspaceValidation.complete(true);
-		await Promise.resolve();
+		await synchronizer.waitForSync();
 
 		assert.deepStrictEqual(created, [
 			{ kind: 'workspace', providerId: 'provider', sessionTypeId: 'type', folderUri: 'file:///second' },
@@ -253,10 +682,12 @@ suite('Automation session draft synchronization', () => {
 			created,
 			currentSession: service.automationSession.get()?.sessionId,
 			errorCount,
+			availability: synchronizer.availability.get(),
 		}, {
 			created: [],
 			currentSession: undefined,
 			errorCount: 1,
+			availability: 'unavailable',
 		});
 	});
 
@@ -266,6 +697,9 @@ suite('Automation session draft synchronization', () => {
 		let errorCount = 0;
 		const service = upcastPartial<ISessionsManagementService>({
 			automationSession,
+			isNewSessionTargetAvailable: () => true,
+			isQuickChatTargetAvailable: () => true,
+			supportsAutomationSessionConfiguration: () => true,
 			createAutomationSession: (_folderUri, options) => {
 				if (createCount++ === 0) {
 					throw new Error('provider unavailable');
@@ -292,10 +726,12 @@ suite('Automation session draft synchronization', () => {
 			createCount,
 			errorCount,
 			sessionId: automationSession.get()?.sessionId,
+			availability: synchronizer.availability.get(),
 		}, {
 			createCount: 2,
 			errorCount: 1,
 			sessionId: 'automation-retry',
+			availability: 'available',
 		});
 	});
 });
@@ -885,63 +1321,273 @@ suite('Automation branch picker', () => {
 		});
 	});
 
-	test('allows focus in mobile picker sheets', () => {
+	test('allows focus in popups rendered outside the dialog', () => {
 		const sheet = document.createElement('div');
 		sheet.classList.add('mobile-picker-sheet');
-		const item = sheet.appendChild(document.createElement('button'));
-
-		assert.strictEqual(isAutomationDialogPopupTarget(item), true);
-	});
-
-	test('resolves a legacy model identifier to the selected concrete target', () => {
-		const legacyIdentifier = 'copilotcli/gpt-5.6-sol';
-		const concreteIdentifier = 'agent-host-copilotcli:gpt-5.6-sol';
-		const unrelatedIdentifier = 'other/gpt-5.6-sol';
-		const modelIds = [legacyIdentifier, unrelatedIdentifier];
-		const models = new Map<string, ILanguageModelChatMetadata>([
-			[legacyIdentifier, upcastPartial<ILanguageModelChatMetadata>({ id: 'gpt-5.6-sol', targetChatSessionType: 'copilotcli' })],
-			[concreteIdentifier, upcastPartial<ILanguageModelChatMetadata>({ id: 'gpt-5.6-sol', targetChatSessionType: 'agent-host-copilotcli' })],
-			[unrelatedIdentifier, upcastPartial<ILanguageModelChatMetadata>({ id: 'gpt-5.6-sol', targetChatSessionType: 'other' })],
-		]);
-		const languageModelsService = upcastPartial<ILanguageModelsService>({
-			getLanguageModelIds: () => modelIds,
-			lookupLanguageModel: identifier => models.get(identifier),
-		});
-
-		const beforeConcreteTargetArrives = resolveAutomationModelIdentifier(languageModelsService, legacyIdentifier, 'copilotcli', 'agent-host-copilotcli');
-		modelIds.push(concreteIdentifier);
+		const sheetItem = sheet.appendChild(document.createElement('button'));
+		const suggestWidget = document.createElement('div');
+		suggestWidget.classList.add('suggest-widget');
+		const suggestion = suggestWidget.appendChild(document.createElement('div'));
 
 		assert.deepStrictEqual({
-			beforeConcreteTargetArrives,
-			afterConcreteTargetArrives: resolveAutomationModelIdentifier(languageModelsService, legacyIdentifier, 'copilotcli', 'agent-host-copilotcli'),
-			alreadyConcrete: resolveAutomationModelIdentifier(languageModelsService, concreteIdentifier, 'copilotcli', 'agent-host-copilotcli'),
-			unrelated: resolveAutomationModelIdentifier(languageModelsService, unrelatedIdentifier, 'copilotcli', 'agent-host-copilotcli'),
+			sheet: isAutomationDialogPopupTarget(sheetItem),
+			suggestion: isAutomationDialogPopupTarget(suggestion),
 		}, {
-			beforeConcreteTargetArrives: legacyIdentifier,
-			afterConcreteTargetArrives: concreteIdentifier,
-			alreadyConcrete: concreteIdentifier,
-			unrelated: unrelatedIdentifier,
+			sheet: true,
+			suggestion: true,
 		});
 	});
+
 });
 
 suite('Automation dialog keyboard navigation', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('allows undo and redo only for editable controls', () => {
+	const escapeScenarios = [
+		{ name: 'a normal Escape press', interveningEvents: [] },
+		{ name: 'repeated Escape keydowns', interveningEvents: [{ type: 'keydown', repeat: true }, { type: 'keydown', repeat: true }] },
+		{ name: 'another keydown before Escape is released', interveningEvents: [{ type: 'keydown', key: 'a', keyCode: 65 }] },
+		{ name: 'another keyup before Escape is released', interveningEvents: [{ type: 'keyup', key: 'a', keyCode: 65 }] },
+	];
+
+	for (const { name, interveningEvents } of escapeScenarios) {
+		test(`keeps the dialog open when the Schedule popup handles ${name}`, async () => {
+			const container = DOM.append(document.body, DOM.$('div'));
+			disposables.add({ dispose: () => container.remove() });
+			const contextView = disposables.add(new ContextViewHandler(upcastPartial<ILayoutService>({
+				mainContainer: container,
+				activeContainer: container,
+				onDidLayoutContainer: Event.None,
+			})));
+			let select!: HTMLSelectElement;
+			let promptCancellationAttempts = 0;
+			const dialog = disposables.add(new Dialog(container, 'New automation', ['Cancel'], {
+				cancelId: 0,
+				isExternalFocusAllowed: isAutomationDialogPopupTarget,
+				renderBody: body => {
+					const selectBox = disposables.add(new SelectBox(
+						[{ text: 'Manual' }, { text: 'Daily' }, { text: 'Weekly' }],
+						1,
+						contextView,
+						defaultSelectBoxStyles,
+						{ ariaLabel: 'Schedule', useCustomDrawn: true },
+					));
+					selectBox.render(body);
+					select = body.querySelector('select')!;
+					disposables.add(registerAutomationDialogKeyboardNavigation(
+						DOM.getWindow(body),
+						() => [select],
+						isAutomationDialogPopupTarget,
+						undefined,
+						() => {
+							promptCancellationAttempts++;
+							return false;
+						},
+					));
+				},
+				buttonStyles: defaultButtonStyles,
+				checkboxStyles: defaultCheckboxStyles,
+				inputBoxStyles: defaultInputBoxStyles,
+				dialogStyles: defaultDialogStyles,
+			}));
+			let closed = false;
+			const result = dialog.show().then(() => { closed = true; });
+			const dispatch = (type: string, options: KeyboardEventInit = {}) => {
+				document.activeElement!.dispatchEvent(new KeyboardEvent(type, {
+					key: 'Escape', keyCode: 27, bubbles: true, cancelable: true, ...options,
+				}));
+			};
+
+			select.click();
+			const popupTarget = document.activeElement;
+			assert.ok(DOM.isHTMLElement(popupTarget) && isAutomationDialogPopupTarget(popupTarget));
+			dispatch('keydown');
+			for (const { type, ...options } of interveningEvents) {
+				dispatch(type, options);
+			}
+			dispatch('keyup');
+			await timeout(0);
+
+			assert.deepStrictEqual({
+				closed,
+				expanded: select.getAttribute('aria-expanded'),
+				focusRestored: document.activeElement === select,
+				value: select.value,
+				promptCancellationAttempts,
+			}, {
+				closed: false,
+				expanded: 'false',
+				focusRestored: true,
+				value: 'Daily',
+				promptCancellationAttempts: 0,
+			});
+
+			dispatch('keydown');
+			dispatch('keyup');
+			await timeout(0);
+			assert.strictEqual(closed, true, 'A separate Escape press still closes the dialog');
+			dialog.dispose();
+			await result;
+		});
+	}
+
+	function createPromptDialog(cancelPromptSuggestion: () => boolean) {
+		const container = DOM.append(document.body, DOM.$('div'));
+		disposables.add({ dispose: () => container.remove() });
+		const prompt = DOM.$<HTMLTextAreaElement>('textarea');
+		prompt.value = 'Unsaved automation prompt';
+		const dialog = disposables.add(new Dialog(container, 'New automation', ['Cancel'], {
+			cancelId: 0,
+			isExternalFocusAllowed: isAutomationDialogPopupTarget,
+			renderBody: body => {
+				body.appendChild(prompt);
+				disposables.add(registerAutomationDialogKeyboardNavigation(
+					DOM.getWindow(body),
+					() => [prompt],
+					isAutomationDialogPopupTarget,
+					undefined,
+					cancelPromptSuggestion,
+				));
+			},
+			buttonStyles: defaultButtonStyles,
+			checkboxStyles: defaultCheckboxStyles,
+			inputBoxStyles: defaultInputBoxStyles,
+			dialogStyles: defaultDialogStyles,
+		}));
+		let closed = false;
+		const result = dialog.show().then(() => { closed = true; });
+		prompt.focus();
+		return {
+			dialog,
+			prompt,
+			result,
+			isClosed: () => closed,
+			dispatch: (type: string, options: KeyboardEventInit = {}) => {
+				const event = new KeyboardEvent(type, {
+					key: 'Escape', keyCode: 27, bubbles: true, cancelable: true, ...options,
+				});
+				document.activeElement!.dispatchEvent(event);
+				return event;
+			},
+		};
+	}
+
+	for (const { name, interveningEvents, shiftKey } of [
+		...escapeScenarios.map(scenario => ({ ...scenario, shiftKey: false })),
+		{ name: 'Shift+Escape', interveningEvents: [], shiftKey: true },
+	]) {
+		test(`keeps the dialog open when prompt suggestions handle ${name}`, async () => {
+			let suggestionsActive = true;
+			let cancellationAttempts = 0;
+			const { dialog, prompt, result, isClosed, dispatch } = createPromptDialog(() => {
+				cancellationAttempts++;
+				const cancelled = suggestionsActive;
+				suggestionsActive = false;
+				return cancelled;
+			});
+			const keydown = dispatch('keydown', { shiftKey });
+			for (const { type, ...options } of interveningEvents) {
+				dispatch(type, options);
+			}
+			dispatch('keyup', { shiftKey });
+			await timeout(0);
+
+			const afterSuggestionEscape = {
+				closed: isClosed(),
+				suggestionsActive,
+				cancellationAttempts,
+				promptFocused: document.activeElement === prompt,
+				value: prompt.value,
+				keydownPrevented: keydown.defaultPrevented,
+			};
+			dispatch('keydown');
+			dispatch('keyup');
+			await timeout(0);
+
+			assert.deepStrictEqual({
+				afterSuggestionEscape,
+				closedAfterNextEscape: isClosed(),
+			}, {
+				afterSuggestionEscape: {
+					closed: false,
+					suggestionsActive: false,
+					cancellationAttempts: 1,
+					promptFocused: true,
+					value: 'Unsaved automation prompt',
+					keydownPrevented: true,
+				},
+				closedAfterNextEscape: true,
+			});
+			dialog.dispose();
+			await result;
+		});
+	}
+
+	for (const modifier of ['altKey', 'ctrlKey', 'metaKey']) {
+		test(`does not cancel prompt suggestions for Escape with ${modifier}`, async () => {
+			let cancellationAttempts = 0;
+			const { dialog, prompt, result, isClosed, dispatch } = createPromptDialog(() => {
+				cancellationAttempts++;
+				return true;
+			});
+			const keydown = dispatch('keydown', { [modifier]: true });
+			dispatch('keyup', { [modifier]: true });
+			await timeout(0);
+
+			assert.deepStrictEqual({
+				closed: isClosed(),
+				cancellationAttempts,
+				promptFocused: document.activeElement === prompt,
+				keydownPrevented: keydown.defaultPrevented,
+			}, {
+				closed: false,
+				cancellationAttempts: 0,
+				promptFocused: true,
+				keydownPrevented: false,
+			});
+			dialog.dispose();
+			await result;
+		});
+	}
+
+	test('passes editor commands through the dialog command filter', () => {
 		const prompt = document.createElement('textarea');
 		const button = document.createElement('button');
 
 		assert.deepStrictEqual({
 			undoPromptPrevented: dispatchAutomationDialogCommand(prompt, 'undo').defaultPrevented,
 			redoPromptPrevented: dispatchAutomationDialogCommand(prompt, 'redo').defaultPrevented,
+			acceptSuggestionPromptPrevented: dispatchAutomationDialogCommand(prompt, 'acceptSelectedSuggestion').defaultPrevented,
 			undoButtonPrevented: dispatchAutomationDialogCommand(button, 'undo').defaultPrevented,
 			unrelatedPromptPrevented: dispatchAutomationDialogCommand(prompt, 'workbench.action.files.save').defaultPrevented,
 		}, {
 			undoPromptPrevented: false,
 			redoPromptPrevented: false,
+			acceptSuggestionPromptPrevented: false,
 			undoButtonPrevented: true,
 			unrelatedPromptPrevented: true,
+		});
+	});
+
+	test('reserves Enter for suggestions while the suggest widget is visible', () => {
+		const rule = KeybindingsRegistry.getDefaultKeybindings()
+			.find(item => item.command === 'workbench.action.chat.automationsDialog.insertNewline');
+		const evaluate = (suggestWidgetVisible: boolean) => rule?.when?.evaluate({
+			getValue: <T>(key: string) => ({
+				[EditorContextKeys.textInputFocus.key]: true,
+				[ChatContextKeys.inAutomationsDialog.key]: true,
+				[SuggestContext.Visible.key]: suggestWidgetVisible,
+			})[key] as T | undefined,
+		} satisfies IContext) ?? false;
+
+		assert.deepStrictEqual({
+			ruleRegistered: !!rule,
+			withoutSuggestions: evaluate(false),
+			withSuggestions: evaluate(true),
+		}, {
+			ruleRegistered: true,
+			withoutSuggestions: true,
+			withSuggestions: false,
 		});
 	});
 
@@ -957,10 +1603,15 @@ suite('Automation dialog keyboard navigation', () => {
 		const wrapper = container.appendChild(document.createElement('div'));
 		wrapper.tabIndex = 0;
 		const second = wrapper.appendChild(document.createElement('button'));
+		const inertContainer = container.appendChild(document.createElement('div'));
+		inertContainer.setAttribute('inert', '');
+		const inert = inertContainer.appendChild(document.createElement('button'));
+		const ariaDisabled = container.appendChild(document.createElement('button'));
+		ariaDisabled.setAttribute('aria-disabled', 'true');
 		const third = container.appendChild(document.createElement('button'));
 		const navigation = disposables.add(registerAutomationDialogKeyboardNavigation(
 			targetWindow,
-			() => [first, hidden, wrapper, second, third],
+			() => [first, hidden, wrapper, second, inert, ariaDisabled, third],
 			() => false,
 		));
 		let downstreamKeyDowns = 0;
@@ -977,6 +1628,49 @@ suite('Automation dialog keyboard navigation', () => {
 		}, {
 			activeElement: third,
 			downstreamKeyDowns: 0,
+		});
+	});
+
+	test('accepts a prompt suggestion before moving focus with Tab', () => {
+		const container = document.createElement('div');
+		document.body.append(container);
+		disposables.add({ dispose: () => container.remove() });
+		const targetWindow = DOM.getWindow(container);
+		const prompt = container.appendChild(document.createElement('textarea'));
+		const next = container.appendChild(document.createElement('button'));
+		let acceptedSuggestions = 0;
+		disposables.add(registerAutomationDialogKeyboardNavigation(
+			targetWindow,
+			() => [prompt, next],
+			() => false,
+			() => {
+				acceptedSuggestions++;
+				return true;
+			},
+		));
+		let downstreamKeyDowns = 0;
+		disposables.add(DOM.addDisposableListener(targetWindow, DOM.EventType.KEY_DOWN, () => downstreamKeyDowns++, true));
+
+		prompt.focus();
+		const shiftTabEvent = dispatchKey(prompt, 'keydown', 'Tab', true);
+		const activeElementAfterShiftTab = document.activeElement;
+		prompt.focus();
+		const event = dispatchKey(prompt, 'keydown', 'Tab');
+
+		assert.deepStrictEqual({
+			activeElement: document.activeElement,
+			activeElementAfterShiftTab,
+			acceptedSuggestions,
+			defaultPrevented: event.defaultPrevented,
+			downstreamKeyDowns,
+			shiftTabDefaultPrevented: shiftTabEvent.defaultPrevented,
+		}, {
+			activeElement: prompt,
+			activeElementAfterShiftTab: next,
+			acceptedSuggestions: 1,
+			defaultPrevented: true,
+			downstreamKeyDowns: 0,
+			shiftTabDefaultPrevented: true,
 		});
 	});
 

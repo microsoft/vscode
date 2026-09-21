@@ -36,7 +36,7 @@ rounds:
             kind: error
             error:
               errorType: query
-              message: 'Execution failed: CAPIError: 400 Injected recoverable E2E failure.'
+              message: 'Execution failed: 400 Injected recoverable E2E failure.'
             resumable: true
   - clientToServer:
       - channel: ${chat_0}

@@ -4,8 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { mainWindow } from '../../browser/window.js';
 import { fillInIncompleteTokens, renderMarkdown, renderAsPlaintext } from '../../browser/markdownRenderer.js';
 import { IMarkdownString, MarkdownString } from '../../common/htmlContent.js';
+import { toDisposable } from '../../common/lifecycle.js';
 import * as marked from '../../common/marked/marked.js';
 import { parse } from '../../common/marshalling.js';
 import { isWeb } from '../../common/platform.js';
@@ -53,6 +55,16 @@ suite('MarkdownRenderer', () => {
 			assert.strictEqual(anchor!.dataset.href, 'vscode-agent-host://my-host/path/to/foo.ts?_ah%3DeyJzY2hlbWUiOiJmaWxlIn0');
 		});
 
+		test('Only allows inline-block display style on spans', () => {
+			const markdown = new MarkdownString(
+				'<span style="display:inline-block;">allowed</span><span style="display:block;">blocked</span>',
+				{ supportHtml: true },
+			);
+			const result = store.add(renderMarkdown(markdown)).element;
+
+			assert.strictEqual(result.innerHTML, '<p><span style="display:inline-block;">allowed</span><span>blocked</span></p>');
+		});
+
 		test('Transforms parsed link targets without changing labels, titles, or code', () => {
 			const markdown = { value: '`[same](file:///same)` [a[b].ts](file:///same "file:///same") ![image](file:///same|width=10,height=20)' };
 			const result = store.add(renderMarkdown(markdown, {
@@ -93,6 +105,99 @@ suite('MarkdownRenderer', () => {
 			const markdown = { value: `![image](http://example.com/cat.gif)` };
 			const result: HTMLElement = store.add(renderMarkdown(markdown)).element;
 			assertNodeEquals(result, '<div><p><img alt="image" src="http://example.com/cat.gif"></p></div>');
+		});
+
+		test('disallowed remote images are rendered as plaintext', () => {
+			const checkedUris: string[] = [];
+			const markdown = { value: '![image](https://example.com/collect?secret=value)' };
+			const result = store.add(renderMarkdown(markdown, {
+				sanitizerConfig: {
+					remoteImageIsAllowed: uri => {
+						checkedUris.push(uri.toString());
+						return false;
+					},
+					replaceWithPlaintext: true,
+				},
+			})).element;
+
+			assert.deepStrictEqual({
+				checkedUris,
+				html: result.innerHTML,
+			}, {
+				checkedUris: ['https://example.com/collect?secret%3Dvalue'],
+				html: '<p>&lt;img src="https://example.com/collect?secret=value" alt="image"&gt;</p>',
+			});
+		});
+
+		test('network-backed file images are rendered as plaintext', () => {
+			const markdownSources = [
+				{ value: '![image](file://remote-host/share/image.png)' },
+				new MarkdownString('<img src="file://remote-host/share/image.png">', { supportHtml: true }),
+			];
+			const results = markdownSources.map(markdown => store.add(renderMarkdown(markdown, {
+				sanitizerConfig: {
+					remoteImageIsAllowed: () => false,
+					replaceWithPlaintext: true,
+				},
+			})).element);
+
+			assert.deepStrictEqual(
+				results.map(result => ({
+					imageCount: result.querySelectorAll('img').length,
+					text: result.textContent,
+				})),
+				[
+					{ imageCount: 0, text: '<img src="file://remote-host/share/image.png" alt="image">' },
+					{ imageCount: 0, text: '<img src="file://remote-host/share/image.png">' },
+				]
+			);
+		});
+
+		test('relative image with a network-backed file base URI is rendered as plaintext', () => {
+			const markdown = new MarkdownString('![image](image.png)');
+			markdown.baseUri = URI.parse('file://remote-host/share/base.md');
+			const result = store.add(renderMarkdown(markdown, {
+				sanitizerConfig: {
+					remoteImageIsAllowed: () => false,
+					replaceWithPlaintext: true,
+				},
+			})).element;
+
+			assert.deepStrictEqual({
+				imageCount: result.querySelectorAll('img').length,
+				text: result.textContent,
+			}, {
+				imageCount: 0,
+				text: '<img src="image.png" alt="image">',
+			});
+		});
+
+		test('relative image with a local file base URI remains allowed', () => {
+			const markdown = new MarkdownString('![image](image.png)');
+			markdown.baseUri = URI.file('/images/base.md');
+			const result = store.add(renderMarkdown(markdown, {
+				sanitizerConfig: {
+					remoteImageIsAllowed: () => false,
+					replaceWithPlaintext: true,
+				},
+			})).element;
+
+			assert.strictEqual(result.querySelectorAll('img').length, 1);
+		});
+
+		test('local file image remains allowed by remote image validation', () => {
+			if (isWeb) {
+				return;
+			}
+			const localImage = URI.file('/images/cat.gif');
+			const result = store.add(renderMarkdown({ value: `![image](${localImage.toString()})` }, {
+				sanitizerConfig: {
+					remoteImageIsAllowed: () => false,
+					replaceWithPlaintext: true,
+				},
+			})).element;
+
+			assert.strictEqual(result.querySelectorAll('img').length, 1);
 		});
 
 		test('image width from title params', () => {
@@ -294,6 +399,97 @@ suite('MarkdownRenderer', () => {
 
 			const blockquote = result.querySelector('blockquote');
 			assert.strictEqual(blockquote?.getAttribute('data-severity'), null, 'Should not have data-severity attribute');
+		});
+	});
+
+	suite('Code block reuse', () => {
+		function createCodeBlock(_language: string, text: string): HTMLElement {
+			const element = mainWindow.document.createElement('pre');
+			element.textContent = text;
+			return element;
+		}
+
+		function normalizedHtml(element: HTMLElement): string {
+			const clone = element.cloneNode(true) as HTMLElement;
+			for (const block of clone.querySelectorAll('[data-code]')) {
+				block.removeAttribute('data-code');
+			}
+			return clone.outerHTML;
+		}
+
+		const first = '```test\nfirst\n```';
+		const second = '```test\nsecond\n```';
+		const quoted = '> ```test\n> first\n> ```';
+		const list = '- First\n\n  ```test\n  first\n  ```\n\n- Second\n\n  ```test\n  second\n  ```';
+
+		for (const { name, before, after } of [
+			{ name: 'appended content in a shared ancestor', before: list, after: `Intro\n\n${list}\n\n  More text\n\n- Last` },
+			{ name: 'changed ancestor attributes', before: `3. Diagram\n\n   \`\`\`test\n   first\n   \`\`\``, after: `1. Diagram\n\n   \`\`\`test\n   first\n   \`\`\`` },
+			{ name: 'changed nesting', before: quoted, after: first },
+			{ name: 'split ancestors', before: list, after: '- First\n\n  ```test\n  first\n  ```\n\nOutside\n\n- Second\n\n  ```test\n  second\n  ```' },
+			{ name: 'reordered code blocks', before: `${first}\n\n${second}`, after: `${second}\n\n${first}` },
+			{ name: 'removed code blocks', before: `${first}\n\n${second}`, after: second },
+			{ name: 'changed code blocks', before: `${first}\n\n${second}`, after: `${first}\n\n\`\`\`test\nchanged\n\`\`\`` },
+		]) {
+			test(`matches a fresh render after ${name}`, () => {
+				const codeBlocks = new Map<string, HTMLElement>();
+				const options = {
+					codeBlockRendererSync: (language: string, text: string) => {
+						let element = codeBlocks.get(text);
+						if (!element) {
+							element = createCodeBlock(language, text);
+							codeBlocks.set(text, element);
+						}
+						return element;
+					},
+				};
+				const initial = store.add(renderMarkdown({ value: before }, options));
+				initial.dispose();
+				const updated = store.add(renderMarkdown({ value: after }, options, initial.element));
+				const fresh = store.add(renderMarkdown({ value: after }, { codeBlockRendererSync: createCodeBlock }));
+				assert.strictEqual(normalizedHtml(updated.element), normalizedHtml(fresh.element));
+			});
+		}
+
+		test('keeps reused code blocks and their ancestors mounted', () => {
+			const codeBlocks: HTMLElement[] = [];
+			const initial = store.add(renderMarkdown({ value: list }, {
+				codeBlockRendererSync: (language, text) => {
+					const element = createCodeBlock(language, text);
+					codeBlocks.push(element);
+					return element;
+				},
+			}));
+			mainWindow.document.body.appendChild(initial.element);
+			store.add(toDisposable(() => initial.element.remove()));
+			const parents = codeBlocks.map(block => block.parentElement);
+			const listElement = initial.element.querySelector('ul');
+			const records: MutationRecord[] = [];
+			const observer = new mainWindow.MutationObserver(mutations => records.push(...mutations));
+			store.add(toDisposable(() => observer.disconnect()));
+			observer.observe(initial.element, { childList: true, subtree: true });
+			initial.dispose();
+
+			store.add(renderMarkdown({ value: `Intro\n\n${list}\n\n  More text` }, {
+				codeBlockRendererSync: (_language, text) => {
+					const block = codeBlocks.find(block => block.textContent === text);
+					assert.ok(block);
+					return block;
+				},
+			}, initial.element));
+
+			const removedNodes = [...records, ...observer.takeRecords()].flatMap(record => Array.from(record.removedNodes));
+			assert.deepStrictEqual({
+				parentsPreserved: codeBlocks.every((block, index) => block.parentElement === parents[index]),
+				listPreserved: initial.element.querySelector('ul') === listElement,
+				blocksConnected: codeBlocks.every(block => block.isConnected),
+				codeBlockDisconnected: removedNodes.some(node => codeBlocks.some(block => node.contains(block))),
+			}, {
+				parentsPreserved: true,
+				listPreserved: true,
+				blocksConnected: true,
+				codeBlockDisconnected: false,
+			});
 		});
 	});
 

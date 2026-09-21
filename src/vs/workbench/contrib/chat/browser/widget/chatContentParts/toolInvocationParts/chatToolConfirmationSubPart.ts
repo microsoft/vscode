@@ -189,6 +189,8 @@ export class ToolConfirmationSubPart extends AbstractToolConfirmationSubPart {
 				elements.editor.appendChild(titleEl);
 
 				const inputData = toolInvocation.toolSpecificData;
+				// Editable unless a producer opts out, so tools that predate the flag are unchanged.
+				const isEditable = inputData.editable ?? true;
 
 				const codeBlockRenderOptions: ICodeBlockRenderOptions = {
 					hideToolbar: true,
@@ -197,7 +199,7 @@ export class ToolConfirmationSubPart extends AbstractToolConfirmationSubPart {
 					verticalPadding: 5,
 					editorOptions: {
 						wordWrap: 'off',
-						readOnly: false,
+						readOnly: !isEditable,
 						ariaLabel: this.getTitle(),
 					}
 				};
@@ -265,13 +267,15 @@ export class ToolConfirmationSubPart extends AbstractToolConfirmationSubPart {
 					uri: model.uri,
 					chatSessionResource: this.context.element.sessionResource
 				});
-				this._register(model.onDidChangeContent(e => {
-					try {
-						inputData.rawInput = JSON.parse(model.getValue());
-					} catch {
-						// ignore
-					}
-				}));
+				if (isEditable) {
+					this._register(model.onDidChangeContent(e => {
+						try {
+							inputData.rawInput = JSON.parse(model.getValue());
+						} catch {
+							// ignore
+						}
+					}));
+				}
 
 				elements.editor.append(editor.object.element);
 
@@ -346,7 +350,7 @@ export class ToolConfirmationSubPart extends AbstractToolConfirmationSubPart {
 			this.codeBlockStartIndex,
 			this.renderer,
 			undefined,
-			this.currentWidthDelegate(),
+			this.currentWidthDelegate,
 			{ codeBlockRenderOptions },
 		));
 		renderFileWidgets(part.domNode, this.instantiationService, this.chatMarkdownAnchorService, this._store, this.openedEditors.fileWidgetOptions);
