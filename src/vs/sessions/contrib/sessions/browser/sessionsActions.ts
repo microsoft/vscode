@@ -899,15 +899,18 @@ registerAction2(class CloseChatAction extends Action2 {
 		if (!chat) {
 			return;
 		}
-		await sessionView?.closeChatGroup(chat.resource);
 		if (extUri.isEqual(chat.resource, session.mainChat.get().resource)) {
+			await sessionView?.closeChatGroup(chat.resource);
 			return;
 		}
 		// An untitled (in-composer) draft has nothing to reopen, so delete it
 		// outright; a committed chat is hidden (reopenable).
 		if (chat.status.get() === SessionStatus.Untitled) {
-			await sessionsManagementService.deleteChat(session, chat.resource, { skipConfirmation: true });
+			if (await sessionsManagementService.deleteChat(session, chat.resource, { skipConfirmation: true })) {
+				await sessionView?.closeChatGroup(chat.resource);
+			}
 		} else {
+			await sessionView?.closeChatGroup(chat.resource);
 			await sessionsService.closeChat(session, chat);
 		}
 	}

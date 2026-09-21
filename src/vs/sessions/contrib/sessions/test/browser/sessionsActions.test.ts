@@ -702,6 +702,60 @@ suite('Sessions - Actions', () => {
 		]);
 	});
 
+	for (const scenario of [
+		{ name: 'succeeds', deleteResult: true, expectedOperations: ['delete', 'closeGroup'] },
+		{ name: 'is a no-op', deleteResult: false, expectedOperations: ['delete'] },
+		{ name: 'fails', deleteResult: new Error('delete failed'), expectedOperations: ['delete'] },
+	] as const) {
+		test(`removes an untitled chat group only when deletion ${scenario.name}`, async () => {
+			const instantiationService = disposables.add(workbenchInstantiationService(undefined, disposables));
+			const { session } = createTestSession(`close-untitled-${scenario.name}`);
+			const untitledChat: IChat = {
+				...session.mainChat.get(),
+				resource: URI.parse('test-chat://untitled'),
+				title: constObservable('Untitled Chat'),
+				status: constObservable(SessionStatus.Untitled),
+			};
+			const activeSession = upcastPartial<IActiveSession>({
+				...session,
+				activeChat: constObservable(untitledChat),
+			});
+			const operations: string[] = [];
+			instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
+				override readonly activeSession = constObservable(activeSession);
+			});
+			instantiationService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
+				override async deleteChat(): Promise<boolean> {
+					operations.push('delete');
+					if (scenario.deleteResult instanceof Error) {
+						throw scenario.deleteResult;
+					}
+					return scenario.deleteResult;
+				}
+			});
+			instantiationService.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() {
+				override getSessionView(): SessionView {
+					return new class extends mock<SessionView>() {
+						override closeChatGroup(): Promise<boolean> {
+							operations.push('closeGroup');
+							return Promise.resolve(true);
+						}
+					}();
+				}
+			});
+
+			const command = CommandsRegistry.getCommand(CLOSE_CHAT_COMMAND_ID);
+			assert.ok(command);
+			if (scenario.deleteResult instanceof Error) {
+				await assert.rejects(async () => command.handler(instantiationService, activeSession, untitledChat), /delete failed/);
+			} else {
+				await command.handler(instantiationService, activeSession, untitledChat);
+			}
+
+			assert.deepStrictEqual(operations, scenario.expectedOperations);
+		});
+	}
+
 	test('renames the chat represented by a chat group header', async () => {
 		const instantiationService = disposables.add(workbenchInstantiationService(undefined, disposables));
 		const { session } = createTestSession('rename-header-chat');
