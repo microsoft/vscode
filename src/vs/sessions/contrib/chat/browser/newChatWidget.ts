@@ -196,6 +196,8 @@ export class NewChatWidget extends Disposable {
 		this._register(autorun(reader => {
 			providersChanged.read(reader);
 			const activeSession = this._session.read(reader);
+			activeSession?.isQuickChat?.read(reader);
+			this._workspacePicker.refreshTriggerLabel();
 			if (!activeSession) {
 				return;
 			}
@@ -881,6 +883,7 @@ export class NewChatWidget extends Disposable {
 			return undefined;
 		}
 		const activeProviderId = isWorkspacePickerQuickChat ? this._session.get()?.providerId : undefined;
+		const activeProvider = activeProviderId ? providers.find(provider => provider.id === activeProviderId) : undefined;
 		const submenuActions = providers.length > 1
 			? providers.map(provider => {
 				const label = provider.id === LOCAL_AGENT_HOST_PROVIDER_ID
@@ -898,6 +901,9 @@ export class NewChatWidget extends Disposable {
 		return {
 			description: localize('newSessionWorkspacePicker.noWorkspaceDescription', "Start without a backing workspace"),
 			isSelected: isWorkspacePickerQuickChat,
+			selectedLabel: activeProvider && activeProvider.id !== LOCAL_AGENT_HOST_PROVIDER_ID
+				? localize('newSessionWorkspacePicker.remoteQuickChat', "Chat [{0}]", activeProvider.label)
+				: undefined,
 			select: () => this.selectNoWorkspace(providers.length === 1 ? { providerId: providers[0].id } : undefined),
 			submenuActions,
 		};

@@ -707,6 +707,9 @@ export interface IActionListOptions {
 	/** Preserve the open submenu while the pointer travels diagonally toward it. */
 	readonly submenuPointerIntent?: boolean;
 
+	/** Delay in milliseconds before showing a submenu on pointer hover. Defaults to 500. */
+	readonly submenuHoverDelay?: number;
+
 	/**
 	 * Controls the gutter kept for the submenu chevron on items that have none.
 	 * - `true` (default): kept while some item shows a chevron.
@@ -2876,7 +2879,7 @@ export class ActionListWidget<T> extends Disposable {
 
 	private _scheduleSubmenuShow(element: IActionListItem<T>, pointer: MouseEvent): void {
 		this._cancelSubmenuShow();
-		let delay = 500;
+		let delay = this._options?.submenuHoverDelay ?? 500;
 		if (this._usesSubmenuPointerIntent()) {
 			delay = 0;
 			const origin = this._submenuPointerOrigin;

@@ -103,6 +103,8 @@ Existing-session requests route by the provider resource and chat resource. Host
 
 Startup metadata may seed lightweight session facades before a live connection finishes discovery. Live host state remains authoritative and upgrades or replaces cached state through the normal catalog lifecycle.
 
+The provider remembers isolation per workspace after the first request is accepted. A new draft for that workspace inherits the choice from its last started session; a workspace without a remembered choice falls back to `sessions.useWorktree`. Explicitly removing a workspace from the workspace picker forgets its isolation preference; generic recent-workspace updates do not. Draft-only changes, rejected requests, quick chats, and Automation drafts do not update this workspace preference.
+
 External sessions remain provider-owned domain objects. Visibility and interactivity fields determine whether shared Sessions surfaces present them; shared code does not infer visibility from Agent Host URI formats.
 
 Host-owned background activities remain independent of client visibility. Agent Merge monitoring prevents an enabled session from idle eviction while work is active, resumes eligible sessions after host startup, and releases that retention when monitoring ends.
