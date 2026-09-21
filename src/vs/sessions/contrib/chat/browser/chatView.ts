@@ -65,7 +65,7 @@ import { IsPhoneLayoutContext } from '../../../common/contextkeys.js';
 
 const SESSION_CHAT_RESPONSE_INTERNAL_HORIZONTAL_PADDING = 12;
 // 14px icon + 6px padding + 4px gap + the 4em (44px) expanded percentage label + breathing room.
-const EXPERIMENTAL_SESSION_CHAT_INPUT_TRAILING_SPACE = 72;
+export const EXPERIMENTAL_SESSION_CHAT_INPUT_TRAILING_SPACE = 72;
 
 /**
  * Returns the total horizontal space the renderer must reserve for Sessions chat items.

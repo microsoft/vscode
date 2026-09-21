@@ -302,6 +302,10 @@
 	background-color: transparent;
 }
 
+.experimental-new-session-composer .new-chat-repo-config-container .codicon::before {
+	font-size: var(--vscode-codiconFontSize-compact);
+}
+
 .new-chat-bottom-container .sessions-chat-picker-slot > .action-label.agent-host-mode-permissions-trigger {
 	padding: 0;
 }

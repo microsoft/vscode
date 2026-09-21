@@ -28,8 +28,18 @@ suite('New session composer layout', () => {
 				[EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING]: testCase.experimentalLayout,
 			});
 			store.add(configurationService.onDidChangeConfigurationEmitter);
+			const mainContainer = document.createElement('div');
+			const layoutService = new class extends mock<IWorkbenchLayoutService>() {
+				override readonly mainContainer = mainContainer;
+			}();
 
-			assert.strictEqual(isExperimentalSessionComposerLayoutEnabled(configurationService), testCase.expected);
+			assert.deepStrictEqual({
+				newSession: isExperimentalSessionComposerLayoutEnabled(configurationService),
+				runningSession: isExperimentalRunningSessionComposerLayoutEnabled(configurationService, layoutService),
+			}, {
+				newSession: testCase.expected,
+				runningSession: testCase.expected,
+			});
 		});
 	}
 
