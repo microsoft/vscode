@@ -55,6 +55,13 @@ const DICTATION_TOGGLE_COMMAND_ID = 'workbench.action.chat.toggleSpeechToText';
  */
 const VOICE_START_COMMAND_ID = 'agentsVoice.startVoiceInChat';
 
+/**
+ * Command bound to the mute/unmute microphone control shown in hands-free voice
+ * mode. The "Configure Keybinding" context-menu entry on the mute cell targets
+ * this command so it opens the keybinding that actually toggles the microphone.
+ */
+const VOICE_TOGGLE_MUTE_COMMAND_ID = 'agentsVoice.toggleMute';
+
 async function retargetVoiceToCurrentSession(commandService: ICommandService, controller: IVoiceSessionController): Promise<boolean> {
 	const currentSession = await commandService.executeCommand<string | undefined>('_chat.voice.getCurrentSession');
 	if (!currentSession) {
@@ -518,7 +525,7 @@ export class VoiceInputModeActionViewItem extends BaseActionViewItem {
 		this._muteIcon = dom.append(this._muteCell, dom.$('span.chat-voice-input-mode-icon'));
 		this._register(addMicButtonContextMenuListener(
 			this._muteCell,
-			() => getVoiceModeContextMenuActions(this.commandService, this.configurationService, this.keybindingService, VOICE_START_COMMAND_ID),
+			() => getVoiceModeContextMenuActions(this.commandService, this.configurationService, this.keybindingService, VOICE_TOGGLE_MUTE_COMMAND_ID),
 			this.contextMenuService,
 		));
 		this._register(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), this._muteCell,
