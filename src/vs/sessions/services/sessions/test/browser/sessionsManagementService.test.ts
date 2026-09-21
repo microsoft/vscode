@@ -793,6 +793,43 @@ suite('SessionsManagementService', () => {
 		assert.strictEqual(view.activeSession.get()?.sessionId, 'new-draft');
 	});
 
+	test('openNewSession applies a requested Dev Container preference before activating the draft', async () => {
+		const folderUri = URI.file('/test/workspace');
+		const workspace: ISessionWorkspace = {
+			uri: folderUri,
+			label: 'workspace',
+			icon: Codicon.folder,
+			folders: [{ root: folderUri, workingDirectory: folderUri, name: 'workspace', description: undefined }],
+			requiresWorkspaceTrust: false,
+			isVirtualWorkspace: false,
+		};
+		const newDraftSession = stubSession({
+			sessionId: 'new-draft',
+			providerId: LOCAL_AGENT_HOST_PROVIDER_ID,
+			workspace: constObservable(workspace),
+		});
+		const preferredSessions: string[] = [];
+		const provider = new class extends TestSessionsProvider {
+			override readonly id = LOCAL_AGENT_HOST_PROVIDER_ID;
+			override resolveWorkspace(): ISessionWorkspace { return workspace; }
+			override createNewSession(): ISession { return newDraftSession; }
+			preferDevContainer(sessionId: string): void { preferredSessions.push(sessionId); }
+		}(newDraftSession);
+		const { view } = createSessionsManagementService(newDraftSession, disposables, provider);
+
+		const result = await view.openNewSession({ folderUri, preferDevContainer: true });
+
+		assert.deepStrictEqual({
+			preferredSessions,
+			result: result.session?.sessionId,
+			active: view.activeSession.get()?.sessionId,
+		}, {
+			preferredSessions: ['new-draft'],
+			result: 'new-draft',
+			active: 'new-draft',
+		});
+	});
+
 	test('removing the active chat keeps the custom view open', async () => {
 		const sideChat: IChat = {
 			...stubChat,

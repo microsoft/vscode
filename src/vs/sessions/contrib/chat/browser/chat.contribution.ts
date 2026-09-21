@@ -38,6 +38,8 @@ import { IPromptsService } from '../../../../workbench/contrib/chat/common/promp
 import { IAICustomizationWorkspaceService } from '../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
 import { ICustomizationHarnessService } from '../../../../workbench/contrib/chat/common/customizationHarnessService.js';
 import { SessionsAICustomizationWorkspaceService } from './aiCustomizationWorkspaceService.js';
+import { IRemoteAgentHostService } from '../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { resolveDevContainerSourceWorkspace } from '../../../browser/openInVSCodeUtils.js';
 import { SessionsCustomizationHarnessService } from './customizationHarnessService.js';
 import { IChatViewFactory } from '../../../services/chatView/browser/chatViewFactory.js';
 import { ChatViewFactory } from './chatView.js';
@@ -209,14 +211,26 @@ class NewChatInSessionsWindowAction extends Action2 {
 			sessionsService.unsetNewSession();
 			return;
 		}
-		const folderUri = isQuickChat ? undefined : activeSession?.workspace.get()?.uri;
-		// Inherit the active session's harness so the new session defaults to
-		// the kind the user is working in — but only while the folder still
-		// offers it (see `inheritableSessionTarget`).
+		const activeFolderUri = isQuickChat ? undefined : activeSession?.workspace.get()?.uri;
+		const devContainerSource = activeFolderUri
+			? resolveDevContainerSourceWorkspace(activeFolderUri, accessor.get(IRemoteAgentHostService))
+			: undefined;
+		const folderUri = devContainerSource?.folderUri ?? activeFolderUri;
+		const inheritedTarget = inheritableSessionTarget(
+			sessionsManagementService,
+			devContainerSource && activeSession
+				? { providerId: devContainerSource.providerId, sessionType: activeSession.sessionType }
+				: activeSession,
+			folderUri,
+		);
+		// Preserve a Dev Container's source provider, and inherit the exact
+		// harness while that source still offers it.
 		await sessionsService.openNewSession({
 			folderUri,
 			toSide: options?.toSide,
-			...inheritableSessionTarget(sessionsManagementService, activeSession, folderUri),
+			...(devContainerSource ? { providerId: devContainerSource.providerId } : {}),
+			...inheritedTarget,
+			...(devContainerSource ? { preferDevContainer: true } : {}),
 		});
 	}
 }

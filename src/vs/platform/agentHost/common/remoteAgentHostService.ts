@@ -239,6 +239,8 @@ export interface IRemoteAgentHostDevContainerConnection {
 	readonly hostPath: string;
 	/** VS Code SSH, tunnel, or WSL authority of the source host, absent for local containers. */
 	readonly hostAuthority?: string;
+	/** Exact source workspace URI from which this Dev Container was started. */
+	readonly sourceWorkspaceUri?: string;
 }
 
 export type RemoteAgentHostConnection = IRemoteAgentHostWebSocketConnection | IRemoteAgentHostSSHConnection | IRemoteAgentHostWSLConnection | IRemoteAgentHostTunnelConnection | IRemoteAgentHostCloudSandboxConnection | IRemoteAgentHostDevContainerConnection;

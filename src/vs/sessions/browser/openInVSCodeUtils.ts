@@ -5,11 +5,37 @@
 
 import { IRemoteAgentHostEntry, IRemoteAgentHostService, IRemoteAgentHostSSHConnection, RemoteAgentHostEntryType } from '../../platform/agentHost/common/remoteAgentHostService.js';
 import { ISessionsProvidersService } from '../services/sessions/browser/sessionsProvidersService.js';
-import { isAgentHostProvider } from '../common/agentHostSessionsProvider.js';
+import { isAgentHostProvider, LOCAL_AGENT_HOST_PROVIDER_ID, REMOTE_AGENT_HOST_PROVIDER_PREFIX } from '../common/agentHostSessionsProvider.js';
 import { encodeHex, VSBuffer } from '../../base/common/buffer.js';
 import { URI } from '../../base/common/uri.js';
-import { AGENT_HOST_SCHEME, fromAgentHostUri } from '../../platform/agentHost/common/agentHostUri.js';
+import { AGENT_HOST_SCHEME, agentHostAuthority, fromAgentHostUri } from '../../platform/agentHost/common/agentHostUri.js';
 import { Schemas } from '../../base/common/network.js';
+
+export interface IDevContainerSourceWorkspace {
+	readonly folderUri: URI;
+	readonly providerId: string;
+}
+
+export function resolveDevContainerSourceWorkspace(workspaceUri: URI, remoteAgentHostService: IRemoteAgentHostService): IDevContainerSourceWorkspace | undefined {
+	if (workspaceUri.scheme !== AGENT_HOST_SCHEME) {
+		return undefined;
+	}
+	const entry = remoteAgentHostService.configuredEntries.find(candidate =>
+		candidate.connection.type === RemoteAgentHostEntryType.DevContainer
+		&& agentHostAuthority(candidate.connection.address) === workspaceUri.authority
+	);
+	if (entry?.connection.type !== RemoteAgentHostEntryType.DevContainer || !entry.connection.sourceWorkspaceUri) {
+		return undefined;
+	}
+	const folderUri = URI.parse(entry.connection.sourceWorkspaceUri);
+	if (folderUri.scheme === Schemas.file) {
+		return { folderUri, providerId: LOCAL_AGENT_HOST_PROVIDER_ID };
+	}
+	if (folderUri.scheme === AGENT_HOST_SCHEME) {
+		return { folderUri, providerId: `${REMOTE_AGENT_HOST_PROVIDER_PREFIX}${folderUri.authority}` };
+	}
+	return undefined;
+}
 
 /**
  * Resolves the VS Code remote authority for the given session provider,

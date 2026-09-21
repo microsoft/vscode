@@ -304,6 +304,7 @@ suite('Dev Container Agent Host Service', () => {
 					type: RemoteAgentHostEntryType.DevContainer,
 					address,
 					hostPath: sourceWorkspace.fsPath,
+					sourceWorkspaceUri: sourceWorkspace.toString(),
 				},
 			},
 			provider: {
@@ -569,7 +570,7 @@ suite('Dev Container Agent Host Service', () => {
 				remoteWorktree: !!service.provider?.config.resolveDevContainerWorktreeConnection,
 				worktreeScope: service.provider?.config.devContainerWorktreeScope,
 			}, {
-				connection: { type: RemoteAgentHostEntryType.DevContainer, address: devContainerAddress(source), hostPath: '/native/project', hostAuthority },
+				connection: { type: RemoteAgentHostEntryType.DevContainer, address: devContainerAddress(source), hostPath: '/native/project', hostAuthority, sourceWorkspaceUri: source.toString() },
 				remoteWorktree: true,
 				worktreeScope: getComparisonKey(URI.file('/project')),
 			});

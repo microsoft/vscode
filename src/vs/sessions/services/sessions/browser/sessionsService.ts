@@ -33,6 +33,7 @@ import { IsNewChatSessionContext } from '../../../common/contextkeys.js';
 import { setActiveSessionContextKeys } from '../common/sessionContextKeys.js';
 import { ISessionChangesStatsCache } from '../common/sessionChangesStatsCache.js';
 import { ISessionOpenTelemetryAttempt, ISessionOpenTelemetryService, SessionOpenSource } from './sessionOpenTelemetryService.js';
+import { isAgentHostProvider } from '../../../common/agentHostSessionsProvider.js';
 
 const ACTIVE_SESSION_STATES_KEY = 'agentSessions.activeSessionStates';
 
@@ -77,6 +78,8 @@ export interface IOpenNewSessionOptions extends ICreateNewSessionOptions {
 	 * of the active session in the grid instead of replacing it in place.
 	 */
 	readonly toSide?: boolean;
+	/** Configure the created draft to start in a Dev Container. */
+	readonly preferDevContainer?: boolean;
 }
 
 /**
@@ -1133,6 +1136,19 @@ export class SessionsService extends Disposable implements ISessionsService {
 			this._startOpenSession();
 			try {
 				const session = this.sessionsManagementService.createNewSession(folderUri, options);
+				if (options?.preferDevContainer) {
+					const provider = this.sessionsProvidersService.getProvider(session.providerId);
+					if (!provider || !isAgentHostProvider(provider) || !provider.preferDevContainer) {
+						this.sessionsManagementService.discardNewSession(session);
+						throw new Error(`Session provider '${session.providerId}' does not support Dev Container drafts.`);
+					}
+					try {
+						provider.preferDevContainer(session.sessionId);
+					} catch (error) {
+						this.sessionsManagementService.discardNewSession(session);
+						throw error;
+					}
+				}
 				this._activateOrInsert(session, options?.toSide);
 				return { session, trustDeclined: false };
 			} catch (e) {

@@ -97,6 +97,7 @@ class DevContainerConnectionFactory extends Disposable implements IRemoteAgentHo
 				address: connection.address,
 				hostPath: connection.hostWorkspaceFolder ?? devContainerSourcePath(workspaceUri),
 				...(hostAuthority ? { hostAuthority } : {}),
+				sourceWorkspaceUri: workspaceUri.toString(),
 			},
 		};
 		this._stagedConnections.set(connection.address, { entry, connector, workspaceUri, initialConnection: connection });
