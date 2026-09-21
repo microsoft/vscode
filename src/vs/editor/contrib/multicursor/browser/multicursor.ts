@@ -20,6 +20,7 @@ import { IEditorContribution, IEditorDecorationsCollection, ScrollType } from '.
 import { EditorContextKeys } from '../../../common/editorContextKeys.js';
 import { FindMatch, ITextModel } from '../../../common/model.js';
 import { CommonFindController } from '../../find/browser/findController.js';
+import { FindOptionOverride, INewFindReplaceState } from '../../find/browser/findState.js';
 import * as nls from '../../../../nls.js';
 import { MenuId } from '../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
@@ -299,19 +300,24 @@ export class MultiCursorSession {
 
 		if (isFindWidgetSearch(editor, findController)) {
 			// Find widget owns what is searched for
-			return new MultiCursorSession(editor, findController, true, true, findState.searchString, findState.wholeWord, findState.matchCase, null);
+			return new MultiCursorSession(editor, findController, false, true, findState.searchString, findState.wholeWord, findState.matchCase, null);
 		}
 
+		let shouldOverrideFindOptions = false;
 		let wholeWord: boolean;
 		let matchCase: boolean;
 		let usesFindOptions: boolean;
 		const selections = editor.getSelections();
 		if (selections.length === 1 && selections[0].isEmpty()) {
+			shouldOverrideFindOptions = editor.getOption(EditorOption.selectedTextOccurrenceMatching) === 'find';
 			wholeWord = true;
 			matchCase = true;
-			usesFindOptions = false;
+			usesFindOptions = shouldOverrideFindOptions;
 		} else {
-			({ wholeWord, matchCase, usesFindOptions } = getSelectionSearchOptions(editor, findController));
+			const selectionSearchOptions = getSelectionSearchOptions(editor, findController);
+			wholeWord = selectionSearchOptions.wholeWord;
+			matchCase = selectionSearchOptions.matchCase;
+			usesFindOptions = selectionSearchOptions.usesFindOptions;
 		}
 
 		// Selection owns what is searched for
@@ -332,13 +338,13 @@ export class MultiCursorSession {
 			searchText = editor.getModel().getValueInRange(s).replace(/\r\n/g, '\n');
 		}
 
-		return new MultiCursorSession(editor, findController, false, usesFindOptions, searchText, wholeWord, matchCase, currentMatch);
+		return new MultiCursorSession(editor, findController, shouldOverrideFindOptions, usesFindOptions, searchText, wholeWord, matchCase, currentMatch);
 	}
 
 	constructor(
 		private readonly _editor: ICodeEditor,
 		public readonly findController: CommonFindController,
-		public readonly drivenByFind: boolean,
+		public readonly shouldOverrideFindOptions: boolean,
 		public readonly usesFindOptions: boolean,
 		public readonly searchText: string,
 		public readonly wholeWord: boolean,
@@ -495,11 +501,6 @@ export class MultiCursorSelectionController extends Disposable implements IEdito
 	}
 
 	private _beginSessionIfNeeded(findController: CommonFindController): void {
-		// Focusing editor again must restore selection rules: case-sensitive "bar" should skip "BAR", even if Find would match it.
-		const drivenByFind = isFindWidgetSearch(this._editor, findController);
-		if (this._session?.drivenByFind !== drivenByFind) {
-			this._endSession();
-		}
 		if (!this._session) {
 			// Create a new session
 			const session = MultiCursorSession.create(this._editor, findController);
@@ -509,7 +510,13 @@ export class MultiCursorSelectionController extends Disposable implements IEdito
 
 			this._session = session;
 
-			findController.getState().change({ searchString: session.searchText }, false);
+			const newState: INewFindReplaceState = { searchString: this._session.searchText };
+			if (this._session.shouldOverrideFindOptions) {
+				newState.wholeWordOverride = FindOptionOverride.True;
+				newState.matchCaseOverride = FindOptionOverride.True;
+				newState.isRegexOverride = FindOptionOverride.False;
+			}
+			findController.getState().change(newState, false);
 
 			this._sessionDispose.add(this._editor.onDidChangeCursorSelection((e) => {
 				if (this._ignoreSelectionChange) {
@@ -520,13 +527,17 @@ export class MultiCursorSelectionController extends Disposable implements IEdito
 			this._sessionDispose.add(this._editor.onDidBlurEditorText(() => {
 				this._endSession();
 			}));
+			if (this._editor.getOption(EditorOption.selectedTextOccurrenceMatching) !== 'find') {
+				this._sessionDispose.add(this._editor.onDidFocusEditorText(() => {
+					this._endSession();
+				}));
+			}
 			this._sessionDispose.add(this._editor.onDidChangeConfiguration(e => {
 				if (e.hasChanged(EditorOption.selectedTextOccurrenceMatching)) {
 					this._endSession();
 				}
 			}));
 			this._sessionDispose.add(findController.getState().onFindReplaceStateChange((e) => {
-				// Preserve caret-started selection whole-word matching; changing Find options must not make "foo" start matching "FOObar".
 				if (session.usesFindOptions && (e.matchCase || e.wholeWord)) {
 					this._endSession();
 				}
@@ -536,6 +547,14 @@ export class MultiCursorSelectionController extends Disposable implements IEdito
 
 	private _endSession(): void {
 		this._sessionDispose.clear();
+		if (this._session && this._session.shouldOverrideFindOptions) {
+			const newState: INewFindReplaceState = {
+				wholeWordOverride: FindOptionOverride.NotSet,
+				matchCaseOverride: FindOptionOverride.NotSet,
+				isRegexOverride: FindOptionOverride.NotSet,
+			};
+			this._session.findController.getState().change(newState, false);
+		}
 		this._session = null;
 	}
 
@@ -634,7 +653,7 @@ export class MultiCursorSelectionController extends Disposable implements IEdito
 		// - and the search widget is visible
 		// - and the search string is non-empty
 		// - and we're searching for a regex
-		if (isFindWidgetSearch(this._editor, findController) && findState.isRegex) {
+		if (findState.isRevealed && findState.searchString.length > 0 && findState.isRegex) {
 			const editorModel = this._editor.getModel();
 			if (findState.searchScope) {
 				matches = editorModel.findMatches(findState.searchString, findState.searchScope, findState.isRegex, findState.matchCase, findState.wholeWord ? this._editor.getOption(EditorOption.wordSeparators) : null, false, Constants.MAX_SAFE_SMALL_INTEGER);

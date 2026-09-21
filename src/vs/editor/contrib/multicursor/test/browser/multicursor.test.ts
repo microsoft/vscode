@@ -766,17 +766,19 @@ suite('Multicursor selection', () => {
 			assert.strictEqual(actual, 'baz\nFOObar\nbazbar\nFOO\nbaz');
 		});
 
-		test('changing Find options does not end a caret-started selection sequence', () => {
-			testMulticursor(text, (editor, findController) => {
-				editor.setSelection(new Selection(1, 2, 1, 2));
-				const action = new AddSelectionToNextFindMatchAction();
-				action.run(null!, editor);
-				findController.getState().change({ matchCase: true, wholeWord: true }, false);
-				findController.getState().change({ matchCase: false, wholeWord: false }, false);
-				action.run(null!, editor);
+		test('changing Find options does not end an independent caret-started selection sequence', () => {
+			for (const selectedTextOccurrenceMatching of ['caseSensitive', 'caseInsensitive'] as const) {
+				testMulticursor(text, (editor, findController) => {
+					editor.setSelection(new Selection(1, 2, 1, 2));
+					const action = new AddSelectionToNextFindMatchAction();
+					action.run(null!, editor);
+					findController.getState().change({ matchCase: true, wholeWord: true }, false);
+					findController.getState().change({ matchCase: false, wholeWord: false }, false);
+					action.run(null!, editor);
 
-				assert.deepStrictEqual(editor.getSelections().map(fromRange), [[1, 1, 1, 4], [5, 1, 5, 4]]);
-			});
+					assert.deepStrictEqual(editor.getSelections().map(fromRange), [[1, 1, 1, 4], [5, 1, 5, 4]]);
+				}, { selectedTextOccurrenceMatching });
+			}
 		});
 
 		test('mixed-case initial selections are compared using the selection setting, not Find', () => {
@@ -827,6 +829,20 @@ suite('Multicursor selection', () => {
 
 				assert.deepStrictEqual(actual, [[[3, 1, 3, 4]], [[5, 1, 5, 4]], [[7, 1, 7, 4]]]);
 			}, { selectedTextOccurrenceMatching: 'caseSensitive' });
+		});
+
+		test('the default Find session survives returning focus to the editor', () => {
+			testMulticursor(['foo', 'bar', 'bar'], (editor, findController) => {
+				setTextFocus(editor, false);
+				editor.setSelection(new Selection(1, 1, 1, 4));
+				findController.getState().change({ searchString: 'bar', isRevealed: true }, false);
+				addSelectionToNext.run(null!, editor);
+
+				setTextFocus(editor, true);
+				addSelectionToNext.run(null!, editor);
+
+				assert.deepStrictEqual(editor.getSelections().map(fromRange), [[1, 1, 1, 4], [2, 1, 2, 4], [3, 1, 3, 4]]);
+			});
 		});
 
 		test('a selection session does not survive replacing the editor model', () => {
@@ -1028,6 +1044,81 @@ suite('Multicursor selection', () => {
 			'App',
 			' app'
 		];
+
+		test('default caret-started sessions temporarily override and restore Find options', () => {
+			for (const selectedTextOccurrenceMatching of [undefined, 'find'] as const) {
+				for (const endSession of ['selection', 'blur', 'dispose', 'configuration'] as const) {
+					testMulticursor(text, (editor, findController) => {
+						const state = findController.getState();
+						state.change({ matchCase: false, wholeWord: false, isRegex: true }, false);
+						const findOptions = () => ({
+							effective: [state.matchCase, state.wholeWord, state.isRegex],
+							stored: [state.actualMatchCase, state.actualWholeWord, state.actualIsRegex],
+						});
+						const highlightFindOptions = sinon.spy(findController, 'highlightFindOptions');
+						editor.setSelection(new Selection(1, 2, 1, 2));
+						const action = new AddSelectionToNextFindMatchAction();
+						action.run(null!, editor);
+						action.run(null!, editor);
+
+						const duringSession = {
+							searchString: state.searchString,
+							findOptions: findOptions(),
+							selections: editor.getSelections().map(fromRange),
+							highlightCount: highlightFindOptions.callCount,
+						};
+
+						switch (endSession) {
+							case 'selection':
+								editor.setSelection(new Selection(2, 1, 2, 4));
+								break;
+							case 'blur':
+								setTextFocus(editor, false);
+								break;
+							case 'dispose':
+								MultiCursorSelectionController.get(editor)!.dispose();
+								break;
+							case 'configuration':
+								editor.updateOptions({ selectedTextOccurrenceMatching: 'caseInsensitive' });
+								break;
+						}
+
+						assert.deepStrictEqual({ duringSession, afterSession: findOptions() }, {
+							duringSession: {
+								searchString: 'app',
+								findOptions: { effective: [true, true, false], stored: [false, false, true] },
+								selections: [[1, 1, 1, 4], [4, 1, 4, 4]],
+								highlightCount: 1,
+							},
+							afterSession: { effective: [false, false, true], stored: [false, false, true] },
+						}, `${selectedTextOccurrenceMatching ?? 'default'}: ${endSession}`);
+					}, { selectedTextOccurrenceMatching });
+				}
+			}
+		});
+
+		test('changing Find options ends a default caret-started session without reverting user preferences', () => {
+			testAddSelectionToNextFindMatchAction(text, (editor, action, findController) => {
+				const state = findController.getState();
+				state.change({ matchCase: false, wholeWord: false, isRegex: true }, false);
+				editor.setSelection(new Selection(1, 2, 1, 2));
+				action.run(null!, editor);
+
+				state.change({ matchCase: false, wholeWord: true }, false);
+				action.run(null!, editor);
+				action.run(null!, editor);
+
+				assert.deepStrictEqual({
+					selections: editor.getSelections().map(fromRange),
+					effective: [state.matchCase, state.wholeWord, state.isRegex],
+					stored: [state.actualMatchCase, state.actualWholeWord, state.actualIsRegex],
+				}, {
+					selections: [[1, 1, 1, 4], [4, 1, 4, 4], [5, 1, 5, 4]],
+					effective: [false, true, true],
+					stored: [false, true, true],
+				});
+			});
+		});
 
 		test('enters mode', () => {
 			testAddSelectionToNextFindMatchAction(text, (editor, action, findController) => {
