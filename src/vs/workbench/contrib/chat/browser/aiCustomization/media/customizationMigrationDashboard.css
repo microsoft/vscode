@@ -114,10 +114,6 @@
 	padding: var(--vscode-spacing-size20) var(--vscode-spacing-size60);
 }
 
-.customization-migration-dashboard .is-progress .migration-scope-state {
-	color: var(--vscode-textLink-foreground);
-}
-
 .customization-migration-dashboard .migration-scope-description,
 .customization-migration-dashboard .migration-category-description {
 	margin: var(--vscode-spacing-size40) 0 0;
@@ -330,6 +326,8 @@
 	margin: 0;
 	font-family: var(--monaco-monospace-font);
 	overflow-wrap: anywhere;
+	-webkit-user-select: text;
+	user-select: text;
 }
 
 .customization-migration-dashboard :focus-visible {

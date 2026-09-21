@@ -138,6 +138,10 @@
 	color: var(--vscode-list-activeSelectionForeground);
 }
 
+.ai-customization-management-editor .sidebar-migration-button.selected .sidebar-migration-count {
+	color: inherit;
+}
+
 .ai-customization-management-editor .sidebar-migration-shortcut > button.sidebar-migration-button:focus-visible {
 	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
 	outline-offset: -1px;

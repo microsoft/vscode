@@ -271,6 +271,15 @@ suite('customizationMigration', () => {
 		});
 	});
 
+	test('explains prompt conversion risks in the review banner before confirmation', () => {
+		const category = getCustomizationMigrationCategory(CustomizationMigrationCategoryId.PromptFiles);
+
+		assert.deepStrictEqual(category.getBanner?.([], 'Copilot', undefined, []), {
+			message: 'Prompts are no longer supported by Copilot. Convert them to skills to keep them available in both VS Code and this harness.',
+			consequence: 'High risk: Conversion keeps the prompt body, description, and argument-hint, but normalizes the name for the skill. Other prompt headers, including tools, model, agent, and mode, are removed. Converted skills set disable-model-invocation: true for explicit invocation rather than automatic invocation by the agent. Review your prompts before converting.',
+		});
+	});
+
 	test('migrates prompt headers into a skill file', () => {
 		const promptFile: IPromptPath = {
 			uri: URI.file('/workspace/.github/prompts/review.prompt.md'),
@@ -286,7 +295,11 @@ suite('customizationMigration', () => {
 			'description: "Review the active change"',
 			'argument-hint: "[diff]"',
 			'tools: [read_file, edit_file]',
+			'model: example-model',
+			'agent: agent',
 			'mode: code',
+			'custom-header: custom value',
+			'disable-model-invocation: false',
 			'---',
 			'## Steps',
 			'',
@@ -295,14 +308,21 @@ suite('customizationMigration', () => {
 
 		const migrated = migratePromptFileToSkill(promptFile, content);
 
-		assert.strictEqual(migrated.skillName, 'review-prompt');
-		assert.deepStrictEqual(migrated.unsupportedHeaderKeys, ['tools', 'mode']);
-		assert.ok(migrated.content.includes('name: review-prompt'));
-		assert.ok(migrated.content.includes('description: Review the active change'));
-		assert.ok(migrated.content.includes('disable-model-invocation: true'));
-		assert.ok(migrated.content.includes('argument-hint: "[diff]"'));
-		assert.ok(!migrated.content.includes('tools: [read_file, edit_file]'));
-		assert.ok(migrated.content.includes('## Steps'));
+		assert.deepStrictEqual(migrated, {
+			skillName: 'review-prompt',
+			content: [
+				'---',
+				'name: review-prompt',
+				'description: Review the active change',
+				'disable-model-invocation: true',
+				'argument-hint: "[diff]"',
+				'---',
+				'## Steps',
+				'',
+				'- Review the diff',
+			].join('\n'),
+			unsupportedHeaderKeys: ['tools', 'model', 'agent', 'mode', 'custom-header', 'disable-model-invocation'],
+		});
 	});
 
 	test('preserves argument-hint formatting from source prompt', () => {

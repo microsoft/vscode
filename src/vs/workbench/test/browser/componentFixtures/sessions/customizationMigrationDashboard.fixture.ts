@@ -17,14 +17,14 @@ function overview(): ICustomizationMigrationDashboardOverview {
 			{
 				storage: PromptsStorage.user, label: 'Your profile', count: 20, skipped: false, hasConfigurableDestinations: true,
 				categories: [
-					{ id: CustomizationMigrationCategoryId.PromptFiles, label: 'Prompts to skills', description: 'Convert prompts to skills so they can be invoked by supported agents.', count: 5, countLabel: '5 prompts', highRisk: true },
+					{ id: CustomizationMigrationCategoryId.PromptFiles, label: 'Prompts to skills', description: 'Convert prompts to skills so they can be invoked by supported agents.', count: 5, countLabel: '5 prompts', highRisk: true, highRiskDescription: 'Conversion can remove prompt-only metadata and change how prompts are invoked.' },
 					{ id: CustomizationMigrationCategoryId.UserData, label: 'User Data', description: 'Move agents and instructions to shared locations so they remain available to supported agent experiences.', count: 15, countLabel: '8 agents · 7 instructions' },
 				],
 			},
 			{
 				storage: PromptsStorage.local, label: 'vscode', count: 9, skipped: false, hasConfigurableDestinations: true,
 				categories: [
-					{ id: CustomizationMigrationCategoryId.PromptFiles, label: 'Prompts to skills', description: 'Convert prompts to skills so they can be invoked by supported agents.', count: 7, countLabel: '7 prompts', highRisk: true },
+					{ id: CustomizationMigrationCategoryId.PromptFiles, label: 'Prompts to skills', description: 'Convert prompts to skills so they can be invoked by supported agents.', count: 7, countLabel: '7 prompts', highRisk: true, highRiskDescription: 'Conversion can remove prompt-only metadata and change how prompts are invoked.' },
 					{ id: CustomizationMigrationCategoryId.McpServers, label: 'MCP Servers', description: 'Move supported workspace servers to the root .mcp.json so agents can discover them directly.', count: 2, countLabel: '2 servers' },
 				],
 			},
@@ -79,7 +79,7 @@ function renderDashboard(ctx: ComponentFixtureContext, width: number, state: 'ov
 				{ ...model.scopes[0], count: 0, categories: [], started: true },
 				{ ...model.scopes[1], started: true },
 			],
-			result: { migratedCount: 3 },
+			result: { migratedCount: 3, activityIds: ['profile-prompts'] },
 			activity: [{
 				id: 'profile-prompts', categoryLabel: 'Prompts to skills', scopeLabel: 'Your profile', storage: PromptsStorage.user,
 				items: [
