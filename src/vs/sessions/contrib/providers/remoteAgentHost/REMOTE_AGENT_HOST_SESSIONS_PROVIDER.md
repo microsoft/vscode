@@ -55,6 +55,8 @@ their context by address, request an explicit reconnect, and wait for the servic
 
 The provider exposes connection state through `IAgentHostSessionsProvider` and delegates protocol operations to the live connection. Disconnecting clears live state without manufacturing successful operation results.
 
+Providers may expose `showConnectionLog` for the connection recovery surface. The provider owns log routing, so restored Dev Container providers can open their source workspace's output channel before a live connection exists.
+
 On web, an intentional tunnel disconnect keeps the host cached and selectable while suppressing automatic reconnect. Reconnecting explicitly clears that suppression. Picker dismissal remains a separate persistent Hide operation and must have an explicit Restore path.
 
 ## Session lifecycle
@@ -62,6 +64,8 @@ On web, an intentional tunnel disconnect keeps the host cached and selectable wh
 Drafts expose the shared untitled `ISession` contract and use remote workspace metadata. First send commits through the shared Agent Host lifecycle. Existing sessions use the shared adapter and cache.
 
 Remote session and chat resources preserve connection-specific routing identity through creation, hydration, and replacement. Backend session identifiers are translated only inside the provider.
+
+For cloud sandbox sessions, archive and unarchive update the client session cache without requiring a live host. Host refreshes preserve the cached archive flag; cross-client archive synchronization is not yet supported.
 
 ## Authentication and recovery
 
@@ -90,9 +94,11 @@ Focused tests live beside the remote provider and remote-host services. Tests ow
 
 ## Dev Container connections
 
-`DevContainerAgentHostService` provides the desktop connection boundary for an Agent Host running inside a Dev Container. Source workspaces may be local files or belong to an SSH or Tunnel host. The source URI, including its remote authority, owns the container connection identity, so identical paths on different hosts remain distinct.
+`DevContainerAgentHostService` provides the desktop connection boundary for an Agent Host running inside a Dev Container. Source workspaces may be local files or belong to an SSH, Tunnel, or WSL host. The source URI, including its remote authority, owns the container connection identity, so identical paths on different hosts or WSL distributions remain distinct.
 
-VS Code bundles `@devcontainers/cli`; the workspace's host runs that pinned version, resolves Docker and related tools from its own environment, and owns the CLI processes and relays. For local workspaces this runs in the desktop shared process. For SSH and Tunnel workspaces it runs in the connected source Agent Host through a capability-gated VS Code protocol extension. Older hosts do not offer container execution. The connector runs `devcontainer up`, installs the matching VS Code remote CLI inside the container, and reuses or launches a dedicated standalone Agent Host. Its WebSocket protocol is relayed over `devcontainer exec` standard input/output and, for remote workspaces, over the existing source-host connection.
+VS Code bundles `@devcontainers/cli`; the workspace's host runs that pinned version, resolves Docker and related tools from its own environment, and owns the CLI processes and relays. For local workspaces this runs in the desktop shared process. For SSH, Tunnel, and WSL workspaces it runs in the connected source Agent Host through a capability-gated VS Code protocol extension. Older hosts do not offer container execution. WSL sources require Docker inside the selected distribution, for example through Docker Desktop's WSL integration. The connector runs `devcontainer up`, installs the matching VS Code remote CLI inside the container, and reuses or launches a dedicated standalone Agent Host. Its WebSocket protocol is relayed over `devcontainer exec` standard input/output and, for remote workspaces, over the existing source-host connection.
+
+Container entries retain the source host's VS Code authority and native workspace path. Open in VS Code encodes SSH and Tunnel sources with a parent authority; WSL sources instead encode the distribution and path as a Windows WSL UNC host path, as required by the Dev Containers extension. Container execution and detached-worktree operations continue to use the source distribution's Linux paths.
 
 The service persists the source-workspace identity once the connected provider publishes a session and keeps that `RemoteAgentHostSessionsProvider` registered independently of its live transport. On startup it reconstructs providers for persisted workspaces so their cached sessions remain visible; opening one of those sessions, using the provider's connect action, or another operation that requires the remote host starts the Dev Container and restores the transport on demand. The connection factory's `DevContainer` entry remains runtime-only because it carries the live connector and transport state. The shared remote Agent Host contribution observes connected transports and supplies connection-level filesystem, model, terminal, and log integration. Dev Container CLI output is streamed into one stable `Dev Container (<workspace>)` Output channel per source workspace, which is reused across connection attempts.
 

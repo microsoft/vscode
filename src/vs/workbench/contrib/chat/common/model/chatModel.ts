@@ -15,7 +15,7 @@ import { ResourceMap } from '../../../../../base/common/map.js';
 import { revive } from '../../../../../base/common/marshalling.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { equals } from '../../../../../base/common/objects.js';
-import { IObservable, autorun, constObservable, derived, observableFromEvent, observableSignal, observableSignalFromEvent, observableValue, observableValueOpts } from '../../../../../base/common/observable.js';
+import { IObservable, autorun, constObservable, derived, observableFromEvent, observableSignal, observableSignalFromEvent, observableValue, observableValueOpts, registerAutorunSelfDisposable } from '../../../../../base/common/observable.js';
 import { basename, isEqual } from '../../../../../base/common/resources.js';
 import { hasKey, WithDefinedProps } from '../../../../../base/common/types.js';
 import { URI, UriDto } from '../../../../../base/common/uri.js';
@@ -901,7 +901,9 @@ export class Response extends AbstractResponse implements IDisposable {
 	}
 
 	updateContent(progress: IChatProgressResponseContent | IChatTextEdit | IChatNotebookEdit | IChatTask | IChatExternalToolInvocationUpdate, quiet?: boolean): void {
-		if (progress.kind !== 'thinking') {
+		// Nested subagent progress renders inside its parent card, so it neither ends the parent's
+		// reasoning section nor its reasoning timer.
+		if (progress.kind !== 'thinking' && !isNestedSubagentResponsePart(progress)) {
 			this.finalizeReasoningDuration();
 		}
 
@@ -941,8 +943,9 @@ export class Response extends AbstractResponse implements IDisposable {
 		} else if (progress.kind === 'thinking') {
 
 			// tries to split thinking chunks if it is an array. only while certain models give us array chunks.
+			// Nested subagent parts render inside their parent card and must not split parent reasoning.
 			const lastResponsePart = this._responseParts
-				.filter(p => p.kind !== 'textEditGroup')
+				.filter(p => p.kind !== 'textEditGroup' && !isNestedSubagentResponsePart(p))
 				.at(-1);
 
 			const lastText = lastResponsePart && lastResponsePart.kind === 'thinking'
@@ -1024,6 +1027,17 @@ export class Response extends AbstractResponse implements IDisposable {
 			}));
 			this._responseParts.push(progress);
 			this._contentChanged(quiet);
+		} else if (progress.kind === 'mcpAuthenticationRequired') {
+			this._responseParts.push(progress);
+			let initialUpdate = true;
+			registerAutorunSelfDisposable(this._store, reader => {
+				progress.servers.read(reader);
+				this._contentChanged(initialUpdate ? quiet : false);
+				initialUpdate = false;
+				if (progress.isUsed) {
+					reader.dispose();
+				}
+			});
 		} else if (progress.kind === 'externalToolInvocationUpdate') {
 			this._handleExternalToolInvocationUpdate(progress);
 			this._contentChanged(quiet);
@@ -3482,7 +3496,7 @@ export function canMergeMarkdownStrings(md1: IMarkdownString, md2: IMarkdownStri
 		md1.supportThemeIcons === md2.supportThemeIcons;
 }
 
-function isNestedSubagentResponsePart(part: IChatProgressResponseContent): boolean {
+function isNestedSubagentResponsePart(part: object): boolean {
 	return 'subAgentInvocationId' in part && !!part.subAgentInvocationId;
 }
 

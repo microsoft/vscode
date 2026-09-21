@@ -541,6 +541,52 @@ suite('Sessions - SessionsList', () => {
 		});
 	});
 
+	suite('row feedback', () => {
+		test('aligns workspace and custom group rows with session rows', () => {
+			const group: ISessionGroup = { id: 'group', name: 'Custom Group', createdAt: 1 };
+			const sessions = Array.from({ length: 6 }, (_, index) => {
+				const session = createTestSession(`session-${index}`, {
+					workspaceLabel: `Workspace ${index}`,
+				}).session;
+				return { ...session, updatedAt: constObservable(new Date(index)) };
+			});
+			const harness = createListHarness(disposables, sessions, {
+				groups: [group],
+				memberships: new Map([[sessions[0].sessionId, group.id]]),
+			});
+			const container = harness.createContainer();
+			const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
+				grouping: () => SessionsGrouping.Workspace,
+				sorting: () => SessionsSorting.Created,
+				onSessionOpen: () => { },
+			}));
+			list.layout(1000, 400);
+
+			const groupRow = container.querySelector('.session-group')?.closest('.monaco-list-row');
+			const workspaceRow = [...container.querySelectorAll<HTMLElement>('.session-section:not(.session-group)')]
+				.find(section => section.querySelector('.session-section-label')?.textContent?.startsWith('Workspace'))
+				?.closest('.monaco-list-row');
+			const sessionRow = container.querySelector<HTMLElement>('.monaco-list-row.session-list-inset-row');
+			const feedbackGeometry = (row: Element | null | undefined) => {
+				const style = row ? mainWindow.getComputedStyle(row) : undefined;
+				return {
+					borderRadius: style?.borderRadius,
+					marginLeft: style?.marginLeft,
+					marginRight: style?.marginRight,
+				};
+			};
+
+			assert.deepStrictEqual(
+				[workspaceRow, groupRow, sessionRow].map(feedbackGeometry),
+				Array(3).fill({
+					borderRadius: '0px',
+					marginLeft: '0px',
+					marginRight: '0px',
+				})
+			);
+		});
+	});
+
 	suite('collapsed section status indicators', () => {
 		const group: ISessionGroup = { id: 'group-a', name: 'Group A', createdAt: 1 };
 
@@ -2817,14 +2863,14 @@ suite('Sessions - SessionsList', () => {
 			});
 		});
 
-		test('parent session row still shows NeedsInput when the main chat itself needs input', () => {
+		test('parent session row still shows NeedsInput when the main chat needs input while a hidden child is in progress', () => {
 			const main = createChat('Main chat', undefined, ChatInteractivity.Full, SessionStatus.NeedsInput);
-			const peer = createChat('Peer chat', ChatOriginKind.User, ChatInteractivity.Full, SessionStatus.Completed);
+			const subagent = createChat('Subagent chat', ChatOriginKind.Tool, ChatInteractivity.ReadOnly, SessionStatus.InProgress);
 			const base = createTestSession('Session').session;
 			const session: ISession = {
 				...base,
 				status: constObservable(SessionStatus.NeedsInput),
-				chats: constObservable([main, peer]),
+				chats: constObservable([main, subagent]),
 				mainChat: constObservable(main),
 				capabilities: constObservable({ supportsMultipleChats: true }),
 			};
@@ -3867,8 +3913,9 @@ suite('Sessions - SessionsList', () => {
 	suite('SessionsFlatList quick-chat presentation', () => {
 
 		function renderQuickChat(useCompactQuickChatRows: boolean) {
-			const quickChat = createTestSession('Investigate failure', { isQuickChat: true }).session;
+			const quickChat = createTestSession('Investigate failure', { isQuickChat: true, isRead: false }).session;
 			const harness = createListHarness(disposables, [quickChat]);
+			harness.instantiationService.stub(ISessionsListModelService, 'getStatusIcon', SessionsListModelService.prototype.getStatusIcon);
 			const container = harness.createContainer();
 			const list = harness.store.add(harness.instantiationService.createInstance(SessionsFlatList, container, {
 				showSessionHover: false,
@@ -3881,10 +3928,13 @@ suite('Sessions - SessionsList', () => {
 
 			const item = container.querySelector<HTMLElement>('.session-item');
 			assert.ok(item);
+			const statusIcon = item.querySelector<HTMLElement>('.session-icon > .codicon');
 			return {
 				usesStandardRowHeight: contentHeight === list.getRowHeight(),
 				isShorterThanStandardRow: contentHeight < list.getRowHeight(),
 				hasCompactClass: item.classList.contains('quick-chat'),
+				hasUnreadIcon: statusIcon?.classList.contains('codicon-circle-filled') ?? false,
+				statusIconFontSize: statusIcon ? mainWindow.getComputedStyle(statusIcon).fontSize : undefined,
 				hasChatIcon: item.querySelector('.session-details-icon > .codicon')?.classList.contains('codicon-comment-discussion') ?? false,
 				badge: item.querySelector('.session-badge')?.textContent ?? undefined,
 				time: item.querySelector('.session-time')?.textContent ?? undefined,
@@ -3902,6 +3952,8 @@ suite('Sessions - SessionsList', () => {
 					usesStandardRowHeight: false,
 					isShorterThanStandardRow: true,
 					hasCompactClass: true,
+					hasUnreadIcon: true,
+					statusIconFontSize: '16px',
 					hasChatIcon: false,
 					badge: undefined,
 					time: undefined,
@@ -3912,6 +3964,8 @@ suite('Sessions - SessionsList', () => {
 					usesStandardRowHeight: true,
 					isShorterThanStandardRow: false,
 					hasCompactClass: false,
+					hasUnreadIcon: true,
+					statusIconFontSize: '16px',
 					hasChatIcon: true,
 					badge: 'No workspace',
 					time: 'now',
@@ -4326,7 +4380,7 @@ suite('Sessions - SessionsList', () => {
 		});
 	});
 
-	suite('open trust gate', () => {
+	suite('opening sessions', () => {
 
 		function findSessionRow(container: HTMLElement, title: string): HTMLElement {
 			const item = [...container.querySelectorAll<HTMLElement>('.session-item')]
@@ -4380,6 +4434,49 @@ suite('Sessions - SessionsList', () => {
 				markedRead: 1,
 			});
 		});
+
+		for (const flat of [false, true]) {
+			for (const active of [false, true]) {
+				test(`${flat ? 'flat' : 'main'} list ${active ? 'preserves an active session unread mark' : 'marks an inactive session read'} when opening a row`, async () => {
+					const { session } = createTestSession('Unread', { isRead: false });
+					const activeSession = active ? upcastPartial<IActiveSession>({
+						...session,
+						activeChat: session.mainChat,
+						sticky: constObservable(false),
+						isCreated: constObservable(true),
+						visibleChatTabs: session.chats,
+					}) : undefined;
+					const harness = createListHarness(disposables, [session], instantiationService => {
+						instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
+							override readonly activeSession = constObservable(activeSession);
+							override readonly visibleSessions = constObservable(activeSession ? [activeSession] : []);
+						});
+					});
+					const container = harness.createContainer();
+					const opened: string[] = [];
+					const onSessionOpen = (resource: URI) => { opened.push(resource.toString()); };
+					const list = harness.store.add(flat
+						? harness.instantiationService.createInstance(SessionsFlatList, container, { onSessionOpen })
+						: harness.instantiationService.createInstance(SessionsList, container, {
+							grouping: () => SessionsGrouping.Date,
+							sorting: () => SessionsSorting.Created,
+							onSessionOpen,
+						}));
+					if (list instanceof SessionsFlatList) {
+						list.setSessions([session]);
+					}
+					list.layout(300, 400);
+
+					clickRow(findSessionRow(container, 'Unread'));
+					await settle();
+
+					assert.deepStrictEqual({ opened, markedRead: harness.managementService.readSessions.length }, {
+						opened: [session.resource.toString()],
+						markedRead: active ? 0 : 1,
+					});
+				});
+			}
+		}
 
 		test('refuses to open when the trust gate returns false: no mark-read, no open', async () => {
 			const { harness, container, opened } = renderGatedList('Untrusted', async () => false);

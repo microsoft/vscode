@@ -12,16 +12,14 @@ import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IActionWidgetService } from '../../../../../platform/actionWidget/browser/actionWidget.js';
+import { IActionListItem } from '../../../../../platform/actionWidget/browser/actionList.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { IChatInputNotificationService } from '../../../../../workbench/contrib/chat/browser/widget/input/chatInputNotificationService.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
-import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
-import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
-import { IChatSessionsService } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
+import { IChatSessionsService, ResolvedChatSessionsExtensionPoint, SessionType } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ILanguageModelsService } from '../../../../../workbench/contrib/chat/common/languageModels.js';
 import { ChatEntitlement, IChatEntitlementService } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { TestStorageService } from '../../../../../workbench/test/common/workbenchTestServices.js';
@@ -81,8 +79,18 @@ function createFakeQuickChatSession(providerId: string, sessionTypeId: string): 
 	} as unknown as ISession;
 }
 
-function sessionType(providerId: string, id: string, label: string, chatSessionType?: string): IProviderSessionType {
-	return { providerId, sessionType: { id, label, icon: Codicon.terminal, chatSessionType, authRequirement: SessionTypeAuthRequirement.GitHub } };
+function sessionType(providerId: string, id: string, label: string, chatSessionType?: string, canInitializeWithoutGitHub?: boolean): IProviderSessionType {
+	return {
+		providerId,
+		sessionType: {
+			id,
+			label,
+			icon: Codicon.terminal,
+			chatSessionType,
+			authRequirement: SessionTypeAuthRequirement.GitHub,
+			initializationOnSelection: canInitializeWithoutGitHub === undefined ? undefined : { canInitializeWithoutGitHub },
+		},
+	};
 }
 
 function createFakeSession(providerId: string, sessionTypeId: string, folderUri: URI, status = SessionStatus.Untitled): ISession {
@@ -123,6 +131,11 @@ class TestSessionTypePicker extends SessionTypePicker {
 	}
 }
 
+interface ITestPickerServices {
+	readonly chatSessionsService?: IChatSessionsService;
+	readonly chatEntitlementService?: IChatEntitlementService;
+}
+
 function createPicker(
 	disposables: DisposableStore,
 	session: ISettableObservable<ISession | undefined>,
@@ -131,6 +144,7 @@ function createPicker(
 	options?: ISessionTypePickerOptions,
 	actionWidgetService: Partial<IActionWidgetService> = { isVisible: false, hide: () => { }, show: () => { } },
 	localProviderIds: readonly string[] = [],
+	services: ITestPickerServices = {},
 ): TestSessionTypePicker {
 	const instantiationService = disposables.add(new TestInstantiationService());
 	instantiationService.stub(IActionWidgetService, actionWidgetService);
@@ -144,19 +158,17 @@ function createPicker(
 	}());
 	instantiationService.stub(IStorageService, storage);
 	instantiationService.stub(ITelemetryService, NullTelemetryService);
-	instantiationService.stub(IChatSessionsService, {
+	instantiationService.stub(IChatSessionsService, services.chatSessionsService ?? {
 		supportsAutoModelForSessionType: () => false,
 		requiresCustomModelsForSessionType: () => false,
 		getChatSessionContribution: () => undefined,
 	});
-	instantiationService.stub(IChatEntitlementService, { entitlement: ChatEntitlement.Pro });
+	instantiationService.stub(IChatEntitlementService, services.chatEntitlementService ?? { entitlement: ChatEntitlement.Pro });
 	instantiationService.stub(ILanguageModelsService, {
 		getLanguageModelIds: () => [],
 		lookupLanguageModel: () => undefined,
 	});
 	instantiationService.stub(IConfigurationService, new TestConfigurationService());
-	instantiationService.stub(IChatInputNotificationService, { getActiveNotification: () => undefined });
-	instantiationService.stub(IContextKeyService, new MockContextKeyService());
 	return disposables.add(instantiationService.createInstance(TestSessionTypePicker, session, options));
 }
 
@@ -183,6 +195,79 @@ suite('SessionTypePicker', () => {
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('reports harness visibility only after rendering an interactive picker and resets on disposal', () => {
+		const types = [
+			sessionType('copilot', 'copilot-cli', 'Copilot'),
+			sessionType('claude', 'claude', 'Claude'),
+		];
+		management.setSessionTypes(types);
+		session.set(createFakeSession('copilot', 'copilot-cli', folder), undefined);
+		const picker = createPicker(disposables, session, management, storage);
+		const visibility = [picker.isVisible.get()];
+		picker.render(document.createElement('div'));
+		visibility.push(picker.isVisible.get());
+		management.setSessionTypes([types[0]]);
+		visibility.push(picker.isVisible.get());
+		management.setSessionTypes(types);
+		visibility.push(picker.isVisible.get());
+		picker.dispose();
+		visibility.push(picker.isVisible.get());
+
+		assert.deepStrictEqual(visibility, [false, true, false, true, false]);
+	});
+
+	test('uses provider initialization metadata before models are discovered', () => {
+		const chatSessionsService = new class extends mock<IChatSessionsService>() {
+			override getChatSessionContribution(type: string): ResolvedChatSessionsExtensionPoint | undefined {
+				return type === SessionType.AgentHostCodex
+					? { type, name: type, displayName: 'Codex', description: '', icon: Codicon.openai }
+					: undefined;
+			}
+			override requiresCopilotSignInForSessionType(): boolean { return false; }
+			override supportsAutoModelForSessionType(): boolean { return false; }
+			override requiresCustomModelsForSessionType(): boolean { return true; }
+		}();
+		const isCodexDisabled = (entitlement: ChatEntitlement, canInitializeWithoutGitHub: boolean): boolean | undefined => {
+			management.setSessionTypesForFolder(folder, [
+				sessionType('local', 'local', 'Local'),
+				sessionType('agent-host', 'codex', 'Codex', SessionType.AgentHostCodex, canInitializeWithoutGitHub),
+			]);
+			session.set(createFakeSession('local', 'local', folder), undefined);
+			let codexDisabled: boolean | undefined;
+			const actionWidgetService = new class extends mock<IActionWidgetService>() {
+				override show<T>(_user: string, _supportsPreview: boolean, items: readonly IActionListItem<T>[]): void {
+					const codex = items.find(item => item.label === 'Codex');
+					assert.ok(codex);
+					codexDisabled = codex.disabled;
+				}
+			}();
+			const chatEntitlementService = new class extends mock<IChatEntitlementService>() {
+				override readonly entitlement = entitlement;
+				override readonly anonymous = false;
+				override readonly clientByokEnabled = false;
+			}();
+			const picker = createPicker(disposables, session, management, storage, undefined, actionWidgetService, [], {
+				chatSessionsService,
+				chatEntitlementService,
+			});
+			picker.render(document.createElement('div'));
+			picker.showPicker();
+			return codexDisabled;
+		};
+
+		assert.deepStrictEqual({
+			copilotFree: isCodexDisabled(ChatEntitlement.Free, false),
+			providerAuthenticated: isCodexDisabled(ChatEntitlement.Unknown, true),
+			signedOut: isCodexDisabled(ChatEntitlement.Unknown, false),
+			unresolved: isCodexDisabled(ChatEntitlement.Unresolved, false),
+		}, {
+			copilotFree: false,
+			providerAuthenticated: false,
+			signedOut: true,
+			unresolved: true,
+		});
+	});
 
 	test('preferred session type is the first one and follows session-type changes', () => {
 		management.setSessionTypes([

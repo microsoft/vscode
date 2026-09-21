@@ -45,8 +45,17 @@ export function resolveRemoteAgentHostEntryAuthority(entry: IRemoteAgentHostEntr
 			return `ssh-remote+${sshAuthorityString(entry.connection)}`;
 		case RemoteAgentHostEntryType.Tunnel:
 			return `tunnel+${entry.connection.label ?? `${entry.connection.tunnelId}.${entry.connection.clusterId}`}`;
-		case RemoteAgentHostEntryType.DevContainer:
-			return `dev-container+${encodeHex(VSBuffer.fromString(entry.connection.hostPath))}${entry.connection.hostAuthority ? `@${entry.connection.hostAuthority}` : ''}`;
+		case RemoteAgentHostEntryType.WSL:
+			return `wsl+${entry.connection.distro}`;
+		case RemoteAgentHostEntryType.DevContainer: {
+			let { hostPath, hostAuthority } = entry.connection;
+			if (hostAuthority?.startsWith('wsl+')) {
+				// Dev Containers identifies WSL through a UNC host path, not an @wsl parent authority.
+				hostPath = `\\\\wsl.localhost\\${hostAuthority.slice('wsl+'.length)}${hostPath.replace(/\//g, '\\')}`;
+				hostAuthority = undefined;
+			}
+			return `dev-container+${encodeHex(VSBuffer.fromString(hostPath))}${hostAuthority ? `@${hostAuthority}` : ''}`;
+		}
 		default:
 			return undefined;
 	}

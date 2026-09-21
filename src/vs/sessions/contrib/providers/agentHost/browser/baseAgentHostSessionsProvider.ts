@@ -18,14 +18,16 @@ import { themeColorFromId, ThemeIcon } from '../../../../../base/common/themable
 import { URI } from '../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { localize } from '../../../../../nls.js';
-import { AgentSession, AuthenticateParams, AuthenticateResult, IAgentSessionMetadata, protectedResourcesRequireGitHubCopilotSignIn } from '../../../../../platform/agentHost/common/agent.js';
+import { AgentSession, AuthenticateParams, AuthenticateResult, CODEX_AGENT_PROVIDER_ID, IAgentSessionMetadata, protectedResourcesRequireGitHubCopilotSignIn } from '../../../../../platform/agentHost/common/agent.js';
 import { AgentMergeSessionOverrides, AgentMergeSessionState, readAgentMergeSessionState } from '../../../../../platform/agentHost/common/agentMerge.js';
+import { readAgentSdkSetupInfos } from '../../../../../platform/agentHost/common/agentSdkSetup.js';
 import { IAgentConnection } from '../../../../../platform/agentHost/common/agentService.js';
 import type { AgentHostUriMapper } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import type { RemoteAgentHostConnectionStatus } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { AgentHostTransportFailureReason } from '../../../../../platform/agentHost/common/state/sessionTransport.js';
 import { supportsAgentHostArtifactRemoval } from '../../../../../platform/agentHost/common/agentHostExtensionProtocol.js';
 import { getCustomizationDisabledReason, isCustomizationEnabled, withCustomizationEnablement } from '../../../../../platform/agentHost/common/customizationEnablement.js';
+import { readCodexAccountInfo } from '../../../../../platform/agentHost/common/codexAccount.js';
 import { buildAnnotationsUri } from '../../../../../platform/agentHost/common/annotationsUri.js';
 import { ChangesetKind } from '../../../../../platform/agentHost/common/changesetUri.js';
 import { parseGitHubIssueUrl } from '../../../../../platform/agentHost/common/githubIssueReferences.js';
@@ -45,6 +47,7 @@ import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
+import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IWorkspaceTrustManagementService } from '../../../../../platform/workspace/common/workspaceTrust.js';
 import { AgentHostDownloadProgress } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostDownloadProgress.js';
 import { IAgentCustomizationScope, IAgentHostActiveClientService } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostActiveClientService.js';
@@ -59,12 +62,13 @@ import { isAutoApprovePolicyRestricted, normalizeSessionConfigValue } from '../.
 import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../../../../workbench/contrib/chat/common/languageModels.js';
 import { getRegisteredLanguageModels, resolveConfiguredModel, resolveModelIdentifier, resolveModelIdentifierFromLanguageModels } from '../../../../../workbench/contrib/chat/common/modelSelection.js';
 import { buildMutableConfigSchema, IAgentHostMcpServer, IAgentHostSessionsProvider, IAgentMergeClientState, resolvedConfigsEqual } from '../../../../common/agentHostSessionsProvider.js';
-import { agentHostSessionWorkspaceKey } from '../../../../common/agentHostSessionWorkspace.js';
+import { agentHostSessionWorkspaceKey, buildAgentHostChatWorkspace } from '../../../../common/agentHostSessionWorkspace.js';
 import { USE_WORKTREE_SETTING, isSessionConfigComplete } from '../../../../common/sessionConfig.js';
 import { linkKey } from '../../../../common/sessionLinks.js';
-import { ChatInteractivity, ChatModelSource, ChatOriginKind, DEFAULT_CHAT_CAPABILITIES, effectiveChatInteractivity, getGitHubPullRequestRefs, getHighestPriorityPullRequestIcon, IChat, IChatCapabilities, IGitHubInfo, IGitHubIssueRef, IGitHubPullRequestRef, isActiveSessionStatus, ISession, ISessionAgentRef, ISessionArtifact, ISessionCapabilities, ISessionChangesSummary, ISessionChatCustomization, ISessionChangeset, ISessionCreationReference, ISessionFileChange, ISessionTurnFileChange, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction, ISideChatSelection, sessionFileChangesEqual, sessionWorkspaceEqual, SessionRemoteConnectionFailureReason, SessionRemoteConnectionStatus, SessionStatus, SessionTypeAuthRequirement, toSessionId, TURN_CHANGES_CHANGESET_ID } from '../../../../services/sessions/common/session.js';
-import { dedupeLinks, partitionSessionArtifacts } from './agentHostSessionArtifacts.js';
+import { ChatInteractivity, ChatModelSource, ChatOriginKind, DEFAULT_CHAT_CAPABILITIES, effectiveChatInteractivity, getGitHubPullRequestRefs, getHighestPriorityPullRequestIcon, getSessionOwnedGitHubPullRequestRefs, IChat, IChatCapabilities, IGitHubInfo, IGitHubIssueRef, IGitHubPullRequestRef, isActiveSessionStatus, ISession, ISessionAgentRef, ISessionArtifact, ISessionCapabilities, ISessionChangesSummary, ISessionChatCustomization, ISessionChangeset, ISessionCreationReference, ISessionFileChange, ISessionPreparationProgress, ISessionTurnFileChange, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction, ISideChatSelection, sessionFileChangesEqual, sessionWorkspaceEqual, SessionRemoteConnectionFailureReason, SessionRemoteConnectionStatus, SessionStatus, SessionTypeAuthRequirement, toSessionId, TURN_CHANGES_CHANGESET_ID } from '../../../../services/sessions/common/session.js';
+import { dedupeLinks, partitionSessionArtifacts, type IRecordedGitHubReference } from './agentHostSessionArtifacts.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
+import { ISessionsRecentWorkspacesService } from '../../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
 import { IAutomationSessionConfiguration, IDeleteChatOptions, ISendRequestOptions, ISessionChangeEvent, ISessionConfigurationSnapshot, ISessionModelPickerOptions, ISessionModelsSnapshot, ISessionsProviderCreateSessionOptions, ISessionWorktreeConfiguration } from '../../../../services/sessions/common/sessionsProvider.js';
 import { IGitHubService } from '../../../github/browser/githubService.js';
 import { computePullRequestRefPresentation } from '../../../github/browser/pullRequestIconStatus.js';
@@ -76,6 +80,7 @@ import { createActiveSessionSubscriptionObs, createChangesets, IAgentHostChanges
 import { createSessionOutputObs, ISessionOutputObs } from './agentHostSessionFiles.js';
 
 const STORAGE_KEY_REMEMBERED_SESSION_CONFIG_VALUES = 'sessions.agentHost.sessionConfigPicker.selectedValues';
+const STORAGE_KEY_REMEMBERED_WORKSPACE_ISOLATIONS = 'sessions.agentHost.sessionConfigPicker.workspaceIsolations';
 const UNSAFE_SESSION_CONFIG_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
 const SESSION_CHANGE_NOTIFICATION_DEBOUNCE_MS = 50;
 
@@ -289,8 +294,15 @@ function deserializeStatus(raw: ISerializedSessionMetadata): ProtocolSessionStat
 	return status;
 }
 
-function isRememberedSessionConfigKey(property: string): boolean {
+type SessionIsolation = 'folder' | 'worktree';
+
+function isSessionIsolation(value: unknown): value is SessionIsolation {
+	return value === 'folder' || value === 'worktree';
+}
+
+function isGloballyRememberedSessionConfigKey(property: string): boolean {
 	return property !== SessionConfigKey.Branch
+		&& property !== SessionConfigKey.Isolation
 		&& property !== SessionConfigKey.SandboxEnabled
 		&& !UNSAFE_SESSION_CONFIG_KEYS.has(property);
 }
@@ -331,7 +343,9 @@ function isGitHubInfoEqual(a: IGitHubInfo | undefined, b: IGitHubInfo | undefine
 			x.icon?.id === y.icon?.id &&
 			x.state === y.state &&
 			x.liveState === y.liveState &&
-			x.title === y.title) &&
+			x.title === y.title &&
+			x.createdByThisSession === y.createdByThisSession &&
+			x.recordedReferenceId === y.recordedReferenceId) &&
 		a.pullRequest?.number === b.pullRequest?.number &&
 		a.pullRequest?.icon?.id === b.pullRequest?.icon?.id &&
 		a.pullRequest?.state === b.pullRequest?.state &&
@@ -344,7 +358,8 @@ function isGitHubInfoEqual(a: IGitHubInfo | undefined, b: IGitHubInfo | undefine
 			x.repo === y.repo &&
 			x.number === y.number &&
 			isEqual(x.uri, y.uri) &&
-			x.title === y.title);
+			x.title === y.title &&
+			x.recordedReferenceId === y.recordedReferenceId);
 }
 
 function dateEquals(a: Date | undefined, b: Date | undefined): boolean {
@@ -355,17 +370,24 @@ function markdownStringEquals(a: IMarkdownString | undefined, b: IMarkdownString
 	return a === b || !!a && !!b && markdownStringEqual(a, b);
 }
 
-/** Maps the GitHub issue URLs recorded on the session's metadata to issue references. */
-function toGitHubIssueRefs(issueUrls: readonly string[] | undefined, titles: ReadonlyMap<string, string>): readonly IGitHubIssueRef[] | undefined {
+/**
+ * A GitHub link fed into the ref mappers. Recorded entries arrive as a full
+ * {@link IRecordedGitHubReference} and carry their stable removal id; entries
+ * discovered from git or session state supply only a url.
+ */
+type IGitHubReferenceSource = Partial<IRecordedGitHubReference> & { readonly url: string };
+
+/** Maps GitHub issue records from the session metadata to issue references. */
+function toGitHubIssueRefs(issues: readonly IGitHubReferenceSource[]): readonly IGitHubIssueRef[] | undefined {
 	const refs: IGitHubIssueRef[] = [];
-	for (const url of issueUrls ?? []) {
-		const reference = parseGitHubIssueUrl(url);
+	for (const issue of issues) {
+		const reference = parseGitHubIssueUrl(issue.url);
 		if (reference) {
-			const title = titles.get(linkKey(url));
 			refs.push({
 				...reference,
-				uri: URI.parse(url),
-				...(title ? { title } : {}),
+				uri: URI.parse(issue.url),
+				...(issue.title ? { title: issue.title } : {}),
+				...(issue.recordedReferenceId ? { recordedReferenceId: issue.recordedReferenceId } : {}),
 			});
 		}
 	}
@@ -375,22 +397,21 @@ function toGitHubIssueRefs(issueUrls: readonly string[] | undefined, titles: Rea
 /**
  * Maps session pull request URLs to references, preserving recency order.
  *
- * `titles` is keyed by {@link linkKey}; a URL missing from it simply carries no
- * title. Every pull request published here belongs to the session — it either
- * produced it or its branch relates to it — so all are marked as such.
+ * Recorded entries retain their stable removal IDs. A discovered association
+ * makes a matching recorded entry session-owned without dropping its identity.
  */
-function toGitHubPullRequestRefs(state: ISessionGitHubState | undefined, pullRequestUrls: readonly string[] | undefined, titles: ReadonlyMap<string, string>): readonly IGitHubPullRequestRef[] | undefined {
+function toGitHubPullRequestRefs(state: ISessionGitHubState | undefined, pullRequests: readonly IGitHubReferenceSource[]): readonly IGitHubPullRequestRef[] | undefined {
 	const refs: IGitHubPullRequestRef[] = [];
-	for (const url of pullRequestUrls ?? []) {
-		const reference = parseGitHubPullRequestUrl(url);
+	for (const pullRequest of pullRequests) {
+		const reference = parseGitHubPullRequestUrl(pullRequest.url);
 		if (reference) {
-			const title = titles.get(linkKey(url));
 			refs.push({
 				...reference,
-				uri: URI.parse(url),
-				state: state?.pullRequestStateUrl && linkKey(state.pullRequestStateUrl) === linkKey(url) ? state.pullRequestState : undefined,
-				...(title ? { title } : {}),
-				createdByThisSession: true,
+				uri: URI.parse(pullRequest.url),
+				state: state?.pullRequestStateUrl && linkKey(state.pullRequestStateUrl) === linkKey(pullRequest.url) ? state.pullRequestState : undefined,
+				...(pullRequest.title ? { title: pullRequest.title } : {}),
+				...(pullRequest.recordedReferenceId ? { recordedReferenceId: pullRequest.recordedReferenceId } : {}),
+				createdByThisSession: pullRequest.recordedReferenceId ? pullRequest.isArtifact === true : true,
 			});
 		}
 	}
@@ -400,10 +421,24 @@ function toGitHubPullRequestRefs(state: ISessionGitHubState | undefined, pullReq
 function toGitHubInfo(meta: SessionMeta | undefined): IGitHubInfo | undefined {
 	const state = readSessionGitHubState(meta);
 	const gitState = readSessionGitState(meta);
-	const { pullRequestUrls, pullRequestTitles, issueUrls, issueTitles } = partitionSessionArtifacts(meta);
+	const { pullRequests: recordedPullRequests, issues: recordedIssues } = partitionSessionArtifacts(meta);
+	const discoveredPullRequests = dedupeLinks(getSessionRelatedPullRequestUrls(state))
+		.map(url => ({ url }));
 
-	// Recorded pull requests lead discovered ones, so the first is the newest.
-	const allPullRequests = toGitHubPullRequestRefs(state, dedupeLinks(pullRequestUrls, getSessionRelatedPullRequestUrls(state)), pullRequestTitles);
+	const allPullRequests = [...(toGitHubPullRequestRefs(state, recordedPullRequests) ?? [])];
+	const pullRequestLinks = new Map(allPullRequests.map((pullRequest, index) => [linkKey(pullRequest.uri.toString()), index]));
+	for (const pullRequest of discoveredPullRequests) {
+		const existingIndex = pullRequestLinks.get(linkKey(pullRequest.url));
+		if (existingIndex !== undefined) {
+			allPullRequests[existingIndex] = { ...allPullRequests[existingIndex], createdByThisSession: true };
+			continue;
+		}
+		const discovered = toGitHubPullRequestRefs(state, [pullRequest])?.[0];
+		if (discovered) {
+			pullRequestLinks.set(linkKey(pullRequest.url), allPullRequests.length);
+			allPullRequests.push(discovered);
+		}
+	}
 	const repository = state?.owner && state.repo
 		? { owner: state.owner, repo: state.repo }
 		: gitState?.githubOwner && gitState.githubRepo
@@ -420,8 +455,8 @@ function toGitHubInfo(meta: SessionMeta | undefined): IGitHubInfo | undefined {
 		ref.owner.toLowerCase() === repository.owner.toLowerCase() && ref.repo.toLowerCase() === repository.repo.toLowerCase();
 
 	const pullRequests = allPullRequests?.filter(belongsToRepository);
-	const pullRequest = pullRequests?.at(0);
-	const issues = toGitHubIssueRefs(dedupeLinks(issueUrls), issueTitles)?.filter(belongsToRepository);
+	const pullRequest = pullRequests?.find(pullRequest => pullRequest.createdByThisSession);
+	const issues = toGitHubIssueRefs(recordedIssues)?.filter(belongsToRepository);
 
 	return {
 		owner: repository.owner,
@@ -528,8 +563,10 @@ export interface IAgentHostAdapterOptions {
 	readonly loading: IObservable<boolean>;
 	/** Builds the session workspace from session metadata; provider-specific (icon, providerLabel, requiresWorkspaceTrust). */
 	readonly buildWorkspace: (project: IAgentSessionMetadata['project'], workingDirectories: readonly URI[] | undefined, gitHubInfo: IObservable<IGitHubInfo | undefined>, gitState: ISessionGitState | undefined) => ISessionWorkspace | undefined;
-	/** Optional URI mapping for diff entries (remote uses `toAgentHostUri`; local uses identity). */
+	/** Optional URI mapping for host-side file resources (remote uses `toAgentHostUri`; local uses identity). */
 	readonly mapDiffUri?: AgentHostUriMapper;
+	/** Optional URI mapping for host-side working directories. */
+	readonly mapWorkingDirectoryUri?: AgentHostUriMapper;
 	/**
 	 * GitHub service used to resolve the pull request that targets the
 	 * session's branch and refresh its live state. Optional so tests / hosts
@@ -666,6 +703,7 @@ class AdditionalChat extends Disposable {
 	private readonly _title: ISettableObservable<string>;
 	private readonly _status: ISettableObservable<SessionStatus>;
 	private readonly _updatedAt: ISettableObservable<Date>;
+	private readonly _workingDirectories: ISettableObservable<readonly string[] | undefined>;
 	private readonly _modelId: ISettableObservable<string | undefined>;
 	private readonly _modelSource: ISettableObservable<ChatModelSource | undefined>;
 	private readonly _mode: ISettableObservable<{ readonly id: string; readonly kind: string } | undefined>;
@@ -674,12 +712,13 @@ class AdditionalChat extends Disposable {
 	private readonly _interactivity: ISettableObservable<ChatInteractivity>;
 	private readonly _isNew: ISettableObservable<boolean>;
 
-	constructor(resource: URI, summary: ChatSummary, isNew: boolean = false, parentChat?: URI, sessionIsArchived: IObservable<boolean> = constObservable(false), output?: IChatOutputObs, sessionIsReadOnly: IObservable<boolean> = constObservable(false), connectionStatus?: IObservable<RemoteAgentHostConnectionStatus>) {
+	constructor(resource: URI, summary: ChatSummary, sessionWorkspace: IObservable<ISessionWorkspace | undefined>, mapWorkingDirectoryUri: AgentHostUriMapper, isNew: boolean = false, parentChat?: URI, sessionIsArchived: IObservable<boolean> = constObservable(false), output?: IChatOutputObs, sessionIsReadOnly: IObservable<boolean> = constObservable(false), connectionStatus?: IObservable<RemoteAgentHostConnectionStatus>) {
 		super();
 		const modifiedAt = summary.modifiedAt ? new Date(summary.modifiedAt) : new Date();
 		this._title = observableValue('chatTitle', summary.title || localize('newChatTab', "New Chat"));
 		this._status = observableValue<SessionStatus>('chatStatus', mapProtocolStatus(summary.status));
 		this._updatedAt = observableValueOpts<Date>({ owner: this, debugName: 'chatUpdatedAt', equalsFn: dateEquals }, modifiedAt);
+		this._workingDirectories = observableValueOpts<readonly string[] | undefined>({ owner: this, debugName: 'chatWorkingDirectories', equalsFn: structuralEquals }, summary.workingDirectories);
 		this._modelId = observableValue<string | undefined>('chatModelId', undefined);
 		this._modelSource = observableValue<ChatModelSource | undefined>('chatModelSource', undefined);
 		this._mode = observableValueOpts<{ readonly id: string; readonly kind: string } | undefined>({ owner: this, debugName: 'chatMode', equalsFn: structuralEquals }, undefined);
@@ -688,9 +727,14 @@ class AdditionalChat extends Disposable {
 		this._interactivity = observableValue<ChatInteractivity>('chatInteractivity', toChatInteractivity(summary.interactivity));
 		this._isNew = observableValue<boolean>('chatIsNew', isNew);
 		const status = derived(this, reader => this._isNew.read(reader) ? SessionStatus.Untitled : this._status.read(reader));
+		const workspace = derived(this, reader => buildAgentHostChatWorkspace(
+			sessionWorkspace.read(reader),
+			this._workingDirectories.read(reader)?.map(directory => mapWorkingDirectoryUri(URI.parse(directory)))
+		));
 		this.chat = {
 			resource,
 			createdAt: modifiedAt,
+			workspace,
 			title: this._title,
 			updatedAt: this._updatedAt,
 			status: toPresentedSessionStatus(this, status, connectionStatus),
@@ -732,6 +776,7 @@ class AdditionalChat extends Disposable {
 			this._title.set(summary.title || localize('newChatTab', "New Chat"), tx);
 			this._status.set(mapProtocolStatus(summary.status), tx);
 			this._updatedAt.set(modifiedAt, tx);
+			this._workingDirectories.set(summary.workingDirectories, tx);
 			this._description.set(summary.activity ? new MarkdownString().appendText(summary.activity) : undefined, tx);
 			this._lastTurnEnd.set(modifiedAt, tx);
 			this._interactivity.set(toChatInteractivity(summary.interactivity), tx);
@@ -871,6 +916,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 	 * (which may have been promoted by a running peer chat).
 	 */
 	private readonly _defaultChatStatusOverride = observableValue<SessionStatus | undefined>('defaultChatStatusOverride', undefined);
+	private readonly _defaultChatWorkingDirectories = observableValueOpts<readonly string[] | undefined>({ owner: this, debugName: 'defaultChatWorkingDirectories', equalsFn: structuralEquals }, undefined);
 	/** Whether this session was created with worktree isolation. */
 	private readonly _worktreeIsolation = observableValue<boolean>('worktreeIsolation', false);
 	/** Interactivity of the default chat. Driven from the default chat's protocol summary. */
@@ -1036,7 +1082,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 		});
 		this.artifacts = derivedOpts<readonly ISessionArtifact[]>({ owner: this, equalsFn: structuralEquals }, reader => {
 			const meta = this._metaObs.read(reader);
-			return partitionSessionArtifacts(meta).entries.map(entry => entry.artifact);
+			return partitionSessionArtifacts(meta, this._options.mapDiffUri).entries.map(entry => entry.artifact);
 		});
 
 		const baseGitHubInfoObs = derivedOpts<IGitHubInfo | undefined>({
@@ -1051,27 +1097,30 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 				return baseGitHubInfo;
 			}
 
-			const pullRequests = getGitHubPullRequestRefs(baseGitHubInfo).map((pullRequest, index) => ({
+			const isPrimaryPullRequest = (pullRequest: IGitHubPullRequestRef) =>
+				pullRequest.number === baseGitHubInfo.pullRequest?.number &&
+				isEqual(pullRequest.uri, baseGitHubInfo.pullRequest.uri);
+			const baseRefs = getGitHubPullRequestRefs(baseGitHubInfo);
+			const primaryIndex = Math.max(0, baseRefs.findIndex(isPrimaryPullRequest));
+			const pullRequests = baseRefs.map((pullRequest, index) => ({
 				...pullRequest,
 				...computePullRequestRefPresentation(
 					reader,
 					this._gitHubService,
 					this._pullRequestIconCache,
 					pullRequest,
-					index === 0 ? computePullRequestIcon(GitHubPullRequestState.Open) : undefined,
+					index === primaryIndex ? computePullRequestIcon(GitHubPullRequestState.Open) : undefined,
 				)
 			}));
-			const icon = pullRequests[0].icon;
-			const liveState = pullRequests[0].liveState;
-			const title = pullRequests[0].title;
+			const primaryPullRequest = pullRequests[primaryIndex];
 			return {
 				...baseGitHubInfo,
 				pullRequests: baseGitHubInfo.pullRequests ? pullRequests : undefined,
 				pullRequest: {
 					...baseGitHubInfo.pullRequest,
-					icon,
-					liveState,
-					title,
+					icon: primaryPullRequest.icon,
+					liveState: primaryPullRequest.liveState,
+					title: primaryPullRequest.title,
 				}
 			};
 		});
@@ -1082,7 +1131,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 				return { ...Codicon.gitMerge, color: themeColorFromId('charts.purple') };
 			}
 			const gitHubInfo = this.gitHubInfo.read(reader);
-			return getHighestPriorityPullRequestIcon(getGitHubPullRequestRefs(gitHubInfo).map(pullRequest => pullRequest.icon));
+			return getHighestPriorityPullRequestIcon(getSessionOwnedGitHubPullRequestRefs(gitHubInfo).map(pullRequest => pullRequest.icon));
 		});
 
 		const initialWorkspace = this._computeWorkspace();
@@ -1153,9 +1202,14 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 		this._currentTurnChanges = this._createCurrentTurnChangesObservable();
 
 		const defaultChatStatus = derived(this, reader => this._defaultChatStatusOverride.read(reader) ?? this.status.read(reader));
+		const defaultChatWorkspace = derived(this, reader => buildAgentHostChatWorkspace(
+			this.workspace.read(reader),
+			this._defaultChatWorkingDirectories.read(reader)?.map(directory => this._options.mapWorkingDirectoryUri?.(URI.parse(directory)) ?? URI.parse(directory))
+		));
 		const mainChat: IChat = {
 			resource: this.resource,
 			createdAt: this.createdAt,
+			workspace: defaultChatWorkspace,
 			title: derived(this, reader => this._defaultChatTitleOverride.read(reader) ?? this.title.read(reader)),
 			updatedAt: this.updatedAt,
 			status: toPresentedSessionStatus(this, defaultChatStatus, connectionStatus),
@@ -1240,6 +1294,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 		const defaultSummary = state.chats.find(isDefault);
 		this._defaultChatTitleOverride.set(defaultSummary?.title || undefined, undefined);
 		this._defaultChatInteractivity.set(toChatInteractivity(defaultSummary?.interactivity), undefined);
+		this._defaultChatWorkingDirectories.set(defaultSummary?.workingDirectories, undefined);
 
 		// Tool-origin subagents and user-created side (`/btw`) chats must reach
 		// the peer-chat catalog even when the backing session type is otherwise
@@ -1332,7 +1387,18 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 			lastTurnChanges: this._sessionOutput.getLastTurnChanges(backendUri),
 			customizations: this._sessionOutput.getChatCustomizations(backendUri),
 		};
-		const chat = new AdditionalChat(resource, summary, this._newChatIds.has(chatId), this._resolveParentChatResource(summary.origin), this.isArchived, output, this._options.readOnly, this._options.connectionStatus);
+		const chat = new AdditionalChat(
+			resource,
+			summary,
+			this.workspace,
+			this._options.mapWorkingDirectoryUri ?? (uri => uri),
+			this._newChatIds.has(chatId),
+			this._resolveParentChatResource(summary.origin),
+			this.isArchived,
+			output,
+			this._options.readOnly,
+			this._options.connectionStatus
+		);
 		const selection = this._chatModelSelections.get(chatId);
 		if (selection) {
 			chat.setModelId(selection.modelId, selection.source);
@@ -2031,6 +2097,7 @@ class NewSession extends Disposable {
 	private readonly _worktreePending = observableValue<boolean>(this, false);
 	private readonly _description: ISettableObservable<IMarkdownString | undefined>;
 	private readonly _isNewSessionRequestInProgress = observableValue(this, false);
+	readonly preparationProgress = observableValue<ISessionPreparationProgress | undefined>(this, undefined);
 	private readonly _newSessionRequestActivities = new Map<number, string | undefined>();
 	private _newSessionRequestId = 0;
 	private readonly _isActiveSessionObs: IObservable<boolean>;
@@ -2169,6 +2236,7 @@ class NewSession extends Disposable {
 
 		const mainChat: IChat = {
 			resource, createdAt, title, updatedAt,
+			workspace: this._workspace,
 			status: this._status,
 			changes,
 			checkpoints,
@@ -2203,6 +2271,7 @@ class NewSession extends Disposable {
 			mode,
 			loading: derived(reader => loading.read(reader) || authPending.read(reader)),
 			isNewSessionRequestInProgress: this._isNewSessionRequestInProgress,
+			preparationProgress: this.preparationProgress,
 			isArchived,
 			isRead,
 			description: this._description,
@@ -3011,6 +3080,8 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		@IStorageService protected readonly _storageService: IStorageService,
 		@IDialogService protected readonly _dialogService: IDialogService,
 		@IWorkspaceTrustManagementService protected readonly _workspaceTrustManagementService: IWorkspaceTrustManagementService,
+		@ISessionsRecentWorkspacesService recentWorkspacesService: ISessionsRecentWorkspacesService,
+		@IUriIdentityService protected readonly _uriIdentityService: IUriIdentityService,
 	) {
 		super();
 		this.onDidChangeModels = Event.defer(Event.any(
@@ -3058,6 +3129,8 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				}
 			}
 		}));
+		this._register(recentWorkspacesService.onDidRemoveRecentWorkspaces(
+			workspaceUris => this._forgetWorkspaceIsolations(workspaceUris)));
 		this._register(this._storageService.onWillSaveState(() => {
 			if (this._sessionCacheStorageKey && this._cacheDirty) {
 				this._persistCache();
@@ -3133,6 +3206,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			icon: this.iconForAgentProvider(provider) ?? this.icon,
 			loading: this.authenticationPending,
 			mapDiffUri: this._diffUriMapper(),
+			mapWorkingDirectoryUri: uri => this.mapWorkingDirectoryUri(uri),
 			gitHubService: this._gitHubService,
 			instantiationService: this._instantiationService,
 			getConnection: () => this.connection,
@@ -3158,9 +3232,21 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	}
 
 	protected updateAdapter(adapter: AgentHostSessionAdapter, meta: IAgentSessionMetadata): boolean {
-		this._metaByRawId.set(AgentSession.id(meta.session), meta);
+		const rawId = AgentSession.id(meta.session);
+		if (meta.status !== undefined) {
+			const status = withSessionStatusFlag(meta.status, ProtocolSessionStatus.IsArchived, this._resolveArchivedState(rawId, isSessionStatusArchived(meta.status)));
+			if (status !== meta.status) {
+				meta = { ...meta, status };
+			}
+		}
+		this._metaByRawId.set(rawId, meta);
 		this._cacheDirty = true;
 		return adapter.update(meta);
+	}
+
+	/** Resolve host archive state before applying it to the client cache. */
+	protected _resolveArchivedState(_rawId: string, isArchived: boolean): boolean {
+		return isArchived;
 	}
 
 	/**
@@ -3226,12 +3312,17 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	 */
 	protected _syncSessionTypesFromRootState(rootState: RootState): void {
 		this._syncAgentCapabilities(rootState.agents);
+		const setupAgents = new Set(readAgentSdkSetupInfos(rootState).map(setup => setup.agent));
+		const hasSignedInCodexAccount = readCodexAccountInfo(rootState).status === 'signedIn';
 		const next = rootState.agents
 			.filter(agent => this._shouldAdvertiseAgent(agent.provider))
 			.map((agent): ISessionType => ({
 				id: agent.provider,
 				supportsWorktreeConfiguration: agent.provider === CopilotCLISessionType.id,
 				authRequirement: resolveAgentAuthRequirement(agent),
+				initializationOnSelection: setupAgents.has(agent.provider) ? {
+					canInitializeWithoutGitHub: agent.provider === CODEX_AGENT_PROVIDER_ID && hasSignedInCodexAccount,
+				} : undefined,
 				// The chat session contribution and language models for an agent-host
 				// agent are registered under its resource scheme (`agent-host-<provider>`),
 				// not the bare provider id, so carry it for availability lookups.
@@ -3241,7 +3332,10 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			}));
 
 		const prev = this._sessionTypes;
-		if (prev.length === next.length && prev.every((t, i) => t.id === next[i].id && t.label === next[i].label && t.authRequirement === next[i].authRequirement)) {
+		if (prev.length === next.length && prev.every((t, i) => t.id === next[i].id
+			&& t.label === next[i].label
+			&& t.authRequirement === next[i].authRequirement
+			&& t.initializationOnSelection?.canInitializeWithoutGitHub === next[i].initializationOnSelection?.canInitializeWithoutGitHub)) {
 			return;
 		}
 		this._sessionTypes = next;
@@ -3646,6 +3740,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				icon: this.iconForAgentProvider(sessionType.id) ?? this.icon,
 				loading: this.authenticationPending,
 				mapDiffUri: this._diffUriMapper(),
+				mapWorkingDirectoryUri: uri => this.mapWorkingDirectoryUri(uri),
 				gitHubService: this._gitHubService,
 				instantiationService: this._instantiationService,
 				getConnection: () => this.connection,
@@ -3846,9 +3941,9 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 
 	/**
 	 * Initial session-config values applied to a brand-new agent-host session
-	 * before its schema is resolved. Values are seeded from portable picks in
-	 * the profile-scoped remembered session-config map and then normalized
-	 * against policy/feature constraints.
+	 * before its schema is resolved. Portable picks are seeded from a
+	 * profile-scoped map. Isolation is seeded from the last session started for
+	 * this workspace, falling back to `sessions.useWorktree`.
 	 *
 	 * The agent-host defaults are controlled by the single
 	 * `chat.defaultConfiguration` object setting (with `mode` and
@@ -3878,13 +3973,15 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		// `mode='autopilot'` shape before the per-axis precedence below runs.
 		const rememberedValues = this._storageService.getObject<Record<string, unknown>>(STORAGE_KEY_REMEMBERED_SESSION_CONFIG_VALUES, StorageScope.PROFILE, {});
 		for (const [property, value] of Object.entries(rememberedValues)) {
-			if (typeof value === 'string' && isRememberedSessionConfigKey(property)) {
+			if (typeof value === 'string' && isGloballyRememberedSessionConfigKey(property)) {
 				config[property] = value;
 			}
 		}
 		const remembered = migrateLegacyAutopilotConfig(config);
-		if (workspace && rememberedValues[SessionConfigKey.Isolation] === undefined) {
-			remembered[SessionConfigKey.Isolation] = this._baseConfigurationService.getValue<boolean>(USE_WORKTREE_SETTING) !== false ? 'worktree' : 'folder';
+		const workspaceUri = workspace?.folders[0]?.root;
+		if (workspaceUri) {
+			remembered[SessionConfigKey.Isolation] = this._getRememberedWorkspaceIsolation(workspaceUri)
+				?? (this._baseConfigurationService.getValue<boolean>(USE_WORKTREE_SETTING) !== false ? 'worktree' : 'folder');
 		}
 
 		// `chat.defaultConfiguration` controls both axes. Per axis the
@@ -4025,16 +4122,62 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	}
 
 	private _rememberSessionConfigValue(property: string, normalizedValue: unknown): void {
-		if (typeof normalizedValue === 'string' && isRememberedSessionConfigKey(property)) {
+		if (typeof normalizedValue === 'string' && isGloballyRememberedSessionConfigKey(property)) {
 			const rememberedValues = this._storageService.getObject<Record<string, unknown>>(STORAGE_KEY_REMEMBERED_SESSION_CONFIG_VALUES, StorageScope.PROFILE, {});
 			const nextRememberedValues = Object.create(null) as Record<string, string>;
 			for (const [key, rememberedValue] of Object.entries(rememberedValues)) {
-				if (typeof rememberedValue === 'string' && isRememberedSessionConfigKey(key)) {
+				if (typeof rememberedValue === 'string' && isGloballyRememberedSessionConfigKey(key)) {
 					nextRememberedValues[key] = rememberedValue;
 				}
 			}
 			nextRememberedValues[property] = normalizedValue;
 			this._storageService.store(STORAGE_KEY_REMEMBERED_SESSION_CONFIG_VALUES, JSON.stringify(nextRememberedValues), StorageScope.PROFILE, StorageTarget.MACHINE);
+		}
+	}
+
+	private _getRememberedWorkspaceIsolation(workspaceUri: URI): SessionIsolation | undefined {
+		const workspaceIsolations = this._storageService.getObject<Record<string, unknown>>(STORAGE_KEY_REMEMBERED_WORKSPACE_ISOLATIONS, StorageScope.PROFILE, {});
+		const isolation = workspaceIsolations[this._uriIdentityService.extUri.getComparisonKey(workspaceUri)];
+
+		return isSessionIsolation(isolation) ? isolation : undefined;
+	}
+
+	private _rememberWorkspaceIsolation(workspaceUri: URI, isolation: unknown): void {
+		if (!isSessionIsolation(isolation)) {
+			return;
+		}
+
+		const workspaceIsolations = this._storageService.getObject<Record<string, unknown>>(STORAGE_KEY_REMEMBERED_WORKSPACE_ISOLATIONS, StorageScope.PROFILE, {});
+		const nextWorkspaceIsolations = Object.create(null) as Record<string, SessionIsolation>;
+		for (const [workspaceKey, rememberedIsolation] of Object.entries(workspaceIsolations)) {
+			if (isSessionIsolation(rememberedIsolation)) {
+				nextWorkspaceIsolations[workspaceKey] = rememberedIsolation;
+			}
+		}
+		nextWorkspaceIsolations[this._uriIdentityService.extUri.getComparisonKey(workspaceUri)] = isolation;
+		this._storageService.store(STORAGE_KEY_REMEMBERED_WORKSPACE_ISOLATIONS, JSON.stringify(nextWorkspaceIsolations), StorageScope.PROFILE, StorageTarget.MACHINE);
+	}
+
+	private _forgetWorkspaceIsolations(workspaceUris: readonly URI[]): void {
+		const removedKeys = new Set(workspaceUris.map(workspaceUri => this._uriIdentityService.extUri.getComparisonKey(workspaceUri)));
+		const workspaceIsolations = this._storageService.getObject<Record<string, unknown>>(STORAGE_KEY_REMEMBERED_WORKSPACE_ISOLATIONS, StorageScope.PROFILE, {});
+		const nextWorkspaceIsolations = Object.create(null) as Record<string, SessionIsolation>;
+		let didRemove = false;
+		for (const [workspaceKey, rememberedIsolation] of Object.entries(workspaceIsolations)) {
+			if (removedKeys.has(workspaceKey)) {
+				didRemove = true;
+			} else if (isSessionIsolation(rememberedIsolation)) {
+				nextWorkspaceIsolations[workspaceKey] = rememberedIsolation;
+			}
+		}
+		if (!didRemove) {
+			return;
+		}
+
+		if (Object.keys(nextWorkspaceIsolations).length === 0) {
+			this._storageService.remove(STORAGE_KEY_REMEMBERED_WORKSPACE_ISOLATIONS, StorageScope.PROFILE);
+		} else {
+			this._storageService.store(STORAGE_KEY_REMEMBERED_WORKSPACE_ISOLATIONS, JSON.stringify(nextWorkspaceIsolations), StorageScope.PROFILE, StorageTarget.MACHINE);
 		}
 	}
 
@@ -5260,10 +5403,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		}
 
 		if (newSession.workspaceUri && !newSession.getInitialSessionTemplate()) {
-			const rememberedValues = this._storageService.getObject<Record<string, unknown>>(STORAGE_KEY_REMEMBERED_SESSION_CONFIG_VALUES, StorageScope.PROFILE, {});
-			if (rememberedValues[SessionConfigKey.Isolation] === undefined) {
-				this._rememberSessionConfigValue(SessionConfigKey.Isolation, newSession.getConfig()?.values[SessionConfigKey.Isolation]);
-			}
+			this._rememberWorkspaceIsolation(newSession.workspaceUri, newSession.getConfig()?.values[SessionConfigKey.Isolation]);
 		}
 
 		newSession.setStatus(SessionStatus.InProgress);
@@ -6362,7 +6502,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		const rawId = AgentSession.id(session);
 		const cached = this._sessionCache.get(rawId);
 		if (cached) {
-			cached.isArchived.set(isArchived, undefined);
+			cached.isArchived.set(this._resolveArchivedState(rawId, isArchived), undefined);
 			this._onDidChangeSessions.fire({ added: [], removed: [], changed: [cached] });
 		}
 	}
@@ -6397,7 +6537,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 					didChange = true;
 				}
 
-				const isArchived = !!(changes.status & ProtocolSessionStatus.IsArchived);
+				const isArchived = this._resolveArchivedState(rawId, !!(changes.status & ProtocolSessionStatus.IsArchived));
 				if (isArchived !== cached.isArchived.get()) {
 					cached.isArchived.set(isArchived, tx);
 					didChange = true;

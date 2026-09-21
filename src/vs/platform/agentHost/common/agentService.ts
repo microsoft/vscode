@@ -114,12 +114,16 @@ export const AgentHostGitHubMcpServerEnabledSettingId = 'chat.agentHost.githubMc
 
 /** Configuration key gating active-agent session and chat title generation. */
 export const AgentHostActiveAgentTitleGenerationSettingId = 'chat.agentHost.experimental.activeAgentTitleGeneration';
+export const AgentHostDeferredTitleGenerationSettingId = 'chat.agentHost.experimental.deferredTitleGeneration';
 
 /** Configuration key enabling rich-link guidance for Markdown plan documents. */
 export const AgentHostMarkdownPlanRichLinksEnabledSettingId = 'chat.agentHost.experimental.markdownPlanRichLinks';
 
 /** Configuration key gating the artifact tools and their agent instruction. */
 export const ArtifactToolsSettingId = 'chat.artifactTools.enabled';
+
+/** Configuration key selecting compact artifact-tool prompt wording. */
+export const ArtifactToolsCompactPromptsSettingId = 'chat.artifactTools.compactPrompts';
 
 /** Configuration key controlling automatic pull request association for the checked-out branch. */
 export const AgentHostAutoAttachPullRequestsSettingId = 'chat.agentHost.experimental.autoAttachPullRequests';

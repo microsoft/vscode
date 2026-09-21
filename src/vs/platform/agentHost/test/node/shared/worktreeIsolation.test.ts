@@ -55,6 +55,7 @@ suite('WorktreeIsolation', () => {
 			restoredTurnsSame: await isolation.applyRestoreAnnouncement(session, turns) === turns,
 			deletion: await isolation.prepareSessionDeletion(session, 'session'),
 			adopted: await isolation.adoptExistingWorktreeMetadata(session, workingDirectory),
+			externalProject: await isolation.resolveExternalWorktreeProject(workingDirectory),
 			project: await isolation.resolveWorktreeProject(session),
 		}, {
 			supported: false,
@@ -66,6 +67,7 @@ suite('WorktreeIsolation', () => {
 			restoredTurnsSame: true,
 			deletion: undefined,
 			adopted: false,
+			externalProject: undefined,
 			project: undefined,
 		});
 	});

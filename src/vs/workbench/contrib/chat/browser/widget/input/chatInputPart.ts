@@ -525,6 +525,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private readonly _onDidChangeChatPetHorizontalPlatforms = this._register(new Emitter<void>());
 	readonly onDidChangeChatPetHorizontalPlatforms = this._onDidChangeChatPetHorizontalPlatforms.event;
 	private inputContainer!: HTMLElement;
+	private inputEnabled = true;
 	private inputAndSideToolbar!: HTMLElement;
 	private readonly _notificationWidget = this._register(new MutableDisposable<ChatInputNotificationWidget>());
 	private readonly _goalBannerWidget = this._register(new MutableDisposable<ChatGoalBannerWidget>());
@@ -2347,7 +2348,26 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	}
 
 	focus() {
-		this._inputEditor.focus();
+		if (this.inputEnabled) {
+			this._inputEditor.focus();
+		} else {
+			this.executeToolbar.focus();
+		}
+	}
+
+	/** Disable draft editing during session preparation without disabling the Stop toolbar. */
+	setInputEnabled(enabled: boolean): void {
+		const hadFocus = this.hasFocus();
+		this.inputEnabled = enabled;
+		this._inputEditor.updateOptions({ readOnly: !enabled });
+		this._inputEditorElement.inert = !enabled;
+		this.attachmentsContainer.inert = !enabled;
+		this.inputActionsToolbar.getElement().inert = !enabled;
+		this.secondaryToolbarContainer.inert = !enabled;
+		this.dnd.setDisabledOverlay(!enabled);
+		if (hadFocus) {
+			this.focus();
+		}
 	}
 
 	hasFocus(): boolean {
@@ -2886,6 +2906,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			// the user creates a session and `sessionTypes`-gated
 			// notifications never render.
 			this._notificationWidget.value = this.instantiationService.createInstance(ChatInputNotificationWidget, {
+				inputUri: this.inputUri,
 				modelTargetChatSessionType: this._notificationModelTargetChatSessionType,
 				sessionResource: this._currentSessionResourceObservable,
 				deferredNotificationsEnabled: this._deferredNotificationsEnabled,
@@ -2906,6 +2927,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	private getNotificationContext(): IChatInputNotificationContext {
 		return {
+			inputUri: this.inputUri,
 			sessionType: this._notificationModelTargetChatSessionType.get(),
 			sessionResource: this._currentSessionResourceObservable.get(),
 			deferredNotificationsEnabled: this._deferredNotificationsEnabled.get(),
@@ -4860,6 +4882,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 					arg: {
 						$mid: MarshalledId.ChatViewContext,
 						sessionResource,
+						inputUri: this.inputUri,
 					} satisfies IChatViewTitleActionContext,
 				}) : undefined,
 				disableWhileRunning: isSessionMenu,

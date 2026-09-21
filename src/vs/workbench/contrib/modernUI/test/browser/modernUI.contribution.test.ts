@@ -2273,7 +2273,7 @@ suite('ModernUIContribution', () => {
 		}
 	});
 
-	test('paints connected tab strokes outside the fill without moving tab content', () => {
+	test('reserves the connected terminal shoulder without moving tab content', () => {
 		const root = document.createElement('div');
 		root.style.setProperty('--vscode-spacing-size20', '2px');
 		root.style.setProperty('--vscode-spacing-size40', '4px');
@@ -2313,6 +2313,8 @@ suite('ModernUIContribution', () => {
 						tab.classList.add('active');
 						const activeFillBounds = fill.getBoundingClientRect();
 						const activeFillStyle = targetWindow.getComputedStyle(fill);
+						const shoulderWidth = targetWindow.getComputedStyle(fill, '::after').width;
+						const activeTabStyle = targetWindow.getComputedStyle(tab);
 
 						assert.deepStrictEqual({
 							tabBounds: tab.getBoundingClientRect().toJSON(),
@@ -2322,11 +2324,13 @@ suite('ModernUIContribution', () => {
 								fillBounds.left - activeFillBounds.left,
 								activeFillBounds.right - fillBounds.right,
 							],
+							marginRight: activeTabStyle.marginRight,
 							topRadius: activeFillStyle.borderTopLeftRadius,
 						}, {
 							tabBounds: tabBounds.toJSON(),
 							labelBounds: labelBounds.toJSON(),
-							fillExpansion: [0, 0, connected ? -5 : 0],
+							fillExpansion: [0, 0, 0],
+							marginRight: connected ? shoulderWidth : '0px',
 							topRadius: connected ? '5px' : '4px',
 						}, JSON.stringify({ classes, theme, activeGroup, compact }));
 					}

@@ -131,10 +131,21 @@ export type VoiceNarrationDeferredClassification = {
 export type VoiceNarrationDroppedEvent = {
 	kind: string;
 	reason: string;
+	rejectionReason?: VoiceNarrationRejectionReason;
 };
 export type VoiceNarrationDroppedClassification = {
 	owner: 'meganrogge';
 	comment: 'Fired client-side when a requested narration is dropped without being played (no narration text is logged).';
 	kind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the dropped narration was a response, confirmation prompt, or checkpoint.' };
 	reason: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Why it was dropped: invalid (narration_ack invalid), stale (no longer the current narratable item), or session_changed (user switched away from the session).' };
+	rejectionReason?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'For invalid confirmation narrations, the allowlisted backend rejection category. Missing or unrecognized backend reasons are reported as missing or unknown; raw backend text is never logged.' };
 };
+
+export type VoiceNarrationRejectionReason = 'stale_pending' | 'missing' | 'unknown';
+
+export function toVoiceNarrationRejectionReason(reason: string | undefined): VoiceNarrationRejectionReason {
+	if (reason === undefined) {
+		return 'missing';
+	}
+	return reason === 'stale_pending' ? reason : 'unknown';
+}
