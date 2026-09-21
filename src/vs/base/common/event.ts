@@ -1479,6 +1479,12 @@ class EventDeliveryQueuePrivate implements EventDeliveryQueue {
 export interface IWaitUntil {
 	token: CancellationToken;
 	waitUntil(thenable: Promise<unknown>): void;
+export interface EmitterOptions {
+	_trace?: boolean;
+	onFirstListenerAdd?: Function;
+	onFirstListenerDidAdd?: Function;
+	onListenerDidAdd?: Function;
+	onLastListenerRemove?: Function;
 }
 
 export type IWaitUntilData<T> = Omit<Omit<T, 'waitUntil'>, 'token'>;
@@ -1502,6 +1508,14 @@ export class AsyncEmitter<T extends IWaitUntil> extends Emitter<T> {
 
 			const [listener, data] = this._asyncDeliveryQueue.shift()!;
 			const thenables: Promise<unknown>[] = [];
+	private _traces: string[] = [];
+
+	constructor(private _options: EmitterOptions | null = null) {
+		this._event = null;
+		this._disposed = false;
+		this._deliveryQueue = null;
+		this._listeners = null;
+	}
 
 			// eslint-disable-next-line local/code-no-dangerous-type-assertions
 			const event = <T>{
@@ -1542,6 +1556,34 @@ export class AsyncEmitter<T extends IWaitUntil> extends Emitter<T> {
 
 
 export class PauseableEmitter<T> extends Emitter<T> {
+				if (this._options && this._options._trace) {
+					this._traces.push(new Error().stack || '');
+					let len = this._listeners.toArray().length;
+					if (len >= 50 && (len % 5 === 0)) {
+						console.warn(`LEAK? already ${len} listener`);
+						this._traces.forEach(t => console.warn(t));
+						this._traces.length = 0;
+					}
+				}
+
+				let result: IDisposable;
+				result = {
+					dispose: () => {
+						result.dispose = Emitter._noop;
+						if (!this._disposed) {
+							remove();
+							if (this._options && this._options.onLastListenerRemove) {
+								const hasListeners = (this._listeners && !this._listeners.isEmpty());
+								if (!hasListeners) {
+									this._options.onLastListenerRemove(this);
+								}
+							}
+						}
+					}
+				};
+				if (Array.isArray(disposables)) {
+					disposables.push(result);
+				}
 
 	private _isPaused = 0;
 	protected _eventQueue = new LinkedList<T>();
@@ -1760,6 +1802,21 @@ export class DynamicListEventMultiplexer<TItem, TEventType> implements IDynamicL
 		for (const instance of items) {
 			addItem(instance);
 		}
+export function debounceEvent<T>(event: Event<T>, merger: (last: T, event: T) => T, delay?: number, leading?: boolean, _trace?: boolean): Event<T>;
+export function debounceEvent<I, O>(event: Event<I>, merger: (last: O | undefined, event: I) => O, delay?: number, leading?: boolean, _trace?: boolean): Event<O>;
+export function debounceEvent<I, O>(event: Event<I>, merger: (last: O | undefined, event: I) => O, delay: number = 100, leading = false, _trace?: boolean): Event<O> {
+
+	let subscription: IDisposable;
+	let output: O | undefined = undefined;
+	let handle: any = undefined;
+	let numDebouncedCalls = 0;
+
+	const emitter = new Emitter<O>({
+		_trace,
+		onFirstListenerAdd() {
+			subscription = event(cur => {
+				numDebouncedCalls++;
+				output = merger(output, cur);
 
 		// Added items
 		this._store.add(onAddItem(instance => {

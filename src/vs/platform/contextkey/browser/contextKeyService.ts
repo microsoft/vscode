@@ -306,6 +306,15 @@ export abstract class AbstractContextKeyService extends Disposable implements IC
 	public createScoped(domNode: IContextKeyServiceTarget): IScopedContextKeyService {
 		if (this._isDisposed) {
 			throw new Error(`AbstractContextKeyService has been disposed`);
+	public get onDidChangeContext(): Event<IContextKeyChangeEvent> {
+		if (!this._onDidChangeContext) {
+			this._onDidChangeContext = debounceEvent<string | string[], ContextKeyChangeEvent>(this._onDidChangeContextKey.event, (prev, cur) => {
+				if (!prev) {
+					prev = new ContextKeyChangeEvent();
+				}
+				prev.collect(cur);
+				return prev;
+			}, 25, false, true);
 		}
 		return new ScopedContextKeyService(this, domNode);
 	}
