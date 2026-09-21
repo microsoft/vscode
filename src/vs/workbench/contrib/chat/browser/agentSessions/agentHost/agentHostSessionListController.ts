@@ -37,13 +37,11 @@ function mapSessionStatus(status: SessionStatus | undefined): ChatSessionStatus 
 /**
  * Provides provider-specific session list items for the chat sessions sidebar
  * by projecting the shared {@link AgentHostSessionListStore} state. The
- * controller derives items from the store on demand and retains only the
- * projected resources needed to emit precise removals when a chat disappears.
+ * controller derives items from the store on demand.
  */
 export class AgentHostSessionListController extends Disposable implements IChatSessionItemController {
 
 	readonly onDidChangeChatSessionItems: Event<IChatSessionItemsDelta>;
-	private readonly _projectedResources = new Map<string, readonly URI[]>();
 
 	constructor(
 		private readonly _sessionType: string,
@@ -59,10 +57,6 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 	) {
 		super();
 		void _connectionAuthority;
-
-		for (const entry of this._sessionListStore.getSessions(this._provider)) {
-			this._projectedResources.set(entry.rawId, this._makeItemsFromSummary(entry.rawId, entry.summary, entry.statusKnown).map(item => item.resource));
-		}
 
 		this._register(chatService.onDidDisposeSession(event => {
 			for (const resource of event.sessionResources) {
@@ -84,15 +78,8 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 	}
 
 	get items(): readonly IChatSessionItem[] {
-		const items: IChatSessionItem[] = [];
-		for (const entry of this._sessionListStore.getSessions(this._provider)) {
-			const projected = this._makeItemsFromSummary(entry.rawId, entry.summary, entry.statusKnown);
-			if (!this._projectedResources.has(entry.rawId)) {
-				this._projectedResources.set(entry.rawId, projected.map(item => item.resource));
-			}
-			items.push(...projected);
-		}
-		return items;
+		return this._sessionListStore.getSessions(this._provider)
+			.map(entry => this._makeItemFromSummary(entry.rawId, entry.summary, entry.statusKnown));
 	}
 
 	isNewSession(resource: URI): boolean {
@@ -208,25 +195,14 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 			if (entry.provider !== this._provider) {
 				continue;
 			}
-			const previous = this._projectedResources.get(entry.rawId) ?? [];
-			const projected = this._makeItemsFromSummary(entry.rawId, entry.summary, entry.statusKnown);
-			const current = projected.map(item => item.resource);
-			const currentKeys = new Set(current.map(resource => resource.toString()));
-			for (const resource of previous) {
-				if (!currentKeys.has(resource.toString())) {
-					(removed ??= []).push(resource);
-				}
-			}
-			this._projectedResources.set(entry.rawId, current);
-			(addedOrUpdated ??= []).push(...projected);
+			(addedOrUpdated ??= []).push(this._makeItemFromSummary(entry.rawId, entry.summary, entry.statusKnown));
 		}
 
 		for (const removal of delta.removed ?? []) {
 			if (removal.provider !== this._provider) {
 				continue;
 			}
-			(removed ??= []).push(...(this._projectedResources.get(removal.rawId) ?? [this._resource(removal.rawId)]));
-			this._projectedResources.delete(removal.rawId);
+			(removed ??= []).push(this._resource(removal.rawId));
 		}
 
 		if (!addedOrUpdated && !removed) {
@@ -235,7 +211,7 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 		return { ...(addedOrUpdated ? { addedOrUpdated } : undefined), ...(removed ? { removed } : undefined) };
 	}
 
-	private _makeItemsFromSummary(rawId: string, summary: SessionSummary, statusKnown: boolean): IChatSessionItem[] {
+	private _makeItemFromSummary(rawId: string, summary: SessionSummary, statusKnown: boolean): IChatSessionItem {
 		const workingDir = typeof summary.workingDirectories?.[0] === 'string' ? URI.parse(summary.workingDirectories?.[0]) : summary.workingDirectories?.[0];
 		const base = {
 			title: summary.title,
@@ -249,15 +225,18 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 			adoptable: readSessionEhcliAdoptable(summary._meta),
 		};
 		if (!summary.chats?.length) {
-			return [this._makeItem(rawId, base)];
+			return this._makeItem(rawId, base);
 		}
 
-		return summary.chats.map(chat => this._makeItem(rawId, {
+		return this._makeItem(rawId, {
 			...base,
-			title: chat.title || summary.title,
-			chat,
-			isDefaultChat: this._isDefaultChat(summary, chat),
-		}));
+			children: summary.chats.map(chat => this._makeItem(rawId, {
+				...base,
+				title: chat.title || summary.title,
+				chat,
+				isDefaultChat: this._isDefaultChat(summary, chat),
+			})),
+		});
 	}
 
 	private _makeItem(rawId: string, opts: {
@@ -274,6 +253,7 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 		adoptable?: boolean;
 		chat?: SessionChatSummary;
 		isDefaultChat?: boolean;
+		children?: readonly IChatSessionItem[];
 	}): IChatSessionItem {
 		const inProgress = opts.status !== undefined && (opts.status & SessionStatus.InProgress) !== 0;
 		const description = inProgress && opts.activity ? opts.activity : this._description;
@@ -283,6 +263,7 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 		return {
 			resource: opts.chat ? this._chatResource(rawId, opts.chat, opts.isDefaultChat === true) : this._resource(rawId),
 			label: opts.title || `Session ${rawId.substring(0, 8)}`,
+			children: opts.children,
 			description,
 			iconPath: getAgentSessionProviderIcon(this._sessionType),
 			status: mapSessionStatus(opts.status),

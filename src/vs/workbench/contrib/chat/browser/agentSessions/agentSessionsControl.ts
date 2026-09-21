@@ -43,6 +43,7 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../../pla
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { LayoutSettings } from '../../../../services/layout/browser/layoutService.js';
+import { isEqual } from '../../../../../base/common/resources.js';
 
 export interface IAgentSessionsControlOptions {
 	readonly overrideStyles: IStyleOverride<IListStyles>;
@@ -154,7 +155,7 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 			return;
 		}
 
-		const matchingSession = this.agentSessionsService.model.getSession(resource);
+		const matchingSession = this.getSessionListItem(resource);
 		if (matchingSession && this.sessionsList?.hasNode(matchingSession)) {
 			if (this.sessionsList.getRelativeTop(matchingSession) === null) {
 				this.sessionsList.reveal(matchingSession, 0.5); // only reveal when not already visible
@@ -302,8 +303,9 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 				defaultFindMode: TreeFindMode.Filter,
 				keyboardNavigationLabelProvider: new AgentSessionsKeyboardNavigationLabelProvider(),
 				overrideStyles: this.options.overrideStyles,
-				twistieAdditionalCssClass: () => 'force-no-twistie',
+				twistieAdditionalCssClass: (element: unknown) => isAgentSession(element) && element.children?.length ? undefined : 'force-no-twistie',
 				collapseByDefault: (element: unknown) => collapseByDefault(element),
+				expandOnlyOnTwistieClick: true,
 				renderIndentGuides: RenderIndentGuides.None,
 			}
 		)) as WorkbenchCompressibleAsyncDataTree<IAgentSessionsModel, AgentSessionListItem, FuzzyScore>;
@@ -658,6 +660,11 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 			return;
 		}
 
+		if (element.children?.length) {
+			this.sessionsList?.toggleCollapsed(element);
+			return;
+		}
+
 		this.telemetryService.publicLog2<AgentSessionOpenedEvent, AgentSessionOpenedClassification>('agentSessionOpened', {
 			providerType: element.providerType,
 			source: this.options.source
@@ -893,7 +900,7 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 			return false;
 		}
 
-		const session = this.agentSessionsService.model.getSession(sessionResource);
+		const session = this.getSessionListItem(sessionResource);
 		if (!session || !this.sessionsList.hasNode(session)) {
 			return false;
 		}
@@ -911,5 +918,13 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 		this.sessionsList.setSelection([session]);
 
 		return true;
+	}
+
+	private getSessionListItem(resource: URI): IAgentSession | undefined {
+		const session = this.agentSessionsService.model.getSession(resource);
+		if (!session?.children?.length) {
+			return session;
+		}
+		return session.children.find(child => isEqual(child.resource, resource)) ?? session;
 	}
 }

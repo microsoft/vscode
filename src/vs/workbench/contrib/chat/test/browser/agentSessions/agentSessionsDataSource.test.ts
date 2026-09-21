@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { AgentSessionsDataSource, AgentSessionListItem, IAgentSessionsFilter, sessionDateFromNow, getRepositoryName, AgentSessionsSorter, groupAgentSessionsByDate, getAgentSessionStatusIcon } from '../../../browser/agentSessions/agentSessionsViewer.js';
+import { AgentSessionsDataSource, AgentSessionListItem, IAgentSessionsFilter, sessionDateFromNow, getRepositoryName, AgentSessionsSorter, groupAgentSessionsByDate, getAgentSessionStatusIcon, AgentSessionsIdentityProvider } from '../../../browser/agentSessions/agentSessionsViewer.js';
 import { AgentSessionSection, IAgentSession, IAgentSessionSection, IAgentSessionsModel, isAgentSession, isAgentSessionSection, isAgentSessionShowLess, isAgentSessionShowMore } from '../../../browser/agentSessions/agentSessionsModel.js';
 import { ChatSessionStatus } from '../../../common/chatSessionsService.js';
 import { ITreeSorter } from '../../../../../../base/browser/ui/tree/tree.js';
@@ -15,6 +15,7 @@ import { Event } from '../../../../../../base/common/event.js';
 import { AgentSessionsGrouping, AgentSessionsSorting } from '../../../browser/agentSessions/agentSessionsFilter.js';
 import { shouldShowSessionInPicker } from '../../../browser/agentSessions/agentSessionsPicker.js';
 import { themeColorFromId } from '../../../../../../base/common/themables.js';
+import { NotSelectableGroupId } from '../../../../../../base/browser/ui/list/list.js';
 
 suite('sessionDateFromNow', () => {
 
@@ -86,6 +87,7 @@ suite('AgentSessionsDataSource', () => {
 
 	function createMockSession(overrides: Partial<{
 		id: string;
+		label: string;
 		status: ChatSessionStatus;
 		isArchived: boolean;
 		isPinned: boolean;
@@ -95,14 +97,17 @@ suite('AgentSessionsDataSource', () => {
 		endTime: number;
 		metadata: { [key: string]: unknown };
 		badge: string;
+		children: readonly IAgentSession[];
+		resource: URI;
+		parentSession: { readonly resource: URI; readonly label: string };
 	}> = {}): IAgentSession {
 		const now = Date.now();
 		return {
 			providerType: 'test',
 			providerLabel: 'Test',
-			resource: URI.parse(`test://session/${overrides.id ?? 'default'}`),
+			resource: overrides.resource ?? URI.parse(`test://session/${overrides.id ?? 'default'}`),
 			status: overrides.status ?? ChatSessionStatus.Completed,
-			label: `Session ${overrides.id ?? 'default'}`,
+			label: overrides.label ?? `Session ${overrides.id ?? 'default'}`,
 			icon: Codicon.terminal,
 			timing: {
 				created: overrides.startTime ?? now,
@@ -112,6 +117,8 @@ suite('AgentSessionsDataSource', () => {
 			changes: overrides.hasChanges ? { files: 1, insertions: 10, deletions: 5 } : undefined,
 			metadata: overrides.metadata,
 			badge: overrides.badge,
+			children: overrides.children,
+			parentSession: overrides.parentSession,
 			isArchived: () => overrides.isArchived ?? false,
 			setArchived: () => { },
 			isPinned: () => overrides.isPinned ?? false,
@@ -191,6 +198,48 @@ suite('AgentSessionsDataSource', () => {
 	}
 
 	suite('groupSessionsIntoSections', () => {
+
+		test('returns a session chat hierarchy', () => {
+			const children = [
+				createMockSession({ id: 'default-chat' }),
+				createMockSession({ id: 'peer-chat' }),
+			];
+			const session = createMockSession({ id: 'parent', children });
+			const dataSource = disposables.add(new AgentSessionsDataSource(createMockFilter({ groupBy: undefined }), createMockSorter()));
+
+			assert.deepStrictEqual({
+				parentHasChildren: dataSource.hasChildren(session),
+				children: Array.from(dataSource.getChildren(session)).filter(isAgentSession).map(child => child.resource.toString()),
+				leafHasChildren: dataSource.hasChildren(children[0]),
+			}, {
+				parentHasChildren: true,
+				children: ['test://session/default-chat', 'test://session/peer-chat'],
+				leafHasChildren: false,
+			});
+		});
+
+		test('gives a session parent and its default chat distinct identities', () => {
+			const resource = URI.parse('test://session/parent');
+			const child = createMockSession({
+				label: 'Default chat',
+				resource,
+				parentSession: { resource, label: 'Parent session' },
+			});
+			const parent = createMockSession({ label: 'Parent session', resource, children: [child] });
+			const identityProvider = new AgentSessionsIdentityProvider();
+
+			assert.deepStrictEqual({
+				parentId: identityProvider.getId(parent),
+				childId: identityProvider.getId(child),
+				parentGroup: identityProvider.getGroupId(parent),
+				childGroup: identityProvider.getGroupId(child),
+			}, {
+				parentId: resource.toString(),
+				childId: `chat-${resource.toString()}`,
+				parentGroup: NotSelectableGroupId,
+				childGroup: 1,
+			});
+		});
 
 		test('returns flat list when groupResults is false', () => {
 			const now = Date.now();

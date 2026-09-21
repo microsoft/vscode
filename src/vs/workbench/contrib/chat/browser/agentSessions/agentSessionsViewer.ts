@@ -14,7 +14,7 @@ import { ICompressedTreeNode } from '../../../../../base/browser/ui/tree/compres
 import { ICompressibleKeyboardNavigationLabelProvider, ICompressibleTreeRenderer } from '../../../../../base/browser/ui/tree/objectTree.js';
 import { ITreeNode, ITreeElementRenderDetails, IAsyncDataSource, ITreeSorter, ITreeDragAndDrop, ITreeDragOverReaction } from '../../../../../base/browser/ui/tree/tree.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
-import { AgentSessionSection, AgentSessionStatus, getAgentChangesSummary, hasValidDiff, IAgentSession, IAgentSessionSection, IAgentSessionShowLess, IAgentSessionShowMore, IAgentSessionsModel, isAgentSession, isAgentSessionSection, isAgentSessionShowLess, isAgentSessionShowMore, isAgentSessionsModel, isSessionInProgressStatus } from './agentSessionsModel.js';
+import { AgentSessionSection, AgentSessionStatus, getAgentChangesSummary, hasValidDiff, IAgentSession, IAgentSessionSection, IAgentSessionShowLess, IAgentSessionShowMore, IAgentSessionsModel, isAgentSession, isAgentSessionChild, isAgentSessionSection, isAgentSessionShowLess, isAgentSessionShowMore, isAgentSessionsModel, isSessionInProgressStatus } from './agentSessionsModel.js';
 import { IconLabel } from '../../../../../base/browser/ui/iconLabel/iconLabel.js';
 import { ThemeIcon, themeColorFromId } from '../../../../../base/common/themables.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
@@ -1011,11 +1011,11 @@ export class AgentSessionsListDelegate implements IListVirtualDelegate<AgentSess
 export class AgentSessionsAccessibilityProvider implements IListAccessibilityProvider<AgentSessionListItem> {
 
 	getWidgetRole(): AriaRole {
-		return 'list';
+		return 'tree';
 	}
 
 	getRole(element: AgentSessionListItem): AriaRole | undefined {
-		return 'listitem';
+		return 'treeitem';
 	}
 
 	getWidgetAriaLabel(): string {
@@ -1039,6 +1039,15 @@ export class AgentSessionsAccessibilityProvider implements IListAccessibilityPro
 			return localize('agentSessionShowLessAriaLabel', "Show less sessions");
 		}
 
+		if (isAgentSessionChild(element)) {
+			return localize('agentSessionChatItemAriaLabel', "{0}, chat in session {1} ({2})", element.label, element.parentSession.label, toStatusLabel(element.status));
+		}
+		if (element.children?.length) {
+			if (element.children.length === 1) {
+				return localize('agentSessionParentItemAriaLabel.singular', "{0} session {1}, 1 chat ({2}), created {3}", element.providerLabel, element.label, toStatusLabel(element.status), new Date(element.timing.created).toLocaleString());
+			}
+			return localize('agentSessionParentItemAriaLabel', "{0} session {1}, {2} chats ({3}), created {4}", element.providerLabel, element.label, element.children.length, toStatusLabel(element.status), new Date(element.timing.created).toLocaleString());
+		}
 		return localize('agentSessionItemAriaLabel', "{0} session {1} ({2}), created {3}", element.providerLabel, element.label, toStatusLabel(element.status), new Date(element.timing.created).toLocaleString());
 	}
 }
@@ -1159,10 +1168,7 @@ export class AgentSessionsDataSource extends Disposable implements IAsyncDataSou
 			return element.sessions.length > 0;
 		}
 
-		// Session element or show more
-		else {
-			return false;
-		}
+		return isAgentSession(element) && !!element.children?.length;
 	}
 
 	getChildren(element: IAgentSessionsModel | AgentSessionListItem): Iterable<AgentSessionListItem> {
@@ -1214,10 +1220,11 @@ export class AgentSessionsDataSource extends Disposable implements IAsyncDataSou
 			return element.sessions;
 		}
 
-		// Session element or show more
-		else {
-			return [];
+		if (isAgentSession(element)) {
+			return element.children ?? [];
 		}
+
+		return [];
 	}
 
 	private groupSessionsIntoSections(sessions: IAgentSession[]): AgentSessionListItem[] {
@@ -1612,14 +1619,16 @@ export class AgentSessionsIdentityProvider implements IIdentityProvider<IAgentSe
 		}
 
 		if (isAgentSession(element)) {
-			return element.resource.toString();
+			return isAgentSessionChild(element)
+				? `chat-${element.resource.toString()}`
+				: element.resource.toString();
 		}
 
 		return 'agent-sessions-id';
 	}
 
 	getGroupId(element: IAgentSessionsModel | AgentSessionListItem): number | NotSelectableGroupIdType {
-		if (isAgentSessionSection(element) || isAgentSessionsModel(element)) {
+		if (isAgentSessionSection(element) || isAgentSessionsModel(element) || (isAgentSession(element) && !!element.children?.length)) {
 			return NotSelectableGroupId;
 		}
 		return 1;

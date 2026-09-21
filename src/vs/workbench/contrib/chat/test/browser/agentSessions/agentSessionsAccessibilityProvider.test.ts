@@ -22,6 +22,8 @@ suite('AgentSessionsAccessibilityProvider', () => {
 		label: string;
 		providerLabel: string;
 		status: ChatSessionStatus;
+		children: readonly IAgentSession[];
+		parentSession: { readonly resource: URI; readonly label: string };
 	}> = {}): IAgentSession {
 		const now = Date.now();
 		return {
@@ -37,6 +39,8 @@ suite('AgentSessionsAccessibilityProvider', () => {
 				lastRequestStarted: undefined,
 			},
 			changes: undefined,
+			children: overrides.children,
+			parentSession: overrides.parentSession,
 			isArchived: () => false,
 			setArchived: () => { },
 			isPinned: () => false,
@@ -59,18 +63,18 @@ suite('AgentSessionsAccessibilityProvider', () => {
 		accessibilityProvider = new AgentSessionsAccessibilityProvider();
 	});
 
-	test('getWidgetRole returns list', () => {
-		assert.strictEqual(accessibilityProvider.getWidgetRole(), 'list');
+	test('getWidgetRole returns tree', () => {
+		assert.strictEqual(accessibilityProvider.getWidgetRole(), 'tree');
 	});
 
-	test('getRole returns listitem for session', () => {
+	test('getRole returns treeitem for session', () => {
 		const session = createMockSession();
-		assert.strictEqual(accessibilityProvider.getRole(session), 'listitem');
+		assert.strictEqual(accessibilityProvider.getRole(session), 'treeitem');
 	});
 
-	test('getRole returns listitem for section', () => {
+	test('getRole returns treeitem for section', () => {
 		const section = createMockSection();
-		assert.strictEqual(accessibilityProvider.getRole(section), 'listitem');
+		assert.strictEqual(accessibilityProvider.getRole(section), 'treeitem');
 	});
 
 	test('getWidgetAriaLabel returns correct label', () => {
@@ -89,6 +93,27 @@ suite('AgentSessionsAccessibilityProvider', () => {
 		assert.ok(ariaLabel);
 		assert.ok(ariaLabel.includes('Test Session Title'), 'Aria label should include the session title');
 		assert.ok(ariaLabel.includes('Agent'), 'Aria label should include the provider label');
+	});
+
+	test('getAriaLabel distinguishes session parents and chat children', () => {
+		const child = createMockSession({
+			id: 'child',
+			label: 'Peer chat',
+			parentSession: { resource: URI.parse('test://session/parent'), label: 'Parent session' },
+		});
+		const parent = createMockSession({
+			id: 'parent',
+			label: 'Parent session',
+			children: [child],
+		});
+
+		assert.deepStrictEqual({
+			parent: accessibilityProvider.getAriaLabel(parent),
+			child: accessibilityProvider.getAriaLabel(child),
+		}, {
+			parent: `${parent.providerLabel} session Parent session, 1 chat (Completed), created ${new Date(parent.timing.created).toLocaleString()}`,
+			child: 'Peer chat, chat in session Parent session (Completed)',
+		});
 	});
 
 	test('getAriaLabel returns singular label for section with 1 session', () => {
