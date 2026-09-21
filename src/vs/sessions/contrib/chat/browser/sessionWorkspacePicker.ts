@@ -72,6 +72,7 @@ const TABBED_PICKER_WIDTH = 360;
  * selection than leave the user staring at an unreachable workspace.
  */
 const RESTORE_CONNECT_GRACE_MS = 5000;
+const MAX_UNIFIED_RECENT_WORKSPACES = 10;
 
 /**
  * Item type used in the action list.
@@ -1558,12 +1559,13 @@ export class WorkspacePicker extends Disposable {
 				workspace.group !== SESSION_WORKSPACE_GROUP_GITHUB
 				|| !repositoryId
 				|| !localRepositoryIds?.has(repositoryId));
-		const orderedRecentWorkspaceEntries = this._useConsolidatedRemoteWorkspaces()
+		const orderedRecentWorkspaceEntries = (this._useConsolidatedRemoteWorkspaces()
 			? [
 				...recentWorkspaceEntries.filter(({ workspace }) => !ThemeIcon.isEqual(this._getWorkspaceIcon(workspace), Codicon.repo)),
 				...recentWorkspaceEntries.filter(({ workspace }) => ThemeIcon.isEqual(this._getWorkspaceIcon(workspace), Codicon.repo)),
 			]
-			: recentWorkspaceEntries;
+			: recentWorkspaceEntries)
+			.slice(0, useRemoteSubmenu ? MAX_UNIFIED_RECENT_WORKSPACES : undefined);
 
 		let previousRecentWorkspaceIsRepository: boolean | undefined;
 		for (const { workspace, providerId, repositoryId } of orderedRecentWorkspaceEntries) {
