@@ -9,10 +9,12 @@ import { Emitter, Event } from '../../../../../base/common/event.js';
 import { ResourceMap } from '../../../../../base/common/map.js';
 import { MarshalledId } from '../../../../../base/common/marshallingIds.js';
 import { Schemas } from '../../../../../base/common/network.js';
+import { observableValue } from '../../../../../base/common/observable.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { runWithFakedTimers } from '../../../../../base/test/common/virtualScheduling/index.js';
 import { ITextModel } from '../../../../../editor/common/model.js';
 import { IModelService } from '../../../../../editor/common/services/model.js';
 import { createTextModel } from '../../../../../editor/test/common/testTextModel.js';
@@ -27,7 +29,7 @@ import { INotificationService } from '../../../../../platform/notification/commo
 import product from '../../../../../platform/product/common/product.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
-import { AgentsWindowOpenSource } from '../../../../../platform/window/common/window.js';
+import { AgentsWindowOpenSource, isAgentsWindowOpenSource } from '../../../../../platform/window/common/window.js';
 import { IWorkspaceContextService, WorkbenchState, WorkspaceFolder } from '../../../../../platform/workspace/common/workspace.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IWorkbenchAssignmentService } from '../../../../services/assignment/common/assignmentService.js';
@@ -39,9 +41,9 @@ import { IAgentSessionsService } from '../../browser/agentSessions/agentSessions
 import { ChatInputNotificationActionKind, IChatInputNotification, IChatInputNotificationService } from '../../browser/widget/input/chatInputNotificationService.js';
 import { reviveChatDraft } from '../../common/attachments/chatDraft.js';
 import { IChatRequestVariableEntry, toFileVariableEntry } from '../../common/attachments/chatVariableEntries.js';
-import { ChatAgentLocation, ChatConfiguration, OPEN_WORKSPACE_IN_AGENTS_WINDOW_COMMAND_ID } from '../../common/constants.js';
+import { ChatAgentLocation, ChatConfiguration, DEFAULT_AGENTS_HANDOFF_TIP_DELAY_SECONDS, OPEN_WORKSPACE_IN_AGENTS_WINDOW_COMMAND_ID } from '../../common/constants.js';
 import { SessionType } from '../../common/chatSessionsService.js';
-import { IChatModel } from '../../common/model/chatModel.js';
+import { IChatChangeEvent, IChatModel, IChatPendingRequest, IChatRequestModel } from '../../common/model/chatModel.js';
 import { IChatViewModel } from '../../common/model/chatViewModel.js';
 import { getChatSessionType, LocalChatSessionUri } from '../../common/model/chatUri.js';
 import { AgentsHandoffInputTipContribution, AgentsParallelWorkContribution, OpenAgentsWindowAction, OpenChatSessionInAgentsWindowAction, OpenWorkspaceInAgentsWindowAction, OpenWorkspaceInAgentsWindowChatTitleAction, OpenWorkspaceInAgentsWindowTitleBarAction } from '../../electron-browser/agentSessions/agentSessionsActions.js';
@@ -54,13 +56,15 @@ suite('Agents Window draft handoff and parallel invitation', () => {
 	const defaultTitle = 'Run agents side by side';
 	const defaultDescription = 'Run multiple tasks in the Agents Window, in one workspace or across projects.';
 
-	function createHarness(options: { transfer?: boolean; reveal?: boolean; running?: boolean; banner?: boolean; runningProviderType?: string } = {}) {
+	function createHarness(options: { transfer?: boolean; reveal?: boolean; running?: boolean; banner?: boolean; runningProviderType?: string; handoffDelaySeconds?: number } = {}) {
 		const instantiation = disposables.add(new TestInstantiationService());
 		const focused = disposables.add(new Emitter<void>());
 		const sessionsChanged = disposables.add(new Emitter<void>());
 		const contextChanged = disposables.add(new Emitter<IContextKeyChangeEvent>());
 		const dismissed = disposables.add(new Emitter<string>());
 		const assignmentsRefetched = disposables.add(new Emitter<void>());
+		const requestsChanged = disposables.add(new Emitter<IChatChangeEvent>());
+		const pendingRequestsChanged = disposables.add(new Emitter<void>());
 		const configuration = new class extends TestConfigurationService {
 			readonly updates: { key: string; value: unknown; target?: ConfigurationTarget }[] = [];
 			override async updateValue(key: string, value: unknown, targetOrOverrides?: ConfigurationTarget | IConfigurationOverrides | IConfigurationUpdateOverrides): Promise<void> {
@@ -72,12 +76,24 @@ suite('Agents Window draft handoff and parallel invitation', () => {
 			[ChatConfiguration.OpenInAgentsWindowTransferDraft]: options.transfer ?? true,
 			[ChatConfiguration.OpenInAgentsWindowRevealCurrentSession]: options.reveal ?? false,
 			[ChatConfiguration.AgentsHandoffTipMode]: 'default',
+			[ChatConfiguration.AgentsHandoffTipDelaySeconds]: options.handoffDelaySeconds ?? DEFAULT_AGENTS_HANDOFF_TIP_DELAY_SECONDS,
 			[ChatConfiguration.AgentsParallelWorkBannerEnabled]: options.banner ?? true,
 		});
 		disposables.add(configuration.onDidChangeConfigurationEmitter);
 		let resource = URI.from({ scheme: SessionType.AgentHostCopilot, path: '/untitled-draft' });
 		let input = 'Original prompt';
 		let hasRequests = false;
+		const requests: IChatRequestModel[] = [];
+		const pendingRequests: IChatPendingRequest[] = [];
+		const requestInProgress = observableValue('requestInProgress', false);
+		const model = upcastPartial<IChatModel>({
+			get hasRequests() { return hasRequests; },
+			requestInProgress,
+			onDidChange: requestsChanged.event,
+			onDidChangePendingRequests: pendingRequestsChanged.event,
+			getRequests: () => requests,
+			getPendingRequests: () => pendingRequests,
+		});
 		let attachments: IChatRequestVariableEntry[] = [toFileVariableEntry(URI.file('/source/context.ts'))];
 		let allowed = true;
 		let viewContext: IChatWidget['viewContext'] = {};
@@ -117,13 +133,14 @@ suite('Agents Window draft handoff and parallel invitation', () => {
 			inputPart,
 			input: inputPart,
 			get viewContext() { return viewContext; },
-			get viewModel() { return upcastPartial<IChatViewModel>({ sessionResource: resource, model: upcastPartial<IChatModel>({ hasRequests }) }); },
+			get viewModel() { return upcastPartial<IChatViewModel>({ sessionResource: resource, model }); },
 			getInput: () => input,
 			get attachmentModel() { return upcastPartial<IChatWidget['attachmentModel']>({ attachments }); },
 			scopedContextKeyService: contextService,
 		});
+		let lastFocusedWidget: IChatWidget | undefined = widget;
 		instantiation.stub(IChatWidgetService, upcastPartial<IChatWidgetService>({
-			lastFocusedWidget: widget,
+			get lastFocusedWidget() { return lastFocusedWidget; },
 			onDidChangeFocusedSession: focused.event,
 			onDidAddWidget: Event.None,
 			onDidRemoveWidget: Event.None,
@@ -178,6 +195,19 @@ suite('Agents Window draft handoff and parallel invitation', () => {
 		}));
 		return {
 			instantiation, configuration, calls, warnings, focused, sessionsChanged, models, treatmentWarnings, treatmentNames, widget, inputUri,
+			focusWidget: (value: IChatWidget | undefined) => { lastFocusedWidget = value; focused.fire(); },
+			sendMessage: (timestamp = Date.now(), isSystemInitiated = false) => {
+				const request = upcastPartial<IChatRequestModel>({ timestamp, isSystemInitiated });
+				requests.push(request);
+				hasRequests = true;
+				requestInProgress.set(true, undefined);
+				requestsChanged.fire({ kind: 'addRequest', request });
+			},
+			queueMessage: (timestamp = Date.now()) => {
+				pendingRequests.push(upcastPartial<IChatPendingRequest>({ request: upcastPartial<IChatRequestModel>({ timestamp }) }));
+				pendingRequestsChanged.fire();
+			},
+			set requestInProgress(value: boolean) { requestInProgress.set(value, undefined); },
 			set readTreatment(value: (name: string) => Promise<string | undefined>) { readTreatment = value; },
 			refetchTreatments: async () => { assignmentsRefetched.fire(); await timeout(0); },
 			setTreatments: async (title?: string, description?: string) => {
@@ -218,17 +248,21 @@ suite('Agents Window draft handoff and parallel invitation', () => {
 		};
 	}
 
-	test('defines only the feature flags as settings, not the banner copy treatments', () => {
+	test('defines handoff feature flags and an advanced experimental delay, not copy treatments', () => {
 		const properties = agentsWindowHandoffConfigurationProperties;
+		const delay = properties[ChatConfiguration.AgentsHandoffTipDelaySeconds];
 		assert.deepStrictEqual({
 			keys: Object.keys(properties),
 			settings: Object.values(properties).map(property => ({ type: property.type, default: property.default, experiment: property.experiment })),
+			delay: { minimum: delay.minimum, tags: delay.tags },
 		}, {
-			keys: [ChatConfiguration.OpenInAgentsWindowTransferDraft, ChatConfiguration.AgentsParallelWorkBannerEnabled],
+			keys: [ChatConfiguration.OpenInAgentsWindowTransferDraft, ChatConfiguration.AgentsParallelWorkBannerEnabled, ChatConfiguration.AgentsHandoffTipDelaySeconds],
 			settings: [
 				{ type: 'boolean', default: product.quality === 'insider', experiment: { mode: 'auto' } },
 				{ type: 'boolean', default: product.quality === 'insider', experiment: { mode: 'auto' } },
+				{ type: 'number', default: 5, experiment: { mode: 'auto' } },
 			],
+			delay: { minimum: 0, tags: ['experimental', 'advanced'] },
 		});
 	});
 
@@ -563,6 +597,7 @@ suite('Agents Window draft handoff and parallel invitation', () => {
 		h.sessionsChanged.fire();
 		const dismissed = h.notification;
 		h.resource = URI.from({ scheme: SessionType.AgentHostCopilot, path: '/persisted' });
+		h.sendMessage(Date.now() - 5000);
 		assert.deepStrictEqual({ invitation, dismissed, persisted: h.notification?.id }, {
 			invitation: 'chat.agentsParallelWork', dismissed: undefined, persisted: 'chat.agentsHandoff.openInAgentsWindow',
 		});
@@ -592,6 +627,392 @@ suite('Agents Window draft handoff and parallel invitation', () => {
 		});
 	});
 
+	suite('handoff tip delay', () => {
+		function createTimedHandoff(delaySeconds = DEFAULT_AGENTS_HANDOFF_TIP_DELAY_SECONDS) {
+			const h = createHarness({ banner: false, handoffDelaySeconds: delaySeconds });
+			h.resource = URI.from({ scheme: SessionType.AgentHostCopilot, path: '/persisted' });
+			return h;
+		}
+
+		for (const sessionType of [SessionType.CopilotCLI, SessionType.AgentHostCopilot]) {
+			test(`shows after exactly five seconds and hides when ${sessionType} stops running`, async () => {
+				await runWithFakedTimers({ useFakeTimers: true, startTime: 10_000 }, async () => {
+					const h = createTimedHandoff();
+					h.resource = URI.from({ scheme: sessionType, path: '/persisted' });
+					h.showGenericTip();
+					h.sendMessage();
+					const visible = [!!h.notification];
+					await timeout(4999);
+					visible.push(!!h.notification);
+					h.focused.fire();
+					await timeout(1);
+					visible.push(!!h.notification);
+					h.requestInProgress = false;
+					visible.push(!!h.notification);
+
+					assert.deepStrictEqual(visible, [false, false, true, false]);
+				});
+			});
+		}
+
+		test('does not show for a request that finishes before the deadline', async () => {
+			await runWithFakedTimers({ useFakeTimers: true, startTime: 10_000 }, async () => {
+				const h = createTimedHandoff();
+				h.sendMessage();
+				h.showGenericTip();
+				await timeout(4999);
+				h.requestInProgress = false;
+				await timeout(10_000);
+
+				assert.deepStrictEqual({ notification: h.notification, posts: h.posts }, { notification: undefined, posts: 0 });
+			});
+		});
+
+		for (const messageKind of ['request', 'pending'] as const) {
+			test(`measures from the most recent ${messageKind} message, not the first one`, async () => {
+				await runWithFakedTimers({ useFakeTimers: true, startTime: 10_000 }, async () => {
+					const h = createTimedHandoff();
+					h.sendMessage();
+					h.showGenericTip();
+					await timeout(4000);
+					if (messageKind === 'request') {
+						h.sendMessage();
+					} else {
+						h.queueMessage();
+					}
+					await timeout(1000);
+					const visible = [!!h.notification];
+					await timeout(3999);
+					visible.push(!!h.notification);
+					await timeout(1);
+					visible.push(!!h.notification);
+					h.sendMessage();
+					visible.push(!!h.notification);
+					await timeout(5000);
+					visible.push(!!h.notification);
+
+					assert.deepStrictEqual(visible, [false, false, true, false, true]);
+				});
+			});
+		}
+
+		test('uses the message timestamp rather than when the session is focused', async () => {
+			await runWithFakedTimers({ useFakeTimers: true, startTime: 10_000 }, async () => {
+				const h = createTimedHandoff();
+				h.sendMessage(Date.now() - 4000);
+				h.showGenericTip();
+				await timeout(999);
+				const before = h.notification;
+				await timeout(1);
+
+				assert.deepStrictEqual({ before, visible: !!h.notification }, { before: undefined, visible: true });
+			});
+		});
+
+		for (const seconds of [0, 0.25, 10]) {
+			test(`honors a configured delay of ${seconds} seconds`, async () => {
+				await runWithFakedTimers({ useFakeTimers: true, startTime: 10_000 }, async () => {
+					const h = createTimedHandoff(seconds);
+					h.sendMessage();
+					h.showGenericTip();
+					const initial = !!h.notification;
+					if (seconds > 0) {
+						await timeout(seconds * 1000 - 1);
+					}
+					const beforeDeadline = !!h.notification;
+					if (seconds > 0) {
+						await timeout(1);
+					}
+
+					assert.deepStrictEqual({ initial, beforeDeadline, atDeadline: !!h.notification }, {
+						initial: seconds === 0, beforeDeadline: seconds === 0, atDeadline: true,
+					});
+				});
+			});
+		}
+
+		test('recalculates a changed delay from the original send time', async () => {
+			await runWithFakedTimers({ useFakeTimers: true, startTime: 10_000 }, async () => {
+				const h = createTimedHandoff();
+				h.sendMessage();
+				h.showGenericTip();
+				await timeout(2000);
+				await h.configuration.updateValue(ChatConfiguration.AgentsHandoffTipDelaySeconds, 10);
+				await timeout(3000);
+				const visible = [!!h.notification];
+				await h.configuration.updateValue(ChatConfiguration.AgentsHandoffTipDelaySeconds, 3);
+				visible.push(!!h.notification);
+				await h.configuration.updateValue(ChatConfiguration.AgentsHandoffTipDelaySeconds, 8);
+				visible.push(!!h.notification);
+				await timeout(2999);
+				visible.push(!!h.notification);
+				await timeout(1);
+				visible.push(!!h.notification);
+
+				assert.deepStrictEqual(visible, [false, true, false, false, true]);
+			});
+		});
+
+		test('switches timers and progress tracking to the newly focused session', async () => {
+			await runWithFakedTimers({ useFakeTimers: true, startTime: 10_000 }, async () => {
+				const h = createTimedHandoff();
+				h.sendMessage();
+				h.showGenericTip();
+				await timeout(2000);
+				const other = createTimedHandoff();
+				other.resource = URI.from({ scheme: SessionType.AgentHostCopilot, path: '/other-session' });
+				other.sendMessage();
+				h.focusWidget(other.widget);
+				await timeout(3000);
+				const visible = [!!h.notification];
+				h.requestInProgress = false;
+				await timeout(1999);
+				visible.push(!!h.notification);
+				await timeout(1);
+				visible.push(!!h.notification);
+				other.requestInProgress = false;
+				visible.push(!!h.notification);
+
+				assert.deepStrictEqual(visible, [false, false, true, false]);
+			});
+		});
+
+		test('treatment refreshes do not restart the delay', async () => {
+			await runWithFakedTimers({ useFakeTimers: true, startTime: 10_000 }, async () => {
+				const h = createTimedHandoff();
+				h.sendMessage();
+				h.showGenericTip();
+				await timeout(4000);
+				h.readTreatment = async () => 'Treatment copy';
+				await h.refetchTreatments();
+				await timeout(999);
+				const before = h.notification;
+				await timeout(1);
+
+				assert.deepStrictEqual({ before, title: h.notification?.message, description: h.notification?.description }, {
+					before: undefined, title: 'Treatment copy', description: 'Treatment copy',
+				});
+			});
+		});
+
+		test('only user messages start or reset the delay', async () => {
+			await runWithFakedTimers({ useFakeTimers: true, startTime: 10_000 }, async () => {
+				const h = createTimedHandoff();
+				h.showGenericTip();
+				h.sendMessage(Date.now(), true);
+				await timeout(5000);
+				const systemOnly = h.notification;
+				h.sendMessage();
+				await timeout(4000);
+				h.sendMessage(Date.now(), true);
+				await timeout(1000);
+
+				assert.deepStrictEqual({ systemOnly, visible: !!h.notification }, { systemOnly: undefined, visible: true });
+			});
+		});
+
+		for (const action of ['hide', 'disable', 'switch', 'unfocus', 'dispose'] as const) {
+			test(`cancels a pending handoff after ${action}`, async () => {
+				await runWithFakedTimers({ useFakeTimers: true, startTime: 10_000 }, async () => {
+					const h = createTimedHandoff();
+					h.sendMessage();
+					const contribution = h.showGenericTip();
+					await timeout(4000);
+					switch (action) {
+						case 'hide':
+							await h.configuration.updateValue(ChatConfiguration.AgentsHandoffTipMode, 'hidden');
+							break;
+						case 'disable':
+							h.allowed = false;
+							break;
+						case 'switch':
+							h.resource = LocalChatSessionUri.forSession('other');
+							break;
+						case 'unfocus':
+							h.focusWidget(undefined);
+							break;
+						case 'dispose':
+							contribution.dispose();
+							break;
+					}
+					await timeout(10_000);
+
+					assert.deepStrictEqual({ notification: h.notification, posts: h.posts }, { notification: undefined, posts: 0 });
+				});
+			});
+		}
+
+		for (const invalidDelay of [-1, 'invalid', Number.NaN, Number.POSITIVE_INFINITY]) {
+			test(`logs and uses five seconds for invalid delay ${invalidDelay}`, async () => {
+				await runWithFakedTimers({ useFakeTimers: true, startTime: 10_000 }, async () => {
+					const h = createTimedHandoff();
+					await h.configuration.updateValue(ChatConfiguration.AgentsHandoffTipDelaySeconds, invalidDelay);
+					h.sendMessage();
+					h.showGenericTip();
+					await timeout(4999);
+					const before = h.notification;
+					await timeout(1);
+
+					assert.deepStrictEqual({ before, visible: !!h.notification, warnings: h.treatmentWarnings.length }, {
+						before: undefined, visible: true, warnings: 1,
+					});
+				});
+			});
+		}
+	});
+
+	suite('handoff tip copy treatments', () => {
+		const handoffTitleTreatment = 'chatAgentsHandoffTipTitle';
+		const handoffDescriptionTreatment = 'chatAgentsHandoffTipDescription';
+		const defaultHandoffTitle = 'Continue this session in the Agents Window';
+		const defaultHandoffDescription = 'Get a dedicated, multi-pane view alongside your workspace.';
+
+		function createHandoffHarness() {
+			const h = createHarness({ banner: false });
+			h.resource = URI.from({ scheme: SessionType.AgentHostCopilot, path: '/persisted' });
+			h.sendMessage(Date.now() - 5000);
+			return h;
+		}
+
+		for (const context of [
+			{ name: 'default', mode: 'default', emptyWorkspace: false, title: defaultHandoffTitle, description: defaultHandoffDescription, action: 'Continue in Agents Window' },
+			{ name: 'custom', mode: 'custom', emptyWorkspace: false, title: defaultHandoffTitle, description: 'Free with your Copilot plan \u2014 get a dedicated, multi-pane view alongside your workspace.', action: 'Give your agent more room?' },
+			{ name: 'empty workspace', mode: 'default', emptyWorkspace: true, title: 'Copilot isn\'t available without an open folder', description: 'Open the Agents Window to start a Copilot session.', action: 'Open in Agents Window' },
+		]) {
+			for (const treatment of [
+				{ name: 'unassigned copy', title: undefined, description: undefined },
+				{ name: 'title only', title: 'Treatment title', description: undefined },
+				{ name: 'body only', title: undefined, description: 'Treatment body' },
+				{ name: 'both strings', title: 'Treatment title', description: 'Treatment body' },
+			]) {
+				test(`reads ${treatment.name} directly from assignments with ${context.name} fallbacks`, async () => {
+					const h = createHandoffHarness();
+					await h.configuration.updateValue(ChatConfiguration.AgentsHandoffTipMode, context.mode);
+					if (context.emptyWorkspace) {
+						h.resource = URI.from({ scheme: SessionType.AgentHostCopilot, path: '/untitled-draft' });
+						h.hasRequests = false;
+						h.workbenchState = WorkbenchState.EMPTY;
+					}
+					h.readTreatment = async name => name === handoffTitleTreatment ? treatment.title : name === handoffDescriptionTreatment ? treatment.description : undefined;
+					h.showGenericTip();
+					await timeout(0);
+
+					assert.deepStrictEqual({
+						queries: h.treatmentNames,
+						title: h.notification?.message,
+						description: h.notification?.description,
+						action: h.notification?.actions[0]?.label,
+						warnings: h.treatmentWarnings,
+					}, {
+						queries: [handoffTitleTreatment, handoffDescriptionTreatment],
+						title: treatment.title ?? context.title,
+						description: treatment.description ?? context.description,
+						action: context.action,
+						warnings: [],
+					});
+				});
+			}
+		}
+
+		test('updates the same session on refetch and restores defaults without reposting unchanged copy', async () => {
+			const h = createHandoffHarness();
+			let title: string | undefined;
+			let description: string | undefined;
+			h.readTreatment = async name => name === handoffTitleTreatment ? title : name === handoffDescriptionTreatment ? description : undefined;
+			h.showGenericTip();
+			await timeout(0);
+			title = 'Updated title';
+			description = 'Updated body';
+			await h.refetchTreatments();
+			const updated = { title: h.notification?.message, description: h.notification?.description };
+			await h.refetchTreatments();
+			h.focused.fire();
+			title = undefined;
+			description = undefined;
+			await h.refetchTreatments();
+			title = defaultHandoffTitle;
+			description = defaultHandoffDescription;
+			await h.refetchTreatments();
+
+			assert.deepStrictEqual({
+				updated, title: h.notification?.message, description: h.notification?.description, posts: h.posts,
+			}, {
+				updated: { title: 'Updated title', description: 'Updated body' },
+				title: defaultHandoffTitle, description: defaultHandoffDescription, posts: 3,
+			});
+		});
+
+		test('assigned copy does not enable a hidden tip', async () => {
+			const h = createHandoffHarness();
+			await h.configuration.updateValue(ChatConfiguration.AgentsHandoffTipMode, 'hidden');
+			h.readTreatment = async name => name === handoffTitleTreatment ? 'Treatment title' : 'Treatment body';
+			h.showGenericTip();
+			await timeout(0);
+			const hidden = h.notification;
+			await h.configuration.updateValue(ChatConfiguration.AgentsHandoffTipMode, 'default');
+
+			assert.deepStrictEqual({ hidden, title: h.notification?.message, description: h.notification?.description }, {
+				hidden: undefined, title: 'Treatment title', description: 'Treatment body',
+			});
+		});
+
+		for (const action of ['dismiss', 'open', 'mute', 'hide', 'dispose'] as const) {
+			test(`late assignments cannot reshow the tip after ${action}`, async () => {
+				const h = createHandoffHarness();
+				const pending = new DeferredPromise<string | undefined>();
+				h.readTreatment = () => pending.p;
+				const contribution = h.showGenericTip();
+				switch (action) {
+					case 'dismiss':
+						h.dismiss();
+						break;
+					case 'open':
+						await h.click(0);
+						break;
+					case 'mute': {
+						const commandId = h.notification?.mute?.commandId;
+						assert.ok(commandId);
+						await h.instantiation.invokeFunction(accessor => accessor.get(ICommandService).executeCommand(commandId));
+						break;
+					}
+					case 'hide':
+						await h.configuration.updateValue(ChatConfiguration.AgentsHandoffTipMode, 'hidden');
+						break;
+					case 'dispose':
+						contribution.dispose();
+						break;
+				}
+				const posts = h.posts;
+				await pending.complete('Late treatment');
+				await h.refetchTreatments();
+				h.resource = URI.from({ scheme: SessionType.AgentHostCopilot, path: '/another-session' });
+
+				assert.deepStrictEqual({ notification: h.notification, posts: h.posts, warnings: h.treatmentWarnings }, {
+					notification: undefined, posts, warnings: [],
+				});
+			});
+		}
+	});
+
+	for (const source of ['currentChatHandoff', 'parallelWorkEmptyChatHandoff'] as const) {
+		test(`opens the Agents window with the ${source} telemetry source`, async () => {
+			const h = createHarness();
+			if (source === 'currentChatHandoff') {
+				h.resource = URI.from({ scheme: SessionType.AgentHostCopilot, path: '/persisted' });
+				h.sendMessage(Date.now() - 5000);
+				h.showGenericTip();
+			} else {
+				h.showBanner();
+			}
+			await h.click(0);
+
+			assert.deepStrictEqual(h.calls.map(call => ({
+				source: call.source,
+				accepted: isAgentsWindowOpenSource(call.source),
+			})), [{ source, accepted: true }]);
+		});
+	}
+
 	test('banner uses click-time content and forces transfer while the ordinary setting is off', async () => {
 		const h = createHarness({ transfer: false });
 		h.showBanner();
@@ -609,7 +1030,7 @@ suite('Agents Window draft handoff and parallel invitation', () => {
 			notification: h.notification,
 		}, {
 			text: h.input, attachmentIds: ['new-image'], image: [9, 8, 7],
-			source: AgentsWindowOpenSource.Banner,
+			source: AgentsWindowOpenSource.ParallelWorkEmptyChatHandoff,
 			retained: 'Written after the banner appeared',
 			notification: undefined,
 		});
