@@ -106,6 +106,7 @@ export interface IRemoteAgentHostSessionsProviderConfig {
 	 */
 	readonly hostGroup?: IAgentHostGroup;
 	readonly devContainerWorktreeScope?: string;
+	readonly devContainerSourceWorkspace?: URI;
 	/** Resolves the source host that owns this container's detached worktree handles. Defaults to the local host. */
 	readonly resolveDevContainerWorktreeConnection?: () => Promise<IAgentConnection>;
 }
@@ -139,6 +140,7 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 	readonly label: string;
 	readonly icon: ThemeIcon = Codicon.remote;
 	readonly remoteAddress: string;
+	readonly devContainerSourceWorkspace: URI | undefined;
 	readonly remoteLocationPreferenceKey: string;
 	readonly hostGroup: IAgentHostGroup | undefined;
 	readonly browseActions: readonly ISessionWorkspaceBrowseAction[];
@@ -272,6 +274,7 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 		this.id = `agenthost-${this._connectionAuthority}`;
 		this.label = displayName;
 		this.remoteAddress = config.address;
+		this.devContainerSourceWorkspace = config.devContainerSourceWorkspace;
 		this.remoteLocationPreferenceKey = config.preferenceKey ?? config.address;
 		this.hostGroup = config.hostGroup;
 		this._storageKey = `${CACHED_SESSIONS_STORAGE_PREFIX}${this._connectionAuthority}`;

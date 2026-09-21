@@ -8,26 +8,20 @@ import { ISessionsProvidersService } from '../services/sessions/browser/sessions
 import { isAgentHostProvider, LOCAL_AGENT_HOST_PROVIDER_ID, REMOTE_AGENT_HOST_PROVIDER_PREFIX } from '../common/agentHostSessionsProvider.js';
 import { encodeHex, VSBuffer } from '../../base/common/buffer.js';
 import { URI } from '../../base/common/uri.js';
-import { AGENT_HOST_SCHEME, agentHostAuthority, fromAgentHostUri } from '../../platform/agentHost/common/agentHostUri.js';
+import { AGENT_HOST_SCHEME, fromAgentHostUri } from '../../platform/agentHost/common/agentHostUri.js';
 import { Schemas } from '../../base/common/network.js';
+import { ISessionsProvider } from '../services/sessions/common/sessionsProvider.js';
 
 export interface IDevContainerSourceWorkspace {
 	readonly folderUri: URI;
 	readonly providerId: string;
 }
 
-export function resolveDevContainerSourceWorkspace(workspaceUri: URI, remoteAgentHostService: IRemoteAgentHostService): IDevContainerSourceWorkspace | undefined {
-	if (workspaceUri.scheme !== AGENT_HOST_SCHEME) {
+export function resolveDevContainerSourceWorkspace(provider: ISessionsProvider | undefined): IDevContainerSourceWorkspace | undefined {
+	const folderUri = provider && isAgentHostProvider(provider) ? provider.devContainerSourceWorkspace : undefined;
+	if (!folderUri) {
 		return undefined;
 	}
-	const entry = remoteAgentHostService.configuredEntries.find(candidate =>
-		candidate.connection.type === RemoteAgentHostEntryType.DevContainer
-		&& agentHostAuthority(candidate.connection.address) === workspaceUri.authority
-	);
-	if (entry?.connection.type !== RemoteAgentHostEntryType.DevContainer || !entry.connection.sourceWorkspaceUri) {
-		return undefined;
-	}
-	const folderUri = URI.parse(entry.connection.sourceWorkspaceUri);
 	if (folderUri.scheme === Schemas.file) {
 		return { folderUri, providerId: LOCAL_AGENT_HOST_PROVIDER_ID };
 	}

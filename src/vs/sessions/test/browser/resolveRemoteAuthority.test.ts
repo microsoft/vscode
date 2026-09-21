@@ -6,11 +6,13 @@
 import assert from 'assert';
 import { decodeHex, encodeHex, VSBuffer } from '../../../base/common/buffer.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
+import { upcastPartial } from '../../../base/test/common/mock.js';
 import { IRemoteAgentHostEntry, IRemoteAgentHostService, getEntryAddress, RemoteAgentHostEntryType } from '../../../platform/agentHost/common/remoteAgentHostService.js';
 import { AGENT_HOST_SCHEME, agentHostAuthority, toAgentHostUri } from '../../../platform/agentHost/common/agentHostUri.js';
 import { URI } from '../../../base/common/uri.js';
 import { resolveDevContainerSourceWorkspace, resolveRemoteAuthority, resolveRemoteFolderUri, sshAuthorityString } from '../../browser/openInVSCodeUtils.js';
 import { ISessionsProvidersService } from '../../services/sessions/browser/sessionsProvidersService.js';
+import { IAgentHostSessionsProvider } from '../../common/agentHostSessionsProvider.js';
 
 suite('resolveRemoteAuthority', () => {
 
@@ -24,7 +26,6 @@ suite('resolveRemoteAuthority', () => {
 
 	function makeRemoteAgentHostService(entries: IRemoteAgentHostEntry[] = []): IRemoteAgentHostService {
 		return {
-			configuredEntries: entries,
 			getEntryByAddress: (address: string) => entries.find(e => getEntryAddress(e) === address),
 		} as unknown as IRemoteAgentHostService; // no-as-any justification: lightweight test mock for a multi-method service interface
 	}
@@ -163,51 +164,25 @@ suite('resolveRemoteAuthority', () => {
 		});
 	});
 
-	test('resolves local and remote source workspaces from Dev Container entries', () => {
-		const localSource = URI.file('/Users/test/project');
-		const remoteSource = toAgentHostUri(URI.file('/home/test/project'), agentHostAuthority('wsl:Ubuntu'));
-		const localAddress = 'devcontainer:local';
-		const remoteAddress = 'devcontainer:remote';
-		const remoteAgentHostService = makeRemoteAgentHostService([
-			{
-				name: 'Local Dev Container',
-				connection: {
-					type: RemoteAgentHostEntryType.DevContainer,
-					address: localAddress,
-					hostPath: localSource.fsPath,
-					sourceWorkspaceUri: localSource.toString(),
-				},
-			},
-			{
-				name: 'Remote Dev Container',
-				connection: {
-					type: RemoteAgentHostEntryType.DevContainer,
-					address: remoteAddress,
-					hostPath: '/home/test/project',
-					hostAuthority: 'wsl+Ubuntu',
-					sourceWorkspaceUri: remoteSource.toString(),
-				},
-			},
-		]);
-
-		const local = resolveDevContainerSourceWorkspace(
-			URI.from({ scheme: AGENT_HOST_SCHEME, authority: agentHostAuthority(localAddress), path: '/workspaces/project' }),
-			remoteAgentHostService,
-		);
-		const remote = resolveDevContainerSourceWorkspace(
-			URI.from({ scheme: AGENT_HOST_SCHEME, authority: agentHostAuthority(remoteAddress), path: '/workspaces/project' }),
-			remoteAgentHostService,
-		);
-		assert.deepStrictEqual({
-			local: local && { folderUri: local.folderUri.toString(), providerId: local.providerId },
-			remote: remote && { folderUri: remote.folderUri.toString(), providerId: remote.providerId },
-			ordinary: resolveDevContainerSourceWorkspace(remoteSource, remoteAgentHostService),
-		}, {
-			local: { folderUri: localSource.toString(), providerId: 'local-agent-host' },
-			remote: { folderUri: remoteSource.toString(), providerId: `agenthost-${agentHostAuthority('wsl:Ubuntu')}` },
-			ordinary: undefined,
+	for (const address of [undefined, 'ssh:server', 'tunnel:server', 'wsl:Ubuntu']) {
+		test(`resolves the source workspace from a disconnected container provider on ${address ?? 'local'}`, () => {
+			const source = address ? toAgentHostUri(URI.file('/home/test/project'), agentHostAuthority(address)) : URI.file('/Users/test/project');
+			const provider = upcastPartial<IAgentHostSessionsProvider>({
+				id: 'agenthost-container',
+				devContainerSourceWorkspace: source,
+			});
+			const target = resolveDevContainerSourceWorkspace(provider);
+			assert.deepStrictEqual({
+				target: target && { folderUri: target.folderUri.toString(), providerId: target.providerId },
+				ordinary: resolveDevContainerSourceWorkspace(upcastPartial<IAgentHostSessionsProvider>({ id: 'agenthost-ordinary' })),
+				missing: resolveDevContainerSourceWorkspace(undefined),
+			}, {
+				target: { folderUri: source.toString(), providerId: address ? `agenthost-${agentHostAuthority(address)}` : 'local-agent-host' },
+				ordinary: undefined,
+				missing: undefined,
+			});
 		});
-	});
+	}
 
 	function assertDevContainerAuthority(hostPath: string, hostAuthority?: string, expectedHostPath = hostPath, expectedHostAuthority = hostAuthority): void {
 		const address = 'devcontainer:container-id';

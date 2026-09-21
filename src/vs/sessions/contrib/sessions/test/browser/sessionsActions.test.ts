@@ -48,7 +48,6 @@ import { WorkspaceSelectionOrigin } from '../../../../common/workspaceSelection.
 import { ARCHIVE_SESSION_COMMAND_ID, CLOSE_CHAT_COMMAND_ID, CLOSE_SESSION_COMMAND_ID, MARK_SESSION_READ_COMMAND_ID, MARK_SESSION_UNREAD_COMMAND_ID, RENAME_CHAT_COMMAND_ID, TOGGLE_PIN_CHAT_COMMAND_ID, TOGGLE_PIN_SESSION_COMMAND_ID } from '../../../../common/sessionCommands.js';
 import { SessionActiveChatHasSideChatsContext, SessionActiveChatResourceContext, SessionIdContext, SessionIsArchivedContext, SessionIsCreatedContext, SessionsListPromoteNewChatActionContext } from '../../../../common/contextkeys.js';
 import { SESSIONS_CHAT_TABS_SETTING, SessionsChatTabsMode } from '../../../../common/sessionConfig.js';
-import { IRemoteAgentHostEntry, IRemoteAgentHostService, RemoteAgentHostEntryType } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { AGENT_HOST_SCHEME, agentHostAuthority, toAgentHostUri } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
@@ -923,9 +922,6 @@ suite('Sessions - Actions', () => {
 				const instantiationService = disposables.add(new TestInstantiationService());
 				const composerService = disposables.add(new NewSessionComposerService());
 				instantiationService.stub(INewSessionComposerService, composerService);
-				instantiationService.stub(IRemoteAgentHostService, new class extends mock<IRemoteAgentHostService>() {
-					override readonly configuredEntries = [];
-				});
 				instantiationService.stub(ISessionsProvidersService, new class extends mock<ISessionsProvidersService>() {
 					override getProvider<T extends ISessionsProvider>(): T | undefined { return undefined; }
 				});
@@ -978,18 +974,10 @@ suite('Sessions - Actions', () => {
 					authority: agentHostAuthority(containerAddress),
 					path: '/workspaces/project',
 				});
-				instantiationService.stub(IRemoteAgentHostService, new class extends mock<IRemoteAgentHostService>() {
-					override readonly configuredEntries: readonly IRemoteAgentHostEntry[] = [{
-						name: 'Project Dev Container',
-						connection: {
-							type: RemoteAgentHostEntryType.DevContainer,
-							address: containerAddress,
-							hostPath: '/home/test/project',
-							hostAuthority: 'wsl+Ubuntu',
-							sourceWorkspaceUri: sourceFolder.toString(),
-						},
-					}];
-				});
+				const containerProvider = new class extends mock<IAgentHostSessionsProvider>() {
+					override readonly id = `agenthost-${agentHostAuthority(containerAddress)}`;
+					override readonly devContainerSourceWorkspace = sourceFolder;
+				}();
 				const { session } = createTestSession('active');
 				const workspace: ISessionWorkspace = {
 					uri: containerFolder,
@@ -1015,7 +1003,7 @@ suite('Sessions - Actions', () => {
 				}();
 				instantiationService.stub(ISessionsProvidersService, new class extends mock<ISessionsProvidersService>() {
 					override getProvider<T extends ISessionsProvider>(providerId: string): T | undefined {
-						const provider: ISessionsProvider | undefined = providerId === sourceProviderId ? sourceProvider : undefined;
+						const provider: ISessionsProvider | undefined = providerId === sourceProviderId ? sourceProvider : containerProvider;
 						return provider as T | undefined;
 					}
 				});

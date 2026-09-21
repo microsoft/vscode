@@ -97,7 +97,6 @@ class DevContainerConnectionFactory extends Disposable implements IRemoteAgentHo
 				address: connection.address,
 				hostPath: connection.hostWorkspaceFolder ?? devContainerSourcePath(workspaceUri),
 				...(hostAuthority ? { hostAuthority } : {}),
-				sourceWorkspaceUri: workspaceUri.toString(),
 			},
 		};
 		this._stagedConnections.set(connection.address, { entry, connector, workspaceUri, initialConnection: connection });
@@ -395,6 +394,7 @@ export class DevContainerAgentHostService extends Disposable implements IDevCont
 		const provider = store.add(this._createProvider({
 			address,
 			name,
+			devContainerSourceWorkspace: workspaceUri,
 			devContainerWorktreeScope: getComparisonKey(fromAgentHostUri(workspaceUri)),
 			resolveDevContainerWorktreeConnection: workspaceUri.scheme === AGENT_HOST_SCHEME
 				? () => resolveDevContainerSourceConnection(workspaceUri, this._remoteAgentHostService, this._sessionsProvidersService, CancellationToken.None)
