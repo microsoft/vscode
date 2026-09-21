@@ -38,6 +38,7 @@ import { AccessibilityVerbositySettingId } from '../../../../accessibility/brows
 import { ScrollbarVisibility } from '../../../../../../base/common/scrollable.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { ITerminalChatService } from '../../../../terminal/browser/terminal.js';
 import { AgentHostAutoReplyAnswer } from '../../../../../../platform/agentHost/common/agentHostSchema.js';
 import { ChatCollapsibleContentPart } from './chatCollapsibleContentPart.js';
@@ -65,8 +66,13 @@ class ChatQuestionAnswerCollapsiblePart extends ChatCollapsibleContentPart {
 		private readonly onDidChangeHeight: () => void,
 		hoverService: IHoverService,
 		configurationService: IConfigurationService,
+		telemetryService: ITelemetryService,
 	) {
-		super(title, context, undefined, hoverService, configurationService);
+		super(title, context, undefined, hoverService, configurationService, telemetryService);
+	}
+
+	protected override get collapsibleKind(): string {
+		return 'questionCarousel';
 	}
 
 	protected override init(): HTMLElement {
@@ -165,6 +171,7 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@ICommandService private readonly _commandService: ICommandService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@ITerminalChatService private readonly _terminalChatService: ITerminalChatService,
 	) {
 		super();
@@ -1730,6 +1737,7 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 				() => this._onDidChangeHeight.fire(),
 				this._hoverService,
 				this._configurationService,
+				this._telemetryService,
 			));
 			answerPart.domNode.classList.add('chat-question-answer-collapsible');
 			decision.appendChild(answerPart.domNode);

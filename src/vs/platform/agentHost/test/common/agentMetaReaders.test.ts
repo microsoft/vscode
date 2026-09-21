@@ -41,6 +41,13 @@ suite('Agent host _meta readers', () => {
 			assert.deepStrictEqual(readToolCallMeta(toolCall(undefined)), {});
 		});
 
+		test('validates the sandbox bypass flag', () => {
+			assert.deepStrictEqual(
+				[true, false, 'true', 1, undefined].map(value => readToolCallMeta(toolCall({ 'agentHost.sandboxBypass': value }))),
+				[{ 'agentHost.sandboxBypass': true }, { 'agentHost.sandboxBypass': false }, {}, {}, {}],
+			);
+		});
+
 		test('reads valid keys and drops wrong-typed / unknown keys', () => {
 			const result = readToolCallMeta(toolCall({
 				toolKind: 'terminal',
@@ -83,6 +90,15 @@ suite('Agent host _meta readers', () => {
 			const wire = toToolCallMeta({ toolKind: 'search', language: undefined });
 			assert.deepStrictEqual(wire, { toolKind: 'search' });
 			assert.deepStrictEqual(readToolCallMeta(toolCall(wire)), { toolKind: 'search' });
+		});
+
+		test('reads a progress message and drops a non-string one', () => {
+			const wire = toToolCallMeta({ progressMessage: 'Searching' });
+			assert.deepStrictEqual({ wire, read: readToolCallMeta(toolCall(wire)), dropped: readToolCallMeta(toolCall({ progressMessage: 42 })) }, {
+				wire: { progressMessage: 'Searching' },
+				read: { progressMessage: 'Searching' },
+				dropped: {},
+			});
 		});
 	});
 
@@ -248,9 +264,9 @@ suite('Agent host _meta readers', () => {
 			assert.deepStrictEqual(cmd, { command: 'rename' });
 			assert.deepStrictEqual(readCompletionAttachmentMeta(attachment(cmd)), { kind: 'command', command: 'rename' });
 
-			const cmdWithHint = toCommandCompletionAttachmentMeta({ command: 'rename', argumentHint: 'New name', description: undefined });
-			assert.deepStrictEqual(cmdWithHint, { command: 'rename', argumentHint: 'New name' });
-			assert.deepStrictEqual(readCompletionAttachmentMeta(attachment(cmdWithHint)), { kind: 'command', command: 'rename', argumentHint: 'New name' });
+			const cmdWithHint = toCommandCompletionAttachmentMeta({ command: 'rename', isSkill: true, argumentHint: 'New name', description: undefined });
+			assert.deepStrictEqual(cmdWithHint, { command: 'rename', isSkill: true, argumentHint: 'New name' });
+			assert.deepStrictEqual(readCompletionAttachmentMeta(attachment(cmdWithHint)), { kind: 'command', command: 'rename', isSkill: true, argumentHint: 'New name' });
 
 			const skill = toSkillCompletionAttachmentMeta({ uri: 'file:///s/SKILL.md', name: 'mon', displayName: 'mon', description: undefined });
 			assert.deepStrictEqual(skill, { uri: 'file:///s/SKILL.md', name: 'mon', displayName: 'mon' });

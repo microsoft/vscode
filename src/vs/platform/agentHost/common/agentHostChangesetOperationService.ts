@@ -13,6 +13,9 @@ import type { ChangesetOperation, ISessionGitHubState, ISessionGitState, URI } f
 export const IAgentHostChangesetOperationService = createDecorator<IAgentHostChangesetOperationService>('agentHostChangesetOperationService');
 
 export const AGENT_HOST_MERGE_CHANGESET_OPERATION_ID = 'merge';
+export const AGENT_HOST_CHECKOUT_CHANGESET_OPERATION_ID = 'checkout';
+export const AGENT_HOST_COMMIT_CHANGESET_OPERATION_ID = 'commit';
+export const AGENT_HOST_SYNC_CHANGESET_OPERATION_ID = 'sync';
 
 /**
  * Changeset operations advertised for a branch that already has a pull
@@ -21,6 +24,7 @@ export const AGENT_HOST_MERGE_CHANGESET_OPERATION_ID = 'merge';
  */
 export const AgentHostPullRequestOperationId = {
 	MarkReady: 'pr-mark-ready',
+	MarkReadyWithAgentMerge: 'pr-mark-ready-with-agent-merge',
 	Merge: 'pr-merge',
 	EnableAutoMerge: 'pr-enable-auto-merge',
 	DisableAutoMerge: 'pr-disable-auto-merge',
@@ -139,9 +143,8 @@ export interface IAgentHostChangesetOperationService extends IDisposable {
 	 */
 	registerContribution(contribution: IChangesetOperationContribution): IDisposable;
 	/**
-	 * Recomputes and publishes operations for the changesets for a given
-	 * session. If `gitState` is not provided, the current git state will
-	 * be used.
+	 * Recomputes operations using the provided or current Git state.
+	 * Without Git state, clears cached operations but defers initial publication.
 	 */
 	updateOperations(sessionKey: string, changeset?: string, gitState?: ISessionGitState, gitHubState?: ISessionGitHubState): void;
 

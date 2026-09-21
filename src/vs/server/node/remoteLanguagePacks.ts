@@ -31,7 +31,7 @@ export async function getNLSConfiguration(language: string, userDataPath: string
 	const cacheKey = `${language}||${userDataPath}`;
 	let result = nlsConfigurationCache.get(cacheKey);
 	if (!result) {
-		result = resolveNLSConfiguration({ userLocale: language, osLocale: language, commit: product.commit, userDataPath, nlsMetadataPath });
+		result = resolveNLSConfiguration({ userLocale: language, osLocale: language, commit: product.commit, nlsMetadataHash: product.nlsMetadataHash, userDataPath, nlsMetadataPath });
 		nlsConfigurationCache.set(cacheKey, result);
 	}
 

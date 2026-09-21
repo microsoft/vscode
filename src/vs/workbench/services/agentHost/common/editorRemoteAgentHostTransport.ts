@@ -11,10 +11,12 @@ import { hasKey } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { createURITransformer } from '../../../../base/common/uriTransformer.js';
 import { ActionType, type StateAction } from '../../../../platform/agentHost/common/state/protocol/actions.js';
-import type { Snapshot } from '../../../../platform/agentHost/common/state/protocol/state.js';
+import { CustomizationEnablementKind, CustomizationType, type ChildCustomization, type ClientPluginCustomization, type Customization, type CustomizationEnablement, type SessionActiveClient, type Snapshot } from '../../../../platform/agentHost/common/state/protocol/state.js';
 import { isJsonRpcNotification, isJsonRpcRequest, isJsonRpcResponse, ReconnectResultType, type CommandMap, type ProtocolMessage } from '../../../../platform/agentHost/common/state/sessionProtocol.js';
 import { readSessionFolderPickerDecision, withSessionFolderPickerDecision } from '../../../../platform/agentHost/common/state/sessionState.js';
 import type { IClientTransport } from '../../../../platform/agentHost/common/state/sessionTransport.js';
+
+type CustomizationWithClientEnablement = (Customization | ChildCustomization) & Pick<Partial<ClientPluginCustomization>, 'childEnablement'>;
 
 /** Maps working-directory identities at the editor's remote connection, leaving opaque protocol content untouched. */
 export class EditorRemoteAgentHostTransport extends Disposable implements IClientTransport {
@@ -64,7 +66,13 @@ export class EditorRemoteAgentHostTransport extends Disposable implements IClien
 					this._requests.set(message.id, message.method);
 					break;
 				case 'createSession':
-					message = { ...message, params: this._mapDirectories(message.params, value => this._toHostDirectory(value)) };
+					message = {
+						...message,
+						params: {
+							...this._mapDirectories(message.params, value => this._toHostDirectory(value)),
+							...(message.params.activeClient ? { activeClient: this._mapActiveClient(message.params.activeClient, value => this._toHostDirectory(value)) } : {}),
+						}
+					};
 					break;
 				case 'createChat':
 					message = { ...message, params: this._mapDirectories(message.params, value => this._toHostDirectory(value)) };
@@ -133,9 +141,56 @@ export class EditorRemoteAgentHostTransport extends Disposable implements IClien
 				return { ...action, changes: this._mapDirectories(action.changes, map) };
 			case ActionType.SessionMetaChanged:
 				return this._mapDirectories(action, map);
+			case ActionType.SessionActiveClientSet:
+				return { ...action, activeClient: this._mapActiveClient(action.activeClient, map) };
+			case ActionType.SessionCustomizationsChanged:
+				return { ...action, customizations: action.customizations.map(customization => this._mapCustomization(customization, map)) };
+			case ActionType.SessionCustomizationUpdated:
+				return { ...action, customization: this._mapCustomization(action.customization, map) };
+			case ActionType.SessionCustomizationToggled:
+				return { ...action, enablement: this._mapCustomizationEnablement(action.enablement, map) };
 			default:
 				return action;
 		}
+	}
+
+	private _mapActiveClient(activeClient: SessionActiveClient, map: (uri: string) => string): SessionActiveClient {
+		return {
+			...activeClient,
+			...(activeClient.customizations
+				? { customizations: activeClient.customizations.map(customization => this._mapCustomization(customization, map)) }
+				: {}),
+		};
+	}
+
+	private _mapCustomizationEnablement(enablement: readonly CustomizationEnablement[], map: (uri: string) => string): CustomizationEnablement[] {
+		return enablement.map(item => item.kind === CustomizationEnablementKind.Workspace ? { ...item, uri: map(item.uri) } : item);
+	}
+
+	private _mapCustomization<T extends Customization | ChildCustomization>(customization: T, map: (uri: string) => string): T {
+		const hasEnablement = customization.type === CustomizationType.Plugin || customization.type === CustomizationType.McpServer;
+		const hasChildren = customization.type === CustomizationType.Plugin || customization.type === CustomizationType.Directory;
+		const customizationWithClientEnablement: CustomizationWithClientEnablement = customization;
+		const childEnablement = customization.type === CustomizationType.Plugin ? customizationWithClientEnablement.childEnablement : undefined;
+		return {
+			...customization,
+			uri: map(customization.uri),
+			...(customization.icons ? { icons: customization.icons.map(icon => ({ ...icon, src: map(icon.src) })) } : {}),
+			...(hasEnablement && customization.enablement
+				? { enablement: this._mapCustomizationEnablement(customization.enablement, map) }
+				: {}),
+			...(childEnablement
+				? {
+					childEnablement: Object.fromEntries(Object.entries(childEnablement).map(([name, enablement]) => [
+						name,
+						this._mapCustomizationEnablement(enablement, map),
+					]))
+				}
+				: {}),
+			...(hasChildren && customization.children
+				? { children: customization.children.map(child => this._mapCustomization(child, map)) }
+				: {}),
+		};
 	}
 
 	/** Restores workbench directory identities in session and chat snapshots, including nested chat summaries. */
@@ -143,7 +198,15 @@ export class EditorRemoteAgentHostTransport extends Disposable implements IClien
 		const map = (value: string) => this._fromHostDirectory(value);
 		const state = snapshot.state;
 		if (hasKey(state, { chats: true })) {
-			return { ...snapshot, state: { ...this._mapDirectories(state, map), chats: state.chats.map(chat => this._mapDirectories(chat, map)) } };
+			return {
+				...snapshot,
+				state: {
+					...this._mapDirectories(state, map),
+					chats: state.chats.map(chat => this._mapDirectories(chat, map)),
+					activeClients: state.activeClients.map(activeClient => this._mapActiveClient(activeClient, map)),
+					...(state.customizations ? { customizations: state.customizations.map(customization => this._mapCustomization(customization, map)) } : {}),
+				}
+			};
 		}
 		if (hasKey(state, { workingDirectories: true })) {
 			return { ...snapshot, state: this._mapDirectories(state, map) };

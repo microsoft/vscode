@@ -4,9 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { sanitizeHtml } from '../../browser/domSanitize.js';
+import { convertTagToPlaintext, sanitizeHtml, sanitizeSurvivingStalePolicy } from '../../browser/domSanitize.js';
 import { Schemas } from '../../common/network.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../common/utils.js';
+
+/** Derived from the function under test, since dompurify may not be imported directly. */
+type SanitizeConfig = Parameters<typeof sanitizeSurvivingStalePolicy>[1];
 
 suite('DomSanitize', () => {
 
@@ -143,6 +146,74 @@ suite('DomSanitize', () => {
 		assert.strictEqual(result.toString(), '<img src="path/img.png">');
 	});
 
+	test('supports additional media source validation', () => {
+		const html = '<img src="https://example.com/collect?secret=value" alt="remote"><img src="data:image/png;base64,AA==" alt="data">';
+		const mediaSourceIsAllowed = (source: string) => source.startsWith('data:');
+
+		assert.deepStrictEqual({
+			withoutPlaintextReplacement: sanitizeHtml(html, {
+				allowedMediaProtocols: { override: [Schemas.http, Schemas.https, Schemas.data] },
+				mediaSourceIsAllowed,
+			}).toString(),
+			withPlaintextReplacement: sanitizeHtml(html, {
+				allowedMediaProtocols: { override: [Schemas.http, Schemas.https, Schemas.data] },
+				mediaSourceIsAllowed,
+				replaceWithPlaintext: true,
+			}).toString(),
+		}, {
+			withoutPlaintextReplacement: '<img alt="remote"><img src="data:image/png;base64,AA==" alt="data">',
+			withPlaintextReplacement: '&lt;img src="https://example.com/collect?secret=value" alt="remote"&gt;<img src="data:image/png;base64,AA==" alt="data">',
+		});
+	});
+
+	test('applies additional media source validation to poster attributes', () => {
+		const html = '<video poster="https://example.invalid/poster.png"></video>';
+		const result = sanitizeHtml(html, {
+			allowedTags: { override: ['video'] },
+			allowedAttributes: { override: ['poster'] },
+			allowedMediaProtocols: { override: [Schemas.https] },
+			mediaSourceIsAllowed: () => false,
+			replaceWithPlaintext: true,
+		});
+
+		assert.strictEqual(result.toString(), '&lt;video poster="https://example.invalid/poster.png"&gt;&lt;/video&gt;');
+	});
+
+	test('applies media source validation to non-anchor href attributes', () => {
+		const sanitize = (href: string) => {
+			const html = sanitizeHtml(`<svg><linearGradient href="${href}"></linearGradient></svg>`, {
+				allowedTags: { override: ['svg', 'lineargradient'] },
+				allowedAttributes: { override: ['href'] },
+				allowedMediaProtocols: { override: [Schemas.https] },
+				mediaSourceIsAllowed: () => false,
+				replaceWithPlaintext: true,
+			}).toString();
+			return new DOMParser().parseFromString(html, 'text/html');
+		};
+
+		assert.deepStrictEqual({
+			external: sanitize('https://example.invalid/gradient.svg#paint').querySelector('[href]') !== null,
+			localFragment: sanitize('#paint').querySelector('[href="#paint"]') !== null,
+		}, {
+			external: false,
+			localFragment: true,
+		});
+	});
+
+	test('plaintext replacements remain in the source document', () => {
+		const sourceDocument = new DOMParser().parseFromString('<div><span>content</span></div>', 'text/html');
+		const node = sourceDocument.body.firstElementChild!;
+		const replacement = convertTagToPlaintext(node);
+
+		assert.deepStrictEqual({
+			ownerDocument: replacement?.ownerDocument === sourceDocument,
+			textContent: replacement?.textContent,
+		}, {
+			ownerDocument: true,
+			textContent: '<div>content</div>',
+		});
+	});
+
 	test('Supports dynamic attribute sanitization', () => {
 		const html = '<div title="a" other="1">text1</div><div title="b" other="2">text2</div>';
 		const result = sanitizeHtml(html, {
@@ -255,6 +326,54 @@ suite('DomSanitize', () => {
 				allowedTags: { augment: ['custom'] }
 			});
 			assert.strictEqual(result.toString(), '<div><custom>allowed</custom>&lt;forbidden&gt;not allowed&lt;/forbidden&gt;</div>');
+		});
+	});
+
+	suite('stale trusted types policy', () => {
+
+		const STALE_POLICY_ERROR = `Failed to execute 'createHTML' on 'TrustedTypePolicy': The provided callback is no longer runnable.`;
+
+		/**
+		 * Stands in for dompurify, failing the first call the way a policy whose creating
+		 * realm is gone fails. The sanitizer keeps one policy for the lifetime of the
+		 * module, so a stand-in policy installed after anything has sanitized is never
+		 * consulted; driving the call itself is what makes this independent of test order.
+		 */
+		function failingOnce(message: string) {
+			const configs: (SanitizeConfig | undefined)[] = [];
+			let failed = false;
+			const sanitize = (untrusted: string, config: SanitizeConfig) => {
+				configs.push(config);
+				if (!failed) {
+					failed = true;
+					throw new Error(message);
+				}
+				return `sanitized:${untrusted}`;
+			};
+			return { sanitize, configs };
+		}
+
+		test('retries with a replacement policy when the sanitizer policy stops working', () => {
+			const { sanitize, configs } = failingOnce(STALE_POLICY_ERROR);
+
+			const result = sanitizeSurvivingStalePolicy('<div>safe</div>', {}, sanitize);
+
+			assert.deepStrictEqual(
+				{
+					result,
+					attempts: configs.length,
+					firstHadPolicy: configs[0]?.TRUSTED_TYPES_POLICY !== undefined,
+					retriedWithPolicy: typeof configs[1]?.TRUSTED_TYPES_POLICY?.createHTML === 'function',
+				},
+				{ result: 'sanitized:<div>safe</div>', attempts: 2, firstHadPolicy: false, retriedWithPolicy: true },
+			);
+		});
+
+		test('a failure that is not a stale policy is not retried', () => {
+			const { sanitize, configs } = failingOnce('Some other sanitizer failure');
+
+			assert.throws(() => sanitizeSurvivingStalePolicy('<div>safe</div>', {}, sanitize), /Some other sanitizer failure/);
+			assert.strictEqual(configs.length, 1);
 		});
 	});
 });

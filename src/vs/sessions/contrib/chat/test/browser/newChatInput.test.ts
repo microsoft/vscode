@@ -4,19 +4,27 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { DeferredPromise } from '../../../../../base/common/async.js';
+import { IIconLabelValueOptions } from '../../../../../base/browser/ui/iconLabel/iconLabel.js';
+import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
-import { DisposableStore, IDisposable, IReference } from '../../../../../base/common/lifecycle.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
+import { DisposableStore, IDisposable, IReference, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
+import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ITextModel } from '../../../../../editor/common/model.js';
 import { IResolvedTextEditorModel } from '../../../../../editor/common/services/resolverService.js';
+import { FileKind } from '../../../../../platform/files/common/files.js';
+import { ColorScheme } from '../../../../../platform/theme/common/theme.js';
+import { FileThemeIcon, FolderThemeIcon } from '../../../../../platform/theme/common/themeService.js';
+import { IFileLabelOptions } from '../../../../../workbench/browser/labels.js';
 import { hasSendableNewChatContent, NewChatInputWidget } from '../../browser/newChatInput.js';
-import { IChatRequestVariableEntry, toPasteVariableEntry } from '../../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
+import { ChatPasteAttachmentMetadata, IChatRequestVariableEntry, toPasteVariableEntry } from '../../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { NewChatContextAttachments } from '../../browser/newChatContextAttachments.js';
 import { getAdditionalFolderContextId, getAdditionalRepositoryContextId } from '../../common/newChatContextIds.js';
+import { IChatDraft } from '../../../../../workbench/contrib/chat/common/attachments/chatDraft.js';
 
 interface IInputModelReferenceHarness {
 	readonly _store: DisposableStore;
@@ -36,8 +44,14 @@ const saveState = Reflect.get(NewChatInputWidget.prototype, 'saveState') as (thi
 const clearDraftState = Reflect.get(NewChatInputWidget.prototype, '_clearDraftState') as (this: IDraftStateHarness) => void;
 const updateDraftState = Reflect.get(NewChatInputWidget.prototype, '_updateDraftState') as (this: IUpdateDraftStateHarness) => void;
 const updateAndSaveDraftState = Reflect.get(NewChatInputWidget.prototype, '_updateAndSaveDraftState') as (this: IUpdateAndSaveDraftStateHarness) => void;
+const syncInputGitHubContext = Reflect.get(NewChatInputWidget.prototype, '_syncInputGitHubContext') as (this: ISyncInputGitHubContextHarness) => void;
+const attachTextContext = Reflect.get(NewChatInputWidget.prototype, 'attachTextContext') as (this: IAttachTextContextHarness, name: string, content: string, icon: ThemeIcon, id: string) => void;
 const updateSendButtonState = Reflect.get(NewChatInputWidget.prototype, '_updateSendButtonState') as (this: IUpdateSendButtonStateHarness) => void;
+const updateInitializationLoadingState = Reflect.get(NewChatInputWidget.prototype, '_updateInitializationLoadingState') as (this: IInitializationLoadingHarness, loading: boolean) => void;
+const setLoadingSpinnerVisible = Reflect.get(NewChatInputWidget.prototype, '_setLoadingSpinnerVisible') as (this: ILoadingSpinnerHarness, visible: boolean) => void;
+const setInputEditorFocused = Reflect.get(NewChatInputWidget.prototype, '_setInputEditorFocused') as (container: HTMLElement, focused: boolean) => void;
 const updateAttachmentRendering = Reflect.get(NewChatContextAttachments.prototype, '_updateRendering') as (this: IAttachmentRenderingHarness) => void;
+const getStaticContextPicks = Reflect.get(NewChatContextAttachments.prototype, '_getStaticPicks') as (contextActions: readonly { label: string; icon: ThemeIcon }[]) => readonly { label?: string; type?: string }[];
 
 interface IDraftStateHarness {
 	readonly storageService: {
@@ -55,6 +69,7 @@ interface IRestoreStateHarness {
 	readonly _contextAttachments: {
 		setAttachments(entries: readonly IChatRequestVariableEntry[]): void;
 	};
+	_syncInputGitHubContext(): void;
 	_updateSendButtonState(): void;
 }
 
@@ -73,6 +88,24 @@ interface IUpdateAndSaveDraftStateHarness extends IUpdateDraftStateHarness {
 	saveState(): void;
 }
 
+interface ISyncInputGitHubContextHarness {
+	readonly _editor: {
+		getValue(): string;
+	};
+	readonly _contextAttachments: {
+		attachments: readonly IChatRequestVariableEntry[];
+		setAttachments(entries: readonly IChatRequestVariableEntry[]): void;
+	};
+}
+
+interface IAttachTextContextHarness {
+	readonly _contextAttachments: {
+		attachments: readonly IChatRequestVariableEntry[];
+		addAttachments(...entries: IChatRequestVariableEntry[]): void;
+		setAttachments(entries: readonly IChatRequestVariableEntry[]): void;
+	};
+}
+
 interface IUpdateSendButtonStateHarness {
 	readonly _sendButton: { enabled: boolean } | undefined;
 	readonly _sending: boolean;
@@ -88,19 +121,45 @@ interface IUpdateSendButtonStateHarness {
 	readonly _canSendRequest: { get(): boolean };
 }
 
+interface ILoadingSpinnerHarness {
+	readonly _loadingSpinner: HTMLElement | undefined;
+	readonly _sendButtonContainer: HTMLElement | undefined;
+	readonly _sendButton?: { hasFocus(): boolean };
+	focus(): void;
+}
+
+interface IInitializationLoadingHarness {
+	readonly _initializationLoadingSpinner: HTMLElement | undefined;
+	readonly _initializationLoadingDelayDisposable: MutableDisposable<IDisposable>;
+	readonly options: {
+		readonly loading: { get(): boolean };
+	};
+}
+
 interface IAttachmentRenderingHarness {
 	readonly _container: HTMLElement;
 	readonly _attachedContext: readonly IChatRequestVariableEntry[];
 	readonly _renderDisposables: DisposableStore;
 	readonly _resourceLabels: {
 		clear(): void;
-		create(container: HTMLElement, options: { supportIcons: boolean }): IDisposable & {
-			setLabel(label: string): void;
-			setFile(resource: URI, options: object): void;
+		create(container: HTMLElement): IDisposable & {
+			setLabel(label: string, description?: string, options?: IIconLabelValueOptions): void;
+			setFile(resource: URI, options?: IFileLabelOptions): void;
 		};
 	};
 	readonly openerService: {
 		open(resource: URI): Promise<boolean>;
+	};
+	readonly themeService?: {
+		getFileIconTheme(): { hasFileIcons: boolean; hasFolderIcons: boolean };
+		getColorTheme(): { type: ColorScheme };
+		readonly onDidColorThemeChange: Event<void>;
+	};
+	readonly modelService?: {
+		getModel(): null;
+	};
+	readonly languageService?: {
+		guessLanguageIdByFilepathOrFirstLine(): string;
 	};
 	removeAttachment(id: string): void;
 }
@@ -124,6 +183,145 @@ class InputModelReferenceHarness implements IInputModelReferenceHarness, IDispos
 
 suite('NewChatInputWidget', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	for (const existing of ['empty', 'text', 'attachments', 'sending'] as const) {
+		test(`applies an incoming draft only to an empty idle input (${existing})`, () => {
+			let inputText = existing === 'text' ? 'Keep me' : '';
+			let attachments: readonly IChatRequestVariableEntry[] = existing === 'attachments' ? [toPasteVariableEntry('Context', 'Keep context', { id: 'existing' })] : [];
+			let saved: IChatDraft | undefined;
+			let focusCount = 0;
+			const input: NewChatInputWidget = Object.assign(Object.create(NewChatInputWidget.prototype), {
+				_editor: { getValue: () => inputText, getModel: () => ({}) },
+				_contextAttachments: {
+					get attachments() { return attachments; },
+					addAttachments: (...entries: IChatRequestVariableEntry[]) => { attachments = entries; },
+				},
+				_sending: existing === 'sending',
+				prefillInput: (text: string) => { inputText = text; focusCount++; },
+				_updateAndSaveDraftState: () => { saved = { inputText, attachments }; },
+			});
+			const incoming = { inputText: 'Incoming', attachments: [toPasteVariableEntry('Incoming context', 'Text', { id: 'incoming' })] };
+			const applied = input.applyDraft(incoming);
+			assert.deepStrictEqual({ applied, inputText, attachments, saved, focusCount }, {
+				applied: existing === 'empty',
+				inputText: existing === 'empty' ? incoming.inputText : existing === 'text' ? 'Keep me' : '',
+				attachments: existing === 'empty' ? incoming.attachments : existing === 'attachments' ? [toPasteVariableEntry('Context', 'Keep context', { id: 'existing' })] : [],
+				saved: existing === 'empty' ? incoming : undefined,
+				focusCount: existing === 'empty' ? 1 : 0,
+			});
+		});
+	}
+
+	test('only keeps the input frame focused while editor text has focus', () => {
+		const stack = document.createElement('div');
+		stack.classList.add('chat-input-stack');
+		const inputArea = document.createElement('div');
+		stack.appendChild(inputArea);
+
+		setInputEditorFocused(inputArea, true);
+		const focused = {
+			input: inputArea.classList.contains('focused'),
+			stack: stack.classList.contains('chat-input-stack-input-focused'),
+		};
+		setInputEditorFocused(inputArea, false);
+
+		assert.deepStrictEqual({
+			focused,
+			blurred: {
+				input: inputArea.classList.contains('focused'),
+				stack: stack.classList.contains('chat-input-stack-input-focused'),
+			},
+		}, {
+			focused: { input: true, stack: true },
+			blurred: { input: false, stack: false },
+		});
+	});
+
+	test('shows loading in the send button slot', () => {
+		const sendButtonContainer = document.createElement('div');
+		const loadingSpinner = document.createElement('div');
+		const harness: ILoadingSpinnerHarness = {
+			_loadingSpinner: loadingSpinner,
+			_sendButtonContainer: sendButtonContainer,
+			focus: () => { },
+		};
+
+		setLoadingSpinnerVisible.call(harness, true);
+		const loadingClasses = {
+			spinner: [...loadingSpinner.classList],
+			sendButton: [...sendButtonContainer.classList],
+		};
+		setLoadingSpinnerVisible.call(harness, false);
+
+		assert.deepStrictEqual({
+			loadingClasses,
+			idleClasses: {
+				spinner: [...loadingSpinner.classList],
+				sendButton: [...sendButtonContainer.classList],
+			},
+		}, {
+			loadingClasses: {
+				spinner: ['visible'],
+				sendButton: ['loading'],
+			},
+			idleClasses: {
+				spinner: [],
+				sendButton: [],
+			},
+		});
+	});
+
+	test('moves focus to the composer before replacing a focused send button with progress', () => {
+		let composerFocused = false;
+		const harness: ILoadingSpinnerHarness = {
+			_loadingSpinner: undefined,
+			_sendButtonContainer: undefined,
+			_sendButton: { hasFocus: () => true },
+			focus: () => composerFocused = true,
+		};
+
+		setLoadingSpinnerVisible.call(harness, true);
+
+		assert.strictEqual(composerFocused, true);
+	});
+
+	test('delays initialization progress to avoid flicker for fast workspace changes', async () => {
+		const loadingSpinner = document.createElement('div');
+		const loading = { value: true };
+		const loadingDelayDisposable = disposables.add(new MutableDisposable<IDisposable>());
+		const harness: IInitializationLoadingHarness = {
+			_initializationLoadingSpinner: loadingSpinner,
+			_initializationLoadingDelayDisposable: loadingDelayDisposable,
+			options: { loading: { get: () => loading.value } },
+		};
+
+		updateInitializationLoadingState.call(harness, true);
+		const visibleImmediately = loadingSpinner.classList.contains('visible');
+		await timeout(100);
+		loading.value = false;
+		updateInitializationLoadingState.call(harness, false);
+		await timeout(450);
+		const visibleAfterFastLoading = loadingSpinner.classList.contains('visible');
+
+		loading.value = true;
+		updateInitializationLoadingState.call(harness, true);
+		await timeout(550);
+		const visibleAfterDelay = loadingSpinner.classList.contains('visible');
+		loading.value = false;
+		updateInitializationLoadingState.call(harness, false);
+
+		assert.deepStrictEqual({
+			visibleImmediately,
+			visibleAfterFastLoading,
+			visibleAfterDelay,
+			visibleAfterLoading: loadingSpinner.classList.contains('visible'),
+		}, {
+			visibleImmediately: false,
+			visibleAfterFastLoading: false,
+			visibleAfterDelay: true,
+			visibleAfterLoading: false,
+		});
+	});
 
 	test('keeps the input model alive until reference acquisition settles during disposal', async () => {
 		const referenceDeferred = new DeferredPromise<IReference<IResolvedTextEditorModel>>();
@@ -192,6 +390,15 @@ suite('NewChatInputWidget', () => {
 		});
 	});
 
+	test('keeps a handed-off explicit file snapshot sendable without inventing prompt text', () => {
+		const snapshot = toPasteVariableEntry('Unsaved file', 'Draft contents', { _meta: { [ChatPasteAttachmentMetadata.FileSnapshot]: true } });
+		const paste = toPasteVariableEntry('Context', 'Pasted context');
+		assert.deepStrictEqual({
+			fileSnapshot: hasSendableNewChatContent('', [snapshot]),
+			ordinaryPaste: hasSendableNewChatContent('', [paste]),
+		}, { fileSnapshot: true, ordinaryPaste: false });
+	});
+
 	test('persists and restores additional folder and repository context with URI values', () => {
 		let stored: string | undefined;
 		const storageService: IDraftStateHarness['storageService'] = {
@@ -234,6 +441,7 @@ suite('NewChatInputWidget', () => {
 			_getDraftState: () => draft,
 			_editor: { getModel: () => ({ setValue: value => restored.inputText = value }) },
 			_contextAttachments: { setAttachments: entries => restored.attachments = entries },
+			_syncInputGitHubContext: () => { },
 			_updateSendButtonState: () => { },
 		});
 
@@ -309,6 +517,24 @@ suite('NewChatInputWidget', () => {
 		});
 	});
 
+	test('orders native attachment picks before provider context actions', () => {
+		const picks = getStaticContextPicks([{
+			label: 'Issue...',
+			icon: Codicon.issues,
+		}, {
+			label: 'Pull Request...',
+			icon: Codicon.gitPullRequest,
+		}]);
+
+		assert.deepStrictEqual(picks.map(pick => pick.label ?? pick.type), [
+			'Files...',
+			'Image from Clipboard',
+			'separator',
+			'Issue...',
+			'Pull Request...',
+		]);
+	});
+
 	test('enables send after restoring an unchanged retained input model', () => {
 		const sendButton = { enabled: false };
 		const harness: IRestoreStateHarness & IUpdateSendButtonStateHarness = {
@@ -327,6 +553,7 @@ suite('NewChatInputWidget', () => {
 			},
 			options: {},
 			_canSendRequest: { get: () => true },
+			_syncInputGitHubContext: () => { },
 			_updateSendButtonState() {
 				updateSendButtonState.call(this);
 			},
@@ -335,6 +562,89 @@ suite('NewChatInputWidget', () => {
 		restoreState.call(harness);
 
 		assert.strictEqual(sendButton.enabled, true);
+	});
+
+	test('synchronizes GitHub context attachments with issue and pull request links in the input', () => {
+		let input = 'Fix https://github.com/microsoft/vscode/issues/333845 and review https://www.github.com/microsoft/vscode/pull/333575#discussion.';
+		const manualAttachment = toPasteVariableEntry('Manually attached', 'Manual context', {
+			id: 'github-context:https://github.com/microsoft/vscode/issues/1',
+		});
+		let attachments: readonly IChatRequestVariableEntry[] = [manualAttachment];
+		const harness: ISyncInputGitHubContextHarness = {
+			_editor: { getValue: () => input },
+			_contextAttachments: {
+				get attachments() { return attachments; },
+				setAttachments: entries => attachments = entries,
+			},
+		};
+		const snapshot = () => attachments.map(attachment => ({
+			id: attachment.id,
+			name: attachment.name,
+			icon: ThemeIcon.isThemeIcon(attachment.icon) ? attachment.icon.id : undefined,
+		}));
+
+		syncInputGitHubContext.call(harness);
+		const withLinks = snapshot();
+		input = 'Review https://github.com/microsoft/vscode/pull/333575.';
+		syncInputGitHubContext.call(harness);
+		const afterRemovingIssueLink = snapshot();
+		input = '';
+		syncInputGitHubContext.call(harness);
+
+		assert.deepStrictEqual({
+			withLinks,
+			afterRemovingIssueLink,
+			afterRemovingAllLinks: snapshot(),
+		}, {
+			withLinks: [
+				{ id: manualAttachment.id, name: 'Manually attached', icon: undefined },
+				{ id: 'github-context:https://github.com/microsoft/vscode/issues/333845', name: 'microsoft/vscode#333845', icon: Codicon.issues.id },
+				{ id: 'github-context:https://github.com/microsoft/vscode/pull/333575', name: 'microsoft/vscode#333575', icon: Codicon.gitPullRequest.id },
+			],
+			afterRemovingIssueLink: [
+				{ id: manualAttachment.id, name: 'Manually attached', icon: undefined },
+				{ id: 'github-context:https://github.com/microsoft/vscode/pull/333575', name: 'microsoft/vscode#333575', icon: Codicon.gitPullRequest.id },
+			],
+			afterRemovingAllLinks: [
+				{ id: manualAttachment.id, name: 'Manually attached', icon: undefined },
+			],
+		});
+	});
+
+	test('preserves pasted GitHub context after the same target is explicitly attached', () => {
+		const uri = 'https://github.com/microsoft/vscode/issues/333845';
+		let input = `Fix ${uri}`;
+		let attachments: readonly IChatRequestVariableEntry[] = [];
+		const contextAttachments = {
+			get attachments() { return attachments; },
+			addAttachments: (...entries: IChatRequestVariableEntry[]) => attachments = [...attachments, ...entries],
+			setAttachments: (entries: readonly IChatRequestVariableEntry[]) => attachments = entries,
+		};
+		const syncHarness: ISyncInputGitHubContextHarness = {
+			_editor: { getValue: () => input },
+			_contextAttachments: contextAttachments,
+		};
+
+		syncInputGitHubContext.call(syncHarness);
+		attachTextContext.call(
+			{ _contextAttachments: contextAttachments },
+			'microsoft/vscode#333845',
+			`GitHub context: ${uri}`,
+			Codicon.issues,
+			`github-context:${uri}`,
+		);
+		input = '';
+		syncInputGitHubContext.call(syncHarness);
+
+		assert.deepStrictEqual(attachments.map(attachment => ({
+			id: attachment.id,
+			name: attachment.name,
+			icon: ThemeIcon.isThemeIcon(attachment.icon) ? attachment.icon.id : undefined,
+		})), [{
+			id: `github-context:${uri}`,
+			name: 'microsoft/vscode#333845',
+			icon: Codicon.issues.id,
+		}]);
 	});
 
 	test('renders GitHub context pills as openable with a keyboard-reachable remove button', async () => {
@@ -460,6 +770,233 @@ suite('NewChatInputWidget', () => {
 		}
 	});
 
+	test('renders leading removal and compact attachment icons', () => {
+		const container = document.createElement('div');
+		const entries: IChatRequestVariableEntry[] = [
+			{
+				kind: 'file',
+				id: 'file',
+				name: 'README.md',
+				value: URI.file('/workspace/README.md'),
+			},
+			{
+				kind: 'directory',
+				id: 'directory',
+				name: 'spritesheet',
+				value: URI.file('/workspace/spritesheet'),
+			},
+			{
+				kind: 'generic',
+				id: 'unknown',
+				name: 'Unknown context',
+				value: 'unknown',
+			},
+			{
+				kind: 'string',
+				id: 'themed-file',
+				name: 'Themed file',
+				value: 'themed-file',
+				uri: URI.parse('vscode://context/themed-file'),
+				resourceUri: URI.file('/workspace/src/index.ts'),
+				iconPath: FileThemeIcon,
+				handle: 1,
+			},
+			{
+				kind: 'image',
+				id: 'image',
+				name: 'image.png',
+				value: URI.file('/workspace/image.png'),
+			},
+		];
+		const labels: { label: string; icon?: string; extraClasses?: readonly string[] }[] = [];
+		const files: { resource: string; fileKind?: FileKind; icon?: string }[] = [];
+		const renderDisposables = disposables.add(new DisposableStore());
+		updateAttachmentRendering.call({
+			_container: container,
+			_attachedContext: entries,
+			_renderDisposables: renderDisposables,
+			_resourceLabels: {
+				clear: () => { },
+				create: content => {
+					const labelElement = document.createElement('span');
+					labelElement.className = 'resource-label';
+					content.appendChild(labelElement);
+					return {
+						dispose: () => { },
+						setLabel: (label, _description, options) => labels.push({
+							label,
+							icon: ThemeIcon.isThemeIcon(options?.iconPath) ? options.iconPath.id : options?.iconPath?.toString(),
+							extraClasses: options?.extraClasses,
+						}),
+						setFile: (resource, options) => files.push({
+							resource: resource.path,
+							fileKind: options?.fileKind,
+							icon: ThemeIcon.isThemeIcon(options?.icon) ? options.icon.id : options?.icon?.toString(),
+						}),
+					};
+				},
+			},
+			openerService: { open: async () => true },
+			themeService: {
+				getFileIconTheme: () => ({ hasFileIcons: true, hasFolderIcons: false }),
+				getColorTheme: () => ({ type: ColorScheme.DARK }),
+				onDidColorThemeChange: Event.None,
+			},
+			modelService: {
+				getModel: () => null,
+			},
+			languageService: {
+				guessLanguageIdByFilepathOrFirstLine: () => 'typescript',
+			},
+			removeAttachment: () => { },
+		});
+		const firstPill = container.querySelector<HTMLElement>('.sessions-chat-attachment-pill');
+		const openButton = firstPill?.querySelector<HTMLElement>('.sessions-chat-attachment-open');
+		const removeButton = firstPill?.querySelector<HTMLElement>('.sessions-chat-attachment-remove');
+
+		assert.deepStrictEqual({
+			pillChildren: Array.from(firstPill?.children ?? []).map(child => child.className),
+			removeButtonNestedInOpenButton: openButton?.contains(removeButton ?? null),
+			hasCompactImageIcon: !!container.querySelector('.codicon-file-media-compact'),
+			files,
+			labels,
+		}, {
+			pillChildren: ['sessions-chat-attachment-remove', 'sessions-chat-attachment-open'],
+			removeButtonNestedInOpenButton: false,
+			hasCompactImageIcon: true,
+			files: [
+				{ resource: '/workspace/README.md', fileKind: FileKind.FILE, icon: undefined },
+				{ resource: '/workspace/spritesheet', fileKind: FileKind.FOLDER, icon: FolderThemeIcon.id },
+			],
+			labels: [
+				{ label: 'Unknown context', icon: Codicon.attachCompact.id, extraClasses: undefined },
+				{
+					label: 'Themed file',
+					icon: undefined,
+					extraClasses: ['file-icon', 'src-name-dir-icon', 'index.ts-name-file-icon', 'name-file-icon', 'ts-ext-file-icon', 'ext-file-icon', 'typescript-lang-file-icon'],
+				},
+			],
+		});
+	});
+
+	test('updates light and dark attachment icons without rebuilding controls', () => {
+		const container = document.createElement('div');
+		document.body.appendChild(container);
+		const colorThemeEmitter = disposables.add(new Emitter<void>());
+		const lightIcon = URI.parse('test:/light.svg');
+		const darkIcon = URI.parse('test:/dark.svg');
+		let colorScheme = ColorScheme.DARK;
+		const icons: string[] = [];
+		const renderDisposables = disposables.add(new DisposableStore());
+		updateAttachmentRendering.call({
+			_container: container,
+			_attachedContext: [{
+				kind: 'generic',
+				id: 'themed',
+				name: 'Themed context',
+				value: 'themed',
+				iconPath: { light: lightIcon, dark: darkIcon },
+			}],
+			_renderDisposables: renderDisposables,
+			_resourceLabels: {
+				clear: () => { },
+				create: content => {
+					content.appendChild(document.createElement('span'));
+					return {
+						dispose: () => { },
+						setLabel: (_label, _description, options) => {
+							if (URI.isUri(options?.iconPath)) {
+								icons.push(options.iconPath.toString());
+							}
+						},
+						setFile: () => { },
+					};
+				},
+			},
+			openerService: { open: async () => true },
+			themeService: {
+				getFileIconTheme: () => ({ hasFileIcons: true, hasFolderIcons: true }),
+				getColorTheme: () => ({ type: colorScheme }),
+				onDidColorThemeChange: colorThemeEmitter.event,
+			},
+			modelService: {
+				getModel: () => null,
+			},
+			languageService: {
+				guessLanguageIdByFilepathOrFirstLine: () => 'typescript',
+			},
+			removeAttachment: () => { },
+		});
+		const pill = container.querySelector('.sessions-chat-attachment-pill');
+		const removeButton = container.querySelector<HTMLElement>('.sessions-chat-attachment-remove');
+		removeButton?.focus();
+
+		colorScheme = ColorScheme.LIGHT;
+		colorThemeEmitter.fire();
+
+		assert.deepStrictEqual({
+			icons,
+			samePill: container.querySelector('.sessions-chat-attachment-pill') === pill,
+			sameRemoveButton: container.querySelector('.sessions-chat-attachment-remove') === removeButton,
+			focusedElementPreserved: document.activeElement === removeButton,
+		}, {
+			icons: [darkIcon.toString(), lightIcon.toString()],
+			samePill: true,
+			sameRemoveButton: true,
+			focusedElementPreserved: true,
+		});
+		container.remove();
+	});
+
+	test('marks the pasted text fallback as a predefined file icon', () => {
+		const container = document.createElement('div');
+		const entry = toPasteVariableEntry('Pasted text', 'const value = 1;', {
+			language: 'typescript',
+			fileName: 'pasted.ts',
+			pastedLines: '1 line',
+			_meta: { [ChatPasteAttachmentMetadata.TextArtifact]: true },
+		});
+		let labelOptions: IIconLabelValueOptions | undefined;
+		const renderDisposables = disposables.add(new DisposableStore());
+		updateAttachmentRendering.call({
+			_container: container,
+			_attachedContext: [entry],
+			_renderDisposables: renderDisposables,
+			_resourceLabels: {
+				clear: () => { },
+				create: content => {
+					content.appendChild(document.createElement('span'));
+					return {
+						dispose: () => { },
+						setLabel: (_label, _description, options) => labelOptions = options,
+						setFile: () => { },
+					};
+				},
+			},
+			openerService: { open: async () => true },
+			themeService: {
+				getFileIconTheme: () => ({ hasFileIcons: false, hasFolderIcons: false }),
+				getColorTheme: () => ({ type: ColorScheme.DARK }),
+				onDidColorThemeChange: Event.None,
+			},
+			modelService: {
+				getModel: () => null,
+			},
+			languageService: {
+				guessLanguageIdByFilepathOrFirstLine: () => 'typescript',
+			},
+			removeAttachment: () => { },
+		});
+
+		assert.deepStrictEqual({
+			iconPath: labelOptions?.iconPath,
+			extraClasses: labelOptions?.extraClasses,
+		}, {
+			iconPath: undefined,
+			extraClasses: ['codicon-file', 'predefined-file-icon'],
+		});
+	});
+
 	test('renders additional folder and repository context as attachment pills', () => {
 		const container = document.createElement('div');
 		const folder = URI.file('/workspace/docs');
@@ -492,6 +1029,11 @@ suite('NewChatInputWidget', () => {
 				}),
 			},
 			openerService: { open: async () => true },
+			themeService: {
+				getFileIconTheme: () => ({ hasFileIcons: true, hasFolderIcons: false }),
+				getColorTheme: () => ({ type: ColorScheme.DARK }),
+				onDidColorThemeChange: Event.None,
+			},
 			removeAttachment: () => { },
 		});
 
@@ -499,10 +1041,11 @@ suite('NewChatInputWidget', () => {
 			Array.from(container.querySelectorAll<HTMLElement>('.sessions-chat-attachment-pill')).map(pill => ({
 				text: pill.textContent,
 				removeAriaLabel: pill.querySelector('.sessions-chat-attachment-remove')?.getAttribute('aria-label'),
+				hasCompactRepositoryIcon: !!pill.querySelector('.codicon-repo-compact'),
 			})),
 			[
-				{ text: 'docs', removeAriaLabel: 'Remove docs' },
-				{ text: 'microsoft/typescript', removeAriaLabel: 'Remove microsoft/typescript' },
+				{ text: 'docs', removeAriaLabel: 'Remove docs', hasCompactRepositoryIcon: false },
+				{ text: 'microsoft/typescript', removeAriaLabel: 'Remove microsoft/typescript', hasCompactRepositoryIcon: true },
 			],
 		);
 	});

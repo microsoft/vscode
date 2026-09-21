@@ -10,11 +10,20 @@ import { Schemas } from '../../../../base/common/network.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { FileService } from '../../../files/common/fileService.js';
+import { createFileSystemProviderError, FileSystemProviderErrorCode, type IStat } from '../../../files/common/files.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { AgentSession } from '../../common/agent.js';
 import { buildChatUri } from '../../common/state/sessionState.js';
 import { SessionDataService } from '../../node/sessionDataService.js';
+
+class ControllableStatFileSystemProvider extends InMemoryFileSystemProvider {
+	statError: Error | undefined;
+
+	override stat(resource: URI): Promise<IStat> {
+		return this.statError ? Promise.reject(this.statError) : super.stat(resource);
+	}
+}
 
 suite('SessionDataService', () => {
 
@@ -72,12 +81,33 @@ suite('SessionDataService', () => {
 		await service.deleteSessionData(session);
 	});
 
+	test('tryOpenDatabase returns undefined only for a missing database and propagates stat errors', async () => {
+		const session = AgentSession.uri('copilot', 'probe-test');
+		assert.strictEqual(await service.tryOpenDatabase(session), undefined);
+
+		const failingScheme = 'failing-session-data';
+		const failingFileService = disposables.add(new FileService(new NullLogService()));
+		class FailingStatProvider extends InMemoryFileSystemProvider {
+			override async stat(resource: URI) {
+				if (resource.path.endsWith('/session.db')) {
+					throw new Error('stat failed');
+				}
+				return super.stat(resource);
+			}
+		}
+		disposables.add(failingFileService.registerProvider(failingScheme, disposables.add(new FailingStatProvider())));
+		const failingService = new SessionDataService(URI.from({ scheme: failingScheme, path: '/userData' }), failingFileService, new NullLogService());
+
+		await assert.rejects(failingService.tryOpenDatabase(session), /stat failed/);
+	});
+
 	test('cleanupOrphanedData deletes orphans but keeps known sessions', async () => {
 		const baseDir = URI.joinPath(basePath, 'agentSessionData');
 		await fileService.createFolder(URI.joinPath(baseDir, 'keep-1'));
 		await fileService.createFolder(URI.joinPath(baseDir, 'keep-2'));
 		await fileService.createFolder(URI.joinPath(baseDir, 'orphan-1'));
 		await fileService.createFolder(URI.joinPath(baseDir, 'orphan-2'));
+		await fileService.createFolder(URI.joinPath(baseDir, 'devcontainer-worktree-detached'));
 
 		await service.cleanupOrphanedData(new Set(['keep-1', 'keep-2']));
 
@@ -85,6 +115,8 @@ suite('SessionDataService', () => {
 		assert.ok(await fileService.exists(URI.joinPath(baseDir, 'keep-2')));
 		assert.ok(!(await fileService.exists(URI.joinPath(baseDir, 'orphan-1'))));
 		assert.ok(!(await fileService.exists(URI.joinPath(baseDir, 'orphan-2'))));
+		assert.ok(await fileService.exists(URI.joinPath(baseDir, 'devcontainer-worktree-detached')));
+		assert.deepStrictEqual(await service.listSessionDataIds('devcontainer-worktree-'), ['devcontainer-worktree-detached']);
 	});
 
 	test('cleanupOrphanedData is a no-op when base directory does not exist', async () => {
@@ -97,11 +129,14 @@ suite('SessionDataService — openDatabase ref-counting', () => {
 
 	const disposables = new DisposableStore();
 	const basePath = URI.from({ scheme: Schemas.inMemory, path: '/userData' });
+	let fileService: FileService;
+	let provider: ControllableStatFileSystemProvider;
 	let service: SessionDataService;
 
 	setup(() => {
-		const fileService = disposables.add(new FileService(new NullLogService()));
-		disposables.add(fileService.registerProvider(Schemas.inMemory, disposables.add(new InMemoryFileSystemProvider())));
+		fileService = disposables.add(new FileService(new NullLogService()));
+		provider = disposables.add(new ControllableStatFileSystemProvider());
+		disposables.add(fileService.registerProvider(Schemas.inMemory, provider));
 		service = new SessionDataService(basePath, fileService, new NullLogService(), () => ':memory:');
 	});
 
@@ -119,6 +154,16 @@ suite('SessionDataService — openDatabase ref-counting', () => {
 		const edits = await ref.object.getFileEdits([]);
 		assert.deepStrictEqual(edits, []);
 		await ref.object.close();
+	});
+
+	test('tryOpenDatabase returns undefined only for a missing database', async () => {
+		const session = AgentSession.uri('copilot', 'strict-existing-test');
+		const missing = await service.tryOpenDatabase(session);
+		const permissionError = createFileSystemProviderError('permission denied', FileSystemProviderErrorCode.NoPermissions);
+		provider.statError = permissionError;
+
+		assert.strictEqual(missing, undefined);
+		await assert.rejects(service.tryOpenDatabase(session), error => error === permissionError);
 	});
 
 	test('multiple references share the same database', async () => {
@@ -161,5 +206,41 @@ suite('SessionDataService — openDatabase ref-counting', () => {
 		assert.notStrictEqual(ref2.object, db1);
 
 		await ref2.object.close();
+	});
+
+	test('storageAccessCounts counts real opens and existence probes, not reference acquisitions', async () => {
+		const session = AgentSession.uri('copilot', 'access-counts');
+		const other = AgentSession.uri('copilot', 'access-counts-other');
+		const baseline = service.storageAccessCounts;
+
+		const ref1 = service.openDatabase(session);
+		// A second reference to the same session is served from the live
+		// collection, so it must not count as another open.
+		const ref2 = service.openDatabase(session);
+		const afterSharedRefs = service.storageAccessCounts;
+
+		// A missing database still costs an existence probe.
+		const missing = await service.tryOpenDatabase(other);
+		const afterMissingProbe = service.storageAccessCounts;
+
+		ref1.dispose();
+		ref2.dispose();
+		await ref1.object.close();
+
+		assert.deepStrictEqual({
+			baseline,
+			opensAfterSharedRefs: afterSharedRefs.opens - baseline.opens,
+			statsAfterSharedRefs: afterSharedRefs.stats - baseline.stats,
+			missingProbeResolved: missing,
+			opensAfterMissingProbe: afterMissingProbe.opens - afterSharedRefs.opens,
+			statsAfterMissingProbe: afterMissingProbe.stats - afterSharedRefs.stats,
+		}, {
+			baseline: { opens: 0, stats: 0 },
+			opensAfterSharedRefs: 1,
+			statsAfterSharedRefs: 0,
+			missingProbeResolved: undefined,
+			opensAfterMissingProbe: 0,
+			statsAfterMissingProbe: 1,
+		});
 	});
 });

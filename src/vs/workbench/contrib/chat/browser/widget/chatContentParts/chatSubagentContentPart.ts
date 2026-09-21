@@ -5,14 +5,13 @@
 
 import * as dom from '../../../../../../base/browser/dom.js';
 import { $, AnimationFrameScheduler, DisposableResizeObserver } from '../../../../../../base/browser/dom.js';
-import { Action } from '../../../../../../base/common/actions.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { Lazy } from '../../../../../../base/common/lazy.js';
 import { IRenderedMarkdown } from '../../../../../../base/browser/markdownRenderer.js';
-import { DisposableStore, IDisposable, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
-import { autorun } from '../../../../../../base/common/observable.js';
+import { DisposableMap, DisposableStore, IDisposable, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
+import { autorun, IObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { rcut } from '../../../../../../base/common/strings.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { localize } from '../../../../../../nls.js';
@@ -21,6 +20,7 @@ import { HiddenItemStrategy, WorkbenchToolBar } from '../../../../../../platform
 import { IMenuService, MenuId, MenuItemAction } from '../../../../../../platform/actions/common/actions.js';
 import { IAccessibilityService } from '../../../../../../platform/accessibility/common/accessibility.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
+import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
@@ -28,7 +28,7 @@ import { IMarkdownRenderer } from '../../../../../../platform/markdown/browser/m
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 import { CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID, ChatConfiguration } from '../../../common/constants.js';
 import { isAgentHostTarget } from '../../../common/chatSessionsService.js';
-import { formatCopilotCreditsLabel, IChatHookPart, IChatMarkdownContent, IChatToolInvocation, IChatToolInvocationSerialized, isLegacyChatTerminalToolInvocationData } from '../../../common/chatService/chatService.js';
+import { formatCopilotCreditsLabel, IChatHookPart, IChatMarkdownContent, IChatToolInvocation, IChatToolInvocationSerialized, isLegacyChatTerminalToolInvocationData, ToolConfirmKind } from '../../../common/chatService/chatService.js';
 import { getChatSessionType } from '../../../common/model/chatUri.js';
 import { IChatRendererContent, isResponseVM } from '../../../common/model/chatViewModel.js';
 import { IRunSubagentToolInputParams } from '../../../common/tools/builtinTools/runSubagentTool.js';
@@ -36,7 +36,8 @@ import { ChatTreeItem } from '../../chat.js';
 import { ChatCollapsibleContentPart } from './chatCollapsibleContentPart.js';
 import { ChatCollapsibleMarkdownContentPart } from './chatCollapsibleMarkdownContentPart.js';
 import { EditorPool } from './chatContentCodePools.js';
-import { IChatContentPart, IChatContentPartRenderContext } from './chatContentParts.js';
+import { IChatContentPart, IChatContentPartDiffData, IChatContentPartDiffSource, IChatContentPartRenderContext } from './chatContentParts.js';
+import { aggregateChatEditDiffs } from './chatEditStatsButton.js';
 import { renderFileWidgets } from './chatInlineAnchorWidget.js';
 import { IChatMarkdownAnchorService } from './chatMarkdownAnchorService.js';
 import { CollapsibleListPool } from './chatReferencesContentPart.js';
@@ -72,6 +73,8 @@ interface ILazyToolItem {
 interface ILazyMarkdownItem {
 	kind: 'markdown';
 	lazy: Lazy<{ domNode: HTMLElement; disposable?: IDisposable }>;
+	/** Identifies the markdown part so a re-rendered replacement can retire this item. */
+	codeblocksPartId?: string;
 	/**
 	 * True when the caller passed an eagerDisposable that has already been registered on this
 	 * subagent part. In that case, materializeLazyItem must not register the factory's returned
@@ -96,6 +99,10 @@ type ILazyItem = ILazyToolItem | ILazyMarkdownItem | ILazyHookItem;
  * trying to refactor to share code. Both could probably be simplified when stable.
  */
 export class ChatSubagentContentPart extends ChatThinkingStyleContentPart implements IChatContentPart {
+	protected override get collapsibleKind(): string {
+		return 'subagent';
+	}
+
 	private wrapper!: HTMLElement;
 	private isActive: boolean;
 	private isExternallyActive: boolean;
@@ -115,6 +122,13 @@ export class ChatSubagentContentPart extends ChatThinkingStyleContentPart implem
 	private hasExpandedOnce: boolean = false;
 	private pendingPromptRender: boolean = false;
 	private pendingResultText: string | undefined;
+
+	// Edits made by the subagent's own markdown items, so response-level totals can include them.
+	private readonly diffDataByPartId = new Map<string, IChatContentPartDiffData>();
+	private readonly diffSubscriptions = this._register(new DisposableMap<string>());
+	private readonly renderedMarkdownItems = new Map<string, HTMLElement>();
+	private readonly _diffData = observableValue<IChatContentPartDiffData>(this, { added: 0, removed: 0, resources: [] });
+	readonly diffData: IObservable<IChatContentPartDiffData> = this._diffData;
 
 	// Current tool message for collapsed title (persists even after tool completes)
 	private currentRunningToolMessage: string | undefined;
@@ -141,7 +155,6 @@ export class ChatSubagentContentPart extends ChatThinkingStyleContentPart implem
 	 */
 	private _openChatToolbar: WorkbenchToolBar | undefined;
 	private _openChatToolbarContainer: HTMLElement | undefined;
-	private readonly _openChatActionListeners = this._register(new MutableDisposable<DisposableStore>());
 	private readonly _openChatActionViewRegistration = this._register(new MutableDisposable());
 
 	// Confirmation auto-expand tracking
@@ -301,7 +314,7 @@ export class ChatSubagentContentPart extends ChatThinkingStyleContentPart implem
 			),
 		}));
 		this._openChatToolbar.setActions([menuAction]);
-		this._trackOpenChatActions();
+		this._updateOpenChatOnlyMode();
 		return true;
 	}
 
@@ -315,34 +328,11 @@ export class ChatSubagentContentPart extends ChatThinkingStyleContentPart implem
 		return undefined;
 	}
 
-	private _trackOpenChatActions(): void {
-		const store = new DisposableStore();
-		const itemCount = this._openChatToolbar?.getItemsLength() ?? 0;
-		for (let index = 0; index < itemCount; index++) {
-			const action = this._openChatToolbar?.getItemAction(index);
-			if (action instanceof Action) {
-				store.add(action.onDidChange(() => this._updateOpenChatOnlyMode()));
-			}
-		}
-		this._openChatActionListeners.value = store;
-		this._updateOpenChatOnlyMode();
-	}
-
 	private _updateOpenChatOnlyMode(): void {
 		if (!this._collapseButton) {
 			return;
 		}
-		let openChatOnly = false;
-		if (this._openChatToolbar) {
-			const itemCount = this._openChatToolbar.getItemsLength();
-			openChatOnly = this._shouldUseOpenChatPresentation() && !!this._getChatResource();
-			for (let index = 0; index < itemCount; index++) {
-				if (!this._openChatToolbar.getItemAction(index)?.enabled) {
-					openChatOnly = false;
-					break;
-				}
-			}
-		}
+		const openChatOnly = !!this._openChatToolbar && this._shouldUseOpenChatPresentation() && !!this._getChatResource();
 		this.domNode.classList.toggle('chat-subagent-open-chat-only', openChatOnly);
 		if (openChatOnly || this._shouldReserveOpenChatPresentation()) {
 			dom.hide(this._collapseButton.element);
@@ -377,6 +367,7 @@ export class ChatSubagentContentPart extends ChatThinkingStyleContentPart implem
 			const agentType = this.getAgentTypeLabel();
 			this._openChatToolbar.context = {
 				chatResource,
+				isChatAvailable: data?.kind === 'subagent' ? data.isChatAvailable : undefined,
 				parentSessionResource: this.context.element.sessionResource.toString(),
 				title: this.description,
 				...(agentType ? { agentType } : {}),
@@ -386,12 +377,14 @@ export class ChatSubagentContentPart extends ChatThinkingStyleContentPart implem
 				duration: data?.kind === 'subagent' ? data.duration : undefined,
 				isActive: this.isActive,
 				...(this.credits ? { credits: this.credits } : {}),
+				...(data?.kind === 'subagent' && data.modelId ? { modelId: data.modelId } : {}),
 				...(this.modelName ? { modelName: this.modelName } : {}),
 				...(parentModelId ? { parentModelId } : {}),
 				...(parentModelName ? { parentModelName } : {}),
 				...(parentResolvedModelId ? { parentResolvedModelId } : {}),
 				...(this.isActive && displayedTool ? { activeToolCallId: displayedTool.callId, activeToolLabel: displayedTool.label, activeToolIcon: displayedTool.icon } : {}),
 			};
+			this._updateOpenChatOnlyMode();
 		}
 	}
 
@@ -400,7 +393,9 @@ export class ChatSubagentContentPart extends ChatThinkingStyleContentPart implem
 	}
 
 	private _shouldReserveOpenChatPresentation(): boolean {
-		return this._shouldUseOpenChatPresentation() && isAgentHostTarget(getChatSessionType(this.context.element.sessionResource));
+		return this._shouldUseOpenChatPresentation()
+			&& isAgentHostTarget(getChatSessionType(this.context.element.sessionResource))
+			&& !IChatToolInvocation.isComplete(this._subagentToolInvocation);
 	}
 
 	private _shouldKeepCollapsedForCarouselConfirmation(): boolean {
@@ -431,6 +426,7 @@ export class ChatSubagentContentPart extends ChatThinkingStyleContentPart implem
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IChatMarkdownAnchorService private readonly chatMarkdownAnchorService: IChatMarkdownAnchorService,
 		@IHoverService hoverService: IHoverService,
+		@ITelemetryService telemetryService: ITelemetryService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
 		@IActionViewItemService private readonly actionViewItemService: IActionViewItemService,
@@ -445,7 +441,7 @@ export class ChatSubagentContentPart extends ChatThinkingStyleContentPart implem
 		const rawPrefix = agentName || localize('chat.subagent.prefix', 'Subagent');
 		const prefix = rawPrefix.charAt(0).toUpperCase() + rawPrefix.slice(1);
 		const initialTitle = `${prefix}: ${description}`;
-		super(initialTitle, context, undefined, hoverService, configurationService);
+		super(initialTitle, context, undefined, hoverService, configurationService, telemetryService);
 
 		this.description = rcut(description, MAX_TITLE_LENGTH);
 		this._isDefaultDescription = isDefaultDescription;
@@ -464,13 +460,21 @@ export class ChatSubagentContentPart extends ChatThinkingStyleContentPart implem
 		this._register(this.configurationService.onDidChangeConfiguration(event => {
 			if (event.affectsConfiguration(ChatConfiguration.SubagentsUseRichRendering)) {
 				this._updateOpenChatLink();
+				this.updateTitle();
 			}
 		}));
 		if (isResponseVM(context.element)) {
 			const response = context.element;
 			const finalizeOnTerminal = () => {
-				if (this.isActive && (response.isComplete || response.isCanceled)) {
+				if (!response.isComplete && !response.isCanceled) {
+					return;
+				}
+				if (this.isActive) {
 					this.markAsInactive(true);
+				}
+				// A child that outlived its parent takes over the progress signal the footer owned.
+				if (this.isActive && this.wrapper && !this.hasToolsWaitingForConfirmation) {
+					this.showWorkingSpinner();
 				}
 			};
 			finalizeOnTerminal();
@@ -581,6 +585,12 @@ export class ChatSubagentContentPart extends ChatThinkingStyleContentPart implem
 	}
 
 	private showWorkingSpinner(): void {
+		// While the response is in progress the persistent footer owns the only progress signal;
+		// afterwards a still-running child shows its own row again.
+		if (this.context.suppressProgressShimmer && !this.context.element.isComplete) {
+			this.removeWorkingSpinner();
+			return;
+		}
 		if (this.workingSpinnerElement) {
 			this.workingSpinnerElement.style.display = '';
 		} else {
@@ -599,7 +609,9 @@ export class ChatSubagentContentPart extends ChatThinkingStyleContentPart implem
 		// Materialize any deferred content now that wrapper exists
 		// This handles the case where the subclass autorun ran before this base class autorun
 		this.materializePendingContent();
-		if (this.isActive && !this.isInitiallyComplete && !this.hasToolsWaitingForConfirmation) {
+		// A background child's launch call completes immediately, so an explicitly active child
+		// still shows its working row when it is first expanded.
+		if (this.isActive && (!this.isInitiallyComplete || this.isExternallyActive) && !this.hasToolsWaitingForConfirmation) {
 			this.showWorkingSpinner();
 		}
 
@@ -745,9 +757,21 @@ export class ChatSubagentContentPart extends ChatThinkingStyleContentPart implem
 		return this.description;
 	}
 
+	public focus(): void {
+		if (this._openChatToolbar && !this._openChatToolbarContainer?.classList.contains('hidden')) {
+			this._openChatToolbar.focus();
+		} else {
+			this._collapseButton?.element.focus({ preventScroll: true });
+		}
+	}
+
 	public markAsInactive(force: boolean = false): void {
 		if (force && this._subagentToolInvocation.toolSpecificData?.kind === 'subagent') {
 			const data = this._subagentToolInvocation.toolSpecificData;
+			// An independently observed child can outlive the completed parent response.
+			if (data.hasStarted === true && data.isActive === true) {
+				return;
+			}
 			data.isActive = false;
 			if (data.duration === undefined && data.startedAt !== undefined) {
 				data.duration = Math.max(0, Date.now() - data.startedAt);
@@ -832,8 +856,7 @@ export class ChatSubagentContentPart extends ChatThinkingStyleContentPart implem
 			descSpan.textContent = ` ${this.description}`;
 			labelElement.appendChild(descSpan);
 
-			this._collapseButton.element.ariaLabel = shimmerText;
-			this._collapseButton.element.ariaExpanded = String(this.isExpanded());
+			this.setAriaLabel(shimmerText);
 			return;
 		}
 
@@ -925,8 +948,8 @@ export class ChatSubagentContentPart extends ChatThinkingStyleContentPart implem
 		}
 	}
 
-	private getToolLabel(toolInvocation: IChatToolInvocation, state: IChatToolInvocation.State = toolInvocation.state.get()): string | undefined {
-		if (state.type === IChatToolInvocation.StateKind.Streaming) {
+	private getToolLabel(toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized, state: IChatToolInvocation.State | undefined): string | undefined {
+		if (state?.type === IChatToolInvocation.StateKind.Streaming) {
 			return undefined;
 		}
 		if (toolInvocation.toolSpecificData?.kind === 'terminal' && !isLegacyChatTerminalToolInvocationData(toolInvocation.toolSpecificData)) {
@@ -935,7 +958,11 @@ export class ChatSubagentContentPart extends ChatThinkingStyleContentPart implem
 				return intention;
 			}
 		}
-		const message = toolInvocation.invocationMessage;
+		const confirmation = IChatToolInvocation.executionConfirmedOrDenied(toolInvocation);
+		const wasCancelled = confirmation?.type === ToolConfirmKind.Denied || confirmation?.type === ToolConfirmKind.Skipped;
+		const message = IChatToolInvocation.isComplete(toolInvocation) && !wasCancelled
+			? toolInvocation.pastTenseMessage ?? toolInvocation.invocationMessage
+			: toolInvocation.invocationMessage;
 		const messageText = typeof message === 'string' ? message : message.value;
 		const label = messageText.replace(/\s+/g, ' ').trim();
 		if (!label) {
@@ -960,13 +987,8 @@ export class ChatSubagentContentPart extends ChatThinkingStyleContentPart implem
 	 * This method is public to support testing.
 	 */
 	public trackToolState(toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized): void {
-		// Only track live tool invocations
-		if (toolInvocation.kind !== 'toolInvocation') {
-			return;
-		}
-
-		const initialState = toolInvocation.state.get();
-		let wasStreamingForPresentation = initialState.type === IChatToolInvocation.StateKind.Streaming;
+		const initialState = toolInvocation.kind === 'toolInvocation' ? toolInvocation.state.get() : undefined;
+		let wasStreamingForPresentation = initialState?.type === IChatToolInvocation.StateKind.Streaming;
 		if (!wasStreamingForPresentation) {
 			this.currentRunningToolCallId = toolInvocation.toolCallId;
 			this.currentRunningToolMessage = this.getToolLabel(toolInvocation, initialState);
@@ -974,7 +996,7 @@ export class ChatSubagentContentPart extends ChatThinkingStyleContentPart implem
 			this.updateActiveToolPresentation(toolInvocation.toolCallId, this.currentRunningToolMessage, this.currentRunningToolIcon, initialState);
 			this._updateToolPresentation();
 		}
-		if (initialState.type === IChatToolInvocation.StateKind.Completed || initialState.type === IChatToolInvocation.StateKind.Cancelled) {
+		if (toolInvocation.kind !== 'toolInvocation' || IChatToolInvocation.isComplete(toolInvocation)) {
 			return;
 		}
 		const addToolToCarousel = this._addToolToCarousel;
@@ -1057,12 +1079,12 @@ export class ChatSubagentContentPart extends ChatThinkingStyleContentPart implem
 		this._toolStateTracking.add(toolStateAutorun);
 	}
 
-	private updateActiveToolPresentation(toolCallId: string, label: string | undefined, icon: ThemeIcon | undefined, state: IChatToolInvocation.State): void {
+	private updateActiveToolPresentation(toolCallId: string, label: string | undefined, icon: ThemeIcon | undefined, state: IChatToolInvocation.State | undefined): void {
 		this.activeToolPresentations.delete(toolCallId);
 		if (label && icon) {
 			this.mostRecentToolPresentation = { callId: toolCallId, label, icon };
 		}
-		if (label && icon && state.type !== IChatToolInvocation.StateKind.Completed && state.type !== IChatToolInvocation.StateKind.Cancelled) {
+		if (label && icon && state && state.type !== IChatToolInvocation.StateKind.Completed && state.type !== IChatToolInvocation.StateKind.Cancelled) {
 			this.activeToolPresentations.set(toolCallId, { label, icon });
 		}
 	}
@@ -1364,10 +1386,11 @@ export class ChatSubagentContentPart extends ChatThinkingStyleContentPart implem
 	 */
 	public appendMarkdownItem(
 		factory: () => { domNode: HTMLElement; disposable?: IDisposable },
-		_codeblocksPartId: string | undefined,
+		codeblocksPartId: string | undefined,
 		_markdown: IChatMarkdownContent,
 		_originalParent?: HTMLElement,
 		eagerDisposable?: IDisposable,
+		diffSource?: IChatContentPartDiffSource,
 	): void {
 		// Register any caller-owned disposable up-front so it is always cleaned up
 		// with this subagent part, even if the lazy item is never materialized.
@@ -1375,10 +1398,25 @@ export class ChatSubagentContentPart extends ChatThinkingStyleContentPart implem
 			this._register(eagerDisposable);
 		}
 
+		// Track edit-pill diffs, seeding from any value emitted before this subscription existed.
+		if (diffSource && codeblocksPartId) {
+			this.diffDataByPartId.set(codeblocksPartId, diffSource.diffData ?? { added: 0, removed: 0, resources: [] });
+			this.diffSubscriptions.set(codeblocksPartId, diffSource.onDidChangeDiff(data => {
+				this.diffDataByPartId.set(codeblocksPartId, data);
+				this.updateAggregatedDiff();
+			}));
+			if (diffSource.diffData) {
+				this.updateAggregatedDiff();
+			}
+		}
+
 		// If expanded or has been expanded once, render immediately
 		if (this.isExpanded() || this.hasExpandedOnce) {
 			const result = factory();
 			this.appendMarkdownItemToDOM(result.domNode);
+			if (codeblocksPartId) {
+				this.renderedMarkdownItems.set(codeblocksPartId, result.domNode);
+			}
 			if (result.disposable && result.disposable !== eagerDisposable) {
 				this._register(result.disposable);
 			}
@@ -1387,10 +1425,35 @@ export class ChatSubagentContentPart extends ChatThinkingStyleContentPart implem
 			const item: ILazyMarkdownItem = {
 				kind: 'markdown',
 				lazy: new Lazy(factory),
+				codeblocksPartId,
 				eagerlyRegistered: !!eagerDisposable,
 			};
 			this.lazyItems.push(item);
 		}
+	}
+
+	/**
+	 * Retires a markdown item that the renderer is about to replace with a re-rendered part, so a
+	 * streamed edit is not counted once per revision.
+	 */
+	public removeMarkdownItemByPartId(codeblocksPartId: string): void {
+		const lazyIndex = this.lazyItems.findIndex(item => item.kind === 'markdown' && item.codeblocksPartId === codeblocksPartId);
+		if (lazyIndex !== -1) {
+			this.lazyItems.splice(lazyIndex, 1);
+		}
+		const rendered = this.renderedMarkdownItems.get(codeblocksPartId);
+		if (rendered) {
+			rendered.remove();
+			this.renderedMarkdownItems.delete(codeblocksPartId);
+		}
+		this.diffSubscriptions.deleteAndDispose(codeblocksPartId);
+		if (this.diffDataByPartId.delete(codeblocksPartId)) {
+			this.updateAggregatedDiff();
+		}
+	}
+
+	private updateAggregatedDiff(): void {
+		this._diffData.set(aggregateChatEditDiffs(this.diffDataByPartId.values()), undefined);
 	}
 
 	/**
@@ -1600,6 +1663,9 @@ export class ChatSubagentContentPart extends ChatThinkingStyleContentPart implem
 		} else if (item.kind === 'markdown') {
 			const result = item.lazy.value;
 			this.appendMarkdownItemToDOM(result.domNode);
+			if (item.codeblocksPartId) {
+				this.renderedMarkdownItems.set(item.codeblocksPartId, result.domNode);
+			}
 			if (result.disposable && !item.eagerlyRegistered) {
 				this._register(result.disposable);
 			}

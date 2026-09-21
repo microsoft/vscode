@@ -14,7 +14,7 @@ import { ITelemetryService } from '../../../telemetry/common/telemetry.js';
 import { AgentSession } from '../../common/agent.js';
 import type { IAgentHostClientTelemetryContext } from '../../common/agentHostTelemetry.js';
 import { isAhpChatChannel, parseRequiredSessionUriFromChatUri } from '../../common/state/sessionState.js';
-import { toInitiatorTelemetry, type IAgentHostInitiatorClassification, type IAgentHostInitiatorTelemetry } from '../agentHostTelemetryReporter.js';
+import { toInitiatorTelemetry, type IAgentHostEventClassification, type IAgentHostEventTelemetry } from '../agentHostTelemetryReporter.js';
 import { computeChunkedEditSurvival, computeWholeFileEditSurvival } from './editSurvivalTracker.js';
 
 /**
@@ -84,7 +84,7 @@ export class NullEditSurvivalReporterFactory implements IEditSurvivalReporterFac
 	}
 }
 
-interface IEditSurvivalTelemetryEvent extends IAgentHostInitiatorTelemetry {
+interface IEditSurvivalTelemetryEvent extends IAgentHostEventTelemetry {
 	provider: string;
 	modelId: string;
 	toolName: string;
@@ -105,7 +105,7 @@ interface IEditSurvivalTelemetryEvent extends IAgentHostInitiatorTelemetry {
 	currentTextLength: number;
 }
 
-type IEditSurvivalTelemetryClassification = IAgentHostInitiatorClassification & {
+type IEditSurvivalTelemetryClassification = IAgentHostEventClassification & {
 	provider: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The provider handling the agent host session.' };
 	modelId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The model that produced the edit, e.g. "claude-sonnet-4.5" or "gpt-5-mini". Empty if the host could not determine the per-edit model.' };
 	toolName: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Name of the edit tool that produced the edit, e.g. "Edit", "apply_patch". Empty if unknown.' };

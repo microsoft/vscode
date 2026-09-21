@@ -8,6 +8,7 @@ import { MarshalledId } from '../../../../../../base/common/marshallingIds.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { AICustomizationManagementSection, resolveAICustomizationManagementOpenEditorTarget } from '../../../browser/aiCustomization/aiCustomizationManagement.js';
+import { CustomizationMigrationCategoryId } from '../../../browser/aiCustomization/customizationMigrationCategories.js';
 
 suite('aiCustomizationManagement', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -27,6 +28,8 @@ suite('aiCustomizationManagement', () => {
 				section: AICustomizationManagementSection.Skills,
 				sessionType: 'agent-host-copilot',
 				revealUri,
+				migration: true,
+				migrationCategory: CustomizationMigrationCategoryId.PromptFiles,
 			}, 'agent-host-claude', fallbackSessionResource, getSessionResourceForHarness),
 			resolveAICustomizationManagementOpenEditorTarget(
 				AICustomizationManagementSection.Instructions,
@@ -39,13 +42,15 @@ suite('aiCustomizationManagement', () => {
 			section: result.section,
 			revealUri: result.revealUri?.toString(),
 			sessionResource: result.sessionResource?.toString(),
+			migration: result.migration,
+			migrationCategory: result.migrationCategory,
 		}));
 
 		assert.deepStrictEqual(results, [
-			{ section: undefined, revealUri: undefined, sessionResource: 'agent-host-copilot:/title-session' },
-			{ section: AICustomizationManagementSection.Skills, revealUri: revealUri.toString(), sessionResource: 'agent-host-copilot:/new-session' },
-			{ section: AICustomizationManagementSection.Instructions, revealUri: undefined, sessionResource: 'agent-host-claude:/new-session' },
-			{ section: undefined, revealUri: undefined, sessionResource: 'local:/fallback-session' },
+			{ section: undefined, revealUri: undefined, sessionResource: 'agent-host-copilot:/title-session', migration: undefined, migrationCategory: undefined },
+			{ section: AICustomizationManagementSection.Skills, revealUri: revealUri.toString(), sessionResource: 'agent-host-copilot:/new-session', migration: true, migrationCategory: CustomizationMigrationCategoryId.PromptFiles },
+			{ section: AICustomizationManagementSection.Instructions, revealUri: undefined, sessionResource: 'agent-host-claude:/new-session', migration: undefined, migrationCategory: undefined },
+			{ section: undefined, revealUri: undefined, sessionResource: 'local:/fallback-session', migration: undefined, migrationCategory: undefined },
 		]);
 	});
 });
