@@ -1305,6 +1305,26 @@ async function disposeAgent(agent: CopilotAgent): Promise<void> {
 suite('CopilotAgent', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+	const proxyEnvironmentKeys = ['HTTPS_PROXY', 'https_proxy', 'HTTP_PROXY', 'http_proxy', 'ALL_PROXY', 'all_proxy', 'NO_PROXY', 'no_proxy'] as const;
+	const proxyEnvironmentKeyNames = new Set(proxyEnvironmentKeys.map(key => key.toLowerCase()));
+	const savedProxyEnvironment: NodeJS.ProcessEnv = {};
+	for (const [key, value] of Object.entries(process.env)) {
+		if (value !== undefined && proxyEnvironmentKeyNames.has(key.toLowerCase())) {
+			savedProxyEnvironment[key] = value;
+		}
+	}
+
+	const clearProxyEnvironment = () => {
+		for (const key of proxyEnvironmentKeys) {
+			delete process.env[key];
+		}
+	};
+
+	setup(clearProxyEnvironment);
+	teardown(() => {
+		clearProxyEnvironment();
+		Object.assign(process.env, savedProxyEnvironment);
+	});
 
 	test('sandbox override survives config resolution but is not inherited by forks', async () => {
 		const agent = createTestAgent(disposables);
