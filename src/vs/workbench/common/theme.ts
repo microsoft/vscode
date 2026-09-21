@@ -223,7 +223,7 @@ export const EDITOR_GROUP_HEADER_TABS_BACKGROUND = registerColor('editorGroupHea
 	hcLight: null
 }, localize('tabsContainerBackground', "Background color of the editor group title header when tabs are enabled. Editor groups are the containers of editors."));
 
-export const EDITOR_GROUP_HEADER_CONNECTED_TABS_BACKGROUND = registerColor('editorGroupHeader.connectedTabsBackground', EDITOR_GROUP_HEADER_TABS_BACKGROUND, localize('connectedTabsContainerBackground', "Background color of the editor group title header when the connected tab style is enabled. Editor groups are the containers of editors."));
+export const EDITOR_GROUP_HEADER_CONNECTED_TABS_BACKGROUND = registerColor('editorGroupHeader.connectedTabsBackground', EDITOR_GROUP_HEADER_TABS_BACKGROUND, localize('connectedTabsContainerBackground', "Background color of connected tabs in editor group title headers. Editor groups are the containers of editors."));
 
 export const EDITOR_GROUP_HEADER_TABS_BORDER = registerColor('editorGroupHeader.tabsBorder', null, localize('tabsContainerBorder', "Border color of the editor group title header when tabs are enabled. Editor groups are the containers of editors."));
 
