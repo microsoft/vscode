@@ -411,7 +411,7 @@ suite('MultiEditorTabsControl', () => {
 				width: single.width === multiple.width,
 			},
 			wrapped: {
-				topBorderReserve: wrappedUpper.top - wrappedBottom.top === stroke,
+				top: wrappedBottom.top === wrappedUpper.top,
 				right: wrappedBottom.right === wrappedUpper.right,
 				left: wrappedBottom.left === wrappedUpper.left,
 			},
@@ -429,7 +429,7 @@ suite('MultiEditorTabsControl', () => {
 			actionPadding: measurements.every(measurement => new Set(measurement.padding).size === 1 && measurement.padding[0] === multiple.padding[0]),
 		}, {
 			single: { top: true, right: true, left: true, width: true },
-			wrapped: { topBorderReserve: true, right: true, left: true },
+			wrapped: { top: true, right: true, left: true },
 			horizontal: { right: true, left: true },
 			leftAction: { top: true, right: true, left: true, width: true },
 			balancedActionInsets: true,
@@ -608,7 +608,7 @@ suite('MultiEditorTabsControl', () => {
 		const unwrappedTop = tabs.map(tab => tab.classList.contains('connected-tab-top-row'));
 		assert.deepStrictEqual(
 			{ wrapped, wrappedTop, upper, unwrapped, unwrappedTop },
-			{ wrapped: [true, false], wrappedTop: [true, false], upper: { inset: '-3px', shoulder: 'none' }, unwrapped: [false, false], unwrappedTop: [true, true] }
+			{ wrapped: [true, false], wrappedTop: [true, false], upper: { inset: '-2px', shoulder: 'none' }, unwrapped: [false, false], unwrappedTop: [true, true] }
 		);
 	});
 

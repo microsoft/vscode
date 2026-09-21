@@ -2470,12 +2470,17 @@ suite('ModernUIContribution', () => {
 
 		assert.deepStrictEqual({
 			rowPaddingTop: targetWindow.getComputedStyle(row).paddingTop,
+			topFrame: {
+				borderColors: [targetWindow.getComputedStyle(upperFill).borderTopColor, targetWindow.getComputedStyle(upperFill).borderLeftColor],
+				borderTopLeftRadius: targetWindow.getComputedStyle(upperFill).borderTopLeftRadius,
+			},
 			upper: geometry(upperTab, upperFill),
 			inactiveBottom: geometry(inactiveBottomTab, inactiveBottomFill),
 			activeBottom: geometry(activeBottomTab, activeBottomFill),
 		}, {
 			rowPaddingTop: '0px',
-			upper: { tabBorders: ['2px', '2px'], fillInsets: ['-3px', '-2px'], fillInlineStart: '-1px' },
+			topFrame: { borderColors: ['rgba(0, 0, 0, 0)', 'rgba(0, 0, 0, 0)'], borderTopLeftRadius: '0px' },
+			upper: { tabBorders: ['2px', '2px'], fillInsets: ['-2px', '-2px'], fillInlineStart: '0px' },
 			inactiveBottom: { tabBorders: ['0px', '0px'], fillInsets: ['0px', '-1px'], fillInlineStart: '0px' },
 			activeBottom: { tabBorders: ['0px', '0px'], fillInsets: ['0px', '-2px'], fillInlineStart: '0px' },
 		});
