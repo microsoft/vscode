@@ -3193,6 +3193,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			if (
 				e.affectsConfiguration(SESSIONS_LIST_SHOW_EMPTY_DEFAULT_GROUPS_SETTING)
 				|| e.affectsConfiguration(ChatSessionArchiveActionWordingSettingId)
+				|| e.affectsConfiguration(SESSIONS_CUSTOMIZATIONS_IN_LIST_SETTING)
 			) {
 				this.update();
 			}
@@ -4303,17 +4304,6 @@ export class SessionsList extends Disposable implements ISessionsList {
 		this.tree.setFocus([customizations]);
 		this.tree.setSelection([customizations]);
 		this.tree.domFocus();
-	}
-
-	isCustomizationsFocused(): boolean {
-		if (!DOM.isAncestorOfActiveElement(this.listContainer)) {
-			return false;
-		}
-		return this.tree.getFocus().some(element => !!element && isSessionSection(element) && element.id === CUSTOMIZATIONS_SECTION_ID);
-	}
-
-	updateCustomizationsVisibility(): void {
-		this.update();
 	}
 
 	openFind(): void {

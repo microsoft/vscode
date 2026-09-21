@@ -48,8 +48,6 @@ import { isPhoneLayout } from '../../../../browser/parts/mobile/mobileLayout.js'
 import { IsPhoneLayoutContext } from '../../../../common/contextkeys.js';
 import { logSessionsListCompactViewState } from '../../../../common/sessionsTelemetry.js';
 import { SESSIONS_CUSTOMIZATIONS_IN_LIST_SETTING } from '../customizationsConstants.js';
-import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
-import { IChatEntitlementService } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
 
 const $ = DOM.$;
 export const SessionsViewId = 'sessions.workbench.view.sessionsView';
@@ -144,7 +142,6 @@ export class SessionsView extends ViewPane {
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@IStorageService private readonly storageService: IStorageService,
 		@ITelemetryService telemetryService: ITelemetryService,
-		@IChatEntitlementService private readonly chatEntitlementService: IChatEntitlementService,
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 
@@ -174,16 +171,10 @@ export class SessionsView extends ViewPane {
 		this.workspaceGroupCappedContextKey = IsWorkspaceGroupCappedContext.bindTo(contextKeyService);
 		this._register(this.configurationService.onDidChangeConfiguration(event => {
 			if (event.affectsConfiguration(SESSIONS_CUSTOMIZATIONS_IN_LIST_SETTING)) {
-				this.updateCustomizationsVariant(true);
+				this.updateCustomizationsPane();
+				this.layoutSidebarSplitView();
 			}
 		}));
-		const customizationsContextKeys = new Set([ChatContextKeys.enabled.key]);
-		this._register(this.contextKeyService.onDidChangeContext(event => {
-			if (event.affectsSome(customizationsContextKeys)) {
-				this.updateCustomizationsVariant(true);
-			}
-		}));
-		this._register(this.chatEntitlementService.onDidChangeSentiment(() => this.updateCustomizationsVariant(true)));
 	}
 
 	protected override renderBody(parent: HTMLElement): void {
@@ -393,7 +384,7 @@ export class SessionsView extends ViewPane {
 	}
 
 	focusCustomizations(): void {
-		if (!isPhoneLayout(this.layoutService) && this.areCustomizationsEnabled()) {
+		if (!isPhoneLayout(this.layoutService)) {
 			if (this.configurationService.getValue<boolean>(SESSIONS_CUSTOMIZATIONS_IN_LIST_SETTING)) {
 				this.sessionsControl?.focusCustomizations();
 			} else {
@@ -402,34 +393,12 @@ export class SessionsView extends ViewPane {
 		}
 	}
 
-	private updateCustomizationsVariant(preserveFocus: boolean): void {
-		const hadFocus = preserveFocus && this.hasCustomizationsFocus();
-		this.sessionsControl?.updateCustomizationsVisibility();
-		this.updateCustomizationsPane();
-		this.layoutSidebarSplitView();
-		if (hadFocus) {
-			if (this.areCustomizationsEnabled()) {
-				this.focusCustomizations();
-			} else {
-				this.sessionsControl?.focus();
-			}
-		}
-	}
-
-	private hasCustomizationsFocus(): boolean {
-		return this.customizationsWidget?.hasFocus() === true || this.sessionsControl?.isCustomizationsFocused() === true;
-	}
-
-	private areCustomizationsEnabled(): boolean {
-		return ChatContextKeys.enabled.getValue(this.contextKeyService) === true && !this.chatEntitlementService.sentiment.hidden;
-	}
-
 	private updateCustomizationsPane(): void {
 		if (!this.sidebarSplitView || !this.sidebarSplitViewContainer) {
 			return;
 		}
 		const customizationsInList = this.configurationService.getValue<boolean>(SESSIONS_CUSTOMIZATIONS_IN_LIST_SETTING) === true;
-		if (!this.areCustomizationsEnabled() || customizationsInList || isPhoneLayout(this.layoutService)) {
+		if (customizationsInList || isPhoneLayout(this.layoutService)) {
 			if (this.customizationsWidget) {
 				this.sidebarSplitView.removeView(1, Sizing.Distribute);
 				this.customizationsWidget = undefined;
