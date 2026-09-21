@@ -22,8 +22,6 @@ const document = (): Raw.ChatCompletionContentPart => ({ type: Raw.ChatCompletio
 const opaque = (type: string): Raw.ChatCompletionContentPart => ({ type: Raw.ChatCompletionContentPartKind.Opaque, value: { type } });
 const cacheBreakpoint = (): Raw.ChatCompletionContentPart => ({ type: Raw.ChatCompletionContentPartKind.CacheBreakpoint });
 const hasBreakpoint = (message: Raw.ChatMessage) => message.content.some(part => part.type === Raw.ChatCompletionContentPartKind.CacheBreakpoint);
-const responsesCacheBreakpointOptions = { apiType: 'responses', model: 'gpt-5.6-sol', responsesCacheBreakpointsEnabled: true } as const;
-const chatCompletionsCacheBreakpointOptions = { apiType: 'chatCompletions', model: 'claude-sonnet-4', responsesCacheBreakpointsEnabled: false } as const;
 
 describe('addCacheBreakpoints', () => {
 	it('only marks messages that produce supported Responses API input blocks', () => {
@@ -33,7 +31,7 @@ describe('addCacheBreakpoints', () => {
 		const imageTool: Raw.ChatMessage = { role: Raw.ChatRole.Tool, toolCallId: 'image', content: [image()] };
 		const user: Raw.ChatMessage = { role: Raw.ChatRole.User, content: [document()] };
 
-		addCacheBreakpoints([system, user, imageTool, assistant, textTool], responsesCacheBreakpointOptions);
+		addCacheBreakpoints([system, user, imageTool, assistant, textTool], 'responses');
 
 		expect(hasBreakpoint(system)).toBe(true);
 		expect(hasBreakpoint(assistant)).toBe(false);
@@ -42,28 +40,10 @@ describe('addCacheBreakpoints', () => {
 		expect(hasBreakpoint(user)).toBe(true);
 	});
 
-	it.each([
-		{ model: 'gpt-5.6-sol', enabled: false },
-		{ model: 'gpt-5-mini', enabled: true },
-	])('removes Responses markers when model=$model and enabled=$enabled', ({ model, enabled }) => {
-		const message: Raw.ChatMessage = {
-			role: Raw.ChatRole.User,
-			content: [text(), cacheBreakpoint()],
-		};
-
-		addCacheBreakpoints([message], {
-			apiType: 'responses',
-			model,
-			responsesCacheBreakpointsEnabled: enabled,
-		});
-
-		expect(hasBreakpoint(message)).toBe(false);
-	});
-
 	it('removes prompt-rendered markers from unsupported Responses API messages', () => {
 		const assistant: Raw.ChatMessage = { role: Raw.ChatRole.Assistant, content: [text(), cacheBreakpoint()] };
 
-		addCacheBreakpoints([assistant], responsesCacheBreakpointOptions);
+		addCacheBreakpoints([assistant], 'responses');
 
 		expect(hasBreakpoint(assistant)).toBe(false);
 	});
@@ -71,7 +51,7 @@ describe('addCacheBreakpoints', () => {
 	it('preserves prompt-rendered markers on Responses function call outputs', () => {
 		const textTool: Raw.ChatMessage = { role: Raw.ChatRole.Tool, toolCallId: 'text', content: [text(), cacheBreakpoint()] };
 
-		addCacheBreakpoints([textTool], responsesCacheBreakpointOptions);
+		addCacheBreakpoints([textTool], 'responses');
 
 		expect(hasBreakpoint(textTool)).toBe(true);
 	});
@@ -95,7 +75,7 @@ describe('addCacheBreakpoints', () => {
 			);
 		}
 
-		addCacheBreakpoints(messages, responsesCacheBreakpointOptions);
+		addCacheBreakpoints(messages, 'responses');
 
 		const markedText = () => messages.filter(hasBreakpoint).map(message => message.content[0]);
 		const expected = [
@@ -106,7 +86,7 @@ describe('addCacheBreakpoints', () => {
 		expect(markedText()).toEqual(expected);
 
 		// Rebuilt prompts and repeated placement must produce the same bounded markers.
-		addCacheBreakpoints(messages, responsesCacheBreakpointOptions);
+		addCacheBreakpoints(messages, 'responses');
 		expect(markedText()).toEqual(expected);
 		expect(messages.flatMap(message => message.content).filter(part => part.type === Raw.ChatCompletionContentPartKind.CacheBreakpoint)).toHaveLength(22);
 	});
@@ -117,7 +97,7 @@ describe('addCacheBreakpoints', () => {
 			{ role: Raw.ChatRole.Assistant, content: [text(`answer-${index}`), cacheBreakpoint()] },
 		]).flat();
 
-		addCacheBreakpoints(messages, responsesCacheBreakpointOptions);
+		addCacheBreakpoints(messages, 'responses');
 
 		expect(messages.filter(hasBreakpoint).map(message => message.content[0])).toEqual(
 			Array.from({ length: 20 }, (_, index) => text(`user-${index + 5}`)),
@@ -133,7 +113,7 @@ describe('addCacheBreakpoints', () => {
 			{ role: Raw.ChatRole.User, content: [text('query')] },
 		];
 
-		addCacheBreakpoints(messages, responsesCacheBreakpointOptions);
+		addCacheBreakpoints(messages, 'responses');
 
 		expect(messages.filter(hasBreakpoint).map(message => message.content[0])).toEqual([
 			text('system'), text('global context'), text('query'),
@@ -154,7 +134,7 @@ describe('addCacheBreakpoints', () => {
 			{ role: Raw.ChatRole.Tool, toolCallId: 'search', content: [text('["read_file"]'), cacheBreakpoint()] },
 		];
 
-		addCacheBreakpoints(messages, responsesCacheBreakpointOptions);
+		addCacheBreakpoints(messages, 'responses');
 
 		expect(messages.filter(hasBreakpoint).map(message => message.content[0])).toEqual([text('request'), text('result')]);
 	});
@@ -172,7 +152,7 @@ describe('addCacheBreakpoints', () => {
 			{ role: Raw.ChatRole.User, content: [unsupportedDocument, cacheBreakpoint()] },
 		];
 
-		addCacheBreakpoints(messages, responsesCacheBreakpointOptions);
+		addCacheBreakpoints(messages, 'responses');
 
 		expect(messages[0].content.map(part => part.type)).toEqual([
 			Raw.ChatCompletionContentPartKind.Text,
@@ -194,7 +174,7 @@ describe('addCacheBreakpoints', () => {
 			content: [text()],
 		}));
 
-		addCacheBreakpoints(messages, chatCompletionsCacheBreakpointOptions);
+		addCacheBreakpoints(messages, 'chatCompletions');
 
 		expect(messages.filter(hasBreakpoint)).toHaveLength(4);
 	});
@@ -202,7 +182,7 @@ describe('addCacheBreakpoints', () => {
 	it.each(['text', 'image_url', 'input_audio', 'file', 'refusal'])('supports Chat Completions %s blocks', type => {
 		const message: Raw.ChatMessage = { role: Raw.ChatRole.Assistant, content: [opaque(type)] };
 
-		addCacheBreakpoints([message], chatCompletionsCacheBreakpointOptions);
+		addCacheBreakpoints([message], 'chatCompletions');
 
 		expect(hasBreakpoint(message)).toBe(true);
 	});
@@ -210,7 +190,7 @@ describe('addCacheBreakpoints', () => {
 	it('does not mark unsupported Chat Completions blocks', () => {
 		const message: Raw.ChatMessage = { role: Raw.ChatRole.Assistant, content: [opaque('unsupported')] };
 
-		addCacheBreakpoints([message], chatCompletionsCacheBreakpointOptions);
+		addCacheBreakpoints([message], 'chatCompletions');
 
 		expect(hasBreakpoint(message)).toBe(false);
 	});
@@ -225,11 +205,7 @@ describe('Responses cache breakpoint request integration', () => {
 			accessor.get(IConfigurationService).setConfig(ConfigKey.ResponsesApiPromptCacheBreakpointEnabled, enabled);
 			const instantiationService = accessor.get(IInstantiationService);
 			const endpoint = instantiationService.createInstance(MockEndpoint, model);
-			addCacheBreakpoints(messages, {
-				apiType: 'responses',
-				model,
-				responsesCacheBreakpointsEnabled: enabled,
-			});
+			addCacheBreakpoints(messages, 'responses');
 			return instantiationService.invokeFunction(servicesAccessor => createResponsesRequestBody(servicesAccessor, {
 				debugName: 'cache-breakpoint-test',
 				messages,

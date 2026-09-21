@@ -4,19 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Raw } from '@vscode/prompt-tsx';
-import { modelSupportCacheBreakPoints } from '../../../platform/endpoint/common/chatModelCapabilities';
 import { CacheType } from '../../../platform/endpoint/common/endpointTypes';
 import { CUSTOM_TOOL_SEARCH_NAME } from '../../../platform/networking/common/anthropic';
 import { findLastIdx } from '../../../util/vs/base/common/arraysFind';
 
 const MaxCacheBreakpoints = 4;
 const MaxResponsesConversationCacheBreakpoints = 20;
-
-interface CacheBreakpointOptions {
-	readonly apiType: string | undefined;
-	readonly model: Parameters<typeof modelSupportCacheBreakPoints>[0];
-	readonly responsesCacheBreakpointsEnabled: boolean;
-}
 
 /**
  * Chat Completions prompt cache breakpoint strategy (Responses uses its own bounded history below):
@@ -37,16 +30,8 @@ interface CacheBreakpointOptions {
  * For turns with no tool calling, we will have a hit on the previous assistant message in history.
  * During the agentic loop, each request will have a hit on the previous tool result message.
  */
-export function addCacheBreakpoints(messages: Raw.ChatMessage[], options: CacheBreakpointOptions): void {
-	if (options.apiType === 'messages') {
-		return;
-	}
-
-	if (options.apiType === 'responses') {
-		if (!options.responsesCacheBreakpointsEnabled || !modelSupportCacheBreakPoints(options.model)) {
-			removeCacheBreakpoints(messages);
-			return;
-		}
+export function addCacheBreakpoints(messages: Raw.ChatMessage[], apiType: string | undefined) {
+	if (apiType === 'responses') {
 		addResponsesCacheBreakpoints(messages);
 		return;
 	}
@@ -108,12 +93,6 @@ export function addCacheBreakpoints(messages: Raw.ChatMessage[], options: CacheB
 	}
 }
 
-function removeCacheBreakpoints(messages: Raw.ChatMessage[]): void {
-	for (const message of messages) {
-		message.content = message.content.filter(part => part.type !== Raw.ChatCompletionContentPartKind.CacheBreakpoint);
-	}
-}
-
 /**
  * Reconstruct the latest 20 user/last-eligible-tool-result boundaries on every render,
  * plus anchors after the system instructions and the agent's leading global context.
@@ -123,8 +102,8 @@ function addResponsesCacheBreakpoints(messages: Raw.ChatMessage[]): void {
 	const toolSearchCallIds = new Set(messages.flatMap(message => message.role === Raw.ChatRole.Assistant
 		? message.toolCalls?.filter(call => call.function.name === CUSTOM_TOOL_SEARCH_NAME).map(call => call.id) ?? []
 		: []));
-	removeCacheBreakpoints(messages);
 	const contentIndices = messages.map(message => {
+		message.content = message.content.filter(part => part.type !== Raw.ChatCompletionContentPartKind.CacheBreakpoint);
 		return findLastIdx(message.content, part => part.type === Raw.ChatCompletionContentPartKind.Text
 			|| part.type === Raw.ChatCompletionContentPartKind.Image
 			|| (part.type === Raw.ChatCompletionContentPartKind.Document && part.documentData.mediaType === 'application/pdf')

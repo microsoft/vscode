@@ -333,8 +333,8 @@ export function modelSupportsPDFDocuments(model: LanguageModelChat | IChatEndpoi
  * Responses API (`prompt_cache_breakpoint`). Scoped to OpenAI (GPT) models
  * only, since this is an OpenAI-specific Responses API feature.
  */
-export function modelSupportCacheBreakPoints(model: LanguageModelChat | IChatEndpoint | string): boolean {
-	return isGpt56(model) || isGpt6Family(model) || (typeof model !== 'string' && isHiddenModelI(model));
+export function modelSupportCacheBreakPoints(model: LanguageModelChat | IChatEndpoint): boolean {
+	return isGpt56(model) || isGpt6Family(model) || isHiddenModelI(model);
 }
 
 /**
