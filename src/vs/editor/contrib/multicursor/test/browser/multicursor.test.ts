@@ -514,7 +514,7 @@ suite('Multicursor selection', () => {
 		});
 	});
 
-	suite('Selection match case', () => {
+	suite('Selected text occurrence matching', () => {
 
 		const text = ['foo', 'FOObar', 'foobar', 'FOO', 'foo'];
 		const addSelectionToNext = new AddSelectionToNextFindMatchAction();
@@ -523,10 +523,11 @@ suite('Multicursor selection', () => {
 		const moveSelectionToPrevious = new MoveSelectionToPreviousFindMatchAction();
 		const selectHighlights = new SelectHighlightsAction();
 
-		function assertSelectedText(runAction: (editor: ITestCodeEditor) => void, startLine: number, expectedLines: number[], selectionMatchCase: boolean, isRevealed: boolean): void {
+		function assertSelectedText(runAction: (editor: ITestCodeEditor) => void, startLine: number, expectedLines: number[], selectedTextOccurrenceMatching: 'caseSensitive' | 'caseInsensitive', isRevealed: boolean): void {
 			testMulticursor(text, (editor, findController) => {
 				const state = findController.getState();
-				state.change({ searchString: 'FOO.*', isRevealed, matchCase: !selectionMatchCase, wholeWord: true, isRegex: true }, false);
+				const matchCase = selectedTextOccurrenceMatching === 'caseSensitive';
+				state.change({ searchString: 'FOO.*', isRevealed, matchCase: !matchCase, wholeWord: true, isRegex: true }, false);
 				editor.setSelection(new Selection(startLine, 1, startLine, 4));
 
 				runAction(editor);
@@ -536,12 +537,12 @@ suite('Multicursor selection', () => {
 					findOptions: [state.matchCase, state.wholeWord, state.isRegex],
 				}, {
 					selections: expectedLines.map(line => [line, 1, line, 4]),
-					findOptions: [!selectionMatchCase, true, true],
+					findOptions: [!matchCase, true, true],
 				});
-			}, { selectionMatchCase });
+			}, { selectedTextOccurrenceMatching });
 		}
 
-		function assertEmptySelection(runAction: (editor: ITestCodeEditor) => void, startLine: number, expectedLines: number[], selectionMatchCase: boolean): void {
+		function assertEmptySelection(runAction: (editor: ITestCodeEditor) => void, startLine: number, expectedLines: number[], selectedTextOccurrenceMatching: 'caseSensitive' | 'caseInsensitive'): void {
 			testMulticursor(text, (editor, findController) => {
 				const state = findController.getState();
 				state.change({ matchCase: false, wholeWord: false, isRegex: true }, false);
@@ -557,7 +558,7 @@ suite('Multicursor selection', () => {
 					selections: expectedLines.map(line => [line, 1, line, 4]),
 					findOptions: [false, false, true],
 				});
-			}, { selectionMatchCase });
+			}, { selectedTextOccurrenceMatching });
 		}
 
 		function assertFindOptionsFeedback(runAction: (editor: ITestCodeEditor) => void, startLine: number, expectedLines: number[], hasTextFocus: boolean): void {
@@ -575,7 +576,7 @@ suite('Multicursor selection', () => {
 					findOptions: [state.matchCase, state.wholeWord, state.isRegex],
 					highlightCount: highlightFindOptions.callCount,
 				};
-			}, { hasTextFocus, selectionMatchCase: false });
+			}, { hasTextFocus, selectedTextOccurrenceMatching: 'caseInsensitive' });
 
 			assert.deepStrictEqual(actual, {
 				selections: expectedLines.map(line => [line, 1, line, 4]),
@@ -584,137 +585,156 @@ suite('Multicursor selection', () => {
 			});
 		}
 
-		test('defaults to case-insensitive and reports live option changes', () => {
+		test('defaults to Find and reports live option changes', () => {
 			testMulticursor(text, editor => {
-				const values = [editor.getOption(EditorOption.selectionMatchCase)];
+				const values = [editor.getOption(EditorOption.selectedTextOccurrenceMatching)];
 				const changes: boolean[] = [];
-				disposables.add(editor.onDidChangeConfiguration(e => changes.push(e.hasChanged(EditorOption.selectionMatchCase))));
-				for (const selectionMatchCase of [true, false]) {
-					editor.updateOptions({ selectionMatchCase });
-					values.push(editor.getOption(EditorOption.selectionMatchCase));
+				disposables.add(editor.onDidChangeConfiguration(e => changes.push(e.hasChanged(EditorOption.selectedTextOccurrenceMatching))));
+				for (const selectedTextOccurrenceMatching of ['caseSensitive', 'caseInsensitive'] as const) {
+					editor.updateOptions({ selectedTextOccurrenceMatching });
+					values.push(editor.getOption(EditorOption.selectedTextOccurrenceMatching));
 				}
-				assert.deepStrictEqual({ values, changes }, { values: [false, true, false], changes: [true, true] });
+				assert.deepStrictEqual({ values, changes }, { values: ['find', 'caseSensitive', 'caseInsensitive'], changes: [true, true] });
 			});
 		});
 
+		test('default selected-text matching uses Find match case and whole word options', () => {
+			const actual: number[][][] = [];
+			for (const [matchCase, wholeWord] of [[false, false], [false, true], [true, false], [true, true]] as const) {
+				testMulticursor(text, (editor, findController) => {
+					findController.getState().change({ matchCase, wholeWord }, false);
+					editor.setSelection(new Selection(1, 1, 1, 4));
+					addSelectionToNext.run(null!, editor);
+					actual.push(editor.getSelections().map(fromRange));
+				});
+			}
+
+			assert.deepStrictEqual(actual, [
+				[[1, 1, 1, 4], [2, 1, 2, 4]],
+				[[1, 1, 1, 4], [4, 1, 4, 4]],
+				[[1, 1, 1, 4], [3, 1, 3, 4]],
+				[[1, 1, 1, 4], [5, 1, 5, 4]],
+			]);
+		});
+
 		test(`${addSelectionToNext.id}: selected text, match case false, Find visible false`, () => {
-			assertSelectedText(editor => addSelectionToNext.run(null!, editor), 1, [1, 2], false, false);
+			assertSelectedText(editor => addSelectionToNext.run(null!, editor), 1, [1, 2], 'caseInsensitive', false);
 		});
 
 		test(`${addSelectionToNext.id}: selected text, match case false, Find visible true`, () => {
-			assertSelectedText(editor => addSelectionToNext.run(null!, editor), 1, [1, 2], false, true);
+			assertSelectedText(editor => addSelectionToNext.run(null!, editor), 1, [1, 2], 'caseInsensitive', true);
 		});
 
-		test(`${addSelectionToNext.id}: empty selection always starts whole-word and case-sensitive, setting false`, () => {
-			assertEmptySelection(editor => addSelectionToNext.run(null!, editor), 1, [1, 5], false);
+		test(`${addSelectionToNext.id}: empty selection always starts whole-word and case-sensitive, caseInsensitive setting`, () => {
+			assertEmptySelection(editor => addSelectionToNext.run(null!, editor), 1, [1, 5], 'caseInsensitive');
 		});
 
 		test(`${addSelectionToNext.id}: selected text, match case true, Find visible false`, () => {
-			assertSelectedText(editor => addSelectionToNext.run(null!, editor), 1, [1, 3], true, false);
+			assertSelectedText(editor => addSelectionToNext.run(null!, editor), 1, [1, 3], 'caseSensitive', false);
 		});
 
 		test(`${addSelectionToNext.id}: selected text, match case true, Find visible true`, () => {
-			assertSelectedText(editor => addSelectionToNext.run(null!, editor), 1, [1, 3], true, true);
+			assertSelectedText(editor => addSelectionToNext.run(null!, editor), 1, [1, 3], 'caseSensitive', true);
 		});
 
-		test(`${addSelectionToNext.id}: empty selection always starts whole-word and case-sensitive, setting true`, () => {
-			assertEmptySelection(editor => addSelectionToNext.run(null!, editor), 1, [1, 5], true);
+		test(`${addSelectionToNext.id}: empty selection always starts whole-word and case-sensitive, caseSensitive setting`, () => {
+			assertEmptySelection(editor => addSelectionToNext.run(null!, editor), 1, [1, 5], 'caseSensitive');
 		});
 
 		test(`${addSelectionToPrevious.id}: selected text, match case false, Find visible false`, () => {
-			assertSelectedText(editor => addSelectionToPrevious.run(null!, editor), 5, [5, 4], false, false);
+			assertSelectedText(editor => addSelectionToPrevious.run(null!, editor), 5, [5, 4], 'caseInsensitive', false);
 		});
 
 		test(`${addSelectionToPrevious.id}: selected text, match case false, Find visible true`, () => {
-			assertSelectedText(editor => addSelectionToPrevious.run(null!, editor), 5, [5, 4], false, true);
+			assertSelectedText(editor => addSelectionToPrevious.run(null!, editor), 5, [5, 4], 'caseInsensitive', true);
 		});
 
-		test(`${addSelectionToPrevious.id}: empty selection always starts whole-word and case-sensitive, setting false`, () => {
-			assertEmptySelection(editor => addSelectionToPrevious.run(null!, editor), 5, [5, 1], false);
+		test(`${addSelectionToPrevious.id}: empty selection always starts whole-word and case-sensitive, caseInsensitive setting`, () => {
+			assertEmptySelection(editor => addSelectionToPrevious.run(null!, editor), 5, [5, 1], 'caseInsensitive');
 		});
 
 		test(`${addSelectionToPrevious.id}: selected text, match case true, Find visible false`, () => {
-			assertSelectedText(editor => addSelectionToPrevious.run(null!, editor), 5, [5, 3], true, false);
+			assertSelectedText(editor => addSelectionToPrevious.run(null!, editor), 5, [5, 3], 'caseSensitive', false);
 		});
 
 		test(`${addSelectionToPrevious.id}: selected text, match case true, Find visible true`, () => {
-			assertSelectedText(editor => addSelectionToPrevious.run(null!, editor), 5, [5, 3], true, true);
+			assertSelectedText(editor => addSelectionToPrevious.run(null!, editor), 5, [5, 3], 'caseSensitive', true);
 		});
 
-		test(`${addSelectionToPrevious.id}: empty selection always starts whole-word and case-sensitive, setting true`, () => {
-			assertEmptySelection(editor => addSelectionToPrevious.run(null!, editor), 5, [5, 1], true);
+		test(`${addSelectionToPrevious.id}: empty selection always starts whole-word and case-sensitive, caseSensitive setting`, () => {
+			assertEmptySelection(editor => addSelectionToPrevious.run(null!, editor), 5, [5, 1], 'caseSensitive');
 		});
 
 		test(`${moveSelectionToNext.id}: selected text, match case false, Find visible false`, () => {
-			assertSelectedText(editor => moveSelectionToNext.run(null!, editor), 1, [2], false, false);
+			assertSelectedText(editor => moveSelectionToNext.run(null!, editor), 1, [2], 'caseInsensitive', false);
 		});
 
 		test(`${moveSelectionToNext.id}: selected text, match case false, Find visible true`, () => {
-			assertSelectedText(editor => moveSelectionToNext.run(null!, editor), 1, [2], false, true);
+			assertSelectedText(editor => moveSelectionToNext.run(null!, editor), 1, [2], 'caseInsensitive', true);
 		});
 
-		test(`${moveSelectionToNext.id}: empty selection always starts whole-word and case-sensitive, setting false`, () => {
-			assertEmptySelection(editor => moveSelectionToNext.run(null!, editor), 1, [5], false);
+		test(`${moveSelectionToNext.id}: empty selection always starts whole-word and case-sensitive, caseInsensitive setting`, () => {
+			assertEmptySelection(editor => moveSelectionToNext.run(null!, editor), 1, [5], 'caseInsensitive');
 		});
 
 		test(`${moveSelectionToNext.id}: selected text, match case true, Find visible false`, () => {
-			assertSelectedText(editor => moveSelectionToNext.run(null!, editor), 1, [3], true, false);
+			assertSelectedText(editor => moveSelectionToNext.run(null!, editor), 1, [3], 'caseSensitive', false);
 		});
 
 		test(`${moveSelectionToNext.id}: selected text, match case true, Find visible true`, () => {
-			assertSelectedText(editor => moveSelectionToNext.run(null!, editor), 1, [3], true, true);
+			assertSelectedText(editor => moveSelectionToNext.run(null!, editor), 1, [3], 'caseSensitive', true);
 		});
 
-		test(`${moveSelectionToNext.id}: empty selection always starts whole-word and case-sensitive, setting true`, () => {
-			assertEmptySelection(editor => moveSelectionToNext.run(null!, editor), 1, [5], true);
+		test(`${moveSelectionToNext.id}: empty selection always starts whole-word and case-sensitive, caseSensitive setting`, () => {
+			assertEmptySelection(editor => moveSelectionToNext.run(null!, editor), 1, [5], 'caseSensitive');
 		});
 
 		test(`${moveSelectionToPrevious.id}: selected text, match case false, Find visible false`, () => {
-			assertSelectedText(editor => moveSelectionToPrevious.run(null!, editor), 5, [4], false, false);
+			assertSelectedText(editor => moveSelectionToPrevious.run(null!, editor), 5, [4], 'caseInsensitive', false);
 		});
 
 		test(`${moveSelectionToPrevious.id}: selected text, match case false, Find visible true`, () => {
-			assertSelectedText(editor => moveSelectionToPrevious.run(null!, editor), 5, [4], false, true);
+			assertSelectedText(editor => moveSelectionToPrevious.run(null!, editor), 5, [4], 'caseInsensitive', true);
 		});
 
-		test(`${moveSelectionToPrevious.id}: empty selection always starts whole-word and case-sensitive, setting false`, () => {
-			assertEmptySelection(editor => moveSelectionToPrevious.run(null!, editor), 5, [1], false);
+		test(`${moveSelectionToPrevious.id}: empty selection always starts whole-word and case-sensitive, caseInsensitive setting`, () => {
+			assertEmptySelection(editor => moveSelectionToPrevious.run(null!, editor), 5, [1], 'caseInsensitive');
 		});
 
 		test(`${moveSelectionToPrevious.id}: selected text, match case true, Find visible false`, () => {
-			assertSelectedText(editor => moveSelectionToPrevious.run(null!, editor), 5, [3], true, false);
+			assertSelectedText(editor => moveSelectionToPrevious.run(null!, editor), 5, [3], 'caseSensitive', false);
 		});
 
 		test(`${moveSelectionToPrevious.id}: selected text, match case true, Find visible true`, () => {
-			assertSelectedText(editor => moveSelectionToPrevious.run(null!, editor), 5, [3], true, true);
+			assertSelectedText(editor => moveSelectionToPrevious.run(null!, editor), 5, [3], 'caseSensitive', true);
 		});
 
-		test(`${moveSelectionToPrevious.id}: empty selection always starts whole-word and case-sensitive, setting true`, () => {
-			assertEmptySelection(editor => moveSelectionToPrevious.run(null!, editor), 5, [1], true);
+		test(`${moveSelectionToPrevious.id}: empty selection always starts whole-word and case-sensitive, caseSensitive setting`, () => {
+			assertEmptySelection(editor => moveSelectionToPrevious.run(null!, editor), 5, [1], 'caseSensitive');
 		});
 
 		test(`${selectHighlights.id}: selected text, match case false, Find visible false`, () => {
-			assertSelectedText(editor => selectHighlights.run(null!, editor), 1, [1, 2, 3, 4, 5], false, false);
+			assertSelectedText(editor => selectHighlights.run(null!, editor), 1, [1, 2, 3, 4, 5], 'caseInsensitive', false);
 		});
 
 		test(`${selectHighlights.id}: selected text, match case false, Find visible true`, () => {
-			assertSelectedText(editor => selectHighlights.run(null!, editor), 1, [1, 2, 3, 4, 5], false, true);
+			assertSelectedText(editor => selectHighlights.run(null!, editor), 1, [1, 2, 3, 4, 5], 'caseInsensitive', true);
 		});
 
-		test(`${selectHighlights.id}: empty selection always starts whole-word and case-sensitive, setting false`, () => {
-			assertEmptySelection(editor => selectHighlights.run(null!, editor), 1, [1, 5], false);
+		test(`${selectHighlights.id}: empty selection always starts whole-word and case-sensitive, caseInsensitive setting`, () => {
+			assertEmptySelection(editor => selectHighlights.run(null!, editor), 1, [1, 5], 'caseInsensitive');
 		});
 
 		test(`${selectHighlights.id}: selected text, match case true, Find visible false`, () => {
-			assertSelectedText(editor => selectHighlights.run(null!, editor), 1, [1, 3, 5], true, false);
+			assertSelectedText(editor => selectHighlights.run(null!, editor), 1, [1, 3, 5], 'caseSensitive', false);
 		});
 
 		test(`${selectHighlights.id}: selected text, match case true, Find visible true`, () => {
-			assertSelectedText(editor => selectHighlights.run(null!, editor), 1, [1, 3, 5], true, true);
+			assertSelectedText(editor => selectHighlights.run(null!, editor), 1, [1, 3, 5], 'caseSensitive', true);
 		});
 
-		test(`${selectHighlights.id}: empty selection always starts whole-word and case-sensitive, setting true`, () => {
-			assertEmptySelection(editor => selectHighlights.run(null!, editor), 1, [1, 5], true);
+		test(`${selectHighlights.id}: empty selection always starts whole-word and case-sensitive, caseSensitive setting`, () => {
+			assertEmptySelection(editor => selectHighlights.run(null!, editor), 1, [1, 5], 'caseSensitive');
 		});
 
 		test('issue #18239: replacing selected prefixes preserves differently cased identifiers', () => {
@@ -728,7 +748,7 @@ suite('Multicursor selection', () => {
 				editor.trigger('test', Handler.Type, { text: 'voucher' });
 
 				assert.strictEqual(editor.getValue(), 'voucherQryConn *grpc.ClientConn\nvoucherQryClient proto.AccountQueryClient');
-			}, { selectionMatchCase: true });
+			}, { selectedTextOccurrenceMatching: 'caseSensitive' });
 		});
 
 		test('select all replaces only selected-text occurrences while regex Find is visible', () => {
@@ -741,7 +761,7 @@ suite('Multicursor selection', () => {
 				editor.trigger('test', Handler.Type, { text: 'baz' });
 
 				actual = editor.getValue();
-			}, { selectionMatchCase: true });
+			}, { selectedTextOccurrenceMatching: 'caseSensitive' });
 
 			assert.strictEqual(actual, 'baz\nFOObar\nbazbar\nFOO\nbaz');
 		});
@@ -766,7 +786,7 @@ suite('Multicursor selection', () => {
 				new AddSelectionToNextFindMatchAction().run(null!, editor);
 
 				assert.deepStrictEqual(editor.getSelections().map(fromRange), [[1, 1, 1, 4], [2, 1, 2, 4], [3, 1, 3, 4]]);
-			}, { selectionMatchCase: false });
+			}, { selectedTextOccurrenceMatching: 'caseInsensitive' });
 		});
 
 		test('Find-focused mixed-case initial selections respect Find match case false', () => {
@@ -776,7 +796,7 @@ suite('Multicursor selection', () => {
 				new AddSelectionToNextFindMatchAction().run(null!, editor);
 
 				assert.deepStrictEqual(editor.getSelections().map(fromRange), [[1, 1, 1, 4], [2, 1, 2, 4], [3, 1, 3, 4]]);
-			}, { hasTextFocus: false, selectionMatchCase: true });
+			}, { hasTextFocus: false, selectedTextOccurrenceMatching: 'caseSensitive' });
 		});
 
 		test('Find-focused mixed-case initial selections respect Find match case true', () => {
@@ -786,7 +806,7 @@ suite('Multicursor selection', () => {
 				new AddSelectionToNextFindMatchAction().run(null!, editor);
 
 				assert.deepStrictEqual(editor.getSelections().map(fromRange), [[1, 1, 1, 4], [2, 1, 2, 4]]);
-			}, { hasTextFocus: false, selectionMatchCase: false });
+			}, { hasTextFocus: false, selectedTextOccurrenceMatching: 'caseInsensitive' });
 		});
 
 		test('switching focus transfers matching rules between selection and Find sessions', () => {
@@ -806,7 +826,7 @@ suite('Multicursor selection', () => {
 				actual.push(editor.getSelections().map(fromRange));
 
 				assert.deepStrictEqual(actual, [[[3, 1, 3, 4]], [[5, 1, 5, 4]], [[7, 1, 7, 4]]]);
-			}, { selectionMatchCase: true });
+			}, { selectedTextOccurrenceMatching: 'caseSensitive' });
 		});
 
 		test('a selection session does not survive replacing the editor model', () => {
@@ -817,7 +837,7 @@ suite('Multicursor selection', () => {
 				const replacement = disposables.add(createTextModel('bar\nBAR\nbarista'));
 				editor.setModel(replacement);
 				editor.setSelection(new Selection(1, 1, 1, 4));
-				editor.updateOptions({ selectionMatchCase: true });
+				editor.updateOptions({ selectedTextOccurrenceMatching: 'caseSensitive' });
 				action.run(null!, editor);
 
 				assert.deepStrictEqual(editor.getSelections().map(fromRange), [[1, 1, 1, 4], [3, 1, 3, 4]]);
@@ -832,7 +852,7 @@ suite('Multicursor selection', () => {
 				new SelectHighlightsAction().run(null!, editor);
 
 				assert.deepStrictEqual(editor.getSelections().map(fromRange), [[1, 1, 2, 4], [3, 1, 4, 4], [5, 2, 6, 4]]);
-			}, { selectionMatchCase: false });
+			}, { selectedTextOccurrenceMatching: 'caseInsensitive' });
 		});
 
 		test('multiline CRLF selections match literal substrings with match case true', () => {
@@ -843,43 +863,43 @@ suite('Multicursor selection', () => {
 				new SelectHighlightsAction().run(null!, editor);
 
 				assert.deepStrictEqual(editor.getSelections().map(fromRange), [[1, 1, 2, 4], [5, 2, 6, 4]]);
-			}, { selectionMatchCase: true });
+			}, { selectedTextOccurrenceMatching: 'caseSensitive' });
 		});
 
 		test(`${addSelectionToNext.id}: Find-focused commands retain Find matching rules`, () => {
 			testMulticursor(['foo', 'BAR', 'bar', 'barista', 'foo'], (editor, findController) => {
 				editor.setSelection(new Selection(1, 1, 1, 4));
 				findController.getState().change({ searchString: 'bar', isRevealed: true, matchCase: false, wholeWord: true }, false);
-				editor.updateOptions({ selectionMatchCase: false });
-				editor.updateOptions({ selectionMatchCase: true });
+				editor.updateOptions({ selectedTextOccurrenceMatching: 'caseInsensitive' });
+				editor.updateOptions({ selectedTextOccurrenceMatching: 'caseSensitive' });
 				addSelectionToNext.run(null!, editor);
 
 				assert.deepStrictEqual(editor.getSelections().map(fromRange), [[1, 1, 1, 4], [2, 1, 2, 4]]);
-			}, { hasTextFocus: false, selectionMatchCase: true });
+			}, { hasTextFocus: false, selectedTextOccurrenceMatching: 'caseSensitive' });
 		});
 
 		test(`${addSelectionToPrevious.id}: Find-focused commands retain Find matching rules`, () => {
 			testMulticursor(['foo', 'BAR', 'bar', 'barista', 'foo'], (editor, findController) => {
 				editor.setSelection(new Selection(5, 1, 5, 4));
 				findController.getState().change({ searchString: 'bar', isRevealed: true, matchCase: false, wholeWord: true }, false);
-				editor.updateOptions({ selectionMatchCase: false });
-				editor.updateOptions({ selectionMatchCase: true });
+				editor.updateOptions({ selectedTextOccurrenceMatching: 'caseInsensitive' });
+				editor.updateOptions({ selectedTextOccurrenceMatching: 'caseSensitive' });
 				addSelectionToPrevious.run(null!, editor);
 
 				assert.deepStrictEqual(editor.getSelections().map(fromRange), [[5, 1, 5, 4], [3, 1, 3, 4]]);
-			}, { hasTextFocus: false, selectionMatchCase: true });
+			}, { hasTextFocus: false, selectedTextOccurrenceMatching: 'caseSensitive' });
 		});
 
 		test(`${selectHighlights.id}: Find-focused commands retain Find matching rules`, () => {
 			testMulticursor(['foo', 'BAR', 'bar', 'barista', 'foo'], (editor, findController) => {
 				editor.setSelection(new Selection(1, 1, 1, 4));
 				findController.getState().change({ searchString: 'bar', isRevealed: true, matchCase: false, wholeWord: true }, false);
-				editor.updateOptions({ selectionMatchCase: false });
-				editor.updateOptions({ selectionMatchCase: true });
+				editor.updateOptions({ selectedTextOccurrenceMatching: 'caseInsensitive' });
+				editor.updateOptions({ selectedTextOccurrenceMatching: 'caseSensitive' });
 				selectHighlights.run(null!, editor);
 
 				assert.deepStrictEqual(editor.getSelections().map(fromRange), [[2, 1, 2, 4], [3, 1, 3, 4]]);
-			}, { hasTextFocus: false, selectionMatchCase: true });
+			}, { hasTextFocus: false, selectedTextOccurrenceMatching: 'caseSensitive' });
 		});
 
 		test('add next occurrence does not highlight unrelated Find options', () => {
@@ -899,7 +919,7 @@ suite('Multicursor selection', () => {
 		});
 	});
 
-	suite('Selection highlighting match case', () => {
+	suite('Selected text occurrence matching highlights', () => {
 		const text = ['foo', 'FOO', 'fooBar', 'FOOBar'];
 
 		function highlights(editor: ITestCodeEditor): number[][] {
@@ -910,45 +930,46 @@ suite('Multicursor selection', () => {
 				.map(fromRange);
 		}
 
-		function assertSelectionHighlighting(selectionMatchCase: boolean, hasTextFocus: boolean, expectedLines: number[]): void {
+		function assertSelectionHighlighting(selectedTextOccurrenceMatching: 'caseSensitive' | 'caseInsensitive', hasTextFocus: boolean, expectedLines: number[]): void {
 			testMulticursor(text, (editor, findController) => {
 				editor.registerAndInstantiateContribution(SelectionHighlighter.ID, SelectionHighlighter);
-				findController.getState().change({ searchString: 'f.*', isRevealed: true, matchCase: !selectionMatchCase, wholeWord: true, isRegex: true }, false);
+				findController.getState().change({ searchString: 'f.*', isRevealed: true, matchCase: selectedTextOccurrenceMatching !== 'caseSensitive', wholeWord: true, isRegex: true }, false);
 				editor.setSelection(new Selection(1, 1, 1, 4));
 
 				assert.deepStrictEqual(highlights(editor), expectedLines.map(line => [line, 1, line, 4]));
-			}, { selectionMatchCase, hasTextFocus });
+			}, { selectedTextOccurrenceMatching, hasTextFocus });
 		}
 
-		function assertDuplicateFindHighlights(selectionMatchCase: boolean, expectedDifferentCaseLines: number[]): void {
+		function assertDuplicateFindHighlights(selectedTextOccurrenceMatching: 'caseSensitive' | 'caseInsensitive', expectedDifferentCaseLines: number[]): void {
 			testMulticursor(text, (editor, findController) => {
 				editor.registerAndInstantiateContribution(SelectionHighlighter.ID, SelectionHighlighter);
 				editor.setSelection(new Selection(1, 1, 1, 4));
-				findController.getState().change({ searchString: 'foo', isRevealed: true, matchCase: selectionMatchCase, wholeWord: false }, false);
+				const matchCase = selectedTextOccurrenceMatching === 'caseSensitive';
+				findController.getState().change({ searchString: 'foo', isRevealed: true, matchCase, wholeWord: false }, false);
 				const sameOptions = highlights(editor);
 
-				findController.getState().change({ matchCase: !selectionMatchCase }, false);
+				findController.getState().change({ matchCase: !matchCase }, false);
 				assert.deepStrictEqual({ sameOptions, differentCase: highlights(editor) }, {
 					sameOptions: [],
 					differentCase: expectedDifferentCaseLines.map(line => [line, 1, line, 4]),
 				});
-			}, { selectionMatchCase });
+			}, { selectedTextOccurrenceMatching });
 		}
 
 		test('selection highlighting uses match case false, editor focused true', () => {
-			assertSelectionHighlighting(false, true, [2, 3, 4]);
+			assertSelectionHighlighting('caseInsensitive', true, [2, 3, 4]);
 		});
 
 		test('only suppress duplicate Find highlights with the same matching rules, match case false', () => {
-			assertDuplicateFindHighlights(false, [2, 3, 4]);
+			assertDuplicateFindHighlights('caseInsensitive', [2, 3, 4]);
 		});
 
 		test('selection highlighting uses match case true, editor focused true', () => {
-			assertSelectionHighlighting(true, true, [3]);
+			assertSelectionHighlighting('caseSensitive', true, [3]);
 		});
 
 		test('only suppress duplicate Find highlights with the same matching rules, match case true', () => {
-			assertDuplicateFindHighlights(true, [3]);
+			assertDuplicateFindHighlights('caseSensitive', [3]);
 		});
 
 		test('selection highlighting refreshes on case-only configuration changes without cursor movement', () => {
@@ -961,11 +982,11 @@ suite('Multicursor selection', () => {
 				clock.runAll();
 				actual.push(highlights(editor));
 
-				editor.updateOptions({ selectionMatchCase: true });
+				editor.updateOptions({ selectedTextOccurrenceMatching: 'caseSensitive' });
 				clock.runAll();
 				actual.push(highlights(editor));
 
-				editor.updateOptions({ selectionMatchCase: false });
+				editor.updateOptions({ selectedTextOccurrenceMatching: 'caseInsensitive' });
 				clock.runAll();
 				actual.push(highlights(editor));
 			});
@@ -993,7 +1014,7 @@ suite('Multicursor selection', () => {
 					afterFind: [[2, 4, 2, 7], [4, 1, 4, 4]],
 					selections: [[3, 1, 3, 4], [4, 1, 4, 4]],
 				});
-			});
+			}, { selectedTextOccurrenceMatching: 'caseInsensitive' });
 		});
 	});
 

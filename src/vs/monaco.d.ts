@@ -3802,10 +3802,10 @@ declare namespace monaco.editor {
 		 */
 		selectionHighlightMaxLength?: number;
 		/**
-		 * Match case when selecting or highlighting occurrences of selected text, independently of Find.
-		 * Defaults to false; an empty selection starts a whole-word, case-sensitive search.
+		 * Controls how occurrences of selected text are matched for occurrence selection and highlighting.
+		 * Defaults to 'find', which uses the Find widget's match case and whole word settings.
 		 */
-		selectionMatchCase?: boolean;
+		selectedTextOccurrenceMatching?: 'find' | 'caseSensitive' | 'caseInsensitive';
 		/**
 		 * Enable semantic occurrences highlight.
 		 * Defaults to 'singleFile'.
@@ -5226,7 +5226,7 @@ declare namespace monaco.editor {
 		selectionHighlight = 122,
 		selectionHighlightMaxLength = 123,
 		selectionHighlightMultiline = 124,
-		selectionMatchCase = 125,
+		selectedTextOccurrenceMatching = 125,
 		selectOnLineNumbers = 126,
 		showFoldingControls = 127,
 		showUnused = 128,
@@ -5413,7 +5413,7 @@ declare namespace monaco.editor {
 		selectionHighlight: IEditorOption<EditorOption.selectionHighlight, boolean>;
 		selectionHighlightMaxLength: IEditorOption<EditorOption.selectionHighlightMaxLength, number>;
 		selectionHighlightMultiline: IEditorOption<EditorOption.selectionHighlightMultiline, boolean>;
-		selectionMatchCase: IEditorOption<EditorOption.selectionMatchCase, boolean>;
+		selectedTextOccurrenceMatching: IEditorOption<EditorOption.selectedTextOccurrenceMatching, 'find' | 'caseSensitive' | 'caseInsensitive'>;
 		selectOnLineNumbers: IEditorOption<EditorOption.selectOnLineNumbers, boolean>;
 		showFoldingControls: IEditorOption<EditorOption.showFoldingControls, 'always' | 'never' | 'mouseover'>;
 		showUnused: IEditorOption<EditorOption.showUnused, boolean>;
