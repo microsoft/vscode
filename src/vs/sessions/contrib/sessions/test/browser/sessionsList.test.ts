@@ -2255,6 +2255,7 @@ suite('Sessions - SessionsList', () => {
 
 			assert.deepStrictEqual({
 				cancelled: harness.managementService.cancelled.map(session => session.sessionId).sort(),
+				cancelledComparisons: harness.cancelledComparisonIds,
 				stopAllHidden: stopAll.hidden,
 				stopAllDisplay: mainWindow.getComputedStyle(stopAll).display,
 				participantStopsHidden: [...container.querySelectorAll<HTMLButtonElement>('.session-comparison-participant-stop')].map(button => button.hidden),
@@ -2262,6 +2263,7 @@ suite('Sessions - SessionsList', () => {
 				archiveHidden: archive?.hidden,
 			}, {
 				cancelled: ['attempt-2', 'judge', 'synthesis'],
+				cancelledComparisons: ['comparison-1'],
 				stopAllHidden: true,
 				stopAllDisplay: 'none',
 				participantStopsHidden: [true, true, true, true],

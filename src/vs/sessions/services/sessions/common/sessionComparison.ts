@@ -155,6 +155,7 @@ export interface ISessionComparison {
 	readonly judgeHarness?: ISessionComparisonHarness;
 	readonly synthesisHarness?: ISessionComparisonHarness;
 	readonly participants: readonly ISessionComparisonParticipant[];
+	readonly cancelledAt?: number;
 	readonly selectedParticipantId?: string;
 	readonly verdict?: ISessionComparisonVerdict;
 	readonly synthesisPlan?: ISessionComparisonSynthesisPlan;
@@ -178,8 +179,10 @@ export interface ISessionComparisonService {
 	startComparison(options: IStartSessionComparisonOptions, token?: CancellationToken): Promise<ISessionComparison>;
 	getComparison(comparisonId: string): ISessionComparison | undefined;
 	getComparisonForSession(resource: URI): ISessionComparison | undefined;
+	cancelComparison(comparisonId: string): void;
 	selectAttempt(comparisonId: string, participantId: string): void;
 	submitVerdict(comparisonId: string, verdict: ISessionComparisonVerdict): void;
+	retryJudge(comparisonId: string): void;
 	setSynthesisPlan(comparisonId: string, plan: ISessionComparisonSynthesisPlan | undefined): void;
 	synthesize(comparisonId: string): Promise<void>;
 }

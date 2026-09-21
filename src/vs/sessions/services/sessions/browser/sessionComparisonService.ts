@@ -95,6 +95,11 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 		const attachedContext = options.attachedContext ? snapshotAttachedContext(options.attachedContext) : undefined;
 		const title = comparisonTitle(options.prompt);
 		const group = this.sessionGroupsService.createGroup(title);
+		const attempts = options.attempts.map(attempt => ({
+			id: attempt.id,
+			role: SessionComparisonParticipantRole.Attempt,
+			harness: attempt.harness,
+		} satisfies ISessionComparisonParticipant));
 		let comparison: ISessionComparison = {
 			id,
 			groupId: group.id,
@@ -107,24 +112,28 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 			permissionLevel: options.permissionLevel,
 			judgeHarness: options.judgeHarness,
 			synthesisHarness: options.synthesisHarness,
-			participants: [],
+			participants: attempts,
 		};
 		this._addComparison(comparison);
 
-		const attemptPromises = options.attempts.map(async (attempt, index): Promise<ISessionComparisonParticipant> => {
-			const harness = attempt.harness;
-			const participant = {
-				id: attempt.id,
-				role: SessionComparisonParticipantRole.Attempt,
-				harness,
-			} satisfies ISessionComparisonParticipant;
+		const attemptPromises = attempts.map(async (participant, index): Promise<ISessionComparisonParticipant> => {
+			const harness = participant.harness;
 			try {
 				const session = await this.sessionsManagementService.createAndSendNewChatRequest(options.workspace, {
 					query: options.prompt,
 					attachedContext: comparison.attachedContext ? [...comparison.attachedContext] : undefined,
 					title: getSessionComparisonHarnessLabel(participant),
 					background: true,
-				}, this._createOptions(harness, options, id, index), token);
+				}, {
+					...this._createOptions(harness, options, id, index),
+					onSessionCreated: createdSession => {
+						this._updateComparisonParticipant(id, participant.id, currentParticipant => ({
+							...currentParticipant,
+							sessionResource: createdSession.resource,
+							launchError: undefined,
+						}));
+					},
+				}, token);
 				return {
 					...participant,
 					sessionResource: session?.resource,
@@ -140,22 +149,30 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 			}
 		});
 
-		const attempts = await Promise.all(attemptPromises);
-		comparison = { ...comparison, participants: attempts };
+		const launchedAttempts = await Promise.all(attemptPromises);
+		const current = this.getComparison(comparison.id);
+		if (!current) {
+			throw new Error('Session comparison was removed while attempts were launching.');
+		}
+		const launchedById = new Map(launchedAttempts.map(participant => [participant.id, participant] as const));
+		comparison = {
+			...current,
+			participants: current.participants.map(participant => launchedById.get(participant.id) ?? participant),
+		};
 		this._ensureComparisonGroupMembership([comparison]);
 		this._replaceComparison(comparison);
 		this._checkComparison(comparison);
-		const successfulAttemptCount = attempts.filter(participant => participant.sessionResource).length;
+		const successfulAttemptCount = launchedAttempts.filter(participant => participant.sessionResource).length;
 		if (successfulAttemptCount < 2) {
 			this._removeComparison(comparison.id);
 			this.sessionGroupsService.deleteGroup(comparison.groupId);
 			await this._cancelAndDeleteSessions(
-				attempts
+				launchedAttempts
 					.map(participant => participant.sessionResource ? this.sessionsManagementService.getSession(participant.sessionResource) : undefined)
 					.filter((session): session is ISession => session !== undefined),
 				'attempt startup cleanup',
 			);
-			const launchFailures = attempts
+			const launchFailures = launchedAttempts
 				.filter(participant => participant.launchError)
 				.map(participant => `${getSessionComparisonHarnessLabel(participant)}: ${participant.launchError}`)
 				.join('; ');
@@ -179,6 +196,18 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 			comparison.participants.some(participant => participant.sessionResource && isEqual(participant.sessionResource, resource)));
 	}
 
+	cancelComparison(comparisonId: string): void {
+		const comparison = this._requireComparison(comparisonId);
+		if (comparison.cancelledAt !== undefined) {
+			return;
+		}
+		this._replaceComparison({
+			...comparison,
+			cancelledAt: Date.now(),
+			synthesisPlan: undefined,
+		});
+	}
+
 	selectAttempt(comparisonId: string, participantId: string): void {
 		const comparison = this._requireComparison(comparisonId);
 		const participant = comparison.participants.find(candidate =>
@@ -191,6 +220,9 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 
 	submitVerdict(comparisonId: string, verdict: ISessionComparisonVerdict): void {
 		const comparison = this._requireComparison(comparisonId);
+		if (comparison.cancelledAt !== undefined) {
+			throw new Error(`Comparison '${comparisonId}' was cancelled.`);
+		}
 		if (comparison.verdict) {
 			throw new Error(`A verdict has already been submitted for comparison '${comparisonId}'.`);
 		}
@@ -225,8 +257,27 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 		this._checkComparison(updated);
 	}
 
+	retryJudge(comparisonId: string): void {
+		const comparison = this._requireComparison(comparisonId);
+		const failedJudgeIds = comparison.participants
+			.filter(participant => participant.role === SessionComparisonParticipantRole.Judge && !participant.sessionResource && !!participant.launchError)
+			.map(participant => participant.id);
+		if (failedJudgeIds.length === 0) {
+			return;
+		}
+		const updated = {
+			...comparison,
+			participants: comparison.participants.filter(participant => !failedJudgeIds.includes(participant.id)),
+		};
+		this._replaceComparison(updated);
+		this._checkComparison(updated);
+	}
+
 	setSynthesisPlan(comparisonId: string, plan: ISessionComparisonSynthesisPlan | undefined): void {
 		const comparison = this._requireComparison(comparisonId);
+		if (comparison.cancelledAt !== undefined) {
+			throw new Error(`Comparison '${comparisonId}' was cancelled.`);
+		}
 		if (!plan) {
 			this._replaceComparison({ ...comparison, synthesisPlan: undefined });
 			return;
@@ -254,6 +305,9 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 			return;
 		}
 		const comparison = this._requireComparison(comparisonId);
+		if (comparison.cancelledAt !== undefined) {
+			throw new Error(`Comparison '${comparisonId}' was cancelled.`);
+		}
 		if (comparison.participants.some(participant => participant.role === SessionComparisonParticipantRole.Synthesis)) {
 			return;
 		}
@@ -335,6 +389,29 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 		}
 	}
 
+	private _updateComparisonParticipant(comparisonId: string, participantId: string, update: (participant: ISessionComparisonParticipant) => ISessionComparisonParticipant): ISessionComparison | undefined {
+		const comparison = this.getComparison(comparisonId);
+		if (!comparison) {
+			return undefined;
+		}
+		let changed = false;
+		const participants = comparison.participants.map(participant => {
+			if (participant.id !== participantId) {
+				return participant;
+			}
+			const updatedParticipant = update(participant);
+			changed = true;
+			return updatedParticipant;
+		});
+		if (!changed) {
+			return comparison;
+		}
+		const updated = { ...comparison, participants };
+		this._replaceComparison(updated);
+		this._ensureComparisonGroupMembership([updated]);
+		return updated;
+	}
+
 	private _createOptions(harness: ISessionComparisonHarness, options: IStartSessionComparisonOptions, comparisonId: string, attemptIndex: number) {
 		return {
 			providerId: harness.providerId,
@@ -379,8 +456,15 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 
 	private _checkComparison(comparison: ISessionComparison): void {
 		comparison = this._captureTerminalAttemptMetrics(comparison);
+		if (comparison.cancelledAt !== undefined) {
+			return;
+		}
 		if (this._judgeStarting.has(comparison.id)
 			|| comparison.participants.some(participant => participant.role === SessionComparisonParticipantRole.Judge)) {
+			return;
+		}
+		const harness = this._getJudgeHarness(comparison);
+		if (!harness) {
 			return;
 		}
 		const attempts = comparison.participants.filter(participant => participant.role === SessionComparisonParticipantRole.Attempt);
@@ -395,26 +479,21 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 		})) {
 			return;
 		}
+		const judgeParticipantId = generateUuid();
+		const pendingJudge = {
+			id: judgeParticipantId,
+			role: SessionComparisonParticipantRole.Judge,
+			harness,
+		} satisfies ISessionComparisonParticipant;
+		const pendingComparison = { ...comparison, participants: [...comparison.participants, pendingJudge] };
+		this._replaceComparison(pendingComparison);
 		this._judgeStarting.add(comparison.id);
-		void this._startJudge(comparison).catch(error => {
+		void this._startJudge(pendingComparison, judgeParticipantId).catch(error => {
 			this.logService.error('[SessionComparisonService] Failed to start the comparison judge.', error);
-			const current = this.getComparison(comparison.id);
-			if (current && !current.participants.some(participant => participant.role === SessionComparisonParticipantRole.Judge)) {
-				const harness = this._getJudgeHarness(current);
-				if (harness) {
-					const updated = {
-						...current,
-						participants: [...current.participants, {
-							id: generateUuid(),
-							role: SessionComparisonParticipantRole.Judge,
-							harness,
-							launchError: error instanceof Error ? error.message : String(error),
-						}],
-					};
-					this._replaceComparison(updated);
-					this._checkComparison(updated);
-				}
-			}
+			this._updateComparisonParticipant(comparison.id, judgeParticipantId, participant => ({
+				...participant,
+				launchError: error instanceof Error ? error.message : String(error),
+			}));
 		}).finally(() => this._judgeStarting.delete(comparison.id));
 	}
 
@@ -505,11 +584,12 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 		}
 	}
 
-	private async _startJudge(comparison: ISessionComparison): Promise<void> {
-		const harness = this._getJudgeHarness(comparison);
-		if (!harness) {
-			throw new Error('No successful comparison attempt is available to run the Judge.');
+	private async _startJudge(comparison: ISessionComparison, judgeParticipantId: string): Promise<void> {
+		const judge = comparison.participants.find(participant => participant.id === judgeParticipantId && participant.role === SessionComparisonParticipantRole.Judge);
+		if (!judge) {
+			return;
 		}
+		const harness = judge.harness;
 		const query = this._getJudgePrompt(comparison.id);
 		const session = await this.sessionsManagementService.createAndSendNewChatRequest(comparison.workspace, {
 			query,
@@ -529,6 +609,13 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 				role: 'judge',
 				attemptCount: comparison.participants.filter(participant => participant.role === SessionComparisonParticipantRole.Attempt).length,
 			}),
+			onSessionCreated: createdSession => {
+				this._updateComparisonParticipant(comparison.id, judgeParticipantId, participant => ({
+					...participant,
+					sessionResource: createdSession.resource,
+					launchError: undefined,
+				}));
+			},
 		});
 		const current = this.getComparison(comparison.id);
 		if (!current) {
@@ -540,14 +627,16 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 		if (session) {
 			this.sessionGroupsService.addToGroup(session.sessionId, comparison.groupId);
 		}
-		const judge: ISessionComparisonParticipant = {
-			id: generateUuid(),
-			role: SessionComparisonParticipantRole.Judge,
-			harness,
-			sessionResource: session?.resource,
-			...(!session ? { launchError: localize('sessionComparison.judgeUnavailable', "The judge session did not start.") } : {}),
+		const updated = {
+			...current,
+			participants: current.participants.map(participant => participant.id === judgeParticipantId
+				? {
+					...participant,
+					sessionResource: session?.resource,
+					...(!session ? { launchError: localize('sessionComparison.judgeUnavailable', "The judge session did not start.") } : {}),
+				}
+				: participant),
 		};
-		const updated = { ...current, participants: [...current.participants, judge] };
 		this._replaceComparison(updated);
 		this._checkComparison(updated);
 	}

@@ -112,7 +112,7 @@ suite('SessionComparisonService', () => {
 				title: call.options.title,
 			})),
 			roles: comparison.participants.map(participant => participant.role),
-			groupedSessionIds: groupsService.groupedSessionIds,
+			groupedSessionIds: [...new Set(groupsService.groupedSessionIds)],
 		}, {
 			requests: [
 				{ query: 'Implement the feature', title: 'One · Model 1' },
@@ -164,6 +164,7 @@ suite('SessionComparisonService', () => {
 		sessionsManagementService.enqueue(stubSession('attempt-one', firstStatus));
 		sessionsManagementService.enqueue(stubSession('attempt-two', secondStatus));
 		sessionsManagementService.enqueue(stubSession('judge'));
+		let judgeBeforeCreateReturned: string | undefined;
 
 		const comparison = await service.startComparison({ ...startOptions(), permissionLevel: 'allowedTools' });
 		firstStatus.set(SessionStatus.Completed, undefined);
@@ -171,13 +172,27 @@ suite('SessionComparisonService', () => {
 		await timeout(0);
 		assert.strictEqual(sessionsManagementService.createCalls.length, 2);
 
+		sessionsManagementService.beforeCreateAndSendReturn = () => {
+			judgeBeforeCreateReturned = service.getComparison(comparison.id)?.participants.find(participant => participant.role === SessionComparisonParticipantRole.Judge)?.sessionResource?.toString();
+		};
 		secondStatus.set(SessionStatus.Error, undefined);
 		sessionsManagementService.fireChange();
 		await timeout(0);
 		assert.deepStrictEqual({
 			createCalls: sessionsManagementService.createCalls.length,
+			judgeBeforeCreateReturned,
 			judgeResource: service.getComparison(comparison.id)?.participants.find(participant => participant.role === SessionComparisonParticipantRole.Judge)?.sessionResource?.toString(),
-			judgeHarness: sessionsManagementService.createCalls[2].createOptions,
+			judgeHarness: {
+				providerId: sessionsManagementService.createCalls[2].createOptions?.providerId,
+				sessionTypeId: sessionsManagementService.createCalls[2].createOptions?.sessionTypeId,
+				modelId: sessionsManagementService.createCalls[2].createOptions?.modelId,
+				modelConfiguration: sessionsManagementService.createCalls[2].createOptions?.modelConfiguration,
+				permissionLevel: sessionsManagementService.createCalls[2].createOptions?.permissionLevel,
+				isolationMode: sessionsManagementService.createCalls[2].createOptions?.isolationMode,
+				branch: sessionsManagementService.createCalls[2].createOptions?.branch,
+				metadata: sessionsManagementService.createCalls[2].createOptions?.metadata,
+				hasOnSessionCreated: typeof sessionsManagementService.createCalls[2].createOptions?.onSessionCreated === 'function',
+			},
 			judgePrompt: {
 				hasComparisonId: sessionsManagementService.createCalls[2].options.query.includes(comparison.id),
 				readsComparison: sessionsManagementService.createCalls[2].options.query.includes('#readAttemptComparison'),
@@ -188,6 +203,7 @@ suite('SessionComparisonService', () => {
 			},
 		}, {
 			createCalls: 3,
+			judgeBeforeCreateReturned: 'test:/judge',
 			judgeResource: 'test:/judge',
 			judgeHarness: {
 				providerId: 'judge-provider',
@@ -204,6 +220,7 @@ suite('SessionComparisonService', () => {
 						attemptCount: 2,
 					},
 				},
+				hasOnSessionCreated: true,
 			},
 			judgePrompt: {
 				hasComparisonId: true,
@@ -213,6 +230,107 @@ suite('SessionComparisonService', () => {
 				doesNotRerunReportedValidation: true,
 				doesNotSubstituteValidation: true,
 			},
+		});
+	});
+
+	test('persists provisional attempts while launches are in flight', async () => {
+		const { service, sessionsManagementService, storageService } = createServices();
+		const firstAttempt = new DeferredPromise<ISession | undefined>();
+		const secondAttempt = new DeferredPromise<ISession | undefined>();
+		sessionsManagementService.enqueuePromise(firstAttempt.p);
+		sessionsManagementService.enqueuePromise(secondAttempt.p);
+
+		const comparisonPromise = service.startComparison(startOptions());
+		await timeout(0);
+
+		const comparison = service.comparisons.get()[0];
+		const stored = JSON.parse(storageService.get('sessions.comparisons', StorageScope.PROFILE) ?? '[]');
+		assert.deepStrictEqual({
+			liveParticipants: comparison?.participants.map(participant => ({ id: participant.id, sessionResource: participant.sessionResource?.toString(), launchError: participant.launchError })),
+			storedParticipants: stored[0].participants.map((participant: { id: string; sessionResource?: string; launchError?: string }) => ({ id: participant.id, sessionResource: participant.sessionResource, launchError: participant.launchError })),
+		}, {
+			liveParticipants: [
+				{ id: 'attempt-one', sessionResource: undefined, launchError: undefined },
+				{ id: 'attempt-two', sessionResource: undefined, launchError: undefined },
+			],
+			storedParticipants: [
+				{ id: 'attempt-one', sessionResource: undefined, launchError: undefined },
+				{ id: 'attempt-two', sessionResource: undefined, launchError: undefined },
+			],
+		});
+
+		firstAttempt.complete(stubSession('attempt-one'));
+		secondAttempt.complete(stubSession('attempt-two'));
+		await comparisonPromise;
+	});
+
+	test('cancels comparisons so completed attempts do not launch a Judge', async () => {
+		const { service, sessionsManagementService } = createServices();
+		const firstStatus = observableValue('firstStatus', SessionStatus.InProgress);
+		const secondStatus = observableValue('secondStatus', SessionStatus.InProgress);
+		sessionsManagementService.enqueue(stubSession('attempt-one', firstStatus));
+		sessionsManagementService.enqueue(stubSession('attempt-two', secondStatus));
+		sessionsManagementService.enqueue(stubSession('judge'));
+
+		const comparison = await service.startComparison(startOptions());
+		service.cancelComparison(comparison.id);
+		firstStatus.set(SessionStatus.Completed, undefined);
+		secondStatus.set(SessionStatus.Completed, undefined);
+		sessionsManagementService.fireChange();
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			createCalls: sessionsManagementService.createCalls.length,
+			cancelled: service.getComparison(comparison.id)?.cancelledAt !== undefined,
+		}, {
+			createCalls: 2,
+			cancelled: true,
+		});
+	});
+
+	test('retries a failed Judge launch without rerunning attempts', async () => {
+		const { service, sessionsManagementService } = createServices();
+		const firstStatus = observableValue('firstStatus', SessionStatus.InProgress);
+		const secondStatus = observableValue('secondStatus', SessionStatus.InProgress);
+		sessionsManagementService.enqueue(stubSession('attempt-one', firstStatus));
+		sessionsManagementService.enqueue(stubSession('attempt-two', secondStatus));
+		sessionsManagementService.enqueueError(new Error('judge unavailable'));
+		sessionsManagementService.enqueue(stubSession('judge'));
+
+		const comparison = await service.startComparison(startOptions());
+		firstStatus.set(SessionStatus.Completed, undefined);
+		secondStatus.set(SessionStatus.Completed, undefined);
+		sessionsManagementService.fireChange();
+		await timeout(0);
+		sessionsManagementService.fireChange();
+		await timeout(0);
+
+		const failedJudge = service.getComparison(comparison.id)?.participants.find(participant => participant.role === SessionComparisonParticipantRole.Judge);
+		assert.deepStrictEqual({
+			createCallsAfterFailure: sessionsManagementService.createCalls.map(call => call.options.title),
+			failedJudge: {
+				launchError: failedJudge?.launchError,
+				sessionResource: failedJudge?.sessionResource?.toString(),
+			},
+		}, {
+			createCallsAfterFailure: ['One', 'Two', `Judge: ${comparison.title}`],
+			failedJudge: {
+				launchError: 'judge unavailable',
+				sessionResource: undefined,
+			},
+		});
+
+		service.retryJudge(comparison.id);
+		await timeout(0);
+		const retriedJudge = service.getComparison(comparison.id)?.participants.find(participant => participant.role === SessionComparisonParticipantRole.Judge);
+		assert.deepStrictEqual({
+			createCallsAfterRetry: sessionsManagementService.createCalls.map(call => call.options.title),
+			retriedJudgeResource: retriedJudge?.sessionResource?.toString(),
+			retriedJudgeLaunchError: retriedJudge?.launchError,
+		}, {
+			createCallsAfterRetry: ['One', 'Two', `Judge: ${comparison.title}`, `Judge: ${comparison.title}`],
+			retriedJudgeResource: 'test:/judge',
+			retriedJudgeLaunchError: undefined,
 		});
 	});
 

@@ -138,6 +138,7 @@ export class NewChatWidget extends Disposable {
 	private readonly _comparisonJudgeHarness = observableValue<ISessionComparisonHarness | undefined>(this, undefined);
 	private readonly _comparisonSynthesisHarness = observableValue<ISessionComparisonHarness | undefined>(this, undefined);
 	private readonly _comparisonBranch = observableValue<string | undefined>(this, undefined);
+	private _comparisonSubmitArmed = false;
 	private readonly _comparisonSetupDialog = this._register(new MutableDisposable<SessionComparisonSetupDialog>());
 	private readonly _onDidChangeComparisonWorkspace = this._register(new Emitter<ISessionComparisonWorkspaceChange>());
 
@@ -1176,12 +1177,17 @@ export class NewChatWidget extends Disposable {
 			this._comparisonSynthesisHarness.set(result.synthesisHarness, undefined);
 			this._comparisonBranch.set(result.branch, undefined);
 			if (result.confirmed) {
-				if (await this._newChatInput.submit()) {
-					this._comparisonAttempts.set([], undefined);
-					this._comparisonJudgeHarness.set(undefined, undefined);
-					this._comparisonSynthesisHarness.set(undefined, undefined);
-					this._comparisonBranch.set(undefined, undefined);
-					shouldRefocusInput = false;
+				this._comparisonSubmitArmed = true;
+				try {
+					if (await this._newChatInput.submit()) {
+						this._comparisonAttempts.set([], undefined);
+						this._comparisonJudgeHarness.set(undefined, undefined);
+						this._comparisonSynthesisHarness.set(undefined, undefined);
+						this._comparisonBranch.set(undefined, undefined);
+						shouldRefocusInput = false;
+					}
+				} finally {
+					this._comparisonSubmitArmed = false;
 				}
 			}
 		} finally {
@@ -1297,7 +1303,7 @@ export class NewChatWidget extends Disposable {
 			}
 		}
 
-		if (this._comparisonAttempts.get().length > 0) {
+		if (this._comparisonSubmitArmed && this._comparisonAttempts.get().length > 0) {
 			const workspace = this._workspacePicker.selectedFolderUri;
 			if (!workspace) {
 				this._workspacePicker.showPicker();
@@ -1534,6 +1540,7 @@ export class NewChatWidget extends Disposable {
 			this._comparisonJudgeHarness.set(undefined, undefined);
 			this._comparisonSynthesisHarness.set(undefined, undefined);
 			this._comparisonBranch.set(undefined, undefined);
+			this._comparisonSubmitArmed = false;
 		}
 		const refreshingPromptOptions = !!currentFolderUri
 			&& (!folderUri || !this.uriIdentityService.extUri.isEqual(currentFolderUri, folderUri))

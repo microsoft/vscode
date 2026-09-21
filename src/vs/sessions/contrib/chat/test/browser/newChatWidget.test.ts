@@ -173,6 +173,7 @@ interface ISendHarness {
 	readonly _session: IObservable<ISession | undefined>;
 	readonly _feedbackItems: IObservable<readonly never[]>;
 	readonly _comparisonAttempts: IObservable<readonly ISessionComparisonAttemptConfiguration[]>;
+	_comparisonSubmitArmed?: boolean;
 	readonly _comparisonJudgeHarness?: IObservable<ISessionComparisonAttemptConfiguration['harness'] | undefined>;
 	readonly _comparisonSynthesisHarness?: IObservable<ISessionComparisonAttemptConfiguration['harness'] | undefined>;
 	readonly _comparisonBranch?: IObservable<string | undefined>;
@@ -222,6 +223,7 @@ interface IConfigureComparisonHarness {
 		get(): readonly ISessionComparisonAttemptConfiguration[];
 		set(value: readonly ISessionComparisonAttemptConfiguration[], transaction: undefined): void;
 	};
+	_comparisonSubmitArmed?: boolean;
 	readonly _comparisonJudgeHarness: {
 		get(): ISessionComparisonAttemptConfiguration['harness'] | undefined;
 		set(value: ISessionComparisonAttemptConfiguration['harness'] | undefined, transaction: undefined): void;
@@ -1501,6 +1503,7 @@ suite('NewChatWidget', () => {
 			_session: constObservable(session),
 			_feedbackItems: constObservable([]),
 			_comparisonAttempts: constObservable(configuredAttempts),
+			_comparisonSubmitArmed: true,
 			_comparisonJudgeHarness: constObservable(configuredAttempts[0].harness),
 			_comparisonSynthesisHarness: constObservable(configuredAttempts[1].harness),
 			_comparisonBranch: constObservable('feature/modal'),
@@ -2258,6 +2261,56 @@ suite('NewChatWidget', () => {
 		});
 	});
 
+	test('sends normally after cancelling comparison setup without launching comparison', async () => {
+		const workspace = URI.file('/workspace');
+		const session = upcastPartial<ISession>({
+			workspace: constObservable(undefined),
+			branch: constObservable('main'),
+		});
+		const attempts: readonly ISessionComparisonAttemptConfiguration[] = [
+			{ id: 'first-run', harness: { providerId: 'provider-one', sessionTypeId: 'type-one', label: 'One' } },
+			{ id: 'second-run', harness: { providerId: 'provider-one', sessionTypeId: 'type-one', label: 'One' } },
+		];
+		let comparisonStarts = 0;
+		let sends = 0;
+
+		const result = await send.call({
+			newSessionComposerService: { notifyWillSendRequest: () => { } },
+			_pendingBackgroundSends: { deleteAndDispose: () => { } },
+			_session: constObservable(session),
+			_feedbackItems: constObservable([]),
+			_comparisonAttempts: constObservable(attempts),
+			_comparisonSubmitArmed: false,
+			_comparisonBranch: constObservable('main'),
+			_workspacePicker: {
+				selectedFolderUri: workspace,
+				clearAttachedContext: () => { },
+				showPicker: () => { },
+			},
+			_isQuickChatComposer: constObservable(false),
+			agentFeedbackService: { removeFeedback: () => { } },
+			sessionsManagementService: {
+				sendNewChatRequest: async () => { sends++; },
+			},
+			sessionComparisonService: {
+				startComparison: async () => {
+					comparisonStarts++;
+					return { id: 'comparison', participants: [] };
+				},
+			},
+			notificationService: { error: () => { } },
+			logService: { error: () => { } },
+			_getComparisonBranch: () => 'main',
+			_getWorkspaceRoots: () => [],
+		}, 'normal send');
+
+		assert.deepStrictEqual({ result, comparisonStarts, sends }, {
+			result: true,
+			comparisonStarts: 0,
+			sends: 1,
+		});
+	});
+
 	test('rejects comparisons when isolated worktrees are unavailable', async () => {
 		const workspace = URI.file('/workspace');
 		const session = upcastPartial<ISession>({
@@ -2277,6 +2330,7 @@ suite('NewChatWidget', () => {
 			_session: constObservable(session),
 			_feedbackItems: constObservable([]),
 			_comparisonAttempts: constObservable(attempts),
+			_comparisonSubmitArmed: true,
 			_comparisonBranch: constObservable(undefined),
 			_workspacePicker: {
 				selectedFolderUri: workspace,
@@ -2339,6 +2393,7 @@ suite('NewChatWidget', () => {
 			_session: constObservable(session),
 			_feedbackItems: constObservable([]),
 			_comparisonAttempts: constObservable(attempts),
+			_comparisonSubmitArmed: true,
 			_comparisonBranch: constObservable('main'),
 			_workspacePicker: {
 				selectedFolderUri: workspace,

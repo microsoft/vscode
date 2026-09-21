@@ -10,12 +10,10 @@ import { IDisposable, toDisposable } from '../../../../../base/common/lifecycle.
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { IConfigurationChangeEvent } from '../../../../../platform/configuration/common/configuration.js';
-import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILanguageModelToolsService, IToolData, IToolResult, ToolProgress, ToolSet } from '../../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
 import { IChat, ISession, ISessionWorkspace, SessionStatus } from '../../../../services/sessions/common/session.js';
-import { COMPARE_AGENTS_ENABLED_SETTING, ISessionComparison, ISessionComparisonService, ISessionComparisonVerdict, SessionComparisonDecisionAssessment, SessionComparisonParticipantRole, SessionComparisonValidationSource, SessionComparisonValidationState } from '../../../../services/sessions/common/sessionComparison.js';
+import { ISessionComparison, ISessionComparisonService, ISessionComparisonVerdict, SessionComparisonDecisionAssessment, SessionComparisonParticipantRole, SessionComparisonValidationSource, SessionComparisonValidationState } from '../../../../services/sessions/common/sessionComparison.js';
 import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { CompleteSessionComparisonTool, ReadSessionComparisonTool, SessionComparisonToolContribution } from '../../browser/sessionComparisonTool.js';
 
@@ -29,7 +27,7 @@ const synthesisResource = URI.parse('test:/synthesis');
 suite('SessionComparisonTool', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('publishes comparison tools only while the experiment is enabled', async () => {
+	test('publishes comparison tools for ongoing comparison workflows', () => {
 		const registeredTools = new Set<string>();
 		const toolsService = new class extends mock<ILanguageModelToolsService>() {
 			override createToolSet() {
@@ -46,30 +44,13 @@ suite('SessionComparisonTool', () => {
 		const instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(ISessionComparisonService, upcastPartial<ISessionComparisonService>({}));
 		instantiationService.stub(ISessionsManagementService, upcastPartial<ISessionsManagementService>({}));
-		const configurationService = new TestConfigurationService({ [COMPARE_AGENTS_ENABLED_SETTING]: false });
-		store.add(configurationService.onDidChangeConfigurationEmitter);
-		store.add(new SessionComparisonToolContribution(toolsService, instantiationService, configurationService));
-		const disabledCount = registeredTools.size;
-
-		await configurationService.setUserConfiguration(COMPARE_AGENTS_ENABLED_SETTING, true);
-		configurationService.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({
-			affectsConfiguration: setting => setting === COMPARE_AGENTS_ENABLED_SETTING,
-		}));
+		store.add(new SessionComparisonToolContribution(toolsService, instantiationService));
 		const enabledIds = [...registeredTools];
 
-		await configurationService.setUserConfiguration(COMPARE_AGENTS_ENABLED_SETTING, false);
-		configurationService.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({
-			affectsConfiguration: setting => setting === COMPARE_AGENTS_ENABLED_SETTING,
-		}));
-
 		assert.deepStrictEqual({
-			disabledCount,
 			enabledIds,
-			disabledAgainCount: registeredTools.size,
 		}, {
-			disabledCount: 0,
 			enabledIds: ['vscode_readAttemptComparison', 'vscode_completeAttemptComparison'],
-			disabledAgainCount: 0,
 		});
 	});
 

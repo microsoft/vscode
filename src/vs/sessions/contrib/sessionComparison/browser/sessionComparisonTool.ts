@@ -9,7 +9,6 @@ import { IJSONSchema } from '../../../../base/common/jsonSchema.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { localize } from '../../../../nls.js';
-import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ReasoningEffortConfigKey } from '../../../../platform/agentHost/common/reasoningEffort.js';
@@ -19,7 +18,7 @@ import { isIChatSessionFileChange2 } from '../../../../workbench/contrib/chat/co
 import { CountTokensCallback, ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, ToolDataSource, ToolProgress } from '../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
 import { SessionStatus } from '../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
-import { COMPARE_AGENTS_ENABLED_SETTING, getSessionComparisonAttemptLabel, ISessionComparison, ISessionComparisonAttemptVerdict, ISessionComparisonRationale, ISessionComparisonService, ISessionComparisonVerdict, SessionComparisonDecisionAssessment, SessionComparisonParticipantRole, SessionComparisonValidationEvidence, SessionComparisonValidationSource, SessionComparisonValidationState } from '../../../services/sessions/common/sessionComparison.js';
+import { getSessionComparisonAttemptLabel, ISessionComparison, ISessionComparisonAttemptVerdict, ISessionComparisonRationale, ISessionComparisonService, ISessionComparisonVerdict, SessionComparisonDecisionAssessment, SessionComparisonParticipantRole, SessionComparisonValidationEvidence, SessionComparisonValidationSource, SessionComparisonValidationState } from '../../../services/sessions/common/sessionComparison.js';
 
 const CompleteSessionComparisonToolId = 'vscode_completeAttemptComparison';
 const ReadSessionComparisonToolId = 'vscode_readAttemptComparison';
@@ -419,39 +418,26 @@ export class SessionComparisonToolContribution extends Disposable implements IWo
 	constructor(
 		@ILanguageModelToolsService toolsService: ILanguageModelToolsService,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IConfigurationService configurationService: IConfigurationService,
 	) {
 		super();
-		const updateRegistration = () => {
-			this._toolRegistrations.clear();
-			if (!configurationService.getValue<boolean>(COMPARE_AGENTS_ENABLED_SETTING)) {
-				return;
-			}
-			const toolSet = this._toolRegistrations.add(toolsService.createToolSet(
-				ToolDataSource.Internal,
-				'vscode_sessionComparison',
-				'sessionComparison',
-				{
-					icon: Codicon.compareChanges,
-					description: localize('sessionComparison.toolSet.description', "Compare implementation attempts"),
-					hiddenInToolsPicker: true,
-				},
-			));
-			const readTool = instantiationService.createInstance(ReadSessionComparisonTool);
-			const readToolData = readTool.getToolData();
-			this._toolRegistrations.add(toolsService.registerTool(readToolData, readTool));
-			this._toolRegistrations.add(toolSet.addTool(readToolData));
-			const tool = instantiationService.createInstance(CompleteSessionComparisonTool);
-			const toolData = tool.getToolData();
-			this._toolRegistrations.add(toolsService.registerTool(toolData, tool));
-			this._toolRegistrations.add(toolSet.addTool(toolData));
-		};
-		updateRegistration();
-		this._register(configurationService.onDidChangeConfiguration(event => {
-			if (event.affectsConfiguration(COMPARE_AGENTS_ENABLED_SETTING)) {
-				updateRegistration();
-			}
-		}));
+		const toolSet = this._toolRegistrations.add(toolsService.createToolSet(
+			ToolDataSource.Internal,
+			'vscode_sessionComparison',
+			'sessionComparison',
+			{
+				icon: Codicon.compareChanges,
+				description: localize('sessionComparison.toolSet.description', "Compare implementation attempts"),
+				hiddenInToolsPicker: true,
+			},
+		));
+		const readTool = instantiationService.createInstance(ReadSessionComparisonTool);
+		const readToolData = readTool.getToolData();
+		this._toolRegistrations.add(toolsService.registerTool(readToolData, readTool));
+		this._toolRegistrations.add(toolSet.addTool(readToolData));
+		const tool = instantiationService.createInstance(CompleteSessionComparisonTool);
+		const toolData = tool.getToolData();
+		this._toolRegistrations.add(toolsService.registerTool(toolData, tool));
+		this._toolRegistrations.add(toolSet.addTool(toolData));
 	}
 }
 

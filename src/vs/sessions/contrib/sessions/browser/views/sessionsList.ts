@@ -2152,6 +2152,7 @@ class SessionGroupRenderer implements ITreeRenderer<SessionListItem, FuzzyScore,
 		private readonly hoverService: IHoverService,
 		private readonly sessionsManagementService: ISessionsManagementService,
 		private readonly sessionGroupsService: ISessionGroupsService,
+		private readonly sessionComparisonService: ISessionComparisonService,
 	) { }
 
 	renderTemplate(container: HTMLElement): ISessionGroupTemplate {
@@ -2253,6 +2254,9 @@ class SessionGroupRenderer implements ITreeRenderer<SessionListItem, FuzzyScore,
 				const runningSessions = element.sessions.filter(session => isSessionInProgress(session, undefined));
 				if (runningSessions.length === 0) {
 					return;
+				}
+				if (element.comparison) {
+					this.sessionComparisonService.cancelComparison(element.comparison.id);
 				}
 				template.comparisonStopAll.element.dataset.pending = 'true';
 				template.comparisonStopAll.enabled = false;
@@ -3429,7 +3433,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			cancelEdit: group => this.cancelGroupEdit(group),
 			select: selectHeader,
 			toggleCollapsed: element => this.tree.toggleCollapsed(element),
-		}, showUnreadInCollapsedSections, sessionsWithFailingCI, instantiationService, contextKeyService, hoverService, this._sessionsManagementService, this._sessionGroupsService);
+		}, showUnreadInCollapsedSections, sessionsWithFailingCI, instantiationService, contextKeyService, hoverService, this._sessionsManagementService, this._sessionGroupsService, this.sessionComparisonService);
 		this._groupRenderer = groupRenderer;
 
 		// Read (don't bind) `IsPhoneLayoutContext` from the parent context so we
