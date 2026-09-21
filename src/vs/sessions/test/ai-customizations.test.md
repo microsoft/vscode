@@ -20,9 +20,10 @@ The following test plan outlines the scenarios and specifications for the AI Cus
 
 1. Open another customization section. No AgentFinder requests are made until its tab is selected.
 2. Select **AgentFinder**. Browse resources without signing in or starting a chat session.
+   While requests are pending, decorative shimmer cards indicate loading instead of visible loading text. Reduced motion and high contrast use static placeholders; screen readers still receive a loading announcement and Accessible View status.
 3. Check that cards show resource types, descriptions, publisher information when available, tags, and available version/star metadata. Repository owner images have a fallback icon when absent or unavailable.
 4. Search for a generic topic such as `postgres`, then change the resource type. Only the latest search is displayed, even if an earlier request finishes later.
-5. Choose **Load More**. Results append without duplicates. Change the query or type and verify pagination resets.
+5. Choose **Load More**. Existing cards remain visible with placeholders for the next page, then results append without duplicates. Change the query or type and verify pagination resets.
 6. Interrupt a request, change tabs, or close the editor. Hidden/disposed sections cancel their requests. Returning to the tab can load again.
 7. Simulate offline, rate-limited, malformed, and oversized-metadata responses. An explicit error and **Retry** appear; failed pagination preserves previously loaded cards. Metadata lists must not exceed 32 entries or 512 characters per entry; scalar card text must not exceed 4,096 characters. URLs and pagination tokens retain their separate limits.
 8. Use Tab, Shift+Tab, arrow keys on cards, and Enter/Space on **Details**. Open Accessibility Help and Accessible View, verify that tags, capabilities, example queries, resource links, and repository links have distinct labels, then close the view and verify focus returns.

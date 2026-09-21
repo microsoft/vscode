@@ -401,6 +401,84 @@ suite('AgentFinderWidget', () => {
 		});
 	});
 
+	test('initial loading shows decorative skeleton cards and an accessible loading state', async () => {
+		const { container, widget, service } = createWidget();
+		widget.setVisible(true);
+		const loading = getElement(container, '.agent-finder-loading');
+		const before = {
+			skeletons: loading.children.length,
+			ariaHidden: loading.getAttribute('aria-hidden'),
+			focusable: loading.querySelectorAll('a, button, input, select, [tabindex]').length,
+			visibleStatus: getElement(container, '.agent-finder-status').textContent,
+			accessible: widget.getAccessibilityContent(),
+		};
+		await service.requests[0].result.complete({ items: [createResource('Review')], total: 1 });
+
+		assert.deepStrictEqual({
+			before,
+			after: { skeletons: loading.children.length, display: loading.style.display, names: getCardNames(container) },
+		}, {
+			before: { skeletons: 6, ariaHidden: 'true', focusable: 0, visibleStatus: '', accessible: 'AgentFinder\n\nLoading resources...' },
+			after: { skeletons: 0, display: 'none', names: ['Review'] },
+		});
+	});
+
+	test('pagination shows skeletons after existing results and removes them on failure', async () => {
+		const { container, widget, service } = createWidget();
+		widget.setVisible(true);
+		await service.requests[0].result.complete({
+			items: [createResource('First')], total: 2, nextCursor: { kind: 'browse', offset: 1 },
+		});
+		getButton(container, 'Load More').click();
+		const loading = getElement(container, '.agent-finder-loading');
+		const before = {
+			skeletons: loading.children.length,
+			appended: loading.classList.contains('loading-more'),
+			names: getCardNames(container),
+			status: getElement(container, '.agent-finder-status').textContent,
+			accessibleLoading: widget.getAccessibilityContent().includes('Loading more resources...'),
+		};
+		await service.requests[1].result.error(new Error('Offline'));
+
+		assert.deepStrictEqual({
+			before,
+			after: { skeletons: loading.children.length, names: getCardNames(container), error: getElement(container, '.agent-finder-error').textContent },
+		}, {
+			before: { skeletons: 2, appended: true, names: ['First'], status: 'Showing 1 of 2 resources', accessibleLoading: true },
+			after: { skeletons: 0, names: ['First'], error: 'Could not load AgentFinder. Offline' },
+		});
+	});
+
+	test('hiding and disposing remove shimmer placeholders and ignore cancelled responses', async () => {
+		const { container, widget, service } = createWidget();
+		widget.setVisible(true);
+		const loading = getElement(container, '.agent-finder-loading');
+		widget.setVisible(false);
+		const hidden = { skeletons: loading.children.length, cancelled: service.requests[0].token.isCancellationRequested };
+		await service.requests[0].result.complete({ items: [createResource('Hidden')] });
+		widget.setVisible(true);
+		const reactivated = loading.children.length;
+		widget.dispose();
+		await service.requests[1].result.complete({ items: [createResource('Disposed')] });
+
+		assert.deepStrictEqual({
+			hidden, reactivated, disposed: loading.children.length, names: getCardNames(container),
+		}, { hidden: { skeletons: 0, cancelled: true }, reactivated: 6, disposed: 0, names: [] });
+	});
+
+	test('reduced motion and high contrast use static placeholders', () => {
+		const { container, widget } = createWidget();
+		widget.setVisible(true);
+		const block = getElement(container, '.agent-finder-skeleton-block');
+		const animations = [];
+		for (const className of ['monaco-reduce-motion', 'hc-black', 'hc-light']) {
+			container.classList.add(className);
+			animations.push(DOM.getWindow(block).getComputedStyle(block).animationName);
+			container.classList.remove(className);
+		}
+		assert.deepStrictEqual(animations, ['none', 'none', 'none']);
+	});
+
 	test('debounces trimmed search and cancels the obsolete query immediately', () => runWithFakedTimers({}, async () => {
 		const { container, widget, service } = createWidget();
 		widget.setVisible(true);

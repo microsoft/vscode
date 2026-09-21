@@ -62,6 +62,7 @@ class AgentFinderAccessibleView implements IAccessibleViewImplementation {
 			() => this.type === AccessibleViewType.Help ? [
 				localize('agentFinder.help.overview', "AgentFinder browses GitHub's public catalog of skills, MCP servers, and plugins. Browsing does not install or enable anything."),
 				localize('agentFinder.help.search', "Type in the search field to find resources, or clear it to browse. Press Enter to search immediately. The resource type selector filters both browsing and search."),
+				localize('agentFinder.help.loading', "Loading is shown with decorative placeholder cards and announced to screen readers. Placeholders are not results and cannot be selected. Previously loaded results remain available while the next page loads."),
 				localize('agentFinder.help.navigation', "Use Tab and Shift+Tab to move between controls and result cards. When a card is focused, use the arrow keys, Home, and End to navigate the results."),
 				localize('agentFinder.help.metadata', "Each card shows catalog metadata. Expand Details with Enter or Space for capabilities and example queries. GitHub images identify repository owners, not verified publishers."),
 				localize('agentFinder.help.install', "Review a resource's source and compatibility, then choose Install. Installation uses VS Code's existing prompts, including destination and trust choices when required. Each card and the Accessible View report installation progress and availability."),

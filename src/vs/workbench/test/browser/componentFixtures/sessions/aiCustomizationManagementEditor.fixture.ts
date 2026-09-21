@@ -826,7 +826,7 @@ interface IRenderEditorOptions {
 	readonly availableHarnesses?: readonly IHarnessDescriptor[];
 	readonly selectedSection?: AICustomizationManagementSection;
 	readonly agentFinderEnabled?: boolean;
-	readonly agentFinderState?: 'ready' | 'empty' | 'error' | 'loading';
+	readonly agentFinderState?: 'ready' | 'empty' | 'error' | 'loading' | 'loadingMore';
 	readonly agentFinderInstallationState?: 'mixed' | 'error';
 	readonly customizationSearchQuery?: string;
 	readonly mcpSearchQuery?: string;
@@ -975,6 +975,10 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 					assert(agentFinderEnabled, 'A disabled AgentFinder fixture must not query the catalog.');
 					switch (options.agentFinderState) {
 						case 'loading': return new DeferredPromise<IAgentFinderPage>().p;
+						case 'loadingMore':
+							return query.cursor
+								? new DeferredPromise<IAgentFinderPage>().p
+								: { items: agentFinderResources.slice(0, 2), total: agentFinderResources.length, nextCursor: { kind: 'browse', offset: 2 } };
 						case 'error': throw new Error('The catalog is temporarily unavailable. Try again later.');
 						case 'empty': return { items: [], total: 0 };
 					}
@@ -1424,10 +1428,21 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 		const search = finder.querySelector<HTMLElement>('.agent-finder-search .monaco-inputbox');
 		const filter = finder.querySelector<HTMLElement>('.agent-finder-type-filter .monaco-select-box');
 		const refresh = finder.querySelector<HTMLElement>('.agent-finder-controls > .monaco-button');
-		assert(search && filter && refresh, 'The AgentFinder toolbar must provide all three controls.');
+		assert(search !== null && filter !== null && refresh !== null, 'The AgentFinder toolbar must provide all three controls.');
 		const refreshBounds = refresh.getBoundingClientRect();
 		assert(refreshBounds.height > 0 && [search, filter].every(control => Math.abs(control.getBoundingClientRect().height - refreshBounds.height) < 1), 'AgentFinder controls must share the same height.');
 		assert(Math.abs(filter.getBoundingClientRect().top - refreshBounds.top) < 1, 'The resource filter must align with the Refresh button when the toolbar wraps.');
+		if (options.agentFinderState === 'loadingMore') {
+			const more = Array.from(finder.querySelectorAll<HTMLElement>('.agent-finder-footer .monaco-button')).find(button => button.textContent === 'Load More');
+			assert(more !== undefined, 'The loading-more fixture must expose pagination.');
+			more.click();
+			await Promise.resolve();
+			assert(finder.querySelectorAll('.agent-finder-card').length === 2, 'Loading more must preserve existing results.');
+		}
+		if (options.agentFinderState === 'loading' || options.agentFinderState === 'loadingMore') {
+			const loading = finder.querySelector<HTMLElement>('.agent-finder-loading');
+			assert(loading !== null && loading.getAttribute('aria-hidden') === 'true' && loading.children.length === (options.agentFinderState === 'loading' ? 6 : 2), 'Pending requests must show decorative skeleton cards.');
+		}
 		if (!options.agentFinderState || options.agentFinderState === 'ready') {
 			assert(finder.querySelectorAll('.agent-finder-card').length === agentFinderResources.length, 'The catalog must render deterministic mock resources.');
 		}
@@ -2704,10 +2719,21 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 
 	AgentFinderLoading: defineComponentFixture({
 		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['Six decorative card-shaped shimmer placeholders replace visible loading text. The search toolbar remains available.'],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
 			selectedSection: AICustomizationManagementSection.AgentFinder,
 			agentFinderState: 'loading',
+		}),
+	}),
+
+	AgentFinderLoadingMore: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['Existing catalog cards and their result count remain visible while decorative loading placeholders are appended for the next page.'],
+		render: ctx => renderEditor(ctx, {
+			sessionResource: localSessionResource,
+			selectedSection: AICustomizationManagementSection.AgentFinder,
+			agentFinderState: 'loadingMore',
 		}),
 	}),
 

@@ -74,6 +74,7 @@ export class AgentFinderWidget extends Disposable {
 	private readonly statusElement: HTMLElement;
 	private readonly errorElement: HTMLElement;
 	private readonly resultsElement: HTMLElement;
+	private readonly loadingElement: HTMLElement;
 	private readonly emptyElement: HTMLElement;
 	private readonly scrollable: DomScrollableElement;
 	private readonly requestDisposables = this._register(new DisposableStore());
@@ -132,6 +133,8 @@ export class AgentFinderWidget extends Disposable {
 		const content = DOM.$('.agent-finder-scroll-content');
 		this.resultsElement = DOM.append(content, DOM.$('ul.agent-finder-results'));
 		this.resultsElement.setAttribute('aria-label', localize('agentFinder.results', "AgentFinder results"));
+		this.loadingElement = DOM.append(content, DOM.$('.agent-finder-loading'));
+		this.loadingElement.setAttribute('aria-hidden', 'true');
 		this.emptyElement = DOM.append(content, DOM.$('.agent-finder-empty'));
 		const footer = DOM.append(content, DOM.$('.agent-finder-footer'));
 		this.errorElement = DOM.append(footer, DOM.$('p.agent-finder-error'));
@@ -256,6 +259,7 @@ export class AgentFinderWidget extends Disposable {
 		const focusedAction = [this.loadMoreButton, this.retryButton].find(button => button.element.contains(DOM.getActiveElement()));
 		this.loading = true;
 		this.renderStatus();
+		status(this.getLoadingLabel());
 		try {
 			const page = await this.agentFinderService.query({
 				query: this.query,
@@ -313,9 +317,26 @@ export class AgentFinderWidget extends Disposable {
 	}
 
 	private renderStatus(): void {
-		this.statusElement.textContent = this.loading
-			? localize('agentFinder.loading', "Loading resources...")
-			: this.loaded ? this.getResultsLabel() : '';
+		this.statusElement.textContent = this.loaded ? this.getResultsLabel() : '';
+		this.loadingElement.style.display = this.loading ? '' : 'none';
+		this.loadingElement.classList.toggle('loading-more', this.loading && this.items.length > 0);
+		if (!this.loading) {
+			DOM.clearNode(this.loadingElement);
+		} else if (!this.loadingElement.childElementCount) {
+			for (let index = 0; index < (this.items.length ? 2 : 6); index++) {
+				const card = DOM.append(this.loadingElement, DOM.$('.agent-finder-loading-card'));
+				const header = DOM.append(card, DOM.$('.agent-finder-card-header'));
+				DOM.append(header, DOM.$('.agent-finder-skeleton-block.agent-finder-skeleton-icon'));
+				const identity = DOM.append(header, DOM.$('.agent-finder-skeleton-identity'));
+				DOM.append(identity, DOM.$('.agent-finder-skeleton-block.agent-finder-skeleton-title'));
+				DOM.append(identity, DOM.$('.agent-finder-skeleton-block.agent-finder-skeleton-subtitle'));
+				const description = DOM.append(card, DOM.$('.agent-finder-skeleton-description'));
+				DOM.append(description, DOM.$('.agent-finder-skeleton-block'));
+				DOM.append(description, DOM.$('.agent-finder-skeleton-block'));
+				DOM.append(description, DOM.$('.agent-finder-skeleton-block.agent-finder-skeleton-short'));
+				DOM.append(card, DOM.$('.agent-finder-skeleton-block.agent-finder-skeleton-action'));
+			}
+		}
 		this.resultsElement.setAttribute('aria-busy', String(this.loading));
 		this.refreshButton.enabled = !this.loading;
 		this.loadMoreButton.enabled = !this.loading;
@@ -333,6 +354,12 @@ export class AgentFinderWidget extends Disposable {
 		return this.total !== undefined
 			? localize('agentFinder.resultCount', "Showing {0} of {1} resources", this.items.length.toLocaleString(), this.total.toLocaleString())
 			: localize('agentFinder.resultsLoaded', "{0} resources loaded", this.items.length.toLocaleString());
+	}
+
+	private getLoadingLabel(): string {
+		return this.items.length
+			? localize('agentFinder.loadingMore', "Loading more resources...")
+			: localize('agentFinder.loading', "Loading resources...");
 	}
 
 	private renderCard(item: IAgentFinderResource): HTMLElement {
@@ -566,6 +593,7 @@ export class AgentFinderWidget extends Disposable {
 	getAccessibilityContent(): string {
 		return [
 			localize('agentFinder.title', "AgentFinder"),
+			this.loading ? this.getLoadingLabel() : undefined,
 			this.statusElement.textContent,
 			this.errorMessage,
 			...this.items.map(item => [
@@ -592,5 +620,11 @@ export class AgentFinderWidget extends Disposable {
 
 	layout(): void {
 		this.scrollable.scanDomNode();
+	}
+
+	override dispose(): void {
+		this.loading = false;
+		DOM.clearNode(this.loadingElement);
+		super.dispose();
 	}
 }

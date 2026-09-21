@@ -86,7 +86,8 @@
 	box-sizing: border-box;
 }
 
-.agent-finder-widget .agent-finder-results {
+.agent-finder-widget .agent-finder-results,
+.agent-finder-widget .agent-finder-loading {
 	display: grid;
 	grid-template-columns: repeat(auto-fill, minmax(min(100%, 290px), 1fr));
 	gap: var(--vscode-spacing-size160);
@@ -95,7 +96,8 @@
 	list-style: none;
 }
 
-.agent-finder-widget .agent-finder-card {
+.agent-finder-widget .agent-finder-card,
+.agent-finder-widget .agent-finder-loading-card {
 	display: flex;
 	flex-direction: column;
 	min-width: 0;
@@ -105,6 +107,87 @@
 	border: var(--vscode-strokeThickness) solid var(--vscode-widget-border, var(--vscode-agentsPanel-border));
 	border-radius: var(--vscode-cornerRadius-medium);
 	overflow-wrap: anywhere;
+}
+
+.agent-finder-widget .agent-finder-loading.loading-more {
+	margin-top: var(--vscode-spacing-size160);
+}
+
+.agent-finder-widget .agent-finder-loading-card {
+	min-height: 200px;
+}
+
+.agent-finder-widget .agent-finder-skeleton-block {
+	height: var(--vscode-spacing-size120);
+	border-radius: var(--vscode-cornerRadius-small);
+	background: linear-gradient(
+		90deg,
+		var(--vscode-descriptionForeground) 25%,
+		var(--vscode-chat-thinkingShimmer) 50%,
+		var(--vscode-descriptionForeground) 75%
+	);
+	background-size: 200% 100%;
+	animation: agent-finder-shimmer 2s linear infinite;
+	opacity: 0.15;
+}
+
+.agent-finder-widget .agent-finder-skeleton-icon {
+	flex: 0 0 40px;
+	height: 40px;
+}
+
+.agent-finder-widget .agent-finder-skeleton-identity,
+.agent-finder-widget .agent-finder-skeleton-description {
+	display: flex;
+	flex-direction: column;
+	gap: var(--vscode-spacing-size80);
+}
+
+.agent-finder-widget .agent-finder-skeleton-identity {
+	flex: 1;
+	min-width: 0;
+}
+
+.agent-finder-widget .agent-finder-skeleton-title {
+	width: 75%;
+}
+
+.agent-finder-widget .agent-finder-skeleton-subtitle {
+	width: 45%;
+}
+
+.agent-finder-widget .agent-finder-skeleton-short {
+	width: 65%;
+}
+
+.agent-finder-widget .agent-finder-skeleton-action {
+	width: 80px;
+	height: 26px;
+	margin-top: auto;
+}
+
+@keyframes agent-finder-shimmer {
+	from { background-position: 120% 0; }
+	to { background-position: -120% 0; }
+}
+
+.monaco-reduce-motion .agent-finder-widget .agent-finder-skeleton-block {
+	animation: none;
+	background: var(--vscode-descriptionForeground);
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.agent-finder-widget .agent-finder-skeleton-block {
+		animation: none;
+		background: var(--vscode-descriptionForeground);
+	}
+}
+
+.hc-black .agent-finder-widget .agent-finder-skeleton-block,
+.hc-light .agent-finder-widget .agent-finder-skeleton-block {
+	animation: none;
+	background: var(--vscode-contrastBorder);
+	opacity: 1;
 }
 
 .agent-finder-widget .agent-finder-card:hover {
@@ -294,6 +377,8 @@
 .hc-black .agent-finder-widget,
 .hc-light .agent-finder-widget,
 .hc-black .agent-finder-widget .agent-finder-card,
-.hc-light .agent-finder-widget .agent-finder-card {
+.hc-light .agent-finder-widget .agent-finder-card,
+.hc-black .agent-finder-widget .agent-finder-loading-card,
+.hc-light .agent-finder-widget .agent-finder-loading-card {
 	border-color: var(--vscode-contrastBorder);
 }
