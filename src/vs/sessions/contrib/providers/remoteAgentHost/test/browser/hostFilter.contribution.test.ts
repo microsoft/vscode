@@ -125,11 +125,10 @@ suite('AgentHostFilterContribution', () => {
 		assert.ok(menu.isConnected);
 		assert.ok(!button.classList.contains('discovering'));
 
-		const secondHost = menu.querySelectorAll<HTMLElement>('[role="menuitem"]')[1];
-		assert.ok(secondHost);
-		secondHost.focus();
-		secondHost.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true }));
-		secondHost.dispatchEvent(new KeyboardEvent('keyup', { key: 'Enter', keyCode: 13, bubbles: true }));
+		menu.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', keyCode: 40, bubbles: true }));
+		menu.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', keyCode: 40, bubbles: true }));
+		menu.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true }));
+		menu.dispatchEvent(new KeyboardEvent('keyup', { key: 'Enter', keyCode: 13, bubbles: true }));
 		await Promise.resolve();
 		assert.strictEqual(filterService.selectedHostId, 'Second');
 	});
