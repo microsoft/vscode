@@ -83,6 +83,7 @@ import { resolveWorkspaceTargetDirectory, resolveUserTargetDirectory, Customizat
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { AICustomizationSources, IAICustomizationWorkspaceService } from '../../common/aiCustomizationWorkspaceService.js';
 import { hasReadableCustomizationContent } from '../../../../../platform/agentHost/common/agentHostCustomizationUri.js';
+import { AI_CUSTOMIZATION_PERMISSION_SECTIONS, AICustomizationSources, IAICustomizationWorkspaceService } from '../../common/aiCustomizationWorkspaceService.js';
 import { CodeEditorWidget } from '../../../../../editor/browser/widget/codeEditor/codeEditorWidget.js';
 import { DomScrollableElement } from '../../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { ITextModel } from '../../../../../editor/common/model.js';
@@ -231,6 +232,22 @@ interface ISectionItem {
 	count: number;
 }
 
+/**
+ * A non-selectable label separating the sidebar's section groups. Headers are only emitted when
+ * more than one group is present, so the sidebar keeps its flat look when permissions are hidden.
+ */
+interface ISidebarGroupHeaderItem {
+	readonly kind: 'groupHeader';
+	readonly id: string;
+	readonly label: string;
+}
+
+type ISidebarItem = ISectionItem | ISidebarGroupHeaderItem;
+
+function isSidebarGroupHeader(item: ISidebarItem): item is ISidebarGroupHeaderItem {
+	return 'kind' in item && item.kind === 'groupHeader';
+}
+
 interface ISaveTargetQuickPickItem extends IQuickPickItem {
 	readonly target: 'workspace' | 'user' | 'cancel';
 	readonly folder?: URI;
@@ -260,14 +277,36 @@ interface IExistingCustomizationSaveRequest {
 	readonly projectRoot?: URI;
 }
 
-class SectionItemDelegate implements IListVirtualDelegate<ISectionItem> {
-	getHeight(): number {
-		return 26;
+const SIDEBAR_SECTION_ROW_HEIGHT = 26;
+const SIDEBAR_GROUP_HEADER_ROW_HEIGHT = 28;
+
+class SectionItemDelegate implements IListVirtualDelegate<ISidebarItem> {
+	getHeight(element: ISidebarItem): number {
+		return isSidebarGroupHeader(element) ? SIDEBAR_GROUP_HEADER_ROW_HEIGHT : SIDEBAR_SECTION_ROW_HEIGHT;
 	}
 
-	getTemplateId(): string {
-		return 'sectionItem';
+	getTemplateId(element: ISidebarItem): string {
+		return isSidebarGroupHeader(element) ? 'sidebarGroupHeader' : 'sectionItem';
 	}
+}
+
+interface ISidebarGroupHeaderTemplateData {
+	readonly label: HTMLElement;
+}
+
+class SidebarGroupHeaderRenderer implements IListRenderer<ISidebarGroupHeaderItem, ISidebarGroupHeaderTemplateData> {
+	readonly templateId = 'sidebarGroupHeader';
+
+	renderTemplate(container: HTMLElement): ISidebarGroupHeaderTemplateData {
+		container.classList.add('sidebar-group-header');
+		return { label: DOM.append(container, $('.sidebar-group-header-label')) };
+	}
+
+	renderElement(element: ISidebarGroupHeaderItem, index: number, templateData: ISidebarGroupHeaderTemplateData): void {
+		templateData.label.textContent = element.label;
+	}
+
+	disposeTemplate(): void { }
 }
 
 interface ISectionItemTemplateData {
@@ -521,7 +560,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 	private splitView!: SplitView<number>;
 	private sidebarContainer!: HTMLElement;
 	private sectionsListContainer: HTMLElement | undefined;
-	private sectionsList!: WorkbenchList<ISectionItem>;
+	private sectionsList!: WorkbenchList<ISidebarItem>;
 	private contentContainer!: HTMLElement;
 	private listWidget!: AICustomizationListWidget;
 	private mcpListWidget: McpListWidget | undefined;
@@ -627,6 +666,8 @@ export class AICustomizationManagementEditor extends EditorPane {
 	private dimension: DOM.Dimension | undefined;
 	private readonly sections: ISectionItem[] = [];
 	private readonly allSections: ISectionItem[] = [];
+	/** The rows the sidebar list renders: {@link sections} plus any group headers. */
+	private sidebarItems: ISidebarItem[] = [];
 	private selectedSection: AICustomizationManagementSection | undefined;
 	private contentNavigationGeneration = 0;
 
@@ -876,9 +917,13 @@ export class AICustomizationManagementEditor extends EditorPane {
 		const activeId = this.harnessService.activeHarness.get();
 		const descriptor = this.harnessService.findHarnessById(activeId);
 		const hidden = new Set(descriptor?.hiddenSections ?? []);
+		const permissionsEnabled = this.configurationService.getValue<boolean>(ChatConfiguration.ChatCustomizationsPermissionsEnabled) === true;
 
 		this.sections.length = 0;
 		for (const s of this.allSections) {
+			if (!permissionsEnabled && AI_CUSTOMIZATION_PERMISSION_SECTIONS.includes(s.id)) {
+				continue;
+			}
 			const contribution = aiCustomizationManagementSectionRegistry.get(s.id, activeId);
 			const contributed = aiCustomizationManagementSectionRegistry.has(s.id);
 			if (!hidden.has(s.id) && (!contributed || !!contribution)) {
@@ -888,7 +933,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 
 		// Update the list widget if it exists
 		if (this.sectionsList) {
-			this.sectionsList.splice(0, this.sectionsList.length, this.sections);
+			this.refreshSidebarItems();
 			this.layoutSidebar(this.sidebarWidth, this.sidebarHeight);
 		}
 
@@ -912,39 +957,50 @@ export class AICustomizationManagementEditor extends EditorPane {
 		const sectionsListContainer = this.sectionsListContainer = DOM.append(sidebarContent, $('.sidebar-sections-list'));
 
 		this.sectionsList = this.editorDisposables.add(this.instantiationService.createInstance(
-			WorkbenchList<ISectionItem>,
+			WorkbenchList<ISidebarItem>,
 			'AICustomizationManagementSections',
 			sectionsListContainer,
 			new SectionItemDelegate(),
-			[new SectionItemRenderer(this.hoverService)],
+			[new SectionItemRenderer(this.hoverService), new SidebarGroupHeaderRenderer()],
 			{
 				multipleSelectionSupport: false,
 				setRowLineHeight: false,
 				horizontalScrolling: false,
 				accessibilityProvider: {
-					getAriaLabel: (item: ISectionItem) => item.count > 0
-						? localize('sectionAriaLabelWithCount', "{0}, {1} items", item.label, item.count)
-						: item.label,
+					getAriaLabel: (item: ISidebarItem) => {
+						if (isSidebarGroupHeader(item)) {
+							return item.label;
+						}
+						return item.count > 0
+							? localize('sectionAriaLabelWithCount', "{0}, {1} items", item.label, item.count)
+							: item.label;
+					},
 					getWidgetAriaLabel: () => localize('sectionsAriaLabel', "Agent Customization Sections"),
 				},
 				openOnSingleClick: true,
 				identityProvider: {
-					getId: (item: ISectionItem) => item.id,
+					getId: (item: ISidebarItem) => item.id,
 				},
 			}
 		));
 
-		this.sectionsList.splice(0, this.sectionsList.length, this.sections);
+		this.refreshSidebarItems();
 		this.ensureSectionsListReflectsActiveSection();
 
 		this.editorDisposables.add(this.sectionsList.onDidChangeSelection(e => {
-			if (e.elements.length === 0) {
+			const selected = e.elements[0];
+			if (selected && isSidebarGroupHeader(selected)) {
+				// Headers are labels, not destinations; restore the previous selection.
+				this.ensureSectionsListReflectsActiveSection();
+				return;
+			}
+			if (!selected) {
 				if (this.selectedSection !== undefined) {
 					this.showWelcomePage();
 				}
 				return;
 			}
-			this.selectSection(e.elements[0].id);
+			this.selectSection(selected.id);
 		}));
 
 		// React to harness changes — rebuild visible sections and refresh counts.
@@ -968,6 +1024,10 @@ export class AICustomizationManagementEditor extends EditorPane {
 				for (const section of this.sections) {
 					this.updateSectionCount(section.id, 0);
 				}
+				// Tearing down the widgets above empties their containers. Sections that survive a
+				// harness switch (permissions apply to every harness) stay selected, so the pane
+				// would otherwise be left blank until the user navigated away and back.
+				this.updateContentVisibility();
 			}
 			this._previousActiveHarnessId = activeId;
 		}));
@@ -975,6 +1035,9 @@ export class AICustomizationManagementEditor extends EditorPane {
 		this.editorDisposables.add(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(ChatConfiguration.ChatCustomizationsStructuredPreviewEnabled)) {
 				this.onStructuredPreviewSettingChanged();
+			}
+			if (e.affectsConfiguration(ChatConfiguration.ChatCustomizationsPermissionsEnabled)) {
+				this.rebuildVisibleSections();
 			}
 			// Candidates are only collected for enabled categories, so enabling one must re-scan.
 			if (CUSTOMIZATION_MIGRATION_CATEGORIES.some(category =>
@@ -986,6 +1049,26 @@ export class AICustomizationManagementEditor extends EditorPane {
 		}));
 
 		this.createSidebarMigrationShortcut(sidebarContent);
+	}
+
+	/**
+	 * Rebuilds the sidebar rows from {@link sections}, inserting group headers only when both
+	 * groups are present. `sidebarItems` — not `sections` — is what list indices refer to.
+	 */
+	private refreshSidebarItems(): void {
+		const customizations = this.sections.filter(section => !AI_CUSTOMIZATION_PERMISSION_SECTIONS.includes(section.id));
+		const permissions = this.sections.filter(section => AI_CUSTOMIZATION_PERMISSION_SECTIONS.includes(section.id));
+
+		this.sidebarItems = permissions.length === 0
+			? [...customizations]
+			: [
+				{ kind: 'groupHeader', id: 'group.customizations', label: localize('sidebarGroup.customizations', "Customizations") },
+				...customizations,
+				{ kind: 'groupHeader', id: 'group.permissions', label: localize('sidebarGroup.permissions', "Permissions") },
+				...permissions,
+			];
+
+		this.sectionsList.splice(0, this.sectionsList.length, this.sidebarItems);
 	}
 
 	private layoutSidebar(width: number, height: number): void {
@@ -1003,7 +1086,13 @@ export class AICustomizationManagementEditor extends EditorPane {
 			? (this.migrationShortcutContainer?.offsetHeight ?? 0)
 			: 0;
 		const availableListHeight = Math.max(0, height - 8 - headerHeight - migrationHeight);
-		const listHeight = Math.min(availableListHeight, this.sections.length * 26);
+		// Measure the rows the list actually renders — `sidebarItems`, which includes the taller
+		// group headers — so an enabled Permissions group is not clipped by the fixed height below.
+		const contentHeight = this.sidebarItems.reduce(
+			(total, item) => total + (isSidebarGroupHeader(item) ? SIDEBAR_GROUP_HEADER_ROW_HEIGHT : SIDEBAR_SECTION_ROW_HEIGHT),
+			0,
+		);
+		const listHeight = Math.min(availableListHeight, contentHeight);
 		this.sectionsListContainer.style.height = `${listHeight}px`;
 		this.sectionsList.layout(listHeight, width);
 	}
@@ -3103,7 +3192,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		}
 		section.count = count;
 		// Re-splice the sections list to trigger re-render
-		this.sectionsList.splice(0, this.sectionsList.length, this.sections);
+		this.refreshSidebarItems();
 		this.ensureSectionsListReflectsActiveSection();
 	}
 
@@ -3203,6 +3292,14 @@ export class AICustomizationManagementEditor extends EditorPane {
 
 		// Move focus to the search input so keyboard users can immediately
 		// filter without extra Tab traversal (parity with mouse-click flow).
+		this.focusSectionSearch(section);
+	}
+
+	/**
+	 * Focuses the search control of `section`. Contributed sections own their own input, so they
+	 * must be routed to explicitly — falling through to the prompts list would focus a hidden box.
+	 */
+	private focusSectionSearch(section: AICustomizationManagementSection): void {
 		if (section === AICustomizationManagementSection.McpServers) {
 			this.mcpListWidget?.focusSearch();
 		} else if (section === AICustomizationManagementSection.Plugins) {
@@ -3211,6 +3308,8 @@ export class AICustomizationManagementEditor extends EditorPane {
 			this.modelsWidget?.focusSearch();
 		} else if (section === AICustomizationManagementSection.Tools) {
 			this.toolsListWidget?.focusSearch();
+		} else if (this.contributedSectionContainers.has(section)) {
+			this.ensureContributedSectionWidget(section)?.focus?.();
 		} else {
 			this.listWidget?.focusSearch();
 		}
@@ -3228,7 +3327,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 			return;
 		}
 
-		const index = this.sections.findIndex(s => s.id === section);
+		const index = this.sidebarItems.findIndex(item => !isSidebarGroupHeader(item) && item.id === section);
 		if (index < 0) {
 			return;
 		}
@@ -3564,19 +3663,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 			this.welcomePage?.focus();
 			return;
 		}
-		if (this.selectedSection === AICustomizationManagementSection.McpServers) {
-			this.mcpListWidget?.focusSearch();
-		} else if (this.selectedSection === AICustomizationManagementSection.Plugins) {
-			this.pluginListWidget?.focusSearch();
-		} else if (this.selectedSection === AICustomizationManagementSection.Models) {
-			this.modelsWidget?.focusSearch();
-		} else if (this.selectedSection === AICustomizationManagementSection.Tools) {
-			this.toolsListWidget?.focusSearch();
-		} else if (this.selectedSection && this.contributedSectionContainers.has(this.selectedSection)) {
-			this.ensureContributedSectionWidget(this.selectedSection)?.focus?.();
-		} else {
-			this.listWidget?.focusSearch();
-		}
+		this.focusSectionSearch(this.selectedSection);
 	}
 
 	/**

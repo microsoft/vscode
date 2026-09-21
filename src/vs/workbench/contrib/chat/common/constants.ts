@@ -118,6 +118,7 @@ export enum ChatConfiguration {
 	ChatCustomizationsLocationsMigrationEnabled = 'chat.customizations.locationsMigration.enabled',
 	ChatCustomizationsMcpServerMigrationEnabled = 'chat.customizations.mcpServerMigration.enabled',
 	ChatCustomizationsMigrationHint = 'chat.customizations.migrationHint',
+	ChatCustomizationsPermissionsEnabled = 'chat.customizations.permissions.enabled',
 	AutopilotAdvancedEnabled = 'chat.autopilot.advanced.enabled',
 	DefaultPermissionLevel = 'chat.permissions.default',
 	PermissionsSandboxToggleEnabled = 'chat.experimental.permissionsSandboxToggle.enabled',
