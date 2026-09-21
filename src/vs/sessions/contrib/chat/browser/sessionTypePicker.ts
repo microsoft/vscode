@@ -23,10 +23,10 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../platfo
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IChatSessionsService } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ILanguageModelsService } from '../../../../workbench/contrib/chat/common/languageModels.js';
-import { getSessionTypeAvailability, getSessionTypePickerAvailability, getSessionTypeUnavailableDescription, getSessionTypeUnavailableHover, SessionTypeAvailability } from '../../../../workbench/contrib/chat/browser/agentSessions/sessionTypeAvailability.js';
-import { hasAgentSdkSetupNotification } from '../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostSdkSetupNotification.js';
-import { IChatInputNotificationService } from '../../../../workbench/contrib/chat/browser/widget/input/chatInputNotificationService.js';
+import { canInitializeSessionTypeOnSelection, getSessionTypeAvailability, getSessionTypePickerAvailability, getSessionTypeUnavailableDescription, getSessionTypeUnavailableHover, SessionTypeAvailability } from '../../../../workbench/contrib/chat/browser/agentSessions/sessionTypeAvailability.js';
+import { hasAgentSdkSetupForSessionType } from '../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostSdkSetupNotification.js';
 import { IChatEntitlementService } from '../../../../workbench/services/chat/common/chatEntitlementService.js';
+import { IAgentSdkSetupService } from '../../../../workbench/services/agentHost/browser/agentSdkSetupService.js';
 import { markOnboardingTarget } from '../../../../workbench/contrib/onboarding/browser/spotlight/onboardingTarget.js';
 import { reportNewChatPickerClosed } from './newChatPickerTelemetry.js';
 import { isAllowSignedOutWhenUsableEnabled } from '../../../browser/sessionsAuthGate.js';
@@ -170,7 +170,7 @@ export class SessionTypePicker extends Disposable {
 		@IChatEntitlementService protected readonly chatEntitlementService: IChatEntitlementService,
 		@ILanguageModelsService protected readonly languageModelsService: ILanguageModelsService,
 		@IConfigurationService protected readonly configurationService: IConfigurationService,
-		@IChatInputNotificationService protected readonly chatInputNotificationService: IChatInputNotificationService,
+		@IAgentSdkSetupService protected readonly agentSdkSetupService: IAgentSdkSetupService,
 	) {
 		super();
 
@@ -391,6 +391,18 @@ export class SessionTypePicker extends Disposable {
 		return first ? { providerId: first.providerId, sessionTypeId: first.sessionType.id } : undefined;
 	}
 
+	/** Availability shared by the desktop popup and the mobile picker sheet. */
+	protected _getPickerAvailability(modelTarget: string): SessionTypeAvailability {
+		const allowSignedOutWhenUsable = isAllowSignedOutWhenUsableEnabled(this.configurationService);
+		const hasAgentSdkSetup = hasAgentSdkSetupForSessionType(this.agentSdkSetupService.setups, modelTarget);
+		return getSessionTypePickerAvailability(
+			modelTarget,
+			getSessionTypeAvailability(this.chatSessionsService, this.chatEntitlementService, this.languageModelsService, modelTarget, allowSignedOutWhenUsable),
+			allowSignedOutWhenUsable,
+			canInitializeSessionTypeOnSelection(this.chatEntitlementService.entitlement, allowSignedOutWhenUsable, hasAgentSdkSetup),
+		);
+	}
+
 	render(container: HTMLElement, options?: { className?: string }): void {
 		this._renderDisposables.clear();
 
@@ -515,13 +527,7 @@ export class SessionTypePicker extends Disposable {
 			for (const { providerId, sessionType } of types) {
 				const isCurrent = this._picked?.providerId === providerId && this._picked?.sessionTypeId === sessionType.id;
 				const modelTarget = sessionType.chatSessionType ?? sessionType.id;
-				const allowSignedOutWhenUsable = isAllowSignedOutWhenUsableEnabled(this.configurationService);
-				const availability = getSessionTypePickerAvailability(
-					modelTarget,
-					getSessionTypeAvailability(this.chatSessionsService, this.chatEntitlementService, this.languageModelsService, modelTarget, allowSignedOutWhenUsable),
-					allowSignedOutWhenUsable,
-					hasAgentSdkSetupNotification(this.chatInputNotificationService, modelTarget),
-				);
+				const availability = this._getPickerAvailability(modelTarget);
 				const unavailable = availability !== SessionTypeAvailability.Available;
 				const item: ISessionTypePickerItem = {
 					providerId,
