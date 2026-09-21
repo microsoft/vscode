@@ -1002,6 +1002,14 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 				new NullLogService(),
 				configurationService,
 				new FixtureConfigurationResolverService(),
+				new class extends mock<IMcpService>() {
+					override readonly enablementModel = {
+						readEnabled: () => ContributionEnablementState.EnabledProfile,
+						readProfileEnabled: () => true,
+						setEnabled: () => { },
+						remove: () => { },
+					};
+				}(),
 			));
 			reg.defineInstance(IAICustomizationWorkspaceService, new class extends mock<IAICustomizationWorkspaceService>() {
 				override readonly isSessionsWindow = isSessionsWindow;

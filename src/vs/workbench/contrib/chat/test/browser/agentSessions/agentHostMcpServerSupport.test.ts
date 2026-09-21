@@ -421,6 +421,41 @@ suite('agentHostMcpServerSupport', () => {
 		});
 	});
 
+	test('reports SSE transport and version metadata as partially supported', async () => {
+		const result = await assess([
+			makeMcpServer({
+				id: 'mcp.config.ws0.sse',
+				collectionId: 'mcp.config.ws0',
+				provenance: McpCollectionProvenance.WorkspaceFolderConfiguration,
+				launch: {
+					type: McpServerTransportType.HTTP,
+					transport: 'sse',
+					uri: URI.parse('https://example.com/mcp'),
+					headers: [],
+				},
+				collectionOrigin: URI.file('/workspace/.vscode/mcp.json'),
+			}),
+			makeMcpServer({
+				id: 'mcp.config.ws0.version',
+				collectionId: 'mcp.config.ws0',
+				provenance: McpCollectionProvenance.WorkspaceFolderConfiguration,
+				version: '1.0.0',
+				collectionOrigin: URI.file('/workspace/.vscode/mcp.json'),
+			}),
+		], [URI.file('/workspace')]);
+
+		assert.deepStrictEqual(result.servers.map(server => server.compatibility), [
+			{
+				kind: 'partiallySupported',
+				reasons: [AgentHostMcpSupportReason.SseTransportNotPortable],
+			},
+			{
+				kind: 'partiallySupported',
+				reasons: [AgentHostMcpSupportReason.ServerVersionNotPortable],
+			},
+		]);
+	});
+
 	test('reports runtime server enablement separately from compatibility', async () => {
 		const result = await assess([
 			makeMcpServer({
@@ -1000,6 +1035,7 @@ function makeMcpServer(options: {
 	readonly launch?: McpServerLaunch;
 	readonly sandboxEnabled?: boolean;
 	readonly devMode?: McpServerDefinition['devMode'];
+	readonly version?: string;
 	readonly enablement?: ContributionEnablementState;
 	readonly enablementObservable?: ISettableObservable<ContributionEnablementState>;
 }): IMcpServer {
@@ -1014,6 +1050,7 @@ function makeMcpServer(options: {
 		launch = stdioLaunch(),
 		sandboxEnabled,
 		devMode,
+		version,
 		enablement = ContributionEnablementState.EnabledProfile,
 		enablementObservable,
 	} = options;
@@ -1038,6 +1075,7 @@ function makeMcpServer(options: {
 		cacheNonce: id,
 		sandboxEnabled,
 		devMode,
+		version,
 	};
 	const definitions = observableValue('definitions', { server: definition, collection });
 	return {

@@ -19,13 +19,15 @@ import { isAgentHostSessionResource } from '../../common/chatSessionsService.js'
 import { ICustomizationHarnessService, ICustomizationSourceFolder } from '../../common/customizationHarnessService.js';
 import { getChatSessionType } from '../../common/model/chatUri.js';
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
+import { ContributionEnablementState } from '../../common/enablement.js';
 import { CustomizationMigration, CustomizationMigrationHintTarget, CustomizationMigrationType, FileCustomizationMigration, FileCustomizationMigrationType, getCustomizationMigrationEnablementSetting, getCustomizationMigrationTargetType, getMcpServerCustomizationMigrationCandidateKey, ICustomizationMigrationHint, ICustomizationMigrationService, IMcpServerCustomizationMigrationCandidate, IMcpServerCustomizationMigrationFailure, IMcpServerCustomizationMigrationResult, isConfiguredLocationMigrationCandidate, isPromptFileMigrationCandidate, isUserDataMigrationCandidate, McpServerCustomizationMigration, McpServerCustomizationMigrationFailureReason, MigratableConfiguration } from '../../common/promptSyntax/service/customizationMigrationService.js';
 import { IPromptsService, PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
 import { IAgentHostActiveClientService } from '../agentSessions/agentHost/agentHostActiveClientService.js';
 import { IAgentHostCustomizationService } from '../agentSessions/agentHost/agentHostCustomizationService.js';
-import { AgentHostMcpServerApplicability, AgentHostMcpServerDelivery, IAgentHostMcpServerSupport, IAgentHostMcpServerSupportSnapshot } from '../agentSessions/agentHost/agentHostMcpServerSupport.js';
+import { AgentHostMcpServerApplicability, AgentHostMcpServerDelivery, AgentHostMcpServerEnablementState, IAgentHostMcpServerSupport, IAgentHostMcpServerSupportSnapshot } from '../agentSessions/agentHost/agentHostMcpServerSupport.js';
 import { getMcpCompatibilityDetail, IAgentHostMcpServerSupportScope } from '../agentSessions/agentHost/agentHostMcpServerSupportScope.js';
 import { isMcpServerMigrationDeliverable, McpServerCustomizationMigrator } from './mcpServerCustomizationMigration.js';
+import { IMcpService, WORKSPACE_DOT_MCP_COLLECTION_ID_PREFIX } from '../../../mcp/common/mcpTypes.js';
 
 export class CustomizationMigrationService extends Disposable implements ICustomizationMigrationService {
 	declare readonly _serviceBrand: undefined;
@@ -42,6 +44,7 @@ export class CustomizationMigrationService extends Disposable implements ICustom
 		@ILogService private readonly logService: ILogService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IConfigurationResolverService configurationResolverService: IConfigurationResolverService,
+		@IMcpService private readonly mcpService: IMcpService,
 	) {
 		super();
 		this.mcpServerMigration = new McpServerCustomizationMigrator(fileService, logService, configurationResolverService);
@@ -156,6 +159,7 @@ export class CustomizationMigrationService extends Disposable implements ICustom
 				roots,
 			});
 			const combined = { migratedCount: result.migratedCount, failures: [...failures, ...result.failures] };
+			this.preserveMigratedMcpServerEnablement(supportSnapshot, roots, eligibleCandidates, combined.failures);
 			for (const failure of combined.failures) {
 				if (failure.error) {
 					this.logService.error(`[MCP Customization Migration] Failed: reason=${failure.reason}, server=${failure.name}`, failure.error);
@@ -167,6 +171,37 @@ export class CustomizationMigrationService extends Disposable implements ICustom
 			return combined;
 		} finally {
 			scope.dispose();
+		}
+	}
+
+	private preserveMigratedMcpServerEnablement(
+		snapshot: IAgentHostMcpServerSupportSnapshot,
+		roots: readonly URI[],
+		candidates: readonly IMcpServerCustomizationMigrationCandidate[],
+		failures: readonly IMcpServerCustomizationMigrationFailure[],
+	): void {
+		const failedIds = new Set(failures.map(failure => failure.id));
+		const servers = new Map(snapshot.servers.map(server => [server.id, server]));
+		for (const candidate of candidates) {
+			if (failedIds.has(candidate.id)) {
+				continue;
+			}
+			const state = servers.get(candidate.id)?.enablement.state;
+			const targetState = state === AgentHostMcpServerEnablementState.DisabledProfile
+				? ContributionEnablementState.DisabledProfile
+				: state === AgentHostMcpServerEnablementState.DisabledWorkspace
+					? ContributionEnablementState.DisabledWorkspace
+					: undefined;
+			if (targetState === undefined) {
+				continue;
+			}
+			const rootIndex = roots.findIndex(root => isEqual(candidate.targetUri, URI.joinPath(root, '.mcp.json')));
+			if (rootIndex < 0) {
+				continue;
+			}
+			const targetId = `${WORKSPACE_DOT_MCP_COLLECTION_ID_PREFIX}${rootIndex}.${candidate.name}`;
+			this.mcpService.enablementModel.setEnabled(targetId, targetState);
+			this.mcpService.enablementModel.remove(candidate.id);
 		}
 	}
 
@@ -328,9 +363,6 @@ export class CustomizationMigrationService extends Disposable implements ICustom
 	}
 
 	private getMcpServerMigrationExclusionDetails(server: IAgentHostMcpServerSupport | undefined, reason: McpServerCustomizationMigrationFailureReason): readonly string[] {
-		if (server && !server.enablement.enabled) {
-			return [localize('mcpMigrationServerDisabled', "This server is disabled.")];
-		}
 		if (server && server.applicability !== AgentHostMcpServerApplicability.Applicable) {
 			return [localize('mcpMigrationServerNotApplicable', "This server is not associated with the current workspace.")];
 		}
