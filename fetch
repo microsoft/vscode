@@ -1,0 +1,6 @@
+git fetch https://github.com/microsoft/vscode.git \
+  2c71043a5a0ff5bea31729be5a9a6266826428e4
+git restore --source=2c71043a5a0ff5bea31729be5a9a6266826428e4 \
+  -- src/vs/base/common/numbers.ts
+git add src/vs/base/common/numbers.ts
+git commit -m "Propagate context window options from Copilot models to the picker"
