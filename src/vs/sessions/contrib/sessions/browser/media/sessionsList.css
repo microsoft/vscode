@@ -8,7 +8,7 @@
 	height: 100%;
 	min-height: 0;
 
-	&.session-list-row-spacing .monaco-list-row:is(.session-list-inset-row, .session-list-shortcut-row, .session-list-show-more-row, .session-list-show-more-folders-row) {
+	&.session-list-row-spacing .monaco-list-row:is(.session-list-inset-row, .session-list-show-more-row, .session-list-show-more-folders-row) {
 		padding-bottom: var(--vscode-spacing-size20);
 		background-clip: content-box;
 		outline: 0 !important;
@@ -18,7 +18,7 @@
 		}
 	}
 
-	&.session-list-row-spacing .monaco-list .monaco-list-row:is(.session-list-inset-row, .session-list-shortcut-row, .session-list-show-more-row, .session-list-show-more-folders-row) {
+	&.session-list-row-spacing .monaco-list .monaco-list-row.session-list-inset-row {
 		&.selected > .monaco-tl-row {
 			outline: var(--vscode-strokeThickness) dotted var(--vscode-contrastActiveBorder, transparent);
 			outline-offset: calc(-1 * var(--vscode-strokeThickness));
@@ -39,13 +39,13 @@
 		}
 	}
 
-	&.session-list-row-spacing .monaco-list:focus .monaco-list-row:is(.session-list-inset-row, .session-list-shortcut-row, .session-list-show-more-row, .session-list-show-more-folders-row).focused > .monaco-tl-row,
-	.context-menu-visible &.session-list-row-spacing .monaco-list.last-focused .monaco-list-row:is(.session-list-inset-row, .session-list-shortcut-row, .session-list-show-more-row, .session-list-show-more-folders-row).focused > .monaco-tl-row {
+	&.session-list-row-spacing .monaco-list:focus .monaco-list-row.session-list-inset-row.focused > .monaco-tl-row,
+	.context-menu-visible &.session-list-row-spacing .monaco-list.last-focused .monaco-list-row.session-list-inset-row.focused > .monaco-tl-row {
 		outline: var(--vscode-strokeThickness) solid var(--vscode-list-focusOutline);
 		outline-offset: calc(-1 * var(--vscode-strokeThickness));
 	}
 
-	&.session-list-row-spacing .monaco-list:focus .monaco-list-row:is(.session-list-inset-row, .session-list-shortcut-row, .session-list-show-more-row, .session-list-show-more-folders-row).focused.selected > .monaco-tl-row {
+	&.session-list-row-spacing .monaco-list:focus .monaco-list-row.session-list-inset-row.focused.selected > .monaco-tl-row {
 		outline-color: var(--vscode-list-focusAndSelectionOutline, var(--vscode-contrastActiveBorder, var(--vscode-list-focusOutline)));
 	}
 
@@ -810,24 +810,6 @@
 
 /* Section Header */
 
-.sessions-list-header {
-	width: 100%;
-	padding: var(--vscode-spacing-size100) 0 0;
-	box-sizing: border-box;
-
-	.agent-sessions-header-row {
-		padding-left: var(--vscode-spacing-size100);
-	}
-}
-
-.agent-sessions-workbench .agent-sessions-viewpane .agent-sessions-control-container .sessions-list-control .monaco-list .monaco-list-rows .monaco-list-row.sessions-list-header-row,
-.agent-sessions-workbench .agent-sessions-viewpane .agent-sessions-control-container .sessions-list-control .monaco-list .monaco-list-rows .monaco-list-row.sessions-list-header-row:hover,
-.agent-sessions-workbench .agent-sessions-viewpane .agent-sessions-control-container .sessions-list-control .monaco-list .monaco-list-rows .monaco-list-row.sessions-list-header-row.focused,
-.agent-sessions-workbench .agent-sessions-viewpane .agent-sessions-control-container .sessions-list-control .monaco-list .monaco-list-rows .monaco-list-row.sessions-list-header-row.selected {
-	background-color: transparent;
-	cursor: default;
-}
-
 .session-section {
 	display: flex;
 	align-items: center;
@@ -932,7 +914,7 @@
 	display: block;
 }
 
-/* Shortcut sections only show toolbar on hover, not on focus */
+/* Shortcut sections (Automations) only show toolbar on hover, not on focus */
 .monaco-list-row.focused .session-section.session-section-shortcut .session-section-toolbar {
 	visibility: hidden;
 }
@@ -940,7 +922,6 @@
 	display: block;
 	visibility: hidden;
 }
-
 .monaco-list-row:hover .session-section.session-section-shortcut .session-section-toolbar {
 	visibility: visible;
 }
@@ -988,10 +969,8 @@
 	}
 
 	&.session-section-focus-from-pointer {
-		.monaco-list-row.session-list-section-row.focused,
-		.monaco-list-row.session-list-section-row.selected,
-		.monaco-list-row.session-list-shortcut-row.focused,
-		.monaco-list-row.session-list-shortcut-row.selected {
+		.monaco-list-row.focused:has(.session-section),
+		.monaco-list-row.selected:has(.session-section) {
 			outline: none !important;
 		}
 	}
