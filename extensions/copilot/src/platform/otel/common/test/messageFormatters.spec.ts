@@ -675,6 +675,83 @@ describe('normalizeProviderMessages attachment parts', () => {
 		]);
 	});
 
+	it('prices a URL image at the block\'s detail when the resolver knows the dimensions', () => {
+		const resolveAttachment = () => ({ mimeType: 'image/png', sizeBytes: 184233, width: 1440, height: 900, estimatedTokens: 1105 });
+		const low = normalizeProviderMessages([{
+			role: 'user',
+			content: [{ type: 'image_url', image_url: { url: uploadedUrl, detail: 'low' } }],
+		}], { resolveAttachment });
+		expect(low[0].parts[0]).toMatchObject({ type: 'uri', width: 1440, height: 900, estimated_tokens: 85 });
+
+		const noDimensions = normalizeProviderMessages([{
+			role: 'user',
+			content: [{ type: 'image_url', image_url: { url: uploadedUrl, detail: 'low' } }],
+		}], { resolveAttachment: () => ({ sizeBytes: 10, estimatedTokens: 1105 }) });
+		expect(noDimensions[0].parts[0]).toMatchObject({ type: 'uri', size_bytes: 10, estimated_tokens: 1105 });
+	});
+
+	it('types attachments nested in an Anthropic tool_result and leaves its other blocks alone', () => {
+		const result = normalizeProviderMessages([{
+			role: 'user',
+			content: [{
+				type: 'tool_result',
+				tool_use_id: 'toolu_1',
+				content: [
+					{ type: 'text', text: 'Rendered the chart:' },
+					{ type: 'image', source: { type: 'base64', media_type: 'image/png', data: pngBase64 } },
+					{ type: 'image', source: { type: 'url', url: uploadedUrl } },
+				],
+			}],
+		}], { resolveAttachment: () => ({ mimeType: 'image/png', sizeBytes: 5, width: 100, height: 50 }) });
+		expect(result[0].parts).toEqual([{
+			type: 'tool_call_response',
+			id: 'toolu_1',
+			response: [
+				{ type: 'text', text: 'Rendered the chart:' },
+				{ type: 'blob', modality: 'image', mime_type: 'image/png', content: pngBase64, size_bytes: pngBytes, width: 100, height: 50, estimated_tokens: pngTokens },
+				{ type: 'uri', modality: 'image', mime_type: 'image/png', uri: uploadedUrl, size_bytes: 5, width: 100, height: 50, estimated_tokens: pngTokens },
+			],
+		}]);
+	});
+
+	it('keeps a string tool_result untouched', () => {
+		const result = normalizeProviderMessages([
+			{ role: 'user', content: [{ type: 'tool_result', tool_use_id: 'toolu_1', content: 'plain' }] },
+			{ role: 'tool', tool_call_id: 'call_1', content: 'plain too' },
+		]);
+		expect(result[0].parts).toEqual([{ type: 'tool_call_response', id: 'toolu_1', response: 'plain' }]);
+		expect(result[1].parts).toEqual([{ type: 'tool_call_response', id: 'call_1', response: 'plain too' }]);
+	});
+
+	it('types attachments in a Responses function_call_output but still joins text-only output', () => {
+		const withImage = normalizeProviderMessages([{
+			type: 'function_call_output',
+			call_id: 'call_1',
+			output: [
+				{ type: 'input_text', text: 'screenshot attached' },
+				{ type: 'input_image', image_url: pngDataUrl, detail: 'auto' },
+			],
+		}]);
+		expect(withImage).toEqual([{
+			role: 'tool',
+			parts: [{
+				type: 'tool_call_response',
+				id: 'call_1',
+				response: [
+					{ type: 'input_text', text: 'screenshot attached' },
+					{ type: 'blob', modality: 'image', mime_type: 'image/png', content: pngBase64, size_bytes: pngBytes, width: 100, height: 50, estimated_tokens: pngTokens },
+				],
+			}],
+		}]);
+
+		const textOnly = normalizeProviderMessages([{
+			type: 'function_call_output',
+			call_id: 'call_2',
+			output: [{ type: 'output_text', text: 'a' }, { type: 'output_text', text: 'b' }],
+		}]);
+		expect(textOnly[0].parts[0]).toEqual({ type: 'tool_call_response', id: 'call_2', response: 'ab' });
+	});
+
 	it('emits an inline Anthropic PDF as a document blob with a size-based token estimate', () => {
 		// 48 bytes encode without padding; the estimate is one token per eight bytes.
 		const pdfBase64 = Buffer.alloc(48, '%PDF-1.4').toString('base64');

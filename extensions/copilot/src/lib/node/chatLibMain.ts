@@ -82,6 +82,8 @@ import { NullEnvService } from '../../platform/env/common/nullEnvService';
 import { IGitExtensionService } from '../../platform/git/common/gitExtensionService';
 import { NullGitExtensionService } from '../../platform/git/common/nullGitExtensionService';
 import { IIgnoreService, NullIgnoreService } from '../../platform/ignore/common/ignoreService';
+import { IImageService } from '../../platform/image/common/imageService';
+import { ImageServiceImpl } from '../../platform/image/node/imageServiceImpl';
 import { DocumentId } from '../../platform/inlineEdits/common/dataTypes/documentId';
 import { InlineEditRequestLogContext } from '../../platform/inlineEdits/common/inlineEditLogContext';
 import { IInlineEditsModelService, IUndesiredModelsManager, NullUndesiredModelsManager } from '../../platform/inlineEdits/common/inlineEditsModelService';
@@ -428,6 +430,7 @@ function setupServices(options: INESProviderOptions) {
 	builder.define(ICopilotTokenManager, copilotTokenManager);
 	builder.define(IPowerService, new SyncDescriptor(NullPowerService));
 	builder.define(IChatMLFetcher, new SyncDescriptor(ChatMLFetcherImpl));
+	builder.define(IImageService, new SyncDescriptor(ImageServiceImpl));
 	builder.define(IChatWebSocketManager, new SyncDescriptor(NullChatWebSocketManager));
 	builder.define(IOTelService, new NoopOTelService(resolveOTelConfig({ env: {}, extensionVersion: '0.0.0', sessionId: 'chatlib' })));
 	builder.define(IChatQuotaService, new SyncDescriptor(ChatQuotaService));

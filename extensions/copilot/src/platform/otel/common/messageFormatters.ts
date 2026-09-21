@@ -271,7 +271,7 @@ export function normalizeProviderMessages(messages: ReadonlyArray<Record<string,
 			case 'function_call':
 				return normalizeResponsesFunctionCall(msg);
 			case 'function_call_output':
-				return normalizeResponsesFunctionCallOutput(msg);
+				return normalizeResponsesFunctionCallOutput(msg, options?.resolveAttachment);
 			case 'tool_search_output':
 				return normalizeResponsesToolSearchOutput(msg);
 			case 'reasoning':
@@ -287,7 +287,7 @@ export function normalizeProviderMessages(messages: ReadonlyArray<Record<string,
 
 		// OpenAI tool-result message
 		if (role === 'tool' && typeof msg.tool_call_id === 'string') {
-			parts.push({ type: 'tool_call_response', id: msg.tool_call_id, response: content ?? '' });
+			parts.push({ type: 'tool_call_response', id: msg.tool_call_id, response: normalizeToolResultContent(content ?? '', options?.resolveAttachment) });
 			return { role, parts };
 		}
 
@@ -320,7 +320,7 @@ export function normalizeProviderMessages(messages: ReadonlyArray<Record<string,
 						parts.push({
 							type: 'tool_call_response',
 							id: String(b.tool_use_id ?? ''),
-							response: b.content ?? '',
+							response: normalizeToolResultContent(b.content ?? '', options?.resolveAttachment),
 						});
 						break;
 					case 'thinking':
@@ -383,6 +383,33 @@ export function normalizeProviderMessages(messages: ReadonlyArray<Record<string,
  */
 const DATA_URL_RE = /^data:([^;,]+)?(?:;[^,]*)?;base64,(.*)$/s;
 
+type AttachmentResolver = (uri: string) => OTelAttachmentMetadata | undefined;
+
+const ATTACHMENT_BLOCK_TYPES: ReadonlySet<unknown> = new Set(['image', 'document', 'image_url', 'input_image', 'input_file']);
+
+function isAttachmentBlock(block: unknown): block is Record<string, unknown> {
+	return !!block && typeof block === 'object' && ATTACHMENT_BLOCK_TYPES.has((block as Record<string, unknown>).type);
+}
+
+/**
+ * Tool results carry attachments too: Anthropic `tool_result.content` and
+ * Responses `function_call_output.output` are block arrays that may hold an
+ * image the tool produced. Each attachment block becomes the same typed part
+ * a top-level block would; every other block passes through unchanged so the
+ * `tool_call_response` keeps its shape for consumers that already parse it.
+ */
+function normalizeToolResultContent(content: unknown, resolveAttachment?: AttachmentResolver): unknown {
+	if (!Array.isArray(content)) {
+		return content;
+	}
+	return content.map(block => {
+		if (!isAttachmentBlock(block)) {
+			return block;
+		}
+		return normalizeAttachmentBlock(block, resolveAttachment) ?? block;
+	});
+}
+
 /**
  * Converts a provider-specific binary attachment block into a typed OTel part.
  *
@@ -398,7 +425,7 @@ const DATA_URL_RE = /^data:([^;,]+)?(?:;[^,]*)?;base64,(.*)$/s;
  * `resolveAttachment` when the caller knows them (e.g. from the upload).
  * Returns `undefined` when the block does not have a usable source.
  */
-function normalizeAttachmentBlock(b: Record<string, unknown>, resolveAttachment?: (uri: string) => OTelAttachmentMetadata | undefined): OTelMessagePart | undefined {
+function normalizeAttachmentBlock(b: Record<string, unknown>, resolveAttachment?: AttachmentResolver): OTelMessagePart | undefined {
 	switch (b.type) {
 		case 'image':
 		case 'document': {
@@ -451,12 +478,17 @@ function normalizeAttachmentBlock(b: Record<string, unknown>, resolveAttachment?
 }
 
 /** Routes a URL to a `blob` part when it is a data URL, else to a `uri` part. */
-function referencedPart(modality: OTelAttachmentModality, url: string, mimeType: string | undefined, detail: ImageDetail, resolveAttachment?: (uri: string) => OTelAttachmentMetadata | undefined): OTelMessagePart {
+function referencedPart(modality: OTelAttachmentModality, url: string, mimeType: string | undefined, detail: ImageDetail, resolveAttachment?: AttachmentResolver): OTelMessagePart {
 	const dataUrl = DATA_URL_RE.exec(url);
 	if (dataUrl) {
 		return blobPart(modality, dataUrl[2], mimeType ?? dataUrl[1], detail);
 	}
 	const known = resolveAttachment?.(url);
+	// The resolver's estimate was made without knowing how this request asks for
+	// the image; when it has the dimensions, price them at this block's detail.
+	const estimatedTokens = modality === 'image' && known?.width !== undefined && known?.height !== undefined
+		? calculateImageTokenCostForDimensions(known.width, known.height, detail)
+		: known?.estimatedTokens;
 	return {
 		type: 'uri',
 		modality,
@@ -466,7 +498,7 @@ function referencedPart(modality: OTelAttachmentModality, url: string, mimeType:
 			size_bytes: known?.sizeBytes,
 			width: known?.width,
 			height: known?.height,
-			estimated_tokens: known?.estimatedTokens,
+			estimated_tokens: estimatedTokens,
 		}),
 	};
 }
@@ -548,16 +580,21 @@ function normalizeResponsesFunctionCall(msg: Record<string, unknown>): OTelChatM
  * synthetic tool message carrying a `tool_call_response` part. Mirrors how
  * Chat Completions surfaces tool results via `role: 'tool'` messages.
  */
-function normalizeResponsesFunctionCallOutput(msg: Record<string, unknown>): OTelChatMessage {
+function normalizeResponsesFunctionCallOutput(msg: Record<string, unknown>, resolveAttachment?: AttachmentResolver): OTelChatMessage {
 	const output = msg.output;
 	let response: unknown;
 	if (typeof output === 'string') {
 		response = output;
 	} else if (Array.isArray(output)) {
-		// Output may be an array of `{ type: 'output_text', text }` blocks.
-		response = output
-			.map(b => (b && typeof b === 'object' && typeof (b as Record<string, unknown>).text === 'string') ? (b as Record<string, unknown>).text as string : JSON.stringify(b))
-			.join('');
+		// Output may be an array of `{ type: 'output_text', text }` blocks. When a
+		// tool returned an attachment (`input_image`, `input_file`) the blocks are
+		// kept apart so the attachment gets its typed part; text-only output stays
+		// one string.
+		response = output.some(isAttachmentBlock)
+			? normalizeToolResultContent(output, resolveAttachment)
+			: output
+				.map(b => (b && typeof b === 'object' && typeof (b as Record<string, unknown>).text === 'string') ? (b as Record<string, unknown>).text as string : JSON.stringify(b))
+				.join('');
 	} else {
 		response = output ?? '';
 	}
