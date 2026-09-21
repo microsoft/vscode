@@ -810,8 +810,31 @@ describe('normalizeProviderMessages attachment parts', () => {
 	});
 
 	it('falls back to the text rendering for an attachment block with no usable source', () => {
-		const block = { type: 'image', source: { type: 'mystery' } };
-		const result = normalizeProviderMessages([{ role: 'user', content: [block] }]);
-		expect(result[0].parts).toEqual([{ type: 'text', content: JSON.stringify(block) }]);
+		const blocks = [
+			{ type: 'image', source: { type: 'mystery' } },
+			{ type: 'image', source: { type: 'url', url: '' } },
+			{ type: 'image', source: { type: 'base64', media_type: 'image/png', data: '' } },
+			{ type: 'image_url', image_url: { url: '' } },
+			{ type: 'image_url', image_url: 'data:image/png;base64,' },
+			{ type: 'input_image', image_url: '', file_id: '' },
+			{ type: 'input_file', file_data: '' },
+		];
+		const result = normalizeProviderMessages([{ role: 'user', content: blocks }]);
+		expect(result[0].parts).toEqual(blocks.map(block => ({ type: 'text', content: JSON.stringify(block) })));
+	});
+
+	it('uses a file id when the inline payload beside it is empty', () => {
+		const result = normalizeProviderMessages([{
+			type: 'message',
+			role: 'user',
+			content: [{ type: 'input_file', file_data: '', file_id: 'file_9' }],
+		}]);
+		expect(result[0].parts).toEqual([{ type: 'file', modality: 'document', mime_type: null, file_id: 'file_9' }]);
+	});
+
+	it('keeps the joined-text output when a function_call_output attachment block is unusable', () => {
+		const block = { type: 'input_image' };
+		const result = normalizeProviderMessages([{ type: 'function_call_output', call_id: 'call_1', output: [{ type: 'output_text', text: 'x' }, block] }]);
+		expect(result[0].parts).toEqual([{ type: 'tool_call_response', id: 'call_1', response: `x${JSON.stringify(block)}` }]);
 	});
 });

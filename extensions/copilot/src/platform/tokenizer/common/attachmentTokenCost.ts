@@ -12,15 +12,22 @@ export type ImageDetail = 'low' | 'high' | 'auto' | undefined;
  * https://platform.openai.com/docs/guides/vision#calculating-costs
  */
 export function calculateImageTokenCostForDimensions(width: number, height: number, detail: ImageDetail): number {
+	if (!isPositiveFinite(width) || !isPositiveFinite(height)) {
+		throw new Error(`Invalid image dimensions: ${width}x${height}`);
+	}
+
 	if (detail === 'low') {
 		return 85;
 	}
 
-	// Scale image to fit within a 2048 x 2048 square if necessary.
+	// Scale image to fit within a 2048 x 2048 square if necessary. The scaled
+	// sizes stay fractional until the end: rounding here would turn the short
+	// side of a very elongated image into 0 and the next step into a division
+	// by zero.
 	if (width > 2048 || height > 2048) {
 		const scaleFactor = 2048 / Math.max(width, height);
-		width = Math.round(width * scaleFactor);
-		height = Math.round(height * scaleFactor);
+		width *= scaleFactor;
+		height *= scaleFactor;
 	}
 
 	const scaleFactor = 768 / Math.min(width, height);
@@ -30,6 +37,10 @@ export function calculateImageTokenCostForDimensions(width: number, height: numb
 	const tiles = Math.ceil(width / 512) * Math.ceil(height / 512);
 
 	return tiles * 170 + 85;
+}
+
+function isPositiveFinite(value: number): boolean {
+	return Number.isFinite(value) && value > 0;
 }
 
 /**

@@ -399,15 +399,21 @@ function isAttachmentBlock(block: unknown): block is Record<string, unknown> {
  * `tool_call_response` keeps its shape for consumers that already parse it.
  */
 function normalizeToolResultContent(content: unknown, resolveAttachment?: AttachmentResolver): unknown {
-	if (!Array.isArray(content)) {
-		return content;
-	}
-	return content.map(block => {
-		if (!isAttachmentBlock(block)) {
-			return block;
+	return Array.isArray(content) ? normalizeToolResultBlocks(content, resolveAttachment).blocks : content;
+}
+
+/** The array form of {@link normalizeToolResultContent}, also reporting how many blocks became typed parts. */
+function normalizeToolResultBlocks(content: readonly unknown[], resolveAttachment?: AttachmentResolver): { blocks: unknown[]; typed: number } {
+	let typed = 0;
+	const blocks = content.map(block => {
+		const part = isAttachmentBlock(block) ? normalizeAttachmentBlock(block, resolveAttachment) : undefined;
+		if (part) {
+			typed++;
+			return part;
 		}
-		return normalizeAttachmentBlock(block, resolveAttachment) ?? block;
+		return block;
 	});
+	return { blocks, typed };
 }
 
 /**
@@ -431,44 +437,49 @@ function normalizeAttachmentBlock(b: Record<string, unknown>, resolveAttachment?
 		case 'document': {
 			const modality: OTelAttachmentModality = b.type;
 			const source = asRecord(b.source);
-			const mimeType = asString(source?.media_type);
-			if (source?.type === 'base64' && typeof source.data === 'string') {
-				return blobPart(modality, source.data, mimeType, undefined);
+			const mimeType = nonEmptyString(source?.media_type);
+			const data = nonEmptyString(source?.data);
+			if (source?.type === 'base64' && data !== undefined) {
+				return blobPart(modality, data, mimeType, undefined);
 			}
-			if (typeof source?.url === 'string') {
-				return referencedPart(modality, source.url, mimeType, undefined, resolveAttachment);
+			const url = nonEmptyString(source?.url);
+			if (url !== undefined) {
+				return referencedPart(modality, url, mimeType, undefined, resolveAttachment);
 			}
-			if (typeof source?.file_id === 'string') {
-				return filePart(modality, source.file_id, mimeType);
+			const fileId = nonEmptyString(source?.file_id);
+			if (fileId !== undefined) {
+				return filePart(modality, fileId, mimeType);
 			}
 			return undefined;
 		}
 		case 'image_url': {
 			const imageUrl = typeof b.image_url === 'string' ? { url: b.image_url } : asRecord(b.image_url);
-			const url = asString(imageUrl?.url);
+			const url = nonEmptyString(imageUrl?.url);
 			if (url === undefined) {
 				return undefined;
 			}
 			// CAPI extension: `media_type` rides on `image_url` for uploaded attachments.
-			return referencedPart('image', url, asString(imageUrl?.media_type), asDetail(imageUrl?.detail), resolveAttachment);
+			return referencedPart('image', url, nonEmptyString(imageUrl?.media_type), asDetail(imageUrl?.detail), resolveAttachment);
 		}
 		case 'input_image': {
-			const url = asString(b.image_url);
+			const url = nonEmptyString(b.image_url);
 			if (url !== undefined) {
 				return referencedPart('image', url, undefined, asDetail(b.detail), resolveAttachment);
 			}
-			if (typeof b.file_id === 'string') {
-				return filePart('image', b.file_id, undefined);
+			const fileId = nonEmptyString(b.file_id);
+			if (fileId !== undefined) {
+				return filePart('image', fileId, undefined);
 			}
 			return undefined;
 		}
 		case 'input_file': {
-			const fileData = asString(b.file_data);
+			const fileData = nonEmptyString(b.file_data);
 			if (fileData !== undefined) {
 				return referencedPart('document', fileData, undefined, undefined, resolveAttachment);
 			}
-			if (typeof b.file_id === 'string') {
-				return filePart('document', b.file_id, undefined);
+			const fileId = nonEmptyString(b.file_id);
+			if (fileId !== undefined) {
+				return filePart('document', fileId, undefined);
 			}
 			return undefined;
 		}
@@ -477,11 +488,15 @@ function normalizeAttachmentBlock(b: Record<string, unknown>, resolveAttachment?
 	}
 }
 
-/** Routes a URL to a `blob` part when it is a data URL, else to a `uri` part. */
-function referencedPart(modality: OTelAttachmentModality, url: string, mimeType: string | undefined, detail: ImageDetail, resolveAttachment?: AttachmentResolver): OTelMessagePart {
+/**
+ * Routes a URL to a `blob` part when it is a data URL, else to a `uri` part.
+ * A data URL with no payload is not a usable source and yields `undefined`.
+ */
+function referencedPart(modality: OTelAttachmentModality, url: string, mimeType: string | undefined, detail: ImageDetail, resolveAttachment?: AttachmentResolver): OTelMessagePart | undefined {
 	const dataUrl = DATA_URL_RE.exec(url);
 	if (dataUrl) {
-		return blobPart(modality, dataUrl[2], mimeType ?? dataUrl[1], detail);
+		const payload = nonEmptyString(dataUrl[2]);
+		return payload === undefined ? undefined : blobPart(modality, payload, mimeType ?? nonEmptyString(dataUrl[1]), detail);
 	}
 	const known = resolveAttachment?.(url);
 	// The resolver's estimate was made without knowing how this request asks for
@@ -551,8 +566,8 @@ function asRecord(value: unknown): Record<string, unknown> | undefined {
 	return value !== null && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : undefined;
 }
 
-function asString(value: unknown): string | undefined {
-	return typeof value === 'string' ? value : undefined;
+function nonEmptyString(value: unknown): string | undefined {
+	return typeof value === 'string' && value.length > 0 ? value : undefined;
 }
 
 function asDetail(value: unknown): ImageDetail {
@@ -588,10 +603,11 @@ function normalizeResponsesFunctionCallOutput(msg: Record<string, unknown>, reso
 	} else if (Array.isArray(output)) {
 		// Output may be an array of `{ type: 'output_text', text }` blocks. When a
 		// tool returned an attachment (`input_image`, `input_file`) the blocks are
-		// kept apart so the attachment gets its typed part; text-only output stays
-		// one string.
-		response = output.some(isAttachmentBlock)
-			? normalizeToolResultContent(output, resolveAttachment)
+		// kept apart so the attachment gets its typed part; otherwise the output
+		// stays one string as before.
+		const { blocks, typed } = normalizeToolResultBlocks(output, resolveAttachment);
+		response = typed > 0
+			? blocks
 			: output
 				.map(b => (b && typeof b === 'object' && typeof (b as Record<string, unknown>).text === 'string') ? (b as Record<string, unknown>).text as string : JSON.stringify(b))
 				.join('');
