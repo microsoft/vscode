@@ -5373,6 +5373,35 @@ suite('CopilotAgent', () => {
 			}
 		}
 
+		// These tests assert how the agent resolves and forwards the CAPI proxy.
+		// The production resolver reads ambient proxy env vars (`_resolveProxyForSdk`
+		// short-circuits when one is set, and `_createCopilotCliEnvironment` forwards
+		// them), so an inherited `HTTPS_PROXY`/`HTTP_PROXY`/etc. on the CI runner would
+		// leak in and make the resolver observations non-deterministic. Clear the
+		// ambient proxy env for the suite and restore it afterwards so each test starts
+		// from a known, proxy-free environment.
+		const ambientProxyEnvKeys = ['HTTPS_PROXY', 'https_proxy', 'HTTP_PROXY', 'http_proxy', 'ALL_PROXY', 'all_proxy', 'NO_PROXY', 'no_proxy'] as const;
+		let savedAmbientProxyEnv: Record<string, string | undefined>;
+
+		setup(() => {
+			savedAmbientProxyEnv = {};
+			for (const key of ambientProxyEnvKeys) {
+				savedAmbientProxyEnv[key] = process.env[key];
+				delete process.env[key];
+			}
+		});
+
+		teardown(() => {
+			for (const key of ambientProxyEnvKeys) {
+				const value = savedAmbientProxyEnv[key];
+				if (value === undefined) {
+					delete process.env[key];
+				} else {
+					process.env[key] = value;
+				}
+			}
+		});
+
 		test('self-heals a configuration-changed cold-start abort when stopping the started client fails', async () => {
 			const client = new StopCountingClient([]);
 			const startGate = new DeferredPromise<void>();
