@@ -207,13 +207,17 @@ export function getToolInvocationA11yDescription(
 	pastTenseMessage: string | undefined,
 	toolSpecificData: ToolSpecificData | undefined,
 	resultDetails: ResultDetails | undefined,
-	isComplete: boolean
+	isComplete: boolean,
+	originMessage?: string,
 ): string {
 	const parts: string[] = [];
 
 	const message = isComplete && pastTenseMessage ? pastTenseMessage : invocationMessage;
 	if (message) {
 		parts.push(message);
+	}
+	if (originMessage) {
+		parts.push(originMessage);
 	}
 
 	const toolDataDesc = getToolSpecificDataDescription(toolSpecificData);
@@ -440,6 +444,9 @@ export function getChatResponsePlaintextParts(item: IChatResponseViewModel, incl
 					if (toolDataDesc) {
 						toolContent += `: ${toolDataDesc}`;
 					}
+					if (part.originMessage) {
+						toolContent += `\n${renderChatMessageAsPlaintext(part.originMessage)}`;
+					}
 					if (message) {
 						toolContent += `\n${message}`;
 					}
@@ -461,7 +468,8 @@ export function getChatResponsePlaintextParts(item: IChatResponseViewModel, incl
 						part.pastTenseMessage ? renderChatMessageAsPlaintext(part.pastTenseMessage) : undefined,
 						part.toolSpecificData,
 						resultDetails,
-						isComplete
+						isComplete,
+						part.originMessage ? renderChatMessageAsPlaintext(part.originMessage) : undefined,
 					);
 					if (description) {
 						contentParts.push({ partIndex, text: description });
@@ -475,7 +483,8 @@ export function getChatResponsePlaintextParts(item: IChatResponseViewModel, incl
 					part.pastTenseMessage ? renderChatMessageAsPlaintext(part.pastTenseMessage) : undefined,
 					part.toolSpecificData,
 					part.resultDetails,
-					part.isComplete
+					part.isComplete,
+					part.originMessage ? renderChatMessageAsPlaintext(part.originMessage) : undefined,
 				);
 				if (description) {
 					contentParts.push({ partIndex, text: description });

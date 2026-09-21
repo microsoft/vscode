@@ -1873,6 +1873,11 @@ function createSessionTitleFromArgs(toolInput: string | undefined): string | und
 	}
 }
 
+function toolCallOriginMessage(tc: ToolCallState): string | undefined {
+	const serverName = readToolCallMeta(tc).mcpServerName?.trim();
+	return serverName ? localize('agentHost.mcpServer.origin', "{0} (MCP Server)", serverName) : undefined;
+}
+
 function completedToolCallConfirmedReason(tc: ICompletedToolCall): NonNullable<IChatToolInvocationSerialized['isConfirmed']> {
 	if (tc.status === ToolCallStatus.Completed) {
 		return { type: ToolConfirmKind.ConfirmationNotNeeded };
@@ -1904,7 +1909,7 @@ export function completedToolCallToSerialized(tc: ICompletedToolCall, subAgentIn
 			toolId: tc.toolName,
 			source: ToolDataSource.Internal,
 			invocationMessage: invocationMsg,
-			originMessage: undefined,
+			originMessage: toolCallOriginMessage(tc),
 			pastTenseMessage: pastTenseMsg,
 			isConfirmed: completedToolCallConfirmedReason(tc),
 			isComplete: true,
@@ -1961,7 +1966,7 @@ export function completedToolCallToSerialized(tc: ICompletedToolCall, subAgentIn
 		toolId: tc.toolName,
 		source: ToolDataSource.Internal,
 		invocationMessage: invocationMsg,
-		originMessage: undefined,
+		originMessage: toolCallOriginMessage(tc),
 		pastTenseMessage: isTerminal ? undefined : pastTenseMsg,
 		isConfirmed: completedToolCallConfirmedReason(tc),
 		isComplete: true,
@@ -2456,6 +2461,7 @@ export function toolCallStateToInvocation(tc: ToolCallState, subAgentInvocationI
 		return new ChatToolInvocation(
 			{
 				invocationMessage: stringOrMarkdownToString(tc.invocationMessage, connectionAuthority),
+				originMessage: toolCallOriginMessage(tc),
 				confirmationMessages,
 				presentation: ToolInvocationPresentation.HiddenAfterComplete,
 				toolSpecificData,
@@ -2467,7 +2473,7 @@ export function toolCallStateToInvocation(tc: ToolCallState, subAgentInvocationI
 		);
 	}
 
-	const invocation = new ChatToolInvocation(undefined, toolData, tc.toolCallId, subAgentInvocationId, undefined);
+	const invocation = new ChatToolInvocation({ originMessage: toolCallOriginMessage(tc) }, toolData, tc.toolCallId, subAgentInvocationId, undefined);
 	invocation.invocationMessage = stringOrMarkdownToString(tc.invocationMessage, connectionAuthority) ?? tc.displayName;
 	if (isAgentHostAskUserTool(tc.toolName)) {
 		invocation.invocationMessage = localize('agentHost.askUser.waiting', "Waiting for answer...");
@@ -2597,6 +2603,7 @@ export function updateStreamingToolInvocation(existing: ChatToolInvocation, tc: 
 	if (tc.status !== ToolCallStatus.Streaming) {
 		return undefined;
 	}
+	existing.originMessage = toolCallOriginMessage(tc) ?? existing.originMessage;
 	// Partial read paths render as misleading file links, so wait for the complete input.
 	if (getToolKind(tc) === 'read') {
 		existing.updatePartialInput(undefined);
@@ -2625,6 +2632,7 @@ export function toolCallStateToPreparedInvocation(tc: ToolCallState, sessionReso
 	const built = toolCallStateToInvocation(tc, undefined, sessionResource, connectionAuthority, mcpServerAuthority, options, resourceUris);
 	return {
 		invocationMessage: built.invocationMessage,
+		originMessage: built.originMessage,
 		pastTenseMessage: built.pastTenseMessage,
 		confirmationMessages: built.confirmationMessages,
 		presentation: built.presentation,
@@ -2644,6 +2652,7 @@ export function updateRunningToolSpecificData(existing: ChatToolInvocation, tc: 
 		return;
 	}
 	existing.invocationMessage = stringOrMarkdownToString(tc.invocationMessage, connectionAuthority) ?? existing.invocationMessage;
+	existing.originMessage = toolCallOriginMessage(tc) ?? existing.originMessage;
 	if (isAgentHostAskUserTool(tc.toolName)) {
 		existing.invocationMessage = localize('agentHost.askUser.waiting', "Waiting for answer...");
 		existing.presentation = ToolInvocationPresentation.HiddenAfterComplete;
@@ -2761,6 +2770,7 @@ export function finalizeToolInvocation(invocation: ChatToolInvocation, tc: ToolC
 
 	if ((isCompleted || isCancelled) && hasKey(tc, { invocationMessage: true })) {
 		invocation.invocationMessage = stringOrMarkdownToString(tc.invocationMessage, connectionAuthority) ?? invocation.invocationMessage;
+		invocation.originMessage = toolCallOriginMessage(tc) ?? invocation.originMessage;
 	}
 	// Tools that render a bespoke, client-authored message override the
 	// invocation text here. Add new per-tool cases alongside this branch.

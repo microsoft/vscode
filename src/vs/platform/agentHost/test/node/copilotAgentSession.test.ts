@@ -9092,12 +9092,13 @@ Use the attached image as context.
 			);
 		});
 
-		test('MCP tool deltas stream before final contributor metadata arrives', async () => {
-			const { mockSession, signals } = await createAgentSession(disposables, {
+		test('MCP tool deltas resolve the canonical title when contributor metadata arrives', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables, {
 				configureMockSession: mock => {
 					mock.mcpListResult = { servers: [{ name: 'docs', status: 'connected' }] };
 				},
 			});
+			session.resetTurnState('turn-mcp');
 			mockSession.fire('session.mcp_server_status_changed', {
 				serverName: 'docs',
 				status: 'connected',
@@ -9108,10 +9109,23 @@ Use the attached image as context.
 				inputDelta: '{"topic":"metadata"}',
 			});
 			await timeout(STREAMING_TOOL_DISPLAY_INTERVAL_MS + 10);
+			mockSession.fire('assistant.message', {
+				messageId: 'message-mcp',
+				content: '',
+				toolRequests: [{
+					toolCallId: 'tc-stream-mcp',
+					name: 'mcp_tool',
+					toolTitle: 'Look up documentation',
+					mcpServerName: 'docs',
+					mcpToolName: 'lookup_topic',
+					arguments: { topic: 'metadata' },
+				}],
+			});
 			mockSession.fire('tool.execution_start', {
 				toolCallId: 'tc-stream-mcp',
 				toolName: 'mcp_tool',
 				mcpServerName: 'docs',
+				mcpToolName: 'lookup_topic',
 				arguments: { topic: 'metadata' },
 			} as SessionEventPayload<'tool.execution_start'>['data']);
 
@@ -9127,6 +9141,7 @@ Use the attached image as context.
 					hasInvocationMessage: action.invocationMessage !== undefined,
 				})),
 				readyContributor: ready?.contributor,
+				invocationMessage: ready?.invocationMessage,
 			}, {
 				startCount: 1,
 				startContributor: undefined,
@@ -9135,6 +9150,55 @@ Use the attached image as context.
 					kind: ToolCallContributorKind.MCP,
 					customizationId: 'mcp-top-level:copilot:test-session-1:docs',
 				},
+				invocationMessage: 'Look up documentation',
+			});
+		});
+
+		test('MCP tool titles are preserved from start through completion without renaming the tool', async () => {
+			const { session, mockSession, signals, waitForSignal } = await createAgentSession(disposables);
+			session.resetTurnState('turn-mcp-title');
+			const toolName = 'io-github-github-github-mcp-server-issue_read';
+			mockSession.fire('assistant.message', {
+				messageId: 'message-mcp-title',
+				content: '',
+				toolRequests: [{
+					toolCallId: 'tc-mcp-title',
+					name: toolName,
+					toolTitle: 'Read issue',
+					mcpServerName: 'GitHub',
+					mcpToolName: 'issue_read',
+				}],
+			});
+			mockSession.fire('tool.execution_start', {
+				toolCallId: 'tc-mcp-title',
+				toolName,
+				mcpServerName: 'GitHub',
+				mcpToolName: 'issue_read',
+				arguments: { issue_number: 123 },
+			});
+			mockSession.fire('tool.execution_complete', {
+				toolCallId: 'tc-mcp-title',
+				success: true,
+				result: { content: 'Issue details' },
+			});
+			await waitForSignal(signal => isAction(signal, ActionType.ChatToolCallComplete));
+
+			const actions = getActions(signals);
+			const start = actions.find(action => action.type === ActionType.ChatToolCallStart);
+			const ready = actions.find(action => action.type === ActionType.ChatToolCallReady);
+			const complete = actions.find(action => action.type === ActionType.ChatToolCallComplete);
+			assert.deepStrictEqual({
+				toolName: start?.toolName,
+				displayName: start?.displayName,
+				invocationMessage: ready?.invocationMessage,
+				pastTenseMessage: complete?.result.pastTenseMessage,
+				meta: start && readToolCallMeta(start),
+			}, {
+				toolName,
+				displayName: 'Read issue',
+				invocationMessage: 'Read issue',
+				pastTenseMessage: 'Read issue',
+				meta: { mcpServerName: 'GitHub', mcpToolName: 'issue_read' },
 			});
 		});
 

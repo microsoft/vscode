@@ -705,6 +705,8 @@ class CopilotTurn extends Disposable {
 	/** Current reasoning response part IDs for this turn, keyed by `parentToolCallId ?? ''`. */
 	readonly reasoningPartIds = new Map<string, string>();
 
+	readonly toolTitles = new Map<string, string>();
+
 	/**
 	 * Per-turn tool-call aggregate accumulated across the turn's `assistant.message` rounds (main
 	 * agent only), for the restricted `toolCallDetails` telemetry. `toolCounts` is keyed by tool name.
@@ -4128,7 +4130,7 @@ export class CopilotAgentSession extends Disposable {
 					status: ToolCallStatus.PendingConfirmation,
 					toolCallId,
 					toolName,
-					displayName: getToolDisplayName(toolName),
+					displayName: getToolDisplayName(toolName, request.kind === 'mcp' ? request : undefined),
 					contributor: trackedToolCall?.contributor,
 					intention: trackedToolCall?.intention,
 					invocationMessage,
@@ -5222,10 +5224,6 @@ export class CopilotAgentSession extends Disposable {
 			// turn, the live state is up to date and we skip. Only emit a fresh
 			// part when no deltas preceded the message (e.g. text after tool calls
 			// where the SDK delivered the full message at once).
-			//
-			// Other fields (toolRequests, reasoningText, encryptedContent) are
-			// only used for history reconstruction and live tool calls fire their
-			// own tool_start events, so we can safely drop them here.
 			if (this._shouldDropUnmappedSubagentEvent(e, 'assistant.message')) {
 				return;
 			}
@@ -5253,6 +5251,11 @@ export class CopilotAgentSession extends Disposable {
 				}, parentToolCallId);
 			}
 			if (e.data.toolRequests?.length) {
+				for (const request of e.data.toolRequests) {
+					if (request.toolTitle) {
+						this._currentTurn.value?.toolTitles.set(request.toolCallId, request.toolTitle);
+					}
+				}
 				// Wait for the full message boundary; clearing on an earlier tool delta would duplicate assembled markdown.
 				this._beginToolCallRound(parentToolCallId);
 			}
@@ -5362,6 +5365,8 @@ export class CopilotAgentSession extends Disposable {
 			if (!e.agentId && this._shouldDropLateRootTurnEvent('tool.execution_start')) {
 				return;
 			}
+			const toolTitle = this._currentTurn.value?.toolTitles.get(e.data.toolCallId);
+			this._currentTurn.value?.toolTitles.delete(e.data.toolCallId);
 			if (isHiddenTool(e.data.toolName)) {
 				this._streamingToolDisplaySchedulers.deleteAndDispose(e.data.toolCallId);
 				this._streamingToolCalls.delete(e.data.toolCallId);
@@ -5380,7 +5385,7 @@ export class CopilotAgentSession extends Disposable {
 			if (stripRedundantCdPrefix(e.data.toolName, parameters, this._workingDirectory)) {
 				toolArgs = tryStringify(parameters);
 			}
-			const displayName = getToolDisplayName(e.data.toolName);
+			const displayName = getToolDisplayName(e.data.toolName, { toolTitle, mcpToolName: e.data.mcpToolName });
 			const streamed = this._streamingToolCalls.get(e.data.toolCallId);
 			this._streamingToolDisplaySchedulers.deleteAndDispose(e.data.toolCallId);
 			if (streamed?.started && streamed.displayedInputLength < streamed.input.length) {

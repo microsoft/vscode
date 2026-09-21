@@ -17,11 +17,34 @@ import { ChatResponseAccessibleView, CHAT_ACCESSIBLE_VIEW_INCLUDE_THINKING_STORA
 import { IChatWidget, IChatWidgetService } from '../../../browser/chat.js';
 import { IChatExtensionsContent, IChatPullRequestContent, IChatSessionCreatedData, IChatSubagentToolInvocationData, IChatTerminalToolInvocationData, IChatTodoListContent, IChatToolInputInvocationData, IChatToolResourcesInvocationData } from '../../../common/chatService/chatService.js';
 import type { IResponse } from '../../../common/model/chatModel.js';
+import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
 import type { IChatResponseViewModel } from '../../../common/model/chatViewModel.js';
+import { ToolDataSource } from '../../../common/tools/languageModelToolsService.js';
 import { TestStorageService } from '../../../../../test/common/workbenchTestServices.js';
 
 suite('ChatResponseAccessibleView', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('includes MCP tool titles and server origins in live and restored content', () => {
+		const invocation = new ChatToolInvocation({
+			invocationMessage: 'Read issue',
+			originMessage: 'GitHub (MCP Server)',
+		}, {
+			id: 'io-github-github-github-mcp-server-issue_read',
+			displayName: 'Read issue',
+			modelDescription: 'Read an issue',
+			source: ToolDataSource.Internal,
+		}, 'tc-mcp', undefined, undefined);
+		invocation.didExecuteTool(undefined);
+		const item = upcastPartial<IChatResponseViewModel>({
+			response: upcastPartial<IResponse>({ value: [invocation, invocation.toJSON()] }),
+		});
+
+		assert.deepStrictEqual(getChatResponsePlaintextParts(item, true), [
+			{ partIndex: 0, text: 'Read issue. GitHub (MCP Server)' },
+			{ partIndex: 1, text: 'Read issue. GitHub (MCP Server)' },
+		]);
+	});
 
 	test('omits the hidden workspace-continuation request text while preserving transition and provider response text', () => {
 		const item = upcastPartial<IChatResponseViewModel>({
