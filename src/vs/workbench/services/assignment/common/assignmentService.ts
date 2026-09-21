@@ -483,7 +483,11 @@ export class WorkbenchAssignmentService extends Disposable implements IAssignmen
 			const githubAssignmentsFilterProvider = this.instantiationService.createInstance(GitHubCoreAssignmentsFilterProvider);
 			this.tasSetupDisposables.add(githubAssignmentsFilterProvider);
 			this.tasSetupDisposables.add(githubAssignmentsFilterProvider.onDidChangeFilters(() => this.refetchAssignments()));
-			assignmentsFilterProviders = [coreAssignmentsFilterProvider, githubAssignmentsFilterProvider];
+			assignmentsFilterProviders = [
+				coreAssignmentsFilterProvider,
+				githubAssignmentsFilterProvider,
+				{ getFilters: () => extensionsFilterProvider.getAssignmentsFilters() },
+			];
 		}
 
 		const tasConfig = this.productService.tasConfig!;
