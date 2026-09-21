@@ -18942,6 +18942,46 @@ suite('AgentService (node dispatcher)', () => {
 
 		// ---- BC1: one-time legacy `*.chats` migration on restore ----------
 
+		test('legacy enumeration cannot overwrite a peer created while restoration is in flight', async () => {
+			const enumerationStarted = new DeferredPromise<void>();
+			const enumeration = new DeferredPromise<readonly IAgentLegacyChat[]>();
+			class LegacyAgent extends MockAgent {
+				override async createChat(): Promise<IAgentCreateChatResult> {
+					return { providerData: 'new-peer-backing' };
+				}
+				async listLegacyChatBackings(): Promise<readonly IAgentLegacyChat[]> {
+					enumerationStarted.complete();
+					return enumeration.p;
+				}
+			}
+			const db = new TestSessionDatabase();
+			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			registerTestAgentProvider(localService, disposables.add(new LegacyAgent('copilot')));
+			const session = await localService.createSession({ provider: 'copilot' });
+			const peer = URI.parse(buildChatUri(session, 'created-during-restore'));
+			getStateManager(localService).deleteSession(session.toString());
+
+			const restoration = localService.restoreSession(session);
+			await enumerationStarted.p;
+			try {
+				await localService.createChat(session, peer);
+			} finally {
+				enumeration.complete([]);
+			}
+			await restoration;
+			const catalog = await readCatalog(db);
+			getStateManager(localService).deleteSession(session.toString());
+			await localService.restoreSession(session);
+
+			assert.deepStrictEqual({
+				catalog,
+				restoredChats: getStateManager(localService).getSessionState(session.toString())?.chats.map(chat => chat.resource),
+			}, {
+				catalog: [{ uri: peer.toString(), providerData: 'new-peer-backing' }],
+				restoredChats: [buildDefaultChatUri(session), peer.toString()],
+			});
+		});
+
 		test('legacy *.chats with no peerChats catalog migrates once into the orchestrator catalog', async () => {
 			class LegacyAgent extends MockAgent {
 				listLegacyCallCount = 0;

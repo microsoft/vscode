@@ -7308,8 +7308,7 @@ export class AgentService extends Disposable implements IAgentService {
 				return providerData !== undefined ? { ...peer, providerData } : peer;
 			});
 			const peers = await this._peerChatStore.readLocalChatMetadata(enrichedPeers);
-			await this._peerChatStore.replace(session, peers);
-			return peers;
+			return this._peerChatStore.initialize(session, peers, database);
 		}
 		let legacy: readonly IAgentLegacyChat[] | undefined;
 		try {
@@ -7325,8 +7324,7 @@ export class AgentService extends Disposable implements IAgentService {
 			uri: chat.uri.toString(),
 			...(chat.providerData !== undefined ? { providerData: chat.providerData } : {}),
 		}));
-		await this._peerChatStore.replace(session, entries);
-		return entries;
+		return this._peerChatStore.initialize(session, entries, database);
 	}
 
 	/**
