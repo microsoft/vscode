@@ -3,8 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Codicon } from '../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { getIconRegistry } from '../../../../platform/theme/common/iconRegistry.js';
+import { chatWorkingProgressInsidersIconForeground, chatWorkingProgressStableIconForeground } from '../common/widget/chatColors.js';
+
+export function getChatWorkingProgressIcon(quality: string | undefined): ThemeIcon {
+	return {
+		id: Codicon.vscode.id,
+		color: { id: quality === 'insider' ? chatWorkingProgressInsidersIconForeground : chatWorkingProgressStableIconForeground },
+	};
+}
 
 /**
  * Returns the compact variant of a codicon when one is registered.

@@ -1243,7 +1243,7 @@ suite('ProtocolServerHandler', () => {
 		});
 	});
 
-	test('extension methods can be disabled without blocking managed settings contributions', () => {
+	test('extension methods can be disabled without blocking session-data methods or managed settings contributions', async () => {
 		const localDisposables = disposables.add(new DisposableStore());
 		const localServer = localDisposables.add(new MockProtocolServer());
 		localDisposables.add(new ProtocolServerHandler(
@@ -1269,13 +1269,18 @@ suite('ProtocolServerHandler', () => {
 		}));
 		const initializeResponse = findResponse(transport.sent, 1);
 		assert.ok(initializeResponse && hasKey(initializeResponse, { result: true }));
-		assert.strictEqual(supportsAgentHostArtifactRemoval(initializeResponse.result as InitializeResult), false);
+		assert.strictEqual(supportsAgentHostArtifactRemoval(initializeResponse.result as InitializeResult), true);
 		assert.strictEqual(supportsAgentHostDevContainers(initializeResponse.result as InitializeResult), false);
 		transport.sent.length = 0;
 		transport.simulateMessage(request(2, 'shutdown', {}));
 		transport.simulateMessage(request(3, DevContainerIsDockerAvailableExtensionMethod, undefined));
 		const containerResponse = findResponse(transport.sent, 3);
 		assert.ok(containerResponse && hasKey(containerResponse, { error: true }) && containerResponse.error?.code === JsonRpcErrorCodes.MethodNotFound);
+		const removeResponsePromise = waitForResponse(transport, 4);
+		transport.simulateMessage(request(4, RemoveSessionArtifactExtensionMethod, {
+			session: 'copilotcli:/session-1',
+			artifactId: 'artifact-1',
+		}));
 		transport.simulateMessage(notification('setClientManagedSettingsPermissions', {
 			permissions: { disableBypassPermissionsMode: 'disable', ask: ['Shell'] },
 		}));
@@ -1283,10 +1288,14 @@ suite('ProtocolServerHandler', () => {
 		assert.deepStrictEqual({
 			response: findResponse(transport.sent, 2),
 			shutdownCalls: agentService.shutdownCalls,
+			removeResponse: await removeResponsePromise,
+			removeSessionArtifactCalls: agentService.removeSessionArtifactCalls,
 			managedSettingsPermissions: managedSettingsService.permissions,
 		}, {
 			response: { jsonrpc: '2.0', id: 2, error: { code: JsonRpcErrorCodes.MethodNotFound, message: 'Method not found: shutdown' } },
 			shutdownCalls: 0,
+			removeResponse: { jsonrpc: '2.0', id: 4, result: null },
+			removeSessionArtifactCalls: [{ session: 'copilotcli:/session-1', artifactId: 'artifact-1' }],
 			managedSettingsPermissions: { disableBypassPermissionsMode: 'disable', ask: ['Shell'] },
 		});
 	});
@@ -2056,13 +2065,17 @@ suite('ProtocolServerHandler', () => {
 			});
 		});
 
-		test('createChat for an additional chat forwards to the agent service and grows the catalog', async () => {
+		test('createChat for an additional chat forwards working directories and grows the catalog', async () => {
 			stateManager.createSession(makeSessionSummary());
 			const transport = connectClient('client-cc');
 			transport.sent.length = 0;
 			const responsePromise = waitForResponse(transport, 2);
 
-			transport.simulateMessage(request(2, 'createChat', { channel: sessionUri, chat: peerChat }));
+			transport.simulateMessage(request(2, 'createChat', {
+				channel: sessionUri,
+				chat: peerChat,
+				workingDirectories: [URI.file('/workspace').toString()],
+			}));
 			const resp = await responsePromise;
 
 			assert.deepStrictEqual({
@@ -2071,12 +2084,16 @@ suite('ProtocolServerHandler', () => {
 				inCatalog: stateManager.getSessionState(sessionUri)?.chats.some(c => c.resource === peerChat),
 			}, {
 				result: null,
-				created: [{ session: sessionUri, chat: peerChat }],
+				created: [{
+					session: sessionUri,
+					chat: peerChat,
+					options: { workingDirectories: [URI.file('/workspace')] },
+				}],
 				inCatalog: true,
 			});
 		});
 
-		test('createChat forwards a fork source to the agent service', async () => {
+		test('createChat forwards a fork source and ignores its working directories', async () => {
 			stateManager.createSession(makeSessionSummary());
 			const transport = connectClient('client-cc');
 			transport.sent.length = 0;
@@ -2086,6 +2103,7 @@ suite('ProtocolServerHandler', () => {
 				channel: sessionUri,
 				chat: peerChat,
 				source: { kind: ChatSourceKind.Fork, chat: buildDefaultChatUri(sessionUri), turnId: 'turn-1' },
+				workingDirectories: [URI.file('/workspace').toString()],
 			}));
 			const resp = await responsePromise;
 
@@ -2131,7 +2149,7 @@ suite('ProtocolServerHandler', () => {
 			});
 		});
 
-		test('createChat forwards a side chat source to the agent service', async () => {
+		test('createChat forwards a side chat source and working directories to the agent service', async () => {
 			stateManager.createSession(makeSessionSummary());
 			const transport = connectClient('client-cc');
 			transport.sent.length = 0;
@@ -2146,6 +2164,7 @@ suite('ProtocolServerHandler', () => {
 					turnId: 'turn-active',
 					selection: { text: '  selected text  ', responsePartId: 'response-part-1' },
 				},
+				workingDirectories: [URI.file('/workspace').toString()],
 			}));
 			const resp = await responsePromise;
 
@@ -2158,6 +2177,7 @@ suite('ProtocolServerHandler', () => {
 					session: sessionUri,
 					chat: peerChat,
 					options: {
+						workingDirectories: [URI.file('/workspace')],
 						sideChat: { source: URI.parse(buildDefaultChatUri(sessionUri)), turnId: 'turn-active', selection: { text: '  selected text  ', responsePartId: 'response-part-1' } },
 					},
 				}],

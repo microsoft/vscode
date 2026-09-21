@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { ContextTier, CopilotClient, ElicitationContext, ElicitationResult, ExitPlanModeRequest, ExitPlanModeResult, ModelCapabilitiesOverride, NamedProviderConfig, PermissionRequest, PermissionRequestResult, ProviderModelConfig, ReasoningSummary, ResumeSessionConfig, SessionConfig, SessionHooks, Tool, Verbosity } from '@github/copilot-sdk';
+import type { ContextTier, CopilotClient, ElicitationContext, ElicitationResult, ExitPlanModeRequest, ExitPlanModeResult, ModelCapabilitiesOverride, NamedProviderConfig, PermissionRequest, PermissionRequestResult, ProviderModelConfig, ResumeSessionConfig, SessionConfig, SessionHooks, Tool, Verbosity } from '@github/copilot-sdk';
 import { coalesce } from '../../../../base/common/arrays.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { isObject, isStringArray } from '../../../../base/common/types.js';
@@ -582,6 +582,8 @@ export async function resolveByokSessionConfig(
 		provider: m.vendor,
 		...(m.name !== undefined ? { name: m.name } : {}),
 		...(m.maxContextWindowTokens !== undefined ? { maxContextWindowTokens: m.maxContextWindowTokens } : {}),
+		...(m.maxPromptTokens !== undefined ? { maxPromptTokens: m.maxPromptTokens } : {}),
+		...(m.maxOutputTokens !== undefined ? { maxOutputTokens: m.maxOutputTokens } : {}),
 	}));
 	logService.info(`[Copilot:${sessionId}] Wired ${models.length} BYOK model(s) across ${providers.length} provider(s) via loopback proxy ${handle.baseUrl}`);
 	return { providers, models };
@@ -730,10 +732,9 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			await raw.disconnect().catch(() => { /* best-effort teardown */ });
 			throw err;
 		}
-		// TODO: Remove these post-launch updates once the SDK exposes verbosity and
-		// reasoningSummary in SessionConfig, alongside launch options such as reasoningEffort.
+		// TODO: Remove this post-launch update once the SDK exposes verbosity in SessionConfig.
 		if (isGpt56Model(modelId)) {
-			await this._applyGpt56Customizations(raw, sessionId);
+			await this._applyVerbosity(raw, 'medium', sessionId);
 		}
 		return new CopilotSessionWrapper(raw, this._logService);
 	}
@@ -778,15 +779,6 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		}
 	}
 
-	/** Applies the post-launch session options used by GPT-5.6 models. */
-	private async _applyGpt56Customizations(session: CopilotSessionWrapper['session'], sessionId: string): Promise<void> {
-		await this._applyVerbosity(session, 'medium', sessionId);
-		const reasoningSummaryEnabled = this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.ReasoningSummary) === true;
-		if (reasoningSummaryEnabled) {
-			await this._applyReasoningSummary(session, 'concise', sessionId);
-		}
-	}
-
 	/** Sets output verbosity after session creation. */
 	private async _applyVerbosity(session: CopilotSessionWrapper['session'], verbosity: Verbosity, sessionId: string): Promise<void> {
 		try {
@@ -794,16 +786,6 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			this._logService.info(`[Copilot:${sessionId}] Applied '${verbosity}' verbosity`);
 		} catch (err) {
 			this._logService.warn(`[Copilot:${sessionId}] Failed to apply '${verbosity}' verbosity`, err);
-		}
-	}
-
-	/** Sets reasoning summary detail after session creation. */
-	private async _applyReasoningSummary(session: CopilotSessionWrapper['session'], reasoningSummary: ReasoningSummary, sessionId: string): Promise<void> {
-		try {
-			await session.rpc.options.update({ reasoningSummary });
-			this._logService.info(`[Copilot:${sessionId}] Applied '${reasoningSummary}' reasoning summary`);
-		} catch (err) {
-			this._logService.warn(`[Copilot:${sessionId}] Failed to apply '${reasoningSummary}' reasoning summary`, err);
 		}
 	}
 
@@ -878,6 +860,8 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		// instead of feeding them explicitly, to avoid duplicates. Custom agents are the
 		// exception: the SDK validates the session-start `agent:` against `customAgents`
 		// by name, so the selected agent is force-included (see `toSdkSessionCustomAgents`).
+		// Hooks are also projected explicitly below because plugin directory discovery
+		// does not register their commands with the SDK callback surface.
 		const pluginsWithoutDirs = plugins.filter(p => !p.pluginDir || p.pluginDir.scheme !== Schemas.file);
 		const explicitMcpServers = plan.isEphemeral ? [] : plugins.flatMap(plugin => plugin.mcpServers.filter(server =>
 			!plugin.disabledMcpServers?.includes(server.name)
@@ -987,7 +971,13 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 				}
 			},
 			clientName: AGENT_HOST_COPILOT_CLIENT_NAME,
-			...(hydraFusionEnabled ? { enableExperimentalMode: true } : {}),
+			...(hydraFusionEnabled ? {
+				enableExperimentalMode: true,
+				featureFlags: {
+					HYDRAFUSION: true,
+					HYDRAFUSION_ROLLOUT: true,
+				},
+			} : {}),
 			streaming: true,
 			// Resume only: `_createSession` re-resolves the full effort for a create,
 			// while a resumed session keeps the effort the runtime journaled unless
@@ -999,12 +989,13 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			githubMcpToolConfig: { disableFormDeferral: true },
 			enableFileHooks: true,
 			enableConfigDiscovery: true,
+			enableSkills: true,
 			requestExtensions: false, // force-disable copilot extension management tools (otherwise enabled in experimental mode)
 			onPermissionRequest: request => runtime.handlePermissionRequest(request),
 			onUserInputRequest: (request, invocation) => runtime.handleUserInputRequest(request, invocation),
 			onElicitationRequest: context => runtime.handleElicitationRequest(context),
 			onMcpAuthRequest: (request, context) => runtime.handleMcpAuthRequest(request, context),
-			hooks: toSdkHooks(pluginsWithoutDirs.flatMap(p => p.hooks), {
+			hooks: toSdkHooks(plugins.flatMap(p => p.hooks), {
 				onPreToolUse: input => runtime.handlePreToolUse(input),
 				onPostToolUse: input => runtime.handlePostToolUse(input),
 				onUserPromptSubmitted: () => runtime.handleUserPromptSubmitted(),

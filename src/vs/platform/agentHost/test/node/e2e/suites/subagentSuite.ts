@@ -323,6 +323,13 @@ export function defineSubagentTests(context: IAgentHostE2ETestContext): void {
 		tempDirs.push(workspace);
 		const sessionUri = await createRealSession(context.client, config, 'retained-subagent-followups', createdSessions, URI.file(workspace));
 		const parentChat = buildDefaultChatUri(sessionUri);
+		const assertParentToolNames = (expected: readonly string[]) => {
+			const actual = context.client.receivedNotifications(n => isActionNotification(n, 'chat/toolCallStart'))
+				.map(n => ({ channel: getActionEnvelope(n).channel, action: getActionEnvelope(n).action as ChatToolCallStartAction }))
+				.filter(({ channel }) => channel === parentChat)
+				.map(({ action }) => action.toolName);
+			assert.deepStrictEqual(actual, expected);
+		};
 
 		context.client.beginAhpSnapshotRound();
 		const initial = await driveTurnToCompletion(
@@ -335,6 +342,7 @@ export function defineSubagentTests(context: IAgentHostE2ETestContext): void {
 			2,
 		);
 		assert.match(initial.responseText.trim(), /PARENT_INITIAL_DONE$/);
+		assertParentToolNames(['task', 'read_agent']);
 		const subagentChat = subagentChatFromReceived(parentChat);
 		assert.ok(subagentChat, 'the task tool should expose the retained subagent chat');
 		assert.ok(context.client.receivedNotifications(n => isActionNotification(n, 'session/chatAdded')).some(notification => {
@@ -395,6 +403,7 @@ export function defineSubagentTests(context: IAgentHostE2ETestContext): void {
 				2 + index,
 			);
 			assert.match(result.responseText.trim(), new RegExp(`${parentResponse}$`));
+			assertParentToolNames(['write_agent', 'read_agent']);
 			recordChildState(await readCompletedChild(index + 1));
 		}
 
@@ -417,7 +426,8 @@ export function defineSubagentTests(context: IAgentHostE2ETestContext): void {
 		]);
 		await assertRecordedAhpSnapshot(this.test!, context.client, {
 			...behaviorSnapshot,
-			ignoredActionTypes: [ActionType.SessionChatAdded],
+			ignoredActionTypes: [ActionType.SessionChatAdded, ActionType.ChatToolCallStart],
+			orderIndependentActionTypes: [ActionType.ChatTurnComplete],
 		});
 	});
 

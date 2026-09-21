@@ -20,12 +20,12 @@ import { ServicesAccessor } from '../../../../platform/instantiation/common/inst
 import { IsSessionsWindowContext } from '../../../../workbench/common/contextkeys.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
-import { Menus } from '../../../browser/menus.js';
+import { getNewSessionRepositoryConfigGroup, Menus } from '../../../browser/menus.js';
 import { SessionIdContext } from '../../../common/contextkeys.js';
 import { ISessionContext } from '../../../services/sessions/browser/sessionContext.js';
 import { ISessionsPartService } from '../../../services/sessions/browser/sessionsPartService.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
-import { ISession, ISessionChangeset, ISessionChangesetOperation, SessionChangesetOperationScope, SessionChangesetOperationStatus, UNCOMMITTED_CHANGES_CHANGESET_ID } from '../../../services/sessions/common/session.js';
+import { getSessionWorkspaceKind, ISession, ISessionChangeset, ISessionChangesetOperation, SessionChangesetOperationScope, SessionChangesetOperationStatus, SessionWorkspaceKind, UNCOMMITTED_CHANGES_CHANGESET_ID } from '../../../services/sessions/common/session.js';
 
 function getSyncChangesOperation(session: ISession | undefined, reader?: IReader): { changeset: ISessionChangeset; operation: ISessionChangesetOperation } | undefined {
 	const changeset = session?.changesets.read(reader)?.find(candidate =>
@@ -42,9 +42,15 @@ function isSyncChangesEnabled(operation: ISessionChangesetOperation | undefined)
 	return !!operation && operation.status !== SessionChangesetOperationStatus.Disabled && operation.status !== SessionChangesetOperationStatus.Running;
 }
 
-function hasSyncChangesCounts(session: ISession | undefined, reader?: IReader): boolean {
+function isFolderSession(session: ISession | undefined, reader?: IReader): boolean {
+	const workspace = session?.workspace.read(reader);
+	return getSessionWorkspaceKind(workspace, session?.worktreePending?.read(reader)) === SessionWorkspaceKind.Folder;
+}
+
+function shouldShowSyncChanges(session: ISession | undefined, reader?: IReader): boolean {
 	const repository = session?.workspace.read(reader)?.folders[0]?.gitRepository;
-	return (repository?.incomingChanges ?? 0) > 0 || (repository?.outgoingChanges ?? 0) > 0;
+	return isFolderSession(session, reader)
+		&& ((repository?.incomingChanges ?? 0) > 0 || (repository?.outgoingChanges ?? 0) > 0);
 }
 
 function getSyncChangesTooltip(incomingChanges: number, outgoingChanges: number, upstreamBranchName: string | undefined): string {
@@ -81,7 +87,7 @@ class SessionSyncChangesAction extends Action2 {
 			: accessor.get(ISessionsService).activeSession.get();
 
 		const sync = getSyncChangesOperation(session);
-		if (!sync || !isSyncChangesEnabled(sync.operation)) {
+		if (!sync || !isFolderSession(session) || !isSyncChangesEnabled(sync.operation)) {
 			throw new Error(localize('sessions.syncChanges.unavailable', "Sync Changes is no longer available for this session."));
 		}
 
@@ -155,7 +161,7 @@ export class SessionSyncChangesActionViewItem extends ActionViewItem {
 
 	override dispose(): void {
 		const session = this.sessionContext.session.get();
-		if ((!getSyncChangesOperation(session) || !hasSyncChangesCounts(session)) && this.element?.contains(getActiveElement())) {
+		if ((!getSyncChangesOperation(session) || !shouldShowSyncChanges(session)) && this.element?.contains(getActiveElement())) {
 			this.sessionsPartService.focusSession(this.sessionContext.session.get());
 		}
 
@@ -185,7 +191,7 @@ export class SessionSyncChangesContribution extends Disposable implements IWorkb
 				}
 				const syncEnabled = derived(reader => {
 					const sync = getSyncChangesOperation(session, reader);
-					return sync && hasSyncChangesCounts(session, reader) ? isSyncChangesEnabled(sync.operation) : undefined;
+					return sync && shouldShowSyncChanges(session, reader) ? isSyncChangesEnabled(sync.operation) : undefined;
 				});
 				reader.store.add(autorun(reader => {
 					const enabled = syncEnabled.read(reader);
@@ -197,7 +203,7 @@ export class SessionSyncChangesContribution extends Disposable implements IWorkb
 								icon: Codicon.sync,
 								precondition: enabled ? undefined : ContextKeyExpr.false(),
 							},
-							group: 'navigation',
+							group: getNewSessionRepositoryConfigGroup(Number.MAX_SAFE_INTEGER, SessionSyncChangesAction.ID),
 							order: Number.MAX_SAFE_INTEGER,
 							when: ContextKeyExpr.and(IsSessionsWindowContext, ChatContextKeys.enabled, SessionIdContext.isEqualTo(session.sessionId)),
 						}));

@@ -52,6 +52,8 @@ import { IAgentHostUntitledProvisionalSessionService } from '../../../../contrib
 import { IAgentHostSessionWorkingDirectoryResolver } from '../../../../contrib/chat/browser/agentSessions/agentHost/agentHostSessionWorkingDirectoryResolver.js';
 import { IAgentHostNewSessionFolderService } from '../../../../contrib/chat/browser/agentSessions/agentHost/agentHostNewSessionFolderService.js';
 import { IAgentHostCustomizationService } from '../../../../contrib/chat/browser/agentSessions/agentHost/agentHostCustomizationService.js';
+import { IAgentSdkSetupService } from '../../../../services/agentHost/browser/agentSdkSetupService.js';
+import { ICodexAccountService } from '../../../../services/agentHost/browser/codexAccountService.js';
 import { IVoiceModeOnboardingService } from '../../../../contrib/agentsVoice/browser/voiceModeOnboarding.js';
 import { IChatAccessibilityService, IChatWidget, IChatWidgetService } from '../../../../contrib/chat/browser/chat.js';
 import { IChatResponseFileChangesService } from '../../../../contrib/chat/browser/chatResponseFileChangesService.js';
@@ -88,6 +90,26 @@ import { IChatTodo, IChatTodoListService } from '../../../../contrib/chat/common
 import { IChatToolRiskAssessmentService } from '../../../../contrib/chat/browser/tools/chatToolRiskAssessmentService.js';
 import { IVoiceSessionController } from '../../../../contrib/chat/browser/voiceClient/voiceSessionController.js';
 import { ServiceRegistration, registerWorkbenchServices } from '../fixtureUtils.js';
+import { IActionViewItemFactory, IActionViewItemService } from '../../../../../platform/actions/browser/actionViewItemService.js';
+import { ISessionSummaryHoverService, SessionSummaryHoverService } from '../../../../contrib/chat/browser/agentSessions/sessionSummaryHoverService.js';
+import { OpenSubagentChatActionViewItem } from '../../../../contrib/chat/browser/widget/chatContentParts/chatSubagentOpenChat.js';
+import { CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID } from '../../../../contrib/chat/common/constants.js';
+import { IExtensionsWorkbenchService } from '../../../../contrib/extensions/common/extensions.js';
+
+export function registerSubagentFixtureServices(reg: ServiceRegistration): void {
+	reg.define(ISessionSummaryHoverService, SessionSummaryHoverService);
+	reg.defineInstance(IExtensionsWorkbenchService, new class extends mock<IExtensionsWorkbenchService>() {
+		override async getExtensions() { return []; }
+	}());
+	reg.defineInstance(IActionViewItemService, new class extends mock<IActionViewItemService>() {
+		override readonly onDidChange = Event.None;
+		override lookUp(menu: MenuId, commandId: string | MenuId): IActionViewItemFactory | undefined {
+			return menu === MenuId.ChatSubagentContent && commandId === CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID
+				? (action, options, service) => service.createInstance(OpenSubagentChatActionViewItem, undefined, action, options, true)
+				: undefined;
+		}
+	}());
+}
 
 /**
  * A minimal IMenuService implementation backed by an in-memory map. Tests can
@@ -348,6 +370,14 @@ export function registerChatFixtureServices(reg: ServiceRegistration, options: I
 		override readonly onDidChange = Event.None;
 		override getActiveNotification() { return options.notification; }
 		override announceRendered() { }
+	}());
+	reg.defineInstance(IAgentSdkSetupService, new class extends mock<IAgentSdkSetupService>() {
+		override readonly setups = [];
+		override readonly onDidChangeSetups = Event.None;
+	}());
+	reg.defineInstance(ICodexAccountService, new class extends mock<ICodexAccountService>() {
+		override readonly account = { status: 'unknown' as const };
+		override readonly onDidChangeAccount = Event.None;
 	}());
 	reg.defineInstance(IChatSubmitRequestHandlerService, new ChatSubmitRequestHandlerService());
 	reg.defineInstance(IChatStatusItemService, new class extends mock<IChatStatusItemService>() {

@@ -4,8 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import sinon from 'sinon';
 import * as dom from '../../../../../../base/browser/dom.js';
-import { EventType as TouchEventType } from '../../../../../../base/browser/touch.js';
+import { Gesture, EventType as TouchEventType } from '../../../../../../base/browser/touch.js';
 import { ensureCodeWindow, mainWindow } from '../../../../../../base/browser/window.js';
 import { Action } from '../../../../../../base/common/actions.js';
 import { DeferredPromise } from '../../../../../../base/common/async.js';
@@ -209,6 +210,96 @@ suite('ConnectionDiagnosticsReport', () => {
 			consumed: true,
 			scrolled: true,
 		});
+	});
+
+	test('native scrolling keeps the workbench scrollbar in sync without moving report focus', async () => {
+		const { container, report } = createReport(async () => { });
+		dom.append(mainWindow.document.body, container);
+		store.add(toDisposable(() => container.remove()));
+		const content = container.querySelector<HTMLElement>('.connection-diagnostics-content')!;
+		const scrollable = container.querySelector<HTMLElement>('.connection-diagnostics-scrollable')!;
+		let scrollTop = 0;
+		let dimensionReads = 0;
+		Object.defineProperties(content, {
+			clientHeight: { configurable: true, get: () => { dimensionReads++; return 100; } },
+			scrollHeight: { configurable: true, get: () => { dimensionReads++; return 1000; } },
+			clientWidth: { configurable: true, get: () => { dimensionReads++; return 200; } },
+			scrollWidth: { configurable: true, get: () => { dimensionReads++; return 200; } },
+			scrollTop: {
+				configurable: true,
+				get: () => scrollTop,
+				set: value => scrollTop = value,
+			},
+		});
+		container.querySelector<HTMLDetailsElement>('details')!.dispatchEvent(new mainWindow.Event('toggle'));
+		report.focus();
+		scrollTop = 400;
+		dimensionReads = 0;
+		content.dispatchEvent(new mainWindow.Event('scroll'));
+		const scrollDimensionReads = dimensionReads;
+		const event = new mainWindow.WheelEvent('wheel', { bubbles: true, cancelable: true, deltaY: 100 });
+		Object.defineProperty(event, 'wheelDeltaY', { value: -120 });
+		scrollable.dispatchEvent(event);
+		await report.refresh();
+		assert.deepStrictEqual({
+			scrollDimensionReads,
+			overflowY: dom.getWindow(content).getComputedStyle(content).overflowY,
+			touchAction: dom.getWindow(content).getComputedStyle(content).touchAction,
+			consumedWheel: event.defaultPrevented,
+			scrolledFromNativePosition: content.scrollTop > 400,
+			focused: dom.getActiveElement() === content,
+		}, {
+			scrollDimensionReads: 0,
+			overflowY: 'auto',
+			touchAction: 'pan-y',
+			consumedWheel: true,
+			scrolledFromNativePosition: true,
+			focused: true,
+		});
+	});
+
+	test('leaves native touch events on report actions unconsumed', async () => {
+		const touchDevice = sinon.stub(Gesture, 'isTouchDevice').returns(true);
+		store.add(toDisposable(() => touchDevice.restore()));
+		const { container, report, service } = createReport(async () => { });
+		dom.append(mainWindow.document.body, container);
+		store.add(toDisposable(() => container.remove()));
+		service.getHostManagementState = () => ({
+			hosts: [{
+				id: 'hidden',
+				address: 'tunnel:hidden',
+				label: 'Hidden laptop',
+				status: 'disconnected',
+				selectable: false,
+				selected: false,
+				hidden: true,
+				autoConnectSuppressed: false,
+				connectable: false,
+			}],
+			isDiscovering: false,
+		});
+		await report.refresh();
+		const action = container.querySelector<HTMLElement>('[aria-label="Restore Hidden laptop"]')!;
+		const prevented = [];
+		for (const [type, pageY] of [['touchstart', 300], ['touchmove', 290], ['touchend', 290]] as const) {
+			const touch: Touch = {
+				identifier: 0, target: action, pageX: 100, pageY,
+				clientX: 100, clientY: pageY, screenX: 100, screenY: pageY,
+				force: 1, radiusX: 1, radiusY: 1, rotationAngle: 0,
+			};
+			const touches: TouchList = { 0: touch, length: 1, item: index => index === 0 ? touch : null, [Symbol.iterator]: () => [touch].values() };
+			const emptyTouches: TouchList = { length: 0, item: () => null, [Symbol.iterator]: () => [].values() };
+			// Desktop WebKit exposes Touch but does not allow constructing it.
+			const event = new mainWindow.Event(type, { bubbles: true, cancelable: true });
+			Object.defineProperties(event, {
+				touches: { value: type === 'touchend' ? emptyTouches : touches },
+				targetTouches: { value: type === 'touchend' ? emptyTouches : touches },
+				changedTouches: { value: touches },
+			});
+			action.dispatchEvent(event);
+			prevented.push(event.defaultPrevented);
+		}
+		assert.deepStrictEqual(prevented, [false, false, false]);
 	});
 
 	test('copy includes collapsed content and uses the displayed snapshot until refreshed', async () => {
@@ -642,7 +733,6 @@ suite('ConnectionDiagnosticsReport', () => {
 			const commands: { id: string; pickerOpen: boolean }[] = [];
 			class TestMobileHostFilter extends MobileHostFilterActionViewItem {
 				open(): void {
-					this.element = trigger;
 					this._showMenu(new mainWindow.Event('click'));
 				}
 			}
@@ -652,6 +742,7 @@ suite('ConnectionDiagnosticsReport', () => {
 					override readonly onDidChange = Event.None;
 					override readonly onDidChangeDiscovering = Event.None;
 					override readonly hosts = hostCount ? [{ id: 'mock', label: 'Mock host', providerIds: ['mock'], grouped: false, address: 'tunnel:mock', icon: Codicon.remote, status: AgentHostFilterConnectionStatus.Connected, connectable: true }] : [];
+					override readonly selectedHost = this.hosts[0];
 					override readonly isDiscovering = false;
 				}(),
 				new class extends mock<IContextMenuService>() { }(),
@@ -672,14 +763,19 @@ suite('ConnectionDiagnosticsReport', () => {
 					}
 				}(),
 			));
+			widget.render(trigger);
 			widget.open();
 			const diagnostics = container.querySelector<HTMLElement>('.host-picker-sheet-heading .host-picker-sheet-information');
 			assert.deepStrictEqual({
 				empty: container.querySelector('.host-picker-sheet-empty')?.textContent,
 				diagnostics: diagnostics?.getAttribute('aria-label'),
+				inlineInformation: trigger.querySelectorAll('.agent-host-filter-diagnostics').length,
+				statusAnnounced: trigger.querySelector('.agent-host-filter-dropdown')?.getAttribute('aria-label')?.includes('Current host status: Connected.'),
 			}, {
 				empty: hostCount ? undefined : 'No hosts found yet.',
 				diagnostics: 'Open Connection Information',
+				inlineInformation: 0,
+				statusAnnounced: hostCount > 0,
 			});
 			diagnostics!.dispatchEvent(new mainWindow.Event(TouchEventType.Tap, { bubbles: true, cancelable: true }));
 			widget.open();

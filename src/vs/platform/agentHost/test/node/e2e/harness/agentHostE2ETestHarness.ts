@@ -196,6 +196,11 @@ const STALE_RECORDED_REQUEST_EXCEPTIONS = new Set<string>([
 	'claude:side chat receives bounded source context without copied history',
 ]);
 
+/** Captures whose providers can issue recorded parent and subagent turns concurrently. */
+const PROJECTED_REQUEST_MATCHING_CAPTURES = new Set<string>([
+	'copilotcli:retained background subagent completes repeated follow-up turns',
+]);
+
 const RECOVERABLE_RECORDING_MODEL_RESPONSE: ICapiReplayResponse = {
 	status: 400,
 	headers: {
@@ -220,14 +225,15 @@ function captureKey(provider: string, testTitle: string): string {
  * `AGENT_HOST_REPLAY_RECORD=1` or `AGENT_HOST_UPDATE_SNAPSHOTS=1`. Tests that
  * declare no model traffic always use the strict shared empty replay fixture.
  */
-export function capiReplayFor(provider: string, testTitle: string, modelTraffic: AgentHostE2EModelTraffic = 'recorded'): { fixturePath: string; real: true; mode: CapiReplayMode; allowPosixCommands: boolean; allowStaleRecordedRequest: boolean; recordingModelResponse?: ICapiReplayResponse } {
+export function capiReplayFor(provider: string, testTitle: string, modelTraffic: AgentHostE2EModelTraffic = 'recorded'): { fixturePath: string; real: true; mode: CapiReplayMode; allowPosixCommands: boolean; allowStaleRecordedRequest: boolean; matchModelRequestsByProjection: boolean; recordingModelResponse?: ICapiReplayResponse } {
 	const key = captureKey(provider, testTitle);
 	const allowPosixCommands = POSIX_COMMAND_EXCEPTIONS.has(key);
 	const allowStaleRecordedRequest = STALE_RECORDED_REQUEST_EXCEPTIONS.has(key);
+	const matchModelRequestsByProjection = PROJECTED_REQUEST_MATCHING_CAPTURES.has(key);
 	if (modelTraffic === 'none') {
-		return { fixturePath: EMPTY_CAPTURE_PATH, real: true, mode: 'replay', allowPosixCommands, allowStaleRecordedRequest };
+		return { fixturePath: EMPTY_CAPTURE_PATH, real: true, mode: 'replay', allowPosixCommands, allowStaleRecordedRequest, matchModelRequestsByProjection };
 	}
-	return { fixturePath: fixturePathFor(provider, testTitle), real: true, mode: REPLAY_MODE, allowPosixCommands, allowStaleRecordedRequest, recordingModelResponse: RECORDING_MODEL_RESPONSES.get(key) };
+	return { fixturePath: fixturePathFor(provider, testTitle), real: true, mode: REPLAY_MODE, allowPosixCommands, allowStaleRecordedRequest, matchModelRequestsByProjection, recordingModelResponse: RECORDING_MODEL_RESPONSES.get(key) };
 }
 
 // #endregion
@@ -385,6 +391,10 @@ export interface IAgentHostE2EProviderConfig {
 	readonly shellToolReplayUnstableOnLinux?: boolean;
 	/** Provider intermittently completes successful shell calls without exposing result text. */
 	readonly shellToolResultTextUnreliable?: boolean;
+	/** Provider's file-delete shell turn can terminate its bundled runtime during Windows replay. */
+	readonly fileDeleteReplayUnstableOnWindows?: boolean;
+	/** Provider's file-create shell turn can report success during Windows replay without writing the file. */
+	readonly fileCreateReplayUnstableOnWindows?: boolean;
 	/**
 	 * When set, the subagent-reopen ("replay path") test is skipped on Windows for
 	 * this provider, which rebuilds the reopened transcript from the bundled SDK's
@@ -933,7 +943,10 @@ export class AgentHostE2EServerLease {
 			if (!proxy) {
 				throw new Error('[agent-host-e2e] shared replay server has no capiReplay proxy to reset');
 			}
-			proxy.resetForReplay(capiReplay.fixturePath, capiReplay.allowStaleRecordedRequest);
+			proxy.resetForReplay(capiReplay.fixturePath, {
+				allowStaleRecordedRequest: capiReplay.allowStaleRecordedRequest,
+				matchModelRequestsByProjection: capiReplay.matchModelRequestsByProjection,
+			});
 		} else {
 			// Only the Copilot CLI provider writes the `@github/copilot` runtime logs we
 			// capture, so only it is run verbosely; Claude/Codex use their own runtimes.
@@ -1049,25 +1062,17 @@ export class AgentHostE2EServerLease {
 		return this._server?.capiReplay?.observedModelRequestBodies ?? [];
 	}
 
-	/** The bundled `@github/copilot` CLI is the only provider whose runtime logs we capture / run verbosely. */
+	/** The bundled `@github/copilot` CLI is the only provider whose own runtime logs we capture / run verbosely. */
 	private get _isCopilotProvider(): boolean {
 		return this._config.provider === 'copilotcli';
 	}
 
 	/**
-	 * Tail the most recent Copilot runtime (`@github/copilot` CLI) `process-*.log`
-	 * into the test output. This is the SDK/CLI's own diagnostics — the key signal
-	 * when a turn hangs or times out, which the AHP assertions alone don't explain.
-	 * The runtime writes these under `${COPILOT_HOME}/logs`, and the harness pins
-	 * `COPILOT_HOME` to `${homeDir}/.copilot` (see `startRealServer`), running it
-	 * at `trace`. Only the Copilot CLI provider is captured — Claude/Codex use their
-	 * own runtimes and log elsewhere. Best-effort: never throws (it runs in a
-	 * `teardown`, right before the failure is re-raised). Output goes to
-	 * `process.stdout` directly (not `console.*`): the integration harness overrides
-	 * `console.*` and fails the test on ANY unexpected console output during a test,
-	 * and `currentTest` is still set during `teardown`.
+	 * Tail the Agent Host log and, for Copilot, the bundled CLI log into the test
+	 * output. Best-effort: never throws because it runs during failed-test teardown.
 	 */
 	dumpRuntimeLogsOnFailure(label: string): void {
+		this._dumpAgentHostLogOnFailure(label);
 		if (!this._isCopilotProvider) {
 			return;
 		}
@@ -1097,16 +1102,45 @@ export class AgentHostE2EServerLease {
 				process.stdout.write(`[agent-host-e2e] no Copilot runtime process-*.log for failed test "${label}" under ${logsDir}\n`);
 				return;
 			}
-			const lines = readFileSync(newest.full, 'utf8').split(/\r?\n/);
-			const tail = lines.slice(-200);
-			process.stdout.write(`[agent-host-e2e] --- Copilot runtime log for failed test "${label}" (${newest.full}; last ${tail.length} of ${lines.length} lines) ---\n`);
-			for (const ln of tail) {
-				process.stdout.write(`[agent-host-e2e] # ${ln}\n`);
-			}
-			process.stdout.write('[agent-host-e2e] --- end Copilot runtime log ---\n');
+			this._dumpLogTail('Copilot runtime', label, newest.full);
 		} catch {
 			// never let diagnostics break teardown
 		}
+	}
+
+	private _dumpAgentHostLogOnFailure(label: string): void {
+		try {
+			const logsDir = join(this._startOptions.userDataDir, 'logs');
+			const newest = readdirSync(logsDir, { withFileTypes: true })
+				.filter(entry => entry.isDirectory())
+				.map(entry => join(logsDir, entry.name, 'agenthost-server.log'))
+				.flatMap(path => {
+					try {
+						const stat = statSync(path);
+						return stat.isFile() ? [{ path, mtimeMs: stat.mtimeMs }] : [];
+					} catch {
+						return [];
+					}
+				})
+				.sort((a, b) => b.mtimeMs - a.mtimeMs)[0];
+			if (!newest) {
+				process.stdout.write(`[agent-host-e2e] no Agent Host log for failed test "${label}" under ${logsDir}\n`);
+				return;
+			}
+			this._dumpLogTail('Agent Host', label, newest.path);
+		} catch {
+			// Never let diagnostics break teardown.
+		}
+	}
+
+	private _dumpLogTail(name: string, label: string, path: string): void {
+		const lines = readFileSync(path, 'utf8').split(/\r?\n/);
+		const tail = lines.slice(-200);
+		process.stdout.write(`[agent-host-e2e] --- ${name} log for failed test "${label}" (${path}; last ${tail.length} of ${lines.length} lines) ---\n`);
+		for (const line of tail) {
+			process.stdout.write(`[agent-host-e2e] # ${line}\n`);
+		}
+		process.stdout.write(`[agent-host-e2e] --- end ${name} log ---\n`);
 	}
 
 	/**
