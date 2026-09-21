@@ -342,7 +342,7 @@ suite('Protocol WebSocket — Session Features', function () {
 
 		// Steering should be cleared from state
 		const state = await fetchSessionWithChat(client, sessionUri);
-		assert.ok(!state.steeringMessage, 'steering message should be cleared after consumption');
+		assert.ok(!state.steeringMessages?.length, 'steering message should be cleared after consumption');
 	});
 
 	// ---- Truncation -----------------------------------------------------------
