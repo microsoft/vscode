@@ -11,11 +11,11 @@ function normalizeURLAuthorityAndPath(url: URI): URI {
 		return url;
 	}
 
-	if (!/[\\/]/.test(url.authority)) {
+	if (!/[\\/\t\r\n]/.test(url.authority)) {
 		return url;
 	}
 
-	const serialized = url.with({ query: null, fragment: null }).toString(true);
+	const serialized = url.with({ query: null, fragment: null }).toString(true).replace(/[\t\r\n]/g, '');
 	const authorityAndPath = serialized.slice(url.scheme.length + 3).replace(/\\/g, '/').replace(/^\/+/, '');
 	const separator = authorityAndPath.indexOf('/');
 	return url.with({
@@ -69,10 +69,17 @@ function encodeURLPathForMatching(url: URI): string {
 	}
 
 	// Encode decoded path characters without decoding or double-encoding existing escapes.
-	return encodeURI(url.path.toWellFormed())
+	return decodeUnreservedURLPathCharacters(encodeURI(url.path.toWellFormed())
 		.replace(/%25/g, '%')
-		.replace(/[?#]/g, character => encodeURIComponent(character))
-		.replace(/%[0-9a-f]{2}/gi, sequence => sequence.toUpperCase());
+		.replace(/[?#]/g, character => encodeURIComponent(character)));
+}
+
+/** Decodes unreserved path characters once, preserving reserved escapes and literal percent signs. */
+export function decodeUnreservedURLPathCharacters(path: string): string {
+	return path.replace(/%[0-9a-f]{2}/gi, sequence => {
+		const character = String.fromCharCode(parseInt(sequence.slice(1), 16));
+		return /[A-Za-z0-9._~-]/.test(character) ? character : sequence.toUpperCase();
+	});
 }
 
 /**
@@ -96,9 +103,9 @@ export function testUrlMatchesGlob(uri: string | URI, globUrl: string): boolean 
 	}
 
 	if (
-		!doMemoUrlMatch(normalizedUrl.scheme, normalizedGlobUrl.scheme) ||
+		!doUrlPartMatch(normalizedUrl.scheme, normalizedGlobUrl.scheme) ||
 		// The authority is the only thing that should do port logic.
-		!doUrlAuthorityMatch(normalizedUrl.authority, normalizedGlobUrl.authority)
+		!doUrlAuthorityMatch(normalizedUrl.authority, normalizedGlobUrl.authority, matchesSomeScheme(normalizedUrl, Schemas.http, Schemas.https))
 	) {
 		return false;
 	}
@@ -109,27 +116,27 @@ export function testUrlMatchesGlob(uri: string | URI, globUrl: string): boolean 
 
 	const path = encodeURLPathForMatching(normalizedUrl);
 	const globPath = encodeURLPathForMatching(normalizedGlobUrl);
-	if (!doMemoUrlMatch(path, globPath)) {
+	if (!doUrlPartMatch(path, globPath)) {
 		return false;
 	}
 
 	const resolvedPath = encodeURLPathForMatching(normalizeURL(normalizedUrl, true));
-	return resolvedPath === path || doMemoUrlMatch(resolvedPath, globPath);
+	return resolvedPath === path || doUrlPartMatch(resolvedPath, globPath);
 }
 
-function doUrlAuthorityMatch(authority: string, globAuthority: string): boolean {
-	if (doMemoUrlMatch(authority, globAuthority, true)) {
+function doUrlAuthorityMatch(authority: string, globAuthority: string, decodePercentEncoding: boolean): boolean {
+	if (doUrlPartMatch(authority, globAuthority, true)) {
 		return true;
 	}
 
-	const normalizedAuthority = normalizeAuthorityForMatching(authority);
-	const normalizedGlobAuthority = normalizeAuthorityForMatching(globAuthority);
+	const normalizedAuthority = normalizeAuthorityForMatching(authority, decodePercentEncoding);
+	const normalizedGlobAuthority = normalizeAuthorityForMatching(globAuthority, decodePercentEncoding);
 	return (normalizedAuthority !== authority || normalizedGlobAuthority !== globAuthority)
-		&& doMemoUrlMatch(normalizedAuthority, normalizedGlobAuthority, true);
+		&& doUrlPartMatch(normalizedAuthority, normalizedGlobAuthority, true);
 }
 
 /** Canonicalizes literal DNS labels without reinterpreting wildcard labels, ports or user information. */
-function normalizeAuthorityForMatching(authority: string): string {
+function normalizeAuthorityForMatching(authority: string, decodePercentEncoding: boolean): string {
 	const hostnameStart = authority.lastIndexOf('@') + 1;
 	if (authority[hostnameStart] === '[') {
 		return authority;
@@ -138,7 +145,7 @@ function normalizeAuthorityForMatching(authority: string): string {
 	const portStart = authority.indexOf(':', hostnameStart);
 	const hostnameEnd = portStart === -1 ? authority.length : portStart;
 	const hostname = authority.slice(hostnameStart, hostnameEnd).split('.').map(label => {
-		if (label.includes('*') || /[%/\\?#\s]/.test(label)) {
+		if (label.includes('*') || /[/\\?#\s]/.test(label) || (!decodePercentEncoding && label.includes('%'))) {
 			return label;
 		}
 		if (/^[\w-]*$/.test(label)) {
@@ -158,108 +165,79 @@ function normalizeAuthorityForMatching(authority: string): string {
 	return authority.slice(0, hostnameStart) + hostname + authority.slice(hostnameEnd);
 }
 
-/**
- * @param normalizedUrlPart The normalized URL part to match.
- * @param normalizedGlobUrlPart The normalized glob URL part to match against.
- * @param includePortLogic Whether to include port logic in the matching process.
- * @returns boolean - True if the URL part matches the glob URL part, false otherwise.
- */
-function doMemoUrlMatch(
-	normalizedUrlPart: string,
-	normalizedGlobUrlPart: string,
-	includePortLogic: boolean = false,
-) {
-	const memo = Array.from({ length: normalizedUrlPart.length + 1 }).map(() =>
-		Array.from({ length: normalizedGlobUrlPart.length + 1 }).map(() => undefined),
-	);
-
-	return doUrlPartMatch(memo, includePortLogic, normalizedUrlPart, normalizedGlobUrlPart, 0, 0);
-}
-
-/**
- * Recursively checks if a URL part matches a glob URL part.
- * This function uses memoization to avoid recomputing results for the same inputs.
- * It handles various cases such as exact matches, wildcard matches, and port logic.
- * @param memo A memoization table to avoid recomputing results for the same inputs.
- * @param includePortLogic Whether to include port logic in the matching process.
- * @param urlPart The URL part to match with.
- * @param globUrlPart The glob URL part to match against.
- * @param urlOffset The current offset in the URL part.
- * @param globUrlOffset The current offset in the glob URL part.
- * @returns boolean - True if the URL part matches the glob URL part, false otherwise.
- */
+/** Matches URL parts without recursion or an eagerly allocated URL-by-pattern table. */
 function doUrlPartMatch(
-	memo: (boolean | undefined)[][],
-	includePortLogic: boolean,
 	urlPart: string,
 	globUrlPart: string,
-	urlOffset: number,
-	globUrlOffset: number
+	includePortLogic: boolean = false,
 ): boolean {
-	if (memo[urlOffset]?.[globUrlOffset] !== undefined) {
-		return memo[urlOffset][globUrlOffset]!;
+	if (urlPart === globUrlPart) {
+		return true;
+	}
+	if (!globUrlPart.includes('*')) {
+		return urlPart.startsWith(`${globUrlPart}/`);
 	}
 
-	const options = [];
-
-	// We've reached the end of the url.
-	if (urlOffset === urlPart.length) {
-		// We're also at the end of the glob url as well so we have an exact match.
-		if (globUrlOffset === globUrlPart.length) {
-			return true;
+	const pending = new Map<number, Set<number>>();
+	const addState = (urlOffset: number, globOffset: number) => {
+		let offsets = pending.get(urlOffset);
+		if (!offsets) {
+			offsets = new Set<number>();
+			pending.set(urlOffset, offsets);
 		}
+		offsets.add(globOffset);
+	};
+	addState(0, 0);
 
-		if (includePortLogic && globUrlPart[globUrlOffset] + globUrlPart[globUrlOffset + 1] === ':*') {
-			// any port match. Consume a port if it exists otherwise nothing. Always consume the base.
-			return globUrlOffset + 2 === globUrlPart.length;
+	for (let urlOffset = 0; urlOffset <= urlPart.length && pending.size > 0; urlOffset++) {
+		const globOffsets = pending.get(urlOffset);
+		if (!globOffsets) {
+			continue;
 		}
+		for (const globOffset of globOffsets) {
+			const anyPort = includePortLogic && globUrlPart[globOffset] === ':' && globUrlPart[globOffset + 1] === '*';
+			if (urlOffset === urlPart.length) {
+				if (globOffset === globUrlPart.length || (anyPort && globOffset + 2 === globUrlPart.length)) {
+					return true;
+				}
+				continue;
+			}
+			if (globOffset === globUrlPart.length) {
+				if (urlPart[urlOffset] === '/') {
+					return true;
+				}
+				continue;
+			}
 
-		return false;
-	}
-
-	// Some path remaining in url
-	if (globUrlOffset === globUrlPart.length) {
-		const remaining = urlPart.slice(urlOffset);
-		return remaining[0] === '/';
-	}
-
-	if (urlPart[urlOffset] === globUrlPart[globUrlOffset]) {
-		// Exact match.
-		options.push(doUrlPartMatch(memo, includePortLogic, urlPart, globUrlPart, urlOffset + 1, globUrlOffset + 1));
-	}
-
-	if (globUrlPart[globUrlOffset] + globUrlPart[globUrlOffset + 1] === '*.') {
-		// Any subdomain match. Either consume one thing that's not a / or : and don't advance base or consume nothing and do.
-		if (!['/', ':'].includes(urlPart[urlOffset])) {
-			options.push(doUrlPartMatch(memo, includePortLogic, urlPart, globUrlPart, urlOffset + 1, globUrlOffset));
+			if (urlPart[urlOffset] === globUrlPart[globOffset]) {
+				addState(urlOffset + 1, globOffset + 1);
+			}
+			if (globUrlPart[globOffset] === '*') {
+				if (globOffset + 1 === globUrlPart.length) {
+					return true;
+				}
+				if (globUrlPart[globOffset + 1] === '.') {
+					if (!['/', ':'].includes(urlPart[urlOffset])) {
+						addState(urlOffset + 1, globOffset);
+					}
+					if (urlOffset === 0 || urlPart[urlOffset - 1] === '.') {
+						addState(urlOffset, globOffset + 2);
+					}
+				}
+				addState(urlOffset + 1, urlOffset + 1 === urlPart.length ? globOffset + 1 : globOffset);
+				addState(urlOffset, globOffset + 1);
+			}
+			if (anyPort) {
+				let endPortIndex = urlOffset;
+				if (urlPart[urlOffset] === ':') {
+					endPortIndex++;
+					do { endPortIndex++; } while (/[0-9]/.test(urlPart[endPortIndex]));
+				}
+				addState(endPortIndex, globOffset + 2);
+			}
 		}
-		// Only skip *. if we're at the start (bare domain) or at a dot boundary
-		if (urlOffset === 0 || urlPart[urlOffset - 1] === '.') {
-			options.push(doUrlPartMatch(memo, includePortLogic, urlPart, globUrlPart, urlOffset, globUrlOffset + 2));
-		}
+		// States never move backwards, so completed URL offsets need not remain in memory.
+		pending.delete(urlOffset);
 	}
-
-	if (globUrlPart[globUrlOffset] === '*') {
-		// Any match. Either consume one thing and don't advance base or consume nothing and do.
-		if (urlOffset + 1 === urlPart.length) {
-			// If we're at the end of the input url consume one from both.
-			options.push(doUrlPartMatch(memo, includePortLogic, urlPart, globUrlPart, urlOffset + 1, globUrlOffset + 1));
-		} else {
-			options.push(doUrlPartMatch(memo, includePortLogic, urlPart, globUrlPart, urlOffset + 1, globUrlOffset));
-		}
-		options.push(doUrlPartMatch(memo, includePortLogic, urlPart, globUrlPart, urlOffset, globUrlOffset + 1));
-	}
-
-	if (includePortLogic && globUrlPart[globUrlOffset] + globUrlPart[globUrlOffset + 1] === ':*') {
-		// any port match. Consume a port if it exists otherwise nothing. Always consume the base.
-		if (urlPart[urlOffset] === ':') {
-			let endPortIndex = urlOffset + 1;
-			do { endPortIndex++; } while (/[0-9]/.test(urlPart[endPortIndex]));
-			options.push(doUrlPartMatch(memo, includePortLogic, urlPart, globUrlPart, endPortIndex, globUrlOffset + 2));
-		} else {
-			options.push(doUrlPartMatch(memo, includePortLogic, urlPart, globUrlPart, urlOffset, globUrlOffset + 2));
-		}
-	}
-
-	return (memo[urlOffset][globUrlOffset] = options.some(a => a === true));
+	return false;
 }

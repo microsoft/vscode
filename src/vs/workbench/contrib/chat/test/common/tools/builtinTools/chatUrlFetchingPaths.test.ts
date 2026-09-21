@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { StopWatch } from '../../../../../../../base/common/stopwatch.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { extractUrlPatterns, getMatchingPattern, getPatternLabel, isUrlApproved, IUrlApprovalSettings } from '../../../../common/tools/builtinTools/chatUrlFetchingPatterns.js';
@@ -20,6 +21,148 @@ suite('Chat URL effective path approval', () => {
 		{ name: 'literal backslashes', url: String.raw`${wiki}\..\..\..\attacker\repo\wiki\Home` },
 		{ name: 'browser-encoded dots', url: `${wiki}/%252e%252e/%252e%252e/%252e%252e/attacker/repo/wiki/Home` },
 	];
+
+	test('review encoded HTTP hostname exclusions match the effective hostname', () => {
+		const cases = [
+			['https://%2570rivate.example.test/secret', 'https://private.example.test'],
+			['https://x.b%25C3%25BCcher.example.test/private', 'https://*.xn--bcher-kva.example.test'],
+		];
+		assert.deepStrictEqual(cases.map(([url, pattern]) => {
+			const uri = URI.parse(url);
+			const rules = { [pattern]: false, 'https://*.example.test': true };
+			return [isUrlApproved(uri, rules, true), isUrlApproved(uri, rules, false), getMatchingPattern(uri, rules)];
+		}), cases.map(([, pattern]) => [false, false, pattern]));
+	});
+
+	test('review encoded hostname normalization preserves custom schemes and wildcard syntax', () => {
+		assert.deepStrictEqual([
+			isUrlApproved(URI.parse('custom://%2570rivate.example.test/resource'), { 'custom://private.example.test': true }, true),
+			isUrlApproved(URI.parse('https://unrelated.example.test/resource'), { 'https://%252a.example.test': true }, true),
+		], [false, false]);
+	});
+
+	test('review effective user information cannot grant hostname-based approvals or patterns', () => {
+		const urls = ['https://%5C/user@api.github.com/private', 'https://user@api.github.com/private'];
+		const rules = { 'https://*.github.com': true };
+		assert.deepStrictEqual(urls.map(url => {
+			const uri = URI.parse(url);
+			return {
+				request: isUrlApproved(uri, rules, true),
+				response: isUrlApproved(uri, rules, false),
+				matching: getMatchingPattern(uri, rules),
+				patterns: extractUrlPatterns(uri),
+				all: [isUrlApproved(uri, { '*': true }, true), isUrlApproved(uri, { '*': true }, false), getMatchingPattern(uri, { '*': true })],
+			};
+		}), urls.map(() => ({ request: false, response: false, matching: undefined, patterns: [], all: [true, true, '*'] })));
+	});
+
+	test('review unreserved path equivalence preserves reserved and deeper escapes', () => {
+		const rules = { 'https://example.test/private/*': false, 'https://example.test': true };
+		const cases = [
+			['https://example.test/%2570rivate/secret', false],
+			['https://example.test/%2570%2572ivate/secret', false],
+			['https://example.test/private%252fsecret', true],
+			['https://example.test/private%255csecret', true],
+			['https://example.test/%252570rivate/secret', true],
+			['https://example.test/allowed/%252e%252e/private/secret', false],
+			['https://example.test/allowed/%25252e%25252e/private/secret', true],
+		] as const;
+		assert.deepStrictEqual(cases.map(([url]) => {
+			const uri = URI.parse(url);
+			return [isUrlApproved(uri, rules, true), isUrlApproved(uri, rules, false)];
+		}), cases.map(([, approved]) => [approved, approved]));
+	});
+
+	test('review GitHub Unicode exclusions and positive approvals preserve case folding', () => {
+		const urls = [
+			'https://github.com/owner/repo/wiki/%C3%84',
+			'https://github.com/owner/repo/wiki/\u00c4',
+			'https://GitHub.com/OWNER/REPO/wiki/%C3%84',
+		];
+		const pattern = 'https://github.com/owner/repo/wiki/%C3%A4';
+		assert.deepStrictEqual(urls.map(url => {
+			const uri = URI.parse(url);
+			return [
+				isUrlApproved(uri, { [pattern]: false, 'https://github.com': true }, true),
+				isUrlApproved(uri, { [pattern]: false, 'https://github.com': true }, false),
+				isUrlApproved(uri, { [pattern]: true }, true),
+			];
+		}), urls.map(() => [false, false, true]));
+	});
+
+	test('review drive-like HTTP path exclusions agree with the fetched case', () => {
+		const upper = URI.parse('https://example.test/public/../C:/Secret');
+		const direct = URI.parse('https://example.test/C:/Secret');
+		const lower = URI.parse('https://example.test/c:/Secret');
+		const rules = { 'https://example.test/c:': false, 'https://example.test': true };
+		assert.deepStrictEqual([upper, direct, lower].map(uri => [
+			isUrlApproved(uri, rules, true),
+			isUrlApproved(uri, rules, false),
+		]), [[true, true], [true, true], [false, false]]);
+	});
+
+	test('keeps long Unicode scoped approvals within a bounded interactive budget', () => {
+		const segment = '\u65e5'.repeat(128);
+		const uri = URI.parse(`https://example.test/docs/${segment}/page`);
+		const rules: Record<string, boolean> = Object.fromEntries(
+			Array.from({ length: 9 }, (_, index) => [`https://example.test/other-${index}/${segment}/*`, true]),
+		);
+		rules[`https://example.test/docs/${segment}/*`] = true;
+		const stopwatch = StopWatch.create();
+		const approved = Array.from({ length: 3 }, () => isUrlApproved(uri, rules, true));
+		const elapsed = stopwatch.elapsed();
+		assert.deepStrictEqual(approved, [true, true, true]);
+		assert.ok(elapsed < 500, `Three Unicode-path approval checks took ${elapsed}ms (500ms budget)`);
+	});
+
+	for (const pattern of [
+		'https://example.test/public/../private/*',
+		'https://example.test/public/%2e%2e/private/*',
+		'https://example.test/public/%252e%252e/private/*',
+		String.raw`https://example.test/public\..\private\*`,
+		'example.test/public/../private/*',
+		'https://*.test:*/public/../private/*',
+	]) {
+		test(`configured effective-path exclusion is honored for ${pattern}`, () => {
+			const uri = URI.parse('https://example.test/private/secret');
+			const rules = { [pattern]: false, 'https://example.test': true };
+			assert.deepStrictEqual({
+				request: isUrlApproved(uri, rules, true),
+				response: isUrlApproved(uri, rules, false),
+				pattern: getMatchingPattern(uri, rules),
+			}, { request: false, response: false, pattern });
+		});
+	}
+
+	test('configured effective-path patterns preserve granular fallthrough and positive controls', () => {
+		const uri = URI.parse('http://example.test/private%20docs/secret');
+		const pattern = 'example.test/public/../private%20docs/*';
+		const rules: Record<string, boolean | IUrlApprovalSettings>[] = [
+			{ [pattern]: { approveRequest: false }, 'http://example.test': true },
+			{ [pattern]: { approveResponse: false }, 'http://example.test': true },
+			{ [pattern]: true },
+		];
+		assert.deepStrictEqual(
+			rules.map(approved => [isUrlApproved(uri, approved, true), isUrlApproved(uri, approved, false)]),
+			[[false, true], [true, false], [true, true]],
+		);
+	});
+
+	test('configured effective-path patterns preserve escaped data and non-HTTP controls', () => {
+		const pattern = 'https://example.test/public/../private%252f*';
+		const rules = { [pattern]: false, 'https://example.test': true };
+		assert.deepStrictEqual({
+			escaped: isUrlApproved(URI.parse('https://example.test/private%252fsecret'), rules, true),
+			separator: isUrlApproved(URI.parse('https://example.test/private/secret'), rules, true),
+			schemelessCustom: isUrlApproved(URI.parse('custom://example.test/private/secret'), { 'example.test/public/../private/*': true }, true),
+			customPath: isUrlApproved(URI.parse('custom://example.test/public/../private/secret'), { 'custom://example.test/public/*': true }, true),
+		}, {
+			escaped: false,
+			separator: true,
+			schemelessCustom: false,
+			customPath: true,
+		});
+	});
 
 	test('combined IDN and effective path matching honors encoded path exclusions', () => {
 		const hosts = ['x.xn--bcher-kva.example.test', 'x.b\u00fccher.example.test'];

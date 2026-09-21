@@ -22,6 +22,77 @@ suite('URL effective path normalization', () => {
 		{ name: 'browser-encoded dots', url: `${wiki}/%252e%252e/%252e%252e/%252e%252e/attacker/repo/wiki/Home` },
 	];
 
+	test('review authority controls preserve the original destination before path resolution', () => {
+		const controls = ['%09', '%0D', '%0A', '\t', '\r', '\n'];
+		assert.deepStrictEqual(controls.map(control => {
+			const uri = URI.parse(`https://${control}\\trusted.example/../evil.example/private?token=fixture`);
+			const normalized = normalizeURLPathSeparators(uri);
+			return {
+				original: new URL(uri.toString(true)).href,
+				normalized: new URL(normalized.toString(true)).href,
+				repeated: new URL(normalizeURLPathSeparators(normalized).toString(true)).href,
+			};
+		}), controls.map(() => ({
+			original: 'https://trusted.example/evil.example/private?token=fixture',
+			normalized: 'https://trusted.example/evil.example/private?token=fixture',
+			repeated: 'https://trusted.example/evil.example/private?token=fixture',
+		})));
+	});
+
+	test('review HTTP drive-like paths retain case through normalization and serialization', () => {
+		const uri = URI.parse('https://example.test/public/../C:/Secret');
+		const normalized = normalizeURLPathSeparators(uri);
+		assert.deepStrictEqual({
+			original: new URL(uri.toString(true)).href,
+			normalized: new URL(normalized.toString(true)).href,
+			repeated: new URL(normalizeURLPathSeparators(normalized).toString(true)).href,
+			upperTrust: isURLDomainTrusted(uri, ['https://example.test/C:/*']),
+			lowerTrust: isURLDomainTrusted(uri, ['https://example.test/c:/*']),
+		}, {
+			original: 'https://example.test/C:/Secret',
+			normalized: 'https://example.test/C:/Secret',
+			repeated: 'https://example.test/C:/Secret',
+			upperTrust: true,
+			lowerTrust: false,
+		});
+	});
+
+	test('review trusted patterns preserve literal escaped data across normalization', () => {
+		const cases = [
+			['https://example.test/percent%2525value/page', 'https://example.test/percent%2525value/page', true],
+			['https://example.test/allowed/private%252fsecret/file', 'https://example.test/allowed/private%252fsecret/*', true],
+			['https://example.test/allowed/private/secret/file', 'https://example.test/allowed/private%252fsecret/*', false],
+			['https://api.example.test:8443/allowed/private%252fsecret/file', 'https://*.example.test:*/allowed/private%252fsecret/*', true],
+		] as const;
+		assert.deepStrictEqual(
+			cases.map(([url, pattern]) => isURLDomainTrusted(URI.parse(url), [pattern])),
+			cases.map(([, , expected]) => expected),
+		);
+	});
+
+	test('review GitHub Unicode trust folds characters without decoding escaped separators', () => {
+		assert.deepStrictEqual([
+			isURLDomainTrusted(URI.parse('https://github.com/owner/repo/wiki/%C3%84'), ['https://github.com/owner/repo/wiki/%C3%A4']),
+			isURLDomainTrusted(URI.parse('https://example.test/wiki/%C3%84'), ['https://example.test/wiki/%C3%A4']),
+			isURLDomainTrusted(URI.parse('https://github.com/owner/repo/wiki/private%252fsecret'), ['https://github.com/owner/repo/wiki/private/secret']),
+			isURLDomainTrusted(URI.parse('https://github.com/owner/repo/wiki/private%252fsecret'), ['https://github.com/owner/repo/wiki/private%252fsecret']),
+			isURLDomainTrusted(URI.parse('https://github.com/owner/repo/wiki/%25C3%2584'), ['https://github.com/owner/repo/wiki/%C3%A4']),
+			isURLDomainTrusted(URI.parse('https://github.com/owner/repo/wiki/%2525C3%252584'), ['https://github.com/owner/repo/wiki/%C3%A4']),
+		], [true, false, false, true, true, false]);
+	});
+
+	test('review effective user information requires explicit trust-all', () => {
+		const urls = [
+			'https://%5C/user@api.github.com/private',
+			'https://%5C/user@sub.localhost/private',
+			'https://user@api.github.com/private',
+		];
+		assert.deepStrictEqual(urls.map(url => {
+			const uri = URI.parse(url);
+			return [isURLDomainTrusted(uri, []), isURLDomainTrusted(uri, ['https://*.github.com']), isURLDomainTrusted(uri, ['*'])];
+		}), urls.map(() => [false, false, true]));
+	});
+
 	test('review regression: decoded authority slashes cannot grant localhost or domain trust', () => {
 		assert.deepStrictEqual(['%2F', '%2f'].map(separator => ({
 			localhost: isURLDomainTrusted(URI.parse(`https://evil.example${separator}.localhost/collect`), []),

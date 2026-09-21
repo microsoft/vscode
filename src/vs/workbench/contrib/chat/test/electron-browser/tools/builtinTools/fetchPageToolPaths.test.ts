@@ -148,6 +148,11 @@ suite('FetchWebPageTool effective paths', () => {
 			name: 'review regression: real tool orchestration does not implicitly trust encoded authority slashes',
 			url: 'https://evil.example%2F.localhost/collect',
 		},
+		{
+			name: 'configured effective-path exclusion prevents real fetch after decline',
+			url: 'https://example.test/private/secret',
+			rules: { 'https://example.test/public/../private/*': false, 'https://example.test': true },
+		},
 	];
 	for (const { name, url, destination, rules } of orchestrationCases) {
 		test(name, async () => {
@@ -264,6 +269,40 @@ suite('FetchWebPageTool effective paths', () => {
 			destinations: [destination],
 		});
 	});
+
+	for (const url of [
+		'https://%09%5Ctrusted.example/../evil.example/private?token=fixture',
+		'https://%0D%5Ctrusted.example/../evil.example/private?token=fixture',
+		'https://%0A%5Ctrusted.example/../evil.example/private?token=fixture',
+		'https://example.test/public/../C:/Secret',
+		'https://example.test/%2570rivate/secret',
+	]) {
+		test(`review serialized destination and prompt reference stay aligned for ${url}`, async () => {
+			const fixture = createFixture([], url);
+			const prepared = await fixture.tool.prepareToolInvocation(
+				{ parameters: { urls: [url] }, toolCallId: 'serialization-review', chatSessionResource: fixture.sessionResource },
+				CancellationToken.None,
+			);
+			await fixture.tool.invoke(
+				{ callId: 'serialization-review', toolId: FetchWebPageToolData.id, parameters: { urls: [url] }, context: undefined },
+				async () => 0,
+				{ report: () => { } },
+				CancellationToken.None,
+			);
+			const destination = new URL(URI.parse(url).toString(true)).href;
+			assert.deepStrictEqual({
+				title: prepared?.confirmationMessages?.title,
+				reason: prepared?.confirmationMessages?.confirmationNotNeededReason,
+				requested: fixture.browserDestinations,
+				policy: fixture.policyUris.map(value => new URL(value).href),
+			}, {
+				title: undefined,
+				reason: 'Auto approved because URL was in prompt',
+				requested: [destination],
+				policy: [destination, destination],
+			});
+		});
+	}
 
 	test('keeps an in-scope normalized path trusted without changing query or fragment values', async () => {
 		const fixture = createFixture([`${wiki}/*`]);

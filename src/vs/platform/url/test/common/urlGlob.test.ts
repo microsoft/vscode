@@ -52,6 +52,25 @@ suite('urlGlob', () => {
 			assert.strictEqual(testUrlMatchesGlob('https://example.com/path/to/resource', 'https://example.com/path/*/resource'), true);
 		});
 
+		test('preserves nonempty trailing wildcard and path-prefix semantics', () => {
+			assert.deepStrictEqual([
+				testUrlMatchesGlob('https://example.test/a', 'https://example.test/a*'),
+				testUrlMatchesGlob('https://example.test/ab', 'https://example.test/a*'),
+				testUrlMatchesGlob('https://example.test/ab', 'https://example.test/*b'),
+				testUrlMatchesGlob('https://example.test/ab', 'https://example.test/*b*'),
+				testUrlMatchesGlob('https://example.test/a/b', 'https://example.test/a'),
+				testUrlMatchesGlob('https://example.test/', 'https://example.test:*'),
+			], [false, true, true, false, true, true]);
+		});
+
+		test('matches long paths without recursive stack growth', () => {
+			const segment = 'x'.repeat(8192);
+			assert.deepStrictEqual([
+				testUrlMatchesGlob(`https://example.test/docs/${segment}/match`, 'https://example.test/docs/*/match'),
+				testUrlMatchesGlob(`https://example.test/docs/${segment}/miss`, 'https://example.test/docs/*/match'),
+			], [true, false]);
+		});
+
 		test('dot segments cannot escape a path-scoped glob', () => {
 			const paths = [
 				'/allowed/../outside',

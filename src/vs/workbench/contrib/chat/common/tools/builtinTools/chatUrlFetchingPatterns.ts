@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from '../../../../../../base/common/uri.js';
-import { isURLSafeForTrust, normalizeURLForTrust } from '../../../../../../platform/url/common/trustedDomains.js';
+import { isURLSafeForTrust, normalizeURLForTrust, normalizeURLPattern, serializeURLPattern } from '../../../../../../platform/url/common/trustedDomains.js';
 import { testUrlMatchesGlob } from '../../../../../../platform/url/common/urlGlob.js';
 
 /**
@@ -22,27 +22,33 @@ function getUrlApprovalValue(settings: boolean | IUrlApprovalSettings, checkRequ
 	return checkRequest ? settings.approveRequest : settings.approveResponse;
 }
 
+function normalizeSafeURL(url: URI): URI | undefined {
+	if (!isURLSafeForTrust(url)) {
+		return undefined;
+	}
+	const normalized = normalizeURLForTrust(url);
+	return isURLSafeForTrust(normalized) ? normalized : undefined;
+}
+
 /**
  * Extracts domain patterns from a URL for use in approval actions
  * @param url The URL to extract patterns from
  * @returns An array of patterns in order of specificity (most specific first)
  */
 export function extractUrlPatterns(url: URI): string[] {
-	if (!isURLSafeForTrust(url)) {
+	const normalized = normalizeSafeURL(url);
+	if (!normalized) {
 		return [];
 	}
 
-	const normalized = normalizeURLForTrust(url);
-	// Pattern strings are parsed as URIs again, so preserve literal path escapes across that boundary.
-	const patternPath = normalized.path.replace(/%/g, '%25');
 	const patterns = new Set<string>();
 
 	// Full URL (most specific)
-	const fullUrl = normalized.with({ path: patternPath }).toString(true);
+	const fullUrl = serializeURLPattern(normalized);
 	patterns.add(fullUrl);
 
 	// Domain-only pattern (without trailing slash)
-	const domainOnly = normalized.with({ path: '', query: '', fragment: '' }).toString(true);
+	const domainOnly = serializeURLPattern(normalized.with({ path: '', query: '', fragment: '' }));
 	patterns.add(domainOnly);
 
 	// Wildcard subdomain pattern (*.example.com)
@@ -61,27 +67,27 @@ export function extractUrlPatterns(url: URI): string[] {
 		// For example, foo.bar.example.com -> *.bar.example.com, *.example.com
 		for (let i = 0; i < domainParts.length - 2; i++) {
 			const wildcardAuthority = '*.' + domainParts.slice(i + 1).join('.');
-			const wildcardPattern = normalized.with({
+			const wildcardPattern = serializeURLPattern(normalized.with({
 				authority: wildcardAuthority,
 				path: '',
 				query: '',
 				fragment: ''
-			}).toString(true);
+			}));
 			patterns.add(wildcardPattern);
 		}
 	}
 
 	// Path patterns (if there's a non-trivial path)
-	const pathSegments = patternPath.split('/').filter((s: string) => s.length > 0);
+	const pathSegments = normalized.path.split('/').filter((s: string) => s.length > 0);
 	if (pathSegments.length > 0) {
 		// Add patterns for each path level with wildcard
 		for (let i = pathSegments.length - 1; i >= 0; i--) {
 			const pathPattern = pathSegments.slice(0, i).join('/');
-			const urlWithPathPattern = normalized.with({
+			const urlWithPathPattern = serializeURLPattern(normalized.with({
 				path: (i > 0 ? '/' : '') + pathPattern,
 				query: '',
 				fragment: ''
-			}).toString(true);
+			}));
 			patterns.add(urlWithPathPattern);
 		}
 	}
@@ -119,16 +125,15 @@ export function isUrlApproved(
 	approvedUrls: Record<string, boolean | IUrlApprovalSettings>,
 	checkRequest: boolean
 ): boolean {
-	if (!isURLSafeForTrust(url)) {
+	const normalizedUrl = normalizeSafeURL(url);
+	if (!normalizedUrl) {
 		const settings = approvedUrls['*'];
 		return settings === undefined ? false : getUrlApprovalValue(settings, checkRequest) ?? false;
 	}
 
-	const normalizedUrl = normalizeURLForTrust(url);
-
 	for (const [pattern, settings] of Object.entries(approvedUrls)) {
 		// Check if URL matches this pattern
-		if (testUrlMatchesGlob(normalizedUrl, pattern)) {
+		if (testUrlMatchesGlob(normalizedUrl, normalizeURLPattern(pattern))) {
 			const value = getUrlApprovalValue(settings, checkRequest);
 			if (value !== undefined) {
 				return value;
@@ -149,17 +154,18 @@ export function getMatchingPattern(
 	url: URI,
 	approvedUrls: Record<string, boolean | IUrlApprovalSettings>
 ): string | undefined {
-	if (!isURLSafeForTrust(url)) {
+	const normalizedUrl = normalizeSafeURL(url);
+	if (!normalizedUrl) {
 		return Object.keys(approvedUrls).includes('*') ? '*' : undefined;
 	}
 
-	const normalizedUrl = normalizeURLForTrust(url);
 	const patterns = extractUrlPatterns(url);
 
 	// Check patterns in order of specificity (most specific first)
 	for (const pattern of patterns) {
 		for (const approvedPattern of Object.keys(approvedUrls)) {
-			if (testUrlMatchesGlob(normalizedUrl, approvedPattern) && testUrlMatchesGlob(URI.parse(pattern), approvedPattern)) {
+			const normalizedPattern = normalizeURLPattern(approvedPattern);
+			if (testUrlMatchesGlob(normalizedUrl, normalizedPattern) && testUrlMatchesGlob(URI.parse(pattern), normalizedPattern)) {
 				return approvedPattern;
 			}
 		}
