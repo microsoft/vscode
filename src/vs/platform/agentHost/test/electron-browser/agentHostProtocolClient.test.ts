@@ -7,7 +7,8 @@ import assert from 'assert';
 import sinon from 'sinon';
 import { DeferredPromise, timeout } from '../../../../base/common/async.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
-import { CancellationError } from '../../../../base/common/errors.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { CancellationError, isCancellationError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../base/common/observable.js';
@@ -1842,6 +1843,89 @@ suite('AgentHostProtocolClient', () => {
 		await assertRemoteProtocolError(request, error);
 	});
 
+	test('sendHostExtensionRequest abandons cancelled correlation without cancelling host work or other requests', async () => {
+		const { client, transport } = createClient();
+		const remaining = client.sendHostExtensionRequest('extensions/cloneProject', { url: 'https://github.com/microsoft/typescript', depth: 1 });
+		const pendingCounts: number[] = [];
+		for (let attempt = 0; attempt < 3; attempt++) {
+			const cancellation = disposables.add(new CancellationTokenSource());
+			const rejected = assert.rejects(client.sendHostExtensionRequest('extensions/cloneProject', {
+				url: 'https://github.com/microsoft/vscode', depth: 1,
+			}, cancellation.token), isCancellationError);
+			cancellation.cancel();
+			await rejected;
+			pendingCounts.push(client['_pendingRequests'].size);
+			transport.fireMessage({ jsonrpc: '2.0', id: attempt + 2, result: { project: { status: 'ready' } } });
+		}
+		transport.fireMessage({ jsonrpc: '2.0', id: 1, result: 'remaining response' });
+		assert.deepStrictEqual({
+			pendingCounts,
+			remaining: await remaining,
+			pending: client['_pendingRequests'].size,
+			methods: transport.sentMessages.map(message => hasKey(message, { method: true }) ? message.method : undefined),
+		}, {
+			pendingCounts: [1, 1, 1],
+			remaining: 'remaining response',
+			pending: 0,
+			methods: Array(4).fill('extensions/cloneProject'),
+		});
+	});
+
+	test('sendHostExtensionRequest does not allocate or send an already-cancelled request', async () => {
+		const { client, transport } = createClient();
+		await assert.rejects(client.sendHostExtensionRequest('extensions/cloneProject', {}, CancellationToken.Cancelled), isCancellationError);
+		assert.deepStrictEqual({ pending: client['_pendingRequests'].size, sent: transport.sentMessages }, { pending: 0, sent: [] });
+	});
+
+	test('sendHostExtensionRequest releases cancellation listeners on success and failure', async () => {
+		const listeners: boolean[] = [];
+		for (const fail of [false, true]) {
+			const { client, transport } = createClient();
+			const cancellation = disposables.add(new Emitter<void>());
+			const token: CancellationToken = { isCancellationRequested: false, onCancellationRequested: cancellation.event };
+			const request = client.sendHostExtensionRequest('extensions/cloneProject', {}, token);
+			if (fail) {
+				const error = { code: JsonRpcErrorCodes.MethodNotFound, message: 'Method not found' };
+				const rejected = assertRemoteProtocolError(request, error);
+				transport.fireMessage({ jsonrpc: '2.0', id: 1, error });
+				await rejected;
+			} else {
+				transport.fireMessage({ jsonrpc: '2.0', id: 1, result: null });
+				await request;
+			}
+			listeners.push(cancellation.hasListeners());
+		}
+		assert.deepStrictEqual(listeners, [false, false]);
+	});
+
+	test('sendHostExtensionRequest removes only the cancelled request from the initialization outbox', async () => {
+		const transport = disposables.add(new TestClientProtocolTransport());
+		const { client } = createClient(transport);
+		const cancellation = disposables.add(new CancellationTokenSource());
+		const cancelled = assert.rejects(client.sendHostExtensionRequest('extensions/cloneProject', { url: 'cancelled' }, cancellation.token), isCancellationError);
+		const remaining = client.sendHostExtensionRequest('extensions/cloneProject', { url: 'remaining' });
+		cancellation.cancel();
+		await cancelled;
+		transport.connectDeferred.complete();
+		await connectClient(client, transport);
+		const requests = transport.sentMessages.filter((message): message is JsonRpcRequest =>
+			hasKey(message, { method: true, id: true }) && message.method === 'extensions/cloneProject');
+		assert.deepStrictEqual(requests.map(request => request.params), [{ url: 'remaining' }]);
+		transport.fireMessage({ jsonrpc: '2.0', id: requests[0].id, result: null });
+		await remaining;
+		assert.strictEqual(client['_pendingRequests'].size, 0);
+	});
+
+	test('sendHostExtensionRequest releases cancellation listeners when the connection closes', async () => {
+		const { client } = createClient();
+		const cancellation = disposables.add(new Emitter<void>());
+		const token: CancellationToken = { isCancellationRequested: false, onCancellationRequested: cancellation.event };
+		const rejected = assert.rejects(client.sendHostExtensionRequest('extensions/cloneProject', {}, token));
+		client.dispose();
+		await rejected;
+		assert.deepStrictEqual({ pending: client['_pendingRequests'].size, listeners: cancellation.hasListeners() }, { pending: 0, listeners: false });
+	});
+
 	test('removeSessionArtifact sends the VS Code extension request', async () => {
 		const { client, transport } = createClient();
 		const session = URI.parse('copilotcli:/session-1');
@@ -2758,6 +2842,28 @@ suite('AgentHostProtocolClient', () => {
 			});
 			await connectPromise;
 		}
+
+		test('sendHostExtensionRequest cancels while reconnecting without sending after recovery', async () => {
+			const { client, transports } = createFactoryClient();
+			await completeHandshake(transports[0], client.connect());
+			transports[0].fireClose();
+			await waitForReconnecting(client);
+			const cancellation = disposables.add(new CancellationTokenSource());
+			const rejected = assert.rejects(client.sendHostExtensionRequest('extensions/cloneProject', {}, cancellation.token), isCancellationError);
+			cancellation.cancel();
+			await rejected;
+			client.reconnectNow();
+			const replacement = await waitForTransport(transports, 1);
+			replacement.connectDeferred.complete();
+			const reconnect = await waitForRequestAtWithin(replacement, 'reconnect', 0);
+			replacement.fireMessage({ jsonrpc: '2.0', id: reconnect.id, result: { type: ReconnectResultType.Replay, actions: [], missing: [] } });
+			await waitForConnectedWithin(client);
+			assert.deepStrictEqual({
+				pending: client['_pendingRequests'].size,
+				cloneRequests: transports.flatMap(transport => transport.sentMessages.filter(message =>
+					hasKey(message, { method: true }) && message.method === 'extensions/cloneProject')),
+			}, { pending: 0, cloneRequests: [] });
+		});
 
 		test('Dev Container facade survives parent reconnection and closes its old relay', async function () {
 			this.timeout(10_000);

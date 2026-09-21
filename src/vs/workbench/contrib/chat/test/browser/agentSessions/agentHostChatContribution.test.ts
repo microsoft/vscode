@@ -13827,7 +13827,7 @@ suite('AgentHostChatContribution', () => {
 					order.push('authenticate');
 					return true;
 				},
-				prepareWorkingDirectory: async () => {
+				prepareSession: async () => {
 					order.push('prepare');
 					directory = prepared;
 				},
@@ -13862,7 +13862,7 @@ suite('AgentHostChatContribution', () => {
 				description: 'test',
 				connection: agentHostService,
 				connectionAuthority: 'local',
-				prepareWorkingDirectory: async () => { throw new Error('Repository clone denied'); },
+				prepareSession: async () => { throw new Error('Repository clone denied'); },
 			}));
 			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/new-failed-preparation' });
 			const chatSession = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
@@ -13890,7 +13890,7 @@ suite('AgentHostChatContribution', () => {
 				description: 'test',
 				connection: agentHostService,
 				connectionAuthority: 'local',
-				prepareWorkingDirectory: () => pending.p,
+				prepareSession: () => pending.p,
 			}));
 			const { turnPromise } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, { cancellationToken: cancellation.token });
 			const rejected = assert.rejects(turnPromise, isCancellationError);
@@ -13920,7 +13920,7 @@ suite('AgentHostChatContribution', () => {
 				description: 'test',
 				connection: agentHostService,
 				connectionAuthority: 'local',
-				prepareWorkingDirectory: async () => { preparationCalls++; },
+				prepareSession: async () => { preparationCalls++; },
 			}));
 			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, {
 				sessionResource: URI.from({ scheme: 'agent-host-copilot', path: '/existing-repository' }),

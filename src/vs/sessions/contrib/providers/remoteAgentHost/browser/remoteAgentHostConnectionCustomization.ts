@@ -4,11 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
-import { IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { DisposableStore, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IAgentConnection } from '../../../../../platform/agentHost/common/agentService.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IAgentHostAuthenticateRequest } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostAuth.js';
+
+/** Optional startup preparation for a selected workspace, returning a replacement host directory when needed. */
+export type RemoteAgentHostSessionPreparation = (selection: URI | undefined, token: CancellationToken) => Promise<URI | undefined>;
 
 /**
  * Per-connection behavior a specific remote-agent-host kind can inject into the otherwise
@@ -27,8 +30,8 @@ export interface IRemoteAgentHostConnectionCustomization {
 	 */
 	readonly backendSessionScheme?: (provider: string) => string | undefined;
 
-	/** Prepares a new session's directory after authentication, without changing existing sessions. */
-	readonly prepareWorkingDirectory?: (connection: IAgentConnection, directory: URI | undefined, token: CancellationToken) => Promise<URI | undefined>;
+	/** Creates connection-scoped startup preparation, invoked only for new sessions after authentication. */
+	readonly createSessionPreparation?: (connection: IAgentConnection, store: DisposableStore) => RemoteAgentHostSessionPreparation;
 }
 
 /** Builds a {@link IRemoteAgentHostConnectionCustomization} for a concrete connection address. */

@@ -43,7 +43,7 @@ import { findRemoteAgentHostSessionTypeAuthority, isRemoteAgentHostSessionType, 
 import { createRemoteAgentHarnessDescriptor, RemoteAgentPluginController } from './remoteAgentHostCustomizationHarness.js';
 import { RemoteAgentHostLogForwarder } from './remoteAgentHostLogForwarder.js';
 import { RemoteAgentHostSessionsProvider } from './remoteAgentHostSessionsProvider.js';
-import { IRemoteAgentHostConnectionCustomizationService, RemoteAgentHostConnectionCustomizationService } from './remoteAgentHostConnectionCustomization.js';
+import { IRemoteAgentHostConnectionCustomizationService, RemoteAgentHostConnectionCustomizationService, RemoteAgentHostSessionPreparation } from './remoteAgentHostConnectionCustomization.js';
 import { InstantiationType, registerSingleton } from '../../../../../platform/instantiation/common/extensions.js';
 import { IAgentHostTerminalService } from '../../../../../workbench/contrib/terminal/browser/agentHostTerminalService.js';
 import { IWorkbenchEnvironmentService } from '../../../../../workbench/services/environment/common/environmentService.js';
@@ -118,6 +118,7 @@ class ConnectionState extends Disposable {
 	/** Dedupes redundant `authenticate` RPCs when the resolved token hasn't changed. */
 	readonly authTokenCache = new AgentHostAuthTokenCache();
 	readonly authRecovery: AgentHostAuthenticationRecovery;
+	prepareSession: RemoteAgentHostSessionPreparation | undefined;
 
 	constructor(
 		readonly name: string | undefined,
@@ -254,6 +255,7 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 		const connState = this._instantiationService.createInstance(ConnectionState, name, connection);
 		this._connections.set(address, connState);
 		const store = connState.store;
+		connState.prepareSession = this._connectionCustomizations.get(address)?.createSessionPreparation?.(connection, store);
 
 		// Bridge the host's OTLP logs channel into a dedicated workbench
 		// Output channel (`Agent Host (${name})`). Concrete clients
@@ -341,8 +343,7 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 		// Per-agent working directory cache, scoped to the agent store lifetime
 		const sessionWorkingDirs = new Map<string, URI>();
 		agentStore.add(toDisposable(() => sessionWorkingDirs.clear()));
-		const customization = this._connectionCustomizations.get(address);
-		const prepareWorkingDirectory = customization?.prepareWorkingDirectory;
+		const prepareSession = connState.prepareSession;
 
 		// Capture the working directory from the session that is being created.
 		const resolveWorkingDirectory = (sessionResource: URI): URI | undefined => {
@@ -423,7 +424,7 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 		const sessionHandler = agentStore.add(this._instantiationService.createInstance(
 			AgentHostSessionHandler, {
 			provider: agent.provider,
-			backendSessionScheme: customization?.backendSessionScheme?.(agent.provider),
+			backendSessionScheme: this._connectionCustomizations.get(address)?.backendSessionScheme?.(agent.provider),
 			agentId,
 			sessionType,
 			fullName: displayName,
@@ -433,8 +434,8 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 			extensionId: 'vscode.remote-agent-host',
 			extensionDisplayName: 'Remote Agent Host',
 			resolveWorkingDirectory,
-			prepareWorkingDirectory: prepareWorkingDirectory ? async (sessionResource, token) => {
-				const directory = await prepareWorkingDirectory(connection, resolveWorkingDirectory(sessionResource), token);
+			prepareSession: prepareSession ? async (sessionResource, token) => {
+				const directory = await prepareSession(resolveWorkingDirectory(sessionResource), token);
 				if (directory) {
 					sessionWorkingDirs.set(sessionResource.toString(), connection.resourceUris.fromAgentHost(directory));
 				}

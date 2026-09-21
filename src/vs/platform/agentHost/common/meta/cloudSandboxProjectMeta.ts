@@ -8,7 +8,7 @@
 import { isObject } from '../../../../base/common/types.js';
 import type { RootState } from '../state/protocol/state.js';
 
-export interface IAgentHostProject {
+export interface ICloudSandboxProject {
 	readonly id: string;
 	readonly path: string;
 	readonly git: boolean;
@@ -17,16 +17,11 @@ export interface IAgentHostProject {
 	readonly error?: string;
 }
 
-export function supportsAgentHostProjects(state: RootState): boolean {
-	const value = state._meta?.['copilot.projectManagement'];
-	return isRecord(value) && value.available === true;
-}
-
-export function readAgentHostCloneResult(result: unknown): IAgentHostProject | undefined {
+export function readCloudSandboxCloneResult(result: unknown): ICloudSandboxProject | undefined {
 	return isRecord(result) ? readProject(result.project) : undefined;
 }
 
-function readProject(value: unknown): IAgentHostProject | undefined {
+function readProject(value: unknown): ICloudSandboxProject | undefined {
 	if (!isRecord(value)
 		|| typeof value.id !== 'string' || !value.id
 		|| typeof value.path !== 'string' || !value.path
@@ -47,9 +42,13 @@ function readProject(value: unknown): IAgentHostProject | undefined {
 	};
 }
 
-export function readAgentHostProjects(state: RootState): readonly IAgentHostProject[] {
+export function readCloudSandboxProjects(state: RootState): readonly ICloudSandboxProject[] | undefined {
+	const capability = state._meta?.['copilot.projectManagement'];
+	if (!isRecord(capability) || capability.available !== true) {
+		return undefined;
+	}
 	const copilot = state.config?.values?.copilot;
-	if (!supportsAgentHostProjects(state) || !isRecord(copilot) || !Array.isArray(copilot.projects)) {
+	if (!isRecord(copilot) || !Array.isArray(copilot.projects)) {
 		return [];
 	}
 	return copilot.projects.flatMap(value => {

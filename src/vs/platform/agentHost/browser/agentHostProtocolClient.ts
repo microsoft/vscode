@@ -5,7 +5,8 @@
 
 // Protocol client for communicating with an agent host process.
 
-import { DeferredPromise, TimeoutTimer } from '../../../base/common/async.js';
+import { DeferredPromise, raceCancellationError, TimeoutTimer } from '../../../base/common/async.js';
+import { CancellationToken } from '../../../base/common/cancellation.js';
 import { CancellationError } from '../../../base/common/errors.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable, DisposableStore, MutableDisposable, IReference } from '../../../base/common/lifecycle.js';
@@ -2197,9 +2198,9 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		return this._dispatchRequest<IAgentHostExtensionCommandMap[M]['result']>(method, params);
 	}
 
-	/** Sends a host-specific extension request; its consumer must validate the response. */
-	sendHostExtensionRequest(method: `extensions/${string}` | `x-${string}`, params: unknown): Promise<unknown> {
-		return this._dispatchRequest(method, params);
+	/** Sends an unvalidated host extension request; cancellation abandons local tracking, not host work. */
+	sendHostExtensionRequest(method: `extensions/${string}` | `x-${string}`, params: unknown, token: CancellationToken = CancellationToken.None): Promise<unknown> {
+		return this._dispatchRequest(method, params, { cancellationToken: token });
 	}
 
 	private _updateTelemetryLevel(): void {
@@ -2257,8 +2258,12 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 	private async _dispatchRequest<TResult>(
 		method: string,
 		params: unknown,
-		options: { readonly bypassInitializeQueue?: boolean; readonly allowIncompatibleUpgrade?: boolean; readonly bypassReconnectGate?: boolean } = {},
+		options: { readonly bypassInitializeQueue?: boolean; readonly allowIncompatibleUpgrade?: boolean; readonly bypassReconnectGate?: boolean; readonly cancellationToken?: CancellationToken } = {},
 	): Promise<TResult> {
+		const token = options.cancellationToken ?? CancellationToken.None;
+		if (token.isCancellationRequested) {
+			throw new CancellationError();
+		}
 		if (this._state.kind === AgentHostClientState.Closed) {
 			throw this._state.error;
 		}
@@ -2266,12 +2271,12 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 			if (!options.allowIncompatibleUpgrade) {
 				throw this._state.error;
 			}
-			const { request, result } = this._createRequest<TResult>(method, params);
+			const { request, result } = this._createRequest<TResult>(method, params, token);
 			this._transport.send(request);
 			return result;
 		}
 		if (!options.bypassInitializeQueue && isClientTransport(this._transport) && this._state.kind === AgentHostClientState.Connecting) {
-			const { request, result } = this._createRequest<TResult>(method, params);
+			const { request, result } = this._createRequest<TResult>(method, params, token);
 			this._state.outbox.push(request as ProtocolMessage);
 			return result;
 		}
@@ -2289,8 +2294,11 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 				break;
 			}
 			try {
-				await current.reconnect.gate.p;
+				await (token === CancellationToken.None ? current.reconnect.gate.p : raceCancellationError(current.reconnect.gate.p, token));
 			} catch {
+				if (token.isCancellationRequested) {
+					throw new CancellationError();
+				}
 				// Transient attempt failure — swallow and re-check state on the
 				// next loop iteration. If we transitioned to Closed the check
 				// after the loop surfaces the error; if we're still Reconnecting
@@ -2301,19 +2309,42 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		if (current.kind === AgentHostClientState.Closed || current.kind === AgentHostClientState.Incompatible) {
 			throw current.error;
 		}
+		if (token.isCancellationRequested) {
+			throw new CancellationError();
+		}
 
-		const { request, result } = this._createRequest<TResult>(method, params);
+		const { request, result } = this._createRequest<TResult>(method, params, token);
 		this._transport.send(request);
 		return result;
 	}
 
-	private _createRequest<TResult>(method: string, params: unknown): { request: JsonRpcRequest; result: Promise<TResult> } {
+	private _createRequest<TResult>(method: string, params: unknown, token: CancellationToken): { request: JsonRpcRequest; result: Promise<TResult> } {
 		const id = this._nextRequestId++;
 		const deferred = new DeferredPromise<unknown>();
 		this._pendingRequests.set(id, { deferred, suppressNotFoundWarning: isFileResourceRead(method, params), sentAt: Date.now() });
+		let result = deferred.p as Promise<TResult>;
+		if (token !== CancellationToken.None) {
+			const release = () => {
+				this._pendingRequests.delete(id);
+				const outbox = this._state.kind === AgentHostClientState.Connecting ? this._state.outbox
+					: this._state.kind === AgentHostClientState.Reconnecting ? this._state.reconnect.outbox : undefined;
+				const index = outbox?.findIndex(message => isJsonRpcRequest(message) && message.id === id) ?? -1;
+				if (outbox && index >= 0) {
+					outbox.splice(index, 1);
+				}
+			};
+			const listener = token.onCancellationRequested(() => {
+				release();
+				deferred.error(new CancellationError());
+			});
+			result = result.finally(() => {
+				listener.dispose();
+				release();
+			});
+		}
 		return {
 			request: { jsonrpc: '2.0', id, method, params },
-			result: deferred.p as Promise<TResult>,
+			result,
 		};
 	}
 

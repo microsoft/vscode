@@ -888,7 +888,7 @@ export interface IAgentHostSessionHandlerConfig {
 	 */
 	readonly resolveWorkingDirectory?: (sessionResource: URI) => URI | undefined;
 	/** Prepares a new session's directory before resolving its customization scope and creating it. */
-	readonly prepareWorkingDirectory?: (sessionResource: URI, token: CancellationToken) => Promise<void>;
+	readonly prepareSession?: (sessionResource: URI, token: CancellationToken) => Promise<void>;
 	/** Whether a final-looking chat resource is still a client-side draft. */
 	readonly isNewSession?: (sessionResource: URI) => boolean;
 	/** Called after a locally-created session has been accepted by the backend. */
@@ -5650,9 +5650,9 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		const protectedResources = await this._ensureRequiredAuthentication(model);
 
 		onFailureStage?.('createSession');
-		if (this._config.prepareWorkingDirectory) {
+		if (this._config.prepareSession) {
 			const previousDirectory = this._resolveRequestedWorkingDirectory(sessionResource);
-			await raceCancellationError(this._config.prepareWorkingDirectory(sessionResource, cancellationToken), cancellationToken);
+			await raceCancellationError(this._config.prepareSession(sessionResource, cancellationToken), cancellationToken);
 			if (!isEqual(previousDirectory, this._resolveRequestedWorkingDirectory(sessionResource))) {
 				this._disposeActiveClientEntry(sessionResource);
 			}
