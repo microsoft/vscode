@@ -3,6 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+/* Keep every rule in this module scoped to `.modern-ui-connected-editor-tabs`.
+ * The stylesheet is always bundled, but connected-tab geometry must remain inert without that root marker. */
+
 /* The connected tab setting is scoped to Modern UI; other modern tabs retain their pills. */
 /* In HC the connected well owns the frame; retain the outer card's layout space, not its stroke. */
 .modern-ui.modern-ui-connected-editor-tabs.monaco-workbench:is(.hc-black, .hc-light) .part.editor.editor-tabs-multiple:not(.modal-editor-part) {

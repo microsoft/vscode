@@ -5,10 +5,11 @@
 
 import { editorBackground } from '../../../../platform/theme/common/colorRegistry.js';
 import { registerThemingParticipant } from '../../../../platform/theme/common/themeService.js';
+import { CONNECTED_EDITOR_TABS_SELECTOR } from '../../../browser/parts/editor/editor.js';
 import { EDITOR_GROUP_HEADER_CONNECTED_TABS_BACKGROUND, MODERN_EDITOR_TAB_HOVER_BACKGROUND } from '../../../common/theme.js';
 import './media/connectedEditorTabs.css';
 
-const connectedTabsSelector = '.monaco-workbench.modern-ui.modern-ui-connected-editor-tabs';
+const connectedTabsSelector = `.monaco-workbench${CONNECTED_EDITOR_TABS_SELECTOR}`;
 
 registerThemingParticipant((theme, collector) => {
 	const background = theme.getColor(editorBackground);
