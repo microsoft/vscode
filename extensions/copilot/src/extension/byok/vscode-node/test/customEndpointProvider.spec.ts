@@ -22,6 +22,7 @@ import { DisposableStore } from '../../../../util/vs/base/common/lifecycle';
 import { SyncDescriptor } from '../../../../util/vs/platform/instantiation/common/descriptors';
 import { IInstantiationService } from '../../../../util/vs/platform/instantiation/common/instantiation';
 import { createExtensionUnitTestingServices } from '../../../test/node/services';
+import { ILanguageModelRequestMiddlewareRegistry } from '../../common/languageModelRequestMiddleware';
 import type { OpenAICompatibleLanguageModelChatInformation } from '../abstractLanguageModelChatProvider';
 import type { IBYOKStorageService } from '../byokStorageService';
 import { CustomEndpointBYOKModelProvider, type CustomEndpointModelConfig, type CustomEndpointModelProviderConfig, CustomEndpointOAIEndpoint, hasExplicitApiPath, resolveCustomEndpointUrl } from '../customEndpointProvider';
@@ -176,6 +177,55 @@ describe('CustomEndpointBYOKModelProvider', () => {
 	});
 
 	describe('CustomEndpointOAIEndpoint', () => {
+		it('adds request-scoped headers from matching middleware, overriding configured headers and the credential case-insensitively', async () => {
+			const registry = accessor.get(ILanguageModelRequestMiddlewareRegistry);
+			disposables.add(registry.register({
+				selector: { vendors: ['customendpoint'], modelIds: ['middleware-model'] },
+				provideRequestHeaders: async () => ({ 'x-dynamic': 'value', 'x-shared': 'middleware', Authorization: 'Bearer middleware-token' }),
+			}));
+			const provider = instaService.createInstance(TestCustomEndpointBYOKModelProvider, createStorageService());
+			const tokenSource = disposables.add(new vscode.CancellationTokenSource());
+			const [model] = await provider.provideLanguageModelChatInformation({
+				silent: true,
+				configuration: {
+					apiKey: 'test-api-key',
+					models: [{
+						id: 'middleware-model',
+						name: 'Middleware Model',
+						url: 'https://api.example.com',
+						maxInputTokens: 128000,
+						maxOutputTokens: 16000,
+						toolCalling: true,
+						vision: false,
+						requestHeaders: { 'x-static': 'value', 'X-Shared': 'config' },
+					}],
+				}
+			}, tokenSource.token);
+
+			await provider.provideLanguageModelChatResponse(
+				model,
+				[new vscode.LanguageModelChatMessage(vscode.LanguageModelChatMessageRole.User, 'hello')],
+				{
+					requestInitiator: 'core',
+					tools: [],
+					toolMode: vscode.LanguageModelChatToolMode.Auto,
+				},
+				{ report: () => undefined },
+				tokenSource.token,
+			);
+
+			const endpoint = chatMLFetcher.requests[0]?.endpoint;
+			expect(endpoint?.getExtraHeaders?.()).toEqual({
+				'Content-Type': 'application/json',
+				Authorization: 'Bearer middleware-token',
+				'x-static': 'value',
+				'x-dynamic': 'value',
+				'x-shared': 'middleware',
+			});
+			// Context-size overrides clone the endpoint; the request-scoped headers must survive.
+			expect(endpoint?.cloneWithTokenOverride(1000).getExtraHeaders?.()).toEqual(endpoint?.getExtraHeaders?.());
+		});
+
 		async function createConfiguredResponsesEndpoint(zeroDataRetentionEnabled?: boolean): Promise<IChatEndpoint> {
 			const provider = instaService.createInstance(TestCustomEndpointBYOKModelProvider, createStorageService());
 			const tokenSource = disposables.add(new vscode.CancellationTokenSource());
@@ -660,6 +710,42 @@ describe('CustomEndpointBYOKModelProvider', () => {
 				xApiKey: undefined,
 				authorization: 'Bearer override',
 				anthropicVersion: '2023-06-01',
+			});
+		});
+
+		it('suppresses default x-api-key on Messages API when request middleware supplies Authorization header', () => {
+			const endpoint = instaService.createInstance(CustomEndpointOAIEndpoint,
+				makeMetadata([ModelSupportedEndpoint.Messages]),
+				'test-api-key',
+				'https://anthropic.example.com/v1/messages');
+			endpoint.applyRequestHeaders({ 'Authorization': 'Bearer middleware-token' });
+			const headers = endpoint.getExtraHeaders();
+
+			expect({
+				xApiKey: headers['x-api-key'],
+				authorization: headers['Authorization'],
+				anthropicVersion: headers['anthropic-version'],
+			}).toEqual({
+				xApiKey: undefined,
+				authorization: 'Bearer middleware-token',
+				anthropicVersion: '2023-06-01',
+			});
+		});
+
+		it('replaces default Bearer with api-key supplied by request middleware on Chat Completions endpoints', () => {
+			const endpoint = instaService.createInstance(CustomEndpointOAIEndpoint,
+				makeMetadata(undefined),
+				'test-api-key',
+				'https://api.example.com/v1/chat/completions');
+			endpoint.applyRequestHeaders({ 'api-key': 'middleware-key' });
+			const headers = endpoint.getExtraHeaders();
+
+			expect({
+				authorization: headers['Authorization'],
+				apiKey: headers['api-key'],
+			}).toEqual({
+				authorization: undefined,
+				apiKey: 'middleware-key',
 			});
 		});
 

@@ -66,7 +66,10 @@ export class OpenAIEndpoint extends ChatEndpoint {
 	private static readonly _maxHeaderValueLength = 8192;
 	private static readonly _maxCustomHeaderCount = 20;
 
+	/** Headers from the model configuration, sanitized once at construction. */
 	protected readonly _customHeaders: Record<string, string>;
+	/** Headers contributed by request middleware for the current request, see {@link applyRequestHeaders}. */
+	protected _requestHeaders: Record<string, string> = {};
 	constructor(
 		_modelMetadata: IChatModelInformation,
 		protected readonly _apiKey: string,
@@ -92,6 +95,26 @@ export class OpenAIEndpoint extends ChatEndpoint {
 			logService
 		);
 		this._customHeaders = this._sanitizeCustomHeaders(_modelMetadata.requestHeaders, `Model '${this.modelMetadata.id}' configuration`);
+	}
+
+	/**
+	 * Applies request-scoped headers contributed by language model request
+	 * middleware. They are sanitized and capped independently of the model
+	 * configuration headers and override those on name conflicts. Call this on
+	 * a freshly created endpoint before the request is made; clones created via
+	 * {@link cloneWithTokenOverride} inherit the headers.
+	 */
+	public applyRequestHeaders(headers: Readonly<Record<string, string>>): void {
+		this._requestHeaders = this._sanitizeCustomHeaders(headers, `Request middleware for model '${this.modelMetadata.id}'`);
+	}
+
+	/**
+	 * Copies the request-scoped headers of this endpoint onto `clone`, for use
+	 * by {@link cloneWithTokenOverride} overrides.
+	 */
+	protected inheritRequestHeaders<T extends OpenAIEndpoint>(clone: T): T {
+		clone._requestHeaders = this._requestHeaders;
+		return clone;
 	}
 
 	/**
@@ -371,12 +394,13 @@ export class OpenAIEndpoint extends ChatEndpoint {
 			headers['Authorization'] = `Bearer ${this._apiKey}`;
 		}
 		mergeRequestHeaders(headers, this._customHeaders);
+		mergeRequestHeaders(headers, this._requestHeaders);
 		return headers;
 	}
 
 	override cloneWithTokenOverride(modelMaxPromptTokens: number): IChatEndpoint {
 		const newModelInfo = { ...this.modelMetadata, maxInputTokens: modelMaxPromptTokens };
-		return this.instantiationService.createInstance(OpenAIEndpoint, newModelInfo, this._apiKey, this._modelUrl);
+		return this.inheritRequestHeaders(this.instantiationService.createInstance(OpenAIEndpoint, newModelInfo, this._apiKey, this._modelUrl));
 	}
 
 	public override async makeChatRequest2(options: IMakeChatRequestOptions, token: CancellationToken): Promise<ChatResponse> {

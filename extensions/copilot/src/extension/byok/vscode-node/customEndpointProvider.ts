@@ -15,6 +15,7 @@ import { IExperimentationService } from '../../../platform/telemetry/common/null
 import { ITokenizerProvider } from '../../../platform/tokenizer/node/tokenizer';
 import { IInstantiationService } from '../../../util/vs/platform/instantiation/common/instantiation';
 import { resolveModelInfo } from '../common/byokProvider';
+import { ILanguageModelRequestMiddlewareRegistry } from '../common/languageModelRequestMiddleware';
 import { mergeRequestHeaders } from '../common/requestHeaders';
 import { OpenAIEndpoint } from '../node/openAIEndpoint';
 import { AbstractOpenAICompatibleLMProvider, LanguageModelChatConfiguration, OpenAICompatibleLanguageModelChatInformation } from './abstractLanguageModelChatProvider';
@@ -128,8 +129,9 @@ export class CustomEndpointBYOKModelProvider extends AbstractOpenAICompatibleLMP
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IExperimentationService expService: IExperimentationService,
+		@ILanguageModelRequestMiddlewareRegistry requestMiddlewareRegistry: ILanguageModelRequestMiddlewareRegistry,
 	) {
-		super(CustomEndpointBYOKModelProvider.providerId, CustomEndpointBYOKModelProvider.providerName, undefined, _byokStorageService, fetcherService, logService, instantiationService, configurationService, expService);
+		super(CustomEndpointBYOKModelProvider.providerId, CustomEndpointBYOKModelProvider.providerName, undefined, _byokStorageService, fetcherService, logService, instantiationService, configurationService, expService, requestMiddlewareRegistry);
 	}
 
 	protected override async configureDefaultGroupWithApiKeyOnly(): Promise<string | undefined> {
@@ -202,9 +204,9 @@ export class CustomEndpointBYOKModelProvider extends AbstractOpenAICompatibleLMP
  *    `authorization` are permitted through the sanitizer (only for this
  *    subclass), and the literal token `${apiKey}` in a header value is
  *    replaced with the configured API key so the secret stays in
- *    `${input:...}` secret storage. When the user supplies any well-known auth
- *    header, the default inferred auth header is suppressed to avoid sending
- *    conflicting credentials.
+ *    `${input:...}` secret storage. When the user or request middleware supplies
+ *    any well-known auth header, the default inferred auth header is suppressed
+ *    to avoid sending conflicting credentials.
  * 4. Omits the Responses API `store` property when Zero Data Retention was not
  *    explicitly configured, allowing custom implementations to use their own default.
  */
@@ -295,11 +297,17 @@ export class CustomEndpointOAIEndpoint extends OpenAIEndpoint {
 			customHeaders[key] = this._interpolateApiKey(value);
 		}
 		mergeRequestHeaders(headers, customHeaders);
+		// Middleware headers are never interpolated: the API key must not leak to other extensions' headers.
+		mergeRequestHeaders(headers, this._requestHeaders);
 		return headers;
 	}
 
+	/**
+	 * Whether the model configuration or the request middleware supplies a
+	 * credential header, in which case the default inferred credential is not sent.
+	 */
 	private _hasUserAuthHeader(): boolean {
-		for (const key of Object.keys(this._customHeaders)) {
+		for (const key of [...Object.keys(this._customHeaders), ...Object.keys(this._requestHeaders)]) {
 			if (CustomEndpointOAIEndpoint._userAuthHeaderSuppressionSet.has(key.toLowerCase())) {
 				return true;
 			}
@@ -312,7 +320,7 @@ export class CustomEndpointOAIEndpoint extends OpenAIEndpoint {
 	 */
 	override cloneWithTokenOverride(modelMaxPromptTokens: number): CustomEndpointOAIEndpoint {
 		const newModelInfo = { ...this.modelMetadata, maxInputTokens: modelMaxPromptTokens };
-		return this.instantiationService.createInstance(CustomEndpointOAIEndpoint, newModelInfo, this._apiKey, this._modelUrl);
+		return this.inheritRequestHeaders(this.instantiationService.createInstance(CustomEndpointOAIEndpoint, newModelInfo, this._apiKey, this._modelUrl));
 	}
 
 	private _interpolateApiKey(value: string): string {

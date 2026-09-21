@@ -8,6 +8,7 @@ import { IFetcherService } from '../../../platform/networking/common/fetcherServ
 import { IExperimentationService } from '../../../platform/telemetry/common/nullExperimentationService';
 import { IInstantiationService } from '../../../util/vs/platform/instantiation/common/instantiation';
 import { BYOKKnownModels, BYOKModelCapabilities } from '../common/byokProvider';
+import { ILanguageModelRequestMiddlewareRegistry } from '../common/languageModelRequestMiddleware';
 import { AbstractOpenAICompatibleLMProvider } from './abstractLanguageModelChatProvider';
 import { IBYOKStorageService } from './byokStorageService';
 
@@ -41,7 +42,8 @@ export class XAIBYOKLMProvider extends AbstractOpenAICompatibleLMProvider {
 		@ILogService logService: ILogService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IConfigurationService configurationService: IConfigurationService,
-		@IExperimentationService expService: IExperimentationService
+		@IExperimentationService expService: IExperimentationService,
+		@ILanguageModelRequestMiddlewareRegistry requestMiddlewareRegistry: ILanguageModelRequestMiddlewareRegistry,
 	) {
 		super(
 			XAIBYOKLMProvider.providerId,
@@ -52,7 +54,8 @@ export class XAIBYOKLMProvider extends AbstractOpenAICompatibleLMProvider {
 			logService,
 			instantiationService,
 			configurationService,
-			expService
+			expService,
+			requestMiddlewareRegistry,
 		);
 	}
 

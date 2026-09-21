@@ -3,20 +3,30 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TextEditor, window } from 'vscode';
+import { Disposable, TextEditor, window } from 'vscode';
 import { Copilot } from '../../../platform/inlineCompletions/common/api';
 import { ILanguageContextProviderService } from '../../../platform/languageContextProvider/common/languageContextProviderService';
 import { IScopeSelector } from '../../../platform/scopeSelection/common/scopeSelection';
-import { CopilotExtensionApi as ICopilotExtensionApi } from './api';
+import { ILanguageModelRequestMiddlewareRegistry } from '../../byok/common/languageModelRequestMiddleware';
+import { CopilotExtensionApi as ICopilotExtensionApi, LanguageModelRequestMiddleware } from './api';
 import { VSCodeContextProviderApiV1 } from './vscodeContextProviderApi';
 
 export class CopilotExtensionApi implements ICopilotExtensionApi {
-	public static readonly version = 1;
+	public static readonly version = 2;
 
 	constructor(
 		@IScopeSelector private readonly _scopeSelector: IScopeSelector,
-		@ILanguageContextProviderService private readonly _languageContextProviderService: ILanguageContextProviderService
+		@ILanguageContextProviderService private readonly _languageContextProviderService: ILanguageContextProviderService,
+		@ILanguageModelRequestMiddlewareRegistry private readonly _languageModelRequestMiddlewareRegistry: ILanguageModelRequestMiddlewareRegistry,
 	) { }
+
+	registerLanguageModelRequestMiddleware(middleware: LanguageModelRequestMiddleware): Disposable {
+		return this._languageModelRequestMiddlewareRegistry.register({
+			selector: middleware.selector,
+			errorBehavior: middleware.errorBehavior,
+			provideRequestHeaders: context => Promise.resolve(middleware.provideRequestHeaders(context)),
+		});
+	}
 
 	async selectScope(editor?: TextEditor, options?: { reason?: string }) {
 		editor ??= window.activeTextEditor;
