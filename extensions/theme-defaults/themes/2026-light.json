@@ -213,7 +213,7 @@
 		"tab.unfocusedInactiveBackground": "#FAFAFD",
 		"tab.unfocusedInactiveForeground": "#BBBBBB",
 		"editorGroupHeader.tabsBackground": "#FAFAFD",
-		"modernEditorTab.connectedStripBackground": "#EAEAEA",
+		"editorGroupHeader.connectedTabsBackground": "#EAEAEA",
 		"tab.activeBorder": "#FFFFFF",
 		"editorGroupHeader.tabsBorder": "#F0F1F2",
 		"breadcrumb.foreground": "#606060",

@@ -223,6 +223,8 @@ export const EDITOR_GROUP_HEADER_TABS_BACKGROUND = registerColor('editorGroupHea
 	hcLight: null
 }, localize('tabsContainerBackground', "Background color of the editor group title header when tabs are enabled. Editor groups are the containers of editors."));
 
+export const EDITOR_GROUP_HEADER_CONNECTED_TABS_BACKGROUND = registerColor('editorGroupHeader.connectedTabsBackground', EDITOR_GROUP_HEADER_TABS_BACKGROUND, localize('connectedTabsContainerBackground', "Background color of the editor group title header when the connected tab style is enabled. Editor groups are the containers of editors."));
+
 export const EDITOR_GROUP_HEADER_TABS_BORDER = registerColor('editorGroupHeader.tabsBorder', null, localize('tabsContainerBorder', "Border color of the editor group title header when tabs are enabled. Editor groups are the containers of editors."));
 
 export const EDITOR_GROUP_HEADER_NO_TABS_BACKGROUND = registerColor('editorGroupHeader.noTabsBackground', editorBackground, localize('editorGroupHeaderBackground', "Background color of the editor group title header when (`\"workbench.editor.showTabs\": \"single\"`). Editor groups are the containers of editors."));
@@ -719,8 +721,6 @@ export const MODERN_EDITOR_TAB_ACTIVE_BACKGROUND = registerColor('modernEditorTa
 export const MODERN_EDITOR_TAB_ACTIVE_ACTION_BACKGROUND = registerColor('modernEditorTab.activeActionBackground', opaque(MODERN_EDITOR_TAB_ACTIVE_BACKGROUND, editorBackground), localize('modernEditorTabActiveActionBackground', "Opaque background color of tab actions on active editor tabs when the modern tab style is enabled."));
 
 export const MODERN_EDITOR_TAB_ACTIVE_FOREGROUND = registerColor('modernEditorTab.activeForeground', MODERN_TAB_ACTIVE_FOREGROUND, localize('modernEditorTabActiveForeground', "Foreground color of active editor tabs when the modern tab style is enabled."));
-
-export const MODERN_EDITOR_TAB_CONNECTED_STRIP_BACKGROUND = registerColor('modernEditorTab.connectedStripBackground', EDITOR_GROUP_HEADER_TABS_BACKGROUND, localize('modernEditorTabConnectedStripBackground', "Background color of the editor tab strip when the connected modern editor tab style is enabled."));
 
 export const MODERN_EDITOR_TAB_INACTIVE_BACKGROUND = registerColor('modernEditorTab.inactiveBackground', Color.transparent, localize('modernEditorTabInactiveBackground', "Background color of inactive editor tabs when the modern tab style is enabled."));
 
