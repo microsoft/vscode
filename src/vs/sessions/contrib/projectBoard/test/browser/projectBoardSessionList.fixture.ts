@@ -32,6 +32,7 @@ function renderBoard({ container, disposableStore, theme }: ComponentFixtureCont
 		const chats = ['Main conversation', 'Follow-up investigation'].map((name, chatIndex): IChat => ({
 			resource: URI.parse(`test-chat:board-${index}-${chatIndex}`),
 			createdAt: new Date(2026, 8, 16, 12),
+			workspace: base.workspace,
 			title: constObservable(name),
 			status: constObservable(statuses[index]),
 			isRead: constObservable(index === 2),
