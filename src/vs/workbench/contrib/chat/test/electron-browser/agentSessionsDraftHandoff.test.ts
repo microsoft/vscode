@@ -38,7 +38,7 @@ import { IChatWidget, IChatWidgetService } from '../../browser/chat.js';
 import { ChatViewPane } from '../../browser/widgetHosts/viewPane/chatViewPane.js';
 import { AgentSessionStatus, IAgentSession, IAgentSessionsModel } from '../../browser/agentSessions/agentSessionsModel.js';
 import { IAgentSessionsService } from '../../browser/agentSessions/agentSessionsService.js';
-import { ChatInputNotificationActionKind, IChatInputNotification, IChatInputNotificationService } from '../../browser/widget/input/chatInputNotificationService.js';
+import { ChatInputNotificationActionKind, IChatInputNotification, IChatInputNotificationService, isChatInputNotificationApplicableToSession } from '../../browser/widget/input/chatInputNotificationService.js';
 import { reviveChatDraft } from '../../common/attachments/chatDraft.js';
 import { IChatRequestVariableEntry, toFileVariableEntry } from '../../common/attachments/chatVariableEntries.js';
 import { ChatAgentLocation, ChatConfiguration, DEFAULT_AGENTS_HANDOFF_TIP_DELAY_SECONDS, OPEN_WORKSPACE_IN_AGENTS_WINDOW_COMMAND_ID } from '../../common/constants.js';
@@ -55,6 +55,16 @@ suite('Agents Window draft handoff and parallel invitation', () => {
 	const descriptionTreatment = 'chatAgentsParallelWorkBannerDescription';
 	const defaultTitle = 'Run agents side by side';
 	const defaultDescription = 'Run multiple tasks in the Agents Window, in one workspace or across projects.';
+	const agentHostSessionTypes = [
+		SessionType.AgentHostCopilot,
+		SessionType.AgentHostClaude,
+		SessionType.AgentHostCodex,
+		'agent-host-custom',
+		'remote-test-copilotcli',
+		'remote-test-claude',
+		'remote-test-codex',
+		'remote-test-custom',
+	];
 
 	function createHarness(options: { transfer?: boolean; reveal?: boolean; running?: boolean; banner?: boolean; runningProviderType?: string; handoffDelaySeconds?: number } = {}) {
 		const instantiation = disposables.add(new TestInstantiationService());
@@ -627,6 +637,67 @@ suite('Agents Window draft handoff and parallel invitation', () => {
 		});
 	});
 
+	suite('handoff tip eligibility', () => {
+		for (const sessionType of agentHostSessionTypes) {
+			test(`renders only for the target ${sessionType} session and hands off that session`, async () => {
+				const h = createHarness({ banner: false });
+				h.resource = URI.from({ scheme: sessionType, path: '/persisted' });
+				h.sendMessage(Date.now() - 5000);
+				h.showGenericTip();
+				const notification = h.notification;
+				assert.ok(notification);
+				await h.click(0);
+
+				assert.deepStrictEqual({
+					sessionTypes: notification.sessionTypes,
+					appliesToTarget: isChatInputNotificationApplicableToSession(notification, sessionType, h.resource),
+					appliesToOtherSession: isChatInputNotificationApplicableToSession(notification, sessionType, h.resource.with({ path: '/other-session' })),
+					appliesToExtensionCli: isChatInputNotificationApplicableToSession(notification, SessionType.CopilotCLI, URI.from({ scheme: SessionType.CopilotCLI, path: '/persisted' })),
+					opens: h.calls.map(call => ({ source: call.source, sessionResource: URI.revive(call.sessionResource)?.toString() })),
+				}, {
+					sessionTypes: [sessionType],
+					appliesToTarget: true,
+					appliesToOtherSession: false,
+					appliesToExtensionCli: false,
+					opens: [{ source: 'currentChatHandoff', sessionResource: h.resource.toString() }],
+				});
+			});
+		}
+
+		for (const sessionType of [SessionType.CopilotCLI, SessionType.Local, SessionType.CopilotCloud, SessionType.Codex, 'extension-agent']) {
+			for (const workbenchState of [WorkbenchState.FOLDER, WorkbenchState.EMPTY]) {
+				test(`does not offer a handoff for ${sessionType} in ${workbenchState === WorkbenchState.EMPTY ? 'an empty workspace' : 'a folder'}`, async () => {
+					await runWithFakedTimers({ useFakeTimers: true, startTime: 10_000 }, async () => {
+						const h = createHarness({ banner: false });
+						h.resource = sessionType === SessionType.Local
+							? LocalChatSessionUri.forSession('persisted')
+							: URI.from({ scheme: sessionType, path: '/persisted' });
+						h.workbenchState = workbenchState;
+						h.showGenericTip();
+						h.sendMessage();
+						await timeout(5000);
+						h.focused.fire();
+
+						assert.deepStrictEqual({ notification: h.notification, posts: h.posts }, { notification: undefined, posts: 0 });
+					});
+				});
+			}
+		}
+
+		test('removes the handoff when switching to extension-backed Copilot CLI', () => {
+			const h = createHarness({ banner: false });
+			h.resource = URI.from({ scheme: SessionType.AgentHostClaude, path: '/persisted' });
+			h.sendMessage(Date.now() - 5000);
+			h.showGenericTip();
+			const initial = h.notification?.id;
+			h.resource = URI.from({ scheme: SessionType.CopilotCLI, path: '/extension-session' });
+
+			assert.deepStrictEqual({ initial, notification: h.notification }, {
+				initial: 'chat.agentsHandoff.openInAgentsWindow', notification: undefined,
+			});
+		});
+	});
+
 	suite('handoff tip delay', () => {
 		function createTimedHandoff(delaySeconds = DEFAULT_AGENTS_HANDOFF_TIP_DELAY_SECONDS) {
 			const h = createHarness({ banner: false, handoffDelaySeconds: delaySeconds });
@@ -634,7 +705,7 @@ suite('Agents Window draft handoff and parallel invitation', () => {
 			return h;
 		}
 
-		for (const sessionType of [SessionType.CopilotCLI, SessionType.AgentHostCopilot]) {
+		for (const sessionType of agentHostSessionTypes) {
 			test(`shows after exactly five seconds and hides when ${sessionType} stops running`, async () => {
 				await runWithFakedTimers({ useFakeTimers: true, startTime: 10_000 }, async () => {
 					const h = createTimedHandoff();

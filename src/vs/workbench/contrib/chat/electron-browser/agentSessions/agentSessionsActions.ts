@@ -470,7 +470,7 @@ type AgentsHandoffTipActionClassification = {
 };
 
 /**
- * Offers to continue eligible running sessions in the Agents Window after the configured delay.
+ * Offers to continue running agent-host sessions in the Agents Window after the configured delay.
  * Also offers Agents when local Copilot cannot run in an empty workspace.
  */
 export class AgentsHandoffInputTipContribution extends Disposable implements IWorkbenchContribution {
@@ -495,9 +495,6 @@ export class AgentsHandoffInputTipContribution extends Disposable implements IWo
 	 * so it never shows again.
 	 */
 	private static readonly TIP_MUTE_COMMAND_ID = 'workbench.action.chat.agentsHandoffTip.mute';
-
-	/** Session types eligible for the handoff tip — the same set the Agents window can render directly. */
-	private static readonly ELIGIBLE_SESSION_TYPES: ReadonlySet<string> = new Set([SessionType.CopilotCLI, SessionType.AgentHostCopilot]);
 
 	/** Pseudo-key used as the {@link _lastPostedFor} value for the empty-workspace tip (no real session URI exists). */
 	private static readonly EMPTY_WORKSPACE_KEY = '__empty-workspace__';
@@ -676,15 +673,10 @@ export class AgentsHandoffInputTipContribution extends Disposable implements IWo
 		const resourceSessionType = sessionResource ? getChatSessionType(sessionResource) : undefined;
 		const preconditionMet = widget?.scopedContextKeyService.contextMatchesRules(OPEN_AGENTS_WINDOW_PRECONDITION) ?? false;
 
-		// Existing-session path: gate on the URI-derived session type so we
-		// don't post the tip for non-eligible session kinds (Copilot Cloud,
-		// local, etc.). The notification widget also filters by
-		// `sessionTypes`, but we want to avoid even posting when the URI
-		// already tells us this isn't a handoff target.
 		const eligible = preconditionMet
 			&& !!sessionResource
 			&& !!resourceSessionType
-			&& AgentsHandoffInputTipContribution.ELIGIBLE_SESSION_TYPES.has(resourceSessionType)
+			&& isAgentHostTarget(resourceSessionType)
 			&& !isUntitledChatSession(sessionResource)
 			&& !!model
 			&& this._isReadyForHandoff(model);
@@ -767,9 +759,8 @@ export class AgentsHandoffInputTipContribution extends Disposable implements IWo
 				commandId: AgentsHandoffInputTipContribution.TIP_MUTE_COMMAND_ID,
 				tooltip: localize('chat.agentsHandoff.tip.mute', "Don't Show Again"),
 			},
-			sessionTypes: useEmptyWorkspaceCopy
-				? [SessionType.AgentHostCopilot]
-				: Array.from(AgentsHandoffInputTipContribution.ELIGIBLE_SESSION_TYPES),
+			sessionTypes: eligible ? [resourceSessionType] : [SessionType.AgentHostCopilot],
+			sessionResources: eligible ? [sessionResource] : undefined,
 		});
 	}
 
