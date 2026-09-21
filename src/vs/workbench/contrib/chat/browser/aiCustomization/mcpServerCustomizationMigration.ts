@@ -22,7 +22,7 @@ import { IWorkspaceFolderData } from '../../../../../platform/workspace/common/w
 import { IConfigurationResolverService } from '../../../../services/configurationResolver/common/configurationResolver.js';
 import { ConfigurationResolverExpression } from '../../../../services/configurationResolver/common/configurationResolverExpression.js';
 import { CustomizationMigrationType, IMcpServerCustomizationMigrationCandidate, IMcpServerCustomizationMigrationFailure, IMcpServerCustomizationMigrationResult, McpServerCustomizationMigrationFailureReason } from '../../common/promptSyntax/service/customizationMigrationService.js';
-import { AgentHostMcpServerApplicability, AgentHostMcpServerDelivery, AgentHostMcpServerEnablementState, AgentHostMcpServerSourceKind, IAgentHostMcpServerSupport, IAgentHostMcpServerSupportSnapshot } from '../agentSessions/agentHost/agentHostMcpServerSupport.js';
+import { AgentHostMcpServerApplicability, AgentHostMcpServerDelivery, AgentHostMcpServerSourceKind, IAgentHostMcpServerSupport, IAgentHostMcpServerSupportSnapshot } from '../agentSessions/agentHost/agentHostMcpServerSupport.js';
 
 const LOG_PREFIX = '[MCP Customization Migration]';
 
@@ -59,13 +59,11 @@ export function getMcpServerMigrationConfiguration(server: IAgentHostMcpServerSu
 	if (server.applicability !== AgentHostMcpServerApplicability.Applicable || server.compatibility.kind !== 'supported') {
 		return undefined;
 	}
-	if (server.enablement.enabled && server.delivery === AgentHostMcpServerDelivery.ClientForwarded) {
-		return server.projectedConfiguration;
+	if (server.migrationConfiguration) {
+		return server.migrationConfiguration;
 	}
-	return server.source.kind === AgentHostMcpServerSourceKind.VscodeWorkspaceFolder
-		&& server.enablement.state === AgentHostMcpServerEnablementState.DisabledNotRegistered
-		&& server.delivery === AgentHostMcpServerDelivery.NotDelivered
-		? server.migrationConfiguration
+	return server.enablement.enabled && server.delivery === AgentHostMcpServerDelivery.ClientForwarded
+		? server.projectedConfiguration
 		: undefined;
 }
 

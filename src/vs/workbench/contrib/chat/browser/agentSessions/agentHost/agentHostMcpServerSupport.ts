@@ -118,7 +118,7 @@ export interface IAgentHostMcpServerSupport {
 	readonly compatibility: AgentHostMcpServerCompatibility;
 	/** The exact configuration projected through the current Agent Host delivery path. */
 	readonly projectedConfiguration?: IMcpServerConfiguration;
-	/** An enabled workspace configuration eligible for migration despite being absent from runtime discovery. */
+	/** A configured workspace server eligible for migration independently of runtime registration and name collisions. */
 	readonly migrationConfiguration?: IMcpServerConfiguration;
 }
 
@@ -151,6 +151,7 @@ export interface IAgentHostInstalledMcpServer {
 	readonly configPath: IMcpConfigPath | undefined;
 	readonly sandbox: IMcpSandboxConfiguration | undefined;
 	readonly runtimeState: McpServerEnablementState | undefined;
+	/** The configured profile/workspace decision, excluding collision-derived disablement. */
 	readonly enablement: ContributionEnablementState;
 }
 
@@ -197,13 +198,14 @@ export async function mergeInstalledMcpServersIntoAgentHostSupportAssessment(
 		const installed = installedById.get(server.id);
 		const runtimeState = installed?.runtimeState;
 		const enablement = getInstalledMcpServerEnablementOverride(runtimeState);
-		return enablement ? {
+		const assessedServer = enablement ? {
 			...server,
 			enablement,
 			delivery: runtimeState === McpServerEnablementState.DisabledByAccess
 				? AgentHostMcpServerDelivery.NotDelivered
 				: server.delivery,
 		} : server;
+		return installed ? withInstalledMcpServerMigrationConfiguration(assessedServer, installed, server.projectedConfiguration) : assessedServer;
 	});
 	const assessedIds = new Set(servers.map(server => server.id));
 	const missingServers = await Promise.all(installedServers
@@ -511,14 +513,7 @@ async function assessInstalledMcpServer(
 		enabled: false,
 		state: AgentHostMcpServerEnablementState.DisabledNotRegistered,
 	};
-	const migrationConfiguration = sourceKind === AgentHostMcpServerSourceKind.VscodeWorkspaceFolder
-		&& applicability === AgentHostMcpServerApplicability.Applicable
-		&& enablement.state === AgentHostMcpServerEnablementState.DisabledNotRegistered
-		&& isContributionEnabled(server.enablement)
-		&& compatibility.kind === 'supported'
-		? projectedConfiguration
-		: undefined;
-	return {
+	return withInstalledMcpServerMigrationConfiguration({
 		id: server.id,
 		name: server.name,
 		collectionId,
@@ -536,8 +531,21 @@ async function assessInstalledMcpServer(
 		applicability,
 		delivery: AgentHostMcpServerDelivery.NotDelivered,
 		compatibility,
-		...(migrationConfiguration ? { migrationConfiguration } : {}),
-	};
+	}, server, projectedConfiguration);
+}
+
+function withInstalledMcpServerMigrationConfiguration(
+	server: IAgentHostMcpServerSupport,
+	installed: IAgentHostInstalledMcpServer,
+	configuration: IMcpServerConfiguration | undefined,
+): IAgentHostMcpServerSupport {
+	const eligible = server.source.kind === AgentHostMcpServerSourceKind.VscodeWorkspaceFolder
+		&& server.applicability === AgentHostMcpServerApplicability.Applicable
+		&& server.compatibility.kind === 'supported'
+		&& isContributionEnabled(installed.enablement)
+		&& installed.runtimeState !== McpServerEnablementState.DisabledByAccess
+		&& installed.runtimeState !== McpServerEnablementState.DisabledWorkspace;
+	return eligible && configuration ? { ...server, migrationConfiguration: configuration } : server;
 }
 
 function getCollectionIdFromInstalledServer(server: IAgentHostInstalledMcpServer): string {

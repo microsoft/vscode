@@ -171,7 +171,7 @@ export class AgentHostMcpServerSupportScope extends Disposable {
 						configPath: this._mcpWorkbenchService.getMcpConfigPath(local),
 						sandbox: local.rootSandbox,
 						runtimeState: server.runtimeStatus?.state,
-						enablement: this._mcpService.enablementModel.readEnabled(local.id),
+						enablement: this._mcpService.readConfiguredEnablement(local.id),
 					} satisfies IAgentHostInstalledMcpServer] : [];
 				});
 				const assessment = await mergeInstalledMcpServersIntoAgentHostSupportAssessment(
@@ -214,7 +214,7 @@ export class AgentHostMcpServerSupportScope extends Disposable {
 			scheduleUpdate();
 			for (const server of this._mcpWorkbenchService.local) {
 				if (server.local) {
-					this._mcpService.enablementModel.readEnabled(server.local.id, reader);
+					this._mcpService.readConfiguredEnablement(server.local.id, reader);
 				}
 			}
 			for (const server of this._mcpService.servers.read(reader)) {

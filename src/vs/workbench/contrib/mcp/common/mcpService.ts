@@ -7,14 +7,14 @@ import { RunOnceScheduler } from '../../../../base/common/async.js';
 import { equals as arraysEqual } from '../../../../base/common/arrays.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun, derived, IObservable, ISettableObservable, observableValue, transaction } from '../../../../base/common/observable.js';
+import { autorun, derived, IObservable, IReader, ISettableObservable, observableValue, transaction } from '../../../../base/common/observable.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { mcpAutoStartConfig, McpAutoStartValue } from '../../../../platform/mcp/common/mcpManagement.js';
 import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { IStorageService, StorageScope } from '../../../../platform/storage/common/storage.js';
-import { CollisionEnablementModel, EnablementModel, isContributionEnabled } from '../../chat/common/enablement.js';
+import { CollisionEnablementModel, ContributionEnablementState, EnablementModel, isContributionEnabled } from '../../chat/common/enablement.js';
 import { McpCollisionBehavior, mcpServerCollisionBehaviorSection } from './mcpConfiguration.js';
 import { IMcpRegistry } from './mcpRegistryTypes.js';
 import { McpPrefixGenerator, McpServer, McpServerMetadataCache } from './mcpServer.js';
@@ -36,6 +36,7 @@ export class McpService extends Disposable implements IMcpService {
 	public get lazyCollectionState() { return this._mcpRegistry.lazyCollectionState; }
 
 	public readonly enablementModel: McpCollisionEnablementModel;
+	private readonly _configuredEnablementModel: EnablementModel;
 
 	protected readonly userCache: McpServerMetadataCache;
 	protected readonly workspaceCache: McpServerMetadataCache;
@@ -49,9 +50,9 @@ export class McpService extends Disposable implements IMcpService {
 	) {
 		super();
 
-		const baseEnablement = this._register(new EnablementModel('mcp.enablement', storageService));
+		this._configuredEnablementModel = this._register(new EnablementModel('mcp.enablement', storageService));
 		const collisionBehavior = observableConfigValue(mcpServerCollisionBehaviorSection, McpCollisionBehavior.Disable, configurationService);
-		this.enablementModel = new McpCollisionEnablementModel(baseEnablement, this._mcpRegistry, collisionBehavior);
+		this.enablementModel = new McpCollisionEnablementModel(this._configuredEnablementModel, this._mcpRegistry, collisionBehavior);
 
 		this.userCache = this._register(_instantiationService.createInstance(McpServerMetadataCache, StorageScope.PROFILE));
 		this.workspaceCache = this._register(_instantiationService.createInstance(McpServerMetadataCache, StorageScope.WORKSPACE));
@@ -66,6 +67,10 @@ export class McpService extends Disposable implements IMcpService {
 			}
 			updateThrottle.schedule(500);
 		}));
+	}
+
+	public readConfiguredEnablement(serverId: string, reader?: IReader): ContributionEnablementState {
+		return this._configuredEnablementModel.readEnabled(serverId, reader);
 	}
 
 	public cancelAutostart(): void {

@@ -11,7 +11,7 @@ import { Event } from '../../../../base/common/event.js';
 import { IMarkdownString } from '../../../../base/common/htmlContent.js';
 import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
 import { equals as objectsEqual } from '../../../../base/common/objects.js';
-import { IObservable, ObservableMap } from '../../../../base/common/observable.js';
+import { IObservable, IReader, ObservableMap } from '../../../../base/common/observable.js';
 import { IIterativePager } from '../../../../base/common/paging.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import Severity from '../../../../base/common/severity.js';
@@ -375,6 +375,9 @@ export interface IMcpService {
 
 	/** The enablement model for MCP servers. */
 	readonly enablementModel: IEnablementModel;
+
+	/** Reads the configured profile/workspace enablement before resolving server name collisions. */
+	readConfiguredEnablement(serverId: string, reader?: IReader): ContributionEnablementState;
 
 	/** Resets the cached tools. */
 	resetCaches(): void;
