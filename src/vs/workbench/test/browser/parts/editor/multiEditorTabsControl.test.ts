@@ -370,7 +370,7 @@ suite('MultiEditorTabsControl', () => {
 
 		await layoutConnectedGroup(group, 400);
 		const multiple = measure();
-		const shoulder = Number.parseFloat(mainWindow.getComputedStyle(container.querySelector<HTMLElement>('.tab.active > .tab-fill')!, '::after').width);
+		const stroke = Number.parseFloat(mainWindow.getComputedStyle(container.querySelector<HTMLElement>('.tab.active')!).getPropertyValue('--vscode-strokeThickness'));
 
 		const secondEditor = model.getEditorByIndex(1)!;
 		model.closeEditor(secondEditor);
@@ -406,30 +406,33 @@ suite('MultiEditorTabsControl', () => {
 		assert.deepStrictEqual({
 			single: {
 				top: single.top === multiple.top,
+				right: single.right === multiple.right,
 				left: single.left === multiple.left,
-				rightShoulderReserve: single.right - multiple.right === shoulder,
-				widthShoulderReserve: single.width - multiple.width === shoulder,
+				width: single.width === multiple.width,
 			},
 			wrapped: {
 				top: wrappedBottom.top === wrappedUpper.top,
+				right: wrappedBottom.right === wrappedUpper.right,
 				left: wrappedBottom.left === wrappedUpper.left,
-				rightShoulderReserve: wrappedBottom.right - wrappedUpper.right === shoulder,
 			},
 			horizontal: {
+				right: measurements.every(measurement => measurement.right === multiple.right),
 				left: measurements.every(measurement => measurement.left === multiple.left),
 			},
 			leftAction: {
 				top: leftSingle.top === leftMultiple.top,
+				right: leftSingle.right === leftMultiple.right,
 				left: leftSingle.left === leftMultiple.left,
-				rightShoulderReserve: leftSingle.right - leftMultiple.right === shoulder,
-				widthShoulderReserve: leftSingle.width - leftMultiple.width === shoulder,
+				width: leftSingle.width === leftMultiple.width,
 			},
+			balancedActionInsets: measurements.every(measurement => Math.abs(measurement.right - measurement.left) <= stroke),
 			actionPadding: measurements.every(measurement => new Set(measurement.padding).size === 1 && measurement.padding[0] === multiple.padding[0]),
 		}, {
-			single: { top: true, left: true, rightShoulderReserve: true, widthShoulderReserve: true },
-			wrapped: { top: true, left: true, rightShoulderReserve: true },
-			horizontal: { left: true },
-			leftAction: { top: true, left: true, rightShoulderReserve: true, widthShoulderReserve: true },
+			single: { top: true, right: true, left: true, width: true },
+			wrapped: { top: true, right: true, left: true },
+			horizontal: { right: true, left: true },
+			leftAction: { top: true, right: true, left: true, width: true },
+			balancedActionInsets: true,
 			actionPadding: true,
 		});
 	});
