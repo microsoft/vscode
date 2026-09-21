@@ -10,7 +10,6 @@
 				"Watch Client Transpile"
 			],
 			"dependsOrder": "sequence",
-			"inAgents": true,
 			"problemMatcher": []
 		},
 		{
@@ -21,7 +20,6 @@
 			"windows": {
 				"command": ".\\scripts\\code.bat"
 			},
-			"inAgents": true,
 			"problemMatcher": []
 		},
 		{
@@ -32,7 +30,6 @@
 				"Watch"
 			],
 			"dependsOrder": "sequence",
-			"inAgents": true,
 			"problemMatcher": []
 		},
 		{
@@ -100,8 +97,7 @@
 					"beginsPattern": "Starting transpilation\\.\\.\\.",
 					"endsPattern": "Finished transpilation with"
 				}
-			},
-			"inAgents": true,
+			}
 		},
 		{
 			"type": "npm",
@@ -390,22 +386,24 @@
 			"problemMatcher": []
 		},
 		{
-			"label": "Run and Compile Agents - OSS",
-			"dependsOn": [
-				"Transpile Client",
-				"Run Dev Agents"
-			],
-			"dependsOrder": "sequence",
-			"problemMatcher": []
-		},
-		{
-			"label": "Run and Compile Code - OSS",
+			"label": "Transpile and Run Code - OSS",
 			"dependsOn": [
 				"Transpile Client",
 				"Run Dev"
 			],
 			"dependsOrder": "sequence",
-			"problemMatcher": []
+			"problemMatcher": [],
+			"inAgents": true
+		},
+		{
+			"label": "Transpile and Run Agents - OSS",
+			"dependsOn": [
+				"Transpile Client",
+				"Run Dev Agents"
+			],
+			"dependsOrder": "sequence",
+			"problemMatcher": [],
+			"inAgents": true
 		},
 		{
 			"type": "npm",
@@ -486,7 +484,6 @@
 				"--port",
 				"8080"
 			],
-			"inAgents": true,
 			"isBackground": true,
 			"problemMatcher": {
 				"pattern": {

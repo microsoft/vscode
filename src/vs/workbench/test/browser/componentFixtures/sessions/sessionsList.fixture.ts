@@ -23,7 +23,7 @@ import { IContextKeyService } from '../../../../../platform/contextkey/common/co
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
-import { ChatSessionArchiveActionWording, getChatSessionArchiveActionPresentation } from '../../../../../platform/chat/common/sessionArchiveActions.js';
+import { ChatSessionArchiveActionWording, getChatSessionArchiveActionPresentation, SESSIONS_MARK_AS_DONE_CONFETTI_SETTING } from '../../../../../platform/chat/common/sessionArchiveActions.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { createUSLayoutResolvedKeybinding } from '../../../../../platform/keybinding/test/common/keybindingsTestUtils.js';
 import { MockKeybindingService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
@@ -56,7 +56,7 @@ import { IChat, ISession, ISessionChangeset, ISessionChangesSummary, ISessionFol
 // eslint-disable-next-line local/code-import-patterns
 import { IActiveSession, ISessionsManagementService } from '../../../../../sessions/services/sessions/common/sessionsManagement.js';
 // eslint-disable-next-line local/code-import-patterns
-import { SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING, SessionItemToolbarMenuId, SessionsGrouping, SessionsList, SessionsSorting } from '../../../../../sessions/contrib/sessions/browser/views/sessionsList.js';
+import { SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING, SessionsGrouping, SessionsList, SessionsSorting } from '../../../../../sessions/contrib/sessions/browser/views/sessionsList.js';
 // eslint-disable-next-line local/code-import-patterns
 import { BlockedSessionReason, BlockedSessions } from '../../../../../sessions/contrib/blockedSessions/browser/blockedSessions.js';
 // eslint-disable-next-line local/code-import-patterns
@@ -85,6 +85,7 @@ import { IChatService } from '../../../../contrib/chat/common/chatService/chatSe
 import { IChatModel } from '../../../../contrib/chat/common/model/chatModel.js';
 import { IVoicePlaybackService } from '../../../../contrib/chat/common/voicePlaybackService.js';
 import { IWorkbenchAssignmentService } from '../../../../services/assignment/common/assignmentService.js';
+import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { ILifecycleService, LifecyclePhase } from '../../../../services/lifecycle/common/lifecycle.js';
 import { TestProductService } from '../../../common/workbenchTestServices.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from '../fixtureUtils.js';
@@ -175,6 +176,7 @@ function createChat(sessionId: string, spec: IChatSpec, updatedAt: Date, approva
 		override readonly updatedAt: IObservable<Date> = constObservable(updatedAt);
 		override readonly status: IObservable<SessionStatus> = constObservable(spec.status ?? SessionStatus.Completed);
 		override readonly interactivity: IObservable<ChatInteractivity> = constObservable(ChatInteractivity.Full);
+		override readonly capabilities = constObservable({ canRename: true, canDelete: true });
 	}();
 }
 
@@ -219,7 +221,7 @@ function createSession(spec: ISessionSpec, approvals: Map<string, IAgentSessionA
 		override readonly description: IObservable<IMarkdownString | undefined> = constObservable(description);
 		override readonly chats: IObservable<readonly IChat[]> = constObservable(chats);
 		override readonly mainChat: IObservable<IChat> = constObservable(mainChat);
-		override readonly capabilities = constObservable({ supportsMultipleChats: nestedChats.length > 0 });
+		override readonly capabilities = constObservable({ supportsMultipleChats: nestedChats.length > 0, supportsRename: true });
 	}();
 }
 
@@ -235,6 +237,8 @@ interface IRenderOptions {
 	readonly sessions: readonly ISessionSpec[];
 	readonly groups?: readonly ISessionGroup[];
 	readonly grouping?: SessionsGrouping;
+	readonly compact?: boolean;
+	readonly rename?: 'session' | 'chat';
 	readonly collapsed?: boolean;
 	readonly showUnreadInCollapsedSections?: boolean;
 	readonly reducedMotion?: boolean;
@@ -248,7 +252,10 @@ interface IRenderOptions {
 	readonly newSessionButtonTreatment?: NewSessionButtonStyle;
 	readonly showFocusedToolbar?: boolean;
 	readonly focusSelectedSession?: boolean;
+	readonly revealFirstSession?: boolean;
+	readonly showFirstSessionTwistie?: boolean;
 	readonly archiveOnboarding?: ChatSessionArchiveActionWording;
+	readonly showConfetti?: boolean;
 }
 
 async function renderSessionsList(ctx: ComponentFixtureContext, options: IRenderOptions): Promise<void> {
@@ -279,6 +286,9 @@ async function renderSessionsList(ctx: ComponentFixtureContext, options: IRender
 		additionalServices: reg => {
 			registerWorkbenchServices(reg);
 			reg.defineInstance(IProductService, TestProductService);
+			reg.defineInstance(IEditorService, new class extends mock<IEditorService>() {
+				override readonly onDidActiveEditorChange = Event.None;
+			}());
 			const reducedMotion = options.reducedMotion;
 			if (reducedMotion !== undefined) {
 				reg.defineInstance(IAccessibilityService, new class extends TestAccessibilityService {
@@ -401,8 +411,8 @@ async function renderSessionsList(ctx: ComponentFixtureContext, options: IRender
 			}());
 		},
 	});
-	if (options.archiveOnboarding) {
-		const presentation = getChatSessionArchiveActionPresentation(options.archiveOnboarding).archive;
+	if (options.archiveOnboarding || options.showConfetti) {
+		const presentation = getChatSessionArchiveActionPresentation(options.archiveOnboarding ?? ChatSessionArchiveActionWording.MarkAsDone).archive;
 		const archiveAction = instantiationService.createInstance(MenuItemAction, {
 			id: ARCHIVE_SESSION_COMMAND_ID, title: presentation.title, icon: presentation.icon,
 		}, undefined, undefined, undefined, undefined);
@@ -410,7 +420,7 @@ async function renderSessionsList(ctx: ComponentFixtureContext, options: IRender
 			override createMenu(id: MenuId): IMenu {
 				return {
 					onDidChange: Event.None,
-					getActions: () => id === SessionItemToolbarMenuId ? [['navigation', [archiveAction]]] : [],
+					getActions: () => id === Menus.SessionItemToolbar ? [['navigation', [archiveAction]]] : [],
 					dispose: () => { },
 				};
 			}
@@ -455,6 +465,9 @@ async function renderSessionsList(ctx: ComponentFixtureContext, options: IRender
 	if (options.showUnreadInCollapsedSections !== undefined) {
 		await (instantiationService.get(IConfigurationService) as TestConfigurationService).setUserConfiguration(SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING, options.showUnreadInCollapsedSections);
 	}
+	if (options.showConfetti) {
+		await (instantiationService.get(IConfigurationService) as TestConfigurationService).setUserConfiguration(SESSIONS_MARK_AS_DONE_CONFETTI_SETTING, true);
+	}
 	instantiationService.get(IMarkdownRendererService).setDefaultCodeBlockRenderer(instantiationService.createInstance(EditorMarkdownCodeBlockRenderer));
 
 	// Phone layout is driven by both a CSS class (visual) and a context key (row
@@ -468,9 +481,10 @@ async function renderSessionsList(ctx: ComponentFixtureContext, options: IRender
 	}
 
 	const width = options.width ?? 340;
-	container.style.width = `${options.archiveOnboarding ? width + 420 : width}px`;
-	container.style.height = options.archiveOnboarding ? '420px' : options.phone ? '260px' : '220px';
-	if (options.archiveOnboarding) {
+	const hasPreviewSpace = !!(options.archiveOnboarding || options.showConfetti);
+	container.style.width = `${hasPreviewSpace ? width + 420 : width}px`;
+	container.style.height = hasPreviewSpace ? '420px' : options.phone ? '260px' : '220px';
+	if (hasPreviewSpace) {
 		container.style.position = 'relative';
 	}
 	container.style.backgroundColor = 'var(--vscode-sideBar-background, var(--vscode-editor-background))';
@@ -490,12 +504,42 @@ async function renderSessionsList(ctx: ComponentFixtureContext, options: IRender
 	const list = disposableStore.add(instantiationService.createInstance(SessionsList, listHost, {
 		grouping: () => options.grouping ?? SessionsGrouping.Workspace,
 		sorting: () => SessionsSorting.Created,
+		compact: () => options.compact ?? false,
 		onSessionOpen: () => { },
 		approvalModel,
 	}));
 	list.layout(options.phone ? 260 : showHeader ? 180 : 220, width);
+	if (options.rename === 'session') {
+		const titleRow = listHost.querySelector<HTMLElement>('.session-title-row');
+		if (!titleRow) {
+			throw new Error('Expected a session title row to support inline rename.');
+		}
+		titleRow.dispatchEvent(new MouseEvent('dblclick', { bubbles: true, cancelable: true, button: 0 }));
+	} else if (options.rename === 'chat') {
+		const chatTitle = listHost.querySelector<HTMLElement>('.session-chat-title');
+		if (!chatTitle) {
+			throw new Error('Expected a nested chat title to support inline rename.');
+		}
+		chatTitle.dispatchEvent(new MouseEvent('dblclick', { bubbles: true, cancelable: true, button: 0 }));
+	}
+	if (options.rename && !listHost.querySelector('.session-inline-rename-input input')) {
+		throw new Error('Expected the title-area double-click to start inline rename.');
+	}
 	if (options.collapsed) {
 		list.collapseAllSections();
+	}
+	if (options.revealFirstSession && sessions[0] && !list.reveal(sessions[0].resource)) {
+		throw new Error('Expected the first session to be revealed.');
+	}
+	if (options.showFirstSessionTwistie) {
+		const sessionRow = listHost.querySelector<HTMLElement>('.session-item')?.closest('.monaco-list-row');
+		const twistie = sessionRow?.querySelector<HTMLElement>('.session-chat-twistie.collapsible');
+		const statusIcon = sessionRow?.querySelector<HTMLElement>('.session-icon');
+		if (!twistie || !statusIcon) {
+			throw new Error('Expected the first session to have a nested-chat twistie.');
+		}
+		twistie.style.opacity = '1';
+		statusIcon.style.visibility = 'hidden';
 	}
 	if (options.archiveOnboarding) {
 		listHost.style.width = `${width}px`;
@@ -525,6 +569,10 @@ async function renderSessionsList(ctx: ComponentFixtureContext, options: IRender
 			advanceOnTargetClick: step.advanceOnTargetClick,
 			hideNext: step.hideNext,
 		});
+	}
+	if (options.showConfetti) {
+		listHost.style.width = `${width}px`;
+		disposableStore.add(list.revealArchiveAction(sessions[0]));
 	}
 
 	if (options.showAutomations) {
@@ -615,8 +663,58 @@ const COLLAPSED_CI_FAILURE_SESSIONS: readonly ISessionSpec[] = [
 	{ id: 'grouped-failing-ci', title: 'CI failure in the group only', workspace: 'vscode', minutesAgo: 48, group: GROUP.id, hasFailingCI: true },
 	{ id: 'workspace-failing-ci', title: 'CI failure in the workspace', workspace: 'vscode-docs', minutesAgo: 60, hasFailingCI: true },
 ];
+const COMPACT_RENAME_SESSIONS: readonly ISessionSpec[] = [
+	{
+		id: 'terminal-confirmation',
+		title: 'Terminal confirmation UX ideas',
+		workspace: 'vscode',
+		minutesAgo: 2,
+		chats: [{ id: 'peer', title: 'hi' }],
+	},
+	{
+		id: 'folder-worktree',
+		title: 'Folder vs Worktree sessions',
+		workspace: 'vscode',
+		minutesAgo: 8,
+	},
+];
+const UNREAD_STATUS_ICON_SESSIONS: readonly ISessionSpec[] = [
+	{ id: 'workspace-less', title: 'Fix worktree workspace mapping', minutesAgo: 1, isRead: false },
+	{ id: 'workspace', title: 'Fix VS Code #331780', workspace: 'vscode', minutesAgo: 2, isRead: false },
+];
+const COMPACT_NEEDS_INPUT_SESSIONS: readonly ISessionSpec[] = [
+	{
+		id: 'question',
+		title: 'Choose the authentication migration',
+		workspace: 'vscode',
+		minutesAgo: 2,
+		status: SessionStatus.NeedsInput,
+		description: 'Which compatibility strategy should I use for existing authentication extensions and older remote clients?',
+	},
+	{
+		id: 'approval',
+		title: 'Publish the release branch',
+		workspace: 'vscode',
+		minutesAgo: 5,
+		status: SessionStatus.NeedsInput,
+		mainApprovalCommand: 'git push origin release/1.139',
+	},
+	{
+		id: 'completed',
+		title: 'Update onboarding copy',
+		workspace: 'vscode',
+		minutesAgo: 12,
+	},
+];
 
 export default defineThemedFixtureGroup({ path: 'sessions/' }, {
+	SessionsList_Confetti: defineComponentFixture({
+		render: ctx => renderSessionsList(ctx, {
+			sessions: [{ id: 'confetti', title: 'Finish confetti animation fixture', workspace: 'vscode', minutesAgo: 1 }],
+			showConfetti: true,
+			reducedMotion: false,
+		}),
+	}),
 	SessionsList_ArchiveOnboarding: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		additionalThemes: ['darkHighContrast'],
@@ -628,6 +726,50 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 	}),
 	SessionsList_CustomGroup: defineComponentFixture({
 		render: ctx => renderSessionsList(ctx, { sessions: GROUPED_SESSIONS, groups: [GROUP] }),
+	}),
+	SessionsList_Compact: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['A compact vscode workspace section shows a session with one nested chat and a second session. Session titles, status icons, and nested-chat titles are vertically centered in their rows.'],
+		render: ctx => renderSessionsList(ctx, { sessions: COMPACT_RENAME_SESSIONS, compact: true, width: 340 }),
+	}),
+	SessionsList_CompactTwistie: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['A compact vscode workspace section shows an expanded session with its nested-chat twistie visible in place of the status icon. The twistie is vertically centered with the session title.'],
+		render: ctx => renderSessionsList(ctx, { sessions: COMPACT_RENAME_SESSIONS, compact: true, showFirstSessionTwistie: true, width: 340 }),
+	}),
+	SessionsList_UnreadStatusIcons: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: true },
+		expectedVisualDescriptions: ['The unread blue-dot status icons for the workspace-less chat and workspace session are the same size.'],
+		render: ctx => renderSessionsList(ctx, {
+			sessions: UNREAD_STATUS_ICON_SESSIONS,
+			revealFirstSession: true,
+			width: 400,
+		}),
+	}),
+	SessionsList_CompactUnreadStatusIcons: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: true },
+		expectedVisualDescriptions: ['In compact mode, the unread blue-dot status icons for the workspace-less chat and workspace session are the same size.'],
+		render: ctx => renderSessionsList(ctx, {
+			sessions: UNREAD_STATUS_ICON_SESSIONS,
+			compact: true,
+			revealFirstSession: true,
+			width: 400,
+		}),
+	}),
+	SessionsList_CompactNeedsInput: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: true },
+		expectedVisualDescriptions: ['A compact vscode workspace section shows three sessions. The first session expands with a truncated input-needed callout but no button. The second expands with a terminal-command approval callout and an Allow button. The completed third session remains a single compact title row.'],
+		render: ctx => renderSessionsList(ctx, { sessions: COMPACT_NEEDS_INPUT_SESSIONS, compact: true, width: 380 }),
+	}),
+	SessionsList_CompactSessionRename: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: true },
+		expectedVisualDescriptions: ['The first compact session row is being renamed inline. The input text and border are vertically centered with the status icon and row actions, without shifting the row height.'],
+		render: ctx => renderSessionsList(ctx, { sessions: COMPACT_RENAME_SESSIONS, compact: true, rename: 'session', showFocusedToolbar: true, width: 340 }),
+	}),
+	SessionsList_CompactChatRename: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: true },
+		expectedVisualDescriptions: ['The nested chat row is being renamed inline. Its input text and border are vertically centered with the compact chat status icon, without shifting the row height.'],
+		render: ctx => renderSessionsList(ctx, { sessions: COMPACT_RENAME_SESSIONS, compact: true, rename: 'chat', width: 340 }),
 	}),
 	SessionsList_CollapsedUnreadSections: defineComponentFixture({
 		labels: { kind: 'screenshot' },

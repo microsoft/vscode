@@ -19,6 +19,7 @@ import { getGitHubPullRequestRefs, IGitHubPullRequestRef, ISessionFileChange } f
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { isIChatSessionFileChange2 } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
+import { parsePRContentUri } from '../../github/common/utils.js';
 // --- Types -------------------------------------------------------------------
 
 export interface ICodeReviewSuggestion {
@@ -59,6 +60,7 @@ export interface IPRReviewCommentTarget {
 	readonly pullRequest: IGitHubPullRequestRef;
 	readonly commitId: string;
 	readonly path: string;
+	readonly startLine: number | undefined;
 	readonly line: number;
 	readonly pendingReview: Pick<IGitHubPullRequestReview, 'id' | 'nodeId'> | undefined;
 }
@@ -142,6 +144,17 @@ export function commentableRightLines(patch: string): ReadonlySet<number> {
 }
 
 export function mapCurrentLineToPullRequestLine(pullRequestContent: string, currentContent: string, currentLine: number): number | undefined {
+	return mapCurrentRangeToPullRequestRange(pullRequestContent, currentContent, {
+		startLineNumber: currentLine,
+		endLineNumber: currentLine,
+	})?.startLineNumber;
+}
+
+export function mapCurrentRangeToPullRequestRange(
+	pullRequestContent: string,
+	currentContent: string,
+	currentRange: Pick<IRange, 'startLineNumber' | 'endLineNumber'>,
+): Pick<IRange, 'startLineNumber' | 'endLineNumber'> | undefined {
 	const pullRequestLines = splitLines(pullRequestContent);
 	const currentLines = splitLines(currentContent);
 	const diff = linesDiffComputers.getDefault().computeDiff(pullRequestLines, currentLines, {
@@ -153,11 +166,18 @@ export function mapCurrentLineToPullRequestLine(pullRequestContent: string, curr
 		return undefined;
 	}
 	const unchanged = LineRangeMapping.inverse(diff.changes, pullRequestLines.length, currentLines.length);
-	const mapping = unchanged.find(mapping => mapping.modified.contains(currentLine));
+	const mapping = unchanged.find(mapping =>
+		mapping.modified.contains(currentRange.startLineNumber)
+		&& mapping.modified.contains(currentRange.endLineNumber)
+	);
 	if (!mapping) {
 		return undefined;
 	}
-	return mapping.original.startLineNumber + currentLine - mapping.modified.startLineNumber;
+	const lineOffset = mapping.original.startLineNumber - mapping.modified.startLineNumber;
+	return {
+		startLineNumber: currentRange.startLineNumber + lineOffset,
+		endLineNumber: currentRange.endLineNumber + lineOffset,
+	};
 }
 
 function splitLines(content: string): string[] {
@@ -252,12 +272,13 @@ export class CodeReviewService extends Disposable implements ICodeReviewService 
 					}
 					const fileUri = URI.joinPath(baseUri, thread.path);
 					const line = thread.line ?? 1;
+					const startLine = thread.startLine ?? line;
 					const firstComment = thread.comments[0];
 					comments.push({
 						id: String(thread.id),
 						pullRequest,
 						uri: fileUri,
-						range: new Range(line, 1, line, 1),
+						range: new Range(startLine, 1, line, 1),
 						body: firstComment?.body ?? '',
 						author: firstComment?.author.login ?? '',
 					});
@@ -291,6 +312,20 @@ export class CodeReviewService extends Disposable implements ICodeReviewService 
 	private _getPRReviewCommentContext(sessionResource: URI, resource: URI): IPRReviewCommentContext | undefined {
 		const session = this._sessionsManagementService.getSession(sessionResource);
 		const workspace = session?.workspace.get();
+		const pullRequestContent = parsePRContentUri(resource);
+		if (pullRequestContent) {
+			const pullRequests = workspace?.folders
+				.flatMap(folder => getGitHubPullRequestRefs(folder.gitRepository?.gitHubInfo.get()))
+				.filter(pullRequest =>
+					pullRequest.owner === pullRequestContent.owner
+					&& pullRequest.repo === pullRequestContent.repo
+					&& pullRequest.number === pullRequestContent.prNumber
+				) ?? [];
+			return {
+				path: pullRequestContent.fileName,
+				pullRequests,
+			};
+		}
 		const workspaceResource = this._resolveWorkspaceResource(resource, session?.changes.get());
 		const folder = workspace?.folders.find(folder => isEqualOrParent(workspaceResource, folder.workingDirectory));
 		const path = folder ? relativePath(folder.workingDirectory, workspaceResource) : undefined;
@@ -337,15 +372,24 @@ export class CodeReviewService extends Disposable implements ICodeReviewService 
 					return undefined;
 				}
 				const headContent = await this._gitHubService.getFileContent(pullRequest.owner, pullRequest.repo, context.path, details.headSha);
-				const line = mapCurrentLineToPullRequestLine(headContent, currentContent, range.endLineNumber);
-				if (line === undefined || !commentableRightLines(changedFile.patch).has(line)) {
+				const pullRequestRange = mapCurrentRangeToPullRequestRange(headContent, currentContent, range);
+				if (!pullRequestRange) {
 					return undefined;
 				}
+				const commentableLines = commentableRightLines(changedFile.patch);
+				for (let line = pullRequestRange.startLineNumber; line <= pullRequestRange.endLineNumber; line++) {
+					if (!commentableLines.has(line)) {
+						return undefined;
+					}
+				}
+				const line = pullRequestRange.endLineNumber;
+				const startLine = pullRequestRange.startLineNumber === line ? undefined : pullRequestRange.startLineNumber;
 				const pendingReview = pullRequestRef.object.reviews.get()?.find(review => review.state === 'PENDING');
 				return {
 					pullRequest,
 					commitId: details.headSha,
 					path: context.path,
+					startLine,
 					line,
 					pendingReview: pendingReview ? { id: pendingReview.id, nodeId: pendingReview.nodeId } : undefined,
 				};
@@ -373,7 +417,7 @@ export class CodeReviewService extends Disposable implements ICodeReviewService 
 		const { owner, repo, number } = target.pullRequest;
 		const pullRequestRef = this._gitHubService.createPullRequestModelReference(owner, repo, number);
 		try {
-			await pullRequestRef.object.postReviewComment(body, target.commitId, target.path, target.line, target.pendingReview);
+			await pullRequestRef.object.postReviewComment(body, target.commitId, target.path, target.line, target.startLine, target.pendingReview);
 		} finally {
 			pullRequestRef.dispose();
 		}

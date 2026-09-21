@@ -4,16 +4,23 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
+import { Emitter } from '../../../../../base/common/event.js';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { isIMenuItem, isISubmenuItem, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
+import { isICommandActionToggleInfo } from '../../../../../platform/action/common/action.js';
+import { isIMenuItem, isISubmenuItem, MenuId, MenuRegistry, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { KeybindingsRegistry } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { ILogService } from '../../../../../platform/log/common/log.js';
 import { workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
+import { IWorkbenchAssignmentService } from '../../../../../workbench/services/assignment/common/assignmentService.js';
 import { Menus } from '../../../../browser/menus.js';
 import { SESSION_CONVERSATION_SIDE_CHATS_GROUP } from '../../../../browser/sessionConversationGroups.js';
 import { SessionView } from '../../../../browser/parts/sessionView.js';
@@ -24,16 +31,18 @@ import { IActiveSession, ISessionsManagementService } from '../../../../services
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 
 import { Action } from '../../../../../base/common/actions.js';
-import { NewSessionActionViewItem, type NewSessionButtonStyle, SessionConversationActionsContribution } from '../../browser/sessionsActions.js';
+import { NewSessionActionViewItem, type NewSessionButtonStyle, SessionConversationActionsContribution, SessionListActionsExperimentContribution } from '../../browser/sessionsActions.js';
 import '../../../chat/browser/chat.contribution.js';
 import { NEW_SESSION_ACTION_ID, UNIFIED_WORKSPACE_PICKER_SETTING } from '../../../chat/common/constants.js';
-import '../../browser/views/sessionsViewActions.js';
+import { ArchiveSessionAction } from '../../browser/views/sessionsViewActions.js';
 import { createTestSession, TestCommandService } from './sessionsListTestUtils.js';
 import { INewSessionComposerService, NewSessionComposerService } from '../../../chat/browser/newSessionComposerService.js';
-import { DeferredPromise } from '../../../../../base/common/async.js';
 import { ISessionSection, NEW_SESSION_FOR_WORKSPACE_ACTION_ID } from '../../browser/views/sessionsList.js';
 import { ISelectWorkspaceOptions } from '../../../../browser/parts/chatView.js';
 import { WorkspaceSelectionOrigin } from '../../../../common/workspaceSelection.js';
+import { ARCHIVE_SESSION_COMMAND_ID, MARK_SESSION_READ_COMMAND_ID, MARK_SESSION_UNREAD_COMMAND_ID } from '../../../../common/sessionCommands.js';
+import { SessionsListPromoteNewChatActionContext } from '../../../../common/contextkeys.js';
+import { SESSIONS_CHAT_TABS_SETTING, SessionsChatTabsMode } from '../../../../common/sessionConfig.js';
 
 suite('Sessions - Actions', () => {
 
@@ -57,22 +66,194 @@ suite('Sessions - Actions', () => {
 		});
 	});
 
-	test('contributes New Chat to the session list item menu', () => {
-		const action = MenuRegistry.getMenuItems(Menus.SessionItemContextMenu)
+	test('contributes New Chat to the session list toolbar and context menu', () => {
+		const action = (menuId: MenuId) => MenuRegistry.getMenuItems(menuId)
 			.filter(isIMenuItem)
 			.find(item => item.command.id === 'sessions.chatCompositeBar.addChat');
+		const toolbarAction = action(Menus.SessionItemToolbar);
+		const contextMenuAction = action(Menus.SessionItemContextMenu);
 
 		assert.deepStrictEqual({
-			title: action && (typeof action.command.title === 'string' ? action.command.title : action.command.title.value),
-			group: action?.group,
-			order: action?.order,
-			when: action?.when?.serialize(),
+			toolbar: {
+				title: toolbarAction && (typeof toolbarAction.command.title === 'string' ? toolbarAction.command.title : toolbarAction.command.title.value),
+				group: toolbarAction?.group,
+				order: toolbarAction?.order,
+				when: toolbarAction?.when?.serialize(),
+			},
+			contextMenu: {
+				title: contextMenuAction && (typeof contextMenuAction.command.title === 'string' ? contextMenuAction.command.title : contextMenuAction.command.title.value),
+				group: contextMenuAction?.group,
+				order: contextMenuAction?.order,
+				when: contextMenuAction?.when?.serialize(),
+			},
 		}, {
-			title: 'New Chat in This Session',
-			group: '1_newChat',
-			order: 0,
-			when: 'sessionIsCreated && sessionSupportsMultipleChats && !isQuickChatSession && !sessionIsArchived',
+			toolbar: {
+				title: 'New Chat in This Session',
+				group: 'navigation',
+				order: 1,
+				when: 'sessionSupportsMultipleChats && sessionsListPromoteNewChatAction && !isQuickChatSession && !sessionIsArchived',
+			},
+			contextMenu: {
+				title: 'New Chat in This Session',
+				group: '1_newChat',
+				order: 0,
+				when: 'sessionSupportsMultipleChats && !isQuickChatSession && !sessionIsArchived',
+			},
 		});
+	});
+
+	test('swaps the primary session row action when New Chat is promoted', () => {
+		const actionRegistration = new DisposableStore();
+		actionRegistration.add(registerAction2(ArchiveSessionAction));
+		try {
+			const actionIds = new Set([
+				'sessions.chatCompositeBar.addChat',
+				'sessionsViewPane.pinSession',
+				'sessionsViewPane.unpinSession',
+				ARCHIVE_SESSION_COMMAND_ID,
+			]);
+			const snapshot = (menuId: MenuId) => MenuRegistry.getMenuItems(menuId)
+				.filter(isIMenuItem)
+				.filter(item => actionIds.has(item.command.id))
+				.map(item => ({ id: item.command.id, group: item.group, order: item.order, when: item.when?.serialize() }));
+
+			assert.deepStrictEqual({
+				toolbar: snapshot(Menus.SessionItemToolbar),
+				contextMenu: snapshot(Menus.SessionItemContextMenu),
+			}, {
+				toolbar: [
+					{ id: 'sessions.chatCompositeBar.addChat', group: 'navigation', order: 1, when: 'sessionSupportsMultipleChats && sessionsListPromoteNewChatAction && !isQuickChatSession && !sessionIsArchived' },
+					{ id: 'sessionsViewPane.pinSession', group: 'navigation', order: 1, when: '!sessionIsArchived && !sessionItem.isPinned && !sessionsListPromoteNewChatAction' },
+					{ id: 'sessionsViewPane.unpinSession', group: 'navigation', order: 1, when: 'sessionItem.isPinned && !sessionIsArchived && !sessionsListPromoteNewChatAction' },
+					{ id: ARCHIVE_SESSION_COMMAND_ID, group: 'navigation', order: 2, when: '!sessionIsArchived' },
+				],
+				contextMenu: [
+					{ id: 'sessions.chatCompositeBar.addChat', group: '1_newChat', order: 0, when: 'sessionSupportsMultipleChats && !isQuickChatSession && !sessionIsArchived' },
+					{ id: 'sessionsViewPane.pinSession', group: '0_pin', order: 0, when: '!sessionIsArchived && !sessionItem.isPinned' },
+					{ id: 'sessionsViewPane.unpinSession', group: '0_pin', order: 0, when: 'sessionItem.isPinned && !sessionIsArchived' },
+					{ id: ARCHIVE_SESSION_COMMAND_ID, group: '1_edit', order: 2, when: '!sessionIsArchived' },
+				],
+			});
+		} finally {
+			actionRegistration.dispose();
+		}
+	});
+
+	test('updates the primary session row action from the experiment treatment', async () => {
+		const assignmentsChanged = disposables.add(new Emitter<void>());
+		const treatments: string[] = [];
+		const warnings: string[] = [];
+		const state: { treatment?: boolean; fail: boolean } = { fail: false };
+		const assignmentService = new class extends mock<IWorkbenchAssignmentService>() {
+			override readonly onDidRefetchAssignments = assignmentsChanged.event;
+			override async getTreatment<T extends string | number | boolean>(name: string): Promise<T | undefined> {
+				treatments.push(name);
+				if (state.fail) {
+					throw new Error('Treatment failed');
+				}
+				return state.treatment as T | undefined;
+			}
+		};
+		const logService = new class extends mock<ILogService>() {
+			override warn(message: string): void {
+				warnings.push(message);
+			}
+		};
+		const contextKeyService = disposables.add(new ContextKeyService(new TestConfigurationService()));
+		disposables.add(new SessionListActionsExperimentContribution(contextKeyService, assignmentService, logService));
+		await timeout(0);
+		const defaultValue = SessionsListPromoteNewChatActionContext.getValue(contextKeyService);
+
+		state.treatment = true;
+		assignmentsChanged.fire();
+		await timeout(0);
+		const enabledValue = SessionsListPromoteNewChatActionContext.getValue(contextKeyService);
+
+		state.fail = true;
+		assignmentsChanged.fire();
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			treatments,
+			defaultValue,
+			enabledValue,
+			errorValue: SessionsListPromoteNewChatActionContext.getValue(contextKeyService),
+			warnings,
+		}, {
+			treatments: [
+				'sessions.promoteNewChatAction',
+				'sessions.promoteNewChatAction',
+				'sessions.promoteNewChatAction',
+			],
+			defaultValue: false,
+			enabledValue: true,
+			errorValue: false,
+			warnings: ['[SessionListActionsExperimentContribution] Failed to resolve the promoted New Chat action treatment; using the default session row action.'],
+		});
+	});
+
+	test('cancels stale primary session row action treatments', async () => {
+		const assignmentsChanged = disposables.add(new Emitter<void>());
+		const requests: DeferredPromise<boolean | undefined>[] = [];
+		const warnings: string[] = [];
+		const assignmentService = new class extends mock<IWorkbenchAssignmentService>() {
+			override readonly onDidRefetchAssignments = assignmentsChanged.event;
+			override getTreatment<T extends string | number | boolean>(): Promise<T | undefined> {
+				const request = new DeferredPromise<boolean | undefined>();
+				requests.push(request);
+				return request.p as Promise<T | undefined>;
+			}
+		};
+		const logService = new class extends mock<ILogService>() {
+			override warn(message: string): void {
+				warnings.push(message);
+			}
+		};
+		const contextKeyService = disposables.add(new ContextKeyService(new TestConfigurationService()));
+		disposables.add(new SessionListActionsExperimentContribution(contextKeyService, assignmentService, logService));
+
+		assignmentsChanged.fire();
+		requests[1].complete(true);
+		await timeout(0);
+		requests[0].complete(false);
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			value: SessionsListPromoteNewChatActionContext.getValue(contextKeyService),
+			warnings,
+		}, {
+			value: true,
+			warnings: [],
+		});
+	});
+
+	test('groups related session list context menu actions', () => {
+		const actionIds = new Set([
+			'sessionsViewPane.pinSession',
+			'sessionsViewPane.unpinSession',
+			'sessionsViewPane.openToTheSide',
+			MARK_SESSION_READ_COMMAND_ID,
+			MARK_SESSION_UNREAD_COMMAND_ID,
+			'sessionsViewPane.markAllRead',
+		]);
+		const actions = MenuRegistry.getMenuItems(Menus.SessionItemContextMenu)
+			.filter(isIMenuItem)
+			.filter(item => actionIds.has(item.command.id))
+			.map(item => ({
+				id: item.command.id,
+				group: item.group,
+				order: item.order,
+				when: item.when?.serialize(),
+			}));
+
+		assert.deepStrictEqual(actions, [
+			{ id: 'sessionsViewPane.pinSession', group: '0_pin', order: 0, when: '!sessionIsArchived && !sessionItem.isPinned' },
+			{ id: 'sessionsViewPane.unpinSession', group: '0_pin', order: 0, when: 'sessionItem.isPinned && !sessionIsArchived' },
+			{ id: MARK_SESSION_READ_COMMAND_ID, group: '1_edit', order: 1.5, when: '!sessionIsArchived && !sessionIsRead' },
+			{ id: MARK_SESSION_UNREAD_COMMAND_ID, group: '1_edit', order: 1.5, when: 'sessionIsRead && !sessionIsArchived' },
+			{ id: 'sessionsViewPane.openToTheSide', group: '0_pin', order: 1, when: 'isSessionsWindow' },
+			{ id: 'sessionsViewPane.markAllRead', group: '0_read', order: 1, when: 'sessionsViewPane.grouping == \'date\'' },
+		]);
 	});
 
 	test('groups session management actions before creation and close', () => {
@@ -113,6 +294,66 @@ suite('Sessions - Actions', () => {
 			chatsWhen: 'sessionHasSideChats && sessionIsCreated && !sessionIsArchived',
 			addChatGroup: 'secondary/3_newChat',
 			addChatOrder: 10,
+		});
+	});
+
+	test('contributes chat tab presentation to the session header overflow', async () => {
+		const submenu = MenuRegistry.getMenuItems(Menus.SessionBarToolbar)
+			.filter(isISubmenuItem)
+			.find(item => item.submenu === Menus.SessionChatTabs);
+		const items = MenuRegistry.getMenuItems(Menus.SessionChatTabs)
+			.filter(isIMenuItem)
+			.map(item => {
+				const toggled = isICommandActionToggleInfo(item.command.toggled) ? item.command.toggled.condition : item.command.toggled;
+				return {
+					id: item.command.id,
+					title: typeof item.command.title === 'string' ? item.command.title : item.command.title.value,
+					toggled: toggled?.serialize(),
+				};
+			});
+		const updates: Array<{ key: string; value: unknown }> = [];
+		const instantiationService = disposables.add(new TestInstantiationService());
+		instantiationService.stub(IConfigurationService, new class extends TestConfigurationService {
+			override updateValue(key: string, value: unknown): Promise<void> {
+				updates.push({ key, value });
+				return Promise.resolve();
+			}
+		}());
+		await CommandsRegistry.getCommand('sessions.action.showSingleChat')?.handler(instantiationService);
+		await CommandsRegistry.getCommand('sessions.action.showMultipleChatTabs')?.handler(instantiationService);
+
+		assert.deepStrictEqual({
+			submenu: {
+				title: submenu && (typeof submenu.title === 'string' ? submenu.title : submenu.title.value),
+				group: submenu?.group,
+				order: submenu?.order,
+				when: submenu?.when?.serialize(),
+			},
+			items,
+			updates,
+		}, {
+			submenu: {
+				title: 'Show Chat Tabs',
+				group: 'secondary/3_tabs',
+				order: 10,
+				when: 'sessionIsCreated && sessionSupportsMultipleChats',
+			},
+			items: [{
+				id: 'sessions.action.showMultipleChatTabs',
+				title: 'Multiple',
+				toggled: 'config.sessions.showChatTabs == \'multiple\'',
+			}, {
+				id: 'sessions.action.showSingleChat',
+				title: 'Single',
+				toggled: 'config.sessions.showChatTabs == \'single\'',
+			}],
+			updates: [{
+				key: SESSIONS_CHAT_TABS_SETTING,
+				value: SessionsChatTabsMode.Single,
+			}, {
+				key: SESSIONS_CHAT_TABS_SETTING,
+				value: SessionsChatTabsMode.Multiple,
+			}],
 		});
 	});
 

@@ -7,7 +7,7 @@ import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { localize } from '../../../../../nls.js';
 import { type IAgentHostChatContribution, type IAgentHostChatContributionContext, type IIncomingRequest, type IncomingRequestDisposition, type IOutgoingTurn, type ISendContribution } from '../../../common/agentHostChatContributionsService.js';
 import { AgentMergeConfigKey, agentMergeRootConfigSchema, readAgentMergeSessionState } from '../../../common/agentMerge.js';
-import { readPullRequestOperationMeta } from '../../../common/meta/agentPullRequestOperationMeta.js';
+import { readPullRequestChatMeta } from '../../../common/meta/agentPullRequestOperationMeta.js';
 import { SessionConfigKey } from '../../../common/sessionConfigKeys.js';
 import { IAgentConfigurationService } from '../../agentConfigurationService.js';
 import { AgentHostStateManager, IAgentHostStateManager } from '../../agentHostStateManager.js';
@@ -26,7 +26,7 @@ export class PullRequestChatContribution extends Disposable implements IAgentHos
 	}
 
 	onIncomingRequest(request: IIncomingRequest): IncomingRequestDisposition | undefined {
-		const options = readPullRequestOperationMeta(request.message);
+		const options = readPullRequestChatMeta(request.message);
 		if (options?.agentMerge && !this._configurationService.getRootValue(agentMergeRootConfigSchema, AgentMergeConfigKey.Enabled)) {
 			return {
 				kind: 'reject',
@@ -38,7 +38,7 @@ export class PullRequestChatContribution extends Disposable implements IAgentHos
 	}
 
 	onOutgoingTurn(turn: IOutgoingTurn): ISendContribution | undefined {
-		const options = readPullRequestOperationMeta(turn.message);
+		const options = readPullRequestChatMeta(turn.message);
 		// Preparation can be cancelled before this hook runs; never configure an idle session.
 		if (!options || this._stateManager.getChatState(turn.chat)?.activeTurn?.id !== turn.turnId) {
 			return undefined;

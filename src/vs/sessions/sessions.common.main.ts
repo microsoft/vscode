@@ -15,6 +15,7 @@ import '../workbench/browser/workbench.contribution.js';
 import '../workbench/contrib/modernUI/browser/media/notificationsDialogs.css';
 import { agentsPanelBackground } from './common/theme.js';
 import './common/sizes.js';
+import './contrib/providers/remoteAgentHost/browser/connectionDiagnostics.contribution.js';
 
 getColorRegistry().updateDefaultColor(PANEL_BACKGROUND, agentsPanelBackground);
 getColorRegistry().updateDefaultColor(TERMINAL_BACKGROUND_COLOR, agentsPanelBackground);
@@ -479,7 +480,7 @@ import './services/sessions/browser/sessionsListModelService.js';
 import './services/sessions/browser/sessionGroupsService.js';
 import './services/sessions/browser/sessionSectionOrderService.js';
 import './services/agentHostFilter/browser/agentHostFilterService.js';
-import './contrib/sessions/browser/customizationsToolbar.contribution.js';
+import './contrib/sessions/browser/customizations.contribution.js';
 import './contrib/changes/browser/changes.contribution.js';
 import './contrib/codeReview/browser/codeReview.contributions.js';
 import './contrib/files/browser/files.contribution.js';

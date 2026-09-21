@@ -79,7 +79,9 @@ constructor(
 **Required Properties:**
 - `comment` - Clear explanation of what the field contains and why it's collected
 - `owner` - GitHub username (infer from branch or ask)
-- `isMeasurement: true` - **Required** for all numeric values flags used in calculations
+- `isMeasurement: true` - **Required** for every emitted `number` or `boolean`, including counts, durations, numeric schema or classifier versions, and flags. Telemetry serialization is runtime-type-driven: numbers and booleans are placed in `Measures` regardless of their classification metadata. If a categorical value must be a property, emit it as a bounded string instead.
+
+Before completing a telemetry change, compare every event field's runtime type with its classification. Every `number` and `boolean` field must have `isMeasurement: true`; string fields must not. Do not rely on event-payload tests alone because they do not validate classification metadata.
 
 ## Error Events
 
@@ -105,7 +107,7 @@ this.telemetryService.publicLogError2<ErrorEvent, ErrorClassification>('myFeatur
 - ❌ Missing `owner` field in classification (infer from branch name or ask user)
 - ❌ Vague comments ("user data" → "selected language identifier")
 - ❌ Wrong classification
-- ❌ Missing `isMeasurement` on numeric metrics
+- ❌ Missing `isMeasurement: true` on any emitted number or boolean, including numeric versions and boolean flags
 
 **Privacy Requirements:**
 - Minimize data collection to essential insights only

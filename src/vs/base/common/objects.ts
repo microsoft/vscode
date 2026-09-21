@@ -24,8 +24,9 @@ export function deepFreeze<T>(obj: T): T {
 		return obj;
 	}
 	const stack: any[] = [obj];
-	while (stack.length > 0) {
-		const obj = stack.shift();
+	for (let index = 0; index < stack.length; index++) {
+		const obj = stack[index];
+		stack[index] = undefined;
 		Object.freeze(obj);
 		for (const key in obj) {
 			if (_hasOwnProperty.call(obj, key)) {

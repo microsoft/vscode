@@ -20,6 +20,7 @@ import { IAccessibilityService } from '../../../../../../platform/accessibility/
 import { WorkbenchToolBar } from '../../../../../../platform/actions/browser/toolbar.js';
 import { ChatSessionArchiveActionWording, ChatSessionArchiveActionWordingSettingId, getChatSessionArchiveActionPresentation, getChatSessionArchiveActionWording, getChatSessionArchivedSectionLabel, SESSIONS_MARK_AS_DONE_CONFETTI_SETTING } from '../../../../../../platform/chat/common/sessionArchiveActions.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
@@ -34,6 +35,7 @@ export const CHAT_SESSION_ARCHIVE_NUDGE_ICON_TREATMENT = 'chatSessionArchiveNudg
 export interface IChatSessionArchiveNudgeOptions {
 	readonly hasWorktree: boolean;
 	readonly pullRequestCount: number;
+	readonly compact?: boolean;
 	readonly onArchive: () => Promise<void>;
 	readonly onDismiss: () => void;
 	readonly onOpenCleanupSettings: () => Promise<unknown>;
@@ -43,6 +45,9 @@ export interface IChatSessionArchiveNudgeOptions {
 export class ChatSessionArchiveNudge extends Disposable {
 	readonly domNode: HTMLElement;
 
+	private readonly contentElement: HTMLElement;
+	private readonly bodyElement: HTMLElement;
+	private readonly footerElement: HTMLElement;
 	private readonly iconElement: HTMLElement;
 	private readonly titleElement: HTMLElement;
 	private readonly descriptionElement: HTMLElement;
@@ -64,6 +69,7 @@ export class ChatSessionArchiveNudge extends Disposable {
 		@ILogService private readonly logService: ILogService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
+		@IHoverService hoverService: IHoverService,
 	) {
 		super();
 
@@ -72,10 +78,13 @@ export class ChatSessionArchiveNudge extends Disposable {
 		this._register(toDisposable(() => this.domNode.remove()));
 
 		const header = dom.append(this.domNode, dom.$('.chat-session-archive-nudge-header'));
-		this.iconElement = dom.append(header, renderIcon(Codicon.gitMerge));
+		this.contentElement = dom.append(header, dom.$('.chat-session-archive-nudge-content'));
+		const heading = dom.append(this.contentElement, dom.$('.chat-session-archive-nudge-heading'));
+		this.iconElement = dom.append(heading, renderIcon(Codicon.gitMerge));
 		this.iconElement.classList.add('chat-session-archive-nudge-icon');
 		this.iconElement.setAttribute('aria-hidden', 'true');
-		this.titleElement = dom.append(header, dom.$('h3.chat-session-archive-nudge-title', { id: `${id}-title` }));
+		this.titleElement = dom.append(heading, dom.$('h3.chat-session-archive-nudge-title', { id: `${id}-title` }));
+		this._register(hoverService.setupDelayedHover(this.titleElement, () => ({ content: this.titleElement.textContent ?? '' })));
 		const actions = dom.append(header, dom.$('.chat-session-archive-nudge-actions'));
 		this.dismissAction = this._register(new Action(
 			'chat.sessionArchiveNudge.dismiss',
@@ -89,7 +98,7 @@ export class ChatSessionArchiveNudge extends Disposable {
 		}));
 		toolbar.setActions([this.dismissAction]);
 
-		const body = dom.append(this.domNode, dom.$('.chat-session-archive-nudge-body'));
+		const body = this.bodyElement = dom.append(this.domNode, dom.$('.chat-session-archive-nudge-body'));
 		this.descriptionElement = dom.append(body, dom.$('p.chat-session-archive-nudge-description', { id: `${id}-description` }));
 		const details = dom.append(body, dom.$('details.chat-session-archive-nudge-details'));
 		const summary = dom.append(details, dom.$('summary.chat-session-archive-nudge-summary'));
@@ -100,12 +109,11 @@ export class ChatSessionArchiveNudge extends Disposable {
 		this.recoveryElement = dom.append(details, dom.$('p'));
 		this.worktreeElement = dom.append(details, dom.$('p.chat-session-archive-nudge-worktree'));
 
-		const footer = dom.append(this.domNode, dom.$('.chat-session-archive-nudge-footer'));
+		const footer = this.footerElement = dom.append(this.domNode, dom.$('.chat-session-archive-nudge-footer'));
 		this.archiveButton = this._register(new Button(footer, defaultButtonStyles));
 		this.archiveButton.element.setAttribute('aria-describedby', this.descriptionElement.id);
 		this._register(this.archiveButton.onDidClick(() => this.archive()));
 		this.cleanupSettingsButton = this._register(new Button(footer, { ...defaultButtonStyles, secondary: true }));
-		this.cleanupSettingsButton.label = localize('chat.sessionArchiveNudge.configureAutomaticCleanup', "Configure Automatic Cleanup");
 		this._register(this.cleanupSettingsButton.onDidClick(() => void this.openCleanupSettings()));
 		this._register(dom.addDisposableListener(this.domNode, dom.EventType.KEY_DOWN, event => {
 			const keyboardEvent = new StandardKeyboardEvent(event);
@@ -131,6 +139,21 @@ export class ChatSessionArchiveNudge extends Disposable {
 		this.options = options;
 		this.updateTitle();
 		this.worktreeElement.hidden = !options.hasWorktree;
+		const compact = !!options.compact;
+		this.domNode.classList.toggle('compact', compact);
+		this.bodyElement.hidden = compact;
+		this.cleanupSettingsButton.label = compact
+			? localize('chat.sessionArchiveNudge.configure', "Configure")
+			: localize('chat.sessionArchiveNudge.configureAutomaticCleanup', "Configure Automatic Cleanup");
+		const parent = compact ? this.contentElement : this.domNode;
+		if (this.footerElement.parentElement !== parent) {
+			const focusedElement = dom.getActiveElement();
+			const restoreFocus = dom.isHTMLElement(focusedElement) && this.footerElement.contains(focusedElement);
+			parent.appendChild(this.footerElement);
+			if (restoreFocus) {
+				focusedElement.focus();
+			}
+		}
 	}
 
 	private updateTitle(): void {

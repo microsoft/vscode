@@ -1205,6 +1205,8 @@ export interface IChatSubagentToolInvocationData {
 	agentName?: string;
 	prompt?: string;
 	result?: string;
+	/** Chat-layer model identifier, independent of its provider-qualified display name. */
+	modelId?: string;
 	modelName?: string;
 	credits?: number;
 	/** Millisecond timestamp when the subagent's first turn started. */
@@ -1420,6 +1422,7 @@ export interface IChatMcpAuthenticationRequired {
 	readonly kind: 'mcpAuthenticationRequired';
 	readonly sessionResource: UriComponents;
 	readonly servers: IObservable<readonly IChatMcpAuthenticationRequiredServer[]>;
+	/** Set by the producer before publishing the empty server list on completion. */
 	isUsed: boolean;
 }
 
@@ -1925,6 +1928,8 @@ export interface IRemotePendingRequest {
 	/** The raw message text. */
 	readonly message: string;
 	readonly variableData?: IChatRequestVariableData;
+	readonly modelId?: string;
+	readonly modelConfiguration?: IStringDictionary<unknown>;
 	readonly timestamp?: number;
 }
 
@@ -2022,6 +2027,12 @@ export interface IChatRequestSubmittedEvent {
 	readonly attachedContext?: IChatRequestVariableEntry[];
 }
 
+/** A new submission accepted for sending or queuing, not a retry or a queue drain. */
+export interface IChatRequestAcceptedEvent {
+	readonly chatSessionResource: URI;
+	readonly isNewSession: boolean;
+}
+
 export const IChatService = createDecorator<IChatService>('IChatService');
 
 export interface IChatService {
@@ -2029,6 +2040,7 @@ export interface IChatService {
 	transferredSessionResource: URI | undefined;
 
 	readonly onDidSubmitRequest: Event<IChatRequestSubmittedEvent>;
+	readonly onDidAcceptRequest: Event<IChatRequestAcceptedEvent>;
 
 	readonly onDidCreateModel: Event<IChatModel>;
 

@@ -4,12 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { EventEmitter as NodeEventEmitter } from 'events';
 import { spawnSync } from 'child_process';
 import { existsSync } from 'fs';
 import { lstat, mkdir, mkdtemp, readFile, readdir, rm, symlink } from 'fs/promises';
 import { tmpdir } from 'os';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { DeferredPromise } from '../../../../base/common/async.js';
+import { CancellationError } from '../../../../base/common/errors.js';
 import { join } from '../../../../base/common/path.js';
 import { getCaseInsensitive } from '../../../../base/common/objects.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -22,7 +24,7 @@ import { TestConfigurationService } from '../../../configuration/test/common/tes
 import { INativeEnvironmentService } from '../../../environment/common/environment.js';
 import { IRequestService } from '../../../request/common/request.js';
 import { URI } from '../../../../base/common/uri.js';
-import { DevContainerAgentHostMainService, getDevContainerCliPath, getDevContainerExecArgs, IDevContainerRelay, parseDevContainerMounts, parseDevContainerUpResult } from '../../node/devContainerAgentHostService.js';
+import { DevContainerAgentHostMainService, getDevContainerCliPath, getDevContainerExecArgs, IDevContainerRelay, parseDevContainerMounts, parseDevContainerUpResult, waitForDevContainerRelayConnection } from '../../node/devContainerAgentHostService.js';
 import { ISshExec } from '../../node/sshRemoteAgentHostHelpers.js';
 
 class TestRelay implements IDevContainerRelay {
@@ -53,6 +55,8 @@ class TestLogService extends NullLogService {
 
 class TestDevContainerAgentHostMainService extends DevContainerAgentHostMainService {
 	readonly relay = new TestRelay();
+	readonly relayStarted = new DeferredPromise<void>();
+	relayResult: Promise<IDevContainerRelay> | undefined;
 	readonly execCommands: string[] = [];
 	readonly devContainerArgs: string[][] = [];
 	readonly localCommands: { readonly command: string; readonly args: readonly string[] }[] = [];
@@ -129,6 +133,10 @@ class TestDevContainerAgentHostMainService extends DevContainerAgentHostMainServ
 
 	resolveDevContainerEnvironment(): Promise<typeof process.env> {
 		return this._resolveDevContainerEnvironment();
+	}
+
+	getDevContainerSpawnEnvironment(environment: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
+		return this._getDevContainerSpawnEnvironment(environment);
 	}
 
 	protected override _isFile(path: string): Promise<boolean> {
@@ -277,7 +285,8 @@ class TestDevContainerAgentHostMainService extends DevContainerAgentHostMainServ
 		_token: CancellationToken,
 	): Promise<IDevContainerRelay> {
 		this.relayCommand = command;
-		return Promise.resolve(this.relay);
+		void this.relayStarted.complete();
+		return this.relayResult ?? Promise.resolve(this.relay);
 	}
 }
 
@@ -321,6 +330,30 @@ suite('Dev Container Agent Host Main Service', () => {
 			exists: true,
 			status: 0,
 			version: '0.88.0',
+		});
+	});
+
+	test('does not propagate debugger environment to the Dev Container CLI', () => {
+		const service = store.add(new TestDevContainerAgentHostMainService());
+		const environment = {
+			PATH: '/bin',
+			NODE_OPTIONS: '--require debuggerBootloader.js',
+			VSCODE_INSPECTOR_OPTIONS: '{"inspectorIpc":"/tmp/node-cdp.sock"}',
+		};
+
+		assert.deepStrictEqual({
+			spawnEnvironment: service.getDevContainerSpawnEnvironment(environment),
+			originalEnvironment: environment,
+		}, {
+			spawnEnvironment: {
+				PATH: '/bin',
+				ELECTRON_RUN_AS_NODE: '1',
+			},
+			originalEnvironment: {
+				PATH: '/bin',
+				NODE_OPTIONS: '--require debuggerBootloader.js',
+				VSCODE_INSPECTOR_OPTIONS: '{"inspectorIpc":"/tmp/node-cdp.sock"}',
+			},
 		});
 	});
 
@@ -476,6 +509,27 @@ suite('Dev Container Agent Host Main Service', () => {
 		});
 	}
 
+	test('disconnect cancels a launch immediately and disposes a late relay', async () => {
+		const service = store.add(new TestDevContainerAgentHostMainService());
+		const result = new DeferredPromise<IDevContainerRelay>();
+		service.relayResult = result.p;
+		const connecting = service.connect({ connectionId: 'cancelled', workspaceFolder: '/workspace', name: 'Project' });
+		await service.relayStarted.p;
+		await service.disconnect('cancelled');
+		await result.complete(service.relay);
+		await assert.rejects(connecting, CancellationError);
+		await assert.rejects(service.relaySend('cancelled', 'frame'), /not available/);
+		assert.strictEqual(service.relay.disposed, true);
+	});
+
+	test('disconnect in the same turn cancels a pending launch', async () => {
+		const service = store.add(new TestDevContainerAgentHostMainService());
+		const connecting = service.connect({ connectionId: 'cancelled', workspaceFolder: '/workspace', name: 'Project' });
+		await service.disconnect('cancelled');
+		await assert.rejects(connecting, CancellationError);
+		assert.strictEqual(service.relay.disposed, true);
+	});
+
 	test('reuses a standalone endpoint and exposes its relay', async () => {
 		const service = store.add(new TestDevContainerAgentHostMainService());
 		const output: string[] = [];
@@ -501,6 +555,7 @@ suite('Dev Container Agent Host Main Service', () => {
 				address: 'devcontainer:container-id',
 				name: 'Project Dev Container',
 				remoteWorkspaceFolder: '/workspaces/project',
+				hostWorkspaceFolder: '/workspace',
 			},
 			devContainerArgs: [['up', '--log-level', 'debug', '--workspace-folder', '/workspace']],
 			relayCommand: '~/.vscode-server-oss/code-insiders --cli-data-dir ~/.vscode-server-oss/cli agent relay \'instance\' --user-data-dir \'/home/vscode/.config/Code\'',
@@ -669,6 +724,16 @@ suite('Dev Container Agent Host Main Service', () => {
 			getDevContainerExecArgs('/workspace', 'relay command'),
 			['exec', '--log-level', 'debug', '--workspace-folder', '/workspace', '/bin/sh', '-c', 'relay command'],
 		);
+	});
+
+	test('rejects when the relay process exits before the WebSocket opens', async () => {
+		const webSocket = new NodeEventEmitter();
+		const child = new NodeEventEmitter();
+		const connecting = waitForDevContainerRelayConnection(webSocket, child, CancellationToken.None);
+
+		child.emit('close', 1, null);
+
+		await assert.rejects(connecting, /Dev Container relay process exited before connecting \(exit code 1\)/);
 	});
 
 	test('allows a cold Agent Host to register after the short default deadline', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {

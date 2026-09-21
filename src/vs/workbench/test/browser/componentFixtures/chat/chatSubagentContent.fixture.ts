@@ -5,24 +5,20 @@
 
 import * as dom from '../../../../../base/browser/dom.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
-import { Event } from '../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { OffsetRange } from '../../../../../editor/common/core/ranges/offsetRange.js';
 import { Range } from '../../../../../editor/common/core/range.js';
-import { IActionViewItemFactory, IActionViewItemService } from '../../../../../platform/actions/browser/actionViewItemService.js';
 import { IMenuService, MenuId, MenuItemAction } from '../../../../../platform/actions/common/actions.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { AgentHostSubagentProgress } from '../../../../contrib/chat/browser/agentSessions/agentHost/agentHostSubagentProgress.js';
-import { ISessionSummaryHoverService, SessionSummaryHoverService } from '../../../../contrib/chat/browser/agentSessions/sessionSummaryHoverService.js';
 import { IChatWidgetService } from '../../../../contrib/chat/browser/chat.js';
 import { ChatContentMarkdownRenderer } from '../../../../contrib/chat/browser/widget/chatContentMarkdownRenderer.js';
 import { ChatListItemRenderer } from '../../../../contrib/chat/browser/widget/chatListRenderer.js';
 import { ChatEditorOptions } from '../../../../contrib/chat/browser/widget/chatOptions.js';
-import { OpenSubagentChatActionViewItem } from '../../../../contrib/chat/browser/widget/chatContentParts/chatSubagentOpenChat.js';
 import { ChatSystemNotificationContentPart } from '../../../../contrib/chat/browser/widget/chatContentParts/chatSystemNotificationContentPart.js';
 import { IChatSubagentToolInvocationData } from '../../../../contrib/chat/common/chatService/chatService.js';
 import { CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID, ChatAgentLocation, ChatConfiguration, ChatModeKind, CollapsedToolsDisplayMode, ThinkingDisplayMode } from '../../../../contrib/chat/common/constants.js';
@@ -31,9 +27,8 @@ import { ChatToolInvocation } from '../../../../contrib/chat/common/model/chatPr
 import { ChatViewModel, isResponseVM } from '../../../../contrib/chat/common/model/chatViewModel.js';
 import { ChatRequestTextPart } from '../../../../contrib/chat/common/requestParser/chatParserTypes.js';
 import { ToolDataSource } from '../../../../contrib/chat/common/tools/languageModelToolsService.js';
-import { IExtensionsWorkbenchService } from '../../../../contrib/extensions/common/extensions.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup } from '../fixtureUtils.js';
-import { registerChatFixtureServices } from './chatFixtureUtils.js';
+import { registerChatFixtureServices, registerSubagentFixtureServices } from './chatFixtureUtils.js';
 
 import '../../../../contrib/chat/browser/widget/media/chat.css';
 
@@ -44,18 +39,7 @@ async function renderSubagent(context: ComponentFixtureContext, state: 'pending'
 		colorTheme: context.theme,
 		additionalServices: reg => {
 			registerChatFixtureServices(reg);
-			reg.define(ISessionSummaryHoverService, SessionSummaryHoverService);
-			reg.defineInstance(IExtensionsWorkbenchService, new class extends mock<IExtensionsWorkbenchService>() {
-				override async getExtensions() { return []; }
-			}());
-			reg.defineInstance(IActionViewItemService, new class extends mock<IActionViewItemService>() {
-				override readonly onDidChange = Event.None;
-				override lookUp(menu: MenuId, commandId: string | MenuId): IActionViewItemFactory | undefined {
-					return menu === MenuId.ChatSubagentContent && commandId === CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID
-						? (action, options, service) => service.createInstance(OpenSubagentChatActionViewItem, undefined, action, options, true)
-						: undefined;
-				}
-			}());
+			registerSubagentFixtureServices(reg);
 			reg.defineInstance(IChatWidgetService, new class extends mock<IChatWidgetService>() {
 				override getWidgetBySessionResource() { return undefined; }
 				override async openSession(resource: URI) {

@@ -21,9 +21,9 @@
 		]
 	},
 	"actions": {
-		"covered": 83,
+		"covered": 85,
 		"total": 96,
-		"percentage": 86.45,
+		"percentage": 88.54,
 		"uncovered": [
 			"automationRun/cancelRequested",
 			"automationRun/sessionRemoved",
@@ -33,10 +33,8 @@
 			"chat/reasoning",
 			"chat/toolCallAuthRequired",
 			"chat/toolCallAuthResolved",
-			"chat/turnResume",
 			"session/activityChanged",
 			"session/defaultChatChanged",
-			"session/workingDirectoryReplaced",
 			"terminal/commandDetectionAvailable"
 		]
 	}

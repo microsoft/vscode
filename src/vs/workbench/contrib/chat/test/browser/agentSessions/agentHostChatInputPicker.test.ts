@@ -19,7 +19,7 @@ import { IAgentHostNetworkDiagnosticsInfo, IAgentHostService } from '../../../..
 import { AMBIENT_AGENT_HOST_AUTHORITY, IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { toAgentHostBackendSessionUri } from '../../../browser/agentSessions/agentHost/agentHostSessionUri.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
-import { ConfigurationTarget, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { ConfigurationTarget, IConfigurationService, IConfigurationValue } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { IDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
@@ -53,7 +53,7 @@ import { AgentHostChatInputPicker, getAgentHostSandboxSettingId, getConfigPicker
 import { AgentSandboxEnabledValue, AgentSandboxSettingId } from '../../../../../../platform/sandbox/common/settings.js';
 import { SessionType } from '../../../common/chatSessionsService.js';
 import { getAgentHostPickerProperty, OpenAgentHostAutoApprovePickerAction, OpenAgentHostCodexApprovalsPickerAction, OpenAgentHostModePickerAction, OpenAgentHostPermissionModePickerAction } from '../../../browser/agentSessions/agentHost/agentHostChatInputPicker.contribution.js';
-import { isAutoApproveValuePolicyRestricted, isPermissionLevelVisible, normalizeSessionConfigValue } from '../../../common/agentHostConfigPolicy.js';
+import { isAutoApproveValuePolicyRestricted, normalizeSessionConfigValue } from '../../../common/agentHostConfigPolicy.js';
 import { ChatConfiguration, ChatPermissionLevel } from '../../../common/constants.js';
 import { IChatPhoneInputPresenter } from '../../../browser/widget/input/chatPhoneInputPresenter.js';
 import { AGENT_HOST_PERMISSIONS_SETTINGS_QUERY, createModePickerPermissionsItems, MODE_PERMISSIONS_PICKER_OPEN_ATTRIBUTE, renderModePickerPermissions, renderModePickerTrigger, shouldCombineModeAndPermissions } from '../../../browser/agentSessions/agentHost/agentHostModePickerPresentation.js';
@@ -70,6 +70,13 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 		{ label: 'Assisted permissions', level: ChatPermissionLevel.Assisted, sandboxed: false },
 		{ label: 'Allow all', level: ChatPermissionLevel.AutoApprove, sandboxed: false },
 	];
+
+	const isVerticallyCentered = (element: HTMLElement, container: HTMLElement): boolean => {
+		const elementBounds = element.getBoundingClientRect();
+		const containerBounds = container.getBoundingClientRect();
+		const offset = elementBounds.top + elementBounds.height / 2 - containerBounds.top - containerBounds.height / 2;
+		return Math.abs(offset) < 0.5;
+	};
 
 	function createPermissionsWidget() {
 		const instantiationService = store.add(new TestInstantiationService());
@@ -88,10 +95,16 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 	}
 
 	function setup(combined = true, getHostInfo: () => Promise<IAgentHostNetworkDiagnosticsInfo> = async () => ({ version: '1', os: 'linux', arch: 'x64', proxySettings: {}, proxyEnv: {}, endpoints: [] })) {
-		const configuration = new TestConfigurationService({
+		const configuration = new class extends TestConfigurationService {
+			policyRestricted = false;
+			override inspect<T>(key: string): IConfigurationValue<T> {
+				const result = super.inspect<T>(key);
+				return { ...result, policyValue: this.policyRestricted && key === ChatConfiguration.GlobalAutoApprove ? result.value : undefined };
+			}
+		}({
 			[ChatConfiguration.ExperimentalModePermissionsPicker]: combined,
 			[ChatConfiguration.PermissionsSandboxToggleEnabled]: true,
-			[ChatConfiguration.AssistedPermissionsEnabled]: true,
+			[ChatConfiguration.GlobalAutoApprove]: false,
 		});
 		store.add(configuration.onDidChangeConfigurationEmitter);
 		const config: ResolveSessionConfigResult = {
@@ -412,6 +425,8 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 				const trigger = dom.append(slot, dom.$('div.action-label'));
 				const rendered = store.add(renderModePickerTrigger(trigger, mode, permissionPresentations[0], () => { }));
 				const icon = rendered.modeButton.querySelector<HTMLElement>('.codicon')!;
+				const modeLabel = rendered.modeButton.querySelector<HTMLElement>('.agent-host-chat-input-picker-label')!;
+				const permissionLabel = rendered.permissionsButton.querySelector<HTMLElement>('.agent-host-mode-permission-summary')!;
 				const style = dom.getWindow(icon).getComputedStyle(icon);
 				const contentInsets = [rendered.modeButton, rendered.permissionsButton].map(button => {
 					const bounds = button.getBoundingClientRect();
@@ -420,7 +435,7 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 						right: bounds.right - button.lastElementChild!.getBoundingClientRect().right,
 					};
 				});
-				const labelGap = rendered.permissionsButton.querySelector('.agent-host-mode-permission-summary')!.getBoundingClientRect().left - rendered.modeButton.querySelector('.agent-host-chat-input-picker-label')!.getBoundingClientRect().right;
+				const labelGap = permissionLabel.getBoundingClientRect().left - modeLabel.getBoundingClientRect().right;
 				const dividerStyle = dom.getWindow(rendered.permissionsButton).getComputedStyle(rendered.permissionsButton, '::before');
 				states.push({
 					surface: surface.className,
@@ -430,8 +445,8 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 					width: icon.getBoundingClientRect().width,
 					height: icon.getBoundingClientRect().height,
 					triggerHeight: trigger.getBoundingClientRect().height,
-					labelTransform: dom.getWindow(rendered.modeButton).getComputedStyle(rendered.modeButton.querySelector('.agent-host-chat-input-picker-label')!).transform,
-					permissionTransform: dom.getWindow(rendered.permissionsButton).getComputedStyle(rendered.permissionsButton.querySelector('.agent-host-mode-permission-summary')!).transform,
+					modeLabelCentered: isVerticallyCentered(modeLabel, rendered.modeButton),
+					permissionLabelCentered: isVerticallyCentered(permissionLabel, rendered.permissionsButton),
 					buttonHeights: [rendered.modeButton, rendered.permissionsButton].map(button => button.getBoundingClientRect().height),
 					buttonPadding: [rendered.modeButton, rendered.permissionsButton].map(button => dom.getWindow(button).getComputedStyle(button).padding),
 					contentInsets,
@@ -454,8 +469,8 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 			surface: surface.className, label: mode.label, icon: `codicon codicon-${mode.icon.id}-compact`,
 			fontSize: '12px', width: 12, height: 12,
 			triggerHeight: surface.buttonHeight,
-			labelTransform: 'matrix(1, 0, 0, 1, 0, 1)',
-			permissionTransform: 'matrix(1, 0, 0, 1, 0, 1)',
+			modeLabelCentered: true,
+			permissionLabelCentered: true,
 			buttonHeights: [surface.buttonHeight, surface.buttonHeight],
 			buttonPadding: ['0px 4px', '0px 4px'],
 			contentInsets: [{ left: 4, right: 4 }, { left: 4, right: 4 }],
@@ -474,7 +489,7 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 		}))));
 	});
 
-	test('matches picker heights and icon boxes across the primary and secondary composer toolbars', () => {
+	test('matches picker heights and centers their content across the primary and secondary composer toolbars', () => {
 		const host = dom.append(document.body, dom.$('.monaco-workbench'));
 		store.add(toDisposable(() => host.remove()));
 		host.style.setProperty('--vscode-codiconFontSize-compact', '12px');
@@ -504,7 +519,8 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 					padding: buttonStyle.padding,
 					radius: buttonStyle.borderRadius,
 					icon: { width: icon.getBoundingClientRect().width, height: icon.getBoundingClientRect().height, fontSize: style.fontSize, lineHeight: style.lineHeight },
-					labelTransform: dom.getWindow(label).getComputedStyle(label).transform,
+					iconCentered: isVerticallyCentered(icon, button),
+					labelCentered: isVerticallyCentered(label, button),
 				});
 			}
 		}
@@ -516,7 +532,8 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 				padding: '0px 6px',
 				radius: '4px',
 				icon: { width: 12, height: 12, fontSize: '12px', lineHeight: '12px' },
-				labelTransform: 'matrix(1, 0, 0, 1, 0, 1)',
+				iconCentered: true,
+				labelCentered: true,
 			}))));
 	});
 
@@ -563,6 +580,64 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 			{ combined: true, disclosure: true, oldPickerHidden: true, initialFocusItem: 'agentHostPermissions.assisted' },
 		]);
 	});
+
+	for (const combined of [false, true]) {
+		test(`offers experimental Assisted permissions without an opt-in setting (${combined ? 'combined' : 'separate'} picker)`, async () => {
+			const { modePicker, permissionPicker, configuration, config, actionWidget, dispatches } = setup(combined);
+			await configuration.setUserConfiguration('chat.assistedPermissions.enabled', false);
+			config.values.autoApprove = 'default';
+			const picker = combined ? modePicker : permissionPicker;
+			await picker['_showPicker'](document.createElement('div'));
+			const levels = actionWidget.items.filter(item => ['Manual permissions', 'Assisted permissions', 'Allow all'].includes(item.label ?? ''))
+				.map(item => ({ label: item.label, disabled: item.disabled, badge: item.badge }));
+			const beforeSelection = [...dispatches];
+			await actionWidget.select('Assisted permissions');
+
+			assert.deepStrictEqual({ levels, beforeSelection, dispatches }, {
+				levels: [
+					{ label: 'Manual permissions', disabled: false, badge: undefined },
+					{ label: 'Assisted permissions', disabled: false, badge: 'Experimental' },
+					{ label: 'Allow all', disabled: false, badge: undefined },
+				],
+				beforeSelection: [],
+				dispatches: [{ type: ActionType.SessionConfigChanged, config: { autoApprove: 'assisted' } }],
+			});
+		});
+
+		test(`preserves enterprise approval restrictions (${combined ? 'combined' : 'separate'} picker)`, async () => {
+			const { modePicker, permissionPicker, configuration, actionWidget, dispatches } = setup(combined);
+			configuration.policyRestricted = true;
+			const picker = combined ? modePicker : permissionPicker;
+			await picker['_showPicker'](document.createElement('div'));
+			const levels = actionWidget.items.filter(item => ['Manual permissions', 'Assisted permissions', 'Allow all'].includes(item.label ?? ''))
+				.map(item => ({ label: item.label, disabled: item.disabled, badge: item.badge }));
+			await actionWidget.select('Assisted permissions');
+
+			assert.deepStrictEqual({ levels, dispatches }, {
+				levels: [
+					{ label: 'Manual permissions', disabled: false, badge: undefined },
+					{ label: 'Assisted permissions', disabled: true, badge: 'Experimental' },
+					{ label: 'Allow all', disabled: true, badge: undefined },
+				],
+				dispatches: [{ type: ActionType.SessionConfigChanged, config: { autoApprove: 'default' } }],
+			});
+		});
+
+		test(`closes on enterprise approval policy changes (${combined ? 'combined' : 'separate'} picker)`, async () => {
+			const { modePicker, permissionPicker, configuration, actionWidget } = setup(combined);
+			const picker = combined ? modePicker : permissionPicker;
+			await picker['_showPicker'](document.createElement('div'));
+			configuration.policyRestricted = true;
+			configuration.onDidChangeConfigurationEmitter.fire({
+				affectsConfiguration: key => key === ChatConfiguration.GlobalAutoApprove,
+				affectedKeys: new Set([ChatConfiguration.GlobalAutoApprove]),
+				source: ConfigurationTarget.USER,
+				change: { keys: [ChatConfiguration.GlobalAutoApprove], overrides: [] },
+			});
+
+			assert.strictEqual(actionWidget.isVisible, false);
+		});
+	}
 
 	test('stacked rows retain the permission axis, sandbox toggle, and settings gear', async () => {
 		const { modePicker, modeContainer, actionWidget, dispatches, settingsRequests } = setup();
@@ -816,7 +891,6 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 		assert.deepStrictEqual(AGENT_HOST_PERMISSIONS_SETTINGS_QUERY.slice('@id:'.length).split(','), [
 			'chat.defaultConfiguration',
 			'chat.permissions.default',
-			'chat.assistedPermissions.enabled',
 			'chat.tools.global.autoApprove',
 			'chat.tools.edits.autoApprove',
 			'chat.tools.urls.autoApprove',
@@ -1186,7 +1260,7 @@ suite('AgentHostChatInputPicker - list options', () => {
 			codexApprovals: getConfigPickerListOptions(CodexSessionConfigKey.PermissionsPreset),
 		}, {
 			mode: { minWidth: 260 },
-			approvals: { minWidth: 255 },
+			approvals: { minWidth: 300 },
 			claudePermissions: undefined,
 			codexApprovals: {
 				className: 'codex-approvals-picker',
@@ -1258,18 +1332,6 @@ suite('AgentHostChatInputPicker - resolveConfigChipValue', () => {
 		});
 
 		suite('AgentHostChatInputPicker - approval controls', () => {
-
-			test('shows Assisted permissions only when the setting is enabled', () => {
-				assert.deepStrictEqual({
-					enabled: isPermissionLevelVisible(ChatPermissionLevel.Assisted, true),
-					disabled: isPermissionLevelVisible(ChatPermissionLevel.Assisted, false),
-					bypass: isPermissionLevelVisible(ChatPermissionLevel.AutoApprove, false),
-				}, {
-					enabled: true,
-					disabled: false,
-					bypass: true,
-				});
-			});
 
 			test('enterprise policy restricts and normalizes Approve When Safe and Allow All equally', () => {
 				assert.deepStrictEqual({

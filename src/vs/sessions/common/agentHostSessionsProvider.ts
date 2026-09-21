@@ -121,6 +121,8 @@ export interface IAgentHostSessionsProvider extends ISessionsProvider {
 	readonly connectionStatus?: IObservable<RemoteAgentHostConnectionStatus>;
 	/** Progress messages during on-demand connect. */
 	readonly onDidReportConnectProgress?: Event<IAgentHostConnectProgress>;
+	/** Opens this host's connection log, including while connecting. */
+	readonly showConnectionLog?: () => Promise<void>;
 	/** Remote address string, present on remote providers. */
 	readonly remoteAddress?: string;
 	/**
@@ -155,6 +157,8 @@ export interface IAgentHostSessionsProvider extends ISessionsProvider {
 	 * it. Present on remote providers that manage their own transport.
 	 */
 	disconnect?(): Promise<void>;
+	/** Permanently remove this host from the user-visible host inventory. */
+	remove?(): Promise<void>;
 	/**
 	 * Skips a pending reconnect backoff and retries at once. Present on remote
 	 * providers whose transport is restored by a protocol client.
