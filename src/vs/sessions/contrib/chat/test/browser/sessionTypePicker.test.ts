@@ -15,8 +15,6 @@ import { IActionWidgetService } from '../../../../../platform/actionWidget/brows
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IChatInputNotificationService } from '../../../../../workbench/contrib/chat/browser/widget/input/chatInputNotificationService.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
-import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
-import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
@@ -156,7 +154,6 @@ function createPicker(
 	});
 	instantiationService.stub(IConfigurationService, new TestConfigurationService());
 	instantiationService.stub(IChatInputNotificationService, { getActiveNotification: () => undefined });
-	instantiationService.stub(IContextKeyService, new MockContextKeyService());
 	return disposables.add(instantiationService.createInstance(TestSessionTypePicker, session, options));
 }
 
@@ -183,6 +180,27 @@ suite('SessionTypePicker', () => {
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('reports harness visibility only after rendering an interactive picker and resets on disposal', () => {
+		const types = [
+			sessionType('copilot', 'copilot-cli', 'Copilot'),
+			sessionType('claude', 'claude', 'Claude'),
+		];
+		management.setSessionTypes(types);
+		session.set(createFakeSession('copilot', 'copilot-cli', folder), undefined);
+		const picker = createPicker(disposables, session, management, storage);
+		const visibility = [picker.isVisible.get()];
+		picker.render(document.createElement('div'));
+		visibility.push(picker.isVisible.get());
+		management.setSessionTypes([types[0]]);
+		visibility.push(picker.isVisible.get());
+		management.setSessionTypes(types);
+		visibility.push(picker.isVisible.get());
+		picker.dispose();
+		visibility.push(picker.isVisible.get());
+
+		assert.deepStrictEqual(visibility, [false, true, false, true, false]);
+	});
 
 	test('preferred session type is the first one and follows session-type changes', () => {
 		management.setSessionTypes([

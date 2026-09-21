@@ -4,10 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import * as dom from '../../../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../../../base/browser/window.js';
 import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
-import { Disposable, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mockObject, upcastPartial } from '../../../../../../base/test/common/mock.js';
@@ -15,6 +16,11 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { OffsetRange } from '../../../../../../editor/common/core/ranges/offsetRange.js';
 import { Range } from '../../../../../../editor/common/core/range.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
+import { MockContextKeyService } from '../../../../../../platform/keybinding/test/common/mockKeybindingService.js';
+import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
+import { ILinkDescriptor, ILinkOptions, Link } from '../../../../../../platform/opener/browser/link.js';
+import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
 import { NullTelemetryService } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { SaveReason } from '../../../../../common/editor.js';
 import { ISaveAllEditorsOptions, ISaveEditorsResult } from '../../../../../services/editor/common/editorService.js';
@@ -29,10 +35,245 @@ import { computeChatModelIsIdle } from '../../../common/model/chatModelIdle.js';
 import { IChatRequestViewModel } from '../../../common/model/chatViewModel.js';
 import { ChatRequestSlashCommandPart, ChatRequestTextPart, IParsedChatRequest } from '../../../common/requestParser/chatParserTypes.js';
 import { observePromptTimelineHostWidth } from '../../../browser/promptTimeline/promptTimelineWidgetContrib.js';
+import { ChatContentMarkdownRenderer } from '../../../browser/widget/chatContentMarkdownRenderer.js';
+import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
 
 suite('ChatWidget', () => {
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	function createTranscriptProgressWidget() {
+		const container = dom.append(mainWindow.document.body, dom.$('.interactive-session'));
+		store.add(toDisposable(() => container.remove()));
+		const instantiationService = mockObject<IInstantiationService>()();
+		instantiationService.createInstance.callsFake((ctor: typeof ChatContentMarkdownRenderer | typeof Link, element?: HTMLElement, link?: ILinkDescriptor, options?: ILinkOptions) => {
+			if (ctor === ChatContentMarkdownRenderer) {
+				return { render: () => ({ element: dom.$('span'), dispose: () => { } }) };
+			}
+			if (ctor === Link) {
+				return new Link(element!, link!, options, upcastPartial<IHoverService>({}), upcastPartial<IOpenerService>({}));
+			}
+			return { domNode: dom.$('.progress-container', undefined, element!), iconElement: dom.$('div'), dispose: () => { } };
+		});
+		const widgetStore = store.add(new DisposableStore());
+		const contextKeyService = store.add(new MockContextKeyService());
+		const inputEnablement: boolean[] = [];
+		const widget = Object.assign(Object.create(ChatWidget.prototype), {
+			_store: widgetStore,
+			container,
+			listContainer: dom.append(container, dom.$('.interactive-list')),
+			transcriptProgressPart: store.add(new MutableDisposable<DisposableStore>()),
+			instantiationService,
+			contextKeyService,
+			transcriptProgressActiveContext: ChatContextKeys.transcriptProgressActive.bindTo(contextKeyService),
+			inputPartDisposable: { value: { setInputEnabled: (enabled: boolean) => inputEnablement.push(enabled) } },
+			updateChatViewVisibility: () => { },
+		}) as ChatWidget;
+		return { widget, container, contextKeyService, inputEnablement };
+	}
+
+	test('only preparation disables input and completion or cancellation re-enables it', () => {
+		const { widget, inputEnablement } = createTranscriptProgressWidget();
+		widget.setTranscriptProgress('Connecting');
+		widget.setTranscriptProgress('Preparing', undefined, { onCancel: () => { } });
+		widget.setTranscriptProgress('Starting', undefined, { onCancel: () => { } });
+		widget.setTranscriptProgress('Ready', undefined, { complete: true });
+		widget.setTranscriptProgress('Preparing again', undefined, { onCancel: () => widget.setTranscriptProgress(undefined) });
+		widget.cancelTranscriptProgress();
+		assert.deepStrictEqual(inputEnablement, [false, true, false, true]);
+	});
+
+	test('disabled input blocks editing and attachment controls but leaves Stop focusable', () => {
+		const container = dom.append(mainWindow.document.body, dom.$('div'));
+		store.add(toDisposable(() => container.remove()));
+		const editorContainer = dom.append(container, dom.$('div'));
+		const editor = dom.append(editorContainer, mainWindow.document.createElement('textarea'));
+		editor.value = 'Existing draft';
+		const attachmentsContainer = dom.append(container, dom.$('div'));
+		const toolbar = dom.append(container, dom.$('div'));
+		const secondaryToolbarContainer = dom.append(container, dom.$('div'));
+		const stop = dom.append(container, dom.$('button'));
+		let dropDisabled = false;
+		const input: ChatInputPart = Object.assign(Object.create(ChatInputPart.prototype), {
+			inputEnabled: true,
+			_inputEditorElement: editorContainer,
+			_inputEditor: {
+				updateOptions: (options: { readOnly: boolean }) => { editor.readOnly = options.readOnly; },
+				hasWidgetFocus: () => mainWindow.document.activeElement === editor,
+				focus: () => editor.focus(),
+			},
+			attachmentsContainer,
+			inputActionsToolbar: { getElement: () => toolbar },
+			secondaryToolbarContainer,
+			executeToolbar: { focus: () => stop.focus() },
+			dnd: { setDisabledOverlay: (disabled: boolean) => { dropDisabled = disabled; } },
+		});
+		const state = () => ({
+			readOnly: editor.readOnly,
+			inert: [editorContainer, attachmentsContainer, toolbar, secondaryToolbarContainer].map(element => element.inert),
+			dropDisabled,
+			focused: mainWindow.document.activeElement === stop ? 'stop' : mainWindow.document.activeElement === editor ? 'editor' : 'none',
+			value: editor.value,
+		});
+		input.focus();
+		input.setInputEnabled(false);
+		const disabled = state();
+		editor.focus();
+		const cannotFocusEditor = mainWindow.document.activeElement === stop;
+		input.setInputEnabled(true);
+		input.focus();
+		assert.deepStrictEqual({ disabled, cannotFocusEditor, enabled: state() }, {
+			disabled: { readOnly: true, inert: [true, true, true, true], dropDisabled: true, focused: 'stop', value: 'Existing draft' },
+			cannotFocusEditor: true,
+			enabled: { readOnly: false, inert: [false, false, false, false], dropDisabled: false, focused: 'editor', value: 'Existing draft' },
+		});
+	});
+
+	test('transcript progress shows a keyboard-accessible detail action outside the live region', () => {
+		const { widget, container } = createTranscriptProgressWidget();
+		let opened = 0;
+		widget.setTranscriptProgress('Building', 'Building container', { detail: { label: 'Show Log', run: () => opened++ } });
+		const link = container.querySelector<HTMLAnchorElement>('a')!;
+		const status = container.querySelector('[role=status]')!;
+		link.focus();
+		link.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true }));
+		link.dispatchEvent(new KeyboardEvent('keydown', { key: ' ', keyCode: 32, bubbles: true }));
+		link.click();
+
+		assert.deepStrictEqual({
+			label: link.textContent,
+			tabIndex: link.tabIndex,
+			focused: mainWindow.document.activeElement === link,
+			opened,
+			linkInLiveRegion: status.contains(link),
+			linkHidden: !!link.closest('[aria-hidden=true]'),
+			statusLabel: status.getAttribute('aria-label'),
+			shimmer: !!container.querySelector('.shimmer-progress'),
+		}, {
+			label: 'Show Log',
+			tabIndex: 0,
+			focused: true,
+			opened: 3,
+			linkInLiveRegion: false,
+			linkHidden: false,
+			statusLabel: 'Building container',
+			shimmer: true,
+		});
+	});
+
+	test('transcript progress cancellation uses the latest callback without a separate button', () => {
+		const { widget, container, contextKeyService } = createTranscriptProgressWidget();
+		const calls: string[] = [];
+		widget.setTranscriptProgress('Building', undefined, { onCancel: () => calls.push('old') });
+		const status = container.querySelector('[role=status]');
+		widget.setTranscriptProgress('Starting', undefined, { onCancel: () => calls.push('new') });
+		const active = contextKeyService.getContextKeyValue(ChatContextKeys.transcriptProgressActive.key);
+		const cancelled = widget.cancelTranscriptProgress();
+		widget.setTranscriptProgress('Started', undefined, { complete: true, onCancel: () => calls.push('completed') });
+
+		assert.deepStrictEqual({
+			calls,
+			sameStatus: container.querySelector('[role=status]') === status,
+			active,
+			cancelled,
+			completedActive: widget.isTranscriptProgressActive,
+			completedContext: contextKeyService.getContextKeyValue(ChatContextKeys.transcriptProgressActive.key),
+			cancelCompleted: widget.cancelTranscriptProgress(),
+			customButton: !!container.querySelector('.monaco-button'),
+			complete: !!container.querySelector('.show-checkmarks'),
+		}, { calls: ['new'], sameStatus: true, active: true, cancelled: true, completedActive: false, completedContext: false, cancelCompleted: false, customButton: false, complete: true });
+	});
+
+	test('transcript progress updates preserve detail focus and use the latest action', () => {
+		const { widget, container } = createTranscriptProgressWidget();
+		const calls: string[] = [];
+		widget.setTranscriptProgress('Building', undefined, { detail: { label: 'Show Log', run: () => calls.push('old') } });
+		const link = container.querySelector<HTMLAnchorElement>('a')!;
+		link.focus();
+		widget.setTranscriptProgress('Starting', undefined, { detail: { label: 'Show Log', run: () => calls.push('new') } });
+		const focusedAfterUpdate = mainWindow.document.activeElement === link;
+		link.click();
+		widget.setTranscriptProgress(undefined);
+		const hiddenAfterClearing = !!link.closest('[hidden]');
+		link.click();
+		widget.setTranscriptProgress('Ready', undefined, { complete: true });
+		assert.deepStrictEqual({
+			sameLink: container.querySelector('a') === link,
+			focusedAfterUpdate,
+			hiddenAfterClearing,
+			hiddenWithoutAction: !!link.closest('[hidden]'),
+			calls,
+		}, {
+			sameLink: true,
+			focusedAfterUpdate: true,
+			hiddenAfterClearing: true,
+			hiddenWithoutAction: true,
+			calls: ['new'],
+		});
+	});
+
+	test('transcript preparation blocks submissions without a model or touching the draft', async () => {
+		const { widget } = createTranscriptProgressWidget();
+		widget.setTranscriptProgress('Preparing', undefined, { onCancel: () => { } });
+		assert.deepStrictEqual(await Promise.all([
+			widget.acceptInput('follow up'),
+			widget.acceptInput(undefined, { queue: ChatRequestQueueKind.Queued }),
+			widget.acceptInput(undefined, { queue: ChatRequestQueueKind.Steering }),
+			widget.acceptInput(undefined, { cancelCurrentRequest: true }),
+		]), [undefined, undefined, undefined, undefined]);
+	});
+
+	test('transcript progress context is independent of request context and clears with its callback', () => {
+		const { widget, contextKeyService } = createTranscriptProgressWidget();
+		const requestInProgress = ChatContextKeys.requestInProgress.bindTo(contextKeyService);
+		const hasActiveRequest = ChatContextKeys.hasActiveRequest.bindTo(contextKeyService);
+		const states: boolean[] = [];
+		const record = () => states.push(widget.isTranscriptProgressActive && !!contextKeyService.getContextKeyValue(ChatContextKeys.transcriptProgressActive.key));
+		widget.setTranscriptProgress('Preparing', undefined, { onCancel: () => { } });
+		record();
+		requestInProgress.set(true);
+		hasActiveRequest.set(true);
+		record();
+		requestInProgress.set(false);
+		hasActiveRequest.set(false);
+		record();
+		widget.setTranscriptProgress('Starting');
+		record();
+		widget.setTranscriptProgress('Preparing', undefined, { onCancel: () => { } });
+		widget.setTranscriptProgress(undefined);
+		record();
+		assert.deepStrictEqual(states, [true, true, true, false, false]);
+	});
+
+	test('transcript progress clearing hides the detail action and preserves the message-only API', () => {
+		const { widget, container } = createTranscriptProgressWidget();
+		let opened = false;
+		widget.setTranscriptProgress('Building', undefined, { detail: { label: 'Show Log', run: () => opened = true }, onCancel: () => { } });
+		const link = container.querySelector<HTMLAnchorElement>('a')!;
+		widget.setTranscriptProgress(undefined);
+		link.click();
+		const cleared = {
+			hidden: container.querySelector<HTMLElement>('.chat-transcript-progress')!.hidden,
+			linkHidden: !!link.closest('[hidden]'),
+			active: widget.isTranscriptProgressActive,
+			opened,
+		};
+		widget.setTranscriptProgress('Connecting');
+
+		assert.deepStrictEqual({
+			cleared,
+			hidden: container.querySelector<HTMLElement>('.chat-transcript-progress')!.hidden,
+			linkHidden: !!link.closest('[hidden]'),
+			statusLabel: container.querySelector('[role=status]')!.getAttribute('aria-label'),
+			shimmer: !!container.querySelector('.shimmer-progress'),
+		}, {
+			cleared: { hidden: true, linkHidden: true, active: false, opened: false },
+			hidden: false,
+			linkHidden: true,
+			statusLabel: 'Connecting',
+			shimmer: true,
+		});
+	});
 
 	class RecordingEditorService extends TestEditorService {
 		readonly saveAllCalls: (ISaveAllEditorsOptions | undefined)[] = [];

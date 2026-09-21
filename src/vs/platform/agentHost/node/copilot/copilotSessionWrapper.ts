@@ -44,6 +44,7 @@ export class CopilotSessionWrapper extends Disposable {
 	private _disconnectRpcState: 'notStarted' | 'pending' | 'completed' | 'failed' = 'notStarted';
 	private readonly _instanceId = generateUuid();
 	private readonly _lifetime = new StopWatch();
+	private _beforeDisconnect: (() => Promise<void>) | undefined;
 
 	constructor(
 		readonly session: CopilotSession,
@@ -80,20 +81,19 @@ export class CopilotSessionWrapper extends Disposable {
 					: 'active';
 	}
 
-	/** Disconnects once the request completes or the SDK reports session shutdown. */
+	/** Sets bounded, best-effort cleanup to run once before disconnecting the SDK session. */
+	setBeforeDisconnect(beforeDisconnect: () => Promise<void>): void {
+		this._beforeDisconnect = beforeDisconnect;
+	}
+
+	/** Runs pre-disconnect cleanup, then waits for the disconnect response or SDK shutdown. */
 	disconnect(): Promise<void> {
 		if (this._shutdown.isSettled) {
 			this._logService.info(this._lifecycleLogMessage('disconnect skipped after shutdown'));
 			return this._shutdown.p;
 		}
 		if (!this._disconnectPromise) {
-			this._disconnectRpcState = 'pending';
-			this._logService.info(this._lifecycleLogMessage('disconnect RPC started'));
-			const disconnectPromise = this.session.disconnect()
-				.then(() => {
-					this._disconnectRpcState = 'completed';
-					this._logService.info(this._lifecycleLogMessage('disconnect RPC completed'));
-				})
+			const disconnectPromise = this._disconnect()
 				.catch(error => {
 					this._disconnectRpcState = 'failed';
 					this._logService.warn(this._lifecycleLogMessage('disconnect RPC failed'), error);
@@ -117,6 +117,21 @@ export class CopilotSessionWrapper extends Disposable {
 
 	private _lifecycleLogMessage(event: string): string {
 		return `[Copilot:${this.sessionId}] SDK session ${event}: instanceId=${this._instanceId}, disconnectRpc=${this._disconnectRpcState}, shutdownReceived=${this._shutdown.isSettled}, disposed=${this._store.isDisposed}, lifetimeMs=${Math.round(this._lifetime.elapsed())}`;
+	}
+
+	private async _disconnect(): Promise<void> {
+		const beforeDisconnect = this._beforeDisconnect;
+		this._beforeDisconnect = undefined;
+		if (beforeDisconnect) {
+			await beforeDisconnect();
+		}
+		if (!this._shutdown.isSettled) {
+			this._disconnectRpcState = 'pending';
+			this._logService.info(this._lifecycleLogMessage('disconnect RPC started'));
+			await this.session.disconnect();
+			this._disconnectRpcState = 'completed';
+			this._logService.info(this._lifecycleLogMessage('disconnect RPC completed'));
+		}
 	}
 
 	private _onMessageDelta: Event<SessionEventPayload<'assistant.message_delta'>> | undefined;

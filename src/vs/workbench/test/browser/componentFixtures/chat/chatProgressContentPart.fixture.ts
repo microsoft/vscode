@@ -91,6 +91,7 @@ function renderProgressPart(
 			opts?.icon,
 			undefined, // toolInvocation
 			opts?.shimmer,
+			undefined, // isWorkingProgress
 		)
 	);
 

@@ -14,6 +14,8 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
+import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IInputOptions, IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
@@ -766,8 +768,12 @@ suite('Sessions rename', () => {
 			const instantiationService = disposables.add(new TestInstantiationService());
 			const commandService = new TestCommandService();
 			const sessionData = createTestSession('Existing');
+			const session = upcastPartial<IActiveSession>({ ...sessionData.session });
 			let inlineRenameCalls = 0;
 			instantiationService.stub(ICommandService, commandService);
+			instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
+				override readonly activeSession = constObservable<IActiveSession | undefined>(session);
+			});
 			instantiationService.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() {
 				override getSessionView() {
 					if (inlineRename === undefined) {
@@ -783,7 +789,7 @@ suite('Sessions rename', () => {
 			});
 			const handler = CommandsRegistry.getCommand('sessions.sessionHeader.rename')?.handler;
 			assert.ok(handler);
-			return { handler, instantiationService, commandService, session: sessionData.session, inlineRenameCalls: () => inlineRenameCalls };
+			return { handler, instantiationService, commandService, session, inlineRenameCalls: () => inlineRenameCalls };
 		}
 
 		test('renames inline in the header and only prompts when that is not possible', async () => {
@@ -810,7 +816,7 @@ suite('Sessions rename', () => {
 				inline: { calls: 1, prompts: [] },
 				headerUnavailable: { calls: 1, prompts: [{ commandId: RENAME_SESSION_COMMAND_ID, args: [headerUnavailable.session] }] },
 				noView: { calls: 0, prompts: [{ commandId: RENAME_SESSION_COMMAND_ID, args: [noView.session] }] },
-				withoutSession: { calls: 0, prompts: [] },
+				withoutSession: { calls: 1, prompts: [] },
 			});
 		});
 	});
@@ -831,7 +837,9 @@ suite('Sessions rename', () => {
 			instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
 				override readonly activeSession = constObservable<IActiveSession | undefined>(activeSession);
 			});
-			instantiationService.stub(IConfigurationService, new TestConfigurationService());
+			const configurationService = new TestConfigurationService();
+			instantiationService.stub(IConfigurationService, configurationService);
+			instantiationService.stub(IContextKeyService, disposables.add(new ContextKeyService(configurationService)));
 			const mainContainer = mainWindow.document.createElement('div');
 			mainContainer.classList.toggle('phone-layout', phoneLayout);
 			instantiationService.stub(IWorkbenchLayoutService, { mainContainer });
@@ -859,19 +867,21 @@ suite('Sessions rename', () => {
 				hasMainChatFocus: content.includes('main chat transcript or input'),
 				hasPeerChatFocus: content.includes('non-main chat') && content.includes('nested row'),
 				scopesChatRenameToAvailability: content.includes('When Rename is available for a non-main chat'),
-				hasInlineChatRenameInstructions: content.includes('focus its nested row') && content.includes('double-click its title to rename it inline'),
+				hasInlineChatRenameInstructions: content.includes('focus its tab or nested row') && content.includes('double-click its title'),
 				hasSessionRenameKeybinding: content.includes(`<keybinding:${RENAME_SESSION_COMMAND_ID}>`),
 				hasInlineRenameInstructions: content.includes('press Enter to confirm or Escape to cancel'),
+				hasHeaderRenameInstructions: content.includes('edits the header title inline when it is visible and opens a prompt otherwise'),
 				hasChatRenameKeybinding: content.includes(`<keybinding:${RENAME_CHAT_COMMAND_ID}>`),
 				hasArchiveKeybinding: content.includes(`<keybinding:${ARCHIVE_SESSION_COMMAND_ID}>`),
 				hasPermanentDelete: content.includes('open its context menu and choose Delete'),
-				hasDevContainerAvailability: content.includes('Docker is available on the host') && content.includes('a local, SSH, or Tunnel folder contains a Dev Container configuration'),
+				hasDevContainerAvailability: content.includes('Docker is available on the host') && content.includes('a local, SSH, Tunnel, or WSL folder contains a Dev Container configuration'),
 				hasRemoteDevContainerPrerequisite: content.includes('first connect to a host that supports Dev Container sessions'),
+				hasWslDevContainerPrerequisite: content.includes('Docker must be available in the WSL distribution'),
 				hasDevContainerModeSwitch: content.includes('Choose Use Local or Use Remote Host to switch back'),
 				hasDevContainerExecution: content.includes('Dev Container Agent Host sessions are enabled'),
 				hasNoBackgroundOption: content.includes('choose no background'),
 				hasPetAchievements: content.includes('View Achievements'),
-				hasSidebarCustomizations: content.includes('Chat Customizations section at the bottom of the left sidebar'),
+				hasSidebarCustomizations: content.includes('Customizations entry in the left sidebar'),
 				activeElement: mainWindow.document.activeElement,
 				fallbackFocusCount: fallbackFocusCount(),
 			}, {
@@ -883,11 +893,13 @@ suite('Sessions rename', () => {
 				hasInlineChatRenameInstructions: true,
 				hasSessionRenameKeybinding: true,
 				hasInlineRenameInstructions: true,
+				hasHeaderRenameInstructions: true,
 				hasChatRenameKeybinding: true,
 				hasArchiveKeybinding: true,
 				hasPermanentDelete: true,
 				hasDevContainerAvailability: true,
 				hasRemoteDevContainerPrerequisite: true,
+				hasWslDevContainerPrerequisite: true,
 				hasDevContainerModeSwitch: true,
 				hasDevContainerExecution: true,
 				hasNoBackgroundOption: true,
@@ -901,7 +913,7 @@ suite('Sessions rename', () => {
 		test('omits the desktop customization focus command on phones', () => {
 			const origin = mainWindow.document.createElement('button');
 			const { provider } = createHelpProvider(origin, false, true);
-			assert.strictEqual(provider.provideContent().includes('Chat Customizations section at the bottom of the left sidebar'), false);
+			assert.strictEqual(provider.provideContent().includes('Customizations entry in the left sidebar'), false);
 		});
 
 		test('falls back to the active session when the originating element is gone', () => {

@@ -386,6 +386,10 @@
 	overflow: hidden;
 }
 
+.automation-dialog .automation-session-configuration .monaco-action-bar .actions-container {
+	padding-inline-start: 0;
+}
+
 .automation-session-configuration .compact-picker .sessions-chat-dropdown-label,
 .automation-session-configuration .compact-picker .chat-input-picker-label,
 .automation-session-configuration .compact-picker .chat-session-option-label {

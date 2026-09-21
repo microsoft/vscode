@@ -1247,6 +1247,7 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 							pricing: !isUBB && multiplier !== undefined ? `${multiplier}x` : undefined,
 							maxInputTokens: limits?.max_prompt_tokens ?? 0,
 							maxOutputTokens: limits?.max_output_tokens ?? 0,
+							maxContextWindowTokens: limits?.max_context_window_tokens,
 							inputCost: pricing?.default.inputPrice,
 							outputCost: pricing?.default.outputPrice,
 							cacheCost: pricing?.default.cachePrice,

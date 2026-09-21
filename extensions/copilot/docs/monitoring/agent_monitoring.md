@@ -38,7 +38,7 @@ Open **Settings** (`Ctrl+,`) and add:
 }
 ```
 
-> **Note:** You can also use environment variables instead of VS Code settings (see [Configuration](#configuration)). Precedence is **enterprise policy > environment variables > settings**.
+> **Note:** You can also use environment variables instead of VS Code settings (see [Configuration](#configuration)). Applied policy is included in settings values, but environment variables can still override those values in this extension. See the [activation limitations](#activation).
 
 ### 3. Generate Telemetry
 
@@ -82,7 +82,11 @@ Open **Settings** (`Ctrl+,`) and search for `copilot otel`:
 
 ### Environment Variables
 
-Environment variables take precedence over VS Code settings, and **enterprise managed settings (policy) take precedence over both** — admins can centrally mandate any `github.copilot.chat.otel.*` value.
+Environment variables retain their existing precedence. When enterprise OTel configuration is
+recognized through the application-scoped policy defaults, the entire Copilot OTel settings
+block comes from those policy values and schema defaults. Personal `settings.json` values are
+not used to fill omitted fields: headers and resource attributes default to empty maps, not
+the user's maps. Other VS Code settings are unaffected.
 
 | Variable | Default | Description |
 |---|---|---|
@@ -102,9 +106,38 @@ Environment variables take precedence over VS Code settings, and **enterprise ma
 
 ### Activation
 
+When late enterprise OTel settings turn on external export after Copilot's telemetry service
+started without it, Copilot can restart the extension hosts for that window to recover. It shows
+a progress notification before requesting the restart; that notice clears automatically when
+the host restarts or the attempt ends. Successful recovery is logged without another toast.
+Restarting also interrupts other extensions in the window. If the restart is unavailable,
+vetoed, or fails to apply the settings,
+a warning offers **Reload Window** instead. User changes and policy withdrawal remain
+opt-in reloads. Exporter behavior and environment-variable precedence are unchanged.
+It uses changes to the application-scoped, policy-backed configuration defaults as a recovery
+signal, without a new API. Normal personal settings changes do not change those defaults.
+If a recognizable enterprise OTel block was already present at initialization, later changes
+only offer a reload, including enabling a previously disabled managed configuration.
+Automatic recovery additionally requires policy-enabled OTLP export targeting the collector in
+those defaults. Disabled and DB-only pipelines, unrelated partial policies, and configurations
+still redirected by environment variables to a different collector or file do not qualify.
+Policy edits indistinguishable from schema defaults cannot be identified as new policy and retain
+the opt-in reload behavior. Conflicting environment variables can still prevent recovery, and this
+does not enforce precedence over environment variables or guarantee telemetry produced before
+the restart. The default-value signal cannot distinguish a policy consisting entirely of
+schema-default values from no policy.
+
+There is no periodic polling or restart loop. A startup check and configuration events trigger
+checks, coalesced by a 500 ms debounce. At most one automatic off-to-on recovery is attempted per
+workspace and editor session, identified by `vscode.env.sessionId`. The attempt remains recorded
+even after success or failure. Later policy updates only offer a reload, deduplicated while stale.
+If policy first arrives after a later sign-in, that single recovery can happen then rather than
+immediately at launch. A one-off 15-second grace period allows a requested restart to finish
+before a still-running host shows the reload fallback.
+
 OTel is **off by default** with zero overhead. It activates when:
 
-- enterprise policy enables it (managed `telemetry.enabled` or a managed endpoint), or
+- an applied enterprise policy makes `github.copilot.chat.otel.enabled` true, or
 - `COPILOT_OTEL_ENABLED=true`, or
 - `OTEL_EXPORTER_OTLP_ENDPOINT` is set, or
 - `github.copilot.chat.otel.enabled` is `true`, or
