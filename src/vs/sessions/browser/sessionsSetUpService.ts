@@ -39,6 +39,9 @@ import { localize } from '../../nls.js';
 import { createSessionsSignInDialogOptions, SessionsSigningInDialog } from './sessionsSignInDialog.js';
 import { SHOULD_SHOW_RETURN_TO_VSCODE_EDITOR_COMMAND_ID } from '../common/sessionCommands.js';
 import { ISessionsManagementService } from '../services/sessions/common/sessionsManagement.js';
+import { CODEX_AGENT_PROVIDER_ID } from '../../platform/agentHost/common/agent.js';
+import { LOCAL_AGENT_HOST_SCHEME_PREFIX } from '../../platform/agentHost/common/agentHostConnectionsService.js';
+import { hasSignedInCodexChatGPTAccount, ICodexAccountService } from '../../workbench/services/agentHost/browser/codexAccountService.js';
 
 const AIDisabledConfig = 'chat.disableAIFeatures';
 
@@ -77,7 +80,7 @@ class SessionsSetUpWidget extends Disposable {
 	private readonly watcherRef = this._register(new MutableDisposable());
 	private readonly signInSetupCancellation = this._register(new MutableDisposable<CancellationTokenSource>());
 	private _initialSetupFlow = true;
-	/** True while the window is open for a signed-out user via the conditional-auth opt-in. */
+	/** True while the window is open without GitHub via provider auth or the conditional-auth opt-in. */
 	private _proceedingSignedOut = false;
 	/**
 	 * Set once the initial default-account resolution has completed. Until then
@@ -113,19 +116,14 @@ class SessionsSetUpWidget extends Disposable {
 		@IMarkdownRendererService private readonly markdownRendererService: IMarkdownRendererService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
+		@ICodexAccountService private readonly codexAccountService: ICodexAccountService,
 	) {
 		super();
 		this._allowSignedOutWhenUsable = observeAllowSignedOutWhenUsable(this.configurationService);
 		this._register(runOnChange(this._allowSignedOutWhenUsable, () => this._onAllowSignedOutWhenUsableChanged()));
-		this._register(this.sessionsManagementService.onDidChangeSessionTypes(() => this._onSessionTypesChanged()));
+		this._register(this.sessionsManagementService.onDidChangeSessionTypes(() => this._onProviderAvailabilityChanged()));
+		this._register(this.codexAccountService.onDidChangeAccount(() => this._onProviderAvailabilityChanged()));
 		this._start();
-	}
-
-	private _onSessionTypesChanged(): void {
-		const signedIn = this.defaultAccountService.currentDefaultAccount !== null;
-		if (conditionalAuthState(this._accountResolved, signedIn) === ConditionalAuthState.SignedOut) {
-			this._reevaluateSignedOut();
-		}
 	}
 
 	/**
@@ -140,6 +138,20 @@ class SessionsSetUpWidget extends Disposable {
 		// unresolved or signed in, the sign-in watch owns the decision.
 		const signedIn = this.defaultAccountService.currentDefaultAccount !== null;
 		if (conditionalAuthState(this._accountResolved, signedIn) !== ConditionalAuthState.SignedOut) {
+			return;
+		}
+		this._reevaluateSignedOut();
+	}
+
+	private _onProviderAvailabilityChanged(): void {
+		const signedIn = this.defaultAccountService.currentDefaultAccount !== null;
+		if (conditionalAuthState(this._accountResolved, signedIn) !== ConditionalAuthState.SignedOut) {
+			return;
+		}
+		if (this._initialSetupFlow) {
+			if (this._hasAuthenticatedProvider()) {
+				this.signInSetupCancellation.value?.cancel();
+			}
 			return;
 		}
 		this._reevaluateSignedOut();
@@ -165,6 +177,7 @@ class SessionsSetUpWidget extends Disposable {
 				return;
 			}
 			this._accountResolved = true;
+			this._onProviderAvailabilityChanged();
 			// The initial setup flow re-reads the setting after this account promise.
 			if (!this._initialSetupFlow && this._allowSignedOutWhenUsable.get()) {
 				this._onAllowSignedOutWhenUsableChanged();
@@ -226,6 +239,10 @@ class SessionsSetUpWidget extends Disposable {
 			return;
 		}
 		if (!initialAccount) {
+			if (this._hasAuthenticatedProvider()) {
+				await this._proceedWithoutGitHub();
+				return;
+			}
 			const welcomeComplete = this.storageService.getBoolean(WELCOME_COMPLETE_KEY, StorageScope.APPLICATION, false);
 			if (welcomeComplete && this._allowSignedOutWhenUsable.get()) {
 				await this._proceedWithoutGitHub();
@@ -274,10 +291,17 @@ class SessionsSetUpWidget extends Disposable {
 	 * requirement of every advertised session type.
 	 */
 	private _signedOutWindowGate(): SignedOutWindowGate {
+		const sessionTypes = this.sessionsManagementService.getAllProviderSessionTypes().map(({ sessionType }) => sessionType);
 		return resolveSignedOutWindowGate(
 			this._allowSignedOutWhenUsable.get(),
-			this.sessionsManagementService.getAllProviderSessionTypes().map(({ sessionType }) => sessionType.authRequirement),
+			sessionTypes.map(sessionType => sessionType.authRequirement),
+			this._hasAuthenticatedProvider(sessionTypes),
 		);
+	}
+
+	private _hasAuthenticatedProvider(sessionTypes = this.sessionsManagementService.getAllProviderSessionTypes().map(({ sessionType }) => sessionType)): boolean {
+		return hasSignedInCodexChatGPTAccount(this.codexAccountService.account)
+			&& sessionTypes.some(sessionType => (sessionType.chatSessionType ?? sessionType.id) === `${LOCAL_AGENT_HOST_SCHEME_PREFIX}${CODEX_AGENT_PROVIDER_ID}`);
 	}
 
 	/**
@@ -324,7 +348,7 @@ class SessionsSetUpWidget extends Disposable {
 			return;
 		}
 		this._proceedingSignedOut = true;
-		this.logService.info('[sessions welcome] Proceeding without GitHub sign-in; signed-out operation is enabled');
+		this.logService.info('[sessions welcome] Proceeding without GitHub sign-in; a provider is authenticated or signed-out operation is enabled');
 		await this._ensureAIFeaturesEnabled();
 		if (this._store.isDisposed) {
 			return;
@@ -433,9 +457,16 @@ class SessionsSetUpWidget extends Disposable {
 
 				await this._showWelcomeDialog();
 			} else {
+				if (this._hasAuthenticatedProvider()) {
+					this.storageService.store(WELCOME_COMPLETE_KEY, true, StorageScope.APPLICATION, StorageTarget.MACHINE);
+					this.serviceMarkDone();
+					this.dialogRef.clear();
+					await this._proceedWithoutGitHub();
+					return;
+				}
 				const allowContinueWithoutSignIn = this._allowSignedOutWhenUsable.get();
 				const continueWithoutSignIn = await this._showSignInDialog(allowContinueWithoutSignIn);
-				if (continueWithoutSignIn) {
+				if (continueWithoutSignIn || this._hasAuthenticatedProvider()) {
 					this.storageService.store(WELCOME_COMPLETE_KEY, true, StorageScope.APPLICATION, StorageTarget.MACHINE);
 					this.serviceMarkDone();
 					this.dialogRef.clear();

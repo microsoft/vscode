@@ -12,6 +12,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../ba
 import { AgentHostAllowSignedOutWhenUsableSettingId } from '../../../../../../../platform/agentHost/common/agentService.js';
 import { TestConfigurationService } from '../../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IAgentSdkSetupService } from '../../../../../../services/agentHost/browser/agentSdkSetupService.js';
+import { ICodexAccountService } from '../../../../../../services/agentHost/browser/codexAccountService.js';
 import { ChatEntitlement, IChatEntitlementService } from '../../../../../../services/chat/common/chatEntitlementService.js';
 import { AgentSessionProviders, getAgentSessionProviderDescription } from '../../../../browser/agentSessions/agentSessions.js';
 import { SessionTypeAvailability } from '../../../../browser/agentSessions/sessionTypeAvailability.js';
@@ -50,10 +51,11 @@ interface IAvailabilityInputs {
 	readonly entitlement?: ChatEntitlement;
 	/** Agents that advertise a demand-driven SDK setup path. */
 	readonly setupAgents?: readonly string[];
+	readonly codexAccountStatus?: ICodexAccountService['account']['status'];
 }
 
 /** Availability for a harness that needs its own models and has none. */
-function getAvailability({ type, allowSignedOutWhenUsable, requiresCopilotSignIn, entitlement = ChatEntitlement.Unknown, setupAgents = [] }: IAvailabilityInputs): SessionTypeAvailability {
+function getAvailability({ type, allowSignedOutWhenUsable, requiresCopilotSignIn, entitlement = ChatEntitlement.Unknown, setupAgents = [], codexAccountStatus = 'unknown' }: IAvailabilityInputs): SessionTypeAvailability {
 	const chatSessionsService = new class extends mock<IChatSessionsService>() {
 		override getChatSessionContribution(candidate: string): ResolvedChatSessionsExtensionPoint | undefined {
 			return candidate === type
@@ -89,6 +91,9 @@ function getAvailability({ type, allowSignedOutWhenUsable, requiresCopilotSignIn
 	const agentSdkSetupService = new class extends mock<IAgentSdkSetupService>() {
 		override readonly setups = setupAgents.map(agent => ({ agent, download: 'ready' as const }));
 	}();
+	const codexAccountService = new class extends mock<ICodexAccountService>() {
+		override readonly account = { status: codexAccountStatus };
+	}();
 
 	return getConfiguredSessionTypePickerAvailability(
 		type,
@@ -97,6 +102,7 @@ function getAvailability({ type, allowSignedOutWhenUsable, requiresCopilotSignIn
 		entitlementService,
 		languageModelsService,
 		agentSdkSetupService,
+		codexAccountService,
 	);
 }
 
@@ -151,6 +157,26 @@ suite('SessionTypePickerActionItem', () => {
 			entitlement: ChatEntitlement.Free,
 			setupAgents: ['codex'],
 		}), SessionTypeAvailability.Available);
+	});
+
+	test('a ChatGPT account can initialize Codex without GitHub or the signed-out experiment', () => {
+		assert.strictEqual(getAvailability({
+			type: SessionType.AgentHostCodex,
+			allowSignedOutWhenUsable: false,
+			requiresCopilotSignIn: true,
+			setupAgents: ['codex'],
+			codexAccountStatus: 'signedIn',
+		}), SessionTypeAvailability.Available);
+	});
+
+	test('a fully signed-out user still needs the signed-out experiment', () => {
+		assert.strictEqual(getAvailability({
+			type: SessionType.AgentHostCodex,
+			allowSignedOutWhenUsable: false,
+			requiresCopilotSignIn: true,
+			setupAgents: ['codex'],
+			codexAccountStatus: 'signedOut',
+		}), SessionTypeAvailability.SignInRequired);
 	});
 
 	test('creates an available Codex extension action with hover context', () => {

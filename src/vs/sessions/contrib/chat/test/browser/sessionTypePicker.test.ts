@@ -22,6 +22,7 @@ import { IChatSessionsService } from '../../../../../workbench/contrib/chat/comm
 import { ILanguageModelsService } from '../../../../../workbench/contrib/chat/common/languageModels.js';
 import { ChatEntitlement, IChatEntitlementService } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { IAgentSdkSetupService } from '../../../../../workbench/services/agentHost/browser/agentSdkSetupService.js';
+import { ICodexAccountService } from '../../../../../workbench/services/agentHost/browser/codexAccountService.js';
 import { TestStorageService } from '../../../../../workbench/test/common/workbenchTestServices.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { IProviderSessionType, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
@@ -154,6 +155,7 @@ function createPicker(
 	});
 	instantiationService.stub(IConfigurationService, new TestConfigurationService());
 	instantiationService.stub(IAgentSdkSetupService, { setups: [] });
+	instantiationService.stub(ICodexAccountService, { account: { status: 'unknown' } });
 	return disposables.add(instantiationService.createInstance(TestSessionTypePicker, session, options));
 }
 

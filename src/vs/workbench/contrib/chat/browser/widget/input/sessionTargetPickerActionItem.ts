@@ -30,6 +30,7 @@ import { AgentHostAllowSignedOutWhenUsableSettingId } from '../../../../../../pl
 import { IsSessionsWindowContext } from '../../../../../common/contextkeys.js';
 import { IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { IAgentSdkSetupService } from '../../../../../services/agentHost/browser/agentSdkSetupService.js';
+import { hasSignedInCodexChatGPTAccount, ICodexAccountService } from '../../../../../services/agentHost/browser/codexAccountService.js';
 import { IChatSessionsService } from '../../../common/chatSessionsService.js';
 import { ILanguageModelsService } from '../../../common/languageModels.js';
 import { AgentSessionProviders, AgentSessionTarget, getAgentSessionProvider, getAgentSessionProviderDescription, getAgentSessionProviderIcon, getAgentSessionProviderName, isFirstPartyAgentSessionProvider } from '../../agentSessions/agentSessions.js';
@@ -95,14 +96,16 @@ export function getConfiguredSessionTypePickerAvailability(
 	chatEntitlementService: IChatEntitlementService,
 	languageModelsService: ILanguageModelsService,
 	agentSdkSetupService: IAgentSdkSetupService,
+	codexAccountService: ICodexAccountService,
 ): SessionTypeAvailability {
 	const allowSignedOutWhenUsable = configurationService.getValue<boolean>(AgentHostAllowSignedOutWhenUsableSettingId) === true;
 	const hasAgentSdkSetup = hasAgentSdkSetupForSessionType(agentSdkSetupService.setups, type);
+	const hasProviderAccount = type === AgentSessionProviders.AgentHostCodex && hasSignedInCodexChatGPTAccount(codexAccountService.account);
 	return getSessionTypePickerAvailability(
 		type,
 		getSessionTypeAvailability(chatSessionsService, chatEntitlementService, languageModelsService, type, allowSignedOutWhenUsable),
 		allowSignedOutWhenUsable,
-		canInitializeSessionTypeOnSelection(chatEntitlementService.entitlement, allowSignedOutWhenUsable, hasAgentSdkSetup),
+		canInitializeSessionTypeOnSelection(chatEntitlementService.entitlement, allowSignedOutWhenUsable, hasAgentSdkSetup, hasProviderAccount),
 	);
 }
 
@@ -133,6 +136,7 @@ export class SessionTypePickerActionItem extends ChatInputPickerActionViewItem {
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@IAgentHostEnablementService private readonly agentHostEnablementService: IAgentHostEnablementService,
 		@IAgentSdkSetupService protected readonly agentSdkSetupService: IAgentSdkSetupService,
+		@ICodexAccountService protected readonly codexAccountService: ICodexAccountService,
 	) {
 
 		const actionProvider: IActionWidgetDropdownActionProvider = {
@@ -148,6 +152,7 @@ export class SessionTypePickerActionItem extends ChatInputPickerActionViewItem {
 						this.chatEntitlementService,
 						this.languageModelsService,
 						this.agentSdkSetupService,
+						this.codexAccountService,
 					);
 					actions.push(createSessionTypePickerAction(
 						action,

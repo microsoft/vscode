@@ -31,6 +31,7 @@ import { IWorkspaceContextService } from '../../../../../../../platform/workspac
 import { IsSessionsWindowContext } from '../../../../../../common/contextkeys.js';
 import { IGitService } from '../../../../../git/common/gitService.js';
 import { IAgentSdkSetupService } from '../../../../../../services/agentHost/browser/agentSdkSetupService.js';
+import { ICodexAccountService } from '../../../../../../services/agentHost/browser/codexAccountService.js';
 import { IChatEntitlementService } from '../../../../../../services/chat/common/chatEntitlementService.js';
 import { TestChatEntitlementService, TestContextService } from '../../../../../../test/common/workbenchTestServices.js';
 import { OpenDelegationPickerAction } from '../../../../browser/actions/chatExecuteActions.js';
@@ -127,6 +128,7 @@ suite('DelegationSessionPickerActionItem', () => {
 			override getLanguageModelIds() { return []; }
 		}());
 		instantiationService.stub(IAgentSdkSetupService, { setups: [] });
+		instantiationService.stub(ICodexAccountService, { account: { status: 'unknown' } });
 		instantiationService.stub(IGitService, new class extends mock<IGitService>() { }());
 
 		const action = instantiationService.createInstance(MenuItemAction, new OpenDelegationPickerAction().desc, undefined, undefined, undefined, undefined);

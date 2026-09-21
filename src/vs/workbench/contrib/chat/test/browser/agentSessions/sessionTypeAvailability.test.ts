@@ -121,12 +121,12 @@ suite('getSessionTypeAvailability', () => {
 	suite('a harness that initializes on selection stays selectable', () => {
 		// Agent SDK model discovery starts only after the user selects the harness,
 		// so requiring a discovered model before selection creates a deadlock.
-		const pickerAvailability = (availability: SessionTypeAvailability, hasAgentSdkSetup: boolean, entitlement: ChatEntitlement, allowSignedOutWhenUsable: boolean) =>
+		const pickerAvailability = (availability: SessionTypeAvailability, hasAgentSdkSetup: boolean, entitlement: ChatEntitlement, allowSignedOutWhenUsable: boolean, hasProviderAccount = false) =>
 			getSessionTypePickerAvailability(
 				SessionType.AgentHostClaude,
 				availability,
 				allowSignedOutWhenUsable,
-				canInitializeSessionTypeOnSelection(entitlement, allowSignedOutWhenUsable, hasAgentSdkSetup),
+				canInitializeSessionTypeOnSelection(entitlement, allowSignedOutWhenUsable, hasAgentSdkSetup, hasProviderAccount),
 			);
 
 		test('a signed-out user can initialize the harness when the experiment is enabled', () => {
@@ -140,6 +140,13 @@ suite('getSessionTypeAvailability', () => {
 		test('a Copilot Free user can initialize a native agent without upgrading or enabling signed-out use', () => {
 			assert.strictEqual(
 				pickerAvailability(SessionTypeAvailability.UpgradeRequired, true, ChatEntitlement.Free, false),
+				SessionTypeAvailability.Available,
+			);
+		});
+
+		test('a user signed in to the provider can initialize it without GitHub or the experiment', () => {
+			assert.strictEqual(
+				pickerAvailability(SessionTypeAvailability.NoModels, true, ChatEntitlement.Unknown, false, true),
 				SessionTypeAvailability.Available,
 			);
 		});
