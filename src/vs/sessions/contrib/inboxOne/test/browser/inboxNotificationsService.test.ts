@@ -19,12 +19,12 @@ import { InboxNotificationActionKind, InboxNotificationKind, InboxNotificationPr
 
 suite('InboxNotificationsService', () => {
 	const dismissedStorageKey = 'sessions.inboxNotifications.dismissedIds';
-	ensureNoDisposablesAreLeakedInTestSuite();
 	const disposables = new DisposableStore();
 
 	teardown(() => {
 		disposables.clear();
 	});
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	function createSession(options: {
 		readonly id: string;
