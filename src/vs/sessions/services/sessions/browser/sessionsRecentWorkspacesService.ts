@@ -141,7 +141,7 @@ export class SessionsRecentWorkspacesService extends Disposable implements ISess
 	}
 
 	getRecentWorkspaces(includeVSCodeRecents = true, collapseWorktrees = false): IRecentWorkspace[] {
-		const storedOwn = this._getStoredRecentWorkspaces();
+		const storedOwn = this._getStoredRecentWorkspaces().map(entry => this._canonicalizeStoredRecentWorkspace(entry));
 		if (!includeVSCodeRecents) {
 			return this._resolveStored(storedOwn, 'agents');
 		}
@@ -170,6 +170,16 @@ export class SessionsRecentWorkspacesService extends Disposable implements ISess
 			.flatMap(entry => this._resolveStored([{ uri: entry.folderUri.toJSON(), checked: false }], entry.source));
 
 		return [...this._resolveStored(own, 'agents'), ...vsCode];
+	}
+
+	private _canonicalizeStoredRecentWorkspace(entry: IStoredRecentWorkspace): IStoredRecentWorkspace {
+		const provider = entry.providerId ? this.sessionsProvidersService.getProvider(entry.providerId) : undefined;
+		const canonicalUri = provider?.canonicalizeWorkspaceUri?.(URI.revive(entry.uri));
+		if (!canonicalUri) {
+			return entry;
+		}
+		const source = this._resolveWorkspace(canonicalUri);
+		return source ? { ...entry, uri: source.workspace.uri.toJSON(), providerId: source.providerId } : entry;
 	}
 
 	private _resolveStored(stored: readonly IStoredRecentWorkspace[], source: IRecentWorkspace['source']): IRecentWorkspace[] {
