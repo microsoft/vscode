@@ -8,11 +8,21 @@ import { mainWindow } from '../../../../../base/browser/window.js';
 import { SplitView, Sizing } from '../../../../../base/browser/ui/splitview/splitview.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { DisposableStore, IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
+import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { ConfigurationTarget } from '../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
+import { IViewDescriptorService, ViewContainerLocation } from '../../../../../workbench/common/views.js';
+import { workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
 import { Workbench } from '../../../../browser/workbench.js';
+import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
+import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { AICustomizationShortcutsWidget } from '../../browser/aiCustomizationShortcutsWidget.js';
-import { SessionsView } from '../../browser/views/sessionsView.js';
+import { SessionsList, SessionsSorting } from '../../browser/views/sessionsList.js';
+import { SESSIONS_LIST_DEFAULT_SORT_ORDER_SETTING, SessionsView, SessionsViewId, SessionsViewSortingContext } from '../../browser/views/sessionsView.js';
 import '../../browser/media/sessionsViewPane.css';
 
 const registerEditorTabHeightClass = Reflect.get(Workbench.prototype, 'registerEditorTabHeightClass') as (this: {
@@ -104,6 +114,145 @@ suite('Sessions - SessionsViewPane', () => {
 			desktop: { panes: 2, sessionsHeight: 400, customizations: 1, hasWidget: true, disposedWidgets: 0, focusCalls: 1 },
 			phoneAgain: { panes: 1, sessionsHeight: 600, customizations: 0, hasWidget: false, disposedWidgets: 1, focusCalls: 1 },
 			desktopAgain: { panes: 2, sessionsHeight: 400, customizations: 1, hasWidget: true, disposedWidgets: 1, focusCalls: 2 },
+		});
+	});
+
+	suite('sorting', () => {
+		function createHarness(defaultSorting?: SessionsSorting, storedSorting?: string) {
+			const configurationService = new TestConfigurationService({ [SESSIONS_LIST_DEFAULT_SORT_ORDER_SETTING]: defaultSorting });
+			disposables.add(configurationService.onDidChangeConfigurationEmitter);
+			const instantiationService = workbenchInstantiationService({ configurationService: () => configurationService }, disposables);
+			instantiationService.stub(IViewDescriptorService, upcastPartial<IViewDescriptorService>({
+				onDidChangeLocation: Event.None,
+				getViewLocationById: () => ViewContainerLocation.Sidebar,
+			}));
+			instantiationService.stub(ISessionsManagementService, upcastPartial<ISessionsManagementService>({}));
+			instantiationService.stub(ISessionsService, upcastPartial<ISessionsService>({}));
+
+			const storageService = instantiationService.get(IStorageService);
+			if (storedSorting !== undefined) {
+				storageService.store('sessionsViewPane.sorting', storedSorting, StorageScope.PROFILE, StorageTarget.USER);
+			}
+			const contextKeyService = instantiationService.get(IContextKeyService);
+			const getSorting = () => contextKeyService.getContextKeyValue<SessionsSorting>(SessionsViewSortingContext.key);
+			const updates: (SessionsSorting | undefined)[] = [];
+			const createView = () => {
+				const view = disposables.add(instantiationService.createInstance(SessionsView, { id: SessionsViewId, title: 'Sessions' }));
+				view.sessionsControl = upcastPartial<SessionsList>({
+					update: () => { updates.push(getSorting()); },
+				});
+				return view;
+			};
+
+			return {
+				view: createView(),
+				createView,
+				getState: () => ({
+					sorting: getSorting(),
+					storedSorting: storageService.get('sessionsViewPane.sorting', StorageScope.PROFILE),
+					updates: [...updates],
+				}),
+				async setDefaultSorting(sorting: SessionsSorting) {
+					await configurationService.setUserConfiguration(SESSIONS_LIST_DEFAULT_SORT_ORDER_SETTING, sorting);
+					configurationService.onDidChangeConfigurationEmitter.fire({
+						source: ConfigurationTarget.DEFAULT,
+						affectedKeys: new Set([SESSIONS_LIST_DEFAULT_SORT_ORDER_SETTING]),
+						change: { keys: [SESSIONS_LIST_DEFAULT_SORT_ORDER_SETTING], overrides: [] },
+						affectsConfiguration: section => section === SESSIONS_LIST_DEFAULT_SORT_ORDER_SETTING,
+					});
+				},
+			};
+		}
+
+		for (const defaultSorting of [undefined, SessionsSorting.Created, SessionsSorting.Updated]) {
+			test(`uses the ${defaultSorting ?? 'unset'} default without persisting it`, () => {
+				const harness = createHarness(defaultSorting);
+
+				assert.deepStrictEqual(harness.getState(), {
+					sorting: defaultSorting ?? SessionsSorting.Created,
+					storedSorting: undefined,
+					updates: [],
+				});
+			});
+		}
+
+		for (const sorting of [SessionsSorting.Created, SessionsSorting.Updated]) {
+			const defaultSorting = sorting === SessionsSorting.Created ? SessionsSorting.Updated : SessionsSorting.Created;
+
+			test(`restores a saved ${sorting} sort order instead of the default`, () => {
+				const harness = createHarness(defaultSorting, sorting);
+
+				assert.deepStrictEqual(harness.getState(), {
+					sorting,
+					storedSorting: sorting,
+					updates: [],
+				});
+			});
+
+			test(`remembers a user's ${sorting} selection across default changes and view recreation`, async () => {
+				const harness = createHarness(defaultSorting);
+				harness.view.setSorting(sorting);
+				const selectedState = harness.getState();
+
+				await harness.setDefaultSorting(sorting);
+				await harness.setDefaultSorting(defaultSorting);
+				harness.view.dispose();
+				harness.createView();
+
+				const expectedState = { sorting, storedSorting: sorting, updates: [sorting] };
+				assert.deepStrictEqual({
+					selected: selectedState,
+					restored: harness.getState(),
+				}, {
+					selected: expectedState,
+					restored: expectedState,
+				});
+			});
+		}
+
+		test('uses the configured default when the stored sort order is invalid', () => {
+			const harness = createHarness(SessionsSorting.Updated, 'invalid');
+
+			assert.deepStrictEqual(harness.getState(), {
+				sorting: SessionsSorting.Updated,
+				storedSorting: 'invalid',
+				updates: [],
+			});
+		});
+
+		test('applies default changes without saving a user preference', async () => {
+			const harness = createHarness(SessionsSorting.Created);
+			await harness.setDefaultSorting(SessionsSorting.Updated);
+			const updatedState = harness.getState();
+			await harness.setDefaultSorting(SessionsSorting.Created);
+
+			assert.deepStrictEqual({
+				updated: updatedState,
+				restored: harness.getState(),
+			}, {
+				updated: {
+					sorting: SessionsSorting.Updated,
+					storedSorting: undefined,
+					updates: [SessionsSorting.Updated],
+				},
+				restored: {
+					sorting: SessionsSorting.Created,
+					storedSorting: undefined,
+					updates: [SessionsSorting.Updated, SessionsSorting.Created],
+				},
+			});
+		});
+
+		test('remembers an explicit selection even when it matches the default', async () => {
+			const harness = createHarness(SessionsSorting.Updated);
+			harness.view.setSorting(SessionsSorting.Updated);
+			await harness.setDefaultSorting(SessionsSorting.Created);
+
+			assert.deepStrictEqual(harness.getState(), {
+				sorting: SessionsSorting.Updated,
+				storedSorting: SessionsSorting.Updated,
+				updates: [],
+			});
 		});
 	});
 
