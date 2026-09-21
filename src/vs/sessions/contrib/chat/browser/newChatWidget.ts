@@ -1019,7 +1019,7 @@ export class NewChatWidget extends Disposable {
 		const selectedFolderUri = this._workspacePicker.selectedFolderUri;
 		const providerTransitionPending = !!this._pendingPreferredUpgrade.value || !!this._newSessionCreation.value;
 		const providerIsAgentHost = !!provider && isAgentHostProvider(provider);
-		const resolvingConfig = providerIsAgentHost ? provider.isSessionConfigResolving(session.sessionId).get() : false;
+		const resolvingConfig = session && providerIsAgentHost ? provider.isSessionConfigResolving(session.sessionId).get() : false;
 		const sessionMatchesSelectedFolder = !!selectedFolderUri && !!session?.workspace.get()?.folders.some(folder => isEqual(folder.root, selectedFolderUri));
 		if (!sessionMatchesSelectedFolder) {
 			return false;
