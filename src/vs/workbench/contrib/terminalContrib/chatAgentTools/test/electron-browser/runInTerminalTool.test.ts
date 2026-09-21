@@ -1265,6 +1265,11 @@ suite('RunInTerminalTool', () => {
 			'git show --format=%B --output=message.txt HEAD',
 			'git show --output message.txt HEAD',
 
+			// git grep external pagers
+			'git grep -Osh -e TODO',
+			'git grep --open-files-in-pager=sh -e TODO',
+			'git --no-pager -C repo grep --"op=sh" -e TODO',
+
 			// Dangerous file operations
 			'rm README.md',
 			'rmdir folder',

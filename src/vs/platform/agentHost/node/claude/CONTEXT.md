@@ -464,7 +464,7 @@ Procedure (manual, run at the end of Phase 2 implementation):
    `claudeProxyService.start(token)` once a real GitHub token is
    minted, and log the resulting `baseUrl` and `nonce` at info level.
 2. Launch the dev build (`./scripts/code.sh --agents` or
-   `Run Dev Agents`) and authenticate.
+   `Run Agents`) and authenticate.
 3. Use the **code-oss-logs** skill to read `agenthost.log` from the
    most recent run; grep for the proxy line; extract `baseUrl` +
    `nonce`.

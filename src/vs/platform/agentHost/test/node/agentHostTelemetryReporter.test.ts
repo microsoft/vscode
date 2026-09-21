@@ -80,6 +80,34 @@ suite('AgentHostTelemetryReporter', () => {
 	const tools: ToolDefinition[] = [{ name: 'grep' }, { name: 'edit' }];
 	const userMessage: Message = { text: 'hello', origin: { kind: MessageKind.User } };
 
+	test('turnCompleted preserves optional root cohort fields and missing-field compatibility', () => {
+		const service = new TestRestrictedTelemetryService();
+		const reporter = new AgentHostTelemetryReporter(service);
+		const cohorts = [
+			{},
+			{ hostRootTurnOrdinal: 1, hostProcessAgeMs: 0, titleGenerationStrategy: 'activeAgent' },
+			{ hostRootTurnOrdinal: 2, hostProcessAgeMs: 1234, titleGenerationStrategy: 'utility' },
+			{ hostRootTurnOrdinal: 3, hostProcessAgeMs: 5678, titleGenerationStrategy: 'deferred' },
+		] as const;
+		for (const cohort of cohorts) {
+			reporter.turnCompleted({
+				provider: 'copilot', session, turnId: 'turn',
+				parentTurnId: undefined, parentToolCallId: undefined, subagentTaskModelSource: undefined,
+				timeToFirstProgress: undefined, timeToFirstSubstantiveProgress: undefined, timeToFirstEditMs: undefined, timeToFirstEditClassifierVersion: undefined,
+				totalTime: 100, result: 'success', model: undefined, modelTelemetryKind: undefined, modelSelectionKind: 'default',
+				permissionLevel: undefined, interactionMode: undefined, messageOriginKind: undefined, failure: undefined,
+				isMultiRoot: false, folderCount: 0, billedNanoAiu: undefined, directPromptTokenCount: undefined,
+				directPromptCacheTokenCount: undefined, directCompletionTokenCount: undefined, directBilledNanoAiu: undefined,
+				modelCallCount: 0, ...cohort,
+			});
+		}
+		const cohortKeys = ['hostRootTurnOrdinal', 'hostProcessAgeMs', 'titleGenerationStrategy'];
+		assert.deepStrictEqual(service.standardEvents.map(event => ({
+			eventName: event.eventName,
+			cohort: Object.fromEntries(Object.entries(event.data ?? {}).filter(([key]) => cohortKeys.includes(key))),
+		})), cohorts.map(cohort => ({ eventName: 'agentHost.turnCompleted', cohort })));
+	});
+
 	test('requestTokenUsage preserves unknowns and redacts untrusted models independently of the selected model', () => {
 		const service = new TestRestrictedTelemetryService();
 		const reporter = new AgentHostTelemetryReporter(service);

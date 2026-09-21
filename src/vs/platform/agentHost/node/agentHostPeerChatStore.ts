@@ -174,6 +174,15 @@ export class AgentHostPeerChatStore {
 		return this._enqueueWrite(session, () => [...entries]);
 	}
 
+	async initialize(session: URI, entries: readonly IPersistedPeerChat[], database?: AgentHostCatalogDatabaseReference): Promise<IPersistedPeerChat[]> {
+		await this.replaceForMigration(session, entries);
+		const persisted = await this.reconcileLegacy(session, database);
+		if (persisted === undefined) {
+			throw new Error(`Cannot initialize peer-chat catalog for unavailable session ${session.toString()}`);
+		}
+		return persisted;
+	}
+
 	replaceForMigration(session: URI, entries: readonly IPersistedPeerChat[]): Promise<void> {
 		return this._enqueue(session, async () => {
 			const sessionKey = session.toString();
