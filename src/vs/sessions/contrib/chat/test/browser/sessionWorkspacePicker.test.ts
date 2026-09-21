@@ -500,8 +500,12 @@ suite('WorkspacePicker - Connection Status', () => {
 		assert.deepStrictEqual({
 			tabbed: getRemoteItems(tabbedPicker),
 			unifiedTopLevel: getRemoteItems(unifiedPicker),
+			tabbedListOptions: {
+				submenuHoverDelay: tabbedPicker.getListOptions().submenuHoverDelay,
+			},
 			unifiedListOptions: {
 				submenuPointerIntent: unifiedPicker.getListOptions().submenuPointerIntent,
+				submenuHoverDelay: unifiedPicker.getListOptions().submenuHoverDelay,
 				preserveVerticalPosition: unifiedRemoteItem?.hover?.preserveVerticalPosition,
 				alignToAnchorTop: unifiedRemoteItem?.hover?.alignToAnchorTop,
 				submenuFilter: unifiedRemoteItem?.submenuOptions?.showFilter,
@@ -532,8 +536,12 @@ suite('WorkspacePicker - Connection Status', () => {
 				{ label: 'Provider agenthost-wsl', description: 'Online · 2 active sessions', ariaLabel: 'Provider agenthost-wsl, Online · 2 active sessions' },
 			],
 			unifiedTopLevel: [],
+			tabbedListOptions: {
+				submenuHoverDelay: undefined,
+			},
 			unifiedListOptions: {
 				submenuPointerIntent: undefined,
+				submenuHoverDelay: 0,
 				preserveVerticalPosition: true,
 				alignToAnchorTop: true,
 				submenuFilter: true,
