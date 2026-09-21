@@ -10,6 +10,7 @@ import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { isICommandActionToggleInfo } from '../../../../../platform/action/common/action.js';
 import { isIMenuItem, isISubmenuItem, MenuId, MenuRegistry, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
@@ -41,6 +42,7 @@ import { ISelectWorkspaceOptions } from '../../../../browser/parts/chatView.js';
 import { WorkspaceSelectionOrigin } from '../../../../common/workspaceSelection.js';
 import { ARCHIVE_SESSION_COMMAND_ID, MARK_SESSION_READ_COMMAND_ID, MARK_SESSION_UNREAD_COMMAND_ID } from '../../../../common/sessionCommands.js';
 import { SessionsListPromoteNewChatActionContext } from '../../../../common/contextkeys.js';
+import { SESSIONS_CHAT_TABS_SETTING, SessionsChatTabsMode } from '../../../../common/sessionConfig.js';
 
 suite('Sessions - Actions', () => {
 
@@ -292,6 +294,66 @@ suite('Sessions - Actions', () => {
 			chatsWhen: 'sessionHasSideChats && sessionIsCreated && !sessionIsArchived',
 			addChatGroup: 'secondary/3_newChat',
 			addChatOrder: 10,
+		});
+	});
+
+	test('contributes chat tab presentation to the session header overflow', async () => {
+		const submenu = MenuRegistry.getMenuItems(Menus.SessionBarToolbar)
+			.filter(isISubmenuItem)
+			.find(item => item.submenu === Menus.SessionChatTabs);
+		const items = MenuRegistry.getMenuItems(Menus.SessionChatTabs)
+			.filter(isIMenuItem)
+			.map(item => {
+				const toggled = isICommandActionToggleInfo(item.command.toggled) ? item.command.toggled.condition : item.command.toggled;
+				return {
+					id: item.command.id,
+					title: typeof item.command.title === 'string' ? item.command.title : item.command.title.value,
+					toggled: toggled?.serialize(),
+				};
+			});
+		const updates: Array<{ key: string; value: unknown }> = [];
+		const instantiationService = disposables.add(new TestInstantiationService());
+		instantiationService.stub(IConfigurationService, new class extends TestConfigurationService {
+			override updateValue(key: string, value: unknown): Promise<void> {
+				updates.push({ key, value });
+				return Promise.resolve();
+			}
+		}());
+		await CommandsRegistry.getCommand('sessions.action.showSingleChat')?.handler(instantiationService);
+		await CommandsRegistry.getCommand('sessions.action.showMultipleChatTabs')?.handler(instantiationService);
+
+		assert.deepStrictEqual({
+			submenu: {
+				title: submenu && (typeof submenu.title === 'string' ? submenu.title : submenu.title.value),
+				group: submenu?.group,
+				order: submenu?.order,
+				when: submenu?.when?.serialize(),
+			},
+			items,
+			updates,
+		}, {
+			submenu: {
+				title: 'Show Chat Tabs',
+				group: 'secondary/3_tabs',
+				order: 10,
+				when: 'sessionIsCreated && sessionSupportsMultipleChats',
+			},
+			items: [{
+				id: 'sessions.action.showMultipleChatTabs',
+				title: 'Multiple',
+				toggled: 'config.sessions.showChatTabs == \'multiple\'',
+			}, {
+				id: 'sessions.action.showSingleChat',
+				title: 'Single',
+				toggled: 'config.sessions.showChatTabs == \'single\'',
+			}],
+			updates: [{
+				key: SESSIONS_CHAT_TABS_SETTING,
+				value: SessionsChatTabsMode.Single,
+			}, {
+				key: SESSIONS_CHAT_TABS_SETTING,
+				value: SessionsChatTabsMode.Multiple,
+			}],
 		});
 	});
 

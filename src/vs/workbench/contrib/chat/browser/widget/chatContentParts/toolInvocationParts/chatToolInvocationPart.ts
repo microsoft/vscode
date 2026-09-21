@@ -9,13 +9,15 @@ import { Emitter } from '../../../../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { autorun, constObservable, derivedOpts, IObservable } from '../../../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../../../base/common/themables.js';
+import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
 import { IMarkdownRenderer } from '../../../../../../../platform/markdown/browser/markdownRenderer.js';
 import { IChatToolInvocation, IChatToolInvocationSerialized, isLegacyChatTerminalToolInvocationData, ToolConfirmKind } from '../../../../common/chatService/chatService.js';
+import { ChatConfiguration } from '../../../../common/constants.js';
 import { IChatRendererContent, isResponseVM } from '../../../../common/model/chatViewModel.js';
 import { IChatTodoListService } from '../../../../common/tools/chatTodoListService.js';
 import { isToolResultInputOutputDetails, isToolResultOutputDetails, ToolInvocationPresentation } from '../../../../common/tools/languageModelToolsService.js';
-import { ChatTreeItem, IChatCodeBlockInfo } from '../../../chat.js';
+import { ChatTreeItem, IChatCodeBlockInfo, IChatWidgetService } from '../../../chat.js';
 import { getCompactCodicon } from '../../../chatIcons.js';
 import { EditorPool } from '../chatContentCodePools.js';
 import { IChatContentPart, IChatContentPartRenderContext } from '../chatContentParts.js';
@@ -42,6 +44,7 @@ import { ChatToolPostExecuteConfirmationPart } from './chatToolPostExecuteConfir
 import { ChatToolProgressSubPart } from './chatToolProgressPart.js';
 import { ChatToolStreamingSubPart } from './chatToolStreamingSubPart.js';
 import { ChatOtherClientToolProgressPart } from './chatOtherClientToolProgressPart.js';
+import { isCarouselToolConfirmation } from './chatToolPartUtilities.js';
 
 /**
  * Value equality for {@link IMcpAppRenderData}, used so the App's derived
@@ -122,6 +125,8 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 		private readonly codeBlockStartIndex: number,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IChatTodoListService private readonly chatTodoListService: IChatTodoListService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 	) {
 		super();
 
@@ -231,7 +236,9 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 				return;
 			}
 
-			dom.show(this.domNode);
+			// Deciding visibility here, on every render, keeps the transcript copy hidden however the
+			// part was (re)built while the carousel above the input owns the confirmation.
+			dom.setVisibility(!this.defersConfirmationToCarousel(), this.domNode);
 			this.subPart = partStore.add(this.createToolInvocationSubPart());
 			subPartDomNode.replaceWith(this.subPart.domNode);
 			subPartDomNode = this.subPart.domNode;
@@ -276,6 +283,17 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 		}));
 
 		render();
+	}
+
+	/**
+	 * Transcript copies of a confirmation defer to the carousel above the input whenever it is enabled
+	 * for the tool and a chat widget exists to host it; only the carousel's own copy renders it.
+	 */
+	private defersConfirmationToCarousel(): boolean {
+		return !this.context.inToolConfirmationCarousel
+			&& isCarouselToolConfirmation(this.toolInvocation)
+			&& !!this.configurationService.getValue<boolean>(ChatConfiguration.ToolConfirmationCarousel)
+			&& !!this.chatWidgetService.getWidgetBySessionResource(this.context.element.sessionResource);
 	}
 
 	private createToolInvocationSubPart(): BaseChatToolInvocationSubPart {

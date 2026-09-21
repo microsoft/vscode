@@ -18,6 +18,7 @@ import { equals } from '../../../../../../base/common/objects.js';
 import { autorun, autorunPerKeyedItem, constObservable, derived, derivedOpts, IObservable, IReader, ISettableObservable, observableSignalFromEvent, observableValue, transaction, waitForState } from '../../../../../../base/common/observable.js';
 import { extUriBiasedIgnorePathCase, isEqual } from '../../../../../../base/common/resources.js';
 import { StopWatch } from '../../../../../../base/common/stopwatch.js';
+import { AgentHostFirstResponseTiming, nextRendererRootInvocationOrdinal, type AgentHostFirstResponseClassification, type AgentHostFirstResponseOutcome, type IAgentHostFirstResponseEvent } from './agentHostFirstResponseTelemetry.js';
 import { MicrotaskDelay } from '../../../../../../base/common/symbols.js';
 import { Mutable } from '../../../../../../base/common/types.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -50,7 +51,7 @@ import { ConfirmationOptionKind, CustomizationType, JsonPrimitive, McpServerAuth
 import { compareProtocolVersions } from '../../../../../../platform/agentHost/common/state/protocol/version/registry.js';
 import { ActionType, ChatTurnStartedAction, isChatAction, type ClientChatAction, type ClientSessionAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { AHP_AUTH_REQUIRED, AHP_NOT_FOUND, ProtocolError } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
-import { buildChatUri, buildDefaultChatUri, buildSubagentChatUri, ChatOriginKind, getErrorResponsePart, getInlineToolInput, getToolSubagentContent, getTurnError, isChatReadOnly, isDefaultChatUri, isMessageHiddenFromTranscript, isMessageRequestHiddenFromTranscript, MessageAttachmentKind, MessageKind, PendingMessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, SessionStatus, StateComponents, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, TurnState, parseChatUri, mergeSessionWithDefaultChat, readMessageSystemInitiatedLabel, readSessionWorkspaceless, readUsageInfoMeta, withMessageHiddenFromTranscript, type ChatState, type ISessionWithDefaultChat, type ICompletedToolCall, type InputRequestResponsePart, type MarkdownResponsePart, type Message, type MessageAttachment, type MessageAnnotationsAttachment, type MessageChatAttachment, type MessageResourceAttachment, type MessageEmbeddedResourceAttachment, type ModelSelection, type PendingMessage, type ReasoningResponsePart, type RootState, type ChatInputAnswer, type ChatInputQuestion, type ChatInputRequest, type ChatSummary, type SessionState, type StringOrMarkdown, type ToolCallPendingConfirmationState, type ToolCallResponsePart, type ToolCallRunningState, type ToolCallState, type ToolInput, type Turn, type UsageInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { buildChatUri, buildDefaultChatUri, buildSubagentChatUri, ChatOriginKind, getErrorResponsePart, getInlineToolInput, getToolSubagentContent, getTurnError, isChatReadOnly, isDefaultChatUri, isSubagentChatUri, isMessageHiddenFromTranscript, isMessageRequestHiddenFromTranscript, MessageAttachmentKind, MessageKind, PendingMessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, SessionStatus, StateComponents, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, TurnState, parseChatUri, mergeSessionWithDefaultChat, readMessageSystemInitiatedLabel, readSessionWorkspaceless, readUsageInfoMeta, withMessageHiddenFromTranscript, type ChatState, type ISessionWithDefaultChat, type ICompletedToolCall, type InputRequestResponsePart, type MarkdownResponsePart, type Message, type MessageAttachment, type MessageAnnotationsAttachment, type MessageChatAttachment, type MessageResourceAttachment, type MessageEmbeddedResourceAttachment, type ModelSelection, type PendingMessage, type ReasoningResponsePart, type RootState, type ChatInputAnswer, type ChatInputQuestion, type ChatInputRequest, type ChatSummary, type SessionState, type StringOrMarkdown, type ToolCallPendingConfirmationState, type ToolCallResponsePart, type ToolCallRunningState, type ToolCallState, type ToolInput, type Turn, type UsageInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { ExtensionIdentifier } from '../../../../../../platform/extensions/common/extensions.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
@@ -232,6 +233,7 @@ interface IObserveTurnOptions {
 	/** Do not complete from an already-historical turn until this observer sees it active. */
 	readonly requireActiveTurn?: boolean;
 	readonly onTurnEnded?: (lastTurn: Turn | undefined) => void;
+	readonly onResponseText?: (text: string) => void;
 	readonly onFileEdits?: (tc: ToolCallState, fileEdits: IToolCallFileEdit[]) => void;
 	/**
 	 * When set, a failed turn does NOT emit its error as a markdown progress
@@ -1659,7 +1661,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 					return this._forkSession(sessionResource, resolvedSession, request, token);
 				},
 				(title: string, _token: CancellationToken) => {
-					this._config.connection.dispatch(this._getRenameChatURI(sessionResource, resolvedSession), {
+					this._config.connection.dispatch(this._getChatURIOrDefault(sessionResource, resolvedSession), {
 						type: ActionType.SessionTitleChanged,
 						title,
 					});
@@ -1815,40 +1817,45 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		progress: (parts: IChatProgress[]) => void,
 		cancellationToken: CancellationToken,
 	): Promise<IChatAgentResult> {
-		this._logService.info(`[AgentHost] _invokeAgent called for resource: ${request.sessionResource.toString()}`);
-
-		// Gate spawning an agent on workspace trust. Viewing chat and the
-		// agent list does not require trust, but sending a message does, since
-		// the agent reads files, runs commands, and makes changes in the
-		// session's folders. Mirrors how extension-host chat is gated. Verify
-		// every local folder the session will run in — an existing session's
-		// persisted working directories, or a new session's requested ones — so
-		// resuming a session whose folder is no longer trusted re-prompts instead
-		// of running untrusted. A workspace-less session (quick chat) resolves to
-		// `undefined` and skips the gate entirely: its only cwd is an internal
-		// scratch dir, not a user workspace. If the user declines, abort without
-		// starting a session.
-		const trustFolders = await this._resolveSessionTrustFolders(request.sessionResource, cancellationToken);
-		if (cancellationToken.isCancellationRequested) {
-			return {};
-		}
-		if (trustFolders !== undefined && !await this._ensureFoldersTrusted(trustFolders)) {
-			return {};
-		}
-		if (cancellationToken.isCancellationRequested) {
-			return {};
-		}
-
-		// A "Continue in…" migration from a local chat seeds the whole imported
-		// conversation eagerly (CLI spawn, seeding turns) before any turn progress
-		// streams, leaving the widget transiently empty. Only for that migration
-		// case show a shimmering status if the turn is slow to start, cancelled as
-		// soon as real progress streams. Normal agent-host sessions — whose first
-		// turn is also slow to spawn — never flash it.
+		const firstResponse = new AgentHostFirstResponseTiming();
+		let outcome: AgentHostFirstResponseOutcome = 'notDispatched';
+		let sessionId: string | undefined;
+		let chatId: string | undefined;
+		let sessionTurnKind: IAgentHostFirstResponseEvent['sessionTurnKind'] = 'unknown';
+		let invocationKind: IAgentHostFirstResponseEvent['invocationKind'] = 'unknown';
+		let rendererRootInvocationOrdinal: number | undefined;
+		let trustInteractionRequired = false;
 		const preparingStatus = new MutableDisposable();
 		let failureStage: AgentHostInvocationFailureStage = 'resolveSession';
-
 		try {
+			this._logService.info(`[AgentHost] _invokeAgent called for resource: ${request.sessionResource.toString()}`);
+			const invocationChat = this._getChatURIOrDefault(request.sessionResource, this._resolveSessionUri(request.sessionResource));
+			if (!isSubagentChatUri(invocationChat)) {
+				rendererRootInvocationOrdinal = nextRendererRootInvocationOrdinal();
+			}
+
+			// Gate spawning an agent on workspace trust. Viewing chat and the
+			// agent list does not require trust, but sending a message does, since
+			// the agent reads files, runs commands, and makes changes in the
+			// session's folders. Mirrors how extension-host chat is gated. Verify
+			// every local folder the session will run in — an existing session's
+			// persisted working directories, or a new session's requested ones — so
+			// resuming a session whose folder is no longer trusted re-prompts instead
+			// of running untrusted. A workspace-less session (quick chat) resolves to
+			// `undefined` and skips the gate entirely: its only cwd is an internal
+			// scratch dir, not a user workspace. If the user declines, abort without
+			// starting a session.
+			const trustFolders = await this._resolveSessionTrustFolders(request.sessionResource, cancellationToken);
+			if (cancellationToken.isCancellationRequested) {
+				return {};
+			}
+			if (trustFolders !== undefined && !await this._ensureFoldersTrusted(trustFolders, () => trustInteractionRequired = true)) {
+				return {};
+			}
+			if (cancellationToken.isCancellationRequested) {
+				return {};
+			}
+
 			failureStage = 'provisionalSession';
 			// The chat-input picker may have pre-created a provisional session
 			// against this resource (`IAgentHostUntitledProvisionalSessionService.getOrCreate`).
@@ -1861,6 +1868,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			}
 			const resolvedSession = this._resolveSessionUri(request.sessionResource);
 			const sessionKey = resolvedSession.toString();
+			sessionId = sessionKey;
 			const provisionalBackend = this._provisionalService.get(request.sessionResource);
 			if (provisionalBackend) {
 				this._ensureSessionSubscription(sessionKey);
@@ -1941,9 +1949,22 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 
 			// Measure turn timings so the core `interactiveSessionProviderInvoked`
 			// telemetry event is populated for agent-host providers.
+			chatId = this._getChatURI(request.sessionResource);
+			const state = this._getSessionState(sessionKey, chatId);
+			sessionTurnKind = state && isDefaultChatUri(chatId) ? (state.turns.length > 0 ? 'later' : 'first') : 'unknown';
+			const isExistingTurn = state?.activeTurn?.id === request.requestId || state?.turns.some(turn => turn.id === request.requestId)
+				|| request.acceptedConfirmationData?.some(isResumeTurnConfirmationData);
+			invocationKind = isSubagentChatUri(chatId) ? 'subagent' : isExistingTurn ? 'existingTurn' : 'newTurn';
 			const stopWatch = StopWatch.create(false);
 			let firstProgress: number | undefined;
 			const measuredProgress = (parts: IChatProgress[]) => {
+				if (invocationKind === 'newTurn') {
+					for (const part of parts) {
+						if (part.kind === 'toolInvocation' && part.subAgentInvocationId === undefined) {
+							firstResponse.observeToolCall(part.toolCallId);
+						}
+					}
+				}
 				// Real progress has started — cancel the pending "preparing" status.
 				preparingStatus.clear();
 				if (firstProgress === undefined && parts.some(isFirstVisibleProgressPart)) {
@@ -1953,7 +1974,10 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			};
 
 			failureStage = 'prepareTurn';
-			const completedTurn = await this._handleTurn(resolvedSession, request, measuredProgress, cancellationToken, stage => failureStage = stage);
+			const completedTurn = await this._handleTurn(resolvedSession, request, measuredProgress, cancellationToken, stage => failureStage = stage, invocationKind === 'newTurn' ? text => firstResponse.observeText(text) : undefined);
+			outcome = completedTurn?.state === TurnState.Error ? 'error'
+				: completedTurn?.state === TurnState.Cancelled || cancellationToken.isCancellationRequested ? 'cancelled'
+					: completedTurn ? 'success' : 'notDispatched';
 			const details = this._getTurnResponseDetails(request.sessionResource, resolvedSession, completedTurn);
 			const errorDetails = this._getTurnErrorDetails(completedTurn);
 
@@ -1963,6 +1987,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				...(errorDetails ? { errorDetails } : {}),
 			};
 		} catch (error) {
+			outcome = isCancellationError(error) ? 'cancelled' : 'error';
 			if (!isCancellationError(error)) {
 				this._reportInvocationFailure(request, failureStage, error);
 			}
@@ -1972,6 +1997,13 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			// await above (state read, create/subscribe, turn handling) rejects —
 			// so a stale status can never fire after the invocation has ended.
 			preparingStatus.dispose();
+			const timing = firstResponse.finish({
+				requestId: request.requestId, provider: this._config.provider, agentSessionId: sessionId, chatId,
+				sessionTurnKind, invocationKind, outcome: cancellationToken.isCancellationRequested ? 'cancelled' : outcome,
+				rendererRootInvocationOrdinal, trustInteractionRequired,
+			});
+			this._telemetryService.publicLog2<IAgentHostFirstResponseEvent, AgentHostFirstResponseClassification>('agentHost.firstResponse', timing);
+			this._logService.info(`[AgentHostFirstResponse] ${JSON.stringify({ ...timing, sessionId, turnId: request.requestId })}`);
 		}
 	}
 
@@ -2290,7 +2322,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		return chatURI;
 	}
 
-	private _getRenameChatURI(sessionResource: URI, session: URI): string {
+	private _getChatURIOrDefault(sessionResource: URI, session: URI): string {
 		const mapped = this._chatURIsBySessionResource.get(sessionResource);
 		if (mapped) {
 			return mapped;
@@ -3030,6 +3062,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		progress: (parts: IChatProgress[]) => void,
 		cancellationToken: CancellationToken,
 		onFailureStage: (stage: AgentHostInvocationFailureStage) => void,
+		onResponseText?: (text: string) => void,
 	): Promise<Turn | undefined> {
 		if (cancellationToken.isCancellationRequested) {
 			return;
@@ -3146,6 +3179,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				sink: progress,
 				cancellationToken,
 				suppressErrorMarkdown: true,
+				onResponseText,
 				onTurnEnded: (lastTurn) => {
 					store.dispose();
 					this._clientDispatchedTurnIds.delete(turnId);
@@ -3905,6 +3939,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			}
 			const delta = content.substring(lastEmitted);
 			lastEmitted = content.length;
+			opts.onResponseText?.(delta);
 			opts.sink([{ kind: 'markdownContent', content: new MarkdownString(delta) }]);
 		}));
 	}
@@ -6257,10 +6292,13 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	 * is checked for all folders in parallel and only untrusted folders are prompted
 	 * for, one at a time.
 	 */
-	private async _ensureFoldersTrusted(folders: readonly URI[]): Promise<boolean> {
+	private async _ensureFoldersTrusted(folders: readonly URI[], onInteractionRequired: () => void): Promise<boolean> {
 		const message = localize('agentHost.workspaceTrust', "AI features are currently only supported in trusted workspaces.");
 		const localFolders = folders.filter(folder => folder.scheme === Schemas.file);
 		if (localFolders.length === 0) {
+			if (!this._workspaceTrustManagementService.isWorkspaceTrusted()) {
+				onInteractionRequired();
+			}
 			return !!await this._workspaceTrustRequestService.requestWorkspaceTrust({ message });
 		}
 
@@ -6276,6 +6314,9 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		// A folder in the open workspace is gated via whole-workspace trust (matching
 		// extension-host chat); others via per-resource trust.
 		for (const folder of untrustedFolders) {
+			if (!this._workspaceContextService.getWorkspaceFolder(folder) || !this._workspaceTrustManagementService.isWorkspaceTrusted()) {
+				onInteractionRequired();
+			}
 			const trusted = this._workspaceContextService.getWorkspaceFolder(folder)
 				? await this._workspaceTrustRequestService.requestWorkspaceTrust({ message })
 				: await this._workspaceTrustRequestService.requestResourcesTrust({ uri: folder, message });

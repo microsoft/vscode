@@ -32,7 +32,7 @@ import { AgentHostClientConnectionService, IAgentHostClientConnectionService } f
 import { AgentHostChatContributions } from '../../node/agentHostChatContributionsService.js';
 import { IAgentHostProviderService } from '../../node/agentHostProviderService.js';
 import { createTestAgentHostProviderService } from './testAgentHostProviderService.js';
-import { IAgentHostSessionTitleController } from '../../node/agentHostSessionTitleController.js';
+import { IAgentHostSessionTitleController, type AutomaticTitleGenerationStrategy } from '../../node/agentHostSessionTitleController.js';
 import { AgentHostStateManager, IAgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { IAgentHostTerminalManager } from '../../node/agentHostTerminalManager.js';
 import { AgentHostLocalTurns, IAgentHostLocalTurns } from '../../node/agentHostLocalTurns.js';
@@ -77,6 +77,13 @@ class RecordingTitleController implements IAgentHostSessionTitleController {
 	readonly seededTitles: string[] = [];
 	readonly provisionalTitles: string[] = [];
 	readonly renamedTitles: { channel: string; chatChannel: string | undefined }[] = [];
+	readonly refinedTitles: { channel: string; chatChannel: string | undefined; successful: boolean }[] = [];
+
+	readonly titleGenerationStrategies = new Map<string, AutomaticTitleGenerationStrategy>();
+	getAutomaticTitleGenerationStrategy(channel?: string): AutomaticTitleGenerationStrategy {
+		return channel ? this.titleGenerationStrategies.get(channel) ?? 'utility' : 'utility';
+	}
+	async restoreTitleGenerationStrategy(): Promise<void> { }
 
 	seedTitleFromFirstMessage(_channel: string, userPrompt: string): void {
 		this.seededTitles.push(userPrompt);
@@ -85,8 +92,11 @@ class RecordingTitleController implements IAgentHostSessionTitleController {
 	seedProvisionalTitle(_channel: string, suggestedTitle: string): void {
 		this.provisionalTitles.push(suggestedTitle);
 	}
-	refineTitleFromFirstTurn(): void {
-		this._observed?.push('sessionTitle');
+	refineTitleFromFirstTurn(channel: string, chatChannel?: string, successful = true): void {
+		this.refinedTitles.push({ channel, chatChannel, successful });
+		if (successful) {
+			this._observed?.push('sessionTitle');
+		}
 	}
 	generateForkedTitle(): void { }
 	async generateExternalSessionTitle(): Promise<void> { }
@@ -765,16 +775,21 @@ function createSessionTitleContributions(disposables: ReturnType<typeof ensureNo
 	const database = new TestSessionDatabase();
 	const sessionDataService = createSessionDataService(database);
 	const titleController = new RecordingTitleController(undefined, undefined);
+	const telemetryService = new RecordingTelemetryService();
 	const services = new ServiceCollection(
 		[ILogService, logService],
 		[IAgentHostStateManager, stateManager],
 		[ISessionDataService, sessionDataService],
 		[IAgentHostSessionTitleController, titleController],
+		[IAgentHostTelemetryReporter, new AgentHostTelemetryReporter(telemetryService)],
+		[IAgentHostClientConnectionService, disposables.add(new AgentHostClientConnectionService())],
 	);
 	const instantiationService = disposables.add(new InstantiationService(services, /*strict*/ true));
+	const turnTracker = disposables.add(instantiationService.createInstance(AgentHostTurnTracker));
+	services.set(IAgentHostTurnTracker, turnTracker);
 	const service: IAgentHostChatContributions = disposables.add(new AgentHostChatContributions(logService, instantiationService));
 	disposables.add(service.registerContribution(SessionTitleContribution));
-	return { service, stateManager, database, titleController, session, defaultChat, peerChat };
+	return { service, stateManager, database, titleController, session, defaultChat, peerChat, turnTracker, telemetryService };
 }
 
 function createTurnDelegationContributions(disposables: ReturnType<typeof ensureNoDisposablesAreLeakedInTestSuite>) {
@@ -1421,6 +1436,49 @@ suite('AgentHostChatContributions', () => {
 		});
 	});
 
+	test('captures each root turn title strategy before sending and preserves it through completion', async () => {
+		const titles = createSessionTitleContributions(disposables);
+		const agent = disposables.add(new MockAgent());
+		const strategies = ['activeAgent', 'utility', 'deferred'] as const;
+		for (const strategy of strategies) {
+			titles.titleController.titleGenerationStrategies.set(titles.session, strategy);
+			titles.turnTracker.turnStarted(agent, titles.peerChat, strategy, undefined, undefined, 'default', undefined, undefined);
+			await titles.service.outgoingTurn({
+				session: titles.session, chat: titles.peerChat, turnId: strategy,
+				message: { text: 'hello', origin: { kind: MessageKind.User } },
+			});
+		}
+		titles.titleController.titleGenerationStrategies.set(titles.session, 'utility');
+		for (const strategy of strategies) {
+			titles.turnTracker.turnCompleted(titles.peerChat, strategy, 'success');
+		}
+		assert.deepStrictEqual(titles.telemetryService.events.map(event => {
+			const data = event.data as { turnId: string; titleGenerationStrategy?: string };
+			return { turnId: data.turnId, strategy: data.titleGenerationStrategy };
+		}), strategies.map(strategy => ({ turnId: strategy, strategy })));
+	});
+
+	test('does not attach root title strategy to subagent turns or turns that already ended', async () => {
+		const titles = createSessionTitleContributions(disposables);
+		const agent = disposables.add(new MockAgent());
+		const child = buildSubagentChatUri(titles.session, 'child');
+		for (const chat of [titles.defaultChat, child]) {
+			titles.turnTracker.turnStarted(agent, chat, 'turn', undefined, undefined, 'default', undefined, undefined);
+			if (chat === titles.defaultChat) {
+				titles.turnTracker.turnCompleted(chat, 'turn', 'cancelled');
+			}
+			await titles.service.outgoingTurn({
+				session: titles.session, chat, turnId: 'turn',
+				message: { text: 'hello', origin: { kind: MessageKind.User } },
+			});
+			titles.turnTracker.turnCompleted(chat, 'turn', 'success');
+		}
+		assert.deepStrictEqual(titles.telemetryService.events.map(event => {
+			const data = event.data as { titleGenerationStrategy?: string };
+			return data.titleGenerationStrategy;
+		}), [undefined, undefined]);
+	});
+
 	test('runs built-in outgoing-turn contributions in the original sequence', async () => {
 		const contributions = createBuiltInContributions(disposables, undefined, true);
 		const sideChat = buildChatUri(contributions.session, 'side');
@@ -1514,6 +1572,19 @@ suite('AgentHostChatContributions', () => {
 			assert.deepStrictEqual(instructions, [undefined, undefined]);
 		});
 	}
+
+	test('title refinement receives terminal outcomes and preserves default-chat identity', () => {
+		const titles = createSessionTitleContributions(disposables);
+		const turn = { session: titles.session, channel: titles.defaultChat, turnId: 'turn-1' };
+		titles.service.turnEnd({ ...turn, reason: { kind: 'cancelled' } });
+		titles.service.turnEnd({ ...turn, reason: { kind: 'localCommand' } });
+		titles.service.turnEnd({ ...turn, reason: { kind: 'error', error: { errorType: 'test', message: 'Failed' }, resumable: false } });
+		titles.service.turnEnd({ ...turn, reason: { kind: 'rejected', error: { errorType: 'test', message: 'Rejected' } } });
+		titles.service.turnEnd({ ...turn, reason: { kind: 'success' } });
+		assert.deepStrictEqual(titles.titleController.refinedTitles, [false, false, false, true].map(successful => ({
+			channel: titles.session, chatChannel: titles.defaultChat, successful,
+		})));
+	});
 
 	test('updates and persists an independent chat title', async () => {
 		const titles = createSessionTitleContributions(disposables);

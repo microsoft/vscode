@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { VSBuffer } from '../../../../base/common/buffer.js';
-import { DeferredPromise, timeout } from '../../../../base/common/async.js';
+import { DeferredPromise, SequencerByKey, timeout } from '../../../../base/common/async.js';
 import { Event } from '../../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
@@ -479,6 +479,145 @@ suite('AgentSideEffects', () => {
 			persistedNanoAiu: 6,
 			persistedDirectNanoAiu: 4,
 			persistedDirectTurnTokenTotals: [{ model: 'model-1', inputTokens: 30, cachedTokens: 6, outputTokens: 9 }],
+		});
+	});
+
+	test('runs the turn-start checkpoint alongside model selection and sends only once it settles', async () => {
+		const workingDirectory = URI.file('/wd');
+		setupSession(workingDirectory.toString());
+		const capture = new DeferredPromise<void>();
+		const order: string[] = [];
+		const checkpointService: IAgentHostCheckpointService = {
+			...NULL_CHECKPOINT_SERVICE,
+			captureTurnStartCheckpoint: async () => {
+				order.push('checkpoint:start');
+				await capture.p;
+				order.push('checkpoint:end');
+			},
+		};
+		const localSideEffects = createTestSideEffects(disposables, stateManager, {
+			getAgent: () => agent,
+			agents: agentList,
+			sessionDataService: createNullSessionDataService(),
+			resolveWorkingDirectoryBeforeSend: async () => [workingDirectory],
+		}, undefined, NullTelemetryService, new FakeChangesetService(), undefined, checkpointService);
+		disposables.add(localSideEffects.registerProgressListener(agent));
+		agent.chats.changeAgent = async () => { order.push('changeAgent'); };
+
+		const turnStarted = {
+			type: ActionType.ChatTurnStarted,
+			turnId: 'turn-1',
+			startedAt: '2025-01-01T00:00:00.000Z',
+			message: { text: 'hello', origin: { kind: MessageKind.User } },
+		} as const;
+		stateManager.dispatchServerAction(defaultChatUri, turnStarted);
+		localSideEffects.handleAction(defaultChatUri, turnStarted);
+		await timeout(0);
+
+		// Model selection must have run while the capture was still outstanding,
+		// and the message must not have been sent yet.
+		const whileCapturing = { order: [...order], sends: agent.sendMessageCalls.length };
+		capture.complete();
+		await waitForSendMessageCalls(1);
+
+		assert.deepStrictEqual({ whileCapturing, afterCapture: order }, {
+			whileCapturing: { order: ['checkpoint:start', 'changeAgent'], sends: 0 },
+			afterCapture: ['checkpoint:start', 'changeAgent', 'checkpoint:end'],
+		});
+	});
+
+	test('discards a concurrently started turn-start checkpoint when the turn is cancelled before dispatch', async () => {
+		const workingDirectory = URI.file('/wd');
+		setupSession(workingDirectory.toString());
+		const capture = new DeferredPromise<void>();
+		const order: string[] = [];
+		// Model the production service, which sequences capture and discard on
+		// the session key: a discard issued while a capture is in flight runs
+		// only after that capture settles.
+		const sequencer = new SequencerByKey<string>();
+		const checkpointService: IAgentHostCheckpointService = {
+			...NULL_CHECKPOINT_SERVICE,
+			captureTurnStartCheckpoint: (session) => sequencer.queue(session.toString(), async () => {
+				order.push('capture:start');
+				await capture.p;
+				order.push('capture:end');
+			}),
+			discardTurnStartCheckpoint: (session) => sequencer.queue(session.toString(), async () => { order.push('discard'); }),
+		};
+		const localSideEffects = createTestSideEffects(disposables, stateManager, {
+			getAgent: () => agent,
+			agents: agentList,
+			sessionDataService: createNullSessionDataService(),
+			resolveWorkingDirectoryBeforeSend: async () => [workingDirectory],
+		}, undefined, NullTelemetryService, new FakeChangesetService(), undefined, checkpointService);
+		disposables.add(localSideEffects.registerProgressListener(agent));
+
+		const turnStarted = {
+			type: ActionType.ChatTurnStarted,
+			turnId: 'turn-1',
+			startedAt: '2025-01-01T00:00:00.000Z',
+			message: { text: 'hello', origin: { kind: MessageKind.User } },
+		} as const;
+		stateManager.dispatchServerAction(defaultChatUri, turnStarted);
+		localSideEffects.handleAction(defaultChatUri, turnStarted);
+		await timeout(0);
+
+		stateManager.dispatchClientAction(defaultChatUri, {
+			type: ActionType.ChatTurnCancelled,
+			turnId: 'turn-1',
+			duration: 0,
+		}, { clientId: 'test', clientSeq: 1 });
+		capture.complete();
+		await timeout(0);
+
+		// The capture always completes before any discard, and the cancelled
+		// turn ends with the checkpoint discarded and nothing sent.
+		assert.deepStrictEqual({
+			capturedBeforeAnyDiscard: order.indexOf('capture:end') < order.indexOf('discard'),
+			discarded: order.filter(entry => entry === 'discard').length > 0,
+			sends: agent.sendMessageCalls.length,
+		}, {
+			capturedBeforeAnyDiscard: true,
+			discarded: true,
+			sends: 0,
+		});
+	});
+
+	test('discards the turn-start checkpoint when the turn fails before reaching the provider', async () => {
+		const workingDirectory = URI.file('/wd');
+		setupSession(workingDirectory.toString());
+		let captured = 0;
+		let discarded = 0;
+		const checkpointService: IAgentHostCheckpointService = {
+			...NULL_CHECKPOINT_SERVICE,
+			captureTurnStartCheckpoint: async () => { captured++; },
+			discardTurnStartCheckpoint: async () => { discarded++; },
+		};
+		const localSideEffects = createTestSideEffects(disposables, stateManager, {
+			getAgent: () => agent,
+			agents: agentList,
+			sessionDataService: createNullSessionDataService(),
+			resolveWorkingDirectoryBeforeSend: async () => [workingDirectory],
+		}, undefined, NullTelemetryService, new FakeChangesetService(), undefined, checkpointService);
+		disposables.add(localSideEffects.registerProgressListener(agent));
+		// Fail after the checkpoint has been started but before the prompt is
+		// handed to the provider.
+		agent.chats.changeModel = async () => { throw new Error('model selection failed'); };
+
+		const turnStarted = {
+			type: ActionType.ChatTurnStarted,
+			turnId: 'turn-1',
+			startedAt: '2025-01-01T00:00:00.000Z',
+			message: { text: 'hello', origin: { kind: MessageKind.User }, model: { id: 'model-a' } },
+		} as const;
+		stateManager.dispatchServerAction(defaultChatUri, turnStarted);
+		localSideEffects.handleAction(defaultChatUri, turnStarted);
+		await timeout(0);
+
+		assert.deepStrictEqual({ captured, discarded, sends: agent.sendMessageCalls.length }, {
+			captured: 1,
+			discarded: 1,
+			sends: 0,
 		});
 	});
 

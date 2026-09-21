@@ -33,7 +33,7 @@ import { IChatOutputRendererService, RenderedOutputPart } from '../../../browser
 import { ChatTreeItem, IChatAccessibilityService, IChatListItemRendererOptions, IChatWidget, IChatWidgetService } from '../../../browser/chat.js';
 import { IChatToolRiskAssessmentService } from '../../../browser/tools/chatToolRiskAssessmentService.js';
 import { AcceptToolConfirmationActionId, registerChatToolActions, SkipToolConfirmationActionId } from '../../../browser/actions/chatToolActions.js';
-import { buildPlanReviewProgressContent, ChatListItemRenderer, endsWithActiveSubagentContent, endsWithCompletedQuestionInteraction, formatCompletedResponseDisclosureLabel, formatResponseTokenStats, getCompletedResponseCollapseEndIndex, getFinalResponseStartIndex, getFinalResponseStartIndexAfterMovingResponseOutcomeTools, getPersistentProgressState, getTrailingProgressLabel, getVisibleCompletedResponseItemCount, getWorkingProgressRelevantParts, IChatListItemTemplate, isAnchorTarget, isBlockingToolState, isFinalResponseRendered, isWaitingForMcpServers, moveResponseOutcomeToolsAfterFinalResponse, reconcileChatItemHeight, renderChatRequestTimestamp, renderChatResponseDetails, shouldCollapseCompletedResponsePart, shouldCreateGroupedThinkingPart, shouldHideChatUserIdentity, shouldPinToolInvocationToThinking, shouldRenderInitialProgressiveContentImmediately, shouldScheduleInitialHeightChange, shouldShowFileChangesSummaryForSettings, shouldShowTurnPillsSummary, shouldStartNewCollapsedThinkingGroup } from '../../../browser/widget/chatListRenderer.js';
+import { buildPlanReviewProgressContent, ChatListItemRenderer, endsWithActiveSubagentContent, endsWithCompletedQuestionInteraction, formatCompletedResponseDisclosureLabel, formatResponseTokenStats, getCompletedResponseCollapseEndIndex, getFinalResponseStartIndex, getFinalResponseStartIndexAfterMovingResponseOutcomeTools, getPersistentProgressState, getPersistentWaitingLabel, getTrailingProgressLabel, getVisibleCompletedResponseItemCount, getWorkingProgressRelevantParts, IChatListItemTemplate, isAnchorTarget, isBlockingToolState, isFinalResponseRendered, isWaitingForMcpServers, moveResponseOutcomeToolsAfterFinalResponse, reconcileChatItemHeight, renderChatRequestTimestamp, renderChatResponseDetails, shouldCollapseCompletedResponsePart, shouldCreateGroupedThinkingPart, shouldHideChatUserIdentity, shouldPinToolInvocationToThinking, shouldRenderInitialProgressiveContentImmediately, shouldScheduleInitialHeightChange, shouldShowFileChangesSummaryForSettings, shouldShowTurnPillsSummary, shouldStartNewCollapsedThinkingGroup } from '../../../browser/widget/chatListRenderer.js';
 import { ChatWidget } from '../../../browser/widget/chatWidget.js';
 import { ChatInputPart } from '../../../browser/widget/input/chatInputPart.js';
 import { ChatToolConfirmationCarouselPart } from '../../../browser/widget/chatContentParts/toolInvocationParts/chatToolConfirmationCarouselPart.js';
@@ -45,7 +45,7 @@ import { aggregateChatEditDiffs } from '../../../browser/widget/chatContentParts
 import { IChatOutputPartStateCache, IOutputPartState } from '../../../browser/widget/chatContentParts/chatOutputPartStateCache.js';
 import { ChatSystemNotificationContentPart } from '../../../browser/widget/chatContentParts/chatSystemNotificationContentPart.js';
 import { ChatCollapsibleContentPart } from '../../../browser/widget/chatContentParts/chatCollapsibleContentPart.js';
-import { ChatRequestQueueKind, ConfirmedReason, ElicitationState, IChatMcpAuthenticationRequired, IChatMcpServersStartingSlow, IChatQuestionCarousel, IChatService, IChatSubagentToolInvocationData, IChatTask, IChatTerminalToolInvocationData, IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind } from '../../../common/chatService/chatService.js';
+import { ChatRequestQueueKind, ConfirmedReason, ElicitationState, IChatMcpAuthenticationRequired, IChatMcpAuthenticationRequiredServer, IChatMcpServersStartingSlow, IChatQuestionCarousel, IChatService, IChatSubagentToolInvocationData, IChatTask, IChatTerminalToolInvocationData, IChatToolInputInvocationData, IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind } from '../../../common/chatService/chatService.js';
 import { formatChatRequestTimestamp, formatChatResponseDetails, formatElapsedTime } from '../../../common/chatProgressFormatting.js';
 import { CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID, ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatProgressAnimation, CollapsedToolsDisplayMode, ThinkingDisplayMode } from '../../../common/constants.js';
 import { ILanguageModelsService } from '../../../common/languageModels.js';
@@ -1286,6 +1286,73 @@ suite('ChatListRenderer', () => {
 		});
 	});
 
+	test('persistent footer counts the subagents and terminals the parent is waiting for', async () => {
+		const agent = (toolCallId: string, isActive: boolean, isComplete = true): IChatToolInvocationSerialized => ({
+			kind: 'toolInvocationSerialized',
+			toolCallId,
+			toolId: 'task',
+			source: ToolDataSource.Internal,
+			invocationMessage: 'Running subagent',
+			originMessage: undefined,
+			pastTenseMessage: undefined,
+			isConfirmed: { type: ToolConfirmKind.ConfirmationNotNeeded },
+			isComplete,
+			presentation: undefined,
+			toolSpecificData: { kind: 'subagent', description: 'Track faint investigation', isActive },
+		});
+		const childTool: IChatToolInvocationSerialized = { ...agent('child', true), toolId: 'view', subAgentInvocationId: 'faint', toolSpecificData: undefined };
+		const readTool = async (toolId: string, complete: boolean) => {
+			const invocation = new ChatToolInvocation(
+				{ invocationMessage: `Read ${toolId}` },
+				{ id: toolId, displayName: toolId, modelDescription: toolId, source: ToolDataSource.Internal },
+				`${toolId}-call`, undefined, {},
+			);
+			if (complete) {
+				await invocation.didExecuteTool(undefined);
+			}
+			return invocation;
+		};
+		const roundEnded: IChatRendererContent = { kind: 'thinking', value: '' };
+		const label = (parts: IChatRendererContent[]) => getPersistentWaitingLabel(parts)?.value.replaceAll('&nbsp;', ' ');
+
+		assert.deepStrictEqual({
+			foreground: label([agent('faint', true, false)]),
+			background: label([agent('faint', true), childTool, { kind: 'undoStop', id: 'edit' }]),
+			parallel: label([agent('faint', true), agent('evidence', true)]),
+			finished: label([agent('faint', false)]),
+			parentReasoning: label([agent('faint', true), { kind: 'thinking', id: 'plan', value: 'Planning the next step' }]),
+			parentText: label([agent('faint', true), { kind: 'markdownContent', content: new MarkdownString('Checking the notes myself.') }]),
+			roundEnded: label([agent('faint', true), agent('evidence', true), { kind: 'markdownContent', content: new MarkdownString('Launched the agents.') }, roundEnded]),
+			roundEndedWithoutAgents: label([agent('faint', false), roundEnded]),
+			// Agents can finish out of launch order; the trailing launch is done while an earlier one still runs.
+			lastFinishedFirst: label([agent('faint', true), agent('evidence', false)]),
+			allFinished: label([agent('faint', false), agent('evidence', false)]),
+			readAgent: label([agent('faint', true), { kind: 'markdownContent', content: new MarkdownString('Reading the result.') }, await readTool('read_agent', false)]),
+			readUnknownAgent: label([await readTool('read_agent', false)]),
+			readComplete: label([agent('faint', false), await readTool('read_agent', true)]),
+			readTerminalOutput: label([{ kind: 'markdownContent', content: new MarkdownString('The build is running in the background.') }, await readTool('get_terminal_output', false)]),
+			readShell: label([agent('faint', true), await readTool('read_bash', false)]),
+			readShellComplete: label([await readTool('read_powershell', true)]),
+		}, {
+			foreground: 'Waiting for 1 subagent',
+			background: 'Waiting for 1 subagent',
+			parallel: 'Waiting for 2 subagents',
+			finished: undefined,
+			parentReasoning: undefined,
+			parentText: undefined,
+			roundEnded: 'Waiting for 2 subagents',
+			roundEndedWithoutAgents: undefined,
+			lastFinishedFirst: 'Waiting for 1 subagent',
+			allFinished: undefined,
+			readAgent: 'Waiting for 1 subagent',
+			readUnknownAgent: 'Waiting for 1 subagent',
+			readComplete: undefined,
+			readTerminalOutput: 'Waiting for terminal output',
+			readShell: 'Waiting for terminal output',
+			readShellComplete: undefined,
+		});
+	});
+
 	test('working progress ignores subagent-owned response parts', () => {
 		const parentSubagent: IChatToolInvocationSerialized = {
 			kind: 'toolInvocationSerialized',
@@ -1495,7 +1562,7 @@ suite('ChatListRenderer', () => {
 		const template = renderer.renderTemplate(container);
 		disposables.add(toDisposable(() => renderer.disposeTemplate(template)));
 		const node = { element: response, children: [], depth: 0, visibleChildrenCount: 0, visibleChildIndex: 0, collapsible: false, collapsed: false, visible: true, filterData: undefined };
-		return { disposables, instantiationService, configurationService, model, request, response, container, renderer, template, node };
+		return { disposables, instantiationService, configurationService, model, viewModel, request, response, container, renderer, template, node };
 	}
 
 	function configureTerminalProgressRenderer({ instantiationService, configurationService }: ReturnType<typeof createPersistentProgressRenderer>): void {
@@ -1842,7 +1909,7 @@ suite('ChatListRenderer', () => {
 	for (const [pending, expected] of [
 		[{ kind: 'questionCarousel', questions: [{ id: 'q1', type: 'text', title: 'Choose a direction' }], allowSkip: true }, 'Waiting for your response'],
 		[{ kind: 'planReview', title: 'Review plan', content: 'Check the renderer.', actions: [{ label: 'Implement' }], canProvideFeedback: false }, 'Plan review required'],
-		[{ kind: 'mcpAuthenticationRequired', sessionResource: URI.parse('chat-session://test/session1'), servers: observableValue('servers', []), isUsed: false }, 'Authentication required'],
+		[{ kind: 'mcpAuthenticationRequired', sessionResource: URI.parse('chat-session://test/session1'), servers: observableValue('servers', [{ id: 'mcp', name: 'MCP', resource: 'https://example.com/mcp' }]), isUsed: false }, 'Authentication required'],
 	] satisfies [IChatRendererContent, string][]) {
 		test(`tool state updates preserve the pending ${pending.kind} label`, async () => {
 			const { model, request, renderer, template, node } = createPersistentProgressRenderer();
@@ -3488,6 +3555,40 @@ suite('ChatListRenderer', () => {
 			isUsed: authentication.isUsed,
 			responseParts: response.response.value.length,
 		}, { before: 'Authentication required', after: 'Working', isUsed: true, responseParts: 1 });
+		request.response?.complete();
+		renderer.renderElement(node, 0, template);
+	});
+
+	test('persistent progress ignores an authentication prompt with no servers left to authenticate', () => {
+		const { disposables, instantiationService, model, viewModel, request, response, renderer, template, node } = createPersistentProgressRenderer();
+		instantiationService.stub(IAgentHostCustomizationService, new class extends mock<IAgentHostCustomizationService>() {
+			override readonly onDidChangeCustomizations = Event.None;
+			override getMcpServers() { return []; }
+		}());
+		// The producer publishes an empty prompt and fills it in asynchronously; if the servers are
+		// authenticated elsewhere (auto-granted, another window, the customizations editor) before a
+		// transcript row ever shows the prompt, nothing marks it used.
+		const servers = observableValue<IChatMcpAuthenticationRequiredServer[]>('servers', []);
+		const authentication: IChatMcpAuthenticationRequired = {
+			kind: 'mcpAuthenticationRequired', sessionResource: response.sessionResource, servers, isUsed: false,
+		};
+		model.acceptResponseProgress(request, authentication);
+		renderer.renderElement(node, 0, template);
+		// Server changes reach the footer through the model's change notification, like a live turn.
+		disposables.add(viewModel.onDidChange(() => renderer.renderElement(node, 0, template)));
+		const footer = template.value.querySelector('.chat-working-progress');
+		assert.ok(footer);
+		const label = () => footer.textContent?.replace(/\u00a0/g, ' ').trim();
+		const emptyPrompt = label();
+		servers.set([{ id: 'mcp', name: 'MCP', resource: 'https://example.com/mcp' }], undefined);
+		const pending = label();
+		servers.set([], undefined);
+
+		assert.deepStrictEqual({
+			emptyPrompt, pending, drained: label(),
+			drainedState: getPersistentProgressState([authentication], 0, false),
+			isUsed: authentication.isUsed,
+		}, { emptyPrompt: 'Working', pending: 'Authentication required', drained: 'Working', drainedState: 'active', isUsed: false });
 		request.response?.complete();
 		renderer.renderElement(node, 0, template);
 	});
@@ -5150,6 +5251,105 @@ suite('ChatListRenderer', () => {
 		});
 	}
 
+	for (const progress of [ChatProgressAnimation.Off, ChatProgressAnimation.Weave]) {
+		test(`keeps parent reasoning in one part while a background subagent runs tools (${progress} progress)`, async () => {
+			const context = createBackgroundSubagentRenderer();
+			installSubagentPillRenderer(context.instantiationService);
+			context.instantiationService.stub(ILanguageModelToolsService, context.disposables.add(new MockLanguageModelToolsService()));
+			context.renderer.updateOptions({ progressMessageAtBottomOfResponse: true });
+			context.configurationService.setUserConfiguration(ChatConfiguration.PersistentProgress, progress);
+			context.configurationService.setUserConfiguration(ChatConfiguration.ThinkingGenerateTitles, false);
+			const agent = createSubagentTool('agent', {
+				kind: 'subagent', description: 'Track faint investigation', hasStarted: true, isActive: true, isChatAvailable: true,
+				chatResource: 'ahp-chat://subagent/Y29waWxvdGNsaTovc2Vzc2lvbg/agent',
+			});
+			context.model.acceptResponseProgress(context.request, agent);
+			await agent.didExecuteTool(undefined);
+			const childTool = (toolCallId: string, presentation?: ToolInvocationPresentation) => new ChatToolInvocation(
+				{ invocationMessage: `Read ${toolCallId}`, presentation },
+				{ id: 'view', displayName: 'Read', modelDescription: 'Read a file', source: ToolDataSource.Internal },
+				toolCallId, agent.toolCallId, {},
+			);
+
+			// The parent keeps reasoning while the subagent's tool calls stream into the same response.
+			const deltas = ['**Evaluating battle strategies**\n\nThere is a chance to counter, given its solid', ' base stats. I also note VOLTAIRE\u2019s speed', ' against Manectric.'];
+			context.model.acceptResponseProgress(context.request, { kind: 'thinking', id: 'reasoning', value: deltas[0] });
+			context.render();
+			context.model.acceptResponseProgress(context.request, childTool('state-notes'));
+			context.render();
+			context.model.acceptResponseProgress(context.request, { kind: 'thinking', id: 'reasoning', value: deltas[1] });
+			context.render();
+			context.model.acceptResponseProgress(context.request, childTool('rename-chat', ToolInvocationPresentation.Hidden));
+			context.render();
+			context.model.acceptResponseProgress(context.request, { kind: 'thinking', id: 'reasoning', value: deltas[2] });
+			context.render();
+
+			const thinkingParts = [...new Set(context.template.renderedParts?.filter((part): part is ChatThinkingContentPart => part instanceof ChatThinkingContentPart && !part.isToolChain))];
+			thinkingParts.forEach(part => part.expandContent());
+			assert.deepStrictEqual({
+				modelThinking: context.request.response!.response.value.filter(part => part.kind === 'thinking').map(part => part.value),
+				thinkingParts: thinkingParts.length,
+				active: thinkingParts.map(part => part.getIsActive()),
+				textBlocks: thinkingParts.map(part => part.domNode.querySelectorAll('.chat-thinking-item.markdown-content').length),
+				text: thinkingParts.map(part => part.domNode.querySelector('.chat-thinking-item.markdown-content')?.textContent?.replace(/\s+/g, ' ').trim()),
+				subagents: context.template.renderedParts?.filter(part => part instanceof ChatSubagentContentPart).length,
+			}, {
+				modelThinking: [deltas.join('')],
+				thinkingParts: 1,
+				active: [true],
+				textBlocks: [1],
+				text: ['Evaluating battle strategiesThere is a chance to counter, given its solid base stats. I also note VOLTAIRE\u2019s speed against Manectric.'],
+				subagents: 1,
+			});
+		});
+	}
+
+	test('persistent footer follows the parent between waiting on agents and working', async () => {
+		const context = createBackgroundSubagentRenderer();
+		installSubagentPillRenderer(context.instantiationService);
+		context.instantiationService.stub(ILanguageModelToolsService, context.disposables.add(new MockLanguageModelToolsService()));
+		context.renderer.updateOptions({ progressMessageAtBottomOfResponse: true });
+		context.configurationService.setUserConfiguration(ChatConfiguration.PersistentProgress, ChatProgressAnimation.Weave);
+		context.configurationService.setUserConfiguration(ChatConfiguration.ThinkingPhrases, { mode: 'replace', phrases: ['Working'] });
+		context.configurationService.setUserConfiguration(ChatConfiguration.ThinkingGenerateTitles, false);
+		const footer = () => {
+			context.render();
+			return context.template.value.querySelector(':scope > .chat-working-progress')?.textContent?.replace(/\u00a0/g, ' ').trim();
+		};
+		const launch = async (toolCallId: string, description: string) => {
+			const agent = createSubagentTool(toolCallId, {
+				kind: 'subagent', description, hasStarted: true, isActive: true, isChatAvailable: true,
+				chatResource: `ahp-chat://subagent/Y29waWxvdGNsaTovc2Vzc2lvbg/${toolCallId}`,
+			});
+			context.model.acceptResponseProgress(context.request, agent);
+			await agent.didExecuteTool(undefined);
+			return agent;
+		};
+
+		const faint = await launch('faint', 'Track faint investigation');
+		const oneAgent = footer();
+		context.model.acceptResponseProgress(context.request, { kind: 'thinking', id: 'plan', value: 'Planning the evidence checks' });
+		const whileReasoning = footer();
+		const evidence = await launch('evidence', 'Define evidence quality checks');
+		const twoAgents = footer();
+		context.model.acceptResponseProgress(context.request, { kind: 'markdownContent', content: new MarkdownString('Both agents are running.') });
+		context.model.acceptResponseProgress(context.request, { kind: 'thinking', value: '' });
+		const roundEnded = footer();
+		for (const agent of [faint, evidence]) {
+			if (agent.toolSpecificData?.kind === 'subagent') {
+				agent.toolSpecificData.isActive = false;
+				agent.notifyToolSpecificDataChanged();
+			}
+		}
+		assert.deepStrictEqual({ oneAgent, whileReasoning, twoAgents, roundEnded, agentsDone: footer() }, {
+			oneAgent: 'Waiting for 1 subagent',
+			whileReasoning: 'Working',
+			twoAgents: 'Waiting for 2 subagents',
+			roundEnded: 'Waiting for 2 subagents',
+			agentsDone: 'Working',
+		});
+	});
+
 	function installSubagentPillRenderer(instantiationService: ReturnType<typeof workbenchInstantiationService>): void {
 		const openAction = instantiationService.createInstance(MenuItemAction, { id: CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID, title: 'Open Subagent' }, undefined, undefined, undefined, undefined);
 		instantiationService.stub(IMenuService, new class extends TestMenuService {
@@ -5336,6 +5536,13 @@ suite('ChatListRenderer', () => {
 				{ id: 'test_tool', displayName: 'Test Tool', modelDescription: 'Test tool', source: ToolDataSource.Internal },
 				toolCallId, parentToolCallId, {},
 			);
+		}
+
+		/** Counts the transcript tool parts that are actually visible, and how many of them render a confirmation. */
+		function countVisibleToolParts(template: IChatListItemTemplate): { toolParts: number; confirmations: number } {
+			const parts = Array.from(template.value.querySelectorAll<HTMLElement>('.chat-tool-invocation-part'))
+				.filter(part => part.style.display !== 'none' && !part.closest('[style*="display: none"]'));
+			return { toolParts: parts.length, confirmations: parts.filter(part => part.classList.contains('has-confirmation')).length };
 		}
 
 		test('shows offscreen retained subagent approvals and allows each original invocation independently', async () => {
@@ -5707,6 +5914,148 @@ suite('ChatListRenderer', () => {
 				whileEditing: 0, afterCancelling: 1, afterEditingAgain: 0, afterCancellingAgain: 1,
 				originalInvocation: true, transcriptRendered: false, unrelatedChanges: 0,
 			});
+		});
+
+		for (const progress of [ChatProgressAnimation.Off, ChatProgressAnimation.Weave]) {
+			test(`keeps a transcript confirmation hidden through tool data changes while the carousel hosts it (${progress} progress)`, async () => {
+				const context = createConfirmationRenderer();
+				context.renderer.updateOptions({ progressMessageAtBottomOfResponse: true });
+				context.configurationService.setUserConfiguration(ChatConfiguration.PersistentProgress, progress);
+				const snapshot = () => ({ ...countVisibleToolParts(context.template), pending: context.carousel?.pendingCount ?? 0 });
+				const tool = ChatToolInvocation.createStreaming({
+					toolCallId: 'streamed-check', toolId: 'test_tool',
+					toolData: { id: 'test_tool', displayName: 'Test Tool', modelDescription: 'Test tool', source: ToolDataSource.Internal },
+				});
+				context.model.acceptResponseProgress(context.request, { kind: 'thinking', value: 'Analyzing the extension host', id: 'analysis' });
+				context.model.acceptResponseProgress(context.request, tool);
+				context.render();
+				const confirmationMessages = { title: 'Run the check?', message: new MarkdownString('Run this check?') };
+				const inputData: IChatToolInputInvocationData = { kind: 'input', rawInput: { target: 'extension host' } };
+				tool.requestConfirmation({ confirmationMessages, toolSpecificData: inputData });
+				context.render();
+				await timeout(0);
+				const afterConfirmation = snapshot();
+
+				// A pending tool's presentation can be refreshed, and its data kind can change, without leaving confirmation.
+				tool.updatePreparedInvocation({ confirmationMessages, toolSpecificData: { ...inputData, rawInput: { target: 'renderer' } } }, tool.parameters);
+				tool.notifyToolSpecificDataChanged();
+				tool.toolSpecificData = undefined;
+				tool.toolSpecificData = inputData;
+				await timeout(0);
+				const afterDataChanges = snapshot();
+
+				tool.toolSpecificData = undefined;
+				IChatToolInvocation.confirmWith(tool, { type: ToolConfirmKind.UserAction });
+				await timeout(0);
+
+				assert.deepStrictEqual({ afterConfirmation, afterDataChanges, afterApproval: snapshot() }, {
+					afterConfirmation: { toolParts: 0, confirmations: 0, pending: 1 },
+					afterDataChanges: { toolParts: 0, confirmations: 0, pending: 1 },
+					afterApproval: { toolParts: 1, confirmations: 0, pending: 0 },
+				});
+			});
+
+			test(`keeps a transcript confirmation hidden when rendered during request editing (${progress} progress)`, async () => {
+				const context = createConfirmationRenderer();
+				context.renderer.updateOptions({ progressMessageAtBottomOfResponse: true });
+				context.configurationService.setUserConfiguration(ChatConfiguration.PersistentProgress, progress);
+				const tool = createPendingTool('edited-check');
+				tool.toolSpecificData = { kind: 'terminal', commandLine: { original: 'echo hi' }, language: 'shellscript' };
+				context.model.acceptResponseProgress(context.request, tool);
+				context.render();
+				await timeout(0);
+				const initial = { ...countVisibleToolParts(context.template), pending: context.carousel?.pendingCount ?? 0 };
+
+				const editedRequest = context.viewModel.getItems().find(isRequestVM);
+				assert.ok(editedRequest);
+				context.viewModel.setEditing(editedRequest);
+				// Virtualization can rebuild the row while editing, when the carousel does not host approvals.
+				const template = context.renderer.renderTemplate(context.container);
+				context.disposables.add(toDisposable(() => context.renderer.disposeTemplate(template)));
+				const node = { element: context.response, children: [], depth: 0, visibleChildrenCount: 0, visibleChildIndex: 0, collapsible: false, collapsed: false, visible: true, filterData: undefined };
+				const snapshot = () => ({ ...countVisibleToolParts(template), pending: context.carousel?.pendingCount ?? 0 });
+				context.renderer.renderElement(node, 0, template);
+				await timeout(0);
+				const whileEditing = snapshot();
+
+				context.viewModel.setEditing(undefined);
+				await timeout(0);
+				const afterCancellingEdit = snapshot();
+				context.renderer.renderElement(node, 0, template);
+				await timeout(0);
+
+				assert.deepStrictEqual({ initial, whileEditing, afterCancellingEdit, afterRerender: snapshot() }, {
+					initial: { toolParts: 0, confirmations: 0, pending: 1 },
+					whileEditing: { toolParts: 0, confirmations: 0, pending: 0 },
+					afterCancellingEdit: { toolParts: 0, confirmations: 0, pending: 1 },
+					afterRerender: { toolParts: 0, confirmations: 0, pending: 1 },
+				});
+			});
+		}
+
+		test('keeps a subagent confirmation out of the transcript when rendered during request editing', async () => {
+			const context = createConfirmationRenderer();
+			const parent = createSubagentTool('editing-agent', { kind: 'subagent', description: 'Editing agent', isActive: true, hasStarted: true });
+			context.model.acceptResponseProgress(context.request, parent);
+			await parent.didExecuteTool(undefined);
+			const tool = createPendingTool('agent-check', parent.toolCallId);
+			context.model.acceptResponseProgress(context.request, tool);
+			const editedRequest = context.viewModel.getItems().find(isRequestVM);
+			assert.ok(editedRequest);
+			context.viewModel.setEditing(editedRequest);
+			context.render();
+			await timeout(0);
+			const subagent = context.template.renderedParts?.find(part => part instanceof ChatSubagentContentPart);
+			assert.ok(subagent);
+			subagent.domNode.querySelector<HTMLElement>('.chat-used-context-label > .monaco-button')?.click();
+			await timeout(0);
+			const snapshot = () => ({
+				...countVisibleToolParts(context.template),
+				placeholder: !!context.template.value.querySelector('.chat-subagent-confirmation-placeholder'),
+				pending: context.carousel?.pendingCount ?? 0,
+			});
+			const whileEditing = snapshot();
+			context.viewModel.setEditing(undefined);
+			await timeout(0);
+
+			assert.deepStrictEqual({ whileEditing, afterCancellingEdit: snapshot() }, {
+				whileEditing: { toolParts: 0, confirmations: 0, placeholder: true, pending: 0 },
+				afterCancellingEdit: { toolParts: 0, confirmations: 0, placeholder: true, pending: 1 },
+			});
+		});
+
+		test('renders confirmations inline when the carousel is disabled', async () => {
+			const context = createConfirmationRenderer();
+			context.configurationService.setUserConfiguration(ChatConfiguration.ToolConfirmationCarousel, false);
+			context.setViewModel(context.viewModel);
+			context.model.acceptResponseProgress(context.request, createPendingTool('inline-check'));
+			context.render();
+			await timeout(0);
+
+			assert.deepStrictEqual({ ...countVisibleToolParts(context.template), pending: context.carousel?.pendingCount ?? 0 }, {
+				toolParts: 1, confirmations: 1, pending: 0,
+			});
+		});
+
+		test('keeps agent host MCP confirmations inline while the carousel is enabled', async () => {
+			const context = createConfirmationRenderer();
+			// Agent host protocol tools all carry an internal source; MCP calls are recognizable only by
+			// their `mcp__<server>__<tool>` id, like extension-hosted MCP tools are by their source.
+			const mcpTool = new ChatToolInvocation(
+				{ invocationMessage: 'Query the database', confirmationMessages: { title: 'Run the query?', message: new MarkdownString('Runs a read-only query.') } },
+				{ id: 'mcp__database__query', displayName: 'Query', modelDescription: 'Query', source: ToolDataSource.Internal },
+				'mcp-check', undefined, {},
+			);
+			context.model.acceptResponseProgress(context.request, mcpTool);
+			context.model.acceptResponseProgress(context.request, createPendingTool('carousel-check'));
+			context.render();
+			await timeout(0);
+
+			assert.deepStrictEqual({
+				...countVisibleToolParts(context.template),
+				pending: context.carousel?.pendingCount ?? 0,
+				carouselHostsMcp: context.carousel?.hasToolInvocation(mcpTool.toolCallId) ?? false,
+			}, { toolParts: 1, confirmations: 1, pending: 1, carouselHostsMcp: false });
 		});
 
 		test('respects read-only rendering and the carousel setting without approving hidden tools', () => {

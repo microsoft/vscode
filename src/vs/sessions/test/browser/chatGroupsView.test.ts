@@ -205,6 +205,7 @@ class TestAgentHostProvider extends mock<IAgentHostSessionsProvider>() {
 	reconnectNowCalls = 0;
 	connectGate: Promise<void> | undefined;
 	override connectionLabels: IAgentHostConnectionLabels | undefined;
+	override showConnectionLog: (() => Promise<void>) | undefined;
 
 	override async connect(): Promise<void> {
 		this.connectCalls++;
@@ -1188,6 +1189,7 @@ suite('Sessions - ChatGroupsView', () => {
 		assert.ok(status);
 		view.setSession(session, options);
 		const emptyTranscript = readRemoteHostUnavailableState(view);
+		const detailHidden = view.element.querySelector<HTMLElement>('.remote-host-unavailable-empty-state-detail')?.hidden;
 
 		const withTranscript = new TestActiveSession([createChat('existing')], undefined, true, provider.id, { kind: 'connecting' });
 		view.setSession(withTranscript, options);
@@ -1197,10 +1199,48 @@ suite('Sessions - ChatGroupsView', () => {
 			emptyTranscript: { visible: emptyTranscript.visible, title: emptyTranscript.title, progress: emptyTranscript.progress, action: emptyTranscript.action },
 			withTranscript: readBanner(view),
 			connectCalls: provider.connectCalls,
+			detailHidden,
 		}, {
 			emptyTranscript: { visible: true, title: 'Connecting to WSL: Ubuntu', progress: 'Waiting for agent host connection...', action: undefined },
 			withTranscript: { visible: true, message: 'Waiting for agent host connection...', action: undefined },
 			connectCalls: 0,
+			detailHidden: true,
+		});
+	});
+
+	test('offers the provider connection log while connecting and preserves its keyboard focus', () => {
+		const { sessionsProvidersService, view } = createHarness(disposables);
+		const provider = new TestAgentHostProvider();
+		let showLogCalls = 0;
+		provider.showConnectionLog = async () => { showLogCalls++; };
+		sessionsProvidersService.provider = provider;
+		const session = new TestActiveSession([createChat('main')], undefined, true, provider.id, { kind: 'connecting' });
+		const status = session.remoteConnectionStatus;
+		assert.ok(status);
+		view.setSession(session, options);
+		const detail = view.element.querySelector<HTMLElement>('.remote-host-unavailable-empty-state-detail');
+		const link = detail?.querySelector<HTMLAnchorElement>('a');
+		assert.ok(detail && link);
+		link.focus();
+		link.click();
+		link.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true }));
+		const connecting = { hidden: detail.hidden, label: link.textContent, role: link.getAttribute('role'), tabIndex: link.tabIndex };
+
+		status.set({ kind: 'connecting' }, undefined);
+		const retainedFocus = mainWindow.document.activeElement === link;
+		status.set({ kind: 'disconnected', reason: SessionRemoteConnectionFailureReason.Unknown }, undefined);
+		link.click();
+
+		assert.deepStrictEqual({
+			connecting,
+			retainedFocus,
+			hiddenAfterDisconnect: detail.hidden,
+			showLogCalls,
+		}, {
+			connecting: { hidden: false, label: 'Show Log', role: 'button', tabIndex: 0 },
+			retainedFocus: true,
+			hiddenAfterDisconnect: true,
+			showLogCalls: 2,
 		});
 	});
 

@@ -142,6 +142,36 @@ suite('ChatUrlFetchingPatterns', () => {
 			assert.strictEqual(isUrlApproved(url, approved, true), true);
 		});
 
+		test('path-scoped request and response approval uses the resolved destination', () => {
+			const paths = [
+				'/allowed/../outside',
+				'/allowed/%2e%2e/outside',
+				'/allowed/.\t./outside',
+				'/allowed/.\n./outside',
+				'/allowed/.\r./outside',
+				'/allowed/child/../page',
+			];
+			const approved = { 'https://example.com/allowed/*': { approveRequest: true, approveResponse: true } };
+
+			assert.deepStrictEqual(
+				paths.map(path => {
+					const url = URI.parse(`https://example.com${path}`);
+					return {
+						request: isUrlApproved(url, approved, true),
+						response: isUrlApproved(url, approved, false),
+					};
+				}),
+				[
+					{ request: false, response: false },
+					{ request: false, response: false },
+					{ request: false, response: false },
+					{ request: false, response: false },
+					{ request: false, response: false },
+					{ request: true, response: true },
+				]
+			);
+		});
+
 		test('granular settings - request approved', () => {
 			const url = URI.parse('https://example.com');
 			const approved: Record<string, IUrlApprovalSettings> = {
@@ -301,6 +331,22 @@ suite('ChatUrlFetchingPatterns', () => {
 			const approved = { 'https://other.com': true };
 			const pattern = getMatchingPattern(url, approved);
 			assert.strictEqual(pattern, undefined);
+		});
+
+		test('dot segments cannot select an approved path outside the resolved destination', () => {
+			const paths = [
+				'/allowed/../outside',
+				'/allowed/%2e%2e/outside',
+				'/allowed/.\t./outside',
+				'/allowed/.\n./outside',
+				'/allowed/.\r./outside',
+			];
+			const approved = { 'https://example.com/allowed/*': true };
+
+			assert.deepStrictEqual(
+				paths.map(path => getMatchingPattern(URI.parse(`https://example.com${path}`), approved)),
+				paths.map(() => undefined)
+			);
 		});
 
 		test('most specific match', () => {

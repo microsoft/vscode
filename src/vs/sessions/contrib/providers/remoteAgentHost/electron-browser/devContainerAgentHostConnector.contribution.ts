@@ -226,6 +226,22 @@ export class RemoteDevContainerService extends Disposable implements IDevContain
 	}
 }
 
+function getDevContainerOutputChannel(workspaceUri: URI): string {
+	const sha = new StringSHA1();
+	sha.update(getComparisonKey(workspaceUri));
+	const channelId = `devContainer.${sha.digest()}`;
+	const registry = Registry.as<IOutputChannelRegistry>(Extensions.OutputChannels);
+	if (!registry.getChannel(channelId)) {
+		registry.registerChannel({
+			id: channelId,
+			label: localize('devContainerOutputChannel', "Dev Container ({0})", basename(workspaceUri)),
+			log: false,
+			languageId: 'log',
+		});
+	}
+	return channelId;
+}
+
 class DevContainerOutputWriter extends Disposable {
 	private readonly _channelId: string;
 	private readonly _connectionIds = new Set<string>();
@@ -238,19 +254,7 @@ class DevContainerOutputWriter extends Disposable {
 	) {
 		super();
 		this._connectionIds.add(connectionId);
-		const sha = new StringSHA1();
-		sha.update(getComparisonKey(workspaceUri));
-		this._channelId = `devContainer.${sha.digest()}`;
-
-		const registry = Registry.as<IOutputChannelRegistry>(Extensions.OutputChannels);
-		if (!registry.getChannel(this._channelId)) {
-			registry.registerChannel({
-				id: this._channelId,
-				label: localize('devContainerOutputChannel', "Dev Container ({0})", basename(workspaceUri)),
-				log: false,
-				languageId: 'log',
-			});
-		}
+		this._channelId = getDevContainerOutputChannel(workspaceUri);
 
 		this._append(localize('devContainerOutputStarting', "\n--- Starting Dev Container for {0} ---\n", workspaceUri.fsPath));
 		this._register(mainService.onDidOutput(output => {
@@ -308,6 +312,10 @@ export class DevContainerAgentHostConnector implements IDevContainerAgentHostCon
 
 	getEnvironment(workspaceUris: readonly URI[]): Promise<DevContainerEnvironment> {
 		return getDevContainerEnvironment(workspaceUris, this._fileService, this._mainService);
+	}
+
+	showLog(workspaceUri: URI): Promise<void> {
+		return this._outputService.showChannel(getDevContainerOutputChannel(workspaceUri), true);
 	}
 
 	async createConnection(workspaceUri: URI, address: string, token: CancellationToken): Promise<IDevContainerAgentHostConnection> {

@@ -26,7 +26,7 @@ import { MockKeybindingService } from '../../../../../platform/keybinding/test/c
 import { TestStorageService } from '../../../../../workbench/test/common/workbenchTestServices.js';
 import { IsSessionsWindowContext } from '../../../../../workbench/common/contextkeys.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
-import { Menus } from '../../../../browser/menus.js';
+import { getNewSessionRepositoryConfigGroup, Menus } from '../../../../browser/menus.js';
 import { SessionIdContext } from '../../../../common/contextkeys.js';
 import { ISessionContext, SessionContext } from '../../../../services/sessions/browser/sessionContext.js';
 import { ISessionsPartService } from '../../../../services/sessions/browser/sessionsPartService.js';
@@ -42,10 +42,11 @@ suite('Session Sync Changes', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	const commandId = 'workbench.action.sessions.syncChanges';
 
-	function createWorkspace(incomingChanges?: number, outgoingChanges?: number, upstreamBranchName = 'origin/main'): ISessionWorkspace {
+	function createWorkspace(incomingChanges?: number, outgoingChanges?: number, upstreamBranchName = 'origin/main', options?: { readonly workTreeUri?: URI; readonly isVirtualWorkspace?: boolean }): ISessionWorkspace {
 		return upcastPartial<ISessionWorkspace>({
+			isVirtualWorkspace: options?.isVirtualWorkspace,
 			folders: [upcastPartial<ISessionFolder>({
-				gitRepository: upcastPartial<ISessionGitRepository>({ incomingChanges, outgoingChanges, upstreamBranchName }),
+				gitRepository: upcastPartial<ISessionGitRepository>({ incomingChanges, outgoingChanges, upstreamBranchName, workTreeUri: options?.workTreeUri }),
 			})],
 		});
 	}
@@ -72,13 +73,15 @@ suite('Session Sync Changes', () => {
 		});
 		const changesets = observableValue<readonly ISessionChangeset[] | undefined>('changesets', [changeset]);
 		const workspace = observableValue<ISessionWorkspace | undefined>('workspace', createWorkspace(0, 2));
+		const worktreePending = observableValue('worktreePending', false);
 		const session = upcastPartial<IActiveSession>({
 			sessionId: id,
 			resource: URI.parse(`test-session:/${id}`),
 			changesets,
 			workspace,
+			worktreePending,
 		});
-		return { session, operation, operations, enabled, changeset, changesets, invocations, workspace };
+		return { session, operation, operations, enabled, changeset, changesets, invocations, workspace, worktreePending };
 	}
 
 	function setup(sessions: readonly IActiveSession[]) {
@@ -131,7 +134,7 @@ suite('Session Sync Changes', () => {
 			second: getVisibleEntries(second.session).length,
 			aiDisabled: getVisibleEntries(first.session, false).length,
 		}, {
-			first: [{ id: commandId, group: 'navigation', order: Number.MAX_SAFE_INTEGER }],
+			first: [{ id: commandId, group: getNewSessionRepositoryConfigGroup(Number.MAX_SAFE_INTEGER, commandId), order: Number.MAX_SAFE_INTEGER }],
 			second: 0,
 			aiDisabled: 0,
 		});
@@ -150,6 +153,24 @@ suite('Session Sync Changes', () => {
 		counts.push(getEntries().length);
 
 		assert.deepStrictEqual(counts, [0, 0, 1, 0]);
+	});
+
+	test('only contributes a sync action for folder sessions', () => {
+		const data = createSession('first');
+		setup([data.session]);
+		const counts = [getEntries().length];
+		data.worktreePending.set(true, undefined);
+		counts.push(getEntries().length);
+		data.worktreePending.set(false, undefined);
+		counts.push(getEntries().length);
+		data.workspace.set(createWorkspace(0, 2, 'origin/main', { workTreeUri: URI.file('/worktrees/first') }), undefined);
+		counts.push(getEntries().length);
+		data.workspace.set(createWorkspace(0, 2, 'origin/main', { isVirtualWorkspace: true }), undefined);
+		counts.push(getEntries().length);
+		data.workspace.set(createWorkspace(0, 2), undefined);
+		counts.push(getEntries().length);
+
+		assert.deepStrictEqual(counts, [1, 0, 1, 0, 0, 1]);
 	});
 
 	test('disabled sync icon matches the count label color in every theme', () => {
@@ -302,6 +323,14 @@ suite('Session Sync Changes', () => {
 		data.enabled.set(false, undefined);
 		await assert.rejects(invoke(), /no longer available/);
 		data.enabled.set(true, undefined);
+		data.worktreePending.set(true, undefined);
+		await assert.rejects(invoke(), /no longer available/);
+		data.worktreePending.set(false, undefined);
+		data.workspace.set(createWorkspace(0, 2, 'origin/main', { workTreeUri: URI.file('/worktrees/first') }), undefined);
+		await assert.rejects(invoke(), /no longer available/);
+		data.workspace.set(createWorkspace(0, 2, 'origin/main', { isVirtualWorkspace: true }), undefined);
+		await assert.rejects(invoke(), /no longer available/);
+		data.workspace.set(createWorkspace(0, 2), undefined);
 		activeSession.set(undefined, undefined);
 		await assert.rejects(invoke(), /no longer available/);
 		assert.deepStrictEqual(data.invocations, []);
@@ -466,7 +495,7 @@ suite('Session Sync Changes', () => {
 		]);
 	});
 
-	test('returns keyboard focus to the input when the focused action is removed', () => {
+	function assertFocusReturnsWhenActionIsRemoved(removeAction: (data: ReturnType<typeof createSession>) => void): void {
 		const data = createSession('first');
 		const action = store.add(new Action(commandId, 'Sync Changes'));
 		const widget = document.createElement('div');
@@ -487,9 +516,17 @@ suite('Session Sync Changes', () => {
 		store.add(toDisposable(() => widget.remove()));
 		item.render(container);
 		item.focus();
-		data.operations.set([], undefined);
+		removeAction(data);
 		item.dispose();
 
 		assert.deepStrictEqual({ inputFocused: document.activeElement === input, focusedSessions }, { inputFocused: true, focusedSessions: [data.session] });
+	}
+
+	test('returns keyboard focus to the input when the focused action is removed', () => {
+		assertFocusReturnsWhenActionIsRemoved(data => data.operations.set([], undefined));
+	});
+
+	test('returns keyboard focus to the input when the focused action no longer applies', () => {
+		assertFocusReturnsWhenActionIsRemoved(data => data.worktreePending.set(true, undefined));
 	});
 });

@@ -43,7 +43,7 @@ import { IWorkspaceEditingService } from '../../../../../services/workspaces/com
 import { InMemoryTestFileService, mock, TestChatEntitlementService, TestContextService, TestExtensionService, TestStorageService } from '../../../../../test/common/workbenchTestServices.js';
 import { IMcpService } from '../../../../mcp/common/mcpTypes.js';
 import { TestMcpService } from '../../../../mcp/test/common/testMcpService.js';
-import { IChatRequestVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
+import { ChatPasteAttachmentMetadata, IChatRequestVariableEntry, toPasteVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
 import { IChatVariablesService } from '../../../common/attachments/chatVariables.js';
 import { getCustomizationMigrationHintDismissedStorageKey } from '../../../common/aiCustomizationWorkspaceService.js';
 import { IChatDebugService } from '../../../common/chatDebugService.js';
@@ -63,6 +63,7 @@ import { ChatAgentService, IChatAgent, IChatAgentData, IChatAgentImplementation,
 import { ChatSlashCommandService, IChatSlashCommandService } from '../../../common/participants/chatSlashCommands.js';
 import { IConfiguredHooksInfo, IPromptsService } from '../../../common/promptSyntax/service/promptsService.js';
 import { CustomizationMigrationHintTarget, CustomizationMigrationType, ICustomizationMigrationService } from '../../../common/promptSyntax/service/customizationMigrationService.js';
+import { ICustomizationMigrationTelemetryService } from '../../../common/promptSyntax/service/customizationMigrationTelemetryService.js';
 import { ILanguageModelToolsService } from '../../../common/tools/languageModelToolsService.js';
 import { MockChatVariablesService } from '../mockChatVariables.js';
 import { MockPromptsService } from '../promptSyntax/service/mockPromptsService.js';
@@ -188,6 +189,7 @@ suite('ChatService', () => {
 			[IMcpService, new TestMcpService()],
 			[IPromptsService, new MockPromptsService()],
 			[ICustomizationMigrationService, mockObject<ICustomizationMigrationService>()({ _serviceBrand: undefined })],
+			[ICustomizationMigrationTelemetryService, mockObject<ICustomizationMigrationTelemetryService>()({ _serviceBrand: undefined })],
 			[ILanguageModelToolsService, testDisposables.add(new MockLanguageModelToolsService())]
 		)));
 		instantiationService.stub(IStorageService, testDisposables.add(new TestStorageService()));
@@ -265,6 +267,92 @@ suite('ChatService', () => {
 		});
 
 		assert.strictEqual(await captured.p, true);
+	});
+
+	test('acceptance counts submissions once, not rejections, system messages, retries or queue drains', async () => {
+		const service = createChatService();
+		const model = startSessionModel(service).object;
+		const accepted: boolean[] = [];
+		testDisposables.add(service.onDidAcceptRequest(event => accepted.push(event.isNewSession)));
+		await service.sendRequest(model.sessionResource, '');
+		const first = await service.sendRequest(model.sessionResource, 'first');
+		ChatSendResult.assertSent(first);
+		await first.data.responseCompletePromise;
+		await service.resendRequest(model.getRequests()[0]);
+		const system = await service.sendRequest(model.sessionResource, 'system', { isSystemInitiated: true });
+		ChatSendResult.assertSent(system);
+		await system.data.responseCompletePromise;
+		await service.sendRequest(model.sessionResource, 'queued', { queue: ChatRequestQueueKind.Queued, pauseQueue: true });
+		await service.sendRequest(model.sessionResource, 'steering', { queue: ChatRequestQueueKind.Steering, pauseQueue: true });
+		service.processPendingRequests(model.sessionResource);
+		await timeout(10);
+		assert.deepStrictEqual(accepted, [true, false, false]);
+	});
+
+	test('only the first accepted message starts a session even when queued or removed', async () => {
+		const service = createChatService();
+		const model = startSessionModel(service).object;
+		const accepted: boolean[] = [];
+		testDisposables.add(service.onDidAcceptRequest(event => accepted.push(event.isNewSession)));
+		await service.sendRequest(model.sessionResource, 'queued first', { queue: ChatRequestQueueKind.Queued, pauseQueue: true });
+		const pending = model.getPendingRequests()[0];
+		service.removePendingRequest(model.sessionResource, pending.request.id);
+		await service.sendRequest(model.sessionResource, 'replacement', { queue: ChatRequestQueueKind.Queued, pauseQueue: true });
+		assert.deepStrictEqual(accepted, [true, false]);
+	});
+
+	for (const excludedKind of ['system', 'hidden'] as const) {
+		for (const historyState of ['completed', 'queued', 'restored'] as const) {
+			test(`first eligible user submission starts a session after a ${historyState} ${excludedKind} request`, async () => {
+				let service = createChatService();
+				let model = startSessionModel(service).object;
+				const accepted: boolean[] = [];
+				testDisposables.add(service.onDidAcceptRequest(event => accepted.push(event.isNewSession)));
+				const result = await service.sendRequest(model.sessionResource, 'excluded request', {
+					isSystemInitiated: excludedKind === 'system',
+					hideFromTranscript: excludedKind === 'hidden',
+					queue: historyState === 'queued' ? ChatRequestQueueKind.Queued : undefined,
+					pauseQueue: true,
+				});
+				if (historyState === 'queued') {
+					assert.ok(ChatSendResult.isQueued(result));
+				} else {
+					ChatSendResult.assertSent(result);
+					await result.data.responseCompletePromise;
+				}
+				if (historyState === 'restored') {
+					const data: ISerializableChatData = JSON.parse(JSON.stringify(model));
+					service = createChatService();
+					model = testDisposables.add(service.loadSessionFromData(data)).object;
+					assert.strictEqual(model.getRequests().length, 1);
+					testDisposables.add(service.onDidAcceptRequest(event => accepted.push(event.isNewSession)));
+				}
+				for (const message of ['first user request', 'follow-up']) {
+					const queued = await service.sendRequest(model.sessionResource, message, { queue: ChatRequestQueueKind.Queued, pauseQueue: true });
+					assert.ok(ChatSendResult.isQueued(queued));
+				}
+				assert.deepStrictEqual(accepted, [true, false]);
+			});
+		}
+	}
+
+	test('restored visible user history is not counted as a new session', async () => {
+		const original = createChatService();
+		const originalModel = startSessionModel(original).object;
+		const first = await original.sendRequest(originalModel.sessionResource, 'first user request');
+		ChatSendResult.assertSent(first);
+		await first.data.responseCompletePromise;
+
+		const restored = createChatService();
+		const data: ISerializableChatData = JSON.parse(JSON.stringify(originalModel));
+		const model = testDisposables.add(restored.loadSessionFromData(data)).object;
+		assert.strictEqual(model.getRequests().length, 1);
+		const accepted: boolean[] = [];
+		testDisposables.add(restored.onDidAcceptRequest(event => accepted.push(event.isNewSession)));
+		const followUp = await restored.sendRequest(model.sessionResource, 'follow-up');
+		ChatSendResult.assertSent(followUp);
+		await followUp.data.responseCompletePromise;
+		assert.deepStrictEqual(accepted, [false]);
 	});
 
 	test('retains submitted model configuration for sent, queued and steering requests', async () => {
@@ -488,6 +576,20 @@ suite('ChatService', () => {
 		assert.strictEqual(model.getRequests().length, 1);
 		assert.strictEqual(model.getRequests()[0].message.text, '');
 		assert.deepStrictEqual(model.getRequests()[0].variableData.variables, [fileEntry]);
+	});
+
+	test('sendRequest allows empty message with a handed-off explicit file snapshot', async () => {
+		const testService = createChatService();
+		const model = testDisposables.add(startSessionModel(testService)).object;
+		const attachment = toPasteVariableEntry('Unsaved file', 'Current draft contents', {
+			_meta: { [ChatPasteAttachmentMetadata.FileSnapshot]: true },
+		});
+		const response = await testService.sendRequest(model.sessionResource, '', { attachedContext: [attachment] });
+		ChatSendResult.assertSent(response);
+		await response.data.responseCompletePromise;
+		assert.deepStrictEqual(model.getRequests().map(request => ({
+			text: request.message.text, attachments: request.variableData.variables,
+		})), [{ text: '', attachments: [attachment] }]);
 	});
 
 	test('sendRequest rejects empty message without explicit file attachment', async () => {
@@ -1945,7 +2047,11 @@ suite('ChatService', () => {
 			instantiationService.stub(IChatSessionsService, mockSessionsService);
 
 			const remoteAgent: IChatAgentImplementation = { invoke: opts.invoke ?? (async () => ({})) };
-			testDisposables.add(chatAgentService.registerAgent(remoteScheme, { ...getAgentData(remoteScheme), isDefault: true }));
+			testDisposables.add(chatAgentService.registerAgent(remoteScheme, {
+				...getAgentData(remoteScheme),
+				isDefault: true,
+				modes: [ChatModeKind.Ask, ChatModeKind.Agent],
+			}));
 			testDisposables.add(chatAgentService.registerAgentImplementation(remoteScheme, remoteAgent));
 
 			const service = createChatService();
@@ -1957,8 +2063,108 @@ suite('ChatService', () => {
 			return { resource, label: 'Test Session', timing: { created: Date.now(), lastRequestStarted: undefined, lastRequestEnded: undefined } };
 		}
 
+		function builtinModeInfo(kind: ChatModeKind.Ask | ChatModeKind.Agent) {
+			return {
+				kind,
+				isBuiltin: true,
+				modeInstructions: undefined,
+				telemetryModeId: kind,
+				applyCodeBlockSuggestionId: undefined,
+			} as const;
+		}
+
+		test('carries the selected mode from the untitled session to the materialized session', async () => {
+			const realResource = URI.from({ scheme: remoteScheme, path: '/real-mode' });
+			const selectedMode = { id: 'file:///workspace/data.agent.md', kind: ChatModeKind.Agent };
+			const { service, untitledResource } = setupUntitledRemote({
+				createItem: async () => realItem(realResource),
+			});
+			const untitledRef = (await service.acquireOrLoadSession(untitledResource, ChatAgentLocation.Chat, CancellationToken.None))!;
+			testDisposables.add(untitledRef);
+			untitledRef.object.inputModel.setState({ mode: { id: ChatModeKind.Agent, kind: ChatModeKind.Agent } });
+			const result = await service.sendRequest(untitledResource, 'hello', {
+				agentId: remoteScheme,
+				modeInfo: {
+					kind: selectedMode.kind,
+					isBuiltin: false,
+					modeInstructions: {
+						uri: URI.parse(selectedMode.id),
+						name: 'Data',
+						content: '',
+						toolReferences: [],
+					},
+					telemetryModeId: 'custom',
+					applyCodeBlockSuggestionId: undefined,
+				},
+			});
+			ChatSendResult.assertSent(result);
+			await result.data.responseCompletePromise;
+
+			assert.deepStrictEqual((service.getSession(realResource) as ChatModel).inputModel.state.get()?.mode, selectedMode);
+		});
+
+		test('carries the untitled mode when the materialized request is queued', async () => {
+			const realResource = URI.from({ scheme: remoteScheme, path: '/real-queued-mode' });
+			const selectedMode = { id: 'file:///workspace/data.agent.md', kind: ChatModeKind.Agent };
+			const { service, untitledResource } = setupUntitledRemote({
+				createItem: async () => realItem(realResource),
+			});
+			const untitledRef = (await service.acquireOrLoadSession(untitledResource, ChatAgentLocation.Chat, CancellationToken.None))!;
+			testDisposables.add(untitledRef);
+			untitledRef.object.inputModel.setState({ mode: selectedMode });
+
+			const result = await service.sendRequest(untitledResource, 'hello', {
+				agentId: remoteScheme,
+				queue: ChatRequestQueueKind.Queued,
+				pauseQueue: true,
+			});
+			const realModel = service.getSession(realResource) as ChatModel;
+
+			assert.deepStrictEqual({
+				resultKind: result.kind,
+				mode: realModel.inputModel.state.get()?.mode,
+				pendingRequestCount: realModel.getPendingRequests().length,
+			}, {
+				resultKind: 'queued',
+				mode: selectedMode,
+				pendingRequestCount: 1,
+			});
+		});
+
+		test('does not carry the mode when a queued late send fails to enqueue', async () => {
+			const realResource = URI.from({ scheme: remoteScheme, path: '/real-rejected-queued-mode' });
+			const askMode = builtinModeInfo(ChatModeKind.Ask);
+			const agentMode = builtinModeInfo(ChatModeKind.Agent);
+			const { service, untitledResource } = setupUntitledRemote({
+				createItem: async () => realItem(realResource),
+			});
+			testDisposables.add((await service.acquireOrLoadSession(untitledResource, ChatAgentLocation.Chat, CancellationToken.None))!);
+
+			const first = await service.sendRequest(untitledResource, 'first', { agentId: remoteScheme, modeInfo: askMode });
+			ChatSendResult.assertSent(first);
+			await first.data.responseCompletePromise;
+			const realModel = service.getSession(realResource) as ChatModel;
+
+			await assert.rejects(service.sendRequest(untitledResource, 'second', {
+				agentId: 'missingQueuedAgent',
+				modeInfo: agentMode,
+				queue: ChatRequestQueueKind.Queued,
+				pauseQueue: true,
+			}), /Unknown agent/);
+
+			assert.deepStrictEqual({
+				mode: realModel.inputModel.state.get()?.mode,
+				pendingRequestCount: realModel.getPendingRequests().length,
+			}, {
+				mode: { id: askMode.kind, kind: askMode.kind },
+				pendingRequestCount: 0,
+			});
+		});
+
 		test('two concurrent sends create a single real session and reject the duplicate', async () => {
 			const realResource = URI.from({ scheme: remoteScheme, path: '/real-concurrent' });
+			const askMode = builtinModeInfo(ChatModeKind.Ask);
+			const agentMode = builtinModeInfo(ChatModeKind.Agent);
 			let createCount = 0;
 			// Keep the agent turn pending so the first send's request stays in
 			// `_pendingRequests`, making the converged second send's rejection
@@ -1972,13 +2178,18 @@ suite('ChatService', () => {
 
 			// Fire two sends on the same untitled resource without awaiting between
 			// them, so both reach the materialization path concurrently.
-			const p1 = service.sendRequest(untitledResource, 'hello', { agentId: remoteScheme });
-			const p2 = service.sendRequest(untitledResource, 'hello', { agentId: remoteScheme });
+			const p1 = service.sendRequest(untitledResource, 'hello', { agentId: remoteScheme, modeInfo: askMode });
+			const p2 = service.sendRequest(untitledResource, 'hello', { agentId: remoteScheme, modeInfo: agentMode });
 			const [r1, r2] = await Promise.all([p1, p2]);
+			const acceptedMode = ChatSendResult.isSent(r1) ? askMode : agentMode;
 
 			assert.strictEqual(createCount, 1, 'createNewChatSessionItem must run exactly once');
 			assert.deepStrictEqual([r1.kind, r2.kind].sort(), ['rejected', 'sent'], 'one send is accepted, the duplicate is rejected');
 			assert.ok(service.getSession(realResource), 'exactly one real session is materialized');
+			assert.deepStrictEqual((service.getSession(realResource) as ChatModel).inputModel.state.get()?.mode, {
+				id: acceptedMode.kind,
+				kind: acceptedMode.kind,
+			});
 			assert.deepStrictEqual(service.getPendingRequestSessionTypes(), [remoteScheme]);
 
 			agentGate.complete();
@@ -2040,13 +2251,15 @@ suite('ChatService', () => {
 
 		test('a late send still addressed to the untitled resource re-targets the real session', async () => {
 			const realResource = URI.from({ scheme: remoteScheme, path: '/real-late' });
+			const askMode = builtinModeInfo(ChatModeKind.Ask);
+			const agentMode = builtinModeInfo(ChatModeKind.Agent);
 			let createCount = 0;
 			const { service, untitledResource } = setupUntitledRemote({
 				createItem: async () => { createCount++; return realItem(realResource); },
 			});
 			testDisposables.add((await service.acquireOrLoadSession(untitledResource, ChatAgentLocation.Chat, CancellationToken.None))!);
 
-			const r1 = await service.sendRequest(untitledResource, 'first', { agentId: remoteScheme });
+			const r1 = await service.sendRequest(untitledResource, 'first', { agentId: remoteScheme, modeInfo: askMode });
 			ChatSendResult.assertSent(r1);
 			await r1.data.responseCompletePromise;
 
@@ -2058,13 +2271,14 @@ suite('ChatService', () => {
 			// swapped to the real resource) must NOT materialize a second session,
 			// and must report the real resource as the new session so the caller
 			// swaps its UI to the real session (mirroring the first send).
-			const r2 = await service.sendRequest(untitledResource, 'second', { agentId: remoteScheme });
+			const r2 = await service.sendRequest(untitledResource, 'second', { agentId: remoteScheme, modeInfo: agentMode });
 			ChatSendResult.assertSent(r2);
 			await r2.data.responseCompletePromise;
 
 			assert.strictEqual(createCount, 1, 'no second materialization for a stale untitled send');
 			assert.strictEqual(r2.newSessionResource?.toString(), realResource.toString(), 'late re-target reports the real resource as the new session');
 			assert.strictEqual(realModel.getRequests().length, requestsAfterFirst + 1, 'second request is routed to the real session');
+			assert.deepStrictEqual(realModel.inputModel.state.get()?.mode, { id: agentMode.kind, kind: agentMode.kind });
 		});
 
 		test('a late send to a read-only materialized session reports the real resource', async () => {
@@ -2224,17 +2438,18 @@ suite('ChatService', () => {
 			counts: [{ type: CustomizationMigrationType.PromptFiles, count: 3 }],
 		};
 		migrationService.computeMigrationHint.resolves(migrationHint);
-		const migrationTelemetry: { readonly category: string; readonly count: number }[] = [];
-		instantiationService.stub(ITelemetryService, {
-			...NullTelemetryService,
-			publicLog2(eventName: string, data: Record<string, unknown> | undefined): void {
-				if (eventName === 'chat.customizationMigrationAssessment' && data) {
-					migrationTelemetry.push({
-						category: String(data.category),
-						count: Number(data.count),
-					});
-				}
-			}
+		const migrationTelemetry: Record<string, unknown>[] = [];
+		instantiationService.stub(ICustomizationMigrationTelemetryService, {
+			_serviceBrand: undefined,
+			hintComputed(counts): void {
+				migrationTelemetry.push(...counts.map(({ type, count }) => ({ action: 'assessment', category: type, count })));
+			},
+			hintShown(target): void { migrationTelemetry.push({ action: 'hintShown', target }); },
+			hintClicked(): void { },
+			pageShown(): void { },
+			actionClicked(): void { },
+			migrationClicked(): void { },
+			migrationCompleted(): void { },
 		});
 
 		const mockSessionsService = new MockChatSessionsService();
@@ -2310,8 +2525,9 @@ suite('ChatService', () => {
 		const dismissedSessionHint = ((testService.getSession(dismissedSessionResource) as ChatModel).getRequests()[0].response?.response.value ?? [])
 			.filter(part => part.kind === 'systemNotification')
 			.map(part => part.content.value);
-		const expectedReviewLink = `[Review customizations](command:aiCustomization.openManagementEditor?%255B%257B%2522migration%2522%253Atrue%257D%255D "Open Chat Customizations")`;
-		const expectedHint = `*Found 3 customization files that could be migrated. ${expectedReviewLink} | [Hide for this workspace](command:aiCustomization.dismissMigrationHint "Stop Showing Migration Hints for This Harness")*`;
+		const expectedReviewLink = `[Review customizations](command:aiCustomization.openManagementEditor?%255B%257B%2522migration%2522%253Atrue%252C%2522migrationHintTarget%2522%253A%2522fileMigrations%2522%257D%255D "Open Chat Customizations")`;
+		const expectedDismissLink = `[Hide for this workspace](command:aiCustomization.dismissMigrationHint?%255B%257B%2522target%2522%253A%2522fileMigrations%2522%257D%255D "Stop Showing Migration Hints for This Harness")`;
+		const expectedHint = `*Found 3 customization files that could be migrated. ${expectedReviewLink} | ${expectedDismissLink}*`;
 		assert.deepStrictEqual({
 			computeCalls: migrationService.computeMigrationHint.callCount,
 			computedFor: migrationService.computeMigrationHint.firstCall.args[0].toString(),
@@ -2327,9 +2543,12 @@ suite('ChatService', () => {
 			computeCalls: 3,
 			computedFor: sessionResource.toString(),
 			migrationTelemetry: [
-				{ category: 'promptFiles', count: 3 },
-				{ category: 'promptFiles', count: 3 },
-				{ category: 'promptFiles', count: 3 },
+				{ action: 'assessment', category: 'promptFiles', count: 3 },
+				{ action: 'hintShown', target: 'fileMigrations' },
+				{ action: 'assessment', category: 'promptFiles', count: 3 },
+				{ action: 'hintShown', target: 'fileMigrations' },
+				{ action: 'assessment', category: 'promptFiles', count: 3 },
+				{ action: 'hintShown', target: 'fileMigrations' },
 			],
 			neverHint: [],
 			firstHint: [expectedHint],

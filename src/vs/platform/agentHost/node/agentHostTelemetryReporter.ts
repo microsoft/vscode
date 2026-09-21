@@ -18,9 +18,10 @@ import { MessageKind, type ErrorInfo, type Message, type SessionInputRequestKind
 import { ActionType } from '../common/state/sessionActions.js';
 import { isAhpChatChannel, isSubagentChatUri, isSubagentSession, parseRequiredSessionUriFromChatUri, type ISessionWithDefaultChat } from '../common/state/sessionState.js';
 import type { ToolInvokedResult } from './agentHostToolCallTracker.js';
+import type { AutomaticTitleGenerationStrategy } from './agentHostSessionTitleController.js';
 import { multiplexProperties, type IAgentHostRestrictedTelemetry, type IAgentHostRestrictedTelemetryContext } from './agentHostRestrictedTelemetry.js';
 import { AgentHostClientType } from '../common/agentHostClientInfo.js';
-import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportKind, type AgentHostTurnFailureStage, type IAgentHostClientTelemetryContext } from '../common/agentHostTelemetry.js';
+import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportKind, type AgentHostTurnFailureStage, type AgentHostTurnSendStage, type IAgentHostClientTelemetryContext } from '../common/agentHostTelemetry.js';
 
 export type AgentHostUserMessageSentSource = 'direct' | 'queued';
 
@@ -199,7 +200,7 @@ export interface IAgentHostClientConnectionReport {
 export type AgentHostTurnResult = 'success' | 'error' | 'cancelled';
 export type AgentHostModelTelemetryKind = 'trusted' | 'byok' | 'unknown';
 type AgentHostModelSelectionKind = 'default' | 'auto' | 'explicit';
-export type { AgentHostTurnFailureStage };
+export type { AgentHostTurnFailureStage, AgentHostTurnSendStage };
 export type AgentHostInitiatorClientConnectionState = 'connected' | 'disconnected' | 'unknown';
 export type AgentHostProviderDiagnosticState = 'available' | 'error' | 'missingChat' | 'missingTurn' | 'unavailable' | 'unsupported';
 
@@ -208,6 +209,9 @@ interface IAgentHostTurnAttributedReport {
 }
 
 export interface IAgentHostTurnCompletedEvent extends IAgentHostEventTelemetry {
+	hostRootTurnOrdinal?: number;
+	hostProcessAgeMs?: number;
+	titleGenerationStrategy?: AutomaticTitleGenerationStrategy;
 	provider: string;
 	agentSessionId: string;
 	chatSessionId: string;
@@ -217,8 +221,15 @@ export interface IAgentHostTurnCompletedEvent extends IAgentHostEventTelemetry {
 	parentToolCallId: string | undefined;
 	subagentTaskModelSource: AgentSubagentTaskModelSource | undefined;
 	timeToFirstProgress: number | undefined;
+	timeToFirstSubstantiveProgress: number | undefined;
 	timeToFirstEdit: number | undefined;
 	timeToFirstEditClassifierVersion: number | undefined;
+	sendStageWorkingDirectoryMs: number | undefined;
+	sendStageModelSelectionMs: number | undefined;
+	sendStageAttachmentsMs: number | undefined;
+	sendStageContributionsMs: number | undefined;
+	sendStageCheckpointMs: number | undefined;
+	timeToProviderDispatch: number | undefined;
 	totalTime: number;
 	result: AgentHostTurnResult;
 	model: string | TelemetryTrustedValue<string> | undefined;
@@ -240,6 +251,9 @@ export interface IAgentHostTurnCompletedEvent extends IAgentHostEventTelemetry {
 }
 
 export type IAgentHostTurnCompletedClassification = IAgentHostEventClassification & {
+	hostRootTurnOrdinal?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'One-based root-turn ordinal over the agent host process lifetime, captured at turn start and excluding subagent turns.' };
+	hostProcessAgeMs?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Agent host process age in milliseconds captured at root turn start, not completion.' };
+	titleGenerationStrategy?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The effective persisted automatic title generation strategy captured before sending the root turn: activeAgent, utility, or deferred.' };
 	provider: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The provider handling the agent host session.' };
 	agentSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The agent host session identifier.' };
 	chatSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The chat identifier within the agent host session.' };
@@ -249,8 +263,15 @@ export type IAgentHostTurnCompletedClassification = IAgentHostEventClassificatio
 	parentToolCallId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The identifier of the tool call that spawned the subagent owning this turn; stable across resumed turns of the same subagent.' };
 	subagentTaskModelSource: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Where the model input for a task-tool subagent came from: the parent agent\'s task argument, the per-subagent settings entry, the custom agent definition, or unset.' };
 	timeToFirstProgress: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Time in milliseconds from turn start to the first visible progress (text delta, response part, tool call start, or reasoning).' };
+	timeToFirstSubstantiveProgress: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Time in milliseconds from turn start to the first visible progress that advances the user request, excluding host bookkeeping such as the chat rename tool call.' };
 	timeToFirstEdit: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Cumulative provider-dispatch time in milliseconds through the first accepted response that requests a built-in file edit. Excludes prompt construction, retry backoff, tool execution, confirmations, and post-response processing.' };
 	timeToFirstEditClassifierVersion: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Version of the built-in file-edit request classifier used for timeToFirstEdit.' };
+	sendStageWorkingDirectoryMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Time in milliseconds the host spent resolving the working directory before dispatching the turn, including first-send worktree creation.' };
+	sendStageModelSelectionMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Time in milliseconds the host spent applying the model and agent selection on the provider before dispatching the turn.' };
+	sendStageAttachmentsMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Time in milliseconds the host spent resolving chat attachments before dispatching the turn.' };
+	sendStageContributionsMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Time in milliseconds the host spent running outgoing-turn chat contributions before dispatching the turn.' };
+	sendStageCheckpointMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Time in milliseconds the host spent still waiting on the turn-start checkpoint before dispatching the turn, after it overlapped the earlier pre-send stages.' };
+	timeToProviderDispatch: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Time in milliseconds from turn start until the message was handed to the provider, covering all host pre-send stages.' };
 	totalTime: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Total time in milliseconds from turn start to turn completion.' };
 	result: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the turn completed successfully, with an error, or was cancelled.' };
 	model: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The trusted provider model identifier selected at turn start, or a generic value for BYOK and unknown models.' };
@@ -318,6 +339,9 @@ export interface IAgentHostTurnFailure {
 }
 
 export interface IAgentHostTurnCompletedReport extends IAgentHostTurnAttributedReport {
+	hostRootTurnOrdinal?: number;
+	hostProcessAgeMs?: number;
+	titleGenerationStrategy?: AutomaticTitleGenerationStrategy;
 	provider: string;
 	session: string;
 	turnId: string;
@@ -325,8 +349,13 @@ export interface IAgentHostTurnCompletedReport extends IAgentHostTurnAttributedR
 	parentToolCallId: string | undefined;
 	subagentTaskModelSource: AgentSubagentTaskModelSource | undefined;
 	timeToFirstProgress: number | undefined;
+	timeToFirstSubstantiveProgress: number | undefined;
 	timeToFirstEditMs: number | undefined;
 	timeToFirstEditClassifierVersion: number | undefined;
+	/** Elapsed time of each host pre-send stage that ran, in milliseconds. */
+	sendStageDurationsMs?: ReadonlyMap<AgentHostTurnSendStage, number>;
+	/** Elapsed time from turn start to provider dispatch, in milliseconds. */
+	sendDispatchedMs?: number;
 	totalTime: number;
 	result: AgentHostTurnResult;
 	model: string | undefined;
@@ -1327,6 +1356,9 @@ export class AgentHostTelemetryReporter {
 		const model = toTelemetryModel(report.model, report.modelTelemetryKind);
 		this._telemetryService.publicLog2<IAgentHostTurnCompletedEvent, IAgentHostTurnCompletedClassification>('agentHost.turnCompleted', {
 			...toInitiatorTelemetry(report.clientContext),
+			...(report.hostRootTurnOrdinal !== undefined ? { hostRootTurnOrdinal: report.hostRootTurnOrdinal } : {}),
+			...(report.hostProcessAgeMs !== undefined ? { hostProcessAgeMs: report.hostProcessAgeMs } : {}),
+			...(report.titleGenerationStrategy !== undefined ? { titleGenerationStrategy: report.titleGenerationStrategy } : {}),
 			provider: report.provider,
 			agentSessionId: AgentSession.id(session),
 			chatSessionId,
@@ -1336,8 +1368,15 @@ export class AgentHostTelemetryReporter {
 			parentToolCallId: report.parentToolCallId,
 			subagentTaskModelSource: report.subagentTaskModelSource,
 			timeToFirstProgress: report.timeToFirstProgress,
+			timeToFirstSubstantiveProgress: report.timeToFirstSubstantiveProgress,
 			timeToFirstEdit: report.timeToFirstEditMs,
 			timeToFirstEditClassifierVersion: report.timeToFirstEditClassifierVersion,
+			sendStageWorkingDirectoryMs: report.sendStageDurationsMs?.get('workingDirectory'),
+			sendStageModelSelectionMs: report.sendStageDurationsMs?.get('modelSelection'),
+			sendStageAttachmentsMs: report.sendStageDurationsMs?.get('attachments'),
+			sendStageContributionsMs: report.sendStageDurationsMs?.get('contributions'),
+			sendStageCheckpointMs: report.sendStageDurationsMs?.get('checkpoint'),
+			timeToProviderDispatch: report.sendDispatchedMs,
 			totalTime: report.totalTime,
 			result: report.result,
 			model,

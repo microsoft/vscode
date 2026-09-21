@@ -171,6 +171,28 @@ suite('ModelCard', () => {
 		return background.getContrastRatio(readColor());
 	}
 
+	test('cards and hovers use the declared context window with a legacy fallback', () => {
+		const results = [
+			{ maxInputTokens: 100_000, maxOutputTokens: 20_000, maxContextWindowTokens: 100_000 },
+			{ maxInputTokens: 50_000, maxOutputTokens: 20_000, maxContextWindowTokens: 100_000 },
+			{ maxInputTokens: 0, maxOutputTokens: 0, maxContextWindowTokens: 100_000 },
+			{ maxInputTokens: 100_000, maxOutputTokens: 20_000 },
+			{ maxInputTokens: 100_000, maxOutputTokens: 20_000, maxContextWindowTokens: 0 },
+		].map(limits => {
+			const model = createModel({ ...limits, configurationSchema: undefined });
+			const { card } = createCard({}, { model });
+			const hover = getModelHoverContent(model, false, undefined, NullOpenerService);
+			assert.ok(hover);
+			disposables.add(hover.disposable);
+			return [
+				card.element.querySelector('.chat-model-card-section-value')?.textContent,
+				hover.element.querySelector('.chat-model-hover-context-value')?.textContent,
+			];
+		});
+
+		assert.deepStrictEqual(results, [['100K', '100K'], ['100K', '100K'], ['100K', '100K'], ['120K', '120K'], [undefined, undefined]]);
+	});
+
 	for (const theme of [
 		{ name: 'Dark', className: 'vs-dark', foreground: '#cccccc', background: '#1f1f1f', description: '#9d9d9d', warning: '#cca700' },
 		{ name: 'Light', className: 'vs', foreground: '#3b3b3b', background: '#ffffff', description: '#3b3b3b', warning: '#bf8803' },

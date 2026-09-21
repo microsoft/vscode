@@ -97,7 +97,7 @@ export interface IActionListItemHover {
 }
 
 export interface IActionListUpdateOptions {
-	/** Retain the open hover when its replacement item returns the same content element. */
+	/** Retain the open hover or submenu when its replacement item has the same id. */
 	readonly preserveHover?: boolean;
 	/** Animate a visible focused item's move. The caller must respect reduced motion. */
 	readonly animateItemMove?: boolean;
@@ -303,6 +303,7 @@ class ActionItemRenderer<T> implements IListRenderer<IActionListItem<T>, IAction
 		private readonly _groupTitleByIndex: ReadonlyMap<number, string>,
 		private readonly _linkHandler: ((uri: URI, item: IActionListItem<T>) => void) | undefined,
 		private readonly _hideDefaultKeybindingTooltip: boolean,
+		private readonly _stopToolbarPointerPropagation: boolean,
 		private readonly _registerStandaloneToggle: (item: IActionListItem<T>, toggle: Switch) => IDisposable,
 		private readonly _registerToolbar: (item: IActionListItem<T>, toolbar: ActionBar) => IDisposable,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
@@ -322,6 +323,7 @@ class ActionItemRenderer<T> implements IListRenderer<IActionListItem<T>, IAction
 
 		const badge = document.createElement('span');
 		badge.className = 'action-item-badge';
+		badge.ariaHidden = 'true';
 		container.append(badge);
 
 		const description = document.createElement('span');
@@ -530,6 +532,16 @@ class ActionItemRenderer<T> implements IListRenderer<IActionListItem<T>, IAction
 		if (toolbarActions.length > 0) {
 			const actionBar = new ActionBar(data.toolbar);
 			data.elementDisposables.add(actionBar);
+			if (this._stopToolbarPointerPropagation) {
+				data.elementDisposables.add(dom.addDisposableGenericMouseDownListener(data.toolbar, e => {
+					e.preventDefault();
+					e.stopPropagation();
+				}));
+				data.elementDisposables.add(dom.addDisposableListener(data.toolbar, dom.EventType.CLICK, e => e.stopPropagation()));
+				data.elementDisposables.add(dom.addDisposableListener(data.toolbar, TouchEventType.Tap, e => e.stopPropagation()));
+			} else {
+				data.elementDisposables.add(dom.addDisposableGenericMouseDownListener(data.toolbar, e => e.preventDefault()));
+			}
 			actionBar.push(toolbarActions, { icon: true, label: false });
 			data.elementDisposables.add(this._registerToolbar(element, actionBar));
 		}
@@ -710,6 +722,11 @@ export interface IActionListOptions {
 	 * where this hint is misleading.
 	 */
 	readonly hideDefaultKeybindingTooltip?: boolean;
+	/**
+	 * Stops toolbar pointer events from bubbling to row selection handlers.
+	 * Use for submenus where toolbar actions mutate the list in place.
+	 */
+	readonly stopToolbarPointerPropagation?: boolean;
 
 	/**
 	 * Optional label shown on the right side of the filter row.
@@ -939,7 +956,7 @@ export class ActionListWidget<T> extends Disposable {
 		};
 
 		this._list = this._register(new List(user, this.domNode, virtualDelegate, [
-			new ActionItemRenderer<T>(this._supportsPreview, (item) => this._removeItem(item), (item) => this._showSubmenuForItem(item), reservesSubmenuSpace, this._groupTitleByIndex, this._options?.linkHandler, this._options?.hideDefaultKeybindingTooltip ?? false, (item, toggle) => {
+			new ActionItemRenderer<T>(this._supportsPreview, (item) => this._removeItem(item), (item) => this._showSubmenuForItem(item), reservesSubmenuSpace, this._groupTitleByIndex, this._options?.linkHandler, this._options?.hideDefaultKeybindingTooltip ?? false, this._options?.stopToolbarPointerPropagation ?? false, (item, toggle) => {
 				this._standaloneToggles.set(item, toggle);
 				return toDisposable(() => {
 					if (this._standaloneToggles.get(item) === toggle) {
@@ -964,6 +981,9 @@ export class ActionListWidget<T> extends Disposable {
 				getAriaLabel: element => {
 					if (element.kind === ActionListItemKind.Action) {
 						let label = element.label ? stripNewlines(element?.label) : '';
+						if (element.badge) {
+							label = label + ', ' + stripNewlines(element.badge);
+						}
 						if (element.detail) {
 							label = label + ', ' + stripNewlines(element.detail);
 						}
@@ -1646,12 +1666,14 @@ export class ActionListWidget<T> extends Disposable {
 		const content = preservedItem?.hover?.content;
 		const preservedContent = typeof content === 'function' ? content() : content;
 		const preserveHover = !this._currentSubmenuWidget && dom.isHTMLElement(preservedContent) && this._submenuContainer.contains(preservedContent);
-		const previousRow = options?.animateItemMove && preserveHover && this._currentSubmenuElement
+		const preserveSubmenu = !!this._currentSubmenuWidget && !!preservedItem?.submenuActions?.length;
+		const preservePanel = preserveHover || preserveSubmenu;
+		const previousRow = options?.animateItemMove && preservePanel && this._currentSubmenuElement
 			? this._getRowElement(this._list.indexOf(this._currentSubmenuElement))?.getBoundingClientRect()
 			: undefined;
 
 		this._allMenuItems = [...items];
-		if (preserveHover && preservedItem) {
+		if (preservePanel && preservedItem) {
 			this._currentSubmenuElement = preservedItem;
 			if (preservedItem.label && preservedItem.hover?.expandable) {
 				this._submenuContainer.setAttribute('aria-label', preservedItem.label);
@@ -1667,17 +1689,20 @@ export class ActionListWidget<T> extends Disposable {
 		// otherwise keeps it from re-anchoring against a trigger that the same action
 		// just re-rendered.
 		const suppressHover = this._suppressHover;
-		this._suppressHover ||= preserveHover || (!this._currentSubmenuElement && !this._options?.persistentHover);
+		this._suppressHover ||= preservePanel || (!this._currentSubmenuElement && !this._options?.persistentHover);
 		try {
 			// Restoring focus after a passive refresh must not open an unrequested hover.
-			this._applyFilter(false, false, preserveHover ? focusItemId ?? expandedItemId : undefined);
+			this._applyFilter(false, false, preservePanel ? focusItemId ?? expandedItemId : undefined);
 		} finally {
 			this._suppressHover = suppressHover;
+		}
+		if (preserveSubmenu && preservedItem) {
+			this._currentSubmenuWidget!.updateItems(this._createSubmenuItems(preservedItem.submenuActions!));
 		}
 		if (this._visibleMenuItems.length !== previousVisibleCount) {
 			this._onDidRequestLayout.fire();
 		}
-		if (preserveHover) {
+		if (preservePanel) {
 			this._layoutSubmenu?.();
 			if (previousRow && preservedItem) {
 				this._animateItemMove(preservedItem, previousRow);
@@ -2495,67 +2520,7 @@ export class ActionListWidget<T> extends Disposable {
 		let submenuWidget: ActionListWidget<IAction> | undefined;
 
 		if (hasSubmenuActions) {
-			// Convert submenu actions into ActionListWidget items
-			const submenuItems: IActionListItem<IAction>[] = [];
-			const submenuActions = element.submenuActions!;
-			const submenuGroups = submenuActions.filter((a): a is SubmenuAction => a instanceof SubmenuAction);
-			const groupsWithActions = submenuGroups.filter(g => g.actions.length > 0);
-			for (let gi = 0; gi < groupsWithActions.length; gi++) {
-				const group = groupsWithActions[gi];
-				if (group.label) {
-					submenuItems.push({
-						kind: ActionListItemKind.Header,
-						group: { title: group.label },
-						label: group.label,
-					});
-				}
-				for (let ci = 0; ci < group.actions.length; ci++) {
-					const child = group.actions[ci];
-					const extendedChild = child as IAction & { icon?: ThemeIcon; hoverContent?: string; onRemove?: () => void };
-					const icon = extendedChild.icon
-						?? ThemeIcon.fromId(child.checked ? Codicon.check.id : Codicon.blank.id);
-					const hoverContent = extendedChild.hoverContent;
-					const hover = hoverContent
-						? new MarkdownString().appendText(`${child.label}\n`).appendMarkdown(hoverContent)
-						: undefined;
-					submenuItems.push({
-						item: child,
-						kind: ActionListItemKind.Action,
-						label: child.label,
-						description: child.tooltip || undefined,
-						group: { title: '', icon },
-						hideIcon: false,
-						hover: hover ? { content: hover } : undefined,
-						tooltip: child.tooltip || child.label,
-						onRemove: extendedChild.onRemove,
-						submenuActions: child instanceof SubmenuAction ? [new SubmenuAction(child.id, '', child.actions)] : undefined,
-					});
-				}
-				if (gi < groupsWithActions.length - 1) {
-					submenuItems.push({ kind: ActionListItemKind.Separator, label: '' });
-				}
-			}
-			// Also include non-SubmenuAction items directly
-			for (const action of submenuActions) {
-				if (!(action instanceof SubmenuAction)) {
-					const extendedAction = action as IAction & { hoverContent?: string; onRemove?: () => void };
-					const hoverContent = extendedAction.hoverContent;
-					const hover = hoverContent
-						? new MarkdownString().appendText(`${action.label}\n`).appendMarkdown(hoverContent)
-						: undefined;
-					submenuItems.push({
-						item: action,
-						kind: ActionListItemKind.Action,
-						label: action.label,
-						description: action.tooltip || undefined,
-						group: { title: '' },
-						hideIcon: false,
-						hover: hover ? { content: hover } : undefined,
-						tooltip: action.tooltip || action.label,
-						onRemove: extendedAction.onRemove,
-					});
-				}
-			}
+			const submenuItems = this._createSubmenuItems(element.submenuActions!);
 
 			const submenuDelegate: IActionListDelegate<IAction> = {
 				onHide: () => { },
@@ -2787,6 +2752,69 @@ export class ActionListWidget<T> extends Disposable {
 				}));
 			}
 		}
+	}
+
+	private _createSubmenuItems(submenuActions: readonly IAction[]): IActionListItem<IAction>[] {
+		const submenuItems: IActionListItem<IAction>[] = [];
+		const submenuGroups = submenuActions.filter((action): action is SubmenuAction => action instanceof SubmenuAction);
+		const groupsWithActions = submenuGroups.filter(group => group.actions.length > 0);
+		for (let groupIndex = 0; groupIndex < groupsWithActions.length; groupIndex++) {
+			const group = groupsWithActions[groupIndex];
+			if (group.label) {
+				submenuItems.push({
+					kind: ActionListItemKind.Header,
+					group: { title: group.label },
+					label: group.label,
+				});
+			}
+			for (const child of group.actions) {
+				const extendedChild = child as IAction & { icon?: ThemeIcon; hoverContent?: string; onRemove?: () => void };
+				const icon = extendedChild.icon
+					?? ThemeIcon.fromId(child.checked ? Codicon.check.id : Codicon.blank.id);
+				const hoverContent = extendedChild.hoverContent;
+				const hover = hoverContent
+					? new MarkdownString().appendText(`${child.label}\n`).appendMarkdown(hoverContent)
+					: undefined;
+				submenuItems.push({
+					item: child,
+					kind: ActionListItemKind.Action,
+					label: child.label,
+					description: child.tooltip && child.tooltip !== child.label ? child.tooltip : undefined,
+					group: { title: '', icon },
+					hideIcon: false,
+					hover: hover ? { content: hover } : undefined,
+					tooltip: child.tooltip || child.label,
+					onRemove: extendedChild.onRemove,
+					submenuActions: child instanceof SubmenuAction ? [new SubmenuAction(child.id, '', child.actions)] : undefined,
+				});
+			}
+			if (groupIndex < groupsWithActions.length - 1) {
+				submenuItems.push({ kind: ActionListItemKind.Separator, label: '' });
+			}
+		}
+		for (const action of submenuActions) {
+			if (!(action instanceof SubmenuAction)) {
+				const extendedAction = action as IAction & { icon?: ThemeIcon; hoverContent?: string; onRemove?: () => void };
+				const icon = extendedAction.icon
+					?? ThemeIcon.fromId(action.checked ? Codicon.check.id : Codicon.blank.id);
+				const hoverContent = extendedAction.hoverContent;
+				const hover = hoverContent
+					? new MarkdownString().appendText(`${action.label}\n`).appendMarkdown(hoverContent)
+					: undefined;
+				submenuItems.push({
+					item: action,
+					kind: ActionListItemKind.Action,
+					label: action.label,
+					description: action.tooltip && action.tooltip !== action.label ? action.tooltip : undefined,
+					group: { title: '', icon },
+					hideIcon: false,
+					hover: hover ? { content: hover } : undefined,
+					tooltip: action.tooltip || action.label,
+					onRemove: extendedAction.onRemove,
+				});
+			}
+		}
+		return submenuItems;
 	}
 
 	private _hideSubmenu(): void {
