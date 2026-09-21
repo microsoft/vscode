@@ -459,7 +459,7 @@
 }
 
 .sessions-chat-picker-slot.sessions-workspace-category-picker-slot .action-label {
-	gap: var(--vscode-spacing-size80);
+	gap: var(--vscode-spacing-size60);
 	min-height: var(--vscode-spacing-size240);
 	padding: var(--vscode-spacing-size20) var(--vscode-spacing-size120);
 	background-color: var(--session-view-background);
@@ -488,7 +488,7 @@
 }
 
 .sessions-chat-picker-slot.sessions-workspace-category-picker-slot .action-label > .codicon {
-	font-size: var(--vscode-codiconFontSize);
+	font-size: var(--vscode-codiconFontSize-compact);
 }
 
 .sessions-chat-picker-slot.sessions-workspace-category-picker-slot .action-label > .sessions-chat-dropdown-chevron {
@@ -511,8 +511,15 @@
 	margin-right: var(--vscode-spacing-sizeNone);
 }
 
-.sessions-workspace-category-picker .sessions-chat-dropdown-label {
+.sessions-workspace-category-picker > .sessions-chat-picker-slot .sessions-chat-dropdown-label {
 	margin-left: 0;
+}
+
+.sessions-workspace-category-picker .new-chat-repo-config-container .action-label > .codicon:not(.monaco-checkbox) {
+	font-size: var(--vscode-codiconFontSize-compact);
+	width: var(--vscode-codiconFontSize-compact);
+	height: var(--vscode-codiconFontSize-compact);
+	line-height: var(--vscode-codiconFontSize-compact);
 }
 
 .sessions-workspace-category-picker:empty {
