@@ -102,6 +102,10 @@ suite('AgentHostFilterContribution', () => {
 				changed.fire();
 			},
 			setDiscovering: (value: boolean) => { isDiscovering = value; discovering.fire(); },
+			removeHost: (id: string) => {
+				hosts = hosts.filter(host => host.id !== id);
+				changed.fire();
+			},
 		};
 	}
 
@@ -140,6 +144,7 @@ suite('AgentHostFilterContribution', () => {
 		button.click();
 		const sheet = container.querySelector<HTMLElement>('.host-picker-sheet');
 		assert.ok(sheet);
+		assert.strictEqual(document.activeElement, sheet.querySelector('[aria-checked="true"]'));
 
 		updateStatus();
 		setDiscovering(true);
@@ -149,8 +154,62 @@ suite('AgentHostFilterContribution', () => {
 			connected: sheet.isConnected,
 			discovering: button.classList.contains('discovering'),
 			hasConnectingStatus: sheet.textContent?.includes('Connecting'),
-		}, { sameButton: true, sameSheet: true, connected: true, discovering: true, hasConnectingStatus: true });
+			selectedHostFocused: document.activeElement === sheet.querySelector('[aria-checked="true"]'),
+		}, { sameButton: true, sameSheet: true, connected: true, discovering: true, hasConnectingStatus: true, selectedHostFocused: true });
 		setDiscovering(false);
 		assert.ok(sheet.isConnected);
+		assert.strictEqual(document.activeElement, sheet.querySelector('[aria-checked="true"]'));
+	});
+
+	test('mobile updates preserve the focused unselected host without stealing focus from other controls', async () => {
+		const { container, updateStatus, setDiscovering } = await createPicker(Menus.MobileTitleBarCenter);
+		const button = container.querySelector<HTMLElement>('.agent-host-filter-dropdown');
+		assert.ok(button);
+		button.click();
+		const sheet = container.querySelector<HTMLElement>('.host-picker-sheet');
+		assert.ok(sheet);
+		const secondHost = () => {
+			const row = sheet.querySelector<HTMLElement>('[aria-checked="false"]');
+			assert.ok(row);
+			return row;
+		};
+		secondHost().focus();
+		updateStatus();
+		assert.strictEqual(document.activeElement, secondHost());
+		setDiscovering(true);
+		assert.strictEqual(document.activeElement, secondHost());
+		setDiscovering(false);
+		assert.strictEqual(document.activeElement, secondHost());
+
+		for (const selector of ['.host-picker-sheet-action', '.host-picker-sheet-information', '.host-picker-sheet-close:not(.host-picker-sheet-information)']) {
+			const control = sheet.querySelector<HTMLElement>(selector);
+			assert.ok(control);
+			control.focus();
+			updateStatus();
+			setDiscovering(true);
+			setDiscovering(false);
+			assert.strictEqual(document.activeElement, control);
+		}
+
+		const outside = container.appendChild(document.createElement('button'));
+		outside.focus();
+		updateStatus();
+		assert.strictEqual(document.activeElement, outside);
+	});
+
+	test('mobile focus falls back inside the sheet when the focused host disappears', async () => {
+		const { container, removeHost } = await createPicker(Menus.MobileTitleBarCenter);
+		const button = container.querySelector<HTMLElement>('.agent-host-filter-dropdown');
+		assert.ok(button);
+		button.click();
+		const sheet = container.querySelector<HTMLElement>('.host-picker-sheet');
+		assert.ok(sheet);
+		const secondHost = sheet.querySelector<HTMLElement>('[aria-checked="false"]');
+		assert.ok(secondHost);
+		secondHost.focus();
+		removeHost('Second');
+		assert.strictEqual(document.activeElement, sheet.querySelector('[aria-checked="true"]'));
+		removeHost('First');
+		assert.strictEqual(document.activeElement, sheet.querySelector('.host-picker-sheet-action'));
 	});
 });
