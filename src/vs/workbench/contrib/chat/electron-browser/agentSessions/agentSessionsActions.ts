@@ -57,6 +57,12 @@ const OPEN_WORKSPACE_IN_AGENTS_WINDOW_TITLE = localize2('openWorkspaceInAgentsWi
 const OPEN_WORKSPACE_IN_AGENTS_WINDOW_CHAT_TITLE_COMMAND_ID = 'workbench.action.chat.openWorkspaceInAgentsWindow.chatTitle';
 const OPEN_WORKSPACE_IN_AGENTS_WINDOW_TITLE_BAR_COMMAND_ID = 'workbench.action.chat.openWorkspaceInAgentsWindow.titleBar';
 
+function ensureAgentModeEnabled(configurationService: IConfigurationService): void {
+	if (configurationService.getValue<boolean>(ChatConfiguration.AgentEnabled) === false) {
+		throw new Error(localize('agentsWindow.agentModeDisabled', "The Agents window is unavailable because agent mode is disabled."));
+	}
+}
+
 function getInvokingWorkspaceFolder(accessor: ServicesAccessor): URI | undefined {
 	const workspaceContextService = accessor.get(IWorkspaceContextService);
 	const folders = workspaceContextService.getWorkspace().folders;
@@ -115,6 +121,7 @@ function captureDraftHandoffOptions(accessor: ServicesAccessor, widget: IChatWid
 }
 
 async function openCurrentWorkspaceInAgentsWindow(accessor: ServicesAccessor, source: AgentsWindowOpenSource, sessionResource?: URI, draftOptions?: Pick<IOpenAgentsWindowOptions, 'draft' | 'folderUriIsDefault'>): Promise<void> {
+	ensureAgentModeEnabled(accessor.get(IConfigurationService));
 	const nativeHostService = accessor.get(INativeHostService);
 	const workspaceContextService = accessor.get(IWorkspaceContextService);
 	const handoff = draftOptions ?? getDraftHandoffOptions(accessor, sessionResource);
@@ -143,6 +150,7 @@ export class OpenWorkspaceInAgentsWindowAction extends Action2 {
 	}
 
 	async run(accessor: ServicesAccessor, options?: { readonly source?: AgentsWindowOpenSource; readonly sessionResource?: URI; readonly inputUri?: URI }): Promise<void> {
+		ensureAgentModeEnabled(accessor.get(IConfigurationService));
 		const draftOptions = getDraftHandoffOptions(accessor, options?.sessionResource, false, options?.inputUri);
 		await openCurrentWorkspaceInAgentsWindow(accessor, options?.source ?? AgentsWindowOpenSource.CommandPalette, options?.sessionResource, draftOptions);
 	}
@@ -247,6 +255,7 @@ export class OpenAgentsWindowAction extends Action2 {
 	}
 
 	async run(accessor: ServicesAccessor, args?: IOpenAgentsWindowOptions): Promise<void> {
+		ensureAgentModeEnabled(accessor.get(IConfigurationService));
 		const nativeHostService = accessor.get(INativeHostService);
 		const draftOptions: Pick<IOpenAgentsWindowOptions, 'draft' | 'folderUriIsDefault'> = !args?.folderUri && !args?.sessionResource && !args?.draft ? getDraftHandoffOptions(accessor) : {};
 		const folderUri = !args?.folderUri && !args?.sessionResource
@@ -293,6 +302,7 @@ export class OpenChatSessionInAgentsWindowAction extends Action2 {
 	}
 
 	async run(accessor: ServicesAccessor, ...rest: unknown[]): Promise<void> {
+		ensureAgentModeEnabled(accessor.get(IConfigurationService));
 		const chatWidgetService = accessor.get(IChatWidgetService);
 		const nativeHostService = accessor.get(INativeHostService);
 		const workspaceContextService = accessor.get(IWorkspaceContextService);

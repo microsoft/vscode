@@ -115,16 +115,17 @@ export class ConfigurationService extends Disposable implements IWorkbenchConfig
 	async initialize(): Promise<void> {
 		const workspace = this.workspaceService.getWorkspace() as Workspace;
 		const workspaceIdentifier = { id: workspace.id, configPath: workspace.configuration! };
-		const [defaultModel, policyModel, userModel] = await Promise.all([
-			this.defaultConfiguration.initialize(),
+		// Policy definitions depend on the initialized default configuration.
+		await this.defaultConfiguration.initialize();
+		const [, userModel] = await Promise.all([
 			this.policyConfiguration.initialize(),
 			this.userConfiguration.initialize(),
 			this.workspaceConfiguration.initialize(workspaceIdentifier, true),
 		]);
 		this.workspaceConfiguration.reparseWorkspaceSettings({ exclude: [...this.agentsWindowReadOnlyKeys] });
 		this._configuration = new Configuration(
-			defaultModel,
-			policyModel,
+			this.defaultConfiguration.configurationModel,
+			this.policyConfiguration.configurationModel,
 			ConfigurationModel.createEmptyModel(this.logService),
 			userModel,
 			ConfigurationModel.createEmptyModel(this.logService),
