@@ -18,6 +18,7 @@ import { IAgentHostCustomizationService } from '../../agentSessions/agentHost/ag
 import { IChatMcpAuthenticationRequired, IChatMcpAuthenticationRequiredServer } from '../../../common/chatService/chatService.js';
 import { ChatTreeItem } from '../../chat.js';
 import { IChatRendererContent } from '../../../common/model/chatViewModel.js';
+import { getCompactCodicon } from '../../chatIcons.js';
 import { IChatContentPart } from './chatContentParts.js';
 import './media/chatMcpServersInteractionContent.css';
 
@@ -44,6 +45,7 @@ export class ChatMcpAuthenticationContentPart extends Disposable implements ICha
 
 	constructor(
 		private readonly data: IChatMcpAuthenticationRequired,
+		private readonly options: { onDidAuthenticate?: () => void } = {},
 		@IMarkdownRendererService private readonly markdownRendererService: IMarkdownRendererService,
 		@IAgentHostCustomizationService private readonly agentHostCustomizationService: IAgentHostCustomizationService,
 	) {
@@ -91,7 +93,7 @@ export class ChatMcpAuthenticationContentPart extends Disposable implements ICha
 		const container = dom.$('.chat-mcp-servers-interaction-hint');
 		const messageContainer = dom.$('.chat-mcp-servers-message');
 		const iconElement = dom.$('.chat-mcp-servers-icon');
-		iconElement.classList.add(...ThemeIcon.asClassNameArray(icon));
+		iconElement.classList.add(...ThemeIcon.asClassNameArray(getCompactCodicon(icon)));
 
 		const rendered = this.rendered.value = this.markdownRendererService.render(new MarkdownString(content, { isTrusted: true }), action ? {
 			actionHandler: (href: string) => {
@@ -147,11 +149,12 @@ export class ChatMcpAuthenticationContentPart extends Disposable implements ICha
 		this.domNode.style.display = visible ? '' : 'none';
 		if (visible) {
 			this._hasBeenVisible = true;
-		} else if (this._hasBeenVisible) {
+		} else if (this._hasBeenVisible && !this.data.isUsed) {
 			// Every server has been authenticated. Mark this part used so a
 			// subsequent auth requirement surfaces as a fresh prompt rather than
 			// silently reusing this now-hidden one.
 			this.data.isUsed = true;
+			this.options.onDidAuthenticate?.();
 		}
 	}
 

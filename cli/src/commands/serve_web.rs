@@ -208,6 +208,7 @@ async fn handle(
 	};
 
 	append_secret_headers(&ctx.cm.base_path, &mut res, &client_key_half);
+	append_frame_ancestors(&mut res);
 
 	Ok(res)
 }
@@ -273,6 +274,20 @@ fn append_secret_headers(
 		)
 		.parse()
 		.unwrap(),
+	);
+}
+
+/// Prevents other origins from embedding serve-web pages. Same-origin iframes
+/// used by the workbench itself are still allowed.
+fn append_frame_ancestors(res: &mut Response<HyperBody>) {
+	let headers = res.headers_mut();
+	headers.append(
+		::http::header::CONTENT_SECURITY_POLICY,
+		"frame-ancestors 'self'".parse().unwrap(),
+	);
+	headers.insert(
+		::http::header::HeaderName::from_static("x-frame-options"),
+		"SAMEORIGIN".parse().unwrap(),
 	);
 }
 

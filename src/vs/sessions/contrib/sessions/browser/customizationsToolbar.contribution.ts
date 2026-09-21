@@ -17,7 +17,6 @@ import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase 
 import { AICustomizationManagementEditor } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagementEditor.js';
 import { AICustomizationManagementEditorInput } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagementEditorInput.js';
 import { IAICustomizationItemsModel, ItemsModelSection } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationItemsModel.js';
-import { IMcpService } from '../../../../workbench/contrib/mcp/common/mcpTypes.js';
 import { ILanguageModelToolsService } from '../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
 import { AGENT_HOST_COPILOT_CLI_SESSION_TYPE, countEnabledCustomizationTools, IAgentHostToolSetEnablementService } from '../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostToolSetEnablementService.js';
 import { Menus } from '../../../browser/menus.js';
@@ -35,6 +34,7 @@ import { ICustomizationHarnessService } from '../../../../workbench/contrib/chat
 import { ISession } from '../../../services/sessions/common/session.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { SessionType } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
+import { IAICustomizationMcpServerCountService } from './customizationMcpServerCount.js';
 
 export interface ICustomizationItemConfig {
 	readonly id: string;
@@ -68,11 +68,18 @@ const CUSTOMIZATION_OVERVIEW_ITEM: ICustomizationItemConfig = {
 
 export const CUSTOMIZATION_ITEMS: ICustomizationItemConfig[] = [
 	{
-		id: 'sessions.customization.agents',
-		label: localize('agents', "Agents"),
-		icon: agentIcon,
-		section: AICustomizationManagementSection.Agents,
-		modelSection: AICustomizationManagementSection.Agents,
+		id: 'sessions.customization.plugins',
+		label: localize('plugins', "Plugins"),
+		icon: pluginIcon,
+		section: AICustomizationManagementSection.Plugins,
+		isPlugins: true,
+	},
+	{
+		id: 'sessions.customization.mcpServers',
+		label: localize('mcpServers', "MCP Servers"),
+		icon: mcpServerIcon,
+		section: AICustomizationManagementSection.McpServers,
+		isMcp: true,
 	},
 	{
 		id: 'sessions.customization.skills',
@@ -89,25 +96,18 @@ export const CUSTOMIZATION_ITEMS: ICustomizationItemConfig[] = [
 		modelSection: AICustomizationManagementSection.Instructions,
 	},
 	{
+		id: 'sessions.customization.agents',
+		label: localize('agents', "Agents"),
+		icon: agentIcon,
+		section: AICustomizationManagementSection.Agents,
+		modelSection: AICustomizationManagementSection.Agents,
+	},
+	{
 		id: 'sessions.customization.hooks',
 		label: localize('hooks', "Hooks"),
 		icon: hookIcon,
 		section: AICustomizationManagementSection.Hooks,
 		modelSection: AICustomizationManagementSection.Hooks,
-	},
-	{
-		id: 'sessions.customization.mcpServers',
-		label: localize('mcpServers', "MCP Servers"),
-		icon: mcpServerIcon,
-		section: AICustomizationManagementSection.McpServers,
-		isMcp: true,
-	},
-	{
-		id: 'sessions.customization.plugins',
-		label: localize('plugins', "Plugins"),
-		icon: pluginIcon,
-		section: AICustomizationManagementSection.Plugins,
-		isPlugins: true,
 	},
 	{
 		id: 'sessions.customization.tools',
@@ -124,13 +124,14 @@ export const CUSTOMIZATION_ITEMS: ICustomizationItemConfig[] = [
 	},
 ];
 
-export async function openCustomizationOverviewPage(editorService: IEditorService, harnessService: ICustomizationHarnessService, sessionsService: ISessionsService): Promise<void> {
-	const sessionResource = sessionsService.activeSession.get()?.resource;
-	if (sessionResource) {
-		harnessService.setActiveSession(sessionResource);
+async function openCustomizationOverviewPage(editorService: IEditorService, harnessService: ICustomizationHarnessService, sessionsService: ISessionsService): Promise<void> {
+	const session = sessionsService.activeSession.get();
+	if (session) {
+		harnessService.setActiveSession(session.resource);
 	}
 
 	const input = AICustomizationManagementEditorInput.getOrCreate();
+	input.setTargetLabels(harnessService.getActiveDescriptor().label, session?.workspace.get()?.folders[0]?.name);
 	const pane = await editorService.openEditor(input, { pinned: true });
 	if (pane instanceof AICustomizationManagementEditor) {
 		pane.showWelcomePage();
@@ -138,12 +139,13 @@ export async function openCustomizationOverviewPage(editorService: IEditorServic
 }
 
 async function openCustomizationSectionPage(editorService: IEditorService, harnessService: ICustomizationHarnessService, sessionsService: ISessionsService, section: typeof AICustomizationManagementSection[keyof typeof AICustomizationManagementSection]): Promise<void> {
-	const sessionResource = sessionsService.activeSession.get()?.resource;
-	if (sessionResource) {
-		harnessService.setActiveSession(sessionResource);
+	const session = sessionsService.activeSession.get();
+	if (session) {
+		harnessService.setActiveSession(session.resource);
 	}
 
 	const input = AICustomizationManagementEditorInput.getOrCreate();
+	input.setTargetLabels(harnessService.getActiveDescriptor().label, session?.workspace.get()?.folders[0]?.name);
 	const pane = await editorService.openEditor(input, { pinned: true });
 	if (pane instanceof AICustomizationManagementEditor) {
 		pane.selectSectionById(section);
@@ -167,7 +169,7 @@ export class CustomizationLinkViewItem extends ActionViewItem {
 		options: IBaseActionViewItemOptions,
 		private readonly _config: ICustomizationItemConfig,
 		@IAICustomizationItemsModel private readonly _itemsModel: IAICustomizationItemsModel,
-		@IMcpService private readonly _mcpService: IMcpService,
+		@IAICustomizationMcpServerCountService private readonly _mcpServerCountService: IAICustomizationMcpServerCountService,
 		@ILanguageModelToolsService private readonly _toolsService: ILanguageModelToolsService,
 		@IAgentHostToolSetEnablementService private readonly _toolEnablementService: IAgentHostToolSetEnablementService,
 	) {
@@ -218,7 +220,7 @@ export class CustomizationLinkViewItem extends ActionViewItem {
 			return this._itemsModel.getCount(this._config.modelSection).read(reader);
 		}
 		if (this._config.isMcp) {
-			return this._mcpService.servers.read(reader).length;
+			return this._mcpServerCountService.count.read(reader);
 		}
 		if (this._config.isPlugins) {
 			return this._itemsModel.getPluginCount().read(reader);
@@ -291,6 +293,7 @@ export class CustomizationsToolbarContribution extends Disposable implements IWo
 				super({
 					id: CUSTOMIZATION_OVERVIEW_ITEM.id,
 					title: CUSTOMIZATION_OVERVIEW_ITEM.label,
+					precondition: ChatContextKeys.enabled,
 					menu: {
 						id: Menus.SidebarCustomizations,
 						group: 'navigation',

@@ -10,7 +10,7 @@ import { IAuthenticationChatUpgradeService } from '../../../platform/authenticat
 import { IChatDebugFileLoggerService } from '../../../platform/chat/common/chatDebugFileLoggerService';
 import { IChatHookService, SessionStartHookInput, SessionStartHookOutput, StopHookInput, StopHookOutput, SubagentStartHookInput, SubagentStartHookOutput, SubagentStopHookInput, SubagentStopHookOutput } from '../../../platform/chat/common/chatHookService';
 import { FetchStreamSource, IResponsePart } from '../../../platform/chat/common/chatMLFetcher';
-import { CanceledResult, ChatFetchResponseType, ChatLocation, ChatResponse } from '../../../platform/chat/common/commonTypes';
+import { CanceledResult, ChatFetchResponseType, ChatLocation, ChatResponse, isVisionAttachmentInaccessibleError } from '../../../platform/chat/common/commonTypes';
 import { IHistoricalTurn, ISessionTranscriptService, ToolRequest } from '../../../platform/chat/common/sessionTranscriptService';
 import { ConfigKey, IConfigurationService } from '../../../platform/configuration/common/configurationService';
 import { isAnthropicFamily, isGeminiFamily } from '../../../platform/endpoint/common/chatModelCapabilities';
@@ -29,6 +29,7 @@ import { getCurrentCapturingToken } from '../../../platform/requestLogger/node/r
 import { IExperimentationService } from '../../../platform/telemetry/common/nullExperimentationService';
 import { ITelemetryService } from '../../../platform/telemetry/common/telemetry';
 import { computePromptTokenDetails } from '../../../platform/tokenizer/node/promptTokenDetails';
+import { asThinkingOriginApi } from '../../../platform/thinking/common/thinking';
 import { tryFinalizeResponseStream } from '../../../util/common/chatResponseStreamImpl';
 import { ChatExtPerfMark, markChatExt } from '../../../util/common/performance';
 import { DeferredPromise, timeout } from '../../../util/vs/base/common/async';
@@ -987,6 +988,9 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 			return false;
 		}
 		if (this.autopilotRetryCount >= ToolCallingLoop.MAX_AUTOPILOT_RETRIES) {
+			return false;
+		}
+		if (isVisionAttachmentInaccessibleError(response)) {
 			return false;
 		}
 		switch (response.type) {
@@ -2054,6 +2058,7 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 					thinking: thinkingItem,
 					phase,
 					modelId: endpoint.model,
+					originApi: asThinkingOriginApi(endpoint.apiType),
 					compaction,
 				}),
 				chatResult,

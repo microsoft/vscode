@@ -6,7 +6,7 @@
 import './media/hostFilter.css';
 import * as dom from '../../../../../base/browser/dom.js';
 import { Gesture, EventType as TouchEventType } from '../../../../../base/browser/touch.js';
-import { renderLabelWithIcons } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
+import { renderIcon, renderLabelWithIcons } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { BaseActionViewItem } from '../../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
@@ -16,11 +16,14 @@ import { Action, IAction } from '../../../../../base/common/actions.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { MutableDisposable } from '../../../../../base/common/lifecycle.js';
+import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { localize } from '../../../../../nls.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { AgentHostFilterConnectionStatus, IAgentHostFilterEntry, IAgentHostFilterService } from '../../../../services/agentHostFilter/common/agentHostFilter.js';
+import { ShowConnectionDiagnosticsCommandId } from './connectionDiagnostics.js';
 
 /**
  * Visual appearance of {@link HostFilterActionViewItem}.
@@ -45,12 +48,14 @@ export class HostFilterActionViewItem extends BaseActionViewItem {
 	private _labelElement: HTMLElement | undefined;
 	private _chevronElement: HTMLElement | undefined;
 	private _connectElement: HTMLElement | undefined;
+	private _diagnosticsElement: HTMLElement | undefined;
 	private _sidebarButton: Button | undefined;
 	private _sidebarLeadingIcon: HTMLElement | undefined;
+	private _titlebarLeadingIcon: HTMLElement | undefined;
 	private _sidebarTrailingIcon: HTMLElement | undefined;
 
 	private readonly _dropdownHover = this._register(new MutableDisposable());
-	private readonly _connectHover = this._register(new MutableDisposable());
+	private readonly _diagnosticsHover = this._register(new MutableDisposable());
 
 	constructor(
 		action: IAction,
@@ -58,6 +63,7 @@ export class HostFilterActionViewItem extends BaseActionViewItem {
 		@IAgentHostFilterService protected readonly _filterService: IAgentHostFilterService,
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
 		@IHoverService private readonly _hoverService: IHoverService,
+		@ICommandService private readonly _commandService: ICommandService,
 	) {
 		super(undefined, action);
 
@@ -95,8 +101,10 @@ export class HostFilterActionViewItem extends BaseActionViewItem {
 		// --- Dropdown pill (left) -----------------------------------------------
 		this._dropdownElement = dom.append(this.element, dom.$('div.agent-host-filter-dropdown'));
 
-		const iconEl = dom.append(this._dropdownElement, dom.$('span.agent-host-filter-icon'));
-		iconEl.append(...renderLabelWithIcons(`$(${Codicon.remote.id})`));
+		const iconWrap = dom.append(this._dropdownElement, dom.$('span.agent-host-filter-icon'));
+		// Keep the codicon child stable: it carries a looping "discovering"
+		// animation, and rebuilding the node would restart it mid-pass.
+		this._titlebarLeadingIcon = dom.append(iconWrap, renderIcon(Codicon.remote));
 
 		this._labelElement = dom.append(this._dropdownElement, dom.$('span.agent-host-filter-label'));
 
@@ -124,9 +132,10 @@ export class HostFilterActionViewItem extends BaseActionViewItem {
 			}
 		}));
 
-		// --- Connection button (right) ------------------------------------------
+		// --- Passive connection status + information button --------------------
 		this._connectElement = dom.append(this.element, dom.$('div.agent-host-filter-connect'));
-		this._wireConnectButton(this._connectElement);
+		this._connectElement.setAttribute('aria-hidden', 'true');
+		this._renderDiagnosticsButton(this.element);
 	}
 
 	/**
@@ -190,42 +199,52 @@ export class HostFilterActionViewItem extends BaseActionViewItem {
 			this._showMenu(e);
 		}));
 
-		// Connect indicator — sibling of the picker button so it reads as
-		// an independent control (not part of the picker label).
+		// Connection state is passive; the adjacent information control opens management.
 		this._connectElement = dom.append(this.element, dom.$('div.agent-host-filter-connect'));
-		this._wireConnectButton(this._connectElement);
+		this._connectElement.setAttribute('aria-hidden', 'true');
+		this._renderDiagnosticsButton(this.element);
 	}
 
-	private _wireConnectButton(connectElement: HTMLElement): void {
-		this._register(Gesture.addTarget(connectElement));
+	protected _renderDiagnosticsButton(container: HTMLElement): void {
+		const element = this._diagnosticsElement = dom.append(container, dom.$('div.agent-host-filter-diagnostics'));
+		const label = localize('agentHostFilter.connectionInformation', "Open Connection Information");
+		element.setAttribute('role', 'button');
+		element.setAttribute('aria-label', label);
+		element.tabIndex = 0;
+		element.append(...renderLabelWithIcons(`$(${Codicon.info.id})`));
+		this._diagnosticsHover.value = this._hoverService.setupManagedHover(getDefaultHoverDelegate('element'), element, () => label);
+		const show = () => this._showConnectionInformation();
+		this._register(Gesture.addTarget(element));
 		for (const eventType of [dom.EventType.CLICK, TouchEventType.Tap]) {
-			this._register(dom.addDisposableListener(connectElement, eventType, e => {
-				// Stop propagation so the host menu (parent button click)
-				// doesn't open when toggling the connection.
-				dom.EventHelper.stop(e, true);
-				this._onConnectClick();
+			this._register(dom.addDisposableListener(element, eventType, event => {
+				dom.EventHelper.stop(event, true);
+				show();
 			}));
 		}
-		this._register(dom.addDisposableListener(connectElement, dom.EventType.KEY_DOWN, e => {
-			const event = new StandardKeyboardEvent(e);
-			if (event.equals(KeyCode.Enter) || event.equals(KeyCode.Space)) {
-				dom.EventHelper.stop(e, true);
-				this._onConnectClick();
+		this._register(dom.addDisposableListener(element, dom.EventType.KEY_DOWN, event => {
+			const keyboardEvent = new StandardKeyboardEvent(event);
+			if (keyboardEvent.equals(KeyCode.Enter) || keyboardEvent.equals(KeyCode.Space)) {
+				dom.EventHelper.stop(event, true);
+				show();
 			}
 		}));
 	}
 
-	private _renderSidebarButtonAffordances(interactive: boolean, canRetry: boolean): void {
+	protected _showConnectionInformation(): void {
+		void this._commandService.executeCommand(ShowConnectionDiagnosticsCommandId);
+	}
+
+	private _renderSidebarButtonAffordances(interactive: boolean, retryOnClick: boolean): void {
 		if (!this._sidebarButton || !this._sidebarTrailingIcon) {
 			return;
 		}
 
 		// Trailing chevron — only attached when this is a real picker
-		// (i.e. there are 2+ hosts to choose from). For canRetry /
-		// single-host the button is *not* a dropdown — in canRetry the
-		// refresh action lives in the trailing connect slot instead,
+		// (i.e. there are 2+ hosts to choose from). When clicking re-runs
+		// discovery, or for single-host, the button is *not* a dropdown —
+		// the refresh action lives in the trailing connect slot instead,
 		// mirroring the disconnect button shape.
-		const showChevron = interactive && !canRetry;
+		const showChevron = interactive && !retryOnClick;
 		if (showChevron) {
 			if (!this._sidebarTrailingIcon.isConnected) {
 				this._sidebarButton.element.appendChild(this._sidebarTrailingIcon);
@@ -236,11 +255,28 @@ export class HostFilterActionViewItem extends BaseActionViewItem {
 	}
 
 	protected _isInteractive(): boolean {
-		const hosts = this._filterService.hosts;
-		// Interactive when there is something to do: pick from a menu (>1
-		// hosts) or trigger re-discovery (0 hosts). With exactly 1 host the
-		// pill is a static label.
-		return hosts.length === 0 || hosts.length > 1;
+		// Interactive when there is something to do: pick from a menu (2+
+		// entries) or trigger re-discovery (no host to connect to). A lone
+		// connectable host is a static label.
+		return this._filterService.hosts.length > 1 || this._canRetry();
+	}
+
+	/**
+	 * Whether re-discovery is the useful action, i.e. there is no host the
+	 * user can connect to. True with no hosts at all, and with only
+	 * non-connectable entries such as a sandbox group.
+	 */
+	protected _canRetry(): boolean {
+		return !this._filterService.hosts.some(h => h.connectable);
+	}
+
+	/**
+	 * Whether clicking the pill re-runs discovery rather than opening the
+	 * picker. Only when there is nothing to switch between — with 2+ entries
+	 * the click opens the menu, so the affordances must read as a menu.
+	 */
+	protected _retriesOnClick(): boolean {
+		return this._filterService.hosts.length <= 1 && this._canRetry();
 	}
 
 	private _update(): void {
@@ -255,14 +291,17 @@ export class HostFilterActionViewItem extends BaseActionViewItem {
 		}
 
 		const hosts = this._filterService.hosts;
-		const selectedId = this._filterService.selectedProviderId;
-		const selected = selectedId === undefined
-			? undefined
-			: hosts.find(h => h.providerId === selectedId);
+		const selected = this._filterService.selectedHost;
 
 		const hasMenu = hosts.length > 1;
-		const canRetry = hosts.length === 0;
-		const interactive = hasMenu || canRetry;
+		// What clicking actually does. The affordances below follow this, not
+		// host connectability: with 2+ entries the click opens the menu even when none
+		// of them is connectable.
+		const retryOnClick = this._retriesOnClick();
+		// Ask the same predicate the click handlers gate on, so the pill never
+		// renders as a static label while remaining clickable (mobile always
+		// opens its sheet) or vice versa.
+		const interactive = this._isInteractive();
 		const discovering = this._filterService.isDiscovering;
 
 		// Dropdown label + aria
@@ -276,21 +315,24 @@ export class HostFilterActionViewItem extends BaseActionViewItem {
 			// Sidebar appearance: write the host name into our own label
 			// span (which is `flex: 1` so it consumes remaining space) and
 			// (re)position the leading host icon + trailing chevron
-			// around it. The chevron uses `$(refresh)` when there are no
-			// hosts (clicking re-runs discovery) and is omitted entirely
-			// for the non-interactive single-host case.
+			// around it. The chevron is dropped when clicking re-runs
+			// discovery, and for the non-interactive single-host case.
 			this._labelElement.textContent = text;
-			this._renderSidebarButtonAffordances(interactive, canRetry);
+			this._renderSidebarButtonAffordances(interactive, retryOnClick);
 		} else {
 			this._labelElement.textContent = text;
 		}
+
+		// Leading icon follows the selection, so a grouped entry can carry its
+		// own identity (GitHub Sandboxes shows a package, not a remote plug).
+		this._renderLeadingIcon(selected?.icon ?? Codicon.remote);
 
 		this.element.classList.toggle('single-host', !interactive);
 		// While discovery is running, suppress the label so the pill collapses
 		// to a small pulsing icon (a la "checking…"). Once discovery finishes,
 		// the label re-appears.
 		this._dropdownElement.classList.toggle('discovering', discovering);
-		this._dropdownElement.classList.toggle('no-hosts', canRetry);
+		this._dropdownElement.classList.toggle('no-hosts', hosts.length === 0);
 
 		// Swap the chevron content based on the click affordance: a chevron
 		// when the pill opens a menu, a refresh icon when it triggers re-
@@ -299,7 +341,7 @@ export class HostFilterActionViewItem extends BaseActionViewItem {
 		// surface.
 		if (this._chevronElement) {
 			dom.clearNode(this._chevronElement);
-			const chevronIconId = canRetry ? Codicon.refresh.id : Codicon.chevronDown.id;
+			const chevronIconId = retryOnClick ? Codicon.refresh.id : Codicon.chevronDown.id;
 			this._chevronElement.append(...renderLabelWithIcons(`$(${chevronIconId})`));
 		}
 
@@ -320,13 +362,15 @@ export class HostFilterActionViewItem extends BaseActionViewItem {
 			} else {
 				this._dropdownElement.removeAttribute('aria-haspopup');
 			}
-			const ariaLabel = selected
-				? localize('agentHostFilter.aria.selected', "Sessions scoped to host {0}. Click to change host.", selected.label)
-				: canRetry
+			const ariaLabel = !selected
+				? (retryOnClick
 					? localize('agentHostFilter.aria.retry', "No hosts found. Click to re-discover hosts.")
-					: localize('agentHostFilter.aria.none', "No agent host selected.");
+					: localize('agentHostFilter.aria.none', "No agent host selected."))
+				: retryOnClick
+					? localize('agentHostFilter.aria.selectedRetry', "Sessions scoped to host {0}. Click to re-discover hosts.", selected.label)
+					: localize('agentHostFilter.aria.selected', "Sessions scoped to host {0}. Click to change host.", selected.label);
 			this._dropdownElement.setAttribute('aria-label', ariaLabel);
-			const hoverText = canRetry
+			const hoverText = retryOnClick
 				? (discovering
 					? localize('agentHostFilter.hover.searching', "Searching for hosts…")
 					: localize('agentHostFilter.hover.retry', "Re-discover hosts"))
@@ -348,109 +392,77 @@ export class HostFilterActionViewItem extends BaseActionViewItem {
 			this._dropdownHover.clear();
 		}
 
-		this._updateConnectButton(selected, canRetry, discovering);
+		this._updateConnectButton(selected);
 	}
 
-	private _updateConnectButton(selected: IAgentHostFilterEntry | undefined, canRetry: boolean, discovering: boolean): void {
+	/**
+	 * Point the leading icon at `icon`. Both appearances keep a stable element
+	 * for it and only swap its codicon class — the titlebar icon carries a
+	 * looping "discovering" animation that a rebuilt node would restart.
+	 */
+	private _renderLeadingIcon(icon: ThemeIcon): void {
+		for (const element of [this._sidebarLeadingIcon, this._titlebarLeadingIcon]) {
+			if (!element) {
+				continue;
+			}
+			const classes = ThemeIcon.asClassNameArray(icon);
+			if (classes.every(c => element.classList.contains(c))) {
+				continue;
+			}
+			// Codicon classes are the only ones these nodes carry beyond their
+			// own layout class, so dropping every `codicon-*` is safe.
+			element.classList.remove(...[...element.classList].filter(c => c.startsWith('codicon')));
+			element.classList.add(...classes);
+		}
+	}
+
+	private _updateConnectButton(selected: IAgentHostFilterEntry | undefined): void {
 		if (!this._connectElement) {
 			return;
 		}
 
 		dom.clearNode(this._connectElement);
 		this._connectElement.classList.remove('connected', 'connecting', 'disconnected', 'rediscover', 'hidden');
-		this._connectHover.clear();
-
-		// Sidebar appearance: when there are no known hosts, repurpose
-		// this trailing slot as a "Re-discover hosts" button so the
-		// user has an independent control next to the "No Host" picker
-		// — same shape as disconnect/connect on a real host.
-		if (!selected && this._sidebarButton && canRetry) {
-			this._connectElement.setAttribute('role', 'button');
-			this._connectElement.tabIndex = 0;
-			this._connectElement.classList.add('rediscover');
-			this._connectElement.append(...renderLabelWithIcons(`$(${Codicon.refresh.id})`));
-			const hoverText = discovering
-				? localize('agentHostFilter.hover.searching', "Searching for hosts…")
-				: localize('agentHostFilter.hover.retry', "Re-discover hosts");
-			this._connectElement.setAttribute('aria-label', hoverText);
-			this._connectHover.value = this._hoverService.setupManagedHover(
-				getDefaultHoverDelegate('element'),
-				this._connectElement,
-				() => hoverText,
-			);
-			return;
-		}
-
-		if (!selected) {
-			this._connectElement.classList.add('hidden');
-			this._connectElement.removeAttribute('role');
-			this._connectElement.removeAttribute('tabindex');
-			return;
-		}
-
-		// Always render as a button; clicking forces a fresh connect attempt
-		// regardless of current state (the platform service tears down any
-		// existing connection before reconnecting).
-		this._connectElement.setAttribute('role', 'button');
-		this._connectElement.tabIndex = 0;
 
 		let iconId: string;
-		let hoverText: string;
-		switch (selected.status) {
+		let status: string;
+		switch (selected?.status) {
 			case AgentHostFilterConnectionStatus.Connected:
 				iconId = Codicon.debugConnected.id;
+				status = localize('agentHostFilter.status.connected', "Connected");
 				this._connectElement.classList.add('connected');
-				hoverText = localize('agentHostFilter.status.connected', "Connected to {0}. Click to disconnect.", selected.label);
 				break;
 			case AgentHostFilterConnectionStatus.Connecting:
 				iconId = Codicon.debugConnected.id;
+				status = localize('agentHostFilter.status.connecting', "Connecting");
 				this._connectElement.classList.add('connecting');
-				hoverText = localize('agentHostFilter.status.connecting', "Connecting to {0}… Click to cancel.", selected.label);
 				break;
 			case AgentHostFilterConnectionStatus.Disconnected:
-			default:
 				iconId = Codicon.debugDisconnect.id;
+				status = localize('agentHostFilter.status.disconnected', "Disconnected");
 				this._connectElement.classList.add('disconnected');
-				hoverText = localize('agentHostFilter.status.disconnected', "Disconnected from {0}. Click to connect.", selected.label);
 				break;
+			default:
+				this._connectElement.classList.add('hidden');
+				this._updateDiagnosticsLabel();
+				return;
 		}
 		this._connectElement.append(...renderLabelWithIcons(`$(${iconId})`));
-		this._connectElement.setAttribute('aria-label', hoverText);
-
-		const connectHoverDelegate = getDefaultHoverDelegate('element');
-		this._connectHover.value = this._hoverService.setupManagedHover(
-			connectHoverDelegate,
-			this._connectElement,
-			() => hoverText,
-		);
+		this._updateDiagnosticsLabel(status);
 	}
 
-	private _onConnectClick(): void {
-		// Sidebar "no hosts" state: the connect slot doubles as a
-		// re-discovery affordance (refresh icon). Trigger discovery when
-		// we recognise that mode.
-		if (this._connectElement?.classList.contains('rediscover')) {
-			if (!this._filterService.isDiscovering) {
-				this._filterService.rediscover();
+	private _updateDiagnosticsLabel(status?: string): void {
+		if (!this._diagnosticsElement) {
+			if (status && this._dropdownElement) {
+				this._dropdownElement.setAttribute('aria-label', localize('agentHostFilter.aria.withStatus', "{0} Current host status: {1}.", this._dropdownElement.getAttribute('aria-label') ?? '', status));
 			}
 			return;
 		}
-
-		const selectedId = this._filterService.selectedProviderId;
-		if (selectedId === undefined) {
-			return;
-		}
-		const selected = this._filterService.hosts.find(h => h.providerId === selectedId);
-		if (!selected) {
-			return;
-		}
-		if (selected.status === AgentHostFilterConnectionStatus.Disconnected) {
-			this._filterService.reconnect(selectedId);
-		} else {
-			// Connected or Connecting — clicking tears down the current
-			// connection / cancels the in-flight attempt.
-			this._filterService.disconnect(selectedId);
-		}
+		const label = status
+			? localize('agentHostFilter.connectionInformationWithStatus', "Open Connection Information. Current host status: {0}.", status)
+			: localize('agentHostFilter.connectionInformation', "Open Connection Information");
+		this._diagnosticsElement.setAttribute('aria-label', label);
+		this._diagnosticsHover.value = this._hoverService.setupManagedHover(getDefaultHoverDelegate('element'), this._diagnosticsElement, () => label);
 	}
 
 	protected _showMenu(e: Event): void {
@@ -458,34 +470,35 @@ export class HostFilterActionViewItem extends BaseActionViewItem {
 			return;
 		}
 
-		const hosts = this._filterService.hosts;
-		// Zero hosts: the pill is a re-discovery trigger, not a menu. Fire
-		// rediscover() unless one is already in flight.
-		if (hosts.length === 0) {
+		// Nothing to switch between: the pill re-runs discovery rather than
+		// opening a menu. Fire rediscover() unless one is already in flight.
+		if (this._retriesOnClick()) {
 			if (!this._filterService.isDiscovering) {
 				this._filterService.rediscover();
 			}
 			return;
 		}
-		if (hosts.length === 1) {
+		const hosts = this._filterService.hosts;
+		if (hosts.length <= 1) {
 			return;
 		}
 
-		const selectedId = this._filterService.selectedProviderId;
+		const selectedId = this._filterService.selectedHostId;
 
 		const actions: IAction[] = [];
 		for (const host of hosts) {
-			const label = host.status === AgentHostFilterConnectionStatus.Connected
+			// Connection state is only meaningful where the user drives it.
+			const label = !host.connectable || host.status === AgentHostFilterConnectionStatus.Connected
 				? host.label
 				: host.status === AgentHostFilterConnectionStatus.Connecting
 					? localize('agentHostFilter.hostConnecting', "{0} (connecting…)", host.label)
 					: localize('agentHostFilter.hostDisconnected', "{0} (disconnected)", host.label);
 			actions.push(new Action(
-				`agentHostFilter.host.${host.providerId}`,
+				`agentHostFilter.host.${host.id}`,
 				label,
-				selectedId === host.providerId ? 'codicon codicon-check' : undefined,
+				selectedId === host.id ? 'codicon codicon-check' : undefined,
 				true,
-				async () => this._filterService.setSelectedProviderId(host.providerId),
+				async () => this._filterService.setSelectedHostId(host.id),
 			));
 		}
 

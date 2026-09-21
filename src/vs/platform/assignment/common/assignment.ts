@@ -258,3 +258,8 @@ export function getInternalOrg(organisations: readonly string[] | undefined): 'v
 	const isMicrosoftInternal = organisations?.includes('microsoft') || organisations?.includes('ms-copilot') || organisations?.includes('MicrosoftCopilot');
 	return isVSCodeInternal ? 'vscode' : isGitHubInternal ? 'github' : isMicrosoftInternal ? 'microsoft' : undefined;
 }
+
+/** Whether the account is staff or belongs to an internal org; the machine half is `verifyMicrosoftInternalDomain`. */
+export function isInternalAccount(isStaff: boolean | undefined, organisations: readonly string[] | undefined): boolean {
+	return isStaff === true || getInternalOrg(organisations) !== undefined;
+}

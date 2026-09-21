@@ -6,10 +6,22 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ChatExternalSessionsMode } from '../../../../../platform/chat/common/chatSettings.js';
-import { getExternalSessionVisibilityConfirmation, shouldConfirmExternalSessionVisibilityChange } from '../../browser/externalSessionBanner.js';
+import { getExternalSessionBannerSelectedMode, getExternalSessionVisibilityConfirmation, shouldConfirmExternalSessionVisibilityChange } from '../../browser/externalSessionBanner.js';
 
 suite('Sessions - External Session Banner', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('selects the configured external session visibility mode', () => {
+		assert.deepStrictEqual({
+			configuredRecent: getExternalSessionBannerSelectedMode(undefined, ChatExternalSessionsMode.Recent),
+			configuredLast7Days: getExternalSessionBannerSelectedMode(undefined, ChatExternalSessionsMode.Last7Days),
+			initialMode: getExternalSessionBannerSelectedMode(ChatExternalSessionsMode.Last24Hours, ChatExternalSessionsMode.Recent),
+		}, {
+			configuredRecent: ChatExternalSessionsMode.Recent,
+			configuredLast7Days: ChatExternalSessionsMode.Last7Days,
+			initialMode: ChatExternalSessionsMode.Last24Hours,
+		});
+	});
 
 	test('matches external session visibility time boundaries', () => {
 		const day = 24 * 60 * 60 * 1000;
@@ -59,7 +71,7 @@ suite('Sessions - External Session Banner', () => {
 			{
 				type: 'warning',
 				message: 'This session may no longer appear in Code - OSS',
-				detail: 'Only the 2 most recently updated external sessions from the last 7 days will be shown. Are you sure you want to save this change?',
+				detail: 'Only up to the 2 most recently updated external sessions from the last 7 days will be shown. Are you sure you want to save this change?',
 				primaryButton: '&&Save Anyway',
 			}
 		);

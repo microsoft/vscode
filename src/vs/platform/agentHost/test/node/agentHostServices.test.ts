@@ -6,32 +6,45 @@
 import assert from 'assert';
 import { Event } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { URI } from '../../../../base/common/uri.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { INativeEnvironmentService } from '../../../environment/common/environment.js';
+import { IFileService } from '../../../files/common/files.js';
 import { SyncDescriptor } from '../../../instantiation/common/descriptors.js';
-import { createDecorator, IInstantiationService, _util } from '../../../instantiation/common/instantiation.js';
+import { createDecorator, IInstantiationService, ServiceIdentifier, _util } from '../../../instantiation/common/instantiation.js';
 import { InstantiationService } from '../../../instantiation/common/instantiationService.js';
-import { IAgentEditAttributionService, NullAgentEditAttributionService } from '../../common/fileEditAttribution.js';
-import { NullByokLmBridgeRegistry } from '../../node/byokLmBridgeRegistry.js';
-import { AgentHostServiceCollection, registerAgentHostCoreServices, registerAgentHostHostServices } from '../../node/agentHostServices.js';
-import { IAgentHostWorktreeIsolation } from '../../node/shared/worktreeIsolation.js';
+import { ServiceCollection } from '../../../instantiation/common/serviceCollection.js';
+import { StrictServiceCollection } from '../../../instantiation/common/strictServiceCollection.js';
+import { ILogService } from '../../../log/common/log.js';
+import { IProductService } from '../../../product/common/productService.js';
+import { IRequestService } from '../../../request/common/request.js';
+import { ITelemetryService } from '../../../telemetry/common/telemetry.js';
+import { IAgentHostGitService } from '../../common/agentHostGitService.js';
+import { ISessionDataService } from '../../common/sessionDataService.js';
+import { IAgentConfigurationService } from '../../node/agentConfigurationService.js';
+import { IAgentHostAuthenticationController, IAgentHostAuthenticationService } from '../../node/agentHostAuthenticationService.js';
+import { IAgentHostClientConnectionService } from '../../node/agentHostClientConnectionService.js';
+import { IAgentHostGitHubEndpointService } from '../../node/agentHostGitHubEndpointService.js';
+import { IAgentHostProxyResolver } from '../../node/agentHostProxyResolver.js';
+import { IAgentHostStateManager } from '../../node/agentHostStateManager.js';
+import { NullByokLmBridgeRegistry, IByokLmBridgeRegistry } from '../../node/byokLmBridgeRegistry.js';
+import { registerAgentHostCoreServices, registerAgentHostHostServices } from '../../node/agentHostServices.js';
+import { IAgentHostWorktreeIsolation, NullAgentHostWorktreeIsolation } from '../../node/shared/worktreeIsolation.js';
 
 const ITestService = createDecorator<ITestService>('agentHostTestService');
-const IReplacementService = createDecorator<ITestService>('agentHostReplacementService');
 
 interface ITestService {
 	readonly _serviceBrand: undefined;
 	readonly value: number;
 }
 
-class TestService implements ITestService {
+class CountingTestService implements ITestService {
 	declare readonly _serviceBrand: undefined;
 	readonly value = 1;
-}
 
-class ReplacementTestService implements ITestService {
-	declare readonly _serviceBrand: undefined;
-	readonly value = 2;
+	constructor(onCreate: () => void) {
+		onCreate();
+	}
 }
 
 class DisposableTestService extends Disposable implements ITestService {
@@ -48,154 +61,190 @@ class DisposableTestService extends Disposable implements ITestService {
 	}
 }
 
-suite('AgentHostServiceCollection', () => {
+class RecordingServiceCollection extends StrictServiceCollection {
+	private readonly _descriptorIds = new Set<ServiceIdentifier<unknown>>();
+
+	constructor(...entries: ConstructorParameters<typeof ServiceCollection>) {
+		super();
+		for (const [id, service] of entries) {
+			this.set(id, service);
+		}
+	}
+
+	get descriptorIds(): readonly ServiceIdentifier<unknown>[] {
+		return [...this._descriptorIds];
+	}
+
+	override set<T>(id: ServiceIdentifier<T>, instanceOrDescriptor: T | SyncDescriptor<T>): T | SyncDescriptor<T> {
+		if (instanceOrDescriptor instanceof SyncDescriptor) {
+			this._descriptorIds.add(id);
+		}
+		return super.set(id, instanceOrDescriptor);
+	}
+}
+
+function registerCoreServices(services: ServiceCollection): void {
+	registerAgentHostCoreServices(services, {
+		storageResource: URI.file('/storage.json'),
+		fetchFn: globalThis.fetch,
+		gitHubServiceOptions: {
+			endpoint: {
+				onDidChange: Event.None,
+				getApiBaseUri: () => 'https://api.github.com',
+				getGraphQlUri: () => 'https://api.github.com/graphql',
+			},
+			tokenProvider: { getToken: () => undefined },
+			fetch: globalThis.fetch,
+		},
+	});
+}
+
+function registerHostServices(services: ServiceCollection): void {
+	registerAgentHostHostServices(services, {
+		userDataPath: URI.file('/user-data'),
+		fetchFn: globalThis.fetch,
+		byok: { kind: 'renderer', bridgeRegistry: new NullByokLmBridgeRegistry() },
+	});
+}
+
+function assertCompleteAcyclicGraph(services: RecordingServiceCollection, externallyRegistered: ReadonlySet<ServiceIdentifier<unknown>>): void {
+	const descriptorIds = new Set(services.descriptorIds);
+	const dependencies = new Map<ServiceIdentifier<unknown>, readonly ServiceIdentifier<unknown>[]>();
+	for (const id of descriptorIds) {
+		const descriptor = services.get(id);
+		assert.ok(descriptor instanceof SyncDescriptor);
+		const serviceDependencies = _util.getServiceDependencies(descriptor.ctor).map(dependency => dependency.id);
+		dependencies.set(id, serviceDependencies);
+		for (const dependency of serviceDependencies) {
+			assert.ok(descriptorIds.has(dependency) || externallyRegistered.has(dependency), `${id} depends on unregistered service ${dependency}`);
+		}
+	}
+
+	const visiting = new Set<ServiceIdentifier<unknown>>();
+	const visited = new Set<ServiceIdentifier<unknown>>();
+	const visit = (id: ServiceIdentifier<unknown>): void => {
+		if (visited.has(id)) {
+			return;
+		}
+		assert.ok(!visiting.has(id), `Cyclic Agent Host service dependency at ${id}`);
+		visiting.add(id);
+		for (const dependency of dependencies.get(id) ?? []) {
+			if (descriptorIds.has(dependency)) {
+				visit(dependency);
+			}
+		}
+		visiting.delete(id);
+		visited.add(id);
+	};
+	for (const id of descriptorIds) {
+		visit(id);
+	}
+
+	assert.ok(descriptorIds.size > 0);
+}
+
+suite('Agent Host service registrations', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('registers the instantiation service before sealing', () => {
-		const services = new AgentHostServiceCollection();
-		const instantiationService = disposables.add(new InstantiationService(services, true));
-
-		services.seal();
-
-		assert.strictEqual(services.get(IInstantiationService), instantiationService);
-	});
-
-	test('allows descriptor resolution after sealing', () => {
-		const services = new AgentHostServiceCollection();
-		services.set(ITestService, new SyncDescriptor(TestService));
-		const instantiationService = disposables.add(new InstantiationService(services, true));
-		services.seal();
-
-		const resolved = instantiationService.invokeFunction(accessor => accessor.get(ITestService));
-
-		assert.deepStrictEqual({
-			value: resolved.value,
-			registered: services.get(ITestService) === resolved,
-		}, {
-			value: 1,
-			registered: true,
-		});
-	});
-
-	test('rejects registrations and replacements after sealing', () => {
-		const services = new AgentHostServiceCollection();
-		services.set(ITestService, new TestService());
-		services.set(IReplacementService, new SyncDescriptor(TestService));
-		disposables.add(new InstantiationService(services, true));
-		services.seal();
-
-		assert.throws(() => services.set(createDecorator<ITestService>('agentHostLateService'), new TestService()), /service collection is sealed/);
-		assert.throws(() => services.set(ITestService, new TestService()), /service collection is sealed/);
-		assert.throws(() => services.set(IReplacementService, new SyncDescriptor(TestService)), /service collection is sealed/);
-		assert.throws(() => services.set(IReplacementService, new ReplacementTestService()), /service collection is sealed/);
-	});
-
-	test('registers descriptors with exact leading static arguments', () => {
-		const services = new AgentHostServiceCollection();
-		const ids = [
-			...registerAgentHostCoreServices(services, {
-				storageResource: URI.file('/storage.json'),
-				fetchFn: globalThis.fetch,
-				gitHubServiceOptions: {
-					endpoint: {
-						onDidChange: Event.None,
-						getApiBaseUri: () => 'https://api.github.com',
-						getGraphQlUri: () => 'https://api.github.com/graphql',
-					},
-					tokenProvider: { getToken: () => undefined },
-					fetch: globalThis.fetch,
-				},
-			}),
-			...registerAgentHostHostServices(services, {
-				userDataPath: URI.file('/user-data'),
-				fetchFn: globalThis.fetch,
-				byok: { kind: 'renderer', bridgeRegistry: new NullByokLmBridgeRegistry() },
-			}),
-		];
-
-		const descriptors = ids
-			.map(id => services.get(id))
-			.filter((candidate): candidate is SyncDescriptor<unknown> => candidate instanceof SyncDescriptor);
-		const actual = descriptors.map(descriptor => {
-			const dependencies = _util.getServiceDependencies(descriptor.ctor).sort((a, b) => a.index - b.index);
-			return {
-				name: descriptor.ctor.name,
-				staticArguments: descriptor.staticArguments.length,
-				firstServiceArgument: dependencies[0]?.index ?? 0,
-			};
-		});
-
-		assert.ok(actual.length > 0);
-		assert.deepStrictEqual(
-			actual.filter(entry => entry.staticArguments !== entry.firstServiceArgument),
-			[],
+	test('resolves descriptors lazily and caches the instance', () => {
+		let createCount = 0;
+		const services = new StrictServiceCollection(
+			[ITestService, new SyncDescriptor(CountingTestService, [() => createCount++])],
 		);
-	});
+		const instantiationService = disposables.add(new InstantiationService(services, true));
 
-	test('preserves typed overrides', () => {
-		const services = new AgentHostServiceCollection();
-		const override = new NullAgentEditAttributionService();
-		services.set(IAgentEditAttributionService, override);
-
-		const ids = registerAgentHostCoreServices(services, {
-			storageResource: undefined,
-			fetchFn: globalThis.fetch,
-			gitHubServiceOptions: {
-				endpoint: {
-					onDidChange: Event.None,
-					getApiBaseUri: () => 'https://api.github.com',
-					getGraphQlUri: () => 'https://api.github.com/graphql',
-				},
-				tokenProvider: { getToken: () => undefined },
-				fetch: globalThis.fetch,
-			},
-		});
+		assert.ok(services.get(ITestService) instanceof SyncDescriptor);
+		const first = instantiationService.invokeFunction(accessor => accessor.get(ITestService));
+		const second = instantiationService.invokeFunction(accessor => accessor.get(ITestService));
 
 		assert.deepStrictEqual({
-			preserved: services.get(IAgentEditAttributionService) === override,
-			returned: ids.includes(IAgentEditAttributionService),
+			createCount,
+			sameInstance: first === second,
+			cached: services.get(ITestService) === first,
 		}, {
-			preserved: true,
-			returned: false,
+			createCount: 1,
+			sameInstance: true,
+			cached: true,
 		});
 	});
 
-	test('keeps worktree isolation production-only', () => {
-		const services = new AgentHostServiceCollection();
-		const coreIds = registerAgentHostCoreServices(services, {
-			storageResource: undefined,
-			fetchFn: globalThis.fetch,
-			gitHubServiceOptions: {
-				endpoint: {
-					onDidChange: Event.None,
-					getApiBaseUri: () => 'https://api.github.com',
-					getGraphQlUri: () => 'https://api.github.com/graphql',
-				},
-				tokenProvider: { getToken: () => undefined },
-				fetch: globalThis.fetch,
-			},
-		});
-		const hostIds = registerAgentHostHostServices(services, {
-			userDataPath: URI.file('/user-data'),
-			fetchFn: globalThis.fetch,
-			byok: { kind: 'renderer', bridgeRegistry: new NullByokLmBridgeRegistry() },
-		});
+	test('registers the production graph with complete, acyclic dependencies', () => {
+		const services = new RecordingServiceCollection();
+		registerCoreServices(services);
+		registerHostServices(services);
+
+		const externallyRegistered = new Set<ServiceIdentifier<unknown>>([
+			INativeEnvironmentService,
+			ILogService,
+			IFileService,
+			ISessionDataService,
+			IProductService,
+			ITelemetryService,
+			IRequestService,
+			IInstantiationService,
+			IAgentHostStateManager,
+			IAgentConfigurationService,
+			IAgentHostAuthenticationService,
+			IAgentHostAuthenticationController,
+			IAgentHostGitHubEndpointService,
+			IAgentHostProxyResolver,
+			IAgentHostClientConnectionService,
+			IByokLmBridgeRegistry,
+		]);
+		assertCompleteAcyclicGraph(services, externallyRegistered);
+	});
+
+	test('registers the core-only test graph with complete, acyclic dependencies', () => {
+		const services = new RecordingServiceCollection();
+		registerCoreServices(services);
+
+		assertCompleteAcyclicGraph(services, new Set<ServiceIdentifier<unknown>>([
+			ILogService,
+			IFileService,
+			ISessionDataService,
+			IProductService,
+			ITelemetryService,
+			IRequestService,
+			IInstantiationService,
+			IAgentHostStateManager,
+			IAgentConfigurationService,
+			IAgentHostAuthenticationService,
+			IAgentHostAuthenticationController,
+			IAgentHostGitHubEndpointService,
+			IAgentHostProxyResolver,
+			IAgentHostClientConnectionService,
+			IByokLmBridgeRegistry,
+			IAgentHostGitService,
+		]));
+	});
+
+	test('selects the core worktree isolation implementation', () => {
+		const coreServices = new StrictServiceCollection();
+		registerCoreServices(coreServices);
+		const nullServices = new StrictServiceCollection();
+		registerCoreServices(nullServices);
+		nullServices.set(IAgentHostWorktreeIsolation, new NullAgentHostWorktreeIsolation());
+		const hostServices = new StrictServiceCollection();
+		registerHostServices(hostServices);
+		const nullInstantiationService = disposables.add(new InstantiationService(nullServices, true));
+		const nullWorktreeIsolation = nullInstantiationService.invokeFunction(accessor => accessor.get(IAgentHostWorktreeIsolation));
 
 		assert.deepStrictEqual({
-			core: coreIds.includes(IAgentHostWorktreeIsolation),
-			host: hostIds.includes(IAgentHostWorktreeIsolation),
+			core: coreServices.get(IAgentHostWorktreeIsolation) instanceof SyncDescriptor,
+			nullSupported: nullWorktreeIsolation.supported,
+			host: hostServices.has(IAgentHostWorktreeIsolation),
 		}, {
-			core: false,
-			host: true,
+			core: true,
+			nullSupported: false,
+			host: false,
 		});
 	});
 
 	test('descriptor-created services have one disposal owner', () => {
-		const services = new AgentHostServiceCollection();
+		const services = new StrictServiceCollection();
 		let disposeCount = 0;
 		services.set(ITestService, new SyncDescriptor(DisposableTestService, [() => disposeCount++]));
 		const instantiationService = disposables.add(new InstantiationService(services, true));
-		services.seal();
 		instantiationService.invokeFunction(accessor => accessor.get(ITestService));
 
 		instantiationService.dispose();

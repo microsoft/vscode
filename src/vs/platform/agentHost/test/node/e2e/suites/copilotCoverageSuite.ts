@@ -17,11 +17,12 @@ import { AgentHostAutoReplyEnabledConfigKey } from '../../../../common/agentHost
 import { buildUncommittedChangesetUri } from '../../../../common/changesetUri.js';
 import { CopilotCliConfigKey } from '../../../../common/copilotCliConfig.js';
 import { CompletionItemKind, type CompletionsResult, type SubscribeResult } from '../../../../common/state/protocol/commands.js';
+import { McpServerStatus } from '../../../../common/state/protocol/state.js';
 import { PROTOCOL_VERSION } from '../../../../common/state/protocol/version/registry.js';
 import { ActionType, type ChatErrorAction, type ChatToolCallCompleteAction, type ChatToolCallContentChangedAction, type ChatToolCallReadyAction, type ChatToolCallStartAction } from '../../../../common/state/sessionActions.js';
-import { buildDefaultChatUri, MessageKind, ResponsePartKind, ROOT_STATE_URI, ToolCallStatus, ToolResultContentType, type ChangesetState, type SessionState } from '../../../../common/state/sessionState.js';
+import { buildChatUri, buildDefaultChatUri, CustomizationType, MessageKind, ResponsePartKind, ROOT_STATE_URI, ToolCallStatus, ToolResultContentType, type ChangesetState, type SessionState } from '../../../../common/state/sessionState.js';
 import type { TerminalCommandPart, TerminalState } from '../../../../common/state/protocol/channels-terminal/state.js';
-import { assertToolCallCompleteText, createRealSession, dispatchTurn, driveTurnToCompletion, getMarkdownResponseText, initTestGitRepo, resolveGitHubToken, terminalResourceFromContent } from '../harness/agentHostE2ETestHarness.js';
+import { assertToolCallCompleteText, createRealSession, dispatchTurn, driveChatTurnToCompletion, driveTurnToCompletion, getMarkdownResponseText, initTestGitRepo, resolveGitHubToken, terminalResourceFromContent } from '../harness/agentHostE2ETestHarness.js';
 import { expandShellToolName } from '../harness/shellToolNames.js';
 import { fetchSessionWithChat, getActionEnvelope, isActionNotification } from '../../serverIntegrationTestHelpers.js';
 import type { IAgentHostE2ETestContext } from './e2eTestContext.js';
@@ -130,7 +131,7 @@ export function defineCopilotCoverageTests(context: IAgentHostE2ETestContext): v
 			seen.add(notification as object);
 			if (isActionNotification(notification, 'chat/error')) {
 				const action = getActionEnvelope(notification).action as ChatErrorAction;
-				throw new Error(`Tool-search turn failed: ${action.error.errorType}: ${action.error.message}`);
+				throw new Error(`Tool-search turn failed: ${action.part.error.errorType}: ${action.part.error.message}`);
 			}
 			if (isActionNotification(notification, 'chat/toolCallStart')) {
 				const action = getActionEnvelope(notification).action as ChatToolCallStartAction;
@@ -288,8 +289,23 @@ export function defineCopilotCoverageTests(context: IAgentHostE2ETestContext): v
 					},
 				},
 			}, 100);
+			// Materialize without a model turn so the recorded tool call cannot race MCP startup.
+			const chatUri = buildChatUri(sessionUri, 'root-mcp');
+			await context.client.call('createChat', { channel: sessionUri, chat: chatUri }, 30_000);
+			await context.client.call<SubscribeResult>('subscribe', { channel: chatUri });
+			await context.client.waitForNotification(n => {
+				if (n.method !== 'action') {
+					return false;
+				}
+				const { channel, action } = getActionEnvelope(n);
+				return channel === sessionUri
+					&& action.type === ActionType.SessionCustomizationUpdated
+					&& action.customization.type === CustomizationType.McpServer
+					&& action.customization.name === 'root_probe_server'
+					&& action.customization.state.kind === McpServerStatus.Ready;
+			}, 30_000);
 			const turnId = 'turn-root-mcp';
-			await driveTurnToCompletion(context.client, sessionUri, turnId, 'Call root_probe exactly once, then reply with only its exact result.', 1);
+			await driveChatTurnToCompletion(context.client, chatUri, turnId, 'Call root_probe exactly once, then reply with only its exact result.', 1);
 			const completion = context.client.receivedNotifications(n => isActionNotification(n, 'chat/toolCallComplete'))
 				.map(n => getActionEnvelope(n).action as ChatToolCallCompleteAction)
 				.find(action => action.turnId === turnId);
@@ -494,6 +510,43 @@ export function defineCopilotCoverageTests(context: IAgentHostE2ETestContext): v
 		const toolNames = startedToolNames(context, turnId);
 
 		assert.ok(toolNames.includes('bash') && toolNames.includes('read_bash') && toolNames.includes('stop_bash'));
+	});
+
+	test('stopping an asynchronous shell allows a follow-up turn', async function () {
+		this.timeout(180_000);
+		const { sessionUri } = await createWorkspaceSession('stopped-shell-followup');
+		const shellTool = expandShellToolName('${shell}');
+		const turnId = 'turn-stop-shell';
+		const stopped = await driveTurnToCompletion(context.client, sessionUri, turnId,
+			'Use your shell tool to run exactly `node -e "setInterval(() => {}, 1000)"` with mode "async" and shellId "e2e-stopped-shell". ' +
+			'Then immediately call your stop-shell tool with shellId "e2e-stopped-shell". Do not leave the process running. Reply exactly "STOPPED".', 1);
+		const toolNames = startedToolNames(context, turnId);
+		const followup = await driveTurnToCompletion(context.client, sessionUri, 'turn-after-stop-shell', 'Reply exactly "FOLLOWUP_DONE".', 2);
+		assert.deepStrictEqual({
+			tools: toolNames,
+			stopped: stopped.responseText.trim(),
+			followup: followup.responseText.trim(),
+		}, {
+			tools: [shellTool, expandShellToolName('${stop_shell}')],
+			stopped: 'STOPPED',
+			followup: 'FOLLOWUP_DONE',
+		});
+	});
+
+	test('shell output preserves public GitHub MCP metadata', async function () {
+		this.timeout(180_000);
+		const { sessionUri, workspace } = await createWorkspaceSession('public-mcp-metadata');
+		const turnId = 'turn-public-mcp-metadata';
+		await driveTurnToCompletion(context.client, sessionUri, turnId,
+			'Run exactly `node -e "console.log(\'https://github.com/github/copilot-sdk/pull/1\')"` with your shell tool. Then reply exactly "DONE".', 1);
+		assertToolCallCompleteText(context.client, {
+			channel: buildDefaultChatUri(sessionUri),
+			turnId,
+			toolNames: [config.shellToolName],
+			workspace,
+			expected: [/https:\/\/github\.com\/github\/copilot-sdk\/pull\/1/],
+			success: true,
+		});
 	});
 
 	(context.runRecordOnlyTests ? test : test.skip)('managed shell sessions can be listed after asynchronous execution', async function () {

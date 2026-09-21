@@ -7,12 +7,13 @@ import assert from 'assert';
 import * as sinon from 'sinon';
 import { Event } from '../../../../../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../../../../../base/common/lifecycle.js';
-import { observableValue } from '../../../../../../../base/common/observable.js';
+import { ISettableObservable, observableValue } from '../../../../../../../base/common/observable.js';
 import { IRenderedMarkdown, MarkdownRenderOptions, renderAsPlaintext, renderMarkdown } from '../../../../../../../base/browser/markdownRenderer.js';
 import { IMarkdownString, MarkdownString } from '../../../../../../../base/common/htmlContent.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { mainWindow } from '../../../../../../../base/browser/window.js';
+import { ILinkPresentation, ILinkPresentationService } from '../../../../../../../platform/dataChannel/common/dataChannel.js';
 import { IHoverService } from '../../../../../../../platform/hover/browser/hover.js';
 import { IMarkdownRenderer } from '../../../../../../../platform/markdown/browser/markdownRenderer.js';
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
@@ -21,6 +22,7 @@ import { workbenchInstantiationService } from '../../../../../../test/browser/wo
 import { IChatMarkdownAnchorService } from '../../../../browser/widget/chatContentParts/chatMarkdownAnchorService.js';
 import { IChatContentPartRenderContext, InlineTextModelCollection } from '../../../../browser/widget/chatContentParts/chatContentParts.js';
 import { ChatAutomationConfiguredResultSubPart } from '../../../../browser/widget/chatContentParts/toolInvocationParts/chatAutomationConfiguredResultSubPart.js';
+import { ChatSessionCreatedResultSubPart } from '../../../../browser/widget/chatContentParts/toolInvocationParts/chatSessionCreatedResultSubPart.js';
 import { ChatToolInvocationPart } from '../../../../browser/widget/chatContentParts/toolInvocationParts/chatToolInvocationPart.js';
 import { ChatToolConfirmationCarouselPart } from '../../../../browser/widget/chatContentParts/toolInvocationParts/chatToolConfirmationCarouselPart.js';
 import { BaseChatToolInvocationSubPart } from '../../../../browser/widget/chatContentParts/toolInvocationParts/chatToolInvocationSubPart.js';
@@ -28,11 +30,12 @@ import { ChatToolProgressSubPart } from '../../../../browser/widget/chatContentP
 import { ChatToolStreamingSubPart } from '../../../../browser/widget/chatContentParts/toolInvocationParts/chatToolStreamingSubPart.js';
 import { isAskQuestionsToolInvocation, isMcpToolInvocation } from '../../../../browser/widget/chatContentParts/toolInvocationParts/chatToolPartUtilities.js';
 import { DiffEditorPool, EditorPool } from '../../../../browser/widget/chatContentParts/chatContentCodePools.js';
-import { IChatAutomationConfiguredData, IChatTerminalToolInvocationData, IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind } from '../../../../common/chatService/chatService.js';
+import { IChatAutomationConfiguredData, IChatSessionCreatedData, IChatTerminalToolInvocationData, IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind } from '../../../../common/chatService/chatService.js';
 import { IChatResponseViewModel } from '../../../../common/model/chatViewModel.js';
 import { ToolDataSource, type ToolDataSource as ToolDataSourceType } from '../../../../common/tools/languageModelToolsService.js';
 import { CollapsibleListPool } from '../../../../browser/widget/chatContentParts/chatReferencesContentPart.js';
 import { IChatTodoListService } from '../../../../common/tools/chatTodoListService.js';
+import { MockChatWidgetService } from '../mockChatWidget.js';
 
 class TestToolInvocationSubPart extends BaseChatToolInvocationSubPart {
 	readonly domNode = mainWindow.document.createElement('div');
@@ -44,6 +47,14 @@ class TestToolInvocationSubPart extends BaseChatToolInvocationSubPart {
 	}
 }
 
+const mockTodoListService = {
+	_serviceBrand: undefined,
+	onDidUpdateTodos: Event.None,
+	getTodos: () => [],
+	setTodos() { },
+	migrateTodos() { },
+} satisfies IChatTodoListService;
+
 suite('ChatToolProgressSubPart', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
@@ -54,6 +65,7 @@ suite('ChatToolProgressSubPart', () => {
 	let mockHoverService: IHoverService;
 	let mockConfigurationService: TestConfigurationService;
 	let mockEditorPool: EditorPool;
+	let sessionLinkPresentation: ISettableObservable<ILinkPresentation | undefined>;
 
 	function createRenderContext(isComplete: boolean = false): IChatContentPartRenderContext {
 		const mockElement: Partial<IChatResponseViewModel> = {
@@ -184,6 +196,17 @@ suite('ChatToolProgressSubPart', () => {
 		} as unknown as IHoverService;
 		instantiationService.stub(IHoverService, mockHoverService);
 
+		sessionLinkPresentation = observableValue<ILinkPresentation | undefined>('sessionLinkPresentation', undefined);
+		instantiationService.stub(ILinkPresentationService, {
+			_serviceBrand: undefined,
+			onDidChangeLinkPresentationRules: Event.None,
+			linkPresentationRules: [],
+			registerLinkPresentationProvider: () => ({ dispose() { } }),
+			registerExtensionLinkPresentationProvider: () => ({ dispose() { } }),
+			getLinkPresentationRule: () => ({ id: 'test-session-links', uriPattern: /^agent-host-session:/, kind: 'session' }),
+			createLinkPresentationWatcher: () => ({ presentation: sessionLinkPresentation, dispose() { } }),
+		});
+
 		mockEditorPool = {} as EditorPool;
 	});
 
@@ -202,13 +225,9 @@ suite('ChatToolProgressSubPart', () => {
 			undefined,
 			0,
 			instantiationService,
-			{
-				_serviceBrand: undefined,
-				onDidUpdateTodos: Event.None,
-				getTodos: () => [],
-				setTodos() { },
-				migrateTodos() { },
-			} satisfies IChatTodoListService,
+			mockTodoListService,
+			mockConfigurationService,
+			new MockChatWidgetService(),
 		));
 	}
 
@@ -220,7 +239,7 @@ suite('ChatToolProgressSubPart', () => {
 		assert.strictEqual(part.hasSameContent(invocation, [], {} as never), false);
 	});
 
-	test('confirmation carousel reports the active subagent and invokes its reference action', () => {
+	test('confirmation carousel reports the active subagent title and invokes its reference action', () => {
 		const createPendingInvocation = (toolCallId: string): IChatToolInvocation => ({
 			...createToolInvocation(),
 			toolCallId,
@@ -245,8 +264,8 @@ suite('ChatToolProgressSubPart', () => {
 			throw new Error('External tool parts should be reused');
 		}, []));
 		disposables.add(carousel.onDidChangeActiveSubagent(id => active.push(id)));
-		carousel.addToolInvocation(createPendingInvocation('first'), 'subagent-one', 'one', id => revealed.push(id), 'Open one Chat', createExternalPart());
-		carousel.addToolInvocation(createPendingInvocation('second'), 'subagent-two', 'two', id => revealed.push(id), 'Open two Chat', createExternalPart());
+		carousel.addToolInvocation(createPendingInvocation('first'), 'subagent-one', 'Inspect auth flow', id => revealed.push(id), 'Open Inspect auth flow Chat', createExternalPart());
+		carousel.addToolInvocation(createPendingInvocation('second'), 'subagent-two', 'Review current branch', id => revealed.push(id), 'Open Review current branch Chat', createExternalPart());
 
 		carousel.activateFirstToolForSubagent('subagent-two');
 		const agentLabel = carousel.domNode.querySelector<HTMLButtonElement>('.chat-tool-carousel-agent-label');
@@ -255,11 +274,13 @@ suite('ChatToolProgressSubPart', () => {
 		assert.deepStrictEqual({
 			active,
 			revealed,
+			text: agentLabel?.textContent,
 			label: agentLabel?.title,
 		}, {
 			active: ['subagent-one', 'subagent-two'],
 			revealed: ['subagent-two'],
-			label: 'Open two Chat',
+			text: '\u2014 Review current branch',
+			label: 'Open Review current branch Chat',
 		});
 	});
 
@@ -311,6 +332,63 @@ suite('ChatToolProgressSubPart', () => {
 		assert.strictEqual(createInstanceStub.firstCall.args[0], ChatAutomationConfiguredResultSubPart);
 	});
 
+	test('renders a created session as a rich session link', () => {
+		const updateHover = sinon.spy();
+		const setupManagedHoverStub = sinon.stub(mockHoverService, 'setupManagedHover').returns({
+			dispose() { },
+			show() { },
+			hide() { },
+			update: updateHover,
+		});
+		disposables.add(toDisposable(() => setupManagedHoverStub.restore()));
+		const runningTitle = 'Weather question session with a detailed title that is longer than sixty characters';
+		sessionLinkPresentation.set({
+			kind: 'session',
+			title: runningTitle,
+			status: { kind: 'pending', label: 'Working' },
+		}, undefined);
+		const part = disposables.add(instantiationService.createInstance(
+			ChatSessionCreatedResultSubPart,
+			createSerializedToolInvocation({ isComplete: true }),
+			{
+				kind: 'sessionCreated',
+				openLink: 'agent-host-session://copilot/task-a',
+				label: 'Implement Task A for the current session…',
+				fullTitle: 'Implement Task A for the current session and validate all of its behavior',
+			} satisfies IChatSessionCreatedData,
+			createRenderContext(),
+			mockMarkdownRenderer,
+		));
+		const link = part.domNode.querySelector<HTMLAnchorElement>('a.monaco-link');
+
+		assert.deepStrictEqual({
+			title: link?.querySelector('.chat-rich-link-title')?.textContent,
+			href: link?.getAttribute('href'),
+			hoverTitle: updateHover.lastCall.args[0],
+			kind: link?.dataset.chatRichLinkKind,
+			hasRichLink: link?.classList.contains('chat-rich-link'),
+		}, {
+			title: runningTitle,
+			href: 'agent-host-session://copilot/task-a',
+			hoverTitle: runningTitle,
+			kind: 'session',
+			hasRichLink: true,
+		});
+
+		sessionLinkPresentation.set({
+			kind: 'session',
+			title: 'Finished weather session',
+			status: { kind: 'success', label: 'Completed' },
+		}, undefined);
+		assert.deepStrictEqual({
+			title: link?.querySelector('.chat-rich-link-title')?.textContent,
+			hoverTitle: updateHover.lastCall.args[0],
+		}, {
+			title: 'Finished weather session',
+			hoverTitle: 'Finished weather session',
+		});
+	});
+
 	test('renders codicon syntax in an automation name as literal text', () => {
 		const render = (automationName: string) => {
 			const part = disposables.add(instantiationService.createInstance(
@@ -325,7 +403,7 @@ suite('ChatToolProgressSubPart', () => {
 				text: button?.textContent,
 				ariaLabel: button?.getAttribute('aria-label'),
 				tabIndex: button?.tabIndex,
-				watchIconIsChild: !!button?.querySelector('.codicon-watch'),
+				calendarIconIsChild: !!button?.querySelector('.codicon-calendar'),
 				// `codicon-*` on the root would restyle the label text.
 				rootCarriesCodiconClass: button?.classList.contains('codicon'),
 				injectedIcons: [...button?.querySelectorAll('.codicon') ?? []]
@@ -338,17 +416,17 @@ suite('ChatToolProgressSubPart', () => {
 				text: 'Created an automation: $(error)',
 				ariaLabel: 'Open automation $(error)',
 				tabIndex: 0,
-				watchIconIsChild: true,
+				calendarIconIsChild: true,
 				rootCarriesCodiconClass: false,
-				injectedIcons: ['codicon-watch'],
+				injectedIcons: ['codicon-calendar'],
 			},
 			{
 				text: 'Created an automation: a \\$(error) b',
 				ariaLabel: 'Open automation a \\$(error) b',
 				tabIndex: 0,
-				watchIconIsChild: true,
+				calendarIconIsChild: true,
 				rootCarriesCodiconClass: false,
-				injectedIcons: ['codicon-watch'],
+				injectedIcons: ['codicon-calendar'],
 			},
 		]);
 	});
@@ -385,13 +463,9 @@ suite('ChatToolProgressSubPart', () => {
 			undefined,
 			0,
 			instantiationService,
-			{
-				_serviceBrand: undefined,
-				onDidUpdateTodos: Event.None,
-				getTodos: () => [],
-				setTodos() { },
-				migrateTodos() { },
-			} satisfies IChatTodoListService,
+			mockTodoListService,
+			mockConfigurationService,
+			new MockChatWidgetService(),
 		));
 		const sessionIdBeforeUpdate = part.domNode.firstElementChild?.getAttribute('data-terminal-tool-session-id');
 
@@ -457,7 +531,7 @@ suite('ChatToolProgressSubPart', () => {
 			const shimmerText = part.domNode.querySelector<HTMLElement>('.chat-progress-shimmer-text');
 			return {
 				shimmer: !!part.domNode.querySelector('.shimmer-progress'),
-				spinner: !!part.domNode.querySelector('.codicon-loading'),
+				spinner: !!part.domNode.querySelector('.codicon-loading, .codicon-loading-compact'),
 				shimmerText: shimmerText?.textContent,
 				// A negative animation-delay keeps the sweep continuous across streaming rerenders.
 				shimmerPhaseSynced: (shimmerText?.style.animationDelay ?? '').endsWith('ms'),
@@ -545,7 +619,7 @@ suite('ChatToolProgressSubPart', () => {
 			new Set<string>()
 		));
 
-		assert.strictEqual(part.domNode.querySelector('.codicon-loading'), null);
+		assert.strictEqual(part.domNode.querySelector('.codicon-loading, .codicon-loading-compact'), null);
 	});
 
 	test('renders markdown file pills in regular tool messages', () => {

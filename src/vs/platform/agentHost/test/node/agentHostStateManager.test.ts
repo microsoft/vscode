@@ -4,13 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { timeout } from '../../../../base/common/async.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { ActionType, NotificationType, type ActionEnvelope, type INotification } from '../../common/state/sessionActions.js';
-import { ChatInputQuestionKind, ChatInputResponseKind, MessageKind, SessionSummary, ResponsePartKind, ROOT_STATE_URI, SessionLifecycle, SessionStatus, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentSessionUri, buildSubagentSessionUriPrefix, isSubagentSession, mergeSessionWithDefaultChat, parseSubagentSessionUri, readHostBuildInfo, readSessionEhcliAdoptable, withSessionEhcliAdoptable, type ChatState, type MarkdownResponsePart, type SessionState, type Turn } from '../../common/state/sessionState.js';
+import { ChatInputQuestionKind, ChatInputResponseKind, MessageKind, SessionSummary, ResponsePartKind, ROOT_STATE_URI, SessionLifecycle, SessionStatus, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentSessionUri, buildSubagentSessionUriPrefix, createErrorResponsePart, isSubagentSession, mergeSessionWithDefaultChat, parseSubagentSessionUri, readHostBuildInfo, readSessionEhcliAdoptable, withSessionEhcliAdoptable, type ChatState, type MarkdownResponsePart, type SessionState, type Turn } from '../../common/state/sessionState.js';
 import { type SessionSummaryChangedParams } from '../../common/state/protocol/notifications.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { buildChangesetUri, buildSessionChangesetUri } from '../../common/changesetUri.js';
@@ -315,15 +316,19 @@ suite('AgentHostStateManager', () => {
 		// has no per-chat working-directory override, so getSessionState must
 		// project the RESOLVED session working directory, never the stale
 		// create-time value that was seeded onto the default chat.
+		const workingDirectoryChanges: string[] = [];
+		disposables.add(manager.onDidChangeSessionWorkingDirectories(({ session }) => workingDirectoryChanges.push(session)));
 		manager.createSession({ ...makeSessionSummary(), workingDirectories: ['file:///provisional'] }, { emitNotification: false });
 		manager.markSessionPersisted(sessionUri, { ...makeSessionSummary(), workingDirectories: ['file:///resolved-worktree'] });
 
 		assert.deepStrictEqual({
 			session: manager.getSessionState(sessionUri)?.workingDirectories?.[0],
 			defaultChat: manager.getSessionState(sessionChatUri)?.workingDirectories?.[0],
+			workingDirectoryChanges,
 		}, {
 			session: 'file:///resolved-worktree',
 			defaultChat: 'file:///resolved-worktree',
+			workingDirectoryChanges: [sessionUri.toString()],
 		});
 	});
 
@@ -357,7 +362,7 @@ suite('AgentHostStateManager', () => {
 			addedWorkingDirectories: added?.type === NotificationType.SessionAdded ? added.summary.workingDirectories : undefined,
 		}, {
 			status: SessionStatus.InProgress,
-			project: persisted.project,
+			project: provisional.project,
 			workingDirectories: persisted.workingDirectories,
 			addedStatus: SessionStatus.InProgress,
 			addedProject: persisted.project,
@@ -585,7 +590,7 @@ suite('AgentHostStateManager', () => {
 			type: ActionType.ChatError,
 			turnId: 'turn-1',
 			duration: 1000,
-			error: { errorType: 'failed', message: 'boom' },
+			part: createErrorResponsePart({ errorType: 'failed', message: 'boom' }),
 		});
 
 		assert.deepStrictEqual(events, [
@@ -881,7 +886,7 @@ suite('AgentHostStateManager', () => {
 	});
 
 	test('removeSession flushes pending status=Idle notification before eviction', () => {
-		// Regression: when _maybeEvictIdleSession calls removeSession within the
+		// Regression: when residency eviction calls removeSession within the
 		// 100 ms scheduler window after a turn completes, the client must still
 		// receive a SessionSummaryChanged with status=Idle so the spinner clears.
 		//
@@ -961,7 +966,7 @@ suite('AgentHostStateManager', () => {
 	});
 
 	test('removeSession does NOT dispose per-session changesets (LRU eviction must not clear list-view chip)', () => {
-		// Regression: _maybeEvictIdleSession calls removeSession to drop an
+		// Regression: residency eviction calls removeSession to drop an
 		// idle session from the in-memory cache. The Agents Window list view
 		// keeps a per-row changeset subscription open to render the diff
 		// chip, so cascading disposeSessionChangesets here would emit a
@@ -1986,6 +1991,51 @@ suite('AgentHostStateManager', () => {
 						notifiedSession: sessionUri,
 					},
 				);
+			});
+		});
+
+		test('SessionSummaryNotifier provides the previous summary to internal observers', () => {
+			return runWithFakedTimers({ useFakeTimers: true }, async () => {
+				manager.createSession(makeSessionSummary());
+				const initial = manager.getSessionSummary(sessionUri)!;
+				const previous: SessionSummary[] = [];
+				disposables.add(manager.onDidChangeSessionSummary(event => previous.push(event.previous)));
+
+				manager.dispatchServerAction(sessionUri, { type: ActionType.SessionIsReadChanged, isRead: true });
+				await timeout(150);
+				const read = manager.getSessionSummary(sessionUri)!;
+				manager.dispatchServerAction(sessionUri, { type: ActionType.SessionActivityChanged, activity: 'Running tool' });
+				await timeout(150);
+
+				assert.deepStrictEqual(previous, [initial, read]);
+			});
+		});
+
+		test('SessionSummaryNotifier serializes activity clearing as null', () => {
+			return runWithFakedTimers({ useFakeTimers: true }, async () => {
+				manager.createSession(makeSessionSummary());
+
+				const notifications: INotification[] = [];
+				disposables.add(manager.onDidEmitNotification(notification => notifications.push(notification)));
+
+				manager.dispatchServerAction(sessionUri, {
+					type: ActionType.SessionActivityChanged,
+					activity: 'Setting up workspace',
+				});
+				await new Promise(resolve => setTimeout(resolve, 150));
+				manager.dispatchServerAction(sessionUri, {
+					type: ActionType.SessionActivityChanged,
+					activity: undefined,
+				});
+				await new Promise(resolve => setTimeout(resolve, 150));
+
+				const summaryChanges = notifications
+					.filter(notification => notification.type === NotificationType.SessionSummaryChanged)
+					.map(notification => JSON.parse(JSON.stringify(notification)) as SessionSummaryChangedParams);
+				assert.deepStrictEqual(summaryChanges.map(notification => notification.changes.activity), [
+					'Setting up workspace',
+					null,
+				]);
 			});
 		});
 	});

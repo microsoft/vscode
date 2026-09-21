@@ -23,7 +23,7 @@ async function run() {
 	await extractSourcesWithoutCSS();
 	const server = await startServer();
 
-	const browser = await playwright['chromium'].launch({
+	const browser = await playwright.chromium.launch({
 		headless: !DEBUG_TESTS,
 		devtools: DEBUG_TESTS
 		// slowMo: DEBUG_TESTS ? 2000 : 0

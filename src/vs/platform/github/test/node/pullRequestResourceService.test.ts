@@ -33,8 +33,7 @@ const policy: PullRequestPollingPolicy = {
 	mergeabilityVisible: 20,
 	mergeabilityBackground: 200,
 	participants: 300,
-	failureRetryBase: 5,
-	failureRetryMaximum: 20,
+	failureBackoff: { immediateRetries: 0, base: 5, maximum: 20, jitter: 0 },
 	jitter: 0,
 };
 

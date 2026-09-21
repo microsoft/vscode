@@ -709,6 +709,8 @@ export async function applyEdit(
 }
 
 const ALWAYS_CHECKED_EDIT_PATTERNS: Readonly<Record<string, boolean>> = {
+	'**/.mcp.json': false,
+	'**/.npmrc': false,
 	'**/.vscode/*.json': false,
 	// Markdown files in these folders are loaded as custom agents; their
 	// frontmatter can declare a `hooks:` block that runs shell commands during

@@ -32,10 +32,11 @@ import {
 	SessionHasMultipleOpenChatsContext,
 	SessionActiveChatIsClosableContext,
 	SessionActiveChatIsDeletableContext,
-	SessionActiveChatHasSubagentsContext,
+	SessionActiveChatHasSideChatsContext,
+	SessionActiveChatResourceContext,
 	SessionHasGitRepositoryContext,
 } from '../../../common/contextkeys.js';
-import { ChatOriginKind, getChatCapabilities, isActiveSessionStatus, ISession, SessionStatus } from './session.js';
+import { ChatOriginKind, getChatCapabilities, isActiveSessionStatus, isSideChatOf, ISession, SessionStatus } from './session.js';
 import { ISessionChangesStatsCache, readSessionChangesStats } from './sessionChangesStatsCache.js';
 import { IActiveSession } from './sessionsManagement.js';
 
@@ -69,7 +70,8 @@ interface ISessionContextKeys {
 	readonly hasMultipleOpenChats: IContextKey<boolean>;
 	readonly activeChatIsClosable: IContextKey<boolean>;
 	readonly activeChatIsDeletable: IContextKey<boolean>;
-	readonly activeChatHasSubagents: IContextKey<boolean>;
+	readonly activeChatResource: IContextKey<string>;
+	readonly activeChatHasSideChats: IContextKey<boolean>;
 }
 
 /**
@@ -112,7 +114,8 @@ function getBoundKeys(contextKeyService: IContextKeyService): ISessionContextKey
 			hasMultipleOpenChats: SessionHasMultipleOpenChatsContext.bindTo(contextKeyService),
 			activeChatIsClosable: SessionActiveChatIsClosableContext.bindTo(contextKeyService),
 			activeChatIsDeletable: SessionActiveChatIsDeletableContext.bindTo(contextKeyService),
-			activeChatHasSubagents: SessionActiveChatHasSubagentsContext.bindTo(contextKeyService),
+			activeChatResource: SessionActiveChatResourceContext.bindTo(contextKeyService),
+			activeChatHasSideChats: SessionActiveChatHasSideChatsContext.bindTo(contextKeyService),
 		};
 		boundKeysByService.set(contextKeyService, keys);
 	}
@@ -223,6 +226,7 @@ export function setActiveSessionContextKeys(session: IActiveSession | undefined,
 	// closeable tabs. The main chat lives and dies with its session.
 	const activeChat = session?.activeChat.read(reader);
 	const mainResource = session?.mainChat.read(reader).resource;
+	keys.activeChatResource.set(activeChat?.resource.toString() ?? '');
 	const isNonMainChat = !!activeChat && !!mainResource && !isEqual(activeChat.resource, mainResource);
 	keys.activeChatIsClosable.set(isNonMainChat);
 	// It can be permanently deleted only when its effective capabilities allow
@@ -231,11 +235,5 @@ export function setActiveSessionContextKeys(session: IActiveSession | undefined,
 	keys.activeChatIsDeletable.set(!!activeChat && getChatCapabilities(activeChat, session, reader).canDelete);
 
 	const allChats = session?.chats.read(reader) ?? [];
-	const subagentScopeResource = activeChat?.origin?.kind === ChatOriginKind.Tool && activeChat.origin.parentChat
-		? activeChat.origin.parentChat
-		: activeChat?.resource;
-	keys.activeChatHasSubagents.set(!!subagentScopeResource && allChats.some(chat =>
-		chat.origin?.kind === ChatOriginKind.Tool &&
-		!!chat.origin.parentChat &&
-		isEqual(chat.origin.parentChat, subagentScopeResource)));
+	keys.activeChatHasSideChats.set(!!activeChat && allChats.some(chat => isSideChatOf(chat, activeChat.resource)));
 }

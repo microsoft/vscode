@@ -10,6 +10,7 @@ import { dirname, join } from 'path';
 import { Application, ApplicationOptions, IModelConfigSection, Logger } from '../../automation';
 
 export interface MockLlmServer {
+	readonly port: number;
 	readonly url: string;
 	requestCount(): number;
 	getRequests(): readonly { readonly path: string; readonly method: string; readonly body: unknown }[];
@@ -142,12 +143,14 @@ function installAppBeforeHandler(optionsTransform?: (opts: ApplicationOptions) =
 export function installAppAfterHandler(appFn?: () => Application | undefined, joinFn?: () => Promise<unknown>) {
 	after(async function () {
 		const app: Application = appFn?.() ?? this.app;
-		if (app) {
-			await app.stop();
-		}
-
-		if (joinFn) {
-			await joinFn();
+		try {
+			if (app) {
+				await app.stop();
+			}
+		} finally {
+			if (joinFn) {
+				await joinFn();
+			}
 		}
 	});
 }

@@ -50,7 +50,7 @@ import { IContextKey, IContextKeyService } from '../../../../../../../platform/c
 import { AccessibilityVerbositySettingId } from '../../../../../accessibility/browser/accessibilityConfiguration.js';
 import { ChatContextKeys } from '../../../../common/actions/chatContextKeys.js';
 import { EditorPool } from '../chatContentCodePools.js';
-import { DetachedTerminalCommandMirror, DetachedTerminalSnapshotMirror } from '../../../../../terminal/browser/chatTerminalCommandMirror.js';
+import { DetachedTerminalCommandMirror, DetachedTerminalSnapshotMirror, type IDetachedTerminalCommandMirrorRenderResult } from '../../../../../terminal/browser/chatTerminalCommandMirror.js';
 import { TerminalLocation } from '../../../../../../../platform/terminal/common/terminal.js';
 import { Codicon } from '../../../../../../../base/common/codicons.js';
 import { TerminalContribCommandId } from '../../../../../terminal/terminalContribExports.js';
@@ -59,7 +59,7 @@ import { isNumber } from '../../../../../../../base/common/types.js';
 import { removeAnsiEscapeCodes } from '../../../../../../../base/common/strings.js';
 import { PANEL_BACKGROUND } from '../../../../../../common/theme.js';
 import { editorBackground } from '../../../../../../../platform/theme/common/colorRegistry.js';
-import { IThemeService } from '../../../../../../../platform/theme/common/themeService.js';
+import { asCssVariable } from '../../../../../../../platform/theme/common/colorUtils.js';
 import { CommandsRegistry } from '../../../../../../../platform/commands/common/commands.js';
 
 /**
@@ -330,6 +330,10 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 		return this._contentIndex;
 	}
 
+	public get terminalToolSessionId(): string | undefined {
+		return this._terminalData.terminalToolSessionId;
+	}
+
 	constructor(
 		toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized,
 		terminalData: IChatTerminalToolInvocationData | ILegacyChatTerminalToolInvocationData,
@@ -438,24 +442,11 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 			initializeTerminalActionsOnce();
 		});
 
-		// Listen for continue in background — updates toolbar to auto-hide the action
 		const terminalToolSessionId = this._terminalData.terminalToolSessionId;
 		if (terminalToolSessionId) {
 			if (this._terminalData.isPty === false) {
 				this._attachOutputSource();
-				this._register(this._terminalChatService.onDidRegisterOutputSource(sessionId => {
-					if (sessionId === terminalToolSessionId) {
-						this._attachOutputSource();
-					}
-				}));
 			}
-			this._register(this._terminalChatService.onDidContinueInBackground(sessionId => {
-				if (sessionId === terminalToolSessionId) {
-					this._terminalData.didContinueInBackground = true;
-					this._toolbarCanContinueInBackground = false;
-					this._updateToolbarActions();
-				}
-			}));
 		}
 		let pastTenseMessage: string | undefined;
 		if (toolInvocation.pastTenseMessage) {
@@ -486,7 +477,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 			} : undefined
 		};
 
-		this.markdownPart = this._register(_instantiationService.createInstance(ChatMarkdownContentPart, chatMarkdownContent, context, editorPool, false, codeBlockStartIndex, renderer, {}, currentWidthDelegate(), markdownOptions));
+		this.markdownPart = this._register(_instantiationService.createInstance(ChatMarkdownContentPart, chatMarkdownContent, context, editorPool, false, codeBlockStartIndex, renderer, {}, currentWidthDelegate, markdownOptions));
 
 		elements.message.append(this.markdownPart.domNode);
 		const progressPart = this._register(_instantiationService.createInstance(ChatProgressSubPart, elements.container, this.getIcon(), terminalData.autoApproveInfo));
@@ -542,7 +533,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 				return;
 			}
 
-			const widget = this._register(this._instantiationService.createInstance(ChatResourceGroupWidget, imageParts));
+			const widget = this._register(this._instantiationService.createInstance(ChatResourceGroupWidget, imageParts, undefined));
 
 			if (this._thinkingCollapsibleWrapper) {
 				// Reparent the single widget between inner (expanded) and outer (collapsed)
@@ -604,6 +595,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 			isSkipped,
 			isRunningInBackground,
 			this._terminalData.isPty === false ? undefined : () => this.focusTerminal(),
+			this._isInThinkingContainer,
 		));
 		this._thinkingCollapsibleWrapper = wrapper;
 
@@ -1087,6 +1079,12 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 		return this._terminalInstance;
 	}
 
+	public didRegisterOutputSource(terminalToolSessionId: string): void {
+		if (this._terminalData.isPty === false && this._terminalData.terminalToolSessionId === terminalToolSessionId) {
+			this._attachOutputSource();
+		}
+	}
+
 	private _attachOutputSource(): void {
 		const source = this._terminalChatService.getOutputSource(this._terminalData.terminalToolSessionId);
 		if (!source || source === this._outputSource) {
@@ -1217,6 +1215,12 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 		}
 	}
 
+	public markContinuedInBackground(): void {
+		this._terminalData.didContinueInBackground = true;
+		this._toolbarCanContinueInBackground = false;
+		this._updateToolbarActions();
+	}
+
 	public async toggleOutputFromAction(): Promise<void> {
 		this._userToggledOutput = true;
 
@@ -1329,6 +1333,7 @@ export class ChatTerminalToolOutputSection extends Disposable {
 	private readonly _terminalContainer: HTMLElement;
 	private readonly _emptyElement: HTMLElement;
 	private _lastRenderedLineCount: number | undefined;
+	private readonly _outputRelayout = this._register(new MutableDisposable());
 
 	private readonly _onDidFocusEmitter = this._register(new Emitter<void>());
 	public get onDidFocus() { return this._onDidFocusEmitter.event; }
@@ -1347,7 +1352,6 @@ export class ChatTerminalToolOutputSection extends Disposable {
 		@IAccessibleViewService private readonly _accessibleViewService: IAccessibleViewService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ITerminalConfigurationService private readonly _terminalConfigurationService: ITerminalConfigurationService,
-		@IThemeService private readonly _themeService: IThemeService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService
 	) {
 		super();
@@ -1375,8 +1379,8 @@ export class ChatTerminalToolOutputSection extends Disposable {
 		const resizeObserver = this._register(new dom.DisposableResizeObserver('ChatTerminalToolProgressPart.handleResize', () => this._handleResize()));
 		this._register(resizeObserver.observe(this.domNode));
 
-		this._applyBackgroundColor();
-		this._register(this._themeService.onDidColorThemeChange(() => this._applyBackgroundColor()));
+		const backgroundColor = ChatContextKeys.inChatEditor.getValue(this._contextKeyService) ? editorBackground : PANEL_BACKGROUND;
+		this.domNode.style.backgroundColor = asCssVariable(backgroundColor);
 	}
 
 	public async toggle(expanded: boolean): Promise<boolean> {
@@ -1401,8 +1405,8 @@ export class ChatTerminalToolOutputSection extends Disposable {
 
 		// Only now show the expanded state (after content is ready)
 		this._setExpanded(true);
-		await this._layoutMirrorWidth();
-		this._layoutOutput();
+		const result = await this._layoutMirrorWidth();
+		this._layoutOutput(result?.lineCount);
 		this._scrollOutputToBottom();
 		this._scheduleOutputRelayout();
 		return true;
@@ -1691,7 +1695,11 @@ export class ChatTerminalToolOutputSection extends Disposable {
 	}
 
 	private _scheduleOutputRelayout(): void {
-		dom.getWindow(this.domNode).requestAnimationFrame(() => {
+		if (this._outputRelayout.value || this._store.isDisposed) {
+			return;
+		}
+		this._outputRelayout.value = dom.scheduleAtNextAnimationFrame(dom.getWindow(this.domNode), () => {
+			this._outputRelayout.clear();
 			this._layoutOutput();
 			this._scrollOutputToBottom();
 		});
@@ -1702,18 +1710,23 @@ export class ChatTerminalToolOutputSection extends Disposable {
 	 * font estimate, and later renders can reflect DPR changes. Re-run layout so the box
 	 * height and wrap width match what xterm actually painted.
 	 */
-	private _handleMirrorRowHeightChange(): void {
-		void this._layoutMirrorWidth();
-		this._layoutOutput();
+	private async _handleMirrorRowHeightChange(): Promise<void> {
+		const result = await this._layoutMirrorWidth();
+		if (!this._store.isDisposed) {
+			this._layoutOutput(result?.lineCount);
+		}
 	}
 
-	private _handleResize(): void {
+	private async _handleResize(): Promise<void> {
 		if (!this._scrollableContainer) {
 			return;
 		}
 		if (this.isExpanded) {
-			void this._layoutMirrorWidth();
-			this._layoutOutput();
+			const result = await this._layoutMirrorWidth();
+			if (this._store.isDisposed) {
+				return;
+			}
+			this._layoutOutput(result?.lineCount);
 			this._scrollOutputToBottom();
 		} else {
 			this._scrollableContainer.scanDomNode();
@@ -1725,19 +1738,15 @@ export class ChatTerminalToolOutputSection extends Disposable {
 	 * width is unmeasurable (e.g. collapsed); the mirror keeps its current cols until the next
 	 * layout opportunity.
 	 */
-	private async _layoutMirrorWidth(mirror: DetachedTerminalCommandMirror | DetachedTerminalSnapshotMirror | undefined = this._snapshotMirror ?? this._mirror): Promise<void> {
+	private async _layoutMirrorWidth(mirror: DetachedTerminalCommandMirror | DetachedTerminalSnapshotMirror | undefined = this._snapshotMirror ?? this._mirror): Promise<IDetachedTerminalCommandMirrorRenderResult | undefined> {
 		if (!mirror) {
-			return;
+			return undefined;
 		}
 		const width = this._terminalContainer.clientWidth || this._outputBody.clientWidth || this.domNode.clientWidth || (this.domNode.parentElement?.clientWidth ?? 0);
 		if (width <= 0) {
-			return;
+			return undefined;
 		}
-		const result = await mirror.layout(width);
-		if (!this._store.isDisposed && result?.lineCount !== undefined) {
-			// Re-wrapping can change the number of rendered rows, so refresh the box height
-			this._layoutOutput(result.lineCount);
-		}
+		return mirror.layout(width);
 	}
 
 	private _layoutOutput(lineCount?: number): void {
@@ -1751,8 +1760,8 @@ export class ChatTerminalToolOutputSection extends Disposable {
 			lineCount = this._lastRenderedLineCount;
 		}
 
-		this._scrollableContainer.scanDomNode();
 		if (!this.isExpanded || lineCount === undefined) {
+			this._scrollableContainer.scanDomNode();
 			return;
 		}
 
@@ -1825,14 +1834,6 @@ export class ChatTerminalToolOutputSection extends Disposable {
 		return Math.max(rowHeight, 1);
 	}
 
-	private _applyBackgroundColor(): void {
-		const theme = this._themeService.getColorTheme();
-		const isInEditor = ChatContextKeys.inChatEditor.getValue(this._contextKeyService);
-		const backgroundColor = theme.getColor(isInEditor ? editorBackground : PANEL_BACKGROUND);
-		if (backgroundColor) {
-			this.domNode.style.backgroundColor = backgroundColor.toString();
-		}
-	}
 }
 
 export class ChatTerminalThinkingCollapsibleWrapper extends ChatCollapsibleContentPart {
@@ -1844,6 +1845,7 @@ export class ChatTerminalThinkingCollapsibleWrapper extends ChatCollapsibleConte
 	private readonly _isSkipped: boolean;
 	private _isRunningInBackground: boolean;
 	private readonly _onFocusTerminal: (() => void) | undefined;
+	private readonly _inThinking: boolean;
 	private readonly _showLinkDisposables = this._register(new MutableDisposable<DisposableStore>());
 	private _showLinkElement: HTMLElement | undefined;
 
@@ -1858,8 +1860,10 @@ export class ChatTerminalThinkingCollapsibleWrapper extends ChatCollapsibleConte
 		isSkipped: boolean,
 		isRunningInBackground: boolean,
 		onFocusTerminal: (() => void) | undefined,
+		inThinking: boolean,
 		@IHoverService hoverService: IHoverService,
 		@IConfigurationService configurationService: IConfigurationService,
+		@ITelemetryService telemetryService: ITelemetryService,
 	) {
 		// When the model supplied an intention (why it's running the command),
 		// use it as the descriptive text instead of the generic verb. Skipped
@@ -1879,7 +1883,7 @@ export class ChatTerminalThinkingCollapsibleWrapper extends ChatCollapsibleConte
 				? `${intentionText} ${commandText}${localize('chat.terminal.backgroundSuffix', " in background")}`
 				: `${intentionText} ${commandText}`
 			: stateTitle;
-		super(title, context, undefined, hoverService, configurationService);
+		super(title, context, undefined, hoverService, configurationService, telemetryService);
 
 		this._terminalContentElement = contentElement;
 		this._commandText = commandText;
@@ -1889,6 +1893,7 @@ export class ChatTerminalThinkingCollapsibleWrapper extends ChatCollapsibleConte
 		this._isSkipped = isSkipped;
 		this._isRunningInBackground = isRunningInBackground;
 		this._onFocusTerminal = onFocusTerminal;
+		this._inThinking = inThinking;
 
 		this.domNode.classList.add('chat-terminal-thinking-collapsible');
 
@@ -1899,6 +1904,14 @@ export class ChatTerminalThinkingCollapsibleWrapper extends ChatCollapsibleConte
 		this._setCodeFormattedTitle();
 		this._updateShowLink();
 		this.setExpanded(initialExpanded);
+	}
+
+	protected override get collapsibleKind(): string {
+		return 'terminal';
+	}
+
+	protected override get collapsibleInThinking(): boolean {
+		return this._inThinking;
 	}
 
 	protected override shouldAnimateContent(): boolean {

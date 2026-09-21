@@ -8,6 +8,7 @@ import { hash } from '../../../../base/common/hash.js';
 import { Disposable, DisposableMap } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { URI } from '../../../../base/common/uri.js';
+import { IModelService } from '../../../../editor/common/services/model.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
@@ -15,6 +16,7 @@ import { ITelemetryService } from '../../../../platform/telemetry/common/telemet
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IWorkbenchContribution } from '../../../../workbench/common/contributions.js';
 import { isChatRequestFileEntry, isImageVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
+import { EditorChatUsage } from '../../../../workbench/contrib/chat/common/editorChatUsage.js';
 import { getExcludes, ISearchConfiguration, ISearchService, QueryType } from '../../../../workbench/services/search/common/search.js';
 import { AgentFeedbackKind, IAgentFeedbackAddedEvent, IAgentFeedbackConvertedEvent, IAgentFeedbackReplyAddedEvent, IAgentFeedbackService, IAgentFeedbackSubmittedEvent } from '../../agentFeedback/browser/agentFeedbackService.js';
 import { ISessionsTasksService } from '../../chat/browser/sessionsTasksService.js';
@@ -23,9 +25,11 @@ import { ISendRequestSentEvent, ISessionsChangeEvent, ISessionsManagementService
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { ISendRequestOptions, ISessionsProvider } from '../../../services/sessions/common/sessionsProvider.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
-import { classifySessionWorkspaceTopology, getSessionsTelemetryProviderId, hashSessionIdForTelemetry } from '../../../common/sessionsTelemetry.js';
+import { classifySessionWorkspaceTopology, getNonArchivedSessionListCount, getSessionsTelemetryProviderId, hashSessionIdForTelemetry } from '../../../common/sessionsTelemetry.js';
 import { ISessionsPartService } from '../../../services/sessions/browser/sessionsPartService.js';
+import { ISessionsWindowUsageService } from '../../../services/sessions/browser/sessionsWindowUsageService.js';
 import { ISessionLifecycleSummary, SessionDoneReason, SessionsLifecycleTracker } from './sessionsLifecycleTracker.js';
+import { ITypedCharactersEntry, SessionsTypedCharactersTracker } from './sessionsTypedCharactersTracker.js';
 
 /**
  * Listens to lifecycle events from {@link ISessionsManagementService} and
@@ -45,6 +49,8 @@ export class SessionsTelemetryContribution extends Disposable implements IWorkbe
 	private readonly _workspaceFileCountInFlight = new Map<string, Promise<number>>();
 	/** Persists per-session lifecycle counters for the `agents/sessionSummary` event. */
 	private readonly _lifecycleTracker: SessionsLifecycleTracker;
+	/** Counts characters the user manually types into session workspace folders from this window. */
+	private readonly _typedCharactersTracker: SessionsTypedCharactersTracker;
 	/** Listener per provider that waits for the provider's first batch of sessions so we can run a one-time reconciliation against tracked entries. */
 	private readonly _providerReconcileListeners = this._register(new DisposableMap<string>());
 
@@ -61,10 +67,23 @@ export class SessionsTelemetryContribution extends Disposable implements IWorkbe
 		@ISessionsPartService sessionsPartService: ISessionsPartService,
 		@ISessionsProvidersService sessionsProvidersService: ISessionsProvidersService,
 		@ISessionsTasksService private readonly _sessionsTasksService: ISessionsTasksService,
+		@IModelService modelService: IModelService,
+		@ISessionsWindowUsageService sessionsWindowUsageService: ISessionsWindowUsageService,
 	) {
 		super();
 
-		this._lifecycleTracker = this._register(new SessionsLifecycleTracker(this._storageService));
+		this._lifecycleTracker = new SessionsLifecycleTracker(this._storageService, sessionsWindowUsageService.windowOpenCount);
+		// Registered after the lifecycle tracker is created but before it is
+		// registered: disposing flushes buffered typing, which needs a live
+		// lifecycle tracker to attribute it to.
+		this._typedCharactersTracker = this._register(new SessionsTypedCharactersTracker(
+			() => this._sessionsService.activeSession.get(),
+			entries => this._recordTypedCharacters(entries),
+			modelService,
+		));
+		this._register(this._lifecycleTracker);
+		// Buffered typing would otherwise be lost when the window goes away.
+		this._register(this._storageService.onWillSaveState(() => this._typedCharactersTracker.flush()));
 
 		this._register(this._sessionsManagementService.onWillSendRequest(session => {
 			// Kick off the workspace file-count fetch now so it has time to
@@ -174,7 +193,7 @@ export class SessionsTelemetryContribution extends Disposable implements IWorkbe
 	// -- event handlers --------------------------------------------------------
 
 	private _logRequestSent(e: ISendRequestSentEvent): void {
-		const { session, chat, isNewSession, isNewChat, options } = e;
+		const { session, chat, isNewSession, isNewChat, newSessionConfig, options } = e;
 
 		if (isNewChat) {
 			const wasTracked = this._lifecycleTracker.isTracked(session.sessionId);
@@ -191,16 +210,20 @@ export class SessionsTelemetryContribution extends Disposable implements IWorkbe
 
 		const allSessions = this._sessionsManagementService.getSessions();
 		const visibleSessionsCount = this._sessionsService.visibleSessions.get().filter(s => s !== undefined).length;
+		const nonArchivedSessionListCount = getNonArchivedSessionListCount(allSessions);
 		// Snapshot all synchronous fields now so the event reflects the state at
 		// the time of the send, not when the async file-count fetch resolves.
 		const workspace = session.workspace.get();
+		const isolationKind = isNewSession ? newSessionConfig?.isolation : undefined;
 		const requestCounters = isNewSession
 			? this._lifecycleTracker.incrementAndGetUserRequestCounters(session)
 			: this._lifecycleTracker.getUserRequestCounters(session);
 		const sync = {
+			...new EditorChatUsage(this._storageService).getTelemetry(),
 			isNewSession,
 			isNewChat,
 			visibleSessionsCount,
+			nonArchivedSessionListCount,
 			...this._getRequestFields(options),
 			...this._getSessionFields(session),
 			...this._getChatFields(chat),
@@ -210,7 +233,7 @@ export class SessionsTelemetryContribution extends Disposable implements IWorkbe
 		void this._getOrFetchWorkspaceFileCount(session.sessionId, workspace).then(workspaceFileCount => {
 			this._telemetryService.publicLog2<SessionRequestSentEvent, SessionRequestSentClassification>('agents/requestSent', {
 				...sync,
-				...this._getWorkspaceFields(workspace, workspaceFileCount),
+				...this._getWorkspaceFields(workspace, workspaceFileCount, isolationKind),
 				...this._getWorkspaceTopologyFields(workspace),
 			});
 		});
@@ -488,6 +511,8 @@ export class SessionsTelemetryContribution extends Disposable implements IWorkbe
 		if (trackedForProvider.length === 0) {
 			return true;
 		}
+		// Attribute buffered typing before any tracking entry goes away.
+		this._typedCharactersTracker.flush();
 		const liveById = new Map<string, ISession>();
 		for (const session of sessions) {
 			liveById.set(session.sessionId, session);
@@ -507,6 +532,8 @@ export class SessionsTelemetryContribution extends Disposable implements IWorkbe
 	}
 
 	private _fireSessionSummary(session: ISession, reason: SessionDoneReason): void {
+		// Attribute buffered typing before the tracking entry goes away.
+		this._typedCharactersTracker.flush();
 		const summary = this._lifecycleTracker.finalize(session.sessionId, reason, session);
 		if (summary) {
 			this._logSessionSummary(summary);
@@ -515,6 +542,38 @@ export class SessionsTelemetryContribution extends Disposable implements IWorkbe
 
 	private _logSessionSummary(summary: ISessionLifecycleSummary): void {
 		this._telemetryService.publicLog2<ISessionLifecycleSummary, SessionSummaryClassification>('agents/sessionSummary', summary);
+	}
+
+	// -- manually typed characters ---------------------------------------------
+
+	/**
+	 * Attributes a reported batch to the session each entry was typed into and
+	 * returns the entries that could not be attributed yet.
+	 *
+	 * An absent workspace does not mean the file is unrelated: session
+	 * workspaces hydrate asynchronously, so those entries are handed back to be
+	 * retried rather than dropped. A quick chat is workspace-less by product
+	 * intent, so its typing is discarded instead of retried.
+	 */
+	private _recordTypedCharacters(entries: readonly ITypedCharactersEntry[]): readonly ITypedCharactersEntry[] {
+		const deferred: ITypedCharactersEntry[] = [];
+		for (const entry of entries) {
+			const { session, resource, characters } = entry;
+			const folders = session.workspace.get()?.folders;
+			if (!folders?.length) {
+				if (!session.isQuickChat?.get()) {
+					deferred.push(entry);
+				}
+				continue;
+			}
+			// The working directory — not the folder root — is what isolates a
+			// session: for a worktree session the root is the shared repository
+			// checkout, which the session itself never edits.
+			if (folders.some(folder => this._uriIdentityService.extUri.isEqualOrParent(resource, folder.workingDirectory))) {
+				this._lifecycleTracker.addTypedCharacters(session.sessionId, resource, characters);
+			}
+		}
+		return deferred;
 	}
 
 	private _getSessionActionPayload(session: ISession): Promise<SessionActionEvent> {
@@ -568,19 +627,19 @@ export class SessionsTelemetryContribution extends Disposable implements IWorkbe
 		};
 	}
 
-	private _getWorkspaceFields(workspace: ISessionWorkspace | undefined, workspaceFileCount: number): WorkspaceFields {
+	private _getWorkspaceFields(workspace: ISessionWorkspace | undefined, workspaceFileCount: number, isolationKind?: SessionIsolationKind): WorkspaceFields {
+		isolationKind ??= workspace?.folders.some(folder => folder.gitRepository?.workTreeUri !== undefined) ? 'worktree' : 'folder';
 		if (!workspace) {
 			return {
-				isolationKind: 'folder',
+				isolationKind,
 				workspaceHash: '',
 				hasGitRepository: false,
 				isVirtualWorkspace: false,
 				workspaceFileCount,
 			};
 		}
-		const hasWorktree = workspace.folders.some(folder => folder.gitRepository?.workTreeUri !== undefined);
 		return {
-			isolationKind: hasWorktree ? 'worktree' : 'folder',
+			isolationKind,
 			workspaceHash: hash(workspace.uri.toString()).toString(16),
 			hasGitRepository: workspace.folders.some(folder => folder.gitRepository !== undefined),
 			isVirtualWorkspace: workspace.uri.scheme !== Schemas.file,
@@ -812,9 +871,15 @@ type AllSessionsFields = {
 // --- Event: agents/requestSent ---
 
 type SessionRequestSentEvent = {
+	editorSessionsByProvider: string;
+	editorMessages: number;
+	editorMessagesWithOtherSessionInProgress: number;
+	editorMessagesWithOtherSessionInProgressAcrossWindows: number;
+	editorLastMessageSecondsAgo: number | undefined;
 	isNewSession: boolean;
 	isNewChat: boolean;
 	visibleSessionsCount: number;
+	nonArchivedSessionListCount: number;
 	agentSessionId: string;
 	providerId: string;
 	providerType: string;
@@ -876,18 +941,24 @@ type SessionActionEvent = {
 // Classifications
 
 type SessionRequestSentClassification = {
+	editorSessionsByProvider: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'JSON map of cumulative editor chat starts by bounded provider category. No remote addresses or extension identifiers.' };
+	editorMessages: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Cumulative user messages accepted in editor windows, including queued and steering submissions, excluding retries and Agents window messages.' };
+	editorMessagesWithOtherSessionInProgress: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Editor submissions with a different session known to the submitting window in progress, counted once per message.' };
+	editorMessagesWithOtherSessionInProgressAcrossWindows: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Editor submissions with a different session in progress in the submitting window or reported by another live editor window within a 200ms probe, counted once per message.' };
+	editorLastMessageSecondsAgo: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Seconds since the last editor message at request submission; absent if no editor message has been recorded. Never an absolute timestamp.' };
 	owner: 'benibenj';
 	comment: 'Reports when the user sends a request from a session in the Agents window, including the user state at the time of send.';
 	isNewSession: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'True when the request starts a brand-new session, false when it is a new or continued chat in an existing session.' };
 	isNewChat: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'True when the request is the first message in a newly created chat, including the first chat in a new session; false for a follow-up message in an existing chat.' };
 	visibleSessionsCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'How many sessions are currently visible in the sessions grid.' };
+	nonArchivedSessionListCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of non-archived, non-automation sessions currently in the Sessions list.' };
 	agentSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'SHA-1 hash of the globally unique session identifier, used to correlate events for the same session without exposing provider or resource details.' };
 	providerId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Bounded sessions provider category: default-copilot, local-agent-host, remote-agent-host, or other.' };
 	providerType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The session type identifier provided by the sessions provider.' };
 	chatCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of chats currently in the session.' };
 	isExternal: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the session was discovered in an application other than the current host (an external session).' };
 	chatModeKind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Built-in chat mode kind (e.g., ask, agent, edit); empty when no mode is selected.' };
-	isolationKind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Isolation mode used by the session (worktree or folder).' };
+	isolationKind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Isolation mode (worktree or folder), using the selected mode for new sessions when available and workspace state otherwise.' };
 	workspaceHash: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Non-reversible hash of the workspace URI, used to correlate events across the same workspace without disclosing the path.' };
 	hasGitRepository: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether any of the workspace folders has a git repository.' };
 	isVirtualWorkspace: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the workspace URI uses a non-file scheme (virtual/remote).' };
@@ -1455,10 +1526,10 @@ type SessionSummaryClassification = {
 	hasGitRepository: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether any of the workspace folders has a git repository, captured the first time the session was observed in this client.' };
 	isVirtualWorkspace: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the workspace URI uses a non-file scheme (virtual/remote), captured the first time the session was observed in this client.' };
 	isExternal: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the session was discovered in an application other than the current host (an external session).' };
-	isMultiRoot: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the session spans more than one workspace folder, captured the first time the session was observed in this client.' };
-	folderCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of workspace folders in the session, captured the first time the session was observed in this client (browser-projected metadata).' };
-	gitFolderCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of workspace folders backed by a git repository, captured the first time the session was observed in this client.' };
-	nonGitFolderCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of workspace folders not backed by a git repository, captured the first time the session was observed in this client.' };
+	isMultiRoot: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the session spans more than one workspace folder, as last observed in this client.' };
+	folderCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of workspace folders the session had, as last observed in this client (browser-projected metadata).' };
+	gitFolderCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of workspace folders backed by a git repository, as last observed in this client.' };
+	nonGitFolderCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of workspace folders not backed by a git repository, as last observed in this client.' };
 	doneReason: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Why the session is considered done: archived/deleted locally in this client, or archivedRemotely/deletedRemotely meaning the user finished the session in another client.' };
 	firstRequestSentInThisClient: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the very first user request the tracker observed for this session was sent from this client.' };
 	hasWorktreeCreatedTask: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether at least one task with runOptions.runOn = "worktreeCreated" was declared for the session at the time the first user request was sent from this client.' };
@@ -1488,11 +1559,21 @@ type SessionSummaryClassification = {
 	sessionRenamed: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of times the user renamed the session in this client.' };
 	fixCIChecks: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of times the user ran the Fix CI Checks action for this session in this client.' };
 	taskRun: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of times the user ran a task from the session toolbar for this session in this client.' };
+	typedCharacters: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of characters the user manually typed into files inside the session\'s workspace folders from the Agents window during the session\'s lifetime. Excludes agent edits, accepted suggestions, pasted text, and typing done for the same folder in a regular window.' };
+	typedFileCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of distinct files inside the session\'s workspace folders that the user manually typed into from the Agents window during the session\'s lifetime. Saturates at 250.' };
 	filesChanged: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of changed files in the session at the moment the summary was emitted.' };
 	linesAdded: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Total lines added across all changed files in the session at the moment the summary was emitted.' };
 	linesDeleted: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Total lines deleted across all changed files in the session at the moment the summary was emitted.' };
 	pullRequestCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of pull requests associated with the session as last observed in this client; 0 when the session never had one.' };
 	pullRequestStatus: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'State of the session\'s most recent pull request as last observed in this client (open, closed, merged or draft); undefined when the session has no pull request or its state was never resolved.' };
+	pullRequestArtifactMergedCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of recorded pull request artifacts whose latest known state was merged when the summary was emitted; excludes references and artifacts with unresolved state.' };
+	pullRequestArtifactOpenCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of recorded pull request artifacts whose latest known state was open when the summary was emitted; excludes references and artifacts with unresolved state.' };
+	pullRequestArtifactDraftCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of recorded pull request artifacts whose latest known state was draft when the summary was emitted; excludes references and artifacts with unresolved state.' };
+	pullRequestArtifactClosedCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of recorded pull request artifacts whose latest known state was closed when the summary was emitted; excludes references and artifacts with unresolved state.' };
+	issueArtifactCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of recorded issue artifacts when the summary was emitted; excludes issue references.' };
+	otherArtifactCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of recorded artifacts other than pull requests and issues when the summary was emitted.' };
+	artifactCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Total number of recorded artifacts of all kinds, including pull requests and issues, when the summary was emitted.' };
+	referenceCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Total number of recorded references of all kinds when the summary was emitted.' };
 	userSessionsTotal: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Cumulative number of new sessions the user has started from the Agents window across all workspaces and providers at the moment the summary was emitted.' };
 	userSessionsInWorkspace: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Cumulative number of new sessions the user has started in the current workspace at the moment the summary was emitted.' };
 	userSessionsForProvider: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Cumulative number of new sessions the user has started for this sessions provider across all workspaces at the moment the summary was emitted.' };
