@@ -5,7 +5,7 @@
 
 import { editorBackground } from '../../../../platform/theme/common/colorRegistry.js';
 import { registerThemingParticipant } from '../../../../platform/theme/common/themeService.js';
-import { EDITOR_GROUP_HEADER_TABS_BACKGROUND, MODERN_EDITOR_TAB_HOVER_BACKGROUND } from '../../../common/theme.js';
+import { MODERN_EDITOR_TAB_CONNECTED_STRIP_BACKGROUND, MODERN_EDITOR_TAB_HOVER_BACKGROUND } from '../../../common/theme.js';
 import './media/connectedEditorTabs.css';
 
 registerThemingParticipant((theme, collector) => {
@@ -14,7 +14,7 @@ registerThemingParticipant((theme, collector) => {
 		collector.addRule(`.monaco-workbench.modern-ui.modern-ui-connected-editor-tabs { --modern-ui-connected-tab-surface: ${background}; }`);
 	}
 
-	const stripColor = theme.getColor(EDITOR_GROUP_HEADER_TABS_BACKGROUND) ?? background;
+	const stripColor = theme.getColor(MODERN_EDITOR_TAB_CONNECTED_STRIP_BACKGROUND) ?? background;
 	const stripBackground = background && stripColor ? stripColor.makeOpaque(background) : stripColor;
 	if (stripBackground) {
 		collector.addRule(`.monaco-workbench.modern-ui.modern-ui-connected-editor-tabs { --modern-ui-connected-tab-strip-background: ${stripBackground}; }`);
