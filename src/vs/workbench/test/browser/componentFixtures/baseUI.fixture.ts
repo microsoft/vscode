@@ -36,6 +36,13 @@ export default defineThemedFixtureGroup({
 		render: renderToggles,
 	}),
 
+	KeyboardFocusedToggle: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: true },
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		expectedVisualDescriptions: ['The checked toggle replaces its solid active border with a dashed keyboard-focus border, without an additional outline.'],
+		render: renderKeyboardFocusedToggle,
+	}),
+
 	InputBoxes: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		render: renderInputBoxes,
@@ -206,6 +213,20 @@ function renderButtonBar({ container, disposableStore }: ComponentFixtureContext
 // Toggles and Checkboxes
 // ============================================================================
 
+function renderKeyboardFocusedToggle(context: ComponentFixtureContext): void {
+	const { container, disposableStore } = context;
+	container.style.padding = '16px';
+
+	const toggle = disposableStore.add(new Toggle({
+		...themedToggleStyles,
+		title: 'Match Case',
+		isChecked: true,
+		icon: Codicon.caseSensitive,
+	}));
+	container.appendChild(toggle.domNode);
+	context.focus(toggle);
+}
+
 function renderToggles({ container, disposableStore }: ComponentFixtureContext): void {
 	container.style.padding = '16px';
 	container.style.display = 'flex';
@@ -330,7 +351,7 @@ function renderInputBoxes({ container, disposableStore }: ComponentFixtureContex
 // Count Badges
 // ============================================================================
 
-function renderCountBadges({ container }: ComponentFixtureContext): void {
+function renderCountBadges({ container, disposableStore }: ComponentFixtureContext): void {
 	container.style.padding = '16px';
 	container.style.display = 'flex';
 	container.style.gap = '12px';
@@ -350,7 +371,7 @@ function renderCountBadges({ container }: ComponentFixtureContext): void {
 		label.style.color = 'var(--vscode-foreground)';
 		badgeContainer.appendChild(label);
 
-		new CountBadge(badgeContainer, { count }, themedBadgeStyles);
+		disposableStore.add(new CountBadge(badgeContainer, { count }, themedBadgeStyles));
 		container.appendChild(badgeContainer);
 	}
 }
@@ -381,12 +402,12 @@ function renderActionBar({ container, disposableStore }: ComponentFixtureContext
 	}));
 
 	horizontalBar.push([
-		new Action('editor.action.save', 'Save', ThemeIcon.asClassName(Codicon.save), true, async () => console.log('Save')),
-		new Action('editor.action.undo', 'Undo', ThemeIcon.asClassName(Codicon.discard), true, async () => console.log('Undo')),
-		new Action('editor.action.redo', 'Redo', ThemeIcon.asClassName(Codicon.redo), true, async () => console.log('Redo')),
+		disposableStore.add(new Action('editor.action.save', 'Save', ThemeIcon.asClassName(Codicon.save), true, async () => console.log('Save'))),
+		disposableStore.add(new Action('editor.action.undo', 'Undo', ThemeIcon.asClassName(Codicon.discard), true, async () => console.log('Undo'))),
+		disposableStore.add(new Action('editor.action.redo', 'Redo', ThemeIcon.asClassName(Codicon.redo), true, async () => console.log('Redo'))),
 		new Separator(),
-		new Action('editor.action.find', 'Find', ThemeIcon.asClassName(Codicon.search), true, async () => console.log('Find')),
-		new Action('editor.action.replace', 'Replace', ThemeIcon.asClassName(Codicon.replaceAll), true, async () => console.log('Replace')),
+		disposableStore.add(new Action('editor.action.find', 'Find', ThemeIcon.asClassName(Codicon.search), true, async () => console.log('Find'))),
+		disposableStore.add(new Action('editor.action.replace', 'Replace', ThemeIcon.asClassName(Codicon.replaceAll), true, async () => console.log('Replace'))),
 	]);
 
 	// Action bar with disabled items
@@ -404,9 +425,9 @@ function renderActionBar({ container, disposableStore }: ComponentFixtureContext
 	}));
 
 	mixedBar.push([
-		new Action('action.enabled', 'Enabled', ThemeIcon.asClassName(Codicon.play), true, async () => { }),
-		new Action('action.disabled', 'Disabled', ThemeIcon.asClassName(Codicon.debugPause), false, async () => { }),
-		new Action('action.enabled2', 'Enabled', ThemeIcon.asClassName(Codicon.debugStop), true, async () => { }),
+		disposableStore.add(new Action('action.enabled', 'Enabled', ThemeIcon.asClassName(Codicon.play), true, async () => { })),
+		disposableStore.add(new Action('action.disabled', 'Disabled', ThemeIcon.asClassName(Codicon.debugPause), false, async () => { })),
+		disposableStore.add(new Action('action.enabled2', 'Enabled', ThemeIcon.asClassName(Codicon.debugStop), true, async () => { })),
 	]);
 }
 
@@ -473,7 +494,7 @@ function renderProgressBars({ container, disposableStore }: ComponentFixtureCont
 // Highlighted Label
 // ============================================================================
 
-function renderHighlightedLabels({ container }: ComponentFixtureContext): void {
+function renderHighlightedLabels({ container, disposableStore }: ComponentFixtureContext): void {
 	container.style.padding = '16px';
 	container.style.display = 'flex';
 	container.style.flexDirection = 'column';
@@ -487,7 +508,7 @@ function renderHighlightedLabels({ container }: ComponentFixtureContext): void {
 		row.style.gap = '8px';
 
 		const labelContainer = $('div');
-		const label = new HighlightedLabel(labelContainer);
+		const label = disposableStore.add(new HighlightedLabel(labelContainer));
 		label.set(text, highlights);
 		row.appendChild(labelContainer);
 

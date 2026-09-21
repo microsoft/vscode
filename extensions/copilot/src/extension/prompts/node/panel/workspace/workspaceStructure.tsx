@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 import { BasePromptElementProps, PromptElement, PromptMetadata, PromptPiece, PromptSizing } from '@vscode/prompt-tsx';
 import type * as vscode from 'vscode';
-import { IPromptPathRepresentationService } from '../../../../../platform/prompts/common/promptPathRepresentationService';
 import { IWorkspaceService } from '../../../../../platform/workspace/common/workspaceService';
+import { WorkingDirectory } from '../../../../../platform/workspace/common/workingDirectory';
 import { createFencedCodeBlock } from '../../../../../util/common/markdown';
 import { CancellationToken } from '../../../../../util/vs/base/common/cancellation';
 import { URI } from '../../../../../util/vs/base/common/uri';
@@ -17,6 +17,7 @@ type WorkspaceStructureProps = BasePromptElementProps & {
 	maxSize: number;
 	excludeDotFiles?: boolean;
 	readonly availableTools?: readonly vscode.LanguageModelToolInformation[];
+	readonly workingDir?: WorkingDirectory;
 };
 
 export class WorkspaceStructure extends PromptElement<WorkspaceStructureProps, IFileTreeData | undefined> {
@@ -97,15 +98,15 @@ export class MultirootWorkspaceStructure extends PromptElement<WorkspaceStructur
 
 	constructor(props: WorkspaceStructureProps,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IWorkspaceService private readonly workspaceService: IWorkspaceService,
 	) {
 		super(props);
 	}
 
 	override async prepare(sizing: PromptSizing, progress: vscode.Progress<vscode.ChatResponseProgressPart> | undefined, token?: vscode.CancellationToken): Promise<{ label: string; tree: IFileTreeData }[]> {
-		const folders = this.workspaceService.getWorkspaceFolders();
+		const workingDir = this.props.workingDir ?? this.instantiationService.createInstance(WorkingDirectory, undefined);
+		const folders = workingDir.getFolders();
 		return this.instantiationService.invokeFunction(accessor => Promise.all(folders.map(async folder => ({
-			label: this.workspaceService.getWorkspaceFolderName(folder),
+			label: workingDir.getFolderName(folder),
 			tree: await workspaceVisualFileTree(accessor, folder, { maxLength: this.props.maxSize / folders.length, excludeDotFiles: this.props.excludeDotFiles }, token ?? CancellationToken.None)
 		}))));
 	}
@@ -139,9 +140,8 @@ export class MultirootWorkspaceStructure extends PromptElement<WorkspaceStructur
 export class AgentMultirootWorkspaceStructure extends MultirootWorkspaceStructure {
 	constructor(props: WorkspaceStructureProps,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IWorkspaceService workspaceService: IWorkspaceService,
 	) {
-		super(props, instantiationService, workspaceService);
+		super(props, instantiationService);
 	}
 
 	override async prepare(sizing: PromptSizing, progress: vscode.Progress<vscode.ChatResponseProgressPart> | undefined, token?: vscode.CancellationToken): Promise<{ label: string; tree: IFileTreeData }[]> {
@@ -161,38 +161,6 @@ export class AgentMultirootWorkspaceStructure extends MultirootWorkspaceStructur
 		return <>
 			{base}<br />
 			This is the state of the context at this point in the conversation. The view of the workspace structure may be truncated. You can use tools to collect more context if needed.
-		</>;
-	}
-}
-
-type DirectoryStructureProps = BasePromptElementProps & {
-	maxSize: number;
-	directory: URI;
-};
-
-export class DirectoryStructure extends PromptElement<DirectoryStructureProps, IFileTreeData> {
-
-	constructor(
-		props: DirectoryStructureProps,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@IPromptPathRepresentationService private readonly _promptPathRepresentationService: IPromptPathRepresentationService,
-	) {
-		super(props);
-	}
-
-	override async prepare(sizing: PromptSizing, progress: vscode.Progress<vscode.ChatResponseProgressPart> | undefined, token?: vscode.CancellationToken): Promise<IFileTreeData> {
-		return this._instantiationService.invokeFunction(accessor => workspaceVisualFileTree(accessor, this.props.directory, { maxLength: this.props.maxSize }, token ?? CancellationToken.None));
-	}
-
-	override render(state: IFileTreeData, sizing: PromptSizing): PromptPiece<any, any> | undefined {
-		if (!state) {
-			return;
-		}
-
-		return <>
-			The folder `{this._promptPathRepresentationService.getFilePath(this.props.directory)}` has the following structure:<br />
-			<br />
-			{createFencedCodeBlock('', state.tree)}
 		</>;
 	}
 }

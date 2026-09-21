@@ -12,16 +12,23 @@ cd "$ROOT"
 
 # Parse arguments
 EXTRA_ARGS=()
+BUILD_ARGS=()
 RUN_FILE=""
 RUN_GLOB=""
 GREP_PATTERN=""
 SUITE_FILTER=""
 HELP=false
+AGENT_HOST_E2E_GLOB="**/agentHost/test/node/e2e/{providers/*AgentHostE2E,conformance/*}.integrationTest.js"
 
 while [[ $# -gt 0 ]]; do
 	case "$1" in
 		--help|-h)
 			HELP=true
+			shift
+			;;
+		--build)
+			BUILD_ARGS=(--build)
+			EXTRA_ARGS+=("$1")
 			shift
 			;;
 		--run)
@@ -51,13 +58,14 @@ while [[ $# -gt 0 ]]; do
 done
 
 # Known suite names (used for help text and validation)
-KNOWN_SUITES="api-folder api-workspace colorize terminal-suggest typescript markdown emmet git git-base ipynb notebook-renderers configuration-editing github-authentication copilot css html"
+KNOWN_SUITES="api-folder api-workspace colorize terminal-suggest typescript markdown emmet git git-base ipynb notebook-renderers configuration-editing github-authentication copilot css html json"
 
 if $HELP; then
 	echo "Usage: $0 [options]"
 	echo ""
 	echo "Runs integration tests. When no filters are given, all integration tests"
 	echo "(node.js integration tests + extension host tests) are run."
+	echo "Agent Host E2E entrypoints run in parallel before the remaining node.js tests."
 	echo ""
 	echo "--run and --runGlob select which node.js integration test files to load."
 	echo "Extension host tests are skipped when these options are used."
@@ -70,6 +78,7 @@ if $HELP; then
 	echo "Node.js integration tests are skipped when this option is used."
 	echo ""
 	echo "Options:"
+	echo "  --build                      use the out-build directory for node.js and JSON tests"
 	echo "  --run <file>                  run tests from a specific file (src/ path)"
 	echo "  --runGlob, --glob <pattern>   select test files by path glob (e.g. '**/editor/**/*.integrationTest.js')"
 	echo "  --grep, -g, -f <pattern>      filter test cases by name (matched against test titles)"
@@ -171,7 +180,12 @@ if [[ -z "$SUITE_FILTER" ]]; then
 	echo "### node.js integration tests"
 	echo
 	if [[ -z "$RUN_GLOB" && -z "$RUN_FILE" ]]; then
-		./scripts/test.sh --runGlob "**/*.integrationTest.js" "${EXTRA_ARGS[@]}"
+		if [[ "$VSCODE_SKIP_AGENT_HOST_E2E" == "1" ]]; then
+			echo "Skipping Agent Host E2E tests because no relevant files changed."
+		else
+			node ./scripts/test-agent-host-e2e.ts "${EXTRA_ARGS[@]}"
+		fi
+		VSCODE_SKIP_PRELAUNCH=1 ./scripts/test.sh --runGlob "**/*.integrationTest.js" --excludeRunGlob "$AGENT_HOST_E2E_GLOB" "${EXTRA_ARGS[@]}"
 	else
 		./scripts/test.sh "${EXTRA_ARGS[@]}"
 	fi
@@ -329,6 +343,13 @@ echo
 echo "### HTML tests"
 echo
 cd "$ROOT/extensions/html-language-features/server" && "$ROOT/scripts/node-electron.sh" test/index.js
+fi
+
+if should_run_suite json; then
+echo
+echo "### JSON tests"
+echo
+"$ROOT/scripts/node-electron.sh" "$ROOT/extensions/json-language-features/client/out/test/index.js" "${BUILD_ARGS[@]}"
 fi
 
 

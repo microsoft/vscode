@@ -1,0 +1,46 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Use view exactly once with view_range [2, 4] to read range.txt. Do not run a shell command. Then reply exactly "done".
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_0
+          name: view
+          input:
+            path: ${workdir}/range.txt
+            view_range:
+              - 2
+              - 4
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Use view exactly once with view_range [2, 4] to read range.txt. Do not run a shell command. Then reply exactly "done".
+        - role: assistant
+          content:
+            - type: tool_use
+              name: view
+              input:
+                path: ${workdir}/range.txt
+                view_range:
+                  - 2
+                  - 4
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: |-
+                2. RANGE_TWO
+                3. RANGE_THREE
+                4. RANGE_FOUR
+    response:
+      content: done
+      stopReason: end_turn

@@ -4,13 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { addDisposableListener, EventType } from '../../../../../base/browser/dom.js';
+import { timeout } from '../../../../../base/common/async.js';
+import { StandardKeyboardEvent } from '../../../../../base/browser/keyboardEvent.js';
+import { mainWindow } from '../../../../../base/browser/window.js';
 import { workbenchInstantiationService, registerTestEditor, TestFileEditorInput, createEditorParts } from '../../../../test/browser/workbenchTestServices.js';
 import { GroupsOrder, IEditorGroupsService } from '../../common/editorGroupsService.js';
 import { EditorExtensions, EditorInputCapabilities, IEditorFactoryRegistry } from '../../../../common/editor.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
-import { MockScopableContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
+import { IKeybindingService, IKeyboardEvent } from '../../../../../platform/keybinding/common/keybinding.js';
+import { ResultKind, ResolutionResult } from '../../../../../platform/keybinding/common/keybindingResolver.js';
+import { MockKeybindingService, MockScopableContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { SideBySideEditorInput } from '../../../../common/editor/sideBySideEditorInput.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
@@ -22,6 +28,9 @@ import { EditorService } from '../../browser/editorService.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { TestStorageService } from '../../../../test/common/workbenchTestServices.js';
 import { Memento } from '../../../../common/memento.js';
+import { IContextKeyService, IContextKeyServiceTarget } from '../../../../../platform/contextkey/common/contextkey.js';
+import { EditorPartModalVisibleContext } from '../../../../common/contextkeys.js';
+import { CLOSE_MODAL_EDITOR_COMMAND_ID } from '../../../../browser/parts/editor/editorCommands.js';
 
 suite('Modal Editor Group', () => {
 
@@ -64,6 +73,99 @@ suite('Modal Editor Group', () => {
 		assert.ok(modalPart.activeGroup);
 		assert.strictEqual(typeof modalPart.close, 'function');
 
+		await modalPart.close();
+	});
+
+	test('Escape closes modal before focused controls can stop propagation', async () => {
+		let resolvedCommand = 'test.otherCommand';
+		let dispatchCount = 0;
+		const keybindingService = new class extends MockKeybindingService {
+			override softDispatch(): ResolutionResult {
+				return { kind: ResultKind.KbFound, commandId: resolvedCommand, commandArgs: undefined, isBubble: false };
+			}
+			override dispatchEvent(): boolean {
+				dispatchCount++;
+				dispatchClose?.();
+				return true;
+			}
+		}();
+		const instantiationService = workbenchInstantiationService({ contextKeyService: instantiationService => instantiationService.createInstance(MockScopableContextKeyService) }, disposables);
+		instantiationService.stub(IKeybindingService, keybindingService);
+		instantiationService.invokeFunction(accessor => Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).start(accessor));
+		const parts = await createEditorParts(instantiationService, disposables);
+		instantiationService.stub(IEditorGroupsService, parts);
+
+		const modalPart = await parts.createModalEditorPart();
+		const dispatchClose = () => void modalPart.close();
+		const modalElement = modalPart.modalElement as HTMLElement;
+		const control = modalElement.appendChild(document.createElement('button'));
+		let controlKeydownCount = 0;
+		disposables.add(addDisposableListener(control, EventType.KEY_DOWN, event => {
+			controlKeydownCount++;
+			event.stopPropagation();
+		}));
+		const states: { modalAttached: boolean; controlKeydownCount: number; dispatchCount: number }[] = [];
+
+		control.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true }));
+		states.push({ modalAttached: !!modalElement.parentElement, controlKeydownCount, dispatchCount });
+
+		resolvedCommand = CLOSE_MODAL_EDITOR_COMMAND_ID;
+		control.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true }));
+		await timeout(0);
+		states.push({ modalAttached: !!modalElement.parentElement, controlKeydownCount, dispatchCount });
+
+		assert.deepStrictEqual(states, [
+			{ modalAttached: true, controlKeydownCount: 1, dispatchCount: 0 },
+			{ modalAttached: false, controlKeydownCount: 1, dispatchCount: 1 },
+		]);
+	});
+
+	test('bubble close keybindings reach focused controls and dispatch once', async () => {
+		let dispatchCount = 0;
+		const keybindingService = new class extends MockKeybindingService {
+			override softDispatch(): ResolutionResult {
+				return { kind: ResultKind.KbFound, commandId: CLOSE_MODAL_EDITOR_COMMAND_ID, commandArgs: undefined, isBubble: true };
+			}
+			override dispatchEvent(_event: IKeyboardEvent, _target: IContextKeyServiceTarget): boolean {
+				dispatchCount++;
+				return false;
+			}
+		}();
+		const instantiationService = workbenchInstantiationService({ contextKeyService: instantiationService => instantiationService.createInstance(MockScopableContextKeyService) }, disposables);
+		instantiationService.stub(IKeybindingService, keybindingService);
+		instantiationService.invokeFunction(accessor => Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).start(accessor));
+		const parts = await createEditorParts(instantiationService, disposables);
+		instantiationService.stub(IEditorGroupsService, parts);
+		disposables.add(addDisposableListener(mainWindow, EventType.KEY_DOWN, e => {
+			const event = new StandardKeyboardEvent(e);
+			keybindingService.dispatchEvent(event, event.target);
+		}));
+
+		const modalPart = await parts.createModalEditorPart();
+		const control = (modalPart.modalElement as HTMLElement).appendChild(document.createElement('button'));
+		let controlKeydownCount = 0;
+		let stopPropagation = false;
+		disposables.add(addDisposableListener(control, EventType.KEY_DOWN, event => {
+			controlKeydownCount++;
+			if (stopPropagation) {
+				event.stopPropagation();
+			}
+		}));
+		const states: { controlKeydownCount: number; dispatchCount: number }[] = [];
+
+		control.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true }));
+		await timeout(0);
+		states.push({ controlKeydownCount, dispatchCount });
+
+		stopPropagation = true;
+		control.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true }));
+		await timeout(0);
+		states.push({ controlKeydownCount, dispatchCount });
+
+		assert.deepStrictEqual(states, [
+			{ controlKeydownCount: 1, dispatchCount: 1 },
+			{ controlKeydownCount: 2, dispatchCount: 2 },
+		]);
 		await modalPart.close();
 	});
 
@@ -184,6 +286,38 @@ suite('Modal Editor Group', () => {
 		assert.ok(modalPart2);
 		assert.strictEqual(modalPart1, modalPart2);
 		assert.strictEqual(modalPart1.activeGroup.id, modalPart2.activeGroup.id);
+
+		await modalPart1.close();
+	});
+
+	test('createModalEditorPart is race-proof: concurrent creation returns same singleton instance', async () => {
+		const instantiationService = workbenchInstantiationService({ contextKeyService: instantiationService => instantiationService.createInstance(MockScopableContextKeyService) }, disposables);
+		instantiationService.invokeFunction(accessor => Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).start(accessor));
+		const parts = await createEditorParts(instantiationService, disposables);
+		instantiationService.stub(IEditorGroupsService, parts);
+
+		let addGroupCount = 0;
+		disposables.add(parts.onDidAddGroup(() => {
+			addGroupCount++;
+		}));
+
+		// Fire multiple concurrent creation requests before any of them has a
+		// chance to resolve and assign the singleton instance
+		const [modalPart1, modalPart2, modalPart3] = await Promise.all([
+			parts.createModalEditorPart(),
+			parts.createModalEditorPart(),
+			parts.createModalEditorPart()
+		]);
+
+		// All concurrent calls must resolve to the exact same singleton instance/group
+		assert.strictEqual(modalPart1, modalPart2);
+		assert.strictEqual(modalPart2, modalPart3);
+		assert.strictEqual(modalPart1.activeGroup.id, modalPart2.activeGroup.id);
+		assert.strictEqual(modalPart1.activeGroup.id, modalPart3.activeGroup.id);
+
+		// Only a single group/registration event should have fired for the singleton,
+		// proving only one modal part was ever created despite the concurrent calls
+		assert.strictEqual(addGroupCount, 1);
 
 		await modalPart1.close();
 	});
@@ -384,17 +518,36 @@ suite('Modal Editor Group', () => {
 		instantiationService.invokeFunction(accessor => Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).start(accessor));
 		const parts = await createEditorParts(instantiationService, disposables);
 		instantiationService.stub(IEditorGroupsService, parts);
+		const contextKeyService = instantiationService.invokeFunction(accessor => accessor.get(IContextKeyService));
 
 		// No modal initially
-		assert.strictEqual(parts.activeModalEditorPart, undefined);
+		assert.deepStrictEqual({
+			activeModalEditorPart: parts.activeModalEditorPart,
+			modalEditorVisible: EditorPartModalVisibleContext.getValue(contextKeyService),
+		}, {
+			activeModalEditorPart: undefined,
+			modalEditorVisible: false,
+		});
 
 		// Create modal
 		const modalPart = await parts.createModalEditorPart();
-		assert.strictEqual(parts.activeModalEditorPart, modalPart);
+		assert.deepStrictEqual({
+			activeModalEditorPart: parts.activeModalEditorPart,
+			modalEditorVisible: EditorPartModalVisibleContext.getValue(contextKeyService),
+		}, {
+			activeModalEditorPart: modalPart,
+			modalEditorVisible: true,
+		});
 
 		// Close modal
 		await modalPart.close();
-		assert.strictEqual(parts.activeModalEditorPart, undefined);
+		assert.deepStrictEqual({
+			activeModalEditorPart: parts.activeModalEditorPart,
+			modalEditorVisible: EditorPartModalVisibleContext.getValue(contextKeyService),
+		}, {
+			activeModalEditorPart: undefined,
+			modalEditorVisible: false,
+		});
 	});
 
 	test('findGroup returns main part group when modal is active and preferredGroup is not MODAL_GROUP', async () => {
@@ -768,11 +921,32 @@ suite('Modal Editor Group', () => {
 
 	suite('RequiresModal capability', () => {
 
-		test('findGroup opens modal for editor with RequiresModal even when setting is off', async () => {
+		test('findGroup respects useModal: off for editor with RequiresModal', async () => {
 			const instantiationService = workbenchInstantiationService({ contextKeyService: instantiationService => instantiationService.createInstance(MockScopableContextKeyService) }, disposables);
 			instantiationService.invokeFunction(accessor => Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).start(accessor));
 			const configurationService = new TestConfigurationService();
 			await configurationService.setUserConfiguration('workbench.editor.useModal', 'off');
+			instantiationService.stub(IConfigurationService, configurationService);
+			const parts = await createEditorParts(instantiationService, disposables);
+			instantiationService.stub(IEditorGroupsService, parts);
+
+			const input = createTestFileEditorInput(URI.file('foo/bar'), TEST_EDITOR_INPUT_ID);
+			input.capabilities = EditorInputCapabilities.RequiresModal;
+
+			const result = instantiationService.invokeFunction(accessor => findGroup(accessor, { editor: input, options: {} }, undefined));
+
+			const [group] = result instanceof Promise ? await result : result;
+
+			// With useModal: off, the user preference wins and no modal part is created
+			assert.strictEqual(parts.activeModalEditorPart, undefined);
+			assert.strictEqual(group.id, parts.mainPart.activeGroup.id);
+		});
+
+		test('findGroup opens modal for editor with RequiresModal when useModal is some', async () => {
+			const instantiationService = workbenchInstantiationService({ contextKeyService: instantiationService => instantiationService.createInstance(MockScopableContextKeyService) }, disposables);
+			instantiationService.invokeFunction(accessor => Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).start(accessor));
+			const configurationService = new TestConfigurationService();
+			await configurationService.setUserConfiguration('workbench.editor.useModal', 'some');
 			instantiationService.stub(IConfigurationService, configurationService);
 			const parts = await createEditorParts(instantiationService, disposables);
 			instantiationService.stub(IEditorGroupsService, parts);

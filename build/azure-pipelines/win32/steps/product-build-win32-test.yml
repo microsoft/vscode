@@ -11,7 +11,8 @@ parameters:
 steps:
   - powershell: npm exec -- npm-run-all2 -lp "electron $(VSCODE_ARCH)" "playwright-install"
     env:
-      GITHUB_TOKEN: "$(github-distro-mixin-password)"
+      GITHUB_TOKEN: "$(github-token-code-oss)"
+      AZURE_DEVOPS_EXT_PAT: $(System.AccessToken)
     displayName: Download Electron and Playwright
     retryCountOnTaskFailure: 3
 
@@ -21,7 +22,11 @@ steps:
         VSCODE_SKIP_PRELAUNCH: '1'
       displayName: 🧪 Run unit tests (Electron)
       timeoutInMinutes: 15
-    - powershell: npm run test-node -- --build
+    - powershell: |
+        New-Item -ItemType Directory -Force -Path .build\crashes | Out-Null
+        npm run test-node -- --build
+      env:
+        NODE_OPTIONS: "--report-on-fatalerror --report-uncaught-exception --report-directory=.build/crashes"
       displayName: 🧪 Run unit tests (node.js)
       timeoutInMinutes: 15
 
@@ -42,6 +47,7 @@ steps:
         compile-extension:html-language-features-server `
         compile-extension:ipynb `
         compile-extension:notebook-renderers `
+        compile-extension:json-language-features-client `
         compile-extension:json-language-features-server `
         compile-extension:markdown-language-features `
         compile-extension-media `
@@ -125,9 +131,30 @@ steps:
     condition: succeededOrFailed()
 
   - ${{ if eq(parameters.VSCODE_RUN_ELECTRON_TESTS, true) }}:
-    - powershell: npm run smoketest-no-compile -- --tracing --build "$(agent.builddirectory)\test\VSCode-win32-$(VSCODE_ARCH)"
+    - ${{ if eq(parameters.VSCODE_ARCH, 'x64') }}:
+      - pwsh: .\test\smoke\wslDevContainer.ps1 -CI AzureDevOps
+        displayName: Prepare WSL Dev Container smoke tests
+        timeoutInMinutes: 15
+
+    - powershell: |
+        npm run smoketest-no-compile -- --tracing --build "$(agent.builddirectory)\test\VSCode-win32-$(VSCODE_ARCH)"
+      env:
+        VSCODE_SMOKE_TEST_POLICY: '1'
+        ${{ if eq(parameters.VSCODE_ARCH, 'x64') }}:
+          VSCODE_SMOKE_TEST_WSL_REQUIRED: '1'
+          VSCODE_SMOKE_TEST_WSL_DISTRO: $(WSL_SMOKE_DISTRO)
+          VSCODE_SMOKE_TEST_WSL_SERVER_PATH: $(WSL_SMOKE_SERVER_PATH)
       displayName: 🧪 Run smoke tests (Electron)
       timeoutInMinutes: 20
+
+    - ${{ if eq(parameters.VSCODE_ARCH, 'x64') }}:
+      - pwsh: .\test\smoke\wslDevContainer.ps1 -CI AzureDevOps -Operation Cleanup -Distribution $env:WSL_SMOKE_DISTRO -Root $env:WSL_SMOKE_ROOT
+        displayName: Clean up WSL Dev Container smoke tests
+        condition: and(always(), ne(variables['WSL_SMOKE_ROOT'], ''))
+        timeoutInMinutes: 5
+        env:
+          WSL_SMOKE_DISTRO: $(WSL_SMOKE_DISTRO)
+          WSL_SMOKE_ROOT: $(WSL_SMOKE_ROOT)
 
   - ${{ if eq(parameters.VSCODE_RUN_BROWSER_TESTS, true) }}:
     - powershell: npm run smoketest-no-compile -- --web --tracing --headless
@@ -159,3 +186,19 @@ steps:
       testResultsFiles: "*-results.xml"
       searchFolder: "$(Build.ArtifactStagingDirectory)/test-results"
     condition: succeededOrFailed()
+
+  # Force-kill any lingering test processes that still hold smoke-test log
+  # files open and would otherwise break the 1ES "Publish Log Files" output.
+  - powershell: |
+      $ErrorActionPreference = "Continue"
+      $testRoot = "$(agent.builddirectory)\test"
+      Get-CimInstance Win32_Process -Filter "ExecutablePath IS NOT NULL" -ErrorAction SilentlyContinue |
+        Where-Object { $_.ExecutablePath -like "$testRoot\*" } |
+        ForEach-Object {
+          Write-Host "Killing lingering test process: pid=$($_.ProcessId), name=$($_.Name), path=$($_.ExecutablePath)"
+          try { Stop-Process -Id $_.ProcessId -Force -ErrorAction Stop }
+          catch { Write-Host "  failed: $($_.Exception.Message)" }
+        }
+    displayName: Kill lingering test processes
+    continueOnError: true
+    condition: always()

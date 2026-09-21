@@ -4,7 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { getZoomFactor } from '../../../base/browser/browser.js';
-import { getWindow, getWindowId } from '../../../base/browser/dom.js';
+import { $, addDisposableListener, append, EventType, getWindow, getWindowId, hide, show } from '../../../base/browser/dom.js';
+import { Codicon } from '../../../base/common/codicons.js';
+import { Event } from '../../../base/common/event.js';
+import { ThemeIcon } from '../../../base/common/themables.js';
 import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../platform/contextview/browser/contextView.js';
@@ -13,7 +16,7 @@ import { INativeHostService } from '../../../platform/native/common/native.js';
 import { IProductService } from '../../../platform/product/common/productService.js';
 import { IStorageService } from '../../../platform/storage/common/storage.js';
 import { IThemeService } from '../../../platform/theme/common/themeService.js';
-import { useWindowControlsOverlay } from '../../../platform/window/common/window.js';
+import { hasNativeTitlebar, useWindowControlsOverlay } from '../../../platform/window/common/window.js';
 import { IsWindowAlwaysOnTopContext } from '../../../workbench/common/contextkeys.js';
 import { IHostService } from '../../../workbench/services/host/browser/host.js';
 import { IWorkbenchLayoutService, Parts } from '../../../workbench/services/layout/browser/layoutService.js';
@@ -21,9 +24,13 @@ import { IAuxiliaryTitlebarPart } from '../../../workbench/browser/parts/titleba
 import { IEditorGroupsContainer } from '../../../workbench/services/editor/common/editorGroupsService.js';
 import { CodeWindow, mainWindow } from '../../../base/browser/window.js';
 import { TitlebarPart, TitleService } from '../../browser/parts/titlebarPart.js';
-import { isMacintosh } from '../../../base/common/platform.js';
+import { isMacintosh, isWindows } from '../../../base/common/platform.js';
+import { localize } from '../../../nls.js';
 
 export class NativeTitlebarPart extends TitlebarPart {
+
+	private maxRestoreControl: HTMLElement | undefined;
+	private resizer: HTMLElement | undefined;
 
 	private cachedWindowControlStyles: { bgColor: string; fgColor: string } | undefined;
 	private cachedWindowControlHeight: number | undefined;
@@ -53,16 +60,93 @@ export class NativeTitlebarPart extends TitlebarPart {
 		// appear in the "Windows" menu if the first `document.title`
 		// matches the BrowserWindow's initial title.
 		// See: https://github.com/microsoft/vscode/issues/191288
+		const window = getWindow(this.element);
+		const agentsTitle = localize('agentsWindowTitle', "Agents");
 		if (isMacintosh) {
-			const window = getWindow(this.element);
-			const nativeTitle = this.productService.nameLong;
-			if (!window.document.title || window.document.title === nativeTitle) {
-				window.document.title = `${nativeTitle} \u200b`;
+			const initialTitle = this.productService.nameLong;
+			if (!window.document.title || window.document.title === initialTitle) {
+				window.document.title = `${agentsTitle} \u200b`;
 			}
-			window.document.title = nativeTitle;
+		}
+		window.document.title = agentsTitle;
+
+		const result = super.createContentArea(parent);
+		const targetWindow = getWindow(parent);
+		const targetWindowId = getWindowId(targetWindow);
+
+		// Custom Window Controls (Native Windows/Linux) when window.controlsStyle is "custom"
+		if (
+			!hasNativeTitlebar(this.configurationService) &&		// not for native title bars
+			!useWindowControlsOverlay(this.configurationService) &&	// not when controls are natively drawn
+			this.windowControlsContainer
+		) {
+
+			// Minimize
+			const minimizeIcon = append(this.windowControlsContainer, $('div.window-icon.window-minimize' + ThemeIcon.asCSSSelector(Codicon.chromeMinimize)));
+			this._register(addDisposableListener(minimizeIcon, EventType.CLICK, () => {
+				this.nativeHostService.minimizeWindow({ targetWindowId });
+			}));
+
+			// Restore
+			this.maxRestoreControl = append(this.windowControlsContainer, $('div.window-icon.window-max-restore'));
+			this._register(addDisposableListener(this.maxRestoreControl, EventType.CLICK, async () => {
+				const maximized = await this.nativeHostService.isMaximized({ targetWindowId });
+				if (maximized) {
+					return this.nativeHostService.unmaximizeWindow({ targetWindowId });
+				}
+
+				return this.nativeHostService.maximizeWindow({ targetWindowId });
+			}));
+
+			// Close
+			const closeIcon = append(this.windowControlsContainer, $('div.window-icon.window-close' + ThemeIcon.asCSSSelector(Codicon.chromeClose)));
+			this._register(addDisposableListener(closeIcon, EventType.CLICK, () => {
+				this.nativeHostService.closeWindow({ targetWindowId });
+			}));
+
+			// Resizer
+			this.resizer = append(this.rootContainer, $('div.resizer'));
+			this._register(Event.runAndSubscribe(this.layoutService.onDidChangeWindowMaximized, ({ windowId, maximized }) => {
+				if (windowId === targetWindowId) {
+					this.onDidChangeWindowMaximized(maximized);
+				}
+			}, { windowId: targetWindowId, maximized: this.layoutService.isWindowMaximized(targetWindow) }));
 		}
 
-		return super.createContentArea(parent);
+		// Window System Context Menu
+		// See https://github.com/electron/electron/issues/24893
+		if (isWindows && !hasNativeTitlebar(this.configurationService)) {
+			this._register(this.nativeHostService.onDidTriggerWindowSystemContextMenu(({ windowId, x, y }) => {
+				if (targetWindowId !== windowId) {
+					return;
+				}
+
+				const zoomFactor = getZoomFactor(getWindow(this.element));
+				this.onContextMenu(new MouseEvent(EventType.MOUSE_UP, { clientX: x / zoomFactor, clientY: y / zoomFactor }));
+			}));
+		}
+
+		return result;
+	}
+
+	private onDidChangeWindowMaximized(maximized: boolean): void {
+		if (this.maxRestoreControl) {
+			if (maximized) {
+				this.maxRestoreControl.classList.remove(...ThemeIcon.asClassNameArray(Codicon.chromeMaximize));
+				this.maxRestoreControl.classList.add(...ThemeIcon.asClassNameArray(Codicon.chromeRestore));
+			} else {
+				this.maxRestoreControl.classList.remove(...ThemeIcon.asClassNameArray(Codicon.chromeRestore));
+				this.maxRestoreControl.classList.add(...ThemeIcon.asClassNameArray(Codicon.chromeMaximize));
+			}
+		}
+
+		if (this.resizer) {
+			if (maximized) {
+				hide(this.resizer);
+			} else {
+				show(this.resizer);
+			}
+		}
 	}
 
 	private async handleWindowsAlwaysOnTop(targetWindowId: number, contextKeyService: IContextKeyService): Promise<void> {

@@ -257,7 +257,7 @@ class CliMain extends Disposable {
 			const config: ITelemetryServiceConfig = {
 				appenders,
 				sendErrorTelemetry: false,
-				commonProperties: resolveCommonProperties(release(), hostname(), process.arch, productService.commit, productService.version, machineId, sqmId, devDeviceId, isInternal, productService.date, productService.telemetryAppName),
+				commonProperties: resolveCommonProperties(release(), hostname(), process.arch, productService.commit, productService.version, machineId, sqmId, devDeviceId, isInternal, productService.date),
 				piiPaths: getPiiPathsFromEnvironment(environmentService)
 			};
 

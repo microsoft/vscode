@@ -31,6 +31,12 @@ export interface IBracketPairsTextModelPart {
 	getBracketsInRange(range: IRange, onlyColorizedBrackets?: boolean): CallbackIterable<BracketInfo>;
 
 	/**
+	 * Returns whether an unmatched closing bracket for `openingBracket` starts at or after `position`.
+	 * Returns false when token-aware bracket data is unavailable.
+	 */
+	hasUnmatchedClosingBracketAfter(position: IPosition, openingBracket: string): boolean;
+
+	/**
 	 * Find the matching bracket of `request` up, counting brackets.
 	 * @param request The bracket we're searching for
 	 * @param position The position at which to start the search.

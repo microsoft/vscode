@@ -17,8 +17,6 @@ import { IThemeService } from '../../../../platform/theme/common/themeService.js
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { agentsPanelBackground } from '../../../common/theme.js';
 import { ExplorerView } from '../../../../workbench/contrib/files/browser/views/explorerView.js';
-import { Codicon } from '../../../../base/common/codicons.js';
-import { ThemeIcon } from '../../../../base/common/themables.js';
 import { localize } from '../../../../nls.js';
 
 const $ = dom.$;
@@ -27,6 +25,10 @@ export const SESSIONS_FILES_VIEW_ID = 'sessions.files.explorer';
 export const SESSIONS_FILES_EMPTY_VIEW_ID = 'sessions.files.explorer.empty';
 
 export class SessionsExplorerView extends ExplorerView {
+	protected override get primaryActionGroups(): string[] | undefined {
+		return ['1_files'];
+	}
+
 	protected override getLocationBasedColors(): IViewPaneLocationColors {
 		const colors = super.getLocationBasedColors();
 		return {
@@ -61,9 +63,6 @@ export class SessionsExplorerEmptyView extends ViewPane {
 
 		const bodyContainer = dom.append(container, $('.files-empty-view-body'));
 		const welcomeContainer = dom.append(bodyContainer, $('.files-empty-welcome'));
-
-		const welcomeIcon = dom.append(welcomeContainer, $('.files-empty-welcome-icon'));
-		welcomeIcon.classList.add(...ThemeIcon.asClassNameArray(Codicon.files));
 
 		const welcomeMessage = dom.append(welcomeContainer, $('.files-empty-welcome-message'));
 		welcomeMessage.textContent = localize('filesView.noFiles', "Folders and files will appear here.");

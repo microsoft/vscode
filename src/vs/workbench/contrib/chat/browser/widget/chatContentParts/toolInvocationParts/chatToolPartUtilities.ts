@@ -12,17 +12,42 @@ export function isMcpToolInvocation(toolInvocation: IChatToolInvocation | IChatT
 }
 
 /**
- * Determines whether a tool invocation's progress text should shimmer.
- * MCP tools shimmer; askQuestions defers to the caller's default; all others opt out.
+ * Whether a tool is waiting on an approval that the confirmation carousel above the chat input hosts
+ * when it is enabled. Hidden tools and MCP tools (extension-hosted or agent-host, see
+ * {@link isMcpToolInvocation}) keep their confirmations inline.
+ * @param state The tool state to check, for callers that already read it through an observable reader.
  */
-export function shouldShimmerForTool(toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized): boolean {
-	if (isMcpToolInvocation(toolInvocation)) {
-		return !IChatToolInvocation.isComplete(toolInvocation);
-	}
-	if (toolInvocation.toolId === 'copilot_askQuestions' || toolInvocation.toolId === 'vscode_askQuestions') {
+export function isCarouselToolConfirmation(toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized, state?: IChatToolInvocation.State): toolInvocation is IChatToolInvocation {
+	if (toolInvocation.kind !== 'toolInvocation' || toolInvocation.presentation === 'hidden' || isMcpToolInvocation(toolInvocation)) {
 		return false;
 	}
-	return false;
+	const current = state ?? toolInvocation.state.get();
+	return current.type === IChatToolInvocation.StateKind.WaitingForConfirmation && !!current.confirmationMessages?.title;
+}
+
+export function isAskQuestionsToolInvocation(toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized): boolean {
+	return toolInvocation.toolId === 'copilot_askQuestions'
+		|| toolInvocation.toolId === 'vscode_askQuestions'
+		|| toolInvocation.toolId === 'ask_user'
+		|| toolInvocation.toolId === 'AskUserQuestion'
+		|| toolInvocation.toolId === 'request_user_input';
+}
+
+/**
+ * Determines whether a tool invocation's progress text should shimmer.
+ */
+export function shouldShimmerForTool(toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized, content: string | IMarkdownString | undefined): boolean {
+	if (!isAskQuestionsToolInvocation(toolInvocation) || IChatToolInvocation.isComplete(toolInvocation)) {
+		return false;
+	}
+
+	return getMarkdownValue(content) === getMarkdownValue(toolInvocation.invocationMessage);
+}
+
+function getMarkdownValue(content: string | IMarkdownString | undefined): string | undefined {
+	return (typeof content === 'string' ? content : content?.value)
+		?.replaceAll('&nbsp;', ' ')
+		.replace(/\\[\\`*_{}\[\]()#+\-!~]/g, escaped => escaped.slice(1));
 }
 
 /**

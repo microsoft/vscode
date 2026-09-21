@@ -31,7 +31,6 @@ import {
 } from '../../chat/common/tools/languageModelToolsService.js';
 import { TestId } from './testId.js';
 import { FileCoverage, TestCoverage, getTotalCoveragePercent } from './testCoverage.js';
-import { TestingContextKeys } from './testingContextKeys.js';
 import { collectTestStateCounts, getTestProgressText } from './testingProgressMessages.js';
 import { isFailedState } from './testingStates.js';
 import { ITestResult, LiveTestResult } from './testResult.js';
@@ -75,7 +74,6 @@ export class RunTestTool implements IToolImpl {
 		id: this.ID,
 		toolReferenceName: 'runTests',
 		legacyToolReferenceFullNames: ['runTests'],
-		when: TestingContextKeys.hasRunnableTests,
 		displayName: 'Run tests',
 		modelDescription: 'Runs unit tests in files. Use this tool if the user asks to run tests or when you want to validate changes using unit tests, and prefer using this tool instead of the terminal tool. When possible, always try to provide `files` paths containing the relevant unit tests in order to avoid unnecessarily long test runs. This tool outputs detailed information about the results of the test run. Set mode="coverage" to also collect coverage and optionally provide coverageFiles for focused reporting.',
 		icon: Codicon.beaker,
@@ -331,7 +329,6 @@ export class TestFailureTool implements IToolImpl {
 		id: this.ID,
 		toolReferenceName: 'testFailure',
 		legacyToolReferenceFullNames: ['copilot_testFailure'],
-		when: TestingContextKeys.hasAnyResults,
 		displayName: localize('testFailureTool.displayName', 'Test failures'),
 		modelDescription: 'Includes test failure information in the prompt. Use this tool to get the details of test failures from the most recent test run. If there are no failures yet, suggest running tests first.',
 		icon: Codicon.beaker,

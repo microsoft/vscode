@@ -35,7 +35,7 @@ describe('EditToolLearningService', () => {
 	});
 
 	// Helper to create mock endpoint
-	const createMockEndpoint = (isExtensionContributed: boolean, family = 'test-family', model: LanguageModelChat): IChatEndpoint => ({
+	const createMockEndpoint = (isExtensionContributed: boolean, family = 'test-family', model: LanguageModelChat, supportedEditTools?: readonly string[]): IChatEndpoint => ({
 		family,
 		model: model.id,
 		maxOutputTokens: 1000,
@@ -52,6 +52,7 @@ describe('EditToolLearningService', () => {
 		name: model.id,
 		version: '1.0',
 		tokenizer: 'gpt',
+		supportedEditTools,
 		acceptChatPolicy: vi.fn().mockResolvedValue(true),
 		processResponseFromChatEndpoint: vi.fn(),
 		acquireTokenizer: vi.fn(),
@@ -134,6 +135,40 @@ describe('EditToolLearningService', () => {
 			const result = await service.getPreferredEditTool(model);
 
 			expect(result).toEqual([ToolName.EditFile, ToolName.ReplaceString]);
+		});
+
+		it('should honor BYOK editTools (apply-patch) for an unknown family', async () => {
+			const model = createMockModel('byok-edittools-repro');
+			vi.mocked(mockEndpointProvider.getChatEndpoint).mockResolvedValue(
+				createMockEndpoint(true, 'byok-family', model, ['apply-patch'])
+			);
+
+			const result = await service.getPreferredEditTool(model);
+
+			expect(result).toEqual([ToolName.ApplyPatch]);
+		});
+
+		it('should honor a restricted BYOK editTools list (find-replace + multi-find-replace)', async () => {
+			const model = createMockModel('byok-find-replace');
+			vi.mocked(mockEndpointProvider.getChatEndpoint).mockResolvedValue(
+				createMockEndpoint(true, 'byok-family', model, ['find-replace', 'multi-find-replace'])
+			);
+
+			const result = await service.getPreferredEditTool(model);
+
+			expect(result).toEqual([ToolName.ReplaceString, ToolName.MultiReplaceString]);
+		});
+
+		it('should honor BYOK editTools over hardcoded family preference', async () => {
+			// Model name would otherwise trigger the hardcoded gpt -> ApplyPatch preference.
+			const model = createMockModel('gpt-byok');
+			vi.mocked(mockEndpointProvider.getChatEndpoint).mockResolvedValue(
+				createMockEndpoint(true, 'gpt', model, ['code-rewrite'])
+			);
+
+			const result = await service.getPreferredEditTool(model);
+
+			expect(result).toEqual([ToolName.EditFile]);
 		});
 	});
 

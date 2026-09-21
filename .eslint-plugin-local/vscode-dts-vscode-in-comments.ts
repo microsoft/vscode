@@ -17,7 +17,7 @@ export default new class ApiVsCodeInComments implements eslint.Rule.RuleModule {
 
 	create(context: eslint.Rule.RuleContext): eslint.Rule.RuleListener {
 
-		const sourceCode = context.getSourceCode();
+		const sourceCode = context.sourceCode;
 
 		return {
 			['Program']: (_node: ESTree.Program) => {

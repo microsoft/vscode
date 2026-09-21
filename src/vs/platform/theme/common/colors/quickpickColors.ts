@@ -11,7 +11,7 @@ import { registerColor, oneOf } from '../colorUtils.js';
 
 // Import the colors we need
 import { editorWidgetBackground, editorWidgetForeground } from './editorColors.js';
-import { listActiveSelectionBackground, listActiveSelectionForeground, listActiveSelectionIconForeground } from './listColors.js';
+import { listActiveSelectionBackground, listActiveSelectionForeground, listActiveSelectionIconForeground, listFocusHighlightForeground } from './listColors.js';
 
 
 export const quickInputBackground = registerColor('quickInput.background',
@@ -49,3 +49,7 @@ export const quickInputListFocusIconForeground = registerColor('quickInputList.f
 export const quickInputListFocusBackground = registerColor('quickInputList.focusBackground',
 	{ dark: oneOf(_deprecatedQuickInputListFocusBackground, listActiveSelectionBackground), light: oneOf(_deprecatedQuickInputListFocusBackground, listActiveSelectionBackground), hcDark: null, hcLight: null },
 	nls.localize('quickInput.listFocusBackground', "Quick picker background color for the focused item."));
+
+export const quickInputListFocusHighlightForeground = registerColor('quickInputList.focusHighlightForeground',
+	listFocusHighlightForeground,
+	nls.localize('quickInput.listFocusHighlightForeground', "Quick picker foreground color of the match highlights on the focused item."));

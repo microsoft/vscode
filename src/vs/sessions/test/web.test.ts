@@ -12,7 +12,7 @@ import { Emitter, Event } from '../../base/common/event.js';
 import { CancellationToken } from '../../base/common/cancellation.js';
 import { IObservable, observableValue } from '../../base/common/observable.js';
 import { ChatEntitlement, IChatEntitlementService, IChatSentiment } from '../../workbench/services/chat/common/chatEntitlementService.js';
-import { IDefaultAccountService } from '../../platform/defaultAccount/common/defaultAccount.js';
+import { IDefaultAccountService, MANAGED_SETTINGS_FRESHNESS_NOT_REQUIRED } from '../../platform/defaultAccount/common/defaultAccount.js';
 import { IDefaultAccount, IDefaultAccountAuthenticationProvider, ICopilotTokenInfo, IPolicyData } from '../../base/common/defaultAccount.js';
 import { IChatAgentService, IChatAgentData, IChatAgentImplementation } from '../../workbench/contrib/chat/common/participants/chatAgents.js';
 import { ChatAgentLocation, ChatModeKind } from '../../workbench/contrib/chat/common/constants.js';
@@ -86,14 +86,15 @@ class MockChatEntitlementService implements IChatEntitlementService {
 	readonly onDidChangeEntitlement = Event.None;
 	readonly onDidChangeQuotaExceeded = Event.None;
 	readonly onDidChangeQuotaRemaining = Event.None;
+	readonly onDidChangeUsageBasedBilling = Event.None;
 	readonly onDidChangeSentiment = Event.None;
 	readonly onDidChangeAnonymous = Event.None;
 
 	readonly entitlement = ChatEntitlement.Free;
 	readonly entitlementObs: IObservable<ChatEntitlement> = observableValue('entitlement', ChatEntitlement.Free);
 
-	readonly previewFeaturesDisabled = false;
 	readonly clientByokEnabled = false;
+	readonly hasByokModels = false;
 	readonly organisations: string[] | undefined = undefined;
 	readonly isInternal = false;
 	readonly sku = 'free';
@@ -107,7 +108,11 @@ class MockChatEntitlementService implements IChatEntitlementService {
 	readonly anonymous = false;
 	readonly anonymousObs: IObservable<boolean> = observableValue('anonymous', false);
 
+	acceptQuotas(): void { }
+	clearQuotas(): void { }
 	markAnonymousRateLimited(): void { }
+	markSetupCompleted(): void { }
+	setForceHidden(_hidden: boolean): void { }
 	async update(_token: CancellationToken): Promise<void> { }
 }
 
@@ -122,11 +127,20 @@ class MockDefaultAccountService implements IDefaultAccountService {
 	readonly onDidChangeDefaultAccount = Event.None;
 	readonly onDidChangePolicyData = Event.None;
 	readonly policyData: IPolicyData | null = null;
+	readonly currentDefaultAccount: IDefaultAccount | null = MOCK_ACCOUNT;
 	readonly copilotTokenInfo: ICopilotTokenInfo | null = null;
 	readonly onDidChangeCopilotTokenInfo = Event.None;
+	readonly managedSettingsFetchStatus: null = null;
+	readonly managedSettingsFetchedAt: null = null;
+	readonly managedSettingsRawResponse: unknown = null;
+	readonly managedSettingsCompatibilityError = null;
+	readonly onDidChangeManagedSettingsCompatibilityError = Event.None;
+	readonly managedSettingsFreshness = MANAGED_SETTINGS_FRESHNESS_NOT_REQUIRED;
+	readonly onDidChangeManagedSettingsFreshness = Event.None;
 
 	async getDefaultAccount(): Promise<IDefaultAccount | null> { return MOCK_ACCOUNT; }
 	getDefaultAccountAuthenticationProvider(): IDefaultAccountAuthenticationProvider { return MOCK_ACCOUNT.authenticationProvider; }
+	resolveGitHubUrl(path: string): string { return `https://github.com/${path}`; }
 	setDefaultAccountProvider(): void { }
 	async refresh(): Promise<IDefaultAccount | null> { return MOCK_ACCOUNT; }
 	async signIn(): Promise<IDefaultAccount | null> { return MOCK_ACCOUNT; }

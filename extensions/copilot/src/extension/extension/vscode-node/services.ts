@@ -57,7 +57,7 @@ import { IFetcherService } from '../../../platform/networking/common/fetcherServ
 import { IToolDeferralService } from '../../../platform/networking/common/toolDeferralService';
 import { ChatWebSocketManager, IChatWebSocketManager } from '../../../platform/networking/node/chatWebSocketManager';
 import { FetcherService } from '../../../platform/networking/vscode-node/fetcherServiceImpl';
-import { resolveOTelConfig } from '../../../platform/otel/common/otelConfig';
+import { IOTelConfigResolver } from '../../../platform/otel/common/otelConfigResolution';
 import { IOTelService } from '../../../platform/otel/common/otelService';
 import { InMemoryOTelService } from '../../../platform/otel/node/inMemoryOTelService';
 import { IOTelSqliteStore, OTelSqliteStore } from '../../../platform/otel/node/sqlite/otelSqliteStore';
@@ -113,12 +113,12 @@ import { ConversationStore, IConversationStore } from '../../conversationStore/n
 import { SimilarFilesContextService } from '../../inlineEdits/vscode-node/similarFilesContext';
 import { IIntentService, IntentService } from '../../intents/node/intentService';
 import { INewWorkspacePreviewContentManager, NewWorkspacePreviewContentManagerImpl } from '../../intents/node/newIntent';
-import { ITestGenInfoStorage, TestGenInfoStorage } from '../../intents/node/testIntent/testInfoStorage';
 import { LanguageContextProviderService } from '../../languageContextProvider/vscode-node/languageContextProviderService';
 import { ILinkifyService, LinkifyService } from '../../linkify/common/linkifyService';
 import { DebugCommandToConfigConverter, IDebugCommandToConfigConverter } from '../../onboardDebug/node/commandToConfigConverter';
 import { DebuggableCommandIdentifier, IDebuggableCommandIdentifier } from '../../onboardDebug/node/debuggableCommandIdentifier';
 import { ILanguageToolsProvider, LanguageToolsProvider } from '../../onboardDebug/node/languageToolsProvider';
+import { VSCodeOTelConfigResolver } from '../../otel/vscode-node/otelConfigResolver';
 import { IPowerService } from '../../power/common/powerService';
 import { PowerService } from '../../power/vscode-node/powerService';
 import { ChatMLFetcherImpl } from '../../prompt/node/chatMLFetcher';
@@ -139,7 +139,6 @@ import { ChatDiskSessionResources } from '../../prompts/node/chatDiskSessionReso
 import { CodeMapperService, ICodeMapperService } from '../../prompts/node/codeMapper/codeMapperService';
 import { FixCookbookService, IFixCookbookService } from '../../prompts/node/inline/fixCookbookService';
 import { WorkspaceMutationManager } from '../../testing/node/setupTestsFileManager';
-import { AgentMemoryService, IAgentMemoryService } from '../../tools/common/agentMemoryService';
 import { IMemoryCleanupService, MemoryCleanupService } from '../../tools/common/memoryCleanupService';
 import { ToolDeferralService } from '../../tools/common/toolDeferralService';
 import { IToolsService } from '../../tools/common/toolsService';
@@ -149,6 +148,13 @@ import { IWorkspaceListenerService } from '../../workspaceRecorder/common/worksp
 import { WorkspacListenerService } from '../../workspaceRecorder/vscode-node/workspaceListenerService';
 import { ISimilarFilesContextService } from '../../xtab/common/similarFilesContextService';
 import { registerServices as registerCommonServices } from '../vscode/services';
+import { PromptsServiceImpl } from '../../../platform/promptFiles/vscode-node/promptsServiceImpl';
+import { IPromptsService } from '../../../platform/promptFiles/common/promptsService';
+import { AutomaticInstructionsCollector, IAutomaticInstructionsCollector } from '../../../platform/promptFiles/node/automaticInstructionsCollector';
+import { GrepResultService, IGrepResultService } from '../../tools/node/grepResultService';
+import { IRegionContextProviderService } from '../../../platform/languageContextProvider/common/regionContextProvider';
+import { ContainerContextProviderService } from '../../typescriptContext/vscode-node/regionContextProvider';
+
 
 // ###########################################################################################
 // ###                                                                                     ###
@@ -166,14 +172,17 @@ export function registerServices(builder: IInstantiationServiceBuilder, extensio
 	builder.define(IAutomodeService, new SyncDescriptor(AutomodeService));
 	builder.define(IConversationStore, new SyncDescriptor(ConversationStore));
 	builder.define(IDiffService, new DiffServiceImpl());
+	builder.define(IGrepResultService, new SyncDescriptor(GrepResultService));
+	builder.define(IRegionContextProviderService, new SyncDescriptor(ContainerContextProviderService));
 	builder.define(ITokenizerProvider, new SyncDescriptor(TokenizerProvider, [true]));
 	builder.define(IToolsService, new SyncDescriptor(ToolsService));
 	builder.define(IToolDeferralService, new ToolDeferralService());
-	builder.define(IAgentMemoryService, new SyncDescriptor(AgentMemoryService));
 	builder.define(IMemoryCleanupService, new SyncDescriptor(MemoryCleanupService));
 	builder.define(IChatDiskSessionResources, new SyncDescriptor(ChatDiskSessionResources));
 	builder.define(IRequestLogger, new SyncDescriptor(RequestLogger));
 	builder.define(INativeEnvService, new SyncDescriptor(NativeEnvServiceImpl));
+	builder.define(IPromptsService, new SyncDescriptor(PromptsServiceImpl));
+	builder.define(IAutomaticInstructionsCollector, new SyncDescriptor(AutomaticInstructionsCollector));
 
 	builder.define(IFetcherService, new SyncDescriptor(FetcherService, [undefined]));
 	builder.define(IDomainService, new SyncDescriptor(DomainService));
@@ -181,11 +190,10 @@ export function registerServices(builder: IInstantiationServiceBuilder, extensio
 	builder.define(IImageService, new SyncDescriptor(VSCodeImageServiceImpl));
 
 	builder.define(ITelemetryUserConfig, new SyncDescriptor(TelemetryUserConfigImpl, [undefined, undefined]));
-	const internalAIKey = extensionContext.extension.packageJSON.internalAIKey ?? '';
-	const internalLargeEventAIKey = extensionContext.extension.packageJSON.internalLargeStorageAriaKey ?? '';
+	const internalAIKey = extensionContext.extension.packageJSON.internalLargeStorageAriaKey ?? '';
 	const ariaKey = extensionContext.extension.packageJSON.ariaKey ?? '';
 	if (isTestMode || isScenarioAutomation) {
-		setupTelemetry(builder, extensionContext, internalAIKey, internalLargeEventAIKey, ariaKey);
+		setupTelemetry(builder, extensionContext, internalAIKey, ariaKey);
 		// If we're in testing mode, then most code will be called from an actual test,
 		// and not from here. However, some objects will capture the `accessor` we pass
 		// here and then re-use it later. This is particularly the case for those objects
@@ -193,7 +201,7 @@ export function registerServices(builder: IInstantiationServiceBuilder, extensio
 		// method parameters.
 		builder.define(ICopilotTokenManager, getOrCreateTestingCopilotTokenManager(env.devDeviceId));
 	} else {
-		setupTelemetry(builder, extensionContext, internalAIKey, internalLargeEventAIKey, ariaKey);
+		setupTelemetry(builder, extensionContext, internalAIKey, ariaKey);
 		builder.define(ICopilotTokenManager, new SyncDescriptor(VSCodeCopilotTokenManager));
 	}
 
@@ -212,7 +220,6 @@ export function registerServices(builder: IInstantiationServiceBuilder, extensio
 	builder.define(IGithubCodeSearchService, new SyncDescriptor(GithubCodeSearchService));
 	builder.define(IGithubAvailableEmbeddingTypesService, new SyncDescriptor(GithubAvailableEmbeddingTypesService));
 
-	builder.define(ITestGenInfoStorage, new SyncDescriptor(TestGenInfoStorage)); // Used for test generation (/tests intent)
 	builder.define(IParserService, new SyncDescriptor(ParserServiceImpl, [/*useWorker*/ true]));
 	builder.define(IIntentService, new SyncDescriptor(IntentService));
 	builder.define(INaiveChunkingService, new SyncDescriptor(NaiveChunkingService));
@@ -274,7 +281,10 @@ export function registerServices(builder: IInstantiationServiceBuilder, extensio
 	const sessionStoreDbPath = extensionContext.globalStorageUri
 		? path.join(extensionContext.globalStorageUri.fsPath, 'session-store.db')
 		: path.join(os.tmpdir(), 'copilot-session-store.db');
-	const sessionStore = new SessionStore(sessionStoreDbPath);
+	// On remote workspaces the storage path is typically a network filesystem
+	// that does not honour the POSIX locking WAL mode requires, so use a more
+	// robust rollback-journal configuration there.
+	const sessionStore = new SessionStore(sessionStoreDbPath, { remote: !!env.remoteName });
 	builder.define(ISessionStore, sessionStore);
 
 	// OTel SQLite store — created lazily, DB file only appears when dbSpanExporter.enabled is true
@@ -284,19 +294,10 @@ export function registerServices(builder: IInstantiationServiceBuilder, extensio
 	const otelSqliteStore = new OTelSqliteStore(otelDbPath);
 	builder.define(IOTelSqliteStore, otelSqliteStore);
 
-	// OTel service — resolve config from env + settings, create appropriate impl
-	const otelSettings = workspace.getConfiguration('github.copilot.chat.otel');
-	const otelConfig = resolveOTelConfig({
-		env: process.env,
-		settingEnabled: otelSettings.get<boolean>('enabled'),
-		settingExporterType: otelSettings.get<'otlp-grpc' | 'otlp-http' | 'console' | 'file'>('exporterType'),
-		settingOtlpEndpoint: otelSettings.get<string>('otlpEndpoint'),
-		settingCaptureContent: otelSettings.get<boolean>('captureContent'),
-		settingOutfile: otelSettings.get<string>('outfile') || undefined,
-		settingDbSpanExporter: otelSettings.get<boolean>('dbSpanExporter.enabled'),
-		extensionVersion: extensionContext.extension.packageJSON.version ?? '0.0.0',
-		sessionId: env.sessionId,
-	});
+	// Keep the exact resolution the service uses so late policy can be detected.
+	const otelConfigResolver = new VSCodeOTelConfigResolver(process.env, extensionContext.extension.packageJSON.version ?? '0.0.0', env.sessionId);
+	builder.define(IOTelConfigResolver, otelConfigResolver);
+	const otelConfig = otelConfigResolver.activeResolution.config;
 	if (otelConfig.enabled) {
 		// Dynamic import to avoid loading OTel SDK when disabled
 		const { NodeOTelService } = require('../../../platform/otel/node/otelServiceImpl') as typeof import('../../../platform/otel/node/otelServiceImpl');
@@ -323,13 +324,12 @@ function setupMSFTExperimentationService(builder: IInstantiationServiceBuilder, 
 	}
 }
 
-function setupTelemetry(builder: IInstantiationServiceBuilder, extensionContext: ExtensionContext, internalAIKey: string, internalLargeEventAIKey: string, externalAIKey: string) {
+function setupTelemetry(builder: IInstantiationServiceBuilder, extensionContext: ExtensionContext, internalAIKey: string, externalAIKey: string) {
 
 	if (ExtensionMode.Production === extensionContext.extensionMode && !isScenarioAutomation) {
 		builder.define(ITelemetryService, new SyncDescriptor(TelemetryService, [
 			extensionContext.extension.packageJSON.name,
 			internalAIKey,
-			internalLargeEventAIKey,
 			externalAIKey,
 			APP_INSIGHTS_KEY_STANDARD,
 			APP_INSIGHTS_KEY_ENHANCED,

@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// version: 4
-
 declare module 'vscode' {
 
 	/**
@@ -26,12 +24,23 @@ declare module 'vscode' {
 		readonly modelConfiguration?: {
 			readonly [key: string]: any;
 		};
+
+		/**
+		 * Whether encrypted thinking state should be included in the response.
+		 */
+		readonly includeEncryptedThinking?: boolean;
 	}
 
 	/**
 	 * All the information representing a single language model contributed by a {@linkcode LanguageModelChatProvider}.
 	 */
 	export interface LanguageModelChatInformation {
+
+		/**
+		 * The maximum number of tokens in the model's context window, including input and output.
+		 * This is independent of {@link maxInputTokens} and {@link maxOutputTokens}, whose maxima need not add up to the context window.
+		 */
+		readonly maxContextWindowTokens?: number;
 
 		/**
 		 * When present, this gates the use of `requestLanguageModelAccess` behind an authorization flow where
@@ -43,15 +52,17 @@ declare module 'vscode' {
 		requiresAuthorization?: true | { label: string };
 
 		/**
-		 * A multiplier indicating how many requests this model counts towards a quota.
-		 * For example, "2x" means each request counts twice.
-		 */
-		readonly multiplier?: string;
-
-		/**
-		 * A numeric form of the `multiplier` label
+		 * A numeric value for comparing model cost tiers.
 		 */
 		readonly multiplierNumeric?: number;
+
+		/**
+		 * Whether this model is a "bring your own key" (BYOK) model, i.e. it is
+		 * served using credentials the user supplied rather than through the
+		 * built-in Copilot (CAPI) service. When unset, the model is treated as
+		 * a non-BYOK / CAPI-served model.
+		 */
+		readonly isBYOK?: boolean;
 
 		/**
 		 * Whether or not this will be selected by default in the model picker
@@ -64,15 +75,6 @@ declare module 'vscode' {
 		 * NOT BEING FINALIZED
 		 */
 		readonly isUserSelectable?: boolean;
-
-		/**
-		 * Optional category to group models by in the model picker.
-		 * The lower the order, the higher the category appears in the list.
-		 * Has no effect if `isUserSelectable` is `false`.
-		 *
-		 * WONT BE FINALIZED
-		 */
-		readonly category?: { label: string; order: number };
 
 		readonly statusIcon?: ThemeIcon;
 
@@ -92,6 +94,40 @@ declare module 'vscode' {
 		 * The value must match a `type` declared in a `chatSessions` extension contribution.
 		 */
 		readonly targetChatSessionType?: string;
+
+		/**
+		 * Optional warning text to display in the model picker hover as a warning banner.
+		 * The keys are warning categories (e.g. "data_retention") and the values are markdown strings.
+		 * Unlike degradation warnings, this does not produce a warning icon in the picker list.
+		 */
+		readonly warningText?: Record<string, string>;
+
+		/**
+		 * Optional informational text to display in the model picker hover as an info banner.
+		 * The keys are info categories (e.g. "model_relocated") and the values are markdown strings.
+		 * Unlike {@link warningText}, this renders with an info icon and never signals a problem with the model.
+		 */
+		readonly infoText?: Record<string, string>;
+
+		/**
+		 * Optional promotional information for this model. When present, indicates the model
+		 * is currently experiencing a promotional discount.
+		 */
+		readonly promo?: {
+			/** Unique identifier for the promotion. */
+			readonly id: string;
+			/** The discount percentage (e.g. 20 for 20% off). */
+			readonly discountPercent: number;
+			/** ISO 8601 date string indicating when the promotion ends. Omit for open-ended promotions. */
+			readonly endsAt?: string;
+			/** A human-readable message about the promotion. */
+			readonly message: string;
+			/**
+			 * Whether the promotion may also be surfaced as a banner above the chat input.
+			 * Omit to allow the banner; set to `false` to keep the promotion in the model picker only.
+			 */
+			readonly showBanner?: boolean;
+		};
 	}
 
 	export interface LanguageModelChatCapabilities {

@@ -41,12 +41,27 @@ interface RenderPromptPickerOptions extends ComponentFixtureContext {
 }
 
 class FixtureQuickInputService extends QuickInputService {
+	private readonly _activePicks = new Set<IQuickPick<IQuickPickItem, { useSeparators: boolean }>>();
+
 	override createQuickPick<T extends IQuickPickItem>(options: { useSeparators: true }): IQuickPick<T, { useSeparators: true }>;
 	override createQuickPick<T extends IQuickPickItem>(options?: { useSeparators: boolean }): IQuickPick<T, { useSeparators: false }>;
 	override createQuickPick<T extends IQuickPickItem>(options: { useSeparators: boolean } = { useSeparators: false }): IQuickPick<T, { useSeparators: boolean }> {
 		const quickPick = super.createQuickPick<T>(options) as IQuickPick<T, { useSeparators: boolean }>;
 		quickPick.ignoreFocusOut = true;
+		this._activePicks.add(quickPick);
 		return quickPick;
+	}
+
+	override dispose(): void {
+		// Force-hide any open picks so PromptFilePickers' onDidHide handler
+		// disposes its internal DisposableStore (it skips disposal while
+		// `ignoreFocusOut` is true).
+		for (const pick of this._activePicks) {
+			pick.ignoreFocusOut = false;
+			pick.hide();
+		}
+		this._activePicks.clear();
+		super.dispose();
 	}
 }
 

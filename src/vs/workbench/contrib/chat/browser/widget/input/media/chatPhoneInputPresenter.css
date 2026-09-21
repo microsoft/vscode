@@ -1,0 +1,22 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* Combined Mode + Model chip used in `ChatInputPart` when a phone-layout
+ * presenter is active. The base layout (height/padding/color) is inherited
+ * from `.chat-input-picker-item .action-label` in `chat.css`; this file
+ * only adds the chip-specific spacing rules. */
+
+.chat-input-picker-item .action-label.chat-phone-input-chip {
+	gap: 4px;
+	cursor: pointer;
+	touch-action: manipulation;
+}
+
+.chat-input-picker-item .action-label.chat-phone-input-chip .chat-input-picker-label {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	min-width: 0;
+}

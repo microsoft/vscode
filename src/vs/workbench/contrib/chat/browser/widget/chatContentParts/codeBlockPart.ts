@@ -119,6 +119,7 @@ export interface ICodeBlockRenderOptions {
 }
 
 const defaultCodeblockPadding = 10;
+const defaultChatScrollbarSize = 7;
 export class CodeBlockPart extends Disposable {
 
 	/**
@@ -131,7 +132,10 @@ export class CodeBlockPart extends Disposable {
 	}
 
 	public readonly editor: CodeEditorWidget;
-	protected readonly toolbar: MenuWorkbenchToolBar;
+	private toolbar: MenuWorkbenchToolBar | undefined;
+	private _toolbarFactory: (() => MenuWorkbenchToolBar) | undefined;
+	private _pendingToolbarAriaLabel: string | undefined;
+	private _pendingToolbarContext: ICodeBlockActionContext | undefined;
 	private readonly contextKeyService: IContextKeyService;
 
 	public readonly element: HTMLElement;
@@ -145,6 +149,7 @@ export class CodeBlockPart extends Disposable {
 	private currentScrollWidth = 0;
 	private lastLayoutWidth: number | undefined;
 	private _isHovered = false;
+	private _isDropdownVisible = false;
 	private _toolbarElement!: HTMLElement;
 
 	private isDisposed = false;
@@ -205,13 +210,18 @@ export class CodeBlockPart extends Disposable {
 		});
 
 		const toolbarElement = dom.append(this.element, $('.interactive-result-code-block-toolbar'));
+		this._toolbarElement = toolbarElement;
 		const editorScopedService = this._register(this.editor.contextKeyService.createScoped(toolbarElement));
 		const editorScopedInstantiationService = this._register(scopedInstantiationService.createChild(new ServiceCollection([IContextKeyService, editorScopedService])));
-		this.toolbar = this._register(editorScopedInstantiationService.createInstance(MenuWorkbenchToolBar, toolbarElement, menuId, {
+		// The toolbar itself creates listeners on the menu service and shared
+		// context key service. In large responses there can be many code
+		// blocks, so defer creation until the user actually interacts with
+		// this code block (hover, editor focus, or screen reader mode).
+		this._toolbarFactory = () => editorScopedInstantiationService.createInstance(MenuWorkbenchToolBar, toolbarElement, menuId, {
 			menuOptions: {
 				shouldForwardArgs: true
 			}
-		}));
+		});
 
 		const vulnsContainer = dom.append(this.element, $('.interactive-result-vulns'));
 		const vulnsHeaderElement = dom.append(vulnsContainer, $('.interactive-result-vulns-header', undefined));
@@ -238,12 +248,6 @@ export class CodeBlockPart extends Disposable {
 			// this.updateAriaLabel(collapseButton.element, referencesLabel, element.usedReferencesExpanded);
 		}));
 
-		let isDropdownVisible = false;
-		this._register(this.toolbar.onDidChangeDropdownVisibility(e => {
-			isDropdownVisible = e;
-			toolbarElement.classList.toggle('force-visibility', e || this._isHovered);
-		}));
-
 		// Track hover state via JS so the toolbar remains visible and clickable
 		// even when the code block DOM element is briefly detached and reattached
 		// during streaming re-renders. CSS :hover is lost when an element leaves
@@ -255,14 +259,14 @@ export class CodeBlockPart extends Disposable {
 		this._register(dom.addDisposableListener(this.element, 'mouseenter', () => {
 			this._isHovered = true;
 			toolbarElement.classList.add('force-visibility');
+			this._ensureToolbar();
 		}));
 		this._register(dom.addDisposableListener(this.element, 'mouseleave', () => {
 			this._isHovered = false;
-			if (!isDropdownVisible) {
+			if (!this._isDropdownVisible) {
 				toolbarElement.classList.remove('force-visibility');
 			}
 		}));
-		this._toolbarElement = toolbarElement;
 
 		this._configureForScreenReader();
 		this._register(this.accessibilityService.onDidChangeScreenReaderOptimized(() => this._configureForScreenReader()));
@@ -291,6 +295,9 @@ export class CodeBlockPart extends Disposable {
 		}));
 		this._register(this.editor.onDidFocusEditorWidget(() => {
 			this.element.classList.add('focused');
+			// Editor focus puts the code block into keyboard interaction range;
+			// create the toolbar so Tab can reach it.
+			this._ensureToolbar();
 			WordHighlighterContribution.get(this.editor)?.restoreViewState(true);
 		}));
 		this._register(Event.any(
@@ -370,16 +377,76 @@ export class CodeBlockPart extends Disposable {
 		this.editor.updateOptions({ padding: { top: this.verticalPadding, bottom: bottomPadding } });
 	}
 
+	private _ensureToolbar(): MenuWorkbenchToolBar | undefined {
+		if (this.isDisposed) {
+			return undefined;
+		}
+		// If the current render explicitly hid the toolbar, don't pay the cost
+		// of creating it (and adding listeners on the shared menu / context
+		// key services). It will be created later if a render makes it visible.
+		if (this.currentCodeBlockData?.renderOptions?.hideToolbar) {
+			return undefined;
+		}
+		if (!this.toolbar) {
+			const factory = this._toolbarFactory;
+			if (!factory) {
+				return undefined;
+			}
+			this._toolbarFactory = undefined;
+			const toolbar = this._register(factory());
+			this.toolbar = toolbar;
+
+			this._register(toolbar.onDidChangeDropdownVisibility(e => {
+				this._isDropdownVisible = e;
+				this._toolbarElement.classList.toggle('force-visibility', e || this._isHovered);
+			}));
+
+			if (this._pendingToolbarAriaLabel !== undefined) {
+				toolbar.setAriaLabel(this._pendingToolbarAriaLabel);
+				this._pendingToolbarAriaLabel = undefined;
+			}
+			if (this._pendingToolbarContext !== undefined) {
+				toolbar.context = this._pendingToolbarContext;
+				this._pendingToolbarContext = undefined;
+			}
+		}
+		return this.toolbar;
+	}
+
 	private _configureForScreenReader(): void {
-		const toolbarElt = this.toolbar.getElement();
+		const hideToolbar = !!this.currentCodeBlockData?.renderOptions?.hideToolbar;
 		if (this.accessibilityService.isScreenReaderOptimized()) {
-			toolbarElt.style.display = 'block';
+			if (hideToolbar) {
+				// hideToolbar is authoritative; don't reveal the wrapper just
+				// because SR mode is on.
+				dom.hide(this._toolbarElement);
+			} else {
+				this._toolbarElement.style.display = 'block';
+				// Screen readers need the toolbar DOM to exist so it can be
+				// announced and navigated, but only create it once render data
+				// is available so pooled or reset instances don't eagerly
+				// attach toolbar listeners.
+				if (this.currentCodeBlockData) {
+					this._ensureToolbar();
+				}
+			}
+		} else if (hideToolbar) {
+			dom.hide(this._toolbarElement);
 		} else {
-			toolbarElt.style.display = '';
+			this._toolbarElement.style.display = '';
 		}
 	}
 
 	private getEditorOptionsFromConfig(): IEditorOptions {
+		const renderOptions = this.currentCodeBlockData?.renderOptions;
+		// When the code block is height-capped via `maxHeightInLines`, content can
+		// exceed the visible area. In that case the default hidden vertical
+		// scrollbar leaves users unable to reach the clipped content (see #283242).
+		// Enable a chat-sized visible scrollbar. Callers can still override
+		// via `renderOptions.editorOptions.scrollbar`.
+		const scrollbar: IEditorOptions['scrollbar'] | undefined = renderOptions?.maxHeightInLines
+			? { vertical: 'auto', verticalScrollbarSize: defaultChatScrollbarSize, ...renderOptions?.editorOptions?.scrollbar }
+			: undefined;
 		return {
 			wordWrap: this.editorOptions.configuration.resultEditor.wordWrap,
 			fontLigatures: this.editorOptions.configuration.resultEditor.fontLigatures,
@@ -390,7 +457,8 @@ export class CodeBlockPart extends Disposable {
 			fontSize: this.editorOptions.configuration.resultEditor.fontSize,
 			fontWeight: this.editorOptions.configuration.resultEditor.fontWeight,
 			lineHeight: this.editorOptions.configuration.resultEditor.lineHeight,
-			...this.currentCodeBlockData?.renderOptions?.editorOptions,
+			...renderOptions?.editorOptions,
+			...(scrollbar ? { scrollbar } : {}),
 		};
 	}
 
@@ -449,11 +517,23 @@ export class CodeBlockPart extends Disposable {
 			});
 		}
 		this.layout(width);
-		this.toolbar.setAriaLabel(localize('chat.codeBlockToolbarLabel', "Code block {0}", data.codeBlockIndex + 1));
-		if (data.renderOptions?.hideToolbar) {
-			dom.hide(this.toolbar.getElement());
+		const toolbarAriaLabel = localize('chat.codeBlockToolbarLabel', "Code block {0}", data.codeBlockIndex + 1);
+		if (this.toolbar) {
+			this.toolbar.setAriaLabel(toolbarAriaLabel);
 		} else {
-			dom.show(this.toolbar.getElement());
+			this._pendingToolbarAriaLabel = toolbarAriaLabel;
+		}
+		if (data.renderOptions?.hideToolbar) {
+			dom.hide(this._toolbarElement);
+		} else {
+			dom.show(this._toolbarElement);
+			// In screen reader mode the toolbar must exist in the DOM so it
+			// can be announced and Tab-navigated. If a previous render hid
+			// the toolbar, _ensureToolbar would have early-exited; create
+			// it now that it is visible.
+			if (this.accessibilityService.isScreenReaderOptimized()) {
+				this._ensureToolbar();
+			}
 		}
 
 		if (data.vulns?.length && isResponseVM(data.element)) {
@@ -533,14 +613,19 @@ export class CodeBlockPart extends Disposable {
 			return;
 		}
 
-		this.toolbar.context = {
+		const context: ICodeBlockActionContext = {
 			code: textModel.getTextBuffer().getValueInRange(textModel.getFullModelRange(), EndOfLinePreference.TextDefined),
 			codeBlockIndex: data.codeBlockIndex,
 			element: data.element,
 			languageId: textModel.getLanguageId(),
 			codemapperUri: data.codemapperUri,
 			chatSessionResource: data.chatSessionResource
-		} satisfies ICodeBlockActionContext;
+		};
+		if (this.toolbar) {
+			this.toolbar.context = context;
+		} else {
+			this._pendingToolbarContext = context;
+		}
 		this.resourceContextKey.set(textModel.uri);
 	}
 

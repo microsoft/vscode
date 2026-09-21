@@ -162,7 +162,7 @@ export class OTelSqliteStore {
 				this._attr(span, DENORMALIZED_ATTRS.tool_type),
 				this._attr(span, DENORMALIZED_ATTRS.chat_session_id),
 				this._attr(span, DENORMALIZED_ATTRS.turn_index),
-				this._attr(span, DENORMALIZED_ATTRS.ttft_ms),
+				this._ttftMs(span),
 			);
 
 			for (const [key, value] of Object.entries(span.attributes)) {
@@ -284,6 +284,25 @@ export class OTelSqliteStore {
 		if (Array.isArray(val)) { return JSON.stringify(val); }
 		if (typeof val === 'boolean') { return val ? 1 : 0; }
 		return val as string | number;
+	}
+
+	/**
+	 * Coalesce TTFT from foreground extension (`copilot_chat.time_to_first_token`, ms)
+	 * and CLI runtime. The CLI runtime historically emitted `github.copilot.time_to_first_chunk`
+	 * (seconds) but is migrating to the OTel GenAI semconv attribute
+	 * `gen_ai.response.time_to_first_chunk` (also seconds). Accept both for forward/backward
+	 * compatibility while the runtime rollout completes.
+	 *
+	 * @see https://github.com/open-telemetry/semantic-conventions/pull/3607 (semconv addition)
+	 */
+	private _ttftMs(span: ICompletedSpanData): number | null {
+		const foreground = this._attr(span, CopilotChatAttr.TIME_TO_FIRST_TOKEN);
+		if (foreground !== null) { return foreground as number; }
+		const cli = span.attributes['gen_ai.response.time_to_first_chunk']
+			?? span.attributes['github.copilot.time_to_first_chunk'];
+		if (cli === undefined) { return null; }
+		const sec = typeof cli === 'number' ? cli : parseFloat(String(cli));
+		return isNaN(sec) ? null : Math.round(sec * 1000);
 	}
 
 	private _ensureDb(): DatabaseSync {

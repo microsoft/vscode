@@ -126,6 +126,7 @@
 	display: flex;
 	padding: 0px 8px;
 	width: 100%;
+	box-sizing: border-box;
 }
 
 .monaco-hover .hover-row.status-bar .actions .action-container {
@@ -136,9 +137,13 @@
 	text-overflow: ellipsis;
 }
 
+.monaco-hover .hover-row.status-bar .actions .action-container .action {
+	display: inline-flex;
+	align-items: center;
+}
+
 .monaco-hover .hover-row.status-bar .actions .action-container .action .icon {
 	padding-right: 4px;
-	vertical-align: middle;
 	font-size: inherit;
 }
 

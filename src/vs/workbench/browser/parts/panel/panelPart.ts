@@ -81,7 +81,7 @@ export class PanelPart extends AbstractPaneCompositePart {
 		@IExtensionService extensionService: IExtensionService,
 		@ICommandService private commandService: ICommandService,
 		@IMenuService menuService: IMenuService,
-		@IConfigurationService private configurationService: IConfigurationService
+		@IConfigurationService configurationService: IConfigurationService
 	) {
 		super(
 			Parts.PANEL_PART,
@@ -96,7 +96,6 @@ export class PanelPart extends AbstractPaneCompositePart {
 			ViewContainerLocation.Panel,
 			Extensions.Panels,
 			MenuId.PanelTitle,
-			undefined,
 			notificationService,
 			storageService,
 			contextMenuService,
@@ -109,6 +108,7 @@ export class PanelPart extends AbstractPaneCompositePart {
 			contextKeyService,
 			extensionService,
 			menuService,
+			configurationService,
 		);
 
 		this._register(this.configurationService.onDidChangeConfiguration(e => {

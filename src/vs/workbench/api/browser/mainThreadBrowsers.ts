@@ -7,7 +7,7 @@ import { Disposable, DisposableMap, DisposableStore, IDisposable, toDisposable }
 import { IEditorService } from '../../services/editor/common/editorService.js';
 import { IExtHostContext, extHostNamedCustomer } from '../../services/extensions/common/extHostCustomers.js';
 import { BrowserTabDto, ExtHostBrowsersShape, ExtHostContext, MainContext, MainThreadBrowsersShape } from '../common/extHost.protocol.js';
-import { IBrowserViewCDPService } from '../../contrib/browserView/common/browserView.js';
+import { IBrowserViewCDPService, IBrowserViewWorkbenchService } from '../../contrib/browserView/common/browserView.js';
 import { BrowserViewUri } from '../../../platform/browserView/common/browserViewUri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { EditorGroupColumn, columnToEditorGroup } from '../../services/editor/common/editorGroupColumn.js';
@@ -29,25 +29,24 @@ export class MainThreadBrowsers extends Disposable implements MainThreadBrowsers
 		extHostContext: IExtHostContext,
 		@IEditorService private readonly editorService: IEditorService,
 		@IBrowserViewCDPService private readonly cdpService: IBrowserViewCDPService,
+		@IBrowserViewWorkbenchService private readonly browserViewService: IBrowserViewWorkbenchService,
 		@IEditorGroupsService private readonly editorGroupsService: IEditorGroupsService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		super();
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostBrowsers);
 
-		// Track open browser editors
-		this._register(this.editorService.onWillOpenEditor((e) => {
-			if (e.editor instanceof BrowserEditorInput) {
-				this._track(e.editor);
+		// Track open browser editors via the workbench service
+		this._register(this.browserViewService.onDidChangeBrowserViews(() => {
+			for (const editor of this.browserViewService.getKnownBrowserViews().values()) {
+				this._track(editor);
 			}
 		}));
 		this._register(this.editorService.onDidActiveEditorChange(() => this._syncActiveBrowserTab()));
 
 		// Initial sync
-		for (const input of this.editorService.editors) {
-			if (input instanceof BrowserEditorInput) {
-				this._track(input);
-			}
+		for (const editor of this.browserViewService.getKnownBrowserViews().values()) {
+			this._track(editor);
 		}
 		this._syncActiveBrowserTab();
 	}

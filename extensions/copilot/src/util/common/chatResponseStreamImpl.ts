@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ChatResponseReferencePartStatusKind } from '@vscode/prompt-tsx';
-import type { ChatQuestion, ChatResponseFileTree, ChatResponseStream, ChatResultUsage, ChatToolInvocationStreamData, ChatVulnerability, ChatWorkspaceFileEdit, Command, ExtendedChatResponsePart, Location, NotebookEdit, Progress, ThinkingDelta, Uri } from 'vscode';
-import { ChatHookType, ChatResponseAnchorPart, ChatResponseClearToPreviousToolInvocationReason, ChatResponseCodeblockUriPart, ChatResponseCodeCitationPart, ChatResponseCommandButtonPart, ChatResponseConfirmationPart, ChatResponseExternalEditPart, ChatResponseFileTreePart, ChatResponseHookPart, ChatResponseMarkdownPart, ChatResponseMarkdownWithVulnerabilitiesPart, ChatResponseNotebookEditPart, ChatResponseProgressPart, ChatResponseProgressPart2, ChatResponseReferencePart, ChatResponseReferencePart2, ChatResponseTextEditPart, ChatResponseThinkingProgressPart, ChatResponseWarningPart, ChatResponseWorkspaceEditPart, MarkdownString, TextEdit } from '../../vscodeTypes';
+import type { ChatQuestion, ChatResponseFileTree, ChatResponseStream, ChatResponseVoiceProgressStage, ChatResultUsage, ChatToolInvocationStreamData, ChatVulnerability, ChatWorkspaceFileEdit, Command, ExtendedChatResponsePart, Location, NotebookEdit, Progress, ThinkingDelta, Uri } from 'vscode';
+import { ChatHookType, ChatResponseAnchorPart, ChatResponseClearToPreviousToolInvocationReason, ChatResponseCodeblockUriPart, ChatResponseCodeCitationPart, ChatResponseCommandButtonPart, ChatResponseConfirmationPart, ChatResponseExternalEditPart, ChatResponseFileTreePart, ChatResponseHookPart, ChatResponseInfoPart, ChatResponseMarkdownPart, ChatResponseMarkdownWithVulnerabilitiesPart, ChatResponseNotebookEditPart, ChatResponseProgressPart, ChatResponseProgressPart2, ChatResponseReferencePart, ChatResponseReferencePart2, ChatResponseTextEditPart, ChatResponseThinkingProgressPart, ChatResponseVoiceProgressPart, ChatResponseWarningPart, ChatResponseWorkspaceEditPart, MarkdownString, TextEdit } from '../../vscodeTypes';
 import type { ThemeIcon } from '../vs/base/common/themables';
 
 
@@ -135,6 +135,10 @@ export class ChatResponseStreamImpl implements FinalizableChatResponseStream {
 		this._push(new ChatResponseHookPart(hookType, stopReason, systemMessage));
 	}
 
+	voiceProgress(id: ChatResponseVoiceProgressStage, value: string): void {
+		this._push(new ChatResponseVoiceProgressPart(id, value));
+	}
+
 	button(command: Command): void {
 		this._push(new ChatResponseCommandButtonPart(command));
 	}
@@ -213,6 +217,10 @@ export class ChatResponseStreamImpl implements FinalizableChatResponseStream {
 
 	warning(value: string | MarkdownString): void {
 		this._push(new ChatResponseWarningPart(value));
+	}
+
+	info(value: string | MarkdownString): void {
+		this._push(new ChatResponseInfoPart(value));
 	}
 
 	beginToolInvocation(toolCallId: string, toolName: string, streamData?: ChatToolInvocationStreamData): void {

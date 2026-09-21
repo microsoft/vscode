@@ -40,7 +40,6 @@ export class WebviewEditor extends EditorPane {
 	public static readonly ID = 'WebviewEditor';
 
 	private _element?: HTMLElement;
-	private _dimension?: DOM.Dimension;
 	private _visible = false;
 	private _isDisposed = false;
 	private _clippingContainer?: HTMLElement;
@@ -65,15 +64,6 @@ export class WebviewEditor extends EditorPane {
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 	) {
 		super(WebviewEditor.ID, group, telemetryService, themeService, storageService);
-
-		const part = _editorGroupsService.getPart(group);
-		this._register(Event.any(part.onDidScroll, part.onDidAddGroup, part.onDidRemoveGroup, part.onDidMoveGroup)(() => {
-			if (this.webview && this._visible) {
-				this.synchronizeWebviewContainerDimensions(this.webview);
-			}
-		}));
-
-
 	}
 
 	private get webview(): IOverlayWebview | undefined {
@@ -103,10 +93,7 @@ export class WebviewEditor extends EditorPane {
 	}
 
 	public override layout(dimension: DOM.Dimension): void {
-		this._dimension = dimension;
-		if (this.webview && this._visible) {
-			this.synchronizeWebviewContainerDimensions(this.webview, dimension);
-		}
+		this.setEditorVisible(dimension.width > 0 && dimension.height > 0);
 	}
 
 	public override focus(): void {
@@ -123,6 +110,10 @@ export class WebviewEditor extends EditorPane {
 	}
 
 	protected override setEditorVisible(visible: boolean): void {
+		if (visible === this._visible) {
+			return;
+		}
+
 		this._visible = visible;
 		if (this.input instanceof WebviewInput && this.webview) {
 			if (visible) {
@@ -166,9 +157,6 @@ export class WebviewEditor extends EditorPane {
 			if (!alreadyOwnsWebview) {
 				this.claimWebview(input);
 			}
-			if (this._dimension) {
-				this.layout(this._dimension);
-			}
 		}
 	}
 
@@ -185,9 +173,6 @@ export class WebviewEditor extends EditorPane {
 		const isModal = isHTMLElement(modalEditorContainer) && this._element && modalEditorContainer.contains(this._element);
 		this._clippingContainer = isModal ? undefined : this._workbenchLayoutService.getContainer(this.window, Parts.EDITOR_PART);
 
-		// When shown in a modal editor, the webview overlay must sit above the modal layer
-		input.webview.container.style.zIndex = isModal ? '2541' : ''; // One over the modal z-index
-
 		this._webviewVisibleDisposables.clear();
 
 		// Webviews are not part of the normal editor dom, so we have to register our own drag and drop handler on them.
@@ -197,16 +182,16 @@ export class WebviewEditor extends EditorPane {
 
 		this._webviewVisibleDisposables.add(new WebviewWindowDragMonitor(this.window, () => this.webview));
 
-		this.synchronizeWebviewContainerDimensions(input.webview);
+		this.setWebviewAnchorElement(input.webview);
 		this._webviewVisibleDisposables.add(this.trackFocus(input.webview));
 	}
 
-	private synchronizeWebviewContainerDimensions(webview: IOverlayWebview, dimension?: DOM.Dimension) {
+	private setWebviewAnchorElement(webview: IOverlayWebview) {
 		if (!this._element?.isConnected) {
 			return;
 		}
 
-		webview.layoutWebviewOverElement(this._element.parentElement!, dimension, this._clippingContainer);
+		webview.setAnchorElement(this._element.parentElement!, this._clippingContainer);
 	}
 
 	private trackFocus(webview: IOverlayWebview): IDisposable {

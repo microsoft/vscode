@@ -37,7 +37,7 @@ ssuite.skip({ title: 'vscode', subtitle: 'metaprompt', location: 'panel' }, asyn
 				const accessor = testingServiceCollection.createTestingAccessor();
 				const instantiationService = accessor.get(IInstantiationService);
 
-				const endpoint = await accessor.get(IEndpointProvider).getChatEndpoint('copilot-base');
+				const endpoint = await accessor.get(IEndpointProvider).getChatEndpoint('copilot-utility');
 				const vscodePrompt = instantiationService.createInstance(VscodePrompt, {
 					promptContext: {
 						chatVariables: new ChatVariablesCollection([]),

@@ -167,10 +167,10 @@ export class ReleaseNotesManager extends Disposable {
 				const keybinding = this._keybindingService.lookupKeybinding(kb);
 
 				if (!keybinding) {
-					return unassigned;
+					return kb;
 				}
 
-				return keybinding.getLabel() || unassigned;
+				return keybinding.getLabel() || kb;
 			};
 
 			const kbstyle = (match: string, kb: string) => {

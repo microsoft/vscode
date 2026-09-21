@@ -34,6 +34,7 @@ suite('CommandLineSandboxAnalyzer', () => {
 		instantiationService.stub(ITerminalSandboxService, {
 			_serviceBrand: undefined,
 			isEnabled: async () => sandboxEnabled,
+			isSandboxAllowNetworkEnabled: async () => false,
 		} as unknown as ITerminalSandboxService);
 
 		analyzer = store.add(instantiationService.createInstance(CommandLineSandboxAnalyzer));
@@ -84,6 +85,15 @@ suite('CommandLineSandboxAnalyzer', () => {
 		setConfig(TerminalChatAgentToolsSettingId.EnableAutoApprove, true);
 
 		const result = await analyzer.analyze(createOptions({ requiresUnsandboxConfirmation: true }));
+
+		strictEqual(result.isAutoApproveAllowed, true);
+		strictEqual(result.forceAutoApproval, false);
+	});
+
+	test('should not force auto approval when unrestricted sandbox network confirmation is required', async () => {
+		setConfig(TerminalChatAgentToolsSettingId.EnableAutoApprove, true);
+
+		const result = await analyzer.analyze(createOptions({ requiresAllowNetworkConfirmation: true }));
 
 		strictEqual(result.isAutoApproveAllowed, true);
 		strictEqual(result.forceAutoApproval, false);

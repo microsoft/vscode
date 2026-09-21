@@ -14,18 +14,18 @@ import { isISubmenuItem, MenuId, MenuRegistry } from '../../../../../platform/ac
 // KeybindingsRegistry in this lightweight test context.
 import '../../browser/runScriptAction.js';
 
-const titleBarSessionMenu = MenuId.for('SessionsTitleBarSessionMenu');
+const titleBarCenterRightMenu = MenuId.for('SessionsTitleBarCenterRight');
 
 suite('RunScriptContribution', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('contributes run dropdown to TitleBarSessionMenu', () => {
-		const items = MenuRegistry.getMenuItems(titleBarSessionMenu);
+	test('contributes run dropdown to TitleBarCenterRight before Open in VS Code', () => {
+		const items = MenuRegistry.getMenuItems(titleBarCenterRightMenu);
 
 		const runAction = items.find(item => isISubmenuItem(item) && item.submenu.id === 'AgentSessionsRunScriptDropdown');
 
-		assert.ok(runAction, 'run dropdown should be contributed to TitleBarSessionMenu');
-		assert.strictEqual(runAction.order, 8);
+		assert.ok(runAction, 'run dropdown should be contributed to TitleBarCenterRight');
+		assert.strictEqual(runAction.order, 6);
 	});
 });

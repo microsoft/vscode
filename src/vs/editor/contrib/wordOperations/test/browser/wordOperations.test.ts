@@ -775,7 +775,7 @@ suite('WordOperations', () => {
 	});
 
 	test('deleteWordRight - issue #832', () => {
-		const EXPECTED = '   |/*| Just| some| text| a|+=| 3| +|5|-|3| */|  |';
+		const EXPECTED = '   |/*| |Just| |some| |text| |a|+=| |3| |+|5|-|3| |*/|  |';
 		const [text,] = deserializePipePositions(EXPECTED);
 		const actualStops = testRepeatedActionAndExtractPositions(
 			text,

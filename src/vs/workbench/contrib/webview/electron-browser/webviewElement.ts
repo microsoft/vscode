@@ -4,14 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Delayer } from '../../../../base/common/async.js';
-import { VSBuffer, VSBufferReadableStream } from '../../../../base/common/buffer.js';
 import { Schemas } from '../../../../base/common/network.js';
-import { consumeStream } from '../../../../base/common/stream.js';
 import { ProxyChannel } from '../../../../base/parts/ipc/common/ipc.js';
 import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
-import { IFileService } from '../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IMainProcessService } from '../../../../platform/ipc/common/mainProcessService.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
@@ -19,7 +16,6 @@ import { INativeHostService } from '../../../../platform/native/common/native.js
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { IRemoteAuthorityResolverService } from '../../../../platform/remote/common/remoteAuthorityResolver.js';
 import { ITunnelService } from '../../../../platform/tunnel/common/tunnel.js';
-import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { FindInFrameOptions, IWebviewManagerService } from '../../../../platform/webview/common/webviewManagerService.js';
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
 import { WebviewThemeDataProvider } from '../browser/themeing.js';
@@ -47,7 +43,6 @@ export class ElectronWebviewElement extends WebviewElement {
 		webviewThemeDataProvider: WebviewThemeDataProvider,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@ITunnelService tunnelService: ITunnelService,
-		@IFileService fileService: IFileService,
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 		@IRemoteAuthorityResolverService remoteAuthorityResolverService: IRemoteAuthorityResolverService,
 		@ILogService logService: ILogService,
@@ -57,11 +52,10 @@ export class ElectronWebviewElement extends WebviewElement {
 		@INativeHostService private readonly _nativeHostService: INativeHostService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IAccessibilityService accessibilityService: IAccessibilityService,
-		@IUriIdentityService uriIdentityService: IUriIdentityService,
 	) {
 		super(initInfo, webviewThemeDataProvider,
 			configurationService, contextMenuService, notificationService, environmentService,
-			fileService, logService, remoteAuthorityResolverService, tunnelService, instantiationService, accessibilityService, uriIdentityService);
+			logService, remoteAuthorityResolverService, tunnelService, accessibilityService, instantiationService);
 
 		this._webviewKeyboardHandler = new WindowIgnoreMenuShortcutsManager(configurationService, mainProcessService, _nativeHostService);
 
@@ -90,22 +84,6 @@ export class ElectronWebviewElement extends WebviewElement {
 
 	protected override webviewContentEndpoint(iframeId: string): string {
 		return `${Schemas.vscodeWebview}://${iframeId}`;
-	}
-
-	protected override streamToBuffer(stream: VSBufferReadableStream): Promise<ArrayBufferLike> {
-		// Join buffers from stream without using the Node.js backing pool.
-		// This lets us transfer the resulting buffer to the webview.
-		return consumeStream<VSBuffer, ArrayBufferLike>(stream, (buffers: readonly VSBuffer[]) => {
-			const totalLength = buffers.reduce((prev, curr) => prev + curr.byteLength, 0);
-			const ret = new ArrayBuffer(totalLength);
-			const view = new Uint8Array(ret);
-			let offset = 0;
-			for (const element of buffers) {
-				view.set(element.buffer, offset);
-				offset += element.byteLength;
-			}
-			return ret;
-		});
 	}
 
 	/**

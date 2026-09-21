@@ -1,0 +1,269 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* Host: a vertical stack of session banners sitting directly above the chat input. */
+.session-input-banners {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+}
+
+/* Collapse empty hosts and widgets entirely so they add no spacing. */
+.session-input-banners.empty,
+.session-input-banner.empty {
+	display: none;
+}
+
+/* A single banner card. */
+.session-input-banner {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	min-width: 0;
+	box-sizing: border-box;
+	position: relative;
+	padding: 4px 6px 4px 10px;
+	border: var(--vscode-strokeThickness) solid var(--vscode-input-border, transparent);
+	border-radius: var(--vscode-cornerRadius-small, 4px);
+	background-color: color-mix(in srgb, var(--vscode-focusBorder) 6%, var(--vscode-editorWidget-background));
+	font-size: var(--vscode-chat-font-size-body-s);
+	font-family: var(--vscode-chat-font-family, inherit);
+	/* The standard banner follows the primary button accent; CI overrides the
+		progress color with its warning accent below. */
+	--session-input-banner-anim-duration: 4s;
+	--session-input-banner-working-border-color: var(--vscode-chat-inputWorkingBorderColor1);
+}
+
+/* Orange accent variant (used by the CI failures banner). */
+.session-input-banner.accent-orange {
+	border-color: var(--vscode-charts-orange);
+	background-color: color-mix(in srgb, var(--vscode-charts-orange) 6%, var(--vscode-editorWidget-background));
+	/* Match the animated border to the orange accent used for CI failures. */
+	--session-input-banner-working-border-color: var(--vscode-charts-orange);
+}
+
+/* Leading icon. */
+.session-input-banner .session-input-banner-icon {
+	flex-shrink: 0;
+	display: flex;
+	align-items: center;
+	color: var(--vscode-icon-foreground);
+}
+
+.session-input-banner.accent-orange .session-input-banner-icon {
+	color: var(--vscode-charts-orange);
+}
+
+.session-input-banner .session-input-banner-navigation {
+	display: flex;
+	align-items: center;
+	flex-shrink: 0;
+	gap: var(--vscode-spacing-size20);
+}
+
+.session-input-banner .session-input-banner-navigation-button {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	box-sizing: border-box;
+	width: 16px;
+	height: 20px;
+	min-width: 0;
+	padding: 0;
+	color: var(--vscode-icon-foreground);
+	background: transparent;
+}
+
+.session-input-banner .session-input-banner-position {
+	min-width: 24px;
+	text-align: center;
+	color: var(--vscode-descriptionForeground);
+}
+
+.session-input-banner .session-input-banner-reference {
+	flex-shrink: 0;
+	font-weight: var(--vscode-fontWeight-semiBold);
+	color: var(--vscode-foreground);
+}
+
+/* Text — single line, ellipsized when it does not fit next to the actions. */
+.session-input-banner .session-input-banner-text {
+	flex: 1 1 auto;
+	min-width: 0;
+	color: var(--vscode-foreground);
+	line-height: 18px;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+/* Floating, right-aligned button bar. */
+.session-input-banner .session-input-banner-actions {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	flex: 0 0 auto;
+	margin-left: auto;
+}
+
+.session-input-banner .session-input-banner-action:not(.monaco-button-dropdown),
+.session-input-banner .session-input-banner-action.monaco-button-dropdown > .monaco-button {
+	font-size: var(--vscode-fontSize-label2);
+	padding: 0 8px;
+	min-width: unset;
+	width: auto;
+	height: 20px;
+	white-space: nowrap;
+}
+
+.session-input-banner .session-input-banner-action {
+	flex: 0 0 auto;
+}
+
+.session-input-banner .session-input-banner-action.monaco-button-dropdown {
+	align-items: stretch;
+	height: 20px;
+}
+
+.session-input-banner .session-input-banner-action.monaco-button-dropdown > .monaco-button,
+.session-input-banner .session-input-banner-action.monaco-button-dropdown > .monaco-button-dropdown-separator {
+	box-sizing: border-box;
+	height: 100%;
+	min-height: 0;
+}
+
+.session-input-banner .session-input-banner-action.monaco-button-dropdown > .monaco-button-dropdown-separator {
+	padding-block: 0;
+}
+
+/* Outlined ghost style for secondary action buttons (e.g. "Reveal"). */
+.session-input-banner .session-input-banner-action.secondary {
+	border: var(--vscode-strokeThickness) solid var(--vscode-button-secondaryBackground, var(--vscode-button-border, var(--vscode-contrastBorder)));
+	background: transparent;
+	color: var(--vscode-foreground);
+	opacity: 0.8;
+}
+
+.session-input-banner .session-input-banner-action.secondary:hover {
+	background: var(--vscode-toolbar-hoverBackground);
+	opacity: 1;
+}
+
+.session-input-banner .session-input-banner-action.monaco-button-dropdown > .monaco-button.secondary,
+.session-input-banner .session-input-banner-action.monaco-button-dropdown > .monaco-button-dropdown-separator {
+	background: transparent;
+	color: var(--vscode-foreground);
+	opacity: 0.8;
+}
+
+.session-input-banner .session-input-banner-action.monaco-button-dropdown > .monaco-button.secondary:hover {
+	background: var(--vscode-toolbar-hoverBackground);
+	opacity: 1;
+}
+
+/* Dismiss (x) button. */
+.session-input-banner .session-input-banner-dismiss {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	flex-shrink: 0;
+	width: 20px;
+	height: 20px;
+	border: none;
+	border-radius: var(--vscode-cornerRadius-small, 4px);
+	cursor: pointer;
+	color: var(--vscode-icon-foreground);
+	background: transparent;
+	outline: none;
+}
+
+.session-input-banner .session-input-banner-dismiss:hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
+}
+
+.session-input-banner .session-input-banner-dismiss:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
+/* Animated "border beam" shown around the banner while its chat model loads.
+	This mirrors the chat input's working border: a bright
+	comet travels around the perimeter leaving a short fading trail. The ring is
+	rendered as `::before` (sharp hairline) and `::after` (blurred glow) pseudo-
+	elements clipped to a hairline with a padding + inverted mask trick, so it
+	follows the banner's corner radius without disturbing its background. */
+@property --session-input-banner-anim-angle {
+	syntax: '<angle>';
+	inherits: false;
+	initial-value: 135deg;
+}
+
+@keyframes session-input-banner-working-border-spin {
+	from {
+		--session-input-banner-anim-angle: 135deg;
+	}
+
+	to {
+		--session-input-banner-anim-angle: 495deg;
+	}
+}
+
+.session-input-banner.working {
+	/* Let the comet ring (inset: -1px) show outside the card's edge. */
+	overflow: visible;
+}
+
+.session-input-banner.working::before,
+.session-input-banner.working::after {
+	content: '';
+	position: absolute;
+	inset: -1px;
+	border-radius: inherit;
+	-webkit-mask:
+		linear-gradient(#000 0 0) content-box,
+		linear-gradient(#000 0 0);
+	mask:
+		linear-gradient(#000 0 0) content-box,
+		linear-gradient(#000 0 0);
+	-webkit-mask-composite: xor;
+	mask-composite: exclude;
+	pointer-events: none;
+	animation: session-input-banner-working-border-spin var(--session-input-banner-anim-duration) linear infinite;
+}
+
+/* The beam: a tight bright arc (~40deg) with a short fade on an otherwise
+	transparent ring. As the angle rotates the bright spot travels like a comet. */
+.session-input-banner.working::before {
+	padding: 1px;
+	background: conic-gradient(from var(--session-input-banner-anim-angle),
+			transparent 0deg,
+			color-mix(in srgb, var(--session-input-banner-working-border-color) 90%, transparent) 20deg,
+			var(--session-input-banner-working-border-color) 30deg,
+			color-mix(in srgb, var(--session-input-banner-working-border-color) 60%, transparent) 50deg,
+			transparent 90deg,
+			transparent 360deg);
+	z-index: 2;
+}
+
+/* Glow ring: a wider blurred conic sharing the beam's angle, forming a soft
+	halo that overlaps the beam line directly — no gap. */
+.session-input-banner.working::after {
+	padding: 2px;
+	background: conic-gradient(from var(--session-input-banner-anim-angle),
+			transparent 0deg,
+			color-mix(in srgb, var(--session-input-banner-working-border-color) 60%, transparent) 25deg,
+			color-mix(in srgb, var(--session-input-banner-working-border-color) 35%, transparent) 50deg,
+			transparent 90deg,
+			transparent 360deg);
+	filter: blur(1.5px);
+	z-index: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.session-input-banner.working::before,
+	.session-input-banner.working::after {
+		animation: none;
+	}
+}

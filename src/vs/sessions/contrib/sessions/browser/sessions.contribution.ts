@@ -5,16 +5,27 @@
 
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
-import { IViewDescriptor, IViewsRegistry, Extensions as ViewContainerExtensions, WindowVisibility, ViewContainer, IViewContainersRegistry, ViewContainerLocation } from '../../../../workbench/common/views.js';
+import { IViewDescriptor, IViewsRegistry, Extensions as ViewContainerExtensions, WindowEnablement, ViewContainer, IViewContainersRegistry, ViewContainerLocation } from '../../../../workbench/common/views.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
 import { ViewPaneContainer } from '../../../../workbench/browser/parts/views/viewPaneContainer.js';
 import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { SessionsTitleBarContribution } from './sessionsTitleBarWidget.js';
+import { SessionsTelemetryContribution } from './sessionsTelemetry.contribution.js';
+import { NEW_SESSION_BUTTON_STYLE_SETTING, NEW_SESSION_BUTTON_STYLE_TREATMENT, NewSessionActionViewItemContribution, SessionConversationActionsContribution, SessionListActionsExperimentContribution } from './sessionsActions.js';
 import { SessionsView, SessionsViewId } from './views/sessionsView.js';
+import { AutomationsCustomViewContribution } from './views/automationsView.js';
 import './views/sessionsViewActions.js';
-import './sessionsActions.js';
+import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
+import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
+import { SESSIONS_LIST_SHOW_EMPTY_DEFAULT_GROUPS_SETTING, SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING } from './views/sessionsList.js';
+import { AUTOMATIONS_NEW_BADGE_STYLE_SETTING, AUTOMATIONS_NEW_BADGE_STYLE_TREATMENT } from './automationsNewBadge.js';
+import { SessionsMouseNavigationContribution } from './sessionsMouseNavigation.js';
+import './sessionDetailsAction.js';
+import { SESSIONS_MARK_AS_DONE_CONFETTI_SETTING } from '../../../../platform/chat/common/sessionArchiveActions.js';
+import { SessionsWindowNotifier } from './sessionsWindowNotifier.js';
+import { SESSIONS_CHAT_TABS_DEFAULT, SESSIONS_CHAT_TABS_SETTING, SessionsChatTabsMode, USE_WORKTREE_SETTING, USE_WORKTREE_SETTING_TREATMENT } from '../../../common/sessionConfig.js';
 
 const agentSessionsViewIcon = registerIcon('chat-sessions-icon', Codicon.commentDiscussionSparkle, localize('agentSessionsViewIcon', 'Icon for Agent Sessions View'));
 const AGENT_SESSIONS_VIEW_TITLE = localize2('agentSessions.view.label', "Sessions");
@@ -28,7 +39,13 @@ const agentSessionsViewContainer: ViewContainer = Registry.as<IViewContainersReg
 	storageId: SessionsContainerId,
 	hideIfEmpty: true,
 	order: 6,
-	windowVisibility: WindowVisibility.Sessions
+	openCommandActionDescriptor: {
+		id: SessionsContainerId,
+		mnemonicTitle: localize({ key: 'miSessions', comment: ['&& denotes a mnemonic'] }, "&&Sessions"),
+		keybindings: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyX },
+		order: 0
+	},
+	windowEnablement: WindowEnablement.Sessions
 }, ViewContainerLocation.Sidebar, { isDefault: true });
 
 const sessionsViewPaneDescriptor: IViewDescriptor = {
@@ -40,9 +57,91 @@ const sessionsViewPaneDescriptor: IViewDescriptor = {
 	canToggleVisibility: true,
 	canMoveView: false,
 	ctorDescriptor: new SyncDescriptor(SessionsView),
-	windowVisibility: WindowVisibility.Sessions
+	windowEnablement: WindowEnablement.Sessions
 };
 
 Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry).registerViews([sessionsViewPaneDescriptor], agentSessionsViewContainer);
 
-registerWorkbenchContribution2(SessionsTitleBarContribution.ID, SessionsTitleBarContribution, WorkbenchPhase.AfterRestored);
+Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
+	id: 'sessions',
+	properties: {
+		[SESSIONS_LIST_SHOW_EMPTY_DEFAULT_GROUPS_SETTING]: {
+			type: 'boolean',
+			tags: ['preview'],
+			description: localize('sessions.list.showEmptyDefaultGroups', "Controls whether the Chats group is shown in the sessions list even when it is empty."),
+			default: true,
+			experiment: { mode: 'auto' }
+		},
+		[SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING]: {
+			type: 'boolean',
+			tags: ['preview'],
+			description: localize('sessions.list.showUnreadInCollapsedSections', "Controls whether collapsed sections in the sessions list show needs-input, CI-failure, or unread indicators for the unarchived sessions they contain."),
+			default: false,
+			experiment: { mode: 'auto' }
+		},
+		[SESSIONS_CHAT_TABS_SETTING]: {
+			type: 'string',
+			tags: ['preview'],
+			enum: [SessionsChatTabsMode.Multiple, SessionsChatTabsMode.Single],
+			enumDescriptions: [
+				localize('sessions.showChatTabs.multiple', "Each chat is displayed as a tab in the session view."),
+				localize('sessions.showChatTabs.single', "The active chat is displayed as the session view."),
+			],
+			description: localize('sessions.showChatTabs', "Controls whether chats in a session are shown as individual tabs or whether the active chat is shown as the session view."),
+			default: SESSIONS_CHAT_TABS_DEFAULT,
+		},
+		[SESSIONS_MARK_AS_DONE_CONFETTI_SETTING]: {
+			type: 'boolean',
+			tags: ['preview'],
+			description: localize('sessions.markAsDoneConfetti', "Controls whether a confetti animation is shown when marking a session as done."),
+			default: false,
+			experiment: { mode: 'auto' }
+			// https://github.com/microsoft/vscode/issues/335801
+		},
+		[AUTOMATIONS_NEW_BADGE_STYLE_SETTING]: {
+			type: 'string',
+			enum: ['accent', 'soft', 'outline', 'unread'],
+			default: 'outline',
+			scope: ConfigurationScope.APPLICATION,
+			included: false,
+			tags: ['experimental'],
+			experiment: {
+				mode: 'auto',
+				name: AUTOMATIONS_NEW_BADGE_STYLE_TREATMENT,
+			},
+			description: localize('sessions.automations.newBadgeStyle', "Controls the visual style of the Automations first-use badge."),
+		},
+		[NEW_SESSION_BUTTON_STYLE_SETTING]: {
+			type: 'string',
+			enum: ['default', 'lightweight', 'lightweightWithKeybindingBackground'],
+			default: 'default',
+			scope: ConfigurationScope.APPLICATION,
+			included: false,
+			tags: ['experimental'],
+			experiment: {
+				mode: 'auto',
+				name: NEW_SESSION_BUTTON_STYLE_TREATMENT,
+			},
+			description: localize('sessions.newSessionButton.style', "Controls the visual style of the New Session button."),
+		},
+		[USE_WORKTREE_SETTING]: {
+			type: 'boolean',
+			default: true,
+			scope: ConfigurationScope.APPLICATION,
+			description: localize('sessions.useWorktree', "Controls whether New Worktree is checked for a workspace that has not started a session before. Each workspace otherwise uses the choice from its last started session."),
+			experiment: {
+				mode: 'auto',
+				name: USE_WORKTREE_SETTING_TREATMENT
+			},
+		},
+	},
+});
+
+registerWorkbenchContribution2(AutomationsCustomViewContribution.ID, AutomationsCustomViewContribution, WorkbenchPhase.BlockRestore);
+registerWorkbenchContribution2(SessionsTitleBarContribution.ID, SessionsTitleBarContribution, WorkbenchPhase.BlockRestore);
+registerWorkbenchContribution2(NewSessionActionViewItemContribution.ID, NewSessionActionViewItemContribution, WorkbenchPhase.BlockRestore);
+registerWorkbenchContribution2(SessionListActionsExperimentContribution.ID, SessionListActionsExperimentContribution, WorkbenchPhase.BlockRestore);
+registerWorkbenchContribution2(SessionsMouseNavigationContribution.ID, SessionsMouseNavigationContribution, WorkbenchPhase.BlockRestore);
+registerWorkbenchContribution2(SessionsTelemetryContribution.ID, SessionsTelemetryContribution, WorkbenchPhase.AfterRestored);
+registerWorkbenchContribution2(SessionsWindowNotifier.ID, SessionsWindowNotifier, WorkbenchPhase.AfterRestored);
+registerWorkbenchContribution2(SessionConversationActionsContribution.ID, SessionConversationActionsContribution, WorkbenchPhase.AfterRestored);

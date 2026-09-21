@@ -2,15 +2,17 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { addDisposableListener, Dimension, $ } from '../../../../base/browser/dom.js';
+import { addDisposableListener, Dimension, $, getWindow } from '../../../../base/browser/dom.js';
 import * as aria from '../../../../base/browser/ui/aria/aria.js';
 import { renderMarkdown, renderAsPlaintext } from '../../../../base/browser/markdownRenderer.js';
 import { DomScrollableElement } from '../../../../base/browser/ui/scrollbar/scrollableElement.js';
+import { ActionViewItem } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { ActionRunner, IAction } from '../../../../base/common/actions.js';
 import { IMarkdownString, MarkdownString } from '../../../../base/common/htmlContent.js';
-import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun } from '../../../../base/common/observable.js';
+import { DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { autorun, observableValue } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
+import { Emitter } from '../../../../base/common/event.js';
 import { ScrollbarVisibility } from '../../../../base/common/scrollable.js';
 import { assertType } from '../../../../base/common/types.js';
 import { ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
@@ -21,17 +23,46 @@ import { Range } from '../../../../editor/common/core/range.js';
 import { ScrollType } from '../../../../editor/common/editorCommon.js';
 import { IOptions, ZoneWidget } from '../../../../editor/contrib/zoneWidget/browser/zoneWidget.js';
 import { localize } from '../../../../nls.js';
-import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
-import { MenuId } from '../../../../platform/actions/common/actions.js';
+import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { IActionViewItemService } from '../../../../platform/actions/browser/actionViewItemService.js';
 import { IChatWidgetViewOptions } from '../../chat/browser/chat.js';
 import { IChatWidgetLocationOptions } from '../../chat/browser/widget/chatWidget.js';
 import { ChatMode } from '../../chat/common/chatModes.js';
 import { INotebookEditor } from '../../notebook/browser/notebookBrowser.js';
-import { ACTION_REGENERATE_RESPONSE, ACTION_REPORT_ISSUE, ACTION_TOGGLE_DIFF, CTX_INLINE_CHAT_OUTER_CURSOR_POSITION, MENU_INLINE_CHAT_SIDE, MENU_INLINE_CHAT_WIDGET_SECONDARY, MENU_INLINE_CHAT_WIDGET_STATUS } from '../common/inlineChat.js';
+import { CTX_INLINE_CHAT_OUTER_CURSOR_POSITION, MENU_INLINE_CHAT_SIDE, MENU_INLINE_CHAT_WIDGET_SECONDARY } from '../common/inlineChat.js';
 import { EditorBasedInlineChatWidget } from './inlineChatWidget.js';
+import { ChatAgentLocation } from '../../chat/common/constants.js';
+import { ChatContextKeys } from '../../chat/common/actions/chatContextKeys.js';
+
+// a "creative" way of adding custom UI into the chat input part
+// without knowing/modifying its dom-structure
+class StatusPlaceholder extends Action2 {
+
+	static readonly Id = 'inlineChatWidget.statusPlaceholder';
+	static readonly CtxHasStatus = new RawContextKey<boolean>('inlineChatHasStatus', false);
+
+	constructor() {
+		super({
+			id: StatusPlaceholder.Id,
+			title: '',
+			precondition: ContextKeyExpr.false(),
+			menu: {
+				id: MenuId.ChatInput,
+				when: ContextKeyExpr.and(ContextKeyExpr.equals(ChatContextKeys.location.key, ChatAgentLocation.EditorInline), StatusPlaceholder.CtxHasStatus),
+				group: 'navigation',
+				order: Number.MAX_SAFE_INTEGER
+			}
+		});
+	}
+
+	run() { }
+}
+
+registerAction2(StatusPlaceholder);
 
 export class InlineChatZoneWidget extends ZoneWidget {
 
@@ -48,9 +79,28 @@ export class InlineChatZoneWidget extends ZoneWidget {
 		ordinal: 50000,
 	};
 
+	static readonly #instances = new Set<InlineChatZoneWidget>();
+	static readonly #statusDidChange = new Emitter<void>();
+	static #factoryRegistration: IDisposable | undefined;
+
+	static #findByDom(element: HTMLElement): InlineChatZoneWidget | undefined {
+		const widgetDom = element.closest('.inline-chat-widget');
+		if (widgetDom) {
+			for (const instance of InlineChatZoneWidget.#instances) {
+				if (instance.domNode === widgetDom) {
+					return instance;
+				}
+			}
+		}
+		return undefined;
+	}
+
 	readonly widget: EditorBasedInlineChatWidget;
 
+	readonly status = observableValue(this, '');
+
 	readonly #ctxCursorPosition: IContextKey<'above' | 'below' | ''>;
+	readonly #ctxHasStatus: IContextKey<boolean>;
 	#dimension?: Dimension;
 	private notebookEditor?: INotebookEditor;
 
@@ -70,6 +120,7 @@ export class InlineChatZoneWidget extends ZoneWidget {
 		/** @deprecated should go away with inline2 */
 		clearDelegate: () => Promise<void>,
 		@IInstantiationService instaService: IInstantiationService,
+		@IActionViewItemService actionViewItemService: IActionViewItemService,
 		@ILogService logService: ILogService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
@@ -100,25 +151,67 @@ export class InlineChatZoneWidget extends ZoneWidget {
 		this._disposables.add(this.#terminationStore);
 
 		this.#ctxCursorPosition = CTX_INLINE_CHAT_OUTER_CURSOR_POSITION.bindTo(contextKeyService);
+		this.#ctxHasStatus = StatusPlaceholder.CtxHasStatus.bindTo(contextKeyService);
 
 		this._disposables.add(toDisposable(() => {
 			this.#ctxCursorPosition.reset();
+			this.#ctxHasStatus.reset();
 		}));
 
-		this.widget = instaService.createInstance(EditorBasedInlineChatWidget, location, this.editor, {
-			statusMenuId: {
-				menu: MENU_INLINE_CHAT_WIDGET_STATUS,
-				options: {
-					buttonConfigProvider: (action, index) => {
-						const isSecondary = index > 0;
-						if (new Set([ACTION_REGENERATE_RESPONSE, ACTION_TOGGLE_DIFF, ACTION_REPORT_ISSUE]).has(action.id)) {
-							return { isSecondary, showIcon: true, showLabel: false };
-						} else {
-							return { isSecondary };
-						}
+		this._disposables.add(autorun(r => {
+			this.#ctxHasStatus.set(!!this.status.read(r));
+		}));
+
+		// Track this instance so the singleton factory can dispatch by DOM containment
+		InlineChatZoneWidget.#instances.add(this);
+		this._disposables.add(toDisposable(() => {
+			InlineChatZoneWidget.#instances.delete(this);
+			if (InlineChatZoneWidget.#instances.size === 0) {
+				InlineChatZoneWidget.#factoryRegistration?.dispose();
+				InlineChatZoneWidget.#factoryRegistration = undefined;
+			}
+		}));
+		this._disposables.add(autorun(r => {
+			this.status.read(r);
+			InlineChatZoneWidget.#statusDidChange.fire();
+		}));
+
+		// Register a single factory for the status placeholder action. Multiple zone widget
+		// instances can coexist (one per editor) so the factory uses DOM containment to find
+		// the owning widget and observe its status.
+		if (!InlineChatZoneWidget.#factoryRegistration) {
+			InlineChatZoneWidget.#factoryRegistration = actionViewItemService.register(MenuId.ChatInput, StatusPlaceholder.Id, (action, options) => {
+				const item = new class extends ActionViewItem {
+					override render(container: HTMLElement): void {
+						super.render(container);
+						container.classList.add('status-placeholder');
+						// Defer the DOM-based widget lookup to the next animation frame
+						// because actionbar calls render() before appending the element
+						// to the DOM, so closest() would fail during render().
+						const targetWindow = getWindow(container);
+						let handle = targetWindow.requestAnimationFrame(() => {
+							handle = 0;
+							const widget = InlineChatZoneWidget.#findByDom(container);
+							if (widget) {
+								this._store.add(autorun(r => {
+									const value = widget.status.read(r) ?? '';
+									this.action.label = value;
+									this.updateLabel();
+								}));
+							}
+						});
+						this._store.add(toDisposable(() => {
+							if (handle) {
+								targetWindow.cancelAnimationFrame(handle);
+							}
+						}));
 					}
-				}
-			},
+				}(undefined, action, { ...options, icon: false, label: true });
+				return item;
+			}, InlineChatZoneWidget.#statusDidChange.event);
+		}
+
+		this.widget = instaService.createInstance(EditorBasedInlineChatWidget, location, this.editor, {
 			secondaryMenuId: MENU_INLINE_CHAT_WIDGET_SECONDARY,
 			inZoneWidget: true,
 			chatWidgetViewOptions: {

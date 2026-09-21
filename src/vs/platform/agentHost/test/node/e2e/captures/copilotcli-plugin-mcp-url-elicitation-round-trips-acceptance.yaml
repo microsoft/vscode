@@ -1,0 +1,35 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Call customization_elicit_url exactly once, then reply with only its exact result.
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_0
+          name: customization_probe_server-customization_elicit_url
+          input: {}
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Call customization_elicit_url exactly once, then reply with only its exact result.
+        - role: assistant
+          content:
+            - type: tool_use
+              name: customization_probe_server-customization_elicit_url
+              input: {}
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: ELICIT_URL:accept
+    response:
+      content: ELICIT_URL:accept
+      stopReason: end_turn

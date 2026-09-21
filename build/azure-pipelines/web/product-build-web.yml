@@ -1,7 +1,7 @@
 jobs:
   - job: Web
     displayName: Web
-    timeoutInMinutes: 30
+    timeoutInMinutes: 45
     pool:
       name: 1es-ubuntu-22.04-x64
       os: linux
@@ -30,9 +30,9 @@ jobs:
       - task: AzureKeyVault@2
         displayName: "Azure Key Vault: Get Secrets"
         inputs:
-          azureSubscription: vscode
-          KeyVaultName: vscode-build-secrets
-          SecretsFilter: "github-distro-mixin-password"
+          azureSubscription: vscode-oss-build-secrets
+          KeyVaultName: vscode-oss-build-secrets
+          SecretsFilter: "github-token-code-oss"
 
       - script: node build/setup-npm-registry.ts $NPM_REGISTRY
         condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
@@ -59,20 +59,28 @@ jobs:
           # which does not have their own .npmrc file
           npm config set registry "$NPM_REGISTRY"
           echo "##vso[task.setvariable variable=NPMRC_PATH]$(npm config get userconfig)"
-        condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'), ne(variables['NPM_REGISTRY'], 'none'))
+        condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
         displayName: Setup NPM
 
       - task: npmAuthenticate@0
         inputs:
           workingFile: $(NPMRC_PATH)
-        condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'), ne(variables['NPM_REGISTRY'], 'none'))
+        condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
         displayName: Setup NPM Authentication
+
+      - template: ../common/foundry-local.yml@self
+        parameters:
+          phase: prepare
 
       - script: |
           set -e
           ./build/azure-pipelines/linux/apt-retry.sh sudo apt-get update
           ./build/azure-pipelines/linux/apt-retry.sh sudo apt-get install -y libkrb5-dev
         displayName: Setup system services
+        condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
+
+      - script: node build/npm/preinstall.ts
+        displayName: Install Electron headers
         condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
 
       - script: |
@@ -89,9 +97,16 @@ jobs:
         env:
           ELECTRON_SKIP_BINARY_DOWNLOAD: 1
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
-          GITHUB_TOKEN: "$(github-distro-mixin-password)"
+          GITHUB_TOKEN: "$(github-token-code-oss)"
         displayName: Install dependencies
         condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
+
+      - template: ../common/foundry-local.yml@self
+        parameters:
+          phase: install
+
+      - script: node build/azure-pipelines/common/checkNativeOptionalDeps.ts
+        displayName: Verify native optional dependency binaries
 
       - script: node build/azure-pipelines/distro/mixin-npm.ts
         condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
@@ -110,14 +125,19 @@ jobs:
 
       - template: ../common/install-builtin-extensions.yml@self
 
+      - script: node build/npm/electronTypes.ts
+        displayName: Prepare Electron types
+
       - script: npx deemon --detach --wait -- node build/azure-pipelines/common/downloadCopilotVsix.ts
         env:
           SYSTEM_ACCESSTOKEN: $(System.AccessToken)
         displayName: Download Copilot VSIX (background)
 
+      - template: ../common/mixin-vscode-capi.yml@self
+
       - script: npm run gulp core-ci
         env:
-          GITHUB_TOKEN: "$(github-distro-mixin-password)"
+          GITHUB_TOKEN: "$(github-token-code-oss)"
         displayName: Compile
 
       - script: npx deemon --attach -- node build/azure-pipelines/common/downloadCopilotVsix.ts
@@ -133,7 +153,7 @@ jobs:
           tar --owner=0 --group=0 -czf $ARCHIVE_PATH -C .. vscode-web
           echo "##vso[task.setvariable variable=WEB_PATH]$ARCHIVE_PATH"
         env:
-          GITHUB_TOKEN: "$(github-distro-mixin-password)"
+          GITHUB_TOKEN: "$(github-token-code-oss)"
         displayName: Build
 
       - task: AzureCLI@2
@@ -163,7 +183,7 @@ jobs:
           AZURE_TENANT_ID="$(AZURE_TENANT_ID)" \
           AZURE_CLIENT_ID="$(AZURE_CLIENT_ID)" \
           AZURE_ID_TOKEN="$(AZURE_ID_TOKEN)" \
-            node build/azure-pipelines/upload-sourcemaps.ts out-vscode-web-min out-vscode-web-min/vs/workbench/workbench.web.main.internal.js.map
+            node build/azure-pipelines/upload-sourcemaps.ts out-vscode-web-min
         displayName: Upload sourcemaps (Web)
 
       - script: |

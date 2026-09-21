@@ -7,7 +7,7 @@ import { IAuthenticationService } from '../../../../../../platform/authenticatio
 import { CopilotToken } from '../../../../../../platform/authentication/common/copilotToken';
 
 export function onCopilotToken(authService: IAuthenticationService, listener: (token: Omit<CopilotToken, 'token'>) => unknown) {
-	return authService.onDidAuthenticationChange(() => {
+	return authService.onDidCopilotTokenChange(() => {
 		const copilotToken = authService.copilotToken;
 		if (copilotToken) {
 			listener(copilotToken);

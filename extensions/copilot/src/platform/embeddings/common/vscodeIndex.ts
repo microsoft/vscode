@@ -115,6 +115,10 @@ abstract class RelatedInformationProviderEmbeddingsIndex<V extends { key: string
 			this._logService.debug(`Related Information: Request cancelled or no embeddings computed, returning ${Date.now() - similarityStart}ms`);
 			return [];
 		}
+		if (embeddingResult.values.length === 0) {
+			this._logService.debug(`Related Information: No query embedding computed, returning ${Date.now() - similarityStart}ms`);
+			return [];
+		}
 
 		const results: RelatedInformationResult[] = [];
 		for (const item of this._items.values()) {

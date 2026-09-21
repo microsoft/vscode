@@ -6,6 +6,7 @@ server/src/**
 client/out/**
 server/out/**
 **/tsconfig*.json
+**/*.tsbuildinfo
 server/test/**
 server/bin/**
 server/build/**

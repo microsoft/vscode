@@ -44,7 +44,7 @@ async function main() {
 main();
 `;
 
-function renderPeekReference({ container, disposableStore, theme }: ComponentFixtureContext): void {
+function renderPeekReference({ container, disposableStore, theme, focus }: ComponentFixtureContext): void {
 	container.style.width = '700px';
 	container.style.height = '400px';
 	container.style.border = '1px solid var(--vscode-editorWidget-border)';
@@ -106,7 +106,7 @@ function renderPeekReference({ container, disposableStore, theme }: ComponentFix
 		contributions: []
 	};
 
-	const editor = disposableStore.add(instantiationService.createInstance(
+	const editor = instantiationService.createInstance(
 		CodeEditorWidget,
 		container,
 		{
@@ -118,10 +118,10 @@ function renderPeekReference({ container, disposableStore, theme }: ComponentFix
 			cursorBlinking: 'solid',
 		},
 		editorWidgetOptions
-	));
+	);
 
 	editor.setModel(textModel);
-	editor.focus();
+	focus(editor);
 
 	const layoutData: LayoutData = { ratio: 0.7, heightInLines: 10 };
 
@@ -131,7 +131,11 @@ function renderPeekReference({ container, disposableStore, theme }: ComponentFix
 		true,
 		layoutData,
 	);
+	// Register widget BEFORE editor so widget.dispose() runs first; otherwise
+	// `ReferenceWidget.dispose()` calls `observableCodeEditor(disposed editor)`
+	// which creates a fresh untracked ObservableCodeEditor.
 	disposableStore.add(referenceWidget);
+	disposableStore.add(editor);
 
 	const range = { startLineNumber: 3, startColumn: 10, endLineNumber: 3, endColumn: 21 };
 	referenceWidget.setTitle('processFile');

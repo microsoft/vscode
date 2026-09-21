@@ -9,7 +9,7 @@ import type { OTelConfig } from '../common/otelConfig';
 import { type ICompletedSpanData, type IOTelService, type ISpanEventData, type ISpanEventRecord, type ISpanHandle, SpanKind, type SpanOptions, SpanStatusCode, type TraceContext } from '../common/otelService';
 
 // Type-only imports — erased by esbuild, zero bundle impact
-import type { Attributes, Context, Meter, Span, SpanContext, Tracer } from '@opentelemetry/api';
+import type { Attributes, Context, Meter, MetricOptions, Span, SpanContext, Tracer } from '@opentelemetry/api';
 import type { AnyValueMap, Logger } from '@opentelemetry/api-logs';
 import type { ExportResult } from '@opentelemetry/core';
 import type { BatchLogRecordProcessor, LogRecordExporter } from '@opentelemetry/sdk-logs';
@@ -139,6 +139,12 @@ export class NodeOTelService implements IOTelService {
 				resource,
 				spanProcessors: this._spanProcessors,
 			});
+			// Mark this provider so consumers (e.g. the Copilot CLI span bridge) can detect when the
+			// global OTel provider is the extension's own provider. Attaching extra span processors to
+			// it would re-forward spans the extension already emits and produce duplicate debug entries.
+			// Defined as a non-enumerable, non-writable marker so it does not surface in logs/inspection
+			// output or get accidentally mutated.
+			Object.defineProperty(tracerProvider, '__copilotChatOwnProvider', { value: true });
 			tracerProvider.register();
 			this._tracer = api.trace.getTracer(this.config.serviceName, this.config.serviceVersion);
 			this._otelApi = api;
@@ -235,11 +241,30 @@ export class NodeOTelService implements IOTelService {
 				import('@opentelemetry/exporter-logs-otlp-grpc'),
 				import('@opentelemetry/exporter-metrics-otlp-grpc'),
 			]);
-			const opts = { url: config.otlpEndpoint };
+			const opts = { url: config.otlpEndpoint, headers: config.headers };
 			return {
 				spanExporter: new OTLPTraceExporter(opts),
 				logExporter: new OTLPLogExporter(opts),
 				metricExporter: new OTLPMetricExporter(opts),
+			};
+		}
+
+		// otlp-http with protobuf wire encoding
+		if (config.otlpProtocol === 'http/protobuf' && !dbOnlyMode) {
+			const [
+				{ OTLPTraceExporter },
+				{ OTLPLogExporter },
+				{ OTLPMetricExporter },
+			] = await Promise.all([
+				import('@opentelemetry/exporter-trace-otlp-proto'),
+				import('@opentelemetry/exporter-logs-otlp-proto'),
+				import('@opentelemetry/exporter-metrics-otlp-proto'),
+			]);
+			const base = config.otlpEndpoint.replace(/\/$/, '');
+			return {
+				spanExporter: new OTLPTraceExporter({ url: `${base}/v1/traces`, headers: config.headers }),
+				logExporter: new OTLPLogExporter({ url: `${base}/v1/logs`, headers: config.headers }),
+				metricExporter: new OTLPMetricExporter({ url: `${base}/v1/metrics`, headers: config.headers }),
 			};
 		}
 
@@ -264,9 +289,9 @@ export class NodeOTelService implements IOTelService {
 		]);
 		const base = config.otlpEndpoint.replace(/\/$/, '');
 		return {
-			spanExporter: new OTLPTraceExporter({ url: `${base}/v1/traces` }),
-			logExporter: new OTLPLogExporter({ url: `${base}/v1/logs` }),
-			metricExporter: new OTLPMetricExporter({ url: `${base}/v1/metrics` }),
+			spanExporter: new OTLPTraceExporter({ url: `${base}/v1/traces`, headers: config.headers }),
+			logExporter: new OTLPLogExporter({ url: `${base}/v1/logs`, headers: config.headers }),
+			metricExporter: new OTLPMetricExporter({ url: `${base}/v1/metrics`, headers: config.headers }),
 		};
 	}
 
@@ -344,7 +369,7 @@ export class NodeOTelService implements IOTelService {
 		if (!ctx.traceId || !ctx.spanId) {
 			return undefined;
 		}
-		return { traceId: ctx.traceId, spanId: ctx.spanId };
+		return { traceId: ctx.traceId, spanId: ctx.spanId, traceFlags: ctx.traceFlags, traceState: ctx.traceState?.serialize() };
 	}
 
 	// ── Trace Context Store ── (for cross-boundary propagation)
@@ -435,6 +460,15 @@ export class NodeOTelService implements IOTelService {
 
 	// ── Metric API ──
 
+	/**
+	 * Explicit bucket boundaries per the OTel GenAI semantic conventions.
+	 * @see https://opentelemetry.io/docs/specs/semconv/gen-ai/gen-ai-metrics/
+	 */
+	private static readonly _histogramOptions: ReadonlyMap<string, MetricOptions> = new Map([
+		['gen_ai.client.operation.duration', { advice: { explicitBucketBoundaries: [0.01, 0.02, 0.04, 0.08, 0.16, 0.32, 0.64, 1.28, 2.56, 5.12, 10.24, 20.48, 40.96, 81.92] } }],
+		['gen_ai.client.token.usage', { advice: { explicitBucketBoundaries: [1, 4, 16, 64, 256, 1024, 4096, 16384, 65536, 262144, 1048576, 4194304, 16777216, 67108864] } }],
+	]);
+
 	private readonly _histograms = new Map<string, ReturnType<Meter['createHistogram']>>();
 	private readonly _counters = new Map<string, ReturnType<Meter['createCounter']>>();
 
@@ -447,7 +481,7 @@ export class NodeOTelService implements IOTelService {
 		}
 		let histogram = this._histograms.get(name);
 		if (!histogram) {
-			histogram = this._meter.createHistogram(name);
+			histogram = this._meter.createHistogram(name, NodeOTelService._histogramOptions.get(name));
 			this._histograms.set(name, histogram);
 		}
 		histogram.record(value, attributes);
@@ -611,7 +645,9 @@ class RealSpanHandle implements ISpanHandle {
 
 	getSpanContext(): TraceContext | undefined {
 		const ctx = this._span.spanContext();
-		return ctx.traceId && ctx.spanId ? { traceId: ctx.traceId, spanId: ctx.spanId } : undefined;
+		return ctx.traceId && ctx.spanId
+			? { traceId: ctx.traceId, spanId: ctx.spanId, traceFlags: ctx.traceFlags, traceState: ctx.traceState?.serialize() }
+			: undefined;
 	}
 
 	end(): void {

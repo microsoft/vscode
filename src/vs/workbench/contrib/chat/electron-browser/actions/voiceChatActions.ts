@@ -26,12 +26,12 @@ import { IKeybindingService } from '../../../../../platform/keybinding/common/ke
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { contrastBorder, focusBorder } from '../../../../../platform/theme/common/colorRegistry.js';
+import { editorInfoForeground } from '../../../../../platform/theme/common/colors/editorColors.js';
 import { spinningLoading, syncing } from '../../../../../platform/theme/common/iconRegistry.js';
 import { isHighContrast } from '../../../../../platform/theme/common/theme.js';
 import { registerThemingParticipant } from '../../../../../platform/theme/common/themeService.js';
 import { ActiveEditorContext } from '../../../../common/contextkeys.js';
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
-import { ACTIVITY_BAR_FOREGROUND } from '../../../../common/theme.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IHostService } from '../../../../services/host/browser/host.js';
 import { IWorkbenchLayoutService, Parts } from '../../../../services/layout/browser/layoutService.js';
@@ -46,6 +46,7 @@ import { TextToSpeechInProgress as GlobalTextToSpeechInProgress, HasSpeechProvid
 import { CHAT_CATEGORY } from '../../browser/actions/chatActions.js';
 import { IChatExecuteActionContext } from '../../browser/actions/chatExecuteActions.js';
 import { IChatWidget, IChatWidgetService, IQuickChatService } from '../../browser/chat.js';
+import { SegmentedVoiceInputModePillInactive } from '../../browser/voiceInputMode/voiceInputModeContextKeys.js';
 import { IChatAgentService } from '../../common/participants/chatAgents.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { IChatResponseModel } from '../../common/model/chatModel.js';
@@ -526,11 +527,11 @@ export class QuickVoiceChatAction extends VoiceChatWithHoldModeAction {
 	}
 }
 
-const primaryVoiceActionMenu = (when: ContextKeyExpression | undefined) => {
+const primaryVoiceActionMenu = (when: ContextKeyExpression | undefined, chatLocationOnlyWhen?: ContextKeyExpression | undefined) => {
 	return [
 		{
 			id: MenuId.ChatExecute,
-			when: ContextKeyExpr.and(ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat), when),
+			when: ContextKeyExpr.and(ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat), when, chatLocationOnlyWhen),
 			group: 'navigation',
 			order: 3
 		},
@@ -558,7 +559,8 @@ export class StartVoiceChatAction extends Action2 {
 				when: ContextKeyExpr.and(
 					FocusInChatInput,					// scope this action to chat input fields only
 					EditorContextKeys.focus.negate(), 	// do not steal the editor inline-chat keybinding
-					NOTEBOOK_EDITOR_FOCUSED.negate()	// do not steal the notebook inline-chat keybinding
+					NOTEBOOK_EDITOR_FOCUSED.negate(),	// do not steal the notebook inline-chat keybinding
+					ChatContextKeys.speechToTextConfigured.negate()	// built-in on-device dictation wins: yield the keybinding when it's available so it does not collide with the built-in dictation keybinding
 				),
 				primary: KeyMod.CtrlCmd | KeyCode.KeyI
 			},
@@ -570,9 +572,10 @@ export class StartVoiceChatAction extends Action2 {
 			),
 			menu: primaryVoiceActionMenu(ContextKeyExpr.and(
 				HasSpeechProvider,
+				ChatContextKeys.speechToTextConfigured.negate(),	// built-in on-device dictation wins: hide the extension mic when it's available so only one mic shows
 				ScopedChatSynthesisInProgress.negate(),	// hide when text to speech is in progress
 				AnyScopedVoiceChatInProgress?.negate(),	// hide when voice chat is in progress
-			))
+			), SegmentedVoiceInputModePillInactive)	// only hide in the main Chat location, where the segmented toggle provides a replacement; keep the mic in inline/quick chat
 		});
 	}
 
@@ -607,7 +610,7 @@ export class StopListeningAction extends Action2 {
 			},
 			icon: spinningLoading,
 			precondition: GlobalVoiceChatInProgress, // need global context here because of `f1: true`
-			menu: primaryVoiceActionMenu(AnyScopedVoiceChatInProgress)
+			menu: primaryVoiceActionMenu(AnyScopedVoiceChatInProgress, SegmentedVoiceInputModePillInactive)
 		});
 	}
 
@@ -1243,7 +1246,7 @@ registerThemingParticipant((theme, collector) => {
 	let activeRecordingColor: Color | undefined;
 	let activeRecordingDimmedColor: Color | undefined;
 	if (!isHighContrast(theme.type)) {
-		activeRecordingColor = theme.getColor(ACTIVITY_BAR_FOREGROUND) ?? theme.getColor(focusBorder);
+		activeRecordingColor = theme.getColor(editorInfoForeground) ?? theme.getColor(focusBorder);
 		activeRecordingDimmedColor = activeRecordingColor?.transparent(0.38);
 	} else {
 		activeRecordingColor = theme.getColor(contrastBorder);

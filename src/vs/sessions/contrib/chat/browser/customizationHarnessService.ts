@@ -3,19 +3,28 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import {
-	CustomizationHarnessServiceBase,
-} from '../../../../workbench/contrib/chat/common/customizationHarnessService.js';
+import { IDisposable } from '../../../../base/common/lifecycle.js';
+import { CustomizationHarnessServiceBase, IHarnessDescriptor } from '../../../../workbench/contrib/chat/common/customizationHarnessService.js';
+import { IPromptsService } from '../../../../workbench/contrib/chat/common/promptSyntax/service/promptsService.js';
 
 /**
  * Sessions-window override of the customization harness service.
  *
- * No static harnesses are registered. The Copilot CLI extension provides
- * its harness (with `itemProvider`) via `registerChatSessionCustomizationProvider()`,
- * and AHP remote servers register directly via `registerExternalHarness()`.
+ * Harnesses are provided by chat session providers and AHP remote servers.
  */
 export class SessionsCustomizationHarnessService extends CustomizationHarnessServiceBase {
-	constructor() {
-		super([], '');
+
+	constructor(
+		@IPromptsService promptsService: IPromptsService,
+	) {
+		super([], '', promptsService);
+	}
+
+	override registerExternalHarness(descriptor: IHarnessDescriptor): IDisposable {
+		const registration = super.registerExternalHarness(descriptor);
+		if (!this.findHarnessById(this.activeHarness.get())) {
+			this.setActiveSession(this.getSessionResourceForHarness(descriptor.id));
+		}
+		return registration;
 	}
 }

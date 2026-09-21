@@ -14,6 +14,7 @@ import { IGitService, RepoContext } from '../../../../platform/git/common/gitSer
 import { PullRequestSearchItem } from '../../../../platform/github/common/githubAPI';
 import { IOctoKitService } from '../../../../platform/github/common/githubService';
 import { ILogService } from '../../../../platform/log/common/logService';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry';
 import { NullWorkspaceService } from '../../../../platform/workspace/common/workspaceService';
 import { mock } from '../../../../util/common/test/simpleMock';
 import { CancellationToken } from '../../../../util/vs/base/common/cancellation';
@@ -24,13 +25,19 @@ import { IChatSessionWorkspaceFolderService } from '../../common/chatSessionWork
 import { ChatSessionWorktreeProperties, IChatSessionWorktreeService } from '../../common/chatSessionWorktreeService';
 import { IFolderRepositoryManager, IsolationMode } from '../../common/folderRepositoryManager';
 import { emptyWorkspaceInfo } from '../../common/workspaceInfo';
+import { IChatDelegationSummaryService } from '../../copilotcli/common/delegationSummaryService';
+import { SessionIdForCLI } from '../../copilotcli/common/utils';
+import { ICopilotCLIModels, ICopilotCLISDK } from '../../copilotcli/node/copilotCli';
+import { CopilotCLIPromptResolver } from '../../copilotcli/node/copilotcliPromptResolver';
 import { ICustomSessionTitleService } from '../../copilotcli/common/customSessionTitleService';
 import { ICopilotCLISession } from '../../copilotcli/node/copilotcliSession';
 import { ICopilotCLISessionItem, ICopilotCLISessionService } from '../../copilotcli/node/copilotcliSessionService';
+import { ICopilotCLIChatSessionInitializer } from '../../copilotcli/vscode-node/copilotCLIChatSessionInitializer';
 import { ICopilotCLISessionTracker } from '../../copilotcli/vscode-node/copilotCLISessionTracker';
-import { CopilotCLIChatSessionContentProvider, resolveBranchLockState, resolveBranchSelection, resolveIsolationSelection, resolveSessionDirsForTerminal } from '../copilotCLIChatSessions';
+import { CopilotCLIChatSessionContentProvider, CopilotCLIChatSessionParticipant, resolveBranchLockState, resolveBranchSelection, resolveIsolationSelection, resolveSessionDirsForTerminal } from '../copilotCLIChatSessions';
 import { PullRequestDetectionService } from '../pullRequestDetectionService';
 import { ISessionOptionGroupBuilder } from '../sessionOptionGroupBuilder';
+import { ISessionRequestLifecycle } from '../sessionRequestLifecycle';
 vi.mock('../copilotCLIShim.ps1', () => ({ default: '# mock powershell script' }));
 
 beforeAll(() => {
@@ -67,9 +74,10 @@ class TestSessionService extends mock<ICopilotCLISessionService>() {
 	override getSessionItem = vi.fn(async () => undefined);
 	override getAllSessions = vi.fn(async () => [] as ICopilotCLISessionItem[]);
 	override createNewSessionId = vi.fn(() => 'new-session');
-	override isNewSessionId = vi.fn(() => false);
+	override isNewSessionId = vi.fn((_sessionId: string) => false);
 	override deleteSession = vi.fn(async () => { });
 	override renameSession = vi.fn(async () => { });
+	override getSessionTitle = vi.fn(async () => '');
 	override getSession = vi.fn(async () => ({
 		object: {
 			sessionId: 'session-1',
@@ -90,12 +98,16 @@ class TestWorktreeService extends mock<IChatSessionWorktreeService>() {
 	declare readonly _serviceBrand: undefined;
 	override getWorktreeProperties = vi.fn(async (_sessionId: string | vscode.Uri): Promise<ChatSessionWorktreeProperties | undefined> => undefined);
 	override setWorktreeProperties = vi.fn(async () => { });
-	override getWorktreeChanges = vi.fn(async () => []);
+	override getWorktreeChanges = vi.fn<IChatSessionWorktreeService['getWorktreeChanges']>(async () => []);
+	override hasCachedChanges = vi.fn(async () => false);
+	override onDidChangeWorktreeChanges = Event.None;
 }
 
 class TestWorkspaceFolderService extends mock<IChatSessionWorkspaceFolderService>() {
 	declare readonly _serviceBrand: undefined;
 	override getWorkspaceChanges = vi.fn(async () => []);
+	override hasCachedChanges = vi.fn(async () => false);
+	override onDidChangeWorkspaceFolderChanges = Event.None;
 }
 
 class TestFolderRepositoryManager extends mock<IFolderRepositoryManager>() {
@@ -158,6 +170,8 @@ function createProvider() {
 	const metadataStore = new class extends mock<IChatSessionMetadataStore>() {
 		override getRequestDetails = vi.fn(async () => []);
 		override getRepositoryProperties = vi.fn(async () => undefined);
+		override getSessionParentId = vi.fn<IChatSessionMetadataStore['getSessionParentId']>(async () => undefined);
+		override getSessionArchived = vi.fn(async () => false);
 	};
 	const gitService = new TestGitService();
 	const folderRepositoryManager = new TestFolderRepositoryManager();
@@ -204,6 +218,7 @@ function createProvider() {
 		workspaceFolderService,
 		metadataStore,
 		new NullWorkspaceService(),
+		worktreeService,
 	);
 
 	return {
@@ -213,6 +228,7 @@ function createProvider() {
 		worktreeService,
 		gitService,
 		octoKitService,
+		metadataStore,
 	};
 }
 
@@ -305,6 +321,125 @@ describe('CopilotCLIChatSessionContentProvider', () => {
 	});
 });
 
+describe('CopilotCLIChatSessionParticipant', () => {
+	beforeEach(() => {
+		vi.restoreAllMocks();
+	});
+
+	it('keeps local /remote output visible for new sessions', async () => {
+		const resource = SessionIdForCLI.getResource('new-session');
+		const sessionItemProvider = {
+			refreshSession: vi.fn(async () => { }),
+			dispose: vi.fn(),
+		};
+		const session = {
+			sessionId: 'new-session',
+			workspace: emptyWorkspaceInfo,
+			status: undefined,
+			onDidChangeStatus: Event.None,
+			createdPullRequestUrl: undefined,
+			attachStream: vi.fn(() => ({ dispose: vi.fn() })),
+			handleRequest: vi.fn(async () => { }),
+			getSelectedModelId: vi.fn(async () => undefined),
+			getLastResponseModelId: vi.fn(() => undefined),
+		} as unknown as ICopilotCLISession;
+		const sessionService = new TestSessionService();
+		sessionService.isNewSessionId.mockImplementation(id => id === 'new-session');
+		const promptResolver = {
+			resolvePrompt: vi.fn(async () => ({ prompt: 'on', attachments: [] })),
+		} as unknown as CopilotCLIPromptResolver;
+		const logService = new class extends mock<ILogService>() {
+			declare readonly _serviceBrand: undefined;
+			override error = vi.fn();
+		}();
+		const participant = new CopilotCLIChatSessionParticipant(
+			sessionItemProvider,
+			promptResolver,
+			undefined,
+			undefined,
+			new TestGitService(),
+			sessionService,
+			new TestWorktreeService(),
+			new class extends mock<ITelemetryService>() {
+				declare readonly _serviceBrand: undefined;
+				override sendMSFTTelemetryEvent = vi.fn();
+			}(),
+			logService,
+			new class extends mock<IChatDelegationSummaryService>() {
+				declare readonly _serviceBrand: undefined;
+			}(),
+			new InMemoryConfigurationService(new DefaultsOnlyConfigurationService()),
+			new class extends mock<ICopilotCLISDK>() {
+				declare readonly _serviceBrand: undefined;
+				override getAuthInfo = vi.fn(async () => ({ type: 'token' as const, token: 'token', host: 'https://github.com' }));
+			}(),
+			new class extends mock<ICopilotCLIChatSessionInitializer>() {
+				declare readonly _serviceBrand: undefined;
+				override getOrCreateSession = vi.fn(async () => ({
+					session: { object: session, dispose: vi.fn() },
+					isNewSession: true,
+					model: undefined,
+					agent: undefined,
+					trusted: true,
+				}));
+			}(),
+			new class extends mock<ISessionRequestLifecycle>() {
+				declare readonly _serviceBrand: undefined;
+				override startRequest = vi.fn(async () => { });
+				override endRequest = vi.fn(async () => { });
+			}(),
+			new class extends mock<PullRequestDetectionService>() {
+				override onDidDetectPullRequest = Event.None;
+			}() as unknown as PullRequestDetectionService,
+			new class extends mock<ISessionOptionGroupBuilder>() {
+				declare readonly _serviceBrand: undefined;
+				override lockInputStateGroups = vi.fn();
+				override updateBranchInInputState = vi.fn();
+			}(),
+			new class extends mock<ICopilotCLIModels>() {
+				declare readonly _serviceBrand: undefined;
+				override getModels = vi.fn(async () => []);
+			}(),
+			new class extends mock<IChatSessionMetadataStore>() {
+				declare readonly _serviceBrand: undefined;
+			}(),
+			{ _serviceBrand: undefined, resetTurnCredits() { }, getCreditsForTurn() { return undefined; }, setLastCopilotUsage() { } } as any,
+		);
+
+		await participant.createHandler()(
+			{
+				id: 'request-1',
+				command: 'remote',
+				prompt: 'on',
+				sessionResource: resource,
+				references: [],
+				tools: [],
+				toolInvocationToken: undefined,
+			} as unknown as vscode.ChatRequest,
+			{
+				history: [],
+				yieldRequested: false,
+				chatSessionContext: {
+					chatSessionItem: { resource, label: 'New Session' },
+					inputState: { groups: [] },
+				},
+			} as unknown as vscode.ChatContext,
+			{} as vscode.ChatResponseStream,
+			CancellationToken.None,
+		);
+
+		expect(session.handleRequest).toHaveBeenCalledWith(
+			expect.anything(),
+			{ command: 'remote', prompt: 'on' },
+			[],
+			undefined,
+			{ type: 'token', token: 'token', host: 'https://github.com' },
+			CancellationToken.None,
+		);
+		expect(sessionItemProvider.refreshSession).not.toHaveBeenCalled();
+	});
+});
+
 // ─── Re-exported helper function smoke tests ────────────────────
 // Full test coverage lives in sessionOptionGroupBuilder.spec.ts;
 // these just verify the re-exports are wired up correctly.
@@ -374,6 +509,61 @@ describe('CopilotCLIChatSessionContentProvider (additional)', () => {
 
 		const item = await provider.toChatSessionItem(sessionItem);
 		expect(item.label).toBe('Test Session');
+	});
+
+	it('toChatSessionItem rehydrates persisted archived state', async () => {
+		const { provider, metadataStore } = createProvider();
+		metadataStore.getSessionArchived.mockResolvedValue(true);
+		const sessionItem: ICopilotCLISessionItem = {
+			id: 'session-1',
+			label: 'Test Session',
+			status: undefined,
+			workingDirectory: undefined,
+		} as unknown as ICopilotCLISessionItem;
+
+		const item = await provider.toChatSessionItem(sessionItem);
+		expect(item.archived).toBe(true);
+	});
+
+	it('only includes cached changes when explicitly requested', async () => {
+		const { provider, worktreeService } = createProvider();
+		const sessionItem: ICopilotCLISessionItem = {
+			id: 'session-1',
+			label: 'Test Session',
+			timing: undefined,
+			workingDirectory: undefined,
+		};
+		worktreeService.getWorktreeProperties.mockResolvedValue({
+			version: 1,
+			baseCommit: 'base',
+			branchName: 'branch',
+			repositoryPath: '/repository',
+			worktreePath: '/worktree',
+			autoCommit: true,
+		});
+		worktreeService.hasCachedChanges.mockResolvedValue(true);
+		worktreeService.getWorktreeChanges.mockResolvedValue([
+			{
+				uri: vscodeShim.Uri.file('/repository/file'),
+				originalUri: undefined,
+				modifiedUri: vscodeShim.Uri.file('/repository/file'),
+				insertions: 3,
+				deletions: 1,
+			},
+		]);
+
+		const listedItem = await provider.toChatSessionItem(sessionItem);
+		const resolvedItem = await provider.toChatSessionItem(sessionItem, { includeChanges: true });
+
+		expect({
+			listedChanges: listedItem.changes,
+			resolvedChanges: resolvedItem.changes?.length,
+			buildCount: worktreeService.getWorktreeChanges.mock.calls.length,
+		}).toEqual({
+			listedChanges: undefined,
+			resolvedChanges: 1,
+			buildCount: 1,
+		});
 	});
 
 	it('does not call refreshSession when PR detection finds no update', async () => {

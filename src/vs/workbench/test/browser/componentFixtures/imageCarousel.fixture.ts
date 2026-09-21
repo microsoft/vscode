@@ -60,7 +60,7 @@ async function renderCarousel(context: ComponentFixtureContext, collection: IIma
 		colorTheme: theme,
 		additionalServices: ({ defineInstance }) => {
 			const fileService = new FileService(new NullLogService());
-			fileService.registerProvider(Schemas.file, new NullFileSystemProvider());
+			disposableStore.add(fileService.registerProvider(Schemas.file, new NullFileSystemProvider()));
 			disposableStore.add(fileService);
 			defineInstance(IFileService, fileService);
 			defineInstance(IWebviewService, new class extends mock<IWebviewService>() { }());
@@ -73,7 +73,7 @@ async function renderCarousel(context: ComponentFixtureContext, collection: IIma
 	editor.create(container);
 	editor.layout(new Dimension(600, 500));
 
-	const input = new ImageCarouselEditorInput(collection, startIndex);
+	const input = disposableStore.add(new ImageCarouselEditorInput(collection, startIndex));
 	await editor.setInput(input, undefined, {}, CancellationToken.None);
 }
 

@@ -3,9 +3,29 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CopilotSession, SessionEventPayload, SessionEventType } from '@github/copilot-sdk';
+import type { CopilotSession, SessionEvent, SessionEventPayload, SessionEventType } from '@github/copilot-sdk';
+import { DeferredPromise } from '../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { StopWatch } from '../../../../base/common/stopwatch.js';
+import { generateUuid } from '../../../../base/common/uuid.js';
+import { ILogService } from '../../../log/common/log.js';
+import type { AgentTurnProviderSessionState } from '../../common/agent.js';
+
+export type CopilotModelCallFinishedOutcome = 'success' | 'error' | 'cancelled' | 'rejected';
+
+export interface ICopilotModelCallFinishedEvent {
+	readonly id: string;
+	readonly agentId?: string;
+	readonly data: {
+		readonly turnId: string;
+		readonly interactionId?: string;
+		readonly dispatchDurationMs: number;
+		readonly outcome: CopilotModelCallFinishedOutcome;
+		readonly containsBuiltInFileEditRequest?: boolean;
+		readonly editClassifierVersion: number;
+	};
+}
 
 /**
  * Thin wrapper around {@link CopilotSession} that exposes each SDK event as a
@@ -14,14 +34,105 @@ import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
  */
 export class CopilotSessionWrapper extends Disposable {
 
-	constructor(readonly session: CopilotSession) {
+	private readonly _handledEventTypes = new Set<SessionEventType>();
+	private readonly _onUnhandledEvent = this._register(new Emitter<SessionEvent>());
+	readonly onUnhandledEvent = this._onUnhandledEvent.event;
+	private readonly _onModelCallFinished = this._register(new Emitter<ICopilotModelCallFinishedEvent>());
+	readonly onModelCallFinished = this._onModelCallFinished.event;
+	private readonly _shutdown = new DeferredPromise<void>();
+	private _disconnectPromise: Promise<void> | undefined;
+	private _disconnectRpcState: 'notStarted' | 'pending' | 'completed' | 'failed' = 'notStarted';
+	private readonly _instanceId = generateUuid();
+	private readonly _lifetime = new StopWatch();
+	private _beforeDisconnect: (() => Promise<void>) | undefined;
+
+	constructor(
+		readonly session: CopilotSession,
+		@ILogService private readonly _logService: ILogService,
+	) {
 		super();
+		this._logService.info(this._lifecycleLogMessage('attached'));
+		const unsubscribeAll = session.on(event => {
+			if (event.type === 'session.shutdown') {
+				void this._shutdown.complete();
+				this._logService.info(this._lifecycleLogMessage(`shutdown received (${event.data.shutdownType})`));
+			}
+			const modelCallFinished = parseModelCallFinishedEvent(event);
+			if (modelCallFinished) {
+				this._onModelCallFinished.fire(modelCallFinished);
+			} else if (!this._handledEventTypes.has(event.type)) {
+				this._onUnhandledEvent.fire(event);
+			}
+		});
+		this._register(toDisposable(unsubscribeAll));
 		this._register(toDisposable(() => {
-			session.destroy().catch(() => { /* best-effort */ });
+			void this.disconnect().catch(() => { /* best-effort */ });
 		}));
 	}
 
 	get sessionId(): string { return this.session.sessionId; }
+	get lifecycleState(): AgentTurnProviderSessionState {
+		return this._shutdown.isSettled
+			? 'shutdown'
+			: this._disconnectRpcState === 'completed'
+				? 'disconnected'
+				: this._disconnectPromise
+					? 'disconnecting'
+					: 'active';
+	}
+
+	/** Sets bounded, best-effort cleanup to run once before disconnecting the SDK session. */
+	setBeforeDisconnect(beforeDisconnect: () => Promise<void>): void {
+		this._beforeDisconnect = beforeDisconnect;
+	}
+
+	/** Runs pre-disconnect cleanup, then waits for the disconnect response or SDK shutdown. */
+	disconnect(): Promise<void> {
+		if (this._shutdown.isSettled) {
+			this._logService.info(this._lifecycleLogMessage('disconnect skipped after shutdown'));
+			return this._shutdown.p;
+		}
+		if (!this._disconnectPromise) {
+			const disconnectPromise = this._disconnect()
+				.catch(error => {
+					this._disconnectRpcState = 'failed';
+					this._logService.warn(this._lifecycleLogMessage('disconnect RPC failed'), error);
+					if (!this._shutdown.isSettled) {
+						if (this._disconnectPromise === disconnectPromise) {
+							this._disconnectPromise = undefined;
+						}
+						throw error;
+					}
+				});
+			this._disconnectPromise = disconnectPromise;
+		}
+		const result = Promise.race([this._disconnectPromise, this._shutdown.p]);
+		// Observe settlement without delaying the promise returned to the caller.
+		void result.then(
+			() => this._logService.info(this._lifecycleLogMessage('disconnect wait completed')),
+			() => this._logService.info(this._lifecycleLogMessage('disconnect wait failed')),
+		);
+		return result;
+	}
+
+	private _lifecycleLogMessage(event: string): string {
+		return `[Copilot:${this.sessionId}] SDK session ${event}: instanceId=${this._instanceId}, disconnectRpc=${this._disconnectRpcState}, shutdownReceived=${this._shutdown.isSettled}, disposed=${this._store.isDisposed}, lifetimeMs=${Math.round(this._lifetime.elapsed())}`;
+	}
+
+	private async _disconnect(): Promise<void> {
+		const beforeDisconnect = this._beforeDisconnect;
+		this._beforeDisconnect = undefined;
+		if (beforeDisconnect) {
+			await beforeDisconnect();
+		}
+		if (!this._shutdown.isSettled) {
+			this._disconnectRpcState = 'pending';
+			this._logService.info(this._lifecycleLogMessage('disconnect RPC started'));
+			await this.session.disconnect();
+			this._disconnectRpcState = 'completed';
+			this._logService.info(this._lifecycleLogMessage('disconnect RPC completed'));
+		}
+	}
 
 	private _onMessageDelta: Event<SessionEventPayload<'assistant.message_delta'>> | undefined;
 	get onMessageDelta(): Event<SessionEventPayload<'assistant.message_delta'>> {
@@ -33,6 +144,11 @@ export class CopilotSessionWrapper extends Disposable {
 		return this._onMessage ??= this._sdkEvent('assistant.message');
 	}
 
+	private _onToolCallDelta: Event<SessionEventPayload<'assistant.tool_call_delta'>> | undefined;
+	get onToolCallDelta(): Event<SessionEventPayload<'assistant.tool_call_delta'>> {
+		return this._onToolCallDelta ??= this._sdkEvent('assistant.tool_call_delta');
+	}
+
 	private _onToolStart: Event<SessionEventPayload<'tool.execution_start'>> | undefined;
 	get onToolStart(): Event<SessionEventPayload<'tool.execution_start'>> {
 		return this._onToolStart ??= this._sdkEvent('tool.execution_start');
@@ -41,6 +157,21 @@ export class CopilotSessionWrapper extends Disposable {
 	private _onToolComplete: Event<SessionEventPayload<'tool.execution_complete'>> | undefined;
 	get onToolComplete(): Event<SessionEventPayload<'tool.execution_complete'>> {
 		return this._onToolComplete ??= this._sdkEvent('tool.execution_complete');
+	}
+
+	private _onPermissionRequested: Event<SessionEventPayload<'permission.requested'>> | undefined;
+	get onPermissionRequested(): Event<SessionEventPayload<'permission.requested'>> {
+		return this._onPermissionRequested ??= this._sdkEvent('permission.requested');
+	}
+
+	private _onPermissionCompleted: Event<SessionEventPayload<'permission.completed'>> | undefined;
+	get onPermissionCompleted(): Event<SessionEventPayload<'permission.completed'>> {
+		return this._onPermissionCompleted ??= this._sdkEvent('permission.completed');
+	}
+
+	private _onSamplingRequested: Event<SessionEventPayload<'sampling.requested'>> | undefined;
+	get onSamplingRequested(): Event<SessionEventPayload<'sampling.requested'>> {
+		return this._onSamplingRequested ??= this._sdkEvent('sampling.requested');
 	}
 
 	private _onIdle: Event<SessionEventPayload<'session.idle'>> | undefined;
@@ -68,9 +199,29 @@ export class CopilotSessionWrapper extends Disposable {
 		return this._onSessionInfo ??= this._sdkEvent('session.info');
 	}
 
+	private _onSessionWarning: Event<SessionEventPayload<'session.warning'>> | undefined;
+	get onSessionWarning(): Event<SessionEventPayload<'session.warning'>> {
+		return this._onSessionWarning ??= this._sdkEvent('session.warning');
+	}
+
 	private _onSessionModelChange: Event<SessionEventPayload<'session.model_change'>> | undefined;
 	get onSessionModelChange(): Event<SessionEventPayload<'session.model_change'>> {
 		return this._onSessionModelChange ??= this._sdkEvent('session.model_change');
+	}
+
+	private _onAutoModeResolved: Event<SessionEventPayload<'session.auto_mode_resolved'>> | undefined;
+	get onAutoModeResolved(): Event<SessionEventPayload<'session.auto_mode_resolved'>> {
+		return this._onAutoModeResolved ??= this._sdkEvent('session.auto_mode_resolved');
+	}
+
+	private _onManagedSettingsResolved: Event<SessionEventPayload<'session.managed_settings_resolved'>> | undefined;
+	get onManagedSettingsResolved(): Event<SessionEventPayload<'session.managed_settings_resolved'>> {
+		return this._onManagedSettingsResolved ??= this._sdkEvent('session.managed_settings_resolved');
+	}
+
+	private _onManagedSettingsEnforced: Event<SessionEventPayload<'session.managed_settings_enforced'>> | undefined;
+	get onManagedSettingsEnforced(): Event<SessionEventPayload<'session.managed_settings_enforced'>> {
+		return this._onManagedSettingsEnforced ??= this._sdkEvent('session.managed_settings_enforced');
 	}
 
 	private _onSessionHandoff: Event<SessionEventPayload<'session.handoff'>> | undefined;
@@ -148,6 +299,11 @@ export class CopilotSessionWrapper extends Disposable {
 		return this._onUsage ??= this._sdkEvent('assistant.usage');
 	}
 
+	private _onModelCallFailure: Event<SessionEventPayload<'model.call_failure'>> | undefined;
+	get onModelCallFailure(): Event<SessionEventPayload<'model.call_failure'>> {
+		return this._onModelCallFailure ??= this._sdkEvent('model.call_failure');
+	}
+
 	private _onAbort: Event<SessionEventPayload<'abort'>> | undefined;
 	get onAbort(): Event<SessionEventPayload<'abort'>> {
 		return this._onAbort ??= this._sdkEvent('abort');
@@ -176,6 +332,11 @@ export class CopilotSessionWrapper extends Disposable {
 	private _onSubagentStarted: Event<SessionEventPayload<'subagent.started'>> | undefined;
 	get onSubagentStarted(): Event<SessionEventPayload<'subagent.started'>> {
 		return this._onSubagentStarted ??= this._sdkEvent('subagent.started');
+	}
+
+	private _onSubagentConfigured: Event<SessionEventPayload<'subagent.configured'>> | undefined;
+	get onSubagentConfigured(): Event<SessionEventPayload<'subagent.configured'>> {
+		return this._onSubagentConfigured ??= this._sdkEvent('subagent.configured');
 	}
 
 	private _onSubagentCompleted: Event<SessionEventPayload<'subagent.completed'>> | undefined;
@@ -208,10 +369,90 @@ export class CopilotSessionWrapper extends Disposable {
 		return this._onSystemMessage ??= this._sdkEvent('system.message');
 	}
 
+	private _onSystemNotification: Event<SessionEventPayload<'system.notification'>> | undefined;
+	get onSystemNotification(): Event<SessionEventPayload<'system.notification'>> {
+		return this._onSystemNotification ??= this._sdkEvent('system.notification');
+	}
+
+	private _onSessionModeChanged: Event<SessionEventPayload<'session.mode_changed'>> | undefined;
+	get onSessionModeChanged(): Event<SessionEventPayload<'session.mode_changed'>> {
+		return this._onSessionModeChanged ??= this._sdkEvent('session.mode_changed');
+	}
+
+	private _onMcpServersLoaded: Event<SessionEventPayload<'session.mcp_servers_loaded'>> | undefined;
+	get onMcpServersLoaded(): Event<SessionEventPayload<'session.mcp_servers_loaded'>> {
+		return this._onMcpServersLoaded ??= this._sdkEvent('session.mcp_servers_loaded');
+	}
+
+	private _onMcpServerStatusChanged: Event<SessionEventPayload<'session.mcp_server_status_changed'>> | undefined;
+	get onMcpServerStatusChanged(): Event<SessionEventPayload<'session.mcp_server_status_changed'>> {
+		return this._onMcpServerStatusChanged ??= this._sdkEvent('session.mcp_server_status_changed');
+	}
+
+	private _onToolsUpdated: Event<SessionEventPayload<'session.tools_updated'>> | undefined;
+	get onToolsUpdated(): Event<SessionEventPayload<'session.tools_updated'>> {
+		return this._onToolsUpdated ??= this._sdkEvent('session.tools_updated');
+	}
+
+	private _onBackgroundTasksChanged: Event<SessionEventPayload<'session.background_tasks_changed'>> | undefined;
+	get onBackgroundTasksChanged(): Event<SessionEventPayload<'session.background_tasks_changed'>> {
+		return this._onBackgroundTasksChanged ??= this._sdkEvent('session.background_tasks_changed');
+	}
+
+	private _onCommandsChanged: Event<SessionEventPayload<'commands.changed'>> | undefined;
+	get onCommandsChanged(): Event<SessionEventPayload<'commands.changed'>> {
+		return this._onCommandsChanged ??= this._sdkEvent('commands.changed');
+	}
+
 	private _sdkEvent<K extends SessionEventType>(eventType: K): Event<SessionEventPayload<K>> {
-		const emitter = this._register(new Emitter<SessionEventPayload<K>>());
+		const emitter = this._register(new Emitter<SessionEventPayload<K>>({
+			onDidAddFirstListener: () => this._handledEventTypes.add(eventType),
+			onDidRemoveLastListener: () => this._handledEventTypes.delete(eventType),
+		}));
 		const unsubscribe = this.session.on(eventType, (data: SessionEventPayload<K>) => emitter.fire(data));
 		this._register(toDisposable(unsubscribe));
 		return emitter.event;
 	}
+}
+
+function parseModelCallFinishedEvent(event: unknown): ICopilotModelCallFinishedEvent | undefined {
+	if (!isRecord(event) || event.type !== 'model.call_finished' || event.ephemeral !== true || typeof event.id !== 'string' || !isRecord(event.data)) {
+		return undefined;
+	}
+	const data = event.data;
+	if (
+		typeof data.turnId !== 'string'
+		|| (data.interactionId !== undefined && typeof data.interactionId !== 'string')
+		|| typeof data.dispatchDurationMs !== 'number'
+		|| !Number.isFinite(data.dispatchDurationMs)
+		|| data.dispatchDurationMs < 0
+		|| !isModelCallFinishedOutcome(data.outcome)
+		|| typeof data.editClassifierVersion !== 'number'
+		|| !Number.isInteger(data.editClassifierVersion)
+		|| data.editClassifierVersion < 1
+		|| (data.containsBuiltInFileEditRequest !== undefined && typeof data.containsBuiltInFileEditRequest !== 'boolean')
+		|| (event.agentId !== undefined && typeof event.agentId !== 'string')
+	) {
+		return undefined;
+	}
+	return {
+		id: event.id,
+		agentId: event.agentId,
+		data: {
+			turnId: data.turnId,
+			interactionId: data.interactionId,
+			dispatchDurationMs: data.dispatchDurationMs,
+			outcome: data.outcome,
+			containsBuiltInFileEditRequest: data.containsBuiltInFileEditRequest,
+			editClassifierVersion: data.editClassifierVersion,
+		},
+	};
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+	return typeof value === 'object' && value !== null;
+}
+
+function isModelCallFinishedOutcome(value: unknown): value is CopilotModelCallFinishedOutcome {
+	return value === 'success' || value === 'error' || value === 'cancelled' || value === 'rejected';
 }

@@ -16,7 +16,6 @@ import { createDecorator, IInstantiationService } from '../../../util/vs/platfor
 import { IAuthenticationService } from '../../authentication/common/authentication';
 import { FileChunkAndScore } from '../../chunking/common/chunk';
 import { stripChunkTextMetadata } from '../../chunking/common/chunkingStringUtils';
-import { ConfigKey, IConfigurationService } from '../../configuration/common/configurationService';
 import { EmbeddingType } from '../../embeddings/common/embeddingsComputer';
 import { IEnvService } from '../../env/common/envService';
 import { AdoRepoId } from '../../git/common/gitService';
@@ -26,7 +25,7 @@ import { measureExecTime } from '../../log/common/logExecTime';
 import { ILogService } from '../../log/common/logService';
 import { getRequest, postRequest } from '../../networking/common/networking';
 import { ITelemetryService } from '../../telemetry/common/telemetry';
-import { CodeSearchOptions, CodeSearchResult, RemoteCodeSearchError, RemoteCodeSearchIndexState, RemoteCodeSearchIndexStatus } from './remoteCodeSearch';
+import { CodeSearchOptions, RemoteCodeSearchError, RemoteCodeSearchIndexState, RemoteCodeSearchIndexStatus, SemanticCodeSearchResult } from './remoteCodeSearch';
 
 
 interface ResponseShape {
@@ -100,7 +99,7 @@ export interface IAdoCodeSearchService {
 		options: CodeSearchOptions,
 		telemetryInfo: TelemetryCorrelationId,
 		token: CancellationToken,
-	): Promise<CodeSearchResult>;
+	): Promise<SemanticCodeSearchResult>;
 }
 
 /**
@@ -117,7 +116,6 @@ export class AdoCodeSearchService extends Disposable implements IAdoCodeSearchSe
 
 	constructor(
 		@IAuthenticationService private readonly _authenticationService: IAuthenticationService,
-		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IEnvService private readonly _envService: IEnvService,
 		@ILogService private readonly _logService: ILogService,
 		@IIgnoreService private readonly _ignoreService: IIgnoreService,
@@ -251,7 +249,7 @@ export class AdoCodeSearchService extends Disposable implements IAdoCodeSearchSe
 		options: CodeSearchOptions,
 		telemetryInfo: TelemetryCorrelationId,
 		token: CancellationToken
-	): Promise<CodeSearchResult> {
+	): Promise<SemanticCodeSearchResult> {
 		const totalSw = new StopWatch();
 
 		const authToken = await this.getAdoAuthToken(auth.silent);
@@ -260,10 +258,7 @@ export class AdoCodeSearchService extends Disposable implements IAdoCodeSearchSe
 			throw new Error('No valid auth token');
 		}
 
-		let endpoint = this._configurationService.getConfig(ConfigKey.Advanced.WorkspacePrototypeAdoCodeSearchEndpointOverride);
-		if (!endpoint) {
-			endpoint = this.getAdoAlmSearchUrl(repo.adoRepoId);
-		}
+		const endpoint = this.getAdoAlmSearchUrl(repo.adoRepoId);
 		const additionalHeaders = {
 			Accept: 'application/json',
 			Authorization: `Basic ${authToken}`,

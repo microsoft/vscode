@@ -3,6 +3,8 @@
 exports[`defaultIntentRequestHandler > ChatResult metadata after multiple turns only has tool results from current turn 1`] = `
 {
   "codeBlocks": [],
+  "outputTokens": 0,
+  "promptTokens": 0,
   "resolvedModel": "",
   "toolCallResults": {
     "tool_call_id_0__vscode-0": LanguageModelToolResult {
@@ -24,10 +26,12 @@ exports[`defaultIntentRequestHandler > ChatResult metadata after multiple turns 
     ToolCallRound {
       "compaction": undefined,
       "id": "static-id",
+      "modelId": "gpt-4.1-2025-04-14",
+      "originApi": "chatCompletions",
       "phase": undefined,
-      "phaseModelId": undefined,
       "response": "response number 0",
       "statefulMarker": undefined,
+      "statefulMarkerSummarizedAtRoundId": undefined,
       "summary": undefined,
       "thinking": undefined,
       "timestamp": 0,
@@ -43,10 +47,12 @@ exports[`defaultIntentRequestHandler > ChatResult metadata after multiple turns 
     ToolCallRound {
       "compaction": undefined,
       "id": "static-id",
+      "modelId": "gpt-4.1-2025-04-14",
+      "originApi": "chatCompletions",
       "phase": undefined,
-      "phaseModelId": undefined,
       "response": "response number 1",
       "statefulMarker": undefined,
+      "statefulMarkerSummarizedAtRoundId": undefined,
       "summary": undefined,
       "thinking": undefined,
       "timestamp": 0,
@@ -62,10 +68,12 @@ exports[`defaultIntentRequestHandler > ChatResult metadata after multiple turns 
     ToolCallRound {
       "compaction": undefined,
       "id": "static-id",
+      "modelId": "gpt-4.1-2025-04-14",
+      "originApi": "chatCompletions",
       "phase": undefined,
-      "phaseModelId": undefined,
       "response": "response number 2",
       "statefulMarker": undefined,
+      "statefulMarkerSummarizedAtRoundId": undefined,
       "summary": undefined,
       "thinking": undefined,
       "timestamp": 0,
@@ -79,6 +87,8 @@ exports[`defaultIntentRequestHandler > ChatResult metadata after multiple turns 
 exports[`defaultIntentRequestHandler > ChatResult metadata after multiple turns only has tool results from current turn 2`] = `
 {
   "codeBlocks": [],
+  "outputTokens": 0,
+  "promptTokens": 0,
   "resolvedModel": "",
   "toolCallResults": {
     "tool_call_id_2__vscode-2": LanguageModelToolResult {
@@ -100,10 +110,12 @@ exports[`defaultIntentRequestHandler > ChatResult metadata after multiple turns 
     ToolCallRound {
       "compaction": undefined,
       "id": "static-id",
+      "modelId": "gpt-4.1-2025-04-14",
+      "originApi": "chatCompletions",
       "phase": undefined,
-      "phaseModelId": undefined,
       "response": "response number 3",
       "statefulMarker": undefined,
+      "statefulMarkerSummarizedAtRoundId": undefined,
       "summary": undefined,
       "thinking": undefined,
       "timestamp": 0,
@@ -119,10 +131,12 @@ exports[`defaultIntentRequestHandler > ChatResult metadata after multiple turns 
     ToolCallRound {
       "compaction": undefined,
       "id": "static-id",
+      "modelId": "gpt-4.1-2025-04-14",
+      "originApi": "chatCompletions",
       "phase": undefined,
-      "phaseModelId": undefined,
       "response": "response number 4",
       "statefulMarker": undefined,
+      "statefulMarkerSummarizedAtRoundId": undefined,
       "summary": undefined,
       "thinking": undefined,
       "timestamp": 0,
@@ -138,10 +152,12 @@ exports[`defaultIntentRequestHandler > ChatResult metadata after multiple turns 
     ToolCallRound {
       "compaction": undefined,
       "id": "static-id",
+      "modelId": "gpt-4.1-2025-04-14",
+      "originApi": "chatCompletions",
       "phase": undefined,
-      "phaseModelId": undefined,
       "response": "response number 5",
       "statefulMarker": undefined,
+      "statefulMarkerSummarizedAtRoundId": undefined,
       "summary": undefined,
       "thinking": undefined,
       "timestamp": 0,
@@ -184,6 +200,8 @@ exports[`defaultIntentRequestHandler > confirms on max tool call iterations, and
   "metadata": {
     "codeBlocks": [],
     "maxToolCallsExceeded": true,
+    "outputTokens": 0,
+    "promptTokens": 0,
     "resolvedModel": "",
     "toolCallResults": {
       "tool_call_id_0__vscode-0": LanguageModelToolResult {
@@ -219,10 +237,12 @@ exports[`defaultIntentRequestHandler > confirms on max tool call iterations, and
       ToolCallRound {
         "compaction": undefined,
         "id": "static-id",
+        "modelId": "gpt-4.1-2025-04-14",
+        "originApi": "chatCompletions",
         "phase": undefined,
-        "phaseModelId": undefined,
         "response": "response number 0",
         "statefulMarker": undefined,
+        "statefulMarkerSummarizedAtRoundId": undefined,
         "summary": undefined,
         "thinking": undefined,
         "timestamp": 0,
@@ -238,10 +258,12 @@ exports[`defaultIntentRequestHandler > confirms on max tool call iterations, and
       ToolCallRound {
         "compaction": undefined,
         "id": "static-id",
+        "modelId": "gpt-4.1-2025-04-14",
+        "originApi": "chatCompletions",
         "phase": undefined,
-        "phaseModelId": undefined,
         "response": "response number 1",
         "statefulMarker": undefined,
+        "statefulMarkerSummarizedAtRoundId": undefined,
         "summary": undefined,
         "thinking": undefined,
         "timestamp": 0,
@@ -257,10 +279,12 @@ exports[`defaultIntentRequestHandler > confirms on max tool call iterations, and
       ToolCallRound {
         "compaction": undefined,
         "id": "static-id",
+        "modelId": "gpt-4.1-2025-04-14",
+        "originApi": "chatCompletions",
         "phase": undefined,
-        "phaseModelId": undefined,
         "response": "response number 2",
         "statefulMarker": undefined,
+        "statefulMarkerSummarizedAtRoundId": undefined,
         "summary": undefined,
         "thinking": undefined,
         "timestamp": 0,
@@ -276,10 +300,12 @@ exports[`defaultIntentRequestHandler > confirms on max tool call iterations, and
       ToolCallRound {
         "compaction": undefined,
         "id": "static-id",
+        "modelId": "gpt-4.1-2025-04-14",
+        "originApi": "chatCompletions",
         "phase": undefined,
-        "phaseModelId": undefined,
         "response": "response number 3",
         "statefulMarker": undefined,
+        "statefulMarkerSummarizedAtRoundId": undefined,
         "summary": undefined,
         "thinking": undefined,
         "timestamp": 0,
@@ -302,6 +328,8 @@ exports[`defaultIntentRequestHandler > confirms on max tool call iterations, and
   "metadata": {
     "codeBlocks": [],
     "maxToolCallsExceeded": true,
+    "outputTokens": 0,
+    "promptTokens": 0,
     "resolvedModel": "",
     "toolCallResults": {
       "tool_call_id_4__vscode-4": LanguageModelToolResult {
@@ -337,10 +365,12 @@ exports[`defaultIntentRequestHandler > confirms on max tool call iterations, and
       ToolCallRound {
         "compaction": undefined,
         "id": "static-id",
+        "modelId": "gpt-4.1-2025-04-14",
+        "originApi": "chatCompletions",
         "phase": undefined,
-        "phaseModelId": undefined,
         "response": "response number 4",
         "statefulMarker": undefined,
+        "statefulMarkerSummarizedAtRoundId": undefined,
         "summary": undefined,
         "thinking": undefined,
         "timestamp": 0,
@@ -356,10 +386,12 @@ exports[`defaultIntentRequestHandler > confirms on max tool call iterations, and
       ToolCallRound {
         "compaction": undefined,
         "id": "static-id",
+        "modelId": "gpt-4.1-2025-04-14",
+        "originApi": "chatCompletions",
         "phase": undefined,
-        "phaseModelId": undefined,
         "response": "response number 5",
         "statefulMarker": undefined,
+        "statefulMarkerSummarizedAtRoundId": undefined,
         "summary": undefined,
         "thinking": undefined,
         "timestamp": 0,
@@ -375,10 +407,12 @@ exports[`defaultIntentRequestHandler > confirms on max tool call iterations, and
       ToolCallRound {
         "compaction": undefined,
         "id": "static-id",
+        "modelId": "gpt-4.1-2025-04-14",
+        "originApi": "chatCompletions",
         "phase": undefined,
-        "phaseModelId": undefined,
         "response": "response number 6",
         "statefulMarker": undefined,
+        "statefulMarkerSummarizedAtRoundId": undefined,
         "summary": undefined,
         "thinking": undefined,
         "timestamp": 0,
@@ -394,10 +428,12 @@ exports[`defaultIntentRequestHandler > confirms on max tool call iterations, and
       ToolCallRound {
         "compaction": undefined,
         "id": "static-id",
+        "modelId": "gpt-4.1-2025-04-14",
+        "originApi": "chatCompletions",
         "phase": undefined,
-        "phaseModelId": undefined,
         "response": "response number 7",
         "statefulMarker": undefined,
+        "statefulMarkerSummarizedAtRoundId": undefined,
         "summary": undefined,
         "thinking": undefined,
         "timestamp": 0,
@@ -2538,16 +2574,20 @@ exports[`defaultIntentRequestHandler > makes a successful request with a single 
 {
   "metadata": {
     "codeBlocks": [],
+    "outputTokens": 0,
+    "promptTokens": 0,
     "resolvedModel": "",
     "toolCallResults": undefined,
     "toolCallRounds": [
       ToolCallRound {
         "compaction": undefined,
         "id": "static-id",
+        "modelId": "gpt-4.1-2025-04-14",
+        "originApi": "chatCompletions",
         "phase": undefined,
-        "phaseModelId": undefined,
         "response": "some response here :)",
         "statefulMarker": undefined,
+        "statefulMarkerSummarizedAtRoundId": undefined,
         "summary": undefined,
         "thinking": undefined,
         "timestamp": 0,
@@ -2863,6 +2903,8 @@ exports[`defaultIntentRequestHandler > makes a tool call turn 1`] = `
 {
   "metadata": {
     "codeBlocks": [],
+    "outputTokens": 0,
+    "promptTokens": 0,
     "resolvedModel": "",
     "toolCallResults": {
       "tool_call_id__vscode-0": LanguageModelToolResult {
@@ -2877,10 +2919,12 @@ exports[`defaultIntentRequestHandler > makes a tool call turn 1`] = `
       ToolCallRound {
         "compaction": undefined,
         "id": "static-id",
+        "modelId": "gpt-4.1-2025-04-14",
+        "originApi": "chatCompletions",
         "phase": undefined,
-        "phaseModelId": undefined,
         "response": "some response here :)",
         "statefulMarker": undefined,
+        "statefulMarkerSummarizedAtRoundId": undefined,
         "summary": undefined,
         "thinking": undefined,
         "timestamp": 0,
@@ -2896,10 +2940,12 @@ exports[`defaultIntentRequestHandler > makes a tool call turn 1`] = `
       ToolCallRound {
         "compaction": undefined,
         "id": "static-id",
+        "modelId": "gpt-4.1-2025-04-14",
+        "originApi": "chatCompletions",
         "phase": undefined,
-        "phaseModelId": undefined,
         "response": "response to tool call",
         "statefulMarker": undefined,
+        "statefulMarkerSummarizedAtRoundId": undefined,
         "summary": undefined,
         "thinking": undefined,
         "timestamp": 0,

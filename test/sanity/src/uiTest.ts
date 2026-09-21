@@ -51,13 +51,11 @@ export class UITest {
 	/**
 	 * Run the UI test actions.
 	 */
-	public async run(page: Page, skipWelcome = false) {
+	public async run(page: Page) {
 		try {
-			if (!skipWelcome) {
-				await this.dismissWelcomeDialog(page);
-			}
-			await this.dismissWorkspaceTrustDialog(page);
+			await this.dismissWelcomeDialog(page);
 			await this.createTextFile(page);
+			await this.searchInWorkspace(page);
 			await this.installExtension(page);
 		} catch (error) {
 			await this.context.captureScreenshot(page);
@@ -74,23 +72,19 @@ export class UITest {
 	}
 
 	/**
-	 * Dismiss the welcome sign-in dialog.
+	 * Dismiss the welcome sign-in dialog if it is shown.
 	 */
 	public async dismissWelcomeDialog(page: Page) {
-		this.context.log('Dismissing welcome dialog');
-		const skipButton = page.getByRole('button', { name: 'Skip' });
-		await skipButton.waitFor({ state: 'visible' });
-		await skipButton.click();
-		await skipButton.waitFor({ state: 'hidden' });
-	}
-
-	/**
-	 * Dismiss the workspace trust dialog.
-	 */
-	private async dismissWorkspaceTrustDialog(page: Page) {
-		this.context.log('Dismissing workspace trust dialog');
-		await page.getByText('Yes, I trust the authors').click();
-		await page.waitForTimeout(500);
+		this.context.log('Dismissing welcome dialog (if shown)');
+		const closeButton = page.locator('button.onboarding-a-close-btn');
+		try {
+			await closeButton.waitFor({ state: 'visible', timeout: 8_000 });
+		} catch {
+			this.context.log('Welcome dialog not shown, continuing');
+			return;
+		}
+		await closeButton.click();
+		await closeButton.waitFor({ state: 'hidden' });
 	}
 
 	/**
@@ -139,6 +133,39 @@ export class UITest {
 	}
 
 	/**
+	 * Run a workspace search (Search: Find in Files) and verify ripgrep returns
+	 * the expected match from the file created in {@link createTextFile}.
+	 */
+	private async searchInWorkspace(page: Page) {
+		await this.runCommand(page, 'Search: Find in Files');
+
+		this.context.log('Typing search query');
+		const searchInput = page.locator('.search-view .search-widget .search-container textarea').first();
+		await searchInput.waitFor({ state: 'visible' });
+		await searchInput.fill('Hello, World!');
+		await page.keyboard.press('Enter');
+
+		this.context.log('Waiting for search result text');
+		const resultMessage = page.locator('.search-view .messages .message').first();
+		await resultMessage.waitFor({ state: 'visible' });
+		await page.waitForFunction(() => {
+			const el = document.querySelector('.search-view .messages .message');
+			return el && /\d+\s+result/.test(el.textContent ?? '');
+		}, undefined, { timeout: 30_000 });
+
+		const resultText = (await resultMessage.innerText()).trim();
+		this.context.log(`Search result text: ${resultText}`);
+
+		await this.context.captureScreenshot(page);
+
+		assert.match(
+			resultText,
+			/1 result in 1 file/,
+			`Expected exactly 1 search result for "Hello, World!", but got: ${resultText}`,
+		);
+	}
+
+	/**
 	 * Install GitHub Pull Requests extension from the Extensions view.
 	 */
 	private async installExtension(page: Page) {
@@ -149,7 +176,8 @@ export class UITest {
 		await page.keyboard.type('GitHub Pull Requests', { delay: 50 });
 
 		this.context.log('Waiting for extension to appear in search results');
-		const extensionItem = page.locator('.extension-list-item').getByText(/^GitHub Pull Requests$/);
+		const extensionListItem = page.locator('.extension-list-item').filter({ has: page.getByText(/^GitHub Pull Requests$/) }).first();
+		const extensionItem = extensionListItem.getByText(/^GitHub Pull Requests$/);
 		const messageContainer = page.locator('.extensions-viewlet .message-container:not(.hidden)').first();
 
 		for (let attempt = 0; attempt < 5; attempt++) {
@@ -170,26 +198,49 @@ export class UITest {
 
 		await extensionItem.waitFor();
 
+		// Leave time for cleanup before Mocha's 10-minute timeout, which does not cancel async work.
+		let lastFailure: string | undefined;
 		for (let attempt = 0; attempt < 3; attempt++) {
 			try {
-				this.context.log(`Clicking Install on the first extension in the list (attempt ${attempt + 1}/3)`);
-				const installButton = page.locator('.extension-action:not(.disabled)', { hasText: /Install/ }).first();
-				await installButton.click();
+				this.context.log(`Clicking Install for GitHub Pull Requests (attempt ${attempt + 1}/3)`);
+				const installButton = extensionListItem.locator('.extension-action.install:not(.disabled):not(.hide)').first();
+				await installButton.click({ timeout: 30_000 });
+				await installButton.waitFor({ state: 'hidden', timeout: 30_000 });
 
 				this.context.log('Waiting for extension to be installed');
 				const uninstallButton = page.getByRole('button', { name: 'Uninstall' }).first();
-				const installed = await uninstallButton.waitFor({ timeout: 5 * 60_000 }).then(() => true, () => false);
-				if (installed) {
+				const result = await Promise.race([
+					uninstallButton.waitFor({ timeout: 60_000 }).then(() => 'installed' as const),
+					installButton.waitFor({ state: 'visible', timeout: 60_000 }).then(() => 'retry' as const),
+					messageContainer.waitFor({ state: 'visible', timeout: 60_000 }).then(() => 'message' as const),
+				]);
+				if (result === 'installed') {
 					return;
 				}
+				lastFailure = result === 'retry'
+					? 'Install button became available again before installation completed'
+					: 'Marketplace error appeared before installation completed';
 			} catch (error) {
-				this.context.log(`Extension install attempt ${attempt + 1}/3 failed: ${error instanceof Error ? error.message : String(error)}`);
+				lastFailure = error instanceof Error ? error.message : String(error);
 			}
 
-			this.context.log('Extension install may have failed, retrying');
+			this.context.log(`Extension install attempt ${attempt + 1}/3 failed: ${lastFailure}`);
+
+			const messageVisible = await messageContainer.isVisible().catch(() => false);
+			if (messageVisible) {
+				const message = await messageContainer.locator('.message').innerText().catch(() => '<unavailable>');
+				this.context.log(`Marketplace message visible during failed install: ${message}`);
+			}
+
+			await this.context.captureScreenshot(page);
+
+			if (attempt < 2) {
+				this.context.log('Waiting 5s before retrying install');
+				await page.waitForTimeout(5_000);
+			}
 		}
 
-		throw new Error('Failed to install extension after 3 attempts');
+		throw new Error(`Failed to install extension after 3 attempts; last failure: ${lastFailure ?? '<none captured>'}`);
 	}
 
 	/**

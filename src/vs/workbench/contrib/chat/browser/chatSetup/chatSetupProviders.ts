@@ -24,7 +24,7 @@ import { IWorkbenchEnvironmentService } from '../../../../services/environment/c
 import { nullExtensionDescription } from '../../../../services/extensions/common/extensions.js';
 import { CountTokensCallback, ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolResult, ToolDataSource, ToolProgress } from '../../common/tools/languageModelToolsService.js';
 import { IChatAgentImplementation, IChatAgentRequest, IChatAgentResult, IChatAgentService } from '../../common/participants/chatAgents.js';
-import { ChatEntitlement, ChatEntitlementContext, IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
+import { ChatEntitlementContext, chatRequiresSetup, IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 import { ChatModel, ChatRequestModel, IChatRequestModel, IChatRequestVariableData } from '../../common/model/chatModel.js';
 import { ChatMode } from '../../common/chatModes.js';
 import { ChatRequestAgentPart, ChatRequestToolPart } from '../../common/requestParser/chatParserTypes.js';
@@ -48,7 +48,7 @@ import { IPosition } from '../../../../../editor/common/core/position.js';
 import { IMarker, IMarkerService, MarkerSeverity } from '../../../../../platform/markers/common/markers.js';
 import { ChatSetupController } from './chatSetupController.js';
 import { ChatGlobalPerfMark, markChatGlobal } from '../../common/chatPerf.js';
-import { ChatSetupAnonymous, ChatSetupStep, IChatSetupResult, maybeEnableAuthExtension, refreshTokens } from './chatSetup.js';
+import { ChatSetupAnonymous, ChatSetupSource, ChatSetupStep, IChatSetupResult, maybeEnableAuthExtension, refreshTokens } from './chatSetup.js';
 import { ChatSetup } from './chatSetupRunner.js';
 import { chatViewsWelcomeRegistry } from '../viewsWelcome/chatViewsWelcome.js';
 import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
@@ -60,7 +60,7 @@ import { IExtensionsWorkbenchService } from '../../../extensions/common/extensio
 const defaultChat = {
 	extensionId: product.defaultChatAgent?.extensionId ?? '',
 	chatExtensionId: product.defaultChatAgent?.chatExtensionId ?? '',
-	provider: product.defaultChatAgent?.provider ?? { default: { id: '', name: '' }, enterprise: { id: '', name: '' }, apple: { id: '', name: '' }, google: { id: '', name: '' } },
+	provider: product.defaultChatAgent?.provider ?? { default: { id: '', name: '' }, enterprise: { id: '', name: '' }, apple: { id: '', name: '' }, google: { id: '', name: '' }, microsoft: { id: '', name: '' } },
 	outputChannelId: product.defaultChatAgent?.chatExtensionOutputId ?? '',
 	outputExtensionStateCommand: product.defaultChatAgent?.chatExtensionOutputExtensionStateCommand ?? '',
 };
@@ -256,16 +256,14 @@ export class SetupAgent extends Disposable implements IChatAgentImplementation {
 	}
 
 	private async doInvoke(request: IChatAgentRequest, progress: (part: IChatProgress) => void, chatService: IChatService, languageModelsService: ILanguageModelsService, chatWidgetService: IChatWidgetService, chatAgentService: IChatAgentService, languageModelToolsService: ILanguageModelToolsService, defaultAccountService: IDefaultAccountService): Promise<IChatAgentResult> {
-		if (
-			!this.context.state.completed ||									// Setup not completed
-			this.context.state.disabled ||										// Extension disabled: run setup to enable
-			this.context.state.untrusted ||										// Workspace untrusted: run setup to ask for trust
-			this.context.state.entitlement === ChatEntitlement.Available ||		// Entitlement available: run setup to sign up
-			(
-				this.context.state.entitlement === ChatEntitlement.Unknown &&	// Entitlement unknown: run setup to sign in / sign up
-				!this.chatEntitlementService.anonymous							// unless anonymous access is enabled
-			)
-		) {
+		if (chatRequiresSetup({
+			completed: !!this.context.state.completed,
+			disabled: !!this.context.state.disabled,
+			untrusted: !!this.context.state.untrusted,
+			entitlement: this.context.state.entitlement,
+			anonymous: this.chatEntitlementService.anonymous,
+			hasByokModels: this.chatEntitlementService.hasByokModels,
+		})) {
 			return this.doInvokeWithSetup(request, progress, chatService, languageModelsService, chatWidgetService, chatAgentService, languageModelToolsService, defaultAccountService);
 		}
 
@@ -536,7 +534,7 @@ export class SetupAgent extends Disposable implements IChatAgentImplementation {
 		await chatService.resendRequest(requestModel, {
 			...widget?.getModeRequestOptions(),
 			modeInfo,
-			userSelectedModelId: widget?.input.currentLanguageModel
+			...widget?.getSelectedModelRequestOptions()
 		});
 	}
 
@@ -706,6 +704,7 @@ export class SetupAgent extends Disposable implements IChatAgentImplementation {
 		let result: IChatSetupResult | undefined = undefined;
 		try {
 			result = await ChatSetup.getInstance(this.instantiationService, this.context, this.controller).run({
+				telemetrySource: ChatSetupSource.Chat,
 				disableChatViewReveal: true, 																				// we are already in a chat context
 				forceAnonymous: this.chatEntitlementService.anonymous ? ChatSetupAnonymous.EnabledWithoutDialog : undefined	// only enable anonymous selectively
 			});
@@ -883,6 +882,7 @@ export class AINewSymbolNamesProvider {
 	async provideNewSymbolNames(model: ITextModel, range: IRange, triggerKind: NewSymbolNameTriggerKind, token: CancellationToken): Promise<NewSymbolName[] | undefined> {
 		await this.instantiationService.invokeFunction(accessor => {
 			return ChatSetup.getInstance(this.instantiationService, this.context, this.controller).run({
+				telemetrySource: ChatSetupSource.InlineRename,
 				forceAnonymous: this.chatEntitlementService.anonymous ? ChatSetupAnonymous.EnabledWithDialog : undefined
 			});
 		});

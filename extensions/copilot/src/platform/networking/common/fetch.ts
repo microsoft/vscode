@@ -14,10 +14,38 @@ import { ChoiceLogProbs, FilterReason, openAIContextManagementCompactionType, Op
 export interface RequestId {
 	headerRequestId: string;
 	gitHubRequestId: string;
+	/**
+	 * CAPI's `X-Copilot-Service-Request-Id`. Copilot API side request identifier, used to correlate
+	 * client telemetry with CAPI service records.
+	 */
+	copilotServiceRequestId: string;
 	completionId: string;
 	created: number;
 	serverExperiments: string;
 	deploymentId: string;
+}
+
+export const COPILOT_SERVICE_REQUEST_ID_HEADER = 'x-copilot-service-request-id';
+
+/**
+ * Reads a header without relying on the casing used by the underlying fetcher.
+ * `name` must be lowercase.
+ */
+export function getHeaderIgnoreCase(headers: IHeaders, name: string): string | undefined {
+	const direct = headers.get(name);
+	if (direct) {
+		return direct;
+	}
+	for (const [key, value] of headers) {
+		if (key.toLowerCase() === name) {
+			return value || undefined;
+		}
+	}
+	return undefined;
+}
+
+export function getCopilotServiceRequestId(headers: IHeaders): string {
+	return getHeaderIgnoreCase(headers, COPILOT_SERVICE_REQUEST_ID_HEADER) || '';
 }
 
 export function getRequestId(headers: IHeaders, json?: any): RequestId {
@@ -26,6 +54,7 @@ export function getRequestId(headers: IHeaders, json?: any): RequestId {
 	return {
 		headerRequestId: headers.get('x-request-id') || '',
 		gitHubRequestId: headers.get('x-github-request-id') || '',
+		copilotServiceRequestId: getCopilotServiceRequestId(headers),
 		completionId: json && json.id ? json.id : '',
 		created: json && json.created ? json.created : 0,
 		serverExperiments: serverExperiments && capiExpAssignmentContext
@@ -288,7 +317,17 @@ export interface OpenAiResponsesFunctionTool extends OpenAiFunctionDef {
 	type: 'function';
 }
 
-export function isOpenAiFunctionTool(tool: OpenAiResponsesFunctionTool | OpenAiFunctionTool | AnthropicMessagesTool): tool is OpenAiFunctionTool {
+/** OpenAI Responses API client-executed tool_search tool declaration. See https://developers.openai.com/api/docs/guides/tools-tool-search */
+export interface OpenAiToolSearchTool {
+	type: 'tool_search';
+	execution: 'client';
+	/** Description for client-executed tool search. */
+	description?: string;
+	/** Parameters schema for client-executed tool search. */
+	parameters?: Record<string, unknown>;
+}
+
+export function isOpenAiFunctionTool(tool: OpenAiResponsesFunctionTool | OpenAiFunctionTool | AnthropicMessagesTool | OpenAiToolSearchTool): tool is OpenAiFunctionTool {
 	return (tool as OpenAiFunctionTool).function !== undefined;
 }
 
@@ -304,17 +343,14 @@ export type StreamOptions = {
 	 * All other chunks will also include a usage field, but with a null value. NOTE: If the stream is interrupted, you may not receive the final usage chunk which contains the total token usage for the request.
 	 */
 	include_usage?: boolean;
-}
+};
 
 export type Prediction = {
 	type: 'content';
 	content: string | { type: string; text: string }[];
-}
+};
 
-/** based on https://platform.openai.com/docs/api-reference/chat/create
- *
- * 'stream' param is not respected because we don't yet support non-streamed responses
- */
+/** based on https://platform.openai.com/docs/api-reference/chat/create */
 export interface OptionalChatRequestParams {
 
 	/** Non-negative temperature sampling parameter (default 1). */

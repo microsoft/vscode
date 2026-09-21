@@ -21,6 +21,11 @@ export interface ISessionsProvidersService {
 
 	readonly onDidChangeProviders: Event<ISessionsProvidersChangeEvent>;
 	registerProvider(provider: ISessionsProvider): IDisposable;
+	/**
+	 * Returns all registered providers sorted by each provider's
+	 * {@link ISessionsProvider.order} (lower first). The sort is stable, so
+	 * providers with equal order keep their registration order.
+	 */
 	getProviders(): ISessionsProvider[];
 	getProvider<T extends ISessionsProvider>(providerId: string): T | undefined;
 }
@@ -50,8 +55,13 @@ class SessionsProvidersService extends Disposable implements ISessionsProvidersS
 		});
 	}
 
+	/**
+	 * Returns all registered providers sorted by each provider's
+	 * {@link ISessionsProvider.order} (lower first). The sort is stable, so
+	 * providers with equal order keep their registration order.
+	 */
 	getProviders(): ISessionsProvider[] {
-		return Array.from(this._providers.values());
+		return Array.from(this._providers.values()).sort((a, b) => a.order - b.order);
 	}
 
 	getProvider<T extends ISessionsProvider>(providerId: string): T | undefined {

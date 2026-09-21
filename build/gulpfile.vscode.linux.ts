@@ -3,14 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import gulp from 'gulp';
-import replace from 'gulp-replace';
-import rename from 'gulp-rename';
+import { gulp, replace, rename } from './lib/gulp/facade.ts';
 import es from 'event-stream';
 import vfs from 'vinyl-fs';
 import { rimraf } from './lib/util.ts';
 import { getVersion } from './lib/getVersion.ts';
-import * as task from './lib/task.ts';
+import * as task from './lib/gulp/task.ts';
 import packageJson from '../package.json' with { type: 'json' };
 import product from '../product.json' with { type: 'json' };
 import { getDependencies } from './linux/dependencies-generator.ts';
@@ -23,6 +21,7 @@ import { promisify } from 'util';
 const exec = promisify(cp.exec);
 const root = path.dirname(import.meta.dirname);
 const commit = getVersion(root);
+const linuxDesktopName = product.linuxDesktopName;
 
 const linuxPackageRevision = Math.floor(new Date().getTime() / 1000);
 
@@ -44,14 +43,15 @@ function prepareDebPackage(arch: string) {
 		const dependencies = await getDependencies('deb', binaryDir, product.applicationName, debArch);
 
 		const desktop = gulp.src('resources/linux/code.desktop', { base: '.' })
-			.pipe(rename('usr/share/applications/' + product.applicationName + '.desktop'));
+			.pipe(rename(`usr/share/applications/${linuxDesktopName}.desktop`));
 
 		const desktopUrlHandler = gulp.src('resources/linux/code-url-handler.desktop', { base: '.' })
-			.pipe(rename('usr/share/applications/' + product.applicationName + '-url-handler.desktop'));
+			.pipe(rename(`usr/share/applications/${linuxDesktopName}.UrlHandler.desktop`));
 
 		const desktops = es.merge(desktop, desktopUrlHandler)
 			.pipe(replace('@@NAME_LONG@@', product.nameLong))
 			.pipe(replace('@@NAME_SHORT@@', product.nameShort))
+			.pipe(replace('@@DESKTOP_NAME@@', linuxDesktopName))
 			.pipe(replace('@@NAME@@', product.applicationName))
 			.pipe(replace('@@EXEC@@', `/usr/share/${product.applicationName}/${product.applicationName}`))
 			.pipe(replace('@@ICON@@', product.linuxIconName))
@@ -59,9 +59,9 @@ function prepareDebPackage(arch: string) {
 
 		const appdata = gulp.src('resources/linux/code.appdata.xml', { base: '.' })
 			.pipe(replace('@@NAME_LONG@@', product.nameLong))
-			.pipe(replace('@@NAME@@', product.applicationName))
+			.pipe(replace('@@NAME@@', linuxDesktopName))
 			.pipe(replace('@@LICENSE@@', product.licenseName))
-			.pipe(rename('usr/share/appdata/' + product.applicationName + '.appdata.xml'));
+			.pipe(rename(`usr/share/appdata/${linuxDesktopName}.appdata.xml`));
 
 		const workspaceMime = gulp.src('resources/linux/code-workspace.xml', { base: '.' })
 			.pipe(replace('@@NAME_LONG@@', product.nameLong))
@@ -154,14 +154,15 @@ function prepareRpmPackage(arch: string) {
 		const dependencies = await getDependencies('rpm', binaryDir, product.applicationName, rpmArch);
 
 		const desktop = gulp.src('resources/linux/code.desktop', { base: '.' })
-			.pipe(rename('BUILD/usr/share/applications/' + product.applicationName + '.desktop'));
+			.pipe(rename(`BUILD/usr/share/applications/${linuxDesktopName}.desktop`));
 
 		const desktopUrlHandler = gulp.src('resources/linux/code-url-handler.desktop', { base: '.' })
-			.pipe(rename('BUILD/usr/share/applications/' + product.applicationName + '-url-handler.desktop'));
+			.pipe(rename(`BUILD/usr/share/applications/${linuxDesktopName}.UrlHandler.desktop`));
 
 		const desktops = es.merge(desktop, desktopUrlHandler)
 			.pipe(replace('@@NAME_LONG@@', product.nameLong))
 			.pipe(replace('@@NAME_SHORT@@', product.nameShort))
+			.pipe(replace('@@DESKTOP_NAME@@', linuxDesktopName))
 			.pipe(replace('@@NAME@@', product.applicationName))
 			.pipe(replace('@@EXEC@@', `/usr/share/${product.applicationName}/${product.applicationName}`))
 			.pipe(replace('@@ICON@@', product.linuxIconName))
@@ -169,9 +170,9 @@ function prepareRpmPackage(arch: string) {
 
 		const appdata = gulp.src('resources/linux/code.appdata.xml', { base: '.' })
 			.pipe(replace('@@NAME_LONG@@', product.nameLong))
-			.pipe(replace('@@NAME@@', product.applicationName))
+			.pipe(replace('@@NAME@@', linuxDesktopName))
 			.pipe(replace('@@LICENSE@@', product.licenseName))
-			.pipe(rename('BUILD/usr/share/appdata/' + product.applicationName + '.appdata.xml'));
+			.pipe(rename(`BUILD/usr/share/appdata/${linuxDesktopName}.appdata.xml`));
 
 		const workspaceMime = gulp.src('resources/linux/code-workspace.xml', { base: '.' })
 			.pipe(replace('@@NAME_LONG@@', product.nameLong))
@@ -195,6 +196,7 @@ function prepareRpmPackage(arch: string) {
 		const spec = gulp.src('resources/linux/rpm/code.spec.template', { base: '.' })
 			.pipe(replace('@@NAME@@', product.applicationName))
 			.pipe(replace('@@NAME_LONG@@', product.nameLong))
+			.pipe(replace('@@DESKTOP_NAME@@', linuxDesktopName))
 			.pipe(replace('@@ICON@@', product.linuxIconName))
 			.pipe(replace('@@VERSION@@', packageJson.version))
 			.pipe(replace('@@RELEASE@@', linuxPackageRevision.toString()))
@@ -249,6 +251,7 @@ function prepareSnapPackage(arch: string) {
 		const desktops = es.merge(desktop, desktopUrlHandler)
 			.pipe(replace('@@NAME_LONG@@', product.nameLong))
 			.pipe(replace('@@NAME_SHORT@@', product.nameShort))
+			.pipe(replace('@@DESKTOP_NAME@@', `${product.applicationName}_${product.applicationName}`))
 			.pipe(replace('@@NAME@@', product.applicationName))
 			.pipe(replace('@@EXEC@@', `${product.applicationName} --force-user-env`))
 			.pipe(replace('@@ICON@@', `\${SNAP}/meta/gui/${product.linuxIconName}.png`))
@@ -291,18 +294,18 @@ const BUILD_TARGETS = [
 BUILD_TARGETS.forEach(({ arch }) => {
 	const debArch = getDebPackageArch(arch);
 	const prepareDebTask = task.define(`vscode-linux-${arch}-prepare-deb`, task.series(rimraf(`.build/linux/deb/${debArch}`), prepareDebPackage(arch)));
-	gulp.task(prepareDebTask);
+	task.task(prepareDebTask);
 	const buildDebTask = task.define(`vscode-linux-${arch}-build-deb`, buildDebPackage(arch));
-	gulp.task(buildDebTask);
+	task.task(buildDebTask);
 
 	const rpmArch = getRpmPackageArch(arch);
 	const prepareRpmTask = task.define(`vscode-linux-${arch}-prepare-rpm`, task.series(rimraf(`.build/linux/rpm/${rpmArch}`), prepareRpmPackage(arch)));
-	gulp.task(prepareRpmTask);
+	task.task(prepareRpmTask);
 	const buildRpmTask = task.define(`vscode-linux-${arch}-build-rpm`, buildRpmPackage(arch));
-	gulp.task(buildRpmTask);
+	task.task(buildRpmTask);
 
 	const prepareSnapTask = task.define(`vscode-linux-${arch}-prepare-snap`, task.series(rimraf(`.build/linux/snap/${arch}`), prepareSnapPackage(arch)));
-	gulp.task(prepareSnapTask);
+	task.task(prepareSnapTask);
 	const buildSnapTask = task.define(`vscode-linux-${arch}-build-snap`, task.series(prepareSnapTask, buildSnapPackage(arch)));
-	gulp.task(buildSnapTask);
+	task.task(buildSnapTask);
 });
