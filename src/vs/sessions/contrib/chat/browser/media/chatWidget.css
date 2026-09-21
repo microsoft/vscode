@@ -414,6 +414,7 @@
 
 .experimental-new-session-composer .sessions-workspace-category-picker {
 	justify-content: flex-start;
+	gap: var(--vscode-spacing-size40);
 }
 
 .experimental-new-session-composer .sessions-workspace-category-picker > .sessions-chat-session-type-picker {
@@ -520,6 +521,11 @@
 	width: var(--vscode-codiconFontSize-compact);
 	height: var(--vscode-codiconFontSize-compact);
 	line-height: var(--vscode-codiconFontSize-compact);
+}
+
+.experimental-new-session-composer .sessions-workspace-category-picker .new-chat-repo-config-container .action-label:not(.separator) {
+	padding-left: var(--vscode-spacing-size40);
+	padding-right: var(--vscode-spacing-size40);
 }
 
 .sessions-workspace-category-picker:empty {
