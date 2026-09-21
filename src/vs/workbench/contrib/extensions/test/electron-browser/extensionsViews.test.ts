@@ -224,7 +224,7 @@ suite('ExtensionsViews Tests', () => {
 		await (<TestExtensionEnablementService>instantiationService.get(IWorkbenchExtensionEnablementService)).setEnablement([localDisabledLanguage], EnablementState.DisabledGlobally);
 
 		instantiationService.stub(IUpdateService, { onStateChange: Event.None, state: State.Uninitialized });
-		instantiationService.stub(IMeteredConnectionService, { isConnectionMetered: false, onDidChangeIsConnectionMetered: Event.None });
+		instantiationService.stub(IMeteredConnectionService, { isConnectionMetered: false, whenInitialized: Promise.resolve(), onDidChangeIsConnectionMetered: Event.None });
 		instantiationService.set(IExtensionsWorkbenchService, disposableStore.add(instantiationService.createInstance(ExtensionsWorkbenchService)));
 		testableView = disposableStore.add(instantiationService.createInstance(ExtensionsListView, {}, { id: '', title: '' }));
 		queryPage = aPage([]);
