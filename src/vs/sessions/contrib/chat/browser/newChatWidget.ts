@@ -74,15 +74,26 @@ import { reviveChatDraft } from '../../../../workbench/contrib/chat/common/attac
 /** Minimum number of started sessions required before showing tips and promotions. */
 const MIN_SESSIONS_FOR_FIRST_RUN_NOTICES = 2;
 
-function getComparisonHasGitRemote(session: ISession | undefined, selectedWorkspace: ISessionWorkspace | undefined, selectedFolderUri: URI | undefined): boolean | undefined {
-	const selectedHasGitRemote = selectedWorkspace?.folders[0]?.gitRepository?.hasGitRemote;
-	if (selectedHasGitRemote !== undefined) {
-		return selectedHasGitRemote;
+function getComparisonSelectedWorkspaceFolder(selectedWorkspace: ISessionWorkspace | undefined, selectedFolderUri: URI | undefined): ISessionWorkspace['folders'][number] | undefined {
+	if (!selectedFolderUri) {
+		return selectedWorkspace?.folders[0];
 	}
-	const sessionFolder = selectedFolderUri
-		? session?.workspace.get()?.folders.find(folder => isEqual(folder.root, selectedFolderUri))
-		: undefined;
-	return sessionFolder?.gitRepository?.hasGitRemote;
+	return selectedWorkspace?.folders.find(folder => isEqual(folder.root, selectedFolderUri));
+}
+
+function getComparisonSessionFolder(session: ISession | undefined, selectedFolderUri: URI | undefined): ISessionWorkspace['folders'][number] | undefined {
+	if (!selectedFolderUri) {
+		return session?.workspace.get()?.folders[0];
+	}
+	return session?.workspace.get()?.folders.find(folder => isEqual(folder.root, selectedFolderUri));
+}
+
+function getComparisonHasGitRemote(session: ISession | undefined, selectedWorkspace: ISessionWorkspace | undefined, selectedFolderUri: URI | undefined): boolean | undefined {
+	const selectedWorkspaceHasGitRemote = getComparisonSelectedWorkspaceFolder(selectedWorkspace, selectedFolderUri)?.gitRepository?.hasGitRemote;
+	if (selectedWorkspaceHasGitRemote !== undefined) {
+		return selectedWorkspaceHasGitRemote;
+	}
+	return getComparisonSessionFolder(session, selectedFolderUri)?.gitRepository?.hasGitRemote;
 }
 
 export class NewChatWidget extends Disposable {
@@ -980,20 +991,24 @@ export class NewChatWidget extends Disposable {
 	}
 
 	private _getComparisonBranch(session = this._session.get()): string | undefined {
+		const selectedFolderUri = this._workspacePicker.selectedFolderUri;
 		const provider = session ? this.sessionsProvidersService.getProvider(session.providerId) : undefined;
-		if (!session || !provider || !isAgentHostProvider(provider)) {
-			return undefined;
-		}
-		const branch = provider.getCreateSessionConfig(session.sessionId)?.[SessionConfigKey.Branch];
-		if (typeof branch === 'string' && branch.trim()) {
-			return branch;
-		}
-		for (const workspace of [session.workspace.get(), this._workspacePicker.selectedResolved?.workspace]) {
-			const repository = workspace?.folders[0]?.gitRepository;
-			const workspaceBranch = repository?.branchName?.trim() || repository?.baseBranchName?.trim();
-			if (workspaceBranch) {
-				return workspaceBranch;
+		const matchesSelectedFolder = !selectedFolderUri || !!session?.workspace.get()?.folders.some(folder => isEqual(folder.root, selectedFolderUri));
+		if (session && provider && isAgentHostProvider(provider) && matchesSelectedFolder) {
+			const branch = provider.getCreateSessionConfig(session.sessionId)?.[SessionConfigKey.Branch];
+			if (typeof branch === 'string' && branch.trim()) {
+				return branch;
 			}
+		}
+		const selectedWorkspaceRepository = getComparisonSelectedWorkspaceFolder(this._workspacePicker.selectedResolved?.workspace, selectedFolderUri)?.gitRepository;
+		const selectedWorkspaceBranch = selectedWorkspaceRepository?.branchName?.trim() || selectedWorkspaceRepository?.baseBranchName?.trim();
+		if (selectedWorkspaceBranch) {
+			return selectedWorkspaceBranch;
+		}
+		const sessionRepository = getComparisonSessionFolder(session, selectedFolderUri)?.gitRepository;
+		const workspaceBranch = sessionRepository?.branchName?.trim() || sessionRepository?.baseBranchName?.trim();
+		if (workspaceBranch) {
+			return workspaceBranch;
 		}
 		return undefined;
 	}
@@ -1001,15 +1016,25 @@ export class NewChatWidget extends Disposable {
 	private _shouldShowComparisonAction(): boolean {
 		const session = this._session.get();
 		const provider = session ? this.sessionsProvidersService.getProvider(session.providerId) : undefined;
+		const selectedFolderUri = this._workspacePicker.selectedFolderUri;
 		const providerTransitionPending = !!this._pendingPreferredUpgrade.value || !!this._newSessionCreation.value;
+		const providerIsAgentHost = !!provider && isAgentHostProvider(provider);
+		const resolvingConfig = providerIsAgentHost ? provider.isSessionConfigResolving(session.sessionId).get() : false;
+		const sessionMatchesSelectedFolder = !!selectedFolderUri && !!session?.workspace.get()?.folders.some(folder => isEqual(folder.root, selectedFolderUri));
+		if (!sessionMatchesSelectedFolder) {
+			return false;
+		}
+		const hasGitRemote = getComparisonHasGitRemote(session, this._workspacePicker.selectedResolved?.workspace, selectedFolderUri);
+		if (hasGitRemote !== true) {
+			return false;
+		}
 		return this._compareAgentsEnabled.get()
-			&& this._workspacePicker.selectedFolderUri !== undefined
+			&& selectedFolderUri !== undefined
 			&& !!session
-			&& getComparisonHasGitRemote(session, this._workspacePicker.selectedResolved?.workspace, this._workspacePicker.selectedFolderUri) !== false
+			&& hasGitRemote
 			&& (providerTransitionPending
-				|| (!!provider
-					&& isAgentHostProvider(provider)
-					&& (provider.isSessionConfigResolving(session.sessionId).get() || this._getComparisonBranch(session) !== undefined)));
+				|| (providerIsAgentHost
+					&& (resolvingConfig || this._getComparisonBranch(session) !== undefined)));
 	}
 
 	private async _getComparisonBranches(session: IActiveSession, selectedBranch: string): Promise<readonly string[]> {

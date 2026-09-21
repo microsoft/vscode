@@ -1624,6 +1624,107 @@ suite('NewChatWidget', () => {
 		assert.strictEqual(shouldShowComparisonAction.call(harness), false);
 	});
 
+	test('hides comparison action when selected folder differs from draft repository', () => {
+		const draftWorkspace = upcastPartial<ISessionWorkspace>({
+			folders: [{
+				root: URI.file('/repo'),
+				workingDirectory: URI.file('/repo'),
+				name: 'repo',
+				description: undefined,
+				gitRepository: upcastPartial<ISessionGitRepository>({
+					isRepository: constObservable(true),
+					branchName: 'main',
+					hasGitRemote: true,
+				}),
+			}],
+		});
+		const selectedWorkspace = upcastPartial<ISessionWorkspace>({
+			folders: [{
+				root: URI.file('/scratch'),
+				workingDirectory: URI.file('/scratch'),
+				name: 'scratch',
+				description: undefined,
+				gitRepository: upcastPartial<ISessionGitRepository>({
+					isRepository: constObservable(false),
+				}),
+			}],
+		});
+		const session = upcastPartial<ISession>({
+			sessionId: 'session',
+			providerId: LOCAL_AGENT_HOST_PROVIDER_ID,
+			workspace: constObservable(draftWorkspace),
+		});
+		const harness: IComparisonActionVisibilityHarness = {
+			_compareAgentsEnabled: constObservable(true),
+			_pendingPreferredUpgrade: { value: undefined },
+			_newSessionCreation: { value: undefined },
+			_session: constObservable(session),
+			_workspacePicker: { selectedFolderUri: URI.file('/scratch'), selectedResolved: { workspace: selectedWorkspace } },
+			sessionsProvidersService: {
+				getProvider: () => ({
+					id: LOCAL_AGENT_HOST_PROVIDER_ID,
+					getCreateSessionConfig: () => undefined,
+					isSessionConfigResolving: () => constObservable(false),
+				}),
+			},
+			_getComparisonBranch: getComparisonBranch,
+		};
+
+		assert.deepStrictEqual({
+			branch: getComparisonBranch.call(harness),
+			visible: shouldShowComparisonAction.call(harness),
+		}, {
+			branch: undefined,
+			visible: false,
+		});
+	});
+
+	test('hides comparison action while draft creation is pending for a different folder', () => {
+		const draftWorkspace = upcastPartial<ISessionWorkspace>({
+			folders: [{
+				root: URI.file('/repo'),
+				workingDirectory: URI.file('/repo'),
+				name: 'repo',
+				description: undefined,
+				gitRepository: upcastPartial<ISessionGitRepository>({
+					isRepository: constObservable(true),
+					branchName: 'main',
+					hasGitRemote: true,
+				}),
+			}],
+		});
+		const selectedWorkspace = upcastPartial<ISessionWorkspace>({
+			folders: [{
+				root: URI.file('/scratch'),
+				workingDirectory: URI.file('/scratch'),
+				name: 'scratch',
+				description: undefined,
+			}],
+		});
+		const session = upcastPartial<ISession>({
+			sessionId: 'session',
+			providerId: LOCAL_AGENT_HOST_PROVIDER_ID,
+			workspace: constObservable(draftWorkspace),
+		});
+		const harness: IComparisonActionVisibilityHarness = {
+			_compareAgentsEnabled: constObservable(true),
+			_pendingPreferredUpgrade: { value: { dispose() { } } },
+			_newSessionCreation: { value: undefined },
+			_session: constObservable(session),
+			_workspacePicker: { selectedFolderUri: URI.file('/scratch'), selectedResolved: { workspace: selectedWorkspace } },
+			sessionsProvidersService: {
+				getProvider: () => ({
+					id: LOCAL_AGENT_HOST_PROVIDER_ID,
+					getCreateSessionConfig: () => undefined,
+					isSessionConfigResolving: () => constObservable(false),
+				}),
+			},
+			_getComparisonBranch: getComparisonBranch,
+		};
+
+		assert.strictEqual(shouldShowComparisonAction.call(harness), false);
+	});
+
 	test('hides comparison action when selected repository has no Git remote', () => {
 		const sessionWorkspace = upcastPartial<ISessionWorkspace>({
 			folders: [{
@@ -1675,7 +1776,57 @@ suite('NewChatWidget', () => {
 		assert.strictEqual(shouldShowComparisonAction.call(harness), false);
 	});
 
-	test('shows comparison action while Git remote metadata is unresolved', () => {
+	test('hides comparison action when selected workspace omits remote and session metadata says no remote', () => {
+		const sessionWorkspace = upcastPartial<ISessionWorkspace>({
+			folders: [{
+				root: URI.file('/workspace'),
+				workingDirectory: URI.file('/workspace'),
+				name: 'workspace',
+				description: undefined,
+				gitRepository: upcastPartial<ISessionGitRepository>({
+					isRepository: constObservable(true),
+					branchName: 'main',
+					hasGitRemote: false,
+				}),
+			}],
+		});
+		const selectedWorkspace = upcastPartial<ISessionWorkspace>({
+			folders: [{
+				root: URI.file('/workspace'),
+				workingDirectory: URI.file('/workspace'),
+				name: 'workspace',
+				description: undefined,
+				gitRepository: upcastPartial<ISessionGitRepository>({
+					isRepository: constObservable(true),
+					branchName: 'main',
+				}),
+			}],
+		});
+		const session = upcastPartial<ISession>({
+			sessionId: 'session',
+			providerId: LOCAL_AGENT_HOST_PROVIDER_ID,
+			workspace: constObservable(sessionWorkspace),
+		});
+		const harness: IComparisonActionVisibilityHarness = {
+			_compareAgentsEnabled: constObservable(true),
+			_pendingPreferredUpgrade: { value: undefined },
+			_newSessionCreation: { value: undefined },
+			_session: constObservable(session),
+			_workspacePicker: { selectedFolderUri: URI.file('/workspace'), selectedResolved: { workspace: selectedWorkspace } },
+			sessionsProvidersService: {
+				getProvider: () => ({
+					id: LOCAL_AGENT_HOST_PROVIDER_ID,
+					getCreateSessionConfig: () => undefined,
+					isSessionConfigResolving: () => constObservable(false),
+				}),
+			},
+			_getComparisonBranch: getComparisonBranch,
+		};
+
+		assert.strictEqual(shouldShowComparisonAction.call(harness), false);
+	});
+
+	test('hides comparison action until Git remote metadata resolves', () => {
 		const workspace = upcastPartial<ISessionWorkspace>({
 			folders: [{
 				root: URI.file('/workspace'),
@@ -1685,6 +1836,44 @@ suite('NewChatWidget', () => {
 				gitRepository: upcastPartial<ISessionGitRepository>({
 					isRepository: constObservable(true),
 					branchName: 'main',
+				}),
+			}],
+		});
+		const session = upcastPartial<ISession>({
+			sessionId: 'session',
+			providerId: LOCAL_AGENT_HOST_PROVIDER_ID,
+			workspace: constObservable(workspace),
+		});
+		const harness: IComparisonActionVisibilityHarness = {
+			_compareAgentsEnabled: constObservable(true),
+			_pendingPreferredUpgrade: { value: undefined },
+			_newSessionCreation: { value: undefined },
+			_session: constObservable(session),
+			_workspacePicker: { selectedFolderUri: URI.file('/workspace'), selectedResolved: { workspace } },
+			sessionsProvidersService: {
+				getProvider: () => ({
+					id: LOCAL_AGENT_HOST_PROVIDER_ID,
+					getCreateSessionConfig: () => undefined,
+					isSessionConfigResolving: () => constObservable(false),
+				}),
+			},
+			_getComparisonBranch: getComparisonBranch,
+		};
+
+		assert.strictEqual(shouldShowComparisonAction.call(harness), false);
+	});
+
+	test('shows comparison action when selected repository metadata reports branch and remote', () => {
+		const workspace = upcastPartial<ISessionWorkspace>({
+			folders: [{
+				root: URI.file('/workspace'),
+				workingDirectory: URI.file('/workspace'),
+				name: 'workspace',
+				description: undefined,
+				gitRepository: upcastPartial<ISessionGitRepository>({
+					isRepository: constObservable(false),
+					branchName: 'main',
+					hasGitRemote: true,
 				}),
 			}],
 		});
@@ -1795,7 +1984,7 @@ suite('NewChatWidget', () => {
 		});
 	});
 
-	test('shows the comparison action while Git remote metadata is resolving', () => {
+	test('hides the comparison action while Git remote metadata is resolving', () => {
 		const workspace = upcastPartial<ISessionWorkspace>({
 			folders: [{
 				root: URI.file('/workspace'),
@@ -1825,10 +2014,10 @@ suite('NewChatWidget', () => {
 			_getComparisonBranch: () => undefined,
 		};
 
-		assert.strictEqual(shouldShowComparisonAction.call(harness), true);
+		assert.strictEqual(shouldShowComparisonAction.call(harness), false);
 	});
 
-	test('shows the comparison action while a preferred provider upgrade has unresolved Git metadata', () => {
+	test('hides the comparison action while a preferred provider upgrade has unresolved Git metadata', () => {
 		const workspace = upcastPartial<ISessionWorkspace>({
 			folders: [{
 				root: URI.file('/workspace'),
@@ -1858,7 +2047,7 @@ suite('NewChatWidget', () => {
 			_getComparisonBranch: () => undefined,
 		};
 
-		assert.strictEqual(shouldShowComparisonAction.call(harness), true);
+		assert.strictEqual(shouldShowComparisonAction.call(harness), false);
 	});
 
 	test('opens a new comparison with two attempts from the composer selection', async () => {
