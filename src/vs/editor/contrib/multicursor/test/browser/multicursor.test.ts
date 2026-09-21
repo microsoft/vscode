@@ -556,7 +556,7 @@ suite('Multicursor selection', () => {
 					findOptions: [state.matchCase, state.wholeWord, state.isRegex],
 				}, {
 					selections: expectedLines.map(line => [line, 1, line, 4]),
-					findOptions: [false, false, true],
+					findOptions: [true, true, false],
 				});
 			}, { selectedTextOccurrenceMatching });
 		}
@@ -766,8 +766,11 @@ suite('Multicursor selection', () => {
 			assert.strictEqual(actual, 'baz\nFOObar\nbazbar\nFOO\nbaz');
 		});
 
-		test('changing Find options does not end an independent caret-started selection sequence', () => {
-			for (const selectedTextOccurrenceMatching of ['caseSensitive', 'caseInsensitive'] as const) {
+		test('changing Find options ends caret-started sessions before applying the selected-text matching setting', () => {
+			for (const [selectedTextOccurrenceMatching, expectedLine] of [
+				['caseSensitive', 3],
+				['caseInsensitive', 2],
+			] as const) {
 				testMulticursor(text, (editor, findController) => {
 					editor.setSelection(new Selection(1, 2, 1, 2));
 					const action = new AddSelectionToNextFindMatchAction();
@@ -776,7 +779,7 @@ suite('Multicursor selection', () => {
 					findController.getState().change({ matchCase: false, wholeWord: false }, false);
 					action.run(null!, editor);
 
-					assert.deepStrictEqual(editor.getSelections().map(fromRange), [[1, 1, 1, 4], [5, 1, 5, 4]]);
+					assert.deepStrictEqual(editor.getSelections().map(fromRange), [[1, 1, 1, 4], [expectedLine, 1, expectedLine, 4]]);
 				}, { selectedTextOccurrenceMatching });
 			}
 		});
@@ -1061,8 +1064,8 @@ suite('Multicursor selection', () => {
 			' app'
 		];
 
-		test('default caret-started sessions temporarily override and restore Find options', () => {
-			for (const selectedTextOccurrenceMatching of [undefined, 'find'] as const) {
+		test('caret-started sessions temporarily override and restore Find options in every matching mode', () => {
+			for (const selectedTextOccurrenceMatching of [undefined, 'find', 'caseSensitive', 'caseInsensitive'] as const) {
 				for (const endSession of ['selection', 'blur', 'dispose', 'configuration'] as const) {
 					testMulticursor(text, (editor, findController) => {
 						const state = findController.getState();
@@ -1095,7 +1098,7 @@ suite('Multicursor selection', () => {
 								MultiCursorSelectionController.get(editor)!.dispose();
 								break;
 							case 'configuration':
-								editor.updateOptions({ selectedTextOccurrenceMatching: 'caseInsensitive' });
+								editor.updateOptions({ selectedTextOccurrenceMatching: editor.getOption(EditorOption.selectedTextOccurrenceMatching) === 'find' ? 'caseInsensitive' : 'find' });
 								break;
 						}
 

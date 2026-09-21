@@ -312,7 +312,7 @@ export class MultiCursorSession {
 			isDisconnectedFromFindController = true;
 			wholeWord = true;
 			matchCase = true;
-			usesFindOptions = false;
+			usesFindOptions = true;
 		} else {
 			const selectionSearchOptions = getSelectionSearchOptions(editor, findController);
 			wholeWord = selectionSearchOptions.wholeWord;
