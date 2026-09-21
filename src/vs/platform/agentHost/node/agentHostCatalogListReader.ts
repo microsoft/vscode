@@ -6,6 +6,7 @@
 import { AgentSession, type IAgentSessionMetadata } from '../common/agent.js';
 import { SessionStatus, withSessionExternal, withSessionStatusFlag } from '../common/state/sessionState.js';
 import { AGENT_HOST_CATALOG_PAYLOAD_VERSION, decodeAgentHostCatalogPayload, reviveAgentHostCatalogData, type AgentHostCatalogRevivedData } from './agentHostCatalogProjection.js';
+import { fromCatalogChatOrigin } from './agentHostCatalogSourceResolver.js';
 import type { IAgentHostDatabase } from './agentHostDatabase.js';
 import type { IRegisteredSession } from './agentSessionRegistry.js';
 
@@ -89,7 +90,7 @@ export class AgentHostCatalogListReader {
 				chat: chat.uri,
 				summary: chat.summary,
 				kind: chat.kind,
-				origin: chat.origin,
+				origin: fromCatalogChatOrigin(chat.origin),
 			})),
 			...(meta !== undefined ? { _meta: meta } : {}),
 		};
