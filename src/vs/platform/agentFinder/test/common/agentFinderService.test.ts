@@ -472,6 +472,55 @@ suite('AgentFinderService', () => {
 		}]);
 	});
 
+	test('accepts catalog text and metadata exactly at their limits', async () => {
+		const longText = 'a'.repeat(4096);
+		const values = Array.from({ length: 32 }, () => 'b'.repeat(512));
+		const { service } = createService({
+			results: [{ ...skill, identifier: longText, displayName: longText, description: longText, version: longText, tags: values, capabilities: values, representativeQueries: values }],
+			total: 1, offset: 0, pageSize: 30,
+		});
+
+		const { items: [item] } = await service.query({}, CancellationToken.None);
+
+		assert.deepStrictEqual({
+			identifier: item.identifier, displayName: item.displayName, description: item.description, version: item.version,
+			tags: item.tags, capabilities: item.capabilities, representativeQueries: item.representativeQueries,
+		}, {
+			identifier: longText, displayName: longText, description: longText, version: longText,
+			tags: values, capabilities: values, representativeQueries: values,
+		});
+	});
+
+	test('rejects overlong scalar catalog text instead of forwarding it to the renderer', async () => {
+		for (const field of ['identifier', 'displayName', 'description', 'version'] as const) {
+			const { service } = createService({
+				results: [{ ...skill, [field]: 'a'.repeat(4097) }],
+				total: 1, offset: 0, pageSize: 30,
+			});
+			await assert.rejects(service.query({}, CancellationToken.None), /invalid response/i, field);
+		}
+	});
+
+	for (const field of ['tags', 'capabilities', 'representativeQueries'] as const) {
+		test(`rejects ${field} beyond the entry count limit before filtering`, async () => {
+			for (const values of [Array(33).fill('a'), Array(33).fill(null), Array(100_000).fill('a')]) {
+				const { service } = createService({
+					results: [{ ...skill, [field]: values }], total: 1, offset: 0, pageSize: 30,
+				});
+				await assert.rejects(service.query({}, CancellationToken.None), /invalid response/i);
+			}
+		});
+
+		test(`rejects ${field} values beyond the string limit, including whitespace`, async () => {
+			for (const value of ['a'.repeat(513), ' '.repeat(513)]) {
+				const { service } = createService({
+					results: [{ ...skill, [field]: [value] }], total: 1, offset: 0, pageSize: 30,
+				});
+				await assert.rejects(service.query({}, CancellationToken.None), /invalid response/i);
+			}
+		});
+	}
+
 	test('canonicalizes GitHub links and uses a public resource URL when sourceSet is not a repository', async () => {
 		const { service } = createService({
 			results: [{ ...skill, url: 'http://GITHUB.COM/Owner/Repository.git/blob/main/SKILL.md?raw=1#L1', metadata: { sourceSet: 'launch-augment-set' }, version: '2.0' }],

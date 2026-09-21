@@ -23,11 +23,11 @@ The following test plan outlines the scenarios and specifications for the AI Cus
 4. Search for a generic topic such as `postgres`, then change the resource type. Only the latest search is displayed, even if an earlier request finishes later.
 5. Choose **Load More**. Results append without duplicates. Change the query or type and verify pagination resets.
 6. Interrupt a request, change tabs, or close the editor. Hidden/disposed sections cancel their requests. Returning to the tab can load again.
-7. Simulate offline, rate-limited, and malformed responses. An explicit error and **Retry** appear; failed pagination preserves previously loaded cards.
-8. Use Tab, Shift+Tab, arrow keys on cards, and Enter/Space on **Details**. Open Accessibility Help and Accessible View, then close them and verify focus returns.
+7. Simulate offline, rate-limited, malformed, and oversized-metadata responses. An explicit error and **Retry** appear; failed pagination preserves previously loaded cards. Metadata lists must not exceed 32 entries or 512 characters per entry; scalar card text must not exceed 4,096 characters. URLs and pagination tokens retain their separate limits.
+8. Use Tab, Shift+Tab, arrow keys on cards, and Enter/Space on **Details**. Open Accessibility Help and Accessible View, verify that tags, capabilities, example queries, resource links, and repository links have distinct labels, then close the view and verify focus returns.
 9. Open a resource or repository. It opens externally; browsing alone never installs or enables anything. Switch harnesses and confirm the tab remains usable.
-10. Disable AI features. The AgentFinder content is hidden and does not make catalog or image requests.
-11. Check narrow editor widths, dark/light themes, and high-contrast focus/borders.
+10. Disable AI features. The AgentFinder content is hidden and does not make catalog or image requests. Unrelated setup or entitlement changes must preserve the search, loaded pages, and scroll position.
+11. Check narrow editor widths, dark/light themes, and high-contrast focus/borders. Move the editor to an auxiliary window and verify layout responds to resizing there.
 12. Install a skill into a selected workspace or user location. Confirm the source, revision, and destination; verify that `SKILL.md` and supporting files are preserved, repository `.git` data is not copied, and an existing destination is never overwritten.
 13. Cancel the destination/source confirmation or progress notification, or change the active session during a skill import. No incomplete skill should appear in its destination.
 14. Install a Copilot or Claude plugin from a catalog subdirectory. The existing trust and managed-marketplace restrictions must apply, and only that plugin should be installed.

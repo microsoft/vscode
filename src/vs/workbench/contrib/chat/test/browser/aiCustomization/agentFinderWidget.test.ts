@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import * as DOM from '../../../../../../base/browser/dom.js';
+import { ensureCodeWindow, mainWindow } from '../../../../../../base/browser/window.js';
 import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../../../base/common/errors.js';
@@ -129,8 +130,8 @@ function pressKey(element: HTMLElement, key: string, keyCode: number, isComposin
 suite('AgentFinderWidget', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createWidget(hidden = false) {
-		const container = DOM.append(document.body, DOM.$('.agent-finder-test'));
+	function createWidget(hidden = false, parent: HTMLElement = document.body, widgetConstructor: typeof AgentFinderWidget = AgentFinderWidget) {
+		const container = DOM.append(parent, DOM.$('.agent-finder-test'));
 		store.add(toDisposable(() => container.remove()));
 		container.style.width = '900px';
 		container.style.height = '600px';
@@ -177,7 +178,7 @@ suite('AgentFinderWidget', () => {
 			}
 		}();
 		const hovers: Parameters<IHoverService['setupDelayedHover']>[] = [];
-		const widget = store.add(new AgentFinderWidget(
+		const widget = store.add(new widgetConstructor(
 			container,
 			service,
 			new class extends mock<IContextViewService>() {
@@ -203,6 +204,10 @@ suite('AgentFinderWidget', () => {
 				entitlement.sentiment.hidden = value;
 				sentimentChanged.fire();
 			},
+			setSentiment(value: Partial<IChatEntitlementService['sentiment']>) {
+				Object.assign(entitlement.sentiment, value);
+				sentimentChanged.fire();
+			},
 			setHelpKeybinding(value: ResolvedKeybinding | undefined) {
 				helpKeybinding = value;
 				keybindingsChanged.fire();
@@ -210,6 +215,39 @@ suite('AgentFinderWidget', () => {
 			setOpenError(error: Error) { openError = error; },
 		};
 	}
+
+	test('observes layout in the window containing the widget', async () => {
+		const frame = DOM.$<HTMLIFrameElement>('iframe');
+		store.add(toDisposable(() => frame.remove()));
+		await new Promise<void>(resolve => {
+			store.add(DOM.addDisposableListener(frame, DOM.EventType.LOAD, () => resolve()));
+			DOM.append(document.body, frame);
+		});
+		const frameWindow = frame.contentWindow!;
+		ensureCodeWindow(frameWindow, 999);
+		const auxiliaryWindow = frameWindow;
+		const observed = new DeferredPromise<boolean>();
+		let captureLayout = false;
+		class AuxiliaryWindowWidget extends AgentFinderWidget {
+			override layout(): void {
+				super.layout();
+				if (captureLayout) {
+					const message = 'ResizeObserver loop completed with undelivered notifications.';
+					const auxiliaryContext = DOM.getRecentDisposableResizeObserverContextForLoopError(message, auxiliaryWindow);
+					const mainContext = DOM.getRecentDisposableResizeObserverContextForLoopError(message, mainWindow);
+					if (auxiliaryContext?.includes('AgentFinderWidget') || mainContext?.includes('AgentFinderWidget')) {
+						void observed.complete(!!auxiliaryContext?.includes('AgentFinderWidget'));
+					}
+				}
+			}
+		}
+		const { widget, service } = createWidget(false, auxiliaryWindow.document.body, AuxiliaryWindowWidget);
+		widget.setVisible(true);
+		await service.requests[0].result.complete({ items: [] });
+		captureLayout = true;
+
+		assert.strictEqual(await observed.p, true);
+	});
 
 	test('loads only when visible and reuses completed results on reactivation', async () => {
 		const { container, widget, service } = createWidget();
@@ -550,6 +588,53 @@ suite('AgentFinderWidget', () => {
 			hiddenNames: [],
 			requests: 2,
 			names: ['Enabled'],
+		});
+	});
+
+	test('unrelated sentiment updates do not cancel an in-flight catalog request', async () => {
+		const { container, widget, service, setSentiment } = createWidget();
+		widget.setVisible(true);
+		setSentiment({ completed: true, registered: true });
+		setSentiment({ hidden: undefined });
+		const duringRequest = { requests: service.requests.length, cancelled: service.requests[0].token.isCancellationRequested };
+		await service.requests[0].result.complete({ items: [createResource('Review')] });
+
+		assert.deepStrictEqual({ duringRequest, names: getCardNames(container) }, {
+			duringRequest: { requests: 1, cancelled: false }, names: ['Review'],
+		});
+	});
+
+	test('unrelated sentiment updates preserve the query, results, pagination and scroll position', async () => {
+		const { container, widget, service, setSentiment } = createWidget();
+		setSearch(container, 'review');
+		widget.setVisible(true);
+		const firstPage = Array.from({ length: 12 }, (_, index) => createResource(`First ${index}`));
+		const secondPage = Array.from({ length: 12 }, (_, index) => createResource(`Second ${index}`));
+		await service.requests[0].result.complete({ items: firstPage, nextCursor: { kind: 'search', pageToken: 'page-2' } });
+		getButton(container, 'Load More').click();
+		await service.requests[1].result.complete({ items: secondPage, nextCursor: { kind: 'search', pageToken: 'page-3' } });
+		const scroll = getElement(container, '.agent-finder-scroll-content');
+		scroll.scrollTop = 120;
+		widget.layout();
+
+		for (const field of ['completed', 'disabled', 'untrusted', 'installed', 'later', 'registered'] as const) {
+			setSentiment({ [field]: true });
+		}
+		const unchanged = {
+			requests: service.requests.length,
+			query: getElement<HTMLInputElement>(container, '.agent-finder-search input').value,
+			names: getCardNames(container),
+			scrollTop: scroll.scrollTop,
+		};
+		getButton(container, 'Load More').click();
+		const nextRequest = service.requests[2];
+		await nextRequest.result.complete({ items: [createResource('Last')] });
+
+		assert.deepStrictEqual({ unchanged, nextRequest: nextRequest.options }, {
+			unchanged: {
+				requests: 2, query: 'review', names: [...firstPage, ...secondPage].map(item => item.displayName), scrollTop: 120,
+			},
+			nextRequest: { query: 'review', mediaType: undefined, pageSize: 24, cursor: { kind: 'search', pageToken: 'page-3' } },
 		});
 	});
 
@@ -956,7 +1041,7 @@ suite('AgentFinderWidget', () => {
 		}, {
 			href: externalUrl,
 			hover: externalUrl,
-			accessibleDestination: externalUrl,
+			accessibleDestination: `Resource: ${externalUrl}`,
 			opened: [[externalUrl, { openExternal: true, allowCommands: false, allowContributedOpeners: false }]],
 		});
 	});
@@ -1146,12 +1231,26 @@ suite('AgentFinderWidget', () => {
 				[
 					'Browser tools', 'MCP server', 'Example Publisher', 'Description of Browser tools',
 					'Version 2.4.0', '12 GitHub stars',
-					...resource.tags, ...resource.capabilities, ...resource.representativeQueries,
+					'Tags:', ...resource.tags,
+					'Capabilities:', ...resource.capabilities,
+					'Example queries:', ...resource.representativeQueries,
 					'Available to install',
-					'https://example.com/browser', 'https://github.com/example/browser',
+					'Resource: https://example.com/browser', 'Repository: https://github.com/example/browser',
 				].join('\n'),
 			].join('\n\n'),
 		});
+	});
+
+	test('accessible content omits absent metadata groups and destinations', async () => {
+		const { widget, service } = createWidget();
+		widget.setVisible(true);
+		await service.requests[0].result.complete({ items: [createResource('Review')], total: 1 });
+
+		assert.strictEqual(widget.getAccessibilityContent(), [
+			'AgentFinder',
+			'Showing 1 of 1 resources',
+			['Review', 'Skill', 'Description of Review', 'Available to install'].join('\n'),
+		].join('\n\n'));
 	});
 
 	test('accessibility hints follow the verbosity setting and keybinding changes', async () => {

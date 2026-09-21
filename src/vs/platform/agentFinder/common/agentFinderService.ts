@@ -81,6 +81,9 @@ const requestTimeout = 30_000;
 const maxResponseBytes = 5 * 1024 * 1024;
 const maxUriLength = 8192;
 const maxPageTokenLength = 8192;
+const maxResourceTextLength = 4096;
+const maxMetadataEntries = 32;
+const maxMetadataTextLength = 512;
 
 class AgentFinderError extends Error { }
 
@@ -215,12 +218,24 @@ function isPageToken(value: unknown): value is string {
 	return typeof value === 'string' && value.length > 0 && value.length <= maxPageTokenLength;
 }
 
-function text(value: unknown): string | undefined {
-	return typeof value === 'string' && value.trim() ? value.trim() : undefined;
+function text(value: unknown, maxLength = maxResourceTextLength): string | undefined {
+	if (typeof value !== 'string') {
+		return undefined;
+	}
+	if (value.length > maxLength) {
+		throw invalidResponse();
+	}
+	return value.trim() || undefined;
 }
 
 function strings(value: unknown): readonly string[] {
-	return Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string' && !!item.trim()) : [];
+	if (!Array.isArray(value)) {
+		return [];
+	}
+	if (value.length > maxMetadataEntries) {
+		throw invalidResponse();
+	}
+	return value.filter((item): item is string => !!text(item, maxMetadataTextLength));
 }
 
 function parsePage(value: unknown, pageSize: number, cursor: { kind: 'browse'; offset: number } | { kind: 'search'; pageToken?: string }): IAgentFinderPage {

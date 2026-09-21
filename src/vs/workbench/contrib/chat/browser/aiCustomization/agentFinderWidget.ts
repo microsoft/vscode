@@ -88,6 +88,7 @@ export class AgentFinderWidget extends Disposable {
 	private loading = false;
 	private loaded = false;
 	private errorMessage: string | undefined;
+	private aiHidden: boolean;
 
 	constructor(
 		container: HTMLElement,
@@ -103,6 +104,7 @@ export class AgentFinderWidget extends Disposable {
 		@IAgentFinderInstallService private readonly installService: IAgentFinderInstallService,
 	) {
 		super();
+		this.aiHidden = !!this.chatEntitlementService.sentiment.hidden;
 		this.element = DOM.append(container, DOM.$('.agent-finder-widget'));
 		const header = DOM.append(this.element, DOM.$('.agent-finder-header'));
 		DOM.append(header, DOM.$('h2')).textContent = localize('agentFinder.title', "AgentFinder");
@@ -145,7 +147,7 @@ export class AgentFinderWidget extends Disposable {
 		this.element.appendChild(this.scrollable.getDomNode());
 		DOM.append(this.element, DOM.$('p.agent-finder-disclaimer')).textContent = localize('agentFinder.disclaimer', "Review each resource's source before installing. Install uses VS Code's existing prompts and destination choices. Repository images identify GitHub owners, not verified publishers.");
 
-		const resizeObserver = this._register(new DOM.DisposableResizeObserver('AgentFinderWidget', () => this.layout()));
+		const resizeObserver = this._register(new DOM.DisposableResizeObserver('AgentFinderWidget', () => this.layout(), DOM.getWindow(this.element)));
 		this._register(resizeObserver.observe(this.element));
 		this._register(this.searchInput.onDidChange(value => {
 			if (this.query !== value.trim()) {
@@ -172,6 +174,11 @@ export class AgentFinderWidget extends Disposable {
 		this._register(this.loadMoreButton.onDidClick(() => void this.loadPage(true)));
 		this._register(DOM.addDisposableListener(this.resultsElement, DOM.EventType.KEY_DOWN, event => this.navigateCards(event)));
 		this._register(this.chatEntitlementService.onDidChangeSentiment(() => {
+			const hidden = !!this.chatEntitlementService.sentiment.hidden;
+			if (hidden === this.aiHidden) {
+				return;
+			}
+			this.aiHidden = hidden;
 			this.resetSearch(false);
 			this.updateVisibility();
 		}));
@@ -559,12 +566,12 @@ export class AgentFinderWidget extends Disposable {
 				item.description,
 				item.version ? localize('agentFinder.version', "Version {0}", item.version) : undefined,
 				item.stars !== undefined ? localize('agentFinder.stars', "{0} GitHub stars", item.stars.toLocaleString()) : undefined,
-				...item.tags,
-				...item.capabilities,
-				...item.representativeQueries,
+				item.tags.length ? localize('agentFinder.accessibleTags', "Tags:\n{0}", item.tags.join('\n')) : undefined,
+				item.capabilities.length ? localize('agentFinder.accessibleCapabilities', "Capabilities:\n{0}", item.capabilities.join('\n')) : undefined,
+				item.representativeQueries.length ? localize('agentFinder.accessibleExamples', "Example queries:\n{0}", item.representativeQueries.join('\n')) : undefined,
 				this.installActions.get(item.identifier)?.getAccessibilityContent(),
-				item.externalUrl ?? item.url?.toString(true),
-				item.repository?.toString(true),
+				item.externalUrl || item.url ? localize('agentFinder.accessibleResource', "Resource: {0}", item.externalUrl ?? item.url?.toString(true)) : undefined,
+				item.repository ? localize('agentFinder.accessibleRepository', "Repository: {0}", item.repository.toString(true)) : undefined,
 			].filter(Boolean).join('\n')),
 			this.loaded && !this.items.length ? this.emptyElement.textContent : undefined,
 		].filter(Boolean).join('\n\n');

@@ -12,6 +12,12 @@
 #### baseUI/KeyboardFocusedToggle/LightHighContrast
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/b178780f7f8d7f26306519967bea51d3a638e9f135f40cc23f34be3615655c44)
 
+#### chat/aiCustomizations/aiCustomizationManagementEditor/AgentFinderTab/Dark
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/f00f6b55b667fbab67f769f32b50a32260714e79e2e46db9b99a0341514d9223)
+
+#### chat/aiCustomizations/aiCustomizationManagementEditor/AgentFinderTab/Light
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/f34879a1f2098a48a4e856c2bab25fa6653cdb65c37472345f98af92f1e9bd2c)
+
 #### chat/aiCustomizations/aiCustomizationManagementEditor/AgentHostPromptMigration/Dark
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/421c09397969cdff36624d7ce5883ab38760ab8fd6283ea68410ecf28d7a0456)
 
