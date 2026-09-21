@@ -302,6 +302,18 @@ suite('Multicursor selection', () => {
 		});
 	});
 
+	test('issue #107090: a partial line selection does not match an anchored regex', () => {
+		testAddSelectionToNextFindMatchAction(['foobar', 'foo', 'foo'], (editor, action, findController) => {
+			findController.getState().change({ searchString: '^foo$', isRegex: true, isRevealed: true }, false);
+			editor.setSelection(new Selection(1, 1, 1, 4));
+			editor.focus();
+
+			action.run(null!, editor);
+			assert.deepStrictEqual(editor.getSelections()!.map(fromRange), [[1, 1, 1, 4], [2, 1, 2, 4]]);
+			assert.strictEqual(findController.getState().searchString, 'foo');
+		});
+	});
+
 	test('AddSelectionToNextFindMatchAction starting with single collapsed selection', () => {
 		const text = [
 			'abc pizza',

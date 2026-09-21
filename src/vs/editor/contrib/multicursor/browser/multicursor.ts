@@ -310,9 +310,9 @@ export class MultiCursorSession {
 		// A selected regex match should keep the Find query, even when the editor has focus.
 		if (!s.isEmpty() && findState.isRevealed && findState.isRegex && findState.searchString.length > 0) {
 			const wordSeparators = findState.wholeWord ? editor.getOption(EditorOption.wordSeparators) : null;
-			const matches = editor.getModel().findMatches(findState.searchString, [s], true, findState.matchCase, wordSeparators, false);
-			// Only use the query if the selection is an exact match.
-			if (matches.some(match => match.range.equalsRange(s))) {
+			const match = editor.getModel().findNextMatch(findState.searchString, s.getStartPosition(), true, findState.matchCase, wordSeparators, false);
+			// Check the match in the full document so regex anchors keep their meaning.
+			if (match?.range.equalsRange(s)) {
 				return new MultiCursorSession(editor, findController, false, findState.searchString, findState.wholeWord, findState.matchCase, true, null);
 			}
 		}
