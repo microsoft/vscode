@@ -19,7 +19,7 @@ import { IDefaultAccountService } from '../../../../../platform/defaultAccount/c
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
-import { State, UpdateType } from '../../../../../platform/update/common/update.js';
+import { DisablementReason, State, UpdateType } from '../../../../../platform/update/common/update.js';
 import { ChatConfiguration } from '../../../../../workbench/contrib/chat/common/constants.js';
 import { IWorkbenchLayoutService } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { AccountPolicyGateState, IAccountPolicyGateInfo, IAccountPolicyGateService } from '../../../../../workbench/services/policies/common/accountPolicyService.js';
@@ -121,6 +121,25 @@ suite('Sessions policy update explanation', () => {
 			inert: false,
 			overlays: 1,
 		});
+	});
+
+	test('disabled updates leave only Open Editor Window as the Agents recovery action', () => {
+		const { root, updateInfo } = setup(info);
+		const states = [DisablementReason.Policy, DisablementReason.NotBuilt, DisablementReason.ManuallyDisabled].map(reason => {
+			updateInfo.set(getManagedSettingsUpdateInfo({ errorCode: 'client_update_required', minimumClientVersion: '1.141.0' }, product, State.Disabled(reason)), undefined);
+			const overlay = root.querySelector<HTMLElement>('.sessions-policy-blocked-overlay')!;
+			return {
+				buttons: [...overlay.querySelectorAll('.monaco-button')].map(button => button.textContent),
+				focused: mainWindow.document.activeElement?.textContent,
+				instructions: overlay.textContent!.includes('Update Instructions'),
+				administrator: overlay.textContent!.includes('Contact your administrator'),
+			};
+		});
+		assert.deepStrictEqual(states, [
+			{ buttons: ['Open Editor Window'], focused: 'Open Editor Window', instructions: false, administrator: true },
+			{ buttons: ['Open Editor Window'], focused: 'Open Editor Window', instructions: false, administrator: false },
+			{ buttons: ['Open Editor Window'], focused: 'Open Editor Window', instructions: false, administrator: false },
+		]);
 	});
 
 	test('satisfying or removing the compatibility requirement removes the overlay', () => {

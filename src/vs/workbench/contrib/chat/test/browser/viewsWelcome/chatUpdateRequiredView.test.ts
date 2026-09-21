@@ -13,7 +13,7 @@ import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
 import { IProductService } from '../../../../../../platform/product/common/productService.js';
-import { State, UpdateType } from '../../../../../../platform/update/common/update.js';
+import { DisablementReason, State, UpdateType } from '../../../../../../platform/update/common/update.js';
 import { IViewDescriptorService, ViewContainerLocation } from '../../../../../common/views.js';
 import { getManagedSettingsUpdateInfo, IManagedSettingsUpdateInfo, IManagedSettingsUpdateService, MANAGED_SETTINGS_UPDATE_VIEW_ID } from '../../../../../services/policies/common/managedSettingsUpdate.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
@@ -80,6 +80,29 @@ suite('Chat update required view', () => {
 		assert.deepStrictEqual({ updated, remaining: container.querySelector('.chat-update-required-content')?.textContent }, {
 			updated: { message: 'Your organization requires Code 1.142.0 or later to use AI features.', buttons: ['Restart to Update'], focused: true },
 			remaining: '',
+		});
+	});
+
+	test('disabled updates remove the primary action without adding a generic link or losing focus', () => {
+		const { container, updateInfo } = setup();
+		container.querySelector<HTMLElement>('.monaco-button')!.focus();
+		const states = [DisablementReason.Policy, DisablementReason.NotBuilt, DisablementReason.ManuallyDisabled].map(reason => {
+			updateInfo.set(getManagedSettingsUpdateInfo({ errorCode: 'client_update_required', minimumClientVersion: '1.141.0' }, product, State.Disabled(reason)), undefined);
+			return {
+				buttons: container.querySelectorAll('.monaco-button').length,
+				links: container.querySelectorAll('.chat-update-required-content a').length,
+				focused: mainWindow.document.activeElement === container.querySelector('.chat-update-required-content'),
+				administrator: container.textContent!.includes('Contact your administrator'),
+			};
+		});
+		updateInfo.set(info, undefined);
+		assert.deepStrictEqual({ states, restoredAction: container.querySelector('.monaco-button')?.textContent }, {
+			states: [
+				{ buttons: 0, links: 0, focused: true, administrator: true },
+				{ buttons: 0, links: 0, focused: true, administrator: false },
+				{ buttons: 0, links: 0, focused: true, administrator: false },
+			],
+			restoredAction: 'Check for Updates',
 		});
 	});
 

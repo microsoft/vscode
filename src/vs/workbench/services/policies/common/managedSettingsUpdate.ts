@@ -67,7 +67,6 @@ export function getManagedSettingsUpdateInfo(error: IManagedSettingsCompatibilit
 			if (state.reason === DisablementReason.Policy) {
 				updateStatus = localize('managedSettingsUpdate.disabled', "Built-in updates are disabled by your organization. Contact your administrator for an approved update.");
 			}
-			action = { label: localize('managedSettingsUpdate.instructions', "Update Instructions"), href: 'https://code.visualstudio.com/docs/setup/setup-overview#_update-cadence' };
 			break;
 		default:
 			updateStatus = localize('managedSettingsUpdate.progress', "An update operation is in progress.");

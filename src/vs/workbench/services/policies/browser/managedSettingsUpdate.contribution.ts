@@ -95,7 +95,9 @@ AccessibleViewRegistry.register({
 			{ type: AccessibleViewType.Help },
 			() => [
 				info.title, info.message, info.detail, info.updateStatus,
-				localize('managedSettingsUpdate.help', "Chat is read-only while this requirement is active. Use Tab or Shift+Tab to reach the update action, then press Enter or Space."),
+				localize('managedSettingsUpdate.help', "Chat is read-only while this requirement is active."),
+				info.action ? localize('managedSettingsUpdate.actionHelp', "Use Tab or Shift+Tab to reach the update action, then press Enter or Space.") : undefined,
+				isSessionsWindow ? localize('managedSettingsUpdate.editorWindowHelp', "Use Tab or Shift+Tab to reach Open Editor Window, then press Enter or Space. This opens a new editor window.") : undefined,
 				!isSessionsWindow ? localize('managedSettingsUpdate.bannerHelp', "The window banner is also available with the Focus Banner command. In the banner, use the arrow keys to reach its actions. Closing the banner does not dismiss the explanation in Chat or change your organization's requirement.") : undefined,
 			].filter(Boolean).join('\n'),
 			() => { if (isHTMLElement(previousFocus) && previousFocus.isConnected) { previousFocus.focus(); } },

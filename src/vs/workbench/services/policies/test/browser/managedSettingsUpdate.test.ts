@@ -37,6 +37,15 @@ suite('Managed settings update presentation', () => {
 	const error: IManagedSettingsCompatibilityError = { errorCode: 'client_update_required', clientVersion: '1.139.0', minimumClientVersion: '1.141.0' };
 	const idle = State.Idle(UpdateType.Archive);
 	const update = { version: '1.141.0', productVersion: '1.141.0' };
+	const disabledReasons = [
+		DisablementReason.NotBuilt,
+		DisablementReason.DisabledByEnvironment,
+		DisablementReason.ManuallyDisabled,
+		DisablementReason.Policy,
+		DisablementReason.MissingConfiguration,
+		DisablementReason.InvalidConfiguration,
+		DisablementReason.RunningAsAdmin,
+	];
 
 	function createService(initialError: IManagedSettingsCompatibilityError | null = null) {
 		const errorEmitter = store.add(new Emitter<IManagedSettingsCompatibilityError | null>());
@@ -94,10 +103,21 @@ suite('Managed settings update presentation', () => {
 			{ action: { label: 'Download Update', href: 'command:update.downloadUpdate' }, status: undefined },
 			{ action: { label: 'Install Update', href: 'command:update.installUpdate' }, status: undefined },
 			{ action: { label: 'Restart to Update', href: 'command:update.restartToUpdate' }, status: undefined },
-			{ action: { label: 'Update Instructions', href: 'https://code.visualstudio.com/docs/setup/setup-overview#_update-cadence' }, status: 'Built-in updates are disabled by your organization. Contact your administrator for an approved update.' },
-			{ action: { label: 'Update Instructions', href: 'https://code.visualstudio.com/docs/setup/setup-overview#_update-cadence' }, status: undefined },
+			{ action: undefined, status: 'Built-in updates are disabled by your organization. Contact your administrator for an approved update.' },
+			{ action: undefined, status: undefined },
 			{ action: undefined, status: 'An update operation is in progress.' },
 		]);
+	});
+
+	test('all disabled updater reasons omit fallback actions and only policy attributes management to the organization', () => {
+		assert.deepStrictEqual(disabledReasons.map(reason => {
+			const info = getManagedSettingsUpdateInfo(error, product, State.Disabled(reason));
+			return { reason, action: info.action, status: info.updateStatus };
+		}), disabledReasons.map(reason => ({
+			reason,
+			action: undefined,
+			status: reason === DisablementReason.Policy ? 'Built-in updates are disabled by your organization. Contact your administrator for an approved update.' : undefined,
+		})));
 	});
 
 	test('reads initially blocked state and recomputes late changes, removal and reapplication without duplicates', () => {
@@ -212,6 +232,22 @@ suite('Managed settings update presentation', () => {
 		]);
 	});
 
+	test('banner remains informative without a fallback link for every disabled updater reason', () => {
+		const { service, setUpdate } = createService(error);
+		const configuration = new TestConfigurationService();
+		store.add(configuration.onDidChangeConfigurationEmitter);
+		let active: IBannerItem | undefined;
+		store.add(new ManagedSettingsUpdateContribution(service, configuration, new MockContextKeyService(), new class extends mock<IBannerService>() {
+			override show(item: IBannerItem) { active = item; }
+			override hide() { active = undefined; }
+		}(), editorEnvironment));
+		const states = disabledReasons.map(reason => {
+			setUpdate(State.Disabled(reason));
+			return { shown: !!active, actions: active?.actions, instructions: String(active?.message).includes('Update Instructions') };
+		});
+		assert.deepStrictEqual(states, disabledReasons.map(() => ({ shown: true, actions: [], instructions: false })));
+	});
+
 	test('Agents keeps its update context without touching banners on startup, late changes or recovery', () => {
 		const { service, setError, setUpdate } = createService(error);
 		const configuration = new TestConfigurationService();
@@ -279,4 +315,24 @@ suite('Managed settings update presentation', () => {
 			bannerHelp: text.includes('banner'),
 		}, { requirement: true, keyboard: true, bannerHelp: false });
 	});
+
+	for (const isSessionsWindow of [false, true]) {
+		test(`accessibility help omits nonexistent update actions in ${isSessionsWindow ? 'Agents' : 'editor'} when updates are disabled`, () => {
+			const { service, setUpdate } = createService(error);
+			setUpdate(State.Disabled(DisablementReason.Policy));
+			const services = store.add(new TestInstantiationService());
+			services.stub(IManagedSettingsUpdateService, service);
+			services.stub(IWorkbenchEnvironmentService, new class extends mock<IWorkbenchEnvironmentService>() {
+				override readonly isSessionsWindow = isSessionsWindow;
+			}());
+			const help = AccessibleViewRegistry.getImplementations().find(implementation => implementation.name === 'managedSettingsUpdate')!;
+			const provider = store.add(services.invokeFunction(accessor => help.getProvider(accessor))!);
+			const text = provider.provideContent();
+			assert.deepStrictEqual({
+				updateAction: text.includes('reach the update action'),
+				editorWindowAction: text.includes('reach Open Editor Window'),
+				administrator: text.includes('Contact your administrator for an approved update.'),
+			}, { updateAction: false, editorWindowAction: isSessionsWindow, administrator: true });
+		});
+	}
 });
