@@ -10,7 +10,9 @@ import { INativeHostService } from '../../../platform/native/common/native.js';
 import { IOpenedMainWindow } from '../../../platform/window/common/window.js';
 import { constObservable } from '../../../base/common/observable.js';
 import { URI } from '../../../base/common/uri.js';
-import { getChatSessionToOpenInEditor, returnToVSCodeEditor, shouldShowReturnToVSCodeEditor } from '../../electron-browser/actions/vscodeActions.js';
+import { getChatSessionToOpenInEditor, OpenSessionInVSCodeAction, OpenVSCodeWindowAction, returnToVSCodeEditor, shouldShowReturnToVSCodeEditor, ShouldShowReturnToVSCodeEditorAction } from '../../electron-browser/actions/vscodeActions.js';
+import { IContext, IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
+import { ServiceIdentifier, ServicesAccessor } from '../../../platform/instantiation/common/instantiation.js';
 import { IActiveSession } from '../../services/sessions/common/sessionsManagement.js';
 
 suite('VS Code Actions', () => {
@@ -30,6 +32,60 @@ suite('VS Code Actions', () => {
 			agentsWindowNotListed: true,
 			otherWindowOpen: false,
 			onlyOtherWindowListed: false,
+		});
+	});
+
+	test('classic-window actions stay available unless a product opts out', () => {
+		// Nothing binds this key, so an expression that is false when unset would hide these actions.
+		const context = (unavailable: boolean | undefined) => new class extends mock<IContext>() {
+			override getValue<T>(key: string): T | undefined {
+				return (key === 'sessionsClassicWindowUnavailable' ? unavailable : undefined) as T | undefined;
+			}
+		};
+		// The bare precondition and one inside a conjunction, because `and()` canonicalizes too.
+		const bare = new OpenVSCodeWindowAction().desc.precondition;
+		const conjoined = new OpenSessionInVSCodeAction().desc.precondition;
+
+		assert.deepStrictEqual({
+			unset: [bare?.evaluate(context(undefined)), conjoined?.evaluate(context(undefined))],
+			optedOut: [bare?.evaluate(context(true)), conjoined?.evaluate(context(true))],
+			optedIn: [bare?.evaluate(context(false)), conjoined?.evaluate(context(false))],
+		}, {
+			unset: [true, true],
+			optedOut: [false, false],
+			optedIn: [true, true],
+		});
+	});
+
+	test('the sign-in dialog is not offered a return action when a product opts out', async () => {
+		const run = async (unavailable: boolean | undefined) => {
+			let queriedWindows = false;
+			const accessor: ServicesAccessor = {
+				get: <T>(id: ServiceIdentifier<T>): T => (id === IContextKeyService
+					? new class extends mock<IContextKeyService>() {
+						override getContextKeyValue<V>(key: string): V | undefined {
+							return (key === 'sessionsClassicWindowUnavailable' ? unavailable : undefined) as V | undefined;
+						}
+					}
+					: new class extends mock<INativeHostService>() {
+						override async getWindows(): Promise<IOpenedMainWindow[]> {
+							queriedWindows = true;
+							return [];
+						}
+					}) as T
+			};
+			return { shown: await new ShouldShowReturnToVSCodeEditorAction().run(accessor), queriedWindows };
+		};
+
+		assert.deepStrictEqual({
+			unset: await run(undefined),
+			optedIn: await run(false),
+			optedOut: await run(true),
+		}, {
+			unset: { shown: true, queriedWindows: true },
+			optedIn: { shown: true, queriedWindows: true },
+			// Opting out short-circuits before the native host is asked.
+			optedOut: { shown: false, queriedWindows: false },
 		});
 	});
 

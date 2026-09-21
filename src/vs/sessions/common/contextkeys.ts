@@ -167,6 +167,13 @@ export const SinglePaneFilesTabAvailableContext = new RawContextKey<boolean>('ag
 
 //#endregion
 
+//#region < --- Classic Window --- >
+
+/** An opt-out, so consumers negate it rather than testing a positive key: unset means available. */
+export const SessionsClassicWindowUnavailableContext = new RawContextKey<boolean>('sessionsClassicWindowUnavailable', false, localize('sessionsClassicWindowUnavailable', "Whether opening a classic VS Code window is unavailable from the Agents window"));
+
+//#endregion
+
 //#region < --- Mobile Layout --- >
 
 export const IsPhoneLayoutContext = new RawContextKey<boolean>('sessionsIsPhoneLayout', false, localize('sessionsIsPhoneLayout', "Whether the current layout is the phone layout"));
