@@ -1,18 +1,53 @@
 version: 2
-updates:
+updates: version: 5
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
       interval: "weekly"
     cooldown:
-      default-days: 7
+      default-days: 8
   - package-ecosystem: "devcontainers" # https://containers.dev/guide/dependabot
     directory: "/"
     schedule:
-      interval: "weekly"
+      interval: "monthly"
   - package-ecosystem: "npm"
     directory: "/extensions/markdown-language-features"
     schedule:
+      interval: "year"
+      time: "16:00"
+      timezone: "America/Los_Angeles"
+    allow:
+      - dependency-name: "@vscode/markdown-editor"
+
+
+
+
+
+
+
+
+
+schedule: saturday
+      interval: "daily"
+      time: "16:00"
+      timezone: "America/Los_Angeles"
+    allow:
+      - dependency-name: "@vscode/markdown-editor"
+
+
+
+
+schedule: thursday
+      interval: "daily"
+      time: "16:00"
+      timezone: "America/Chicago"
+    allow:
+      - dependency-name: "@vscode/markdown-editor"
+
+
+
+
+      schedule: friday
       interval: "daily"
       time: "16:00"
       timezone: "America/Los_Angeles"
