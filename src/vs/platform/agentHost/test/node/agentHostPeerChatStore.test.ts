@@ -150,6 +150,41 @@ suite('AgentHostPeerChatStore', () => {
 		});
 	});
 
+	test('initialization returns current membership instead of stale migration entries', async () => {
+		const database = new TestSessionDatabase();
+		const store = createStore(database);
+		await store.upsert(session, first, 'current-backing', origin);
+
+		const initialized = await store.initialize(session, [{ uri: second.toString(), providerData: 'stale-backing' }]);
+
+		assert.deepStrictEqual({
+			initialized,
+			legacy: await store.tryReadLegacy(session),
+		}, {
+			initialized: [{ uri: first.toString(), providerData: 'current-backing', origin }],
+			legacy: [{ uri: first.toString(), providerData: 'current-backing', origin }],
+		});
+	});
+
+	test('initialization does not resurrect a peer deleted during legacy enumeration', async () => {
+		const database = new TestSessionDatabase();
+		const store = createStore(database);
+		await store.upsert(session, first, 'backing');
+		await store.remove(session, first);
+
+		const initialized = await store.initialize(session, [{ uri: first.toString(), providerData: 'backing' }]);
+
+		assert.deepStrictEqual({
+			initialized,
+			central: await store.tryRead(session),
+			legacy: await store.tryReadLegacy(session),
+		}, {
+			initialized: [],
+			central: [],
+			legacy: [],
+		});
+	});
+
 	test('merges an older-build delta against migration-only membership before mirroring', async () => {
 		const unavailable = {
 			...createSessionDataService(),
