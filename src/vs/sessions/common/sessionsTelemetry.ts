@@ -10,6 +10,7 @@ import { isSSHHostKeyDeniedError } from '../../platform/agentHost/common/sshRemo
 import { PROTOCOL_VERSION } from '../../platform/agentHost/common/state/protocol/version/registry.js';
 import { ITelemetryService } from '../../platform/telemetry/common/telemetry.js';
 import { LOCAL_AGENT_HOST_PROVIDER_ID, REMOTE_AGENT_HOST_PROVIDER_PREFIX } from './agentHostSessionsProvider.js';
+import { ISession } from '../services/sessions/common/session.js';
 
 /** Bounded provider categories emitted by Agents window telemetry. */
 export type SessionsTelemetryProviderId = 'default-copilot' | 'local-agent-host' | 'remote-agent-host' | 'other';
@@ -84,6 +85,11 @@ type SessionComparisonAttemptCompletedClassification = {
 
 export function logSessionComparisonAttemptCompleted(telemetryService: ITelemetryService, data: ISessionComparisonAttemptCompletedTelemetry): void {
 	telemetryService.publicLog2<SessionComparisonAttemptCompletedEvent, SessionComparisonAttemptCompletedClassification>('agents/sessionComparisonAttemptCompleted', data);
+}
+
+/** Counts non-archived, non-automation sessions shown in the primary Sessions list. */
+export function getNonArchivedSessionListCount(sessions: readonly ISession[]): number {
+	return sessions.filter(session => !session.isArchived.get() && !(session.isAutomation?.get() ?? false)).length;
 }
 
 type SessionsListCompactViewStateEvent = {

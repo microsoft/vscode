@@ -16,6 +16,7 @@ import { ITelemetryService } from '../../../../platform/telemetry/common/telemet
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IWorkbenchContribution } from '../../../../workbench/common/contributions.js';
 import { isChatRequestFileEntry, isImageVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
+import { EditorChatUsage } from '../../../../workbench/contrib/chat/common/editorChatUsage.js';
 import { getExcludes, ISearchConfiguration, ISearchService, QueryType } from '../../../../workbench/services/search/common/search.js';
 import { AgentFeedbackKind, IAgentFeedbackAddedEvent, IAgentFeedbackConvertedEvent, IAgentFeedbackReplyAddedEvent, IAgentFeedbackService, IAgentFeedbackSubmittedEvent } from '../../agentFeedback/browser/agentFeedbackService.js';
 import { ISessionsTasksService } from '../../chat/browser/sessionsTasksService.js';
@@ -24,7 +25,7 @@ import { ISendRequestSentEvent, ISessionsChangeEvent, ISessionsManagementService
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { ISendRequestOptions, ISessionsProvider } from '../../../services/sessions/common/sessionsProvider.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
-import { classifySessionWorkspaceTopology, getSessionsTelemetryProviderId, hashSessionIdForTelemetry } from '../../../common/sessionsTelemetry.js';
+import { classifySessionWorkspaceTopology, getNonArchivedSessionListCount, getSessionsTelemetryProviderId, hashSessionIdForTelemetry } from '../../../common/sessionsTelemetry.js';
 import { ISessionsPartService } from '../../../services/sessions/browser/sessionsPartService.js';
 import { ISessionsWindowUsageService } from '../../../services/sessions/browser/sessionsWindowUsageService.js';
 import { ISessionLifecycleSummary, SessionDoneReason, SessionsLifecycleTracker } from './sessionsLifecycleTracker.js';
@@ -209,6 +210,7 @@ export class SessionsTelemetryContribution extends Disposable implements IWorkbe
 
 		const allSessions = this._sessionsManagementService.getSessions();
 		const visibleSessionsCount = this._sessionsService.visibleSessions.get().filter(s => s !== undefined).length;
+		const nonArchivedSessionListCount = getNonArchivedSessionListCount(allSessions);
 		// Snapshot all synchronous fields now so the event reflects the state at
 		// the time of the send, not when the async file-count fetch resolves.
 		const workspace = session.workspace.get();
@@ -217,9 +219,11 @@ export class SessionsTelemetryContribution extends Disposable implements IWorkbe
 			? this._lifecycleTracker.incrementAndGetUserRequestCounters(session)
 			: this._lifecycleTracker.getUserRequestCounters(session);
 		const sync = {
+			...new EditorChatUsage(this._storageService).getTelemetry(),
 			isNewSession,
 			isNewChat,
 			visibleSessionsCount,
+			nonArchivedSessionListCount,
 			...this._getRequestFields(options),
 			...this._getSessionFields(session),
 			...this._getChatFields(chat),
@@ -867,9 +871,15 @@ type AllSessionsFields = {
 // --- Event: agents/requestSent ---
 
 type SessionRequestSentEvent = {
+	editorSessionsByProvider: string;
+	editorMessages: number;
+	editorMessagesWithOtherSessionInProgress: number;
+	editorMessagesWithOtherSessionInProgressAcrossWindows: number;
+	editorLastMessageSecondsAgo: number | undefined;
 	isNewSession: boolean;
 	isNewChat: boolean;
 	visibleSessionsCount: number;
+	nonArchivedSessionListCount: number;
 	agentSessionId: string;
 	providerId: string;
 	providerType: string;
@@ -931,11 +941,17 @@ type SessionActionEvent = {
 // Classifications
 
 type SessionRequestSentClassification = {
+	editorSessionsByProvider: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'JSON map of cumulative editor chat starts by bounded provider category. No remote addresses or extension identifiers.' };
+	editorMessages: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Cumulative user messages accepted in editor windows, including queued and steering submissions, excluding retries and Agents window messages.' };
+	editorMessagesWithOtherSessionInProgress: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Editor submissions with a different session known to the submitting window in progress, counted once per message.' };
+	editorMessagesWithOtherSessionInProgressAcrossWindows: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Editor submissions with a different session in progress in the submitting window or reported by another live editor window within a 200ms probe, counted once per message.' };
+	editorLastMessageSecondsAgo: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Seconds since the last editor message at request submission; absent if no editor message has been recorded. Never an absolute timestamp.' };
 	owner: 'benibenj';
 	comment: 'Reports when the user sends a request from a session in the Agents window, including the user state at the time of send.';
 	isNewSession: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'True when the request starts a brand-new session, false when it is a new or continued chat in an existing session.' };
 	isNewChat: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'True when the request is the first message in a newly created chat, including the first chat in a new session; false for a follow-up message in an existing chat.' };
 	visibleSessionsCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'How many sessions are currently visible in the sessions grid.' };
+	nonArchivedSessionListCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of non-archived, non-automation sessions currently in the Sessions list.' };
 	agentSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'SHA-1 hash of the globally unique session identifier, used to correlate events for the same session without exposing provider or resource details.' };
 	providerId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Bounded sessions provider category: default-copilot, local-agent-host, remote-agent-host, or other.' };
 	providerType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The session type identifier provided by the sessions provider.' };

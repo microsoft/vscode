@@ -412,6 +412,10 @@ export interface IChatWidgetViewState {
 export const CHAT_WIDGET_VIEW_STATE_CACHE_LIMIT = 100;
 
 export interface IChatWidget {
+	/** Whether cancellable transcript preparation is blocking new submissions. */
+	readonly isTranscriptProgressActive?: boolean;
+	/** Cancels transcript preparation and returns whether it handled cancellation. */
+	cancelTranscriptProgress?(): boolean;
 	readonly domNode: HTMLElement;
 	/** DOM node of the scrollable transcript area, excluding the input part. */
 	readonly transcriptDomNode: HTMLElement;

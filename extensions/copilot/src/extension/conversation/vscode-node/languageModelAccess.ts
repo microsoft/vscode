@@ -32,7 +32,7 @@ import { IOTelService } from '../../../platform/otel/common/otelService';
 import { retrieveCapturingTokenByCorrelation, runWithCapturingToken } from '../../../platform/requestLogger/node/requestLogger';
 import { IExperimentationService } from '../../../platform/telemetry/common/nullExperimentationService';
 import { ITelemetryService } from '../../../platform/telemetry/common/telemetry';
-import { isEncryptedThinkingDelta } from '../../../platform/thinking/common/thinking';
+import { asThinkingOriginApi, isEncryptedThinkingDelta, thinkingOriginToMetadata } from '../../../platform/thinking/common/thinking';
 import { BaseTokensPerCompletion } from '../../../platform/tokenizer/node/tokenizer';
 import { TelemetryCorrelationId } from '../../../util/common/telemetryCorrelationId';
 import { CancellationTokenSource } from '../../../util/vs/base/common/cancellation';
@@ -205,6 +205,7 @@ export function buildUtilityAliasModelInfo(
 			version: endpoint.version,
 			maxInputTokens: endpoint.modelMaxPromptTokens - baseCount - BaseTokensPerCompletion,
 			maxOutputTokens: endpoint.maxOutputTokens,
+			maxContextWindowTokens: endpoint.maxContextWindowTokens,
 			requiresAuthorization,
 			isUserSelectable: false,
 			isDefault: false,
@@ -397,6 +398,7 @@ export class LanguageModelAccess extends Disposable implements IExtensionContrib
 				version: endpoint.version,
 				maxInputTokens: endpoint.modelMaxPromptTokens - baseCount - BaseTokensPerCompletion,
 				maxOutputTokens: endpoint.maxOutputTokens,
+				maxContextWindowTokens: endpoint.maxContextWindowTokens,
 				requiresAuthorization: session && { label: session.account.label },
 				isDefault: {
 					[ApiChatLocation.Panel]: isDefault,
@@ -897,6 +899,10 @@ export class CopilotLanguageModelWrapper extends Disposable {
 
 	async provideLanguageModelResponse(endpoint: IChatEndpoint, messages: Array<vscode.LanguageModelChatMessage | vscode.LanguageModelChatMessage2>, options: vscode.ProvideLanguageModelChatResponseOptions, extensionId: string | undefined, progress: vscode.Progress<LMResponsePart>, token: vscode.CancellationToken): Promise<void> {
 		let thinkingActive = false;
+		// Tag encrypted reasoning with the API that produced it so a consumer can tell whether it
+		// may be replayed, rather than having to guess from the payload's id.
+		const originApi = asThinkingOriginApi(endpoint.apiType);
+		const originMetadata = originApi ? thinkingOriginToMetadata(originApi) : undefined;
 		const finishCallback: FinishedCallback = async (_text, index, delta): Promise<undefined> => {
 			if (delta.thinking) {
 				if (isEncryptedThinkingDelta(delta.thinking)) {
@@ -904,7 +910,7 @@ export class CopilotLanguageModelWrapper extends Disposable {
 						progress.report(new vscode.LanguageModelThinkingPart(
 							delta.thinking.text ?? '',
 							delta.thinking.id,
-							{ encrypted_content: delta.thinking.encrypted },
+							{ encrypted_content: delta.thinking.encrypted, ...originMetadata },
 						));
 					}
 				} else {

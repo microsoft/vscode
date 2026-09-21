@@ -16,6 +16,7 @@ import { Disposable, DisposableStore, MutableDisposable, thenRegisterOrDispose, 
 import { URI } from '../../../../base/common/uri.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
+import { ActionViewItem } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import type { IManagedHoverContent } from '../../../../base/browser/ui/hover/hover.js';
 import { IMenuEntryActionViewItemOptions, MenuEntryActionViewItem } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { CodeEditorWidget, ICodeEditorWidgetOptions } from '../../../../editor/browser/widget/codeEditor/codeEditorWidget.js';
@@ -40,7 +41,7 @@ import { KeybindingsRegistry, KeybindingWeight } from '../../../../platform/keyb
 import { AccessibilityVerbositySettingId } from '../../../../workbench/contrib/accessibility/browser/accessibilityConfiguration.js';
 import { AccessibilityCommandId } from '../../../../workbench/contrib/accessibility/common/accessibilityCommands.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
@@ -102,6 +103,7 @@ import { ISessionModelSelection, SessionModelSelection } from './sessionModelSel
 import { hasSendableModelSelection } from './sessionModelPickerState.js';
 import { createNewSessionConfigToolbar, createNewSessionControlToolbar } from './newSessionConfigToolbars.js';
 import { ISessionContext, SessionContext } from '../../../services/sessions/browser/sessionContext.js';
+import { ISessionInputPickerVisibility, SessionInputPickerVisibility } from '../../../services/sessions/common/sessionPickerVisibility.js';
 import { AGENT_SESSIONS_SCOPED_INPUT_HISTORY_SETTING } from './sessionsChatHistory.js';
 import { IChatStatusItemService } from '../../../../workbench/contrib/chat/browser/chatStatus/chatStatusItemService.js';
 import { handleTerminalCommandPaste, isTerminalCommandInput } from '../../../../workbench/contrib/chat/browser/chatTerminalCommandPaste.js';
@@ -115,11 +117,10 @@ import { setupDictationMicGlow } from '../../../../workbench/contrib/chat/browse
 import { IDictationOnboardingService } from '../../../../workbench/contrib/chat/browser/speechToText/dictationOnboarding.js';
 import { ChatVoiceInputModeAction, VoiceInputModeActionViewItem } from '../../../../workbench/contrib/chat/browser/voiceInputMode/voiceInputModeActionViewItem.js';
 import { IVoiceInputModeService } from '../../../../workbench/contrib/chat/browser/voiceInputMode/voiceInputMode.js';
-import { toAction } from '../../../../base/common/actions.js';
+import { Separator, toAction } from '../../../../base/common/actions.js';
 import { runDictationShortcut } from '../../../../workbench/contrib/chat/browser/actions/chatSpeechToTextActions.js';
 import { isDictationActiveForEditor, notifyDictationSubmitted, onDidChangeDictationEditor } from '../../../../workbench/contrib/chat/browser/speechToText/dictationSession.js';
 import { combineVoiceInput } from '../../../../workbench/contrib/chat/browser/voiceClient/voiceInputUtils.js';
-import { parse, stringify } from '../../../../base/common/marshalling.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { DictationDownloadRing, getDictationDownloadHoverMarkdown, getDictationPreparingLabel } from '../../../../workbench/contrib/chat/browser/speechToText/dictationDownloadRing.js';
 import { IVoiceSessionController } from '../../../../workbench/contrib/chat/browser/voiceClient/voiceSessionController.js';
@@ -133,13 +134,14 @@ import { INewSessionComposer, INewSessionPromptOptionsController, NEW_SESSION_PR
 import { IWorkspaceSelectionSnapshot } from '../../../common/workspaceSelection.js';
 import { NewSessionPromptOptionsWidget } from './newSessionPromptOptions.js';
 import { isInputGitHubContext, toInputGitHubContextMetadata } from '../common/newChatContextIds.js';
+import { IChatDraft } from '../../../../workbench/contrib/chat/common/attachments/chatDraft.js';
+import { readNewChatDraftState, writeNewChatDraftState } from '../common/newChatDraftState.js';
 
 
 const OPEN_OTEL_SETTINGS_COMMAND = 'github.copilot.chat.otel.openSettings';
 const OTEL_STATUS_COMMAND = 'github.copilot.chat.otel.statusActive';
 const OTEL_STATUS_ENTRY_ID = 'copilot.otelStatus';
 const OTEL_DOCS_URL = 'https://code.visualstudio.com/docs/agents/guides/monitoring-agents';
-const STORAGE_KEY_DRAFT_STATE = 'sessions.draftState';
 const MIN_EDITOR_HEIGHT = 50;
 const MAX_EDITOR_HEIGHT = 200;
 const NEW_CHAT_INPUT_FONT_FAMILY = 'system-ui, -apple-system, sans-serif';
@@ -208,11 +210,6 @@ KeybindingsRegistry.registerKeybindingRule({
 	),
 	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Space,
 });
-
-interface IDraftState {
-	inputText: string;
-	attachments: readonly IChatRequestVariableEntry[];
-}
 
 const INITIALIZATION_LOADING_DELAY_MS = 500;
 
@@ -356,6 +353,13 @@ class NewChatInputStatusActionViewItem extends MenuEntryActionViewItem {
 	}
 }
 
+class RepositoryConfigSeparatorActionViewItem extends ActionViewItem {
+	override render(container: HTMLElement): void {
+		container.classList.add('repository-config-separator');
+		super.render(container);
+	}
+}
+
 /**
  * Options passed to the {@link NewChatInputWidget}'s `sendRequest` callback when
  * the user submits the input.
@@ -428,6 +432,9 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 	readonly onDidFocus = this._onDidFocus.event;
 	private readonly _onDidBlur = this._register(new Emitter<void>());
 	readonly onDidBlur = this._onDidBlur.event;
+	private readonly _onDidChangeInput = this._register(new Emitter<void>());
+	readonly onDidChangeInput = this._onDidChangeInput.event;
+	private _applyingDraft = false;
 	get element(): HTMLElement { return this._editorContainer; }
 
 	/** The underlying input editor. Exposed for component fixtures. */
@@ -450,6 +457,10 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 
 	get hasInput(): boolean {
 		return !!this._editor?.getValue() || this._contextAttachments.attachments.length > 0;
+	}
+
+	get isInputReady(): boolean {
+		return !!this._editor?.getModel();
 	}
 
 	get canApplyWorkspaceDefault(): boolean {
@@ -498,6 +509,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 	private _agentHostInputCompletionHandler: AgentHostInputCompletionHandler | undefined;
 	private readonly _scopedInstantiationService: IInstantiationService;
 	private readonly _newChatModelPickerService = new NewChatModelPickerService();
+	readonly pickerVisibility = this._register(new SessionInputPickerVisibility());
 	private readonly _modelSelection: SessionModelSelection;
 	private readonly _canSendRequest: IObservable<boolean>;
 	private readonly _compactModelPicker = observableValue(this, false);
@@ -506,7 +518,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 	private _updateAttachmentOffset: (() => void) | undefined;
 
 	// Input state
-	private _draftState: IDraftState | undefined = {
+	private _draftState: IChatDraft | undefined = {
 		inputText: '',
 		attachments: [],
 	};
@@ -592,6 +604,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			[INewChatModelPickerService, this._newChatModelPickerService],
 			[ISessionContext, new SessionContext(this.options.session)],
 			[ISessionModelSelection, this._modelSelection],
+			[ISessionInputPickerVisibility, this.pickerVisibility],
 		)));
 		this._history = this._register(this.instantiationService.createInstance(ChatHistoryNavigator, ChatAgentLocation.Chat));
 		if (this.options.historyKey) {
@@ -610,9 +623,13 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		// avoids a class-mismatch when the user resizes across the
 		// phone breakpoint after the chat input mounted.
 		this.sessionTypePicker = this._register(this.instantiationService.createInstance(MobileSessionTypePicker, this.options.session, this.options.sessionTypePickerOptions));
+		this._register(autorun(reader => this.pickerVisibility.setVisible('harness', this.sessionTypePicker.isVisible.read(reader))));
 		this._register(this._contextAttachments.onDidChangeContext(() => {
 			this._updateAndSaveDraftState();
 			this._updateSendButtonState();
+			if (!this._applyingDraft) {
+				this._onDidChangeInput.fire();
+			}
 			this.focus();
 		}));
 		this._register(autorun(reader => {
@@ -803,6 +820,13 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			const session = this.options.session;
 			this._register(this._scopedInstantiationService.createInstance(MenuWorkbenchToolBar, repoConfigContainer, Menus.NewSessionRepositoryConfig, {
 				hiddenItemStrategy: HiddenItemStrategy.NoHide,
+				toolbarOptions: {
+					primaryGroup: group => group.startsWith('navigation'),
+					useSeparatorsInPrimaryActions: true,
+				},
+				actionViewItemProvider: (action, options) => action.id === Separator.ID
+					? new RepositoryConfigSeparatorActionViewItem(undefined, action, options)
+					: undefined,
 				menuOptions: {
 					// Capture the originating session before command activation can yield.
 					get arg() { return { session: session.get() }; },
@@ -1144,6 +1168,9 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			this._updateSendButtonState();
 			this._updateEditorFontFamily();
 			this._promptOptionsWidget.value?.setInputValue(this._editor.getValue());
+			if (!this._applyingDraft) {
+				this._onDidChangeInput.fire();
+			}
 		}));
 	}
 
@@ -1568,7 +1595,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		}
 	}
 
-	private _toHistoryEntry(draft: IDraftState): IChatModelInputState {
+	private _toHistoryEntry(draft: IChatDraft): IChatModelInputState {
 		return {
 			...draft,
 			mode: { id: ChatModeKind.Agent, kind: ChatModeKind.Agent },
@@ -1703,38 +1730,46 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		if (draft) {
 			this._editor?.getModel()?.setValue(draft.inputText);
 			if (draft.attachments?.length) {
-				this._contextAttachments.setAttachments(draft.attachments.map(IChatRequestVariableEntry.fromExport));
+				this._contextAttachments.setAttachments(draft.attachments);
 			}
 			this._syncInputGitHubContext();
 		}
 		this._updateSendButtonState();
 	}
 
-	private _getDraftState(): IDraftState | undefined {
-		const raw = this.storageService.get(STORAGE_KEY_DRAFT_STATE, StorageScope.WORKSPACE);
-		if (!raw) {
-			return undefined;
-		}
+	private _getDraftState(): IChatDraft | undefined {
 		try {
-			return parse(raw) as IDraftState;
+			return readNewChatDraftState(this.storageService);
 		} catch {
+			this.logService.warn('[NewChatInput] Could not restore the saved draft');
 			return undefined;
 		}
 	}
 
 	private _clearDraftState(): void {
 		this._draftState = { inputText: '', attachments: [] };
-		this.storageService.store(STORAGE_KEY_DRAFT_STATE, stringify(this._draftState), StorageScope.WORKSPACE, StorageTarget.MACHINE);
+		writeNewChatDraftState(this.storageService, this._draftState);
 	}
 
 	saveState(): void {
 		if (this._draftState) {
-			const state = {
-				...this._draftState,
-				attachments: this._draftState.attachments.map(IChatRequestVariableEntry.toExport),
-			};
-			this.storageService.store(STORAGE_KEY_DRAFT_STATE, stringify(state), StorageScope.WORKSPACE, StorageTarget.MACHINE);
+			writeNewChatDraftState(this.storageService, this._draftState);
 		}
+	}
+
+	applyDraft(draft: IChatDraft): boolean {
+		if (!this.isInputReady || this.hasInput || this._sending) {
+			return false;
+		}
+		this._applyingDraft = true;
+		try {
+			this.prefillInput(draft.inputText);
+			this._contextAttachments.addAttachments(...draft.attachments);
+			this._updateAndSaveDraftState();
+		} finally {
+			this._applyingDraft = false;
+		}
+		return true;
 	}
 
 	layout(_height: number, _width: number): void {

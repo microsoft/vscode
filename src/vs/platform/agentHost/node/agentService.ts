@@ -52,6 +52,7 @@ import { IGitBlobUriFields, parseGitBlobUri } from './gitDiffContent.js';
 import { resolveSessionRepositories } from './agentHostSessionRepositories.js';
 import { findDeepestContainingWorkingDirectory, isMultiRootSession } from '../common/agentHostWorkingDirectories.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
+import { IAgentHostSessionTitleController } from './agentHostSessionTitleController.js';
 import { AgentHostAutomationService } from './agentHostAutomationService.js';
 import { createAgentChatContext } from './agentChatContext.js';
 import { AgentHostDebugLogsCollector, type IAgentHostDebugLogsEnvironment } from './agentHostDebugLogs.js';
@@ -100,7 +101,7 @@ import { IAgentHostOTelService } from '../common/otel/agentHostOTelService.js';
 import { AgentHostAuthenticationService } from './agentHostAuthenticationService.js';
 import { updateAgentHostTelemetryLevelFromConfig } from './agentHostTelemetryService.js';
 import type { IAgentHostCopilotSkuClassification, IAgentHostCopilotSkuTelemetry } from './agentHostTelemetryReporter.js';
-import { AgentHostActiveAgentTitleGenerationConfigKey, AgentHostArtifactToolsConfigKey, AgentHostEditTelemetryEnabledConfigKey, AgentHostExternalSessionsMode, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostSessionCatalogEnabledConfigKey, AgentHostShowExternalSessionsConfigKey, platformRootSchema } from '../common/agentHostSchema.js';
+import { AgentHostActiveAgentTitleGenerationConfigKey, AgentHostArtifactToolsCompactPromptsConfigKey, AgentHostArtifactToolsConfigKey, AgentHostEditTelemetryEnabledConfigKey, AgentHostExternalSessionsMode, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostSessionCatalogEnabledConfigKey, AgentHostShowExternalSessionsConfigKey, platformRootSchema } from '../common/agentHostSchema.js';
 import { IAgentHostChangesetService, CHANGESET_DB_METADATA_KEYS, CHANGES_SUMMARY_METADATA_KEYS, META_CHANGES_SUMMARY } from '../common/agentHostChangesetService.js';
 import { GIT_DB_METADATA_KEYS, IAgentHostGitStateService, META_GIT_STATE, META_GITHUB_STATE, META_SOURCE_CONTROL_STATE } from '../common/agentHostGitStateService.js';
 import { IAgentHostChangesetOperationService } from '../common/agentHostChangesetOperationService.js';
@@ -644,6 +645,7 @@ export class AgentService extends Disposable implements IAgentService {
 		@IAgentHostProviderService private readonly _providerService: IAgentHostProviderService,
 		@IAgentHostTurnService private readonly _turnService: IAgentHostTurnService,
 		@IAgentHostOTelService private readonly _otelService: IAgentHostOTelService,
+		@IAgentHostSessionTitleController private readonly _titleController: IAgentHostSessionTitleController,
 	) {
 		super();
 		this._authService = core.authenticationService;
@@ -834,6 +836,10 @@ export class AgentService extends Disposable implements IAgentService {
 				...options.catalogReconciliationOptions,
 				canSchedule: () => this._startupSettled.isOpen() && this._isSessionCatalogEnabled(),
 				isSourceAvailable: registered => !!this._providerService.getProvider(registered.provider),
+				onDidMarkSessionProvisional: session => {
+					this._provisionalSessionKeys.add(session);
+					this._invalidateSessionList();
+				},
 			},
 		));
 		this._runWhenStartupSettled('catalog reconciliation', () => {
@@ -1272,6 +1278,7 @@ export class AgentService extends Disposable implements IAgentService {
 	private _createSessionServerToolAccessor(): IAgentServiceSessionServerToolAccessor {
 		return {
 			isActiveAgentTitleGenerationEnabled: () => this._isActiveAgentTitleGenerationEnabled(),
+			getAutomaticTitleGenerationStrategy: session => this._titleController.getAutomaticTitleGenerationStrategy(session),
 			canConvertWorkspace: session => this._providerService.getProviderForSession(session)?.agentHostCapabilities.workspaceConversion === true
 				&& readSessionWorkspaceless(this._stateManager.getSessionState(session.toString())?._meta),
 			listSessions: () => this.listSessions(),
@@ -1312,6 +1319,7 @@ export class AgentService extends Disposable implements IAgentService {
 	private _createArtifactServerToolAccessor(): IArtifactServerToolAccessor {
 		return {
 			isEnabled: () => this._isArtifactToolsEnabled(),
+			useCompactPrompts: () => this._configurationService.getRootValue(platformRootSchema, AgentHostArtifactToolsCompactPromptsConfigKey) === true,
 			persist: async (session, artifacts) => {
 				try {
 					await this._persistOrderedListVisibleSessionState(URI.parse(session), { [SESSION_ARTIFACTS_KEY]: stringifySessionArtifacts(artifacts) });
@@ -1532,6 +1540,10 @@ export class AgentService extends Disposable implements IAgentService {
 			throw new Error(`Invalid ${SessionServerToolName.RenameChat} input: chat must match a known non-default chat.`);
 		}
 
+		if (isDefaultChat) {
+			this._sideEffects.markTitleRenamed(session.toString());
+		}
+		this._sideEffects.markTitleRenamed(session.toString(), chat.toString());
 		await persistSessionMetadataValues(this._sessionDataService, chat.toString(), {
 			[SESSION_CUSTOM_TITLE_KEY]: title,
 			[SESSION_CUSTOM_TITLE_SOURCE_KEY]: AGENT_HOST_TITLE_SOURCE_AGENT,
@@ -1551,10 +1563,6 @@ export class AgentService extends Disposable implements IAgentService {
 			}
 			this._stateManager.updateChatTitle(session.toString(), chat.toString(), title);
 		}
-		if (isDefaultChat) {
-			this._sideEffects.markTitleRenamed(session.toString());
-		}
-		this._sideEffects.markTitleRenamed(session.toString(), chat.toString());
 		return { title };
 	}
 
@@ -1981,6 +1989,9 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 		const metadata = await this._getCatalogReconciliationMetadata(agent, registered, () => this._isChatBacking(registered.session));
 		if (!metadata) {
+			if (!this._readableProviderCatalogs.has(registered.provider)) {
+				return { status: 'providerUnavailable' };
+			}
 			// The provider is registered but cannot vouch for this session, so
 			// there is nothing authoritative to project. Reported distinctly from
 			// an unregistered provider so reconciliation can park it instead of
@@ -2619,14 +2630,12 @@ export class AgentService extends Disposable implements IAgentService {
 			}
 		}
 		this._deferredProviderMigrations.delete(provider.id);
+		this._readableProviderCatalogs.add(provider.id);
 		if (report.marked) {
-			this._readableProviderCatalogs.add(provider.id);
 			this._initialProviderMigrationsNeedingRetry.delete(provider.id);
 		} else {
-			// An unmarked pass left candidates unimported, so the provider's
-			// catalog is not yet readable; the un-set backfill marker makes the
-			// next pass re-enumerate rather than short-circuit.
-			this._readableProviderCatalogs.delete(provider.id);
+			// The provider answered, but an unmarked pass still needs a future
+			// retry because candidates were left unimported.
 			this._initialProviderMigrationsNeedingRetry.add(provider.id);
 		}
 		if (!await this._sessionRegistry.isProviderBackfilled(provider.id)) {
@@ -4531,10 +4540,10 @@ export class AgentService extends Disposable implements IAgentService {
 			this._worktree.notePending(requestedSessionId);
 		}
 
+		const session = config?.session ?? this._mintSessionUri(provider);
 		let created: IAgentCreateSessionResult | undefined;
 		try {
 			const providerConfig = config ? this._toProviderConfig(config) : undefined;
-			const session = config?.session ?? this._mintSessionUri(provider);
 			const defaultChatUri = URI.parse(buildDefaultChatUri(session));
 			const boundConfig: IAgentCreateSessionConfig = { ...(providerConfig ?? {}), session };
 			const result = await provider.chats.createChat(defaultChatUri, this._chatContext(session, defaultChatUri), this._toCreateChatOptions(boundConfig));
@@ -4553,6 +4562,8 @@ export class AgentService extends Disposable implements IAgentService {
 		} catch (err) {
 			if (created) {
 				await this._rollbackProviderSession(provider, created.session);
+			} else {
+				this._titleController.clearSession(session.toString(), []);
 			}
 			throw err;
 		} finally {
@@ -4574,6 +4585,8 @@ export class AgentService extends Disposable implements IAgentService {
 			await provider.chats.disposeChat(defaultChatUri, this._chatContext(session, defaultChatUri));
 		} catch (disposeError) {
 			this._logService.error(disposeError, `[AgentService] Failed to roll back default chat of provider session ${session.toString()}`);
+		} finally {
+			this._titleController.clearSession(session.toString(), []);
 		}
 	}
 
@@ -6870,6 +6883,11 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 
 		const defaultChatUri = URI.parse(buildDefaultChatUri(sessionStr));
+		// Restore host-owned tool strategy before the provider materializes its tool inventory.
+		const { draft: defaultDraft, title: defaultChatTitle } = await this._chatContributions.hydrateChat({
+			session: sessionStr,
+			chat: defaultChatUri.toString(),
+		}, {});
 		const defaultChatProviderData = await this._readDefaultChatProviderData(session);
 		// Default-chat restore always goes through {@link IAgent.materializeChat};
 		// there is no identity-reuse fallback. Always offer the persisted blob,
@@ -7081,10 +7099,6 @@ export class AgentService extends Disposable implements IAgentService {
 			_meta: restoredMeta,
 		};
 
-		const { draft: defaultDraft, title: defaultChatTitle } = await this._chatContributions.hydrateChat({
-			session: sessionStr,
-			chat: defaultChatUri.toString(),
-		}, {});
 		// This overlay stays here rather than moving into `ChatDraftContribution`: it seeds
 		// the draft's model from `IAgent`-supplied session metadata, so it is provider-shaped,
 		// and moving it would put provider metadata into `IHydrationContext` for one consumer.
@@ -7295,8 +7309,7 @@ export class AgentService extends Disposable implements IAgentService {
 				return providerData !== undefined ? { ...peer, providerData } : peer;
 			});
 			const peers = await this._peerChatStore.readLocalChatMetadata(enrichedPeers);
-			await this._peerChatStore.replace(session, peers);
-			return peers;
+			return this._peerChatStore.initialize(session, peers, database);
 		}
 		let legacy: readonly IAgentLegacyChat[] | undefined;
 		try {
@@ -7312,8 +7325,7 @@ export class AgentService extends Disposable implements IAgentService {
 			uri: chat.uri.toString(),
 			...(chat.providerData !== undefined ? { providerData: chat.providerData } : {}),
 		}));
-		await this._peerChatStore.replace(session, entries);
-		return entries;
+		return this._peerChatStore.initialize(session, entries, database);
 	}
 
 	/**

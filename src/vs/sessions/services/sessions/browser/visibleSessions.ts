@@ -259,6 +259,7 @@ export class VisibleSession extends Disposable implements IActiveSession {
 	get branch() { return this._session.branch; }
 	get loading() { return this._session.loading; }
 	get isNewSessionRequestInProgress() { return this._session.isNewSessionRequestInProgress; }
+	get preparationProgress() { return this._session.preparationProgress; }
 	get isArchived() { return this._session.isArchived; }
 	get isRead() { return this._session.isRead; }
 	get description() { return this._session.description; }
@@ -313,6 +314,7 @@ class ResourceOverrideSession implements ISession {
 	get branch() { return this._session.branch; }
 	get loading() { return this._session.loading; }
 	get isNewSessionRequestInProgress() { return this._session.isNewSessionRequestInProgress; }
+	get preparationProgress() { return this._session.preparationProgress; }
 	get isArchived() { return this._session.isArchived; }
 	get isRead() { return this._session.isRead; }
 	get description() { return this._session.description; }
@@ -776,7 +778,7 @@ export class VisibleSessions extends Disposable {
 	 * for the old session is disposed; a fresh wrapper is created for the
 	 * updated session. No-op if `session` is not currently in the grid.
 	 */
-	updateSession(session: ISession, updatedSession: ISession): void {
+	updateSession(session: ISession, updatedSession: ISession, preserveFocus = false): void {
 		const fromId = session.sessionId;
 		if (!this._visibleList.includes(fromId)) {
 			return;
@@ -793,7 +795,7 @@ export class VisibleSessions extends Disposable {
 		transaction((tsx) => {
 			const visibleSession = this._getOrCreateVisibleSession(updatedSession);
 			if (wasActive) {
-				this._setActiveSession(visibleSession, false, tsx);
+				this._setActiveSession(visibleSession, preserveFocus, tsx);
 			}
 			this._refresh(tsx);
 		});

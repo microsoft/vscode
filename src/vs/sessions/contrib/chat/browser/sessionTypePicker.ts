@@ -12,7 +12,6 @@ import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js'
 import { localize } from '../../../../nls.js';
 import { IActionWidgetService } from '../../../../platform/actionWidget/browser/actionWidget.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { ActionListItemKind, IActionListDelegate, IActionListItem } from '../../../../platform/actionWidget/browser/actionList.js';
 import { IProviderSessionType, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
@@ -31,7 +30,6 @@ import { IChatInputNotificationService } from '../../../../workbench/contrib/cha
 import { IChatEntitlementService } from '../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { markOnboardingTarget } from '../../../../workbench/contrib/onboarding/browser/spotlight/onboardingTarget.js';
 import { reportNewChatPickerClosed } from './newChatPickerTelemetry.js';
-import { SessionHarnessPickerVisibleContext } from '../../../common/contextkeys.js';
 import { isAllowSignedOutWhenUsableEnabled } from '../../../browser/sessionsAuthGate.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 
@@ -177,13 +175,8 @@ export class SessionTypePicker extends Disposable {
 
 	private readonly _renderDisposables = this._register(new DisposableStore());
 	protected _triggerElement: HTMLElement | undefined;
-
-	/**
-	 * Tracks whether the harness picker trigger is currently interactive, so the
-	 * new-session-view onboarding tour can skip the harness step when only a
-	 * single harness can serve the selected workspace.
-	 */
-	private readonly _visibleKey: IContextKey<boolean>;
+	private readonly _isVisible = observableValue(this, false);
+	readonly isVisible: IObservable<boolean> = this._isVisible;
 
 	constructor(
 		private readonly _session: IObservable<ISession | undefined>,
@@ -198,12 +191,10 @@ export class SessionTypePicker extends Disposable {
 		@ILanguageModelsService protected readonly languageModelsService: ILanguageModelsService,
 		@IConfigurationService protected readonly configurationService: IConfigurationService,
 		@IChatInputNotificationService protected readonly chatInputNotificationService: IChatInputNotificationService,
-		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
 		super();
 
-		this._visibleKey = SessionHarnessPickerVisibleContext.bindTo(contextKeyService);
-		this._register(toDisposable(() => this._visibleKey.reset()));
+		this._register(toDisposable(() => this._isVisible.set(false, undefined)));
 
 		// Restore the previously selected session type from storage
 		this._picked = this._readStoredPick();
@@ -756,7 +747,7 @@ export class SessionTypePicker extends Disposable {
 
 	private _updateTriggerLabel(): void {
 		if (!this._triggerElement) {
-			this._visibleKey.set(false);
+			this._isVisible.set(false, undefined);
 			return;
 		}
 
@@ -765,7 +756,7 @@ export class SessionTypePicker extends Disposable {
 		if (this._folderSessionTypes.length === 0) {
 			this._triggerElement.classList.add('hidden');
 			this._triggerElement.parentElement?.classList.remove('disabled');
-			this._visibleKey.set(false);
+			this._isVisible.set(false, undefined);
 			return;
 		}
 
@@ -774,7 +765,7 @@ export class SessionTypePicker extends Disposable {
 		this._triggerElement.parentElement?.classList.toggle('disabled', disabled);
 		this._triggerElement.tabIndex = disabled ? -1 : 0;
 		this._triggerElement.setAttribute('aria-disabled', String(disabled));
-		this._visibleKey.set(!disabled);
+		this._isVisible.set(!disabled, undefined);
 		const currentType = this._folderSessionTypes.find(t =>
 			t.providerId === this._picked?.providerId && t.sessionType.id === this._picked?.sessionTypeId)?.sessionType
 			?? this._folderSessionTypes.find(t => t.sessionType.id === this._picked?.sessionTypeId)?.sessionType;

@@ -9,7 +9,8 @@ import * as dom from '../../../../../base/browser/dom.js';
 import { timeout } from '../../../../../base/common/async.js';
 import { DisposableStore, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
-import { constObservable, observableValue } from '../../../../../base/common/observable.js';
+import { constObservable, IObservable, observableValue, transaction } from '../../../../../base/common/observable.js';
+import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -21,8 +22,10 @@ import { IChatRequestTranscriptContextVariableEntry } from '../../../../../workb
 import { ChatInputNoticeHost, ChatInputNoticeLane } from '../../../../../workbench/contrib/chat/browser/widget/input/chatInputNoticeHost.js';
 import { isChatInputStackSlotShowing } from '../../../../../workbench/contrib/chat/browser/widget/input/chatInputStack.js';
 import { ResponseModelState } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
+import { IChatModel } from '../../../../../workbench/contrib/chat/common/model/chatModel.js';
+import { ChatWidget } from '../../../../../workbench/contrib/chat/browser/widget/chatWidget.js';
 import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
-import { ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
+import { ISession, ISessionPreparationProgress, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { SessionsChatBackgroundRenderer, SessionsChatBackgroundReplica } from '../../../../services/chatBackground/browser/chatBackgroundRenderer.js';
 import { ISessionsChatBackground } from '../../../../services/chatBackground/browser/chatBackgroundService.js';
@@ -1937,6 +1940,38 @@ suite('Sessions - Chat View', () => {
 		});
 	});
 
+	test('focuses the composer while session preparation is in progress', () => {
+		let inputFocused = false;
+		const view: ChatView = Object.assign(Object.create(ChatView.prototype), {
+			_currentSessionObs: constObservable({ isNewSessionRequestInProgress: constObservable(true) }),
+			_widget: { focusInput: () => { inputFocused = true; } },
+		});
+		view.focus();
+		assert.strictEqual(inputFocused, true);
+	});
+
+	test('rejects external attachments during preparation and accepts them afterward', () => {
+		const attached: URI[] = [];
+		const messages: string[] = [];
+		const resource = URI.file('/context.txt');
+		const widget = {
+			isTranscriptProgressActive: true,
+			attachmentModel: { addFile: async (uri: URI) => { attached.push(uri); } },
+		};
+		const view: ChatView = Object.assign(Object.create(ChatView.prototype), {
+			_widget: widget,
+			notificationService: { info: (message: string) => messages.push(message) },
+		});
+		view.attach([resource]);
+		const duringPreparation = [...attached];
+		widget.isTranscriptProgressActive = false;
+		view.attach([resource]);
+		assert.deepStrictEqual({ duringPreparation, afterPreparation: attached, messages }, {
+			duringPreparation: [],
+			afterPreparation: [resource],
+			messages: ['Wait for session preparation to finish before adding attachments.'],
+		});
+	});
 
 	test('allows transcript progress until a hidden bootstrap completes or visible content appears', () => {
 		assert.deepStrictEqual({
@@ -1981,6 +2016,45 @@ suite('Sessions - Chat View', () => {
 			activity: 'Creating isolated worktree (42%)',
 			noActivity: undefined,
 			visibleRequest: undefined,
+		});
+	});
+
+	test('shows draft activity with a log link and cancellation before a chat model is loaded', () => {
+		const preparing = observableValue('preparing', true);
+		const preparationProgress = observableValue<ISessionPreparationProgress | undefined>('progress', undefined);
+		const session = new class extends mock<ISession>() {
+			override readonly status = constObservable(SessionStatus.Untitled);
+			override readonly description = constObservable(new MarkdownString('Starting Dev Container...'));
+			override readonly isNewSessionRequestInProgress = preparing;
+			override readonly preparationProgress = preparationProgress;
+		}();
+		const calls: Parameters<ChatWidget['setTranscriptProgress']>[] = [];
+		const view: { _setupTranscriptPreparationProgress(model: IObservable<IChatModel | undefined>): void } = Object.assign(Object.create(ChatView.prototype), {
+			_store: disposables,
+			_currentChatResourceObs: constObservable(URI.parse('test:///draft')),
+			_currentSessionObs: constObservable(session),
+			_widget: { setTranscriptProgress: (...args: Parameters<ChatWidget['setTranscriptProgress']>) => calls.push(args) },
+		});
+		view._setupTranscriptPreparationProgress(constObservable(undefined));
+		let canceled = false;
+		let logOpened = false;
+		const cancel = () => { canceled = true; };
+		const showLog = () => { logOpened = true; };
+		preparationProgress.set({ message: 'Starting Dev Container...', showLog, cancel }, undefined);
+		calls.at(-1)?.[2]?.detail?.run();
+		calls.at(-1)?.[2]?.onCancel?.();
+		transaction(tx => {
+			preparationProgress.set(undefined, tx);
+			preparing.set(false, tx);
+		});
+		assert.deepStrictEqual({ calls, canceled, logOpened }, {
+			calls: [
+				['Starting Dev Container...', 'Starting Dev Container...', undefined],
+				['Starting Dev Container...', 'Starting Dev Container...', { detail: { label: 'Show Log', run: showLog }, onCancel: cancel }],
+				[undefined, undefined, undefined],
+			],
+			canceled: true,
+			logOpened: true,
 		});
 	});
 

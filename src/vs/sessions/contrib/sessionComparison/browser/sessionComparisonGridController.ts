@@ -87,7 +87,10 @@ export class SessionComparisonGridController extends Disposable implements IWork
 		this._register(toDisposable(() => this.layoutService.mainContainer.classList.remove(HIDE_INACTIVE_COMPARISON_INPUTS_CLASS)));
 	}
 
-	private _onDidFocusSession(sessionId: string): void {
+	private _onDidFocusSession(sessionId: string | undefined): void {
+		if (sessionId === undefined) {
+			return;
+		}
 		const visibleSessions = this.sessionsService.visibleSessions.get();
 		const focusedSession = visibleSessions.find(session => session?.sessionId === sessionId);
 		if (this._getJudgeSessionId(focusedSession, visibleSessions, this.comparisonService.comparisons.get()) !== sessionId) {

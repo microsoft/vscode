@@ -36,6 +36,7 @@ export interface IDevContainerAgentHostConnection {
 export interface IDevContainerAgentHostConnector {
 	/** Whether the workspace has a supported configuration and Docker is available on its host. */
 	isAvailable(workspaceUri: URI): Promise<boolean>;
+	showLog(workspaceUri: URI): Promise<void>;
 	createConnection(workspaceUri: URI, address: string, token: CancellationToken): Promise<IDevContainerAgentHostConnection>;
 }
 
@@ -49,7 +50,7 @@ export interface IDevContainerAgentHostTarget {
 
 export const IDevContainerAgentHostService = createDecorator<IDevContainerAgentHostService>('devContainerAgentHostService');
 
-/** Coordinates local, SSH, and Tunnel source workspaces with persistent container-backed Sessions providers. */
+/** Coordinates local, SSH, Tunnel, and WSL source workspaces with persistent container-backed Sessions providers. */
 export interface IDevContainerAgentHostService {
 	readonly _serviceBrand: undefined;
 
@@ -58,5 +59,6 @@ export interface IDevContainerAgentHostService {
 	/** Whether the registered connector can launch this workspace. */
 	isAvailable(workspaceUri: URI): Promise<boolean>;
 	connect(workspaceUri: URI, token: CancellationToken): Promise<IDevContainerAgentHostTarget>;
+	showLog(workspaceUri: URI): Promise<void>;
 	disconnect(workspaceUri: URI): Promise<void>;
 }

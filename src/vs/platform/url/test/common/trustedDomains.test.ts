@@ -112,6 +112,59 @@ suite('trustedDomains', () => {
 			assert.strictEqual(isURLDomainTrusted(URI.parse('https://example.com/api'), ['https://example.com/api/*']), false);
 		});
 
+		test('path-scoped trust matches the resolved destination', () => {
+			const paths = [
+				'/allowed/../outside',
+				'/allowed/%2e%2e/outside',
+				'/allowed/.\t./outside',
+				'/allowed/.\n./outside',
+				'/allowed/.\r./outside',
+				'/outside',
+				'/allowed/child/../page',
+			];
+			const rules = ['https://example.com/allowed', 'https://example.com/allowed/*'];
+
+			assert.deepStrictEqual(
+				paths.map(path => rules.map(rule => isURLDomainTrusted(URI.parse(`https://example.com${path}`), [rule]))),
+				[
+					[false, false],
+					[false, false],
+					[false, false],
+					[false, false],
+					[false, false],
+					[false, false],
+					[true, true],
+				]
+			);
+		});
+
+		test('unpaired surrogates preserve path-scoped trust decisions', () => {
+			const surrogates = ['\uD800', '\uDC00'];
+			const trustedDomains = ['https://example.com/allowed'];
+
+			assert.deepStrictEqual(
+				surrogates.map(surrogate => ({
+					allowed: isURLDomainTrusted(URI.parse(`https://example.com/allowed/${surrogate}/page`), trustedDomains),
+					outside: isURLDomainTrusted(URI.parse(`https://example.com/allowed/${surrogate}/../../outside`), trustedDomains),
+				})),
+				surrogates.map(() => ({ allowed: true, outside: false }))
+			);
+		});
+
+		test('resolving paths preserves user information guards and explicit trust all', () => {
+			const url = URI.parse('https://example.com:user@other.example/allowed/../outside');
+
+			assert.deepStrictEqual([
+				isURLDomainTrusted(url, ['https://example.com:*']),
+				isURLDomainTrusted(url, ['*']),
+				isURLDomainTrusted(URI.parse('https://example.com/allowed/../outside'), []),
+			], [
+				false,
+				true,
+				false,
+			]);
+		});
+
 		test('scheme must match', () => {
 			assert.strictEqual(isURLDomainTrusted(URI.parse('https://example.com'), ['http://example.com']), false);
 			assert.strictEqual(isURLDomainTrusted(URI.parse('http://example.com'), ['https://example.com']), false);

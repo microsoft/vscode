@@ -88,6 +88,26 @@ import { IChatTodo, IChatTodoListService } from '../../../../contrib/chat/common
 import { IChatToolRiskAssessmentService } from '../../../../contrib/chat/browser/tools/chatToolRiskAssessmentService.js';
 import { IVoiceSessionController } from '../../../../contrib/chat/browser/voiceClient/voiceSessionController.js';
 import { ServiceRegistration, registerWorkbenchServices } from '../fixtureUtils.js';
+import { IActionViewItemFactory, IActionViewItemService } from '../../../../../platform/actions/browser/actionViewItemService.js';
+import { ISessionSummaryHoverService, SessionSummaryHoverService } from '../../../../contrib/chat/browser/agentSessions/sessionSummaryHoverService.js';
+import { OpenSubagentChatActionViewItem } from '../../../../contrib/chat/browser/widget/chatContentParts/chatSubagentOpenChat.js';
+import { CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID } from '../../../../contrib/chat/common/constants.js';
+import { IExtensionsWorkbenchService } from '../../../../contrib/extensions/common/extensions.js';
+
+export function registerSubagentFixtureServices(reg: ServiceRegistration): void {
+	reg.define(ISessionSummaryHoverService, SessionSummaryHoverService);
+	reg.defineInstance(IExtensionsWorkbenchService, new class extends mock<IExtensionsWorkbenchService>() {
+		override async getExtensions() { return []; }
+	}());
+	reg.defineInstance(IActionViewItemService, new class extends mock<IActionViewItemService>() {
+		override readonly onDidChange = Event.None;
+		override lookUp(menu: MenuId, commandId: string | MenuId): IActionViewItemFactory | undefined {
+			return menu === MenuId.ChatSubagentContent && commandId === CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID
+				? (action, options, service) => service.createInstance(OpenSubagentChatActionViewItem, undefined, action, options, true)
+				: undefined;
+		}
+	}());
+}
 
 /**
  * A minimal IMenuService implementation backed by an in-memory map. Tests can

@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import * as sinon from 'sinon';
+import { timeout } from '../../../../base/common/async.js';
 import { Event } from '../../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../base/common/observable.js';
@@ -26,7 +27,7 @@ import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { ActionType, type ChatAction, type ChatUsageAction } from '../../common/state/sessionActions.js';
 import { withEphemeralSessionMeta } from '../../common/meta/agentEphemeralSessionMeta.js';
 import { toAgentMergeMessageMeta } from '../../common/meta/agentMergeMessageMeta.js';
-import { buildDefaultChatUri, buildSubagentChatUri, createErrorResponsePart, type Message, MessageKind, PendingMessageKind, ResponsePartKind, SessionStatus } from '../../common/state/sessionState.js';
+import { buildChatUri, buildDefaultChatUri, buildSubagentChatUri, buildSubagentSessionUri, createErrorResponsePart, type Message, MessageKind, PendingMessageKind, ResponsePartKind, SessionStatus } from '../../common/state/sessionState.js';
 import { IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE } from '../../common/agentHostCheckpointService.js';
 import { IAgentHostChatContributions } from '../../common/agentHostChatContributionsService.js';
 import { IAgentHostTerminalManager } from '../../node/agentHostTerminalManager.js';
@@ -328,6 +329,126 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 		assert.strictEqual(data.folderCount, 0);
 		assert.strictEqual((telemetry.events.find(event => event.eventName === 'agentHost.userMessageSent')?.data as Record<string, unknown>).messageOriginKind, 'inline');
 	});
+
+	test('logs and reports root-turn ordinals and process age captured at start, not completion', async () => {
+		const info = sinon.spy(logService, 'info');
+		setupSession();
+		startTurn('first');
+		await timeout(20);
+		const completionProcessAgeMs = Math.round(process.uptime() * 1000);
+		fire({ type: ActionType.ChatTurnComplete, turnId: 'first', duration: 1 });
+		startTurn('later');
+		fire({ type: ActionType.ChatTurnComplete, turnId: 'later', duration: 1 });
+		const records = info.getCalls()
+			.map(call => call.args[0])
+			.filter((message): message is string => typeof message === 'string' && message.startsWith('[AgentHostTurnTiming] '))
+			.map(message => JSON.parse(message.substring('[AgentHostTurnTiming] '.length)) as { turnId: string; hostRootTurnOrdinal: number; hostProcessAgeMs: number; titleGenerationStrategy?: string })
+			.filter(record => record.titleGenerationStrategy === undefined);
+		assert.deepStrictEqual(records.map(record => ({
+			turn: record.turnId, ordinal: record.hostRootTurnOrdinal,
+			hasProcessAge: Number.isFinite(record.hostProcessAgeMs) && record.hostProcessAgeMs >= 0,
+		})), [
+			{ turn: 'first', ordinal: 1, hasProcessAge: true },
+			{ turn: 'later', ordinal: 2, hasProcessAge: true },
+		]);
+		assert.deepStrictEqual(completedEvents().map(event => {
+			const data = event.data as { turnId: string; hostRootTurnOrdinal?: number; hostProcessAgeMs?: number };
+			return { turnId: data.turnId, hostRootTurnOrdinal: data.hostRootTurnOrdinal, hostProcessAgeMs: data.hostProcessAgeMs };
+		}), records.map(({ turnId, hostRootTurnOrdinal, hostProcessAgeMs }) => ({ turnId, hostRootTurnOrdinal, hostProcessAgeMs })));
+		assert.ok(records[0].hostProcessAgeMs < completionProcessAgeMs);
+	});
+
+	test('enriches the local root timing marker with the captured strategy without resampling start fields', () => {
+		const info = sinon.spy(logService, 'info');
+		turnTracker.turnStarted(agent, defaultChatUri, 'turn', undefined, undefined, 'default', undefined, undefined);
+		turnTracker.setTitleGenerationStrategy(defaultChatUri, 'turn', 'deferred');
+		turnTracker.setTitleGenerationStrategy(defaultChatUri, 'turn', 'utility');
+		turnTracker.turnCompleted(defaultChatUri, 'turn', 'success');
+
+		const records = info.getCalls()
+			.map(call => call.args[0])
+			.filter((message): message is string => typeof message === 'string' && message.startsWith('[AgentHostTurnTiming] '))
+			.map(message => JSON.parse(message.substring('[AgentHostTurnTiming] '.length)) as Record<string, unknown>);
+		assert.deepStrictEqual(records, [records[0], { ...records[0], titleGenerationStrategy: 'deferred' }]);
+	});
+
+	test('counts root starts across chats and clients without counting duplicate starts or child turns', () => {
+		const childSession = buildSubagentSessionUri(sessionUri, 'legacy-child').toString();
+		const turns = [
+			{ chat: defaultChatUri, turnId: 'first', client: 'window-one', ordinal: 1 },
+			{ chat: defaultChatUri, turnId: 'first', client: 'window-one', ordinal: 1 },
+			{ chat: buildSubagentChatUri(sessionKey, 'tool'), turnId: 'child-chat', client: 'window-one', ordinal: undefined },
+			{ chat: childSession, turnId: 'child-session', client: 'window-one', ordinal: undefined },
+			{ chat: buildDefaultChatUri(childSession), turnId: 'child-default', client: 'window-one', ordinal: undefined },
+			{ chat: defaultChatUri, turnId: 'parented', client: 'window-one', ordinal: undefined, parentTurnId: 'first' },
+			{ chat: buildChatUri(sessionKey, 'peer'), turnId: 'peer', client: 'window-two', ordinal: 2 },
+			{ chat: buildDefaultChatUri(AgentSession.uri('mock', 'other')), turnId: 'other-session', client: 'window-two', ordinal: 3 },
+		];
+		for (const turn of turns) {
+			turnTracker.turnStarted(agent, turn.chat, turn.turnId, undefined, undefined, 'default', undefined, undefined, undefined, turn.client, turn.parentTurnId);
+			turnTracker.setTitleGenerationStrategy(turn.chat, turn.turnId, 'deferred');
+		}
+		for (const turn of turns) {
+			turnTracker.turnCompleted(turn.chat, turn.turnId, 'success');
+		}
+		assert.deepStrictEqual(completedEvents().map(event => {
+			const data = event.data as { turnId: string; hostRootTurnOrdinal?: number; hostProcessAgeMs?: number; titleGenerationStrategy?: string };
+			return { turnId: data.turnId, ordinal: data.hostRootTurnOrdinal, hasProcessAge: data.hostProcessAgeMs !== undefined, strategy: data.titleGenerationStrategy };
+		}), turns.slice(1).map(turn => ({
+			turnId: turn.turnId, ordinal: turn.ordinal, hasProcessAge: turn.ordinal !== undefined, strategy: turn.ordinal !== undefined ? 'deferred' : undefined,
+		})));
+	});
+
+	test('resumed root turns retain their first cohort and do not emit duplicate timing markers', async () => {
+		const info = sinon.spy(logService, 'info');
+		turnTracker.turnStarted(agent, defaultChatUri, 'resumed', undefined, undefined, 'default', undefined, undefined);
+		turnTracker.setTitleGenerationStrategy(defaultChatUri, 'resumed', 'deferred');
+		turnTracker.turnCompleted(defaultChatUri, 'resumed', 'error');
+		await timeout(20);
+		turnTracker.turnStarted(agent, defaultChatUri, 'resumed', undefined, undefined, 'default', undefined, undefined);
+		turnTracker.setTitleGenerationStrategy(defaultChatUri, 'resumed', 'utility');
+		turnTracker.turnCompleted(defaultChatUri, 'resumed', 'success');
+		turnTracker.turnStarted(agent, defaultChatUri, 'later', undefined, undefined, 'default', undefined, undefined);
+		turnTracker.turnCompleted(defaultChatUri, 'later', 'success');
+
+		const markers = info.getCalls().map(call => call.args[0])
+			.filter((message): message is string => typeof message === 'string' && message.startsWith('[AgentHostTurnTiming] '))
+			.map(message => JSON.parse(message.substring('[AgentHostTurnTiming] '.length)) as { turnId: string; hostProcessAgeMs: number });
+		assert.deepStrictEqual({
+			markers: markers.map(marker => marker.turnId),
+			completions: completedEvents().map(event => {
+				const data = event.data as { turnId: string; hostRootTurnOrdinal: number; hostProcessAgeMs: number; titleGenerationStrategy?: string };
+				return { turn: data.turnId, ordinal: data.hostRootTurnOrdinal, age: data.hostProcessAgeMs, strategy: data.titleGenerationStrategy };
+			}),
+		}, {
+			markers: ['resumed', 'resumed', 'later'],
+			completions: [
+				{ turn: 'resumed', ordinal: 1, age: markers[0].hostProcessAgeMs, strategy: 'deferred' },
+				{ turn: 'resumed', ordinal: 1, age: markers[0].hostProcessAgeMs, strategy: 'deferred' },
+				{ turn: 'later', ordinal: 2, age: markers[2].hostProcessAgeMs, strategy: undefined },
+			],
+		});
+	});
+
+	for (const cleanup of ['session', 'truncation'] as const) {
+		test(`clears completed root timing identities on ${cleanup}`, () => {
+			for (const turn of ['removed', 'kept']) {
+				turnTracker.turnStarted(agent, defaultChatUri, turn, undefined, undefined, 'default', undefined, undefined);
+				turnTracker.turnCompleted(defaultChatUri, turn, 'error');
+			}
+			if (cleanup === 'session') {
+				turnTracker.clearSession(defaultChatUri);
+			} else {
+				turnTracker.clearTurnsExcept(defaultChatUri, new Set(['kept']));
+			}
+			for (const turn of ['removed', 'kept']) {
+				turnTracker.turnStarted(agent, defaultChatUri, turn, undefined, undefined, 'default', undefined, undefined);
+				turnTracker.turnCompleted(defaultChatUri, turn, 'success');
+			}
+			assert.deepStrictEqual(completedEvents().map(event => (event.data as { hostRootTurnOrdinal: number }).hostRootTurnOrdinal),
+				cleanup === 'session' ? [1, 2, 3, 4] : [1, 2, 3, 2]);
+		});
+	}
 
 	test('attributes completed and failed turns to the initiating client identity', () => {
 		setupSession();
@@ -1038,6 +1159,210 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 
 		const data = completedEvents()[0].data as Record<string, unknown>;
 		assert.strictEqual(data.timeToFirstProgress, undefined);
+	});
+
+	test('a leading rename_chat call counts as progress but not as substantive progress', async () => {
+		setupSession();
+		startTurn('turn-1');
+
+		fire({
+			type: ActionType.ChatToolCallStart,
+			turnId: 'turn-1',
+			toolCallId: 'call-rename',
+			toolName: 'rename_chat',
+			displayName: 'Rename Chat',
+		});
+		// Separate the two marks in time so a substantive value that wrongly
+		// came from the rename call would be indistinguishable from zero delay.
+		await timeout(5);
+		fire({ type: ActionType.ChatResponsePart, turnId: 'turn-1', part: { kind: ResponsePartKind.Markdown, id: 'p1', content: 'working on it' } });
+		fire({ type: ActionType.ChatTurnComplete, turnId: 'turn-1', duration: 1000 });
+
+		const data = completedEvents()[0].data as Record<string, unknown>;
+		const progress = data.timeToFirstProgress as number;
+		const substantive = data.timeToFirstSubstantiveProgress as number;
+		assert.deepStrictEqual({
+			bothReported: typeof progress === 'number' && typeof substantive === 'number',
+			substantiveIsLater: substantive > progress,
+		}, {
+			bothReported: true,
+			substantiveIsLater: true,
+		});
+	});
+
+	test('substantive progress matches first progress when the turn opens with real output', () => {
+		setupSession();
+		startTurn('turn-1');
+
+		fire({ type: ActionType.ChatResponsePart, turnId: 'turn-1', part: { kind: ResponsePartKind.Markdown, id: 'p1', content: 'hi' } });
+		fire({ type: ActionType.ChatTurnComplete, turnId: 'turn-1', duration: 1000 });
+
+		const data = completedEvents()[0].data as Record<string, unknown>;
+		assert.strictEqual(data.timeToFirstSubstantiveProgress, data.timeToFirstProgress);
+	});
+
+	test('a turn that only ever renames the chat reports no substantive progress', () => {
+		setupSession();
+		startTurn('turn-1');
+
+		fire({
+			type: ActionType.ChatToolCallStart,
+			turnId: 'turn-1',
+			toolCallId: 'call-rename',
+			toolName: 'rename_chat',
+			displayName: 'Rename Chat',
+		});
+		fire({ type: ActionType.ChatTurnComplete, turnId: 'turn-1', duration: 1000 });
+
+		const data = completedEvents()[0].data as Record<string, unknown>;
+		assert.deepStrictEqual({
+			progress: typeof data.timeToFirstProgress,
+			substantive: data.timeToFirstSubstantiveProgress,
+		}, {
+			progress: 'number',
+			substantive: undefined,
+		});
+	});
+
+	test('the namespaced rename tool Claude surfaces is also treated as bookkeeping', () => {
+		setupSession();
+		startTurn('turn-1');
+
+		// Claude exposes host server tools through its MCP bridge, so the same
+		// tool arrives as `mcp__host__rename_chat` rather than the bare name.
+		fire({
+			type: ActionType.ChatToolCallStart,
+			turnId: 'turn-1',
+			toolCallId: 'call-rename',
+			toolName: 'mcp__host__rename_chat',
+			displayName: 'Rename Chat',
+		});
+		fire({ type: ActionType.ChatTurnComplete, turnId: 'turn-1', duration: 1000 });
+
+		const data = completedEvents()[0].data as Record<string, unknown>;
+		assert.deepStrictEqual({
+			progress: typeof data.timeToFirstProgress,
+			substantive: data.timeToFirstSubstantiveProgress,
+		}, {
+			progress: 'number',
+			substantive: undefined,
+		});
+	});
+
+	test('an empty part opened before content dates substantive progress to the content', async () => {
+		setupSession();
+		startTurn('turn-1');
+
+		// The emission sequence Claude and Codex produce: a rename, then an
+		// empty reasoning part opened by `content_block_start`, then the delta
+		// that actually fills it.
+		fire({
+			type: ActionType.ChatToolCallStart,
+			turnId: 'turn-1',
+			toolCallId: 'call-rename',
+			toolName: 'rename_chat',
+			displayName: 'Rename Chat',
+		});
+		fire({ type: ActionType.ChatResponsePart, turnId: 'turn-1', part: { kind: ResponsePartKind.Reasoning, id: 'r1', content: '' } });
+		await timeout(5);
+		fire({ type: ActionType.ChatReasoning, turnId: 'turn-1', partId: 'r1', content: 'thinking about it' });
+		fire({ type: ActionType.ChatTurnComplete, turnId: 'turn-1', duration: 1000 });
+
+		const data = completedEvents()[0].data as Record<string, unknown>;
+		assert.deepStrictEqual({
+			bothReported: typeof data.timeToFirstProgress === 'number' && typeof data.timeToFirstSubstantiveProgress === 'number',
+			substantiveIsLater: (data.timeToFirstSubstantiveProgress as number) > (data.timeToFirstProgress as number),
+		}, {
+			bothReported: true,
+			substantiveIsLater: true,
+		});
+	});
+
+	test('a turn that only ever opens empty parts reports no substantive progress', () => {
+		setupSession();
+		startTurn('turn-1');
+
+		// Empty openers and a boundary notification, with no content ever
+		// following: visible progress happened, but nothing answered the user.
+		fire({ type: ActionType.ChatResponsePart, turnId: 'turn-1', part: { kind: ResponsePartKind.Markdown, id: 'p1', content: '' } });
+		fire({ type: ActionType.ChatResponsePart, turnId: 'turn-1', part: { kind: ResponsePartKind.Reasoning, id: 'r1', content: '' } });
+		fire({ type: ActionType.ChatDelta, turnId: 'turn-1', partId: 'p1', content: '' });
+		fire({ type: ActionType.ChatResponsePart, turnId: 'turn-1', part: { kind: ResponsePartKind.SystemNotification, content: '' } });
+		fire({ type: ActionType.ChatTurnComplete, turnId: 'turn-1', duration: 1000 });
+
+		const data = completedEvents()[0].data as Record<string, unknown>;
+		assert.deepStrictEqual({
+			progress: typeof data.timeToFirstProgress,
+			substantive: data.timeToFirstSubstantiveProgress,
+		}, {
+			progress: 'number',
+			substantive: undefined,
+		});
+	});
+
+	test('attributes host pre-send time to each bounded stage up to provider dispatch', async () => {
+		setupSession();
+		startTurn('turn-1');
+		// Let the asynchronous send path run to the provider hand-off.
+		await timeout(0);
+		fire({ type: ActionType.ChatTurnComplete, turnId: 'turn-1', duration: 1000 });
+
+		const data = completedEvents()[0].data as Record<string, unknown>;
+		assert.deepStrictEqual({
+			workingDirectory: typeof data.sendStageWorkingDirectoryMs,
+			modelSelection: typeof data.sendStageModelSelectionMs,
+			attachments: typeof data.sendStageAttachmentsMs,
+			contributions: typeof data.sendStageContributionsMs,
+			checkpoint: typeof data.sendStageCheckpointMs,
+			providerDispatch: typeof data.timeToProviderDispatch,
+		}, {
+			workingDirectory: 'number',
+			modelSelection: 'number',
+			attachments: 'number',
+			contributions: 'number',
+			checkpoint: 'number',
+			providerDispatch: 'number',
+		});
+	});
+
+	test('reports no duration for a pre-send stage that never ran', async () => {
+		// An ephemeral session skips the turn-start checkpoint entirely, so that
+		// stage must be absent rather than reported as zero — otherwise a skipped
+		// stage is indistinguishable from an instantaneous one.
+		setupSession(true, undefined, true);
+		startTurn('turn-1');
+		await timeout(0);
+		fire({ type: ActionType.ChatTurnComplete, turnId: 'turn-1', duration: 1000 });
+
+		const data = completedEvents()[0].data as Record<string, unknown>;
+		assert.deepStrictEqual({
+			checkpoint: data.sendStageCheckpointMs,
+			contributions: typeof data.sendStageContributionsMs,
+			providerDispatch: typeof data.timeToProviderDispatch,
+		}, {
+			checkpoint: undefined,
+			contributions: 'number',
+			providerDispatch: 'number',
+		});
+	});
+
+	test('reports no stage durations for a turn that never runs the host send path', () => {
+		setupSession();
+		// Completing synchronously leaves the send path mid-flight, so the turn
+		// never reaches provider dispatch.
+		turnTracker.turnStarted(agent, defaultChatUri, 'turn-direct', undefined, undefined, 'default', undefined, undefined);
+		turnTracker.turnCompleted(defaultChatUri, 'turn-direct', 'success');
+
+		const data = completedEvents()[0].data as Record<string, unknown>;
+		assert.deepStrictEqual({
+			workingDirectory: data.sendStageWorkingDirectoryMs,
+			checkpoint: data.sendStageCheckpointMs,
+			providerDispatch: data.timeToProviderDispatch,
+		}, {
+			workingDirectory: undefined,
+			checkpoint: undefined,
+			providerDispatch: undefined,
+		});
 	});
 
 	test('reports the latest per-turn billed nano-AIU from usage updates when available', () => {

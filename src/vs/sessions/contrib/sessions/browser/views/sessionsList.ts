@@ -34,7 +34,7 @@ import { ICommandService } from '../../../../../platform/commands/common/command
 import { IContextKey, IContextKeyService, RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
 import { MarshalledId } from '../../../../../base/common/marshallingIds.js';
 import { SessionProviderIdContext, SessionSupportsDeleteContext, SessionSupportsMultipleChatsContext, SessionSupportsRenameContext, SessionTypeContext, IsPhoneLayoutContext, IsQuickChatSessionContext, SessionIsArchivedContext, SessionIsReadContext, SessionHasPullRequestContext } from '../../../../common/contextkeys.js';
-import { ARCHIVE_SESSION_COMMAND_ID, RENAME_SESSION_COMMAND_ID } from '../../../../common/sessionCommands.js';
+import { ARCHIVE_SESSION_COMMAND_ID, RENAME_CHAT_COMMAND_ID, RENAME_SESSION_COMMAND_ID } from '../../../../common/sessionCommands.js';
 import { IContextMenuService, IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
@@ -121,7 +121,6 @@ const EMPTY_GUIDE_SESSION_IDS: ReadonlySet<string> = new Set();
 export const SessionItemContextMenuId = MenuId.SessionItemContextMenu;
 export const SessionSectionToolbarMenuId = new MenuId('SessionSectionToolbar');
 export const SessionGroupToolbarMenuId = new MenuId('SessionGroupToolbar');
-export const RENAME_SESSION_LIST_CHAT_ACTION_ID = 'sessions.list.renameChat';
 export const NEW_SESSION_FOR_WORKSPACE_ACTION_ID = 'sessionsView.sectionNewSession';
 
 /** Controls whether the empty default Chats group is shown in the sessions list. */
@@ -232,14 +231,14 @@ function getSessionListChats(session: ISession, reader?: IReader): readonly ICha
 	);
 }
 
-/** Returns in-progress when hidden chat activity should be summarized, then the main-chat status for trees with chat rows. */
+/** Preserves active main-chat states; otherwise summarizes hidden child progress before returning the main-chat status. */
 function getSessionRowStatus(session: ISession, reader: IReader | undefined, deriveFromMainChat: boolean, includeVisibleChildProgress = true): SessionStatus {
 	const sessionStatus = session.status.read(reader);
 	if (!deriveFromMainChat) {
 		return sessionStatus;
 	}
 	const mainChatStatus = session.mainChat.read(reader).status.read(reader);
-	if (mainChatStatus === SessionStatus.InProgress) {
+	if (mainChatStatus === SessionStatus.InProgress || mainChatStatus === SessionStatus.NeedsInput) {
 		return mainChatStatus;
 	}
 	const visibleChildChats = includeVisibleChildProgress ? undefined : getSessionListChats(session, reader);
@@ -2139,6 +2138,7 @@ interface ISessionGroupRendererDelegate {
 class SessionGroupRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, ISessionGroupTemplate> {
 	static readonly TEMPLATE_ID = 'session-group';
 	readonly templateId = SessionGroupRenderer.TEMPLATE_ID;
+	readonly rowClassName = 'session-list-section-row';
 
 	private readonly templatesByElement = new WeakMap<ISessionGroupItem, ISessionGroupTemplate>();
 	private readonly templatesById = new Map<string, ISessionGroupTemplate>();
@@ -4625,7 +4625,9 @@ export class SessionsList extends Disposable implements ISessionsList {
 		if (this.pendingOpenRequest !== request) {
 			return false;
 		}
-		this.markRead(session);
+		if (this._sessionsService.activeSession.get()?.sessionId !== session.sessionId) {
+			this.markRead(session);
+		}
 		this.invokeOpenRequest(request);
 		return true;
 	}
@@ -4958,7 +4960,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			[SessionProviderIdContext.key, element.session.providerId],
 		]);
 		const menu = this.menuService.createMenu(Menus.SessionChatItemContext, contextKeyService);
-		const wrapAction = (action: IAction): IAction => action.id === RENAME_SESSION_LIST_CHAT_ACTION_ID
+		const wrapAction = (action: IAction): IAction => action.id === RENAME_CHAT_COMMAND_ID
 			? toAction({
 				id: action.id,
 				label: action.label,
@@ -5978,7 +5980,7 @@ export class SessionsFlatList extends Disposable {
 			if (!element || !isSessionItem(element)) {
 				return;
 			}
-			if (this.options.markSessionReadOnOpen !== false) {
+			if (this.options.markSessionReadOnOpen !== false && this._sessionsService.activeSession.get()?.sessionId !== element.sessionId) {
 				this._sessionsManagementService.markRead(element);
 			}
 			const isLeftClick = DOM.isMouseEvent(e.browserEvent) && e.browserEvent.button === 0;

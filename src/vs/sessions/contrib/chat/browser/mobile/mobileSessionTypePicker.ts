@@ -18,7 +18,6 @@ import { IProviderSessionType, ISessionsManagementService } from '../../../../se
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISession } from '../../../../services/sessions/common/session.js';
 import { IObservable } from '../../../../../base/common/observable.js';
-import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { SessionTypePicker, ISessionTypePickerOptions } from '../sessionTypePicker.js';
 import { isPhoneLayout } from '../../../../browser/parts/mobile/mobileLayout.js';
 import { IMobilePickerSheetItem, showMobilePickerSheet } from '../../../../browser/parts/mobile/mobilePickerSheet.js';
@@ -51,9 +50,8 @@ export class MobileSessionTypePicker extends SessionTypePicker {
 		@IConfigurationService configurationService: IConfigurationService,
 		@IChatInputNotificationService chatInputNotificationService: IChatInputNotificationService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
-		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
-		super(session, options, actionWidgetService, sessionsManagementService, _sessionsProvidersService, storageService, telemetryService, chatSessionsService, chatEntitlementService, languageModelsService, configurationService, chatInputNotificationService, contextKeyService);
+		super(session, options, actionWidgetService, sessionsManagementService, _sessionsProvidersService, storageService, telemetryService, chatSessionsService, chatEntitlementService, languageModelsService, configurationService, chatInputNotificationService);
 	}
 
 	override render(container: HTMLElement, options?: { className?: string }): void {

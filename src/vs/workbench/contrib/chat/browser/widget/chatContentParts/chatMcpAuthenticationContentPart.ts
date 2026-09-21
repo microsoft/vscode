@@ -45,6 +45,7 @@ export class ChatMcpAuthenticationContentPart extends Disposable implements ICha
 
 	constructor(
 		private readonly data: IChatMcpAuthenticationRequired,
+		private readonly options: { onDidAuthenticate?: () => void } = {},
 		@IMarkdownRendererService private readonly markdownRendererService: IMarkdownRendererService,
 		@IAgentHostCustomizationService private readonly agentHostCustomizationService: IAgentHostCustomizationService,
 	) {
@@ -148,11 +149,12 @@ export class ChatMcpAuthenticationContentPart extends Disposable implements ICha
 		this.domNode.style.display = visible ? '' : 'none';
 		if (visible) {
 			this._hasBeenVisible = true;
-		} else if (this._hasBeenVisible) {
+		} else if (this._hasBeenVisible && !this.data.isUsed) {
 			// Every server has been authenticated. Mark this part used so a
 			// subsequent auth requirement surfaces as a fresh prompt rather than
 			// silently reusing this now-hidden one.
 			this.data.isUsed = true;
+			this.options.onDidAuthenticate?.();
 		}
 	}
 

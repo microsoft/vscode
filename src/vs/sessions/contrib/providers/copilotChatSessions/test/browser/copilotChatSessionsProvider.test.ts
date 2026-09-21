@@ -1306,7 +1306,10 @@ suite('CopilotChatSessionsProvider', () => {
 		modelsState.optionGroups = [{
 			id: 'models',
 			name: 'Models',
-			items: [{ id: 'synthetic-cloud-model', name: 'Synthetic Cloud Model' }],
+			items: [{
+				id: 'synthetic-cloud-model', name: 'Synthetic Cloud Model',
+				modelMetadata: { id: 'synthetic-cloud-model', name: 'Synthetic Cloud Model', maxInputTokens: 100_000, maxOutputTokens: 20_000, maxContextWindowTokens: 100_000 },
+			}],
 		}];
 		const afterResolve = provider.getModelsSnapshot(session.sessionId, 'removed-cloud-model');
 		const creationAfterResolve = provider.getModelsSnapshotForCreation(workspace, CopilotCloudSessionType.id, 'removed-cloud-model');
@@ -1316,11 +1319,13 @@ suite('CopilotChatSessionsProvider', () => {
 			afterResolve: { models: afterResolve.models.map(model => model.identifier), desiredModelResolution: afterResolve.desiredModelResolution, modelTarget: afterResolve.modelTarget },
 			creationBeforeResolve: creationBeforeResolve.desiredModelResolution,
 			creationAfterResolve: creationAfterResolve.models.map(model => model.identifier),
+			maxContextWindowTokens: afterResolve.models[0].metadata.maxContextWindowTokens,
 		}, {
 			beforeResolve: { models: [], desiredModelResolution: { kind: 'pending', identifier: 'removed-cloud-model' }, modelTarget: AgentSessionProviders.Cloud },
 			afterResolve: { models: ['synthetic-cloud-model'], desiredModelResolution: { kind: 'unavailable', identifier: 'removed-cloud-model' }, modelTarget: AgentSessionProviders.Cloud },
 			creationBeforeResolve: { kind: 'pending', identifier: 'removed-cloud-model' },
 			creationAfterResolve: ['synthetic-cloud-model'],
+			maxContextWindowTokens: 100_000,
 		});
 	});
 

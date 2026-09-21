@@ -147,6 +147,11 @@ export interface ICreateNewChatInSessionOptions {
 	readonly forceNew?: boolean;
 }
 
+export interface IMarkSessionReadOptions {
+	/** Keep an explicit unread mark during automatic updates within the current visit. */
+	readonly preserveExplicitUnread?: boolean;
+}
+
 /**
  * Event fired when sessions change within a provider.
  */
@@ -558,7 +563,7 @@ export interface ISessionsManagementService {
 	setSessionReadState(session: ISession, isRead: boolean): Promise<void>;
 
 	/** Mark a session as read through its provider. */
-	markRead(session: ISession): Promise<void>;
+	markRead(session: ISession, options?: IMarkSessionReadOptions): Promise<void>;
 
 	/** Mark a session as unread through its provider. */
 	markUnread(session: ISession): Promise<void>;
