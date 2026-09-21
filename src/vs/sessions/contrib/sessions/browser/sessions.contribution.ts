@@ -81,6 +81,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 		},
 		[SESSIONS_CHAT_TABS_SETTING]: {
 			type: 'string',
+			tags: ['preview'],
 			enum: [SessionsChatTabsMode.Multiple, SessionsChatTabsMode.Single],
 			enumDescriptions: [
 				localize('sessions.showChatTabs.multiple', "Each chat is displayed as a tab in the session view."),
