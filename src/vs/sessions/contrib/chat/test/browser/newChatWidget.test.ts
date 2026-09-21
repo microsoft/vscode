@@ -191,6 +191,7 @@ interface IRenderSessionTypePickerHarness {
 interface IRenderWorkspacePickerHarness extends IRenderSessionTypePickerHarness {
 	readonly _newChatInput: IRenderSessionTypePickerHarness['_newChatInput'] & {
 		readonly pickerVisibility: SessionInputPickerVisibility;
+		placeRepositoryControls(container?: HTMLElement): void;
 	};
 	readonly _workspacePicker: {
 		renderCategoryTriggers(container: HTMLElement, triggers: readonly { readonly label?: string; readonly tooltip?: string; readonly icon?: { readonly id: string }; readonly attachesContext?: boolean }[]): HTMLElement;
@@ -290,6 +291,7 @@ suite('NewChatWidget', () => {
 			},
 			_newChatInput: {
 				pickerVisibility,
+				placeRepositoryControls: () => { },
 				sessionTypePicker: {
 					render: (target, options) => {
 						if (harnessLabels.length <= 1) {

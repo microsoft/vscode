@@ -129,6 +129,18 @@ export class NewChatView extends AbstractChatView {
 		this._widget.focusInput();
 	}
 
+	override focusWorkspacePicker(): void {
+		if (this._widget instanceof NewChatWidget) {
+			this._widget.focusWorkspacePicker();
+		}
+	}
+
+	override focusHarnessPicker(): void {
+		if (this._widget instanceof NewChatWidget) {
+			this._widget.focusHarnessPicker();
+		}
+	}
+
 	override selectWorkspace(folderUri: URI, options?: ISelectWorkspaceOptions): WorkspaceSelectionResult {
 		return this._widget instanceof NewChatWidget ? this._widget.selectWorkspace(folderUri, options) : 'notReady';
 	}
