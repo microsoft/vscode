@@ -12,13 +12,14 @@ import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IActionWidgetService } from '../../../../../platform/actionWidget/browser/actionWidget.js';
+import { IActionListItem } from '../../../../../platform/actionWidget/browser/actionList.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
-import { IChatSessionsService } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
+import { IChatSessionsService, ResolvedChatSessionsExtensionPoint, SessionType } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ILanguageModelsService } from '../../../../../workbench/contrib/chat/common/languageModels.js';
 import { ChatEntitlement, IChatEntitlementService } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { IAgentSdkSetupService } from '../../../../../workbench/services/agentHost/browser/agentSdkSetupService.js';
@@ -122,6 +123,13 @@ class TestSessionTypePicker extends SessionTypePicker {
 	}
 }
 
+interface ITestPickerServices {
+	readonly chatSessionsService?: IChatSessionsService;
+	readonly chatEntitlementService?: IChatEntitlementService;
+	readonly agentSdkSetupService?: IAgentSdkSetupService;
+	readonly codexAccountService?: ICodexAccountService;
+}
+
 function createPicker(
 	disposables: DisposableStore,
 	session: ISettableObservable<ISession | undefined>,
@@ -130,6 +138,7 @@ function createPicker(
 	options?: ISessionTypePickerOptions,
 	actionWidgetService: Partial<IActionWidgetService> = { isVisible: false, hide: () => { }, show: () => { } },
 	localProviderIds: readonly string[] = [],
+	services: ITestPickerServices = {},
 ): TestSessionTypePicker {
 	const instantiationService = disposables.add(new TestInstantiationService());
 	instantiationService.stub(IActionWidgetService, actionWidgetService);
@@ -143,19 +152,19 @@ function createPicker(
 	}());
 	instantiationService.stub(IStorageService, storage);
 	instantiationService.stub(ITelemetryService, NullTelemetryService);
-	instantiationService.stub(IChatSessionsService, {
+	instantiationService.stub(IChatSessionsService, services.chatSessionsService ?? {
 		supportsAutoModelForSessionType: () => false,
 		requiresCustomModelsForSessionType: () => false,
 		getChatSessionContribution: () => undefined,
 	});
-	instantiationService.stub(IChatEntitlementService, { entitlement: ChatEntitlement.Pro });
+	instantiationService.stub(IChatEntitlementService, services.chatEntitlementService ?? { entitlement: ChatEntitlement.Pro });
 	instantiationService.stub(ILanguageModelsService, {
 		getLanguageModelIds: () => [],
 		lookupLanguageModel: () => undefined,
 	});
 	instantiationService.stub(IConfigurationService, new TestConfigurationService());
-	instantiationService.stub(IAgentSdkSetupService, { setups: [] });
-	instantiationService.stub(ICodexAccountService, { account: { status: 'unknown' } });
+	instantiationService.stub(IAgentSdkSetupService, services.agentSdkSetupService ?? { setups: [] });
+	instantiationService.stub(ICodexAccountService, services.codexAccountService ?? { account: { status: 'unknown' } });
 	return disposables.add(instantiationService.createInstance(TestSessionTypePicker, session, options));
 }
 
@@ -202,6 +211,50 @@ suite('SessionTypePicker', () => {
 		visibility.push(picker.isVisible.get());
 
 		assert.deepStrictEqual(visibility, [false, true, false, true, false]);
+	});
+
+	test('keeps setup-backed Codex selectable before its models are discovered', () => {
+		management.setSessionTypesForFolder(folder, [
+			sessionType('local', 'local', 'Local'),
+			sessionType('agent-host', 'codex', 'Codex', SessionType.AgentHostCodex),
+		]);
+		session.set(createFakeSession('local', 'local', folder), undefined);
+		let codexDisabled: boolean | undefined;
+		const actionWidgetService = new class extends mock<IActionWidgetService>() {
+			override show<T>(_user: string, _supportsPreview: boolean, items: readonly IActionListItem<T>[]): void {
+				const codex = items.find(item => item.label === 'Codex');
+				assert.ok(codex);
+				codexDisabled = codex.disabled;
+			}
+		}();
+		const chatSessionsService = new class extends mock<IChatSessionsService>() {
+			override getChatSessionContribution(type: string): ResolvedChatSessionsExtensionPoint | undefined {
+				return type === SessionType.AgentHostCodex
+					? { type, name: type, displayName: 'Codex', description: '', icon: Codicon.openai }
+					: undefined;
+			}
+			override requiresCopilotSignInForSessionType(): boolean { return false; }
+			override supportsAutoModelForSessionType(): boolean { return false; }
+			override requiresCustomModelsForSessionType(): boolean { return true; }
+		}();
+		const chatEntitlementService = new class extends mock<IChatEntitlementService>() {
+			override readonly entitlement = ChatEntitlement.Free;
+			override readonly anonymous = false;
+			override readonly clientByokEnabled = false;
+		}();
+		const agentSdkSetupService = new class extends mock<IAgentSdkSetupService>() {
+			override readonly setups = [{ agent: 'codex', download: 'ready' as const }];
+		}();
+		const picker = createPicker(disposables, session, management, storage, undefined, actionWidgetService, [], {
+			chatSessionsService,
+			chatEntitlementService,
+			agentSdkSetupService,
+		});
+		picker.render(document.createElement('div'));
+
+		picker.showPicker();
+
+		assert.strictEqual(codexDisabled, false);
 	});
 
 	test('preferred session type is the first one and follows session-type changes', () => {
