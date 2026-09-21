@@ -66,6 +66,9 @@ import { ScrollbarVisibility } from '../../../../../base/common/scrollable.js';
 import { WorkbenchList } from '../../../../../platform/list/browser/listService.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { ExtensionEditorTab, IExtensionsWorkbenchService } from '../../../extensions/common/extensions.js';
+import { ActiveSessionMcpServerMatcher, type AgentHostMcpServer, getRuntimeServerMatchKeys, getUniqueMcpMatchKeys, isMcpServerInUse } from './mcpServerCount.js';
+
+export type { AgentHostMcpServer } from './mcpServerCount.js';
 
 const $ = DOM.$;
 
@@ -129,8 +132,6 @@ interface IMcpBuiltinItemEntry {
 	readonly activeSessionServer?: AgentHostMcpServer;
 	readonly localServer?: IMcpServer;
 }
-
-export type AgentHostMcpServer = ReturnType<IAgentHostCustomizationService['getMcpServers']>[number];
 
 export function createBuiltinActiveSessionMcpEntries(servers: readonly AgentHostMcpServer[]): readonly IMcpSessionServerItemEntry[] {
 	return servers.map(server => ({ type: 'session-server-item', server }));
@@ -1019,56 +1020,6 @@ function getMcpDisabledReason(entry: IMcpServerItemEntry | IMcpSessionServerItem
 	return undefined;
 }
 
-function normalizeMcpMatchKey(value: string | undefined): string | undefined {
-	return value || undefined;
-}
-
-function getUniqueMcpMatchKeys(values: readonly (string | undefined)[]): string[] {
-	const keys = new Set<string>();
-	for (const value of values) {
-		const key = normalizeMcpMatchKey(value);
-		if (key) {
-			keys.add(key);
-		}
-	}
-	return [...keys];
-}
-
-class ActiveSessionMcpServerMatcher {
-	private readonly byKey = new Map<string, AgentHostMcpServer[]>();
-	private readonly matchedIds = new Set<string>();
-
-	constructor(private readonly servers: readonly AgentHostMcpServer[]) {
-		for (const server of servers) {
-			const separator = server.id.indexOf('/');
-			const rawId = separator >= 0 ? server.id.slice(separator + 1) : server.id;
-			for (const key of getUniqueMcpMatchKeys([rawId, server.name])) {
-				let bucket = this.byKey.get(key);
-				if (!bucket) {
-					bucket = [];
-					this.byKey.set(key, bucket);
-				}
-				bucket.push(server);
-			}
-		}
-	}
-
-	take(keys: readonly (string | undefined)[]): AgentHostMcpServer | undefined {
-		for (const key of getUniqueMcpMatchKeys(keys)) {
-			const matches = this.byKey.get(key)?.filter(server => !this.matchedIds.has(server.id));
-			if (matches?.length === 1) {
-				this.matchedIds.add(matches[0].id);
-				return matches[0];
-			}
-		}
-		return undefined;
-	}
-
-	unmatched(query: string): AgentHostMcpServer[] {
-		return this.servers.filter(server => !this.matchedIds.has(server.id) && matchesActiveSessionServerQuery(server, query));
-	}
-}
-
 class LocalMcpServerMatcher {
 	private readonly byKey = new Map<string, IMcpServer[]>();
 
@@ -1096,19 +1047,8 @@ class LocalMcpServerMatcher {
 	}
 }
 
-function matchesActiveSessionServerQuery(server: AgentHostMcpServer, query: string): boolean {
-	if (!query) {
-		return true;
-	}
-	return server.name.toLowerCase().includes(query);
-}
-
 function getWorkbenchServerMatchKeys(server: IWorkbenchMcpServer): string[] {
 	return getUniqueMcpMatchKeys([server.id, server.name, server.label]);
-}
-
-function getRuntimeServerMatchKeys(server: IMcpServer): string[] {
-	return getUniqueMcpMatchKeys([server.definition.id, server.definition.label]);
 }
 
 export function getActiveSessionServerPresentation(server: AgentHostMcpServer): { readonly enabled: boolean; readonly status: McpStatusKind } {
@@ -1515,8 +1455,6 @@ export class McpListWidget extends Disposable {
 	private installedAddButton!: Button | undefined;
 
 	private filteredServers: IWorkbenchMcpServer[] = [];
-	private filteredBuiltinCount = 0;
-	private filteredActiveSessionCount = 0;
 	private installedEntries: IMcpInstalledPresentation[] = [];
 	private gallerySnapshotServers: IWorkbenchMcpServer[] = [];
 	private galleryServers: IWorkbenchMcpServer[] = [];
@@ -2512,6 +2450,10 @@ export class McpListWidget extends Disposable {
 		return isPrimaryMcpServerEnabled(this.mcpService, serverId, activeSessionServer);
 	}
 
+	private isInstalledEntryInUse(entry: IMcpInstalledEntry): boolean {
+		return isMcpServerInUse(this.isInstalledEntryEnabled(entry), getActiveSessionServer(entry));
+	}
+
 	private setInstalledEntryEnabled(entry: IMcpInstalledEntry, enabled: boolean): void {
 		const activeSessionServer = getActiveSessionServer(entry);
 		const localServer = entry.type === 'session-server-item' ? undefined : entry.localServer;
@@ -2631,9 +2573,6 @@ export class McpListWidget extends Disposable {
 		];
 		this.installedEntries.sort((a, b) => Number(getActiveSessionServer(b.entry)?.enabled ?? this.isInstalledEntryEnabled(b.entry)) - Number(getActiveSessionServer(a.entry)?.enabled ?? this.isInstalledEntryEnabled(a.entry)));
 
-		// Compute sidebar badge directly from the data arrays (same source as group headers)
-		this.filteredBuiltinCount = builtinServers.length;
-		this.filteredActiveSessionCount = activeSessionOnlyServers.length;
 		this._onDidChangeItemCount.fire(this.itemCount);
 		if (render) {
 			this.renderFilteredServers();
@@ -2656,12 +2595,9 @@ export class McpListWidget extends Disposable {
 		].join(':')).join('|');
 	}
 
-	/**
-	 * Gets the total item count from the underlying data arrays
-	 * (the same source used to build group headers).
-	 */
+	/** Gets the effective enabled item count for the section badge. */
 	get itemCount(): number {
-		return this.filteredServers.length + this.filteredBuiltinCount + this.filteredActiveSessionCount;
+		return this.installedEntries.filter(({ entry }) => this.isInstalledEntryInUse(entry)).length;
 	}
 
 	/**

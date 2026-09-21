@@ -183,13 +183,14 @@ function createHarness(disposables: Pick<DisposableStore, 'add'>, options?: { re
 		? upcastPartial<ResolvedKeybinding>({ getLabel: () => 'F2' })
 		: lookupKeybinding(commandId);
 	store.add({ dispose: () => keybindingService.lookupKeybinding = lookupKeybinding });
-	const closeAction = instantiationService.createInstance(MenuItemAction, { id: CLOSE_CHAT_COMMAND_ID, title: 'Close Chat' }, undefined, undefined, undefined, undefined);
 	instantiationService.stub(IMenuService, new class extends mock<IMenuService>() {
 		override createMenu(): IMenu {
 			return {
 				onDidChange: Event.None,
 				dispose: () => { },
-				getActions: () => [['navigation', [closeAction]]],
+				getActions: options => [['navigation', [
+					instantiationService.createInstance(MenuItemAction, { id: CLOSE_CHAT_COMMAND_ID, title: 'Close' }, undefined, options, undefined, undefined),
+				]]],
 			};
 		}
 	});
@@ -462,12 +463,25 @@ suite('Sessions - ChatCompositeBar', () => {
 		}, {
 			commandCalls: [{
 				commandId: CLOSE_CHAT_COMMAND_ID,
-				args: [{ session, chat: session.visibleChatTabs.get()[1] }],
+				args: [session, session.visibleChatTabs.get()[1]],
 			}],
 			openedChats: [],
 			defaultPrevented: true,
 			dispatchResult: false,
 			bubbled: 0,
+		});
+
+		test('close action targets its rendered chat tab', () => {
+			const { commandService, session, tabs } = createHarness(disposables);
+			const closeAction = tabs[1].querySelector<HTMLElement>('.chat-composite-bar-tab-actions .action-label');
+			assert.ok(closeAction);
+
+			closeAction.click();
+
+			assert.deepStrictEqual(commandService.calls, [{
+				commandId: CLOSE_CHAT_COMMAND_ID,
+				args: [session, session.visibleChatTabs.get()[1]],
+			}]);
 		});
 	});
 
