@@ -347,15 +347,17 @@ export class EmbeddedMcpServerDetail extends Disposable {
 			return;
 		}
 
-		this.migrationSection.card.className = 'mcp-detail-diagnostic-card migration';
+		this.migrationSection.card.className = 'mcp-detail-diagnostic-card migration warning';
 		this.migrationSection.icon.className = 'mcp-detail-diagnostic-icon';
-		this.migrationSection.icon.classList.add(...ThemeIcon.asClassNameArray(Codicon.info));
-		this.migrationSection.summary.textContent = localize('mcpMigrationAvailable', "Migration available");
+		this.migrationSection.icon.classList.add(...ThemeIcon.asClassNameArray(Codicon.warning));
+		this.migrationSection.summary.textContent = localize('mcpMigrateServer', "Migrate MCP Server");
 		DOM.clearNode(this.migrationSection.details);
 		this.migrationSection.details.style.display = '';
+		const description = DOM.append(this.migrationSection.details, $('p.mcp-detail-migration-description'));
+		description.textContent = localize('mcpMigrationAvailableDescription', "This MCP server needs to be migrated to keep working.");
 		const link = DOM.append(this.migrationSection.details, $('a.mcp-detail-migration-link')) as HTMLAnchorElement;
 		link.href = '#';
-		link.textContent = localize('mcpReviewMigration', "Review Migration...");
+		link.textContent = localize('mcpReviewMigrations', "Review Migrations...");
 		this.migrationLinkListener.value = DOM.addDisposableListener(link, DOM.EventType.CLICK, event => {
 			event.preventDefault();
 			this.options.openMigrationPage();

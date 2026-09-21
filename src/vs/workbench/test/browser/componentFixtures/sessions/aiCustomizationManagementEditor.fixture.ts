@@ -2720,7 +2720,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 
 	EmbeddedMcpDetailMigratable: defineComponentFixture({
 		labels: { kind: 'screenshot' },
-		expectedVisualDescriptions: ['A Migration available card appears above Configuration with a Review Migration link. No error or compatibility issue card is shown.'],
+		expectedVisualDescriptions: ['A yellow Migrate MCP Server card appears above Configuration with a warning icon, text explaining that migration is required to keep working, and an emphasized Review Migrations link. No error or compatibility issue card is shown.'],
 		render: ctx => renderEmbeddedMcpDetail(
 			ctx,
 			makeLocalMcpServer('mcp-postgres', 'PostgreSQL', LocalMcpServerScope.Workspace, 'Database access', {
