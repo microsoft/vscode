@@ -2709,6 +2709,7 @@ suite('Sessions - SessionsList', () => {
 			const base = createTestSession('Session').session;
 			const session: ISession = {
 				...base,
+				status: constObservable(SessionStatus.InProgress),
 				chats: constObservable([main, active]),
 				mainChat: constObservable(main),
 				capabilities: constObservable({ supportsMultipleChats: true }),
@@ -2743,6 +2744,7 @@ suite('Sessions - SessionsList', () => {
 			const base = createTestSession('Session').session;
 			const session: ISession = {
 				...base,
+				status: constObservable(SessionStatus.InProgress),
 				chats: constObservable([main, active]),
 				mainChat: constObservable(main),
 				capabilities: constObservable({ supportsMultipleChats: true }),
@@ -2790,6 +2792,44 @@ suite('Sessions - SessionsList', () => {
 					parentHasProgress: true,
 					childHasProgress: false,
 				},
+			});
+		});
+
+		test('collapsed parent progress does not observe child status', () => {
+			let childStatusObservers = 0;
+			const childStatusEmitter = disposables.add(new Emitter<void>({
+				onDidAddListener: () => childStatusObservers++,
+				onWillRemoveListener: () => childStatusObservers--,
+			}));
+			const main = createChat('Main chat');
+			const child = upcastPartial<IChat>({
+				resource: URI.parse('test-chat://Active-chat'),
+				title: constObservable('Active chat'),
+				updatedAt: constObservable(new Date()),
+				status: observableFromEvent(disposables, childStatusEmitter.event, () => SessionStatus.InProgress),
+				interactivity: constObservable(ChatInteractivity.Full),
+				origin: { kind: ChatOriginKind.User },
+			});
+			const base = createTestSession('Session').session;
+			const session: ISession = {
+				...base,
+				status: constObservable(SessionStatus.InProgress),
+				chats: constObservable([main, child]),
+				mainChat: constObservable(main),
+				capabilities: constObservable({ supportsMultipleChats: true }),
+			};
+
+			const { container } = renderSessionChatsList(session, undefined, true, false);
+			setSessionChatsExpanded(container, false);
+
+			assert.deepStrictEqual({
+				childStatusObservers,
+				parentHasProgress: !!container.querySelector('.session-item .session-icon > .monaco-pixel-spinner:not([data-icon-fading-out])'),
+				childRendered: !!container.querySelector('.session-chat-item'),
+			}, {
+				childStatusObservers: 0,
+				parentHasProgress: true,
+				childRendered: false,
 			});
 		});
 

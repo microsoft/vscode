@@ -220,8 +220,8 @@ function getSessionListChats(session: ISession, reader?: IReader): readonly ICha
 	);
 }
 
-/** Preserves active main-chat states; otherwise summarizes hidden child progress before returning the main-chat status. */
-function getSessionRowStatus(session: ISession, reader: IReader | undefined, deriveFromMainChat: boolean, includeVisibleChildProgress = true): SessionStatus {
+/** Preserves active main-chat states and uses the session aggregate for collapsed child progress. */
+function getSessionRowStatus(session: ISession, reader: IReader | undefined, deriveFromMainChat: boolean, collapsed = true): SessionStatus {
 	const sessionStatus = session.status.read(reader);
 	if (!deriveFromMainChat) {
 		return sessionStatus;
@@ -230,11 +230,7 @@ function getSessionRowStatus(session: ISession, reader: IReader | undefined, der
 	if (mainChatStatus === SessionStatus.InProgress || mainChatStatus === SessionStatus.NeedsInput) {
 		return mainChatStatus;
 	}
-	const visibleChildChats = includeVisibleChildProgress ? undefined : getSessionListChats(session, reader);
-	if (session.chats.read(reader).some(chat =>
-		chat.status.read(reader) === SessionStatus.InProgress &&
-		(includeVisibleChildProgress || !visibleChildChats?.includes(chat))
-	)) {
+	if (collapsed && sessionStatus === SessionStatus.InProgress) {
 		return SessionStatus.InProgress;
 	}
 	return mainChatStatus;

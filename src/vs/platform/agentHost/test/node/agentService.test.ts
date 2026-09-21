@@ -8251,11 +8251,12 @@ suite('AgentService (node dispatcher)', () => {
 				const peerRestoreOwner = svc as unknown as {
 					_restorePeerChats(agent: IAgent, session: URI, cached?: readonly { readonly uri: string }[]): Promise<void>;
 				};
-				const restorePeerChats = peerRestoreOwner._restorePeerChats.bind(peerRestoreOwner);
+				const restorePeerChats = peerRestoreOwner._restorePeerChats;
 				peerRestoreOwner._restorePeerChats = async (restoreAgent, restoreSession, cached) => {
 					peerRestoreStarted.complete();
 					await releasePeerRestore.p;
-					return restorePeerChats(restoreAgent, restoreSession, cached);
+					peerRestoreOwner._restorePeerChats = restorePeerChats;
+					return peerRestoreOwner._restorePeerChats(restoreAgent, restoreSession, cached);
 				};
 
 				const restore = svc.restoreSession(session);

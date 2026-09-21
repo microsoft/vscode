@@ -736,6 +736,10 @@ class SessionChatDetailsReferenceCollection extends ReferenceCollection<void> {
 		return this._activeSessions.has(sessionId);
 	}
 
+	get activeSessionIds(): readonly string[] {
+		return [...this._activeSessions];
+	}
+
 	protected createReferencedObject(sessionId: string): void {
 		this._activeSessions.add(sessionId);
 		this._onFirstReference(sessionId);
@@ -811,7 +815,7 @@ class AdditionalChat extends Disposable {
 			// An archived session is read-only, as is one whose environment is gone and whose
 			// history is being replayed: force every chat's interactivity to ReadOnly so the chat
 			// view hides the composer and gates mutating actions.
-			interactivity: this._withDetails(interactivity),
+			interactivity,
 			description: this._withDetails(this._description),
 			lastTurnEnd: this._withDetails(this._lastTurnEnd),
 			origin: summary.origin ? {
@@ -5885,6 +5889,11 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				chatCatalogLoading.set(false, undefined);
 				if (this._sessionStateSubscriptions.get(sessionId) === store) {
 					this._sessionStateSubscriptions.deleteAndDispose(sessionId);
+					queueMicrotask(() => {
+						if (!this._store.isDisposed && this._sessionChatDetailsReferences.hasReferences(sessionId)) {
+							this._ensureSessionStateSubscription(sessionId);
+						}
+					});
 				}
 			}));
 		}
@@ -6528,6 +6537,12 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	 * (remote), passing a store that bounds the listeners' lifetime.
 	 */
 	protected _attachConnectionListeners(connection: IAgentConnection, store: DisposableStore): void {
+		for (const sessionId of this._sessionChatDetailsReferences.activeSessionIds) {
+			this._sessionStateIdleTimers.deleteAndDispose(sessionId);
+			this._sessionStateSubscriptions.deleteAndDispose(sessionId);
+			this._ensureSessionStateSubscription(sessionId);
+		}
+
 		store.add(connection.onDidNotification(n => {
 			if (n.type === NotificationType.SessionAdded) {
 				this._handleSessionAdded(n.summary);
