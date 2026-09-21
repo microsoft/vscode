@@ -513,20 +513,16 @@ export class NewChatWidget extends Disposable {
 		}
 
 		this._renderFeedbackBanner(chatWidgetContent);
-		const newChatBottomContainer = this._newChatInput.render(chatWidgetContent, parent);
+		this._newChatInput.render(chatWidgetContent, parent, {
+			workspaceControls: this._quickChatHeaderPickerHost
+				? [workspacePickerContainer, this._quickChatHeaderPickerHost]
+				: [workspacePickerContainer],
+		});
 		this._register(autorun(reader => {
 			const useExperimentalLayout = this._useExperimentalComposerLayout.read(reader);
 			const isQuickChat = this._isQuickChatComposer.read(reader);
 			const isWorkspacePickerQuickChat = this._isWorkspacePickerQuickChat.read(reader);
 			chatWidgetContent.classList.toggle('experimental-new-session-composer', useExperimentalLayout);
-			if (useExperimentalLayout) {
-				newChatBottomContainer.before(workspacePickerContainer);
-			} else {
-				chatWidgetContent.prepend(workspacePickerContainer);
-			}
-			if (this._quickChatHeaderPickerHost) {
-				workspacePickerContainer.after(this._quickChatHeaderPickerHost);
-			}
 			this._newChatInput.placeRepositoryControls(
 				useExperimentalLayout && (!isQuickChat || isWorkspacePickerQuickChat)
 					? this._workspaceRepositoryControlsHost

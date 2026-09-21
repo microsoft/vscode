@@ -660,7 +660,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 
 	// --- Rendering ---
 
-	render(parent: HTMLElement, root: HTMLElement): HTMLElement {
+	render(parent: HTMLElement, root: HTMLElement, options?: { readonly workspaceControls?: readonly HTMLElement[] }): void {
 		// Input slot, and the stack the notices, prompt options and input area sit in.
 		const chatInputContainer = dom.append(parent, dom.$(`.new-chat-input-container.${chatInputStackClass}`));
 
@@ -883,6 +883,13 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		}
 		this._register(autorun(reader => {
 			const useExperimentalLayout = this.options.experimentalComposerLayout?.read(reader) ?? false;
+			if (options?.workspaceControls?.length) {
+				if (useExperimentalLayout) {
+					newChatBottomContainer.before(...options.workspaceControls);
+				} else {
+					parent.prepend(...options.workspaceControls);
+				}
+			}
 			this._sessionControlsContainer?.classList.toggle('sessions-chat-config-toolbar', useExperimentalLayout);
 			if (useExperimentalLayout) {
 				if (this._sessionControlsContainer) {
@@ -918,8 +925,6 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		this._register(dom.addDisposableListener(chatInputContainer, 'animationend', () => {
 			this._editor?.layout();
 		}, { once: true }));
-
-		return newChatBottomContainer;
 	}
 
 	private _updateInputLoadingState(): void {
