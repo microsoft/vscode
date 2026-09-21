@@ -18,6 +18,8 @@ import { LanguagePackCachedDataCleaner } from './contrib/languagePackCachedDataC
 import { LocalizationsUpdater } from './contrib/localizationsUpdater.js';
 import { LogsDataCleaner } from './contrib/logsDataCleaner.js';
 import { UnusedWorkspaceStorageDataCleaner } from './contrib/storageDataCleaner.js';
+import { AGENT_FINDER_CHANNEL_NAME, AgentFinderChannel } from '../../../platform/agentFinder/common/agentFinderIpc.js';
+import { AgentFinderService, IAgentFinderService } from '../../../platform/agentFinder/common/agentFinderService.js';
 import { IChecksumService } from '../../../platform/checksum/common/checksumService.js';
 import { ChecksumService } from '../../../platform/checksum/node/checksumService.js';
 import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
@@ -303,6 +305,8 @@ class SharedProcessMain extends Disposable implements IClientConnectionFilter {
 		const requestService = new RequestService(configurationService, environmentService, this._register(new LogService(networkLogger)));
 		services.set(IRequestService, requestService);
 
+		services.set(IAgentFinderService, new SyncDescriptor(AgentFinderService));
+
 		// Checksum
 		services.set(IChecksumService, new SyncDescriptor(ChecksumService, undefined, false /* proxied to other processes */));
 
@@ -437,6 +441,8 @@ class SharedProcessMain extends Disposable implements IClientConnectionFilter {
 	}
 
 	private initChannels(accessor: ServicesAccessor): void {
+
+		this.server.registerChannel(AGENT_FINDER_CHANNEL_NAME, new AgentFinderChannel(accessor.get(IAgentFinderService)));
 
 		// Extensions Management
 		const channel = new ExtensionManagementChannel(accessor.get(IExtensionManagementService), () => null);

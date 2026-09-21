@@ -65,6 +65,7 @@ import {
 } from './aiCustomizationManagement.js';
 import { AICustomizationManagementEditor } from './aiCustomizationManagementEditor.js';
 import { AICustomizationManagementEditorInput } from './aiCustomizationManagementEditorInput.js';
+import './agentFinder.contribution.js';
 import './customizationMigrationAccessibility.js';
 
 //#region Telemetry

@@ -36,11 +36,13 @@ import type { ICustomizationHarnessService, ICustomizationSourceFolder } from '.
 import type { IMigratedCustomizationsResult } from '../../../browser/aiCustomization/customizationMigration.js';
 import type { ICustomizationMigrationCategorySummary } from '../../../browser/aiCustomization/aiCustomizationWelcomePage.js';
 import { AICustomizationManagementEditorInput } from '../../../browser/aiCustomization/aiCustomizationManagementEditorInput.js';
+import { aiCustomizationManagementSectionRegistry, IAICustomizationManagementSectionWidget } from '../../../browser/aiCustomization/aiCustomizationManagementSectionRegistry.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { defaultCheckboxStyles } from '../../../../../../platform/theme/browser/defaultStyles.js';
 import { McpServerType } from '../../../../../../platform/mcp/common/mcpPlatformTypes.js';
 import type { ICustomizationMigrationDashboardActivity, ICustomizationMigrationDashboardDestination, ICustomizationMigrationDashboardOverview } from '../../../browser/aiCustomization/customizationMigrationDashboard.js';
 import { InMemoryStorageService, IStorageService } from '../../../../../../platform/storage/common/storage.js';
+import { NullTelemetryService } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
 
 suite('aiCustomizationManagementEditor', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -147,6 +149,13 @@ suite('aiCustomizationManagementEditor', () => {
 		welcomePage: { setMigrationCategories(categories: readonly unknown[]): void } | undefined;
 		selectedSection: AICustomizationManagementSection | undefined;
 		contributedSectionContainers: Map<AICustomizationManagementSection, HTMLElement>;
+		contributedSectionWidgets: Map<AICustomizationManagementSection, IAICustomizationManagementSectionWidget>;
+		getActiveSectionWidget(): IAICustomizationManagementSectionWidget | undefined;
+		selectSection(section: AICustomizationManagementSection): void;
+		setInput: AICustomizationManagementEditor['setInput'];
+		clearInput(): void;
+		focus(): void;
+		isVisible(): boolean;
 		getEditorModeButtonLabel(): string;
 		getEditorModeButtonTooltip(): string;
 		renderPreviewAttribute(attribute: IHeaderAttribute, promptType: PromptsType, target: Target): void;
@@ -291,6 +300,7 @@ suite('aiCustomizationManagementEditor', () => {
 		editor.getActiveHarnessLabel = () => 'Copilot';
 		editor.welcomePage = undefined;
 		editor.contributedSectionContainers = new Map();
+		editor.contributedSectionWidgets = new Map();
 		editor.editorPreviewRenderScheduler = {
 			cancel(): void { },
 			schedule(): void { },
@@ -302,6 +312,209 @@ suite('aiCustomizationManagementEditor', () => {
 		editor.setVisible(false);
 		return editor;
 	}
+
+	function createContributedSectionEditor() {
+		const editor = createTestEditor();
+		store.add(editor.editorPreviewDisposables);
+		const visibilityChanges: boolean[] = [];
+		const focusedVisibility: boolean[] = [];
+		const state = { created: 0, visible: false, promptsFocused: 0 };
+		const harnessId = 'agent-finder-lifecycle-test';
+		editor.harnessService.activeHarness.set(harnessId, undefined);
+		editor.contributedSectionContainers.set(AICustomizationManagementSection.AgentFinder, document.createElement('div'));
+		Object.assign(editor, {
+			inEditorContextKey: { set() { } },
+			sectionContextKey: { set() { } },
+			builtinEditingSessions: new Map(),
+			telemetryService: NullTelemetryService,
+			listWidget: { focusSearch() { state.promptsFocused++; } },
+		});
+		Object.assign(editor.workspaceService, { clearOverrideProjectRoot() { } });
+		editor.refreshCustomizationMigrationInfo = async () => { };
+		store.add(aiCustomizationManagementSectionRegistry.register({
+			id: AICustomizationManagementSection.AgentFinder,
+			label: 'Test catalog',
+			description: 'Test catalog lifecycle',
+			icon: Codicon.search,
+			supportsHarness: id => id === harnessId,
+			create: () => {
+				state.created++;
+				return {
+					setVisible(visible: boolean) {
+						state.visible = visible;
+						visibilityChanges.push(visible);
+					},
+					focus() { focusedVisibility.push(state.visible); },
+					dispose() { },
+				};
+			},
+		}));
+		return { editor, state, visibilityChanges, focusedVisibility };
+	}
+
+	for (const visible of [false, true]) {
+		test(`initializes contributed widget visibility before focusing in a ${visible ? 'visible' : 'hidden'} editor`, () => {
+			const { editor, state, visibilityChanges, focusedVisibility } = createContributedSectionEditor();
+			editor.selectedSection = AICustomizationManagementSection.AgentFinder;
+			editor.setVisible(visible);
+			const createdBeforeFocus = state.created;
+			editor.focus();
+			const firstWidget = editor.getActiveSectionWidget();
+			editor.focus();
+
+			assert.deepStrictEqual({
+				createdBeforeFocus,
+				created: state.created,
+				visibilityChanges,
+				focusedVisibility,
+				reused: editor.getActiveSectionWidget() === firstWidget,
+				promptsFocused: state.promptsFocused,
+			}, {
+				createdBeforeFocus: 0,
+				created: 1,
+				visibilityChanges: [visible],
+				focusedVisibility: [visible, visible],
+				reused: true,
+				promptsFocused: 0,
+			});
+		});
+	}
+
+	test('reopening input reactivates the selected contributed widget without a visibility transition', async () => {
+		const { editor, state, visibilityChanges } = createContributedSectionEditor();
+		const firstInput = store.add(new AICustomizationManagementEditorInput());
+		const reopenedInput = store.add(new AICustomizationManagementEditorInput());
+		editor.selectedSection = AICustomizationManagementSection.AgentFinder;
+		editor.setVisible(true);
+		editor.focus();
+		await editor.setInput(firstInput, undefined, {}, CancellationToken.None);
+		const widget = editor.getActiveSectionWidget();
+		visibilityChanges.length = 0;
+
+		editor.clearInput();
+		const afterClose = { editorVisible: editor.isVisible(), widgetVisible: state.visible };
+		await editor.setInput(reopenedInput, undefined, {}, CancellationToken.None);
+
+		assert.deepStrictEqual({
+			afterClose,
+			editorVisible: editor.isVisible(),
+			widgetVisible: state.visible,
+			visibilityChanges,
+			reused: editor.getActiveSectionWidget() === widget,
+			created: state.created,
+		}, {
+			afterClose: { editorVisible: true, widgetVisible: false },
+			editorVisible: true,
+			widgetVisible: true,
+			visibilityChanges: [false, true],
+			reused: true,
+			created: 1,
+		});
+	});
+
+	test('selecting a contributed section focuses its widget instead of the hidden prompts search', () => {
+		const { editor, state, focusedVisibility } = createContributedSectionEditor();
+		editor.setVisible(true);
+		editor.selectSection(AICustomizationManagementSection.AgentFinder);
+
+		assert.deepStrictEqual({
+			created: state.created,
+			visible: state.visible,
+			focusedVisibility,
+			promptsFocused: state.promptsFocused,
+		}, {
+			created: 1,
+			visible: true,
+			focusedVisibility: [true],
+			promptsFocused: 0,
+		});
+	});
+
+	test('contributed sections load only in the selected visible editor and hide in detail modes', () => {
+		const editor = createTestEditor();
+		store.add(editor.editorPreviewDisposables);
+		let finderVisible = false;
+		let otherVisible = false;
+		const finder = editor.editorDisposables.add({
+			setVisible(visible: boolean) { finderVisible = visible; },
+			dispose() { },
+		});
+		const other = editor.editorDisposables.add({
+			setVisible(visible: boolean) { otherVisible = visible; },
+			dispose() { },
+		});
+		editor.contributedSectionContainers.set(AICustomizationManagementSection.AgentFinder, document.createElement('div'));
+		editor.contributedSectionContainers.set(AICustomizationManagementSection.HarnessSettings, document.createElement('div'));
+		editor.contributedSectionWidgets.set(AICustomizationManagementSection.AgentFinder, finder);
+		editor.contributedSectionWidgets.set(AICustomizationManagementSection.HarnessSettings, other);
+		const readVisibility = () => ({
+			finderVisible,
+			otherVisible,
+			active: editor.getActiveSectionWidget() === finder ? 'finder' : editor.getActiveSectionWidget() === other ? 'other' : undefined,
+		});
+
+		editor.selectedSection = AICustomizationManagementSection.AgentFinder;
+		editor.updateContentVisibility();
+		const hidden = readVisibility();
+		editor.setVisible(true);
+		const visible = readVisibility();
+		const detailModes = ['editor', 'migration', 'mcpDetail', 'pluginDetail', 'toolsDetail'] as const;
+		const hiddenInDetails = detailModes.map(mode => {
+			editor.viewMode = mode;
+			editor.updateContentVisibility();
+			return readVisibility();
+		});
+		editor.viewMode = 'list';
+		editor.selectedSection = AICustomizationManagementSection.HarnessSettings;
+		editor.updateContentVisibility();
+		const switched = readVisibility();
+		editor.setVisible(false);
+		const closed = readVisibility();
+		editor.setVisible(true);
+		const reopened = readVisibility();
+		editor.selectedSection = undefined;
+		editor.updateContentVisibility();
+		const welcome = readVisibility();
+
+		assert.deepStrictEqual({
+			hidden, visible, hiddenInDetails, switched, closed, reopened, welcome,
+		}, {
+			hidden: { finderVisible: false, otherVisible: false, active: 'finder' },
+			visible: { finderVisible: true, otherVisible: false, active: 'finder' },
+			hiddenInDetails: detailModes.map(() => ({ finderVisible: false, otherVisible: false, active: undefined })),
+			switched: { finderVisible: false, otherVisible: true, active: 'other' },
+			closed: { finderVisible: false, otherVisible: false, active: 'other' },
+			reopened: { finderVisible: false, otherVisible: true, active: 'other' },
+			welcome: { finderVisible: false, otherVisible: false, active: undefined },
+		});
+	});
+
+	test('clearing input hides contributed widgets before their editor disposes them', () => {
+		const editor = createTestEditor();
+		store.add(editor.editorPreviewDisposables);
+		Object.assign(editor, {
+			inEditorContextKey: { set() { } },
+			builtinEditingSessions: new Map(),
+		});
+		Object.assign(editor.workspaceService, { clearOverrideProjectRoot() { } });
+		const events: (boolean | 'disposed')[] = [];
+		const widget = editor.editorDisposables.add({
+			setVisible(visible: boolean) { events.push(visible); },
+			dispose() { events.push('disposed'); },
+		});
+		editor.contributedSectionWidgets.set(AICustomizationManagementSection.AgentFinder, widget);
+		editor.selectedSection = AICustomizationManagementSection.AgentFinder;
+
+		editor.setVisible(true);
+		editor.clearInput();
+		const afterClear = events.slice();
+		editor.editorDisposables.clear();
+
+		assert.deepStrictEqual({ afterClear, events }, {
+			afterClear: [true, false],
+			events: [true, false, 'disposed'],
+		});
+	});
 
 	function createScalarAttribute(key: string, value: string): IHeaderAttribute {
 		return {

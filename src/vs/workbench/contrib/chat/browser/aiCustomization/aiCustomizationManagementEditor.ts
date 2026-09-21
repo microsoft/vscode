@@ -968,6 +968,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 				for (const section of this.sections) {
 					this.updateSectionCount(section.id, 0);
 				}
+				this.updateContentVisibility();
 			}
 			this._previousActiveHarnessId = activeId;
 		}));
@@ -3167,6 +3168,8 @@ export class AICustomizationManagementEditor extends EditorPane {
 			this.modelsWidget?.focusSearch();
 		} else if (section === AICustomizationManagementSection.Tools) {
 			this.toolsListWidget?.focusSearch();
+		} else if (this.contributedSectionContainers.has(section)) {
+			this.ensureContributedSectionWidget(section)?.focus?.();
 		} else {
 			this.listWidget?.focusSearch();
 		}
@@ -3261,6 +3264,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 			if (visible) {
 				this.ensureContributedSectionWidget(section);
 			}
+			this.contributedSectionWidgets.get(section)?.setVisible?.(visible && this.isVisible());
 		}
 		if (this.editorContentContainer) {
 			this.editorContentContainer.style.display = isEditorMode ? '' : 'none';
@@ -3288,10 +3292,17 @@ export class AICustomizationManagementEditor extends EditorPane {
 		const widget = contribution.create(this.instantiationService, container);
 		this.contributedSectionWidgets.set(section, widget);
 		this.editorDisposables.add(widget);
+		widget.setVisible?.(this.isVisible() && this.viewMode === 'list' && this.selectedSection === section);
 		if (this.dimension) {
 			widget.layout?.(this.dimension);
 		}
 		return widget;
+	}
+
+	getActiveSectionWidget(): IAICustomizationManagementSectionWidget | undefined {
+		return this.viewMode === 'list' && this.selectedSection !== undefined
+			? this.contributedSectionWidgets.get(this.selectedSection)
+			: undefined;
 	}
 
 	/**
@@ -3436,6 +3447,9 @@ export class AICustomizationManagementEditor extends EditorPane {
 		await super.setInput(input, options, context, token);
 		input.setTargetLabels(this.getActiveHarnessLabel(), this.workspaceService.activeProjectLabel.get());
 		if (!token.isCancellationRequested) {
+			for (const [section, widget] of this.contributedSectionWidgets) {
+				widget.setVisible?.(this.isVisible() && this.viewMode === 'list' && this.selectedSection === section);
+			}
 			void this.refreshCustomizationMigrationInfo();
 		}
 
@@ -3471,11 +3485,17 @@ export class AICustomizationManagementEditor extends EditorPane {
 		this.workspaceService.clearOverrideProjectRoot();
 		this.cancelCustomizationMigrationRefresh();
 		this.disposeBuiltinEditingSessions();
+		for (const widget of this.contributedSectionWidgets.values()) {
+			widget.setVisible?.(false);
+		}
 		super.clearInput();
 	}
 
 	protected override setEditorVisible(visible: boolean): void {
 		super.setEditorVisible(visible);
+		for (const [section, widget] of this.contributedSectionWidgets) {
+			widget.setVisible?.(visible && this.viewMode === 'list' && this.selectedSection === section);
+		}
 		if (visible && this.dimension) {
 			this.layout(this.dimension);
 		}

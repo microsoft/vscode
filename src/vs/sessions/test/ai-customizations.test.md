@@ -8,6 +8,27 @@ The following test plan outlines the scenarios and specifications for the AI Cus
 
 ## SCENARIOS
 
+### AgentFinder discovery
+
+#### Preconditions
+
+- AI features are enabled.
+- Open Agent Customizations in either the editor workbench or Agents Window.
+
+#### Actions and Expected Results
+
+1. Open another customization section. No AgentFinder requests are made until its tab is selected.
+2. Select **AgentFinder**. Browse resources without signing in or starting a chat session.
+3. Check that cards show resource types, descriptions, publisher information when available, tags, and available version/star metadata. Repository owner images have a fallback icon when absent or unavailable.
+4. Search for a generic topic such as `postgres`, then change the resource type. Only the latest search is displayed, even if an earlier request finishes later.
+5. Choose **Load More**. Results append without duplicates. Change the query or type and verify pagination resets.
+6. Interrupt a request, change tabs, or close the editor. Hidden/disposed sections cancel their requests. Returning to the tab can load again.
+7. Simulate offline, rate-limited, and malformed responses. An explicit error and **Retry** appear; failed pagination preserves previously loaded cards.
+8. Use Tab, Shift+Tab, arrow keys on cards, and Enter/Space on **Details**. Open Accessibility Help and Accessible View, then close them and verify focus returns.
+9. Open a resource or repository. It opens externally; browsing never installs or enables anything. Switch harnesses and confirm the tab remains usable.
+10. Disable AI features. The AgentFinder content is hidden and does not make catalog or image requests.
+11. Check narrow editor widths, dark/light themes, and high-contrast focus/borders.
+
 ### Scenario 1: Empty state — no session, no customizations
 
 #### Description
@@ -32,7 +53,7 @@ This tests the baseline empty state before any session or workspace is active. T
 #### Expected Results
 
 - All sidebar counts are hidden (no badges visible)
-- Management editor shows empty state for each section with "No X yet" message
+- Installed-customization sections show an empty state with a "No X yet" message. AgentFinder can browse the public catalog independently of the active workspace.
 - Create button for **user** customizations is visible but disabled until a workspace folder or repository is selected (Hooks should also show a disabled button, since there is no 'user' scoped hooks)
 
 #### Notes

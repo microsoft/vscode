@@ -89,6 +89,10 @@ Section counts and rendered rows consume the same filtered model so hidden or di
 
 Prompt-based items use the prompts service adapter. MCP servers, tools, plugins, and external harness items use their owning providers directly when their data does not fit the prompt-file contract.
 
+AgentFinder is a separate discovery catalog, owned by the platform `IAgentFinderService`. Desktop windows use the shared process for bounded, cancellable HTTP requests; web windows use the workbench request service and its remote fallback. Catalog results are not installed customizations, do not contribute to customization counts, and do not imply compatibility with the active harness or permission to install.
+
+Contributed management sections can implement `setVisible` to scope work to the selected section in a visible editor. Sections that perform remote discovery must cancel in-flight work when hidden or disposed and must not start discovery while AI features are disabled.
+
 ## Active-session context
 
 In the Agents Window, the customization harness and project root track `ISessionsService.activeSession`. Opening the editor synchronizes it with the currently active session, and switching the active session can update the editor's harness and project context. A transient project-root override takes precedence while it is set.

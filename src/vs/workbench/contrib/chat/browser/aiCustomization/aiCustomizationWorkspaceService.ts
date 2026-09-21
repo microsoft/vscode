@@ -52,6 +52,7 @@ class AICustomizationWorkspaceService implements IAICustomizationWorkspaceServic
 	}
 
 	readonly managementSections: readonly AICustomizationManagementSection[] = [
+		AICustomizationManagementSection.AgentFinder,
 		AICustomizationManagementSection.Plugins,
 		AICustomizationManagementSection.McpServers,
 		AICustomizationManagementSection.Skills,

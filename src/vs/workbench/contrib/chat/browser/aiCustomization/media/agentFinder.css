@@ -1,0 +1,280 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.agent-finder-widget {
+	display: flex;
+	flex-direction: column;
+	height: 100%;
+	min-width: 0;
+	min-height: 0;
+	box-sizing: border-box;
+	overflow: hidden;
+	color: var(--vscode-foreground);
+	background: var(--vscode-agentsPanel-background, var(--vscode-editor-background));
+	border: var(--vscode-strokeThickness) solid var(--vscode-agentsPanel-border, var(--vscode-widget-border));
+	border-radius: var(--vscode-cornerRadius-medium);
+}
+
+.agent-finder-widget .agent-finder-header {
+	padding: var(--vscode-spacing-size240) var(--vscode-spacing-size240) var(--vscode-spacing-size120);
+}
+
+.agent-finder-widget h2 {
+	margin: 0;
+	font-size: var(--vscode-fontSize-heading2);
+	font-weight: var(--vscode-fontWeight-semiBold);
+}
+
+.agent-finder-widget .agent-finder-description {
+	margin: var(--vscode-spacing-size80) 0 var(--vscode-spacing-size200);
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-body1);
+}
+
+.agent-finder-widget .agent-finder-controls {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: var(--vscode-spacing-size80);
+}
+
+.agent-finder-widget .agent-finder-search {
+	flex: 1 1 220px;
+	min-width: 0;
+}
+
+.agent-finder-widget .agent-finder-search > .monaco-inputbox {
+	width: 100%;
+}
+
+.agent-finder-widget .agent-finder-type-filter {
+	flex: 0 1 180px;
+	min-width: 0;
+}
+
+.agent-finder-widget .agent-finder-controls > .monaco-button,
+.agent-finder-widget .agent-finder-footer > .monaco-button {
+	width: auto;
+}
+
+.agent-finder-widget .agent-finder-status {
+	margin-top: var(--vscode-spacing-size120);
+	min-height: 1.4em;
+	font-size: var(--vscode-fontSize-label1);
+	color: var(--vscode-descriptionForeground);
+}
+
+.agent-finder-widget .agent-finder-scrollable {
+	flex: 1;
+	min-height: 0;
+}
+
+.agent-finder-widget .agent-finder-scroll-content {
+	height: 100%;
+	overflow: hidden;
+	padding: var(--vscode-spacing-size40) var(--vscode-spacing-size240);
+	box-sizing: border-box;
+}
+
+.agent-finder-widget .agent-finder-results {
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(min(100%, 290px), 1fr));
+	gap: var(--vscode-spacing-size160);
+	margin: 0;
+	padding: 0;
+	list-style: none;
+}
+
+.agent-finder-widget .agent-finder-card {
+	display: flex;
+	flex-direction: column;
+	min-width: 0;
+	padding: var(--vscode-spacing-size160);
+	gap: var(--vscode-spacing-size120);
+	background: var(--vscode-editor-background);
+	border: var(--vscode-strokeThickness) solid var(--vscode-widget-border, var(--vscode-agentsPanel-border));
+	border-radius: var(--vscode-cornerRadius-medium);
+	overflow-wrap: anywhere;
+}
+
+.agent-finder-widget .agent-finder-card:hover {
+	border-color: var(--vscode-focusBorder);
+}
+
+.agent-finder-widget .agent-finder-card:focus-visible,
+.agent-finder-widget summary:focus-visible,
+.agent-finder-widget a:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
+.agent-finder-widget .agent-finder-card-header {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size120);
+	min-width: 0;
+}
+
+.agent-finder-widget .agent-finder-icon {
+	position: relative;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	flex: 0 0 40px;
+	height: 40px;
+	color: var(--vscode-descriptionForeground);
+	background: var(--vscode-editorWidget-background);
+	border-radius: var(--vscode-cornerRadius-small);
+	overflow: hidden;
+}
+
+.agent-finder-widget .agent-finder-icon img {
+	position: absolute;
+	inset: 0;
+	width: 100%;
+	height: 100%;
+	object-fit: contain;
+}
+
+.agent-finder-widget .agent-finder-icon .codicon {
+	font-size: var(--vscode-codiconFontSize);
+}
+
+.agent-finder-widget .agent-finder-identity {
+	flex: 1;
+	min-width: 0;
+}
+
+.agent-finder-widget .agent-finder-name,
+.agent-finder-widget .agent-finder-publisher {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.agent-finder-widget .agent-finder-name {
+	margin: 0;
+	font-size: var(--vscode-fontSize-body1);
+	font-weight: var(--vscode-fontWeight-semiBold);
+}
+
+.agent-finder-widget .agent-finder-publisher {
+	margin-top: var(--vscode-spacing-size40);
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-label1);
+}
+
+.agent-finder-widget .agent-finder-metadata,
+.agent-finder-widget .agent-finder-tags,
+.agent-finder-widget .agent-finder-card-actions {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: var(--vscode-spacing-size80);
+	font-size: var(--vscode-fontSize-label1);
+}
+
+.agent-finder-widget .agent-finder-metadata {
+	color: var(--vscode-descriptionForeground);
+}
+
+.agent-finder-widget .agent-finder-kind {
+	color: var(--vscode-foreground);
+	font-weight: var(--vscode-fontWeight-semiBold);
+}
+
+.agent-finder-widget .agent-finder-card-description {
+	margin: 0;
+	line-height: 1.5;
+	font-size: var(--vscode-fontSize-body1);
+	display: -webkit-box;
+	-webkit-box-orient: vertical;
+	-webkit-line-clamp: 3;
+	overflow: hidden;
+}
+
+.agent-finder-widget .agent-finder-tag {
+	max-width: 100%;
+	padding: var(--vscode-spacing-size20) var(--vscode-spacing-size80);
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	color: var(--vscode-descriptionForeground);
+	background: var(--vscode-editorWidget-background);
+	border: var(--vscode-strokeThickness) solid var(--vscode-contrastBorder, transparent);
+	border-radius: var(--vscode-cornerRadius-circle);
+}
+
+.agent-finder-widget .agent-finder-details {
+	font-size: var(--vscode-fontSize-label1);
+	color: var(--vscode-descriptionForeground);
+}
+
+.agent-finder-widget .agent-finder-details summary {
+	cursor: pointer;
+	color: var(--vscode-foreground);
+}
+
+.agent-finder-widget .agent-finder-details h4 {
+	font-size: var(--vscode-fontSize-label1);
+	font-weight: var(--vscode-fontWeight-semiBold);
+	margin: var(--vscode-spacing-size120) 0 var(--vscode-spacing-size40);
+}
+
+.agent-finder-widget .agent-finder-details ul {
+	margin: 0;
+	padding-left: var(--vscode-spacing-size200);
+}
+
+.agent-finder-widget .agent-finder-card-actions {
+	margin-top: auto;
+	padding-top: var(--vscode-spacing-size40);
+	column-gap: var(--vscode-spacing-size160);
+}
+
+.agent-finder-widget a {
+	color: var(--vscode-textLink-foreground);
+	text-decoration: none;
+}
+
+.agent-finder-widget a:hover {
+	color: var(--vscode-textLink-activeForeground);
+	text-decoration: underline;
+}
+
+.agent-finder-widget .agent-finder-footer {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: var(--vscode-spacing-size120);
+	padding: var(--vscode-spacing-size200) 0;
+}
+
+.agent-finder-widget .agent-finder-error {
+	margin: 0;
+	color: var(--vscode-errorForeground);
+	overflow-wrap: anywhere;
+}
+
+.agent-finder-widget .agent-finder-empty {
+	padding: var(--vscode-spacing-size320) var(--vscode-spacing-size160);
+	text-align: center;
+	color: var(--vscode-descriptionForeground);
+}
+
+.agent-finder-widget .agent-finder-disclaimer {
+	margin: 0;
+	padding: var(--vscode-spacing-size120) var(--vscode-spacing-size240);
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-body2);
+	line-height: 1.5;
+}
+
+.hc-black .agent-finder-widget,
+.hc-light .agent-finder-widget,
+.hc-black .agent-finder-widget .agent-finder-card,
+.hc-light .agent-finder-widget .agent-finder-card {
+	border-color: var(--vscode-contrastBorder);
+}

@@ -8,7 +8,7 @@ import { CustomizationMigrationCategoryId } from '../../../../contrib/chat/brows
 import { Dimension } from '../../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { assert } from '../../../../../base/common/assert.js';
-import { timeout } from '../../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
@@ -21,6 +21,7 @@ import { mock } from '../../../../../base/test/common/mock.js';
 import { ILanguageService } from '../../../../../editor/common/languages/language.js';
 import { IModelService } from '../../../../../editor/common/services/model.js';
 import { IResolvedTextEditorModel, ITextModelService } from '../../../../../editor/common/services/resolverService.js';
+import { AgentFinderMediaType, IAgentFinderPage, IAgentFinderQuery, IAgentFinderResource, IAgentFinderService } from '../../../../../platform/agentFinder/common/agentFinderService.js';
 import { IDialogService, IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IFileContent, IFileService, IFileStatWithMetadata } from '../../../../../platform/files/common/files.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
@@ -36,6 +37,7 @@ import { IMarkdownRendererService, MarkdownRendererService } from '../../../../.
 import { IWorkspace, IWorkspaceContextService, WorkbenchState } from '../../../../../platform/workspace/common/workspace.js';
 import { IEditorGroup, IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
+import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 import { IExtensionService } from '../../../../services/extensions/common/extensions.js';
 import { IExtensionManifestPropertiesService } from '../../../../services/extensions/common/extensionManifestPropertiesService.js';
 import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
@@ -110,6 +112,7 @@ import { ThemeIcon } from '../../../../../base/common/themables.js';
 import '../../../../../platform/theme/common/colors/inputColors.js';
 import '../../../../../platform/theme/common/colors/listColors.js';
 import '../../../../contrib/chat/browser/aiCustomization/media/aiCustomizationManagement.css';
+import '../../../../contrib/chat/browser/aiCustomization/agentFinder.contribution.js';
 
 // ============================================================================
 // Mock helpers
@@ -739,6 +742,84 @@ const overflowingExtensionToolSets: readonly IToolSet[] = Array.from({ length: 8
 	};
 });
 
+const agentFinderResources: readonly IAgentFinderResource[] = [
+	{
+		identifier: 'example/repository-review',
+		displayName: 'Repository review',
+		description: 'Review a pull request for correctness, missing tests, and changes that need a closer look before merging.',
+		mediaType: AgentFinderMediaType.Skill,
+		publisher: 'Example Engineering',
+		version: '1.2.0',
+		stars: 128,
+		tags: ['code-review', 'quality', 'testing', 'pull-requests', 'maintainers'],
+		capabilities: ['Compare the proposed change with existing behavior', 'Suggest targeted regression tests'],
+		representativeQueries: ['Review this pull request and explain its highest-risk changes'],
+		url: URI.parse('https://github.com/example/repository-review/blob/main/SKILL.md'),
+		repository: URI.parse('https://github.com/example/repository-review'),
+	},
+	{
+		identifier: 'example/browser-tools',
+		displayName: 'Browser tools',
+		description: 'Explore a website, inspect page content, and reproduce a UI workflow with browser automation tools. Results may require additional configuration in the selected agent.',
+		mediaType: AgentFinderMediaType.McpServer,
+		publisher: 'Example Browser Tools',
+		version: '2.4.1',
+		stars: 842,
+		tags: ['browser', 'accessibility', 'screenshots'],
+		capabilities: ['Inspect accessible page content', 'Capture a screenshot'],
+		representativeQueries: ['Check the checkout flow at a narrow viewport'],
+		url: URI.parse('https://example.com/mcp/example%2Fbrowser-tools'),
+		externalUrl: 'https://example.com/mcp/example%2Fbrowser-tools',
+		repository: URI.parse('https://github.com/example/browser-tools'),
+	},
+	{
+		identifier: 'example/dependency-maintenance',
+		displayName: 'Repository-wide dependency maintenance and compatibility review',
+		description: 'A plugin for preparing dependency updates across packages with very long workspace and dependency names, while preserving release notes and compatibility checks.',
+		mediaType: AgentFinderMediaType.CopilotPlugin,
+		publisher: 'Example Developer Productivity and Dependency Maintenance Team',
+		version: '2026.9.0',
+		stars: 64,
+		tags: ['dependencies', 'monorepo-maintenance-and-compatibility', 'release-notes'],
+		capabilities: ['Review dependency compatibility', 'Prepare a release summary'],
+		representativeQueries: ['Plan a safe update of the shared build dependencies'],
+		repository: URI.parse('https://github.com/example/dependency-maintenance'),
+	},
+	{
+		identifier: 'example/docs-workflow',
+		displayName: 'Documentation workflow',
+		description: 'Draft task-oriented documentation and identify examples that should be updated alongside code changes.',
+		mediaType: AgentFinderMediaType.ClaudePlugin,
+		publisher: 'Example Documentation',
+		version: '0.8.0',
+		tags: ['documentation', 'examples'],
+		capabilities: ['Find outdated documentation'],
+		representativeQueries: ['Update the guide to match the new API'],
+		repository: URI.parse('https://github.com/example/docs-workflow'),
+	},
+	{
+		identifier: 'example/design-review',
+		displayName: 'Design review',
+		description: 'Check interface consistency, keyboard navigation, and focus order. Catalog descriptions are plain text, including **Markdown** and <markup>.',
+		mediaType: AgentFinderMediaType.CursorPlugin,
+		publisher: 'Example Design',
+		stars: 0,
+		tags: ['design', 'keyboard'],
+		capabilities: ['Review focus order and visible labels'],
+		representativeQueries: [],
+		url: URI.parse('https://example.com/design-review'),
+	},
+	{
+		identifier: 'example/project-notes',
+		displayName: 'Project notes',
+		description: 'Summarize project conventions. This catalog entry has no publisher, version, image, or external link.',
+		mediaType: AgentFinderMediaType.Skill,
+		tags: [],
+		capabilities: [],
+		representativeQueries: [],
+	},
+];
+
 interface IRenderEditorOptions {
 	readonly sessionResource: URI;
 	readonly files?: readonly IFixtureFile[];
@@ -748,6 +829,7 @@ interface IRenderEditorOptions {
 	readonly managementSections?: readonly AICustomizationManagementSection[];
 	readonly availableHarnesses?: readonly IHarnessDescriptor[];
 	readonly selectedSection?: AICustomizationManagementSection;
+	readonly agentFinderState?: 'ready' | 'empty' | 'error' | 'loading';
 	readonly customizationSearchQuery?: string;
 	readonly mcpSearchQuery?: string;
 	readonly toolsSearchQuery?: string;
@@ -794,6 +876,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 		AICustomizationManagementSection.Hooks,
 		AICustomizationManagementSection.Tools,
 		AICustomizationManagementSection.Prompts,
+		AICustomizationManagementSection.AgentFinder,
 	];
 	const availableHarnesses = options.availableHarnesses ?? [
 		createVSCodeHarnessDescriptor(),
@@ -843,6 +926,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 	// service is created.
 	const modelServiceRef: { value: IModelService | undefined } = { value: undefined };
 	const languageServiceRef: { value: ILanguageService | undefined } = { value: undefined };
+	let agentFinderQueryCount = 0;
 
 	const instantiationService = createEditorServices(ctx.disposableStore, {
 		colorTheme: ctx.theme,
@@ -860,6 +944,31 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 			});
 			ctx.disposableStore.add({ dispose: () => configurationService.onDidChangeConfigurationEmitter.dispose() });
 			registerWorkbenchServices(reg);
+			reg.defineInstance(IChatEntitlementService, new class extends mock<IChatEntitlementService>() {
+				override readonly sentiment = { hidden: false };
+				override readonly onDidChangeSentiment = Event.None;
+			}());
+			reg.defineInstance(IAgentFinderService, new class extends mock<IAgentFinderService>() {
+				override async query(query: IAgentFinderQuery): Promise<IAgentFinderPage> {
+					agentFinderQueryCount++;
+					switch (options.agentFinderState) {
+						case 'loading': return new DeferredPromise<IAgentFinderPage>().p;
+						case 'error': throw new Error('The catalog is temporarily unavailable. Try again later.');
+						case 'empty': return { items: [], total: 0 };
+					}
+					const text = query.query?.toLowerCase() ?? '';
+					const resources = agentFinderResources.filter(resource =>
+						(!query.mediaType || resource.mediaType === query.mediaType)
+						&& (!text || `${resource.displayName} ${resource.description} ${resource.tags.join(' ')}`.toLowerCase().includes(text)));
+					const offset = query.cursor?.kind === 'browse' ? query.cursor.offset : 0;
+					const pageSize = query.pageSize ?? 24;
+					return {
+						items: resources.slice(offset, offset + pageSize),
+						total: resources.length,
+						nextCursor: offset + pageSize < resources.length ? { kind: 'browse', offset: offset + pageSize } : undefined,
+					};
+				}
+			}());
 			if (options.migrationActivity) {
 				const storageService = ctx.disposableStore.add(new InMemoryStorageService());
 				storageService.store('chat.customizationMigration.activity.profile.agent-host-copilotcli', {
@@ -1248,6 +1357,18 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 
 	if (options.selectedSection) {
 		editor.selectSectionById(options.selectedSection);
+	}
+	if (options.selectedSection === AICustomizationManagementSection.AgentFinder) {
+		const queriesBeforeVisible = agentFinderQueryCount;
+		editor.setVisible(true);
+		await Promise.resolve();
+		assert(queriesBeforeVisible === 0 && agentFinderQueryCount === 1, 'The catalog must make one mock query only after its selected editor becomes visible.');
+		const finder = ctx.container.querySelector<HTMLElement>('.agent-finder-widget');
+		assert(finder !== null && finder.style.display !== 'none', 'The AgentFinder section must be visible.');
+		assert(finder.querySelectorAll('img').length === 0, 'AgentFinder fixtures must not request remote images.');
+		if (!options.agentFinderState || options.agentFinderState === 'ready') {
+			assert(finder.querySelectorAll('.agent-finder-card').length === agentFinderResources.length, 'The catalog must render deterministic mock resources.');
+		}
 	}
 
 	if (options.customizationSearchQuery) {
@@ -2449,6 +2570,62 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 			availableHarnesses: [
 				createVSCodeHarnessDescriptor(),
 			],
+		}),
+	}),
+
+	AgentFinderTab: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: true },
+		expectedVisualDescriptions: ['AgentFinder shows a search field, a resource type filter, and discovery-only cards with metadata, tags, Details, and external links. There is no Install action.'],
+		render: ctx => renderEditor(ctx, {
+			sessionResource: localSessionResource,
+			selectedSection: AICustomizationManagementSection.AgentFinder,
+		}),
+	}),
+
+	AgentFinderTabNarrow: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['The narrow AgentFinder section wraps its controls and shows a single card column without horizontal overflow.'],
+		render: ctx => renderEditor(ctx, {
+			sessionResource: localSessionResource,
+			selectedSection: AICustomizationManagementSection.AgentFinder,
+			width: 550,
+			height: 500,
+		}),
+	}),
+
+	SessionsAgentFinderTab: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: ctx => renderEditor(ctx, {
+			sessionResource: agentHostCopilotSessionResource,
+			isSessionsWindow: true,
+			selectedSection: AICustomizationManagementSection.AgentFinder,
+		}),
+	}),
+
+	AgentFinderEmpty: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: ctx => renderEditor(ctx, {
+			sessionResource: localSessionResource,
+			selectedSection: AICustomizationManagementSection.AgentFinder,
+			agentFinderState: 'empty',
+		}),
+	}),
+
+	AgentFinderError: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: ctx => renderEditor(ctx, {
+			sessionResource: localSessionResource,
+			selectedSection: AICustomizationManagementSection.AgentFinder,
+			agentFinderState: 'error',
+		}),
+	}),
+
+	AgentFinderLoading: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: ctx => renderEditor(ctx, {
+			sessionResource: localSessionResource,
+			selectedSection: AICustomizationManagementSection.AgentFinder,
+			agentFinderState: 'loading',
 		}),
 	}),
 
