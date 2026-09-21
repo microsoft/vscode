@@ -668,6 +668,8 @@ export interface IChat {
 
 	// Reactive properties
 
+	/** The effective workspace available to this chat. */
+	readonly workspace: IObservable<ISessionWorkspace | undefined>;
 	/** Chat display title (changes when auto-titled or renamed). */
 	readonly title: IObservable<string>;
 	/** When the chat was last updated. */
