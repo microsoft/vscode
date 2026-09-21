@@ -4586,12 +4586,13 @@ suite('WorkspacePicker - Tab discovery', () => {
 		assert.deepStrictEqual(picker.getItemLabels(), ['Open Folder...']);
 	});
 
-	test('selects Chat through the consolidated picker', async () => {
+	test('shows the selected remote Chat label only in the trigger', async () => {
 		let noWorkspaceSelected = false;
 		const picker = createTestablePicker(disposables, providersService, true, {
 			getNoWorkspaceOption: () => ({
 				description: 'Start without a backing workspace',
 				isSelected: noWorkspaceSelected,
+				selectedLabel: 'Chat [Test Remote]',
 				select: () => noWorkspaceSelected = true,
 			}),
 		}, undefined, undefined, true);
@@ -4651,8 +4652,8 @@ suite('WorkspacePicker - Tab discovery', () => {
 					icon: 'comment',
 					checked: true,
 				}],
-				triggerLabel: 'Chat',
-				triggerAriaLabel: 'Workspace: Chat',
+				triggerLabel: 'Chat [Test Remote]',
+				triggerAriaLabel: 'Workspace: Chat [Test Remote]',
 			},
 		});
 	});

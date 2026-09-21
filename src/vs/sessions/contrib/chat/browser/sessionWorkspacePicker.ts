@@ -116,6 +116,7 @@ export interface IWorkspacePickerGroupAction {
 export interface IWorkspacePickerNoWorkspaceOption {
 	readonly description: string;
 	readonly isSelected: boolean;
+	readonly selectedLabel?: string;
 	readonly select: () => void;
 	readonly submenuActions?: readonly IAction[];
 }
@@ -1922,6 +1923,10 @@ export class WorkspacePicker extends Disposable {
 			: localize('workspacePicker.noWorkspace', "No workspace");
 	}
 
+	private _getSelectedNoWorkspaceLabel(): string {
+		return this._getNoWorkspaceOption()?.selectedLabel ?? this._getNoWorkspaceLabel();
+	}
+
 	private _showRemoteHostOptionsDelayed(provider: IAgentHostSessionsProvider): void {
 		// Defer one tick so the action widget fully tears down (focus/DOM cleanup)
 		// before the QuickPick opens and claims focus.
@@ -1935,6 +1940,10 @@ export class WorkspacePicker extends Disposable {
 		for (const trigger of this._triggerElements) {
 			this._renderTriggerLabel(trigger);
 		}
+	}
+
+	refreshTriggerLabel(): void {
+		this._updateTriggerLabel();
 	}
 
 	protected _renderTriggerLabel(trigger: HTMLElement): void {
@@ -1990,7 +1999,7 @@ export class WorkspacePicker extends Disposable {
 				contents.icon.className = ThemeIcon.asClassName(icon);
 			}
 			const label = noWorkspaceSelected
-				? this._getNoWorkspaceLabel()
+				? this._getSelectedNoWorkspaceLabel()
 				: (reflectsWorkspace && workspace
 					? this._getWorkspaceLabel(workspace)
 					: undefined)
@@ -2027,7 +2036,7 @@ export class WorkspacePicker extends Disposable {
 		const noWorkspaceSelected = this._getNoWorkspaceOption()?.isSelected === true;
 		const workspace = noWorkspaceSelected ? undefined : this._selectedResolved?.workspace;
 		const label = noWorkspaceSelected
-			? localize('workspacePicker.noWorkspace', "No workspace")
+			? this._getSelectedNoWorkspaceLabel()
 			: workspace ? this._getWorkspaceLabel(workspace) : localize('pickWorkspace', "workspace");
 		const icon = noWorkspaceSelected ? Codicon.commentDiscussion : workspace?.icon ?? Codicon.project;
 
