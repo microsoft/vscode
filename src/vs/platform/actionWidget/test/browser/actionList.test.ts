@@ -2641,6 +2641,32 @@ suite('ActionListWidget', () => {
 		});
 	}));
 
+	test('opens a submenu immediately when the hover delay is zero', () => {
+		const widget = createActionListWidget(disposables, {
+			items: [{
+				...action('permissions'),
+				label: 'Permissions',
+				submenuActions: [toAction({ id: 'manual', label: 'Manual', run: () => { } })],
+			}],
+			listOptions: { showFilter: false, submenuHoverDelay: 0 },
+		});
+		const panel = widget.domNode.querySelector<HTMLElement>('.action-list-submenu-panel')!;
+		const row = widget.domNode.querySelector<HTMLElement>('.monaco-list-row')!;
+
+		row.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+		row.dispatchEvent(new MouseEvent('mousemove', { bubbles: true, movementX: 1 }));
+
+		assert.deepStrictEqual({
+			display: panel.style.display,
+			label: panel.querySelector('.title')?.textContent,
+			expanded: row.getAttribute('aria-expanded'),
+		}, {
+			display: '',
+			label: 'Manual',
+			expanded: 'true',
+		});
+	});
+
 	test('cancels a submenu hover when the pointer leaves before the delay', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const widget = createActionListWidget(disposables, {
 			items: [{
