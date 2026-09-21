@@ -11,14 +11,16 @@ import { observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { InMemoryStorageService } from '../../../../../platform/storage/common/storage.js';
+import { InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { SessionStatus, type ISession } from '../../../../services/sessions/common/session.js';
 import { ISessionsChangeEvent, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { InboxNotificationsService } from '../../browser/inboxNotificationsService.js';
 import { InboxNotificationActionKind, InboxNotificationKind, InboxNotificationPriority } from '../../common/inboxNotificationsService.js';
 
 suite('InboxNotificationsService', () => {
-	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+	const dismissedStorageKey = 'sessions.inboxNotifications.dismissedIds';
+	ensureNoDisposablesAreLeakedInTestSuite();
+	const disposables = new DisposableStore();
 
 	teardown(() => {
 		disposables.clear();
@@ -72,7 +74,6 @@ suite('InboxNotificationsService', () => {
 
 	test('derives prioritized notifications with expected actions', () => {
 		const fixture = createFixture([
-			createSession({ id: 'confirm', status: SessionStatus.NeedsInput, updatedAt: 100, description: 'awaiting approval from you' }),
 			createSession({ id: 'input', status: SessionStatus.NeedsInput, updatedAt: 200, description: 'waiting for user answer' }),
 			createSession({ id: 'completed', status: SessionStatus.Completed, updatedAt: 300, isRead: false }),
 			createSession({ id: 'ignored', status: SessionStatus.Completed, updatedAt: 400, isRead: true }),
@@ -84,11 +85,6 @@ suite('InboxNotificationsService', () => {
 			priority: item.priority,
 			actionKinds: item.actions.map(action => action.kind),
 		})), [
-			{
-				kind: InboxNotificationKind.ConfirmationRequested,
-				priority: InboxNotificationPriority.Critical,
-				actionKinds: [InboxNotificationActionKind.OpenSession, InboxNotificationActionKind.Dismiss],
-			},
 			{
 				kind: InboxNotificationKind.NeedsInput,
 				priority: InboxNotificationPriority.High,
@@ -122,11 +118,13 @@ suite('InboxNotificationsService', () => {
 		const fixture = createFixture([]);
 		fixture.service.publishExternalNotification({
 			id: 'external-1',
+			kind: InboxNotificationKind.FailingCI,
 			title: 'Initial',
 			description: 'Initial description',
 		});
 		fixture.service.publishExternalNotification({
 			id: 'external-1',
+			kind: InboxNotificationKind.ReviewComments,
 			title: 'Updated',
 			description: 'Updated description',
 			priority: InboxNotificationPriority.Critical,
@@ -134,14 +132,49 @@ suite('InboxNotificationsService', () => {
 
 		assert.deepStrictEqual(fixture.service.notifications.get().map(item => ({
 			id: item.id,
+			kind: item.kind,
 			title: item.title,
 			priority: item.priority,
 			actionKinds: item.actions.map(action => action.kind),
 		})), [{
 			id: 'external-1',
+			kind: InboxNotificationKind.ReviewComments,
 			title: 'Updated',
 			priority: InboxNotificationPriority.Critical,
 			actionKinds: [InboxNotificationActionKind.Dismiss],
 		}]);
+	});
+
+	test('removes external notifications by id', () => {
+		const fixture = createFixture([]);
+		fixture.service.publishExternalNotification({
+			id: 'external-1',
+			title: 'Needs follow-up',
+			description: 'External condition is active',
+		});
+
+		assert.strictEqual(fixture.service.notifications.get().length, 1);
+		fixture.service.removeExternalNotification('external-1');
+		assert.strictEqual(fixture.service.notifications.get().length, 0);
+	});
+
+	test('reloads dismissals when application storage changes externally', () => {
+		class TestStorageService extends InMemoryStorageService {
+			emitExternalApplicationChange(key: string): void {
+				this.emitDidChangeValue(StorageScope.APPLICATION, { key, external: true });
+			}
+		}
+
+		const storageService = disposables.add(new TestStorageService());
+		const fixture = createFixture([createSession({ id: 'completed', status: SessionStatus.Completed, updatedAt: 100, isRead: false })], storageService);
+		const notificationId = fixture.service.notifications.get()[0].id;
+
+		storageService.store(dismissedStorageKey, JSON.stringify([notificationId]), StorageScope.APPLICATION, StorageTarget.USER);
+		storageService.emitExternalApplicationChange(dismissedStorageKey);
+		assert.deepStrictEqual(fixture.service.notifications.get().map(item => item.id), []);
+
+		storageService.remove(dismissedStorageKey, StorageScope.APPLICATION);
+		storageService.emitExternalApplicationChange(dismissedStorageKey);
+		assert.deepStrictEqual(fixture.service.notifications.get().map(item => item.kind), [InboxNotificationKind.Completed]);
 	});
 });

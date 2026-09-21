@@ -12,7 +12,9 @@ import { AccessibilityVerbositySettingId } from '../../../../workbench/contrib/a
 import { Parts } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
 import { InboxCustomViewFocusContext } from '../../../common/contextkeys.js';
+import { IInboxNotificationItem } from '../common/inboxNotificationsService.js';
 import { IInboxNotificationsService } from '../common/inboxNotificationsService.js';
+import { getInboxNotificationKindLabel, getInboxNotificationPriorityLabel } from './inboxNotificationsLabels.js';
 
 class InboxNotificationsAccessibilityHelp implements IAccessibleViewImplementation {
 	readonly type = AccessibleViewType.Help;
@@ -69,7 +71,7 @@ function createFocusRestorer(layoutService: IAgentWorkbenchLayoutService): () =>
 	};
 }
 
-export function buildInboxNotificationsAccessibleContent(items: readonly { readonly title: string; readonly description: string }[]): string {
+export function buildInboxNotificationsAccessibleContent(items: readonly Pick<IInboxNotificationItem, 'kind' | 'priority' | 'title' | 'description'>[]): string {
 	if (items.length === 0) {
 		return localize('inboxNotifications.accessibleView.empty', "No active notifications.");
 	}
@@ -80,6 +82,12 @@ export function buildInboxNotificationsAccessibleContent(items: readonly { reado
 	];
 	for (const [index, item] of items.entries()) {
 		lines.push(localize('inboxNotifications.accessibleView.itemTitle', "{0}. {1}", index + 1, item.title));
+		lines.push(localize(
+			'inboxNotifications.accessibleView.itemMeta',
+			"   Priority: {0}. Type: {1}",
+			getInboxNotificationPriorityLabel(item.priority),
+			getInboxNotificationKindLabel(item.kind),
+		));
 		lines.push(localize('inboxNotifications.accessibleView.itemDescription', "   {0}", item.description));
 	}
 	return lines.join('\n');
@@ -87,4 +95,3 @@ export function buildInboxNotificationsAccessibleContent(items: readonly { reado
 
 AccessibleViewRegistry.register(new InboxNotificationsAccessibilityHelp());
 AccessibleViewRegistry.register(new InboxNotificationsAccessibleView());
-

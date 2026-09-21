@@ -6,9 +6,11 @@
 import './inboxNotificationsAccessibility.js';
 import { localize2 } from '../../../../nls.js';
 import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { registerWorkbenchContribution2, WorkbenchPhase, type IWorkbenchContribution } from '../../../../workbench/common/contributions.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { ICustomViewService } from '../../../services/customView/browser/customViewService.js';
@@ -19,17 +21,31 @@ import { INBOX_NOTIFICATIONS_VIEW_ID, SHOW_INBOX_NOTIFICATIONS_COMMAND_ID } from
 
 registerSingleton(IInboxNotificationsService, InboxNotificationsService, InstantiationType.Delayed);
 
-class InboxNotificationsCustomViewContribution implements IWorkbenchContribution {
+class InboxNotificationsCustomViewContribution extends Disposable implements IWorkbenchContribution {
 
 	static readonly ID = 'workbench.contrib.sessionsInboxNotificationsView';
 
 	constructor(
+		@IContextKeyService contextKeyService: IContextKeyService,
 		@ICustomViewService customViewService: ICustomViewService,
 	) {
-		customViewService.registerCustomView({
+		super();
+
+		this._register(customViewService.registerCustomView({
 			id: INBOX_NOTIFICATIONS_VIEW_ID,
 			ctor: new SyncDescriptor(InboxNotificationsView),
-		});
+		}, {
+			restore: contextKeyService.getContextKeyValue<boolean>(ChatContextKeys.enabled.key) === true,
+		}));
+
+		const chatEnabledContextKeys = new Set([ChatContextKeys.enabled.key]);
+		this._register(contextKeyService.onDidChangeContext(event => {
+			if (event.affectsSome(chatEnabledContextKeys)
+				&& !contextKeyService.getContextKeyValue<boolean>(ChatContextKeys.enabled.key)
+				&& customViewService.activeCustomView.get()?.id === INBOX_NOTIFICATIONS_VIEW_ID) {
+				customViewService.hideCustomView();
+			}
+		}));
 	}
 }
 

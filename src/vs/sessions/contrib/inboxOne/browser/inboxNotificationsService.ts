@@ -42,6 +42,12 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 		this._externalItems = observableValue('sessionsInboxNotificationsExternal', []);
 
 		const sessionsChanged = observableSignalFromEvent(this, this.sessionsManagementService.onDidChangeSessions);
+		this._register(this.storageService.onDidChangeValue(StorageScope.APPLICATION, DISMISSED_NOTIFICATION_IDS_STORAGE_KEY, this._store)(event => {
+			if (!event.external) {
+				return;
+			}
+			this._dismissedIds.set(this.loadDismissedIds(), undefined);
+		}));
 
 		this.notifications = derived(this, reader => {
 			sessionsChanged.read(reader);
@@ -66,7 +72,7 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 	publishExternalNotification(notification: IExternalInboxNotification): void {
 		const item: IInboxNotificationItem = {
 			id: notification.id,
-			kind: InboxNotificationKind.External,
+			kind: notification.kind ?? InboxNotificationKind.External,
 			priority: notification.priority ?? InboxNotificationPriority.Normal,
 			title: notification.title,
 			description: notification.description,
@@ -84,6 +90,14 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 		const updated = existing.slice();
 		updated[idx] = item;
 		this._externalItems.set(updated, undefined);
+	}
+
+	removeExternalNotification(id: string): void {
+		const existing = this._externalItems.get();
+		const filtered = existing.filter(candidate => candidate.id !== id);
+		if (filtered.length !== existing.length) {
+			this._externalItems.set(filtered, undefined);
+		}
 	}
 
 	dismissNotification(id: string): void {
@@ -110,22 +124,15 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 		const status = session.status.read(reader);
 		const title = session.title.read(reader);
 		const updatedAt = session.updatedAt.read(reader).getTime();
-		const statusDescription = (session.description.read(reader)?.value ?? '').toLowerCase();
 
 		if (status === SessionStatus.NeedsInput) {
-			const confirmationRequested = /\b(confirm|confirmation|approve|approval)\b/.test(statusDescription);
-			const kind = confirmationRequested ? InboxNotificationKind.ConfirmationRequested : InboxNotificationKind.NeedsInput;
-			const id = `${session.sessionId}:${kind}:${updatedAt}`;
+			const id = `${session.sessionId}:${InboxNotificationKind.NeedsInput}:${updatedAt}`;
 			itemsById.set(id, {
 				id,
-				kind,
-				priority: confirmationRequested ? InboxNotificationPriority.Critical : InboxNotificationPriority.High,
-				title: confirmationRequested
-					? localize('inboxNotifications.confirmation.title', "Confirmation Requested for {0}", title)
-					: localize('inboxNotifications.needsInput.title', "Input Needed for {0}", title),
-				description: confirmationRequested
-					? localize('inboxNotifications.confirmation.description', "Open this session to confirm or deny the requested action.")
-					: localize('inboxNotifications.needsInput.description', "Open this session to answer the pending question and continue."),
+				kind: InboxNotificationKind.NeedsInput,
+				priority: InboxNotificationPriority.High,
+				title: localize('inboxNotifications.needsInput.title', "Input Needed for {0}", title),
+				description: localize('inboxNotifications.needsInput.description', "Open this session to answer the pending question and continue."),
 				timestamp: updatedAt,
 				sessionResource: session.resource,
 				actions: this.sessionActions(true, false),

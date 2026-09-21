@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './media/inboxNotificationsView.css';
-import { $, addDisposableListener, clearNode, trackFocus } from '../../../../base/browser/dom.js';
+import { $, clearNode, trackFocus } from '../../../../base/browser/dom.js';
+import { Button } from '../../../../base/browser/ui/button/button.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { autorun, constObservable, IObservable, observableValue } from '../../../../base/common/observable.js';
 import { onUnexpectedError } from '../../../../base/common/errors.js';
@@ -12,6 +13,7 @@ import { localize } from '../../../../nls.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
+import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { fromNowByDay } from '../../../../base/common/date.js';
 import { AbstractCustomView } from '../../../services/customView/browser/customView.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
@@ -22,8 +24,9 @@ import {
 	IInboxNotificationItem,
 	IInboxNotificationsService,
 	InboxNotificationActionKind,
-	InboxNotificationKind,
+	InboxNotificationPriority,
 } from '../common/inboxNotificationsService.js';
+import { getInboxNotificationKindLabel, getInboxNotificationPriorityLabel } from './inboxNotificationsLabels.js';
 
 export class InboxNotificationsView extends AbstractCustomView {
 
@@ -46,7 +49,9 @@ export class InboxNotificationsView extends AbstractCustomView {
 			if (items.length === 0) {
 				return localize('inboxNotifications.description.empty', "No active notifications.");
 			}
-			return localize('inboxNotifications.description.count', "{0} notification(s) prioritized for action", items.length);
+			return items.length === 1
+				? localize('inboxNotifications.description.single', "1 notification prioritized for action")
+				: localize('inboxNotifications.description.plural', "{0} notifications prioritized for action", items.length);
 		});
 	}
 
@@ -63,9 +68,13 @@ export class InboxNotificationsView extends AbstractCustomView {
 		});
 
 		const toolbar = container.appendChild($('.inbox-notifications-toolbar'));
-		const clearDismissedButton = toolbar.appendChild($('button.inbox-notifications-toolbar-button', undefined, localize('inboxNotifications.clearDismissed', "Show Dismissed")));
-		clearDismissedButton.setAttribute('aria-label', localize('inboxNotifications.clearDismissedAria', "Show dismissed notifications"));
-		this._register(addDisposableListener(clearDismissedButton, 'click', () => {
+		const clearDismissedButton = this._register(new Button(toolbar, {
+			...defaultButtonStyles,
+			secondary: true,
+			ariaLabel: localize('inboxNotifications.clearDismissedAria', "Show dismissed notifications"),
+		}));
+		clearDismissedButton.label = localize('inboxNotifications.clearDismissed', "Show Dismissed");
+		this._register(clearDismissedButton.onDidClick(() => {
 			this.inboxNotificationsService.clearDismissedNotifications();
 		}));
 
@@ -103,41 +112,44 @@ export class InboxNotificationsView extends AbstractCustomView {
 		const card = $('.inbox-notifications-item');
 		card.classList.add(`priority-${item.priority}`);
 		card.setAttribute('role', 'listitem');
-		card.setAttribute('aria-label', localize('inboxNotifications.itemAriaLabel', "{0}. {1}", item.title, item.description));
+		card.setAttribute('aria-label', localize(
+			'inboxNotifications.itemAriaLabel',
+			"Priority {0}. {1}. {2}. {3}",
+			this.priorityLabel(item.priority),
+			this.kindLabel(item.kind),
+			item.title,
+			item.description,
+		));
 
 		const heading = card.appendChild($('.inbox-notifications-item-header'));
 		heading.appendChild($('.inbox-notifications-item-title', undefined, item.title));
 		heading.appendChild($('.inbox-notifications-item-kind', undefined, this.kindLabel(item.kind)));
+		heading.appendChild($('.inbox-notifications-item-priority', undefined, this.priorityLabel(item.priority)));
 
 		card.appendChild($('.inbox-notifications-item-description', undefined, item.description));
 		card.appendChild($('.inbox-notifications-item-time', undefined, fromNowByDay(item.timestamp, true, true)));
 
 		const actions = card.appendChild($('.inbox-notifications-item-actions'));
 		for (const action of item.actions) {
-			const button = actions.appendChild($(`button.inbox-notifications-action${action.primary ? '.primary' : ''}`, undefined, action.label));
-			button.setAttribute('aria-label', localize('inboxNotifications.actionAriaLabel', "{0} for {1}", action.label, item.title));
-			this.renderedListDisposables.add(addDisposableListener(button, 'click', () => void this.runAction(item, action)));
+			const button = this.renderedListDisposables.add(new Button(actions, {
+				...defaultButtonStyles,
+				secondary: !action.primary,
+				small: true,
+				ariaLabel: localize('inboxNotifications.actionAriaLabel', "{0} for {1}", action.label, item.title),
+			}));
+			button.label = action.label;
+			this.renderedListDisposables.add(button.onDidClick(() => void this.runAction(item, action)));
 		}
 
 		return card;
 	}
 
-	private kindLabel(kind: InboxNotificationKind): string {
-		switch (kind) {
-			case InboxNotificationKind.ConfirmationRequested:
-				return localize('inboxNotifications.kind.confirmationRequested', "Confirmation");
-			case InboxNotificationKind.NeedsInput:
-				return localize('inboxNotifications.kind.needsInput', "Needs Input");
-			case InboxNotificationKind.FailingCI:
-				return localize('inboxNotifications.kind.failingCi', "CI");
-			case InboxNotificationKind.ReviewComments:
-				return localize('inboxNotifications.kind.reviewComments', "Comments");
-			case InboxNotificationKind.Completed:
-				return localize('inboxNotifications.kind.completed', "Completed");
-			case InboxNotificationKind.External:
-			default:
-				return localize('inboxNotifications.kind.external', "Event");
-		}
+	private kindLabel(kind: IInboxNotificationItem['kind']): string {
+		return getInboxNotificationKindLabel(kind);
+	}
+
+	private priorityLabel(priority: InboxNotificationPriority): string {
+		return getInboxNotificationPriorityLabel(priority);
 	}
 
 	private async runAction(item: IInboxNotificationItem, action: IInboxNotificationAction): Promise<void> {

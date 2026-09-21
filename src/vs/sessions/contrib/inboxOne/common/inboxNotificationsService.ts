@@ -54,6 +54,7 @@ export interface IInboxNotificationItem {
 
 export interface IExternalInboxNotification {
 	readonly id: string;
+	readonly kind?: InboxNotificationKind;
 	readonly title: string;
 	readonly description: string;
 	readonly priority?: InboxNotificationPriority;
@@ -68,6 +69,7 @@ export interface IInboxNotificationsService {
 	readonly notifications: IObservable<readonly IInboxNotificationItem[]>;
 
 	publishExternalNotification(notification: IExternalInboxNotification): void;
+	removeExternalNotification(id: string): void;
 	dismissNotification(id: string): void;
 	clearDismissedNotifications(): void;
 }
@@ -78,4 +80,3 @@ export function compareInboxNotifications(a: IInboxNotificationItem, b: IInboxNo
 	}
 	return b.timestamp - a.timestamp;
 }
-
