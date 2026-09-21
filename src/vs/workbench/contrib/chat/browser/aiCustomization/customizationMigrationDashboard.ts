@@ -34,6 +34,7 @@ export interface ICustomizationMigrationDashboardCategory {
 	readonly count: number;
 	readonly countLabel: string;
 	readonly highRisk?: boolean;
+	readonly highRiskDescription?: string;
 }
 
 export interface ICustomizationMigrationDashboardScope {
@@ -63,7 +64,7 @@ export interface ICustomizationMigrationDashboardOverview {
 	readonly scopes: readonly ICustomizationMigrationDashboardScope[];
 	/** Most recent activity first. */
 	readonly activity: readonly ICustomizationMigrationDashboardActivity[];
-	readonly result?: { readonly migratedCount: number };
+	readonly result?: { readonly migratedCount: number; readonly activityIds: readonly string[] };
 }
 
 export interface ICustomizationMigrationDashboardCallbacks {
@@ -97,7 +98,7 @@ export class CustomizationMigrationDashboard extends Disposable {
 
 	showLoading(title: string, description: string, retry?: () => void): void {
 		this.allMigrationsComplete = false;
-		this.pendingFocus ??= this.getFocusedKey();
+		this.pendingFocus = this.getFocusToRestore();
 		this.prepareRender();
 		const page = this.renderHeader(title, description);
 		page.setAttribute('aria-busy', String(!retry));
@@ -108,17 +109,24 @@ export class CustomizationMigrationDashboard extends Disposable {
 			});
 		}
 		this.callbacks.onDidChangeContent?.();
+		if (this.pendingFocus) {
+			this.focusTargets.get(retry ? 'retry' : 'title')?.focus();
+		}
 	}
 
 	showOverview(overview: ICustomizationMigrationDashboardOverview): void {
-		const focusedKey = this.pendingFocus ?? this.getFocusedKey();
+		const focusedKey = this.getFocusToRestore();
 		this.pendingFocus = undefined;
 		this.allMigrationsComplete = overview.scopes.every(scope => scope.count === 0);
 		this.prepareRender();
+		const skippedCount = overview.scopes.filter(scope => scope.skipped).length;
+		const completedCount = overview.scopes.filter(scope => scope.count === 0 && !scope.skipped).length;
 		const page = this.renderHeader(
 			localize('migrationsTitle', "Migrations"),
-			this.allMigrationsComplete
-				? localize('migrationsCompletedDescription', "Your file migrations are complete. See the checklist below for the status of each location.")
+			overview.scopes.every(scope => scope.count === 0 || scope.skipped)
+				? skippedCount > 0
+					? localize('migrationsIncludedCompletedDescription', "No migrations remain in included locations. Skipped locations are excluded from migration.")
+					: localize('migrationsCompletedDescription', "Your file migrations are complete. See the checklist below for the status of each location.")
 				: localize('migrationsDescription', "Some of your agent customizations need an update to keep working. Review and migrate them to the new formats and locations."),
 		);
 
@@ -130,8 +138,9 @@ export class CustomizationMigrationDashboard extends Disposable {
 		const header = DOM.append(checklist, $('.migration-section-header'));
 		const heading = DOM.append(header, $('h2', { tabindex: -1 }, localize('migrationChecklist', "Your migration checklist")));
 		this.focusTargets.set('checklist', heading);
-		const completedCount = overview.scopes.filter(scope => scope.count === 0 || scope.skipped).length;
-		DOM.append(header, $('span.migration-checklist-progress', { role: 'status' }, localize('migrationProgress', "{0} of {1} complete", completedCount, overview.scopes.length)));
+		DOM.append(header, $('span.migration-checklist-progress', { role: 'status' }, skippedCount > 0
+			? localize('migrationProgressWithSkipped', "{0} of {1} complete · {2} skipped", completedCount, overview.scopes.length, skippedCount)
+			: localize('migrationProgress', "{0} of {1} complete", completedCount, overview.scopes.length)));
 		const list = DOM.append(checklist, $('ol.migration-checklist', { role: 'list' }));
 		for (const scope of overview.scopes) {
 			this.renderScope(list, scope);
@@ -192,6 +201,14 @@ export class CustomizationMigrationDashboard extends Disposable {
 		return [...this.focusTargets].find(([, element]) => element === active)?.[0];
 	}
 
+	private getFocusToRestore(): string | typeof focusPreferredTarget | undefined {
+		const active = DOM.getActiveElement();
+		if (active && active !== this.element.ownerDocument.body && !this.element.contains(active)) {
+			return undefined;
+		}
+		return this.pendingFocus ?? this.getFocusedKey();
+	}
+
 	private renderHeader(title: string, description: string): HTMLElement {
 		const page = DOM.append(this.element, $('.migration-page'));
 		const heading = DOM.append(page, $('h1', { tabindex: -1 }, title));
@@ -201,11 +218,11 @@ export class CustomizationMigrationDashboard extends Disposable {
 	}
 
 	private renderScope(parent: HTMLElement, scope: ICustomizationMigrationDashboardScope): void {
-		const complete = scope.count === 0;
+		const complete = scope.count === 0 && !scope.skipped;
 		const state = complete ? 'complete' : scope.skipped ? 'skipped' : scope.started ? 'progress' : 'pending';
 		const stateLabel = complete ? localize('migrated', "Migrated")
 			: scope.skipped ? localize('skipped', "Skipped")
-				: scope.started ? localize('inProgress', "In progress") : '';
+				: scope.started ? localize('migrationsRemaining', "Migrations remaining") : '';
 		const item = DOM.append(parent, $(`li.migration-scope.is-${state}`));
 		item.dataset.storage = scope.storage;
 		const header = DOM.append(item, $('.migration-scope-header'));
@@ -218,9 +235,11 @@ export class CustomizationMigrationDashboard extends Disposable {
 		}
 		DOM.append(info, $('p.migration-scope-description', {}, complete
 			? localize('noRemainingMigrations', "No remaining migrations.")
-			: scope.storage === PromptsStorage.local
-				? localize('workspaceMigrations', "Workspace customizations. Skip this workspace if you do not own it.")
-				: localize('profileMigrations', "Personal customizations")));
+			: scope.skipped
+				? localize('skippedWorkspaceMigrations', "This workspace is excluded from migration. Include it to review its customizations.")
+				: scope.storage === PromptsStorage.local
+					? localize('workspaceMigrations', "Workspace customizations. Skip this workspace if you do not own it.")
+					: localize('profileMigrations', "Personal customizations")));
 		const actions = DOM.append(header, $('.migration-scope-actions'));
 		if (scope.storage === PromptsStorage.local && !complete) {
 			this.button(actions, `skip:${scope.storage}`,
@@ -250,16 +269,21 @@ export class CustomizationMigrationDashboard extends Disposable {
 				DOM.append(categoryHeading, $('h4', {}, category.label));
 				DOM.append(categoryHeading, $('span.migration-count', {}, category.countLabel));
 				if (category.highRisk) {
-					const risk = DOM.append(categoryHeading, $('span.migration-risk', {}, localize('highRisk', "High risk")));
-					this.hover(risk, localize('highRiskDescription', "Conversion can remove prompt-only metadata and change how prompts are invoked."));
+					DOM.append(categoryHeading, $('span.migration-risk', {}, localize('highRisk', "High risk")));
 				}
 				DOM.append(content, $('p.migration-category-description', {}, category.description));
-				this.button(row, `review:${scope.storage}:${category.id}`, localize('review', "Review"),
+				if (category.highRiskDescription) {
+					DOM.append(content, $('p.migration-category-description', {}, category.highRiskDescription));
+				}
+				const review = this.button(row, `review:${scope.storage}:${category.id}`, localize('review', "Review"),
 					localize('reviewMigrationCategory', "Review {0} from {1}", category.label, scope.label),
 					() => {
 						this.callbacks.actionClicked('migrationCategoryClicked', category.id);
 						this.callbacks.reviewCategory(category.id, scope.storage);
 					});
+				if (category.highRiskDescription) {
+					review.element.setAttribute('aria-description', category.highRiskDescription);
+				}
 			}
 		}
 	}
@@ -271,18 +295,20 @@ export class CustomizationMigrationDashboard extends Disposable {
 			? localize('oneMigrationComplete', "1 customization migrated")
 			: localize('migrationsComplete', "{0} customizations migrated", result.migratedCount)));
 		const actions = DOM.append(strip, $('.migration-result-actions'));
-		if (overview.activity.length) {
-			const latest = overview.activity[0];
+		const activityIds = result.activityIds.filter(id => overview.activity.some(activity => activity.id === id));
+		if (activityIds.length) {
 			this.button(actions, 'viewChanges', localize('viewChanges', "View Changes"), localize('viewMigrationChanges', "View migration changes"), () => {
 				this.callbacks.actionClicked('viewChangesClicked');
-				const details = this.activityDetails.get(latest.id);
-				if (details) {
-					details.open = true;
-					this.expandedActivity.add(latest.id);
-					this.callbacks.onDidChangeContent?.();
-					this.focusTargets.get(`activity:${latest.id}`)?.focus();
-					details.scrollIntoView({ block: 'nearest' });
+				for (const id of activityIds) {
+					const details = this.activityDetails.get(id);
+					if (details) {
+						details.open = true;
+						this.expandedActivity.add(id);
+					}
 				}
+				this.callbacks.onDidChangeContent?.();
+				this.focusTargets.get(`activity:${activityIds[0]}`)?.focus();
+				this.activityDetails.get(activityIds[0])?.scrollIntoView({ block: 'nearest' });
 			}, 'link');
 		}
 		this.button(actions, 'dismissResult', '', localize('dismissMigrationResult', "Dismiss migration result"), () => {

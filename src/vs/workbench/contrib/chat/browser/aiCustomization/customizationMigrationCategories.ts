@@ -201,6 +201,10 @@ const promptFilesMigrationCategory: ICustomizationMigrationCategory = {
 				"Prompts are no longer supported by {0}. Convert them to skills to keep them available in both VS Code and this harness.",
 				harnessLabel,
 			),
+			consequence: localize(
+				'promptMigrationConversionWarning',
+				"High risk: Conversion keeps the prompt body, description, and argument-hint, but normalizes the name for the skill. Other prompt headers, including tools, model, agent, and mode, are removed. Converted skills set disable-model-invocation: true for explicit invocation rather than automatic invocation by the agent. Review your prompts before converting.",
+			),
 		};
 	},
 
