@@ -23,6 +23,7 @@ import { EditorSampleTryoutPresentation } from './onboardingSamplePresentation.j
 import { CommandTryoutPresentation, ViewTryoutPresentation } from './onboardingTryoutActions.js';
 import { OnboardingTryoutService } from './onboardingTryoutService.js';
 import { runOnboardingTryout } from './onboardingTryoutRunner.js';
+import './onboardingTryoutUrlHandler.js';
 
 registerSingleton(IOnboardingTryoutService, OnboardingTryoutService, InstantiationType.Delayed);
 

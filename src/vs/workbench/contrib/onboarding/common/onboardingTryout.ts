@@ -7,7 +7,8 @@ import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { createCommandUri } from '../../../../base/common/htmlContent.js';
 import { DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
-import { Schemas } from '../../../../base/common/network.js';
+import { matchesScheme, Schemas } from '../../../../base/common/network.js';
+import { equalsIgnoreCase } from '../../../../base/common/strings.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { ContextKeyExpression } from '../../../../platform/contextkey/common/contextkey.js';
@@ -16,6 +17,7 @@ import { onboardingScenarioRegistry } from './onboardingRegistry.js';
 import { IOnboardingPresentationRef, IOnboardingScenario } from './onboardingScenario.js';
 
 export const RUN_ONBOARDING_TRYOUT_COMMAND_ID = 'workbench.action.onboarding.tryFeature';
+export const ONBOARDING_TRYOUT_URL_AUTHORITY = 'tryout';
 
 export interface IOnboardingTryoutCommand {
 	readonly id: string;
@@ -32,6 +34,8 @@ export interface IOnboardingTryoutMetadata {
 	readonly description: string;
 	readonly isAI?: boolean;
 	readonly targetWindow?: 'agents';
+	/** Whether product-protocol links may request this tryout. Defaults to true and always requires confirmation. */
+	readonly allowExternalLaunch?: boolean;
 	readonly unavailableMessage?: string;
 	readonly setup?: IOnboardingTryoutSetupAction;
 }
@@ -161,6 +165,19 @@ export function parseOnboardingTryoutUri(uri: URI): string | undefined {
 		throw new Error(localize('onboarding.tryout.invalidArguments', "Expected exactly one valid feature example identifier."));
 	}
 	return parseOnboardingTryoutArguments(args);
+}
+
+export function parseExternalOnboardingTryoutUri(uri: URI, urlProtocol: string): string | undefined {
+	if (!matchesScheme(uri, urlProtocol)
+		|| !equalsIgnoreCase(uri.authority, ONBOARDING_TRYOUT_URL_AUTHORITY)
+		|| !uri.path.startsWith('/')
+		|| uri.query.length > 0
+		|| uri.fragment.length > 0) {
+		return undefined;
+	}
+
+	const id = uri.path.slice(1);
+	return isOnboardingTryoutId(id) ? id : undefined;
 }
 
 export function registerOnboardingTryout<TPayload>(tryout: IOnboardingTryout<TPayload>): IDisposable {

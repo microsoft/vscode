@@ -19,6 +19,18 @@ Release notes are fetched content. They may identify a tryout, but they never de
 
 Use stable IDs containing letters, digits, periods, underscores, or hyphens. IDs begin with a letter or digit and are at most 128 characters. Do not repurpose an existing ID for unrelated behavior because old release notes remain available.
 
+### External links
+
+Websites can request an installed tryout with a product-protocol link containing only its ID:
+
+```text
+vscode://tryout/myFeature.guide
+```
+
+External launch is allowed by default. Set `allowExternalLaunch: false` on registrations that should remain in-product only. Every accepted external link shows a VS Code confirmation using the installed title and description before the existing tryout runner executes. Unknown IDs, opted-out registrations, malformed paths, query parameters, and fragments fail closed.
+
+External links do not carry a trustworthy website origin. Never add commands, arguments, prompts, paths, settings, or other behavior to the URL, and never bypass the in-product confirmation based on an asserted source domain.
+
 ## Register a tryout
 
 Register from the owning feature contribution and dispose the registration with that contribution:

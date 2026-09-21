@@ -71,6 +71,7 @@ Requirements:
 - Commands retain their normal preconditions, confirmation, permission, and undo behavior.
 - Availability is rechecked after asynchronous preparation and immediately before execution.
 - Setup actions are offered explicitly and never run while rendering release notes.
+- External `vscode://tryout/<id>` links contain only the registered ID and always require the product confirmation. External launch defaults to allowed; set `allowExternalLaunch: false` when a tryout must remain in-product only.
 
 Never automatically:
 
