@@ -372,6 +372,10 @@ export class BrowserMain extends Disposable {
 		const fileManagedSettings = new NullFileManagedSettingsService();
 		serviceCollection.set(INativeManagedSettingsService, nativeManagedSettings);
 		serviceCollection.set(IFileManagedSettingsService, fileManagedSettings);
+		serviceCollection.set(INativeManagedSettingsService, new NullNativeManagedSettingsService());
+		// Web has no managed-settings file channel, but the service is registered so consumers can
+		// depend on it unconditionally rather than resolving it defensively.
+		serviceCollection.set(IFileManagedSettingsService, new NullFileManagedSettingsService());
 		const policyService = new AccountPolicyService(logService, defaultAccountService);
 		serviceCollection.set(IPolicyService, policyService);
 		serviceCollection.set(IAccountPolicyGateService, policyService);

@@ -78,6 +78,7 @@ export interface ISessionsRecentWorkspacesService {
 	readonly _serviceBrand: undefined;
 
 	readonly onDidChangeRecentWorkspaces: Event<void>;
+	readonly onDidRemoveRecentWorkspaces: Event<readonly URI[]>;
 	/** Whether VS Code's recent-folder and workspace-file history has loaded; Agents-owned history is synchronous. */
 	readonly historyLoadState: IObservable<WorkspaceHistoryLoadState>;
 
@@ -115,6 +116,9 @@ export class SessionsRecentWorkspacesService extends Disposable implements ISess
 
 	private readonly _onDidChangeRecentWorkspaces = this._register(new Emitter<void>());
 	readonly onDidChangeRecentWorkspaces: Event<void> = this._onDidChangeRecentWorkspaces.event;
+
+	private readonly _onDidRemoveRecentWorkspaces = this._register(new Emitter<readonly URI[]>());
+	readonly onDidRemoveRecentWorkspaces: Event<readonly URI[]> = this._onDidRemoveRecentWorkspaces.event;
 
 	private _vsCodeRecentFolders: IVSCodeRecentFolder[] = [];
 	private readonly _historyRefresh = this._register(new MutableDisposable<DisposableStore>());
@@ -213,6 +217,7 @@ export class SessionsRecentWorkspacesService extends Disposable implements ISess
 			return !!repositoryUri && this.uriIdentityService.extUri.isEqual(repositoryUri, folderUri);
 		};
 		const updated = recents.filter(p => !matchesRemovedWorkspace(URI.revive(p.uri)));
+		const storedUris = recents.map(p => URI.revive(p.uri)).filter(matchesRemovedWorkspace);
 		const vsCodeUris = this._vsCodeRecentFolders.map(entry => entry.folderUri).filter(matchesRemovedWorkspace);
 		this._updateExcludedVSCodeFolders([folderUri, ...vsCodeUris], true);
 		this._vsCodeRecentFolders = this._vsCodeRecentFolders.filter(entry => !matchesRemovedWorkspace(entry.folderUri));
@@ -222,6 +227,11 @@ export class SessionsRecentWorkspacesService extends Disposable implements ISess
 			this._onDidChangeRecentWorkspaces.fire();
 		}
 		this.workspacesService.removeRecentlyOpened([folderUri, ...vsCodeUris]);
+		const removedWorkspaces = new Map<string, URI>();
+		for (const uri of [folderUri, ...storedUris, ...vsCodeUris]) {
+			removedWorkspaces.set(this.uriIdentityService.extUri.getComparisonKey(uri), uri);
+		}
+		this._onDidRemoveRecentWorkspaces.fire([...removedWorkspaces.values()]);
 	}
 
 	clearCheckedWorkspace(): void {
