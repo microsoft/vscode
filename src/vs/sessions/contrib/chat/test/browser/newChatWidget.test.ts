@@ -5,9 +5,10 @@
 
 import assert from 'assert';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
-import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
+import { CancellationError } from '../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import { IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, constObservable, IObservable, observableValue } from '../../../../../base/common/observable.js';
 import { isWeb } from '../../../../../base/common/platform.js';
 import { extUri } from '../../../../../base/common/resources.js';
@@ -15,7 +16,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ISession, ISessionWorkspace, SESSION_WORKSPACE_GROUP_GITHUB } from '../../../../services/sessions/common/session.js';
-import { IActiveSession, ICreateNewSessionOptions } from '../../../../services/sessions/common/sessionsManagement.js';
+import { IActiveSession, ICreateNewSessionOptions, WorkspaceNotTrustedError } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISendRequestOptions, ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
 import { IOpenNewSessionOptions, IOpenNewSessionResult } from '../../../../services/sessions/browser/sessionsService.js';
 import { IPickedSessionType, IPreferredSessionType } from '../../browser/sessionTypePicker.js';
@@ -29,6 +30,7 @@ import { IWorkspacePickerNoWorkspaceOption, WorkspacePicker } from '../../browse
 import { IWorkspaceSelectionSnapshot, WorkspaceSelectionOrigin } from '../../../../common/workspaceSelection.js';
 import { ISelectWorkspaceOptions } from '../../../../browser/parts/chatView.js';
 import { NewChatInputWidget } from '../../browser/newChatInput.js';
+import { IChatDraft, serializeChatDraft } from '../../../../../workbench/contrib/chat/common/attachments/chatDraft.js';
 
 /** The part of the active session `_recreateOnProviderChange` actually reads. */
 interface IActiveDraft {
@@ -84,6 +86,7 @@ const createNewSession = Reflect.get(NewChatWidget.prototype, '_createNewSession
 	this: INewChatWidgetHarness,
 	folderUri: URI,
 	userPick?: IPreferredSessionType,
+	handoff?: { readonly token: CancellationToken; readonly providerId?: string; readonly preferDevContainer?: boolean },
 ) => Promise<IOpenNewSessionResult>;
 const createSessionNow = Reflect.get(NewChatWidget.prototype, '_createSessionNow') as (
 	this: ICreateSessionNowHarness,
@@ -159,6 +162,8 @@ interface ISessionCountHarness {
 }
 
 interface ISendHarness {
+	readonly notificationService: { error(message: string): void };
+	readonly _pendingBackgroundSends: { deleteAndDispose(key: object): void };
 	readonly newSessionComposerService: { notifyWillSendRequest(options: ISendRequestOptions, selection: IWorkspaceSelectionSnapshot | undefined): void };
 	readonly _session: IObservable<ISession | undefined>;
 	readonly _feedbackItems: IObservable<readonly never[]>;
@@ -618,6 +623,27 @@ suite('NewChatWidget', () => {
 		assert.deepStrictEqual({ pending, settled: harness._pendingWorkspaceCreation }, { pending: true, settled: undefined });
 	});
 
+	test('a cancelled handoff does not retry creation or apply its pending Dev Container preference', async () => {
+		const changed = disposables.add(new Emitter<void>());
+		const creation = new DeferredPromise<IOpenNewSessionResult>();
+		const cancellation = disposables.add(new CancellationTokenSource());
+		let calls = 0;
+		let preferences = 0;
+		const harness = createHarness(
+			disposables.add(new MutableDisposable<IDisposable>()),
+			disposables.add(new MutableDisposable<IDisposable>()),
+			changed.event,
+			async () => { calls++; return creation.p; },
+		);
+		harness._applyPreferredDevContainer = () => { preferences++; };
+		const opening = createNewSession.call(harness, URI.file('/source'), undefined, { token: cancellation.token, preferDevContainer: true });
+		cancellation.cancel();
+		await creation.complete({ session: undefined, trustDeclined: false });
+		await opening;
+		changed.fire();
+		assert.deepStrictEqual({ calls, preferences, pending: harness._pendingWorkspaceCreation }, { calls: 1, preferences: 0, pending: undefined });
+	});
+
 	test('applies the Dev Container preference when a late provider creates the draft', async () => {
 		const sessionTypesChanged = disposables.add(new Emitter<void>());
 		const pendingPreferredUpgrade = disposables.add(new MutableDisposable<IDisposable>());
@@ -1075,6 +1101,8 @@ suite('NewChatWidget', () => {
 		let clearAttachedContextCount = 0;
 
 		const result = await send.call({
+			notificationService: { error: () => { } },
+			_pendingBackgroundSends: { deleteAndDispose: () => { } },
 			_session: constObservable(session),
 			_feedbackItems: constObservable([]),
 			_workspacePicker: {
@@ -1140,6 +1168,8 @@ suite('NewChatWidget', () => {
 		let sendCount = 0;
 
 		const result = await send.call({
+			notificationService: { error: () => { } },
+			_pendingBackgroundSends: { deleteAndDispose: () => { } },
 			_session: constObservable(undefined),
 			_feedbackItems: constObservable([]),
 			_workspacePicker: {
@@ -1163,6 +1193,37 @@ suite('NewChatWidget', () => {
 			result: false,
 			pickerOpenCount: 1,
 			sendCount: 0,
+		});
+	});
+
+	test('reports setup failures without clearing context or notifying on cancellation', async () => {
+		const notifications: string[] = [];
+		const errors: unknown[] = [];
+		let cleared = 0;
+		const session = upcastPartial<ISession>({ sessionId: 'draft' });
+		const results: boolean[] = [];
+		for (const error of [new Error('Container build failed'), new CancellationError(), new WorkspaceNotTrustedError()]) {
+			const harness: ISendHarness & { send: typeof send } = {
+				send,
+				notificationService: { error: message => notifications.push(message) },
+				_pendingBackgroundSends: { deleteAndDispose: () => { } },
+				_session: constObservable(session),
+				_feedbackItems: constObservable([]),
+				_workspacePicker: { selectedFolderUri: undefined, clearAttachedContext: () => cleared++, showPicker: () => { } },
+				_isQuickChatComposer: constObservable(false),
+				agentFeedbackService: { removeFeedback: () => { } },
+				newSessionComposerService: { notifyWillSendRequest: () => { } },
+				sessionsManagementService: { sendNewChatRequest: async () => { throw error; } },
+				logService: { error: (_message, error) => errors.push(error) },
+				_getWorkspaceRoots: () => [],
+			};
+			results.push(await harness.send('hello'));
+		}
+		assert.deepStrictEqual({ results, notifications, cleared, errors: errors.length }, {
+			results: [false, false, false],
+			notifications: ['Failed to start session: Container build failed'],
+			cleared: 0,
+			errors: 1,
 		});
 	});
 
@@ -1280,6 +1341,7 @@ suite('NewChatWidget', () => {
 				setSelectedWorkspace: (_folder: URI, options: Parameters<WorkspacePicker['setSelectedWorkspace']>[1]) => forwarded.push(options),
 			},
 		});
+
 		const options: ISelectWorkspaceOptions = { providerId: 'provider', preferDevContainer: true, selectionOrigin: WorkspaceSelectionOrigin.WindowOpen };
 		const results = [widget.selectWorkspace(folder, options)];
 		selection = { folderUri: URI.file('/unrelated'), state: 'selected' };
@@ -1291,4 +1353,66 @@ suite('NewChatWidget', () => {
 			forwarded: Array.from({ length: 3 }, () => ({ providerId: 'provider', preferDevContainer: true, origin: WorkspaceSelectionOrigin.WindowOpen })),
 		});
 	});
+
+	for (const existing of ['empty', 'text', 'attachments', 'lateEdit', 'cancelled'] as const) {
+		test(`draft handoff preserves ownership for ${existing} destination input`, async () => {
+			const changed = disposables.add(new Emitter<void>());
+			const cancellation = disposables.add(new CancellationTokenSource());
+			const ready = new DeferredPromise<void>();
+			const sourceFolder = URI.file('/source');
+			const originalFolder = URI.file('/destination');
+			let selectedFolder = originalFolder;
+			let content: IChatDraft = {
+				inputText: existing === 'text' ? 'Keep destination' : '',
+				attachments: existing === 'attachments' ? [toFileVariableEntry(URI.file('/destination/context'))] : [],
+			};
+			let creations = 0;
+			const incoming = { inputText: 'Incoming', attachments: [toFileVariableEntry(URI.file('/source/context'))] };
+			const widget: NewChatWidget = Object.assign(Object.create(NewChatWidget.prototype), {
+				_store: disposables.add(new DisposableStore()),
+				_feedbackItems: constObservable([]),
+				_newChatInput: {
+					isInputReady: true,
+					get hasInput() { return !!content.inputText || content.attachments.length > 0; },
+					onDidChangeInput: changed.event,
+					sessionTypePicker: { getUserPickedSessionType: () => undefined },
+					applyDraft: (draft: IChatDraft) => { content = draft; return true; },
+				},
+				_createNewSession: async (_folder: URI, _pick: IPreferredSessionType | undefined, handoff: { token: CancellationToken }): Promise<IOpenNewSessionResult> => {
+					await ready.p;
+					if (handoff.token.isCancellationRequested) {
+						return { session: undefined, trustDeclined: false };
+					}
+					creations++;
+					return { session: upcastPartial<IActiveSession>({ providerId: 'source-provider' }), trustDeclined: false };
+				},
+				_workspacePicker: {
+					selectionSnapshot: { state: 'selected', folderUri: originalFolder, origin: WorkspaceSelectionOrigin.User },
+					setSelectedWorkspace: (folder: URI) => { selectedFolder = folder; },
+				},
+			});
+			const opening = widget.applyDraft(serializeChatDraft(incoming), sourceFolder, {
+				providerId: 'source-provider', selectionOrigin: WorkspaceSelectionOrigin.WindowOpen,
+			}, cancellation.token);
+			if (existing === 'lateEdit') {
+				content = { inputText: 'Typed while workspace trust was pending', attachments: [] };
+				changed.fire();
+			} else if (existing === 'cancelled') {
+				cancellation.cancel();
+			}
+			await ready.complete();
+			const result = await opening;
+			assert.deepStrictEqual({
+				result, selectedFolder, creations, content,
+			}, {
+				result: existing === 'empty' ? 'applied' : 'preserved',
+				selectedFolder: existing === 'empty' ? sourceFolder : originalFolder,
+				creations: existing === 'empty' ? 1 : 0,
+				content: existing === 'empty' ? incoming : {
+					inputText: existing === 'text' ? 'Keep destination' : existing === 'lateEdit' ? 'Typed while workspace trust was pending' : '',
+					attachments: existing === 'attachments' ? [toFileVariableEntry(URI.file('/destination/context'))] : [],
+				},
+			});
+		});
+	}
 });

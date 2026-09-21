@@ -541,6 +541,52 @@ suite('Sessions - SessionsList', () => {
 		});
 	});
 
+	suite('row feedback', () => {
+		test('aligns workspace and custom group rows with session rows', () => {
+			const group: ISessionGroup = { id: 'group', name: 'Custom Group', createdAt: 1 };
+			const sessions = Array.from({ length: 6 }, (_, index) => {
+				const session = createTestSession(`session-${index}`, {
+					workspaceLabel: `Workspace ${index}`,
+				}).session;
+				return { ...session, updatedAt: constObservable(new Date(index)) };
+			});
+			const harness = createListHarness(disposables, sessions, {
+				groups: [group],
+				memberships: new Map([[sessions[0].sessionId, group.id]]),
+			});
+			const container = harness.createContainer();
+			const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
+				grouping: () => SessionsGrouping.Workspace,
+				sorting: () => SessionsSorting.Created,
+				onSessionOpen: () => { },
+			}));
+			list.layout(1000, 400);
+
+			const groupRow = container.querySelector('.session-group')?.closest('.monaco-list-row');
+			const workspaceRow = [...container.querySelectorAll<HTMLElement>('.session-section:not(.session-group)')]
+				.find(section => section.querySelector('.session-section-label')?.textContent?.startsWith('Workspace'))
+				?.closest('.monaco-list-row');
+			const sessionRow = container.querySelector<HTMLElement>('.monaco-list-row.session-list-inset-row');
+			const feedbackGeometry = (row: Element | null | undefined) => {
+				const style = row ? mainWindow.getComputedStyle(row) : undefined;
+				return {
+					borderRadius: style?.borderRadius,
+					marginLeft: style?.marginLeft,
+					marginRight: style?.marginRight,
+				};
+			};
+
+			assert.deepStrictEqual(
+				[workspaceRow, groupRow, sessionRow].map(feedbackGeometry),
+				Array(3).fill({
+					borderRadius: '0px',
+					marginLeft: '0px',
+					marginRight: '0px',
+				})
+			);
+		});
+	});
+
 	suite('collapsed section status indicators', () => {
 		const group: ISessionGroup = { id: 'group-a', name: 'Group A', createdAt: 1 };
 
@@ -3867,8 +3913,9 @@ suite('Sessions - SessionsList', () => {
 	suite('SessionsFlatList quick-chat presentation', () => {
 
 		function renderQuickChat(useCompactQuickChatRows: boolean) {
-			const quickChat = createTestSession('Investigate failure', { isQuickChat: true }).session;
+			const quickChat = createTestSession('Investigate failure', { isQuickChat: true, isRead: false }).session;
 			const harness = createListHarness(disposables, [quickChat]);
+			harness.instantiationService.stub(ISessionsListModelService, 'getStatusIcon', SessionsListModelService.prototype.getStatusIcon);
 			const container = harness.createContainer();
 			const list = harness.store.add(harness.instantiationService.createInstance(SessionsFlatList, container, {
 				showSessionHover: false,
@@ -3881,10 +3928,13 @@ suite('Sessions - SessionsList', () => {
 
 			const item = container.querySelector<HTMLElement>('.session-item');
 			assert.ok(item);
+			const statusIcon = item.querySelector<HTMLElement>('.session-icon > .codicon');
 			return {
 				usesStandardRowHeight: contentHeight === list.getRowHeight(),
 				isShorterThanStandardRow: contentHeight < list.getRowHeight(),
 				hasCompactClass: item.classList.contains('quick-chat'),
+				hasUnreadIcon: statusIcon?.classList.contains('codicon-circle-filled') ?? false,
+				statusIconFontSize: statusIcon ? mainWindow.getComputedStyle(statusIcon).fontSize : undefined,
 				hasChatIcon: item.querySelector('.session-details-icon > .codicon')?.classList.contains('codicon-comment-discussion') ?? false,
 				badge: item.querySelector('.session-badge')?.textContent ?? undefined,
 				time: item.querySelector('.session-time')?.textContent ?? undefined,
@@ -3902,6 +3952,8 @@ suite('Sessions - SessionsList', () => {
 					usesStandardRowHeight: false,
 					isShorterThanStandardRow: true,
 					hasCompactClass: true,
+					hasUnreadIcon: true,
+					statusIconFontSize: '16px',
 					hasChatIcon: false,
 					badge: undefined,
 					time: undefined,
@@ -3912,6 +3964,8 @@ suite('Sessions - SessionsList', () => {
 					usesStandardRowHeight: true,
 					isShorterThanStandardRow: false,
 					hasCompactClass: false,
+					hasUnreadIcon: true,
+					statusIconFontSize: '16px',
 					hasChatIcon: true,
 					badge: 'No workspace',
 					time: 'now',

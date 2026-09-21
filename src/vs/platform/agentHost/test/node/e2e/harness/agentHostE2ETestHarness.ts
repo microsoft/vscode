@@ -387,6 +387,8 @@ export interface IAgentHostE2EProviderConfig {
 	readonly shellToolResultTextUnreliable?: boolean;
 	/** Provider's file-delete shell turn can terminate its bundled runtime during Windows replay. */
 	readonly fileDeleteReplayUnstableOnWindows?: boolean;
+	/** Provider's file-create shell turn can report success during Windows replay without writing the file. */
+	readonly fileCreateReplayUnstableOnWindows?: boolean;
 	/**
 	 * When set, the subagent-reopen ("replay path") test is skipped on Windows for
 	 * this provider, which rebuilds the reopened transcript from the bundled SDK's

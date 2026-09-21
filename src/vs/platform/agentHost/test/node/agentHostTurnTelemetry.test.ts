@@ -1161,6 +1161,210 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 		assert.strictEqual(data.timeToFirstProgress, undefined);
 	});
 
+	test('a leading rename_chat call counts as progress but not as substantive progress', async () => {
+		setupSession();
+		startTurn('turn-1');
+
+		fire({
+			type: ActionType.ChatToolCallStart,
+			turnId: 'turn-1',
+			toolCallId: 'call-rename',
+			toolName: 'rename_chat',
+			displayName: 'Rename Chat',
+		});
+		// Separate the two marks in time so a substantive value that wrongly
+		// came from the rename call would be indistinguishable from zero delay.
+		await timeout(5);
+		fire({ type: ActionType.ChatResponsePart, turnId: 'turn-1', part: { kind: ResponsePartKind.Markdown, id: 'p1', content: 'working on it' } });
+		fire({ type: ActionType.ChatTurnComplete, turnId: 'turn-1', duration: 1000 });
+
+		const data = completedEvents()[0].data as Record<string, unknown>;
+		const progress = data.timeToFirstProgress as number;
+		const substantive = data.timeToFirstSubstantiveProgress as number;
+		assert.deepStrictEqual({
+			bothReported: typeof progress === 'number' && typeof substantive === 'number',
+			substantiveIsLater: substantive > progress,
+		}, {
+			bothReported: true,
+			substantiveIsLater: true,
+		});
+	});
+
+	test('substantive progress matches first progress when the turn opens with real output', () => {
+		setupSession();
+		startTurn('turn-1');
+
+		fire({ type: ActionType.ChatResponsePart, turnId: 'turn-1', part: { kind: ResponsePartKind.Markdown, id: 'p1', content: 'hi' } });
+		fire({ type: ActionType.ChatTurnComplete, turnId: 'turn-1', duration: 1000 });
+
+		const data = completedEvents()[0].data as Record<string, unknown>;
+		assert.strictEqual(data.timeToFirstSubstantiveProgress, data.timeToFirstProgress);
+	});
+
+	test('a turn that only ever renames the chat reports no substantive progress', () => {
+		setupSession();
+		startTurn('turn-1');
+
+		fire({
+			type: ActionType.ChatToolCallStart,
+			turnId: 'turn-1',
+			toolCallId: 'call-rename',
+			toolName: 'rename_chat',
+			displayName: 'Rename Chat',
+		});
+		fire({ type: ActionType.ChatTurnComplete, turnId: 'turn-1', duration: 1000 });
+
+		const data = completedEvents()[0].data as Record<string, unknown>;
+		assert.deepStrictEqual({
+			progress: typeof data.timeToFirstProgress,
+			substantive: data.timeToFirstSubstantiveProgress,
+		}, {
+			progress: 'number',
+			substantive: undefined,
+		});
+	});
+
+	test('the namespaced rename tool Claude surfaces is also treated as bookkeeping', () => {
+		setupSession();
+		startTurn('turn-1');
+
+		// Claude exposes host server tools through its MCP bridge, so the same
+		// tool arrives as `mcp__host__rename_chat` rather than the bare name.
+		fire({
+			type: ActionType.ChatToolCallStart,
+			turnId: 'turn-1',
+			toolCallId: 'call-rename',
+			toolName: 'mcp__host__rename_chat',
+			displayName: 'Rename Chat',
+		});
+		fire({ type: ActionType.ChatTurnComplete, turnId: 'turn-1', duration: 1000 });
+
+		const data = completedEvents()[0].data as Record<string, unknown>;
+		assert.deepStrictEqual({
+			progress: typeof data.timeToFirstProgress,
+			substantive: data.timeToFirstSubstantiveProgress,
+		}, {
+			progress: 'number',
+			substantive: undefined,
+		});
+	});
+
+	test('an empty part opened before content dates substantive progress to the content', async () => {
+		setupSession();
+		startTurn('turn-1');
+
+		// The emission sequence Claude and Codex produce: a rename, then an
+		// empty reasoning part opened by `content_block_start`, then the delta
+		// that actually fills it.
+		fire({
+			type: ActionType.ChatToolCallStart,
+			turnId: 'turn-1',
+			toolCallId: 'call-rename',
+			toolName: 'rename_chat',
+			displayName: 'Rename Chat',
+		});
+		fire({ type: ActionType.ChatResponsePart, turnId: 'turn-1', part: { kind: ResponsePartKind.Reasoning, id: 'r1', content: '' } });
+		await timeout(5);
+		fire({ type: ActionType.ChatReasoning, turnId: 'turn-1', partId: 'r1', content: 'thinking about it' });
+		fire({ type: ActionType.ChatTurnComplete, turnId: 'turn-1', duration: 1000 });
+
+		const data = completedEvents()[0].data as Record<string, unknown>;
+		assert.deepStrictEqual({
+			bothReported: typeof data.timeToFirstProgress === 'number' && typeof data.timeToFirstSubstantiveProgress === 'number',
+			substantiveIsLater: (data.timeToFirstSubstantiveProgress as number) > (data.timeToFirstProgress as number),
+		}, {
+			bothReported: true,
+			substantiveIsLater: true,
+		});
+	});
+
+	test('a turn that only ever opens empty parts reports no substantive progress', () => {
+		setupSession();
+		startTurn('turn-1');
+
+		// Empty openers and a boundary notification, with no content ever
+		// following: visible progress happened, but nothing answered the user.
+		fire({ type: ActionType.ChatResponsePart, turnId: 'turn-1', part: { kind: ResponsePartKind.Markdown, id: 'p1', content: '' } });
+		fire({ type: ActionType.ChatResponsePart, turnId: 'turn-1', part: { kind: ResponsePartKind.Reasoning, id: 'r1', content: '' } });
+		fire({ type: ActionType.ChatDelta, turnId: 'turn-1', partId: 'p1', content: '' });
+		fire({ type: ActionType.ChatResponsePart, turnId: 'turn-1', part: { kind: ResponsePartKind.SystemNotification, content: '' } });
+		fire({ type: ActionType.ChatTurnComplete, turnId: 'turn-1', duration: 1000 });
+
+		const data = completedEvents()[0].data as Record<string, unknown>;
+		assert.deepStrictEqual({
+			progress: typeof data.timeToFirstProgress,
+			substantive: data.timeToFirstSubstantiveProgress,
+		}, {
+			progress: 'number',
+			substantive: undefined,
+		});
+	});
+
+	test('attributes host pre-send time to each bounded stage up to provider dispatch', async () => {
+		setupSession();
+		startTurn('turn-1');
+		// Let the asynchronous send path run to the provider hand-off.
+		await timeout(0);
+		fire({ type: ActionType.ChatTurnComplete, turnId: 'turn-1', duration: 1000 });
+
+		const data = completedEvents()[0].data as Record<string, unknown>;
+		assert.deepStrictEqual({
+			workingDirectory: typeof data.sendStageWorkingDirectoryMs,
+			modelSelection: typeof data.sendStageModelSelectionMs,
+			attachments: typeof data.sendStageAttachmentsMs,
+			contributions: typeof data.sendStageContributionsMs,
+			checkpoint: typeof data.sendStageCheckpointMs,
+			providerDispatch: typeof data.timeToProviderDispatch,
+		}, {
+			workingDirectory: 'number',
+			modelSelection: 'number',
+			attachments: 'number',
+			contributions: 'number',
+			checkpoint: 'number',
+			providerDispatch: 'number',
+		});
+	});
+
+	test('reports no duration for a pre-send stage that never ran', async () => {
+		// An ephemeral session skips the turn-start checkpoint entirely, so that
+		// stage must be absent rather than reported as zero — otherwise a skipped
+		// stage is indistinguishable from an instantaneous one.
+		setupSession(true, undefined, true);
+		startTurn('turn-1');
+		await timeout(0);
+		fire({ type: ActionType.ChatTurnComplete, turnId: 'turn-1', duration: 1000 });
+
+		const data = completedEvents()[0].data as Record<string, unknown>;
+		assert.deepStrictEqual({
+			checkpoint: data.sendStageCheckpointMs,
+			contributions: typeof data.sendStageContributionsMs,
+			providerDispatch: typeof data.timeToProviderDispatch,
+		}, {
+			checkpoint: undefined,
+			contributions: 'number',
+			providerDispatch: 'number',
+		});
+	});
+
+	test('reports no stage durations for a turn that never runs the host send path', () => {
+		setupSession();
+		// Completing synchronously leaves the send path mid-flight, so the turn
+		// never reaches provider dispatch.
+		turnTracker.turnStarted(agent, defaultChatUri, 'turn-direct', undefined, undefined, 'default', undefined, undefined);
+		turnTracker.turnCompleted(defaultChatUri, 'turn-direct', 'success');
+
+		const data = completedEvents()[0].data as Record<string, unknown>;
+		assert.deepStrictEqual({
+			workingDirectory: data.sendStageWorkingDirectoryMs,
+			checkpoint: data.sendStageCheckpointMs,
+			providerDispatch: data.timeToProviderDispatch,
+		}, {
+			workingDirectory: undefined,
+			checkpoint: undefined,
+			providerDispatch: undefined,
+		});
+	});
+
 	test('reports the latest per-turn billed nano-AIU from usage updates when available', () => {
 		setupSession();
 		startTurn('turn-1');

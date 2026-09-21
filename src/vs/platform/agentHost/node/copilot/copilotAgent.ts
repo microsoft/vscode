@@ -243,12 +243,7 @@ function getCopilotPlatformPackageCandidates(): string[] {
 interface ICopilotRuntimePaths {
 	readonly runtimePath: string;
 	readonly sdkPath: string;
-	readonly builtinSkillDirectories: readonly string[];
 }
-
-// Keep the runtime-owned skills the standalone Copilot CLI exposed in VS Code.
-// `discover-resources` is excluded because Agent Host does not provide its required `catalog_search` tool.
-const supportedCopilotBuiltinSkills = ['customize-cloud-agent', 'github-pr-media'] as const;
 
 async function resolveCopilotRuntimePaths(nodeModulesUri: URI): Promise<ICopilotRuntimePaths> {
 	const tried: string[] = [];
@@ -258,13 +253,14 @@ async function resolveCopilotRuntimePaths(nodeModulesUri: URI): Promise<ICopilot
 		const runtimePath = URI.joinPath(prebuildsUri, process.platform === 'win32' ? 'copilot-runtime.exe' : 'copilot-runtime').fsPath;
 		const nativePath = URI.joinPath(prebuildsUri, 'runtime.node').fsPath;
 		const sdkPath = URI.joinPath(packageUri, 'sdk', 'index.js').fsPath;
-		const builtinSkillsPath = URI.joinPath(packageUri, 'builtin-skills').fsPath;
-		tried.push(`${runtimePath} with ${nativePath}, ${sdkPath}, and ${builtinSkillsPath}`);
-		if (await fileExists(runtimePath) && await fileExists(nativePath) && await fileExists(sdkPath) && await fileExists(builtinSkillsPath)) {
-			const builtinSkillDirectories = supportedCopilotBuiltinSkills.map(name => join(builtinSkillsPath, name));
-			if ((await Promise.all(builtinSkillDirectories.map(directory => fileExists(join(directory, 'SKILL.md'))))).every(Boolean)) {
-				return { runtimePath, sdkPath, builtinSkillDirectories };
-			}
+		tried.push(`${runtimePath} with ${nativePath} and ${sdkPath}`);
+		const [runtimeExists, nativeExists, sdkExists] = await Promise.all([
+			fileExists(runtimePath),
+			fileExists(nativePath),
+			fileExists(sdkPath),
+		]);
+		if (runtimeExists && nativeExists && sdkExists) {
+			return { runtimePath, sdkPath };
 		}
 	}
 
@@ -829,9 +825,20 @@ export class CopilotAgent extends Disposable implements IAgent {
 	 */
 	private _modelRefreshInFlight: Promise<void> | undefined;
 
+	/**
+	 * Settles when the current *invalidating* model refresh has republished the
+	 * catalog. Unlike {@link _scheduledModelRefresh} — which the scheduler
+	 * clears before it awaits the `models.list` request — this spans the whole
+	 * window, from the credential or client change that scheduled the refresh
+	 * until the replacement catalog lands.
+	 *
+	 * While it is set, the published catalog still belongs to the superseded
+	 * credential, so a model found in it may be gone once the refresh settles.
+	 */
+	private _invalidatingModelRefresh: Promise<void> | undefined;
+
 	private _client: CopilotClient | undefined;
 	private _clientStarting: Promise<CopilotClient> | undefined;
-	private _builtinSkillDirectories: readonly string[] = [];
 	/**
 	 * Coalesces the whole acquire-and-self-heal sequence in `_ensureClient` so
 	 * that all concurrent callers share a single, global retry budget for
@@ -985,7 +992,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		this._secondaryAssignmentContext = this._instantiationService.createInstance(CopilotSecondaryAssignmentContext);
 		this._register(this._configurationService.onDidRootConfigChange(() => this._updateVSCodeAssignmentContext()));
 		this._updateVSCodeAssignmentContext();
-		this._slashCommandProvider = new CopilotSlashCommandProvider(() => this._ensureClient().then(c => c.rpc.commands.list().then(c => c.commands)), this._logService);
+		this._slashCommandProvider = new CopilotSlashCommandProvider(() => this._ensureClient().then(c => c.rpc.commands.list().then(c => c.commands)), undefined, this._logService);
 		this._githubTelemetryRouter = isAgentHostTelemetryService(this._telemetryService)
 			? new AgentHostGitHubTelemetryRouter(this._telemetryService)
 			: undefined;
@@ -2000,6 +2007,15 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 		const scheduled = { deferred: new DeferredPromise<void>(), generation };
 		this._scheduledModelRefresh = scheduled;
+		// Held until the replacement catalog is published, which is strictly
+		// later than `_scheduledModelRefresh` being cleared below.
+		const invalidating = scheduled.deferred.p;
+		this._invalidatingModelRefresh = invalidating;
+		invalidating.finally(() => {
+			if (this._invalidatingModelRefresh === invalidating) {
+				this._invalidatingModelRefresh = undefined;
+			}
+		});
 		this._modelRefreshSchedule.value = disposableTimeout(() => {
 			void (async () => {
 				try {
@@ -2133,6 +2149,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 				id: getByokLmAgentModelId(m),
 				name: m.name ?? m.id,
 				maxContextWindow: m.maxContextWindowTokens,
+				maxPromptTokens: m.maxPromptTokens,
+				maxOutputTokens: m.maxOutputTokens,
 				supportsVision: m.supportsVision ?? false,
 				...(thinkingLevel ? { configSchema: { type: 'object', properties: { [ThinkingLevelConfigKey]: thinkingLevel } } satisfies ConfigSchema } : {}),
 				...(byokMeta && { _meta: byokMeta }),
@@ -2330,8 +2348,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 			// Keep the SDK wrapper and native module paired within one platform package.
 			const nodeModulesUri = getAppNodeModulesUri();
-			const { runtimePath, builtinSkillDirectories } = await resolveCopilotRuntimePaths(nodeModulesUri);
-			this._builtinSkillDirectories = builtinSkillDirectories;
+			const { runtimePath } = await resolveCopilotRuntimePaths(nodeModulesUri);
 
 			// The SDK's sandbox auto-detection looks for `<MXC_BIN_DIR>/<arch>/wxc-exec.exe`
 			// (and the Linux/macOS equivalents). VS Code core ships the MXC sandbox binaries
@@ -3997,7 +4014,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 				kind: 'create',
 				client,
 				sessionId: sdkSessionId,
-				builtinSkillDirectories: this._builtinSkillDirectories,
 				isEphemeral: provisional.isEphemeral,
 				hasScopedEditSurface: provisional.hasScopedEditSurface,
 				workingDirectory,
@@ -4543,7 +4559,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 					kind: 'resume',
 					client,
 					sessionId: sdkSessionId,
-					builtinSkillDirectories: this._builtinSkillDirectories,
 					workingDirectory,
 					resolvedAgentName: undefined,
 					snapshot,
@@ -4559,7 +4574,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 					kind: 'create',
 					client,
 					sessionId: chatSdkId,
-					builtinSkillDirectories: this._builtinSkillDirectories,
 					workingDirectory,
 					resolvedAgentName: undefined,
 					snapshot,
@@ -5003,7 +5017,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 					kind: 'resume',
 					client,
 					sessionId: info.sdkSessionId,
-					builtinSkillDirectories: this._builtinSkillDirectories,
 					workingDirectory,
 					additionalDirectories: launchWorkingDirectories?.slice(1),
 					resolvedAgentName: info.agent ? this._resolveAgentName(snapshot, info.agent) : undefined,
@@ -5101,7 +5114,20 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	private async _validateModelSelection(model: ModelSelection): Promise<void> {
-		await (this._scheduledModelRefresh?.deferred.p ?? this._modelRefreshInFlight);
+		// An invalidating refresh follows a token rotation or a client restart and
+		// does not clear the published catalog, so that catalog still belongs to
+		// the superseded credential and may list a model the new one cannot use.
+		// This tracks `_invalidatingModelRefresh` rather than
+		// `_scheduledModelRefresh` because the scheduler clears the latter before
+		// it awaits the `models.list` request — leaving the entire request window
+		// indistinguishable from an ordinary refresh.
+		//
+		// An ordinary refresh re-enumerates the same credential, so a model the
+		// catalog already lists stays valid and the turn need not wait for it.
+		if (!this._invalidatingModelRefresh && this._models.get().some(candidate => candidate.id === model.id)) {
+			return;
+		}
+		await (this._invalidatingModelRefresh ?? this._modelRefreshInFlight);
 		const models = this._models.get();
 		// An empty catalog can mean the provider is unauthenticated or temporarily
 		// unavailable, so preserve the SDK's existing fail-open behavior in that case.
@@ -5577,7 +5603,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 			kind: 'resume',
 			client,
 			sessionId,
-			builtinSkillDirectories: this._builtinSkillDirectories,
 			workingDirectory: resolvedWorkingDirectory,
 			additionalDirectories: this._additionalCustomizationDirectories(launchWorkingDirectories),
 			resolvedAgentName,

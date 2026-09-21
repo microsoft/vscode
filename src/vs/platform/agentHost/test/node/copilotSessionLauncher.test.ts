@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { CopilotClient, CopilotSession, ReasoningSummary, ResumeSessionConfig, SessionConfig, Verbosity } from '@github/copilot-sdk';
+import type { CopilotClient, CopilotSession, ResumeSessionConfig, SessionConfig, Verbosity } from '@github/copilot-sdk';
 import assert from 'assert';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
@@ -334,7 +334,7 @@ suite('resolveByokSessionConfig', () => {
 	test('synthesizes deduped providers and per-model config from the active bridge', async () => {
 		const registry = new ByokLmBridgeRegistry();
 		const registration = registry.register('client-1', connectionOf([
-			{ vendor: 'acme', id: 'claude', name: 'Acme Claude', maxContextWindowTokens: 200000 },
+			{ vendor: 'acme', id: 'claude', name: 'Acme Claude', maxContextWindowTokens: 200000, maxPromptTokens: 32000, maxOutputTokens: 4000 },
 			{ vendor: 'acme', id: 'gpt', name: undefined, maxContextWindowTokens: undefined },
 			{ vendor: 'globex', id: 'llama', name: 'Globex Llama' },
 		]));
@@ -350,7 +350,7 @@ suite('resolveByokSessionConfig', () => {
 				{ name: 'globex', type: 'openai', wireApi: 'responses', baseUrl: 'http://127.0.0.1:1/v/globex', bearerToken: 'NONCE.sess-1' },
 			],
 			models: [
-				{ id: 'claude', provider: 'acme', name: 'Acme Claude', maxContextWindowTokens: 200000 },
+				{ id: 'claude', provider: 'acme', name: 'Acme Claude', maxContextWindowTokens: 200000, maxPromptTokens: 32000, maxOutputTokens: 4000 },
 				{ id: 'gpt', provider: 'acme' },
 				{ id: 'llama', provider: 'globex', name: 'Globex Llama' },
 			],
@@ -659,7 +659,6 @@ suite('CopilotSessionLauncher shared session config', () => {
 		const basePlan = {
 			client,
 			sessionId: 'session-1',
-			builtinSkillDirectories: ['/builtin/customize-cloud-agent', '/builtin/github-pr-media'],
 			workingDirectory: testWorkingDirectory,
 			resolvedAgentName: undefined,
 			snapshot: { tools: [], plugins: [plugin, syntheticPlugin], mcpServers: {} },
@@ -736,7 +735,7 @@ suite('CopilotSessionLauncher shared session config', () => {
 						headers: { Authorization: 'sensitive-header' },
 					},
 				},
-				createSkillDirectories: ['/builtin/customize-cloud-agent', '/builtin/github-pr-media'],
+				createSkillDirectories: [],
 				createInstructionDirectories: [URI.joinPath(pluginDir, 'rules').fsPath],
 				createDisabledMcpServers: ['azure', 'disabled-workspace-server', 'github'],
 				createHasExitPlanHandler: true,
@@ -754,7 +753,7 @@ suite('CopilotSessionLauncher shared session config', () => {
 						headers: { Authorization: 'sensitive-header' },
 					},
 				},
-				resumeSkillDirectories: ['/builtin/customize-cloud-agent', '/builtin/github-pr-media'],
+				resumeSkillDirectories: [],
 				resumeInstructionDirectories: [URI.joinPath(pluginDir, 'rules').fsPath],
 				resumeDisabledMcpServers: ['azure', 'disabled-workspace-server', 'github'],
 				resumeHasExitPlanHandler: true,
@@ -992,75 +991,9 @@ suite('CopilotSessionLauncher verbosity', () => {
 	});
 });
 
-suite('CopilotSessionLauncher reasoning summary', () => {
-
-	ensureNoDisposablesAreLeakedInTestSuite();
-
-	function applyReasoningSummary(reasoningSummary: ReasoningSummary): Promise<void> {
-		const launcher = createTestLauncher() as unknown as {
-			_applyReasoningSummary(session: CopilotSession, reasoningSummary: ReasoningSummary, sessionId: string): Promise<void>;
-		};
-		const session = {
-			rpc: {
-				options: {
-					update: async (options: unknown) => { updates.push(options); return { success: true }; },
-				},
-			},
-		} as unknown as CopilotSession;
-		return launcher._applyReasoningSummary(session, reasoningSummary, 'session-1');
-	}
-
-	const updates: unknown[] = [];
-
-	setup(() => updates.length = 0);
-
-	test('forwards the requested reasoning summary', async () => {
-		await applyReasoningSummary('detailed');
-
-		assert.deepStrictEqual(updates, [{ reasoningSummary: 'detailed' }]);
-	});
-});
-
 suite('CopilotSessionLauncher GPT-5.6 customizations', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
-
-	test('applies verbosity and concise reasoning summary when enabled by experiment', async () => {
-		const updates: unknown[] = [];
-		const launcher = createTestLauncher(undefined, { [CopilotCliConfigKey.ReasoningSummary]: true }) as unknown as {
-			_applyGpt56Customizations(session: CopilotSession, sessionId: string): Promise<void>;
-		};
-		const session = {
-			rpc: {
-				options: {
-					update: async (options: unknown) => { updates.push(options); return { success: true }; },
-				},
-			},
-		} as unknown as CopilotSession;
-
-		await launcher._applyGpt56Customizations(session, 'session-1');
-
-		assert.deepStrictEqual(updates, [
-			{ verbosity: 'medium' },
-			{ reasoningSummary: 'concise' },
-		]);
-	});
-
-	test('does not apply reasoning summary when the experiment is unset or disabled', async () => {
-		for (const reasoningSummary of [undefined, false]) {
-			const updates: unknown[] = [];
-			const launcher = createTestLauncher(undefined, { [CopilotCliConfigKey.ReasoningSummary]: reasoningSummary }) as unknown as {
-				_applyGpt56Customizations(session: CopilotSession, sessionId: string): Promise<void>;
-			};
-			const session = {
-				rpc: { options: { update: async (options: unknown) => { updates.push(options); return { success: true }; } } },
-			} as unknown as CopilotSession;
-
-			await launcher._applyGpt56Customizations(session, 'session-1');
-
-			assert.deepStrictEqual(updates, [{ verbosity: 'medium' }]);
-		}
-	});
 
 	test('enables script safety on a non-GPT-5.6 created session so managed permissions govern shell paths', async () => {
 		const updates: unknown[] = [];
@@ -1183,41 +1116,42 @@ suite('CopilotSessionLauncher GPT-5.6 customizations', () => {
 		await launcher.disposeByokProxyHandle();
 	});
 
-	test('applies GPT-5.6 customizations when resuming an existing session', async () => {
-		const updates: unknown[] = [];
-		const session = {
-			sessionId: 'session-1',
-			on: () => () => { },
-			disconnect: async () => { },
-			rpc: { options: { update: async (options: unknown) => { updates.push(options); return { success: true }; } } },
-		} as unknown as CopilotSession;
-		const launcher = createTestLauncher(undefined, { [CopilotCliConfigKey.ReasoningSummary]: true });
-		const plan: CopilotSessionLaunchPlan = {
-			kind: 'resume',
-			client: returningSession(session),
-			sessionId: 'session-1',
-			workingDirectory: testWorkingDirectory,
-			resolvedAgentName: undefined,
-			snapshot: { tools: [], plugins: [], mcpServers: {} },
-			activeClientToolSet: new ActiveClientToolSet(),
-			shellManager: undefined,
-			githubCredentials: CopilotGitHubSessionCredentials.fromToken(undefined),
-			fallback: { model: { id: 'gpt-5.6-sol', config: {} } },
-		};
+	for (const kind of ['create', 'resume'] as const) {
+		test(`applies GPT-5.6 verbosity without overriding reasoning summary on ${kind}`, async () => {
+			const updates: unknown[] = [];
+			const session = {
+				sessionId: 'session-1',
+				on: () => () => { },
+				disconnect: async () => { },
+				rpc: { options: { update: async (options: unknown) => { updates.push(options); return { success: true }; } } },
+			} as unknown as CopilotSession;
+			const launcher = createTestLauncher();
+			const model: ModelSelection = { id: 'gpt-5.6-sol', config: {} };
+			const plan: CopilotSessionLaunchPlan = {
+				client: returningSession(session),
+				sessionId: 'session-1',
+				workingDirectory: testWorkingDirectory,
+				resolvedAgentName: undefined,
+				snapshot: { tools: [], plugins: [], mcpServers: {} },
+				activeClientToolSet: new ActiveClientToolSet(),
+				shellManager: undefined,
+				githubCredentials: CopilotGitHubSessionCredentials.fromToken(undefined),
+				...(kind === 'create' ? { kind, model } : { kind, fallback: { model } }),
+			};
 
-		const wrapper = await launcher.launch(plan, testRuntime);
-		try {
-			assert.deepStrictEqual(updates, [
-				{ enableScriptSafety: true },
-				{ sandboxConfig: { enabled: false } },
-				{ verbosity: 'medium' },
-				{ reasoningSummary: 'concise' },
-			]);
-		} finally {
-			wrapper.dispose();
-			await launcher.disposeByokProxyHandle();
-		}
-	});
+			const wrapper = await launcher.launch(plan, testRuntime);
+			try {
+				assert.deepStrictEqual(updates, [
+					{ enableScriptSafety: true },
+					{ sandboxConfig: { enabled: false } },
+					{ verbosity: 'medium' },
+				]);
+			} finally {
+				wrapper.dispose();
+				await launcher.disposeByokProxyHandle();
+			}
+		});
+	}
 });
 
 /**

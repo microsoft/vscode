@@ -834,6 +834,10 @@ export class AgentService extends Disposable implements IAgentService {
 				...options.catalogReconciliationOptions,
 				canSchedule: () => this._startupSettled.isOpen() && this._isSessionCatalogEnabled(),
 				isSourceAvailable: registered => !!this._providerService.getProvider(registered.provider),
+				onDidMarkSessionProvisional: session => {
+					this._provisionalSessionKeys.add(session);
+					this._invalidateSessionList();
+				},
 			},
 		));
 		this._runWhenStartupSettled('catalog reconciliation', () => {
@@ -1983,6 +1987,9 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 		const metadata = await this._getCatalogReconciliationMetadata(agent, registered, () => this._isChatBacking(registered.session));
 		if (!metadata) {
+			if (!this._readableProviderCatalogs.has(registered.provider)) {
+				return { status: 'providerUnavailable' };
+			}
 			// The provider is registered but cannot vouch for this session, so
 			// there is nothing authoritative to project. Reported distinctly from
 			// an unregistered provider so reconciliation can park it instead of
@@ -2621,14 +2628,12 @@ export class AgentService extends Disposable implements IAgentService {
 			}
 		}
 		this._deferredProviderMigrations.delete(provider.id);
+		this._readableProviderCatalogs.add(provider.id);
 		if (report.marked) {
-			this._readableProviderCatalogs.add(provider.id);
 			this._initialProviderMigrationsNeedingRetry.delete(provider.id);
 		} else {
-			// An unmarked pass left candidates unimported, so the provider's
-			// catalog is not yet readable; the un-set backfill marker makes the
-			// next pass re-enumerate rather than short-circuit.
-			this._readableProviderCatalogs.delete(provider.id);
+			// The provider answered, but an unmarked pass still needs a future
+			// retry because candidates were left unimported.
 			this._initialProviderMigrationsNeedingRetry.add(provider.id);
 		}
 		if (!await this._sessionRegistry.isProviderBackfilled(provider.id)) {
@@ -7301,8 +7306,7 @@ export class AgentService extends Disposable implements IAgentService {
 				return providerData !== undefined ? { ...peer, providerData } : peer;
 			});
 			const peers = await this._peerChatStore.readLocalChatMetadata(enrichedPeers);
-			await this._peerChatStore.replace(session, peers);
-			return peers;
+			return this._peerChatStore.initialize(session, peers, database);
 		}
 		let legacy: readonly IAgentLegacyChat[] | undefined;
 		try {
@@ -7318,8 +7322,7 @@ export class AgentService extends Disposable implements IAgentService {
 			uri: chat.uri.toString(),
 			...(chat.providerData !== undefined ? { providerData: chat.providerData } : {}),
 		}));
-		await this._peerChatStore.replace(session, entries);
-		return entries;
+		return this._peerChatStore.initialize(session, entries, database);
 	}
 
 	/**

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { ContextTier, CopilotClient, ElicitationContext, ElicitationResult, ExitPlanModeRequest, ExitPlanModeResult, ModelCapabilitiesOverride, NamedProviderConfig, PermissionRequest, PermissionRequestResult, ProviderModelConfig, ReasoningSummary, ResumeSessionConfig, SessionConfig, SessionHooks, Tool, Verbosity } from '@github/copilot-sdk';
+import type { ContextTier, CopilotClient, ElicitationContext, ElicitationResult, ExitPlanModeRequest, ExitPlanModeResult, ModelCapabilitiesOverride, NamedProviderConfig, PermissionRequest, PermissionRequestResult, ProviderModelConfig, ResumeSessionConfig, SessionConfig, SessionHooks, Tool, Verbosity } from '@github/copilot-sdk';
 import { coalesce } from '../../../../base/common/arrays.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { isObject, isStringArray } from '../../../../base/common/types.js';
@@ -223,7 +223,6 @@ type CopilotSessionClient = Pick<CopilotClient, 'createSession' | 'resumeSession
 interface ICopilotSessionLaunchBase {
 	readonly client: CopilotSessionClient;
 	readonly sessionId: string;
-	readonly builtinSkillDirectories?: readonly string[];
 	/** Whether this launch is for a transient session that skips durable-only provider work. */
 	readonly isEphemeral?: boolean;
 	/**
@@ -583,6 +582,8 @@ export async function resolveByokSessionConfig(
 		provider: m.vendor,
 		...(m.name !== undefined ? { name: m.name } : {}),
 		...(m.maxContextWindowTokens !== undefined ? { maxContextWindowTokens: m.maxContextWindowTokens } : {}),
+		...(m.maxPromptTokens !== undefined ? { maxPromptTokens: m.maxPromptTokens } : {}),
+		...(m.maxOutputTokens !== undefined ? { maxOutputTokens: m.maxOutputTokens } : {}),
 	}));
 	logService.info(`[Copilot:${sessionId}] Wired ${models.length} BYOK model(s) across ${providers.length} provider(s) via loopback proxy ${handle.baseUrl}`);
 	return { providers, models };
@@ -731,10 +732,9 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			await raw.disconnect().catch(() => { /* best-effort teardown */ });
 			throw err;
 		}
-		// TODO: Remove these post-launch updates once the SDK exposes verbosity and
-		// reasoningSummary in SessionConfig, alongside launch options such as reasoningEffort.
+		// TODO: Remove this post-launch update once the SDK exposes verbosity in SessionConfig.
 		if (isGpt56Model(modelId)) {
-			await this._applyGpt56Customizations(raw, sessionId);
+			await this._applyVerbosity(raw, 'medium', sessionId);
 		}
 		return new CopilotSessionWrapper(raw, this._logService);
 	}
@@ -779,15 +779,6 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		}
 	}
 
-	/** Applies the post-launch session options used by GPT-5.6 models. */
-	private async _applyGpt56Customizations(session: CopilotSessionWrapper['session'], sessionId: string): Promise<void> {
-		await this._applyVerbosity(session, 'medium', sessionId);
-		const reasoningSummaryEnabled = this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.ReasoningSummary) === true;
-		if (reasoningSummaryEnabled) {
-			await this._applyReasoningSummary(session, 'concise', sessionId);
-		}
-	}
-
 	/** Sets output verbosity after session creation. */
 	private async _applyVerbosity(session: CopilotSessionWrapper['session'], verbosity: Verbosity, sessionId: string): Promise<void> {
 		try {
@@ -795,16 +786,6 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			this._logService.info(`[Copilot:${sessionId}] Applied '${verbosity}' verbosity`);
 		} catch (err) {
 			this._logService.warn(`[Copilot:${sessionId}] Failed to apply '${verbosity}' verbosity`, err);
-		}
-	}
-
-	/** Sets reasoning summary detail after session creation. */
-	private async _applyReasoningSummary(session: CopilotSessionWrapper['session'], reasoningSummary: ReasoningSummary, sessionId: string): Promise<void> {
-		try {
-			await session.rpc.options.update({ reasoningSummary });
-			this._logService.info(`[Copilot:${sessionId}] Applied '${reasoningSummary}' reasoning summary`);
-		} catch (err) {
-			this._logService.warn(`[Copilot:${sessionId}] Failed to apply '${reasoningSummary}' reasoning summary`, err);
 		}
 	}
 
@@ -890,10 +871,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		// still discover agents from `pluginDirectories`; suppressing that too would also drop
 		// skills and instructions, so it is left alone.
 		const customAgents = plan.isEphemeral ? [] : await toSdkSessionCustomAgents(plugins, plan.resolvedAgentName, this._fileService);
-		const skillDirectories = [...new Set([
-			...(plan.builtinSkillDirectories ?? []),
-			...toSdkSkillDirectories(pluginsWithoutDirs.flatMap(p => p.skills)),
-		])];
+		const skillDirectories = toSdkSkillDirectories(pluginsWithoutDirs.flatMap(p => p.skills));
 		const instructionDirectories = toSdkInstructionDirectories(plugins.flatMap(p => p.instructions));
 		const model = plan.kind === 'create' ? plan.model : plan.fallback.model;
 		// Keyed by the real, un-aliased model id; a model-less "Auto" session

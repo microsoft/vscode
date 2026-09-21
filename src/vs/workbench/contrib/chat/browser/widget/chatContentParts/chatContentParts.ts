@@ -78,6 +78,11 @@ export interface IChatContentPartRenderContext {
 	readonly suppressProgressShimmer?: boolean;
 	/** An expanded, headerless tool group in the persistent progress layout. */
 	readonly isToolChain?: boolean;
+	/**
+	 * The part is hosted by the tool confirmation carousel above the chat input rather than by a
+	 * transcript row, so it renders the confirmation that transcript copies defer to it.
+	 */
+	readonly inToolConfirmationCarousel?: boolean;
 	readonly editorPool: EditorPool;
 	readonly codeBlockStartIndex: number;
 	readonly treeStartIndex: number;

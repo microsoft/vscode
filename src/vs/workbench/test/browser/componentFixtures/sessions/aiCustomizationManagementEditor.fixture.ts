@@ -46,6 +46,7 @@ import { ExtensionIdentifier } from '../../../../../platform/extensions/common/e
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { IPathService } from '../../../../services/path/common/pathService.js';
 import { IOutputService } from '../../../../services/output/common/output.js';
+import { AbstractVariableResolverService } from '../../../../services/configurationResolver/common/variableResolver.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { IWorkingCopyService } from '../../../../services/workingCopy/common/workingCopyService.js';
 import { IWebviewService } from '../../../../contrib/webview/browser/webview.js';
@@ -54,6 +55,7 @@ import { ICustomizationHarnessService, ICustomizationItem, ICustomizationItemPro
 import { IChatSessionsService } from '../../../../contrib/chat/common/chatSessionsService.js';
 import { getChatSessionType, LocalChatSessionUri } from '../../../../contrib/chat/common/model/chatUri.js';
 import { ICustomizationMigrationService } from '../../../../contrib/chat/common/promptSyntax/service/customizationMigrationService.js';
+import { ICustomizationMigrationTelemetryService } from '../../../../contrib/chat/common/promptSyntax/service/customizationMigrationTelemetryService.js';
 import { CustomizationMigrationService } from '../../../../contrib/chat/browser/aiCustomization/customizationMigrationServiceImpl.js';
 import { IPromptsService, AgentInstructionFileType, PromptsStorage, IAgentSkill, IChatPromptSlashCommand, IAgentInstructionFile } from '../../../../contrib/chat/common/promptSyntax/service/promptsService.js';
 import { IResolvedPromptSourceFolder } from '../../../../contrib/chat/common/promptSyntax/config/promptFileLocations.js';
@@ -115,6 +117,23 @@ import '../../../../contrib/chat/browser/aiCustomization/media/aiCustomizationMa
 
 const userHome = URI.file('/home/dev');
 const BUILTIN_STORAGE = 'builtin';
+
+class FixtureConfigurationResolverService extends AbstractVariableResolverService {
+	constructor() {
+		super({
+			getFolderUri: () => undefined,
+			getWorkspaceFolderCount: () => 0,
+			getConfigurationValue: () => undefined,
+			getAppRoot: () => undefined,
+			getExecPath: () => undefined,
+			getFilePath: () => undefined,
+			getSelectedText: () => undefined,
+			getLineNumber: () => undefined,
+			getColumnNumber: () => undefined,
+			getExtension: async () => undefined,
+		});
+	}
+}
 
 function createMockMcpGalleryManifestService(): IMcpGalleryManifestService {
 	return new class extends mock<IMcpGalleryManifestService>() {
@@ -927,6 +946,15 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 			}());
 			const promptsService = createMockPromptsService(fixtureFiles, agentInstructions, fileContents, promptFilesDidChangeEmitter.event);
 			reg.defineInstance(IPromptsService, promptsService);
+			reg.defineInstance(ICustomizationMigrationTelemetryService, new class extends mock<ICustomizationMigrationTelemetryService>() {
+				override hintComputed() { }
+				override hintShown() { }
+				override hintClicked() { }
+				override pageShown() { }
+				override actionClicked() { }
+				override migrationClicked() { }
+				override migrationCompleted() { }
+			}());
 			const agentHostCustomizationService = createMockAgentHostCustomizationService(options.activeSessionMcpServers);
 			reg.defineInstance(ICustomizationMigrationService, new CustomizationMigrationService(
 				promptsService,
@@ -972,6 +1000,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 				migrationFileService,
 				new NullLogService(),
 				configurationService,
+				new FixtureConfigurationResolverService(),
 			));
 			reg.defineInstance(IAICustomizationWorkspaceService, new class extends mock<IAICustomizationWorkspaceService>() {
 				override readonly isSessionsWindow = isSessionsWindow;

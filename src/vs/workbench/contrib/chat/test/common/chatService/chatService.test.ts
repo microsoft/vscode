@@ -43,7 +43,7 @@ import { IWorkspaceEditingService } from '../../../../../services/workspaces/com
 import { InMemoryTestFileService, mock, TestChatEntitlementService, TestContextService, TestExtensionService, TestStorageService } from '../../../../../test/common/workbenchTestServices.js';
 import { IMcpService } from '../../../../mcp/common/mcpTypes.js';
 import { TestMcpService } from '../../../../mcp/test/common/testMcpService.js';
-import { IChatRequestVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
+import { ChatPasteAttachmentMetadata, IChatRequestVariableEntry, toPasteVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
 import { IChatVariablesService } from '../../../common/attachments/chatVariables.js';
 import { getCustomizationMigrationHintDismissedStorageKey } from '../../../common/aiCustomizationWorkspaceService.js';
 import { IChatDebugService } from '../../../common/chatDebugService.js';
@@ -63,6 +63,7 @@ import { ChatAgentService, IChatAgent, IChatAgentData, IChatAgentImplementation,
 import { ChatSlashCommandService, IChatSlashCommandService } from '../../../common/participants/chatSlashCommands.js';
 import { IConfiguredHooksInfo, IPromptsService } from '../../../common/promptSyntax/service/promptsService.js';
 import { CustomizationMigrationHintTarget, CustomizationMigrationType, ICustomizationMigrationService } from '../../../common/promptSyntax/service/customizationMigrationService.js';
+import { ICustomizationMigrationTelemetryService } from '../../../common/promptSyntax/service/customizationMigrationTelemetryService.js';
 import { ILanguageModelToolsService } from '../../../common/tools/languageModelToolsService.js';
 import { MockChatVariablesService } from '../mockChatVariables.js';
 import { MockPromptsService } from '../promptSyntax/service/mockPromptsService.js';
@@ -188,6 +189,7 @@ suite('ChatService', () => {
 			[IMcpService, new TestMcpService()],
 			[IPromptsService, new MockPromptsService()],
 			[ICustomizationMigrationService, mockObject<ICustomizationMigrationService>()({ _serviceBrand: undefined })],
+			[ICustomizationMigrationTelemetryService, mockObject<ICustomizationMigrationTelemetryService>()({ _serviceBrand: undefined })],
 			[ILanguageModelToolsService, testDisposables.add(new MockLanguageModelToolsService())]
 		)));
 		instantiationService.stub(IStorageService, testDisposables.add(new TestStorageService()));
@@ -574,6 +576,20 @@ suite('ChatService', () => {
 		assert.strictEqual(model.getRequests().length, 1);
 		assert.strictEqual(model.getRequests()[0].message.text, '');
 		assert.deepStrictEqual(model.getRequests()[0].variableData.variables, [fileEntry]);
+	});
+
+	test('sendRequest allows empty message with a handed-off explicit file snapshot', async () => {
+		const testService = createChatService();
+		const model = testDisposables.add(startSessionModel(testService)).object;
+		const attachment = toPasteVariableEntry('Unsaved file', 'Current draft contents', {
+			_meta: { [ChatPasteAttachmentMetadata.FileSnapshot]: true },
+		});
+		const response = await testService.sendRequest(model.sessionResource, '', { attachedContext: [attachment] });
+		ChatSendResult.assertSent(response);
+		await response.data.responseCompletePromise;
+		assert.deepStrictEqual(model.getRequests().map(request => ({
+			text: request.message.text, attachments: request.variableData.variables,
+		})), [{ text: '', attachments: [attachment] }]);
 	});
 
 	test('sendRequest rejects empty message without explicit file attachment', async () => {
@@ -2422,17 +2438,18 @@ suite('ChatService', () => {
 			counts: [{ type: CustomizationMigrationType.PromptFiles, count: 3 }],
 		};
 		migrationService.computeMigrationHint.resolves(migrationHint);
-		const migrationTelemetry: { readonly category: string; readonly count: number }[] = [];
-		instantiationService.stub(ITelemetryService, {
-			...NullTelemetryService,
-			publicLog2(eventName: string, data: Record<string, unknown> | undefined): void {
-				if (eventName === 'chat.customizationMigrationAssessment' && data) {
-					migrationTelemetry.push({
-						category: String(data.category),
-						count: Number(data.count),
-					});
-				}
-			}
+		const migrationTelemetry: Record<string, unknown>[] = [];
+		instantiationService.stub(ICustomizationMigrationTelemetryService, {
+			_serviceBrand: undefined,
+			hintComputed(counts): void {
+				migrationTelemetry.push(...counts.map(({ type, count }) => ({ action: 'assessment', category: type, count })));
+			},
+			hintShown(target): void { migrationTelemetry.push({ action: 'hintShown', target }); },
+			hintClicked(): void { },
+			pageShown(): void { },
+			actionClicked(): void { },
+			migrationClicked(): void { },
+			migrationCompleted(): void { },
 		});
 
 		const mockSessionsService = new MockChatSessionsService();
@@ -2508,8 +2525,9 @@ suite('ChatService', () => {
 		const dismissedSessionHint = ((testService.getSession(dismissedSessionResource) as ChatModel).getRequests()[0].response?.response.value ?? [])
 			.filter(part => part.kind === 'systemNotification')
 			.map(part => part.content.value);
-		const expectedReviewLink = `[Review customizations](command:aiCustomization.openManagementEditor?%255B%257B%2522migration%2522%253Atrue%257D%255D "Open Chat Customizations")`;
-		const expectedHint = `*Found 3 customization files that could be migrated. ${expectedReviewLink} | [Hide for this workspace](command:aiCustomization.dismissMigrationHint "Stop Showing Migration Hints for This Harness")*`;
+		const expectedReviewLink = `[Review customizations](command:aiCustomization.openManagementEditor?%255B%257B%2522migration%2522%253Atrue%252C%2522migrationHintTarget%2522%253A%2522fileMigrations%2522%257D%255D "Open Chat Customizations")`;
+		const expectedDismissLink = `[Hide for this workspace](command:aiCustomization.dismissMigrationHint?%255B%257B%2522target%2522%253A%2522fileMigrations%2522%257D%255D "Stop Showing Migration Hints for This Harness")`;
+		const expectedHint = `*Found 3 customization files that could be migrated. ${expectedReviewLink} | ${expectedDismissLink}*`;
 		assert.deepStrictEqual({
 			computeCalls: migrationService.computeMigrationHint.callCount,
 			computedFor: migrationService.computeMigrationHint.firstCall.args[0].toString(),
@@ -2525,9 +2543,12 @@ suite('ChatService', () => {
 			computeCalls: 3,
 			computedFor: sessionResource.toString(),
 			migrationTelemetry: [
-				{ category: 'promptFiles', count: 3 },
-				{ category: 'promptFiles', count: 3 },
-				{ category: 'promptFiles', count: 3 },
+				{ action: 'assessment', category: 'promptFiles', count: 3 },
+				{ action: 'hintShown', target: 'fileMigrations' },
+				{ action: 'assessment', category: 'promptFiles', count: 3 },
+				{ action: 'hintShown', target: 'fileMigrations' },
+				{ action: 'assessment', category: 'promptFiles', count: 3 },
+				{ action: 'hintShown', target: 'fileMigrations' },
 			],
 			neverHint: [],
 			firstHint: [expectedHint],

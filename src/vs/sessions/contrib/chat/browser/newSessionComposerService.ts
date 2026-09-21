@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from '../../../../base/common/cancellation.js';
-import { Disposable, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { combinedDisposable, Disposable, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { derived, IObservable, observableSignalFromEvent, observableValue } from '../../../../base/common/observable.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
@@ -65,6 +65,8 @@ export interface INewSessionComposer {
 	readonly workspaceSelection?: IWorkspaceSelectionSnapshot;
 	readonly onDidChangeWorkspaceSelection?: Event<void>;
 	readonly hasInput?: boolean;
+	readonly isInputReady?: boolean;
+	readonly onDidChangeInput?: Event<void>;
 	readonly canApplyWorkspaceDefault?: boolean;
 	animatePrompt(text: string, durationMs: number, placeholder: string, token: CancellationToken): Promise<boolean>;
 	showPromptOptions(state: NewSessionPromptOptionsState | undefined): boolean;
@@ -81,6 +83,8 @@ export interface INewSessionComposerService {
 	readonly userWorkspaceSelectionVersion: IObservable<number>;
 	notifyUserWorkspaceSelection(): void;
 	readonly userNavigationVersion: IObservable<number>;
+	readonly inputVersion: IObservable<number>;
+	readonly hasDraftInput: boolean | undefined;
 	notifyUserNavigation(): void;
 	readonly onWillSendRequest: Event<{ readonly options: ISendRequestOptions; readonly selection: IWorkspaceSelectionSnapshot | undefined }>;
 	notifyWillSendRequest(options: ISendRequestOptions, selection: IWorkspaceSelectionSnapshot | undefined): void;
@@ -97,6 +101,8 @@ export class NewSessionComposerService extends Disposable implements INewSession
 	readonly userWorkspaceSelectionVersion: IObservable<number> = this._userWorkspaceSelectionVersion;
 	private readonly _userNavigationVersion = observableValue(this, 0);
 	readonly userNavigationVersion: IObservable<number> = this._userNavigationVersion;
+	private readonly _inputVersion = observableValue(this, 0);
+	readonly inputVersion: IObservable<number> = this._inputVersion;
 	private readonly _selectionChanged = derived(this, reader => observableSignalFromEvent(this, this.activeComposer.read(reader)?.onDidChangeWorkspaceSelection ?? Event.None));
 	readonly workspaceSelection = derived(this, reader => {
 		this._selectionChanged.read(reader).read(reader);
@@ -117,15 +123,21 @@ export class NewSessionComposerService extends Disposable implements INewSession
 		this._onWillSendRequest.fire({ options, selection });
 	}
 
+	get hasDraftInput(): boolean | undefined {
+		const ready = [...this._composers].filter(composer => composer.isInputReady !== false && composer.hasInput !== undefined);
+		return ready.length ? ready.some(composer => composer.hasInput) : undefined;
+	}
+
 	registerComposer(composer: INewSessionComposer): IDisposable {
 		this._composers.add(composer);
 		this._activeComposer.set(composer, undefined);
-		return toDisposable(() => {
+		const inputListener = composer.onDidChangeInput?.(() => this._inputVersion.set(this._inputVersion.get() + 1, undefined)) ?? Disposable.None;
+		return combinedDisposable(inputListener, toDisposable(() => {
 			this._composers.delete(composer);
 			if (this._activeComposer.get() === composer) {
 				this._activeComposer.set(Array.from(this._composers).at(-1), undefined);
 			}
-		});
+		}));
 	}
 }
 

@@ -9,23 +9,38 @@ import { IDefaultAccount } from '../../../../../../base/common/defaultAccount.js
 import { Emitter } from '../../../../../../base/common/event.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
+import { CommandsRegistry, ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IConfigurationChangeEvent } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { NullTelemetryService } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { AgentsWindowOpenSource } from '../../../../../../platform/window/common/window.js';
-import { createAgentsBanner } from '../../../browser/agentSessions/agentSessionsBanner.js';
+import { IChatEntitlementService, IChatSentiment } from '../../../../../services/chat/common/chatEntitlementService.js';
+import { canShowAgentsBanner, createAgentsBanner } from '../../../browser/agentSessions/agentSessionsBanner.js';
 import { ChatConfiguration, OPEN_WORKSPACE_IN_AGENTS_WINDOW_COMMAND_ID } from '../../../common/constants.js';
 
 suite('AgentsBanner', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	const account = new class extends mock<IDefaultAccount>() { }();
 
-	function createBanner(initialAccount: IDefaultAccount | null, options: { offerSignIn?: boolean; label?: string; initialAccountResolution?: Promise<IDefaultAccount | null>; configuration?: TestConfigurationService } = {}) {
+	function createBanner(initialAccount: IDefaultAccount | null, options: { offerSignIn?: boolean; label?: string; initialAccountResolution?: Promise<IDefaultAccount | null>; configuration?: TestConfigurationService; sentiment?: IChatSentiment } = {}) {
 		const onDidChangeDefaultAccount = store.add(new Emitter<IDefaultAccount | null>());
+		const onDidChangeSentiment = store.add(new Emitter<void>());
 		const configurationService = options.configuration ?? new TestConfigurationService({ [ChatConfiguration.WelcomePageSignInEnabled]: true });
 		store.add(configurationService.onDidChangeConfigurationEmitter);
+		store.add(CommandsRegistry.registerCommand(OPEN_WORKSPACE_IN_AGENTS_WINDOW_COMMAND_ID, () => { }));
+		const chatEntitlementService = new class extends mock<IChatEntitlementService>() {
+			override sentiment = options.sentiment ?? {};
+			override onDidChangeSentiment = onDidChangeSentiment.event;
+		}();
+		const setConfiguration = async (key: string, value: boolean) => {
+			await configurationService.setUserConfiguration(key, value);
+			configurationService.onDidChangeConfigurationEmitter.fire(new class extends mock<IConfigurationChangeEvent>() {
+				override affectsConfiguration(section: string): boolean {
+					return section === key;
+				}
+			}());
+		};
 		let signInCalls = 0;
 		let onButtonClickCalls = 0;
 		const commands: { id: string; args: unknown[] }[] = [];
@@ -56,6 +71,7 @@ suite('AgentsBanner', () => {
 			commandService,
 			NullTelemetryService,
 			configurationService,
+			chatEntitlementService,
 			options.offerSignIn !== false ? defaultAccountService : undefined,
 		);
 		store.add(banner.disposables);
@@ -63,13 +79,11 @@ suite('AgentsBanner', () => {
 		return {
 			banner,
 			button,
-			async setSignInEnabled(enabled: boolean) {
-				await configurationService.setUserConfiguration(ChatConfiguration.WelcomePageSignInEnabled, enabled);
-				configurationService.onDidChangeConfigurationEmitter.fire(new class extends mock<IConfigurationChangeEvent>() {
-					override affectsConfiguration(section: string): boolean {
-						return section === ChatConfiguration.WelcomePageSignInEnabled;
-					}
-				}());
+			setSignInEnabled: (enabled: boolean) => setConfiguration(ChatConfiguration.WelcomePageSignInEnabled, enabled),
+			setAgentEnabled: (enabled: boolean) => setConfiguration(ChatConfiguration.AgentEnabled, enabled),
+			setSentiment(sentiment: IChatSentiment) {
+				chatEntitlementService.sentiment = sentiment;
+				onDidChangeSentiment.fire();
 			},
 			setAccount(value: IDefaultAccount | null, fireEvent = true) {
 				defaultAccountService.currentDefaultAccount = value;
@@ -77,6 +91,12 @@ suite('AgentsBanner', () => {
 					onDidChangeDefaultAccount.fire(value);
 				}
 			},
+			visibility: () => ({
+				canShow: canShowAgentsBanner(chatEntitlementService, configurationService),
+				display: banner.element.style.display,
+				ariaHidden: banner.element.getAttribute('aria-hidden'),
+				disabled: button.disabled,
+			}),
 			state: () => ({
 				label: button.textContent,
 				title: button.title,
@@ -88,6 +108,95 @@ suite('AgentsBanner', () => {
 			}),
 		};
 	}
+
+	for (const enabled of [false, true]) {
+		test(`initial visibility reflects effective agent enablement (${enabled})`, () => {
+			const banner = createBanner(account, { configuration: new TestConfigurationService({ [ChatConfiguration.AgentEnabled]: enabled }) });
+			banner.button.click();
+
+			assert.deepStrictEqual({
+				...banner.visibility(),
+				commands: banner.state().commands.length,
+				onButtonClickCalls: banner.state().onButtonClickCalls,
+			}, {
+				canShow: enabled,
+				display: enabled ? '' : 'none',
+				ariaHidden: enabled ? null : 'true',
+				disabled: !enabled,
+				commands: enabled ? 1 : 0,
+				onButtonClickCalls: enabled ? 1 : 0,
+			});
+		});
+	}
+
+	for (const offerSignIn of [false, true]) {
+		test(`updates an existing banner as effective agent enablement changes (sign-in offer: ${offerSignIn})`, async () => {
+			const banner = createBanner(account, { offerSignIn, configuration: new TestConfigurationService({ [ChatConfiguration.AgentEnabled]: false }) });
+			const states = [banner.visibility()];
+			for (const enabled of [true, false, true]) {
+				await banner.setAgentEnabled(enabled);
+				states.push(banner.visibility());
+				banner.button.click();
+			}
+
+			const visible = { canShow: true, display: '', ariaHidden: null, disabled: false };
+			const hidden = { canShow: false, display: 'none', ariaHidden: 'true', disabled: true };
+			assert.deepStrictEqual({
+				states,
+				sameButton: banner.button === banner.banner.element.querySelector('button'),
+				commands: banner.state().commands.length,
+			}, {
+				states: [hidden, visible, hidden, visible],
+				sameButton: true,
+				commands: 2,
+			});
+		});
+	}
+
+	for (const sentiment of [{ hidden: true }, { disabled: true }]) {
+		test(`keeps the banner hidden when chat is ${sentiment.hidden ? 'hidden' : 'disabled'}`, async () => {
+			const banner = createBanner(account, { sentiment });
+			const states = [banner.visibility().display];
+			await banner.setAgentEnabled(false);
+			banner.setSentiment({});
+			states.push(banner.visibility().display);
+			await banner.setAgentEnabled(true);
+			states.push(banner.visibility().display);
+			banner.setSentiment(sentiment);
+			states.push(banner.visibility().display);
+
+			assert.deepStrictEqual(states, ['none', 'none', '', 'none']);
+		});
+	}
+
+	test('does not offer sign-in when agent mode is disabled', async () => {
+		const banner = createBanner(null, {
+			configuration: new TestConfigurationService({
+				[ChatConfiguration.AgentEnabled]: false,
+				[ChatConfiguration.WelcomePageSignInEnabled]: true,
+			})
+		});
+		await Promise.resolve();
+		banner.button.click();
+
+		assert.deepStrictEqual({
+			signInCalls: banner.state().signInCalls,
+			commands: banner.state().commands,
+			onButtonClickCalls: banner.state().onButtonClickCalls,
+		}, { signInCalls: 0, commands: [], onButtonClickCalls: 0 });
+	});
+
+	test('disposes the visibility listeners', async () => {
+		const banner = createBanner(account);
+		banner.banner.disposables.dispose();
+		await banner.setAgentEnabled(false);
+		banner.setSentiment({ hidden: true });
+
+		assert.deepStrictEqual({
+			display: banner.banner.element.style.display,
+			disabled: banner.button.disabled,
+		}, { display: '', disabled: false });
+	});
 
 	test('signed-out users can sign in without opening the Agents window', async () => {
 		const banner = createBanner(null);
