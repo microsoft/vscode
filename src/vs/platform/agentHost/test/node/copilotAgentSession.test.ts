@@ -701,6 +701,33 @@ class CapturingTelemetryService implements ITelemetryService {
 // ---- Helpers ----------------------------------------------------------------
 
 /**
+ * Projects `agentHost.providerSendBlocked` payloads into a stable shape for
+ * assertions: the duration fields are wall-clock measurements, so only their
+ * presence is comparable.
+ */
+function providerSendBlockedEvents(telemetryService: CapturingTelemetryService): unknown[] {
+	return telemetryService.events
+		.filter(event => event.eventName === 'agentHost.providerSendBlocked')
+		.map(event => {
+			const { sendBlockedMs, prepareBlockedMs, prepareMcpReconcileMs, slowestMcpServerMs, agentSessionId, ...rest } = event.data as Record<string, unknown>;
+			return {
+				...rest,
+				hasBlockedMs: typeof sendBlockedMs === 'number',
+				hasPrepareMs: typeof prepareBlockedMs === 'number',
+				hasMcpReconcileMs: typeof prepareMcpReconcileMs === 'number',
+				hasSlowestMcpServerMs: typeof slowestMcpServerMs === 'number',
+			};
+		});
+}
+
+/** Raw payload of the single `agentHost.providerSendBlocked` event, for timing assertions. */
+function singleProviderSendBlockedEvent(telemetryService: CapturingTelemetryService): Record<string, number> {
+	const events = telemetryService.events.filter(event => event.eventName === 'agentHost.providerSendBlocked');
+	assert.strictEqual(events.length, 1, 'expected exactly one providerSendBlocked event');
+	return events[0].data as Record<string, number>;
+}
+
+/**
  * Invokes a client-SDK tool's handler with the minimal fields the SDK
  * contract requires, and narrows the `unknown` return type to
  * {@link ToolResultObject} — which is what {@link CopilotAgentSession}'s
@@ -3367,6 +3394,125 @@ suite('CopilotAgentSession', () => {
 		await assert.rejects(() => session.send('hello', undefined, 'turn-failed'), /send failed/);
 
 		assert.deepStrictEqual({ hasActiveTurn: session.hasActiveTurn, turnEndCount }, { hasActiveTurn: false, turnEndCount: 1 });
+	});
+
+	test('send blocking telemetry carries the MCP snapshot and flags only the first send', async () => {
+		const telemetryService = new CapturingTelemetryService();
+		const { session, mockSession } = await createAgentSession(disposables, { telemetryService });
+
+		// Drive the readiness tracker through the real subscription rather than
+		// the tracker API, so a broken wiring in `_registerHandlers` is caught.
+		for (const [serverName, status] of [['ready-server', 'connected'], ['broken-server', 'failed'], ['off-server', 'disabled'], ['slow-server', 'pending']] as const) {
+			mockSession.fire('session.mcp_server_status_changed', { serverName, status } as SessionEventPayload<'session.mcp_server_status_changed'>['data']);
+		}
+
+		await session.send('first', undefined, 'turn-1');
+		await session.send('second', undefined, 'turn-2');
+
+		assert.deepStrictEqual(providerSendBlockedEvents(telemetryService), [
+			{
+				provider: 'copilot', turnId: 'turn-1', sendKind: 'message', outcome: 'success', isFirstSendOfSession: true,
+				mcpServerCount: 4, mcpReadyCount: 1, mcpFailedCount: 1, mcpUnresolvedCount: 1, mcpStoppedCount: 1,
+				hasBlockedMs: true, hasPrepareMs: true, hasMcpReconcileMs: true, hasSlowestMcpServerMs: false,
+			},
+			{
+				provider: 'copilot', turnId: 'turn-2', sendKind: 'message', outcome: 'success', isFirstSendOfSession: false,
+				mcpServerCount: 4, mcpReadyCount: 1, mcpFailedCount: 1, mcpUnresolvedCount: 1, mcpStoppedCount: 1,
+				hasBlockedMs: true, hasPrepareMs: true, hasMcpReconcileMs: true, hasSlowestMcpServerMs: false,
+			},
+		]);
+	});
+
+	test('send blocking telemetry distinguishes a failed send from a failed preparation', async () => {
+		const telemetryService = new CapturingTelemetryService();
+		const { session, mockSession, setConfigValue, fireSessionConfigChange } = await createAgentSession(disposables, { telemetryService });
+		const workingSend = mockSession.send.bind(mockSession);
+		mockSession.send = async () => { throw new Error('send failed'); };
+
+		await assert.rejects(() => session.send('hello', undefined, 'turn-send-failed'), /send failed/);
+
+		// Preparation runs before the provider call, so a failure there must be
+		// reported as its own phase rather than going unrecorded. The sandbox
+		// sync propagates, unlike `applyMode`, which logs and continues.
+		mockSession.send = workingSend;
+		mockSession.sandboxConfigUpdateSuccess = false;
+		setConfigValue(SessionConfigKey.SandboxEnabled, 'on');
+		fireSessionConfigChange({ [SessionConfigKey.SandboxEnabled]: 'on' });
+		await timeout(0);
+		await assert.rejects(() => session.send('hello', undefined, 'turn-prepare-failed'), /rejected sandbox config update/);
+
+		assert.deepStrictEqual(providerSendBlockedEvents(telemetryService).map(event => {
+			const { mcpServerCount, mcpReadyCount, mcpFailedCount, mcpUnresolvedCount, mcpStoppedCount, ...rest } = event as Record<string, unknown>;
+			return rest;
+		}), [
+			{ provider: 'copilot', turnId: 'turn-send-failed', sendKind: 'message', outcome: 'sendFailed', isFirstSendOfSession: true, hasBlockedMs: true, hasPrepareMs: true, hasMcpReconcileMs: true, hasSlowestMcpServerMs: false },
+			{ provider: 'copilot', turnId: 'turn-prepare-failed', sendKind: 'message', outcome: 'prepareFailed', isFirstSendOfSession: false, hasBlockedMs: true, hasPrepareMs: true, hasMcpReconcileMs: true, hasSlowestMcpServerMs: false },
+		]);
+	});
+
+	test('resume reports its own preparation and provider call', async () => {
+		const telemetryService = new CapturingTelemetryService();
+		const { session } = await createAgentSession(disposables, { telemetryService });
+
+		await session.resume('turn-resumed');
+
+		assert.deepStrictEqual(providerSendBlockedEvents(telemetryService), [{
+			provider: 'copilot', turnId: 'turn-resumed', sendKind: 'resume', outcome: 'success', isFirstSendOfSession: true,
+			mcpServerCount: 0, mcpReadyCount: 0, mcpFailedCount: 0, mcpUnresolvedCount: 0, mcpStoppedCount: 0,
+			hasBlockedMs: true, hasPrepareMs: true, hasMcpReconcileMs: true, hasSlowestMcpServerMs: false,
+		}]);
+	});
+
+	test('a slow turn preparation is attributed to the prepare phase, not the provider send', async () => {
+		const telemetryService = new CapturingTelemetryService();
+		const { session, mockSession } = await createAgentSession(disposables, { telemetryService });
+
+		// `_prepareSdkTurn` awaits several RPCs before the send, including an MCP
+		// inventory refresh that can itself wait on server discovery. Gate one
+		// of those awaits: the delay must land in `prepareBlockedMs`, never in
+		// `sendBlockedMs`, or a preparation stall would be misread as a slow send.
+		let releasePrepare = () => { };
+		const prepareGate = new Promise<void>(resolve => { releasePrepare = resolve; });
+		mockSession.rpc.mode.set = async () => { await prepareGate; };
+
+		const sent = session.send('hello', undefined, 'turn-slow-prepare', 'plan');
+		await timeout(40);
+		releasePrepare();
+		await sent;
+
+		const event = singleProviderSendBlockedEvent(telemetryService);
+		assert.ok(
+			event.prepareBlockedMs >= 30 && event.sendBlockedMs < 30,
+			`preparation delay must not be attributed to the send: ${JSON.stringify(event)}`,
+		);
+	});
+
+	test('a slow MCP inventory refresh is attributed to the reconcile step within preparation', async () => {
+		const telemetryService = new CapturingTelemetryService();
+		const { session, mockSession, setConfigValue, fireSessionConfigChange } = await createAgentSession(disposables, {
+			telemetryService,
+			configureMockSession: m => {
+				m.mcpListResult = { servers: [{ name: 'slow-server', status: 'connected' }] };
+			},
+		});
+		// Give the reconcile a desired-enablement entry, so it does not early-return
+		// before reaching the inventory refresh.
+		setConfigValue(SessionConfigKey.SandboxEnabled, 'off');
+		fireSessionConfigChange({ [SessionConfigKey.SandboxEnabled]: 'off' });
+
+		// `rpc.mcp.list()` latency tracks MCP server discovery, so it is the step
+		// that can dominate preparation. It must be attributable on its own rather
+		// than hidden inside the preparation total.
+		const listed = mockSession.rpc.mcp.list.bind(mockSession.rpc.mcp);
+		mockSession.rpc.mcp.list = async () => { await timeout(40); return listed(); };
+
+		await session.send('hello', undefined, 'turn-slow-reconcile');
+
+		const event = singleProviderSendBlockedEvent(telemetryService);
+		assert.ok(
+			event.prepareMcpReconcileMs <= event.prepareBlockedMs && event.sendBlockedMs < 30,
+			`reconcile must be a bounded part of preparation and not the send: ${JSON.stringify(event)}`,
+		);
 	});
 
 	test('`/env` runs the runtime command when listed and emits markdown output', async () => {
@@ -10089,7 +10235,7 @@ Use the attached image as context.
 			mockSession.fire('session.idle', { aborted: true } as SessionEventPayload<'session.idle'>['data']);
 
 			assert.deepStrictEqual({
-				telemetry: telemetryService.events.map(event => {
+				telemetry: telemetryService.events.filter(event => event.eventName === 'toolCallDetails').map(event => {
 					const data = event.data as Record<string, unknown>;
 					return {
 						eventName: event.eventName,
