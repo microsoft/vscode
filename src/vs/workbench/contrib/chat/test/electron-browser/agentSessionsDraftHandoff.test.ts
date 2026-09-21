@@ -1065,12 +1065,15 @@ suite('Agents Window draft handoff and parallel invitation', () => {
 		}
 	});
 
-	for (const source of ['currentChatHandoff', 'parallelWorkEmptyChatHandoff'] as const) {
+	for (const source of ['currentChatHandoff', 'emptyWorkspaceCurrentChatHandoff', 'parallelWorkEmptyChatHandoff'] as const) {
 		test(`opens the Agents window with the ${source} telemetry source`, async () => {
-			const h = createHarness();
+			const h = createHarness({ banner: source !== 'emptyWorkspaceCurrentChatHandoff' });
 			if (source === 'currentChatHandoff') {
 				h.resource = URI.from({ scheme: SessionType.AgentHostCopilot, path: '/persisted' });
 				h.sendMessage(Date.now() - 5000);
+				h.showGenericTip();
+			} else if (source === 'emptyWorkspaceCurrentChatHandoff') {
+				h.workbenchState = WorkbenchState.EMPTY;
 				h.showGenericTip();
 			} else {
 				h.showBanner();
@@ -1080,7 +1083,12 @@ suite('Agents Window draft handoff and parallel invitation', () => {
 			assert.deepStrictEqual(h.calls.map(call => ({
 				source: call.source,
 				accepted: isAgentsWindowOpenSource(call.source),
-			})), [{ source, accepted: true }]);
+				sessionResource: URI.revive(call.sessionResource)?.toString(),
+			})), [{
+				source,
+				accepted: true,
+				sessionResource: source === 'currentChatHandoff' ? h.resource.toString() : undefined,
+			}]);
 		});
 	}
 

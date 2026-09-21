@@ -544,11 +544,11 @@ export class AgentsHandoffInputTipContribution extends Disposable implements IWo
 		};
 		updateDelay();
 
-		this._register(CommandsRegistry.registerCommand(AgentsHandoffInputTipContribution.TIP_OPEN_COMMAND_ID, (accessor, ...args) => {
+		this._register(CommandsRegistry.registerCommand(AgentsHandoffInputTipContribution.TIP_OPEN_COMMAND_ID, (accessor, source: AgentsWindowOpenSource, ...args: unknown[]) => {
 			this._logTipAction('open');
 			// Opening the tip counts as handling it: don't show it again this window.
 			this._dismissForWindow();
-			return accessor.get(ICommandService).executeCommand(OpenChatSessionInAgentsWindowAction.ID, { agentsWindowOpenSource: AgentsWindowOpenSource.CurrentChatHandoff }, ...args);
+			return accessor.get(ICommandService).executeCommand(OpenChatSessionInAgentsWindowAction.ID, { agentsWindowOpenSource: source }, ...args);
 		}));
 
 		this._register(CommandsRegistry.registerCommand(AgentsHandoffInputTipContribution.TIP_MUTE_COMMAND_ID, () => {
@@ -711,7 +711,9 @@ export class AgentsHandoffInputTipContribution extends Disposable implements IWo
 		// Only forward a real (non-untitled) session resource. In the empty
 		// workspace case the picker may have created a placeholder untitled
 		// session that we shouldn't try to restore on the other side.
-		const commandArgs: unknown[] = eligible && sessionResource ? [sessionResource] : [];
+		const commandArgs: unknown[] = eligible && sessionResource
+			? [AgentsWindowOpenSource.CurrentChatHandoff, sessionResource]
+			: [AgentsWindowOpenSource.EmptyWorkspaceCurrentChatHandoff];
 
 		// Empty-workspace + local Copilot: the local agent host can't
 		// run without a folder, so frame the tip as the path forward rather
