@@ -34,6 +34,7 @@ import { defaultButtonStyles, defaultInputBoxStyles, defaultSelectBoxStyles } fr
 import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 import { AccessibilityVerbositySettingId } from '../../../accessibility/browser/accessibilityConfiguration.js';
 import { AgentFinderInstallState, IAgentFinderInstallService } from '../../common/agentFinderInstallService.js';
+import { ChatConfiguration } from '../../common/constants.js';
 
 const resourceTypes: readonly { readonly mediaType: AgentFinderMediaType | undefined; readonly label: string }[] = [
 	{ mediaType: undefined, label: localize('agentFinder.allTypes', "All Resource Types") },
@@ -183,6 +184,10 @@ export class AgentFinderWidget extends Disposable {
 			this.updateVisibility();
 		}));
 		this._register(this.configurationService.onDidChangeConfiguration(event => {
+			if (event.affectsConfiguration(ChatConfiguration.AgentFinderEnabled)) {
+				this.resetSearch(false);
+				this.updateVisibility();
+			}
 			if (event.affectsConfiguration(AccessibilityVerbositySettingId.AgentFinder)) {
 				this.updateSearchAriaLabel();
 			}
@@ -208,7 +213,7 @@ export class AgentFinderWidget extends Disposable {
 	}
 
 	private updateVisibility(): void {
-		const visible = this.visible && !this.chatEntitlementService.sentiment.hidden;
+		const visible = this.visible && this.isEnabled();
 		this.element.style.display = visible ? '' : 'none';
 		if (!visible) {
 			this.searchScheduler.cancel();
@@ -233,7 +238,7 @@ export class AgentFinderWidget extends Disposable {
 		DOM.clearNode(this.resultsElement);
 		this.scrollable.setScrollPosition({ scrollTop: 0 });
 		this.renderStatus();
-		if (this.visible && !this.chatEntitlementService.sentiment.hidden) {
+		if (this.visible && this.isEnabled()) {
 			if (delayed) {
 				this.searchScheduler.schedule();
 			} else {
@@ -243,7 +248,7 @@ export class AgentFinderWidget extends Disposable {
 	}
 
 	private async loadPage(append = false): Promise<void> {
-		if (this.loading || !this.visible || this.chatEntitlementService.sentiment.hidden || (append && !this.nextCursor)) {
+		if (this.loading || !this.visible || !this.isEnabled() || (append && !this.nextCursor)) {
 			return;
 		}
 		this.requestDisposables.clear();
@@ -552,6 +557,10 @@ export class AgentFinderWidget extends Disposable {
 		this.searchInput.setAriaLabel(this.configurationService.getValue<boolean>(AccessibilityVerbositySettingId.AgentFinder) && keybinding
 			? localize('agentFinder.searchWithHelp', "Search AgentFinder. Use {0} for accessibility help.", keybinding)
 			: localize('agentFinder.searchLabel', "Search AgentFinder"));
+	}
+
+	private isEnabled(): boolean {
+		return this.configurationService.getValue<boolean>(ChatConfiguration.AgentFinderEnabled) === true && !this.chatEntitlementService.sentiment.hidden;
 	}
 
 	getAccessibilityContent(): string {

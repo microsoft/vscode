@@ -11,24 +11,65 @@ import { Event } from '../../../../base/common/event.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IChannel } from '../../../../base/parts/ipc/common/ipc.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
 import { AGENT_FINDER_CHANNEL_NAME, AgentFinderChannel, AgentFinderChannelClient } from '../../common/agentFinderIpc.js';
-import { AgentFinderInstallation, AgentFinderMediaType, IAgentFinderPage, IAgentFinderQuery, IAgentFinderService } from '../../common/agentFinderService.js';
-
-function createClient(service: IAgentFinderService): AgentFinderChannelClient {
-	const server = new AgentFinderChannel(service);
-	const channel: IChannel = {
-		async call<T>(command: string, options?: IAgentFinderQuery, token?: CancellationToken): Promise<T> {
-			return JSON.parse(JSON.stringify(await server.call<IAgentFinderPage>('test', command, options, token)));
-		},
-		listen<T>(event: string): Event<T> {
-			return server.listen('test', event);
-		},
-	};
-	return new AgentFinderChannelClient(channel);
-}
+import { AgentFinderConfiguration, AgentFinderInstallation, AgentFinderMediaType, IAgentFinderPage, IAgentFinderQuery, IAgentFinderService } from '../../common/agentFinderService.js';
 
 suite('AgentFinderIpc', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	function createClient(service: IAgentFinderService): AgentFinderChannelClient {
+		const server = new AgentFinderChannel(() => service);
+		const channel: IChannel = {
+			async call<T>(command: string, options?: IAgentFinderQuery, token?: CancellationToken): Promise<T> {
+				return JSON.parse(JSON.stringify(await server.call<IAgentFinderPage>('test', command, options, token)));
+			},
+			listen<T>(event: string): Event<T> {
+				return server.listen('test', event);
+			},
+		};
+		const configuration = new TestConfigurationService({ [AgentFinderConfiguration.Enabled]: true });
+		disposables.add(configuration.onDidChangeConfigurationEmitter);
+		return new AgentFinderChannelClient(channel, configuration);
+	}
+
+	test('does not construct the shared-process catalog service until an uncancelled query', async () => {
+		let constructed = 0;
+		let queried = 0;
+		const server = new AgentFinderChannel(() => {
+			constructed++;
+			return {
+				_serviceBrand: undefined,
+				async query() { queried++; return { items: [] }; },
+			};
+		});
+		const afterRegistration = constructed;
+		assert.throws(() => server.call('test', 'invalid'), /Invalid call/);
+		assert.throws(() => server.listen('test', 'invalid'), /Invalid listen/);
+		await assert.rejects(server.call('test', 'query', {}, CancellationToken.Cancelled), isCancellationError);
+		const afterIgnoredCalls = constructed;
+		await server.call('test', 'query', {});
+		await server.call('test', 'query', {});
+
+		assert.deepStrictEqual({ afterRegistration, afterIgnoredCalls, constructed, queried }, {
+			afterRegistration: 0, afterIgnoredCalls: 0, constructed: 1, queried: 2,
+		});
+	});
+
+	test('disabled or unset experiment prevents renderer IPC calls', async () => {
+		let calls = 0;
+		const channel: IChannel = {
+			async call() { calls++; throw new Error('The disabled client must not call IPC'); },
+			listen: () => Event.None,
+		};
+		for (const enabled of [undefined, false]) {
+			const configuration = new TestConfigurationService({ [AgentFinderConfiguration.Enabled]: enabled });
+			disposables.add(configuration.onDidChangeConfigurationEmitter);
+			const client = new AgentFinderChannelClient(channel, configuration);
+			await assert.rejects(client.query({}, CancellationToken.None), isCancellationError);
+		}
+		assert.strictEqual(calls, 0);
+	});
 
 	test('uses the fixed Agent Finder channel name', () => {
 		assert.strictEqual(AGENT_FINDER_CHANNEL_NAME, 'agentFinder');
@@ -57,13 +98,13 @@ suite('AgentFinderIpc', () => {
 
 	test('defaults missing server arguments to an initial browse and no cancellation', async () => {
 		const calls: { options: IAgentFinderQuery; token: CancellationToken }[] = [];
-		const server = new AgentFinderChannel({
+		const server = new AgentFinderChannel(() => ({
 			_serviceBrand: undefined,
 			async query(options, token) {
 				calls.push({ options, token });
 				return { items: [] };
 			},
-		});
+		}));
 		await server.call('test', 'query');
 
 		assert.deepStrictEqual(calls, [{ options: {}, token: CancellationToken.None }]);
@@ -180,13 +221,13 @@ suite('AgentFinderIpc', () => {
 
 	test('rejects unsupported commands and events without invoking the service', () => {
 		let calls = 0;
-		const server = new AgentFinderChannel({
+		const server = new AgentFinderChannel(() => ({
 			_serviceBrand: undefined,
 			async query() {
 				calls++;
 				return { items: [] };
 			},
-		});
+		}));
 		for (const command of ['request', 'fetch', 'install', 'unknown', 'constructor', '__proto__']) {
 			assert.throws(() => server.call('test', command, { query: 'postgres' }), /Invalid call/);
 		}

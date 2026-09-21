@@ -16,6 +16,10 @@ import { localize } from '../../../nls.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { IRequestService } from '../../request/common/request.js';
 
+export const enum AgentFinderConfiguration {
+	Enabled = 'chat.agentFinder.enabled',
+}
+
 export const AgentFinderMediaType = {
 	Skill: 'application/ai-skill',
 	McpServer: 'application/mcp-server+json',

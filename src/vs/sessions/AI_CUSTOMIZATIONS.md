@@ -91,9 +91,11 @@ Prompt-based items use the prompts service adapter. MCP servers, tools, plugins,
 
 AgentFinder is a separate discovery catalog, owned by the platform `IAgentFinderService`. Desktop windows use the shared process for bounded, cancellable HTTP requests; web windows use the workbench request service and its remote fallback. Catalog results are not installed customizations, do not contribute to customization counts, and do not imply compatibility with the active harness or permission to install.
 
+AgentFinder is opt-in through the `chat.agentFinder.enabled` experiment. When disabled, its section and overview entry are absent, its widget is not instantiated, catalog clients remain lazy, and installation observers and pending skill imports are stopped. Enabling it does not bypass AI-disable, registry, or installation policy gates; disabling it does not remove previously installed resources.
+
 The shared workbench `IAgentFinderInstallService` routes explicit install actions to the owning flows. MCP servers resolve by name against the configured registry, plugins retain the existing trust and managed-marketplace gates, and skills are imported as complete packages into a selected harness-provided workspace or user location. Installation requires validated catalog provenance; unsupported resource formats remain available for discovery without an install action.
 
-Contributed management sections can implement `setVisible` to scope work to the selected section in a visible editor. Sections that perform remote discovery must cancel discovery requests when hidden or disposed and must not start discovery while AI features are disabled. Confirmed installs belong to their services rather than the section widget; skill imports revalidate their initiating context before committing files.
+Contributed management sections can declare an `enablementSetting` to gate visibility and instantiation, and implement `setVisible` to scope work to the selected section in a visible editor. Disabling a section disposes its widget and restores the overview. Sections that perform remote discovery must cancel discovery requests when hidden or disposed and must not start discovery while AI features are disabled. Confirmed installs belong to their services rather than the section widget; skill imports revalidate their initiating context and experiment lifetime before committing files.
 
 ## Active-session context
 

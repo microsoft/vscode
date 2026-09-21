@@ -16,6 +16,9 @@ import {
 	getAICustomizationManagementItemMenuId,
 } from '../../../browser/aiCustomization/aiCustomizationManagement.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { aiCustomizationManagementSectionRegistry } from '../../../browser/aiCustomization/aiCustomizationManagementSectionRegistry.js';
+import { AICustomizationManagementSection } from '../../../common/aiCustomizationWorkspaceService.js';
+import { ChatConfiguration } from '../../../common/constants.js';
 
 suite('AI customization management contribution', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -27,6 +30,13 @@ suite('AI customization management contribution', () => {
 		'aiCustomizationManagement.delete',
 		'aiCustomizationManagement.installChatCustomizationExtension',
 	]);
+
+	test('AgentFinder declares its experiment gate before any widget is created', () => {
+		assert.strictEqual(
+			aiCustomizationManagementSectionRegistry.getDefault(AICustomizationManagementSection.AgentFinder)?.enablementSetting,
+			ChatConfiguration.AgentFinderEnabled,
+		);
+	});
 
 	test('isolates synthetic items from extension-contributed item actions', () => {
 		const disposables = new DisposableStore();

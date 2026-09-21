@@ -13,6 +13,7 @@ The following test plan outlines the scenarios and specifications for the AI Cus
 #### Preconditions
 
 - AI features are enabled.
+- Enable `chat.agentFinder.enabled` (experimental and disabled by default).
 - Open Agent Customizations in either the editor workbench or Agents Window.
 
 #### Actions and Expected Results
@@ -33,6 +34,8 @@ The following test plan outlines the scenarios and specifications for the AI Cus
 14. Install a Copilot or Claude plugin from a catalog subdirectory. The existing trust and managed-marketplace restrictions must apply, and only that plugin should be installed.
 15. Install an MCP server. It must be resolved against the configured registry and use the normal MCP installation flow, not executable configuration supplied by the catalog.
 16. Check that installation errors allow retry without losing search results, cancellations do not announce success, and unsupported formats such as Cursor plugins explain why installation is unavailable.
+17. With `chat.agentFinder.enabled` unset or false, verify there is no AgentFinder sidebar or overview entry, no AgentFinder widget, and no catalog or installation work. A persisted or programmatic AgentFinder selection must not bypass the gate.
+18. Enable the experiment and select AgentFinder, then disable it during a query or skill import. The editor must return to the overview, requests/imports must be cancelled, and the widget must be disposed. Re-enabling must not revive a cancelled operation or reuse stale installed-skill state.
 
 ### Scenario 1: Empty state — no session, no customizations
 

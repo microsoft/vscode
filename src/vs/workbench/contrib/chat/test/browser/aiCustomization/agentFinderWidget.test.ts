@@ -32,6 +32,7 @@ import { IChatEntitlementService } from '../../../../../services/chat/common/cha
 import { AccessibilityVerbositySettingId } from '../../../../accessibility/browser/accessibilityConfiguration.js';
 import { AgentFinderWidget } from '../../../browser/aiCustomization/agentFinderWidget.js';
 import { AgentFinderInstallState, IAgentFinderInstallService } from '../../../common/agentFinderInstallService.js';
+import { ChatConfiguration } from '../../../common/constants.js';
 
 interface IRecordedQuery {
 	readonly options: IAgentFinderQuery;
@@ -130,7 +131,12 @@ function pressKey(element: HTMLElement, key: string, keyCode: number, isComposin
 suite('AgentFinderWidget', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createWidget(hidden = false, parent: HTMLElement = document.body, widgetConstructor: typeof AgentFinderWidget = AgentFinderWidget) {
+	function createWidget(
+		hidden = false,
+		parent: HTMLElement = document.body,
+		widgetConstructor: typeof AgentFinderWidget = AgentFinderWidget,
+		options: { agentFinderEnabled?: boolean } = { agentFinderEnabled: true },
+	) {
 		const container = DOM.append(parent, DOM.$('.agent-finder-test'));
 		store.add(toDisposable(() => container.remove()));
 		container.style.width = '900px';
@@ -143,7 +149,10 @@ suite('AgentFinderWidget', () => {
 			override readonly sentiment = { hidden };
 			override readonly onDidChangeSentiment = sentimentChanged.event;
 		}();
-		const configuration = new TestConfigurationService({ [AccessibilityVerbositySettingId.AgentFinder]: true });
+		const configuration = new TestConfigurationService({
+			[AccessibilityVerbositySettingId.AgentFinder]: true,
+			...(options.agentFinderEnabled !== undefined ? { [ChatConfiguration.AgentFinderEnabled]: options.agentFinderEnabled } : {}),
+		});
 		store.add(configuration.onDidChangeConfigurationEmitter);
 		const keybindingsChanged = store.add(new Emitter<void>());
 		let helpKeybinding: ResolvedKeybinding | undefined = new USLayoutResolvedKeybinding(
@@ -200,6 +209,12 @@ suite('AgentFinderWidget', () => {
 		));
 		return {
 			container, widget, service, installService, opened, notifications, signals, configuration, hovers,
+			async setAgentFinderEnabled(enabled: boolean) {
+				await configuration.setUserConfiguration(ChatConfiguration.AgentFinderEnabled, enabled);
+				configuration.onDidChangeConfigurationEmitter.fire(new class extends mock<IConfigurationChangeEvent>() {
+					override affectsConfiguration(section: string) { return section === ChatConfiguration.AgentFinderEnabled; }
+				}());
+			},
 			setAIHidden(value: boolean) {
 				entitlement.sentiment.hidden = value;
 				sentimentChanged.fire();
@@ -248,6 +263,114 @@ suite('AgentFinderWidget', () => {
 
 		assert.strictEqual(await observed.p, true);
 	});
+
+	for (const initialFlag of [undefined, false]) {
+		test(`does no catalog work when the experiment is ${initialFlag === undefined ? 'unset' : 'false'}`, () => runWithFakedTimers({}, async () => {
+			const { container, widget, service, installService, configuration, setAgentFinderEnabled } = createWidget(
+				false, document.body, AgentFinderWidget, initialFlag === undefined ? {} : { agentFinderEnabled: initialFlag });
+			widget.setVisible(true);
+			pressKey(setSearch(container, 'review'), 'Enter', 13);
+			getButton(container, 'Refresh').click();
+			const select = getElement<HTMLSelectElement>(container, '.agent-finder-type-filter select');
+			select.selectedIndex = 2;
+			select.dispatchEvent(new Event('change', { bubbles: true }));
+			await timeout(400);
+			widget.setVisible(false);
+			widget.setVisible(true);
+			const disabled = {
+				setting: configuration.getValue(ChatConfiguration.AgentFinderEnabled),
+				queryCount: service.requests.length,
+				installCount: installService.requests.length,
+				installStateReads: installService.stateReads.slice(),
+				display: widget.element.style.display,
+				names: getCardNames(container),
+			};
+			await setAgentFinderEnabled(true);
+			await service.requests[0].result.complete({ items: [createResource('Enabled')] });
+
+			assert.deepStrictEqual({
+				disabled,
+				queries: service.requests.map(request => request.options),
+				names: getCardNames(container),
+				display: widget.element.style.display,
+			}, {
+				disabled: { setting: initialFlag, queryCount: 0, installCount: 0, installStateReads: [], display: 'none', names: [] },
+				queries: [{ query: 'review', mediaType: AgentFinderMediaType.McpServer, pageSize: 24, cursor: undefined }],
+				names: ['Enabled'],
+				display: '',
+			});
+		}));
+	}
+
+	for (const lateResponse of ['success', 'failure'] as const) {
+		test(`disabling the experiment cancels pending queries and ignores a late ${lateResponse}`, async () => {
+			const { container, widget, service, notifications, signals, setAgentFinderEnabled } = createWidget();
+			widget.setVisible(true);
+			await setAgentFinderEnabled(false);
+			const disabled = {
+				cancelled: service.requests[0].token.isCancellationRequested,
+				display: widget.element.style.display,
+				busy: getElement(container, '.agent-finder-results').getAttribute('aria-busy'),
+			};
+			if (lateResponse === 'success') {
+				await service.requests[0].result.complete({ items: [createResource('Disabled result')] });
+			} else {
+				await service.requests[0].result.error(new Error('Disabled request failed'));
+			}
+			const afterLateResponse = {
+				names: getCardNames(container),
+				error: getElement(container, '.agent-finder-error').textContent,
+			};
+			await setAgentFinderEnabled(true);
+			await service.requests[1].result.complete({ items: [createResource('Enabled result')] });
+
+			assert.deepStrictEqual({
+				disabled,
+				afterLateResponse,
+				queryCount: service.requests.length,
+				names: getCardNames(container),
+				display: widget.element.style.display,
+				notifications,
+				signals,
+			}, {
+				disabled: { cancelled: true, display: 'none', busy: 'false' },
+				afterLateResponse: { names: [], error: '' },
+				queryCount: 2,
+				names: ['Enabled result'],
+				display: '',
+				notifications: [],
+				signals: [],
+			});
+		});
+	}
+
+	test('disabling the experiment cancels debounced search until it is enabled again', () => runWithFakedTimers({}, async () => {
+		const { container, widget, service, setAgentFinderEnabled } = createWidget();
+		widget.setVisible(true);
+		await service.requests[0].result.complete({ items: [createResource('Original')] });
+		setSearch(container, 'pending');
+		await timeout(100);
+		await setAgentFinderEnabled(false);
+		await timeout(400);
+		const disabled = {
+			queryCount: service.requests.length,
+			display: widget.element.style.display,
+			names: getCardNames(container),
+		};
+		await setAgentFinderEnabled(true);
+		await service.requests[1].result.complete({ items: [createResource('Enabled')] });
+		await timeout(400);
+
+		assert.deepStrictEqual({
+			disabled,
+			queries: service.requests.map(request => request.options.query),
+			names: getCardNames(container),
+		}, {
+			disabled: { queryCount: 1, display: 'none', names: [] },
+			queries: ['', 'pending'],
+			names: ['Enabled'],
+		});
+	}));
 
 	test('loads only when visible and reuses completed results on reactivation', async () => {
 		const { container, widget, service } = createWidget();

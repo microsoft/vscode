@@ -8,21 +8,23 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { localize } from '../../../../../nls.js';
 import { AccessibleContentProvider, AccessibleViewProviderId, AccessibleViewType } from '../../../../../platform/accessibility/browser/accessibleView.js';
 import { AccessibleViewRegistry, IAccessibleViewImplementation } from '../../../../../platform/accessibility/browser/accessibleViewRegistry.js';
-import { AgentFinderService, IAgentFinderService } from '../../../../../platform/agentFinder/common/agentFinderService.js';
+import { IAgentFinderService } from '../../../../../platform/agentFinder/common/agentFinderService.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { InstantiationType, registerSingleton } from '../../../../../platform/instantiation/common/extensions.js';
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { AccessibilityVerbositySettingId } from '../../../accessibility/browser/accessibilityConfiguration.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
+import { ChatConfiguration } from '../../common/constants.js';
 import { IAgentFinderInstallService } from '../../common/agentFinderInstallService.js';
 import { AICustomizationManagementSection, CONTEXT_AI_CUSTOMIZATION_MANAGEMENT_EDITOR, CONTEXT_AI_CUSTOMIZATION_MANAGEMENT_SECTION } from './aiCustomizationManagement.js';
 import { AICustomizationManagementEditor } from './aiCustomizationManagementEditor.js';
 import { aiCustomizationManagementSectionRegistry } from './aiCustomizationManagementSectionRegistry.js';
 import { AgentFinderInstallService } from './agentFinderInstallService.js';
 import { AgentFinderWidget } from './agentFinderWidget.js';
+import { AgentFinderWorkbenchService } from './agentFinderWorkbenchService.js';
 
-registerSingleton(IAgentFinderService, AgentFinderService, InstantiationType.Delayed);
+registerSingleton(IAgentFinderService, AgentFinderWorkbenchService, InstantiationType.Delayed);
 registerSingleton(IAgentFinderInstallService, AgentFinderInstallService, InstantiationType.Delayed);
 
 aiCustomizationManagementSectionRegistry.register({
@@ -30,6 +32,7 @@ aiCustomizationManagementSectionRegistry.register({
 	label: localize('agentFinder.label', "AgentFinder"),
 	icon: Codicon.search,
 	description: localize('agentFinder.description', "Discover skills, MCP servers, and plugins in GitHub's public catalog."),
+	enablementSetting: ChatConfiguration.AgentFinderEnabled,
 	supportsHarness: () => true,
 	create: (instantiationService, container) => instantiationService.createInstance(AgentFinderWidget, container),
 });
@@ -39,6 +42,7 @@ class AgentFinderAccessibleView implements IAccessibleViewImplementation {
 	readonly name = 'agent-finder';
 	readonly when = ContextKeyExpr.and(
 		ChatContextKeys.enabled,
+		ContextKeyExpr.equals(`config.${ChatConfiguration.AgentFinderEnabled}`, true),
 		CONTEXT_AI_CUSTOMIZATION_MANAGEMENT_EDITOR,
 		CONTEXT_AI_CUSTOMIZATION_MANAGEMENT_SECTION.isEqualTo(AICustomizationManagementSection.AgentFinder),
 	);

@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { $ } from '../../../../../../base/browser/dom.js';
 import { DeferredPromise, Delayer, raceCancellationError, timeout } from '../../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
@@ -189,6 +190,9 @@ suite('aiCustomizationManagementEditor', () => {
 		recordMigrationActivity(category: ICustomizationMigrationCategory, context: { storage: PromptsStorage; key: string; label: string }, items: ICustomizationMigrationDashboardActivity['items']): void;
 		chooseCustomizationMigrationDestination(destination: ICustomizationMigrationDashboardDestination): Promise<void>;
 		updateContentVisibility(): void;
+		selectSectionById(section: AICustomizationManagementSection): void;
+		rebuildVisibleSections(): void;
+		updateContributedSectionEnablement(): void;
 		setVisible(visible: boolean): void;
 	};
 
@@ -196,6 +200,7 @@ suite('aiCustomizationManagementEditor', () => {
 		// Default to enabling the structured preview so existing assertions exercise the preview path.
 		const merged: Record<string, unknown> = {
 			[ChatConfiguration.ChatCustomizationsStructuredPreviewEnabled]: true,
+			[ChatConfiguration.AgentFinderEnabled]: true,
 			...values,
 		};
 		return {
@@ -313,12 +318,12 @@ suite('aiCustomizationManagementEditor', () => {
 		return editor;
 	}
 
-	function createContributedSectionEditor() {
+	function createContributedSectionEditor(enablementSetting?: string) {
 		const editor = createTestEditor();
 		store.add(editor.editorPreviewDisposables);
 		const visibilityChanges: boolean[] = [];
 		const focusedVisibility: boolean[] = [];
-		const state = { created: 0, visible: false, promptsFocused: 0 };
+		const state = { created: 0, visible: false, promptsFocused: 0, disposed: 0 };
 		const section = AICustomizationManagementSection.HarnessSettings;
 		const harnessId = 'contributed-section-lifecycle-test';
 		editor.harnessService.activeHarness.set(harnessId, undefined);
@@ -337,6 +342,7 @@ suite('aiCustomizationManagementEditor', () => {
 			label: 'Test harness settings',
 			description: 'Test contributed section lifecycle',
 			icon: Codicon.search,
+			enablementSetting,
 			supportsHarness: id => id === harnessId,
 			create: () => {
 				state.created++;
@@ -346,12 +352,92 @@ suite('aiCustomizationManagementEditor', () => {
 						visibilityChanges.push(visible);
 					},
 					focus() { focusedVisibility.push(state.visible); },
-					dispose() { },
+					dispose() { state.disposed++; state.visible = false; },
 				};
 			},
 		}));
 		return { editor, section, state, visibilityChanges, focusedVisibility };
 	}
+
+	function createGatedSectionEditor(enabled?: boolean) {
+		const context = createContributedSectionEditor(ChatConfiguration.AgentFinderEnabled);
+		const { editor, section } = context;
+		const configuration = createConfigurationServiceStub({ [ChatConfiguration.AgentFinderEnabled]: enabled });
+		editor.configurationService = configuration;
+		const sections: { id: AICustomizationManagementSection }[] = [];
+		let overview: readonly AICustomizationManagementSection[] = [];
+		Object.assign(editor, {
+			allSections: [
+				{ id: AICustomizationManagementSection.Agents, label: 'Agents', description: '', icon: Codicon.copilot, count: 0 },
+				{ id: section, label: 'Experimental section', description: '', icon: Codicon.search, count: 0 },
+			],
+			sections,
+			welcomePage: {
+				container: $('div'),
+				rebuildCards(ids: ReadonlySet<AICustomizationManagementSection>) { overview = [...ids]; },
+			},
+			showWelcomePage() { editor.selectedSection = undefined; },
+		});
+		return { ...context, configuration, sections, getOverview: () => overview };
+	}
+
+	for (const enabled of [undefined, false]) {
+		test(`does not expose or instantiate a contributed section when its experiment is ${enabled === undefined ? 'unset' : 'disabled'}`, () => {
+			const { editor, section, state, sections, getOverview } = createGatedSectionEditor(enabled);
+			editor.selectedSection = section;
+			editor.setVisible(true);
+			editor.focus();
+			editor.rebuildVisibleSections();
+			editor.selectSectionById(section);
+
+			assert.deepStrictEqual({
+				created: state.created,
+				sections: sections.map(section => section.id),
+				overview: getOverview(),
+				selected: editor.selectedSection,
+				widget: editor.getActiveSectionWidget(),
+			}, {
+				created: 0,
+				sections: [AICustomizationManagementSection.Agents],
+				overview: [AICustomizationManagementSection.Agents],
+				selected: undefined,
+				widget: undefined,
+			});
+		});
+	}
+
+	test('disabling a section experiment disposes its widget and restores the overview', async () => {
+		const { editor, section, state, sections, getOverview, configuration } = createGatedSectionEditor(true);
+		editor.rebuildVisibleSections();
+		editor.setVisible(true);
+		editor.selectSectionById(section);
+		const container = editor.contributedSectionContainers.get(section)!;
+		container.textContent = 'Feature content';
+
+		await configuration.updateValue(ChatConfiguration.AgentFinderEnabled, false);
+		editor.updateContributedSectionEnablement();
+		const disabled = {
+			created: state.created,
+			disposed: state.disposed,
+			widget: editor.getActiveSectionWidget(),
+			selected: editor.selectedSection,
+			content: container.textContent,
+			sections: sections.map(section => section.id),
+			overview: getOverview(),
+		};
+		await configuration.updateValue(ChatConfiguration.AgentFinderEnabled, true);
+		editor.updateContributedSectionEnablement();
+		editor.selectSectionById(section);
+
+		assert.deepStrictEqual({ disabled, reenabled: { created: state.created, disposed: state.disposed, visible: state.visible } }, {
+			disabled: {
+				created: 1, disposed: 1, widget: undefined, selected: undefined, content: '',
+				sections: [AICustomizationManagementSection.Agents],
+				overview: [AICustomizationManagementSection.Agents],
+			},
+			reenabled: { created: 2, disposed: 1, visible: true },
+		});
+	});
 
 	for (const visible of [false, true]) {
 		test(`initializes contributed widget visibility before focusing in a ${visible ? 'visible' : 'hidden'} editor`, () => {

@@ -148,7 +148,7 @@ class SkillFileSystemProvider extends InMemoryFileSystemProvider {
 suite('AgentFinderInstallService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	async function createFixture() {
+	async function createFixture(options: { enabled?: boolean } = { enabled: true }) {
 		const instantiationService = store.add(new TestInstantiationService());
 		const logService = store.add(new NullLogService());
 		const fileService = store.add(new FileService(logService));
@@ -160,7 +160,11 @@ suite('AgentFinderInstallService', () => {
 
 		const installedPlugins = observableValue<readonly IMarketplaceInstalledPlugin[]>('installedPlugins', []);
 		const marketplaceService = new class extends mock<IPluginMarketplaceService>() {
-			override readonly installedPlugins = installedPlugins;
+			readCount = 0;
+			override get installedPlugins() {
+				this.readCount++;
+				return installedPlugins;
+			}
 		}();
 		const pluginService = new class extends mock<IPluginInstallService>() {
 			readonly calls: { source: string; options: IInstallPluginFromSourceOptions | undefined }[] = [];
@@ -246,6 +250,9 @@ suite('AgentFinderInstallService', () => {
 		}();
 		const configurationService = new TestConfigurationService({ [ChatConfiguration.PluginsEnabled]: true });
 		store.add(configurationService.onDidChangeConfigurationEmitter);
+		if (options.enabled !== undefined) {
+			await configurationService.setUserConfiguration(ChatConfiguration.AgentFinderEnabled, options.enabled);
+		}
 		const dialogService = new class extends mock<IDialogService>() {
 			readonly confirmations: IConfirmation[] = [];
 			result: IConfirmationResult = { confirmed: true };
@@ -300,9 +307,20 @@ suite('AgentFinderInstallService', () => {
 		instantiationService.stub(ILogService, logService);
 		const service = store.add(instantiationService.createInstance(AgentFinderInstallService));
 		return {
-			service, fileService, provider, installedPlugins, pluginService, repositoryService, mcpService, mcpChanges,
+			service, fileService, provider, installedPlugins, marketplaceService, pluginService, repositoryService, mcpService, mcpChanges,
 			harnessService, workspaceService, entitlementService, sentimentChanges, configurationService, dialogService, progressService, quickInputService,
 		};
+	}
+
+	function fireConfigurationChange(configurationService: TestConfigurationService, key: string): void {
+		configurationService.onDidChangeConfigurationEmitter.fire(new class extends mock<IConfigurationChangeEvent>() {
+			override affectsConfiguration(section: string): boolean { return section === key; }
+		}());
+	}
+
+	async function setExperimentEnabled(configurationService: TestConfigurationService, enabled: boolean): Promise<void> {
+		await configurationService.setUserConfiguration(ChatConfiguration.AgentFinderEnabled, enabled);
+		fireConfigurationChange(configurationService, ChatConfiguration.AgentFinderEnabled);
 	}
 
 	async function stagingDirectories(fileService: IFileService): Promise<string[]> {
@@ -323,6 +341,213 @@ suite('AgentFinderInstallService', () => {
 		await visit(root, '');
 		return result.sort(([left], [right]) => left.localeCompare(right));
 	}
+
+	suite('experiment gate', () => {
+		for (const enabled of [undefined, false]) {
+			test(`blocks all installation activity when the experiment is ${enabled === undefined ? 'unset' : 'explicitly disabled'}`, async () => {
+				const fixture = await createFixture({ enabled });
+				const candidates = [resource(), pluginResource(), mcpResource()];
+				for (const candidate of candidates) {
+					await assert.rejects(fixture.service.install(candidate), /AgentFinder experiment/);
+				}
+				assert.deepStrictEqual({
+					states: candidates.map(candidate => fixture.service.getInstallState(candidate).kind),
+					registryLookups: fixture.mcpService.lookups,
+					mcpInstalls: fixture.mcpService.installs,
+					pluginInstalls: fixture.pluginService.calls,
+					repositoryCalls: fixture.repositoryService.calls,
+					folderRequests: fixture.harnessService.folderRequests,
+					pickerCalls: fixture.quickInputService.calls,
+					confirmations: fixture.dialogService.confirmations,
+					progress: fixture.progressService.options,
+					writes: fixture.provider.writes,
+					moves: fixture.provider.moves,
+					modelReads: fixture.marketplaceService.readCount,
+					mcpListener: fixture.mcpChanges.hasListeners(),
+					entitlementListener: fixture.sentimentChanges.hasListeners(),
+					configurationListener: fixture.configurationService.onDidChangeConfigurationEmitter.hasListeners(),
+				}, {
+					states: ['unavailable', 'unavailable', 'unavailable'],
+					registryLookups: [], mcpInstalls: [], pluginInstalls: [], repositoryCalls: [], folderRequests: [], pickerCalls: 0,
+					confirmations: [], progress: [], writes: [], moves: [], modelReads: 0,
+					mcpListener: false, entitlementListener: false, configurationListener: true,
+				});
+			});
+		}
+
+		for (const initiallyEnabled of [false, true]) {
+			test(`keeps feature observers dormant ${initiallyEnabled ? 'after disabling' : 'from disabled construction'} and restores them on re-enable`, async () => {
+				const fixture = await createFixture({ enabled: initiallyEnabled });
+				if (initiallyEnabled) {
+					await setExperimentEnabled(fixture.configurationService, false);
+				}
+				let changes = 0;
+				store.add(fixture.service.onDidChange(() => changes++));
+				const initialReads = fixture.marketplaceService.readCount;
+				fixture.installedPlugins.set([installedPlugin({ kind: PluginSourceKind.GitHub, repo: 'owner/catalog', path: 'plugins/demo' })], undefined);
+				fixture.harnessService.activeHarness.set('other-harness', undefined);
+				fixture.harnessService.activeSessionResource.set(URI.parse('test-harness:///other-session'), undefined);
+				fixture.workspaceService.activeProjectRoot.set(URI.file('/other-project'), undefined);
+				fixture.mcpChanges.fire(undefined);
+				fixture.sentimentChanges.fire();
+				await fixture.configurationService.setUserConfiguration(ChatConfiguration.PluginsEnabled, false);
+				fireConfigurationChange(fixture.configurationService, ChatConfiguration.PluginsEnabled);
+				fireConfigurationChange(fixture.configurationService, 'editor.fontSize');
+				const unrelatedFile = URI.file('/workspace/unrelated.txt');
+				const fileChanged = Event.toPromise(Event.filter(fixture.fileService.onDidFilesChange, event => event.contains(unrelatedFile)));
+				await fixture.fileService.writeFile(unrelatedFile, VSBuffer.fromString('Unrelated change'));
+				await fileChanged;
+				const disabled = {
+					changes,
+					modelReads: fixture.marketplaceService.readCount - initialReads,
+					mcpListener: fixture.mcpChanges.hasListeners(),
+					entitlementListener: fixture.sentimentChanges.hasListeners(),
+				};
+				await setExperimentEnabled(fixture.configurationService, true);
+				changes = 0;
+				const enabledReads = fixture.marketplaceService.readCount;
+				fixture.installedPlugins.set([], undefined);
+				fixture.mcpChanges.fire(undefined);
+				fixture.sentimentChanges.fire();
+				assert.deepStrictEqual({
+					disabled,
+					reenabled: {
+						changes,
+						modelReads: fixture.marketplaceService.readCount - enabledReads,
+						mcpListener: fixture.mcpChanges.hasListeners(),
+						entitlementListener: fixture.sentimentChanges.hasListeners(),
+					},
+				}, {
+					disabled: { changes: 0, modelReads: 0, mcpListener: false, entitlementListener: false },
+					reenabled: { changes: 3, modelReads: 1, mcpListener: true, entitlementListener: true },
+				});
+			});
+		}
+
+		for (const phase of ['repository acquisition', 'staged copying']) {
+			test(`disabling during ${phase} cancels without committing and permits a fresh install after re-enable`, async () => {
+				const fixture = await createFixture();
+				const paused = new DeferredPromise<void>();
+				const resume = new DeferredPromise<void>();
+				if (phase === 'repository acquisition') {
+					fixture.repositoryService.onEnsure = async () => {
+						await paused.complete();
+						await resume.p;
+						return repository;
+					};
+				} else {
+					fixture.provider.afterWrite = async uri => {
+						if (isStaging(uri)) {
+							await paused.complete();
+							await resume.p;
+						}
+					};
+				}
+				const outcome = Promise.allSettled([fixture.service.install(resource())]);
+				await Promise.race([paused.p, outcome]);
+				const writesBeforeDisable = fixture.provider.writes.length;
+				await setExperimentEnabled(fixture.configurationService, false);
+				const tokenCancelled = fixture.repositoryService.calls[0]?.options?.token?.isCancellationRequested === true;
+				await resume.complete();
+				const [result] = await outcome;
+				const cancelled = {
+					tokenCancelled,
+					rejectedWithCancellation: result.status === 'rejected' && isCancellationError(result.reason),
+					state: fixture.service.getInstallState(resource()).kind,
+					targetExists: await fixture.fileService.exists(skillDestination),
+					staging: await stagingDirectories(fixture.fileService),
+					moves: fixture.provider.moves.length,
+					writesWhileDisabled: fixture.provider.writes.length - writesBeforeDisable,
+				};
+				fixture.repositoryService.onEnsure = undefined;
+				fixture.provider.afterWrite = undefined;
+				await setExperimentEnabled(fixture.configurationService, true);
+				const stateBeforeRetry = fixture.service.getInstallState(resource()).kind;
+				await fixture.service.install(resource());
+				assert.deepStrictEqual({
+					cancelled,
+					stateBeforeRetry,
+					stateAfterRetry: fixture.service.getInstallState(resource()).kind,
+					cloneCalls: fixture.repositoryService.calls.length,
+					installedFiles: await readTree(fixture.fileService, skillDestination),
+				}, {
+					cancelled: {
+						tokenCancelled: true, rejectedWithCancellation: true, state: 'unavailable', targetExists: false,
+						staging: [], moves: 0, writesWhileDisabled: 0,
+					},
+					stateBeforeRetry: 'available', stateAfterRetry: 'installed', cloneCalls: 2, installedFiles: [[SKILL_FILENAME, skillContent]],
+				});
+			});
+		}
+
+		test('disabling during registry resolution never hands off to the MCP installer', async () => {
+			const fixture = await createFixture();
+			fixture.mcpService.onLookup = async () => {
+				await setExperimentEnabled(fixture.configurationService, false);
+				return fixture.mcpService.galleryServer;
+			};
+			await assert.rejects(fixture.service.install(mcpResource()), isCancellationError);
+			assert.deepStrictEqual({
+				lookups: fixture.mcpService.lookups,
+				eligibilityChecks: fixture.mcpService.eligibilityChecks,
+				installs: fixture.mcpService.installs,
+				state: fixture.service.getInstallState(mcpResource()).kind,
+			}, { lookups: ['io.example/demo'], eligibilityChecks: [], installs: [], state: 'unavailable' });
+		});
+
+		test('re-enabling during a pending MCP lookup does not revive the old install', async () => {
+			const fixture = await createFixture();
+			const candidate = mcpResource();
+			const started = new DeferredPromise<void>();
+			const lookup = new DeferredPromise<IWorkbenchMcpServer | undefined>();
+			fixture.mcpService.onLookup = async () => {
+				await started.complete();
+				return lookup.p;
+			};
+			const outcome = Promise.allSettled([fixture.service.install(candidate)]);
+			await Promise.race([started.p, outcome]);
+			await setExperimentEnabled(fixture.configurationService, false);
+			await setExperimentEnabled(fixture.configurationService, true);
+			await lookup.complete(fixture.mcpService.galleryServer);
+			const [result] = await outcome;
+			const oldOperation = {
+				cancelled: result.status === 'rejected' && isCancellationError(result.reason),
+				eligibilityChecks: fixture.mcpService.eligibilityChecks.length,
+				installs: fixture.mcpService.installs.length,
+				state: fixture.service.getInstallState(candidate).kind,
+			};
+			fixture.mcpService.onLookup = undefined;
+			await fixture.service.install(candidate);
+			assert.deepStrictEqual({
+				oldOperation,
+				lookups: fixture.mcpService.lookups,
+				eligibilityChecks: fixture.mcpService.eligibilityChecks.length,
+				installs: fixture.mcpService.installs.length,
+				state: fixture.service.getInstallState(candidate).kind,
+			}, {
+				oldOperation: { cancelled: true, eligibilityChecks: 0, installs: 0, state: 'available' },
+				lookups: ['io.example/demo', 'io.example/demo'], eligibilityChecks: 1, installs: 1, state: 'installed',
+			});
+		});
+
+		test('re-enabling does not reuse installed state for a skill removed while disabled', async () => {
+			const fixture = await createFixture();
+			await fixture.service.install(resource());
+			await setExperimentEnabled(fixture.configurationService, false);
+			const deleted = Event.toPromise(Event.filter(fixture.fileService.onDidFilesChange, event => event.contains(skillDestination)));
+			await fixture.fileService.del(skillDestination, { recursive: true });
+			await deleted;
+			await setExperimentEnabled(fixture.configurationService, true);
+			const stateBeforeRetry = fixture.service.getInstallState(resource()).kind;
+			await fixture.service.install(resource());
+			assert.deepStrictEqual({
+				stateBeforeRetry,
+				stateAfterRetry: fixture.service.getInstallState(resource()).kind,
+				cloneCalls: fixture.repositoryService.calls.length,
+				installedFileExists: await fixture.fileService.exists(joinPath(skillDestination, SKILL_FILENAME)),
+			}, { stateBeforeRetry: 'available', stateAfterRetry: 'installed', cloneCalls: 2, installedFileExists: true });
+		});
+	});
 
 	test('resources without validated installation metadata are unavailable and never invoke installers', async () => {
 		const fixture = await createFixture();
@@ -367,9 +592,6 @@ suite('AgentFinderInstallService', () => {
 		const changes: string[] = [];
 		let cause = '';
 		store.add(fixture.service.onDidChange(() => changes.push(cause)));
-		const configurationChanged = (key: string) => fixture.configurationService.onDidChangeConfigurationEmitter.fire(new class extends mock<IConfigurationChangeEvent>() {
-			override affectsConfiguration(section: string): boolean { return section === key; }
-		}());
 		cause = 'plugins';
 		fixture.installedPlugins.set([installedPlugin({ kind: PluginSourceKind.GitHub, repo: 'owner/catalog', path: 'plugins/demo' })], undefined);
 		cause = 'mcp';
@@ -381,9 +603,9 @@ suite('AgentFinderInstallService', () => {
 		cause = 'entitlement';
 		fixture.sentimentChanges.fire();
 		cause = 'configuration';
-		configurationChanged(ChatConfiguration.PluginsEnabled);
+		fireConfigurationChange(fixture.configurationService, ChatConfiguration.PluginsEnabled);
 		cause = 'irrelevant configuration';
-		configurationChanged('editor.fontSize');
+		fireConfigurationChange(fixture.configurationService, 'editor.fontSize');
 		fixture.service.dispose();
 		cause = 'disposed';
 		fixture.installedPlugins.set([], undefined);
@@ -391,7 +613,7 @@ suite('AgentFinderInstallService', () => {
 		fixture.harnessService.activeHarness.set('test-harness', undefined);
 		fixture.workspaceService.activeProjectRoot.set(undefined, undefined);
 		fixture.sentimentChanges.fire();
-		configurationChanged(ChatConfiguration.PluginsEnabled);
+		fireConfigurationChange(fixture.configurationService, ChatConfiguration.PluginsEnabled);
 		assert.deepStrictEqual(changes, ['plugins', 'mcp', 'harness', 'project', 'entitlement', 'configuration']);
 	});
 

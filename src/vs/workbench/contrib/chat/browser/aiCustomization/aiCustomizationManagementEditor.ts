@@ -881,7 +881,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		for (const s of this.allSections) {
 			const contribution = aiCustomizationManagementSectionRegistry.get(s.id, activeId);
 			const contributed = aiCustomizationManagementSectionRegistry.has(s.id);
-			if (!hidden.has(s.id) && (!contributed || !!contribution)) {
+			if (!hidden.has(s.id) && (!contributed || !!contribution) && this.isContributedSectionEnabled(s.id)) {
 				this.sections.push(contribution ? { ...s, label: contribution.label, icon: contribution.icon, description: contribution.description } : s);
 			}
 		}
@@ -896,11 +896,27 @@ export class AICustomizationManagementEditor extends EditorPane {
 		this.welcomePage?.rebuildCards(new Set(this.sections.map(s => s.id)));
 
 		// If the current selection is hidden, fall back to welcome page
-		if (this.selectedSection !== undefined && !this.sections.some(s => s.id === this.selectedSection) && this.sections.length > 0) {
+		if (this.selectedSection !== undefined && !this.sections.some(s => s.id === this.selectedSection)) {
 			this.showWelcomePage();
 		} else {
 			this.ensureSectionsListReflectsActiveSection();
 		}
+	}
+
+	private isContributedSectionEnabled(section: AICustomizationManagementSection): boolean {
+		const setting = aiCustomizationManagementSectionRegistry.get(section, this.harnessService.activeHarness.get())?.enablementSetting;
+		return !setting || this.configurationService.getValue<boolean>(setting) === true;
+	}
+
+	private updateContributedSectionEnablement(): void {
+		for (const [section, widget] of this.contributedSectionWidgets) {
+			if (!this.isContributedSectionEnabled(section)) {
+				this.editorDisposables.delete(widget);
+				this.contributedSectionWidgets.delete(section);
+				this.contributedSectionContainers.get(section)?.replaceChildren();
+			}
+		}
+		this.rebuildVisibleSections();
 	}
 
 	private createSidebar(): void {
@@ -974,6 +990,12 @@ export class AICustomizationManagementEditor extends EditorPane {
 		}));
 
 		this.editorDisposables.add(this.configurationService.onDidChangeConfiguration(e => {
+			if (this.allSections.some(section => {
+				const setting = aiCustomizationManagementSectionRegistry.get(section.id, this.harnessService.activeHarness.get())?.enablementSetting;
+				return setting && e.affectsConfiguration(setting);
+			})) {
+				this.updateContributedSectionEnablement();
+			}
 			if (e.affectsConfiguration(ChatConfiguration.ChatCustomizationsStructuredPreviewEnabled)) {
 				this.onStructuredPreviewSettingChanged();
 			}
@@ -3259,7 +3281,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 			this.toolsDetailContainer.style.display = isToolsDetailMode ? '' : 'none';
 		}
 		for (const [section, container] of this.contributedSectionContainers) {
-			const visible = !isEditorMode && !isMigrationMode && !isDetailMode && this.selectedSection === section;
+			const visible = !isEditorMode && !isMigrationMode && !isDetailMode && this.selectedSection === section && this.isContributedSectionEnabled(section);
 			container.style.display = visible ? '' : 'none';
 			if (visible) {
 				this.ensureContributedSectionWidget(section);
@@ -3280,6 +3302,9 @@ export class AICustomizationManagementEditor extends EditorPane {
 	}
 
 	private ensureContributedSectionWidget(section: AICustomizationManagementSection): IAICustomizationManagementSectionWidget | undefined {
+		if (!this.isContributedSectionEnabled(section)) {
+			return undefined;
+		}
 		const existing = this.contributedSectionWidgets.get(section);
 		if (existing) {
 			return existing;
@@ -3300,7 +3325,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 	}
 
 	getActiveSectionWidget(): IAICustomizationManagementSectionWidget | undefined {
-		return this.viewMode === 'list' && this.selectedSection !== undefined
+		return this.viewMode === 'list' && this.selectedSection !== undefined && this.isContributedSectionEnabled(this.selectedSection)
 			? this.contributedSectionWidgets.get(this.selectedSection)
 			: undefined;
 	}
@@ -3448,7 +3473,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		input.setTargetLabels(this.getActiveHarnessLabel(), this.workspaceService.activeProjectLabel.get());
 		if (!token.isCancellationRequested) {
 			for (const [section, widget] of this.contributedSectionWidgets) {
-				widget.setVisible?.(this.isVisible() && this.viewMode === 'list' && this.selectedSection === section);
+				widget.setVisible?.(this.isVisible() && this.viewMode === 'list' && this.selectedSection === section && this.isContributedSectionEnabled(section));
 			}
 			void this.refreshCustomizationMigrationInfo();
 		}
@@ -3494,7 +3519,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 	protected override setEditorVisible(visible: boolean): void {
 		super.setEditorVisible(visible);
 		for (const [section, widget] of this.contributedSectionWidgets) {
-			widget.setVisible?.(visible && this.viewMode === 'list' && this.selectedSection === section);
+			widget.setVisible?.(visible && this.viewMode === 'list' && this.selectedSection === section && this.isContributedSectionEnabled(section));
 		}
 		if (visible && this.dimension) {
 			this.layout(this.dimension);

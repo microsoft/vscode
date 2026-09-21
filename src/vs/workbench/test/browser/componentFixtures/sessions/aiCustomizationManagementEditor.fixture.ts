@@ -81,6 +81,7 @@ import { EmbeddedAgentPluginDetail } from '../../../../contrib/chat/browser/aiCu
 import { AgentPluginItemKind, IAgentPluginItem } from '../../../../contrib/chat/browser/agentPluginEditor/agentPluginItems.js';
 import { ContributionEnablementState } from '../../../../contrib/chat/common/enablement.js';
 import { AICustomizationManagementEditorInput } from '../../../../contrib/chat/browser/aiCustomization/aiCustomizationManagementEditorInput.js';
+import { AI_CUSTOMIZATION_MANAGEMENT_SELECTED_SECTION_KEY } from '../../../../contrib/chat/browser/aiCustomization/aiCustomizationManagement.js';
 import { IConfigurationService, IConfigurationValue } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { mcpAccessConfig, McpAccessValue } from '../../../../../platform/mcp/common/mcpManagement.js';
@@ -830,6 +831,7 @@ interface IRenderEditorOptions {
 	readonly managementSections?: readonly AICustomizationManagementSection[];
 	readonly availableHarnesses?: readonly IHarnessDescriptor[];
 	readonly selectedSection?: AICustomizationManagementSection;
+	readonly agentFinderEnabled?: boolean;
 	readonly agentFinderState?: 'ready' | 'empty' | 'error' | 'loading';
 	readonly agentFinderInstallationState?: 'mixed' | 'error';
 	readonly customizationSearchQuery?: string;
@@ -868,6 +870,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 	ctx.container.style.height = `${height}px`;
 
 	const isSessionsWindow = options.isSessionsWindow ?? false;
+	const agentFinderEnabled = options.agentFinderEnabled ?? true;
 	const skillUIIntegrations = options.skillUIIntegrations ?? new Map();
 	const managementSections = options.managementSections ?? [
 		AICustomizationManagementSection.Plugins,
@@ -952,9 +955,13 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 				[ChatConfiguration.ChatCustomizationsLocationsMigrationEnabled]: true,
 				[ChatConfiguration.ChatCustomizationsMcpServerMigrationEnabled]: true,
 				...options.configuration,
+				[ChatConfiguration.AgentFinderEnabled]: agentFinderEnabled,
 			});
 			ctx.disposableStore.add({ dispose: () => configurationService.onDidChangeConfigurationEmitter.dispose() });
 			registerWorkbenchServices(reg);
+			if (!agentFinderEnabled) {
+				reg.defineInstance(IStorageService, ctx.disposableStore.add(new InMemoryStorageService()));
+			}
 			reg.defineInstance(IChatEntitlementService, new class extends mock<IChatEntitlementService>() {
 				override readonly sentiment = { hidden: false };
 				override readonly onDidChangeSentiment = Event.None;
@@ -962,6 +969,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 			reg.defineInstance(IAgentFinderService, new class extends mock<IAgentFinderService>() {
 				override async query(query: IAgentFinderQuery): Promise<IAgentFinderPage> {
 					agentFinderQueryCount++;
+					assert(agentFinderEnabled, 'A disabled AgentFinder fixture must not query the catalog.');
 					switch (options.agentFinderState) {
 						case 'loading': return new DeferredPromise<IAgentFinderPage>().p;
 						case 'error': throw new Error('The catalog is temporarily unavailable. Try again later.');
@@ -983,9 +991,11 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 			reg.defineInstance(IAgentFinderInstallService, new class extends mock<IAgentFinderInstallService>() {
 				override readonly onDidChange = agentFinderInstallChanged.event;
 				override getInstallState(resource: IAgentFinderResource): AgentFinderInstallState {
+					assert(agentFinderEnabled, 'A disabled AgentFinder fixture must not request installation state.');
 					return agentFinderInstallStates.get(resource.identifier) ?? { kind: 'available' };
 				}
 				override async install(resource: IAgentFinderResource): Promise<void> {
+					assert(agentFinderEnabled, 'A disabled AgentFinder fixture must not install resources.');
 					if (options.agentFinderInstallationState === 'error') {
 						throw new Error('Choose a writable installation destination and try again.');
 					}
@@ -1373,6 +1383,11 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 		}
 	}
 
+	if (!agentFinderEnabled) {
+		const storageService = instantiationService.get(IStorageService);
+		storageService.store(AI_CUSTOMIZATION_MANAGEMENT_SELECTED_SECTION_KEY, AICustomizationManagementSection.AgentFinder, StorageScope.PROFILE, StorageTarget.USER);
+		assert(storageService.get(AI_CUSTOMIZATION_MANAGEMENT_SELECTED_SECTION_KEY, StorageScope.PROFILE) === AICustomizationManagementSection.AgentFinder, 'The disabled fixture must start with a persisted AgentFinder selection.');
+	}
 	const editor = ctx.disposableStore.add(
 		instantiationService.createInstance(AICustomizationManagementEditor, createMockEditorGroup())
 	);
@@ -1385,7 +1400,17 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 	if (options.selectedSection) {
 		editor.selectSectionById(options.selectedSection);
 	}
-	if (options.selectedSection === AICustomizationManagementSection.AgentFinder) {
+	if (!agentFinderEnabled) {
+		editor.setVisible(true);
+		editor.selectSectionById(AICustomizationManagementSection.AgentFinder);
+		await Promise.resolve();
+		const sidebar = ctx.container.querySelector<HTMLElement>('.management-sidebar');
+		const overview = ctx.container.querySelector<HTMLElement>('.welcome-page-host');
+		assert(sidebar !== null && !sidebar.textContent?.includes('AgentFinder'), 'Disabled AgentFinder must be absent from the sidebar.');
+		assert(overview !== null && overview.style.display !== 'none' && !overview.textContent?.includes('AgentFinder'), 'A disabled saved selection must show the overview without AgentFinder.');
+		assert(ctx.container.querySelector('.agent-finder-widget') === null && editor.getActiveSectionWidget() === undefined, 'Restoring or selecting disabled AgentFinder must not create its widget.');
+		assert(agentFinderQueryCount === 0, 'Disabled AgentFinder must not query the catalog.');
+	} else if (options.selectedSection === AICustomizationManagementSection.AgentFinder) {
 		const queriesBeforeVisible = agentFinderQueryCount;
 		editor.setVisible(true);
 		await Promise.resolve();
@@ -2614,6 +2639,16 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
 			selectedSection: AICustomizationManagementSection.AgentFinder,
+		}),
+	}),
+
+	AgentFinderDisabled: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['The Agent Customizations overview and sidebar omit AgentFinder when its experiment is disabled, even when the previous selection was AgentFinder.'],
+		render: ctx => renderEditor(ctx, {
+			sessionResource: localSessionResource,
+			selectedSection: AICustomizationManagementSection.AgentFinder,
+			agentFinderEnabled: false,
 		}),
 	}),
 

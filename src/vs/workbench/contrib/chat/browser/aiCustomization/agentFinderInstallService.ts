@@ -46,6 +46,8 @@ export class AgentFinderInstallService extends Disposable implements IAgentFinde
 	private readonly pending = new Map<string, Promise<void>>();
 	private readonly installedSkills = new Map<string, URI>();
 	private readonly lifetimeToken = cancelOnDispose(this._store);
+	private readonly enabledDisposables = this._register(new DisposableStore());
+	private enabledToken: CancellationToken = CancellationToken.Cancelled;
 	private readonly locationPicker: CustomizationLocationPicker;
 
 	constructor(
@@ -66,20 +68,38 @@ export class AgentFinderInstallService extends Disposable implements IAgentFinde
 	) {
 		super();
 		this.locationPicker = instantiationService.createInstance(CustomizationLocationPicker);
-		this._register(autorun(reader => {
+		this._register(this.configurationService.onDidChangeConfiguration(event => {
+			if (event.affectsConfiguration(ChatConfiguration.AgentFinderEnabled)) {
+				this.updateEnablement();
+			} else if (this.isEnabled() && event.affectsConfiguration(ChatConfiguration.PluginsEnabled)) {
+				this._onDidChange.fire();
+			}
+		}));
+		this.updateEnablement();
+	}
+
+	private isEnabled(): boolean {
+		return this.configurationService.getValue<boolean>(ChatConfiguration.AgentFinderEnabled) === true;
+	}
+
+	private updateEnablement(): void {
+		this.enabledDisposables.clear();
+		this.enabledToken = CancellationToken.Cancelled;
+		if (!this.isEnabled()) {
+			this.installedSkills.clear();
+			this._onDidChange.fire();
+			return;
+		}
+		this.enabledToken = cancelOnDispose(this.enabledDisposables);
+		this.enabledDisposables.add(autorun(reader => {
 			this.pluginMarketplaceService.installedPlugins.read(reader);
 			this.harnessService.activeHarness.read(reader);
 			this.workspaceService.activeProjectRoot.read(reader);
 			this._onDidChange.fire();
 		}));
-		this._register(this.mcpWorkbenchService.onChange(() => this._onDidChange.fire()));
-		this._register(this.entitlementService.onDidChangeSentiment(() => this._onDidChange.fire()));
-		this._register(this.configurationService.onDidChangeConfiguration(event => {
-			if (event.affectsConfiguration(ChatConfiguration.PluginsEnabled)) {
-				this._onDidChange.fire();
-			}
-		}));
-		this._register(this.fileService.onDidFilesChange(event => {
+		this.enabledDisposables.add(this.mcpWorkbenchService.onChange(() => this._onDidChange.fire()));
+		this.enabledDisposables.add(this.entitlementService.onDidChangeSentiment(() => this._onDidChange.fire()));
+		this.enabledDisposables.add(this.fileService.onDidFilesChange(event => {
 			let changed = false;
 			for (const [key, uri] of this.installedSkills) {
 				if (event.contains(uri, FileChangeType.DELETED)) {
@@ -94,6 +114,9 @@ export class AgentFinderInstallService extends Disposable implements IAgentFinde
 	}
 
 	getInstallState(resource: IAgentFinderResource): AgentFinderInstallState {
+		if (!this.isEnabled()) {
+			return { kind: 'unavailable', message: localize('agentFinder.experimentDisabled', "Enable the AgentFinder experiment to install resources.") };
+		}
 		if (this.entitlementService.sentiment.hidden) {
 			return { kind: 'unavailable', message: localize('agentFinder.aiDisabled', "Enable AI features to install customizations.") };
 		}
@@ -143,29 +166,37 @@ export class AgentFinderInstallService extends Disposable implements IAgentFinde
 		if (state.kind === 'installed') {
 			return;
 		}
-		const operation = this.doInstall(resource);
+		const token = this.enabledToken;
+		const operation = this.doInstall(resource, token);
 		this.pending.set(resource.identifier, operation);
 		this._onDidChange.fire();
 		try {
 			await operation;
+		} catch (error) {
+			if (token.isCancellationRequested || this.lifetimeToken.isCancellationRequested || !this.isEnabled()) {
+				throw new CancellationError();
+			}
+			throw error;
 		} finally {
 			this.pending.delete(resource.identifier);
-			this._onDidChange.fire();
+			if (this.isEnabled()) {
+				this._onDidChange.fire();
+			}
 		}
 	}
 
-	private async doInstall(resource: IAgentFinderResource): Promise<void> {
-		this.checkEnabled();
+	private async doInstall(resource: IAgentFinderResource, token: CancellationToken): Promise<void> {
+		this.checkEnabled(token);
 		const source = resource.installation;
 		if (!source) {
 			throw new Error(localize('agentFinder.sourceUnavailable', "This resource does not provide a supported installation source."));
 		}
 		if (source.kind === 'mcp') {
 			const server = await this.mcpWorkbenchService.getMcpServerFromGallery(source.name);
+			this.checkEnabled(token);
 			if (!server) {
 				throw new Error(localize('agentFinder.mcpUnavailable', "The MCP server '{0}' is not available in the configured registry.", source.name));
 			}
-			this.checkEnabled();
 			const canInstall = this.mcpWorkbenchService.canInstall(server);
 			if (canInstall !== true) {
 				throw new Error(canInstall.value);
@@ -186,10 +217,10 @@ export class AgentFinderInstallService extends Disposable implements IAgentFinde
 			}
 			return;
 		}
-		await this.installSkill(resource);
+		await this.installSkill(resource, token);
 	}
 
-	private async installSkill(resource: IAgentFinderResource): Promise<void> {
+	private async installSkill(resource: IAgentFinderResource, enabledToken: CancellationToken): Promise<void> {
 		const source = resource.installation;
 		if (source?.kind !== 'skill') {
 			throw new Error(localize('agentFinder.invalidSkillSource', "The skill's installation source is invalid."));
@@ -211,7 +242,7 @@ export class AgentFinderInstallService extends Disposable implements IAgentFinde
 		const project = this.workspaceService.getActiveProjectRoot();
 		const key = this.getSkillKey(resource);
 		const checkContext = (token: CancellationToken = CancellationToken.None) => {
-			this.checkEnabled();
+			this.checkEnabled(enabledToken);
 			if (token.isCancellationRequested || harness !== this.harnessService.activeHarness.get() || !isEqual(session, this.harnessService.activeSessionResource.get()) || !isEqual(project, this.workspaceService.getActiveProjectRoot())) {
 				throw new CancellationError();
 			}
@@ -241,7 +272,7 @@ export class AgentFinderInstallService extends Disposable implements IAgentFinde
 		}
 		checkContext();
 		const operationDisposables = new DisposableStore();
-		const cancellation = operationDisposables.add(new CancellationTokenSource(this.lifetimeToken));
+		const cancellation = operationDisposables.add(new CancellationTokenSource(enabledToken));
 		const token = cancellation.token;
 		try {
 			await this.progressService.withProgress({
@@ -334,8 +365,8 @@ export class AgentFinderInstallService extends Disposable implements IAgentFinde
 		return JSON.stringify([resource.identifier, this.harnessService.activeHarness.get(), root ? getComparisonKey(root) : '']);
 	}
 
-	private checkEnabled(): void {
-		if (this.lifetimeToken.isCancellationRequested || this.entitlementService.sentiment.hidden) {
+	private checkEnabled(token: CancellationToken): void {
+		if (token.isCancellationRequested || this.lifetimeToken.isCancellationRequested || !this.isEnabled() || this.entitlementService.sentiment.hidden) {
 			throw new CancellationError();
 		}
 	}
