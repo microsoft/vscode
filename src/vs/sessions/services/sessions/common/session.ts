@@ -41,6 +41,14 @@ export interface ISessionType {
 	 * credentials come and go).
 	 */
 	readonly authRequirement: SessionTypeAuthRequirement;
+	/**
+	 * Selection-time initialization advertised by the provider while this type
+	 * is not usable yet. Absent when selecting the type cannot make progress.
+	 */
+	readonly initializationOnSelection?: {
+		/** Whether the provider already has non-GitHub authentication for initialization. */
+		readonly canInitializeWithoutGitHub: boolean;
+	};
 }
 
 /**
@@ -115,6 +123,13 @@ export function getSessionStatusMessage(status: SessionStatus, description: IMar
 		default:
 			return undefined;
 	}
+}
+
+/** Provider-owned progress while preparing a draft for its first request. */
+export interface ISessionPreparationProgress {
+	readonly message: string;
+	readonly showLog?: () => void;
+	cancel(): void;
 }
 
 /**
@@ -718,6 +733,13 @@ export interface IChat {
 	readonly capabilities?: IObservable<IChatCapabilities>;
 }
 
+/** Whether the chat is a side chat spawned by the given parent chat. */
+export function isSideChatOf(chat: IChat, parentChat: URI): boolean {
+	return chat.origin?.kind === ChatOriginKind.SideChat
+		&& !!chat.origin.parentChat
+		&& isEqual(chat.origin.parentChat, parentChat);
+}
+
 /**
  * Resolve a chat's effective capabilities. Combines the chat's own advertised
  * {@link IChat.capabilities} (falling back to {@link DEFAULT_CHAT_CAPABILITIES})
@@ -800,6 +822,7 @@ export interface ISession {
 	readonly loading: IObservable<boolean>;
 	/** Whether the first request lifecycle is in progress. Used to present a still-untitled draft as active during preparation. Absent means `false`. */
 	readonly isNewSessionRequestInProgress?: IObservable<boolean>;
+	readonly preparationProgress?: IObservable<ISessionPreparationProgress | undefined>;
 	/** Whether the session is archived. */
 	readonly isArchived: IObservable<boolean>;
 	/** Whether the session has been read. */

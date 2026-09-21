@@ -58,6 +58,20 @@
 			"problemMatcher": "$tsc"
 		},
 		{
+			"label": "Build Fast",
+			"type": "shell",
+			"command": "npm run build-fast",
+			"windows": {
+				"command": "cmd /c \"npm run build-fast\""
+			},
+			"presentation": {
+				"reveal": "always",
+				"group": "session",
+				"close": false
+			},
+			"problemMatcher": []
+		},
+		{
 			"label": "Watch",
 			"type": "npm",
 			"script": "watch",
@@ -366,44 +380,10 @@
 			}
 		},
 		{
-			"label": "Run Dev Agents",
-			"type": "shell",
-			"command": "./scripts/code.sh",
-			"windows": {
-				"command": ".\\scripts\\code.bat"
-			},
-			"args": [
-				"--agents",
-				"--user-data-dir=${userHome}/.vscode-oss-dev",
-				"--extensions-dir=${userHome}/.vscode-oss-dev/extensions"
-			],
-			"problemMatcher": []
-		},
-		{
 			"label": "Transpile Client",
 			"type": "npm",
 			"script": "transpile-client",
 			"problemMatcher": []
-		},
-		{
-			"label": "Transpile and Run Code - OSS",
-			"dependsOn": [
-				"Transpile Client",
-				"Run Dev"
-			],
-			"dependsOrder": "sequence",
-			"problemMatcher": [],
-			"inAgents": true
-		},
-		{
-			"label": "Transpile and Run Agents - OSS",
-			"dependsOn": [
-				"Transpile Client",
-				"Run Dev Agents"
-			],
-			"dependsOrder": "sequence",
-			"problemMatcher": [],
-			"inAgents": true
 		},
 		{
 			"type": "npm",
@@ -565,12 +545,59 @@
 			]
 		},
 		{
-			"label": "Run Dev",
+			"label": "Run Code",
 			"type": "shell",
 			"command": "./scripts/code.sh",
 			"windows": {
 				"command": ".\\scripts\\code.bat"
 			},
+			"inAgents": true,
+			"problemMatcher": []
+		},
+		{
+			"label": "Run Agents",
+			"type": "shell",
+			"command": "./scripts/code.sh",
+			"windows": {
+				"command": ".\\scripts\\code.bat"
+			},
+			"args": [
+				"--agents",
+				"--user-data-dir=${userHome}/.vscode-oss-dev",
+				"--extensions-dir=${userHome}/.vscode-oss-dev/extensions"
+			],
+			"inAgents": true,
+			"problemMatcher": []
+		},
+		{
+			"label": "Build Fast & Run Code",
+			"dependsOn": [
+				"Build Fast",
+				"Run Code"
+			],
+			"dependsOrder": "sequence",
+			"problemMatcher": [],
+			"inAgents": true
+		},
+		{
+			"label": "Build Fast & Run Agents",
+			"dependsOn": [
+				"Build Fast",
+				"Run Agents"
+			],
+			"dependsOrder": "sequence",
+			"problemMatcher": [],
+			"inAgents": true
+		},
+		{
+			"label": "Install Dependencies & Build Fast",
+			"detail": "Install dependencies and build VS Code.",
+			"dependsOn": [
+				"Install Dependencies",
+				"Build Fast"
+			],
+			"dependsOrder": "sequence",
+			"inAgents": true,
 			"problemMatcher": []
 		},
 		{

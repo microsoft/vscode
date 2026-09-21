@@ -899,7 +899,7 @@ suite('McpWorkbenchService', () => {
 				[IWorkbenchEnvironmentService, upcastPartial<IWorkbenchEnvironmentService>({})],
 				[ITelemetryService, NullTelemetryService],
 				[IProductService, TestProductService],
-				[IAllowedMcpServersService, upcastPartial<IAllowedMcpServersService>({ onDidChangeAllowedMcpServers: Event.None, isAllowed: () => true, isServerAllowed: () => true })],
+				[IAllowedMcpServersService, upcastPartial<IAllowedMcpServersService>({ onDidChangeAllowedMcpServers: Event.None, isAllowed: () => true, isServerAllowedBeforeResolution: () => true, isServerAllowed: () => true })],
 			);
 			const instantiationService = store.add(new TestInstantiationService(services));
 			const registry = store.add(instantiationService.createInstance(McpRegistry));

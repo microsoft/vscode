@@ -10,20 +10,24 @@ import { Schemas } from '../../../../../base/common/network.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { Action2 } from '../../../../../platform/actions/common/actions.js';
+import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { INativeHostService, IOpenAgentsWindowOptions } from '../../../../../platform/native/common/native.js';
 import { AgentsWindowOpenSource } from '../../../../../platform/window/common/window.js';
 import { IWorkspaceContextService, WorkspaceFolder } from '../../../../../platform/workspace/common/workspace.js';
 import { extUri } from '../../../../../base/common/resources.js';
 import { EditorInput } from '../../../../common/editor/editorInput.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
+import { CommandService } from '../../../../services/commands/common/commandService.js';
+import { IExtensionService, NullExtensionService } from '../../../../services/extensions/common/extensions.js';
 import { IChatWidget, IChatWidgetService } from '../../browser/chat.js';
-import { ChatConfiguration, OPEN_WORKSPACE_IN_AGENTS_WINDOW_COMMAND_ID } from '../../common/constants.js';
+import { ChatConfiguration, OPEN_AGENTS_WINDOW_COMMAND_ID, OPEN_WORKSPACE_IN_AGENTS_WINDOW_COMMAND_ID } from '../../common/constants.js';
 import { IChatViewModel } from '../../common/model/chatViewModel.js';
-import { OpenAgentsWindowAction, OpenChatSessionInAgentsWindowAction, OpenWorkspaceInAgentsWindowAction, OpenWorkspaceInAgentsWindowTitleBarAction } from '../../electron-browser/agentSessions/agentSessionsActions.js';
+import { OpenAgentsWindowAction, OpenChatSessionInAgentsWindowAction, OpenWorkspaceInAgentsWindowAction, OpenWorkspaceInAgentsWindowChatTitleAction, OpenWorkspaceInAgentsWindowTitleBarAction } from '../../electron-browser/agentSessions/agentSessionsActions.js';
 
 class TestCommandService extends mock<ICommandService>() {
 	readonly calls: { readonly commandId: string; readonly args: readonly unknown[] }[] = [];
@@ -34,12 +38,73 @@ class TestCommandService extends mock<ICommandService>() {
 	}
 }
 
+suite('Agents window launch enablement', () => {
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+	const actions: Action2[] = [
+		new OpenWorkspaceInAgentsWindowAction(),
+		new OpenAgentsWindowAction(),
+		new OpenChatSessionInAgentsWindowAction(),
+		new OpenWorkspaceInAgentsWindowChatTitleAction(),
+		new OpenWorkspaceInAgentsWindowTitleBarAction(),
+	];
+	const explicitTargets: IOpenAgentsWindowOptions[] = [
+		{ folderUri: URI.file('/explicit') },
+		{ sessionResource: URI.parse('agent-host-copilot:/session') },
+		{ draft: { inputText: 'Keep this prompt', attachments: '[]' } },
+	];
+	const scenarios = [
+		...actions.map(action => ({ name: action.desc.id, command: action.desc.id, args: [] })),
+		...explicitTargets.map(target => ({ name: `explicit ${Object.keys(target)[0]}`, command: OPEN_AGENTS_WINDOW_COMMAND_ID, args: [target] })),
+	];
+
+	for (const scenario of scenarios) {
+		test(`direct command respects effective agent enablement: ${scenario.name}`, async () => {
+			const instantiationService = disposables.add(new TestInstantiationService());
+			const configurationService = new TestConfigurationService({ [ChatConfiguration.AgentEnabled]: false });
+			disposables.add(configurationService.onDidChangeConfigurationEmitter);
+			instantiationService.stub(IConfigurationService, configurationService);
+			instantiationService.stub(IExtensionService, new NullExtensionService());
+			instantiationService.stub(ILogService, disposables.add(new NullLogService()));
+			instantiationService.stub(IWorkspaceContextService, upcastPartial<IWorkspaceContextService>({
+				getWorkspace: () => ({ id: 'empty', folders: [] }),
+			}));
+			instantiationService.stub(IChatWidgetService, upcastPartial<IChatWidgetService>({ lastFocusedWidget: undefined }));
+			const calls: IOpenAgentsWindowOptions[] = [];
+			instantiationService.stub(INativeHostService, upcastPartial<INativeHostService>({
+				openAgentsWindow: async options => { calls.push(options ?? {}); },
+			}));
+			for (const action of actions) {
+				disposables.add(CommandsRegistry.registerCommand(action.desc.id, (accessor, ...args) => action.run(accessor, ...args)));
+			}
+			const commandService = disposables.add(instantiationService.createInstance(CommandService));
+			instantiationService.stub(ICommandService, commandService);
+			const execute = () => commandService.executeCommand(scenario.command, ...scenario.args);
+			const disabledError = { message: 'The Agents window is unavailable because agent mode is disabled.' };
+
+			await assert.rejects(execute(), disabledError);
+			const initiallyDisabledCalls = calls.length;
+			await configurationService.setUserConfiguration(ChatConfiguration.AgentEnabled, true);
+			await execute();
+			const enabledCalls = calls.length;
+			await configurationService.setUserConfiguration(ChatConfiguration.AgentEnabled, false);
+			await assert.rejects(execute(), disabledError);
+
+			assert.deepStrictEqual({
+				initiallyDisabledCalls,
+				enabledCalls,
+				disabledAgainCalls: calls.length,
+			}, { initiallyDisabledCalls: 0, enabledCalls: 1, disabledAgainCalls: 1 });
+		});
+	}
+});
+
 suite('OpenWorkspaceInAgentsWindowAction', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	for (const activeFile of ['/second/file.ts', undefined]) {
 		test(`explicit Open in Agents prefers the active root with a first-root fallback (${activeFile ?? 'no editor'})`, async () => {
 			const instantiationService = disposables.add(new TestInstantiationService());
+			instantiationService.stub(IConfigurationService, new TestConfigurationService());
 			const folders = ['/first', '/second'].map((path, index) => new WorkspaceFolder({ uri: URI.file(path), name: path, index }));
 			const calls: IOpenAgentsWindowOptions[] = [];
 			instantiationService.stub(IWorkspaceContextService, upcastPartial<IWorkspaceContextService>({
@@ -62,6 +127,7 @@ suite('OpenWorkspaceInAgentsWindowAction', () => {
 	test('opens the Agents Window with the local folder and Dev Container preference', async () => {
 		const store = disposables.add(new DisposableStore());
 		const instantiationService = store.add(new TestInstantiationService());
+		instantiationService.stub(IConfigurationService, new TestConfigurationService());
 		let workspaceFolderUri = URI.file('/workspace');
 		const calls: IOpenAgentsWindowOptions[] = [];
 		instantiationService.stub(IWorkspaceContextService, upcastPartial<IWorkspaceContextService>({
@@ -117,6 +183,7 @@ suite('OpenAgentsWindowAction workspace defaults', () => {
 	]) {
 		test(`infers ${scenario.name} without turning it into an explicit selection`, async () => {
 			const instantiationService = disposables.add(new TestInstantiationService());
+			instantiationService.stub(IConfigurationService, new TestConfigurationService());
 			const folders = scenario.folders.map((path, index) => new WorkspaceFolder({ uri: URI.file(path), name: path, index }));
 			const calls: IOpenAgentsWindowOptions[] = [];
 			instantiationService.stub(IWorkspaceContextService, upcastPartial<IWorkspaceContextService>({
@@ -141,6 +208,7 @@ suite('OpenAgentsWindowAction workspace defaults', () => {
 
 	test('preserves explicit folder and existing-session arguments without consulting editor context', async () => {
 		const instantiationService = disposables.add(new TestInstantiationService());
+		instantiationService.stub(IConfigurationService, new TestConfigurationService());
 		const calls: IOpenAgentsWindowOptions[] = [];
 		instantiationService.stub(INativeHostService, upcastPartial<INativeHostService>({ openAgentsWindow: async options => { calls.push(options ?? {}); } }));
 		const explicit = { folderUri: URI.file('/explicit') };

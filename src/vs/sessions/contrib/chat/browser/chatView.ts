@@ -7,13 +7,14 @@ import './media/chatView.css';
 import './media/voiceChatView.css';
 import { $, isHTMLElement, size } from '../../../../base/browser/dom.js';
 import { renderAsPlaintext } from '../../../../base/browser/markdownRenderer.js';
-import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { IKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
 import { autorun, constObservable, derived, IObservable, observableFromEvent, observableValue } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
+import { localize } from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
@@ -22,6 +23,7 @@ import { scrollbarShadow } from '../../../../platform/theme/common/colorRegistry
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
+import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { IMicCaptureService } from '../../../../workbench/contrib/chat/browser/voiceClient/micCaptureService.js';
 import { ITtsPlaybackService } from '../../../../workbench/contrib/chat/browser/voiceClient/ttsPlaybackService.js';
 import { IVoiceSessionController } from '../../../../workbench/contrib/chat/browser/voiceClient/voiceSessionController.js';
@@ -55,6 +57,7 @@ import { SessionArchiveNudge } from './sessionArchiveNudge.js';
 import { SessionsChatBackgroundReplica } from '../../../services/chatBackground/browser/chatBackgroundRenderer.js';
 import { ISessionsChatBackgroundService } from '../../../services/chatBackground/browser/chatBackgroundService.js';
 import { ISessionPickerVisibility, noSessionPickerVisibility } from '../../../services/sessions/common/sessionPickerVisibility.js';
+import { IAgentsWindowDraft } from '../../../../platform/window/common/window.js';
 
 const SESSION_CHAT_RESPONSE_INTERNAL_HORIZONTAL_PADDING = 12;
 
@@ -128,6 +131,10 @@ export class NewChatView extends AbstractChatView {
 
 	override selectWorkspace(folderUri: URI, options?: ISelectWorkspaceOptions): WorkspaceSelectionResult {
 		return this._widget instanceof NewChatWidget ? this._widget.selectWorkspace(folderUri, options) : 'notReady';
+	}
+
+	override applyDraft(draft: IAgentsWindowDraft, folderUri: URI | undefined, options: ISelectWorkspaceOptions, token: CancellationToken): Promise<WorkspaceSelectionResult> {
+		return this._widget instanceof NewChatWidget ? this._widget.applyDraft(draft, folderUri, options, token) : Promise.resolve('notReady');
 	}
 
 	override selectNoWorkspace(): void {
@@ -244,6 +251,7 @@ export class ChatView extends AbstractChatView {
 		@ISessionsChatViewStateService private readonly viewStateService: ISessionsChatViewStateService,
 		@ISessionOpenTelemetryService private readonly sessionOpenTelemetryService: ISessionOpenTelemetryService,
 		@ISessionsChatBackgroundService private readonly chatBackgroundService: ISessionsChatBackgroundService,
+		@INotificationService private readonly notificationService: INotificationService,
 	) {
 		super();
 		this._register(toDisposable(() => this._reportModelUnbound()));
@@ -384,8 +392,11 @@ export class ChatView extends AbstractChatView {
 		this._register(autorun(reader => {
 			const resource = this._currentChatResourceObs.read(reader);
 			const session = this._currentSessionObs.read(reader);
+			const preparation = session?.preparationProgress?.read(reader);
 			const statusMessage = session
-				? getSessionStatusMessage(session.status.read(reader), session.description.read(reader))
+				? session.isNewSessionRequestInProgress?.read(reader)
+					? session.description.read(reader)
+					: getSessionStatusMessage(session.status.read(reader), session.description.read(reader))
 				: undefined;
 			const activity = typeof statusMessage === 'string' ? statusMessage : statusMessage ? renderAsPlaintext(statusMessage) : undefined;
 			const model = chatModel.read(reader);
@@ -411,8 +422,10 @@ export class ChatView extends AbstractChatView {
 				showProgress = shouldShowTranscriptPreparationProgress(requestCount, visibleRequestCount, hiddenRequestIncomplete);
 			}
 			const showCompletion = shouldShowTranscriptPreparationCompletion(requestCount, visibleRequestCount, hiddenRequestState, readyMessage);
-			const progress = showCompletion ? readyMessage : getTranscriptProgress(showProgress, activity);
-			this._widget.setTranscriptProgress(progress, progress, showCompletion ? { complete: true } : undefined);
+			const progress = preparation?.message ?? (showCompletion ? readyMessage : getTranscriptProgress(showProgress, activity));
+			this._widget.setTranscriptProgress(progress, progress, preparation
+				? { detail: preparation.showLog ? { label: localize('sessionPreparation.showLog', "Show Log"), run: preparation.showLog } : undefined, onCancel: preparation.cancel }
+				: showCompletion ? { complete: true } : undefined);
 		}));
 	}
 
@@ -754,6 +767,10 @@ export class ChatView extends AbstractChatView {
 	}
 
 	override attach(uris: URI[]): void {
+		if (this._widget.isTranscriptProgressActive) {
+			this.notificationService.info(localize('sessionPreparation.attachUnavailable', "Wait for session preparation to finish before adding attachments."));
+			return;
+		}
 		for (const uri of uris) {
 			this._widget.attachmentModel.addFile(uri).catch(err => this.logService.error('[ChatView] Failed to attach file as context', err));
 		}

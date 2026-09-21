@@ -92,6 +92,8 @@ export interface IAgentHostCatalogReconciliationOptions {
 	readonly canSchedule?: () => boolean;
 	/** Cheap pre-check so a session whose source cannot resolve never opens local storage. */
 	readonly isSourceAvailable?: (registered: IRegisteredSession) => boolean;
+	/** Mirrors retroactive provisional markers into the owner process. */
+	readonly onDidMarkSessionProvisional?: (session: string) => void;
 }
 
 export class AgentHostCatalogReconciliationService extends Disposable {
@@ -108,6 +110,7 @@ export class AgentHostCatalogReconciliationService extends Disposable {
 	private readonly _now: () => number;
 	private readonly _canSchedule: () => boolean;
 	private readonly _isSourceAvailable: (registered: IRegisteredSession) => boolean;
+	private readonly _onDidMarkSessionProvisional: (session: string) => void;
 	private readonly _scheduledPass = this._register(new MutableDisposable<IDisposable>());
 	private _scheduledPassKind: ScheduledPassKind | undefined;
 	private _payloadDirtyMark: Promise<void> | undefined;
@@ -149,6 +152,7 @@ export class AgentHostCatalogReconciliationService extends Disposable {
 		this._now = options.now ?? Date.now;
 		this._canSchedule = options.canSchedule ?? (() => true);
 		this._isSourceAvailable = options.isSourceAvailable ?? (() => true);
+		this._onDidMarkSessionProvisional = options.onDidMarkSessionProvisional ?? (() => { });
 		this._initialPayloadDirtyMarkPending = this._storageService.get<number>(VERIFICATION_VERSION_STORAGE_KEY) !== CATALOG_VERIFICATION_VERSION;
 		const lastVerification = this._storageService.get<number>(LAST_VERIFICATION_STORAGE_KEY);
 		this._lastCompatibilityVerification = typeof lastVerification === 'number' && Number.isFinite(lastVerification) && lastVerification <= this._now() ? lastVerification : 0;
@@ -355,6 +359,35 @@ export class AgentHostCatalogReconciliationService extends Disposable {
 		this._parkedSessions.delete(session);
 	}
 
+	/**
+	 * Records that an unresolvable session holds no conversation, so a later
+	 * listing can hide it (#321269). Pre-existing orphans carry no marker, and
+	 * nothing else would ever retract the catalog row the provider cannot vouch
+	 * for.
+	 *
+	 * The emptiness evidence is only valid for the revision it was gathered
+	 * against: a mutation or a concurrent materialization during source
+	 * resolution can add turns or clear the marker, and an unconditional write
+	 * would then re-mark a session that holds real work. The dirty marker is
+	 * therefore re-read and a changed one abandons the write, matching how
+	 * {@link _park} yields to the same race.
+	 */
+	private async _markEmptySourceUnresolvableAsProvisional(session: URI, database: AgentHostCatalogDatabaseReference | undefined, observedDirty: number | undefined): Promise<void> {
+		const sessionKey = session.toString();
+		try {
+			if (database && await database.object.hasConversationTurns()) {
+				return;
+			}
+			if (await this._catalogDatabase.getSessionV2PayloadDirty(sessionKey) !== observedDirty) {
+				return;
+			}
+			await this._catalogDatabase.setSessionProvisional(sessionKey, true);
+			this._onDidMarkSessionProvisional(sessionKey);
+		} catch (error) {
+			this._logService.warn(`[AgentHostCatalogReconciliation] Failed to confirm empty source-unresolvable session ${sessionKey}`, error);
+		}
+	}
+
 	private _runBatch(
 		selected: readonly IRegisteredSession[],
 		receiptBySession: ReadonlyMap<string, IAgentHostDatabaseSessionV2Receipt>,
@@ -412,6 +445,7 @@ export class AgentHostCatalogReconciliationService extends Disposable {
 							return { session: sessionKey, status: 'retry', reason: 'providerUnavailable' };
 						}
 						if (error instanceof CatalogReconciliationSourceUnresolvableError) {
+							await this._markEmptySourceUnresolvableAsProvisional(session, database, observedDirty);
 							return await this._park(sessionKey, observedDirty);
 						}
 						throw error;
@@ -477,6 +511,7 @@ export class AgentHostCatalogReconciliationService extends Disposable {
 					return { session: sessionKey, status: 'retry', reason: 'providerUnavailable' };
 				}
 				if (sourceResult.status === 'sourceUnresolvable') {
+					await this._markEmptySourceUnresolvableAsProvisional(session, database, observedDirty);
 					return await this._park(sessionKey, observedDirty);
 				}
 				if (token.isCancellationRequested) {

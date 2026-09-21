@@ -1283,16 +1283,21 @@ suite('CopilotChatSessionsProvider', () => {
 		modelsState.optionGroups = [{
 			id: 'models',
 			name: 'Models',
-			items: [{ id: 'synthetic-cloud-model', name: 'Synthetic Cloud Model' }],
+			items: [{
+				id: 'synthetic-cloud-model', name: 'Synthetic Cloud Model',
+				modelMetadata: { id: 'synthetic-cloud-model', name: 'Synthetic Cloud Model', maxInputTokens: 100_000, maxOutputTokens: 20_000, maxContextWindowTokens: 100_000 },
+			}],
 		}];
 		const afterResolve = provider.getModelsSnapshot(session.sessionId, 'removed-cloud-model');
 
 		assert.deepStrictEqual({
 			beforeResolve: { models: beforeResolve.models.map(model => model.identifier), desiredModelResolution: beforeResolve.desiredModelResolution, modelTarget: beforeResolve.modelTarget },
 			afterResolve: { models: afterResolve.models.map(model => model.identifier), desiredModelResolution: afterResolve.desiredModelResolution, modelTarget: afterResolve.modelTarget },
+			maxContextWindowTokens: afterResolve.models[0].metadata.maxContextWindowTokens,
 		}, {
 			beforeResolve: { models: [], desiredModelResolution: { kind: 'pending', identifier: 'removed-cloud-model' }, modelTarget: AgentSessionProviders.Cloud },
 			afterResolve: { models: ['synthetic-cloud-model'], desiredModelResolution: { kind: 'unavailable', identifier: 'removed-cloud-model' }, modelTarget: AgentSessionProviders.Cloud },
+			maxContextWindowTokens: 100_000,
 		});
 	});
 

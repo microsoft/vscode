@@ -6,12 +6,14 @@
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { raceCancellationError } from '../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
-import { CancellationError } from '../../../../base/common/errors.js';
+import { CancellationError, isCancellationError } from '../../../../base/common/errors.js';
+import { toErrorMessage } from '../../../../base/common/errorMessage.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { ResourceMap, ResourceSet } from '../../../../base/common/map.js';
 import { IObservable, observableValue } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
+import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { agentHostAuthority } from '../../../../platform/agentHost/common/agentHostUri.js';
 import { IRemoteAgentHostService } from '../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { IChatService } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
@@ -107,6 +109,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		@IPathService private readonly pathService: IPathService,
 		@IRemoteAgentHostService private readonly remoteAgentHostService: IRemoteAgentHostService,
 		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService,
+		@INotificationService private readonly notificationService: INotificationService,
 	) {
 		super();
 
@@ -746,7 +749,10 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 			this._newSession.set(undefined, undefined);
 			void this._prepareAndSendNewChatRequestInBackground(provider, session, options)
 				.catch(e => {
-					this.logService.error('[SessionsManagement] Failed to send background request:', e);
+					if (!isCancellationError(e) && !(e instanceof WorkspaceNotTrustedError)) {
+						this.logService.error('[SessionsManagement] Failed to send background request:', e);
+						this.notificationService.error(localize('newSession.sendFailed', "Failed to start session: {0}", toErrorMessage(e)));
+					}
 				})
 				.finally(() => inFlightRequest?.dispose());
 			return;

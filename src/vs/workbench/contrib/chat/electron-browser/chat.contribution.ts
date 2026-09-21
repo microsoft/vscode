@@ -48,7 +48,7 @@ import { registerExportAgentTracesDbAction } from './actions/exportAgentTracesDb
 import { registerInstallDictationModelAction } from './actions/installDictationModelAction.js';
 import { confirmSessionShutdown, getEffectiveSessionShutdownReason, shouldWarnForInFlightSessionShutdown, shouldWarnForSessionShutdown } from './chatLifecycle.js';
 import { HoldToVoiceChatInChatViewAction, InlineVoiceChatAction, KeywordActivationContribution, QuickVoiceChatAction, ReadChatResponseAloud, StartVoiceChatAction, StopListeningAction, StopListeningAndSubmitAction, StopReadAloud, StopReadChatItemAloud, VoiceChatInChatViewAction } from './actions/voiceChatActions.js';
-import { OpenWorkspaceInAgentsWindowAction, OpenWorkspaceInAgentsContribution, OpenAgentsWindowAction, OpenChatSessionInAgentsWindowAction, AgentsHandoffInputTipContribution, ToggleOpenInAgentsWindowTitleBarAction, OpenWorkspaceInAgentsWindowChatTitleAction, OpenWorkspaceInAgentsWindowTitleBarAction } from './agentSessions/agentSessionsActions.js';
+import { OpenWorkspaceInAgentsWindowAction, OpenWorkspaceInAgentsContribution, OpenAgentsWindowAction, OpenChatSessionInAgentsWindowAction, AgentsHandoffInputTipContribution, AgentsParallelWorkContribution, ToggleOpenInAgentsWindowTitleBarAction, OpenWorkspaceInAgentsWindowChatTitleAction, OpenWorkspaceInAgentsWindowTitleBarAction } from './agentSessions/agentSessionsActions.js';
 import { NativeBuiltinToolsContribution } from './builtInTools/tools.js';
 import { NativePluginGitCommandService } from './pluginGitCommandService.js';
 
@@ -243,6 +243,7 @@ registerWorkbenchContribution2(ChatSuspendThrottlingHandler.ID, ChatSuspendThrot
 registerWorkbenchContribution2(ChatLifecycleHandler.ID, ChatLifecycleHandler, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(OpenWorkspaceInAgentsContribution.ID, OpenWorkspaceInAgentsContribution, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(AgentsHandoffInputTipContribution.ID, AgentsHandoffInputTipContribution, WorkbenchPhase.Eventually);
+registerWorkbenchContribution2(AgentsParallelWorkContribution.ID, AgentsParallelWorkContribution, WorkbenchPhase.Eventually);
 
 // How long to wait for the agent host to surface an AgentInfo before
 // throwing an error. Long enough for normal startup, short enough to avoid

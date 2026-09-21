@@ -18,14 +18,16 @@ import { themeColorFromId, ThemeIcon } from '../../../../../base/common/themable
 import { URI } from '../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { localize } from '../../../../../nls.js';
-import { AgentSession, AuthenticateParams, AuthenticateResult, IAgentSessionMetadata, protectedResourcesRequireGitHubCopilotSignIn } from '../../../../../platform/agentHost/common/agent.js';
+import { AgentSession, AuthenticateParams, AuthenticateResult, CODEX_AGENT_PROVIDER_ID, IAgentSessionMetadata, protectedResourcesRequireGitHubCopilotSignIn } from '../../../../../platform/agentHost/common/agent.js';
 import { AgentMergeSessionOverrides, AgentMergeSessionState, readAgentMergeSessionState } from '../../../../../platform/agentHost/common/agentMerge.js';
+import { readAgentSdkSetupInfos } from '../../../../../platform/agentHost/common/agentSdkSetup.js';
 import { IAgentConnection } from '../../../../../platform/agentHost/common/agentService.js';
 import type { AgentHostUriMapper } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import type { RemoteAgentHostConnectionStatus } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { AgentHostTransportFailureReason } from '../../../../../platform/agentHost/common/state/sessionTransport.js';
 import { supportsAgentHostArtifactRemoval } from '../../../../../platform/agentHost/common/agentHostExtensionProtocol.js';
 import { getCustomizationDisabledReason, isCustomizationEnabled, withCustomizationEnablement } from '../../../../../platform/agentHost/common/customizationEnablement.js';
+import { readCodexAccountInfo } from '../../../../../platform/agentHost/common/codexAccount.js';
 import { buildAnnotationsUri } from '../../../../../platform/agentHost/common/annotationsUri.js';
 import { ChangesetKind } from '../../../../../platform/agentHost/common/changesetUri.js';
 import { parseGitHubIssueUrl } from '../../../../../platform/agentHost/common/githubIssueReferences.js';
@@ -62,7 +64,7 @@ import { buildMutableConfigSchema, IAgentHostMcpServer, IAgentHostSessionsProvid
 import { agentHostSessionWorkspaceKey } from '../../../../common/agentHostSessionWorkspace.js';
 import { USE_WORKTREE_SETTING, isSessionConfigComplete } from '../../../../common/sessionConfig.js';
 import { linkKey } from '../../../../common/sessionLinks.js';
-import { ChatInteractivity, ChatModelSource, ChatOriginKind, DEFAULT_CHAT_CAPABILITIES, effectiveChatInteractivity, getGitHubPullRequestRefs, getHighestPriorityPullRequestIcon, getSessionOwnedGitHubPullRequestRefs, IChat, IChatCapabilities, IGitHubInfo, IGitHubIssueRef, IGitHubPullRequestRef, isActiveSessionStatus, ISession, ISessionAgentRef, ISessionArtifact, ISessionCapabilities, ISessionChangesSummary, ISessionChatCustomization, ISessionChangeset, ISessionCreationReference, ISessionFileChange, ISessionTurnFileChange, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction, ISideChatSelection, sessionFileChangesEqual, sessionWorkspaceEqual, SessionRemoteConnectionFailureReason, SessionRemoteConnectionStatus, SessionStatus, SessionTypeAuthRequirement, toSessionId, TURN_CHANGES_CHANGESET_ID } from '../../../../services/sessions/common/session.js';
+import { ChatInteractivity, ChatModelSource, ChatOriginKind, DEFAULT_CHAT_CAPABILITIES, effectiveChatInteractivity, getGitHubPullRequestRefs, getHighestPriorityPullRequestIcon, getSessionOwnedGitHubPullRequestRefs, IChat, IChatCapabilities, IGitHubInfo, IGitHubIssueRef, IGitHubPullRequestRef, isActiveSessionStatus, ISession, ISessionAgentRef, ISessionArtifact, ISessionCapabilities, ISessionChangesSummary, ISessionChatCustomization, ISessionChangeset, ISessionCreationReference, ISessionFileChange, ISessionPreparationProgress, ISessionTurnFileChange, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction, ISideChatSelection, sessionFileChangesEqual, sessionWorkspaceEqual, SessionRemoteConnectionFailureReason, SessionRemoteConnectionStatus, SessionStatus, SessionTypeAuthRequirement, toSessionId, TURN_CHANGES_CHANGESET_ID } from '../../../../services/sessions/common/session.js';
 import { dedupeLinks, partitionSessionArtifacts, type IRecordedGitHubReference } from './agentHostSessionArtifacts.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { IAutomationSessionConfiguration, IDeleteChatOptions, ISendRequestOptions, ISessionChangeEvent, ISessionConfigurationSnapshot, ISessionModelPickerOptions, ISessionModelsSnapshot, ISessionsProviderCreateSessionOptions, ISessionWorktreeConfiguration } from '../../../../services/sessions/common/sessionsProvider.js';
@@ -2057,6 +2059,7 @@ class NewSession extends Disposable {
 	private readonly _worktreePending = observableValue<boolean>(this, false);
 	private readonly _description: ISettableObservable<IMarkdownString | undefined>;
 	private readonly _isNewSessionRequestInProgress = observableValue(this, false);
+	readonly preparationProgress = observableValue<ISessionPreparationProgress | undefined>(this, undefined);
 	private readonly _newSessionRequestActivities = new Map<number, string | undefined>();
 	private _newSessionRequestId = 0;
 	private readonly _isActiveSessionObs: IObservable<boolean>;
@@ -2229,6 +2232,7 @@ class NewSession extends Disposable {
 			mode,
 			loading: derived(reader => loading.read(reader) || authPending.read(reader)),
 			isNewSessionRequestInProgress: this._isNewSessionRequestInProgress,
+			preparationProgress: this.preparationProgress,
 			isArchived,
 			isRead,
 			description: this._description,
@@ -3252,12 +3256,17 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	 */
 	protected _syncSessionTypesFromRootState(rootState: RootState): void {
 		this._syncAgentCapabilities(rootState.agents);
+		const setupAgents = new Set(readAgentSdkSetupInfos(rootState).map(setup => setup.agent));
+		const hasSignedInCodexAccount = readCodexAccountInfo(rootState).status === 'signedIn';
 		const next = rootState.agents
 			.filter(agent => this._shouldAdvertiseAgent(agent.provider))
 			.map((agent): ISessionType => ({
 				id: agent.provider,
 				supportsWorktreeConfiguration: agent.provider === CopilotCLISessionType.id,
 				authRequirement: resolveAgentAuthRequirement(agent),
+				initializationOnSelection: setupAgents.has(agent.provider) ? {
+					canInitializeWithoutGitHub: agent.provider === CODEX_AGENT_PROVIDER_ID && hasSignedInCodexAccount,
+				} : undefined,
 				// The chat session contribution and language models for an agent-host
 				// agent are registered under its resource scheme (`agent-host-<provider>`),
 				// not the bare provider id, so carry it for availability lookups.
@@ -3267,7 +3276,10 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			}));
 
 		const prev = this._sessionTypes;
-		if (prev.length === next.length && prev.every((t, i) => t.id === next[i].id && t.label === next[i].label && t.authRequirement === next[i].authRequirement)) {
+		if (prev.length === next.length && prev.every((t, i) => t.id === next[i].id
+			&& t.label === next[i].label
+			&& t.authRequirement === next[i].authRequirement
+			&& t.initializationOnSelection?.canInitializeWithoutGitHub === next[i].initializationOnSelection?.canInitializeWithoutGitHub)) {
 			return;
 		}
 		this._sessionTypes = next;

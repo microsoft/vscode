@@ -32,8 +32,6 @@ export const enum CopilotCliConfigKey {
 	ToolSearchDeferThreshold = 'toolSearchDeferThreshold',
 	/** Override reasoning effort regardless of the picker value; unsupported values are ignored. */
 	ReasoningEffortOverride = 'reasoningEffortOverride',
-	/** Enable concise reasoning summaries for supported models. Off by default. */
-	ReasoningSummary = 'reasoningSummary',
 	/** Enable the experimental HydraFusion synthetic model. Off by default. */
 	HydraFusion = 'hydraFusion',
 	/** Character budget for skill descriptions included in the Copilot SDK system message. */
@@ -66,8 +64,6 @@ export const AgentHostToolSearchEnabledSettingId = 'chat.agentHost.copilot.toolS
 export const AgentHostToolSearchDeferThresholdSettingId = 'chat.agentHost.copilot.toolSearch.deferThreshold';
 
 export const AgentHostReasoningEffortOverrideSettingId = 'chat.agentHost.copilot.reasoningEffortOverride';
-
-export const AgentHostReasoningSummaryEnabledSettingId = 'chat.agentHost.copilot.reasoningSummary.enabled';
 
 export const AgentHostHydraFusionEnabledSettingId = 'chat.copilot.hydraFusion.enabled';
 
@@ -201,12 +197,6 @@ export const copilotCliConfigSchema = createSchema({
 		title: localize('agentHost.config.toolSearchDeferThreshold.title', "Tool Search Defer Threshold"),
 		description: localize('agentHost.config.toolSearchDeferThreshold.description', "Minimum number of tools before MCP and external tools are deferred behind tool search. Set to 0 to always defer external tools. Only effective when tool search is enabled."),
 		default: 1,
-	}),
-	[CopilotCliConfigKey.ReasoningSummary]: schemaProperty<boolean>({
-		type: 'boolean',
-		title: localize('agentHost.config.reasoningSummary.title', "Reasoning Summary"),
-		description: localize('agentHost.config.reasoningSummary.description', "When enabled, requests concise reasoning summaries for supported Copilot SDK sessions."),
-		default: false,
 	}),
 	[CopilotCliConfigKey.HydraFusion]: schemaProperty<boolean>({
 		type: 'boolean',

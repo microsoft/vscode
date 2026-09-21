@@ -259,12 +259,32 @@ function extractTextContent(result: vscode.LanguageModelToolResult): string {
 		assert.match(listOutput, new RegExp(`^- \\[${pageId}\\]`, 'm'), `Expected list output to contain page ID "${pageId}", got: ${listOutput}`);
 	});
 
-	test('Open a page from the web', async function () {
+	test('Open a page over HTTP', async function () {
 		this.timeout(60000);
 
-		const output = await invokeTool('open_browser_page', { url: 'https://google.com/' });
+		// Serve from the extension host so remote runs also exercise the browser's remote proxy.
+		const server = http.createServer((_request, response) => {
+			response.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+			response.end('<!DOCTYPE html><title>Browser tool test</title><h1>Browser tool HTTP fixture</h1>');
+		});
+		try {
+			await new Promise<void>((resolve, reject) => {
+				server.once('error', reject);
+				server.listen(0, '127.0.0.1', resolve);
+			});
 
-		assert.match(output, /Page ID:/, `Expected output to contain "Page ID:", got: ${output}`);
+			const address = server.address();
+			assert.ok(address && typeof address !== 'string');
+			const output = await invokeTool('open_browser_page', { url: `http://127.0.0.1:${address.port}/` });
+
+			assert.match(output, /Page ID:/, `Expected output to contain "Page ID:", got: ${output}`);
+			assert.match(output, /Browser tool HTTP fixture/, `Expected output to contain the served page content, got: ${output}`);
+		} finally {
+			await new Promise<void>((resolve, reject) => {
+				server.close(error => error ? reject(error) : resolve());
+				server.closeAllConnections();
+			});
+		}
 	});
 
 	// Loads `file:///<workspaceFolder>/index.html`. Skipped in remote

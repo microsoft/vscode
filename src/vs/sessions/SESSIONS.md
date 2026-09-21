@@ -84,6 +84,8 @@ An `ISession` has a provider-owned resource URI, provider identifier, session ty
 
 Consumers derive state from those observables. Provider events announce catalog membership changes; they are not a parallel state store.
 
+Drafts may expose `preparationProgress` with a startup phase, an action to open the existing log, and cancellation. This is transient provider-owned state, not chat history. While the first request is in progress, the view presents the chat progress surface without committing the draft. The chat composer remains visible with editing disabled and Stop available; the original new-session composer is retained so failed or canceled preparation preserves the submitted prompt and attachments.
+
 Sessions backed by a remote agent host may expose `remoteConnectionStatus`, derived from their backing provider; it is absent when the session has no remote host. Its session-facing disconnected variant may include a machine-readable failure reason.
 
 Providers may expose immutable creation provenance when a session was created by
@@ -148,6 +150,8 @@ A provider that must establish backend state before presenting a session may imp
 ### Drafts
 
 `createNewSession` and `createQuickChat` return untitled drafts. A draft remains `Untitled` while its first request is prepared; `isNewSessionRequestInProgress` separately lets the UI present that activity without treating the session as committed. Draft preparation receives the first query so a provider can materialize query-dependent execution state before replacing the draft. A draft enters the committed catalog when its first request is sent. The management service owns the currently presented draft; the provider owns its backend resources. `deleteNewSession` disposes an abandoned draft.
+
+An editor-window draft handoff fills the existing New Session composer only when its input and attachments are empty. The handoff preserves occupied live or restored drafts, including their workspace, and yields to newer input or navigation while awaiting setup or workspace creation. It never sends a request or clears the source editor's draft.
 
 Automation editing uses an independent draft so it cannot replace the ordinary New Session composer. Providers advertise `supportsAutomationSessionConfiguration` when they restore `ISessionsProviderCreateSessionOptions.automationConfiguration` before the draft's first configuration resolution and implement `getAutomationSessionConfiguration` to capture the current template. The management service rejects canonical templates for providers without this capability, while deprecated flat aliases continue through ordinary model, mode, and permission operations. It distinguishes unsupported capture from a valid empty template, a replaced draft, and capture failure.
 

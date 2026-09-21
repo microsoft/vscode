@@ -263,7 +263,7 @@
  * (e.g. session control pickers and repo config pickers) so they align with the
  * model picker font in the input toolbar. Each item carries its own opaque
  * surface so a chat background cannot show through it. */
-.new-chat-widget-container .new-chat-bottom-container .action-label:not(.separator) {
+.new-chat-widget-container .new-chat-bottom-container .action-label {
 	box-sizing: border-box;
 	height: var(--chat-input-control-height);
 	align-items: center;
@@ -433,8 +433,12 @@
 	font-size: var(--vscode-codiconFontSize);
 }
 
+.action-widget .sessions-new-chat-picker-list.inline-description .monaco-list-row.action {
+	padding-right: var(--vscode-spacing-size60);
+}
+
 .action-widget .sessions-new-chat-picker-list.inline-description .monaco-list-row.action .action-list-submenu-indicator {
-	margin-right: var(--vscode-spacing-size40);
+	margin-right: var(--vscode-spacing-sizeNone);
 }
 
 .sessions-workspace-category-picker .sessions-chat-dropdown-label {
