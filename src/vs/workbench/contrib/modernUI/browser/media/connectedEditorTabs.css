@@ -170,6 +170,11 @@
 	box-shadow: none;
 }
 
+.modern-ui.modern-ui-connected-editor-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs .tabs-container > .tab.active:first-child:not(.connected-tab-upper-row) > .tab-fill,
+.modern-ui.modern-ui-connected-editor-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs .tabs-container > .tab.last-in-row + .tab.active:not(.connected-tab-upper-row) > .tab-fill {
+	inset-inline-start: calc(-1 * var(--vscode-strokeThickness));
+}
+
 /* The foreground mask below removes the cap's side stroke where each shoulder curves out. */
 .modern-ui.modern-ui-connected-editor-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs .tabs-container > .tab.active > .tab-fill::before,
 .modern-ui.modern-ui-connected-editor-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs .tabs-container > .tab.active > .tab-fill::after {

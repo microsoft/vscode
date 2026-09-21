@@ -2335,7 +2335,7 @@ suite('ModernUIContribution', () => {
 						}, {
 							tabBounds: tabBounds.toJSON(),
 							labelBounds: labelBounds.toJSON(),
-							fillExpansion: [0, 0, 0],
+							fillExpansion: connected ? [0, 1, 0] : [0, 0, 0],
 							marginRight: connected ? shoulderWidth : '0px',
 							topRadius: connected ? '5px' : '4px',
 						}, JSON.stringify({ classes, theme, activeGroup, compact }));

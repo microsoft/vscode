@@ -411,9 +411,10 @@ suite('MultiEditorTabsControl', () => {
 		}
 		await reveal(0, 240);
 		const firstFill = container.querySelector<HTMLElement>('.tab.active > .tab-fill')!;
+		const firstFillStyle = mainWindow.getComputedStyle(firstFill);
 		assert.deepStrictEqual({
 			results,
-			firstTabFlush: firstFill.getBoundingClientRect().left === container.querySelector<HTMLElement>('.monaco-scrollable-element')!.getBoundingClientRect().left,
+			firstBorderInset: firstFillStyle.left,
 			firstShoulder: mainWindow.getComputedStyle(firstFill, '::before').content,
 		}, {
 			results: [
@@ -421,7 +422,7 @@ suite('MultiEditorTabsControl', () => {
 				{ width: 172, leftShoulderVisible: true, rightShoulderVisible: true },
 				{ width: 120, leftShoulderVisible: true, rightShoulderVisible: false },
 			],
-			firstTabFlush: true,
+			firstBorderInset: '-1px',
 			firstShoulder: 'none',
 		});
 	});
@@ -707,7 +708,7 @@ suite('MultiEditorTabsControl', () => {
 			rowPaddingLeft: rowStyle.paddingLeft,
 			rowPaddingTop: rowStyle.paddingTop,
 		}, {
-			active: { top: '0px', left: '0px', right: '0px', bottom: '-2px' },
+			active: { top: '0px', left: '-1px', right: '0px', bottom: '-2px' },
 			inactive: { top: '0px', left: '0px', right: '0px', bottom: '-1px' },
 			alignItems: 'flex-start',
 			editorActionsHeight: '32px',
