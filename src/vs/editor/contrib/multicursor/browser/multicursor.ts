@@ -303,16 +303,16 @@ export class MultiCursorSession {
 			return new MultiCursorSession(editor, findController, false, true, findState.searchString, findState.wholeWord, findState.matchCase, null);
 		}
 
-		let shouldOverrideFindOptions = false;
+		let isDisconnectedFromFindController = false;
 		let wholeWord: boolean;
 		let matchCase: boolean;
 		let usesFindOptions: boolean;
 		const selections = editor.getSelections();
 		if (selections.length === 1 && selections[0].isEmpty()) {
-			shouldOverrideFindOptions = editor.getOption(EditorOption.selectedTextOccurrenceMatching) === 'find';
+			isDisconnectedFromFindController = true;
 			wholeWord = true;
 			matchCase = true;
-			usesFindOptions = shouldOverrideFindOptions;
+			usesFindOptions = false;
 		} else {
 			const selectionSearchOptions = getSelectionSearchOptions(editor, findController);
 			wholeWord = selectionSearchOptions.wholeWord;
@@ -338,13 +338,13 @@ export class MultiCursorSession {
 			searchText = editor.getModel().getValueInRange(s).replace(/\r\n/g, '\n');
 		}
 
-		return new MultiCursorSession(editor, findController, shouldOverrideFindOptions, usesFindOptions, searchText, wholeWord, matchCase, currentMatch);
+		return new MultiCursorSession(editor, findController, isDisconnectedFromFindController, usesFindOptions, searchText, wholeWord, matchCase, currentMatch);
 	}
 
 	constructor(
 		private readonly _editor: ICodeEditor,
 		public readonly findController: CommonFindController,
-		public readonly shouldOverrideFindOptions: boolean,
+		public readonly isDisconnectedFromFindController: boolean,
 		public readonly usesFindOptions: boolean,
 		public readonly searchText: string,
 		public readonly wholeWord: boolean,
@@ -511,7 +511,7 @@ export class MultiCursorSelectionController extends Disposable implements IEdito
 			this._session = session;
 
 			const newState: INewFindReplaceState = { searchString: this._session.searchText };
-			if (this._session.shouldOverrideFindOptions) {
+			if (this._session.isDisconnectedFromFindController) {
 				newState.wholeWordOverride = FindOptionOverride.True;
 				newState.matchCaseOverride = FindOptionOverride.True;
 				newState.isRegexOverride = FindOptionOverride.False;
@@ -547,7 +547,7 @@ export class MultiCursorSelectionController extends Disposable implements IEdito
 
 	private _endSession(): void {
 		this._sessionDispose.clear();
-		if (this._session && this._session.shouldOverrideFindOptions) {
+		if (this._session && this._session.isDisconnectedFromFindController) {
 			const newState: INewFindReplaceState = {
 				wholeWordOverride: FindOptionOverride.NotSet,
 				matchCaseOverride: FindOptionOverride.NotSet,
