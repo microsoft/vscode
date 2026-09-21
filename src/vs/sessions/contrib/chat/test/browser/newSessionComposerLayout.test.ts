@@ -7,7 +7,7 @@ import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { NewChatInputWidget } from '../../browser/newChatInput.js';
-import { isExperimentalNewSessionComposerLayoutEnabled } from '../../browser/newChatWidget.js';
+import { isExperimentalSessionComposerLayoutEnabled } from '../../browser/newChatWidget.js';
 import { EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, UNIFIED_WORKSPACE_PICKER_SETTING } from '../../common/constants.js';
 
 suite('New session composer layout', () => {
@@ -26,7 +26,7 @@ suite('New session composer layout', () => {
 			});
 			store.add(configurationService.onDidChangeConfigurationEmitter);
 
-			assert.strictEqual(isExperimentalNewSessionComposerLayoutEnabled(configurationService), testCase.expected);
+			assert.strictEqual(isExperimentalSessionComposerLayoutEnabled(configurationService), testCase.expected);
 		});
 	}
 
@@ -44,12 +44,12 @@ suite('New session composer layout', () => {
 		pickerRow.append(workspacePicker, harnessPicker);
 		let visibilityUpdates = 0;
 		let layouts = 0;
-		const harness = {
+		const harness = Object.assign(Object.create(NewChatInputWidget.prototype), {
 			_repositoryControlsContainer: repositoryControls,
 			_repositoryControlsHome: repositoryControlsHome,
 			_updateBottomContainerVisibility: () => visibilityUpdates++,
 			_secondaryPickerResponsiveLayout: { layout: () => layouts++ },
-		};
+		});
 		const placeRepositoryControls = NewChatInputWidget.prototype.placeRepositoryControls as (this: typeof harness, container?: HTMLElement) => void;
 
 		placeRepositoryControls.call(harness, pickerRow);

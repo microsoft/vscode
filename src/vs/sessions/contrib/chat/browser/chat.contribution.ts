@@ -479,7 +479,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			type: 'boolean',
 			default: false,
 			scope: ConfigurationScope.APPLICATION,
-			description: localize('sessions.chat.experimental.newSessionComposerLayout', "Controls whether the new-session composer places session controls inside the input and groups the workspace and harness pickers in a footer. This setting only applies when the unified workspace picker is enabled."),
+			description: localize('sessions.chat.experimental.newSessionComposerLayout', "Controls whether session composers place permissions on the left and model controls on the right, and whether the new-session composer groups workspace controls in a footer. This setting only applies when the unified workspace picker is enabled."),
 			tags: ['experimental'],
 		},
 		[AGENT_SESSIONS_PREFERRED_DARK_CHAT_BACKGROUND_IMAGE_SETTING]: {

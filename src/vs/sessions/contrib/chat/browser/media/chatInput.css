@@ -234,6 +234,10 @@
 	justify-content: flex-end;
 }
 
+.agent-sessions-workbench:not(.phone-layout) .chat-view-chat.experimental-session-composer .chat-input-toolbar .chat-agent-picker-item {
+	margin-left: auto;
+}
+
 .experimental-new-session-composer .sessions-chat-config-toolbar.new-chat-session-controls {
 	justify-content: flex-start;
 	flex: 0 1 auto;

@@ -70,7 +70,7 @@ import { FOCUS_NEW_SESSION_HARNESS_PICKER_WHEN, FOCUS_NEW_SESSION_WORKSPACE_PICK
 /** Minimum number of started sessions required before showing tips and promotions. */
 const MIN_SESSIONS_FOR_FIRST_RUN_NOTICES = 2;
 
-export function isExperimentalNewSessionComposerLayoutEnabled(configurationService: IConfigurationService): boolean {
+export function isExperimentalSessionComposerLayoutEnabled(configurationService: IConfigurationService): boolean {
 	return configurationService.getValue<boolean>(UNIFIED_WORKSPACE_PICKER_SETTING)
 		&& configurationService.getValue<boolean>(EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING);
 }
@@ -98,6 +98,7 @@ export class NewChatWidget extends Disposable {
 	 */
 	private readonly _activeEmptyState = this._register(disposableObservableValue<NoAgentHostEmptyState | undefined>(this, undefined));
 	private _workspacePickerRow: HTMLElement | undefined;
+	private _workspaceRepositoryControlsHost: HTMLElement | undefined;
 	private _quickChatHeaderPickerHost: HTMLElement | undefined;
 
 	private readonly _session: IObservable<IActiveSession | undefined>;
@@ -171,7 +172,7 @@ export class NewChatWidget extends Disposable {
 			Event.filter(this.configurationService.onDidChangeConfiguration, event =>
 				event.affectsConfiguration(UNIFIED_WORKSPACE_PICKER_SETTING)
 				|| event.affectsConfiguration(EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING)),
-			() => isExperimentalNewSessionComposerLayoutEnabled(this.configurationService),
+			() => isExperimentalSessionComposerLayoutEnabled(this.configurationService),
 		);
 		this._isWorkspacePickerQuickChat = derived(this, reader => {
 			const session = this._session.read(reader);
@@ -528,7 +529,7 @@ export class NewChatWidget extends Disposable {
 			}
 			this._newChatInput.placeRepositoryControls(
 				useExperimentalLayout && (!isQuickChat || isWorkspacePickerQuickChat)
-					? this._workspacePickerRow
+					? this._workspaceRepositoryControlsHost
 					: undefined
 			);
 		}));
@@ -967,14 +968,23 @@ export class NewChatWidget extends Disposable {
 			workspaceTrigger,
 		]);
 		this._renderSessionTypePicker(row, false);
+		const repositoryControlsHost = dom.$('.new-chat-repository-controls-host');
+		const sessionTypePicker = row.lastElementChild;
+		if (sessionTypePicker) {
+			sessionTypePicker.before(repositoryControlsHost);
+		} else {
+			row.append(repositoryControlsHost);
+		}
 		this._workspacePickerRow = row;
+		this._workspaceRepositoryControlsHost = repositoryControlsHost;
 		if (this._useExperimentalComposerLayout?.get()) {
-			this._newChatInput.placeRepositoryControls(row);
+			this._newChatInput.placeRepositoryControls(repositoryControlsHost);
 		}
 		this._newChatInput.pickerVisibility.setVisible('workspace', true);
 		return toDisposable(() => {
 			if (this._workspacePickerRow === row) {
 				this._workspacePickerRow = undefined;
+				this._workspaceRepositoryControlsHost = undefined;
 				this._newChatInput.placeRepositoryControls();
 				this._newChatInput.pickerVisibility.setVisible('workspace', false);
 			}
@@ -990,7 +1000,10 @@ export class NewChatWidget extends Disposable {
 			container.prepend(sessionTypePicker);
 		} else if (sessionTypePicker) {
 			const workspaceTrigger = container.firstElementChild;
-			workspaceTrigger?.after(sessionTypePicker);
+			const insertionAnchor = container === this._workspacePickerRow
+				? this._workspaceRepositoryControlsHost ?? workspaceTrigger
+				: workspaceTrigger;
+			insertionAnchor?.after(sessionTypePicker);
 		}
 	}
 
