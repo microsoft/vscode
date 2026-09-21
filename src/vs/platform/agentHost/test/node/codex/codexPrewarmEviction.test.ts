@@ -110,20 +110,19 @@ function createTestPeer(): ITestPeer {
 	const stdin = new PassThrough();
 	const stdout = new PassThrough();
 	const onExit = new Emitter<{ readonly code: number | null; readonly signal: NodeJS.Signals | null }>();
-	const onceExitListeners: ((event: { readonly code: number | null; readonly signal: NodeJS.Signals | null }) => void)[] = [];
 	const fireExit = () => {
 		const event = { code: 0, signal: null };
 		onExit.fire(event);
-		for (const listener of onceExitListeners.splice(0)) {
-			listener(event);
-		}
 	};
 	const transport: ICodexAppServerTransport = {
 		stdin,
 		stdout,
-		kill: () => true,
 		onExit: onExit.event,
-		onExitOnce: listener => onceExitListeners.push(listener),
+		onError: Event.None,
+		shutdown: async () => {
+			stdin.end();
+			fireExit();
+		},
 	};
 	return {
 		transport,
@@ -131,7 +130,6 @@ function createTestPeer(): ITestPeer {
 		push: message => stdout.write(JSON.stringify(message) + '\n'),
 		exit: fireExit,
 		dispose: () => {
-			onceExitListeners.length = 0;
 			onExit.dispose();
 			stdin.destroy();
 			stdout.destroy();

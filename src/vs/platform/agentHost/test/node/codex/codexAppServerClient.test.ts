@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { PassThrough } from 'stream';
 import { CancellationError } from '../../../../../base/common/errors.js';
-import { Emitter } from '../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import {
 	CodexAppServerClient,
@@ -38,9 +38,10 @@ function makeFakePeer(): IFakePeer {
 	const clientStdout = new PassThrough();  // peer writes here, client reads
 	const exitEmitter = new Emitter<{ readonly code: number | null; readonly signal: NodeJS.Signals | null }>();
 	const onceExitListeners: ((e: { readonly code: number | null; readonly signal: NodeJS.Signals | null }) => void)[] = [];
-	let killed = false;
+	let exited = false;
 	let killCount = 0;
 	const fireExit = (e: { readonly code: number | null; readonly signal: NodeJS.Signals | null }) => {
+		exited = true;
 		exitEmitter.fire(e);
 		for (const listener of onceExitListeners.splice(0)) {
 			listener(e);
@@ -50,19 +51,24 @@ function makeFakePeer(): IFakePeer {
 	const transport: ICodexAppServerTransport = {
 		stdin: clientStdin,
 		stdout: clientStdout,
-		kill(_signal) {
-			killCount++;
-			if (killed) {
-				return false;
+		async shutdown(graceTimeMs) {
+			if (exited) {
+				return;
 			}
-			killed = true;
-			fireExit({ code: null, signal: _signal ?? null });
-			return true;
+			clientStdin.end();
+			await new Promise<void>(resolve => {
+				const timer = setTimeout(() => {
+					killCount++;
+					fireExit({ code: null, signal: 'SIGKILL' });
+				}, graceTimeMs);
+				onceExitListeners.push(() => {
+					clearTimeout(timer);
+					resolve();
+				});
+			});
 		},
 		onExit: exitEmitter.event,
-		onExitOnce(listener) {
-			onceExitListeners.push(listener);
-		},
+		onError: Event.None,
 	};
 
 	return {
@@ -76,7 +82,7 @@ function makeFakePeer(): IFakePeer {
 			fireExit({ code, signal });
 		},
 		dispose() {
-			onceExitListeners.length = 0;
+			fireExit({ code: 0, signal: null });
 			exitEmitter.dispose();
 			clientStdin.destroy();
 			clientStdout.destroy();
@@ -342,14 +348,29 @@ suite('CodexAppServerClient', () => {
 		peer.dispose();
 	});
 
-	test('dispose cancels grace kill when transport exits cleanly', async () => {
+	test('shutdown waits for the transport and is shared with repeated disposal', async () => {
 		const peer = makeFakePeer();
 		const client = new CodexAppServerClient(peer.transport, undefined, 1);
+		const shutdown = client.shutdown();
+		assert.strictEqual(shutdown, client.shutdown());
 		client.dispose();
 		peer.exit(0);
-		await new Promise(resolve => setTimeout(resolve, 5));
+		await shutdown;
 		assert.strictEqual(peer.killCount, 0);
 		peer.dispose();
+	});
+
+	test('shutdown preserves nested process cleanup failures', async () => {
+		const peer = makeFakePeer();
+		const cause = Object.assign(new Error('file is locked'), { code: 'EPERM', errno: -4048, path: 'owned-home\\state.sqlite' });
+		const failure = new AggregateError([cause], 'owned process did not exit');
+		const client = new CodexAppServerClient({ ...peer.transport, shutdown: async () => { throw failure; } });
+		try {
+			await assert.rejects(client.shutdown(), error => error instanceof AggregateError && error === failure && error.errors[0] === cause);
+		} finally {
+			client.dispose();
+			peer.dispose();
+		}
 	});
 
 	test('handles multiple messages arriving in a single chunk', async () => {

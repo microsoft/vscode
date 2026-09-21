@@ -11,7 +11,7 @@ import { IAgentHostInspectInfo, IAgentHostManagedSettingsDiagnostics, IAgentHost
 import { ISessionDataService } from '../common/sessionDataService.js';
 
 const SHUTDOWN_DRAIN_TIMEOUT_MS = 1000;
-const PROVIDER_SHUTDOWN_TIMEOUT_MS = 1500;
+const PROVIDER_SHUTDOWN_TIMEOUT_MS = 5000;
 const SHUTDOWN_FLUSH_TIMEOUT_MS = 2500;
 
 export class AgentHostManagementService implements IAgentHostManagementService {
