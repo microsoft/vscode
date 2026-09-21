@@ -258,6 +258,8 @@ suite('SessionsRecentWorkspacesService', () => {
 		const files = new Map([[extUri.getComparisonKey(workspaceFile), '{"folders":[{"path":"../first"},{"path":"../second"}]}']]);
 		const harness = createHarness([recentWorkspace()], files);
 		await harness.ready();
+		const removedEvents: string[][] = [];
+		disposables.add(harness.service.onDidRemoveRecentWorkspaces(uris => removedEvents.push(uris.map(uri => uri.toString()))));
 		harness.service.checkNoWorkspace();
 		harness.service.removeRecentWorkspace(firstFolder);
 		await harness.ready();
@@ -269,10 +271,11 @@ suite('SessionsRecentWorkspacesService', () => {
 		restored.refresh();
 		await restored.ready();
 		assert.deepStrictEqual({
-			removed: harness.removed, afterRestore,
+			removed: harness.removed, removedEvents, afterRestore,
 			afterRepick: snapshot(restored.service), noWorkspaceAfterRepick: restored.service.isNoWorkspaceChecked(),
 		}, {
 			removed: [[firstFolder, firstFolder]],
+			removedEvents: [[firstFolder.toString()]],
 			afterRestore: { entries: [{ uri: secondFolder.toString(), source: 'vscodeWorkspace', checked: false }], noWorkspace: true },
 			afterRepick: [
 				{ uri: firstFolder.toString(), source: 'agents', checked: true },

@@ -1430,10 +1430,10 @@ export class AICustomizationManagementEditor extends EditorPane {
 			this.mcpListWidget.fireItemCount();
 		}
 		if (this.pluginListWidget) {
-			this.editorDisposables.add(this.pluginListWidget.onDidChangeItemCount(count => {
-				this.updateSectionCount(AICustomizationManagementSection.Plugins, count);
+			const pluginCount = this.itemsModel.getPluginCount();
+			this.editorDisposables.add(autorun(reader => {
+				this.updateSectionCount(AICustomizationManagementSection.Plugins, pluginCount.read(reader));
 			}));
-			this.pluginListWidget.fireItemCount();
 		}
 		if (this.modelsWidget) {
 			this.editorDisposables.add(this.modelsWidget.onDidChangeItemCount(count => {
@@ -1621,6 +1621,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		this.customizationMigrationTargetFoldersByType = targetFoldersByType;
 		this.refreshMcpDetailMigrationState();
 		this.customizationMigrationResultsSettled = true;
+		this.reconcileMigrationActivity(candidatesByCategory);
 		this.reconcileCustomizationMigrationTargets();
 		this.refreshCustomizationMigrationUi();
 		if (this.viewMode === 'migration' && this.activeMigrationCategoryId !== undefined && !candidatesByCategory.has(this.activeMigrationCategoryId)) {
@@ -1684,6 +1685,47 @@ export class AICustomizationManagementEditor extends EditorPane {
 		return isMcpServerCustomizationMigrationCandidate(customization)
 			? `mcp:${getMcpServerCustomizationMigrationCandidateKey(customization)}`
 			: `file:${customization.storage}:${customization.uri.toString()}`;
+	}
+
+	private reconcileMigrationActivity(candidatesByCategory: ReadonlyMap<CustomizationMigrationCategoryId, readonly CustomizationMigrationCandidate[]>): void {
+		const candidatesByStorage = new Map<PromptsStorage, readonly CustomizationMigrationCandidate[]>();
+		for (const storage of [PromptsStorage.user, PromptsStorage.local]) {
+			candidatesByStorage.set(storage, [...candidatesByCategory.values()].flat().filter(candidate => this.getMigrationCandidateStorage(candidate) === storage));
+		}
+
+		for (const [storage, candidates] of candidatesByStorage) {
+			const candidateKeys = new Set(candidates.map(candidate => this.getMigrationActivityCandidateKey(candidate)));
+			const legacyCandidateKeys = new Set(candidates.map(candidate => this.getLegacyMigrationActivityKey(candidate)));
+			const state = this.getMigrationActivityState(storage);
+			let changed = false;
+			const activity = state.activity.flatMap(entry => {
+				const items = entry.items.filter(item => {
+					const reverted = item.operation !== 'copied' && (item.migrationKey
+						? candidateKeys.has(item.migrationKey)
+						: legacyCandidateKeys.has(JSON.stringify([item.label, item.sourceLabel])));
+					changed ||= reverted;
+					return !reverted;
+				});
+				return items.length ? [{ ...entry, items }] : [];
+			});
+			if (changed) {
+				this.storeMigrationActivityState(storage, { ...state, activity });
+			}
+		}
+	}
+
+	private getMigrationActivityCandidateKey(candidate: CustomizationMigrationCandidate): string {
+		return isMcpServerCustomizationMigrationCandidate(candidate)
+			? `mcp:${getMcpServerCustomizationMigrationCandidateKey(candidate)}`
+			: `file:${candidate.storage}:${getComparisonKey(candidate.uri)}`;
+	}
+
+	private getLegacyMigrationActivityKey(candidate: CustomizationMigrationCandidate): string {
+		const label = isMcpServerCustomizationMigrationCandidate(candidate)
+			? candidate.name
+			: candidate.name ?? basename(candidate.uri);
+		const sourceUri = isMcpServerCustomizationMigrationCandidate(candidate) ? candidate.sourceUri : candidate.uri;
+		return JSON.stringify([label, this.labelService.getUriLabel(sourceUri)]);
 	}
 
 	private isCustomizationSelectedForMigration(customization: CustomizationMigrationCandidate): boolean {
@@ -1840,6 +1882,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 						sourceLabel: this.labelService.getUriLabel(source.uri),
 						targetLabel: this.labelService.getUriLabel(target.uri),
 						operation: file.type === PromptsType.prompt ? 'converted' as const : deleteOriginalFiles ? 'moved' as const : 'copied' as const,
+						migrationKey: this.getMigrationActivityCandidateKey(file),
 					}] : [];
 				});
 				this.recordMigrationActivity(category, context, items);
@@ -1918,6 +1961,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 				sourceLabel: this.labelService.getUriLabel(server.sourceUri),
 				targetLabel: this.labelService.getUriLabel(server.targetUri),
 				operation: 'server',
+				migrationKey: this.getMigrationActivityCandidateKey(server),
 			})));
 		}
 		await this.refreshCustomizationMigrationInfo();
