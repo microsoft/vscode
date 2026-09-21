@@ -13,7 +13,7 @@ import { ThemeIcon } from '../../../base/common/themables.js';
 import { IAccessibilityService } from '../../accessibility/common/accessibility.js';
 import { IContextViewService } from '../../contextview/browser/contextView.js';
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
-import { ActionList, IActionListDelegate, IActionListItem, IActionListOptions } from './actionList.js';
+import { ActionList, IActionListDelegate, IActionListItem, IActionListOptions, IActionListUpdateOptions } from './actionList.js';
 import './tabbedActionListWidget.css';
 
 /** Timing for the tab resize animation. Both tabs share it, or the strip bulges mid-way. */
@@ -96,8 +96,8 @@ export interface ITabbedActionListShowOptions<T> {
 	readonly tabs: readonly ITabDescriptor[];
 	/** Initially active tab id. Must match an entry in {@link tabs}. */
 	readonly initialTab: string;
-	/** Computes the list items and per-tab options shown when the given tab is active. */
-	createActionList(activeTab: string): ITabbedActionListBuildResult<T>;
+	/** Computes a tab's list, or its resting contents when `forSizing` is true. */
+	createActionList(activeTab: string, forSizing?: boolean): ITabbedActionListBuildResult<T>;
 	/** Item delegate (selection, hide, focus). */
 	readonly delegate: IActionListDelegate<T>;
 	/** Optional accessibility provider passed to the underlying list. */
@@ -137,6 +137,10 @@ export interface ITabbedActionListShowOptions<T> {
 	renderEmpty?(container: HTMLElement, activeTab: string): IDisposable | undefined;
 }
 
+export interface ITabbedActionListRefreshOptions extends IActionListUpdateOptions {
+	readonly focusItemId?: string;
+}
+
 /**
  * A widget that shows a tabbed action list in a context view popup
  */
@@ -150,11 +154,11 @@ export class TabbedActionListWidget extends Disposable {
 
 	private readonly _activePopup = this._register(new MutableDisposable());
 	private _swappingTab = false;
-	private _refreshActiveList: (() => void) | undefined;
+	private _refreshActiveList: ((options?: ITabbedActionListRefreshOptions) => void) | undefined;
 	/** Boxes and labels from the last render, so the next one can animate from them. */
 	private _previousTabBoxes: Map<string, ITabBox> | undefined;
 	private _previousTabTexts: ReadonlyMap<string, string> | undefined;
-	/** Initial list height from {@link ITabbedActionListShowOptions.sizingTab}. */
+	/** List height from {@link ITabbedActionListShowOptions.sizingTab}, recomputed when items change. */
 	private _fixedListHeight: number | undefined;
 	private _fixedPopupHeight: number | undefined;
 	private _hasMeasuredSizingTab = false;
@@ -300,11 +304,10 @@ export class TabbedActionListWidget extends Disposable {
 
 				// Built before the active tab's list because a consumer may hold per-tab state
 				// while building, and the active tab has to be the one that keeps it.
-				const needsSizing = !this._hasMeasuredSizingTab
-					&& options.sizingTab !== undefined
-					&& options.tabs.some(tab => tab.id === options.sizingTab);
-				const sizingBuild = needsSizing && options.sizingTab !== activeTab
-					? options.createActionList(options.sizingTab!)
+				const sizingTab = options.tabs.find(tab => tab.id === options.sizingTab)?.id;
+				const needsSizing = !this._hasMeasuredSizingTab && sizingTab !== undefined;
+				const sizingBuild = needsSizing
+					? options.createActionList(sizingTab, true)
 					: undefined;
 
 				const { items, listOptions } = options.createActionList(activeTab);
@@ -322,10 +325,29 @@ export class TabbedActionListWidget extends Disposable {
 				listRef = list;
 				// Rebuilding has to ask the consumer again, since what the popup shows can
 				// depend on state that changed while it stayed open.
-				this._refreshActiveList = () => {
+				this._refreshActiveList = refreshOptions => {
 					const hadFocus = dom.isAncestorOfActiveElement(widget);
 					applyWidgetClassNames();
-					list.updateItems(options.createActionList(activeTab).items);
+					const sizing = sizingTab !== undefined
+						? options.createActionList(sizingTab, true)
+						: undefined;
+					const refreshed = options.createActionList(activeTab);
+					const sizingHeight = sizing
+						? list.computeHeightForItems(sizing.items, sizing.listOptions?.collapsedByDefault, sizing.listOptions) || undefined
+						: undefined;
+					const sizingChanged = sizingHeight !== this._fixedListHeight;
+					if (sizingChanged) {
+						this._fixedListHeight = sizingHeight;
+						this._fixedPopupHeight = undefined;
+					}
+					list.updateItems(refreshed.items, refreshOptions?.focusItemId, {
+						preserveHover: refreshOptions?.preserveHover,
+						animateItemMove: refreshOptions?.animateItemMove && !this._accessibilityService.isMotionReduced(),
+					});
+					if (sizingChanged) {
+						layout();
+						this._contextViewService.layout();
+					}
 					if (hadFocus && !dom.isAncestorOfActiveElement(widget)) {
 						if (emptyBody) {
 							radio.focusActiveItem();
@@ -567,12 +589,11 @@ export class TabbedActionListWidget extends Disposable {
 	}
 
 	/**
-	 * Rebuilds the active tab's items and the popup's class names in place, keeping its
-	 * position and whatever currently has focus. Use when an action inside the popup
-	 * changes what it shows but should not dismiss it.
+	 * Rebuilds the active tab and remeasures its resting sizing contents without dismissing the popup.
+	 * Focus is retained, and `preserveHover` keeps the live detail panel.
 	 */
-	refreshActiveList(): void {
-		this._refreshActiveList?.();
+	refreshActiveList(options?: ITabbedActionListRefreshOptions): void {
+		this._refreshActiveList?.(options);
 	}
 
 	/** Renders the caller's empty body, or nothing when it declines to handle the empty tab. */

@@ -59,6 +59,10 @@ class TestOctoKitService implements IAgentHostOctoKitService {
 		throw new Error('Not implemented');
 	}
 
+	async getRepositoryMergeCapabilities(): Promise<never> {
+		throw new Error('Not implemented');
+	}
+
 	async enablePullRequestAutoMerge(_pullRequestId: string, _mergeMethod: AutoMergeMethod, _token: string, _signal: AbortSignal): Promise<void> {
 		throw new Error('Not implemented');
 	}

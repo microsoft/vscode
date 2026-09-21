@@ -352,18 +352,44 @@ suite('OnboardingScenarioService', () => {
 		assert.deepStrictEqual({ runs, a, b }, { runs: ['inflight-1'], a: OnboardingOutcome.Completed, b: OnboardingOutcome.Completed });
 	});
 
-	test('resetAll clears shown state so the scenario can run again', async () => {
-		const presentation = new RecordingPresentation(uniqueKind());
-		registerPresentation(presentation);
-		registerScenario({ id: 'reset-1', trigger: { kind: 'auto' }, presentation: { kind: presentation.kind, payload: undefined } });
+	for (const developerMode of [false, true]) {
+		test(`reset clears the scenario's shared shown state (developer mode: ${developerMode})`, async () => {
+			const presentation = new RecordingPresentation(uniqueKind());
+			registerPresentation(presentation);
+			const ids = ['reset-first', 'reset-variation', 'reset-unrelated'];
+			for (const id of ids) {
+				registerScenario({
+					id,
+					seenKey: id === 'reset-unrelated' ? undefined : 'reset-shared',
+					trigger: { kind: 'command', commandId: 'noop' },
+					presentation: { kind: presentation.kind, payload: undefined },
+				});
+			}
+			const { service } = createService({
+				[ONBOARDING_DEVELOPER_MODE_CONFIG]: Object.fromEntries(ids.map(id => [id, developerMode])),
+			});
+			await service.runScenario('reset-first');
+			await service.runScenario('reset-unrelated');
 
-		const { service } = createService();
-		service.start();
-		await timeout(0);
+			const before = ids.map(id => service.hasBeenShown(id));
+			service.reset('reset-first');
+			const after = ids.map(id => service.hasBeenShown(id));
+			assert.deepStrictEqual({ before, after }, { before: [true, true, true], after: [false, false, true] });
+		});
 
-		service.resetAll();
-		assert.strictEqual(service.hasBeenShown('reset-1'), false);
-	});
+		test(`resetAll clears persisted shown state without allowing developer-mode replays (developer mode: ${developerMode})`, async () => {
+			const presentation = new RecordingPresentation(uniqueKind());
+			registerPresentation(presentation);
+			registerScenario({ id: 'reset-1', trigger: { kind: 'auto' }, presentation: { kind: presentation.kind, payload: undefined } });
+
+			const { service } = createService({ [ONBOARDING_DEVELOPER_MODE_CONFIG]: { 'reset-1': developerMode } });
+			service.start();
+			await timeout(0);
+
+			service.resetAll();
+			assert.strictEqual(service.hasBeenShown('reset-1'), developerMode);
+		});
+	}
 
 	test('emits scenarioOutcome telemetry when a tour is shown but not when nothing is rendered', async () => {
 		const shownKind = uniqueKind();

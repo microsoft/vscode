@@ -18,6 +18,8 @@ export interface IAutoRowOptions {
 	readonly configurationAccess: IModelConfigurationAccess;
 	readonly isEnabled: () => boolean;
 	readonly onToggle: (enabled: boolean) => void;
+	/** Reports a successfully saved tier change, excluding activation of the current value. */
+	readonly onDidChangeConfiguration?: (group: string, key: string, fromValue: unknown, toValue: unknown) => void;
 }
 
 /** Auto's routing tiers remain available while off; activating a tier also enables Auto. */
@@ -139,7 +141,11 @@ export class ModelPickerAutoRow extends DisposableStore {
 		}
 		let focusedTier = -1;
 		try {
+			const previousValue = getModelConfigProperty(this._options.autoModel, this._options.configurationAccess, MODEL_CONFIG_GROUP_EFFORT)?.value;
 			await this._options.configurationAccess.setModelConfiguration(this._options.autoModel.identifier, { [key]: value });
+			if (previousValue !== value) {
+				this._options.onDidChangeConfiguration?.(MODEL_CONFIG_GROUP_EFFORT, key, previousValue, value);
+			}
 			if (this.isDisposed) {
 				return;
 			}

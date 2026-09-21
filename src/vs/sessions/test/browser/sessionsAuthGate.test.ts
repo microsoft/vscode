@@ -12,15 +12,21 @@ suite('Sessions - Auth Gate', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('blocking sign-in requires the opt-in and a provider that does not need GitHub', () => {
+	test('blocking sign-in allows the opt-in or an authenticated provider', () => {
 		assert.deepStrictEqual({
 			featureDisabled: resolveSignedOutWindowGate(false, [SessionTypeAuthRequirement.None]),
+			featureDisabledBeforeProviders: resolveSignedOutWindowGate(false, []),
+			authenticatedProvider: resolveSignedOutWindowGate(false, [SessionTypeAuthRequirement.GitHub], true),
+			authenticatedProviderUnresolved: resolveSignedOutWindowGate(false, [], true),
 			providersUnresolved: resolveSignedOutWindowGate(true, []),
 			allRequireGitHub: resolveSignedOutWindowGate(true, [SessionTypeAuthRequirement.GitHub, SessionTypeAuthRequirement.GitHub]),
 			nativeProvider: resolveSignedOutWindowGate(true, [SessionTypeAuthRequirement.GitHub, SessionTypeAuthRequirement.None]),
 			nativeProviderInitializing: resolveSignedOutWindowGate(true, [SessionTypeAuthRequirement.GitHub, SessionTypeAuthRequirement.Unusable]),
 		}, {
 			featureDisabled: SignedOutWindowGate.ForceGitHubSignIn,
+			featureDisabledBeforeProviders: SignedOutWindowGate.ForceGitHubSignIn,
+			authenticatedProvider: SignedOutWindowGate.Proceed,
+			authenticatedProviderUnresolved: SignedOutWindowGate.Unresolved,
 			providersUnresolved: SignedOutWindowGate.Unresolved,
 			allRequireGitHub: SignedOutWindowGate.ForceGitHubSignIn,
 			nativeProvider: SignedOutWindowGate.Proceed,

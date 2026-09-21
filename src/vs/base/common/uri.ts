@@ -603,21 +603,31 @@ function encodeURIComponentFast(uriComponent: string, isPath: boolean, isAuthori
 }
 
 function encodeURIComponentMinimal(path: string): string {
-	let res: string | undefined = undefined;
-	for (let pos = 0; pos < path.length; pos++) {
+	let pos = path.indexOf('?');
+	const hashPos = path.indexOf('#');
+	if (pos === -1 || (hashPos !== -1 && hashPos < pos)) {
+		pos = hashPos;
+	}
+	if (pos === -1) {
+		return path;
+	}
+
+	let res = path.substring(0, pos);
+	let copyStart = pos;
+	for (; pos < path.length; pos++) {
 		const code = path.charCodeAt(pos);
 		if (code === CharCode.Hash || code === CharCode.QuestionMark) {
-			if (res === undefined) {
-				res = path.substr(0, pos);
+			if (copyStart < pos) {
+				res += path.substring(copyStart, pos);
 			}
 			res += encodeTable[code];
-		} else {
-			if (res !== undefined) {
-				res += path[pos];
-			}
+			copyStart = pos + 1;
 		}
 	}
-	return res !== undefined ? res : path;
+	if (copyStart < path.length) {
+		res += path.substring(copyStart);
+	}
+	return res;
 }
 
 /**

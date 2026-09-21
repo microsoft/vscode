@@ -346,6 +346,105 @@ suite('TabbedActionListWidget', () => {
 		widget.hide();
 	});
 
+	for (const focusPanel of [false, true]) {
+		test(`Escape from a detail ${focusPanel ? 'panel' : 'button'} returns to the list before dismissing the picker`, async () => {
+			const { widget, contextView } = createWidget(disposables);
+			const anchor = document.createElement('div');
+			document.body.appendChild(anchor);
+			disposables.add({ dispose: () => anchor.remove() });
+			const button = document.createElement('button');
+			button.textContent = 'Pin Model';
+			widget.show<ITestItem>({
+				user: 'test',
+				anchor,
+				tabs: [{ id: 'Models' }],
+				initialTab: 'Models',
+				showCheckedItemHover: true,
+				createActionList: () => ({
+					items: [{
+						...action('model'),
+						item: { id: 'model', checked: true },
+						hover: { content: button, expandable: true },
+					}],
+					listOptions: { persistentHover: true },
+				}),
+				delegate: { onSelect: () => { }, onHide: () => { } },
+			});
+			const popup = contextView.getContextViewElement();
+			const panel = popup.querySelector<HTMLElement>('.action-list-submenu-panel')!;
+			const focusTarget = focusPanel ? panel : button;
+			focusTarget.focus();
+			focusTarget.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true, cancelable: true }));
+			await new Promise<void>(resolve => setTimeout(resolve, 0));
+			const afterFirstEscape = {
+				visible: widget.isVisible,
+				panelHidden: panel.style.display === 'none',
+				listFocused: popup.querySelector('.monaco-list') === document.activeElement,
+			};
+			document.activeElement?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true, cancelable: true }));
+
+			assert.deepStrictEqual({ afterFirstEscape, visibleAfterSecondEscape: widget.isVisible }, {
+				afterFirstEscape: { visible: true, panelHidden: true, listFocused: true },
+				visibleAfterSecondEscape: false,
+			});
+		});
+	}
+
+	for (const motionReduced of [false, true]) {
+		test(`refresh preserves the focused detail control and moves its row with reduced motion ${motionReduced}`, async () => {
+			const { widget, contextView } = createWidget(disposables, motionReduced);
+			const anchor = document.createElement('div');
+			anchor.style.cssText = 'position: fixed; top: 400px; left: 20px; width: 100px; height: 20px;';
+			document.body.appendChild(anchor);
+			disposables.add({ dispose: () => anchor.remove() });
+			const content = document.createElement('div');
+			const button = document.createElement('button');
+			button.textContent = 'Pin Model';
+			content.appendChild(button);
+			let pinned = false;
+			widget.show<ITestItem>({
+				user: 'test',
+				anchor,
+				tabs: [{ id: 'Models' }],
+				initialTab: 'Models',
+				showCheckedItemHover: true,
+				createActionList: () => {
+					const model = { ...action('model'), item: { id: 'model', checked: true }, hover: { content, expandable: true, preserveVerticalPosition: true } };
+					const others = ['one', 'two', 'three'].map(action);
+					return { items: pinned ? [model, ...others] : [...others, model], listOptions: { showFilter: false, persistentHover: true } };
+				},
+				delegate: { onSelect: () => { }, onHide: () => { } },
+			});
+			button.focus();
+			const popup = contextView.getContextViewElement();
+			const panel = popup.querySelector<HTMLElement>('.action-list-submenu-panel')!;
+			const before = panel.getBoundingClientRect();
+			pinned = true;
+			widget.refreshActiveList({ focusItemId: 'model', preserveHover: true, animateItemMove: true });
+			const moved = Array.from(popup.querySelectorAll<HTMLElement>('.monaco-list-row')).find(row => row.textContent === 'model')!;
+			const animations = moved.getAnimations();
+			const animated = animations.length > 0;
+			animations.forEach(animation => animation.finish());
+			await new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => mainWindow.requestAnimationFrame(() => resolve())));
+			const after = panel.getBoundingClientRect();
+
+			assert.deepStrictEqual({
+				visible: widget.isVisible,
+				sameContent: panel.contains(content),
+				buttonFocused: document.activeElement === button,
+				stationary: Math.abs(before.x - after.x) < 1 && Math.abs(before.y - after.y) < 1,
+				animated,
+			}, {
+				visible: true,
+				sameContent: true,
+				buttonFocused: true,
+				stationary: true,
+				animated: !motionReduced && !mainWindow.matchMedia('(prefers-reduced-motion: reduce)').matches,
+			});
+			widget.hide();
+		});
+	}
+
 	test('buildItems is called with the initial tab', () => {
 		const { widget } = createWidget(disposables);
 		const anchor = document.createElement('div');
@@ -549,7 +648,7 @@ suite('TabbedActionListWidget', () => {
 
 		// Opens on the short tab on purpose: the height has to come from the sizing tab
 		// regardless of which tab the popup happens to open on.
-		const heightsAcrossTabs = (sizingTab: string | undefined) => {
+		const heightsAcrossTabs = (sizingTab: string | undefined, sizingItemIds = ['a', 'b', 'c', 'd', 'e', 'f']) => {
 			const { widget } = createWidget(disposables);
 			widget.show<ITestItem>({
 				user: 'test',
@@ -559,20 +658,23 @@ suite('TabbedActionListWidget', () => {
 				sizingTab,
 				createActionList: tab => ({
 					items: tab === 'Copilot'
-						? ['a', 'b', 'c', 'd', 'e', 'f'].map(action)
+						? sizingItemIds.map(action)
 						: [action('only')],
 				}),
 				delegate: { onSelect: () => { }, onHide: () => { } },
 			});
 			const onShortTab = listHeight();
+			widget.refreshActiveList();
+			const afterRefresh = listHeight();
 			document.querySelectorAll<HTMLElement>('.tabbed-action-list-tabstrip .monaco-button')[0].click();
 			const onSizingTab = listHeight();
 			widget.hide();
-			return { onShortTab, onSizingTab };
+			return { onShortTab, afterRefresh, onSizingTab };
 		};
 
 		const unsized = heightsAcrossTabs(undefined);
 		const sized = heightsAcrossTabs('Copilot');
+		const empty = heightsAcrossTabs('Copilot', []);
 
 		// Clamping depends on the room around the anchor, which differs between the two
 		// renders here, so compare how each tab is sized rather than the pixels.
@@ -580,8 +682,13 @@ suite('TabbedActionListWidget', () => {
 			{
 				resizesWithoutASizingTab: unsized.onShortTab < unsized.onSizingTab,
 				shortTabTakesTheSizingTabsHeight: sized.onShortTab > unsized.onShortTab,
+				emptySizingTab: [empty.onShortTab, empty.afterRefresh],
 			},
-			{ resizesWithoutASizingTab: true, shortTabTakesTheSizingTabsHeight: true },
+			{
+				resizesWithoutASizingTab: true,
+				shortTabTakesTheSizingTabsHeight: true,
+				emptySizingTab: [unsized.onShortTab, unsized.onShortTab],
+			},
 		);
 	});
 
@@ -623,6 +730,80 @@ suite('TabbedActionListWidget', () => {
 			{ collapsedIsShorter: heightWithSection(true) < heightWithSection(false) },
 			{ collapsedIsShorter: true },
 		);
+	});
+
+	test('refreshing pins preserves collapsed sizing across tabs and search', async () => {
+		const { widget, contextView } = createWidget(disposables);
+		const anchor = document.createElement('div');
+		anchor.style.cssText = 'position: fixed; top: 400px; width: 120px; height: 20px;';
+		document.body.appendChild(anchor);
+		disposables.add({ dispose: () => anchor.remove() });
+		const content = document.createElement('button');
+		content.textContent = 'Unpin Model';
+		let pinned = true;
+		let searching = false;
+
+		widget.show<ITestItem>({
+			user: 'test',
+			anchor,
+			tabs: [{ id: 'Copilot' }, { id: 'Other' }],
+			initialTab: 'Copilot',
+			sizingTab: 'Copilot',
+			showCheckedItemHover: true,
+			createActionList: (tab, forSizing) => {
+				const model = {
+					...action('model'),
+					item: { id: 'model', checked: true },
+					section: pinned ? undefined : 'other',
+					hover: { content, expandable: true },
+				};
+				return {
+					items: searching && !forSizing ? ['one', 'two', 'three', 'four', 'five', 'six'].map(action) : tab === 'Copilot' ? [
+						...(pinned ? [{ kind: ActionListItemKind.Separator, label: 'Pinned' }, model] : []),
+						action('suggested'),
+						{ ...action('other-models'), section: 'other', isSectionToggle: true },
+						...(pinned ? [] : [model]),
+						...['one', 'two', 'three'].map(id => ({ ...action(id), section: 'other' })),
+					] : [action('provider-model')],
+					listOptions: { collapsedByDefault: new Set(['other']), anchorPosition: AnchorPosition.ABOVE, persistentHover: true },
+				};
+			},
+			delegate: { onSelect: () => { }, onHide: () => { } },
+		});
+
+		const listHeight = () => contextView.getContextViewElement().querySelector<HTMLElement>('.actionList')!.offsetHeight;
+		const initialHeight = listHeight();
+		const toggleOther = () => {
+			const row = Array.from(contextView.getContextViewElement().querySelectorAll<HTMLElement>('.monaco-list-row'))
+				.find(row => row.textContent === 'other-models');
+			assert.ok(row);
+			row.click();
+		};
+		content.focus();
+		pinned = false;
+		widget.refreshActiveList({ focusItemId: 'model', preserveHover: true });
+		toggleOther();
+		await Promise.resolve();
+		const afterUnpin = listHeight();
+		const tabHeights = [];
+		for (const index of [1, 0]) {
+			contextView.getContextViewElement().querySelectorAll<HTMLElement>('.tabbed-action-list-tabstrip .monaco-button')[index].click();
+			tabHeights.push(listHeight());
+		}
+		searching = true;
+		widget.refreshActiveList();
+		const searchHeight = listHeight();
+		pinned = true;
+		widget.refreshActiveList();
+		const afterPin = listHeight();
+		widget.hide();
+
+		assert.deepStrictEqual({ afterUnpin, tabHeights, searchHeight, afterPin }, {
+			afterUnpin: initialHeight / 2,
+			tabHeights: [initialHeight / 2, initialHeight / 2],
+			searchHeight: initialHeight / 2,
+			afterPin: initialHeight,
+		});
 	});
 
 	for (const initialFooterHeight of [20, 80]) {

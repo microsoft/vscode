@@ -1,9 +1,8 @@
 # Copilot product dependency integration (no-op unless an override is set).
-# Overrides @github/copilot-sdk / @github/copilot to a version published to the
-# private feed and refreshes the lockfile so the node_modules cache key below
-# misses and `npm ci` installs the canary. Authenticates to the feed first so
-# the override's lockfile refresh can resolve the canary — the standard
-# npmAuthenticate runs only after the cache-key step. Mirrors common/agent-sdk-produce.yml.
+# Overrides @github/copilot-sdk with a version published to the private feed,
+# records its bundled runtime version, and refreshes the lockfile so the
+# node_modules cache key below misses and `npm ci` installs the canary.
+# Authenticates before the standard npmAuthenticate step.
 # See microsoft/vscode-engineering specs/sdk-vscode-integration.spec.md.
 
 parameters:

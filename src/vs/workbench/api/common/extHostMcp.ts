@@ -710,12 +710,11 @@ export class McpHTTPHandle extends Disposable {
 			try {
 				chunk = await raceCancellationError(reader.read(), this._cts.token);
 			} catch (err) {
-				reader.cancel();
 				if (this._store.isDisposed) {
 					return;
-				} else {
-					throw err;
 				}
+				await reader.cancel();
+				throw err;
 			}
 
 			if (chunk.value) {

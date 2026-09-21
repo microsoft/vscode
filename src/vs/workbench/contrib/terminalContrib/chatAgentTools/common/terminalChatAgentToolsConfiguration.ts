@@ -262,8 +262,11 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 
 			// Safe lockfile-only installs since we trust the workspace and lock file is trusted.
 			'npm ci': true,
+			'/^npm\\s+ci\\s+\\S/': false,
 			'/^yarn\\s+install\\s+--frozen-lockfile\\b/': true,
+			'/^yarn\\s+install\\s+--frozen-lockfile\\s+\\S/': false,
 			'/^pnpm\\s+install\\s+--frozen-lockfile\\b/': true,
+			'/^pnpm\\s+install\\s+--frozen-lockfile\\s+\\S/': false,
 
 			// #endregion
 

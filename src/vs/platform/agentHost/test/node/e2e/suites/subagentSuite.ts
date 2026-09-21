@@ -29,6 +29,7 @@ import {
 } from '../../../../common/state/sessionState.js';
 import { PROTOCOL_VERSION } from '../../../../common/state/protocol/version/registry.js';
 import { createRealSession, dispatchTurn, driveTurnToCompletion, getMarkdownResponseText, resolveGitHubToken } from '../harness/agentHostE2ETestHarness.js';
+import { assertRecordedAhpSnapshot } from '../harness/ahpSnapshot.js';
 import { summarizeAnthropicRequest } from '../harness/capiWireCodec.js';
 import { fetchSessionWithChat, getActionEnvelope, isActionNotification } from '../../serverIntegrationTestHelpers.js';
 import type { IAgentHostE2ETestContext } from './e2eTestContext.js';
@@ -88,6 +89,30 @@ export function defineSubagentTests(context: IAgentHostE2ETestContext): void {
 			.join('') ?? '';
 	}
 
+	function isCompletedChild(state: ChatState | undefined, expectedTurnCount: number): state is ChatState {
+		return !!state
+			&& !state.activeTurn
+			&& state.turns.length === expectedTurnCount
+			&& state.turns.every(turn => turn.state === TurnState.Complete);
+	}
+
+	async function subscribeToCompletedChild(subagentChat: string): Promise<ChatState> {
+		const initialSubscription = await context.client.call<SubscribeResult>('subscribe', { channel: subagentChat });
+		const initialChild = initialSubscription.snapshot?.state as ChatState | undefined;
+		if (!isCompletedChild(initialChild, 1)) {
+			await context.client.waitForNotification(n => {
+				if (!isActionNotification(n, 'chat/turnComplete')) {
+					return false;
+				}
+				return getActionEnvelope(n).channel === subagentChat;
+			}, 5_000);
+		}
+		const snapshot = await context.client.call<SubscribeResult>('subscribe', { channel: subagentChat });
+		const child = snapshot.snapshot?.state as ChatState | undefined;
+		assert.ok(isCompletedChild(child, 1));
+		return child;
+	}
+
 	function responsePartIds(turns: ISessionWithDefaultChat['turns']): string[] {
 		return turns.flatMap(turn => turn.responseParts.flatMap(part => {
 			const id = Reflect.get(part, 'id');
@@ -96,6 +121,7 @@ export function defineSubagentTests(context: IAgentHostE2ETestContext): void {
 	}
 
 	const copilotCustomAgentTest = config.provider === 'copilotcli' && config.supportsSubagents;
+	const behaviorSnapshot = { profile: 'behavior' } as const;
 
 	for (const initiallySelected of [true, false]) {
 		const title = initiallySelected
@@ -181,8 +207,7 @@ export function defineSubagentTests(context: IAgentHostE2ETestContext): void {
 
 			const subagentChat = subagentChatFromReceived(parentChat);
 			assert.ok(subagentChat, 'the parent tool call should expose the custom subagent chat');
-			const snapshot = await context.client.call<SubscribeResult>('subscribe', { channel: subagentChat });
-			const child = snapshot.snapshot?.state as ChatState | undefined;
+			const child = await subscribeToCompletedChild(subagentChat);
 			const parent = await fetchSessionWithChat(context.client, sessionUri);
 			assert.deepStrictEqual({
 				childResponse: markdownText(child).trim(),
@@ -243,8 +268,8 @@ export function defineSubagentTests(context: IAgentHostE2ETestContext): void {
 		assert.match(setup.responseText, /SETUP_DONE/);
 		const subagentChat = subagentChatFromReceived(parentChat);
 		assert.ok(subagentChat, 'the custom subagent should remain in the parent chat catalog');
-		const child = await context.client.call<SubscribeResult>('subscribe', { channel: subagentChat });
-		assert.strictEqual(markdownText(child.snapshot?.state as ChatState | undefined).trim(), 'CUSTOM_AGENT_CHILD_OK');
+		const child = await subscribeToCompletedChild(subagentChat);
+		assert.strictEqual(markdownText(child).trim(), 'CUSTOM_AGENT_CHILD_OK');
 		context.client.notify('unsubscribe', { channel: subagentChat });
 
 		const liveParent = await fetchSessionWithChat(context.client, sessionUri);
@@ -289,6 +314,120 @@ export function defineSubagentTests(context: IAgentHostE2ETestContext): void {
 				&& envelope.action.turnId === 'turn-after-custom-agent';
 		}, 90_000);
 		assert.match(getMarkdownResponseText(context.client), /PARENT_RECOVERED/);
+	});
+
+	(copilotCustomAgentTest ? test : test.skip)('retained background subagent completes repeated follow-up turns', async function () {
+		this.timeout(300_000);
+
+		const workspace = mkdtempSync(join(tmpdir(), 'ahp-retained-subagent-'));
+		tempDirs.push(workspace);
+		const sessionUri = await createRealSession(context.client, config, 'retained-subagent-followups', createdSessions, URI.file(workspace));
+		const parentChat = buildDefaultChatUri(sessionUri);
+		const assertParentToolNames = (expected: readonly string[]) => {
+			const actual = context.client.receivedNotifications(n => isActionNotification(n, 'chat/toolCallStart'))
+				.map(n => ({ channel: getActionEnvelope(n).channel, action: getActionEnvelope(n).action as ChatToolCallStartAction }))
+				.filter(({ channel }) => channel === parentChat)
+				.map(({ action }) => action.toolName);
+			assert.deepStrictEqual(actual, expected);
+		};
+
+		context.client.beginAhpSnapshotRound();
+		const initial = await driveTurnToCompletion(
+			context.client,
+			sessionUri,
+			'turn-retained-initial',
+			'Use the task tool exactly once with agent_type "general-purpose" and mode "background". '
+			+ 'Tell it to reply exactly "CHILD_INITIAL_DONE" and not use tools. '
+			+ 'Wait for its completion notification, call read_agent with wait true, then reply exactly "PARENT_INITIAL_DONE". Do not stop the subagent.',
+			2,
+		);
+		assert.match(initial.responseText.trim(), /PARENT_INITIAL_DONE$/);
+		assertParentToolNames(['task', 'read_agent']);
+		const subagentChat = subagentChatFromReceived(parentChat);
+		assert.ok(subagentChat, 'the task tool should expose the retained subagent chat');
+		assert.ok(context.client.receivedNotifications(n => isActionNotification(n, 'session/chatAdded')).some(notification => {
+			const envelope = getActionEnvelope(notification);
+			return envelope.channel === sessionUri
+				&& envelope.action.type === ActionType.SessionChatAdded
+				&& envelope.action.summary.resource.toString() === subagentChat;
+		}), 'the retained subagent chat should be added to the session catalog');
+		const initialChildSubscription = await context.client.call<SubscribeResult>('subscribe', { channel: subagentChat });
+		const initialChild = initialChildSubscription.snapshot?.state as ChatState | undefined;
+		let childCompletionObserved = isCompletedChild(initialChild, 1);
+
+		async function readCompletedChild(expectedTurnCount: number): Promise<ChatState> {
+			if (!childCompletionObserved) {
+				await context.client.waitForNotification(n => {
+					if (!isActionNotification(n, 'chat/turnComplete')) {
+						return false;
+					}
+					return getActionEnvelope(n).channel === subagentChat;
+				}, 5_000);
+			}
+			childCompletionObserved = false;
+			const snapshot = await context.client.call<SubscribeResult>('subscribe', { channel: subagentChat });
+			const child = snapshot.snapshot?.state as ChatState | undefined;
+			assert.ok(child);
+			assert.deepStrictEqual({
+				active: child.activeTurn !== undefined,
+				states: child.turns.map(turn => turn.state),
+			}, {
+				active: false,
+				states: Array<TurnState>(expectedTurnCount).fill(TurnState.Complete),
+			});
+			return child;
+		}
+
+		const states: Array<{ responses: string[]; states: TurnState[]; active: boolean }> = [];
+		const recordChildState = (child: ChatState) => {
+			states.push({
+				responses: child.turns.map(turn => markdownText({ turns: [turn] }).trim()),
+				states: child.turns.map(turn => turn.state),
+				active: child.activeTurn !== undefined,
+			});
+		};
+		recordChildState(await readCompletedChild(1));
+
+		for (const [index, childResponse, parentResponse] of [
+			[1, 'CHILD_FOLLOWUP_ONE_DONE', 'PARENT_FOLLOWUP_ONE_DONE'],
+			[2, 'CHILD_FOLLOWUP_TWO_DONE', 'PARENT_FOLLOWUP_TWO_DONE'],
+		] as const) {
+			context.client.beginAhpSnapshotRound();
+			const result = await driveTurnToCompletion(
+				context.client,
+				sessionUri,
+				`turn-retained-followup-${index}`,
+				`Use write_agent exactly once to send the same retained subagent this message: `
+				+ `"Reply exactly ${childResponse} and do not use tools." `
+				+ `Wait for its completion notification, call read_agent with wait true, then reply exactly "${parentResponse}". Do not start or stop a subagent.`,
+				2 + index,
+			);
+			assert.match(result.responseText.trim(), new RegExp(`${parentResponse}$`));
+			assertParentToolNames(['write_agent', 'read_agent']);
+			recordChildState(await readCompletedChild(index + 1));
+		}
+
+		assert.deepStrictEqual(states, [
+			{
+				responses: ['CHILD_INITIAL_DONE'],
+				states: [TurnState.Complete],
+				active: false,
+			},
+			{
+				responses: ['CHILD_INITIAL_DONE', 'CHILD_FOLLOWUP_ONE_DONE'],
+				states: [TurnState.Complete, TurnState.Complete],
+				active: false,
+			},
+			{
+				responses: ['CHILD_INITIAL_DONE', 'CHILD_FOLLOWUP_ONE_DONE', 'CHILD_FOLLOWUP_TWO_DONE'],
+				states: [TurnState.Complete, TurnState.Complete, TurnState.Complete],
+				active: false,
+			},
+		]);
+		await assertRecordedAhpSnapshot(this.test!, context.client, {
+			...behaviorSnapshot,
+			ignoredActionTypes: [ActionType.SessionChatAdded, ActionType.ChatToolCallStart],
+		});
 	});
 
 	(config.supportsSubagents ? test : test.skip)('subagent tool calls are routed to the subagent session, not flat in the parent', async function () {

@@ -7,6 +7,7 @@ import assert from 'assert';
 import { timeout } from '../../../../../base/common/async.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { Schemas } from '../../../../../base/common/network.js';
 import { derived } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -20,6 +21,7 @@ import { SinglePaneDetailPanelCoordinator } from '../../browser/singlePane/singl
 import { SinglePaneDraftSessionStrategy } from '../../browser/singlePane/singlePaneDraftSessionStrategy.js';
 import { SinglePaneExistingSessionStrategy } from '../../browser/singlePane/singlePaneExistingSessionStrategy.js';
 import { ISinglePaneLayoutContext } from '../../browser/singlePane/singlePaneLayoutStrategy.js';
+import { isFileEditorInput } from '../../browser/singlePane/singlePaneSharedHelpers.js';
 import { SessionVisibilityProfile, SinglePaneVisibilityProfileStore } from '../../browser/singlePane/singlePaneVisibilityProfileStore.js';
 import { createTestHarness, ICreateOptions, ITestLayoutHarness, makeSession, TestStubEditorInput } from './layoutControllerTestUtils.js';
 
@@ -101,6 +103,12 @@ suite('SinglePane layout strategies', () => {
 	function createVisibilityStore(): SinglePaneVisibilityProfileStore {
 		return harness.instaService.createInstance(SinglePaneVisibilityProfileStore);
 	}
+
+	test('untitled editors map to Files Details', () => {
+		const editor = store.add(new TestStubEditorInput(URI.from({ scheme: Schemas.untitled, path: 'Untitled-1' })));
+
+		assert.strictEqual(isFileEditorInput(editor), true);
+	});
 
 	function createDraftStrategy(ctx: ISinglePaneLayoutContext, visibilityStore = createVisibilityStore()): SinglePaneDraftSessionStrategy {
 		return store.add(harness.instaService.createInstance(SinglePaneDraftSessionStrategy, ctx, createDetailPanel(), visibilityStore));
@@ -481,6 +489,62 @@ suite('SinglePane layout strategies', () => {
 			visibilityChanges: harness.setPartHiddenCalls,
 		}, {
 			editorVisible: true,
+			auxiliaryBarVisible: true,
+			visibilityChanges: [],
+		});
+	});
+
+	test('Quick Chat closes the side pane when its last editor closes', () => {
+		const ctx = setup();
+		const quickChat = makeSession(URI.parse('session:/quick'), { isQuickChat: true });
+		const editor = store.add(new TestStubEditorInput(URI.parse('browser://quick')));
+		const visibilityStore = createVisibilityStore();
+		visibilityStore.set(SessionVisibilityProfile.Existing, { editorVisible: true, auxiliaryBarVisible: false });
+		harness.activeGroupEditors.push(editor);
+		createDraftStrategy(ctx, visibilityStore);
+		activate(quickChat);
+		harness.partVisibility.set(Parts.EDITOR_PART, true);
+		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, true);
+		harness.setPartHiddenCalls.length = 0;
+
+		harness.activeGroupEditors.length = 0;
+		harness.editorGroupsHaveContent = false;
+		harness.onDidCloseEditor.fire({ editor, groupId: 1 });
+
+		assert.deepStrictEqual({
+			editorVisible: harness.partVisibility.get(Parts.EDITOR_PART),
+			auxiliaryBarVisible: harness.partVisibility.get(Parts.AUXILIARYBAR_PART),
+			visibilityChanges: harness.setPartHiddenCalls,
+			sharedVisibility: visibilityStore.get(SessionVisibilityProfile.Existing),
+		}, {
+			editorVisible: false,
+			auxiliaryBarVisible: false,
+			visibilityChanges: [
+				{ hidden: true, part: Parts.EDITOR_PART },
+				{ hidden: true, part: Parts.AUXILIARYBAR_PART },
+			],
+			sharedVisibility: { editorVisible: true, auxiliaryBarVisible: false },
+		});
+	});
+
+	test('Quick Chat keeps the side pane open when an auxiliary editor closes', () => {
+		const ctx = setup();
+		const quickChat = makeSession(URI.parse('session:/quick'), { isQuickChat: true });
+		const auxiliaryEditor = store.add(new TestStubEditorInput(URI.parse('browser://auxiliary')));
+		createDraftStrategy(ctx);
+		activate(quickChat);
+		harness.partVisibility.set(Parts.EDITOR_PART, false);
+		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, true);
+		harness.setPartHiddenCalls.length = 0;
+
+		harness.onDidCloseEditor.fire({ editor: auxiliaryEditor, groupId: 2 });
+
+		assert.deepStrictEqual({
+			editorVisible: harness.partVisibility.get(Parts.EDITOR_PART),
+			auxiliaryBarVisible: harness.partVisibility.get(Parts.AUXILIARYBAR_PART),
+			visibilityChanges: harness.setPartHiddenCalls,
+		}, {
+			editorVisible: false,
 			auxiliaryBarVisible: true,
 			visibilityChanges: [],
 		});

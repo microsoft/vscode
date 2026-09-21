@@ -119,7 +119,7 @@ export class PolicyExportContribution extends Disposable implements IWorkbenchCo
 				// Checks DISTRO_PRODUCT_JSON env var (for testing),
 				// then falls back to fetching from GitHub API with GITHUB_TOKEN.
 				const distroProduct = await this.getDistroProductJson();
-				const extensionPolicies = distroProduct['extensionConfigurationPolicy'] as Record<string, ExtensionConfigurationPolicyEntry | ExtensionConfigurationPolicyReferenceEntry> | undefined;
+				const extensionPolicies = distroProduct.extensionConfigurationPolicy as Record<string, ExtensionConfigurationPolicyEntry | ExtensionConfigurationPolicyReferenceEntry> | undefined;
 				// Reference-shaped product entries (extension settings attaching to an in-code-owned
 				// policy), collected by owning policy name so they can be linked below.
 				const productReferencesByPolicyName = new Map<string, string[]>();
