@@ -39,7 +39,10 @@ import { INotebookDocumentService } from '../../../../services/notebook/common/n
 import { IViewDescriptorService } from '../../../../common/views.js';
 import { ISCMService } from '../../../../contrib/scm/common/scm.js';
 import { IBrowserViewWorkbenchService } from '../../../../contrib/browserView/common/browserView.js';
-import { IAgentHostService } from '../../../../../platform/agentHost/common/agentService.js';
+import { IAgentHostNetworkDiagnosticsInfo, IAgentHostService } from '../../../../../platform/agentHost/common/agentService.js';
+import { AgentHostConnectionsService } from '../../../../../platform/agentHost/browser/agentHostConnectionsService.js';
+import { IAgentHostConnectionsService } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
+import { IRemoteAgentHostService, NullRemoteAgentHostService } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { IAgentHostEnablementService } from '../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { IAgentSubscription } from '../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ResolveSessionConfigResult } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
@@ -49,6 +52,8 @@ import { IAgentHostUntitledProvisionalSessionService } from '../../../../contrib
 import { IAgentHostSessionWorkingDirectoryResolver } from '../../../../contrib/chat/browser/agentSessions/agentHost/agentHostSessionWorkingDirectoryResolver.js';
 import { IAgentHostNewSessionFolderService } from '../../../../contrib/chat/browser/agentSessions/agentHost/agentHostNewSessionFolderService.js';
 import { IAgentHostCustomizationService } from '../../../../contrib/chat/browser/agentSessions/agentHost/agentHostCustomizationService.js';
+import { IAgentSdkSetupService } from '../../../../services/agentHost/browser/agentSdkSetupService.js';
+import { ICodexAccountService } from '../../../../services/agentHost/browser/codexAccountService.js';
 import { IVoiceModeOnboardingService } from '../../../../contrib/agentsVoice/browser/voiceModeOnboarding.js';
 import { IChatAccessibilityService, IChatWidget, IChatWidgetService } from '../../../../contrib/chat/browser/chat.js';
 import { IChatResponseFileChangesService } from '../../../../contrib/chat/browser/chatResponseFileChangesService.js';
@@ -58,7 +63,7 @@ import { IChatOutputRendererService } from '../../../../contrib/chat/browser/cha
 import { IAiEditTelemetryService } from '../../../../contrib/editTelemetry/browser/telemetry/aiEditTelemetry/aiEditTelemetryService.js';
 import { EditSuggestionId } from '../../../../../editor/common/textModelEditSource.js';
 import { IChatAttachmentResolveService } from '../../../../contrib/chat/browser/attachments/chatAttachmentResolveService.js';
-import { IChatAttachmentWidgetRegistry } from '../../../../contrib/chat/browser/attachments/chatAttachmentWidgetRegistry.js';
+import { ChatAttachmentWidgetRegistry, IChatAttachmentWidgetRegistry } from '../../../../contrib/chat/browser/attachments/chatAttachmentWidgetRegistry.js';
 import { IChatContextPickService } from '../../../../contrib/chat/browser/attachments/chatContextPickService.js';
 import { IChatContextService } from '../../../../contrib/chat/browser/contextContrib/chatContextService.js';
 import { IChatImageCarouselService } from '../../../../contrib/chat/browser/chatImageCarouselService.js';
@@ -85,6 +90,26 @@ import { IChatTodo, IChatTodoListService } from '../../../../contrib/chat/common
 import { IChatToolRiskAssessmentService } from '../../../../contrib/chat/browser/tools/chatToolRiskAssessmentService.js';
 import { IVoiceSessionController } from '../../../../contrib/chat/browser/voiceClient/voiceSessionController.js';
 import { ServiceRegistration, registerWorkbenchServices } from '../fixtureUtils.js';
+import { IActionViewItemFactory, IActionViewItemService } from '../../../../../platform/actions/browser/actionViewItemService.js';
+import { ISessionSummaryHoverService, SessionSummaryHoverService } from '../../../../contrib/chat/browser/agentSessions/sessionSummaryHoverService.js';
+import { OpenSubagentChatActionViewItem } from '../../../../contrib/chat/browser/widget/chatContentParts/chatSubagentOpenChat.js';
+import { CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID } from '../../../../contrib/chat/common/constants.js';
+import { IExtensionsWorkbenchService } from '../../../../contrib/extensions/common/extensions.js';
+
+export function registerSubagentFixtureServices(reg: ServiceRegistration): void {
+	reg.define(ISessionSummaryHoverService, SessionSummaryHoverService);
+	reg.defineInstance(IExtensionsWorkbenchService, new class extends mock<IExtensionsWorkbenchService>() {
+		override async getExtensions() { return []; }
+	}());
+	reg.defineInstance(IActionViewItemService, new class extends mock<IActionViewItemService>() {
+		override readonly onDidChange = Event.None;
+		override lookUp(menu: MenuId, commandId: string | MenuId): IActionViewItemFactory | undefined {
+			return menu === MenuId.ChatSubagentContent && commandId === CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID
+				? (action, options, service) => service.createInstance(OpenSubagentChatActionViewItem, undefined, action, options, true)
+				: undefined;
+		}
+	}());
+}
 
 /**
  * A minimal IMenuService implementation backed by an in-memory map. Tests can
@@ -310,7 +335,15 @@ export function registerChatFixtureServices(reg: ServiceRegistration, options: I
 		override readonly hasByokModels = false;
 	}());
 	reg.defineInstance(IChatModeService, new MockChatModeService());
-	reg.defineInstance(ILanguageModelsService, new class extends mock<ILanguageModelsService>() { override onDidChangeLanguageModels = Event.None; override onDidChangeModelVisibility = Event.None; override getLanguageModelIds() { return []; } override getVendors() { return []; } override hasResolvedVendor() { return false; } }());
+	reg.defineInstance(ILanguageModelsService, new class extends mock<ILanguageModelsService>() {
+		override onDidChangeLanguageModels = Event.None;
+		override onDidChangeModelVisibility = Event.None;
+		override getLanguageModelIds() { return []; }
+		override getVendors() { return []; }
+		override hasResolvedVendor() { return false; }
+		override getModelConfiguration() { return undefined; }
+		override getModelConfigurationActions() { return []; }
+	}());
 	reg.defineInstance(ILanguageModelToolsService, new class extends mock<ILanguageModelToolsService>() { override onDidChangeTools = Event.None; override onDidPrepareToolCallBecomeUnresponsive = Event.None; override getTools() { return []; } }());
 	reg.defineInstance(IChatToolRiskAssessmentService, new class extends mock<IChatToolRiskAssessmentService>() {
 		override isEnabled() { return false; }
@@ -328,7 +361,7 @@ export function registerChatFixtureServices(reg: ServiceRegistration, options: I
 	reg.defineInstance(IAiEditTelemetryService, new class extends mock<IAiEditTelemetryService>() {
 		override createSuggestionId() { return EditSuggestionId.newId(); }
 	}());
-	reg.defineInstance(IChatAttachmentWidgetRegistry, new class extends mock<IChatAttachmentWidgetRegistry>() { }());
+	reg.define(IChatAttachmentWidgetRegistry, ChatAttachmentWidgetRegistry);
 	reg.defineInstance(IChatAttachmentResolveService, new class extends mock<IChatAttachmentResolveService>() { }());
 	reg.defineInstance(IChatWidgetHistoryService, new class extends mock<IChatWidgetHistoryService>() { override getHistory() { return []; } override readonly onDidChangeHistory = Event.None; }());
 	reg.defineInstance(IChatImageCarouselService, new class extends mock<IChatImageCarouselService>() { }());
@@ -337,6 +370,14 @@ export function registerChatFixtureServices(reg: ServiceRegistration, options: I
 		override readonly onDidChange = Event.None;
 		override getActiveNotification() { return options.notification; }
 		override announceRendered() { }
+	}());
+	reg.defineInstance(IAgentSdkSetupService, new class extends mock<IAgentSdkSetupService>() {
+		override readonly setups = [];
+		override readonly onDidChangeSetups = Event.None;
+	}());
+	reg.defineInstance(ICodexAccountService, new class extends mock<ICodexAccountService>() {
+		override readonly account = { status: 'unknown' as const };
+		override readonly onDidChangeAccount = Event.None;
 	}());
 	reg.defineInstance(IChatSubmitRequestHandlerService, new ChatSubmitRequestHandlerService());
 	reg.defineInstance(IChatStatusItemService, new class extends mock<IChatStatusItemService>() {
@@ -355,6 +396,8 @@ export function registerChatFixtureServices(reg: ServiceRegistration, options: I
 	// render and nothing crashes.
 	reg.defineInstance(IAgentHostService, new class extends mock<IAgentHostService>() {
 		override readonly onAgentHostStart = Event.None;
+		override readonly onAgentHostExit = Event.None;
+		override readonly onDidNotification = Event.None;
 		override readonly rootState: IAgentSubscription<RootState> = {
 			value: undefined,
 			verifiedValue: undefined,
@@ -362,6 +405,9 @@ export function registerChatFixtureServices(reg: ServiceRegistration, options: I
 			onWillApplyAction: Event.None,
 			onDidApplyAction: Event.None,
 		};
+		override async getNetworkDiagnosticsInfo(): Promise<IAgentHostNetworkDiagnosticsInfo> {
+			return { version: '1', os: 'linux', arch: 'x64', proxySettings: {}, proxyEnv: {}, endpoints: [] };
+		}
 		override getSubscription<T>(_kind: StateComponents, _resource: URI): IReference<IAgentSubscription<T>> {
 			return {
 				object: {
@@ -381,6 +427,8 @@ export function registerChatFixtureServices(reg: ServiceRegistration, options: I
 			return options.agentHostSessionConfig ?? { schema: { type: 'object', properties: {} }, values: {} };
 		}
 	}());
+	reg.defineInstance(IRemoteAgentHostService, new NullRemoteAgentHostService());
+	reg.define(IAgentHostConnectionsService, AgentHostConnectionsService);
 	reg.defineInstance(IAgentHostUntitledProvisionalSessionService, new class extends mock<IAgentHostUntitledProvisionalSessionService>() {
 		override readonly onDidChange = Event.None;
 		override get() { return undefined; }
@@ -402,6 +450,7 @@ export function registerChatFixtureServices(reg: ServiceRegistration, options: I
 	reg.defineInstance(IAgentHostEnablementService, new class extends mock<IAgentHostEnablementService>() {
 		override readonly enabled = constObservable(false);
 		override readonly managedSandboxEnforced = constObservable(false);
+		override readonly managedSandboxAllowsBypass = constObservable(true);
 	}());
 
 	const artifactGroups = options.artifactGroups ?? observableValue<readonly IArtifactSourceGroup[]>('artifactGroups', []);

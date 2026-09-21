@@ -8,22 +8,78 @@ import { EventType } from '../../../../../../base/browser/dom.js';
 import { Action } from '../../../../../../base/common/actions.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
-import { observableValue } from '../../../../../../base/common/observable.js';
+import { constObservable, observableValue } from '../../../../../../base/common/observable.js';
+import { URI } from '../../../../../../base/common/uri.js';
+import { upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { buildSubagentChatUri } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { CommandsRegistry } from '../../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
-import { ChatConfiguration } from '../../../../../../workbench/contrib/chat/common/constants.js';
+import { CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID, ChatConfiguration } from '../../../../../../workbench/contrib/chat/common/constants.js';
 import { ILanguageModelsService } from '../../../../../../workbench/contrib/chat/common/languageModels.js';
 import { workbenchInstantiationService } from '../../../../../../workbench/test/browser/workbenchTestServices.js';
 import { ISessionsService } from '../../../../../services/sessions/browser/sessionsService.js';
+import { IChat } from '../../../../../services/sessions/common/session.js';
 import { IActiveSession } from '../../../../../services/sessions/common/sessionsManagement.js';
-import { OpenSubagentChatActionViewItem, shouldShowSubagentModel } from '../../browser/openSubagentChat.js';
+import { OpenSubagentChatActionViewItem, OpenSubagentChatActionViewItemContribution, shouldShowSubagentModel } from '../../browser/openSubagentChat.js';
 
 class TestOpenSubagentChatActionViewItem extends OpenSubagentChatActionViewItem {
 	get tooltip(): string | undefined {
 		return this.getTooltip();
 	}
 }
+
+suite('OpenSubagentChatActionViewItemContribution', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	for (const toSide of [undefined, true]) {
+		for (const parentSessionResource of [undefined, 'agent-host-copilotcli:/session#peer']) {
+			test(`opens subagents beside their parent through the sessions service (toSide=${toSide}, parent=${parentSessionResource})`, async () => {
+				const instantiationService = workbenchInstantiationService(undefined, store);
+				const resource = URI.parse('agent-host-copilotcli:/session');
+				const chat = upcastPartial<IChat>({ resource: resource.with({ fragment: 'subagent/launch' }) });
+				const session = upcastPartial<IActiveSession>({
+					sessionId: 'session',
+					resource,
+					chats: constObservable([chat]),
+				});
+				const otherSession = upcastPartial<IActiveSession>({
+					sessionId: 'other',
+					resource: resource.with({ path: '/other' }),
+					chats: constObservable([upcastPartial<IChat>({ resource: chat.resource.with({ path: '/other' }) })]),
+				});
+				const opened: { toSide: boolean; sessionId: string; resource: URI; referenceChatResource?: URI }[] = [];
+				instantiationService.stub(ISessionsService, {
+					activeSession: constObservable(otherSession),
+					visibleSessions: constObservable([otherSession, session]),
+					openChat: async (session, resource) => {
+						opened.push({ toSide: false, sessionId: session.sessionId, resource });
+					},
+					openChatToSide: async (session, resource, options) => {
+						opened.push({ toSide: true, sessionId: session.sessionId, resource, referenceChatResource: options?.referenceChatResource });
+					},
+				});
+				store.add(instantiationService.createInstance(OpenSubagentChatActionViewItemContribution));
+				const command = CommandsRegistry.getCommand(CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID);
+				assert.ok(command);
+
+				await instantiationService.invokeFunction(command.handler, {
+					chatResource: buildSubagentChatUri('copilot:/session', 'launch'),
+					parentSessionResource,
+					toSide,
+				});
+
+				assert.deepStrictEqual(opened, [{
+					toSide: true,
+					sessionId: session.sessionId,
+					resource: chat.resource,
+					referenceChatResource: parentSessionResource ? URI.parse(parentSessionResource) : undefined,
+				}]);
+			});
+		}
+	}
+});
 
 suite('OpenSubagentChatActionViewItem', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();

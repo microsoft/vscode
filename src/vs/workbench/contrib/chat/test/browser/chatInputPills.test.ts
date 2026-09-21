@@ -106,34 +106,103 @@ suite('StandardChatInputPillSources', () => {
 		});
 	});
 
-	test('offers checked pull request options directly below Hide for mouse and keyboard', async () => {
+	test('offers checked pull request options in a separate group below Hide for mouse and keyboard', async () => {
 		const data = createSessionPullRequestPillData(constObservable([{ title: 'Pull Requests', entries: [pullRequestEntry('#1', 'open')] }]), createPullRequestVisibility());
 		const pills = createPills({
 			pullRequests: data,
 		});
 		const menu = pills.openContextMenu(pills.inputPills.getPillElements()[0]);
-		const submenu = menu[1];
+		const submenu = menu[2];
 		assert.ok(submenu instanceof SubmenuAction);
 		const before = submenu.actions.map(action => ({ label: action.label, checked: action.checked }));
 		await submenu.actions[1].run();
 		const keyboardMenu = pills.openContextMenu(pills.inputPills.getPillElements()[0], true);
-		const keyboardSubmenu = keyboardMenu[1];
+		const keyboardSubmenu = keyboardMenu[2];
 		assert.ok(keyboardSubmenu instanceof SubmenuAction);
 		const after = keyboardSubmenu.actions.map(action => ({ label: action.label, checked: action.checked }));
 		await keyboardSubmenu.actions[0].run();
 
 		assert.deepStrictEqual({
-			order: menu.slice(0, 3).map(action => action.label),
-			keyboardOrder: keyboardMenu.slice(0, 3).map(action => action.label),
+			order: menu.slice(0, 4).map(action => action.label),
+			keyboardOrder: keyboardMenu.slice(0, 4).map(action => action.label),
 			before,
 			after,
 			restoredAll: data.getContextMenuActions()[0].checked,
 		}, {
-			order: ['Hide Pull Requests', 'Pull Requests Options', ''],
-			keyboardOrder: ['Hide Pull Requests', 'Pull Requests Options', ''],
+			order: ['Hide Pull Requests', '', 'Pull Requests Options', ''],
+			keyboardOrder: ['Hide Pull Requests', '', 'Pull Requests Options', ''],
 			before: [{ label: 'Show All', checked: true }, { label: 'Show Open/Draft', checked: false }],
 			after: [{ label: 'Show All', checked: false }, { label: 'Show Open/Draft', checked: true }],
 			restoredAll: true,
+		});
+	});
+
+	test('groups single PR removal with options for mouse and keyboard but not on the toolbar background', async () => {
+		let removed = 0;
+		const entry: IChatPullRequestPillEntry = {
+			...pullRequestEntry('#1', 'open'),
+			promotedAction: toAction({ id: 'remove-pr', label: 'Remove Pull Request Reference from Session', run: () => { removed++; } }),
+		};
+		const data = createSessionPullRequestPillData(constObservable([{ title: 'Pull Requests', entries: [entry] }]), createPullRequestVisibility());
+		const pills = createPills({ pullRequests: data });
+		const target = pills.inputPills.getPillElements()[0];
+		const mouseMenu = pills.openContextMenu(target);
+		const keyboardMenu = pills.openContextMenu(target, true);
+		const backgroundMenu = pills.openContextMenu(pills.inputPills.element);
+		await mouseMenu.find(action => action.id === 'remove-pr')?.run();
+		await keyboardMenu.find(action => action.id === 'remove-pr')?.run();
+
+		assert.deepStrictEqual({
+			mouse: mouseMenu.slice(0, 5).map(action => action.label),
+			keyboard: keyboardMenu.slice(0, 5).map(action => action.label),
+			backgroundRemoval: backgroundMenu.some(action => action.id === 'remove-pr'),
+			removed,
+		}, {
+			mouse: ['Hide Pull Requests', '', 'Remove Pull Request Reference from Session', 'Pull Requests Options', ''],
+			keyboard: ['Hide Pull Requests', '', 'Remove Pull Request Reference from Session', 'Pull Requests Options', ''],
+			backgroundRemoval: false,
+			removed: 2,
+		});
+	});
+
+	test('restores focus to a live pill after a context menu action removes an entry', async () => {
+		const sections = observableValue<readonly IChatPullRequestPillSection[]>('pullRequests', []);
+		sections.set([{
+			title: 'Pull Requests', entries: [{
+				...pullRequestEntry('#1', 'open'),
+				promotedAction: toAction({
+					id: 'remove-pr',
+					label: 'Remove Pull Request from Session',
+					run: async () => {
+						await timeout(0);
+						sections.set([], undefined);
+					},
+				}),
+			}]
+		}], undefined);
+		const pills = createPills({
+			pullRequests: createSessionPullRequestPillData(sections, createPullRequestVisibility()),
+			artifacts: { sections: constObservable([{ title: 'Artifacts', entries: [{ id: 'report', label: 'Report', open: () => { } }] }]) },
+		});
+		const target = pills.inputPills.getPillElements()[0];
+		target.focus();
+		const menu = pills.openContextMenu(target, true);
+		// The real context menu widget holds focus while it is open, so the pill is no longer focused
+		// by the time the promoted action resolves.
+		target.blur();
+		const removeAction = menu.find(action => action.id === 'remove-pr');
+		assert.ok(removeAction);
+		await removeAction.run();
+		await timeout(10);
+
+		assert.deepStrictEqual({
+			action: removeAction.label,
+			labels: pills.labels(),
+			focusedLivePill: document.activeElement === pills.inputPills.getPillElements().at(0),
+		}, {
+			action: 'Remove Pull Request from Session',
+			labels: ['1 Artifact'],
+			focusedLivePill: true,
 		});
 	});
 
@@ -198,21 +267,103 @@ suite('StandardChatInputPillSources', () => {
 		const states: readonly (ChatPullRequestState | undefined)[] = ['open', 'draft', 'closed', 'merged', undefined];
 		const transitions = states.map(state => {
 			sections.set([{ title: 'Pull Requests', entries: [pullRequestEntry('#1', state)] }], undefined);
-			return { state, first: first.labels(), second: second.labels() };
+			const referencesPill = first.inputPills.getPillElements().at(-1);
+			assert.ok(referencesPill);
+			return {
+				state,
+				first: first.labels(),
+				second: second.labels(),
+				fallbackOptions: first.openContextMenu(referencesPill).some(action => action.id === 'chatInputPills.options.pullRequests'),
+			};
 		});
 
 		assert.deepStrictEqual({ before, filtered, transitions }, {
 			before: { first: ['5 Pull Requests', '5 References'], second: ['5 Pull Requests'] },
 			filtered: { first: ['3 Pull Requests', '5 References'], second: ['3 Pull Requests'] },
 			transitions: [
-				{ state: 'open', first: ['#1', '1 Reference'], second: ['#1'] },
-				{ state: 'draft', first: ['#1', '1 Reference'], second: ['#1'] },
-				{ state: 'closed', first: ['1 Reference'], second: [] },
-				{ state: 'merged', first: ['1 Reference'], second: [] },
-				{ state: undefined, first: ['#1', '1 Reference'], second: ['#1'] },
+				{ state: 'open', first: ['#1', '1 Reference'], second: ['#1'], fallbackOptions: false },
+				{ state: 'draft', first: ['#1', '1 Reference'], second: ['#1'], fallbackOptions: false },
+				{ state: 'closed', first: ['1 Reference'], second: [], fallbackOptions: true },
+				{ state: 'merged', first: ['1 Reference'], second: [], fallbackOptions: true },
+				{ state: undefined, first: ['#1', '1 Reference'], second: ['#1'], fallbackOptions: false },
 			],
 		});
 	});
+
+	test('offers filtered pull request options on every other pill for mouse and keyboard', async () => {
+		const data = createSessionPullRequestPillData(constObservable([{
+			title: 'Pull Requests',
+			entries: [pullRequestEntry('#1', 'closed'), pullRequestEntry('#2', 'merged')],
+		}]), createPullRequestVisibility());
+		const sections = constObservable([{ title: 'Items', entries: [{ id: 'item', label: 'Item', open: () => { } }] }]);
+		const pills = createPills({
+			changes: {
+				stats: constObservable({ files: 1, insertions: 1, deletions: 0 }),
+				label: constObservable('Changes'),
+				open: () => { },
+			},
+			pullRequests: data,
+			issues: { sections },
+			artifacts: { sections },
+			references: { sections },
+			customizations: { sections },
+			browsers: { sections },
+			subagents: { sections },
+		});
+		pills.visibility.toggle(SessionChatPillKind.Customizations);
+		pills.visibility.toggle(SessionChatPillKind.Subagents);
+		await data.getContextMenuActions()[1].run();
+
+		const targets = pills.inputPills.getPillElements();
+		const menus = [false, true].map(keyboard => targets.map(target =>
+			pills.openContextMenu(target, keyboard).map(action => action.label)));
+		const submenu = pills.openContextMenu(targets[1], true)[2];
+		assert.ok(submenu instanceof SubmenuAction);
+		const checked = submenu.actions.map(action => ({ label: action.label, checked: action.checked }));
+		await submenu.actions[0].run();
+		const restoredOptions = pills.openContextMenu(pills.inputPills.getPillElements()[0])
+			.filter(action => action instanceof SubmenuAction).map(action => action.label);
+		const otherKinds = ['Issues', 'Artifacts', 'References', 'Customizations', 'Browsers', 'Subagents'];
+		const toggles = ['Pull Requests', ...otherKinds];
+		const expectedMenus = [
+			['Pull Requests Options', '', ...toggles],
+			...otherKinds.map(label => [`Hide ${label}`, '', 'Pull Requests Options', '', ...toggles]),
+		];
+
+		assert.deepStrictEqual({ menus, checked, restoredOptions, restoredPullRequests: pills.labels()[1] }, {
+			menus: [expectedMenus, expectedMenus],
+			checked: [{ label: 'Show All', checked: false }, { label: 'Show Open/Draft', checked: true }],
+			restoredOptions: [],
+			restoredPullRequests: '2 Pull Requests',
+		});
+	});
+
+	for (const { name, entries, showAll, hidden } of [
+		{ name: 'there are no pull requests', entries: [], showAll: false, hidden: false },
+		{ name: 'some pull requests remain visible', entries: [pullRequestEntry('#1', 'open'), pullRequestEntry('#2', 'merged')], showAll: false, hidden: false },
+		{ name: 'closed pull requests are not filtered', entries: [pullRequestEntry('#1', 'closed')], showAll: true, hidden: false },
+		{ name: 'the pull request pill is manually hidden', entries: [pullRequestEntry('#1', 'open')], showAll: false, hidden: true },
+	]) {
+		test(`does not offer pull request options on other pills when ${name}`, () => {
+			const visibility = createPullRequestVisibility();
+			visibility.setShowAll(showAll);
+			const data = createSessionPullRequestPillData(constObservable([{ title: 'Pull Requests', entries }]), visibility);
+			const pills = createPills({
+				pullRequests: data,
+				references: { sections: constObservable([{ title: 'References', entries: [{ id: 'docs', label: 'Docs', open: () => { } }] }]) },
+			});
+			if (hidden) {
+				pills.visibility.hide(SessionChatPillKind.PullRequests);
+			}
+			const referencesPill = pills.inputPills.getPillElements().at(-1);
+			assert.ok(referencesPill);
+
+			assert.deepStrictEqual(
+				pills.openContextMenu(referencesPill).filter(action => action instanceof SubmenuAction).map(action => action.label),
+				[],
+			);
+		});
+	}
 
 	test('keeps options reachable when every pull request is filtered out', async () => {
 		const data = createSessionPullRequestPillData(constObservable([{ title: 'Pull Requests', entries: [pullRequestEntry('#1', 'merged')] }]), createPullRequestVisibility());

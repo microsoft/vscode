@@ -11,6 +11,7 @@ import { Dialog, DialogContentsAlignment } from '../../../../../base/browser/ui/
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { toErrorMessage } from '../../../../../base/common/errorMessage.js';
+import { Event } from '../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Lazy } from '../../../../../base/common/lazy.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
@@ -33,12 +34,30 @@ import { IWorkbenchLayoutService } from '../../../../services/layout/browser/lay
 import { ChatEntitlement, ChatEntitlementContext, ChatEntitlementService, IChatEntitlementService, isProUser } from '../../../../services/chat/common/chatEntitlementService.js';
 import { IChatWidgetService } from '../chat.js';
 import { ChatSetupController } from './chatSetupController.js';
-import { IChatSetupResult, ChatSetupAnonymous, ChatSetupDialogVisibleContext, ChatSetupError, InstallChatEvent, InstallChatClassification, ChatSetupStrategy, ChatSetupResultValue, IChatSetupRunOptions } from './chatSetup.js';
+import { IChatSetupResult, ChatSetupAnonymous, ChatSetupDialogVisibleContext, ChatSetupError, InstallChatEvent, InstallChatClassification, ChatSetupSource, ChatSetupStrategy, ChatSetupResultValue, IChatSetupRunOptions } from './chatSetup.js';
 import { GitHubPaths, IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { IHostService } from '../../../../services/host/browser/host.js';
 import { IExtensionService } from '../../../../services/extensions/common/extensions.js';
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
 import { raceTimeout } from '../../../../../base/common/async.js';
+
+type ChatSetupDialogShownEvent = {
+	source: ChatSetupSource;
+	kind: 'signIn' | 'setup';
+	accountAvailable: boolean;
+	entitlement: string;
+	forceSignInDialog: boolean;
+};
+
+type ChatSetupDialogShownClassification = {
+	owner: 'jruales';
+	comment: 'Counts displayed chat setup dialogs and diagnoses repeated sign-in prompting. Does not indicate a login attempt or success.';
+	source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Allowlisted setup entry point. Command covers callers without more specific attribution.' };
+	kind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the dialog offers provider sign-in or only AI feature setup.' };
+	accountAvailable: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Whether the default account is currently available. False can include pending initialization and does not establish credential loss.' };
+	entitlement: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'ChatEntitlement enum name used to construct the dialog.' };
+	forceSignInDialog: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Whether the caller explicitly requested a sign-in dialog.' };
+};
 
 const fallbackProviders = {
 	default: { id: '', name: '' },
@@ -190,24 +209,43 @@ export async function showChatSetupDialogWithCancellation(
 	dialog: Pick<ChatSetupDialog, 'show' | 'dispose'>,
 	cancellationToken: CancellationToken | undefined,
 	onDidDismissDialog?: () => void,
+	onDidShowDialog?: () => void,
+	defaultAccountService?: IDefaultAccountService,
 ): Promise<ChatSetupStrategy> {
+	const disposables = new DisposableStore();
 	let canceled = false;
-	const cancellationListener = cancellationToken?.onCancellationRequested(() => {
-		canceled = true;
-		dialog.dispose();
-	});
+	let signedIn = false;
 	try {
-		if (cancellationToken?.isCancellationRequested) {
-			canceled = true;
-			dialog.dispose();
+		if (cancellationToken) {
+			disposables.add(cancellationToken.onCancellationRequested(() => {
+				canceled = true;
+				dialog.dispose();
+			}));
 		}
-		const strategy = canceled ? ChatSetupStrategy.Canceled : await dialog.show();
+		if (defaultAccountService) {
+			disposables.add(Event.once(Event.filter(defaultAccountService.onDidChangeDefaultAccount, account => account !== null))(() => {
+				signedIn = true;
+				dialog.dispose();
+			}));
+		}
+		if (cancellationToken?.isCancellationRequested) {
+			return ChatSetupStrategy.Canceled;
+		}
+		if (signedIn || defaultAccountService?.currentDefaultAccount) {
+			return ChatSetupStrategy.DefaultSetup;
+		}
+		const result = dialog.show();
+		onDidShowDialog?.();
+		const strategy = await result;
+		if (signedIn && !canceled) {
+			return ChatSetupStrategy.DefaultSetup;
+		}
 		if (!canceled && strategy === ChatSetupStrategy.Canceled) {
 			onDidDismissDialog?.();
 		}
 		return strategy;
 	} finally {
-		cancellationListener?.dispose();
+		disposables.dispose();
 		dialog.dispose();
 	}
 }
@@ -357,7 +395,8 @@ export class ChatSetup {
 			setupStrategy = await this.showDialog(options);
 		}
 
-		if (setupStrategy === ChatSetupStrategy.DefaultSetup && this.defaultAccountService.getDefaultAccountAuthenticationProvider().enterprise) {
+		const signedInAccount = options?.autoDismissOnSignIn ? this.defaultAccountService.currentDefaultAccount : undefined;
+		if (setupStrategy === ChatSetupStrategy.DefaultSetup && !signedInAccount && this.defaultAccountService.getDefaultAccountAuthenticationProvider().enterprise) {
 			setupStrategy = ChatSetupStrategy.SetupWithEnterpriseProvider; // users with a configured provider go through provider setup
 		}
 
@@ -366,7 +405,7 @@ export class ChatSetup {
 		let errorAlreadyHandled = false;
 		const setupCancellation = new CancellationTokenSource(options?.cancellationToken);
 		try {
-			if (setupStrategy !== ChatSetupStrategy.Canceled) {
+			if (entersProviderAuthentication(setupStrategy) || (setupStrategy === ChatSetupStrategy.DefaultSetup && !signedInAccount)) {
 				options?.onSignInStarted?.(() => setupCancellation.cancel());
 			}
 
@@ -393,7 +432,7 @@ export class ChatSetup {
 					success = await this.controller.value.setupWithProvider({ useEnterpriseProvider: false, useSocialProvider: 'microsoft', additionalScopes: options?.additionalScopes, forceAnonymous: options?.forceAnonymous, cancellationToken: setupCancellation.token });
 					break;
 				case ChatSetupStrategy.DefaultSetup:
-					success = await this.controller.value.setup({ ...options, forceAnonymous: options?.forceAnonymous, cancellationToken: setupCancellation.token });
+					success = await this.controller.value.setup({ ...options, useEnterpriseProvider: signedInAccount?.authenticationProvider.enterprise, forceAnonymous: options?.forceAnonymous, cancellationToken: setupCancellation.token });
 					break;
 				case ChatSetupStrategy.Canceled:
 					this.context.update({ later: true });
@@ -470,7 +509,8 @@ export class ChatSetup {
 		}
 		const enterpriseAuthentication = this.defaultAccountService.getDefaultAccountAuthenticationProvider().enterprise;
 		const showMicrosoftProvider = shouldShowMicrosoftProvider(this.configurationService);
-		const buttons = getChatSetupDialogButtons(this.context.state.entitlement, options, enterpriseAuthentication, showMicrosoftProvider);
+		const entitlement = this.context.state.entitlement;
+		const buttons = getChatSetupDialogButtons(entitlement, options, enterpriseAuthentication, showMicrosoftProvider);
 		const dialog = this.instantiationService.createInstance(ChatSetupDialog, this.layoutService.activeContainer, {
 			title: this.getDialogTitle(options),
 			buttons,
@@ -480,7 +520,16 @@ export class ChatSetup {
 			extraClasses: options?.dialogExtraClasses,
 			renderFooter: options?.renderDialogFooter,
 		});
-		return showChatSetupDialogWithCancellation(dialog, options?.cancellationToken, options?.onDidDismissDialog);
+		return showChatSetupDialogWithCancellation(dialog, options?.cancellationToken, options?.onDidDismissDialog, () => {
+			const source = options?.telemetrySource;
+			this.telemetryService.publicLog2<ChatSetupDialogShownEvent, ChatSetupDialogShownClassification>('chatSetup.dialogShown', {
+				source: source !== undefined && Object.values(ChatSetupSource).includes(source) ? source : ChatSetupSource.Unknown,
+				kind: buttons.some(button => entersProviderAuthentication(button.strategy)) ? 'signIn' : 'setup',
+				accountAvailable: this.defaultAccountService.currentDefaultAccount !== null,
+				entitlement: ChatEntitlement[entitlement],
+				forceSignInDialog: options?.forceSignInDialog === true,
+			});
+		}, options?.autoDismissOnSignIn ? this.defaultAccountService : undefined);
 	}
 
 	private getDialogTitle(options?: IChatSetupRunOptions): string {

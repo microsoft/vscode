@@ -292,8 +292,12 @@ export const agentMergeDisableReasons = {
 		notice: localize('agentMerge.disabled.indeterminate', "Agent Merge was disabled because its pull request state could not be evaluated for {0} minutes.", minutes),
 	}),
 	pullRequestClosed: (): AgentMergeDisableReason => ({
-		log: 'the pull request is closed or merged',
-		notice: localize('agentMerge.disabled.pullRequestClosed', "Agent Merge was disabled because its pull request is closed or merged."),
+		log: 'the pull request was closed without merging',
+		notice: localize('agentMerge.disabled.pullRequestClosed', "Agent Merge was disabled because its pull request was closed without merging."),
+	}),
+	pullRequestAlreadyMerged: (pullRequestNumber: number, pullRequestUrl: string): AgentMergeDisableReason => ({
+		log: 'the pull request was already merged',
+		notice: localize('agentMerge.disabled.pullRequestAlreadyMerged', "Pull request [#{0}]({1}) was merged. Agent Merge is now disabled.", pullRequestNumber, pullRequestUrl),
 	}),
 	repairBudgetExhausted: (): AgentMergeDisableReason => ({
 		log: 'the same pull request blockers remained after repeated repair attempts',

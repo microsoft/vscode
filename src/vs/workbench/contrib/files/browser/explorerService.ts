@@ -38,6 +38,7 @@ export class ExplorerService implements IExplorerService {
 
 	private readonly disposables = new DisposableStore();
 	private editable: { stat: ExplorerItem; data: IEditableData } | undefined;
+	private shouldRefreshAfterEditing = false;
 	private config: IFilesConfiguration['explorer'];
 	private cutItems: ExplorerItem[] | undefined;
 	private view: IExplorerView | undefined;
@@ -136,7 +137,11 @@ export class ExplorerService implements IExplorerService {
 		// Refresh explorer when window gets focus to compensate for missing file events #126817
 		this.disposables.add(hostService.onDidChangeFocus(hasFocus => {
 			if (hasFocus) {
-				this.refresh(false);
+				if (this.editable) {
+					this.shouldRefreshAfterEditing = true;
+				} else {
+					this.refresh(false);
+				}
 			}
 		}));
 		this.revealExcludeMatcher = new ResourceGlobMatcher(
@@ -256,6 +261,7 @@ export class ExplorerService implements IExplorerService {
 			this.editable = undefined;
 		} else {
 			this.editable = { stat, data };
+			this.onFileChangesScheduler.cancel();
 		}
 		const isEditing = this.isEditable(stat);
 		try {
@@ -265,8 +271,14 @@ export class ExplorerService implements IExplorerService {
 		}
 
 
-		if (!this.editable && this.fileChangeEvents.length && !this.onFileChangesScheduler.isScheduled()) {
-			this.onFileChangesScheduler.schedule();
+		if (!this.editable) {
+			if (this.shouldRefreshAfterEditing) {
+				this.shouldRefreshAfterEditing = false;
+				await this.refresh(false);
+			}
+			if (this.fileChangeEvents.length && !this.onFileChangesScheduler.isScheduled()) {
+				this.onFileChangesScheduler.schedule();
+			}
 		}
 	}
 

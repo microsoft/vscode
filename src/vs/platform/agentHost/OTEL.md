@@ -12,6 +12,76 @@ This is the architecture and integration reference for OTel in Agent Host sessio
 | SDK | Copilot `TelemetryConfig`, Claude environment, and Codex `otel.*` launch overrides | `@opentelemetry/sdk-node` directly |
 | Persistence | `<userData>/agent-host/otel/agent-host-traces.db` | `<extensionGlobalStorage>/otel/spans.db` |
 
+## First Response Diagnostics
+
+The renderer reports `agentHost.firstResponse` and writes a content-free
+`[AgentHostFirstResponse]` JSON record to its existing log. Schema version 1
+contains `requestId`, `provider`, optional backend `agentSessionId` / `chatId`,
+`sessionTurnKind` (`first`, `later`, or `unknown`), `outcome` (`success`,
+`cancelled`, `error`, or `notDispatched`), `hasResponseText`, optional
+`firstResponseTextMs`, and `totalElapsedMs`. The log additionally retains
+`sessionId`, identical to `agentSessionId`, for compatibility, and includes
+`turnId`, identical to `requestId`, for AHP joins. The telemetry property uses
+`agentSessionId` to avoid colliding with the common VS Code `sessionID` property.
+Durations use a local monotonic clock starting at agent invocation, before
+trust/authentication/session preparation.
+`invocationKind` is `newTurn`, `existingTurn`, `subagent`, or `unknown` before
+hydration. Exclude `existingTurn` and `subagent` records from first-response
+comparisons rather than treating them as successful turns without an answer.
+The endpoint is the first nonwhitespace live root markdown emission, including
+final-only responses, not physical submit, paint, or a semantic guarantee of an
+answer. Reasoning, tool output, restored history and server-initiated observation
+do not start this metric. Existing first-progress measurements are unchanged.
+
+`rendererRootInvocationOrdinal` counts root invocation attempts across providers
+in this renderer lifetime, including declined, cancelled and resumed attempts.
+Subagents do not advance it. Reload resets it; host reconnection does not.
+`rootToolCallsBeforeFirstText` counts distinct live root tool calls presented
+before first text, excluding child calls, replay and updates to the same call.
+It is absent without qualifying text, and is not a model-round count.
+`trustInteractionRequired` identifies invocations that requested an interactive
+trust decision. Exclude these rows from primary latency comparisons without
+discarding them from outcome reporting. Missing historical fields remain unknown.
+
+The host log separately records `[AgentHostTurnTiming]` JSON with `schemaVersion: 1`,
+`sessionId`, `chatId`, `turnId`, `provider`, `hostRootTurnOrdinal` (one-based, across providers)
+and `hostProcessAgeMs`, captured at turn start. The first strategy capture adds
+an enriched marker with the same start values and `titleGenerationStrategy`
+(`activeAgent`, `utility`, or `deferred`). Merge compatible markers for one turn,
+retaining the known strategy rather than counting them as separate observations.
+Resuming the same turn retains its original host timing and strategy without
+advancing the ordinal. This identity is retained until chat teardown or truncation.
+`agentHost.turnCompleted` carries those host fields and the effective saved
+strategy, when available. Join its raw `turnId` and `provider` with renderer
+`requestId` and `provider`, not timestamps or differently formatted session IDs.
+A first host
+root turn is an observable process-first cohort, not proof of a cold SDK/model
+cache. Combine that ordinal with the renderer's observed prior-chat-turn state
+to separate first process turn, new chat in a warm process, and later chat turns;
+retain unknowns for missing observations. SDK readiness is not inferred.
+
+Report unmatched received events alongside latency, separating expected
+pre-dispatch absence from missing host observations. Error/cancelled outcomes
+alone do not prove dispatch. Both completion events and the renderer's `finally`
+can be absent after a crash or permanent hang; join coverage is not a hang rate.
+
+The existing debug-gated `usage.jsonl` export retains at most 2048 recent records and 2 MiB
+(compacting to the latest 1024 when full). Version 2 model-call records have
+`kind: "modelCall"`, `sdkSessionId`, `eventId`, optional `apiCallId`,
+`providerCallId`, `serviceRequestId`, `agentId`, model/token counters, and
+`durationMs`, `timeToFirstTokenMs`, `outputTtftMs`. `turnId` is present only when
+the host has an exact call-to-turn mapping; `correlation` is `exact` or
+`unresolved`. An unresolved record must not inherit the currently active turn.
+IDs are bounded to 256 characters, measurements must be finite and nonnegative,
+and repeated API call IDs (or event IDs when unavailable) are deduplicated.
+Only exact API call IDs join version 2 records to persisted model messages;
+legacy-only exports retain their existing approximate positional association.
+No prompts, response bodies, tool arguments, or workspace paths are added.
+
+The usage sidecar diagnostics are separate from provider OTel and product telemetry.
+The native SDK's output TTFT includes reasoning and tool-call output, so it is
+not interchangeable with renderer first-response-text latency.
+
 ## Sources of Truth
 
 Agent Host owns transport routing, optional interception and persistence, resource normalization, and cross-provider trace context. Each provider owns the telemetry it produces:

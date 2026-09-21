@@ -35,6 +35,7 @@ import { IChatResponseViewModel } from '../../../../common/model/chatViewModel.j
 import { ToolDataSource, type ToolDataSource as ToolDataSourceType } from '../../../../common/tools/languageModelToolsService.js';
 import { CollapsibleListPool } from '../../../../browser/widget/chatContentParts/chatReferencesContentPart.js';
 import { IChatTodoListService } from '../../../../common/tools/chatTodoListService.js';
+import { MockChatWidgetService } from '../mockChatWidget.js';
 
 class TestToolInvocationSubPart extends BaseChatToolInvocationSubPart {
 	readonly domNode = mainWindow.document.createElement('div');
@@ -45,6 +46,14 @@ class TestToolInvocationSubPart extends BaseChatToolInvocationSubPart {
 		this.domNode.dataset.terminalToolSessionId = terminalData.terminalToolSessionId ?? '';
 	}
 }
+
+const mockTodoListService = {
+	_serviceBrand: undefined,
+	onDidUpdateTodos: Event.None,
+	getTodos: () => [],
+	setTodos() { },
+	migrateTodos() { },
+} satisfies IChatTodoListService;
 
 suite('ChatToolProgressSubPart', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -216,13 +225,9 @@ suite('ChatToolProgressSubPart', () => {
 			undefined,
 			0,
 			instantiationService,
-			{
-				_serviceBrand: undefined,
-				onDidUpdateTodos: Event.None,
-				getTodos: () => [],
-				setTodos() { },
-				migrateTodos() { },
-			} satisfies IChatTodoListService,
+			mockTodoListService,
+			mockConfigurationService,
+			new MockChatWidgetService(),
 		));
 	}
 
@@ -458,13 +463,9 @@ suite('ChatToolProgressSubPart', () => {
 			undefined,
 			0,
 			instantiationService,
-			{
-				_serviceBrand: undefined,
-				onDidUpdateTodos: Event.None,
-				getTodos: () => [],
-				setTodos() { },
-				migrateTodos() { },
-			} satisfies IChatTodoListService,
+			mockTodoListService,
+			mockConfigurationService,
+			new MockChatWidgetService(),
 		));
 		const sessionIdBeforeUpdate = part.domNode.firstElementChild?.getAttribute('data-terminal-tool-session-id');
 

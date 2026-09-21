@@ -131,6 +131,28 @@ suite('EditorHeaderControl', () => {
 		]);
 	});
 
+	test('layout refreshes header reservation when editor visibility changes without switching tabs', () => {
+		let editorVisible = false;
+		const header = createHeader({ showHeader: true, reserveHeaderSpace: () => editorVisible });
+		header.activate(store.add(new TestHeaderEditorInput()));
+		const states = [header.state()];
+		editorVisible = true;
+		header.control.layout(400);
+		states.push(header.state());
+		editorVisible = false;
+		header.control.layout(400);
+		states.push(header.state());
+		editorVisible = true;
+		header.control.layout(400);
+		states.push(header.state());
+		assert.deepStrictEqual(states, [
+			{ height: 0, display: 'none', actionsDisplay: 'none' },
+			{ height: EditorHeaderControl.DEFAULT_HEIGHT, display: '', actionsDisplay: 'none' },
+			{ height: 0, display: 'none', actionsDisplay: 'none' },
+			{ height: EditorHeaderControl.DEFAULT_HEIGHT, display: '', actionsDisplay: 'none' },
+		]);
+	});
+
 	test('without a reservation policy header visibility follows menu contents', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const header = createHeader({ showHeader: true });
 		header.activate(store.add(new TestHeaderEditorInput()));

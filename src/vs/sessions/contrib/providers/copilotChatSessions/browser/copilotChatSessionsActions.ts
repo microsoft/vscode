@@ -11,7 +11,7 @@ import { IActionViewItemService } from '../../../../../platform/actions/browser/
 import { Action2, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IWorkbenchContribution, WorkbenchPhase, registerWorkbenchContribution2 } from '../../../../../workbench/common/contributions.js';
-import { Menus } from '../../../../browser/menus.js';
+import { getNewSessionRepositoryConfigGroup, Menus } from '../../../../browser/menus.js';
 import { SessionHasGitRepositoryContext, SessionProviderIdContext, SessionTypeContext, IsNewChatSessionContext } from '../../../../common/contextkeys.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { BranchPicker } from './branchPicker.js';
@@ -38,7 +38,7 @@ registerAction2(class extends Action2 {
 			f1: false,
 			menu: [{
 				id: Menus.NewSessionRepositoryConfig,
-				group: 'navigation',
+				group: getNewSessionRepositoryConfigGroup(2, 'sessions.defaultCopilot.branchPicker'),
 				order: 2,
 				when: ContextKeyExpr.and(IsNewChatSessionContext, IsActiveSessionCopilotChatCLI, SessionHasGitRepositoryContext),
 			}],
@@ -55,7 +55,7 @@ registerAction2(class extends Action2 {
 			f1: false,
 			menu: [{
 				id: Menus.NewSessionRepositoryConfig,
-				group: 'navigation',
+				group: getNewSessionRepositoryConfigGroup(3, 'sessions.defaultCopilot.sandboxPicker'),
 				order: 3,
 				when: ContextKeyExpr.and(IsNewChatSessionContext, IsActiveSessionCopilotChatCloud, ChatContextKeys.enabled),
 			}],

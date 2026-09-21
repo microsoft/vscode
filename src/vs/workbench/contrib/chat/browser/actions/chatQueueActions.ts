@@ -27,6 +27,7 @@ const editingSteer = ChatContextKeys.editingRequestType.isEqualTo(ChatContextKey
 const editingQueueOrSteer = ContextKeyExpr.or(editingQueue, editingSteer)!;
 
 const queuingActionsPresent = ContextKeyExpr.and(
+	ChatContextKeys.transcriptProgressActive.negate(),
 	ContextKeyExpr.or(ChatContextKeys.requestInProgress, editingQueueOrSteer),
 	ChatContextKeys.editingRequestType.notEqualsTo(ChatContextKeys.EditingRequestType.Sent),
 );
@@ -71,7 +72,7 @@ export class ChatQueueMessageAction extends Action2 {
 			f1: false,
 			category: CHAT_CATEGORY,
 
-			precondition: ChatContextKeys.inputHasText,
+			precondition: ContextKeyExpr.and(ChatContextKeys.inputHasText, ChatContextKeys.transcriptProgressActive.negate()),
 			keybinding: [{
 				when: ContextKeyExpr.and(
 					ChatContextKeys.inChatInput,
@@ -94,7 +95,7 @@ export class ChatQueueMessageAction extends Action2 {
 	override run(accessor: ServicesAccessor, ...args: unknown[]): void {
 		const widgetService = accessor.get(IChatWidgetService);
 		const widget = widgetService.lastFocusedWidget;
-		if (!widget?.viewModel) {
+		if (!widget?.viewModel || widget.isTranscriptProgressActive) {
 			return;
 		}
 
@@ -124,7 +125,7 @@ export class ChatSteerWithMessageAction extends Action2 {
 			icon: Codicon.newLine,
 			f1: false,
 			category: CHAT_CATEGORY,
-			precondition: ChatContextKeys.inputHasText,
+			precondition: ContextKeyExpr.and(ChatContextKeys.inputHasText, ChatContextKeys.transcriptProgressActive.negate()),
 			keybinding: [{
 				when: ContextKeyExpr.and(
 					ChatContextKeys.inChatInput,
@@ -147,7 +148,7 @@ export class ChatSteerWithMessageAction extends Action2 {
 	override run(accessor: ServicesAccessor, ...args: unknown[]): void {
 		const widgetService = accessor.get(IChatWidgetService);
 		const widget = widgetService.lastFocusedWidget;
-		if (!widget?.viewModel) {
+		if (!widget?.viewModel || widget.isTranscriptProgressActive) {
 			return;
 		}
 
@@ -181,7 +182,7 @@ export class ChatAskInSideChatAction extends Action2 {
 			icon: Codicon.commentDiscussion,
 			f1: false,
 			category: CHAT_CATEGORY,
-			precondition: ChatContextKeys.inputHasText,
+			precondition: ContextKeyExpr.and(ChatContextKeys.inputHasText, ChatContextKeys.transcriptProgressActive.negate()),
 		});
 	}
 
@@ -193,7 +194,7 @@ export class ChatAskInSideChatAction extends Action2 {
 
 		const widget = widgetService.lastFocusedWidget;
 		const sessionResource = widget?.viewModel?.model.sessionResource;
-		if (!widget || !sessionResource) {
+		if (!widget || !sessionResource || widget.isTranscriptProgressActive) {
 			return;
 		}
 

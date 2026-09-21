@@ -10,9 +10,8 @@ import { BaseLayoutController } from './baseSessionLayoutController.js';
 import { ISinglePaneLayoutContext } from './singlePane/singlePaneLayoutStrategy.js';
 import { SinglePaneDetailPanelCoordinator } from './singlePane/singlePaneDetailPanelCoordinator.js';
 import { SinglePaneDockedTabsCoordinator } from './singlePane/singlePaneDockedTabsCoordinator.js';
-import { SinglePaneNewSessionStrategy } from './singlePane/singlePaneNewSessionStrategy.js';
+import { SinglePaneDraftSessionStrategy } from './singlePane/singlePaneDraftSessionStrategy.js';
 import { SinglePaneExistingSessionStrategy } from './singlePane/singlePaneExistingSessionStrategy.js';
-import { SinglePaneQuickChatStrategy } from './singlePane/singlePaneQuickChatStrategy.js';
 import { SinglePaneVisibilityProfileStore } from './singlePane/singlePaneVisibilityProfileStore.js';
 
 export { TOGGLE_DETAILS_COMMAND_ID } from './singlePane/singlePaneExistingSessionStrategy.js';
@@ -24,11 +23,10 @@ const SINGLE_PANE_LAYOUT_STATE_KEY = 'sessions.singlePane.layoutState';
  * Layout controller for the single-pane detail-panel layout. A sibling of the
  * classic {@link import('./desktopSessionLayoutController.js').LayoutController}
  * (both extend {@link BaseLayoutController}), it owns its behaviour through exactly
- * three composed lifecycle strategies rather than desktop inheritance:
- *  - {@link SinglePaneNewSessionStrategy} — an uncreated, workspace-backed draft;
+ * two composed lifecycle strategies rather than desktop inheritance:
+ *  - {@link SinglePaneDraftSessionStrategy} — workspace-backed and workspace-less drafts;
  *  - {@link SinglePaneExistingSessionStrategy} — a created, workspace-backed session
  *    (also owns the Toggle Details command and the shared managed-tabs coordinator);
- *  - {@link SinglePaneQuickChatStrategy} — a workspace-less quick chat.
  *
  * Each owns the full vertical slice of behaviour for its stage: side-pane visibility, the
  * detail-panel (Changes/Files) mapping, and — for the two workspace stages — a supplementary
@@ -79,8 +77,7 @@ export class SinglePaneLayoutController extends BaseLayoutController {
 		const detailPanel = this._register(this._instantiationService.createInstance(SinglePaneDetailPanelCoordinator));
 
 		this._existingSession = this._register(this._instantiationService.createInstance(SinglePaneExistingSessionStrategy, this._ctx, visibilityStore, detailPanel));
-		this._register(this._instantiationService.createInstance(SinglePaneNewSessionStrategy, this._ctx, detailPanel));
-		this._register(this._instantiationService.createInstance(SinglePaneQuickChatStrategy, this._ctx, detailPanel, visibilityStore));
+		this._register(this._instantiationService.createInstance(SinglePaneDraftSessionStrategy, this._ctx, detailPanel, visibilityStore));
 	}
 
 	// --- Managed tabs + editor-area collapse (deferred to Restored so they reconcile on top of the restored group) ---

@@ -29,7 +29,7 @@ import { GitHubAuthenticationError } from '../../github/browser/githubApiClient.
 import { IGitHubRecentIssue, IGitHubRecentPullRequest, IGitHubRecentUserWork } from '../../github/browser/fetchers/githubRecentUserWorkFetcher.js';
 import { IGitHubService } from '../../github/browser/githubService.js';
 import { computeIssueIcon, computePullRequestIcon, GitHubIssueState, GitHubPullRequestState } from '../../github/common/types.js';
-import { resolveGitHubRepositoryFromGitConfig } from './gitHubRepositoryResolver.js';
+import { resolveGitHubRepositoryFromGitConfig } from '../../../services/sessions/browser/gitHubRepositoryResolver.js';
 import { NEW_SESSION_VIEW_V3_GITHUB_PROMPT_VARIATION, NEW_SESSION_VIEW_V3_OPTIONS_VARIATION, NEW_SESSION_VIEW_V3_PROMPT_VARIATION, NEW_SESSION_VIEW_V3_TOUR_ID, NEW_SESSION_VIEW_V3_VARIATION_TREATMENT } from './tours/newSessionViewV3Tour.js';
 
 /**
