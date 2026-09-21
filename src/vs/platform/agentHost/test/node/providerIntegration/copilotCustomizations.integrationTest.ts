@@ -11,7 +11,7 @@
 
 import assert from 'assert';
 import { CopilotClient } from '@github/copilot-sdk';
-import { mkdir, mkdtemp, realpath, rm, writeFile } from 'fs/promises';
+import { cp, mkdir, mkdtemp, realpath, rm, writeFile } from 'fs/promises';
 import { tmpdir } from 'os';
 import { join } from '../../../../../base/common/path.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -150,7 +150,7 @@ suite('Agent Host Provider Integration — Copilot Customizations', function () 
 	suiteSetup(async function () {
 		this.timeout(SETUP_TIMEOUT_MS);
 		userHomeDir = await realpath(await mkdtemp(`${tmpdir()}/ahp-customizations-home-mock-`));
-		server = await startRealServer({ mockLlm: true, homeDir: userHomeDir });
+		server = await startRealServer({ mockLlm: true, homeDir: userHomeDir, userDataDir: join(userHomeDir, 'user-data'), logLevel: 'trace' });
 		tempDirs.push(userHomeDir);
 	});
 
@@ -174,6 +174,9 @@ suite('Agent Host Provider Integration — Copilot Customizations', function () 
 	});
 
 	teardown(async function () {
+		if (this.currentTest?.state === 'failed') {
+			await cp(join(userHomeDir, 'user-data', 'logs'), join(process.cwd(), '.build', 'logs', 'copilot-customizations'), { recursive: true });
+		}
 		const disposeErrors: string[] = [];
 		for (const session of createdSessions) {
 			try {
@@ -843,7 +846,7 @@ suite('Agent Host Provider Integration — Copilot Customizations', function () 
 			}
 			client.close();
 			server.process.kill();
-			server = await startRealServer({ mockLlm: true, homeDir: userHomeDir });
+			server = await startRealServer({ mockLlm: true, homeDir: userHomeDir, userDataDir: join(userHomeDir, 'user-data'), logLevel: 'trace' });
 			client = new TestProtocolClient(server.port);
 			await client.connect();
 		}
