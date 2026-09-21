@@ -35,12 +35,12 @@ import { IViewsService } from '../../../../workbench/services/views/common/views
 import { getQuickNavigateHandler, inQuickPickContext } from '../../../../workbench/browser/quickaccess.js';
 import { Menus } from '../../../browser/menus.js';
 import { SessionsCategories } from '../../../common/categories.js';
-import { CanGoBackContext, CanGoForwardContext, SessionProviderIdContext, MultipleSessionsVisibleContext, SessionIsArchivedContext, SessionIsCreatedContext, SessionIsMaximizedContext, SessionIsStickyContext, SessionsFocusContext, SessionSupportsMultipleChatsContext, SessionSupportsRenameContext, SessionsWelcomeVisibleContext, SessionIdContext, SessionHasMultipleCommittedChatsContext, SessionHasMultipleOpenChatsContext, SessionsPickerVisibleContext, SessionActiveChatIsClosableContext, SessionFocusedChatIsRenameTargetContext, SessionActiveChatIsDeletableContext, SessionChatsPickerVisibleContext, SessionHasSideChatsContext, SessionsTitleBarNewSessionEnabledContext, SessionsEditorScopeContext, SessionsHasClosedItemContext, IsQuickChatSessionContext, SessionsListPromoteNewChatActionContext } from '../../../common/contextkeys.js';
+import { CanGoBackContext, CanGoForwardContext, SessionProviderIdContext, MultipleSessionsVisibleContext, SessionIsArchivedContext, SessionIsCreatedContext, SessionIsMaximizedContext, SessionIsStickyContext, SessionsFocusContext, SessionSupportsMultipleChatsContext, SessionSupportsRenameContext, SessionsWelcomeVisibleContext, SessionIdContext, SessionHasMultipleCommittedChatsContext, SessionHasMultipleOpenChatsContext, SessionsPickerVisibleContext, SessionActiveChatIsClosableContext, SessionFocusedChatIsRenameTargetContext, SessionActiveChatIsDeletableContext, SessionChatsPickerVisibleContext, SessionActiveChatHasSideChatsContext, SessionActiveChatResourceContext, SessionsTitleBarNewSessionEnabledContext, SessionsEditorScopeContext, SessionsHasClosedItemContext, IsNewChatSessionContext, IsQuickChatSessionContext, SessionsListPromoteNewChatActionContext, SessionHeaderActiveChatIsPinnedContext, SessionHeaderShowsChatContext } from '../../../common/contextkeys.js';
 import { ANY_AGENT_HOST_PROVIDER_RE } from '../../../common/agentHostSessionsProvider.js';
-import { CLOSE_CHAT_COMMAND_ID, FOCUS_ACTIVE_SESSION_COMMAND_ID, FOCUS_NEXT_CHAT_GROUP_COMMAND_ID, FOCUS_PREVIOUS_CHAT_GROUP_COMMAND_ID, MOVE_CHAT_TO_NEXT_GROUP_COMMAND_ID, MOVE_CHAT_TO_PREVIOUS_GROUP_COMMAND_ID, RENAME_CHAT_COMMAND_ID, RENAME_SESSION_COMMAND_ID, SPLIT_CHAT_GROUP_DOWN_COMMAND_ID, SPLIT_CHAT_GROUP_RIGHT_COMMAND_ID } from '../../../common/sessionCommands.js';
+import { CLOSE_CHAT_COMMAND_ID, CLOSE_SESSION_COMMAND_ID, FOCUS_ACTIVE_SESSION_COMMAND_ID, FOCUS_NEXT_CHAT_GROUP_COMMAND_ID, FOCUS_PREVIOUS_CHAT_GROUP_COMMAND_ID, MOVE_CHAT_TO_NEXT_GROUP_COMMAND_ID, MOVE_CHAT_TO_PREVIOUS_GROUP_COMMAND_ID, RENAME_CHAT_COMMAND_ID, RENAME_SESSION_COMMAND_ID, SPLIT_CHAT_GROUP_DOWN_COMMAND_ID, SPLIT_CHAT_GROUP_RIGHT_COMMAND_ID, TOGGLE_PIN_CHAT_COMMAND_ID, TOGGLE_PIN_SESSION_COMMAND_ID } from '../../../common/sessionCommands.js';
 import { IActiveSession, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
-import { ChatOriginKind, getChatCapabilities, getGitHubPullRequestRefs, getHighestPriorityPullRequestIcon, getUntitledSessionTitle, IChat, ISession, SessionStatus } from '../../../services/sessions/common/session.js';
+import { ChatOriginKind, getChatCapabilities, getGitHubPullRequestRefs, getHighestPriorityPullRequestIcon, getUntitledSessionTitle, IChat, isSideChatOf, ISession, SessionStatus } from '../../../services/sessions/common/session.js';
 import { ISessionsPartService } from '../../../services/sessions/browser/sessionsPartService.js';
 import { ISessionsListModelService } from '../../../services/sessions/browser/sessionsListModelService.js';
 import { $, append, EventHelper, isMouseEvent, ModifierKeyEmitter, reset } from '../../../../base/browser/dom.js';
@@ -62,7 +62,7 @@ import { agentsNewSessionButtonBackground, agentsNewSessionButtonBorder, agentsN
 import { logSessionsInteraction, SessionsInteractionSource } from '../../../common/sessionsTelemetry.js';
 import { NEW_SESSION_ACTION_ID } from '../../chat/common/constants.js';
 import { groupSessionsForPicker } from './sessionsPicker.js';
-import { getSessionConversationActionId, isSessionConversationSideChat, SESSION_CONVERSATION_SIDE_CHATS_GROUP } from '../../../browser/sessionConversationGroups.js';
+import { getSessionConversationActionId, SESSION_CONVERSATION_SIDE_CHATS_GROUP } from '../../../browser/sessionConversationGroups.js';
 import { ISessionChatItem, SessionChatItemCanDeleteContext, SessionChatItemCanRenameContext, SessionChatItemIsUntitledContext, SessionsList, SessionsListFocusedChatItemContext } from './views/sessionsList.js';
 import { SessionsView, SessionsViewId } from './views/sessionsView.js';
 import './media/newSessionActionViewItem.css';
@@ -830,23 +830,17 @@ registerAction2(class NavigatePreviousChatAction extends Action2 {
 	}
 });
 
-// The close-chat action is both a keybinding (Ctrl/Cmd+W closes the active chat)
-// and a per-tab toolbar action contributed to {@link Menus.SessionChatTab}: the
-// chat tab strip renders this menu and forwards the tab's {@link IChatTabContext}
-// as the action argument so the button closes that specific tab.
-export interface IChatTabContext {
-	readonly session: IActiveSession;
-	readonly chat: IChat;
-}
+// The close action is shared by chat tabs and chat-group headers. A main-chat
+// group is removed without hiding the session's main chat.
 
 registerAction2(class CloseChatAction extends Action2 {
 	constructor() {
 		super({
 			id: CLOSE_CHAT_COMMAND_ID,
-			title: localize2('closeActiveChat', "Close Chat"),
+			title: localize2('closeActiveChat', "Close"),
 			icon: Codicon.close,
-			// Hidden from the palette: closing a specific chat is contextual (the
-			// keybinding targets the active chat; the menu targets a tab).
+			// Hidden from the palette because closing a chat requires either an
+			// explicit tab context or an active chat group.
 			f1: false,
 			category: SessionsCategories.Sessions,
 			keybinding: {
@@ -858,27 +852,38 @@ registerAction2(class CloseChatAction extends Action2 {
 				primary: KeyMod.CtrlCmd | KeyCode.KeyW,
 				win: { primary: KeyMod.CtrlCmd | KeyCode.F4, secondary: [KeyMod.CtrlCmd | KeyCode.KeyW] },
 			},
-			// Rendered as the tab's close button by the chat tab strip; the main
-			// chat's tab does not render this menu, so no per-tab gating is needed.
-			menu: {
+			menu: [{
 				id: Menus.SessionChatTab,
 				group: 'navigation',
 				order: 10,
-			},
+			}, {
+				id: Menus.SessionBarToolbar,
+				when: ContextKeyExpr.and(SessionHeaderShowsChatContext, SessionActiveChatIsClosableContext),
+				group: 'secondary/4_pin',
+				order: 30,
+			}, {
+				id: Menus.SessionHeaderContext,
+				when: ContextKeyExpr.and(SessionHeaderShowsChatContext, SessionActiveChatIsClosableContext),
+				group: '1_view',
+				order: 2,
+			}],
 		});
 	}
-	override async run(accessor: ServicesAccessor, context?: IChatTabContext): Promise<void> {
+	override async run(accessor: ServicesAccessor, session: IActiveSession | undefined, chat?: IChat): Promise<void> {
 		const sessionsService = accessor.get(ISessionsService);
 		const sessionsManagementService = accessor.get(ISessionsManagementService);
 		const extUri = accessor.get(IUriIdentityService).extUri;
-		// From the tab menu: act on the forwarded tab's chat. From the keybinding:
-		// act on the active chat of the active session.
-		const session = context?.session ?? sessionsService.activeSession.get();
+		session ??= sessionsService.activeSession.get();
 		if (!session) {
 			return;
 		}
-		const chat = context?.chat ?? session.activeChat.get();
-		if (!chat || extUri.isEqual(chat.resource, session.mainChat.get().resource)) {
+		const sessionView = accessor.get(ISessionsPartService).getSessionView(session.sessionId);
+		chat ??= sessionView?.getActiveChat() ?? session.activeChat.get();
+		if (!chat) {
+			return;
+		}
+		if (extUri.isEqual(chat.resource, session.mainChat.get().resource)) {
+			await sessionView?.closeChatGroup(chat.resource);
 			return;
 		}
 		// An untitled (in-composer) draft has nothing to reopen, so delete it
@@ -1606,12 +1611,12 @@ export class SessionConversationActionsContribution extends Disposable implement
 			scopedToSession,
 			SessionIsCreatedContext,
 			SessionIsArchivedContext.negate(),
-			SessionHasSideChatsContext,
+			SessionActiveChatHasSideChatsContext,
 		);
 
 		const allChats = session.chats.read(reader);
 
-		const registerOpen = (chat: IChat, order: number) => {
+		const registerOpen = (chat: IChat, parentChat: IChat, order: number) => {
 			const chatResource = chat.resource;
 			const title = chat.title.read(reader) || localize('untitledChat', "Untitled Chat");
 			// Action IDs are global, so scope them to the session and a hash of the
@@ -1622,7 +1627,12 @@ export class SessionConversationActionsContribution extends Disposable implement
 					super({
 						id: getSessionConversationActionId(session.sessionId, chatResource),
 						title,
-						menu: { id: Menus.SessionConversations, group: SESSION_CONVERSATION_SIDE_CHATS_GROUP, order, when: conversationsVisible },
+						menu: {
+							id: Menus.SessionConversations,
+							group: SESSION_CONVERSATION_SIDE_CHATS_GROUP,
+							order,
+							when: ContextKeyExpr.and(conversationsVisible, ContextKeyExpr.equals(SessionActiveChatResourceContext.key, parentChat.resource.toString())),
+						},
 					});
 				}
 				override async run(accessor: ServicesAccessor, forwardedSession?: IActiveSession): Promise<void> {
@@ -1653,8 +1663,9 @@ export class SessionConversationActionsContribution extends Disposable implement
 			if (chat.status.read(reader) === SessionStatus.Untitled) {
 				return;
 			}
-			if (isSessionConversationSideChat(chat)) {
-				registerOpen(chat, index);
+			const parentChat = allChats.find(candidate => isSideChatOf(chat, candidate.resource));
+			if (parentChat) {
+				registerOpen(chat, parentChat, index);
 			}
 		});
 
@@ -1671,7 +1682,7 @@ MenuRegistry.appendMenuItem(Menus.SessionBarToolbar, {
 	when: ContextKeyExpr.and(
 		SessionIsCreatedContext,
 		SessionIsArchivedContext.negate(),
-		SessionHasSideChatsContext,
+		SessionActiveChatHasSideChatsContext,
 	),
 });
 
@@ -1724,7 +1735,7 @@ registerAction2(class ShowSingleChatAction extends Action2 {
 registerAction2(class TogglePinSessionAction extends Action2 {
 	constructor() {
 		super({
-			id: 'sessions.chatCompositeBar.togglePin',
+			id: TOGGLE_PIN_SESSION_COMMAND_ID,
 			title: localize2('chatCompositeBar.pin', "Pin"),
 			icon: Codicon.pin,
 			toggled: {
@@ -1736,12 +1747,12 @@ registerAction2(class TogglePinSessionAction extends Action2 {
 				id: Menus.SessionBarToolbar,
 				group: 'navigation',
 				order: 10,
-				when: ContextKeyExpr.and(SessionIsCreatedContext, SessionIsStickyContext, SessionIsArchivedContext.negate()),
+				when: ContextKeyExpr.and(SessionIsCreatedContext, SessionIsStickyContext, SessionIsArchivedContext.negate(), SessionHeaderShowsChatContext.negate()),
 			}, {
 				id: Menus.SessionBarToolbar,
 				group: 'secondary/4_pin',
 				order: 10,
-				when: ContextKeyExpr.and(SessionIsCreatedContext, SessionIsArchivedContext.negate()),
+				when: ContextKeyExpr.and(SessionIsCreatedContext, SessionIsArchivedContext.negate(), SessionHeaderShowsChatContext.negate()),
 			}],
 		});
 	}
@@ -1756,7 +1767,7 @@ registerAction2(class TogglePinSessionAction extends Action2 {
 
 MenuRegistry.appendMenuItem(Menus.SessionHeaderContext, {
 	command: {
-		id: 'sessions.chatCompositeBar.togglePin',
+		id: TOGGLE_PIN_SESSION_COMMAND_ID,
 		title: localize('chatCompositeBar.pinView', "Pin"),
 		toggled: {
 			condition: SessionIsStickyContext,
@@ -1765,7 +1776,45 @@ MenuRegistry.appendMenuItem(Menus.SessionHeaderContext, {
 	},
 	group: '1_view',
 	order: 1,
-	when: SessionIsCreatedContext,
+	when: ContextKeyExpr.and(SessionIsCreatedContext, SessionHeaderShowsChatContext.negate()),
+});
+
+registerAction2(class TogglePinChatAction extends Action2 {
+	constructor() {
+		super({
+			id: TOGGLE_PIN_CHAT_COMMAND_ID,
+			title: localize2('chatCompositeBar.pinChat', "Pin"),
+			icon: Codicon.pin,
+			toggled: {
+				condition: SessionHeaderActiveChatIsPinnedContext,
+				icon: Codicon.pinned,
+				title: localize('chatCompositeBar.unpinChat', "Unpin"),
+			},
+			menu: [{
+				id: Menus.SessionBarToolbar,
+				group: 'navigation',
+				order: 10,
+				when: ContextKeyExpr.and(SessionIsCreatedContext, SessionHeaderShowsChatContext, SessionHeaderActiveChatIsPinnedContext, SessionIsArchivedContext.negate()),
+			}, {
+				id: Menus.SessionBarToolbar,
+				group: 'secondary/4_pin',
+				order: 10,
+				when: ContextKeyExpr.and(SessionIsCreatedContext, SessionHeaderShowsChatContext, SessionIsArchivedContext.negate()),
+			}, {
+				id: Menus.SessionHeaderContext,
+				group: '1_view',
+				order: 1,
+				when: ContextKeyExpr.and(SessionIsCreatedContext, SessionHeaderShowsChatContext),
+			}],
+		});
+	}
+
+	override run(accessor: ServicesAccessor, session: IActiveSession | undefined): void {
+		session ??= accessor.get(ISessionsService).activeSession.get();
+		if (session) {
+			accessor.get(ISessionsPartService).getSessionView(session.sessionId)?.toggleActiveChatPin();
+		}
+	}
 });
 
 registerAction2(class RenameSessionHeaderAction extends Action2 {
@@ -1817,17 +1866,34 @@ registerAction2(class RenameSessionHeaderAction extends Action2 {
 registerAction2(class CloseSessionAction extends Action2 {
 	constructor() {
 		super({
-			id: 'sessions.chatCompositeBar.close',
+			id: CLOSE_SESSION_COMMAND_ID,
 			title: localize2('chatCompositeBar.close', "Close"),
 			icon: Codicon.close,
+			keybinding: {
+				weight: KeybindingWeight.SessionsContrib,
+				when: ContextKeyExpr.and(
+					IsNewChatSessionContext.negate(),
+					IsSessionsWindowContext,
+					SessionsFocusContext,
+					EditorAreaFocusContext.negate(),
+				),
+				primary: KeyMod.CtrlCmd | KeyCode.KeyW,
+				win: { primary: KeyMod.CtrlCmd | KeyCode.F4, secondary: [KeyMod.CtrlCmd | KeyCode.KeyW] },
+			},
 			menu: [{
 				id: Menus.SessionBarToolbar,
-				when: ContextKeyExpr.or(SessionIsCreatedContext, MultipleSessionsVisibleContext),
+				when: ContextKeyExpr.and(
+					ContextKeyExpr.or(SessionIsCreatedContext, MultipleSessionsVisibleContext),
+					SessionHeaderShowsChatContext.negate(),
+				),
 				group: 'secondary/4_pin',
 				order: 30,
 			}, {
 				id: Menus.SessionHeaderContext,
-				when: ContextKeyExpr.or(SessionIsCreatedContext, MultipleSessionsVisibleContext),
+				when: ContextKeyExpr.and(
+					ContextKeyExpr.or(SessionIsCreatedContext, MultipleSessionsVisibleContext),
+					SessionHeaderShowsChatContext.negate(),
+				),
 				group: '1_view',
 				order: 2,
 			}],
@@ -1837,6 +1903,17 @@ registerAction2(class CloseSessionAction extends Action2 {
 	override async run(accessor: ServicesAccessor, session: IActiveSession | undefined): Promise<void> {
 		const sessionsService = accessor.get(ISessionsService);
 		const sessionsPartService = accessor.get(ISessionsPartService);
+		session ??= sessionsService.activeSession.get();
+
+		const sessionView = session && sessionsPartService.getSessionView(session.sessionId);
+		const activeChat = sessionView?.getActiveChat();
+		if (session
+			&& sessionView
+			&& activeChat
+			&& accessor.get(IUriIdentityService).extUri.isEqual(activeChat.resource, session.mainChat.get().resource)
+			&& await sessionView.closeChatGroup(activeChat.resource)) {
+			return;
+		}
 
 		sessionsService.closeSession(session);
 		sessionsPartService.focusSession(sessionsService.activeSession.get());

@@ -1656,6 +1656,31 @@ suite('SessionsManagementService', () => {
 		});
 	});
 
+	test('openSessionToSide prepares the provider when selecting the main chat', async () => {
+		const active = stubSession({ sessionId: 'active', providerId: 'test' });
+		const target = stubSession({ sessionId: 'target', providerId: 'test' });
+		const preparations: { sessionId: string; reason: string }[] = [];
+		const provider = new class extends TestSessionsProvider {
+			override getSessions(): ISession[] { return [active, target]; }
+			override async prepareSessionForOpen(session: ISession, reason: 'open' | 'restore'): Promise<void> {
+				preparations.push({ sessionId: session.sessionId, reason });
+			}
+		}(active);
+		const { view } = createSessionsManagementService(active, disposables, provider);
+
+		await view.openSession(active.resource);
+		preparations.length = 0;
+		await view.openSessionToSide(target, { forceMainChat: true });
+
+		assert.deepStrictEqual({
+			active: view.activeSession.get()?.sessionId,
+			preparations,
+		}, {
+			active: 'target',
+			preparations: [{ sessionId: 'target', reason: 'open' }],
+		});
+	});
+
 	test('restoreVisibleSessions lays out the grid atomically without intermediate single-session states', async () => {
 		const sessionA = stubSession({ sessionId: 'a', providerId: 'test' });
 		const sessionB = stubSession({ sessionId: 'b', providerId: 'test' });
@@ -4116,15 +4141,15 @@ suite('SessionsManagementService', () => {
 			});
 		});
 
-		test('a session-list open selects the main chat instead of a regular peer chat', async () => {
-			const sessionA = multiChatSession('A', [chat('mainA'), chat('peerA')]);
+		test('a session-list open selects the main chat instead of the previously active chat', async () => {
+			const sessionA = multiChatSession('A', [chat('mainA'), chat('sideA', SessionStatus.Completed, ChatOriginKind.SideChat)]);
 			const sessionB = multiChatSession('B', [chat('mainB')]);
 			const { view } = setup([sessionA, sessionB]);
 
 			await view.openSession(sessionA.resource);
 			await view.openChat(sessionA, sessionA.chats.get()[1].resource);
 			await view.openSession(sessionB.resource);
-			await view.openSession(sessionA.resource, { restoreOnlySideOrToolChat: true });
+			await view.openSession(sessionA.resource, { forceMainChat: true });
 
 			assert.strictEqual(view.activeSession.get()?.activeChat.get().title.get(), 'mainA');
 		});
