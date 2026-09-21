@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { status } from '../../../../../../base/browser/ui/aria/aria.js';
-import { Delayer, disposableTimeout, raceCancellation } from '../../../../../../base/common/async.js';
+import { Delayer, disposableTimeout, raceCancellation, raceCancellationError } from '../../../../../../base/common/async.js';
 import { decodeBase64, encodeBase64, VSBuffer } from '../../../../../../base/common/buffer.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { CancellationError, getErrorCode, isCancellationError } from '../../../../../../base/common/errors.js';
@@ -887,6 +887,8 @@ export interface IAgentHostSessionHandlerConfig {
 	 * falling back to the first workspace folder.
 	 */
 	readonly resolveWorkingDirectory?: (sessionResource: URI) => URI | undefined;
+	/** Prepares a new session's directory before resolving its customization scope and creating it. */
+	readonly prepareWorkingDirectory?: (sessionResource: URI, token: CancellationToken) => Promise<void>;
 	/** Whether a final-looking chat resource is still a client-side draft. */
 	readonly isNewSession?: (sessionResource: URI) => boolean;
 	/** Called after a locally-created session has been accepted by the backend. */
@@ -1913,6 +1915,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 					Object.keys(initialConfig).length > 0 ? initialConfig : undefined,
 					imported ? { turns: imported.turns, model: imported.model } : undefined,
 					stage => failureStage = stage,
+					cancellationToken,
 				);
 			} else {
 				failureStage = 'authentication';
@@ -5637,8 +5640,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	}
 
 	/** Creates a new backend session and subscribes to its state. */
-	private async _createAndSubscribe(sessionResource: URI, model: ModelSelection | undefined, config?: Record<string, unknown>, importConversation?: { readonly turns: readonly Turn[]; readonly model?: ModelSelection }, onFailureStage?: (stage: AgentHostInvocationFailureStage) => void): Promise<URI> {
-		const workingDirectories = this._resolveRequestedWorkingDirectories(sessionResource);
+	private async _createAndSubscribe(sessionResource: URI, model: ModelSelection | undefined, config?: Record<string, unknown>, importConversation?: { readonly turns: readonly Turn[]; readonly model?: ModelSelection }, onFailureStage?: (stage: AgentHostInvocationFailureStage) => void, cancellationToken: CancellationToken = CancellationToken.None): Promise<URI> {
 		const requestedSession = this._resolveSessionUri(sessionResource);
 		const meta = this._provisionalService.getInitialSessionMetadata(sessionResource);
 
@@ -5647,8 +5649,20 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		onFailureStage?.('authentication');
 		const protectedResources = await this._ensureRequiredAuthentication(model);
 
+		onFailureStage?.('createSession');
+		if (this._config.prepareWorkingDirectory) {
+			const previousDirectory = this._resolveRequestedWorkingDirectory(sessionResource);
+			await raceCancellationError(this._config.prepareWorkingDirectory(sessionResource, cancellationToken), cancellationToken);
+			if (!isEqual(previousDirectory, this._resolveRequestedWorkingDirectory(sessionResource))) {
+				this._disposeActiveClientEntry(sessionResource);
+			}
+		}
+		const workingDirectories = this._resolveRequestedWorkingDirectories(sessionResource);
 		const activeClientEntry = this._ensureActiveClientEntry(sessionResource);
-		await activeClientEntry.whenSettled();
+		await raceCancellationError(activeClientEntry.whenSettled(), cancellationToken);
+		if (cancellationToken.isCancellationRequested) {
+			throw new CancellationError();
+		}
 		const activeClient = this._getCurrentActiveClient(sessionResource);
 
 		// Opt in to bring-up progress (chiefly the lazy first-use SDK download)
@@ -5658,7 +5672,6 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		const progressToken = generateUuid();
 
 		let session: URI;
-		onFailureStage?.('createSession');
 		try {
 			session = await this._config.connection.createSession({
 				session: requestedSession,

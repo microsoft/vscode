@@ -30,12 +30,13 @@ function isGitHubResource(resource: string): boolean {
 }
 
 /**
- * The {@link IRemoteAgentHostConnectionCustomization} for a cloud sandbox address, supplying the two
+ * The {@link IRemoteAgentHostConnectionCustomization} for a cloud sandbox address, supplying the
  * ways the sandbox host deviates from the generic path:
  *
  *  - **Auth**: the host only accepts a sealed envelope, so the connection's `encrypted_github_token`
  *    is presented instead of the resolved bearer. Fails closed if no sealed token is available.
  *  - **Scheme**: the host advertises provider `copilot` but addresses sessions as `ahp-session`.
+ *  - **Directory**: prepare an advertised repository checkout before creating a session.
  *
  * Returns `undefined` for non-sandbox addresses.
  */
@@ -66,6 +67,8 @@ export function createCloudSandboxConnectionCustomization(
 		},
 		backendSessionScheme: (provider: string): string | undefined =>
 			provider === CLOUD_SANDBOX_AGENT_PROVIDER ? CLOUD_SANDBOX_SESSION_SCHEME : undefined,
+		prepareWorkingDirectory: (connection, directory, token) =>
+			sandboxService.prepareWorkingDirectory(connection, directory, token),
 	};
 }
 

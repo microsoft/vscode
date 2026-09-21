@@ -341,6 +341,8 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 		// Per-agent working directory cache, scoped to the agent store lifetime
 		const sessionWorkingDirs = new Map<string, URI>();
 		agentStore.add(toDisposable(() => sessionWorkingDirs.clear()));
+		const customization = this._connectionCustomizations.get(address);
+		const prepareWorkingDirectory = customization?.prepareWorkingDirectory;
 
 		// Capture the working directory from the session that is being created.
 		const resolveWorkingDirectory = (sessionResource: URI): URI | undefined => {
@@ -421,7 +423,7 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 		const sessionHandler = agentStore.add(this._instantiationService.createInstance(
 			AgentHostSessionHandler, {
 			provider: agent.provider,
-			backendSessionScheme: this._connectionCustomizations.get(address)?.backendSessionScheme?.(agent.provider),
+			backendSessionScheme: customization?.backendSessionScheme?.(agent.provider),
 			agentId,
 			sessionType,
 			fullName: displayName,
@@ -431,6 +433,12 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 			extensionId: 'vscode.remote-agent-host',
 			extensionDisplayName: 'Remote Agent Host',
 			resolveWorkingDirectory,
+			prepareWorkingDirectory: prepareWorkingDirectory ? async (sessionResource, token) => {
+				const directory = await prepareWorkingDirectory(connection, resolveWorkingDirectory(sessionResource), token);
+				if (directory) {
+					sessionWorkingDirs.set(sessionResource.toString(), connection.resourceUris.fromAgentHost(directory));
+				}
+			} : undefined,
 			isNewSession,
 			resolveAuthentication: (resources) => this._resolveAuthenticationInteractively(address, connection, resources),
 		}));

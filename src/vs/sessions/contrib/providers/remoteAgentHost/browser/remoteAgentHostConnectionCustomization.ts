@@ -3,7 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { IAgentConnection } from '../../../../../platform/agentHost/common/agentService.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IAgentHostAuthenticateRequest } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostAuth.js';
 
@@ -23,6 +26,9 @@ export interface IRemoteAgentHostConnectionCustomization {
 	 * Return `undefined` to keep scheme == provider.
 	 */
 	readonly backendSessionScheme?: (provider: string) => string | undefined;
+
+	/** Prepares a new session's directory after authentication, without changing existing sessions. */
+	readonly prepareWorkingDirectory?: (connection: IAgentConnection, directory: URI | undefined, token: CancellationToken) => Promise<URI | undefined>;
 }
 
 /** Builds a {@link IRemoteAgentHostConnectionCustomization} for a concrete connection address. */

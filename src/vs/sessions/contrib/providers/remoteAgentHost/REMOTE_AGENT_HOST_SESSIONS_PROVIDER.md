@@ -67,6 +67,8 @@ Remote session and chat resources preserve connection-specific routing identity 
 
 For cloud sandbox sessions, archive and unarchive update the client session cache without requiring a live host. Host refreshes preserve the cached archive flag; cross-client archive synchronization is not yet supported.
 
+For cloud sandboxes advertising project management, connection-specific preparation resolves a repository selection to a ready host directory before session creation and customization binding. Preparation errors stop creation; cancelling the client wait does not remove the host's checkout. Hosts without this capability retain their existing directory handling. This temporary path can be removed when [repository-backed creation](https://github.com/microsoft/agent-host-protocol/pull/451) is adopted.
+
 ## Authentication and recovery
 
 Authentication challenges, credential refresh, and transport retries remain connection policy. The request that encountered a challenge observes its actual success, cancellation, or failure; provider operations do not silently convert authentication failures into availability results.
