@@ -518,6 +518,7 @@
 	"github.copilot.config.executionSubagent.useAgenticProxy": "Use the agentic proxy endpoint for the execution subagent.",
 	"github.copilot.config.executionSubagent.model": "The model to use for the Execution Subagent tool in Copilot Chat. When useAgenticProxy is enabled, defaults to 'exec-subagent-router-a'. Otherwise defaults to gemini-3-flash.",
 	"github.copilot.config.executionSubagent.toolCallLimit": "Maximum number of tool calls the Execution Subagent can make during execution.",
+	"github.copilot.config.executionSubagent.turnWisePrompting": "Show the Execution Subagent its remaining iterations on every turn.",
 	"github.copilot.session.providerDescription.cloud": "Delegate tasks to the GitHub Copilot coding agent. The agent iterates via chat and works asynchronously in the cloud to implement changes and pull requests as needed.",
 	"github.copilot.session.providerDescription.background": "Delegate tasks to a background agent running locally on your machine. The agent iterates via chat and works asynchronously in a Git worktree to implement changes isolated from your main workspace using the GitHub Copilot CLI.",
 	"github.copilot.command.sessions.commit": "Commit Changes",
