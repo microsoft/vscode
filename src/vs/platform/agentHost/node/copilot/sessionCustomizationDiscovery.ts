@@ -260,7 +260,6 @@ export class SessionCustomizationDiscovery extends Disposable {
 	}
 
 	private _scheduleRefresh(): void {
-		this._logService.trace('[SessionCustomizationDiscovery] Scheduling refresh', this._workingDirectories.map(d => d.toString()));
 		this._onDidChange.fire();
 	}
 
@@ -323,7 +322,6 @@ export class SessionCustomizationDiscovery extends Disposable {
 	}
 
 	private async writeCustomizationDiscoveryDebugLog(payload: Record<string, unknown>): Promise<void> {
-		this._logService.trace('[SessionCustomizationDiscovery]', JSON.stringify({ workingDirectories: this._workingDirectories.map(d => d.toString()), ...payload }));
 		if (!CUSTOMIZATION_DISCOVERY_DEBUG_LOG_PATH) {
 			return;
 		}

@@ -11,14 +11,14 @@
 
 import assert from 'assert';
 import { CopilotClient } from '@github/copilot-sdk';
-import { cp, mkdir, mkdtemp, realpath, rm, writeFile } from 'fs/promises';
+import { mkdir, mkdtemp, realpath, rm, writeFile } from 'fs/promises';
 import { tmpdir } from 'os';
 import { join } from '../../../../../base/common/path.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { AgentHostConfigKey, type SessionCustomizationDiscoveryMode } from '../../../common/agentHostCustomizationConfig.js';
 import { ActionType, SessionCustomizationsChangedAction } from '../../../common/state/sessionActions.js';
 import { customizationId, CustomizationType, ISessionWithDefaultChat, ROOT_STATE_URI, type ClientPluginCustomization, type DirectoryCustomization, type PluginCustomization, type URI as ProtocolURI } from '../../../common/state/sessionState.js';
-import { type AhpNotification } from '../../../common/state/sessionProtocol.js';
+import { type AhpNotification, type DisposeSessionParams, type SessionRemovedParams } from '../../../common/state/sessionProtocol.js';
 import { createProviderSession, dispatchTurn, type IAgentHostProviderTestConfig } from '../providerIntegrationTestHelpers.js';
 import { createIsolatedProviderEnvironment } from '../providerTestEnvironment.js';
 import { fetchSessionWithChat, getActionEnvelope, getAgentHostE2ETestTimeout, isActionNotification, IServerHandle, startRealServer, TestProtocolClient } from '../serverIntegrationTestHelpers.js';
@@ -150,7 +150,7 @@ suite('Agent Host Provider Integration — Copilot Customizations', function () 
 	suiteSetup(async function () {
 		this.timeout(SETUP_TIMEOUT_MS);
 		userHomeDir = await realpath(await mkdtemp(`${tmpdir()}/ahp-customizations-home-mock-`));
-		server = await startRealServer({ mockLlm: true, homeDir: userHomeDir, userDataDir: join(userHomeDir, 'user-data'), logLevel: 'trace' });
+		server = await startRealServer({ mockLlm: true, homeDir: userHomeDir });
 		tempDirs.push(userHomeDir);
 	});
 
@@ -174,13 +174,14 @@ suite('Agent Host Provider Integration — Copilot Customizations', function () 
 	});
 
 	teardown(async function () {
-		if (this.currentTest?.state === 'failed') {
-			await cp(join(userHomeDir, 'user-data', 'logs'), join(process.cwd(), '.build', 'logs', 'copilot-customizations'), { recursive: true });
-		}
 		const disposeErrors: string[] = [];
 		for (const session of createdSessions) {
 			try {
-				await client.call('disposeSession', { session }, 15_000);
+				await client.call('disposeSession', { channel: session } satisfies DisposeSessionParams, 15_000);
+				await client.waitForNotification(n =>
+					n.method === 'root/sessionRemoved' && (n.params as SessionRemovedParams).session === session,
+					NOTIFICATION_TIMEOUT_MS,
+				);
 			} catch (error) {
 				disposeErrors.push(`Failed to dispose session ${session}: ${error instanceof Error ? error.message : String(error)}`);
 			}
@@ -846,7 +847,7 @@ suite('Agent Host Provider Integration — Copilot Customizations', function () 
 			}
 			client.close();
 			server.process.kill();
-			server = await startRealServer({ mockLlm: true, homeDir: userHomeDir, userDataDir: join(userHomeDir, 'user-data'), logLevel: 'trace' });
+			server = await startRealServer({ mockLlm: true, homeDir: userHomeDir });
 			client = new TestProtocolClient(server.port);
 			await client.connect();
 		}
