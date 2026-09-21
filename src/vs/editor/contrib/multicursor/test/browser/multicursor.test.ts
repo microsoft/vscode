@@ -1194,5 +1194,29 @@ suite('Multicursor selection', () => {
 				]);
 			});
 		});
+
+		test('Select Highlights respects mode ', () => {
+			testMulticursor(text, (editor, findController) => {
+				const action = new SelectHighlightsAction();
+				editor.setSelections([
+					new Selection(1, 2, 1, 2),
+				]);
+
+				action.run(null!, editor);
+				assert.deepStrictEqual(editor.getSelections(), [
+					new Selection(1, 1, 1, 4),
+					new Selection(4, 1, 4, 4),
+					new Selection(6, 2, 6, 5),
+				]);
+
+				action.run(null!, editor);
+				assert.deepStrictEqual(editor.getSelections(), [
+					new Selection(1, 1, 1, 4),
+					new Selection(4, 1, 4, 4),
+					new Selection(6, 2, 6, 5),
+				]);
+			});
+		});
+
 	});
 });
