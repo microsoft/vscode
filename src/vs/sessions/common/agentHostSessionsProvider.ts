@@ -194,6 +194,8 @@ export interface IAgentHostSessionsProvider extends ISessionsProvider {
 	isDevContainerAvailable?(sessionId: string): boolean;
 	/** Whether this draft should be prepared on a Dev Container Agent Host. */
 	isDevContainerEnabled?(sessionId: string): boolean;
+	/** Whether this draft has selected Dev Container execution, including pending availability. */
+	isDevContainerRequested?(sessionId: string): boolean;
 	/** Set whether this draft should run on a Dev Container Agent Host. */
 	setDevContainerEnabled?(sessionId: string, enabled: boolean): void;
 	/** Enable Dev Container execution once availability resolves. Required selections fail rather than falling back to the host. */

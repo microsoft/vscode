@@ -40,6 +40,8 @@ import { ICustomizationHarnessService } from '../../../../workbench/contrib/chat
 import { SessionsAICustomizationWorkspaceService } from './aiCustomizationWorkspaceService.js';
 import { IRemoteAgentHostService } from '../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { resolveDevContainerSourceWorkspace } from '../../../browser/openInVSCodeUtils.js';
+import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
+import { isAgentHostProvider } from '../../../common/agentHostSessionsProvider.js';
 import { SessionsCustomizationHarnessService } from './customizationHarnessService.js';
 import { IChatViewFactory } from '../../../services/chatView/browser/chatViewFactory.js';
 import { ChatViewFactory } from './chatView.js';
@@ -216,6 +218,12 @@ class NewChatInSessionsWindowAction extends Action2 {
 			? resolveDevContainerSourceWorkspace(activeFolderUri, accessor.get(IRemoteAgentHostService))
 			: undefined;
 		const folderUri = devContainerSource?.folderUri ?? activeFolderUri;
+		const activeProvider = activeFolderUri && activeSession
+			? accessor.get(ISessionsProvidersService).getProvider(activeSession.providerId)
+			: undefined;
+		const draftRequestsDevContainer = !!activeSession && !!activeProvider && isAgentHostProvider(activeProvider)
+			&& activeProvider.isDevContainerRequested?.(activeSession.sessionId) === true;
+		const containerSourceProviderId = devContainerSource?.providerId ?? (draftRequestsDevContainer ? activeSession?.providerId : undefined);
 		const inheritedTarget = inheritableSessionTarget(
 			sessionsManagementService,
 			devContainerSource && activeSession
@@ -223,14 +231,12 @@ class NewChatInSessionsWindowAction extends Action2 {
 				: activeSession,
 			folderUri,
 		);
-		// Preserve a Dev Container's source provider, and inherit the exact
-		// harness while that source still offers it.
 		await sessionsService.openNewSession({
 			folderUri,
 			toSide: options?.toSide,
-			...(devContainerSource ? { providerId: devContainerSource.providerId } : {}),
+			...(containerSourceProviderId ? { providerId: containerSourceProviderId } : {}),
 			...inheritedTarget,
-			...(devContainerSource ? { requireDevContainer: true } : {}),
+			...(containerSourceProviderId ? { requireDevContainer: true } : {}),
 		});
 	}
 }

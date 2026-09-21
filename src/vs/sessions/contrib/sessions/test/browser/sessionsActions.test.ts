@@ -12,6 +12,7 @@ import { decodeKeybinding } from '../../../../../base/common/keybindings.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { OperatingSystem } from '../../../../../base/common/platform.js';
+import { isEqual } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { isICommandActionToggleInfo } from '../../../../../platform/action/common/action.js';
@@ -49,6 +50,9 @@ import { SessionActiveChatHasSideChatsContext, SessionActiveChatResourceContext,
 import { SESSIONS_CHAT_TABS_SETTING, SessionsChatTabsMode } from '../../../../common/sessionConfig.js';
 import { IRemoteAgentHostEntry, IRemoteAgentHostService, RemoteAgentHostEntryType } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { AGENT_HOST_SCHEME, agentHostAuthority, toAgentHostUri } from '../../../../../platform/agentHost/common/agentHostUri.js';
+import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
+import { ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
+import { IAgentHostSessionsProvider } from '../../../../common/agentHostSessionsProvider.js';
 
 suite('Sessions - Actions', () => {
 
@@ -922,6 +926,9 @@ suite('Sessions - Actions', () => {
 				instantiationService.stub(IRemoteAgentHostService, new class extends mock<IRemoteAgentHostService>() {
 					override readonly configuredEntries = [];
 				});
+				instantiationService.stub(ISessionsProvidersService, new class extends mock<ISessionsProvidersService>() {
+					override getProvider<T extends ISessionsProvider>(): T | undefined { return undefined; }
+				});
 				const { session } = createTestSession('active');
 				const activeSession = upcastPartial<IActiveSession>({
 					...session,
@@ -957,74 +964,115 @@ suite('Sessions - Actions', () => {
 		}
 	}
 
-	test('New Session reconstructs a Dev Container source workspace and preserves container mode', async () => {
-		const instantiationService = disposables.add(new TestInstantiationService());
-		const composerService = disposables.add(new NewSessionComposerService());
-		instantiationService.stub(INewSessionComposerService, composerService);
-		const sourceAddress = 'wsl:Ubuntu';
-		const sourceFolder = toAgentHostUri(URI.file('/home/test/project'), agentHostAuthority(sourceAddress));
-		const containerAddress = 'devcontainer:project';
-		const containerFolder = URI.from({
-			scheme: AGENT_HOST_SCHEME,
-			authority: agentHostAuthority(containerAddress),
-			path: '/workspaces/project',
-		});
-		instantiationService.stub(IRemoteAgentHostService, new class extends mock<IRemoteAgentHostService>() {
-			override readonly configuredEntries: readonly IRemoteAgentHostEntry[] = [{
-				name: 'Project Dev Container',
-				connection: {
-					type: RemoteAgentHostEntryType.DevContainer,
-					address: containerAddress,
-					hostPath: '/home/test/project',
-					hostAuthority: 'wsl+Ubuntu',
-					sourceWorkspaceUri: sourceFolder.toString(),
-				},
-			}];
-		});
-		const { session } = createTestSession('active');
-		const workspace: ISessionWorkspace = {
-			uri: containerFolder,
-			label: 'project',
-			icon: Codicon.remote,
-			folders: [{ root: containerFolder, workingDirectory: containerFolder, name: 'project', description: undefined }],
-			requiresWorkspaceTrust: false,
-			isVirtualWorkspace: false,
-		};
-		const activeSession = upcastPartial<IActiveSession>({
-			...session,
-			providerId: `agenthost-${agentHostAuthority(containerAddress)}`,
-			sessionType: 'copilotcli',
-			workspace: constObservable(workspace),
-			isQuickChat: constObservable(false),
-		});
-		const requests: (IOpenNewSessionOptions | undefined)[] = [];
-		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
-			override readonly activeSession = constObservable(activeSession);
-			override async openNewSession(options?: IOpenNewSessionOptions): Promise<IOpenNewSessionResult> {
-				requests.push(options);
-				return { session: undefined, trustDeclined: false };
-			}
-		});
-		instantiationService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
-			override isNewSessionTargetAvailable(folderUri: URI, options?: ICreateNewSessionOptions): boolean {
-				return folderUri.toString() === sourceFolder.toString()
-					&& options?.providerId === `agenthost-${agentHostAuthority(sourceAddress)}`
-					&& options.sessionTypeId === activeSession.sessionType;
-			}
-		});
+	for (const toSide of [undefined, true]) {
+		for (const pending of [false, true]) {
+			test(`New Session preserves container intent across repeated New (pending: ${pending}, toSide: ${toSide})`, async () => {
+				const instantiationService = disposables.add(new TestInstantiationService());
+				const composerService = disposables.add(new NewSessionComposerService());
+				instantiationService.stub(INewSessionComposerService, composerService);
+				const sourceAddress = 'wsl:Ubuntu';
+				const sourceFolder = toAgentHostUri(URI.file('/home/test/project'), agentHostAuthority(sourceAddress));
+				const containerAddress = 'devcontainer:project';
+				const containerFolder = URI.from({
+					scheme: AGENT_HOST_SCHEME,
+					authority: agentHostAuthority(containerAddress),
+					path: '/workspaces/project',
+				});
+				instantiationService.stub(IRemoteAgentHostService, new class extends mock<IRemoteAgentHostService>() {
+					override readonly configuredEntries: readonly IRemoteAgentHostEntry[] = [{
+						name: 'Project Dev Container',
+						connection: {
+							type: RemoteAgentHostEntryType.DevContainer,
+							address: containerAddress,
+							hostPath: '/home/test/project',
+							hostAuthority: 'wsl+Ubuntu',
+							sourceWorkspaceUri: sourceFolder.toString(),
+						},
+					}];
+				});
+				const { session } = createTestSession('active');
+				const workspace: ISessionWorkspace = {
+					uri: containerFolder,
+					label: 'project',
+					icon: Codicon.remote,
+					folders: [{ root: containerFolder, workingDirectory: containerFolder, name: 'project', description: undefined }],
+					requiresWorkspaceTrust: false,
+					isVirtualWorkspace: false,
+				};
+				const activeSession = observableValue('activeSession', upcastPartial<IActiveSession>({
+					...session,
+					providerId: `agenthost-${agentHostAuthority(containerAddress)}`,
+					sessionType: 'copilotcli',
+					workspace: constObservable(workspace),
+					isQuickChat: constObservable(false),
+				}));
+				const sourceProviderId = `agenthost-${agentHostAuthority(sourceAddress)}`;
+				const requested = new Set<string>();
+				const sourceProvider = new class extends mock<IAgentHostSessionsProvider>() {
+					override readonly id = sourceProviderId;
+					override isDevContainerEnabled(sessionId: string): boolean { return !pending && requested.has(sessionId); }
+					override isDevContainerRequested(sessionId: string): boolean { return requested.has(sessionId); }
+				}();
+				instantiationService.stub(ISessionsProvidersService, new class extends mock<ISessionsProvidersService>() {
+					override getProvider<T extends ISessionsProvider>(providerId: string): T | undefined {
+						const provider: ISessionsProvider | undefined = providerId === sourceProviderId ? sourceProvider : undefined;
+						return provider as T | undefined;
+					}
+				});
+				const requests: (IOpenNewSessionOptions | undefined)[] = [];
+				instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
+					override readonly activeSession = activeSession;
+					override async openNewSession(options?: IOpenNewSessionOptions): Promise<IOpenNewSessionResult> {
+						requests.push(options);
+						requested.delete(activeSession.get().sessionId);
+						const draft = upcastPartial<IActiveSession>({
+							...session,
+							sessionId: `draft-${requests.length}`,
+							providerId: sourceProviderId,
+							sessionType: 'copilotcli',
+							workspace: constObservable({
+								...workspace,
+								uri: sourceFolder,
+								folders: [{ root: sourceFolder, workingDirectory: sourceFolder, name: 'project', description: undefined }],
+							}),
+							isQuickChat: constObservable(false),
+						});
+						if (options?.requireDevContainer) {
+							requested.add(draft.sessionId);
+						}
+						activeSession.set(draft, undefined);
+						return { session: draft, trustDeclined: false };
+					}
+				});
+				instantiationService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
+					override isNewSessionTargetAvailable(folderUri: URI, options?: ICreateNewSessionOptions): boolean {
+						return isEqual(folderUri, sourceFolder)
+							&& options?.providerId === `agenthost-${agentHostAuthority(sourceAddress)}`
+							&& options.sessionTypeId === activeSession.get().sessionType;
+					}
+				});
 
-		const command = CommandsRegistry.getCommand(NEW_SESSION_ACTION_ID);
-		assert.ok(command);
-		await command.handler(instantiationService);
+				const command = CommandsRegistry.getCommand(NEW_SESSION_ACTION_ID);
+				assert.ok(command);
+				await command.handler(instantiationService, { toSide });
+				await command.handler(instantiationService, { toSide });
+				requested.clear();
+				await command.handler(instantiationService, { toSide });
 
-		assert.deepStrictEqual(requests, [{
-			folderUri: sourceFolder,
-			toSide: undefined,
-			providerId: `agenthost-${agentHostAuthority(sourceAddress)}`,
-			sessionTypeId: activeSession.sessionType,
-			requireDevContainer: true,
-		}]);
-	});
+				const target = {
+					folderUri: sourceFolder,
+					toSide,
+					providerId: `agenthost-${agentHostAuthority(sourceAddress)}`,
+					sessionTypeId: activeSession.get().sessionType,
+				};
+				assert.deepStrictEqual(requests, [
+					{ ...target, requireDevContainer: true },
+					{ ...target, requireDevContainer: true },
+					target,
+				]);
+			});
+		}
+	}
 
 	test('New Session replaces a quick-chat draft only for a primary open when the unified workspace picker is disabled', async () => {
 		const run = async (unifiedWorkspacePicker: boolean, toSide?: boolean) => {

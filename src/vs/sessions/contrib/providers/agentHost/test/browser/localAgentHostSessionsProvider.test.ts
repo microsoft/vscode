@@ -3591,15 +3591,18 @@ suite('LocalAgentHostSessionsProvider', () => {
 		);
 		provider.preferDevContainer(session.sessionId);
 		const beforeResolution = provider.isDevContainerEnabled(session.sessionId);
+		const requestedBeforeResolution = provider.isDevContainerRequested(session.sessionId);
 		availability.complete(true);
 		await timeout(0);
 
 		assert.deepStrictEqual({
 			beforeResolution,
+			requestedBeforeResolution,
 			available: provider.isDevContainerAvailable(session.sessionId),
 			enabled: provider.isDevContainerEnabled(session.sessionId),
 		}, {
 			beforeResolution: false,
+			requestedBeforeResolution: true,
 			available: true,
 			enabled: true,
 		});
@@ -3685,13 +3688,17 @@ suite('LocalAgentHostSessionsProvider', () => {
 		assert.deepStrictEqual({
 			unavailableAvailable: provider.isDevContainerAvailable(unavailableSession.sessionId),
 			unavailableEnabled: provider.isDevContainerEnabled(unavailableSession.sessionId),
+			unavailableRequested: provider.isDevContainerRequested(unavailableSession.sessionId),
 			canceledAvailable: provider.isDevContainerAvailable(canceledSession.sessionId),
 			canceledEnabled: provider.isDevContainerEnabled(canceledSession.sessionId),
+			canceledRequested: provider.isDevContainerRequested(canceledSession.sessionId),
 		}, {
 			unavailableAvailable: false,
 			unavailableEnabled: false,
+			unavailableRequested: false,
 			canceledAvailable: true,
 			canceledEnabled: false,
+			canceledRequested: false,
 		});
 	});
 

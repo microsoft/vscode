@@ -133,6 +133,10 @@ export abstract class DevContainerAgentHostSessionsProvider extends BaseAgentHos
 		return this._devContainerDrafts.has(sessionId) || this._requiredDevContainerDrafts.has(sessionId);
 	}
 
+	isDevContainerRequested(sessionId: string): boolean {
+		return this.isDevContainerEnabled(sessionId) || this._pendingDevContainerEnablement.has(sessionId);
+	}
+
 	preferDevContainer(sessionId: string, options?: { readonly required?: boolean }): void {
 		if (!this._getNewSession(sessionId)) {
 			throw new Error(`Cannot configure unknown new session '${sessionId}'.`);
