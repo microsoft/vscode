@@ -263,7 +263,7 @@
  * (e.g. session control pickers and repo config pickers) so they align with the
  * model picker font in the input toolbar. Each item carries its own opaque
  * surface so a chat background cannot show through it. */
-.new-chat-widget-container .new-chat-bottom-container .action-label:not(.separator) {
+.new-chat-widget-container .new-chat-bottom-container .action-label {
 	box-sizing: border-box;
 	height: var(--chat-input-control-height);
 	align-items: center;
