@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, IDisposable, ReferenceCollection } from '../../../../../../base/common/lifecycle.js';
-import { ChatTreeItem, IChatCodeBlockInfo } from '../../chat.js';
+import { ChatTreeItem, IChatCodeBlockInfo, IChatListItemRendererOptions } from '../../chat.js';
 import { IChatRendererContent, IChatRequestViewModel, IChatResponseViewModel } from '../../../common/model/chatViewModel.js';
 import { DiffEditorPool, EditorPool } from './chatContentCodePools.js';
 import { IObservable } from '../../../../../../base/common/observable.js';
@@ -76,6 +76,7 @@ export interface IChatContentPartRenderContext {
 	readonly contentIndex: number;
 	/** Whether the response-level progress indicator owns progress animation for this render. */
 	readonly suppressProgressShimmer?: boolean;
+	readonly progressMessageAction?: IChatListItemRendererOptions['progressMessageAction'];
 	/** An expanded, headerless tool group in the persistent progress layout. */
 	readonly isToolChain?: boolean;
 	/**

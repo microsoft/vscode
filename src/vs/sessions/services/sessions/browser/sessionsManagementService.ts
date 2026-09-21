@@ -87,7 +87,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	private readonly _providerListeners = this._register(new DisposableMap<string, IDisposable>());
 	private readonly _disposeCts = this._register(new CancellationTokenSource());
 	private readonly _unlistedNewSessions = new ResourceMap<ISession>();
-	private readonly _inFlightNewSessionRequests = new ResourceMap<{ readonly session: ISession; count: number }>();
+	private readonly _inFlightNewSessionRequests = new ResourceMap<{ readonly session: ISession; readonly input?: Pick<ISendRequestOptions, 'query' | 'attachedContext'>; count: number }>();
 	private readonly _explicitlyMarkedUnreadSessions = new ResourceSet();
 
 	/**
@@ -235,12 +235,20 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		return Array.from(this._inFlightNewSessionRequests.values(), entry => entry.session);
 	}
 
-	private trackInFlightNewSessionRequest(session: ISession): IDisposable {
+	getInFlightNewSessionRequest(resource: URI): Pick<ISendRequestOptions, 'query' | 'attachedContext'> | undefined {
+		return this._inFlightNewSessionRequests.get(resource)?.input;
+	}
+
+	private trackInFlightNewSessionRequest(session: ISession, options?: ISendRequestOptions): IDisposable {
 		const entry = this._inFlightNewSessionRequests.get(session.resource);
 		if (entry) {
 			entry.count++;
 		} else {
-			this._inFlightNewSessionRequests.set(session.resource, { session, count: 1 });
+			this._inFlightNewSessionRequests.set(session.resource, {
+				session,
+				input: options ? { query: options.query, attachedContext: options.attachedContext?.slice() } : undefined,
+				count: 1,
+			});
 		}
 
 		return toDisposable(() => {
@@ -743,7 +751,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		}
 
 		const isNewSessionRequest = session.status.get() === SessionStatus.Untitled;
-		const inFlightRequest = isNewSessionRequest ? this.trackInFlightNewSessionRequest(session) : undefined;
+		const inFlightRequest = isNewSessionRequest ? this.trackInFlightNewSessionRequest(session, options) : undefined;
 
 		if (options.background) {
 			this._newSession.set(undefined, undefined);

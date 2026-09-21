@@ -3396,6 +3396,13 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	}
 }
 
+.interactive-item-container .progress-container > .chat-progress-action {
+	flex-shrink: 0;
+	white-space: nowrap;
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-chat-font-size-body-s);
+}
+
 .interactive-item-container .progress-container {
 	display: flex;
 	/* Keep the icon on the first line: a wrapped message must not drag it down

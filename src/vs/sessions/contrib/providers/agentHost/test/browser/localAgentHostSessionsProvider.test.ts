@@ -3707,7 +3707,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 			deletedDetachedWorktrees: agentHost.deletedDetachedWorktrees,
 			logMatchesContainerWorkspace: !!logWorkspace && logWorkspace === connectedWorkspace,
 		}, {
-			during: { message: 'Starting Dev Container...', status: SessionStatus.Untitled },
+			during: { message: 'Starting Dev Container', status: SessionStatus.Untitled },
 			after: undefined,
 			status: SessionStatus.Untitled,
 			deletedDetachedWorktrees: ['00000000-0000-4000-8000-000000000001'],
@@ -3736,7 +3736,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 			provider.setDevContainerEnabled(session.sessionId, true);
 			disposables.add(autorun(reader => {
 				const progress = session.preparationProgress?.read(reader);
-				if (progress?.message === 'Preparing worktree for Dev Container...') {
+				if (progress?.message === 'Preparing worktree for Dev Container') {
 					progress.cancel();
 				}
 			}));
@@ -3815,7 +3815,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 					connectCalls,
 					status: session.status.get(),
 				}, {
-					message: 'Preparing Dev Container...',
+					message: 'Preparing Dev Container',
 					cancellable: 'function',
 					after: undefined,
 					connectCalls: 0,

@@ -180,7 +180,7 @@ export abstract class DevContainerAgentHostSessionsProvider extends BaseAgentHos
 
 	override startNewSessionRequest(sessionId: string, activity?: string): IDisposable {
 		return super.startNewSessionRequest(sessionId, activity ?? (this._devContainerDrafts.has(sessionId)
-			? localize('devContainerAgentHost.starting', "Starting Dev Container...")
+			? localize('devContainerAgentHost.starting', "Starting Dev Container")
 			: undefined));
 	}
 
@@ -203,7 +203,7 @@ export abstract class DevContainerAgentHostSessionsProvider extends BaseAgentHos
 				cancel,
 			}, undefined);
 		};
-		progress(localize('devContainerAgentHost.preparing', "Preparing Dev Container..."));
+		progress(localize('devContainerAgentHost.preparing', "Preparing Dev Container"));
 		try {
 			if (awaitingAvailability) {
 				await raceCancellationError(availability, preparation.token);
@@ -249,7 +249,7 @@ export abstract class DevContainerAgentHostSessionsProvider extends BaseAgentHos
 		let devContainerWorkspace = sourceWorkspace;
 		let detachedWorktree: { readonly handle: string; readonly worktree: URI; readonly connection: IAgentConnection } | undefined;
 		if (sourceConfig?.values[SessionConfigKey.Isolation] === 'worktree') {
-			progress(localize('devContainerAgentHost.preparingWorktree', "Preparing worktree for Dev Container..."));
+			progress(localize('devContainerAgentHost.preparingWorktree', "Preparing worktree for Dev Container"));
 			await raceCancellationError(draft.waitForEagerCreate(), token);
 			if (token.isCancellationRequested) {
 				throw new CancellationError();
@@ -273,7 +273,7 @@ export abstract class DevContainerAgentHostSessionsProvider extends BaseAgentHos
 
 		let target: Awaited<ReturnType<IDevContainerAgentHostService['connect']>>;
 		try {
-			progress(localize('devContainerAgentHost.starting', "Starting Dev Container..."), () => {
+			progress(localize('devContainerAgentHost.starting', "Starting Dev Container"), () => {
 				void support.service.showLog(devContainerWorkspace).catch(onUnexpectedError);
 			});
 			target = await support.service.connect(devContainerWorkspace, token);
@@ -285,7 +285,7 @@ export abstract class DevContainerAgentHostSessionsProvider extends BaseAgentHos
 		}
 		let deleteReplacement: (() => void) | undefined;
 		try {
-			progress(localize('devContainerAgentHost.initializing', "Initializing Agent Host session..."));
+			progress(localize('devContainerAgentHost.initializing', "Initializing Agent Host session"));
 			if (token.isCancellationRequested) {
 				throw new CancellationError();
 			}

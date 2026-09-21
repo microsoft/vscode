@@ -58,18 +58,22 @@ suite('ChatWidget', () => {
 		const widgetStore = store.add(new DisposableStore());
 		const contextKeyService = store.add(new MockContextKeyService());
 		const inputEnablement: boolean[] = [];
+		const transcriptProgressAction = observableValue<{ readonly label: string; readonly run: () => void } | undefined>('progressAction', undefined);
 		const widget = Object.assign(Object.create(ChatWidget.prototype), {
 			_store: widgetStore,
 			container,
 			listContainer: dom.append(container, dom.$('.interactive-list')),
 			transcriptProgressPart: store.add(new MutableDisposable<DisposableStore>()),
+			transcriptProgressAction,
 			instantiationService,
 			contextKeyService,
 			transcriptProgressActiveContext: ChatContextKeys.transcriptProgressActive.bindTo(contextKeyService),
+			_readOnly: false,
+			_readOnlyContextKey: ChatContextKeys.readOnly.bindTo(contextKeyService),
 			inputPartDisposable: { value: { setInputEnabled: (enabled: boolean) => inputEnablement.push(enabled) } },
 			updateChatViewVisibility: () => { },
 		}) as ChatWidget;
-		return { widget, container, contextKeyService, inputEnablement };
+		return { widget, container, contextKeyService, inputEnablement, transcriptProgressAction };
 	}
 
 	test('only preparation disables input and completion or cancellation re-enables it', () => {
@@ -210,6 +214,33 @@ suite('ChatWidget', () => {
 			hiddenWithoutAction: true,
 			calls: ['new'],
 		});
+	});
+
+	test('progress rendered by the transcript supplies an inline action without a duplicate overlay', () => {
+		const { widget, container, contextKeyService, transcriptProgressAction } = createTranscriptProgressWidget();
+		const calls: string[] = [];
+		widget.setTranscriptProgress('Preparing', undefined, { inTranscript: true, onCancel: () => { } });
+		const progress = container.querySelector<HTMLElement>('.chat-transcript-progress')!;
+		const hiddenWithoutLog = progress.hidden;
+		widget.setTranscriptProgress('Starting', undefined, { inTranscript: true, detail: { label: 'Show Log', run: () => calls.push('old') }, onCancel: () => { } });
+		widget.setTranscriptProgress('Initializing', undefined, { inTranscript: true, detail: { label: 'Show Log', run: () => calls.push('new') }, onCancel: () => calls.push('cancel') });
+		transcriptProgressAction.get()?.run();
+		widget.cancelTranscriptProgress();
+		assert.deepStrictEqual({
+			hiddenWithoutLog,
+			hiddenWithLog: progress.hidden,
+			actionLabel: transcriptProgressAction.get()?.label,
+			readOnly: contextKeyService.getContextKeyValue(ChatContextKeys.readOnly.key),
+			calls,
+		}, {
+			hiddenWithoutLog: true,
+			hiddenWithLog: true,
+			actionLabel: 'Show Log',
+			readOnly: true,
+			calls: ['new', 'cancel'],
+		});
+		widget.setTranscriptProgress(undefined);
+		assert.deepStrictEqual({ hidden: progress.hidden, action: transcriptProgressAction.get() }, { hidden: true, action: undefined });
 	});
 
 	test('transcript preparation blocks submissions without a model or touching the draft', async () => {

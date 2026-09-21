@@ -119,10 +119,11 @@ export class AgentsWindow {
 		await this.code.waitForElement(ACTIVE_SESSION_INPUT_EDITOR, undefined, retryCount);
 	}
 
-	async waitForSessionPreparation(): Promise<void> {
+	async waitForSessionPreparation(prompt: string): Promise<void> {
 		const page = this.code.driver.currentPage;
-		const progress = page.locator(`${ACTIVE_SESSION} .chat-transcript-progress:not([hidden])`);
-		await progress.getByText('Starting Dev Container...', { exact: false }).waitFor({ state: 'visible', timeout: 30_000 });
+		const progress = page.locator(`${ACTIVE_SESSION} .interactive-response .progress-container`).filter({ has: page.getByRole('button', { name: 'Show Log', exact: true }) });
+		await page.locator(`${ACTIVE_SESSION} .interactive-response`).getByText('Starting Dev Container', { exact: false }).waitFor({ state: 'visible', timeout: 30_000 });
+		await page.locator(`${ACTIVE_SESSION} .interactive-request .rendered-markdown`).getByText(prompt, { exact: true }).waitFor({ state: 'visible' });
 		await progress.getByRole('button', { name: 'Show Log', exact: true }).waitFor({ state: 'visible' });
 		if (await progress.locator('.xterm-screen').count()) {
 			throw new Error('Startup logs must remain in the output channel, not the transcript');
@@ -138,7 +139,7 @@ export class AgentsWindow {
 
 	async showSessionPreparationLog(): Promise<void> {
 		const page = this.code.driver.currentPage;
-		await page.locator(`${ACTIVE_SESSION} .chat-transcript-progress`).getByRole('button', { name: 'Show Log', exact: true }).click();
+		await page.locator(`${ACTIVE_SESSION} .interactive-response`).getByRole('button', { name: 'Show Log', exact: true }).click();
 		await page.locator('.output-view .monaco-editor').waitFor({ state: 'visible' });
 		await this.code.waitForTextContent('.output-view .view-lines', undefined, text => /Starting Dev Container|Dev Containers|Start:/.test(text.replace(/\u00a0/g, ' ')));
 		await this.quickaccess.runCommand('workbench.action.closePanel');
