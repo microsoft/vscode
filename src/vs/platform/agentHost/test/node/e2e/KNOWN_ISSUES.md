@@ -846,6 +846,22 @@ A user can ask Claude to delete a file from the workspace through its shell tool
   scripts\test-integration.bat --run src\vs\platform\agentHost\test\node\e2e\providers\claudeAgentHostE2E.integrationTest.ts --grep "deletes a workspace file"
   ```
 
+### Codex file creation replay on Windows
+
+A user can ask Codex to create a file in the workspace by running a command through its shell tool. On Windows, the turn finishes and the assistant reports the command as run, but the new file is not in the workspace afterwards, so a user who asked for a file would find nothing there.
+
+- Test: `creates a new text file`.
+- Scope: Codex deterministic replay on Windows.
+- Expected: Codex runs the recorded `node` creation command and `result.txt` contains `CREATED_VALUE` when the turn completes.
+- Observed: `ENOENT: no such file or directory, open '…\ahp-coverage-create-…\result.txt'` right after the turn completes. The adjacent edit, nested-create, rename, and delete scenarios run the same kind of command and pass on the same worker, and the scenario passes on macOS.
+- Gate: `fileCreateReplayUnstableOnWindows: true`. Recording and other platforms remain enabled.
+- Failing run: [PR #335918](https://github.com/microsoft/vscode/actions/runs/35553772031/job/106193302484?pr=335918).
+- Reproduce: temporarily clear the gate and run:
+
+  ```bat
+  scripts\test-integration.bat --run src\vs\platform\agentHost\test\node\e2e\providers\codexAgentHostE2E.integrationTest.ts --grep "creates a new text file"
+  ```
+
 ### Mid-turn abort is record-only
 
 - Tests:
