@@ -34,7 +34,7 @@ import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/
 import { extUri } from '../../../../../base/common/resources.js';
 import { ISessionsProvidersChangeEvent, ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISendRequestOptions, ISessionChangeEvent, ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
-import { AgentHostFilterConnectionStatus, IAgentHostFilterEntry } from '../../../../services/agentHostFilter/common/agentHostFilter.js';
+import { AgentHostFilterConnectionStatus, IAgentHostFilterEntry, IAgentHostFilterService } from '../../../../services/agentHostFilter/common/agentHostFilter.js';
 import { IAgentHostSessionsProvider } from '../../../../common/agentHostSessionsProvider.js';
 import { GITHUB_REMOTE_FILE_SCHEME, ISession, ISessionWorkspace, ISessionWorkspaceBrowseAction, SessionStatus, SESSION_WORKSPACE_GROUP_GITHUB, SESSION_WORKSPACE_GROUP_LOCAL, SESSION_WORKSPACE_GROUP_REMOTE } from '../../../../services/sessions/common/session.js';
 import { IWorkspacePickerItem, IWorkspacePickerOptions, WorkspacePicker } from '../../browser/sessionWorkspacePicker.js';
@@ -314,7 +314,7 @@ function createTestPicker(
 	providersService: MockSessionsProvidersService,
 	storageService?: IStorageService,
 	notificationService: INotificationService = new TestNotificationService(),
-	pickerCtor: typeof WorkspacePicker = WorkspacePicker,
+	pickerCtor: typeof WorkspacePicker | typeof WebWorkspacePicker = WorkspacePicker,
 	fileDialogService: Partial<IFileDialogService> = {},
 	workspacesService: IWorkspacesService = { getRecentlyOpened: async () => ({ workspaces: [], files: [] }), onDidChangeRecentlyOpened: Event.None } as unknown as IWorkspacesService,
 	recentWorkspacesService?: ISessionsRecentWorkspacesService,
@@ -327,6 +327,7 @@ function createTestPicker(
 	}),
 	actionWidgetService?: IActionWidgetService,
 	dialogService: IDialogService = new TestDialogService(),
+	agentHostFilterService?: IAgentHostFilterService,
 ): WorkspacePicker {
 	const instantiationService = disposables.add(new TestInstantiationService());
 	const storage = storageService ?? disposables.add(new TestStorageService());
@@ -360,6 +361,10 @@ function createTestPicker(
 	instantiationService.stub(ISessionsRecentWorkspacesService, recentWorkspacesService ?? disposables.add(instantiationService.createInstance(SessionsRecentWorkspacesService)));
 	instantiationService.stub(ITelemetryService, NullTelemetryService);
 	instantiationService.stub(IHoverService, NullHoverService);
+	if (agentHostFilterService) {
+		instantiationService.stub(IAgentHostFilterService, agentHostFilterService);
+		instantiationService.stub(IWorkbenchLayoutService, {});
+	}
 
 	return disposables.add(instantiationService.createInstance(pickerCtor, options ?? {}));
 }
@@ -4324,6 +4329,47 @@ function hostEntry(providerId: string): IAgentHostFilterEntry {
 		connectable: true,
 	};
 }
+
+suite('WebWorkspacePicker - Host scope updates', () => {
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('only host selection and provider membership changes reset an empty workspace', () => {
+		const providersService = disposables.add(new MockSessionsProvidersService());
+		const changed = disposables.add(new Emitter<void>());
+		let selectedHost: IAgentHostFilterEntry | undefined = hostEntry('first');
+		const filterService = upcastPartial<IAgentHostFilterService>({
+			onDidChange: changed.event,
+			get selectedHost() { return selectedHost; },
+		});
+		const picker = createTestPicker(
+			disposables, providersService, undefined, undefined, WebWorkspacePicker,
+			undefined, undefined, undefined, { restoreFromSessions: false },
+			undefined, undefined, undefined, filterService,
+		);
+		let selectionEvents = 0;
+		disposables.add(picker.onDidSelectWorkspace(() => selectionEvents++));
+
+		selectedHost = { ...selectedHost, status: AgentHostFilterConnectionStatus.Connecting };
+		changed.fire();
+		selectedHost = { ...selectedHost, status: AgentHostFilterConnectionStatus.Disconnected };
+		changed.fire();
+		selectedHost = { ...selectedHost, providerIds: [...selectedHost.providerIds] };
+		changed.fire();
+		assert.strictEqual(selectionEvents, 0, 'background updates must not emit a workspace selection');
+
+		selectedHost = hostEntry('second');
+		changed.fire();
+		assert.strictEqual(selectionEvents, 1, 'switching hosts still resets the workspace');
+		selectedHost = { ...selectedHost, providerIds: ['second', 'new-group-member'] };
+		changed.fire();
+		assert.strictEqual(selectionEvents, 2, 'group membership changes still refresh the workspace scope');
+		selectedHost = undefined;
+		changed.fire();
+		assert.strictEqual(selectionEvents, 3, 'removing the selected host still resets the workspace');
+		changed.fire();
+		assert.strictEqual(selectionEvents, 3, 'an unchanged empty scope must not reset the workspace again');
+	});
+});
 
 suite('WorkspacePicker - Tab discovery', () => {
 
