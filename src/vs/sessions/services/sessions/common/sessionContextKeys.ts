@@ -229,6 +229,9 @@ export function setActiveSessionContextKeys(session: IActiveSession | undefined,
 	// it: the main chat and worker (subagent) chats report `canDelete: false`,
 	// so they are closeable but not deletable.
 	keys.activeChatIsDeletable.set(!!activeChat && getChatCapabilities(activeChat, session, reader).canDelete);
+	const workspace = activeChat?.workspace.read(reader);
+	keys.workspaceIsVirtual.set(workspace?.isVirtualWorkspace ?? true);
+	keys.hasWorkspace.set(!!workspace?.label);
 
 	const allChats = session?.chats.read(reader) ?? [];
 	keys.hasSideChats.set(allChats.some(chat => chat.origin?.kind === ChatOriginKind.SideChat));

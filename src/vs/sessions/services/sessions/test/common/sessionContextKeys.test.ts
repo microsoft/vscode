@@ -12,7 +12,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { TestStorageService } from '../../../../../workbench/test/common/workbenchTestServices.js';
 import { IChatSessionFileChange } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
-import { SessionHasCachedChangesContext, SessionHasChangesContext, SessionHasGitRepositoryContext, SessionHasMultipleCommittedChatsContext, SessionHasSideChatsContext, SessionIsActiveContext, SessionSupportsSideChatContext } from '../../../../common/contextkeys.js';
+import { SessionHasCachedChangesContext, SessionHasChangesContext, SessionHasGitRepositoryContext, SessionHasMultipleCommittedChatsContext, SessionHasSideChatsContext, SessionHasWorkspaceContext, SessionIsActiveContext, SessionSupportsSideChatContext, SessionWorkspaceIsVirtualContext } from '../../../../common/contextkeys.js';
 import { ChatInteractivity, ChatOriginKind, IChat, ISession, ISessionChangeset, SessionStatus } from '../../common/session.js';
 import { IActiveSession } from '../../common/sessionsManagement.js';
 import { setActiveSessionContextKeys, setSessionContextKeys } from '../../common/sessionContextKeys.js';
@@ -133,6 +133,70 @@ suite('Session Context Keys', () => {
 			inProgress: true,
 			needsInput: true,
 			error: false,
+		});
+	});
+
+	test('publishes workspace keys from the active chat', () => {
+		const contextKeyService = store.add(new MockContextKeyService());
+		const sessionWorkspace = {
+			uri: URI.file('/session'),
+			label: 'session',
+			icon: Codicon.rootFolder,
+			folders: [{
+				root: URI.file('/session'),
+				workingDirectory: URI.file('/session'),
+				name: 'session',
+				description: undefined,
+				gitRepository: {
+					uri: URI.file('/session'),
+					workTreeUri: undefined,
+					baseBranchName: undefined,
+					gitHubInfo: constObservable(undefined),
+				},
+			}],
+			requiresWorkspaceTrust: false,
+			isVirtualWorkspace: false,
+		};
+		const activeChat = {
+			...stubChat,
+			workspace: constObservable({
+				uri: URI.file('/chat'),
+				label: 'chat',
+				icon: Codicon.rootFolder,
+				folders: [{
+					root: URI.file('/chat'),
+					workingDirectory: URI.file('/chat'),
+					name: 'chat',
+					description: undefined,
+				}],
+				requiresWorkspaceTrust: false,
+				isVirtualWorkspace: true,
+			}),
+		};
+		const session = upcastPartial<IActiveSession>({
+			...stubSession({
+				sessionId: 'a',
+				workspace: constObservable(sessionWorkspace),
+				chats: constObservable([activeChat]),
+				mainChat: constObservable(activeChat),
+			}),
+			isCreated: constObservable(true),
+			sticky: constObservable(false),
+			activeChat: constObservable(activeChat),
+			visibleChatTabs: constObservable([activeChat]),
+			shouldShowChatTabs: constObservable(false),
+		});
+
+		setActiveSessionContextKeys(session, contextKeyService, undefined);
+
+		assert.deepStrictEqual({
+			hasWorkspace: SessionHasWorkspaceContext.getValue(contextKeyService),
+			isVirtualWorkspace: SessionWorkspaceIsVirtualContext.getValue(contextKeyService),
+			hasGitRepository: SessionHasGitRepositoryContext.getValue(contextKeyService),
+		}, {
+			hasWorkspace: true,
+			isVirtualWorkspace: true,
+			hasGitRepository: true,
 		});
 	});
 });

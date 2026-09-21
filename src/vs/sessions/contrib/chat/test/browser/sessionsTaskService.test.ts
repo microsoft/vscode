@@ -195,6 +195,28 @@ suite('SessionsTasksService', () => {
 		assert.deepStrictEqual(tasks.map(t => t.task.label), ['build', 'test', 'watch', 'gulp-task']);
 	});
 
+	test('getSessionTasks reads from a chat workspace', async () => {
+		const chatWorktree = URI.parse('file:///chat-worktree');
+		const chatTasksUri = URI.parse('file:///chat-worktree/.vscode/tasks.json');
+		fileContents.set(chatTasksUri.toString(), tasksJsonContent([
+			makeTask('chat-build', 'npm run build', true),
+		]));
+		const userTasksUri = URI.from({ scheme: userSettingsUri.scheme, path: '/user/tasks.json' });
+		fileContents.set(userTasksUri.toString(), tasksJsonContent([]));
+		const chat = makeSession({ worktree: chatWorktree, repository: URI.parse('file:///chat-repo') }).mainChat.get();
+
+		const tasks = service.getSessionTasks(chat);
+		await new Promise(r => setTimeout(r, 10));
+
+		assert.deepStrictEqual({
+			labels: tasks.get().map(task => task.task.label),
+			workspaceRead: readFileCalls.some(resource => resource.toString() === chatTasksUri.toString()),
+		}, {
+			labels: ['chat-build'],
+			workspaceRead: true,
+		});
+	});
+
 	test('getSessionTasks returns empty array when no worktree', async () => {
 		const session = makeSession({ repository: repoUri });
 		const obs = service.getSessionTasks(session);
