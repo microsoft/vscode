@@ -14,12 +14,12 @@ import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../../work
 import { SessionsTitleBarContribution } from './sessionsTitleBarWidget.js';
 import { SessionsTelemetryContribution } from './sessionsTelemetry.contribution.js';
 import { NEW_SESSION_BUTTON_STYLE_SETTING, NEW_SESSION_BUTTON_STYLE_TREATMENT, NewSessionActionViewItemContribution, SessionConversationActionsContribution, SessionListActionsExperimentContribution } from './sessionsActions.js';
-import { SessionsView, SessionsViewId } from './views/sessionsView.js';
+import { SESSIONS_LIST_DEFAULT_SORT_ORDER_SETTING, SessionsView, SessionsViewId } from './views/sessionsView.js';
 import { AutomationsCustomViewContribution } from './views/automationsView.js';
 import './views/sessionsViewActions.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
-import { SESSIONS_LIST_SHOW_EMPTY_DEFAULT_GROUPS_SETTING, SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING } from './views/sessionsList.js';
+import { SESSIONS_LIST_SHOW_EMPTY_DEFAULT_GROUPS_SETTING, SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING, SessionsSorting } from './views/sessionsList.js';
 import { AUTOMATIONS_NEW_BADGE_STYLE_SETTING, AUTOMATIONS_NEW_BADGE_STYLE_TREATMENT } from './automationsNewBadge.js';
 import { SessionsMouseNavigationContribution } from './sessionsMouseNavigation.js';
 import './sessionDetailsAction.js';
@@ -65,6 +65,19 @@ Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry).registerViews
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
 	id: 'sessions',
 	properties: {
+		[SESSIONS_LIST_DEFAULT_SORT_ORDER_SETTING]: {
+			type: 'string',
+			tags: ['experimental', 'advanced'],
+			enum: [SessionsSorting.Created, SessionsSorting.Updated],
+			enumDescriptions: [
+				localize('sessions.list.defaultSortOrder.created', "Sort sessions by creation time."),
+				localize('sessions.list.defaultSortOrder.updated', "Sort sessions by last update time."),
+			],
+			default: SessionsSorting.Created,
+			scope: ConfigurationScope.APPLICATION,
+			description: localize('sessions.list.defaultSortOrder', "Controls the default sort order of the sessions list. Once a sort order is selected in the sessions filter menu, that choice is used instead."),
+			experiment: { mode: 'auto' },
+		},
 		[SESSIONS_LIST_SHOW_EMPTY_DEFAULT_GROUPS_SETTING]: {
 			type: 'boolean',
 			tags: ['preview'],
