@@ -3914,6 +3914,29 @@ suite('SessionsManagementService', () => {
 		});
 	});
 
+	suite('deleteChat', () => {
+		for (const deleted of [true, false]) {
+			test(`returns ${deleted} and fires the delete event only after deletion`, async () => {
+				const session = stubSession({ sessionId: 'session', providerId: 'test' });
+				const provider = new class extends TestSessionsProvider {
+					override async deleteChat(): Promise<boolean> {
+						return deleted;
+					}
+				}(session);
+				const { service } = createSessionsManagementService(session, disposables, provider);
+				const deletedSessions: string[] = [];
+				disposables.add(service.onDidDeleteChat(session => deletedSessions.push(session.sessionId)));
+
+				const result = await service.deleteChat(session, URI.parse('test:///chat'));
+
+				assert.deepStrictEqual({ result, deletedSessions }, {
+					result: deleted,
+					deletedSessions: deleted ? [session.sessionId] : [],
+				});
+			});
+		}
+	});
+
 	suite('createNewChatInSession', () => {
 
 		test('reuses an existing untitled chat instead of creating a new one', async () => {

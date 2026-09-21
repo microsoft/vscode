@@ -247,7 +247,7 @@ class MockSessionStore implements ISessionsManagementService {
 	markAllRead(_sessions: readonly ISession[]): Promise<void> { throw new Error('not implemented'); }
 	deleteSession(_session: ISession): Promise<void> { throw new Error('not implemented'); }
 	deleteSessions(_sessions: readonly ISession[]): Promise<void> { throw new Error('not implemented'); }
-	deleteChat(_session: ISession, _chatUri: URI): Promise<void> { throw new Error('not implemented'); }
+	deleteChat(_session: ISession, _chatUri: URI): Promise<boolean> { throw new Error('not implemented'); }
 	renameChat(_session: ISession, _chatUri: URI, _title: string): Promise<void> { throw new Error('not implemented'); }
 	renameSession(_session: ISession, _title: string): Promise<void> { throw new Error('not implemented'); }
 	removeSessionArtifact(_session: ISession, _artifactId: string): Promise<void> { throw new Error('not implemented'); }
