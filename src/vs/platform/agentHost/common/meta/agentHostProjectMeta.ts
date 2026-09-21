@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+// TODO: Remove this compatibility file after adopting a protocol release containing https://github.com/microsoft/agent-host-protocol/pull/451.
+
 import { isObject } from '../../../../base/common/types.js';
 import type { RootState } from '../state/protocol/state.js';
 

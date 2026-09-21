@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+// TODO: Remove this compatibility file after adopting a protocol release containing https://github.com/microsoft/agent-host-protocol/pull/451.
+
 import { disposableTimeout } from '../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../../base/common/errors.js';
@@ -17,7 +19,6 @@ import { IAgentSubscription } from '../../../../../platform/agentHost/common/sta
 import { RootState } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import { getGitHubRepositoryFromRemoteUrl } from '../../../../../workbench/contrib/git/common/utils.js';
 
-// Remove after adopting https://github.com/microsoft/agent-host-protocol/pull/451.
 export class CloudSandboxProjectResolver extends Disposable {
 	private readonly _lifetime = this._register(new CancellationTokenSource());
 
