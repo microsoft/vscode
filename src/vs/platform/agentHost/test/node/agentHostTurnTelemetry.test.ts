@@ -178,6 +178,11 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 		sideEffects.handleAction(chatUri, action, 'test', clientContext);
 	}
 
+	function applyClientAction(action: ChatAction, chatUri = defaultChatUri, clientSeq = 2): void {
+		stateManager.dispatchClientAction(chatUri, action, { clientId: 'test', clientSeq });
+		sideEffects.handleAction(chatUri, action, 'test');
+	}
+
 	/**
 	 * Starts a turn the way the host does for its own messages (Agent Merge
 	 * prompts): a server action, with no initiating client.
@@ -430,12 +435,12 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 
 		let previousTurnId = 'turn-original';
 		for (const turnId of ['turn-steering-1', 'turn-steering-2']) {
-			stateManager.dispatchClientAction(defaultChatUri, {
+			applyClientAction({
 				type: ActionType.ChatPendingMessageSet,
 				kind: PendingMessageKind.Steering,
 				id: `queued-${turnId}`,
 				message: { text: 'edit the file', origin: { kind: MessageKind.User } },
-			}, { clientId: 'test', clientSeq: 2 });
+			});
 			fire({ type: ActionType.ChatTurnComplete, turnId: previousTurnId, duration: 1000 });
 			fire({
 				type: ActionType.ChatTurnStarted,
@@ -487,12 +492,12 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 			setupSession();
 			startTurn('turn-steered');
 			fireModelCallFinished('turn-steered', 'edit', 150, 'success', true);
-			stateManager.dispatchClientAction(defaultChatUri, {
+			applyClientAction({
 				type: ActionType.ChatPendingMessageSet,
 				kind: PendingMessageKind.Steering,
 				id: 'steer',
 				message: { text: 'change direction', origin: { kind: MessageKind.User } },
-			}, { clientId: 'test', clientSeq: 2 });
+			});
 			stateManager.dispatchClientAction(defaultChatUri, {
 				type: ActionType.ChatPendingMessageRemoved,
 				kind: PendingMessageKind.Steering,
@@ -560,7 +565,7 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 			id: 'steer-idle',
 			message: { text: 'change direction', origin: { kind: MessageKind.User } },
 		};
-		stateManager.dispatchClientAction(defaultChatUri, action, { clientId: 'test', clientSeq: 1 });
+		applyClientAction(action, defaultChatUri, 1);
 		startTurn('turn-after-idle');
 		chatContributions.didDispatchAction({ channel: defaultChatUri, session: sessionKey, action, rejectionReason: 'rejected' });
 		fire({ type: ActionType.ChatTurnComplete, turnId: 'turn-after-idle', duration: 1000 });
@@ -578,12 +583,13 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 		stateManager.addChat(sessionKey, peerChatUri);
 		startTurn('turn-default');
 		startTurn('turn-peer', 'hello peer', undefined, peerChatUri);
-		stateManager.dispatchClientAction(peerChatUri, {
+		const action: ChatAction = {
 			type: ActionType.ChatPendingMessageSet,
 			kind: PendingMessageKind.Steering,
 			id: 'steer-peer',
 			message: { text: 'change direction', origin: { kind: MessageKind.User } },
-		}, { clientId: 'test', clientSeq: 2 });
+		};
+		applyClientAction(action, peerChatUri);
 		fire({ type: ActionType.ChatTurnComplete, turnId: 'turn-peer', duration: 1000 }, peerChatUri);
 		fire({ type: ActionType.ChatTurnComplete, turnId: 'turn-default', duration: 1000 });
 
