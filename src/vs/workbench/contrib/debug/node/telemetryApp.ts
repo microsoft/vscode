@@ -8,8 +8,9 @@ import { TelemetryAppenderChannel } from '../../../../platform/telemetry/common/
 import { OneDataSystemAppender } from '../../../../platform/telemetry/node/1dsAppender.js';
 
 const appender = new OneDataSystemAppender(undefined, false, process.argv[2], JSON.parse(process.argv[3]), process.argv[4]);
+appender.setIsConnectionMetered(process.argv[5] === 'true');
 process.once('exit', () => appender.flush());
 
-const channel = new TelemetryAppenderChannel([appender]);
+const channel = new TelemetryAppenderChannel([appender], isMetered => appender.setIsConnectionMetered(isMetered));
 const server = new Server('telemetry');
 server.registerChannel('telemetryAppender', channel);

@@ -10,6 +10,7 @@ import { Emitter } from '../../../../base/common/event.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
 import { NullLogService } from '../../../log/common/log.js';
+import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
 import { MeteredConnectionCommand } from '../../common/meteredConnectionIpc.js';
 import { MeteredConnectionChannel } from '../../electron-main/meteredConnectionChannel.js';
 import { MeteredConnectionMainService } from '../../electron-main/meteredConnectionMainService.js';
@@ -46,6 +47,7 @@ suite('MeteredConnectionMainService', () => {
 		store.add(configurationService.onDidChangeConfigurationEmitter);
 		const monitor = new TestMeteredConnectionMonitor();
 		const service = store.add(new MeteredConnectionMainService({ monitorFactory: async () => monitor }, configurationService, new NullLogService()));
+		service.setTelemetryService(NullTelemetryService);
 		service.start();
 		let initialized = false;
 		void service.whenInitialized.then(() => initialized = true);
@@ -73,6 +75,7 @@ suite('MeteredConnectionMainService', () => {
 		store.add(configurationService.onDidChangeConfigurationEmitter);
 		const monitor = new TestMeteredConnectionMonitor();
 		const service = store.add(new MeteredConnectionMainService({ monitorFactory: async () => monitor }, configurationService, new NullLogService()));
+		service.setTelemetryService(NullTelemetryService);
 		service.start();
 		const changes: boolean[] = [];
 		store.add(service.onDidChangeIsConnectionMetered(state => changes.push(state)));
@@ -108,6 +111,7 @@ suite('MeteredConnectionMainService', () => {
 		store.add(configurationService.onDidChangeConfigurationEmitter);
 		const monitor = new TestMeteredConnectionMonitor();
 		const service = store.add(new MeteredConnectionMainService({ monitorFactory: async () => monitor }, configurationService, new NullLogService()));
+		service.setTelemetryService(NullTelemetryService);
 		service.start();
 		const channel = new MeteredConnectionChannel(service);
 		let resolved = false;
@@ -135,6 +139,7 @@ suite('MeteredConnectionMainService', () => {
 			monitorFactory: async () => monitor,
 			initializationTimeout: 0,
 		}, configurationService, new NullLogService()));
+		service.setTelemetryService(NullTelemetryService);
 		service.start();
 
 		await service.whenInitialized;
@@ -158,6 +163,7 @@ suite('MeteredConnectionMainService', () => {
 			monitorFactory: () => monitorPromise.p,
 			initializationTimeout: 0,
 		}, configurationService, new NullLogService()));
+		service.setTelemetryService(NullTelemetryService);
 		service.start();
 
 		await service.whenInitialized;
@@ -176,6 +182,7 @@ suite('MeteredConnectionMainService', () => {
 		store.add(configurationService.onDidChangeConfigurationEmitter);
 		const monitor = new TestMeteredConnectionMonitor();
 		const service = store.add(new MeteredConnectionMainService({ monitorFactory: async () => monitor }, configurationService, new NullLogService()));
+		service.setTelemetryService(NullTelemetryService);
 		service.start();
 		await timeout(0);
 
@@ -199,6 +206,7 @@ suite('MeteredConnectionMainService', () => {
 		const monitor = new TestMeteredConnectionMonitor();
 		const monitorPromise = new DeferredPromise<MeteredConnectionMonitor>();
 		const service = store.add(new MeteredConnectionMainService({ monitorFactory: () => monitorPromise.p }, configurationService, new NullLogService()));
+		service.setTelemetryService(NullTelemetryService);
 		service.start();
 
 		service.dispose();

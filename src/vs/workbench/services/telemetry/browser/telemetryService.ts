@@ -17,6 +17,7 @@ import { ITelemetryServiceConfig, TelemetryService as BaseTelemetryService } fro
 import { getTelemetryLevel, isInternalTelemetry, isLoggingOnly, ITelemetryAppender, NullTelemetryService, supportsTelemetry } from '../../../../platform/telemetry/common/telemetryUtils.js';
 import { IBrowserWorkbenchEnvironmentService } from '../../environment/browser/environmentService.js';
 import { IRemoteAgentService } from '../../remote/common/remoteAgentService.js';
+import { IMeteredConnectionService } from '../../../../platform/meteredConnection/common/meteredConnection.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 import { resolveWorkbenchCommonProperties } from './workbenchCommonProperties.js';
 import { experimentsEnabled } from '../common/workbenchTelemetryUtils.js';
@@ -43,16 +44,17 @@ export class TelemetryService extends Disposable implements ITelemetryService {
 		@IStorageService storageService: IStorageService,
 		@IProductService productService: IProductService,
 		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
+		@IMeteredConnectionService meteredConnectionService: IMeteredConnectionService,
 		@IRequestService requestService: IRequestService
 	) {
 		super();
 
-		this.impl = this.initializeService(environmentService, loggerService, configurationService, storageService, productService, remoteAgentService);
+		this.impl = this.initializeService(environmentService, loggerService, configurationService, storageService, productService, remoteAgentService, meteredConnectionService);
 
 		// When the level changes it could change from off to on and we want to make sure telemetry is properly intialized
 		this._register(configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(TELEMETRY_SETTING_ID)) {
-				this.impl = this.initializeService(environmentService, loggerService, configurationService, storageService, productService, remoteAgentService);
+				this.impl = this.initializeService(environmentService, loggerService, configurationService, storageService, productService, remoteAgentService, meteredConnectionService);
 			}
 		}));
 
@@ -91,7 +93,8 @@ export class TelemetryService extends Disposable implements ITelemetryService {
 		configurationService: IConfigurationService,
 		storageService: IStorageService,
 		productService: IProductService,
-		remoteAgentService: IRemoteAgentService
+		remoteAgentService: IRemoteAgentService,
+		meteredConnectionService: IMeteredConnectionService
 	) {
 		const telemetrySupported = supportsTelemetry(productService, environmentService) && productService.aiConfig?.ariaKey;
 		if (telemetrySupported && getTelemetryLevel(configurationService) !== TelemetryLevel.NONE && this.impl === NullTelemetryService) {
@@ -120,6 +123,7 @@ export class TelemetryService extends Disposable implements ITelemetryService {
 				piiPaths: [mainWindow.location.origin],
 				sendErrorTelemetry: this.sendErrorTelemetry,
 				waitForExperimentProperties: experimentsEnabled(configurationService, productService, environmentService),
+				meteredConnectionService,
 			};
 
 			return this._register(new BaseTelemetryService(config, configurationService, productService));

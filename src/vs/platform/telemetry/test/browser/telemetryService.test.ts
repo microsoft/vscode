@@ -6,10 +6,12 @@ import assert from 'assert';
 import * as sinon from 'sinon';
 import sinonTest from 'sinon-test';
 import { mainWindow } from '../../../../base/browser/window.js';
+import { DeferredPromise } from '../../../../base/common/async.js';
 import * as Errors from '../../../../base/common/errors.js';
-import { Emitter } from '../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
+import { IMeteredConnectionService } from '../../../meteredConnection/common/meteredConnection.js';
 import product from '../../../product/common/product.js';
 import { IProductService } from '../../../product/common/productService.js';
 import ErrorTelemetry from '../../browser/errorTelemetry.js';
@@ -41,6 +43,16 @@ class TestTelemetryAppender implements ITelemetryAppender {
 		this.isDisposed = true;
 		return Promise.resolve(null);
 	}
+}
+
+class TestMeteredConnectionService implements IMeteredConnectionService {
+	declare readonly _serviceBrand: undefined;
+	readonly onDidChangeIsConnectionMetered = Event.None;
+
+	constructor(
+		public isConnectionMetered: boolean,
+		readonly whenInitialized: Promise<void>,
+	) { }
 }
 
 class ErrorTestingSettings {
@@ -136,6 +148,155 @@ suite('TelemetryService', () => {
 
 		service.dispose();
 	}));
+
+	test('buffers events until the metered connection state is initialized', async () => {
+		const initialized = new DeferredPromise<void>();
+		const testAppender = new TestTelemetryAppender();
+		const service = new TelemetryService({
+			appenders: [testAppender],
+			meteredConnectionService: new TestMeteredConnectionService(false, initialized.p),
+		}, new TestConfigurationService(), TestProductService);
+
+		service.publicLog('testEvent');
+		assert.strictEqual(testAppender.getEventsCount(), 0);
+
+		initialized.complete();
+		await initialized.p;
+		await Promise.resolve();
+
+		assert.strictEqual(testAppender.getEventsCount(), 1);
+		service.dispose();
+	});
+
+	test('drops buffered events when the initialized connection is metered', async () => {
+		const initialized = new DeferredPromise<void>();
+		const testAppender = new TestTelemetryAppender();
+		const service = new TelemetryService({
+			appenders: [testAppender],
+			meteredConnectionService: new TestMeteredConnectionService(true, initialized.p),
+		}, new TestConfigurationService(), TestProductService);
+
+		service.publicLog('testEvent');
+		initialized.complete();
+		await initialized.p;
+		await Promise.resolve();
+
+		assert.strictEqual(testAppender.getEventsCount(), 0);
+		service.dispose();
+	});
+
+	test('drops usage and error events while metered and resumes when unmetered', async () => {
+		const testAppender = new TestTelemetryAppender();
+		const meteredConnectionService = new TestMeteredConnectionService(false, Promise.resolve());
+		const service = new TelemetryService({
+			appenders: [testAppender],
+			sendErrorTelemetry: true,
+			meteredConnectionService,
+		}, new TestConfigurationService(), TestProductService);
+		await meteredConnectionService.whenInitialized;
+
+		service.publicLog('before');
+		meteredConnectionService.isConnectionMetered = true;
+		service.publicLog('meteredUsage');
+		service.publicLogError('meteredError');
+		meteredConnectionService.isConnectionMetered = false;
+		service.publicLogError('after');
+		service.dispose();
+
+		assert.deepStrictEqual(testAppender.events.map(event => event.eventName), ['before', 'after']);
+	});
+
+	test('drops experiment-buffered events if the connection becomes metered', async () => {
+		const testAppender = new TestTelemetryAppender();
+		const meteredConnectionService = new TestMeteredConnectionService(false, Promise.resolve());
+		const service = new TelemetryService({
+			appenders: [testAppender],
+			waitForExperimentProperties: true,
+			meteredConnectionService,
+		}, new TestConfigurationService(), TestProductService);
+		await meteredConnectionService.whenInitialized;
+
+		service.publicLog('buffered');
+		meteredConnectionService.isConnectionMetered = true;
+		service.setExperimentProperty('experiment', 'enabled');
+		meteredConnectionService.isConnectionMetered = false;
+		service.publicLog('resumed');
+		service.dispose();
+
+		assert.deepStrictEqual(testAppender.events.map(event => event.eventName), ['resumed']);
+	});
+
+	test('does not buffer known metered events while waiting for experiment properties', async () => {
+		const testAppender = new TestTelemetryAppender();
+		const meteredConnectionService = new TestMeteredConnectionService(true, Promise.resolve());
+		const service = new TelemetryService({
+			appenders: [testAppender],
+			sendErrorTelemetry: true,
+			waitForExperimentProperties: true,
+			meteredConnectionService,
+		}, new TestConfigurationService(), TestProductService);
+		await meteredConnectionService.whenInitialized;
+
+		service.publicLog('meteredUsage');
+		service.publicLogError('meteredError');
+		meteredConnectionService.isConnectionMetered = false;
+		service.setExperimentProperty('experiment', 'enabled');
+		service.publicLog('resumed');
+		service.dispose();
+
+		assert.deepStrictEqual(testAppender.events.map(event => event.eventName), ['resumed']);
+	});
+
+	test('experiment properties do not bypass metered initialization', async () => {
+		const initialized = new DeferredPromise<void>();
+		const testAppender = new TestTelemetryAppender();
+		const meteredConnectionService = new TestMeteredConnectionService(false, initialized.p);
+		const service = new TelemetryService({
+			appenders: [testAppender],
+			waitForExperimentProperties: true,
+			meteredConnectionService,
+		}, new TestConfigurationService(), TestProductService);
+
+		service.publicLog('startup');
+		service.setExperimentProperty('experiment', 'enabled');
+		const eventsBeforeInitialization = testAppender.getEventsCount();
+		meteredConnectionService.isConnectionMetered = true;
+		await initialized.complete();
+		service.dispose();
+
+		assert.deepStrictEqual({ eventsBeforeInitialization, events: testAppender.events }, {
+			eventsBeforeInitialization: 0,
+			events: [],
+		});
+	});
+
+	test('flushes buffered events on dispose while the metered connection state is pending', () => {
+		const initialized = new DeferredPromise<void>();
+		const testAppender = new TestTelemetryAppender();
+		const service = new TelemetryService({
+			appenders: [testAppender],
+			meteredConnectionService: new TestMeteredConnectionService(false, initialized.p),
+		}, new TestConfigurationService(), TestProductService);
+
+		service.publicLog('testEvent');
+		service.dispose();
+
+		assert.strictEqual(testAppender.getEventsCount(), 1);
+	});
+
+	test('drops buffered events on dispose while the pending connection state is conservatively metered', () => {
+		const initialized = new DeferredPromise<void>();
+		const testAppender = new TestTelemetryAppender();
+		const service = new TelemetryService({
+			appenders: [testAppender],
+			meteredConnectionService: new TestMeteredConnectionService(true, initialized.p),
+		}, new TestConfigurationService(), TestProductService);
+
+		service.publicLog('testEvent');
+		service.dispose();
+
+		assert.strictEqual(testAppender.getEventsCount(), 0);
+	});
 
 	test('Fixed telemetry level does not require a configuration service', sinonTestFn(function () {
 		const testAppender = new TestTelemetryAppender();

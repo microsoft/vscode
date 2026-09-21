@@ -19,6 +19,11 @@ export interface IAppInsightsCore {
 	unload(isAsync: boolean, unloadComplete: (unloadState: ITelemetryUnloadState) => void): void;
 }
 
+interface IAppInsightsClient {
+	readonly core: IAppInsightsCore;
+	readonly transmissionController: Pick<PostChannel, 'pause' | 'resume'>;
+}
+
 const endpointUrl = 'https://mobile.events.data.microsoft.com/OneCollector/1.0';
 const endpointHealthUrl = 'https://mobile.events.data.microsoft.com/ping';
 
@@ -39,7 +44,7 @@ export function applyEnvelopeDefaults(envelope: ITelemetryItem, isInternalMachin
 	}
 }
 
-async function getClient(instrumentationKey: string, addInternalFlag?: boolean, xhrOverride?: IXHROverride): Promise<IAppInsightsCore> {
+async function getClient(instrumentationKey: string, addInternalFlag?: boolean, xhrOverride?: IXHROverride): Promise<IAppInsightsClient> {
 	// eslint-disable-next-line local/code-amd-node-module
 	const oneDs = isWeb ? await importAMDNodeModule<typeof import('@microsoft/1ds-core-js')>('@microsoft/1ds-core-js', 'bundle/ms.core.min.js') : await import('@microsoft/1ds-core-js');
 	// eslint-disable-next-line local/code-amd-node-module
@@ -76,7 +81,10 @@ async function getClient(instrumentationKey: string, addInternalFlag?: boolean, 
 
 	appInsightsCore.addTelemetryInitializer(envelope => applyEnvelopeDefaults(envelope, addInternalFlag));
 
-	return appInsightsCore;
+	return {
+		core: appInsightsCore,
+		transmissionController: collectorChannelPlugin,
+	};
 }
 
 // TODO @lramos15 maybe make more in line with src/vs/platform/telemetry/browser/appInsightsAppender.ts with caching support
@@ -84,6 +92,8 @@ export abstract class AbstractOneDataSystemAppender implements ITelemetryAppende
 
 	protected _aiCoreOrKey: IAppInsightsCore | string | undefined;
 	private _asyncAiCore: Promise<IAppInsightsCore> | null;
+	private _transmissionController: Pick<PostChannel, 'pause' | 'resume'> | undefined;
+	private _isTransmissionPaused = false;
 	protected readonly endPointUrl = endpointUrl;
 	protected readonly endPointHealthUrl = endpointHealthUrl;
 
@@ -106,6 +116,30 @@ export abstract class AbstractOneDataSystemAppender implements ITelemetryAppende
 		this._asyncAiCore = null;
 	}
 
+	protected get isTransmissionPaused(): boolean {
+		return this._isTransmissionPaused;
+	}
+
+	protected setTransmissionController(transmissionController: Pick<PostChannel, 'pause' | 'resume'>): void {
+		this._transmissionController = transmissionController;
+		if (this.isTransmissionPaused) {
+			transmissionController.pause();
+		}
+	}
+
+	protected setTransmissionPaused(isPaused: boolean): void {
+		if (this.isTransmissionPaused === isPaused) {
+			return;
+		}
+
+		this._isTransmissionPaused = isPaused;
+		if (isPaused) {
+			this._transmissionController?.pause();
+		} else {
+			this._transmissionController?.resume();
+		}
+	}
+
 	private _withAIClient(callback: (aiCore: IAppInsightsCore) => void): void {
 		if (!this._aiCoreOrKey) {
 			return;
@@ -117,7 +151,10 @@ export abstract class AbstractOneDataSystemAppender implements ITelemetryAppende
 		}
 
 		if (!this._asyncAiCore) {
-			this._asyncAiCore = getClient(this._aiCoreOrKey, this._isInternalTelemetry, this._xhrOverride);
+			this._asyncAiCore = getClient(this._aiCoreOrKey, this._isInternalTelemetry, this._xhrOverride).then(client => {
+				this.setTransmissionController(client.transmissionController);
+				return client.core;
+			});
 		}
 
 		this._asyncAiCore.then(
@@ -132,7 +169,7 @@ export abstract class AbstractOneDataSystemAppender implements ITelemetryAppende
 	}
 
 	log(eventName: string, data?: unknown): void {
-		if (!this._aiCoreOrKey) {
+		if (!this._aiCoreOrKey || this.isTransmissionPaused) {
 			return;
 		}
 		data = mixin(data, this._defaultData);
@@ -141,6 +178,10 @@ export abstract class AbstractOneDataSystemAppender implements ITelemetryAppende
 
 		try {
 			this._withAIClient((aiClient) => {
+				if (this.isTransmissionPaused) {
+					return;
+				}
+
 				aiClient.pluginVersionString = validatedData?.properties.version ?? 'Unknown';
 				aiClient.track({
 					name,
@@ -151,11 +192,17 @@ export abstract class AbstractOneDataSystemAppender implements ITelemetryAppende
 	}
 
 	flush(): Promise<void> {
-		if (this._aiCoreOrKey) {
+		if (this._aiCoreOrKey && !this.isTransmissionPaused) {
 			return new Promise(resolve => {
 				this._withAIClient((aiClient) => {
+					if (this.isTransmissionPaused) {
+						resolve();
+						return;
+					}
+
 					aiClient.unload(true, () => {
 						this._aiCoreOrKey = undefined;
+						this._transmissionController = undefined;
 						resolve(undefined);
 					});
 				});

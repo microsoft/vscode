@@ -99,6 +99,10 @@ export class Client implements IChannelClient, IDisposable {
 		this._client = null;
 	}
 
+	get isConnected(): boolean {
+		return this.child?.connected ?? false;
+	}
+
 	getChannel<T extends IChannel>(channelName: string): T {
 		const that = this;
 
