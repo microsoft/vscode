@@ -32,7 +32,7 @@ suite('Sessions Contribution', () => {
 			experiment: defaultSortOrderProperty.experiment,
 		}, {
 			type: 'string',
-			tags: ['experimental', 'advanced'],
+			tags: ['experimental', 'advanced', 'onExP'],
 			enum: [SessionsSorting.Created, SessionsSorting.Updated],
 			default: SessionsSorting.Created,
 			scope: ConfigurationScope.APPLICATION,
