@@ -40,6 +40,7 @@ import {
 	readPluginMcpServers,
 	parseMcpServerDefinitionMap,
 	detectPluginFormat,
+	getAgentPluginDataDirName,
 	type PluginComponent,
 	type IPluginFormatConfig,
 	type IParsedHookGroup,
@@ -47,6 +48,8 @@ import {
 import { Extensions, IExtensionFeaturesRegistry, IExtensionFeatureTableRenderer, IRenderedData, IRowData, ITableData } from '../../../../services/extensionManagement/common/extensionFeatures.js';
 import * as extensionsRegistry from '../../../../services/extensions/common/extensionsRegistry.js';
 import { IPathService } from '../../../../services/path/common/pathService.js';
+import { IUserDataProfileService } from '../../../../services/userDataProfile/common/userDataProfile.js';
+import { IUserDataProfile } from '../../../../../platform/userDataProfile/common/userDataProfile.js';
 import { ChatConfiguration } from '../constants.js';
 import { ContributionEnablementState, EnablementModel, IEnablementModel } from '../enablement.js';
 import { AUTOMATION_BLUEPRINT_FILE_SUFFIX, parseAutomationBlueprint } from '../automations/automationBlueprint.js';
@@ -232,6 +235,8 @@ interface IPluginManifest {
 interface IPluginSource {
 	readonly uri: URI;
 	readonly fromMarketplace: IMarketplacePlugin | undefined;
+	/** Stable identity for persistent plugin data. */
+	readonly dataDirId?: string;
 	/** Repository root that serves as the boundary for component path resolution. */
 	readonly repositoryUri?: URI;
 	/** Called when remove is invoked on the plugin; absent for policy-managed plugins */
@@ -256,13 +261,19 @@ export abstract class AbstractAgentPluginDiscovery extends Disposable implements
 	private _discoverVersion = 0;
 	protected _enablementModel!: IEnablementModel;
 
+	private readonly _currentProfile: IObservable<IUserDataProfile> | undefined;
+
 	constructor(
 		protected readonly _fileService: IFileService,
 		protected readonly _pathService: IPathService,
 		protected readonly _logService: ILogService,
 		protected readonly _workspaceContextService: IWorkspaceContextService,
+		protected readonly _userDataProfileService: IUserDataProfileService | undefined,
 	) {
 		super();
+		this._currentProfile = this._userDataProfileService
+			? observableFromEvent(this, this._userDataProfileService.onDidChangeCurrentProfile, () => this._userDataProfileService!.currentProfile)
+			: undefined;
 	}
 
 	public abstract start(enablementModel: IEnablementModel): void;
@@ -299,7 +310,7 @@ export abstract class AbstractAgentPluginDiscovery extends Disposable implements
 					if (!this._isCurrentRefresh(version)) {
 						return [];
 					}
-					const plugin = await this._toPlugin(source.uri, format, source.fromMarketplace, source.repositoryUri, source.remove, version);
+					const plugin = await this._toPlugin(source.uri, format, source.fromMarketplace, source.dataDirId, source.repositoryUri, source.remove, version);
 					seenPluginUris.add(key);
 					plugins.push(plugin);
 				} catch (error) {
@@ -329,7 +340,7 @@ export abstract class AbstractAgentPluginDiscovery extends Disposable implements
 		}
 	}
 
-	private async _toPlugin(uri: URI, format: IPluginFormatConfig, fromMarketplace: IMarketplacePlugin | undefined, repositoryUri: URI | undefined, removeCallback: (() => Promise<boolean>) | undefined, version: number): Promise<IAgentPlugin> {
+	private async _toPlugin(uri: URI, format: IPluginFormatConfig, fromMarketplace: IMarketplacePlugin | undefined, dataDirId: string | undefined, repositoryUri: URI | undefined, removeCallback: (() => Promise<boolean>) | undefined, version: number): Promise<IAgentPlugin> {
 		const key = uri.toString();
 		const existing = this._pluginEntries.get(key);
 		if (existing) {
@@ -477,8 +488,14 @@ export abstract class AbstractAgentPluginDiscovery extends Disposable implements
 			? initialManifest.name.trim()
 			: undefined;
 
+		const dataDir = this._currentProfile
+			? derived(reader => joinPath(this._currentProfile!.read(reader).globalStorageHome, 'agentPlugins', 'data', getAgentPluginDataDirName(dataDirId ?? uri.toString())))
+			: undefined;
+
 		const plugin: PluginEntry = {
 			uri,
+			dataDirId,
+			dataDir,
 			format: format.format,
 			label: fromMarketplace?.name ?? manifestName ?? basename(uri),
 			version: pluginVersion,
@@ -642,8 +659,9 @@ export class ConfiguredAgentPluginDiscovery extends AbstractAgentPluginDiscovery
 		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService,
 		@IPathService pathService: IPathService,
 		@ILogService logService: ILogService,
+		@IUserDataProfileService userDataProfileService?: IUserDataProfileService,
 	) {
-		super(fileService, pathService, logService, workspaceContextService);
+		super(fileService, pathService, logService, workspaceContextService, userDataProfileService);
 		this._pluginLocationsConfig = observableConfigValue<Record<string, boolean>>(ChatConfiguration.PluginLocations, {}, _configurationService);
 		// Enterprise-managed plugin-ID entries (delivered via the `ChatEnabledPlugins` policy).
 		// These are plugin IDs in `<plugin>@<marketplace>` form, distinct from filesystem paths.
@@ -720,9 +738,11 @@ export class ConfiguredAgentPluginDiscovery extends AbstractAgentPluginDiscovery
 			return;
 		}
 
+		const fromMarketplace = this._pluginMarketplaceService.getMarketplacePluginMetadata(stat.resource);
 		sources.push({
 			uri: stat.resource,
-			fromMarketplace: this._pluginMarketplaceService.getMarketplacePluginMetadata(stat.resource),
+			fromMarketplace,
+			dataDirId: fromMarketplace && getMarketplacePluginDataDirId(fromMarketplace),
 			remove,
 		});
 	}
@@ -816,8 +836,9 @@ export class MarketplaceAgentPluginDiscovery extends AbstractAgentPluginDiscover
 		@IPathService pathService: IPathService,
 		@ILogService logService: ILogService,
 		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService,
+		@IUserDataProfileService userDataProfileService: IUserDataProfileService,
 	) {
-		super(fileService, pathService, logService, workspaceContextService);
+		super(fileService, pathService, logService, workspaceContextService, userDataProfileService);
 	}
 
 	public override start(enablementModel: IEnablementModel): void {
@@ -853,6 +874,7 @@ export class MarketplaceAgentPluginDiscovery extends AbstractAgentPluginDiscover
 			sources.push({
 				uri: stat.resource,
 				fromMarketplace: entry.plugin,
+				dataDirId: getMarketplacePluginDataDirId(entry.plugin),
 				repositoryUri,
 				remove: async () => {
 					this._enablementModel.remove(stat.resource.toString());
@@ -902,9 +924,10 @@ export class CopilotCliAgentPluginDiscovery extends AbstractAgentPluginDiscovery
 		@IPathService pathService: IPathService,
 		@ILogService logService: ILogService,
 		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService,
+		@IUserDataProfileService userDataProfileService: IUserDataProfileService,
 		@IDialogService private readonly _dialogService: IDialogService,
 	) {
-		super(fileService, pathService, logService, workspaceContextService);
+		super(fileService, pathService, logService, workspaceContextService, userDataProfileService);
 	}
 
 	public override start(enablementModel: IEnablementModel): void {
@@ -1091,7 +1114,7 @@ const epPlugins = extensionsRegistry.ExtensionsRegistry.registerExtensionPoint<I
 
 export class ExtensionAgentPluginDiscovery extends AbstractAgentPluginDiscovery {
 
-	private readonly _extensionPlugins = new Map<string, { uri: URI; when: ContextKeyExpression | undefined; extensionId: string }>();
+	private readonly _extensionPlugins = new Map<string, { uri: URI; when: ContextKeyExpression | undefined; extensionId: string; path: string }>();
 	private readonly _whenKeys = new Set<string>();
 
 	constructor(
@@ -1102,8 +1125,9 @@ export class ExtensionAgentPluginDiscovery extends AbstractAgentPluginDiscovery 
 		@IPathService pathService: IPathService,
 		@ILogService logService: ILogService,
 		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService,
+		@IUserDataProfileService userDataProfileService: IUserDataProfileService,
 	) {
-		super(fileService, pathService, logService, workspaceContextService);
+		super(fileService, pathService, logService, workspaceContextService, userDataProfileService);
 	}
 
 	public override start(enablementModel: IEnablementModel): void {
@@ -1134,7 +1158,7 @@ export class ExtensionAgentPluginDiscovery extends AbstractAgentPluginDiscovery 
 							continue;
 						}
 					}
-					this._extensionPlugins.set(extensionPluginKey(ext.description.identifier, raw.path), { uri: pluginUri, when: whenExpr, extensionId: ext.description.identifier.value });
+					this._extensionPlugins.set(extensionPluginKey(ext.description.identifier, raw.path), { uri: pluginUri, when: whenExpr, extensionId: ext.description.identifier.value, path: raw.path });
 				}
 			}
 			for (const ext of delta.removed) {
@@ -1180,6 +1204,7 @@ export class ExtensionAgentPluginDiscovery extends AbstractAgentPluginDiscovery 
 			sources.push({
 				uri: stat.resource,
 				fromMarketplace: undefined,
+				dataDirId: `extension:${entry.extensionId}/${entry.path}`,
 				remove: () => this._promptUninstallExtension(entry.extensionId),
 			});
 		}
@@ -1200,6 +1225,10 @@ export class ExtensionAgentPluginDiscovery extends AbstractAgentPluginDiscovery 
 
 function extensionPluginKey(extensionId: ExtensionIdentifier, path: string): string {
 	return `${extensionId.value}/${path}`;
+}
+
+function getMarketplacePluginDataDirId(plugin: IMarketplacePlugin): string {
+	return `marketplace:${plugin.marketplaceReference.canonicalId}/${plugin.name}`;
 }
 
 class ChatPluginsDataRenderer extends Disposable implements IExtensionFeatureTableRenderer {

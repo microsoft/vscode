@@ -3,15 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Event } from '../../../../../base/common/event.js';
 import { hash } from '../../../../../base/common/hash.js';
-import { Disposable, DisposableResourceMap } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableResourceMap, IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { ResourceSet } from '../../../../../base/common/map.js';
 import { Schemas } from '../../../../../base/common/network.js';
-import { autorun } from '../../../../../base/common/observable.js';
+import { autorun, constObservable, observableSignalFromEvent } from '../../../../../base/common/observable.js';
+import { posix, win32 } from '../../../../../base/common/path.js';
+import { OperatingSystem, OS } from '../../../../../base/common/platform.js';
 import { isDefined } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ConfigurationTarget } from '../../../../../platform/configuration/common/configuration.js';
 import { StorageScope } from '../../../../../platform/storage/common/storage.js';
+import { getAgentPluginDataDirName, PluginFormat } from '../../../../../platform/agentPlugins/common/pluginParsers.js';
+import { McpServerType, type IMcpServerConfiguration, type IMcpStdioServerConfiguration } from '../../../../../platform/mcp/common/mcpPlatformTypes.js';
 import {
 	IAgentPlugin,
 	IAgentPluginMcpServerDefinition,
@@ -19,8 +24,13 @@ import {
 } from '../../../chat/common/plugins/agentPluginService.js';
 import { isContributionEnabled } from '../../../chat/common/enablement.js';
 import { IMcpRegistry } from '../mcpRegistryTypes.js';
-import { MCP_PLUGIN_COLLECTION_ID_PREFIX, McpCollectionProvenance, McpCollectionSortOrder, McpServerDefinition, McpServerLaunch, McpServerTrust } from '../mcpTypes.js';
+import { mcpUriToFsPath, MCP_PLUGIN_COLLECTION_ID_PREFIX, McpCollectionProvenance, McpCollectionSortOrder, McpServerDefinition, McpServerLaunch, McpServerTrust } from '../mcpTypes.js';
 import { IMcpDiscovery } from './mcpDiscovery.js';
+import { IFileService } from '../../../../../platform/files/common/files.js';
+import { ILogService } from '../../../../../platform/log/common/log.js';
+import { PersistentConnectionEventType } from '../../../../../platform/remote/common/remoteAgentConnection.js';
+import { IRemoteAgentEnvironment } from '../../../../../platform/remote/common/remoteAgentEnvironment.js';
+import { IRemoteAgentService } from '../../../../services/remote/common/remoteAgentService.js';
 
 /**
  * Prefix used for the {@link McpCollectionDefinition.id | collection id} of
@@ -30,20 +40,155 @@ import { IMcpDiscovery } from './mcpDiscovery.js';
  */
 export { MCP_PLUGIN_COLLECTION_ID_PREFIX } from '../mcpTypes.js';
 
+export async function toPluginMcpServerDefinition(
+	collectionId: string,
+	plugin: Pick<IAgentPlugin, 'dataDir' | 'dataDirId' | 'format' | 'uri'>,
+	definition: IAgentPluginMcpServerDefinition,
+	fileService?: IFileService,
+	remoteEnvironment?: Pick<IRemoteAgentEnvironment, 'globalStorageHome' | 'os'>,
+): Promise<McpServerDefinition | undefined> {
+	const { name, defaultCwd } = definition;
+	let configuration = definition.configuration;
+	if (plugin.format === PluginFormat.AgentPlugin) {
+		const dataDir = remoteEnvironment
+			? URI.joinPath(remoteEnvironment.globalStorageHome, 'agentPlugins', 'data', getAgentPluginDataDirName(plugin.dataDirId ?? plugin.uri.toString()))
+			: plugin.dataDir?.get();
+		if (configuration.type === McpServerType.LOCAL && fileService && dataDir) {
+			await fileService.createFolder(dataDir);
+		}
+
+		const os = remoteEnvironment?.os ?? OS;
+		const resolvedConfiguration = resolveAgentPluginMcpConfiguration(configuration, mcpUriToFsPath(plugin.uri, os), dataDir && mcpUriToFsPath(dataDir, os), os);
+		if (!resolvedConfiguration) {
+			return undefined;
+		}
+		configuration = resolvedConfiguration;
+	}
+	const launch = McpServerLaunch.fromServerConfiguration(configuration);
+	if (!launch) {
+		return undefined;
+	}
+
+	return {
+		id: `${collectionId}.${name}`,
+		label: name,
+		launch,
+		defaultCwd,
+		variableReplacement: { target: ConfigurationTarget.USER },
+		cacheNonce: String(hash(launch)),
+	};
+}
+
+function resolveAgentPluginMcpConfiguration(
+	configuration: IMcpServerConfiguration,
+	pluginRoot: string,
+	pluginData: string | undefined,
+	os: OperatingSystem,
+): IMcpServerConfiguration | undefined {
+	if (configuration.type !== McpServerType.LOCAL) {
+		return configuration;
+	}
+
+	const replace = (value: string): string | undefined => {
+		if (value.includes('${PLUGIN_DATA}') && !pluginData) {
+			return undefined;
+		}
+		return value
+			.replaceAll('${PLUGIN_ROOT}', pluginRoot)
+			.replaceAll('${PLUGIN_DATA}', pluginData ?? '');
+	};
+	const args = configuration.args?.map(replace);
+	if (args?.some(arg => arg === undefined)) {
+		return undefined;
+	}
+	const env = { ...(configuration.env ?? {}) };
+	const cwd = resolveAgentPluginCwd(configuration.cwd, pluginRoot, pluginData, os);
+	if (cwd === undefined) {
+		return undefined;
+	}
+	const local: IMcpStdioServerConfiguration = {
+		...configuration,
+		cwd,
+		args: args as string[] | undefined,
+		env,
+	};
+	for (const [key, value] of Object.entries(env)) {
+		if (typeof value === 'string') {
+			const replaced = replace(value);
+			if (replaced === undefined) {
+				return undefined;
+			}
+			env[key] = replaced;
+		}
+	}
+	if (pluginData) {
+		env.PLUGIN_DATA = pluginData;
+	}
+	env.PLUGIN_ROOT = pluginRoot;
+	return local;
+}
+
+function resolveAgentPluginCwd(cwd: string | undefined, pluginRoot: string, pluginData: string | undefined, os: OperatingSystem): string | undefined {
+	if (cwd === undefined) {
+		return pluginRoot;
+	}
+
+	let root: string;
+	let relativePath: string;
+	if (cwd.startsWith('./')) {
+		root = pluginRoot;
+		relativePath = cwd.slice(2);
+	} else if (cwd === '${PLUGIN_ROOT}' || cwd.startsWith('${PLUGIN_ROOT}/')) {
+		root = pluginRoot;
+		relativePath = cwd.slice('${PLUGIN_ROOT}'.length).replace(/^\//, '');
+	} else if (pluginData && (cwd === '${PLUGIN_DATA}' || cwd.startsWith('${PLUGIN_DATA}/'))) {
+		root = pluginData;
+		relativePath = cwd.slice('${PLUGIN_DATA}'.length).replace(/^\//, '');
+	} else {
+		return undefined;
+	}
+
+	if (relativePath.includes('\\')) {
+		return undefined;
+	}
+	const path = os === OperatingSystem.Windows ? win32 : posix;
+	const resolved = path.normalize(path.join(root, relativePath));
+	const relativeToRoot = path.relative(path.normalize(root), resolved);
+	if (path.isAbsolute(relativeToRoot) || relativeToRoot === '..' || relativeToRoot.startsWith(`..${path.sep}`)) {
+		return undefined;
+	}
+	return resolved;
+}
+
+class CollectionEntry extends MutableDisposable<IDisposable> {
+	constructor(public readonly dataDirKey: string | undefined) {
+		super();
+	}
+}
+
 export class PluginMcpDiscovery extends Disposable implements IMcpDiscovery {
 	readonly fromGallery = false;
 
-	private readonly _collections = this._register(new DisposableResourceMap());
+	private readonly _collections = this._register(new DisposableResourceMap<CollectionEntry>());
 
 	constructor(
 		@IAgentPluginService private readonly _agentPluginService: IAgentPluginService,
 		@IMcpRegistry private readonly _mcpRegistry: IMcpRegistry,
+		@IFileService private readonly _fileService: IFileService,
+		@IRemoteAgentService private readonly _remoteAgentService: IRemoteAgentService,
+		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
 	}
 
 	public start(): void {
+		const connection = this._remoteAgentService.getConnection();
+		const remoteConnectionGain = connection
+			? observableSignalFromEvent(this, Event.filter(connection.onDidStateChange, e => e.type === PersistentConnectionEventType.ConnectionGain))
+			: undefined;
+
 		this._register(autorun(reader => {
+			remoteConnectionGain?.read(reader);
 			const plugins = this._agentPluginService.plugins.read(reader);
 			const seen = new ResourceSet();
 			for (const plugin of plugins) {
@@ -57,11 +202,28 @@ export class PluginMcpDiscovery extends Disposable implements IMcpDiscovery {
 
 				seen.add(plugin.uri);
 
-				let collectionState = this._collections.get(plugin.uri);
-				if (!collectionState) {
-					// note: all plugin servers are currently defined in the same file
-					collectionState = this.createCollectionState(plugin, servers[0].uri);
-					this._collections.set(plugin.uri, collectionState);
+				const dataDirKey = plugin.dataDir?.read(reader)?.toString();
+				const existing = this._collections.get(plugin.uri);
+				if (existing && existing.dataDirKey !== dataDirKey) {
+					this._collections.deleteAndDispose(plugin.uri);
+				}
+
+				if (!this._collections.has(plugin.uri)) {
+					const collectionDisposable = new CollectionEntry(dataDirKey);
+					this._collections.set(plugin.uri, collectionDisposable);
+
+					this.createCollectionState(plugin, servers[0].uri).then(disposable => {
+						if (this._collections.get(plugin.uri) === collectionDisposable) {
+							collectionDisposable.value = disposable;
+						} else {
+							disposable.dispose();
+						}
+					}, error => {
+						this._logService.error(`Failed to register MCP collection for plugin ${plugin.uri.toString()}`, error);
+						if (this._collections.get(plugin.uri) === collectionDisposable) {
+							this._collections.deleteAndDispose(plugin.uri);
+						}
+					});
 				}
 			}
 
@@ -73,8 +235,21 @@ export class PluginMcpDiscovery extends Disposable implements IMcpDiscovery {
 		}));
 	}
 
-	private createCollectionState(plugin: IAgentPlugin, manifestURI: URI) {
+	private async createCollectionState(plugin: IAgentPlugin, manifestURI: URI) {
 		const collectionId = `${MCP_PLUGIN_COLLECTION_ID_PREFIX}${plugin.uri}`;
+		const defsObservableValue = plugin.mcpServerDefinitions.get();
+		const remoteEnvironment = plugin.uri.scheme === Schemas.vscodeRemote
+			? await this._remoteAgentService.getEnvironment()
+			: undefined;
+		if (plugin.uri.scheme === Schemas.vscodeRemote && !remoteEnvironment) {
+			throw new Error(`Remote environment unavailable for plugin ${plugin.uri.toString()}`);
+		}
+		const serverDefinitions = await Promise.all(
+			defsObservableValue.map(async d => toPluginMcpServerDefinition(collectionId, plugin, d, this._fileService, remoteEnvironment ?? undefined))
+		);
+
+		const validDefinitions = serverDefinitions.filter(isDefined);
+
 		return this._mcpRegistry.registerCollection({
 			id: collectionId,
 			provenance: McpCollectionProvenance.Plugin,
@@ -83,8 +258,7 @@ export class PluginMcpDiscovery extends Disposable implements IMcpDiscovery {
 			configTarget: ConfigurationTarget.USER,
 			scope: StorageScope.PROFILE,
 			trustBehavior: McpServerTrust.Kind.Trusted,
-			serverDefinitions: plugin.mcpServerDefinitions.map(defs =>
-				defs.map(d => this._toServerDefinition(collectionId, d)).filter(isDefined)),
+			serverDefinitions: constObservable(validDefinitions),
 			order: McpCollectionSortOrder.Plugin,
 			presentation: {
 				origin: manifestURI,
@@ -92,22 +266,4 @@ export class PluginMcpDiscovery extends Disposable implements IMcpDiscovery {
 		});
 	}
 
-	private _toServerDefinition(
-		collectionId: string,
-		{ name, configuration, defaultCwd }: IAgentPluginMcpServerDefinition,
-	): McpServerDefinition | undefined {
-		const launch = McpServerLaunch.fromServerConfiguration(configuration);
-		if (!launch) {
-			return undefined;
-		}
-
-		return {
-			id: `${collectionId}.${name}`,
-			label: name,
-			launch,
-			defaultCwd,
-			variableReplacement: { target: ConfigurationTarget.USER },
-			cacheNonce: String(hash(launch)),
-		};
-	}
 }

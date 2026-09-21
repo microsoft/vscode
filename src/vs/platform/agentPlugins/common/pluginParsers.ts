@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { StringSHA1 } from '../../../base/common/hash.js';
 import { parse as parseJSONC } from '../../../base/common/json.js';
 import { cloneAndChange, equals as objectEquals } from '../../../base/common/objects.js';
 import { isAbsolute } from '../../../base/common/path.js';
@@ -17,6 +18,12 @@ import { CustomizationType, McpServerStatus, type AgentCustomization, type HookC
 import { DEFAULT_MCP_APP } from '../../agentHost/common/state/protocol/mcpAppDefaults.js';
 import { customizationId } from '../../agentHost/common/state/sessionState.js';
 import { readAgentPluginManifest } from './agentPluginParser.js';
+
+export function getAgentPluginDataDirName(identity: string): string {
+	const sha = new StringSHA1();
+	sha.update(identity);
+	return sha.digest();
+}
 
 // ---------------------------------------------------------------------------
 // Types
