@@ -11,7 +11,7 @@ The Modern UI colors below are experimental and require a build that supports th
 
 `workbench.experimental.modernUIEditorTabStyle` chooses the editor tab treatment when `workbench.experimental.modernUI` is enabled:
 
-- `connected` (default): the bottom tab row spans the strip height without gaps. Its active tab joins the editor surface with an outside stroke and curved shoulders. First tabs and wrapped-row starts omit the outside shoulder and share the editor body's left stroke. Upper wrapped rows and a separate pinned row retain the original rounded pills.
+- `connected` (default): the bottom tab row spans the strip height without gaps. Its active tab joins the editor surface with an outside stroke and curved shoulders. First tabs and wrapped-row starts omit the outside shoulder and share the editor body's left stroke. Upper wrapped rows and a separate pinned row retain rounded pill geometry between rows, while an active tab on the outermost row reuses the editor frame's top stroke and, at the first position, its left stroke.
 - `pill`: separate rounded tabs, without the connected stroke or shoulders.
 
 Changes apply immediately, including in auxiliary editor windows. This setting does not enable Modern UI by itself and does not change the Agents window's pill tabs.

@@ -411,7 +411,7 @@ suite('MultiEditorTabsControl', () => {
 				width: single.width === multiple.width,
 			},
 			wrapped: {
-				top: wrappedBottom.top === wrappedUpper.top,
+				topBorderReserve: wrappedUpper.top - wrappedBottom.top === stroke,
 				right: wrappedBottom.right === wrappedUpper.right,
 				left: wrappedBottom.left === wrappedUpper.left,
 			},
@@ -429,7 +429,7 @@ suite('MultiEditorTabsControl', () => {
 			actionPadding: measurements.every(measurement => new Set(measurement.padding).size === 1 && measurement.padding[0] === multiple.padding[0]),
 		}, {
 			single: { top: true, right: true, left: true, width: true },
-			wrapped: { top: true, right: true, left: true },
+			wrapped: { topBorderReserve: true, right: true, left: true },
 			horizontal: { right: true, left: true },
 			leftAction: { top: true, right: true, left: true, width: true },
 			balancedActionInsets: true,
@@ -600,11 +600,16 @@ suite('MultiEditorTabsControl', () => {
 		await layoutConnectedGroup(group, 150);
 		const tabs = Array.from(container.querySelectorAll<HTMLElement>('.tab'));
 		const wrapped = tabs.map(tab => tab.classList.contains('connected-tab-upper-row'));
+		const wrappedTop = tabs.map(tab => tab.classList.contains('connected-tab-top-row'));
 		const fill = tabs[0].querySelector<HTMLElement>('.tab-fill')!;
 		const upper = { inset: mainWindow.getComputedStyle(fill).top, shoulder: mainWindow.getComputedStyle(fill, '::after').content };
 		await layoutConnectedGroup(group, 400);
 		const unwrapped = tabs.map(tab => tab.classList.contains('connected-tab-upper-row'));
-		assert.deepStrictEqual({ wrapped, upper, unwrapped }, { wrapped: [true, false], upper: { inset: '-2px', shoulder: 'none' }, unwrapped: [false, false] });
+		const unwrappedTop = tabs.map(tab => tab.classList.contains('connected-tab-top-row'));
+		assert.deepStrictEqual(
+			{ wrapped, wrappedTop, upper, unwrapped, unwrappedTop },
+			{ wrapped: [true, false], wrappedTop: [true, false], upper: { inset: '-3px', shoulder: 'none' }, unwrapped: [false, false], unwrappedTop: [true, true] }
+		);
 	});
 
 	test('connected wrapped last tab adds its shoulder to the editor actions margin', async () => {

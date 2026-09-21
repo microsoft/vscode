@@ -2451,7 +2451,7 @@ suite('ModernUIContribution', () => {
 		const title = appendElement(group, 'title tabs');
 		const row = appendElement(title, 'tabs-and-actions-container wrapping');
 		const tabs = appendElement(row, 'tabs-container');
-		const upperTab = appendElement(tabs, 'tab active connected-tab-upper-row');
+		const upperTab = appendElement(tabs, 'tab active connected-tab-upper-row connected-tab-top-row');
 		const upperFill = appendElement(upperTab, 'tab-fill');
 		const inactiveBottomTab = appendElement(tabs, 'tab');
 		const inactiveBottomFill = appendElement(inactiveBottomTab, 'tab-fill');
@@ -2464,6 +2464,7 @@ suite('ModernUIContribution', () => {
 			return {
 				tabBorders: [tabStyle.borderTopWidth, tabStyle.borderBottomWidth],
 				fillInsets: [fillStyle.top, fillStyle.bottom],
+				fillInlineStart: fillStyle.left,
 			};
 		};
 
@@ -2474,9 +2475,9 @@ suite('ModernUIContribution', () => {
 			activeBottom: geometry(activeBottomTab, activeBottomFill),
 		}, {
 			rowPaddingTop: '0px',
-			upper: { tabBorders: ['2px', '2px'], fillInsets: ['-2px', '-2px'] },
-			inactiveBottom: { tabBorders: ['0px', '0px'], fillInsets: ['0px', '-1px'] },
-			activeBottom: { tabBorders: ['0px', '0px'], fillInsets: ['0px', '-2px'] },
+			upper: { tabBorders: ['2px', '2px'], fillInsets: ['-3px', '-2px'], fillInlineStart: '-1px' },
+			inactiveBottom: { tabBorders: ['0px', '0px'], fillInsets: ['0px', '-1px'], fillInlineStart: '0px' },
+			activeBottom: { tabBorders: ['0px', '0px'], fillInsets: ['0px', '-2px'], fillInlineStart: '0px' },
 		});
 	});
 

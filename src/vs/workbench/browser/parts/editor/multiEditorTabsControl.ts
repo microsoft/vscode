@@ -2080,10 +2080,13 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		// wrapping is disabled (e.g. due to space constraints)
 		const tabsWrapMultiLine = this.doLayoutTabsWrapping(dimensions);
 		const tabs = Array.from(assertReturnsDefined(this.tabsContainer).children).filter(isHTMLElement);
+		const top = tabs.at(0)?.offsetTop;
 		const bottom = tabs.at(-1)?.offsetTop;
-		const upperTabBar = this.parent.classList.contains('two-tab-bars') && this.parent.firstElementChild === this.tabsAndActionsContainer;
+		const topTabBar = this.parent.firstElementChild === this.tabsAndActionsContainer;
+		const upperTabBar = this.parent.classList.contains('two-tab-bars') && topTabBar;
 		for (const tab of tabs) {
 			tab.classList.toggle('connected-tab-upper-row', connected && (upperTabBar || tab.offsetTop !== bottom));
+			tab.classList.toggle('connected-tab-top-row', connected && topTabBar && tab.offsetTop === top);
 		}
 		if (!tabsWrapMultiLine) {
 			this.doLayoutTabsNonWrapping(options);
