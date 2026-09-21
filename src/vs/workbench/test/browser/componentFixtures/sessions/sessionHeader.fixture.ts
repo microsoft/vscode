@@ -14,7 +14,7 @@ import { SessionHeader } from '../../../../../sessions/browser/parts/sessionHead
 // eslint-disable-next-line local/code-import-patterns
 import { ISessionsListModelService } from '../../../../../sessions/services/sessions/browser/sessionsListModelService.js';
 // eslint-disable-next-line local/code-import-patterns
-import { ISessionCapabilities, SessionStatus } from '../../../../../sessions/services/sessions/common/session.js';
+import { IChat, ISessionCapabilities, SessionStatus } from '../../../../../sessions/services/sessions/common/session.js';
 // eslint-disable-next-line local/code-import-patterns
 import { IActiveSession, ISessionsManagementService } from '../../../../../sessions/services/sessions/common/sessionsManagement.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from '../fixtureUtils.js';
@@ -34,6 +34,12 @@ function createMockSession(options: IMockSessionOptions): IActiveSession {
 		supportsMultipleChats: false,
 		supportsRename: options.supportsRename ?? true,
 	};
+	const chat = new class extends mock<IChat>() {
+		override readonly resource = URI.parse(`vscode-chat://chat/${Math.random().toString(36).slice(2)}`);
+		override readonly title: IObservable<string> = constObservable(options.title);
+		override readonly status: IObservable<SessionStatus> = constObservable(options.status ?? SessionStatus.Completed);
+		override readonly capabilities = constObservable({ canRename: options.supportsRename ?? true, canDelete: false });
+	}();
 
 	return new class extends mock<IActiveSession>() {
 		override readonly sessionId = `local:${options.title}`;
@@ -44,6 +50,8 @@ function createMockSession(options: IMockSessionOptions): IActiveSession {
 		override readonly isArchived: IObservable<boolean> = constObservable(options.isArchived ?? false);
 		override readonly isRead: IObservable<boolean> = constObservable(true);
 		override readonly isCreated: IObservable<boolean> = constObservable(true);
+		override readonly mainChat: IObservable<IChat> = constObservable(chat);
+		override readonly activeChat: IObservable<IChat> = constObservable(chat);
 		override readonly icon = Codicon.account;
 	}();
 }
@@ -79,7 +87,7 @@ function renderHeader(ctx: ComponentFixtureContext, session: IActiveSession, wit
 			reg.defineInstance(ISessionsListModelService, createMockListModelService());
 			reg.defineInstance(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
 				override readonly onDidChangeSessions = Event.None;
-				override async renameSession() { }
+				override async renameChat() { }
 			}());
 		},
 	});

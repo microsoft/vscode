@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './media/hostFilter.css';
+import '../../../../browser/media/sidebarActionButton.css';
 import * as dom from '../../../../../base/browser/dom.js';
 import { Gesture, EventType as TouchEventType } from '../../../../../base/browser/touch.js';
 import { renderIcon, renderLabelWithIcons } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
@@ -135,19 +136,10 @@ export class HostFilterActionViewItem extends BaseActionViewItem {
 		// --- Passive connection status + information button --------------------
 		this._connectElement = dom.append(this.element, dom.$('div.agent-host-filter-connect'));
 		this._connectElement.setAttribute('aria-hidden', 'true');
-		this._diagnosticsElement = dom.append(this.element, dom.$('div.agent-host-filter-diagnostics'));
-		this._renderDiagnosticsButton(this._diagnosticsElement);
+		this._renderDiagnosticsButton(this.element);
 	}
 
-	/**
-	 * Sidebar appearance — full-width row matching the Customizations links
-	 * (`CustomizationLinkViewItem`). Same Monaco `Button` shell, same
-	 * `.sidebar-action-button` styling, same `supportIcons` label rendering.
-	 * The trailing connect indicator is rendered alongside the picker
-	 * button as a sibling control, so the row visually mirrors the
-	 * Customizations rows in the toolbar above without making the
-	 * indicator part of the picker label.
-	 */
+	/** Renders the full-width sidebar variant with a separate connection indicator. */
 	private _renderSidebar(): void {
 		if (!this.element) {
 			return;
@@ -155,11 +147,10 @@ export class HostFilterActionViewItem extends BaseActionViewItem {
 
 		this.element.classList.add('sidebar-action');
 
-		// Picker button — same shell as `CustomizationLinkViewItem`. We
-		// drive the button content manually (rather than via `Button.label`)
+		// Drive the button content manually (rather than via `Button.label`)
 		// so the host name span can `flex: 1` and push the chevron all
 		// the way to the trailing edge.
-		const buttonContainer = dom.append(this.element, dom.$('.customization-link-button-container'));
+		const buttonContainer = dom.append(this.element, dom.$('.agent-host-filter-button-container'));
 		this._sidebarButton = this._register(new Button(buttonContainer, {
 			...defaultButtonStyles,
 			secondary: true,
@@ -203,18 +194,18 @@ export class HostFilterActionViewItem extends BaseActionViewItem {
 		// Connection state is passive; the adjacent information control opens management.
 		this._connectElement = dom.append(this.element, dom.$('div.agent-host-filter-connect'));
 		this._connectElement.setAttribute('aria-hidden', 'true');
-		this._diagnosticsElement = dom.append(this.element, dom.$('div.agent-host-filter-diagnostics'));
-		this._renderDiagnosticsButton(this._diagnosticsElement);
+		this._renderDiagnosticsButton(this.element);
 	}
 
-	private _renderDiagnosticsButton(element: HTMLElement): void {
+	protected _renderDiagnosticsButton(container: HTMLElement): void {
+		const element = this._diagnosticsElement = dom.append(container, dom.$('div.agent-host-filter-diagnostics'));
 		const label = localize('agentHostFilter.connectionInformation', "Open Connection Information");
 		element.setAttribute('role', 'button');
 		element.setAttribute('aria-label', label);
 		element.tabIndex = 0;
 		element.append(...renderLabelWithIcons(`$(${Codicon.info.id})`));
 		this._diagnosticsHover.value = this._hoverService.setupManagedHover(getDefaultHoverDelegate('element'), element, () => label);
-		const show = () => void this._commandService.executeCommand(ShowConnectionDiagnosticsCommandId);
+		const show = () => this._showConnectionInformation();
 		this._register(Gesture.addTarget(element));
 		for (const eventType of [dom.EventType.CLICK, TouchEventType.Tap]) {
 			this._register(dom.addDisposableListener(element, eventType, event => {
@@ -229,6 +220,10 @@ export class HostFilterActionViewItem extends BaseActionViewItem {
 				show();
 			}
 		}));
+	}
+
+	protected _showConnectionInformation(): void {
+		void this._commandService.executeCommand(ShowConnectionDiagnosticsCommandId);
 	}
 
 	private _renderSidebarButtonAffordances(interactive: boolean, retryOnClick: boolean): void {
@@ -450,6 +445,9 @@ export class HostFilterActionViewItem extends BaseActionViewItem {
 
 	private _updateDiagnosticsLabel(status?: string): void {
 		if (!this._diagnosticsElement) {
+			if (status && this._dropdownElement) {
+				this._dropdownElement.setAttribute('aria-label', localize('agentHostFilter.aria.withStatus', "{0} Current host status: {1}.", this._dropdownElement.getAttribute('aria-label') ?? '', status));
+			}
 			return;
 		}
 		const label = status

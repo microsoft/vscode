@@ -21,17 +21,20 @@ export function createNewSessionViewRecentTourWhen(): ContextKeyExpression | und
 	);
 }
 
-export function createNewSessionViewWorkspaceStep(): ISpotlightStep {
+export function createNewSessionViewWorkspaceStep(options: { requireSelection?: boolean } = {}): ISpotlightStep {
+	const requireSelection = options.requireSelection ?? true;
 	return {
 		id: 'workspacePicker',
 		targetId: 'sessions.newSession.workspacePicker',
 		title: localize('sessions.onboarding.newSessionViewV2.workspace.title', "Choose a workspace"),
-		description: localize('sessions.onboarding.newSessionViewV2.workspace.description', "A workspace is the folder or repository where your agent reads context and makes changes. Choose one so it can understand your project and work on the right files."),
+		description: requireSelection
+			? localize('sessions.onboarding.newSessionViewV2.workspace.description', "A workspace is the folder or repository where your agent reads context and makes changes. Choose one so it can understand your project and work on the right files.")
+			: localize('sessions.onboarding.newSessionViewV2.workspace.optional.description', "A workspace is the folder or repository where your agent reads context and makes changes. Choose one for project-specific work, or continue without one."),
 		placement: 'above',
 		when: ContextKeyExpr.and(SessionWorkspacePickerVisibleContext, SessionHasWorkspaceContext.toNegated()),
 		missingTarget: { kind: 'skip' },
 		openTarget: true,
 		allowTargetInteraction: true,
-		advanceWhen: SessionHasWorkspaceContext,
+		advanceWhen: requireSelection ? SessionHasWorkspaceContext : undefined,
 	};
 }

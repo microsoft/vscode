@@ -90,12 +90,13 @@ export interface IChatViewModel {
 	readonly sessionResource: URI;
 	readonly onDidDisposeModel: Event<void>;
 	readonly onDidChange: Event<IChatViewModelChangeEvent>;
+	readonly onDidChangeEditing: Event<void>;
 	readonly inputPlaceholder?: string;
 	getItems(): (IChatRequestViewModel | IChatResponseViewModel | IChatPendingDividerViewModel)[];
 	setInputPlaceholder(text: string): void;
 	resetInputPlaceholder(): void;
 	editing?: IChatRequestViewModel;
-	setEditing(editing: IChatRequestViewModel): void;
+	setEditing(editing: IChatRequestViewModel | undefined): void;
 }
 
 export interface IChatRequestViewModel {
@@ -156,6 +157,9 @@ export interface IChatReferences {
 export interface IChatWorkingProgress {
 	kind: 'working';
 	content?: IMarkdownString;
+	isActive?: boolean;
+	/** Whether a change to this content is worth announcing to screen readers, e.g. a blocking state rather than a rotating phrase. */
+	announce?: boolean;
 }
 
 
@@ -260,6 +264,9 @@ export class ChatViewModel extends Disposable implements IChatViewModel {
 
 	private readonly _onDidChange = this._register(new Emitter<IChatViewModelChangeEvent>());
 	readonly onDidChange = this._onDidChange.event;
+
+	private readonly _onDidChangeEditing = this._register(new Emitter<void>());
+	readonly onDidChangeEditing = this._onDidChangeEditing.event;
 
 	private readonly _items: (ChatRequestViewModel | ChatResponseViewModel)[] = [];
 
@@ -394,11 +401,12 @@ export class ChatViewModel extends Disposable implements IChatViewModel {
 	}
 
 	setEditing(editing: IChatRequestViewModel | undefined): void {
-		if (this.editing && editing && this.editing.id === editing.id) {
-			return; // already editing this request
+		if (this._editing?.id === editing?.id) {
+			return;
 		}
 
 		this._editing = editing;
+		this._onDidChangeEditing.fire();
 	}
 
 	override dispose() {

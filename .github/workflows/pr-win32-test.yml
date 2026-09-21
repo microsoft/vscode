@@ -38,6 +38,13 @@ jobs:
         with:
           lfs: true
 
+      - name: Prepare WSL Dev Container smoke tests
+        id: wsl-dev-container
+        if: ${{ inputs.electron_tests && inputs.smoke_tests }}
+        timeout-minutes: 15
+        shell: pwsh
+        run: .\test\smoke\wslDevContainer.ps1
+
       - name: Detect Agent Host E2E changes
         if: ${{ inputs.electron_tests && inputs.integration_tests }}
         id: agent-host-e2e-changes
@@ -188,6 +195,7 @@ jobs:
             compile-extension:html-language-features-server `
             compile-extension:ipynb `
             compile-extension:notebook-renderers `
+            compile-extension:json-language-features-client `
             compile-extension:json-language-features-server `
             compile-extension:markdown-language-features `
             compile-extension-media `
@@ -259,6 +267,18 @@ jobs:
         run: npm run smoketest-no-compile -- --tracing
         env:
           VSCODE_SMOKE_TEST_POLICY: '1'
+          VSCODE_SMOKE_TEST_WSL_REQUIRED: '1'
+          VSCODE_SMOKE_TEST_WSL_DISTRO: ${{ steps.wsl-dev-container.outputs.distro }}
+          VSCODE_SMOKE_TEST_WSL_SERVER_PATH: ${{ steps.wsl-dev-container.outputs.serverPath }}
+
+      - name: Clean up WSL Dev Container smoke tests
+        if: ${{ always() && steps.wsl-dev-container.outputs.root != '' }}
+        timeout-minutes: 5
+        shell: pwsh
+        env:
+          WSL_SMOKE_DISTRO: ${{ steps.wsl-dev-container.outputs.distro }}
+          WSL_SMOKE_ROOT: ${{ steps.wsl-dev-container.outputs.root }}
+        run: .\test\smoke\wslDevContainer.ps1 -Operation Cleanup -Distribution $env:WSL_SMOKE_DISTRO -Root $env:WSL_SMOKE_ROOT
 
       - name: 🧪 Run smoke tests (Browser, Chromium)
         if: ${{ inputs.browser_tests && inputs.smoke_tests }}

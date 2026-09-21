@@ -26,8 +26,8 @@ import { CLOSE_MOBILE_SIDEBAR_DRAWER_COMMAND_ID } from '../../../../browser/work
 import { EditorsVisibleContext, EditorAreaFocusContext, FocusedViewContext, IsSessionsWindowContext } from '../../../../../workbench/common/contextkeys.js';
 import { SessionsCategories } from '../../../../common/categories.js';
 import { ARCHIVE_SESSION_COMMAND_ID, MARK_SESSION_READ_COMMAND_ID, MARK_SESSION_UNREAD_COMMAND_ID, RENAME_SESSION_COMMAND_ID, UNARCHIVE_SESSION_COMMAND_ID } from '../../../../common/sessionCommands.js';
-import { IsPhoneLayoutContext, SessionSupportsDeleteContext, SessionSupportsRenameContext, IsNewChatSessionContext, SessionIsArchivedContext, SessionIsCreatedContext, SessionIsReadContext } from '../../../../common/contextkeys.js';
-import { SessionItemToolbarMenuId, SessionItemContextMenuId, SessionSectionToolbarMenuId, SessionGroupToolbarMenuId, SessionSectionTypeContext, SessionSectionHasNonCloudRepositoryContext, SessionGroupHasVisibleSessionsContext, SessionGroupIsEmptyContext, IsSessionPinnedContext, SessionsGrouping, SessionsSorting, ISessionSection, ISessionGroupItem, NEW_SESSION_FOR_WORKSPACE_ACTION_ID } from './sessionsList.js';
+import { IsPhoneLayoutContext, SessionSupportsDeleteContext, SessionSupportsRenameContext, IsNewChatSessionContext, SessionIsArchivedContext, SessionIsCreatedContext, SessionIsReadContext, SessionsListPromoteNewChatActionContext } from '../../../../common/contextkeys.js';
+import { SessionItemContextMenuId, SessionSectionToolbarMenuId, SessionGroupToolbarMenuId, SessionSectionTypeContext, SessionSectionHasNonCloudRepositoryContext, SessionGroupHasVisibleSessionsContext, SessionGroupIsEmptyContext, IsSessionPinnedContext, SessionsGrouping, SessionsSorting, ISessionSection, ISessionGroupItem, NEW_SESSION_FOR_WORKSPACE_ACTION_ID } from './sessionsList.js';
 import { ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { ISessionGroupsService } from '../../../../services/sessions/browser/sessionGroupsService.js';
 import { IsWorkspaceGroupCappedContext, SessionsViewCompactContext, SessionsViewFilterOptionsSubMenu, SessionsViewFilterSubMenu, SessionsViewGroupingContext, SessionsViewId, SessionsView, SessionsViewSortingContext } from './sessionsView.js';
@@ -632,12 +632,13 @@ abstract class BaseArchiveSectionAction extends Action2 {
 				id: SessionSectionToolbarMenuId,
 				group: 'navigation',
 				order: 1,
-				// Not on Done itself, and not on the "Chats" (quick chats) section.
-				// Also not on Automations.
+				// Not on Done itself, the "Chats" section, or shortcut entries.
 				when: ContextKeyExpr.and(
 					ContextKeyExpr.notEquals(SessionSectionTypeContext.key, 'archived'),
 					ContextKeyExpr.notEquals(SessionSectionTypeContext.key, 'quickchats'),
+					ContextKeyExpr.notEquals(SessionSectionTypeContext.key, 'newSession'),
 					ContextKeyExpr.notEquals(SessionSectionTypeContext.key, 'automations'),
+					ContextKeyExpr.notEquals(SessionSectionTypeContext.key, 'customizations'),
 				),
 			}]
 		});
@@ -839,10 +840,11 @@ registerAction2(class PinSessionAction extends Action2 {
 			title: localize2('pinSession', "Pin"),
 			icon: Codicon.pin,
 			menu: [{
-				id: SessionItemToolbarMenuId,
+				id: Menus.SessionItemToolbar,
 				group: 'navigation',
-				order: 2,
+				order: 1,
 				when: ContextKeyExpr.and(
+					SessionsListPromoteNewChatActionContext.negate(),
 					ContextKeyExpr.equals(IsSessionPinnedContext.key, false),
 					ContextKeyExpr.equals(SessionIsArchivedContext.key, false),
 				),
@@ -877,10 +879,11 @@ registerAction2(class UnpinSessionAction extends Action2 {
 			title: localize2('unpinSession', "Unpin"),
 			icon: Codicon.pinned,
 			menu: [{
-				id: SessionItemToolbarMenuId,
+				id: Menus.SessionItemToolbar,
 				group: 'navigation',
-				order: 2,
+				order: 1,
 				when: ContextKeyExpr.and(
+					SessionsListPromoteNewChatActionContext.negate(),
 					ContextKeyExpr.equals(IsSessionPinnedContext.key, true),
 					ContextKeyExpr.equals(SessionIsArchivedContext.key, false),
 				),
@@ -946,9 +949,9 @@ abstract class BaseArchiveSessionAction extends Action2 {
 			title: action.title,
 			icon: action.icon,
 			menu: [{
-				id: SessionItemToolbarMenuId,
+				id: Menus.SessionItemToolbar,
 				group: 'navigation',
-				order: 1,
+				order: 2,
 				when: ContextKeyExpr.equals(SessionIsArchivedContext.key, false),
 			}, {
 				id: Menus.AutomationsHistoryItem,
@@ -1000,7 +1003,7 @@ abstract class BaseUnarchiveSessionAction extends Action2 {
 			title: action.title,
 			icon: action.icon,
 			menu: [{
-				id: SessionItemToolbarMenuId,
+				id: Menus.SessionItemToolbar,
 				group: 'navigation',
 				order: 1,
 				when: ContextKeyExpr.equals(SessionIsArchivedContext.key, true),
@@ -1072,9 +1075,16 @@ registerAction2(class RenameSessionAction extends Action2 {
 		});
 	}
 	async run(accessor: ServicesAccessor, context?: ISession | ISession[]): Promise<void> {
+		const focusedSessions = context ? undefined : getFocusedSessionListTargets(accessor);
 		const session = getSessionActionTargets(accessor, context)[0];
 		if (!session || !session.capabilities.get().supportsRename) {
 			return;
+		}
+		if (focusedSessions?.includes(session)) {
+			const view = accessor.get(IViewsService).getViewWithId<SessionsView>(SessionsViewId);
+			if (view?.sessionsControl?.beginRenameSession(session)) {
+				return;
+			}
 		}
 		const quickInputService = accessor.get(IQuickInputService);
 		const sessionsManagementService = accessor.get(ISessionsManagementService);

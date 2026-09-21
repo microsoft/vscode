@@ -19,6 +19,7 @@ import { ICommandService } from '../../../../../platform/commands/common/command
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { AgentSession } from '../../../../../platform/agentHost/common/agent.js';
+import { parseGitHubIssueUrl } from '../../../../../platform/agentHost/common/githubIssueReferences.js';
 import { getAgentSessionPullRequestUri, IAgentSession } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsModel.js';
 import { getRepositoryName } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsViewer.js';
 import { IAgentSessionsService } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsService.js';
@@ -28,7 +29,8 @@ import { IChatResponseModel } from '../../../../../workbench/contrib/chat/common
 import { ChatSessionStatus, IChatSessionsService, IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem, SessionType } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { assertAutomationSessionTemplate, IAutomationSessionTemplate } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
 import { AutomationModelConfiguration } from '../../../automations/browser/automationModelConfiguration.js';
-import { ChatModelSource, ISession, IChat, ISessionGitRepository, ISessionFolder, ISessionWorkspace, ISideChatSelection, SessionStatus, GITHUB_REMOTE_FILE_SCHEME, IGitHubInfo, ISessionType, ISessionWorkspaceBrowseAction, ISessionFileChange, sessionFileChangesEqual, gitHubInfoEqual, sessionWorkspaceEqual, toSessionId, SESSION_WORKSPACE_GROUP_LOCAL, SESSION_WORKSPACE_GROUP_GITHUB, ISessionChangeset, IChatCheckpoints, ChatInteractivity, SessionTypeAuthRequirement, ISessionChangesSummary } from '../../../../services/sessions/common/session.js';
+import { ChatModelSource, ISession, IChat, ISessionGitRepository, ISessionFolder, ISessionWorkspace, ISideChatSelection, SessionStatus, GITHUB_REMOTE_FILE_SCHEME, IGitHubInfo, IGitHubIssueRef, ISessionArtifact, SessionArtifactKind, ISessionType, ISessionWorkspaceBrowseAction, ISessionFileChange, sessionFileChangesEqual, gitHubInfoEqual, sessionWorkspaceEqual, toSessionId, SESSION_WORKSPACE_GROUP_LOCAL, SESSION_WORKSPACE_GROUP_GITHUB, ISessionChangeset, IChatCheckpoints, ChatInteractivity, SessionTypeAuthRequirement, ISessionChangesSummary } from '../../../../services/sessions/common/session.js';
+import { linkKey } from '../../../../common/sessionLinks.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatPermissionLevel, isChatPermissionLevel } from '../../../../../workbench/contrib/chat/common/constants.js';
 import { basename, dirname, isEqual } from '../../../../../base/common/resources.js';
 import { IAutomationSessionConfiguration, IDeleteChatOptions, ISendRequestOptions, ISessionChangeEvent, ISessionConfigurationSnapshot, ISessionModelPickerOptions, ISessionModelsSnapshot, ISessionsProvider, ISessionsProviderCreateSessionOptions } from '../../../../services/sessions/common/sessionsProvider.js';
@@ -55,7 +57,7 @@ import { IGitHubService } from '../../../github/browser/githubService.js';
 import { computePullRequestIcon, GitHubPullRequestState } from '../../../github/common/types.js';
 import { computePullRequestRefPresentation } from '../../../github/browser/pullRequestIconStatus.js';
 import { IPullRequestIconCache } from '../../../github/browser/pullRequestIconCache.js';
-import { structuralEquals } from '../../../../../base/common/equals.js';
+import { arrayEquals, structuralEquals } from '../../../../../base/common/equals.js';
 import { CopilotCLISessionType } from '../../agentHost/browser/baseAgentHostSessionsProvider.js';
 import { createChangesets } from './copilotChatSessionsChangesets.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
@@ -134,6 +136,7 @@ export interface ICopilotChatSession {
 	readonly lastTurnEnd: IObservable<Date | undefined>;
 	/** GitHub information associated with this session, if any. */
 	readonly gitHubInfo: IObservable<IGitHubInfo | undefined>;
+	readonly artifacts?: IObservable<readonly ISessionArtifact[]>;
 	/** Checkpoints associated with this session, if any. */
 	readonly checkpoints: IObservable<IChatCheckpoints | undefined>;
 
@@ -239,6 +242,18 @@ function dateEquals(a: Date | undefined, b: Date | undefined): boolean {
 
 function markdownStringEquals(a: IMarkdownString | undefined, b: IMarkdownString | undefined): boolean {
 	return a === b || !!a && !!b && markdownStringEqual(a, b);
+}
+
+function sessionArtifactsEqual(a: readonly ISessionArtifact[], b: readonly ISessionArtifact[]): boolean {
+	return arrayEquals(a, b, (left, right) =>
+		left.id === right.id
+		&& left.kind === right.kind
+		&& left.label === right.label
+		&& left.isArtifact === right.isArtifact
+		&& isEqual(left.link, right.link)
+		&& isEqual(left.uri, right.uri)
+		&& left.commitHash === right.commitHash
+		&& left.isGitHub === right.isGitHub);
 }
 
 /**
@@ -365,6 +380,7 @@ class CopilotCLISession extends Disposable implements ICopilotChatSession {
 		@IStorageService private readonly storageService: IStorageService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ILanguageModelsService languageModelsService: ILanguageModelsService,
+		@ILogService private readonly logService: ILogService,
 	) {
 		super();
 		this.modelConfiguration = this._register(new AutomationModelConfiguration(languageModelsService, initialAutomationSessionConfiguration?.sessionTemplate));
@@ -593,7 +609,7 @@ class CopilotCLISession extends Disposable implements ICopilotChatSession {
 
 	update(agentSession: IAgentSession): void {
 		transaction((tx) => {
-			const session = new AgentSessionAdapter(agentSession, this.providerId, this.gitHubService, this.pullRequestIconCache);
+			const session = new AgentSessionAdapter(agentSession, this.providerId, this.gitHubService, this.pullRequestIconCache, this.logService);
 			this._workspaceData.set(session.workspace.get(), tx);
 			this._title.set(session.title.get(), tx);
 			this._status.set(session.status.get(), tx);
@@ -1002,6 +1018,8 @@ class AgentSessionAdapter implements ICopilotChatSession {
 	private readonly _pullRequestNumberFromBranch: IObservable<IObservable<{ readonly value?: number | undefined }> | undefined>;
 	private readonly _pullRequestNumberCache = new Map<string, IObservable<{ readonly value?: number | undefined }>>();
 	readonly gitHubInfo: IObservable<IGitHubInfo | undefined>;
+	private readonly _artifacts: ISettableObservable<readonly ISessionArtifact[]>;
+	readonly artifacts: IObservable<readonly ISessionArtifact[]>;
 
 	readonly permissionLevel: IObservable<ChatPermissionLevel> = constObservable(ChatPermissionLevel.Default);
 	readonly branch: IObservable<string | undefined> = constObservable(undefined);
@@ -1018,6 +1036,7 @@ class AgentSessionAdapter implements ICopilotChatSession {
 		providerId: string,
 		private readonly _gitHubService: IGitHubService,
 		private readonly _pullRequestIconCache: IPullRequestIconCache,
+		private readonly _logService: ILogService,
 	) {
 		this.sessionId = toSessionId(providerId, session.resource);
 		this.resource = session.resource;
@@ -1026,7 +1045,10 @@ class AgentSessionAdapter implements ICopilotChatSession {
 		this.icon = this._getSessionTypeIcon(session);
 		this.createdAt = new Date(session.timing.created);
 
-		this._baseGitHubInfo = observableValue(this, this._extractGitHubInfo(session));
+		const artifacts = this._extractIssueArtifacts(session);
+		this._artifacts = observableValueOpts({ owner: this, equalsFn: sessionArtifactsEqual }, artifacts);
+		this.artifacts = this._artifacts;
+		this._baseGitHubInfo = observableValue(this, this._extractGitHubInfo(session, artifacts));
 		this._pullRequestBranch = observableValue(this, this._extractPullRequestBranch(session));
 		this._pullRequestNumberFromBranch = derived(this, reader => {
 			const base = this._baseGitHubInfo.read(reader);
@@ -1147,7 +1169,8 @@ class AgentSessionAdapter implements ICopilotChatSession {
 	update(session: IAgentSession): boolean {
 		let changed = false;
 		transaction(tx => {
-			const gitHubInfo = this._extractGitHubInfo(session);
+			const artifacts = this._extractIssueArtifacts(session);
+			const gitHubInfo = this._extractGitHubInfo(session, artifacts);
 			const pullRequestBranch = this._extractPullRequestBranch(session);
 			changed = setIfChanged(this._title, session.label, tx) || changed;
 			changed = setIfChanged(this._workspace, this._buildWorkspace(session), tx, sessionWorkspaceEqual) || changed;
@@ -1162,6 +1185,7 @@ class AgentSessionAdapter implements ICopilotChatSession {
 			changed = setIfChanged(this._description, this._extractDescription(session), tx, markdownStringEquals) || changed;
 			changed = setIfChanged(this._lastTurnEnd, session.timing.lastRequestEnded ? new Date(session.timing.lastRequestEnded) : undefined, tx, dateEquals) || changed;
 			changed = setIfChanged(this._baseGitHubInfo, gitHubInfo, tx, gitHubInfoEqual) || changed;
+			changed = setIfChanged(this._artifacts, artifacts, tx, sessionArtifactsEqual) || changed;
 			changed = setIfChanged(this._pullRequestBranch, pullRequestBranch, tx) || changed;
 		});
 		return changed;
@@ -1203,7 +1227,55 @@ class AgentSessionAdapter implements ICopilotChatSession {
 		return typeof session.description === 'string' ? new MarkdownString(session.description) : session.description;
 	}
 
-	private _extractGitHubInfo(session: IAgentSession): IGitHubInfo | undefined {
+	private _extractIssueArtifacts(session: IAgentSession): readonly ISessionArtifact[] {
+		const linkedIssues: unknown = session.metadata?.linkedIssues;
+		if (session.providerType !== AgentSessionProviders.Cloud || linkedIssues === undefined) {
+			return [];
+		}
+		if (!Array.isArray(linkedIssues)) {
+			this._logService.warn('Ignoring invalid linked issues metadata for a cloud session.');
+			return [];
+		}
+
+		const artifacts: ISessionArtifact[] = [];
+		const seen = new Set<string>();
+		const issues: readonly { readonly url?: unknown; readonly title?: unknown }[] = linkedIssues;
+		for (const issue of issues) {
+			if (!issue || typeof issue !== 'object' || typeof issue.url !== 'string' || typeof issue.title !== 'string') {
+				this._logService.warn('Ignoring invalid linked issue metadata for a cloud session.');
+				continue;
+			}
+
+			let link: URI;
+			try {
+				link = URI.parse(issue.url, true);
+			} catch (error) {
+				this._logService.warn('Ignoring an invalid linked issue URL for a cloud session.', error);
+				continue;
+			}
+			if (link.scheme !== Schemas.https || !link.authority || !/^\/[\w.-]+\/[\w.-]+\/issues\/[1-9]\d*\/?$/.test(link.path)) {
+				this._logService.warn('Ignoring an invalid linked issue URL for a cloud session.');
+				continue;
+			}
+
+			const key = linkKey(issue.url);
+			if (seen.has(key)) {
+				continue;
+			}
+			seen.add(key);
+			artifacts.push({
+				id: `linked-issue:${key}`,
+				kind: SessionArtifactKind.Issue,
+				label: issue.title || issue.url,
+				isArtifact: true,
+				link,
+				isGitHub: true,
+			});
+		}
+		return artifacts;
+	}
+
+	private _extractGitHubInfo(session: IAgentSession, artifacts: readonly ISessionArtifact[]): IGitHubInfo | undefined {
 		const metadata = session.metadata;
 		if (!metadata) {
 			return undefined;
@@ -1216,8 +1288,17 @@ class AgentSessionAdapter implements ICopilotChatSession {
 			return undefined;
 		}
 
+		const issues: IGitHubIssueRef[] = [];
+		for (const artifact of artifacts) {
+			const issue = artifact.link && parseGitHubIssueUrl(artifact.link.toString(true));
+			if (issue && artifact.link) {
+				issues.push({ ...issue, uri: artifact.link, title: artifact.label });
+			}
+		}
+		const issueInfo = issues.length ? { issues } : {};
+
 		if (!pullRequestUri || !pullRequestIdentity) {
-			return { owner, repo };
+			return { owner, repo, ...issueInfo };
 		}
 
 		const icon = this._extractPullRequestStateIcon(session);
@@ -1228,6 +1309,7 @@ class AgentSessionAdapter implements ICopilotChatSession {
 		return {
 			owner,
 			repo,
+			...issueInfo,
 			pullRequest: {
 				number: pullRequestIdentity.number,
 				uri: pullRequestUri,
@@ -1937,6 +2019,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 				promo: modelMetadata?.promo,
 				maxInputTokens: modelMetadata?.maxInputTokens ?? 0,
 				maxOutputTokens: modelMetadata?.maxOutputTokens ?? 0,
+				maxContextWindowTokens: modelMetadata?.maxContextWindowTokens,
 				capabilities: modelMetadata?.capabilities ? {
 					vision: modelMetadata.capabilities.vision,
 					toolCalling: modelMetadata.capabilities.toolCalling,
@@ -3346,7 +3429,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 					sessionsToMarkUnread.push(session);
 				}
 			} else {
-				const adapter = new AgentSessionAdapter(session, this.id, this.gitHubService, this.pullRequestIconCache);
+				const adapter = new AgentSessionAdapter(session, this.id, this.gitHubService, this.pullRequestIconCache, this.logService);
 				this._sessionCache.set(key, adapter);
 				addedData.push(adapter);
 				cacheChanged = true;
@@ -3657,6 +3740,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 			changesets: this._createChangesets(primaryChat.sessionType, primaryChat.workspace, chatsObs),
 			changesSummary: primaryChat.changesSummary,
 			changes: primaryChat.changes,
+			artifacts: primaryChat.artifacts,
 			modelId: primaryChat.modelId,
 			mode: primaryChat.mode,
 			loading: primaryChat.loading,
@@ -3700,6 +3784,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 			changesets,
 			changesSummary: chat.changesSummary,
 			changes: chat.changes,
+			artifacts: chat.artifacts,
 			modelId: chat.modelId,
 			mode: chat.mode,
 			loading: chat.loading,

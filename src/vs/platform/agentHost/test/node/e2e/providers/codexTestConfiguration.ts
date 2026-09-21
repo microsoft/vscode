@@ -55,4 +55,7 @@ export const CODEX_CONFIG: IAgentHostE2EProviderConfig = {
 	supportsSideChatsE2E: true,
 	shellToolReplayUnstableOnLinux: true,
 	shellToolResultTextUnreliable: true,
+	// The recorded file-creation `exec_command` turn completes on Windows without
+	// the created file being present (see KNOWN_ISSUES.md).
+	fileCreateReplayUnstableOnWindows: true,
 };
