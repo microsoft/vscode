@@ -2197,6 +2197,11 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		return this._dispatchRequest<IAgentHostExtensionCommandMap[M]['result']>(method, params);
 	}
 
+	/** Sends a host-specific extension request; its consumer must validate the response. */
+	sendHostExtensionRequest(method: `extensions/${string}` | `x-${string}`, params: unknown): Promise<unknown> {
+		return this._dispatchRequest(method, params);
+	}
+
 	private _updateTelemetryLevel(): void {
 		this._dispatchRootConfig({ [AgentHostTelemetryLevelConfigKey]: telemetryLevelToAgentHostConfigValue(this._effectiveTelemetryLevel()) });
 	}

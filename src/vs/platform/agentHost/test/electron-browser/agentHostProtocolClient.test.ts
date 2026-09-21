@@ -1824,6 +1824,24 @@ suite('AgentHostProtocolClient', () => {
 		});
 	});
 
+	test('sendHostExtensionRequest uses normal request correlation', async () => {
+		const { client, transport } = createClient();
+		const params = { url: 'https://github.com/microsoft/vscode', depth: 1 };
+		const result = { project: { id: 'checkout', status: 'cloning' } };
+		const request = client.sendHostExtensionRequest('extensions/cloneProject', params);
+		assert.deepStrictEqual(transport.sentMessages[0], { jsonrpc: '2.0', id: 1, method: 'extensions/cloneProject', params });
+		transport.fireMessage({ jsonrpc: '2.0', id: 1, result });
+		assert.deepStrictEqual(await request, result);
+	});
+
+	test('sendHostExtensionRequest propagates unsupported host errors', async () => {
+		const { client, transport } = createClient();
+		const request = client.sendHostExtensionRequest('extensions/cloneProject', { url: 'https://github.com/microsoft/vscode', depth: 1 });
+		const error = { code: JsonRpcErrorCodes.MethodNotFound, message: 'Method not found' };
+		transport.fireMessage({ jsonrpc: '2.0', id: 1, error });
+		await assertRemoteProtocolError(request, error);
+	});
+
 	test('removeSessionArtifact sends the VS Code extension request', async () => {
 		const { client, transport } = createClient();
 		const session = URI.parse('copilotcli:/session-1');
