@@ -15,6 +15,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/comm
 import { ThemeIcon } from '../../../base/common/themables.js';
 import { IAccessibilityService } from '../../../platform/accessibility/common/accessibility.js';
 import { workbenchInstantiationService } from '../../../workbench/test/browser/workbenchTestServices.js';
+import { ChatHeader } from '../../browser/parts/chatHeader.js';
 import { SessionHeader } from '../../browser/parts/sessionHeader.js';
 import { ISessionsListModelService } from '../../services/sessions/browser/sessionsListModelService.js';
 import { ISessionsService } from '../../services/sessions/browser/sessionsService.js';
@@ -78,10 +79,10 @@ function createHarness(disposables: Pick<DisposableStore, 'add'>, capabilities: 
 	const container = mainWindow.document.createElement('div');
 	container.appendChild(header.element);
 
-	return { store, header, session, activeChat, mainChat, secondChat };
+	return { store, instantiationService, header, session, activeChat, mainChat, secondChat };
 }
 
-suite('Sessions - SessionHeader', () => {
+suite('Sessions - Headers', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	// A native drag always fires dragstart with `target` set to the draggable
@@ -112,6 +113,53 @@ suite('Sessions - SessionHeader', () => {
 		const dragEvent = simulateDragFrom(header, header.element);
 
 		assert.strictEqual(dragEvent.defaultPrevented, false);
+	});
+
+	test('activates its chat group before a header action can run', () => {
+		const { store, instantiationService, session, activeChat } = createHarness(disposables);
+		let activationCalls = 0;
+		const header = store.add(instantiationService.createInstance(ChatHeader));
+		header.setChat({
+			session,
+			chat: activeChat,
+			activate: () => activationCalls++,
+		});
+
+		header.element.querySelector<HTMLElement>('.chat-composite-bar-title-actions')
+			?.dispatchEvent(new MouseEvent(EventType.MOUSE_DOWN, { bubbles: true, cancelable: true }));
+
+		assert.strictEqual(activationCalls, 1);
+	});
+
+	test('targets session actions at the session and chat actions at the represented chat', () => {
+		const { store, instantiationService, header, session, activeChat, mainChat, secondChat } = createHarness(disposables);
+		const chatHeader = store.add(instantiationService.createInstance(ChatHeader));
+		chatHeader.setChat({
+			session,
+			chat: activeChat,
+			activate: () => { },
+		});
+		const describe = (args: readonly unknown[]) => args.map(arg =>
+			arg === session ? 'session'
+				: arg === mainChat ? 'mainChat'
+					: arg === secondChat ? 'secondChat'
+						: 'unknown');
+		const getMenuActionArgs = (target: SessionHeader | ChatHeader) =>
+			(Reflect.get(target, '_bar') as { _menuActionArgs: readonly unknown[] })._menuActionArgs;
+
+		const sessionArgs = describe(getMenuActionArgs(header));
+		const initialChatArgs = describe(getMenuActionArgs(chatHeader));
+		activeChat.set(secondChat, undefined);
+
+		assert.deepStrictEqual({
+			sessionArgs,
+			initialChatArgs,
+			updatedChatArgs: describe(getMenuActionArgs(chatHeader)),
+		}, {
+			sessionArgs: ['session'],
+			initialChatArgs: ['session', 'mainChat'],
+			updatedChatArgs: ['session', 'secondChat'],
+		});
 	});
 
 	test('hides the header while it is replaced by the single-group tabs row', () => {
