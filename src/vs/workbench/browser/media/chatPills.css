@@ -177,6 +177,16 @@
 	margin-right: 0;
 }
 
+.action-widget.chat-pill-dropdown .monaco-list-row.chat-pill-github-reference .action-item-badge {
+	margin-left: var(--vscode-spacing-size40);
+	padding: 0;
+	border-radius: 0;
+	background: transparent;
+	color: var(--vscode-descriptionForeground);
+	font-size: inherit;
+	line-height: inherit;
+}
+
 /* Horizontally scrollable status pills above a chat input. */
 .chat-pills-row {
 	width: 100%;

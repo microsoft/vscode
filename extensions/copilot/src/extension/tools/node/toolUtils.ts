@@ -299,7 +299,8 @@ async function getWorkspaceFileExternalConfirmation(uri: URI, getFolder: (uri: U
 		return { needsConfirmation: false, realPath: undefined };
 	}
 
-	const isInsideWorkspace = getFolder(resolvedUri) !== undefined;
+	const resolvedWorkspaceFolder = normalizePath(URI.file(await realpath(workspaceFolder.fsPath)));
+	const isInsideWorkspace = extUriBiasedIgnorePathCase.isEqualOrParent(resolvedUri, resolvedWorkspaceFolder) || getFolder(resolvedUri) !== undefined;
 	return { needsConfirmation: !isInsideWorkspace, realPath: resolvedUri };
 }
 

@@ -331,10 +331,18 @@ suite('GitHubPRFetcher', () => {
 	});
 
 	test('getPullRequest maps closed PR', async () => {
-		mockApi.setNextResponse(makePRResponse({ state: 'closed', merged: false, draft: false }));
+		mockApi.setNextResponse(makePRResponse({ state: 'closed', merged: false, draft: false, closed_at: '2024-03-04T00:00:00Z' }));
 
 		const pr = await fetcher.getPullRequest('owner', 'repo', 1);
 		assert.strictEqual(pr.data?.state, GitHubPullRequestState.Closed);
+		assert.strictEqual(pr.data?.closedAt, '2024-03-04T00:00:00Z');
+	});
+
+	test('getPullRequest omits closedAt for an open PR', async () => {
+		mockApi.setNextResponse(makePRResponse({ state: 'open', merged: false, draft: false }));
+
+		const pr = await fetcher.getPullRequest('owner', 'repo', 1);
+		assert.strictEqual(pr.data?.closedAt, undefined);
 	});
 
 	test('getReviewThreads returns GraphQL thread metadata', async () => {
@@ -342,6 +350,7 @@ suite('GitHubPRFetcher', () => {
 			makeGraphQLReviewThread({
 				id: 'thread-a',
 				path: 'src/a.ts',
+				startLine: 8,
 				line: 10,
 				isResolved: false,
 				comments: [
@@ -365,6 +374,7 @@ suite('GitHubPRFetcher', () => {
 		assert.ok(thread1);
 		assert.strictEqual(thread1.comments.length, 2);
 		assert.strictEqual(thread1.path, 'src/a.ts');
+		assert.strictEqual(thread1.startLine, 8);
 		assert.strictEqual(thread1.line, 10);
 		assert.strictEqual(thread1.comments[0].threadId, 'thread-a');
 
@@ -398,7 +408,7 @@ suite('GitHubPRFetcher', () => {
 			submitted_at: '2024-01-01T00:00:00Z',
 		});
 
-		await fetcher.postPullRequestReviewComment('owner', 'repo', 1, 'Please update this.', 'abc123', 'src/a.ts', 12);
+		await fetcher.postPullRequestReviewComment('owner', 'repo', 1, 'Please update this.', 'abc123', 'src/a.ts', 12, 10);
 
 		assert.deepStrictEqual(mockApi.requestCalls, [{
 			method: 'POST',
@@ -410,6 +420,8 @@ suite('GitHubPRFetcher', () => {
 					path: 'src/a.ts',
 					line: 12,
 					side: 'RIGHT',
+					start_line: 10,
+					start_side: 'RIGHT',
 				}],
 			},
 		}]);
@@ -433,6 +445,7 @@ suite('GitHubPRFetcher', () => {
 			'abc123',
 			'src/a.ts',
 			12,
+			10,
 			{ id: 42, nodeId: 'PRR_pending' },
 		);
 
@@ -441,10 +454,15 @@ suite('GitHubPRFetcher', () => {
 			requests: mockApi.requestCalls,
 		}, {
 			graphql: [{
-				reviewId: 'PRR_pending',
-				body: 'Please update this.',
-				path: 'src/a.ts',
-				line: 12,
+				input: {
+					pullRequestReviewId: 'PRR_pending',
+					body: 'Please update this.',
+					path: 'src/a.ts',
+					line: 12,
+					side: 'RIGHT',
+					startLine: 10,
+					startSide: 'RIGHT',
+				},
 			}],
 			requests: [],
 		});
@@ -811,6 +829,7 @@ function makePRResponse(overrides: {
 	draft: boolean;
 	mergeable?: boolean | null;
 	mergeable_state?: string;
+	closed_at?: string | null;
 }): unknown {
 	return {
 		number: 1,
@@ -824,6 +843,7 @@ function makePRResponse(overrides: {
 		created_at: '2024-01-01T00:00:00Z',
 		updated_at: '2024-01-02T00:00:00Z',
 		merged_at: overrides.merged ? '2024-01-02T00:00:00Z' : null,
+		closed_at: overrides.closed_at ?? (overrides.state === 'closed' ? '2024-01-03T00:00:00Z' : null),
 		mergeable: overrides.mergeable ?? true,
 		mergeable_state: overrides.mergeable_state ?? 'clean',
 		merged: overrides.merged,
@@ -846,6 +866,7 @@ function makeGraphQLReviewThread(overrides: Partial<{
 	id: string;
 	isResolved: boolean;
 	path: string;
+	startLine: number;
 	line: number;
 	comments: readonly ReturnType<typeof makeGraphQLReviewComment>[];
 }> = {}): unknown {
@@ -853,6 +874,7 @@ function makeGraphQLReviewThread(overrides: Partial<{
 		id: overrides.id ?? 'thread-1',
 		isResolved: overrides.isResolved ?? false,
 		path: overrides.path ?? 'src/a.ts',
+		startLine: overrides.startLine ?? null,
 		line: overrides.line ?? 10,
 		comments: {
 			nodes: overrides.comments ?? [makeGraphQLReviewComment()],

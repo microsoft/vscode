@@ -710,8 +710,6 @@ export namespace ConfigKey {
 		export const DebugNodeFetchCache = defineSetting<'off' | 'memory' | 'persistent'>('advanced.debug.nodeFetchCache', ConfigType.Simple, 'memory');
 		export const AuthProvider = defineSetting<AuthProviderId>('advanced.authProvider', ConfigType.Simple, AuthProviderId.GitHub);
 		export const AuthPermissions = defineSetting<AuthPermissionMode>('advanced.authPermissions', ConfigType.Simple, AuthPermissionMode.Default);
-		/** The workbench owns the experiment default so all Auto pickers read the same effective setting. */
-		export const AutoModeTiersEnabled = defineSetting<boolean>('chat.autoMode.tiers.enabled', ConfigType.Simple, false);
 		/** Override Auto's "Optimize for" preference in both harnesses; the extension additionally accepts `fast`. */
 		export const AutoModeTierOverride = defineSetting<string | null>('chat.autoModeTierOverride', ConfigType.Simple, null);
 	}
@@ -1090,8 +1088,8 @@ export namespace ConfigKey {
 	export const ResponsesApiContextManagementEnabled = defineSetting<boolean>('chat.responsesApiContextManagement.enabled', ConfigType.ExperimentBased, false);
 	/** Enable client-side prompt_cache_key (conversationId:modelFamily) sent to Responses API */
 	export const ResponsesApiPromptCacheKeyEnabled = defineSetting<boolean>('chat.responsesApi.promptCacheKey.enabled', ConfigType.ExperimentBased, false);
-	/** Enable explicit prompt_cache_breakpoint markers sent to Responses API */
-	export const ResponsesApiPromptCacheBreakpointEnabled = defineSetting<boolean>('chat.responsesApi.promptCacheBreakpoint.enabled', ConfigType.ExperimentBased, false);
+	/** Enable Responses prompt cache markers: up to two agent-prefix anchors and twenty conversation boundaries. */
+	export const ResponsesApiPromptCacheBreakpointEnabled = defineSetting<boolean>('chat.responsesApi.promptCacheBreakpoint.enabled', ConfigType.ExperimentBased, true);
 	/** Enable updated prompt for 5.3Codex model */
 	export const Updated53CodexPromptEnabled = defineSetting<boolean>('chat.updated53CodexPrompt.enabled', ConfigType.ExperimentBased, true);
 	/** Enable updated prompt for Claude Opus 5 model */
@@ -1193,6 +1191,8 @@ export namespace ConfigKey {
 
 	export const BackgroundAgentEnabled = defineSetting<boolean>('chat.backgroundAgent.enabled', ConfigType.Simple, true);
 	export const CloudAgentEnabled = defineSetting<boolean>('chat.cloudAgent.enabled', ConfigType.Simple, true);
+	export type CloudSessionVisibilityValue = '24hours' | '7days' | '30days' | '90days' | 'all';
+	export const CloudSessionVisibility = defineSetting<CloudSessionVisibilityValue>('chat.cloudAgent.sessionVisibility', ConfigType.Simple, '30days', vEnum('24hours', '7days', '30days', '90days', 'all'));
 	export const AdditionalReadAccessPaths = defineSetting<string[]>('chat.additionalReadAccessPaths', ConfigType.Simple, []);
 	export const SwitchAgentEnabled = defineSetting<boolean>('chat.switchAgent.enabled', ConfigType.ExperimentBased, false);
 

@@ -10,7 +10,7 @@ import { Color } from '../../../../base/common/color.js';
 import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { TokenMetadata } from '../../../../editor/common/encodedTokenAttributes.js';
+import { ColorId, TokenMetadata } from '../../../../editor/common/encodedTokenAttributes.js';
 import { TokenizationRegistry } from '../../../../editor/common/languages.js';
 import { LanguageService } from '../../../../editor/common/services/languageService.js';
 import { IExtensionResourceLoaderService } from '../../../../platform/extensionResourceLoader/common/extensionResourceLoader.js';
@@ -181,34 +181,40 @@ suite('Component fixture TextMate syntax highlighting', () => {
 
 	test('retains shared tokenizers until the final fixture is disposed', async () => {
 		const previousColorMap = TokenizationRegistry.getColorMap();
-		const first = await createTokenizers();
-		const second = await createTokenizers();
-		const support = TokenizationRegistry.get('typescript');
-		first.store.dispose();
+		assert.ok(previousColorMap);
+		const sentinelColorMap = [...previousColorMap];
+		sentinelColorMap[ColorId.DefaultForeground] = Color.fromHex('#010203');
+		TokenizationRegistry.setColorMap(sentinelColorMap);
+		try {
+			const first = await createTokenizers();
+			const second = await createTokenizers();
+			const support = TokenizationRegistry.get('typescript');
+			first.store.dispose();
 
-		assert.deepStrictEqual({
-			retainedAfterFirstDispose: TokenizationRegistry.get('typescript') === support,
-			secondUsesCanonicalDarkCSS: second.host.querySelector('style')?.textContent?.includes('#ff7b72'),
-		}, {
-			retainedAfterFirstDispose: true,
-			secondUsesCanonicalDarkCSS: true,
-		});
+			assert.deepStrictEqual({
+				retainedAfterFirstDispose: TokenizationRegistry.get('typescript') === support,
+				secondUsesCanonicalDarkCSS: second.host.querySelector('style')?.textContent?.includes('#ff7b72'),
+			}, {
+				retainedAfterFirstDispose: true,
+				secondUsesCanonicalDarkCSS: true,
+			});
 
-		second.store.dispose();
-		const finalColorMap = TokenizationRegistry.getColorMap();
-		const defaultBackground = TokenizationRegistry.getDefaultBackground();
-		assert.deepStrictEqual({
-			tokenizerRemoved: TokenizationRegistry.get('typescript') === null,
-			previousColorMapRestored: previousColorMap === null || (
-				finalColorMap?.length === previousColorMap.length
-				&& previousColorMap.every((color, index) => finalColorMap[index] === color)
-			),
-			defaultBackgroundLuminance: typeof defaultBackground?.getRelativeLuminance() === 'number',
-		}, {
-			tokenizerRemoved: true,
-			previousColorMapRestored: true,
-			defaultBackgroundLuminance: true,
-		});
+			second.store.dispose();
+			const finalColorMap = TokenizationRegistry.getColorMap();
+			const defaultBackground = TokenizationRegistry.getDefaultBackground();
+			assert.deepStrictEqual({
+				tokenizerRemoved: TokenizationRegistry.get('typescript') === null,
+				sentinelColorMapRestored: finalColorMap?.length === sentinelColorMap.length
+					&& sentinelColorMap.every((color, index) => finalColorMap[index] === color),
+				defaultBackgroundLuminance: typeof defaultBackground?.getRelativeLuminance() === 'number',
+			}, {
+				tokenizerRemoved: true,
+				sentinelColorMapRestored: true,
+				defaultBackgroundLuminance: true,
+			});
+		} finally {
+			TokenizationRegistry.setColorMap([...previousColorMap]);
+		}
 	});
 });
 

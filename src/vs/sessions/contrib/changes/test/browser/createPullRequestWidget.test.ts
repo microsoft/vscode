@@ -4,7 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import sinon from 'sinon';
 import * as dom from '../../../../../base/browser/dom.js';
+import { Radio } from '../../../../../base/browser/ui/radio/radio.js';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Emitter } from '../../../../../base/common/event.js';
@@ -27,13 +29,15 @@ import { INotificationService } from '../../../../../platform/notification/commo
 import { InMemoryStorageService } from '../../../../../platform/storage/common/storage.js';
 import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
 import { CreatePullRequestPreferences, ICreatePullRequestPreferences } from '../../common/createPullRequestPreferences.js';
-import { ISessionPullRequestAgentMergeOptions, ISessionPullRequestCreation, ISessionPullRequestDetails, ISessionPullRequestOptions } from '../../common/pullRequestCreation.js';
+import { ISessionPullRequestAgentMergeOptions, ISessionPullRequestChatOptions, ISessionPullRequestCreation, ISessionPullRequestDetails, ISessionPullRequestOptions } from '../../common/pullRequestCreation.js';
 import { CreatePullRequestContextView } from '../../browser/createPullRequestContextView.js';
 import { CreatePullRequestWidget, ICreatePullRequestWidgetOptions } from '../../browser/createPullRequestWidget.js';
 import { SessionsChangesAccessibilityHelp } from '../../browser/sessionsChangesAccessibilityHelp.js';
 
 suite('CreatePullRequestWidget', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+	teardown(() => sinon.restore());
+
 	const agentMergeOptions: ISessionPullRequestAgentMergeOptions = {
 		addressReviews: false,
 		fixCI: true,
@@ -158,7 +162,7 @@ suite('CreatePullRequestWidget', () => {
 	for (const primaryAction of ['create', 'sendToChat'] as const) {
 		test(`${primaryAction} forwards prepared identity without persisting it`, async () => {
 			const context = { workingDirectory: 'file:///repo', repository: details.repository, branchName: details.branchName, baseBranchName: details.baseBranchName };
-			const sent: ISessionPullRequestOptions[] = [];
+			const sent: ISessionPullRequestChatOptions[] = [];
 			const { widget, submissions, preferences } = createWidget({ prepare: async () => ({ ...details, context }) }, undefined, {
 				preferences: { primaryAction },
 				sendToChat: async options => { sent.push(options); },
@@ -187,8 +191,8 @@ suite('CreatePullRequestWidget', () => {
 		action.dispatchEvent(new KeyboardEvent('keyup', { keyCode: 13, bubbles: true }));
 	}
 
-	test('the dropdown sends form options to chat without creating a PR or unlocking achievements', async () => {
-		const sent: ISessionPullRequestOptions[] = [];
+	test('the dropdown sends options without title or description to chat without creating a PR or unlocking achievements', async () => {
+		const sent: ISessionPullRequestChatOptions[] = [];
 		let completed = 0;
 		const { widget, submissions, preferences, created } = createWidget(undefined, undefined, {
 			sendToChat: async options => { sent.push(options); },
@@ -208,7 +212,7 @@ suite('CreatePullRequestWidget', () => {
 			primaryAction: preferences.read().primaryAction,
 		}, {
 			sent: [{
-				title: 'Send this title', description: 'Send this description', draft: false, agentMerge: true,
+				draft: false, agentMerge: true,
 				agentMergeOptions: { ...agentMergeOptions, mergePullRequest: 'always' }
 			}],
 			submissions: [], completed: 1, created: 0,
@@ -351,14 +355,23 @@ suite('CreatePullRequestWidget', () => {
 		};
 		const { widget, preferences } = createWidget({ prepare: () => generation.p }, undefined, { preferences: remembered, sendToChat: async () => { } });
 		const loadingPreferences = preferences.read();
+		const beforeGeneration = {
+			state: agentMergeState(widget),
+			mode: element(widget, '[role="radio"][aria-label="Agent Merge"]').getAttribute('aria-checked'),
+			canSend: element(widget, '.create-pr-submit').getAttribute('aria-disabled'),
+		};
 		await generation.complete(details);
 		await widget.ready;
 		assert.deepStrictEqual({
 			loadingPreferences, preferences: preferences.read(), state: agentMergeState(widget),
+			interactiveWhileLoading: beforeGeneration.state.hidden === false && beforeGeneration.state.actions.every(action => action.disabled === 'false'),
+			rememberedWhileLoading: beforeGeneration.state.policy === 'When Ready' && beforeGeneration.mode === 'true',
+			canSendWhileLoading: beforeGeneration.canSend,
 			draft: element(widget, '.create-pr-draft [role="checkbox"]').getAttribute('aria-checked'),
 			label: element(widget, '.create-pr-submit').textContent,
 		}, {
 			loadingPreferences: remembered, preferences: remembered, draft: 'true', label: 'Send Create PR Message',
+			interactiveWhileLoading: true, rememberedWhileLoading: true, canSendWhileLoading: 'false',
 			state: {
 				hidden: false, actions: [
 					{ label: 'Address Reviews', checked: 'true', disabled: 'false' },
@@ -366,6 +379,91 @@ suite('CreatePullRequestWidget', () => {
 					{ label: 'Resolve Conflicts and Behind Branches', checked: 'true', disabled: 'false' },
 				], policy: 'When Ready'
 			},
+		});
+	});
+
+	test('remembered merge options are editable during first generation and edits survive completion', async () => {
+		const generation = new DeferredPromise<ISessionPullRequestDetails>();
+		const { widget, preferences } = createWidget({ prepare: () => generation.p }, undefined, {
+			preferences: { mergeMode: 'auto', mergeMethod: 'REBASE', agentMergeOptions },
+		});
+		const before = {
+			mode: element(widget, '[role="radio"][aria-label="Auto-Merge"]').getAttribute('aria-checked'),
+			method: element(widget, '[role="radiogroup"][aria-label="Merge method"] [aria-checked="true"]').textContent,
+			canCreate: element(widget, '.create-pr-submit').getAttribute('aria-disabled'),
+		};
+		select(widget, 'Merge Commit');
+		select(widget, 'Agent Merge');
+		element(widget, '[role="checkbox"][aria-label="Address Reviews"]').click();
+		select(widget, 'When Ready');
+		element(widget, '[role="radio"][aria-label="Agent Merge"]').focus();
+		await generation.complete(details);
+		await widget.ready;
+		assert.deepStrictEqual({
+			before,
+			preferences: preferences.read(),
+			state: agentMergeState(widget),
+			focusRetained: dom.getActiveElement() === element(widget, '[role="radio"][aria-label="Agent Merge"]'),
+			canCreate: element(widget, '.create-pr-submit').getAttribute('aria-disabled'),
+		}, {
+			before: { mode: 'true', method: 'Rebase', canCreate: 'true' },
+			preferences: { mergeMode: 'agent', mergeMethod: 'MERGE', agentMergeOptions: { ...agentMergeOptions, addressReviews: true, mergePullRequest: 'always' } },
+			state: {
+				hidden: false, actions: [
+					{ label: 'Address Reviews', checked: 'true', disabled: 'false' },
+					{ label: 'Fix CI Failures', checked: 'true', disabled: 'false' },
+					{ label: 'Resolve Conflicts and Behind Branches', checked: 'false', disabled: 'false' },
+				], policy: 'When Ready',
+			},
+			focusRetained: true, canCreate: 'false',
+		});
+	});
+
+	test('the dropdown can send an agentic request before title and description generation finishes', async () => {
+		const generation = new DeferredPromise<ISessionPullRequestDetails>();
+		const sent: ISessionPullRequestChatOptions[] = [];
+		const { widget, submissions } = createWidget({ prepare: () => generation.p }, undefined, {
+			preferences: { mergeMode: 'agent', agentMergeOptions },
+			sendToChat: async options => { sent.push(options); },
+		});
+		input(widget, 'input', 'Do not send this title');
+		input(widget, 'textarea', 'Do not send this description');
+		element(widget, '.create-pr-submit').click();
+		const primaryDisabled = element(widget, '.create-pr-submit').getAttribute('aria-disabled');
+		const dropdownEnabled = element(widget, '.monaco-dropdown-button').getAttribute('aria-disabled');
+		openActionMenu(widget);
+		const menu = [...document.querySelectorAll<HTMLElement>('.monaco-menu .action-label')].map(action => ({
+			label: action.textContent, disabled: action.closest('.action-item')!.classList.contains('disabled'),
+		}));
+		chooseMenuAction('Send Create PR Message');
+		await timeout(0);
+		const sentBeforeGeneration = sent.length;
+		await generation.complete(details);
+		await widget.ready;
+		assert.deepStrictEqual({ primaryDisabled, dropdownEnabled, menu, sentBeforeGeneration, sent, submissions }, {
+			primaryDisabled: 'true', dropdownEnabled: 'false',
+			menu: [{ label: 'Create PR', disabled: true }, { label: 'Send Create PR Message', disabled: false }],
+			sentBeforeGeneration: 1, sent: [{ draft: false, agentMerge: true, agentMergeOptions }], submissions: [],
+		});
+	});
+
+	test('remembered agentic primary action works without text and prevents duplicate sends while loading', async () => {
+		const generation = new DeferredPromise<ISessionPullRequestDetails>();
+		const completion = new DeferredPromise<void>();
+		const sent: ISessionPullRequestChatOptions[] = [];
+		const { widget, submissions, preferences } = createWidget({ prepare: () => generation.p }, undefined, {
+			preferences: { draft: true, primaryAction: 'sendToChat' },
+			sendToChat: async options => { sent.push(options); await completion.p; },
+		});
+		widget.domNode.dispatchEvent(new KeyboardEvent('keydown', { keyCode: 13, ctrlKey: !isMacintosh, metaKey: isMacintosh, bubbles: true }));
+		element(widget, '.create-pr-submit').click();
+		const dropdownDisabled = element(widget, '.monaco-dropdown-button').getAttribute('aria-disabled');
+		await completion.complete();
+		await timeout(0);
+		await generation.complete(details);
+		await widget.ready;
+		assert.deepStrictEqual({ sent, submissions, dropdownDisabled, agentMergePreferences: preferences.read().agentMergeOptions }, {
+			sent: [{ draft: true, agentMerge: false }], submissions: [], dropdownDisabled: 'true', agentMergePreferences: undefined,
 		});
 	});
 
@@ -413,6 +511,78 @@ suite('CreatePullRequestWidget', () => {
 			preferences: preferences.read(),
 		}, { before: 'false', after: 'true', method: 'Auto-Merge', preferences: { draft: false, mergeMode: 'auto', mergeMethod: 'REBASE' } });
 	});
+
+	for (const { name, overrides, draft, reason } of [
+		{
+			name: 'disabled repository auto-merge',
+			overrides: { autoMergeAllowed: false },
+			draft: false,
+			reason: 'GitHub auto-merge is disabled for this repository. Ask a repository administrator to enable "Allow auto-merge" in the repository\'s Settings > General > Pull Requests.',
+		},
+		{
+			name: 'unavailable repository settings',
+			overrides: { autoMergeAllowed: false, mergeMethods: [] },
+			draft: false,
+			reason: 'Repository merge settings could not be loaded or no merge methods are enabled. Check your GitHub access and the repository\'s Settings > General > Pull Requests.',
+		},
+		{
+			name: 'no enabled merge methods',
+			overrides: { mergeMethods: [] },
+			draft: false,
+			reason: 'Repository merge settings could not be loaded or no merge methods are enabled. Check your GitHub access and the repository\'s Settings > General > Pull Requests.',
+		},
+		{
+			name: 'draft pull requests',
+			overrides: {},
+			draft: true,
+			reason: 'Mark the pull request ready before enabling GitHub auto-merge.',
+		},
+	]) {
+		test(`explains ${name} in the auto-merge hover and accessible description`, async () => {
+			const items = sinon.spy(Radio.prototype, 'setItems');
+			const { widget, submissions } = createWidget({ prepare: async () => ({ ...details, ...overrides }) }, undefined, { initialDraft: draft });
+			await widget.ready;
+			const autoMerge = element(widget, '[role="radio"][aria-label="Auto-Merge"]');
+			autoMerge.click();
+			assert.deepStrictEqual({
+				tooltip: items.getCalls().flatMap(call => call.args[0]).filter(item => item.text === 'Auto-Merge').at(-1)?.tooltip,
+				description: autoMerge.getAttribute('aria-description'),
+				disabled: autoMerge.getAttribute('aria-disabled'),
+				selected: autoMerge.getAttribute('aria-checked'),
+				submissions,
+			}, { tooltip: reason, description: reason, disabled: 'true', selected: 'false', submissions: [] });
+		});
+	}
+
+	for (const outcome of ['success', 'failure'] as const) {
+		test(`updates auto-merge guidance after loading ${outcome}`, async () => {
+			const items = sinon.spy(Radio.prototype, 'setItems');
+			const generation = new DeferredPromise<ISessionPullRequestDetails>();
+			const { widget } = createWidget({ prepare: () => generation.p });
+			const readState = () => {
+				const autoMerge = element(widget, '[role="radio"][aria-label="Auto-Merge"]');
+				return {
+					tooltip: items.getCalls().flatMap(call => call.args[0]).filter(item => item.text === 'Auto-Merge').at(-1)?.tooltip,
+					description: autoMerge.getAttribute('aria-description'),
+					disabled: autoMerge.getAttribute('aria-disabled'),
+				};
+			};
+			const before = readState();
+			if (outcome === 'success') {
+				await generation.complete(details);
+			} else {
+				await generation.error(new Error('Repository unavailable'));
+			}
+			await widget.ready;
+			const reason = 'Repository merge settings could not be loaded. Check your GitHub access and retry loading the pull request details.';
+			assert.deepStrictEqual({ before, after: readState() }, {
+				before: { tooltip: 'Checking GitHub auto-merge availability...', description: 'Checking GitHub auto-merge availability...', disabled: 'false' },
+				after: outcome === 'success'
+					? { tooltip: 'Auto-Merge', description: null, disabled: 'false' }
+					: { tooltip: reason, description: reason, disabled: 'true' },
+			});
+		});
+	}
 
 	test('sending from the context-view menu closes only on successful send and does not call onCreated', async () => {
 		const { host, anchor, contextView } = createContextView();
@@ -1215,6 +1385,208 @@ suite('CreatePullRequestWidget', () => {
 		}, { closed: true, focused: true, created: false });
 	});
 
+	for (const dismissal of ['outside click', 'Escape']) {
+		test(`${dismissal} preserves generated content and edits when reopening`, async () => {
+			const { host, anchor, contextView } = createContextView();
+			let attempts = 0;
+			const creation: ISessionPullRequestCreation = {
+				operationId: 'create-pr',
+				prepareChatRequest: async query => ({ query }),
+				prepare: async () => ++attempts === 1 ? details : { ...details, title: 'Regenerated title', description: 'Regenerated description' },
+				create: async () => assert.fail('Must not create'),
+			};
+			contextView.show(anchor, creation);
+			await timeout(0);
+			const title = host.querySelector<HTMLInputElement>('input')!;
+			title.value = 'Keep my edited title';
+			title.dispatchEvent(new Event('input', { bubbles: true }));
+			if (dismissal === 'Escape') {
+				title.dispatchEvent(new KeyboardEvent('keydown', { keyCode: 27, bubbles: true }));
+			} else {
+				anchor.parentElement!.click();
+			}
+			const closed = !host.querySelector('[role="dialog"]');
+			contextView.show(anchor, creation);
+			const restoredImmediately = host.querySelector<HTMLInputElement>('input')!.value;
+			await timeout(0);
+			assert.deepStrictEqual({
+				closed, restoredImmediately,
+				title: host.querySelector<HTMLInputElement>('input')!.value,
+				description: host.querySelector<HTMLTextAreaElement>('textarea')!.value,
+			}, {
+				closed: true, restoredImmediately: 'Keep my edited title',
+				title: 'Keep my edited title', description: details.description,
+			});
+		});
+	}
+
+	for (const field of ['input', 'textarea'] as const) {
+		test(`reopening during generation preserves an intentionally cleared ${field} and fills the untouched field`, async () => {
+			const { host, anchor, contextView } = createContextView();
+			const generation = new DeferredPromise<ISessionPullRequestDetails>();
+			let attempts = 0;
+			let cancellation: CancellationToken | undefined;
+			const creation: ISessionPullRequestCreation = {
+				operationId: 'create-pr',
+				prepareChatRequest: async query => ({ query }),
+				prepare: token => {
+					cancellation ??= token;
+					return ++attempts === 1 ? generation.p : Promise.resolve(details);
+				},
+				create: async () => assert.fail('Must not create'),
+			};
+			contextView.show(anchor, creation);
+			const input = host.querySelector<HTMLInputElement | HTMLTextAreaElement>(field)!;
+			input.value = 'Temporary';
+			input.dispatchEvent(new Event('input', { bubbles: true }));
+			input.value = '';
+			input.dispatchEvent(new Event('input', { bubbles: true }));
+			anchor.parentElement!.click();
+			contextView.show(anchor, creation);
+			await timeout(0);
+			await generation.complete({ ...details, title: 'Late title', description: 'Late description' });
+			await timeout(0);
+			assert.deepStrictEqual({
+				cancelled: cancellation?.isCancellationRequested,
+				title: host.querySelector<HTMLInputElement>('input')!.value,
+				description: host.querySelector<HTMLTextAreaElement>('textarea')!.value,
+			}, {
+				cancelled: true,
+				title: field === 'input' ? '' : details.title,
+				description: field === 'textarea' ? '' : details.description,
+			});
+		});
+	}
+
+	for (const action of ['Cancel', 'Create PR', 'Send Create PR Message']) {
+		test(`${action} discards previously preserved form content`, async () => {
+			const { host, anchor, contextView } = createContextView();
+			let created = 0;
+			let sent = 0;
+			const creation: ISessionPullRequestCreation = {
+				operationId: 'create-pr', prepare: async () => details,
+				prepareChatRequest: async query => ({ query }), create: async () => { created++; },
+			};
+			const options = { sendToChat: async () => { sent++; } };
+			contextView.show(anchor, creation, options);
+			await timeout(0);
+			const title = host.querySelector<HTMLInputElement>('input')!;
+			title.value = 'Temporary title';
+			title.dispatchEvent(new Event('input', { bubbles: true }));
+			anchor.parentElement!.click();
+			contextView.show(anchor, creation, options);
+			await timeout(0);
+			const restored = host.querySelector<HTMLInputElement>('input')!.value;
+			if (action === 'Cancel') {
+				host.querySelector<HTMLElement>('.create-pr-buttons > .monaco-button')!.click();
+			} else {
+				host.querySelector<HTMLElement>('.monaco-dropdown-button')!.click();
+				chooseMenuAction(action);
+			}
+			await timeout(0);
+			const closed = !host.querySelector('[role="dialog"]');
+			contextView.show(anchor, creation, options);
+			await timeout(0);
+			assert.deepStrictEqual({
+				restored, closed, created, sent,
+				title: host.querySelector<HTMLInputElement>('input')!.value,
+				description: host.querySelector<HTMLTextAreaElement>('textarea')!.value,
+			}, {
+				restored: 'Temporary title', closed: true,
+				created: action === 'Create PR' ? 1 : 0, sent: action === 'Send Create PR Message' ? 1 : 0,
+				title: details.title, description: details.description,
+			});
+		});
+	}
+
+	for (const change of ['creation', 'branchName', 'baseBranchName'] as const) {
+		test(`saved form content is not reused after changing ${change}`, async () => {
+			const { host, anchor, contextView } = createContextView();
+			const creation: ISessionPullRequestCreation = {
+				operationId: 'create-pr', prepare: async () => details,
+				prepareChatRequest: async query => ({ query }), create: async () => assert.fail('Must not create'),
+			};
+			const options = { branchName: details.branchName, baseBranchName: details.baseBranchName };
+			contextView.show(anchor, creation, options);
+			await timeout(0);
+			const title = host.querySelector<HTMLInputElement>('input')!;
+			title.value = 'Another context';
+			title.dispatchEvent(new Event('input', { bubbles: true }));
+			contextView.close();
+			contextView.show(anchor, change === 'creation' ? { ...creation } : creation, {
+				...options, ...(change === 'creation' ? {} : { [change]: 'another-branch' }),
+			});
+			await timeout(0);
+			const newTitle = host.querySelector<HTMLInputElement>('input')!.value;
+			contextView.close();
+			contextView.show(anchor, creation, options);
+			await timeout(0);
+			assert.deepStrictEqual({
+				newTitle, originalTitle: host.querySelector<HTMLInputElement>('input')!.value,
+			}, {
+				newTitle: details.title, originalTitle: change === 'creation' ? 'Another context' : details.title,
+			});
+		});
+	}
+
+	for (const action of ['create', 'sendToChat'] as const) {
+		test(`failed ${action} preserves text after dismissal and reopening`, async () => {
+			const { host, anchor, contextView, errors } = createContextView();
+			const fail = async () => { throw new Error('Submission failed'); };
+			const creation: ISessionPullRequestCreation = {
+				operationId: 'create-pr', prepare: async () => details,
+				prepareChatRequest: async query => ({ query }), create: fail,
+			};
+			contextView.show(anchor, creation, { sendToChat: fail });
+			await timeout(0);
+			const description = host.querySelector<HTMLTextAreaElement>('textarea')!;
+			description.value = 'Keep my edited description';
+			description.dispatchEvent(new Event('input', { bubbles: true }));
+			if (action === 'sendToChat') {
+				host.querySelector<HTMLElement>('.monaco-dropdown-button')!.click();
+				chooseMenuAction('Send Create PR Message');
+			} else {
+				host.querySelector<HTMLElement>('.create-pr-submit')!.click();
+			}
+			await timeout(0);
+			const errorVisible = action === 'create' ? errors.length === 1 : !host.querySelector<HTMLElement>('[role="alert"]')!.hidden;
+			anchor.parentElement!.click();
+			contextView.show(anchor, creation);
+			await timeout(0);
+			assert.deepStrictEqual({
+				errorVisible, title: host.querySelector<HTMLInputElement>('input')!.value,
+				description: host.querySelector<HTMLTextAreaElement>('textarea')!.value,
+			}, { errorVisible: true, title: details.title, description: 'Keep my edited description' });
+		});
+	}
+
+	test('reopening refreshes prepared identity and capabilities without replacing saved text', async () => {
+		const { host, anchor, contextView } = createContextView();
+		const context = { workingDirectory: 'file:///repo', repository: details.repository, branchName: details.branchName, baseBranchName: details.baseBranchName };
+		const refreshedContext = { ...context, upstreamBranchName: 'origin/fix/keyboard-navigation' };
+		const submissions: ISessionPullRequestOptions[] = [];
+		let attempts = 0;
+		const creation: ISessionPullRequestCreation = {
+			operationId: 'create-pr', prepareChatRequest: async query => ({ query }),
+			prepare: async () => ++attempts === 1
+				? { ...details, context }
+				: { ...details, context: refreshedContext, autoMergeAllowed: false, description: 'Regenerated description' },
+			create: async options => { submissions.push(options); },
+		};
+		contextView.show(anchor, creation);
+		await timeout(0);
+		contextView.close();
+		contextView.show(anchor, creation);
+		await timeout(0);
+		const autoMergeDisabled = host.querySelector('[role="radio"][aria-label="Auto-Merge"]')!.getAttribute('aria-disabled');
+		host.querySelector<HTMLElement>('.create-pr-submit')!.click();
+		await timeout(0);
+		assert.deepStrictEqual({ attempts, autoMergeDisabled, submissions }, {
+			attempts: 2, autoMergeDisabled: 'true',
+			submissions: [{ title: details.title, description: details.description, draft: false, agentMerge: false, expectedContext: refreshedContext }],
+		});
+	});
+
 	for (const outcome of ['success', 'failure'] as const) {
 		test(`creation ${outcome} cannot close or steal focus from a newer form after a session switch`, async () => {
 			const { host, anchor, contextView, errors } = createContextView();
@@ -1226,7 +1598,7 @@ suite('CreatePullRequestWidget', () => {
 			input.dispatchEvent(new KeyboardEvent('keydown', { keyCode: 13, ctrlKey: !isMacintosh, metaKey: isMacintosh, bubbles: true }));
 			const outside = dom.append(host, dom.$('button', undefined, 'Another action'));
 			outside.click();
-			const visibleWhileSubmitting = !!host.querySelector('[role="dialog"]');
+			const closedWhileSubmitting = !host.querySelector('[role="dialog"]');
 			contextView.close();
 			contextView.show(anchor, { operationId: 'create-pr', prepare: async () => ({ ...details, title: 'Another session' }), prepareChatRequest: async query => ({ query }), create: async () => { } });
 			await timeout(0);
@@ -1240,15 +1612,41 @@ suite('CreatePullRequestWidget', () => {
 			}
 			await timeout(0);
 			assert.deepStrictEqual({
-				visibleWhileSubmitting,
+				closedWhileSubmitting,
 				title: host.querySelector<HTMLInputElement>('input')?.value,
 				focusRetained: dom.getActiveElement() === newInput,
 				errors,
 			}, {
-				visibleWhileSubmitting: true, title: 'Another session', focusRetained: true,
+				closedWhileSubmitting: true, title: 'Another session', focusRetained: true,
 				errors: outcome === 'failure' ? [error] : [],
 			});
 			contextView.close();
 		});
 	}
+
+	test('direct creation closes immediately, restores focus, and completes in the background', async () => {
+		const { host, anchor, contextView } = createContextView();
+		const completion = new DeferredPromise<void>();
+		const submissions: ISessionPullRequestOptions[] = [];
+		let created = 0;
+		anchor.focus();
+		contextView.show(anchor, {
+			operationId: 'create-pr', prepare: async () => details,
+			prepareChatRequest: async query => ({ query }),
+			create: async options => { submissions.push(options); await completion.p; },
+		}, undefined, () => created++);
+		await timeout(0);
+		host.querySelector<HTMLElement>('.create-pr-submit')!.click();
+		const duringCreation = {
+			closed: !host.querySelector('[role="dialog"]'),
+			focused: dom.getActiveElement() === anchor,
+			created,
+		};
+		await completion.complete();
+		await timeout(0);
+		assert.deepStrictEqual({ duringCreation, created, submissions }, {
+			duringCreation: { closed: true, focused: true, created: 0 }, created: 1,
+			submissions: [{ title: details.title, description: details.description, draft: false, agentMerge: false }],
+		});
+	});
 });

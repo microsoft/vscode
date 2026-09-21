@@ -46,6 +46,7 @@ import { ExtensionIdentifier } from '../../../../../platform/extensions/common/e
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { IPathService } from '../../../../services/path/common/pathService.js';
 import { IOutputService } from '../../../../services/output/common/output.js';
+import { AbstractVariableResolverService } from '../../../../services/configurationResolver/common/variableResolver.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { IWorkingCopyService } from '../../../../services/workingCopy/common/workingCopyService.js';
 import { IWebviewService } from '../../../../contrib/webview/browser/webview.js';
@@ -54,6 +55,7 @@ import { ICustomizationHarnessService, ICustomizationItem, ICustomizationItemPro
 import { IChatSessionsService } from '../../../../contrib/chat/common/chatSessionsService.js';
 import { getChatSessionType, LocalChatSessionUri } from '../../../../contrib/chat/common/model/chatUri.js';
 import { ICustomizationMigrationService } from '../../../../contrib/chat/common/promptSyntax/service/customizationMigrationService.js';
+import { ICustomizationMigrationTelemetryService } from '../../../../contrib/chat/common/promptSyntax/service/customizationMigrationTelemetryService.js';
 import { CustomizationMigrationService } from '../../../../contrib/chat/browser/aiCustomization/customizationMigrationServiceImpl.js';
 import { IPromptsService, AgentInstructionFileType, PromptsStorage, IAgentSkill, IChatPromptSlashCommand, IAgentInstructionFile } from '../../../../contrib/chat/common/promptSyntax/service/promptsService.js';
 import { IResolvedPromptSourceFolder } from '../../../../contrib/chat/common/promptSyntax/config/promptFileLocations.js';
@@ -115,6 +117,23 @@ import '../../../../contrib/chat/browser/aiCustomization/media/aiCustomizationMa
 
 const userHome = URI.file('/home/dev');
 const BUILTIN_STORAGE = 'builtin';
+
+class FixtureConfigurationResolverService extends AbstractVariableResolverService {
+	constructor() {
+		super({
+			getFolderUri: () => undefined,
+			getWorkspaceFolderCount: () => 0,
+			getConfigurationValue: () => undefined,
+			getAppRoot: () => undefined,
+			getExecPath: () => undefined,
+			getFilePath: () => undefined,
+			getSelectedText: () => undefined,
+			getLineNumber: () => undefined,
+			getColumnNumber: () => undefined,
+			getExtension: async () => undefined,
+		});
+	}
+}
 
 function createMockMcpGalleryManifestService(): IMcpGalleryManifestService {
 	return new class extends mock<IMcpGalleryManifestService>() {
@@ -746,6 +765,7 @@ interface IRenderEditorOptions {
 	/** When true, simulates clicking the first list row to enter the embedded editor / detail view. */
 	readonly openFirstItem?: boolean;
 	readonly openItemLabel?: string;
+	readonly pluginReadmeContent?: string;
 	readonly editorDisplayMode?: 'preview' | 'raw';
 	readonly migrationDashboard?: boolean;
 	readonly migrationActivity?: boolean;
@@ -801,6 +821,12 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 		.map(file => ({ ...file }));
 	const fileContents = createFixtureContentMap(fixtureFiles, agentInstructions);
 	fileContents.set(URI.file('/workspace/.vscode/mcp.json'), '{\n\t"servers": {\n\t\t"Remote Browser": {\n\t\t\t"type": "http",\n\t\t\t"url": "https://mcp.example.com"\n\t\t}\n\t}\n}\n');
+	const delayedReadFiles = new ResourceSet();
+	if (options.pluginReadmeContent !== undefined) {
+		const pluginReadmeUri = URI.file('/workspace/.copilot/plugins/circleci/README.md');
+		fileContents.set(pluginReadmeUri, options.pluginReadmeContent);
+		delayedReadFiles.add(pluginReadmeUri);
+	}
 	const promptFilesDidChangeEmitter = ctx.disposableStore.add(new Emitter<void>());
 	const createdFolders = new ResourceSet();
 	const migrationFileService = new class extends mock<IFileService>() {
@@ -918,6 +944,15 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 			}());
 			const promptsService = createMockPromptsService(fixtureFiles, agentInstructions, fileContents, promptFilesDidChangeEmitter.event);
 			reg.defineInstance(IPromptsService, promptsService);
+			reg.defineInstance(ICustomizationMigrationTelemetryService, new class extends mock<ICustomizationMigrationTelemetryService>() {
+				override hintComputed() { }
+				override hintShown() { }
+				override hintClicked() { }
+				override pageShown() { }
+				override actionClicked() { }
+				override migrationClicked() { }
+				override migrationCompleted() { }
+			}());
 			const agentHostCustomizationService = createMockAgentHostCustomizationService(options.activeSessionMcpServers);
 			reg.defineInstance(ICustomizationMigrationService, new CustomizationMigrationService(
 				promptsService,
@@ -963,6 +998,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 				migrationFileService,
 				new NullLogService(),
 				configurationService,
+				new FixtureConfigurationResolverService(),
 			));
 			reg.defineInstance(IAICustomizationWorkspaceService, new class extends mock<IAICustomizationWorkspaceService>() {
 				override readonly isSessionsWindow = isSessionsWindow;
@@ -1013,6 +1049,9 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 					return fileContents.has(resource) || createdFolders.has(resource);
 				}
 				override async readFile(resource: URI) {
+					if (delayedReadFiles.has(resource)) {
+						await timeout(50);
+					}
 					const value = fileContents.get(resource) ?? '';
 					return createFixtureFileContentStat(resource, value);
 				}
@@ -1181,6 +1220,16 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 
 	modelServiceRef.value = instantiationService.get(IModelService);
 	languageServiceRef.value = instantiationService.get(ILanguageService);
+	if (options.pluginReadmeContent !== undefined) {
+		instantiationService.get(IMarkdownRendererService).setDefaultCodeBlockRenderer({
+			async renderCodeBlock(_languageAlias, value) {
+				await timeout(50);
+				const code = DOM.$('code');
+				code.textContent = value;
+				return code;
+			},
+		});
+	}
 	for (const [uri, content] of fileContents) {
 		if (!modelServiceRef.value.getModel(uri)) {
 			const model = modelServiceRef.value.createModel(content, null, uri, false);
@@ -1265,23 +1314,71 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 	}
 
 	if (options.openFirstItem) {
-		const visibleContent = [...ctx.container.querySelectorAll('.prompts-content-container, .mcp-content-container, .plugin-content-container')]
-			.find(node => node instanceof HTMLElement && node.style.display !== 'none') as HTMLElement | undefined;
-		const openItemLabel = options.openItemLabel;
-		const rowToOpen = openItemLabel
-			? [...(visibleContent?.querySelectorAll('.monaco-list-row') ?? [])].find((row): row is HTMLElement => row instanceof HTMLElement && row.textContent?.includes(openItemLabel))
-			: visibleContent?.querySelector('.monaco-list-row.ai-customization-list-item, .monaco-list-row.mcp-server-item, .plugin-home-row') as HTMLElement | undefined;
-		if (rowToOpen) {
-			rowToOpen.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, button: 0 }));
-			rowToOpen.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0 }));
-			rowToOpen.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, button: 0 }));
-			rowToOpen.dispatchEvent(new MouseEvent('click', { bubbles: true, button: 0 }));
+		if (options.pluginReadmeContent !== undefined) {
+			const plugin = installedPlugins.find(plugin => plugin.label === 'CircleCI');
+			if (!plugin) {
+				throw new Error('CircleCI fixture plugin not found');
+			}
+			await editor.showPluginDetail({
+				kind: AgentPluginItemKind.Installed,
+				name: plugin.label,
+				description: '/workspace/.copilot/plugins',
+				plugin,
+			});
+		} else {
+			const visibleContent = [...ctx.container.querySelectorAll('.prompts-content-container, .mcp-content-container, .plugin-content-container')]
+				.find(node => node instanceof HTMLElement && node.style.display !== 'none') as HTMLElement | undefined;
+			const openItemLabel = options.openItemLabel;
+			const rowToOpen = openItemLabel
+				? [...(visibleContent?.querySelectorAll('.monaco-list-row') ?? [])].find((row): row is HTMLElement => row instanceof HTMLElement && row.textContent?.includes(openItemLabel))
+				: visibleContent?.querySelector('.monaco-list-row.ai-customization-list-item, .monaco-list-row.mcp-server-item, .monaco-list-row.plugin-list-item, .plugin-home-row') as HTMLElement | undefined;
+			if (rowToOpen) {
+				rowToOpen.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, button: 0 }));
+				rowToOpen.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0 }));
+				rowToOpen.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, button: 0 }));
+				rowToOpen.dispatchEvent(new MouseEvent('click', { bubbles: true, button: 0 }));
 
-			if (options.editorDisplayMode === 'raw') {
-				const modeButton = ctx.container.querySelector('.editor-mode-button') as HTMLButtonElement | undefined;
-				modeButton?.click();
+				if (options.editorDisplayMode === 'raw') {
+					const modeButton = ctx.container.querySelector('.editor-mode-button') as HTMLButtonElement | undefined;
+					modeButton?.click();
+				}
 			}
 		}
+
+		if (options.pluginReadmeContent !== undefined) {
+			let pluginDetailContainer: HTMLElement | null = null;
+			let overflowingCodeBlock: HTMLElement | null = null;
+			for (let attempt = 0; attempt < 40 && (!pluginDetailContainer || !overflowingCodeBlock); attempt++) {
+				await timeout(50);
+				const pluginDetailView = ctx.container.querySelector<HTMLElement>('.plugin-detail-container');
+				const detailContainer = pluginDetailView?.querySelector<HTMLElement>('.plugin-detail-editor-container');
+				const codeBlock = detailContainer?.querySelector<HTMLElement>('div[data-code]');
+				if (pluginDetailView?.style.display !== 'none' && detailContainer && detailContainer.scrollHeight > detailContainer.clientHeight && codeBlock && codeBlock.scrollWidth > codeBlock.clientWidth) {
+					pluginDetailContainer = detailContainer;
+					overflowingCodeBlock = codeBlock;
+				}
+			}
+			if (!pluginDetailContainer || !overflowingCodeBlock) {
+				throw new Error('Overflowing plugin detail did not render');
+			}
+			pluginDetailContainer.scrollTop = pluginDetailContainer.scrollHeight;
+			await timeout(50);
+		}
+	}
+
+	for (const selector of ['.welcome-page-host', '.mcp-content-container', '.plugin-content-container']) {
+		const panel = ctx.container.querySelector<HTMLElement>(selector);
+		const scrollHost = panel?.querySelector<HTMLElement>('.welcome-prompts-scrollable, .plugin-card-scrollable');
+		if (!panel || !scrollHost || scrollHost.getBoundingClientRect().height === 0) {
+			continue;
+		}
+		const panelBounds = panel.getBoundingClientRect();
+		const scrollBounds = scrollHost.getBoundingClientRect();
+		assert(
+			Math.abs(scrollBounds.left - panelBounds.left - panel.clientLeft) < 1
+			&& Math.abs(scrollBounds.width - panel.clientWidth) < 1,
+			`${selector} must keep its page scroll host flush with both panel edges.`,
+		);
 	}
 }
 
@@ -1496,6 +1593,15 @@ const marketplacePlugins: IMarketplacePlugin[] = [
 	makeMarketplacePlugin('PlanetScale', 'Serverless MySQL database management', 'planetscale-plugin'),
 	makeMarketplacePlugin('Vercel', 'Deployment and preview environments', 'vercel-plugin'),
 ];
+
+const overflowingPluginReadme = [
+	'# CircleCI plugin',
+	'Use this plugin to manage issues and projects from your agent session.',
+	...Array.from({ length: 12 }, (_, index) => `## Workflow ${index + 1}\n\nConfigure and run workflow ${index + 1} with the settings described below.`),
+	'```text',
+	'circleci configure --workspace example-corporation --project visual-studio-code --include-archived-projects false --sync-assignees true --output-format json --include-workflow-metadata true --include-job-metadata true',
+	'```',
+].join('\n\n');
 
 async function renderPluginCatalog(ctx: ComponentFixtureContext, browse: boolean, searchQuery?: string, width = browse ? 650 : 840, noInstalledPlugins = false): Promise<void> {
 	const height = browse ? 600 : 800;
@@ -2232,6 +2338,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 
 	ToolsTabNarrow: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: true },
+		deferPaint: true,
 		expectedVisualDescriptions: ['The narrow Agents-window Tools page shows Built-in Tools and an Extension Tools section with a count of eight.'],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: agentHostCopilotSessionResource,
@@ -2277,6 +2384,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 
 	PromptMigration: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: true },
+		deferPaint: true,
 		render: ctx => renderEditor(ctx, {
 			sessionResource: agentHostCopilotSessionResource,
 			migrationCategory: CustomizationMigrationCategoryId.PromptFiles,
@@ -2302,6 +2410,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 
 	ConfiguredLocationsMigration: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: true },
+		deferPaint: true,
 		expectedVisualDescriptions: ['The Migrate Configured Locations page shows one Agents section containing only SuperAgent. Instructions and Skills sections are not shown because they have no files to migrate.'],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: agentHostCopilotSessionResource,
@@ -2534,10 +2643,12 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	// Plugin detail view — same alignment check for the detail back button.
 	PluginDetail: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: true },
+		expectedVisualDescriptions: ['The plugin detail page shows an overflowing README with themed vertical and horizontal scrollbars.'],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
 			selectedSection: AICustomizationManagementSection.Plugins,
 			openFirstItem: true,
+			pluginReadmeContent: overflowingPluginReadme,
 		}),
 	}),
 

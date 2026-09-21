@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { IListAccessibilityProvider } from '../../../../../../../base/browser/ui/list/listWidget.js';
 import { DeferredPromise } from '../../../../../../../base/common/async.js';
 import { Codicon } from '../../../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../../../base/common/event.js';
@@ -13,6 +14,7 @@ import { URI } from '../../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { isIMenuItem, MenuId, MenuRegistry } from '../../../../../../../platform/actions/common/actions.js';
+import { IActionViewItemService } from '../../../../../../../platform/actions/browser/actionViewItemService.js';
 import { ActionListItemKind, IActionListDelegate, IActionListItem } from '../../../../../../../platform/actionWidget/browser/actionList.js';
 import { IActionWidgetService } from '../../../../../../../platform/actionWidget/browser/actionWidget.js';
 import { AGENT_HOST_CHECKOUT_CHANGESET_OPERATION_ID } from '../../../../../../../platform/agentHost/common/agentHostChangesetOperationService.js';
@@ -31,17 +33,20 @@ import { ITelemetryService } from '../../../../../../../platform/telemetry/commo
 import { NullTelemetryService } from '../../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { IView } from '../../../../../../../workbench/common/views.js';
 import { IViewsService } from '../../../../../../../workbench/services/views/common/viewsService.js';
+import { IWorkbenchLayoutService } from '../../../../../../../workbench/services/layout/browser/layoutService.js';
 import { IAgentWorkbenchLayoutService } from '../../../../../../browser/workbench.js';
-import { Menus } from '../../../../../../browser/menus.js';
+import { getNewSessionRepositoryConfigGroup, Menus } from '../../../../../../browser/menus.js';
 import { IAgentHostSessionsProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../../../common/agentHostSessionsProvider.js';
 import { DevContainerWorktreeEnabledSettingId } from '../../../../../../common/devContainerAgentHostService.js';
 import { ISessionChangesService } from '../../../../../../contrib/changes/browser/sessionChangesService.js';
 import { CHANGES_VIEW_ID } from '../../../../../../contrib/changes/common/changes.js';
 import { ISessionsProvidersService } from '../../../../../../services/sessions/browser/sessionsProvidersService.js';
+import { ISessionsService } from '../../../../../../services/sessions/browser/sessionsService.js';
 import { IActiveSession } from '../../../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionChangeset, ISessionChangesetOperationTarget, ISessionWorkspace, SessionChangesetOperationScope, SessionChangesetOperationStatus, UNCOMMITTED_CHANGES_CHANGESET_ID } from '../../../../../../services/sessions/common/session.js';
 import { ISessionsProvider } from '../../../../../../services/sessions/common/sessionsProvider.js';
-import { AgentHostSessionConfigPicker, IConfigPickerItem, PickerActionViewItem } from '../../../browser/agentHostSessionConfigPicker.js';
+import { AgentHostSessionConfigPicker, AgentHostSessionConfigPickerContribution, IConfigPickerItem, PickerActionViewItem } from '../../../browser/agentHostSessionConfigPicker.js';
+import { getWindow } from '../../../../../../../base/browser/dom.js';
 
 const SESSION_ID = 'local-agent-host:s1';
 const SESSION_RESOURCE = URI.parse('agent-session:/s1');
@@ -218,6 +223,7 @@ function branchState(container: HTMLElement): { icon: string | undefined; ariaLa
 class CapturingActionWidgetHolder {
 	delegate: IActionListDelegate<IConfigPickerItem> | undefined;
 	items: readonly IActionListItem<IConfigPickerItem>[] = [];
+	accessibilityProvider: Partial<IListAccessibilityProvider<IActionListItem<IConfigPickerItem>>> | undefined;
 	readonly events: string[] = [];
 }
 
@@ -239,9 +245,10 @@ function setupServices(
 	instantiationService.stub(IActionWidgetService, {
 		isVisible: false,
 		hide: () => actionWidget.events.push('hide'),
-		show: (_user, _supportsPreview, items: readonly IActionListItem<IConfigPickerItem>[], delegate: IActionListDelegate<IConfigPickerItem>) => {
+		show: (_user, _supportsPreview, items: readonly IActionListItem<IConfigPickerItem>[], delegate: IActionListDelegate<IConfigPickerItem>, _anchor, _container, _actionBarActions, accessibilityProvider: Partial<IListAccessibilityProvider<IActionListItem<IConfigPickerItem>>> | undefined) => {
 			actionWidget.items = items;
 			actionWidget.delegate = delegate;
+			actionWidget.accessibilityProvider = accessibilityProvider;
 		},
 	} as Partial<IActionWidgetService> as IActionWidgetService);
 	instantiationService.stub(IHoverService, { setupDelayedHover: () => ({ dispose: () => { } }) } as Partial<IHoverService> as IHoverService);
@@ -326,12 +333,12 @@ function setupServices(
 		override readonly changesets = changesetsObs;
 	}();
 	const sessionObs = observableValue<IActiveSession | undefined>('activeSession', activeSession);
-	return { instantiationService, provider, sessionObs, workspaceObs, changesetsObs, uncommittedChangeset, actionWidget, checkoutInvocations, branchSelectionEvents, checkoutDialogs };
+	return { instantiationService, provider, activeSession, sessionObs, workspaceObs, changesetsObs, uncommittedChangeset, actionWidget, checkoutInvocations, branchSelectionEvents, checkoutDialogs };
 }
 
 /** Create and render a fresh picker instance, as the toolbar does on a rebuild. */
 function renderPicker(store: Pick<ReturnType<typeof ensureNoDisposablesAreLeakedInTestSuite>, 'add'>, services: ReturnType<typeof setupServices>) {
-	const picker = store.add(services.instantiationService.createInstance(AgentHostSessionConfigPicker, services.sessionObs));
+	const picker = store.add(services.instantiationService.createInstance(AgentHostSessionConfigPicker, services.sessionObs, undefined));
 	const container = document.createElement('div');
 	picker.render(container);
 	return { picker, container };
@@ -346,6 +353,73 @@ suite('Agent Host Session Config Picker', () => {
 		const { container } = renderPicker(store, services);
 
 		assert.strictEqual(container.classList.contains('sessions-chat-agent-host-config-host'), true);
+	});
+
+	test('renders one repository control per toolbar action view item', () => {
+		const services = setupServices(store);
+		const isolationPicker = store.add(services.instantiationService.createInstance(AgentHostSessionConfigPicker, services.sessionObs, SessionConfigKey.Isolation));
+		const branchPicker = store.add(services.instantiationService.createInstance(AgentHostSessionConfigPicker, services.sessionObs, SessionConfigKey.Branch));
+		const isolationContainer = document.createElement('div');
+		const branchContainer = document.createElement('div');
+		isolationPicker.render(isolationContainer);
+		branchPicker.render(branchContainer);
+		isolationPicker.setFocusable(true);
+		branchPicker.setFocusable(false);
+
+		assert.deepStrictEqual({
+			isolation: {
+				controls: isolationContainer.querySelectorAll('.sessions-chat-picker-slot').length,
+				hasIsolation: !!isolationSlot(isolationContainer),
+				hasBranch: !!branchSlot(isolationContainer),
+				tabIndex: isolationContainer.querySelector<HTMLElement>('[tabindex]')?.tabIndex,
+			},
+			branch: {
+				controls: branchContainer.querySelectorAll('.sessions-chat-picker-slot').length,
+				hasIsolation: !!isolationSlot(branchContainer),
+				hasBranch: !!branchSlot(branchContainer),
+				tabIndex: branchContainer.querySelector<HTMLElement>('[tabindex]')?.tabIndex,
+			},
+		}, {
+			isolation: { controls: 1, hasIsolation: true, hasBranch: false, tabIndex: 0 },
+			branch: { controls: 1, hasIsolation: false, hasBranch: true, tabIndex: -1 },
+		});
+	});
+
+	test('contributes one repository toolbar action per renderable property', () => {
+		const services = setupServices(store);
+		services.instantiationService.stub(IActionViewItemService, new class extends mock<IActionViewItemService>() {
+			override readonly onDidChange = Event.None;
+			override register() { return toDisposable(() => { }); }
+		}());
+		services.instantiationService.stub(IWorkbenchLayoutService, new class extends mock<IWorkbenchLayoutService>() {
+			override readonly mainContainer = document.createElement('div');
+		}());
+		services.instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
+			override readonly visibleSessions = constObservable([services.activeSession]);
+		}());
+		store.add(services.instantiationService.createInstance(AgentHostSessionConfigPickerContribution));
+
+		const entries = MenuRegistry.getMenuItems(Menus.NewSessionRepositoryConfig)
+			.filter(isIMenuItem)
+			.filter(item => item.command.id.startsWith('sessions.agentHost.sessionConfigPicker.'))
+			.map(item => ({
+				id: item.command.id,
+				title: typeof item.command.title === 'string' ? item.command.title : item.command.title.value,
+				group: item.group,
+				order: item.order,
+			}));
+
+		assert.deepStrictEqual(entries, [{
+			id: `sessions.agentHost.sessionConfigPicker.${SessionConfigKey.Isolation}`,
+			title: 'Isolation',
+			group: getNewSessionRepositoryConfigGroup(1, `sessions.agentHost.sessionConfigPicker.${SessionConfigKey.Isolation}`),
+			order: 1,
+		}, {
+			id: `sessions.agentHost.sessionConfigPicker.${SessionConfigKey.Branch}`,
+			title: 'Base Branch',
+			group: getNewSessionRepositoryConfigGroup(2, `sessions.agentHost.sessionConfigPicker.${SessionConfigKey.Branch}`),
+			order: 2,
+		}]);
 	});
 
 	test('restores pointer and keyboard focus without leaving pointer focus visible', async () => {
@@ -372,6 +446,54 @@ suite('Agent Host Session Config Picker', () => {
 		}, {
 			pointerFocusCalls: 1,
 			keyboardFocusCalls: 2,
+		});
+	});
+
+	test('keeps the repository action bar active only while the branch picker is open', async () => {
+		const services = setupServices(store);
+		services.provider.config = makeRepoConfig('main');
+		services.provider.config.schema.properties.other = {
+			title: 'Other', description: '', type: 'string',
+			enum: ['one', 'two'],
+		};
+		services.provider.config.values.other = 'one';
+		const { container } = renderPicker(store, services);
+		const repositoryConfigContainer = document.createElement('div');
+		repositoryConfigContainer.classList.add('new-chat-repo-config-container');
+		repositoryConfigContainer.appendChild(container);
+		const trigger = branchSlot(container)!.querySelector<HTMLElement>('a.action-label')!;
+		const otherTrigger = Array.from(container.querySelectorAll<HTMLElement>('.sessions-chat-picker-slot'))
+			.at(-1)!
+			.querySelector<HTMLElement>('a.action-label')!;
+
+		const beforeOpen = {
+			expanded: trigger.getAttribute('aria-expanded'),
+			repositoryPickerOpen: repositoryConfigContainer.getAttribute('data-picker-open'),
+		};
+		otherTrigger.click();
+		await new Promise(resolve => setTimeout(resolve));
+		const otherPickerOpen = {
+			expanded: otherTrigger.getAttribute('aria-expanded'),
+			repositoryPickerOpen: repositoryConfigContainer.getAttribute('data-picker-open'),
+		};
+		services.actionWidget.delegate!.onHide();
+		trigger.click();
+		await new Promise(resolve => setTimeout(resolve));
+		const whileOpen = {
+			expanded: trigger.getAttribute('aria-expanded'),
+			repositoryPickerOpen: repositoryConfigContainer.getAttribute('data-picker-open'),
+		};
+		services.actionWidget.delegate!.onHide();
+		const afterClose = {
+			expanded: trigger.getAttribute('aria-expanded'),
+			repositoryPickerOpen: repositoryConfigContainer.getAttribute('data-picker-open'),
+		};
+
+		assert.deepStrictEqual({ beforeOpen, otherPickerOpen, whileOpen, afterClose }, {
+			beforeOpen: { expanded: 'false', repositoryPickerOpen: null },
+			otherPickerOpen: { expanded: 'true', repositoryPickerOpen: null },
+			whileOpen: { expanded: 'true', repositoryPickerOpen: 'true' },
+			afterClose: { expanded: 'false', repositoryPickerOpen: null },
 		});
 	});
 
@@ -504,9 +626,46 @@ suite('Agent Host Session Config Picker', () => {
 		});
 	});
 
+	test('repository picker action view items use the toolbar roving tab stop', () => {
+		const createItem = () => {
+			const item = store.add(new PickerActionViewItem({
+				render: container => {
+					const trigger = document.createElement('button');
+					trigger.tabIndex = 0;
+					container.appendChild(trigger);
+					return trigger;
+				},
+				dispose: () => { },
+			}, undefined, true));
+			const container = document.createElement('div');
+			document.body.appendChild(container);
+			store.add(toDisposable(() => container.remove()));
+			item.render(container);
+			return { item, trigger: container.querySelector<HTMLElement>('button')! };
+		};
+		const first = createItem();
+		const second = createItem();
+
+		first.item.setFocusable(true);
+		second.item.setFocusable(false);
+		const initialTabIndexes = [first.trigger.tabIndex, second.trigger.tabIndex];
+		first.item.blur();
+		second.item.focus();
+
+		assert.deepStrictEqual({
+			initialTabIndexes,
+			focusedTabIndexes: [first.trigger.tabIndex, second.trigger.tabIndex],
+			secondFocused: document.activeElement === second.trigger,
+		}, {
+			initialTabIndexes: [0, -1],
+			focusedTabIndexes: [-1, 0],
+			secondFocused: true,
+		});
+	});
+
 	test('generic auto-approve chips retain their contextual accessible name', () => {
 		const services = setupServices(store);
-		const picker = store.add(services.instantiationService.createInstance(AlwaysRenderConfigPicker, services.sessionObs));
+		const picker = store.add(services.instantiationService.createInstance(AlwaysRenderConfigPicker, services.sessionObs, undefined));
 		const trigger = document.createElement('span');
 		picker.renderTriggerForTest(trigger, SessionConfigKey.AutoApprove, {
 			title: 'Approval Mode',
@@ -522,6 +681,47 @@ suite('Agent Host Session Config Picker', () => {
 		}, {
 			ariaLabel: 'Approval Mode: Assisted, Read-Only',
 			warning: true,
+		});
+	});
+
+	test('generic approval choices announce their badges without losing accessible descriptions', async () => {
+		const services = setupServices(store);
+		services.provider.config = {
+			schema: {
+				type: 'object',
+				properties: {
+					autoApprove: {
+						title: 'Approvals',
+						type: 'string',
+						enum: ['default', 'assisted', 'custom'],
+						enumLabels: ['Manual permissions', 'Assisted permissions', 'Custom permissions'],
+					},
+				},
+			},
+			values: { autoApprove: 'default' },
+		};
+		const picker = store.add(services.instantiationService.createInstance(AlwaysRenderConfigPicker, services.sessionObs, SessionConfigKey.AutoApprove));
+		const container = document.createElement('div');
+		picker.render(container);
+		container.querySelector<HTMLElement>('.action-label')!.click();
+		await new Promise(resolve => setTimeout(resolve));
+
+		const getAriaLabel = services.actionWidget.accessibilityProvider?.getAriaLabel;
+		assert.ok(getAriaLabel);
+		const assisted = services.actionWidget.items.find(item => item.item?.value === 'assisted');
+		assert.ok(assisted);
+		assert.deepStrictEqual({
+			choices: services.actionWidget.items.map(item => ({ label: getAriaLabel(item), badge: item.badge })),
+			withDescription: getAriaLabel({ ...assisted, ariaDescription: 'Evaluates risk before running tools' }),
+			descriptionOnly: getAriaLabel({ ...assisted, badge: undefined, ariaDescription: 'Evaluates risk before running tools' }),
+		}, {
+			choices: [
+				{ label: 'Manual permissions', badge: undefined },
+				{ label: 'Assisted permissions, Experimental', badge: 'Experimental' },
+				{ label: 'Custom permissions', badge: undefined },
+			],
+			withDescription: 'Assisted permissions, Experimental, Evaluates risk before running tools',
+			descriptionOnly: 'Assisted permissions, Evaluates risk before running tools',
 		});
 	});
 
@@ -768,7 +968,7 @@ suite('Agent Host Session Config Picker', () => {
 				}
 			});
 			services.provider.config = makeDynamicBranchConfig('main', 'folder');
-			const picker = store.add(services.instantiationService.createInstance(AlwaysRenderConfigPicker, services.sessionObs));
+			const picker = store.add(services.instantiationService.createInstance(AlwaysRenderConfigPicker, services.sessionObs, undefined));
 
 			await picker.setSessionConfigValueForTest(services.provider, SessionConfigKey.Branch, 'dev');
 			outcomes.push({
@@ -832,7 +1032,7 @@ suite('Agent Host Session Config Picker', () => {
 			}
 		});
 		services.provider.config = makeDynamicBranchConfig('main', 'folder');
-		const picker = store.add(services.instantiationService.createInstance(AlwaysRenderConfigPicker, services.sessionObs));
+		const picker = store.add(services.instantiationService.createInstance(AlwaysRenderConfigPicker, services.sessionObs, undefined));
 		const container = document.createElement('div');
 		picker.render(container);
 
@@ -937,12 +1137,13 @@ suite('Agent Host Session Config Picker', () => {
 	test('serializes interleaved branch and isolation selections before deciding checkout', async () => {
 		const services = setupServices(store);
 		services.provider.config = makeDynamicBranchConfig('main', 'worktree');
-		const picker = store.add(services.instantiationService.createInstance(AlwaysRenderConfigPicker, services.sessionObs));
+		const branchPicker = store.add(services.instantiationService.createInstance(AlwaysRenderConfigPicker, services.sessionObs, SessionConfigKey.Branch));
+		const isolationPicker = store.add(services.instantiationService.createInstance(AlwaysRenderConfigPicker, services.sessionObs, SessionConfigKey.Isolation));
 
 		await Promise.all([
-			picker.setSessionConfigValueForTest(services.provider, SessionConfigKey.Branch, 'featureA'),
-			picker.setSessionConfigValueForTest(services.provider, SessionConfigKey.Isolation, 'folder'),
-			picker.setSessionConfigValueForTest(services.provider, SessionConfigKey.Branch, 'featureB'),
+			branchPicker.setSessionConfigValueForTest(services.provider, SessionConfigKey.Branch, 'featureA'),
+			isolationPicker.setSessionConfigValueForTest(services.provider, SessionConfigKey.Isolation, 'folder'),
+			branchPicker.setSessionConfigValueForTest(services.provider, SessionConfigKey.Branch, 'featureB'),
 		]);
 
 		assert.deepStrictEqual({
@@ -1132,6 +1333,8 @@ suite('Agent Host Session Config Picker', () => {
 		checkbox.focus();
 		provider.set(makeRepoConfig('main', 'folder'), true);
 		const resolvingCheckbox = isolationSlot(container)!.querySelector<HTMLElement>('.monaco-checkbox')!;
+		const resolvingActionLabel = isolationSlot(container)!.querySelector<HTMLElement>('.action-label')!;
+		resolvingActionLabel.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
 		const resolvingState = {
 			sameNode: resolvingCheckbox === checkbox,
 			focused: document.activeElement === checkbox,
@@ -1140,6 +1343,8 @@ suite('Agent Host Session Config Picker', () => {
 			disabledPalette: resolvingCheckbox.classList.contains('disabled'),
 			resolving: isolationSlot(container)!.classList.contains('resolving'),
 			dimmed: isolationSlot(container)!.classList.contains('disabled'),
+			pointerEvents: getWindow(container).getComputedStyle(resolvingActionLabel).pointerEvents,
+			setSessionConfigValueCalls: provider.setSessionConfigValueCalls,
 		};
 
 		provider.set(makeRepoConfig('main', 'folder'), false);
@@ -1163,6 +1368,8 @@ suite('Agent Host Session Config Picker', () => {
 				disabledPalette: false,
 				resolving: true,
 				dimmed: false,
+				pointerEvents: 'auto',
+				setSessionConfigValueCalls: 0,
 			},
 			resolved: {
 				sameNode: true,
@@ -1243,7 +1450,7 @@ suite('Agent Host Session Config Picker', () => {
 	test('does not render configuration controls when the workspace has no Git repository', () => {
 		const services = setupServices(store);
 		services.provider.config = makeNoGitConfig();
-		const picker = store.add(services.instantiationService.createInstance(AlwaysRenderConfigPicker, services.sessionObs));
+		const picker = store.add(services.instantiationService.createInstance(AlwaysRenderConfigPicker, services.sessionObs, undefined));
 		const container = document.createElement('div');
 		picker.render(container);
 
@@ -1273,7 +1480,7 @@ suite('Agent Host Session Config Picker', () => {
 			},
 			values: { [SessionConfigKey.Isolation]: 'worktree', [SessionConfigKey.WorktreeBranchTrack]: false, [SessionConfigKey.WorktreeCreateNewBranch]: true },
 		} as ResolveSessionConfigResult;
-		const picker = store.add(services.instantiationService.createInstance(AlwaysRenderConfigPicker, services.sessionObs));
+		const picker = store.add(services.instantiationService.createInstance(AlwaysRenderConfigPicker, services.sessionObs, undefined));
 		const container = document.createElement('div');
 		picker.render(container);
 
@@ -1293,7 +1500,7 @@ suite('Agent Host Session Config Picker', () => {
 			},
 			values: { [SessionConfigKey.SandboxEnabled]: 'off' },
 		};
-		const picker = store.add(services.instantiationService.createInstance(AlwaysRenderConfigPicker, services.sessionObs));
+		const picker = store.add(services.instantiationService.createInstance(AlwaysRenderConfigPicker, services.sessionObs, undefined));
 		const container = document.createElement('div');
 		picker.render(container);
 

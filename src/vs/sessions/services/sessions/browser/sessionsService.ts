@@ -208,11 +208,11 @@ export interface ISessionsService {
 	 */
 	openSession(sessionResource: URI, options?: IOpenSessionOptions): Promise<void>;
 
-	/** Place a session to the right of the last visible session and activate it. */
-	openSessionToSide(session: ISession, options?: IOpenSessionOptions & { chatResource?: URI }): Promise<void>;
+	/** Place a session to the right of a visible reference, or the last visible session, and activate it. */
+	openSessionToSide(session: ISession, options?: IOpenSessionOptions & { chatResource?: URI; referenceSessionId?: string }): Promise<void>;
 
-	/** Open a chat to the side of its session view, redirecting a superseded resource first. */
-	openChatToSide(session: ISession, chatResource: URI, options?: { preserveFocus?: boolean }): Promise<void>;
+	/** Open a chat beside a visible reference chat, or its current group, redirecting a superseded resource first. */
+	openChatToSide(session: ISession, chatResource: URI, options?: { preserveFocus?: boolean; referenceChatResource?: URI }): Promise<void>;
 
 	/**
 	 * Whether the given session may be opened, honoring workspace trust. Prompts
@@ -385,12 +385,8 @@ export class SessionsService extends Disposable implements ISessionsService {
 	 */
 	private readonly _recencyHistory: SessionsRecencyHistory;
 
-	/**
-	 * Session id (or `undefined` for the new-session slot) that focus was last
-	 * moved into in response to an active-session change. Tracks the active id
-	 * so unrelated visibility updates don't re-focus and steal focus.
-	 */
-	private _focusedActiveSessionId: string | undefined;
+	/** Tracks wrapper identity so same-ID replacements restore focus but unrelated visibility changes do not. */
+	private _focusedActiveSession: IActiveSession | undefined;
 
 	/** The in-flight foreground send's "keep newest chat active" follow. */
 	private readonly _sendFollow = this._register(new MutableDisposable<DisposableStore>());
@@ -484,13 +480,15 @@ export class SessionsService extends Disposable implements ISessionsService {
 			}
 		}));
 
-		// Viewing a session marks it read. This keeps the active session read
-		// while it stays active, so `ISession.isRead` is the single source of
-		// truth for read state (no display-only overlay needed).
+		// Honor explicit unread marks until the user leaves the session and returns.
+		let previousActiveSessionId: string | undefined;
 		this._register(autorun(reader => {
 			const activeSession = this.activeSession.read(reader);
-			if (activeSession && !activeSession.isRead.read(reader)) {
-				this.sessionsManagementService.markRead(activeSession);
+			const isRead = activeSession?.isRead.read(reader);
+			const activeSessionChanged = activeSession?.sessionId !== previousActiveSessionId;
+			previousActiveSessionId = activeSession?.sessionId;
+			if (activeSession && (activeSessionChanged || !isRead)) {
+				this.sessionsManagementService.markRead(activeSession, { preserveExplicitUnread: !activeSessionChanged }).catch(onUnexpectedError);
 			}
 		}));
 
@@ -517,17 +515,8 @@ export class SessionsService extends Disposable implements ISessionsService {
 			const preserveFocus = this._visibility.activePreserveFocus.read(reader);
 			this.sessionsPartService.updateVisibleSessions(visible, active);
 
-			// Move keyboard focus into the active session whenever it changes
-			// (e.g. after opening, switching to, or restoring a session) so the
-			// user can start typing immediately. The focus is guarded so a
-			// session the user is already interacting with is never re-focused
-			// (which would steal focus from the clicked element), and the id
-			// check ensures unrelated visibility updates do not move focus.
-			// `preserveFocus` (published atomically with the active session)
-			// suppresses the focus move for background opens.
-			const activeId = active?.sessionId;
-			if (activeId !== this._focusedActiveSessionId) {
-				this._focusedActiveSessionId = activeId;
+			if (active !== this._focusedActiveSession) {
+				this._focusedActiveSession = active;
 				if (!preserveFocus) {
 					this.sessionsPartService.focusSession(active);
 				}
@@ -538,14 +527,16 @@ export class SessionsService extends Disposable implements ISessionsService {
 		// to the active session.
 		this._register(this.sessionsPartService.onDidFocusSession(sessionId => {
 			const session = this.visibleSessions.get().find(s => s?.sessionId === sessionId);
-			if (session) {
+			if (sessionId === undefined || session) {
 				this.setActive(session);
 			}
 		}));
 	}
 
 	private _onDidReplaceSession(from: ISession, to: ISession): void {
-		this._visibility.updateSession(from, to);
+		const sessionView = this.sessionsPartService.getSessionView(from.sessionId);
+		const preserveFocus = !sessionView || this.sessionsPartService.getFocusedSessionView() !== sessionView;
+		this._visibility.updateSession(from, to, preserveFocus);
 	}
 
 	private _activeSessionViewListeners(activeSession: IActiveSession): IDisposable {
@@ -998,7 +989,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 		return true;
 	}
 
-	async openSessionToSide(session: ISession, options?: IOpenSessionOptions & { chatResource?: URI }): Promise<void> {
+	async openSessionToSide(session: ISession, options?: IOpenSessionOptions & { chatResource?: URI; referenceSessionId?: string }): Promise<void> {
 		this._beginNavigation('explicit');
 		const token = this._startOpenSession();
 		// Redirect a superseded resource before inserting a slot, so the side-by-side
@@ -1012,9 +1003,9 @@ export class SessionsService extends Disposable implements ISessionsService {
 			options = { ...options, chatResource: resolved.chatUri };
 		}
 		const visible = this.visibleSessions.get();
-		const lastVisible = visible[visible.length - 1];
-		if (lastVisible && lastVisible.sessionId !== session.sessionId) {
-			this.insertAt(session, lastVisible.sessionId, 'right');
+		const reference = visible.find(candidate => candidate?.sessionId === options?.referenceSessionId) ?? visible[visible.length - 1];
+		if (reference && reference.sessionId !== session.sessionId) {
+			this.insertAt(session, reference.sessionId, 'right');
 		}
 		if (options?.chatResource) {
 			await this.openChat(session, options.chatResource, { preserveFocus: options.preserveFocus, source: options.source });
@@ -1029,7 +1020,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 	 * rather than the old facade. Provider-neutral: the redirect is the
 	 * `resolveSessionResource` hook, not a scheme check.
 	 */
-	async openChatToSide(session: ISession, chatResource: URI, options?: { preserveFocus?: boolean }): Promise<void> {
+	async openChatToSide(session: ISession, chatResource: URI, options?: { preserveFocus?: boolean; referenceChatResource?: URI }): Promise<void> {
 		this._beginNavigation('explicit');
 		const token = this._startOpenSession();
 		const resolved = await this._resolveSessionForOpen(session, chatResource);
@@ -1043,7 +1034,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 		if (!sessionView) {
 			throw new Error(`Unable to open chat to the side because session view '${session.sessionId}' is not mounted`);
 		}
-		await sessionView.openChatToSide(chatResource);
+		await sessionView.openChatToSide(chatResource, options?.referenceChatResource);
 	}
 
 	/**
@@ -1169,7 +1160,10 @@ export class SessionsService extends Disposable implements ISessionsService {
 		// active session (first time / after send).
 		const newSession = this.sessionsManagementService.newSession.get();
 
-		const targetSession = newSession ?? undefined;
+		const activeSession = this._visibility.activeSession.get();
+		const targetSession = options?.toSide && newSession?.sessionId === activeSession?.sessionId
+			? undefined
+			: newSession;
 		this._activateOrInsert(targetSession, options?.toSide);
 		return { session: targetSession, trustDeclined: false };
 	}

@@ -24,6 +24,7 @@ import { IThemeService } from '../../../../../platform/theme/common/themeService
 import { IViewPaneOptions, IViewPaneLocationColors, ViewPane } from '../../../../../workbench/browser/parts/views/viewPane.js';
 import { IViewDescriptorService } from '../../../../../workbench/common/views.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { ChatSessionArchiveActionWordingSettingId, getChatSessionArchivedSectionLabel, getChatSessionArchiveActionWording } from '../../../../../platform/chat/common/sessionArchiveActions.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { localize } from '../../../../../nls.js';
@@ -45,11 +46,13 @@ import { MobileSessionFilterChips } from '../../../../browser/parts/mobile/mobil
 import { IMobileSortGroupSheetItem, showMobileSortGroupSheet } from '../../../../browser/parts/mobile/mobileSortGroupSheet.js';
 import { isPhoneLayout } from '../../../../browser/parts/mobile/mobileLayout.js';
 import { IsPhoneLayoutContext } from '../../../../common/contextkeys.js';
+import { logSessionsListCompactViewState } from '../../../../common/sessionsTelemetry.js';
 
 const $ = DOM.$;
 export const SessionsViewId = 'sessions.workbench.view.sessionsView';
 const GROUPING_STORAGE_KEY = 'sessionsViewPane.grouping';
 const SORTING_STORAGE_KEY = 'sessionsViewPane.sorting';
+const COMPACT_STORAGE_KEY = 'sessionsViewPane.compact';
 const CUSTOMIZATIONS_MIN_HEIGHT = 129;
 const SESSIONS_SECTION_MIN_HEIGHT = 120;
 const SESSIONS_HEADER_ELLIPSIS_MIN_WIDTH = 8;
@@ -58,6 +61,7 @@ export const SessionsViewFilterSubMenu = new MenuId('SessionsViewPaneFilterSubMe
 export const SessionsViewFilterOptionsSubMenu = new MenuId('SessionsViewPaneFilterOptionsSubMenu');
 export const SessionsViewGroupingContext = new RawContextKey<string>('sessionsViewPane.grouping', SessionsGrouping.Workspace);
 export const SessionsViewSortingContext = new RawContextKey<string>('sessionsViewPane.sorting', SessionsSorting.Created);
+export const SessionsViewCompactContext = new RawContextKey<boolean>('sessionsViewPane.compact', false);
 export const IsWorkspaceGroupCappedContext = new RawContextKey<boolean>('sessionsViewPane.workspaceGroupCapped', true);
 
 export interface ISessionsHeaderElements {
@@ -110,8 +114,10 @@ export class SessionsView extends ViewPane {
 	private _customizationsWidget: AICustomizationShortcutsWidget | undefined;
 	private currentGrouping: SessionsGrouping = SessionsGrouping.Workspace;
 	private currentSorting: SessionsSorting = SessionsSorting.Created;
+	private currentCompact = false;
 	private groupingContextKey: IContextKey | undefined;
 	private sortingContextKey: IContextKey | undefined;
+	private compactContextKey: IContextKey<boolean> | undefined;
 	private workspaceGroupCappedContextKey: IContextKey<boolean> | undefined;
 	private readonly filterContextKeys = new Map<string, { key: IContextKey<boolean>; getDefault: () => boolean }>();
 	private currentBodyHeight = 0;
@@ -134,6 +140,7 @@ export class SessionsView extends ViewPane {
 		@IHostService private readonly hostService: IHostService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@IStorageService private readonly storageService: IStorageService,
+		@ITelemetryService telemetryService: ITelemetryService,
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 
@@ -148,12 +155,16 @@ export class SessionsView extends ViewPane {
 		if (storedSorting && Object.values(SessionsSorting).includes(storedSorting as SessionsSorting)) {
 			this.currentSorting = storedSorting as SessionsSorting;
 		}
+		this.currentCompact = this.storageService.getBoolean(COMPACT_STORAGE_KEY, StorageScope.PROFILE, false);
+		logSessionsListCompactViewState(telemetryService, this.currentCompact);
 
 		// Ensure context keys reflect restored state immediately
 		this.groupingContextKey = SessionsViewGroupingContext.bindTo(contextKeyService);
 		this.groupingContextKey.set(this.currentGrouping);
 		this.sortingContextKey = SessionsViewSortingContext.bindTo(contextKeyService);
 		this.sortingContextKey.set(this.currentSorting);
+		this.compactContextKey = SessionsViewCompactContext.bindTo(contextKeyService);
+		this.compactContextKey.set(this.currentCompact);
 
 		// Bind workspace group capped context key (will be synced with persisted state in renderBody)
 		this.workspaceGroupCappedContextKey = IsWorkspaceGroupCappedContext.bindTo(contextKeyService);
@@ -217,6 +228,7 @@ export class SessionsView extends ViewPane {
 			overrideStyles: this.getLocationBasedColors().listOverrideStyles,
 			grouping: () => this.currentGrouping,
 			sorting: () => this.currentSorting,
+			compact: () => this.currentCompact,
 			findWidgetContainer,
 			onSessionOpen: (resource, preserveFocus, sideBySide) => {
 				const onOpened = () => {
@@ -231,10 +243,9 @@ export class SessionsView extends ViewPane {
 				}
 				if (sideBySide) {
 					// Alt-click: open the session to the right of the last visible session in the grid.
-					this.sessionsService.openSessionToSide(session, { preserveFocus, source: 'sessionsList', restoreOnlySideOrToolChat: true }).then(onOpened).catch(onUnexpectedError);
-					return;
+					return this.sessionsService.openSessionToSide(session, { preserveFocus, source: 'sessionsList', restoreOnlySideOrToolChat: true }).then(onOpened).catch(onUnexpectedError);
 				}
-				this.sessionsService.openSession(session.resource, { preserveFocus, source: 'sessionsList', restoreOnlySideOrToolChat: true }).then(onOpened).catch(onUnexpectedError);
+				return this.sessionsService.openSession(session.resource, { preserveFocus, source: 'sessionsList', restoreOnlySideOrToolChat: true }).then(onOpened).catch(onUnexpectedError);
 			},
 			canOpenSession: session => this.sessionsService.canOpenSession(session),
 			onChatOpen: (session, chat, preserveFocus, sideBySide) => {
@@ -244,10 +255,9 @@ export class SessionsView extends ViewPane {
 					}
 				};
 				if (sideBySide) {
-					this.sessionsService.openChatToSide(session, chat.resource, { preserveFocus }).then(onOpened).catch(onUnexpectedError);
-					return;
+					return this.sessionsService.openChatToSide(session, chat.resource, { preserveFocus }).then(onOpened).catch(onUnexpectedError);
 				}
-				this.sessionsService.openChat(session, chat.resource, { preserveFocus }).then(onOpened).catch(onUnexpectedError);
+				return this.sessionsService.openChat(session, chat.resource, { preserveFocus }).then(onOpened).catch(onUnexpectedError);
 			},
 		}));
 		this._register(this.onDidChangeBodyVisibility(visible => sessionsControl.setVisible(visible)));
@@ -784,5 +794,20 @@ export class SessionsView extends ViewPane {
 		this.storageService.store(SORTING_STORAGE_KEY, this.currentSorting, StorageScope.PROFILE, StorageTarget.USER);
 		this.sortingContextKey?.set(this.currentSorting);
 		this.sessionsControl?.update();
+	}
+
+	setCompact(compact: boolean): void {
+		if (this.currentCompact === compact) {
+			return;
+		}
+
+		this.currentCompact = compact;
+		this.storageService.store(COMPACT_STORAGE_KEY, compact, StorageScope.PROFILE, StorageTarget.USER);
+		this.compactContextKey?.set(compact);
+		this.sessionsControl?.setCompact();
+	}
+
+	toggleCompact(): void {
+		this.setCompact(!this.currentCompact);
 	}
 }

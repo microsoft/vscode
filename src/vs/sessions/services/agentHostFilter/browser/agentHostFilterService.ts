@@ -133,18 +133,17 @@ export class AgentHostFilterService extends Disposable implements IAgentHostFilt
 		return this._discoveringCount > 0;
 	}
 
-	async rediscover(): Promise<void> {
+	async rediscover(): Promise<boolean> {
 		if (this._discoveryHandlers.size === 0) {
-			return;
+			return true;
 		}
 		this._discoveringCount++;
 		if (this._discoveringCount === 1) {
 			this._onDidChangeDiscovering.fire();
 		}
 		try {
-			await Promise.allSettled(
-				[...this._discoveryHandlers].map(h => h().catch(() => { /* swallowed */ }))
-			);
+			const results = await Promise.allSettled([...this._discoveryHandlers].map(handler => handler()));
+			return results.every(result => result.status === 'fulfilled');
 		} finally {
 			this._discoveringCount--;
 			if (this._discoveringCount === 0) {
@@ -183,36 +182,36 @@ export class AgentHostFilterService extends Disposable implements IAgentHostFilt
 		}
 	}
 
-	reconnect(hostId: string): void {
+	async reconnect(hostId: string): Promise<void> {
 		const host = this._hosts.find(h => h.id === hostId);
 		if (!host) {
 			return;
 		}
-		for (const providerId of host.providerIds) {
+		await Promise.all(host.providerIds.map(async providerId => {
 			const provider = this._sessionsProvidersService.getProvider(providerId);
 			if (provider && isAgentHostProvider(provider) && provider.connect) {
-				provider.connect().catch(() => { /* errors are surfaced by the provider */ });
-				continue;
+				await provider.connect();
+				return;
 			}
 			// Members always carry an address; only the collapsed entry lacks one.
 			const address = provider && isAgentHostProvider(provider) ? provider.remoteAddress : host.address;
 			if (address) {
 				this._remoteAgentHostService.reconnect(address);
 			}
-		}
+		}));
 	}
 
-	disconnect(hostId: string): void {
+	async disconnect(hostId: string): Promise<void> {
 		const host = this._hosts.find(h => h.id === hostId);
 		if (!host) {
 			return;
 		}
-		for (const providerId of host.providerIds) {
+		await Promise.all(host.providerIds.map(async providerId => {
 			const provider = this._sessionsProvidersService.getProvider(providerId);
 			if (provider && isAgentHostProvider(provider) && provider.disconnect) {
-				provider.disconnect().catch(() => { /* errors are surfaced by the provider */ });
+				await provider.disconnect();
 			}
-		}
+		}));
 	}
 
 	/**
