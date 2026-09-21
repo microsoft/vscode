@@ -38,8 +38,6 @@ export const enum CopilotCliConfigKey {
 	SkillCharBudget = 'skillCharBudget',
 	/** Override Auto's "Optimize for" preference. */
 	AutoModeTierOverride = 'autoModeTierOverride',
-	/** Tell the model to keep subagents on their default model unless the user asks otherwise. Off by default. */
-	SubagentModelGuidance = 'subagentModelGuidance',
 	/** Per-model capability overrides (family aliases) keyed by model id. */
 	ModelCapabilityOverrides = 'modelCapabilityOverrides',
 }
@@ -70,8 +68,6 @@ export const AgentHostHydraFusionEnabledSettingId = 'chat.copilot.hydraFusion.en
 export const CopilotSkillCharBudgetSettingId = 'chat.copilot.skillCharBudget';
 
 export const CopilotAutoModeTierOverrideSettingId = 'github.copilot.chat.autoModeTierOverride';
-
-export const CopilotSubagentModelGuidanceEnabledSettingId = 'chat.copilot.subagentModelGuidance.enabled';
 
 export const AgentHostModelCapabilityOverridesSettingId = 'chat.agentHost.modelCapabilityOverrides';
 export const AgentHostCopilotModelCapabilityOverridesSettingId = 'chat.agentHost.copilot.modelCapabilityOverrides';
@@ -215,12 +211,6 @@ export const copilotCliConfigSchema = createSchema({
 		title: localize('agentHost.config.autoModeTierOverride.title', "Auto Optimize for Override"),
 		description: localize('agentHost.config.autoModeTierOverride.description', "Overrides Auto's \"Optimize for\" preference. Accepts efficiency, balance, or intelligence. Applied when a session is created or resumed and when its model changes. Empty or unsupported values use the picker or service defaults."),
 		default: '',
-	}),
-	[CopilotCliConfigKey.SubagentModelGuidance]: schemaProperty<boolean>({
-		type: 'boolean',
-		title: localize('agentHost.config.subagentModelGuidance.title', "Subagent Model Guidance"),
-		description: localize('agentHost.config.subagentModelGuidance.description', "When enabled, Copilot SDK sessions instruct the model to keep subagents on their default model unless the user explicitly names another one."),
-		default: false,
 	}),
 	[CopilotCliConfigKey.ModelCapabilityOverrides]: schemaProperty<CopilotCliModelCapabilityOverrides>({
 		type: 'object',
