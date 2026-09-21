@@ -7,7 +7,7 @@ import assert from 'assert';
 import * as sinon from 'sinon';
 import { timeout } from '../../../../base/common/async.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
-import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Event } from '../../../../base/common/event.js';
 import { Iterable } from '../../../../base/common/iterator.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -23,7 +23,7 @@ import { IExtHostTelemetry } from '../../common/extHostTelemetry.js';
 import { ExtHostTesting, TestRunCoordinator, TestRunDto, TestRunProfileImpl } from '../../common/extHostTesting.js';
 import { ExtHostTestItemCollection, TestItemImpl } from '../../common/extHostTestItem.js';
 import * as convert from '../../common/extHostTypeConverters.js';
-import { Location, Position, Range, TestMessage, TestRunProfileKind, TestRunRequest as TestRunRequestImpl, TestTag } from '../../common/extHostTypes.js';
+import { FileCoverage, Location, Position, Range, StatementCoverage, TestCoverageCount, TestMessage, TestRunProfileKind, TestRunRequest as TestRunRequestImpl, TestTag } from '../../common/extHostTypes.js';
 import { AnyCallRPCProtocol } from '../common/testRPCProtocol.js';
 import { TestId } from '../../../contrib/testing/common/testId.js';
 import { TestDiffOpType, TestItemExpandState, TestMessageType, TestsDiff } from '../../../contrib/testing/common/testTypes.js';
@@ -640,13 +640,10 @@ suite('ExtHost Testing', () => {
 		// eslint-disable-next-line local/code-no-any-casts
 		const ext: IExtensionDescription = {} as any;
 
-		teardown(async () => {
-			c.cancelAllRuns();
-			c.cancelAllRuns();
+		teardown(() => {
 			for (const { id } of c.trackers) {
 				c.disposeTestRun(id);
 			}
-			await Promise.resolve();
 		});
 
 		setup(async () => {
@@ -675,107 +672,6 @@ suite('ExtHost Testing', () => {
 			}, single);
 		});
 
-		test('defers repeated removal until every task really ends', async () => {
-			const first = c.createTestRun(ext, 'ctrl', single, req, 'first', false);
-			const second = c.createTestRun(ext, 'ctrl', single, req, 'second', false);
-			const tracker = Iterable.first(c.trackers)!;
-			const ended = sinon.stub();
-			const disposed = sinon.stub();
-			ds.add(tracker.onEnd(ended));
-			ds.add(first.onDidDispose(() => {
-				disposed();
-				assert.deepStrictEqual([...c.trackers], []);
-				c.disposeTestRun(tracker.id);
-			}));
-
-			c.disposeTestRun(tracker.id);
-			c.disposeTestRun(tracker.id);
-			const laterEndListener = sinon.stub();
-			ds.add(tracker.onEnd(laterEndListener));
-			assert.strictEqual(tracker.hasRunningTasks, true);
-			assert.strictEqual(ended.callCount, 0);
-			assert.strictEqual(disposed.callCount, 0);
-			assert.strictEqual(first.token.isCancellationRequested, false);
-			assert.strictEqual(proxy.$finishedExtensionTestRun.called, false);
-			first.end();
-			assert.deepStrictEqual([...c.trackers], [tracker]);
-			assert.strictEqual(disposed.callCount, 0);
-			second.end();
-			assert.strictEqual(laterEndListener.callCount, 1);
-			await Promise.resolve();
-			assert.deepStrictEqual([...c.trackers], []);
-			assert.strictEqual(ended.callCount, 1);
-			assert.strictEqual(disposed.callCount, 1);
-			assert.deepStrictEqual(proxy.$finishedExtensionTestRun.args, [[tracker.id]]);
-			c.disposeTestRun(tracker.id);
-			second.end();
-			assert.strictEqual(disposed.callCount, 1);
-		});
-
-		test('does not dispose a new task created before deferred cleanup', async () => {
-			const first = c.createTestRun(ext, 'ctrl', single, req, 'first', false);
-			const tracker = Iterable.first(c.trackers)!;
-			let disposals = 0;
-			const ended = sinon.stub();
-			const idle = sinon.stub();
-			ds.add(tracker.onEnd(ended));
-			ds.add(tracker.onIdle(idle));
-			ds.add(first.onDidDispose(() => disposals++));
-			c.disposeTestRun(tracker.id);
-			first.end();
-			const next = c.createTestRun(ext, 'ctrl', single, req, 'next platform', false);
-			c.disposeTestRun(tracker.id);
-			try {
-				await Promise.resolve();
-				assert.strictEqual(disposals, 0);
-				assert.strictEqual(tracker.hasRunningTasks, true);
-				assert.deepStrictEqual([...c.trackers], [tracker]);
-			} finally {
-				next.end();
-				await Promise.resolve();
-			}
-			assert.strictEqual(disposals, 1);
-			assert.strictEqual(ended.callCount, 1);
-			assert.strictEqual(idle.callCount, 2);
-			assert.deepStrictEqual(proxy.$finishedExtensionTestRun.args, [[tracker.id]]);
-			assert.deepStrictEqual([...c.trackers], []);
-		});
-
-		test('coalesces idle transitions and repeated removal before cleanup', async () => {
-			const first = c.createTestRun(ext, 'ctrl', single, req, 'first', false);
-			const tracker = Iterable.first(c.trackers)!;
-			let disposals = 0;
-			ds.add(first.onDidDispose(() => disposals++));
-			c.disposeTestRun(tracker.id);
-			first.end();
-			const second = c.createTestRun(ext, 'ctrl', single, req, 'second', false);
-			second.end();
-			c.disposeTestRun(tracker.id);
-			await Promise.resolve();
-			assert.strictEqual(disposals, 1);
-			assert.deepStrictEqual([...c.trackers], []);
-			c.disposeTestRun(tracker.id);
-			await Promise.resolve();
-			assert.strictEqual(disposals, 1);
-		});
-
-		test('removes an ended run once before disposal callbacks', async () => {
-			const task = c.createTestRun(ext, 'ctrl', single, req, 'ended', false);
-			const tracker = Iterable.first(c.trackers)!;
-			let disposals = 0;
-			ds.add(task.onDidDispose(() => {
-				disposals++;
-				assert.deepStrictEqual([...c.trackers], []);
-				c.disposeTestRun(tracker.id);
-			}));
-			task.end();
-			c.disposeTestRun(tracker.id);
-			c.disposeTestRun(tracker.id);
-			await Promise.resolve();
-			assert.strictEqual(disposals, 1);
-			assert.deepStrictEqual(proxy.$finishedExtensionTestRun.args, [[tracker.id]]);
-		});
-
 		test('tracks a run started from a main thread request', () => {
 			const tracker = ds.add(c.prepareForMainThreadTestRun(ext, req, dto, configuration, cts.token));
 			assert.strictEqual(tracker.hasRunningTasks, false);
@@ -797,6 +693,23 @@ suite('ExtHost Testing', () => {
 
 			assert.strictEqual(proxy.$finishedExtensionTestRun.called, false);
 			assert.strictEqual(tracker.hasRunningTasks, false);
+		});
+
+		test('keeps coverage available after a task ends until result disposal', async () => {
+			const details = [new StatementCoverage(1, new Position(0, 0))];
+			const loadDetailedCoverage = sinon.stub().resolves(details);
+			Object.assign(configuration, { loadDetailedCoverage });
+			const tracker = ds.add(c.prepareForMainThreadTestRun(ext, req, dto, configuration, cts.token));
+			const task = c.createTestRun(ext, 'ctrl', single, req, 'run1', true);
+			task.addCoverage(new FileCoverage(URI.file('/coverage.ts'), new TestCoverageCount(1, 1)));
+			const coverageId = proxy.$appendCoverage.args[0]?.[2].id;
+			task.end();
+
+			assert.deepStrictEqual(await c.getCoverageDetails(coverageId, undefined, CancellationToken.None), details);
+			assert.strictEqual(loadDetailedCoverage.calledOnce, true);
+
+			c.disposeTestRun(tracker.id);
+			assert.deepStrictEqual(await c.getCoverageDetails(coverageId, undefined, CancellationToken.None), []);
 		});
 
 		test('run cancel force ends after a timeout', () => {

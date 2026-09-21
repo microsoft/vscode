@@ -360,7 +360,7 @@ suite('Workbench - Test Results Service', () => {
 			assert.strictEqual(results.results.length, 128);
 		});
 
-		test('notifies active eviction without marking the result complete', () => {
+		test('retains a newly completed result until a later history eviction', () => {
 			results.push(r);
 			const removed: ITestResult[] = [];
 			ds.add(results.onResultsChanged(evt => {
@@ -369,10 +369,34 @@ suite('Workbench - Test Results Service', () => {
 				}
 			}));
 			for (let i = 0; i < 128; i++) {
-				results.push(new TestLiveTestResult(`active-${i}`, false, defaultOpts([])));
+				const next = new TestLiveTestResult(`completed-${i}`, false, defaultOpts([]));
+				next.markComplete();
+				results.push(next);
 			}
-			assert.deepStrictEqual(removed, [r]);
-			assert.strictEqual(r.completedAt, undefined);
+			assert.deepStrictEqual({ removed, retained: results.results.includes(r), disposed: r.disposed, count: results.results.length }, {
+				removed: [],
+				retained: true,
+				disposed: false,
+				count: 129,
+			});
+
+			const oldestCompleted = results.results.at(-1)!;
+			r.markComplete();
+			assert.deepStrictEqual({ removed, retained: results.results.includes(r), disposed: r.disposed, count: results.results.length }, {
+				removed: [oldestCompleted],
+				retained: true,
+				disposed: false,
+				count: 128,
+			});
+
+			const later = results.push(new TestLiveTestResult('later', false, defaultOpts([])));
+			later.markComplete();
+			assert.deepStrictEqual({ removed, retained: results.results.includes(r), disposed: r.disposed, count: results.results.length }, {
+				removed: [removed[0], r],
+				retained: false,
+				disposed: true,
+				count: 128,
+			});
 		});
 
 		test('disposes a completed result that is immediately evicted', async () => {

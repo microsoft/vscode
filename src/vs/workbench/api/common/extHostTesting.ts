@@ -607,7 +607,6 @@ class TestRunTracker extends Disposable {
 	private readonly sharedTestIds = new Set<string>();
 	private readonly cts: CancellationTokenSource;
 	private readonly endEmitter = this._register(new Emitter<void>());
-	private readonly idleEmitter = this._register(new Emitter<void>());
 	private readonly onDidDispose: Event<void>;
 	private readonly publishedCoverage = new Map<string, { report: vscode.FileCoverage; extIds: string[] }>();
 
@@ -615,9 +614,6 @@ class TestRunTracker extends Disposable {
 	 * Fires when a test ends, and no more tests are left running.
 	 */
 	public readonly onEnd = this.endEmitter.event;
-
-	/** Fires on every actual transition to zero running tasks, including later grouped tasks. */
-	public readonly onIdle = this.idleEmitter.event;
 
 	/**
 	 * Gets whether there are any tests running.
@@ -821,7 +817,6 @@ class TestRunTracker extends Disposable {
 				this.proxy.$finishedTestRunTask(runId, taskId);
 				if (!--this.running) {
 					this.markEnded();
-					this.idleEmitter.fire();
 				}
 			}
 		};
@@ -894,7 +889,6 @@ class TestRunTracker extends Disposable {
 export class TestRunCoordinator {
 	private readonly tracked = new Map<vscode.TestRunRequest, TestRunTracker>();
 	private readonly trackedById = new Map<string, TestRunTracker>();
-	private readonly pendingDisposal = new Map<TestRunTracker, DisposableStore>();
 
 	public get trackers() {
 		return this.tracked.values();
@@ -918,48 +912,12 @@ export class TestRunCoordinator {
 	 * in associated data.
 	 */
 	public disposeTestRun(runId: string) {
-		const tracker = this.trackedById.get(runId);
-		if (!tracker || this.pendingDisposal.has(tracker)) {
-			return;
-		}
-
-		const pending = new DisposableStore();
-		this.pendingDisposal.set(tracker, pending);
-		let queued = false;
-		const schedule = () => {
-			if (queued) {
-				return;
+		this.trackedById.get(runId)?.dispose();
+		this.trackedById.delete(runId);
+		for (const [req, { id }] of this.tracked) {
+			if (id === runId) {
+				this.tracked.delete(req);
 			}
-			queued = true;
-			queueMicrotask(() => {
-				queued = false;
-				if (this.pendingDisposal.get(tracker) !== pending) {
-					return;
-				}
-				// A genuine grouped task may start after the idle event was delivered.
-				if (tracker.hasRunningTasks) {
-					return;
-				}
-
-				this.pendingDisposal.delete(tracker);
-				pending.dispose();
-				if (this.trackedById.get(runId) !== tracker) {
-					return;
-				}
-				// Release ownership before extension disposal callbacks can re-enter.
-				this.trackedById.delete(runId);
-				for (const [req, value] of this.tracked) {
-					if (value === tracker) {
-						this.tracked.delete(req);
-					}
-				}
-				tracker.dispose();
-			});
-		};
-
-		pending.add(tracker.onIdle(schedule));
-		if (!tracker.hasRunningTasks) {
-			schedule();
 		}
 	}
 

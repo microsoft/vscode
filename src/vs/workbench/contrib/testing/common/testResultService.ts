@@ -180,11 +180,6 @@ export class TestResultService extends Disposable implements ITestResultService 
 		}
 
 		this.hasAnyResults.set(true);
-		let removed: ITestResult | undefined;
-		if (this.results.length > RETAIN_MAX_RESULTS) {
-			removed = this.results.pop();
-		}
-
 		const ds = new DisposableStore();
 		this._resultsDisposables.set(result, ds);
 
@@ -194,10 +189,7 @@ export class TestResultService extends Disposable implements ITestResultService 
 			ds.add(result.onChange(this.testChangeEmitter.fire, this.testChangeEmitter));
 		}
 
-		if (removed) {
-			this._resultsDisposables.deleteAndDispose(removed);
-			this.changeResultEmitter.fire({ removed: [removed] });
-		}
+		this.trimCompletedResults();
 
 		if (result instanceof LiveTestResult) {
 			this.isRunning.set(true);
@@ -259,6 +251,29 @@ export class TestResultService extends Disposable implements ITestResultService 
 		this.updateIsRunning();
 		this.persistScheduler.schedule();
 		this.changeResultEmitter.fire({ completed: result });
+		this.trimCompletedResults(result);
+	}
+
+	private trimCompletedResults(preserve?: ITestResult) {
+		const firstCompleted = this.results.findIndex(result => result.completedAt !== undefined);
+		const removeCount = firstCompleted === -1 ? 0 : this.results.length - firstCompleted - RETAIN_MAX_RESULTS;
+		if (removeCount <= 0) {
+			return;
+		}
+
+		const removed: ITestResult[] = [];
+		for (let i = this.results.length - 1; i >= firstCompleted && removed.length < removeCount; i--) {
+			if (this.results[i] !== preserve) {
+				removed.push(...this.results.splice(i, 1));
+			}
+		}
+
+		for (const result of removed) {
+			this._resultsDisposables.deleteAndDispose(result);
+		}
+		if (removed.length) {
+			this.changeResultEmitter.fire({ removed });
+		}
 	}
 
 	private resort() {
