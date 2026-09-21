@@ -9,6 +9,9 @@
  * @see https://github.com/open-telemetry/semantic-conventions/blob/main/docs/gen-ai/gen-ai-output-messages.json
  */
 
+import { getImageDimensions } from '../../../util/common/imageUtils';
+import { calculateImageTokenCostForDimensions, estimateDocumentTokenCost, ImageDetail } from '../../tokenizer/common/attachmentTokenCost';
+
 /**
  * Truncate a string to fit within OTel attribute size limits.
  * Returns the original string if within bounds, otherwise truncates with a suffix.
@@ -43,12 +46,53 @@ export interface OTelOutputMessage extends OTelChatMessage {
 	finish_reason?: string;
 }
 
+/** Modality of a binary attachment part, per the OTel GenAI message schema. */
+export type OTelAttachmentModality = 'image' | 'document';
+
+/**
+ * What is known about an attachment beyond what the request body carries.
+ * Sizes are in bytes and pixels; `estimatedTokens` is the client-side prompt
+ * budget estimate, not a billed figure.
+ */
+export interface OTelAttachmentMetadata {
+	mimeType?: string;
+	sizeBytes?: number;
+	width?: number;
+	height?: number;
+	estimatedTokens?: number;
+}
+
+interface OTelAttachmentPartFields {
+	modality: OTelAttachmentModality;
+	mime_type: string | null;
+	size_bytes?: number;
+	width?: number;
+	height?: number;
+	/** Client-side estimate of the prompt tokens this part costs (see {@link OTelAttachmentMetadata.estimatedTokens}). */
+	estimated_tokens?: number;
+}
+
 export type OTelMessagePart =
 	| { type: 'text'; content: string }
 	| { type: 'tool_call'; id: string; name: string; arguments: unknown }
 	| { type: 'tool_call_response'; id: string; response: unknown }
 	| { type: 'tool_search_output'; id: string; tools?: unknown; status?: string }
-	| { type: 'reasoning'; content: string };
+	| { type: 'reasoning'; content: string }
+	/** An attachment the model fetches by URI (e.g. an uploaded chat image). */
+	| ({ type: 'uri'; uri: string } & OTelAttachmentPartFields)
+	/** An attachment sent inline as base64. */
+	| ({ type: 'blob'; content: string } & OTelAttachmentPartFields)
+	/** An attachment referenced by a provider-side file id. */
+	| ({ type: 'file'; file_id: string } & OTelAttachmentPartFields);
+
+export interface NormalizeProviderMessagesOptions {
+	/**
+	 * Looks up what is known about an attachment that is referenced by URI
+	 * rather than sent inline, so the emitted part can still carry its mime
+	 * type, size and token estimate.
+	 */
+	resolveAttachment?(uri: string): OTelAttachmentMetadata | undefined;
+}
 
 export type OTelSystemInstruction = Array<{ type: 'text'; content: string }>;
 
@@ -215,7 +259,7 @@ export function collectSystemTextsFromRequestBody(requestBody: {
  *   role=assistant + reasoning part
  * - Plain string content
  */
-export function normalizeProviderMessages(messages: ReadonlyArray<Record<string, unknown>>): OTelChatMessage[] {
+export function normalizeProviderMessages(messages: ReadonlyArray<Record<string, unknown>>, options?: NormalizeProviderMessagesOptions): OTelChatMessage[] {
 	return messages.map(msg => {
 		// OpenAI Responses API items use `type` rather than (or in addition
 		// to) `role` to distinguish item kinds. Handle them up front so we
@@ -284,6 +328,20 @@ export function normalizeProviderMessages(messages: ReadonlyArray<Record<string,
 							parts.push({ type: 'reasoning', content: b.thinking });
 						}
 						break;
+					case 'image':
+					case 'document':
+					case 'image_url':
+					case 'input_image':
+					case 'input_file': {
+						const part = normalizeAttachmentBlock(b, options?.resolveAttachment);
+						if (part) {
+							parts.push(part);
+							break;
+						}
+						// Unrecognised shape — fall through to the text fallback.
+						parts.push({ type: 'text', content: JSON.stringify(b) });
+						break;
+					}
 					default:
 						// Unknown block type — include as text fallback
 						parts.push({ type: 'text', content: JSON.stringify(b) });
@@ -323,6 +381,152 @@ export function normalizeProviderMessages(messages: ReadonlyArray<Record<string,
  * to a synthetic role so downstream consumers (cache explorer, telemetry
  * viewers) can treat them uniformly with Chat Completions tool calls.
  */
+const DATA_URL_RE = /^data:([^;,]+)?(?:;[^,]*)?;base64,(.*)$/s;
+
+/**
+ * Converts a provider-specific binary attachment block into a typed OTel part.
+ *
+ * Handled shapes:
+ * - Anthropic `image` / `document` with `source: { type: 'base64' | 'url', ... }`
+ * - Chat Completions `image_url` (`image_url` is a string or `{ url, detail, media_type }`)
+ * - Responses API `input_image` (`image_url` string, `detail`, `file_id`) and
+ *   `input_file` (`file_data` data URL, `file_id`, `filename`)
+ *
+ * Inline data yields a `blob` part with the size, dimensions (images) and a
+ * token estimate derived from the bytes. A URI reference yields a `uri` part;
+ * the bytes never cross this boundary, so the same fields come from
+ * `resolveAttachment` when the caller knows them (e.g. from the upload).
+ * Returns `undefined` when the block does not have a usable source.
+ */
+function normalizeAttachmentBlock(b: Record<string, unknown>, resolveAttachment?: (uri: string) => OTelAttachmentMetadata | undefined): OTelMessagePart | undefined {
+	switch (b.type) {
+		case 'image':
+		case 'document': {
+			const modality: OTelAttachmentModality = b.type;
+			const source = asRecord(b.source);
+			const mimeType = asString(source?.media_type);
+			if (source?.type === 'base64' && typeof source.data === 'string') {
+				return blobPart(modality, source.data, mimeType, undefined);
+			}
+			if (typeof source?.url === 'string') {
+				return referencedPart(modality, source.url, mimeType, undefined, resolveAttachment);
+			}
+			if (typeof source?.file_id === 'string') {
+				return filePart(modality, source.file_id, mimeType);
+			}
+			return undefined;
+		}
+		case 'image_url': {
+			const imageUrl = typeof b.image_url === 'string' ? { url: b.image_url } : asRecord(b.image_url);
+			const url = asString(imageUrl?.url);
+			if (url === undefined) {
+				return undefined;
+			}
+			// CAPI extension: `media_type` rides on `image_url` for uploaded attachments.
+			return referencedPart('image', url, asString(imageUrl?.media_type), asDetail(imageUrl?.detail), resolveAttachment);
+		}
+		case 'input_image': {
+			const url = asString(b.image_url);
+			if (url !== undefined) {
+				return referencedPart('image', url, undefined, asDetail(b.detail), resolveAttachment);
+			}
+			if (typeof b.file_id === 'string') {
+				return filePart('image', b.file_id, undefined);
+			}
+			return undefined;
+		}
+		case 'input_file': {
+			const fileData = asString(b.file_data);
+			if (fileData !== undefined) {
+				return referencedPart('document', fileData, undefined, undefined, resolveAttachment);
+			}
+			if (typeof b.file_id === 'string') {
+				return filePart('document', b.file_id, undefined);
+			}
+			return undefined;
+		}
+		default:
+			return undefined;
+	}
+}
+
+/** Routes a URL to a `blob` part when it is a data URL, else to a `uri` part. */
+function referencedPart(modality: OTelAttachmentModality, url: string, mimeType: string | undefined, detail: ImageDetail, resolveAttachment?: (uri: string) => OTelAttachmentMetadata | undefined): OTelMessagePart {
+	const dataUrl = DATA_URL_RE.exec(url);
+	if (dataUrl) {
+		return blobPart(modality, dataUrl[2], mimeType ?? dataUrl[1], detail);
+	}
+	const known = resolveAttachment?.(url);
+	return {
+		type: 'uri',
+		modality,
+		mime_type: mimeType ?? known?.mimeType ?? null,
+		uri: url,
+		...definedFields({
+			size_bytes: known?.sizeBytes,
+			width: known?.width,
+			height: known?.height,
+			estimated_tokens: known?.estimatedTokens,
+		}),
+	};
+}
+
+function blobPart(modality: OTelAttachmentModality, base64Data: string, mimeType: string | undefined, detail: ImageDetail): OTelMessagePart {
+	let width: number | undefined;
+	let height: number | undefined;
+	let estimatedTokens: number | undefined;
+	if (modality === 'image') {
+		try {
+			({ width, height } = getImageDimensions(`data:${mimeType ?? 'image/png'};base64,${base64Data}`));
+			estimatedTokens = calculateImageTokenCostForDimensions(width, height, detail);
+		} catch {
+			// Unreadable header: report the bytes only.
+		}
+	} else {
+		estimatedTokens = estimateDocumentTokenCost(base64Data);
+	}
+	return {
+		type: 'blob',
+		modality,
+		mime_type: mimeType ?? null,
+		content: base64Data,
+		size_bytes: base64ByteLength(base64Data),
+		...definedFields({ width, height, estimated_tokens: estimatedTokens }),
+	};
+}
+
+function filePart(modality: OTelAttachmentModality, fileId: string, mimeType: string | undefined): OTelMessagePart {
+	return { type: 'file', modality, mime_type: mimeType ?? null, file_id: fileId };
+}
+
+function base64ByteLength(base64Data: string): number {
+	const trimmed = base64Data.replace(/\s+/g, '');
+	const padding = trimmed.endsWith('==') ? 2 : trimmed.endsWith('=') ? 1 : 0;
+	return Math.max(0, Math.floor((trimmed.length * 3) / 4) - padding);
+}
+
+function definedFields<T extends Record<string, number | undefined>>(fields: T): Partial<T> {
+	const out: Partial<T> = {};
+	for (const key of Object.keys(fields) as Array<keyof T>) {
+		if (fields[key] !== undefined) {
+			out[key] = fields[key];
+		}
+	}
+	return out;
+}
+
+function asRecord(value: unknown): Record<string, unknown> | undefined {
+	return value !== null && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : undefined;
+}
+
+function asString(value: unknown): string | undefined {
+	return typeof value === 'string' ? value : undefined;
+}
+
+function asDetail(value: unknown): ImageDetail {
+	return value === 'low' || value === 'high' || value === 'auto' ? value : undefined;
+}
+
 function normalizeResponsesFunctionCall(msg: Record<string, unknown>): OTelChatMessage {
 	let args: unknown = msg.arguments;
 	if (typeof args === 'string') {
