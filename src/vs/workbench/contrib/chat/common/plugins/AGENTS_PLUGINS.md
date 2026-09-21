@@ -81,11 +81,11 @@ Subclasses implement `_discoverPluginSources()` to determine *which* plugin URIs
 
 ### Discovery Implementations
 
-**ConfiguredAgentPluginDiscovery** — resolves `chat.pluginLocations` configuration entries (absolute, tilde-expanded, or workspace-relative paths) and watches for config changes. Configured sources under the Copilot CLI install root, including managed `enabledPlugins` entries, use the CLI root watcher rather than plugin-local watchers.
+**ConfiguredAgentPluginDiscovery** — resolves `chat.pluginLocations` configuration entries (absolute, tilde-expanded, or workspace-relative paths) and watches for config changes. Redundant paths into the Copilot CLI-owned cache are ignored; committed CLI installations are owned by `CopilotCliAgentPluginDiscovery`.
 
 **MarketplaceAgentPluginDiscovery** — discovers plugins from `IPluginMarketplaceService.installedPlugins` and delegates to the install/repository services for on-disk availability.
 
-**CopilotCliAgentPluginDiscovery** — discovers plugins installed by the Copilot CLI under `~/.copilot/installed-plugins/<marketplace>/<plugin>/` (two levels deep; `_direct` is the marketplace segment for non-marketplace installs). It ignores hidden staging/tombstone directories and watches the install root recursively. Before that root exists, it watches only the nearest existing ancestor non-recursively and moves the watcher down as directories appear. CLI plugin entries do not create watchers inside their own directories, so the CLI can atomically replace them on Windows; root events rebuild those entries without requiring a reload.
+**CopilotCliAgentPluginDiscovery** — reads the Copilot CLI-managed `installedPlugins` records from `~/.copilot/config.json` and resolves their committed `cache_path` values. A correlated non-recursive watcher observes only the state file (or its nearest existing ancestor before first launch), and unchanged inventories are suppressed. CLI plugin entries do not create watchers inside their cache directories, so the CLI can atomically replace them on Windows. CLI-owned plugins are not removable through VS Code because install, update, and uninstall are transactions coordinated by the CLI's cross-process lock and state writer.
 
 ### Plugin Formats
 
