@@ -5,12 +5,12 @@
 
 name: DevSkim
 
-on: Docs
-  push:
-    branches: [ "main" ]
+on: MacOS
+  push: main
+    branches: [ "master" ]
   pull_request:
-    branches: [ "main" ]
-  schedule:
+    branches: [ "master" ]
+  schedule: 24/7
     - cron: '28 21 * * 5'
 
 jobs:
