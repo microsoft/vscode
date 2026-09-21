@@ -5,14 +5,39 @@
 
 import * as nls from '../../../../nls.js';
 import { AgentHostAutoArchiveMergedSessionsAfterDaysConfigKey, AgentHostAutoDeleteArchivedMergedSessionsAfterDaysConfigKey } from '../../../../platform/agentHost/common/agentHostSchema.js';
-import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
+import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationPropertySchema, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
 import product from '../../../../platform/product/common/product.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { ConfigurationKeyValuePairs, Extensions as WorkbenchConfigurationExtensions, IConfigurationMigrationRegistry } from '../../../common/configuration.js';
-import { AGENT_SESSION_CLEANUP_SETTINGS_TAG, ChatConfiguration } from '../common/constants.js';
+import { AGENT_SESSION_CLEANUP_SETTINGS_TAG, ChatConfiguration, DEFAULT_AGENTS_HANDOFF_TIP_DELAY_SECONDS } from '../common/constants.js';
 
 const legacyAutoArchiveMergedSessionsAfterDaysSetting = 'chat.agentSessions.autoArchiveMergedSessionsAfterDays';
 const legacyAutoDeleteArchivedMergedSessionsAfterDaysSetting = 'chat.agentSessions.autoDeleteArchivedMergedSessionsAfterDays';
+
+export const agentsWindowHandoffConfigurationProperties = {
+	[ChatConfiguration.OpenInAgentsWindowTransferDraft]: {
+		type: 'boolean',
+		description: nls.localize('chat.openInAgentsWindow.transferDraft', "Copy the prompt and attachments from a new chat when opening the Agents Window. Existing drafts in the Agents Window are preserved."),
+		default: product.quality === 'insider',
+		tags: ['experimental'],
+		experiment: { mode: 'auto' },
+	},
+	[ChatConfiguration.AgentsParallelWorkBannerEnabled]: {
+		type: 'boolean',
+		description: nls.localize('chat.agentsParallelWorkBanner.enabled', "Show an invitation to work in parallel in the Agents Window when starting a new Agent Host chat while another Agent Host session is running."),
+		default: product.quality === 'insider',
+		tags: ['experimental'],
+		experiment: { mode: 'auto' },
+	},
+	[ChatConfiguration.AgentsHandoffTipDelaySeconds]: {
+		type: 'number',
+		minimum: 0,
+		default: DEFAULT_AGENTS_HANDOFF_TIP_DELAY_SECONDS,
+		markdownDescription: nls.localize('chat.agentsHandoffTip.delaySeconds', "Controls the delay, in seconds, after the latest user message before offering to continue an in-progress session in the Agents Window. Requires `#chat.agentsHandoffTip.mode#` to be `default` or `custom`."),
+		tags: ['experimental', 'advanced'],
+		experiment: { mode: 'auto' },
+	},
+} satisfies Record<string, IConfigurationPropertySchema>;
 
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
 	id: 'chat',

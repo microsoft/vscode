@@ -518,6 +518,7 @@ class TestSession implements ISession {
 		const mainChat: IChat = {
 			resource: this.resource,
 			createdAt: this.createdAt,
+			workspace: this.workspace,
 			title: this.title,
 			updatedAt: this.updatedAt,
 			status: this.status,

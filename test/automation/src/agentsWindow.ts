@@ -13,13 +13,14 @@ const NEW_SESSION_VIEW = '.sessions-chat-widget .new-chat-widget-container';
 const SESSION_TYPE_PICKER = '.sessions-chat-session-type-picker .action-label';
 const SESSION_TYPE_PICKER_VISIBLE = `${SESSION_TYPE_PICKER}:not(.hidden)`;
 const WORKSPACE_PICKER = `${NEW_SESSION_VIEW} .sessions-workspace-picker-trigger > .action-label`;
-const WORKSPACE_PICKER_DEV_CONTAINER_ROW = '.action-widget .sessions-new-chat-picker-list .monaco-list-row.action:has(.action-list-submenu-indicator.has-submenu):not([aria-label="Remote"])';
+const WORKSPACE_PICKER_DEV_CONTAINER_ROW = '.action-widget .sessions-new-chat-picker-list .monaco-list-row.action:has(.action-list-submenu-indicator.has-submenu):not([aria-label="Remote"]):not([aria-label="Chat"])';
 const WORKSPACE_PICKER_SUBMENU_ROW = '.action-list-submenu-panel .monaco-list-row.action';
 const NEW_CHAT_EDITOR = `${NEW_SESSION_VIEW} .sessions-chat-editor .monaco-editor[role="code"]`;
 const SEND_BUTTON_ENABLED = `${NEW_SESSION_VIEW} .sessions-chat-send-button .monaco-button:not(.disabled)`;
 const ACTIVE_SESSION = `${AGENTS_WORKBENCH} .session-view.is-active`;
 const ACTIVE_SESSION_INPUT_EDITOR = `${ACTIVE_SESSION} .interactive-session .interactive-input-part .monaco-editor[role="code"]`;
 const ACTIVE_SESSION_SEND_BUTTON_ENABLED = `${ACTIVE_SESSION} .interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item:not(.disabled) > .action-label.codicon-arrow-up-compact`;
+const ACTIVE_SESSION_STOP_BUTTON_ENABLED = `${ACTIVE_SESSION} .interactive-session .chat-execute-toolbar .action-item:not(.disabled) > .action-label.codicon-stop-circle`;
 const RESPONSE = `${AGENTS_WORKBENCH} .interactive-item-container.interactive-response`;
 const SESSION_LIST_ROW = `${AGENTS_WORKBENCH} .sessions-list-control .monaco-list-row`;
 
@@ -116,6 +117,56 @@ export class AgentsWindow {
 		const retryCount = Math.ceil(timeoutMs / 100);
 		await this.code.waitForElement(NEW_SESSION_VIEW, result => !result, retryCount);
 		await this.code.waitForElement(ACTIVE_SESSION_INPUT_EDITOR, undefined, retryCount);
+	}
+
+	async waitForSessionPreparation(): Promise<void> {
+		const page = this.code.driver.currentPage;
+		const progress = page.locator(`${ACTIVE_SESSION} .chat-transcript-progress:not([hidden])`);
+		await progress.getByText('Starting Dev Container...', { exact: false }).waitFor({ state: 'visible', timeout: 30_000 });
+		await progress.getByRole('button', { name: 'Show Log', exact: true }).waitFor({ state: 'visible' });
+		if (await progress.locator('.xterm-screen').count()) {
+			throw new Error('Startup logs must remain in the output channel, not the transcript');
+		}
+		await page.locator(NEW_SESSION_VIEW).waitFor({ state: 'hidden' });
+		await page.locator(ACTIVE_SESSION_INPUT_EDITOR).waitFor({ state: 'visible' });
+		await page.locator(ACTIVE_SESSION_STOP_BUTTON_ENABLED).waitFor({ state: 'visible' });
+		await page.locator(`${ACTIVE_SESSION} .chat-input-toolbar[inert]`).waitFor({ state: 'visible' });
+		await page.locator(`${ACTIVE_SESSION} .chat-attachments-container[inert]`).waitFor({ state: 'attached' });
+		await page.waitForFunction(selector => !!document.querySelector(selector)?.closest('[inert]'), ACTIVE_SESSION_INPUT_EDITOR);
+		await page.locator(ACTIVE_SESSION_SEND_BUTTON_ENABLED).waitFor({ state: 'hidden' });
+	}
+
+	async showSessionPreparationLog(): Promise<void> {
+		const page = this.code.driver.currentPage;
+		await page.locator(`${ACTIVE_SESSION} .chat-transcript-progress`).getByRole('button', { name: 'Show Log', exact: true }).click();
+		await page.locator('.output-view .monaco-editor').waitFor({ state: 'visible' });
+		await this.code.waitForTextContent('.output-view .view-lines', undefined, text => /Starting Dev Container|Dev Containers|Start:/.test(text.replace(/\u00a0/g, ' ')));
+		await this.quickaccess.runCommand('workbench.action.closePanel');
+	}
+
+	async verifyInputEnabledAfterPreparation(): Promise<void> {
+		const page = this.code.driver.currentPage;
+		await page.waitForFunction(selector => {
+			const editor = document.querySelector(selector);
+			return editor && !editor.closest('[inert]') && !editor.classList.contains('readonly');
+		}, ACTIVE_SESSION_INPUT_EDITOR);
+		await page.locator(`${ACTIVE_SESSION} .chat-input-toolbar:not([inert])`).waitFor({ state: 'visible' });
+		await this.code.waitAndClick(ACTIVE_SESSION_INPUT_EDITOR);
+		await this.code.waitForTypeInEditor(this.activeSessionInputSelector, 'Follow-up after preparation');
+		await page.keyboard.press(process.platform === 'darwin' ? 'Meta+a' : 'Control+a');
+		await page.keyboard.press('Backspace');
+		await this.code.waitForTextContent(`${ACTIVE_SESSION_INPUT_EDITOR} .view-lines`, '', text => text.trim() === '');
+	}
+
+	async cancelSessionPreparation(originalPrompt: string): Promise<void> {
+		await this.code.waitAndClick(ACTIVE_SESSION_STOP_BUTTON_ENABLED);
+		await this.waitForNewSessionView();
+		await this.code.waitForTextContent(`${NEW_CHAT_EDITOR} .view-lines`, undefined, text => text.replace(/\u00a0/g, ' ') === originalPrompt);
+	}
+
+	async retrySessionPreparation(): Promise<void> {
+		await this.code.driver.currentPage.locator(SEND_BUTTON_ENABLED).click();
+		await this.code.driver.currentPage.locator(NEW_SESSION_VIEW).waitFor({ state: 'hidden' });
 	}
 
 	async connectSSHHost(options: { name: string; host: string; port: number; username: string; password: string; fingerprint: string }, workspacePath: string): Promise<void> {

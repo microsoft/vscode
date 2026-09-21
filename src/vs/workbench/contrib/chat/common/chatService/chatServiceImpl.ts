@@ -62,7 +62,8 @@ import { IPromptsService } from '../promptSyntax/service/promptsService.js';
 import { AGENT_DEBUG_LOG_FILE_LOGGING_ENABLED_SETTING, TROUBLESHOOT_COMMAND_NAME, TROUBLESHOOT_SKILL_PATH, COPILOT_SKILL_URI_SCHEME } from '../promptSyntax/promptTypes.js';
 import { ChatRequestHooks, mergeHooks } from '../promptSyntax/hookSchema.js';
 import { ComputeAutomaticInstructions } from '../promptSyntax/computeAutomaticInstructions.js';
-import { CustomizationMigrationHintTarget, CustomizationMigrationType, ICustomizationMigrationHint } from '../promptSyntax/service/customizationMigrationService.js';
+import { CustomizationMigrationHintTarget, ICustomizationMigrationHint } from '../promptSyntax/service/customizationMigrationService.js';
+import { ICustomizationMigrationTelemetryService } from '../promptSyntax/service/customizationMigrationTelemetryService.js';
 import { findLast } from '../../../../../base/common/arraysFind.js';
 import { ChatMode } from '../chatModes.js';
 import { AICustomizationManagementCommands, AICustomizationManagementSection, getCustomizationMigrationHintDismissedStorageKey } from '../aiCustomizationWorkspaceService.js';
@@ -128,18 +129,6 @@ class CancellableRequest implements IDisposable {
 
 const EMPTY_REFERENCES: ReadonlyArray<IDynamicVariable> = Object.freeze([]);
 const EMPTY_TOOL_ENABLEMENT_MAP: ToolAndToolSetEnablementMap = ToolAndToolSetEnablementMap.fromEntries([]);
-
-type CustomizationMigrationAssessmentEvent = {
-	category: CustomizationMigrationType;
-	count: number;
-};
-
-type CustomizationMigrationAssessmentClassification = {
-	category: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The category of customization migration finding.' };
-	count: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of customizations in the finding.' };
-	owner: 'digitarald';
-	comment: 'Tracks aggregate customization migration findings without collecting customization names, paths, or content.';
-};
 
 /**
  * Preserve the picker state from `stateToApply`, only recovering a custom agent mode from
@@ -293,6 +282,7 @@ export class ChatService extends Disposable implements IChatService {
 		@IChatEntitlementService private readonly chatEntitlementService: IChatEntitlementService,
 		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService,
 		@IChatDebugService private readonly chatDebugService: IChatDebugService,
+		@ICustomizationMigrationTelemetryService private readonly customizationMigrationTelemetryService: ICustomizationMigrationTelemetryService,
 	) {
 		super();
 
@@ -1661,12 +1651,7 @@ export class ChatService extends Disposable implements IChatService {
 				try {
 					const hint = await this._customizationMigrationHintProvider(sessionResource, token);
 					if (hint && !token.isCancellationRequested) {
-						for (const { type, count } of hint.counts) {
-							this.telemetryService.publicLog2<CustomizationMigrationAssessmentEvent, CustomizationMigrationAssessmentClassification>('chat.customizationMigrationAssessment', {
-								category: type,
-								count,
-							});
-						}
+						this.customizationMigrationTelemetryService.hintComputed(hint.counts);
 						return hint;
 					}
 					return undefined;
@@ -1893,9 +1878,9 @@ export class ChatService extends Disposable implements IChatService {
 						}
 
 						const reviewArguments = hint.target === CustomizationMigrationHintTarget.FileMigrations
-							? [{ migration: true }]
+							? [{ migration: true, migrationHintTarget: hint.target }]
 							: hint.target === CustomizationMigrationHintTarget.McpServers
-								? [{ section: AICustomizationManagementSection.McpServers }]
+								? [{ section: AICustomizationManagementSection.McpServers, migrationHintTarget: hint.target }]
 								: undefined;
 						const reviewLink = createMarkdownCommandLink({
 							id: AICustomizationManagementCommands.OpenEditor,
@@ -1907,7 +1892,9 @@ export class ChatService extends Disposable implements IChatService {
 							id: AICustomizationManagementCommands.DismissMigrationHint,
 							text: localize('customizationMigrationHint.dismiss', "Hide for this workspace"),
 							tooltip: localize('customizationMigrationHint.dismiss.tooltip', "Stop Showing Migration Hints for This Harness"),
+							arguments: [{ target: hint.target }],
 						});
+						this.customizationMigrationTelemetryService.hintShown(hint.target);
 						progressCallback([{
 							kind: 'systemNotification',
 							content: new MarkdownString(

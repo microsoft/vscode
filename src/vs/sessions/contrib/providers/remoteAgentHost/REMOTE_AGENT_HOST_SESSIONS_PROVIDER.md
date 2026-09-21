@@ -59,6 +59,8 @@ Hosts may publish execution-platform, CPU, and memory-capacity metadata in the r
 
 Hosts explicitly advertise support for preserving remote-session origins. Creation tools require that capability rather than using resource metadata or build versions as a proxy. The origin and cumulative spawn depth are included in initial publication and persisted by the host before creation succeeds; listing and restoration rehydrate them independently of provider-owned metadata.
 
+Providers may expose `showConnectionLog` for the connection recovery surface. The provider owns log routing, so restored Dev Container providers can open their source workspace's output channel before a live connection exists.
+
 On web, an intentional tunnel disconnect keeps the host cached and selectable while suppressing automatic reconnect. Reconnecting explicitly clears that suppression. Picker dismissal remains a separate persistent Hide operation and must have an explicit Restore path.
 
 ## Session lifecycle

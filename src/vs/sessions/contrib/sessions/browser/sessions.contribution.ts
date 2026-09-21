@@ -81,6 +81,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 		},
 		[SESSIONS_CHAT_TABS_SETTING]: {
 			type: 'string',
+			tags: ['preview'],
 			enum: [SessionsChatTabsMode.Multiple, SessionsChatTabsMode.Single],
 			enumDescriptions: [
 				localize('sessions.showChatTabs.multiple', "Each chat is displayed as a tab in the session view."),
@@ -127,7 +128,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			type: 'boolean',
 			default: true,
 			scope: ConfigurationScope.APPLICATION,
-			description: localize('sessions.useWorktree', "Controls whether New Worktree is checked when no previous isolation choice has been saved. Once a choice is saved, it is used across workspaces instead of this setting."),
+			description: localize('sessions.useWorktree', "Controls whether New Worktree is checked for a workspace that has not started a session before. Each workspace otherwise uses the choice from its last started session."),
 			experiment: {
 				mode: 'auto',
 				name: USE_WORKTREE_SETTING_TREATMENT
