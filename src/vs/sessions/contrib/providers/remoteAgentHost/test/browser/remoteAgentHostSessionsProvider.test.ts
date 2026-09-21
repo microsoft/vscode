@@ -1069,7 +1069,7 @@ suite('RemoteAgentHostSessionsProvider', () => {
 			provider.setAgent(draft.sessionId, { uri: 'file:///project/.github/agents/reviewer.agent.md', name: 'Reviewer' });
 			const replacement: ISession = { ...draft, sessionId: 'container:replacement', providerId: targetProvider.id };
 			const request = disposables.add(provider.startNewSessionRequest(draft.sessionId));
-			assert.strictEqual(draft.description.get()?.value, 'Starting&nbsp;Dev&nbsp;Container...');
+			assert.strictEqual(draft.description.get()?.value, 'Starting&nbsp;Dev&nbsp;Container');
 			const prepared = await provider.prepareNewSession(draft.sessionId, CancellationToken.None, 'Fix it');
 			request.dispose();
 			provider.deleteNewSession(draft.sessionId);

@@ -2263,6 +2263,38 @@ suite('ChatListRenderer', () => {
 		});
 	}
 
+	test('in-place progress announces changed phases only when verbose progress is enabled', () => {
+		const action = observableValue('progressAction', { label: 'Show Log', run: () => { } });
+		const { disposables, configurationService, model, request, renderer, template, node } = createPersistentProgressRenderer({ rendererOptions: { progressMessageAction: action } });
+		configurationService.setUserConfiguration(ChatConfiguration.PersistentProgress, ChatProgressAnimation.Off);
+		configurationService.setUserConfiguration('accessibility.verboseChatProgressUpdates', true);
+		const host = dom.$('div');
+		setARIAContainer(host);
+		disposables.add(toDisposable(() => host.remove()));
+		const update = (message: string) => {
+			model.acceptResponseProgress(request, { kind: 'progressMessage', id: 'preparation', content: new MarkdownString(message), shimmer: true });
+			renderer.renderElement(node, 0, template);
+			return [...host.querySelectorAll('.monaco-alert')].map(alert => alert.textContent).filter(Boolean);
+		};
+		const initial = update('Starting Dev Container');
+		const link = template.value.querySelector<HTMLElement>('.chat-progress-action .monaco-link')!;
+		link.focus();
+		const changed = update('Initializing Agent Host session');
+		const repeated = update('Initializing Agent Host session');
+		configurationService.setUserConfiguration('accessibility.verboseChatProgressUpdates', false);
+		const quiet = update('Finishing preparation');
+		assert.deepStrictEqual({
+			initial, changed, repeated, quiet,
+			focused: dom.getActiveElement() === link,
+		}, {
+			initial: ['Starting Dev Container'],
+			changed: ['Initializing Agent Host session'],
+			repeated: ['Initializing Agent Host session'],
+			quiet: ['Initializing Agent Host session'],
+			focused: true,
+		});
+	});
+
 	test('trailing progress labels come from the last progress message only', () => {
 		const message = (text: string) => ({ kind: 'progressMessage' as const, content: new MarkdownString(text) });
 		const task = (text: string, settled: boolean): IChatTask => {

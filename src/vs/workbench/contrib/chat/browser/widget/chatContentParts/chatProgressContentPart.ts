@@ -130,6 +130,10 @@ export class ChatProgressContentPart extends Disposable implements IChatContentP
 			|| shouldShowSpinner(followingContent, element) !== this.showSpinner) {
 			return false;
 		}
+		if (this.showSpinner && progress.content.value !== this.currentContent.value
+			&& this.configurationService.getValue(AccessibilityWorkbenchSettingId.VerboseChatProgressUpdates)) {
+			alert(stripIcons(renderAsPlaintext(progress.content)));
+		}
 		this.updateMessage(progress.content);
 		return true;
 	}
