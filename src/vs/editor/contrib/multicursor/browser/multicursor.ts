@@ -300,7 +300,8 @@ export class MultiCursorSession {
 
 		if (isFindWidgetSearch(editor, findController)) {
 			// Find widget owns what is searched for
-			return new MultiCursorSession(editor, findController, false, true, findState.searchString, findState.wholeWord, findState.matchCase, null);
+			// Keep its regex setting when the next match is added.
+			return new MultiCursorSession(editor, findController, false, true, findState.searchString, findState.wholeWord, findState.matchCase, findState.isRegex, null);
 		}
 
 		let isDisconnectedFromFindController = false;
@@ -322,6 +323,15 @@ export class MultiCursorSession {
 
 		// Selection owns what is searched for
 		const s = editor.getSelection();
+		// A selected regex match should keep the Find query, even when the editor has focus.
+		if (!s.isEmpty() && usesFindOptions && findState.isRevealed && findState.isRegex && findState.searchString.length > 0) {
+			const wordSeparators = findState.wholeWord ? editor.getOption(EditorOption.wordSeparators) : null;
+			const matches = editor.getModel().findMatches(findState.searchString, [s], true, findState.matchCase, wordSeparators, false);
+			// Only use the query if the selection is an exact match.
+			if (matches.some(match => match.range.equalsRange(s))) {
+				return new MultiCursorSession(editor, findController, false, true, findState.searchString, findState.wholeWord, findState.matchCase, true, null);
+			}
+		}
 
 		let searchText: string;
 		let currentMatch: Selection | null = null;
@@ -338,7 +348,8 @@ export class MultiCursorSession {
 			searchText = editor.getModel().getValueInRange(s).replace(/\r\n/g, '\n');
 		}
 
-		return new MultiCursorSession(editor, findController, isDisconnectedFromFindController, usesFindOptions, searchText, wholeWord, matchCase, currentMatch);
+		// Selection text is searched literally, even if Find is in regex mode.
+		return new MultiCursorSession(editor, findController, isDisconnectedFromFindController, usesFindOptions, searchText, wholeWord, matchCase, false, currentMatch);
 	}
 
 	constructor(
@@ -349,6 +360,7 @@ export class MultiCursorSession {
 		public readonly searchText: string,
 		public readonly wholeWord: boolean,
 		public readonly matchCase: boolean,
+		public readonly isRegex: boolean,
 		public currentMatch: Selection | null
 	) { }
 
@@ -395,7 +407,7 @@ export class MultiCursorSession {
 
 		const allSelections = this._editor.getSelections();
 		const lastAddedSelection = allSelections[allSelections.length - 1];
-		const nextMatch = this._editor.getModel().findNextMatch(this.searchText, lastAddedSelection.getEndPosition(), false, this.matchCase, this.wholeWord ? this._editor.getOption(EditorOption.wordSeparators) : null, false);
+		const nextMatch = this._editor.getModel().findNextMatch(this.searchText, lastAddedSelection.getEndPosition(), this.isRegex, this.matchCase, this.wholeWord ? this._editor.getOption(EditorOption.wordSeparators) : null, false);
 
 		if (!nextMatch) {
 			return null;
@@ -446,7 +458,7 @@ export class MultiCursorSession {
 
 		const allSelections = this._editor.getSelections();
 		const lastAddedSelection = allSelections[allSelections.length - 1];
-		const previousMatch = this._editor.getModel().findPreviousMatch(this.searchText, lastAddedSelection.getStartPosition(), false, this.matchCase, this.wholeWord ? this._editor.getOption(EditorOption.wordSeparators) : null, false);
+		const previousMatch = this._editor.getModel().findPreviousMatch(this.searchText, lastAddedSelection.getStartPosition(), this.isRegex, this.matchCase, this.wholeWord ? this._editor.getOption(EditorOption.wordSeparators) : null, false);
 
 		if (!previousMatch) {
 			return null;
@@ -463,9 +475,9 @@ export class MultiCursorSession {
 
 		const editorModel = this._editor.getModel();
 		if (searchScope) {
-			return editorModel.findMatches(this.searchText, searchScope, false, this.matchCase, this.wholeWord ? this._editor.getOption(EditorOption.wordSeparators) : null, false, Constants.MAX_SAFE_SMALL_INTEGER);
+			return editorModel.findMatches(this.searchText, searchScope, this.isRegex, this.matchCase, this.wholeWord ? this._editor.getOption(EditorOption.wordSeparators) : null, false, Constants.MAX_SAFE_SMALL_INTEGER);
 		}
-		return editorModel.findMatches(this.searchText, true, false, this.matchCase, this.wholeWord ? this._editor.getOption(EditorOption.wordSeparators) : null, false, Constants.MAX_SAFE_SMALL_INTEGER);
+		return editorModel.findMatches(this.searchText, true, this.isRegex, this.matchCase, this.wholeWord ? this._editor.getOption(EditorOption.wordSeparators) : null, false, Constants.MAX_SAFE_SMALL_INTEGER);
 	}
 
 	private _highlightFindOptions(): void {
