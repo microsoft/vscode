@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './media/inboxNotificationsView.css';
-import { $, clearNode, trackFocus } from '../../../../base/browser/dom.js';
+import { $, addDisposableListener, clearNode, EventType, getActiveElement, isHTMLElement, trackFocus } from '../../../../base/browser/dom.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
 import { DomScrollableElement } from '../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
@@ -96,6 +96,8 @@ export class InboxNotificationsView extends AbstractCustomView {
 		list.setAttribute('role', 'list');
 		list.setAttribute('aria-label', localize('inboxNotifications.listAriaLabel', "Prioritized notifications"));
 		this.listContainer.set(list, undefined);
+		this._register(addDisposableListener(list, EventType.FOCUS_IN, event => this.onListFocusIn(event)));
+		this._register(addDisposableListener(list, EventType.KEY_DOWN, event => this.onListKeyDown(event)));
 
 		this._register(autorun(reader => {
 			this.inboxNotificationsService.notifications.read(reader);
@@ -108,6 +110,13 @@ export class InboxNotificationsView extends AbstractCustomView {
 		if (!list) {
 			return;
 		}
+
+		const previouslyFocusedElement = getActiveElement();
+		const hadFocusWithinList = isHTMLElement(previouslyFocusedElement) && list.contains(previouslyFocusedElement);
+		const focusedNotificationId = hadFocusWithinList
+			? previouslyFocusedElement.closest<HTMLElement>('.inbox-notifications-item')?.dataset.notificationId
+			: undefined;
+
 		this.renderedListDisposables.clear();
 		clearNode(list);
 
@@ -121,6 +130,12 @@ export class InboxNotificationsView extends AbstractCustomView {
 			list.appendChild(this.renderItem(item));
 		}
 
+		this.applyCardTabStops(focusedNotificationId);
+		if (hadFocusWithinList) {
+			const target = this.getNotificationCards().find(card => card.tabIndex === 0);
+			target?.focus();
+		}
+
 		this.scrollableElement.scanDomNode();
 	}
 
@@ -128,6 +143,7 @@ export class InboxNotificationsView extends AbstractCustomView {
 		const card = $('.inbox-notifications-item');
 		card.classList.add(`priority-${item.priority}`);
 		card.setAttribute('role', 'listitem');
+		card.dataset.notificationId = item.id;
 		card.setAttribute('aria-label', localize(
 			'inboxNotifications.itemAriaLabel',
 			"Priority {0}. {1}. {2}. {3}",
@@ -160,6 +176,73 @@ export class InboxNotificationsView extends AbstractCustomView {
 		}
 
 		return card;
+	}
+
+	private onListFocusIn(event: FocusEvent): void {
+		const target = event.target;
+		if (!isHTMLElement(target)) {
+			return;
+		}
+
+		const card = target.closest<HTMLElement>('.inbox-notifications-item');
+		if (!card) {
+			return;
+		}
+
+		this.setActiveCard(card);
+	}
+
+	private onListKeyDown(event: KeyboardEvent): void {
+		if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') {
+			return;
+		}
+
+		const target = event.target;
+		if (!isHTMLElement(target)) {
+			return;
+		}
+
+		const cards = this.getNotificationCards();
+		const currentIndex = cards.findIndex(card => card === target || card.contains(target));
+		if (currentIndex === -1) {
+			return;
+		}
+
+		const delta = event.key === 'ArrowDown' ? 1 : -1;
+		const nextIndex = Math.min(cards.length - 1, Math.max(0, currentIndex + delta));
+		if (nextIndex === currentIndex) {
+			return;
+		}
+
+		event.preventDefault();
+		this.setActiveCard(cards[nextIndex]);
+		cards[nextIndex].focus();
+	}
+
+	private applyCardTabStops(preferredNotificationId: string | undefined): void {
+		const cards = this.getNotificationCards();
+		if (cards.length === 0) {
+			return;
+		}
+
+		const activeCard = preferredNotificationId
+			? cards.find(card => card.dataset.notificationId === preferredNotificationId)
+			: undefined;
+		this.setActiveCard(activeCard ?? cards[0]);
+	}
+
+	private setActiveCard(activeCard: HTMLElement): void {
+		const cards = this.getNotificationCards();
+		const setSize = cards.length;
+		for (const [index, card] of cards.entries()) {
+			card.tabIndex = card === activeCard ? 0 : -1;
+			card.setAttribute('aria-posinset', String(index + 1));
+			card.setAttribute('aria-setsize', String(setSize));
+		}
+	}
+
+	private getNotificationCards(): HTMLElement[] {
+		return Array.from(this.listElement.querySelectorAll<HTMLElement>('.inbox-notifications-item'));
 	}
 
 	private kindLabel(kind: IInboxNotificationItem['kind']): string {

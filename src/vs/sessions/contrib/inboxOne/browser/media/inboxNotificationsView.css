@@ -48,6 +48,11 @@
 	background-color: var(--vscode-editorWidget-background);
 }
 
+.inbox-notifications-item:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
 .inbox-notifications-item.priority-0 {
 	border-inline-start: var(--vscode-spacing-size20) solid var(--vscode-errorForeground);
 }
