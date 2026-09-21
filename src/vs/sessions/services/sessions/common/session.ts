@@ -41,6 +41,14 @@ export interface ISessionType {
 	 * credentials come and go).
 	 */
 	readonly authRequirement: SessionTypeAuthRequirement;
+	/**
+	 * Selection-time initialization advertised by the provider while this type
+	 * is not usable yet. Absent when selecting the type cannot make progress.
+	 */
+	readonly initializationOnSelection?: {
+		/** Whether the provider already has non-GitHub authentication for initialization. */
+		readonly canInitializeWithoutGitHub: boolean;
+	};
 }
 
 /**

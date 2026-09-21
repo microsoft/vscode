@@ -17,10 +17,12 @@ import { isEqual } from '../../../../../../base/common/resources.js';
 import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { AgentSession, type IAgentCreateChatRequestOptions, type IAgentCreateSessionConfig, type IAgentSessionMetadata } from '../../../../../../platform/agentHost/common/agent.js';
+import { AgentSession, CODEX_AGENT_PROVIDER_ID, type IAgentCreateChatRequestOptions, type IAgentCreateSessionConfig, type IAgentSessionMetadata } from '../../../../../../platform/agentHost/common/agent.js';
+import { agentSdkSetupStatusKey } from '../../../../../../platform/agentHost/common/agentSdkSetup.js';
 import { AgentHostCodexAgentEnabledSettingId, IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
 import { getAgentHostExtensionInitializeResultMeta } from '../../../../../../platform/agentHost/common/agentHostExtensionProtocol.js';
 import { AGENT_HOST_AUTOMATION_CATALOG_MIGRATED_META_KEY } from '../../../../../../platform/agentHost/common/automationMigration.js';
+import { CODEX_ACCOUNT_META_KEY } from '../../../../../../platform/agentHost/common/codexAccount.js';
 import type { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import type { InitializeResult } from '../../../../../../platform/agentHost/common/state/protocol/common/commands.js';
 import type { ResolveSessionConfigResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
@@ -339,9 +341,13 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 		this._sessionStateEmitters.get(chatUri)?.fire(state);
 	}
 
-	setAgents(agents: AgentInfo[]): void {
-		this._rootStateValue = { agents };
+	setRootState(state: RootState): void {
+		this._rootStateValue = state;
 		this._onDidRootStateChange.fire(this._rootStateValue);
+	}
+
+	setAgents(agents: AgentInfo[]): void {
+		this.setRootState({ agents });
 	}
 
 	/**
@@ -753,6 +759,40 @@ suite('LocalAgentHostSessionsProvider', () => {
 			{ id: 'copilotcli', label: 'Copilot' },
 			{ id: 'openai', label: 'OpenAI' },
 		]);
+	});
+
+	test('session types publish provider-neutral selection-time initialization', () => {
+		const configurationService = new TestConfigurationService();
+		configurationService.setUserConfiguration(AgentHostCodexAgentEnabledSettingId, true);
+		const codexAgent = { provider: CODEX_AGENT_PROVIDER_ID, displayName: 'Codex', description: '', models: [] } as AgentInfo;
+		const setup = { download: 'ready' as const, signInProviderName: 'ChatGPT' };
+		const rootState = (accountStatus: 'signedIn' | 'signedOut', hasSetup = true): RootState => ({
+			agents: [codexAgent],
+			_meta: {
+				...(hasSetup ? { [agentSdkSetupStatusKey(CODEX_AGENT_PROVIDER_ID)]: setup } : {}),
+				[CODEX_ACCOUNT_META_KEY]: { status: accountStatus },
+			},
+		});
+		agentHost.setRootState(rootState('signedIn'));
+		const provider = createProvider(disposables, agentHost, undefined, { configurationService });
+		let changes = 0;
+		disposables.add(provider.onDidChangeSessionTypes(() => changes++));
+
+		const initialization = () => provider.sessionTypes[0]?.initializationOnSelection;
+		const states = [initialization()];
+		agentHost.setRootState(rootState('signedOut'));
+		states.push(initialization());
+		agentHost.setRootState(rootState('signedOut', false));
+		states.push(initialization());
+
+		assert.deepStrictEqual({ states, changes }, {
+			states: [
+				{ canInitializeWithoutGitHub: true },
+				{ canInitializeWithoutGitHub: false },
+				undefined,
+			],
+			changes: 2,
+		});
 	});
 
 	test('shares the root-state listener across session adapters', () => {
