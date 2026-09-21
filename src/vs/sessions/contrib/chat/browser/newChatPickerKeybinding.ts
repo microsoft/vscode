@@ -25,6 +25,7 @@ export const FOCUS_NEW_SESSION_HARNESS_PICKER_KEYBINDING = KeyChord(KeyMod.CtrlC
 export const FOCUS_NEW_SESSION_WORKSPACE_PICKER_WHEN = ContextKeyExpr.and(
 	IsSessionsWindowContext,
 	IsNewChatSessionContext,
+	ChatContextKeys.enabled,
 	ChatContextKeys.inputHasFocus,
 	SessionWorkspacePickerVisibleContext,
 	ContextKeyExpr.equals(`config.${UNIFIED_WORKSPACE_PICKER_SETTING}`, true),
@@ -33,6 +34,7 @@ export const FOCUS_NEW_SESSION_WORKSPACE_PICKER_WHEN = ContextKeyExpr.and(
 export const FOCUS_NEW_SESSION_HARNESS_PICKER_WHEN = ContextKeyExpr.and(
 	IsSessionsWindowContext,
 	IsNewChatSessionContext,
+	ChatContextKeys.enabled,
 	ChatContextKeys.inputHasFocus,
 	SessionHarnessPickerVisibleContext,
 	ContextKeyExpr.equals(`config.${UNIFIED_WORKSPACE_PICKER_SETTING}`, true),

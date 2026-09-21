@@ -36,8 +36,8 @@ suite('New chat picker keybindings', () => {
 			workspace: FOCUS_NEW_SESSION_WORKSPACE_PICKER_WHEN.serialize(),
 			harness: FOCUS_NEW_SESSION_HARNESS_PICKER_WHEN.serialize(),
 		}, {
-			workspace: 'chatInputHasFocus && config.sessions.chat.unifiedWorkspacePicker.enabled && isNewChatSession && isSessionsWindow && sessionWorkspacePickerVisible',
-			harness: 'chatInputHasFocus && config.sessions.chat.unifiedWorkspacePicker.enabled && isNewChatSession && isSessionsWindow && sessionHarnessPickerVisible',
+			workspace: 'chatInputHasFocus && chatIsEnabled && config.sessions.chat.unifiedWorkspacePicker.enabled && isNewChatSession && isSessionsWindow && sessionWorkspacePickerVisible',
+			harness: 'chatInputHasFocus && chatIsEnabled && config.sessions.chat.unifiedWorkspacePicker.enabled && isNewChatSession && isSessionsWindow && sessionHarnessPickerVisible',
 		});
 	});
 

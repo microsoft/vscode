@@ -59,9 +59,13 @@ import { ISessionsChatBackgroundService } from '../../../services/chatBackground
 import { ISessionPickerVisibility, noSessionPickerVisibility } from '../../../services/sessions/common/sessionPickerVisibility.js';
 import { IAgentsWindowDraft } from '../../../../platform/window/common/window.js';
 import { EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, UNIFIED_WORKSPACE_PICKER_SETTING } from '../common/constants.js';
+import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/browser/layoutService.js';
+import { isPhoneLayout } from '../../../browser/parts/mobile/mobileLayout.js';
+import { IsPhoneLayoutContext } from '../../../common/contextkeys.js';
 
 const SESSION_CHAT_RESPONSE_INTERNAL_HORIZONTAL_PADDING = 12;
-const EXPERIMENTAL_SESSION_CHAT_INPUT_TRAILING_SPACE = 28;
+// 14px icon + 6px padding + 4px gap + the 4em (44px) expanded percentage label + breathing room.
+const EXPERIMENTAL_SESSION_CHAT_INPUT_TRAILING_SPACE = 72;
 
 /**
  * Returns the total horizontal space the renderer must reserve for Sessions chat items.
@@ -73,6 +77,10 @@ export function getSessionChatItemHorizontalPadding(hasBackground: boolean): num
 
 export function shouldShowSessionChatTip(sessionStatus: SessionStatus | undefined): boolean {
 	return sessionStatus === undefined || !isActiveSessionStatus(sessionStatus);
+}
+
+export function isExperimentalRunningSessionComposerLayoutEnabled(configurationService: IConfigurationService, layoutService: IWorkbenchLayoutService): boolean {
+	return isExperimentalSessionComposerLayoutEnabled(configurationService) && !isPhoneLayout(layoutService);
 }
 
 /**
@@ -266,6 +274,7 @@ export class ChatView extends AbstractChatView {
 		@ISessionOpenTelemetryService private readonly sessionOpenTelemetryService: ISessionOpenTelemetryService,
 		@ISessionsChatBackgroundService private readonly chatBackgroundService: ISessionsChatBackgroundService,
 		@INotificationService private readonly notificationService: INotificationService,
+		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 	) {
 		super();
 		this._register(toDisposable(() => this._reportModelUnbound()));
@@ -310,12 +319,17 @@ export class ChatView extends AbstractChatView {
 		));
 		this._widget.render(this._widgetContainer, undefined, this._isActiveObs);
 		const updateExperimentalComposerLayout = () => {
-			const enabled = isExperimentalSessionComposerLayoutEnabled(this.configurationService);
+			const enabled = isExperimentalRunningSessionComposerLayoutEnabled(this.configurationService, this.layoutService);
 			this.element.classList.toggle('experimental-session-composer', enabled);
 			this._widget.inputPart.placeContextUsageWidget(enabled ? this._widget.inputPart.inputContainerElement : undefined);
 			this._widget.inputPart.setInputEditorTrailingSpace(enabled ? EXPERIMENTAL_SESSION_CHAT_INPUT_TRAILING_SPACE : 0);
 		};
 		updateExperimentalComposerLayout();
+		this._register(contextKeyService.onDidChangeContext(event => {
+			if (event.affectsSome(new Set([IsPhoneLayoutContext.key]))) {
+				updateExperimentalComposerLayout();
+			}
+		}));
 		this._register(this._widget.onDidChangeStickyScrollDomNode(() => this._layoutStickyScrollBackground()));
 		this._register(this.chatBackgroundService.onDidChangeBackground(() => this._updateChatBackground()));
 		this._externalSessionBanner = this._register(scopedInstantiationService.createInstance(
