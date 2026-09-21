@@ -48,8 +48,9 @@ export function getSessionTypePickerAvailability(type: string, availability: Ses
  * is signed in through either GitHub or the harness's own provider can enter an
  * advertised setup flow; otherwise the signed-out experiment must permit it.
  */
-export function canInitializeSessionTypeOnSelection(entitlement: ChatEntitlement, allowSignedOutWhenUsable: boolean, hasAgentSdkSetup: boolean, hasProviderAccount = false): boolean {
-	return hasAgentSdkSetup && (hasProviderAccount || allowSignedOutWhenUsable || entitlement !== ChatEntitlement.Unknown);
+export function canInitializeSessionTypeOnSelection(entitlement: ChatEntitlement, allowSignedOutWhenUsable: boolean, hasAgentSdkSetup: boolean, canInitializeWithoutGitHub = false): boolean {
+	const hasResolvedGitHubAccount = entitlement !== ChatEntitlement.Unknown && entitlement !== ChatEntitlement.Unresolved;
+	return hasAgentSdkSetup && (canInitializeWithoutGitHub || allowSignedOutWhenUsable || hasResolvedGitHubAccount);
 }
 
 /**

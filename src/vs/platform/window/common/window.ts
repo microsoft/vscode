@@ -121,8 +121,11 @@ export const enum AgentsWindowOpenSource {
 	KeyboardShortcut = 'keyboardShortcut',
 	TitleBar = 'titleBar',
 	ChatTitleBar = 'chatTitleBar',
-	ChatHandoff = 'chatHandoff',
-	Banner = 'banner',
+	CurrentChatHandoff = 'currentChatHandoff',
+	EmptyWorkspaceCurrentChatHandoff = 'emptyWorkspaceCurrentChatHandoff',
+	ParallelWorkEmptyChatHandoff = 'parallelWorkEmptyChatHandoff',
+	WelcomeTryOut = 'welcomeTryOut',
+	WelcomeViewAll = 'welcomeViewAll',
 	CommandLine = 'commandLine',
 	Link = 'link',
 	Unknown = 'unknown',
@@ -134,8 +137,11 @@ export function isAgentsWindowOpenSource(value: unknown): value is AgentsWindowO
 		case AgentsWindowOpenSource.KeyboardShortcut:
 		case AgentsWindowOpenSource.TitleBar:
 		case AgentsWindowOpenSource.ChatTitleBar:
-		case AgentsWindowOpenSource.ChatHandoff:
-		case AgentsWindowOpenSource.Banner:
+		case AgentsWindowOpenSource.CurrentChatHandoff:
+		case AgentsWindowOpenSource.EmptyWorkspaceCurrentChatHandoff:
+		case AgentsWindowOpenSource.ParallelWorkEmptyChatHandoff:
+		case AgentsWindowOpenSource.WelcomeTryOut:
+		case AgentsWindowOpenSource.WelcomeViewAll:
 		case AgentsWindowOpenSource.CommandLine:
 		case AgentsWindowOpenSource.Link:
 		case AgentsWindowOpenSource.Unknown:
