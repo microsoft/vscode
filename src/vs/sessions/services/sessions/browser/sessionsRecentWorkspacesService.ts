@@ -24,7 +24,6 @@ import { isRecentFolder, IRecentWorkspace as IRecentWorkspaceFile, isStoredWorks
 import { ISessionWorkspace } from '../common/session.js';
 import { ISessionsProvidersService } from './sessionsProvidersService.js';
 import { WorkspaceHistoryLoadState } from '../../../common/workspaceSelection.js';
-import { isAgentHostProvider } from '../../../common/agentHostSessionsProvider.js';
 
 const STORAGE_KEY_RECENT_WORKSPACES = 'sessions.recentlyPickedWorkspaces';
 const STORAGE_KEY_NO_WORKSPACE_CHECKED = 'sessions.noWorkspaceChecked';
@@ -171,10 +170,11 @@ export class SessionsRecentWorkspacesService extends Disposable implements ISess
 
 	private _canonicalizeStoredRecentWorkspace(entry: IStoredRecentWorkspace): IStoredRecentWorkspace {
 		const provider = entry.providerId ? this.sessionsProvidersService.getProvider(entry.providerId) : undefined;
-		if (!provider || !isAgentHostProvider(provider) || !provider.devContainerSourceWorkspaceUri) {
+		const canonicalUri = provider?.canonicalizeWorkspaceUri?.(URI.revive(entry.uri));
+		if (!canonicalUri) {
 			return entry;
 		}
-		const source = this._resolveWorkspace(provider.devContainerSourceWorkspaceUri);
+		const source = this._resolveWorkspace(canonicalUri);
 		return source ? { ...entry, uri: source.workspace.uri.toJSON(), providerId: source.providerId } : entry;
 	}
 

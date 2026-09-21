@@ -145,9 +145,9 @@ suite('SessionsRecentWorkspacesService', () => {
 		const sourceUri = URI.parse('vscode-agent-host://wsl__Ubuntu/home/test/vscode-remote-try-node');
 		const firstContainerUri = URI.parse('vscode-agent-host://devcontainer__first/workspaces/vscode-remote-try-node');
 		const secondContainerUri = URI.parse('vscode-agent-host://devcontainer__second/workspaces/vscode-remote-try-node');
-		const createProvider = (id: string, workspaceUri: URI, devContainerSourceWorkspaceUri?: URI) => upcastPartial<ISessionsProvider>({
+		const createProvider = (id: string, workspaceUri: URI, canonicalWorkspaceUri?: URI) => upcastPartial<ISessionsProvider>({
 			id,
-			...(devContainerSourceWorkspaceUri ? { devContainerSourceWorkspaceUri } : {}),
+			...(canonicalWorkspaceUri ? { canonicalizeWorkspaceUri: () => canonicalWorkspaceUri } : {}),
 			resolveWorkspace: uri => extUri.isEqual(uri, workspaceUri) ? {
 				uri,
 				label: 'workspace',

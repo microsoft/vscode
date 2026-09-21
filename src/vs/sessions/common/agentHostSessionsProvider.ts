@@ -125,8 +125,6 @@ export interface IAgentHostSessionsProvider extends ISessionsProvider {
 	readonly showConnectionLog?: () => Promise<void>;
 	/** Remote address string, present on remote providers. */
 	readonly remoteAddress?: string;
-	/** Source workspace represented by a Dev Container provider. */
-	readonly devContainerSourceWorkspaceUri?: URI;
 	/**
 	 * Set when this provider is one member of a larger user-facing host (see
 	 * {@link IAgentHostGroup}). Members share one host filter entry instead of
