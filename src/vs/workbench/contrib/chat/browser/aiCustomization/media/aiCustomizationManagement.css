@@ -2545,6 +2545,22 @@ per-word capitalization does not survive translation. */
 	line-height: 14px;
 }
 
+.mcp-server-item .mcp-server-source-path.source-link {
+	color: var(--vscode-textLink-foreground);
+	cursor: pointer;
+	text-decoration: none;
+}
+
+.mcp-server-item .mcp-server-source-path.source-link:hover {
+	color: var(--vscode-textLink-activeForeground);
+	text-decoration: underline;
+}
+
+.mcp-server-item .mcp-server-source-path.source-link:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
 .mcp-server-item.has-error {
 	align-items: flex-start;
 	padding-top: var(--vscode-spacing-size120);

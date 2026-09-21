@@ -21,10 +21,12 @@ import { ContributionEnablementState } from '../../../common/enablement.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
+import { ExtensionIdentifier } from '../../../../../../platform/extensions/common/extensions.js';
 import { IListService, ListService, WorkbenchList } from '../../../../../../platform/list/browser/listService.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { mcpAccessConfig, McpAccessValue } from '../../../../../../platform/mcp/common/mcpManagement.js';
 import { IOutputService } from '../../../../../services/output/common/output.js';
+import { IExtensionsWorkbenchService } from '../../../../extensions/common/extensions.js';
 import { IAuthenticationQueryService } from '../../../../../services/authentication/common/authenticationQuery.js';
 import { IAuthenticationService } from '../../../../../services/authentication/common/authentication.js';
 import { IWorkbenchLocalMcpServer } from '../../../../../services/mcp/common/mcpWorkbenchManagementService.js';
@@ -968,6 +970,8 @@ suite('mcpListWidget', () => {
 			const shownLogs: string[] = [];
 			const shownLogSessions: string[] = [];
 			const managementClicks: string[] = [];
+			const openedPlugins: string[] = [];
+			const openedExtensions: string[] = [];
 			const hostEnablementCalls: Parameters<IAgentHostCustomizationService['setCustomizationEnablement']>[] = [];
 			let localEnablementCalls: [string, ContributionEnablementState][] = [];
 			let menuActions: IAction[] = [];
@@ -994,10 +998,28 @@ suite('mcpListWidget', () => {
 				}
 				override setupDelayedHover() { return Disposable.None; }
 			}();
-			const agentPluginService = { plugins: observableValue<readonly never[]>('plugins', []) } as unknown as IAgentPluginService;
+			const agentPluginService = {
+				plugins: observableValue('plugins', [{
+					uri: URI.file('/plugins/example'),
+					label: 'Example Plugin',
+				}]),
+			} as unknown as IAgentPluginService;
+			const extensionsWorkbenchService = {
+				local: [{
+					identifier: { id: 'publisher.extension' },
+					displayName: 'Example Extension',
+				}],
+				open: async (extensionId: string) => { openedExtensions.push(extensionId); },
+			} as unknown as IExtensionsWorkbenchService;
 			const labelService = new class extends mock<ILabelService>() {
 				override getUriLabel(resource: URI, options?: Parameters<ILabelService['getUriLabel']>[1]): string {
-					return options?.noPrefix ? resource.fsPath : `~${resource.path}`;
+					if (options?.relative && resource.path.startsWith('/workspace/')) {
+						return resource.path.slice('/workspace/'.length);
+					}
+					if (!options?.noPrefix && resource.path.startsWith('/Users/test/')) {
+						return `~/${resource.path.slice('/Users/test/'.length)}`;
+					}
+					return resource.fsPath;
 				}
 			}();
 			const renderManagementActions = (getEntry: () => Entry | undefined, actions: HTMLElement, disposables: DisposableStore, updateTabbability: () => void) => {
@@ -1013,12 +1035,14 @@ suite('mcpListWidget', () => {
 			};
 			const renderer = store.add(new McpServerItemRenderer(
 				renderManagementActions,
+				plugin => openedPlugins.push(plugin.label),
 				{ isSessionsWindow } as IAICustomizationWorkspaceService,
 				agentPluginService,
 				hoverService,
 				agentHostCustomizationService,
 				customizationHarnessService,
 				labelService,
+				extensionsWorkbenchService,
 			));
 
 			const container = document.createElement('div');
@@ -1035,6 +1059,8 @@ suite('mcpListWidget', () => {
 			};
 			Object.assign(widget, {
 				agentHostCustomizationService,
+				agentPluginService,
+				extensionsWorkbenchService,
 				customizationHarnessService,
 				workspaceService: { isSessionsWindow },
 				labelService,
@@ -1050,6 +1076,8 @@ suite('mcpListWidget', () => {
 				shownLogs,
 				shownLogSessions,
 				managementClicks,
+				openedPlugins,
+				openedExtensions,
 				hostEnablementCalls,
 				localEnablementCalls: () => localEnablementCalls,
 				menuActions: () => menuActions,
@@ -1140,6 +1168,13 @@ suite('mcpListWidget', () => {
 					hover: hoverContents.get(templateData.description),
 					ariaLabel,
 				}),
+				readSource: () => ({
+					label: templateData.sourcePath.textContent,
+					hover: hoverContents.get(templateData.sourcePath),
+					tagName: templateData.sourcePath.tagName,
+					ariaLabel: templateData.sourcePath.getAttribute('aria-label'),
+					tabIndex: templateData.sourcePath.tabIndex,
+				}),
 				notifyUnchanged: () => onDidChangeCustomizations.fire(),
 				setServers: (next: AgentHostMcpServer[]) => { servers = next; },
 				actionNode: () => templateData.actions.firstElementChild,
@@ -1148,27 +1183,117 @@ suite('mcpListWidget', () => {
 
 		const erroring = () => createAgentHostServer({ id: 'server-1', status: McpServerStatus.Error, state: { kind: McpServerStatus.Error, error: { errorType: 'spawn', message: 'failed to start' } } });
 
-		test('shows the full configuration path and includes it in the accessible label', () => {
+		test('shows workspace-relative and home-relative configuration paths in the row and accessible label', () => {
 			const ctx = createRenderer(createAgentHostServer(), false);
 			disposables.add(ctx.store);
-			const server = new class extends mock<IWorkbenchMcpServer>() {
-				override readonly id = 'workspace-server';
-				override readonly label = 'Workspace Server';
+			const createServer = (id: string, label: string, path: string) => new class extends mock<IWorkbenchMcpServer>() {
+				override readonly id = id;
+				override readonly label = label;
 				override readonly description = '';
-				override readonly name = 'Workspace Server';
+				override readonly name = label;
 				override readonly installState = McpServerInstallState.Installed;
 				override readonly local = new class extends mock<IWorkbenchLocalMcpServer>() {
-					override readonly mcpResource = URI.file('/workspace/.vscode/mcp.json');
+					override readonly mcpResource = URI.file(path);
 				}();
 			}();
-			ctx.render({ type: 'server-item', server });
+			const render = (server: IWorkbenchMcpServer) => {
+				ctx.render({ type: 'server-item', server });
+				return {
+					path: ctx.templateData.sourcePath.textContent,
+					ariaLabel: ctx.read().ariaLabel,
+				};
+			};
 
 			assert.deepStrictEqual({
-				path: ctx.templateData.sourcePath.textContent,
-				ariaLabel: ctx.read().ariaLabel,
+				workspace: render(createServer('workspace-server', 'Workspace Server', '/workspace/.vscode/mcp.json')),
+				home: render(createServer('user-server', 'User Server', '/Users/test/.config/mcp.json')),
 			}, {
-				path: '/workspace/.vscode/mcp.json',
-				ariaLabel: 'Workspace Server, configured in /workspace/.vscode/mcp.json',
+				workspace: {
+					path: '.vscode/mcp.json',
+					ariaLabel: 'Workspace Server, configured in .vscode/mcp.json',
+				},
+				home: {
+					path: '~/.config/mcp.json',
+					ariaLabel: 'User Server, configured in ~/.config/mcp.json',
+				},
+			});
+		});
+
+		test('shows the plugin name with the full configuration location in the hover', () => {
+			const ctx = createRenderer(createAgentHostServer(), false);
+			disposables.add(ctx.store);
+			const sourceUri = URI.file('/Users/test/.config/plugins/example/.mcp.json');
+			const detailServer = createMcpDetailTestServer(sourceUri);
+			const localServer = {
+				...detailServer,
+				definition: detailServer.readDefinitions().get().server,
+				enablement: observableValue('enablement', ContributionEnablementState.EnabledProfile),
+				connectionState: observableValue<McpConnectionState>('connectionState', { state: McpConnectionState.Kind.Running }),
+			} as IMcpServer;
+			const entry: Entry = {
+				type: 'builtin-item',
+				id: 'plugin-server',
+				label: 'Plugin Server',
+				description: '',
+				collectionId: `${MCP_PLUGIN_COLLECTION_ID_PREFIX}${URI.file('/plugins/example').toString()}`,
+				localServer,
+			};
+			ctx.render(entry);
+			ctx.templateData.sourcePath.click();
+
+			assert.deepStrictEqual({
+				source: ctx.readSource(),
+				ariaLabel: ctx.read().ariaLabel,
+				openedPlugins: ctx.openedPlugins,
+			}, {
+				source: {
+					label: 'Plugin: Example Plugin',
+					hover: '/Users/test/.config/plugins/example/.mcp.json',
+					tagName: 'A',
+					ariaLabel: 'Open plugin details for Example Plugin',
+					tabIndex: 0,
+				},
+				ariaLabel: 'Plugin Server, configured in Plugin: Example Plugin',
+				openedPlugins: ['Example Plugin'],
+			});
+		});
+
+		test('shows the extension name as a link with the full configuration location in the hover', () => {
+			const ctx = createRenderer(createAgentHostServer(), false);
+			disposables.add(ctx.store);
+			const sourceUri = URI.file('/Users/test/.vscode/extensions/publisher.extension/mcp.json');
+			const detailServer = createMcpDetailTestServer(sourceUri);
+			const localServer = {
+				...detailServer,
+				definition: detailServer.readDefinitions().get().server,
+				enablement: observableValue('enablement', ContributionEnablementState.EnabledProfile),
+				connectionState: observableValue<McpConnectionState>('connectionState', { state: McpConnectionState.Kind.Running }),
+			} as IMcpServer;
+			const entry: Entry = {
+				type: 'builtin-item',
+				id: 'extension-server',
+				label: 'Extension Server',
+				description: '',
+				extensionId: new ExtensionIdentifier('publisher.extension'),
+				localServer,
+			};
+			ctx.render(entry);
+			ctx.templateData.sourcePath.click();
+
+			assert.deepStrictEqual({
+				source: ctx.readSource(),
+				ariaLabel: ctx.read().ariaLabel,
+				openedExtensions: ctx.openedExtensions,
+			}, {
+				source: {
+					label: 'Extension: Example Extension',
+					hover: '/Users/test/.vscode/extensions/publisher.extension/mcp.json',
+					tagName: 'A',
+					ariaLabel: 'Open extension details for Example Extension',
+					tabIndex: 0,
+				},
+				ariaLabel: 'Extension Server, configured in Extension: Example Extension',
+				openedExtensions: ['publisher.extension'],
 			});
 		});
 
@@ -1176,11 +1301,13 @@ suite('mcpListWidget', () => {
 			const outputCalls: string[] = [];
 			const connectionState = observableValue<McpConnectionState>('connectionState', { state: McpConnectionState.Kind.Error, message: 'Native connection failed' });
 			const enablement = observableValue('enablement', ContributionEnablementState.EnabledProfile);
+			const definitions = createMcpDetailTestServer().readDefinitions();
 			const server = new class extends mock<IMcpServer>() {
-				override readonly definition = { ...createMcpDetailTestServer().readDefinitions().get().server, id: 'native', label: 'Native' };
+				override readonly definition = { ...definitions.get().server, id: 'native', label: 'Native' };
 				override readonly connectionState = connectionState;
 				override readonly enablement = enablement;
 				override readonly capabilities = observableValue('capabilities', undefined);
+				override readDefinitions() { return definitions; }
 				override async showOutput() { outputCalls.push('native'); }
 			}();
 			const workbenchServer = new class extends mock<IWorkbenchMcpServer>() {
