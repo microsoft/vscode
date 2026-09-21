@@ -20,6 +20,7 @@ import { AGENT_HOST_SCHEME, createAgentHostResourceUriMapper, identityAgentHostR
 import { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { createSessionState, SessionState, SessionStatus } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { ConfigurationTarget } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { FileService } from '../../../../../../platform/files/common/fileService.js';
 import { IFileService, IFileWriteOptions } from '../../../../../../platform/files/common/files.js';
@@ -27,20 +28,23 @@ import { InMemoryFileSystemProvider } from '../../../../../../platform/files/com
 import { ILogService, ILoggerService, NullLogService, NullLoggerService } from '../../../../../../platform/log/common/log.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { McpServerType } from '../../../../../../platform/mcp/common/mcpPlatformTypes.js';
+import { InMemoryStorageService, StorageScope } from '../../../../../../platform/storage/common/storage.js';
 import { IOutputService } from '../../../../../services/output/common/output.js';
 import { AbstractVariableResolverService } from '../../../../../services/configurationResolver/common/variableResolver.js';
 import { CustomizationMigrationService } from '../../../browser/aiCustomization/customizationMigrationServiceImpl.js';
 import { IAgentHostActiveClientService } from '../../../browser/agentSessions/agentHost/agentHostActiveClientService.js';
 import { IAgentHostCustomizationService, WorkbenchAgentHostCustomizationService } from '../../../browser/agentSessions/agentHost/agentHostCustomizationService.js';
-import { AgentHostMcpServerApplicability, AgentHostMcpServerDelivery, AgentHostMcpServerEnablementState, AgentHostMcpServerSourceKind, AgentHostMcpSupportReason, IAgentHostMcpServerSupportSnapshot } from '../../../browser/agentSessions/agentHost/agentHostMcpServerSupport.js';
+import { AgentHostMcpServerApplicability, AgentHostMcpServerDelivery, AgentHostMcpServerEnablementState, AgentHostMcpServerSourceKind, AgentHostMcpSupportReason, IAgentHostMcpServerSupportSnapshot, mergeInstalledMcpServersIntoAgentHostSupportAssessment } from '../../../browser/agentSessions/agentHost/agentHostMcpServerSupport.js';
 import { IAgentHostUntitledProvisionalSessionService } from '../../../browser/agentSessions/agentHost/agentHostUntitledProvisionalSessionService.js';
 import { SessionType } from '../../../common/chatSessionsService.js';
 import { IChatService } from '../../../common/chatService/chatService.js';
 import { ICustomizationHarnessService, IHarnessDescriptor } from '../../../common/customizationHarnessService.js';
+import { ContributionEnablementState, EnablementModel } from '../../../common/enablement.js';
 import { PromptFileSource, PromptsType } from '../../../common/promptSyntax/promptTypes.js';
 import { CustomizationMigrationHintTarget, CustomizationMigrationType, getCustomizationMigrationEnablementSetting } from '../../../common/promptSyntax/service/customizationMigrationService.js';
 import { IPromptPath, PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
 import { MockPromptsService } from '../../common/promptSyntax/service/mockPromptsService.js';
+import { McpServerEnablementState } from '../../../../mcp/common/mcpTypes.js';
 
 class TestPromptsService extends MockPromptsService {
 	readonly requestedTypes: PromptsType[] = [];
@@ -1128,6 +1132,115 @@ suite('CustomizationMigrationService', () => {
 			target: { mcpServers: { server: { type: 'stdio', command: 'node' } } },
 		});
 	});
+
+	for (const scenario of [
+		{ name: 'a newly created target', targetExists: false, enablement: ContributionEnablementState.EnabledProfile, runtimeState: McpServerEnablementState.Disabled, migratedCount: 1 },
+		{ name: 'an existing target', targetExists: true, enablement: ContributionEnablementState.EnabledProfile, runtimeState: McpServerEnablementState.Disabled, migratedCount: 1 },
+		{ name: 'profile disablement during the write', targetExists: true, enablement: ContributionEnablementState.DisabledProfile, runtimeState: McpServerEnablementState.Disabled, migratedCount: 0 },
+		{ name: 'workspace disablement during the write', targetExists: true, enablement: ContributionEnablementState.DisabledWorkspace, runtimeState: McpServerEnablementState.Disabled, migratedCount: 0 },
+		{ name: 'MCP access restriction during the write', targetExists: true, enablement: ContributionEnablementState.EnabledProfile, runtimeState: McpServerEnablementState.DisabledByAccess, migratedCount: 0 },
+	]) {
+		test(`revalidates a shadowed server when discovering ${scenario.name}`, async () => {
+			const root = URI.file('/first');
+			const secondRoot = URI.file('/second');
+			const sourceUri = URI.joinPath(root, '.vscode', 'mcp.json');
+			const secondSourceUri = URI.joinPath(secondRoot, '.vscode', 'mcp.json');
+			const targetUri = URI.joinPath(root, '.mcp.json');
+			const source = { servers: { server: { command: 'node' }, keep: { command: 'other' } } };
+			const secondSource = { servers: { server: { command: 'other' } } };
+			const fileService = store.add(new FileService(new NullLogService()));
+			const provider = store.add(new SupportChangingFileSystemProvider());
+			store.add(fileService.registerProvider(Schemas.file, provider));
+			await fileService.writeFile(sourceUri, VSBuffer.fromString(JSON.stringify(source)));
+			await fileService.writeFile(secondSourceUri, VSBuffer.fromString(JSON.stringify(secondSource)));
+			if (scenario.targetExists) {
+				await fileService.writeFile(targetUri, VSBuffer.fromString('{"mcpServers":{}}'));
+			}
+			const enablementModel = store.add(new EnablementModel('mcp.enablement', store.add(new InMemoryStorageService())));
+			const sourceId = 'mcp.config.ws0.server';
+			const snapshot = createWorkspaceMcpSupportSnapshot(secondRoot, { command: 'other' });
+			const registryWinner = {
+				...snapshot.servers[0],
+				id: 'mcp.config.ws1.server',
+				collectionId: 'mcp.config.ws1',
+				applicability: AgentHostMcpServerApplicability.OutsideCurrentScope,
+				delivery: AgentHostMcpServerDelivery.NotDelivered,
+			};
+			const discoveredTarget = {
+				...snapshot.servers[0],
+				id: 'workspace-dot-mcp.0.server',
+				collectionId: 'workspace-dot-mcp.0',
+				source: { ...snapshot.servers[0].source, kind: AgentHostMcpServerSourceKind.WorkspaceDotMcp, collectionUri: targetUri },
+				delivery: AgentHostMcpServerDelivery.RuntimeDiscovered,
+				projectedConfiguration: undefined,
+			};
+			let runtimeState = McpServerEnablementState.Disabled;
+			const computeSupport = async (targetDiscovered: boolean): Promise<IAgentHostMcpServerSupportSnapshot> => ({
+				...await mergeInstalledMcpServersIntoAgentHostSupportAssessment(
+					{ ...snapshot, servers: targetDiscovered ? [registryWinner, discoveredTarget] : [registryWinner] },
+					[{
+						id: sourceId,
+						name: 'server',
+						label: 'server',
+						configuration: { type: McpServerType.LOCAL, command: 'node' },
+						configPath: {
+							id: 'ws0', key: 'workspaceFolderValue', label: 'First', scope: StorageScope.WORKSPACE,
+							target: ConfigurationTarget.WORKSPACE_FOLDER, order: 0, uri: sourceUri,
+						},
+						sandbox: undefined,
+						runtimeState,
+						enablement: enablementModel.readEnabled(sourceId),
+					}],
+					configurationResolverService,
+					[root],
+				),
+				coverage: { ...snapshot.coverage, restrictedByMcpAccess: runtimeState === McpServerEnablementState.DisabledByAccess },
+			});
+			const scope = new MutableMcpServerSupportScope(await computeSupport(false));
+			const targetWritten = new DeferredPromise<void>();
+			provider.targetUri = targetUri;
+			provider.afterTargetWrite = () => {
+				scope.queue();
+				targetWritten.complete();
+			};
+			const harnessService = new TestCustomizationHarnessService();
+			const activeClientService = new class extends mock<IAgentHostActiveClientService>() {
+				override acquireMcpServerSupportScope() { return scope; }
+			}();
+			const customizationService = new class extends mock<IAgentHostCustomizationService>() {
+				override readonly onDidChangeCustomizations = Event.None;
+				override getClientWorkingDirectoryUris() { return [root]; }
+			}();
+			const service = store.add(new CustomizationMigrationService(
+				store.add(new TestPromptsService([])), harnessService, activeClientService, customizationService,
+				fileService, new NullLogService(), store.add(createMigrationConfiguration()), configurationResolverService,
+			));
+			const session = harnessService.activeSessionResource.get();
+			const migration = await service.computeMigration(session, CustomizationMigrationType.McpServers);
+			assert.deepStrictEqual(migration.candidates.map(candidate => candidate.name), ['server']);
+
+			const pending = service.migrateMcpServers(session, migration.candidates);
+			await targetWritten.p;
+			enablementModel.setEnabled(sourceId, scenario.enablement);
+			runtimeState = scenario.runtimeState;
+			scope.settle(await computeSupport(true));
+			const result = await pending;
+
+			assert.deepStrictEqual({
+				migratedCount: result.migratedCount,
+				failures: result.failures.map(failure => failure.reason),
+				source: JSON.parse((await fileService.readFile(sourceUri)).value.toString()),
+				secondSource: JSON.parse((await fileService.readFile(secondSourceUri)).value.toString()),
+				target: JSON.parse((await fileService.readFile(targetUri)).value.toString()),
+			}, {
+				migratedCount: scenario.migratedCount,
+				failures: scenario.migratedCount ? [] : ['noLongerEligible'],
+				source: scenario.migratedCount ? { servers: { keep: { command: 'other' } } } : source,
+				secondSource,
+				target: { mcpServers: scenario.migratedCount ? { server: { type: McpServerType.LOCAL, command: 'node' } } : {} },
+			});
+		});
+	}
 
 	test('continues remaining groups after support drops an already migrated server', async () => {
 		const roots = [URI.file('/first'), URI.file('/second')];
