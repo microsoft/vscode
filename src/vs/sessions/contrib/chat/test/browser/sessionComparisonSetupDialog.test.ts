@@ -10,10 +10,11 @@ import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
+import { ReasoningEffortConfigKey } from '../../../../../platform/agentHost/common/reasoningEffort.js';
 import { TestStorageService } from '../../../../../workbench/test/common/workbenchTestServices.js';
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier } from '../../../../../workbench/contrib/chat/common/languageModels.js';
-import { applySessionComparisonModelConfigurationDefaults, getSessionComparisonModelPickerPresentationOptions, getSessionComparisonWorkspaceError, resolveSessionComparisonHarnessModel, SessionComparisonDialogResizeController, SessionComparisonSetupDialog, selectSessionComparisonPermission } from '../../browser/sessionComparisonSetupDialog.js';
-import { ISessionComparisonAttemptConfiguration, ISessionComparisonHarness } from '../../../../services/sessions/common/sessionComparison.js';
+import { applySessionComparisonModelConfigurationDefaults, getSessionComparisonModelConfigurationLabel, getSessionComparisonModelPickerPresentationOptions, getSessionComparisonWorkspaceError, resolveSessionComparisonHarnessModel, SessionComparisonDialogResizeController, SessionComparisonSetupDialog, selectSessionComparisonPermission } from '../../browser/sessionComparisonSetupDialog.js';
+import { getSessionComparisonHarnessDisplayLabel, ISessionComparisonAttemptConfiguration, ISessionComparisonHarness } from '../../../../services/sessions/common/sessionComparison.js';
 
 const WIDTH_STORAGE_KEY = 'sessions.comparisonSetupDialog.width';
 const HEIGHT_STORAGE_KEY = 'sessions.comparisonSetupDialog.height';
@@ -278,6 +279,67 @@ suite('SessionComparisonDialogResizeController', () => {
 					thinkingLevel: 'max',
 					contextSize: 272000,
 				},
+			});
+		});
+
+		test('labels Auto attempts with their effective Optimize for value', () => {
+			const auto = upcastPartial<ILanguageModelChatMetadataAndIdentifier>({
+				identifier: 'copilot/auto',
+				metadata: upcastPartial<ILanguageModelChatMetadata>({
+					id: 'auto',
+					name: 'Auto',
+					configurationSchema: {
+						type: 'object',
+						properties: {
+							tier: {
+								type: 'string',
+								group: 'navigation',
+								enum: ['eco', 'balanced', 'max'],
+								enumItemLabels: ['Efficiency', 'Balance', 'Intelligence'],
+								default: 'balanced',
+							},
+						},
+					},
+				}),
+			});
+			const harness: ISessionComparisonHarness = {
+				providerId: 'provider',
+				sessionTypeId: 'copilot',
+				label: 'Copilot',
+			};
+			const balanced = applySessionComparisonModelConfigurationDefaults(harness, auto);
+			const intelligence = applySessionComparisonModelConfigurationDefaults({
+				...harness,
+				modelConfiguration: { tier: 'max' },
+			}, auto);
+
+			assert.deepStrictEqual({
+				balanced: {
+					configuration: balanced.modelConfiguration,
+					configurationLabel: balanced.modelConfigurationLabel,
+					harnessLabel: getSessionComparisonHarnessDisplayLabel(balanced),
+				},
+				intelligence: {
+					configurationLabel: getSessionComparisonModelConfigurationLabel(intelligence, auto),
+					harnessLabel: getSessionComparisonHarnessDisplayLabel(intelligence),
+				},
+				concreteModelLabel: getSessionComparisonHarnessDisplayLabel({
+					...harness,
+					modelId: 'grok/4.6',
+					modelLabel: 'Grok 4.6',
+					modelConfiguration: { [ReasoningEffortConfigKey]: 'medium' },
+				}),
+			}, {
+				balanced: {
+					configuration: { tier: 'balanced' },
+					configurationLabel: 'Balance',
+					harnessLabel: 'Copilot · Balance',
+				},
+				intelligence: {
+					configurationLabel: 'Intelligence',
+					harnessLabel: 'Copilot · Intelligence',
+				},
+				concreteModelLabel: 'Copilot · Grok 4.6 · Medium',
 			});
 		});
 

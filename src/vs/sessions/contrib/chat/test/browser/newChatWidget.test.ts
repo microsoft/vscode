@@ -1525,6 +1525,10 @@ suite('NewChatWidget', () => {
 				id: 'second-run',
 				harness: { providerId: 'provider-one', sessionTypeId: 'type-one', label: 'One', modelId: 'provider-one/model', modelLabel: 'Model One', modelConfiguration: { thinkingLevel: 'xhigh' }, permissionId: 'default', permissionLabel: 'Manual permissions' },
 			},
+			{
+				id: 'auto-run',
+				harness: { providerId: 'provider-one', sessionTypeId: 'type-one', label: 'One', modelConfiguration: { tier: 'balanced' }, modelConfigurationLabel: 'Balance', permissionId: 'default', permissionLabel: 'Manual permissions' },
+			},
 		];
 		let comparisonOptions: IStartSessionComparisonOptions | undefined;
 
@@ -1559,6 +1563,10 @@ suite('NewChatWidget', () => {
 			sessionsProvidersService: {
 				getProvider: providerId => ({
 					getModelsSnapshotForCreation: (_workspace, _sessionTypeId, desiredModelId) => ({
+						models: [{
+							identifier: `${providerId}/auto`,
+							metadata: { id: 'auto', name: 'Auto' },
+						}],
 						desiredModelResolution: {
 							kind: 'available',
 							model: {
@@ -1597,7 +1605,17 @@ suite('NewChatWidget', () => {
 			branch: comparisonOptions?.branch,
 		}, {
 			result: true,
-			attempts: configuredAttempts,
+			attempts: [
+				configuredAttempts[0],
+				configuredAttempts[1],
+				{
+					id: 'auto-run',
+					harness: {
+						...configuredAttempts[2].harness,
+						modelId: 'provider-one/auto',
+					},
+				},
+			],
 			judgeHarness: configuredAttempts[0].harness,
 			synthesisHarness: configuredAttempts[1].harness,
 			branch: 'feature/modal',

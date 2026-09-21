@@ -2082,7 +2082,13 @@ suite('Sessions - SessionsList', () => {
 					{
 						id: 'participant-2',
 						role: SessionComparisonParticipantRole.Attempt,
-						harness: { providerId: 'test', sessionTypeId: 'codex', label: 'Codex', modelLabel: 'GPT-5' },
+						harness: {
+							providerId: 'test',
+							sessionTypeId: 'copilot',
+							label: 'Copilot',
+							modelConfiguration: { tier: 'balanced' },
+							modelConfigurationLabel: 'Balance',
+						},
 						sessionResource: attempt2.session.resource,
 					},
 					{
@@ -2198,10 +2204,10 @@ suite('Sessions - SessionsList', () => {
 					ariaLabel: 'Improve the picker, Comparison · 2 attempts working',
 					connector: null,
 				},
-				order: ['Synthesis', 'Judge', 'Copilot · Claude Opus 5', 'Codex · GPT-5'],
+				order: ['Synthesis', 'Judge', 'Copilot · Claude Opus 5', 'Copilot · Balance'],
 				attempts: [
 					{ title: 'Copilot · Claude Opus 5', ariaLabel: 'Copilot · Claude Opus 5, updated now, State: In Progress', status: '', hasSpinner: true, stopAriaLabel: 'Stop Copilot · Claude Opus 5', stopHidden: false, stopColor: 'var(--vscode-errorForeground)', stopComputedColor: 'rgb(255, 0, 0)', details: '', height: '30px', connectorVisibility: 'visible', connector: 'first', connectorBranchDisplay: 'none', connectorStroke: '1px', connectorColor: 'rgb(128, 128, 128)', connectorElbow: { topStroke: '1px', bottomStroke: '0px', topLeftRadius: '4px', bottomLeftRadius: '0px' } },
-					{ title: 'Codex · GPT-5', ariaLabel: 'Codex · GPT-5, updated now, State: In Progress', status: '', hasSpinner: true, stopAriaLabel: 'Stop Codex · GPT-5', stopHidden: false, stopColor: 'var(--vscode-errorForeground)', stopComputedColor: 'rgb(255, 0, 0)', details: '', height: '30px', connectorVisibility: 'visible', connector: 'last', connectorBranchDisplay: 'none', connectorStroke: '1px', connectorColor: 'rgb(128, 128, 128)', connectorElbow: { topStroke: '0px', bottomStroke: '1px', topLeftRadius: '0px', bottomLeftRadius: '4px' } },
+					{ title: 'Copilot · Balance', ariaLabel: 'Copilot · Balance, updated now, State: In Progress', status: '', hasSpinner: true, stopAriaLabel: 'Stop Copilot · Balance', stopHidden: false, stopColor: 'var(--vscode-errorForeground)', stopComputedColor: 'rgb(255, 0, 0)', details: '', height: '30px', connectorVisibility: 'visible', connector: 'last', connectorBranchDisplay: 'none', connectorStroke: '1px', connectorColor: 'rgb(128, 128, 128)', connectorElbow: { topStroke: '0px', bottomStroke: '1px', topLeftRadius: '0px', bottomLeftRadius: '4px' } },
 				],
 				independentStops: [
 					{ title: 'Synthesis', ariaLabel: 'Stop Synthesis', hidden: false, stopOnly: true },
@@ -2227,7 +2233,7 @@ suite('Sessions - SessionsList', () => {
 				statuses: [undefined, ''],
 				ariaLabels: [
 					'Copilot · Claude Opus 5, updated now, State: Completed, in Workspace',
-					'Codex · GPT-5, updated now, State: In Progress',
+					'Copilot · Balance, updated now, State: In Progress',
 				],
 				stopHidden: [true, false],
 				completedStopDisplay: 'none',

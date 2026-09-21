@@ -1325,22 +1325,32 @@ export class NewChatWidget extends Disposable {
 			const resolveHarness = (harness: ISessionComparisonHarness): ISessionComparisonHarness | undefined => {
 				const type = availableTypes.find(candidate =>
 					candidate.providerId === harness.providerId && candidate.sessionType.id === harness.sessionTypeId && candidate.sessionType.supportsWorktreeConfiguration);
-				const resolution = type && harness.modelId
-					? this.sessionsProvidersService.getProvider(type.providerId)?.getModelsSnapshotForCreation?.(workspace, type.sessionType.id, harness.modelId).desiredModelResolution
+				const provider = type ? this.sessionsProvidersService.getProvider(type.providerId) : undefined;
+				const modelSnapshot = type
+					? provider?.getModelsSnapshotForCreation?.(workspace, type.sessionType.id, harness.modelId)
+					: undefined;
+				const resolution = harness.modelId ? modelSnapshot?.desiredModelResolution : undefined;
+				const configuredAutoModel = harness.modelId === undefined && harness.modelConfiguration
+					? modelSnapshot?.models.find(model => model.metadata.id === 'auto')
 					: undefined;
 				const permissionOptions = type
-					? this.sessionsProvidersService.getProvider(type.providerId)?.getPermissionOptionsForCreation?.(type.sessionType.id)
+					? provider?.getPermissionOptionsForCreation?.(type.sessionType.id)
 					: undefined;
 				const permission = permissionOptions?.find(option => option.id === harness.permissionId && !option.locked)
 					?? permissionOptions?.find(option => option.isDefault && !option.locked);
-				const resolvedModelId = resolution?.kind === 'available' ? resolution.model.identifier : undefined;
+				const resolvedModel = resolution?.kind === 'available' ? resolution.model : configuredAutoModel;
+				const resolvedModelId = resolvedModel?.identifier;
+				const preserveModelConfiguration = harness.modelConfiguration === undefined || resolvedModelId !== undefined;
 				return type ? {
 					providerId: harness.providerId,
 					sessionTypeId: harness.sessionTypeId,
 					label: type.sessionType.label,
-					modelId: resolvedModelId,
-					modelLabel: resolution?.kind === 'available' ? resolution.model.metadata.name : undefined,
-					modelConfiguration: resolvedModelId ? harness.modelConfiguration : undefined,
+					...(resolvedModelId ? {
+						modelId: resolvedModelId,
+						...(resolution?.kind === 'available' ? { modelLabel: resolution.model.metadata.name } : {}),
+					} : {}),
+					...(preserveModelConfiguration && harness.modelConfiguration ? { modelConfiguration: harness.modelConfiguration } : {}),
+					...(preserveModelConfiguration && harness.modelConfigurationLabel ? { modelConfigurationLabel: harness.modelConfigurationLabel } : {}),
 					permissionId: permissionOptions ? permission?.id : harness.permissionId,
 					permissionLabel: permissionOptions ? permission?.label : harness.permissionLabel,
 				} : undefined;

@@ -54,6 +54,7 @@ export interface ISessionComparisonHarness {
 	readonly modelId?: string;
 	readonly modelLabel?: string;
 	readonly modelConfiguration?: Readonly<Record<string, string | number | boolean | null>>;
+	readonly modelConfigurationLabel?: string;
 	readonly permissionId?: string;
 	readonly permissionLabel?: string;
 }
@@ -202,10 +203,12 @@ export function getSessionComparisonHarnessDisplayLabel(harness: ISessionCompari
 		? localize('sessionComparison.harnessAndModel', "{0} · {1}", harness.label, harness.modelLabel)
 		: harness.label;
 	const reasoningEffort = harness.modelConfiguration?.[ReasoningEffortConfigKey];
-	const configuredLabel = typeof reasoningEffort === 'string' && isReasoningEffortLevel(reasoningEffort)
-		? localize('sessionComparison.harnessModelAndEffort', "{0} · {1}", harnessLabel, getReasoningEffortLabel(reasoningEffort))
+	const configurationLabel = typeof reasoningEffort === 'string' && isReasoningEffortLevel(reasoningEffort)
+		? getReasoningEffortLabel(reasoningEffort)
+		: harness.modelConfigurationLabel;
+	return configurationLabel
+		? localize('sessionComparison.harnessModelAndConfiguration', "{0} · {1}", harnessLabel, configurationLabel)
 		: harnessLabel;
-	return configuredLabel;
 }
 
 export function getSessionComparisonParticipantsInDisplayOrder(participants: readonly ISessionComparisonParticipant[]): readonly ISessionComparisonParticipant[] {

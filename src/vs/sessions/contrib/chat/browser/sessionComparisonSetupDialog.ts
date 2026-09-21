@@ -32,6 +32,7 @@ import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/b
 import { defaultButtonStyles, defaultCheckboxStyles, defaultDialogStyles, defaultInputBoxStyles, defaultSelectBoxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { IModelPickerDelegate, IModelPickerPresentationOptions, ModelPickerActionItem } from '../../../../workbench/contrib/chat/browser/widget/input/modelPicker/modelPickerActionItem.js';
 import { extractSchemaDefaults } from '../../../../workbench/contrib/chat/browser/widget/input/chatModelConfigurationLogic.js';
+import { getModelConfigValueLabel, MODEL_CONFIG_GROUP_EFFORT } from '../../../../workbench/contrib/chat/browser/widget/input/modelPicker/modelPickerModelConfig.js';
 import { createModelConfigurationActions, ILanguageModelChatMetadataAndIdentifier, IModelConfigurationAccess } from '../../../../workbench/contrib/chat/common/languageModels.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
@@ -97,16 +98,54 @@ export function resolveSessionComparisonHarnessModel(
 	if (harness.modelId === selectedModelId && harness.modelLabel === selectedModelLabel) {
 		return { harness, selectedModel, hadUnavailableModel };
 	}
+	const preserveModelConfiguration = harness.modelId === selectedModelId;
+	const resolvedHarness: ISessionComparisonHarness = {
+		...harness,
+		modelId: selectedModelId,
+		modelLabel: selectedModelLabel,
+		modelConfiguration: preserveModelConfiguration ? harness.modelConfiguration : undefined,
+	};
+	if (!preserveModelConfiguration && resolvedHarness.modelConfigurationLabel !== undefined) {
+		const { modelConfigurationLabel: _, ...harnessWithoutConfigurationLabel } = resolvedHarness;
+		return { harness: harnessWithoutConfigurationLabel, selectedModel, hadUnavailableModel };
+	}
 	return {
-		harness: {
-			...harness,
-			modelId: selectedModelId,
-			modelLabel: selectedModelLabel,
-			modelConfiguration: harness.modelId === selectedModelId ? harness.modelConfiguration : undefined,
-		},
+		harness: resolvedHarness,
 		selectedModel,
 		hadUnavailableModel,
 	};
+}
+
+export function getSessionComparisonModelConfigurationLabel(
+	harness: ISessionComparisonHarness,
+	model: ILanguageModelChatMetadataAndIdentifier | undefined,
+): string | undefined {
+	if (model?.metadata.id !== 'auto') {
+		return undefined;
+	}
+	for (const [key, schema] of Object.entries(model.metadata.configurationSchema?.properties ?? {})) {
+		if (schema.group !== MODEL_CONFIG_GROUP_EFFORT || !schema.enum?.length) {
+			continue;
+		}
+		const value = harness.modelConfiguration?.[key] ?? schema.default;
+		return value === undefined ? undefined : getModelConfigValueLabel(schema, value);
+	}
+	return undefined;
+}
+
+function applySessionComparisonModelConfigurationLabel(
+	harness: ISessionComparisonHarness,
+	model: ILanguageModelChatMetadataAndIdentifier | undefined,
+): ISessionComparisonHarness {
+	const modelConfigurationLabel = getSessionComparisonModelConfigurationLabel(harness, model);
+	if (harness.modelConfigurationLabel === modelConfigurationLabel) {
+		return harness;
+	}
+	if (modelConfigurationLabel === undefined) {
+		const { modelConfigurationLabel: _, ...harnessWithoutConfigurationLabel } = harness;
+		return harnessWithoutConfigurationLabel;
+	}
+	return { ...harness, modelConfigurationLabel };
 }
 
 export function applySessionComparisonModelConfigurationDefaults(
@@ -124,7 +163,7 @@ export function applySessionComparisonModelConfigurationDefaults(
 		modelConfiguration[key] = value;
 		changed = true;
 	}
-	return changed ? { ...harness, modelConfiguration } : harness;
+	return applySessionComparisonModelConfigurationLabel(changed ? { ...harness, modelConfiguration } : harness, model);
 }
 
 export function getSessionComparisonWorkspaceError(branch: string | undefined, hasGitRemote: boolean | undefined): string | undefined {
@@ -761,9 +800,11 @@ export class SessionComparisonSetupDialog extends Disposable {
 				);
 				const configurationChanged = rowsDisposables.add(new Emitter<string>());
 				const modelConfiguration: IModelConfigurationAccess = {
-					getModelConfiguration: modelId => harness.modelId === modelId
-						? harness.modelConfiguration as IStringDictionary<unknown> | undefined
-						: undefined,
+					getModelConfiguration: modelId => {
+						const model = pickerModels.find(candidate => candidate.identifier === modelId);
+						const isSelected = model?.metadata.id === 'auto' ? harness.modelId === undefined : harness.modelId === modelId;
+						return isSelected ? harness.modelConfiguration as IStringDictionary<unknown> | undefined : undefined;
+					},
 					setModelConfiguration: async (modelId, values) => {
 						const model = pickerModels.find(candidate => candidate.identifier === modelId);
 						if (!model || provider?.supportsModelConfigurationForCreation !== true) {
@@ -778,12 +819,13 @@ export class SessionComparisonSetupDialog extends Disposable {
 								throw new Error('Session model configuration must contain only JSON primitive values.');
 							}
 						}
-						harness = {
+						const isAuto = model.metadata.id === 'auto';
+						harness = applySessionComparisonModelConfigurationLabel({
 							...harness,
-							modelId,
-							modelLabel: model.metadata.name,
+							modelId: isAuto ? undefined : modelId,
+							modelLabel: isAuto ? undefined : model.metadata.name,
 							modelConfiguration: nextConfiguration,
-						};
+						}, model);
 						currentModel.set(model, undefined);
 						onChange(harness);
 						configurationChanged.fire(modelId);
@@ -803,12 +845,12 @@ export class SessionComparisonSetupDialog extends Disposable {
 					modelConfiguration,
 					setModel: model => {
 						const isAuto = model.metadata.id === 'auto';
-						harness = {
+						harness = applySessionComparisonModelConfigurationDefaults({
 							...harness,
 							modelId: isAuto ? undefined : model.identifier,
 							modelLabel: isAuto ? undefined : model.metadata.name,
 							modelConfiguration: undefined,
-						};
+						}, model);
 						currentModel.set(model, undefined);
 						onChange(harness);
 					},
