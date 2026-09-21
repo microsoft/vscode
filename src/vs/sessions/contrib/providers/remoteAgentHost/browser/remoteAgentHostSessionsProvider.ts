@@ -105,6 +105,8 @@ export interface IRemoteAgentHostSessionsProviderConfig {
 	 * one entry for the whole group instead of one per connection. See {@link IAgentHostGroup}.
 	 */
 	readonly hostGroup?: IAgentHostGroup;
+	/** Source workspace represented by this Dev Container provider. */
+	readonly devContainerSourceWorkspaceUri?: URI;
 	readonly devContainerWorktreeScope?: string;
 	/** Resolves the source host that owns this container's detached worktree handles. Defaults to the local host. */
 	readonly resolveDevContainerWorktreeConnection?: () => Promise<IAgentConnection>;
@@ -196,6 +198,7 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 	private readonly _omitHostFromWorkspaceLabel: boolean;
 	private readonly _workspaceTypeIcon: ThemeIcon | undefined;
 	private readonly _defaultChangesetKind: IRemoteAgentHostSessionsProviderConfig['defaultChangesetKind'];
+	private readonly _devContainerSourceWorkspaceUri: URI | undefined;
 	private readonly _devContainerWorktreeScope: string | undefined;
 	private readonly _resolveDevContainerWorktreeConnection: IRemoteAgentHostSessionsProviderConfig['resolveDevContainerWorktreeConnection'];
 	/** Storage key used for persisting {@link _sessionCache} snapshots. */
@@ -246,6 +249,7 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 		this._omitHostFromWorkspaceLabel = config.omitHostFromWorkspaceLabel === true;
 		this._workspaceTypeIcon = config.workspaceTypeIcon;
 		this._defaultChangesetKind = config.defaultChangesetKind;
+		this._devContainerSourceWorkspaceUri = config.devContainerSourceWorkspaceUri;
 		this._register(agentHostConnectionsService.registerSessionResolutionPolicy(this._connectionAuthority, {
 			sessionSchemeAlias: this._sessionSchemeAlias,
 			defaultChangesetKind: this._defaultChangesetKind,
@@ -798,6 +802,10 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 			return undefined;
 		}
 		return this._buildWorkspaceFromUri(repositoryUri);
+	}
+
+	canonicalizeWorkspaceUri(workspaceUri: URI): URI {
+		return this._devContainerSourceWorkspaceUri ?? workspaceUri;
 	}
 
 	// -- Browse --------------------------------------------------------------

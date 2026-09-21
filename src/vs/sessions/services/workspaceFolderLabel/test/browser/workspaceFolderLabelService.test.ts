@@ -12,7 +12,7 @@ import { mock } from '../../../../../base/test/common/mock.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { WorkspaceFolder } from '../../../../../platform/workspace/common/workspace.js';
-import { ISession } from '../../../sessions/common/session.js';
+import { IChat, ISession } from '../../../sessions/common/session.js';
 import { IActiveSession, ISessionsManagementService } from '../../../sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../sessions/browser/sessionsService.js';
 import { SessionsWorkspaceFolderLabelService } from '../../browser/workspaceFolderLabelService.js';
@@ -48,6 +48,9 @@ suite('Sessions - Workspace Folder Label Service', () => {
 		const sessionsService = new class extends mock<ISessionsService>() {
 			override readonly activeSession = observableValue<IActiveSession | undefined>(this, new class extends mock<IActiveSession>() {
 				override readonly workspace = session.workspace;
+				override readonly activeChat = observableValue<IChat>(this, new class extends mock<IChat>() {
+					override readonly workspace = session.workspace;
+				});
 			});
 		};
 		const uriIdentityService = new class extends mock<IUriIdentityService>() {

@@ -2098,13 +2098,17 @@ suite('ProtocolServerHandler', () => {
 			});
 		});
 
-		test('createChat for an additional chat forwards to the agent service and grows the catalog', async () => {
+		test('createChat for an additional chat forwards working directories and grows the catalog', async () => {
 			stateManager.createSession(makeSessionSummary());
 			const transport = connectClient('client-cc');
 			transport.sent.length = 0;
 			const responsePromise = waitForResponse(transport, 2);
 
-			transport.simulateMessage(request(2, 'createChat', { channel: sessionUri, chat: peerChat }));
+			transport.simulateMessage(request(2, 'createChat', {
+				channel: sessionUri,
+				chat: peerChat,
+				workingDirectories: [URI.file('/workspace').toString()],
+			}));
 			const resp = await responsePromise;
 
 			assert.deepStrictEqual({
@@ -2113,12 +2117,16 @@ suite('ProtocolServerHandler', () => {
 				inCatalog: stateManager.getSessionState(sessionUri)?.chats.some(c => c.resource === peerChat),
 			}, {
 				result: null,
-				created: [{ session: sessionUri, chat: peerChat }],
+				created: [{
+					session: sessionUri,
+					chat: peerChat,
+					options: { workingDirectories: [URI.file('/workspace')] },
+				}],
 				inCatalog: true,
 			});
 		});
 
-		test('createChat forwards a fork source to the agent service', async () => {
+		test('createChat forwards a fork source and ignores its working directories', async () => {
 			stateManager.createSession(makeSessionSummary());
 			const transport = connectClient('client-cc');
 			transport.sent.length = 0;
@@ -2128,6 +2136,7 @@ suite('ProtocolServerHandler', () => {
 				channel: sessionUri,
 				chat: peerChat,
 				source: { kind: ChatSourceKind.Fork, chat: buildDefaultChatUri(sessionUri), turnId: 'turn-1' },
+				workingDirectories: [URI.file('/workspace').toString()],
 			}));
 			const resp = await responsePromise;
 
@@ -2173,7 +2182,7 @@ suite('ProtocolServerHandler', () => {
 			});
 		});
 
-		test('createChat forwards a side chat source to the agent service', async () => {
+		test('createChat forwards a side chat source and working directories to the agent service', async () => {
 			stateManager.createSession(makeSessionSummary());
 			const transport = connectClient('client-cc');
 			transport.sent.length = 0;
@@ -2188,6 +2197,7 @@ suite('ProtocolServerHandler', () => {
 					turnId: 'turn-active',
 					selection: { text: '  selected text  ', responsePartId: 'response-part-1' },
 				},
+				workingDirectories: [URI.file('/workspace').toString()],
 			}));
 			const resp = await responsePromise;
 
@@ -2200,6 +2210,7 @@ suite('ProtocolServerHandler', () => {
 					session: sessionUri,
 					chat: peerChat,
 					options: {
+						workingDirectories: [URI.file('/workspace')],
 						sideChat: { source: URI.parse(buildDefaultChatUri(sessionUri)), turnId: 'turn-active', selection: { text: '  selected text  ', responsePartId: 'response-part-1' } },
 					},
 				}],
