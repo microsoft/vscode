@@ -8,6 +8,7 @@
 	height: 100%;
 	min-height: 0;
 
+<<<<<<< HEAD
 	.monaco-list-row.session-list-inset-row {
 		border-radius: var(--vscode-cornerRadius-medium);
 		margin: 0 10px;
@@ -15,6 +16,9 @@
 	}
 
 	&.session-list-row-spacing .monaco-list-row.session-list-inset-row {
+=======
+	&.session-list-row-spacing .monaco-list-row:is(.session-list-inset-row, .session-list-shortcut-row, .session-list-show-more-row, .session-list-show-more-folders-row) {
+>>>>>>> aca2ff4f104 (sessions: align list row hover feedback (#336953))
 		padding-bottom: var(--vscode-spacing-size20);
 		background-clip: content-box;
 		outline: 0 !important;
@@ -646,6 +650,10 @@
 	}
 }
 
+.session-list-show-more-row .session-show-more {
+	padding-inline: var(--vscode-spacing-size200);
+}
+
 .monaco-list-row:hover .session-show-more:hover {
 	color: var(--vscode-foreground);
 }
@@ -802,6 +810,10 @@
 	display: block;
 	visibility: hidden;
 }
+<<<<<<< HEAD
+=======
+
+>>>>>>> aca2ff4f104 (sessions: align list row hover feedback (#336953))
 .monaco-list-row:hover .session-section.session-section-shortcut .session-section-toolbar {
 	visibility: visible;
 }
@@ -810,6 +822,11 @@
 .session-section.session-section-shortcut.active {
 	background-color: var(--vscode-list-inactiveSelectionBackground);
 	border-radius: var(--vscode-cornerRadius-small);
+}
+
+.monaco-list-row:hover .session-section.session-section-shortcut.active {
+	background-color: transparent;
+	border-radius: 0;
 }
 
 .monaco-list-row:hover .session-section .session-section-chevron.collapsible,
@@ -830,6 +847,7 @@
 }
 
 .sessions-list-control {
+<<<<<<< HEAD
 
 	/* Workspace headers and folder toggles use label color changes instead of row background fills for hover/focus/selection. */
 	.monaco-list-row:has(.session-section):hover,
@@ -841,6 +859,8 @@
 		background: transparent !important;
 	}
 
+=======
+>>>>>>> aca2ff4f104 (sessions: align list row hover feedback (#336953))
 	.monaco-list-row:hover .session-section .session-section-label,
 	.monaco-list-row.focused .session-section .session-section-label,
 	.monaco-list-row:hover .session-show-more-folders .session-show-more-label,
@@ -994,6 +1014,7 @@
  * keep these rules in sync if paddings/font sizes change here.
  */
 .agent-sessions-workbench.phone-layout .sessions-list-control {
+<<<<<<< HEAD
 	.monaco-list-row.session-list-inset-row {
 		/* Horizontal-only margin: virtual list rows are absolutely
 		 * positioned with JS-set `top`/`height`, so vertical margins
@@ -1004,6 +1025,8 @@
 		border-radius: var(--vscode-cornerRadius-xLarge);
 	}
 
+=======
+>>>>>>> aca2ff4f104 (sessions: align list row hover feedback (#336953))
 	.session-item {
 		padding: 10px 10px;
 		/* Vertically center the icon + main column inside the fixed phone row height. */

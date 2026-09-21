@@ -344,7 +344,19 @@ class SessionsTreeDelegate implements IListVirtualDelegate<SessionListItem> {
 			}
 			return this.withInsetRowSpacing(chatHeight);
 		}
+<<<<<<< HEAD
 		if (isSessionSection(element) || isSessionGroupItem(element)) {
+=======
+		if (isSessionSection(element) && element.id === SESSIONS_HEADER_SECTION_ID) {
+			return this._sessionsHeaderHeight?.() || SessionsTreeDelegate.SESSIONS_HEADER_HEIGHT;
+		}
+		if (isSessionSection(element)) {
+			return isShortcutSection(element.id)
+				? this.withInsetRowSpacing(SessionsTreeDelegate.SECTION_HEIGHT)
+				: SessionsTreeDelegate.SECTION_HEIGHT;
+		}
+		if (isSessionGroupItem(element)) {
+>>>>>>> aca2ff4f104 (sessions: align list row hover feedback (#336953))
 			return SessionsTreeDelegate.SECTION_HEIGHT;
 		}
 		if (isSessionShowMore(element)) {
@@ -1551,6 +1563,7 @@ interface ISessionGroupRendererDelegate {
 class SessionGroupRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, ISessionGroupTemplate> {
 	static readonly TEMPLATE_ID = 'session-group';
 	readonly templateId = SessionGroupRenderer.TEMPLATE_ID;
+	readonly rowClassName = 'session-list-section-row';
 
 	private readonly templatesByElement = new WeakMap<ISessionGroupItem, ISessionGroupTemplate>();
 	private readonly templatesById = new Map<string, ISessionGroupTemplate>();
