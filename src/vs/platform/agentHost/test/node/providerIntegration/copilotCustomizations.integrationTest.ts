@@ -174,6 +174,7 @@ suite('Agent Host Provider Integration — Copilot Customizations', function () 
 	});
 
 	teardown(async function () {
+		this.timeout(SETUP_TIMEOUT_MS);
 		const disposeErrors: string[] = [];
 		for (const session of createdSessions) {
 			try {
