@@ -241,7 +241,7 @@
 .agent-sessions-workbench:not(.phone-layout) .chat-view-chat.experimental-session-composer .chat-input-container > .chat-context-usage-container {
 	position: absolute;
 	top: var(--vscode-spacing-size40);
-	right: var(--vscode-spacing-size60);
+	right: calc(var(--vscode-spacing-size60) - 3px);
 	z-index: 1;
 }
 
