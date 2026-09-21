@@ -126,7 +126,7 @@ suite('AgentHostRepositoryConfig', () => {
 		const h = connectionWithResponses([]);
 		const error = new Error('Root subscription failed');
 		h.failRoot(error);
-		assert.throws(() => getRepositorySourceCapability(h.connection, 'provider'), error);
+		assert.throws(() => getRepositorySourceCapability(h.connection, 'provider'), /Root subscription failed/);
 	});
 
 	for (const key of ['repositorySource', 'repositoryRevision', 'repositoryUrl']) {
