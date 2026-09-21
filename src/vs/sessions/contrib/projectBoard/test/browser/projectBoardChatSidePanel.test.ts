@@ -48,6 +48,7 @@ import { IProjectBoardCard } from '../../common/projectBoardModel.js';
 function createCard(name = 'child'): IProjectBoardCard {
 	const chat = new class extends mock<IChat>() {
 		override readonly resource = URI.parse(`test-chat:${name}`);
+		override readonly workspace = constObservable(undefined);
 		override readonly title = constObservable(name);
 		override readonly status = constObservable(SessionStatus.Completed);
 		override readonly capabilities = constObservable({ canRename: true, canDelete: true });
