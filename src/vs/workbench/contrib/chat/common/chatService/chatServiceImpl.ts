@@ -1779,6 +1779,7 @@ export class ChatService extends Disposable implements IChatService {
 							acceptedConfirmationData: options?.acceptedConfirmationData,
 							rejectedConfirmationData: options?.rejectedConfirmationData,
 							agentHostSessionConfig: options?.agentHostSessionConfig,
+							...(options?.agentHostRepositories !== undefined ? { agentHostRepositories: options.agentHostRepositories } : {}),
 							metadata: options?.metadata,
 							userSelectedModelId: options?.userSelectedModelId,
 							modelConfiguration,

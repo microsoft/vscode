@@ -25,6 +25,10 @@ export interface ISessionType {
 	readonly icon: ThemeIcon;
 	/** Whether new sessions of this type support Worktree isolation and base-branch selection. */
 	readonly supportsWorktreeConfiguration?: boolean;
+	/** Whether new sessions accept an explicit repository source. */
+	readonly supportsRepositoryPreparation?: boolean;
+	readonly supportsRepositoryRevision?: boolean;
+	readonly supportsMultipleRepositories?: boolean;
 	/**
 	 * The workbench chat session type (contribution id) this session type maps
 	 * to, when it differs from {@link id}. Agent-host providers use a bare agent
@@ -206,6 +210,9 @@ export interface ISessionFolder {
 	readonly root: URI;
 	/** Working directory used for file operations. */
 	readonly workingDirectory: URI;
+	/** Repository source association, not a checkout or access root. */
+	readonly repository?: URI;
+	readonly origin?: { readonly kind: 'local' | 'repo' } | { readonly kind: 'worktree'; readonly mainWorktree: URI };
 	/** Display name for the folder (e.g., repository or directory basename). */
 	readonly name: string;
 	/** Optional description shown alongside the name (e.g., parent folder path). */
@@ -266,6 +273,10 @@ export const enum SessionWorkspaceKind {
 export function getSessionWorkspaceKind(workspace: ISessionWorkspace | undefined, worktreePending = false): SessionWorkspaceKind {
 	if (workspace?.isVirtualWorkspace) {
 		return SessionWorkspaceKind.Virtual;
+	}
+	const origin = workspace?.folders[0]?.origin;
+	if (!worktreePending && origin) {
+		return origin.kind === 'worktree' ? SessionWorkspaceKind.Worktree : SessionWorkspaceKind.Folder;
 	}
 	if (!worktreePending && workspace && workspace.folders.length > 0 && workspace.folders[0]?.gitRepository?.workTreeUri === undefined) {
 		return SessionWorkspaceKind.Folder;
@@ -1135,6 +1146,9 @@ export function sessionWorkspaceEqual(a: ISessionWorkspace | undefined, b: ISess
 export function sessionFolderEqual(a: ISessionFolder, b: ISessionFolder): boolean {
 	return isEqual(a.root, b.root)
 		&& isEqual(a.workingDirectory, b.workingDirectory)
+		&& isEqual(a.repository, b.repository)
+		&& a.origin?.kind === b.origin?.kind
+		&& (a.origin?.kind !== 'worktree' || b.origin?.kind === 'worktree' && isEqual(a.origin.mainWorktree, b.origin.mainWorktree))
 		&& a.name === b.name
 		&& a.description === b.description
 		&& sessionGitRepositoryEqual(a.gitRepository, b.gitRepository);

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { status } from '../../../../../../base/browser/ui/aria/aria.js';
-import { Delayer, disposableTimeout, raceCancellation } from '../../../../../../base/common/async.js';
+import { Delayer, disposableTimeout, raceCancellation, raceCancellationError } from '../../../../../../base/common/async.js';
 import { decodeBase64, encodeBase64, VSBuffer } from '../../../../../../base/common/buffer.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { CancellationError, getErrorCode, isCancellationError } from '../../../../../../base/common/errors.js';
@@ -29,10 +29,11 @@ import { isLocation, type Location } from '../../../../../../editor/common/langu
 import type { ITextModel } from '../../../../../../editor/common/model.js';
 import { IModelService } from '../../../../../../editor/common/services/model.js';
 import { localize } from '../../../../../../nls.js';
-import { AgentHostAllowSignedOutWhenUsableSettingId, AgentProvider, AgentSession, CODEX_AGENT_PROVIDER_ID, type IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
+import { AgentHostAllowSignedOutWhenUsableSettingId, AgentProvider, AgentSession, CODEX_AGENT_PROVIDER_ID, type IAgentConnection, type IAgentCreateSessionConfig } from '../../../../../../platform/agentHost/common/agentService.js';
+import { IRepositorySource, validateRepositories } from '../../../../../../platform/agentHost/common/agentHostRepositorySource.js';
 import { agentHostAuthority, LOCAL_AGENT_HOST_AUTHORITY } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { isCustomizationEnabled } from '../../../../../../platform/agentHost/common/customizationEnablement.js';
-import { findDeepestContainingWorkingDirectory } from '../../../../../../platform/agentHost/common/agentHostWorkingDirectories.js';
+import { findDeepestContainingWorkingDirectory, getWorkingDirectoryUri, getWorkingDirectoryUris } from '../../../../../../platform/agentHost/common/agentHostWorkingDirectories.js';
 import { AgentHostElementAttachmentDisplayKind, getElementAttachmentCorrelationId, toElementAttachmentMeta } from '../../../../../../platform/agentHost/common/meta/agentElementAttachments.js';
 import { AgentFeedbackAttachmentDisplayKind, AgentFeedbackAttachmentMetadataKey } from '../../../../../../platform/agentHost/common/meta/agentFeedbackAttachments.js';
 import { BrowserViewAttachmentDisplayKind, BrowserViewAttachmentMetadataKey } from '../../../../../../platform/agentHost/common/meta/browserViewAttachments.js';
@@ -47,10 +48,12 @@ import type { ChatInputRequestWithPlanReview, IAgentHostPlanReview } from '../..
 import { IAgentSubscription, observableFromSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ChatTruncatedAction } from '../../../../../../platform/agentHost/common/state/protocol/actions.js';
 import { CompletionItemKind as AhpCompletionItemKind, ContentEncoding, type CompletionItem as AhpCompletionItem } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
-import { ConfirmationOptionKind, CustomizationType, JsonPrimitive, McpServerAuthRequiredState, McpServerStatus, SessionInputRequestKind, TerminalClaimKind, ToolCallContributorKind, ToolResultContentType, type ConfirmationOption, type ProtectedResourceMetadata, type SessionActiveClient, type SessionInputRequest, type SessionToolClientExecutionRequest } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { ConfirmationOptionKind, CustomizationType, JsonPrimitive, McpServerAuthRequiredState, McpServerStatus, SessionInputRequestKind, SessionLifecycle, TerminalClaimKind, ToolCallContributorKind, ToolResultContentType, type ConfirmationOption, type ProtectedResourceMetadata, type SessionActiveClient, type SessionInputRequest, type SessionToolClientExecutionRequest } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { compareProtocolVersions } from '../../../../../../platform/agentHost/common/state/protocol/version/registry.js';
 import { ActionType, ChatTurnStartedAction, isChatAction, type ClientChatAction, type ClientSessionAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { AHP_AUTH_REQUIRED, AHP_NOT_FOUND, ProtocolError } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
+import { AhpErrorCodes } from '../../../../../../platform/agentHost/common/state/protocol/errors.js';
+import { getRepositoryPreparationCapability, getRepositoriesFromSelection, resolveAgentHostRepositoryConfig, waitForSessionPreparation } from './agentHostRepositoryConfig.js';
 import { buildChatUri, buildDefaultChatUri, buildSubagentChatUri, ChatOriginKind, getErrorResponsePart, getInlineToolInput, getToolSubagentContent, getTurnError, isChatReadOnly, isDefaultChatUri, isSubagentChatUri, isMessageHiddenFromTranscript, isMessageRequestHiddenFromTranscript, MessageAttachmentKind, MessageKind, PendingMessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, SessionStatus, StateComponents, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, TurnState, parseChatUri, mergeSessionWithDefaultChat, readMessageSystemInitiatedLabel, readSessionWorkspaceless, readUsageInfoMeta, withMessageHiddenFromTranscript, type ChatState, type ISessionWithDefaultChat, type ICompletedToolCall, type InputRequestResponsePart, type MarkdownResponsePart, type Message, type MessageAttachment, type MessageAnnotationsAttachment, type MessageChatAttachment, type MessageResourceAttachment, type MessageEmbeddedResourceAttachment, type ModelSelection, type PendingMessage, type ReasoningResponsePart, type RootState, type ChatInputAnswer, type ChatInputQuestion, type ChatInputRequest, type ChatSummary, type SessionState, type StringOrMarkdown, type ToolCallPendingConfirmationState, type ToolCallResponsePart, type ToolCallRunningState, type ToolCallState, type ToolInput, type Turn, type UsageInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { ExtensionIdentifier } from '../../../../../../platform/extensions/common/extensions.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
@@ -937,6 +940,7 @@ class ActiveClientEntry extends Disposable {
 
 	constructor(
 		private readonly _scope: IAgentCustomizationScope,
+		readonly scopeRoots: readonly URI[],
 		clientId: string,
 		debounceDelay: number,
 		private readonly _getSessionState: (backendSession: URI) => SessionState | undefined,
@@ -1489,6 +1493,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 					// separate chat channel, so reading them before the chat
 					// subscription lands would yield an empty history.
 					await this._whenSubscriptionHydrated(sub, token);
+					await waitForSessionPreparation(sub, token);
 					// A failed subscription surfaces as an `Error` value; rethrow it
 					// so the real reason (e.g. the working directory no longer
 					// exists) is logged and rendered instead of a generic message.
@@ -1829,6 +1834,8 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		let failureStage: AgentHostInvocationFailureStage = 'resolveSession';
 		try {
 			this._logService.info(`[AgentHost] _invokeAgent called for resource: ${request.sessionResource.toString()}`);
+			const selectedRepositories = request.agentHostRepositories !== undefined ? request.agentHostRepositories : this._repositoriesFromSelection(request.sessionResource);
+			const requestedRepositories = validateRepositories({ repositories: selectedRepositories }, selectedRepositories !== undefined ? getRepositoryPreparationCapability(this._config.connection) : undefined);
 			const invocationChat = this._getChatURIOrDefault(request.sessionResource, this._resolveSessionUri(request.sessionResource));
 			if (!isSubagentChatUri(invocationChat)) {
 				rendererRootInvocationOrdinal = nextRendererRootInvocationOrdinal();
@@ -1845,7 +1852,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			// `undefined` and skips the gate entirely: its only cwd is an internal
 			// scratch dir, not a user workspace. If the user declines, abort without
 			// starting a session.
-			const trustFolders = await this._resolveSessionTrustFolders(request.sessionResource, cancellationToken);
+			const trustFolders = await this._resolveSessionTrustFolders(request.sessionResource, cancellationToken, requestedRepositories);
 			if (cancellationToken.isCancellationRequested) {
 				return {};
 			}
@@ -1880,7 +1887,8 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			// open with hydrated state. Use the unmanaged accessor to peek
 			// without taking a fresh subscription, which would trigger a
 			// duplicate snapshot fetch and (in tests) unrelated mock behaviour.
-			const existingState = await this._readEagerlyCreatedSessionState(resolvedSession, cancellationToken);
+			const creatingRepository = requestedRepositories !== undefined && (request.agentHostRepositories !== undefined || this._isNewSessionResource(request.sessionResource));
+			const existingState = creatingRepository ? undefined : await this._readEagerlyCreatedSessionState(resolvedSession, cancellationToken);
 			if (cancellationToken.isCancellationRequested) {
 				return {};
 			}
@@ -1909,12 +1917,23 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				};
 				await this._createAndSubscribe(
 					request.sessionResource,
-					model,
-					Object.keys(initialConfig).length > 0 ? initialConfig : undefined,
-					imported ? { turns: imported.turns, model: imported.model } : undefined,
+					{
+						model,
+						config: Object.keys(initialConfig).length > 0 ? initialConfig : undefined,
+						importConversation: imported ? { turns: imported.turns, model: imported.model } : undefined,
+						repositories: requestedRepositories,
+						onTrustInteractionRequired: () => trustInteractionRequired = true,
+					},
 					stage => failureStage = stage,
+					cancellationToken,
 				);
 			} else {
+				if (trustFolders === undefined && !readSessionWorkspaceless(existingState._meta)) {
+					const roots = getWorkingDirectoryUris(existingState.workingDirectories)?.map(directory => this._config.connection.resourceUris.fromAgentHost(URI.parse(directory))) ?? [];
+					if (roots.some(root => root.scheme === Schemas.file) && !await this._ensureFoldersTrusted(roots, () => trustInteractionRequired = true)) {
+						throw new CancellationError();
+					}
+				}
 				failureStage = 'authentication';
 				await this._ensureRequiredAuthentication(this._createModelSelection(request.userSelectedModelId, request.modelConfiguration));
 
@@ -2099,8 +2118,11 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		if (!sub) {
 			return undefined;
 		}
-		if (sub.value !== undefined) {
-			return sub.value instanceof Error ? undefined : sub.value;
+		if (sub.value instanceof Error) {
+			return undefined;
+		}
+		if (sub.value !== undefined && sub.value.lifecycle === SessionLifecycle.Ready) {
+			return sub.value;
 		}
 
 		// Snapshot is in flight. Pin the subscription with a fresh
@@ -2117,7 +2139,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			await this._whenSubscriptionHydrated(pinRef.object, token);
 			const value = pinRef.object.value;
 			this._logService.info(`[AgentHost] _readEagerlyCreatedSessionState: hydrated value=${value === undefined ? 'undefined' : value instanceof Error ? `error(${value.message})` : 'state'} cancelled=${token.isCancellationRequested} for ${resolvedSession.toString()}`);
-			return value instanceof Error ? undefined : value;
+			return value instanceof Error || value === undefined ? undefined : await waitForSessionPreparation(pinRef.object, token);
 		} finally {
 			pinRef.dispose();
 		}
@@ -2368,15 +2390,18 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		await entry.claim(backendSession, cancellationToken);
 	}
 
-	private _ensureActiveClientEntry(sessionResource: URI): ActiveClientEntry {
+	private _ensureActiveClientEntry(sessionResource: URI, scopeRoots?: readonly URI[]): ActiveClientEntry {
 		const existing = this._activeClientEntries.get(sessionResource);
-		if (existing) {
+		if (existing && (!scopeRoots || this._activeClientService.areScopeRootsEqual(existing.scopeRoots, scopeRoots))) {
 			return existing;
 		}
+		this._disposeActiveClientEntry(sessionResource);
 
-		const scope = this._activeClientService.acquireScope(this._config.sessionType, this._resolveCustomizationScopeRoots(sessionResource));
+		const roots = scopeRoots ?? this._resolveCustomizationScopeRoots(sessionResource);
+		const scope = this._activeClientService.acquireScope(this._config.sessionType, roots);
 		const entry = new ActiveClientEntry(
 			scope,
+			roots,
 			this._config.connection.clientId,
 			AgentHostSessionHandler.ACTIVE_CLIENT_RECONCILIATION_DEBOUNCE_MS,
 			backendSession => this._getSessionState(backendSession.toString()),
@@ -5637,8 +5662,10 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	}
 
 	/** Creates a new backend session and subscribes to its state. */
-	private async _createAndSubscribe(sessionResource: URI, model: ModelSelection | undefined, config?: Record<string, unknown>, importConversation?: { readonly turns: readonly Turn[]; readonly model?: ModelSelection }, onFailureStage?: (stage: AgentHostInvocationFailureStage) => void): Promise<URI> {
-		const workingDirectories = this._resolveRequestedWorkingDirectories(sessionResource);
+	private async _createAndSubscribe(sessionResource: URI, options: Pick<IAgentCreateSessionConfig, 'model' | 'config' | 'importConversation' | 'repositories'> & { readonly onTrustInteractionRequired: () => void }, onFailureStage?: (stage: AgentHostInvocationFailureStage) => void, cancellationToken: CancellationToken = CancellationToken.None): Promise<URI> {
+		const { model, importConversation } = options;
+		let { config } = options;
+		let workingDirectories = this._resolveRequestedWorkingDirectories(sessionResource);
 		const requestedSession = this._resolveSessionUri(sessionResource);
 		const meta = this._provisionalService.getInitialSessionMetadata(sessionResource);
 
@@ -5647,8 +5674,19 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		onFailureStage?.('authentication');
 		const protectedResources = await this._ensureRequiredAuthentication(model);
 
-		const activeClientEntry = this._ensureActiveClientEntry(sessionResource);
-		await activeClientEntry.whenSettled();
+		const selectedRepositories = options.repositories !== undefined ? options.repositories : this._repositoriesFromSelection(sessionResource);
+		const repositories = validateRepositories({ repositories: selectedRepositories, config }, selectedRepositories !== undefined ? getRepositoryPreparationCapability(this._config.connection) : undefined);
+		if (repositories) {
+			this._disposeActiveClientEntry(sessionResource);
+			config = await resolveAgentHostRepositoryConfig(this._config.connection, this._config.provider, repositories, config, cancellationToken);
+			workingDirectories = undefined;
+		}
+		if (cancellationToken.isCancellationRequested) {
+			throw new CancellationError();
+		}
+
+		const activeClientEntry = this._ensureActiveClientEntry(sessionResource, repositories ? [] : undefined);
+		await raceCancellationError(activeClientEntry.whenSettled(), cancellationToken);
 		const activeClient = this._getCurrentActiveClient(sessionResource);
 
 		// Opt in to bring-up progress (chiefly the lazy first-use SDK download)
@@ -5657,39 +5695,41 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		// each frame; this token only records interest.
 		const progressToken = generateUuid();
 
+		const createSession = async () => {
+			try {
+				return await this._config.connection.createSession({
+					session: requestedSession,
+					_meta: meta,
+					model,
+					provider: this._config.provider,
+					workingDirectories,
+					...(repositories !== undefined ? { repositories } : {}),
+					config,
+					importConversation,
+					activeClient,
+					progressToken,
+				});
+			} catch (err) {
+				if (repositories && err instanceof ProtocolError && err.code === AhpErrorCodes.SessionAlreadyExists) {
+					this._disposeActiveClientEntry(sessionResource);
+					throw new Error(localize('agentHost.repositoryAlreadyExists', "This session already exists. Open it from the session list before sending a message."));
+				}
+				throw err;
+			}
+		};
+
 		let session: URI;
 		onFailureStage?.('createSession');
 		try {
-			session = await this._config.connection.createSession({
-				session: requestedSession,
-				_meta: meta,
-				model,
-				provider: this._config.provider,
-				workingDirectories,
-				config,
-				importConversation,
-				activeClient,
-				progressToken,
-			});
+			session = await createSession();
 		} catch (err) {
-			// If authentication is required (e.g. token expired), try interactive auth and retry once
 			if (this._isAuthRequiredError(err) && this._config.resolveAuthentication) {
 				onFailureStage?.('authentication');
 				this._logService.info('[AgentHost] Authentication required, prompting user...');
 				const authenticated = await this._config.resolveAuthentication(protectedResources);
 				if (authenticated) {
 					onFailureStage?.('createSession');
-					session = await this._config.connection.createSession({
-						session: requestedSession,
-						_meta: meta,
-						model,
-						provider: this._config.provider,
-						workingDirectories,
-						config,
-						importConversation,
-						activeClient,
-						progressToken,
-					});
+					session = await createSession();
 				} else {
 					throw new Error(localize('agentHost.authRequired', "Authentication is required to start a session. Please sign in and try again."));
 				}
@@ -5709,7 +5749,9 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		// Subscribe to the new session's state
 		onFailureStage?.('subscribeSession');
 		const newSub = this._ensureSessionSubscription(session.toString());
-		this._configureActiveClientReconciliation(sessionResource, session, newSub);
+		if (!repositories) {
+			this._configureActiveClientReconciliation(sessionResource, session, newSub);
+		}
 		if (!this._getSessionState(session.toString())) {
 			// Wait for the subscription to hydrate. `_whenSubscriptionHydrated`
 			// settles on snapshot, error, or cancellation and attaches its
@@ -5720,10 +5762,19 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			// subscription via `setError`, which fires `onDidError` but NOT
 			// `onDidChange`, so an `onDidChange`-only wait would hang for the
 			// full turn timeout (issue #5242).
-			await this._whenSubscriptionHydrated(newSub, CancellationToken.None);
+			await this._whenSubscriptionHydrated(newSub, cancellationToken);
 		}
 
-		const rawState = this._requireRawSessionState(session.toString());
+		const rawState = await waitForSessionPreparation(newSub, cancellationToken, repositories !== undefined);
+		if (repositories) {
+			const roots = getWorkingDirectoryUris(rawState.workingDirectories)?.map(directory => this._config.connection.resourceUris.fromAgentHost(URI.parse(directory))) ?? [];
+			if (roots.some(root => root.scheme === Schemas.file) && !await this._ensureFoldersTrusted(roots, options.onTrustInteractionRequired)) {
+				throw new CancellationError();
+			}
+			const entry = this._ensureActiveClientEntry(sessionResource, roots);
+			entry.attach(session, newSub);
+			await raceCancellationError(entry.whenSettled(), cancellationToken);
+		}
 		const chatURI = this._resolveChatUriFromState(sessionResource, rawState);
 		this._setChatURI(sessionResource, chatURI);
 		const chatSub = this._ensureChatSubscription(session.toString(), chatURI);
@@ -6126,6 +6177,10 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			?? this._workspaceContextService.getWorkspace().folders[0]?.uri;
 	}
 
+	private _repositoriesFromSelection(sessionResource: URI): readonly IRepositorySource[] | undefined {
+		return getRepositoriesFromSelection(this._config.connection, this._resolveRequestedWorkingDirectory(sessionResource));
+	}
+
 	/** `undefined` is preserved for createSession to let the host choose its working directories. */
 	private _resolveRequestedWorkingDirectories(sessionResource: URI): readonly URI[] | undefined {
 		const primary = this._resolveRequestedWorkingDirectory(sessionResource);
@@ -6193,22 +6248,15 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		if (dirs === undefined) {
 			return undefined;
 		}
-		return dirs.map(directory => typeof directory === 'string' ? URI.parse(directory) : directory);
+		return dirs.map(directory => URI.parse(getWorkingDirectoryUri(directory)));
 	}
 
-	/**
-	 * Resolves the local folders the agent will run in, for the workspace-trust
-	 * gate: an existing session's persisted working directories, or a new session's
-	 * requested ones.
-	 *
-	 * Returns `undefined` for a workspace-less session (a quick chat) to signal the
-	 * caller to skip the folder-trust gate entirely: its only working directory is
-	 * an internal scratch dir (`~/.copilot/chats/<id>`), an implementation detail
-	 * rather than a user workspace, so it must not be treated as a trust root.
-	 * Otherwise an explicit empty set is honored and only a genuinely unresolved set
-	 * falls back to the requested/workspace folders.
-	 */
-	private async _resolveSessionTrustFolders(sessionResource: URI, token: CancellationToken): Promise<readonly URI[] | undefined> {
+	/** Resolve directory-session trust roots; repository sessions check their resolved roots after readiness. */
+	private async _resolveSessionTrustFolders(sessionResource: URI, token: CancellationToken, repositories?: readonly IRepositorySource[]): Promise<readonly URI[] | undefined> {
+		// Repository sessions check the host-resolved roots after preparation, not the current workspace.
+		if (repositories) {
+			return undefined;
+		}
 		if (!this._isNewSessionResource(sessionResource)) {
 			// Read the authoritative session state once — prefer already-hydrated
 			// handler-level state, otherwise the eager/connection-level state — so
@@ -6221,6 +6269,9 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			if (state?.workingDirectories === undefined) {
 				state = await this._readEagerlyCreatedSessionState(backendSession, token) ?? state;
 			}
+			if (state?.lifecycle === SessionLifecycle.Creating) {
+				return undefined;
+			}
 			// A workspace-less session (quick chat) runs only in an internal scratch
 			// dir that is not a user workspace; never gate trust on it.
 			if (state && readSessionWorkspaceless(state._meta)) {
@@ -6232,7 +6283,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				// repository so the gate does not prompt for it. Done here (the gate
 				// already read the state) so `_ensureFoldersTrusted` short-circuits.
 				await this._inheritWorktreeTrust(state);
-				return dirs.map(directory => typeof directory === 'string' ? URI.parse(directory) : directory);
+				return dirs.map(directory => URI.parse(getWorkingDirectoryUri(directory)));
 			}
 		}
 		return this._resolveRequestedWorkingDirectories(sessionResource) ?? [];
@@ -6268,7 +6319,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		// container itself), so a trusted base repo grants trust for exactly this
 		// session's worktree and not for every sibling worktree.
 		const worktreeFolders = (state.workingDirectories ?? [])
-			.map(directory => typeof directory === 'string' ? URI.parse(directory) : directory)
+			.map(directory => URI.parse(getWorkingDirectoryUri(directory)))
 			.filter(folder => isWorktreeUnderRepository(folder, repositoryRoot));
 		if (worktreeFolders.length === 0) {
 			return;

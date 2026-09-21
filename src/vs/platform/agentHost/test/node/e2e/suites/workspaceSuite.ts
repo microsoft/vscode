@@ -15,6 +15,7 @@ import { ActionType, NotificationType, type IToolCallContentChangedAction, type 
 import type { SessionAddedParams } from '../../../../common/state/protocol/notifications.js';
 import { buildDefaultChatUri, readSessionGitState, ROOT_STATE_URI, type SessionState, type TerminalState, type ToolResultContent } from '../../../../common/state/sessionState.js';
 import { CopilotCliConfigKey } from '../../../../common/copilotCliConfig.js';
+import { getWorkingDirectoryUri, getWorkingDirectoryUris } from '../../../../common/agentHostWorkingDirectories.js';
 import {
 	dispatchTurn,
 	driveTurnToCompletion,
@@ -100,7 +101,7 @@ export function defineWorkspaceTests(context: IAgentHostE2ETestContext): void {
 		await context.client.call<SubscribeResult>('subscribe', { channel: buildDefaultChatUri(sessionUri) });
 		await driveTurnToCompletion(context.client, sessionUri, 'turn-worktree-include', 'Reply exactly "materialized".', 1);
 		const state = (await context.client.call<SubscribeResult>('subscribe', { channel: sessionUri })).snapshot!.state as SessionState;
-		const worktree = URI.parse(state.workingDirectories![0]).fsPath;
+		const worktree = URI.parse(getWorkingDirectoryUri(state.workingDirectories![0])).fsPath;
 
 		assert.deepStrictEqual({
 			env: readFileSync(`${worktree}/.env`, 'utf8'),
@@ -191,7 +192,7 @@ export function defineWorkspaceTests(context: IAgentHostE2ETestContext): void {
 		const addedNotif = await addedNotification;
 		const addedSummary = (addedNotif.params as SessionAddedParams).summary;
 
-		const addedWorkingDirectory = addedSummary.workingDirectories?.[0];
+		const addedWorkingDirectory = getWorkingDirectoryUris(addedSummary.workingDirectories)?.[0];
 		assert.ok(addedWorkingDirectory, 'sessionAdded notification should have a workingDirectory');
 		assert.ok(addedWorkingDirectory.includes('.worktrees'),
 			`workingDirectory should be under the .worktrees folder, got: ${addedWorkingDirectory}`);

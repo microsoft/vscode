@@ -7,6 +7,7 @@ import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IAgentHostGitStateService } from '../../../common/agentHostGitStateService.js';
 import { type IAgentHostChatContribution, type IAgentHostChatContributionContext, type ITurnEnd } from '../../../common/agentHostChatContributionsService.js';
+import { getWorkingDirectoryUri } from '../../../common/agentHostWorkingDirectories.js';
 import { AgentHostStateManager, IAgentHostStateManager } from '../../agentHostStateManager.js';
 
 /** Reconciles the session's current pull request after a started turn ends. */
@@ -26,7 +27,7 @@ export class GitHubReferencesContribution extends Disposable implements IAgentHo
 	onTurnEnd(turn: ITurnEnd): void {
 		if (turn.reason.kind !== 'rejected' && turn.reason.kind !== 'localCommand') {
 			const workingDirectory = this._stateManager.getSessionState(turn.session)?.workingDirectories?.[0];
-			void this._gitStateService.attachSessionGitHubPullRequest(turn.session, workingDirectory ? URI.parse(workingDirectory) : undefined);
+			void this._gitStateService.attachSessionGitHubPullRequest(turn.session, workingDirectory ? URI.parse(getWorkingDirectoryUri(workingDirectory)) : undefined);
 		}
 	}
 }

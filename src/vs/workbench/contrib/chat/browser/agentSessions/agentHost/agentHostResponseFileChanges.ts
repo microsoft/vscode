@@ -9,6 +9,7 @@ import { constObservable, derived, derivedObservableWithCache, derivedOpts, IObs
 import { getComparisonKey, isEqual, isEqualOrParent } from '../../../../../../base/common/resources.js';
 import { isDefined } from '../../../../../../base/common/types.js';
 import { URI } from '../../../../../../base/common/uri.js';
+import { getWorkingDirectoryUris } from '../../../../../../platform/agentHost/common/agentHostWorkingDirectories.js';
 import { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { buildBranchChangesetUri, buildTurnChangesetUri, ChangesetKind } from '../../../../../../platform/agentHost/common/changesetUri.js';
 import { normalizeFileEdit } from '../../../../../../platform/agentHost/common/fileEditDiff.js';
@@ -325,7 +326,7 @@ export class AgentHostResponseFileChangesProvider extends Disposable implements 
 			const workspaceRoots: URI[] = [];
 			if (sessionState && !(sessionState instanceof Error)) {
 				const roots = new Map<string, URI>();
-				for (const root of [sessionState.project?.uri, ...(sessionState.workingDirectories ?? [])]) {
+				for (const root of [sessionState.project?.uri, ...(getWorkingDirectoryUris(sessionState.workingDirectories) ?? [])]) {
 					if (root) {
 						const uri = URI.parse(root);
 						roots.set(uri.toString(), uri);

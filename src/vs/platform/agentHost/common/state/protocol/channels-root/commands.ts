@@ -9,6 +9,7 @@
 import type { URI } from '../common/state.js';
 import type { BaseParams, PaginatedParams, PaginatedResult } from '../common/commands.js';
 import type { SessionSummary, SessionConfigSchema } from '../channels-session/state.js';
+import type { RepositorySource } from '../channels-session/commands.js';
 
 // Re-export schema types so the legacy `commands.ts` aggregator continues to
 // expose them from the same import path.
@@ -130,6 +131,12 @@ export interface ResolveSessionConfigParams extends BaseParams {
 	provider?: string;
 	/** Working directory for the session */
 	workingDirectory?: URI;
+	/**
+	 * Repositories used as configuration context.
+	 *
+	 * @minItems 1
+	 */
+	repositories?: RepositorySource[];
 	/** Current user-filled configuration values */
 	config?: Record<string, unknown>;
 }
@@ -195,6 +202,12 @@ export interface SessionConfigCompletionsParams extends BaseParams {
 	provider?: string;
 	/** Working directory for the session */
 	workingDirectory?: URI;
+	/**
+	 * Repositories used as configuration context.
+	 *
+	 * @minItems 1
+	 */
+	repositories?: RepositorySource[];
 	/** Current user-filled configuration values (provides context for the query) */
 	config?: Record<string, unknown>;
 	/** Property id from the schema to query values for */

@@ -8,7 +8,7 @@
 
 import type { Changeset } from '../channels-changeset/state.js';
 import type { AnnotationsSummary } from '../channels-annotations/state.js';
-import type { ChatSummary, ChatInputRequest, ToolCallConfirmationState, ToolCallRunningState, ToolCallAuthRequiredState } from '../channels-chat/state.js';
+import type { ChatInteractivity, ChatOrigin, ChatSummary, ChatInputRequest, ToolCallConfirmationState, ToolCallRunningState, ToolCallAuthRequiredState } from '../channels-chat/state.js';
 import type { AutomationRunState } from '../channels-automation-run/state.js';
 import type { AutomationEntry } from '../channels-automation/state.js';
 import type { ConfigPropertySchema, ErrorInfo, Icon, ProtectedResourceMetadata, TextRange, URI } from '../common/state.js';
@@ -88,6 +88,59 @@ export interface AutomationSessionOrigin {
 export type SessionOrigin = AutomationSessionOrigin;
 
 /**
+ * How a working directory was prepared.
+ *
+ * @category Session State
+ * @nonexhaustive
+ */
+export const enum WorkingDirectoryOriginKind {
+	Local = 'local',
+	Repo = 'repo',
+	Worktree = 'worktree',
+}
+
+/** @category Session State */
+export interface LocalWorkingDirectoryOrigin {
+	kind: WorkingDirectoryOriginKind.Local;
+}
+
+/** @category Session State */
+export interface RepoWorkingDirectoryOrigin {
+	kind: WorkingDirectoryOriginKind.Repo;
+}
+
+/** @category Session State */
+export interface WorktreeWorkingDirectoryOrigin {
+	kind: WorkingDirectoryOriginKind.Worktree;
+	/** Main worktree associated with the host-prepared worktree. */
+	mainWorktree: URI;
+}
+
+/**
+ * Host-reported preparation result, independent of the creation input.
+ *
+ * @category Session State
+ */
+export type WorkingDirectoryOrigin =
+	| LocalWorkingDirectoryOrigin
+	| RepoWorkingDirectoryOrigin
+	| WorktreeWorkingDirectoryOrigin;
+
+/**
+ * An actual working directory, uniquely keyed by `uri` within the session.
+ *
+ * @category Session State
+ */
+export interface WorkingDirectory {
+	/** Actual selected directory, which may be a repository subdirectory. */
+	uri: URI;
+	/** Credential-free repository source association, not a checkout identity. */
+	repo?: URI;
+	/** Host-reported provenance; omission means unspecified. */
+	origin?: WorkingDirectoryOrigin;
+}
+
+/**
  * Metadata shared between the full {@link SessionState} (delivered when a
  * client subscribes to a session's URI) and the lightweight
  * {@link SessionSummary} (carried in the root-channel session catalog).
@@ -124,8 +177,11 @@ export interface SessionMetadata {
 	 * MAY restrict to a subset via
 	 * {@link ChatSummary.workingDirectories | their own `workingDirectories`}; a
 	 * chat that sets none operates against this full set.
+	 * Entries are uniquely keyed by URI. Rich records require
+	 * {@link ClientCapabilities.workingDirectoryInfo}; other clients receive URIs.
 	 */
-	workingDirectories?: URI[];
+	workingDirectories?: (URI | WorkingDirectory)[];
+
 	/**
 	 * Lightweight summary of this session's inline annotations channel
 	 * (`ahp-session:/<uuid>/annotations`). Surfaced so badge UI can render
@@ -495,6 +551,39 @@ export interface SessionSummary extends SessionMetadata {
 	 * and session notifications.
 	 */
 	_meta?: Record<string, unknown>;
+	/**
+	 * Lightweight ordered chat catalog for session-list presentation.
+	 *
+	 * This intentionally omits volatile chat state such as status and activity,
+	 * while retaining interactivity so generic clients can hide chats or present
+	 * them as read-only without subscribing to the session channel.
+	 */
+	chats?: SessionChatSummary[];
+	/** Chat that receives input when no specific chat is selected. */
+	defaultChat?: URI;
+}
+
+/**
+ * Lightweight chat information suitable for listing a session without
+ * subscribing to its session channel.
+ *
+ * @category Session State
+ */
+export interface SessionChatSummary {
+	/** Canonical chat URI */
+	resource: URI;
+	/** Human-readable chat title */
+	title: string;
+	/** How this chat was created, when known */
+	origin?: ChatOrigin;
+	/**
+	 * How the user can interact with this chat.
+	 *
+	 * Generic clients use this to omit hidden chats and disable input for
+	 * read-only chats. Absence defaults to {@link ChatInteractivity.Full} for
+	 * backward compatibility.
+	 */
+	interactivity?: ChatInteractivity;
 }
 
 /**

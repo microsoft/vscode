@@ -200,6 +200,11 @@ export interface InitializeParams extends BaseParams {
  */
 export interface ClientCapabilities {
 	/**
+	 * Client accepts rich {@link WorkingDirectory} records as well as URI strings.
+	 * Hosts project records to URIs when absent and retain this choice on reconnect.
+	 */
+	workingDirectoryInfo?: Record<string, never>;
+	/**
 	 * Client can render
 	 * [MCP Apps](https://github.com/modelcontextprotocol/ext-apps) — i.e.
 	 * it can host the View sandbox, run the `ui/*` protocol against it,
@@ -255,6 +260,8 @@ export interface InitializeResult {
 	snapshots: Snapshot[];
 	/** Suggested default directory for remote filesystem browsing */
 	defaultDirectory?: URI;
+	/** Host repository preparation support; absent when unsupported. */
+	repositoryPreparation?: RepositoryPreparationCapabilities;
 	/**
 	 * Characters that, when typed in a {@link Message} input, SHOULD cause
 	 * the client to issue a `completions` request with
@@ -287,6 +294,18 @@ export interface InitializeResult {
 	 * @see {@link /guide/automations | Automations Guide}
 	 */
 	automations?: AutomationCapabilities;
+}
+
+/**
+ * An empty object supports one repository at its default revision.
+ *
+ * @category Commands
+ */
+export interface RepositoryPreparationCapabilities {
+	/** When true, clients may supply {@link RepositorySource.revision}. */
+	revision?: boolean;
+	/** When true, clients may supply more than one repository. */
+	multipleRepositories?: boolean;
 }
 
 /**

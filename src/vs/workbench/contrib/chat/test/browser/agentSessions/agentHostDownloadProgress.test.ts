@@ -73,15 +73,31 @@ suite('AgentHostDownloadProgress', () => {
 		);
 	});
 
-	test('indeterminate download (no total) reports megabytes received', () => {
+	test('indeterminate progress preserves the host message without assuming byte units', () => {
 		const { controller, progressService } = create();
 
 		controller.handleProgress(frame({ progressToken: 'codex', progress: 5 * 1024 * 1024, message: 'Downloading Codex Agent' }));
 
 		assert.deepStrictEqual(
 			progressService.opened.map(o => ({ title: o.title, steps: o.steps.map(s => s.message) })),
-			[{ title: 'Downloading Codex Agent', steps: ['5.0 MB'] }],
+			[{ title: 'Downloading Codex Agent', steps: ['Downloading Codex Agent'] }],
 		);
+	});
+
+	test('repository preparation can report indeterminate progress', () => {
+		const { controller, progressService } = create();
+		controller.handleProgress(frame({ progressToken: 'repository', progress: 3, message: 'Preparing repository' }));
+		assert.deepStrictEqual(progressService.opened.map(o => ({ title: o.title, steps: o.steps.map(s => s.message) })), [
+			{ title: 'Preparing repository', steps: ['Preparing repository'] },
+		]);
+	});
+
+	test('unlabelled progress uses an operation-neutral fallback', () => {
+		const { controller, progressService } = create();
+		controller.handleProgress(frame({ progressToken: 'preparation', progress: 1 }));
+		assert.deepStrictEqual(progressService.opened.map(o => ({ title: o.title, steps: o.steps.map(s => s.message) })), [
+			{ title: 'Preparing Session', steps: ['Working...'] },
+		]);
 	});
 
 	test('no notification when AI features are disabled', () => {

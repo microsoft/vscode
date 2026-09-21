@@ -110,9 +110,9 @@ export interface CreateChatParams extends BaseParams {
 	 */
 	source?: ChatSource;
 	/**
-	 * Initial working-directory subset for this chat. Every entry MUST be
-	 * present in the owning session's `workingDirectories`; the server MUST
-	 * reject any entry that is not. When absent, the chat inherits the full
+	 * Initial working-directory URI subset for this chat. Every URI MUST match
+	 * a URI string or record's `uri` in the owning session's `workingDirectories`;
+	 * the server MUST reject any entry that does not. When absent, the chat inherits the full
 	 * session set. Forked chats (those whose `source.kind` is `"fork"`) inherit
 	 * the source chat's `workingDirectories`; this field is ignored for forks.
 	 *

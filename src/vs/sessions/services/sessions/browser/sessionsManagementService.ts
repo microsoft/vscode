@@ -15,6 +15,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { agentHostAuthority } from '../../../../platform/agentHost/common/agentHostUri.js';
+import { parseRepositorySources } from '../../../../platform/agentHost/common/agentHostRepositorySource.js';
 import { IRemoteAgentHostService } from '../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { IChatService } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { ChatAgentLocation } from '../../../../workbench/contrib/chat/common/constants.js';
@@ -428,6 +429,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	 * callers can enforce provider-specific trust without resolving it again.
 	 */
 	private _resolveProviderForNewSession(folderUri: URI, options?: ICreateNewSessionOptions): { provider: ISessionsProvider; sessionTypeId: string; workspace: ISessionWorkspace } {
+		const repositories = parseRepositorySources(options?.repositories);
 		const providers = this.sessionsProvidersService.getProviders();
 		let provider: ISessionsProvider | undefined;
 		let workspace: ISessionWorkspace | undefined;
@@ -436,17 +438,18 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 			|| options?.worktreeBranchTrack !== undefined
 			|| options?.worktreeCreateNewBranch !== undefined
 			|| options?.branch !== undefined;
+		const requiresRepositoryPreparation = repositories !== undefined;
 		const resolveSessionTypeId = (candidate: ISessionsProvider): string | undefined => {
-			const sessionTypes = candidate.getSessionTypes(folderUri);
+			const sessionTypes = candidate.getSessionTypes(folderUri).filter(type =>
+				(!requiresWorktreeConfiguration || type.supportsWorktreeConfiguration === true)
+				&& (!requiresRepositoryPreparation || type.supportsRepositoryPreparation === true)
+				&& (!repositories?.some(repository => repository.revision !== undefined) || type.supportsRepositoryRevision === true)
+				&& (!(repositories && repositories.length > 1) || type.supportsMultipleRepositories === true));
 			if (options?.sessionTypeId) {
 				const requested = sessionTypes.find(type => type.id === options.sessionTypeId);
-				return requested && (!requiresWorktreeConfiguration || requested.supportsWorktreeConfiguration === true)
-					? requested.id
-					: undefined;
+				return requested?.id;
 			}
-			return (requiresWorktreeConfiguration
-				? sessionTypes.find(type => type.supportsWorktreeConfiguration === true)
-				: sessionTypes[0])?.id;
+			return sessionTypes[0]?.id;
 		};
 
 		if (options?.providerId) {
@@ -460,6 +463,9 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 			}
 			sessionTypeId = resolveSessionTypeId(provider);
 			if (!sessionTypeId) {
+				if (requiresRepositoryPreparation) {
+					throw new Error(localize('sessions.repositorySourceUnsupported', "Sessions provider '{0}' does not support the requested repository source or revision.", options.providerId));
+				}
 				if (requiresWorktreeConfiguration) {
 					throw new Error(`Sessions provider '${options.providerId}' does not support worktree configuration for folder '${folderUri.toString()}'`);
 				}
@@ -484,6 +490,9 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 				break;
 			}
 			if (!provider || !workspace) {
+				if (requiresRepositoryPreparation) {
+					throw new Error(localize('sessions.noRepositorySourceProvider', "No sessions provider supports the requested repository source or revision."));
+				}
 				throw new Error(requiresWorktreeConfiguration
 					? `No sessions provider supports worktree configuration for folder '${folderUri.toString()}'`
 					: `No sessions provider can resolve folder '${folderUri.toString()}'`);
@@ -534,6 +543,9 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	 * advertised one. Throws when no capable provider/type can be resolved.
 	 */
 	private _resolveProviderForQuickChat(options?: ICreateNewSessionOptions): { provider: ISessionsProvider; sessionTypeId: string } {
+		if (options?.repositories !== undefined) {
+			throw new Error(localize('sessions.repositoryQuickChat', "Repository inputs require a workspace-bound session, not a quick chat."));
+		}
 		const providers = this.sessionsProvidersService.getProviders();
 		let provider: ISessionsProvider | undefined;
 
@@ -620,6 +632,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 			: options?.automationConfiguration;
 		return {
 			metadata: options?.metadata,
+			...(options?.repositories !== undefined ? { repositories: options.repositories } : {}),
 			...(automationConfiguration ? { automationConfiguration } : {}),
 		};
 	}

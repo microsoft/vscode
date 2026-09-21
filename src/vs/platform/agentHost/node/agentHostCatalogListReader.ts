@@ -84,6 +84,7 @@ export class AgentHostCatalogListReader {
 			status,
 			project: data.project,
 			workingDirectories: [...data.workingDirectories],
+			...(data.workingDirectoryInfo ? { workingDirectoryInfo: data.workingDirectoryInfo } : {}),
 			changes: data.changes,
 			...(meta !== undefined ? { _meta: meta } : {}),
 		};

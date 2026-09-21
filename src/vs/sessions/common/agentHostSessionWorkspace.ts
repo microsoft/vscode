@@ -10,6 +10,7 @@ import { extUri, basename } from '../../base/common/resources.js';
 import { ThemeIcon } from '../../base/common/themables.js';
 import { URI } from '../../base/common/uri.js';
 import type { ISessionGitState } from '../../platform/agentHost/common/state/sessionState.js';
+import { WorkingDirectory, WorkingDirectoryOriginKind } from '../../platform/agentHost/common/state/protocol/channels-session/state.js';
 import { IConfigurationService } from '../../platform/configuration/common/configuration.js';
 import { IGitHubInfo, ISessionFolder, ISessionWorkspace } from '../services/sessions/common/session.js';
 
@@ -84,6 +85,9 @@ export function agentHostSessionWorkspaceKey(workspace: ISessionWorkspace | unde
 		return [
 			extUri.getComparisonKey(f.root),
 			f.workingDirectory ? extUri.getComparisonKey(f.workingDirectory) : '',
+			f.repository ? extUri.getComparisonKey(f.repository) : '',
+			f.origin?.kind ?? '',
+			f.origin?.kind === 'worktree' ? extUri.getComparisonKey(f.origin.mainWorktree) : '',
 			repo?.branchName ?? '',
 			repo?.baseBranchName ?? '',
 			String(repo?.baseBranchProtected ?? ''),
@@ -95,6 +99,36 @@ export function agentHostSessionWorkspaceKey(workspace: ISessionWorkspace | unde
 		].join('\u0001');
 	});
 	return [workspace.label, ...folderKeys].join('\n');
+}
+
+export function withAgentHostWorkingDirectoryInfo(workspace: ISessionWorkspace | undefined, directories: readonly WorkingDirectory[] | undefined): ISessionWorkspace | undefined {
+	if (!workspace || !directories?.length) {
+		return workspace;
+	}
+	const infoByUri = new Map(directories.map(directory => [extUri.getComparisonKey(URI.parse(directory.uri)), directory]));
+	return {
+		...workspace,
+		folders: workspace.folders.map(folder => {
+			const info = infoByUri.get(extUri.getComparisonKey(folder.workingDirectory));
+			if (!info || !info.origin && !info.repo) {
+				return folder;
+			}
+			const origin = info.origin?.kind === WorkingDirectoryOriginKind.Worktree
+				? { kind: 'worktree' as const, mainWorktree: URI.parse(info.origin.mainWorktree) }
+				: info.origin;
+			return {
+				...folder,
+				root: folder.workingDirectory,
+				repository: info.repo ? URI.parse(info.repo) : undefined,
+				origin,
+				gitRepository: folder.gitRepository ? {
+					...folder.gitRepository,
+					uri: origin?.kind === 'worktree' ? origin.mainWorktree : folder.gitRepository.uri,
+					workTreeUri: origin?.kind === 'worktree' ? folder.workingDirectory : undefined,
+				} : undefined,
+			};
+		}),
+	};
 }
 
 /**

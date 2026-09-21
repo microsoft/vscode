@@ -14,6 +14,7 @@ import { AGENT_HOST_COMMIT_CHANGESET_OPERATION_ID, type IChangesetOperationHandl
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../common/state/protocol/channels-changeset/commands.js';
 import { AHP_AUTH_REQUIRED, AHP_SESSION_NOT_FOUND, JsonRpcErrorCodes, ProtocolError } from '../common/state/sessionProtocol.js';
 import { readSessionGitState, type ISessionFileDiff, type SessionState } from '../common/state/sessionState.js';
+import { getWorkingDirectoryUri } from '../common/agentHostWorkingDirectories.js';
 import { ILogService } from '../../log/common/log.js';
 import { IAgentHostGitService } from '../common/agentHostGitService.js';
 import { CopilotApiError, ICopilotApiService } from './shared/copilotApiService.js';
@@ -64,7 +65,7 @@ export class AgentHostCommitOperationHandler implements IChangesetOperationHandl
 		if (!workingDirectoryStr) {
 			throw new ProtocolError(JsonRpcErrorCodes.InternalError, `Session has no working directory: ${sessionUri}`);
 		}
-		const workingDirectory = URI.parse(workingDirectoryStr);
+		const workingDirectory = URI.parse(getWorkingDirectoryUri(workingDirectoryStr));
 
 		const gitState = readSessionGitState(sessionState._meta);
 		if (!gitState) {

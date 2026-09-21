@@ -22,6 +22,7 @@ import { isAgentWorkspaceContinuationMessage } from '../../common/meta/agentWork
 import type { ISessionDatabase } from '../../common/sessionDataService.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { ActionType } from '../../common/state/sessionActions.js';
+import { WorkingDirectoryOriginKind } from '../../common/state/protocol/channels-session/state.js';
 import { AH_META_HAS_WORKSPACE_TRANSITIONS_DB_KEY, AH_META_WORKSPACE_CONVERSION_QUARANTINED_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, buildChatUri, buildDefaultChatUri, createErrorResponsePart, customizationId, CustomizationLoadStatus, CustomizationType, isHostNoticeTurn, isMessageHiddenFromTranscript, isMessageRequestHiddenFromTranscript, MessageKind, readMessageSystemInitiatedLabel, readSessionHasWorkspaceTransitions, readSessionWorkspaceless, ResponsePartKind, SessionStatus, TurnState, withSessionWorkspaceless, type ErrorInfo, type Message, type Turn } from '../../common/state/sessionState.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import type { IAgentHostClientConnectionService } from '../../node/agentHostClientConnectionService.js';
@@ -685,6 +686,7 @@ suite('SessionWorkspaceConversionService', () => {
 			sessionStateProject: state?.project,
 			summaryProject: summary?.project,
 			workingDirectories: state?.workingDirectories,
+			workingDirectoryInfo: summary?.workingDirectories,
 			projectNotifications,
 			isolation: state?.config?.values[SessionConfigKey.Isolation],
 			branch: state?.config?.values[SessionConfigKey.Branch],
@@ -717,6 +719,10 @@ suite('SessionWorkspaceConversionService', () => {
 				displayName: 'project',
 			},
 			workingDirectories: [worktreeIsolation.worktree.toString()],
+			workingDirectoryInfo: [{
+				uri: worktreeIsolation.worktree.toString(),
+				origin: { kind: WorkingDirectoryOriginKind.Worktree, mainWorktree: workspaceFolder.toString() },
+			}],
 			projectNotifications: [{
 				uri: workspaceFolder.toString(),
 				displayName: 'project',
@@ -758,6 +764,7 @@ suite('SessionWorkspaceConversionService', () => {
 			createdWorktrees: worktreeIsolation.createdWorktrees,
 			project: harness.stateManager.getSessionSummary(harness.session.toString())?.project,
 			workingDirectories: state?.workingDirectories,
+			workingDirectoryInfo: harness.stateManager.getSessionSummary(harness.session.toString())?.workingDirectories,
 		}, {
 			externalProjectRequests: [worktree.toString()],
 			createdWorktrees: [],
@@ -766,6 +773,7 @@ suite('SessionWorkspaceConversionService', () => {
 				displayName: 'project',
 			},
 			workingDirectories: [worktree.toString()],
+			workingDirectoryInfo: [{ uri: worktree.toString(), origin: { kind: WorkingDirectoryOriginKind.Local } }],
 		});
 	});
 

@@ -8,6 +8,7 @@ import { Event } from '../../../../base/common/event.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
+import type { IRepositorySource } from '../../../../platform/agentHost/common/agentHostRepositorySource.js';
 import { IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { ILanguageModelChatMetadataAndIdentifier, type IModelConfigurationAccess } from '../../../../workbench/contrib/chat/common/languageModels.js';
 import { ModelIdentifierResolution } from '../../../../workbench/contrib/chat/common/modelSelection.js';
@@ -51,6 +52,7 @@ export interface ISendRequestOptions {
 
 /** Provider options applied when creating a new session draft. */
 export interface ISessionsProviderCreateSessionOptions {
+	readonly repositories?: readonly IRepositorySource[];
 	/** Initial provider metadata to associate with the session. */
 	readonly metadata?: Record<string, unknown>;
 	/** Complete Automation state for providers that also own compatibility projections. */

@@ -14,6 +14,7 @@ import { EMPTY_TREE_OBJECT, IAgentHostGitService, META_DIFF_BASE_BRANCH, resolve
 import { buildReviewedRefName, IAgentHostReviewService } from '../common/agentHostReviewService.js';
 import { ISessionDataService } from '../common/sessionDataService.js';
 import { readSessionGitState, type URI as ProtocolURI } from '../common/state/sessionState.js';
+import { getWorkingDirectoryUri } from '../common/agentHostWorkingDirectories.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
 
 /**
@@ -81,7 +82,7 @@ export class AgentHostReviewService extends Disposable implements IAgentHostRevi
 			databaseRef.dispose();
 		}
 
-		const workingDirectory = URI.parse(sessionState.workingDirectories?.[0]);
+		const workingDirectory = URI.parse(getWorkingDirectoryUri(sessionState.workingDirectories[0]));
 		const baseBranch = resolveDiffBaseBranchName(persistedBaseBranch, readSessionGitState(sessionState._meta)?.baseBranchName);
 		await this._sequencer.queue(parsed.sessionUri, async () => {
 			for (const resource of resources) {

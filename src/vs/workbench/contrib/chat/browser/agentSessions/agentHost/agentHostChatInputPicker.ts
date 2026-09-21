@@ -19,6 +19,7 @@ import { isEqual } from '../../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { hasKey } from '../../../../../../base/common/types.js';
 import { URI } from '../../../../../../base/common/uri.js';
+import { getWorkingDirectoryUri } from '../../../../../../platform/agentHost/common/agentHostWorkingDirectories.js';
 import { localize } from '../../../../../../nls.js';
 import { IActionListOptions, ActionListItemKind, IActionListDelegate, IActionListItem, IActionListItemInlineToggle } from '../../../../../../platform/actionWidget/browser/actionList.js';
 import { IActionWidgetService } from '../../../../../../platform/actionWidget/browser/actionWidget.js';
@@ -1058,7 +1059,7 @@ export class AgentHostChatInputPicker extends Disposable {
 		const state = this._subRef.value?.sub.value;
 		if (state && !(state instanceof Error)) {
 			const cwd = state.workingDirectories?.[0];
-			return typeof cwd === 'string' ? URI.parse(cwd) : cwd;
+			return cwd !== undefined ? URI.parse(getWorkingDirectoryUri(cwd)) : undefined;
 		}
 		const sessionResource = this._widget.viewModel?.sessionResource;
 		return (sessionResource && this._newSessionFolderService.getFolder(sessionResource))

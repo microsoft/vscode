@@ -10,6 +10,7 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { isCancellationError } from '../../../../../base/common/errors.js';
 import { toErrorMessage } from '../../../../../base/common/errorMessage.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { Schemas } from '../../../../../base/common/network.js';
 import { StopWatch } from '../../../../../base/common/stopwatch.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -24,6 +25,7 @@ import { SnippetController2 } from '../../../../../editor/contrib/snippet/browse
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
+import { validateRepositories } from '../../../../../platform/agentHost/common/agentHostRepositorySource.js';
 import { addWebSocketRemoteAgentHostEntry, IRemoteAgentHostService, parseRemoteAgentHostInput, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, RemoteAgentHostInputValidationError, RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { computeSSHConnectionKey, ISSHRemoteAgentHostService, isSSHHostKeyDeniedError, SSHAuthMethod, type ISSHAgentHostConfig, type ISSHResolvedConfig } from '../../../../../platform/agentHost/common/sshRemoteAgentHost.js';
@@ -35,6 +37,8 @@ import { INotificationService, Severity } from '../../../../../platform/notifica
 import { IQuickInputButton, IQuickInputService, IQuickPick, IQuickPickItem } from '../../../../../platform/quickinput/common/quickInput.js';
 import { IRemoteTunnelService, TunnelStatus } from '../../../../../platform/remoteTunnel/common/remoteTunnel.js';
 import { IAuthenticationService } from '../../../../../workbench/services/authentication/common/authentication.js';
+import { IsSessionsWindowContext } from '../../../../../workbench/common/contextkeys.js';
+import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { SessionsCategories } from '../../../../common/categories.js';
@@ -59,7 +63,86 @@ export const RemoteAgentHostCommandIds = {
 	connectViaWSL: 'workbench.action.sessions.connectViaWSL',
 	manageRemoteAgentHosts: 'workbench.action.sessions.manageRemoteAgentHosts',
 	updateRemoteAgentHost: 'workbench.action.sessions.updateRemoteAgentHost',
+	newRepositorySession: 'workbench.action.sessions.newRepositorySession',
 } as const;
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: RemoteAgentHostCommandIds.newRepositorySession,
+			title: localize2('newRepositorySession', "New Repository Session..."),
+			category: SessionsCategories.Sessions,
+			f1: true,
+			precondition: ContextKeyExpr.and(IsSessionsWindowContext, ChatContextKeys.enabled, ContextKeyExpr.equals(`config.${RemoteAgentHostsEnabledSettingId}`, true)),
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const providersService = accessor.get(ISessionsProvidersService);
+		const quickInputService = accessor.get(IQuickInputService);
+		const dialogService = accessor.get(IDialogService);
+		const sessionsService = accessor.get(ISessionsService);
+		const notificationService = accessor.get(INotificationService);
+		try {
+			const choices = providersService.getProviders().filter(isAgentHostProvider).flatMap(provider =>
+				provider.connectionStatus?.get().kind === 'connected'
+					? provider.sessionTypes.filter(type => type.supportsRepositoryPreparation).map(type => ({
+						label: type.label,
+						description: provider.label,
+						provider,
+						sessionType: type,
+					}))
+					: []);
+			if (!choices.length) {
+				throw new Error(localize('repositorySession.noHost', "Connect to an agent host that supports repository preparation before starting a repository session."));
+			}
+			const selected = choices.length === 1 ? choices[0] : await quickInputService.pick(choices, {
+				title: localize('repositorySession.selectHost', "Select Agent Host"),
+				placeHolder: localize('repositorySession.selectAgent', "Choose the host and agent that will prepare the repository"),
+			});
+			if (!selected) {
+				return;
+			}
+			const supportsRevision = selected.sessionType.supportsRepositoryRevision === true;
+			const input = await dialogService.input({
+				message: localize('repositorySession.title', "New repository session"),
+				detail: localize('repositorySession.detail', "The host prepares the repository when you send your first message. Leave the subdirectory empty to use the checkout root."),
+				inputs: [
+					{ placeholder: localize('repositorySession.source', "HTTPS repository URL") },
+					...(supportsRevision ? [{ placeholder: localize('repositorySession.revision', "Revision (optional)") }] : []),
+					{ placeholder: localize('repositorySession.subdirectory', "Subdirectory, for example packages/api (optional)") },
+				],
+				primaryButton: localize('repositorySession.openDraft', "Open Draft"),
+			});
+			if (!input.confirmed) {
+				return;
+			}
+			const repositories = validateRepositories({
+				repositories: [{
+					source: input.values?.[0]?.trim() ?? '',
+					...(supportsRevision && input.values?.[1]?.trim() ? { revision: input.values[1].trim() } : {}),
+					...(input.values?.[supportsRevision ? 2 : 1]?.trim() ? { subdirectory: input.values[supportsRevision ? 2 : 1].trim() } : {}),
+				}],
+			}, { revision: supportsRevision });
+			const source = repositories?.[0].source;
+			if (!source || source.scheme !== Schemas.https || !source.authority) {
+				throw new Error(localize('repositorySession.invalidSource', "Enter an absolute HTTPS repository URL without credentials, a query, or a fragment."));
+			}
+			const result = await sessionsService.openNewSession({
+				folderUri: source,
+				providerId: selected.provider.id,
+				sessionTypeId: selected.sessionType.id,
+				repositories,
+				cancelRestore: true,
+			});
+			if (!result.session && !result.trustDeclined) {
+				throw new Error(localize('repositorySession.openFailed', "The repository session draft could not be opened."));
+			}
+		} catch (error) {
+			notificationService.error(error);
+		}
+	}
+});
 
 registerAction2(class extends Action2 {
 	constructor() {

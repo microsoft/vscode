@@ -61,6 +61,7 @@ import { CancellationError } from '../../../../../../base/common/errors.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
+import { getWorkingDirectoryUris } from '../../../../../../platform/agentHost/common/agentHostWorkingDirectories.js';
 import { localize } from '../../../../../../nls.js';
 import { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
@@ -286,7 +287,7 @@ export class AgentHostSessionWorkingDirectorySynchronizer extends Disposable imp
 			return;
 		}
 
-		const current = state.workingDirectories?.map(directory => URI.parse(directory)) ?? [];
+		const current = getWorkingDirectoryUris(state.workingDirectories)?.map(directory => URI.parse(directory)) ?? [];
 		if (current.length === 0) {
 			return;
 		}

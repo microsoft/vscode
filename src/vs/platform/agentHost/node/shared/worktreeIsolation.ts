@@ -75,7 +75,7 @@ export interface IAgentHostWorktreeIsolation extends IAgentHostWorktreePendingSt
 	cleanupWorktree(sessionUri: URI, sessionId: string): Promise<void>;
 	cleanupWorktreeOnArchive(sessionUri: URI, sessionId: string): Promise<void>;
 	recreateWorktreeOnUnarchive(sessionUri: URI, sessionId: string): Promise<void>;
-	readWorktreeMetadata(sessionUri: URI): Promise<IWorktreeMetadata | undefined>;
+	readWorktreeMetadata(sessionUri: URI, options?: { readonly repair?: boolean }): Promise<IWorktreeMetadata | undefined>;
 	adoptExistingWorktreeMetadata(sessionUri: URI, workingDirectory: URI): Promise<boolean>;
 	recordAdoptedWorktreeMetadata(sessionUri: URI, metadata: { readonly branchName: string; readonly baseBranch: string | undefined; readonly worktreePath: URI; readonly repositoryRoot: URI }): Promise<void>;
 	resolveExternalWorktreeProject(workingDirectory: URI): Promise<IResolvedExternalWorktreeProject | undefined>;
@@ -1295,9 +1295,9 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 		}
 	}
 
-	/** Reads the persisted worktree metadata for a session, if any. */
-	async readWorktreeMetadata(sessionUri: URI): Promise<IWorktreeMetadata | undefined> {
-		return this._readWorktreeMetadata(sessionUri);
+	/** Reads existing worktree facts; `repair: false` never derives roots from paths or rewrites metadata. */
+	async readWorktreeMetadata(sessionUri: URI, options?: { readonly repair?: boolean }): Promise<IWorktreeMetadata | undefined> {
+		return this._readWorktreeMetadata(sessionUri, options?.repair !== false);
 	}
 
 	/**
@@ -1470,7 +1470,7 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 	 * The repair is only reachable when {@link WORKTREE_META_BRANCH} is present, so a root
 	 * persisted without its branch will never heal.
 	 */
-	private async _readWorktreeMetadata(sessionUri: URI): Promise<IWorktreeMetadata | undefined> {
+	private async _readWorktreeMetadata(sessionUri: URI, repair = true): Promise<IWorktreeMetadata | undefined> {
 		const ref = await this._sessionDataService.tryOpenDatabase(sessionUri);
 		if (!ref) {
 			return undefined;
@@ -1491,6 +1491,14 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 				: legacyWorkingDirectoryRaw
 					? URI.parse(legacyWorkingDirectoryRaw)
 					: undefined;
+			if (!repair) {
+				const storedRoot = repositoryRootRaw ? URI.parse(repositoryRootRaw) : undefined;
+				const checkoutRoot = storedRoot ?? worktreePath;
+				const repositoryRoot = checkoutRoot
+					? await tryResolvePrimaryWorktreeRoot(this._gitService, checkoutRoot).catch(() => undefined) ?? storedRoot
+					: undefined;
+				return { branchName, worktreePath, repositoryRoot };
+			}
 			let repositoryRoot = repositoryRootRaw
 				? URI.parse(repositoryRootRaw)
 				: worktreePath

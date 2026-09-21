@@ -9,6 +9,7 @@ import { URI } from '../../../base/common/uri.js';
 import { parseUpstreamBranchName, type IAgentHostGitService } from '../common/agentHostGitService.js';
 import { readSessionArtifacts, SessionArtifactType } from '../common/sessionArtifacts.js';
 import { getSessionPullRequestUrlKey, readSessionGitHubState, readSessionGitState, withMostRecentSessionPullRequest, type ISessionGitHubState, type ISessionGitState, type ISessionWithDefaultChat, type SessionSummaryMeta } from '../common/state/sessionState.js';
+import { getWorkingDirectoryUri } from '../common/agentHostWorkingDirectories.js';
 import type { CreatedPullRequest, IAgentHostOctoKitService } from './shared/agentHostOctoKitService.js';
 
 interface IRestrictedPullRequestResolution {
@@ -131,7 +132,7 @@ export class AgentHostPullRequestAssociationResolver extends Disposable {
 			return undefined;
 		}
 
-		const headSha = await this._gitService.revParse(URI.parse(workingDirectory), 'HEAD');
+		const headSha = await this._gitService.revParse(URI.parse(getWorkingDirectoryUri(workingDirectory)), 'HEAD');
 		return headSha
 			? this._octoKitService.findPullRequestByHeadSha(owner, repo, headSha, authToken, signal, allowedPullRequestUrls)
 			: undefined;

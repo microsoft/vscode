@@ -19,6 +19,8 @@ import { ISessionDataService } from '../../../common/sessionDataService.js';
 import { SessionConfigKey } from '../../../common/sessionConfigKeys.js';
 import { AgentSystemNotificationKind, AgentSystemNotificationWorkspaceKind, serializeAgentWorkspaceTransition, type IAgentSystemNotificationMeta, type IAgentWorkspaceTransitionRecord, toAgentSystemNotificationMeta } from '../../../common/meta/agentSystemNotificationMeta.js';
 import { ActionType } from '../../../common/state/sessionActions.js';
+import { WorkingDirectoryOriginKind } from '../../../common/state/protocol/channels-session/state.js';
+import { getWorkingDirectoryUri } from '../../../common/agentHostWorkingDirectories.js';
 import { AH_META_HAS_WORKSPACE_TRANSITIONS_DB_KEY, AH_META_WORKSPACE_CONVERSION_QUARANTINED_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, buildDefaultChatUri, chatStorageUri, isDefaultChatUri, MessageKind, parseChatUri, readSessionWorkspaceless, ResponsePartKind, SessionStatus, withMessageRequestHiddenFromTranscript, withMessageSystemInitiatedLabel, withSessionHasWorkspaceTransitions, withSessionWorkspaceless, type ISessionWithDefaultChat, type SessionConfigState, type URI as ProtocolURI } from '../../../common/state/sessionState.js';
 import { AgentHostStateManager, IAgentHostStateManager } from '../../agentHostStateManager.js';
 import { IAgentHostClientConnectionService } from '../../agentHostClientConnectionService.js';
@@ -292,7 +294,12 @@ export class SessionWorkspaceConversionService extends Disposable implements ISe
 		this._stateManager.dispatchServerAction(session.toString(), {
 			type: ActionType.SessionWorkingDirectoryReplaced,
 			directory: previousWorkingDirectory,
-			replacement: authoritativeWorkingDirectory.toString(),
+			replacement: {
+				uri: authoritativeWorkingDirectory.toString(),
+				origin: worktreeApplied
+					? project ? { kind: WorkingDirectoryOriginKind.Worktree, mainWorktree: project.uri.toString() } : undefined
+					: { kind: WorkingDirectoryOriginKind.Local },
+			},
 		});
 		this._updateIsolationConfig(session, finalState.config, configPatch, resolvedWorkspace.isolationConfig, worktreeApplied);
 		this._serverToolHost.advertise(session.toString());
@@ -474,7 +481,7 @@ export class SessionWorkspaceConversionService extends Disposable implements ISe
 			|| (state.status & SessionStatus.IsArchived) === SessionStatus.IsArchived
 			|| state.defaultChat !== chat.toString()
 			|| state.workingDirectories?.length !== 1
-			|| state.workingDirectories[0] !== previousWorkingDirectory
+			|| getWorkingDirectoryUri(state.workingDirectories[0]) !== previousWorkingDirectory
 			|| (expectedState && (!equals(state._meta, expectedState._meta) || !equals(state.config, expectedState.config) || !equals(state.project, expectedState.project)))
 		) {
 			return undefined;
@@ -507,7 +514,7 @@ export class SessionWorkspaceConversionService extends Disposable implements ISe
 		if (state.workingDirectories?.length !== 1) {
 			throw new Error('A workspace-less session must have exactly one working directory before conversion.');
 		}
-		return { session, state, previousWorkingDirectory: state.workingDirectories[0] };
+		return { session, state, previousWorkingDirectory: getWorkingDirectoryUri(state.workingDirectories[0]) };
 	}
 
 	private _beginContinuation(pending: IPendingSessionWorkspaceConversion): IDeferredAgentHostTurn {

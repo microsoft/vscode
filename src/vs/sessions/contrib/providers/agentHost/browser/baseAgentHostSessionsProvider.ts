@@ -22,6 +22,8 @@ import { AgentSession, AuthenticateParams, AuthenticateResult, CODEX_AGENT_PROVI
 import { AgentMergeSessionOverrides, AgentMergeSessionState, readAgentMergeSessionState } from '../../../../../platform/agentHost/common/agentMerge.js';
 import { readAgentSdkSetupInfos } from '../../../../../platform/agentHost/common/agentSdkSetup.js';
 import { IAgentConnection } from '../../../../../platform/agentHost/common/agentService.js';
+import { IRepositorySource, validateRepositories } from '../../../../../platform/agentHost/common/agentHostRepositorySource.js';
+import { getWorkingDirectoryInfo, getWorkingDirectoryUri, getWorkingDirectoryUris, mapWorkingDirectory } from '../../../../../platform/agentHost/common/agentHostWorkingDirectories.js';
 import type { AgentHostUriMapper } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import type { RemoteAgentHostConnectionStatus } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { AgentHostTransportFailureReason } from '../../../../../platform/agentHost/common/state/sessionTransport.js';
@@ -50,6 +52,7 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../../pla
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IWorkspaceTrustManagementService } from '../../../../../platform/workspace/common/workspaceTrust.js';
 import { AgentHostDownloadProgress } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostDownloadProgress.js';
+import { getRepositoryPreparationCapability, getRepositoriesFromSelection } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostRepositoryConfig.js';
 import { IAgentCustomizationScope, IAgentHostActiveClientService } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostActiveClientService.js';
 import { IChatWidgetService } from '../../../../../workbench/contrib/chat/browser/chat.js';
 import { ChatMode } from '../../../../../workbench/contrib/chat/common/chatModes.js';
@@ -62,7 +65,7 @@ import { isAutoApprovePolicyRestricted, normalizeSessionConfigValue } from '../.
 import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../../../../workbench/contrib/chat/common/languageModels.js';
 import { getRegisteredLanguageModels, resolveConfiguredModel, resolveModelIdentifier, resolveModelIdentifierFromLanguageModels } from '../../../../../workbench/contrib/chat/common/modelSelection.js';
 import { buildMutableConfigSchema, IAgentHostMcpServer, IAgentHostSessionsProvider, IAgentMergeClientState, resolvedConfigsEqual } from '../../../../common/agentHostSessionsProvider.js';
-import { agentHostSessionWorkspaceKey, buildAgentHostChatWorkspace } from '../../../../common/agentHostSessionWorkspace.js';
+import { agentHostSessionWorkspaceKey, buildAgentHostChatWorkspace, withAgentHostWorkingDirectoryInfo } from '../../../../common/agentHostSessionWorkspace.js';
 import { USE_WORKTREE_SETTING, isSessionConfigComplete } from '../../../../common/sessionConfig.js';
 import { linkKey } from '../../../../common/sessionLinks.js';
 import { ChatInteractivity, ChatModelSource, ChatOriginKind, DEFAULT_CHAT_CAPABILITIES, effectiveChatInteractivity, getGitHubPullRequestRefs, getHighestPriorityPullRequestIcon, getSessionOwnedGitHubPullRequestRefs, IChat, IChatCapabilities, IGitHubInfo, IGitHubIssueRef, IGitHubPullRequestRef, isActiveSessionStatus, ISession, ISessionAgentRef, ISessionArtifact, ISessionCapabilities, ISessionChangesSummary, ISessionChatCustomization, ISessionChangeset, ISessionCreationReference, ISessionFileChange, ISessionPreparationProgress, ISessionTurnFileChange, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction, ISideChatSelection, sessionFileChangesEqual, sessionWorkspaceEqual, SessionRemoteConnectionFailureReason, SessionRemoteConnectionStatus, SessionStatus, SessionTypeAuthRequirement, toSessionId, TURN_CHANGES_CHANGESET_ID } from '../../../../services/sessions/common/session.js';
@@ -200,6 +203,7 @@ interface ISerializedSessionMetadata {
 	readonly modifiedTime: number;
 	readonly summary?: string;
 	readonly workingDirectory?: string;
+	readonly workingDirectories?: IAgentSessionMetadata['workingDirectoryInfo'];
 	/** Session-scoped flag bits only — see {@link SESSION_STATUS_FLAG_MASK}. */
 	readonly status?: ProtocolSessionStatus;
 	/** @deprecated Superseded by the `IsRead` bit on {@link status}. */
@@ -238,6 +242,7 @@ function serializeMetadata(meta: IAgentSessionMetadata): ISerializedSessionMetad
 		modifiedTime: meta.modifiedTime,
 		summary: meta.summary,
 		workingDirectory: meta.workingDirectories?.[0]?.toString(),
+		workingDirectories: meta.workingDirectoryInfo ?? getWorkingDirectoryInfo(meta.workingDirectories?.map(directory => directory.toString())),
 		status: meta.status !== undefined ? meta.status & SESSION_STATUS_FLAG_MASK : undefined,
 		project: meta.project ? { uri: meta.project.uri.toString(), displayName: meta.project.displayName } : undefined,
 		changes: meta.changes,
@@ -267,7 +272,8 @@ function deserializeMetadata(raw: ISerializedSessionMetadata): IAgentSessionMeta
 			startTime: raw.startTime,
 			modifiedTime: raw.modifiedTime,
 			summary: raw.summary,
-			workingDirectories: raw.workingDirectory ? [URI.parse(raw.workingDirectory)] : undefined,
+			workingDirectories: raw.workingDirectories?.map(directory => URI.parse(directory.uri)) ?? (raw.workingDirectory ? [URI.parse(raw.workingDirectory)] : undefined),
+			workingDirectoryInfo: raw.workingDirectories,
 			status: deserializeStatus(raw),
 			project: raw.project ? { uri: URI.parse(raw.project.uri), displayName: raw.project.displayName } : undefined,
 			changes: raw.changes,
@@ -661,10 +667,11 @@ function toPresentedSessionStatus(owner: object, status: IObservable<SessionStat
 	});
 }
 
-type AgentHostSessionStateMetadata = Pick<IAgentSessionMetadata, 'project' | 'workingDirectories' | '_meta'>;
+type AgentHostSessionStateMetadata = Pick<IAgentSessionMetadata, 'project' | 'workingDirectories' | 'workingDirectoryInfo' | '_meta'>;
 type AgentHostSessionSummaryWorkspaceMetadata = {
 	project?: IAgentSessionMetadata['project'];
 	workingDirectories?: IAgentSessionMetadata['workingDirectories'];
+	workingDirectoryInfo?: IAgentSessionMetadata['workingDirectoryInfo'];
 };
 
 /**
@@ -961,6 +968,8 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 	// See `_applySessionMetadataFromState` / `applySessionStateMetadata`.
 	private _project: IAgentSessionMetadata['project'];
 	private _workingDirectories: readonly URI[] | undefined;
+	private _workingDirectoryInfo: IAgentSessionMetadata['workingDirectoryInfo'];
+	get workingDirectoryInfo(): IAgentSessionMetadata['workingDirectoryInfo'] { return this._workingDirectoryInfo; }
 	/** Working-directory set used to resolve session customizations. */
 	get workingDirectories(): readonly URI[] { return this._workingDirectories ?? []; }
 	// The directory that the current `mode` custom-agent URI is rooted at. Used to
@@ -1062,6 +1071,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 		this._activity = observableValue('activity', metadata.activity);
 		this._project = metadata.project;
 		this._workingDirectories = metadata.workingDirectories;
+		this._workingDirectoryInfo = metadata.workingDirectoryInfo;
 
 		this._meta = metadata._meta;
 		this._metaObs = observableValue<SessionMeta | undefined>('agentHostSessionMeta', this._meta);
@@ -1140,7 +1150,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 		// Until the host reports the worktree, the workspace is still the checkout it was started from.
 		this.worktreePending = derived(this, reader =>
 			this._worktreeIsolation.read(reader)
-			&& !this.workspace.read(reader)?.folders.some(folder => !!folder.gitRepository?.workTreeUri));
+			&& !this.workspace.read(reader)?.folders.some(folder => folder.origin?.kind === 'worktree' || !!folder.gitRepository?.workTreeUri));
 		this.loading = derived(this, reader => {
 			const visible = _sessionsService.visibleSessions.read(reader).some(session => isEqual(session?.resource, this.resource));
 			return _options.loading.read(reader) || (visible && chatCatalogLoading.read(reader));
@@ -1686,6 +1696,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 
 			this._project = metadata.project;
 			this._workingDirectories = metadata.workingDirectories;
+			this._workingDirectoryInfo = metadata.workingDirectoryInfo;
 			// Only update `_meta` when the source actually provides one — an
 			// undefined value means "not included" (e.g. a summary path that
 			// omits it), not "cleared". The authoritative git-state `_meta`
@@ -1796,6 +1807,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 			}
 			if (metadata.workingDirectories !== undefined || previous?.workingDirectories !== undefined) {
 				this._workingDirectories = metadata.workingDirectories;
+				this._workingDirectoryInfo = metadata.workingDirectoryInfo;
 			}
 			if (metadata._meta !== undefined || previous?._meta !== undefined) {
 				didChange = this.setMeta(metadata._meta, tx);
@@ -1829,6 +1841,10 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 				this._workingDirectories = workingDirectories;
 				didChange = true;
 			}
+		}
+		if (Object.prototype.hasOwnProperty.call(metadata, 'workingDirectoryInfo') && !equals(this._workingDirectoryInfo, metadata.workingDirectoryInfo)) {
+			this._workingDirectoryInfo = metadata.workingDirectoryInfo;
+			didChange = true;
 		}
 		if (didChange) {
 			this._setWorkspace(this._computeWorkspace(), tx);
@@ -1904,7 +1920,10 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 	 * assigned; workspace sessions build from project/git metadata.
 	 */
 	private _computeWorkspace(): ISessionWorkspace | undefined {
-		return this._kind.computeWorkspace(() => this._options.buildWorkspace(this._project, this._workingDirectories, this.gitHubInfo, readSessionGitState(this._meta)));
+		return this._kind.computeWorkspace(() => withAgentHostWorkingDirectoryInfo(
+			this._options.buildWorkspace(this._project, this._workingDirectories, this.gitHubInfo, readSessionGitState(this._meta)),
+			this._workingDirectoryInfo,
+		));
 	}
 
 	updateChangesets(changesetsMetadata: readonly Changeset[] | undefined) {
@@ -1988,6 +2007,7 @@ function flattenActiveClientCustomizations(state: SessionState): ClientPluginCus
  * Inputs needed to construct a {@link NewSession}.
  */
 interface INewSessionConstructionContext {
+	readonly repositories?: readonly IRepositorySource[];
 	/**
 	 * Workspace the session is scoped to, or `undefined` for a **quick chat**
 	 * (a workspace-less session not bound to any folder). When `undefined`,
@@ -2081,6 +2101,7 @@ class NewSession extends Disposable {
 	/** This draft's URI as the host's registry is keyed by it. */
 	readonly backendUri: URI;
 	readonly workspaceUri: URI | undefined;
+	readonly repositories: readonly IRepositorySource[] | undefined;
 	readonly requiresWorkspaceTrust: boolean;
 	/** `true` when this is a workspace-less quick chat. */
 	readonly isQuickChat: boolean;
@@ -2197,6 +2218,7 @@ class NewSession extends Disposable {
 			throw new Error('Workspace has no repository URI');
 		}
 		this.workspaceUri = workspaceUri;
+		this.repositories = ctx.repositories;
 		this.isQuickChat = this._kind.isQuickChat;
 		this.requiresWorkspaceTrust = !!ctx.workspace?.requiresWorkspaceTrust;
 		this.agentProvider = ctx.sessionType.id;
@@ -2515,9 +2537,14 @@ class NewSession extends Disposable {
 		const values = this._config?.values ?? this._unresolvedConfigValues;
 		this._isResolvingConfig.set(true, undefined);
 		try {
+			validateRepositories({
+				repositories: this.repositories,
+				config: values,
+			}, this.repositories !== undefined ? getRepositoryPreparationCapability(connection) : undefined);
 			const result = await connection.resolveSessionConfig({
 				provider: this.agentProvider,
-				workingDirectory: this.workspaceUri,
+				workingDirectory: this.repositories ? undefined : this.workspaceUri,
+				...(this.repositories !== undefined ? { repositories: this.repositories } : {}),
 				config: values,
 			});
 			if (seq !== this._configRequestSeq) {
@@ -2530,6 +2557,9 @@ class NewSession extends Disposable {
 		} catch (error) {
 			if (seq !== this._configRequestSeq) {
 				return false;
+			}
+			if (this.repositories) {
+				this._logService.warn('Failed to resolve repository session configuration', error);
 			}
 			this._config = undefined;
 			this._unresolvedConfigValues = values;
@@ -2547,9 +2577,11 @@ class NewSession extends Disposable {
 	}
 
 	getConfigCompletions(connection: IAgentConnection, property: string, query: string | undefined) {
+		validateRepositories({ repositories: this.repositories, config: this._config?.values }, this.repositories !== undefined ? getRepositoryPreparationCapability(connection) : undefined);
 		return connection.sessionConfigCompletions({
 			provider: this.agentProvider,
-			workingDirectory: this.workspaceUri,
+			workingDirectory: this.repositories ? undefined : this.workspaceUri,
+			...(this.repositories !== undefined ? { repositories: this.repositories } : {}),
 			config: this._config?.values,
 			property,
 			query,
@@ -2609,6 +2641,10 @@ class NewSession extends Disposable {
 			let createdWithActiveClient: SessionActiveClient | undefined;
 
 			try {
+				validateRepositories({
+					repositories: this.repositories,
+					config: this._config?.values,
+				}, this.repositories !== undefined ? getRepositoryPreparationCapability(connection) : undefined);
 				await this._activeClientScope.whenResolved();
 				if (this._backendUri?.toString() !== backendUri.toString()) {
 					return;
@@ -2619,7 +2655,8 @@ class NewSession extends Disposable {
 					provider: this.agentProvider,
 					session: backendUri,
 					...(this._initialSessionTemplate?.modelId ? { model: this.getSelectedModel() } : {}),
-					workingDirectories: this.workspaceUri ? [this.workspaceUri] : undefined,
+					workingDirectories: !this.repositories && this.workspaceUri ? [this.workspaceUri] : undefined,
+					...(this.repositories !== undefined ? { repositories: this.repositories } : {}),
 					config: this._config?.values,
 					_meta: this._initialMetadata,
 					// MCP-style opt-in: offer to receive `progress` for any
@@ -3305,13 +3342,10 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		this._onDidChangeCustomizations.fire();
 	}
 
-	/**
-	 * Reconcile {@link _sessionTypes} against the agents advertised by the
-	 * host's root state, firing {@link onDidChangeSessionTypes} only if the
-	 * id/label set actually changed.
-	 */
+	/** Reconcile session types and creation capabilities with the host's root state. */
 	protected _syncSessionTypesFromRootState(rootState: RootState): void {
 		this._syncAgentCapabilities(rootState.agents);
+		const preparation = this.connection ? getRepositoryPreparationCapability(this.connection) : undefined;
 		const setupAgents = new Set(readAgentSdkSetupInfos(rootState).map(setup => setup.agent));
 		const hasSignedInCodexAccount = readCodexAccountInfo(rootState).status === 'signedIn';
 		const next = rootState.agents
@@ -3319,6 +3353,11 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			.map((agent): ISessionType => ({
 				id: agent.provider,
 				supportsWorktreeConfiguration: agent.provider === CopilotCLISessionType.id,
+				...(preparation ? {
+					supportsRepositoryPreparation: true,
+					supportsRepositoryRevision: preparation.revision === true,
+					supportsMultipleRepositories: preparation.multipleRepositories === true,
+				} : {}),
 				authRequirement: resolveAgentAuthRequirement(agent),
 				initializationOnSelection: setupAgents.has(agent.provider) ? {
 					canInitializeWithoutGitHub: agent.provider === CODEX_AGENT_PROVIDER_ID && hasSignedInCodexAccount,
@@ -3335,6 +3374,9 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		if (prev.length === next.length && prev.every((t, i) => t.id === next[i].id
 			&& t.label === next[i].label
 			&& t.authRequirement === next[i].authRequirement
+			&& t.supportsRepositoryPreparation === next[i].supportsRepositoryPreparation
+			&& t.supportsRepositoryRevision === next[i].supportsRepositoryRevision
+			&& t.supportsMultipleRepositories === next[i].supportsMultipleRepositories
 			&& t.initializationOnSelection?.canInitializeWithoutGitHub === next[i].initializationOnSelection?.canInitializeWithoutGitHub)) {
 			return;
 		}
@@ -3660,8 +3702,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			sessionType,
 			workspace,
 			false,
-			options?.metadata,
-			options?.automationConfiguration,
+			options,
 		);
 	}
 
@@ -3674,6 +3715,9 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	}
 
 	createQuickChat(sessionTypeId: string, options?: ISessionsProviderCreateSessionOptions): ISession {
+		if (options?.repositories !== undefined) {
+			throw new Error(localize('agentHost.repositoryQuickChat', "Repository inputs require a workspace-bound session, not a quick chat."));
+		}
 		const sessionType = this.sessionTypes.find(t => t.id === sessionTypeId);
 		if (!sessionType) {
 			throw new Error(this._noAgentsErrorMessage());
@@ -3689,8 +3733,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			sessionType,
 			undefined,
 			true,
-			options?.metadata,
-			options?.automationConfiguration,
+			options,
 		);
 	}
 
@@ -3699,26 +3742,35 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	 * given session type. Shared by {@link createNewSession} (workspace-bound)
 	 * and {@link createQuickChat} (workspace-less, `quickChat === true`).
 	 */
-	private _createDraftSession(sessionType: ISessionType, workspace: ISessionWorkspace | undefined, quickChat: boolean, initialMetadata?: Record<string, unknown>, initialAutomationConfiguration?: IAutomationSessionConfiguration): ISession {
+	private _createDraftSession(sessionType: ISessionType, workspace: ISessionWorkspace | undefined, quickChat: boolean, options?: ISessionsProviderCreateSessionOptions): ISession {
 		// Tear-down of superseded drafts is handled by the management layer
 		// (it calls `deleteNewSession` on the previous pending session). Each
 		// new session is tracked independently in `_newSessions` so several can
 		// be in flight at once (e.g. one sending in the background while the
 		// composer re-seeds a fresh draft).
 		const connection = this.connection;
+		const initialMetadata = options?.metadata;
+		const initialAutomationConfiguration = options?.automationConfiguration;
+		const selectedRepositories = options?.repositories !== undefined ? options.repositories
+			: connection ? getRepositoriesFromSelection(connection, workspace?.folders[0]?.root) : undefined;
 		const resourceScheme = this.resourceSchemeForProvider(sessionType.id);
 		const initialSessionTemplate = this._resolveAutomationSessionTemplate(sessionType.id, initialAutomationConfiguration);
-		const activeClientScope = this._activeClientService.acquireScope(resourceScheme, workspace?.folders.map(folder => folder.root) ?? []);
 		const initialConfigValues = initialAutomationConfiguration
 			? {
 				...this._derivedNewSessionConfig(workspace),
 				...this._normalizeAutomationSessionConfig(initialSessionTemplate?.config),
 			}
 			: this._initialNewSessionConfig(workspace);
+		const repositories = validateRepositories({
+			repositories: selectedRepositories,
+			config: initialConfigValues,
+		}, selectedRepositories !== undefined && connection ? getRepositoryPreparationCapability(connection) : undefined);
+		const activeClientScope = this._activeClientService.acquireScope(resourceScheme, repositories ? [] : workspace?.folders.map(folder => folder.root) ?? []);
 		let newSession: NewSession;
 		try {
 			newSession = this._instantiationService.createInstance(NewSession, {
 				workspace,
+				repositories,
 				quickChat,
 				sessionType,
 				providerId: this.id,
@@ -3823,6 +3875,11 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		// Resolving the session config (schema + defaults for the picker chips)
 		// is part of viewing the new-session UI and stays ungated.
 		void newSession.trackConfigResolution(this._refreshNewSessionConfig(newSession, { markSessionLoading: true }));
+
+		// Prepare repository drafts on first send, after the user finishes choosing configuration.
+		if (newSession.repositories) {
+			return;
+		}
 
 		// Defense-in-depth: never eagerly spawn an agent backend in an
 		// untrusted folder. The interactive trust prompt lives at folder-pick
@@ -4728,7 +4785,8 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 
 	getWorkingDirectory(sessionId: string): string | undefined {
 		const sessionState = this._lastSessionStates.get(sessionId);
-		return sessionState?.workingDirectories?.[0];
+		const directory = sessionState?.workingDirectories?.[0];
+		return directory !== undefined ? getWorkingDirectoryUri(directory) : undefined;
 	}
 
 	getBackendChatResource(chatResource: URI): URI | undefined {
@@ -4759,7 +4817,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 
 	getWorkingDirectories(sessionId: string): readonly string[] {
 		const sessionState = this._lastSessionStates.get(sessionId);
-		return sessionState?.workingDirectories ?? [];
+		return getWorkingDirectoryUris(sessionState?.workingDirectories) ?? [];
 	}
 
 	getMcpServers(sessionId: string): readonly IAgentHostMcpServer[] {
@@ -5358,6 +5416,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			agentIdSilent: contribution?.type,
 			attachedContext,
 			agentHostSessionConfig: this.getCreateSessionConfig(chatId),
+			...(newSession.repositories !== undefined ? { agentHostRepositories: newSession.repositories } : {}),
 			hideFromTranscript: options.hideFromTranscript,
 			metadata: options.metadata,
 		};
@@ -5964,7 +6023,8 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				displayName: state.project.displayName,
 				uri: this.mapProjectUri(URI.parse(state.project.uri)),
 			} : undefined,
-			workingDirectories: state.workingDirectories?.map(directory => this.mapWorkingDirectoryUri(URI.parse(directory))),
+			workingDirectories: getWorkingDirectoryUris(state.workingDirectories)?.map(directory => this.mapWorkingDirectoryUri(URI.parse(directory))),
+			workingDirectoryInfo: getWorkingDirectoryInfo(state.workingDirectories?.map(directory => mapWorkingDirectory(directory, uri => this.mapWorkingDirectoryUri(uri)))),
 			_meta: state._meta,
 		};
 		if (cached.applySessionStateMetadata(metadata, previous)) {
@@ -6117,6 +6177,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				project: adapter.project ?? base.project,
 				// Session-state and summary updates can relocate an existing session.
 				workingDirectories: adapter.workingDirectories,
+				workingDirectoryInfo: adapter.workingDirectoryInfo,
 				status: withSessionStatusFlag(
 					withSessionStatusFlag(base.status ?? ProtocolSessionStatus.Idle, ProtocolSessionStatus.IsRead, adapter.isRead.get()),
 					ProtocolSessionStatus.IsArchived,
@@ -6370,6 +6431,13 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	 * (remote), passing a store that bounds the listeners' lifetime.
 	 */
 	protected _attachConnectionListeners(connection: IAgentConnection, store: DisposableStore): void {
+		store.add(autorun(reader => {
+			connection.initializeResult.read(reader);
+			const root = connection.rootState.value;
+			if (root && !(root instanceof Error)) {
+				this._syncSessionTypesFromRootState(root);
+			}
+		}));
 		store.add(connection.onDidNotification(n => {
 			if (n.type === NotificationType.SessionAdded) {
 				this._handleSessionAdded(n.summary);
@@ -6409,7 +6477,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	}
 
 	private _handleSessionAdded(summary: SessionSummary): void {
-		const workingDirs = summary.workingDirectories?.map(d => this.mapWorkingDirectoryUri(URI.parse(d)));
+		const workingDirs = getWorkingDirectoryUris(summary.workingDirectories)?.map(d => this.mapWorkingDirectoryUri(URI.parse(d)));
 		const rawMeta: IAgentSessionMetadata = {
 			session: URI.parse(summary.resource),
 			startTime: Date.parse(summary.createdAt),
@@ -6424,6 +6492,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				}
 			} : {}),
 			workingDirectories: workingDirs,
+			workingDirectoryInfo: getWorkingDirectoryInfo(summary.workingDirectories?.map(directory => mapWorkingDirectory(directory, uri => this.mapWorkingDirectoryUri(uri)))),
 			changes: summary.changes,
 			// Carry `_meta` so a new adapter seeds its session-kind from it and an
 			// existing one can be promoted by it.
@@ -6575,7 +6644,8 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				} : undefined;
 			}
 			if (Object.prototype.hasOwnProperty.call(changes, 'workingDirectories')) {
-				workspaceMetadata.workingDirectories = changes.workingDirectories?.map(directory => this.mapWorkingDirectoryUri(URI.parse(directory)));
+				workspaceMetadata.workingDirectories = getWorkingDirectoryUris(changes.workingDirectories)?.map(directory => this.mapWorkingDirectoryUri(URI.parse(directory)));
+				workspaceMetadata.workingDirectoryInfo = getWorkingDirectoryInfo(changes.workingDirectories?.map(directory => mapWorkingDirectory(directory, uri => this.mapWorkingDirectoryUri(uri))));
 			}
 			if (cached.applySessionSummaryWorkspaceMetadata(workspaceMetadata, tx)) {
 				didChange = true;

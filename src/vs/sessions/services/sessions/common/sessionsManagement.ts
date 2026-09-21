@@ -8,6 +8,7 @@ import { IObservable } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import type { IRepositorySource } from '../../../../platform/agentHost/common/agentHostRepositorySource.js';
 import { IAutomationSessionTemplate } from '../../../../workbench/contrib/chat/common/automations/automation.js';
 import { IChat, ISession, ISessionType, ISessionWorkspace, ISideChatSelection } from './session.js';
 import { IAutomationSessionConfiguration, IDeleteChatOptions, ISessionConfigurationSnapshot, ISendRequestOptions as ISessionsProviderSendRequestOptions, type SessionResourceResolveReason } from './sessionsProvider.js';
@@ -61,6 +62,8 @@ export interface IProviderSessionType {
  * Options for {@link ISessionsManagementService.createNewSession}.
  */
 export interface ICreateNewSessionOptions {
+	/** Repository creation intent, not a resolved host directory. */
+	readonly repositories?: readonly IRepositorySource[];
 	/**
 	 * Force creation through a specific provider. When omitted, the service
 	 * iterates registered providers and picks the first one whose

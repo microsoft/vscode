@@ -7,6 +7,8 @@ import { Schemas } from '../../../../base/common/network.js';
 import { ResourceSet } from '../../../../base/common/map.js';
 import { extUri, extUriBiasedIgnorePathCase } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
+import { getWorkingDirectoryUri } from '../agentHostWorkingDirectories.js';
+import { WorkingDirectory } from './protocol/channels-session/state.js';
 import { ActionType, type SessionWorkingDirectoryAction } from './sessionActions.js';
 
 function areDirectorySetsEqual(first: readonly URI[], second: readonly URI[]): boolean {
@@ -66,15 +68,16 @@ export interface ISessionWorkingDirectoryCapability {
  */
 export function resolveSessionWorkingDirectoryAction(
 	action: SessionWorkingDirectoryAction,
-	workingDirectories: readonly string[],
+	workingDirectories: readonly (string | WorkingDirectory)[],
 	capability: ISessionWorkingDirectoryCapability,
 ): SessionWorkingDirectoryAction {
-	const directory = URI.parse(action.directory, true);
+	const directoryUri = getWorkingDirectoryUri(action.directory);
+	const directory = URI.parse(directoryUri, true);
 	if (directory.scheme !== Schemas.file) {
-		throw new Error(`Working directory must be a file URI: ${action.directory}`);
+		throw new Error(`Working directory must be a file URI: ${directoryUri}`);
 	}
 
-	const current = workingDirectories.map(value => URI.parse(value, true));
+	const current = workingDirectories.map(value => URI.parse(getWorkingDirectoryUri(value), true));
 	const index = current.findIndex(value => extUriBiasedIgnorePathCase.isEqual(value, directory));
 	const canonicalDirectory = index >= 0 ? current[index] : directory;
 
@@ -89,9 +92,10 @@ export function resolveSessionWorkingDirectoryAction(
 	}
 
 	if (action.type === ActionType.SessionWorkingDirectoryReplaced) {
-		const replacement = URI.parse(action.replacement, true);
+		const replacementUri = getWorkingDirectoryUri(action.replacement);
+		const replacement = URI.parse(replacementUri, true);
 		if (replacement.scheme !== Schemas.file) {
-			throw new Error(`Working directory replacement must be a file URI: ${action.replacement}`);
+			throw new Error(`Working directory replacement must be a file URI: ${replacementUri}`);
 		}
 		// Index 0 may only be replaced when the provider advertises
 		// primaryReplacement. An immutable primary without primaryReplacement
@@ -102,8 +106,15 @@ export function resolveSessionWorkingDirectoryAction(
 		}
 		const replacementIdx = current.findIndex(value => extUriBiasedIgnorePathCase.isEqual(value, replacement));
 		const canonicalReplacement = replacementIdx >= 0 ? current[replacementIdx] : replacement;
-		return { ...action, directory: canonicalDirectory.toString(), replacement: canonicalReplacement.toString() };
+		return {
+			...action,
+			directory: canonicalDirectory.toString(),
+			replacement: typeof action.replacement === 'string' ? canonicalReplacement.toString() : { ...action.replacement, uri: canonicalReplacement.toString() },
+		};
 	}
 
-	return { ...action, directory: canonicalDirectory.toString() };
+	return {
+		...action,
+		directory: typeof action.directory === 'string' ? canonicalDirectory.toString() : { ...action.directory, uri: canonicalDirectory.toString() },
+	};
 }

@@ -12,6 +12,7 @@ import { type IChangesetOperationHandler } from '../common/agentHostChangesetOpe
 import { ChangesetOperationTargetKind, type InvokeChangesetOperationParams, type InvokeChangesetOperationResult } from '../common/state/protocol/channels-changeset/commands.js';
 import { AHP_SESSION_NOT_FOUND, JsonRpcErrorCodes, ProtocolError } from '../common/state/sessionProtocol.js';
 import { type SessionState } from '../common/state/sessionState.js';
+import { getWorkingDirectoryUri } from '../common/agentHostWorkingDirectories.js';
 import { ILogService } from '../../log/common/log.js';
 import { IAgentHostGitService } from '../common/agentHostGitService.js';
 
@@ -62,7 +63,7 @@ export class AgentHostDiscardChangesOperationHandler implements IChangesetOperat
 			throw new ProtocolError(JsonRpcErrorCodes.InternalError, `Session has no working directory: ${sessionUri}`);
 		}
 
-		const workingDirectory = URI.parse(workingDirectoryStr);
+		const workingDirectory = URI.parse(getWorkingDirectoryUri(workingDirectoryStr));
 		const resource = URI.parse(params.target.resource);
 
 		this._logService.info(`[AgentHostDiscardChangesOperationHandler] Restoring '${resource.fsPath}' for session ${sessionUri}`);

@@ -8,6 +8,7 @@ import { CancellationTokenSource } from '../../../../../../base/common/cancellat
 import { Disposable, DisposableMap, IDisposable, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
 import { isEqual } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
+import { getWorkingDirectoryUri } from '../../../../../../platform/agentHost/common/agentHostWorkingDirectories.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IAgentHostConnectionsService, IAgentHostSessionResolution } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import type { ResolveSessionConfigResult, SessionConfigPropertySchema } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
@@ -152,7 +153,7 @@ export class AgentHostGenericConfigChips extends Disposable {
 		const state = this._subRef.value?.sub.value;
 		if (state && !(state instanceof Error)) {
 			const cwd = state.workingDirectories?.[0];
-			return typeof cwd === 'string' ? URI.parse(cwd) : cwd;
+			return cwd !== undefined ? URI.parse(getWorkingDirectoryUri(cwd)) : undefined;
 		}
 		const sessionResource = this._widget.viewModel?.sessionResource;
 		return (sessionResource && this._newSessionFolderService.getFolder(sessionResource))

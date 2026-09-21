@@ -14,6 +14,20 @@ import type { MessageAttachment } from '../channels-chat/state.js';
 // ─── createSession ───────────────────────────────────────────────────────────
 
 /**
+ * Requested repository source, not a resolved working directory.
+ *
+ * @category Commands
+ */
+export interface RepositorySource {
+	/** Credential-free repository source URI. */
+	source: URI;
+	/** Requested branch, tag, or commit. Omit to use the host's default revision. */
+	revision?: string;
+	/** Repository-relative selected folder; omit for the root. Hosts reject empty, absolute, or escaping paths. */
+	subdirectory?: string;
+}
+
+/**
  * Creates a new session with the specified agent provider.
  *
  * If the session URI already exists, the server MUST return an error with code
@@ -63,9 +77,14 @@ export interface CreateSessionParams extends BaseParams {
 	 * capability treats only the first entry as the session's working directory
 	 * and ignores the rest. Dispatch working-directory actions to change the set
 	 * after the session has started.
-	 *
 	 */
 	workingDirectories?: URI[];
+	/**
+	 * Repositories to prepare instead of an explicit `workingDirectories` list.
+	 *
+	 * @minItems 1
+	 */
+	repositories?: RepositorySource[];
 	/**
 	 * Agent-specific configuration values collected via `resolveSessionConfig`.
 	 * Keys and values correspond to the schema returned by the server.

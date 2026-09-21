@@ -13,6 +13,7 @@ import { NullLogService } from '../../../log/common/log.js';
 import { ActionType, NotificationType, type ActionEnvelope, type INotification } from '../../common/state/sessionActions.js';
 import { ChatInputQuestionKind, ChatInputResponseKind, MessageKind, SessionSummary, ResponsePartKind, ROOT_STATE_URI, SessionLifecycle, SessionStatus, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentSessionUri, buildSubagentSessionUriPrefix, createErrorResponsePart, isSubagentSession, mergeSessionWithDefaultChat, parseSubagentSessionUri, readHostBuildInfo, readSessionEhcliAdoptable, withSessionEhcliAdoptable, type ChatState, type MarkdownResponsePart, type SessionState, type Turn } from '../../common/state/sessionState.js';
 import { type SessionSummaryChangedParams } from '../../common/state/protocol/notifications.js';
+import { WorkingDirectoryOriginKind } from '../../common/state/protocol/channels-session/state.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { buildChangesetUri, buildSessionChangesetUri } from '../../common/changesetUri.js';
 import { withAgentCustomizationSettings } from '../../common/agentCustomizationSettings.js';
@@ -74,6 +75,25 @@ suite('AgentHostStateManager', () => {
 		manager.dispatchServerAction(sessionUri, { type: ActionType.SessionWorkingDirectoryRemoved, directory: 'file:///b' });
 
 		assert.deepStrictEqual(fired, [sessionUri, sessionUri, sessionUri]);
+	});
+
+	test('directory provenance updates do not change the effective directory grant', () => {
+		const uri = 'file:///workspace.worktrees/feature';
+		manager.createSession({ ...makeSessionSummary(), workingDirectories: [uri] });
+		const fired: string[] = [];
+		disposables.add(manager.onDidChangeSessionWorkingDirectories(({ session }) => fired.push(session)));
+		const directory = { uri, origin: { kind: WorkingDirectoryOriginKind.Worktree, mainWorktree: 'file:///workspace' } as const };
+		manager.dispatchServerAction(sessionUri, { type: ActionType.SessionWorkingDirectorySet, directory });
+
+		assert.deepStrictEqual({
+			canonical: manager.getSessionSummary(sessionUri)?.workingDirectories,
+			effective: manager.getSessionState(sessionUri)?.workingDirectories,
+			fired,
+		}, {
+			canonical: [directory],
+			effective: [uri],
+			fired: [],
+		});
 	});
 
 	test('getSnapshot returns undefined for unknown session', () => {

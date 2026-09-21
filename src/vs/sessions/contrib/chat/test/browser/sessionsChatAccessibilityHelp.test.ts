@@ -30,6 +30,24 @@ suite('SessionsChatAccessibilityHelp', () => {
 		instantiationService.stub(IContextKeyService, contextKeyService);
 	}
 
+	test('describes repository selection, subdirectory input and deferred preparation', () => {
+		const instantiationService = store.add(new TestInstantiationService());
+		const configuration = new TestConfigurationService();
+		store.add(configuration.onDidChangeConfigurationEmitter);
+		instantiationService.stub(IConfigurationService, configuration);
+		stubContextKeyService(instantiationService, configuration);
+		instantiationService.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() { }());
+		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() { }());
+		instantiationService.stub(IWorkbenchLayoutService, { mainContainer: mainWindow.document.createElement('div') });
+		const content = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiationService)).provideContent();
+		const help = content.split('\n').find(line => line.includes('New Repository Session'));
+		assert.deepStrictEqual({
+			subdirectory: help?.includes('repository subdirectory'),
+			keyboard: help?.includes('Tab and Shift+Tab'),
+			readiness: help?.includes('after you send the first message'),
+		}, { subdirectory: true, keyboard: true, readiness: true });
+	});
+
 	test('describes restoring filtered pull requests from another pill context menu', () => {
 		const instantiationService = store.add(new TestInstantiationService());
 		const configuration = new TestConfigurationService();

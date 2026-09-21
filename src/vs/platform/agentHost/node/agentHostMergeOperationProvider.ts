@@ -14,6 +14,7 @@ import { resolveDiffBaseBranchName } from '../common/agentHostGitService.js';
 import { ChangesetKind } from '../common/changesetUri.js';
 import { SessionConfigKey } from '../common/sessionConfigKeys.js';
 import { ChangesetOperationScope, ChangesetOperationStatus, hasSessionPullRequestForBranch, SessionLifecycle, type ChangesetOperation, type SessionState } from '../common/state/sessionState.js';
+import { getWorkingDirectoryUri } from '../common/agentHostWorkingDirectories.js';
 import { AgentHostMergeOperationHandler } from './agentHostMergeOperationHandler.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
 
@@ -90,7 +91,7 @@ export class AgentHostMergeOperationContribution extends Disposable implements I
 		}
 		const workingDirectory = state.workingDirectories?.[0];
 		const project = state.project?.uri;
-		return !!workingDirectory && !!project && !isEqual(URI.parse(workingDirectory), URI.parse(project));
+		return !!workingDirectory && !!project && !isEqual(URI.parse(getWorkingDirectoryUri(workingDirectory)), URI.parse(project));
 	}
 
 	private async _onGitStateChanged(sessionKey: string): Promise<void> {

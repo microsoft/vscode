@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import type { WorkingDirectory } from '../../common/state/protocol/channels-session/state.js';
+import { getWorkingDirectoryUris } from '../../common/agentHostWorkingDirectories.js';
 import sinon from 'sinon';
 import { DeferredPromise, timeout } from '../../../../base/common/async.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
@@ -761,6 +763,43 @@ suite('AgentHostProtocolClient', () => {
 		assert.deepStrictEqual(sessions.map(s => readSessionExternal(s._meta)), [true]);
 	});
 
+	test('listSessions preserves repository source identity separately from mapped directories', async () => {
+		const { client, transport } = createClient();
+		const resultPromise = client.listSessions();
+		const sent = transport.sentMessages[0] as JsonRpcRequest;
+		transport.fireMessage({
+			jsonrpc: '2.0',
+			id: sent.id,
+			result: {
+				items: [{
+					resource: 'ahp-session:/repository',
+					provider: 'copilot',
+					title: 'Repository',
+					status: SessionStatus.Idle,
+					createdAt: new Date(1000).toISOString(),
+					modifiedAt: new Date(2000).toISOString(),
+					workingDirectories: [{
+						uri: 'file:///worktrees/project/packages/api',
+						repo: 'file:///sources/project',
+						origin: { kind: 'worktree', mainWorktree: 'file:///checkouts/project' },
+					}],
+				}],
+			},
+		});
+		const sessions = await resultPromise;
+		assert.deepStrictEqual(sessions.map(session => ({
+			information: session.workingDirectoryInfo,
+			directories: session.workingDirectories,
+		})), [{
+			information: [{
+				uri: toAgentHostUri(URI.file('/worktrees/project/packages/api'), agentHostAuthority('test.example:1234')).toString(),
+				repo: 'file:///sources/project',
+				origin: { kind: 'worktree', mainWorktree: toAgentHostUri(URI.file('/checkouts/project'), agentHostAuthority('test.example:1234')).toString() },
+			}],
+			directories: [toAgentHostUri(URI.file('/worktrees/project/packages/api'), agentHostAuthority('test.example:1234'))],
+		}]);
+	});
+
 	test('listSessions preserves client-addressed remote working directories across reload', async () => {
 		const { client, transport } = createClient();
 		const remoteDirectory = URI.parse('vscode-remote://ssh-remote+host/workspace');
@@ -774,7 +813,7 @@ suite('AgentHostProtocolClient', () => {
 			modifiedAt: new Date(2000).toISOString(),
 			workingDirectories: [remoteDirectory.toString(), hostDirectory.toString()],
 		};
-		let liveWorkingDirectories: readonly string[] | undefined;
+		let liveWorkingDirectories: readonly (string | WorkingDirectory)[] | undefined;
 		disposables.add(client.onDidNotification(notification => {
 			if (notification.type === 'root/sessionAdded') {
 				liveWorkingDirectories = notification.summary.workingDirectories;
@@ -799,7 +838,7 @@ suite('AgentHostProtocolClient', () => {
 		const [session] = await resultPromise;
 		assert.deepStrictEqual({
 			liveWorkingDirectories,
-			liveVisibleInWorkspace: liveWorkingDirectories?.some(directory => extUriBiasedIgnorePathCase.isEqualOrParent(URI.parse(directory), remoteDirectory)),
+			liveVisibleInWorkspace: getWorkingDirectoryUris(liveWorkingDirectories)?.some(directory => extUriBiasedIgnorePathCase.isEqualOrParent(URI.parse(directory), remoteDirectory)),
 			workingDirectories: session.workingDirectories?.map(uri => uri.toString()),
 			restoredVisibleInWorkspace: session.workingDirectories?.some(directory => extUriBiasedIgnorePathCase.isEqualOrParent(directory, remoteDirectory)),
 		}, {
@@ -958,6 +997,67 @@ suite('AgentHostProtocolClient', () => {
 		transport.fireMessage({ jsonrpc: '2.0', id: request.id, result: null });
 		assert.strictEqual(await creation, session);
 	});
+
+	for (const repositorySource of [URI.parse('https://git.example.org:8443/team/app.git'), URI.file('/sources/project')]) {
+		test(`createSession sends repository source as a typed field (${repositorySource.scheme})`, async () => {
+			const { client, transport } = createClient();
+			const session = URI.parse('ahp-session:/source-test');
+			const creation = client.createSession({
+				provider: 'copilot',
+				session,
+				repositories: [{ source: repositorySource, revision: 'refs/tags/v1', subdirectory: 'packages/api' }],
+				config: { mode: 'plan' },
+			});
+			const request = transport.sentMessages[0] as JsonRpcRequest;
+			assert.deepStrictEqual(request.params, {
+				channel: session.toString(),
+				provider: 'copilot',
+				_meta: undefined,
+				workingDirectories: undefined,
+				repositories: [{ source: repositorySource.toString(), revision: 'refs/tags/v1', subdirectory: 'packages/api' }],
+				config: { mode: 'plan' },
+				activeClient: undefined,
+				progressToken: undefined,
+			});
+			transport.fireMessage({ jsonrpc: '2.0', id: request.id, result: null });
+			await creation;
+		});
+	}
+
+	for (const method of ['resolveSessionConfig', 'sessionConfigCompletions'] as const) {
+		test(`${method} sends typed repository context outside config`, async () => {
+			const { client, transport } = createClient();
+			const context = {
+				provider: 'copilot',
+				workingDirectory: URI.file('/existing/checkout'),
+				repositories: [
+					{ source: URI.parse('https://git.example.org:8443/team/app.git'), revision: 'main', subdirectory: 'packages/api' },
+					{ source: URI.file('/source/other') },
+				],
+				config: { target: 'worktree' },
+			};
+			const resultPromise = method === 'resolveSessionConfig'
+				? client.resolveSessionConfig(context)
+				: client.sessionConfigCompletions({ ...context, property: 'branch', query: 'feature' });
+			const request = transport.sentMessages[0] as JsonRpcRequest;
+			assert.deepStrictEqual({ method: request.method, params: request.params }, {
+				method,
+				params: {
+					channel: ROOT_STATE_URI,
+					provider: 'copilot',
+					workingDirectory: 'file:///existing/checkout',
+					repositories: [
+						{ source: 'https://git.example.org:8443/team/app.git', revision: 'main', subdirectory: 'packages/api' },
+						{ source: 'file:///source/other' },
+					],
+					config: { target: 'worktree' },
+					...(method === 'sessionConfigCompletions' ? { property: 'branch', query: 'feature' } : {}),
+				},
+			});
+			transport.fireMessage({ jsonrpc: '2.0', id: request.id, result: method === 'resolveSessionConfig' ? { schema: { type: 'object', properties: {} }, values: context.config } : { items: [] } });
+			await resultPromise;
+		});
+	}
 
 	suite('createChat', () => {
 		const sessionUri = URI.parse('ahp-session:/test');
@@ -1373,11 +1473,12 @@ suite('AgentHostProtocolClient', () => {
 
 		const sent = transport.sentMessages[0] as JsonRpcRequest;
 		assert.strictEqual(sent.method, 'initialize');
-		const params = sent.params as { protocolVersions: readonly string[]; clientId: string; clientInfo?: Implementation; _meta?: Record<string, unknown> };
+		const params = sent.params as { protocolVersions: readonly string[]; clientId: string; clientInfo?: Implementation; capabilities?: { workingDirectoryInfo?: Record<string, never> }; _meta?: Record<string, unknown> };
 		assert.deepStrictEqual({
 			protocolVersions: params.protocolVersions,
 			clientId: params.clientId,
 			clientInfo: params.clientInfo,
+			capabilities: params.capabilities,
 			_meta: params._meta,
 		}, {
 			// Every compatible version is offered so an older host can negotiate down,
@@ -1385,6 +1486,7 @@ suite('AgentHostProtocolClient', () => {
 			protocolVersions: SUPPORTED_PROTOCOL_VERSIONS.filter(version => version !== '0.8.0'),
 			clientId: 'renderer-client-id',
 			clientInfo,
+			capabilities: { workingDirectoryInfo: {} },
 			_meta: {
 				'vscode.clientConnectionKind': 'dev_tunnel',
 				'vscode.telemetryLevel': 'all',
@@ -3149,9 +3251,11 @@ suite('AgentHostProtocolClient', () => {
 				const initialize = await waitForRequest(reconnectTransport, 'initialize');
 				assert.deepStrictEqual({
 					clientInfo: (initialize.params as { clientInfo?: Implementation }).clientInfo,
+					capabilities: (initialize.params as { capabilities?: { workingDirectoryInfo?: Record<string, never> } }).capabilities,
 					meta: (initialize.params as { _meta?: Record<string, unknown> })._meta,
 				}, {
 					clientInfo: agentsWindowAgentHostClientInfo,
+					capabilities: { workingDirectoryInfo: {} },
 					meta: {
 						'vscode.telemetryLevel': 'all',
 						'vscode.clientMachineId': 'client-machine-id',

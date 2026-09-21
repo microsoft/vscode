@@ -24,6 +24,7 @@ import { isCancellationError } from '../../../base/common/errors.js';
 import { SessionConfigKey } from '../common/sessionConfigKeys.js';
 import { IAgentHostAuthenticationService } from './agentHostAuthenticationService.js';
 import { AgentHostPullRequestAssociationResolver } from './agentHostPullRequestAssociationResolver.js';
+import { getWorkingDirectoryUri } from '../common/agentHostWorkingDirectories.js';
 
 const PULL_REQUEST_CREATION_CLOCK_SKEW_MS = 5 * 60_000;
 
@@ -235,7 +236,7 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 		if (!workingDirectory) {
 			const workingDirectoryStr = sessionState?.workingDirectories?.[0];
 			if (workingDirectoryStr) {
-				workingDirectory = URI.parse(workingDirectoryStr);
+				workingDirectory = URI.parse(getWorkingDirectoryUri(workingDirectoryStr));
 			}
 		}
 
@@ -254,7 +255,7 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 					const currentWorkingDirectory = currentState?.workingDirectories?.[0];
 					const primaryWorkingDirectoryChanged = initialPrimaryWorkingDirectory === undefined
 						? currentWorkingDirectory !== undefined
-						: currentWorkingDirectory === undefined || !isEqual(URI.parse(initialPrimaryWorkingDirectory), URI.parse(currentWorkingDirectory));
+						: currentWorkingDirectory === undefined || !isEqual(URI.parse(getWorkingDirectoryUri(initialPrimaryWorkingDirectory)), URI.parse(getWorkingDirectoryUri(currentWorkingDirectory)));
 					if (primaryWorkingDirectoryChanged) {
 						return;
 					}
@@ -380,7 +381,7 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 		const gitStateBaseBranch = readSessionGitState(state?._meta)?.baseBranchName;
 		const workingDirectory = state?.workingDirectories?.[0];
 		const project = state?.project?.uri;
-		if (!workingDirectory || !project || isEqual(URI.parse(workingDirectory), URI.parse(project))) {
+		if (!workingDirectory || !project || isEqual(URI.parse(getWorkingDirectoryUri(workingDirectory)), URI.parse(project))) {
 			return gitStateBaseBranch;
 		}
 		let databaseRef;

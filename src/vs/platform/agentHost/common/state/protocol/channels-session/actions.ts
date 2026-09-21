@@ -8,7 +8,7 @@
 
 import { ActionType } from '../common/actions.js';
 import type { ErrorInfo, URI } from '../common/state.js';
-import type { ToolDefinition, SessionActiveClient, SessionInputRequest, Customization, CustomizationEnablement, McpServerState } from './state.js';
+import type { ToolDefinition, SessionActiveClient, SessionInputRequest, Customization, CustomizationEnablement, McpServerState, WorkingDirectory } from './state.js';
 import type { Changeset } from '../channels-changeset/state.js';
 import type { ChatSummary } from '../channels-chat/state.js';
 
@@ -253,13 +253,14 @@ export interface SessionActiveClientRemovedAction {
 // ─── Working Directory Actions ───────────────────────────────────────────────
 
 /**
- * A working directory was added to the session's
+ * A working directory was added or updated in the session's
  * {@link SessionState.workingDirectories} set.
  *
- * Membership semantics keyed by the directory URI: the reducer appends
- * `directory` when the set does not already contain it (creating the set if
- * absent) and is a no-op when it is already present. Only valid when the agent
- * advertises {@link AgentCapabilities.multipleWorkingDirectories}.
+ * Upsert keyed by URI. A rich record replaces the existing entry in place;
+ * a URI-only duplicate preserves known metadata. Only valid when the agent
+ * advertises {@link AgentCapabilities.multipleWorkingDirectories}. Clients
+ * MUST omit `repo` and use only local or absent `origin`; the host validates
+ * and enriches the entry before accepting it.
  *
  * @category Session Actions
  * @version 1
@@ -268,7 +269,7 @@ export interface SessionActiveClientRemovedAction {
 export interface SessionWorkingDirectorySetAction {
 	type: ActionType.SessionWorkingDirectorySet;
 	/** The working directory to grant the session's agent tool access to. */
-	directory: URI;
+	directory: URI | WorkingDirectory;
 }
 
 /**
@@ -306,6 +307,8 @@ export interface SessionWorkingDirectoryRemovedAction {
  * for example, `[A, B, C]` with `B → C` becomes `[A, C]`. When it occurs
  * before the target, it retains its earlier position and the target is removed;
  * `[A, B, C]` with `C → A` becomes `[A, B]`.
+ * A rich replacement supplies the complete entry; a URI-only replacement
+ * preserves metadata already known for that URI.
  *
  * Only valid when the agent advertises
  * {@link AgentCapabilities.multipleWorkingDirectories}. Replacing index `0`
@@ -313,6 +316,7 @@ export interface SessionWorkingDirectoryRemovedAction {
  * {@link MultipleWorkingDirectoriesCapability.primaryReplacement}; clients
  * MUST NOT target an immutable primary. The host MUST validate and apply its
  * backend side effect before broadcasting an accepted action, or reject it.
+ * Clients MUST omit `repo` and use only local or absent `origin`.
  *
  * @category Session Actions
  * @version 1
@@ -322,8 +326,8 @@ export interface SessionWorkingDirectoryReplacedAction {
 	type: ActionType.SessionWorkingDirectoryReplaced;
 	/** URI of the existing entry to replace. */
 	directory: URI;
-	/** URI to place in the replaced entry's position. */
-	replacement: URI;
+	/** Complete entry to place in the replaced entry's position. */
+	replacement: URI | WorkingDirectory;
 }
 
 // ─── Input Needed Actions ────────────────────────────────────────────────────

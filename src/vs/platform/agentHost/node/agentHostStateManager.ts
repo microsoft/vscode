@@ -25,6 +25,7 @@ import { preserveProviderBackedRootConfigValues } from '../common/agentCustomiza
 import type { IAgentHostClientTelemetryContext } from '../common/agentHostTelemetry.js';
 import { readEphemeralSessionMeta } from '../common/meta/agentEphemeralSessionMeta.js';
 import { type IChatSurfaceMeta, readChatSurfaceMeta } from '../common/meta/agentChatSurfaceMeta.js';
+import { getWorkingDirectoryUris } from '../common/agentHostWorkingDirectories.js';
 
 export interface IAgentHostStateManagerOptions {
 	readonly changesetStateRetention?: IAgentHostChangesetStateRetentionOptions;
@@ -862,7 +863,7 @@ export class AgentHostStateManager extends Disposable {
 		// summary see the resolved working directory. We don't need to schedule a
 		// `SessionSummaryChanged` flush because the upcoming `SessionAdded`
 		// notification carries the complete summary already.
-		const workingDirectoriesChanged = !equals(entry.state.workingDirectories, summary.workingDirectories);
+		const workingDirectoriesChanged = !equals(getWorkingDirectoryUris(entry.state.workingDirectories), getWorkingDirectoryUris(summary.workingDirectories));
 		entry.state = { ...entry.state, workingDirectories: summary.workingDirectories, _meta: summary._meta };
 		if (workingDirectoriesChanged) {
 			this._onDidChangeSessionWorkingDirectories.fire({ session: key });
@@ -1741,11 +1742,8 @@ export class AgentHostStateManager extends Disposable {
 				if (sessionAction.type === ActionType.SessionConfigChanged) {
 					this._onDidChangeSessionConfig.fire({ session: key, previous: previousState.config, current: newState.config, clientContext });
 				}
-				// The reducer returns the SAME state object when a working-directory
-				// action is a no-op, so a reference change here means the effective
-				// set actually changed. Multi-root operation suppression (turn /
-				// compare-turns) depends on this set, so consumers refresh operations.
-				if (previousState.workingDirectories !== newState.workingDirectories) {
+				if (previousState.workingDirectories !== newState.workingDirectories
+					&& !equals(getWorkingDirectoryUris(previousState.workingDirectories), getWorkingDirectoryUris(newState.workingDirectories))) {
 					this._onDidChangeSessionWorkingDirectories.fire({ session: key });
 				}
 
