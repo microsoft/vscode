@@ -79,7 +79,7 @@ export function createCloudSandboxConnectionCustomization(
 			store.add(Event.once(connection.onDidClose)(() => store.dispose()));
 			return createCloudSandboxSessionPreparation(
 				connection.rootState,
-				(method, params, token) => connection.sendHostExtensionRequest(method, params, token),
+				(method, params) => connection.sendHostExtensionRequest(method, params),
 				store,
 			);
 		},

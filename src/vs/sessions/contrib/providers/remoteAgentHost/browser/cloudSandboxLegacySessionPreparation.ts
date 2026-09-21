@@ -22,7 +22,7 @@ import { RemoteAgentHostSessionPreparation } from './remoteAgentHostConnectionCu
 
 export function createCloudSandboxSessionPreparation(
 	root: IAgentSubscription<RootState>,
-	request: (method: 'extensions/cloneProject', params: { url: string; depth: 1 }, token: CancellationToken) => Promise<unknown>,
+	request: (method: 'extensions/cloneProject', params: { url: string; depth: 1 }) => Promise<unknown>,
 	owner: DisposableStore,
 ): RemoteAgentHostSessionPreparation {
 	const lifetime = cancelOnDispose(owner);
@@ -130,7 +130,7 @@ export function createCloudSandboxSessionPreparation(
 				update();
 				if (!projectId) {
 					const url = URI.from({ scheme: Schemas.https, authority: 'github.com', path: `/${repository.owner}/${repository.repo}` }).toString();
-					request('extensions/cloneProject', { url, depth: 1 }, cancelOnDispose(store)).then(result => {
+					request('extensions/cloneProject', { url, depth: 1 }).then(result => {
 						if (store.isDisposed) {
 							return;
 						}

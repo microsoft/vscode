@@ -7,7 +7,7 @@
 
 import assert from 'assert';
 import sinon from 'sinon';
-import { DeferredPromise, raceCancellationError, timeout } from '../../../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { isCancellationError } from '../../../../../../base/common/errors.js';
 import { Emitter } from '../../../../../../base/common/event.js';
@@ -45,16 +45,14 @@ function createPreparation(store: Pick<DisposableStore, 'add'>, projects: readon
 	root.handleSnapshot(rootState(projects, capability), 0);
 	const reply = new DeferredPromise<unknown>();
 	const replies: DeferredPromise<unknown>[] = [];
-	const requestTokens: CancellationToken[] = [];
 	const requests: { method: string; params: { url: string; depth: number } }[] = [];
-	const prepareSession = createCloudSandboxSessionPreparation(root, (method, params, token) => {
+	const prepareSession = createCloudSandboxSessionPreparation(root, (method, params) => {
 		const response = replies.length === 0 ? reply : new DeferredPromise<unknown>();
 		replies.push(response);
-		requestTokens.push(token);
 		requests.push({ method, params });
-		return raceCancellationError(response.p, token);
+		return response.p;
 	}, lifetime);
-	return { root, prepareSession, lifetime, reply, replies, requests, requestTokens };
+	return { root, prepareSession, lifetime, reply, replies, requests };
 }
 
 suite('CloudSandboxLegacySessionPreparation', () => {
@@ -80,11 +78,7 @@ suite('CloudSandboxLegacySessionPreparation', () => {
 			onDidClose: { value: closed.event },
 		});
 		const reply = new DeferredPromise<unknown>();
-		let requestToken: CancellationToken | undefined;
-		connection.sendHostExtensionRequest.callsFake((_method, _params, token) => {
-			requestToken = token;
-			return reply.p;
-		});
+		connection.sendHostExtensionRequest.returns(reply.p);
 		const service = new class extends mock<ICloudSandboxAgentHostService>() { }();
 		const customization = createCloudSandboxConnectionCustomization(cloudSandboxAddress('test'), service);
 		const owner = store.add(new DisposableStore());
@@ -95,13 +89,11 @@ suite('CloudSandboxLegacySessionPreparation', () => {
 		closed.fire();
 		await rejected;
 		assert.deepStrictEqual({
-			request: connection.sendHostExtensionRequest.firstCall.args.slice(0, 2),
-			abandoned: requestToken?.isCancellationRequested,
+			request: connection.sendHostExtensionRequest.firstCall.args,
 			ownerDisposed: owner.isDisposed,
 			closeListener: closed.hasListeners(),
 		}, {
 			request: ['extensions/cloneProject', { url: repository.toString(), depth: 1 }],
-			abandoned: true,
 			ownerDisposed: false,
 			closeListener: false,
 		});
@@ -218,26 +210,23 @@ suite('CloudSandboxLegacySessionPreparation', () => {
 		});
 	});
 
-	test('one cancelled waiter does not abandon the shared clone request', async () => {
-		const { prepareSession, root, reply, requests, requestTokens } = createPreparation(store);
+	test('one cancelled waiter does not cancel preparation for the remaining waiter', async () => {
+		const { prepareSession, root, reply, requests } = createPreparation(store);
 		const cancellation = store.add(new CancellationTokenSource());
 		const cancelled = assert.rejects(prepareSession(repository, cancellation.token), isCancellationError);
 		const remaining = prepareSession(repository, CancellationToken.None);
 		cancellation.cancel();
 		await cancelled;
-		const abandonedWhileWaiting = requestTokens[0].isCancellationRequested;
 		await reply.complete({ project: project({ status: 'cloning' }) });
 		root.handleSnapshot(rootState([project()]), 1);
 		assert.deepStrictEqual({
-			abandonedWhileWaiting,
 			directory: (await remaining)?.toString(),
 			calls: requests.length,
-			released: requestTokens[0].isCancellationRequested,
-		}, { abandonedWhileWaiting: false, directory: 'file:///workspaces/vscode', calls: 1, released: true });
+		}, { directory: 'file:///workspaces/vscode', calls: 1 });
 	});
 
-	test('cancelling every waiter releases the request and an immediate retry starts a fresh preparation', async () => {
-		const { prepareSession, root, replies, requests, requestTokens } = createPreparation(store);
+	test('cancelling every waiter allows an immediate retry to start a fresh preparation', async () => {
+		const { prepareSession, root, replies, requests } = createPreparation(store);
 		const firstCancellation = store.add(new CancellationTokenSource());
 		const secondCancellation = store.add(new CancellationTokenSource());
 		const first = assert.rejects(prepareSession(repository, firstCancellation.token), isCancellationError);
@@ -246,14 +235,12 @@ suite('CloudSandboxLegacySessionPreparation', () => {
 		secondCancellation.cancel();
 		const retry = prepareSession(repository, CancellationToken.None);
 		await Promise.all([first, second]);
-		const cancelled = requestTokens.map(token => token.isCancellationRequested);
 		await replies[1].complete({ project: project() });
 		root.handleSnapshot(rootState([project()]), 1);
 		assert.deepStrictEqual({
-			cancelled,
 			calls: requests.length,
 			directory: (await retry)?.toString(),
-		}, { cancelled: [true, false], calls: 2, directory: 'file:///workspaces/vscode' });
+		}, { calls: 2, directory: 'file:///workspaces/vscode' });
 	});
 
 	test('a newer ready publication wins over a delayed cloning response', async () => {
@@ -288,13 +275,12 @@ suite('CloudSandboxLegacySessionPreparation', () => {
 
 	test('rejects failed clone replies immediately without waiting for a catalogue publication', async () => {
 		for (const error of [undefined, 'access denied']) {
-			const { prepareSession, reply, requestTokens } = createPreparation(store);
+			const { prepareSession, reply } = createPreparation(store);
 			const rejected = assert.rejects(prepareSession(repository, CancellationToken.None), {
 				message: error ? `Repository cloning failed: ${error}` : 'Repository cloning failed.',
 			});
 			await reply.complete({ project: project({ status: 'failed', remoteUrl: undefined, error }) });
 			await rejected;
-			assert.strictEqual(requestTokens[0].isCancellationRequested, true);
 		}
 	});
 
@@ -421,16 +407,13 @@ suite('CloudSandboxLegacySessionPreparation', () => {
 		assert.deepStrictEqual(requests, []);
 	});
 
-	test('connection disposal abandons an outstanding clone reply for every waiter', async () => {
-		const { prepareSession, lifetime, requests, requestTokens } = createPreparation(store);
+	test('connection disposal cancels every waiter without waiting for a clone reply', async () => {
+		const { prepareSession, lifetime, requests } = createPreparation(store);
 		const first = assert.rejects(prepareSession(repository, CancellationToken.None), isCancellationError);
 		const second = assert.rejects(prepareSession(repository, CancellationToken.None), isCancellationError);
 		lifetime.dispose();
 		await Promise.all([first, second]);
-		assert.deepStrictEqual({
-			methods: requests.map(request => request.method),
-			abandoned: requestTokens.map(token => token.isCancellationRequested),
-		}, { methods: ['extensions/cloneProject'], abandoned: [true] });
+		assert.deepStrictEqual(requests.map(request => request.method), ['extensions/cloneProject']);
 	});
 
 	test('an already-cancelled request cannot start cloning', async () => {
@@ -459,18 +442,15 @@ suite('CloudSandboxLegacySessionPreparation', () => {
 		await rejected;
 	});
 
-	test('each shared timeout abandons its unanswered request before a user retry', async () => {
+	test('a shared timeout settles every waiter and allows a user retry', async () => {
 		const clock = sinon.useFakeTimers();
-		const { prepareSession, requests, requestTokens } = createPreparation(store);
+		const { prepareSession, requests } = createPreparation(store);
 		for (let attempt = 0; attempt < 3; attempt++) {
 			const first = assert.rejects(prepareSession(repository, CancellationToken.None), /five minutes/);
 			const second = assert.rejects(prepareSession(repository, CancellationToken.None), /five minutes/);
 			await clock.tickAsync(5 * 60_000);
 			await Promise.all([first, second]);
 		}
-		assert.deepStrictEqual({
-			calls: requests.length,
-			abandoned: requestTokens.map(token => token.isCancellationRequested),
-		}, { calls: 3, abandoned: [true, true, true] });
+		assert.strictEqual(requests.length, 3);
 	});
 });
