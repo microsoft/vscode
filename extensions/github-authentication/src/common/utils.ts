@@ -99,6 +99,15 @@ export function arrayEquals<T>(one: ReadonlyArray<T> | undefined, other: Readonl
 	return true;
 }
 
+/** Serializes tasks without letting a failed task block the next one. */
+export class Sequencer {
+	private current: Promise<unknown> = Promise.resolve();
+
+	queue<T>(promiseTask: () => Promise<T>): Promise<T> {
+		return this.current = this.current.then(() => promiseTask(), () => promiseTask());
+	}
+}
+
 
 export class StopWatch {
 
