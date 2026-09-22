@@ -17,7 +17,7 @@ import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { ChatRequestQueueKind, IChatService } from '../../common/chatService/chatService.js';
 import { IChatSideChatService } from '../../common/chatSideChatService.js';
 import { ChatConfiguration } from '../../common/constants.js';
-import { isRequestVM } from '../../common/model/chatViewModel.js';
+import { isEditableRequestVM, isRequestVM } from '../../common/model/chatViewModel.js';
 import { IChatWidgetService } from '../chat.js';
 import { captureSideChatSelection } from '../chatSideChat.js';
 import { CHAT_CATEGORY } from './chatActions.js';
@@ -279,7 +279,7 @@ export class ChatEditPendingRequestAction extends Action2 {
 				group: 'navigation',
 				order: 2,
 				when: ContextKeyExpr.and(
-					ChatContextKeys.isRequest,
+					ChatContextKeys.isEditableRequest,
 					ChatContextKeys.isPendingRequest,
 					ContextKeyExpr.notEquals(`config.${ChatConfiguration.EditRequests}`, 'hover'),
 					ContextKeyExpr.notEquals(`config.${ChatConfiguration.EditRequests}`, 'input')
@@ -292,7 +292,7 @@ export class ChatEditPendingRequestAction extends Action2 {
 		const widgetService = accessor.get(IChatWidgetService);
 		const [context] = args;
 
-		if (!isRequestVM(context) || !context.pendingKind) {
+		if (!isEditableRequestVM(context) || !context.pendingKind) {
 			return;
 		}
 

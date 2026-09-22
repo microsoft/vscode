@@ -39,6 +39,7 @@ import { ChatInputPart } from '../../../browser/widget/input/chatInputPart.js';
 import { ChatToolConfirmationCarouselPart } from '../../../browser/widget/chatContentParts/toolInvocationParts/chatToolConfirmationCarouselPart.js';
 import { ChatSubagentContentPart } from '../../../browser/widget/chatContentParts/chatSubagentContentPart.js';
 import { OpenSubagentChatActionViewItem } from '../../../browser/widget/chatContentParts/chatSubagentOpenChat.js';
+import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
 import { ChatThinkingContentPart } from '../../../browser/widget/chatContentParts/chatThinkingContentPart.js';
 import { ChatMarkdownContentPart } from '../../../browser/widget/chatContentParts/chatMarkdownContentPart.js';
 import { aggregateChatEditDiffs } from '../../../browser/widget/chatContentParts/chatEditStatsButton.js';
@@ -816,6 +817,83 @@ suite('ChatListRenderer', () => {
 			});
 		});
 	});
+
+	for (const sticky of [false, true]) {
+		test(`pending steering has no mouse or keyboard edit affordances${sticky ? ' in sticky scroll' : ''}`, async () => {
+			const disposables = store.add(new DisposableStore());
+			const instantiationService = workbenchInstantiationService(undefined, disposables);
+			const configurationService = new TestConfigurationService();
+			await configurationService.setUserConfiguration(ChatConfiguration.EditRequests, 'inline');
+			await configurationService.setUserConfiguration(ChatConfiguration.CheckpointsEnabled, false);
+			instantiationService.stub(IConfigurationService, configurationService);
+			instantiationService.stub(IChatService, new MockChatService());
+			instantiationService.stub(IChatModelFeedbackSurveyService, new MockChatModelFeedbackSurveyService());
+			instantiationService.stub(IChatAgentService, disposables.add(instantiationService.createInstance(ChatAgentService)));
+
+			const model = disposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
+			const viewModel = disposables.add(instantiationService.createInstance(ChatViewModel, model, undefined));
+			const text = 'request';
+			const request = model.addRequest({
+				text,
+				parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, 1, 1, text.length + 1), text)]
+			}, { variables: [] }, Date.now());
+			const container = mainWindow.document.createElement('div');
+			container.classList.toggle('monaco-tree-sticky-row', sticky);
+			mainWindow.document.body.appendChild(container);
+			disposables.add(toDisposable(() => container.remove()));
+			const renderer = disposables.add(instantiationService.createInstance(
+				ChatListItemRenderer,
+				{} as ChatEditorOptions,
+				{ editable: true },
+				{
+					getListLength: () => 1,
+					container,
+					currentChatMode: () => ChatModeKind.Agent,
+					isStickyScrollEnabled: () => sticky,
+					refreshStickyScroll: () => { },
+					stickyScrollTopPadding: 0,
+				},
+				undefined,
+				viewModel,
+			));
+			const template = renderer.renderTemplate(container);
+			disposables.add(toDisposable(() => renderer.disposeTemplate(template)));
+			let editEvents = 0;
+			disposables.add(renderer.onDidClickRequest(() => editEvents++));
+			const states = [];
+
+			for (const pendingKind of [ChatRequestQueueKind.Queued, ChatRequestQueueKind.Steering, undefined]) {
+				model.removePendingRequest(request.id);
+				if (pendingKind !== undefined) {
+					model.addPendingRequest(request, pendingKind, {});
+				}
+				const requestViewModel = viewModel.getItems().filter(isRequestVM).find(item => item.pendingKind === pendingKind);
+				assert.ok(requestViewModel);
+				const node = { element: requestViewModel, children: [], depth: 0, visibleChildrenCount: 0, visibleChildIndex: 0, collapsible: false, collapsed: false, visible: true, filterData: undefined };
+				renderer.renderElement(node, 0, template);
+				const markdown = template.value.querySelector<HTMLElement>('.rendered-markdown');
+				assert.ok(markdown);
+				editEvents = 0;
+				markdown.click();
+				for (const keyCode of [13, 32]) {
+					markdown.dispatchEvent(new mainWindow.KeyboardEvent('keydown', { keyCode, bubbles: true, cancelable: true }));
+				}
+				states.push({
+					pendingKind,
+					editable: template.contextKeyService.getContextKeyValue(ChatContextKeys.isEditableRequest.key),
+					clickable: markdown.classList.contains('clickable'),
+					editEvents,
+				});
+				renderer.disposeElement(node, 0, template);
+			}
+
+			assert.deepStrictEqual(states, [
+				{ pendingKind: ChatRequestQueueKind.Queued, editable: true, clickable: true, editEvents: 3 },
+				{ pendingKind: ChatRequestQueueKind.Steering, editable: false, clickable: false, editEvents: 0 },
+				{ pendingKind: undefined, editable: true, clickable: true, editEvents: 3 },
+			]);
+		});
+	}
 
 	test('pending divider clears a timestamp from a recycled request template', () => {
 		const disposables = store.add(new DisposableStore());

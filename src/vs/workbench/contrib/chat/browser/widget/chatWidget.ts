@@ -45,6 +45,7 @@ import { ITextResourceEditorInput } from '../../../../../platform/editor/common/
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
+import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { bindContextKey } from '../../../../../platform/observable/common/platformObservableUtils.js';
 import { Link } from '../../../../../platform/opener/browser/link.js';
 import product from '../../../../../platform/product/common/product.js';
@@ -73,7 +74,7 @@ import { IChatSessionsService, localChatSessionType } from '../../common/chatSes
 import { IChatSlashCommandService } from '../../common/participants/chatSlashCommands.js';
 import { IChatTodoListService } from '../../common/tools/chatTodoListService.js';
 import { ChatRequestVariableSet, IChatRequestTranscriptContextVariableEntry, IChatRequestVariableEntry, isPastedTextArtifact, isPromptFileVariableEntry, isPromptTextVariableEntry, isWorkspaceVariableEntry, PromptFileVariableKind, toPromptFileVariableEntry } from '../../common/attachments/chatVariableEntries.js';
-import { ChatViewModel, IChatResponseViewModel, isRequestVM, isResponseVM } from '../../common/model/chatViewModel.js';
+import { ChatViewModel, IChatResponseViewModel, isEditableRequestVM, isRequestVM, isResponseVM } from '../../common/model/chatViewModel.js';
 import { ChatMessageRole, IChatMessage } from '../../common/languageModels.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatPermissionLevel, IResolvedNewChatSessionType, ThinkingDisplayMode } from '../../common/constants.js';
 import { IChatGoalSummaryService } from '../chatGoalSummaryService.js';
@@ -595,6 +596,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		@IChatPasteTargetService private readonly chatPasteTargetService: IChatPasteTargetService,
 		@IChatAccessibilityService private readonly chatAccessibilityService: IChatAccessibilityService,
 		@ILogService private readonly logService: ILogService,
+		@INotificationService private readonly notificationService: INotificationService,
 		@IThemeService private readonly themeService: IThemeService,
 		@IChatSlashCommandService private readonly chatSlashCommandService: IChatSlashCommandService,
 		@IChatEditingService chatEditingService: IChatEditingService,
@@ -2264,7 +2266,11 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private clickedRequest(item: IChatListItemTemplate) {
 
 		const currentElement = item.currentElement;
-		if (isRequestVM(currentElement) && !this.viewModel?.editing) {
+		if (!isEditableRequestVM(currentElement)) {
+			return;
+		}
+
+		if (!this.viewModel?.editing) {
 
 			const requests = this.viewModel?.model.getRequests();
 			if (!requests || !this.viewModel?.sessionResource) {
@@ -3291,6 +3297,19 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		return true;
 	}
 
+	private _validateRequestEdit(): boolean {
+		const editing = this.viewModel?.editing;
+		if (!editing || editing.pendingKind === undefined) {
+			return true;
+		}
+		if (this.viewModel?.model.getPendingRequests().some(pending => pending.request.id === editing.id && pending.kind === ChatRequestQueueKind.Queued)) {
+			return true;
+		}
+
+		this.notificationService.warn(localize('chat.editRequest.noLongerQueued', "This message is no longer queued and cannot be edited. Your edits have been kept in the input."));
+		return false;
+	}
+
 	private async _acceptInput(query: { query: string } | undefined, options: IChatAcceptInputOptions = {}, validateSession?: () => void): Promise<IChatResponseModel | undefined> {
 		if (this.isTranscriptProgressActive) {
 			return undefined;
@@ -3311,7 +3330,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			validateSession?.();
 		}
 
-		if (!this.viewModel) {
+		if (!this.viewModel || !this._validateRequestEdit()) {
 			return;
 		}
 
@@ -3385,6 +3404,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		const executedSlashCommand = await this._executeSlashCommandDuringRequest(requestInputs.input, { attachedContext }, isUserQuery, options.preserveFocus);
 		validateSession?.();
 		if (executedSlashCommand) {
+			return;
+		}
+		if (!this._validateRequestEdit()) {
 			return;
 		}
 		const isEditing = this.viewModel?.editing;

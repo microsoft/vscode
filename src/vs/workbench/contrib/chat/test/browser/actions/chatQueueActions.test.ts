@@ -12,6 +12,8 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { ICodeEditor } from '../../../../../../editor/browser/editorBrowser.js';
+import { isIMenuItem, MenuId, MenuRegistry } from '../../../../../../platform/actions/common/actions.js';
+import { CommandsRegistry } from '../../../../../../platform/commands/common/commands.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ContextKeyService } from '../../../../../../platform/contextkey/browser/contextKeyService.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -23,16 +25,91 @@ import { ILogService, NullLogService } from '../../../../../../platform/log/comm
 import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
 import { TestNotificationService } from '../../../../../../platform/notification/test/common/testNotificationService.js';
 import { IChatWidget, IChatWidgetService } from '../../../browser/chat.js';
-import { ChatAskInSideChatAction, ChatQueueMessageAction, ChatSteerWithMessageAction, registerChatQueueActions } from '../../../browser/actions/chatQueueActions.js';
+import { ChatAskInSideChatAction, ChatEditPendingRequestAction, ChatQueueMessageAction, ChatRemovePendingRequestAction, ChatSendPendingImmediatelyAction, ChatSteerWithMessageAction, registerChatQueueActions } from '../../../browser/actions/chatQueueActions.js';
+import '../../../browser/chatEditing/chatEditingActions.js';
 import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
 import { IChatSideChatService } from '../../../common/chatSideChatService.js';
 import { ChatConfiguration } from '../../../common/constants.js';
 import { IChatModel, IChatRequestModel } from '../../../common/model/chatModel.js';
-import { IChatViewModel } from '../../../common/model/chatViewModel.js';
+import { IChatRequestViewModel, IChatViewModel } from '../../../common/model/chatViewModel.js';
 import { ChatRequestQueueKind } from '../../../common/chatService/chatService.js';
 
 // Register actions once so the keybindings appear in KeybindingsRegistry.
 registerChatQueueActions();
+
+suite('Pending request editing actions', () => {
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+	const editRequestId = 'workbench.action.chat.editRequests';
+
+	for (const editMode of ['inline', 'hover', 'input']) {
+		test(`hides steering edit actions in ${editMode} mode without hiding other queue actions`, () => {
+			const config = new TestConfigurationService({ [ChatConfiguration.EditRequests]: editMode });
+			const contextKeyService = disposables.add(new ContextKeyService(config));
+			const menuItems = MenuRegistry.getMenuItems(MenuId.ChatMessageTitle).filter(isIMenuItem);
+			const visibleActions = (pendingKind: ChatRequestQueueKind | undefined) => {
+				const context = contextKeyService.createOverlay([
+					[ChatContextKeys.isRequest.key, true],
+					[ChatContextKeys.isPendingRequest.key, pendingKind !== undefined],
+					[ChatContextKeys.isEditableRequest.key, pendingKind !== ChatRequestQueueKind.Steering],
+				]);
+				const actions = menuItems.filter(item => context.contextMatchesRules(item.when)).map(item => item.command.id);
+				return {
+					edit: actions.filter(id => id === editRequestId || id === ChatEditPendingRequestAction.ID),
+					remove: actions.includes(ChatRemovePendingRequestAction.ID),
+					send: actions.includes(ChatSendPendingImmediatelyAction.ID),
+				};
+			};
+
+			assert.deepStrictEqual({
+				steering: visibleActions(ChatRequestQueueKind.Steering),
+				queued: visibleActions(ChatRequestQueueKind.Queued),
+				sent: visibleActions(undefined),
+			}, {
+				steering: { edit: [], remove: true, send: true },
+				queued: { edit: [editMode === 'inline' ? ChatEditPendingRequestAction.ID : editRequestId], remove: true, send: true },
+				sent: { edit: editMode === 'inline' ? [] : [editRequestId], remove: false, send: false },
+			});
+		});
+	}
+
+	test('guards command and keyboard editing while preserving queued and sent editing', async () => {
+		const instantiationService = disposables.add(new TestInstantiationService());
+		const sessionResource = URI.parse('test:///session');
+		const editedRequests: string[] = [];
+		let focusedRequest: IChatRequestViewModel | undefined;
+		const widget = upcastPartial<IChatWidget>({
+			startEditing: id => editedRequests.push(id),
+			getFocus: () => focusedRequest,
+		});
+		instantiationService.stub(IChatWidgetService, upcastPartial<IChatWidgetService>({
+			getWidgetBySessionResource: () => widget,
+			lastFocusedWidget: widget,
+		}));
+		const pendingAction = new ChatEditPendingRequestAction();
+		const editCommand = CommandsRegistry.getCommand(editRequestId);
+		assert.ok(editCommand);
+
+		for (const pendingKind of [ChatRequestQueueKind.Steering, ChatRequestQueueKind.Queued, undefined]) {
+			focusedRequest = upcastPartial<IChatRequestViewModel>({
+				id: pendingKind ?? 'sent',
+				sessionResource,
+				message: { text: 'request', parts: [] },
+				pendingKind,
+			});
+			instantiationService.invokeFunction(accessor => pendingAction.run(accessor, focusedRequest));
+			await instantiationService.invokeFunction(accessor => editCommand.handler(accessor, focusedRequest));
+			await instantiationService.invokeFunction(accessor => editCommand.handler(accessor));
+		}
+
+		assert.deepStrictEqual(editedRequests, [
+			ChatRequestQueueKind.Queued,
+			ChatRequestQueueKind.Queued,
+			ChatRequestQueueKind.Queued,
+			'sent',
+			'sent',
+		]);
+	});
+});
 
 suite('Queue/Steer keybinding resolution', () => {
 

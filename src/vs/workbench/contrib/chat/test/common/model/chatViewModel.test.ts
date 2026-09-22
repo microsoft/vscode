@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { ChatRequestQueueKind } from '../../../common/chatService/chatService.js';
-import { getStickyScrollTargetItem } from '../../../common/model/chatViewModel.js';
+import { getStickyScrollTargetItem, isEditableRequestVM } from '../../../common/model/chatViewModel.js';
 
 interface ITestChatViewModelItem {
 	readonly id: string;
@@ -16,6 +16,18 @@ interface ITestChatViewModelItem {
 
 suite('ChatViewModel', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('pending steering requests are not editable', () => {
+		const message = { text: 'request', parts: [] };
+
+		assert.deepStrictEqual([
+			isEditableRequestVM({ message }),
+			isEditableRequestVM({ message, pendingKind: ChatRequestQueueKind.Queued }),
+			isEditableRequestVM({ message, pendingKind: ChatRequestQueueKind.Steering }),
+			isEditableRequestVM({ kind: 'pendingDivider' }),
+			isEditableRequestVM(undefined),
+		], [true, true, false, false, false]);
+	});
 
 	test('sticky scroll target ignores trailing pending items', () => {
 		const response: ITestChatViewModelItem = { id: 'response' };

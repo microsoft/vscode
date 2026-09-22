@@ -10,7 +10,7 @@ import { DeferredPromise, timeout } from '../../../../../../base/common/async.js
 import { ErrorNoTelemetry } from '../../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
-import { observableValue } from '../../../../../../base/common/observable.js';
+import { constObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mockObject, upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
@@ -21,6 +21,7 @@ import { IDialogService } from '../../../../../../platform/dialogs/common/dialog
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { MockContextKeyService } from '../../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
+import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
 import { ILinkDescriptor, ILinkOptions, Link } from '../../../../../../platform/opener/browser/link.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
 import { NullTelemetryService } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
@@ -408,21 +409,30 @@ suite('ChatWidget', () => {
 		}]);
 	});
 
-	test('editing a steering request passes its model and configuration to the input', async () => {
+	async function createQueuedRequestEditWidget() {
 		const modelId = 'agent-host-copilot:claude-opus-4.8';
 		const modelConfiguration = { reasoningEffort: 'xhigh' };
 		const configurationService = new TestConfigurationService();
 		await configurationService.setUserConfiguration('chat.editRequests', 'input');
+		await configurationService.setUserConfiguration(ChatConfiguration.SaveBeforeSend, false);
+		let inputValue = 'original request';
 		const input = mockObject<ChatInputPart>()({
 			element: mainWindow.document.createElement('div'),
+			currentModeKind: ChatModeKind.Agent,
+			generating: undefined,
+			hasPendingProgrammaticModelSelection: false,
 			inputEditor: upcastPartial<ChatInputPart['inputEditor']>({
-				getValue: () => 'original request', getModel: () => null, focus: () => { },
+				getValue: () => inputValue, getModel: () => null, focus: () => { },
 			}),
 			attachmentModel: upcastPartial<ChatInputPart['attachmentModel']>({ getAttachmentIDs: () => new Set() }),
 			dnd: upcastPartial<ChatInputPart['dnd']>({ setDisabledOverlay: () => { } }),
 			onDidClickOverlay: Event.None,
 		});
 		input.requestModelByIdentifier.resolves(true);
+		input.setValue.callsFake(value => { inputValue = value; });
+		const attachedContext = new ChatRequestVariableSet();
+		input.getAttachedContext.returns(attachedContext);
+		input.getAttachedAndImplicitContext.returns(attachedContext);
 		const request = upcastPartial<IChatRequestViewModel>({
 			id: 'request',
 			message: { text: 'original request', parts: [] },
@@ -430,23 +440,42 @@ suite('ChatWidget', () => {
 			variables: [],
 			modelId,
 			modelConfiguration,
-			pendingKind: ChatRequestQueueKind.Steering,
+			pendingKind: ChatRequestQueueKind.Queued,
 		});
+		const pendingRequest: IChatPendingRequest = {
+			request: upcastPartial<IChatRequestModel>({ id: request.id }),
+			kind: ChatRequestQueueKind.Queued,
+			sendOptions: {},
+		};
+		let pendingRequests: readonly IChatPendingRequest[] = [pendingRequest];
 		let editing: IChatRequestViewModel | undefined;
+		const viewModel = {
+			model: {
+				getRequests: () => [],
+				getPendingRequests: () => pendingRequests,
+				setCheckpoint: () => { },
+				hasActiveRequest: constObservable(false),
+			},
+			sessionResource: URI.parse('agent-host-copilot:/session'),
+			get editing() { return editing; },
+			setEditing: (request: IChatRequestViewModel | undefined) => { editing = request; },
+		};
+		const chatService = mockObject<IChatService>()({});
+		const notificationService = mockObject<INotificationService>()({});
+		const submitRequestHandlerService = mockObject<IChatSubmitRequestHandlerService>()({});
+		submitRequestHandlerService.tryHandle.resolves(false);
 		const widget = Object.create(ChatWidget.prototype) as ChatWidget;
 		Object.defineProperties(widget, {
 			_store: { value: store },
 			_editingAutoScrollHold: { value: store.add(new MutableDisposable()) },
+			_onDidAcceptInput: { value: store.add(new Emitter<void>()) },
 			configurationService: { value: configurationService },
 			telemetryService: { value: NullTelemetryService },
-			viewModel: {
-				value: {
-					model: { getRequests: () => [], setCheckpoint: () => { } },
-					sessionResource: URI.parse('agent-host-copilot:/session'),
-					get editing() { return editing; },
-					setEditing: (request: IChatRequestViewModel) => { editing = request; },
-				},
-			},
+			chatService: { value: chatService },
+			notificationService: { value: notificationService },
+			chatSubmitRequestHandlerService: { value: submitRequestHandlerService },
+			_viewModel: { value: viewModel },
+			viewOptions: { value: {} },
 			input: { value: input },
 			inputPart: { value: input },
 			contribs: { value: [] },
@@ -455,13 +484,86 @@ suite('ChatWidget', () => {
 				value: {
 					getTemplateDataForRequestId: () => ({ currentElement: request }),
 					acquireAutoScrollHold: () => Disposable.None,
+					setScrollLock: () => { },
 				},
+			},
+		});
+
+		return {
+			widget, input, request, chatService, notificationService, submitRequestHandlerService,
+			setPendingKind: (kind: ChatRequestQueueKind | undefined) => {
+				pendingRequests = kind === undefined ? [] : [{ ...pendingRequest, kind }];
+			},
+		};
+	}
+
+	test('editing a queued request passes its model and configuration to the input', async () => {
+		const { widget, input, request } = await createQueuedRequestEditWidget();
+		widget.startEditing(request.id);
+
+		assert.deepStrictEqual(input.requestModelByIdentifier.firstCall.args, [request.modelId, request.modelConfiguration]);
+	});
+
+	for (const duringSubmission of [false, true]) {
+		for (const kind of [ChatRequestQueueKind.Steering, undefined]) {
+			test(`preserves edits when the queued request is ${kind === undefined ? 'removed' : 'changed to steering'} ${duringSubmission ? 'during' : 'before'} submission`, async () => {
+				const { widget, input, request, chatService, notificationService, submitRequestHandlerService, setPendingKind } = await createQueuedRequestEditWidget();
+				widget.startEditing(request.id);
+				input.setValue('edited request', false);
+				chatService.removePendingRequest.callsFake(() => assert.fail('Must not remove a request that is no longer queued'));
+				if (duringSubmission) {
+					submitRequestHandlerService.tryHandle.callsFake(async () => {
+						setPendingKind(kind);
+						return false;
+					});
+				} else {
+					setPendingKind(kind);
+				}
+
+				await widget.acceptInput();
+
+				assert.deepStrictEqual({
+					pendingKinds: widget.viewModel?.model.getPendingRequests().map(pending => pending.kind),
+					editingRequest: widget.viewModel?.editing?.id,
+					input: widget.getInput(),
+					removed: chatService.removePendingRequest.callCount,
+					sent: chatService.sendRequest.callCount,
+					prepared: submitRequestHandlerService.tryHandle.callCount,
+					warnings: notificationService.warn.args,
+				}, {
+					pendingKinds: kind === undefined ? [] : [kind],
+					editingRequest: request.id,
+					input: 'edited request',
+					removed: 0,
+					sent: 0,
+					prepared: duringSubmission ? 1 : 0,
+					warnings: [['This message is no longer queued and cannot be edited. Your edits have been kept in the input.']],
+				});
+			});
+		}
+	}
+
+	test('does not start editing a pending steering request', () => {
+		const request = upcastPartial<IChatRequestViewModel>({
+			id: 'steering-request',
+			message: { text: 'original steering', parts: [] },
+			pendingKind: ChatRequestQueueKind.Steering,
+		});
+		const widget = Object.create(ChatWidget.prototype) as ChatWidget;
+		Object.defineProperties(widget, {
+			viewModel: {
+				value: {
+					model: { getRequests: () => assert.fail('Editing pending steering must not touch the model') },
+				},
+			},
+			listWidget: {
+				value: { getTemplateDataForRequestId: () => ({ currentElement: request }) },
 			},
 		});
 
 		widget.startEditing(request.id);
 
-		assert.deepStrictEqual(input.requestModelByIdentifier.firstCall.args, [modelId, modelConfiguration]);
+		assert.strictEqual(widget.viewModel?.editing, undefined);
 	});
 
 	test('confirms before cancelling changed request edits', async () => {
