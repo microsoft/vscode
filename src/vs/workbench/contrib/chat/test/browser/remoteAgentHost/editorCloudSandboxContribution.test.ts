@@ -246,7 +246,7 @@ function createHarness(store: Pick<DisposableStore, 'add'>, options?: {
 	instantiationService.stub(IAgentHostNewSessionFolderService, new class extends mock<IAgentHostNewSessionFolderService>() { }());
 	const contribution = store.add(instantiationService.createInstance(TestEditorCloudSandboxContribution));
 	return {
-		contribution, controllers, contributions, contentProviders, chatSessionsService, state, calls, policies, notifications, resolvers, sentimentChanged, accountChanged, authenticationPending, initialRefreshes,
+		contribution, controllers, contributions, contentProviders, chatSessionsService, state, calls, policies, notifications, resolvers, sentimentChanged, accountChanged, authenticationPending, initialRefreshes, connectionsChanged,
 		refresh: async () => {
 			await contribution.refresh(CancellationToken.None);
 			await Promise.all(initialRefreshes);
@@ -313,6 +313,45 @@ suite('Editor cloud sandbox discovery', () => {
 		assert.deepStrictEqual(h.items().map(item => [item.resource.toString(), item.label, item.status]), [
 			[resource.toString(), 'Renamed session', ChatSessionStatus.Failed],
 		]);
+	});
+
+	test('a corrected discovery status clears input needed and an older response cannot restore it', async () => {
+		const h = createHarness(store);
+		await h.refresh();
+		const statuses = [h.items()[0].status];
+		h.state.result = { kind: 'complete', sessions: [{ ...discovered, status: SessionStatus.Idle, updatedAt: '2026-01-02T03:05:00.000Z' }] };
+		await h.refresh();
+		statuses.push(h.items()[0].status);
+		h.state.result = { kind: 'complete', sessions: [discovered] };
+		await h.refresh();
+		statuses.push(h.items()[0].status);
+		assert.deepStrictEqual(statuses, [ChatSessionStatus.NeedsInput, ChatSessionStatus.Completed, ChatSessionStatus.Completed]);
+	});
+
+	test('discovery with no activity does not manufacture completion', async () => {
+		const h = createHarness(store);
+		await h.refresh();
+		h.state.result = { kind: 'complete', sessions: [{ ...discovered, status: undefined, updatedAt: '2026-01-02T03:05:00.000Z' }] };
+		await h.refresh();
+		assert.deepStrictEqual(h.items().map(item => item.status), [ChatSessionStatus.NeedsInput]);
+	});
+
+	test('a later discovery scan cannot replace the last host status after disconnection', async () => {
+		const h = createHarness(store);
+		await h.refresh();
+		h.state.online = true;
+		h.state.hostSessions = [{ ...h.state.hostSessions[0], status: SessionStatus.Idle }];
+		await h.contribution.activate();
+		await h.controllers.get(sessionType)!.refresh(CancellationToken.None);
+		const before = h.items()[0].status;
+		h.state.connected = false;
+		h.connectionsChanged.fire();
+		h.state.result = { kind: 'complete', sessions: [{ ...discovered, updatedAt: '2026-01-02T03:05:00.000Z' }] };
+		await h.refresh();
+		assert.deepStrictEqual({ before, after: h.items()[0].status }, {
+			before: ChatSessionStatus.Completed,
+			after: ChatSessionStatus.Completed,
+		});
 	});
 
 	test('retries startup discovery when the authentication provider becomes available', async () => {

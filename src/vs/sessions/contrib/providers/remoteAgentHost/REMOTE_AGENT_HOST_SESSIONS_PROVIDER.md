@@ -37,6 +37,8 @@ Never use the logical session type where host-specific routing is required. Reso
 
 In the Editor Window, a chat session contribution's `sessionListGroup` selects its provider filter without changing its controller, resource scheme, or content-provider routing. Disconnected discovery supplies activity, not authoritative read/archive flags or proof that the host is available.
 
+Both sandbox adapters let fresh discovery update disk-cached activity while preserving cached workspace information and user flags. A host snapshot takes precedence over discovery for the rest of that adapter's lifetime, including after disconnection; older discovery responses cannot replace a newer discovery result. Missing activity does not clear a previously reported status. Sandbox connection availability and read-only interactivity remain separate from conversation activity, so disconnection does not turn a reported input request into a conversation error.
+
 ## Host groups
 
 By default one provider is one entry in the host filter. A provider whose config carries `hostGroup` (`IAgentHostGroup`) instead declares itself a member of a larger user-facing host: every provider sharing a `hostGroup.id` folds into one `IAgentHostFilterEntry` whose `providerIds` covers all of them, and whose `status` is the most alive status among its members. Members keep their own connection, address and session-type authority.

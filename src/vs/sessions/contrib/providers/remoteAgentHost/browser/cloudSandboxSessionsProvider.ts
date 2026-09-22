@@ -33,6 +33,10 @@ export class CloudSandboxSessionsProvider extends RemoteAgentHostSessionsProvide
 	/** How long a provisional session resists eviction after the host first omits it. */
 	static readonly PROVISIONAL_GRACE_MS = 2 * 60_000;
 
+	protected override _adapterOptions() {
+		return { ...super._adapterOptions(), preserveStatusWhenDisconnected: true };
+	}
+
 	protected override _resolveArchivedState(rawId: string, isArchived: boolean): boolean {
 		return this._sessionCache.get(rawId)?.isArchived.get() ?? isArchived;
 	}

@@ -33,6 +33,8 @@ export interface IAgentHostSessionListEntry {
 	readonly provider: string;
 	readonly rawId: string;
 	readonly summary: SessionSummary;
+	/** Discovery is provisional and must not replace a snapshot already obtained from the host. */
+	readonly fromDiscovery?: boolean;
 	/**
 	 * Whether {@link summary}'s status came from the host. `listSessions()`
 	 * metadata carries no status for a cold session that has never been marked
@@ -126,7 +128,16 @@ export class AgentHostSessionListStore extends Disposable {
 		for (const session of sessions) {
 			const entry = this._makeEntryFromMetadata(session);
 			if (entry && this._isSessionInWorkspace(entry)) {
-				const seed = { ...entry, statusKnown: false };
+				const existing = this._entries.get(this._key(entry.provider, entry.rawId));
+				if (existing && (!existing.fromDiscovery || Date.parse(entry.summary.modifiedAt) < Date.parse(existing.summary.modifiedAt))) {
+					continue;
+				}
+				const seed = {
+					...entry,
+					summary: { ...entry.summary, status: session.status ?? existing?.summary.status ?? entry.summary.status },
+					fromDiscovery: true,
+					statusKnown: false,
+				};
 				this._entries.set(this._key(seed.provider, seed.rawId), seed);
 				addedOrUpdated.push(seed);
 			}

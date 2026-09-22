@@ -2577,6 +2577,128 @@ suite('CloudSandboxSessionsProvider discovery metadata', () => {
 	}));
 });
 
+suite('CloudSandboxSessionsProvider discovery status', () => {
+	const disposables = new DisposableStore();
+	let connection: MockAgentConnection;
+
+	setup(() => {
+		connection = disposables.add(new MockAgentConnection());
+	});
+
+	teardown(() => disposables.clear());
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	function sandbox(storageService?: IStorageService): RemoteAgentHostSessionsProvider {
+		return createProvider(disposables, connection, {
+			address: 'cloudsandbox:status-test',
+			ctor: CloudSandboxSessionsProvider,
+			noConnection: true,
+			readOnlyWhenDisconnected: true,
+			storageService,
+		});
+	}
+
+	test('fresh discovery replaces a cached activity placeholder without changing user flags', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const storage = disposables.add(new InMemoryStorageService());
+		const metadata = createSession('discovered', {
+			summary: 'Cached title',
+			modifiedTime: 1_000,
+			status: ProtocolSessionStatus.Idle | ProtocolSessionStatus.IsRead,
+			workingDirectory: URI.file('/remote/project'),
+		});
+		const first = sandbox(storage);
+		first.seedSessions([metadata]);
+		await first.archiveSession(first.getSessions()[0].sessionId);
+		await storage.flush();
+		first.dispose();
+
+		const restored = sandbox(storage);
+		restored.seedSessions([{
+			...metadata,
+			summary: 'Fresh title',
+			modifiedTime: 900,
+			workingDirectories: undefined,
+			status: ProtocolSessionStatus.InputNeeded,
+		}]);
+		const session = restored.getSessions()[0];
+		assert.deepStrictEqual({
+			status: session.status.get(),
+			chatStatus: session.mainChat.get().status.get(),
+			title: session.title.get(),
+			isRead: session.isRead.get(),
+			isArchived: session.isArchived.get(),
+			updatedAt: session.updatedAt.get().getTime(),
+			directory: session.workspace.get()?.folders[0].workingDirectory.path,
+		}, {
+			status: SessionStatus.NeedsInput,
+			chatStatus: SessionStatus.NeedsInput,
+			title: 'Cached title',
+			isRead: true,
+			isArchived: true,
+			updatedAt: 1_000,
+			directory: '/remote/project',
+		});
+	}));
+
+	test('rediscovery clears input needed when the source reports a finished turn', () => {
+		const provider = sandbox();
+		const metadata = createSession('discovered', { modifiedTime: 1_000, status: ProtocolSessionStatus.InputNeeded });
+		provider.seedSessions([metadata]);
+		const session = provider.getSessions()[0];
+		const statuses = [session.mainChat.get().status.get()];
+		provider.seedSessions([{ ...metadata, modifiedTime: 2_000, status: ProtocolSessionStatus.Idle }]);
+		statuses.push(session.mainChat.get().status.get());
+		provider.seedSessions([metadata]);
+		statuses.push(session.mainChat.get().status.get());
+		assert.deepStrictEqual(statuses, [SessionStatus.NeedsInput, SessionStatus.Completed, SessionStatus.Completed]);
+	});
+
+	test('connection availability does not change the last reported sandbox activity', () => {
+		const provider = sandbox();
+		provider.seedSessions([createSession('question', { status: ProtocolSessionStatus.InputNeeded })]);
+		const session = provider.getSessions()[0];
+		const chat = session.mainChat.get();
+		const states = [
+			RemoteAgentHostConnectionStatus.disconnected,
+			RemoteAgentHostConnectionStatus.connected,
+			RemoteAgentHostConnectionStatus.disconnectedBecause(AgentHostTransportFailureReason.HostNotRunning),
+		].map(status => {
+			provider.setConnectionStatus(status);
+			return { status: chat.status.get(), interactivity: chat.interactivity.get() };
+		});
+		assert.deepStrictEqual(states, [
+			{ status: SessionStatus.NeedsInput, interactivity: ChatInteractivity.ReadOnly },
+			{ status: SessionStatus.NeedsInput, interactivity: ChatInteractivity.Full },
+			{ status: SessionStatus.NeedsInput, interactivity: ChatInteractivity.ReadOnly },
+		]);
+	});
+
+	test('discovery with no activity does not manufacture completion', () => {
+		const provider = sandbox();
+		const metadata = createSession('question', { modifiedTime: 1_000, status: ProtocolSessionStatus.InputNeeded });
+		provider.seedSessions([metadata]);
+		provider.seedSessions([{ ...metadata, status: undefined, modifiedTime: 2_000 }]);
+		assert.deepStrictEqual(provider.getSessions().map(session => session.mainChat.get().status.get()), [SessionStatus.NeedsInput]);
+	});
+
+	test('discovery cannot replace a host status, including after disconnection', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const provider = sandbox();
+		const metadata = createSession('discovered', { modifiedTime: 1_000, status: ProtocolSessionStatus.InputNeeded });
+		provider.seedSessions([metadata]);
+		connection.addSession({ ...metadata, status: ProtocolSessionStatus.Idle });
+		provider.setConnection(connection);
+		await timeout(0);
+		const session = provider.getSessions()[0];
+		const before = session.status.get();
+		provider.clearConnection();
+		provider.seedSessions([{ ...metadata, modifiedTime: 2_000 }]);
+		assert.deepStrictEqual({ before, after: session.status.get() }, {
+			before: SessionStatus.Completed,
+			after: SessionStatus.Completed,
+		});
+	}));
+});
+
 suite('CloudSandboxSessionsProvider archiving', () => {
 	const disposables = new DisposableStore();
 	const metadata = createSession('sandbox-session', { provider: 'copilot', summary: 'Sandbox Session' });

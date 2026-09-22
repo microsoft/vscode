@@ -8,7 +8,7 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
-import { autorun, constObservable, derived, IObservable, observableValue } from '../../../../../base/common/observable.js';
+import { autorun, constObservable, derived, IObservable, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { isWeb } from '../../../../../base/common/platform.js';
 import { basename, dirname, isEqual } from '../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
@@ -21,7 +21,7 @@ import { IAgentHostService, type IAgentConnection } from '../../../../../platfor
 import { IAgentHostConnectionsService, type IAgentHostSessionSchemeAlias } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { ChangesetKind } from '../../../../../platform/agentHost/common/changesetUri.js';
 import { IRemoteAgentHostService, removeWebSocketRemoteAgentHostEntry, RemoteAgentHostConnectionStatus } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
-import type { ISessionGitState } from '../../../../../platform/agentHost/common/state/sessionState.js';
+import { type ISessionGitState } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IDialogService, IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IWorkspaceTrustManagementService } from '../../../../../platform/workspace/common/workspaceTrust.js';
@@ -45,6 +45,8 @@ import { ISessionsService } from '../../../../services/sessions/browser/sessions
 import { ISessionsRecentWorkspacesService } from '../../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
 import { IGitHubService } from '../../../github/browser/githubService.js';
 import { DevContainerAgentHostSessionsProvider } from '../../agentHost/browser/devContainerAgentHostSessionsProvider.js';
+import type { AgentHostSessionAdapter } from '../../agentHost/browser/baseAgentHostSessionsProvider.js';
+import { mapProtocolStatus } from '../../agentHost/browser/agentHostDiffs.js';
 import { ReconnectableAgentHostAutomationStore } from '../../agentHost/browser/reconnectableAgentHostAutomationStore.js';
 import type { ISessionsProviderAutomations, SessionResourceResolveReason } from '../../../../services/sessions/common/sessionsProvider.js';
 import { remoteAgentHostSessionTypeAuthorityPrefix, remoteAgentHostSessionTypeId } from '../../../../../platform/agentHost/common/agentHostSessionType.js';
@@ -155,6 +157,7 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 	readonly supportsQuickChats = true;
 	private readonly _automationStore: ReconnectableAgentHostAutomationStore;
 
+	private readonly _activitySources = new WeakMap<AgentHostSessionAdapter, { readonly source: 'host' } | { readonly source: 'discovery'; readonly modifiedTime: number }>();
 	private readonly _connectionStatus = observableValue<RemoteAgentHostConnectionStatus>('connectionStatus', RemoteAgentHostConnectionStatus.disconnected);
 	private readonly _readOnly: IObservable<boolean>;
 	readonly connectionStatus: IObservable<RemoteAgentHostConnectionStatus> = this._connectionStatus;
@@ -602,9 +605,25 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 			const rawId = AgentSession.id(meta.session);
 			const existing = this._sessionCache.get(rawId);
 			if (existing) {
-				const didChange = options?.updateExisting
-					? existing.updateDiscoveryMetadata(meta)
-					: existing.backfillProject(meta.project);
+				let didChange = false;
+				const source = this._activitySources.get(existing);
+				if (source?.source !== 'discovery' || meta.modifiedTime >= source.modifiedTime) {
+					transaction(tx => {
+						didChange = options?.updateExisting
+							? existing.updateDiscoveryMetadata({ ...meta, modifiedTime: Math.max(meta.modifiedTime, existing.updatedAt.get().getTime()) })
+							: existing.backfillProject(meta.project);
+						if (!this._connection && source?.source !== 'host') {
+							if (meta.status !== undefined) {
+								const status = mapProtocolStatus(meta.status);
+								if (status !== existing.status.get()) {
+									existing.status.set(status, tx);
+									didChange = true;
+								}
+							}
+							this._activitySources.set(existing, { source: 'discovery', modifiedTime: meta.modifiedTime });
+						}
+					});
+				}
 				if (didChange) {
 					changed.push(existing);
 				}
@@ -614,12 +633,26 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 			if (options?.updateExisting) {
 				adapter.updateDiscoveryMetadata(meta);
 			}
+			this._activitySources.set(adapter, { source: 'discovery', modifiedTime: meta.modifiedTime });
 			this._sessionCache.set(rawId, adapter);
 			added.push(adapter);
 		}
 		if (added.length > 0 || changed.length > 0) {
 			this._onDidChangeSessions.fire({ added, removed: [], changed });
 		}
+	}
+
+	protected override createAdapter(meta: IAgentSessionMetadata): AgentHostSessionAdapter {
+		const adapter = super.createAdapter(meta);
+		if (this._connection) {
+			this._activitySources.set(adapter, { source: 'host' });
+		}
+		return adapter;
+	}
+
+	protected override updateAdapter(adapter: AgentHostSessionAdapter, meta: IAgentSessionMetadata): boolean {
+		this._activitySources.set(adapter, { source: 'host' });
+		return super.updateAdapter(adapter, meta);
 	}
 
 	/**
