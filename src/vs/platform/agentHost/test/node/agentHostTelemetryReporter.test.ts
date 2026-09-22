@@ -90,16 +90,18 @@ suite('AgentHostTelemetryReporter', () => {
 			{ hostRootTurnOrdinal: 3, hostProcessAgeMs: 5678, titleGenerationStrategy: 'deferred' },
 		] as const;
 		for (const cohort of cohorts) {
-			reporter.turnCompleted({
+			const report = {
 				provider: 'copilot', session, turnId: 'turn',
 				parentTurnId: undefined, parentToolCallId: undefined, subagentTaskModelSource: undefined,
 				timeToFirstProgress: undefined, timeToFirstSubstantiveProgress: undefined, timeToFirstEditMs: undefined, timeToFirstEditClassifierVersion: undefined,
 				totalTime: 100, result: 'success', model: undefined, modelTelemetryKind: undefined, modelSelectionKind: 'default',
 				permissionLevel: undefined, interactionMode: undefined, messageOriginKind: undefined, failure: undefined,
 				isMultiRoot: false, folderCount: 0, billedNanoAiu: undefined, directPromptTokenCount: undefined,
+				startedWithSteering: false, receivedSteering: false,
 				directPromptCacheTokenCount: undefined, directCompletionTokenCount: undefined, directBilledNanoAiu: undefined,
 				modelCallCount: 0, ...cohort,
-			});
+			} as const;
+			reporter.turnCompleted(report);
 		}
 		const cohortKeys = ['hostRootTurnOrdinal', 'hostProcessAgeMs', 'titleGenerationStrategy'];
 		assert.deepStrictEqual(service.standardEvents.map(event => ({

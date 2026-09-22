@@ -36,6 +36,7 @@ import { SessionsChatViewStateService } from '../../browser/chatViewStateService
 import { NewChatInSessionWidget } from '../../browser/newChatInSessionWidget.js';
 import { NewChatInputWidget } from '../../browser/newChatInput.js';
 import { NewChatWidget } from '../../browser/newChatWidget.js';
+import '../../../../../workbench/browser/media/style.css';
 import '../../../../../workbench/contrib/chat/browser/widget/chatContentParts/media/chatAgentMergeContent.css';
 import '../../../../../workbench/contrib/chat/browser/widget/chatContentParts/media/chatRequestOrigin.css';
 import { ISelectWorkspaceOptions } from '../../../../browser/parts/chatView.js';
@@ -955,6 +956,9 @@ suite('Sessions - Chat View', () => {
 			let opacityWrites = 0;
 			for (const icon of icons) {
 				const style = new Proxy(icon.style, {
+					get(target, property) {
+						return Reflect.get(target, property, target);
+					},
 					set(target, property, value: string) {
 						if (property === 'opacity') {
 							opacityWrites++;
