@@ -1132,7 +1132,7 @@ function createByokLanguageModelTestData(groupName?: string): { languageModels: 
 	};
 }
 
-function makeRequest(overrides: Partial<{ message: string; sessionResource: URI; variables: IChatAgentRequest['variables']; userSelectedModelId: string; modelConfiguration: Record<string, unknown>; agentHostSessionConfig: Record<string, string>; agentId: string; requestId: string; acceptedConfirmationData: unknown[]; metadata: Record<string, unknown>; isSystemInitiated: boolean }> = {}): IChatAgentRequest {
+function makeRequest(overrides: Partial<{ message: string; sessionResource: URI; variables: IChatAgentRequest['variables']; userSelectedModelId: string; modelConfiguration: Record<string, unknown>; agentHostSessionConfig: Record<string, string>; agentId: string; requestId: string; acceptedConfirmationData: unknown[]; metadata: Record<string, unknown>; isSystemInitiated: boolean; agentHostMessageOrigin: IChatAgentRequest['agentHostMessageOrigin'] }> = {}): IChatAgentRequest {
 	return upcastPartial<IChatAgentRequest>({
 		sessionResource: overrides.sessionResource ?? URI.from({ scheme: 'untitled', path: '/chat-1' }),
 		requestId: overrides.requestId ?? 'req-1',
@@ -1146,6 +1146,7 @@ function makeRequest(overrides: Partial<{ message: string; sessionResource: URI;
 		acceptedConfirmationData: overrides.acceptedConfirmationData,
 		metadata: overrides.metadata,
 		isSystemInitiated: overrides.isSystemInitiated,
+		agentHostMessageOrigin: overrides.agentHostMessageOrigin,
 	});
 }
 
@@ -1187,6 +1188,7 @@ async function startTurn(
 		cancellationToken: CancellationToken;
 		metadata: Record<string, unknown>;
 		isSystemInitiated: boolean;
+		agentHostMessageOrigin: IChatAgentRequest['agentHostMessageOrigin'];
 		agentId: string;
 		beforeInvoke: () => void;
 	}>,
@@ -1218,6 +1220,7 @@ async function startTurn(
 			agentId,
 			metadata: overrides?.metadata,
 			isSystemInitiated: overrides?.isSystemInitiated,
+			agentHostMessageOrigin: overrides?.agentHostMessageOrigin,
 		}),
 		(parts) => collected.push(parts),
 		[],
@@ -4226,6 +4229,27 @@ suite('AgentHostChatContribution', () => {
 				configWrites: agentHostService.dispatchedActions.filter(dispatch => dispatch.action.type === ActionType.SessionConfigChanged),
 			}, { message: { text: 'Hello', origin: { kind: MessageKind.User }, _meta: metadata }, configWrites: [] });
 		}));
+
+		for (const actor of Object.values(MessageKind)) {
+			for (const isSystemInitiated of [true, false]) {
+				test(`preserves resent ${actor} origin with isSystemInitiated=${isSystemInitiated}`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+					const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
+					const metadata = { 'vscode.chat.systemInitiatedLabel': 'Background task completed' };
+					const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, {
+						message: 'Resent message', agentHostMessageOrigin: { kind: actor }, isSystemInitiated, metadata,
+					});
+					fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
+					await turnPromise;
+					const action = agentHostService.turnActions[0].action;
+					assert.ok(action.type === ActionType.ChatTurnStarted);
+					assert.deepStrictEqual(action.message, {
+						text: 'Resent message',
+						origin: { kind: actor === MessageKind.User && isSystemInitiated ? MessageKind.SystemNotification : actor },
+						_meta: metadata,
+					});
+				}));
+			}
+		}
 
 		test('requests backend session for provider-owned new resource', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
@@ -12999,7 +13023,8 @@ suite('AgentHostChatContribution', () => {
 					id: 'remote-queued-1',
 					message: {
 						text: 'queued elsewhere',
-						origin: { kind: MessageKind.User },
+						origin: { kind: MessageKind.Automation },
+						_meta: { source: 'automation' },
 						model: { id: 'auto' },
 						attachments: [{
 							type: MessageAttachmentKind.Simple,
@@ -13019,7 +13044,12 @@ suite('AgentHostChatContribution', () => {
 					type: ActionType.ChatPendingMessageSet,
 					kind: PendingMessageKind.Steering,
 					id: 'remote-steering-1',
-					message: { text: 'steered elsewhere', origin: { kind: MessageKind.User }, model: { id: 'claude-opus-4.8', config: { reasoningEffort: 'xhigh' } } },
+					message: {
+						text: 'steered elsewhere',
+						origin: { kind: MessageKind.SystemNotification },
+						_meta: { 'vscode.chat.systemInitiatedLabel': 'Background task completed' },
+						model: { id: 'claude-opus-4.8', config: { reasoningEffort: 'xhigh' } },
+					},
 				} as ChatAction,
 				serverSeq: 2,
 				origin: undefined,
@@ -13031,6 +13061,7 @@ suite('AgentHostChatContribution', () => {
 				model: pendingRequests.map(p => ({ id: p.request.id, kind: p.kind, message: p.request.message.text })),
 				protocol: last?.requests.map(r => ({ id: r.id, kind: r.kind, message: r.message })),
 				selections: last?.requests.map(r => ({ modelId: r.modelId, modelConfiguration: r.modelConfiguration })),
+				provenance: last?.requests.map(r => ({ origin: r.agentHostMessageOrigin, metadata: r.metadata, isSystemInitiated: r.isSystemInitiated, label: r.systemInitiatedLabel })),
 				elementCorrelationId: elementVariable ? getElementAttachmentCorrelationId(elementVariable) : undefined,
 				echoedActions: agentHostService.dispatchedActions.filter(d =>
 					d.action.type === ActionType.ChatPendingMessageSet
@@ -13049,6 +13080,10 @@ suite('AgentHostChatContribution', () => {
 				selections: [
 					{ modelId: 'agent-host-copilot:claude-opus-4.8', modelConfiguration: { reasoningEffort: 'xhigh' } },
 					{ modelId: 'agent-host-copilot:auto', modelConfiguration: undefined },
+				],
+				provenance: [
+					{ origin: { kind: MessageKind.SystemNotification }, metadata: { 'vscode.chat.systemInitiatedLabel': 'Background task completed' }, isSystemInitiated: true, label: 'Background task completed' },
+					{ origin: { kind: MessageKind.Automation }, metadata: { source: 'automation' }, isSystemInitiated: false, label: undefined },
 				],
 				elementCorrelationId: 'remote-element',
 				echoedActions: [],
@@ -13104,11 +13139,12 @@ suite('AgentHostChatContribution', () => {
 		});
 
 		for (const kind of [ChatRequestQueueKind.Queued, ChatRequestQueueKind.Steering]) {
-			for (const { origin, isSystemInitiated } of [
-				...Object.values(MessageKind).map(origin => ({ origin, isSystemInitiated: undefined })),
-				{ origin: MessageKind.User, isSystemInitiated: true },
+			for (const { origin, isSystemInitiated, restored } of [
+				...Object.values(MessageKind).map(origin => ({ origin, isSystemInitiated: undefined, restored: false })),
+				{ origin: MessageKind.User, isSystemInitiated: true, restored: false },
+				...Object.values(MessageKind).map(origin => ({ origin, isSystemInitiated: undefined, restored: true })),
 			]) {
-				test(`syncs text updates for existing ${kind} pending messages with ${origin} origin and isSystemInitiated=${isSystemInitiated}`, async () => {
+				test(`syncs ${restored ? 'restored' : 'existing'} ${kind} pending messages with ${origin} origin and isSystemInitiated=${isSystemInitiated}`, async () => {
 					const { sessionHandler, agentHostService, chatService } = createContribution(disposables);
 
 					const backendSession = AgentSession.uri('copilot', 'pending-text-update');
@@ -13124,7 +13160,7 @@ suite('AgentHostChatContribution', () => {
 							modifiedAt: new Date().toISOString(),
 						}),
 						lifecycle: SessionLifecycle.Ready,
-						...(kind === ChatRequestQueueKind.Queued ? { queuedMessages: [pendingMessage] } : { steeringMessage: pendingMessage }),
+						...(!restored ? (kind === ChatRequestQueueKind.Queued ? { queuedMessages: [pendingMessage] } : { steeringMessage: pendingMessage }) : {}),
 					});
 
 					const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/pending-text-update' });
@@ -13136,7 +13172,7 @@ suite('AgentHostChatContribution', () => {
 					const pendingRequests: IChatPendingRequest[] = [{
 						request: upcastPartial<IChatRequestModel>({ id: 'queued-request-1', message: { text, parts: [] }, isSystemInitiated }),
 						kind,
-						sendOptions: {},
+						sendOptions: restored ? { agentHostMessageOrigin: { kind: origin }, metadata } : {},
 					}];
 					const chatModel = createPendingChatModel(sessionResource, pendingRequests);
 					chatService.setSession(sessionResource, chatModel.model);

@@ -363,9 +363,10 @@ function getSubagentTiming(state: ISessionWithDefaultChat): { startedAt: number 
 	return { startedAt, duration: endedAt !== undefined ? Math.max(0, endedAt - startedAt) : undefined };
 }
 
-function requestMessage(text: string, attachments: readonly MessageAttachment[] | undefined, metadata: Record<string, unknown> | undefined, isSystemInitiated: boolean | undefined): Message {
+function requestMessage(text: string, attachments: readonly MessageAttachment[] | undefined, metadata: Record<string, unknown> | undefined, isSystemInitiated: boolean | undefined, origin?: IChatAgentRequest['agentHostMessageOrigin']): Message {
 	return {
-		text, origin: { kind: isSystemInitiated ? MessageKind.SystemNotification : MessageKind.User },
+		text,
+		origin: origin && (origin.kind !== MessageKind.User || !isSystemInitiated) ? origin : { kind: isSystemInitiated ? MessageKind.SystemNotification : MessageKind.User },
 		...(attachments?.length ? { attachments: [...attachments] } : {}),
 		...(metadata ? { _meta: metadata } : {}),
 	};
@@ -2172,8 +2173,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			const snapshot: IPendingSnapshot = {
 				id: p.request.id,
 				message: {
-					...requestMessage(p.request.message.text, attachments, p.sendOptions.metadata ?? previousMessage?._meta, isSystemInitiated),
-					...(previousMessage && (previousMessage.origin.kind !== MessageKind.User || !isSystemInitiated) ? { origin: previousMessage.origin } : {}),
+					...requestMessage(p.request.message.text, attachments, p.sendOptions.metadata ?? previousMessage?._meta, isSystemInitiated, previousMessage?.origin ?? p.sendOptions.agentHostMessageOrigin),
 					...(model ? { model } : {}),
 				},
 			};
@@ -2268,6 +2268,10 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			variableData: messageToVariableData(pending.message, this._config.connectionAuthority),
 			modelId: this._toLanguageModelId(sessionResource, pending.message.model?.id),
 			modelConfiguration: pending.message.model?.config,
+			agentHostMessageOrigin: pending.message.origin,
+			metadata: pending.message._meta,
+			isSystemInitiated: pending.message.origin.kind === MessageKind.SystemNotification,
+			systemInitiatedLabel: readMessageSystemInitiatedLabel(pending.message),
 		});
 
 		const remote: IRemotePendingRequest[] = [];
@@ -3176,7 +3180,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			turnId,
 			startedAt: new Date().toISOString(),
 			message: withMessageHiddenFromTranscript({
-				...requestMessage(request.message, messageAttachments, request.metadata, request.isSystemInitiated),
+				...requestMessage(request.message, messageAttachments, request.metadata, request.isSystemInitiated, request.agentHostMessageOrigin),
 				...(selectedModel ? { model: selectedModel } : {}),
 				...(requestedAgentUri ? { agent: { uri: requestedAgentUri } } : {}),
 			}, request.hideFromTranscript),
