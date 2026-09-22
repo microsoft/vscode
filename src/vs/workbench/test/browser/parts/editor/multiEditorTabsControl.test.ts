@@ -132,7 +132,7 @@ suite('MultiEditorTabsControl', () => {
 
 	function connectedGroup(): HTMLElement {
 		const root = $('.monaco-workbench.modern-ui.modern-ui-tabs.modern-ui-connected-editor-tabs');
-		root.style.cssText = '--vscode-spacing-size20: 2px; --vscode-spacing-size40: 4px; --vscode-spacing-size60: 6px; --vscode-spacing-size80: 8px; --vscode-spacing-size160: 16px; --vscode-spacing-size280: 28px; --vscode-strokeThickness: 1px; --vscode-cornerRadius-small: 4px; --vscode-fontSize-body1: 13px; --vscode-fontWeight-regular: 400;';
+		root.style.cssText = '--vscode-spacing-size20: 2px; --vscode-spacing-size40: 4px; --vscode-spacing-size60: 6px; --vscode-spacing-size80: 8px; --vscode-spacing-size160: 16px; --vscode-spacing-size200: 20px; --vscode-spacing-size280: 28px; --vscode-strokeThickness: 1px; --vscode-cornerRadius-small: 4px; --vscode-fontSize-body1: 13px; --vscode-fontWeight-regular: 400;';
 		mainWindow.document.body.appendChild(root);
 		disposables.add(toDisposable(() => root.remove()));
 		const editor = $('.part.editor');
@@ -351,6 +351,7 @@ suite('MultiEditorTabsControl', () => {
 
 	test('connected close actions keep consistent spacing across terminal and wrapped tabs', async () => {
 		const group = connectedGroup();
+		group.style.setProperty('--vscode-editorGroupHeader-tabsBorder', '#333333');
 		const measure = () => {
 			const tab = container.querySelector<HTMLElement>('.tab.active')!;
 			const fill = tab.querySelector<HTMLElement>('.tab-fill')!;
@@ -362,9 +363,11 @@ suite('MultiEditorTabsControl', () => {
 			const actionsBounds = actions.getBoundingClientRect();
 			const actionStyle = mainWindow.getComputedStyle(action);
 			const actionsStyle = mainWindow.getComputedStyle(actions);
+			const fillStyle = mainWindow.getComputedStyle(fill);
 			return {
-				top: actionBounds.top - fillBounds.top,
-				right: fillBounds.right - actionBounds.right,
+				top: actionBounds.top - fillBounds.top - (fillStyle.borderTopColor === 'rgba(0, 0, 0, 0)' ? 0 : Number.parseFloat(fillStyle.borderTopWidth)),
+				bottom: Math.min(fillBounds.bottom, tab.getBoundingClientRect().bottom) - actionBounds.bottom - (!tab.classList.contains('connected-tab-upper-row') && !tab.classList.contains('connected-tab-top-row') ? Number.parseFloat(fillStyle.borderBottomWidth) : 0),
+				right: fillBounds.right - actionBounds.right - (fillStyle.borderRightColor === 'rgba(0, 0, 0, 0)' ? 0 : Number.parseFloat(fillStyle.borderRightWidth)),
 				left: actionBounds.left - label.getBoundingClientRect().right,
 				width: fillBounds.width,
 				actionInsets: [
@@ -417,14 +420,8 @@ suite('MultiEditorTabsControl', () => {
 				left: single.left === multiple.left,
 				width: single.width === multiple.width,
 			},
-			wrapped: {
-				top: wrappedBottom.top === wrappedUpper.top,
-				right: wrappedBottom.right === wrappedUpper.right,
-				left: wrappedBottom.left === wrappedUpper.left,
-			},
 			horizontal: {
-				right: measurements.every(measurement => measurement.right === multiple.right),
-				left: measurements.every(measurement => measurement.left === multiple.left),
+				clearance: measurements.map(measurement => [measurement.top, measurement.right, measurement.bottom, measurement.left]),
 			},
 			leftAction: {
 				top: leftSingle.top === leftMultiple.top,
@@ -437,13 +434,56 @@ suite('MultiEditorTabsControl', () => {
 			actionPadding: measurements.every(measurement => new Set(measurement.padding).size === 1 && measurement.padding[0] === multiple.padding[0]),
 		}, {
 			single: { top: true, right: true, left: true, width: true },
-			wrapped: { top: true, right: true, left: true },
-			horizontal: { right: true, left: true },
+			horizontal: { clearance: [[6, 6, 6, 6], [6, 6, 6, 6], [3, 3, 3, 4], [4, 4, 4, 4]] },
 			leftAction: { top: true, right: true, left: true, width: true },
 			balancedActionSurface: true,
 			balancedActionInsets: true,
 			actionPadding: true,
 		});
+	});
+
+	test('close hover targets have equal vertical and trailing clearance at both tab densities', async () => {
+		const group = connectedGroup();
+		group.style.setProperty('--vscode-editorGroupHeader-tabsBorder', '#333333');
+		const measurements = [];
+		const expected = [];
+		for (const tabHeight of ['default', 'compact'] as const) {
+			for (const tabActionLocation of ['right', 'left'] as const) {
+				for (const wrapTabs of [false, true]) {
+					const oldOptions = partOptions;
+					partOptions = { ...partOptions, tabHeight, tabActionLocation, wrapTabs, tabSizing: 'fixed', tabSizingFixedMinWidth: 120, tabSizingFixedMaxWidth: 120, editorActionsLocation: 'hidden' };
+					control.updateOptions(oldOptions, partOptions);
+					for (const activeIndex of [0, 1]) {
+						model.openEditor(model.getEditorByIndex(activeIndex)!, { active: true });
+						control.openEditors(model.getEditors(EditorsOrder.SEQUENTIAL));
+						await layoutConnectedGroup(group, wrapTabs ? 150 : 400);
+						const tab = container.querySelector<HTMLElement>('.tab.active')!;
+						const fillElement = tab.querySelector<HTMLElement>('.tab-fill')!;
+						const fill = fillElement.getBoundingClientRect();
+						const fillStyle = mainWindow.getComputedStyle(fillElement);
+						const action = tab.querySelector<HTMLElement>('.action-label')!.getBoundingClientRect();
+						const rowStart = activeIndex === 0 || wrapTabs;
+						const upperRow = wrapTabs && activeIndex === 0;
+						measurements.push({
+							tabHeight, tabActionLocation, wrapTabs, activeIndex,
+							top: action.top - fill.top - (fillStyle.borderTopColor === 'rgba(0, 0, 0, 0)' ? 0 : Number.parseFloat(fillStyle.borderTopWidth)),
+							bottom: Math.min(fill.bottom, tab.getBoundingClientRect().bottom) - action.bottom - (wrapTabs && !upperRow ? Number.parseFloat(fillStyle.borderBottomWidth) : 0),
+							trailing: tabActionLocation === 'left'
+								? action.left - fill.left - (fillStyle.borderLeftColor === 'rgba(0, 0, 0, 0)' ? 0 : Number.parseFloat(fillStyle.borderLeftWidth))
+								: fill.right - action.right - (fillStyle.borderRightColor === 'rgba(0, 0, 0, 0)' ? 0 : Number.parseFloat(fillStyle.borderRightWidth)),
+							leftBorder: rowStart && !upperRow ? mainWindow.getComputedStyle(tab.querySelector<HTMLElement>('.tab-fill')!).borderLeftColor : undefined,
+						});
+						const clearance = (tabHeight === 'compact' ? 4 : 6) - (wrapTabs ? 2 : 0) - (wrapTabs && activeIndex === 1 ? 1 : 0);
+						expected.push({
+							tabHeight, tabActionLocation, wrapTabs, activeIndex,
+							top: clearance, bottom: clearance, trailing: clearance,
+							leftBorder: rowStart && !upperRow ? 'rgba(0, 0, 0, 0)' : undefined,
+						});
+					}
+				}
+			}
+		}
+		assert.deepStrictEqual(measurements, expected);
 	});
 
 	test('reveals the active tab with its right shoulder outside the label and action', async () => {
@@ -812,7 +852,7 @@ suite('MultiEditorTabsControl', () => {
 			rowPaddingLeft: rowStyle.paddingLeft,
 			rowPaddingTop: rowStyle.paddingTop,
 		}, {
-			active: { top: '0px', left: '-1px', right: '0px', bottom: '-2px' },
+			active: { top: '0px', left: '0px', right: '0px', bottom: '-2px' },
 			inactive: { top: '0px', left: '0px', right: '0px', bottom: '-1px' },
 			alignItems: 'flex-start',
 			editorActionsHeight: '32px',
@@ -1023,7 +1063,7 @@ suite('MultiEditorTabsControl', () => {
 			reset: overflowEdge.style.left,
 		}, {
 			clippedLeft: { edge: true, clipped: true, fillOffset: '', edgeOffset: ['0px', '0px'], inset: 0, stationaryParent: true, edgeOverlay: ['none', 'block', '8', '5px', '0px', 'border-box', '1px', '1px', 'rgb(51, 51, 51)'] },
-			multiSelected: { clipping: '0px', edge: 'block', radius: '0px 5px 0px 0px', connectedClass: true },
+			multiSelected: { clipping: '0px', edge: 'block', radius: '0px', connectedClass: true },
 			singleSelected: { clipping: '0px', connectedClass: true },
 			terminalOutline: { right: '1px', rightShoulder: '""', rightMask: '""' },
 			normalOutline: { left: '1px', right: '1px', leftShoulder: '""', rightShoulder: '""', edge: 'block', overflowEdge: 'none', leftMaskHeight: '3px', leftMaskTop: '0px', rightMaskHeight: '3px', rightMaskTop: '0px' },

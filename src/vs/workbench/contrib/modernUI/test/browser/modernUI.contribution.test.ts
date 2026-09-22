@@ -2335,9 +2335,9 @@ suite('ModernUIContribution', () => {
 						}, {
 							tabBounds: tabBounds.toJSON(),
 							labelBounds: labelBounds.toJSON(),
-							fillExpansion: connected ? [0, 1, 0] : [0, 0, 0],
+							fillExpansion: connected && theme.startsWith('hc-') ? [0, 1, 0] : [0, 0, 0],
 							marginRight: connected ? shoulderWidth : '0px',
-							topRadius: connected ? '5px' : '4px',
+							topRadius: connected ? (theme.startsWith('hc-') ? '5px' : '0px') : '4px',
 						}, JSON.stringify({ classes, theme, activeGroup, compact }));
 					}
 				}
@@ -2479,8 +2479,8 @@ suite('ModernUIContribution', () => {
 			activeBottom: geometry(activeBottomTab, activeBottomFill),
 		}, {
 			rowPaddingTop: '0px',
-			topFrame: { borderColors: ['rgba(0, 0, 0, 0)', 'rgba(0, 0, 0, 0)'], borderTopLeftRadius: '0px' },
-			upper: { tabBorders: ['2px', '2px'], fillInsets: ['-2px', '-2px'], fillInlineStart: '0px' },
+			topFrame: { borderColors: ['rgba(0, 0, 0, 0)', 'rgba(0, 0, 0, 0)'], borderTopLeftRadius: '4px' },
+			upper: { tabBorders: ['2px', '2px'], fillInsets: ['-2px', '-2px'], fillInlineStart: '2px' },
 			inactiveBottom: { tabBorders: ['0px', '0px'], fillInsets: ['0px', '-1px'], fillInlineStart: '0px' },
 			activeBottom: { tabBorders: ['0px', '0px'], fillInsets: ['0px', '-2px'], fillInlineStart: '0px' },
 		});
