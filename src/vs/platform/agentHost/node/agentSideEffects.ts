@@ -32,7 +32,7 @@ import { resolveChatAttachment } from '../common/state/chatAttachmentContext.js'
 import { buildOpenSessionLinkForChatResource } from '../common/openSessionLink.js';
 import { ToolCallContributorKind, type AgentInfo, type SessionActiveClient } from '../common/state/protocol/state.js';
 import type { CustomizationEnablement } from '../common/state/protocol/channels-session/state.js';
-import { ActionType, isChatAction, StateAction, type ChatDeltaAction, type ChatReasoningAction, type ChatResponsePartAction, type ChatToolCallCompleteAction, type ChatToolCallStartAction } from '../common/state/sessionActions.js';
+import { ActionType, isChatAction, StateAction, type ChatDeltaAction, type ChatReasoningAction, type ChatResponsePartAction, type ChatToolCallCompleteAction, type ChatToolCallStartAction, type ChatTurnStartedAction } from '../common/state/sessionActions.js';
 import {
 	buildSubagentChatUri,
 	createErrorResponsePart,
@@ -728,22 +728,32 @@ export class AgentSideEffects extends Disposable {
 				this._logService.trace(`[AgentSideEffects] Dropping completion for cancelled turn ${action.turnId} on ${sessionKey}`);
 				return;
 			}
+			const startedWithSteering = action.type === ActionType.ChatTurnStarted
+				&& action.queuedMessageId !== undefined
+				&& this._stateManager.getChatState(sessionKey)?.steeringMessage?.id === action.queuedMessageId;
 			this._stateManager.dispatchServerAction(sessionKey, action);
 			if (action.type === ActionType.ChatTurnStarted && this._stateManager.getActiveTurnId(sessionKey) === action.turnId) {
 				// Provider-promoted turns are already running and must not enter the admission/send path again.
-				const sessionChannel = parseRequiredSessionUriFromChatUri(sessionKey);
-				const state = this._stateManager.getSessionState(sessionKey);
-				const { model, modelTelemetryKind, modelSelectionKind, permissionLevel, interactionMode } = getTurnTelemetryContext(agent, sessionKey, this._chatContext(sessionChannel, sessionKey), state, action.message.model?.id);
-				const clientContext = {
-					...createUnknownAgentHostClientTelemetryContext(AgentHostClientType.Unknown),
-					hostLaunchKind: this._options.hostLaunchKind ?? AgentHostLaunchKind.Unknown,
-				};
-				this._turnTracker.turnStarted(agent, sessionKey, action.turnId, model, modelTelemetryKind, modelSelectionKind, permissionLevel, interactionMode, clientContext, undefined, undefined, undefined, getMessageOriginTelemetryKind(action.message, this._stateManager.isEphemeralSession(sessionChannel)));
-				this._turnTracker.setCurrentStage(sessionKey, action.turnId, 'provider');
+				this._trackProviderStartedTurn(agent, sessionKey, action, startedWithSteering);
 			} else if (action.type === ActionType.ChatTurnComplete) {
 				this._runTurnCompleteSideEffects(sessionKey, undefined);
 			}
 		}
+	}
+
+	private _trackProviderStartedTurn(agent: IAgent, channel: ProtocolURI, action: ChatTurnStartedAction, startedWithSteering: boolean): void {
+		const session = parseRequiredSessionUriFromChatUri(channel);
+		const state = this._stateManager.getSessionState(channel);
+		const { model, modelTelemetryKind, modelSelectionKind, permissionLevel, interactionMode } = getTurnTelemetryContext(agent, channel, this._chatContext(session, channel), state, action.message.model?.id);
+		const clientContext = {
+			...createUnknownAgentHostClientTelemetryContext(AgentHostClientType.Unknown),
+			hostLaunchKind: this._options.hostLaunchKind ?? AgentHostLaunchKind.Unknown,
+		};
+		this._turnTracker.turnStarted(agent, channel, action.turnId, model, modelTelemetryKind, modelSelectionKind, permissionLevel, interactionMode, clientContext, undefined, undefined, undefined, getMessageOriginTelemetryKind(action.message, this._stateManager.isEphemeralSession(session)));
+		if (startedWithSteering) {
+			this._turnTracker.markSteering(channel, action.turnId, 'started');
+		}
+		this._turnTracker.setCurrentStage(channel, action.turnId, 'provider');
 	}
 
 	/**
