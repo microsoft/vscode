@@ -6,6 +6,8 @@
 import { readFileSync } from 'fs';
 import { join } from 'path';
 import { beforeEach, expect, it, suite } from 'vitest';
+import { IFileSystemService } from '../../../../../platform/filesystem/common/fileSystemService';
+import { MockFileSystemService } from '../../../../../platform/filesystem/node/test/mockFileSystemService';
 import { IIgnoreService, NullIgnoreService } from '../../../../../platform/ignore/common/ignoreService';
 import { ITestingServicesAccessor } from '../../../../../platform/test/node/services';
 import { TestWorkspaceService } from '../../../../../platform/test/node/testWorkspaceService';
@@ -214,6 +216,36 @@ suite('ApplyPatch Tool', () => {
 			query: 'create the file',
 			chatVariables: new ChatVariablesCollection([]),
 			allowedEditUris: new ResourceSet([fileTsUri]),
+		});
+
+		const result = await tool.invoke({ input, toolInvocationToken: undefined }, CancellationToken.None);
+
+		expect({
+			hasError: result instanceof ExtendedLanguageModelToolResult ? result.hasError : undefined,
+			editedUris,
+			checkedUris: ignoreService.checkedUris,
+		}).toEqual({
+			hasError: true,
+			editedUris: [],
+			checkedUris: [],
+		});
+	});
+
+	it('rejects an add when the file already exists', async () => {
+		const services = createExtensionUnitTestingServices();
+		const fileSystemService = new MockFileSystemService();
+		fileSystemService.mockFile(fileTsUri, String(readFileSync(path)));
+		services.define(IFileSystemService, fileSystemService);
+		const ignoreService = new TestIgnoreService(new ResourceSet([fileTsUri]));
+		services.define(IIgnoreService, ignoreService);
+		const localAccessor = services.createTestingAccessor();
+		const tool = localAccessor.get(IInstantiationService).createInstance(ApplyPatchTool);
+		const editedUris: string[] = [];
+		const input = await tool.resolveInput(createAddPatch(fileTsUri), {
+			history: [],
+			stream: createRecordingStream(editedUris),
+			query: 'create the file',
+			chatVariables: new ChatVariablesCollection([]),
 		});
 
 		const result = await tool.invoke({ input, toolInvocationToken: undefined }, CancellationToken.None);
