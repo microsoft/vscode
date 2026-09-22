@@ -697,13 +697,17 @@ suite('auto mode tier schema', () => {
 	// The picker renders `title` as the group header and `enumItemLabels` as the
 	// rows, so this descriptor is the user-visible wording for Auto routing. The
 	// tier values stay the wire enum the service expects.
-	test('names the group "Optimize for" and labels the selectable tiers', () => {
+	test('names the group "Optimize for" and labels and describes the selectable tiers', () => {
 		assert.deepStrictEqual(buildAutoModeTierSchemaProperty(selectableAutoModeTiers, defaultAutoModeTier), {
 			type: 'string',
 			title: 'Optimize for',
 			enum: ['efficiency', 'balance', 'intelligence'],
 			enumItemLabels: ['Efficiency', 'Balance', 'Intelligence'],
-			enumDescriptions: ['Cheaper models for everyday tasks', 'Balances capability and cost', 'Most capable models, higher cost'],
+			enumDescriptions: [
+				'Optimizes for cost and speed, using more capable models only when needed.',
+				'Balances cost/speed and capability based on task complexity.',
+				'Optimizes for capability, using faster models only when the task allows it.',
+			],
 			default: 'balance',
 			group: 'navigation',
 		});
