@@ -179,6 +179,7 @@ export interface IListHarness {
 	readonly commandService: TestCommandService;
 	readonly deletedGroupIds: string[];
 	readonly cancelledComparisonIds: string[];
+	readonly archivedComparisonIds: string[];
 	/** Manual sort-key changes applied through the sessions list model service. */
 	readonly sortChanges: ISortChangeRecord[];
 	createContainer(width?: number, height?: number): HTMLElement;
@@ -212,6 +213,7 @@ export function createListHarness(disposables: Pick<DisposableStore, 'add'>, ses
 	const comparisons = options.comparisons ?? [];
 	const deletedGroupIds: string[] = [];
 	const cancelledComparisonIds: string[] = [];
+	const archivedComparisonIds: string[] = [];
 	const sortChanges: ISortChangeRecord[] = [];
 
 	instantiationService.stub(ISessionsManagementService, managementService);
@@ -257,6 +259,12 @@ export function createListHarness(disposables: Pick<DisposableStore, 'add'>, ses
 		}
 		override cancelComparison(comparisonId: string): void {
 			cancelledComparisonIds.push(comparisonId);
+		}
+		override canRetryJudge(): boolean {
+			return false;
+		}
+		override archiveComparison(comparisonId: string): void {
+			archivedComparisonIds.push(comparisonId);
 		}
 	});
 	instantiationService.stub(ISessionSectionOrderService, new class extends mock<ISessionSectionOrderService>() {
@@ -306,5 +314,5 @@ export function createListHarness(disposables: Pick<DisposableStore, 'add'>, ses
 		return container;
 	};
 
-	return { store, instantiationService, managementService, commandService, deletedGroupIds, cancelledComparisonIds, sortChanges, createContainer };
+	return { store, instantiationService, managementService, commandService, deletedGroupIds, cancelledComparisonIds, archivedComparisonIds, sortChanges, createContainer };
 }

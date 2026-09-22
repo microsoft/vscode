@@ -2576,9 +2576,11 @@ suite('Sessions - SessionsList', () => {
 			await timeout(0);
 			assert.deepStrictEqual({
 				archived: harness.managementService.archived.map(session => session.sessionId).sort(),
+				archivedComparisonIds: harness.archivedComparisonIds,
 				deletedGroupIds: harness.deletedGroupIds,
 			}, {
 				archived: ['attempt-1', 'attempt-2', 'judge', 'synthesis'],
+				archivedComparisonIds: ['comparison-1'],
 				deletedGroupIds: [group.id],
 			});
 		});
