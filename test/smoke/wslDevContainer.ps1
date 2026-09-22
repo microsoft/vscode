@@ -44,7 +44,7 @@ function Invoke-Wsl([string] $Command) {
 }
 
 function Save-Download([string] $Url, [string] $Destination) {
-	curl.exe --fail --location --retry 2 --connect-timeout 30 --max-time 180 --output $Destination $Url
+	curl.exe --fail --location --retry 5 --retry-max-time 120 --connect-timeout 30 --max-time 180 --output $Destination $Url
 	if ($LASTEXITCODE -ne 0) {
 		throw "Download failed with exit code ${LASTEXITCODE}: $Url"
 	}
