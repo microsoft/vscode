@@ -6,7 +6,7 @@
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Event } from '../../../../base/common/event.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
-import { Disposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { getMediaMime } from '../../../../base/common/mime.js';
 import { matchesSomeScheme, Schemas } from '../../../../base/common/network.js';
 import { autorun, derived, IObservable, IReader, observableSignalFromEvent } from '../../../../base/common/observable.js';
@@ -398,12 +398,20 @@ export class SessionArtifacts extends Disposable {
 	) {
 		super();
 
-		const commitResolver = this._register(instantiationService.createInstance(GitHubCommitResolver));
+		const commitResolver = this._register(new MutableDisposable<GitHubCommitResolver>());
 		this._register(autorun(reader => {
 			const artifacts = session.read(reader)?.artifacts?.read(reader) ?? [];
-			commitResolver.retain(artifacts
+			const commitTargets = artifacts
 				.flatMap(artifact => artifact.kind === SessionArtifactKind.Commit && artifact.link ? [parseGitHubCommitTarget(artifact.link)] : [])
-				.filter(isDefined));
+				.filter(isDefined);
+			if (commitTargets.length === 0) {
+				commitResolver.clear();
+				return;
+			}
+			if (!commitResolver.value) {
+				commitResolver.value = instantiationService.createInstance(GitHubCommitResolver);
+			}
+			commitResolver.value.retain(commitTargets);
 		}));
 		const imageCarouselEnabled = observableConfigValue<boolean>(ChatConfiguration.ImageCarouselEnabled, true, this._configurationService);
 		// Rebuild after formatter/folder changes because the session folder mounts after activation.
@@ -423,7 +431,7 @@ export class SessionArtifacts extends Disposable {
 			const artifacts = (current.artifacts?.read(reader) ?? []).filter(artifact => artifact.isArtifact === isArtifact && !isShownInGitHub(artifact, surfacedLinks));
 			const commits = new Map(artifacts.flatMap(artifact => {
 				const target = artifact.kind === SessionArtifactKind.Commit && artifact.link ? parseGitHubCommitTarget(artifact.link) : undefined;
-				const commit = target ? commitResolver.get(target).read(reader) : undefined;
+				const commit = target ? commitResolver.value?.get(target).read(reader) : undefined;
 				return commit ? [[artifact.id, commit] as const] : [];
 			}));
 			return buildSessionArtifactSections(
