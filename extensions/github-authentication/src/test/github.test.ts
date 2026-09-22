@@ -138,6 +138,8 @@ function registerMicrosoftBrokeredSessionTests(type: AuthProviderType, baseUri: 
 		_keychain: { setToken(value: string): Promise<void> };
 		_githubServer: {
 			getFallbackBaseUri(): vscode.Uri;
+			login: IGitHubServer['login'];
+			getUserInfo: IGitHubServer['getUserInfo'];
 			loginWithMicrosoft: IGitHubServer['loginWithMicrosoft'];
 			renewWithMicrosoft: IGitHubServer['renewWithMicrosoft'];
 			logout: IGitHubServer['logout'];
@@ -178,6 +180,9 @@ function registerMicrosoftBrokeredSessionTests(type: AuthProviderType, baseUri: 
 		transient?: readonly (readonly [vscode.AuthenticationSession, number])[];
 		serverBaseUri?: vscode.Uri;
 		microsoftAccounts?: (call: number) => vscode.AuthenticationSessionAccountInformation[];
+		githubLogin?: IGitHubServer['login'];
+		getUserInfo?: IGitHubServer['getUserInfo'];
+		keychainWrite?: (value: string) => Promise<void>;
 		login?: (call: number, scopes: readonly string[], options: IEntraLoginOptions | undefined) => Promise<IEntraExchangedToken>;
 		renew?: (call: number, renewal: IEntraRenewal) => Promise<IEntraRenewedToken>;
 		logout?: (session: vscode.AuthenticationSession) => Promise<void>;
@@ -204,9 +209,11 @@ function registerMicrosoftBrokeredSessionTests(type: AuthProviderType, baseUri: 
 			_microsoft: {
 				getAccounts: async () => overrides.microsoftAccounts?.(microsoftReads++) ?? [MICROSOFT_ACCOUNT]
 			},
-			_keychain: { setToken: async () => { } },
+			_keychain: { setToken: async value => { await overrides.keychainWrite?.(value); } },
 			_githubServer: {
 				getFallbackBaseUri: () => overrides.serverBaseUri ?? baseUri,
+				login: overrides.githubLogin ?? (async () => 'gho_persisted_login'),
+				getUserInfo: overrides.getUserInfo ?? (async () => GITHUB_ACCOUNT),
 				loginWithMicrosoft: async (scopes, options) => {
 					logins.push({ scopes, options });
 					const exchanged = overrides.login
@@ -560,6 +567,113 @@ function registerMicrosoftBrokeredSessionTests(type: AuthProviderType, baseUri: 
 			});
 		});
 	}
+
+	test('announces persisted sign-in before removal requested during its storage write', async () => {
+		const writeStarted = Promise.withResolvers<void>();
+		const releaseWrite = Promise.withResolvers<void>();
+		let writes = 0;
+		let stored = '';
+		const harness = createHarness({
+			keychainWrite: async value => {
+				if (++writes === 1) {
+					writeStarted.resolve();
+					await releaseWrite.promise;
+				}
+				stored = value;
+			},
+		});
+		const signingIn = harness.provider.createSession(SCOPES);
+		await writeStarted.promise;
+		const [session] = await harness.state._persistedSessionsPromise;
+		const removing = harness.provider.removeSession(session.id);
+		let whileBlocked: { writes: number; announced: string[] };
+		try {
+			await new Promise<void>(resolve => setImmediate(resolve));
+			whileBlocked = { writes, announced: [...harness.announced] };
+		} finally {
+			releaseWrite.resolve();
+		}
+		await Promise.all([signingIn, removing]);
+
+		assert.deepStrictEqual({
+			whileBlocked,
+			stored,
+			sessions: await harness.provider.getSessions(SCOPES),
+			announced: harness.announced,
+		}, {
+			whileBlocked: { writes: 1, announced: [] },
+			stored: '[]',
+			sessions: [],
+			announced: ['added mona_contoso', 'removed mona_contoso'],
+		});
+	});
+
+	for (const stage of ['login', 'identity lookup']) {
+		test(`uses the latest session list without blocking sign-out during persisted ${stage}`, async () => {
+			const acquisitionStarted = Promise.withResolvers<void>();
+			const releaseAcquisition = Promise.withResolvers<void>();
+			const removed = { ...sessionFor('hubot', 'removed-session', 'gho_removed'), account: { id: 'removed-account', label: 'hubot' } };
+			const retained = { ...sessionFor('octocat', 'retained-session', 'gho_retained'), account: { id: 'retained-account', label: 'octocat' } };
+			const harness = createHarness({
+				persisted: [removed],
+				githubLogin: async () => {
+					if (stage === 'login') {
+						acquisitionStarted.resolve();
+						await releaseAcquisition.promise;
+					}
+					return 'gho_persisted_login';
+				},
+				getUserInfo: async () => {
+					if (stage === 'identity lookup') {
+						acquisitionStarted.resolve();
+						await releaseAcquisition.promise;
+					}
+					return GITHUB_ACCOUNT;
+				},
+			});
+			const signingIn = harness.provider.createSession(SCOPES);
+			await acquisitionStarted.promise;
+			// Secret-storage reconciliation replaces the session-list promise while acquisition is pending.
+			harness.state._persistedSessionsPromise = Promise.resolve([removed, retained]);
+			const removing = harness.provider.removeSession(removed.id);
+			let announcedWhileAcquiring: string[];
+			try {
+				await new Promise<void>(resolve => setImmediate(resolve));
+				announcedWhileAcquiring = [...harness.announced];
+			} finally {
+				releaseAcquisition.resolve();
+			}
+			await Promise.all([signingIn, removing]);
+
+			assert.deepStrictEqual({
+				announcedWhileAcquiring,
+				tokens: (await harness.provider.getSessions(SCOPES)).map(session => session.accessToken).sort(),
+				announced: harness.announced,
+			}, {
+				announcedWhileAcquiring: ['removed hubot'],
+				tokens: ['gho_persisted_login', 'gho_retained'],
+				announced: ['removed hubot', 'added mona_contoso'],
+			});
+		});
+	}
+
+	test('persisted sign-in still replaces the same account and scope set', async () => {
+		const existing = sessionFor('mona_contoso', 'old-session', 'gho_old');
+		const harness = createHarness({ persisted: [existing] });
+		const signingIn = await harness.provider.createSession([...SCOPES].reverse());
+
+		assert.deepStrictEqual({
+			sessions: (await harness.provider.getSessions(SCOPES)).map(session => ({
+				isNewSession: session.id === signingIn.id && session.id !== existing.id,
+				token: session.accessToken,
+				scopes: session.scopes,
+			})),
+			announced: harness.announced,
+		}, {
+			sessions: [{ isNewSession: true, token: 'gho_persisted_login', scopes: [...SCOPES].reverse() }],
+			announced: ['added mona_contoso', 'removed mona_contoso'],
+		});
+	});
 
 	test('concurrent restore reads share one exchange and publish its session once', async () => {
 		const exchangeStarted = Promise.withResolvers<void>();
