@@ -20,7 +20,7 @@ import { disposableTimeout } from '../../../../../../../base/common/async.js';
 import { autorun, IObservable } from '../../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { localize } from '../../../../../../../nls.js';
-import { IActionListHeaderLink } from '../../../../../../../platform/actionWidget/browser/actionList.js';
+import { IActionListHeaderLink, IActionListOptions } from '../../../../../../../platform/actionWidget/browser/actionList.js';
 import { IActionWidgetService } from '../../../../../../../platform/actionWidget/browser/actionWidget.js';
 import { IActionWidgetDropdownAction } from '../../../../../../../platform/actionWidget/browser/actionWidgetDropdown.js';
 import { AgentHostAllowSignedOutWhenUsableSettingId } from '../../../../../../../platform/agentHost/common/agentService.js';
