@@ -1139,7 +1139,7 @@ suite('AutomationTools', () => {
 		}, CancellationToken.None);
 		automationService.automations.set([{ ...existing, name: 'Changed elsewhere' }], undefined);
 		const result = await invoke(tool, parameters, SESSION_RESOURCE, CancellationToken.None, undefined, prepared.toolSpecificData);
-		assert.match(result.toolResultError ?? '', /changed before the update was applied/);
+		assert.match(getText(result), /changed before the update was applied/);
 		assert.deepStrictEqual(automationService.updated, []);
 	});
 
