@@ -11,6 +11,11 @@ import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js'
 import { localize } from '../../../../nls.js';
 import { IActionWidgetService } from '../../../../platform/actionWidget/browser/actionWidget.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { ContextKeyExpression } from '../../../../platform/contextkey/common/contextkey.js';
+import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
+import { IHoverService } from '../../../../platform/hover/browser/hover.js';
+import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { ActionListItemKind, IActionListDelegate, IActionListItem } from '../../../../platform/actionWidget/browser/actionList.js';
 import { IProviderSessionType, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
@@ -28,6 +33,7 @@ import { IChatEntitlementService } from '../../../../workbench/services/chat/com
 import { markOnboardingTarget } from '../../../../workbench/contrib/onboarding/browser/spotlight/onboardingTarget.js';
 import { reportNewChatPickerClosed } from './newChatPickerTelemetry.js';
 import { isAllowSignedOutWhenUsableEnabled } from '../../../browser/sessionsAuthGate.js';
+import { registerPickerKeybindingPresentation } from './newChatPickerKeybinding.js';
 
 const STORAGE_KEY_LAST_SESSION_TYPE = 'sessions.userSelectedSessionType';
 
@@ -86,6 +92,7 @@ export interface ISessionTypePickerOptions {
 	 * The picker is still interactive. Defaults to `true`.
 	 */
 	readonly showChevron?: boolean;
+	readonly focusCommand?: { readonly id: string; readonly label: string; readonly when: ContextKeyExpression; readonly enabled: IObservable<boolean> };
 	/**
 	 * Prepares the workspace for an explicit session-type selection. Returning
 	 * `false` cancels the selection without changing the current type.
@@ -168,6 +175,10 @@ export class SessionTypePicker extends Disposable {
 		@IChatEntitlementService protected readonly chatEntitlementService: IChatEntitlementService,
 		@ILanguageModelsService protected readonly languageModelsService: ILanguageModelsService,
 		@IConfigurationService protected readonly configurationService: IConfigurationService,
+		@ICommandService private readonly commandService: ICommandService,
+		@IContextMenuService private readonly contextMenuService: IContextMenuService,
+		@IHoverService private readonly hoverService: IHoverService,
+		@IKeybindingService private readonly keybindingService: IKeybindingService,
 	) {
 		super();
 
@@ -441,6 +452,20 @@ export class SessionTypePicker extends Disposable {
 			open: () => this._showPicker(),
 		}));
 		this._updateTriggerLabel();
+		if (this._options?.focusCommand) {
+			registerPickerKeybindingPresentation(
+				this._renderDisposables,
+				trigger,
+				this._options.focusCommand.label,
+				this._options.focusCommand.id,
+				this._options.focusCommand.when,
+				this._options.focusCommand.enabled,
+				this.commandService,
+				this.contextMenuService,
+				this.hoverService,
+				this.keybindingService,
+			);
+		}
 
 		this._renderDisposables.add(Gesture.addTarget(trigger));
 		for (const eventType of [dom.EventType.CLICK, TouchEventType.Tap]) {

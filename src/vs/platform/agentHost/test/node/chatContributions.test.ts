@@ -914,7 +914,11 @@ function createQueueDrainContributions(disposables: ReturnType<typeof ensureNoDi
 	const mockAgent = new MockAgent();
 	let agent: MockAgent | undefined = mockAgent;
 	const pendingMessages: (PendingMessage | undefined)[] = [];
-	mockAgent.setPendingMessages = (_chat, steeringMessage) => pendingMessages.push(steeringMessage);
+	const pendingMessageSenders: (string | undefined)[] = [];
+	mockAgent.setPendingMessages = (_chat, steeringMessage, _queuedMessages, steeringSender) => {
+		pendingMessages.push(steeringMessage);
+		pendingMessageSenders.push(steeringSender?.clientId);
+	};
 	services.set(IAgentHostProviderService, createTestAgentHostProviderService(() => agent));
 	services.set(IAgentHostLocalTurns, new AgentHostLocalTurns(sessionDataService, logService));
 	const instantiationService = disposables.add(new InstantiationService(services, /*strict*/ true));
@@ -938,7 +942,7 @@ function createQueueDrainContributions(disposables: ReturnType<typeof ensureNoDi
 	disposables.add(service.registerContribution(LocalCommandContribution as unknown as IConstructorSignature<IAgentHostChatContribution, [IAgentHostChatContributionContext]> & { readonly id: string }));
 	disposables.add(service.registerContribution(SessionWorkspaceConversionContribution as unknown as IConstructorSignature<IAgentHostChatContribution, [IAgentHostChatContributionContext]> & { readonly id: string }));
 	disposables.add(service.registerContribution(QueueDrainContribution as unknown as IConstructorSignature<IAgentHostChatContribution, [IAgentHostChatContributionContext]> & { readonly id: string }));
-	return { service, stateManager, session, chat, pendingMessages, admitted, titleController, telemetryService, clearAgent: () => agent = undefined, setConversionPending: (pending: boolean) => conversionPending = pending };
+	return { service, stateManager, session, chat, pendingMessages, pendingMessageSenders, admitted, titleController, telemetryService, clearAgent: () => agent = undefined, setConversionPending: (pending: boolean) => conversionPending = pending };
 }
 
 function appliedClientAction(channel: string, session: string, action: IAppliedClientAction['action'], clientId = 'client'): IAppliedClientAction {
@@ -1190,6 +1194,52 @@ suite('AgentHostChatContributions', () => {
 		}, {
 			pendingMessages: [undefined, undefined, undefined, undefined],
 			admitted: [['second', 'second-client']],
+		});
+	});
+
+	test('queue drain keeps steering sender ownership synchronized with replacement and removal', () => {
+		const queue = createQueueDrainContributions(disposables);
+		const first: IAppliedClientAction['action'] = {
+			type: ActionType.ChatPendingMessageSet,
+			kind: PendingMessageKind.Steering,
+			id: 'first',
+			message: { text: 'first', origin: { kind: MessageKind.User } },
+		};
+		const second: IAppliedClientAction['action'] = {
+			type: ActionType.ChatPendingMessageSet,
+			kind: PendingMessageKind.Steering,
+			id: 'second',
+			message: { text: 'second', origin: { kind: MessageKind.User } },
+		};
+		const removeFirst: IAppliedClientAction['action'] = {
+			type: ActionType.ChatPendingMessageRemoved,
+			kind: PendingMessageKind.Steering,
+			id: 'first',
+		};
+		const removeSecond: IAppliedClientAction['action'] = {
+			type: ActionType.ChatPendingMessageRemoved,
+			kind: PendingMessageKind.Steering,
+			id: 'second',
+		};
+
+		queue.stateManager.dispatchServerAction(queue.chat, first);
+		queue.service.didApplyClientAction(appliedClientAction(queue.chat, queue.session, first, 'first-client'));
+		queue.stateManager.dispatchServerAction(queue.chat, second);
+		queue.service.didApplyClientAction(appliedClientAction(queue.chat, queue.session, second, 'second-client'));
+		queue.stateManager.dispatchServerAction(queue.chat, removeFirst);
+		queue.service.didApplyClientAction(appliedClientAction(queue.chat, queue.session, removeFirst, 'first-client'));
+		queue.service.didApplyClientAction(appliedClientAction(queue.chat, queue.session, { type: ActionType.ChatQueuedMessagesReordered, order: [] }, 'other-client'));
+		queue.stateManager.dispatchServerAction(queue.chat, removeSecond);
+		queue.service.didApplyClientAction(appliedClientAction(queue.chat, queue.session, removeSecond, 'second-client'));
+		queue.stateManager.dispatchServerAction(queue.chat, second);
+		queue.service.didApplyClientAction(appliedClientAction(queue.chat, queue.session, { type: ActionType.ChatQueuedMessagesReordered, order: [] }, 'other-client'));
+
+		assert.deepStrictEqual({
+			messages: queue.pendingMessages.map(message => message?.id),
+			senders: queue.pendingMessageSenders,
+		}, {
+			messages: ['first', 'second', 'second', 'second', undefined, 'second'],
+			senders: ['first-client', 'second-client', 'second-client', 'second-client', undefined, undefined],
 		});
 	});
 
