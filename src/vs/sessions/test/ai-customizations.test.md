@@ -229,3 +229,20 @@ This tests the transition from the empty state to having an active workspace sel
 9. Dismiss an activity entry. Its record disappears; migrated files remain untouched.
 10. Navigate with Tab and Shift+Tab, expand activity with Enter or Space, and open Accessibility Help and Accessible View. Focus returns to the invoking control on dismissal.
 11. Verify dark, light, high-contrast, and narrow layouts. No Chat Participants, agent verification, issue creation, or optional multi-root controls are present.
+
+### Scenario 7: New-chat migration notice
+
+#### Preconditions
+
+- The migration settings and candidates from Scenario 6
+- The new-chat view with an agent-host session type selected
+
+#### Actions and expected results
+
+1. Select a workspace with pending migrations. A muted, compact banner below the composer summarizes the workspace and profile candidates from the migration overview. Its faint border, subtle background, and secondary text leave the chat input as the primary visual focus.
+2. Show and dismiss the notice. The input and its controls remain in exactly the same centered position, including at narrow widths.
+3. Activate **Review Migrations** with the keyboard. The customizations modal opens directly to **Migrations** for the selected workspace, even if an older chat was previously focused.
+4. Dismiss the notice, restart, and return to that workspace. It stays dismissed. Select another workspace with candidates; its notice remains available.
+5. Complete all migrations, then return to new chat. The notice disappears. Profile-only migrations also show in a workspace without local candidates or in a workspace-less quick chat.
+6. Disable the migration settings or AI features. No notice appears and disabled migration categories are not scanned for the notice.
+7. Verify light, dark, high-contrast, and keyboard focus states. Dismissal returns focus to the input.

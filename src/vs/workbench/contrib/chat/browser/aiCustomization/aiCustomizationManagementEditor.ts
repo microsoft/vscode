@@ -111,7 +111,7 @@ import { ICustomizationHarnessService, type ICustomizationSourceFolder } from '.
 import { ChatConfiguration } from '../../common/constants.js';
 import { AICustomizationWelcomePage, type ICustomizationMigrationCategorySummary } from './aiCustomizationWelcomePage.js';
 import { type CustomizationMigrationTargetFolders, type IMigratedCustomizationsResult, migrateCustomizations } from './customizationMigration.js';
-import { CUSTOMIZATION_MIGRATION_CATEGORIES, CustomizationMigrationCategoryId, getCustomizationMigrationCategory, type ICustomizationMigrationBanner, type ICustomizationMigrationCandidatePresentation, type ICustomizationMigrationCategory } from './customizationMigrationCategories.js';
+import { CUSTOMIZATION_MIGRATION_CATEGORIES, CustomizationMigrationCategoryId, getCustomizationMigrationCategory, homepageMigrationCategories, type ICustomizationMigrationBanner, type ICustomizationMigrationCandidatePresentation, type ICustomizationMigrationCategory } from './customizationMigrationCategories.js';
 import {
 	CustomizationMigrationDashboard,
 	type ICustomizationMigrationDashboardDestination,
@@ -125,12 +125,6 @@ import { showNoFoldersDialog } from '../promptSyntax/pickers/askForPromptSourceF
 import { isAgentHostTarget } from '../../common/chatSessionsService.js';
 
 const $ = DOM.$;
-const homepageMigrationCategories = [
-	CustomizationMigrationCategoryId.PromptFiles,
-	CustomizationMigrationCategoryId.UserData,
-	CustomizationMigrationCategoryId.McpServers,
-] as const;
-
 interface IMigrationActivityState {
 	readonly activity: readonly ICustomizationMigrationDashboardActivity[];
 	readonly skipped: boolean;

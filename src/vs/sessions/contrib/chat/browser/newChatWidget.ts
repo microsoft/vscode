@@ -63,6 +63,7 @@ import { UNIFIED_WORKSPACE_PICKER_SETTING } from '../common/constants.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IAgentsWindowDraft } from '../../../../platform/window/common/window.js';
 import { reviveChatDraft } from '../../../../workbench/contrib/chat/common/attachments/chatDraft.js';
+import { NewChatMigrationNotice } from './newChatMigrationNotice.js';
 
 // #region --- New Chat Widget ---
 
@@ -492,6 +493,7 @@ export class NewChatWidget extends Disposable {
 
 		this._renderFeedbackBanner(chatWidgetContent);
 		this._newChatInput.render(chatWidgetContent, parent);
+		this._register(this.instantiationService.createInstance(NewChatMigrationNotice, chatWidgetContent, this._session, () => this.focusInput()));
 
 		// The tip lives in the input's notice slot, so the presenter is created
 		// after the input has rendered it.
