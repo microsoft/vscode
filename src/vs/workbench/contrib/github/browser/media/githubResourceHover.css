@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-:is(.sessions-issue-hover, .sessions-pr-hover) {
+:is(.sessions-issue-hover, .sessions-pr-hover, .sessions-commit-hover) {
 	box-sizing: border-box;
 	display: flex;
 	flex-direction: column;
@@ -14,25 +14,25 @@
 	color: var(--vscode-editorHoverWidget-foreground);
 }
 
-:is(.sessions-issue-hover, .sessions-pr-hover).compact {
+:is(.sessions-issue-hover, .sessions-pr-hover, .sessions-commit-hover).compact {
 	padding: var(--vscode-spacing-size80) var(--vscode-spacing-size120);
 }
 
-:is(.sessions-issue-hover, .sessions-pr-hover) a {
+:is(.sessions-issue-hover, .sessions-pr-hover, .sessions-commit-hover) a {
 	color: var(--vscode-textLink-foreground);
 }
 
-:is(.sessions-issue-hover, .sessions-pr-hover) a:hover,
-:is(.sessions-issue-hover, .sessions-pr-hover) a:active {
+:is(.sessions-issue-hover, .sessions-pr-hover, .sessions-commit-hover) a:hover,
+:is(.sessions-issue-hover, .sessions-pr-hover, .sessions-commit-hover) a:active {
 	color: var(--vscode-textLink-activeForeground);
 }
 
-:is(.sessions-issue-hover, .sessions-pr-hover) :is(a, button):focus-visible {
+:is(.sessions-issue-hover, .sessions-pr-hover, .sessions-commit-hover) :is(a, button):focus-visible {
 	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
 	outline-offset: var(--vscode-spacing-size20);
 }
 
-:is(.sessions-issue-hover-header, .sessions-pr-hover-header) {
+:is(.sessions-issue-hover-header, .sessions-pr-hover-header, .sessions-commit-hover-header) {
 	display: flex;
 	align-items: baseline;
 	gap: var(--vscode-spacing-size40);
@@ -41,18 +41,18 @@
 	line-height: 1.4;
 }
 
-:is(.sessions-issue-hover-repository, .sessions-pr-hover-repository) {
+:is(.sessions-issue-hover-repository, .sessions-pr-hover-repository, .sessions-commit-hover-repository) {
 	min-width: 0;
 	overflow: hidden;
 	white-space: nowrap;
 	text-overflow: ellipsis;
 }
 
-:is(.sessions-issue-hover-date, .sessions-pr-hover-date, .sessions-issue-hover-author, .sessions-pr-hover-author) {
+:is(.sessions-issue-hover-date, .sessions-pr-hover-date, .sessions-commit-hover-date, .sessions-issue-hover-author, .sessions-pr-hover-author, .sessions-commit-hover-author) {
 	color: var(--vscode-descriptionForeground);
 }
 
-:is(.sessions-issue-hover-date, .sessions-pr-hover-date) {
+:is(.sessions-issue-hover-date, .sessions-pr-hover-date, .sessions-commit-hover-date) {
 	flex-shrink: 0;
 }
 
@@ -95,20 +95,20 @@
 	color: var(--vscode-testing-iconPassed, var(--vscode-charts-green));
 }
 
-:is(.sessions-issue-hover-title, .sessions-pr-hover-title) {
+:is(.sessions-issue-hover-title, .sessions-pr-hover-title, .sessions-commit-hover-title) {
 	min-width: 0;
 	font-size: var(--vscode-fontSize-body1);
 	font-weight: var(--vscode-fontWeight-semiBold);
 	line-height: 1.4;
 }
 
-:is(.sessions-issue-hover-title-content, .sessions-pr-hover-title-content) {
+:is(.sessions-issue-hover-title-content, .sessions-pr-hover-title-content, .sessions-commit-hover-title-content) {
 	display: block;
 	min-width: 0;
 	overflow-wrap: anywhere;
 }
 
-:is(.sessions-issue-hover-title-tail, .sessions-pr-hover-title-tail) {
+:is(.sessions-issue-hover-title-tail, .sessions-pr-hover-title-tail, .sessions-commit-hover-title-tail) {
 	white-space: nowrap;
 }
 
@@ -119,18 +119,53 @@
 	white-space: nowrap;
 }
 
-:is(.sessions-issue-hover-description, .sessions-pr-hover-description) {
+.sessions-commit-hover .sessions-commit-hover-reference {
+	font-weight: var(--vscode-fontWeight-regular);
+	overflow-wrap: normal;
+	white-space: nowrap;
+}
+
+:is(.sessions-issue-hover-description, .sessions-pr-hover-description, .sessions-commit-hover-description) {
 	font-size: var(--vscode-fontSize-body1);
 	line-height: 1.4;
 	color: var(--vscode-descriptionForeground);
 	overflow-wrap: anywhere;
 }
 
-:is(.sessions-issue-hover-description-content, .sessions-pr-hover-description-content) {
+:is(.sessions-issue-hover-description-content, .sessions-pr-hover-description-content, .sessions-commit-hover-description-content) {
 	display: -webkit-box;
 	-webkit-box-orient: vertical;
 	-webkit-line-clamp: 3;
 	overflow: hidden;
+}
+
+.sessions-commit-hover-metadata {
+	display: flex;
+	align-items: center;
+}
+
+.sessions-commit-hover-hash {
+	display: inline-flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size40);
+	width: max-content;
+	padding: var(--vscode-spacing-size20) var(--vscode-spacing-size80);
+	border: var(--vscode-strokeThickness) solid var(--vscode-editorHoverWidget-border);
+	border-radius: var(--vscode-cornerRadius-circle);
+	background: var(--vscode-textCodeBlock-background);
+	color: var(--vscode-textLink-foreground);
+	cursor: pointer;
+	font-family: var(--monaco-monospace-font);
+	font-size: var(--vscode-fontSize-label1);
+	line-height: 1.4;
+}
+
+.sessions-commit-hover-hash:hover {
+	border-color: var(--vscode-focusBorder);
+}
+
+.sessions-commit-hover-hash .codicon {
+	font-size: var(--vscode-codiconFontSize-compact);
 }
 
 .sessions-pr-hover-branches {

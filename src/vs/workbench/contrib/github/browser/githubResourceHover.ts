@@ -50,7 +50,6 @@ export type GitHubChecksStatus = 'pending' | 'success' | 'failure' | 'neutral';
 interface IGitHubResourceHoverData {
 	readonly owner: string;
 	readonly repo: string;
-	readonly number: number;
 	readonly repositoryHref: string;
 	readonly referenceHref: string;
 	readonly density: 'default' | 'compact';
@@ -64,14 +63,28 @@ export interface IGitHubResourceHover {
 }
 
 export interface IIssueResourceHoverData extends IGitHubResourceHoverData {
+	readonly number: number;
 	readonly issue: IGitHubIssueHoverModel;
 }
 
 export interface IPullRequestResourceHoverData extends IGitHubResourceHoverData {
+	readonly number: number;
 	readonly pullRequest: IGitHubPullRequestHoverModel;
 	readonly checksStatus?: GitHubChecksStatus;
 	readonly onDidClickBaseBranch?: () => void;
 	readonly onDidClickHeadBranch?: () => void;
+}
+
+export interface IGitHubCommitHoverModel {
+	readonly sha: string;
+	readonly message: string;
+	readonly author: IGitHubHoverActor;
+	readonly committedAt: string;
+}
+
+export interface ICommitResourceHoverData extends IGitHubResourceHoverData {
+	readonly commit: IGitHubCommitHoverModel;
+	readonly onDidCopyHash: () => void;
 }
 
 export function createIssueResourceHover(data: IIssueResourceHoverData): IGitHubResourceHover {
@@ -156,6 +169,39 @@ export function createPullRequestResourceHover(data: IPullRequestResourceHoverDa
 		element: hoverElement,
 		tabbableElements: [repositoryLink, referenceLink, ...(baseBranch ? [baseBranch] : []), ...(headBranch ? [headBranch] : [])],
 	};
+}
+
+export function createCommitResourceHover(data: ICommitResourceHoverData): IGitHubResourceHover {
+	const hoverElement = $('.sessions-commit-hover');
+	hoverElement.classList.toggle('compact', data.density === 'compact');
+
+	const header = append(hoverElement, $('.sessions-commit-hover-header'));
+	const repositoryLink = appendHoverLink(header, 'sessions-commit-hover-repository', data.repositoryHref, `${data.owner}/${data.repo}`, data.onDidClickRepository);
+	const committedAt = getGitHubHoverDate(data.commit.committedAt);
+	if (committedAt) {
+		append(header, $('span.sessions-commit-hover-date', undefined, localize('github.commitHover.committedDate', "on {0}", committedAt)));
+	}
+
+	const [headline, ...descriptionLines] = data.commit.message.split(/\r?\n/);
+	const title = headline || data.commit.sha;
+	const titleElement = append(hoverElement, $('.sessions-commit-hover-title'));
+	const titleContent = append(titleElement, $('.sessions-commit-hover-title-content'));
+	const titleLayout = appendGitHubHoverTitle(titleContent, title, 'sessions-commit-hover-title-tail');
+	const shortSha = data.commit.sha.slice(0, 12);
+	const referenceLink = appendHoverLink(titleLayout.referenceContainer, 'sessions-commit-hover-reference', data.referenceHref, `@${shortSha}`, data.onDidClickReference, localize('github.commitHover.reference', "Commit {0}", shortSha));
+	referenceLink.onfocus = titleLayout.showFullTitle;
+	referenceLink.onblur = titleLayout.showBoundedTitle;
+	titleElement.title = title;
+
+	appendDescription(hoverElement, 'sessions-commit-hover', descriptionLines.join('\n').trim(), localize('github.commitHover.bodyFallback', "No additional commit message."));
+	const metadataRow = append(hoverElement, $('.sessions-commit-hover-metadata'));
+	const copyHash = append(metadataRow, $<HTMLButtonElement>('button.sessions-commit-hover-hash'));
+	copyHash.type = 'button';
+	copyHash.ariaLabel = localize('github.commitHover.copyHash', "Copy commit hash {0}", data.commit.sha);
+	append(copyHash, renderIcon(Codicon.copy), $('span', undefined, localize('github.commitHover.copyHashLabel', "Copy Hash")));
+	copyHash.onclick = () => data.onDidCopyHash();
+	append(hoverElement, $('.sessions-commit-hover-author', undefined, localize('github.commitHover.author', "@{0} committed this change", data.commit.author.login)));
+	return { element: hoverElement, tabbableElements: [repositoryLink, referenceLink, copyHash] };
 }
 
 export function getIssueResourceStatus(issue: IGitHubIssueHoverModel): { readonly kind: 'open' | 'closed' | 'notPlanned' | 'duplicate'; readonly label: string } {

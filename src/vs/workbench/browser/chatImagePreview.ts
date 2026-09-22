@@ -46,12 +46,7 @@ export function createChatImageHoverContent(
 	}
 
 	if (resource) {
-		const location = clickHandler
-			? $<HTMLAnchorElement>('a.chat-image-hover-location.chat-attached-context-url', undefined, fullName)
-			: $('.chat-image-hover-location.chat-attached-context-url', undefined, fullName);
-		if (clickHandler) {
-			disposables.add(addDisposableListener(location, EventType.CLICK, clickHandler));
-		}
+		const location = $('.chat-image-hover-location.chat-attached-context-url', undefined, fullName);
 		hoverElement.append($('.chat-image-hover-location-separator.chat-attached-context-url-separator'), location);
 	}
 

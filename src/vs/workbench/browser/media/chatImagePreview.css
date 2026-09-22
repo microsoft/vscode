@@ -42,11 +42,6 @@
 	overflow: hidden;
 	white-space: nowrap;
 	text-overflow: ellipsis;
-	color: var(--vscode-textLink-foreground);
-}
-
-a.chat-image-hover-location {
-	cursor: pointer;
 }
 
 .chat-image-hover-location-separator {

@@ -9,7 +9,7 @@ import { Event } from '../../../../../base/common/event.js';
 import { isMarkdownString } from '../../../../../base/common/htmlContent.js';
 import { autorun, constObservable, observableValue, type IReader } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { mock } from '../../../../../base/test/common/mock.js';
+import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
@@ -17,10 +17,12 @@ import { TestConfigurationService } from '../../../../../platform/configuration/
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { buildSessionArtifactSections, sessionArtifactLocationText, SessionArtifacts, type ISessionArtifactActions } from '../../browser/sessionArtifacts.js';
 import { type IGitHubInfo, type ISessionArtifact, type ISessionWorkspace, SessionArtifactKind } from '../../../../services/sessions/common/session.js';
 import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { GitHubCommitResolver } from '../../../../../workbench/contrib/github/browser/githubCommitResolver.js';
 
 suite('Session Artifacts', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -68,6 +70,11 @@ suite('Session Artifacts', () => {
 		}());
 		const configurationService = new TestConfigurationService();
 		disposables.add(configurationService.onDidChangeConfigurationEmitter);
+		const commitResolver = new class extends mock<GitHubCommitResolver>() {
+			override get() { return constObservable(undefined); }
+			override retain(): void { }
+			override dispose(): void { }
+		}();
 		const presentation = disposables.add(new SessionArtifacts(
 			session,
 			constObservable(new Set<string>()),
@@ -94,6 +101,7 @@ suite('Session Artifacts', () => {
 			new class extends mock<IWorkspaceContextService>() {
 				override readonly onDidChangeWorkspaceFolders = Event.None;
 			}(),
+			upcastPartial<IInstantiationService>({ createInstance: () => commitResolver }),
 		));
 		return { presentation, session, artifacts, workspace, gitHubInfo, removed, errors, setRemovalError: (error: Error | undefined) => { removalError = error; } };
 	}
@@ -321,15 +329,21 @@ suite('Session Artifacts', () => {
 		});
 	});
 
-	test('offers a copy link action for pull request, issue, and website entries', () => {
+	test('offers canonical row-level copy actions for every reference kind', () => {
 		const copied: string[] = [];
 		const pullRequestLink = URI.parse('https://github.com/microsoft/vscode/pull/12');
 		const issueLink = URI.parse('https://github.com/microsoft/vscode/issues/34');
+		const commitLink = URI.parse('https://github.com/microsoft/vscode/commit/abc123');
 		const websiteLink = URI.parse('https://example.com/docs');
+		const file = URI.file('/repo/src/index.ts');
+		const resource = URI.parse('vscode://settings/chat');
 		const artifacts: readonly ISessionArtifact[] = [
 			{ id: 'pr', kind: SessionArtifactKind.PullRequest, label: 'PR #12', isArtifact: true, link: pullRequestLink },
 			{ id: 'issue', kind: SessionArtifactKind.Issue, label: 'Issue #34', isArtifact: true, link: issueLink },
+			{ id: 'commit', kind: SessionArtifactKind.Commit, label: 'Commit', isArtifact: true, link: commitLink, commitHash: 'abc123' },
 			{ id: 'docs', kind: SessionArtifactKind.Website, label: 'Docs', isArtifact: true, link: websiteLink },
+			{ id: 'file', kind: SessionArtifactKind.File, label: 'index.ts', isArtifact: true, uri: file },
+			{ id: 'resource', kind: SessionArtifactKind.Resource, label: 'Chat settings', isArtifact: true, uri: resource },
 		];
 
 		const entries = buildSessionArtifactSections(artifacts, { ...actions, copy: text => copied.push(text) }, labelService, true, new Set()).flatMap(section => section.entries);
@@ -344,9 +358,57 @@ suite('Session Artifacts', () => {
 			entries: [
 				['PR #12', ['Copy Pull Request Link']],
 				['Issue #34', ['Copy Issue Link']],
+				['Commit', ['Copy Commit URL']],
 				['Docs', ['Copy Website URL']],
+				['index.ts', ['Copy Path']],
+				['Chat settings', ['Copy URI']],
 			],
-			copied: [pullRequestLink.toString(true), issueLink.toString(true), websiteLink.toString(true)],
+			copied: [
+				pullRequestLink.toString(true),
+				issueLink.toString(true),
+				commitLink.toString(true),
+				websiteLink.toString(true),
+				'/repo/src/index.ts',
+				resource.toString(true),
+			],
+		});
+	});
+
+	test('renders rich GitHub commit metadata with copy hash inside the hover', () => {
+		const copied: string[] = [];
+		const link = URI.parse('https://github.com/microsoft/vscode/commit/abc123');
+		const artifact: ISessionArtifact = { id: 'commit', kind: SessionArtifactKind.Commit, label: 'Recorded commit', isArtifact: false, link, commitHash: 'abc123' };
+		const sections = buildSessionArtifactSections(
+			[artifact],
+			{ ...actions, copy: text => copied.push(text) },
+			labelService,
+			true,
+			new Set(),
+			new Map([['commit', {
+				sha: 'abc123',
+				message: 'Authoritative subject\n\nDetailed commit body',
+				url: link.toString(true),
+				author: { login: 'octocat' },
+				committedAt: '2026-09-22T12:00:00Z',
+			}]]),
+		);
+		const entry = sections[0].entries[0];
+		const hover = typeof entry.hover?.content === 'function' ? entry.hover.content() : undefined;
+		hover?.querySelector<HTMLButtonElement>('.sessions-commit-hover-hash')?.click();
+		void entry.toolbarActions?.[0].run();
+
+		assert.deepStrictEqual({
+			label: entry.label,
+			actionLabels: entry.toolbarActions?.map(action => action.label),
+			hoverClassName: hover?.className,
+			hoverText: hover?.textContent,
+			copied,
+		}, {
+			label: 'Authoritative subject',
+			actionLabels: ['Copy Commit URL'],
+			hoverClassName: 'sessions-commit-hover compact',
+			hoverText: 'microsoft/vscodeon Sep 22Authoritative subject @abc123Detailed commit bodyCopy Hash@octocat committed this change',
+			copied: ['abc123', link.toString(true)],
 		});
 	});
 

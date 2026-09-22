@@ -99,24 +99,31 @@ suite('ChatPills', () => {
 	});
 
 	test('shared image previews preserve intrinsic aspect ratio without a fixed-height surface', () => {
-		const preview = createChatImageHoverContent(undefined, '', new Uint8Array(), 'test-preview', undefined, undefined, undefined, 'Preview');
+		const preview = createChatImageHoverContent(URI.file('/repo/design.png'), '/repo/design.png', new Uint8Array(), 'test-preview', undefined, () => { }, undefined, 'Preview');
 		store.add(preview.disposable);
 		mainWindow.document.body.appendChild(preview.element);
 		store.add(toDisposable(() => preview.element.remove()));
 		const imageContainer = preview.element.querySelector<HTMLElement>('.chat-image-hover-image-container')!;
 		const image = preview.element.querySelector<HTMLImageElement>('.chat-image-hover-image')!;
+		const caption = preview.element.querySelector<HTMLElement>('.chat-image-hover-location')!;
 		const containerStyle = mainWindow.getComputedStyle(imageContainer);
 		const imageStyle = mainWindow.getComputedStyle(image);
+		const captionStyle = mainWindow.getComputedStyle(caption);
+		const hoverStyle = mainWindow.getComputedStyle(preview.element);
 
 		assert.deepStrictEqual({
 			contentDrivenHeight: containerStyle.height === imageStyle.height,
 			fixedHeightRemoved: containerStyle.height !== '240px',
+			captionElement: caption.tagName,
+			captionUsesHoverForeground: captionStyle.color === hoverStyle.color,
 			imageMaxHeight: imageStyle.maxHeight,
 			imageMinHeight: imageStyle.minHeight,
 			imageObjectFit: imageStyle.objectFit,
 		}, {
 			contentDrivenHeight: true,
 			fixedHeightRemoved: true,
+			captionElement: 'DIV',
+			captionUsesHoverForeground: true,
 			imageMaxHeight: '350px',
 			imageMinHeight: '0px',
 			imageObjectFit: 'contain',

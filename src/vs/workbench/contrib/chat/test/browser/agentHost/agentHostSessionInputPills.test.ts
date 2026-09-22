@@ -979,7 +979,7 @@ suite('AgentHostSessionInputPills', () => {
 		});
 	});
 
-	test('keeps a matching website reference visible and removable while Browsers is hidden', async () => {
+	test('offers canonical copy actions for generic references while Browsers is hidden', async () => {
 		const instantiationService = createInstantiationService();
 		const sessionResource = URI.parse('agent-host-copilot:/session');
 		const backendSession = URI.parse('copilot:/session');
@@ -988,13 +988,37 @@ suite('AgentHostSessionInputPills', () => {
 			[StateComponents.Session, {
 				defaultChat: buildDefaultChatUri(backendSession),
 				chats: [],
-				_meta: withSessionArtifacts(undefined, [{
-					id: 'preview',
-					type: SessionArtifactType.Website,
-					label: 'Preview',
-					link: website.toString(),
-					isArtifact: false,
-				}]),
+				_meta: withSessionArtifacts(undefined, [
+					{
+						id: 'preview',
+						type: SessionArtifactType.Website,
+						label: 'Preview',
+						link: website.toString(),
+						isArtifact: false,
+					},
+					{
+						id: 'file',
+						type: SessionArtifactType.File,
+						label: 'README',
+						uri: 'file:///repo/README.md',
+						isArtifact: false,
+					},
+					{
+						id: 'resource',
+						type: SessionArtifactType.Resource,
+						label: 'Chat settings',
+						uri: 'vscode://settings/chat',
+						isArtifact: false,
+					},
+					{
+						id: 'commit',
+						type: SessionArtifactType.Commit,
+						label: 'Commit',
+						link: 'https://github.com/microsoft/vscode/commit/abc123',
+						commitHash: 'abc123',
+						isArtifact: false,
+					},
+				]),
 			} as unknown as SessionState],
 		]), true);
 		const browserModel = upcastPartial<IBrowserViewModel>({
@@ -1065,11 +1089,13 @@ suite('AgentHostSessionInputPills', () => {
 			upcastPartial<INotificationService>({ error: error => errors.push(String(error)) }),
 		));
 		persistentContent.querySelector<HTMLElement>('.chat-dropdown-pill-button')?.click();
-		const copyWebsite = dropdownActions.find(action => action.label === 'Copy Website URL');
-		await copyWebsite?.run();
-		const copied = await clipboardService.readText();
+		const copied: string[] = [];
+		for (const action of dropdownActions.filter(action => action.label.startsWith('Copy '))) {
+			await action.run();
+			copied.push(await clipboardService.readText());
+		}
 		connection.removeSessionArtifactError = new Error('write failed');
-		await dropdownActions.find(action => action.label.startsWith('Remove '))?.run();
+		await dropdownActions.find(action => action.label === 'Remove Preview from Session')?.run();
 
 		assert.deepStrictEqual({
 			pills: Array.from(persistentContent.querySelectorAll('.chat-pill-label')).map(label => label.textContent),
@@ -1079,10 +1105,24 @@ suite('AgentHostSessionInputPills', () => {
 			removeCalls: connection.removeSessionArtifactCalls.map(({ session, artifactId }) => ({ session: session.toString(), artifactId })),
 			errors,
 		}, {
-			pills: ['1 Reference'],
+			pills: ['4 References'],
 			empty: false,
-			dropdownActionLabels: ['Copy Website URL', 'Remove Preview from Session'],
-			copied: website.toString(true),
+			dropdownActionLabels: [
+				'Copy Commit URL',
+				'Remove Commit from Session',
+				'Copy Website URL',
+				'Remove Preview from Session',
+				'Copy Path',
+				'Remove README from Session',
+				'Copy URI',
+				'Remove Chat settings from Session',
+			],
+			copied: [
+				'https://github.com/microsoft/vscode/commit/abc123',
+				website.toString(true),
+				'/repo/README.md',
+				'vscode://settings/chat',
+			],
 			removeCalls: [{ session: backendSession.toString(), artifactId: 'preview' }],
 			errors: ['Could not remove Preview from this session: write failed'],
 		});

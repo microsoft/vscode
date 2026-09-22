@@ -49,7 +49,8 @@ import { ChatInputPills, StandardChatInputPillSources } from '../../chatInputPil
 import { createSessionPullRequestPillData } from '../../sessionPullRequestPill.js';
 import { agentHostChangesetFileToEntryDiff } from './agentHostResponseFileChanges.js';
 import { IAgentHostUntitledProvisionalSessionService } from './agentHostUntitledProvisionalSessionService.js';
-import { createIssueResourceHover, createPullRequestResourceHover, getIssueResourceStatus, getPullRequestChecksStatusLabel, getPullRequestResourceStatus, type GitHubChecksStatus, type IGitHubIssueHoverModel, type IGitHubPullRequestHoverModel } from '../../../../github/browser/githubResourceHover.js';
+import { GitHubCommitResolver, parseGitHubCommitTarget } from '../../../../github/browser/githubCommitResolver.js';
+import { createCommitResourceHover, createIssueResourceHover, createPullRequestResourceHover, getIssueResourceStatus, getPullRequestChecksStatusLabel, getPullRequestResourceStatus, type GitHubChecksStatus, type IGitHubIssueHoverModel, type IGitHubPullRequestHoverModel } from '../../../../github/browser/githubResourceHover.js';
 
 const offeredPillKinds: readonly SessionChatPillKind[] = [
 	SessionChatPillKind.Changes,
@@ -498,6 +499,7 @@ export class AgentHostSessionInputPills extends Disposable {
 	) {
 		super();
 		const gitHubReferenceResolver = this._register(instantiationService.createInstance(AgentHostGitHubReferenceResolver));
+		const gitHubCommitResolver = this._register(instantiationService.createInstance(GitHubCommitResolver));
 
 		const sessionResource = observableFromEvent(this, this._widget.onDidChangeViewModel, () => this._widget.viewModel?.sessionResource);
 		const sessionResolutionChanged = observableSignalFromEvent(this, connectionsService.onDidChangeSessionResolution);
@@ -591,6 +593,11 @@ export class AgentHostSessionInputPills extends Disposable {
 				currentMetadata.issueUrls.map(link => parseUri(link)).filter(isDefined).map(resource => parseGitHubReferenceTarget(resource, 'issue')).filter(isDefined),
 				currentMetadata.pullRequestUrls.map(link => parseUri(link)).filter(isDefined).map(resource => parseGitHubReferenceTarget(resource, 'pullRequest')).filter(isDefined),
 			);
+			gitHubCommitResolver.retain([...currentMetadata.artifacts, ...currentMetadata.references]
+				.flatMap(artifact => artifact.type === SessionArtifactType.Commit && artifact.link ? [parseUri(artifact.link)] : [])
+				.filter(isDefined)
+				.map(parseGitHubCommitTarget)
+				.filter(isDefined));
 		}));
 
 		this._register(this._browserViewService.onDidChangeBrowserViews(() => this._refreshBrowserListeners()));
@@ -645,13 +652,13 @@ export class AgentHostSessionInputPills extends Disposable {
 		const artifactSections = derived(this, reader => {
 			const currentResolution = resolution.read(reader);
 			return currentResolution
-				? this._buildArtifactSections(metadata.read(reader).artifacts, browserUrls.read(reader), currentResolution, this._getRemoveArtifactAction(currentResolution, reader))
+				? this._buildArtifactSections(metadata.read(reader).artifacts, browserUrls.read(reader), currentResolution, gitHubCommitResolver, reader, this._getRemoveArtifactAction(currentResolution, reader))
 				: [];
 		});
 		const referenceSections = derived(this, reader => {
 			const currentResolution = resolution.read(reader);
 			return currentResolution
-				? this._buildArtifactSections(metadata.read(reader).references, browserUrls.read(reader), currentResolution, this._getRemoveArtifactAction(currentResolution, reader))
+				? this._buildArtifactSections(metadata.read(reader).references, browserUrls.read(reader), currentResolution, gitHubCommitResolver, reader, this._getRemoveArtifactAction(currentResolution, reader))
 				: [];
 		});
 		const browserSections = derived(this, reader => {
@@ -816,7 +823,7 @@ export class AgentHostSessionInputPills extends Disposable {
 		return entries.length > 0 ? [{ title, entries }] : [];
 	}
 
-	private _buildArtifactSections(entries: readonly ISessionArtifact[], browserUrls: ReadonlySet<string>, resolution: IAgentHostSessionResolution, removeArtifact?: (artifact: ISessionArtifact) => Promise<void>): readonly IChatPillSection[] {
+	private _buildArtifactSections(entries: readonly ISessionArtifact[], browserUrls: ReadonlySet<string>, resolution: IAgentHostSessionResolution, commitResolver: GitHubCommitResolver, reader: IReader, removeArtifact?: (artifact: ISessionArtifact) => Promise<void>): readonly IChatPillSection[] {
 		const browserKeys = new Set([...browserUrls].map(websiteKey).filter(isDefined));
 		const entriesByType = new Map<SessionArtifactType, IChatPillEntry[]>();
 		for (const artifact of entries) {
@@ -826,7 +833,7 @@ export class AgentHostSessionInputPills extends Disposable {
 					continue;
 				}
 			}
-			const entry = this._artifactEntry(artifact, resolution);
+			const entry = this._artifactEntry(artifact, resolution, commitResolver, reader);
 			if (entry) {
 				const typeEntries = entriesByType.get(artifact.type) ?? [];
 				typeEntries.push(removeArtifact ? { ...entry, promotedAction: this._createRemoveAction(artifact, removeArtifact) } : entry);
@@ -839,7 +846,7 @@ export class AgentHostSessionInputPills extends Disposable {
 		});
 	}
 
-	private _artifactEntry(artifact: ISessionArtifact, resolution: IAgentHostSessionResolution): IChatPillEntry | undefined {
+	private _artifactEntry(artifact: ISessionArtifact, resolution: IAgentHostSessionResolution, commitResolver: GitHubCommitResolver, reader: IReader): IChatPillEntry | undefined {
 		if (artifact.type === SessionArtifactType.File || artifact.type === SessionArtifactType.Resource) {
 			const artifactResource = parseUri(artifact.uri);
 			if (!artifactResource) {
@@ -854,6 +861,16 @@ export class AgentHostSessionInputPills extends Disposable {
 				id: artifact.id,
 				label,
 				...(artifact.type === SessionArtifactType.File ? { resource } : { icon: Codicon.link }),
+				toolbarActions: [toAction({
+					id: artifact.type === SessionArtifactType.File
+						? `chat.agentHost.sessionPills.copyFilePath.${artifact.id}`
+						: `chat.agentHost.sessionPills.copyResourceUri.${artifact.id}`,
+					label: artifact.type === SessionArtifactType.File
+						? localize('agentHostSessionPills.copyFilePath', "Copy Path")
+						: localize('agentHostSessionPills.copyResourceUri', "Copy URI"),
+					class: ThemeIcon.asClassName(Codicon.copy),
+					run: () => this._clipboardService.writeText(artifact.type === SessionArtifactType.File ? resource.fsPath : resource.toString(true)),
+				})],
 				...(imageMimeType?.startsWith('image/') ? { imagePreview: { resource, mimeType: imageMimeType } } : {}),
 				...getChatPillResourceLocation(resource, label),
 				open: () => this._openResource(resource),
@@ -863,12 +880,32 @@ export class AgentHostSessionInputPills extends Disposable {
 		const link = parseUri(artifact.link);
 		const icon = artifactIcons.get(artifact.type) ?? Codicon.archive;
 		if (link) {
-			const copyAction = artifact.type === SessionArtifactType.Commit && artifact.commitHash
+			const commitTarget = artifact.type === SessionArtifactType.Commit ? parseGitHubCommitTarget(link) : undefined;
+			const commit = commitTarget ? commitResolver.get(commitTarget).read(reader) : undefined;
+			const label = commit?.message.split(/\r?\n/, 1)[0] || artifact.label;
+			let hoverTabbableElements: readonly HTMLElement[] = [];
+			const createCommitHover = commitTarget && commit ? (density: 'default' | 'compact') => createCommitResourceHover({
+				owner: commitTarget.owner,
+				repo: commitTarget.repo,
+				repositoryHref: `https://github.com/${commitTarget.owner}/${commitTarget.repo}`,
+				referenceHref: link.toString(true),
+				commit,
+				density,
+				onDidClickRepository: () => this._openExternal(URI.parse(`https://github.com/${commitTarget.owner}/${commitTarget.repo}`)),
+				onDidClickReference: () => this._openExternal(link),
+				onDidCopyHash: () => this._clipboardService.writeText(artifact.commitHash ?? commit.sha),
+			}) : undefined;
+			const createCommitDropdownHover = createCommitHover ? () => {
+				const hover = createCommitHover('compact');
+				hoverTabbableElements = hover.tabbableElements;
+				return hover.element;
+			} : undefined;
+			const copyAction = artifact.type === SessionArtifactType.Commit
 				? toAction({
-					id: 'chat.agentHost.sessionPills.copyCommitHash',
-					label: localize('agentHostSessionPills.copyCommitHash', "Copy Commit Hash"),
+					id: `chat.agentHost.sessionPills.copyCommitUrl.${artifact.id}`,
+					label: localize('agentHostSessionPills.copyCommitUrl', "Copy Commit URL"),
 					class: ThemeIcon.asClassName(Codicon.copy),
-					run: () => this._clipboardService.writeText(artifact.commitHash!),
+					run: () => this._clipboardService.writeText(link.toString(true)),
 				})
 				: artifact.type === SessionArtifactType.Website
 					? toAction({
@@ -877,13 +914,26 @@ export class AgentHostSessionInputPills extends Disposable {
 						class: ThemeIcon.asClassName(Codicon.copy),
 						run: () => this._clipboardService.writeText(link.toString(true)),
 					})
-					: undefined;
+					: artifact.type === SessionArtifactType.PullRequest || artifact.type === SessionArtifactType.Issue
+						? toAction({
+							id: `chat.agentHost.sessionPills.copyReferenceUrl.${artifact.id}`,
+							label: artifact.type === SessionArtifactType.PullRequest
+								? localize('agentHostSessionPills.copyPullRequestUrl', "Copy Pull Request URL")
+								: localize('agentHostSessionPills.copyIssueUrl', "Copy Issue URL"),
+							class: ThemeIcon.asClassName(Codicon.copy),
+							run: () => this._clipboardService.writeText(link.toString(true)),
+						})
+						: undefined;
 			return {
 				id: artifact.id,
-				label: artifact.label,
+				label,
 				icon,
 				...(copyAction ? { toolbarActions: [copyAction] } : {}),
-				...getChatPillResourceLocation(link, artifact.label),
+				...getChatPillResourceLocation(link, label),
+				...(createCommitDropdownHover && createCommitHover ? {
+					hover: { content: createCommitDropdownHover, expandable: true, showIndicator: false, tabThroughPanel: true, getTabbableElements: () => hoverTabbableElements, contentOwnsPadding: true },
+					pillHover: { element: () => createCommitHover('default').element, contentOwnsPadding: true },
+				} : {}),
 				open: () => this._openExternal(link),
 			};
 		}

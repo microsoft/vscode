@@ -10,6 +10,7 @@ import { GitHubCIOverallStatus, GitHubIssueState, GitHubIssueStateReason, GitHub
 import { createIssueHoverElement } from '../../../../../sessions/contrib/github/browser/issueHover.js';
 // eslint-disable-next-line local/code-import-patterns
 import { createPullRequestHoverElement } from '../../../../../sessions/contrib/github/browser/pullRequestHover.js';
+import { createCommitResourceHover } from '../../../../contrib/github/browser/githubResourceHover.js';
 import { ComponentFixtureContext, defineComponentFixture, defineThemedFixtureGroup } from '../fixtureUtils.js';
 
 import '../../../../../base/browser/ui/hover/hoverWidget.css';
@@ -116,6 +117,24 @@ function renderPullRequestHover(context: ComponentFixtureContext, density: 'defa
 	renderInHover(context, hover, density);
 }
 
+function renderCommitHover(context: ComponentFixtureContext, density: 'default' | 'compact'): void {
+	const hover = createCommitResourceHover({
+		owner: 'microsoft',
+		repo: 'vscode',
+		repositoryHref,
+		referenceHref: `${repositoryHref}/commit/d32dbc41daa2ae6cc3d35e73f12866c6c7973f14`,
+		commit: {
+			sha: 'd32dbc41daa2ae6cc3d35e73f12866c6c7973f14',
+			message: 'Add image previews for session references\n\nReuse the attachment image hover so reference previews preserve their natural aspect ratio and lifecycle behavior.',
+			author: { login: 'chryw' },
+			committedAt: hoursAgo(12),
+		},
+		density,
+		onDidCopyHash: () => { },
+	});
+	renderInHover(context, hover.element, density);
+}
+
 export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 	GitHubReferenceHover_Issue: defineComponentFixture({
 		labels: { kind: 'screenshot' },
@@ -125,6 +144,10 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 		labels: { kind: 'screenshot' },
 		render: context => renderPullRequestHover(context, 'compact'),
 	}),
+	GitHubReferenceHover_Commit: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: context => renderCommitHover(context, 'compact'),
+	}),
 	GitHubReferenceHover_SingleIssue: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		render: context => renderIssueHover(context, 'default'),
@@ -132,6 +155,10 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 	GitHubReferenceHover_SinglePullRequest: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		render: context => renderPullRequestHover(context, 'default'),
+	}),
+	GitHubReferenceHover_SingleCommit: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: context => renderCommitHover(context, 'default'),
 	}),
 	GitHubReferenceHover_LongTitleCollectionIssue: defineComponentFixture({
 		labels: { kind: 'screenshot' },
