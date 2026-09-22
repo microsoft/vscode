@@ -32,7 +32,7 @@ import { GITHUB_REMOTE_FILE_SCHEME, ISession, ISessionWorkspace, SESSION_WORKSPA
 import { IOpenNewSessionResult, ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { isAllowSignedOutWhenUsableEnabled, shouldShowGitHubWorkspaceGroupSignIn } from '../../../browser/sessionsAuthGate.js';
-import { AGENTIC_SIGN_IN_COMMAND_ID } from '../../../common/sessionCommands.js';
+import { AGENTIC_SIGN_IN_COMMAND_ID, FOCUS_NEW_SESSION_HARNESS_PICKER_COMMAND_ID, FOCUS_NEW_SESSION_WORKSPACE_PICKER_COMMAND_ID } from '../../../common/sessionCommands.js';
 import { isAgentHostProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../common/agentHostSessionsProvider.js';
 import { IAquariumService, IMountedToggleHandle } from '../../aquarium/browser/aquariumOverlay.js';
 import { IWorkspacePickerNoWorkspaceOption, IWorkspacePickerTrigger, WorkspacePicker } from './sessionWorkspacePicker.js';
@@ -61,13 +61,14 @@ import { TOTAL_SESSIONS_KEY } from '../../sessions/browser/sessionsLifecycleTrac
 import { INewSessionComposerService, NewSessionWorkspacePreselectionSource } from './newSessionComposerService.js';
 import { Menus } from '../../../browser/menus.js';
 import { getAdditionalFolderContextId, getAdditionalRepositoryContextId } from '../common/newChatContextIds.js';
-import { COMPARE_AGENTS_ENABLED_SETTING, UNIFIED_WORKSPACE_PICKER_SETTING } from '../common/constants.js';
+import { COMPARE_AGENTS_ENABLED_SETTING, EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, UNIFIED_WORKSPACE_PICKER_SETTING } from '../common/constants.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { ISessionComparisonAttemptConfiguration, ISessionComparisonHarness, ISessionComparisonService } from '../../../services/sessions/common/sessionComparison.js';
 import { OPEN_SESSION_COMPARISON_COMMAND_ID } from '../../sessionComparison/common/sessionComparison.js';
 import { getSessionComparisonWorkspaceError, ISessionComparisonWorkspaceChange, SessionComparisonSetupDialog } from './sessionComparisonSetupDialog.js';
 import { IAgentsWindowDraft } from '../../../../platform/window/common/window.js';
 import { reviveChatDraft } from '../../../../workbench/contrib/chat/common/attachments/chatDraft.js';
+import { FOCUS_NEW_SESSION_HARNESS_PICKER_WHEN, FOCUS_NEW_SESSION_WORKSPACE_PICKER_WHEN } from './newChatPickerKeybinding.js';
 
 // #region --- New Chat Widget ---
 
@@ -96,6 +97,11 @@ function getComparisonHasGitRemote(session: ISession | undefined, selectedWorksp
 	return getComparisonSessionFolder(session, selectedFolderUri)?.gitRepository?.hasGitRemote;
 }
 
+export function isExperimentalSessionComposerLayoutEnabled(configurationService: IConfigurationService): boolean {
+	return configurationService.getValue<boolean>(UNIFIED_WORKSPACE_PICKER_SETTING)
+		&& configurationService.getValue<boolean>(EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING);
+}
+
 export class NewChatWidget extends Disposable {
 
 	private readonly _workspacePicker: WorkspacePicker;
@@ -119,6 +125,7 @@ export class NewChatWidget extends Disposable {
 	 */
 	private readonly _activeEmptyState = this._register(disposableObservableValue<NoAgentHostEmptyState | undefined>(this, undefined));
 	private _workspacePickerRow: HTMLElement | undefined;
+	private _workspaceRepositoryControlsHost: HTMLElement | undefined;
 	private _quickChatHeaderPickerHost: HTMLElement | undefined;
 
 	private readonly _session: IObservable<IActiveSession | undefined>;
@@ -128,6 +135,7 @@ export class NewChatWidget extends Disposable {
 	private readonly _isWorkspacePickerQuickChat: IObservable<boolean>;
 	private readonly _useConsolidatedRemoteWorkspaces: IObservable<boolean>;
 	private readonly _compareAgentsEnabled: IObservable<boolean>;
+	private readonly _useExperimentalComposerLayout: IObservable<boolean>;
 
 	/** Draft comments shared by every uncreated new-session composer. */
 	private readonly _feedbackItems: IObservable<readonly IAgentFeedback[]>;
@@ -200,6 +208,13 @@ export class NewChatWidget extends Disposable {
 			this,
 			Event.filter(this.configurationService.onDidChangeConfiguration, event => event.affectsConfiguration(COMPARE_AGENTS_ENABLED_SETTING)),
 			() => this.configurationService.getValue<boolean>(COMPARE_AGENTS_ENABLED_SETTING),
+		);
+		this._useExperimentalComposerLayout = observableFromEvent(
+			this,
+			Event.filter(this.configurationService.onDidChangeConfiguration, event =>
+				event.affectsConfiguration(UNIFIED_WORKSPACE_PICKER_SETTING)
+				|| event.affectsConfiguration(EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING)),
+			() => isExperimentalSessionComposerLayoutEnabled(this.configurationService),
 		);
 		this._isWorkspacePickerQuickChat = derived(this, reader => {
 			const session = this._session.read(reader);
@@ -318,7 +333,14 @@ export class NewChatWidget extends Disposable {
 					isVisible: () => this._shouldShowComparisonAction(),
 					run: () => void this._configureComparison(),
 				},
+				focusCommand: {
+					id: FOCUS_NEW_SESSION_HARNESS_PICKER_COMMAND_ID,
+					label: localize('newSessionHarnessPicker.tooltip', "Choose the harness for the new session"),
+					when: FOCUS_NEW_SESSION_HARNESS_PICKER_WHEN,
+					enabled: this._useConsolidatedRemoteWorkspaces,
+				},
 			},
+			experimentalComposerLayout: this._useExperimentalComposerLayout,
 		});
 		this._register(toDisposable(() => newChatInput.saveState()));
 		this._newChatInput = this._register(newChatInput);
@@ -549,7 +571,22 @@ export class NewChatWidget extends Disposable {
 		}
 
 		this._renderFeedbackBanner(chatWidgetContent);
-		this._newChatInput.render(chatWidgetContent, parent);
+		this._newChatInput.render(chatWidgetContent, parent, {
+			workspaceControls: this._quickChatHeaderPickerHost
+				? [workspacePickerContainer, this._quickChatHeaderPickerHost]
+				: [workspacePickerContainer],
+		});
+		this._register(autorun(reader => {
+			const useExperimentalLayout = this._useExperimentalComposerLayout.read(reader);
+			const isQuickChat = this._isQuickChatComposer.read(reader);
+			const isWorkspacePickerQuickChat = this._isWorkspacePickerQuickChat.read(reader);
+			chatWidgetContent.classList.toggle('experimental-new-session-composer', useExperimentalLayout);
+			this._newChatInput.placeRepositoryControls(
+				useExperimentalLayout && (!isQuickChat || isWorkspacePickerQuickChat)
+					? this._workspaceRepositoryControlsHost
+					: undefined
+			);
+		}));
 
 		// The tip lives in the input's notice slot, so the presenter is created
 		// after the input has rendered it.
@@ -979,6 +1016,11 @@ export class NewChatWidget extends Disposable {
 			label: localize('newSessionWorkspacePicker.workspace', "Workspace"),
 			ariaLabel: localize('newSessionWorkspacePicker.workspaceAriaLabel', "Choose a workspace for the new session"),
 			tooltip: localize('newSessionWorkspacePicker.workspaceTooltip', "Choose where the new session runs"),
+			focusCommand: {
+				id: FOCUS_NEW_SESSION_WORKSPACE_PICKER_COMMAND_ID,
+				when: FOCUS_NEW_SESSION_WORKSPACE_PICKER_WHEN,
+				enabled: this._useConsolidatedRemoteWorkspaces,
+			},
 			icon: Codicon.project,
 			reflectsWorkspace: true,
 			attachesContext: false,
@@ -987,11 +1029,24 @@ export class NewChatWidget extends Disposable {
 			workspaceTrigger,
 		]);
 		this._renderSessionTypePicker(row, false);
+		const repositoryControlsHost = dom.$('.new-chat-repository-controls-host');
+		const sessionTypePicker = row.lastElementChild;
+		if (sessionTypePicker) {
+			sessionTypePicker.before(repositoryControlsHost);
+		} else {
+			row.append(repositoryControlsHost);
+		}
 		this._workspacePickerRow = row;
+		this._workspaceRepositoryControlsHost = repositoryControlsHost;
+		if (this._useExperimentalComposerLayout?.get()) {
+			this._newChatInput.placeRepositoryControls(repositoryControlsHost);
+		}
 		this._newChatInput.pickerVisibility.setVisible('workspace', true);
 		return toDisposable(() => {
 			if (this._workspacePickerRow === row) {
 				this._workspacePickerRow = undefined;
+				this._workspaceRepositoryControlsHost = undefined;
+				this._newChatInput.placeRepositoryControls();
 				this._newChatInput.pickerVisibility.setVisible('workspace', false);
 			}
 		});
@@ -1123,7 +1178,10 @@ export class NewChatWidget extends Disposable {
 			container.prepend(sessionTypePicker);
 		} else if (sessionTypePicker) {
 			const workspaceTrigger = container.firstElementChild;
-			workspaceTrigger?.after(sessionTypePicker);
+			const insertionAnchor = container === this._workspacePickerRow
+				? this._workspaceRepositoryControlsHost ?? workspaceTrigger
+				: workspaceTrigger;
+			insertionAnchor?.after(sessionTypePicker);
 		}
 	}
 
@@ -1204,6 +1262,14 @@ export class NewChatWidget extends Disposable {
 		if (shouldRefocusInput) {
 			this._newChatInput.focus();
 		}
+	}
+
+	focusWorkspacePicker(): void {
+		this._workspacePicker.showPicker();
+	}
+
+	focusHarnessPicker(): void {
+		this._newChatInput.sessionTypePicker.showPicker();
 	}
 
 	private _renderEmptyState(container: HTMLElement): IDisposable {

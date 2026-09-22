@@ -789,7 +789,7 @@
           },
           "workspace": {
             "type": "string",
-            "description": "For `independent` work: unique project name, project/workspace URI, absolute folder path, or working directory from an existing session. Required for `independent` and invalid for `currentSession`."
+            "description": "For `independent` work: unique project name, project/workspace URI, absolute folder path, or working directory from an existing session. Omit if the new session does not need a workspace. Invalid for `currentSession`."
           },
           "worktree": {
             "type": "boolean",

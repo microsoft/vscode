@@ -16,6 +16,7 @@
 import assert from 'assert';
 import * as cp from 'child_process';
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync } from 'fs';
+import { rm } from 'fs/promises';
 import { tmpdir } from 'os';
 import { NullLogService } from '../../../log/common/log.js';
 import { join } from '../../../../base/common/path.js';
@@ -45,11 +46,17 @@ function createGitService(disposables: Pick<DisposableStore, 'add'>, logService:
 	return new AgentHostGitService(fileService, env as INativeEnvironmentService, logService);
 }
 
-function rmDirWithRetry(path: string | undefined): void {
+async function rmDirWithRetry(path: string | undefined): Promise<void> {
 	if (!path) {
 		return;
 	}
-	try { rmSync(path, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }); } catch { /* best-effort temp cleanup; Windows can briefly hold git handles */ }
+	try {
+		// TODO(deepak1556): workaround till a Node.js version with fix for
+		// https://github.com/nodejs/node/issues/64374.
+		// Promise-based rm clears Windows read-only attributes, unlike rmSync
+		// in Electron libc++ build.
+		await rm(path, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
+	} catch { /* best-effort temp cleanup */ }
 }
 
 suite('AgentHostGitService - getSessionGitState (real git)', () => {
@@ -70,8 +77,8 @@ suite('AgentHostGitService - getSessionGitState (real git)', () => {
 		svc = createGitService(disposables, logService);
 	});
 
-	teardown(() => {
-		rmDirWithRetry(tmpRoot);
+	teardown(async () => {
+		await rmDirWithRetry(tmpRoot);
 	});
 
 	function initRepo(opts?: { remote?: string; baseBranch?: string }): string {
@@ -209,7 +216,7 @@ suite('AgentHostGitService - getSessionGitState (real git)', () => {
 		// run against a repository that can no longer answer them — the same
 		// shape a probe takes when it times out under load. A partial state
 		// would be persisted over the branch this session still depends on.
-		rmDirWithRetry(join(dir, '.git'));
+		await rmDirWithRetry(join(dir, '.git'));
 
 		const after = await svc!.getSessionGitState(URI.file(dir));
 
@@ -256,7 +263,7 @@ suite('AgentHostGitService - getSessionGitState (real git)', () => {
 			const remoteOnlyResult = await svc!.getSessionGitState(URI.file(tmpRoot!));
 			assert.strictEqual(remoteOnlyResult?.hasBaseBranchChanges, true);
 		} finally {
-			rmDirWithRetry(remoteDir);
+			await rmDirWithRetry(remoteDir);
 		}
 	});
 });
@@ -276,8 +283,8 @@ suite('AgentHostGitService - computeSessionFileDiffs (real git)', () => {
 		svc = createGitService(disposables);
 	});
 
-	teardown(() => {
-		rmDirWithRetry(tmpRoot);
+	teardown(async () => {
+		await rmDirWithRetry(tmpRoot);
 	});
 
 	function initRepo(): { dir: string; run: (...args: string[]) => Buffer } {
@@ -570,8 +577,8 @@ suite('AgentHostGitService - worktree helpers (real git)', () => {
 		svc = createGitService(disposables);
 	});
 
-	teardown(() => {
-		rmDirWithRetry(tmpRoot);
+	teardown(async () => {
+		await rmDirWithRetry(tmpRoot);
 	});
 
 	function initRepo(): string {
@@ -856,7 +863,7 @@ suite('AgentHostGitService - worktree helpers (real git)', () => {
 			const stat = await fs.stat(wtPath);
 			assert.ok(stat.isDirectory(), 'worktree directory should exist');
 		} finally {
-			rmDirWithRetry(wtPath);
+			await rmDirWithRetry(wtPath);
 		}
 	});
 
@@ -874,7 +881,7 @@ suite('AgentHostGitService - worktree helpers (real git)', () => {
 			assert.strictEqual(cp.execFileSync('git', ['branch', '--show-current'], { cwd: wtPath, env, encoding: 'utf8' }).trim(), 'feature');
 		} finally {
 			try { await svc!.removeWorktree(URI.file(dir), URI.file(wtPath), { force: true }); } catch { /* best-effort cleanup */ }
-			rmDirWithRetry(wtPath);
+			await rmDirWithRetry(wtPath);
 		}
 	});
 
@@ -903,7 +910,7 @@ suite('AgentHostGitService - worktree helpers (real git)', () => {
 			});
 		} finally {
 			try { await svc!.removeWorktree(URI.file(dir), URI.file(wtPath), { force: true }); } catch { /* best-effort cleanup */ }
-			rmDirWithRetry(wtPath);
+			await rmDirWithRetry(wtPath);
 		}
 	});
 
@@ -936,7 +943,7 @@ suite('AgentHostGitService - worktree helpers (real git)', () => {
 			});
 		} finally {
 			try { await svc!.removeWorktree(URI.file(dir), URI.file(wtPath), { force: true }); } catch { /* best-effort cleanup */ }
-			rmDirWithRetry(wtPath);
+			await rmDirWithRetry(wtPath);
 		}
 	});
 
@@ -974,7 +981,7 @@ suite('AgentHostGitService - worktree helpers (real git)', () => {
 			});
 		} finally {
 			try { await svc!.removeWorktree(URI.file(dir), URI.file(wtPath), { force: true }); } catch { /* best-effort cleanup */ }
-			rmDirWithRetry(wtPath);
+			await rmDirWithRetry(wtPath);
 			try { cp.execFileSync('git', ['branch', '-D', 'agents/dirty-worktree'], { cwd: dir, env, stdio: 'ignore' }); } catch { /* best-effort cleanup */ }
 		}
 	});
@@ -1008,7 +1015,7 @@ suite('AgentHostGitService - worktree helpers (real git)', () => {
 			});
 		} finally {
 			try { await svc!.removeWorktree(URI.file(dir), URI.file(wtPath), { force: true }); } catch { /* best-effort cleanup */ }
-			rmDirWithRetry(wtPath);
+			await rmDirWithRetry(wtPath);
 			try { cp.execFileSync('git', ['branch', '-D', 'agents/prune-worktree'], { cwd: dir, env, stdio: 'ignore' }); } catch { /* best-effort cleanup */ }
 		}
 	});
@@ -1042,7 +1049,7 @@ suite('AgentHostGitService - worktree helpers (real git)', () => {
 				try { cp.execFileSync('git', ['worktree', 'unlock', wtPath], { cwd: dir, env, stdio: 'ignore' }); } catch { /* best-effort cleanup */ }
 			}
 			try { await svc!.removeWorktree(URI.file(dir), URI.file(wtPath), { force: true }); } catch { /* best-effort cleanup */ }
-			rmDirWithRetry(wtPath);
+			await rmDirWithRetry(wtPath);
 			try { cp.execFileSync('git', ['branch', '-D', 'agents/leak-worktree'], { cwd: dir, env, stdio: 'ignore' }); } catch { /* best-effort cleanup */ }
 		}
 	});
@@ -1079,7 +1086,7 @@ suite('AgentHostGitService - worktree helpers (real git)', () => {
 			// Removal must treat an already-de-registered worktree as success.
 			await svc!.removeWorktree(URI.file(dir), URI.file(wtPath), { force: true });
 		} finally {
-			rmDirWithRetry(wtPath);
+			await rmDirWithRetry(wtPath);
 			try { cp.execFileSync('git', ['branch', '-D', 'agents/orphan-worktree'], { cwd: dir, env, stdio: 'ignore' }); } catch { /* best-effort cleanup */ }
 		}
 	});
@@ -1122,7 +1129,7 @@ suite('AgentHostGitService - worktree helpers (real git)', () => {
 			assert.throws(() => cp.execFileSync('git', ['rev-parse', '--abbrev-ref', '--symbolic-full-name', '@{u}'], { cwd: wtPath, env, stdio: 'pipe' }), /fatal:/);
 		} finally {
 			try { await svc!.removeWorktree(URI.file(dir), URI.file(wtPath), { force: true }); } catch { /* best-effort cleanup */ }
-			rmDirWithRetry(wtPath);
+			await rmDirWithRetry(wtPath);
 			try { cp.execFileSync('git', ['branch', '-D', 'agents/test-origin-start-point'], { cwd: dir, env, stdio: 'ignore' }); } catch { /* best-effort cleanup */ }
 		}
 	});
@@ -1205,7 +1212,7 @@ suite('AgentHostGitService - worktree helpers (real git)', () => {
 			});
 		} finally {
 			try { await svc!.removeWorktree(URI.file(dir), URI.file(wtPath), { force: true }); } catch { /* best-effort cleanup */ }
-			rmDirWithRetry(wtPath);
+			await rmDirWithRetry(wtPath);
 			try { cp.execFileSync('git', ['branch', '-D', 'agents/include-files'], { cwd: dir, env, stdio: 'ignore' }); } catch { /* best-effort cleanup */ }
 		}
 	});
@@ -1227,8 +1234,8 @@ suite('AgentHostGitService - restore (real git)', () => {
 		svc = createGitService(disposables);
 	});
 
-	teardown(() => {
-		rmDirWithRetry(tmpRoot);
+	teardown(async () => {
+		await rmDirWithRetry(tmpRoot);
 	});
 
 	async function initRepoWithFiles(files: Record<string, string>): Promise<string> {
@@ -1317,8 +1324,8 @@ suite('AgentHostGitService - overlayPathIntoTree (real git)', () => {
 		svc = createGitService(disposables);
 	});
 
-	teardown(() => {
-		rmDirWithRetry(tmpRoot);
+	teardown(async () => {
+		await rmDirWithRetry(tmpRoot);
 	});
 
 	async function initRepoWithFiles(files: Record<string, string>): Promise<{ dir: string; run: (...args: string[]) => Buffer }> {
@@ -1423,8 +1430,8 @@ suite('AgentHostGitService - resolveBranchBaselineCommit (real git)', () => {
 		svc = createGitService(disposables);
 	});
 
-	teardown(() => {
-		rmDirWithRetry(tmpRoot);
+	teardown(async () => {
+		await rmDirWithRetry(tmpRoot);
 	});
 
 	function initRepo(): (...args: string[]) => Buffer {

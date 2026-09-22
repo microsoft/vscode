@@ -59,6 +59,7 @@ import { AgentHostToolCallTracker, IAgentHostToolCallTracker } from './agentHost
 import { AgentHostTurnTracker, IAgentHostTurnTracker } from './agentHostTurnTracker.js';
 import { AgentHostSessionPromptService, IAgentHostSessionPromptService } from './agentHostSessionPromptService.js';
 import { AgentHostProviderService, IAgentHostProviderService } from './agentHostProviderService.js';
+import { AdditionalWorktreeLifecycleService, IAdditionalWorktreeLifecycleService } from './chatContributions/additionalWorktreeLifecycle/additionalWorktreeLifecycleService.js';
 import { AgentEditAttributionService } from './shared/agentEditAttributionService.js';
 import { AgentHostOctoKitService, IAgentHostOctoKitService } from './shared/agentHostOctoKitService.js';
 import { EditArcReporterService, IEditArcReporterService } from './shared/editArcReporter.js';
@@ -111,6 +112,7 @@ export function registerAgentHostCoreServices(services: ServiceCollection, input
 	services.set(IAgentHostProviderService, new SyncDescriptor(AgentHostProviderService));
 	services.set(IAgentBranchNameGenerator, new SyncDescriptor(AgentBranchNameGenerator));
 	services.set(IAgentHostWorktreeIsolation, new SyncDescriptor(WorktreeIsolation));
+	services.set(IAdditionalWorktreeLifecycleService, new SyncDescriptor(AdditionalWorktreeLifecycleService));
 }
 
 export interface IAgentHostHostServiceInputs {

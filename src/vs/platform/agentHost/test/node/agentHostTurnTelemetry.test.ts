@@ -22,6 +22,8 @@ import { getTelemetryChatSessionId } from '../../common/agentTelemetryCorrelatio
 import { AgentSession, IAgent, type AgentModelCallFinishedOutcome, type IAgentTurnTokenUsage } from '../../common/agent.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportKind, type IAgentHostClientTelemetryContext } from '../../common/agentHostTelemetry.js';
+import { getCodexAccountTelemetryContext } from '../../node/codex/codexAccountTelemetry.js';
+import type { ICodexAccountState } from '../../node/codex/codexAccountState.js';
 import type { SessionMode } from '../../common/agentHostSchema.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { ActionType, type ChatAction, type ChatUsageAction } from '../../common/state/sessionActions.js';
@@ -35,6 +37,7 @@ import { AgentHostLocalTurns, IAgentHostLocalTurns } from '../../node/agentHostL
 import { AgentHostLocalCommands, IAgentHostLocalCommands } from '../../node/localCommands/localChatCommand.js';
 import { AgentHostChatContributions } from '../../node/agentHostChatContributionsService.js';
 import { registerBuiltInChatContributions } from '../../node/chatContributions/builtInChatContributions.js';
+import { AdditionalWorktreeLifecycleService, IAdditionalWorktreeLifecycleService } from '../../node/chatContributions/additionalWorktreeLifecycle/additionalWorktreeLifecycleService.js';
 import { ISessionWorkspaceConversionService } from '../../node/chatContributions/sessionWorkspaceConversion/sessionWorkspaceConversionService.js';
 import { IAgentHostProviderService } from '../../node/agentHostProviderService.js';
 import { createTestAgentHostProviderService } from './testAgentHostProviderService.js';
@@ -122,6 +125,7 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 	let telemetry: CapturingTelemetryService;
 	let logService: NullLogService;
 	let turnTracker: AgentHostTurnTracker;
+	let chatContributions: AgentHostChatContributions;
 
 	const sessionUri = AgentSession.uri('mock', 'session-1');
 	const sessionKey = sessionUri.toString();
@@ -177,6 +181,11 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 		// `agent.sendMessage` and `turnTracker.turnStarted`) runs.
 		stateManager.dispatchClientAction(chatUri, action, { clientId: 'test', clientSeq: 1 });
 		sideEffects.handleAction(chatUri, action, 'test', clientContext);
+	}
+
+	function applyClientAction(action: ChatAction, chatUri = defaultChatUri, clientSeq = 2): void {
+		stateManager.dispatchClientAction(chatUri, action, { clientId: 'test', clientSeq });
+		sideEffects.handleAction(chatUri, action, 'test');
 	}
 
 	/**
@@ -246,6 +255,7 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 			setEnablement: () => ({ kind: 'resolved', enablement: [], enabled: true, workingDirectory: { kind: 'workspaceless' } }),
 			whenIdle: async () => { },
 		};
+		const worktreeIsolation = createNoopWorktreeIsolation();
 		const services = new ServiceCollection(
 			[ILogService, logService],
 			[IAgentConfigurationService, configService],
@@ -256,7 +266,8 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 			[ITelemetryService, telemetryService],
 			[IAgentHostTerminalManager, disposables.add(new TestAgentHostTerminalManager())],
 			[ISessionDataService, sessionDataService],
-			[IAgentHostWorktreeIsolation, createNoopWorktreeIsolation()],
+			[IAgentHostWorktreeIsolation, worktreeIsolation],
+			[IAdditionalWorktreeLifecycleService, new AdditionalWorktreeLifecycleService(sessionDataService, worktreeIsolation)],
 			[IAgentHostClientConnectionService, disposables.add(new AgentHostClientConnectionService())],
 			[ISessionWorkspaceConversionService, {
 				_serviceBrand: undefined,
@@ -267,7 +278,7 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 			}],
 		);
 		const instantiationService = disposables.add(new InstantiationService(services, /*strict*/ true));
-		const chatContributions = disposables.add(new AgentHostChatContributions(logService, instantiationService));
+		chatContributions = disposables.add(new AgentHostChatContributions(logService, instantiationService));
 		services.set(IAgentHostChatContributions, chatContributions);
 		services.set(IAgentHostSessionPromptService, {
 			_serviceBrand: undefined,
@@ -302,6 +313,104 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 		sinon.restore();
 	});
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('keeps admission context independent across concurrent chats and sessions', async () => {
+		sinon.stub(agent, 'id').value('codex');
+		setupSession();
+		const peerChat = buildChatUri(sessionUri, 'peer');
+		stateManager.addChat(sessionKey, peerChat);
+		const secondSession = AgentSession.uri('codex', 'session-2');
+		const secondChat = buildDefaultChatUri(secondSession);
+		stateManager.createSession({ resource: secondSession.toString(), provider: 'codex', title: 'Test', status: SessionStatus.Idle, createdAt: '2025-01-01T00:00:00.000Z', modifiedAt: '2025-01-01T00:00:00.000Z' });
+		stateManager.dispatchServerAction(secondSession.toString(), { type: ActionType.SessionReady });
+		const account: ICodexAccountState = { usageSource: 'openai', status: 'signedIn', authType: 'chatgpt', planType: 'plus' };
+		const rateLimit = { usedPercent: 42.4, windowDurationMins: 10080 };
+		let currentAccount = account;
+		let captures = 0;
+		agent.captureTurnTelemetryContext = () => {
+			captures++;
+			return { codex: getCodexAccountTelemetryContext(currentAccount, rateLimit, Date.now()) };
+		};
+		const sends = sinon.spy(agent.chats, 'sendMessage');
+		startTurn('shared-turn');
+		currentAccount = { ...account, planType: 'free' };
+		rateLimit.usedPercent = 68;
+		startTurn('shared-turn', 'hello', undefined, peerChat);
+		currentAccount = { usageSource: 'openai', status: 'signedOut' };
+		startTurn('shared-turn', 'hello', undefined, secondChat);
+		currentAccount = { ...account, planType: 'pro' };
+		rateLimit.usedPercent = 100;
+		await timeout(0);
+		turnTracker.updateModel(defaultChatUri, 'shared-turn', 'changed-model', 'trusted');
+		for (const chat of [secondChat, defaultChatUri, peerChat]) {
+			fire({ type: ActionType.ChatTurnComplete, turnId: 'shared-turn', duration: 1 }, chat);
+		}
+		const expected = [
+			{ chatgptAccountState: 'signedIn', chatgptPlanTier: 'plus', chatgptWeeklyQuotaState: 'available', chatgptWeeklyUsedPercentBucket: 40 },
+			{ chatgptAccountState: 'signedIn', chatgptPlanTier: 'free', chatgptWeeklyQuotaState: 'available', chatgptWeeklyUsedPercentBucket: 60 },
+			{ chatgptAccountState: 'signedOut', chatgptWeeklyQuotaState: 'unavailable' },
+		];
+		const sent = [defaultChatUri, peerChat, secondChat].map(chat => {
+			const context = sends.getCalls().find(call => call.args[0].toString() === chat)?.args[7];
+			return context && !URI.isUri(context) ? context.turnTelemetryContext?.codex : undefined;
+		});
+		assert.deepStrictEqual({
+			captures, sent,
+			frozen: sent.map(context => Object.isFrozen(context)),
+			completed: completedEvents().map(event => Object.fromEntries(Object.entries(event.data as object).filter(([key]) => key.startsWith('chatgpt')))),
+			model: capturedModel(completedEvents()[1].data as Record<string, unknown>),
+			remaining: turnTracker.getProviderTelemetryContext(defaultChatUri, 'shared-turn'),
+		}, { captures: 3, sent: expected, frozen: [true, true, true], completed: [expected[2], expected[0], expected[1]], model: { trusted: true, value: 'changed-model' }, remaining: undefined });
+	});
+
+	test('snapshots provider values instead of retaining a mutable provider object', () => {
+		sinon.stub(agent, 'id').value('codex');
+		setupSession();
+		const codex = { ...getCodexAccountTelemetryContext({ usageSource: 'openai', status: 'signedIn', authType: 'chatgpt', planType: 'plus' }, undefined, undefined) };
+		agent.captureTurnTelemetryContext = () => ({ codex });
+		startTurn('turn');
+		codex.chatgptPlanTier = 'pro';
+		codex.chatgptWeeklyQuotaState = 'available';
+		codex.chatgptWeeklyUsedPercentBucket = 100;
+		fire({ type: ActionType.ChatTurnComplete, turnId: 'turn', duration: 1 });
+		assert.deepStrictEqual(completedEvents().map(event => Object.fromEntries(Object.entries(event.data as object).filter(([key]) => key.startsWith('chatgpt')))), [
+			{ chatgptAccountState: 'signedIn', chatgptPlanTier: 'plus', chatgptWeeklyQuotaState: 'missing' },
+		]);
+	});
+
+	test('keeps completion context off companion events', () => {
+		sinon.stub(agent, 'id').value('codex');
+		setupSession();
+		const snapshot = getCodexAccountTelemetryContext({ usageSource: 'openai', status: 'signedOut' }, undefined, undefined);
+		agent.captureTurnTelemetryContext = () => ({ codex: snapshot });
+		Object.assign(agent, { getTurnTokenUsage: (): IAgentTurnTokenUsage => ({ summaries: [] }) });
+		startTurn('turn');
+		fire({ type: ActionType.ChatError, turnId: 'turn', duration: 1, part: createErrorResponsePart({ errorType: 'test', message: 'Test failure' }) });
+		assert.deepStrictEqual(telemetry.events.map(event => ({
+			name: event.eventName,
+			context: Object.fromEntries(Object.entries(event.data as object).filter(([key]) => key.startsWith('chatgpt'))),
+		})), [
+			{ name: 'agentHost.userMessageSent', context: {} },
+			{ name: 'agentHost.turnCompleted', context: snapshot },
+			{ name: 'agentHost.turnFailed', context: {} },
+			{ name: 'agentHost.requestTokenUsage', context: {} },
+		]);
+	});
+
+	for (const provider of ['copilot', 'claude']) {
+		test(`does not capture or emit Codex context for ${provider}`, () => {
+			sinon.stub(agent, 'id').value(provider);
+			setupSession();
+			const capture = sinon.spy(() => ({ codex: getCodexAccountTelemetryContext(undefined, undefined, undefined) }));
+			agent.captureTurnTelemetryContext = capture;
+			startTurn('turn');
+			fire({ type: ActionType.ChatTurnComplete, turnId: 'turn', duration: 1 });
+			assert.deepStrictEqual({
+				captureCalls: capture.callCount,
+				fields: telemetry.events.flatMap(event => Object.keys(event.data as object).filter(key => key.startsWith('chatgpt'))),
+			}, { captureCalls: 0, fields: [] });
+		});
+	}
 
 	test('emits turnCompleted with timing and turn-start context on success', () => {
 		setupSession(true, undefined, true);
@@ -551,9 +660,17 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 		setSessionConfig({ autoApprove: 'autopilot', mode: 'interactive' });
 		startTurn('turn-original');
 		await new Promise(resolve => setTimeout(resolve, 0));
-		fire({ type: ActionType.ChatTurnComplete, turnId: 'turn-original', duration: 1000 });
+		fireModelCallFinished('turn-original', 'call-before-steering', 100, 'success', true);
 
+		let previousTurnId = 'turn-original';
 		for (const turnId of ['turn-steering-1', 'turn-steering-2']) {
+			applyClientAction({
+				type: ActionType.ChatPendingMessageSet,
+				kind: PendingMessageKind.Steering,
+				id: `queued-${turnId}`,
+				message: { text: 'edit the file', origin: { kind: MessageKind.User } },
+			});
+			fire({ type: ActionType.ChatTurnComplete, turnId: previousTurnId, duration: 1000 });
 			fire({
 				type: ActionType.ChatTurnStarted,
 				turnId,
@@ -562,8 +679,9 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 				queuedMessageId: `queued-${turnId}`,
 			});
 			fireModelCallFinished(turnId, `call-${turnId}`, 250, 'success', true);
-			fire({ type: ActionType.ChatTurnComplete, turnId, duration: 1000 });
+			previousTurnId = turnId;
 		}
+		fire({ type: ActionType.ChatTurnComplete, turnId: previousTurnId, duration: 1000 });
 		await new Promise(resolve => setTimeout(resolve, 0));
 
 		assert.deepStrictEqual({
@@ -573,6 +691,9 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 				return {
 					turnId: data.turnId,
 					timeToFirstEdit: data.timeToFirstEdit,
+					timeToFirstEditClassifierVersion: data.timeToFirstEditClassifierVersion,
+					startedWithSteering: data.startedWithSteering,
+					receivedSteering: data.receivedSteering,
 					hostLaunchKind: data.hostLaunchKind,
 					permissionLevel: data.permissionLevel,
 					interactionMode: data.interactionMode,
@@ -583,13 +704,150 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 			sentPrompts: ['hello'],
 			completed: ['turn-original', 'turn-steering-1', 'turn-steering-2'].map(turnId => ({
 				turnId,
-				timeToFirstEdit: turnId === 'turn-original' ? undefined : 250,
+				timeToFirstEdit: turnId === 'turn-original' ? 100 : 250,
+				timeToFirstEditClassifierVersion: 1,
+				startedWithSteering: turnId !== 'turn-original',
+				receivedSteering: turnId !== 'turn-steering-2',
 				hostLaunchKind: undefined,
 				permissionLevel: 'autopilot',
 				interactionMode: 'interactive',
 				messageOriginKind: 'user',
 			})),
 		});
+	});
+
+	for (const result of ['success', 'cancelled', 'error'] as const) {
+		test(`preserves steering submission and first edit on ${result} even if steering is removed`, () => {
+			setupSession();
+			startTurn('turn-steered');
+			fireModelCallFinished('turn-steered', 'edit', 150, 'success', true);
+			applyClientAction({
+				type: ActionType.ChatPendingMessageSet,
+				kind: PendingMessageKind.Steering,
+				id: 'steer',
+				message: { text: 'change direction', origin: { kind: MessageKind.User } },
+			});
+			stateManager.dispatchClientAction(defaultChatUri, {
+				type: ActionType.ChatPendingMessageRemoved,
+				kind: PendingMessageKind.Steering,
+				id: 'steer',
+			}, { clientId: 'test', clientSeq: 3 });
+			if (result === 'error') {
+				fire({ type: ActionType.ChatError, turnId: 'turn-steered', duration: 1000, part: createErrorResponsePart({ errorType: 'test', message: 'failed' }) });
+			} else {
+				fire({ type: result === 'success' ? ActionType.ChatTurnComplete : ActionType.ChatTurnCancelled, turnId: 'turn-steered', duration: 1000 });
+			}
+			startTurn('turn-next');
+			fire({ type: ActionType.ChatTurnComplete, turnId: 'turn-next', duration: 1000 });
+
+			assert.deepStrictEqual(completedEvents().map(event => {
+				const data = event.data as Record<string, unknown>;
+				return {
+					turnId: data.turnId,
+					result: data.result,
+					timeToFirstEdit: data.timeToFirstEdit,
+					startedWithSteering: data.startedWithSteering,
+					receivedSteering: data.receivedSteering,
+				};
+			}), [
+				{ turnId: 'turn-steered', result, timeToFirstEdit: 150, startedWithSteering: false, receivedSteering: true },
+				{ turnId: 'turn-next', result: 'success', timeToFirstEdit: undefined, startedWithSteering: false, receivedSteering: false },
+			]);
+		});
+	}
+
+	test('does not classify queued follow-ups as steering', () => {
+		setupSession();
+		startTurn('turn-original');
+		const queued: ChatAction = {
+			type: ActionType.ChatPendingMessageSet,
+			kind: PendingMessageKind.Queued,
+			id: 'queued-follow-up',
+			message: { text: 'follow up', origin: { kind: MessageKind.User } },
+		};
+		stateManager.dispatchClientAction(defaultChatUri, queued, { clientId: 'test', clientSeq: 2 });
+		sideEffects.handleAction(defaultChatUri, queued);
+		fire({ type: ActionType.ChatTurnComplete, turnId: 'turn-original', duration: 1000 });
+		const queuedTurnId = stateManager.getActiveTurnId(defaultChatUri);
+		assert.ok(queuedTurnId);
+		fireModelCallFinished(queuedTurnId, 'edit', 200, 'success', true);
+		fire({ type: ActionType.ChatTurnComplete, turnId: queuedTurnId, duration: 1000 });
+
+		assert.deepStrictEqual(completedEvents().map(event => {
+			const data = event.data as Record<string, unknown>;
+			return {
+				timeToFirstEdit: data.timeToFirstEdit,
+				startedWithSteering: data.startedWithSteering,
+				receivedSteering: data.receivedSteering,
+			};
+		}), [
+			{ timeToFirstEdit: undefined, startedWithSteering: false, receivedSteering: false },
+			{ timeToFirstEdit: 200, startedWithSteering: false, receivedSteering: false },
+		]);
+	});
+
+	test('ignores rejected steering actions and submissions made while idle', () => {
+		setupSession();
+		const action: ChatAction = {
+			type: ActionType.ChatPendingMessageSet,
+			kind: PendingMessageKind.Steering,
+			id: 'steer-idle',
+			message: { text: 'change direction', origin: { kind: MessageKind.User } },
+		};
+		applyClientAction(action, defaultChatUri, 1);
+		startTurn('turn-after-idle');
+		chatContributions.didDispatchAction({ channel: defaultChatUri, session: sessionKey, action, rejectionReason: 'rejected' });
+		fire({ type: ActionType.ChatTurnComplete, turnId: 'turn-after-idle', duration: 1000 });
+
+		const data = completedEvents()[0].data as Record<string, unknown>;
+		assert.deepStrictEqual({
+			startedWithSteering: data.startedWithSteering,
+			receivedSteering: data.receivedSteering,
+		}, { startedWithSteering: false, receivedSteering: false });
+	});
+
+	test('attributes steering only to the targeted peer chat', () => {
+		setupSession();
+		const peerChatUri = buildChatUri(sessionUri, 'peer');
+		stateManager.addChat(sessionKey, peerChatUri);
+		startTurn('turn-default');
+		startTurn('turn-peer', 'hello peer', undefined, peerChatUri);
+		const action: ChatAction = {
+			type: ActionType.ChatPendingMessageSet,
+			kind: PendingMessageKind.Steering,
+			id: 'steer-peer',
+			message: { text: 'change direction', origin: { kind: MessageKind.User } },
+		};
+		applyClientAction(action, peerChatUri);
+		fire({ type: ActionType.ChatTurnComplete, turnId: 'turn-peer', duration: 1000 }, peerChatUri);
+		fire({ type: ActionType.ChatTurnComplete, turnId: 'turn-default', duration: 1000 });
+
+		assert.deepStrictEqual(completedEvents().map(event => {
+			const data = event.data as Record<string, unknown>;
+			return { turnId: data.turnId, startedWithSteering: data.startedWithSteering, receivedSteering: data.receivedSteering };
+		}), [
+			{ turnId: 'turn-peer', startedWithSteering: false, receivedSteering: true },
+			{ turnId: 'turn-default', startedWithSteering: false, receivedSteering: false },
+		]);
+	});
+
+	test('does not classify provider starts without a pending message as steering', () => {
+		setupSession();
+		fire({
+			type: ActionType.ChatTurnStarted,
+			turnId: 'turn-notification',
+			startedAt: new Date().toISOString(),
+			message: { text: 'background task done', origin: { kind: MessageKind.SystemNotification } },
+		});
+		fireModelCallFinished('turn-notification', 'edit', 300, 'success', true);
+		fire({ type: ActionType.ChatTurnComplete, turnId: 'turn-notification', duration: 1000 });
+
+		const data = completedEvents()[0].data as Record<string, unknown>;
+		assert.deepStrictEqual({
+			timeToFirstEdit: data.timeToFirstEdit,
+			startedWithSteering: data.startedWithSteering,
+			receivedSteering: data.receivedSteering,
+		}, { timeToFirstEdit: 300, startedWithSteering: false, receivedSteering: false });
 	});
 
 	test('deduplicates model-call attempts and leaves time to first edit absent when no edit is requested', () => {
@@ -1768,6 +2026,30 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 		fire({ type: ActionType.ChatTurnComplete, turnId, duration: 1000 });
 
 		assert.strictEqual((completedEvents()[0].data as Record<string, unknown>).interactionMode, 'autopilot');
+	});
+
+	test('captures queued context when the queued turn is admitted', () => {
+		sinon.stub(agent, 'id').value('codex');
+		setupSession();
+		let account: ICodexAccountState = { usageSource: 'openai', status: 'signedOut' };
+		agent.captureTurnTelemetryContext = () => ({ codex: getCodexAccountTelemetryContext(account, undefined, undefined) });
+		startTurn('first');
+		const setAction: ChatAction = {
+			type: ActionType.ChatPendingMessageSet, kind: PendingMessageKind.Queued, id: 'queued',
+			message: { text: 'queued message', origin: { kind: MessageKind.User } },
+		};
+		stateManager.dispatchClientAction(defaultChatUri, setAction, { clientId: 'test', clientSeq: 2 });
+		sideEffects.handleAction(defaultChatUri, setAction);
+		account = { usageSource: 'openai', status: 'signedIn', authType: 'chatgpt', planType: 'plus' };
+		fire({ type: ActionType.ChatTurnComplete, turnId: 'first', duration: 1 });
+		const queuedTurnId = stateManager.getActiveTurnId(defaultChatUri);
+		assert.ok(queuedTurnId);
+		account = { usageSource: 'openai', status: 'error' };
+		fire({ type: ActionType.ChatTurnComplete, turnId: queuedTurnId, duration: 1 });
+		assert.deepStrictEqual(completedEvents().map(event => Object.fromEntries(Object.entries(event.data as object).filter(([key]) => key.startsWith('chatgpt')))), [
+			{ chatgptAccountState: 'signedOut', chatgptWeeklyQuotaState: 'unavailable' },
+			{ chatgptAccountState: 'signedIn', chatgptPlanTier: 'plus', chatgptWeeklyQuotaState: 'missing' },
+		]);
 	});
 
 	test('emits a single turnCompleted when both the client cancel and a follow-up agent signal arrive', () => {

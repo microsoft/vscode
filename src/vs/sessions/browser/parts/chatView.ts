@@ -77,6 +77,14 @@ export abstract class AbstractChatView extends Disposable implements ISerializab
 
 	readonly pickerVisibility: IObservable<ISessionPickerVisibility> = constObservable(noSessionPickerVisibility);
 
+	focusWorkspacePicker(): void {
+		// no-op by default
+	}
+
+	focusHarnessPicker(): void {
+		// no-op by default
+	}
+
 	/**
 	 * Whether the view has a visible transcript turn to retain when a remote
 	 * host disconnects. New and unbound views intentionally report no content.

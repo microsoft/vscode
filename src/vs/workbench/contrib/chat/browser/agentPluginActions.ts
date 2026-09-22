@@ -26,6 +26,7 @@ import { getCustomizationScopeEnablement } from '../../../../platform/agentHost/
 import { CustomizationEnablementKind, type PluginCustomization } from '../../../../platform/agentHost/common/state/protocol/state.js';
 import { type ICustomizationItemAction } from '../common/customizationHarnessService.js';
 import { IAgentHostCustomizationService } from './agentSessions/agentHost/agentHostCustomizationService.js';
+import { IReader } from '../../../../base/common/observable.js';
 
 //#region Simple actions
 
@@ -68,7 +69,9 @@ function isRemovableAgentPlugin(plugin: IAgentPlugin): plugin is IAgentPlugin & 
 }
 
 export function createUninstallPluginAction(plugin: IAgentPlugin): UninstallPluginAction | undefined {
-	return isRemovableAgentPlugin(plugin) ? new UninstallPluginAction(plugin) : undefined;
+	return isRemovableAgentPlugin(plugin) && getPluginPolicyEnablement(plugin) !== true
+		? new UninstallPluginAction(plugin)
+		: undefined;
 }
 
 export class OpenPluginFolderAction extends Action {
@@ -102,9 +105,13 @@ export class OpenPluginReadmeAction extends Action {
 
 //#region Context menu
 
+export function getPluginPolicyEnablement(plugin: IAgentPlugin, reader?: IReader): boolean | undefined {
+	return plugin.policyEnablement?.read(reader) ?? (plugin.policyBlocked?.read(reader) === true ? false : undefined);
+}
+
 /** Whether the plugin is blocked by enterprise policy and cannot be enabled by the user. */
 export function isPluginPolicyBlocked(plugin: IAgentPlugin): boolean {
-	return plugin.policyBlocked?.get() === true;
+	return getPluginPolicyEnablement(plugin) === false;
 }
 
 /** Notifies the user that a plugin is managed by their organization and cannot be enabled. */
@@ -121,6 +128,21 @@ export function createPolicyBlockedEnableAction(plugin: IAgentPlugin, notificati
 		() => { notifyPluginPolicyBlocked(notificationService, plugin.label); return Promise.resolve(); });
 }
 
+function createPolicyForceEnabledDisableAction(plugin: IAgentPlugin, notificationService: INotificationService): Action {
+	return new Action('agentPlugin.disableManaged', localize('disable', "Disable"), undefined, true, () => {
+		notificationService.warn(localize('pluginPolicyForceEnabled', "The plugin \"{0}\" has been enabled by your organization and cannot be disabled.", plugin.label));
+	});
+}
+
+export function createPolicyManagedEnablementAction(plugin: IAgentPlugin, notificationService: INotificationService): Action | undefined {
+	const policyEnablement = getPluginPolicyEnablement(plugin);
+	return policyEnablement === true
+		? createPolicyForceEnabledDisableAction(plugin, notificationService)
+		: policyEnablement === false
+			? createPolicyBlockedEnableAction(plugin, notificationService)
+			: undefined;
+}
+
 /**
  * Builds the standard context menu action groups for an installed plugin.
  */
@@ -129,8 +151,9 @@ export function getInstalledPluginContextMenuActions(plugin: IAgentPlugin, insta
 		const agentPluginService = accessor.get(IAgentPluginService);
 		const workspaceService = accessor.get(IWorkspaceContextService);
 		const groups: IAction[][] = [];
-		if (isPluginPolicyBlocked(plugin)) {
-			groups.push([createPolicyBlockedEnableAction(plugin, accessor.get(INotificationService))]);
+		const policyAction = createPolicyManagedEnablementAction(plugin, accessor.get(INotificationService));
+		if (policyAction) {
+			groups.push([policyAction]);
 		} else {
 			groups.push(buildEnablementContextMenuGroup(
 				plugin.enablement.get(),

@@ -3,6 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Event } from '../../../../../base/common/event.js';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { AgentHostProtocolClient } from '../../../../../platform/agentHost/browser/agentHostProtocolClient.js';
 import {
 	CLOUD_SANDBOX_ADDRESS_PREFIX,
 	CLOUD_SANDBOX_AGENT_PROVIDER,
@@ -13,6 +16,7 @@ import {
 } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { IAgentHostAuthenticateRequest } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostAuth.js';
 import { IRemoteAgentHostConnectionCustomization } from './remoteAgentHostConnectionCustomization.js';
+import { createCloudSandboxSessionPreparation } from './cloudSandboxLegacySessionPreparation.js';
 
 /** Hosts whose protected resources may receive the user's GitHub identity token. */
 function isGitHubResource(resource: string): boolean {
@@ -30,12 +34,13 @@ function isGitHubResource(resource: string): boolean {
 }
 
 /**
- * The {@link IRemoteAgentHostConnectionCustomization} for a cloud sandbox address, supplying the two
+ * The {@link IRemoteAgentHostConnectionCustomization} for a cloud sandbox address, supplying the
  * ways the sandbox host deviates from the generic path:
  *
  *  - **Auth**: the host only accepts a sealed envelope, so the connection's `encrypted_github_token`
  *    is presented instead of the resolved bearer. Fails closed if no sealed token is available.
  *  - **Scheme**: the host advertises provider `copilot` but addresses sessions as `ahp-session`.
+ *  - **Directory**: prepare an advertised repository checkout before creating a session.
  *
  * Returns `undefined` for non-sandbox addresses.
  */
@@ -66,6 +71,18 @@ export function createCloudSandboxConnectionCustomization(
 		},
 		backendSessionScheme: (provider: string): string | undefined =>
 			provider === CLOUD_SANDBOX_AGENT_PROVIDER ? CLOUD_SANDBOX_SESSION_SCHEME : undefined,
+		createSessionPreparation: (connection, owner) => {
+			if (!(connection instanceof AgentHostProtocolClient)) {
+				throw new Error('Cloud sandbox session preparation requires a protocol client.');
+			}
+			const store = owner.add(new DisposableStore());
+			store.add(Event.once(connection.onDidClose)(() => store.dispose()));
+			return createCloudSandboxSessionPreparation(
+				connection.rootState,
+				(method, params) => connection.sendHostExtensionRequest(method, params),
+				store,
+			);
+		},
 	};
 }
 

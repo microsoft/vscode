@@ -23,7 +23,7 @@ export class ChatToolInvocation implements IChatToolInvocation {
 	public readonly kind: 'toolInvocation' = 'toolInvocation';
 
 	public invocationMessage: string | IMarkdownString;
-	public readonly originMessage: string | IMarkdownString | undefined;
+	public originMessage: string | IMarkdownString | undefined;
 	public pastTenseMessage: string | IMarkdownString | undefined;
 	public confirmationMessages: IToolConfirmationMessages | undefined;
 	public presentation: IPreparedToolInvocation['presentation'];
@@ -294,6 +294,7 @@ export class ChatToolInvocation implements IChatToolInvocation {
 		if (preparedInvocation.invocationMessage) {
 			this.invocationMessage = preparedInvocation.invocationMessage;
 		}
+		this.originMessage = preparedInvocation.originMessage ?? this.originMessage;
 		this.pastTenseMessage = preparedInvocation.pastTenseMessage;
 		this.confirmationMessages = preparedInvocation.confirmationMessages;
 		this.presentation = preparedInvocation.presentation;
@@ -316,6 +317,7 @@ export class ChatToolInvocation implements IChatToolInvocation {
 		if (preparedInvocation.invocationMessage) {
 			this.invocationMessage = preparedInvocation.invocationMessage;
 		}
+		this.originMessage = preparedInvocation.originMessage ?? this.originMessage;
 		this.pastTenseMessage = preparedInvocation.pastTenseMessage;
 		this.confirmationMessages = preparedInvocation.confirmationMessages;
 		this.presentation = preparedInvocation.presentation;

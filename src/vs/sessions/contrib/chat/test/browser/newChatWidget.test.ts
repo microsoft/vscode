@@ -301,6 +301,7 @@ interface IRenderSessionTypePickerHarness {
 interface IRenderWorkspacePickerHarness extends IRenderSessionTypePickerHarness {
 	readonly _newChatInput: IRenderSessionTypePickerHarness['_newChatInput'] & {
 		readonly pickerVisibility: SessionInputPickerVisibility;
+		placeRepositoryControls(container?: HTMLElement): void;
 	};
 	readonly _workspacePicker: {
 		renderCategoryTriggers(container: HTMLElement, triggers: readonly { readonly label?: string; readonly tooltip?: string; readonly icon?: { readonly id: string }; readonly attachesContext?: boolean }[]): HTMLElement;
@@ -400,6 +401,7 @@ suite('NewChatWidget', () => {
 			},
 			_newChatInput: {
 				pickerVisibility,
+				placeRepositoryControls: () => { },
 				sessionTypePicker: {
 					render: (target, options) => {
 						if (harnessLabels.length <= 1) {
@@ -429,6 +431,7 @@ suite('NewChatWidget', () => {
 		}, {
 			items: [
 				{ label: 'Workspace', className: '' },
+				{ label: '', className: 'new-chat-repository-controls-host' },
 				{ label: 'Copilot', className: 'sessions-chat-session-type-picker sessions-workspace-category-picker-slot' },
 			],
 			workspaceTriggers: [{ tooltip: 'Choose where the new session runs', icon: 'project', attachesContext: false }],
