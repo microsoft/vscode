@@ -229,7 +229,7 @@ describe('CustomEndpointBYOKModelProvider', () => {
 			const registry = accessor.get(ILanguageModelRequestMiddlewareRegistry);
 			disposables.add(registry.register({
 				selector: { vendors: ['customendpoint'], providerGroups: ['Acme Premium'] },
-				provideRequestHeaders: async ({ url }) => new URL(url).origin === 'https://gateway.example.com' ? { Authorization: 'Bearer gateway-token' } : {},
+				provideRequestHeaders: async ({ url }): Promise<Record<string, string>> => new URL(url).origin === 'https://gateway.example.com' ? { Authorization: 'Bearer gateway-token' } : {},
 			}));
 			const provider = instaService.createInstance(TestCustomEndpointBYOKModelProvider, createStorageService());
 			const tokenSource = disposables.add(new vscode.CancellationTokenSource());
