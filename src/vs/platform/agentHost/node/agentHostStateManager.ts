@@ -944,6 +944,30 @@ export class AgentHostStateManager extends Disposable {
 		this._emitSessionSummaryChanged(session, { title }, announced);
 	}
 
+	/** Publishes refreshed catalog metadata without materializing a conversation or changing its read state. */
+	updateSurfacedSessionMetadata(session: string, metadata: Pick<SessionSummary, 'title' | 'modifiedAt' | 'project' | 'workingDirectories' | '_meta'>): void {
+		const announced = this._summaryNotifier.getAnnounced(session);
+		if (this._sessionStates.has(session) || !announced) {
+			return;
+		}
+		if (announced.title === metadata.title && announced.modifiedAt === metadata.modifiedAt
+			&& equals(announced.project, metadata.project) && equals(announced.workingDirectories, metadata.workingDirectories)
+			&& equals(announced._meta, metadata._meta)) {
+			return;
+		}
+		this._summaryNotifier.applyAnnouncedChanges(session, metadata);
+	}
+
+	/** Refreshes an idle session's catalog timestamp without replacing its conversation state. */
+	updateSessionModifiedTime(session: URI, modifiedTime: number): void {
+		const entry = this._sessionStates.get(session);
+		if (!entry || this.hasActiveTurn(session) || !Number.isFinite(modifiedTime) || modifiedTime <= Date.parse(entry.modifiedAt)) {
+			return;
+		}
+		entry.modifiedAt = new Date(modifiedTime).toISOString();
+		this._summaryNotifier.markDirty(session);
+	}
+
 	/** Removes a surfaced session without affecting a live session. */
 	retractSurfacedSession(session: string): void {
 		if (this._sessionStates.has(session)) {
