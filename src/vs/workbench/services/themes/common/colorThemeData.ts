@@ -717,7 +717,7 @@ export class ColorThemeData implements IWorkbenchColorTheme {
 	}
 
 	static fromExtensionTheme(theme: IThemeExtensionPoint, colorThemeLocation: URI, extensionData: ExtensionData): ColorThemeData {
-		const baseTheme: string = theme['uiTheme'] || 'vs-dark';
+		const baseTheme: string = theme.uiTheme || 'vs-dark';
 		const themeSelector = toCSSSelector(extensionData.extensionId, theme.path);
 		const id = `${baseTheme} ${themeSelector}`;
 		const label = theme.label || basename(theme.path);

@@ -92,6 +92,7 @@ interface IOpenedWindow {
 export interface IOpenedMainWindow extends IOpenedWindow {
 	readonly workspace?: IAnyWorkspaceIdentifier;
 	readonly dirty: boolean;
+	readonly iconPath?: URI;
 }
 
 export interface IOpenedAuxiliaryWindow extends IOpenedWindow {
@@ -104,14 +105,29 @@ export function isOpenedAuxiliaryWindow(candidate: IOpenedMainWindow | IOpenedAu
 
 export interface IOpenEmptyWindowOptions extends IBaseOpenWindowsOptions { }
 
+export interface IAgentsWindowDraft {
+	readonly inputText: string;
+	/** URI-aware serialized chat attachments, including exported image data. */
+	readonly attachments: string;
+}
+
+export function isAgentsWindowDraft(value: unknown): value is IAgentsWindowDraft {
+	const draft = value as Partial<IAgentsWindowDraft> | undefined;
+	return !!draft && typeof draft.inputText === 'string' && typeof draft.attachments === 'string';
+}
+
 export const enum AgentsWindowOpenSource {
 	CommandPalette = 'commandPalette',
 	KeyboardShortcut = 'keyboardShortcut',
 	TitleBar = 'titleBar',
 	ChatTitleBar = 'chatTitleBar',
-	ChatHandoff = 'chatHandoff',
-	Banner = 'banner',
+	CurrentChatHandoff = 'currentChatHandoff',
+	EmptyWorkspaceCurrentChatHandoff = 'emptyWorkspaceCurrentChatHandoff',
+	ParallelWorkEmptyChatHandoff = 'parallelWorkEmptyChatHandoff',
+	WelcomeTryOut = 'welcomeTryOut',
+	WelcomeViewAll = 'welcomeViewAll',
 	CommandLine = 'commandLine',
+	Link = 'link',
 	Unknown = 'unknown',
 }
 
@@ -121,9 +137,13 @@ export function isAgentsWindowOpenSource(value: unknown): value is AgentsWindowO
 		case AgentsWindowOpenSource.KeyboardShortcut:
 		case AgentsWindowOpenSource.TitleBar:
 		case AgentsWindowOpenSource.ChatTitleBar:
-		case AgentsWindowOpenSource.ChatHandoff:
-		case AgentsWindowOpenSource.Banner:
+		case AgentsWindowOpenSource.CurrentChatHandoff:
+		case AgentsWindowOpenSource.EmptyWorkspaceCurrentChatHandoff:
+		case AgentsWindowOpenSource.ParallelWorkEmptyChatHandoff:
+		case AgentsWindowOpenSource.WelcomeTryOut:
+		case AgentsWindowOpenSource.WelcomeViewAll:
 		case AgentsWindowOpenSource.CommandLine:
+		case AgentsWindowOpenSource.Link:
 		case AgentsWindowOpenSource.Unknown:
 			return true;
 		default:

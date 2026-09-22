@@ -11,7 +11,8 @@ import * as platform from '../../../../base/common/platform.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { DisposableStore, type IDisposable } from '../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { IAgentConfigurationService } from '../../node/agentConfigurationService.js';
+import { IAgentConfigurationService, type IAgentSessionConfigurationChangeEvent } from '../../node/agentConfigurationService.js';
+import type { ISessionSandboxPolicy } from '../../node/sessionSandbox.js';
 import { IEnvironmentService } from '../../../environment/common/environment.js';
 import { IFileService } from '../../../files/common/files.js';
 import { IInstantiationService } from '../../../instantiation/common/instantiation.js';
@@ -127,14 +128,25 @@ suite('CopilotShellTools', () => {
 		const sandbox: Record<string, unknown> = { ...initialSandbox };
 		const configValues: Record<string, unknown> = { [AgentHostSandboxConfigKey.Sandbox]: sandbox };
 		const emitter = disposables.add(new Emitter<void>());
+		const sessionEmitter = disposables.add(new Emitter<IAgentSessionConfigurationChangeEvent>());
+		const sessionValues = new Map<string, Record<string, unknown>>();
+		const policies = new Map<string, ISessionSandboxPolicy>();
 		const service: IAgentConfigurationService = {
 			_serviceBrand: undefined,
 			onDidRootConfigChange: emitter.event,
-			onDidSessionConfigChange: Event.None,
+			onDidSessionConfigChange: sessionEmitter.event,
 			getEffectiveValue: () => undefined,
 			getEffectiveWorkingDirectories: () => undefined,
-			getSessionConfigValues: () => undefined,
-			updateSessionConfig: () => { /* no-op */ },
+			getSessionConfigValues: session => sessionValues.get(session),
+			getSessionSandboxPolicy: session => policies.get(session),
+			setSessionSandboxPolicy: (session, policy) => {
+				policies.set(session, policy);
+				sessionEmitter.fire({ session, config: {}, origin: undefined });
+			},
+			updateSessionConfig: (session, config) => {
+				sessionValues.set(session, { ...sessionValues.get(session), ...config });
+				sessionEmitter.fire({ session, config, origin: undefined });
+			},
 			getRootValue: ((_schema: unknown, key: string) => configValues[key]) as IAgentConfigurationService['getRootValue'],
 			updateRootConfig: () => { /* no-op */ },
 			persistRootConfig: () => { /* no-op */ },
@@ -811,6 +823,26 @@ suite('CopilotShellTools', () => {
 		const engineB = shellManager.getOrCreateSandboxEngine();
 
 		assert.strictEqual(engineA, engineB, 'Sandbox engine should be cached across calls');
+	});
+
+	test('custom terminal sandbox follows its owner selection and live managed floor', async () => {
+		const { instantiationService, agentConfigurationService } = createServices({ sandboxEnabled: true });
+		const owner = 'copilot:/session-1';
+		const peer = URI.parse(buildDefaultChatUri(owner));
+		const shellManager = disposables.add(instantiationService.createInstance(ShellManager, peer, undefined));
+		const otherManager = disposables.add(instantiationService.createInstance(ShellManager, URI.parse('copilot:/other'), undefined));
+		const engine = shellManager.getOrCreateSandboxEngine();
+		const other = otherManager.getOrCreateSandboxEngine();
+		const before = await engine.isEnabled();
+		agentConfigurationService.service.updateSessionConfig(owner, { sandboxEnabled: 'off' });
+		const disabled = await engine.isEnabled();
+		agentConfigurationService.setSandboxValue(AgentHostSandboxKey.Enabled, AgentSandboxEnabledValue.On);
+		agentConfigurationService.setSandboxValue(AgentHostSandboxKey.WindowsEnabled, AgentSandboxEnabledValue.On);
+		const afterGlobalChange = await engine.isEnabled();
+		agentConfigurationService.service.setSessionSandboxPolicy(owner, { enabled: true, allowBypass: false });
+		assert.deepStrictEqual({
+			before, disabled, afterGlobalChange, governed: await engine.isEnabled(), other: await other.isEnabled(),
+		}, { before: true, disabled: false, afterGlobalChange: false, governed: true, other: true });
 	});
 
 	test('setWorkingDirectory invalidates the captured sandbox engine roots', async () => {

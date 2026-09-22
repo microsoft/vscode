@@ -12,6 +12,7 @@ import { localize } from '../../../../../nls.js';
 import { MenuId } from '../../../../../platform/actions/common/actions.js';
 import { hasReadableCustomizationContent } from '../../../../../platform/agentHost/common/agentHostCustomizationUri.js';
 import { CustomizationMigrationCategoryId } from './customizationMigrationCategories.js';
+import { CustomizationMigrationHintTarget } from '../../common/promptSyntax/service/customizationMigrationService.js';
 
 // Re-export for convenience — consumers import from this file
 export { AICustomizationManagementCommands, AICustomizationManagementSection } from '../../common/aiCustomizationWorkspaceService.js';
@@ -26,6 +27,7 @@ export type AICustomizationManagementOpenEditorTarget =
 		readonly revealUri?: URI;
 		readonly migration?: boolean;
 		readonly migrationCategory?: CustomizationMigrationCategoryId;
+		readonly migrationHintTarget?: CustomizationMigrationHintTarget;
 	}
 	| IChatViewTitleActionContext;
 
@@ -34,7 +36,7 @@ export function resolveAICustomizationManagementOpenEditorTarget(
 	pendingSessionType: string | undefined,
 	chatSessionResource: URI | undefined,
 	getSessionResourceForHarness: (sessionType: string) => URI,
-): { readonly section?: AICustomizationManagementSection; readonly revealUri?: URI; readonly sessionResource?: URI; readonly migration?: boolean; readonly migrationCategory?: CustomizationMigrationCategoryId } {
+): { readonly section?: AICustomizationManagementSection; readonly revealUri?: URI; readonly sessionResource?: URI; readonly migration?: boolean; readonly migrationCategory?: CustomizationMigrationCategoryId; readonly migrationHintTarget?: CustomizationMigrationHintTarget } {
 	if (isChatViewTitleActionContext(target)) {
 		return { sessionResource: target.sessionResource };
 	}
@@ -46,6 +48,7 @@ export function resolveAICustomizationManagementOpenEditorTarget(
 		revealUri: options?.revealUri,
 		migration: options?.migration,
 		migrationCategory: options?.migrationCategory,
+		migrationHintTarget: options?.migrationHintTarget,
 		sessionResource: sessionType ? getSessionResourceForHarness(sessionType) : chatSessionResource,
 	};
 }

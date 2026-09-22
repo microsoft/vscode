@@ -15,6 +15,7 @@ import { TestConfigurationService } from '../../../../../platform/configuration/
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
+import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope } from '../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IWorkspace, IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
@@ -31,7 +32,7 @@ import { IEditorWillOpenEvent, IUntypedEditorInput, isResourceEditorInput } from
 import { IActiveSession, ISessionsChangeEvent, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { IAgentWorkbenchLayoutService, ISidePaneToggleEvent } from '../../../../browser/workbench.js';
-import { ChatInteractivity, IChat, ISession, ISessionFileChange, ISessionWorkspace, SessionStatus } from '../../../../services/sessions/common/session.js';
+import { ChatInteractivity, IChat, ISession, ISessionChangeset, ISessionFileChange, ISessionWorkspace, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { ISessionChangesService, SessionChangesService } from '../../../changes/browser/sessionChangesService.js';
 import { CHANGES_VIEW_CONTAINER_ID } from '../../../changes/common/changes.js';
 import { SESSIONS_FILES_CONTAINER_ID } from '../../../files/browser/files.contribution.js';
@@ -67,12 +68,28 @@ export function makeSession(resource: URI, opts?: {
 	isCreated?: boolean;
 	changes?: readonly ISessionFileChange[];
 	workspace?: ISessionWorkspace;
+	chatWorkspace?: ISessionWorkspace;
 	isQuickChat?: boolean;
 }): IActiveSession {
 	const status = observableValue('status', opts?.status ?? SessionStatus.Completed);
+	const workspace = opts?.workspace ?? {
+		uri: URI.file('/repo'),
+		label: 'test',
+		icon: Codicon.repo,
+		folders: [{
+			root: URI.file('/repo'),
+			workingDirectory: URI.file('/repo'),
+			name: 'repo',
+			description: undefined,
+			gitRepository: undefined,
+		}],
+		requiresWorkspaceTrust: false,
+		isVirtualWorkspace: false,
+	};
 	const chat: IChat = {
 		resource,
 		createdAt: new Date(),
+		workspace: constObservable(opts?.chatWorkspace ?? workspace),
 		title: observableValue('title', 'Test'),
 		updatedAt: observableValue('updatedAt', new Date()),
 		status,
@@ -95,20 +112,7 @@ export function makeSession(resource: URI, opts?: {
 		sessionType: 'local',
 		icon: Codicon.copilot,
 		createdAt: chat.createdAt,
-		workspace: observableValue('workspace', opts?.workspace ?? {
-			uri: URI.file('/repo'),
-			label: 'test',
-			icon: Codicon.repo,
-			folders: [{
-				root: URI.file('/repo'),
-				workingDirectory: URI.file('/repo'),
-				name: 'repo',
-				description: undefined,
-				gitRepository: undefined,
-			}],
-			requiresWorkspaceTrust: false,
-			isVirtualWorkspace: false,
-		}),
+		workspace: observableValue('workspace', workspace),
 		title: chat.title,
 		updatedAt: chat.updatedAt,
 		status: chat.status,
@@ -205,6 +209,7 @@ export interface ITestLayoutHarness {
 	toggleSidePaneCalls: number;
 	sidePaneStateBeforeHide: SidePaneComposition | undefined;
 	partVisibility: Map<Parts, boolean>;
+	partSizes: Map<Parts, IDimension>;
 	openedViewContainers: string[];
 	openedViews: string[];
 	setPartHiddenCalls: { hidden: boolean; part: Parts }[];
@@ -293,6 +298,7 @@ export function createTestHarness(store: DisposableStore, options: ICreateOption
 	instaService.stub(ITelemetryService, new class extends mock<ITelemetryService>() {
 		override publicLog2(): void { }
 	});
+	instaService.stub(ILogService, store.add(new NullLogService()));
 
 	const harness: ITestLayoutHarness = {
 		instaService,
@@ -330,6 +336,9 @@ export function createTestHarness(store: DisposableStore, options: ICreateOption
 			[Parts.CUSTOM_VIEW_GRID_PART, false],
 			...(options.initialPartVisibility ?? []),
 		]),
+		partSizes: new Map<Parts, IDimension>([
+			[Parts.EDITOR_PART, { width: 300, height: 800 }],
+		]),
 		openedViewContainers: [],
 		openedViews: [],
 		setPartHiddenCalls: [],
@@ -355,11 +364,10 @@ export function createTestHarness(store: DisposableStore, options: ICreateOption
 			override get isSinglePaneLayoutEnabled(): boolean { return options.singlePaneLayoutEnabled ?? false; }
 		}, new class extends mock<IChangesViewService>() {
 			override readonly activeSessionResourceObs = constObservable<URI | undefined>(undefined);
+			override readonly activeSessionChangesetObs = constObservable<ISessionChangeset | undefined>(undefined);
 			override readonly activeSessionChangesObs = constObservable<readonly ISessionFileChange[]>([]);
 		}, new class extends mock<IDecorationsService>() {
 			override registerDecorationsProvider() { return toDisposable(() => { }); }
-		}, new class extends mock<ISessionsService>() {
-			override readonly activeSession = constObservable<IActiveSession | undefined>(undefined);
 		})),
 		contextKeyService,
 	};
@@ -416,7 +424,7 @@ export function createTestHarness(store: DisposableStore, options: ICreateOption
 	});
 
 	instaService.stub(ISessionChangesService, new class extends mock<ISessionChangesService>() {
-		override readonly activeSessionChangeCountObs = harness.sessionChangesService.activeSessionChangeCountObs;
+		override readonly activeSessionUncommittedChangesCountObs = harness.sessionChangesService.activeSessionUncommittedChangesCountObs;
 		override getChangesEditorResource(sessionResource: URI): URI { return harness.sessionChangesService.getChangesEditorResource(sessionResource); }
 		override getSessionResource(editorResource: URI): URI | undefined { return harness.sessionChangesService.getSessionResource(editorResource); }
 		override async openChangesEditor(sessionResource: URI, options?: { index?: number; inactive?: boolean }): Promise<IEditorGroup> {
@@ -470,6 +478,9 @@ export function createTestHarness(store: DisposableStore, options: ICreateOption
 			}
 		}
 		override hasFocus(_part: Parts): boolean { return false; }
+		override getSize(part: Parts): IDimension {
+			return harness.partSizes.get(part) ?? { width: 0, height: 0 };
+		}
 		suppressEditorPartAutoVisibility(): IDisposable {
 			harness.editorPartAutoVisibilitySuppressionDepth++;
 			return toDisposable(() => harness.editorPartAutoVisibilitySuppressionDepth--);

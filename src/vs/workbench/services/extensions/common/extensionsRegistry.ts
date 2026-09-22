@@ -589,7 +589,7 @@ export const schema: IJSONSchema = {
 					}
 				},
 				agentsWindow: {
-					description: nls.localize('vscode.extension.capabilities.agentsWindow', "Declares whether the extension should be enabled in the Agents window. Requires the `agentsWindowActivation` API proposal."),
+					description: nls.localize('vscode.extension.capabilities.agentsWindow', "Declares whether the extension should be enabled in the Agents window. Requires the `agentsWindowActivation` API proposal and the experimental Agents window capability setting."),
 					type: 'object',
 					required: ['supported'],
 					defaultSnippets: [
@@ -597,7 +597,7 @@ export const schema: IJSONSchema = {
 					],
 					properties: {
 						supported: {
-							markdownDescription: nls.localize('vscode.extension.capabilities.agentsWindow.supported', "Declares whether the extension supports running in the Agents window. The extension must enable the `agentsWindowActivation` API proposal for this property to take effect."),
+							markdownDescription: nls.localize('vscode.extension.capabilities.agentsWindow.supported', "Declares whether the extension supports running in the Agents window. The extension must enable the `agentsWindowActivation` API proposal and the `extensions.experimental.enableAgentsWindowCapability` setting for this property to take effect."),
 							type: 'boolean'
 						}
 					}

@@ -19,6 +19,14 @@ import { sep } from '../../../../../base/common/path.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
+import { Schemas } from '../../../../../base/common/network.js';
+import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
+
+const uriIdentityService = {
+	_serviceBrand: undefined,
+	extUri: resources.extUri,
+	asCanonicalUri: (uri: URI) => uri,
+} satisfies IUriIdentityService;
 
 suite('URI Label', () => {
 	let labelService: LabelService;
@@ -26,7 +34,7 @@ suite('URI Label', () => {
 
 	setup(() => {
 		storageService = new TestStorageService();
-		labelService = new LabelService(TestEnvironmentService, new TestContextService(), new TestPathService(URI.file('/foobar')), new TestRemoteAgentService(), storageService, new TestLifecycleService());
+		labelService = new LabelService(TestEnvironmentService, new TestContextService(), new TestPathService(URI.file('/foobar')), new TestRemoteAgentService(), storageService, new TestLifecycleService(), uriIdentityService);
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -177,6 +185,91 @@ suite('URI Label', () => {
 		});
 
 		registration.dispose();
+	});
+
+	test('resource label home paths use URI identity casing', () => {
+		const store = new DisposableStore();
+		const caseInsensitiveLabelService = store.add(new LabelService(
+			TestEnvironmentService,
+			new TestContextService(),
+			new TestPathService(),
+			new TestRemoteAgentService(),
+			store.add(new TestStorageService()),
+			store.add(new TestLifecycleService()),
+			{ _serviceBrand: undefined, extUri: resources.extUriIgnorePathCase, asCanonicalUri: uri => uri }
+		));
+		const home = URI.from({ scheme: Schemas.file, path: '/c:/Users/test/.copilot/session-state/session-id' });
+		store.add(caseInsensitiveLabelService.registerFormatter({
+			scheme: home.scheme,
+			home: home.path,
+			formatting: { label: 'Session', separator: '/' },
+		}));
+		const resource = URI.from({ scheme: Schemas.file, path: '/C:/Users/Test/.copilot/session-state/session-id/files/result.html' });
+
+		assert.deepStrictEqual({
+			home: caseInsensitiveLabelService.getUriHome(resource)?.toString(),
+			label: caseInsensitiveLabelService.getUriLabel(resource),
+		}, {
+			home: home.toString(),
+			label: 'Session/files/result.html',
+		});
+
+		store.dispose();
+	});
+
+	test('URI home templates use URI identity casing', () => {
+		const store = new DisposableStore();
+		const caseInsensitiveLabelService = store.add(new LabelService(
+			TestEnvironmentService,
+			new TestContextService(),
+			new TestPathService(),
+			new TestRemoteAgentService(),
+			store.add(new TestStorageService()),
+			store.add(new TestLifecycleService()),
+			{ _serviceBrand: undefined, extUri: resources.extUriIgnorePathCase, asCanonicalUri: uri => uri }
+		));
+		store.add(caseInsensitiveLabelService.registerFormatter({
+			home: URI.from({ scheme: Schemas.file, path: '/c:/Users/test/.copilot/session-state/${sessionId}' }),
+			onDidChangeFormatting: Event.None,
+			formatting: () => ({ label: 'Session', separator: '/' }),
+		}));
+		const resource = URI.from({ scheme: Schemas.file, path: '/C:/Users/Test/.copilot/session-state/session-id/files/result.html' });
+
+		assert.deepStrictEqual({
+			home: caseInsensitiveLabelService.getUriHome(resource)?.toString(),
+			label: caseInsensitiveLabelService.getUriLabel(resource),
+		}, {
+			home: URI.from({ scheme: Schemas.file, path: '/C:/Users/Test/.copilot/session-state/session-id' }).toString(),
+			label: 'Session/files/result.html',
+		});
+
+		store.dispose();
+	});
+
+	test('URI home templates read URI identity casing at lookup time', () => {
+		let ignorePathCasing = false;
+		const store = new DisposableStore();
+		const dynamicLabelService = store.add(new LabelService(
+			TestEnvironmentService,
+			new TestContextService(),
+			new TestPathService(),
+			new TestRemoteAgentService(),
+			store.add(new TestStorageService()),
+			store.add(new TestLifecycleService()),
+			{ _serviceBrand: undefined, extUri: new resources.ExtUri(() => ignorePathCasing), asCanonicalUri: uri => uri }
+		));
+		store.add(dynamicLabelService.registerFormatter({
+			home: URI.parse('test:/sessions/K/${sessionId}'),
+			onDidChangeFormatting: Event.None,
+			formatting: () => ({ label: 'Session', separator: '/' }),
+		}));
+		const resource = URI.parse('test:/sessions/K/session-id/file.md');
+
+		assert.strictEqual(dynamicLabelService.getUriHome(resource), undefined);
+		ignorePathCasing = true;
+		assert.strictEqual(dynamicLabelService.getUriHome(resource)?.path, '/sessions/K/session-id');
+
+		store.dispose();
 	});
 
 	test('resolves URI home templates to concrete formatting', () => {
@@ -599,7 +692,8 @@ suite('multi-root workspace', () => {
 			new TestPathService(),
 			new TestRemoteAgentService(),
 			disposables.add(new TestStorageService()),
-			disposables.add(new TestLifecycleService())
+			disposables.add(new TestLifecycleService()),
+			uriIdentityService
 		));
 	});
 
@@ -737,7 +831,8 @@ suite('multi-root workspace', () => {
 			new TestPathService(undefined, rootFolder.scheme),
 			new TestRemoteAgentService(),
 			disposables.add(new TestStorageService()),
-			disposables.add(new TestLifecycleService())
+			disposables.add(new TestLifecycleService()),
+			uriIdentityService
 		));
 
 		const generated = labelService.getUriLabel(URI.parse('myscheme://myauthority/some/folder/test.txt'), { relative: true });
@@ -766,7 +861,8 @@ suite('workspace at FSP root', () => {
 			new TestPathService(),
 			new TestRemoteAgentService(),
 			new TestStorageService(),
-			new TestLifecycleService()
+			new TestLifecycleService(),
+			uriIdentityService
 		);
 		labelService.registerFormatter({
 			scheme: 'myscheme',

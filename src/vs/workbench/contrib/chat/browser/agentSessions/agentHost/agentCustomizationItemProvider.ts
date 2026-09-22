@@ -192,7 +192,11 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 		};
 	}
 
-	async provideSourceFolders(sessionResource: URI, type: PromptsType, _token: CancellationToken): Promise<readonly ICustomizationSourceFolder[]> {
+	async provideSourceFolders(sessionResource: URI, type: PromptsType, token: CancellationToken): Promise<readonly ICustomizationSourceFolder[]> {
+		// One-shot callers (the migration hint) must not read the empty
+		// placeholder a still-loading session reports, or they conclude there is
+		// nothing to migrate.
+		await this._customAgentsService.whenCustomizationsReady(sessionResource, token);
 		const workingDirectories = this._customAgentsService.getWorkingDirectories(sessionResource);
 
 		const folders: ICustomizationSourceFolder[] = [];

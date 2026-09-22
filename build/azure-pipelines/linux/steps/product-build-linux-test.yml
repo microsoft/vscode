@@ -59,6 +59,7 @@ steps:
         compile-extension:html-language-features-server \
         compile-extension:ipynb \
         compile-extension:notebook-renderers \
+        compile-extension:json-language-features-client \
         compile-extension:json-language-features-server \
         compile-extension:markdown-language-features \
         compile-extension-media \
@@ -109,23 +110,38 @@ steps:
       timeoutInMinutes: 20
 
   - script: |
-      set -e
+      # Bound the entire diagnostic process group without canceling the Azure task.
+      # KILL also stops pipeline children that ignore TERM.
+      status=0
+      timeout --signal=KILL 60s bash <<'DIAGNOSTICS' || status=$?
+      set -o pipefail
+      diagnostic_status=0
+      # Keep collecting after errors, but do not report incomplete diagnostics as success.
+      trap 'diagnostic_status=$?' ERR
       df -h
-      # Break down what is occupying the small OS root disk (`/`). The `-x` flag
-      # keeps `du` on the root filesystem so it does not descend into the large
-      # `/mnt` work volume. This identifies the directory that fills `/` and
-      # crashes the agent worker with "No space left on device".
-      echo "--- top consumers on / ---"
-      du -xhd1 / 2>/dev/null | sort -rh | head -30 || true
-      echo "--- top consumers under \$HOME ---"
-      du -xhd1 "$HOME" 2>/dev/null | sort -rh | head -30 || true
-      echo "--- top consumers under /tmp ---"
-      du -xhd1 /tmp 2>/dev/null | sort -rh | head -30 || true
-      echo "--- top consumers under /var ---"
-      du -xhd1 /var 2>/dev/null | sort -rh | head -30 || true
       ps -ef
       cat /proc/sys/fs/inotify/max_user_watches
       lsof | wc -l
+      # Read to EOF so limiting the output does not trigger SIGPIPE with pipefail.
+      echo "--- top consumers under \$HOME ---"
+      du -xhd1 "$HOME" 2>/dev/null | sort -rh | sed -n '1,30p'
+      echo "--- top consumers under /tmp ---"
+      du -xhd1 /tmp 2>/dev/null | sort -rh | sed -n '1,30p'
+      echo "--- top consumers under /var ---"
+      du -xhd1 /var 2>/dev/null | sort -rh | sed -n '1,30p'
+      # Break down what is occupying the small OS root disk (`/`). The `-x` flag
+      # keeps `du` on the root filesystem so it does not descend into the large
+      # `/mnt` work volume. This identifies the directory that fills `/` and
+      # crashes the agent worker with "No space left on device". Scan it last so
+      # a slow root scan does not prevent the other diagnostics from being collected.
+      echo "--- top consumers on / ---"
+      du -xhd1 / 2>/dev/null | sort -rh | sed -n '1,30p'
+      exit "$diagnostic_status"
+      DIAGNOSTICS
+      if [ "$status" -ne 0 ]; then
+        echo "##vso[task.logissue type=warning]Diagnostics before smoke tests failed or exceeded the 60s limit (exit $status); output may be incomplete."
+      fi
+      exit "$status"
     displayName: Diagnostics before smoke test run (disk space, processes, max_user_watches, number of opened file handles)
     continueOnError: true
     condition: succeededOrFailed()
@@ -133,8 +149,17 @@ steps:
   - ${{ if eq(parameters.VSCODE_RUN_ELECTRON_TESTS, true) }}:
     - script: |
         set -e
+        sudo mkdir /etc/vscode
+        echo "##vso[task.setvariable variable=created;isOutput=true]true"
+        sudo chown "$(id -u):$(id -g)" /etc/vscode
+      name: policyFixture
+      displayName: Set up native policy smoke fixture
+
+    - script: |
+        set -e
         npm run smoketest-no-compile -- --tracing --build "$(agent.builddirectory)/VSCode-linux-$(VSCODE_ARCH)"
       env:
+        VSCODE_SMOKE_TEST_POLICY: '1'
         # Keep the smoke test data dir (user-data, extensions, workspace and the
         # Copilot CLI session state under `os.tmpdir()`) on the large work volume
         # instead of the small OS root disk (`/tmp`), which has filled up and
@@ -142,6 +167,13 @@ steps:
         TMPDIR: $(Agent.TempDirectory)
       timeoutInMinutes: 20
       displayName: 🧪 Run smoke tests (Electron)
+
+    - script: |
+        set -e
+        sudo rm -f /etc/vscode/policy.json
+        sudo rmdir /etc/vscode
+      displayName: Clean up native policy smoke fixture
+      condition: and(always(), eq(variables['policyFixture.created'], 'true'))
 
   - ${{ if eq(parameters.VSCODE_RUN_BROWSER_TESTS, true) }}:
     - script: npm run smoketest-no-compile -- --web --tracing --headless
@@ -163,19 +195,33 @@ steps:
       displayName: 🧪 Run smoke tests (Remote)
 
   - script: |
-      set -e
+      status=0
+      timeout --signal=KILL 60s bash <<'DIAGNOSTICS' || status=$?
+      set -o pipefail
+      diagnostic_status=0
+      trap 'diagnostic_status=$?' ERR
       df -h
-      # Same root-disk breakdown as the "before" step so the delta attributable to
-      # the smoke run itself is visible, plus the smoke test data dirs explicitly.
-      echo "--- top consumers on / ---"
-      du -xhd1 / 2>/dev/null | sort -rh | head -30 || true
-      echo "--- top consumers under \$HOME ---"
-      du -xhd1 "$HOME" 2>/dev/null | sort -rh | head -30 || true
-      echo "--- smoke test data dirs ---"
-      du -sh "$(Agent.TempDirectory)"/vscsmoke-* /tmp/vscsmoke-* 2>/dev/null || true
       ps -ef
       cat /proc/sys/fs/inotify/max_user_watches
       lsof | wc -l
+      # Same root-disk breakdown as the "before" step so the delta attributable to
+      # the smoke run itself is visible, plus the smoke test data dirs explicitly.
+      echo "--- top consumers under \$HOME ---"
+      du -xhd1 "$HOME" 2>/dev/null | sort -rh | sed -n '1,30p'
+      echo "--- smoke test data dirs ---"
+      shopt -s nullglob
+      smoke_test_dirs=("$(Agent.TempDirectory)"/vscsmoke-* /tmp/vscsmoke-*)
+      if [ "${#smoke_test_dirs[@]}" -gt 0 ]; then
+        du -sh "${smoke_test_dirs[@]}" 2>/dev/null
+      fi
+      echo "--- top consumers on / ---"
+      du -xhd1 / 2>/dev/null | sort -rh | sed -n '1,30p'
+      exit "$diagnostic_status"
+      DIAGNOSTICS
+      if [ "$status" -ne 0 ]; then
+        echo "##vso[task.logissue type=warning]Diagnostics after smoke tests failed or exceeded the 60s limit (exit $status); output may be incomplete."
+      fi
+      exit "$status"
     displayName: Diagnostics after smoke test run (disk space, processes, max_user_watches, number of opened file handles)
     continueOnError: true
     condition: succeededOrFailed()
