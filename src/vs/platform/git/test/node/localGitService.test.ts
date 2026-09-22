@@ -16,6 +16,7 @@ import { LocalGitService } from '../../node/localGitService.js';
 interface IExecFileExpectation {
 	args: string[];
 	environment?: Record<string, string>;
+	environmentUndefined?: boolean;
 	stdout?: string;
 	stderr?: string;
 	error?: cp.ExecFileException;
@@ -28,6 +29,9 @@ function createExecFile(expectations: IExecFileExpectation[]): typeof cp.execFil
 		const expectation = expectations.shift();
 		assert.ok(expectation, `Unexpected git call: ${(args as string[]).join(' ')}`);
 		assert.deepStrictEqual(args, expectation.args);
+		if (expectation.environmentUndefined) {
+			assert.strictEqual(options.env, undefined);
+		}
 		for (const [key, value] of Object.entries(expectation.environment ?? {})) {
 			assert.strictEqual(options.env?.[key], value);
 		}
@@ -90,21 +94,23 @@ suite('LocalGitService', () => {
 		assert.strictEqual(expectations.length, 0);
 	});
 
-	test('clone rejects authenticated operations on Git versions before 2.31', async () => {
+	test('clone falls back to unauthenticated operation on Git versions before 2.31', async () => {
 		const expectations: IExecFileExpectation[] = [
 			{ args: ['--version'], stdout: 'git version 2.30.9\n' },
+			{
+				args: ['clone', '--', 'https://github.com/test/public.git', '/tmp/public'],
+				environmentUndefined: true,
+			},
 		];
 		const service = new LocalGitService(new NullLogService(), createExecFile(expectations));
 
-		await assert.rejects(
-			() => service.clone('test-op', 'https://github.com/test/private.git', '/tmp/private', undefined, {
-				authentication: {
-					urlPrefixes: ['https://github.com/'],
-					authorizationHeader: 'Authorization: Basic secret',
-				},
-			}),
-			/Git 2\.30\.9.*Git 2\.31 or later/
-		);
+		await service.clone('test-op', 'https://github.com/test/public.git', '/tmp/public', undefined, {
+			authentication: {
+				urlPrefixes: ['https://github.com/'],
+				authorizationHeader: 'Authorization: Basic secret',
+			},
+		});
+
 		assert.strictEqual(expectations.length, 0);
 	});
 
