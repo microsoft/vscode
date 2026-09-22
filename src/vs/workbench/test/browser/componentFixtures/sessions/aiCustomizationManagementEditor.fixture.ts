@@ -71,6 +71,7 @@ import { IAgentHostToolSetEnablementService, IToolEnablementState } from '../../
 import { IAgentHostActiveClientService } from '../../../../contrib/chat/browser/agentSessions/agentHost/agentHostActiveClientService.js';
 import { AgentHostMcpServerApplicability, AgentHostMcpServerDelivery, AgentHostMcpServerEnablementState, AgentHostMcpServerSourceKind, IAgentHostMcpServerSupportSnapshot } from '../../../../contrib/chat/browser/agentSessions/agentHost/agentHostMcpServerSupport.js';
 import { ExtensionState, IExtension, IExtensionsWorkbenchService } from '../../../../contrib/extensions/common/extensions.js';
+import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { IPluginMarketplaceService, IMarketplacePlugin, MarketplaceType, PluginSourceKind } from '../../../../contrib/chat/common/plugins/pluginMarketplaceService.js';
 import { MarketplaceReferenceKind } from '../../../../contrib/chat/common/plugins/marketplaceReference.js';
 import { IPluginInstallService } from '../../../../contrib/chat/common/plugins/pluginInstallService.js';
@@ -93,7 +94,7 @@ import { PromptsConfig } from '../../../../contrib/chat/common/promptSyntax/conf
 import { IAutomationDialogService } from '../../../../contrib/chat/common/automations/automationDialogService.js';
 import { IAutomationRunner } from '../../../../contrib/chat/common/automations/automationRunner.js';
 import { IAutomationService } from '../../../../contrib/chat/common/automations/automationService.js';
-import { IMcpWorkbenchService, IWorkbenchMcpServer, IMcpService, McpConnectionState, McpServerInstallState } from '../../../../contrib/mcp/common/mcpTypes.js';
+import { IMcpWorkbenchService, IWorkbenchMcpServer, IMcpService, McpConnectionState, McpServerInstallState, MCP_PLUGIN_COLLECTION_ID_PREFIX } from '../../../../contrib/mcp/common/mcpTypes.js';
 import { IMcpRegistry } from '../../../../contrib/mcp/common/mcpRegistryTypes.js';
 import { IWorkbenchLocalMcpServer, LocalMcpServerScope } from '../../../../services/mcp/common/mcpWorkbenchManagementService.js';
 import { McpListWidget } from '../../../../contrib/chat/browser/aiCustomization/mcpListWidget.js';
@@ -494,6 +495,9 @@ function makeLocalMcpServer(id: string, label: string, scope: LocalMcpServerScop
 		override readonly local = new class extends mock<IWorkbenchLocalMcpServer>() {
 			override readonly id = id;
 			override readonly scope = scope;
+			override readonly mcpResource = scope === LocalMcpServerScope.Workspace
+				? URI.file('/workspace/.vscode/mcp.json')
+				: URI.file('/home/dev/.config/Code/User/mcp.json');
 		}();
 	}();
 }
@@ -654,6 +658,8 @@ const mcpUserServers = [
 ];
 const mcpRuntimeServers = [
 	{ definition: { id: 'github-copilot-mcp', label: 'GitHub Copilot' }, collection: { id: 'ext.github.copilot/mcp', label: 'ext.github.copilot/mcp' }, enablement: constObservable(ContributionEnablementState.EnabledProfile), connectionState: constObservable({ state: McpConnectionState.Kind.Starting }), readDefinitions: () => constObservable({ server: undefined, collection: undefined }), showOutput() { } },
+	{ definition: { id: 'linear-mcp', label: 'Linear MCP' }, collection: { id: `${MCP_PLUGIN_COLLECTION_ID_PREFIX}${URI.file('/workspace/.copilot/plugins/linear').toString()}`, label: 'Linear plugin' }, enablement: constObservable(ContributionEnablementState.EnabledProfile), connectionState: constObservable({ state: McpConnectionState.Kind.Running }), readDefinitions: () => constObservable({ server: { presentation: { origin: { uri: URI.file('/workspace/.copilot/plugins/linear/.mcp.json') } } }, collection: undefined }), showOutput() { } },
+	{ definition: { id: 'acme-mcp', label: 'Acme MCP' }, collection: { id: 'acme.agent-tools/mcp', label: 'Acme extension' }, enablement: constObservable(ContributionEnablementState.EnabledProfile), connectionState: constObservable({ state: McpConnectionState.Kind.Running }), readDefinitions: () => constObservable({ server: { presentation: { origin: { uri: URI.file('/home/dev/.vscode/extensions/acme.agent-tools/mcp.json') } } }, collection: undefined }), showOutput() { } },
 	{ definition: { id: 'mcp-postgres', label: 'PostgreSQL' }, collection: { id: 'workspace-mcp', label: 'Workspace MCP' }, enablement: constObservable(ContributionEnablementState.EnabledProfile), connectionState: constObservable({ state: McpConnectionState.Kind.Error, message: 'Connection refused at localhost:5432. Check that the database is running.' }), readDefinitions: () => constObservable({ server: undefined, collection: undefined }), showOutput() { } },
 	{ definition: { id: 'mcp-web-search', label: 'Web Search' }, collection: { id: 'user-mcp', label: 'User MCP' }, enablement: constObservable(ContributionEnablementState.DisabledProfile), connectionState: constObservable({ state: McpConnectionState.Kind.Stopped }), readDefinitions: () => constObservable({ server: undefined, collection: undefined }), showOutput() { } },
 	{ definition: { id: 'mcp-filesystem', label: 'Filesystem' }, collection: { id: 'user-mcp', label: 'User MCP' }, enablement: constObservable(ContributionEnablementState.EnabledProfile), connectionState: constObservable({ state: McpConnectionState.Kind.Stopped }), readDefinitions: () => constObservable({ server: undefined, collection: undefined }), showOutput() { } },
@@ -684,9 +690,8 @@ function makeFixtureTool(id: string, displayName: string, description: string, s
 	};
 }
 
-const fixtureToolExtensionId = 'acme.agent-tools';
 const fixtureToolExtension = new class extends mock<IExtension>() {
-	override readonly identifier = { id: fixtureToolExtensionId, uuid: undefined };
+	override readonly identifier = { id: 'acme.agent-tools', uuid: undefined };
 	override readonly displayName = 'Acme Agent Tools';
 	override readonly publisherDisplayName = 'Acme';
 	override readonly description = 'Issue tracking and deployment tools for agents.';
@@ -714,17 +719,17 @@ const fixtureToolSets: readonly IToolSet[] = [
 		description: 'Acme Agent Tools',
 		detail: 'Tools contributed by the Acme extension.',
 		icon: Codicon.extensions,
-		source: { type: 'extension', label: 'Acme Agent Tools', extensionId: new ExtensionIdentifier(fixtureToolExtensionId) },
+		source: { type: 'extension', label: 'Acme Agent Tools', extensionId: new ExtensionIdentifier('acme.agent-tools') },
 		getTools: () => [
-			makeFixtureTool('acme.issues', 'Find Issues', 'Find and summarize open issues.', { type: 'extension', label: 'Acme Agent Tools', extensionId: new ExtensionIdentifier(fixtureToolExtensionId) }),
-			makeFixtureTool('acme.deploy', 'Create Deployment', 'Create a deployment for the current project.', { type: 'extension', label: 'Acme Agent Tools', extensionId: new ExtensionIdentifier(fixtureToolExtensionId) }),
+			makeFixtureTool('acme.issues', 'Find Issues', 'Find and summarize open issues.', { type: 'extension', label: 'Acme Agent Tools', extensionId: new ExtensionIdentifier('acme.agent-tools') }),
+			makeFixtureTool('acme.deploy', 'Create Deployment', 'Create a deployment for the current project.', { type: 'extension', label: 'Acme Agent Tools', extensionId: new ExtensionIdentifier('acme.agent-tools') }),
 		],
 	},
 ];
 
 const overflowingExtensionToolSets: readonly IToolSet[] = Array.from({ length: 8 }, (_, index) => {
 	const toolSetNumber = index + 1;
-	const source: ToolDataSource = { type: 'extension', label: 'Acme Agent Tools', extensionId: new ExtensionIdentifier(fixtureToolExtensionId) };
+	const source: ToolDataSource = { type: 'extension', label: 'Acme Agent Tools', extensionId: new ExtensionIdentifier('acme.agent-tools') };
 	return {
 		id: `acme-agent-tools-${toolSetNumber}`,
 		referenceName: `acme${toolSetNumber}`,
@@ -1310,6 +1315,28 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 				override readonly local = options.emptyToolExtensions ? [] : [fixtureToolExtension];
 				override readonly onChange = Event.None;
 			}());
+			if (options.selectedSection === AICustomizationManagementSection.McpServers) {
+				reg.defineInstance(ILabelService, new class extends mock<ILabelService>() {
+					override readonly onDidChangeFormatters = Event.None;
+					override getUriLabel(resource: URI, labelOptions?: Parameters<ILabelService['getUriLabel']>[1]): string {
+						if (labelOptions?.relative && resource.path.startsWith('/workspace/')) {
+							return resource.path.slice('/workspace/'.length);
+						}
+						if (!labelOptions?.noPrefix && resource.path.startsWith('/home/dev/')) {
+							return `~/${resource.path.slice('/home/dev/'.length)}`;
+						}
+						return resource.path;
+					}
+					override getUriBasenameLabel(resource: URI): string { return resource.path.split('/').pop() ?? ''; }
+					override getWorkspaceLabel(): string { return ''; }
+					override getHostLabel(): string { return ''; }
+					override getHostTooltip(): string { return ''; }
+					override getSeparator(): '/' { return '/'; }
+					override getUriHome(resource: URI): URI | undefined { return resource.path.startsWith('/home/dev/') ? URI.file('/home/dev') : undefined; }
+					override registerFormatter() { return { dispose() { } }; }
+					override registerCachedFormatter() { return { dispose() { } }; }
+				}());
+			}
 			reg.defineInstance(IExtensionManifestPropertiesService, new class extends mock<IExtensionManifestPropertiesService>() {
 				override canExecuteOnSessionsWindow() { return true; }
 			}());
@@ -1358,7 +1385,10 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 				};
 			}());
 			reg.defineInstance(IMcpRegistry, new class extends mock<IMcpRegistry>() {
-				override readonly collections = constObservable([]);
+				override readonly collections = constObservable([
+					{ id: `${MCP_PLUGIN_COLLECTION_ID_PREFIX}${URI.file('/workspace/.copilot/plugins/linear').toString()}`, source: undefined },
+					{ id: 'acme.agent-tools/mcp', source: new ExtensionIdentifier('acme.agent-tools') },
+				] as never[]);
 				override readonly delegates = constObservable([]);
 				override readonly onDidChangeInputs = Event.None;
 			}());
@@ -1532,8 +1562,16 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 
 	if (options.scrollToBottom) {
 		editor.revealLastItem();
-		// Allow the 500ms hide delay and 800ms fade transition to complete.
-		await new Promise(resolve => setTimeout(resolve, 1400));
+		if (options.selectedSection === AICustomizationManagementSection.McpServers) {
+			await new Promise<void>(resolve => DOM.getWindow(ctx.container).requestAnimationFrame(() => resolve()));
+			// Allow the 500ms hide delay and 800ms fade transition to complete.
+			await new Promise(resolve => setTimeout(resolve, 2400));
+			for (let attempt = 0; attempt < 20 && ctx.container.querySelector('.scrollbar.vertical.visible'); attempt++) {
+				await new Promise(resolve => setTimeout(resolve, 100));
+			}
+		} else {
+			await new Promise(resolve => setTimeout(resolve, 1400));
+		}
 	}
 
 	if (options.migrationDashboard) {
@@ -1693,6 +1731,10 @@ async function renderMcpBrowseMode(ctx: ComponentFixtureContext): Promise<void> 
 			}());
 			reg.defineInstance(IAgentPluginService, new class extends mock<IAgentPluginService>() {
 				override readonly plugins = constObservable([]);
+			}());
+			reg.defineInstance(IExtensionsWorkbenchService, new class extends mock<IExtensionsWorkbenchService>() {
+				override readonly local = [];
+				override readonly onChange = Event.None;
 			}());
 			reg.defineInstance(IDialogService, new class extends mock<IDialogService>() { }());
 			reg.defineInstance(IAICustomizationWorkspaceService, new class extends mock<IAICustomizationWorkspaceService>() {
@@ -1978,6 +2020,10 @@ function renderMcpDisabled(ctx: ComponentFixtureContext, byPolicy: boolean): voi
 			}());
 			reg.defineInstance(IAgentPluginService, new class extends mock<IAgentPluginService>() {
 				override readonly plugins = constObservable([]);
+			}());
+			reg.defineInstance(IExtensionsWorkbenchService, new class extends mock<IExtensionsWorkbenchService>() {
+				override readonly local = [];
+				override readonly onChange = Event.None;
 			}());
 			reg.defineInstance(IDialogService, new class extends mock<IDialogService>() { }());
 			reg.defineInstance(IAICustomizationWorkspaceService, new class extends mock<IAICustomizationWorkspaceService>() {
@@ -2349,10 +2395,20 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	// MCP Servers tab with many servers to verify scrollable list layout
 	McpServersTab: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: true },
-		expectedVisualDescriptions: ['The MCP Servers page shows Installed and Available sections, with no Featured section.'],
+		expectedVisualDescriptions: ['The MCP Servers page shows Installed and Available sections, with workspace-relative configuration paths beneath installed server names and no Featured section.'],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
 			selectedSection: AICustomizationManagementSection.McpServers,
+		}),
+	}),
+
+	McpServersProvenance: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: true },
+		expectedVisualDescriptions: ['The MCP Servers page shows linked "Plugin: Linear" and "Extension: Acme Agent Tools" provenance labels beneath their installed server names.'],
+		render: ctx => renderEditor(ctx, {
+			sessionResource: localSessionResource,
+			selectedSection: AICustomizationManagementSection.McpServers,
+			mcpSearchQuery: 'MCP',
 		}),
 	}),
 
@@ -2858,7 +2914,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 
 	McpServersTabScrolled: defineComponentFixture({
 		labels: { kind: 'screenshot' },
-		virtualTime: { durationMs: 1500 },
+		virtualTime: { durationMs: 5000 },
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
 			selectedSection: AICustomizationManagementSection.McpServers,

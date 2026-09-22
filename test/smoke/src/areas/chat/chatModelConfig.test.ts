@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import { Application, Chat, Logger } from '../../../../automation';
-import { dumpFailureDiagnostics, getCopilotSmokeTestEnv, getMockLlmServerPath, installAllHandlers, MOCK_CONFIG_MODEL_DEFAULT_LABEL, MOCK_CONFIG_MODEL_DEFAULT_SECTIONS, MockLlmServer, preseedChatExtensionEnablement } from '../../utils';
+import { dumpFailureDiagnostics, getCopilotSmokeTestEnv, getMockLlmServerPath, installAllHandlers, latestUserInputCarriesTag, MOCK_CONFIG_MODEL_DEFAULT_LABEL, MOCK_CONFIG_MODEL_DEFAULT_SECTIONS, MockLlmServer, preseedChatExtensionEnablement } from '../../utils';
 
 /**
  * A chat request captured by the mock LLM server, exposed via
@@ -106,28 +106,6 @@ function findResponsesRequest(requests: CapturedRequest[], fromIndex: number, sc
 		}
 	}
 	return undefined;
-}
-
-/**
- * Whether the latest `user` item in a Responses API request's `input` array
- * contains `scenarioTag`. The item's `content` is either a plain string or an
- * array of `{ text }` parts (matching the mock server's own scenario parsing).
- */
-function latestUserInputCarriesTag(body: any, scenarioTag: string): boolean {
-	const input = Array.isArray(body?.input) ? body.input : [];
-	for (let i = input.length - 1; i >= 0; i--) {
-		const item = input[i];
-		if (item?.role !== 'user') {
-			continue;
-		}
-		const content = typeof item.content === 'string'
-			? item.content
-			: Array.isArray(item.content)
-				? item.content.map((part: any) => part?.text ?? '').join('')
-				: '';
-		return content.includes(scenarioTag);
-	}
-	return false;
 }
 
 /**

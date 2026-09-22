@@ -6,6 +6,17 @@ The following test plan outlines the scenarios and specifications for the AI Cus
 
 - [`../AI_CUSTOMIZATIONS.md`](../AI_CUSTOMIZATIONS.md)
 
+## LOCAL EXPERIMENT OVERRIDES
+
+Production behavior reads the `sessions.list.rearrage` treatment directly from the assignment service. For local testing only, use the assignment service's standard developer override in the user `settings.json`:
+
+- Treatment: `"experiments.override.sessions.list.rearrage": true`
+- Control: `"experiments.override.sessions.list.rearrage": false`
+
+The Agents sidebar updates reactively when the override changes. Remove the override to use the automatically assigned experiment variant.
+
+In the treatment, Automations and Customizations are the first rows in the Sessions tree and scroll with its content. The Sessions header follows them and remains sticky while session rows scroll beneath it. The control keeps the expandable Customizations pane above the Sessions list.
+
 ## SCENARIOS
 
 ### Unified marketplace discovery

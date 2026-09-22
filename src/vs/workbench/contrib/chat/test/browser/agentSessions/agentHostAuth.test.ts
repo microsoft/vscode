@@ -22,7 +22,7 @@ import { NullTelemetryService } from '../../../../../../platform/telemetry/commo
 import { IAuthenticationMcpAccessService } from '../../../../../services/authentication/browser/authenticationMcpAccessService.js';
 import { IAuthenticationMcpService } from '../../../../../services/authentication/browser/authenticationMcpService.js';
 import { IAuthenticationMcpUsageService } from '../../../../../services/authentication/browser/authenticationMcpUsageService.js';
-import { IAuthenticationService, type AuthenticationSession, type IAuthenticationProvider } from '../../../../../services/authentication/common/authentication.js';
+import { IAuthenticationService, type AuthenticationSession, type IAuthenticationProvider, type IAuthenticationProviderSessionOptions } from '../../../../../services/authentication/common/authentication.js';
 import { IDynamicAuthenticationProviderStorageService } from '../../../../../services/authentication/common/dynamicAuthenticationProviderStorage.js';
 import { CHAT_SETUP_ACTION_ID } from '../../../browser/actions/chatActions.js';
 import { AgentHostAuthenticationRecovery, authenticateProtectedResources, resolveAuthenticationInteractively, resolveSessionForResource, AgentHostAuthTokenCache, agentHostMcpServerId, resolveMcpServerAuthentication, modelRequiresAgentAuthentication, revokeAuthenticationForRemovedSessions, type IAgentHostAuthenticationOptions } from '../../../browser/agentSessions/agentHost/agentHostAuth.js';
@@ -925,6 +925,61 @@ suite('AgentHost authentication telemetry', () => {
 suite('resolveMcpServerAuthentication', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('preserves OAuth context when selecting an account', async () => {
+		const authorizationServer = URI.parse('https://issuer.example/tenant');
+		const resource = 'https://resource.example/mcp';
+		const oauthClient = { clientId: 'client-a', clientSecret: 'client-secret' };
+		const session: AuthenticationSession = {
+			id: 'session', accessToken: 'token', account: { id: 'account', label: 'Account' }, scopes: ['read']
+		};
+		const selections: (IAuthenticationProviderSessionOptions | undefined)[] = [];
+		const authService = createMockAuthService({
+			isDynamicAuthenticationProvider: () => true,
+			getSessions: async () => [session],
+			getProvider: () => new class extends mock<IAuthenticationProvider>() {
+				override readonly supportsMultipleAccounts = true;
+			}(),
+		});
+		const instantiationService = disposables.add(new TestInstantiationService());
+		instantiationService.stub(IAuthenticationService, authService);
+		instantiationService.stub(IAuthenticationMcpAccessService, {
+			isAccessAllowedForUrl: () => false,
+			updateAllowedMcpServers: () => { },
+		});
+		instantiationService.stub(IAuthenticationMcpService, {
+			getAccountPreference: () => undefined,
+			updateAccountPreference: () => { },
+			selectSession: async (_providerId, _serverId, _serverName, _scopes, _sessions, options) => {
+				selections.push(options);
+				return session;
+			},
+		});
+		instantiationService.stub(IAuthenticationMcpUsageService, { addAccountUsage: () => { } });
+		instantiationService.stub(IDynamicAuthenticationProviderStorageService, {
+			getClientRegistration: async () => oauthClient,
+		});
+		instantiationService.stub(ILogService, new NullLogService());
+
+		const authenticated = await instantiationService.invokeFunction(resolveMcpServerAuthentication, {
+			resource,
+			authorization_servers: [authorizationServer.toString(true)],
+		}, {
+			allowInteraction: true,
+			logPrefix: '[Test]',
+			mcpServerId: 'server',
+			mcpServerName: 'Server',
+			mcpServerUrl: resource,
+			oauthClient,
+			scopes: ['read'],
+			authenticate: async () => { },
+		});
+
+		assert.deepStrictEqual({ authenticated, selections }, {
+			authenticated: true,
+			selections: [{ authorizationServer, resource, ...oauthClient }]
+		});
+	});
 
 	test('uses challenge scopes without replacing the protected resource scope catalog', async () => {
 		const requestedScopes: (readonly string[] | undefined)[] = [];

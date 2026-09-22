@@ -346,7 +346,7 @@ export class SinglePaneExistingSessionStrategy extends SinglePaneLayoutStrategy 
 		this._register(autorun(sync));
 		this._register(this._ctx.onDidEndSessionLayoutRestore(() => {
 			const activeSession = this._sessionsService.activeSession.get();
-			if (!activeSession || activeSession.resource.toString() !== pendingSessionKey) {
+			if (pendingSessionKey && activeSession?.resource.toString() !== pendingSessionKey) {
 				return;
 			}
 			pendingSessionKey = undefined;

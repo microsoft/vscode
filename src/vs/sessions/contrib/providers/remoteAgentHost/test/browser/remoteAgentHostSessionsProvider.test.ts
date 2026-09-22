@@ -53,7 +53,7 @@ import { IGitHubService } from '../../../../github/browser/githubService.js';
 import { IPullRequestIconCache, PullRequestIconCache } from '../../../../github/browser/pullRequestIconCache.js';
 import { IAgentHostActiveClientService } from '../../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostActiveClientService.js';
 import { CopilotCLISessionType } from '../../../agentHost/browser/baseAgentHostSessionsProvider.js';
-import { IObservable, constObservable } from '../../../../../../base/common/observable.js';
+import { IObservable, autorun, constObservable } from '../../../../../../base/common/observable.js';
 import { IActiveSession, WorkspaceNotTrustedError } from '../../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../../../services/sessions/browser/sessionsService.js';
 import { ISessionsRecentWorkspacesService } from '../../../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
@@ -1370,6 +1370,8 @@ suite('RemoteAgentHostSessionsProvider', () => {
 				}
 			}(),
 		}) as RefreshableRemoteAgentHostSessionsProvider;
+		// Complete the empty listing before adding a session; overlapping refreshes supersede it.
+		await provider.refresh();
 		const session = createSession('temporarily-unlisted', { _meta: metadata });
 		connection.addSession(session);
 		await provider.refresh();
@@ -1382,6 +1384,34 @@ suite('RemoteAgentHostSessionsProvider', () => {
 			{ scope: 'file:///workspace', activeHandles: [handle] },
 			{ scope: 'file:///workspace', activeHandles: [] },
 		]);
+	});
+
+	test('does not reconcile detached worktrees from a superseded session listing', async () => {
+		class RefreshableRemoteAgentHostSessionsProvider extends RemoteAgentHostSessionsProvider {
+			refresh(): Promise<void> { return this._refreshSessions(); }
+		}
+		const pending = new DeferredPromise<IAgentSessionMetadata[]>();
+		const handle = '00000000-0000-4000-8000-000000000001';
+		const session = createSession('current-worktree', { _meta: { 'vscode.devContainerWorktree': { version: 1, handle } } });
+		let lists = 0;
+		connection.listSessions = async () => ++lists === 1 ? pending.p : [session];
+		const reconciliations: (readonly string[])[] = [];
+		const provider = createProvider(disposables, connection, {
+			ctor: RefreshableRemoteAgentHostSessionsProvider,
+			devContainerWorktreeScope: 'file:///workspace',
+			localAgentHostService: new class extends mock<IAgentHostService>() {
+				override async reconcileDetachedWorktrees(_scope: string, activeHandles: readonly string[]): Promise<void> {
+					reconciliations.push(activeHandles);
+				}
+			}(),
+		}) as RefreshableRemoteAgentHostSessionsProvider;
+		await provider.refresh();
+		await pending.complete([]);
+		await timeout(0);
+
+		assert.deepStrictEqual({ lists, reconciliations, sessions: provider.getSessions().length }, {
+			lists: 2, reconciliations: [[handle]], sessions: 1,
+		});
 	});
 
 	test('does not reconcile stale worktree handles after reconnecting the source host', async () => {
@@ -2226,6 +2256,205 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		});
 	}));
 
+});
+
+suite('CloudSandboxSessionsProvider archiving', () => {
+	const disposables = new DisposableStore();
+	const metadata = createSession('sandbox-session', { provider: 'copilot', summary: 'Sandbox Session' });
+	const backendResource = AgentSession.uri('ahp-session', 'sandbox-session');
+	let connection: MockAgentConnection;
+
+	setup(() => {
+		connection = disposables.add(new MockAgentConnection());
+	});
+
+	teardown(() => {
+		disposables.clear();
+	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	function createSandboxProvider(overrides?: { storageService?: IStorageService; connectOnDemand?: () => Promise<void> }): RemoteAgentHostSessionsProvider {
+		return createProvider(disposables, connection, {
+			address: 'cloudsandbox:archive-test',
+			sessionSchemeAlias: { ui: 'copilot', backend: 'ahp-session' },
+			ctor: CloudSandboxSessionsProvider,
+			noConnection: true,
+			...overrides,
+		});
+	}
+
+	test('archives and unarchives without connecting or dispatching host actions', async () => {
+		let connectCalls = 0;
+		const provider = createSandboxProvider({ connectOnDemand: async () => { connectCalls++; } });
+		provider.seedSessions([metadata]);
+		const session = provider.getSessions()[0];
+		const archivedStates: boolean[] = [];
+		disposables.add(autorun(reader => archivedStates.push(session.isArchived.read(reader))));
+
+		await provider.archiveSession(session.sessionId);
+		await provider.unarchiveSession(session.sessionId);
+
+		assert.deepStrictEqual({
+			archivedStates,
+			connectCalls,
+			hostActions: connection.dispatchedActions,
+		}, {
+			archivedStates: [false, true, false],
+			connectCalls: 0,
+			hostActions: [],
+		});
+	});
+
+	test('restores local archive and unarchive choices through rediscovery and reconnect', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const storageService = disposables.add(new InMemoryStorageService());
+		const provider = createSandboxProvider({ storageService });
+		provider.seedSessions([metadata]);
+		await provider.archiveSession(provider.getSessions()[0].sessionId);
+		await storageService.flush();
+		provider.dispose();
+
+		const restored = createSandboxProvider({ storageService });
+		const unarchivedMetadata = { ...metadata, session: backendResource, status: ProtocolSessionStatus.Idle };
+		restored.seedSessions([unarchivedMetadata]);
+		connection.addSession(unarchivedMetadata);
+		restored.setConnection(connection);
+		await timeout(0);
+		const archived = restored.getSessions()[0].isArchived.get();
+		await restored.unarchiveSession(restored.getSessions()[0].sessionId);
+		await storageService.flush();
+		restored.dispose();
+
+		const restoredAgain = createSandboxProvider({ storageService });
+		const archivedMetadata = { ...metadata, session: backendResource, status: ProtocolSessionStatus.Idle | ProtocolSessionStatus.IsArchived };
+		restoredAgain.seedSessions([archivedMetadata]);
+		connection.addSession(archivedMetadata);
+		restoredAgain.setConnection(connection);
+		await timeout(0);
+		assert.deepStrictEqual({
+			archived,
+			unarchived: restoredAgain.getSessions()[0].isArchived.get(),
+		}, {
+			archived: true,
+			unarchived: false,
+		});
+	}));
+
+	for (const isArchived of [true, false]) {
+		test(`keeps a local ${isArchived ? 'archive' : 'unarchive'} choice through host updates and reconnect`, () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+			const provider = createSandboxProvider();
+			provider.seedSessions([metadata]);
+			const session = provider.getSessions()[0];
+			if (isArchived) {
+				await provider.archiveSession(session.sessionId);
+			} else {
+				await provider.unarchiveSession(session.sessionId);
+			}
+			const hostStatus = ProtocolSessionStatus.InProgress | ProtocolSessionStatus.IsRead | (isArchived ? 0 : ProtocolSessionStatus.IsArchived);
+			connection.addSession({ ...metadata, session: backendResource, status: hostStatus });
+			provider.setConnection(connection);
+			await timeout(0);
+			const afterListing = session.isArchived.get();
+
+			connection.fireAction({
+				channel: backendResource.toString(),
+				action: { type: ActionType.SessionIsArchivedChanged, isArchived: !isArchived },
+				serverSeq: 1,
+				origin: undefined,
+			});
+			const afterAction = session.isArchived.get();
+
+			connection.fireNotification({
+				channel: 'ahp-root://',
+				type: NotificationType.SessionSummaryChanged,
+				session: backendResource.toString(),
+				changes: { status: hostStatus, title: 'Updated Title' },
+			});
+			const afterSummary = {
+				isArchived: session.isArchived.get(),
+				title: session.title.get(),
+				status: session.status.get(),
+				isRead: session.isRead.get(),
+			};
+
+			await provider.archiveSession(session.sessionId);
+			const afterConnectedArchive = session.isArchived.get();
+			await provider.unarchiveSession(session.sessionId);
+			const afterConnectedUnarchive = session.isArchived.get();
+			if (isArchived) {
+				await provider.archiveSession(session.sessionId);
+			}
+
+			provider.clearConnection();
+			provider.setConnection(connection);
+			await timeout(0);
+
+			assert.deepStrictEqual({
+				afterListing,
+				afterAction,
+				afterSummary,
+				afterConnectedArchive,
+				afterConnectedUnarchive,
+				afterReconnect: provider.getSessions()[0].isArchived.get(),
+				archiveActions: connection.dispatchedActions.filter(entry => entry.action.type === ActionType.SessionIsArchivedChanged),
+			}, {
+				afterListing: isArchived,
+				afterAction: isArchived,
+				afterSummary: { isArchived, title: 'Updated Title', status: SessionStatus.InProgress, isRead: true },
+				afterConnectedArchive: true,
+				afterConnectedUnarchive: false,
+				afterReconnect: isArchived,
+				archiveActions: [],
+			});
+		}));
+	}
+
+	test('initializes archive state from metadata and preserves it on host updates', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const provider = createSandboxProvider();
+		connection.addSession({ ...metadata, session: backendResource, status: ProtocolSessionStatus.Idle | ProtocolSessionStatus.IsArchived });
+		provider.setConnection(connection);
+		await timeout(0);
+		const session = provider.getSessions()[0];
+		const before = session.isArchived.get();
+
+		connection.fireNotification({
+			channel: 'ahp-root://',
+			type: NotificationType.SessionSummaryChanged,
+			session: backendResource.toString(),
+			changes: { status: ProtocolSessionStatus.Idle },
+		});
+
+		assert.deepStrictEqual({ before, after: session.isArchived.get() }, { before: true, after: true });
+	}));
+
+	test('rejects archiving or unarchiving an unknown session', async () => {
+		const provider = createSandboxProvider();
+		await assert.rejects(() => provider.archiveSession('missing'), /Sandbox session not found/);
+		await assert.rejects(() => provider.unarchiveSession('missing'), /Sandbox session not found/);
+	});
+
+	test('other remote providers still dispatch archive changes to the host', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		connection.addSession(createSession('remote-session'));
+		const provider = createProvider(disposables, connection);
+		await timeout(0);
+		const session = provider.getSessions()[0];
+		await provider.archiveSession(session.sessionId);
+		const archived = session.isArchived.get();
+		await provider.unarchiveSession(session.sessionId);
+
+		assert.deepStrictEqual({
+			archived,
+			unarchived: session.isArchived.get(),
+			actions: connection.dispatchedActions.map(({ channel, action }) => ({ channel, action })),
+		}, {
+			archived: true,
+			unarchived: false,
+			actions: [
+				{ channel: 'copilotcli:/remote-session', action: { type: ActionType.SessionIsArchivedChanged, isArchived: true } },
+				{ channel: 'copilotcli:/remote-session', action: { type: ActionType.SessionIsArchivedChanged, isArchived: false } },
+			],
+		});
+	}));
 });
 
 suite('CloudSandboxSessionsProvider provisional sessions', () => {
