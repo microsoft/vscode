@@ -36,6 +36,13 @@ import type { IAgentHostE2ETestContext } from './e2eTestContext.js';
 
 export function defineSubagentTests(context: IAgentHostE2ETestContext): void {
 	const { config, createdSessions, tempDirs, isWindows } = context;
+	// Copilot captures store one wire dialect, so keep nested model calls on the parent's Anthropic endpoint.
+	const stableSubagentModelInstruction = config.provider === 'copilotcli'
+		? 'Explicitly set the subagent model to `claude-sonnet-5`. '
+		: '';
+	const stableSubagentFileListingInstruction = config.provider === 'copilotcli'
+		? 'Then the subagent should call a single read-only file-listing tool (e.g. `Glob` or `view`) to list the files; do not run a shell command. '
+		: 'Then the subagent should list the files. ';
 
 	function createCustomAgentWorkspace(prefix: string, allTools = false): string {
 		const workspace = mkdtempSync(join(tmpdir(), prefix));
@@ -479,6 +486,7 @@ export function defineSubagentTests(context: IAgentHostE2ETestContext): void {
 
 		dispatchTurn(context.client, sessionUri, 'turn-sa',
 			`Use the \`${config.subagentToolNames[0]}\` tool to spawn a subagent to list the files in the current working directory. ` +
+			stableSubagentModelInstruction +
 			'The subagent should call a single read-only file-listing tool (e.g. `Glob` or `view`) to enumerate the directory; do not run a shell command. ' +
 			'Do not enumerate the directory yourself — delegate to the subagent.',
 			1);
@@ -596,8 +604,9 @@ export function defineSubagentTests(context: IAgentHostE2ETestContext): void {
 
 		dispatchTurn(context.client, sessionUri, 'turn-sa-replay',
 			`Use the \`${config.subagentToolNames[0]}\` tool to spawn a subagent to list the files in the current working directory. ` +
+			stableSubagentModelInstruction +
 			`Instruct the subagent to begin its response with this sentence on its own line: ${sentinel}. ` +
-			'Then the subagent should list the files. ' +
+			stableSubagentFileListingInstruction +
 			`After the subagent completes, you, the main agent, must reply exactly "${parentResponse}" and must not repeat that sentence.`,
 			1);
 
