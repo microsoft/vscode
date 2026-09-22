@@ -171,12 +171,19 @@ export class MobileHostFilterActionViewItem extends HostFilterActionViewItem {
 		// initial focus pass can pick the most relevant element without
 		// querying the DOM by selector.
 		const focusRefs: { firstHost?: HTMLButtonElement; firstCheckedHost?: HTMLButtonElement; rediscover?: HTMLButtonElement } = {};
+		const hostRows = new Map<string, HTMLButtonElement>();
 		const renderBody = () => {
+			const activeElement = dom.getActiveElement();
+			const focusedHostId = [...hostRows].find(([, row]) => row === activeElement)?.[0];
 			bodyDisposables.clear();
 			dom.clearNode(body);
+			hostRows.clear();
 			focusRefs.firstHost = undefined;
 			focusRefs.firstCheckedHost = undefined;
-			this._renderHostList(bodyDisposables, body, finish, focusRefs);
+			this._renderHostList(bodyDisposables, body, finish, focusRefs, hostRows);
+			if (focusedHostId !== undefined) {
+				(hostRows.get(focusedHostId) ?? focusRefs.firstCheckedHost ?? focusRefs.firstHost ?? focusRefs.rediscover)?.focus();
+			}
 		};
 		renderBody();
 		disposables.add(this._filterService.onDidChange(renderBody));
@@ -213,7 +220,7 @@ export class MobileHostFilterActionViewItem extends HostFilterActionViewItem {
 		(focusRefs.firstCheckedHost ?? focusRefs.firstHost ?? focusRefs.rediscover)?.focus();
 	}
 
-	private _renderHostList(disposables: DisposableStore, body: HTMLElement, finish: () => void, focusRefs: { firstHost?: HTMLButtonElement; firstCheckedHost?: HTMLButtonElement }): void {
+	private _renderHostList(disposables: DisposableStore, body: HTMLElement, finish: () => void, focusRefs: { firstHost?: HTMLButtonElement; firstCheckedHost?: HTMLButtonElement }, hostRows: Map<string, HTMLButtonElement>): void {
 		const hosts = this._filterService.hosts;
 		const selectedId = this._filterService.selectedHostId;
 
@@ -230,6 +237,7 @@ export class MobileHostFilterActionViewItem extends HostFilterActionViewItem {
 
 		for (const host of hosts) {
 			const row = this._renderHostItem(disposables, body, host, selectedId === host.id, finish);
+			hostRows.set(host.id, row);
 			focusRefs.firstHost ??= row;
 			if (selectedId === host.id) {
 				focusRefs.firstCheckedHost ??= row;
