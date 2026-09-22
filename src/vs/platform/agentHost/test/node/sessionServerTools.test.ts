@@ -62,7 +62,7 @@ suite('SessionServerTools', () => {
 		return { sessionUri, chatUri: buildDefaultChatUri(sessionUri), turnId: 'turn-1' };
 	}
 
-	function createAccessor(overrides?: Partial<ISessionServerToolAccessor> & { onCreate?: (config: IAgentCreateSessionConfig) => void; onPrompt?: (...args: Parameters<ISessionServerToolAccessor['startPrompt']>) => void; onCreateChat?: (session: URI, chat: URI, options?: { title?: string; model?: ModelSelection }) => void; onRenameChat?: (session: URI, chat: URI, title: string) => void; onDelete?: (session: URI) => void; depths?: Map<string, number> }): ISessionServerToolAccessor {
+	function createAccessor(overrides?: Partial<ISessionServerToolAccessor> & { onCreate?: (config: IAgentCreateSessionConfig) => void; onPrompt?: (...args: Parameters<ISessionServerToolAccessor['startPrompt']>) => void; onCreateChat?: (...args: Parameters<ISessionServerToolAccessor['createChat']>) => void; onRenameChat?: (session: URI, chat: URI, title: string) => void; onDelete?: (session: URI) => void; depths?: Map<string, number> }): ISessionServerToolAccessor {
 		const depths = overrides?.depths ?? new Map<string, number>();
 		return {
 			isActiveAgentTitleGenerationEnabled: overrides?.isActiveAgentTitleGenerationEnabled ?? (() => true),
@@ -76,6 +76,7 @@ suite('SessionServerTools', () => {
 			getCreationDefaults: overrides?.getCreationDefaults ?? (() => undefined),
 			startPrompt: overrides?.startPrompt ?? (async (session, chat, prompt, delegation) => { overrides?.onPrompt?.(session, chat, prompt, delegation); }),
 			createChat: overrides?.createChat ?? (async (session, chat, options) => { overrides?.onCreateChat?.(session, chat, options); }),
+			addSessionWorkingDirectory: overrides?.addSessionWorkingDirectory ?? (async (_session, directory) => directory),
 			renameChat: overrides?.renameChat ?? (async (session, chat, title) => { overrides?.onRenameChat?.(session, chat, title); return { title }; }),
 			reportToolError: overrides?.reportToolError ?? (() => { }),
 			deleteSession: overrides?.deleteSession ?? (async session => { overrides?.onDelete?.(session); }),

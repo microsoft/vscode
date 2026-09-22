@@ -107,6 +107,8 @@ The provider remembers isolation per workspace after the first request is accept
 
 An Agent Host session may own additional detached worktrees for repositories beyond its primary workspace. The host persists each worktree's opaque handle, checkout path, and source repository root with the session. Archive, unarchive, automatic-deletion eligibility, and permanent deletion apply to every owned worktree; deleting session data resolves repository cleanup against source roots before removing the checkouts.
 
+Before assigning an additional repository or folder to a chat, the host prepares its effective working directory. Folder isolation uses the requested directory directly. Worktree isolation resolves the primary repository through Git, reuses a session-owned checkout unless a fresh worktree is requested, or creates and claims a detached worktree. Before expanding the aggregate session workspace, the host pins chats that still inherit the complete workspace to their previous effective directories. The preparation operation returns the effective directory for the caller to assign explicitly to the target chat; tool argument parsing and relationship semantics remain separate from this lifecycle contract.
+
 External sessions remain provider-owned domain objects. Visibility and interactivity fields determine whether shared Sessions surfaces present them; shared code does not infer visibility from Agent Host URI formats.
 
 Host-owned background activities remain independent of client visibility. Agent Merge monitoring prevents an enabled session from idle eviction while work is active, resumes eligible sessions after host startup, and releases that retention when monitoring ends.
