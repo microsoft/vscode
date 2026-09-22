@@ -171,14 +171,13 @@ suite('InboxNotificationsService', () => {
 
 	test('surfaces failing and passing CI notifications for session pull requests', () => {
 		const gitHubService = new TestGitHubService();
-		const agentHostProvider = new TestAgentHostProvider();
 		const fixture = createFixture([createSession({
 			id: 'ci',
 			status: SessionStatus.Completed,
 			updatedAt: 100,
 			isRead: true,
 			pullRequest: { owner: 'owner', repo: 'repo', number: 42 },
-		})], undefined, gitHubService, agentHostProvider);
+		})], undefined, gitHubService);
 
 		gitHubService.setPullRequest('owner', 'repo', 42, openPullRequest(42, 'sha42'));
 		gitHubService.setCIStatus('owner', 'repo', 42, 'sha42', GitHubCIOverallStatus.Failure, [{
@@ -195,7 +194,7 @@ suite('InboxNotificationsService', () => {
 			actions: item.actions.map(action => action.kind),
 		})), [{
 			kind: InboxNotificationKind.FailingCI,
-			actions: [InboxNotificationActionKind.OpenSession, InboxNotificationActionKind.EnableAgentMerge, InboxNotificationActionKind.Dismiss],
+			actions: [InboxNotificationActionKind.OpenSession, InboxNotificationActionKind.AgentMergeFixCI, InboxNotificationActionKind.Dismiss],
 		}]);
 
 		gitHubService.setCIStatus('owner', 'repo', 42, 'sha42', GitHubCIOverallStatus.Success, [{
@@ -212,14 +211,8 @@ suite('InboxNotificationsService', () => {
 			actions: item.actions.map(action => action.kind),
 		})), [{
 			kind: InboxNotificationKind.PassingCI,
-			actions: [InboxNotificationActionKind.OpenSession, InboxNotificationActionKind.EnableAgentMerge, InboxNotificationActionKind.Dismiss],
+			actions: [InboxNotificationActionKind.OpenSession, InboxNotificationActionKind.AgentMergeMergePullRequest, InboxNotificationActionKind.Dismiss],
 		}]);
-
-		agentHostProvider.setEnabled('ci', true);
-		assert.deepStrictEqual(fixture.service.notifications.get().map(item => item.actions.map(action => action.kind)), [[
-			InboxNotificationActionKind.OpenSession,
-			InboxNotificationActionKind.Dismiss,
-		]]);
 	});
 
 	test('surfaces unresolved Copilot review comments only', () => {
@@ -269,7 +262,13 @@ suite('InboxNotificationsService', () => {
 			}],
 		}]);
 
-		assert.deepStrictEqual(fixture.service.notifications.get().map(item => item.kind), [InboxNotificationKind.ReviewComments]);
+		assert.deepStrictEqual(fixture.service.notifications.get().map(item => ({
+			kind: item.kind,
+			actions: item.actions.map(action => action.kind),
+		})), [{
+			kind: InboxNotificationKind.ReviewComments,
+			actions: [InboxNotificationActionKind.OpenSession, InboxNotificationActionKind.AgentMergeAddressReviews, InboxNotificationActionKind.Dismiss],
+		}]);
 	});
 
 	test('persists dismissed notifications across instances', () => {
@@ -368,10 +367,6 @@ class TestAgentHostProvider {
 
 	getAgentMergeClientStateObservable(sessionId: string): IObservable<IAgentMergeClientState | undefined> {
 		return this._stateForSession(sessionId);
-	}
-
-	setEnabled(sessionId: string, enabled: boolean): void {
-		this._stateForSession(sessionId).set({ enabled }, undefined);
 	}
 
 	private _stateForSession(sessionId: string) {

@@ -18,6 +18,7 @@ import { INotificationService } from '../../../../platform/notification/common/n
 import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { fromNowByDay } from '../../../../base/common/date.js';
 import { isAgentHostProvider } from '../../../common/agentHostSessionsProvider.js';
+import { AgentMergeSessionOverrides } from '../../../../platform/agentHost/common/agentMerge.js';
 import { AbstractCustomView } from '../../../services/customView/browser/customView.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
@@ -47,6 +48,7 @@ export class InboxNotificationsView extends AbstractCustomView {
 		className: 'inbox-notifications-scrollable',
 	}));
 	private readonly renderedListDisposables = this._register(new DisposableStore());
+	private renderedCards: HTMLElement[] = [];
 
 	constructor(
 		@IInboxNotificationsService private readonly inboxNotificationsService: IInboxNotificationsService,
@@ -124,13 +126,16 @@ export class InboxNotificationsView extends AbstractCustomView {
 		clearNode(list);
 
 		const items = this.inboxNotificationsService.notifications.get();
+		this.renderedCards = [];
 		if (items.length === 0) {
 			list.appendChild($('.inbox-notifications-empty', undefined, localize('inboxNotifications.empty', "You're all caught up.")));
 			return;
 		}
 
 		for (const item of items) {
-			list.appendChild(this.renderItem(item));
+			const card = this.renderItem(item);
+			this.renderedCards.push(card);
+			list.appendChild(card);
 		}
 
 		this.applyCardTabStops(focusedNotificationId);
@@ -245,7 +250,7 @@ export class InboxNotificationsView extends AbstractCustomView {
 	}
 
 	private getNotificationCards(): HTMLElement[] {
-		return Array.from(this.listElement.querySelectorAll<HTMLElement>('.inbox-notifications-item'));
+		return this.renderedCards;
 	}
 
 	private kindLabel(kind: IInboxNotificationItem['kind']): string {
@@ -277,24 +282,15 @@ export class InboxNotificationsView extends AbstractCustomView {
 					await this.sessionsManagementService.markRead(session);
 					return;
 				}
-				case InboxNotificationActionKind.EnableAgentMerge: {
-					if (!item.sessionResource) {
-						return;
-					}
-
-					const session = this.sessionsManagementService.getSession(item.sessionResource);
-					if (!session) {
-						return;
-					}
-
-					const provider = this.sessionsProvidersService.getProvider(session.providerId);
-					if (!provider || !isAgentHostProvider(provider)) {
-						return;
-					}
-
-					await provider.setAgentMergeEnabled(session.sessionId, true);
+				case InboxNotificationActionKind.AgentMergeFixCI:
+					await this.runAgentMergeAction(item, { fixCI: true });
 					return;
-				}
+				case InboxNotificationActionKind.AgentMergeAddressReviews:
+					await this.runAgentMergeAction(item, { addressReviews: true });
+					return;
+				case InboxNotificationActionKind.AgentMergeMergePullRequest:
+					await this.runAgentMergeAction(item, { mergePullRequest: 'always' });
+					return;
 				case InboxNotificationActionKind.Dismiss:
 					this.inboxNotificationsService.dismissNotification(item.id);
 					return;
@@ -308,6 +304,29 @@ export class InboxNotificationsView extends AbstractCustomView {
 			onUnexpectedError(error);
 			this.notificationService.error(localize('inboxNotifications.actionError', "Unable to run inbox action."));
 		}
+	}
+
+	private async runAgentMergeAction(item: IInboxNotificationItem, overrides: AgentMergeSessionOverrides): Promise<void> {
+		if (!item.sessionResource) {
+			return;
+		}
+
+		const session = this.sessionsManagementService.getSession(item.sessionResource);
+		if (!session) {
+			return;
+		}
+
+		const provider = this.sessionsProvidersService.getProvider(session.providerId);
+		if (!provider || !isAgentHostProvider(provider)) {
+			return;
+		}
+
+		await provider.setAgentMergeEnabled(session.sessionId, true);
+		const currentOverrides = provider.getAgentMergeSessionState(session.sessionId)?.overrides;
+		await provider.setAgentMergeOverrides(session.sessionId, {
+			...currentOverrides,
+			...overrides,
+		});
 	}
 
 	layout(_width: number, _height: number): void {

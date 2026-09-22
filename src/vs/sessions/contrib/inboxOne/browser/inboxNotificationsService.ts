@@ -267,7 +267,7 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 						description: localize('inboxNotifications.failingCi.description', "Required checks are failing for {0}. Open {1} to investigate and fix the failures.", pullRequestLabel, sessionTitle),
 						timestamp: ciTimestamp,
 						sessionResource: session.resource,
-						actions: this.pullRequestActions(session, reader),
+						actions: this.pullRequestActions(session, InboxNotificationKind.FailingCI),
 					});
 				} else if (ciStatus === GitHubCIOverallStatus.Success) {
 					const id = `${session.sessionId}:${InboxNotificationKind.PassingCI}:${pullRequestRef.owner}/${pullRequestRef.repo}#${pullRequestRef.number}:${headSha}`;
@@ -279,7 +279,7 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 						description: localize('inboxNotifications.passingCi.description', "All required checks are passing for {0}. Open {1} to review merge readiness.", pullRequestLabel, sessionTitle),
 						timestamp: ciTimestamp,
 						sessionResource: session.resource,
-						actions: this.pullRequestActions(session, reader),
+						actions: this.pullRequestActions(session, InboxNotificationKind.PassingCI),
 					});
 				}
 			}
@@ -305,19 +305,44 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 				description: localize('inboxNotifications.reviewComments.description', "{0} has unresolved Copilot review comments. Open the session to address feedback.", pullRequestLabel),
 				timestamp: reviewCommentsTimestamp,
 				sessionResource: session.resource,
-				actions: this.pullRequestActions(session, reader),
+				actions: this.pullRequestActions(session, InboxNotificationKind.ReviewComments),
 			});
 		}
 	}
 
-	private pullRequestActions(session: ISession, reader: IReader): readonly IInboxNotificationAction[] {
+	private pullRequestActions(session: ISession, kind: InboxNotificationKind): readonly IInboxNotificationAction[] {
 		const provider = this.sessionsProvidersService.getProvider(session.providerId);
 		if (!provider || !isAgentHostProvider(provider)) {
 			return this.sessionActions(true, false);
 		}
 
-		const mergeState = provider.getAgentMergeClientStateObservable(session.sessionId).read(reader);
-		return this.sessionActions(true, false, mergeState?.enabled !== true);
+		const agentMergeAction = this.agentMergeActionForNotificationKind(kind);
+		return this.sessionActions(true, false, agentMergeAction ? [agentMergeAction] : undefined);
+	}
+
+	private agentMergeActionForNotificationKind(kind: InboxNotificationKind): IInboxNotificationAction | undefined {
+		switch (kind) {
+			case InboxNotificationKind.FailingCI:
+				return {
+					id: 'agent-merge-fix-ci',
+					label: localize('inboxNotifications.action.agentMergeFixCI', "Fix CI Failures"),
+					kind: InboxNotificationActionKind.AgentMergeFixCI,
+				};
+			case InboxNotificationKind.ReviewComments:
+				return {
+					id: 'agent-merge-address-reviews',
+					label: localize('inboxNotifications.action.agentMergeAddressReviews', "Address Reviews"),
+					kind: InboxNotificationActionKind.AgentMergeAddressReviews,
+				};
+			case InboxNotificationKind.PassingCI:
+				return {
+					id: 'agent-merge-merge-pull-request',
+					label: localize('inboxNotifications.action.agentMergeMergePullRequest', "Merge Pull Request"),
+					kind: InboxNotificationActionKind.AgentMergeMergePullRequest,
+				};
+			default:
+				return undefined;
+		}
 	}
 
 	private getSessionPullRequestRefs(session: ISession, reader: IReader): readonly IGitHubPullRequestRef[] {
@@ -342,7 +367,7 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 		return pullRequestRefs;
 	}
 
-	private sessionActions(includeOpen: boolean, includeMarkRead: boolean, includeEnableAgentMerge = false): readonly IInboxNotificationAction[] {
+	private sessionActions(includeOpen: boolean, includeMarkRead: boolean, additionalActions?: readonly IInboxNotificationAction[]): readonly IInboxNotificationAction[] {
 		const actions: IInboxNotificationAction[] = [];
 		if (includeOpen) {
 			actions.push({
@@ -359,12 +384,8 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 				kind: InboxNotificationActionKind.MarkSessionRead,
 			});
 		}
-		if (includeEnableAgentMerge) {
-			actions.push({
-				id: 'enable-agent-merge',
-				label: localize('inboxNotifications.action.enableAgentMerge', "Enable Agent Merge"),
-				kind: InboxNotificationActionKind.EnableAgentMerge,
-			});
+		if (additionalActions?.length) {
+			actions.push(...additionalActions);
 		}
 		actions.push({
 			id: 'dismiss',
