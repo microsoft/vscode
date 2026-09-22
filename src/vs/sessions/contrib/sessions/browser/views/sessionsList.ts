@@ -107,6 +107,7 @@ import { getSessionConversationStatusAriaLabel } from '../../../../browser/sessi
 import { getAgentMergeAwarePullRequestIcon, getSessionAgentMergeConfigurationObservable, ISessionAgentMergeConfiguration, isAgentMergePullRequestIcon } from '../../../../browser/sessionAgentMerge.js';
 import { BlockedSessionReason, BlockedSessions } from '../../../blockedSessions/browser/blockedSessions.js';
 import { INBOX_NOTIFICATIONS_VIEW_ID, SHOW_INBOX_NOTIFICATIONS_COMMAND_ID } from '../../../inboxOne/browser/inboxNotificationsConstants.js';
+import { IInboxNotificationsService } from '../../../inboxOne/common/inboxNotificationsService.js';
 
 const $ = DOM.$;
 
@@ -1792,6 +1793,7 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 		private readonly uriIdentityService: IUriIdentityService,
 		private readonly customViewService: ICustomViewService,
 		private readonly menuService: IMenuService,
+		private readonly inboxNotificationCount: IObservable<number> = constObservable(0),
 	) { }
 
 	renderTemplate(container: HTMLElement): ISessionSectionTemplate {
@@ -1871,6 +1873,7 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 		this.templatesById.set(element.id, template);
 		template.container.classList.remove(SESSION_HEADER_DROP_TARGET_CLASS);
 		template.container.classList.remove('session-section-shortcut');
+		template.container.classList.remove('session-section-inbox');
 		template.container.classList.remove('active');
 		template.newBadge.style.display = 'none';
 		template.newBadge.classList.remove(
@@ -1918,10 +1921,16 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 				}
 			}));
 		} else if (element.id === INBOX_NOTIFICATIONS_SECTION_ID) {
+			template.container.classList.add('session-section-inbox');
 			template.icon.style.display = '';
 			template.elementDisposables.add(autorun(reader => {
 				const activeCustomView = this.customViewService.activeCustomView.read(reader);
 				template.container.classList.toggle('active', activeCustomView?.id === INBOX_NOTIFICATIONS_VIEW_ID);
+			}));
+			template.elementDisposables.add(autorun(reader => {
+				const count = this.inboxNotificationCount.read(reader);
+				template.count.textContent = count > 0 ? String(count) : '';
+				template.count.style.display = count > 0 ? '' : 'none';
 			}));
 			renderSessionHeaderIcon(template, element.sessions, getSessionSectionIcon(element.id), this.showUnreadInCollapsedSections, this.sessionsWithFailingCI, this.instantiationService);
 		} else {
@@ -1929,7 +1938,9 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 		}
 
 		template.label.textContent = element.label;
-		if (this.hideSectionCount || element.id === AUTOMATIONS_SECTION_ID || element.id === INBOX_NOTIFICATIONS_SECTION_ID) {
+		if (element.id === INBOX_NOTIFICATIONS_SECTION_ID) {
+			// Inbox count is handled reactively by the notification service above.
+		} else if (this.hideSectionCount || element.id === AUTOMATIONS_SECTION_ID) {
 			template.count.textContent = '';
 			template.count.style.display = 'none';
 		} else {
@@ -2242,6 +2253,7 @@ interface ISessionsAccessibilityProviderOptions extends ICompactInputNeededPrese
 	readonly isRenderedInCustomGroup?: (session: ISession) => boolean;
 	readonly includeQuickChatInAriaLabel?: boolean;
 	readonly automationNewBadgeVisible?: IObservable<boolean>;
+	readonly inboxNotificationCount?: IObservable<number>;
 	readonly showUnreadInCollapsedSections?: IObservable<boolean>;
 	readonly sessionsWithFailingCI?: IObservable<ReadonlySet<string>>;
 	/** Mirrors {@link SessionItemRenderer}'s option of the same name — see there for rationale. */
@@ -2294,7 +2306,18 @@ class SessionsAccessibilityProvider {
 				});
 			}
 			if (element.id === INBOX_NOTIFICATIONS_SECTION_ID) {
-				return localize('inboxNotificationsAriaLabel', "{0}, open inbox notifications", element.label);
+				if (!this.options?.inboxNotificationCount) {
+					return localize('inboxNotificationsAriaLabel', "{0}, open inbox notifications", element.label);
+				}
+				return derived(this, reader => {
+					const count = this.options?.inboxNotificationCount?.read(reader) ?? 0;
+					if (count <= 0) {
+						return localize('inboxNotificationsAriaLabel', "{0}, open inbox notifications", element.label);
+					}
+					return count === 1
+						? localize('inboxNotificationsAriaLabelOneNotification', "{0}, {1} notification, open inbox notifications", element.label, count)
+						: localize('inboxNotificationsAriaLabelManyNotifications', "{0}, {1} notifications, open inbox notifications", element.label, count);
+				});
 			}
 			return this.getSectionAriaLabel(element.label, element.sessions);
 		}
@@ -3049,6 +3072,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		@IOpenerService private readonly openerService: IOpenerService,
 		@ILabelService private readonly labelService: ILabelService,
 		@IPreferencesService private readonly preferencesService: IPreferencesService,
+		@IInboxNotificationsService private readonly inboxNotificationsService: IInboxNotificationsService,
 	) {
 		super();
 		this.automationsNewBadgeState = this._register(instantiationService.createInstance(AutomationsNewBadgeState));
@@ -3163,6 +3187,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 				.filter(blocked => blocked.reason === BlockedSessionReason.FailingCI)
 				.map(blocked => blocked.session.sessionId)
 		));
+		const inboxNotificationCount = derived(this, reader => this.inboxNotificationsService.notifications.read(reader).length);
 		const sectionRenderer = new SessionSectionRenderer(
 			true /* hideSectionCount */,
 			selectHeader,
@@ -3176,6 +3201,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			this.uriIdentityService,
 			this.customViewService,
 			this.menuService,
+			inboxNotificationCount,
 		);
 		this._sectionRenderer = sectionRenderer;
 		const groupRenderer = new SessionGroupRenderer({
@@ -3226,6 +3252,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 					deriveStatusFromMainChat: true,
 					collapsedSessionIds: this.collapsedSessionIds,
 					automationNewBadgeVisible: this.automationsNewBadgeState.showNewBadge,
+					inboxNotificationCount,
 					showUnreadInCollapsedSections,
 					sessionsWithFailingCI,
 				}),

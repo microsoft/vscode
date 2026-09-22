@@ -844,6 +844,24 @@
 		margin-right: 4px;
 	}
 
+	&.session-section-inbox .session-section-count {
+		opacity: 1;
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		box-sizing: border-box;
+		min-width: var(--vscode-spacing-size160);
+		height: var(--vscode-spacing-size160);
+		padding: 0 var(--vscode-spacing-size40);
+		margin-left: var(--vscode-spacing-size40);
+		margin-right: var(--vscode-spacing-size40);
+		border-radius: var(--vscode-cornerRadius-circle);
+		background-color: var(--vscode-activityBarBadge-background);
+		color: var(--vscode-activityBarBadge-foreground);
+		font-size: var(--vscode-fontSize-label3);
+		font-weight: var(--vscode-fontWeight-semiBold);
+	}
+
 	.session-section-new-badge {
 		display: none;
 		align-items: center;
@@ -906,6 +924,11 @@
 .hc-black .session-section-new-badge,
 .hc-light .session-section-new-badge {
 	border-color: var(--vscode-contrastBorder);
+}
+
+.hc-black .session-section.session-section-inbox .session-section-count,
+.hc-light .session-section.session-section-inbox .session-section-count {
+	border: var(--vscode-strokeThickness) solid var(--vscode-contrastBorder);
 }
 
 .monaco-list-row:hover .session-section .session-section-toolbar,

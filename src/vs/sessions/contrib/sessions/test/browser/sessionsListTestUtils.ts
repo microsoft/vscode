@@ -19,6 +19,7 @@ import { IChatService } from '../../../../../workbench/contrib/chat/common/chatS
 import { IVoicePlaybackService } from '../../../../../workbench/contrib/chat/common/voicePlaybackService.js';
 import { workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
 import { IAgentHostFilterService } from '../../../../services/agentHostFilter/common/agentHostFilter.js';
+import { IInboxNotificationsService } from '../../../inboxOne/common/inboxNotificationsService.js';
 import { ISessionGroup, ISessionGroupsService } from '../../../../services/sessions/browser/sessionGroupsService.js';
 import { ISessionsListModelService, SessionSortMode } from '../../../../services/sessions/browser/sessionsListModelService.js';
 import { ISessionSectionOrderService } from '../../../../services/sessions/browser/sessionSectionOrderService.js';
@@ -252,6 +253,9 @@ export function createListHarness(disposables: Pick<DisposableStore, 'add'>, ses
 		override readonly onDidChangeProviders = Event.None;
 		override getProviders() { return []; }
 		override getProvider() { return undefined; }
+	});
+	instantiationService.stub(IInboxNotificationsService, new class extends mock<IInboxNotificationsService>() {
+		override readonly notifications = constObservable([]);
 	});
 	instantiationService.stub(ISessionsWindowUsageService, new class extends mock<ISessionsWindowUsageService>() {
 		override readonly hadPriorWindowOpen = true;
