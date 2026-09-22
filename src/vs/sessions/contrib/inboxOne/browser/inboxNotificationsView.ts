@@ -7,6 +7,7 @@ import './media/inboxNotificationsView.css';
 import { $, addDisposableListener, clearNode, EventType, getActiveElement, isHTMLElement, trackFocus } from '../../../../base/browser/dom.js';
 import { triggerConfettiAnimation } from '../../../../base/browser/ui/animations/animations.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
+import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { DomScrollableElement } from '../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { autorun, constObservable, IObservable, observableValue } from '../../../../base/common/observable.js';
@@ -191,24 +192,7 @@ export class InboxNotificationsView extends AbstractCustomView {
 		card.classList.add(`priority-${item.priority}`);
 		card.setAttribute('role', 'listitem');
 		card.dataset.notificationId = item.id;
-		card.setAttribute('aria-label', item.repositoryLabel
-			? localize(
-				'inboxNotifications.itemAriaLabel.withRepository',
-				"Priority {0}. {1}. Repository {2}. {3}. {4}",
-				this.priorityLabel(item.priority),
-				this.kindLabel(item.kind),
-				item.repositoryLabel,
-				item.title,
-				item.description,
-			)
-			: localize(
-				'inboxNotifications.itemAriaLabel',
-				"Priority {0}. {1}. {2}. {3}",
-				this.priorityLabel(item.priority),
-				this.kindLabel(item.kind),
-				item.title,
-				item.description,
-			));
+		card.setAttribute('aria-label', this.getCardAriaLabel(item));
 
 		const heading = card.appendChild($('.inbox-notifications-item-header'));
 		heading.appendChild($('.inbox-notifications-item-title', undefined, item.title));
@@ -217,6 +201,16 @@ export class InboxNotificationsView extends AbstractCustomView {
 		badges.appendChild($('.inbox-notifications-item-badge kind', undefined, this.kindLabel(item.kind)));
 		if (item.repositoryLabel) {
 			badges.appendChild($('.inbox-notifications-item-badge repository', undefined, item.repositoryLabel));
+		}
+		if (item.pullRequestStates?.length) {
+			const pullRequestStates = card.appendChild($('.inbox-notifications-item-pr-states'));
+			pullRequestStates.setAttribute('aria-hidden', 'true');
+			for (const pullRequestState of item.pullRequestStates) {
+				const pullRequestStateElement = pullRequestStates.appendChild($('.inbox-notifications-item-pr-state'));
+				const icon = pullRequestStateElement.appendChild(renderIcon(pullRequestState.icon));
+				icon.setAttribute('aria-hidden', 'true');
+				pullRequestStateElement.appendChild($('span.inbox-notifications-item-pr-state-label', undefined, pullRequestState.label));
+			}
 		}
 
 		card.appendChild($('.inbox-notifications-item-description', undefined, item.description));
@@ -314,6 +308,37 @@ export class InboxNotificationsView extends AbstractCustomView {
 
 	private priorityLabel(priority: InboxNotificationPriority): string {
 		return getInboxNotificationPriorityLabel(priority);
+	}
+
+	private getCardAriaLabel(item: IInboxNotificationItem): string {
+		const segments = [
+			localize('inboxNotifications.itemAriaLabel.priority', "Priority {0}", this.priorityLabel(item.priority)),
+			this.kindLabel(item.kind),
+		];
+		if (item.repositoryLabel) {
+			segments.push(localize('inboxNotifications.itemAriaLabel.repository', "Repository {0}", item.repositoryLabel));
+		}
+		const pullRequestStatesAria = this.getPullRequestStatesAriaLabel(item);
+		if (pullRequestStatesAria) {
+			segments.push(pullRequestStatesAria);
+		}
+		segments.push(item.title, item.description);
+		return segments.join('. ');
+	}
+
+	private getPullRequestStatesAriaLabel(item: IInboxNotificationItem): string | undefined {
+		if (!item.pullRequestStates?.length) {
+			return undefined;
+		}
+		if (item.pullRequestStates.length === 1) {
+			const state = item.pullRequestStates[0];
+			return localize('inboxNotifications.itemAriaLabel.pullRequestState.single', "Pull request {0}: {1}", state.label, state.statusLabel);
+		}
+		return localize(
+			'inboxNotifications.itemAriaLabel.pullRequestState.multiple',
+			"Pull requests: {0}",
+			item.pullRequestStates.map(state => `${state.label}: ${state.statusLabel}`).join('; '),
+		);
 	}
 
 	private async runAction(item: IInboxNotificationItem, action: IInboxNotificationAction, sourceElement?: HTMLElement): Promise<void> {

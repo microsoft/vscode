@@ -27,6 +27,10 @@ suite('InboxNotificationsAccessibility', () => {
 					title: 'Input Needed for Session A',
 					description: 'Open this session to answer.',
 					repositoryLabel: 'microsoft/vscode',
+					pullRequestStates: [
+						{ label: '#123', repositoryLabel: 'microsoft/vscode', statusLabel: 'Checks failed', icon: { id: 'git-pull-request-error' } },
+						{ label: '#124', repositoryLabel: 'microsoft/vscode', statusLabel: 'Unresolved comments', icon: { id: 'git-pull-request-comment' } },
+					],
 				},
 				{
 					kind: InboxNotificationKind.Completed,
@@ -41,6 +45,7 @@ suite('InboxNotificationsAccessibility', () => {
 				'1. Input Needed for Session A',
 				'   Priority: High. Type: Needs Input',
 				'   Repository: microsoft/vscode',
+				'   Pull request states: #123 (Checks failed), #124 (Unresolved comments)',
 				'   Open this session to answer.',
 				'2. Completed: Session B',
 				'   Priority: Low. Type: Completed',

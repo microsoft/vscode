@@ -26,6 +26,7 @@ class InboxNotificationsAccessibilityHelp implements IAccessibleViewImplementati
 		const content = [
 			localize('inboxNotifications.help.overview', "You are in the Inbox view. It lists prioritized notifications that need attention."),
 			localize('inboxNotifications.help.repository', "Cards include repository badges when a notification is associated with a repository."),
+			localize('inboxNotifications.help.pullRequestStates', "Pull request notifications show state chips with pull request icons so you can quickly scan checks, comments, and merge readiness."),
 			localize('inboxNotifications.help.navigation', "Use Up Arrow and Down Arrow to move focus between notification cards. Tab moves through actions for the focused notification."),
 			localize('inboxNotifications.help.sorting', "Use the Priority and Recent buttons to switch sorting order. Priority is the default."),
 			localize('inboxNotifications.help.actions', "Cards show inline question or confirmation details when input is needed. Use Open Session to answer or review context. CI and review notifications may include actions such as Fix CI Failures, Address Reviews, and Merge Pull Request. Use Done to clear a notification."),
@@ -72,7 +73,7 @@ function createFocusRestorer(layoutService: IAgentWorkbenchLayoutService): () =>
 	};
 }
 
-export function buildInboxNotificationsAccessibleContent(items: readonly Pick<IInboxNotificationItem, 'kind' | 'priority' | 'title' | 'description' | 'repositoryLabel'>[]): string {
+export function buildInboxNotificationsAccessibleContent(items: readonly Pick<IInboxNotificationItem, 'kind' | 'priority' | 'title' | 'description' | 'repositoryLabel' | 'pullRequestStates'>[]): string {
 	if (items.length === 0) {
 		return localize('inboxNotifications.accessibleView.empty', "No active notifications.");
 	}
@@ -91,6 +92,13 @@ export function buildInboxNotificationsAccessibleContent(items: readonly Pick<II
 		));
 		if (item.repositoryLabel) {
 			lines.push(localize('inboxNotifications.accessibleView.itemRepository', "   Repository: {0}", item.repositoryLabel));
+		}
+		if (item.pullRequestStates?.length) {
+			lines.push(localize(
+				'inboxNotifications.accessibleView.itemPullRequestStates',
+				"   Pull request states: {0}",
+				item.pullRequestStates.map(state => `${state.label} (${state.statusLabel})`).join(', '),
+			));
 		}
 		lines.push(localize('inboxNotifications.accessibleView.itemDescription', "   {0}", item.description));
 	}

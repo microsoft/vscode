@@ -6,11 +6,13 @@
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { autorun, derived, IObservable, IReader, IReaderWithStore, ISettableObservable, observableSignalFromEvent, observableValue } from '../../../../base/common/observable.js';
 import { onUnexpectedError } from '../../../../base/common/errors.js';
+import { Codicon } from '../../../../base/common/codicons.js';
 import { renderAsPlaintext } from '../../../../base/browser/markdownRenderer.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
 import { localize } from '../../../../nls.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IGitHubService } from '../../github/browser/githubService.js';
-import { GitHubCIOverallStatus, GitHubPullRequestState, IGitHubPRComment, IGitHubPullRequestReviewThread } from '../../github/common/types.js';
+import { computePullRequestIcon, GitHubCIOverallStatus, GitHubPullRequestState, IGitHubPRComment, IGitHubPullRequestReviewThread } from '../../github/common/types.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { getSessionOwnedGitHubPullRequestRefs, getSessionStatusMessage, IGitHubPullRequestRef, SessionStatus, type ISession } from '../../../services/sessions/common/session.js';
@@ -20,6 +22,7 @@ import {
 	IExternalInboxNotification,
 	IInboxNotificationAction,
 	IInboxNotificationItem,
+	IInboxNotificationPullRequestState,
 	IInboxNotificationsService,
 	InboxNotificationActionKind,
 	InboxNotificationKind,
@@ -28,6 +31,14 @@ import {
 } from '../common/inboxNotificationsService.js';
 
 const DISMISSED_NOTIFICATION_IDS_STORAGE_KEY = 'sessions.inboxNotifications.dismissedIds';
+
+interface IPullRequestNotificationCandidate {
+	readonly ref: IGitHubPullRequestRef;
+	readonly timestamp: number;
+	readonly identity: string;
+	readonly icon: ThemeIcon;
+	readonly statusLabel: string;
+}
 
 export class InboxNotificationsService extends Disposable implements IInboxNotificationsService {
 
@@ -252,6 +263,10 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 		sessionUpdatedAt: number,
 		reader: IReaderWithStore,
 	): void {
+		const failingCandidates: IPullRequestNotificationCandidate[] = [];
+		const passingCandidates: IPullRequestNotificationCandidate[] = [];
+		const reviewCommentCandidates: IPullRequestNotificationCandidate[] = [];
+
 		for (const pullRequestRef of this.getSessionPullRequestRefs(session, reader)) {
 			const pullRequestModelRef = reader.delayedStore.add(this.gitHubService.createPullRequestModelReference(
 				pullRequestRef.owner,
@@ -264,7 +279,17 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 				continue;
 			}
 
-			const pullRequestLabel = `#${pullRequestRef.number}`;
+			const reviewThreadsModelRef = reader.delayedStore.add(this.gitHubService.createPullRequestReviewThreadsModelReference(
+				pullRequestRef.owner,
+				pullRequestRef.repo,
+				pullRequestRef.number,
+			));
+			const reviewThreads = reviewThreadsModelRef.object.reviewThreads.read(reader);
+			const unresolvedReviewThreads = reviewThreads.filter(thread => !thread.isResolved);
+			const unresolvedCopilotThreads = unresolvedReviewThreads.filter(thread => hasCopilotReviewComment(thread.comments));
+
+			let ciStatus: GitHubCIOverallStatus | undefined;
+			let ciTimestamp = sessionUpdatedAt;
 			const headSha = pullRequest?.headSha;
 			if (headSha) {
 				const ciModelRef = reader.delayedStore.add(this.gitHubService.createPullRequestCIModelReference(
@@ -273,61 +298,131 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 					pullRequestRef.number,
 					headSha,
 				));
-				const ciStatus = ciModelRef.object.overallStatus.read(reader);
-				const ciTimestamp = latestCITimestamp(ciModelRef.object.checks.read(reader), sessionUpdatedAt);
-				if (ciStatus === GitHubCIOverallStatus.Failure) {
-					const id = `${session.sessionId}:${InboxNotificationKind.FailingCI}:${pullRequestRef.owner}/${pullRequestRef.repo}#${pullRequestRef.number}:${headSha}`;
-					itemsById.set(id, {
-						id,
-						kind: InboxNotificationKind.FailingCI,
-						priority: InboxNotificationPriority.High,
-						title: localize('inboxNotifications.failingCi.title', "CI Failing on {0}", pullRequestLabel),
-						description: localize('inboxNotifications.failingCi.description', "Required checks are failing for {0}. Open {1} to investigate and fix the failures.", pullRequestLabel, sessionTitle),
-						repositoryLabel: `${pullRequestRef.owner}/${pullRequestRef.repo}`,
-						timestamp: ciTimestamp,
-						sessionResource: session.resource,
-						actions: this.pullRequestActions(session, InboxNotificationKind.FailingCI),
-					});
-				} else if (ciStatus === GitHubCIOverallStatus.Success) {
-					const id = `${session.sessionId}:${InboxNotificationKind.PassingCI}:${pullRequestRef.owner}/${pullRequestRef.repo}#${pullRequestRef.number}:${headSha}`;
-					itemsById.set(id, {
-						id,
-						kind: InboxNotificationKind.PassingCI,
-						priority: InboxNotificationPriority.Normal,
-						title: localize('inboxNotifications.passingCi.title', "CI Passing on {0}", pullRequestLabel),
-						description: localize('inboxNotifications.passingCi.description', "All required checks are passing for {0}. Open {1} to review merge readiness.", pullRequestLabel, sessionTitle),
-						repositoryLabel: `${pullRequestRef.owner}/${pullRequestRef.repo}`,
-						timestamp: ciTimestamp,
-						sessionResource: session.resource,
-						actions: this.pullRequestActions(session, InboxNotificationKind.PassingCI),
-					});
-				}
+				ciStatus = ciModelRef.object.overallStatus.read(reader);
+				ciTimestamp = latestCITimestamp(ciModelRef.object.checks.read(reader), sessionUpdatedAt);
 			}
 
-			const reviewThreadsModelRef = reader.delayedStore.add(this.gitHubService.createPullRequestReviewThreadsModelReference(
-				pullRequestRef.owner,
-				pullRequestRef.repo,
-				pullRequestRef.number,
-			));
-			const unresolvedCopilotThreads = reviewThreadsModelRef.object.reviewThreads.read(reader)
-				.filter(thread => !thread.isResolved && hasCopilotReviewComment(thread.comments));
-			if (unresolvedCopilotThreads.length === 0) {
-				continue;
+			const pullRequestIcon = computePullRequestIcon(
+				pullRequest?.isDraft ? 'draft' : effectiveState,
+				{
+					hasFailingChecks: ciStatus === GitHubCIOverallStatus.Failure,
+					hasUnresolvedComments: unresolvedReviewThreads.length > 0,
+				},
+			);
+			const candidateBase = {
+				ref: pullRequestRef,
+				icon: pullRequestIcon,
+				statusLabel: getPullRequestStatusLabel(pullRequestIcon),
+			};
+
+			if (ciStatus === GitHubCIOverallStatus.Failure) {
+				failingCandidates.push({
+					...candidateBase,
+					timestamp: ciTimestamp,
+					identity: headSha ?? String(ciTimestamp),
+				});
+			} else if (ciStatus === GitHubCIOverallStatus.Success) {
+				passingCandidates.push({
+					...candidateBase,
+					timestamp: ciTimestamp,
+					identity: headSha ?? String(ciTimestamp),
+				});
 			}
 
-			const reviewCommentsTimestamp = latestReviewCommentsTimestamp(unresolvedCopilotThreads, sessionUpdatedAt);
-			const id = `${session.sessionId}:${InboxNotificationKind.ReviewComments}:${pullRequestRef.owner}/${pullRequestRef.repo}#${pullRequestRef.number}:${reviewCommentsTimestamp}`;
-			itemsById.set(id, {
-				id,
-				kind: InboxNotificationKind.ReviewComments,
-				priority: InboxNotificationPriority.High,
-				title: localize('inboxNotifications.reviewComments.title', "Copilot Comments on {0}", pullRequestLabel),
-				description: localize('inboxNotifications.reviewComments.description', "{0} has unresolved Copilot review comments. Open the session to address feedback.", pullRequestLabel),
-				repositoryLabel: `${pullRequestRef.owner}/${pullRequestRef.repo}`,
-				timestamp: reviewCommentsTimestamp,
-				sessionResource: session.resource,
-				actions: this.pullRequestActions(session, InboxNotificationKind.ReviewComments),
-			});
+			if (unresolvedCopilotThreads.length > 0) {
+				const reviewCommentsTimestamp = latestReviewCommentsTimestamp(unresolvedCopilotThreads, sessionUpdatedAt);
+				reviewCommentCandidates.push({
+					...candidateBase,
+					timestamp: reviewCommentsTimestamp,
+					identity: String(reviewCommentsTimestamp),
+				});
+			}
+		}
+
+		this.createPullRequestNotification(itemsById, session, sessionTitle, InboxNotificationKind.FailingCI, failingCandidates);
+		this.createPullRequestNotification(itemsById, session, sessionTitle, InboxNotificationKind.PassingCI, passingCandidates);
+		this.createPullRequestNotification(itemsById, session, sessionTitle, InboxNotificationKind.ReviewComments, reviewCommentCandidates);
+	}
+
+	private createPullRequestNotification(
+		itemsById: Map<string, IInboxNotificationItem>,
+		session: ISession,
+		sessionTitle: string,
+		kind: InboxNotificationKind.FailingCI | InboxNotificationKind.PassingCI | InboxNotificationKind.ReviewComments,
+		candidates: readonly IPullRequestNotificationCandidate[],
+	): void {
+		if (candidates.length === 0) {
+			return;
+		}
+
+		const repositoryLabels = [...new Set(candidates.map(candidate => `${candidate.ref.owner}/${candidate.ref.repo}`))];
+		const repositoryLabel = repositoryLabels.length === 1
+			? repositoryLabels[0]
+			: localize('inboxNotifications.repository.multiple', "{0} +{1}", repositoryLabels[0], repositoryLabels.length - 1);
+		const pullRequestStates = toPullRequestStates(candidates);
+		const pullRequestCount = pullRequestStates.length;
+		const singularPullRequestLabel = pullRequestStates[0]?.label ?? localize('inboxNotifications.pullRequestLabel.default', "pull request");
+		const idSuffix = candidates
+			.map(candidate => `${candidate.ref.owner}/${candidate.ref.repo}#${candidate.ref.number}:${candidate.identity}`)
+			.sort()
+			.join(',');
+		const timestamp = Math.max(...candidates.map(candidate => candidate.timestamp));
+
+		switch (kind) {
+			case InboxNotificationKind.FailingCI:
+				itemsById.set(`${session.sessionId}:${kind}:${idSuffix}`, {
+					id: `${session.sessionId}:${kind}:${idSuffix}`,
+					kind,
+					priority: InboxNotificationPriority.High,
+					title: pullRequestCount === 1
+						? localize('inboxNotifications.failingCi.title.single', "CI Failing on {0}", singularPullRequestLabel)
+						: localize('inboxNotifications.failingCi.title.multiple', "CI Failing on {0} Pull Requests", pullRequestCount),
+					description: pullRequestCount === 1
+						? localize('inboxNotifications.failingCi.description.single', "Required checks are failing for {0}. Open {1} to investigate and fix the failures.", singularPullRequestLabel, sessionTitle)
+						: localize('inboxNotifications.failingCi.description.multiple', "Required checks are failing for {0} pull requests. Open {1} to investigate and fix the failures.", pullRequestCount, sessionTitle),
+					repositoryLabel,
+					pullRequestStates,
+					timestamp,
+					sessionResource: session.resource,
+					actions: this.pullRequestActions(session, kind),
+				});
+				return;
+			case InboxNotificationKind.PassingCI:
+				itemsById.set(`${session.sessionId}:${kind}:${idSuffix}`, {
+					id: `${session.sessionId}:${kind}:${idSuffix}`,
+					kind,
+					priority: InboxNotificationPriority.Normal,
+					title: pullRequestCount === 1
+						? localize('inboxNotifications.passingCi.title.single', "CI Passing on {0}", singularPullRequestLabel)
+						: localize('inboxNotifications.passingCi.title.multiple', "CI Passing on {0} Pull Requests", pullRequestCount),
+					description: pullRequestCount === 1
+						? localize('inboxNotifications.passingCi.description.single', "All required checks are passing for {0}. Open {1} to review merge readiness.", singularPullRequestLabel, sessionTitle)
+						: localize('inboxNotifications.passingCi.description.multiple', "All required checks are passing for {0} pull requests. Open {1} to review merge readiness.", pullRequestCount, sessionTitle),
+					repositoryLabel,
+					pullRequestStates,
+					timestamp,
+					sessionResource: session.resource,
+					actions: this.pullRequestActions(session, kind),
+				});
+				return;
+			case InboxNotificationKind.ReviewComments:
+				itemsById.set(`${session.sessionId}:${kind}:${idSuffix}`, {
+					id: `${session.sessionId}:${kind}:${idSuffix}`,
+					kind,
+					priority: InboxNotificationPriority.High,
+					title: pullRequestCount === 1
+						? localize('inboxNotifications.reviewComments.title.single', "Copilot Comments on {0}", singularPullRequestLabel)
+						: localize('inboxNotifications.reviewComments.title.multiple', "Copilot Comments on {0} Pull Requests", pullRequestCount),
+					description: pullRequestCount === 1
+						? localize('inboxNotifications.reviewComments.description.single', "{0} has unresolved Copilot review comments. Open the session to address feedback.", singularPullRequestLabel)
+						: localize('inboxNotifications.reviewComments.description.multiple', "{0} pull requests have unresolved Copilot review comments. Open the session to address feedback.", pullRequestCount),
+					repositoryLabel,
+					pullRequestStates,
+					timestamp,
+					sessionResource: session.resource,
+					actions: this.pullRequestActions(session, kind),
+				});
+				return;
 		}
 	}
 
@@ -467,6 +562,43 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 			StorageScope.APPLICATION,
 			StorageTarget.USER,
 		);
+	}
+}
+
+function toPullRequestStates(candidates: readonly IPullRequestNotificationCandidate[]): readonly IInboxNotificationPullRequestState[] {
+	const singleRepository = new Set(candidates.map(candidate => `${candidate.ref.owner}/${candidate.ref.repo}`)).size === 1;
+	return [...candidates]
+		.sort((a, b) => {
+			const repoA = `${a.ref.owner}/${a.ref.repo}`;
+			const repoB = `${b.ref.owner}/${b.ref.repo}`;
+			return repoA.localeCompare(repoB) || a.ref.number - b.ref.number;
+		})
+		.map(candidate => {
+			const repositoryLabel = `${candidate.ref.owner}/${candidate.ref.repo}`;
+			return {
+				repositoryLabel,
+				label: singleRepository ? `#${candidate.ref.number}` : `${repositoryLabel}#${candidate.ref.number}`,
+				icon: candidate.icon,
+				statusLabel: candidate.statusLabel,
+			};
+		});
+}
+
+function getPullRequestStatusLabel(icon: ThemeIcon): string {
+	switch (icon.id) {
+		case Codicon.gitPullRequestError.id:
+			return localize('inboxNotifications.pullRequestStatus.checksFailed', "Checks failed");
+		case Codicon.gitPullRequestComment.id:
+			return localize('inboxNotifications.pullRequestStatus.unresolvedComments', "Unresolved comments");
+		case Codicon.gitPullRequestDraft.id:
+			return localize('inboxNotifications.pullRequestStatus.draft', "Draft");
+		case Codicon.gitPullRequestDone.id:
+			return localize('inboxNotifications.pullRequestStatus.merged', "Merged");
+		case Codicon.gitPullRequestClosed.id:
+			return localize('inboxNotifications.pullRequestStatus.closed', "Closed");
+		case Codicon.gitPullRequest.id:
+		default:
+			return localize('inboxNotifications.pullRequestStatus.open', "Open");
 	}
 }
 

@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IObservable } from '../../../../base/common/observable.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 
@@ -51,6 +52,13 @@ export interface IInboxNotificationAction {
 	readonly primary?: boolean;
 }
 
+export interface IInboxNotificationPullRequestState {
+	readonly label: string;
+	readonly repositoryLabel: string;
+	readonly icon: ThemeIcon;
+	readonly statusLabel: string;
+}
+
 export interface IInboxNotificationItem {
 	readonly id: string;
 	readonly kind: InboxNotificationKind;
@@ -58,6 +66,7 @@ export interface IInboxNotificationItem {
 	readonly title: string;
 	readonly description: string;
 	readonly repositoryLabel?: string;
+	readonly pullRequestStates?: readonly IInboxNotificationPullRequestState[];
 	readonly timestamp: number;
 	readonly sessionResource?: URI;
 	readonly actions: readonly IInboxNotificationAction[];

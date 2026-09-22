@@ -49,9 +49,25 @@ suite('InboxNotificationsService', () => {
 			readonly repo: string;
 			readonly number: number;
 		};
+		readonly pullRequests?: readonly {
+			readonly owner: string;
+			readonly repo: string;
+			readonly number: number;
+		}[];
 	}): ISession {
 		const key = `inboxNotificationsService/${options.id}`;
-		const gitHubInfo: IGitHubInfo | undefined = options.pullRequest ? {
+		const gitHubInfo: IGitHubInfo | undefined = options.pullRequests?.length ? {
+			owner: options.pullRequests[0].owner,
+			repo: options.pullRequests[0].repo,
+			pullRequests: options.pullRequests.map(pullRequest => ({
+				owner: pullRequest.owner,
+				repo: pullRequest.repo,
+				number: pullRequest.number,
+				uri: URI.parse(`https://github.com/${pullRequest.owner}/${pullRequest.repo}/pull/${pullRequest.number}`),
+				state: 'open',
+				createdByThisSession: true,
+			})),
+		} : options.pullRequest ? {
 			owner: options.pullRequest.owner,
 			repo: options.pullRequest.repo,
 			pullRequest: {
@@ -251,10 +267,12 @@ suite('InboxNotificationsService', () => {
 		assert.deepStrictEqual(fixture.service.notifications.get().map(item => ({
 			kind: item.kind,
 			repositoryLabel: item.repositoryLabel,
+			pullRequestStates: item.pullRequestStates?.map(state => ({ label: state.label, statusLabel: state.statusLabel, iconId: state.icon.id })),
 			actions: item.actions.map(action => action.kind),
 		})), [{
 			kind: InboxNotificationKind.FailingCI,
 			repositoryLabel: 'owner/repo',
+			pullRequestStates: [{ label: '#42', statusLabel: 'Checks failed', iconId: Codicon.gitPullRequestError.id }],
 			actions: [InboxNotificationActionKind.OpenSession, InboxNotificationActionKind.AgentMergeFixCI, InboxNotificationActionKind.MarkDone],
 		}]);
 
@@ -270,10 +288,12 @@ suite('InboxNotificationsService', () => {
 		assert.deepStrictEqual(fixture.service.notifications.get().map(item => ({
 			kind: item.kind,
 			repositoryLabel: item.repositoryLabel,
+			pullRequestStates: item.pullRequestStates?.map(state => ({ label: state.label, statusLabel: state.statusLabel, iconId: state.icon.id })),
 			actions: item.actions.map(action => action.kind),
 		})), [{
 			kind: InboxNotificationKind.PassingCI,
 			repositoryLabel: 'owner/repo',
+			pullRequestStates: [{ label: '#42', statusLabel: 'Open', iconId: Codicon.gitPullRequest.id }],
 			actions: [InboxNotificationActionKind.OpenSession, InboxNotificationActionKind.AgentMergeMergePullRequest, InboxNotificationActionKind.MarkDone],
 		}]);
 	});
@@ -328,11 +348,61 @@ suite('InboxNotificationsService', () => {
 		assert.deepStrictEqual(fixture.service.notifications.get().map(item => ({
 			kind: item.kind,
 			repositoryLabel: item.repositoryLabel,
+			pullRequestStates: item.pullRequestStates?.map(state => ({ label: state.label, statusLabel: state.statusLabel, iconId: state.icon.id })),
 			actions: item.actions.map(action => action.kind),
 		})), [{
 			kind: InboxNotificationKind.ReviewComments,
 			repositoryLabel: 'owner/repo',
+			pullRequestStates: [{ label: '#43', statusLabel: 'Unresolved comments', iconId: Codicon.gitPullRequestComment.id }],
 			actions: [InboxNotificationActionKind.OpenSession, InboxNotificationActionKind.AgentMergeAddressReviews, InboxNotificationActionKind.MarkDone],
+		}]);
+	});
+
+	test('aggregates pull request notifications by kind and lists pull request states', () => {
+		const gitHubService = new TestGitHubService();
+		const fixture = createFixture([createSession({
+			id: 'multi-pr',
+			status: SessionStatus.Completed,
+			updatedAt: 100,
+			isRead: true,
+			pullRequests: [
+				{ owner: 'owner', repo: 'repo', number: 50 },
+				{ owner: 'owner', repo: 'repo', number: 51 },
+			],
+		})], undefined, gitHubService);
+
+		gitHubService.setPullRequest('owner', 'repo', 50, openPullRequest(50, 'sha50'));
+		gitHubService.setPullRequest('owner', 'repo', 51, openPullRequest(51, 'sha51'));
+		gitHubService.setCIStatus('owner', 'repo', 50, 'sha50', GitHubCIOverallStatus.Failure, [{
+			id: 3,
+			name: 'CI 50',
+			status: GitHubCheckStatus.Completed,
+			conclusion: GitHubCheckConclusion.Failure,
+			startedAt: '2026-09-21T16:02:00Z',
+			completedAt: '2026-09-21T16:03:00Z',
+			detailsUrl: undefined,
+		}]);
+		gitHubService.setCIStatus('owner', 'repo', 51, 'sha51', GitHubCIOverallStatus.Failure, [{
+			id: 4,
+			name: 'CI 51',
+			status: GitHubCheckStatus.Completed,
+			conclusion: GitHubCheckConclusion.Failure,
+			startedAt: '2026-09-21T16:04:00Z',
+			completedAt: '2026-09-21T16:05:00Z',
+			detailsUrl: undefined,
+		}]);
+
+		assert.deepStrictEqual(fixture.service.notifications.get().map(item => ({
+			kind: item.kind,
+			title: item.title,
+			pullRequestStates: item.pullRequestStates?.map(state => ({ label: state.label, statusLabel: state.statusLabel, iconId: state.icon.id })),
+		})), [{
+			kind: InboxNotificationKind.FailingCI,
+			title: 'CI Failing on 2 Pull Requests',
+			pullRequestStates: [
+				{ label: '#50', statusLabel: 'Checks failed', iconId: Codicon.gitPullRequestError.id },
+				{ label: '#51', statusLabel: 'Checks failed', iconId: Codicon.gitPullRequestError.id },
+			],
 		}]);
 	});
 
