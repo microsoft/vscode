@@ -72,8 +72,8 @@ suite('CustomizationMarketplaceService', () => {
 			],
 			pages: [
 				{ items: ['first'], total: 3, hasMore: true },
-				{ items: ['first'], total: 3, hasMore: true },
-				{ items: ['second'], total: 3, hasMore: false },
+				{ items: ['second'], total: 3, hasMore: true },
+				{ items: ['first'], total: 3, hasMore: false },
 			],
 		});
 	});
@@ -247,8 +247,34 @@ suite('CustomizationMarketplaceService', () => {
 		const browse = await service.query(options, CancellationToken.None);
 		assert.deepStrictEqual([search, browse].map(page => page.items.map(item => [item.sourceId, item.score])), [
 			[['first', 90], ['second', 90], ['first', undefined], ['second', 0]],
-			[['first', 90], ['first', undefined], ['second', 90], ['second', 0]],
+			[['first', 90], ['second', 90], ['first', undefined], ['second', 0]],
 		]);
+	});
+
+	test('browsing interleaves feeds across page boundaries and backfills after one exhausts', async () => {
+		const sources = ['first', 'second'].map((id, index): ICustomizationMarketplaceSource => ({
+			id, query: async options => {
+				const total = index ? 3 : 5;
+				const offset = Number(options.cursor ?? 0);
+				const items = Array.from({ length: Math.min(options.pageSize!, total - offset) }, (_, itemIndex) => ({
+					...entry, identifier: `${id}-${offset + itemIndex}`, score: offset + itemIndex,
+				}));
+				return { items, total, nextCursor: offset + items.length < total ? String(offset + items.length) : undefined };
+			},
+		}));
+		const service = new CustomizationMarketplaceService(sources);
+		const options = { sourceIds: sources.map(source => source.id), pageSize: 3 };
+		const first = await service.query(options, CancellationToken.None);
+		const second = await service.query({ ...options, cursor: first.nextCursor }, CancellationToken.None);
+		const third = await service.query({ ...options, cursor: second.nextCursor }, CancellationToken.None);
+		assert.deepStrictEqual({ ids: [first, second, third].map(page => page.items.map(item => item.identifier)), hasMore: !!third.nextCursor }, {
+			ids: [
+				['first-0', 'second-0', 'first-1'],
+				['second-1', 'first-2', 'second-2'],
+				['first-3', 'first-4'],
+			],
+			hasMore: false,
+		});
 	});
 
 	test('rejects invalid scores, out-of-order pages, and non-progressing continuations', async () => {
