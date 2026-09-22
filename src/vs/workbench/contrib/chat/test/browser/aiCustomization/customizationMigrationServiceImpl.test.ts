@@ -29,14 +29,15 @@ import { TestInstantiationService } from '../../../../../../platform/instantiati
 import { McpServerType } from '../../../../../../platform/mcp/common/mcpPlatformTypes.js';
 import { IOutputService } from '../../../../../services/output/common/output.js';
 import { AbstractVariableResolverService } from '../../../../../services/configurationResolver/common/variableResolver.js';
-import { CustomizationMigrationService } from '../../../browser/aiCustomization/customizationMigrationServiceImpl.js';
+import { CustomizationMigrationService as BaseCustomizationMigrationService } from '../../../browser/aiCustomization/customizationMigrationServiceImpl.js';
 import { IAgentHostActiveClientService } from '../../../browser/agentSessions/agentHost/agentHostActiveClientService.js';
 import { IAgentHostCustomizationService, WorkbenchAgentHostCustomizationService } from '../../../browser/agentSessions/agentHost/agentHostCustomizationService.js';
+import { AgentHostMcpServerMigrationProvider } from '../../../browser/agentSessions/agentHost/agentHostMcpServerMigrationProvider.js';
 import { AgentHostMcpServerApplicability, AgentHostMcpServerDelivery, AgentHostMcpServerEnablementState, AgentHostMcpServerSourceKind, AgentHostMcpSupportReason, IAgentHostMcpServerSupportSnapshot } from '../../../browser/agentSessions/agentHost/agentHostMcpServerSupport.js';
 import { IAgentHostUntitledProvisionalSessionService } from '../../../browser/agentSessions/agentHost/agentHostUntitledProvisionalSessionService.js';
 import { SessionType } from '../../../common/chatSessionsService.js';
 import { IChatService } from '../../../common/chatService/chatService.js';
-import { ICustomizationHarnessService, IHarnessDescriptor } from '../../../common/customizationHarnessService.js';
+import { ICustomizationHarnessService, ICustomizationMcpServerMigrationProvider, IHarnessDescriptor } from '../../../common/customizationHarnessService.js';
 import { PromptFileSource, PromptsType } from '../../../common/promptSyntax/promptTypes.js';
 import { CustomizationMigrationHintTarget, CustomizationMigrationType, getCustomizationMigrationEnablementSetting } from '../../../common/promptSyntax/service/customizationMigrationService.js';
 import { IPromptPath, PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
@@ -144,6 +145,7 @@ class TestCustomizationHarnessService extends mock<ICustomizationHarnessService>
 	readonly requestedSourceFolderTypes: PromptsType[] = [];
 	override readonly activeSessionResource;
 	override readonly activeHarness;
+	mcpServerMigrationProvider: ICustomizationMcpServerMigrationProvider | undefined;
 
 	constructor(
 		private readonly sessionType = SessionType.AgentHostCopilot,
@@ -162,6 +164,7 @@ class TestCustomizationHarnessService extends mock<ICustomizationHarnessService>
 			id: sessionType,
 			label: this.harnessLabel,
 			icon: Codicon.copilot,
+			mcpServerMigrationProvider: this.mcpServerMigrationProvider,
 			itemProvider: {
 				onDidChange: Event.None,
 				provideChatSessionCustomizations: async () => [],
@@ -181,6 +184,30 @@ class TestCustomizationHarnessService extends mock<ICustomizationHarnessService>
 				},
 			},
 		};
+	}
+}
+
+class CustomizationMigrationService extends BaseCustomizationMigrationService {
+	constructor(
+		promptsService: TestPromptsService,
+		harnessService: TestCustomizationHarnessService,
+		activeClientService: IAgentHostActiveClientService,
+		agentHostCustomizationService: IAgentHostCustomizationService,
+		fileService: IFileService,
+		logService: ILogService,
+		configurationService: TestConfigurationService,
+		configurationResolverService: TestConfigurationResolverService,
+	) {
+		super(promptsService, harnessService, configurationService);
+		harnessService.mcpServerMigrationProvider = this._register(new AgentHostMcpServerMigrationProvider(
+			harnessService,
+			activeClientService,
+			agentHostCustomizationService,
+			fileService,
+			logService,
+			configurationService,
+			configurationResolverService,
+		));
 	}
 }
 

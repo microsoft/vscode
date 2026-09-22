@@ -3295,6 +3295,25 @@ suite('CopilotAgent', () => {
 		}
 	});
 
+	test('Automation readiness waits for applied credentials and follows revocation', async () => {
+		const agent = createTestAgent(disposables, { copilotClient: new TestCopilotClient([], []) });
+		try {
+			const initial = agent.isReadyForAutomation(undefined);
+			const authentication = agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'automation-token');
+			const whileApplying = agent.isReadyForAutomation(undefined);
+			await authentication;
+			const authenticated = agent.isReadyForAutomation(undefined);
+			await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, '');
+			const revoked = agent.isReadyForAutomation(undefined);
+			await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'replacement-token');
+			assert.deepStrictEqual({ initial, whileApplying, authenticated, revoked, restored: agent.isReadyForAutomation(undefined) }, {
+				initial: false, whileApplying: false, authenticated: true, revoked: false, restored: true,
+			});
+		} finally {
+			await disposeAgent(agent);
+		}
+	});
+
 	test('keeps the requirement raised when a second revocation arrives while tokenless', async () => {
 		const client = new TestCopilotClient([], [{
 			id: 'gpt-4o',
@@ -7317,11 +7336,15 @@ suite('CopilotAgent', () => {
 
 		try {
 			const initiallyRequired = copilotRequired();
+			const initiallyReady = agent.isReadyForAutomation(undefined);
 			configurationService.updateRootConfig({ [AgentHostConfigKey.AllowSignedOutWhenUsable]: true });
 			const requiredWithoutByok = copilotRequired();
 			modelSnapshots.fire([{ vendor: 'gemini', id: 'gemini-2.5-pro', modelIdentifier: 'gemini/Gemini/gemini-2.5-pro' }]);
 			await waitForState(agent.models, models => models.length === 1);
 			const optionalWithByok = copilotRequired();
+			const selectedModel = { id: agent.models.get()[0].id };
+			const readyWithByok = agent.isReadyForAutomation(selectedModel);
+			const copilotStillBlocked = !agent.isReadyForAutomation({ id: 'gpt-4o' });
 			modelSnapshots.fire([]);
 			await waitForState(agent.models, models => models.length === 0);
 			const requiredAfterHide = copilotRequired();
@@ -7334,12 +7357,20 @@ suite('CopilotAgent', () => {
 				optionalWithByok,
 				requiredAfterHide,
 				requiredAfterDisable,
+				initiallyReady,
+				readyWithByok,
+				copilotStillBlocked,
+				readyAfterHide: agent.isReadyForAutomation(selectedModel),
 			}, {
 				initiallyRequired: true,
 				requiredWithoutByok: true,
 				optionalWithByok: false,
 				requiredAfterHide: true,
 				requiredAfterDisable: true,
+				initiallyReady: false,
+				readyWithByok: true,
+				copilotStillBlocked: true,
+				readyAfterHide: false,
 			});
 		} finally {
 			await disposeAgent(agent);
