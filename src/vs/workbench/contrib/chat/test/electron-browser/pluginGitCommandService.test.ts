@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
+import { CancellationError } from '../../../../../base/common/errors.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IGitAuthentication, ILocalGitService } from '../../../../../platform/git/common/localGitService.js';
@@ -226,5 +227,19 @@ suite('NativePluginGitCommandService', () => {
 		assert.strictEqual(cancelledIds.length, 1);
 		cloneResolve!();
 		await p;
+	});
+
+	test('cancellation before a non-GitHub clone prevents the local clone', async () => {
+		const cts = store.add(new CancellationTokenSource());
+		let cloneCalled = false;
+		const service = createService(createLocalGitStub({
+			clone: async () => { cloneCalled = true; },
+		}));
+
+		const pending = service.cloneRepository('https://example.com/test/repo.git', URI.file('/tmp/repo'), undefined, cts.token);
+		cts.cancel();
+
+		await assert.rejects(pending, CancellationError);
+		assert.strictEqual(cloneCalled, false);
 	});
 });
