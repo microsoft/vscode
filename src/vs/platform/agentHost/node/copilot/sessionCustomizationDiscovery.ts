@@ -614,7 +614,8 @@ export class SessionCustomizationDiscovery extends Disposable {
 			if (err instanceof CancellationError) {
 				throw err;
 			}
-			this._logService.error(`[SessionCustomizationDiscovery] Error during discovery: ${err instanceof Error ? err.message : String(err)}`);
+
+			this._logService.error(`[SessionCustomizationDiscovery] Error during discovery: ${err instanceof Error ? err.message : String(err)}, projectPaths: ${this._workingDirectories.map(uri => uri.toString()).join(', ')}`);
 			return [];
 		}
 	}
