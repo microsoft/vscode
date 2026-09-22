@@ -5,6 +5,7 @@
 
 import './media/inboxNotificationsView.css';
 import { $, addDisposableListener, clearNode, EventType, getActiveElement, isHTMLElement, trackFocus } from '../../../../base/browser/dom.js';
+import { triggerConfettiAnimation } from '../../../../base/browser/ui/animations/animations.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
 import { DomScrollableElement } from '../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
@@ -12,13 +13,16 @@ import { autorun, constObservable, IObservable, observableValue } from '../../..
 import { ScrollbarVisibility } from '../../../../base/common/scrollable.js';
 import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { localize } from '../../../../nls.js';
+import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { fromNowByDay } from '../../../../base/common/date.js';
 import { isAgentHostProvider } from '../../../common/agentHostSessionsProvider.js';
 import { AgentMergeSessionOverrides } from '../../../../platform/agentHost/common/agentMerge.js';
+import { SESSIONS_MARK_AS_DONE_CONFETTI_SETTING } from '../../../../platform/chat/common/sessionArchiveActions.js';
 import { AbstractCustomView } from '../../../services/customView/browser/customView.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
@@ -58,6 +62,8 @@ export class InboxNotificationsView extends AbstractCustomView {
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@ICommandService private readonly commandService: ICommandService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
 	) {
 		super();
 		this.description = this.inboxNotificationsService.notifications.map(items => {
@@ -184,7 +190,7 @@ export class InboxNotificationsView extends AbstractCustomView {
 				button.element.classList.add('inbox-notifications-item-action-done');
 			}
 			button.label = action.label;
-			this.renderedListDisposables.add(button.onDidClick(() => void this.runAction(item, action)));
+			this.renderedListDisposables.add(button.onDidClick(() => void this.runAction(item, action, button.element)));
 		}
 
 		return card;
@@ -265,7 +271,7 @@ export class InboxNotificationsView extends AbstractCustomView {
 		return getInboxNotificationPriorityLabel(priority);
 	}
 
-	private async runAction(item: IInboxNotificationItem, action: IInboxNotificationAction): Promise<void> {
+	private async runAction(item: IInboxNotificationItem, action: IInboxNotificationAction, sourceElement?: HTMLElement): Promise<void> {
 		try {
 			switch (action.kind) {
 				case InboxNotificationActionKind.OpenSession: {
@@ -285,7 +291,7 @@ export class InboxNotificationsView extends AbstractCustomView {
 					await this.runAgentMergeAction(item, { mergePullRequest: 'always' });
 					return;
 				case InboxNotificationActionKind.MarkDone: {
-					await this.markDone(item);
+					await this.markDone(item, sourceElement);
 					return;
 				}
 				case InboxNotificationActionKind.Dismiss:
@@ -327,7 +333,13 @@ export class InboxNotificationsView extends AbstractCustomView {
 		});
 	}
 
-	private async markDone(item: IInboxNotificationItem): Promise<void> {
+	private async markDone(item: IInboxNotificationItem, sourceElement: HTMLElement | undefined): Promise<void> {
+		if (sourceElement
+			&& this.configurationService.getValue<boolean>(SESSIONS_MARK_AS_DONE_CONFETTI_SETTING)
+			&& !this.accessibilityService.isMotionReduced()) {
+			triggerConfettiAnimation(sourceElement);
+		}
+
 		if (item.sessionResource) {
 			const session = this.sessionsManagementService.getSession(item.sessionResource);
 			if (session) {
