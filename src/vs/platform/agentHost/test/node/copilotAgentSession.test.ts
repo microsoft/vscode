@@ -12,6 +12,8 @@ import { tmpdir } from 'os';
 import { PluginFormat } from '../../../agentPlugins/common/pluginParsers.js';
 import { isCustomizationEnabled } from '../../common/customizationEnablement.js';
 import { DeferredPromise, timeout } from '../../../../base/common/async.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { isCancellationError } from '../../../../base/common/errors.js';
 import { encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
@@ -1302,6 +1304,33 @@ suite('CopilotAgentSession', () => {
 			},
 			beforeLaunch: () => assert.strictEqual(initialized, true),
 		});
+	});
+
+	test('settles idle waiters on turn completion and disposal, including already-idle or disposed sessions', async () => {
+		const { session, mockSession } = await createAgentSession(disposables);
+		const idle = session.waitForIdle();
+		session.resetTurnState('turn-1');
+		const completed = session.waitForIdle();
+		mockSession.fire('session.idle', {} as SessionEventPayload<'session.idle'>['data']);
+		session.resetTurnState('turn-2');
+		const disposed = session.waitForIdle();
+		session.dispose();
+		assert.deepStrictEqual(await Promise.all([idle, completed, disposed, session.waitForIdle()]), [true, true, false, false]);
+	});
+
+	test('cancels an idle waiter without ending the turn or affecting other waiters', async () => {
+		const { session } = await createAgentSession(disposables);
+		const source = disposables.add(new CancellationTokenSource());
+		session.resetTurnState('turn-1');
+		const cancelled = session.waitForIdle(source.token);
+		const other = session.waitForIdle();
+		const rejected = assert.rejects(cancelled, isCancellationError);
+		source.cancel();
+		await rejected;
+		assert.ok(session.hasActiveTurn);
+		await assert.rejects(session.waitForIdle(CancellationToken.Cancelled), isCancellationError);
+		session.discardActiveTurn();
+		assert.strictEqual(await other, true);
 	});
 
 	test('retains transient host instructions until the delayed prompt hook consumes them', async () => {
@@ -15282,6 +15311,11 @@ Use the attached image as context.
 			});
 		});
 
+		test('startMcpServer rejects unknown customizations', async () => {
+			const { session } = await createAgentSession(disposables);
+			await assert.rejects(session.startMcpServer('missing'), /Cannot start unknown MCP server customization missing/);
+		});
+
 		test('startMcpServer reports Starting only once the SDK reports the reconnect', async () => {
 			const serverName = 'db';
 			const id = 'mcp-top-level:copilot:test-session-1:db';
@@ -15393,6 +15427,31 @@ Use the attached image as context.
 					start: [{ serverName }],
 				},
 			});
+		});
+
+		test('cancels a queued Start without waiting for the preceding Stop or issuing an SDK Start', async () => {
+			const serverName = 'db';
+			const id = 'mcp-top-level:copilot:test-session-1:db';
+			const gate = new DeferredPromise<void>();
+			const source = disposables.add(new CancellationTokenSource());
+			const { session, mockSession } = await createAgentSession(disposables, {
+				configureMockSession: mock => {
+					mock.mcpListResult = { servers: [{ name: serverName, status: 'connected' }] };
+					mock.mcpStopServerGate = gate.p;
+				},
+			});
+			const stop = session.stopMcpServer(id);
+			try {
+				await timeout(0);
+				const cancelled = assert.rejects(session.startMcpServer(id, source.token), isCancellationError);
+				source.cancel();
+				await cancelled;
+			} finally {
+				gate.complete();
+				await stop;
+			}
+			await session.stopMcpServer(id);
+			assert.deepStrictEqual(mockSession.mcpStartServerCalls, []);
 		});
 
 		test('peer chat MCP desired enablement uses parent session customizations', async () => {
