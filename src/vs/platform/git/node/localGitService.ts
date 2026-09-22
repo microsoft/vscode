@@ -4,8 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as cp from 'child_process';
-import { promises as fs } from 'fs';
-import { CancellationError, isCancellationError } from '../../../base/common/errors.js';
+import { CancellationError } from '../../../base/common/errors.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { localize } from '../../../nls.js';
 import { ILogService } from '../../log/common/log.js';
@@ -15,15 +14,13 @@ export class LocalGitService implements ILocalGitService {
 	declare readonly _serviceBrand: undefined;
 
 	private _runningProcesses = new Map<string, cp.ChildProcess>();
-	private _gitVersion: readonly [number, number, number] | undefined;
-	private _authenticationCompatibilityWarningShown = false;
 
 	constructor(
 		@ILogService private readonly _logService: ILogService,
 		private readonly _execFile: typeof cp.execFile = cp.execFile,
 	) { }
 
-	private _exec(operationId: string, args: string[], cwd?: string, options?: IGitNetworkOptions, logErrors = true): Promise<string> {
+	private _exec(operationId: string, args: string[], cwd?: string, options?: IGitNetworkOptions): Promise<string> {
 		return new Promise((resolve, reject) => {
 			this._logService.trace(`[LocalGitService] git ${args.join(' ')}${cwd ? ` (cwd: ${cwd})` : ''}`);
 			const proc = this._execFile('git', args, { cwd, encoding: 'utf8', env: this._getEnvironment(options) }, (err, stdout, stderr) => {
@@ -33,7 +30,7 @@ export class LocalGitService implements ILocalGitService {
 				}
 				if (err) {
 					(err as cp.ExecFileException & { stderr?: string }).stderr ??= stderr;
-					if (logErrors) {
+					if (options?.logErrors !== false) {
 						this._logGitError(args, err);
 					}
 					reject(err);
@@ -73,14 +70,14 @@ export class LocalGitService implements ILocalGitService {
 			args.push('--branch', ref);
 		}
 		args.push('--', cloneUrl, targetPath);
-		await this._execNetwork(operationId, args, undefined, options, () => fs.rm(targetPath, { recursive: true, force: true }));
+		await this._exec(operationId, args, undefined, options);
 	}
 
 	async pull(operationId: string, repoPath: string, options?: IGitPullOptions): Promise<boolean> {
 		const before = (await this._exec(operationId, ['rev-parse', 'HEAD'], repoPath)).trim();
 
 		try {
-			await this._execNetwork(operationId, ['pull', '--ff-only'], repoPath, options);
+			await this._exec(operationId, ['pull', '--ff-only'], repoPath, options);
 		} catch (err) {
 			if (!this._isFastForwardPullFailure(err)) {
 				throw err;
@@ -88,10 +85,10 @@ export class LocalGitService implements ILocalGitService {
 
 			const error = err as { message?: string };
 			this._logService.warn(`[LocalGitService] Fast-forward pull failed for ${repoPath}: ${error?.message ?? String(err)}. Retrying after fetch.`);
-			await this._execNetwork(operationId, ['fetch', '--prune'], repoPath, options);
+			await this._exec(operationId, ['fetch', '--prune'], repoPath, options);
 
 			try {
-				await this._execNetwork(operationId, ['pull', '--ff-only'], repoPath, options);
+				await this._exec(operationId, ['pull', '--ff-only'], repoPath, options);
 			} catch (retryErr) {
 				if (!this._isFastForwardPullFailure(retryErr)) {
 					throw retryErr;
@@ -188,108 +185,7 @@ export class LocalGitService implements ILocalGitService {
 	}
 
 	async fetch(operationId: string, repoPath: string, options?: IGitNetworkOptions): Promise<void> {
-		await this._execNetwork(operationId, ['fetch'], repoPath, options);
-	}
-
-	private _execNetwork(
-		operationId: string,
-		args: string[],
-		cwd: string | undefined,
-		options: IGitNetworkOptions | undefined,
-		beforeAuthenticationRetry?: () => Promise<void>,
-	): Promise<string> {
-		if (!options?.authentication) {
-			return this._exec(operationId, args, cwd);
-		}
-		return this._execNetworkWithAuthentication(operationId, args, cwd, options, beforeAuthenticationRetry);
-	}
-
-	private async _execNetworkWithAuthentication(
-		operationId: string,
-		args: string[],
-		cwd: string | undefined,
-		options: IGitNetworkOptions,
-		beforeAuthenticationRetry: (() => Promise<void>) | undefined,
-	): Promise<string> {
-		try {
-			return await this._exec(operationId, args, cwd, undefined, false);
-		} catch (error) {
-			if (!this._isAuthenticationFailure(error)) {
-				this._logGitError(args, error as cp.ExecFileException & { stderr?: string });
-				throw error;
-			}
-
-			const networkOptions = await this._getSupportedNetworkOptions(operationId, options);
-			if (!networkOptions?.authentication) {
-				this._logGitError(args, error as cp.ExecFileException & { stderr?: string });
-				throw error;
-			}
-
-			this._logService.warn(`[LocalGitService] Native Git authentication failed for '${args[0]}'. Retrying with VS Code authentication.`);
-			await beforeAuthenticationRetry?.();
-			return this._exec(operationId, args, cwd, networkOptions);
-		}
-	}
-
-	private _isAuthenticationFailure(error: unknown): boolean {
-		const candidate = error as (cp.ExecFileException & { stderr?: string; message?: string }) | undefined;
-		if (candidate?.code !== 128) {
-			return false;
-		}
-
-		const details = `${candidate.stderr ?? ''}\n${candidate.message ?? ''}`;
-		return /authentication failed|invalid username or token|(?:could not read|unable to get) (?:username|password)|terminal prompts disabled/i.test(details);
-	}
-
-	private async _getSupportedNetworkOptions(operationId: string, options: IGitNetworkOptions | undefined): Promise<IGitNetworkOptions | undefined> {
-		if (!options?.authentication) {
-			return options;
-		}
-
-		let version = this._gitVersion;
-		if (version === undefined) {
-			try {
-				version = await this._readGitVersion(operationId);
-			} catch (error) {
-				if (isCancellationError(error)) {
-					throw error;
-				}
-				this._warnAuthenticationUnsupported('The installed Git version could not be determined');
-				return undefined;
-			}
-		}
-
-		if (version[0] > 2 || (version[0] === 2 && version[1] >= 31)) {
-			this._gitVersion = version;
-			return options;
-		}
-
-		this._warnAuthenticationUnsupported(`Git ${version.join('.')} does not support transient configuration`);
-		return undefined;
-	}
-
-	private _warnAuthenticationUnsupported(reason: string): void {
-		if (this._authenticationCompatibilityWarningShown) {
-			return;
-		}
-		this._authenticationCompatibilityWarningShown = true;
-		this._logService.warn(`[LocalGitService] ${reason}. Continuing without VS Code authentication for this Git operation.`);
-	}
-
-	private async _readGitVersion(operationId: string): Promise<readonly [number, number, number]> {
-		const output = (await this._exec(operationId, ['--version'])).trim();
-		const match = /\bgit version (?<major>\d+)\.(?<minor>\d+)(?:\.(?<patch>\d+))?/i.exec(output);
-		if (!match?.groups) {
-			throw new Error(localize(
-				'pluginsGitVersionUnknown',
-				"Unable to determine whether the installed Git supports VS Code authentication for private plugin marketplaces. Install Git 2.31 or later and try again."
-			));
-		}
-		return [
-			Number(match.groups.major),
-			Number(match.groups.minor),
-			Number(match.groups.patch ?? 0),
-		];
+		await this._exec(operationId, ['fetch'], repoPath, options);
 	}
 
 	async revListCount(repoPath: string, fromRef: string, toRef: string): Promise<number> {

@@ -5,9 +5,9 @@
 
 import assert from 'assert';
 import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
-import { CancellationError } from '../../../../../base/common/errors.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IGitAuthentication, ILocalGitService } from '../../../../../platform/git/common/localGitService.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { AuthenticationSession, IAuthenticationService } from '../../../../services/authentication/common/authentication.js';
@@ -43,8 +43,24 @@ suite('NativePluginGitCommandService', () => {
 		} as Partial<IAuthenticationService> as IAuthenticationService;
 	}
 
-	function createService(localGitService: ILocalGitService, accessToken?: string): NativePluginGitCommandService {
-		return new NativePluginGitCommandService(localGitService, createAuthenticationService(accessToken), new NullLogService());
+	function createFileService(overrides?: Partial<IFileService>): IFileService {
+		return {
+			_serviceBrand: undefined,
+			exists: async () => false,
+			del: async () => { },
+			...overrides,
+		} as Partial<IFileService> as IFileService;
+	}
+
+	function createAuthenticationError(): Error & { code: number; stderr: string } {
+		const error = new Error('fatal: unable to get password from user') as Error & { code: number; stderr: string };
+		error.code = 128;
+		error.stderr = 'fatal: unable to get password from user';
+		return error;
+	}
+
+	function createService(localGitService: ILocalGitService, accessToken?: string, fileService = createFileService()): NativePluginGitCommandService {
+		return new NativePluginGitCommandService(localGitService, createAuthenticationService(accessToken), fileService, new NullLogService());
 	}
 
 	test('cloneRepository delegates to ILocalGitService', async () => {
@@ -59,17 +75,27 @@ suite('NativePluginGitCommandService', () => {
 	});
 
 	test('cloneRepository forwards an existing GitHub session for canonical GitHub HTTPS URLs', async () => {
-		let authentication: IGitAuthentication | undefined;
+		const authentications: (IGitAuthentication | undefined)[] = [];
+		let deleted = false;
 		const service = createService(createLocalGitStub({
-			clone: async (_operationId, _url, _path, _ref, options) => { authentication = options?.authentication; },
-		}), 'github-token');
+			clone: async (_operationId, _url, _path, _ref, options) => {
+				authentications.push(options?.authentication);
+				if (!options?.authentication) {
+					throw createAuthenticationError();
+				}
+			},
+		}), 'github-token', createFileService({
+			exists: async () => true,
+			del: async () => { deleted = true; },
+		}));
 
 		await service.cloneRepository('https://github.com/test/private.git', URI.file('/tmp/repo'));
 
-		assert.deepStrictEqual(authentication, {
+		assert.deepStrictEqual(authentications, [undefined, {
 			urlPrefix: 'https://github.com/',
 			authorizationHeader: 'Authorization: Basic eC1hY2Nlc3MtdG9rZW46Z2l0aHViLXRva2Vu',
-		});
+		}]);
+		assert.strictEqual(deleted, true);
 	});
 
 	test('cloneRepository does not forward GitHub authentication to unsupported origins', async () => {
@@ -104,10 +130,16 @@ suite('NativePluginGitCommandService', () => {
 		const service = createService(createLocalGitStub({
 			pull: async (_operationId, _repoPath, options) => {
 				authentications.push(options?.authentication);
+				if (!options?.authentication) {
+					throw createAuthenticationError();
+				}
 				return false;
 			},
 			fetch: async (_operationId, _repoPath, options) => {
 				authentications.push(options?.authentication);
+				if (!options?.authentication) {
+					throw createAuthenticationError();
+				}
 			},
 		}), 'github-token');
 
@@ -115,13 +147,11 @@ suite('NativePluginGitCommandService', () => {
 		await service.pull(repository, 'https://github.com/test/private.git');
 		await service.fetchRepository(repository, 'https://github.com/test/private.git');
 
-		assert.deepStrictEqual(authentications, [{
+		const expectedAuthentication = {
 			urlPrefix: 'https://github.com/',
 			authorizationHeader: 'Authorization: Basic eC1hY2Nlc3MtdG9rZW46Z2l0aHViLXRva2Vu',
-		}, {
-			urlPrefix: 'https://github.com/',
-			authorizationHeader: 'Authorization: Basic eC1hY2Nlc3MtdG9rZW46Z2l0aHViLXRva2Vu',
-		}]);
+		};
+		assert.deepStrictEqual(authentications, [undefined, expectedAuthentication, undefined, expectedAuthentication]);
 	});
 
 	test('pull and fetch do not forward GitHub authentication to non-GitHub remotes', async () => {
@@ -229,17 +259,4 @@ suite('NativePluginGitCommandService', () => {
 		await p;
 	});
 
-	test('cancellation before a non-GitHub clone prevents the local clone', async () => {
-		const cts = store.add(new CancellationTokenSource());
-		let cloneCalled = false;
-		const service = createService(createLocalGitStub({
-			clone: async () => { cloneCalled = true; },
-		}));
-
-		const pending = service.cloneRepository('https://example.com/test/repo.git', URI.file('/tmp/repo'), undefined, cts.token);
-		cts.cancel();
-
-		await assert.rejects(pending, CancellationError);
-		assert.strictEqual(cloneCalled, false);
-	});
 });

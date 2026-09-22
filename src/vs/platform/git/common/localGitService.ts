@@ -14,6 +14,7 @@ export interface IGitAuthentication {
 
 export interface IGitNetworkOptions {
 	readonly authentication?: IGitAuthentication;
+	readonly logErrors?: boolean;
 }
 
 export interface IGitPullOptions extends IGitNetworkOptions {
