@@ -26,7 +26,8 @@ import { ISessionDataService } from '../../common/sessionDataService.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { ChatOriginKind } from '../../common/state/protocol/state.js';
-import { AH_META_AUTO_ARCHIVED_AT_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_READ_DB_KEY, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, ChatInteractivity, MessageKind, PendingMessageKind, ResponsePartKind, SessionStatus, TurnState, type ISessionGitHubState, type Message, type PendingMessage, type Turn } from '../../common/state/sessionState.js';
+import { AH_META_AUTO_ARCHIVED_AT_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_READ_DB_KEY, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, ChatInteractivity, MessageKind, PendingMessageKind, ResponsePartKind, SessionStatus, TurnState, withSessionComparisonMetadata, type ISessionGitHubState, type Message, type PendingMessage, type Turn } from '../../common/state/sessionState.js';
+import type { IAgentCreateSessionConfig } from '../../common/agent.js';
 import { IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostClientConnectionService, IAgentHostClientConnectionService } from '../../node/agentHostClientConnectionService.js';
 import { AgentHostChatContributions } from '../../node/agentHostChatContributionsService.js';
@@ -39,6 +40,7 @@ import { AgentHostLocalTurns, IAgentHostLocalTurns } from '../../node/agentHostL
 import { AgentHostTelemetryReporter, IAgentHostTelemetryReporter } from '../../node/agentHostTelemetryReporter.js';
 import { AgentHostToolCallTracker, IAgentHostToolCallTracker } from '../../node/agentHostToolCallTracker.js';
 import { AgentHostTurnTracker, IAgentHostTurnTracker } from '../../node/agentHostTurnTracker.js';
+import { IAgentHostSessionPromptService } from '../../node/agentHostSessionPromptService.js';
 import { AgentHostLocalCommands, IAgentHostLocalCommands } from '../../node/localCommands/localChatCommand.js';
 import { registerBuiltInChatContributions } from '../../node/chatContributions/builtInChatContributions.js';
 import { LocalCommandContribution } from '../../node/chatContributions/localCommand/localCommandContribution.js';
@@ -866,7 +868,15 @@ function createBuiltInContributions(disposables: ReturnType<typeof ensureNoDispo
 	services.set(IAgentHostLocalTurns, new AgentHostLocalTurns(sessionDataService, logService));
 	const instantiationService = disposables.add(new InstantiationService(services, /*strict*/ true));
 	const service = disposables.add(new AgentHostChatContributions(logService, instantiationService));
+	const launchedComparisonJudges: { readonly config: IAgentCreateSessionConfig; readonly prompt: string }[] = [];
 	services.set(IAgentHostChatContributions, service);
+	services.set(IAgentHostSessionPromptService, {
+		_serviceBrand: undefined,
+		startSessionPrompt: async (config, prompt) => {
+			launchedComparisonJudges.push({ config, prompt });
+			return URI.parse('agent-host-session://comparison-judge');
+		},
+	});
 	const telemetryReporter = new AgentHostTelemetryReporter(new RecordingTelemetryService());
 	services.set(IAgentHostTelemetryReporter, telemetryReporter);
 	services.set(IAgentHostTurnTracker, disposables.add(instantiationService.createInstance(AgentHostTurnTracker)));
@@ -879,7 +889,7 @@ function createBuiltInContributions(disposables: ReturnType<typeof ensureNoDispo
 	};
 	disposables.add(service.registerHost(host));
 	disposables.add(registerBuiltInChatContributions(service));
-	return { service, stateManager, database: usageDatabase, session: 'agent-host-session://test' };
+	return { service, stateManager, database: usageDatabase, launchedComparisonJudges, session: 'agent-host-session://test' };
 }
 
 function createQueueDrainContributions(disposables: ReturnType<typeof ensureNoDisposablesAreLeakedInTestSuite>) {
@@ -1377,6 +1387,78 @@ suite('AgentHostChatContributions', () => {
 		contributions.service.turnEnd(turnEnd('built-in-order'));
 
 		assert.deepStrictEqual(observed, ['checkpointAndChangeset', 'sessionWorkspaceConversion', 'queueDrain', 'githubReferences', 'sessionTitle', 'markUnread']);
+	});
+
+	test('launches a comparison judge from host fallback after all attempt clients disconnect', async () => {
+		const contributions = createBuiltInContributions(disposables);
+		const comparisonId = 'comparison-hash';
+		const createdAt = '2025-01-01T00:00:00.000Z';
+		const modifiedAt = '2025-01-01T00:01:00.000Z';
+		const launch = {
+			workspace: 'file:///workspace',
+			judge: {
+				providerId: 'local-agent-host',
+				sessionTypeId: 'copilotcli',
+				permissionId: 'autoApprove',
+			},
+		} as const;
+		const attempt1 = 'agent-host-session://attempt-1';
+		const attempt2 = 'agent-host-session://attempt-2';
+
+		contributions.stateManager.createSession({
+			resource: attempt1,
+			provider: 'copilotcli',
+			title: 'Attempt 1',
+			status: SessionStatus.Idle,
+			createdAt,
+			modifiedAt,
+			_meta: withSessionComparisonMetadata(undefined, { id: comparisonId, role: 'attempt', attemptIndex: 0, attemptCount: 2, launch }),
+		});
+		contributions.stateManager.createSession({
+			resource: attempt2,
+			provider: 'copilotcli',
+			title: 'Attempt 2',
+			status: SessionStatus.Idle,
+			createdAt,
+			modifiedAt,
+			_meta: withSessionComparisonMetadata(undefined, { id: comparisonId, role: 'attempt', attemptIndex: 1, attemptCount: 2, launch }),
+		});
+		const setActiveClient = {
+			type: ActionType.SessionActiveClientSet,
+			activeClient: { clientId: 'client-a', tools: [] },
+		} as const;
+		contributions.stateManager.dispatchServerAction(attempt1, setActiveClient);
+		contributions.stateManager.dispatchServerAction(attempt2, setActiveClient);
+
+		const removeActiveClient = {
+			type: ActionType.SessionActiveClientRemoved,
+			clientId: 'client-a',
+		} as const;
+		contributions.stateManager.dispatchServerAction(attempt1, removeActiveClient);
+		contributions.service.didDispatchAction(dispatchedAction(attempt1, attempt1, removeActiveClient));
+		await Promise.resolve();
+		assert.strictEqual(contributions.launchedComparisonJudges.length, 0);
+
+		contributions.stateManager.dispatchServerAction(attempt2, removeActiveClient);
+		contributions.service.didDispatchAction(dispatchedAction(attempt2, attempt2, removeActiveClient));
+		await Promise.resolve();
+
+		assert.strictEqual(contributions.launchedComparisonJudges.length, 1);
+		assert.deepStrictEqual(contributions.launchedComparisonJudges[0]!.config, {
+			provider: 'copilotcli',
+			workingDirectories: [URI.parse('file:///workspace')],
+			config: {
+				isolation: 'worktree',
+				mode: 'interactive',
+				autoApprove: 'autoApprove',
+			},
+			_meta: withSessionComparisonMetadata(undefined, {
+				id: comparisonId,
+				role: 'judge',
+				attemptCount: 2,
+			}),
+		});
+		assert.ok(contributions.launchedComparisonJudges[0]!.prompt.includes(comparisonId));
 	});
 
 	test('reconciles GitHub references after every started turn outcome', () => {

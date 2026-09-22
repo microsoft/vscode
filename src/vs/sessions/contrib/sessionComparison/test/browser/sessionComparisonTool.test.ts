@@ -15,6 +15,7 @@ import { ILanguageModelToolsService, IToolData, IToolResult, ToolProgress, ToolS
 import { IChat, ISession, ISessionWorkspace, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { ISessionComparison, ISessionComparisonService, ISessionComparisonVerdict, SessionComparisonDecisionAssessment, SessionComparisonParticipantRole, SessionComparisonValidationSource, SessionComparisonValidationState } from '../../../../services/sessions/common/sessionComparison.js';
 import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { hashSessionIdForTelemetry } from '../../../../common/sessionsTelemetry.js';
 import { CompleteSessionComparisonTool, ReadSessionComparisonTool, SessionComparisonToolContribution } from '../../browser/sessionComparisonTool.js';
 
 const progress: ToolProgress = { report: () => { } };
@@ -148,6 +149,35 @@ suite('SessionComparisonTool', () => {
 				changedFilesTruncated: false,
 			}],
 			next: 'Review every completed attempt diff in its authoritative worktree and treat error as failed and inProgress or needsInput as unfinished. Terminal commands start in this Judge or synthesis worktree, not an attempt worktree: explicitly cd to the exact attempt worktree.workingDirectory in every command that inspects or validates it. When changedFilesStatus is unavailable, read the Git diff from that worktree instead. Use get_session_context with an exact attempt sessionContextTarget to identify validation the attempt already completed and for rationale or other non-code evidence; never recover implementation code or paths from a transcript. Do not rerun a validation category with a clear reported result. Run only missing targeted validation when needed. If required dependencies or build artifacts are unavailable, record validation as unavailable without installing or building dependencies or substituting another validation category. Record each validation category as a consistent state and source pair. Submit verdict references using the manifest attemptNumber values; do not copy participant or session UUIDs. During synthesis, resolve every reported conflict, consider every verdict decision section, and treat synthesisPlan instructions and selections as explicit user requirements. Resolve dependencies coherently rather than copying hunks mechanically. Do not modify any attempt, inspect another checkout, discover sessions, guess references, or create sessions.',
+		});
+	});
+
+	test('accepts hashed comparison identifiers in Judge reads', async () => {
+		const comparison = stubComparison();
+		const hashedId = hashSessionIdForTelemetry(comparison.id);
+		const tool = new ReadSessionComparisonTool(
+			upcastPartial<ISessionComparisonService>({
+				getComparison: id => id === comparison.id ? comparison : undefined,
+				comparisons: constObservable([comparison]),
+			}),
+			upcastPartial<ISessionsManagementService>({
+				getSession: resource => resource.toString() === attemptResource.toString()
+					? stubAttemptSession()
+					: resource.toString() === judgeResource.toString()
+						? upcastPartial<ISession>({ providerId: 'provider' })
+						: undefined,
+				getSessionContextReference: () => undefined,
+			}),
+		);
+
+		const result = JSON.parse(getText(await invoke(tool, { comparisonId: hashedId }, judgeResource)));
+
+		assert.deepStrictEqual({
+			comparisonId: result.comparisonId,
+			attemptCount: result.attempts.length,
+		}, {
+			comparisonId: comparison.id,
+			attemptCount: 1,
 		});
 	});
 
@@ -333,6 +363,52 @@ suite('SessionComparisonTool', () => {
 				lint: evidence(SessionComparisonValidationState.NotApplicable, SessionComparisonValidationSource.NotApplicable),
 				diagnostics: evidence(SessionComparisonValidationState.NotApplicable, SessionComparisonValidationSource.NotApplicable),
 			},
+		});
+	});
+
+	test('accepts hashed comparison identifiers in Judge verdict submissions', async () => {
+		const comparison = stubComparison();
+		const hashedId = hashSessionIdForTelemetry(comparison.id);
+		let submitted: ISessionComparisonVerdict | undefined;
+		let submittedComparisonId: string | undefined;
+		const tool = new CompleteSessionComparisonTool(upcastPartial<ISessionComparisonService>({
+			getComparison: id => id === comparison.id ? comparison : undefined,
+			comparisons: constObservable([comparison]),
+			submitVerdict: (_comparisonId, verdict) => {
+				submittedComparisonId = _comparisonId;
+				submitted = verdict;
+			},
+		}));
+
+		const result = await invoke(tool, {
+			comparisonId: hashedId,
+			recommendedAttemptNumber: 1,
+			explanation: 'No implementation changes were needed.',
+			rationale: rationaleInput(),
+			conflicts: [],
+			attempts: [{
+				attemptNumber: 1,
+				summary: 'Completed the requested inspection without changing code.',
+				validation: {
+					tests: evidence(SessionComparisonValidationState.NotApplicable, SessionComparisonValidationSource.NotApplicable),
+					build: evidence(SessionComparisonValidationState.NotApplicable, SessionComparisonValidationSource.NotApplicable),
+					lint: evidence(SessionComparisonValidationState.NotApplicable, SessionComparisonValidationSource.NotApplicable),
+					diagnostics: evidence(SessionComparisonValidationState.NotApplicable, SessionComparisonValidationSource.NotApplicable),
+				},
+				unresolvedIssues: [],
+				notableDifferences: [],
+			}],
+			decisionSections: [],
+		}, judgeResource);
+
+		assert.deepStrictEqual({
+			result: JSON.parse(getText(result)),
+			submitted: !!submitted,
+			submittedComparisonId,
+		}, {
+			result: { status: 'submitted', comparisonId: comparison.id },
+			submitted: true,
+			submittedComparisonId: comparison.id,
 		});
 	});
 

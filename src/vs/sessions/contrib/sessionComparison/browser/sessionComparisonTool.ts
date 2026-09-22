@@ -19,6 +19,7 @@ import { CountTokensCallback, ILanguageModelToolsService, IPreparedToolInvocatio
 import { SessionStatus } from '../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { getSessionComparisonAttemptLabel, ISessionComparison, ISessionComparisonAttemptVerdict, ISessionComparisonRationale, ISessionComparisonService, ISessionComparisonVerdict, SessionComparisonDecisionAssessment, SessionComparisonParticipantRole, SessionComparisonValidationEvidence, SessionComparisonValidationSource, SessionComparisonValidationState } from '../../../services/sessions/common/sessionComparison.js';
+import { hashSessionIdForTelemetry } from '../../../common/sessionsTelemetry.js';
 
 const CompleteSessionComparisonToolId = 'vscode_completeAttemptComparison';
 const ReadSessionComparisonToolId = 'vscode_readAttemptComparison';
@@ -103,7 +104,7 @@ export class ReadSessionComparisonTool implements IToolImpl {
 		if (!input) {
 			return toolError('The comparison manifest input is invalid.');
 		}
-		const comparison = this.comparisonService.getComparison(input.comparisonId);
+		const comparison = resolveComparison(this.comparisonService, input.comparisonId);
 		if (!comparison) {
 			return toolError(`Comparison '${input.comparisonId}' does not exist.`);
 		}
@@ -340,7 +341,7 @@ export class CompleteSessionComparisonTool implements IToolImpl {
 		if (!input) {
 			return toolError('The comparison verdict input is invalid. Keep explanation to one sentence, provide concise comparison, validation, codeQuality, and solution rationale points, and use a consistent state and source pair for every validation category.');
 		}
-		const comparison = this.comparisonService.getComparison(input.comparisonId);
+		const comparison = resolveComparison(this.comparisonService, input.comparisonId);
 		if (!comparison) {
 			return toolError(`Comparison '${input.comparisonId}' does not exist.`);
 		}
@@ -403,8 +404,8 @@ export class CompleteSessionComparisonTool implements IToolImpl {
 				recommendedParticipantId: attemptParticipantsByNumber.get(section.recommendedAttemptNumber)!.id,
 			})),
 		};
-		this.comparisonService.submitVerdict(input.comparisonId, verdict);
-		const result = toolResult(JSON.stringify({ status: 'submitted', comparisonId: input.comparisonId }));
+		this.comparisonService.submitVerdict(comparison.id, verdict);
+		const result = toolResult(JSON.stringify({ status: 'submitted', comparisonId: comparison.id }));
 		result.toolResultMessage = localize('sessionComparison.tool.result', "Submitted attempt comparison");
 		return result;
 	}
@@ -710,4 +711,12 @@ function toolError(message: string): IToolResult {
 		toolResultError: message,
 		toolResultMessage: localize('sessionComparison.tool.error', "Attempt comparison submission failed"),
 	};
+}
+
+function resolveComparison(comparisonService: ISessionComparisonService, comparisonId: string): ISessionComparison | undefined {
+	const direct = comparisonService.getComparison(comparisonId);
+	if (direct) {
+		return direct;
+	}
+	return comparisonService.comparisons.get().find(comparison => hashSessionIdForTelemetry(comparison.id) === comparisonId);
 }
