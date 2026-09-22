@@ -153,7 +153,8 @@ import { ChatDynamicVariableModel } from '../../attachments/chatDynamicVariables
 import { ChatDragAndDrop } from '../chatDragAndDrop.js';
 import { getChatPetPillPlatformTop, getChatPetStackPlatformTop } from '../chatPetWidget.js';
 import { ChatFollowups } from './chatFollowups.js';
-import { IChatInputNotificationContext, IChatInputNotificationService, isChatInputSubmissionBlocked } from './chatInputNotificationService.js';
+import { IChatInputNotificationContext, IChatInputNotificationService } from './chatInputNotificationService.js';
+import { IManagedPluginAvailabilityService } from '../../../common/plugins/managedPluginAvailability.js';
 import { ChatGoalBannerWidget } from './chatGoalBannerWidget.js';
 import { ChatInputNotificationWidget } from './chatInputNotificationWidget.js';
 import { ChatInputNoticeHost, ChatInputNoticeLane } from './chatInputNoticeHost.js';
@@ -544,11 +545,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	}
 
 	get isSubmissionBlocked(): boolean {
-		return isChatInputSubmissionBlocked(
-			this.chatInputNotificationService,
-			this.getNotificationContext(),
-			error => this.logService.error('[ChatInputPart] Failed to evaluate blocking notification', error),
-		);
+		return this.managedPluginAvailabilityService.state.get() !== undefined;
 	}
 
 	placeContextUsageWidget(container?: HTMLElement): void {
@@ -973,6 +970,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		@IViewDescriptorService private readonly viewDescriptorService: IViewDescriptorService,
 		@IChatAttachmentWidgetRegistry private readonly _chatAttachmentWidgetRegistry: IChatAttachmentWidgetRegistry,
 		@IChatInputNotificationService private readonly chatInputNotificationService: IChatInputNotificationService,
+		@IManagedPluginAvailabilityService private readonly managedPluginAvailabilityService: IManagedPluginAvailabilityService,
 		@IChatPhoneInputPresenter private readonly chatPhoneInputPresenter: IChatPhoneInputPresenter,
 		@IVoiceModeOnboardingService private readonly voiceModeOnboardingService: IVoiceModeOnboardingService,
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
@@ -1124,7 +1122,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		this.inputEditorHasText = ChatContextKeys.inputHasText.bindTo(contextKeyService);
 		this.inputEditorHasSendableContent = ChatContextKeys.inputHasSendableContent.bindTo(contextKeyService);
-		this._register(this.chatInputNotificationService.onDidChange(() => this._updateInputContentContextKeys()));
+		this._register(Event.fromObservableLight(this.managedPluginAvailabilityService.state)(() => this._updateInputContentContextKeys()));
 		this.chatCursorAtTop = ChatContextKeys.inputCursorAtTop.bindTo(contextKeyService);
 		this.inputEditorHasFocus = ChatContextKeys.inputHasFocus.bindTo(contextKeyService);
 		this._hasQuestionCarouselContextKey = ChatContextKeys.Editing.hasQuestionCarousel.bindTo(contextKeyService);

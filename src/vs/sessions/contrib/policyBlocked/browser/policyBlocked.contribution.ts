@@ -13,13 +13,16 @@ import { ChatConfiguration } from '../../../../workbench/contrib/chat/common/con
 import { ISessionsBlockedOverlayOptions, SessionsBlockedReason, SessionsPolicyBlockedOverlay } from './sessionsPolicyBlocked.js';
 import { AccountPolicyGateState, AccountPolicyGateUnsatisfiedReason, IAccountPolicyGateService } from '../../../../workbench/services/policies/common/accountPolicyService.js';
 import { ManagedSettingsFreshnessState } from '../../../../platform/policy/common/managedSettingsFreshness.js';
+import { autorun } from '../../../../base/common/observable.js';
+import { equals } from '../../../../base/common/objects.js';
+import { getManagedPluginBlockInfo, IManagedPluginAvailabilityService } from '../../../../workbench/contrib/chat/common/plugins/managedPluginAvailability.js';
 
 export class SessionsPolicyBlockedContribution extends Disposable implements IWorkbenchContribution {
 
 	static readonly ID = 'workbench.contrib.sessionsPolicyBlocked';
 
-	private readonly overlayRef = this._register(new MutableDisposable());
-	private currentReason: SessionsBlockedReason | undefined;
+	private readonly overlayRef = this._register(new MutableDisposable<SessionsPolicyBlockedOverlay>());
+	private currentOptions: ISessionsBlockedOverlayOptions | undefined;
 
 	constructor(
 		@IConfigurationService private readonly configurationService: IConfigurationService,
@@ -27,10 +30,14 @@ export class SessionsPolicyBlockedContribution extends Disposable implements IWo
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IAccountPolicyGateService private readonly gateService: IAccountPolicyGateService,
 		@IDefaultAccountService private readonly defaultAccountService: IDefaultAccountService,
+		@IManagedPluginAvailabilityService private readonly availabilityService: IManagedPluginAvailabilityService,
 	) {
 		super();
 
-		this.update();
+		this._register(autorun(reader => {
+			this.availabilityService.state.read(reader);
+			this.update();
+		}));
 
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(ChatConfiguration.AgentEnabled)) {
@@ -61,7 +68,7 @@ export class SessionsPolicyBlockedContribution extends Disposable implements IWo
 			if (gateInfo.reason === AccountPolicyGateUnsatisfiedReason.NoAccount
 				|| gateInfo.reason === AccountPolicyGateUnsatisfiedReason.WrongProvider) {
 				this.overlayRef.clear();
-				this.currentReason = undefined;
+				this.currentOptions = undefined;
 				return;
 			}
 
@@ -83,24 +90,28 @@ export class SessionsPolicyBlockedContribution extends Disposable implements IWo
 			return;
 		}
 
+		const availability = this.availabilityService.state.get();
+		if (availability) {
+			this.showOverlay({ reason: SessionsBlockedReason.RequiredPlugins, pluginInfo: getManagedPluginBlockInfo(availability) });
+			return;
+		}
+
 		this.overlayRef.clear();
-		this.currentReason = undefined;
+		this.currentOptions = undefined;
 	}
 
 	private showOverlay(options: ISessionsBlockedOverlayOptions): void {
-		// AccountPolicyGate may need re-render when the account name changes.
-		if (this.currentReason === options.reason
-			&& options.reason !== SessionsBlockedReason.AccountPolicyGate
-			&& options.reason !== SessionsBlockedReason.ManagedSettingsRefresh) {
+		if (equals(this.currentOptions, options)) {
 			return;
 		}
+		const shouldFocus = options.reason !== SessionsBlockedReason.RequiredPlugins || !this.overlayRef.value || this.overlayRef.value.hasFocus();
 		this.overlayRef.clear();
-		this.currentReason = options.reason;
+		this.currentOptions = options;
 
 		this.overlayRef.value = this.instantiationService.createInstance(
 			SessionsPolicyBlockedOverlay,
 			this.layoutService.mainContainer,
-			options,
+			{ ...options, shouldFocus },
 		);
 	}
 }

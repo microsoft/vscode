@@ -32,6 +32,8 @@ import { IRawChatParticipantContribution } from '../common/participants/chatPart
 import { ChatAgentLocation, ChatModeKind } from '../common/constants.js';
 import { ChatViewId, ChatViewContainerId } from './chat.js';
 import { ChatViewPane } from './widgetHosts/viewPane/chatViewPane.js';
+import { ChatRequiredPluginsView } from './viewsWelcome/chatRequiredPluginsView.js';
+import { MANAGED_PLUGINS_VIEW_ID, ManagedPluginsUnavailableContext } from '../common/plugins/managedPluginAvailability.js';
 
 // --- Chat Container &  View Registration
 
@@ -70,6 +72,7 @@ const chatViewDescriptor: IViewDescriptor = {
 	ctorDescriptor: new SyncDescriptor(ChatViewPane),
 	when: ContextKeyExpr.and(
 		ChatContextKeys.accountPolicyGateActive.negate(),
+		ManagedPluginsUnavailableContext.negate(),
 		ContextKeyExpr.or(
 			ContextKeyExpr.and(
 				ChatContextKeys.Setup.hidden.negate(),
@@ -81,6 +84,25 @@ const chatViewDescriptor: IViewDescriptor = {
 	)
 };
 Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry).registerViews([chatViewDescriptor], chatViewContainer);
+
+Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry).registerViews([{
+	id: MANAGED_PLUGINS_VIEW_ID,
+	name: chatViewDescriptor.name,
+	containerIcon: chatViewIcon,
+	singleViewPaneContainerTitle: chatViewContainer.title.value,
+	canToggleVisibility: false,
+	canMoveView: false,
+	ctorDescriptor: new SyncDescriptor(ChatRequiredPluginsView),
+	when: ContextKeyExpr.and(ManagedPluginsUnavailableContext, ChatContextKeys.enabled, ChatContextKeys.accountPolicyGateActive.negate()),
+	openCommandActionDescriptor: {
+		id: 'workbench.action.chat.showRequiredPlugins',
+		title: localize2('chat.requiredPluginsView', "Chat Plugin Requirement"),
+		keybindings: {
+			primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyI,
+			mac: { primary: KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyCode.KeyI },
+		},
+	},
+}], chatViewContainer);
 
 const chatParticipantExtensionPoint = extensionsRegistry.ExtensionsRegistry.registerExtensionPoint<IRawChatParticipantContribution[]>({
 	extensionPoint: 'chatParticipants',

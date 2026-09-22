@@ -9,26 +9,22 @@ import { Event } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../base/common/map.js';
 import { autorun } from '../../../../base/common/observable.js';
-import { localize } from '../../../../nls.js';
+import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { IChatEntitlementService } from '../../../services/chat/common/chatEntitlementService.js';
 import { ChatConfiguration } from '../common/constants.js';
 import { getMarketplacePluginPolicyId } from '../common/plugins/agentPluginEnablement.js';
+import { IManagedPluginAvailabilityService, RETRY_MANAGED_PLUGINS_COMMAND_ID } from '../common/plugins/managedPluginAvailability.js';
 import { IPluginInstallService } from '../common/plugins/pluginInstallService.js';
 import { IMarketplacePlugin, IPluginMarketplaceService } from '../common/plugins/pluginMarketplaceService.js';
-import { ChatInputNotificationSeverity, IChatInputNotificationService } from './widget/input/chatInputNotificationService.js';
-
-const requiredPluginNotificationId = 'managedRequiredPluginsUnavailable';
-
 export class ManagedPluginInstall extends Disposable implements IWorkbenchContribution {
 	static readonly ID = 'workbench.contrib.managedPluginInstall';
 
 	private readonly _reconcileScheduler = this._register(new RunOnceScheduler(() => void this._runReconcile(), 0));
 	private _reconcileInFlight = false;
 	private _reconcileQueued = false;
-	private _notificationSignature: string | undefined;
 
 	constructor(
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
@@ -36,10 +32,11 @@ export class ManagedPluginInstall extends Disposable implements IWorkbenchContri
 		@IPluginInstallService private readonly _pluginInstallService: IPluginInstallService,
 		@IChatEntitlementService private readonly _chatEntitlementService: IChatEntitlementService,
 		@ILogService private readonly _logService: ILogService,
-		@IChatInputNotificationService private readonly _chatInputNotificationService: IChatInputNotificationService,
+		@IManagedPluginAvailabilityService private readonly _availabilityService: IManagedPluginAvailabilityService,
 	) {
 		super();
 
+		this._register(CommandsRegistry.registerCommand(RETRY_MANAGED_PLUGINS_COMMAND_ID, () => this._queueReconcile()));
 		this._register(autorun(reader => {
 			this._pluginMarketplaceService.installedPlugins.read(reader);
 			this._chatEntitlementService.sentimentObs.read(reader);
@@ -58,7 +55,7 @@ export class ManagedPluginInstall extends Disposable implements IWorkbenchContri
 		if (this._store.isDisposed) {
 			return;
 		}
-		this._updatePendingNotification();
+		this._updatePendingState();
 		if (this._reconcileInFlight) {
 			this._reconcileQueued = true;
 			return;
@@ -80,7 +77,7 @@ export class ManagedPluginInstall extends Disposable implements IWorkbenchContri
 				} catch (error) {
 					this._logService.error('[ManagedPluginInstall] Failed to reconcile required plugins:', error);
 					if (!this._isReconcileStale()) {
-						this._setUnavailableNotification(this._getMissingRequiredPluginIds());
+						this._setUnavailableState(this._getMissingRequiredPluginIds());
 					}
 				}
 			} while (this._reconcileQueued && !this._store.isDisposed);
@@ -94,20 +91,20 @@ export class ManagedPluginInstall extends Disposable implements IWorkbenchContri
 	}
 
 	override dispose(): void {
-		this._clearNotification();
+		this._clearState();
 		super.dispose();
 	}
 
 	private async _reconcileRequiredPlugins(): Promise<void> {
 		if (this._chatEntitlementService.sentiment.hidden
 			|| this._configurationService.getValue<boolean>(ChatConfiguration.PluginsEnabled) === false) {
-			this._clearNotification();
+			this._clearState();
 			return;
 		}
 
 		const requiredPluginIds = this._getRequiredPluginIds();
 		if (requiredPluginIds.size === 0) {
-			this._clearNotification();
+			this._clearState();
 			return;
 		}
 
@@ -118,7 +115,7 @@ export class ManagedPluginInstall extends Disposable implements IWorkbenchContri
 
 		const missingPluginIds = this._getMissingRequiredPluginIds(requiredPluginIds);
 		if (missingPluginIds.length === 0) {
-			this._clearNotification();
+			this._clearState();
 			return;
 		}
 
@@ -186,16 +183,16 @@ export class ManagedPluginInstall extends Disposable implements IWorkbenchContri
 
 		if (unavailablePluginIds.size > 0) {
 			this._logService.warn(`[ManagedPluginInstall] ${unavailablePluginIds.size} required plugin(s) could not be resolved or installed from enterprise-managed marketplaces.`);
-			this._setUnavailableNotification([...unavailablePluginIds]);
+			this._setUnavailableState([...unavailablePluginIds]);
 		} else {
-			this._clearNotification();
+			this._clearState();
 		}
 	}
 
 	private async _installRequiredPlugin(plugin: IMarketplacePlugin): Promise<boolean> {
 		try {
 			await this._pluginInstallService.installPlugin(plugin);
-			return true;
+			return this._pluginMarketplaceService.isPluginInstalled(plugin);
 		} catch (error) {
 			this._logService.error(`[ManagedPluginInstall] Failed to install required plugin '${plugin.name}':`, error);
 			return false;
@@ -219,67 +216,31 @@ export class ManagedPluginInstall extends Disposable implements IWorkbenchContri
 		return [...requiredPluginIds].filter(pluginId => !installedPluginIds.has(pluginId)).sort();
 	}
 
-	private _updatePendingNotification(): void {
+	private _updatePendingState(): void {
 		if (this._chatEntitlementService.sentiment.hidden
 			|| this._configurationService.getValue<boolean>(ChatConfiguration.PluginsEnabled) === false) {
-			this._clearNotification();
+			this._clearState();
 			return;
 		}
 
 		const missingPluginIds = this._getMissingRequiredPluginIds();
 		if (missingPluginIds.length === 0) {
-			this._clearNotification();
+			this._clearState();
 			return;
 		}
 
-		this._setNotification(
-			`pending:${missingPluginIds.join('\0')}`,
-			ChatInputNotificationSeverity.Warning,
-			localize('managedRequiredPluginsInstalling', "Installing required organization plugins"),
-			localize('managedRequiredPluginsInstallingDescription', "Chat will be available after the required plugins are installed."),
-		);
+		this._availabilityService.setState({ kind: 'installing', pluginIds: missingPluginIds });
 	}
 
-	private _setUnavailableNotification(pluginIds: readonly string[]): void {
+	private _setUnavailableState(pluginIds: readonly string[]): void {
 		if (pluginIds.length === 0) {
-			this._clearNotification();
+			this._clearState();
 			return;
 		}
-		const sortedPluginIds = [...pluginIds].sort();
-		this._setNotification(
-			`unavailable:${sortedPluginIds.join('\0')}`,
-			ChatInputNotificationSeverity.Error,
-			localize('managedRequiredPluginsUnavailable', "Required organization plugins are unavailable"),
-			localize(
-				'managedRequiredPluginsUnavailableDescription',
-				"Chat is unavailable because these required plugins could not be installed: {0}. Check your connection or contact your administrator.",
-				sortedPluginIds.join(', '),
-			),
-		);
+		this._availabilityService.setState({ kind: 'unavailable', pluginIds: [...pluginIds].sort() });
 	}
 
-	private _setNotification(signature: string, severity: ChatInputNotificationSeverity, message: string, description: string): void {
-		if (this._notificationSignature === signature) {
-			return;
-		}
-		this._notificationSignature = signature;
-		this._chatInputNotificationService.setNotification({
-			id: requiredPluginNotificationId,
-			severity,
-			blocksSubmission: true,
-			message,
-			description,
-			actions: [],
-			dismissible: false,
-			autoDismissOnMessage: false,
-		});
-	}
-
-	private _clearNotification(): void {
-		if (this._notificationSignature === undefined) {
-			return;
-		}
-		this._notificationSignature = undefined;
-		this._chatInputNotificationService.deleteNotification(requiredPluginNotificationId);
+	private _clearState(): void {
+		this._availabilityService.setState(undefined);
 	}
 }

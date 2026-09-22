@@ -99,8 +99,6 @@ export interface IChatInputNotification {
 	readonly inputUri?: URI;
 	readonly telemetryId?: string;
 	readonly severity: ChatInputNotificationSeverity;
-	/** Prevents submission while this notification applies to the input. */
-	readonly blocksSubmission?: boolean;
 	readonly message: string | IMarkdownString;
 	readonly description: string | IMarkdownString | undefined;
 	readonly actions: readonly IChatInputNotificationAction[];
@@ -242,17 +240,6 @@ export interface IChatInputNotificationService {
 	 * in a matching session actually renders them. Passing `undefined` is a no-op.
 	 */
 	announceRendered(notification: IChatInputNotification | undefined, body?: IChatInputNotificationBody): void;
-}
-
-export function isChatInputSubmissionBlocked(
-	service: IChatInputNotificationService,
-	context: IChatInputNotificationContext,
-	onError: (error: unknown) => void,
-): boolean {
-	return service.getActiveNotification(notification =>
-		notification.blocksSubmission === true
-		&& resolveChatInputNotificationBody(notification, context, onError) !== undefined
-	) !== undefined;
 }
 
 class ChatInputNotificationService extends Disposable implements IChatInputNotificationService {

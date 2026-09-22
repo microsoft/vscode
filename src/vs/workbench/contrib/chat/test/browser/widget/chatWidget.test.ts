@@ -1075,7 +1075,7 @@ suite('ChatWidget - guarded acceptInput', () => {
 		});
 	});
 
-	test('does not submit while a chat input notification blocks submission', async () => {
+	test('does not submit while required plugins are unavailable', async () => {
 		const fixture = createSubmissionWidget();
 		Object.defineProperty(fixture.input, 'isSubmissionBlocked', { value: true });
 

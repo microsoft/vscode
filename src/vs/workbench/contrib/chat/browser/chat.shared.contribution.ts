@@ -231,6 +231,7 @@ import { PlanAgentDefaultModel } from './planAgentDefaultModel.js';
 import './planReviewFeedback/planReviewFeedbackEditorOverlay.js';
 import { IPlanReviewFeedbackService, PlanReviewFeedbackService } from './planReviewFeedback/planReviewFeedbackService.js';
 import { ManagedPluginInstall } from './managedPluginInstall.js';
+import './managedPluginAvailability.contribution.js';
 import { PluginAutoUpdate } from './pluginAutoUpdate.js';
 import { BrowserPluginGitCommandService } from './pluginGitCommandService.js';
 import { PluginInstallService } from './pluginInstallService.js';

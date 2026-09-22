@@ -46,6 +46,38 @@
 	display: none;
 }
 
+.pane-body > .chat-view-welcome.chat-policy-blocked {
+	justify-content: normal;
+}
+
+.chat-policy-blocked-content {
+	display: flex;
+	flex-direction: column;
+	justify-content: safe center;
+}
+
+.chat-policy-blocked-content .chat-welcome-view > :is(.chat-welcome-view-title, .chat-welcome-view-message, .chat-welcome-view-disclaimer) {
+	box-sizing: border-box;
+	overflow-wrap: anywhere;
+}
+
+.chat-policy-blocked-content .chat-welcome-view > .chat-welcome-view-title {
+	max-width: 100%;
+}
+
+.chat-policy-blocked-content .chat-welcome-view > .chat-welcome-view-message {
+	max-width: min(100%, 320px);
+}
+
+.chat-policy-blocked-content .chat-welcome-view > .chat-welcome-view-disclaimer {
+	max-width: min(100%, 280px);
+	margin-top: var(--vscode-spacing-size80);
+}
+
+.chat-policy-blocked-content .chat-welcome-view > .monaco-button {
+	margin-top: var(--vscode-spacing-size120);
+}
+
 div.chat-welcome-view {
 	display: flex;
 	flex-direction: column;
