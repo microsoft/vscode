@@ -103,6 +103,8 @@ import { IAgentPluginItem } from '../agentPluginEditor/agentPluginItems.js';
 import { IExtension } from '../../../extensions/common/extensions.js';
 import { EmbeddedMcpServerDetail, IMcpServerDetailInput } from './embeddedMcpServerDetail.js';
 import { EmbeddedAgentPluginDetail } from './embeddedAgentPluginDetail.js';
+import { EmbeddedConnectorDetail } from './embeddedConnectorDetail.js';
+import { ICopilotConnector } from './copilotConnectorsService.js';
 import { getVirtualizedSectionMinimumHeight, layoutVirtualizedSectionList, layoutVirtualizedSections } from './customizationCardList.js';
 import { IMcpService, IMcpWorkbenchService } from '../../../mcp/common/mcpTypes.js';
 import { IAgentHostCustomizationService } from '../agentSessions/agentHost/agentHostCustomizationService.js';
@@ -569,7 +571,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 	private currentEditingReadOnly = false;
 	private editorReturnViewMode: 'list' | 'migration' = 'list';
 	private currentModelRef: IReference<IResolvedTextEditorModel> | undefined;
-	private viewMode: 'list' | 'migration' | 'editor' | 'mcpDetail' | 'pluginDetail' | 'toolsDetail' = 'list';
+	private viewMode: 'list' | 'migration' | 'editor' | 'mcpDetail' | 'connectorDetail' | 'pluginDetail' | 'toolsDetail' = 'list';
 	private migrationContentContainer: HTMLElement | undefined;
 	private migrationListContainer: HTMLElement | undefined;
 	private migrationListScrollable: DomScrollableElement | undefined;
@@ -611,6 +613,11 @@ export class AICustomizationManagementEditor extends EditorPane {
 	private mcpDetailInput: IMcpServerDetailInput | undefined;
 	private mcpDetailBackButton: HTMLButtonElement | undefined;
 	private readonly mcpDetailDisposables = this._register(new DisposableStore());
+
+	// Embedded connector detail view
+	private connectorDetailContainer: HTMLElement | undefined;
+	private embeddedConnectorDetail: EmbeddedConnectorDetail | undefined;
+	private connectorDetailBackButton: HTMLButtonElement | undefined;
 
 	// Embedded plugin detail view
 	private pluginDetailContainer: HTMLElement | undefined;
@@ -1391,6 +1398,12 @@ export class AICustomizationManagementEditor extends EditorPane {
 
 			this.editorDisposables.add(this.mcpListWidget.onDidRequestShowPlugin(item => {
 				this.showPluginDetail(item);
+			}));
+
+			this.connectorDetailContainer = DOM.append(contentInner, $('.connector-detail-container'));
+			this.createEmbeddedConnectorDetail();
+			this.editorDisposables.add(this.mcpListWidget.onDidSelectConnector(connector => {
+				this.showEmbeddedConnectorDetail(connector);
 			}));
 		}
 
@@ -3150,6 +3163,9 @@ export class AICustomizationManagementEditor extends EditorPane {
 		if (this.viewMode === 'mcpDetail') {
 			this.goBackFromMcpDetail();
 		}
+		if (this.viewMode === 'connectorDetail') {
+			this.goBackFromConnectorDetail();
+		}
 		if (this.viewMode === 'pluginDetail') {
 			this.goBackFromPluginDetail();
 		}
@@ -3171,6 +3187,11 @@ export class AICustomizationManagementEditor extends EditorPane {
 	}
 
 	private selectSection(section: AICustomizationManagementSection, options?: { showMarketplace?: boolean }): void {
+		if (options?.showMarketplace && section === AICustomizationManagementSection.McpServers) {
+			this.showWelcomePage();
+			this.welcomePage?.setSearchQuery('@type:mcp');
+			return;
+		}
 		if (this.selectedSection === section && !options?.showMarketplace) {
 			this.ensureSectionsListReflectsActiveSection(section);
 			return;
@@ -3188,6 +3209,9 @@ export class AICustomizationManagementEditor extends EditorPane {
 		}
 		if (this.viewMode === 'mcpDetail') {
 			this.goBackFromMcpDetail();
+		}
+		if (this.viewMode === 'connectorDetail') {
+			this.goBackFromConnectorDetail();
 		}
 		if (this.viewMode === 'pluginDetail') {
 			this.goBackFromPluginDetail();
@@ -3222,9 +3246,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 
 		// Activate marketplace browse mode if requested
 		if (options?.showMarketplace) {
-			if (section === AICustomizationManagementSection.McpServers) {
-				this.mcpListWidget?.showBrowseMarketplace();
-			} else if (section === AICustomizationManagementSection.Plugins) {
+			if (section === AICustomizationManagementSection.Plugins) {
 				this.pluginListWidget?.showBrowseMarketplace();
 			}
 		}
@@ -3279,9 +3301,10 @@ export class AICustomizationManagementEditor extends EditorPane {
 		const isEditorMode = this.viewMode === 'editor';
 		const isMigrationMode = this.viewMode === 'migration';
 		const isMcpDetailMode = this.viewMode === 'mcpDetail';
+		const isConnectorDetailMode = this.viewMode === 'connectorDetail';
 		const isPluginDetailMode = this.viewMode === 'pluginDetail';
 		const isToolsDetailMode = this.viewMode === 'toolsDetail';
-		const isDetailMode = isMcpDetailMode || isPluginDetailMode || isToolsDetailMode;
+		const isDetailMode = isMcpDetailMode || isConnectorDetailMode || isPluginDetailMode || isToolsDetailMode;
 		const isWelcome = this.selectedSection === undefined;
 		const isPromptsSection = this.selectedSection !== undefined && this.isPromptsSection(this.selectedSection);
 		const isModelsSection = this.selectedSection === AICustomizationManagementSection.Models;
@@ -3317,6 +3340,9 @@ export class AICustomizationManagementEditor extends EditorPane {
 		this.mcpListWidget?.setVisible(!isEditorMode && !isMigrationMode && !isDetailMode && isMcpSection);
 		if (this.mcpDetailContainer) {
 			this.mcpDetailContainer.style.display = isMcpDetailMode ? '' : 'none';
+		}
+		if (this.connectorDetailContainer) {
+			this.connectorDetailContainer.style.display = isConnectorDetailMode ? '' : 'none';
 		}
 		if (this.pluginContentContainer) {
 			this.pluginContentContainer.style.display = !isEditorMode && !isMigrationMode && !isDetailMode && isPluginsSection ? '' : 'none';
@@ -3555,6 +3581,9 @@ export class AICustomizationManagementEditor extends EditorPane {
 		if (this.viewMode === 'mcpDetail') {
 			this.goBackFromMcpDetail();
 		}
+		if (this.viewMode === 'connectorDetail') {
+			this.goBackFromConnectorDetail();
+		}
 		if (this.viewMode === 'pluginDetail') {
 			this.goBackFromPluginDetail();
 		}
@@ -3619,6 +3648,10 @@ export class AICustomizationManagementEditor extends EditorPane {
 			this.focusCustomizationMigrationPage();
 			return;
 		}
+		if (this.viewMode === 'connectorDetail') {
+			this.connectorDetailBackButton?.focus();
+			return;
+		}
 		if (this.selectedSection === undefined) {
 			this.welcomePage?.focus();
 			return;
@@ -3642,6 +3675,11 @@ export class AICustomizationManagementEditor extends EditorPane {
 	 * Selects a specific section programmatically.
 	 */
 	public selectSectionById(sectionId: AICustomizationManagementSection, options?: { showMarketplace?: boolean }): void {
+		if (options?.showMarketplace && sectionId === AICustomizationManagementSection.McpServers) {
+			this.showWelcomePage();
+			this.welcomePage?.setSearchQuery('@type:mcp');
+			return;
+		}
 		const index = this.sections.findIndex(s => s.id === sectionId);
 		if (index >= 0) {
 			// Directly update state and UI, bypassing the early-return guard in selectSection
@@ -3655,6 +3693,9 @@ export class AICustomizationManagementEditor extends EditorPane {
 			}
 			if (this.viewMode === 'mcpDetail') {
 				this.goBackFromMcpDetail();
+			}
+			if (this.viewMode === 'connectorDetail') {
+				this.goBackFromConnectorDetail();
 			}
 			if (this.viewMode === 'pluginDetail') {
 				this.goBackFromPluginDetail();
@@ -3678,9 +3719,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 
 			// Activate marketplace browse mode if requested
 			if (options?.showMarketplace) {
-				if (sectionId === AICustomizationManagementSection.McpServers) {
-					this.mcpListWidget?.showBrowseMarketplace();
-				} else if (sectionId === AICustomizationManagementSection.Plugins) {
+				if (sectionId === AICustomizationManagementSection.Plugins) {
 					this.pluginListWidget?.showBrowseMarketplace();
 				}
 			}
@@ -3693,6 +3732,9 @@ export class AICustomizationManagementEditor extends EditorPane {
 		}
 		if (this.viewMode === 'mcpDetail') {
 			this.goBackFromMcpDetail();
+		}
+		if (this.viewMode === 'connectorDetail') {
+			this.goBackFromConnectorDetail();
 		}
 		if (this.viewMode === 'pluginDetail') {
 			this.goBackFromPluginDetail();
@@ -4660,6 +4702,48 @@ export class AICustomizationManagementEditor extends EditorPane {
 			&& candidate.id === this.mcpDetailInput?.compatibilityId
 			&& (!this.mcpDetailInput.source || isEqual(candidate.sourceUri, this.mcpDetailInput.source.uri)));
 		this.embeddedMcpDetail.setMigratable(migratable);
+	}
+
+	//#endregion
+
+	//#region Embedded Connector Detail
+
+	private createEmbeddedConnectorDetail(): void {
+		if (!this.connectorDetailContainer) {
+			return;
+		}
+		this.embeddedConnectorDetail = this.editorDisposables.add(this.instantiationService.createInstance(EmbeddedConnectorDetail, this.connectorDetailContainer));
+		const backButton = DOM.append(this.embeddedConnectorDetail.leadingSlot, $<HTMLButtonElement>('button.editor-back-button'));
+		this.connectorDetailBackButton = backButton;
+		backButton.type = 'button';
+		backButton.setAttribute('aria-label', localize('backToMcpServersList', "Back to MCP servers"));
+		this.editorDisposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), backButton, localize('backToMcpServersListTooltip', "Back to MCP servers")));
+		const backIcon = DOM.append(backButton, $(`.codicon.codicon-${Codicon.arrowLeft.id}`));
+		backIcon.setAttribute('aria-hidden', 'true');
+		this.editorDisposables.add(DOM.addDisposableListener(backButton, 'click', () => this.goBackFromConnectorDetail()));
+	}
+
+	private showEmbeddedConnectorDetail(connector: ICopilotConnector): void {
+		if (!this.embeddedConnectorDetail) {
+			return;
+		}
+		this.viewMode = 'connectorDetail';
+		this.updateContentVisibility();
+		this.embeddedConnectorDetail.setInput(connector);
+		if (this.dimension) {
+			this.layout(this.dimension);
+		}
+		this.connectorDetailBackButton?.focus();
+	}
+
+	private goBackFromConnectorDetail(): void {
+		this.embeddedConnectorDetail?.clearInput();
+		this.viewMode = 'list';
+		this.updateContentVisibility();
+		if (this.dimension) {
+			this.layout(this.dimension);
+		}
+		this.mcpListWidget?.focusSearch();
 	}
 
 	//#endregion

@@ -55,6 +55,7 @@ import { IWorkingCopyService } from '../../../../services/workingCopy/common/wor
 import { IWebviewService } from '../../../../contrib/webview/browser/webview.js';
 import { IAICustomizationWorkspaceService, AICustomizationManagementSection, AICustomizationSource } from '../../../../contrib/chat/common/aiCustomizationWorkspaceService.js';
 import { CustomizationMarketplaceInstallState, ICustomizationMarketplaceInstallService } from '../../../../contrib/chat/common/customizationMarketplaceInstallService.js';
+import { ICopilotConnector, ICopilotConnectorsService } from '../../../../contrib/chat/browser/aiCustomization/copilotConnectorsService.js';
 import { ICustomizationHarnessService, ICustomizationItem, ICustomizationItemProvider, ICustomizationMcpServerCompatibility, ICustomizationSourceFolder, IHarnessDescriptor, createVSCodeHarnessDescriptor } from '../../../../contrib/chat/common/customizationHarnessService.js';
 import { IChatSessionsService } from '../../../../contrib/chat/common/chatSessionsService.js';
 import { getChatSessionType, LocalChatSessionUri } from '../../../../contrib/chat/common/model/chatUri.js';
@@ -821,6 +822,104 @@ const customizationMarketplaceResources: readonly ICustomizationMarketplaceResou
 	},
 ];
 
+const fixtureCopilotConnectors: readonly ICopilotConnector[] = [
+	{
+		name: 'workiq-mail',
+		displayName: 'Work IQ Mail',
+		description: 'Search and summarize Outlook mail through a connection managed by GitHub Copilot.',
+		version: '1.0.0',
+		author: { name: 'Microsoft', url: URI.parse('https://www.microsoft.com') },
+		homepage: URI.parse('https://github.com/features/copilot'),
+		releaseTag: 'Preview',
+		tags: ['mail', 'productivity'],
+		keywords: ['outlook', 'messages'],
+		capabilities: ['Search messages'],
+		representativeQueries: ['Find recent messages from my project team'],
+		agents: [],
+		commands: [],
+		skills: [],
+		connectionStatus: 'connected',
+		scopes: ['write:plugin_gateway_connections'],
+		mcpServers: [{ name: 'workiq-mail-mcp', type: 'http', url: URI.parse('https://api.github.com/connectors/workiq-mail/mcp') }],
+	},
+	{
+		name: 'workiq-calendar',
+		displayName: 'Work IQ Calendar',
+		description: 'Find meetings and availability across your calendar.',
+		tags: ['calendar'],
+		keywords: ['meetings'],
+		capabilities: ['Search meetings'],
+		representativeQueries: [],
+		agents: [],
+		commands: [],
+		skills: [],
+		connectionStatus: 'not_connected',
+		scopes: [],
+		mcpServers: [],
+	},
+	{
+		name: 'workiq-documents',
+		displayName: 'Work IQ Documents',
+		description: 'Search documents shared with your organization.',
+		tags: ['documents'],
+		keywords: ['files'],
+		capabilities: ['Search documents'],
+		representativeQueries: [],
+		agents: [],
+		commands: [],
+		skills: [],
+		connectionStatus: 'error',
+		connectionStatusDetail: 'retryable_error',
+		connectionErrorMessage: 'The previous authorization expired.',
+		scopes: [],
+		mcpServers: [],
+	},
+	{
+		name: 'workiq-crm',
+		displayName: 'CRM',
+		description: 'Review customer records and account activity.',
+		tags: ['crm'],
+		keywords: ['customers'],
+		capabilities: ['Search accounts'],
+		representativeQueries: [],
+		agents: [],
+		commands: [],
+		skills: [],
+		connectionStatus: 'error',
+		connectionStatusDetail: 'review_required',
+		scopes: [],
+		mcpServers: [],
+	},
+];
+
+const copilotConnectorMarketplaceResource: ICustomizationMarketplaceResource = {
+	sourceId: 'copilotConnectors',
+	identifier: 'workiq-mail',
+	displayName: 'Work IQ Mail',
+	description: fixtureCopilotConnectors[0].description,
+	mediaType: CustomizationMarketplaceMediaType.McpServer,
+	publisher: 'GitHub Copilot',
+	tags: fixtureCopilotConnectors[0].tags,
+	capabilities: fixtureCopilotConnectors[0].capabilities,
+	representativeQueries: fixtureCopilotConnectors[0].representativeQueries,
+	installation: { kind: 'copilotConnector', name: fixtureCopilotConnectors[0].name },
+};
+
+function createMockCopilotConnectorsService(enabled: boolean): ICopilotConnectorsService {
+	const connectors = enabled ? fixtureCopilotConnectors : [];
+	return new class extends mock<ICopilotConnectorsService>() {
+		override readonly onDidChange = Event.None;
+		override readonly connectors = connectors;
+		override readonly connectedMcpServers = connectors
+			.filter(connector => connector.connectionStatus === 'connected')
+			.flatMap(connector => connector.mcpServers.map(server => ({ connector, serverName: server.name })));
+		override async getConnectors() { return this.connectors; }
+		override async refresh() { return this.connectors; }
+		override async connect() { }
+		override async disconnect() { }
+	}();
+}
+
 interface IRenderEditorOptions {
 	readonly sessionResource: URI;
 	readonly files?: readonly IFixtureFile[];
@@ -831,6 +930,7 @@ interface IRenderEditorOptions {
 	readonly availableHarnesses?: readonly IHarnessDescriptor[];
 	readonly selectedSection?: AICustomizationManagementSection;
 	readonly customizationMarketplaceEnabled?: boolean;
+	readonly copilotConnectorsEnabled?: boolean;
 	readonly customizationMarketplaceState?: 'ready' | 'empty' | 'error' | 'loading' | 'loadingMore';
 	readonly customizationMarketplaceInstallationState?: 'mixed' | 'error';
 	readonly discoveryQuery?: string;
@@ -873,6 +973,9 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 
 	const isSessionsWindow = options.isSessionsWindow ?? false;
 	const customizationMarketplaceEnabled = options.customizationMarketplaceEnabled ?? true;
+	const marketplaceResources = options.copilotConnectorsEnabled
+		? [...customizationMarketplaceResources, copilotConnectorMarketplaceResource]
+		: customizationMarketplaceResources;
 	const skillUIIntegrations = options.skillUIIntegrations ?? new Map();
 	const managementSections = options.managementSections ?? [
 		AICustomizationManagementSection.Plugins,
@@ -943,12 +1046,12 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 	let customizationMarketplaceQueryCount = 0;
 	const customizationMarketplaceInstallChanged = ctx.disposableStore.add(new Emitter<void>());
 	const customizationMarketplaceInstallStates = new Map<string, CustomizationMarketplaceInstallState>([
-		[getCustomizationMarketplaceResourceKey(customizationMarketplaceResources[4]), { kind: 'unavailable', message: 'Cursor plugins cannot be installed in VS Code.' }],
-		[getCustomizationMarketplaceResourceKey(customizationMarketplaceResources[5]), { kind: 'unavailable', message: 'This resource does not provide trusted installation information.' }],
+		[getCustomizationMarketplaceResourceKey(marketplaceResources[4]), { kind: 'unavailable', message: 'Cursor plugins cannot be installed in VS Code.' }],
+		[getCustomizationMarketplaceResourceKey(marketplaceResources[5]), { kind: 'unavailable', message: 'This resource does not provide trusted installation information.' }],
 	]);
 	if (options.customizationMarketplaceInstallationState === 'mixed') {
-		customizationMarketplaceInstallStates.set(getCustomizationMarketplaceResourceKey(customizationMarketplaceResources[0]), { kind: 'installing' });
-		customizationMarketplaceInstallStates.set(getCustomizationMarketplaceResourceKey(customizationMarketplaceResources[1]), { kind: 'installed' });
+		customizationMarketplaceInstallStates.set(getCustomizationMarketplaceResourceKey(marketplaceResources[0]), { kind: 'installing' });
+		customizationMarketplaceInstallStates.set(getCustomizationMarketplaceResourceKey(marketplaceResources[1]), { kind: 'installed' });
 	}
 
 	const instantiationService = createEditorServices(ctx.disposableStore, {
@@ -963,6 +1066,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 				[ChatConfiguration.ChatCustomizationsUserDataMigrationEnabled]: true,
 				[ChatConfiguration.ChatCustomizationsLocationsMigrationEnabled]: true,
 				[ChatConfiguration.ChatCustomizationsMcpServerMigrationEnabled]: true,
+				[ChatConfiguration.ChatCustomizationsCopilotConnectorsEnabled]: options.copilotConnectorsEnabled ?? false,
 				...options.configuration,
 				[ChatConfiguration.ChatCustomizationsUnifiedMarketplaceEnabled]: customizationMarketplaceEnabled,
 			});
@@ -988,12 +1092,12 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 						case 'loadingMore':
 							return query.cursor
 								? new DeferredPromise<ICustomizationMarketplacePage>().p
-								: { items: customizationMarketplaceResources.slice(0, 2), total: customizationMarketplaceResources.length, nextCursor: createCursor(2) };
+								: { items: marketplaceResources.slice(0, 2), total: marketplaceResources.length, nextCursor: createCursor(2) };
 						case 'error': throw new Error('The catalog is temporarily unavailable. Try again later.');
 						case 'empty': return { items: [], total: 0 };
 					}
 					const text = query.query?.toLowerCase() ?? '';
-					const resources = customizationMarketplaceResources.filter(resource =>
+					const resources = marketplaceResources.filter(resource =>
 						(!query.mediaType || resource.mediaType === query.mediaType)
 						&& (!text || `${resource.displayName} ${resource.description} ${resource.tags.join(' ')}`.toLowerCase().includes(text)));
 					const offset = Number(query.cursor?.sources[0].cursor ?? 0);
@@ -1325,6 +1429,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 			reg.defineInstance(IRequestService, new class extends mock<IRequestService>() { }());
 			reg.define(IMarkdownRendererService, MarkdownRendererService);
 			reg.defineInstance(IWebviewService, new class extends mock<IWebviewService>() { }());
+			reg.defineInstance(ICopilotConnectorsService, createMockCopilotConnectorsService(options.copilotConnectorsEnabled ?? false));
 			reg.defineInstance(IMcpWorkbenchService, new class extends mock<IMcpWorkbenchService>() {
 				override readonly onChange = Event.None;
 				override readonly onReset = Event.None;
@@ -1531,13 +1636,16 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 				.find(node => node instanceof HTMLElement && node.style.display !== 'none') as HTMLElement | undefined;
 			const openItemLabel = options.openItemLabel;
 			const rowToOpen = openItemLabel
-				? [...(visibleContent?.querySelectorAll('.monaco-list-row') ?? [])].find((row): row is HTMLElement => row instanceof HTMLElement && row.textContent?.includes(openItemLabel))
+				? [...(visibleContent?.querySelectorAll('.monaco-list-row, .plugin-home-row') ?? [])].find((row): row is HTMLElement => row instanceof HTMLElement && row.textContent?.includes(openItemLabel))
 				: visibleContent?.querySelector('.monaco-list-row.ai-customization-list-item, .monaco-list-row.mcp-server-item, .monaco-list-row.plugin-list-item, .plugin-home-row') as HTMLElement | undefined;
 			if (rowToOpen) {
-				rowToOpen.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, button: 0 }));
-				rowToOpen.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0 }));
-				rowToOpen.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, button: 0 }));
-				rowToOpen.dispatchEvent(new MouseEvent('click', { bubbles: true, button: 0 }));
+				const target = rowToOpen.classList.contains('plugin-home-row')
+					? rowToOpen.querySelector<HTMLElement>('button') ?? rowToOpen
+					: rowToOpen;
+				target.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, button: 0 }));
+				target.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0 }));
+				target.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, button: 0 }));
+				target.dispatchEvent(new MouseEvent('click', { bubbles: true, button: 0 }));
 
 				if (options.editorDisplayMode === 'raw') {
 					const modeButton = ctx.container.querySelector('.editor-mode-button') as HTMLButtonElement | undefined;
@@ -1630,80 +1738,6 @@ async function renderMcpErrorsWithoutDetails(ctx: ComponentFixtureContext): Prom
 	assert(row.querySelector('.mcp-server-description')?.textContent === 'Component fixtures and screenshot tooling', 'Error rows retain their ordinary description.');
 	assert(!row.textContent?.includes('Unable to connect') && !row.getAttribute('aria-label')?.includes('Unable to connect'), 'Error details must only appear in the MCP detail view.');
 	assert(!row.querySelector('.mcp-server-error-toggle'), 'Error rows must not expose an inline expansion control.');
-}
-
-async function renderMcpBrowseMode(ctx: ComponentFixtureContext): Promise<void> {
-	const width = 650;
-	const height = 500;
-	ctx.container.style.width = `${width}px`;
-	ctx.container.style.height = `${height}px`;
-
-	const instantiationService = createEditorServices(ctx.disposableStore, {
-		colorTheme: ctx.theme,
-		additionalServices: (reg) => {
-			registerWorkbenchServices(reg);
-			reg.define(IListService, ListService);
-			reg.defineInstance(IMcpGalleryManifestService, createMockMcpGalleryManifestService());
-			reg.defineInstance(IMcpWorkbenchService, new class extends mock<IMcpWorkbenchService>() {
-				override readonly onChange = Event.None;
-				override readonly onReset = Event.None;
-				override readonly whenInitialLocalMcpServersLoaded = Promise.resolve();
-				override readonly local: IWorkbenchMcpServer[] = [];
-				override async queryLocal() { return []; }
-				override canInstall() { return true as const; }
-				override async queryGallery(): Promise<IIterativePager<IWorkbenchMcpServer>> {
-					return {
-						firstPage: { items: galleryServers, hasMore: false },
-						async getNextPage() { return { items: [], hasMore: false }; },
-					};
-				}
-			}());
-			reg.defineInstance(IMcpService, new class extends mock<IMcpService>() {
-				override readonly servers = constObservable([] as never[]);
-			}());
-			reg.defineInstance(IMcpRegistry, new class extends mock<IMcpRegistry>() {
-				override readonly collections = constObservable([]);
-				override readonly delegates = constObservable([]);
-				override readonly onDidChangeInputs = Event.None;
-			}());
-			reg.defineInstance(IAgentPluginService, new class extends mock<IAgentPluginService>() {
-				override readonly plugins = constObservable([]);
-			}());
-			reg.defineInstance(IDialogService, new class extends mock<IDialogService>() { }());
-			reg.defineInstance(IAICustomizationWorkspaceService, new class extends mock<IAICustomizationWorkspaceService>() {
-				override readonly isSessionsWindow = false;
-				override readonly welcomePageFeatures = {
-					showGettingStartedBanner: true,
-				};
-				override readonly activeProjectRoot = observableValue('root', URI.file('/workspace'));
-				override readonly activeProjectLabel = observableValue('label', 'workspace');
-				override readonly hasOverrideProjectRoot = observableValue('hasOverride', false);
-				override getActiveProjectRoot() { return URI.file('/workspace'); }
-			}());
-			reg.defineInstance(ICustomizationHarnessService, new class extends mock<ICustomizationHarnessService>() {
-				override readonly activeSessionResource = observableValue<URI>('activeSessionResource', LocalChatSessionUri.getNewSessionUri());
-				override readonly activeHarness = derived(reader => getChatSessionType(this.activeSessionResource.read(reader)));
-				override readonly availableHarnesses = constObservable([createVSCodeHarnessDescriptor()]);
-				override getActiveDescriptor() { return createVSCodeHarnessDescriptor(); }
-				override registerExternalHarness() { return { dispose() { } }; }
-			}());
-			reg.defineInstance(IAgentHostCustomizationService, createMockAgentHostCustomizationService());
-			reg.defineInstance(IOutputService, new class extends mock<IOutputService>() {
-				override async showChannel() { }
-			}());
-		},
-	});
-
-	const widget = ctx.disposableStore.add(
-		instantiationService.createInstance(McpListWidget)
-	);
-	ctx.container.appendChild(widget.element);
-	widget.layout(height, width);
-
-	widget.showBrowseMarketplace();
-
-	// Wait for the gallery query to resolve
-	await new Promise(resolve => setTimeout(resolve, 50));
 }
 
 // ============================================================================
@@ -1938,6 +1972,7 @@ function renderMcpDisabled(ctx: ComponentFixtureContext, byPolicy: boolean): voi
 			reg.define(IListService, ListService);
 			reg.defineInstance(IMcpGalleryManifestService, createMockMcpGalleryManifestService());
 			reg.defineInstance(IConfigurationService, createDisabledConfigService(mcpAccessConfig, McpAccessValue.None, byPolicy));
+			reg.defineInstance(ICopilotConnectorsService, createMockCopilotConnectorsService(false));
 			reg.defineInstance(IMcpWorkbenchService, new class extends mock<IMcpWorkbenchService>() {
 				override readonly onChange = Event.None;
 				override readonly onReset = Event.None;
@@ -2328,10 +2363,20 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	// MCP Servers tab with many servers to verify scrollable list layout
 	McpServersTab: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: true },
-		expectedVisualDescriptions: ['The MCP Servers page shows Installed and Available sections, with no Featured section.'],
+		expectedVisualDescriptions: ['The MCP Servers page shows installed servers and no longer duplicates available marketplace results from Discover.'],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
 			selectedSection: AICustomizationManagementSection.McpServers,
+		}),
+	}),
+
+	McpServersCopilotConnectors: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['The MCP Servers page shows connected connector MCP servers under Installed and a separate Connectors section with connected, connect, retry, and review states. No Available marketplace section is present.'],
+		render: ctx => renderEditor(ctx, {
+			sessionResource: localSessionResource,
+			selectedSection: AICustomizationManagementSection.McpServers,
+			copilotConnectorsEnabled: true,
 		}),
 	}),
 
@@ -2696,6 +2741,16 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 		}),
 	}),
 
+	DiscoverCopilotConnector: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['Discover shows Work IQ Mail as an available MCP resource from GitHub Copilot with the standard Install action.'],
+		render: ctx => renderEditor(ctx, {
+			sessionResource: localSessionResource,
+			copilotConnectorsEnabled: true,
+			discoveryQuery: 'Work IQ Mail',
+		}),
+	}),
+
 	DiscoverInstalledFilter: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		render: ctx => renderEditor(ctx, {
@@ -2736,13 +2791,6 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 			discoveryQuery: 'review',
 			customizationMarketplaceInstallationState: 'error',
 		}),
-	}),
-
-	// MCP browse/marketplace mode — standalone widget with gallery results, scrollable
-	// Verifies fix for https://github.com/microsoft/vscode/issues/304139
-	McpBrowseMode: defineComponentFixture({
-		labels: { kind: 'screenshot' },
-		render: renderMcpBrowseMode,
 	}),
 
 	// Plugin browse/marketplace mode — standalone widget with marketplace results, scrollable
@@ -2923,6 +2971,18 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 			openFirstItem: true,
 			width: 550,
 			height: 400,
+		}),
+	}),
+
+	ConnectorDetail: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['The Work IQ Mail connector detail shows connection controls, metadata, contained MCP servers, and external information instead of a raw MCP configuration.'],
+		render: ctx => renderEditor(ctx, {
+			sessionResource: localSessionResource,
+			selectedSection: AICustomizationManagementSection.McpServers,
+			copilotConnectorsEnabled: true,
+			openFirstItem: true,
+			openItemLabel: 'Work IQ Mail',
 		}),
 	}),
 

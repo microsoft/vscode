@@ -1876,6 +1876,7 @@ per-word capitalization does not survive translation. */
 
 /* Embedded plugin detail view */
 .ai-customization-management-editor .plugin-detail-container,
+.ai-customization-management-editor .connector-detail-container,
 .ai-customization-management-editor .tools-detail-container {
 	position: relative;
 	height: 100%;
@@ -1893,18 +1894,21 @@ per-word capitalization does not survive translation. */
 /* Inline back button with the embedded detail header */
 .ai-customization-management-editor .mcp-detail-container .ai-customization-embedded-detail,
 .ai-customization-management-editor .plugin-detail-container .ai-customization-embedded-detail,
+.ai-customization-management-editor .connector-detail-container .ai-customization-embedded-detail,
 .ai-customization-management-editor .tools-detail-container .ai-customization-embedded-detail {
 	padding: 0;
 }
 
 .ai-customization-management-editor .mcp-detail-container .ai-customization-embedded-detail .embedded-detail-header,
 .ai-customization-management-editor .plugin-detail-container .ai-customization-embedded-detail .embedded-detail-header,
+.ai-customization-management-editor .connector-detail-container .ai-customization-embedded-detail .embedded-detail-header,
 .ai-customization-management-editor .tools-detail-container .ai-customization-embedded-detail .embedded-detail-header {
 	align-items: center;
 }
 
 .ai-customization-management-editor .mcp-detail-container .ai-customization-embedded-detail .embedded-detail-leading-slot:not(:empty),
 .ai-customization-management-editor .plugin-detail-container .ai-customization-embedded-detail .embedded-detail-leading-slot:not(:empty),
+.ai-customization-management-editor .connector-detail-container .ai-customization-embedded-detail .embedded-detail-leading-slot:not(:empty),
 .ai-customization-management-editor .tools-detail-container .ai-customization-embedded-detail .embedded-detail-leading-slot:not(:empty) {
 	display: flex;
 	align-items: center;
@@ -1935,6 +1939,10 @@ per-word capitalization does not survive translation. */
 	min-height: 0;
 	display: flex;
 	justify-content: center;
+}
+
+.ai-customization-management-editor .connector-detail-container {
+	overflow: auto;
 }
 
 /* Shared embedded detail component foundation */
@@ -2055,38 +2063,38 @@ per-word capitalization does not survive translation. */
 	outline: 0;
 }
 
-.ai-customization-management-editor .embedded-plugin-detail.narrow-layout .embedded-detail-header {
+.ai-customization-management-editor :is(.embedded-plugin-detail, .embedded-connector-detail).narrow-layout .embedded-detail-header {
 	display: grid;
 	grid-template-columns: auto minmax(0, 1fr);
 	row-gap: var(--vscode-spacing-size80);
 }
 
-.ai-customization-management-editor .embedded-plugin-detail.narrow-layout .embedded-detail-leading-slot {
+.ai-customization-management-editor :is(.embedded-plugin-detail, .embedded-connector-detail).narrow-layout .embedded-detail-leading-slot {
 	grid-column: 1;
 	grid-row: 1;
 }
 
-.ai-customization-management-editor .embedded-plugin-detail.narrow-layout .embedded-detail-leading-slot:empty {
+.ai-customization-management-editor :is(.embedded-plugin-detail, .embedded-connector-detail).narrow-layout .embedded-detail-leading-slot:empty {
 	display: none;
 }
 
-.ai-customization-management-editor .embedded-plugin-detail.narrow-layout .embedded-detail-header-text {
+.ai-customization-management-editor :is(.embedded-plugin-detail, .embedded-connector-detail).narrow-layout .embedded-detail-header-text {
 	grid-column: 2;
 	grid-row: 1;
 }
 
-.ai-customization-management-editor .embedded-plugin-detail.narrow-layout .embedded-detail-leading-slot:empty + .embedded-detail-header-text {
+.ai-customization-management-editor :is(.embedded-plugin-detail, .embedded-connector-detail).narrow-layout .embedded-detail-leading-slot:empty + .embedded-detail-header-text {
 	grid-column: 1 / -1;
 }
 
-.ai-customization-management-editor .embedded-plugin-detail.narrow-layout .embedded-detail-title-actions {
+.ai-customization-management-editor :is(.embedded-plugin-detail, .embedded-connector-detail).narrow-layout .embedded-detail-title-actions {
 	grid-column: 2;
 	grid-row: 2;
 	justify-content: flex-start;
 	margin-left: 0;
 }
 
-.ai-customization-management-editor .embedded-plugin-detail.narrow-layout .embedded-detail-leading-slot:empty ~ .embedded-detail-title-actions {
+.ai-customization-management-editor :is(.embedded-plugin-detail, .embedded-connector-detail).narrow-layout .embedded-detail-leading-slot:empty ~ .embedded-detail-title-actions {
 	grid-column: 1 / -1;
 }
 
@@ -2154,19 +2162,39 @@ per-word capitalization does not survive translation. */
 }
 
 .ai-customization-management-editor .ai-customization-embedded-detail.embedded-plugin-detail .embedded-detail-description,
+.ai-customization-management-editor .ai-customization-embedded-detail.embedded-connector-detail .embedded-detail-description,
 .ai-customization-management-editor .ai-customization-embedded-detail.embedded-plugin-detail .embedded-detail-section {
 	padding-inline-start: 0;
 }
 
-.ai-customization-management-editor .ai-customization-embedded-detail.embedded-plugin-detail .embedded-detail-facts {
+.ai-customization-management-editor .ai-customization-embedded-detail.embedded-connector-detail .embedded-detail-section {
+	padding-inline-start: 0;
+}
+
+.ai-customization-management-editor .ai-customization-embedded-detail:is(.embedded-plugin-detail, .embedded-connector-detail) .embedded-detail-facts {
 	padding-inline-start: 0;
 	margin-bottom: 0;
 }
 
-.ai-customization-management-editor .embedded-plugin-detail .plugin-detail-source-facts {
+.ai-customization-management-editor .embedded-plugin-detail .plugin-detail-source-facts,
+.ai-customization-management-editor .embedded-connector-detail .connector-detail-facts {
 	display: flex;
 	flex-direction: column;
 	gap: var(--vscode-spacing-size40);
+}
+
+.ai-customization-management-editor .embedded-connector-detail .embedded-detail-fact-value {
+	overflow: visible;
+	overflow-wrap: anywhere;
+	text-overflow: clip;
+	white-space: normal;
+}
+
+.ai-customization-management-editor .embedded-connector-detail .plugin-detail-contribution-description {
+	overflow: visible;
+	overflow-wrap: anywhere;
+	text-overflow: clip;
+	white-space: normal;
 }
 
 .ai-customization-management-editor .embedded-plugin-detail .plugin-detail-readme-message {
@@ -2976,6 +3004,33 @@ per-word capitalization does not survive translation. */
 	gap: var(--vscode-spacing-size40);
 	flex-shrink: 0;
 	margin-left: auto;
+}
+
+.plugin-list-widget .connector-row-status-icon {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	flex-shrink: 0;
+	width: var(--vscode-spacing-size160);
+	height: var(--vscode-spacing-size160);
+	font-size: var(--vscode-codiconFontSize);
+	color: var(--vscode-descriptionForeground);
+}
+
+.plugin-list-widget .connector-row-status-connected {
+	color: var(--vscode-charts-green);
+}
+
+.plugin-list-widget .connector-row-status-attention {
+	color: var(--vscode-list-warningForeground, var(--vscode-editorWarning-foreground));
+}
+
+.plugin-list-widget .connector-row-status-pending {
+	color: var(--vscode-progressBar-background);
+}
+
+.plugin-list-widget .connector-row-status-error {
+	color: var(--vscode-errorForeground);
 }
 
 .plugin-list-widget .plugin-list-item-action .plugin-card-icon-button.monaco-button {

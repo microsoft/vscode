@@ -173,6 +173,34 @@ suite('CopilotConnectorsService', () => {
 		});
 	});
 
+	test('disconnects a connector and refreshes its state', async () => {
+		const fixture = createFixture([
+			{ body: catalogResponse('connected') },
+			{ status: 204 },
+			{ body: catalogResponse('available') },
+		]);
+		await fixture.service.getConnectors(CancellationToken.None);
+
+		await fixture.service.disconnect('mail', CancellationToken.None);
+
+		assert.deepStrictEqual({
+			requests: fixture.requests.map(request => ({ type: request.type, url: request.url })),
+			status: fixture.service.connectors[0]?.connectionStatus,
+		}, {
+			requests: [{
+				type: 'GET',
+				url: 'https://api.github.test/copilot-connectors/api/v1/plugins',
+			}, {
+				type: 'DELETE',
+				url: 'https://api.github.test/copilot-connectors/api/v1/connectors/managed/mail/connection',
+			}, {
+				type: 'GET',
+				url: 'https://api.github.test/copilot-connectors/api/v1/plugins',
+			}],
+			status: 'not_connected',
+		});
+	});
+
 	test('does not initialize or request connectors while the experiment is disabled', async () => {
 		const fixture = createFixture([{ body: catalogResponse('connected') }], false);
 

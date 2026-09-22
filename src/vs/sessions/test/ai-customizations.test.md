@@ -38,6 +38,23 @@ The following test plan outlines the scenarios and specifications for the AI Cus
 18. Enable the experiment, start a query or skill import, then disable it. Catalog requests/imports must be cancelled while installed Discover results remain available. Re-enabling must not revive a cancelled operation or reuse stale installed-skill state.
 19. With an additional test source, return overlapping identifiers, multiple versions, and different continuation tokens. All distinct source/identifier/version entries remain visible, each continuation goes only to its owning source, exhausted sources stop querying, and installation state/actions do not collide.
 
+### Copilot connectors
+
+#### Preconditions
+
+- Enable `chat.customizations.unifiedMarketplace.enabled`.
+- Enable `chat.customizations.copilotConnectors.enabled`.
+- Sign in with a GitHub.com account that has Copilot connector access.
+
+#### Actions and Expected Results
+
+1. Search Discover for a Copilot connector. It appears as an available MCP resource with GitHub Copilot provenance and uses the standard installation action.
+2. Install the connector and finish browser authorization. The action remains pending until the connected catalog confirms success; cancellation, experiment disablement, and hidden AI features stop polling without announcing success.
+3. Open MCP Servers. Connected connector MCP servers appear under Installed, and connector products appear in a separate Connectors section with connection status and the applicable Connect, Retry, Review, or overflow action.
+4. Verify the MCP page does not show an Available marketplace section; available MCP resources remain owned by Discover.
+5. Open a connector. Its detail shows status, metadata, contained MCP servers, external information, and connection lifecycle actions instead of a raw editable MCP configuration.
+6. Disable `chat.customizations.copilotConnectors.enabled`. Connector discovery and pending authorization stop, the Connectors section disappears, and Agent Host clears connector MCP servers.
+
 ### Scenario 1: Empty state — no session, no customizations
 
 #### Description

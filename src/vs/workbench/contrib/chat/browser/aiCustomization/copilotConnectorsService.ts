@@ -39,6 +39,17 @@ const connectionTimeout = 5 * 60_000;
 
 export interface ICopilotConnectorMcpServer {
 	readonly name: string;
+	readonly type: string;
+	readonly url?: URI;
+}
+
+export type CopilotConnectorConnectionStatus = 'not_connected' | 'pending' | 'connected' | 'error';
+export type CopilotConnectorConnectionStatusDetail = 'sign_in_required' | 'reconnect_required' | 'review_required' | 'retryable_error' | 'unavailable';
+
+export interface ICopilotConnectorAuthor {
+	readonly name?: string;
+	readonly email?: string;
+	readonly url?: URI;
 }
 
 export interface ICopilotConnector {
@@ -47,10 +58,24 @@ export interface ICopilotConnector {
 	readonly description: string;
 	readonly icon?: URI;
 	readonly documentation?: URI;
+	readonly homepage?: URI;
+	readonly version?: string;
+	readonly author?: ICopilotConnectorAuthor;
+	readonly repository?: URI;
+	readonly license?: string;
 	readonly tags: readonly string[];
+	readonly keywords: readonly string[];
 	readonly capabilities: readonly string[];
 	readonly representativeQueries: readonly string[];
-	readonly connectionStatus: string;
+	readonly tier?: string;
+	readonly releaseTag?: string;
+	readonly isExportSupported?: boolean;
+	readonly agents: readonly string[];
+	readonly commands: readonly string[];
+	readonly skills: readonly string[];
+	readonly connectionStatus: CopilotConnectorConnectionStatus;
+	readonly connectionStatusDetail?: CopilotConnectorConnectionStatusDetail;
+	readonly connectionErrorMessage?: string;
 	readonly protectedResourceMetadataUrl?: string;
 	readonly scopes: readonly string[];
 	readonly mcpServers: readonly ICopilotConnectorMcpServer[];
@@ -71,6 +96,7 @@ export interface ICopilotConnectorsService {
 	getConnectors(token: CancellationToken): Promise<readonly ICopilotConnector[]>;
 	refresh(token: CancellationToken): Promise<readonly ICopilotConnector[]>;
 	connect(name: string, token: CancellationToken): Promise<void>;
+	disconnect(name: string, token: CancellationToken): Promise<void>;
 }
 
 class CopilotConnectorsError extends Error { }
@@ -180,6 +206,24 @@ export class CopilotConnectorsService extends Disposable implements ICopilotConn
 		}
 	}
 
+	async disconnect(name: string, token: CancellationToken): Promise<void> {
+		const operation = this.createOperation(token);
+		try {
+			await this.request('DELETE', `/connectors/managed/${encodeURIComponent(name)}/connection`, undefined, operation.token, true);
+			const deadline = Date.now() + connectionTimeout;
+			while (Date.now() < deadline) {
+				const connectors = await this.refresh(operation.token);
+				if (!connectors.some(connector => connector.name === name && connector.connectionStatus === 'connected')) {
+					return;
+				}
+				await timeout(connectionPollInterval, operation.token);
+			}
+			throw new CopilotConnectorsError(localize('copilotConnectors.disconnectionTimedOut', "The connector did not disconnect in time. Try again."));
+		} finally {
+			operation.dispose();
+		}
+	}
+
 	private updateEnablement(): void {
 		this.enabledCancellation.value?.cancel();
 		const cancellation = new CancellationTokenSource();
@@ -213,7 +257,7 @@ export class CopilotConnectorsService extends Disposable implements ICopilotConn
 		};
 	}
 
-	private async request(method: 'GET' | 'PUT', path: string, data: object | undefined, token: CancellationToken, requireAuthentication = false): Promise<unknown | undefined> {
+	private async request(method: 'DELETE' | 'GET' | 'PUT', path: string, data: object | undefined, token: CancellationToken, requireAuthentication = false): Promise<unknown | undefined> {
 		const endpoint = this.productService.defaultChatAgent?.mcpConnectorsUrl;
 		if (!endpoint || !isHttpsUrl(endpoint)) {
 			if (requireAuthentication) {
@@ -253,7 +297,7 @@ export class CopilotConnectorsService extends Disposable implements ICopilotConn
 			timeout: requestTimeout,
 			followRedirects: 0,
 			disableCache: true,
-			callSite: `copilotConnectors.${method === 'GET' ? 'query' : 'connect'}`,
+			callSite: `copilotConnectors.${method === 'GET' ? 'query' : method === 'PUT' ? 'connect' : 'disconnect'}`,
 		};
 		let context: IRequestContext;
 		try {
@@ -380,19 +424,74 @@ function parseConnectors(value: unknown): readonly ICopilotConnector[] {
 			description,
 			icon: parseHttpsUri(metadata?.iconUrl ?? metadata?.icon),
 			documentation: parseHttpsUri(metadata?.documentationUrl ?? metadata?.documentation),
+			homepage: parseHttpsUri(metadata?.homepage),
+			version: text(metadata?.version, 512),
+			author: parseAuthor(metadata?.author),
+			repository: parseHttpsUri(metadata?.repository),
+			license: text(metadata?.license, 512),
 			tags: strings(metadata?.tags),
+			keywords: strings(metadata?.keywords),
 			capabilities: strings(metadata?.capabilities),
 			representativeQueries: strings(metadata?.representativeQueries),
-			connectionStatus: text(connection?.status, 128) ?? 'unknown',
+			tier: text(metadata?.tier, 128),
+			releaseTag: text(metadata?.releaseTag, 128),
+			isExportSupported: typeof metadata?.isExportSupported === 'boolean' ? metadata.isExportSupported : undefined,
+			agents: strings(plugin.agents),
+			commands: strings(plugin.commands),
+			skills: strings(plugin.skills),
+			connectionStatus: parseConnectionStatus(connection?.status),
+			connectionStatusDetail: parseConnectionStatusDetail(connection?.statusDetail),
+			connectionErrorMessage: text(connection?.errorMessage) ?? text(asRecord(connection?.error)?.message),
 			protectedResourceMetadataUrl: text(connection?.protectedResourceMetadataUrl),
 			scopes: strings(connection?.scopes),
 			mcpServers: mcpServerEntries.flatMap(([serverName, serverValue]) => {
 				const server = asRecord(serverValue);
 				return serverName.length <= 512 && server?.type === 'http' && typeof server.url === 'string' && isHttpsUrl(server.url)
-					? [{ name: serverName }]
+					? [{ name: serverName, type: server.type, url: parseHttpsUri(server.url) }]
 					: [];
 			}),
 		});
+	}
+
+	function parseAuthor(value: unknown): ICopilotConnectorAuthor | undefined {
+		const name = text(value, 512);
+		if (name) {
+			return { name };
+		}
+		const author = asRecord(value);
+		if (!author) {
+			return undefined;
+		}
+		const result: ICopilotConnectorAuthor = {
+			name: text(author.name, 512),
+			email: text(author.email, 512),
+			url: parseHttpsUri(author.url),
+		};
+		return result.name || result.email || result.url ? result : undefined;
+	}
+
+	function parseConnectionStatus(value: unknown): CopilotConnectorConnectionStatus {
+		switch (value) {
+			case 'connected':
+			case 'error':
+			case 'pending':
+				return value;
+			default:
+				return 'not_connected';
+		}
+	}
+
+	function parseConnectionStatusDetail(value: unknown): CopilotConnectorConnectionStatusDetail | undefined {
+		switch (value) {
+			case 'reconnect_required':
+			case 'retryable_error':
+			case 'review_required':
+			case 'sign_in_required':
+			case 'unavailable':
+				return value;
+			default:
+				return undefined;
+		}
 	}
 	return connectors;
 }
