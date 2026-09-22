@@ -25,7 +25,7 @@ import { AgentHostArtifactToolsCompactPromptsConfigKey, AgentHostArtifactToolsCo
 import { withChatSurfaceMeta } from '../../common/meta/agentChatSurfaceMeta.js';
 import { readAgentMessageDelegationMeta, toAgentMessageDelegationMeta } from '../../common/meta/agentMessageDelegationMeta.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
-import { ActionType } from '../../common/state/sessionActions.js';
+import { ActionType, type SessionActiveClientRemovedAction, type SessionActiveClientSetAction } from '../../common/state/sessionActions.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { ChatOriginKind } from '../../common/state/protocol/state.js';
 import { AH_META_AUTO_ARCHIVED_AT_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_READ_DB_KEY, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, ChatInteractivity, MessageKind, PendingMessageKind, ResponsePartKind, SessionStatus, TurnState, withSessionComparisonMetadata, type ISessionGitHubState, type Message, type PendingMessage, type Turn } from '../../common/state/sessionState.js';
@@ -1435,17 +1435,17 @@ suite('AgentHostChatContributions', () => {
 			modifiedAt,
 			_meta: withSessionComparisonMetadata(undefined, { id: comparisonId, role: 'attempt', attemptIndex: 1, attemptCount: 2, launch }),
 		});
-		const setActiveClient = {
+		const setActiveClient: SessionActiveClientSetAction = {
 			type: ActionType.SessionActiveClientSet,
 			activeClient: { clientId: 'client-a', tools: [] },
-		} as const;
+		};
 		contributions.stateManager.dispatchServerAction(attempt1, setActiveClient);
 		contributions.stateManager.dispatchServerAction(attempt2, setActiveClient);
 
-		const removeActiveClient = {
+		const removeActiveClient: SessionActiveClientRemovedAction = {
 			type: ActionType.SessionActiveClientRemoved,
 			clientId: 'client-a',
-		} as const;
+		};
 		contributions.stateManager.dispatchServerAction(attempt1, removeActiveClient);
 		contributions.service.didDispatchAction(dispatchedAction(attempt1, attempt1, removeActiveClient));
 		await Promise.resolve();
@@ -1522,18 +1522,18 @@ suite('AgentHostChatContributions', () => {
 			modifiedAt,
 			_meta: withSessionComparisonMetadata(undefined, { id: comparisonId, role: 'judge', attemptCount: 2 }),
 		});
-		const setActiveClient = {
+		const setActiveClient: SessionActiveClientSetAction = {
 			type: ActionType.SessionActiveClientSet,
 			activeClient: { clientId: 'client-a', tools: [] },
-		} as const;
+		};
 		contributions.stateManager.dispatchServerAction(attempt1, setActiveClient);
 		contributions.stateManager.dispatchServerAction(attempt2, setActiveClient);
 		contributions.stateManager.dispatchServerAction(judge, setActiveClient);
 
-		const removeActiveClient = {
+		const removeActiveClient: SessionActiveClientRemovedAction = {
 			type: ActionType.SessionActiveClientRemoved,
 			clientId: 'client-a',
-		} as const;
+		};
 		contributions.stateManager.dispatchServerAction(attempt1, removeActiveClient);
 		contributions.service.didDispatchAction(dispatchedAction(attempt1, attempt1, removeActiveClient));
 		await Promise.resolve();

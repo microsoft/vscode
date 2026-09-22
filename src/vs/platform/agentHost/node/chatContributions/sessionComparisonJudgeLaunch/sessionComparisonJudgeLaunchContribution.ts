@@ -14,7 +14,7 @@ import { ClaudeSessionConfigKey, narrowClaudePermissionMode } from '../../../com
 import { CodexSessionConfigKey, narrowCodexPermissionsPreset } from '../../../common/codexSessionConfigKeys.js';
 import { SessionConfigKey } from '../../../common/sessionConfigKeys.js';
 import { ILogService } from '../../../../log/common/log.js';
-import { IAgentHostStateManager } from '../../agentHostStateManager.js';
+import { AgentHostStateManager, IAgentHostStateManager } from '../../agentHostStateManager.js';
 import { IAgentHostSessionPromptService } from '../../agentHostSessionPromptService.js';
 
 const COPILOT_CLI_AGENT_PROVIDER_ID = 'copilotcli';
@@ -57,7 +57,7 @@ export class SessionComparisonJudgeLaunchContribution extends Disposable impleme
 	constructor(
 		protected readonly _context: IAgentHostChatContributionContext,
 		@ILogService private readonly _logService: ILogService,
-		@IAgentHostStateManager private readonly _stateManager: IAgentHostStateManager,
+		@IAgentHostStateManager private readonly _stateManager: AgentHostStateManager,
 		@IAgentHostSessionPromptService private readonly _sessionPromptService: IAgentHostSessionPromptService,
 	) {
 		super();
