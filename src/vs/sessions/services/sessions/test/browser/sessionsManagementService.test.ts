@@ -56,6 +56,7 @@ import type { SessionView } from '../../../../browser/parts/sessionView.js';
 const stubChat = {
 	resource: URI.parse('test:///chat'),
 	createdAt: new Date(),
+	workspace: constObservable(undefined),
 	title: constObservable('Chat'),
 	updatedAt: constObservable(new Date()),
 	status: constObservable(0),
@@ -3912,6 +3913,29 @@ suite('SessionsManagementService', () => {
 				eventsFired: ['s2'],
 			});
 		});
+	});
+
+	suite('deleteChat', () => {
+		for (const deleted of [true, false]) {
+			test(`returns ${deleted} and fires the delete event only after deletion`, async () => {
+				const session = stubSession({ sessionId: 'session', providerId: 'test' });
+				const provider = new class extends TestSessionsProvider {
+					override async deleteChat(): Promise<boolean> {
+						return deleted;
+					}
+				}(session);
+				const { service } = createSessionsManagementService(session, disposables, provider);
+				const deletedSessions: string[] = [];
+				disposables.add(service.onDidDeleteChat(session => deletedSessions.push(session.sessionId)));
+
+				const result = await service.deleteChat(session, URI.parse('test:///chat'));
+
+				assert.deepStrictEqual({ result, deletedSessions }, {
+					result: deleted,
+					deletedSessions: deleted ? [session.sessionId] : [],
+				});
+			});
+		}
 	});
 
 	suite('createNewChatInSession', () => {
