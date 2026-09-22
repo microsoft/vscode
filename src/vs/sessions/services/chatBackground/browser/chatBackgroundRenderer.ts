@@ -88,11 +88,13 @@ function hashCodiconCell(row: number, column: number, salt: number): number {
 function getCodiconCellLayout(row: number, column: number) {
 	const horizontalOffset = ((hashCodiconCell(row, column, 2) % 71) - 35) / 100;
 	const verticalOffset = ((hashCodiconCell(row, column, 3) % 65) - 32) / 100;
+	const depth = hashCodiconCell(row, column, 6) % 10;
 	return {
 		left: (column + 0.5 + horizontalOffset) * codiconCellSize,
 		top: (row + 0.5 + verticalOffset) * codiconCellSize,
 		rotation: (hashCodiconCell(row, column, 4) % 71) - 35,
-		opacity: `${0.65 + (hashCodiconCell(row, column, 5) % 36) / 100}`,
+		opacity: 0.65 + (hashCodiconCell(row, column, 5) % 36) / 100,
+		depth: depth < 5 ? 0 : depth < 9 ? 1 : 2,
 	};
 }
 
@@ -138,6 +140,7 @@ export class SessionsChatBackgroundRenderer extends Disposable {
 
 	private readonly backgroundLayer: HTMLElement;
 	private readonly codiconLayer: HTMLElement;
+	private readonly codiconDepthLayers: readonly HTMLElement[];
 	private readonly codiconCells = new Map<string, ICodiconCell>();
 	private readonly confettiCandidates = new Set<string>();
 	private readonly foregroundResizeObservations = new Map<HTMLElement, IDisposable>();
@@ -168,6 +171,11 @@ export class SessionsChatBackgroundRenderer extends Disposable {
 		this.codiconLayer = $('.sessions-chat-codicon-background');
 		this.codiconLayer.ariaHidden = 'true';
 		this.codiconLayer.hidden = true;
+		this.codiconDepthLayers = ['far', 'middle', 'near'].map(depth => {
+			const layer = $(`.sessions-chat-codicon-depth.${depth}`);
+			this.codiconLayer.appendChild(layer);
+			return layer;
+		});
 		this.backgroundLayer.appendChild(this.codiconLayer);
 		this.element.prepend(this.backgroundLayer);
 		this._register(toDisposable(() => {
@@ -251,8 +259,17 @@ export class SessionsChatBackgroundRenderer extends Disposable {
 
 				const cell = `${row}:${column}`;
 				const layout = getCodiconCellLayout(row, column);
+				const distanceFromContent = Math.min(1, Math.hypot(
+					(layout.left / viewportWidth - 0.5) * 2,
+					(layout.top / viewportHeight - 0.45) * 2,
+				));
+				layout.opacity *= 0.35 + 0.65 * distanceFromContent;
 				visibleCells.set(cell, layout);
-				if (candidateGeometry && this.isConfettiCandidate(layout.left, layout.top, viewportWidth, viewportHeight, candidateGeometry)) {
+				const existingCell = this.codiconCells.get(cell);
+				if (existingCell) {
+					existingCell.icon.style.opacity = `${layout.opacity}`;
+				}
+				if (layout.depth === 1 && candidateGeometry && this.isConfettiCandidate(layout.left, layout.top, viewportWidth, viewportHeight, candidateGeometry)) {
 					this.confettiCandidates.add(cell);
 				}
 			}
@@ -288,16 +305,16 @@ export class SessionsChatBackgroundRenderer extends Disposable {
 			if (this.interactive) {
 				codiconCell.element.style.left = `${layout.left}px`;
 				codiconCell.element.style.top = `${layout.top}px`;
-				codiconCell.icon.style.transform = `rotate(${layout.rotation}deg)`;
-				codiconCell.icon.style.opacity = layout.opacity;
+				codiconCell.icon.style.transform = `rotate(${layout.rotation}deg) scale(var(--sessions-chat-codicon-scale))`;
+				codiconCell.icon.style.opacity = `${layout.opacity}`;
 			} else {
 				codiconCell.element.style.left = `${layout.left}px`;
 				codiconCell.element.style.top = `${layout.top}px`;
-				codiconCell.element.style.transform = `translate(-50%, -50%) rotate(${layout.rotation}deg)`;
-				codiconCell.element.style.opacity = layout.opacity;
+				codiconCell.element.style.transform = `translate(-50%, -50%) rotate(${layout.rotation}deg) scale(var(--sessions-chat-codicon-scale))`;
+				codiconCell.element.style.opacity = `${layout.opacity}`;
 			}
 			this.codiconCells.set(cell, codiconCell);
-			this.codiconLayer.appendChild(codiconCell.element);
+			this.codiconDepthLayers[layout.depth].appendChild(codiconCell.element);
 		}
 
 		this.updateConfettiButton();
@@ -422,7 +439,9 @@ export class SessionsChatBackgroundRenderer extends Disposable {
 		this.codiconCells.clear();
 		this.confettiCandidates.clear();
 		this.confettiCell = undefined;
-		clearNode(this.codiconLayer);
+		for (const layer of this.codiconDepthLayers) {
+			clearNode(layer);
+		}
 	}
 }
 

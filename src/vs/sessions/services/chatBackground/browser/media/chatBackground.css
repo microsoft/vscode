@@ -42,7 +42,32 @@
 	display: none;
 }
 
-.sessions-chat-background > .sessions-chat-codicon-background > .codicon,
+.sessions-chat-codicon-depth {
+	position: absolute;
+	inset: 0;
+}
+
+.sessions-chat-codicon-depth.far {
+	--sessions-chat-codicon-scale: 0.75;
+	color: color-mix(in srgb, var(--vscode-foreground) 10%, transparent);
+	filter: blur(0.6px);
+}
+
+.sessions-chat-codicon-depth.middle {
+	--sessions-chat-codicon-scale: 1;
+	color: color-mix(in srgb, var(--vscode-foreground) 18%, transparent);
+}
+
+.sessions-chat-codicon-depth.near {
+	--sessions-chat-codicon-scale: 1.8;
+	color: color-mix(in srgb, var(--vscode-foreground) 28%, transparent);
+}
+
+.monaco-workbench .sessions-chat-codicon-background .codicon {
+	color: inherit;
+}
+
+.sessions-chat-codicon-depth > .codicon,
 .sessions-chat-codicon-cell,
 .sessions-chat-codicon-hit-target {
 	position: absolute;

@@ -137,7 +137,7 @@ function createChatBackgroundPart(container: HTMLElement, disposableStore: Dispo
 	// The part carries the opaque base, as it does in the Agents window, so the
 	// session view above it can stay transparent and let the wallpaper through.
 	part.style.backgroundColor = asCssVariable(activeSessionViewBackground);
-	const renderer = disposableStore.add(new SessionsChatBackgroundRenderer(part));
+	const renderer = disposableStore.add(new SessionsChatBackgroundRenderer(part, true));
 	renderer.setBackground({ kind: 'codicons' });
 	return part;
 }
@@ -474,7 +474,7 @@ export default defineThemedFixtureGroup({ path: 'sessions/chat/newWidget/' }, {
 	}),
 	NewSessionChatBackground: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: true },
-		expectedVisualDescriptions: ['The new-session composer sits directly on the varied agent, developer, and squirrel Codicon wallpaper with no card behind it. The workspace pills, the input area and the bottom-row controls each carry their own opaque surface and a thin border, and the wallpaper shows through the gaps between them.'],
+		expectedVisualDescriptions: ['The new-session composer sits directly on a static layered Codicon constellation, with smaller softer distant icons, occasional larger near icons, and a quieter center behind the composer. There is no card behind the composer. The workspace pills, input area, and bottom-row controls each carry their own opaque surface and a thin border, with the wallpaper visible in the gaps.'],
 		render: context => renderNewChatWidget(context, { withWorkspace: true, withAutoModel: true, withChatBackground: true }),
 	}),
 	NewSessionBackgroundControls: defineComponentFixture({
