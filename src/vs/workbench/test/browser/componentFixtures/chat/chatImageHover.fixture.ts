@@ -13,9 +13,23 @@ async function renderImageHover(context: ComponentFixtureContext, fixtureUrl: UR
 	container.style.padding = '24px';
 	container.style.backgroundColor = 'var(--vscode-sideBar-background)';
 	const response = await fetch(fixtureUrl);
+	if (!response.ok) {
+		throw new Error(`Failed to load image hover fixture ${name}: ${response.status} ${response.statusText}`);
+	}
 	const imageData = new Uint8Array(await response.arrayBuffer());
 	let markLoaded!: () => void;
-	const loaded = new Promise<void>(resolve => markLoaded = resolve);
+	let markFailed!: (error: Error) => void;
+	const loaded = new Promise<void>((resolve, reject) => {
+		const timeoutHandle = setTimeout(() => reject(new Error(`Timed out rendering image hover fixture ${name}`)), 10_000);
+		markLoaded = () => {
+			clearTimeout(timeoutHandle);
+			resolve();
+		};
+		markFailed = error => {
+			clearTimeout(timeoutHandle);
+			reject(error);
+		};
+	});
 	const hover = createChatImageHoverContent(
 		URI.file(`/repo/design/${name}.png`),
 		`/repo/design/${name}.png`,
@@ -25,6 +39,8 @@ async function renderImageHover(context: ComponentFixtureContext, fixtureUrl: UR
 		undefined,
 		undefined,
 		`Preview of ${name}`,
+		true,
+		() => markFailed(new Error(`Failed to render image hover fixture ${name}`)),
 	);
 	disposableStore.add(hover.disposable);
 	hover.element.classList.add('action-list-submenu-hover-header', 'content-owns-padding');
