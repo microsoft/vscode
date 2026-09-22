@@ -307,6 +307,7 @@ suite('MainThreadMcp - re-validation', () => {
 			clientSecret: undefined,
 			resource,
 			audience: undefined,
+			silent: true,
 		});
 	});
 });

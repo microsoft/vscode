@@ -365,7 +365,8 @@ export class MainThreadMcp extends Disposable implements MainThreadMcpShape {
 		clientSecret?: string,
 	): Promise<string | undefined> {
 		const authContext: IMcpServerAuthContext = { authorizationServer, clientId, resource, audience };
-		const sessions = await this._authenticationService.getSessions(providerId, scopes, { authorizationServer, clientId, clientSecret, resource, audience }, true);
+		const providerOptions = { authorizationServer, clientId, clientSecret, resource, audience };
+		const sessions = await this._authenticationService.getSessions(providerId, scopes, { ...providerOptions, silent: errorOnUserInteraction }, true);
 		// Only HTTP servers authenticate, so the server URL is always known here. A token is only released
 		// to a server whose current URL matches the one the user consented to, so changing the URL while
 		// keeping the same id requires re-consent.
@@ -409,7 +410,7 @@ export class MainThreadMcp extends Disposable implements MainThreadMcpShape {
 				throw new UserInteractionRequiredError('authentication');
 			}
 			session = provider.supportsMultipleAccounts
-				? await this.authenticationMcpServersService.selectSession(providerId, server.id, server.label, scopes, sessions)
+				? await this.authenticationMcpServersService.selectSession(providerId, server.id, server.label, scopes, sessions, providerOptions)
 				: sessions[0];
 		}
 		else {
@@ -422,13 +423,9 @@ export class MainThreadMcp extends Disposable implements MainThreadMcpShape {
 					providerId,
 					scopes,
 					{
+						...providerOptions,
 						activateImmediate: true,
-						account: accountToCreate,
-						authorizationServer,
-						clientId,
-						clientSecret,
-						resource,
-						audience
+						account: accountToCreate
 					});
 			} while (
 				accountToCreate
