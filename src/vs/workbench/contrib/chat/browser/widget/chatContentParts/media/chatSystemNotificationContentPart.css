@@ -10,6 +10,32 @@
 	padding-top: var(--vscode-spacing-size20);
 }
 
+.chat-system-notification-workflow {
+	margin-bottom: var(--vscode-spacing-size160);
+}
+
+.chat-system-notification-workflow-title {
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-chat-font-size-body-s);
+	margin-bottom: var(--vscode-spacing-size120);
+}
+
+.chat-system-notification-workflow-body {
+	color: var(--vscode-foreground);
+	font-size: var(--vscode-chat-font-size-body-m);
+}
+
+.chat-system-notification-workflow-title > p,
+.chat-system-notification-workflow-body > p {
+	margin: 0;
+}
+
+.chat-system-notification-workflow-body > p + p {
+	margin-top: var(--vscode-spacing-size80);
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-chat-font-size-body-s);
+}
+
 .chat-system-notification-disclosure-header {
 	display: flex;
 	align-items: center;

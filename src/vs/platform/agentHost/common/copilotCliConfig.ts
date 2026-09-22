@@ -8,6 +8,9 @@ import { localize } from '../../../nls.js';
 import { createSchema, schemaProperty } from './agentHostSchema.js';
 import { reasoningEffortLevels } from './reasoningEffort.js';
 
+export const COPILOT_HYDRA_FUSION_MODEL_ID = 'hydrafusion';
+export const COPILOT_HYDRA_FUSION_MODEL_NAME = 'HydraFusion';
+
 /**
  * Root-config keys consumed exclusively by the Copilot CLI provider
  * (`CopilotSessionLauncher` / `CopilotAgent`) — kept out of the

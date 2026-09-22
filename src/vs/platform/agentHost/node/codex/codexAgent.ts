@@ -100,6 +100,8 @@ import { codexDelegationDisplayText } from './codexDelegation.js';
 import { THREAD_LIST_MAX_PAGES, collectThreadListPages } from './codexThreadList.js';
 import { ICodexRolloutMetadata, ICodexRolloutModel, readCodexRolloutMetadata } from './codexRolloutMetadata.js';
 import { codexAccountRateLimitFromResponse, codexAccountStateFromResponse, type ICodexAccountState } from './codexAccountState.js';
+import { getCodexAccountTelemetryContext } from './codexAccountTelemetry.js';
+import type { IAgentProviderTurnTelemetryContext } from '../../common/agentHostTelemetry.js';
 import { CodexProfileImageStore, fetchCodexProfileImage } from './codexProfileImage.js';
 import { CodexSessionConfigKey, CODEX_DEFAULT_PERMISSIONS_PRESET, CODEX_PERMISSIONS_PRESETS, collaborationModeKind, getCodexAutonomousSessionConfig, migrateCodexPermissionValues, narrowAdditionalDirectories, narrowBoolean, narrowPersonality, narrowReasoningEffort, narrowReasoningSummary, narrowWebSearchMode, resolveCodexPermissions, type CodexApprovalPolicy, type CodexPermissionsPreset, type ICodexResolvedPermissions } from './codexSessionConfigKeys.js';
 import type { ReasoningEffort } from './protocol/generated/ReasoningEffort.js';
@@ -1435,6 +1437,10 @@ export class CodexAgent extends Disposable implements IAgent {
 		if (_publish) {
 			this._publishAccountInfo(this._toAccountInfo(state));
 		}
+	}
+
+	captureTurnTelemetryContext(): IAgentProviderTurnTelemetryContext {
+		return { codex: getCodexAccountTelemetryContext(this._openAIAccountState, this._openAIAccountRateLimit, this._openAIAccountRateLimitUpdatedAt) };
 	}
 
 	private _publishAccountInfo(account: ICodexAccountInfo): void {
@@ -3055,9 +3061,7 @@ export class CodexAgent extends Disposable implements IAgent {
 
 	private _withHostTurn<T extends { readonly turn: { readonly id: string } }>(session: ICodexSession, params: T): T {
 		const appTurnId = params.turn.id;
-		const hostTurnId = session.currentTurnId ?? this._hostTurnId(session, appTurnId);
-		session.hostTurnIdByAppTurnId.set(appTurnId, hostTurnId);
-		session.currentAppTurnId = appTurnId;
+		const hostTurnId = this._hostTurnId(session, appTurnId);
 		return hostTurnId === appTurnId ? params : { ...params, turn: { ...params.turn, id: hostTurnId } };
 	}
 
@@ -3065,6 +3069,8 @@ export class CodexAgent extends Disposable implements IAgent {
 		// The workbench already dispatched the canonical turn start before sendMessage.
 		// Codex's event only establishes app-server turn id correlation for later items.
 		const appTurnId = params.turn.id;
+		session.hostTurnIdByAppTurnId.set(appTurnId, session.currentTurnId ?? this._hostTurnId(session, appTurnId));
+		session.currentAppTurnId = appTurnId;
 		const mapped = this._withHostTurn(session, params);
 		this._persistTurnEventId(session, mapped.turn.id, appTurnId);
 		mapTurnStarted(session.mapState, mapped, session.lastPromptText);
@@ -3086,17 +3092,22 @@ export class CodexAgent extends Disposable implements IAgent {
 	private _handleTurnCompletedNotification(session: ICodexSession, params: TurnCompletedNotification): (SessionAction | ChatAction)[] {
 		const appTurnId = params.turn.id;
 		const hostTurnId = this._hostTurnId(session, appTurnId);
-		const out = mapTurnCompleted(session.mapState, this._withHostTurn(session, params), this._clearTurnStopWatch(session));
+		// A replacement send can claim the host turn before the interrupted
+		// turn's completion arrives. Preserve the replacement's identity and timer.
+		const isCurrentTurn = session.currentTurnId === hostTurnId;
+		const out = mapTurnCompleted(session.mapState, this._withHostTurn(session, params), isCurrentTurn ? this._clearTurnStopWatch(session) : undefined);
 		// Remember which codex (app-server) turn each workbench turn maps to so
 		// truncateChat can translate a host turn id to a thread rollback even
 		// after the live correlation below is cleared.
 		session.codexTurnIdByHostTurnId.set(hostTurnId, appTurnId);
 		// Codex reports app-server turn ids, while the workbench owns host turn ids.
 		// Clear the correlation after completion so later turns cannot reuse stale ids.
-		if (session.currentAppTurnId === appTurnId || session.currentTurnId === hostTurnId) {
+		if (isCurrentTurn) {
 			session.currentTurnId = undefined;
-			session.currentAppTurnId = undefined;
 			session.agentMergeTurn = false;
+		}
+		if (session.currentAppTurnId === appTurnId) {
+			session.currentAppTurnId = undefined;
 		}
 		session.hostTurnIdByAppTurnId.delete(appTurnId);
 		// Any steering still buffered was never echoed as a `userMessage`
@@ -5803,6 +5814,7 @@ export class CodexAgent extends Disposable implements IAgent {
 
 	private async _sendMessage(chat: URI, prompt: string, attachments?: readonly MessageAttachment[], turnId?: string, workingDirectories?: readonly URI[], context?: URI | IAgentChatContext): Promise<void> {
 		const operationContext = context ? resolveAgentChatContext(context, chat) : undefined;
+		const accountTelemetryContext = operationContext?.turnTelemetryContext?.codex ?? this.captureTurnTelemetryContext().codex;
 		const sessionUri = this._resolveConversationSession(chat, context);
 		if (!sessionUri) {
 			throw new Error(`Codex conversation is not bound: ${chat.toString()}`);
@@ -5974,10 +5986,6 @@ export class CodexAgent extends Disposable implements IAgent {
 			const turnOptions = this._turnStartOptions(session, resolvedModel.modelId, currentCustomizationLaunch.developerInstructions, configResource);
 			const modelProvider = session.materializedModelProvider;
 			const providerSwitch = session.pendingModelProviderSwitch;
-			const currentAccount = this._openAIAccountState;
-			const chatgptRateLimitSnapshot = providerSwitch && this._isCurrentChatGPTAccount(currentAccount.email)
-				? { rateLimit: this._openAIAccountRateLimit, observedAt: this._openAIAccountRateLimitUpdatedAt }
-				: undefined;
 			const hostInstructions = resolveAgentHostInstructions(operationContext);
 			session.lastPromptText = prompt;
 			session.currentTurnId = effectiveTurnId;
@@ -6002,8 +6010,7 @@ export class CodexAgent extends Disposable implements IAgent {
 				session.pendingModelProviderSwitch = undefined;
 			}
 			if (providerSwitch?.threadId === threadId) {
-				reportCodexProviderSwitch(this._telemetryService, providerSwitch.fromProvider, modelProvider, this._desktopThreadIds.has(threadId),
-					this._isCurrentChatGPTAccount(currentAccount.email) ? chatgptRateLimitSnapshot : undefined);
+				reportCodexProviderSwitch(this._telemetryService, providerSwitch.fromProvider, modelProvider, this._desktopThreadIds.has(threadId), accountTelemetryContext);
 			}
 			// We don't await turn completion here — the notification
 			// stream emits ChatTurnComplete asynchronously.

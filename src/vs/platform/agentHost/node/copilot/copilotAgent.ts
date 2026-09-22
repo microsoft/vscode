@@ -24,7 +24,7 @@ import { generateUuid } from '../../../../base/common/uuid.js';
 import { StopWatch } from '../../../../base/common/stopwatch.js';
 import { rgDiskPath } from '../../../../base/node/ripgrep.js';
 import { localize } from '../../../../nls.js';
-import { IParsedAgent, IParsedPlugin, IParsedRule, IParsedSkill, parseAgentFile, parsePlugin, parseRuleFile, parseSkillFile, PluginFormat, toSkillInvocationFlags, type IMcpServerDefinition } from '../../../agentPlugins/common/pluginParsers.js';
+import { IParsedAgent, IParsedPlugin, IParsedRule, IParsedSkill, parsePlugin, PluginFormat, type IMcpServerDefinition } from '../../../agentPlugins/common/pluginParsers.js';
 import { IFileService } from '../../../files/common/files.js';
 import { IInstantiationService } from '../../../instantiation/common/instantiation.js';
 import { ILogService, LogLevel } from '../../../log/common/log.js';
@@ -39,8 +39,8 @@ import { createPricingMetaFromBilling, hasLongContextSurcharge, normalizeCAPIBil
 import { createContextSizeConfigSchemaProperty } from '../../common/agentModelConfiguration.js';
 import { createAgentModelNoticesMeta } from '../../common/agentModelNotices.js';
 import { createAgentModelByokMeta } from '../../common/agentModelByokMeta.js';
-import { AgentHostConfigKey, agentHostCustomizationConfigSchema, DEFAULT_SESSION_CUSTOMIZATION_DISCOVERY_MODE, toContainerCustomization } from '../../common/agentHostCustomizationConfig.js';
-import { CopilotCliConfigKey, CopilotCliVSCodeAssignmentContextKey, copilotCliConfigSchema, DEFAULT_COPILOT_RUBBER_DUCK_ENABLED, normalizeSkillCharBudget, type CopilotSdkLogLevelSetting } from '../../common/copilotCliConfig.js';
+import { AgentHostConfigKey, agentHostCustomizationConfigSchema, toContainerCustomization } from '../../common/agentHostCustomizationConfig.js';
+import { CopilotCliConfigKey, CopilotCliVSCodeAssignmentContextKey, copilotCliConfigSchema, COPILOT_HYDRA_FUSION_MODEL_ID, COPILOT_HYDRA_FUSION_MODEL_NAME, DEFAULT_COPILOT_RUBBER_DUCK_ENABLED, normalizeSkillCharBudget, type CopilotSdkLogLevelSetting } from '../../common/copilotCliConfig.js';
 import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostByokModelsEnabledConfigKey, AgentHostMcpServersConfigKey, AgentHostGitHubMcpServerEnabledConfigKey, AgentHostCopilotMultiRootEnabledConfigKey, AgentHostSessionSyncEnabledConfigKey, AgentHostSystemProxyEnabledConfigKey, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostProxyConfigKey, agentHostProxyConfigSchema, AutoApproveLevel, SessionMode, migrateLegacyAutopilotConfig, platformRootSchema, platformSessionSchema, type AgentHostMcpServers } from '../../common/agentHostSchema.js';
 import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { decodeProviderData, encodeProviderData, type IPersistedChat } from '../agentChatBackings.js';
@@ -58,10 +58,10 @@ import { IAgentHostProxyResolver } from '../agentHostProxyResolver.js';
 import { MODEL_REFRESH_BASE_DELAY_MS, MODEL_REFRESH_MAX_ATTEMPTS, MODEL_REFRESH_MAX_DELAY_MS, modelRefreshBackoff } from '../shared/modelRefreshRetry.js';
 import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../common/state/protocol/commands.js';
 import type { ErrorInfo } from '../../common/state/protocol/common/state.js';
-import { ProtectedResourceMetadata, type AgentSelection, type ChildCustomizationType, type ConfigPropertySchema, type ConfigSchema, type CustomizationEnablement, type ModelSelection, type ToolDefinition } from '../../common/state/protocol/state.js';
+import { ProtectedResourceMetadata, type AgentSelection, type ConfigPropertySchema, type ConfigSchema, type CustomizationEnablement, type ModelSelection, type ToolDefinition } from '../../common/state/protocol/state.js';
 import { ActionType, AuthRequiredReason, type AuthRequiredParams, type SessionAction } from '../../common/state/sessionActions.js';
 import { areAdditionalWorkingDirectoriesEqual } from '../../common/state/sessionWorkingDirectories.js';
-import { AgentCustomization, CustomizationLoadStatus, CustomizationType, RuleCustomization, ChatInputResponseKind, SkillCustomization, customizationId, buildChatUri, buildDefaultChatUri, AH_META_WORKSPACELESS_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_EHCLI_ADOPTED_DB_KEY, AH_META_EHCLI_LAST_TURN_DB_KEY, AH_META_IS_READ_DB_KEY, isDefaultChatUri, withSessionEhcliAdoptable, type ChildCustomization, type ClientPluginCustomization, type Customization, type DirectoryCustomization, type HookCustomization, type ISessionFolderPickerDecision, type MessageAttachment, type PendingMessage, type PluginCustomization, type PolicyState, type ChatInputAnswer, type ToolCallResult, type Turn, type UsageInfo } from '../../common/state/sessionState.js';
+import { CustomizationLoadStatus, CustomizationType, ChatInputResponseKind, customizationId, buildChatUri, buildDefaultChatUri, AH_META_WORKSPACELESS_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_EHCLI_ADOPTED_DB_KEY, AH_META_EHCLI_LAST_TURN_DB_KEY, AH_META_IS_READ_DB_KEY, isDefaultChatUri, withSessionEhcliAdoptable, type ChildCustomization, type ClientPluginCustomization, type Customization, type DirectoryCustomization, type ISessionFolderPickerDecision, type MessageAttachment, type PendingMessage, type PluginCustomization, type PolicyState, type ChatInputAnswer, type ToolCallResult, type Turn, type UsageInfo } from '../../common/state/sessionState.js';
 import { getByokLmAgentModelId, resolveByokLmEnablement } from '../../common/agentHostByokLm.js';
 import { isCustomizationEnabled } from '../../common/customizationEnablement.js';
 import { ActiveClientToolSet, structuralToolsEqual } from '../activeClientState.js';
@@ -95,7 +95,7 @@ import { AgentHostGitHubTelemetryRouter } from '../agentHostGitHubTelemetryRoute
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import { CopilotSlashCommandCompletionProvider, ICopilotRuntimeSlashCommandQueryOptions } from './copilotSlashCommandCompletionProvider.js';
 import { GITHUB_MCP_SERVER_NAME } from '../shared/githubMcpServer.js';
-import { DiscoveredType, SessionCustomizationDiscovery, areDiscoveredDirectoriesEqual, workspaceDirectoryHasHooks, type IDiscoveredDirectory, type SessionDiscoveredCustomization } from './sessionCustomizationDiscovery.js';
+import { SessionCustomizationDiscovery, workspaceDirectoryHasHooks, type SessionDiscoveredCustomization } from './sessionCustomizationDiscovery.js';
 import { computeFolderPickerDecisionForRoots } from '../shared/folderPickerDecision.js';
 import { COPILOT_INTEGRATION_ID } from '../../../endpoint/common/licenseAgreement.js';
 import { getAppNodeModulesUri } from '../appNodeModules.js';
@@ -2108,10 +2108,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 	 * allocated each call so the observable always notifies its consumers.
 	 */
 	private _publishModels(): void {
-		const hydraFusionModels: readonly IAgentModelInfo[] = this._isHydraFusionEnabled() && !this._capiModels.some(model => model.id === 'hydrafusion') ? [{
+		const hydraFusionModels: readonly IAgentModelInfo[] = this._isHydraFusionEnabled() && !this._capiModels.some(model => model.id === COPILOT_HYDRA_FUSION_MODEL_ID) ? [{
 			provider: this.id,
-			id: 'hydrafusion',
-			name: 'HydraFusion',
+			id: COPILOT_HYDRA_FUSION_MODEL_ID,
+			name: COPILOT_HYDRA_FUSION_MODEL_NAME,
 			supportsVision: true,
 			_meta: createPricingMetaFromBilling(undefined, undefined, 'powerful'),
 		}] : [];
@@ -6004,9 +6004,8 @@ export const REFRESH_DEBOUNCE_MS = 100;
  * A per-working-directory bundle of customizations the agent host
  * discovered itself from disk (workspace + user-home conventions).
  *
- * Owns a {@link SessionCustomizationDiscovery} (filesystem scan +
- * watchers) and maps discovered files into an in-memory
- * {@link IParsedPlugin} while preserving original file URIs.
+ * Owns a {@link SessionCustomizationDiscovery} and watches discovered
+ * customization locations for changes.
  *
  * Refreshes itself when the discovery fires `onDidChange`. The owning
  * {@link PluginController} is notified via the supplied `onDidRefresh`
@@ -6023,7 +6022,6 @@ class SessionDiscoveredEntry extends Disposable {
 	private _pendingRefreshNotify = false;
 
 	private _customizations: readonly SessionDiscoveredCustomization[] = [];
-	private _directories: readonly IDiscoveredDirectory[] | undefined;
 	private _settled: Promise<void>;
 
 	constructor(
@@ -6031,8 +6029,6 @@ class SessionDiscoveredEntry extends Disposable {
 		userHome: URI,
 		private readonly _getClient: () => Promise<CopilotClient>,
 		private readonly _onDidRefresh: () => void,
-		@IFileService private readonly _fileService: IFileService,
-		@IAgentConfigurationService private readonly _configurationService: IAgentConfigurationService,
 		@ILogService private readonly _logService: ILogService,
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
@@ -6040,9 +6036,6 @@ class SessionDiscoveredEntry extends Disposable {
 		this._discovery = this._register(instantiationService.createInstance(SessionCustomizationDiscovery, workingDirectories, userHome, URI.file));
 		this._settled = this._queueRefresh(false, 0);
 		this._register(this._discovery.onDidChange(() => {
-			this._settled = this._queueRefresh(true);
-		}));
-		this._register(this._configurationService.onDidRootConfigChange(() => {
 			this._settled = this._queueRefresh(true);
 		}));
 	}
@@ -6102,147 +6095,27 @@ class SessionDiscoveredEntry extends Disposable {
 
 	private async _refresh(token: CancellationToken): Promise<boolean> {
 		try {
-			const mode = this._configurationService.getRootValue(agentHostCustomizationConfigSchema, AgentHostConfigKey.SessionCustomizationDiscoveryMode)
-				?? DEFAULT_SESSION_CUSTOMIZATION_DISCOVERY_MODE;
-			if (mode === 'discover') {
-				const customizations = await this._discovery.discover(await this._getClient(), token);
-				if (token.isCancellationRequested) {
-					return false;
-				}
-
-				if (equals(this._customizations, customizations)) {
-					return false;
-				}
-
-				this._customizations = customizations;
-				this._directories = undefined;
-				return true;
-			}
-
-			const directories = await this._discovery.scan(token);
+			const customizations = await this._discovery.discover(await this._getClient(), token);
 			if (token.isCancellationRequested) {
 				return false;
 			}
 
-			if (this._directories && areDiscoveredDirectoriesEqual(this._directories, directories)) {
+			if (equals(this._customizations, customizations)) {
 				return false;
 			}
 
-			const customizations = await toDiscoveredDirectoryCustomizations(directories, this._fileService);
-			if (token.isCancellationRequested) {
-				return false;
-			}
-
-			// Don't update `_customizations` / `_directories` when cancelled.
-			// Otherwise a cancelled refresh could temporarily clear them and cause callers to see empty customizations.
 			this._customizations = customizations;
-			this._directories = directories;
 			return true;
 		} catch (err) {
-			// Don't update `_customizations` / `_directories` when cancelled.
-			// Otherwise a cancelled refresh could temporarily clear them and cause callers to see empty customizations.
 			if (token.isCancellationRequested) {
 				return false;
 			}
 			this._logService.warn(`[Copilot:SessionDiscoveredEntry] Discovery/bundle failed: ${err instanceof Error ? err.message : String(err)}`);
-			const hadState = this._customizations.length > 0 || this._directories !== undefined;
+			const hadState = this._customizations.length > 0;
 			this._customizations = [];
-			this._directories = undefined;
 			return hadState;
 		}
 	}
-}
-
-export function toDiscoveredDirectoryCustomizations(directories: readonly IDiscoveredDirectory[], fileService: IFileService): Promise<DirectoryCustomization[]> {
-	return Promise.all(directories.map(async directory => {
-		const protocolUri = directory.uri.toString();
-		return {
-			type: CustomizationType.Directory,
-			id: customizationId(protocolUri),
-			uri: protocolUri,
-			name: directory.name,
-			enabled: true,
-			contents: toDirectoryContentsType(directory.type),
-			writable: directory.writable, // whether the new customization can be created in this directory
-			load: { kind: CustomizationLoadStatus.Loaded },
-			children: await Promise.all(directory.files.map(file => toDiscoveredChildCustomization(file.uri, directory.type, fileService))),
-		};
-	}));
-}
-
-function toDirectoryContentsType(type: DiscoveredType): ChildCustomizationType {
-	switch (type) {
-		case DiscoveredType.Agent:
-			return CustomizationType.Agent;
-		case DiscoveredType.Skill:
-			return CustomizationType.Skill;
-		case DiscoveredType.Instruction:
-		case DiscoveredType.AgentInstruction:
-			return CustomizationType.Rule;
-		case DiscoveredType.Hook:
-			return CustomizationType.Hook;
-	}
-}
-
-async function toDiscoveredChildCustomization(file: URI, type: DiscoveredType, fileService: IFileService): Promise<ChildCustomization> {
-	const uri = file.toString();
-	const id = customizationId(uri);
-	if (type === DiscoveredType.Agent) {
-		const agentInfo = await parseAgentFile(file, fileService);
-		const agentCustomization: AgentCustomization = {
-			type: CustomizationType.Agent,
-			id,
-			uri,
-			name: agentInfo.name,
-			description: agentInfo.description,
-		} satisfies AgentCustomization;
-		if (agentInfo.userInvocable !== undefined) {
-			agentCustomization._meta = { userInvocable: agentInfo.userInvocable };
-		}
-		return agentCustomization;
-	}
-	if (type === DiscoveredType.Skill) {
-		const skillInfo = await parseSkillFile(file, fileService);
-		const skillCustomization: SkillCustomization = {
-			type: CustomizationType.Skill,
-			id,
-			uri,
-			name: skillInfo.name,
-			description: skillInfo.description,
-			...toSkillInvocationFlags(skillInfo.userInvocable, skillInfo.disableModelInvocation),
-		};
-		return skillCustomization;
-	}
-	if (type === DiscoveredType.Instruction) {
-		const ruleInfo = await parseRuleFile(file, fileService);
-		const ruleCustomization: RuleCustomization = {
-			type: CustomizationType.Rule,
-			id,
-			uri,
-			name: ruleInfo.name,
-			description: ruleInfo.description,
-			globs: ruleInfo.globs,
-			alwaysApply: ruleInfo.alwaysApply,
-		};
-		return ruleCustomization;
-	}
-	if (type === DiscoveredType.Hook) {
-		const hookCustomization: HookCustomization = {
-			type: CustomizationType.Hook,
-			id,
-			uri,
-			name: resourceBasename(file),
-		};
-		return hookCustomization;
-	}
-	// agent instruction
-	return {
-		type: CustomizationType.Rule,
-		alwaysApply: true,
-		id,
-		uri,
-		name: resourceBasename(file),
-	};
 }
 
 
