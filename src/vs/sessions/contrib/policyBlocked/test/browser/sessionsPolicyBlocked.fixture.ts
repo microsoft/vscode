@@ -8,7 +8,7 @@ import { Event } from '../../../../../base/common/event.js';
 import { constObservable } from '../../../../../base/common/observable.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { ManagedSettingsFreshnessFailure, ManagedSettingsFreshnessState } from '../../../../../platform/policy/common/managedSettingsFreshness.js';
-import { IWorkbenchLayoutService } from '../../../../../workbench/services/layout/browser/layoutService.js';
+import { IWorkbenchLayoutService, Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup } from '../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
 import { ISessionsBlockedOverlayOptions, SessionsBlockedReason, SessionsPolicyBlockedOverlay } from '../../browser/sessionsPolicyBlocked.js';
 import { getManagedPluginBlockInfo } from '../../../../../workbench/contrib/chat/common/plugins/managedPluginAvailability.js';
@@ -19,6 +19,12 @@ function createOverlay(ctx: ComponentFixtureContext, options: ISessionsBlockedOv
 	ctx.container.style.width = '600px';
 	ctx.container.style.height = '400px';
 	ctx.container.style.position = 'relative';
+
+	function getContainer(_targetWindow: Window): HTMLElement;
+	function getContainer(_targetWindow: Window, part: Parts): HTMLElement | undefined;
+	function getContainer(_targetWindow: Window, part?: Parts): HTMLElement | undefined {
+		return part === undefined ? ctx.container : undefined;
+	}
 
 	const instantiationService = createEditorServices(ctx.disposableStore, {
 		colorTheme: ctx.theme,
@@ -31,7 +37,7 @@ function createOverlay(ctx: ComponentFixtureContext, options: ISessionsBlockedOv
 			reg.definePartialInstance(IWorkbenchLayoutService, {
 				mainContainer: ctx.container,
 				mainContainerOffset: { top: 0, quickPickTop: 0 },
-				getContainer: () => undefined,
+				getContainer,
 				onDidLayoutMainContainer: Event.None,
 			});
 			reg.definePartialInstance(ISessionsPartService, { focusSession: () => { } });
