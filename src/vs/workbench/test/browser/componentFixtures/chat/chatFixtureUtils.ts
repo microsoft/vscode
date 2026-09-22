@@ -19,7 +19,6 @@ import { MockChatModelFeedbackSurveyService } from '../../../../contrib/chat/tes
 import { IActionWidgetService } from '../../../../../platform/actionWidget/browser/actionWidget.js';
 import { ILinkPresentationService } from '../../../../../platform/dataChannel/common/dataChannel.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
-import { IManagedSettingsService, NullManagedSettingsService } from '../../../../../platform/policy/common/copilotManagedSettings.js';
 import { IUpdateService, StateType } from '../../../../../platform/update/common/update.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { ISharedWebContentExtractorService } from '../../../../../platform/webContentExtractor/common/webContentExtractor.js';
@@ -170,7 +169,6 @@ export interface IChatFixtureServicesOptions {
  */
 export function registerChatFixtureServices(reg: ServiceRegistration, options: IChatFixtureServicesOptions = {}): void {
 	registerWorkbenchServices(reg);
-	reg.defineInstance(IManagedSettingsService, new NullManagedSettingsService());
 	reg.define(IMenuService, FixtureMenuService);
 	reg.define(ISessionChatPillVisibilityService, SessionChatPillVisibility);
 	reg.define(IMarkdownRendererService, MarkdownRendererService);
