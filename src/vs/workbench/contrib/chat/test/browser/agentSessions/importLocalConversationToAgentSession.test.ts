@@ -236,7 +236,7 @@ suite('importedTurnsFromChatModel', () => {
 		}]);
 	});
 
-	test('imports a phase summary as text without inventing a child subagent', () => {
+	test('imports phase summaries and terminal outcomes without inventing child subagents', () => {
 		const phase: IChatToolInvocationSerialized = {
 			kind: 'toolInvocationSerialized',
 			presentation: undefined,
@@ -257,12 +257,21 @@ suite('importedTurnsFromChatModel', () => {
 				isChatAvailable: false,
 			},
 		};
-		const turns = importedTurnsFromChatModel(model([request('q', response([phase]))]));
-
-		assert.deepStrictEqual(turns[0].responseParts.map(part =>
-			part.kind === ResponsePartKind.ToolCall && part.toolCall.status === ToolCallStatus.Completed
-				? part.toolCall.content
-				: undefined
-		), [[{ type: ToolResultContentType.Text, text: 'Main pass completed' }]]);
+		assert.deepStrictEqual((['succeeded', 'failed', 'cancelled'] as const).map(phaseStatus => {
+			const toolSpecificData: IChatToolInvocationSerialized['toolSpecificData'] = {
+				kind: 'subagent', presentation: 'phase',
+				phaseStatus,
+				description: 'Main pass', result: `Main pass ${phaseStatus}`,
+			};
+			const turns = importedTurnsFromChatModel(model([request('q', response([{ ...phase, toolSpecificData }]))]));
+			const part = turns[0].responseParts[0];
+			return part.kind === ResponsePartKind.ToolCall && part.toolCall.status === ToolCallStatus.Completed ? {
+				success: part.toolCall.success, error: part.toolCall.error, content: part.toolCall.content,
+			} : undefined;
+		}), [
+			{ success: true, error: undefined, content: [{ type: ToolResultContentType.Text, text: 'Main pass succeeded' }] },
+			{ success: false, error: { message: 'Main pass failed' }, content: [{ type: ToolResultContentType.Text, text: 'Main pass failed' }] },
+			{ success: false, error: { message: 'Main pass cancelled', code: 'cancelled' }, content: [{ type: ToolResultContentType.Text, text: 'Main pass cancelled' }] },
+		]);
 	});
 });

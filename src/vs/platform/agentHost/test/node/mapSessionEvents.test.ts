@@ -308,7 +308,7 @@ suite('mapSessionEvents — history replay', () => {
 		})));
 	});
 
-	test('preserves early routing state across the user message and restores a routing fallback after abort', async () => {
+	test('does not attach an unowned routing fallback to the next request after cancellation', async () => {
 		const next = fusionTurnData(2);
 		const { turns } = await mapSessionEvents(session, undefined, [
 			event('user.message', { content: 'First request' }, { id: 'user-1' }),
@@ -325,9 +325,27 @@ suite('mapSessionEvents — history replay', () => {
 			parts: fusionParts(turn.responseParts),
 		})), [
 			{ id: 'user-1', parts: ['selected', 'cancelled'] },
-			{ id: 'user-2', parts: ['degraded', 'Fallback answer'] },
+			{ id: 'user-2', parts: ['Fallback answer'] },
 		]);
 	});
+
+	for (const persistedOnly of [false, true]) {
+		test(`rejects a cancelled request's late routing failure (${persistedOnly ? 'durable log' : 'including ephemeral events'})`, async () => {
+			const events = [
+				event('user.message', { content: 'First request' }, { id: 'user-1' }),
+				event('session.fusion_route_started', fusion.routeStarted),
+				event('abort', { reason: 'user_initiated' }),
+				event('session.fusion_route_failed', fusion.routeFailed),
+				event('user.message', { content: 'Second request' }, { id: 'user-2' }),
+				event('assistant.message', { messageId: 'answer-2', content: 'Second answer' }),
+			];
+			const { turns } = await mapSessionEvents(session, undefined, persistedOnly ? events.filter(event => !event.ephemeral) : events);
+			assert.deepStrictEqual(turns.map(turn => ({ id: turn.id, parts: fusionParts(turn.responseParts) })), [
+				{ id: 'user-1', parts: persistedOnly ? [] : ['cancelled'] },
+				{ id: 'user-2', parts: ['Second answer'] },
+			]);
+		});
+	}
 
 	for (const knownAgent of [false, true]) {
 		test(`subagent events do not reset or interrupt root Fusion progress (${knownAgent ? 'known' : 'unknown'} agent)`, async () => {

@@ -27,6 +27,7 @@ import { withEphemeralSessionMeta } from '../../common/meta/agentEphemeralSessio
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import type { RootConfigChangedAction } from '../../common/state/protocol/actions.js';
+import { ChatStateSubscription } from '../../common/state/agentSubscription.js';
 import { ChangesSummary, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ChatOriginKind, CustomizationEnablementKind, CustomizationType, McpAuthRequiredReason, McpServerStatus, SessionInputRequestKind } from '../../common/state/protocol/state.js';
 import { ActionType, ActionEnvelope, AuthRequiredReason, type ChatAction, type INotification, type SessionAction } from '../../common/state/sessionActions.js';
 import { buildSubagentChatUri, buildChatUri, buildDefaultChatUri, ChatInteractivity, createErrorResponsePart, CustomizationLoadStatus, MessageAttachmentKind, MessageKind, PendingMessageKind, readUsageInfoMeta, ResponsePartKind, ROOT_STATE_URI, SessionLifecycle, SessionStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, TurnState, customizationId, type ChatInputRequest, type ClientPluginCustomization, type Customization, type ISessionGitHubState, type PluginCustomization, type Turn } from '../../common/state/sessionState.js';
@@ -2989,6 +2990,148 @@ suite('AgentSideEffects', () => {
 	});
 
 	suite('handleAction — session/turnCancelled', () => {
+
+		for (const status of [ToolCallStatus.Streaming, ToolCallStatus.Running]) {
+			test(`client Stop records ${status} Fusion phase duration before abort without tool accounting`, () => {
+				setupSession();
+				disposables.add(sideEffects.registerProgressListener(agent));
+				const startedAt = Date.now() + (status === ToolCallStatus.Streaming ? 10_000 : -10_000);
+				const metadata = {
+					toolKind: 'fusionPhase',
+					fusionPhase: { fusionId: 'fusion-1', phaseId: 'phase-1', model: 'model-a', status: 'running', startedAt },
+				};
+				const emit = (action: ChatAction) => agent.fireProgress({ kind: 'action', resource: URI.parse(defaultChatUri), action });
+				emit({
+					type: ActionType.ChatTurnStarted, turnId: 'fusion-turn', startedAt: new Date(startedAt).toISOString(),
+					message: { text: 'Run Fusion', origin: { kind: MessageKind.User } },
+				});
+				emit({
+					type: ActionType.ChatToolCallStart, turnId: 'fusion-turn', toolCallId: 'fusion-phase',
+					toolName: 'hydrafusion_phase', displayName: 'Main pass', _meta: metadata,
+				});
+				if (status === ToolCallStatus.Running) {
+					emit({
+						type: ActionType.ChatToolCallReady, turnId: 'fusion-turn', toolCallId: 'fusion-phase',
+						invocationMessage: 'Main pass', confirmed: ToolCallConfirmationReason.NotNeeded, _meta: metadata,
+					});
+				}
+				const activeTurn = stateManager.getChatState(defaultChatUri)?.activeTurn;
+				stateManager.dispatchClientAction(defaultChatUri, {
+					type: ActionType.ChatTurnCancelled, turnId: 'stale-turn', duration: 1000,
+				}, { clientId: 'test', clientSeq: 0 });
+				assert.strictEqual(stateManager.getChatState(defaultChatUri)?.activeTurn, activeTurn);
+				const live = disposables.add(new ChatStateSubscription(defaultChatUri, 'test', () => 1, () => { }));
+				live.handleSnapshot(stateManager.getChatState(defaultChatUri)!, stateManager.serverSeq);
+				const actions: ActionType[] = [];
+				disposables.add(stateManager.onDidEmitEnvelope(envelope => {
+					live.receiveEnvelope(envelope);
+					if (envelope.channel === defaultChatUri) {
+						actions.push(envelope.action.type);
+					}
+				}));
+				let turnAtAbort: Turn | undefined;
+				agent.abortSession = async session => {
+					agent.abortSessionCalls.push(session);
+					turnAtAbort = stateManager.getChatState(defaultChatUri)?.turns[0];
+					emit({
+						type: ActionType.ChatToolCallComplete, turnId: 'fusion-turn', toolCallId: 'fusion-phase',
+						result: { success: false, pastTenseMessage: 'Main pass ended' },
+						_meta: { ...metadata, fusionPhase: { ...metadata.fusionPhase, status: 'cancelled', duration: 999_999 } },
+					});
+				};
+				const cancellation = { type: ActionType.ChatTurnCancelled, turnId: 'fusion-turn', duration: 1000 } as const;
+				const clientSeq = live.applyOptimistic(cancellation);
+				const beforeStop = Date.now();
+				stateManager.dispatchClientAction(defaultChatUri, cancellation, { clientId: 'test', clientSeq });
+				sideEffects.handleAction(defaultChatUri, cancellation, 'test');
+				const afterStop = Date.now();
+
+				const state = stateManager.getChatState(defaultChatUri)!;
+				const turn = state.turns[0];
+				const part = turn.responseParts[0];
+				assert.ok(part.kind === ResponsePartKind.ToolCall);
+				const phase = readToolCallMeta(part.toolCall).fusionPhase;
+				assert.ok(phase?.duration !== undefined && Number.isFinite(phase.duration)
+					&& phase.duration >= Math.max(0, beforeStop - startedAt)
+					&& phase.duration <= Math.max(0, afterStop - startedAt));
+				const restored = disposables.add(new ChatStateSubscription(defaultChatUri, 'restored', () => 1, () => { }));
+				restored.handleSnapshot(structuredClone(state), stateManager.serverSeq);
+				assert.deepStrictEqual({
+					turnState: turn.state,
+					toolState: part.toolCall.status,
+					phase,
+					finalizedBeforeAbort: turnAtAbort === turn,
+					abortCalls: agent.abortSessionCalls.length,
+					actions,
+					liveTurns: live.verifiedValue?.turns,
+					liveActiveTurn: live.verifiedValue?.activeTurn,
+					restoredTurns: restored.verifiedValue?.turns,
+					restoredActiveTurn: restored.verifiedValue?.activeTurn,
+					pending: live.getPendingActions(),
+					toolEvents: telemetryService.events.filter(event => event.eventName === 'languageModelToolInvoked' || event.eventName === 'agentHost.toolInvoked'),
+					providerCompletions: agent.clientToolCallCompleteCalls,
+				}, {
+					turnState: TurnState.Cancelled,
+					toolState: ToolCallStatus.Cancelled,
+					phase: { ...metadata.fusionPhase, status: 'cancelled', duration: phase.duration },
+					finalizedBeforeAbort: true,
+					abortCalls: 1,
+					actions: [status === ToolCallStatus.Streaming ? ActionType.ChatToolCallDelta : ActionType.ChatToolCallReady, ActionType.ChatTurnCancelled, ActionType.ChatToolCallComplete],
+					liveTurns: [turn],
+					liveActiveTurn: undefined,
+					restoredTurns: [turn],
+					restoredActiveTurn: undefined,
+					pending: [],
+					toolEvents: [],
+					providerCompletions: [],
+				});
+			});
+		}
+
+		test('client Stop preserves completed Fusion durations and ordinary or invalid tool metadata', () => {
+			setupSession();
+			startTurn('fusion-turn');
+			const phase = { fusionId: 'fusion-1', phaseId: 'phase-1', model: 'model-a', status: 'running', startedAt: Date.now() - 1000 };
+			const cases = [
+				{ id: 'completed', metadata: { toolKind: 'fusionPhase', fusionPhase: { ...phase, status: 'succeeded', duration: 123 } } },
+				{ id: 'ordinary', metadata: { toolKind: 'terminal', fusionPhase: phase } },
+				{ id: 'invalid', metadata: { toolKind: 'fusionPhase', fusionPhase: { ...phase, startedAt: NaN } } },
+			];
+			for (const { id, metadata } of cases) {
+				stateManager.dispatchServerAction(defaultChatUri, {
+					type: ActionType.ChatToolCallStart, turnId: 'fusion-turn', toolCallId: id,
+					toolName: id, displayName: id, _meta: metadata,
+				});
+				stateManager.dispatchServerAction(defaultChatUri, {
+					type: ActionType.ChatToolCallReady, turnId: 'fusion-turn', toolCallId: id,
+					invocationMessage: id, confirmed: ToolCallConfirmationReason.NotNeeded, _meta: metadata,
+				});
+			}
+			stateManager.dispatchServerAction(defaultChatUri, {
+				type: ActionType.ChatToolCallComplete, turnId: 'fusion-turn', toolCallId: 'completed',
+				result: { success: true, pastTenseMessage: 'Phase completed' }, _meta: cases[0].metadata,
+			});
+			const actions: ActionType[] = [];
+			disposables.add(stateManager.onDidEmitEnvelope(envelope => {
+				if (envelope.channel === defaultChatUri) {
+					actions.push(envelope.action.type);
+				}
+			}));
+			stateManager.dispatchClientAction(defaultChatUri, {
+				type: ActionType.ChatTurnCancelled, turnId: 'fusion-turn', duration: 1000,
+			}, { clientId: 'test', clientSeq: 3 });
+			assert.deepStrictEqual({
+				actions,
+				parts: stateManager.getChatState(defaultChatUri)?.turns[0].responseParts.map(part => part.kind === ResponsePartKind.ToolCall ? {
+					id: part.toolCall.toolCallId, status: part.toolCall.status, metadata: part.toolCall._meta,
+				} : undefined),
+			}, {
+				actions: [ActionType.ChatTurnCancelled],
+				parts: cases.map(({ id, metadata }) => ({
+					id, status: id === 'completed' ? ToolCallStatus.Completed : ToolCallStatus.Cancelled, metadata,
+				})),
+			});
+		});
 
 		test('calls abortSession on the agent', async () => {
 			setupSession();

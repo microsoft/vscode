@@ -85,7 +85,7 @@ export class FusionReplayState {
 				this._rejectedEventKeys.add(key);
 				return;
 			}
-		} else if (!routing && eventTurn === undefined && this._requiresCorrelation) {
+		} else if (eventTurn === undefined && this._requiresCorrelation) {
 			// An active request still cannot claim an unowned event delayed across cancellation.
 			return;
 		}

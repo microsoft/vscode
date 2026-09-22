@@ -10621,11 +10621,14 @@ Use the attached image as context.
 				mockSession.fire('session.idle', { aborted: true });
 
 				session.resetTurnState('second');
-				const nextSdkTurnId = correlation === 'reused-sdk-turn' ? 'sdk-first' : 'sdk-second';
+				const nextSdkTurnId = 'sdk-second';
 				mockSession.fire('user.message', { content: 'Second request', turnId: nextSdkTurnId });
 				mockSession.fire('assistant.turn_start', { turnId: nextSdkTurnId });
 				mockSession.fire('session.fusion_resolved', { ...fusionTestData.resolved, fusionId: 'fusion-2', turnId: nextSdkTurnId });
 				mockSession.fire('assistant.fusion_phase_started', { ...fusionTestData.started, fusionId: 'fusion-2', phaseId: 'phase-2' });
+				if (correlation === 'reused-sdk-turn') {
+					mockSession.fire('assistant.turn_start', { turnId: 'sdk-first' });
+				}
 				const beforeLateEvents = signals.length;
 				mockSession.fire('session.fusion_route_started', fusionTestData.routeStarted);
 				mockSession.fire('session.fusion_route_failed', fusionTestData.routeFailed);
@@ -10668,7 +10671,6 @@ Use the attached image as context.
 				}
 
 				session.resetTurnState('second');
-				mockSession.fire('user.message', { content: 'Second request' });
 				const currentResolution = { ...fusionTestData.resolved, fusionId: 'fusion-2', turnId: 'sdk-second' };
 				const currentPhase = { ...fusionTestData.started, fusionId: 'fusion-2', phaseId: 'phase-2' };
 				const beforeUncorrelated = signals.length;
@@ -10676,32 +10678,273 @@ Use the attached image as context.
 				mockSession.fire('assistant.fusion_phase_completed', fusionTestData.phaseCompleted);
 				mockSession.fire('session.fusion_resolved', currentResolution);
 				mockSession.fire('assistant.fusion_phase_started', currentPhase);
+				mockSession.fire('assistant.fusion_phase_activity', { ...fusionTestData.activity, fusionId: 'fusion-2', phaseId: 'phase-2', activity: 'tool_started' });
 				const uncorrelatedEvents = signals.length - beforeUncorrelated;
 
-				mockSession.fire('assistant.turn_start', { turnId: 'sdk-second' });
 				const beforeCorrelated = signals.length;
-				mockSession.fire('session.fusion_resolved', currentResolution);
-				mockSession.fire('assistant.fusion_phase_started', currentPhase);
+				mockSession.fire('assistant.turn_start', { turnId: 'sdk-second' });
 				const beforeLate = signals.length;
 				mockSession.fire('assistant.fusion_phase_started', fusionTestData.started);
 				mockSession.fire('session.fusion_completed', { ...fusionTestData.completed, turnId: 'sdk-first' });
+				mockSession.fire('assistant.fusion_phase_started', { ...fusionTestData.started, fusionId: 'unknown-workflow' });
 				const lateEvents = signals.length - beforeLate;
-				mockSession.fire('assistant.fusion_phase_activity', { ...fusionTestData.activity, fusionId: 'fusion-2', phaseId: 'phase-2', activity: 'tool_started' });
+				mockSession.fire('assistant.fusion_phase_activity', { ...fusionTestData.activity, fusionId: 'fusion-2', phaseId: 'phase-2' });
 
 				assert.deepStrictEqual({
 					uncorrelatedEvents,
 					lateEvents,
+					introductions: getActions(signals.slice(beforeCorrelated)).filter(action => action.type === ActionType.ChatResponsePart).length,
 					currentTools: getActions(signals.slice(beforeCorrelated)).flatMap(action => action.type === ActionType.ChatToolCallStart
 						? [{ turnId: action.turnId, toolCallId: action.toolCallId }] : []),
-					lastActivity: getActions(signals).flatMap(action => action.type === ActionType.SessionActivityChanged ? [action.activity] : []).at(-1),
+					activity: getActions(signals.slice(beforeCorrelated)).flatMap(action => action.type === ActionType.SessionActivityChanged ? [action.activity] : []),
 				}, {
 					uncorrelatedEvents: 0,
 					lateEvents: 0,
+					introductions: 1,
 					currentTools: [{ turnId: 'second', toolCallId: 'fusion:fusion-2:phase-2' }],
-					lastActivity: 'Main pass: running a tool',
+					activity: ['Preparing the Cascade workflow...', 'Main pass running', 'Main pass: running a tool', 'Main pass running'],
 				});
 			});
 		}
+
+		for (const boundary of ['user', 'assistant'] as const) {
+			test(`Fusion accepts new routing only after a trusted root ${boundary} boundary`, async () => {
+				const { session, mockSession, signals } = await createAgentSession(disposables);
+				session.resetTurnState('first');
+				mockSession.fire('user.message', { content: 'First request', turnId: 'sdk-first' });
+				mockSession.fire('session.fusion_route_started', fusionTestData.routeStarted);
+				await session.abort();
+
+				session.resetTurnState('second');
+				const beforeBoundary = signals.length;
+				mockSession.fire('user.message', { content: 'Synthetic context', source: 'agent' });
+				mockSession.fire('session.fusion_route_started', { ...fusionTestData.routeStarted, attemptId: 'before-boundary' });
+				mockSession.fire('session.fusion_route_failed', { ...fusionTestData.routeFailed, attemptId: 'before-boundary' });
+				const beforeBoundaryEvents = signals.length - beforeBoundary;
+				if (boundary === 'user') {
+					mockSession.fire('user.message', { content: 'Second request' });
+				} else {
+					mockSession.fire('assistant.turn_start', { turnId: 'sdk-second' });
+				}
+				const beforeUnowned = signals.length;
+				mockSession.fire('session.fusion_route_failed', { ...fusionTestData.routeFailed, attemptId: 'before-boundary' });
+				mockSession.fire('session.fusion_route_failed', { ...fusionTestData.routeFailed, attemptId: 'unowned-failure' });
+				const unownedEvents = signals.length - beforeUnowned;
+				mockSession.fire('session.fusion_route_started', { ...fusionTestData.routeStarted, attemptId: 'attempt-2' });
+				const beforeLate = signals.length;
+				mockSession.fire('session.fusion_route_started', fusionTestData.routeStarted);
+				mockSession.fire('session.fusion_route_failed', fusionTestData.routeFailed);
+				mockSession.fire('assistant.fusion_phase_started', fusionTestData.started);
+				const lateEvents = signals.length - beforeLate;
+				mockSession.fire('session.fusion_route_failed', { ...fusionTestData.routeFailed, attemptId: 'attempt-2' });
+
+				assert.deepStrictEqual({
+					beforeBoundaryEvents,
+					unownedEvents,
+					lateEvents,
+					activity: getActions(signals.slice(beforeBoundary)).flatMap(action => action.type === ActionType.SessionActivityChanged ? [action.activity] : []),
+					fallbacks: getActions(signals.slice(beforeBoundary)).flatMap(action => action.type === ActionType.ChatResponsePart && action.part.kind === ResponsePartKind.SystemNotification
+						? [{ turnId: action.turnId, status: readAgentSystemNotificationMeta(action.part).fusionStatus, content: typeof action.part.content === 'string' ? action.part.content : action.part.content.markdown }] : []),
+				}, {
+					beforeBoundaryEvents: 0,
+					unownedEvents: 0,
+					lateEvents: 0,
+					activity: ['Choosing a HydraFusion workflow...', undefined],
+					fallbacks: [{ turnId: 'second', status: 'degraded', content: 'HydraFusion&nbsp;routing&nbsp;failed;&nbsp;continuing&nbsp;with&nbsp;model-a' }],
+				});
+			});
+		}
+
+		for (const correlation of ['user', 'assistant'] as const) {
+			test(`Fusion rejects a delayed first resolution after cancellation and SDK ID reassignment (${correlation})`, async () => {
+				const { session, mockSession, signals } = await createAgentSession(disposables);
+				const mapSharedTurn = () => {
+					if (correlation === 'user') {
+						mockSession.fire('user.message', { content: 'Request', turnId: 'sdk-shared' });
+					} else {
+						mockSession.fire('assistant.turn_start', { turnId: 'sdk-shared' });
+					}
+				};
+				session.resetTurnState('first');
+				mapSharedTurn();
+				mockSession.fire('abort', { reason: 'user_initiated' });
+				mockSession.fire('session.idle', { aborted: true });
+
+				session.resetTurnState('second');
+				mapSharedTurn();
+				mockSession.fire('assistant.turn_start', { turnId: 'sdk-second' });
+				mockSession.fire('session.fusion_resolved', { ...fusionTestData.resolved, fusionId: 'fusion-2', turnId: 'sdk-second' });
+				mockSession.fire('assistant.fusion_phase_started', { ...fusionTestData.started, fusionId: 'fusion-2', phaseId: 'phase-2' });
+				const beforeLate = signals.length;
+				mockSession.fire('session.fusion_resolved', { ...fusionTestData.resolved, turnId: 'sdk-shared' });
+				mockSession.fire('assistant.fusion_phase_started', fusionTestData.started);
+				mockSession.fire('assistant.fusion_phase_completed', fusionTestData.phaseCompleted);
+				mockSession.fire('session.fusion_completed', { ...fusionTestData.completed, turnId: 'sdk-shared' });
+				const lateEvents = signals.length - beforeLate;
+				mockSession.fire('assistant.fusion_phase_activity', { ...fusionTestData.activity, fusionId: 'fusion-2', phaseId: 'phase-2', activity: 'tool_started' });
+				mockSession.fire('session.fusion_completed', { ...fusionTestData.completed, fusionId: 'fusion-2', turnId: 'sdk-shared' });
+
+				assert.deepStrictEqual({
+					lateEvents,
+					latestTelemetryOwner: session['_hostTurnIdsBySdkTurnId'].get('sdk-shared'),
+					pendingEvents: session['_pendingFusionEvents'].length,
+					activity: getActions(signals.slice(beforeLate)).flatMap(action => action.type === ActionType.SessionActivityChanged ? [action.activity] : []),
+					statuses: getActions(signals.slice(beforeLate)).flatMap(action => action.type === ActionType.ChatResponsePart && action.part.kind === ResponsePartKind.SystemNotification
+						? [readAgentSystemNotificationMeta(action.part).fusionStatus] : []),
+				}, {
+					lateEvents: 0,
+					latestTelemetryOwner: 'second',
+					pendingEvents: 0,
+					activity: ['Main pass: running a tool', undefined],
+					statuses: ['completed'],
+				});
+			});
+		}
+
+		for (const boundary of ['before-phase', 'between-start-and-activity', 'after-activity'] as const) {
+			test(`Fusion preserves single-delivery progress around the user echo (${boundary})`, async () => {
+				const { session, mockSession, signals } = await createAgentSession(disposables);
+				session.resetTurnState('first');
+				mockSession.fire('user.message', { content: 'First request', turnId: 'sdk-first' });
+				await session.abort();
+				session.resetTurnState('second');
+				const beforeResolution = signals.length;
+				mockSession.fire('session.fusion_resolved', { ...fusionTestData.resolved, turnId: 'sdk-second' });
+				const echo = () => mockSession.fire('user.message', { content: 'Second request', turnId: 'sdk-second' });
+				if (boundary === 'before-phase') {
+					echo();
+				}
+				mockSession.fire('assistant.fusion_phase_started', fusionTestData.started);
+				if (boundary === 'between-start-and-activity') {
+					echo();
+				}
+				mockSession.fire('assistant.fusion_phase_activity', { ...fusionTestData.activity, activity: 'tool_started' });
+				if (boundary === 'after-activity') {
+					echo();
+				}
+				mockSession.fire('assistant.fusion_phase_activity', fusionTestData.activity);
+				const actions = getActions(signals.slice(beforeResolution));
+				assert.deepStrictEqual({
+					introductions: actions.filter(action => action.type === ActionType.ChatResponsePart).length,
+					phaseStarts: actions.filter(action => action.type === ActionType.ChatToolCallStart).length,
+					activity: actions.flatMap(action => action.type === ActionType.SessionActivityChanged ? [action.activity] : []),
+					pendingEvents: session['_pendingFusionEvents'].length,
+				}, {
+					introductions: 1,
+					phaseStarts: 1,
+					activity: ['Preparing the Cascade workflow...', 'Main pass running', 'Main pass: running a tool', 'Main pass running'],
+					pendingEvents: 0,
+				});
+			});
+		}
+
+		for (const phaseEvent of ['assistant.fusion_phase_completed', 'assistant.fusion_phase_failed'] as const) {
+			test(`Fusion buffers ${phaseEvent} without private output and drains completion in order`, async () => {
+				const { session, mockSession, signals } = await createAgentSession(disposables);
+				session.resetTurnState('first');
+				mockSession.fire('abort', { reason: 'user_initiated' });
+				session.resetTurnState('second');
+				const beforeResolution = signals.length;
+				mockSession.fire('session.fusion_resolved', fusionTestData.resolved);
+				mockSession.fire('assistant.fusion_phase_started', fusionTestData.started);
+				mockSession.fire(phaseEvent, phaseEvent === 'assistant.fusion_phase_completed'
+					? { ...fusionTestData.phaseCompleted, verdict: 'PRIVATE VERDICT' } : fusionTestData.phaseFailed);
+				mockSession.fire('session.fusion_completed', fusionTestData.completed);
+				const buffered = {
+					count: session['_pendingFusionEvents'].length,
+					leaksContent: JSON.stringify(session['_pendingFusionEvents']).includes('PRIVATE'),
+					signals: signals.length - beforeResolution,
+				};
+				mockSession.fire('assistant.turn_start', { turnId: 'sdk-turn' });
+				const actions = getActions(signals.slice(beforeResolution));
+				assert.deepStrictEqual({
+					buffered,
+					pendingEvents: session['_pendingFusionEvents'].length,
+					actions: actions.filter(isChatAction).map(action => action.type),
+					leaksContent: JSON.stringify(signals).includes('PRIVATE'),
+				}, {
+					buffered: { count: 4, leaksContent: false, signals: 0 },
+					pendingEvents: 0,
+					actions: [ActionType.ChatResponsePart, ActionType.ChatToolCallStart, ActionType.ChatToolCallReady, ActionType.ChatToolCallComplete, ActionType.ChatResponsePart],
+					leaksContent: false,
+				});
+			});
+		}
+
+		test('Fusion completion can supply the first recoverable workflow correlation', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			session.resetTurnState('first');
+			mockSession.fire('abort', { reason: 'user_initiated' });
+			session.resetTurnState('second');
+			const beforeCompletion = signals.length;
+			mockSession.fire('session.fusion_completed', fusionTestData.completed);
+			const beforeMapping = signals.length - beforeCompletion;
+			mockSession.fire('user.message', { content: 'Second request', turnId: 'sdk-turn' });
+			assert.deepStrictEqual({
+				beforeMapping,
+				pendingEvents: session['_pendingFusionEvents'].length,
+				statuses: getActions(signals.slice(beforeCompletion)).flatMap(action => action.type === ActionType.ChatResponsePart && action.part.kind === ResponsePartKind.SystemNotification
+					? [readAgentSystemNotificationMeta(action.part).fusionStatus] : []),
+			}, {
+				beforeMapping: 0,
+				pendingEvents: 0,
+				statuses: ['completed'],
+			});
+		});
+
+		for (const ending of ['abort', 'api', 'idle', 'reset', 'dispose'] as const) {
+			test(`Fusion abandons pending ownership at ${ending} instead of reviving it in another turn`, async () => {
+				const { session, mockSession, signals } = await createAgentSession(disposables);
+				session.resetTurnState('first');
+				mockSession.fire('abort', { reason: 'user_initiated' });
+				session.resetTurnState('second');
+				mockSession.fire('session.fusion_resolved', fusionTestData.resolved);
+				switch (ending) {
+					case 'abort':
+						mockSession.fire('abort', { reason: 'user_initiated' });
+						break;
+					case 'api':
+						await session.abort();
+						break;
+					case 'idle':
+						mockSession.fire('session.idle', {});
+						break;
+					case 'reset':
+						session.resetTurnState('third');
+						break;
+					case 'dispose':
+						session.dispose();
+						break;
+				}
+				const beforeLate = signals.length;
+				if (ending !== 'dispose') {
+					session.resetTurnState('third');
+					mockSession.fire('user.message', { content: 'Third request', turnId: 'sdk-turn' });
+					mockSession.fire('session.fusion_resolved', fusionTestData.resolved);
+					mockSession.fire('assistant.fusion_phase_started', fusionTestData.started);
+				}
+				assert.deepStrictEqual({
+					pendingEvents: session['_pendingFusionEvents'].length,
+					lateEvents: signals.length - beforeLate,
+				}, { pendingEvents: 0, lateEvents: 0 });
+			});
+		}
+
+		test('Fusion bounds pending events while a live turn awaits ownership', async () => {
+			const logService = new CapturingLogService();
+			const { session, mockSession } = await createAgentSession(disposables, { logService });
+			session.resetTurnState('first');
+			mockSession.fire('abort', { reason: 'user_initiated' });
+			session.resetTurnState('second');
+			mockSession.fire('session.fusion_resolved', fusionTestData.resolved);
+			for (let i = 0; i < 256; i++) {
+				mockSession.fire('assistant.fusion_phase_activity', fusionTestData.activity);
+			}
+			assert.deepStrictEqual({
+				pendingEvents: session['_pendingFusionEvents'].length,
+				droppedEvents: logService.traces.filter(entry => entry.message.includes('Fusion ownership buffer full')).length,
+			}, { pendingEvents: 256, droppedEvents: 1 });
+		});
 
 		test('provisional Fusion messages and tool calls stay out of the parent transcript', async () => {
 			const { session, mockSession, signals } = await createAgentSession(disposables);

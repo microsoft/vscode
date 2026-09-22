@@ -88,7 +88,7 @@ import { buildChatErrorInfoFromCopilotSdkFields } from './copilotSdkChatError.js
 import { McpCustomizationController, type ISdkMcpServer } from '../shared/mcpCustomizationController.js';
 import { getSdkMcpServerEnablement, resolveCustomizationEnablement, targetForMcpServer } from '../shared/customizationEnablementGate.js';
 import { appendSdkToolResultContent, mapSessionEvents } from './mapSessionEvents.js';
-import { CopilotFusionProgress, type ICopilotFusionProgressUpdate } from './copilotFusionProgress.js';
+import { CopilotFusionProgress, type CopilotFusionEvent, type ICopilotFusionProgressUpdate } from './copilotFusionProgress.js';
 import { getFusionEventKey, getFusionEventSdkTurnId } from './copilotFusionEventIdentity.js';
 import { addAttachmentDisplayKindToMimeType, addSimpleAttachmentDisplayKindToMimeType } from './copilotAttachmentUtils.js';
 import { buildPendingEditContentUri } from './pendingEditContentStore.js';
@@ -1191,7 +1191,11 @@ export class CopilotAgentSession extends Disposable {
 	private readonly _fusionProgress = new CopilotFusionProgress();
 	/** Retains workflow ownership across turn resets because steering can reassign an SDK turn id. */
 	private readonly _fusionEventTurnIds = new Map<string, string>();
+	private readonly _reassignedFusionSdkTurnIds = new Set<string>();
+	private readonly _pendingFusionEvents: CopilotFusionEvent[] = [];
 	private _requiresFusionEventOwnership = false;
+	private _fusionTurnCancelled = false;
+	private _hasFusionRootTurnBoundary = false;
 	private readonly _activities: Record<'intent' | 'fusion', string | undefined> = { intent: undefined, fusion: undefined };
 	private _publishedActivity: string | undefined;
 
@@ -1467,7 +1471,7 @@ export class CopilotAgentSession extends Disposable {
 			turn.markRunning();
 		}
 		if (this._activeRootSdkTurnId) {
-			this._hostTurnIdsBySdkTurnId.set(this._activeRootSdkTurnId, newTurnId);
+			this._recordHostSdkTurn(this._activeRootSdkTurnId, newTurnId);
 		}
 		return newTurnId;
 	}
@@ -1865,6 +1869,9 @@ export class CopilotAgentSession extends Disposable {
 	 * response part. The turn becomes `running` on the first SDK event.
 	 */
 	resetTurnState(turnId: string, senderClientId?: string, clientType = AgentHostClientType.Unknown, clientContext = createUnknownAgentHostClientTelemetryContext(clientType)): void {
+		this._clearPendingFusionEvents();
+		this._fusionTurnCancelled = false;
+		this._hasFusionRootTurnBoundary = false;
 		this._fusionProgress.reset();
 		this._clearActivity();
 		this._detectInterruptedTurnOnRestore = false;
@@ -1992,6 +1999,8 @@ export class CopilotAgentSession extends Disposable {
 	 */
 	private _clearActiveTurn(): void {
 		const turn = this._currentTurn.value;
+		this._clearPendingFusionEvents();
+		this._hasFusionRootTurnBoundary = false;
 		this._fusionProgress.reset();
 		this._clearActivity();
 		if (turn) {
@@ -3575,7 +3584,7 @@ export class CopilotAgentSession extends Disposable {
 		const abortTarget = abortingTurn ?? resumingTurn;
 		this._abortingTurn = abortTarget;
 		if (abortTarget) {
-			this._requiresFusionEventOwnership = true;
+			this._cancelFusionEvents(abortTarget.id);
 		}
 		if (abortingTurn) {
 			this._dropLateRootTurnEvents = true;
@@ -3632,6 +3641,8 @@ export class CopilotAgentSession extends Disposable {
 				.then(() => this._disposeShellInitScript());
 		}
 		super.dispose();
+		this._pendingFusionEvents.length = 0;
+		this._reassignedFusionSdkTurnIds.clear();
 		this._fusionEventTurnIds.clear();
 	}
 
@@ -5173,8 +5184,9 @@ export class CopilotAgentSession extends Disposable {
 				}
 			}
 			if (this._turnId) {
+				this._hasFusionRootTurnBoundary = true;
 				if (e.data.turnId) {
-					this._hostTurnIdsBySdkTurnId.set(e.data.turnId, this._turnId);
+					this._recordHostSdkTurn(e.data.turnId, this._turnId);
 				}
 				if (e.data.interactionId) {
 					this._hostTurnIdsByInteractionId.set(e.data.interactionId, this._turnId);
@@ -5709,7 +5721,7 @@ export class CopilotAgentSession extends Disposable {
 			this._abortingTurn = undefined;
 			if (e.data.aborted) {
 				if (!e.agentId) {
-					this._requiresFusionEventOwnership = true;
+					this._cancelFusionEvents(abortingTurn?.id);
 				}
 				this._resetAbortToken();
 			}
@@ -6859,33 +6871,98 @@ export class CopilotAgentSession extends Disposable {
 		this._publishActivity('fusion', update.activity);
 	}
 
+	private _recordHostSdkTurn(sdkTurnId: string, hostTurnId: string): void {
+		const previous = this._hostTurnIdsBySdkTurnId.get(sdkTurnId);
+		if (previous !== undefined && previous !== hostTurnId) {
+			this._reassignedFusionSdkTurnIds.add(sdkTurnId);
+		}
+		this._hostTurnIdsBySdkTurnId.set(sdkTurnId, hostTurnId);
+		for (const event of this._pendingFusionEvents.splice(0)) {
+			this._acceptFusionEvent(event);
+		}
+	}
+
+	private _clearPendingFusionEvents(): void {
+		for (const event of this._pendingFusionEvents) {
+			// Abandoned correlations must not be revived by a later request's SDK mapping.
+			this._fusionEventTurnIds.set(getFusionEventKey(event), this._turnId);
+		}
+		this._pendingFusionEvents.length = 0;
+	}
+
+	private _cancelFusionEvents(turnId = this._turnId): void {
+		this._requiresFusionEventOwnership = true;
+		if (turnId === this._turnId) {
+			this._fusionTurnCancelled = true;
+			this._hasFusionRootTurnBoundary = false;
+			this._clearPendingFusionEvents();
+		}
+	}
+
+	private _bufferFusionEvent(event: CopilotFusionEvent): void {
+		if (this._pendingFusionEvents.length >= 256) {
+			this._logService.trace(`[Copilot:${this.sessionId}] Fusion ownership buffer full; dropping ${event.type}`);
+			return;
+		}
+		// Keep progress metadata, never private model output or provider error details.
+		if (event.type === 'assistant.fusion_phase_completed') {
+			this._pendingFusionEvents.push({
+				...event,
+				data: { ...event.data, content: '', verdict: event.data.verdict === 'accept' || event.data.verdict === 'reject' ? event.data.verdict : null },
+			});
+		} else if (event.type === 'assistant.fusion_phase_failed') {
+			this._pendingFusionEvents.push({ ...event, data: { ...event.data, errorMessage: undefined } });
+		} else {
+			this._pendingFusionEvents.push(event);
+		}
+	}
+
+	private _acceptFusionEvent(event: CopilotFusionEvent): void {
+		const turn = this._currentTurn.value;
+		if (!turn || event.agentId || this._fusionTurnCancelled) {
+			return;
+		}
+		const key = getFusionEventKey(event);
+		const sdkTurnId = getFusionEventSdkTurnId(event);
+		let ownerTurnId = this._fusionEventTurnIds.get(key);
+		if (ownerTurnId === undefined && sdkTurnId) {
+			if (this._reassignedFusionSdkTurnIds.has(sdkTurnId)) {
+				this._logService.trace(`[Copilot:${this.sessionId}] Ignoring Fusion event with ambiguous SDK turn ownership: ${event.type}`);
+				return;
+			}
+			ownerTurnId = this._hostTurnIdsBySdkTurnId.get(sdkTurnId);
+		}
+		// Routing has no SDK turn ID: only a start observed after the root boundary may claim a new attempt.
+		if (ownerTurnId === undefined && event.type === 'session.fusion_route_started' && this._hasFusionRootTurnBoundary) {
+			ownerTurnId = turn.id;
+		}
+		if (ownerTurnId === undefined && this._requiresFusionEventOwnership) {
+			if (sdkTurnId || this._pendingFusionEvents.some(pending => getFusionEventKey(pending) === key)) {
+				this._bufferFusionEvent(event);
+			} else {
+				this._logService.trace(`[Copilot:${this.sessionId}] Ignoring Fusion event without request ownership after cancellation: ${event.type}`);
+			}
+			return;
+		}
+		this._fusionEventTurnIds.set(key, ownerTurnId ?? turn.id);
+		if (ownerTurnId !== undefined && ownerTurnId !== turn.id) {
+			this._logService.trace(`[Copilot:${this.sessionId}] Ignoring Fusion event for an earlier turn: ${event.type}`);
+			return;
+		}
+		if (this._shouldDropLateRootTurnEvent(event.type, true)) {
+			return;
+		}
+		const update = this._fusionProgress.accept(event);
+		if (update) {
+			this._emitFusionProgress(update);
+		}
+	}
+
 	private _subscribeToSdkEvents(): void {
 		const wrapper = this._wrapper;
 		const sessionId = this.sessionId;
 
-		this._register(wrapper.onFusionEvent(event => {
-			const turn = this._currentTurn.value;
-			if (!turn || event.agentId || this._shouldDropLateRootTurnEvent(event.type, true)) {
-				return;
-			}
-			const key = getFusionEventKey(event);
-			const sdkTurnId = getFusionEventSdkTurnId(event);
-			const ownerTurnId = this._fusionEventTurnIds.get(key) ?? (sdkTurnId ? this._hostTurnIdsBySdkTurnId.get(sdkTurnId) : undefined);
-			if (ownerTurnId === undefined && this._requiresFusionEventOwnership) {
-				this._logService.trace(`[Copilot:${sessionId}] Ignoring Fusion event without request ownership after cancellation: ${event.type}`);
-				return;
-			}
-			this._fusionEventTurnIds.set(key, ownerTurnId ?? turn.id);
-			if (ownerTurnId !== undefined && ownerTurnId !== turn.id) {
-				this._logService.trace(`[Copilot:${sessionId}] Ignoring Fusion event for an earlier turn: ${event.type}`);
-				return;
-			}
-			const update = this._fusionProgress.accept(event);
-			if (!update) {
-				return;
-			}
-			this._emitFusionProgress(update);
-		}));
+		this._register(wrapper.onFusionEvent(event => this._acceptFusionEvent(event)));
 
 		this._register(wrapper.onUnhandledEvent(e => {
 			// Fusion handoffs/internal events can contain model-visible prompts,
@@ -7015,7 +7092,8 @@ export class CopilotAgentSession extends Disposable {
 			if (!e.agentId) {
 				this._activeRootSdkTurnId = e.data.turnId;
 				if (this._currentTurn.value) {
-					this._hostTurnIdsBySdkTurnId.set(e.data.turnId, this._currentTurn.value.id);
+					this._hasFusionRootTurnBoundary = true;
+					this._recordHostSdkTurn(e.data.turnId, this._currentTurn.value.id);
 					if (e.data.interactionId) {
 						this._hostTurnIdsByInteractionId.set(e.data.interactionId, this._currentTurn.value.id);
 					}
@@ -7063,7 +7141,7 @@ export class CopilotAgentSession extends Disposable {
 		this._register(wrapper.onAbort(e => {
 			this._logService.trace(`[Copilot:${sessionId}] Aborted: ${e.data.reason}`);
 			if (!e.agentId) {
-				this._requiresFusionEventOwnership = true;
+				this._cancelFusionEvents();
 				const update = this._fusionProgress.interrupt(e.timestamp);
 				this._clearActivity();
 				if (update) {
