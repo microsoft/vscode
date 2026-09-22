@@ -19,6 +19,7 @@ import { ICommandService } from '../../../../platform/commands/common/commands.j
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
+import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { fromNowByDay } from '../../../../base/common/date.js';
 import { isAgentHostProvider } from '../../../common/agentHostSessionsProvider.js';
@@ -66,6 +67,7 @@ export class InboxNotificationsView extends AbstractCustomView {
 		@ICommandService private readonly commandService: ICommandService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
+		@IOpenerService private readonly openerService: IOpenerService,
 	) {
 		super();
 		this.description = this.inboxNotificationsService.notifications.map(items => {
@@ -209,7 +211,18 @@ export class InboxNotificationsView extends AbstractCustomView {
 				const pullRequestStateElement = pullRequestStates.appendChild($('.inbox-notifications-item-pr-state'));
 				const icon = pullRequestStateElement.appendChild(renderIcon(pullRequestState.icon));
 				icon.setAttribute('aria-hidden', 'true');
-				pullRequestStateElement.appendChild($('span.inbox-notifications-item-pr-state-label', undefined, pullRequestState.label));
+				const pullRequestUri = pullRequestState.pullRequestUri;
+				if (pullRequestUri) {
+					const pullRequestLink = pullRequestStateElement.appendChild($('a.inbox-notifications-item-pr-state-link', {
+						href: pullRequestUri.toString(),
+					}, pullRequestState.label));
+					this.renderedListDisposables.add(addDisposableListener(pullRequestLink, EventType.CLICK, event => {
+						event.preventDefault();
+						void this.openerService.open(pullRequestUri).catch(onUnexpectedError);
+					}));
+				} else {
+					pullRequestStateElement.appendChild($('span.inbox-notifications-item-pr-state-label', undefined, pullRequestState.label));
+				}
 			}
 		}
 

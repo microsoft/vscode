@@ -168,6 +168,17 @@
 	font-size: var(--vscode-fontSize-label2);
 }
 
+.inbox-notifications-item-pr-state-link {
+	font-size: var(--vscode-fontSize-label2);
+	color: inherit;
+	text-decoration: none;
+}
+
+.inbox-notifications-item-pr-state-link:hover,
+.inbox-notifications-item-pr-state-link:focus-visible {
+	text-decoration: underline;
+}
+
 .inbox-notifications-item-actions {
 	display: flex;
 	flex-wrap: wrap;

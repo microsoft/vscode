@@ -26,7 +26,7 @@ class InboxNotificationsAccessibilityHelp implements IAccessibleViewImplementati
 		const content = [
 			localize('inboxNotifications.help.overview', "You are in the Inbox view. It lists prioritized notifications that need attention."),
 			localize('inboxNotifications.help.repository', "Cards include repository badges when a notification is associated with a repository."),
-			localize('inboxNotifications.help.pullRequestStates', "Pull request notifications show state chips with pull request icons so you can quickly scan checks, comments, and merge readiness."),
+			localize('inboxNotifications.help.pullRequestStates', "Pull request notifications show state chips with pull request icons so you can quickly scan checks, comments, and merge readiness. Activate a pull request chip to open that pull request."),
 			localize('inboxNotifications.help.navigation', "Use Up Arrow and Down Arrow to move focus between notification cards. Tab moves through actions for the focused notification."),
 			localize('inboxNotifications.help.sorting', "Use the Priority and Recent buttons to switch sorting order. Priority is the default."),
 			localize('inboxNotifications.help.actions', "Cards show inline question or confirmation details when input is needed. Use Open Session to answer or review context. CI and review notifications may include actions such as Fix CI Failures, Address Reviews, and Merge Pull Request. Use Done to clear a notification."),

@@ -267,12 +267,12 @@ suite('InboxNotificationsService', () => {
 		assert.deepStrictEqual(fixture.service.notifications.get().map(item => ({
 			kind: item.kind,
 			repositoryLabel: item.repositoryLabel,
-			pullRequestStates: item.pullRequestStates?.map(state => ({ label: state.label, statusLabel: state.statusLabel, iconId: state.icon.id })),
+			pullRequestStates: item.pullRequestStates?.map(state => ({ label: state.label, statusLabel: state.statusLabel, iconId: state.icon.id, pullRequestUri: state.pullRequestUri?.toString() })),
 			actions: item.actions.map(action => action.kind),
 		})), [{
 			kind: InboxNotificationKind.FailingCI,
 			repositoryLabel: 'owner/repo',
-			pullRequestStates: [{ label: '#42', statusLabel: 'Checks failed', iconId: Codicon.gitPullRequestError.id }],
+			pullRequestStates: [{ label: '#42', statusLabel: 'Checks failed', iconId: Codicon.gitPullRequestError.id, pullRequestUri: 'https://github.com/owner/repo/pull/42' }],
 			actions: [InboxNotificationActionKind.OpenSession, InboxNotificationActionKind.AgentMergeFixCI, InboxNotificationActionKind.MarkDone],
 		}]);
 

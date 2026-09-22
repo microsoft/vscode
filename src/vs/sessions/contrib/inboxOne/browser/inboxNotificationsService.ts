@@ -578,6 +578,7 @@ function toPullRequestStates(candidates: readonly IPullRequestNotificationCandid
 			return {
 				repositoryLabel,
 				label: singleRepository ? `#${candidate.ref.number}` : `${repositoryLabel}#${candidate.ref.number}`,
+				pullRequestUri: candidate.ref.uri,
 				icon: candidate.icon,
 				statusLabel: candidate.statusLabel,
 			};

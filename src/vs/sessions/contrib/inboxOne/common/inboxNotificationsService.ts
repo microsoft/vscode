@@ -55,6 +55,7 @@ export interface IInboxNotificationAction {
 export interface IInboxNotificationPullRequestState {
 	readonly label: string;
 	readonly repositoryLabel: string;
+	readonly pullRequestUri?: URI;
 	readonly icon: ThemeIcon;
 	readonly statusLabel: string;
 }
