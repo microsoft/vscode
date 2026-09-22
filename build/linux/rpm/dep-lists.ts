@@ -256,8 +256,6 @@ export const referenceGeneratedDepsByArch = {
 		'libc.so.6(GLIBC_2.25)(64bit)',
 		'libc.so.6(GLIBC_2.27)(64bit)',
 		'libc.so.6(GLIBC_2.28)(64bit)',
-		'libc.so.6(GLIBC_2.32)(64bit)',
-		'libc.so.6(GLIBC_2.34)(64bit)',
 		'libcairo.so.2()(64bit)',
 		'libcups.so.2()(64bit)',
 		'libcurl.so.4()(64bit)',
@@ -266,7 +264,6 @@ export const referenceGeneratedDepsByArch = {
 		'libdl.so.2()(64bit)',
 		'libdl.so.2(GLIBC_2.17)(64bit)',
 		'libexpat.so.1()(64bit)',
-		'libfoundry_local.so()(64bit)',
 		'libgbm.so.1()(64bit)',
 		'libgcc_s.so.1()(64bit)',
 		'libgcc_s.so.1(GCC_3.0)(64bit)',
@@ -318,7 +315,6 @@ export const referenceGeneratedDepsByArch = {
 		'libstdc++.so.6(GLIBCXX_3.4.21)(64bit)',
 		'libstdc++.so.6(GLIBCXX_3.4.22)(64bit)',
 		'libstdc++.so.6(GLIBCXX_3.4.26)(64bit)',
-		'libstdc++.so.6(GLIBCXX_3.4.31)(64bit)',
 		'libstdc++.so.6(GLIBCXX_3.4.5)(64bit)',
 		'libstdc++.so.6(GLIBCXX_3.4.9)(64bit)',
 		'libudev.so.1()(64bit)',
@@ -330,6 +326,7 @@ export const referenceGeneratedDepsByArch = {
 		'libxkbcommon.so.0(V_0.5.0)(64bit)',
 		'libxkbfile.so.1()(64bit)',
 		'rpmlib(FileDigests) <= 4.6.0-1',
-		'rtld(GNU_HASH)'
+		'rtld(GNU_HASH)',
+		'xdg-utils'
 	]
 };
