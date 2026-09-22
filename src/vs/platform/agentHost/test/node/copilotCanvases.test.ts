@@ -4,21 +4,28 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { realpath } from 'fs/promises';
+import { mkdir, mkdtemp, realpath, rm, symlink, writeFile } from 'fs/promises';
+import { tmpdir } from 'os';
 import type { CopilotClient, CopilotSession, ExtensionLaunchProviderResolveRequest, SessionEvent, SessionEventPayload, SessionEventType } from '@github/copilot-sdk';
 import { DeferredPromise, raceCancellationError, timeout } from '../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { isCancellationError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import type { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { join } from '../../../../base/common/path.js';
+import { basename, dirname } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { NullLogService } from '../../../log/common/log.js';
 import type { IAgentCanvasOperation } from '../../common/agentHostCanvases.js';
+import { AgentHostWorkspaceTrustConfigKey, type IAgentHostWorkspaceTrust } from '../../common/agentHostSchema.js';
 import { isCanvasSessionRetained } from '../../common/meta/agentCanvasSessionMeta.js';
 import { CanvasAvailabilityStatus, CanvasTrustStatus, type CanvasState } from '../../common/state/protocol/channels-canvas/state.js';
 import type { OpenCanvasParams } from '../../common/state/protocol/channels-canvas/commands.js';
 import type { IAgentHostCanvasesService } from '../../node/agentHostCanvasesService.js';
+import { AgentConfigurationService } from '../../node/agentConfigurationService.js';
+import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { CopilotCanvases, type ICopilotCanvasHost } from '../../node/copilot/copilotCanvases.js';
 import { CopilotSessionEventBuffer, CopilotSessionWrapper } from '../../node/copilot/copilotSessionWrapper.js';
 import { unavailableCanvases } from '../common/agentHostCanvasesTestUtils.js';
@@ -31,6 +38,8 @@ type NativeInstance = Awaited<ReturnType<CopilotSession['rpc']['canvas']['listOp
 const nativeIdentity = { extensionId: 'project:counter', canvasId: 'counter', instanceId: 'main' };
 const endpoint = 'http://127.0.0.1:8123/app?transient=not-persisted';
 const openParams: OpenCanvasParams = { channel: canvasSession, canvas: 'ahp-canvas:/native', identity: canvasIdentity, title: 'Counter', requestId: 'open' };
+const testModule = URI.parse(import.meta.url);
+const testWorkspace = dirname(testModule);
 
 function nativeEvent<K extends SessionEventType>(type: K, data: SessionEventPayload<K>['data']): SessionEventPayload<K> {
 	// The public SDK event union is discriminated by the supplied type.
@@ -54,6 +63,8 @@ function createFixture(store: Pick<DisposableStore, 'add'>, canvases?: IAgentHos
 	let busy = false;
 	let onPrepare = async () => { };
 	let onRecover = async () => { };
+	let workingDirectory: URI | undefined = testWorkspace;
+	const configuration = store.add(new AgentConfigurationService(store.add(new AgentHostStateManager(new NullLogService())), new NullLogService()));
 	const events = store.add(new Emitter<SessionEvent>());
 	let catalog: NativeCanvas[] = [{ ...nativeIdentity, displayName: 'Counter', description: 'Counter', actions: [{ name: 'increment' }] }];
 	let instances: NativeInstance[] = [{ ...nativeIdentity, title: 'Counter', url: endpoint }];
@@ -115,16 +126,16 @@ function createFixture(store: Pick<DisposableStore, 'add'>, canvases?: IAgentHos
 			return raceCancellationError(approve(), token);
 		},
 		appendAttachments: (chat, values) => attachments.push({ chat, count: values.length }),
-	}));
+	}, configuration));
 	const operation: IAgentCanvasOperation = { token: CancellationToken.None, willExecute: () => calls.push('effect'), clientId: 'origin-client' };
 	const request: ExtensionLaunchProviderResolveRequest = {
-		source: 'project', id: 'project:counter', name: 'counter', modulePath: URI.parse(import.meta.url).fsPath,
+		source: 'project', id: 'project:counter', name: 'counter', modulePath: testModule.fsPath,
 		sessionId: session.sessionId, defaultLaunch: { executable: process.execPath, args: ['unchanged-bootstrap'], env: { ORIGINAL: 'preserved' } },
 	};
 	const wrapper = store.add(new CopilotSessionWrapper(session));
 	const start = () => { adapter.clientStarting(client); adapter.clientStarted(client); };
 	const bind = (startup: 'complete' | 'pending' = 'complete') => {
-		const launch = store.add(adapter.beginLaunch(session.sessionId, canvasChat));
+		const launch = store.add(adapter.beginLaunch(session.sessionId, canvasChat, workingDirectory));
 		if (startup === 'complete') {
 			launch.onEvent(nativeEvent('session.extensions_loaded', { extensions: [{ id: request.id, name: request.name, source: request.source, status: 'running' }] }));
 		}
@@ -138,6 +149,8 @@ function createFixture(store: Pick<DisposableStore, 'add'>, canvases?: IAgentHos
 	};
 	return {
 		adapter, client, session, events, wrapper, operation, request, calls, approvals, attachments, openInputs, start, bind, admit, state,
+		setWorkingDirectory: (value: URI | undefined) => { workingDirectory = value; },
+		setWorkspaceTrust: (value: IAgentHostWorkspaceTrust | undefined) => configuration.publishRootTransientValues({ [AgentHostWorkspaceTrustConfigKey]: value }),
 		setApproval: (value: () => Promise<boolean>) => { approve = value; },
 		setRetainGate: (value: Promise<void>) => { retainGate = value; },
 		setRetainResponse: (value: string) => { retainResponse = value; },
@@ -181,6 +194,178 @@ suite('Copilot canvases', () => {
 		await retained.complete();
 		assert.strictEqual((await result).launch, f.request.defaultLaunch);
 		assert.match(f.approvals[0].message, /mutable-directory trust.*unsandboxed.*separate from Workspace Trust/);
+	});
+
+	test('trusted workspace sources skip the extra prompt but still retain before launch', async () => {
+		const f = createFixture(store);
+		f.setWorkspaceTrust({ enabled: true, trustedUris: [testWorkspace.toString(), URI.file(await realpath(testWorkspace.fsPath)).toString()] });
+		f.setApproval(async () => false);
+		f.start();
+		f.bind();
+		const retained = new DeferredPromise<void>();
+		f.setRetainGate(retained.p);
+		let settled = false;
+		const pending = f.admit().then(result => { settled = true; return result; });
+		while (!f.calls.length) {
+			await timeout(0);
+		}
+		const beforeRetention = { settled, approvals: [...f.approvals], calls: [...f.calls] };
+		await retained.complete();
+		assert.deepStrictEqual({
+			beforeRetention,
+			result: await pending,
+			trust: f.adapter.getTrust(canvasChat, canvasIdentity.source),
+		}, {
+			beforeRetention: { settled: false, approvals: [], calls: ['retain:native-session'] },
+			result: { launch: f.request.defaultLaunch },
+			trust: { status: CanvasTrustStatus.Trusted },
+		});
+	});
+
+	for (const { name, workingDirectory, trust } of [
+		{ name: 'missing trust', workingDirectory: testWorkspace, trust: undefined },
+		{ name: 'untrusted workspace', workingDirectory: testWorkspace, trust: { enabled: true, trustedUris: [] } },
+		{ name: 'another trusted workspace', workingDirectory: testWorkspace, trust: { enabled: true, trustedUris: [URI.file('/other-workspace').toString()] } },
+		{ name: 'only the source is trusted', workingDirectory: testWorkspace, trust: { enabled: true, trustedUris: [testModule.toString()] } },
+		{ name: 'only the working directory is trusted', workingDirectory: URI.file('/other-workspace'), trust: { enabled: true, trustedUris: [URI.file('/other-workspace').toString()] } },
+		{ name: 'no working directory', workingDirectory: undefined, trust: { enabled: false, trustedUris: [] } },
+	]) {
+		test(`${name} retains explicit source approval`, async () => {
+			const f = createFixture(store);
+			f.setWorkspaceTrust(trust);
+			f.setWorkingDirectory(workingDirectory);
+			f.setApproval(async () => false);
+			f.start();
+			f.bind();
+			assert.deepStrictEqual({
+				result: await f.admit(), approvals: f.approvals.map(approval => approval.chat), calls: f.calls,
+			}, { result: { launch: null }, approvals: [canvasChat], calls: [] });
+		});
+	}
+
+	for (const [source, id] of [
+		['user', 'user:counter'],
+		['plugin', 'plugin:example:counter'],
+		['session', 'session:example:counter'],
+	] as const) {
+		test(`${source} sources retain their own approval in a trusted workspace`, async () => {
+			const f = createFixture(store);
+			f.setWorkspaceTrust({ enabled: false, trustedUris: [] });
+			f.request.source = source;
+			f.request.id = id;
+			f.setApproval(async () => false);
+			f.start();
+			f.bind();
+			assert.deepStrictEqual({
+				result: await f.admit(), approvals: f.approvals.map(approval => approval.chat), calls: f.calls,
+			}, { result: { launch: null }, approvals: [canvasChat], calls: [] });
+		});
+	}
+
+	test('disabling Workspace Trust also authorizes project sources without a second prompt', async () => {
+		const f = createFixture(store);
+		f.setWorkspaceTrust({ enabled: false, trustedUris: [] });
+		f.setApproval(async () => false);
+		f.start();
+		f.bind();
+		assert.deepStrictEqual({
+			result: await f.admit(), approvals: f.approvals, calls: f.calls,
+		}, { result: { launch: f.request.defaultLaunch }, approvals: [], calls: ['retain:native-session'] });
+	});
+
+	test('workspace trust revoked while retention waits cannot authorize a late launch', async () => {
+		const f = createFixture(store);
+		f.setWorkspaceTrust({ enabled: false, trustedUris: [] });
+		f.start();
+		f.bind();
+		const retained = new DeferredPromise<void>();
+		f.setRetainGate(retained.p);
+		const pending = f.admit();
+		while (!f.calls.length) {
+			await timeout(0);
+		}
+		f.setWorkspaceTrust({ enabled: true, trustedUris: [] });
+		await retained.complete();
+		assert.deepStrictEqual({
+			result: await pending, approvals: f.approvals, trust: f.adapter.getTrust(canvasChat, canvasIdentity.source),
+		}, { result: { launch: null }, approvals: [], trust: { status: CanvasTrustStatus.Pending } });
+	});
+
+	test('trusted workspace sources still reject invalid retention acknowledgements', async () => {
+		const f = createFixture(store);
+		f.setWorkspaceTrust({ enabled: false, trustedUris: [] });
+		f.setRetainResponse('true');
+		f.start();
+		f.bind();
+		assert.deepStrictEqual({
+			result: await f.admit(), approvals: f.approvals, trust: f.adapter.getTrust(canvasChat, canvasIdentity.source),
+		}, { result: { launch: null }, approvals: [], trust: { status: CanvasTrustStatus.Pending } });
+	});
+
+	test('a cancelled trusted-workspace launch cannot start retention', async () => {
+		const f = createFixture(store);
+		f.setWorkspaceTrust({ enabled: false, trustedUris: [] });
+		f.start();
+		f.bind();
+		assert.deepStrictEqual({
+			result: await f.adapter.launchProvider.resolve(f.request, CancellationToken.Cancelled), approvals: f.approvals, calls: f.calls,
+		}, { result: { launch: null }, approvals: [], calls: [] });
+	});
+
+	test('a project source symlink outside trusted folders still requires approval', async () => {
+		const directory = await mkdtemp(join(tmpdir(), 'vscode-canvas-trust-'));
+		try {
+			const f = createFixture(store);
+			const workspace = URI.file(await realpath(directory));
+			const linked = join(workspace.fsPath, 'linked');
+			await symlink(testWorkspace.fsPath, linked, 'junction');
+			f.request.modulePath = join(linked, basename(testModule));
+			f.setWorkingDirectory(workspace);
+			f.setWorkspaceTrust({ enabled: true, trustedUris: [workspace.toString()] });
+			f.setApproval(async () => false);
+			f.start();
+			f.bind();
+			assert.deepStrictEqual({
+				result: await f.admit(), approvals: f.approvals.map(approval => approval.chat), calls: f.calls,
+			}, { result: { launch: null }, approvals: [canvasChat], calls: [] });
+		} finally {
+			await rm(directory, { recursive: true, force: true });
+		}
+	});
+
+	test('changing the source symlink during retention cannot launch a different entrypoint', async () => {
+		const directory = await mkdtemp(join(tmpdir(), 'vscode-canvas-source-'));
+		try {
+			const workspace = URI.file(await realpath(directory));
+			const first = join(workspace.fsPath, 'first');
+			const second = join(workspace.fsPath, 'second');
+			const linked = join(workspace.fsPath, 'linked');
+			await Promise.all([first, second].map(async path => {
+				await mkdir(path);
+				await writeFile(join(path, 'extension.mjs'), '');
+			}));
+			await symlink(first, linked, 'junction');
+			const f = createFixture(store);
+			f.request.modulePath = join(linked, 'extension.mjs');
+			f.setWorkingDirectory(workspace);
+			f.setWorkspaceTrust({ enabled: true, trustedUris: [workspace.toString()] });
+			f.start();
+			f.bind();
+			const retained = new DeferredPromise<void>();
+			f.setRetainGate(retained.p);
+			const pending = f.admit();
+			while (!f.calls.length) {
+				await timeout(0);
+			}
+			await rm(linked, { recursive: true, force: true });
+			await symlink(second, linked, 'junction');
+			await retained.complete();
+			assert.deepStrictEqual({
+				result: await pending, approvals: f.approvals, trust: f.adapter.getTrust(canvasChat, canvasIdentity.source),
+			}, { result: { launch: null }, approvals: [], trust: { status: CanvasTrustStatus.Pending } });
+		} finally {
+			await rm(directory, { recursive: true, force: true });
+		}
 	});
 
 	test('initialization is not ready before the complete registry returns and never reloads a ready backing', async () => {
@@ -457,6 +642,19 @@ suite('Copilot canvases', () => {
 		assert.match(f.approvals[1].message, /project:counter.*PROJECT_TOKEN.*Values are never included/);
 	});
 
+	test('Workspace Trust does not approve access to sensitive environment variables', async () => {
+		const f = createFixture(store);
+		f.setWorkspaceTrust({ enabled: false, trustedUris: [] });
+		f.setApproval(async () => false);
+		f.start();
+		const launch = f.bind();
+		const admitted = await f.admit();
+		const permission = await launch.permission({ kind: 'extension-env-access', extensionName: 'project:counter', environmentVariables: ['PROJECT_TOKEN'] });
+		assert.deepStrictEqual({
+			admitted, permission, approvals: f.approvals.map(approval => approval.chat),
+		}, { admitted: { launch: f.request.defaultLaunch }, permission: { kind: 'reject' }, approvals: [canvasChat] });
+	});
+
 	test('native opens are observations, expose live actions and never trigger a second open', async () => {
 		const f = createFixture(store);
 		f.start();
@@ -617,6 +815,7 @@ suite('Copilot canvases', () => {
 
 	test('lost launch authority requires an explicit owned-runtime restart and never replays an action', async () => {
 		const f = createFixture(store);
+		f.setWorkspaceTrust({ enabled: false, trustedUris: [] });
 		f.start();
 		const launch = f.bind();
 		await f.admit();

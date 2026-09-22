@@ -25,6 +25,7 @@ import { ILogService } from '../../../log/common/log.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { ITelemetryService } from '../../../telemetry/common/telemetry.js';
 import { createSchema, platformRootSchema, platformSessionSchema, schemaProperty, AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostCodexMultiRootEnabledConfigKey, AgentHostGitHubMcpServerEnabledConfigKey, AgentHostMcpServersConfigKey, AgentHostWorkspaceTrustConfigKey, type ISchemaProperty, type SessionMode } from '../../common/agentHostSchema.js';
+import { isAgentHostWorkspaceTrusted } from '../../common/agentHostWorkspaceTrust.js';
 import { createPricingMetaFromBilling, normalizeCAPIBilling, type ICAPIModelBilling } from '../../common/agentModelPricing.js';
 import { ContextSizeConfigKey, createContextSizeConfigSchemaProperty, createContextSizeConfigSchemaPropertyFromLimits, getModelContextSize } from '../../common/agentModelConfiguration.js';
 import { CHATGPT_SUBSCRIPTION_MODEL_SOURCE_ID, createAgentModelGroupMeta, createAgentModelSourceMeta } from '../../common/agentModelSource.js';
@@ -7582,20 +7583,7 @@ export class CodexAgent extends Disposable implements IAgent {
 	}
 
 	private _isWorkspaceTrusted(resource: URI): boolean {
-		const trust = this._configurationService.getRootValue(platformRootSchema, AgentHostWorkspaceTrustConfigKey);
-		if (!trust) {
-			return false;
-		}
-		if (!trust.enabled) {
-			return true;
-		}
-		return trust.trustedUris.some(uri => {
-			try {
-				return extUriBiasedIgnorePathCase.isEqualOrParent(resource, URI.parse(uri));
-			} catch {
-				return false;
-			}
-		});
+		return isAgentHostWorkspaceTrusted(resource, this._configurationService.getRootValue(platformRootSchema, AgentHostWorkspaceTrustConfigKey));
 	}
 
 	/** Adds a non-empty hook trust map to the per-thread Codex config. */

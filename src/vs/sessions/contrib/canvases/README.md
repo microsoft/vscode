@@ -16,6 +16,10 @@ The desktop preview is opt-in through `sessions.experimental.canvases.enabled`, 
 
 Backend resource translation stays in the provider. Mutable catalog and full-state data are observable, not mirrored through a second UI event protocol. A connection replacement invalidates subscriptions and pending reads even if its local service object is reused.
 
+Copilot project extensions can start without an additional source-confirmation dialog when the host's synchronized Workspace Trust covers the actual session working directory, the discovered entrypoint and its resolved filesystem path. This uses the existing trust state, including its disabled setting, rather than the focused window or a model-supplied grant. Missing or insufficient trust information, sources outside trusted locations, and user/plugin/session extensions retain explicit source approval. Runtime enablement and policy remain authoritative; credential and recovery approvals are independent.
+
+Automatically authorized launches recheck trust and the entrypoint after session retention and before returning the launch recipe. Revocation during that wait prevents the launch. This does not terminate already-running extension programs or replace their ordinary lifetime and cleanup.
+
 ## Logical editors and native leases
 
 `SessionCanvasInput` persists only a `vscode-session-canvas` reference containing the provider identifier, session resource, chat resource, and canvas resource. Its serializer never retains source URLs, credentials, native view identifiers, executable input, or effect requests. Restoration resolves that reference and reads a **fresh** source; it does not open a provider or replay an action.

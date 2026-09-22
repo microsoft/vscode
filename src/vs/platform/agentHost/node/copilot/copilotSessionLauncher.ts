@@ -634,7 +634,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 	) { }
 
 	async launch(plan: CopilotSessionLaunchPlan, runtime: ICopilotSessionRuntime): Promise<CopilotSessionWrapper> {
-		const canvas = plan.isEphemeral ? undefined : this._canvases?.beginLaunch(plan.sessionId, runtime.chatUri.toString());
+		const canvas = plan.isEphemeral ? undefined : this._canvases?.beginLaunch(plan.sessionId, runtime.chatUri.toString(), plan.workingDirectory);
 		let wrapper: CopilotSessionWrapper | undefined;
 		const cancellation = canvas?.token.onCancellationRequested(() => wrapper?.dispose());
 		try {

@@ -19,10 +19,13 @@ import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
 import type { IAgentCanvasApprovalClient, IAgentCanvasInstance, IAgentCanvasOperation, IAgentCanvasSnapshot, IAgentCanvases } from '../../common/agentHostCanvases.js';
 import { canvasIdentityKey, invalidCanvasParams, isBoundedCanvasJson, isCanvasIcon, isCanvasIdentity, isInlineCanvasSchema, validateCanvasActions, validateCanvasType } from '../../common/agentHostCanvasValidation.js';
+import { AgentHostWorkspaceTrustConfigKey, platformRootSchema } from '../../common/agentHostSchema.js';
+import { isAgentHostWorkspaceTrusted } from '../../common/agentHostWorkspaceTrust.js';
 import type { InvokeCanvasActionParams, OpenCanvasParams } from '../../common/state/protocol/channels-canvas/commands.js';
 import { CanvasAvailabilityStatus, CanvasSourceKind, CanvasTrustStatus, type CanvasActionDeclaration, type CanvasIdentityKey, type CanvasSource, type CanvasSourcePresentation, type CanvasState, type CanvasTrustState, type CanvasTypeDeclaration } from '../../common/state/protocol/channels-canvas/state.js';
 import { AhpErrorCodes, ProtocolError } from '../../common/state/sessionProtocol.js';
 import { IAgentHostCanvasesService } from '../agentHostCanvasesService.js';
+import { IAgentConfigurationService } from '../agentConfigurationService.js';
 import { validateCanvasInput } from '../agentHostCanvasSchema.js';
 import type { CopilotSessionWrapper } from './copilotSessionWrapper.js';
 import { sdkAttachmentsToProtocol } from './mapSessionEvents.js';
@@ -49,6 +52,7 @@ export interface ICopilotCanvasLaunch extends IDisposable {
 interface ICanvasBacking {
 	readonly chat: string;
 	readonly sessionId: string;
+	readonly workingDirectory: URI | undefined;
 	clientId?: string;
 	initiator?: IAgentCanvasApprovalClient;
 	readonly store: DisposableStore;
@@ -113,6 +117,7 @@ export class CopilotCanvases extends Disposable implements IAgentCanvases {
 	constructor(
 		private readonly _host: ICopilotCanvasHost,
 		@IAgentHostCanvasesService private readonly _canvases: IAgentHostCanvasesService,
+		@IAgentConfigurationService private readonly _configurationService: IAgentConfigurationService,
 	) {
 		super();
 		this._register(toDisposable(() => this.clientStopped()));
@@ -143,7 +148,7 @@ export class CopilotCanvases extends Disposable implements IAgentCanvases {
 		resolve: async (request, cancellation) => {
 			const backing = request.sessionId ? this._sessions.get(request.sessionId) : undefined;
 			const client = this._client;
-			if (!backing || backing.lifetime.token.isCancellationRequested || !client || !this.available || !request.defaultLaunch || !isAbsolute(request.modulePath)
+			if (cancellation?.isCancellationRequested || !backing || backing.lifetime.token.isCancellationRequested || !client || !this.available || !request.defaultLaunch || !isAbsolute(request.modulePath)
 				|| !request.id.startsWith(`${request.source}:`) || request.id.length > 256 || !request.name || request.name.length > 256
 				|| backing.pendingLaunches.has(request.id) || backing.pendingLaunches.size >= 128
 				|| !backing.sources.has(request.id) && backing.sources.size >= 1024
@@ -162,8 +167,16 @@ export class CopilotCanvases extends Disposable implements IAgentCanvases {
 			}
 			try {
 				const canonicalPath = await realpath(request.modulePath);
-				const approved = await this._canvases.requestApproval(backing.chat, this._sourcePrompt(request, canonicalPath), lifetime.token, backing.clientId, backing.initiator);
-				if (!approved || this._client !== client || !this.available || backing.store.isDisposed || await realpath(request.modulePath) !== canonicalPath) {
+				const approvedByWorkspaceTrust = this._isWorkspaceSourceTrusted(backing, request, canonicalPath);
+				if (!approvedByWorkspaceTrust) {
+					const approved = await this._canvases.requestApproval(backing.chat, this._sourcePrompt(request, canonicalPath), lifetime.token, backing.clientId, backing.initiator);
+					if (!approved) {
+						return { launch: null };
+					}
+				}
+				const approvedPath = await realpath(request.modulePath);
+				if (lifetime.token.isCancellationRequested || this._client !== client || !this.available || backing.store.isDisposed || approvedPath !== canonicalPath
+					|| approvedByWorkspaceTrust && !this._isWorkspaceSourceTrusted(backing, request, canonicalPath)) {
 					return { launch: null };
 				}
 				// Top-level extension code is effectful. Retention must precede the launch recipe.
@@ -172,7 +185,9 @@ export class CopilotCanvases extends Disposable implements IAgentCanvases {
 					return { launch: null };
 				}
 				await this._canvases.retainChat(backing.chat, lifetime.token);
-				if (lifetime.token.isCancellationRequested || backing.store.isDisposed || this._client !== client || !this.available) {
+				const currentPath = await realpath(request.modulePath);
+				if (lifetime.token.isCancellationRequested || backing.store.isDisposed || this._client !== client || !this.available || currentPath !== canonicalPath
+					|| approvedByWorkspaceTrust && !this._isWorkspaceSourceTrusted(backing, request, canonicalPath)) {
 					return { launch: null };
 				}
 				backing.sources.set(request.id, { modulePath: request.modulePath, canonicalPath });
@@ -183,6 +198,16 @@ export class CopilotCanvases extends Disposable implements IAgentCanvases {
 			}
 		},
 	};
+
+	private _isWorkspaceSourceTrusted(backing: ICanvasBacking, request: ExtensionLaunchProviderResolveRequest, canonicalPath: string): boolean {
+		if (request.source !== 'project' || backing.workingDirectory === undefined || backing.workingDirectory.scheme !== Schemas.file) {
+			return false;
+		}
+		const trust = this._configurationService.getRootValue(platformRootSchema, AgentHostWorkspaceTrustConfigKey);
+		return isAgentHostWorkspaceTrusted(backing.workingDirectory, trust)
+			&& isAgentHostWorkspaceTrusted(URI.file(request.modulePath), trust)
+			&& isAgentHostWorkspaceTrusted(URI.file(canonicalPath), trust);
+	}
 
 	clientStarting(client: CopilotClient): void {
 		if (this.authorityLost) {
@@ -221,7 +246,7 @@ export class CopilotCanvases extends Disposable implements IAgentCanvases {
 		this.clientStopped();
 	}
 
-	beginLaunch(sessionId: string, chat: string): ICopilotCanvasLaunch {
+	beginLaunch(sessionId: string, chat: string, workingDirectory: URI | undefined): ICopilotCanvasLaunch {
 		const operation = this._preparing.get(chat) ?? this._canvases.getChatInitialization(chat);
 		if (!this.available || this._sessions.has(sessionId) || this._backings.has(chat) || operation?.token.isCancellationRequested) {
 			throw new ProtocolError(AhpErrorCodes.Conflict, 'The canvas backing is unavailable or already owned.');
@@ -231,7 +256,7 @@ export class CopilotCanvases extends Disposable implements IAgentCanvases {
 		store.add(toDisposable(() => lifetime.dispose(true)));
 		const generation = generateUuid();
 		const backing: ICanvasBacking = {
-			chat, sessionId, clientId: operation?.clientId, initiator: operation?.initiator, store, lifetime, generation, sources: new Map(), pendingLaunches: new Set(), schemas: new Map(), instances: new Map(), versions: new Map(), closed: new Map(), incarnations: new Map(),
+			chat, sessionId, workingDirectory, clientId: operation?.clientId, initiator: operation?.initiator, store, lifetime, generation, sources: new Map(), pendingLaunches: new Set(), schemas: new Map(), instances: new Map(), versions: new Map(), closed: new Map(), incarnations: new Map(),
 			extensionsLoaded: new Barrier(), ready: false, schemaLength: 0, declarations: [], pendingEvents: [], pendingEventsLength: 0, snapshot: { chat, generation, types: [], instances: [] },
 		};
 		// Let child cancellation listeners run before disposing their parent emitter.
@@ -422,7 +447,7 @@ export class CopilotCanvases extends Disposable implements IAgentCanvases {
 			return;
 		}
 		const backing = this._backing(state.identity.chat);
-		if (this._host.isBusy(backing.chat) || !await this._canvases.requestApproval(backing.chat, localize('canvas.reloadExtensions', "Reload all extensions in this chat? This replaces their live endpoints and prompts again before source execution. Retained workspace data is kept. No canvas action is replayed."), operation.token, operation.clientId, operation.initiator)) {
+		if (this._host.isBusy(backing.chat) || !await this._canvases.requestApproval(backing.chat, localize('canvas.reloadExtensions', "Reload all extensions in this chat? This replaces their live endpoints and rechecks source authorization before execution. Retained workspace data is kept. No canvas action is replayed."), operation.token, operation.clientId, operation.initiator)) {
 			throw new ProtocolError(AhpErrorCodes.PermissionDenied, 'Extension reload requires an idle chat and explicit approval.');
 		}
 		operation.willExecute();
