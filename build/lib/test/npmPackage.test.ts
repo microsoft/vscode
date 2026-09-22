@@ -59,6 +59,8 @@ suite('npmPackage', () => {
 						calls.push({ packageName: name, version: requestedVersion, stagedFiles: fs.readdirSync(tempDir) });
 						if (calls.length < 3) {
 							fs.writeFileSync(path.join(tempDir, 'partial.tgz'), 'incomplete');
+							fs.mkdirSync(path.join(tempDir, 'partial'));
+							fs.writeFileSync(path.join(tempDir, 'partial', 'package.json'), 'incomplete');
 							throw Object.assign(new Error('npm pack failed'), { status: 1, stderr: Buffer.from('npm error code ECONNRESET') });
 						}
 						return fixture.tarball;
@@ -74,6 +76,24 @@ suite('npmPackage', () => {
 					packageJson: { version },
 					stagingExists: false,
 				});
+			});
+
+			test('preserves private staging permissions when retrying', { skip: process.platform === 'win32' }, t => {
+				const fixture = createFixture(t, fromLockfile);
+				const permissions: number[] = [];
+
+				fixture.materialize({
+					retryDelay: 0,
+					packPackage: (_name, _version, tempDir) => {
+						permissions.push(fs.statSync(tempDir).mode & 0o777);
+						if (permissions.length === 1) {
+							throw Object.assign(new Error('npm pack failed'), { code: 'ECONNRESET' });
+						}
+						return fixture.tarball;
+					}
+				});
+
+				assert.deepStrictEqual(permissions, [0o700, 0o700]);
 			});
 
 			for (const { code, npmLogPrefix } of [

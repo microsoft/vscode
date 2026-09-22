@@ -108,8 +108,9 @@ function packNpmPackage(packageName: string, version: string, tempDir: string, o
 
 			const retryDelay = options.retryDelay ?? 1000;
 			console.warn(`[packNpmPackage] ${error.message}\nRetrying in ${retryDelay}ms...`);
-			fs.rmSync(tempDir, { recursive: true, force: true });
-			fs.mkdirSync(tempDir);
+			for (const entry of fs.readdirSync(tempDir)) {
+				fs.rmSync(path.join(tempDir, entry), { recursive: true, force: true });
+			}
 			Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, retryDelay);
 		}
 	}
