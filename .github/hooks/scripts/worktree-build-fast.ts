@@ -31,7 +31,16 @@ function fail(reason: string, stopHookActive: boolean): never {
 		process.exit(1);
 	}
 
-	process.stdout.write(`${JSON.stringify({ decision: 'block', reason })}\n`);
+	const hookSpecificOutput = {
+		hookEventName: 'Stop',
+		decision: 'block',
+		reason,
+	};
+	process.stdout.write(`${JSON.stringify({
+		decision: 'block',
+		reason,
+		hookSpecificOutput,
+	})}\n`);
 	process.exit(0);
 }
 
