@@ -7,6 +7,7 @@ import { toErrorMessage } from '../../../base/common/errorMessage.js';
 import { disposableTimeout } from '../../../base/common/async.js';
 import { Disposable, DisposableMap, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { equals } from '../../../base/common/objects.js';
+import { autorun, type IReader } from '../../../base/common/observable.js';
 import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { localize } from '../../../nls.js';
@@ -57,7 +58,7 @@ interface IStoredAutomations {
 
 /** Host-side session operations for executing an Automation's saved template. */
 export interface IAgentHostAutomationExecution {
-	isSessionTemplateAvailable(template: AutomationSessionTemplate): boolean;
+	isSessionTemplateAvailable(template: AutomationSessionTemplate, reader?: IReader): boolean;
 	createSession(template: AutomationSessionTemplate, run: AutomationRunState): Promise<URI>;
 	startSession(session: URI, message: Message): Promise<void>;
 	cancelSession(session: URI): Promise<boolean>;
@@ -92,6 +93,7 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 	private _runs = new Map<string, AutomationRunState>();
 	private _manualRunRequests = new Map<string, IStoredManualRunRequest>();
 	private _mutationTail: Promise<void> = Promise.resolve();
+	private readonly _executionAvailabilityWatcher = this._register(new MutableDisposable());
 	private readonly _scheduleTimer = this._register(new MutableDisposable());
 	private readonly _runTimeouts = this._register(new DisposableMap<string>());
 	private readonly _cancellations = new Map<string, { readonly outcome: 'cancelled' | 'timeout' }>();
@@ -174,10 +176,8 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 			}
 			if (this._isAutomationsEnabled()) {
 				this._recoverRuns();
-				this._scheduleNext();
-			} else {
-				this._scheduleTimer.clear();
 			}
+			this._scheduleNext();
 		});
 	}
 
@@ -185,7 +185,6 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 		if (!this._catalog || !this._isAutomationsEnabled()) {
 			return;
 		}
-		this._startPendingRuns();
 		this._scheduleNext();
 	}
 
@@ -439,33 +438,39 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 	}
 
 	private _scheduleNext(): void {
+		this._executionAvailabilityWatcher.clear();
 		this._scheduleTimer.clear();
 		if (!this._catalog || !this._isAutomationsEnabled()) {
 			return;
 		}
-		const timestamps = this._catalog.entries
-			.filter(automation => automation.definition.enabled
-				&& automation.operations.includes(AutomationOperation.Run)
-				&& automation.nextRunAt
-				&& !this._activeRunFor(automation.resource)
-				&& this._execution.isSessionTemplateAvailable(automation.definition.session))
-			.map(automation => Date.parse(automation.nextRunAt!))
-			.filter(timestamp => Number.isFinite(timestamp));
-		if (timestamps.length === 0) {
-			return;
-		}
-		const delay = Math.min(Math.max(0, Math.min(...timestamps) - Date.now()), 0x7fffffff);
-		this._scheduleTimer.value = disposableTimeout(() => {
-			void this._enqueueMutation(() => this._claimDueRuns()).then(claimed => {
-				this._scheduleNext();
-				for (const { run, definition } of claimed) {
-					void this._startRun(run, definition);
-				}
-			}, error => {
-				this._logService.error(`[AgentHostAutomationService] Failed to claim due Automation schedules: ${toErrorMessage(error)}`);
-				this._scheduleTimer.value = disposableTimeout(() => this._scheduleNext(), SCHEDULE_RETRY_DELAY_MS);
-			});
-		}, delay);
+		const catalog = this._catalog;
+		this._executionAvailabilityWatcher.value = autorun(reader => {
+			const available = catalog.entries.filter(automation => this._execution.isSessionTemplateAvailable(automation.definition.session, reader));
+			this._scheduleTimer.clear();
+			if (!this._isAutomationsEnabled()) {
+				return;
+			}
+			this._startPendingRuns(available);
+			const timestamps = available
+				.filter(automation => automation.definition.enabled
+					&& automation.operations.includes(AutomationOperation.Run)
+					&& automation.nextRunAt
+					&& !this._activeRunFor(automation.resource))
+				.map(automation => Date.parse(automation.nextRunAt!))
+				.filter(timestamp => Number.isFinite(timestamp));
+			if (timestamps.length === 0) {
+				return;
+			}
+			const delay = Math.min(Math.max(0, Math.min(...timestamps) - Date.now()), 0x7fffffff);
+			this._scheduleTimer.value = disposableTimeout(() => {
+				void this._enqueueMutation(() => this._claimDueRuns()).then(() => {
+					this._scheduleNext();
+				}, error => {
+					this._logService.error(`[AgentHostAutomationService] Failed to claim due Automation schedules: ${toErrorMessage(error)}`);
+					this._scheduleTimer.value = disposableTimeout(() => this._scheduleNext(), SCHEDULE_RETRY_DELAY_MS);
+				});
+			}, delay);
+		});
 	}
 
 	private async _claimDueRuns(): Promise<readonly { readonly run: AutomationRunState; readonly definition: AutomationDefinition }[]> {
@@ -568,18 +573,15 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 				});
 			}
 		}
-		this._startPendingRuns();
 	}
 
-	private _startPendingRuns(): void {
+	private _startPendingRuns(availableAutomations: readonly AutomationEntry[]): void {
 		for (const run of this._runs.values()) {
 			if (run.lifecycle.status !== AutomationRunStatus.Pending) {
 				continue;
 			}
-			const automation = this._catalog?.entries.find(candidate => candidate.resource === run.automation);
-			if (automation
-				&& automation.operations.includes(AutomationOperation.Run)
-				&& this._execution.isSessionTemplateAvailable(automation.definition.session)) {
+			const automation = availableAutomations.find(candidate => candidate.resource === run.automation);
+			if (automation?.operations.includes(AutomationOperation.Run)) {
 				void this._startRun(run, automation.definition);
 			}
 		}

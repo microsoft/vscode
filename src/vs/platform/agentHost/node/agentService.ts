@@ -692,7 +692,10 @@ export class AgentService extends Disposable implements IAgentService {
 		);
 		this._catalogListReader = new AgentHostCatalogListReader(this._orchestratorDatabase);
 		this._automationService = this._register(instantiationService.createInstance(AgentHostAutomationService, {
-			isSessionTemplateAvailable: template => this._providerService.resolveProvider(template.provider) !== undefined,
+			isSessionTemplateAvailable: (template, reader) => {
+				const provider = this._providerService.resolveProvider(template.provider);
+				return provider !== undefined && provider.isReadyForAutomation?.(template.model, reader) !== false;
+			},
 			createSession: (template, run) => this.createSession({
 				provider: template.provider,
 				model: template.model,

@@ -100,6 +100,8 @@ To use a different host, explicitly duplicate the definition there. The original
 
 `AgentHostAutomationService` is authoritative as soon as durable host storage is readable. Execution is gated by host feature enablement and current provider availability, not renderer startup or migration flags. Host configuration restores saved Automation enablement and timeout before authority initialization, without restoring client-owned approval grants.
 
+Providers may expose model-dependent readiness for unattended execution. While required credentials are missing, the host leaves due schedule cursors unchanged and resumes scheduling when readiness changes. Copilot's readiness covers initially missing credentials and preserves explicitly selected BYOK models when signed-out operation is supported; it does not persist credentials or bypass runtime authorization.
+
 The host owns:
 
 - durable manual request IDs and single-active-run admission;

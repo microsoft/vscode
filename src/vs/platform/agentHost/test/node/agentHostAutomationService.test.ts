@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { DeferredPromise, timeout } from '../../../../base/common/async.js';
 import { Event } from '../../../../base/common/event.js';
-import { constObservable } from '../../../../base/common/observable.js';
+import { constObservable, observableValue } from '../../../../base/common/observable.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
@@ -1200,6 +1200,86 @@ suite('AgentHostAutomationService', () => {
 			startTriggers: ['catch_up'],
 		});
 	});
+
+	for (const initiallyEnabled of [true, false]) {
+		test(`preserves catch-up work until authentication is ready with enablement ${initiallyEnabled}`, async () => {
+			const timestamp = new Date().toISOString();
+			const scheduledFor = new Date(Date.now() - 120_000).toISOString();
+			const resource = 'ahp-automation:/awaiting-auth';
+			storageService.set('automations', {
+				version: 1,
+				catalog: {
+					automations: [{
+						resource,
+						definition: {
+							...definition(),
+							triggers: [{
+								id: 'schedule', kind: AutomationTriggerKind.Schedule,
+								schedule: { expression: '* * * * *', timeZone: 'UTC' },
+								misfirePolicy: AutomationMisfirePolicy.RunOnce,
+							}],
+						},
+						runs: [], nextRunAt: scheduledFor,
+						operations: [AutomationOperation.Update, AutomationOperation.Remove, AutomationOperation.Run],
+						createdAt: timestamp, modifiedAt: timestamp,
+						_meta: { 'vscode.scheduleCursors': { schedule: scheduledFor } },
+					}]
+				},
+				runs: [],
+				manualRunRequests: [],
+			});
+			await storageService.whenIdle();
+			stateManager.dispatchServerAction(ROOT_STATE_URI, {
+				type: ActionType.RootConfigChanged, config: { [AGENT_HOST_AUTOMATIONS_ENABLED_CONFIG_KEY]: initiallyEnabled },
+			});
+			const authenticated = observableValue('authenticated', false);
+			const started = new DeferredPromise<void>();
+			let createCalls = 0;
+			const service = createService({
+				isSessionTemplateAvailable: (_template, reader) => authenticated.read(reader),
+				createSession: async () => {
+					createCalls++;
+					const session = URI.parse('mock:/authenticated');
+					stateManager.createSession({
+						resource: session.toString(), provider: 'mock', title: '',
+						status: SessionStatus.Idle, createdAt: timestamp, modifiedAt: timestamp,
+					});
+					return session;
+				},
+				startSession: async () => { await started.complete(); },
+			});
+			const writesBeforeReadiness = writeAttempts;
+			await timeout(0);
+			assert.deepStrictEqual({
+				createCalls, writes: writeAttempts - writesBeforeReadiness,
+				nextRunAt: stateManager.getAutomationCatalogState()?.entries[0].nextRunAt,
+				runs: stateManager.getAutomationCatalogState()?.entries[0].runs,
+			}, { createCalls: 0, writes: 0, nextRunAt: scheduledFor, runs: [] });
+			authenticated.set(true, undefined);
+			if (!initiallyEnabled) {
+				await timeout(0);
+				assert.strictEqual(createCalls, 0);
+				stateManager.dispatchServerAction(ROOT_STATE_URI, {
+					type: ActionType.RootConfigChanged, config: { [AGENT_HOST_AUTOMATIONS_ENABLED_CONFIG_KEY]: true },
+				});
+				await service.handleConfigurationChanged();
+			}
+			await started.p;
+			authenticated.set(false, undefined);
+			authenticated.set(true, undefined);
+			await timeout(0);
+			const automation = stateManager.getAutomationCatalogState()?.entries[0];
+			assert.deepStrictEqual({
+				createCalls, runCount: automation?.runs.length,
+				origin: automation?.runs[0].origin,
+				nextRunIsFuture: Date.parse(automation?.nextRunAt ?? '') > Date.now(),
+			}, {
+				createCalls: 1, runCount: 1,
+				origin: { kind: AutomationRunOriginKind.Trigger, triggerId: 'schedule', scheduledFor, catchUp: true },
+				nextRunIsFuture: true,
+			});
+		});
+	}
 
 	test('records an on-time scheduled run with schedule provenance', () => runWithFakedTimers({ useFakeTimers: true, startTime: Date.UTC(2026, 0, 1), maxTaskCount: 100 }, async () => {
 		const started = new DeferredPromise<void>();
