@@ -23,7 +23,7 @@ export class LocalGitService implements ILocalGitService {
 		private readonly _execFile: typeof cp.execFile = cp.execFile,
 	) { }
 
-	private _exec(operationId: string, args: string[], cwd?: string, options?: IGitNetworkOptions): Promise<string> {
+	private _exec(operationId: string, args: string[], cwd?: string, options?: IGitNetworkOptions, logErrors = true): Promise<string> {
 		return new Promise((resolve, reject) => {
 			this._logService.trace(`[LocalGitService] git ${args.join(' ')}${cwd ? ` (cwd: ${cwd})` : ''}`);
 			const proc = this._execFile('git', args, { cwd, encoding: 'utf8', env: this._getEnvironment(options) }, (err, stdout, stderr) => {
@@ -32,7 +32,10 @@ export class LocalGitService implements ILocalGitService {
 					return;
 				}
 				if (err) {
-					this._logService.error(`[LocalGitService] git ${args[0]} failed:`, err.message, stderr);
+					(err as cp.ExecFileException & { stderr?: string }).stderr ??= stderr;
+					if (logErrors) {
+						this._logGitError(args, err);
+					}
 					reject(err);
 					return;
 				}
@@ -41,6 +44,10 @@ export class LocalGitService implements ILocalGitService {
 
 			this._runningProcesses.set(operationId, proc);
 		});
+	}
+
+	private _logGitError(args: string[], error: cp.ExecFileException & { stderr?: string }): void {
+		this._logService.error(`[LocalGitService] git ${args[0]} failed:`, error.message, error.stderr ?? '');
 	}
 
 	private _getEnvironment(options: IGitNetworkOptions | undefined): NodeJS.ProcessEnv | undefined {
@@ -205,14 +212,16 @@ export class LocalGitService implements ILocalGitService {
 		beforeAuthenticationRetry: (() => Promise<void>) | undefined,
 	): Promise<string> {
 		try {
-			return await this._exec(operationId, args, cwd);
+			return await this._exec(operationId, args, cwd, undefined, false);
 		} catch (error) {
 			if (!this._isAuthenticationFailure(error)) {
+				this._logGitError(args, error as cp.ExecFileException & { stderr?: string });
 				throw error;
 			}
 
 			const networkOptions = await this._getSupportedNetworkOptions(operationId, options);
 			if (!networkOptions?.authentication) {
+				this._logGitError(args, error as cp.ExecFileException & { stderr?: string });
 				throw error;
 			}
 
