@@ -950,12 +950,12 @@ export class GitHubSessionEngine implements vscode.AuthenticationProvider, vscod
 				const [session] = sessions.splice(sessionIndex, 1);
 				await this.storeSessions(sessions);
 				await this.forgetAccountLinkIfSignedOut(session.account);
+				this._sessionChangeEmitter.fire({ added: [], removed: [session], changed: [] });
 				return session;
 			});
 
 			if (sessionToRevoke) {
 				await this._githubServer.logout(sessionToRevoke);
-				this._sessionChangeEmitter.fire({ added: [], removed: [sessionToRevoke], changed: [] });
 			}
 		} catch (e) {
 			/* __GDPR__
