@@ -13,14 +13,11 @@ let cachedModules: Set<string> | undefined;
 
 function getModules(): Set<string> {
 	if (!cachedModules) {
-		cachedModules = new Set<string>();
 		try {
 			const packageJson = JSON.parse(readFileSync(join(import.meta.dirname, '../package.json'), 'utf-8'));
 			const { dependencies = {}, optionalDependencies = {} } = packageJson;
 			const all = Object.keys(dependencies).concat(Object.keys(optionalDependencies));
-			for (const key of all) {
-				cachedModules.add(key);
-			}
+			cachedModules = new Set(all);
 		} catch (e) {
 			console.error('Failed to load package.json for AmdModuleImportCheck rule:', e);
 			throw e; // Rethrow the error to prevent silencing it
