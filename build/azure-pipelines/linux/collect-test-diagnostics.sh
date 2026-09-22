@@ -5,10 +5,37 @@
 set -o pipefail
 export LC_ALL=C
 
-if [ "$#" -ne 2 ] || [[ "$1" != before && "$1" != after ]]; then
+if [[ "$#" -lt 2 || "$#" -gt 3 || ( "$1" != before && "$1" != after ) || ( "$#" -eq 3 && "$3" != --collect ) ]]; then
   echo "##vso[task.logissue type=error]Expected diagnostic phase (before or after) and agent temporary directory."
   exit 2
 fi
+
+if [ "$#" -eq 2 ]; then
+  set -e
+  diagnostic_state=$(mktemp -d "$2/vscode-diagnostics.XXXXXX")
+  trap 'rm -f "$diagnostic_state/failed" "$diagnostic_state/timeout"; rmdir "$diagnostic_state"' EXIT
+
+  # Isolate timeout's stderr from the collector's. Exit 137 alone also means an
+  # unrelated SIGKILL, so only downgrade it when timeout confirms its deadline.
+  status=0
+  timeout --verbose --signal=KILL 60s bash "$0" "$@" --collect \
+    3>&2 4>"$diagnostic_state/failed" 2>"$diagnostic_state/timeout" || status=$?
+  cat "$diagnostic_state/timeout"
+  if [ "$status" -eq 137 ] && grep -Fq 'timeout: sending signal KILL to command ' "$diagnostic_state/timeout"; then
+    echo "##vso[task.logissue type=warning]Diagnostics $1 smoke tests reached the 60s deadline; optional output is incomplete."
+    status=0
+  fi
+  # A later timeout must not hide an earlier command or pipeline failure.
+  if [ -s "$diagnostic_state/failed" ]; then
+    status=1
+  fi
+  if [ "$status" -ne 0 ]; then
+    echo "##vso[task.logissue type=warning]Diagnostics $1 smoke tests failed (exit $status); see command output above."
+  fi
+  exit "$status"
+fi
+
+exec 2>&3 3>&-
 
 run_diagnostic() {
   local errors status=0
@@ -39,6 +66,7 @@ run_diagnostic() {
   fi
 
   if [ "$status" -ne 0 ]; then
+    printf 'failed\n' >&4
     printf '##vso[task.logissue type=warning]Diagnostic %s failed (exit %s); output may be incomplete.\n' "$*" "$status" >&2
   fi
   return "$status"
@@ -46,7 +74,7 @@ run_diagnostic() {
 
 diagnostic_status=0
 # Aggregate command failures separately from the outer timeout's exit status.
-trap 'diagnostic_status=1' ERR
+trap 'diagnostic_status=1; printf "failed\n" >&4' ERR
 
 run_diagnostic df -h
 run_diagnostic ps -ef

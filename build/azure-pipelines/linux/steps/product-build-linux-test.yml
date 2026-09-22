@@ -109,17 +109,7 @@ steps:
       displayName: 🧪 Run integration tests (Remote)
       timeoutInMinutes: 20
 
-  - script: |
-      # Bound the entire diagnostic process group without canceling the Azure task.
-      # KILL also stops pipeline children that ignore TERM.
-      status=0
-      timeout --verbose --signal=KILL 60s bash build/azure-pipelines/linux/collect-test-diagnostics.sh before "$(Agent.TempDirectory)" || status=$?
-      if [ "$status" -eq 137 ]; then
-        echo "##vso[task.logissue type=warning]Diagnostics before smoke tests were killed at the 60s deadline; output is incomplete."
-      elif [ "$status" -ne 0 ]; then
-        echo "##vso[task.logissue type=warning]Diagnostics before smoke tests failed (exit $status); see command output above."
-      fi
-      exit "$status"
+  - script: bash build/azure-pipelines/linux/collect-test-diagnostics.sh before "$(Agent.TempDirectory)"
     displayName: Diagnostics before smoke test run (disk space, processes, max_user_watches, number of opened file handles)
     continueOnError: true
     condition: succeededOrFailed()
@@ -172,15 +162,7 @@ steps:
       timeoutInMinutes: 20
       displayName: 🧪 Run smoke tests (Remote)
 
-  - script: |
-      status=0
-      timeout --verbose --signal=KILL 60s bash build/azure-pipelines/linux/collect-test-diagnostics.sh after "$(Agent.TempDirectory)" || status=$?
-      if [ "$status" -eq 137 ]; then
-        echo "##vso[task.logissue type=warning]Diagnostics after smoke tests were killed at the 60s deadline; output is incomplete."
-      elif [ "$status" -ne 0 ]; then
-        echo "##vso[task.logissue type=warning]Diagnostics after smoke tests failed (exit $status); see command output above."
-      fi
-      exit "$status"
+  - script: bash build/azure-pipelines/linux/collect-test-diagnostics.sh after "$(Agent.TempDirectory)"
     displayName: Diagnostics after smoke test run (disk space, processes, max_user_watches, number of opened file handles)
     continueOnError: true
     condition: succeededOrFailed()
