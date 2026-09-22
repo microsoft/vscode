@@ -66,9 +66,9 @@ export interface ChatState {
 	workingDirectories?: URI[];
 	/**
 	 * Authoritative ordered catalogue of selectable changesets exposed by this
-	 * chat. Sessions do not duplicate these entries on the session channel.
-	 * The default chat may also advertise session-workflow entries such as
-	 * Agent Merge.
+	 * chat. Session channels publish only their separate session-wide entries.
+	 * The default chat may also advertise session-workflow entries such as Agent
+	 * Merge.
 	 *
 	 * This catalogue is intentionally absent from {@link ChatSummary}; clients
 	 * obtain it by subscribing to the chat channel.

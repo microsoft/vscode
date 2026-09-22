@@ -199,8 +199,8 @@ export interface SessionState extends SessionMetadata {
 	 */
 	customizations?: Customization[];
 	/**
-	 * Reserved for compatibility with older hosts. Selectable changesets are
-	 * published exclusively on chat channels.
+	 * Authoritative ordered catalogue of session-wide selectable changesets.
+	 * Chat-owned entries are published separately on their chat channels.
 	 */
 	changesets?: Changeset[];
 	/**

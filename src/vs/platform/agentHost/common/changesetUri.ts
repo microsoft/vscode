@@ -327,10 +327,10 @@ export function parseCompareTurnsChangesetUri(uri: URI): { sessionUri: URI; orig
  * Aggregate counts are filled in later by the diff producer as compute passes
  * complete.
  *
- * Session channels never advertise selectable changesets. The default chat is
- * created together with the session and owns the temporary uncommitted entry
- * while the session is being created, as well as the ready-session catalogue
- * after materialization.
+ * Ready session channels advertise the cumulative Session Changes entry. The
+ * default chat is created together with the session and owns the temporary
+ * uncommitted entry while the session is being created, as well as its
+ * chat-specific catalogue after materialization.
  *
  * The first two chat entries (`Branch Changes`, `Uncommitted Changes`) are
  * included only when Git state is available. The backing per-changeset states
