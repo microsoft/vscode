@@ -31,6 +31,7 @@ const RULE_MARKER = 'CODEX_PLUGIN_RULE_MARKER';
 const SKILL_MARKER = 'CODEX_PLUGIN_SKILL_DESCRIPTION_MARKER';
 const SKILL_BODY_MARKER = 'CODEX_CLIENT_SKILL_BODY_READ_SUCCEEDED';
 const NATIVE_SKILL_MARKER = 'CODEX_NATIVE_SKILL_DESCRIPTION_MARKER';
+const NATIVE_EXECUTION_MARKER = 'CODEX_NATIVE_SHELL_EXECUTED';
 const MCP_MARKER = 'CODEX_PLUGIN_MCP_TOOL_MARKER';
 const HOOK_MARKER = 'CODEX_WORKSPACE_HOOK_MARKER';
 const nodeRequire = createRequire(import.meta.url);
@@ -357,12 +358,16 @@ suite('Agent Host Provider Integration — Codex Customizations', function () {
 		let clientSeq = 1;
 		const send = async (session: string, turnId: string, command?: string): Promise<ICapturedRequest> => {
 			const requestCount = server.mockLlm?.getRequests?.().length ?? 0;
-			skillCommand = command ?? '';
+			skillCommand = command ? `${command}; printf '\\n${NATIVE_EXECUTION_MARKER}\\n'` : '';
 			await driveTurnToCompletion(client, session, turnId, command ? '[scenario:codex-client-skill-access] Check skill file access.' : 'Reply exactly READY.', clientSeq++);
 			const requests = (server.mockLlm?.getRequests?.() ?? []) as readonly ICapturedRequest[];
 			const request = requests.slice(requestCount).reverse().find(request => request.path.includes('/responses'));
 			assert.ok(request, 'each turn must make a fresh Codex model request');
 			assert.ok(JSON.stringify(request.body).includes(NATIVE_SKILL_MARKER), 'native user skills must remain available');
+			if (command) {
+				const output = toolOutput(request);
+				assert.ok(output.split(/\r?\n/).includes(NATIVE_EXECUTION_MARKER), `the native shell must execute, not fail during sandbox startup: ${output}`);
+			}
 			return request;
 		};
 		const toolOutput = (request: ICapturedRequest): string => {
@@ -380,7 +385,7 @@ suite('Agent Host Provider Integration — Codex Customizations', function () {
 			});
 		};
 
-		const first = await send(sessionUri, 'before-skill-addition');
+		const first = await send(sessionUri, 'before-skill-addition', process.platform !== 'win32' ? 'true' : undefined);
 		assert.ok(!JSON.stringify(first.body).includes(SKILL_MARKER));
 		updateSkills([pluginCustomization]);
 		const parsedPlugin = await waitForParsedPlugin(client, sessionUri, pluginUri);
@@ -401,8 +406,9 @@ suite('Agent Host Provider Integration — Codex Customizations', function () {
 				`printf unexpected > ${JSON.stringify(skillFile)}`,
 				`printf workspace-write-allowed > ${JSON.stringify(workspaceFile)}`,
 			].join('; '));
-			assert.ok(toolOutput(access).includes(SKILL_BODY_MARKER), 'the active skill must be readable outside the workspace and temp directory');
-			assert.ok(!toolOutput(access).includes('UNRELATED_FILE_MUST_NOT_BE_READ'), 'unrelated files must stay unreadable');
+			const accessOutput = toolOutput(access);
+			assert.ok(accessOutput.includes(SKILL_BODY_MARKER), `the active skill must be readable outside the workspace and temp directory: ${accessOutput}`);
+			assert.ok(!accessOutput.includes('UNRELATED_FILE_MUST_NOT_BE_READ'), 'unrelated files must stay unreadable');
 			assert.ok((await readFile(skillFile, 'utf8')).includes(SKILL_BODY_MARKER), 'skill read access must not grant write access');
 			assert.strictEqual(await readFile(workspaceFile, 'utf8'), 'workspace-write-allowed', 'workspace permissions must be preserved');
 			client.clearReceived();
