@@ -298,7 +298,7 @@ export class AgentsWindow {
 		const picker = page.locator(WORKSPACE_PICKER).first();
 		const devContainerRow = page.locator(WORKSPACE_PICKER_SUBMENU_ROW, { hasText: 'Use Dev Container' }).first();
 		const recentDevContainerRow = page.locator(WORKSPACE_PICKER_ROW).filter({
-			has: page.locator('.group-title', { hasText: /^Dev Container$/ }),
+			has: page.locator('.title', { hasText: / Dev Container$/ }),
 		}).first();
 		const deadline = Date.now() + 120_000;
 		let lastError: unknown;
