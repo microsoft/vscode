@@ -84,9 +84,6 @@ const CLAUDE_CONFIG: IAgentHostE2EProviderConfig = {
 	supportsSideChats: true,
 	supportsSideChatsE2E: true,
 	fileDeleteReplayUnstableOnWindows: true,
-	// Claude rebuilds a reopened subagent transcript from the SDK's on-disk
-	// `subagents/agent-*.jsonl`, not reliably visible on Windows (see PR #325284).
-	subagentReplayUnstableOnWindows: true,
 	// Plan mode is wired (`ExitPlanMode` interactive tool exists) but the
 	// shared test's Copilot-flavoured prompt doesn't reliably drive Claude
 	// to invoke it. TODO: rework the prompt for Claude conventions.
