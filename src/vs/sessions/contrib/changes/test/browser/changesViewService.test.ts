@@ -366,6 +366,29 @@ suite('ChangesViewService', () => {
 		});
 	});
 
+	test('preserves the changes summary while changes are loading', () => {
+		const isLoadingChanges = observableValue('isLoadingChanges', false);
+		const changes = observableValue<readonly ISessionFileChange[]>('changes', [
+			upcastPartial<ISessionFileChange>({ insertions: 5, deletions: 7 }),
+			upcastPartial<ISessionFileChange>({ insertions: 6, deletions: 3 }),
+		]);
+		const changeset = createChangeset([], { isLoadingChanges, changes });
+		const { service } = createHarness(createSession('summary', { changesets: [changeset] }));
+
+		const summaries = [service.activeSessionChangesSummaryObs.get()];
+		isLoadingChanges.set(true, undefined);
+		changes.set([], undefined);
+		summaries.push(service.activeSessionChangesSummaryObs.get());
+		isLoadingChanges.set(false, undefined);
+		summaries.push(service.activeSessionChangesSummaryObs.get());
+
+		assert.deepStrictEqual(summaries, [
+			{ additions: 11, deletions: 10, files: 2 },
+			{ additions: 11, deletions: 10, files: 2 },
+			undefined,
+		]);
+	});
+
 	test('hides checkout from generic changeset operations', () => {
 		const changeset = createChangeset([
 			{
