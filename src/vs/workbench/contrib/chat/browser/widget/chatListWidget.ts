@@ -22,11 +22,13 @@ import { MenuId } from '../../../../../platform/actions/common/actions.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IContextKey, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
+import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { WorkbenchObjectTree } from '../../../../../platform/list/browser/listService.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { asCssVariable, asCssVariableWithDefault, buttonSecondaryBackground, buttonSecondaryForeground } from '../../../../../platform/theme/common/colorRegistry.js';
+import { IEditorResolverService } from '../../../../services/editor/common/editorResolverService.js';
 import { katexContainerClassName } from '../../../markdown/common/markedKatexExtension.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { IChatFollowup, IChatSendRequestOptions, IChatService } from '../../common/chatService/chatService.js';
@@ -35,11 +37,11 @@ import { IChatRequestModeInfo } from '../../common/model/chatModel.js';
 import { IChatRequestViewModel, IChatResponseViewModel, IChatViewModel, isRequestVM, isResponseVM } from '../../common/model/chatViewModel.js';
 import { PROMPT_TIMELINE_STICKY_SCROLL_SETTING } from '../../common/promptTimeline.js';
 import { ChatAccessibilityProvider } from '../accessibility/chatAccessibilityProvider.js';
-import { ChatTreeItem, IChatAccessibilityService, IChatCodeBlockInfo, IChatFileTreeInfo, IChatListItemRendererOptions } from '../chat.js';
+import { ChatTreeItem, IChatAccessibilityService, IChatCodeBlockInfo, IChatContextMenuActionContext, IChatFileTreeInfo, IChatListItemRendererOptions } from '../chat.js';
 import { CodeBlockPart } from './chatContentParts/codeBlockPart.js';
 import { ChatCollapsibleContentPart } from './chatContentParts/chatCollapsibleContentPart.js';
 import { ChatListDelegate, ChatListItemRenderer, IChatListItemTemplate, IChatRendererDelegate } from './chatListRenderer.js';
-import { sanitizeChatClipboardFragment } from './chatClipboard.js';
+import { getLinkTarget, sanitizeChatClipboardFragment } from './chatClipboard.js';
 import { ChatEditorOptions } from './chatOptions.js';
 import { ChatPendingDragController } from './chatPendingDragAndDrop.js';
 
@@ -145,12 +147,19 @@ export function isChatBackgroundContextMenuTarget(target: Element | undefined): 
 	return !!target && !target.closest('.interactive-item-container, .scrollbar');
 }
 
-export function getChatContextMenuTargetContext(target: EventTarget | null): { isKatexElement: boolean; isBackground: boolean } {
+export function getChatContextMenuTargetContext(target: EventTarget | null): { isKatexElement: boolean; isBackground: boolean; linkTarget?: string } {
 	const element = target instanceof Element ? target : undefined;
+	const anchor = element?.closest('a');
+	const linkTarget = anchor ? getLinkTarget(anchor) : undefined;
 	return {
 		isKatexElement: !!element?.closest(`.${katexContainerClassName}`),
 		isBackground: isChatBackgroundContextMenuTarget(element),
+		...(linkTarget ? { linkTarget } : {}),
 	};
+}
+
+export function shouldShowChatLinkOpenWith(resource: URI, fileService: IFileService, editorResolverService: IEditorResolverService): boolean {
+	return fileService.hasProvider(resource) && editorResolverService.getEditors(resource).length > 0;
 }
 
 class UserToggleResizeTracker extends Disposable {
@@ -467,6 +476,8 @@ export class ChatListWidget extends Disposable {
 		@ILogService private readonly logService: ILogService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IChatAccessibilityService private readonly chatAccessibilityService: IChatAccessibilityService,
+		@IFileService private readonly fileService: IFileService,
+		@IEditorResolverService private readonly editorResolverService: IEditorResolverService,
 	) {
 		super();
 
@@ -841,19 +852,28 @@ export class ChatListWidget extends Disposable {
 		const selected = e.element;
 
 		const targetContext = getChatContextMenuTargetContext(e.browserEvent.target);
+		const linkTarget = targetContext.linkTarget;
+		const hasAvailableEditors = linkTarget ? shouldShowChatLinkOpenWith(URI.parse(linkTarget), this.fileService, this.editorResolverService) : false;
 
 		const scopedContextKeyService = this.contextKeyService.createOverlay([
 			[ChatContextKeys.isResponse.key, isResponseVM(selected)],
 			[ChatContextKeys.responseIsFiltered.key, isResponseVM(selected) && !!selected.errorDetails?.responseIsFiltered],
 			[ChatContextKeys.isKatexMathElement.key, targetContext.isKatexElement],
-			[ChatContextKeys.contextMenuIsBackground.key, targetContext.isBackground]
+			[ChatContextKeys.contextMenuIsBackground.key, targetContext.isBackground],
+			[ChatContextKeys.contextMenuHasLink.key, !!linkTarget],
+			[ChatContextKeys.contextMenuHasAvailableEditors.key, hasAvailableEditors],
 		]);
+		const actionContext: IChatContextMenuActionContext = {
+			$chatContextMenu: true,
+			item: selected,
+			linkTarget,
+		};
 		this.contextMenuService.showContextMenu({
 			menuId: MenuId.ChatContext,
 			menuActionOptions: { shouldForwardArgs: true },
 			contextKeyService: scopedContextKeyService,
 			getAnchor: () => e.anchor,
-			getActionsContext: () => selected,
+			getActionsContext: () => actionContext,
 		});
 	}
 
