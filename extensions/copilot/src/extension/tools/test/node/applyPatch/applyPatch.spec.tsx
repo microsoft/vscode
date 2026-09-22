@@ -83,6 +83,42 @@ suite('ApplyPatch Tool', () => {
 		};
 	}
 
+	function createUpdatePatch(): IApplyPatchToolParams {
+		return {
+			explanation: 'Condense the offSide language array.',
+			input: [
+				'*** Begin Patch',
+				`*** Update File: ${path}`,
+				'@@',
+				'-\tconst offSide = [',
+				'-\t\t\'clojure\',',
+				'-\t\t\'coffeescript\',',
+				'-\t\t\'fsharp\',',
+				'-\t\t\'latex\',',
+				'-\t\t\'markdown\',',
+				'-\t\t\'pug\',',
+				'-\t\t\'python\',',
+				'-\t\t\'sql\',',
+				'-\t\t\'yaml\',',
+				'-\t].includes(languageId.toLowerCase());',
+				'+\tconst offSide = [\'clojure\',\'coffeescript\',\'fsharp\',\'latex\',\'markdown\',\'pug\',\'python\',\'sql\',\'yaml\'].includes(languageId.toLowerCase());',
+				'*** End Patch',
+			].join('\n'),
+		};
+	}
+
+	function createAddPatch(destination: URI): IApplyPatchToolParams {
+		return {
+			explanation: 'Create a new file.',
+			input: [
+				'*** Begin Patch',
+				`*** Add File: ${destination.fsPath}`,
+				'+export const value = 1;',
+				'*** End Patch',
+			].join('\n'),
+		};
+	}
+
 	function createRecordingStream(editedUris: string[]): ChatResponseStreamImpl {
 		return new ChatResponseStreamImpl(part => {
 			if (part instanceof ChatResponseTextEditPart && part.edits.length > 0) {
@@ -134,6 +170,96 @@ suite('ApplyPatch Tool', () => {
 		expect(seenEdits).toBe(1);
 		await expect(workingCopyDocument.text).toMatchFileSnapshot('fixtures/4302.ts.txt.expected');
 
+	});
+
+	it('applies an add without checking content exclusion', async () => {
+		const services = createExtensionUnitTestingServices();
+		const destination = URI.file(join(__dirname, 'fixtures/new.ts'));
+		const ignoreService = new TestIgnoreService(new ResourceSet());
+		services.define(IIgnoreService, ignoreService);
+		const localAccessor = services.createTestingAccessor();
+		const tool = localAccessor.get(IInstantiationService).createInstance(ApplyPatchTool);
+		const editedUris: string[] = [];
+		const input = await tool.resolveInput(createAddPatch(destination), {
+			history: [],
+			stream: createRecordingStream(editedUris),
+			query: 'create the file',
+			chatVariables: new ChatVariablesCollection([]),
+		});
+
+		const result = await tool.invoke({ input, toolInvocationToken: undefined }, CancellationToken.None);
+
+		expect({
+			hasError: result instanceof ExtendedLanguageModelToolResult ? result.hasError : undefined,
+			editedUris,
+			checkedUris: ignoreService.checkedUris,
+		}).toEqual({
+			hasError: false,
+			editedUris: [destination.toString()],
+			checkedUris: [],
+		});
+	});
+
+	it('rejects an add outside allowedEditUris before emitting edits', async () => {
+		const services = createExtensionUnitTestingServices();
+		const destination = URI.file(join(__dirname, 'fixtures/disallowed-new.ts'));
+		const ignoreService = new TestIgnoreService(new ResourceSet());
+		services.define(IIgnoreService, ignoreService);
+		const localAccessor = services.createTestingAccessor();
+		const tool = localAccessor.get(IInstantiationService).createInstance(ApplyPatchTool);
+		const editedUris: string[] = [];
+		const input = await tool.resolveInput(createAddPatch(destination), {
+			history: [],
+			stream: createRecordingStream(editedUris),
+			query: 'create the file',
+			chatVariables: new ChatVariablesCollection([]),
+			allowedEditUris: new ResourceSet([fileTsUri]),
+		});
+
+		const result = await tool.invoke({ input, toolInvocationToken: undefined }, CancellationToken.None);
+
+		expect({
+			hasError: result instanceof ExtendedLanguageModelToolResult ? result.hasError : undefined,
+			editedUris,
+			checkedUris: ignoreService.checkedUris,
+		}).toEqual({
+			hasError: true,
+			editedUris: [],
+			checkedUris: [],
+		});
+	});
+
+	it('checks content exclusion for an update', async () => {
+		const services = createExtensionUnitTestingServices();
+		const ignoreService = new TestIgnoreService(new ResourceSet());
+		services.define(IIgnoreService, ignoreService);
+
+		const content = String(readFileSync(path));
+		const testDoc = createTextDocumentData(fileTsUri, content, 'ts').document;
+		services.define(IWorkspaceService, new SyncDescriptor(
+			TestWorkspaceService, [[fileTsUri], [testDoc]]
+		));
+		const localAccessor = services.createTestingAccessor();
+		const tool = localAccessor.get(IInstantiationService).createInstance(ApplyPatchTool);
+		const editedUris: string[] = [];
+		const input = await tool.resolveInput(createUpdatePatch(), {
+			history: [],
+			stream: createRecordingStream(editedUris),
+			query: 'change the file',
+			chatVariables: new ChatVariablesCollection([]),
+		});
+
+		const result = await tool.invoke({ input, toolInvocationToken: undefined }, CancellationToken.None);
+
+		expect({
+			hasError: result instanceof ExtendedLanguageModelToolResult ? result.hasError : undefined,
+			editedUris,
+			checkedUris: ignoreService.checkedUris,
+		}).toEqual({
+			hasError: false,
+			editedUris: [fileTsUri.toString()],
+			checkedUris: [fileTsUri.toString()],
+		});
 	});
 
 	it('rejects a content-excluded move destination before emitting edits', async () => {

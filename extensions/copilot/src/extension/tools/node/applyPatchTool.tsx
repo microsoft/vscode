@@ -287,6 +287,10 @@ export class ApplyPatchTool implements ICopilotTool<IApplyPatchToolParams> {
 						result.hasError = true;
 						return result;
 					}
+					// Match create_file: model-created files skip content exclusion checks.
+					if (!movePath && changes.type === ActionType.ADD) {
+						continue;
+					}
 					await this.instantiationService.invokeFunction(accessor => assertFileNotContentExcluded(accessor, uri, undefined, contents));
 				}
 			}
