@@ -5813,6 +5813,26 @@ suite('AgentService (node dispatcher)', () => {
 				return svc;
 			}
 
+			function publishListResult(svc: AgentService, sessions: readonly IAgentSessionMetadata[]): void {
+				getTestAgentStateManager(svc).prepareSessionSummariesForListing(sessions.map(session => {
+					const provider = AgentSession.provider(session.session);
+					assert.ok(provider);
+					return {
+						resource: session.session.toString(),
+						provider,
+						title: session.summary ?? 'Session',
+						status: session.status ?? SessionStatus.Idle,
+						activity: session.activity,
+						createdAt: new Date(session.startTime).toISOString(),
+						modifiedAt: new Date(session.modifiedTime).toISOString(),
+						...(session.project ? { project: { uri: session.project.uri.toString(), displayName: session.project.displayName } } : {}),
+						workingDirectories: session.workingDirectories?.map(directory => directory.toString()),
+						changes: session.changes,
+						...(session._meta !== undefined ? { _meta: session._meta } : {}),
+					};
+				}));
+			}
+
 			test('hides a crash-orphaned provisional session and reports it as never created (#321269)', async () => {
 				const { orchestratorDatabase, session } = await seedCrashedProvisional(true);
 				const svc = await createCrashedService(orchestratorDatabase);
@@ -6031,6 +6051,122 @@ suite('AgentService (node dispatcher)', () => {
 					listed: [session.toString()],
 					restoreCode: JSON_RPC_INTERNAL_ERROR,
 				});
+			});
+
+			test('retracts a published fail-open orphan when its provider catalog becomes readable', async () => {
+				let catalogReadable = false;
+				class InitiallyUnreadableCatalogAgent extends DeferredBackingAgent {
+					override async listChatsToMigrate(): Promise<IAgentChatMetadata[] | typeof AgentChatMigrationDeferred> {
+						return catalogReadable ? [] : AgentChatMigrationDeferred;
+					}
+				}
+				const { orchestratorDatabase, session } = await seedCrashedProvisional(true, new CentralCatalogDatabase(), 'crashed-readable-transition', false);
+				const svc = createCentralCatalogService(createSessionDataService(), orchestratorDatabase);
+				await svc.whenCatalogReconciliationIdle();
+				const notifications: INotification[] = [];
+				disposables.add(svc.onDidNotification(notification => notifications.push(notification)));
+				const agent = disposables.add(new InitiallyUnreadableCatalogAgent('copilot'));
+				registerTestAgentProvider(svc, agent);
+				await waitForInitialProviderMigration(svc, agent);
+				const firstListing = await svc.listSessions();
+				publishListResult(svc, firstListing);
+				const screen = new Set(firstListing.map(metadata => metadata.session.toString()));
+
+				catalogReadable = true;
+				await (svc as unknown as { _awaitInitialProviderMigrationForProvider(provider: IAgent, requireReadableCatalog: boolean): Promise<boolean> })._awaitInitialProviderMigrationForProvider(agent, true);
+				await (svc as unknown as { _sessionListReconciliation: Promise<void> })._sessionListReconciliation;
+				for (const notification of notifications) {
+					if (notification.type === 'root/sessionRemoved') {
+						screen.delete(notification.session);
+					}
+				}
+				const afterTransition = await svc.listSessions();
+				const removed = notifications
+					.filter((notification): notification is INotification & { readonly type: 'root/sessionRemoved'; readonly session: string } => notification.type === 'root/sessionRemoved')
+					.map(notification => notification.session);
+
+				assert.deepStrictEqual({
+					before: firstListing.map(metadata => metadata.session.toString()),
+					removed,
+					screen: [...screen],
+					after: afterTransition.map(metadata => metadata.session.toString()),
+				}, {
+					before: [session.toString()],
+					removed: [session.toString()],
+					screen: [],
+					after: [],
+				});
+			});
+
+			test('retracts a published fail-open orphan when the marker mirror loads after the transition', async () => {
+				// The transition is one-shot. A slow marker read models the real
+				// window: deciding from `_provisionalSessionKeys` at transition time
+				// would find it empty, drop the refresh, and leave the stale row with
+				// nothing left to retract it.
+				let catalogReadable = false;
+				class SlowMarkerReadDatabase extends CentralCatalogDatabase {
+					override async listProvisionalSessions(): Promise<string[]> {
+						await timeout(50);
+						return [...await super.listProvisionalSessions()];
+					}
+				}
+				class InitiallyUnreadableCatalogAgent extends DeferredBackingAgent {
+					override async listChatsToMigrate(): Promise<IAgentChatMetadata[] | typeof AgentChatMigrationDeferred> {
+						return catalogReadable ? [] : AgentChatMigrationDeferred;
+					}
+				}
+				const { orchestratorDatabase, session } = await seedCrashedProvisional(true, new SlowMarkerReadDatabase(), 'crashed-slow-marker-transition', false);
+				const svc = createCentralCatalogService(createSessionDataService(), orchestratorDatabase);
+				await svc.whenCatalogReconciliationIdle();
+				const notifications: INotification[] = [];
+				disposables.add(svc.onDidNotification(notification => notifications.push(notification)));
+				const agent = disposables.add(new InitiallyUnreadableCatalogAgent('copilot'));
+				registerTestAgentProvider(svc, agent);
+				await waitForInitialProviderMigration(svc, agent);
+				const firstListing = await svc.listSessions();
+				publishListResult(svc, firstListing);
+
+				catalogReadable = true;
+				await (svc as unknown as { _awaitInitialProviderMigrationForProvider(provider: IAgent, requireReadableCatalog: boolean): Promise<boolean> })._awaitInitialProviderMigrationForProvider(agent, true);
+				await (svc as unknown as { _sessionListReconciliation: Promise<void> })._sessionListReconciliation;
+				const removed = notifications
+					.filter((notification): notification is INotification & { readonly type: 'root/sessionRemoved'; readonly session: string } => notification.type === 'root/sessionRemoved')
+					.map(notification => notification.session);
+
+				assert.deepStrictEqual({
+					before: firstListing.map(metadata => metadata.session.toString()),
+					removed,
+					after: (await svc.listSessions()).map(metadata => metadata.session.toString()),
+				}, {
+					before: [session.toString()],
+					removed: [session.toString()],
+					after: [],
+				});
+			});
+
+			test('already-readable provider re-import does not queue a published-list refresh', async () => {
+				const orchestratorDatabase = new CentralCatalogDatabase();
+				const session = AgentSession.uri('copilot', 'current-readable-reimport');
+				const sessionDatabase = new TestSessionDatabase();
+				await seedVerifiedSessionV2(orchestratorDatabase, sessionDatabase, session, false);
+				await orchestratorDatabase.updateSessionV2External([{ session: session.toString(), external: false }]);
+				await orchestratorDatabase.markSessionsV2Backfilled('copilot', AGENT_HOST_CATALOG_PAYLOAD_VERSION);
+				const agent = disposables.add(new DeferredBackingAgent('copilot'));
+				const svc = await createCrashedService(orchestratorDatabase, createSessionDataService(sessionDatabase), agent);
+				const internal = svc as unknown as {
+					_queuePublishedSessionListRefresh(provider: string): void;
+					_ensureSessionsV2Imported(provider: IAgent, force?: boolean): Promise<void>;
+				};
+				const originalRefresh = internal._queuePublishedSessionListRefresh.bind(svc);
+				let refreshes = 0;
+				internal._queuePublishedSessionListRefresh = provider => {
+					refreshes++;
+					originalRefresh(provider);
+				};
+
+				await internal._ensureSessionsV2Imported(agent, true);
+
+				assert.strictEqual(refreshes, 0);
 			});
 
 			test('retroactively marks an empty orphan after an already-backfilled import with incomplete candidates', async () => {
