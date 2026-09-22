@@ -41,6 +41,7 @@ import { getSessionChatDragData, isSessionChatDrag, SessionsDataTransfers } from
 import { IsPhoneLayoutContext, IsQuickChatSessionContext, SessionIsArchivedContext, SessionSupportsMultipleChatsContext } from '../../../../common/contextkeys.js';
 import { ARCHIVE_SESSION_COMMAND_ID } from '../../../../common/sessionCommands.js';
 import { IAgentHostSessionsProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../common/agentHostSessionsProvider.js';
+import { AgentHostFilterConnectionStatus, type IAgentHostFilterEntry, IAgentHostFilterService } from '../../../../services/agentHostFilter/common/agentHostFilter.js';
 import { ICustomViewService } from '../../../../services/customView/browser/customViewService.js';
 import type { ICustomViewDescriptor } from '../../../../services/customView/browser/customView.js';
 import { ISessionsListModelService, SessionsListModelService } from '../../../../services/sessions/browser/sessionsListModelService.js';
@@ -1346,7 +1347,7 @@ suite('Sessions - SessionsList', () => {
 				expanded: true,
 				sectionId: 'group:alpha',
 				sectionLabel: 'Alpha',
-				revealSessionId: '3',
+				revealSessionIds: ['3'],
 			});
 
 			assert.deepStrictEqual({
@@ -1372,7 +1373,7 @@ suite('Sessions - SessionsList', () => {
 				expanded: false,
 				sectionId: 'group:alpha',
 				sectionLabel: 'Alpha',
-				revealSessionId: '3',
+				revealSessionIds: ['3'],
 			});
 
 			assert.deepStrictEqual({
@@ -1392,7 +1393,7 @@ suite('Sessions - SessionsList', () => {
 					expanded: false,
 					sectionId: 'group:alpha',
 					sectionLabel: 'Alpha',
-					revealSessionId,
+					revealSessionIds: [revealSessionId],
 				});
 				const addsSession = revealSessionId === '3' || revealSessionId === '5';
 
@@ -1420,7 +1421,7 @@ suite('Sessions - SessionsList', () => {
 				expanded: false,
 				sectionId: 'group:alpha',
 				sectionLabel: 'Alpha',
-				revealSessionId: '3',
+				revealSessionIds: ['3'],
 			});
 
 			assert.deepStrictEqual({
@@ -1430,6 +1431,361 @@ suite('Sessions - SessionsList', () => {
 				sessions: ['1', '2', '3'],
 				showMore: undefined,
 			});
+		});
+
+		test('includes multiple reveal targets once and in section order', () => {
+			const sessions = ['1', '2', '3', '4', '5'].map(id => createSession(id, {}));
+			const result = limitSessionsForList(sessions, 2, {
+				enabled: true,
+				expanded: false,
+				sectionId: 'group:alpha',
+				sectionLabel: 'Alpha',
+				revealSessionIds: ['5', '1', '4', '5', 'missing'],
+			});
+
+			assert.deepStrictEqual({
+				sessions: result.sessions.map(session => session.sessionId),
+				remaining: result.showMore?.remainingCount,
+			}, { sessions: ['1', '2', '4', '5'], remaining: 1 });
+		});
+	});
+
+	suite('capped session reveal', () => {
+		function createSessions(count = 8): ISession[] {
+			const now = Date.now();
+			return Array.from({ length: count }, (_, index) => ({
+				...createTestSession(`Session ${index}`, { isRead: false }).session,
+				createdAt: new Date(now - index * 1000),
+			}));
+		}
+
+		function createActiveSession(session: ISession, activeChat = session.mainChat): IActiveSession {
+			return upcastPartial<IActiveSession>({ ...session, activeChat, sticky: constObservable(false) });
+		}
+
+		function renderList(
+			sessions: ISession[],
+			options: IListHarnessOptions & { grouping?: SessionsGrouping; activeSession?: IObservable<IActiveSession | undefined> } = {},
+			configure?: (instantiationService: TestInstantiationService) => void,
+		) {
+			const harness = createListHarness(disposables, sessions, options);
+			harness.instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
+				override readonly activeSession = options.activeSession ?? constObservable(undefined);
+				override readonly visibleSessions = constObservable([]);
+			});
+			harness.instantiationService.stub(ICustomViewService, { hideCustomView: () => { }, activeCustomView: constObservable(undefined) });
+			configure?.(harness.instantiationService);
+			const container = harness.createContainer(400, 1000);
+			const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
+				grouping: () => options.grouping ?? SessionsGrouping.Workspace,
+				sorting: () => SessionsSorting.Created,
+				onSessionOpen: () => { },
+			}));
+			list.layout(1000, 400);
+			const snapshot = () => ({
+				sessions: list.getVisibleSessions().map(session => session.sessionId),
+				showMore: [...container.querySelectorAll('.session-show-more-label')].map(label => label.textContent),
+			});
+			return { ...harness, list, container, snapshot };
+		}
+
+		function rowFor(container: HTMLElement, title: string): HTMLElement {
+			const row = [...container.querySelectorAll<HTMLElement>('.monaco-list-row')]
+				.find(row => row.querySelector('.session-title')?.textContent === title);
+			assert.ok(row, `Missing session row: ${title}`);
+			return row;
+		}
+
+		for (const { name, grouping, customGroup } of [
+			{ name: 'workspace', grouping: SessionsGrouping.Workspace, customGroup: false },
+			{ name: 'custom group in workspace grouping', grouping: SessionsGrouping.Workspace, customGroup: true },
+			{ name: 'custom group in date grouping', grouping: SessionsGrouping.Date, customGroup: true },
+		]) {
+			test(`retains active and explicit reveals across onboarding beyond the ${name} cap`, () => {
+				const sessions = createSessions();
+				const group: ISessionGroup = { id: 'group', name: 'Group', createdAt: 1 };
+				const { list, store, snapshot } = renderList(sessions, {
+					grouping,
+					activeSession: constObservable(createActiveSession(sessions[7])),
+					groups: customGroup ? [group] : [],
+					memberships: customGroup ? new Map(sessions.map(session => [session.sessionId, group.id])) : undefined,
+				});
+				const before = snapshot();
+				const revealed = list.reveal(sessions[6].resource);
+				const explicit = snapshot();
+				const target = store.add(list.revealArchiveAction(sessions[5]));
+				const onboarding = snapshot();
+				target.dispose();
+
+				assert.deepStrictEqual({ before, revealed, explicit, onboarding, after: snapshot() }, {
+					before: { sessions: ['Session 0', 'Session 1', 'Session 2', 'Session 3', 'Session 4', 'Session 7'], showMore: ['+2 more'] },
+					revealed: true,
+					explicit: { sessions: ['Session 0', 'Session 1', 'Session 2', 'Session 3', 'Session 4', 'Session 6', 'Session 7'], showMore: ['+1 more'] },
+					onboarding: { sessions: sessions.map(session => session.sessionId), showMore: [] },
+					after: { sessions: ['Session 0', 'Session 1', 'Session 2', 'Session 3', 'Session 4', 'Session 6', 'Session 7'], showMore: ['+1 more'] },
+				});
+			});
+		}
+
+		test('retains active and explicit reveals across onboarding beyond the workspace count cap', () => {
+			const recent = createTestSession('Recent', { workspaceLabel: 'Current' }).session;
+			const older = ['Active', 'Explicit', 'Onboarding', 'Unrelated'].map(title => ({
+				...createTestSession(title, { workspaceLabel: title }).session,
+				updatedAt: constObservable(new Date(2020, 0, 1)),
+			}));
+			const { list, store, snapshot } = renderList([recent, ...older], {
+				activeSession: constObservable(createActiveSession(older[0])),
+			});
+			const before = snapshot();
+			const revealed = list.reveal(older[1].resource);
+			const explicit = snapshot();
+			const target = store.add(list.revealArchiveAction(older[2]));
+			const onboarding = snapshot();
+			target.dispose();
+
+			assert.deepStrictEqual({ before, revealed, explicit, onboarding, after: snapshot() }, {
+				before: { sessions: ['Active', 'Recent'], showMore: ['+3 more workspaces'] },
+				revealed: true,
+				explicit: { sessions: ['Active', 'Recent', 'Explicit'], showMore: ['+2 more workspaces'] },
+				onboarding: { sessions: ['Active', 'Recent', 'Explicit', 'Onboarding'], showMore: ['+1 more workspace'] },
+				after: { sessions: ['Active', 'Recent', 'Explicit'], showMore: ['+2 more workspaces'] },
+			});
+		});
+
+		test('uses URI identity to include, scroll to, and select an eligible capped session', () => {
+			const sessions = createSessions();
+			const target = { ...sessions[7], resource: URI.parse('test-session://host/Target') };
+			sessions[7] = target;
+			const { list, container } = renderList(sessions, {}, instantiationService => {
+				instantiationService.stub(IUriIdentityService, new class extends mock<IUriIdentityService>() {
+					override readonly extUri = new ExtUri(() => true);
+				});
+			});
+			list.layout(300, 400);
+			const revealed = list.reveal(target.resource.with({ path: '/target' }));
+			const row = rowFor(container, 'Session 7');
+			const bounds = row.getBoundingClientRect();
+			const tree = container.querySelector<HTMLElement>('[role="tree"]');
+			assert.ok(tree);
+			const viewport = tree.getBoundingClientRect();
+
+			assert.deepStrictEqual({
+				revealed,
+				inViewport: bounds.top >= viewport.top && bounds.bottom <= viewport.bottom,
+				focused: row.classList.contains('focused'),
+				selected: row.classList.contains('selected'),
+				capped: list.isWorkspaceGroupCapped(),
+			}, { revealed: true, inViewport: true, focused: true, selected: true, capped: true });
+		});
+
+		for (const filter of ['session type', 'status', 'archived', 'read', 'automation']) {
+			test(`does not explicitly reveal a session excluded by ${filter}`, () => {
+				const target = {
+					...createTestSession('Filtered', { isArchived: filter === 'archived', isRead: filter === 'read' }).session,
+					isAutomation: constObservable(filter === 'automation'),
+				};
+				const { list, snapshot } = renderList([...createSessions(), target]);
+				if (filter === 'session type') {
+					list.setSessionTypeExcluded('test', true);
+				} else if (filter === 'status') {
+					list.setStatusExcluded(SessionStatus.Completed, true);
+				} else if (filter === 'read') {
+					list.setExcludeRead(true);
+				}
+				const filters = () => ({
+					type: list.isSessionTypeExcluded('test'),
+					status: list.isStatusExcluded(SessionStatus.Completed),
+					archived: list.isExcludeArchived(),
+					read: list.isExcludeRead(),
+				});
+				const before = { ...snapshot(), filters: filters() };
+				const revealed = list.reveal(target.resource);
+
+				assert.deepStrictEqual({ revealed, after: { ...snapshot(), filters: filters() } }, { revealed: false, after: before });
+			});
+		}
+
+		for (const { name, change } of [
+			{ name: 'session type', change: (list: SessionsList) => list.setSessionTypeExcluded('other', true) },
+			{ name: 'status', change: (list: SessionsList) => list.setStatusExcluded(SessionStatus.Error, true) },
+			{ name: 'archived', change: (list: SessionsList) => list.setExcludeArchived(false) },
+			{ name: 'read', change: (list: SessionsList) => list.setExcludeRead(true) },
+			{ name: 'reset', change: (list: SessionsList) => list.resetFilters() },
+		]) {
+			test(`clears the temporary reveal when the ${name} filter changes`, () => {
+				const sessions = createSessions();
+				const { list, snapshot } = renderList(sessions);
+				const before = snapshot();
+				const revealed = list.reveal(sessions[7].resource);
+				change(list);
+
+				assert.deepStrictEqual({ revealed, after: snapshot() }, { revealed: true, after: before });
+			});
+		}
+
+		for (const change of ['session', 'chat', 'deactivation']) {
+			test(`clears the temporary reveal on active ${change}`, async () => {
+				const sessions = createSessions();
+				const activeChat = observableValue(disposables, sessions[0].mainChat.get());
+				const activeSession = observableValue<IActiveSession | undefined>(disposables, createActiveSession(sessions[0], activeChat));
+				const { list, snapshot } = renderList(sessions, { activeSession });
+				await new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => resolve()));
+				const before = snapshot();
+				const revealed = list.reveal(sessions[7].resource);
+				if (change === 'chat') {
+					activeChat.set(new class extends mock<IChat>() {
+						override readonly resource = sessions[0].resource.with({ fragment: 'another-chat' });
+					}, undefined);
+				} else {
+					activeSession.set(change === 'session' ? createActiveSession(sessions[1]) : undefined, undefined);
+				}
+				await new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => resolve()));
+
+				assert.deepStrictEqual({ revealed, after: snapshot() }, { revealed: true, after: before });
+			});
+		}
+
+		for (const hidden of [false, true]) {
+			test(`clears the temporary reveal on host changes while ${hidden ? 'hidden' : 'visible'}`, () => {
+				const onDidChange = disposables.add(new Emitter<void>());
+				const hostFilter = new class extends mock<IAgentHostFilterService>() {
+					override readonly onDidChange = onDidChange.event;
+					override selectedHost: IAgentHostFilterEntry | undefined;
+				};
+				const host: IAgentHostFilterEntry = {
+					id: 'host', providerIds: ['test'], label: 'Host', grouped: false, address: undefined,
+					icon: Codicon.remote, status: AgentHostFilterConnectionStatus.Connected, connectable: false,
+				};
+				const sessions = createSessions();
+				const { list, snapshot } = renderList(sessions, {}, instantiationService => {
+					instantiationService.stub(IAgentHostFilterService, hostFilter);
+				});
+				const before = snapshot();
+				const revealed = list.reveal(sessions[7].resource);
+				list.setVisible(!hidden);
+				hostFilter.selectedHost = host;
+				onDidChange.fire();
+				list.setVisible(true);
+				const afterHostChange = snapshot();
+				hostFilter.selectedHost = { ...host, providerIds: ['other'] };
+				onDidChange.fire();
+				const filteredReveal = list.reveal(sessions[7].resource);
+				hostFilter.selectedHost = undefined;
+				onDidChange.fire();
+
+				assert.deepStrictEqual({ revealed, afterHostChange, filteredReveal, after: snapshot() }, {
+					revealed: true, afterHostChange: before, filteredReveal: false, after: before,
+				});
+			});
+		}
+
+		test('preserves existing active and onboarding exceptions to host and status filters', () => {
+			const sessions = createSessions();
+			const { list, store, snapshot } = renderList(sessions, {
+				activeSession: constObservable(createActiveSession(sessions[7])),
+			}, instantiationService => {
+				instantiationService.stub(IAgentHostFilterService, new class extends mock<IAgentHostFilterService>() {
+					override readonly onDidChange = Event.None;
+					override readonly selectedHost: IAgentHostFilterEntry = {
+						id: 'other', providerIds: [], label: 'Other', grouped: true, address: undefined,
+						icon: Codicon.remote, status: AgentHostFilterConnectionStatus.Connected, connectable: false,
+					};
+				});
+			});
+			list.setStatusExcluded(SessionStatus.Completed, true);
+			const target = store.add(list.revealArchiveAction(sessions[5]));
+			const during = snapshot();
+			const filteredReveal = list.reveal(sessions[6].resource);
+			target.dispose();
+
+			assert.deepStrictEqual({ during, filteredReveal, after: snapshot(), statusExcluded: list.isStatusExcluded(SessionStatus.Completed) }, {
+				during: { sessions: ['Session 5', 'Session 7'], showMore: [] },
+				filteredReveal: false,
+				after: { sessions: ['Session 7'], showMore: [] },
+				statusExcluded: true,
+			});
+		});
+
+		test('retains a reveal on refresh but clears it when the target leaves the catalog', () => {
+			const sessions = createSessions();
+			const { list, managementService, snapshot } = renderList(sessions);
+			const before = snapshot();
+			const revealed = list.reveal(sessions[7].resource);
+			list.refresh();
+			const refreshed = snapshot();
+			managementService.sessions = sessions.slice(0, 7);
+			list.refresh();
+			const missingReveal = list.reveal(sessions[7].resource);
+			managementService.sessions = sessions;
+			list.refresh();
+
+			assert.deepStrictEqual({ revealed, refreshed, missingReveal, after: snapshot() }, {
+				revealed: true,
+				refreshed: { sessions: ['Session 0', 'Session 1', 'Session 2', 'Session 3', 'Session 4', 'Session 7'], showMore: ['+2 more'] },
+				missingReveal: false,
+				after: before,
+			});
+		});
+
+		test('clears a reveal when its target no longer matches the filters', () => {
+			const sessions = createSessions();
+			const target = createTestSession('Target', { isRead: false });
+			sessions[7] = { ...target.session, createdAt: sessions[7].createdAt };
+			const { list, snapshot } = renderList(sessions);
+			list.setStatusExcluded(SessionStatus.Error, true);
+			const before = snapshot();
+			const revealed = list.reveal(target.session.resource);
+			target.status.set(SessionStatus.Error, undefined);
+			list.update();
+			const filteredReveal = list.reveal(target.session.resource);
+			target.status.set(SessionStatus.Completed, undefined);
+			list.update();
+
+			assert.deepStrictEqual({ revealed, filteredReveal, after: snapshot() }, { revealed: true, filteredReveal: false, after: before });
+		});
+
+		test('replaces the previous capped reveal without expanding the whole section', () => {
+			const sessions = createSessions();
+			const { list, snapshot } = renderList(sessions);
+			const firstReveal = list.reveal(sessions[7].resource);
+			const secondReveal = list.reveal(sessions[6].resource);
+			const missingReveal = list.reveal(URI.parse('test-session://missing'));
+
+			assert.deepStrictEqual({ firstReveal, secondReveal, missingReveal, after: snapshot() }, {
+				firstReveal: true, secondReveal: true, missingReveal: false,
+				after: { sessions: ['Session 0', 'Session 1', 'Session 2', 'Session 3', 'Session 4', 'Session 6'], showMore: ['+2 more'] },
+			});
+		});
+
+		test('keeps visible activations stationary while revealing offscreen main-session rows without stealing DOM focus', async () => {
+			const sessions = createSessions(25);
+			const activeSession = observableValue<IActiveSession | undefined>(disposables, undefined);
+			const { list, container } = renderList(sessions, { activeSession });
+			list.setWorkspaceGroupCapped(false);
+			list.layout(300, 400);
+			await new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => resolve()));
+			const outside = mainWindow.document.createElement('button');
+			container.appendChild(outside);
+			outside.focus();
+			const before = rowFor(container, 'Session 3').getBoundingClientRect().top;
+			activeSession.set(createActiveSession(sessions[3]), undefined);
+			await new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => resolve()));
+			const after = rowFor(container, 'Session 3').getBoundingClientRect().top;
+			activeSession.set(createActiveSession(sessions[20]), undefined);
+			await new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => resolve()));
+			const row = rowFor(container, 'Session 20');
+			const bounds = row.getBoundingClientRect();
+			const tree = container.querySelector<HTMLElement>('[role="tree"]');
+			assert.ok(tree);
+			const viewport = tree.getBoundingClientRect();
+
+			assert.deepStrictEqual({
+				visibleRowStayedPut: before === after,
+				offscreenRevealed: bounds.top >= viewport.top && bounds.bottom <= viewport.bottom,
+				focused: row.classList.contains('focused'),
+				selected: row.classList.contains('selected'),
+				domFocusPreserved: mainWindow.document.activeElement === outside,
+			}, { visibleRowStayedPut: true, offscreenRevealed: true, focused: true, selected: true, domFocusPreserved: true });
 		});
 	});
 
