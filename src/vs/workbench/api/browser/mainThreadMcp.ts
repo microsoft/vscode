@@ -18,6 +18,7 @@ import { IConfigurationService } from '../../../platform/configuration/common/co
 import { IDialogService, IPromptButton } from '../../../platform/dialogs/common/dialogs.js';
 import { ExtensionIdentifier } from '../../../platform/extensions/common/extensions.js';
 import { LogLevel } from '../../../platform/log/common/log.js';
+import { IAllowedMcpServersService } from '../../../platform/mcp/common/mcpManagement.js';
 import { ITelemetryService } from '../../../platform/telemetry/common/telemetry.js';
 import { ISecretStorageService } from '../../../platform/secrets/common/secrets.js';
 import { IWorkbenchMcpGatewayService } from '../../contrib/mcp/common/mcpGatewayService.js';
@@ -43,6 +44,7 @@ export class MainThreadMcp extends Disposable implements MainThreadMcpShape {
 
 	private readonly _servers = new Map<number, ExtHostMcpServerLaunch>();
 	private readonly _serverDefinitions = new Map<number, McpServerDefinition>();
+	private readonly _serverRequestUrls = new Map<number, Set<string>>();
 	private readonly _serverAuthTracking = new McpServerAuthTracker();
 	private readonly _proxy: Proxied<ExtHostMcpShape>;
 	private readonly _collectionDefinitions = this._register(new DisposableMap<string, {
@@ -66,10 +68,27 @@ export class MainThreadMcp extends Disposable implements MainThreadMcpShape {
 		@IWorkbenchMcpGatewayService private readonly _mcpGatewayService: IWorkbenchMcpGatewayService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ISecretStorageService private readonly _secretStorageService: ISecretStorageService,
+		@IAllowedMcpServersService private readonly _allowedMcpServersService: IAllowedMcpServersService,
 	) {
 		super();
 		this._register(_authenticationService.onDidChangeSessions(e => this._onDidChangeAuthSessions(e.providerId, e.label)));
 		const proxy = this._proxy = _extHostContext.getProxy(ExtHostContext.ExtHostMcp);
+		this._register(this._allowedMcpServersService.onDidChangeAllowedMcpServers(() => {
+			for (const [id, urls] of this._serverRequestUrls) {
+				const definition = this._serverDefinitions.get(id);
+				if (!definition) {
+					continue;
+				}
+				for (const url of urls) {
+					const allowed = this._allowedMcpServersService.isServerAllowed({ name: definition.label, url });
+					if (allowed !== true) {
+						this.$onDidChangeState(id, { state: McpConnectionState.Kind.Error, message: allowed.value });
+						proxy.$stopMcp(id);
+						break;
+					}
+				}
+			}
+		}));
 		this._register(this._mcpRegistry.registerDelegate({
 			// Prefer Node.js extension hosts when they're available. No CORS issues etc.
 			priority: _extHostContext.extensionHostKind === ExtensionHostKind.LocalWebWorker ? 0 : 1,
@@ -98,6 +117,9 @@ export class MainThreadMcp extends Disposable implements MainThreadMcpShape {
 				);
 				this._servers.set(id, launch);
 				this._serverDefinitions.set(id, serverDefiniton);
+				if (resolveLaunch.type === McpServerTransportType.HTTP) {
+					this._serverRequestUrls.set(id, new Set([resolveLaunch.uri.toString(true)]));
+				}
 				proxy.$startMcp(id, {
 					launch: resolveLaunch,
 					defaultCwd: serverDefiniton.defaultCwd ?? serverDefiniton.variableReplacement?.folder?.uri,
@@ -197,6 +219,22 @@ export class MainThreadMcp extends Disposable implements MainThreadMcpShape {
 		this._collectionDefinitions.deleteAndDispose(collectionId);
 	}
 
+	async $checkMcpServerAllowed(id: number, url: string): Promise<string | undefined> {
+		const definition = this._serverDefinitions.get(id);
+		const urls = this._serverRequestUrls.get(id);
+		if (!definition || !urls) {
+			throw new CancellationError();
+		}
+
+		const allowed = this._allowedMcpServersService.isServerAllowed({ name: definition.label, url });
+		if (allowed !== true) {
+			return allowed.value;
+		}
+
+		urls.add(url);
+		return undefined;
+	}
+
 	$onDidChangeState(id: number, update: McpConnectionState): void {
 		const server = this._servers.get(id);
 		if (!server) {
@@ -208,6 +246,7 @@ export class MainThreadMcp extends Disposable implements MainThreadMcpShape {
 			server.dispose();
 			this._servers.delete(id);
 			this._serverDefinitions.delete(id);
+			this._serverRequestUrls.delete(id);
 			this._serverAuthTracking.untrack(id);
 		}
 	}
@@ -576,6 +615,7 @@ export class MainThreadMcp extends Disposable implements MainThreadMcpShape {
 		}
 		this._servers.clear();
 		this._serverDefinitions.clear();
+		this._serverRequestUrls.clear();
 		this._serverAuthTracking.clear();
 		super.dispose();
 	}
