@@ -54,7 +54,7 @@ const $ = DOM.$;
 const searchDelay = 300;
 const catalogPageSize = 30;
 const leadingBrowseItemCount = 4;
-const resultRowHeight = 72;
+const resultRowHeight = 84;
 const groupHeaderHeight = 36;
 const searchInputHeight = 20;
 
@@ -112,6 +112,7 @@ interface IDiscoveryRowTemplate {
 	readonly name: HTMLElement;
 	readonly detail: HTMLElement;
 	readonly description: HTMLElement;
+	readonly stats: HTMLElement;
 	readonly actions: HTMLElement;
 	readonly elementDisposables: DisposableStore;
 	readonly templateDisposables: DisposableStore;
@@ -254,6 +255,7 @@ class DiscoveryResultRenderer implements IListRenderer<IInstalledDiscoveryItem |
 		private readonly getInstallState: (resource: ICustomizationMarketplaceResource) => CustomizationMarketplaceInstallState,
 		private readonly getInstallError: (resource: ICustomizationMarketplaceResource) => string | undefined,
 		private readonly onInstall: (resource: ICustomizationMarketplaceResource) => void,
+		private readonly onOpen: (resource: URI | string) => void,
 	) { }
 
 	renderTemplate(container: HTMLElement): IDiscoveryRowTemplate {
@@ -261,11 +263,12 @@ class DiscoveryResultRenderer implements IListRenderer<IInstalledDiscoveryItem |
 		const root = DOM.append(container, $('.customization-discovery-result-content'));
 		const icon = DOM.append(root, $('.customization-discovery-result-icon'));
 		const identity = DOM.append(root, $('.customization-discovery-result-identity'));
-		const heading = DOM.append(identity, $('.customization-discovery-result-heading'));
-		const name = DOM.append(heading, $('.customization-discovery-result-name'));
-		const detail = DOM.append(heading, $('.customization-discovery-result-detail'));
+		const name = DOM.append(identity, $('a.customization-discovery-result-name'));
 		const description = DOM.append(identity, $('.customization-discovery-result-description'));
-		const actions = DOM.append(root, $('.customization-discovery-result-actions'));
+		const detail = DOM.append(identity, $('.customization-discovery-result-detail'));
+		const aside = DOM.append(root, $('.customization-discovery-result-aside'));
+		const stats = DOM.append(aside, $('.customization-discovery-result-stats'));
+		const actions = DOM.append(aside, $('.customization-discovery-result-actions'));
 		return {
 			root,
 			icon,
@@ -273,6 +276,7 @@ class DiscoveryResultRenderer implements IListRenderer<IInstalledDiscoveryItem |
 			name,
 			detail,
 			description,
+			stats,
 			actions,
 			elementDisposables: new DisposableStore(),
 			templateDisposables: new DisposableStore(),
@@ -282,6 +286,7 @@ class DiscoveryResultRenderer implements IListRenderer<IInstalledDiscoveryItem |
 	renderElement(element: IInstalledDiscoveryItem | ICatalogDiscoveryItem, _index: number, templateData: IDiscoveryRowTemplate): void {
 		templateData.elementDisposables.clear();
 		DOM.clearNode(templateData.icon);
+		DOM.clearNode(templateData.stats);
 		DOM.clearNode(templateData.actions);
 		const installed = element.kind === 'installed';
 		const name = installed ? element.name : element.resource.displayName;
@@ -290,9 +295,8 @@ class DiscoveryResultRenderer implements IListRenderer<IInstalledDiscoveryItem |
 		const detail = installed
 			? localize('customizationDiscovery.installedDetail', "{0} · {1}{2}", getTypeLabel(element.type), element.detail, element.disabled ? localize('customizationDiscovery.disabledSuffix', " · Disabled") : '')
 			: [
-				type ? getTypeLabel(type) : element.resource.mediaType,
 				element.resource.publisher,
-				element.resource.stars === undefined ? undefined : localize('customizationDiscovery.stars', "{0} stars", element.resource.stars.toLocaleString()),
+				type ? getTypeLabel(type) : element.resource.mediaType,
 			].filter(Boolean).join(' · ');
 
 		const fallback = DOM.append(templateData.icon, $('.codicon'));
@@ -309,12 +313,34 @@ class DiscoveryResultRenderer implements IListRenderer<IInstalledDiscoveryItem |
 		}
 
 		templateData.name.textContent = name;
+		templateData.name.removeAttribute('href');
+		templateData.name.removeAttribute('rel');
 		templateData.detail.textContent = detail;
 		templateData.description.textContent = description;
 		templateData.elementDisposables.add(this.hoverService.setupDelayedHover(templateData.name, { content: name }));
 		templateData.elementDisposables.add(this.hoverService.setupDelayedHover(templateData.description, { content: description }));
 
 		if (!installed) {
+			const resource = element.resource.externalUrl ?? element.resource.url;
+			if (resource) {
+				templateData.name.setAttribute('href', typeof resource === 'string' ? resource : resource.toString(true));
+				templateData.name.setAttribute('rel', 'noopener noreferrer');
+				templateData.elementDisposables.add(DOM.addDisposableListener(templateData.name, DOM.EventType.CLICK, event => {
+					event.preventDefault();
+					event.stopPropagation();
+					this.onOpen(resource);
+				}));
+			}
+			if (element.resource.stars !== undefined) {
+				const starsLabel = localize('customizationDiscovery.stars', "{0} stars", element.resource.stars.toLocaleString());
+				templateData.stats.setAttribute('aria-label', starsLabel);
+				const star = DOM.append(templateData.stats, $('.codicon'));
+				star.classList.add(...ThemeIcon.asClassNameArray(Codicon.starFull));
+				star.setAttribute('aria-hidden', 'true');
+				DOM.append(templateData.stats, $('span')).textContent = element.resource.stars.toLocaleString();
+			} else {
+				templateData.stats.removeAttribute('aria-label');
+			}
 			const state = this.getInstallState(element.resource);
 			const installError = this.getInstallError(element.resource);
 			const button = templateData.elementDisposables.add(new Button(templateData.actions, { ...defaultButtonStyles, secondary: true, small: true }));
@@ -478,6 +504,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 			resource => this.getInstallState(resource),
 			resource => this.installErrors.get(getCustomizationMarketplaceResourceKey(resource)),
 			resource => void this.install(resource),
+			resource => void this.openExternal(resource),
 		);
 		this.resultList = this._register(this.instantiationService.createInstance(
 			WorkbenchList<DiscoveryListEntry>,
@@ -1092,15 +1119,24 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 			this.browseDisposables.add(DOM.addDisposableListener(image, DOM.EventType.ERROR, () => image.remove()));
 		}
 		const body = DOM.append(card, $('.customization-discovery-card-body'));
-		const name = DOM.append(body, $('.customization-discovery-card-name'));
+		const resource = item.externalUrl ?? item.url;
+		const name = DOM.append(body, resource ? $('a.customization-discovery-card-name') : $('.customization-discovery-card-name'));
 		name.textContent = item.displayName;
+		if (resource) {
+			const link = name as HTMLAnchorElement;
+			link.href = typeof resource === 'string' ? resource : resource.toString(true);
+			link.rel = 'noopener noreferrer';
+			this.browseDisposables.add(DOM.addDisposableListener(link, DOM.EventType.CLICK, event => {
+				event.preventDefault();
+				void this.openExternal(resource);
+			}));
+		}
 		const description = DOM.append(body, $('.customization-discovery-card-description'));
 		description.textContent = item.description;
 		const metadata = DOM.append(body, $('.customization-discovery-card-metadata'));
 		metadata.textContent = [
 			item.publisher,
 			type ? getTypeLabel(type) : undefined,
-			item.stars === undefined ? undefined : localize('customizationDiscovery.stars', "{0} stars", item.stars.toLocaleString()),
 		].filter(Boolean).join(' · ');
 		this.browseDisposables.add(this.hoverService.setupDelayedHover(name, { content: item.displayName }));
 		this.browseDisposables.add(this.hoverService.setupDelayedHover(description, { content: item.description }));
@@ -1123,17 +1159,6 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 		this.browseDisposables.add(install.onDidClick(() => void this.install(item)));
 		if (state.kind === 'unavailable' || installError) {
 			this.browseDisposables.add(this.hoverService.setupDelayedHover(install.element, { content: state.kind === 'unavailable' ? state.message : installError! }));
-		}
-		const resource = item.externalUrl ?? item.url;
-		if (resource) {
-			const link = DOM.append(actions, $('a.customization-discovery-card-link')) as HTMLAnchorElement;
-			link.textContent = localize('customizationDiscovery.openResource', "Open");
-			link.href = typeof resource === 'string' ? resource : resource.toString(true);
-			link.rel = 'noopener noreferrer';
-			this.browseDisposables.add(DOM.addDisposableListener(link, DOM.EventType.CLICK, event => {
-				event.preventDefault();
-				void this.openExternal(resource);
-			}));
 		}
 	}
 
@@ -1269,7 +1294,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 		}
 		const width = this.container.clientWidth || this.lastDimension.width;
 		const height = this.container.clientHeight || this.lastDimension.height;
-		this.container.classList.toggle('narrow', width < 640);
+		this.container.classList.toggle('narrow', width < 800);
 		const searchContainer = this.searchWidget.element;
 		const searchActionsWidth = this.searchActionsContainer.offsetWidth;
 		this.searchWidget.layout(new DOM.Dimension(Math.max(0, searchContainer.clientWidth - searchActionsWidth - 4), searchInputHeight));
@@ -1277,7 +1302,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 		this.resultListContainer.style.height = `${availableHeight}px`;
 		const statusHeight = this.resultStatus.offsetHeight;
 		const footerHeight = this.loadMoreContainer.hidden ? 0 : this.loadMoreContainer.offsetHeight;
-		this.resultList.layout(Math.max(0, availableHeight - statusHeight - footerHeight), width);
+		this.resultList.layout(Math.max(0, availableHeight - statusHeight - footerHeight), this.resultListContainer.clientWidth);
 		this.browseScrollable.scanDomNode();
 	}
 

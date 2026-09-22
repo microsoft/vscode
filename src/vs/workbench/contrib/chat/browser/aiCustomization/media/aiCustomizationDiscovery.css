@@ -167,10 +167,12 @@
 
 .customization-discovery-card {
 	display: grid;
-	grid-template-columns: 40px minmax(0, 1fr);
+	grid-template-columns: 76px minmax(0, 1fr) auto;
+	align-items: center;
 	gap: var(--vscode-spacing-size120);
 	min-width: 0;
-	padding: var(--vscode-spacing-size100);
+	min-height: 76px;
+	padding: var(--vscode-spacing-size80);
 	border-radius: var(--vscode-cornerRadius-small);
 	background: transparent;
 }
@@ -180,14 +182,13 @@
 	background: var(--vscode-list-hoverBackground);
 }
 
-.customization-discovery-card-icon,
-.customization-discovery-result-icon {
+.customization-discovery-card-icon {
 	position: relative;
 	display: flex;
 	align-items: center;
 	justify-content: center;
-	width: 40px;
-	height: 40px;
+	width: 76px;
+	height: 76px;
 	flex-shrink: 0;
 	overflow: hidden;
 	border-radius: var(--vscode-cornerRadius-small);
@@ -195,8 +196,7 @@
 	background: var(--vscode-editorWidget-background);
 }
 
-.customization-discovery-card-icon img,
-.customization-discovery-result-icon img {
+.customization-discovery-card-icon img {
 	position: absolute;
 	inset: 0;
 	width: 100%;
@@ -211,11 +211,20 @@
 
 .customization-discovery-card-name,
 .customization-discovery-result-name {
+	display: block;
+	color: inherit;
 	font-size: var(--vscode-fontSize-body1);
 	font-weight: var(--vscode-fontWeight-semiBold);
 	overflow: hidden;
 	text-overflow: ellipsis;
+	text-decoration: none;
 	white-space: nowrap;
+}
+
+.customization-discovery-card-name[href]:hover,
+.customization-discovery-result-name[href]:hover {
+	color: var(--vscode-textLink-activeForeground);
+	text-decoration: underline;
 }
 
 .customization-discovery-card-description {
@@ -242,19 +251,16 @@
 	display: flex;
 	align-items: center;
 	gap: var(--vscode-spacing-size80);
-	margin-top: var(--vscode-spacing-size80);
 }
 
 .customization-discovery-card-actions > .monaco-button {
 	width: auto;
 }
 
-.customization-discovery-card-link,
 .customization-discovery-show-all {
 	color: var(--vscode-textLink-foreground);
 }
 
-.customization-discovery-card-link:hover,
 .customization-discovery-show-all:hover {
 	color: var(--vscode-textLink-activeForeground);
 }
@@ -269,7 +275,8 @@
 }
 
 .customization-discovery-show-all:focus-visible,
-.customization-discovery-card-link:focus-visible {
+.customization-discovery-card-name:focus-visible,
+.customization-discovery-result-name:focus-visible {
 	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
 	outline-offset: var(--vscode-spacing-size20);
 }
@@ -278,8 +285,10 @@
 	display: flex;
 	flex: 1;
 	flex-direction: column;
+	width: min(calc(100% - var(--vscode-spacing-size400) - var(--vscode-spacing-size400)), 960px);
 	min-width: 0;
 	min-height: 0;
+	margin: 0 auto;
 }
 
 .customization-discovery-results[hidden],
@@ -294,8 +303,8 @@
 }
 
 .customization-discovery-list .monaco-list-row {
-	padding: 0 max(var(--vscode-spacing-size400), calc((100% - 960px) / 2));
 	box-sizing: border-box;
+	border-radius: var(--vscode-cornerRadius-small);
 }
 
 .customization-discovery-group-header {
@@ -315,41 +324,80 @@
 	gap: var(--vscode-spacing-size120);
 	height: 100%;
 	min-width: 0;
-	padding: var(--vscode-spacing-size80) 0;
+	padding: var(--vscode-spacing-size80) var(--vscode-spacing-size100);
 	box-sizing: border-box;
 	border-radius: var(--vscode-cornerRadius-small);
 	line-height: normal;
+}
+
+.customization-discovery-result-icon {
+	position: relative;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 64px;
+	height: 64px;
+	flex-shrink: 0;
+	overflow: hidden;
+	border-radius: var(--vscode-cornerRadius-small);
+	color: var(--vscode-descriptionForeground);
+	background: var(--vscode-editorWidget-background);
+}
+
+.customization-discovery-result-icon img {
+	position: absolute;
+	inset: 0;
+	width: 100%;
+	height: 100%;
+	object-fit: contain;
 }
 
 .customization-discovery-result-identity {
 	flex: 1;
 }
 
-.customization-discovery-result-heading {
-	display: flex;
-	align-items: baseline;
-	gap: var(--vscode-spacing-size80);
-	min-width: 0;
-}
-
 .customization-discovery-result-name {
-	flex-shrink: 1;
 	min-width: 0;
 }
 
 .customization-discovery-result-detail {
-	flex: 1;
 	min-width: 0;
-	margin-top: 0;
+	margin-top: var(--vscode-spacing-size40);
 }
 
 .customization-discovery-result-description {
 	margin-top: var(--vscode-spacing-size40);
-	color: var(--vscode-descriptionForeground);
 	font-size: var(--vscode-fontSize-body2);
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
+}
+
+.customization-discovery-result-aside {
+	display: flex;
+	flex-direction: column;
+	align-items: flex-end;
+	align-self: stretch;
+	justify-content: space-between;
+	flex-shrink: 0;
+	min-width: 72px;
+}
+
+.customization-discovery-result-stats {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size20);
+	min-height: var(--vscode-spacing-size160);
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-body2);
+}
+
+.customization-discovery-result-stats:empty {
+	visibility: hidden;
+}
+
+.customization-discovery-result-stats .codicon {
+	font-size: var(--vscode-codiconFontSize-compact);
 }
 
 .customization-discovery-result-actions {
@@ -362,9 +410,8 @@
 
 .customization-discovery-state {
 	box-sizing: border-box;
-	width: min(calc(100% - var(--vscode-spacing-size400) - var(--vscode-spacing-size400)), 960px);
+	width: 100%;
 	min-height: var(--vscode-spacing-size240);
-	margin: 0 auto;
 	color: var(--vscode-descriptionForeground);
 	font-size: var(--vscode-fontSize-body1);
 }
@@ -396,20 +443,9 @@
 
 .customization-discovery.narrow .customization-discovery-header,
 .customization-discovery.narrow .customization-discovery-browse,
+.customization-discovery.narrow .customization-discovery-results,
 .customization-discovery.narrow .customization-discovery-state {
 	width: calc(100% - var(--vscode-spacing-size240) - var(--vscode-spacing-size240));
-}
-
-.customization-discovery.narrow .customization-discovery-list .monaco-list-row {
-	padding: 0 var(--vscode-spacing-size240);
-}
-
-.customization-discovery.narrow .customization-discovery-result-heading {
-	display: block;
-}
-
-.customization-discovery.narrow .customization-discovery-result-detail {
-	margin-top: var(--vscode-spacing-size20);
 }
 
 .hc-black .customization-discovery-card:hover,

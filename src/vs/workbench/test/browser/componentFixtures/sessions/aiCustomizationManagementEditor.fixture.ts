@@ -834,6 +834,7 @@ interface IRenderEditorOptions {
 	readonly customizationMarketplaceState?: 'ready' | 'empty' | 'error' | 'loading' | 'loadingMore';
 	readonly customizationMarketplaceInstallationState?: 'mixed' | 'error';
 	readonly discoveryQuery?: string;
+	readonly selectDiscoveryResult?: boolean;
 	readonly customizationSearchQuery?: string;
 	readonly mcpSearchQuery?: string;
 	readonly toolsSearchQuery?: string;
@@ -1434,11 +1435,15 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 		const resultIdentity = ctx.container.querySelector<HTMLElement>('.customization-discovery-result-identity');
 		const header = ctx.container.querySelector<HTMLElement>('.customization-discovery-header');
 		const groupHeader = ctx.container.querySelector<HTMLElement>('.customization-discovery-group-label');
-		const resultContent = ctx.container.querySelector<HTMLElement>('.customization-discovery-result-content');
 		assert(resultList !== null && !resultList.hidden, 'A Discover query must show the virtualized results list.');
 		assert(resultRow === null || resultIdentity === null || resultIdentity.offsetHeight <= resultRow.offsetHeight, 'Discover result text must fit within its virtualized row.');
 		assert(header === null || groupHeader === null || Math.abs(header.getBoundingClientRect().left - groupHeader.getBoundingClientRect().left) <= 1, 'Discover result groups must align with the page header.');
-		assert(header === null || resultContent === null || Math.abs(header.getBoundingClientRect().left - resultContent.getBoundingClientRect().left) <= 1, 'Discover result rows must align with the page header.');
+		assert(header === null || resultRow === null || Math.abs(header.getBoundingClientRect().left - resultRow.getBoundingClientRect().left) <= 1, 'Discover result selection bounds must align with the page header.');
+		if (options.selectDiscoveryResult) {
+			const resultRows = ctx.container.querySelectorAll<HTMLElement>('.customization-discovery-result-row');
+			resultRows[resultRows.length - 1]?.click();
+			await Promise.resolve();
+		}
 		if (options.discoveryQuery.includes('@installed')) {
 			assert(customizationMarketplaceQueryCount === 1, 'The Installed filter must not issue another catalog query.');
 			assert(!resultList.textContent?.includes('Available ('), 'The Installed filter must hide the Available group.');
@@ -2243,7 +2248,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	// Welcome page — default state with no section selected
 	WelcomePage: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: true },
-		expectedVisualDescriptions: ['Discover shows a compact Marketplace-style search control and modern tab-style quick filters above a quiet two-column browse layout. The page inherits the management surface background, the leading section has one subtle outer surface, and individual cards are borderless and transparent at rest.'],
+		expectedVisualDescriptions: ['Discover shows compact Marketplace-style search and quick-filter controls above a responsive browse layout. Featured cards use large product icons, a three-line name/description/publisher hierarchy, and a trailing Install action.'],
 		render: ctx => renderEditor(ctx, { sessionResource: localSessionResource }),
 	}),
 
@@ -2674,10 +2679,20 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 
 	DiscoverSearchResults: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: true },
-		expectedVisualDescriptions: ['Search replaces browse cards with one virtualized list grouped into Installed and Available results. Group headings and rows align with the title, search control, and quick filters.'],
+		expectedVisualDescriptions: ['Search replaces browse cards with one virtualized list grouped into Installed and Available results. Selection bounds align with the title and search control; available rows use a large icon, stacked name/description/publisher metadata, trailing stars, and an Install action.'],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
 			discoveryQuery: 'review',
+		}),
+	}),
+
+	DiscoverAvailableSearchResult: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['An available search result uses a large product icon, stacked name, description, and publisher/type metadata, with star metadata above a trailing Install action. The virtualized row spans exactly the same content measure as the search control.'],
+		render: ctx => renderEditor(ctx, {
+			sessionResource: localSessionResource,
+			discoveryQuery: 'correctness',
+			selectDiscoveryResult: true,
 		}),
 	}),
 
