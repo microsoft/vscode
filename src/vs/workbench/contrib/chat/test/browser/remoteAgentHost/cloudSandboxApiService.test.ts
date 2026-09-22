@@ -14,13 +14,14 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { runWithFakedTimers } from '../../../../../../base/test/common/virtualScheduling/index.js';
 import { IRequestContext, type IHeaders, type IRequestOptions } from '../../../../../../base/parts/request/common/request.js';
 import { CLOUD_SANDBOX_AGENT_SLUG, CLOUD_SANDBOX_ON_DEMAND_ENVIRONMENT_ID } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
+import { SessionStatus } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../../../platform/product/common/productService.js';
 import { IRequestService } from '../../../../../../platform/request/common/request.js';
-import { AuthenticationSession, AuthenticationSessionsChangeEvent, IAuthenticationService } from '../../../../../../workbench/services/authentication/common/authentication.js';
-import { CloudSandboxApiService } from '../../browser/cloudSandboxApiService.js';
-import { ICloudSandboxTelemetryService } from '../../browser/cloudSandboxTelemetry.js';
+import { AuthenticationSession, AuthenticationSessionsChangeEvent, IAuthenticationService } from '../../../../../services/authentication/common/authentication.js';
+import { CloudSandboxApiService } from '../../../browser/remoteAgentHost/cloudSandboxApiService.js';
+import { ICloudSandboxTelemetryService } from '../../../browser/remoteAgentHost/cloudSandboxTelemetry.js';
 
 function jsonResponse(body: unknown, statusCode = 200, headers: Record<string, string> = {}): IRequestContext {
 	return {
@@ -190,6 +191,29 @@ function createService(store: Pick<{ add<T extends { dispose(): void }>(t: T): T
 suite('CloudSandboxApiService repository resolution', () => {
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('preserves the bound session activity independently of the task state', async () => {
+		const states = ['queued', 'in_progress', 'waiting_for_user', 'idle', 'completed', 'failed', 'timed_out', 'cancelled'];
+		const { service } = createService(store, {
+			tasks: states.map(state => ({
+				...task(state, state, undefined, `session-${state}`, `environment-${state}`),
+				state: 'idle',
+				sessions: [{ id: `session-${state}`, environment_id: `environment-${state}`, state }],
+			})),
+			repositories: new Map(),
+		});
+		const result = await service.listSessions(CancellationToken.None);
+		assert.deepStrictEqual(result.kind === 'failed' ? result : result.sessions.map(session => [session.name, session.status]), [
+			['queued', SessionStatus.InProgress],
+			['in_progress', SessionStatus.InProgress],
+			['waiting_for_user', SessionStatus.InputNeeded],
+			['idle', SessionStatus.Idle],
+			['completed', SessionStatus.Idle],
+			['failed', SessionStatus.Error],
+			['timed_out', SessionStatus.Error],
+			['cancelled', SessionStatus.Error],
+		]);
+	});
 
 	test('resolves the repository name from its numeric id', async () => {
 		const { service } = createService(store, {

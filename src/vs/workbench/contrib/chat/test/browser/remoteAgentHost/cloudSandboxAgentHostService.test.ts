@@ -22,7 +22,7 @@ import { TestConfigurationService } from '../../../../../../platform/configurati
 import { IEnvironmentService } from '../../../../../../platform/environment/common/environment.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
-import { CloudSandboxAgentHostService, MAX_SEALED_TOKEN_RETRIES } from '../../browser/cloudSandboxAgentHostService.js';
+import { CloudSandboxAgentHostService, MAX_SEALED_TOKEN_RETRIES } from '../../../browser/remoteAgentHost/cloudSandboxAgentHostService.js';
 
 function clientToken(sealed: string | undefined): ICloudSandboxClientToken {
 	return {

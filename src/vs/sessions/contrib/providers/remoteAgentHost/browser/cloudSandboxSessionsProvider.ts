@@ -101,6 +101,10 @@ export class CloudSandboxSessionsProvider extends RemoteAgentHostSessionsProvide
 		return this._sessionCache.get(rawId);
 	}
 
+	getSessionModifiedTime(rawId: string): number | undefined {
+		return this.getCachedSession(rawId)?.updatedAt.get().getTime();
+	}
+
 	override getSessions(): ISession[] {
 		const sessions = super.getSessions();
 		return this._withheldSessions.size === 0

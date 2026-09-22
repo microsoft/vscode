@@ -6,6 +6,7 @@
 import assert from 'assert';
 import { timeout } from '../../../../../../base/common/async.js';
 import { DisposableMap, DisposableStore } from '../../../../../../base/common/lifecycle.js';
+import { ISettableObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { AgentHostAuthenticationRecovery, AgentHostAuthTokenCache } from '../../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostAuth.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
@@ -16,17 +17,21 @@ import { AuthRequiredReason, NotificationType, type INotification } from '../../
 import { type ProtectedResourceMetadata } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { type AgentInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { getSingletonServiceDescriptors } from '../../../../../../platform/instantiation/common/extensions.js';
+import { ICloudSandboxAgentHostService, ICloudSandboxApiService } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { NullTelemetryService } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { type IChatSessionsExtensionPoint } from '../../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { IAuthenticationService } from '../../../../../../workbench/services/authentication/common/authentication.js';
-import { RemoteAgentHostContribution } from '../../browser/remoteAgentHost.contribution.js';
+import { RemoteAgentHostContribution } from '../../../../../../workbench/contrib/chat/browser/remoteAgentHost/remoteAgentHostChatContribution.js';
+import { CloudSandboxApiService } from '../../../../../../workbench/contrib/chat/browser/remoteAgentHost/cloudSandboxApiService.js';
+import { CloudSandboxAgentHostService } from '../../../../../../workbench/contrib/chat/browser/remoteAgentHost/cloudSandboxAgentHostService.js';
 import { SSHAgentHostContribution } from '../../browser/sshAgentHost.contribution.js';
 import { WebSocketAgentHostContribution } from '../../browser/webSocketAgentHost.contribution.js';
+import '../../browser/remoteAgentHost.contribution.js';
 
 interface IRemoteAuthNotificationHarness {
-	_connections: Map<string, { readonly authTokenCache: AgentHostAuthTokenCache; readonly authRecovery: AgentHostAuthenticationRecovery }>;
-	_sessionsProvidersService: { getProvider(): undefined };
+	_connections: Map<string, { readonly authTokenCache: AgentHostAuthTokenCache; readonly authRecovery: AgentHostAuthenticationRecovery; readonly authenticationPending: ISettableObservable<boolean> }>;
 	_instantiationService: TestInstantiationService;
 	_connectionCustomizations: { get(address: string): { readonly authenticate?: (request: { readonly resource: string; readonly scopes?: readonly string[]; readonly token: string }) => Promise<{ readonly resource: string; readonly scopes?: readonly string[]; readonly token: string }> } | undefined };
 	_logService: NullLogService;
@@ -58,8 +63,7 @@ suite('RemoteAgentHost auth notifications', () => {
 		};
 		const address = 'test-host';
 		const contribution = Object.create(RemoteAgentHostContribution.prototype) as IRemoteAuthNotificationHarness;
-		contribution._connections = new Map([[address, { authTokenCache: new AgentHostAuthTokenCache(), authRecovery: new AgentHostAuthenticationRecovery(NullTelemetryService) }]]);
-		contribution._sessionsProvidersService = { getProvider: () => undefined };
+		contribution._connections = new Map([[address, { authTokenCache: new AgentHostAuthTokenCache(), authRecovery: new AgentHostAuthenticationRecovery(NullTelemetryService), authenticationPending: observableValue('authenticationPending', false) }]]);
 		contribution._instantiationService = instantiationService;
 		contribution._connectionCustomizations = { get: () => undefined };
 		contribution._logService = logService;
@@ -95,10 +99,9 @@ suite('RemoteAgentHost auth notifications', () => {
 		const calls: string[] = [];
 		const contribution = Object.create(RemoteAgentHostContribution.prototype) as IRemoteAuthNotificationHarness;
 		contribution._connections = new Map([
-			['host-one', { authTokenCache: new AgentHostAuthTokenCache(), authRecovery: new AgentHostAuthenticationRecovery(NullTelemetryService) }],
-			['host-two', { authTokenCache: new AgentHostAuthTokenCache(), authRecovery: new AgentHostAuthenticationRecovery(NullTelemetryService) }],
+			['host-one', { authTokenCache: new AgentHostAuthTokenCache(), authRecovery: new AgentHostAuthenticationRecovery(NullTelemetryService), authenticationPending: observableValue('authenticationPending', false) }],
+			['host-two', { authTokenCache: new AgentHostAuthTokenCache(), authRecovery: new AgentHostAuthenticationRecovery(NullTelemetryService), authenticationPending: observableValue('authenticationPending', false) }],
 		]);
-		contribution._sessionsProvidersService = { getProvider: () => undefined };
 		contribution._instantiationService = instantiationService;
 		contribution._connectionCustomizations = { get: () => undefined };
 		contribution._logService = new NullLogService();
@@ -134,8 +137,7 @@ suite('RemoteAgentHost auth notifications', () => {
 		let envelopeNumber = 0;
 		const address = 'sealed-host';
 		const contribution = Object.create(RemoteAgentHostContribution.prototype) as IRemoteAuthNotificationHarness;
-		contribution._connections = new Map([[address, { authTokenCache: new AgentHostAuthTokenCache(), authRecovery: new AgentHostAuthenticationRecovery(NullTelemetryService) }]]);
-		contribution._sessionsProvidersService = { getProvider: () => undefined };
+		contribution._connections = new Map([[address, { authTokenCache: new AgentHostAuthTokenCache(), authRecovery: new AgentHostAuthenticationRecovery(NullTelemetryService), authenticationPending: observableValue('authenticationPending', false) }]]);
 		contribution._instantiationService = instantiationService;
 		contribution._connectionCustomizations = {
 			get: () => ({
@@ -187,6 +189,14 @@ interface IRemoteAgentRegistrationHarness {
 
 suite('Remote agent host provider ownership', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('the Agents Window entry point loads the shared sandbox services', () => {
+		const services = new Map(getSingletonServiceDescriptors());
+		assert.deepStrictEqual([
+			services.get(ICloudSandboxApiService)?.ctor,
+			services.get(ICloudSandboxAgentHostService)?.ctor,
+		], [CloudSandboxApiService, CloudSandboxAgentHostService]);
+	});
 
 	test('gives WebSocket and SSH entries distinct owners while the shared contribution registers none', () => {
 		const entries: IRemoteAgentHostEntry[] = [

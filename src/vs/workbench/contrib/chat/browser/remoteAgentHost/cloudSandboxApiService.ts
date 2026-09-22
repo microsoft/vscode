@@ -26,12 +26,13 @@ import {
 } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { GITHUB_DOT_COM_COPILOT_API_BASE_URI, deriveGitHubEndpoints } from '../../../../../platform/agentHost/common/githubEndpoints.js';
 import { IReplayedTaskHistory, parseTaskEventsResponse, replayTaskAhpEvents, TaskEventReplayError } from '../../../../../platform/agentHost/common/taskEventReplay.js';
+import { SessionStatus } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { COPILOT_INTEGRATION_ID } from '../../../../../platform/endpoint/common/licenseAgreement.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { IRequestContext } from '../../../../../base/parts/request/common/request.js';
 import { asText, IRequestService } from '../../../../../platform/request/common/request.js';
-import { AuthenticationSession, IAuthenticationService } from '../../../../../workbench/services/authentication/common/authentication.js';
+import { AuthenticationSession, IAuthenticationService } from '../../../../services/authentication/common/authentication.js';
 import { ICloudSandboxTelemetryService, requestOutcomeForStatus, type CloudSandboxRequestAction } from './cloudSandboxTelemetry.js';
 
 /** The agent-environment endpoints Mission Control exposes. */
@@ -43,6 +44,7 @@ interface ITaskSummary {
 	readonly name?: string;
 	readonly archived_at?: string | null;
 	readonly updated_at?: string;
+	readonly state?: string;
 	readonly agent_collaborators?: readonly { readonly slug?: string }[];
 	readonly compute?: { readonly provider?: string };
 	/**
@@ -54,7 +56,7 @@ interface ITaskSummary {
 
 /** A full task, which additionally carries the sessions bound to sandbox environments. */
 interface ITaskDetail extends ITaskSummary {
-	readonly sessions?: readonly { readonly id: string; readonly environment_id?: string }[];
+	readonly sessions?: readonly { readonly id: string; readonly environment_id?: string; readonly state?: string }[];
 }
 
 interface ICachedSandboxTask {
@@ -65,6 +67,28 @@ interface ICachedSandboxTask {
 }
 
 const LOG_PREFIX = '[CloudSandboxApi]';
+
+function taskSessionStatus(state: string | undefined, logService: ILogService): SessionStatus | undefined {
+	switch (state) {
+		case 'queued':
+		case 'in_progress':
+			return SessionStatus.InProgress;
+		case 'waiting_for_user':
+			return SessionStatus.InputNeeded;
+		case 'idle':
+		case 'completed':
+			return SessionStatus.Idle;
+		case 'failed':
+		case 'timed_out':
+		case 'cancelled':
+			return SessionStatus.Error;
+		case undefined:
+			return undefined;
+		default:
+			logService.warn(`${LOG_PREFIX} Unrecognized session activity state; leaving its status unknown.`);
+			return undefined;
+	}
+}
 
 /**
  * The github.com REST API base, used for the repository-name lookup discovery needs. The CORS
@@ -349,6 +373,7 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 						if (!binding && cached?.session) {
 							removedTaskIds.push(task.id);
 						}
+						const status = binding ? taskSessionStatus(full.sessions?.find(session => session.id === binding.sessionId)?.state ?? full.state ?? task.state, this._logService) : undefined;
 						cached = {
 							summary: task,
 							repositoryId: full.repository?.id ?? task.repository?.id,
@@ -357,6 +382,7 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 								taskId: task.id,
 								name: full.name ?? task.name ?? `Sandbox ${task.id}`,
 								updatedAt: full.updated_at ?? task.updated_at,
+								...(status !== undefined ? { status } : {}),
 							} : undefined,
 						};
 					}

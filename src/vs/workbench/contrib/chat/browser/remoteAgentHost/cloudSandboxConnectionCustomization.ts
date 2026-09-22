@@ -14,7 +14,7 @@ import {
 	ICloudSandboxAgentHostService,
 	isCloudSandboxSealedToken,
 } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
-import { IAgentHostAuthenticateRequest } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostAuth.js';
+import { IAgentHostAuthenticateRequest } from '../agentSessions/agentHost/agentHostAuth.js';
 import { IRemoteAgentHostConnectionCustomization } from './remoteAgentHostConnectionCustomization.js';
 import { createCloudSandboxSessionPreparation } from './cloudSandboxLegacySessionPreparation.js';
 
