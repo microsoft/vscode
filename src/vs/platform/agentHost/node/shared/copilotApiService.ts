@@ -114,9 +114,15 @@ interface ICachedClient {
 	readonly isVscodeTeamMember: boolean;
 }
 
-interface IClientRequest {
-	readonly promise: Promise<ICachedClient>;
+interface ICopilotSkuCacheCell {
+	valid: boolean;
 	value?: ICachedClient;
+}
+
+interface IClientRequest {
+	promise: Promise<ICachedClient> | undefined;
+	readonly skuCell: ICopilotSkuCacheCell;
+	telemetryCaptured: boolean;
 }
 
 /**
@@ -532,8 +538,6 @@ export class CopilotApiService extends Disposable implements ICopilotApiService 
 
 	private _capiBasePromise: Promise<ICapiBase> | null = null;
 	private readonly _clientsByToken = new Map<string, IClientRequest>();
-	private _copilotSkuCacheEpoch = 0;
-	private readonly _copilotSkuTokenGenerations = new Map<string, number>();
 	private readonly _fetch: FetchFunction;
 
 	constructor(
@@ -882,65 +886,100 @@ export class CopilotApiService extends Disposable implements ICopilotApiService 
 	}
 
 	getCachedCopilotSku(githubToken: string): string | undefined {
-		const entry = this._clientsByToken.get(githubToken)?.value;
-		return entry && entry.expiresAt > Date.now() / 1000 ? entry.copilotSku : undefined;
+		return this._readCopilotSku(this._clientsByToken.get(githubToken)?.skuCell);
 	}
 
 	captureCopilotSku(githubToken: string): () => string | undefined {
-		const cacheEpoch = this._copilotSkuCacheEpoch;
-		const tokenGeneration = this._copilotSkuTokenGenerations.get(githubToken) ?? 0;
-		return () => cacheEpoch === this._copilotSkuCacheEpoch
-			&& tokenGeneration === (this._copilotSkuTokenGenerations.get(githubToken) ?? 0)
-			? this.getCachedCopilotSku(githubToken)
-			: undefined;
+		if (this._store.isDisposed) {
+			return () => undefined;
+		}
+		const request = this._getOrCreateClientRequest(githubToken);
+		request.telemetryCaptured = true;
+		const cell = request.skuCell;
+		return () => this._readCopilotSku(cell);
 	}
 
 	private _getEntryForToken(githubToken: string): Promise<ICachedClient> {
 		const nowSeconds = Date.now() / 1000;
-		const existing = this._clientsByToken.get(githubToken);
-		if (existing) {
-			if (!existing.value || existing.value.expiresAt - nowSeconds > CAPI_CONTEXT_REFRESH_BUFFER_SECONDS) {
-				return existing.promise;
-			}
-			// Start a refresh before yielding, while the credential's endpoint is still current.
-			this._clientsByToken.delete(githubToken);
+		const request = this._getOrCreateClientRequest(githubToken);
+		if (request.promise) {
+			return request.promise;
+		}
+		const existing = request.skuCell.value;
+		if (existing && existing.expiresAt - nowSeconds > CAPI_CONTEXT_REFRESH_BUFFER_SECONDS) {
+			return Promise.resolve(existing);
 		}
 
 		// Omit the caller's signal here: a deduped build is shared across
 		// concurrent callers, so aborting one must not cancel it for the
 		// others. Each caller still forwards its signal to the API call.
-		const pending: IClientRequest = {
-			promise: this._buildClientForToken(githubToken).then(entry => {
-				pending.value = entry;
-				return entry;
-			}).catch(err => {
-				if (this._clientsByToken.get(githubToken) === pending) {
+		const pending = this._buildClientForToken(githubToken).then(entry => {
+			if (this._clientsByToken.get(githubToken) === request && request.skuCell.valid) {
+				request.promise = undefined;
+				request.skuCell.value = entry;
+			}
+			return entry;
+		}).catch(err => {
+			if (this._clientsByToken.get(githubToken) === request && request.skuCell.valid) {
+				request.promise = undefined;
+				if (err instanceof CopilotApiError && (err.status === 401 || err.status === 403)) {
+					this._invalidateClientRequest(githubToken, request);
+				} else if (existing && existing.expiresAt > Date.now() / 1000) {
+					request.skuCell.value = existing;
+				} else if (request.telemetryCaptured) {
+					request.skuCell.value = undefined;
+				} else {
+					request.skuCell.valid = false;
 					this._clientsByToken.delete(githubToken);
-					if (err instanceof CopilotApiError && (err.status === 401 || err.status === 403)) {
-						this._invalidateCopilotSkuForToken(githubToken);
-					}
 				}
-				throw err;
-			}),
-		};
-		this._clientsByToken.set(githubToken, pending);
-		return pending.promise;
+			}
+			throw err;
+		});
+		request.promise = pending;
+		return pending;
+	}
+
+	private _getOrCreateClientRequest(githubToken: string): IClientRequest {
+		let request = this._clientsByToken.get(githubToken);
+		if (!request) {
+			request = {
+				promise: undefined,
+				skuCell: { valid: true },
+				telemetryCaptured: false,
+			};
+			this._clientsByToken.set(githubToken, request);
+		}
+		return request;
+	}
+
+	private _readCopilotSku(cell: ICopilotSkuCacheCell | undefined): string | undefined {
+		const entry = cell?.valid ? cell.value : undefined;
+		return entry && entry.expiresAt > Date.now() / 1000 ? entry.copilotSku : undefined;
 	}
 
 	private _invalidateClientForToken(githubToken: string, capiClient: CAPIClient): void {
-		if (this._clientsByToken.get(githubToken)?.value?.capiClient === capiClient) {
-			this._clientsByToken.delete(githubToken);
-			this._invalidateCopilotSkuForToken(githubToken);
+		const request = this._clientsByToken.get(githubToken);
+		if (request?.skuCell.value?.capiClient === capiClient) {
+			this._invalidateClientRequest(githubToken, request);
 		}
 	}
 
-	private _invalidateCopilotSkuForToken(githubToken: string): void {
-		this._copilotSkuTokenGenerations.set(githubToken, (this._copilotSkuTokenGenerations.get(githubToken) ?? 0) + 1);
+	private _invalidateClientRequest(githubToken: string, request: IClientRequest): void {
+		if (this._clientsByToken.get(githubToken) !== request) {
+			return;
+		}
+		request.skuCell.valid = false;
+		request.skuCell.value = undefined;
+		request.promise = undefined;
+		this._clientsByToken.delete(githubToken);
 	}
 
 	private _clearClients(): void {
-		this._copilotSkuCacheEpoch++;
-		this._copilotSkuTokenGenerations.clear();
+		for (const request of this._clientsByToken.values()) {
+			request.skuCell.valid = false;
+			request.skuCell.value = undefined;
+			request.promise = undefined;
+		}
 		this._clientsByToken.clear();
 	}
 

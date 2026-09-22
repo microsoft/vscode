@@ -50,6 +50,13 @@ function getText(msg: Anthropic.Message): string {
 		.join('');
 }
 
+function hasMapKey(target: object, key: unknown): boolean {
+	return Reflect.ownKeys(target).some(property => {
+		const value: unknown = Reflect.get(target, property);
+		return value instanceof Map && value.has(key);
+	});
+}
+
 function userResponse(overrides?: Record<string, unknown>): Response {
 	return new Response(JSON.stringify({
 		endpoints: { api: 'https://api.githubcopilot.com' },
@@ -296,6 +303,25 @@ suite('CopilotApiService', () => {
 			await assert.rejects(() => service.messages('gh-tok', baseRequest));
 			await service.messages('gh-tok', baseRequest);
 			assert.strictEqual(discoveryCount, 2);
+		});
+
+		test('releases a rejected credential key while invalidating its captured SKU reader', async () => {
+			const token = 'rejected-gh-token';
+			const service = createService(async input => getUrl(input).includes('/copilot_internal')
+				? userResponse({ access_type_sku: 'sku-a' })
+				: new Response('unauthorized', { status: 401, statusText: 'Unauthorized' }));
+			await service.resolveCopilotSku(token);
+			const capturedSku = service.captureCopilotSku(token);
+
+			await assert.rejects(() => service.messages(token, baseRequest));
+
+			assert.deepStrictEqual({
+				capturedSku: capturedSku(),
+				retainedAsMapKey: hasMapKey(service, token),
+			}, {
+				capturedSku: undefined,
+				retainedAsMapKey: false,
+			});
 		});
 
 		test('invalidates cached endpoint discovery on 403 from models so the next call re-discovers', async () => {
