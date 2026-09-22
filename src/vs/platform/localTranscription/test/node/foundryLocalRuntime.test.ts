@@ -87,7 +87,7 @@ flakySuite('FoundryLocalRuntime', () => {
 		}, {
 			linux: ['foundry_local_node.node', 'foundry_local_preload.node', 'libfoundry_local.so', 'libonnxruntime.so.1', 'libonnxruntime-genai.so'],
 			darwin: ['foundry_local_node.node', 'foundry_local_preload.node', 'libfoundry_local.dylib', 'libonnxruntime.1.dylib', 'libonnxruntime-genai.dylib'],
-			win32: ['foundry_local_node.node', 'foundry_local_preload.node', 'foundry_local.dll', 'onnxruntime.dll', 'onnxruntime-genai.dll'],
+			win32: ['foundry_local_node.node', 'foundry_local_preload.node', 'foundry_local.dll', 'Microsoft.Windows.AI.MachineLearning.dll', 'onnxruntime.dll', 'onnxruntime-genai.dll'],
 		});
 	});
 

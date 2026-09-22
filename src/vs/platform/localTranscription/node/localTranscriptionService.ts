@@ -61,10 +61,10 @@ function withTimeout<T>(promise: Promise<T>, ms: number, message: string): Promi
 }
 
 /**
- * Directory holding the on-demand Foundry Local native runtime (addon + core
- * libraries). Derived as a sibling of the model cache dir so both live under VS
- * Code's cache home; kept separate from model files since it is versioned by SDK
- * version and provisioned independently.
+ * Directory holding the on-demand Foundry Local addons and shared libraries.
+ * Derived as a sibling of the model cache dir so both live under VS Code's cache
+ * home; kept separate from model files since it is versioned by SDK version and
+ * provisioned independently.
  */
 function runtimeCacheDir(modelCacheDir: string): string {
 	return join(dirname(modelCacheDir), 'chatDictationRuntime');
@@ -541,9 +541,6 @@ export class LocalTranscriptionService extends Disposable implements ILocalTrans
 					this._sdk = await import('foundry-local-sdk');
 				}
 				if (!this._manager) {
-					if (nativeLibraryPath) {
-						this._sdk.configureNativeLoader({ libraryPath: nativeLibraryPath });
-					}
 					// Store downloaded model files under VS Code's cache dir so
 					// subsequent sessions load without re-downloading ("model
 					// management"). `createAsync` avoids blocking the event loop

@@ -132,13 +132,13 @@ export function getRuntimeTargetForBuild(vscodePlatform: string, arch: string): 
  *     config so dictation works when the Universal app runs natively on Apple
  *     Silicon — even though only the `darwin-arm64` job builds/uploads the
  *     payload. So `darwin-x64` stamps but does not produce.
- *   - non-publish product builds: packaging keeps the SDK's addons but strips
- *     its shared libraries (`getFoundryLocalExcludeFilter` in
- *     `gulpfile.vscode.ts`), so a packaged build with no stamp would have no
- *     loadable runtime. Stamping regardless of `VSCODE_PUBLISH` gives the
- *     packaged app a usable CDN source; the payload for that version is uploaded
- *     (idempotently) by publish runs. Local dev-from-source (which never runs
- *     `produce.ts`) uses the complete `node_modules` payload.
+ *   - non-publish product builds: packaging strips the SDK's native payload
+ *     (`getFoundryLocalExcludeFilter` in `gulpfile.vscode.ts`), so a packaged
+ *     build with no stamp would have no loadable runtime. Stamping regardless
+ *     of `VSCODE_PUBLISH` gives the packaged app a usable CDN source; the payload
+ *     for that version is uploaded (idempotently) by publish runs. Local
+ *     dev-from-source (which never runs `produce.ts`) uses the complete
+ *     `node_modules` payload.
  *
  * Returns `false` for platforms/arches that can never host dictation (armhf,
  * Alpine/musl, web) so their `product.json` stays clean.

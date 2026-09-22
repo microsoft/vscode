@@ -16,11 +16,10 @@ import { IUtilityProcessWorker, IUtilityProcessWorkerWorkbenchService } from '..
 
 /**
  * Platform/architecture combinations for which the Foundry Local native runtime
- * ships a prebuilt addon and core libraries, and packaging keeps them (see the
- * Foundry Local bundling in build/gulpfile.vscode.ts). On anything else (e.g.
- * darwin/x64, linux/armhf) the native runtime is absent, so on-device
- * transcription cannot run and the feature must report itself unsupported rather
- * than showing a mic that fails on use.
+ * is published to the CDN. On anything else (e.g. darwin/x64, linux/armhf) the
+ * native runtime is unavailable, so on-device transcription cannot run and the
+ * feature must report itself unsupported rather than showing a mic that fails
+ * on use.
  */
 const SUPPORTED_TARGETS = new Set<string>([
 	'darwin-arm64',

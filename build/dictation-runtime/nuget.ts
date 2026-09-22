@@ -97,10 +97,6 @@ export interface IFetchDependencyLibrariesOptions {
 	readonly skipIfPresent?: boolean;
 }
 
-export function supportsDependencyLibraryTarget(target: string): boolean {
-	return Object.hasOwn(RID_BY_TARGET, target);
-}
-
 export function getStandardArtifacts(dependencies: IFoundryDependencyVersions): readonly INugetArtifact[] {
 	return [
 		{ name: 'Microsoft.ML.OnnxRuntime', version: dependencies.onnxruntime.version },
