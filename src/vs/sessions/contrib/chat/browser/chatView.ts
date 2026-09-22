@@ -62,6 +62,7 @@ import { EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, UNIFIED_WORKSPACE_PIC
 import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { isPhoneLayout } from '../../../browser/parts/mobile/mobileLayout.js';
 import { IsPhoneLayoutContext } from '../../../common/contextkeys.js';
+import { SessionTestAppButton } from './sessionTestAppButton.js';
 
 const SESSION_CHAT_RESPONSE_INTERNAL_HORIZONTAL_PADDING = 12;
 // 14px icon + 6px padding + 4px gap + the 4em (44px) expanded percentage label + breathing room.
@@ -248,6 +249,7 @@ export class ChatView extends AbstractChatView {
 	private readonly _isVisibleObs = observableValue(this, false);
 	private _lastLayout: { width: number; height: number } | undefined;
 	private _chatItemHorizontalPadding: number;
+	private readonly _inputToolbarRow = $('.session-input-toolbar-row');
 
 	/**
 	 * Per-view mirror of `agentsVoiceInitiatedHere`, scoped above the chat widget.
@@ -379,21 +381,28 @@ export class ChatView extends AbstractChatView {
 
 		// Floating status pills above the input.
 		this._chatPills = this._register(instantiationService.createInstance(SessionChatInputToolbar, false, () => this._widget.focusInput()));
+		const testAppButton = this._register(instantiationService.createInstance(SessionTestAppButton, this._widget, derived(reader => {
+			const session = this._currentSessionObs.read(reader);
+			const resource = this._currentChatResourceObs.read(reader);
+			return !this.isLoadingTranscript.read(reader) && isEqual(chatModel.read(reader)?.sessionResource, resource)
+				&& session?.chats.read(reader).find(chat => isEqual(chat.resource, resource))?.interactivity.read(reader) === ChatInteractivity.Full;
+		}), this._currentSessionObs));
+		this._inputToolbarRow.append(this._chatPills.element, testAppButton.element);
 		this._register(this._widget.inputEditor.onKeyDown(event => {
-			if (isFocusChatPillsKeyDown(event) && this._chatPills.focusFirst()) {
+			if (isFocusChatPillsKeyDown(event) && (testAppButton.focus() || this._chatPills.focusFirst())) {
 				event.preventDefault();
 				event.stopPropagation();
 			}
 		}));
-		const updateChatPillsVisibility = (visible: boolean) => {
-			this._widget.inputPart.persistentContentContainerElement.classList.toggle(chatPersistentContentVisibleClass, visible);
-		};
-		this._register(this._chatPills.onDidChangeVisibility(updateChatPillsVisibility));
-		updateChatPillsVisibility(this._chatPills.visible);
+		const pillsVisible = observableFromEvent(this, this._chatPills.onDidChangeVisibility, () => this._chatPills.visible);
+		this._register(autorun(reader => {
+			this._widget.inputPart.persistentContentContainerElement.classList.toggle(chatPersistentContentVisibleClass, pillsVisible.read(reader) || testAppButton.visible.read(reader));
+		}));
 		this._register(this._widget.inputPart.registerChatPetHorizontalPlatformProvider({
 			onDidChange: this._chatPills.onDidChangeChatPetPlatform,
 			getElements: () => this._chatPills.getChatPetPlatformElements(),
 		}));
+		this._register(this._widget.inputPart.registerChatPetHorizontalPlatformProvider(testAppButton.chatPetPlatform));
 		this._register(chatPillsDebugService.register(this._chatPills, this._banners, this._isActiveObs));
 		this._ensureBannersMounted();
 		this._register(this.chatSessionsService.onDidChangeContentProviderSchemes(({ added }) => {
@@ -762,7 +771,7 @@ export class ChatView extends AbstractChatView {
 	private _ensureBannersMounted(): void {
 		const inputPartElement = this._widget.inputPart.element;
 		const persistentContentContainer = this._widget.inputPart.persistentContentContainerElement;
-		const pillsNode = this._chatPills.element;
+		const pillsNode = this._inputToolbarRow;
 		const bannersNode = this._banners.domNode;
 		if (persistentContentContainer.firstChild !== pillsNode) {
 			persistentContentContainer.insertBefore(pillsNode, persistentContentContainer.firstChild);

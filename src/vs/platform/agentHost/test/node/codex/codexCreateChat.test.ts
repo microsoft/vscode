@@ -3716,6 +3716,50 @@ suite('CodexAgent chat backing durability', () => {
 		}
 	});
 
+	test('a late interrupted turn completion preserves the replacement turn identity', async () => {
+		const agent = await createAgent(disposables, { sdkResolvableWithoutDownload: true, sessionStore: createTestSessionStore() });
+		const peer = disposables.add(createTestPeer());
+		connect(agent, peer);
+		const connection = agent['_connection'];
+		assert.ok(connection.kind === 'ready');
+		peer.disposables.add(connection.client.onNotification('turn/started', params => agent['_dispatchByThread'](params.threadId, session => agent['_handleTurnStartedNotification'](session, params))));
+		peer.disposables.add(connection.client.onNotification('turn/completed', params => agent['_dispatchTurnCompleted'](params)));
+		const session = AgentSession.uri('codex', 'cancel-replace-session');
+		const chat = URI.parse(buildDefaultChatUri(session));
+		const folder = URI.file('/repo/cancel-replace');
+		const threadId = 'cancel-replace-thread';
+		const signals: AgentSignal[] = [];
+		disposables.add(agent.onDidChatProgress(signal => signals.push(signal)));
+
+		await materializeSession(agent, peer, session, chat, folder, threadId);
+		const appTurn = { id: 'app-turn-1', items: [], itemsView: 'notLoaded', status: 'inProgress', error: null, startedAt: 1, completedAt: null, durationMs: null };
+		peer.push({ method: 'turn/started', params: { threadId, turn: appTurn } });
+		const interruptRequest = readNextRequest(peer.outbound);
+		const aborting = agent.chats.abort(chat, session);
+		const interrupt = await interruptRequest;
+		assert.strictEqual(interrupt.method, 'turn/interrupt');
+		// Codex acknowledges the interrupt before publishing turn/completed.
+		peer.push({ id: interrupt.id, result: {} });
+		await aborting;
+
+		const sending = agent.chats.sendMessage(chat, 'replacement', [folder], undefined, 'turn-2', undefined, undefined, session);
+		const replacement = await readNextRequest(peer.outbound);
+		assert.strictEqual(replacement.method, 'turn/start');
+		peer.push({ method: 'turn/completed', params: { threadId, turn: { ...appTurn, status: 'interrupted', completedAt: 2, durationMs: 1000 } } });
+		peer.push({ method: 'turn/started', params: { threadId, turn: { ...appTurn, id: 'app-turn-2' } } });
+		peer.push({ id: replacement.id, result: {} });
+		await sending;
+		peer.push({ method: 'turn/completed', params: { threadId, turn: { ...appTurn, id: 'app-turn-2', status: 'completed', completedAt: 3, durationMs: 1000 } } });
+
+		assert.deepStrictEqual(signals.flatMap(signal => signal.kind === 'action'
+			&& (signal.action.type === ActionType.ChatTurnCancelled || signal.action.type === ActionType.ChatTurnComplete)
+			? [{ type: signal.action.type, turnId: signal.action.turnId }]
+			: []), [
+			{ type: ActionType.ChatTurnCancelled, turnId: 'turn-1' },
+			{ type: ActionType.ChatTurnComplete, turnId: 'turn-2' },
+		]);
+	});
+
 	test('passive archive changes use one-off connections without activating Codex', async () => {
 		const agent = await createAgent(disposables);
 		const archivePeer = disposables.add(createTestPeer());
