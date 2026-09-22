@@ -216,32 +216,40 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 			cancellationForwarded = true;
 			this._connection.dispatch(result.resource, { type: ActionType.AutomationRunCancelRequested });
 		} : undefined;
-		const dispatchDisposables = new DisposableStore();
-		try {
-			if (cancel) {
-				dispatchDisposables.add(token.onCancellationRequested(cancel));
-				if (token.isCancellationRequested) {
-					cancel();
-				}
-			}
-			const catalog = await this._waitForCatalog(state => state.entries.some(automation => automation.runs.some(run =>
-				run.resource === result.resource && (run.primarySession !== undefined || isTerminalRun(run))
-			)), undefined, null);
+		const observationDisposables = new DisposableStore();
+		const whenCompleted = this._waitForCatalog(state => state.entries.some(automation => automation.runs.some(run =>
+			run.resource === result.resource && isTerminalRun(run)
+		)), undefined, null).then(catalog => {
 			const run = catalog.entries.flatMap(automation => automation.runs).find(candidate => candidate.resource === result.resource);
-			if (!run) {
+			if (run === undefined) {
 				throw new Error(`Automation run did not appear in the authoritative catalogue: ${result.resource}`);
 			}
-			return {
-				kind: 'dispatched',
-				run: this._projectRun(run),
-				whenCompleted: this._waitForCatalog(state => state.entries.some(automation => automation.runs.some(candidate =>
-					candidate.resource === result.resource && isTerminalRun(candidate)
-				)), undefined, null).then(() => undefined),
-				...(cancel ? { cancel } : {}),
-			};
-		} finally {
-			dispatchDisposables.dispose();
+			return this._projectRun(run);
+		}).finally(() => observationDisposables.dispose());
+		if (cancel) {
+			observationDisposables.add(token.onCancellationRequested(() => {
+				try {
+					cancel();
+				} catch (error) {
+					this._logService.error(`[AgentHostAutomationStore] Failed to cancel admitted Automation run: ${result.resource}`, error);
+				}
+			}));
+			if (token.isCancellationRequested) {
+				try {
+					cancel();
+				} catch (error) {
+					this._logService.error(`[AgentHostAutomationStore] Failed to cancel admitted Automation run: ${result.resource}`, error);
+				}
+			}
 		}
+		const runId = this._resourceId(result.resource);
+		return {
+			kind: 'dispatched',
+			runId,
+			run: this.runs.get().find(run => run.id === runId),
+			whenCompleted,
+			...(cancel ? { cancel } : {}),
+		};
 	}
 
 	// Projects an Agent Host session resource into the editor-facing provider scheme.

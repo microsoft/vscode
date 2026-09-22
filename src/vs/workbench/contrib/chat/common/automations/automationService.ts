@@ -152,11 +152,13 @@ export type IAutomationRunRequestResult =
 	/** An existing run already occupies this Automation's active-run slot. */
 	| { readonly kind: 'alreadyRunning'; readonly run: IAutomationRun }
 	| {
-		/** The host handled the request, possibly failing before creating a session. */
+		/** The host accepted the request, possibly before creating a session. */
 		readonly kind: 'dispatched';
-		readonly run: IAutomationRun;
-		/** Resolves on a terminal host outcome, not necessarily success; rejects if observation fails. */
-		readonly whenCompleted: Promise<void>;
+		readonly runId: string;
+		/** The latest authoritative snapshot, absent until the accepted run reaches the catalogue. */
+		readonly run: IAutomationRun | undefined;
+		/** Resolves to the terminal host outcome, not necessarily success; rejects if observation fails. */
+		readonly whenCompleted: Promise<IAutomationRun>;
 		/** Requests host cancellation when the negotiated capability supports it. */
 		cancel?(): void;
 	};

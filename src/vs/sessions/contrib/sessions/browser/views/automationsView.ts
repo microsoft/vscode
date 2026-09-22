@@ -703,6 +703,9 @@ class AutomationCardsSection extends Disposable {
 				case 'started':
 					status(localize('automationStartedStatus', "Started automation {0}", automation.name));
 					break;
+				case 'accepted':
+					status(localize('automationAcceptedStatus', "Automation {0} accepted; waiting for a session", automation.name));
+					break;
 				case 'alreadyRunning':
 					status(localize('automationAlreadyRunningStatus', "Automation {0} is already running", automation.name));
 					break;

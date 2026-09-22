@@ -38,6 +38,7 @@ export class AutomationRunner implements IAutomationRunner {
 	}
 
 	private async run(automation: IAutomationDescriptor, token: CancellationToken, dispatched: DeferredPromise<IAutomationRunDispatch>): Promise<void> {
+		let acceptedRunId: string | undefined;
 		try {
 			if (token.isCancellationRequested) {
 				await dispatched.complete({ kind: 'notStarted', reason: 'cancelled' });
@@ -56,6 +57,7 @@ export class AutomationRunner implements IAutomationRunner {
 				await dispatched.complete({ kind: 'alreadyRunning', activeRun: result.run });
 				return;
 			}
+			acceptedRunId = result.runId;
 
 			let cancellationForwarded = false;
 			const forwardCancellation = () => {
@@ -70,22 +72,32 @@ export class AutomationRunner implements IAutomationRunner {
 			};
 			const cancellationListener = result.cancel ? token.onCancellationRequested(forwardCancellation) : undefined;
 			try {
-				if (result.run.sessionResource) {
+				if (result.run?.sessionResource) {
 					await dispatched.complete({ kind: 'started', run: result.run, sessionResource: result.run.sessionResource });
-				} else if (token.isCancellationRequested) {
-					await dispatched.complete({ kind: 'notStarted', reason: 'cancelled', run: result.run });
+				} else if (result.run?.status === 'completed' || result.run?.status === 'failed') {
+					await dispatched.complete({ kind: 'notStarted', reason: token.isCancellationRequested ? 'cancelled' : 'error', run: result.run });
 				} else {
-					this.notificationService.error(localize('automationDispatchFailed', "Automation '{0}' did not start a session: {1}", automation.name, result.run.errorMessage ?? localize('automationDispatchNoSession', "The Agent Host ended the run without a session.")));
-					await dispatched.complete({ kind: 'notStarted', reason: 'error', run: result.run });
+					await dispatched.complete({ kind: 'accepted', runId: result.runId });
 				}
 				if (token.isCancellationRequested) {
 					forwardCancellation();
 				}
-				await result.whenCompleted;
+				const completedRun = await result.whenCompleted;
+				if (completedRun.sessionResource === undefined && !token.isCancellationRequested) {
+					this.notificationService.error(localize('automationDispatchFailed', "Automation '{0}' did not start a session: {1}", automation.name, completedRun.errorMessage ?? localize('automationDispatchNoSession', "The Agent Host ended the run without a session.")));
+				}
 			} finally {
 				cancellationListener?.dispose();
 			}
 		} catch (error) {
+			if (acceptedRunId !== undefined) {
+				this.logService.error(`[AutomationRunner] Observation of accepted host run ${acceptedRunId} failed`, error);
+				this.notificationService.error(localize('automationRunObservationFailed', "Could not observe automation '{0}': {1}. The Agent Host may still run it. Reconnect to check its status.", automation.name, error instanceof Error ? error.message : String(error)));
+				if (!dispatched.isSettled) {
+					await dispatched.complete({ kind: 'accepted', runId: acceptedRunId });
+				}
+				return;
+			}
 			if (token.isCancellationRequested && isCancellationError(error)) {
 				await dispatched.complete({ kind: 'notStarted', reason: 'cancelled' });
 				return;
