@@ -2566,6 +2566,7 @@ export class ChatService extends Disposable implements IChatService {
 			const attachedContext = target.request.variableData.variables.slice();
 			const sendOptions: IChatSendRequestOptions = {
 				...target.sendOptions,
+				agentIdSilent: target.sendOptions.agentIdSilent ?? target.sendOptions.agentId ?? getChatSessionType(sessionResource),
 				queue: undefined,
 				attachedContext,
 			};

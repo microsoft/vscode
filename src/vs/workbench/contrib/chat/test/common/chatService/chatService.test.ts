@@ -1713,7 +1713,7 @@ suite('ChatService', () => {
 			{ actor: MessageKind.SystemNotification, reject: true },
 			{ actor: MessageKind.Automation, reject: true },
 		]) {
-			test(`remote ${kind} ${actor} provenance survives ${reject ? 'requeue after rejected resend' : 'immediate resend'}`, async () => {
+			test(`remote ${kind} ${actor} routing and provenance survive ${reject ? 'requeue after rejected resend' : 'immediate resend'}`, async () => {
 				const sessionType = 'agent-host-copilot';
 				const sessionResource = URI.from({ scheme: sessionType, path: '/remote-send-immediately' });
 				const mockSessionsService = new MockChatSessionsService();
@@ -1727,13 +1727,16 @@ suite('ChatService', () => {
 				}));
 				instantiationService.stub(IChatSessionsService, mockSessionsService);
 				const invoked = new DeferredPromise<IChatAgentRequest>();
-				testDisposables.add(chatAgentService.registerAgent(sessionType, { ...getAgentData(sessionType), isDefault: true }));
-				testDisposables.add(chatAgentService.registerAgentImplementation(sessionType, {
+				const implementation: IChatAgentImplementation = {
 					async invoke(request) {
 						invoked.complete(request);
 						return {};
 					},
-				}));
+				};
+				testDisposables.add(chatAgentService.registerAgent('fallbackAgent', { ...getAgentData('fallbackAgent'), isDefault: true }));
+				testDisposables.add(chatAgentService.registerAgentImplementation('fallbackAgent', implementation));
+				testDisposables.add(chatAgentService.registerAgent(sessionType, getAgentData(sessionType)));
+				testDisposables.add(chatAgentService.registerAgentImplementation(sessionType, implementation));
 				const service = createChatService();
 				const ref = await service.acquireOrLoadSession(sessionResource, ChatAgentLocation.Chat, CancellationToken.None);
 				assert.ok(ref);
@@ -1755,12 +1758,13 @@ suite('ChatService', () => {
 					const requeued = ref.object.getPendingRequests()[0];
 					assert.deepStrictEqual({
 						kind: requeued.kind,
+						agentIdSilent: requeued.sendOptions.agentIdSilent,
 						origin: requeued.sendOptions.agentHostMessageOrigin,
 						metadata: requeued.sendOptions.metadata,
 						isSystemInitiated: requeued.request.isSystemInitiated,
 						label: requeued.request.systemInitiatedLabel,
 					}, {
-						kind, origin: { kind: actor }, metadata, isSystemInitiated, label: 'Background task completed',
+						kind, agentIdSilent: sessionType, origin: { kind: actor }, metadata, isSystemInitiated, label: 'Background task completed',
 					});
 					return;
 				}
@@ -1768,6 +1772,7 @@ suite('ChatService', () => {
 
 				assert.deepStrictEqual({
 					pendingPresentation,
+					agentId: request.agentId,
 					message: request.message,
 					origin: request.agentHostMessageOrigin,
 					metadata: request.metadata,
@@ -1775,6 +1780,7 @@ suite('ChatService', () => {
 					pendingCount: ref.object.getPendingRequests().length,
 				}, {
 					pendingPresentation: { isSystemInitiated, label: 'Background task completed' },
+					agentId: sessionType,
 					message: 'remote message',
 					origin: { kind: actor },
 					metadata,
