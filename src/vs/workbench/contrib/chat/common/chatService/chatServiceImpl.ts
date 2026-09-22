@@ -46,7 +46,7 @@ import { chatAgentLeader, ChatRequestAgentPart, ChatRequestAgentSubcommandPart, 
 import { ChatRequestParser } from '../requestParser/chatRequestParser.js';
 import { ChatMcpServersStarting, ChatPendingRequestChangeClassification, ChatPendingRequestChangeEvent, ChatPendingRequestChangeEventName, ChatRequestQueueKind, ChatSendResult, ChatSendResultQueued, ChatSendResultSent, ChatStopCancellationNoopClassification, ChatStopCancellationNoopEvent, ChatStopCancellationNoopEventName, IChatCompleteResponse, IChatDetail, IChatFollowup, IChatModelReference, IChatProgress, IChatQuestionAnswers, IChatRequestAcceptedEvent, IChatRequestSubmittedEvent, IChatSendRequestOptions, IChatSendRequestResponseState, IChatService, IChatSessionStartOptions, IChatUserActionEvent, IRemotePendingRequest, ResponseModelState } from './chatService.js';
 import { ChatRequestTelemetry, ChatServiceTelemetry } from './chatServiceTelemetry.js';
-import { IChatSessionsService, isAgentHostTarget, isTerminalCommandPrompt, localChatSessionType } from '../chatSessionsService.js';
+import { IChatSessionsService, IChatSessionHistoryItem, isAgentHostTarget, isTerminalCommandPrompt, localChatSessionType } from '../chatSessionsService.js';
 import { ChatSessionStore, IChatSessionEntryMetadata } from '../model/chatSessionStore.js';
 import { IChatSlashCommandService } from '../participants/chatSlashCommands.js';
 import { IChatTransferService } from '../model/chatTransferService.js';
@@ -908,67 +908,124 @@ export class ChatService extends Disposable implements IChatService {
 			}
 			lastResponseCompletedAt = undefined;
 		};
-		for (const message of providedSession.history) {
-			if (message.type === 'request') {
-				if (lastRequest) {
-					completeLastResponse();
-				}
+		const applyHistory = (history: readonly IChatSessionHistoryItem[]) => {
+			for (const message of history) {
+				if (message.type === 'request') {
+					if (lastRequest) {
+						completeLastResponse();
+					}
 
-				const requestText = message.prompt;
-				const agent =
-					message.participant
-						? this.chatAgentService.getAgent(message.participant) // TODO(jospicer): Remove and always hardcode?
-						: this.chatAgentService.getAgent(chatSessionType);
-				const parsedRequest = parseAgentHostHistoryPrompt(requestText, agent);
-				const modeInfo = message.modeInstructions ? {
-					kind: ChatModeKind.Agent,
-					isBuiltin: message.modeInstructions.isBuiltin ?? false,
-					modeInstructions: message.modeInstructions,
-					telemetryModeId: 'custom',
-					applyCodeBlockSuggestionId: undefined,
-				} satisfies IChatRequestModeInfo : undefined;
-				lastRequest = model.addRequest(parsedRequest,
-					message.variableData ?? { variables: [] },
-					0, // attempt
-					modeInfo,
-					agent,
-					undefined, // slashCommand
-					undefined, // confirmation
-					undefined, // locationData
-					undefined, // attachments
-					false, // Do not treat as requests completed, else edit pills won't show.
-					message.modelId,
-					undefined,
-					message.id,
-					message.isSystemInitiated,
-					message.systemInitiatedLabel,
-					undefined, // terminalExecutionId
-					message.isTerminalRequest,
-					message.timestamp ?? null,
-					message.isHidden,
-					message.origin,
-					message.isRequestHidden,
-					getRestoredChatRequestSource(message, requestText),
-					message.modelConfiguration,
-				);
-			} else {
-				// response
-				if (lastRequest) {
-					for (const part of message.parts) {
-						model.acceptResponseProgress(lastRequest, part);
+					const requestText = message.prompt;
+					const agent =
+						message.participant
+							? this.chatAgentService.getAgent(message.participant) // TODO(jospicer): Remove and always hardcode?
+							: this.chatAgentService.getAgent(chatSessionType);
+					const parsedRequest = parseAgentHostHistoryPrompt(requestText, agent);
+					const modeInfo = message.modeInstructions ? {
+						kind: ChatModeKind.Agent,
+						isBuiltin: message.modeInstructions.isBuiltin ?? false,
+						modeInstructions: message.modeInstructions,
+						telemetryModeId: 'custom',
+						applyCodeBlockSuggestionId: undefined,
+					} satisfies IChatRequestModeInfo : undefined;
+					lastRequest = model.addRequest(parsedRequest,
+						message.variableData ?? { variables: [] },
+						0, // attempt
+						modeInfo,
+						agent,
+						undefined, // slashCommand
+						undefined, // confirmation
+						undefined, // locationData
+						undefined, // attachments
+						false, // Do not treat as requests completed, else edit pills won't show.
+						message.modelId,
+						undefined,
+						message.id,
+						message.isSystemInitiated,
+						message.systemInitiatedLabel,
+						undefined, // terminalExecutionId
+						message.isTerminalRequest,
+						message.timestamp ?? null,
+						message.isHidden,
+						message.origin,
+						message.isRequestHidden,
+						getRestoredChatRequestSource(message, requestText),
+						message.modelConfiguration,
+					);
+				} else {
+					// response
+					if (lastRequest) {
+						for (const part of message.parts) {
+							model.acceptResponseProgress(lastRequest, part);
+						}
+						if (lastRequest.response && (message.details || message.errorDetails)) {
+							lastRequest.response.setResult({
+								...(message.details ? { details: message.details } : {}),
+								...(message.errorDetails ? { errorDetails: message.errorDetails } : {}),
+							});
+						}
+						if (lastRequest.response && typeof message.elapsedMs === 'number') {
+							lastRequest.response.setElapsedMs(message.elapsedMs);
+						}
+						lastResponseCompletedAt = message.completedAt;
 					}
-					if (lastRequest.response && (message.details || message.errorDetails)) {
-						lastRequest.response.setResult({
-							...(message.details ? { details: message.details } : {}),
-							...(message.errorDetails ? { errorDetails: message.errorDetails } : {}),
-						});
-					}
-					if (lastRequest.response && typeof message.elapsedMs === 'number') {
-						lastRequest.response.setElapsedMs(message.elapsedMs);
-					}
-					lastResponseCompletedAt = message.completedAt;
 				}
 			}
+		};
+		applyHistory(providedSession.history);
+		if (providedSession.onDidChangeHistory) {
+			let lastHistory = providedSession.history;
+			let pendingHistory: readonly IChatSessionHistoryItem[] | undefined;
+			const localRequestIds = new Set<string>();
+			const refreshHistory = () => {
+				const history = pendingHistory;
+				if (!history || model.hasActiveRequest.get()) {
+					return;
+				}
+				pendingHistory = undefined;
+				const requests = model.getRequests();
+				let common = 0;
+				while (common < history.length && common < lastHistory.length && equals(history[common], lastHistory[common])) {
+					common++;
+				}
+				while (common > 0 && common < history.length && history[common].type !== 'request') {
+					common--;
+				}
+				const retained = new Set(history.slice(0, common).filter(item => item.type === 'request').map(item => item.id));
+				const previousIds = new Set(lastHistory.filter(item => item.type === 'request').map(item => item.id));
+				for (const request of requests) {
+					if (!previousIds.has(request.id)) {
+						localRequestIds.add(request.id);
+					}
+				}
+				for (const request of [...requests]) {
+					if (!retained.has(request.id) && previousIds.has(request.id) && !localRequestIds.has(request.id)) {
+						model.removeRequest(request.id);
+					}
+				}
+				let skipLocal = false;
+				const changedHistory = history.slice(common).filter(item => {
+					if (item.type === 'request') {
+						skipLocal = item.id !== undefined && localRequestIds.has(item.id);
+					}
+					return !skipLocal;
+				});
+				lastRequest = undefined;
+				lastResponseCompletedAt = undefined;
+				applyHistory(changedHistory);
+				completeLastResponse();
+				lastHistory = history;
+			};
+			disposables.add(providedSession.onDidChangeHistory(history => { pendingHistory = history; refreshHistory(); }));
+			disposables.add(autorun(reader => {
+				if (!model.hasActiveRequest.read(reader) && pendingHistory) {
+					queueMicrotask(() => {
+						if (!disposables.isDisposed) {
+							refreshHistory();
+						}
+					});
+				}
+			}));
 		}
 		this.trace('loadRemoteSession', `history applied to model for ${sessionResource.toString()}: ${model.getRequests().length} request(s)`);
 

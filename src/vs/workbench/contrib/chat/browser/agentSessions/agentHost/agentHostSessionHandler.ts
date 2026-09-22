@@ -716,6 +716,14 @@ class AgentHostChatSession extends Disposable implements IChatSession {
 
 	private readonly _onDidStartServerRequest = this._register(new Emitter<IChatSessionServerRequest>());
 	readonly onDidStartServerRequest = this._onDidStartServerRequest.event;
+	private readonly _onDidChangeHistory = this._register(new Emitter<readonly IChatSessionHistoryItem[]>());
+	readonly onDidChangeHistory = this._onDidChangeHistory.event;
+	get history(): readonly IChatSessionHistoryItem[] { return this._history; }
+
+	updateHistory(history: readonly IChatSessionHistoryItem[]): void {
+		this._history = history;
+		this._onDidChangeHistory.fire(history);
+	}
 
 	readonly interruptActiveResponseCallback: IChatSession['interruptActiveResponseCallback'];
 	readonly forkSession: IChatSession['forkSession'];
@@ -724,7 +732,7 @@ class AgentHostChatSession extends Disposable implements IChatSession {
 
 	constructor(
 		readonly sessionResource: URI,
-		readonly history: readonly IChatSessionHistoryItem[],
+		private _history: readonly IChatSessionHistoryItem[],
 		readonly title: string | undefined,
 		sessionSubscription: IAgentSubscription<SessionState> | undefined,
 		chatSubscription: IAgentSubscription<ChatState> | undefined,
@@ -2438,6 +2446,27 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 
 		const sessionSub = this._ensureSessionSubscription(sessionStr);
 		const chatSub = this._ensureChatSubscription(sessionStr, chatURI);
+		let historyRefreshPending = false;
+		const refreshHistory = () => {
+			const state = this._getSessionState(sessionStr, chatURI);
+			const chatSession = this._activeSessions.get(sessionResource);
+			if (!historyRefreshPending || !state || state.activeTurn || !chatSession) {
+				return;
+			}
+			historyRefreshPending = false;
+			const lookup = this._createTurnModelLookup(sessionResource, lastTurnModelSelection(state)?.id);
+			const allowTurnResume = !this._isChatReadOnly(sessionStr, chatURI);
+			chatSession.updateHistory(turnsToHistory(backendSession, state.turns, this._config.agentId, this._config.connectionAuthority,
+				lookup, this._chatErrorContext(), this._config.connection.initializeResult.get()?.terminalCommandPrefix,
+				this._config.connection.resourceUris, this._config.provider, turn => this._getTurnErrorDetails(turn, allowTurnResume)));
+		};
+		disposables.add(chatSub.onDidChange(refreshHistory));
+		disposables.add(chatSub.onDidApplyAction(envelope => {
+			if (envelope.action.type === ActionType.ChatTurnsLoaded) {
+				historyRefreshPending = true;
+				refreshHistory();
+			}
+		}));
 		// Conversation contents live on the chat, while its catalog title and
 		// other session-scoped fields live on the session. Re-evaluate on either.
 		const onChange = () => {

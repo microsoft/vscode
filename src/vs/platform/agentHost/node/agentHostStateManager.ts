@@ -542,6 +542,22 @@ export class AgentHostStateManager extends Disposable {
 		return this._chatEntries.get(buildDefaultChatUri(session))?.state;
 	}
 
+	/** Refreshes persisted history without running turn lifecycle side effects or changing the draft. */
+	refreshChatHistory(chat: URI, previousTurns: readonly Turn[], turns: readonly Turn[]): boolean {
+		const state = this.getChatState(chat);
+		if (!state || state.activeTurn || state.turns !== previousTurns || equals(state.turns, turns)) {
+			return false;
+		}
+		const session = this._chatEntries.get(chat)?.session;
+		const summary = session && this.getSessionSummary(session);
+		if (session && summary && Date.parse(summary.modifiedAt) > Date.parse(state.modifiedAt)) {
+			this.dispatchServerAction(session, { type: ActionType.SessionChatUpdated, chat, changes: { modifiedAt: summary.modifiedAt } });
+		}
+		this.dispatchServerAction(chat, { type: ActionType.ChatTruncated });
+		this.dispatchServerAction(chat, { type: ActionType.ChatTurnsLoaded, turns: [...turns] });
+		return true;
+	}
+
 	/** Returns already-hydrated state without triggering resolution or I/O. */
 	getChatState(chat: URI): ChatState | undefined {
 		return this._chatEntries.get(chat)?.state;

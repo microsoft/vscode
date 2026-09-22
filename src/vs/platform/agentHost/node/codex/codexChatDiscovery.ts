@@ -7,11 +7,14 @@ import { RunOnceScheduler } from '../../../../base/common/async.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { basename, isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
+import { Emitter } from '../../../../base/common/event.js';
 import { IFileService } from '../../../files/common/files.js';
 import { ILogService } from '../../../log/common/log.js';
 
 /** Coalesces native catalog invalidations after explicit Codex activation, without reading storage formats. */
 export class CodexChatDiscovery extends Disposable {
+	private readonly _onDidInvalidate = this._register(new Emitter<void>());
+	readonly onDidInvalidate = this._onDidInvalidate.event;
 	private static readonly refreshDelay = 5000;
 	private static readonly safetyRefreshDelay = 60_000;
 	private readonly _refresh = this._register(new RunOnceScheduler(() => { void this._run(); }, CodexChatDiscovery.refreshDelay));
@@ -46,6 +49,7 @@ export class CodexChatDiscovery extends Disposable {
 			return;
 		}
 		this._invalidated = true;
+		this._onDidInvalidate.fire();
 		if (!this._running && !this._refresh.isScheduled()) {
 			this._refresh.schedule();
 		}
@@ -72,7 +76,7 @@ export class CodexChatDiscovery extends Disposable {
 		this._watchers.add(homeWatcher.onDidChange(event => {
 			if ([...event.rawAdded, ...event.rawUpdated, ...event.rawDeleted].some(resource => {
 				const name = basename(resource);
-				return isEqual(resource, home) || name === 'sessions' || name === 'session_index.jsonl' || /^state_.*\.sqlite(?:-wal|-shm)?$/.test(name);
+				return isEqual(resource, home) || name === 'sessions' || name === 'session_index.jsonl' || /^state_.*\.sqlite(?:-wal)?$/.test(name);
 			})) {
 				this.invalidate();
 			}

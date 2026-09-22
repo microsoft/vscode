@@ -5,7 +5,7 @@
 
 import { open, unlink, type FileHandle } from 'fs/promises';
 import { decodeBase64, encodeBase64, VSBuffer } from '../../../base/common/buffer.js';
-import { Barrier, DeferredPromise, disposableTimeout, Limiter, ResourceQueue, SequencerByKey } from '../../../base/common/async.js';
+import { Barrier, DeferredPromise, disposableTimeout, Limiter, ResourceQueue, SequencerByKey, ThrottlerByKey } from '../../../base/common/async.js';
 import { toErrorMessage } from '../../../base/common/errorMessage.js';
 import { Emitter } from '../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableResourceMap, DisposableStore, IDisposable, IReference, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
@@ -542,6 +542,9 @@ export class AgentService extends Disposable implements IAgentService {
 	private readonly _providerSubscriptions = this._register(new DisposableMap<AgentProvider, DisposableStore>());
 	private readonly _disposingPeerChats = new Set<string>();
 	private readonly _defaultChatBackingWrites = new Map<string, Promise<void>>();
+	private readonly _chatHistoryRefreshes = this._register(new ThrottlerByKey<string>());
+	private readonly _chatHistoryWatches = this._register(new DisposableResourceMap());
+	private readonly _pendingChatHistories = new Map<string, { readonly provider: IAgent; readonly chat: URI; readonly turns: readonly Turn[] }>();
 	private readonly _authService: AgentHostAuthenticationService;
 	/** Shared side-effect handler for action dispatch and session lifecycle. */
 	private readonly _sideEffects: AgentSideEffects;
@@ -761,9 +764,25 @@ export class AgentService extends Disposable implements IAgentService {
 		this._register(this._stateManager.onDidChangeSessionActiveTurn(({ session, active }) => {
 			if (!active) {
 				this._flushAgentMergeNotices(session);
+				for (const [key, pending] of this._pendingChatHistories) {
+					if (parseRequiredSessionUriFromChatUri(pending.chat) === session) {
+						this._pendingChatHistories.delete(key);
+						void this._chatHistoryRefreshes.queue(key, () => this._refreshChatHistory(pending.provider, pending.chat, pending.turns)).catch(error => {
+							this._logService.warn('[AgentService] Failed to apply pending external history', error);
+						});
+					}
+				}
 			}
 		}));
 		this._register(this._stateManager.onDidRemoveSession(session => this._pendingAgentMergeNotices.delete(session)));
+		this._register(this._stateManager.onDidRemoveSession(session => {
+			for (const chat of this._chatHistoryWatches.keys()) {
+				if (parseRequiredSessionUriFromChatUri(chat) === session) {
+					this._chatHistoryWatches.deleteAndDispose(chat);
+					this._pendingChatHistories.delete(chat.toString());
+				}
+			}
+		}));
 		this._register(this._stateManager.onDidChangeSessionSummary(({ session, changes, previous }) => {
 			const meta = this._stateManager.getSessionSummary(session)?._meta;
 			if (changes.modifiedAt !== undefined) {
@@ -1195,6 +1214,13 @@ export class AgentService extends Disposable implements IAgentService {
 			}));
 			this._setupChatDiscoveryForProvider(provider);
 			subscriptions.add(provider.onDidChangeChatData(e => this._onChatDataChanged(e)));
+			if (provider.onDidChangeChatHistory) {
+				subscriptions.add(provider.onDidChangeChatHistory(event => {
+					void this._chatHistoryRefreshes.queue(event.chat.toString(), () => this._refreshChatHistory(provider, event.chat, event.turns)).catch(error => {
+						this._logService.warn('[AgentService] Failed to refresh external chat history', error);
+					});
+				}));
+			}
 			subscriptions.add(provider.onDidSpawnChat(e => this._onChatSpawned(e)));
 			this._providerSubscriptions.set(provider.id, subscriptions);
 			return toDisposable(() => {
@@ -4531,6 +4557,8 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	async disposeChat(session: URI, chat: URI): Promise<void> {
+		this._chatHistoryWatches.deleteAndDispose(chat);
+		this._pendingChatHistories.delete(chat.toString());
 		const sessionKey = session.toString();
 		const chatKey = chat.toString();
 		const provider = this._providerService.getProviderForSession(session);
@@ -4801,6 +4829,37 @@ export class AgentService extends Disposable implements IAgentService {
 		]);
 		this._logService.trace(`[AgentService] getChatMessages: provider returned ${providerTurns.length} turn(s) for chat=${chat.toString()}`);
 		return this._chatContributions.hydrateTurns({ session: session.toString(), chat: chat.toString(), workspaceTransitions }, providerTurns);
+	}
+
+	/** Routes a passive provider snapshot through normal hydration while retaining host-owned turns. */
+	private async _refreshChatHistory(provider: IAgent, chat: URI, providerTurns: readonly Turn[]): Promise<void> {
+		const session = URI.parse(parseRequiredSessionUriFromChatUri(chat));
+		await this._restoreSessionInFlight.get(session.toString());
+		const previous = this._stateManager.getChatState(chat.toString());
+		const watch = this._chatHistoryWatches.get(chat);
+		if (!previous || this._store.isDisposed || this._providerService.getProviderForSession(session) !== provider || !this._subscriptions.hasSubscribers(chat)) {
+			return;
+		}
+		if (previous.activeTurn) {
+			this._pendingChatHistories.set(chat.toString(), { provider, chat, turns: providerTurns });
+			return;
+		}
+		const hydrated = await this._chatContributions.hydrateTurns({ session: session.toString(), chat: chat.toString(), workspaceTransitions: await this._loadWorkspaceTransitions(chat) }, providerTurns);
+		const turns = await this._interleaveLocalTurns(session.toString(), chat.toString(), hydrated);
+		const byId = new Map(turns.map(turn => [turn.id, turn]));
+		const refreshed = previous.turns.map(turn => byId.get(turn.id) ?? turn);
+		const existing = new Set(previous.turns.map(turn => turn.id));
+		refreshed.push(...turns.filter(turn => !existing.has(turn.id)));
+		if (!this._store.isDisposed && this._providerService.getProviderForSession(session) === provider && this._subscriptions.hasSubscribers(chat) && this._chatHistoryWatches.get(chat) === watch) {
+			const current = this._stateManager.getChatState(chat.toString());
+			if (current?.activeTurn) {
+				this._pendingChatHistories.set(chat.toString(), { provider, chat, turns: providerTurns });
+			} else if (current && current.turns !== previous.turns) {
+				void this._chatHistoryRefreshes.queue(chat.toString(), () => this._refreshChatHistory(provider, chat, providerTurns)).catch(error => this._logService.warn('[AgentService] Failed to reconcile external history', error));
+			} else {
+				this._stateManager.refreshChatHistory(chat.toString(), previous.turns, refreshed);
+			}
+		}
 	}
 
 	private async _loadWorkspaceTransitions(chat: URI): Promise<ReadonlyMap<string, string> | undefined> {
@@ -5678,6 +5737,7 @@ export class AgentService extends Disposable implements IAgentService {
 			}
 			this._sessionResidency.touch(resource);
 			void this._sessionResidency.reconcile();
+			this._watchChatHistory(resource);
 
 			// Ensure git state has been computed for this session. When the snapshot
 			// already existed (e.g. seeded by list query, or restored earlier), the
@@ -5737,6 +5797,7 @@ export class AgentService extends Disposable implements IAgentService {
 		// it cares about (e.g. uncommitted changeset → trigger refresh).
 		if (this._subscriptions.addSubscriber(resource, clientId)) {
 			this._changesetCoordinator.onFirstSubscriber(resource);
+			this._watchChatHistory(resource);
 		}
 		this._sessionResidency.touch(resource);
 	}
@@ -5748,6 +5809,8 @@ export class AgentService extends Disposable implements IAgentService {
 		if (!this._subscriptions.removeSubscriber(resource, clientId)) {
 			return;
 		}
+		this._chatHistoryWatches.deleteAndDispose(resource);
+		this._pendingChatHistories.delete(resource.toString());
 		this._changesetCoordinator.onLastSubscriber(resource);
 		this._stateManager.onChangesetLivenessChanged();
 		if (this._maybeScheduleEphemeralSessionGc(resource)) {
@@ -5756,6 +5819,17 @@ export class AgentService extends Disposable implements IAgentService {
 		// Annotation subscribers block destructive GC, but must not suppress residency reconciliation.
 		this._maybeScheduleSessionGc(resource);
 		void this._sessionResidency.reconcile();
+	}
+
+	private _watchChatHistory(chat: URI): void {
+		if (!isAhpChatChannel(chat.toString()) || !this._subscriptions.hasSubscribers(chat) || !this._stateManager.getChatState(chat.toString()) || this._chatHistoryWatches.has(chat)) {
+			return;
+		}
+		const session = URI.parse(parseRequiredSessionUriFromChatUri(chat));
+		const watch = this._providerService.getProviderForSession(session)?.watchChatHistory?.(chat);
+		if (watch) {
+			this._chatHistoryWatches.set(chat, watch);
+		}
 	}
 
 	/**

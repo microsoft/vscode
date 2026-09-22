@@ -5507,6 +5507,46 @@ suite('AgentService (node dispatcher)', () => {
 			]);
 		});
 
+		testWithExternalSessionClock('external turns added after opening a session update its subscribed transcript and survive reselection', async () => {
+			const svc = createExternalSessionService();
+			setExternalSessionsMode(svc, AgentHostExternalSessionsMode.Last30Days, 1);
+			const historyChanges = disposables.add(new Emitter<{ chat: URI; turns: readonly Turn[] }>());
+			const agent = disposables.add(new class extends TimedExternalAgent { readonly onDidChangeChatHistory = historyChanges.event; }('codex'));
+			let turns: Turn[] = [{ id: 'first', state: TurnState.Complete, message: { text: 'First message', origin: { kind: MessageKind.User } }, responseParts: [], usage: undefined }];
+			agent.chats.getMessages = async () => turns;
+			registerTestAgentProvider(svc, agent);
+			await svc.listSessions();
+			svc.markStartupComplete();
+			await svc.whenDeferredWorkSettled();
+			const session = agent.addSession('external-live-history', Date.now(), undefined, 'External history');
+			const publish = async () => {
+				agent.fireDiscoveredChats((await agent.listExternalChats()).map(chat => ({ ...chat, external: true })));
+				await (svc as unknown as { _providerDiscoveryRegistrations: ReadonlyMap<string, Promise<void>> })._providerDiscoveryRegistrations.get(agent.id);
+				await svc.whenCatalogReconciliationIdle();
+				await waitForSessionListReconciliation(svc);
+			};
+			await publish();
+			const chat = URI.parse(buildDefaultChatUri(session));
+			await svc.subscribe(chat, 'history-viewer');
+			const manager = getStateManager(svc);
+			manager.dispatchServerAction(chat.toString(), { type: ActionType.ChatDraftChanged, draft: { text: 'Unsent draft', origin: { kind: MessageKind.User } } });
+			manager.dispatchServerAction(chat.toString(), { type: ActionType.ChatTurnStarted, turnId: 'local', startedAt: new Date().toISOString(), message: { text: 'Local request', origin: { kind: MessageKind.User } } });
+			turns = [...turns, { id: 'second', state: TurnState.Complete, message: { text: 'Sent later in ChatGPT', origin: { kind: MessageKind.User } }, responseParts: [{ kind: ResponsePartKind.Markdown, id: 'second-response', content: 'New external response' }], usage: undefined }];
+			agent.catalog.set('external-live-history', { session, modifiedTime: Date.now() + 1000, summary: 'External history' });
+			await publish();
+			historyChanges.fire({ chat, turns });
+			await timeout(0);
+			const whileActive = manager.getChatState(chat.toString())?.activeTurn?.id;
+			manager.dispatchServerAction(chat.toString(), { type: ActionType.ChatTurnComplete, turnId: 'local', duration: 1 });
+			await timeout(0);
+			const visible = getStateManager(svc).getChatState(chat.toString())?.turns.map(turn => turn.message.text);
+			svc.unsubscribe(chat, 'history-viewer');
+			await svc.subscribe(chat, 'history-viewer');
+			assert.deepStrictEqual({ visible, reselected: getStateManager(svc).getChatState(chat.toString())?.turns.map(turn => turn.message.text), whileActive, draft: manager.getChatState(chat.toString())?.draft?.text }, {
+				visible: ['First message', 'Local request', 'Sent later in ChatGPT'], reselected: ['First message', 'Local request', 'Sent later in ChatGPT'], whileActive: 'local', draft: 'Unsent draft',
+			});
+		});
+
 		testWithExternalSessionClock('hydrated discovery refreshes surfaced titles without changing recency or custom titles', async () => {
 			class LazyTitleAgent extends TimedExternalAgent {
 				title = 'Session';

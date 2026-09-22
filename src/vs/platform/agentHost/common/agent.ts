@@ -165,6 +165,12 @@ export interface IAgentDiscoveredChat extends IAgentChatMetadata {
 	readonly external: boolean;
 }
 
+/** A fresh provider transcript for a chat being observed without running a host turn. */
+export interface IAgentChatHistoryChange {
+	readonly chat: URI;
+	readonly turns: readonly Turn[];
+}
+
 /** Returns the candidate session URI keys already present in the host registry. */
 export type IAgentKnownSessionsFilter = (sessions: readonly URI[]) => Promise<ReadonlySet<string>>;
 
@@ -1311,6 +1317,10 @@ export interface IAgent {
 
 	/** Provides chats that are ready to be registered as Agent Host sessions. */
 	readonly onDidDiscoverChats: Event<readonly IAgentDiscoveredChat[]>;
+	/** Passive transcript changes from another client; these must not start host-side turn execution. */
+	readonly onDidChangeChatHistory?: Event<IAgentChatHistoryChange>;
+	/** Observe another client's persisted transcript while a host client subscribes to this chat. */
+	watchChatHistory?(chat: URI): IDisposable;
 
 	/** Starts provider-owned native chat discovery; repeated calls are idempotent. */
 	startChatDiscovery?(): Promise<void>;

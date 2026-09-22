@@ -39,6 +39,7 @@ import { CodexAgent } from '../../../node/codex/codexAgent.js';
 import { ICodexAppServerClient, ClientRequestMethod, ClientRequestParams } from '../../../node/codex/codexAppServerClient.js';
 import { ICodexProxyHandle, ICodexProxyService } from '../../../node/codex/codexProxyService.js';
 import { Thread } from '../../../node/codex/protocol/generated/v2/Thread.js';
+import type { Turn as CodexTurn } from '../../../node/codex/protocol/generated/v2/Turn.js';
 import { ICopilotApiService } from '../../../node/shared/copilotApiService.js';
 import { IAgentHostWorktreeIsolation, NullAgentHostWorktreeIsolation } from '../../../node/shared/worktreeIsolation.js';
 import { createSessionDataService, TestSessionDatabase } from '../../common/sessionTestHelpers.js';
@@ -78,12 +79,34 @@ function thread(id: string, updatedAt = 1, name = id): Thread {
 
 class CatalogClient extends mock<ICodexAppServerClient>() {
 	threads: Thread[] = [thread('first')];
+	turns: CodexTurn[] = [];
+	readonly historyRequests: string[] = [];
+	nextHistory: (() => Promise<CodexTurn[]>) | undefined;
+	activeHistoryReads = 0;
+	maxActiveHistoryReads = 0;
 	listCalls = 0;
 	activeLists = 0;
 	maxActiveLists = 0;
 	nextList: (() => Promise<Thread[]>) | undefined;
 	readonly requests: (ClientRequestParams<ClientRequestMethod>)[] = [];
 	override async request<M extends ClientRequestMethod, R>(method: M, _params: ClientRequestParams<M>): Promise<R> {
+		if (method === 'thread/read') {
+			this.historyRequests.push(method);
+			return { thread: { ...this.threads[0], turns: this.turns } } as R;
+		}
+		if (method === 'thread/turns/list') {
+			this.historyRequests.push(method);
+			const params = _params as ClientRequestParams<'thread/turns/list'>;
+			const next = this.nextHistory;
+			this.nextHistory = undefined;
+			this.maxActiveHistoryReads = Math.max(this.maxActiveHistoryReads, ++this.activeHistoryReads);
+			try {
+				const turns = next ? await next() : this.turns;
+				return { data: params.sortDirection === 'desc' ? [...turns].reverse() : turns, nextCursor: null } as R;
+			} finally {
+				this.activeHistoryReads--;
+			}
+		}
 		assert.strictEqual(method, 'thread/list');
 		this.listCalls++;
 		this.requests.push(_params);
@@ -389,6 +412,59 @@ suite('Codex chat discovery', () => {
 			await timeout(6000);
 			const metadata = await agent.getChatMetadata(chat, session);
 			assert.deepStrictEqual({ title: metadata?.summary, modifiedTime: metadata?.modifiedTime }, { title: 'Renamed after opening', modifiedTime: 2000 });
+		} finally {
+			store.dispose();
+		}
+	}));
+
+	test('observed external history refreshes during writes without resuming the native writer', () => runWithFakedTimers({}, async () => {
+		const store = disposables.add(new DisposableStore());
+		const { agent, client, filesystem } = createHarness(store);
+		const turn = (id: string, text: string): CodexTurn => ({
+			id, status: 'completed', error: null, startedAt: 1, completedAt: 2, durationMs: 1000, itemsView: 'full',
+			items: [{ type: 'userMessage', id: `${id}-user`, clientId: null, content: [{ type: 'text', text, text_elements: [] }] }],
+		});
+		try {
+			await agent.startChatDiscovery();
+			const session = AgentSession.uri('codex', 'first');
+			const chat = URI.parse(buildDefaultChatUri(session));
+			await agent.materializeChat(chat, { resource: session, configurationResource: session }, undefined);
+			client.turns = [turn('one', 'First message')];
+			await agent.chats.getMessages(chat, session);
+			const observed = agent as import('../../../common/agent.js').IAgent;
+			const histories: string[][] = [];
+			if (observed.onDidChangeChatHistory) {
+				store.add(observed.onDidChangeChatHistory(event => histories.push(event.turns.map(turn => turn.message.text))));
+			}
+			const watch = observed.watchChatHistory && store.add(observed.watchChatHistory(chat));
+			client.turns = [...client.turns, turn('two', 'Sent later in ChatGPT')];
+			filesystem.changeHomeFile('state_5.sqlite-wal');
+			await timeout(1500);
+			const afterCreation = histories.at(-1);
+			const release = new DeferredPromise<CodexTurn[]>();
+			client.nextHistory = () => release.p;
+			for (let i = 0; i < 12; i++) {
+				filesystem.changeHomeFile('state_5.sqlite-wal');
+				await timeout(100);
+			}
+			client.turns = [...client.turns, turn('three', 'Trailing external turn')];
+			filesystem.changeHomeFile('state_5.sqlite-wal');
+			await release.complete(client.turns.slice(0, 2));
+			await timeout(1500);
+			const afterBurst = histories.at(-1);
+			client.nextHistory = async () => { throw new Error('transient native read failure'); };
+			filesystem.changeHomeFile('state_5.sqlite-wal');
+			await timeout(1500);
+			const count = histories.length;
+			await timeout(6000);
+			const afterUnchanged = histories.length;
+			watch?.dispose();
+			const requestsAtDispose = client.historyRequests.length;
+			await timeout(6000);
+			assert.deepStrictEqual({ afterCreation, afterBurst, unchanged: count === afterUnchanged, maxConcurrent: client.maxActiveHistoryReads, stopped: requestsAtDispose === client.historyRequests.length }, {
+				afterCreation: ['First message', 'Sent later in ChatGPT'], afterBurst: ['First message', 'Sent later in ChatGPT', 'Trailing external turn'],
+				unchanged: true, maxConcurrent: 1, stopped: true,
+			});
 		} finally {
 			store.dispose();
 		}
