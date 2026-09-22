@@ -331,6 +331,47 @@ suite('InboxNotificationsService', () => {
 		}]);
 	});
 
+	test('prefers pending confirmation when a pending question carousel has no questions', () => {
+		const chatResource = URI.parse('test:///chat/pending-empty-question-carousel');
+		const chatService = new TestChatService();
+		const fixture = createFixture([
+			createSession({ id: 'pending-empty-question-carousel', status: SessionStatus.NeedsInput, updatedAt: 200, chatResource }),
+		], undefined, undefined, chatService);
+
+		chatService.setPendingParts(chatResource, {
+			requestId: 'request-empty-question-carousel',
+			startedWaitingAt: 10,
+			parts: [
+				{
+					kind: 'questionCarousel',
+					resolveId: 'resolve-empty-question-carousel',
+					allowSkip: true,
+					message: 'No questions yet.',
+					questions: [],
+					isUsed: false,
+				},
+				{
+					kind: 'confirmation',
+					title: 'Confirm run rm command',
+					message: 'Proceed with the command?',
+					data: { command: 'rm -rf /tmp/test' },
+					buttons: ['Approve', 'Cancel'],
+					isUsed: false,
+				},
+			],
+		});
+
+		assert.deepStrictEqual(fixture.service.notifications.get().map(item => ({
+			kind: item.kind,
+			needsInputPartKind: item.needsInputPart?.kind,
+			description: item.description,
+		})), [{
+			kind: InboxNotificationKind.NeedsInput,
+			needsInputPartKind: 'confirmation',
+			description: 'Review the confirmation request below.',
+		}]);
+	});
+
 	test('surfaces failing and passing CI notifications for session pull requests', () => {
 		const gitHubService = new TestGitHubService();
 		const fixture = createFixture([createSession({
@@ -675,14 +716,14 @@ class TestChatService {
 		this._chatModels.set(chatResource.toString(), this._createChatModel({
 			requestId: options.requestId,
 			startedWaitingAt: 10,
-			part: {
+			parts: [{
 				kind: 'questionCarousel',
 				resolveId: options.resolveId,
 				allowSkip: options.allowSkip,
 				message: options.message,
 				questions: options.questions,
 				isUsed: false,
-			},
+			}],
 		}));
 	}
 
@@ -696,23 +737,31 @@ class TestChatService {
 		this._chatModels.set(chatResource.toString(), this._createChatModel({
 			requestId: options.requestId,
 			startedWaitingAt: 10,
-			part: {
+			parts: [{
 				kind: 'confirmation',
 				title: options.title,
 				message: options.message,
 				data: options.data,
 				buttons: options.buttons ? [...options.buttons] : undefined,
 				isUsed: false,
-			},
+			}],
 		}));
 	}
 
-	private _createChatModel(options: { readonly requestId: string; readonly startedWaitingAt: number; readonly part: IChatResponseModel['response']['value'][number] }): IChatModel {
+	setPendingParts(chatResource: URI, options: {
+		readonly requestId: string;
+		readonly startedWaitingAt: number;
+		readonly parts: IChatResponseModel['response']['value'];
+	}): void {
+		this._chatModels.set(chatResource.toString(), this._createChatModel(options));
+	}
+
+	private _createChatModel(options: { readonly requestId: string; readonly startedWaitingAt: number; readonly parts: IChatResponseModel['response']['value'] }): IChatModel {
 		const response = upcastPartial<IChatResponseModel>({
 			requestId: options.requestId,
 			isCanceled: false,
 			response: {
-				value: [options.part],
+				value: options.parts,
 				getMarkdown: () => '',
 				getFinalResponse: () => '',
 				toString: () => '',

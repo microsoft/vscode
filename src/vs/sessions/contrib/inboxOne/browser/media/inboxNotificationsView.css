@@ -57,7 +57,6 @@
 	display: flex;
 	flex-direction: column;
 	gap: var(--vscode-spacing-size160);
-	overflow: hidden;
 	padding-inline-end: var(--vscode-spacing-size100);
 }
 
@@ -126,6 +125,30 @@
 	border: 1px solid var(--vscode-widget-border);
 }
 
+.inbox-notifications-item-kind-badge {
+	margin-inline-start: auto;
+	background-color: transparent;
+	border: none;
+	padding: 0;
+	font-weight: 600;
+}
+
+.inbox-notifications-item-kind-badge.priority-0 {
+	color: var(--vscode-errorForeground);
+}
+
+.inbox-notifications-item-kind-badge.priority-1 {
+	color: var(--vscode-notificationsWarningIcon-foreground);
+}
+
+.inbox-notifications-item-kind-badge.priority-2 {
+	color: var(--vscode-notificationsInfoIcon-foreground);
+}
+
+.inbox-notifications-item-kind-badge.priority-3 {
+	color: var(--vscode-descriptionForeground);
+}
+
 .inbox-notifications-item-badge.repository {
 	background-color: var(--vscode-editorWidget-background);
 	color: var(--vscode-foreground);
@@ -153,8 +176,8 @@
 	align-items: center;
 	gap: var(--vscode-spacing-size60);
 	border-radius: var(--vscode-cornerRadius-small);
-	border: 1px solid var(--vscode-widget-border);
-	background-color: var(--vscode-editorWidget-background);
+	border: none;
+	background-color: transparent;
 	color: var(--vscode-foreground);
 	padding: 0 var(--vscode-spacing-size80);
 	min-height: 20px;
@@ -178,13 +201,31 @@
 	display: none;
 }
 
+.inbox-notifications-chat-part-host {
+	margin-top: var(--vscode-spacing-size100);
+}
+
+.inbox-notifications-chat-part-host .chat-confirmation-widget-container,
+.inbox-notifications-chat-part-host .chat-question-carousel-container {
+	width: 100%;
+}
+
+.inbox-notifications-chat-part-host .interactive-input-part,
+.inbox-notifications-chat-part-host .interactive-input-part > .chat-question-carousel-widget-container {
+	width: 100%;
+}
+
+.inbox-notifications-chat-part-host.interactive-session .chat-question-carousel-container {
+	margin: 0;
+}
+
 .inbox-notifications-inline-input {
 	display: flex;
 	flex-direction: column;
 	gap: var(--vscode-spacing-size100);
-	padding: var(--vscode-spacing-size100);
-	border: 1px solid var(--vscode-widget-border);
-	border-radius: var(--vscode-cornerRadius-small);
+	padding: var(--vscode-spacing-size120);
+	border: 1px solid var(--vscode-chat-requestBorder);
+	border-radius: var(--vscode-cornerRadius-medium);
 	background-color: var(--vscode-editorWidget-background);
 }
 
@@ -230,6 +271,21 @@
 .inbox-notifications-inline-question-select {
 	width: 100%;
 	box-sizing: border-box;
+	color: var(--vscode-input-foreground);
+	background-color: var(--vscode-input-background);
+	border: 1px solid var(--vscode-input-border);
+	padding: var(--vscode-spacing-size60) var(--vscode-spacing-size80);
+	border-radius: var(--vscode-cornerRadius-small);
+}
+
+.inbox-notifications-inline-question-input::placeholder {
+	color: var(--vscode-input-placeholderForeground);
+}
+
+.inbox-notifications-inline-question-input:focus,
+.inbox-notifications-inline-question-select:focus {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: -1px;
 }
 
 .inbox-notifications-inline-question-checkbox {

@@ -566,19 +566,6 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 
 	private getNeedsInputPartFromResponse(response: IChatResponseModel, chatResource: URI): IInboxNotificationNeedsInputPart | undefined {
 		for (const part of response.response.value) {
-			if (part.kind === 'questionCarousel' && !part.isUsed) {
-				const questionPart: IInboxNotificationQuestionCarouselPart = {
-					kind: 'questionCarousel',
-					chatResource,
-					requestId: response.requestId,
-					resolveId: part.resolveId,
-					allowSkip: part.allowSkip,
-					message: part.message,
-					questions: part.questions,
-				};
-				return questionPart;
-			}
-
 			if (part.kind === 'confirmation' && !part.isUsed) {
 				const confirmationPart: IInboxNotificationConfirmationPart = {
 					kind: 'confirmation',
@@ -590,6 +577,24 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 					data: part.data,
 				};
 				return confirmationPart;
+			}
+		}
+
+		for (const part of response.response.value) {
+			if (part.kind === 'questionCarousel' && !part.isUsed) {
+				if (!part.questions.length) {
+					continue;
+				}
+				const questionPart: IInboxNotificationQuestionCarouselPart = {
+					kind: 'questionCarousel',
+					chatResource,
+					requestId: response.requestId,
+					resolveId: part.resolveId,
+					allowSkip: part.allowSkip,
+					message: part.message,
+					questions: part.questions,
+				};
+				return questionPart;
 			}
 
 			if (part.kind !== 'toolInvocation') {
