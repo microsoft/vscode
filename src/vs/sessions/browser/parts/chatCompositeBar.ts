@@ -379,18 +379,17 @@ export class ChatCompositeBar extends Disposable {
 
 		// Close button — contributed via Menus.SessionChatTab (the chat tab menu).
 		// Only non-main chats can be closed; the main chat lives and dies with its
-		// session, so its tab renders no actions toolbar. The tab's chat (and its
-		// session) is forwarded as the action argument.
+		// session, so its tab renders no actions toolbar.
 		let tabToolbar: MenuWorkbenchToolBar | undefined;
 		if (!isMainChat && session) {
 			const actionsContainer = $('.chat-composite-bar-tab-actions');
 			tab.appendChild(actionsContainer);
 			tabToolbar = this._tabDisposables.add(this._instantiationService.createInstance(MenuWorkbenchToolBar, actionsContainer, Menus.SessionChatTab, {
 				hiddenItemStrategy: HiddenItemStrategy.Ignore,
-				menuOptions: { shouldForwardArgs: true },
+				menuOptions: { args: [session, chat] },
 				toolbarOptions: { primaryGroup: () => true },
 			}));
-			tabToolbar.context = { session, chat };
+			tabToolbar.context = session;
 		}
 
 		this._tabsContainer.appendChild(tab);
@@ -456,7 +455,7 @@ export class ChatCompositeBar extends Disposable {
 			}
 
 			this._cancelTabEditing();
-			void this._commandService.executeCommand(CLOSE_CHAT_COMMAND_ID, { session, chat }).catch(onUnexpectedError);
+			void this._commandService.executeCommand(CLOSE_CHAT_COMMAND_ID, session, chat).catch(onUnexpectedError);
 		}));
 
 		// A tab drag carries two payloads: a group-move payload (to move/split the
@@ -552,8 +551,8 @@ export class ChatCompositeBar extends Disposable {
 					const provider = session && this._sessionsProvidersService.getProvider(session.providerId);
 					return Separator.join(
 						capabilities.canRename ? [renameAction] : [],
-						provider && isAgentHostProvider(provider) ? [copyLinkAction] : [],
 						capabilities.canDelete ? [deleteAction] : [],
+						provider && isAgentHostProvider(provider) ? [copyLinkAction] : [],
 					);
 				},
 				getKeyBinding: action => this._keybindingService.lookupKeybinding(action.id) ?? undefined,

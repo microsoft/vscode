@@ -7,8 +7,10 @@ import { $, append } from '../../../../../base/browser/dom.js';
 import { BaseActionViewItem, IBaseActionViewItemOptions } from '../../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { IAction } from '../../../../../base/common/actions.js';
+import { disposableLongTimeout } from '../../../../../base/common/async.js';
 import { isCancellationError } from '../../../../../base/common/errors.js';
-import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
+import { autorun, observableFromEvent } from '../../../../../base/common/observable.js';
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
 import { IModelService } from '../../../../../editor/common/services/model.js';
 import { localize, localize2 } from '../../../../../nls.js';
@@ -35,8 +37,9 @@ import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { isAgentHostTarget, isLocalAgentHostTarget, SessionType } from '../../common/chatSessionsService.js';
 import { IChatViewTitleActionContext } from '../../common/actions/chatActions.js';
 import { getChatSessionType, isUntitledChatSession } from '../../common/model/chatUri.js';
+import { IChatModel } from '../../common/model/chatModel.js';
 import { ChatInputNotificationActionKind, ChatInputNotificationSeverity, IChatInputNotificationService } from '../../browser/widget/input/chatInputNotificationService.js';
-import { OPEN_WORKSPACE_IN_AGENTS_WINDOW_COMMAND_ID, OPEN_AGENTS_WINDOW_PRECONDITION, OPEN_AGENTS_WINDOW_COMMAND_ID, ChatAgentLocation, ChatConfiguration } from '../../common/constants.js';
+import { OPEN_WORKSPACE_IN_AGENTS_WINDOW_COMMAND_ID, OPEN_AGENTS_WINDOW_PRECONDITION, OPEN_AGENTS_WINDOW_COMMAND_ID, ChatAgentLocation, ChatConfiguration, DEFAULT_AGENTS_HANDOFF_TIP_DELAY_SECONDS } from '../../common/constants.js';
 import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
@@ -56,6 +59,12 @@ import { isNewConversation } from '../../browser/widget/input/chatInputModelUtil
 const OPEN_WORKSPACE_IN_AGENTS_WINDOW_TITLE = localize2('openWorkspaceInAgentsWindow', "Open in Agents");
 const OPEN_WORKSPACE_IN_AGENTS_WINDOW_CHAT_TITLE_COMMAND_ID = 'workbench.action.chat.openWorkspaceInAgentsWindow.chatTitle';
 const OPEN_WORKSPACE_IN_AGENTS_WINDOW_TITLE_BAR_COMMAND_ID = 'workbench.action.chat.openWorkspaceInAgentsWindow.titleBar';
+
+function ensureAgentModeEnabled(configurationService: IConfigurationService): void {
+	if (configurationService.getValue<boolean>(ChatConfiguration.AgentEnabled) === false) {
+		throw new Error(localize('agentsWindow.agentModeDisabled', "The Agents window is unavailable because agent mode is disabled."));
+	}
+}
 
 function getInvokingWorkspaceFolder(accessor: ServicesAccessor): URI | undefined {
 	const workspaceContextService = accessor.get(IWorkspaceContextService);
@@ -115,6 +124,7 @@ function captureDraftHandoffOptions(accessor: ServicesAccessor, widget: IChatWid
 }
 
 async function openCurrentWorkspaceInAgentsWindow(accessor: ServicesAccessor, source: AgentsWindowOpenSource, sessionResource?: URI, draftOptions?: Pick<IOpenAgentsWindowOptions, 'draft' | 'folderUriIsDefault'>): Promise<void> {
+	ensureAgentModeEnabled(accessor.get(IConfigurationService));
 	const nativeHostService = accessor.get(INativeHostService);
 	const workspaceContextService = accessor.get(IWorkspaceContextService);
 	const handoff = draftOptions ?? getDraftHandoffOptions(accessor, sessionResource);
@@ -143,6 +153,7 @@ export class OpenWorkspaceInAgentsWindowAction extends Action2 {
 	}
 
 	async run(accessor: ServicesAccessor, options?: { readonly source?: AgentsWindowOpenSource; readonly sessionResource?: URI; readonly inputUri?: URI }): Promise<void> {
+		ensureAgentModeEnabled(accessor.get(IConfigurationService));
 		const draftOptions = getDraftHandoffOptions(accessor, options?.sessionResource, false, options?.inputUri);
 		await openCurrentWorkspaceInAgentsWindow(accessor, options?.source ?? AgentsWindowOpenSource.CommandPalette, options?.sessionResource, draftOptions);
 	}
@@ -247,6 +258,7 @@ export class OpenAgentsWindowAction extends Action2 {
 	}
 
 	async run(accessor: ServicesAccessor, args?: IOpenAgentsWindowOptions): Promise<void> {
+		ensureAgentModeEnabled(accessor.get(IConfigurationService));
 		const nativeHostService = accessor.get(INativeHostService);
 		const draftOptions: Pick<IOpenAgentsWindowOptions, 'draft' | 'folderUriIsDefault'> = !args?.folderUri && !args?.sessionResource && !args?.draft ? getDraftHandoffOptions(accessor) : {};
 		const folderUri = !args?.folderUri && !args?.sessionResource
@@ -293,6 +305,7 @@ export class OpenChatSessionInAgentsWindowAction extends Action2 {
 	}
 
 	async run(accessor: ServicesAccessor, ...rest: unknown[]): Promise<void> {
+		ensureAgentModeEnabled(accessor.get(IConfigurationService));
 		const chatWidgetService = accessor.get(IChatWidgetService);
 		const nativeHostService = accessor.get(INativeHostService);
 		const workspaceContextService = accessor.get(IWorkspaceContextService);
@@ -387,6 +400,48 @@ export class OpenWorkspaceInAgentsContribution extends Disposable implements IWo
 	}
 }
 
+function registerAgentsWindowCopyTreatments(
+	titleTreatment: string,
+	descriptionTreatment: string,
+	logPrefix: string,
+	onChange: (title: string | undefined, description: string | undefined) => void,
+	assignmentService: IWorkbenchAssignmentService,
+	logService: ILogService,
+): IDisposable {
+	const store = new DisposableStore();
+	let treatmentRequest = 0;
+	const getTreatmentText = (name: string, value: string | undefined): string | undefined => {
+		if (value === undefined || (typeof value === 'string' && value.trim())) {
+			return value;
+		}
+		logService.warn(`[${logPrefix}] Ignoring invalid ${name} treatment`);
+		return undefined;
+	};
+	const update = async (): Promise<void> => {
+		const request = ++treatmentRequest;
+		let title: string | undefined;
+		let description: string | undefined;
+		try {
+			[title, description] = await Promise.all([
+				assignmentService.getTreatment<string>(titleTreatment),
+				assignmentService.getTreatment<string>(descriptionTreatment),
+			]);
+		} catch (error) {
+			if (!store.isDisposed && request === treatmentRequest && !isCancellationError(error)) {
+				logService.warn(`[${logPrefix}] Failed to resolve banner copy treatments`, error);
+			}
+			return;
+		}
+		if (store.isDisposed || request !== treatmentRequest) {
+			return;
+		}
+		onChange(getTreatmentText(titleTreatment, title), getTreatmentText(descriptionTreatment, description));
+	};
+	store.add(assignmentService.onDidRefetchAssignments(() => void update()));
+	void update();
+	return store;
+}
+
 /**
  * Display modes for the agents-window handoff input tip, exposed via the
  * {@link ChatConfiguration.AgentsHandoffTipMode} setting.
@@ -415,16 +470,16 @@ type AgentsHandoffTipActionClassification = {
 };
 
 /**
- * Posts a tip notification above the chat input whenever the focused chat
- * widget is showing a contributed session (Copilot CLI, Cloud, Claude, etc.)
- * that the Agents Window can render directly. The notification provides a
- * one-click button to hand off the current session to the Agents Window.
+ * Offers to continue running agent-host sessions in the Agents Window after the configured delay.
+ * Also offers Agents when local Copilot cannot run in an empty workspace.
  */
 export class AgentsHandoffInputTipContribution extends Disposable implements IWorkbenchContribution {
 
 	static readonly ID = 'workbench.contrib.agentsHandoffInputTip';
 
 	private static readonly NOTIFICATION_ID = 'chat.agentsHandoff.openInAgentsWindow';
+	private static readonly TITLE_TREATMENT = 'chatAgentsHandoffTipTitle';
+	private static readonly DESCRIPTION_TREATMENT = 'chatAgentsHandoffTipDescription';
 
 	/**
 	 * Dedicated command backing the tip's action button. Lets us attach
@@ -441,14 +496,17 @@ export class AgentsHandoffInputTipContribution extends Disposable implements IWo
 	 */
 	private static readonly TIP_MUTE_COMMAND_ID = 'workbench.action.chat.agentsHandoffTip.mute';
 
-	/** Session types eligible for the handoff tip — the same set the Agents window can render directly. */
-	private static readonly ELIGIBLE_SESSION_TYPES: ReadonlySet<string> = new Set([SessionType.CopilotCLI, SessionType.AgentHostCopilot]);
-
 	/** Pseudo-key used as the {@link _lastPostedFor} value for the empty-workspace tip (no real session URI exists). */
 	private static readonly EMPTY_WORKSPACE_KEY = '__empty-workspace__';
 
 	/** The key (session URI or {@link EMPTY_WORKSPACE_KEY}) we last posted a notification for. Used to avoid redundantly re-posting the tip when the same state is re-evaluated. */
 	private _lastPostedFor: string | undefined;
+	private _lastPostedMessage: string | undefined;
+	private _lastPostedDescription: string | undefined;
+	private _titleTreatment: string | undefined;
+	private _descriptionTreatment: string | undefined;
+	private readonly _handoffTimer = this._register(new MutableDisposable());
+	private _handoffDelayMs = DEFAULT_AGENTS_HANDOFF_TIP_DELAY_SECONDS * 1000;
 
 	/** The session type (agent harness) of the currently posted tip, for telemetry. */
 	private _lastPostedSessionType: string | undefined;
@@ -468,14 +526,29 @@ export class AgentsHandoffInputTipContribution extends Disposable implements IWo
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IAgentSessionsService private readonly _agentSessionsService: IAgentSessionsService,
+		@IWorkbenchAssignmentService assignmentService: IWorkbenchAssignmentService,
+		@ILogService logService: ILogService,
 	) {
 		super();
 
-		this._register(CommandsRegistry.registerCommand(AgentsHandoffInputTipContribution.TIP_OPEN_COMMAND_ID, (accessor, ...args) => {
+		const updateDelay = () => {
+			const delay = this._configurationService.getValue<number>(ChatConfiguration.AgentsHandoffTipDelaySeconds);
+			if (typeof delay === 'number' && delay >= 0 && Number.isFinite(delay * 1000)) {
+				this._handoffDelayMs = delay * 1000;
+			} else {
+				if (delay !== undefined) {
+					logService.warn('[AgentsHandoffTip] Invalid delay; using the default delay.');
+				}
+				this._handoffDelayMs = DEFAULT_AGENTS_HANDOFF_TIP_DELAY_SECONDS * 1000;
+			}
+		};
+		updateDelay();
+
+		this._register(CommandsRegistry.registerCommand(AgentsHandoffInputTipContribution.TIP_OPEN_COMMAND_ID, (accessor, source: AgentsWindowOpenSource, ...args: unknown[]) => {
 			this._logTipAction('open');
 			// Opening the tip counts as handling it: don't show it again this window.
 			this._dismissForWindow();
-			return accessor.get(ICommandService).executeCommand(OpenChatSessionInAgentsWindowAction.ID, { agentsWindowOpenSource: AgentsWindowOpenSource.ChatHandoff }, ...args);
+			return accessor.get(ICommandService).executeCommand(OpenChatSessionInAgentsWindowAction.ID, { agentsWindowOpenSource: source }, ...args);
 		}));
 
 		this._register(CommandsRegistry.registerCommand(AgentsHandoffInputTipContribution.TIP_MUTE_COMMAND_ID, () => {
@@ -492,6 +565,10 @@ export class AgentsHandoffInputTipContribution extends Disposable implements IWo
 		this._register(contextKeyService.onDidChangeContext(() => this._update()));
 		this._register(this._workspaceContextService.onDidChangeWorkbenchState(() => this._update()));
 		this._register(this._configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(ChatConfiguration.AgentsHandoffTipDelaySeconds)) {
+				updateDelay();
+				this._update();
+			}
 			if (e.affectsConfiguration(ChatConfiguration.AgentsHandoffTipMode) || e.affectsConfiguration(ChatConfiguration.AgentsParallelWorkBannerEnabled)) {
 				// Mode changed: force a re-post so the description swaps or the
 				// tip appears/disappears immediately.
@@ -507,8 +584,29 @@ export class AgentsHandoffInputTipContribution extends Disposable implements IWo
 			this._logTipAction('dismiss');
 			this._dismissForWindow();
 		}));
+		this._register(registerAgentsWindowCopyTreatments(
+			AgentsHandoffInputTipContribution.TITLE_TREATMENT,
+			AgentsHandoffInputTipContribution.DESCRIPTION_TREATMENT,
+			'AgentsHandoffTip',
+			(title, description) => {
+				this._titleTreatment = title;
+				this._descriptionTreatment = description;
+				this._update();
+			},
+			assignmentService,
+			logService,
+		));
 
-		this._update();
+		const focusedModel = observableFromEvent(this, this._chatWidgetService.onDidChangeFocusedSession, () => this._chatWidgetService.lastFocusedWidget?.viewModel?.model);
+		this._register(autorun(reader => {
+			const model = focusedModel.read(reader);
+			if (model) {
+				model.requestInProgress.read(reader);
+				reader.store.add(model.onDidChange(() => this._update()));
+				reader.store.add(model.onDidChangePendingRequests(() => this._update()));
+			}
+			this._update();
+		}));
 	}
 
 	/** Log a user interaction (open, dismiss, mute) with the handoff tip. */
@@ -531,7 +629,32 @@ export class AgentsHandoffInputTipContribution extends Disposable implements IWo
 		}
 	}
 
+	private _isReadyForHandoff(model: IChatModel): boolean {
+		if (!model.requestInProgress.get()) {
+			return false;
+		}
+		let lastMessageTime = model.getRequests().findLast(request => !request.isSystemInitiated)?.timestamp;
+		for (const { request } of model.getPendingRequests()) {
+			if (!request.isSystemInitiated) {
+				lastMessageTime = Math.max(lastMessageTime ?? request.timestamp, request.timestamp);
+			}
+		}
+		if (lastMessageTime === undefined) {
+			return false;
+		}
+		const remaining = lastMessageTime + this._handoffDelayMs - Date.now();
+		if (remaining > 0) {
+			this._handoffTimer.value = disposableLongTimeout(() => this._update(), remaining);
+			return false;
+		}
+		return true;
+	}
+
 	private _update(): void {
+		if (this._store.isDisposed) {
+			return;
+		}
+		this._handoffTimer.clear();
 		const mode = this._getMode();
 
 		// Suppress the tip entirely when the mode hides it, or once the user has
@@ -545,20 +668,18 @@ export class AgentsHandoffInputTipContribution extends Disposable implements IWo
 		}
 
 		const widget = this._chatWidgetService.lastFocusedWidget;
+		const model = widget?.viewModel?.model;
 		const sessionResource = widget?.viewModel?.sessionResource;
 		const resourceSessionType = sessionResource ? getChatSessionType(sessionResource) : undefined;
 		const preconditionMet = widget?.scopedContextKeyService.contextMatchesRules(OPEN_AGENTS_WINDOW_PRECONDITION) ?? false;
 
-		// Existing-session path: gate on the URI-derived session type so we
-		// don't post the tip for non-eligible session kinds (Copilot Cloud,
-		// local, etc.). The notification widget also filters by
-		// `sessionTypes`, but we want to avoid even posting when the URI
-		// already tells us this isn't a handoff target.
 		const eligible = preconditionMet
 			&& !!sessionResource
 			&& !!resourceSessionType
-			&& AgentsHandoffInputTipContribution.ELIGIBLE_SESSION_TYPES.has(resourceSessionType)
-			&& !isUntitledChatSession(sessionResource);
+			&& isAgentHostTarget(resourceSessionType)
+			&& !isUntitledChatSession(sessionResource)
+			&& !!model
+			&& this._isReadyForHandoff(model);
 
 		// Empty-workspace path: no usable session yet (CLI / agent-host local
 		// can't run here, and picking the mode only creates a placeholder
@@ -587,40 +708,39 @@ export class AgentsHandoffInputTipContribution extends Disposable implements IWo
 			? sessionResource.toString()
 			: AgentsHandoffInputTipContribution.EMPTY_WORKSPACE_KEY;
 
-		// Only call setNotification when the target session changes. Re-calling
-		// setNotification clears the user's dismissal, which would make the
-		// dismiss button effectively a no-op when the context key service
-		// fires repeated change events for the same session.
-		if (this._lastPostedFor === key) {
-			return;
-		}
-		this._lastPostedFor = key;
-
-		// Record the agent harness (session type) of the posted tip for click telemetry.
-		this._lastPostedSessionType = eligible ? resourceSessionType : widgetSessionType;
-
 		// Only forward a real (non-untitled) session resource. In the empty
 		// workspace case the picker may have created a placeholder untitled
 		// session that we shouldn't try to restore on the other side.
-		const commandArgs: unknown[] = eligible && sessionResource ? [sessionResource] : [];
+		const commandArgs: unknown[] = eligible && sessionResource
+			? [AgentsWindowOpenSource.CurrentChatHandoff, sessionResource]
+			: [AgentsWindowOpenSource.EmptyWorkspaceCurrentChatHandoff];
 
 		// Empty-workspace + local Copilot: the local agent host can't
 		// run without a folder, so frame the tip as the path forward rather
 		// than a generic "continue in agents" upsell.
 		const useEmptyWorkspaceCopy = emptyWorkspaceEligible && !eligible;
-		const message = useEmptyWorkspaceCopy
+		const message = this._titleTreatment ?? (useEmptyWorkspaceCopy
 			? localize('chat.agentsHandoff.tip.emptyWorkspace.message', "Copilot isn't available without an open folder")
-			: localize('chat.agentsHandoff.tip.message', "Continue this session in the Agents Window");
-		const description = useEmptyWorkspaceCopy
+			: localize('chat.agentsHandoff.tip.message', "Continue this session in the Agents Window"));
+		const description = this._descriptionTreatment ?? (useEmptyWorkspaceCopy
 			? localize('chat.agentsHandoff.tip.emptyWorkspace.description', "Open the Agents Window to start a Copilot session.")
 			: mode === AgentsHandoffTipMode.Custom
 				? localize('chat.agentsHandoff.tip.description.copilot', "Free with your Copilot plan — get a dedicated, multi-pane view alongside your workspace.")
-				: localize('chat.agentsHandoff.tip.description', "Get a dedicated, multi-pane view alongside your workspace.");
+				: localize('chat.agentsHandoff.tip.description', "Get a dedicated, multi-pane view alongside your workspace."));
 		const actionLabel = useEmptyWorkspaceCopy
 			? localize('chat.agentsHandoff.tip.action', "Open in Agents Window")
 			: mode === AgentsHandoffTipMode.Custom
 				? localize('chat.agentsHandoff.tip.action.custom', "Give your agent more room?")
 				: localize('chat.agentsHandoff.tip.action.default', "Continue in Agents Window");
+
+		// Reposting clears notification dismissal, so only do it when the session or copy changes.
+		if (this._lastPostedFor === key && this._lastPostedMessage === message && this._lastPostedDescription === description) {
+			return;
+		}
+		this._lastPostedFor = key;
+		this._lastPostedMessage = message;
+		this._lastPostedDescription = description;
+		this._lastPostedSessionType = eligible ? resourceSessionType : widgetSessionType;
 
 		this._notificationService.setNotification({
 			id: AgentsHandoffInputTipContribution.NOTIFICATION_ID,
@@ -641,9 +761,8 @@ export class AgentsHandoffInputTipContribution extends Disposable implements IWo
 				commandId: AgentsHandoffInputTipContribution.TIP_MUTE_COMMAND_ID,
 				tooltip: localize('chat.agentsHandoff.tip.mute', "Don't Show Again"),
 			},
-			sessionTypes: useEmptyWorkspaceCopy
-				? [SessionType.AgentHostCopilot]
-				: Array.from(AgentsHandoffInputTipContribution.ELIGIBLE_SESSION_TYPES),
+			sessionTypes: eligible ? [resourceSessionType] : [SessionType.AgentHostCopilot],
+			sessionResources: eligible ? [sessionResource] : undefined,
 		});
 	}
 
@@ -657,6 +776,12 @@ export class AgentsHandoffInputTipContribution extends Disposable implements IWo
 		}
 		this._dismissedForWindow = true;
 		this._update();
+	}
+
+	override dispose(): void {
+		super.dispose();
+		this._lastPostedFor = undefined;
+		this._notificationService.deleteNotification(AgentsHandoffInputTipContribution.NOTIFICATION_ID);
 	}
 }
 
@@ -675,7 +800,6 @@ export class AgentsParallelWorkContribution extends Disposable implements IWorkb
 	private readonly _recentWidgets = new Set<IChatWidget>();
 	private _titleTreatment: string | undefined;
 	private _descriptionTreatment: string | undefined;
-	private _treatmentRequest = 0;
 	private _updating = false;
 	private _posted: { readonly widget: IChatWidget; readonly resource: URI; readonly inputUri: URI; readonly title: string; readonly description: string } | undefined;
 
@@ -685,8 +809,8 @@ export class AgentsParallelWorkContribution extends Disposable implements IWorkb
 		@IChatInputNotificationService private readonly _notificationService: IChatInputNotificationService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IWorkbenchAssignmentService private readonly _assignmentService: IWorkbenchAssignmentService,
-		@ILogService private readonly _logService: ILogService,
+		@IWorkbenchAssignmentService assignmentService: IWorkbenchAssignmentService,
+		@ILogService logService: ILogService,
 	) {
 		super();
 		this._register(CommandsRegistry.registerCommand(AgentsParallelWorkContribution.OPEN_COMMAND_ID, (accessor, inputUri: URI, resource: URI) => {
@@ -699,7 +823,7 @@ export class AgentsParallelWorkContribution extends Disposable implements IWorkb
 			}
 			const draft = captureDraftHandoffOptions(accessor, widget);
 			this._dismissChat(resource);
-			return openCurrentWorkspaceInAgentsWindow(accessor, AgentsWindowOpenSource.Banner, resource, draft);
+			return openCurrentWorkspaceInAgentsWindow(accessor, AgentsWindowOpenSource.ParallelWorkEmptyChatHandoff, resource, draft);
 		}));
 		this._register(CommandsRegistry.registerCommand(AgentsParallelWorkContribution.IGNORE_COMMAND_ID, () => {
 			if (this._posted) {
@@ -721,40 +845,19 @@ export class AgentsParallelWorkContribution extends Disposable implements IWorkb
 				this._update();
 			}
 		}));
-		this._register(this._assignmentService.onDidRefetchAssignments(() => void this._updateTreatments()));
-		void this._updateTreatments();
+		this._register(registerAgentsWindowCopyTreatments(
+			AgentsParallelWorkContribution.TITLE_TREATMENT,
+			AgentsParallelWorkContribution.DESCRIPTION_TREATMENT,
+			'AgentsParallelWork',
+			(title, description) => {
+				this._titleTreatment = title;
+				this._descriptionTreatment = description;
+				this._update();
+			},
+			assignmentService,
+			logService,
+		));
 		this._onSessionChanged();
-	}
-
-	private async _updateTreatments(): Promise<void> {
-		const request = ++this._treatmentRequest;
-		let title: string | undefined;
-		let description: string | undefined;
-		try {
-			[title, description] = await Promise.all([
-				this._assignmentService.getTreatment<string>(AgentsParallelWorkContribution.TITLE_TREATMENT),
-				this._assignmentService.getTreatment<string>(AgentsParallelWorkContribution.DESCRIPTION_TREATMENT),
-			]);
-		} catch (error) {
-			if (!this._store.isDisposed && request === this._treatmentRequest && !isCancellationError(error)) {
-				this._logService.warn('[AgentsParallelWork] Failed to resolve banner copy treatments', error);
-			}
-			return;
-		}
-		if (this._store.isDisposed || request !== this._treatmentRequest) {
-			return;
-		}
-		this._titleTreatment = this._getTreatmentText(AgentsParallelWorkContribution.TITLE_TREATMENT, title);
-		this._descriptionTreatment = this._getTreatmentText(AgentsParallelWorkContribution.DESCRIPTION_TREATMENT, description);
-		this._update();
-	}
-
-	private _getTreatmentText(name: string, value: string | undefined): string | undefined {
-		if (value === undefined || (typeof value === 'string' && value.trim())) {
-			return value;
-		}
-		this._logService.warn(`[AgentsParallelWork] Ignoring invalid ${name} treatment`);
-		return undefined;
 	}
 
 	private _dismissChat(resource: URI): void {

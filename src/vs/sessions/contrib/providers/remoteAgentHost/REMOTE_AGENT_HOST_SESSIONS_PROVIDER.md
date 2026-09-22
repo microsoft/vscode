@@ -55,6 +55,8 @@ their context by address, request an explicit reconnect, and wait for the servic
 
 The provider exposes connection state through `IAgentHostSessionsProvider` and delegates protocol operations to the live connection. Disconnecting clears live state without manufacturing successful operation results.
 
+Providers may expose `showConnectionLog` for the connection recovery surface. The provider owns log routing, so restored Dev Container providers can open their source workspace's output channel before a live connection exists.
+
 On web, an intentional tunnel disconnect keeps the host cached and selectable while suppressing automatic reconnect. Reconnecting explicitly clears that suppression. Picker dismissal remains a separate persistent Hide operation and must have an explicit Restore path.
 
 ## Session lifecycle
@@ -62,6 +64,10 @@ On web, an intentional tunnel disconnect keeps the host cached and selectable wh
 Drafts expose the shared untitled `ISession` contract and use remote workspace metadata. First send commits through the shared Agent Host lifecycle. Existing sessions use the shared adapter and cache.
 
 Remote session and chat resources preserve connection-specific routing identity through creation, hydration, and replacement. Backend session identifiers are translated only inside the provider.
+
+For cloud sandbox sessions, archive and unarchive update the client session cache without requiring a live host. Host refreshes preserve the cached archive flag; cross-client archive synchronization is not yet supported.
+
+For cloud sandboxes advertising project management, the connection customization owns a temporary session-start callback that resolves the selected repository to a ready host directory before creation and customization binding. Preparation errors stop creation; cancelling the client wait does not remove the host's checkout. Hosts without this capability retain their existing directory handling. This compatibility path does not depend on a draft protocol shape and can be removed after adopting released repository-backed creation ([proposal](https://github.com/microsoft/agent-host-protocol/pull/451)).
 
 ## Authentication and recovery
 

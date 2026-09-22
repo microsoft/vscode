@@ -6,6 +6,7 @@
 import assert from 'assert';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
+import { CancellationError } from '../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, constObservable, IObservable, observableValue } from '../../../../../base/common/observable.js';
@@ -15,7 +16,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ISession, ISessionWorkspace, SESSION_WORKSPACE_GROUP_GITHUB } from '../../../../services/sessions/common/session.js';
-import { IActiveSession, ICreateNewSessionOptions } from '../../../../services/sessions/common/sessionsManagement.js';
+import { IActiveSession, ICreateNewSessionOptions, WorkspaceNotTrustedError } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISendRequestOptions, ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
 import { IOpenNewSessionOptions, IOpenNewSessionResult } from '../../../../services/sessions/browser/sessionsService.js';
 import { IPickedSessionType, IPreferredSessionType } from '../../browser/sessionTypePicker.js';
@@ -161,6 +162,8 @@ interface ISessionCountHarness {
 }
 
 interface ISendHarness {
+	readonly notificationService: { error(message: string): void };
+	readonly _pendingBackgroundSends: { deleteAndDispose(key: object): void };
 	readonly newSessionComposerService: { notifyWillSendRequest(options: ISendRequestOptions, selection: IWorkspaceSelectionSnapshot | undefined): void };
 	readonly _session: IObservable<ISession | undefined>;
 	readonly _feedbackItems: IObservable<readonly never[]>;
@@ -188,6 +191,7 @@ interface IRenderSessionTypePickerHarness {
 interface IRenderWorkspacePickerHarness extends IRenderSessionTypePickerHarness {
 	readonly _newChatInput: IRenderSessionTypePickerHarness['_newChatInput'] & {
 		readonly pickerVisibility: SessionInputPickerVisibility;
+		placeRepositoryControls(container?: HTMLElement): void;
 	};
 	readonly _workspacePicker: {
 		renderCategoryTriggers(container: HTMLElement, triggers: readonly { readonly label?: string; readonly tooltip?: string; readonly icon?: { readonly id: string }; readonly attachesContext?: boolean }[]): HTMLElement;
@@ -287,6 +291,7 @@ suite('NewChatWidget', () => {
 			},
 			_newChatInput: {
 				pickerVisibility,
+				placeRepositoryControls: () => { },
 				sessionTypePicker: {
 					render: (target, options) => {
 						if (harnessLabels.length <= 1) {
@@ -316,6 +321,7 @@ suite('NewChatWidget', () => {
 		}, {
 			items: [
 				{ label: 'Workspace', className: '' },
+				{ label: '', className: 'new-chat-repository-controls-host' },
 				{ label: 'Copilot', className: 'sessions-chat-session-type-picker sessions-workspace-category-picker-slot' },
 			],
 			workspaceTriggers: [{ tooltip: 'Choose where the new session runs', icon: 'project', attachesContext: false }],
@@ -505,6 +511,37 @@ suite('NewChatWidget', () => {
 				icons: [Codicon.vm.id, Codicon.remote.id],
 				selections: [{ providerId: 'agenthost-remote-test' }],
 			});
+	});
+
+	test('labels selected remote quick chats with their provider', () => {
+		const providers = [
+			upcastPartial<ISessionsProvider>({
+				id: LOCAL_AGENT_HOST_PROVIDER_ID,
+				label: 'Local Agent Host',
+				supportsQuickChats: true,
+			}),
+			upcastPartial<ISessionsProvider>({
+				id: 'agenthost-remote-test',
+				label: 'Test Remote',
+				supportsQuickChats: true,
+			}),
+		];
+		const selectedLabels = [
+			LOCAL_AGENT_HOST_PROVIDER_ID,
+			'agenthost-remote-test',
+			'agenthost-missing',
+		].map(providerId => getNoWorkspaceOption.call({
+			_useConsolidatedRemoteWorkspaces: constObservable(true),
+			_isWorkspacePickerQuickChat: constObservable(true),
+			_session: constObservable({ providerId }),
+			sessionsProvidersService: { getProviders: () => providers },
+			sessionsManagementService: { isQuickChatTargetAvailable: () => true },
+			selectNoWorkspace: () => { },
+		})?.selectedLabel);
+
+		assert.deepStrictEqual(selectedLabels, isWeb
+			? [undefined, undefined, undefined]
+			: [undefined, 'Chat [Test Remote]', undefined]);
 	});
 
 	test('selects the sole quick chat provider directly', () => {
@@ -1098,6 +1135,8 @@ suite('NewChatWidget', () => {
 		let clearAttachedContextCount = 0;
 
 		const result = await send.call({
+			notificationService: { error: () => { } },
+			_pendingBackgroundSends: { deleteAndDispose: () => { } },
 			_session: constObservable(session),
 			_feedbackItems: constObservable([]),
 			_workspacePicker: {
@@ -1163,6 +1202,8 @@ suite('NewChatWidget', () => {
 		let sendCount = 0;
 
 		const result = await send.call({
+			notificationService: { error: () => { } },
+			_pendingBackgroundSends: { deleteAndDispose: () => { } },
 			_session: constObservable(undefined),
 			_feedbackItems: constObservable([]),
 			_workspacePicker: {
@@ -1186,6 +1227,37 @@ suite('NewChatWidget', () => {
 			result: false,
 			pickerOpenCount: 1,
 			sendCount: 0,
+		});
+	});
+
+	test('reports setup failures without clearing context or notifying on cancellation', async () => {
+		const notifications: string[] = [];
+		const errors: unknown[] = [];
+		let cleared = 0;
+		const session = upcastPartial<ISession>({ sessionId: 'draft' });
+		const results: boolean[] = [];
+		for (const error of [new Error('Container build failed'), new CancellationError(), new WorkspaceNotTrustedError()]) {
+			const harness: ISendHarness & { send: typeof send } = {
+				send,
+				notificationService: { error: message => notifications.push(message) },
+				_pendingBackgroundSends: { deleteAndDispose: () => { } },
+				_session: constObservable(session),
+				_feedbackItems: constObservable([]),
+				_workspacePicker: { selectedFolderUri: undefined, clearAttachedContext: () => cleared++, showPicker: () => { } },
+				_isQuickChatComposer: constObservable(false),
+				agentFeedbackService: { removeFeedback: () => { } },
+				newSessionComposerService: { notifyWillSendRequest: () => { } },
+				sessionsManagementService: { sendNewChatRequest: async () => { throw error; } },
+				logService: { error: (_message, error) => errors.push(error) },
+				_getWorkspaceRoots: () => [],
+			};
+			results.push(await harness.send('hello'));
+		}
+		assert.deepStrictEqual({ results, notifications, cleared, errors: errors.length }, {
+			results: [false, false, false],
+			notifications: ['Failed to start session: Container build failed'],
+			cleared: 0,
+			errors: 1,
 		});
 	});
 

@@ -22,6 +22,11 @@ suite('Chat Accessibility Help', () => {
 		}, { queued: true, steering: true });
 	});
 
+	test('documents the sandbox policy command and report link', () => {
+		const help = getAccessibilityHelpText('agentView', new MockKeybindingService(), true);
+		assert.ok(help.includes('use /sandbox-policy to view the effective sandbox policy. In the response, use Tab to focus Open Sandbox Policy and Enter to open the formatted report.'));
+	});
+
 	for (const type of ['panelChat', 'editsView', 'agentView'] as const) {
 		test(`documents draft copying, preservation, and invitation dismissal in ${type}`, () => {
 			const help = getAccessibilityHelpText(type, new MockKeybindingService(), false);
@@ -53,6 +58,21 @@ suite('Chat Accessibility Help', () => {
 			subagentTail: help.includes('omitted when subagent pills are the last visible content'),
 			parentTail: help.includes('appears after other content while the response remains in progress'),
 		}, { finished: true, subagentTail: true, parentTail: true });
+	});
+
+	test('describes the single Test App action and remembered retesting only in the Agents Window', () => {
+		const keybindings = new MockKeybindingService();
+		const sessionsHelp = getAccessibilityHelpText('agentView', keybindings, true, true);
+		const editorHelp = getAccessibilityHelpText('agentView', keybindings, true, false);
+		assert.deepStrictEqual([
+			sessionsHelp.includes('Test App appears to the right of the status pills above the chat input'),
+			sessionsHelp.includes('Retest App whenever it reappears, including after restarting VS Code in the same profile'),
+			sessionsHelp.includes('testing was requested, not that tests passed'),
+			sessionsHelp.includes('App Testing Options'),
+			sessionsHelp.includes('Subagent'),
+			editorHelp.includes('Test App'),
+			editorHelp.includes('Retest App'),
+		], [true, true, true, false, false, false, false]);
 	});
 
 	test('documents model details and activating Auto through Optimize for', () => {

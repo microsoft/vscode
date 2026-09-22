@@ -231,6 +231,24 @@ suite('stateToProgressAdapter', () => {
 	});
 
 	suite('rewriteAgentHostLinkTarget', () => {
+		for (const authority of ['local', 'my-host']) {
+			test(`preserves preview metadata and resource queries on ${authority}`, () => {
+				const resource = URI.parse('file:///remote/report.md?view=full#section');
+				const link = resource.with({ query: `${resource.query}&vscodeLinkType=markdown-preview` });
+
+				const rewritten = URI.parse(rewriteAgentHostLinkTarget(link.toString(), authority));
+				const params = new URLSearchParams(rewritten.query);
+				const linkType = params.get('vscodeLinkType');
+				params.delete('vscodeLinkType');
+				const target = fromAgentHostUri(rewritten.with({ query: params.toString() }));
+
+				assert.deepStrictEqual({ linkType, resource: target.toString() }, {
+					linkType: 'markdown-preview',
+					resource: resource.toString(),
+				});
+			});
+		}
+
 		test('supports absolute paths and file URIs with validated locations', () => {
 			const unwrap = (href: string) => fromAgentHostUri(URI.parse(rewriteAgentHostLinkTarget(href, 'my-host'))).toString();
 			assert.deepStrictEqual(
@@ -1410,6 +1428,36 @@ suite('stateToProgressAdapter', () => {
 			assert.strictEqual(invocation.source, ToolDataSource.Internal);
 		});
 
+		test('preserves MCP tool titles and server origins in live calls and history', () => {
+			const tc = createToolCallState({
+				toolName: 'io-github-github-github-mcp-server-issue_read',
+				displayName: 'Read issue',
+				invocationMessage: 'Read issue',
+				_meta: { mcpServerName: 'GitHub', mcpToolName: 'issue_read' },
+			});
+			const live = toolCallStateToInvocation(tc);
+			const pending = toolCallStateToInvocation({ ...tc, status: ToolCallStatus.PendingConfirmation, confirmationTitle: 'Allow tool from GitHub?' });
+			const completed = createCompletedToolCall({ ...tc, status: ToolCallStatus.Completed, pastTenseMessage: 'Read issue' });
+			finalizeToolInvocation(live, completed);
+			const restored = completedToolCallToSerialized(completed, undefined, URI.file('/'), 'local');
+
+			assert.deepStrictEqual([live, pending, restored].map(invocation => ({
+				toolId: invocation.toolId,
+				invocationMessage: invocation.invocationMessage,
+				originMessage: invocation.originMessage,
+			})), [live, pending, restored].map(() => ({
+				toolId: tc.toolName,
+				invocationMessage: 'Read issue',
+				originMessage: 'GitHub (MCP Server)',
+			})));
+		});
+
+		test('does not invent an MCP origin without valid server metadata', () => {
+			assert.deepStrictEqual([undefined, {}, { mcpServerName: 123 }, { mcpServerName: '  ' }].map(_meta =>
+				toolCallStateToInvocation(createToolCallState({ _meta })).originMessage
+			), [undefined, undefined, undefined, undefined]);
+		});
+
 		test('set_workspace confirmation hides implementation input', () => {
 			const invocation = toolCallStateToInvocation({
 				toolCallId: 'tc-set-workspace',
@@ -2201,6 +2249,46 @@ suite('stateToProgressAdapter', () => {
 
 			streaming.transitionFromStreaming(prepared, undefined, undefined);
 			assert.strictEqual(streaming.state.get().type, IChatToolInvocation.StateKind.Executing);
+		});
+
+		test('keeps the MCP origin when metadata arrives after streaming starts', () => {
+			const toolName = 'io-github-github-github-mcp-server-issue_read';
+			const invocation = toolCallStateToStreamingInvocation({
+				toolCallId: 'tc-mcp',
+				toolName,
+				displayName: toolName,
+				status: ToolCallStatus.Streaming,
+			}, undefined);
+			const running = createToolCallState({
+				toolCallId: 'tc-mcp',
+				toolName,
+				displayName: 'Read issue',
+				invocationMessage: 'Read issue',
+				_meta: { mcpServerName: 'GitHub', mcpToolName: 'issue_read' },
+			});
+			invocation.transitionFromStreaming(toolCallStateToPreparedInvocation(running), undefined, undefined);
+			const runningOrigin = invocation.originMessage;
+			invocation.requestConfirmation(toolCallStateToPreparedInvocation({
+				...running,
+				status: ToolCallStatus.PendingConfirmation,
+				confirmationTitle: 'Allow tool from GitHub?',
+			}));
+			const pendingOrigin = invocation.originMessage;
+			finalizeToolInvocation(invocation, createCompletedToolCall({ ...running, status: ToolCallStatus.Completed, pastTenseMessage: 'Read issue' }));
+
+			assert.deepStrictEqual({
+				runningOrigin,
+				pendingOrigin,
+				completedOrigin: invocation.toJSON().originMessage,
+				invocationMessage: invocation.invocationMessage,
+				pastTenseMessage: invocation.pastTenseMessage,
+			}, {
+				runningOrigin: 'GitHub (MCP Server)',
+				pendingOrigin: 'GitHub (MCP Server)',
+				completedOrigin: 'GitHub (MCP Server)',
+				invocationMessage: 'Read issue',
+				pastTenseMessage: 'Read issue',
+			});
 		});
 
 		test('requestConfirmation re-arms confirmation from Executing (Copilot Running → PendingConfirmation)', () => {

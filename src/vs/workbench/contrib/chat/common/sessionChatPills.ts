@@ -126,22 +126,19 @@ const hiddenSessionChatPills = observableMemento<readonly string[]>({
 	},
 });
 
-const showAllSessionPullRequests = observableMemento<boolean>({
-	defaultValue: true,
-	key: 'sessions.chatPills.pullRequests.showAll',
-	toStorage: value => String(value),
-	fromStorage: value => value !== 'false',
-});
+export interface ISessionChatPillFilter {
+	readonly showAll: IObservable<boolean>;
+	setShowAll(showAll: boolean): void;
+}
 
 export const ISessionChatPillVisibilityService = createDecorator<ISessionChatPillVisibilityService>('sessionChatPillVisibilityService');
 
 export interface ISessionChatPillVisibilityService {
 	readonly _serviceBrand: undefined;
-	readonly pullRequests: {
-		readonly showAll: IObservable<boolean>;
+	readonly pullRequests: ISessionChatPillFilter & {
 		isVisible(state: ChatPullRequestState | undefined, reader: IReader | undefined): boolean;
-		setShowAll(showAll: boolean): void;
 	};
+	readonly subagents: ISessionChatPillFilter;
 	readHiddenKinds(reader: IReader | undefined): ReadonlySet<SessionChatPillKind>;
 	isVisible(kind: SessionChatPillKind, reader: IReader | undefined): boolean;
 	hide(kind: SessionChatPillKind): void;
@@ -154,6 +151,7 @@ export class SessionChatPillVisibility extends Disposable implements ISessionCha
 	declare readonly _serviceBrand: undefined;
 
 	readonly pullRequests: ISessionChatPillVisibilityService['pullRequests'];
+	readonly subagents: ISessionChatPillFilter;
 
 	private readonly _hiddenKinds: ObservableMemento<readonly string[]>;
 
@@ -162,10 +160,23 @@ export class SessionChatPillVisibility extends Disposable implements ISessionCha
 	) {
 		super();
 		this._hiddenKinds = this._register(hiddenSessionChatPills(StorageScope.APPLICATION, StorageTarget.USER, storageService));
-		const showAll = this._register(showAllSessionPullRequests(StorageScope.APPLICATION, StorageTarget.USER, storageService));
+		const pullRequests = this._createFilter(SessionChatPillKind.PullRequests, storageService);
 		this.pullRequests = {
+			...pullRequests,
+			isVisible: (state, reader) => pullRequests.showAll.read(reader) || (state !== 'closed' && state !== 'merged'),
+		};
+		this.subagents = this._createFilter(SessionChatPillKind.Subagents, storageService);
+	}
+
+	private _createFilter(kind: SessionChatPillKind, storageService: IStorageService): ISessionChatPillFilter {
+		const showAll = this._register(observableMemento<boolean>({
+			defaultValue: true,
+			key: `sessions.chatPills.${kind}.showAll`,
+			toStorage: value => String(value),
+			fromStorage: value => value !== 'false',
+		})(StorageScope.APPLICATION, StorageTarget.USER, storageService));
+		return {
 			showAll,
-			isVisible: (state, reader) => showAll.read(reader) || (state !== 'closed' && state !== 'merged'),
 			setShowAll: value => showAll.set(value, undefined),
 		};
 	}

@@ -127,7 +127,7 @@ suite('Queue/Steer keybinding resolution', () => {
 		return new KeybindingResolver(items, [], () => { });
 	}
 
-	function lookupForConfig(defaultAction: 'steer' | 'queue') {
+	function lookupForConfig(defaultAction: 'steer' | 'queue', preparing = false) {
 		const config = new TestConfigurationService({ [ChatConfiguration.RequestQueueingDefaultAction]: defaultAction });
 		const ctxService = new ContextKeyService(config);
 		// Simulate the chat input being focused with a request in progress, like the picker does.
@@ -135,6 +135,7 @@ suite('Queue/Steer keybinding resolution', () => {
 			[ChatContextKeys.inputHasText.key, true],
 			[ChatContextKeys.inChatInput.key, true],
 			[ChatContextKeys.requestInProgress.key, true],
+			[ChatContextKeys.transcriptProgressActive.key, preparing],
 		]);
 		const resolver = buildResolverForCommands([ChatQueueMessageAction.ID, ChatSteerWithMessageAction.ID]);
 		return {
@@ -163,17 +164,29 @@ suite('Queue/Steer keybinding resolution', () => {
 			dispose();
 		}
 	});
+
+	test('preparation disables Enter and Alt+Enter queueing for either default', () => {
+		for (const defaultAction of ['steer', 'queue'] as const) {
+			const { result, dispose } = lookupForConfig(defaultAction, true);
+			try {
+				assert.deepStrictEqual(result, { queue: null, steer: null });
+			} finally {
+				dispose();
+			}
+		}
+	});
 });
 
 suite('ChatSteerWithMessageAction', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function run(isHiddenFromTranscript: boolean): ChatRequestQueueKind | undefined {
+	function run(isHiddenFromTranscript: boolean, preparing = false, action = new ChatSteerWithMessageAction()): ChatRequestQueueKind | undefined {
 		const store = disposables.add(new DisposableStore());
 		const instantiationService = store.add(new TestInstantiationService());
 		let queue: ChatRequestQueueKind | undefined;
 		instantiationService.stub(IChatWidgetService, upcastPartial<IChatWidgetService>({
 			lastFocusedWidget: upcastPartial<IChatWidget>({
+				isTranscriptProgressActive: preparing,
 				getInput: () => 'follow up',
 				acceptInput: async (_query, options) => {
 					queue = options?.queue;
@@ -188,7 +201,6 @@ suite('ChatSteerWithMessageAction', () => {
 			}),
 		}));
 
-		const action = new ChatSteerWithMessageAction();
 		instantiationService.invokeFunction(accessor => action.run(accessor));
 		return queue;
 	}
@@ -202,12 +214,19 @@ suite('ChatSteerWithMessageAction', () => {
 			visible: ChatRequestQueueKind.Steering,
 		});
 	});
+
+	test('direct queue and steer commands cannot dispatch during preparation', () => {
+		assert.deepStrictEqual({
+			steer: run(false, true),
+			queue: run(false, true, new ChatQueueMessageAction()),
+		}, { steer: undefined, queue: undefined });
+	});
 });
 
 suite('ChatAskInSideChatAction', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function setup(options: { canAsk?: boolean; askFails?: boolean } = {}) {
+	function setup(options: { canAsk?: boolean; askFails?: boolean; preparing?: boolean } = {}) {
 		const store = disposables.add(new DisposableStore());
 		const instantiationService = store.add(new TestInstantiationService());
 		const sessionResource = URI.parse('test:///chat/source');
@@ -215,6 +234,7 @@ suite('ChatAskInSideChatAction', () => {
 		let input = 'what about this?';
 		instantiationService.stub(IChatWidgetService, upcastPartial<IChatWidgetService>({
 			lastFocusedWidget: upcastPartial<IChatWidget>({
+				isTranscriptProgressActive: options.preparing,
 				domNode: getActiveDocument().createElement('div'),
 				inputEditor: { getDomNode: () => null } as ICodeEditor,
 				getInput: () => input,
@@ -255,6 +275,12 @@ suite('ChatAskInSideChatAction', () => {
 			asked: [`${sessionResource.toString()}:what about this?`],
 			input: '',
 		});
+	});
+
+	test('preparation preserves the draft without starting a side chat', async () => {
+		const { run, asked, getInput } = setup({ preparing: true });
+		await run();
+		assert.deepStrictEqual({ asked, input: getInput() }, { asked: [], input: 'what about this?' });
 	});
 
 	test('restores the composed message when the side chat cannot be created', async () => {

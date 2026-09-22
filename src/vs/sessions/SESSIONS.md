@@ -84,6 +84,8 @@ An `ISession` has a provider-owned resource URI, provider identifier, session ty
 
 Consumers derive state from those observables. Provider events announce catalog membership changes; they are not a parallel state store.
 
+Drafts may expose `preparationProgress` with a startup phase, an action to open the existing log, and cancellation. This is transient provider-owned state, not chat history. While the first request is in progress, the view presents the chat progress surface without committing the draft. The chat composer remains visible with editing disabled and Stop available; the original new-session composer is retained so failed or canceled preparation preserves the submitted prompt and attachments.
+
 Sessions backed by a remote agent host may expose `remoteConnectionStatus`, derived from their backing provider; it is absent when the session has no remote host. Its session-facing disconnected variant may include a machine-readable failure reason.
 
 Providers may expose immutable creation provenance when a session was created by
@@ -101,7 +103,7 @@ Chat origin and interactivity describe whether a chat is user-created, tool-crea
 
 ### Workspaces and quick chats
 
-`ISession.workspace` describes the workspace in which a session operates. A quick chat is workspace-less by product intent and is identified through `ISession.isQuickChat`. An absent workspace alone does not prove that a session is a quick chat because workspace state may still be hydrating.
+`ISession.workspace` describes the complete workspace in which a session operates. `IChat.workspace` describes the effective workspace available to that chat and may be a subset of the session workspace. Filesystem-facing UI and actions for the focused conversation use `IActiveSession.activeChat.workspace`; session lifecycle, creation, and list presentation continue to use the aggregate session workspace. A quick chat is workspace-less by product intent and is identified through `ISession.isQuickChat`. An absent workspace alone does not prove that a session is a quick chat because workspace state may still be hydrating.
 
 ### Capabilities
 
