@@ -46,8 +46,6 @@ function stubSession(sessionId: string): ISession {
 		title: constObservable(sessionId),
 		updatedAt: constObservable(new Date()),
 		status: constObservable(0),
-		changesets: constObservable([]),
-		changes: constObservable([]),
 		modelId: constObservable(undefined),
 		mode: constObservable(undefined),
 		loading: constObservable(false),

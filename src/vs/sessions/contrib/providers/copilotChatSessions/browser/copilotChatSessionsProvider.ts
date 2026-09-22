@@ -3868,9 +3868,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 			title: primaryChat.title,
 			updatedAt: chatsObs.map((chats, reader) => this._latestDate(chats, c => c.updatedAt.read(reader))!),
 			status: chatsObs.map((chats, reader) => this._aggregateStatus(chats, reader)),
-			changesets: this._createChangesets(primaryChat.sessionType, primaryChat.workspace, chatsObs),
 			changesSummary: primaryChat.changesSummary,
-			changes: primaryChat.changes,
 			artifacts: primaryChat.artifacts,
 			modelId: primaryChat.modelId,
 			mode: primaryChat.mode,
@@ -3898,7 +3896,6 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 	private _chatToSingleChatSession(chat: ICopilotChatSession): ISession {
 		const mainChat = chat.mainChat.map(mainChat => this._withChangesets(mainChat, chat.sessionType, chat.workspace));
 		const chatsObs = mainChat.map(c => [c] as readonly IChat[]);
-		const changesets = this._createChangesets(chat.sessionType, chat.workspace, chatsObs);
 
 		return {
 			sessionId: chat.sessionId,
@@ -3912,9 +3909,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 			title: chat.title,
 			updatedAt: chat.updatedAt,
 			status: chat.status,
-			changesets,
 			changesSummary: chat.changesSummary,
-			changes: chat.changes,
 			artifacts: chat.artifacts,
 			modelId: chat.modelId,
 			mode: chat.mode,

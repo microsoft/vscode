@@ -318,13 +318,11 @@ export class AgentHostSessionInputPills extends Disposable {
 		const pillsVisible = derived(this, reader => !subagentChat.read(reader));
 		const changesetTarget = derivedOpts({ owner: this, equalsFn: changesetTargetEquals }, reader => {
 			const currentResolution = resolution.read(reader);
-			if (!currentResolution) {
+			const chat = chatResource.read(reader);
+			if (!currentResolution || !chat) {
 				return undefined;
 			}
-			const chat = chatResource.read(reader);
-			return chat
-				? resolveAgentHostChangeset(chat, chatState.read(reader)?.changesets, currentResolution.defaultChangesetKind)
-				: resolveAgentHostChangeset(currentResolution.backendSession, sessionState.read(reader)?.changesets, currentResolution.defaultChangesetKind);
+			return resolveAgentHostChangeset(chat, chatState.read(reader)?.changesets, currentResolution.defaultChangesetKind);
 		});
 		const changesetStateSource = derived(this, reader => {
 			const currentResolution = resolution.read(reader);

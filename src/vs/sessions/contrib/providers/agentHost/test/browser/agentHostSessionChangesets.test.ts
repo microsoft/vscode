@@ -38,7 +38,7 @@ import { ChatContextKeys } from '../../../../../../workbench/contrib/chat/common
 import { TestStorageService } from '../../../../../../workbench/test/common/workbenchTestServices.js';
 import { Menus } from '../../../../../browser/menus.js';
 import { SessionIdContext } from '../../../../../common/contextkeys.js';
-import { ISessionChangeset, ISessionFileChange, ISessionFolder, ISessionGitRepository, ISessionWorkspace, SessionChangesetOperationStatus } from '../../../../../services/sessions/common/session.js';
+import { CHAT_CHANGES_CHANGESET_ID, IChat, ISessionChangeset, ISessionFileChange, ISessionFolder, ISessionGitRepository, ISessionWorkspace, SESSION_CHANGES_CHANGESET_ID, SessionChangesetOperationStatus } from '../../../../../services/sessions/common/session.js';
 import { SessionContext } from '../../../../../services/sessions/browser/sessionContext.js';
 import { ISessionsPartService } from '../../../../../services/sessions/browser/sessionsPartService.js';
 import { ISessionsService } from '../../../../../services/sessions/browser/sessionsService.js';
@@ -228,8 +228,8 @@ suite('AgentHostSessionChangesets', () => {
 				defaultChangesetKind,
 			};
 
-			return createChangesets(sessionUri, options, constObservable(false), changeKinds.map(entry))
-				.map(changeset => `${changeset.id}${changeset.isDefault.get() ? '*' : ''}`);
+			return createChangesets(sessionUri, options, constObservable(false), changeKinds.map(entry), URI.parse(buildDefaultChatUri(sessionUri.toString())))
+				.map(changeset => `${changeset.id === CHAT_CHANGES_CHANGESET_ID ? ChangesetKind.Session : changeset.id}${changeset.isDefault.get() ? '*' : ''}`);
 		}
 
 		/** The catalogue a Copilot host advertises for a git-backed session. */
@@ -269,6 +269,31 @@ suite('AgentHostSessionChangesets', () => {
 			assert.deepStrictEqual(
 				selectDefault(['uncommitted'], ChangesetKind.Session),
 				['uncommitted*']);
+		});
+
+		test('projects distinct session and chat changeset identities', () => {
+			const instantiationService = disposables.add(new TestInstantiationService());
+			instantiationService.stub(IDialogService, { confirm: async () => ({ confirmed: true }) });
+			const options: IAgentHostAdapterOptions = {
+				icon: Codicon.copilot,
+				loading: constObservable(false),
+				buildWorkspace: () => undefined,
+				instantiationService,
+				getConnection: () => undefined,
+				agentCapabilities: constObservable(undefined),
+				mapBackendSessionResource: resource => resource,
+			};
+			const catalogue = [entry(ChangesetKind.Session)];
+			const sessionChangeset = createChangesets(sessionUri, options, constObservable(false), catalogue)[0];
+			const chatChangeset = createChangesets(sessionUri, options, constObservable(false), catalogue, URI.parse(buildDefaultChatUri(sessionUri.toString())))[0];
+
+			assert.deepStrictEqual({
+				session: { id: sessionChangeset.id, isDefault: sessionChangeset.isDefault.get() },
+				chat: { id: chatChangeset.id, isDefault: chatChangeset.isDefault.get() },
+			}, {
+				session: { id: SESSION_CHANGES_CHANGESET_ID, isDefault: false },
+				chat: { id: CHAT_CHANGES_CHANGESET_ID, isDefault: true },
+			});
 		});
 
 		test('rejects operation invocation while disconnected', async () => {
@@ -353,14 +378,14 @@ suite('AgentHostSessionChangesets', () => {
 			emptyCatalogue: current,
 		}, {
 			absentCatalogue: undefined,
-			initial: ['session'],
+			initial: ['chat'],
 			preservedIdentity: true,
 			updated: ['branch'],
 			emptyCatalogue: [],
 		});
 	});
 
-	test('resolves Last Turn Changes directly from the owning chat', () => {
+	test('subscribes Last Turn Changes directly to the owning chat while live edits are provided', () => {
 		const chatUri = URI.parse('ahp-chat://peer/c2Vzc2lvbg');
 		const chatSummary: ChatSummary = {
 			resource: chatUri.toString(),
@@ -371,13 +396,14 @@ suite('AgentHostSessionChangesets', () => {
 		const chatState: ChatState = {
 			...createChatState(chatSummary),
 			workingDirectories: ['file:///chat'],
-			turns: [{
+			turns: [],
+			activeTurn: {
 				id: 'turn-1',
+				startedAt: new Date(0).toISOString(),
 				message: { text: 'Edit', origin: { kind: MessageKind.User } },
 				responseParts: [],
 				usage: undefined,
-				state: TurnState.Complete,
-			}],
+			},
 			changesets: [{
 				label: 'Last Turn Changes',
 				changeKind: ChangesetKind.Turn,
@@ -414,7 +440,7 @@ suite('AgentHostSessionChangesets', () => {
 			agentCapabilities: constObservable(undefined),
 			mapBackendSessionResource: resource => resource,
 		};
-		const projected = createChatChangesets(chatUri, options, constObservable(true));
+		const projected = createChatChangesets(chatUri, options, constObservable(true), constObservable([]));
 		let enabled: boolean | undefined;
 		disposables.add(autorun(reader => {
 			const changeset = projected.read(reader)?.[0];
@@ -828,15 +854,21 @@ suite('AgentHostSessionChangesets', () => {
 				agentCapabilities: constObservable(undefined),
 				mapBackendSessionResource: resource => resource,
 			}, constObservable(true), [{ label: 'Uncommitted Changes', changeKind: ChangesetKind.Uncommitted, uriTemplate: channel }]);
+			const workspace = constObservable(upcastPartial<ISessionWorkspace>({
+				folders: [upcastPartial<ISessionFolder>({
+					gitRepository: upcastPartial<ISessionGitRepository>({ incomingChanges: 1 }),
+				})],
+			}));
+			const chat = upcastPartial<IChat>({
+				changesets: constObservable(changesets),
+				workspace,
+			});
 			const session = upcastPartial<IActiveSession>({
 				sessionId: 'draft',
 				resource: sessionUri,
-				changesets: constObservable(changesets),
-				workspace: constObservable(upcastPartial<ISessionWorkspace>({
-					folders: [upcastPartial<ISessionFolder>({
-						gitRepository: upcastPartial<ISessionGitRepository>({ incomingChanges: 1 }),
-					})],
-				})),
+				activeChat: constObservable(chat),
+				mainChat: constObservable(chat),
+				workspace,
 			});
 			const sessionsService = new class extends mock<ISessionsService>() {
 				override readonly activeSession = constObservable(session);

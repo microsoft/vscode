@@ -81,7 +81,6 @@ suite('Session Sync Changes', () => {
 		const session = upcastPartial<IActiveSession>({
 			sessionId: id,
 			resource: URI.parse(`test-session:/${id}`),
-			changesets: constObservable([]),
 			workspace,
 			worktreePending,
 			activeChat: constObservable(activeChat),

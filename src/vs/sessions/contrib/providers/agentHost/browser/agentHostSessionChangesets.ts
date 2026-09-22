@@ -20,13 +20,15 @@ import { ChangesetOperation, ChangesetOperationScope, type ChangesetFile, Change
 import { ActionType } from '../../../../../platform/agentHost/common/state/sessionActions.js';
 import { buildDefaultChatUri, ChangesetStatus, Changeset, isHostNoticeTurn, lastAttributableTurnId, MessageKind, parseRequiredSessionUriFromChatUri, StateComponents, TurnState, type ChangesetState, type ChatState, type ChatSummary, type SessionState } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
-import { ISessionChangeset, ISessionChangesetCapabilities, ISessionChangesetOperation, ISessionChangesetOperationTarget, ISessionFileChange, SessionChangesetOperationScope, SessionChangesetOperationStatus, sessionFileChangesEqual } from '../../../../services/sessions/common/session.js';
+import { CHAT_CHANGES_CHANGESET_ID, ISessionChangeset, ISessionChangesetCapabilities, ISessionChangesetOperation, ISessionChangesetOperationTarget, ISessionFileChange, SessionChangesetOperationScope, SessionChangesetOperationStatus, sessionFileChangesEqual } from '../../../../services/sessions/common/session.js';
 import { isIChatSessionFileChange2 } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { changesetFileToChange } from './agentHostDiffs.js';
 import { AgentHostPullRequestCreation } from './agentHostPullRequestCreation.js';
 import { IAgentHostAdapterOptions } from './baseAgentHostSessionsProvider.js';
 
 export interface IAgentHostChangeset extends Changeset {
+	/** Provider-neutral identity when it differs from the protocol change kind. */
+	readonly id?: string;
 	/**
 	 * Optional authoritative changes. `undefined` falls back to the changeset
 	 * channel; an array, including an empty one, is used as-is.
@@ -89,10 +91,11 @@ export function createChangesets(
 	const defaultChangeset = selectDefaultChangeset(changesets, options.defaultChangesetKind);
 
 	for (const catalogueEntry of changesets) {
-		const isDefault = catalogueEntry === defaultChangeset;
+		const isDefault = chatUri !== undefined && catalogueEntry === defaultChangeset;
 		// A relative template parses to a local filesystem path, so resolve before use.
 		const changeset = {
 			...catalogueEntry,
+			id: chatUri && catalogueEntry.changeKind === ChangesetKind.Session ? CHAT_CHANGES_CHANGESET_ID : catalogueEntry.id,
 			uriTemplate: resolveChangesetUriTemplate(sessionUri.toString(), catalogueEntry.uriTemplate),
 		};
 
@@ -282,18 +285,25 @@ abstract class AbstractAgentHostChangeset implements ISessionChangeset {
 			review: changeset.capabilities?.review !== undefined
 		} satisfies ISessionChangesetCapabilities;
 
+		let changesetStateWithProvidedChanges: ChangesetState | Error | undefined | null;
 		const providedChangesObs = derivedObservableWithCache<readonly ISessionFileChange[] | undefined>(this, (reader, lastValue) => {
 			const providedChanges = changeset.changes?.read(reader);
 			if (providedChanges !== undefined) {
+				changesetStateWithProvidedChanges = this.changesetStateObs.read(reader).read(reader);
 				return providedChanges;
 			}
 			if (lastValue === undefined) {
 				return undefined;
 			}
 			const changesetState = this.changesetStateObs.read(reader).read(reader);
-			return changesetState && !(changesetState instanceof Error) && changesetState.status === ChangesetStatus.Ready
-				? undefined
-				: lastValue;
+			if (changesetState === changesetStateWithProvidedChanges
+				|| !changesetState
+				|| changesetState instanceof Error
+				|| changesetState.status !== ChangesetStatus.Ready) {
+				return lastValue;
+			}
+			changesetStateWithProvidedChanges = undefined;
+			return undefined;
 		});
 
 		this.isLoadingChanges = derived(reader => {
@@ -528,7 +538,7 @@ class AgentHostChangeset extends AbstractAgentHostChangeset {
 			this.channelUriObs,
 		);
 
-		this.id = changesetSummary.changeKind;
+		this.id = changesetSummary.id ?? changesetSummary.changeKind;
 		this._label = changesetSummary.label;
 		this._description = changesetSummary.description;
 

@@ -170,7 +170,6 @@ suite('Changes Actions', () => {
 			resource: URI.parse('test-session:draft'),
 			status,
 			workspace,
-			changesets: constObservable([]),
 			mainChat: constObservable(chat),
 			activeChat: constObservable(chat),
 		}));

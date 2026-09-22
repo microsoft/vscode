@@ -134,8 +134,6 @@ const session = {
 	title: constObservable('Session'),
 	updatedAt: constObservable(new Date()),
 	status: constObservable(SessionStatus.Completed),
-	changesets: constObservable([]),
-	changes: constObservable([]),
 	modelId: constObservable(undefined),
 	mode: constObservable(undefined),
 	loading: constObservable(false),

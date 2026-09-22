@@ -66,6 +66,12 @@ export const chatChangesetLabel = (): string => localize('chatChangeset.label', 
 /** Localized human-readable description for the chat-wide changeset entry. */
 export const chatChangesetDescription = (): string => localize('chatChangeset.description', "Show all changes made in this chat");
 
+/** Localized human-readable label for the session-wide changeset entry. */
+export const sessionChangesetLabel = (): string => localize('sessionChangeset.label', "Session Changes");
+
+/** Localized human-readable description for the session-wide changeset entry. */
+export const sessionChangesetDescription = (): string => localize('sessionChangeset.description', "Show all changes made in this session");
+
 /** Localized human-readable label for the uncommitted-changes changeset entry. */
 export const uncommittedChangesetLabel = (): string => localize('uncommittedChangeset.label', "Uncommitted Changes");
 
@@ -334,8 +340,9 @@ export function parseCompareTurnsChangesetUri(uri: URI): { sessionUri: URI; orig
  * The Agent Merge entry is advertised only by the default chat. It reuses the
  * session-rooted compare-turns URI template because the repair range belongs to
  * the session workflow, and remains available after Agent Merge is disabled.
+ * `branchChangesetOwnerUri` lets matching chat catalogues share one repository-level Branch Changes resource.
  */
-export function buildDefaultChangesetCatalog(ownerUri: URI, state?: ISessionWithDefaultChat): Changeset[] {
+export function buildDefaultChangesetCatalog(ownerUri: URI, state?: ISessionWithDefaultChat, branchChangesetOwnerUri: URI = ownerUri): Changeset[] {
 	// Session that failed to create
 	if (!state || state.lifecycle === SessionLifecycle.Failed) {
 		return [];
@@ -343,7 +350,15 @@ export function buildDefaultChangesetCatalog(ownerUri: URI, state?: ISessionWith
 
 	const chat = parseChatUri(ownerUri);
 	if (!chat) {
-		return [];
+		if (state.lifecycle === SessionLifecycle.Creating || readSessionWorkspaceless(state._meta)) {
+			return [];
+		}
+		return [{
+			label: sessionChangesetLabel(),
+			description: sessionChangesetDescription(),
+			uriTemplate: buildSessionChangesetUri(ownerUri),
+			changeKind: ChangesetKind.Session,
+		}];
 	}
 
 	// New Session
@@ -397,7 +412,7 @@ export function buildDefaultChangesetCatalog(ownerUri: URI, state?: ISessionWith
 			description: gitState
 				? formatBranchChangesetDescription(gitState)
 				: undefined,
-			uriTemplate: buildBranchChangesetUri(ownerUri),
+			uriTemplate: buildBranchChangesetUri(branchChangesetOwnerUri),
 			changeKind: ChangesetKind.Branch,
 			capabilities: { review: {} }
 		},

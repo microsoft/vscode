@@ -1269,6 +1269,104 @@ suite.skip('AgentHostChangesetService', () => {
 	});
 });
 
+suite('AgentHostChangesetService - branch catalogue ownership', () => {
+
+	const disposables = new DisposableStore();
+
+	setup(() => {
+		testGitStates.clear();
+	});
+
+	teardown(() => {
+		disposables.clear();
+		testGitStates.clear();
+	});
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('shares Branch Changes only with chats using the session working directories and base branch', async () => {
+		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
+		const branchComputes: string[] = [];
+		const gitService = createNoopGitService();
+		gitService.computeSessionFileDiffs = async (_workingDirectory, options) => {
+			branchComputes.push(options.sessionUri);
+			return [];
+		};
+		const service = disposables.add(new TestAgentHostChangesetService(
+			stateManager,
+			new NullLogService(),
+			createSessionDataService(new TestSessionDatabase()),
+			gitService,
+			NULL_CHECKPOINT_SERVICE,
+			disposables.add(new AgentConfigurationService(stateManager, new NullLogService())),
+			createOperationService(),
+			createSubscriptionService(),
+			NULL_REVIEW_SERVICE,
+			NullTelemetryService,
+		));
+		const session = AgentSession.uri('mock', 'branch-owner').toString();
+		stateManager.createSession({
+			resource: session,
+			provider: 'mock',
+			title: 'Test',
+			status: SessionStatus.Idle,
+			createdAt: new Date().toISOString(),
+			modifiedAt: new Date().toISOString(),
+			workingDirectories: ['file:///shared'],
+		});
+		stateManager.dispatchServerAction(session, { type: ActionType.SessionReady });
+		testGitStates.set(session, { branchName: 'feature', baseBranchName: 'main' });
+
+		const defaultChat = buildDefaultChatUri(session);
+		const shared = buildChatUri(session, 'shared');
+		const differentDirectory = buildChatUri(session, 'different-directory');
+		const sharedDifferentDirectory = buildChatUri(session, 'shared-different-directory');
+		const differentBase = buildChatUri(session, 'different-base');
+		stateManager.addChat(session, shared, { workingDirectories: ['file:///shared'] });
+		stateManager.addChat(session, differentDirectory, { workingDirectories: ['file:///other'] });
+		stateManager.addChat(session, sharedDifferentDirectory, { workingDirectories: ['file:///other'] });
+		stateManager.addChat(session, differentBase, { workingDirectories: ['file:///shared'] });
+		testGitStates.set(defaultChat, { branchName: 'feature', baseBranchName: 'main' });
+		testGitStates.set(shared, { branchName: 'feature', baseBranchName: 'main' });
+		testGitStates.set(differentDirectory, { branchName: 'feature', baseBranchName: 'main' });
+		testGitStates.set(sharedDifferentDirectory, { branchName: 'feature', baseBranchName: 'main' });
+		testGitStates.set(differentBase, { branchName: 'feature', baseBranchName: 'release' });
+
+		for (const chat of [defaultChat, shared, differentDirectory, sharedDifferentDirectory, differentBase]) {
+			service.refreshChangesetCatalog(chat);
+		}
+		service.onTurnComplete(shared, undefined);
+		for (let i = 0; i < 500 && stateManager.getChangesetState(buildBranchChangesetUri(session))?.status !== ChangesetStatus.Ready; i++) {
+			await timeout(1);
+		}
+		service.onTurnComplete(sharedDifferentDirectory, undefined);
+		for (let i = 0; i < 500 && stateManager.getChangesetState(buildBranchChangesetUri(differentDirectory))?.status !== ChangesetStatus.Ready; i++) {
+			await timeout(1);
+		}
+		service.onTurnComplete(differentBase, undefined);
+		for (let i = 0; i < 500 && stateManager.getChangesetState(buildBranchChangesetUri(differentBase))?.status !== ChangesetStatus.Ready; i++) {
+			await timeout(1);
+		}
+
+		const branchUri = (chat: string) => stateManager.getChatState(chat)?.changesets
+			?.find(changeset => changeset.changeKind === 'branch')?.uriTemplate;
+		assert.deepStrictEqual({
+			defaultChat: branchUri(defaultChat),
+			shared: branchUri(shared),
+			differentDirectory: branchUri(differentDirectory),
+			sharedDifferentDirectory: branchUri(sharedDifferentDirectory),
+			differentBase: branchUri(differentBase),
+			branchComputes,
+		}, {
+			defaultChat: buildBranchChangesetUri(session),
+			shared: buildBranchChangesetUri(session),
+			differentDirectory: buildBranchChangesetUri(differentDirectory),
+			sharedDifferentDirectory: buildBranchChangesetUri(differentDirectory),
+			differentBase: buildBranchChangesetUri(differentBase),
+			branchComputes: [session, differentDirectory, differentBase],
+		});
+	});
+});
+
 suite('AgentHostChangesetService - materialization refresh', () => {
 
 	const disposables = new DisposableStore();
@@ -1568,6 +1666,73 @@ suite('AgentHostChangesetService - multi-root turn changeset', () => {
 			new Set(state?.files.map(f => f.id)),
 			new Set([URI.file('/repoA/a.ts').toString(), URI.file('/repoB/b.ts').toString()]),
 			'the turn changeset must contain files from every folder',
+		);
+	});
+
+	test('chat changes include only edits attributed to the selected chat', async () => {
+		const sessionDb = new TestSessionDatabase();
+		sessionDb.addEdit({ turnId: 'session-turn', toolCallId: 'tc-session', filePath: '/repo/session.ts', kind: FileEditKind.Edit, addedLines: undefined, removedLines: undefined, beforeContent: encodeString('session'), afterContent: encodeString('session changed') });
+		sessionDb.addEdit({ turnId: 'session-turn', toolCallId: 'tc-session-shared', filePath: '/repo/shared.ts', kind: FileEditKind.Edit, addedLines: undefined, removedLines: undefined, beforeContent: encodeString('base'), afterContent: encodeString('base\nsession') });
+		const peerDb = new TestSessionDatabase();
+		peerDb.addEdit({ turnId: 'peer-turn', toolCallId: 'tc-peer', filePath: '/repo/peer.ts', kind: FileEditKind.Edit, addedLines: undefined, removedLines: undefined, beforeContent: encodeString('peer'), afterContent: encodeString('peer changed') });
+		peerDb.addEdit({ turnId: 'peer-turn', toolCallId: 'tc-peer-shared', filePath: '/repo/shared.ts', kind: FileEditKind.Edit, addedLines: undefined, removedLines: undefined, beforeContent: encodeString('base\nsession'), afterContent: encodeString('base\npeer') });
+		const peer = buildChatUri(sessionStr, 'peer');
+		const chatChangesetUri = buildSessionChangesetUri(peer);
+
+		let gitDiffCalls = 0;
+		const git = createNoopGitService();
+		git.getRepositoryRoot = async wd => wd;
+		git.computeFileDiffsBetweenRefs = async () => {
+			gitDiffCalls++;
+			return [
+				gitDiff('/repo/session.ts'),
+				gitDiff('/repo/peer.ts'),
+				gitDiff('/repo/shared.ts', 2, 0),
+			];
+		};
+		const checkpoint = makeCheckpoint(() => ({ parent: 'baseline', current: 'peer-current' }));
+		const { svc, stateManager } = build({
+			workingDirectories: ['file:///repo'],
+			git,
+			checkpoint,
+			db: sessionDb,
+			peer: { resource: peer, db: peerDb, turnId: 'peer-turn' },
+		});
+
+		svc.refreshSessionChangeset(peer);
+		await waitForChangesetReady(stateManager, chatChangesetUri);
+
+		assert.deepStrictEqual({
+			files: stateManager.getChangesetState(chatChangesetUri)?.files.map(file => file.id),
+			gitDiffCalls,
+		}, {
+			files: [
+				URI.file('/repo/peer.ts').toString(),
+				URI.file('/repo/shared.ts').toString(),
+			],
+			gitDiffCalls: 0,
+		});
+	});
+
+	test('default-chat changes read attributed edits from the containing session database', async () => {
+		const db = new TestSessionDatabase();
+		db.addEdit({ turnId: 'default-turn', toolCallId: 'tc-default', filePath: '/repo/default.ts', kind: FileEditKind.Edit, addedLines: undefined, removedLines: undefined, beforeContent: encodeString('default'), afterContent: encodeString('default changed') });
+		const chat = buildDefaultChatUri(sessionStr);
+		const chatChangesetUri = buildSessionChangesetUri(chat);
+		const { svc, stateManager } = build({
+			workingDirectories: ['file:///repo'],
+			git: createNoopGitService(),
+			checkpoint: NULL_CHECKPOINT_SERVICE,
+			db,
+		});
+		stateManager.addChat(sessionStr, chat);
+
+		svc.refreshSessionChangeset(chat);
+		await waitForChangesetReady(stateManager, chatChangesetUri);
+
+		assert.deepStrictEqual(
+			stateManager.getChangesetState(chatChangesetUri)?.files.map(file => file.id),
+			[URI.file('/repo/default.ts').toString()],
 		);
 	});
 
@@ -2449,20 +2614,87 @@ suite('AgentHostChangesetService - multi-root turn changeset', () => {
 			}, { live: { additions: 0, deletions: 0, files: 0 }, persisted: { additions: 0, deletions: 0, files: 0 } });
 		});
 
-		test('non-git folder summaries include tracked edits from peer chats', async () => {
+		test('non-git folder summaries include tracked edits from peer-only folders', async () => {
 			const db = new TestSessionDatabase();
 			const peerDb = new TestSessionDatabase();
 			peerDb.addEdit({
-				turnId: 'peer-turn', toolCallId: 'peer-tool', filePath: '/wd/peer.txt', kind: FileEditKind.Edit,
+				turnId: 'peer-turn', toolCallId: 'peer-tool', filePath: '/peer/peer.txt', kind: FileEditKind.Edit,
 				addedLines: undefined, removedLines: undefined, beforeContent: encodeString('a'), afterContent: encodeString('a\nb'),
 			});
 			const { svc, stateManager } = build({
 				workingDirectories: ['file:///wd'], isolation: 'folder', git: createNoopGitService(), checkpoint: NULL_CHECKPOINT_SERVICE, db,
-				peer: { resource: buildChatUri(sessionStr, 'peer'), db: peerDb, turnId: 'peer-turn' },
+				peer: { resource: buildChatUri(sessionStr, 'peer'), db: peerDb, turnId: 'peer-turn', workingDirectories: ['file:///peer'] },
 			});
 			svc.refreshSessionChangeset(sessionStr);
 			await waitForChangesetReady(stateManager, sessionChangeset);
 			assert.deepStrictEqual(stateManager.getSessionSummary(sessionStr)?.changes, { additions: 1, deletions: 0, files: 1 });
+		});
+
+		test('folder summaries include repositories owned only by peer chats', async () => {
+			const calls: string[] = [];
+			const git = createNoopGitService();
+			git.getRepositoryRoot = async workingDirectory => workingDirectory;
+			git.computeFileDiffsBetweenRefs = async workingDirectory => {
+				calls.push(workingDirectory.toString());
+				return workingDirectory.path === '/repoA'
+					? [gitDiff('/repoA/session.ts', 3, 1)]
+					: [gitDiff('/repoB/session.ts', 7, 4)];
+			};
+			const { svc, stateManager } = build({
+				workingDirectories: ['file:///repoA'],
+				isolation: 'folder',
+				git,
+				checkpoint: summaryCheckpoint(),
+				peer: {
+					resource: buildChatUri(sessionStr, 'peer'),
+					db: new TestSessionDatabase(),
+					turnId: 'peer-turn',
+					workingDirectories: ['file:///repoB'],
+				},
+			});
+			svc.refreshSessionChangeset(sessionStr);
+			await waitForChangesetReady(stateManager, sessionChangeset);
+
+			assert.deepStrictEqual({
+				calls,
+				summary: stateManager.getSessionSummary(sessionStr)?.changes,
+				files: stateManager.getChangesetState(sessionChangeset)?.files.map(file => file.id),
+			}, {
+				calls: ['file:///repoA', 'file:///repoB'],
+				summary: { additions: 10, deletions: 5, files: 2 },
+				files: ['/repoA/session.ts', '/repoB/session.ts'].map(path => URI.file(path).toString()),
+			});
+		});
+
+		test('worktree summaries aggregate unique parent and peer worktrees', async () => {
+			const db = new TestSessionDatabase();
+			const git = createNoopGitService();
+			git.computeSessionFileDiffs = async workingDirectory => workingDirectory.path === '/repoA'
+				? [gitDiff('/repoA/branch.ts', 3, 1)]
+				: [gitDiff('/repoB/branch.ts', 7, 4)];
+			const peer = buildChatUri(sessionStr, 'peer');
+			const { svc, stateManager } = build({
+				workingDirectories: ['file:///repoA'],
+				isolation: 'worktree',
+				git,
+				checkpoint: NULL_CHECKPOINT_SERVICE,
+				db,
+				peer: {
+					resource: peer,
+					db: new TestSessionDatabase(),
+					turnId: 'peer-turn',
+					workingDirectories: ['file:///repoB'],
+				},
+			});
+			svc.refreshBranchChangeset(sessionStr);
+			svc.refreshBranchChangeset(peer);
+			await waitForChangesetReady(stateManager, branchChangeset);
+			await waitForChangesetReady(stateManager, buildBranchChangesetUri(peer));
+			for (let i = 0; i < 500 && stateManager.getSessionSummary(sessionStr)?.changes?.files !== 2; i++) {
+				await timeout(1);
+			}
+
+			assert.deepStrictEqual(stateManager.getSessionSummary(sessionStr)?.changes, { additions: 10, deletions: 5, files: 2 });
 		});
 
 		for (const isolation of ['folder', 'worktree', undefined] as const) {
@@ -2474,7 +2706,7 @@ suite('AgentHostChangesetService - multi-root turn changeset', () => {
 					git.getRepositoryRoot = async wd => wd.path.startsWith('/repoA') ? URI.file('/repoA') : wd;
 					git.computeSessionFileDiffs = async wd => {
 						branchCalls.push(wd.toString());
-						return primaryAvailable ? [gitDiff('/repoA/branch.ts', 100, 20)] : undefined;
+						return primaryAvailable ? [gitDiff(`${wd.path}/branch.ts`, wd.path === '/repoA' ? 100 : 5, wd.path === '/repoA' ? 20 : 2)] : undefined;
 					};
 					git.computeFileDiffsBetweenRefs = async wd => {
 						sessionCalls.push(wd.toString());
@@ -2505,11 +2737,11 @@ suite('AgentHostChangesetService - multi-root turn changeset', () => {
 						sessionCalls,
 					}, {
 						beforeBranch: isolation === 'worktree' ? undefined : { additions: 12, deletions: 6, files: 3 },
-						changes: isolation === 'worktree' ? (primaryAvailable ? branchSummary : undefined) : { additions: 12, deletions: 6, files: 3 },
-						persisted: JSON.stringify(isolation === 'worktree' ? (primaryAvailable ? branchSummary : undefined) : { additions: 12, deletions: 6, files: 3 }),
+						changes: isolation === 'worktree' ? (primaryAvailable ? { additions: 105, deletions: 22, files: 2 } : undefined) : { additions: 12, deletions: 6, files: 3 },
+						persisted: JSON.stringify(isolation === 'worktree' ? (primaryAvailable ? { additions: 105, deletions: 22, files: 2 } : undefined) : { additions: 12, deletions: 6, files: 3 }),
 						sessionFiles: ['/repoA/session.ts', '/repoA/sub/session.ts', '/repoB/session.ts'].map(path => URI.file(path).toString()),
 						branchCallsBeforeRefresh: [],
-						branchCalls: ['file:///repoA'],
+						branchCalls: ['file:///repoA', 'file:///repoB'],
 						sessionCalls: ['file:///repoA', 'file:///repoB'],
 					});
 				});

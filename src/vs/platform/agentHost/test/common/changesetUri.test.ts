@@ -8,10 +8,11 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { toAgentMergeMessageMeta } from '../../common/meta/agentMergeMessageMeta.js';
 import { AgentSystemNotificationKind, toAgentSystemNotificationMeta } from '../../common/meta/agentSystemNotificationMeta.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
-import { buildChatUri, buildDefaultChatUri, MessageKind, ResponsePartKind, SessionLifecycle, SessionStatus, TurnState, type ISessionWithDefaultChat, type Turn } from '../../common/state/sessionState.js';
+import { buildChatUri, buildDefaultChatUri, MessageKind, ResponsePartKind, SessionLifecycle, SessionStatus, TurnState, withSessionGitState, type ISessionWithDefaultChat, type Turn } from '../../common/state/sessionState.js';
 import {
 	AGENT_MERGE_CHANGESET_ID,
 	ChangesetKind,
+	buildBranchChangesetUri,
 	buildChangesetUri,
 	buildCompareTurnsChangesetUri,
 	buildCompareTurnsChangesetUriTemplate,
@@ -189,7 +190,7 @@ suite('changesetUri', () => {
 		assert.strictEqual(isUncommittedChangesetUri(buildSessionChangesetUri(sessionUri)), false);
 	});
 
-	test('advertises changesets from exactly one owner across session creation', () => {
+	test('advertises cumulative session changes alongside chat-owned changesets', () => {
 		const creatingState = { ...state(), lifecycle: SessionLifecycle.Creating };
 		const readyState = state();
 		const defaultChatUri = buildDefaultChatUri(sessionUri);
@@ -207,7 +208,12 @@ suite('changesetUri', () => {
 				uriTemplate: buildUncommittedChangesetUri(defaultChatUri),
 				changeKind: ChangesetKind.Uncommitted,
 			}],
-			readySession: [],
+			readySession: [{
+				label: 'Session Changes',
+				description: 'Show all changes made in this session',
+				uriTemplate: buildSessionChangesetUri(sessionUri),
+				changeKind: ChangesetKind.Session,
+			}],
 			readyChat: [{
 				label: 'Chat Changes',
 				description: 'Show all changes made in this chat',
@@ -220,6 +226,29 @@ suite('changesetUri', () => {
 				changeKind: ChangesetKind.Turn,
 			}],
 		});
+	});
+
+	test('allows chat catalogues to share the session branch changeset without sharing chat-scoped changesets', () => {
+		const peerChatUri = buildChatUri(sessionUri, 'peer');
+		const readyState = {
+			...state(),
+			_meta: withSessionGitState(undefined, {
+				branchName: 'feature',
+				baseBranchName: 'main',
+			}),
+		};
+		const catalogue = buildDefaultChangesetCatalog(peerChatUri, readyState, sessionUri);
+
+		assert.deepStrictEqual(
+			catalogue.map(changeset => ({ kind: changeset.changeKind, uri: changeset.uriTemplate })),
+			[
+				{ kind: ChangesetKind.Branch, uri: buildBranchChangesetUri(sessionUri) },
+				{ kind: ChangesetKind.Uncommitted, uri: buildUncommittedChangesetUri(peerChatUri) },
+				{ kind: ChangesetKind.Session, uri: buildSessionChangesetUri(peerChatUri) },
+				{ kind: ChangesetKind.Turn, uri: buildTurnChangesetUriTemplate(peerChatUri) },
+				{ kind: ChangesetKind.Compare, uri: buildCompareTurnsChangesetUriTemplate(peerChatUri) },
+			],
+		);
 	});
 
 	test('advertises Agent Merge changes after enablement and preserves them across disable and restore', () => {

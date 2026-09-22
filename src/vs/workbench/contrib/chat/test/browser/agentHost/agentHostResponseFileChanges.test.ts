@@ -78,10 +78,11 @@ suite('AgentHostResponseFileChangesProvider', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	const backendSession = URI.parse('copilot:/sess-1');
+	const defaultChatUri = URI.parse(buildDefaultChatUri(backendSession.toString()));
 	const authority = 'authority-1';
 	const chatResource = URI.parse('agent-host-copilot:/sess-1');
 
-	function turnChangesetUri(turnId: string, owner: URI = backendSession): string {
+	function turnChangesetUri(turnId: string, owner: URI = defaultChatUri): string {
 		return URI.parse(buildTurnChangesetUri(owner.toString(), turnId)).toString();
 	}
 
@@ -89,16 +90,24 @@ suite('AgentHostResponseFileChangesProvider', () => {
 		return [{ label: 'This Turn', uriTemplate: buildTurnChangesetUri(owner.toString(), '{turnId}'), changeKind: 'turn' }];
 	}
 
-	function sessionStateWithTurnSupport(): SessionState {
-		return {
-			changesets: turnChangesetCatalog(backendSession),
-		} as unknown as SessionState;
+	function sessionState(): SessionState {
+		return {} as SessionState;
 	}
 
-	/** As {@link sessionStateWithTurnSupport} but flagged as an adopted legacy Copilot CLI session whose final migrated turn is `lastMigratedTurnId`. */
-	function adoptedSessionStateWithTurnSupport(lastMigratedTurnId: string): SessionState {
+	function chatStateWithTurnSupport(owner: URI = defaultChatUri): ChatState {
 		return {
-			changesets: turnChangesetCatalog(backendSession),
+			changesets: turnChangesetCatalog(owner),
+			turns: [],
+		} as unknown as ChatState;
+	}
+
+	function setDefaultStates(conn: FakeAgentConnection): void {
+		conn.setState(backendSession.toString(), sessionState());
+		conn.setState(defaultChatUri.toString(), chatStateWithTurnSupport());
+	}
+
+	function adoptedSessionState(lastMigratedTurnId: string): SessionState {
+		return {
 			_meta: { ehcliAdopted: true, ehcliLastMigratedTurn: lastMigratedTurnId },
 		} as unknown as SessionState;
 	}
@@ -114,7 +123,7 @@ suite('AgentHostResponseFileChangesProvider', () => {
 	function createProvider(
 		conn: IAgentConnection,
 		resolveBackendSession: () => URI | undefined = () => backendSession,
-		resolveBackendChat?: (sessionResource: URI) => URI | undefined,
+		resolveBackendChat: (sessionResource: URI, backendSession: URI) => URI = () => defaultChatUri,
 	): AgentHostResponseFileChangesProvider {
 		return new AgentHostResponseFileChangesProvider(conn, authority, resolveBackendSession, resolveBackendChat, new NullLogService());
 	}
@@ -131,7 +140,7 @@ suite('AgentHostResponseFileChangesProvider', () => {
 		const conn = new FakeAgentConnection();
 		const provider = ds.add(createProvider(conn));
 
-		conn.setState(backendSession.toString(), sessionStateWithTurnSupport());
+		setDefaultStates(conn);
 		conn.setState(turnChangesetUri('t1'), {
 			status: ChangesetStatus.Ready,
 			files: [
@@ -159,7 +168,6 @@ suite('AgentHostResponseFileChangesProvider', () => {
 	test('treats host notices as authoritatively empty without suppressing visible Agent Merge turns', () => {
 		const ds = store.add(new DisposableStore());
 		const conn = new FakeAgentConnection();
-		const defaultChatUri = URI.parse(buildDefaultChatUri(backendSession.toString()));
 		const provider = ds.add(createProvider(conn, () => backendSession, () => defaultChatUri));
 		const changedFile = {
 			id: '1',
@@ -179,7 +187,7 @@ suite('AgentHostResponseFileChangesProvider', () => {
 			}],
 		} as unknown as ChatState);
 
-		conn.setState(backendSession.toString(), sessionStateWithTurnSupport());
+		setDefaultStates(conn);
 		conn.setState(turnChangesetUri('t1', defaultChatUri), { status: ChangesetStatus.Ready, files: [changedFile] } satisfies ChangesetState);
 		conn.setState(defaultChatUri.toString(), chatState({
 			text: 'Fix the pull request',
@@ -218,9 +226,9 @@ suite('AgentHostResponseFileChangesProvider', () => {
 	test('wraps local non-file snapshots through the Agent Host file system', () => {
 		const ds = store.add(new DisposableStore());
 		const conn = new FakeAgentConnection();
-		const provider = ds.add(new AgentHostResponseFileChangesProvider(conn, 'local', () => backendSession, undefined, new NullLogService()));
+		const provider = ds.add(new AgentHostResponseFileChangesProvider(conn, 'local', () => backendSession, () => defaultChatUri, new NullLogService()));
 
-		conn.setState(backendSession.toString(), sessionStateWithTurnSupport());
+		setDefaultStates(conn);
 		conn.setState(turnChangesetUri('t1'), {
 			status: ChangesetStatus.Ready,
 			files: [{
@@ -248,17 +256,17 @@ suite('AgentHostResponseFileChangesProvider', () => {
 		});
 	});
 
-	test('keeps the changeset subscription when session state updates', () => {
+	test('keeps the changeset subscription when chat state updates', () => {
 		const ds = store.add(new DisposableStore());
 		const conn = new FakeAgentConnection();
 		const provider = ds.add(createProvider(conn));
 
-		conn.setState(backendSession.toString(), sessionStateWithTurnSupport());
+		setDefaultStates(conn);
 		conn.setState(turnChangesetUri('t1'), { status: ChangesetStatus.Ready, files: [] } satisfies ChangesetState);
 		observe(provider, ds);
 		const subscriptionCountBeforeUpdate = conn.getSubscriptionCount(turnChangesetUri('t1'));
 
-		conn.setState(backendSession.toString(), sessionStateWithTurnSupport());
+		conn.setState(defaultChatUri.toString(), chatStateWithTurnSupport());
 
 		assert.deepStrictEqual([
 			subscriptionCountBeforeUpdate,
@@ -299,7 +307,7 @@ suite('AgentHostResponseFileChangesProvider', () => {
 			}],
 		} as unknown as ChatState);
 
-		conn.setState(backendSession.toString(), sessionStateWithTurnSupport());
+		conn.setState(backendSession.toString(), sessionState());
 		conn.setState(turnChangesetUri('same-turn-id', peerChatUri), { status: ChangesetStatus.Computing, files: [] } satisfies ChangesetState);
 		conn.setState(peerChatUri.toString(), peerTurn('peer-1.ts', 1));
 		conn.setState(otherPeerChatUri.toString(), peerTurn('peer-2.ts', 2));
@@ -322,10 +330,9 @@ suite('AgentHostResponseFileChangesProvider', () => {
 	test('includes deleted response edits when a turn checkpoint is unavailable', () => {
 		const ds = store.add(new DisposableStore());
 		const conn = new FakeAgentConnection();
-		const defaultChatUri = URI.parse(buildDefaultChatUri(backendSession.toString()));
 		const provider = ds.add(createProvider(conn, () => backendSession, () => defaultChatUri));
 
-		conn.setState(backendSession.toString(), sessionStateWithTurnSupport());
+		conn.setState(backendSession.toString(), sessionState());
 		conn.setState(turnChangesetUri('t1', defaultChatUri), { status: ChangesetStatus.Computing, files: [] } satisfies ChangesetState);
 		conn.setState(defaultChatUri.toString(), {
 			changesets: turnChangesetCatalog(defaultChatUri),
@@ -364,7 +371,6 @@ suite('AgentHostResponseFileChangesProvider', () => {
 	test('aggregates response edits by first and final file state', () => {
 		const ds = store.add(new DisposableStore());
 		const conn = new FakeAgentConnection();
-		const defaultChatUri = URI.parse(buildDefaultChatUri(backendSession.toString()));
 		const provider = ds.add(createProvider(conn, () => backendSession, () => defaultChatUri));
 		const replaceResource = URI.file('/repo/replaced.ts').toString();
 		const transientResource = URI.file('/repo/transient.ts').toString();
@@ -415,7 +421,7 @@ suite('AgentHostResponseFileChangesProvider', () => {
 			},
 		];
 
-		conn.setState(backendSession.toString(), sessionStateWithTurnSupport());
+		conn.setState(backendSession.toString(), sessionState());
 		conn.setState(turnChangesetUri('t1', defaultChatUri), { status: ChangesetStatus.Computing, files: [] } satisfies ChangesetState);
 		conn.setState(defaultChatUri.toString(), {
 			changesets: turnChangesetCatalog(defaultChatUri),
@@ -466,10 +472,9 @@ suite('AgentHostResponseFileChangesProvider', () => {
 	test('preserves an authoritative empty turn changeset', () => {
 		const ds = store.add(new DisposableStore());
 		const conn = new FakeAgentConnection();
-		const defaultChatUri = URI.parse(buildDefaultChatUri(backendSession.toString()));
 		const provider = ds.add(createProvider(conn, () => backendSession, () => defaultChatUri));
 
-		conn.setState(backendSession.toString(), sessionStateWithTurnSupport());
+		conn.setState(backendSession.toString(), sessionState());
 		conn.setState(turnChangesetUri('t1', defaultChatUri), { status: ChangesetStatus.Ready, files: [] } satisfies ChangesetState);
 		conn.setState(defaultChatUri.toString(), {
 			changesets: turnChangesetCatalog(defaultChatUri),
@@ -506,10 +511,9 @@ suite('AgentHostResponseFileChangesProvider', () => {
 		// boundary turn so the chat editor shows the same changes as the Agents window.
 		const ds = store.add(new DisposableStore());
 		const conn = new FakeAgentConnection();
-		const defaultChatUri = URI.parse(buildDefaultChatUri(backendSession.toString()));
 		const provider = ds.add(createProvider(conn, () => backendSession, () => defaultChatUri));
 
-		conn.setState(backendSession.toString(), adoptedSessionStateWithTurnSupport('t1'));
+		conn.setState(backendSession.toString(), adoptedSessionState('t1'));
 		conn.setState(defaultChatUri.toString(), { changesets: turnChangesetCatalog(defaultChatUri), turns: [] } as unknown as ChatState);
 		conn.setState(turnChangesetUri('t1', defaultChatUri), { status: ChangesetStatus.Ready, files: [] } satisfies ChangesetState);
 		conn.setState(branchChangesetUri(), { status: ChangesetStatus.Ready, files: [branchFile('/repo/committed.ts', 4, 2)] } as unknown as ChangesetState);
@@ -526,10 +530,9 @@ suite('AgentHostResponseFileChangesProvider', () => {
 		// The recorded boundary turn is 't1'; the requested turn 't2' is later.
 		const ds = store.add(new DisposableStore());
 		const conn = new FakeAgentConnection();
-		const defaultChatUri = URI.parse(buildDefaultChatUri(backendSession.toString()));
 		const provider = ds.add(createProvider(conn, () => backendSession, () => defaultChatUri));
 
-		conn.setState(backendSession.toString(), adoptedSessionStateWithTurnSupport('t1'));
+		conn.setState(backendSession.toString(), adoptedSessionState('t1'));
 		conn.setState(defaultChatUri.toString(), { changesets: turnChangesetCatalog(defaultChatUri), turns: [] } as unknown as ChatState);
 		conn.setState(turnChangesetUri('t2', defaultChatUri), { status: ChangesetStatus.Ready, files: [] } satisfies ChangesetState);
 		conn.setState(branchChangesetUri(), { status: ChangesetStatus.Ready, files: [branchFile('/repo/committed.ts', 4, 2)] } as unknown as ChangesetState);
@@ -546,10 +549,9 @@ suite('AgentHostResponseFileChangesProvider', () => {
 		// branch changeset exists.
 		const ds = store.add(new DisposableStore());
 		const conn = new FakeAgentConnection();
-		const defaultChatUri = URI.parse(buildDefaultChatUri(backendSession.toString()));
 		const provider = ds.add(createProvider(conn, () => backendSession, () => defaultChatUri));
 
-		conn.setState(backendSession.toString(), sessionStateWithTurnSupport());
+		conn.setState(backendSession.toString(), sessionState());
 		conn.setState(defaultChatUri.toString(), { changesets: turnChangesetCatalog(defaultChatUri), turns: [] } as unknown as ChatState);
 		conn.setState(turnChangesetUri('t1', defaultChatUri), { status: ChangesetStatus.Ready, files: [] } satisfies ChangesetState);
 		conn.setState(branchChangesetUri(), { status: ChangesetStatus.Ready, files: [branchFile('/repo/committed.ts', 4, 2)] } as unknown as ChangesetState);
@@ -566,7 +568,7 @@ suite('AgentHostResponseFileChangesProvider', () => {
 			{ id: '1', edit: { before: { uri: URI.file('/repo/a.ts').toString(), content: { uri: 'git-blob://a-before' } }, after: { uri: URI.file('/repo/a.ts').toString(), content: { uri: 'git-blob://a-after' } }, diff: { added: 3, removed: 1 } } },
 		];
 
-		conn.setState(backendSession.toString(), sessionStateWithTurnSupport());
+		setDefaultStates(conn);
 		conn.setState(turnChangesetUri('t1'), { status: ChangesetStatus.Ready, files: readyFiles } satisfies ChangesetState);
 
 		const { latest } = observe(provider, ds);
@@ -579,9 +581,9 @@ suite('AgentHostResponseFileChangesProvider', () => {
 		record();
 		conn.setState(turnChangesetUri('t1'), new Error('compute failed'));
 		record();
-		conn.setState(backendSession.toString(), undefined);
+		conn.setState(defaultChatUri.toString(), undefined);
 		record();
-		conn.setState(backendSession.toString(), sessionStateWithTurnSupport());
+		conn.setState(defaultChatUri.toString(), chatStateWithTurnSupport());
 		conn.setState(turnChangesetUri('t1'), { status: ChangesetStatus.Ready, files: [] } satisfies ChangesetState);
 		record();
 
@@ -624,8 +626,6 @@ suite('AgentHostResponseFileChangesProvider', () => {
 		const ds = store.add(new DisposableStore());
 		const conn = new FakeAgentConnection();
 		const provider = ds.add(createProvider(conn));
-		const defaultChatUri = URI.parse(buildDefaultChatUri(backendSession.toString()));
-
 		conn.setState(backendSession.toString(), {
 			project: { uri: URI.file('/repo').toString(), displayName: 'repo' },
 			workingDirectories: [],
@@ -687,10 +687,9 @@ suite('AgentHostResponseFileChangesProvider', () => {
 	test('returns empty when the agent does not advertise a turn changeset', () => {
 		const ds = store.add(new DisposableStore());
 		const conn = new FakeAgentConnection();
-		const defaultChatUri = URI.parse(buildDefaultChatUri(backendSession.toString()));
 		const provider = ds.add(createProvider(conn, () => backendSession, () => defaultChatUri));
 
-		conn.setState(backendSession.toString(), sessionStateWithTurnSupport());
+		conn.setState(backendSession.toString(), sessionState());
 		conn.setState(defaultChatUri.toString(), {
 			changesets: [{ label: 'All', uriTemplate: `${defaultChatUri}/changeset/session`, changeKind: 'session' }],
 			turns: [{

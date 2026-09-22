@@ -83,8 +83,6 @@ function stubSession(overrides: Partial<ISession> & Pick<ISession, 'sessionId' |
 		title: constObservable('Test'),
 		updatedAt: constObservable(new Date()),
 		status: constObservable(0),
-		changesets: constObservable([]),
-		changes: constObservable([]),
 		modelId: constObservable(undefined),
 		mode: constObservable(undefined),
 		loading: constObservable(false),

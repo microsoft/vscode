@@ -15,7 +15,7 @@ import { AGENT_HOST_CHECKOUT_CHANGESET_OPERATION_ID, AGENT_HOST_MERGE_CHANGESET_
 import { bindContextKey } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
-import { ISessionChangeset, ISessionChangesetOperation, ISessionChangesSummary, ISessionFileChange, SessionChangesetOperationScope } from '../../../services/sessions/common/session.js';
+import { CHAT_CHANGES_CHANGESET_ID, ISessionChangeset, ISessionChangesetOperation, ISessionChangesSummary, ISessionFileChange, SessionChangesetOperationScope, TURN_CHANGES_CHANGESET_ID } from '../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { AgentFeedbackState, IAgentFeedbackService } from '../../agentFeedback/browser/agentFeedbackService.js';
 import { ICodeReviewService, PRReviewStateKind } from '../../codeReview/browser/codeReviewService.js';
@@ -144,7 +144,40 @@ export class ChangesViewService extends Disposable implements IChangesViewServic
 		// Changesets
 		const activeSessionChangesetsObs = derived(reader => {
 			const activeSession = this.sessionsService.activeSession.read(reader);
-			return activeSession?.activeChat.read(reader).changesets.read(reader);
+			if (!activeSession) {
+				return undefined;
+			}
+			const activeChat = activeSession.activeChat.read(reader);
+			const chatChangesets = activeChat.changesets.read(reader);
+			if (chatChangesets === undefined) {
+				return undefined;
+			}
+
+			const isMainChat = isEqual(activeChat.resource, activeSession.mainChat.read(reader).resource);
+			if (!isMainChat) {
+				return chatChangesets;
+			}
+
+			const visibleChatChangesets = activeSession.chats.read(reader).length === 1
+				? chatChangesets.filter(changeset => changeset.id !== CHAT_CHANGES_CHANGESET_ID)
+				: chatChangesets;
+			const sessionChangesets = activeSession.changesets
+				? activeSession.changesets.read(reader)
+				: [];
+			if (sessionChangesets === undefined) {
+				return undefined;
+			}
+			const distinctSessionChangesets = sessionChangesets.filter(sessionChangeset => !visibleChatChangesets.some(chatChangeset => chatChangeset.id === sessionChangeset.id));
+			const sessionChangesIndex = visibleChatChangesets.findIndex(changeset =>
+				changeset.id === CHAT_CHANGES_CHANGESET_ID || changeset.id === TURN_CHANGES_CHANGESET_ID);
+			if (sessionChangesIndex === -1) {
+				return [...visibleChatChangesets, ...distinctSessionChangesets];
+			}
+			return [
+				...visibleChatChangesets.slice(0, sessionChangesIndex),
+				...distinctSessionChangesets,
+				...visibleChatChangesets.slice(sessionChangesIndex),
+			];
 		});
 		this.activeSessionChangesetsObs = derived(reader => {
 			const changesets = activeSessionChangesetsObs.read(reader);

@@ -157,21 +157,14 @@ export function setSessionContextKeys(session: ISession | undefined, contextKeyS
 	keys.workspaceIsVirtual.set(workspace?.isVirtualWorkspace ?? true);
 	keys.hasGitRepository.set(session?.hasGitRepository?.read(reader) ?? workspace?.folders.some(folder => folder.gitRepository !== undefined) ?? false);
 
-	// Mirror the changes pill: the default changeset, falling back to the session's changes — but while the worktree is pending those changes belong to the checkout, not the session.
 	const worktreePending = session?.worktreePending?.read(reader) ?? false;
-	const defaultChangeset = session?.changesets.read(reader)?.find(c => c.isDefault.read(reader));
-	let insertions = 0;
-	let deletions = 0;
-	for (const change of defaultChangeset?.changes.read(reader) ?? session?.changes.read(reader) ?? []) {
-		insertions += change.insertions;
-		deletions += change.deletions;
-	}
-	keys.hasChanges.set(!worktreePending && (insertions > 0 || deletions > 0));
+	const changesStats = session ? readSessionChangesStats(session, reader) : undefined;
+	keys.hasChanges.set(!worktreePending && !!changesStats && (changesStats.insertions > 0 || changesStats.deletions > 0));
 
 	// A session reports its changes late, so until it does the pill it last showed
 	// is rendered from the cache. The remembered pill is dropped as soon as the
 	// session reports its own changes, even when it reports none.
-	const changesReported = session ? readSessionChangesStats(session, reader) !== undefined : true;
+	const changesReported = changesStats !== undefined;
 	const cachedFiles = !changesReported && session ? changesStatsCache?.get(session.sessionId, reader)?.files ?? 0 : 0;
 	keys.hasCachedChanges.set(!worktreePending && cachedFiles > 0);
 

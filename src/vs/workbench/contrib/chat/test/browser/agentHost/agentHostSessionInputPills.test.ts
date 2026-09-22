@@ -527,7 +527,7 @@ suite('AgentHostSessionInputPills', () => {
 		});
 	});
 
-	test('marks floating persistent content visible when Agent Host pills have data', () => {
+	test('marks floating persistent content visible from chat changesets', () => {
 		const instantiationService = workbenchInstantiationService(undefined, store);
 		const sessionResource = URI.parse('agent-host-copilot:/session');
 		const backendSession = URI.parse('copilot:/session');
@@ -536,7 +536,6 @@ suite('AgentHostSessionInputPills', () => {
 			[StateComponents.Session, {
 				defaultChat: backendChat.toString(),
 				chats: [],
-				changesets: [{ label: 'Session Changes', uriTemplate: 'changeset/session', changeKind: ChangesetKind.Session }],
 			} as unknown as SessionState],
 			[StateComponents.Chat, {
 				changesets: [{ label: 'Branch Changes', uriTemplate: 'changeset/branch', changeKind: ChangesetKind.Branch }],
@@ -556,7 +555,6 @@ suite('AgentHostSessionInputPills', () => {
 			[StateComponents.Session, {
 				defaultChat: backendChat.toString(),
 				chats: [],
-				changesets: [{ label: 'Session Changes', uriTemplate: 'changeset/session', changeKind: ChangesetKind.Session }],
 			} as unknown as SessionState],
 			[StateComponents.Chat, {
 				changesets: [{ label: 'Branch Changes', uriTemplate: 'changeset/branch', changeKind: ChangesetKind.Branch }],

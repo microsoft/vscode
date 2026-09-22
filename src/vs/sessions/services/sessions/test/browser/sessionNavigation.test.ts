@@ -74,8 +74,6 @@ function stubSession(id: string, status: SessionStatus = SessionStatus.Completed
 		title: constObservable(`Session ${id}`),
 		updatedAt: constObservable(new Date()),
 		status: constObservable(status),
-		changesets: constObservable([]),
-		changes: constObservable([]),
 		modelId: constObservable(undefined),
 		mode: constObservable(undefined),
 		loading: constObservable(false),

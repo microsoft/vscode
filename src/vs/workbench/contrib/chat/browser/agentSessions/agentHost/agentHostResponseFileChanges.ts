@@ -130,7 +130,7 @@ export class AgentHostResponseFileChangesProvider extends Disposable implements 
 		private readonly _connection: IAgentConnection,
 		private readonly _connectionAuthority: string,
 		private readonly _resolveBackendSession: (sessionResource: URI) => URI | undefined,
-		private readonly _resolveBackendChat: ((sessionResource: URI) => URI | undefined) | undefined,
+		private readonly _resolveBackendChat: (sessionResource: URI, backendSession: URI) => URI,
 		private readonly _logService: ILogService,
 	) {
 		super();
@@ -142,8 +142,8 @@ export class AgentHostResponseFileChangesProvider extends Disposable implements 
 			return undefined;
 		}
 
-		const backendChat = this._resolveBackendChat?.(sessionResource);
-		const key = `${backendSession.toString()}\0${backendChat?.toString() ?? ''}\0${requestId}`;
+		const backendChat = this._resolveBackendChat(sessionResource, backendSession);
+		const key = `${backendSession.toString()}\0${backendChat.toString()}\0${requestId}`;
 		let obs = this._perRequest.get(key);
 		if (!obs) {
 			obs = this._createDiffsObservable(backendSession, backendChat, requestId);
@@ -158,8 +158,8 @@ export class AgentHostResponseFileChangesProvider extends Disposable implements 
 			return undefined;
 		}
 
-		const backendChat = this._resolveBackendChat?.(sessionResource);
-		const key = `${backendSession.toString()}\0${backendChat?.toString() ?? ''}\0${requestId}`;
+		const backendChat = this._resolveBackendChat(sessionResource, backendSession);
+		const key = `${backendSession.toString()}\0${backendChat.toString()}\0${requestId}`;
 		let obs = this._perRequestFileEdits.get(key);
 		if (!obs) {
 			const fileEdits = this._createFileEditDiffsObservable(backendSession, backendChat, requestId);
@@ -169,15 +169,14 @@ export class AgentHostResponseFileChangesProvider extends Disposable implements 
 		return obs;
 	}
 
-	private _createDiffsObservable(backendSession: URI, backendChat: URI | undefined, requestId: string): IObservable<readonly IEditSessionEntryDiff[]> {
+	private _createDiffsObservable(backendSession: URI, backendChat: URI, requestId: string): IObservable<readonly IEditSessionEntryDiff[]> {
 		// Resolve the per-turn changeset URI, but only when the agent actually
 		// advertises a `turn` changeset in its catalogue. Agents that don't
 		// support per-turn changesets never produce a turn-changeset URI, so
 		// the summary stays empty (and self-hidden) for them.
-		const changesetOwner = backendChat ?? backendSession;
-		const changesetOwnerStateObs = this._subscribe<Pick<SessionState, 'changesets'> | Pick<ChatState, 'changesets'>>(
-			backendChat ? StateComponents.Chat : StateComponents.Session,
-			constObservable(changesetOwner),
+		const changesetOwnerStateObs = this._subscribe<Pick<ChatState, 'changesets'>>(
+			StateComponents.Chat,
+			constObservable(backendChat),
 		);
 
 		const turnChangesetUriObs = derivedOpts<URI | undefined>({ equalsFn: isEqual }, reader => {
@@ -189,7 +188,7 @@ export class AgentHostResponseFileChangesProvider extends Disposable implements 
 			if (!supportsTurnChangeset) {
 				return undefined;
 			}
-			return URI.parse(buildTurnChangesetUri(changesetOwner.toString(), requestId));
+			return URI.parse(buildTurnChangesetUri(backendChat.toString(), requestId));
 		});
 
 		const changesetStateObs = this._subscribe<ChangesetState>(StateComponents.Changeset, turnChangesetUriObs);

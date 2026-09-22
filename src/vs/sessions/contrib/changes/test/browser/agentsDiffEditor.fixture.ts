@@ -10,7 +10,6 @@ import { $, Dimension, getWindow } from '../../../../../base/browser/dom.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Event, ValueWithChangeEvent } from '../../../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { constObservable } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
@@ -132,7 +131,6 @@ class AgentsDiffUIElementFactory implements IWorkbenchUIElementFactory {
 function createFixtureSession(): ISession {
 	return new class extends mock<ISession>() {
 		override readonly resource = SESSION_RESOURCE;
-		override readonly changes = constObservable([]);
 	}();
 }
 

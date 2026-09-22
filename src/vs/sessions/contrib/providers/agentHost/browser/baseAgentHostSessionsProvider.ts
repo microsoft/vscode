@@ -65,7 +65,7 @@ import { buildMutableConfigSchema, IAgentHostMcpServer, IAgentHostSessionsProvid
 import { agentHostSessionWorkspaceKey, buildAgentHostChatWorkspace } from '../../../../common/agentHostSessionWorkspace.js';
 import { USE_WORKTREE_SETTING, isSessionConfigComplete } from '../../../../common/sessionConfig.js';
 import { linkKey } from '../../../../common/sessionLinks.js';
-import { ChatInteractivity, ChatModelSource, ChatOriginKind, DEFAULT_CHAT_CAPABILITIES, effectiveChatInteractivity, getGitHubPullRequestRefs, getHighestPriorityPullRequestIcon, getSessionOwnedGitHubPullRequestRefs, IChat, IChatCapabilities, IGitHubInfo, IGitHubIssueRef, IGitHubPullRequestRef, isActiveSessionStatus, ISession, ISessionAgentRef, ISessionArtifact, ISessionCapabilities, ISessionChangesSummary, ISessionChatCustomization, ISessionChangeset, ISessionCreationReference, ISessionFileChange, ISessionPreparationProgress, ISessionTurnFileChange, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction, ISideChatSelection, sessionFileChangesEqual, sessionWorkspaceEqual, SessionRemoteConnectionFailureReason, SessionRemoteConnectionStatus, SessionStatus, SessionTypeAuthRequirement, toSessionId, TURN_CHANGES_CHANGESET_ID } from '../../../../services/sessions/common/session.js';
+import { ChatInteractivity, ChatModelSource, ChatOriginKind, DEFAULT_CHAT_CAPABILITIES, effectiveChatInteractivity, getGitHubPullRequestRefs, getHighestPriorityPullRequestIcon, getSessionOwnedGitHubPullRequestRefs, IChat, IChatCapabilities, IGitHubInfo, IGitHubIssueRef, IGitHubPullRequestRef, isActiveSessionStatus, ISession, ISessionAgentRef, ISessionArtifact, ISessionCapabilities, ISessionChangesSummary, ISessionChatCustomization, ISessionChangeset, ISessionCreationReference, ISessionFileChange, ISessionPreparationProgress, ISessionTurnFileChange, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction, ISideChatSelection, sessionFileChangesEqual, sessionWorkspaceEqual, SessionRemoteConnectionFailureReason, SessionRemoteConnectionStatus, SessionStatus, SessionTypeAuthRequirement, toSessionId } from '../../../../services/sessions/common/session.js';
 import { dedupeLinks, partitionSessionArtifacts, type IRecordedGitHubReference } from './agentHostSessionArtifacts.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { ISessionsRecentWorkspacesService } from '../../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
@@ -76,7 +76,7 @@ import { IPullRequestIconCache } from '../../../github/browser/pullRequestIconCa
 import { computePullRequestIcon, GitHubPullRequestState } from '../../../github/common/types.js';
 import { parseGitHubPullRequestUrl } from '../../../github/common/utils.js';
 import { mapProtocolStatus } from './agentHostDiffs.js';
-import { createActiveSessionSubscriptionObs, createChangesets, createChatChangesets, IAgentHostChangeset, selectMostRecentChatUri } from './agentHostSessionChangesets.js';
+import { createActiveSessionSubscriptionObs, createChangesets, createChatChangesets } from './agentHostSessionChangesets.js';
 import { createSessionOutputObs, ISessionOutputObs } from './agentHostSessionFiles.js';
 
 const STORAGE_KEY_REMEMBERED_SESSION_CONFIG_VALUES = 'sessions.agentHost.sessionConfigPicker.selectedValues';
@@ -981,7 +981,6 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 	readonly updatedAt: ISettableObservable<Date>;
 	readonly status: ISettableObservable<SessionStatus>;
 	readonly completedStateIcon: IObservable<ThemeIcon | undefined>;
-	readonly changes: IObservable<readonly (IChatSessionFileChange | IChatSessionFileChange2)[]>;
 	readonly changesets: ISettableObservable<readonly ISessionChangeset[] | undefined>;
 	readonly modelId: ISettableObservable<string | undefined>;
 	readonly modelSource: ISettableObservable<ChatModelSource | undefined>;
@@ -1024,8 +1023,6 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 	 * that chat's own last turn.
 	 */
 	private readonly _sessionOutput: ISessionOutputObs;
-	/** Live workspace changes while the session's most recent chat has an active turn. */
-	private readonly _currentTurnChanges: IObservable<readonly ISessionFileChange[] | undefined>;
 	/**
 	 * Independent title override for the default chat tab. `undefined` means the
 	 * default chat inherits the session title; a non-empty value means the user
@@ -1302,17 +1299,8 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 		// As soon as the session is no longer active, the changes summary will be
 		// updated from `metadata.changes` (mirroring `SessionSummary.changes`).
 		this.setChangesSummary(metadata.changes);
-
-		// Changesets will be resolved asynchronously when the session is active. `undefined`
-		// marks the uninitialized state, distinct from a resolved session that simply has no
-		// changesets (an empty array).
 		this.changesets = observableValue<readonly ISessionChangeset[] | undefined>(this, undefined);
-
-		// Create an observable for the changes of the session's
-		// default changeset (ex: Branch Changes). This will always
-		// track the default changeset independent of the selected
-		// changeset.
-		this.changes = this._createChangesObs();
+		this.updateChangesets(metadata.changesets);
 
 		// The last turn's changes and the chat customizations, parsed from the
 		// chat-state turns. Computed lazily from the same active-session
@@ -1326,7 +1314,6 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 			this._sessionOutputCache,
 		);
 		this._sessionOutput = sessionOutput;
-		this._currentTurnChanges = this._createCurrentTurnChangesObservable();
 
 		const defaultChatStatus = derived(this, reader => this._defaultChatStatusOverride.read(reader) ?? this.status.read(reader));
 		const defaultChatWorkspace = derived(this, reader => buildAgentHostChatWorkspace(
@@ -1340,6 +1327,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 			this.isActiveSessionObs,
 			this._createChatCurrentTurnChangesObservable(defaultChatUri),
 		);
+		const defaultChatChanges = createChangesObservable(defaultChatChangesets);
 		const mainChat: IChat = {
 			resource: this.resource,
 			createdAt: this.createdAt,
@@ -1347,7 +1335,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 			title: derived(this, reader => this._defaultChatTitleOverride.read(reader) ?? this.title.read(reader)),
 			updatedAt: this.updatedAt,
 			status: toPresentedSessionStatus(this, defaultChatStatus, this._options.preserveStatusWhenDisconnected ? undefined : connectionStatus),
-			changes: createChangesObservable(defaultChatChangesets),
+			changes: defaultChatChanges,
 			changesets: defaultChatChangesets,
 			lastTurnChanges: sessionOutput.getLastTurnChanges(URI.parse(buildDefaultChatUri(this.backendUri))),
 			customizations: sessionOutput.getChatCustomizations(URI.parse(buildDefaultChatUri(this.backendUri))),
@@ -1833,30 +1821,6 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 		return undefined;
 	}
 
-	private _createChangesObs(): IObservable<readonly ISessionFileChange[]> {
-		const defaultChangesetObs = derivedOpts<ISessionChangeset | undefined>({
-			equalsFn: (c1, c2) => c1?.id === c2?.id
-		}, reader => {
-			const changesets = this.changesets.read(reader);
-			if (!changesets) {
-				return undefined;
-			}
-
-			return changesets.find(c => c.isDefault.read(reader) === true);
-		});
-
-		const defaultChangesetChangesObs = derived(reader => {
-			const defaultChangeset = defaultChangesetObs.read(reader);
-			if (!defaultChangeset) {
-				return [];
-			}
-			return defaultChangeset.changes.read(reader);
-		});
-
-		return derivedOpts({ equalsFn: sessionFileChangesEqual },
-			reader => defaultChangesetChangesObs.read(reader) ?? []);
-	}
-
 	/**
 	 * Update fields from a refreshed metadata snapshot. Returns `true` iff
 	 * any user-visible field changed.
@@ -2156,47 +2120,6 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 		return this._kind.computeWorkspace(() => this._options.buildWorkspace(this._project, this._workingDirectories, this.gitHubInfo, readSessionGitState(this._meta)));
 	}
 
-	updateChangesets(changesetsMetadata: readonly Changeset[] | undefined) {
-		if (!changesetsMetadata) {
-			return;
-		}
-
-		const changesets = createChangesets(this.backendUri, this._options, this.isActiveSessionObs, changesetsMetadata.map(changeset => ({
-			...changeset,
-			changes: changeset.changeKind === TURN_CHANGES_CHANGESET_ID
-				? this._currentTurnChanges
-				: undefined,
-		} satisfies IAgentHostChangeset)));
-
-		this.changesets.set(changesets, undefined);
-	}
-
-	private _createCurrentTurnChangesObservable(): IObservable<readonly ISessionFileChange[] | undefined> {
-		const sessionStateObs = createActiveSessionSubscriptionObs<SessionState>(
-			this._options,
-			this.isActiveSessionObs,
-			StateComponents.Session,
-			constObservable(this.backendUri),
-		);
-		const mostRecentChatUriObs = derivedOpts({ equalsFn: isEqual }, reader => {
-			return selectMostRecentChatUri(sessionStateObs.read(reader).read(reader), this.backendUri);
-		});
-		const chatStateObs = createActiveSessionSubscriptionObs<ChatState>(
-			this._options,
-			this.isActiveSessionObs,
-			StateComponents.Chat,
-			mostRecentChatUriObs,
-		);
-		return derived(reader => {
-			const chatState = chatStateObs.read(reader).read(reader);
-			if (!chatState || chatState instanceof Error || !chatState.activeTurn) {
-				return undefined;
-			}
-			return this._sessionOutput.getLastTurnChanges(mostRecentChatUriObs.read(reader)).read(reader)
-				.filter(change => !change.isOutsideWorkspace);
-		});
-	}
-
 	private _createChatCurrentTurnChangesObservable(chatUri: URI): IObservable<readonly ISessionFileChange[] | undefined> {
 		const chatStateObs = createActiveSessionSubscriptionObs<ChatState>(
 			this._options,
@@ -2212,6 +2135,12 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 			}
 			return lastTurnChanges.read(reader).filter(change => !change.isOutsideWorkspace);
 		});
+	}
+
+	updateChangesets(changesetsMetadata: readonly Changeset[] | undefined): void {
+		this.changesets.set(changesetsMetadata
+			? createChangesets(this.backendUri, this._options, this.isActiveSessionObs, changesetsMetadata)
+			: undefined, undefined);
 	}
 }
 
@@ -2535,8 +2464,7 @@ class NewSession extends Disposable {
 			title,
 			updatedAt,
 			status: this._status,
-			changesets: constObservable<readonly ISessionChangeset[]>([]),
-			changes,
+			changesets: constObservable([]),
 			modelId: this._modelId,
 			mode,
 			loading: derived(reader => loading.read(reader) || authPending.read(reader)),
@@ -6152,44 +6080,15 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		}
 		this._seedRunningConfigFromState(sessionId, state);
 		this._applySessionMetadataFromState(sessionId, state, previous);
-		this._applyChatCatalogFromState(sessionId, state);
 		const rawId = this._rawIdFromChatId(sessionId);
+		if (rawId) {
+			this._sessionCache.get(rawId)?.updateChangesets(state.changesets);
+		}
+		this._applyChatCatalogFromState(sessionId, state);
 		if (rawId) {
 			this._chatCatalogLoading.get(rawId)?.set(false, undefined);
 		}
 
-		if (!previous) {
-			// This is the first time we've seen this session and the initial
-			// list of changesets are included in the state, so we use that to
-			// initialize the changeset catalogue.v Subsequent updates will be
-			// handled by handling the ActionType.SessionChangesetsChanged
-			// action.
-			this._applyChangesetsFromState(sessionId, state);
-		}
-	}
-
-	/**
-	 * Seed the cached adapter's changeset catalogue from an AHP
-	 * {@link SessionState}. The catalogue otherwise only flows in via the live
-	 * `SessionChangesetsChanged` action, which the host emits only when entries
-	 * are added or removed. On restore (e.g. after a reload) nothing mutates, so
-	 * that action never fires and the catalogue would stay empty. The restored
-	 * `SessionState` snapshot carries the persisted `changesets`, so apply it
-	 * here to surface the catalogue immediately.
-	 */
-	private _applyChangesetsFromState(sessionId: string, state: SessionState): void {
-		if (state.changesets === undefined) {
-			return;
-		}
-		const rawId = this._rawIdFromChatId(sessionId);
-		if (!rawId) {
-			return;
-		}
-		const cached = this._sessionCache.get(rawId);
-		if (!cached) {
-			return;
-		}
-		cached.updateChangesets(state.changesets);
 	}
 
 	/**
@@ -6724,8 +6623,6 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				this._handleIsReadChanged(e.channel, e.action.isRead);
 			} else if (e.action.type === ActionType.SessionConfigChanged && isSessionAction(e.action)) {
 				this._handleConfigChanged(e.channel, e.action.config, e.action.replace === true);
-			} else if (e.action.type === ActionType.SessionChangesetsChanged && isSessionAction(e.action)) {
-				this._handleChangesetsChanged(e.channel, e.action.changesets);
 			} else if (e.action.type === ActionType.SessionMetaChanged && isSessionAction(e.action)) {
 				this._handleSessionMetaChanged(e.channel, e.action._meta);
 			}
@@ -6887,10 +6784,6 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				}
 			}
 
-			// `changes.changes` carries the chip aggregate. The catalogue
-			// itself (label / URI template / `changeKind`) arrives via the
-			// `SessionChangesetsChanged` action, handled by
-			// `_handleChangesetsChanged`.
 			if (changes.changes !== undefined && cached.setChangesSummary(changes.changes, tx)) {
 				didChange = true;
 			}
@@ -6971,14 +6864,6 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			});
 		}
 		this._onDidChangeSessionConfig.fire(sessionId);
-	}
-
-	private _handleChangesetsChanged(session: string, changesets: readonly Changeset[] | undefined): void {
-		const rawId = AgentSession.id(session);
-		const cached = this._sessionCache.get(rawId);
-		if (cached) {
-			cached.updateChangesets(changesets);
-		}
 	}
 
 	private _handleSessionMetaChanged(session: string, meta: Record<string, unknown> | undefined): void {

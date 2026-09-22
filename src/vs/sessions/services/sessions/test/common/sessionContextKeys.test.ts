@@ -29,8 +29,7 @@ function createSession(hasGitRepository: ISettableObservable<boolean>): ISession
 		isRead: constObservable(true),
 		status: constObservable(SessionStatus.Completed),
 		capabilities: constObservable({ supportsMultipleChats: false }),
-		changesets: constObservable(undefined),
-		changes: constObservable([]),
+		mainChat: constObservable(stubChat),
 	});
 }
 
@@ -65,8 +64,6 @@ function stubSession(overrides: Partial<ISession> & Pick<ISession, 'sessionId'>)
 		title: constObservable('Test'),
 		updatedAt: constObservable(new Date()),
 		status: constObservable(0),
-		changesets: constObservable([]),
-		changes: constObservable([]),
 		modelId: constObservable(undefined),
 		mode: constObservable(undefined),
 		loading: constObservable(false),
@@ -210,7 +207,8 @@ suite('setSessionContextKeys - changes', () => {
 	test('hides the changes of the checkout that a session with a pending worktree was started from', () => {
 		const contextKeyService = disposables.add(new MockContextKeyService());
 		const worktreePending = observableValue('worktreePending', true);
-		const session = stubSession({ sessionId: 'a', changesets: constObservable(undefined), changes: constObservable([change]), worktreePending });
+		const mainChat = { ...stubChat, changes: constObservable([change]) };
+		const session = stubSession({ sessionId: 'a', mainChat: constObservable(mainChat), worktreePending });
 
 		disposables.add(autorun(reader => setSessionContextKeys(session, contextKeyService, reader)));
 		const whilePending = SessionHasChangesContext.getValue(contextKeyService);
@@ -228,7 +226,8 @@ suite('setSessionContextKeys - changes', () => {
 		const cache = disposables.add(new SessionChangesStatsCache(disposables.add(new TestStorageService())));
 		cache.set('a', { files: 2, insertions: 5, deletions: 1 });
 		const changesets = observableValue<readonly ISessionChangeset[] | undefined>('changesets', undefined);
-		const session = stubSession({ sessionId: 'a', changesets, changes: constObservable([]) });
+		const mainChat = { ...stubChat, changesets };
+		const session = stubSession({ sessionId: 'a', mainChat: constObservable(mainChat) });
 
 		disposables.add(autorun(reader => setSessionContextKeys(session, contextKeyService, reader, cache)));
 		const beforeReported = SessionHasCachedChangesContext.getValue(contextKeyService);
@@ -254,8 +253,6 @@ suite('setSessionContextKeys - changes', () => {
 		const session = upcastPartial<IActiveSession>({
 			...stubSession({
 				sessionId: 'a',
-				changesets: constObservable([]),
-				changes: constObservable([change]),
 			}),
 			isCreated: constObservable(true),
 			sticky: constObservable(false),

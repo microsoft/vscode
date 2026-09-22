@@ -22,10 +22,9 @@ export interface ISessionChangesStats {
  * while the session has not reported any changes data yet.
  *
  * The provider-supplied {@link ISession.changesSummary} is the authoritative
- * aggregate; without it the changes of the default changeset (or the session's
- * top-level changes when no changeset is default) are aggregated. A session with
- * neither a summary nor any changeset has not reported yet — an empty changeset
- * list, in contrast, is a reported "no changes".
+ * aggregate; without it the main chat's changes are aggregated. The main chat
+ * catalogue distinguishes an unresolved session from one that has
+ * authoritatively reported no changes.
  */
 export function readSessionChangesStats(session: ISession, reader: IReader | undefined): ISessionChangesStats | undefined {
 	const summary = session.changesSummary?.read(reader);
@@ -33,7 +32,12 @@ export function readSessionChangesStats(session: ISession, reader: IReader | und
 		return { files: summary.files, insertions: summary.additions, deletions: summary.deletions };
 	}
 
-	return readChangesStats(session.changesets.read(reader), session.changes.read(reader), reader);
+	const mainChat = session.mainChat.read(reader);
+	const changes = mainChat.changes.read(reader);
+	if (changes.length === 0 && mainChat.changesets.read(reader) === undefined) {
+		return undefined;
+	}
+	return readFileChangesStats(changes);
 }
 
 /** The active chat's changes as represented by its default changeset. */
@@ -47,7 +51,10 @@ function readChangesStats(changesets: readonly ISessionChangeset[] | undefined, 
 	if (changesets === undefined && fallbackChanges.length === 0) {
 		return undefined;
 	}
+	return readFileChangesStats(changes);
+}
 
+function readFileChangesStats(changes: readonly ISessionFileChange[]): ISessionChangesStats {
 	let insertions = 0, deletions = 0;
 	for (const change of changes) {
 		insertions += change.insertions;

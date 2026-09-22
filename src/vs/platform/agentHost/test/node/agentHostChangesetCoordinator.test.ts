@@ -127,6 +127,32 @@ suite('ChangesetSessionCoordinator', () => {
 		});
 	}
 
+	test('worktree summary interest refreshes distinct peer branch scopes without exposing peer subscriptions', () => {
+		const { coordinator, stateManager, changesets, subscriptions } = createEnvironment();
+		const session = AgentSession.uri('mock', 'worktree-summary-scopes').toString();
+		const peer = buildChatUri(session, 'peer');
+		createSession(stateManager, session, 'file:///repoA');
+		stateManager.setSessionConfig(session, { schema: { type: 'object', properties: {} }, values: { [SessionConfigKey.Isolation]: 'worktree' } });
+		stateManager.addChat(session, peer, { workingDirectories: ['file:///repoB'] });
+		stateManager.setChangesets(peer, [{
+			label: 'Branch Changes',
+			changeKind: 'branch',
+			uriTemplate: buildBranchChangesetUri(peer),
+		}]);
+
+		coordinator.onFirstSubscriber(URI.parse(session));
+
+		assert.deepStrictEqual({
+			branch: changesets.branchRefreshes,
+			sessionSubscriptions: [...subscriptions.getSessionSubscriptions(session)],
+			peerSubscriptions: [...subscriptions.getSessionSubscriptions(peer)],
+		}, {
+			branch: [session, peer],
+			sessionSubscriptions: [session],
+			peerSubscriptions: [],
+		});
+	});
+
 	for (const previousIsolation of [undefined, 'folder', 'worktree']) {
 		for (const isolation of ['folder', 'worktree']) {
 			test(`restoring ${isolation} isolation from ${previousIsolation ?? 'unresolved'} refreshes only a changed summary source`, () => {
@@ -526,7 +552,7 @@ suite('ChangesetSessionCoordinator', () => {
 			sessionRefreshes: environment.changesets.sessionRefreshes,
 			workingDirectoryAvailable: environment.changesets.workingDirectoryAvailable,
 		}, {
-			sessionRefreshes: [session],
+			sessionRefreshes: [session, session],
 			workingDirectoryAvailable: [session],
 		});
 	});

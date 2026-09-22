@@ -1333,7 +1333,7 @@ suite('CopilotChatSessionsProvider', () => {
 		const observed: { readonly changes: readonly ISessionFileChange[]; readonly changesSummary: ISessionChangesSummary | undefined }[] = [];
 		disposables.add(autorun(reader => {
 			observed.push({
-				changes: session.changes.read(reader),
+				changes: session.mainChat.read(reader).changes.read(reader),
 				changesSummary: session.changesSummary?.read(reader),
 			});
 		}));
