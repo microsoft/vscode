@@ -459,6 +459,20 @@ suite('AgentHostGitStateService', () => {
 		});
 	}));
 
+	test('clears chat Git state when the chat is removed', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const h = createHarness();
+		const chat = buildChatUri(SESSION, 'peer');
+		const chatGitState: ISessionGitState = { branchName: 'chat-feature', baseBranchName: 'chat-main' };
+		seedSession(h.stateManager, { workingDirectory: WORKING_DIRECTORY });
+		h.stateManager.addChat(SESSION, chat, { workingDirectories: ['file:///chat'] });
+		h.setGitResult(chatGitState);
+		await h.service.refreshSessionGitState(chat, undefined);
+
+		h.stateManager.removeChat(SESSION, chat);
+
+		assert.strictEqual(h.service.getSessionGitState(chat), undefined);
+	}));
+
 	test('uses the selected worktree base branch when refreshing git state', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const h = createHarness();
 		seedSession(h.stateManager, {

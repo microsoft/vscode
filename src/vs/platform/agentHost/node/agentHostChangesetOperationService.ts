@@ -45,11 +45,11 @@ export class AgentHostChangesetOperationService extends Disposable implements IA
 	}
 
 	private async _refreshGitState(owner: string): Promise<void> {
-		await this._gitStateService.refreshSessionGitState(owner);
 		const session = parseChatUri(owner)?.session;
-		if (session) {
-			await this._gitStateService.refreshSessionGitState(session);
-		}
+		await Promise.all([
+			this._gitStateService.refreshSessionGitState(owner),
+			...(session ? [this._gitStateService.refreshSessionGitState(session)] : []),
+		]);
 	}
 
 	registerContribution(contribution: IChangesetOperationContribution): IDisposable {
@@ -86,7 +86,8 @@ export class AgentHostChangesetOperationService extends Disposable implements IA
 
 	getOperations(sessionKey: string, changeset: string, gitState?: ISessionGitState, gitHubState?: ISessionGitHubState): readonly ChangesetOperation[] {
 		if (!gitState) {
-			gitState = this._gitStateService.getSessionGitState?.(sessionKey) ?? readSessionGitState(this._stateManager.getSessionState(sessionKey)?._meta);
+			gitState = this._gitStateService.getSessionGitState?.(sessionKey)
+				?? (isAhpChatChannel(sessionKey) ? undefined : readSessionGitState(this._stateManager.getSessionState(sessionKey)?._meta));
 			if (!gitState) {
 				return [];
 			}
@@ -188,7 +189,8 @@ export class AgentHostChangesetOperationService extends Disposable implements IA
 		}
 
 		if (!gitState) {
-			gitState = this._gitStateService.getSessionGitState?.(sessionKey) ?? readSessionGitState(this._stateManager.getSessionState(sessionKey)?._meta);
+			gitState = this._gitStateService.getSessionGitState?.(sessionKey)
+				?? (isAhpChatChannel(sessionKey) ? undefined : readSessionGitState(this._stateManager.getSessionState(sessionKey)?._meta));
 		}
 
 		if (!gitHubState) {

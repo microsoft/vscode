@@ -240,18 +240,35 @@ suite('AgentHostChangesetOperationService', () => {
 		disposables.add(service.registerContribution(new TestContribution(handler)));
 	});
 
-	test('refreshes both chat-owned and aggregate Git state after a chat operation', async () => {
+	test('refreshes chat-owned and aggregate Git state concurrently after a chat operation', async () => {
 		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
-		const gitStateService = new TestGitStateService();
+		const blockers = [new DeferredPromise<void>(), new DeferredPromise<void>()];
+		const gitStateService = new class extends TestGitStateService {
+			override async refreshSessionGitState(sessionKey: string): Promise<void> {
+				const index = this.refreshes.length;
+				this.refreshes.push(sessionKey);
+				await blockers[index].p;
+			}
+		}();
 		const service = createService(stateManager, undefined, gitStateService);
 		const contribution = new RegistryCaptureContribution();
 		disposables.add(service.registerContribution(contribution));
 		const sessionKey = 'agent:/session';
 		const chatKey = buildChatUri(sessionKey, 'peer');
 
-		await contribution.registry?.refreshSessionGitState(chatKey);
+		const refresh = contribution.registry?.refreshSessionGitState(chatKey);
+		await Promise.resolve();
+		const refreshesBeforeRelease = [...gitStateService.refreshes];
+		blockers.forEach(blocker => blocker.complete());
+		await refresh;
 
-		assert.deepStrictEqual(gitStateService.refreshes, [chatKey, sessionKey]);
+		assert.deepStrictEqual({
+			refreshesBeforeRelease,
+			refreshes: gitStateService.refreshes,
+		}, {
+			refreshesBeforeRelease: [chatKey, sessionKey],
+			refreshes: [chatKey, sessionKey],
+		});
 	});
 
 	test('multi-folder session advertises no operations for a turn changeset', () => {
@@ -367,13 +384,13 @@ suite('AgentHostChangesetOperationService', () => {
 		const changesetUri = buildUncommittedChangesetUri(chatKey);
 		stateManager.registerChangeset(changesetUri);
 		const chatGitState: ISessionGitState = { branchName: 'chat-feature' };
+		const gitStates = new Map<string, ISessionGitState>([
+			[sessionKey, { branchName: 'session-feature' }],
+		]);
 		const service = createService(
 			stateManager,
 			new TestConfigurationService(['file:///chat']),
-			new TestGitStateService(new Map([
-				[sessionKey, { branchName: 'session-feature' }],
-				[chatKey, chatGitState],
-			])),
+			new TestGitStateService(gitStates),
 		);
 		const contribution = new RecordingOperationsContribution([
 			...sampleOperations,
@@ -382,12 +399,25 @@ suite('AgentHostChangesetOperationService', () => {
 		]);
 		disposables.add(service.registerContribution(contribution));
 
+		stateManager.dispatchServerAction(changesetUri, {
+			type: ActionType.ChangesetOperationsChanged,
+			operations: [...sampleOperations],
+		});
+		const operationsWithoutChatGit = service.getOperations(chatKey, changesetUri);
+		service.updateOperations(chatKey, changesetUri);
+		const publishedWithoutChatGit = stateManager.getChangesetState(changesetUri)?.operations;
+
+		gitStates.set(chatKey, chatGitState);
 		service.updateOperations(chatKey, changesetUri);
 
 		assert.deepStrictEqual({
+			operationsWithoutChatGit,
+			publishedWithoutChatGit,
 			gitState: contribution.contexts[0]?.gitState,
 			operationIds: stateManager.getChangesetState(changesetUri)?.operations?.map(operation => operation.id),
 		}, {
+			operationsWithoutChatGit: [],
+			publishedWithoutChatGit: [],
 			gitState: chatGitState,
 			operationIds: [testOperationId],
 		});

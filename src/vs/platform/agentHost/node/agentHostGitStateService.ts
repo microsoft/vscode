@@ -24,6 +24,7 @@ import { isCancellationError } from '../../../base/common/errors.js';
 import { SessionConfigKey } from '../common/sessionConfigKeys.js';
 import { IAgentHostAuthenticationService } from './agentHostAuthenticationService.js';
 import { AgentHostPullRequestAssociationResolver } from './agentHostPullRequestAssociationResolver.js';
+import { ActionType } from '../common/state/sessionActions.js';
 
 const PULL_REQUEST_CREATION_CLOCK_SKEW_MS = 5 * 60_000;
 
@@ -68,6 +69,11 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 				if (parseChatUri(owner)?.session === sessionKey) {
 					this._chatGitStates.delete(owner);
 				}
+			}
+		}));
+		this._register(this._stateManager.onDidEmitEnvelope(envelope => {
+			if (envelope.action.type === ActionType.SessionChatRemoved) {
+				this._chatGitStates.delete(envelope.action.chat);
 			}
 		}));
 

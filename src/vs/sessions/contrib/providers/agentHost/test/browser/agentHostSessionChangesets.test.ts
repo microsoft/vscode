@@ -305,10 +305,7 @@ suite('AgentHostSessionChangesets', () => {
 			changeKind: ChangesetKind.Session,
 			uriTemplate: 'changeset/session',
 		}];
-		const initialState: ChatState = {
-			...createChatState(chatSummary),
-			changesets: sessionCatalogue,
-		};
+		const initialState: ChatState = createChatState(chatSummary);
 		const chatSubscription = createMutableSubscription(initialState);
 		const connection = new class extends mock<IAgentConnection>() {
 			override getSubscription<T extends StateComponents>(component: T): IReference<IAgentSubscription<ComponentToState[T]>> {
@@ -330,9 +327,12 @@ suite('AgentHostSessionChangesets', () => {
 		const projected = createChatChangesets(chatUri, options, constObservable(true));
 		let current: readonly ISessionChangeset[] | undefined;
 		disposables.add(autorun(reader => current = projected.read(reader)));
+		const absentCatalogue = current;
+
+		chatSubscription.set({ ...initialState, changesets: sessionCatalogue });
 		const initial = current;
 
-		chatSubscription.set({ ...initialState, title: 'Updated' });
+		chatSubscription.set({ ...initialState, title: 'Updated', changesets: sessionCatalogue });
 		const afterUnrelatedUpdate = current;
 		chatSubscription.set({
 			...initialState,
@@ -342,15 +342,21 @@ suite('AgentHostSessionChangesets', () => {
 				uriTemplate: 'changeset/branch',
 			}],
 		});
+		const updated = current;
+		chatSubscription.set({ ...initialState, changesets: [] });
 
 		assert.deepStrictEqual({
+			absentCatalogue,
 			initial: initial?.map(changeset => changeset.id),
 			preservedIdentity: initial === afterUnrelatedUpdate,
-			updated: current?.map(changeset => changeset.id),
+			updated: updated?.map(changeset => changeset.id),
+			emptyCatalogue: current,
 		}, {
+			absentCatalogue: undefined,
 			initial: ['session'],
 			preservedIdentity: true,
 			updated: ['branch'],
+			emptyCatalogue: [],
 		});
 	});
 

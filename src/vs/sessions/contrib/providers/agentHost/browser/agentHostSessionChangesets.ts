@@ -138,6 +138,11 @@ export function createChatChangesets(
 		if (!state || state instanceof Error) {
 			return undefined;
 		}
+		if (state.changesets === undefined) {
+			lastCatalogue = undefined;
+			lastChangesets = undefined;
+			return undefined;
+		}
 		if (state.changesets === lastCatalogue && lastChangesets !== undefined) {
 			return lastChangesets;
 		}
