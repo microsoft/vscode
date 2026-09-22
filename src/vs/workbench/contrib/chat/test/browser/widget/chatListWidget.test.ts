@@ -9,7 +9,6 @@ import { mainWindow } from '../../../../../../base/browser/window.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { DisposableStore, toDisposable } from '../../../../../../base/common/lifecycle.js';
-import { Schemas } from '../../../../../../base/common/network.js';
 import { constObservable } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../../base/test/common/mock.js';
@@ -195,15 +194,17 @@ suite('ChatListWidget', () => {
 			}],
 		});
 		const fileService = upcastPartial<IFileService>({
-			hasProvider: resource => resource.scheme === Schemas.file,
+			hasProvider: () => true,
 		});
 
 		assert.deepStrictEqual({
 			file: shouldShowChatLinkOpenWith(URI.file('/workspace/README.md'), fileService, editorResolverService),
 			https: shouldShowChatLinkOpenWith(URI.parse('https://google.com'), fileService, editorResolverService),
+			http: shouldShowChatLinkOpenWith(URI.parse('http://example.com'), fileService, editorResolverService),
 		}, {
 			file: true,
 			https: false,
+			http: false,
 		});
 	});
 

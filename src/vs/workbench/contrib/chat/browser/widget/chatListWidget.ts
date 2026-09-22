@@ -15,6 +15,7 @@ import { FuzzyScore } from '../../../../../base/common/filters.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { Disposable, DisposableMap, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { Mimes } from '../../../../../base/common/mime.js';
+import { Schemas } from '../../../../../base/common/network.js';
 import { ScrollEvent } from '../../../../../base/common/scrollable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
@@ -159,7 +160,10 @@ export function getChatContextMenuTargetContext(target: EventTarget | null): { i
 }
 
 export function shouldShowChatLinkOpenWith(resource: URI, fileService: IFileService, editorResolverService: IEditorResolverService): boolean {
-	return fileService.hasProvider(resource) && editorResolverService.getEditors(resource).length > 0;
+	return resource.scheme !== Schemas.http
+		&& resource.scheme !== Schemas.https
+		&& fileService.hasProvider(resource)
+		&& editorResolverService.getEditors(resource).length > 0;
 }
 
 class UserToggleResizeTracker extends Disposable {
