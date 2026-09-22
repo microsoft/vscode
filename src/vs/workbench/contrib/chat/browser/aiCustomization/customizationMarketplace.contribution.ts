@@ -7,7 +7,7 @@ import * as DOM from '../../../../../base/browser/dom.js';
 import { localize } from '../../../../../nls.js';
 import { AccessibleContentProvider, AccessibleViewProviderId, AccessibleViewType } from '../../../../../platform/accessibility/browser/accessibleView.js';
 import { AccessibleViewRegistry, IAccessibleViewImplementation } from '../../../../../platform/accessibility/browser/accessibleViewRegistry.js';
-import { ICustomizationMarketplaceService } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
+import { IAgentFinderMarketplaceService, ICustomizationMarketplaceService } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { InstantiationType, registerSingleton } from '../../../../../platform/instantiation/common/extensions.js';
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -17,10 +17,13 @@ import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { ICustomizationMarketplaceInstallService } from '../../common/customizationMarketplaceInstallService.js';
 import { CONTEXT_AI_CUSTOMIZATION_MANAGEMENT_EDITOR, CONTEXT_AI_CUSTOMIZATION_MANAGEMENT_SECTION } from './aiCustomizationManagement.js';
 import { AICustomizationManagementEditor } from './aiCustomizationManagementEditor.js';
+import { CopilotConnectorsService, ICopilotConnectorsService } from './copilotConnectorsService.js';
 import { CustomizationMarketplaceInstallService } from './customizationMarketplaceInstallService.js';
-import { CustomizationMarketplaceWorkbenchService } from './customizationMarketplaceWorkbenchService.js';
+import { AgentFinderMarketplaceWorkbenchService, CustomizationMarketplaceWorkbenchService } from './customizationMarketplaceWorkbenchService.js';
 
+registerSingleton(IAgentFinderMarketplaceService, AgentFinderMarketplaceWorkbenchService, InstantiationType.Delayed);
 registerSingleton(ICustomizationMarketplaceService, CustomizationMarketplaceWorkbenchService, InstantiationType.Delayed);
+registerSingleton(ICopilotConnectorsService, CopilotConnectorsService, InstantiationType.Delayed);
 registerSingleton(ICustomizationMarketplaceInstallService, CustomizationMarketplaceInstallService, InstantiationType.Delayed);
 
 class CustomizationDiscoveryAccessibleView implements IAccessibleViewImplementation {
@@ -49,7 +52,7 @@ class CustomizationDiscoveryAccessibleView implements IAccessibleViewImplementat
 				localize('customizationDiscovery.help.search', "Type words or use @installed, @type:skill, @type:mcp, and @type:plugin. Quick filters update the same query and can be combined."),
 				localize('customizationDiscovery.help.browse', "Clear the search to browse. Show All on a section applies its type filter and moves to search results."),
 				localize('customizationDiscovery.help.navigation', "Use Tab and Shift+Tab between controls. In search results, use the arrow keys, Home, and End to navigate Installed and Available groups. Press Enter to open an installed item."),
-				localize('customizationDiscovery.help.install', "Review an available item's source, then choose Install. VS Code continues to apply destination, trust, policy, and compatibility checks."),
+				localize('customizationDiscovery.help.install', "Review an available item's source, then choose Install. VS Code continues to apply destination, trust, policy, and compatibility checks. Copilot connectors may open a browser for authorization."),
 				localize('customizationDiscovery.help.links', "Available customization names open their external resource so you can review it before installing."),
 				localize('customizationDiscovery.help.paging', "Load More appends another page without removing loaded results. Retry repeats a failed marketplace request."),
 				localize('customizationDiscovery.help.view', "Use {0} to read the current browse or search results in the Accessible View.", '<keybinding:editor.action.accessibleView>'),

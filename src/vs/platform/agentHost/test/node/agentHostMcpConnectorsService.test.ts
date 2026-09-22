@@ -8,10 +8,13 @@ import { DeferredPromise } from '../../../../base/common/async.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { NullLogService } from '../../../log/common/log.js';
+import { ILogService, NullLogService } from '../../../log/common/log.js';
 import { McpServerType } from '../../../mcp/common/mcpPlatformTypes.js';
+import { AgentHostMcpConnectorsEnabledConfigKey } from '../../common/agentHostSchema.js';
+import { AgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { type IAgentHostAuthTokenChangeEvent, type IAgentHostAuthenticationService } from '../../node/agentHostAuthenticationService.js';
-import { AgentHostMcpConnectorsService } from '../../node/agentHostMcpConnectorsService.js';
+import { AgentHostMcpConnectorsService as BaseAgentHostMcpConnectorsService } from '../../node/agentHostMcpConnectorsService.js';
+import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { createTestGitHubEndpointService } from './testGitHubEndpointService.js';
 
 class RecordingLogService extends NullLogService {
@@ -42,6 +45,33 @@ class TestAuthenticationService extends Disposable implements IAgentHostAuthenti
 			scopes: ['read:user', 'user:email'],
 			token,
 		});
+	}
+}
+
+class AgentHostMcpConnectorsService extends BaseAgentHostMcpConnectorsService {
+	private readonly configurationService: AgentConfigurationService;
+
+	constructor(
+		fetchFn: typeof globalThis.fetch | undefined,
+		apiBaseUrl: string | undefined,
+		authenticationService: IAgentHostAuthenticationService,
+		gitHubEndpointService: ReturnType<typeof createTestGitHubEndpointService>,
+		logService: ILogService,
+		now?: () => number,
+		revalidationIntervalMs?: number,
+		enabled = true,
+	) {
+		const stateManager = new AgentHostStateManager(logService);
+		const configurationService = new AgentConfigurationService(stateManager, logService);
+		configurationService.updateRootConfig({ [AgentHostMcpConnectorsEnabledConfigKey]: enabled });
+		super({ fetchFn, apiBaseUrl, now, revalidationIntervalMs }, authenticationService, gitHubEndpointService, configurationService, logService);
+		this.configurationService = configurationService;
+		this._register(configurationService);
+		this._register(stateManager);
+	}
+
+	setEnabled(enabled: boolean): void {
+		this.configurationService.updateRootConfig({ [AgentHostMcpConnectorsEnabledConfigKey]: enabled });
 	}
 }
 
@@ -132,6 +162,58 @@ suite('AgentHostMcpConnectorsService', () => {
 				url: 'https://connectors.example.test/api/v1/plugins/connected',
 				headers: { Accept: 'application/json', Authorization: 'Bearer token-b' },
 			}],
+		});
+	});
+
+	test('does not request connectors while the experiment is disabled', async () => {
+		let requests = 0;
+		const service = disposables.add(new AgentHostMcpConnectorsService(
+			async () => {
+				requests++;
+				return new Response(JSON.stringify(connectedPluginsResponse()));
+			},
+			'https://connectors.example.test/api/v1',
+			disposables.add(new TestAuthenticationService('token')),
+			createTestGitHubEndpointService(),
+			new NullLogService(),
+			undefined,
+			undefined,
+			false,
+		));
+
+		const connectors = await service.getConnectors();
+
+		assert.deepStrictEqual({ connectors, requests }, { connectors: [], requests: 0 });
+	});
+
+	test('refreshes when the experiment is enabled and clears connectors when disabled', async () => {
+		let requests = 0;
+		const service = disposables.add(new AgentHostMcpConnectorsService(
+			async () => {
+				requests++;
+				return new Response(JSON.stringify(connectedPluginsResponse()));
+			},
+			'https://connectors.example.test/api/v1',
+			disposables.add(new TestAuthenticationService('token')),
+			createTestGitHubEndpointService(),
+			new NullLogService(),
+			undefined,
+			undefined,
+			false,
+		));
+
+		service.setEnabled(true);
+		const enabled = await service.getConnectors();
+		service.setEnabled(false);
+
+		assert.deepStrictEqual({
+			enabled: enabled.map(connector => connector.serverName),
+			disabled: service.getCachedConnectors(),
+			requests,
+		}, {
+			enabled: ['mail'],
+			disabled: [],
+			requests: 1,
 		});
 	});
 

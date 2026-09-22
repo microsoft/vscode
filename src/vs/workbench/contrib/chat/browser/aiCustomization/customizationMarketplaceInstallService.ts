@@ -33,6 +33,7 @@ import { IPluginInstallService } from '../../common/plugins/pluginInstallService
 import { IPluginMarketplaceService, MarketplaceReferenceKind, parseMarketplaceReference, PluginSourceKind } from '../../common/plugins/pluginMarketplaceService.js';
 import { SKILL_FILENAME, VALID_SKILL_NAME_REGEX } from '../../common/promptSyntax/config/promptFileLocations.js';
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
+import { ICopilotConnectorsService } from './copilotConnectorsService.js';
 import { CustomizationLocationPicker } from './customizationCreatorService.js';
 
 const maxSkillEntries = 1000;
@@ -55,6 +56,7 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 		@IPluginMarketplaceService private readonly pluginMarketplaceService: IPluginMarketplaceService,
 		@IAgentPluginRepositoryService private readonly repositoryService: IAgentPluginRepositoryService,
 		@IMcpWorkbenchService private readonly mcpWorkbenchService: IMcpWorkbenchService,
+		@ICopilotConnectorsService private readonly copilotConnectorsService: ICopilotConnectorsService,
 		@ICustomizationHarnessService private readonly harnessService: ICustomizationHarnessService,
 		@IAICustomizationWorkspaceService private readonly workspaceService: IAICustomizationWorkspaceService,
 		@IChatEntitlementService private readonly entitlementService: IChatEntitlementService,
@@ -71,7 +73,8 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 		this._register(this.configurationService.onDidChangeConfiguration(event => {
 			if (event.affectsConfiguration(ChatConfiguration.ChatCustomizationsUnifiedMarketplaceEnabled)) {
 				this.updateEnablement();
-			} else if (this.isEnabled() && event.affectsConfiguration(ChatConfiguration.PluginsEnabled)) {
+			} else if (this.isEnabled() && (event.affectsConfiguration(ChatConfiguration.PluginsEnabled) ||
+				event.affectsConfiguration(ChatConfiguration.ChatCustomizationsCopilotConnectorsEnabled))) {
 				this._onDidChange.fire();
 			}
 		}));
@@ -98,6 +101,7 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 			this._onDidChange.fire();
 		}));
 		this.enabledDisposables.add(this.mcpWorkbenchService.onChange(() => this._onDidChange.fire()));
+		this.enabledDisposables.add(this.copilotConnectorsService.onDidChange(() => this._onDidChange.fire()));
 		this.enabledDisposables.add(this.entitlementService.onDidChangeSentiment(() => this._onDidChange.fire()));
 		this.enabledDisposables.add(this.fileService.onDidFilesChange(event => {
 			let changed = false;
@@ -146,6 +150,13 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 					plugin.source.replace(/^\.\//, '').replace(/\/$/, '') === source.path;
 			});
 			return { kind: installed ? 'installed' : 'available' };
+		}
+		if (source.kind === 'copilotConnector') {
+			if (this.configurationService.getValue<boolean>(ChatConfiguration.ChatCustomizationsCopilotConnectorsEnabled) !== true) {
+				return { kind: 'unavailable', message: localize('customizationMarketplace.connectorsDisabled', "Enable the Copilot connectors experiment to connect this resource.") };
+			}
+			const connector = this.copilotConnectorsService.connectors.find(connector => connector.name === source.name);
+			return { kind: connector?.connectionStatus === 'connected' ? 'installed' : 'available' };
 		}
 		if (source.kind === 'mcp') {
 			const server = this.mcpWorkbenchService.local.find(server => server.name === source.name && server.gallery?.name === source.name);
@@ -205,6 +216,22 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 			const installed = await this.mcpWorkbenchService.install(server);
 			if (installed.installState !== McpServerInstallState.Installed) {
 				throw new Error(localize('customizationMarketplace.mcpInstallIncomplete', "The MCP server could not be installed. Review the installation error and try again."));
+			}
+			return;
+		}
+		if (source.kind === 'copilotConnector') {
+			const operationDisposables = new DisposableStore();
+			const cancellation = operationDisposables.add(new CancellationTokenSource(token));
+			operationDisposables.add(this.entitlementService.onDidChangeSentiment(() => {
+				if (this.entitlementService.sentiment.hidden) {
+					cancellation.cancel();
+				}
+			}));
+			try {
+				await this.copilotConnectorsService.connect(source.name, cancellation.token);
+				this.checkEnabled(cancellation.token);
+			} finally {
+				operationDisposables.dispose();
 			}
 			return;
 		}

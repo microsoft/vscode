@@ -28,7 +28,7 @@ export type CustomizationMarketplaceMediaType = typeof CustomizationMarketplaceM
 /** Source-validated installation provenance; repository paths name the resource directory, not its manifest. */
 export type CustomizationMarketplaceInstallation =
 	| { readonly kind: 'skill' | 'plugin'; readonly repository: string; readonly ref: string; readonly path: string }
-	| { readonly kind: 'mcp'; readonly name: string };
+	| { readonly kind: 'mcp' | 'copilotConnector'; readonly name: string };
 
 export interface ICustomizationMarketplaceEntry {
 	readonly identifier: string;
@@ -112,6 +112,11 @@ export interface ICustomizationMarketplaceService {
 	readonly _serviceBrand: undefined;
 	query(options: ICustomizationMarketplaceQuery, token: CancellationToken): Promise<ICustomizationMarketplacePage>;
 }
+
+export const IAgentFinderMarketplaceService = createDecorator<IAgentFinderMarketplaceService>('agentFinderMarketplaceService');
+
+/** AgentFinder marketplace transport, hosted in the shared process on desktop. */
+export interface IAgentFinderMarketplaceService extends ICustomizationMarketplaceService { }
 
 export class CustomizationMarketplaceService implements ICustomizationMarketplaceService {
 	declare readonly _serviceBrand: undefined;

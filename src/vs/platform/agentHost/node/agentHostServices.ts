@@ -86,7 +86,10 @@ export function registerAgentHostCoreServices(services: ServiceCollection, input
 	services.set(IEditArcReporterService, new SyncDescriptor(EditArcReporterService, [undefined]));
 	services.set(IAgentHostStorageService, new SyncDescriptor(AgentHostStorageService, [inputs.storageResource]));
 	services.set(IAgentHostManagedSettingsService, new SyncDescriptor(AgentHostManagedSettingsService));
-	services.set(IAgentHostMcpConnectorsService, new SyncDescriptor(AgentHostMcpConnectorsService, [inputs.fetchFn, inputs.mcpConnectorsApiBaseUrl]));
+	services.set(IAgentHostMcpConnectorsService, new SyncDescriptor(AgentHostMcpConnectorsService, [{
+		fetchFn: inputs.fetchFn,
+		apiBaseUrl: inputs.mcpConnectorsApiBaseUrl,
+	}]));
 	services.set(IAgentHostOctoKitService, new SyncDescriptor(AgentHostOctoKitService, [inputs.fetchFn]));
 	services.set(IGitHubService, new SyncDescriptor(GitHubService, [inputs.gitHubServiceOptions]));
 	services.set(ICopilotApiService, inputs.copilotApiService ?? new SyncDescriptor(CopilotApiService, [inputs.fetchFn]));

@@ -9,6 +9,8 @@ import { equals } from '../../../base/common/objects.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { ILogService } from '../../log/common/log.js';
 import { IMcpRemoteServerConfiguration, McpServerType } from '../../mcp/common/mcpPlatformTypes.js';
+import { AgentHostMcpConnectorsEnabledConfigKey, platformRootSchema } from '../common/agentHostSchema.js';
+import { IAgentConfigurationService } from './agentConfigurationService.js';
 import { IAgentHostAuthenticationService } from './agentHostAuthenticationService.js';
 import { IAgentHostGitHubEndpointService } from './agentHostGitHubEndpointService.js';
 
@@ -46,6 +48,13 @@ export interface IAgentHostMcpConnectorsService {
 	refresh(): Promise<readonly IAgentHostMcpConnector[]>;
 }
 
+export interface IAgentHostMcpConnectorsServiceOptions {
+	readonly fetchFn?: typeof globalThis.fetch;
+	readonly apiBaseUrl?: string;
+	readonly now?: () => number;
+	readonly revalidationIntervalMs?: number;
+}
+
 export function toMcpServerConfigurationMap(connectors: readonly IAgentHostMcpConnector[]): Record<string, IMcpRemoteServerConfiguration> {
 	const servers = new Map<string, IMcpRemoteServerConfiguration>();
 	for (const connector of connectors) {
@@ -75,7 +84,7 @@ function isHttpsUrl(value: string): boolean {
 
 function parseConnectedConnectors(body: string, token: string, onDuplicateServerName?: (serverName: string, firstPluginName: string, duplicatePluginName: string) => void): readonly IAgentHostMcpConnector[] {
 	const document = asRecord(JSON.parse(body));
-	const plugins = document?.['plugins'];
+	const plugins = document?.plugins;
 	if (!Array.isArray(plugins)) {
 		throw new Error('Connected plugins response does not contain a plugins array');
 	}
@@ -84,23 +93,23 @@ function parseConnectedConnectors(body: string, token: string, onDuplicateServer
 	const serverOwners = new Map<string, string>();
 	for (const value of plugins) {
 		const plugin = asRecord(value);
-		const pluginName = plugin?.['name'];
-		const connection = asRecord(plugin?.['connection']);
-		if (typeof pluginName !== 'string' || !pluginName || connection?.['status'] !== 'connected') {
+		const pluginName = plugin?.name;
+		const connection = asRecord(plugin?.connection);
+		if (typeof pluginName !== 'string' || !pluginName || connection?.status !== 'connected') {
 			continue;
 		}
 
-		const metadata = asRecord(plugin['metadata']);
-		const configuredDisplayName = metadata?.['displayName'];
+		const metadata = asRecord(plugin.metadata);
+		const configuredDisplayName = metadata?.displayName;
 		const displayName = typeof configuredDisplayName === 'string' && configuredDisplayName ? configuredDisplayName : pluginName;
-		const protectedResourceMetadataUrl = connection['protectedResourceMetadataUrl'];
-		const configuredScopes = connection['scopes'];
+		const protectedResourceMetadataUrl = connection.protectedResourceMetadataUrl;
+		const configuredScopes = connection.scopes;
 		const scopes = Array.isArray(configuredScopes) ? configuredScopes.filter(scope => typeof scope === 'string') : [];
-		const mcpServers = asRecord(asRecord(plugin['mcpServers'])?.['mcpServers']);
+		const mcpServers = asRecord(asRecord(plugin.mcpServers)?.mcpServers);
 		for (const [serverName, serverValue] of Object.entries(mcpServers ?? {})) {
 			const server = asRecord(serverValue);
-			const url = server?.['url'];
-			if (!serverName || server?.['type'] !== 'http' || typeof url !== 'string' || !isHttpsUrl(url)) {
+			const url = server?.url;
+			if (!serverName || server?.type !== 'http' || typeof url !== 'string' || !isHttpsUrl(url)) {
 				continue;
 			}
 			const firstPluginName = serverOwners.get(serverName);
@@ -136,6 +145,9 @@ export class AgentHostMcpConnectorsService extends Disposable implements IAgentH
 	declare readonly _serviceBrand: undefined;
 
 	private readonly _fetch: typeof globalThis.fetch;
+	private readonly _configuredApiBaseUrl: string | undefined;
+	private readonly _now: () => number;
+	private readonly _revalidationIntervalMs: number;
 	private readonly _onDidChange = this._register(new Emitter<void>());
 	readonly onDidChange = this._onDidChange.event;
 
@@ -149,16 +161,17 @@ export class AgentHostMcpConnectorsService extends Disposable implements IAgentH
 	private _currentApiBaseUrl: string | undefined;
 
 	constructor(
-		fetchFn: typeof globalThis.fetch | undefined,
-		private readonly _configuredApiBaseUrl: string | undefined,
+		options: IAgentHostMcpConnectorsServiceOptions,
 		@IAgentHostAuthenticationService private readonly _authenticationService: IAgentHostAuthenticationService,
 		@IAgentHostGitHubEndpointService private readonly _gitHubEndpointService: IAgentHostGitHubEndpointService,
+		@IAgentConfigurationService private readonly _configurationService: IAgentConfigurationService,
 		@ILogService private readonly _logService: ILogService,
-		private readonly _now: () => number = Date.now,
-		private readonly _revalidationIntervalMs = MCP_CONNECTORS_REVALIDATION_INTERVAL_MS,
 	) {
 		super();
-		this._fetch = fetchFn ?? globalThis.fetch;
+		this._fetch = options.fetchFn ?? globalThis.fetch;
+		this._configuredApiBaseUrl = options.apiBaseUrl;
+		this._now = options.now ?? Date.now;
+		this._revalidationIntervalMs = options.revalidationIntervalMs ?? MCP_CONNECTORS_REVALIDATION_INTERVAL_MS;
 		this._register(this._authenticationService.onDidChangeAuthToken(event => {
 			if (event.resource !== this._gitHubEndpointService.getCopilotResource().resource) {
 				return;
@@ -169,6 +182,13 @@ export class AgentHostMcpConnectorsService extends Disposable implements IAgentH
 		this._register(this._gitHubEndpointService.onDidChange(() => {
 			this._invalidate();
 			void this.refresh();
+		}));
+		this._register(this._configurationService.onDidRootConfigChange(() => {
+			const wasEnabled = this._currentApiBaseUrl !== undefined;
+			this._updateContext();
+			if (!wasEnabled && this._currentApiBaseUrl !== undefined) {
+				void this.refresh();
+			}
 		}));
 	}
 
@@ -283,7 +303,8 @@ export class AgentHostMcpConnectorsService extends Disposable implements IAgentH
 	private _updateContext(): void {
 		const resource = this._gitHubEndpointService.getCopilotResource();
 		const token = this._authenticationService.getAuthToken({ resource: resource.resource, scopes: resource.scopes_supported });
-		const apiBaseUrl = this._gitHubEndpointService.getEnterpriseHost() === undefined && this._configuredApiBaseUrl && isHttpsUrl(this._configuredApiBaseUrl)
+		const enabled = this._configurationService.getRootValue(platformRootSchema, AgentHostMcpConnectorsEnabledConfigKey) === true;
+		const apiBaseUrl = enabled && this._gitHubEndpointService.getEnterpriseHost() === undefined && this._configuredApiBaseUrl && isHttpsUrl(this._configuredApiBaseUrl)
 			? this._configuredApiBaseUrl.replace(/\/+$/, '')
 			: undefined;
 		if (token === this._currentToken && apiBaseUrl === this._currentApiBaseUrl) {

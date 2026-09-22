@@ -5,6 +5,6 @@
 
 import { registerSharedProcessRemoteService } from '../../ipc/electron-browser/services.js';
 import { CUSTOMIZATION_MARKETPLACE_CHANNEL_NAME, CustomizationMarketplaceChannelClient } from '../common/customizationMarketplaceIpc.js';
-import { ICustomizationMarketplaceService } from '../common/customizationMarketplaceService.js';
+import { IAgentFinderMarketplaceService } from '../common/customizationMarketplaceService.js';
 
-registerSharedProcessRemoteService(ICustomizationMarketplaceService, CUSTOMIZATION_MARKETPLACE_CHANNEL_NAME, { channelClientCtor: CustomizationMarketplaceChannelClient });
+registerSharedProcessRemoteService(IAgentFinderMarketplaceService, CUSTOMIZATION_MARKETPLACE_CHANNEL_NAME, { channelClientCtor: CustomizationMarketplaceChannelClient });

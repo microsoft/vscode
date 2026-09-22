@@ -32,6 +32,7 @@ import { IProgress, IProgressService, IProgressStep, ProgressLocation } from '..
 import { IQuickInputService } from '../../../../../../platform/quickinput/common/quickInput.js';
 import { IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { IMcpWorkbenchService, IWorkbenchMcpServer, McpServerInstallState } from '../../../../mcp/common/mcpTypes.js';
+import { ICopilotConnectorsService } from '../../../browser/aiCustomization/copilotConnectorsService.js';
 import { CustomizationMarketplaceInstallService } from '../../../browser/aiCustomization/customizationMarketplaceInstallService.js';
 import { IAICustomizationWorkspaceService } from '../../../common/aiCustomizationWorkspaceService.js';
 import { ChatConfiguration } from '../../../common/constants.js';
@@ -78,6 +79,15 @@ function mcpResource(): ICustomizationMarketplaceResource {
 		mediaType: CustomizationMarketplaceMediaType.McpServer,
 		url: URI.parse('https://untrusted.example/server.json'),
 		installation: { kind: 'mcp', name: 'io.example/demo' },
+	});
+}
+
+function connectorResource(): ICustomizationMarketplaceResource {
+	return resource({
+		identifier: 'mail',
+		displayName: 'Mail',
+		mediaType: CustomizationMarketplaceMediaType.McpServer,
+		installation: { kind: 'copilotConnector', name: 'mail' },
 	});
 }
 
@@ -214,6 +224,35 @@ suite('CustomizationMarketplaceInstallService', () => {
 				return installed;
 			}
 		}();
+		const connectorChanges = store.add(new Emitter<void>());
+		const connectedConnectors = new Set<string>();
+		const connectorsService = new class extends mock<ICopilotConnectorsService>() {
+			override readonly onDidChange = connectorChanges.event;
+			readonly connectCalls: string[] = [];
+			onConnect: ((name: string, token: CancellationToken) => Promise<void>) | undefined;
+			override get connectors() {
+				return [{
+					name: 'mail',
+					displayName: 'Mail',
+					description: 'Search mail',
+					tags: [],
+					capabilities: [],
+					representativeQueries: [],
+					connectionStatus: connectedConnectors.has('mail') ? 'connected' : 'available',
+					scopes: [],
+					mcpServers: [],
+				}];
+			}
+			override readonly connectedMcpServers = [];
+			override async connect(name: string, token: CancellationToken): Promise<void> {
+				this.connectCalls.push(name);
+				if (this.onConnect) {
+					return this.onConnect(name, token);
+				}
+				connectedConnectors.add(name);
+				connectorChanges.fire();
+			}
+		}();
 		const harnessService = new class extends mock<ICustomizationHarnessService>() {
 			override readonly activeHarness = observableValue(this, 'test-harness');
 			override readonly activeSessionResource = observableValue(this, URI.parse('test-harness:///session'));
@@ -249,7 +288,10 @@ suite('CustomizationMarketplaceInstallService', () => {
 			override readonly onDidChangeSentiment = sentimentChanges.event;
 			override readonly sentiment = { hidden: false };
 		}();
-		const configurationService = new TestConfigurationService({ [ChatConfiguration.PluginsEnabled]: true });
+		const configurationService = new TestConfigurationService({
+			[ChatConfiguration.PluginsEnabled]: true,
+			[ChatConfiguration.ChatCustomizationsCopilotConnectorsEnabled]: true,
+		});
 		store.add(configurationService.onDidChangeConfigurationEmitter);
 		if (options.enabled !== undefined) {
 			await configurationService.setUserConfiguration(ChatConfiguration.ChatCustomizationsUnifiedMarketplaceEnabled, options.enabled);
@@ -296,6 +338,7 @@ suite('CustomizationMarketplaceInstallService', () => {
 		instantiationService.stub(IPluginMarketplaceService, marketplaceService);
 		instantiationService.stub(IAgentPluginRepositoryService, repositoryService);
 		instantiationService.stub(IMcpWorkbenchService, mcpService);
+		instantiationService.stub(ICopilotConnectorsService, connectorsService);
 		instantiationService.stub(ICustomizationHarnessService, harnessService);
 		instantiationService.stub(IAICustomizationWorkspaceService, workspaceService);
 		instantiationService.stub(IChatEntitlementService, entitlementService);
@@ -309,7 +352,7 @@ suite('CustomizationMarketplaceInstallService', () => {
 		const service = store.add(instantiationService.createInstance(CustomizationMarketplaceInstallService));
 		return {
 			service, fileService, provider, installedPlugins, marketplaceService, pluginService, repositoryService, mcpService, mcpChanges,
-			harnessService, workspaceService, entitlementService, sentimentChanges, configurationService, dialogService, progressService, quickInputService,
+			connectorsService, connectorChanges, harnessService, workspaceService, entitlementService, sentimentChanges, configurationService, dialogService, progressService, quickInputService,
 		};
 	}
 
@@ -864,6 +907,53 @@ suite('CustomizationMarketplaceInstallService', () => {
 				installs: fixture.mcpService.installs,
 				state: fixture.service.getInstallState(mcpResource()),
 			}, { checks: [], installs: [], state: { kind: 'available' } });
+		});
+	});
+
+	suite('Copilot connectors', () => {
+		test('uses the connector consent flow and reflects the connected state', async () => {
+			const fixture = await createFixture();
+			const candidate = connectorResource();
+			const before = fixture.service.getInstallState(candidate);
+
+			await fixture.service.install(candidate);
+			await fixture.service.install(candidate);
+
+			assert.deepStrictEqual({
+				before,
+				connectCalls: fixture.connectorsService.connectCalls,
+				after: fixture.service.getInstallState(candidate),
+			}, {
+				before: { kind: 'available' },
+				connectCalls: ['mail'],
+				after: { kind: 'installed' },
+			});
+		});
+
+		test('is unavailable when the connector experiment is disabled', async () => {
+			const fixture = await createFixture();
+			await fixture.configurationService.setUserConfiguration(ChatConfiguration.ChatCustomizationsCopilotConnectorsEnabled, false);
+
+			const state = fixture.service.getInstallState(connectorResource());
+
+			assert.deepStrictEqual(state, { kind: 'unavailable', message: 'Enable the Copilot connectors experiment to connect this resource.' });
+		});
+
+		test('cancels connector authorization when AI features are hidden', async () => {
+			const fixture = await createFixture();
+			fixture.connectorsService.onConnect = async (_name, token) => new Promise<void>((_resolve, reject) => {
+				const listener = token.onCancellationRequested(() => {
+					listener.dispose();
+					reject(new CancellationError());
+				});
+			});
+			const install = fixture.service.install(connectorResource());
+			fixture.entitlementService.sentiment.hidden = true;
+			fixture.sentimentChanges.fire();
+
+			await assert.rejects(install, isCancellationError);
+
+			assert.deepStrictEqual(fixture.connectorsService.connectCalls, ['mail']);
 		});
 	});
 

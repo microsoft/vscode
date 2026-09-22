@@ -10,14 +10,14 @@ import { Lazy } from '../../../base/common/lazy.js';
 import { revive } from '../../../base/common/marshalling.js';
 import { IChannel, IServerChannel } from '../../../base/parts/ipc/common/ipc.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
-import { CustomizationMarketplaceConfiguration, ICustomizationMarketplacePage, ICustomizationMarketplaceQuery, ICustomizationMarketplaceService } from './customizationMarketplaceService.js';
+import { CustomizationMarketplaceConfiguration, IAgentFinderMarketplaceService, ICustomizationMarketplacePage, ICustomizationMarketplaceQuery } from './customizationMarketplaceService.js';
 
 export const CUSTOMIZATION_MARKETPLACE_CHANNEL_NAME = 'customizationMarketplace';
 
 export class CustomizationMarketplaceChannel implements IServerChannel {
-	private readonly service: Lazy<ICustomizationMarketplaceService>;
+	private readonly service: Lazy<IAgentFinderMarketplaceService>;
 
-	constructor(getService: () => ICustomizationMarketplaceService) {
+	constructor(getService: () => IAgentFinderMarketplaceService) {
 		this.service = new Lazy(getService);
 	}
 
@@ -37,7 +37,7 @@ export class CustomizationMarketplaceChannel implements IServerChannel {
 	}
 }
 
-export class CustomizationMarketplaceChannelClient implements ICustomizationMarketplaceService {
+export class CustomizationMarketplaceChannelClient implements IAgentFinderMarketplaceService {
 	declare readonly _serviceBrand: undefined;
 
 	constructor(
