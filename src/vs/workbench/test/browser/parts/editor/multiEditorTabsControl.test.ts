@@ -512,6 +512,7 @@ suite('MultiEditorTabsControl', () => {
 		assert.deepStrictEqual({
 			results,
 			firstBorderInset: firstFillStyle.left,
+			firstBorderColor: firstFillStyle.borderLeftColor,
 			firstShoulder: mainWindow.getComputedStyle(firstFill, '::before').content,
 		}, {
 			results: [
@@ -519,7 +520,8 @@ suite('MultiEditorTabsControl', () => {
 				{ width: 172, leftShoulderVisible: true, rightShoulderVisible: true },
 				{ width: 120, leftShoulderVisible: true, rightShoulderVisible: false },
 			],
-			firstBorderInset: '-1px',
+			firstBorderInset: '0px',
+			firstBorderColor: 'rgba(0, 0, 0, 0)',
 			firstShoulder: 'none',
 		});
 	});
@@ -1021,7 +1023,7 @@ suite('MultiEditorTabsControl', () => {
 			reset: overflowEdge.style.left,
 		}, {
 			clippedLeft: { edge: true, clipped: true, fillOffset: '', edgeOffset: ['0px', '0px'], inset: 0, stationaryParent: true, edgeOverlay: ['none', 'block', '8', '5px', '0px', 'border-box', '1px', '1px', 'rgb(51, 51, 51)'] },
-			multiSelected: { clipping: '0px', edge: 'block', radius: '5px 5px 0px 0px', connectedClass: true },
+			multiSelected: { clipping: '0px', edge: 'block', radius: '0px 5px 0px 0px', connectedClass: true },
 			singleSelected: { clipping: '0px', connectedClass: true },
 			terminalOutline: { right: '1px', rightShoulder: '""', rightMask: '""' },
 			normalOutline: { left: '1px', right: '1px', leftShoulder: '""', rightShoulder: '""', edge: 'block', overflowEdge: 'none', leftMaskHeight: '3px', leftMaskTop: '0px', rightMaskHeight: '3px', rightMaskTop: '0px' },

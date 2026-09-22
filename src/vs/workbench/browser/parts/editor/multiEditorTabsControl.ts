@@ -2384,7 +2384,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 				fillRight: fillBounds.right - tabsBounds.left + scrollLeft,
 				viewportLeft: stickyTabsWidth,
 				viewportRight,
-				clippingEdgeExtent: Number.parseFloat(fillStyle.borderTopLeftRadius),
+				clippingEdgeExtent: Math.max(Number.parseFloat(fillStyle.borderTopLeftRadius), Number.parseFloat(fillStyle.borderTopRightRadius)),
 				shoulderExtent: Number.parseFloat(targetWindow.getComputedStyle(activeTabFill, '::after').width),
 			};
 		}

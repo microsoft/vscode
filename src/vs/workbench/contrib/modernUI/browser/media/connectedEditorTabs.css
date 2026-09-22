@@ -451,11 +451,11 @@
 	inset-block: calc(-1 * var(--vscode-spacing-size20));
 }
 
-.modern-ui.modern-ui-connected-editor-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs .tabs-container > .tab.active.connected-tab-top-row > .tab-fill {
+.modern-ui.modern-ui-connected-editor-tabs.monaco-workbench:not(:is(.hc-black, .hc-light)) .part.editor > .content .editor-group-container > .title.tabs .tabs-container > .tab.active.connected-tab-top-row > .tab-fill {
 	border-top-color: transparent;
 }
 
-.modern-ui.modern-ui-connected-editor-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs .tabs-container > .tab.active.connected-tab-top-row:first-child > .tab-fill {
+.modern-ui.modern-ui-connected-editor-tabs.monaco-workbench:not(:is(.hc-black, .hc-light)) .part.editor > .content .editor-group-container > .title.tabs .tabs-container > .tab.active.connected-tab-top-row:first-child > .tab-fill {
 	left: 0;
 	border-top-left-radius: 0;
 	border-left-color: transparent;

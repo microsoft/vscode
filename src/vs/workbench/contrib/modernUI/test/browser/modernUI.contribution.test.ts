@@ -2486,6 +2486,41 @@ suite('ModernUIContribution', () => {
 		});
 	});
 
+	test('retains high contrast outlines when the outermost tab owns the frame', () => {
+		const root = document.createElement('div');
+		root.className = 'monaco-workbench modern-ui modern-ui-tabs modern-ui-connected-editor-tabs';
+		root.style.cssText = '--vscode-strokeThickness: 1px; --vscode-cornerRadius-small: 4px; --vscode-spacing-size20: 2px; --vscode-focusBorder: #ffaa00;';
+		document.body.appendChild(root);
+		store.add(toDisposable(() => root.remove()));
+
+		const editor = appendElement(root, 'part editor');
+		const content = appendElement(editor, 'content');
+		const group = appendElement(content, 'editor-group-container active');
+		const title = appendElement(group, 'title tabs');
+		const row = appendElement(title, 'tabs-and-actions-container');
+		const tabs = appendElement(row, 'tabs-container');
+		const tab = appendElement(tabs, 'tab active connected-tab-top-row');
+		const fill = appendElement(tab, 'tab-fill');
+		const targetWindow = getWindow(root);
+		const outlines = [];
+		for (const theme of ['hc-black', 'hc-light']) {
+			root.classList.add(theme);
+			for (const upperRow of [false, true]) {
+				row.classList.toggle('wrapping', upperRow);
+				tab.classList.toggle('connected-tab-upper-row', upperRow);
+				const style = targetWindow.getComputedStyle(fill);
+				outlines.push({ theme, upperRow, top: style.borderTopColor, left: style.borderLeftColor });
+			}
+			root.classList.remove(theme);
+		}
+		assert.deepStrictEqual(outlines, [
+			{ theme: 'hc-black', upperRow: false, top: 'rgb(255, 170, 0)', left: 'rgb(255, 170, 0)' },
+			{ theme: 'hc-black', upperRow: true, top: 'rgb(255, 170, 0)', left: 'rgb(255, 170, 0)' },
+			{ theme: 'hc-light', upperRow: false, top: 'rgb(255, 170, 0)', left: 'rgb(255, 170, 0)' },
+			{ theme: 'hc-light', upperRow: true, top: 'rgb(255, 170, 0)', left: 'rgb(255, 170, 0)' },
+		]);
+	});
+
 	test('keeps the right shoulder curved and the left edge straight at row boundaries', () => {
 		const root = document.createElement('div');
 		root.className = 'monaco-workbench modern-ui modern-ui-tabs modern-ui-connected-editor-tabs';
@@ -2575,7 +2610,7 @@ suite('ModernUIContribution', () => {
 		});
 	});
 
-	test('aligns connected actions to the tab edge in every theme', () => {
+	test('centers connected actions within their action surface in every theme', () => {
 		const root = document.createElement('div');
 		root.className = 'monaco-workbench modern-ui modern-ui-tabs modern-ui-connected-editor-tabs';
 		root.style.setProperty('--vscode-spacing-size20', '2px');
@@ -2624,12 +2659,12 @@ suite('ModernUIContribution', () => {
 
 		assert.deepStrictEqual({ connected, highContrast }, {
 			connected: {
-				right: { radius: '0px 4px 0px 0px', alignment: 'flex-end', targetWidth: '24px', actionBarWidth: '24px' },
-				left: { radius: '4px 0px 0px', alignment: 'flex-start', targetWidth: '24px', actionBarWidth: '24px' },
+				right: { radius: '0px 4px 0px 0px', alignment: 'center', targetWidth: '24px', actionBarWidth: '24px' },
+				left: { radius: '4px 0px 0px', alignment: 'center', targetWidth: '24px', actionBarWidth: '24px' },
 			},
 			highContrast: {
-				right: { radius: '0px 4px 0px 0px', alignment: 'flex-end', targetWidth: '24px', actionBarWidth: '24px' },
-				left: { radius: '4px 0px 0px', alignment: 'flex-start', targetWidth: '24px', actionBarWidth: '24px' },
+				right: { radius: '0px 4px 0px 0px', alignment: 'center', targetWidth: '24px', actionBarWidth: '24px' },
+				left: { radius: '4px 0px 0px', alignment: 'center', targetWidth: '24px', actionBarWidth: '24px' },
 			},
 		});
 	});
