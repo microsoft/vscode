@@ -57,7 +57,7 @@ import type { IAgentHostStorageService } from '../../node/agentHostStorageServic
 import { AGENT_HOST_CATALOG_VERIFICATION_VERSION_STORAGE_KEY, CATALOG_VERIFICATION_VERSION } from '../../node/agentHostCatalogReconciliationService.js';
 import { AgentSessionRegistry, type IRegisteredSession } from '../../node/agentSessionRegistry.js';
 import { AgentHostManagementService } from '../../node/agentHostManagementService.js';
-import { AGENT_HOST_TITLE_SOURCE_AGENT, AGENT_HOST_TITLE_SOURCE_AUTO, customChatTitleMetadataKey, customChatTitleSourceMetadataKey, SESSION_ARTIFACTS_KEY, SESSION_CUSTOM_TITLE_KEY, SESSION_CUSTOM_TITLE_SOURCE_KEY } from '../../node/shared/persistSessionMetadata.js';
+import { AGENT_HOST_TITLE_SOURCE_AGENT, customChatTitleMetadataKey, customChatTitleSourceMetadataKey, SESSION_ARTIFACTS_KEY, SESSION_CUSTOM_TITLE_KEY, SESSION_CUSTOM_TITLE_SOURCE_KEY } from '../../node/shared/persistSessionMetadata.js';
 import { MockAgent, ScriptedMockAgent } from './mockAgent.js';
 import { mapSessionEventsToHistoryRecords } from './historyRecordFixtures.js';
 import { type ISessionEvent } from './copilotTestEvents.js';
@@ -3027,6 +3027,27 @@ suite('AgentService (node dispatcher)', () => {
 			return { svc, agent, session, db };
 		}
 
+		async function completeTitleGenerationTurn(svc: AgentService, agent: TitleTestAgent, session: URI, prompt: string): Promise<void> {
+			const chat = buildDefaultChatUri(session);
+			svc.dispatchAction(chat, {
+				type: ActionType.ChatTurnStarted,
+				turnId: 'turn-1',
+				startedAt: '2025-01-01T00:00:00.000Z',
+				message: { text: prompt, origin: { kind: MessageKind.User } },
+			}, 'test-client', 1);
+			await waitForCondition(() => agent.sendMessageCalls.length === 1, 'foreground send should proceed');
+			agent.fireProgress({
+				kind: 'action',
+				resource: URI.parse(chat),
+				action: { type: ActionType.ChatResponsePart, turnId: 'turn-1', part: { kind: ResponsePartKind.Markdown, id: 'answer', content: 'Done' } },
+			});
+			agent.fireProgress({
+				kind: 'action',
+				resource: URI.parse(chat),
+				action: { type: ActionType.ChatTurnComplete, turnId: 'turn-1', duration: 10 },
+			});
+		}
+
 		class DynamicWorkingDirectoryAgent extends MockAgent {
 			constructor(id: string, private readonly immutablePrimary = true) {
 				super(id);
@@ -3557,7 +3578,7 @@ suite('AgentService (node dispatcher)', () => {
 		test('generates and persists an AI title after first-turn fallback title', async () => {
 			const copilotApiService = new TestCopilotApiService();
 			copilotApiService.response = '"Fix TypeScript compile errors."';
-			const { svc, session, db } = await setupTitleGeneration(copilotApiService);
+			const { svc, agent, session, db } = await setupTitleGeneration(copilotApiService);
 			const titleActions: string[] = [];
 			disposables.add(svc.onDidAction(e => {
 				if (e.action.type === ActionType.SessionTitleChanged) {
@@ -3565,11 +3586,7 @@ suite('AgentService (node dispatcher)', () => {
 				}
 			}));
 
-			svc.dispatchAction(
-				buildDefaultChatUri(session.toString()),
-				{ type: ActionType.ChatTurnStarted, turnId: 'turn-1', startedAt: '2025-01-01T00:00:00.000Z', message: { text: 'Please help me fix the TypeScript compile errors', origin: { kind: MessageKind.User } } },
-				'test-client', 1,
-			);
+			await completeTitleGenerationTurn(svc, agent, session, 'Please help me fix the TypeScript compile errors');
 
 			await waitForCondition(() => getStateManager(svc).getSessionState(session.toString())?.title === 'Fix TypeScript compile errors', 'generated title should be applied');
 			await waitForCondition(async () => await db.getMetadata('customTitle') !== undefined, 'generated title should be persisted');
@@ -3580,7 +3597,7 @@ suite('AgentService (node dispatcher)', () => {
 				promptIncludesUserText: copilotApiService.utilityCalls[0]?.request.messages.some(message => message.content.includes('Please help me fix the TypeScript compile errors')),
 				persistedTitle: await db.getMetadata('customTitle'),
 			}, {
-				titles: ['Please help me fix the TypeScript compile errors', 'Fix TypeScript compile errors'],
+				titles: ['Please help me fix the TypeScript compile...', 'Fix TypeScript compile errors'],
 				token: 'gh-token',
 				promptIncludesUserText: true,
 				persistedTitle: 'Fix TypeScript compile errors',
@@ -3735,14 +3752,9 @@ suite('AgentService (node dispatcher)', () => {
 		test('leaves fallback title when AI title generation fails', async () => {
 			const copilotApiService = new TestCopilotApiService();
 			copilotApiService.error = new Error('title failed');
-			const { svc, session, db } = await setupTitleGeneration(copilotApiService);
+			const { svc, agent, session, db } = await setupTitleGeneration(copilotApiService);
 
-			svc.dispatchAction(
-				buildDefaultChatUri(session.toString()),
-				{ type: ActionType.ChatTurnStarted, turnId: 'turn-1', startedAt: '2025-01-01T00:00:00.000Z', message: { text: 'Explain workspace search indexing', origin: { kind: MessageKind.User } } },
-				'test-client', 1,
-			);
-
+			await completeTitleGenerationTurn(svc, agent, session, 'Explain workspace search indexing');
 			await waitForCondition(() => copilotApiService.utilityCalls.length === 1, 'title generation should be attempted');
 			await Promise.resolve();
 
@@ -3751,7 +3763,7 @@ suite('AgentService (node dispatcher)', () => {
 				persistedTitle: await db.getMetadata('customTitle'),
 			}, {
 				title: 'Explain workspace search indexing',
-				persistedTitle: undefined,
+				persistedTitle: 'Explain workspace search indexing',
 			});
 		});
 
@@ -3759,13 +3771,9 @@ suite('AgentService (node dispatcher)', () => {
 			const copilotApiService = new TestCopilotApiService();
 			let resolveTitle!: (title: string) => void;
 			copilotApiService.responsePromise = new Promise(resolve => { resolveTitle = resolve; });
-			const { svc, session, db } = await setupTitleGeneration(copilotApiService);
+			const { svc, agent, session, db } = await setupTitleGeneration(copilotApiService);
 
-			svc.dispatchAction(
-				buildDefaultChatUri(session.toString()),
-				{ type: ActionType.ChatTurnStarted, turnId: 'turn-1', startedAt: '2025-01-01T00:00:00.000Z', message: { text: 'Create tests for terminal persistence', origin: { kind: MessageKind.User } } },
-				'test-client', 1,
-			);
+			await completeTitleGenerationTurn(svc, agent, session, 'Create tests for terminal persistence');
 			await waitForCondition(() => copilotApiService.utilityCalls.length === 1, 'title generation should be in flight');
 
 			svc.dispatchAction(
@@ -3789,13 +3797,9 @@ suite('AgentService (node dispatcher)', () => {
 			const copilotApiService = new TestCopilotApiService();
 			let resolveTitle!: (title: string) => void;
 			copilotApiService.responsePromise = new Promise(resolve => { resolveTitle = resolve; });
-			const { svc, session, db } = await setupTitleGeneration(copilotApiService);
+			const { svc, agent, session, db } = await setupTitleGeneration(copilotApiService);
 
-			svc.dispatchAction(
-				buildDefaultChatUri(session.toString()),
-				{ type: ActionType.ChatTurnStarted, turnId: 'turn-1', startedAt: '2025-01-01T00:00:00.000Z', message: { text: 'Investigate flaky terminal tests', origin: { kind: MessageKind.User } } },
-				'test-client', 1,
-			);
+			await completeTitleGenerationTurn(svc, agent, session, 'Investigate flaky terminal tests');
 			await waitForCondition(() => copilotApiService.utilityCalls.length === 1, 'title generation should be in flight');
 
 			await svc.disposeSession(session);
@@ -3809,11 +3813,11 @@ suite('AgentService (node dispatcher)', () => {
 			}, {
 				aborted: true,
 				state: undefined,
-				persistedTitle: undefined,
+				persistedTitle: 'Investigate flaky terminal tests',
 			});
 		});
 
-		test('generates a utility title for imported conversations when active-agent naming is disabled', async () => {
+		test('keeps the deferred fallback for imported conversations', async () => {
 			const copilotApiService = new TestCopilotApiService();
 			copilotApiService.response = 'Imported conversation title';
 			const { svc } = await setupTitleGeneration(copilotApiService);
@@ -3830,8 +3834,13 @@ suite('AgentService (node dispatcher)', () => {
 				},
 			});
 
-			await waitForCondition(() => getStateManager(svc).getSessionState(imported.toString())?.title === 'Imported conversation title', 'imported title should be generated');
-			assert.strictEqual(copilotApiService.utilityCalls.length, 1);
+			assert.deepStrictEqual({
+				title: getStateManager(svc).getSessionState(imported.toString())?.title,
+				utilityCalls: copilotApiService.utilityCalls.length,
+			}, {
+				title: 'Investigate imported conversation',
+				utilityCalls: 0,
+			});
 		});
 
 	});
