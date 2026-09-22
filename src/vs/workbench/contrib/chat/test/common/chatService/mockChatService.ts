@@ -37,11 +37,11 @@ export class MockChatService implements IChatService {
 	private liveSessionItems: IChatDetail[] = [];
 	private historySessionItems: IChatDetail[] = [];
 
-	private readonly _onDidDisposeSession = new Emitter<{ sessionResources: URI[]; reason: 'cleared' }>();
+	private readonly _onDidDisposeSession = new Emitter<{ sessionResources: URI[]; reason: 'cleared' | 'disposed' }>();
 	readonly onDidDisposeSession = this._onDidDisposeSession.event;
 
-	fireDidDisposeSession(sessionResources: URI[]): void {
-		this._onDidDisposeSession.fire({ sessionResources, reason: 'cleared' });
+	fireDidDisposeSession(sessionResources: URI[], reason: 'cleared' | 'disposed' = 'cleared'): void {
+		this._onDidDisposeSession.fire({ sessionResources, reason });
 	}
 
 	setSaveModelsEnabled(enabled: boolean): void {

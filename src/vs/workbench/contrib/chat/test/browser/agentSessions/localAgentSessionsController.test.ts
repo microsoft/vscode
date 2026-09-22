@@ -851,5 +851,50 @@ suite('LocalAgentsSessionsController', () => {
 				assert.strictEqual(controller.items.length, 0, 'disposed session should not reappear after refresh');
 			});
 		});
+
+		test('keeps a closed session in the list when its history was persisted', async () => {
+			return runWithFakedTimers({}, async () => {
+				const controller = createController();
+				const sessionResource = LocalChatSessionUri.forSession('closed-persisted-session');
+				const model = createMockChatModel({ sessionResource, hasRequests: true });
+				mockChatService.addSession(model);
+				const detail = await chatModelToChatDetail(model);
+				mockChatService.setLiveSessionItems([detail]);
+				await controller.refresh(CancellationToken.None);
+				await timeout(0);
+
+				const removed: URI[] = [];
+				disposables.add(controller.onDidChangeChatSessionItems(delta => removed.push(...delta.removed ?? [])));
+				mockChatService.setLiveSessionItems([]);
+				mockChatService.setHistorySessionItems([{ ...detail, isActive: false }]);
+				mockChatService.removeSession(sessionResource);
+				mockChatService.fireDidDisposeSession([sessionResource], 'disposed');
+				await timeout(0);
+
+				assert.deepStrictEqual({
+					items: controller.items.map(item => item.resource),
+					removed,
+				}, { items: [sessionResource], removed: [] });
+			});
+		});
+
+		test('removes a closed session when no history was persisted', async () => {
+			return runWithFakedTimers({}, async () => {
+				const controller = createController();
+				const sessionResource = LocalChatSessionUri.forSession('closed-unpersisted-session');
+				const model = createMockChatModel({ sessionResource, hasRequests: true });
+				mockChatService.addSession(model);
+				mockChatService.setLiveSessionItems([await chatModelToChatDetail(model)]);
+				await controller.refresh(CancellationToken.None);
+				await timeout(0);
+
+				mockChatService.setLiveSessionItems([]);
+				mockChatService.removeSession(sessionResource);
+				mockChatService.fireDidDisposeSession([sessionResource], 'disposed');
+				await timeout(0);
+
+				assert.deepStrictEqual(controller.items, []);
+			});
+		});
 	});
 });

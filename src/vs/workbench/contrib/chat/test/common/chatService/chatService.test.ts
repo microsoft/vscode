@@ -9,6 +9,7 @@ import { CancellationToken } from '../../../../../../base/common/cancellation.js
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
+import { Schemas } from '../../../../../../base/common/network.js';
 import { constObservable, ISettableObservable, observableValue, transaction } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mockObject } from '../../../../../../base/test/common/mock.js';
@@ -22,6 +23,8 @@ import { IContextKeyService } from '../../../../../../platform/contextkey/common
 import { IEnvironmentService } from '../../../../../../platform/environment/common/environment.js';
 import { ExtensionIdentifier } from '../../../../../../platform/extensions/common/extensions.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
+import { FileService } from '../../../../../../platform/files/common/fileService.js';
+import { InMemoryFileSystemProvider } from '../../../../../../platform/files/common/inMemoryFilesystemProvider.js';
 import { ServiceCollection } from '../../../../../../platform/instantiation/common/serviceCollection.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { MockContextKeyService } from '../../../../../../platform/keybinding/test/common/mockKeybindingService.js';
@@ -954,18 +957,18 @@ suite('ChatService', () => {
 		const modelRef = testService.startNewLocalSession(ChatAgentLocation.Chat);
 		const model = modelRef.object;
 
-		let disposed = false;
+		let reason: string | undefined;
 		testDisposables.add(testService.onDidDisposeSession(e => {
 			for (const resource of e.sessionResources) {
 				if (resource.toString() === model.sessionResource.toString()) {
-					disposed = true;
+					reason = e.reason;
 				}
 			}
 		}));
 
 		modelRef.dispose();
 		await testService.waitForModelDisposals();
-		assert.strictEqual(disposed, true);
+		assert.strictEqual(reason, 'disposed');
 	});
 
 	test('disposing a session cancels pending followups', async () => {
@@ -3987,6 +3990,52 @@ suite('ChatService', () => {
 
 		// Clean up
 		ref.dispose();
+	});
+
+	test('moving an autosaved empty session with a handoff reference preserves its transcript after restart', async () => {
+		const fileService = testDisposables.add(new FileService(new NullLogService()));
+		testDisposables.add(fileService.registerProvider(Schemas.file, testDisposables.add(new InMemoryFileSystemProvider())));
+		instantiationService.stub(IFileService, fileService);
+		const testService = createChatService();
+		instantiationService.stub(IChatService, testService);
+		const sidebarRef = startSessionModel(testService);
+		const resource = sidebarRef.object.sessionResource;
+		const storageService = instantiationService.get(IStorageService) as TestStorageService;
+		storageService.testEmitWillSaveState(WillSaveStateReason.NONE);
+		await testService.getHistorySessionItems();
+
+		const handoffRef = testService.acquireExistingSession(resource, 'test#move');
+		assert.ok(handoffRef);
+		testDisposables.add(handoffRef);
+		sidebarRef.dispose();
+		await testService.waitForModelDisposals();
+		const editorRef = await testService.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
+		assert.ok(editorRef);
+		testDisposables.add(editorRef);
+		handoffRef.dispose();
+
+		const response = await testService.sendRequest(resource, 'message in detached window');
+		ChatSendResult.assertSent(response);
+		await response.data.responseCompletePromise;
+		editorRef.dispose();
+		await testService.waitForModelDisposals();
+
+		const restartedService = createChatService();
+		instantiationService.stub(IChatService, restartedService);
+		const history = await restartedService.getHistorySessionItems();
+		const restoredModel = await getOrRestoreModel(restartedService, resource);
+		const localSessionId = LocalChatSessionUri.parseLocalSessionId(resource);
+		const log = await fileService.readFile(URI.joinPath(testService.getChatStorageFolder(), `${localSessionId}.jsonl`));
+		const firstLogEntry = JSON.parse(log.value.toString().split('\n')[0]) as { kind: number };
+		assert.deepStrictEqual({
+			firstLogEntryKind: firstLogEntry.kind,
+			history: history.map(item => item.sessionResource),
+			requests: restoredModel?.getRequests().map(request => request.message.text),
+		}, {
+			firstLogEntryKind: 0,
+			history: [resource],
+			requests: ['message in detached window'],
+		});
 	});
 
 	test('removeHistoryEntry marks model as deleted and excludes from getLiveSessionItems', async () => {
