@@ -56,6 +56,13 @@ function createPullError(message: string, stderr: string, code = 128): cp.ExecFi
 	return error;
 }
 
+function createAuthenticationError(): cp.ExecFileException {
+	return createPullError(
+		'fatal: Authentication failed for \'https://github.com/microsoft/vscode.git/\'',
+		'remote: Invalid username or token. Password authentication is not supported for Git operations.'
+	);
+}
+
 suite('LocalGitService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	const temporaryDirectories: string[] = [];
@@ -111,6 +118,71 @@ suite('LocalGitService', () => {
 			},
 		});
 
+		assert.strictEqual(expectations.length, 0);
+	});
+
+	test('clone retries without authentication after authentication failure', async () => {
+		const configuredCount = Number.parseInt(process.env.GIT_CONFIG_COUNT ?? '', 10);
+		const index = Number.isInteger(configuredCount) && configuredCount >= 0 ? configuredCount : 0;
+		const parentPath = await fs.mkdtemp(join(tmpdir(), 'vscode-plugin-git-auth-retry-'));
+		temporaryDirectories.push(parentPath);
+		const targetPath = join(parentPath, 'repo');
+		const expectations: IExecFileExpectation[] = [
+			{ args: ['--version'], stdout: 'git version 2.31.0\n' },
+			{
+				args: ['clone', '--', 'https://github.com/microsoft/vscode.git', targetPath],
+				environment: {
+					GIT_CONFIG_COUNT: String(index + 1),
+					[`GIT_CONFIG_KEY_${index}`]: 'http.https://github.com/.extraHeader',
+					[`GIT_CONFIG_VALUE_${index}`]: 'Authorization: Basic stale',
+				},
+				error: createAuthenticationError(),
+			},
+			{
+				args: ['clone', '--', 'https://github.com/microsoft/vscode.git', targetPath],
+				environmentUndefined: true,
+			},
+		];
+		const service = new LocalGitService(new NullLogService(), createExecFile(expectations));
+
+		await service.clone('test-op', 'https://github.com/microsoft/vscode.git', targetPath, undefined, {
+			authentication: {
+				urlPrefixes: ['https://github.com/'],
+				authorizationHeader: 'Authorization: Basic stale',
+			},
+		});
+
+		assert.strictEqual(expectations.length, 0);
+	});
+
+	test('clone preserves authentication error when anonymous retry fails', async () => {
+		const authenticationError = createAuthenticationError();
+		const parentPath = await fs.mkdtemp(join(tmpdir(), 'vscode-plugin-git-auth-failure-'));
+		temporaryDirectories.push(parentPath);
+		const targetPath = join(parentPath, 'repo');
+		const expectations: IExecFileExpectation[] = [
+			{ args: ['--version'], stdout: 'git version 2.31.0\n' },
+			{
+				args: ['clone', '--', 'https://github.com/test/private.git', targetPath],
+				error: authenticationError,
+			},
+			{
+				args: ['clone', '--', 'https://github.com/test/private.git', targetPath],
+				environmentUndefined: true,
+				error: createPullError('fatal: could not read Username', 'fatal: terminal prompts disabled'),
+			},
+		];
+		const service = new LocalGitService(new NullLogService(), createExecFile(expectations));
+
+		await assert.rejects(
+			() => service.clone('test-op', 'https://github.com/test/private.git', targetPath, undefined, {
+				authentication: {
+					urlPrefixes: ['https://github.com/'],
+					authorizationHeader: 'Authorization: Basic stale',
+				},
+			}),
+			error => error === authenticationError
+		);
 		assert.strictEqual(expectations.length, 0);
 	});
 

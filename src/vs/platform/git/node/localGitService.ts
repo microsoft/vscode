@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as cp from 'child_process';
+import { promises as fs } from 'fs';
 import { CancellationError, isCancellationError } from '../../../base/common/errors.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { localize } from '../../../nls.js';
@@ -61,21 +62,19 @@ export class LocalGitService implements ILocalGitService {
 	}
 
 	async clone(operationId: string, cloneUrl: string, targetPath: string, ref?: string, options?: IGitNetworkOptions): Promise<void> {
-		const networkOptions = await this._getSupportedNetworkOptions(operationId, options);
 		const args = ['clone'];
 		if (ref) {
 			args.push('--branch', ref);
 		}
 		args.push('--', cloneUrl, targetPath);
-		await this._exec(operationId, args, undefined, networkOptions);
+		await this._execNetwork(operationId, args, undefined, options, () => fs.rm(targetPath, { recursive: true, force: true }));
 	}
 
 	async pull(operationId: string, repoPath: string, options?: IGitPullOptions): Promise<boolean> {
-		const networkOptions = await this._getSupportedNetworkOptions(operationId, options);
 		const before = (await this._exec(operationId, ['rev-parse', 'HEAD'], repoPath)).trim();
 
 		try {
-			await this._exec(operationId, ['pull', '--ff-only'], repoPath, networkOptions);
+			await this._execNetwork(operationId, ['pull', '--ff-only'], repoPath, options);
 		} catch (err) {
 			if (!this._isFastForwardPullFailure(err)) {
 				throw err;
@@ -83,10 +82,10 @@ export class LocalGitService implements ILocalGitService {
 
 			const error = err as { message?: string };
 			this._logService.warn(`[LocalGitService] Fast-forward pull failed for ${repoPath}: ${error?.message ?? String(err)}. Retrying after fetch.`);
-			await this._exec(operationId, ['fetch', '--prune'], repoPath, networkOptions);
+			await this._execNetwork(operationId, ['fetch', '--prune'], repoPath, options);
 
 			try {
-				await this._exec(operationId, ['pull', '--ff-only'], repoPath, networkOptions);
+				await this._execNetwork(operationId, ['pull', '--ff-only'], repoPath, options);
 			} catch (retryErr) {
 				if (!this._isFastForwardPullFailure(retryErr)) {
 					throw retryErr;
@@ -183,8 +182,46 @@ export class LocalGitService implements ILocalGitService {
 	}
 
 	async fetch(operationId: string, repoPath: string, options?: IGitNetworkOptions): Promise<void> {
+		await this._execNetwork(operationId, ['fetch'], repoPath, options);
+	}
+
+	private async _execNetwork(
+		operationId: string,
+		args: string[],
+		cwd: string | undefined,
+		options: IGitNetworkOptions | undefined,
+		beforeAnonymousRetry?: () => Promise<void>,
+	): Promise<string> {
 		const networkOptions = await this._getSupportedNetworkOptions(operationId, options);
-		await this._exec(operationId, ['fetch'], repoPath, networkOptions);
+		if (!networkOptions?.authentication) {
+			return this._exec(operationId, args, cwd, networkOptions);
+		}
+
+		try {
+			return await this._exec(operationId, args, cwd, networkOptions);
+		} catch (error) {
+			if (!this._isAuthenticationFailure(error)) {
+				throw error;
+			}
+
+			this._logService.warn(`[LocalGitService] Git authentication failed for '${args[0]}'. Retrying without VS Code authentication.`);
+			await beforeAnonymousRetry?.();
+			try {
+				return await this._exec(operationId, args, cwd);
+			} catch {
+				throw error;
+			}
+		}
+	}
+
+	private _isAuthenticationFailure(error: unknown): boolean {
+		const candidate = error as (cp.ExecFileException & { stderr?: string; message?: string }) | undefined;
+		if (candidate?.code !== 128) {
+			return false;
+		}
+
+		const details = `${candidate.stderr ?? ''}\n${candidate.message ?? ''}`;
+		return /authentication failed|invalid username or token|could not read (?:username|password)|terminal prompts disabled/i.test(details);
 	}
 
 	private async _getSupportedNetworkOptions(operationId: string, options: IGitNetworkOptions | undefined): Promise<IGitNetworkOptions | undefined> {
