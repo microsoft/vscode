@@ -246,7 +246,7 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 				id,
 				kind: InboxNotificationKind.NeedsInput,
 				priority: InboxNotificationPriority.High,
-				title: localize('inboxNotifications.needsInput.title', "Input Needed for {0}", title),
+				title,
 				description: needsInputPart ? this.getNeedsInputPartDescription(needsInputPart) : this.getNeedsInputDescription(session, reader),
 				repositoryLabel,
 				needsInputPart,

@@ -207,9 +207,9 @@ export class InboxNotificationsView extends AbstractCustomView {
 		card.setAttribute('aria-label', this.getCardAriaLabel(item));
 
 		const heading = card.appendChild($('.inbox-notifications-item-header'));
+		const kindLabel = heading.appendChild($('.inbox-notifications-item-kind-label', undefined, this.kindLabel(item.kind)));
+		kindLabel.classList.add(`priority-${item.priority}`);
 		heading.appendChild($('.inbox-notifications-item-title', undefined, item.title));
-		const kindBadge = heading.appendChild($('.inbox-notifications-item-badge.kind.inbox-notifications-item-kind-badge', undefined, this.kindLabel(item.kind)));
-		kindBadge.classList.add(`priority-${item.priority}`);
 		let badges: HTMLElement | undefined;
 		if (item.repositoryLabel) {
 			badges = card.appendChild($('.inbox-notifications-item-badges'));

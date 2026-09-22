@@ -97,6 +97,27 @@
 	gap: var(--vscode-spacing-size100);
 }
 
+.inbox-notifications-item-kind-label {
+	font-size: var(--vscode-fontSize-label2);
+	font-weight: 600;
+}
+
+.inbox-notifications-item-kind-label.priority-0 {
+	color: var(--vscode-errorForeground);
+}
+
+.inbox-notifications-item-kind-label.priority-1 {
+	color: var(--vscode-notificationsWarningIcon-foreground);
+}
+
+.inbox-notifications-item-kind-label.priority-2 {
+	color: var(--vscode-notificationsInfoIcon-foreground);
+}
+
+.inbox-notifications-item-kind-label.priority-3 {
+	color: var(--vscode-descriptionForeground);
+}
+
 .inbox-notifications-item-title {
 	font-weight: 600;
 }
@@ -123,30 +144,6 @@
 	background-color: var(--vscode-editorWidget-background);
 	color: var(--vscode-descriptionForeground);
 	border: 1px solid var(--vscode-widget-border);
-}
-
-.inbox-notifications-item-kind-badge {
-	margin-inline-start: auto;
-	background-color: transparent;
-	border: none;
-	padding: 0;
-	font-weight: 600;
-}
-
-.inbox-notifications-item-kind-badge.priority-0 {
-	color: var(--vscode-errorForeground);
-}
-
-.inbox-notifications-item-kind-badge.priority-1 {
-	color: var(--vscode-notificationsWarningIcon-foreground);
-}
-
-.inbox-notifications-item-kind-badge.priority-2 {
-	color: var(--vscode-notificationsInfoIcon-foreground);
-}
-
-.inbox-notifications-item-kind-badge.priority-3 {
-	color: var(--vscode-descriptionForeground);
 }
 
 .inbox-notifications-item-badge.repository {
