@@ -128,8 +128,8 @@ export function defineCustomizationDiscoveryTests(context: IAgentHostE2ETestCont
 	});
 
 	const fixedInstructionTitle = config.provider === 'copilotcli'
-		? 'customization discovery groups fixed agent instruction files at the workspace root'
-		: 'customization discovery groups provider-supported fixed instruction files at the workspace root';
+		? 'customization discovery: discover groups fixed agent instruction files at the workspace root'
+		: 'customization discovery: discover groups provider-supported fixed instruction files at the workspace root';
 	customizationDiscoveryTest(fixedInstructionTitle, async function () {
 		const workspace = createWorkspace('agent-instructions');
 		const files = config.provider === 'codex'
