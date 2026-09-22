@@ -1425,7 +1425,7 @@ export function renderForm(
 	disposables.add(resizeObserver.observe(promptHost));
 
 	const enabledRow = DOM.append(formContent, $('.automation-form-row.automation-form-checkbox-row'));
-	const enabledLabelText = localize('automation.form.enabled', "Enabled (the scheduler runs this automation when due)");
+	const enabledLabelText = localize('automation.form.enabled', "Enabled");
 	const enabledCheckbox = disposables.add(new Checkbox(enabledLabelText, state.enabled, defaultCheckboxStyles));
 	DOM.append(enabledRow, enabledCheckbox.domNode);
 	const enabledLabel = DOM.append(enabledRow, $('span.automation-form-checkbox-label', undefined, enabledLabelText));

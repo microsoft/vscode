@@ -5,12 +5,11 @@
 
 import assert from 'assert';
 import { DeferredPromise } from '../../../../../base/common/async.js';
-import { Emitter } from '../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
-import { AgentChatMigrationDeferred, AgentSession, CODEX_AGENT_PROVIDER_ID, type AgentProvider, type IAgentChatContext, type IAgentDiscoveredChat } from '../../../common/agent.js';
+import { AgentChatMigrationDeferred, AgentSession, CODEX_AGENT_PROVIDER_ID, type AgentProvider, type IAgentChatContext } from '../../../common/agent.js';
 import { AgentSystemNotificationKind, toAgentSystemNotificationMeta } from '../../../common/meta/agentSystemNotificationMeta.js';
 import { ActionType, type ChatAction } from '../../../common/state/sessionActions.js';
 import { CustomizationEnablementKind, CustomizationType, McpServerStatus, type McpServerCustomization } from '../../../common/state/protocol/channels-session/state.js';
@@ -622,57 +621,6 @@ suite('CodexAgent', () => {
 		});
 	});
 
-	test('cold native discovery waits for the SDK rather than fetching it, and runs again once it lands', async () => {
-		const onDidDiscoverChats = new Emitter<readonly IAgentDiscoveredChat[]>();
-		const discoveredChats: number[] = [];
-		const listener = onDidDiscoverChats.event(chats => discoveredChats.push(chats.length));
-		type DiscoveryHarness = {
-			_activated: boolean;
-			_isShuttingDown: boolean;
-			_store: { isDisposed: boolean };
-			_codexChatDiscovery: Promise<void> | undefined;
-			_isSdkResolvableWithoutDownload(): Promise<boolean>;
-			_emitCodexChats(): Promise<boolean>;
-			_startCodexChatDiscovery(): Promise<void>;
-			_logService: { warn(message: string): void; info(message: string): void };
-		};
-		const discovery = CodexAgent.prototype as unknown as {
-			_startCodexChatDiscovery(this: DiscoveryHarness): Promise<void>;
-			_restartChatDiscovery(this: DiscoveryHarness): void;
-		};
-		let sdkIsLocal = false;
-		const harness: DiscoveryHarness = {
-			_activated: true,
-			_isShuttingDown: false,
-			_store: { isDisposed: false },
-			_logService: { warn: () => { }, info: () => { } },
-			_codexChatDiscovery: undefined,
-			_isSdkResolvableWithoutDownload: async () => sdkIsLocal,
-			_startCodexChatDiscovery: () => discovery._startCodexChatDiscovery.call(harness),
-			_emitCodexChats: async () => {
-				onDidDiscoverChats.fire([{
-					chat: URI.parse('agenthost-chat://codex/session/default'),
-					startTime: 1,
-					modifiedTime: 1,
-					external: true,
-				}]);
-				return true;
-			},
-		};
-
-		await discovery._startCodexChatDiscovery.call(harness);
-		const cold = [...discoveredChats];
-
-		// What the explicit download does on its way out.
-		sdkIsLocal = true;
-		discovery._restartChatDiscovery.call(harness);
-		await harness._codexChatDiscovery;
-
-		assert.deepStrictEqual({ cold, after: discoveredChats }, { cold: [], after: [1] });
-		listener.dispose();
-		onDidDiscoverChats.dispose();
-	});
-
 	test('listChatsToMigrate returns only known Codex chats without provenance', async () => {
 		const knownInternal = AgentSession.uri('codex', 'known-internal');
 		const knownExternal = AgentSession.uri('codex', 'known-external');
@@ -734,6 +682,8 @@ suite('CodexAgent', () => {
 		const emitCodexChats = (CodexAgent.prototype as unknown as {
 			_emitCodexChats(this: {
 				_isShuttingDown: boolean;
+				_connectionGeneration: number;
+				_discoveredCodexChats: Map<string, (typeof chats)[number]>;
 				_store: { isDisposed: boolean };
 				_listCodexChats(): Promise<typeof chats>;
 				_isKnownCodexChat(chat: (typeof chats)[number]): Promise<boolean>;
@@ -744,6 +694,8 @@ suite('CodexAgent', () => {
 
 		await emitCodexChats.call({
 			_isShuttingDown: false,
+			_connectionGeneration: 0,
+			_discoveredCodexChats: new Map(),
 			_store: { isDisposed: false },
 			_listCodexChats: async () => chats,
 			_isKnownCodexChat: async chat => {
