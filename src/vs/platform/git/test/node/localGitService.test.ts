@@ -156,6 +156,45 @@ suite('LocalGitService', () => {
 		assert.strictEqual(expectations.length, 0);
 	});
 
+	test('clone rechecks Git version after an unsupported version', async () => {
+		const parentPath = await fs.mkdtemp(join(tmpdir(), 'vscode-plugin-git-version-retry-'));
+		temporaryDirectories.push(parentPath);
+		const firstTarget = join(parentPath, 'first');
+		const secondTarget = join(parentPath, 'second');
+		const expectations: IExecFileExpectation[] = [
+			{
+				args: ['clone', '--', 'https://github.com/test/private.git', firstTarget],
+				environmentUndefined: true,
+				error: createCredentialPromptError(),
+			},
+			{ args: ['--version'], stdout: 'git version 2.30.9\n' },
+			{
+				args: ['clone', '--', 'https://github.com/test/private.git', secondTarget],
+				environmentUndefined: true,
+				error: createCredentialPromptError(),
+			},
+			{ args: ['--version'], stdout: 'git version 2.31.0\n' },
+			{
+				args: ['clone', '--', 'https://github.com/test/private.git', secondTarget],
+			},
+		];
+		const service = new LocalGitService(new NullLogService(), createExecFile(expectations));
+		const options = {
+			authentication: {
+				urlPrefix: 'https://github.com/',
+				authorizationHeader: 'Authorization: Basic secret',
+			},
+		};
+
+		await assert.rejects(
+			() => service.clone('first-op', 'https://github.com/test/private.git', firstTarget, undefined, options),
+			/unable to get password/
+		);
+		await service.clone('second-op', 'https://github.com/test/private.git', secondTarget, undefined, options);
+
+		assert.strictEqual(expectations.length, 0);
+	});
+
 	test('clone returns editor authentication error when the retry fails', async () => {
 		const authenticationError = createAuthenticationError();
 		const parentPath = await fs.mkdtemp(join(tmpdir(), 'vscode-plugin-git-auth-failure-'));

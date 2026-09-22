@@ -15,7 +15,7 @@ export class LocalGitService implements ILocalGitService {
 	declare readonly _serviceBrand: undefined;
 
 	private _runningProcesses = new Map<string, cp.ChildProcess>();
-	private _gitVersion: readonly [number, number, number] | null | undefined;
+	private _gitVersion: readonly [number, number, number] | undefined;
 	private _authenticationCompatibilityWarningShown = false;
 
 	constructor(
@@ -245,19 +245,17 @@ export class LocalGitService implements ILocalGitService {
 				if (isCancellationError(error)) {
 					throw error;
 				}
-				version = null;
 				this._warnAuthenticationUnsupported('The installed Git version could not be determined');
+				return undefined;
 			}
-			this._gitVersion = version;
 		}
 
-		if (version && (version[0] > 2 || (version[0] === 2 && version[1] >= 31))) {
+		if (version[0] > 2 || (version[0] === 2 && version[1] >= 31)) {
+			this._gitVersion = version;
 			return options;
 		}
 
-		if (version) {
-			this._warnAuthenticationUnsupported(`Git ${version.join('.')} does not support transient configuration`);
-		}
+		this._warnAuthenticationUnsupported(`Git ${version.join('.')} does not support transient configuration`);
 		return undefined;
 	}
 
