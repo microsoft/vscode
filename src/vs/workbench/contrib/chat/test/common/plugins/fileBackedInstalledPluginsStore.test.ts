@@ -202,7 +202,7 @@ suite('FileBackedInstalledPluginsStore', () => {
 			storageService as unknown as IStorageService,
 		));
 
-		await waitFor(() => pluginsStore.get().length === 1);
+		await pluginsStore.whenInitialized();
 
 		assert.strictEqual(pluginsStore.get()[0].pluginUri.path, '/home/user/.vscode/agent-plugins/github.com/microsoft/plugins/plugins/my-plugin');
 	});

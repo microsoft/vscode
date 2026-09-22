@@ -1085,6 +1085,7 @@ suite('PluginMarketplaceService - hydration after restart', () => {
 	class TestFileService {
 		readonly files = new Map<string, string>();
 		readonly folders = new Set<string>();
+		private readBarrier: Promise<void> | undefined;
 
 		async exists(resource: URI): Promise<boolean> {
 			const key = resource.toString();
@@ -1092,6 +1093,7 @@ suite('PluginMarketplaceService - hydration after restart', () => {
 		}
 
 		async readFile(resource: URI): Promise<{ value: VSBuffer }> {
+			await this.readBarrier;
 			const key = resource.toString();
 			const value = this.files.get(key);
 			if (value === undefined) {
@@ -1116,6 +1118,10 @@ suite('PluginMarketplaceService - hydration after restart', () => {
 
 		setFile(resource: URI, content: string): void {
 			this.files.set(resource.toString(), content);
+		}
+
+		setReadBarrier(barrier: Promise<void>): void {
+			this.readBarrier = barrier;
 		}
 	}
 
@@ -1220,14 +1226,7 @@ suite('PluginMarketplaceService - hydration after restart', () => {
 		stubMeteredConnectionService(instantiationService);
 
 		const service = store.add(instantiationService.createInstance(PluginMarketplaceService));
-
-		// FileBackedInstalledPluginsStore initialises asynchronously.
-		for (let i = 0; i < 50; i++) {
-			if (service.installedPlugins.get().length === 1) {
-				break;
-			}
-			await timeout(10);
-		}
+		await service.whenInstalledPluginsReady();
 
 		const installed = service.installedPlugins.get();
 		assert.strictEqual(installed.length, 1, 'azure plugin should be hydrated from marketplace data');
@@ -1300,12 +1299,7 @@ suite('PluginMarketplaceService - hydration after restart', () => {
 		stubMeteredConnectionService(instantiationService);
 
 		const service = store.add(instantiationService.createInstance(PluginMarketplaceService));
-		for (let i = 0; i < 50; i++) {
-			if (service.installedPlugins.get().length === 1) {
-				break;
-			}
-			await timeout(10);
-		}
+		await service.whenInstalledPluginsReady();
 
 		assert.strictEqual(service.installedPlugins.get().length, 1, 'single-plugin repo should survive a restart');
 		assert.strictEqual(service.installedPlugins.get()[0].plugin.name, 'vscode-corpus');
@@ -1430,16 +1424,86 @@ suite('PluginMarketplaceService - hydration after restart', () => {
 		// Second session: restart with shared storage + file system. The
 		// plugin must be reconstructed from installed.json + marketplace data.
 		const second = makeService();
-		for (let i = 0; i < 50; i++) {
-			if (second.installedPlugins.get().length === 1) {
-				break;
-			}
-			await timeout(10);
-		}
+		await second.whenInstalledPluginsReady();
 		const installed = second.installedPlugins.get();
 		assert.strictEqual(installed.length, 1);
 		assert.strictEqual(installed[0].plugin.name, 'azure');
 		assert.strictEqual(installed[0].plugin.sourceDescriptor.kind, PluginSourceKind.GitHub);
+	});
+
+	test('periodic update check waits for installed plugin hydration', async () => {
+		const storageService = store.add(new InMemoryStorageService());
+		const fileService = new TestFileService();
+		const readBarrier = new DeferredPromise<void>();
+		fileService.setReadBarrier(readBarrier.p);
+
+		const awesomeCopilot = parseMarketplaceReference('github/awesome-copilot#marketplace')!;
+		const azurePlugin = makeAzurePlugin(awesomeCopilot);
+		storeMarketplaceCache(storageService, awesomeCopilot, azurePlugin);
+		const azurePluginUri = URI.joinPath(CACHE_ROOT, 'github.com', 'microsoft', 'azure-skills', '.github', 'plugins', 'azure-skills');
+		fileService.setFile(URI.joinPath(CACHE_ROOT, 'installed.json'), JSON.stringify({
+			version: 1,
+			installed: [{
+				pluginUri: azurePluginUri.toString(),
+				marketplace: awesomeCopilot.rawValue,
+				name: 'azure',
+			}],
+		}));
+
+		let runIdle: ((idle: IdleDeadline) => void) | undefined;
+		store.add(installFakeRunWhenIdle((_target, runner) => {
+			runIdle = runner;
+			return Disposable.None;
+		}));
+		let fetchCount = 0;
+		const instantiationService = store.add(new TestInstantiationService());
+		instantiationService.stub(IConfigurationService, new TestConfigurationService({
+			[ChatConfiguration.PluginMarketplaces]: ['github/awesome-copilot#marketplace'],
+			[ChatConfiguration.PluginsEnabled]: true,
+		}));
+		instantiationService.stub(IEnvironmentService, { cacheHome: URI.file('/cache') } as Partial<IEnvironmentService> as IEnvironmentService);
+		instantiationService.stub(IFileService, fileService as unknown as IFileService);
+		instantiationService.stub(IAgentPluginRepositoryService, {
+			...createPluginRepositoryStub(),
+			fetchRepository: async () => {
+				fetchCount++;
+				return true;
+			},
+		} as IAgentPluginRepositoryService);
+		instantiationService.stub(ILogService, new NullLogService());
+		instantiationService.stub(IRequestService, {} as unknown as IRequestService);
+		instantiationService.stub(IStorageService, storageService);
+		instantiationService.stub(IWorkspacePluginSettingsService, {
+			extraMarketplaces: observableValue('test.extraMarketplaces', []),
+			enabledPlugins: observableValue('test.enabledPlugins', new Map()),
+		} as Partial<IWorkspacePluginSettingsService> as IWorkspacePluginSettingsService);
+		instantiationService.stub(IWorkspaceTrustManagementService, {
+			isWorkspaceTrusted: () => true,
+			onDidChangeTrust: Event.None,
+		} as Partial<IWorkspaceTrustManagementService> as IWorkspaceTrustManagementService);
+		instantiationService.stub(IExtensionsWorkbenchService, {
+			getAutoUpdateValue: () => 'on',
+		} as Partial<IExtensionsWorkbenchService> as IExtensionsWorkbenchService);
+		stubMeteredConnectionService(instantiationService);
+
+		const service = store.add(instantiationService.createInstance(PluginMarketplaceService));
+		assert.ok(runIdle);
+		runIdle({ didTimeout: false, timeRemaining: () => 50 });
+		await timeout(0);
+		assert.strictEqual(fetchCount, 0);
+
+		readBarrier.complete();
+		for (let attempt = 0; attempt < 20 && fetchCount === 0; attempt++) {
+			await timeout(0);
+		}
+
+		assert.deepStrictEqual({
+			fetchCount,
+			marketplacesWithUpdates: [...service.marketplacesWithUpdates.get()],
+		}, {
+			fetchCount: 1,
+			marketplacesWithUpdates: [awesomeCopilot.canonicalId],
+		});
 	});
 });
 

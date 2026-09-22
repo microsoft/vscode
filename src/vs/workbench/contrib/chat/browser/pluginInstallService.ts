@@ -379,6 +379,11 @@ export class PluginInstallService implements IPluginInstallService {
 	}
 
 	async updateAllPlugins(options: IUpdateAllPluginsOptions, token: CancellationToken): Promise<IUpdateAllPluginsResult> {
+		await this._pluginMarketplaceService.whenInstalledPluginsReady();
+		if (token.isCancellationRequested) {
+			return { updatedNames: [], failedNames: [] };
+		}
+
 		const allInstalled = this._pluginMarketplaceService.installedPlugins.get();
 		const installed = allInstalled.filter(entry =>
 			(!options.marketplaceIds || options.marketplaceIds.has(entry.plugin.marketplaceReference.canonicalId))
