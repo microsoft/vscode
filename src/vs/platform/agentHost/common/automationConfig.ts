@@ -3,35 +3,30 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { migrateLegacyAutopilotConfig } from './agentHostSchema.js';
+import { localize } from '../../../nls.js';
+import { createSchema, migrateLegacyAutopilotConfig, schemaProperty } from './agentHostSchema.js';
 import { KNOWN_MODE_VALUES, SessionConfigKey } from './sessionConfigKeys.js';
 
-export const AGENT_HOST_AUTOMATION_MIGRATION_CONFIG_KEY = 'vscode.automationMigration';
 export const AGENT_HOST_AUTOMATIONS_ENABLED_CONFIG_KEY = 'automationsEnabled';
 export const AGENT_HOST_AUTOMATION_RUN_TIMEOUT_MINUTES_CONFIG_KEY = 'automationRunTimeoutMinutes';
-export const AGENT_HOST_LEGACY_AUTOMATION_IMPORT_META_KEY = 'vscode.legacyAutomationImport';
-export const AGENT_HOST_LEGACY_AUTOMATION_IMPORT_PENDING_META_KEY = 'vscode.legacyAutomationImportPending';
-export const AGENT_HOST_AUTOMATION_CATALOG_MIGRATED_META_KEY = 'vscode.migrationCompleted';
+export const DEFAULT_AGENT_HOST_AUTOMATION_RUN_TIMEOUT_MINUTES = 30;
+
+export const automationRootConfigSchema = createSchema({
+	[AGENT_HOST_AUTOMATIONS_ENABLED_CONFIG_KEY]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.automationsEnabled', "Automations"),
+		description: localize('agentHost.automationsEnabled.description', "Whether this Agent Host may run automations."),
+		default: false,
+	}),
+	[AGENT_HOST_AUTOMATION_RUN_TIMEOUT_MINUTES_CONFIG_KEY]: schemaProperty<number>({
+		type: 'number',
+		title: localize('agentHost.automationRunTimeout', "Automation Run Timeout"),
+		description: localize('agentHost.automationRunTimeout.description', "Maximum duration of an automation run, in minutes."),
+		default: DEFAULT_AGENT_HOST_AUTOMATION_RUN_TIMEOUT_MINUTES,
+	}),
+});
 
 const LEGACY_AUTOPILOT_PROVIDER = 'copilotcli';
-
-export interface IAgentHostAutomationMigrationCompletion {
-	readonly version: 1;
-	readonly status: 'complete';
-	readonly resources: readonly string[];
-}
-
-export function isAgentHostAutomationMigrationCompletion(value: unknown): value is IAgentHostAutomationMigrationCompletion {
-	if (!value || typeof value !== 'object' || Array.isArray(value)) {
-		return false;
-	}
-	const candidate = value as Record<string, unknown>;
-	if (candidate['version'] !== 1 || candidate['status'] !== 'complete' || !Array.isArray(candidate['resources'])) {
-		return false;
-	}
-	const resources = candidate['resources'];
-	return resources.every(resource => typeof resource === 'string') && new Set(resources).size === resources.length;
-}
 
 /** Whether the provider used the legacy flattened Automation mode and permission fields. */
 export function supportsLegacyAutomationSessionConfig(provider: string | undefined): boolean {
