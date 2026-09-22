@@ -900,6 +900,7 @@ export class AgentSideEffects extends Disposable {
 			const clientContext = this._turnTracker.getClientTelemetryContext(sessionKey, turnId);
 			this._completeTurn(sessionKey, turnId, 'cancelled');
 			this._toolCallTracker.clearSession(sessionKey);
+			this.cancelSubagentSessions(sessionKey);
 			this._chatContributions.turnEnd({ session: sessionUri, channel: sessionKey, turnId, reason: { kind: 'cancelled' }, clientContext });
 		}
 

@@ -6517,6 +6517,32 @@ suite('AgentSideEffects', () => {
 			assert.strictEqual(sub2?.activeTurn, undefined, 'sub2 turn should be cancelled');
 		});
 
+		test('provider cancellation ends running subagent turns before the provider is disposed', () => {
+			setupSession();
+			startTurn('turn-1', defaultChatUri);
+			disposables.add(sideEffects.registerProgressListener(agent));
+
+			for (const toolCallId of ['tc-1', 'tc-2']) {
+				agent.fireProgress({ kind: 'action', resource: URI.parse(defaultChatUri), action: { type: ActionType.ChatToolCallStart, turnId: 'turn-1', toolCallId, toolName: 'runSubagent', displayName: 'Subagent', contributor: undefined, _meta: {} } });
+				agent.fireProgress({ kind: 'action', resource: URI.parse(defaultChatUri), action: { type: ActionType.ChatToolCallReady, turnId: 'turn-1', toolCallId, invocationMessage: 'Delegating...', toolInput: undefined, confirmed: ToolCallConfirmationReason.NotNeeded } });
+				agent.fireProgress({ kind: 'subagent_started', chat: URI.parse(defaultChatUri), toolCallId, agentName: 'subagent', agentDisplayName: 'Subagent', agentDescription: 'Working' });
+			}
+
+			agent.fireProgress({ kind: 'action', resource: URI.parse(defaultChatUri), action: { type: ActionType.ChatTurnCancelled, turnId: 'turn-1', duration: 1000 } });
+
+			assert.deepStrictEqual(
+				[defaultChatUri, ...['tc-1', 'tc-2'].map(id => buildSubagentChatUri(sessionUri.toString(), id))].map(channel => {
+					const state = stateManager.getSessionState(channel);
+					return { activeTurn: state?.activeTurn, lastTurn: state?.turns.at(-1)?.state };
+				}),
+				[
+					{ activeTurn: undefined, lastTurn: TurnState.Cancelled },
+					{ activeTurn: undefined, lastTurn: TurnState.Cancelled },
+					{ activeTurn: undefined, lastTurn: TurnState.Cancelled },
+				],
+			);
+		});
+
 		test('removeSubagentSessions removes all subagent chats from state', () => {
 			setupSession();
 			startTurn('turn-1');
