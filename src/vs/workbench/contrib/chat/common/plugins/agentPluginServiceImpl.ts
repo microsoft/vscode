@@ -6,20 +6,20 @@
 import { RunOnceScheduler } from '../../../../../base/common/async.js';
 import { Event } from '../../../../../base/common/event.js';
 import { Iterable } from '../../../../../base/common/iterator.js';
-import { parse as parseJSONC } from '../../../../../base/common/json.js';
+import { ParseError, parse as parseJSONC } from '../../../../../base/common/json.js';
 import { untildify } from '../../../../../base/common/labels.js';
-import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { equals } from '../../../../../base/common/objects.js';
 import { autorun, derived, derivedOpts, IObservable, IReader, ISettableObservable, ITransaction, observableFromEvent, ObservablePromise, observableSignal, observableValue, transaction } from '../../../../../base/common/observable.js';
 import {
-	basename, isEqual, isEqualOrParent, joinPath
+	basename, dirname, extUriBiasedIgnorePathCase, isEqual, isEqualOrParent, joinPath
 } from '../../../../../base/common/resources.js';
 import { hasKey } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ConfigurationTarget, getConfigValueInTarget, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { IFileService } from '../../../../../platform/files/common/files.js';
+import { FileChangesEvent, FileChangeType, IFileService } from '../../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ContextKeyExpr, ContextKeyExpression, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
@@ -234,6 +234,8 @@ interface IPluginSource {
 	readonly fromMarketplace: IMarketplacePlugin | undefined;
 	/** Repository root that serves as the boundary for component path resolution. */
 	readonly repositoryUri?: URI;
+	/** Whether to keep file watchers inside this plugin and reuse its entry between discovery refreshes. */
+	readonly watchPluginContents?: boolean;
 	/** Called when remove is invoked on the plugin; absent for policy-managed plugins */
 	remove?(): Promise<boolean>;
 }
@@ -299,7 +301,7 @@ export abstract class AbstractAgentPluginDiscovery extends Disposable implements
 					if (!this._isCurrentRefresh(version)) {
 						return [];
 					}
-					const plugin = await this._toPlugin(source.uri, format, source.fromMarketplace, source.repositoryUri, source.remove, version);
+					const plugin = await this._toPlugin(source.uri, format, source.fromMarketplace, source.repositoryUri, source.watchPluginContents !== false, source.remove, version);
 					seenPluginUris.add(key);
 					plugins.push(plugin);
 				} catch (error) {
@@ -320,23 +322,14 @@ export abstract class AbstractAgentPluginDiscovery extends Disposable implements
 		return version === this._discoverVersion && !this._store.isDisposed;
 	}
 
-	protected async _pathExists(resource: URI): Promise<boolean> {
-		try {
-			await this._fileService.resolve(resource);
-			return true;
-		} catch {
-			return false;
-		}
-	}
-
-	private async _toPlugin(uri: URI, format: IPluginFormatConfig, fromMarketplace: IMarketplacePlugin | undefined, repositoryUri: URI | undefined, removeCallback: (() => Promise<boolean>) | undefined, version: number): Promise<IAgentPlugin> {
+	private async _toPlugin(uri: URI, format: IPluginFormatConfig, fromMarketplace: IMarketplacePlugin | undefined, repositoryUri: URI | undefined, watchPluginContents: boolean, removeCallback: (() => Promise<boolean>) | undefined, version: number): Promise<IAgentPlugin> {
 		const key = uri.toString();
 		const existing = this._pluginEntries.get(key);
 		if (existing) {
 			if (!this._isCurrentRefresh(version)) {
 				return existing.plugin;
 			}
-			if (existing.format.format !== format.format) {
+			if (!watchPluginContents || existing.format.format !== format.format) {
 				existing.store.dispose();
 				this._pluginEntries.delete(key);
 			} else {
@@ -387,10 +380,12 @@ export abstract class AbstractAgentPluginDiscovery extends Disposable implements
 				}
 
 				const dirs = resolvePluginComponentDirs(uri, format, prop, defaultPath, section, repositoryUri);
-				for (const d of dirs) {
-					const watcher = this._fileService.createWatcher(d, { recursive: false, excludes: [] });
-					reader.store.add(watcher);
-					reader.store.add(watcher.onDidChange(() => changeTrigger.trigger(undefined)));
+				if (watchPluginContents) {
+					for (const d of dirs) {
+						const watcher = this._fileService.createWatcher(d, { recursive: false, excludes: [] });
+						reader.store.add(watcher);
+						reader.store.add(watcher.onDidChange(() => changeTrigger.trigger(undefined)));
+					}
 				}
 
 				return { kind: 'dirs', dirs: dirs } as const;
@@ -455,19 +450,21 @@ export abstract class AbstractAgentPluginDiscovery extends Disposable implements
 		};
 
 		const agentManifestUri = joinPath(uri, 'plugin.json');
-		const rootWatcher = this._fileService.createWatcher(uri, { recursive: false, excludes: [] });
-		store.add(rootWatcher);
-		store.add(rootWatcher.onDidChange(change => {
-			if (change.affects(agentManifestUri)) {
-				void readManifest();
-			}
-		}));
+		if (watchPluginContents) {
+			const rootWatcher = this._fileService.createWatcher(uri, { recursive: false, excludes: [] });
+			store.add(rootWatcher);
+			store.add(rootWatcher.onDidChange(change => {
+				if (change.affects(agentManifestUri)) {
+					void readManifest();
+				}
+			}));
+		}
 		store.add(this._fileService.onDidRunOperation(event => {
 			if (isEqual(event.resource, agentManifestUri)) {
 				void readManifest();
 			}
 		}));
-		if (!isEqual(manifestUri, agentManifestUri)) {
+		if (watchPluginContents && !isEqual(manifestUri, agentManifestUri)) {
 			const manifestWatcher = this._fileService.createWatcher(manifestUri, { recursive: false, excludes: [] });
 			store.add(manifestWatcher);
 			store.add(manifestWatcher.onDidChange(() => readManifest()));
@@ -633,7 +630,6 @@ export abstract class AbstractAgentPluginDiscovery extends Disposable implements
 export class ConfiguredAgentPluginDiscovery extends AbstractAgentPluginDiscovery {
 
 	private readonly _pluginLocationsConfig: IObservable<Record<string, boolean>>;
-	private readonly _enterpriseEnabledPluginsConfig: IObservable<Record<string, boolean>>;
 
 	constructor(
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
@@ -645,17 +641,6 @@ export class ConfiguredAgentPluginDiscovery extends AbstractAgentPluginDiscovery
 	) {
 		super(fileService, pathService, logService, workspaceContextService);
 		this._pluginLocationsConfig = observableConfigValue<Record<string, boolean>>(ChatConfiguration.PluginLocations, {}, _configurationService);
-		// Enterprise-managed plugin-ID entries (delivered via the `ChatEnabledPlugins` policy).
-		// These are plugin IDs in `<plugin>@<marketplace>` form, distinct from filesystem paths.
-		// Read via `inspect()` so user-set entries survive when the policy is also set —
-		// `getValue()` alone would surface only the policy value.
-		this._enterpriseEnabledPluginsConfig = observableFromEvent(this,
-			Event.filter(this._configurationService.onDidChangeConfiguration, e => e.affectsConfiguration(ChatConfiguration.EnabledPlugins)),
-			() => {
-				const inspected = this._configurationService.inspect<Record<string, boolean>>(ChatConfiguration.EnabledPlugins);
-				return { ...inspected.defaultValue, ...inspected.userValue, ...inspected.policyValue };
-			},
-		);
 	}
 
 	public override start(enablementModel: IEnablementModel): void {
@@ -663,7 +648,6 @@ export class ConfiguredAgentPluginDiscovery extends AbstractAgentPluginDiscovery
 		const scheduler = this._register(new RunOnceScheduler(() => this._refreshPlugins(), 0));
 		this._register(autorun(reader => {
 			this._pluginLocationsConfig.read(reader);
-			this._enterpriseEnabledPluginsConfig.read(reader);
 			scheduler.schedule();
 		}));
 		scheduler.schedule();
@@ -672,6 +656,7 @@ export class ConfiguredAgentPluginDiscovery extends AbstractAgentPluginDiscovery
 	protected override async _discoverPluginSources(): Promise<readonly IPluginSource[]> {
 		const sources: IPluginSource[] = [];
 		const userHome = await this._pathService.userHome();
+		const copilotCliRoot = joinPath(userHome, COPILOT_CLI_INSTALLED_PLUGINS_DIR);
 
 		// User-configured filesystem paths in `chat.pluginLocations` — removable
 		// by re-writing the user setting. Filesystem-only; an entry that happens
@@ -682,25 +667,12 @@ export class ConfiguredAgentPluginDiscovery extends AbstractAgentPluginDiscovery
 				continue;
 			}
 			for (const resource of await this._resolvePluginPath(trimmed, userHome)) {
+				if (isEqualOrParent(resource, copilotCliRoot)) {
+					this._logService.debug(`[ConfiguredAgentPluginDiscovery] Skipping redundant Copilot CLI cache path: ${resource.toString()}`);
+					continue;
+				}
 				await this._addPluginSource(sources, resource, 'plugin path', () => this._removePluginPath(key));
 			}
-		}
-
-		// Enterprise-managed plugin IDs in `chat.plugins.enabledPlugins` (delivered
-		// via the `ChatEnabledPlugins` policy) — IDs of the form
-		// `<plugin>@<marketplace>`, resolved to the Copilot CLI install convention.
-		// Non-removable from the UI (enterprise-managed).
-		for (const [key, enabled] of Object.entries(this._enterpriseEnabledPluginsConfig.get())) {
-			const trimmed = key.trim();
-			if (!trimmed || enabled === false) {
-				continue;
-			}
-			const resource = this._resolveEnterprisePluginId(trimmed, userHome);
-			if (!resource) {
-				this._logService.debug(`[ConfiguredAgentPluginDiscovery] Skipping enterprise plugin entry that is not in <plugin>@<marketplace> form: ${trimmed}`);
-				continue;
-			}
-			await this._addPluginSource(sources, resource, 'enterprise plugin path');
 		}
 
 		return sources;
@@ -752,26 +724,7 @@ export class ConfiguredAgentPluginDiscovery extends AbstractAgentPluginDiscovery
 	}
 
 	private _toTargetResource(uri: URI, userHome: URI): URI {
-		if (userHome.scheme === Schemas.file) {
-			return uri;
-		}
-
-		const path = uri.authority ? `//${uri.authority}${uri.path}` : uri.path;
-		return userHome.with({ path: path.startsWith('/') ? path : `/${path}` });
-	}
-
-	/**
-	 * Resolves an enterprise plugin ID of the form `<plugin>@<marketplace>` to
-	 * the Copilot CLI install convention `~/.copilot/installed-plugins/<marketplace>/<plugin>/`.
-	 * Returns `undefined` for anything that doesn't match the ID shape.
-	 */
-	private _resolveEnterprisePluginId(id: string, userHome: URI): URI | undefined {
-		const idMatch = id.match(/^([^@/\\~]+)@([^@/\\~]+)$/);
-		if (!idMatch) {
-			return undefined;
-		}
-		const [, plugin, marketplace] = idMatch;
-		return joinPath(userHome, '.copilot', 'installed-plugins', marketplace, plugin);
+		return toTargetResource(uri, userHome);
 	}
 
 	/**
@@ -888,167 +841,255 @@ export class MarketplaceAgentPluginDiscovery extends AbstractAgentPluginDiscover
  * See `src/plugins/manager.ts` in the copilot-agent-runtime repo.
  */
 const COPILOT_CLI_INSTALLED_PLUGINS_DIR = '.copilot/installed-plugins';
+const COPILOT_CLI_CONFIG_FILE = '.copilot/config.json';
+
+interface ICopilotCliInstalledPlugin {
+	readonly uri: URI;
+	readonly name: string;
+	readonly marketplace: string;
+	readonly revision: string;
+}
+
+class CopilotCliInstalledPluginsStore extends Disposable {
+	private readonly _watcher = this._register(new MutableDisposable<DisposableStore>());
+	private readonly _setupWatcherScheduler: RunOnceScheduler;
+	private readonly _refreshScheduler: RunOnceScheduler;
+	private _setupVersion = 0;
+	private _installedPlugins: readonly ICopilotCliInstalledPlugin[] | undefined;
+
+	constructor(
+		private readonly _fileService: IFileService,
+		private readonly _pathService: IPathService,
+		private readonly _logService: ILogService,
+		private readonly _onDidChange: () => void,
+	) {
+		super();
+		this._setupWatcherScheduler = this._register(new RunOnceScheduler(() => {
+			this._setupWatcher().catch(error => this._logService.warn('[CopilotCliInstalledPluginsStore] Failed to watch installed plugin state', error));
+		}, 0));
+		this._refreshScheduler = this._register(new RunOnceScheduler(() => {
+			this._refresh().catch(error => this._logService.warn('[CopilotCliInstalledPluginsStore] Failed to refresh installed plugin state', error));
+		}, 200));
+		this._setupWatcherScheduler.schedule();
+	}
+
+	async getInstalledPlugins(): Promise<readonly ICopilotCliInstalledPlugin[]> {
+		if (!this._installedPlugins) {
+			this._installedPlugins = await this._readInstalledPlugins() ?? [];
+		}
+		return this._installedPlugins;
+	}
+
+	private async _setupWatcher(): Promise<void> {
+		const version = ++this._setupVersion;
+		const configFile = await getCopilotCliConfigFile(this._pathService);
+		const configDirectory = dirname(configFile);
+		let watchRoot = configDirectory;
+		let pathToWatch = configFile;
+		while (!(await this._pathExists(watchRoot))) {
+			pathToWatch = watchRoot;
+			const parent = dirname(watchRoot);
+			if (isEqual(parent, watchRoot)) {
+				return;
+			}
+			watchRoot = parent;
+		}
+		if (version !== this._setupVersion || this._store.isDisposed) {
+			return;
+		}
+
+		const store = new DisposableStore();
+		const onDidChange = (event: FileChangesEvent) => {
+			const watchedPathChanged = event.affects(pathToWatch) || event.contains(watchRoot, FileChangeType.DELETED);
+			if (!watchedPathChanged) {
+				return;
+			}
+			this._refreshScheduler.schedule();
+			if (!isEqual(watchRoot, configDirectory) || event.contains(watchRoot, FileChangeType.DELETED)) {
+				this._setupWatcherScheduler.schedule();
+			}
+		};
+		const watcher = store.add(this._fileService.createWatcher(watchRoot, { recursive: false, excludes: [] }));
+		store.add(watcher.onDidChange(onDidChange));
+		this._watcher.value = store;
+		this._refreshScheduler.schedule(0);
+	}
+
+	private async _refresh(): Promise<void> {
+		const installedPlugins = await this._readInstalledPlugins();
+		if (!installedPlugins || equalsCopilotCliInstalledPlugins(this._installedPlugins, installedPlugins)) {
+			return;
+		}
+		this._installedPlugins = installedPlugins;
+		this._onDidChange();
+	}
+
+	private async _readInstalledPlugins(): Promise<readonly ICopilotCliInstalledPlugin[] | undefined> {
+		const configFile = await getCopilotCliConfigFile(this._pathService);
+		if (!(await this._fileService.exists(configFile))) {
+			return [];
+		}
+
+		let content: string;
+		try {
+			content = (await this._fileService.readFile(configFile)).value.toString();
+		} catch (error) {
+			this._logService.warn(`[CopilotCliInstalledPluginsStore] Failed to read '${configFile.toString()}': ${error instanceof Error ? error.message : String(error)}`);
+			return undefined;
+		}
+
+		const errors: ParseError[] = [];
+		const parsed: unknown = parseJSONC(content, errors);
+		if (errors.length || !parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+			this._logService.warn(`[CopilotCliInstalledPluginsStore] Ignoring invalid '${configFile.toString()}'`);
+			return undefined;
+		}
+
+		const installedPlugins = Reflect.get(parsed, 'installedPlugins') ?? Reflect.get(parsed, 'installed_plugins');
+		if (installedPlugins === undefined) {
+			return [];
+		}
+		if (!Array.isArray(installedPlugins)) {
+			this._logService.warn(`[CopilotCliInstalledPluginsStore] Ignoring invalid installedPlugins state in '${configFile.toString()}'`);
+			return undefined;
+		}
+
+		const userHome = await this._pathService.userHome();
+		const installedPluginsRoot = joinPath(userHome, COPILOT_CLI_INSTALLED_PLUGINS_DIR);
+		const result: ICopilotCliInstalledPlugin[] = [];
+		const seen = new Set<string>();
+		for (const entry of installedPlugins) {
+			if (!entry || typeof entry !== 'object' || Array.isArray(entry)) {
+				this._logService.warn('[CopilotCliInstalledPluginsStore] Skipping malformed installed plugin record');
+				continue;
+			}
+			const name = Reflect.get(entry, 'name');
+			const marketplace = Reflect.get(entry, 'marketplace');
+			if (typeof name !== 'string' || !name.trim() || typeof marketplace !== 'string') {
+				this._logService.warn('[CopilotCliInstalledPluginsStore] Skipping installed plugin record without a valid name and marketplace');
+				continue;
+			}
+
+			const cachePath = Reflect.get(entry, 'cache_path');
+			let uri: URI;
+			if (typeof cachePath === 'string' && cachePath.trim()) {
+				uri = toTargetResource(await this._pathService.fileURI(cachePath), userHome);
+			} else if (marketplace) {
+				const canonicalLegacyUri = joinPath(installedPluginsRoot, `${name}@${marketplace}`);
+				const marketplaceLegacyUri = joinPath(installedPluginsRoot, marketplace, name);
+				uri = await this._fileService.exists(canonicalLegacyUri) || !(await this._fileService.exists(marketplaceLegacyUri))
+					? canonicalLegacyUri
+					: marketplaceLegacyUri;
+			} else {
+				this._logService.warn(`[CopilotCliInstalledPluginsStore] Skipping legacy direct plugin '${name}' without a cache path`);
+				continue;
+			}
+			if (!extUriBiasedIgnorePathCase.isEqualOrParent(uri, installedPluginsRoot)) {
+				this._logService.warn(`[CopilotCliInstalledPluginsStore] Skipping plugin cache path outside the installed root: ${uri.toString()}`);
+				continue;
+			}
+
+			const key = extUriBiasedIgnorePathCase.getComparisonKey(uri);
+			if (seen.has(key)) {
+				continue;
+			}
+			seen.add(key);
+			result.push({
+				uri,
+				name,
+				marketplace,
+				revision: JSON.stringify({
+					version: Reflect.get(entry, 'version'),
+					installedAt: Reflect.get(entry, 'installed_at'),
+					sourceSha: Reflect.get(entry, 'source_sha'),
+				}),
+			});
+		}
+		result.sort((a, b) => a.uri.toString().localeCompare(b.uri.toString()));
+		return result;
+	}
+
+	private async _pathExists(resource: URI): Promise<boolean> {
+		try {
+			await this._fileService.resolve(resource);
+			return true;
+		} catch {
+			return false;
+		}
+	}
+}
+
+async function getCopilotCliConfigFile(pathService: IPathService): Promise<URI> {
+	const userHome = await pathService.userHome();
+	return joinPath(userHome, COPILOT_CLI_CONFIG_FILE);
+}
+
+function toTargetResource(uri: URI, userHome: URI): URI {
+	if (userHome.scheme === Schemas.file) {
+		return uri;
+	}
+	const path = uri.authority ? `//${uri.authority}${uri.path}` : uri.path;
+	return userHome.with({ path: path.startsWith('/') ? path : `/${path}` });
+}
+
+function equalsCopilotCliInstalledPlugins(first: readonly ICopilotCliInstalledPlugin[] | undefined, second: readonly ICopilotCliInstalledPlugin[]): boolean {
+	return !!first
+		&& first.length === second.length
+		&& first.every((plugin, index) =>
+			plugin.uri.toString() === second[index].uri.toString()
+			&& plugin.name === second[index].name
+			&& plugin.marketplace === second[index].marketplace
+			&& plugin.revision === second[index].revision
+		);
+}
 
 /**
- * Discovers plugins installed by the Copilot CLI under
- * `~/.copilot/installed-plugins/<marketplace>/<plugin>/`. Each leaf directory
- * is treated as a plugin root, allowing CLI-installed plugins (both
- * marketplace and direct) to surface in VS Code without a separate install.
+ * Discovers the plugins committed to the Copilot CLI's installedPlugins state.
  */
 export class CopilotCliAgentPluginDiscovery extends AbstractAgentPluginDiscovery {
+	private readonly _installedPlugins: CopilotCliInstalledPluginsStore;
+	private _refreshScheduler: RunOnceScheduler | undefined;
 
 	constructor(
 		@IFileService fileService: IFileService,
 		@IPathService pathService: IPathService,
 		@ILogService logService: ILogService,
 		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService,
-		@IDialogService private readonly _dialogService: IDialogService,
 	) {
 		super(fileService, pathService, logService, workspaceContextService);
+		this._installedPlugins = this._register(new CopilotCliInstalledPluginsStore(
+			this._fileService,
+			this._pathService,
+			this._logService,
+			() => this._refreshScheduler?.schedule(),
+		));
 	}
 
 	public override start(enablementModel: IEnablementModel): void {
 		this._enablementModel = enablementModel;
-		const scheduler = this._register(new RunOnceScheduler(() => this._refreshPlugins(), 0));
-
-		const watcherStore = this._register(new DisposableStore());
-		const setupWatchers = async () => {
-			watcherStore.clear();
-			if (this._store.isDisposed) {
-				return;
-			}
-
-			const root = await this._getInstalledPluginsDir();
-
-			// Walk up to the deepest existing ancestor and watch each directory
-			// from there down. Non-recursive watchers fail if the target doesn't
-			// exist, so we need to watch an existing parent (e.g. ~/.copilot or
-			// userHome) to detect the first-ever plugin install.
-			const dirsToWatch: URI[] = [];
-			let candidate: URI | undefined = root;
-			while (candidate) {
-				dirsToWatch.unshift(candidate);
-				const parent = joinPath(candidate, '..');
-				if (parent.toString() === candidate.toString()) {
-					break;
-				}
-				if (await this._pathExists(parent)) {
-					dirsToWatch.unshift(parent);
-					break;
-				}
-				candidate = parent;
-			}
-
-			for (const dir of dirsToWatch) {
-				if (!(await this._pathExists(dir))) {
-					continue;
-				}
-				const watcher = this._fileService.createWatcher(dir, { recursive: false, excludes: [] });
-				watcherStore.add(watcher);
-				watcherStore.add(watcher.onDidChange(() => {
-					scheduler.schedule();
-					// Re-attach watchers in case directories appeared/disappeared.
-					setupWatchers().catch(() => { /* watchers are best-effort */ });
-				}));
-			}
-
-			// Watch each marketplace bucket non-recursively for plugin
-			// install/uninstall events.
-			let rootStat;
-			try {
-				rootStat = await this._fileService.resolve(root);
-			} catch {
-				return;
-			}
-			if (!rootStat.children) {
-				return;
-			}
-			for (const marketplaceDir of rootStat.children) {
-				if (!marketplaceDir.isDirectory) {
-					continue;
-				}
-				const watcher = this._fileService.createWatcher(marketplaceDir.resource, { recursive: false, excludes: [] });
-				watcherStore.add(watcher);
-				watcherStore.add(watcher.onDidChange(() => scheduler.schedule()));
-			}
-		};
-
-		setupWatchers().catch(() => { /* watchers are best-effort */ });
-		scheduler.schedule();
-	}
-
-	private async _getInstalledPluginsDir(): Promise<URI> {
-		const userHome = await this._pathService.userHome();
-		return joinPath(userHome, COPILOT_CLI_INSTALLED_PLUGINS_DIR);
+		const scheduler = this._register(new RunOnceScheduler(() => this._refreshPlugins(), 200));
+		this._refreshScheduler = scheduler;
+		scheduler.schedule(0);
 	}
 
 	protected override async _discoverPluginSources(): Promise<readonly IPluginSource[]> {
-		const root = await this._getInstalledPluginsDir();
-
-		let rootStat;
-		try {
-			rootStat = await this._fileService.resolve(root);
-		} catch {
-			// Directory doesn't exist — Copilot CLI hasn't installed any plugins.
-			return [];
-		}
-
-		if (!rootStat.isDirectory || !rootStat.children) {
-			return [];
-		}
-
 		const sources: IPluginSource[] = [];
-		// Each immediate child is a marketplace bucket (e.g. `_direct`,
-		// `<marketplace-name>`); each grandchild is a plugin root.
-		for (const marketplaceDir of rootStat.children) {
-			if (!marketplaceDir.isDirectory) {
-				continue;
-			}
-
-			let marketplaceStat;
+		for (const installedPlugin of await this._installedPlugins.getInstalledPlugins()) {
 			try {
-				marketplaceStat = await this._fileService.resolve(marketplaceDir.resource);
-			} catch {
-				continue;
-			}
-
-			if (!marketplaceStat.children) {
-				continue;
-			}
-
-			for (const pluginDir of marketplaceStat.children) {
-				if (!pluginDir.isDirectory) {
+				const stat = await this._fileService.resolve(installedPlugin.uri);
+				if (!stat.isDirectory) {
 					continue;
 				}
 				sources.push({
-					uri: pluginDir.resource,
+					uri: stat.resource,
 					fromMarketplace: undefined,
-					remove: () => this._promptRemove(pluginDir.resource),
+					watchPluginContents: false,
 				});
+			} catch {
+				continue;
 			}
 		}
-
 		return sources;
-	}
-
-	private async _promptRemove(resource: URI): Promise<boolean> {
-		const { confirmed } = await this._dialogService.confirm({
-			message: localize('copilotCliPlugin.remove.confirm', "This plugin was installed by the Copilot CLI. Remove it from disk?"),
-			detail: localize('copilotCliPlugin.remove.detail', "The plugin directory '{0}' will be moved to the trash. You can reinstall it later via the Copilot CLI.", resource.fsPath),
-			primaryButton: localize('copilotCliPlugin.remove.primary', "Remove"),
-		});
-		if (!confirmed) {
-			return false;
-		}
-
-		try {
-			await this._fileService.del(resource, { recursive: true, useTrash: true });
-			this._enablementModel.remove(resource.toString());
-			return true;
-		} catch (error) {
-			this._logService.error('[CopilotCliAgentPluginDiscovery] Failed to remove plugin', error);
-			throw error;
-		}
 	}
 }
 

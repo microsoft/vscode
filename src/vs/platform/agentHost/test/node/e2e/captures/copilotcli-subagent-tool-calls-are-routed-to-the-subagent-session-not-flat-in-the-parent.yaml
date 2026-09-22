@@ -6,25 +6,31 @@ exchanges:
       system: ${system}
       messages:
         - role: user
-          content: Use the `task` tool to spawn a subagent to list the files in the current working directory. The subagent should call a single read-only file-listing tool (e.g. `Glob` or `view`) to enumerate the directory; do not run a shell command. Do not enumerate the directory yourself — delegate to the subagent.
+          content: Use the `task` tool to spawn a subagent to list the files in the current working directory. Explicitly set the subagent model to `claude-sonnet-5`. The subagent should call a single read-only file-listing tool (e.g. `Glob` or `view`) to enumerate the directory; do not run a shell command. Do not enumerate the directory yourself — delegate to the subagent.
     response:
       content:
         - type: tool_use
           id: toolcall_0
           name: task
           input:
-            name: list-cwd-files
+            name: list-directory-files
             agent_type: explore
-            mode: sync
-            description: List files in current working directory
-            prompt: Use the `view` tool with path "${workdir}" to list the files and directories in that directory. Do not run any shell command. Just call view once on that path and report back the list of files/folders it contains.
+            model: claude-sonnet-5
+            description: List files in current directory
+            prompt: |-
+              List the files and directories in the current working directory: ${workdir}
+
+              Use a single read-only file-listing tool call (e.g. `view` on that directory path, or `glob` with pattern "*") to enumerate its contents. Do not run any shell command. Report back the list of files/directories found.
       stopReason: tool_use
   - request:
-      model: claude-haiku-4.5
+      model: claude-sonnet-5
       system: ${system}
       messages:
         - role: user
-          content: Use the `view` tool with path "${workdir}" to list the files and directories in that directory. Do not run any shell command. Just call view once on that path and report back the list of files/folders it contains.
+          content: |-
+            List the files and directories in the current working directory: ${workdir}
+
+            Use a single read-only file-listing tool call (e.g. `view` on that directory path, or `glob` with pattern "*") to enumerate its contents. Do not run any shell command. Report back the list of files/directories found.
     response:
       content:
         - type: tool_use
@@ -34,14 +40,16 @@ exchanges:
             path: ${workdir}
       stopReason: tool_use
   - request:
-      model: claude-haiku-4.5
+      model: claude-sonnet-5
       system: ${system}
       messages:
         - role: user
-          content: Use the `view` tool with path "${workdir}" to list the files and directories in that directory. Do not run any shell command. Just call view once on that path and report back the list of files/folders it contains.
+          content: |-
+            List the files and directories in the current working directory: ${workdir}
+
+            Use a single read-only file-listing tool call (e.g. `view` on that directory path, or `glob` with pattern "*") to enumerate its contents. Do not run any shell command. Report back the list of files/directories found.
         - role: assistant
           content:
-            - type: thinking
             - type: tool_use
               name: view
               input:
@@ -55,40 +63,41 @@ exchanges:
                 file-b.txt
     response:
       content: |-
-        The directory `${workdir}` contains the following files:
-
-        1. **file-a.txt**
-        2. **file-b.txt**
+        Contents of the directory:
+        - file-a.txt
+        - file-b.txt
       stopReason: end_turn
   - request:
       model: claude-sonnet-5
       system: ${system}
       messages:
         - role: user
-          content: Use the `task` tool to spawn a subagent to list the files in the current working directory. The subagent should call a single read-only file-listing tool (e.g. `Glob` or `view`) to enumerate the directory; do not run a shell command. Do not enumerate the directory yourself — delegate to the subagent.
+          content: Use the `task` tool to spawn a subagent to list the files in the current working directory. Explicitly set the subagent model to `claude-sonnet-5`. The subagent should call a single read-only file-listing tool (e.g. `Glob` or `view`) to enumerate the directory; do not run a shell command. Do not enumerate the directory yourself — delegate to the subagent.
         - role: assistant
           content:
             - type: tool_use
               name: task
               input:
-                name: list-cwd-files
+                name: list-directory-files
                 agent_type: explore
-                mode: sync
-                description: List files in current working directory
-                prompt: Use the `view` tool with path "${workdir}" to list the files and directories in that directory. Do not run any shell command. Just call view once on that path and report back the list of files/folders it contains.
+                model: claude-sonnet-5
+                description: List files in current directory
+                prompt: |-
+                  List the files and directories in the current working directory: ${workdir}
+
+                  Use a single read-only file-listing tool call (e.g. `view` on that directory path, or `glob` with pattern "*") to enumerate its contents. Do not run any shell command. Report back the list of files/directories found.
         - role: user
           content:
             - type: tool_result
               tool_use_id: toolcall_0
               content: |-
-                The directory `${workdir}` contains the following files:
-
-                1. **file-a.txt**
-                2. **file-b.txt**
+                Contents of the directory:
+                - file-a.txt
+                - file-b.txt
     response:
       content: |-
-        The subagent found two files in the current working directory:
+        The subagent (running on `claude-sonnet-5`) listed the current directory using a single read-only tool call and found:
 
-        1. `file-a.txt`
-        2. `file-b.txt`
+        - [file-a.txt](${workdir}/file-a.txt)
+        - [file-b.txt](${workdir}/file-b.txt)
       stopReason: end_turn
