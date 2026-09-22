@@ -15,6 +15,8 @@ import { parseGitHubCloneUrl } from '../browser/githubRepoFetcher.js';
 import { getExistingGitHubAuthenticationToken } from '../browser/pluginGitHubAuthentication.js';
 import { IPluginGitService } from '../common/plugins/pluginGitService.js';
 
+const GITHUB_HTTPS_URL_PREFIXES = ['https://github.com/', 'https://www.github.com/'];
+
 /**
  * Desktop implementation that always runs git locally via the shared process.
  * The plugin cache is always on the local machine, so there is no need to
@@ -84,7 +86,7 @@ export class NativePluginGitCommandService implements IPluginGitService {
 			throw new CancellationError();
 		}
 		return accessToken ? {
-			urlPrefix: 'https://github.com/',
+			urlPrefixes: GITHUB_HTTPS_URL_PREFIXES,
 			authorizationHeader: `Authorization: Basic ${encodeBase64(VSBuffer.fromString(`x-access-token:${accessToken}`))}`,
 		} : undefined;
 	}

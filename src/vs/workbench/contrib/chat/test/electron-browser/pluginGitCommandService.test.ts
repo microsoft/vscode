@@ -57,29 +57,32 @@ suite('NativePluginGitCommandService', () => {
 		assert.deepStrictEqual(calls, [`clone:https://github.com/test/repo.git:${targetDir.fsPath}:main`]);
 	});
 
-	test('cloneRepository forwards an existing GitHub session as scoped Git authentication', async () => {
-		let authentication: IGitAuthentication | undefined;
+	test('cloneRepository forwards an existing GitHub session for recognized GitHub origins', async () => {
+		const authentications: (IGitAuthentication | undefined)[] = [];
 		const service = createService(createLocalGitStub({
-			clone: async (_operationId, _url, _path, _ref, options) => { authentication = options?.authentication; },
+			clone: async (_operationId, _url, _path, _ref, options) => { authentications.push(options?.authentication); },
 		}), 'github-token');
 
 		await service.cloneRepository('https://github.com/test/private.git', URI.file('/tmp/repo'));
+		await service.cloneRepository('https://www.github.com/test/private.git', URI.file('/tmp/repo'));
 
-		assert.deepStrictEqual(authentication, {
-			urlPrefix: 'https://github.com/',
+		const expectedAuthentication = {
+			urlPrefixes: ['https://github.com/', 'https://www.github.com/'],
 			authorizationHeader: 'Authorization: Basic eC1hY2Nlc3MtdG9rZW46Z2l0aHViLXRva2Vu',
-		});
+		};
+		assert.deepStrictEqual(authentications, [expectedAuthentication, expectedAuthentication]);
 	});
 
-	test('cloneRepository does not forward GitHub authentication to other hosts', async () => {
-		let authentication: IGitAuthentication | undefined;
+	test('cloneRepository does not forward GitHub authentication to unsupported origins', async () => {
+		const authentications: (IGitAuthentication | undefined)[] = [];
 		const service = createService(createLocalGitStub({
-			clone: async (_operationId, _url, _path, _ref, options) => { authentication = options?.authentication; },
+			clone: async (_operationId, _url, _path, _ref, options) => { authentications.push(options?.authentication); },
 		}), 'github-token');
 
 		await service.cloneRepository('https://example.com/test/repo.git', URI.file('/tmp/repo'));
+		await service.cloneRepository('https://github.com:8443/test/repo.git', URI.file('/tmp/repo'));
 
-		assert.strictEqual(authentication, undefined);
+		assert.deepStrictEqual(authentications, [undefined, undefined]);
 	});
 
 	test('pull delegates to ILocalGitService and returns result', async () => {
@@ -113,10 +116,10 @@ suite('NativePluginGitCommandService', () => {
 		await service.fetchRepository(repository);
 
 		assert.deepStrictEqual(authentications, [{
-			urlPrefix: 'https://github.com/',
+			urlPrefixes: ['https://github.com/', 'https://www.github.com/'],
 			authorizationHeader: 'Authorization: Basic eC1hY2Nlc3MtdG9rZW46Z2l0aHViLXRva2Vu',
 		}, {
-			urlPrefix: 'https://github.com/',
+			urlPrefixes: ['https://github.com/', 'https://www.github.com/'],
 			authorizationHeader: 'Authorization: Basic eC1hY2Nlc3MtdG9rZW46Z2l0aHViLXRva2Vu',
 		}]);
 	});

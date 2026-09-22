@@ -8,7 +8,7 @@ import { createDecorator } from '../../instantiation/common/instantiation.js';
 export const ILocalGitService = createDecorator<ILocalGitService>('localGitService');
 
 export interface IGitAuthentication {
-	readonly urlPrefix: string;
+	readonly urlPrefixes: readonly string[];
 	readonly authorizationHeader: string;
 }
 

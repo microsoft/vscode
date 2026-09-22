@@ -70,9 +70,11 @@ suite('LocalGitService', () => {
 			{
 				args: ['clone', '--', 'https://github.com/test/private.git', '/tmp/private'],
 				environment: {
-					GIT_CONFIG_COUNT: String(index + 1),
+					GIT_CONFIG_COUNT: String(index + 2),
 					[`GIT_CONFIG_KEY_${index}`]: 'http.https://github.com/.extraHeader',
 					[`GIT_CONFIG_VALUE_${index}`]: 'Authorization: Basic secret',
+					[`GIT_CONFIG_KEY_${index + 1}`]: 'http.https://www.github.com/.extraHeader',
+					[`GIT_CONFIG_VALUE_${index + 1}`]: 'Authorization: Basic secret',
 				},
 			},
 		];
@@ -80,7 +82,7 @@ suite('LocalGitService', () => {
 
 		await service.clone('test-op', 'https://github.com/test/private.git', '/tmp/private', undefined, {
 			authentication: {
-				urlPrefix: 'https://github.com/',
+				urlPrefixes: ['https://github.com/', 'https://www.github.com/'],
 				authorizationHeader: 'Authorization: Basic secret',
 			},
 		});
@@ -97,7 +99,7 @@ suite('LocalGitService', () => {
 		await assert.rejects(
 			() => service.clone('test-op', 'https://github.com/test/private.git', '/tmp/private', undefined, {
 				authentication: {
-					urlPrefix: 'https://github.com/',
+					urlPrefixes: ['https://github.com/'],
 					authorizationHeader: 'Authorization: Basic secret',
 				},
 			}),
