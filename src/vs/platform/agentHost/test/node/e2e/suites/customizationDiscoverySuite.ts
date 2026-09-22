@@ -116,7 +116,7 @@ export function defineCustomizationDiscoveryTests(context: IAgentHostE2ETestCont
 	const supportedCustomizations = config.provider === 'copilotcli'
 		? 'workspace agents instructions skills and hooks'
 		: 'provider-supported workspace customizations';
-	customizationDiscoveryTest(`customization discovery finds ${supportedCustomizations}`, async function () {
+	customizationDiscoveryTest(`customization discovery: discover finds ${supportedCustomizations}`, async function () {
 		const workspace = createWorkspace('all');
 		const files = writeWorkspaceCustomizations(workspace);
 		const sessionUri = await createDiscoverySession('all', workspace);
