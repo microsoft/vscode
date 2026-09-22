@@ -36,6 +36,30 @@
 	margin-left: auto;
 }
 
+.inbox-notifications-deferred-updates {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: var(--vscode-spacing-size100);
+	padding: var(--vscode-spacing-size100) var(--vscode-spacing-size120);
+	border: 1px solid var(--vscode-widget-border);
+	border-radius: var(--vscode-cornerRadius-small);
+	background-color: var(--vscode-editorWidget-background);
+}
+
+.inbox-notifications-deferred-updates.hidden {
+	display: none;
+}
+
+.inbox-notifications-deferred-updates-label {
+	color: var(--vscode-descriptionForeground);
+}
+
+.inbox-notifications-deferred-updates .monaco-button {
+	width: auto;
+	flex: 0 0 auto;
+}
+
 .inbox-notifications-sort-buttons .monaco-button.active {
 	background-color: var(--vscode-button-background);
 	color: var(--vscode-button-foreground);

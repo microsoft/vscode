@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
-import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { IConfigurationOverrides, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { InMemoryStorageService } from '../../../../../platform/storage/common/storage.js';
 import { AgentMergeSettingId } from '../../../../../platform/agentHost/common/agentMerge.js';
 import { InboxNotificationActionKind } from '../../common/inboxNotificationsService.js';
@@ -20,7 +20,12 @@ suite('InboxAgentMergeAlwaysOptInService', () => {
 		const configuration = new Map<string, unknown>(Object.entries(initialConfiguration));
 		const updates: Array<{ key: string; value: unknown }> = [];
 		const configurationService = upcastPartial<IConfigurationService>({
-			getValue: <T>(key: string): T | undefined => configuration.get(key) as T | undefined,
+			getValue: <T>(sectionOrOverrides?: string | IConfigurationOverrides): T => {
+				if (typeof sectionOrOverrides === 'string') {
+					return configuration.get(sectionOrOverrides) as T;
+				}
+				return undefined as T;
+			},
 			updateValue: async (key: string, value: unknown): Promise<void> => {
 				updates.push({ key, value });
 				configuration.set(key, value);

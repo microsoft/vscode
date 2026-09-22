@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './media/inboxNotificationsView.css';
+import { status } from '../../../../base/browser/ui/aria/aria.js';
 import { $, addDisposableListener, clearNode, EventType, getActiveElement, isEditableElement, isHTMLElement, trackFocus } from '../../../../base/browser/dom.js';
 import { triggerConfettiAnimation } from '../../../../base/browser/ui/animations/animations.js';
 import { Button, ButtonWithDropdown, IButton } from '../../../../base/browser/ui/button/button.js';
@@ -24,6 +25,7 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
+import { URI } from '../../../../base/common/uri.js';
 import { fromNowByDay } from '../../../../base/common/date.js';
 import { ChatSendResult, IChatConfirmation, IChatQuestionAnswerValue, IChatQuestionCarousel, IChatSendRequestOptions, IChatService, IChatToolInvocation, ToolConfirmKind } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatContentPartRenderContext } from '../../../../workbench/contrib/chat/browser/widget/chatContentParts/chatContentParts.js';
@@ -79,9 +81,15 @@ export class InboxNotificationsView extends AbstractCustomView {
 	}));
 	private readonly renderedListDisposables = this._register(new DisposableStore());
 	private renderedCards: HTMLElement[] = [];
+	private renderedItems: readonly IInboxNotificationItem[] = [];
+	private deferredItems: readonly IInboxNotificationItem[] | undefined;
+	private deferredNewNotificationsCount = 0;
+	private announcedDeferredNewNotificationsCount = 0;
 	private readonly agentMergeDropdownButtons = new Map<string, HTMLElement>();
 	private readonly agentMergeAlwaysOptInService: InboxAgentMergeAlwaysOptInService;
 	private isShowingAgentMergeAlwaysPrompt = false;
+	private readonly deferredUpdatesBanner = $('div.inbox-notifications-deferred-updates.hidden');
+	private readonly deferredUpdatesBannerLabel = $('span.inbox-notifications-deferred-updates-label');
 
 	static getActiveInstance(): InboxNotificationsView | undefined {
 		return InboxNotificationsView.activeInstance;
@@ -216,21 +224,108 @@ export class InboxNotificationsView extends AbstractCustomView {
 			this.inboxNotificationsService.clearDismissedNotifications();
 		}));
 
+		this.deferredUpdatesBanner.appendChild(this.deferredUpdatesBannerLabel);
+		const showNewNotificationsButton = this._register(new Button(this.deferredUpdatesBanner, {
+			...defaultButtonStyles,
+			secondary: true,
+			small: true,
+			ariaLabel: localize('inboxNotifications.showNewNotificationsAria', "Show New Notifications"),
+		}));
+		showNewNotificationsButton.label = localize('inboxNotifications.showNewNotifications', "Show New Notifications");
+		this._register(showNewNotificationsButton.onDidClick(() => this.applyDeferredUpdates(true)));
+		container.appendChild(this.deferredUpdatesBanner);
+
 		container.appendChild(this.scrollableElement.getDomNode());
 		const list = this.listElement;
 		list.setAttribute('role', 'list');
 		list.setAttribute('aria-label', localize('inboxNotifications.listAriaLabel', "Prioritized notifications"));
 		this.listContainer.set(list, undefined);
 		this._register(addDisposableListener(list, EventType.FOCUS_IN, event => this.onListFocusIn(event)));
+		this._register(addDisposableListener(list, EventType.FOCUS_OUT, () => {
+			setTimeout(() => this.applyDeferredUpdates(false), 0);
+		}));
 		this._register(addDisposableListener(list, EventType.KEY_DOWN, event => this.onListKeyDown(event)));
 
 		this._register(autorun(reader => {
-			this.inboxNotificationsService.notifications.read(reader);
-			this.renderList();
+			const items = this.inboxNotificationsService.notifications.read(reader);
+			this.handleNotificationListUpdate(items);
 		}));
 	}
 
-	private renderList(): void {
+	private handleNotificationListUpdate(items: readonly IInboxNotificationItem[]): void {
+		const newNotificationCount = this.countNewNotifications(this.renderedItems, items);
+		if (newNotificationCount > 0 && this.isInlineInputFocused()) {
+			this.deferredItems = items;
+			this.deferredNewNotificationsCount = newNotificationCount;
+			this.updateDeferredUpdatesBanner();
+			return;
+		}
+
+		this.deferredItems = undefined;
+		this.deferredNewNotificationsCount = 0;
+		this.updateDeferredUpdatesBanner();
+		this.renderedItems = items;
+		this.renderList(items);
+	}
+
+	private applyDeferredUpdates(force: boolean): boolean {
+		if (!this.deferredItems) {
+			return false;
+		}
+		if (!force && this.isInlineInputFocused()) {
+			return false;
+		}
+
+		const deferredItems = this.deferredItems;
+		this.deferredItems = undefined;
+		this.deferredNewNotificationsCount = 0;
+		this.updateDeferredUpdatesBanner();
+		this.renderedItems = deferredItems;
+		this.renderList(deferredItems);
+		return true;
+	}
+
+	private updateDeferredUpdatesBanner(): void {
+		if (!this.deferredItems || this.deferredNewNotificationsCount <= 0) {
+			this.deferredUpdatesBanner.classList.add('hidden');
+			this.deferredUpdatesBannerLabel.textContent = '';
+			this.announcedDeferredNewNotificationsCount = 0;
+			return;
+		}
+
+		this.deferredUpdatesBanner.classList.remove('hidden');
+		const message = this.deferredNewNotificationsCount === 1
+			? localize('inboxNotifications.deferred.single', "1 new notification arrived while you were answering inline input.")
+			: localize('inboxNotifications.deferred.multiple', "{0} new notifications arrived while you were answering inline input.", this.deferredNewNotificationsCount);
+		this.deferredUpdatesBannerLabel.textContent = message;
+		if (this.announcedDeferredNewNotificationsCount !== this.deferredNewNotificationsCount) {
+			this.announcedDeferredNewNotificationsCount = this.deferredNewNotificationsCount;
+			status(message);
+		}
+	}
+
+	private countNewNotifications(previousItems: readonly IInboxNotificationItem[], currentItems: readonly IInboxNotificationItem[]): number {
+		if (previousItems.length === 0 || currentItems.length === 0) {
+			return 0;
+		}
+		const previousIds = new Set(previousItems.map(item => item.id));
+		let count = 0;
+		for (const item of currentItems) {
+			if (!previousIds.has(item.id)) {
+				count++;
+			}
+		}
+		return count;
+	}
+
+	private isInlineInputFocused(): boolean {
+		const activeElement = getActiveElement();
+		return isHTMLElement(activeElement)
+			&& this.listElement.contains(activeElement)
+			&& this.isInlineFormInputElement(activeElement);
+	}
+
+	private renderList(items: readonly IInboxNotificationItem[]): void {
 		const list = this.listContainer.get();
 		if (!list) {
 			return;
@@ -245,7 +340,6 @@ export class InboxNotificationsView extends AbstractCustomView {
 		this.renderedListDisposables.clear();
 		clearNode(list);
 
-		const items = this.inboxNotificationsService.notifications.get();
 		this.renderedCards = [];
 		this.agentMergeDropdownButtons.clear();
 		if (items.length === 0) {
