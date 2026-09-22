@@ -13,6 +13,7 @@ import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { localize } from '../../../../nls.js';
+import { getCompactCodicon } from '../../../../workbench/contrib/chat/browser/chatIcons.js';
 import { ISessionsChatBackground } from './chatBackgroundService.js';
 
 const codiconCellSize = 80;
@@ -134,6 +135,7 @@ interface ICodiconCell {
 	readonly element: HTMLElement;
 	readonly icon: HTMLElement;
 	readonly animationElement?: HTMLElement;
+	opacity: number;
 }
 
 export class SessionsChatBackgroundRenderer extends Disposable {
@@ -266,8 +268,10 @@ export class SessionsChatBackgroundRenderer extends Disposable {
 				layout.opacity *= 0.35 + 0.65 * distanceFromContent;
 				visibleCells.set(cell, layout);
 				const existingCell = this.codiconCells.get(cell);
-				if (existingCell) {
+				// Compare the cached number because CSSOM rounds the serialized opacity.
+				if (existingCell && existingCell.opacity !== layout.opacity) {
 					existingCell.icon.style.opacity = `${layout.opacity}`;
+					existingCell.opacity = layout.opacity;
 				}
 				if (layout.depth === 1 && candidateGeometry && this.isConfettiCandidate(layout.left, layout.top, viewportWidth, viewportHeight, candidateGeometry)) {
 					this.confettiCandidates.add(cell);
@@ -301,18 +305,18 @@ export class SessionsChatBackgroundRenderer extends Disposable {
 			}
 
 			const icon = codiconChoices[hashCodiconCell(row, column, 1) % codiconChoices.length];
-			const codiconCell = this.interactive ? this.createInteractiveCodicon(icon) : this.createDecorativeCodicon(icon);
+			const depthIcon = layout.depth === 0 ? getCompactCodicon(icon) : icon;
+			const codiconCell = this.interactive ? this.createInteractiveCodicon(depthIcon, layout.opacity) : this.createDecorativeCodicon(depthIcon, layout.opacity);
 			if (this.interactive) {
 				codiconCell.element.style.left = `${layout.left}px`;
 				codiconCell.element.style.top = `${layout.top}px`;
-				codiconCell.icon.style.transform = `rotate(${layout.rotation}deg) scale(var(--sessions-chat-codicon-scale))`;
-				codiconCell.icon.style.opacity = `${layout.opacity}`;
+				codiconCell.icon.style.transform = `rotate(${layout.rotation}deg)`;
 			} else {
 				codiconCell.element.style.left = `${layout.left}px`;
 				codiconCell.element.style.top = `${layout.top}px`;
-				codiconCell.element.style.transform = `translate(-50%, -50%) rotate(${layout.rotation}deg) scale(var(--sessions-chat-codicon-scale))`;
-				codiconCell.element.style.opacity = `${layout.opacity}`;
+				codiconCell.element.style.transform = `translate(-50%, -50%) rotate(${layout.rotation}deg)`;
 			}
+			codiconCell.icon.style.opacity = `${layout.opacity}`;
 			this.codiconCells.set(cell, codiconCell);
 			this.codiconDepthLayers[layout.depth].appendChild(codiconCell.element);
 		}
@@ -360,13 +364,13 @@ export class SessionsChatBackgroundRenderer extends Disposable {
 		return true;
 	}
 
-	private createDecorativeCodicon(icon: ThemeIcon): ICodiconCell {
+	private createDecorativeCodicon(icon: ThemeIcon, opacity: number): ICodiconCell {
 		const element = renderIcon(icon);
 		element.ariaHidden = 'true';
-		return { element, icon: element };
+		return { element, icon: element, opacity };
 	}
 
-	private createInteractiveCodicon(icon: ThemeIcon): ICodiconCell {
+	private createInteractiveCodicon(icon: ThemeIcon, opacity: number): ICodiconCell {
 		const element = $('.sessions-chat-codicon-cell');
 		element.ariaHidden = 'true';
 		const animationElement = $('.sessions-chat-codicon-button-animation');
@@ -374,7 +378,7 @@ export class SessionsChatBackgroundRenderer extends Disposable {
 		iconElement.ariaHidden = 'true';
 		animationElement.appendChild(iconElement);
 		element.appendChild(animationElement);
-		return { element, icon: iconElement, animationElement };
+		return { element, icon: iconElement, animationElement, opacity };
 	}
 
 	private activateConfettiCell(): void {

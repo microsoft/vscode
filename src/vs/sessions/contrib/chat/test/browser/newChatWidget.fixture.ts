@@ -18,9 +18,12 @@ import { IRemoteAgentHostService } from '../../../../../platform/agentHost/commo
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
 import { IMenuService, MenuId } from '../../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
 import { asCssVariable } from '../../../../../platform/theme/common/colorUtils.js';
+import { isHighContrast } from '../../../../../platform/theme/common/theme.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IChatTipService } from '../../../../../workbench/contrib/chat/browser/chatTipService.js';
 import { ChatSpeechToTextState, IChatSpeechToTextService } from '../../../../../workbench/contrib/chat/browser/speechToText/chatSpeechToTextService.js';
@@ -43,7 +46,7 @@ import { ComponentFixtureContext, createEditorServices, defineComponentFixture, 
 import { activeSessionViewBackground } from '../../../../common/theme.js';
 import { getNewSessionRepositoryConfigGroup, Menus } from '../../../../browser/menus.js';
 import { AgentHostFilterConnectionStatus, IAgentHostFilterService } from '../../../../services/agentHostFilter/common/agentHostFilter.js';
-import { ISessionsChatBackgroundService } from '../../../../services/chatBackground/browser/chatBackgroundService.js';
+import { AGENT_SESSIONS_CHAT_BACKGROUND_CODICONS_PRESET, AGENT_SESSIONS_PREFERRED_DARK_CHAT_BACKGROUND_IMAGE_SETTING, AGENT_SESSIONS_PREFERRED_LIGHT_CHAT_BACKGROUND_IMAGE_SETTING, ISessionsChatBackground, ISessionsChatBackgroundService, SessionsChatBackgroundService } from '../../../../services/chatBackground/browser/chatBackgroundService.js';
 import { SessionsChatBackgroundRenderer } from '../../../../services/chatBackground/browser/chatBackgroundRenderer.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { IRecentWorkspace, ISessionsRecentWorkspacesService } from '../../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
@@ -124,12 +127,8 @@ class AutoModelFixtureMenuService extends FixtureMenuService {
 	}
 }
 
-/**
- * Wraps the composer in the `.part.sessionspart` host the Agents window uses and
- * paints the real codicon wallpaper into it, so the fixture shows the composer
- * the way it reads once a chat background is set.
- */
-function createChatBackgroundPart(container: HTMLElement, disposableStore: DisposableStore): HTMLElement {
+/** Wraps the composer in the Agents Window host and paints its resolved background. */
+function createChatBackgroundPart(container: HTMLElement, disposableStore: DisposableStore, background: ISessionsChatBackground | undefined): HTMLElement {
 	const part = dom.append(container, dom.$('.part.sessionspart'));
 	part.style.position = 'relative';
 	part.style.width = '100%';
@@ -138,7 +137,7 @@ function createChatBackgroundPart(container: HTMLElement, disposableStore: Dispo
 	// session view above it can stay transparent and let the wallpaper through.
 	part.style.backgroundColor = asCssVariable(activeSessionViewBackground);
 	const renderer = disposableStore.add(new SessionsChatBackgroundRenderer(part, true));
-	renderer.setBackground({ kind: 'codicons' });
+	renderer.setBackground(background);
 	return part;
 }
 
@@ -193,11 +192,17 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 	const sessionsService = new class extends mock<ISessionsService>() {
 		override readonly activeSession = activeSessionObservable;
 	}();
+	const configurationService = new TestConfigurationService(withChatBackground ? {
+		[AGENT_SESSIONS_PREFERRED_DARK_CHAT_BACKGROUND_IMAGE_SETTING]: AGENT_SESSIONS_CHAT_BACKGROUND_CODICONS_PRESET,
+		[AGENT_SESSIONS_PREFERRED_LIGHT_CHAT_BACKGROUND_IMAGE_SETTING]: AGENT_SESSIONS_CHAT_BACKGROUND_CODICONS_PRESET,
+	} : undefined);
+	disposableStore.add(configurationService.onDidChangeConfigurationEmitter);
 
 	const instantiationService = createEditorServices(disposableStore, {
 		colorTheme: context.theme,
 		additionalServices: reg => {
 			registerChatFixtureServices(reg);
+			reg.defineInstance(IConfigurationService, configurationService);
 			if (withAutoModel || withConfiguredModel) {
 				reg.define(IMenuService, AutoModelFixtureMenuService);
 			}
@@ -336,12 +341,7 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 				override readonly isPreparingModel = false;
 				override readonly isDownloadingModel = false;
 			}());
-			reg.defineInstance(ISessionsChatBackgroundService, new class extends mock<ISessionsChatBackgroundService>() {
-				override readonly onDidChangeBackground = Event.None;
-				override getBackground() { return undefined; }
-				override getConfiguredBackgroundImage() { return undefined; }
-				override setBackground() { return Promise.resolve(); }
-			}());
+			reg.define(ISessionsChatBackgroundService, SessionsChatBackgroundService);
 		},
 	});
 
@@ -350,7 +350,13 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 	container.classList.add('monaco-workbench', 'agent-sessions-workbench');
 	container.classList.toggle('phone-layout', phoneLayout);
 
-	const sessionView = dom.append(withChatBackground ? createChatBackgroundPart(container, disposableStore) : container, dom.$('.session-view.is-active'));
+	const sessionView = dom.append(withChatBackground ? createChatBackgroundPart(container, disposableStore, instantiationService.get(ISessionsChatBackgroundService).getBackground()) : container, dom.$('.session-view.is-active'));
+	if (withChatBackground && isHighContrast(context.theme.type)) {
+		assert(!container.querySelector('.has-chat-background')
+			&& container.querySelectorAll('.sessions-chat-codicon-background .codicon').length === 0
+			&& container.querySelector<HTMLElement>('.sessions-chat-codicon-hit-target')?.hidden === true,
+			'High-contrast themes must hide the Codicon wallpaper and Celebrate button.');
+	}
 	sessionView.style.width = '100%';
 	sessionView.style.height = '100%';
 	if (!withChatBackground) {
@@ -474,7 +480,8 @@ export default defineThemedFixtureGroup({ path: 'sessions/chat/newWidget/' }, {
 	}),
 	NewSessionChatBackground: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: true },
-		expectedVisualDescriptions: ['The new-session composer sits directly on a static layered Codicon constellation, with smaller softer distant icons, occasional larger near icons, and a quieter center behind the composer. There is no card behind the composer. The workspace pills, input area, and bottom-row controls each carry their own opaque surface and a thin border, with the wallpaper visible in the gaps.'],
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		expectedVisualDescriptions: ['In regular themes, the new-session composer sits on a static layered Codicon constellation with compact, softer distant icons, brighter base-size near icons, and a quieter center. There is no card behind the composer; its controls have opaque surfaces and thin borders. High-contrast themes omit the wallpaper and Celebrate button, preserving opaque surfaces and visible control borders.'],
 		render: context => renderNewChatWidget(context, { withWorkspace: true, withAutoModel: true, withChatBackground: true }),
 	}),
 	NewSessionBackgroundControls: defineComponentFixture({
