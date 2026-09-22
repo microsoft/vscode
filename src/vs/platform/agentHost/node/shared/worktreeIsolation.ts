@@ -23,7 +23,7 @@ import { ISchemaProperty, schemaProperty } from '../../common/agentHostSchema.js
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { DEV_CONTAINER_WORKTREE_DATA_ID_PREFIX, isAgentDevContainerWorktreeHandle } from '../../common/meta/agentDevContainerWorktreeMeta.js';
-import { deriveRepositoryRootFromWorktree, getWorktreesRoot } from '../../common/worktreePaths.js';
+import { getWorktreesRoot } from '../../common/worktreePaths.js';
 import { AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_DONE_DB_KEY, ResponsePart, ResponsePartKind, Turn } from '../../common/state/sessionState.js';
 import { AGENT_BRANCH_PREFIX, IAgentBranchNameGenerator } from './agentBranchNameGenerator.js';
 
@@ -1620,6 +1620,20 @@ export class NullAgentHostWorktreeIsolation implements IAgentHostWorktreeIsolati
  */
 function projectFromRepositoryRoot(repositoryRoot: URI): IAgentSessionProjectInfo {
 	return { uri: repositoryRoot, displayName: basename(repositoryRoot.fsPath) || repositoryRoot.toString() };
+}
+
+function deriveRepositoryRootFromWorktree(worktree: URI): URI | undefined {
+	if (worktree.scheme !== Schemas.file) {
+		return undefined;
+	}
+	const worktreesRoot = URI.joinPath(worktree, '..');
+	const worktreesRootName = basename(worktreesRoot.fsPath);
+	const suffix = '.worktrees';
+	if (!worktreesRootName.endsWith(suffix)) {
+		return undefined;
+	}
+	const repositoryName = worktreesRootName.slice(0, -suffix.length);
+	return repositoryName ? URI.joinPath(worktreesRoot, '..', repositoryName) : undefined;
 }
 
 /**
