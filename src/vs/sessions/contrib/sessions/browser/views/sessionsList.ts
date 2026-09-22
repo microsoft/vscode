@@ -1973,6 +1973,7 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 		template.container.classList.remove(SESSION_HEADER_DROP_TARGET_CLASS);
 		template.container.classList.remove('session-section-shortcut');
 		template.container.classList.remove('active');
+		template.container.closest('.monaco-list-row')?.removeAttribute('aria-current');
 		template.newBadge.style.display = 'none';
 		template.newBadge.classList.remove(
 			'session-section-new-badge-accent',
@@ -1989,7 +1990,14 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 		}
 		if (element.id === CUSTOMIZATIONS_SECTION_ID) {
 			template.elementDisposables.add(autorun(reader => {
-				template.container.classList.toggle('active', this.customizationsActive.read(reader));
+				const active = this.customizationsActive.read(reader);
+				template.container.classList.toggle('active', active);
+				const row = template.container.closest('.monaco-list-row');
+				if (active) {
+					row?.setAttribute('aria-current', 'page');
+				} else {
+					row?.removeAttribute('aria-current');
+				}
 			}));
 		}
 
@@ -3414,6 +3422,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 				horizontalScrolling: false,
 				multipleSelectionSupport: true,
 				allowNonCollapsibleParents: true,
+				enableStickyScroll: true,
 				expandOnlyOnTwistieClick: element => isSessionItem(element),
 				findWidgetEnabled: true,
 				defaultFindMode: TreeFindMode.Filter,

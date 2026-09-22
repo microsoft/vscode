@@ -243,11 +243,26 @@ export class CustomizationLinkViewItem extends BaseActionViewItem {
 	}
 
 	override focus(): void {
-		this._button?.focus();
+		if (this._button) {
+			this._button.element.tabIndex = 0;
+			this._button.focus();
+		}
 	}
 
 	override blur(): void {
-		this._button?.element.blur();
+		if (this._button) {
+			this._button.element.blur();
+			this._button.element.tabIndex = -1;
+		}
+	}
+
+	override setFocusable(focusable: boolean): void {
+		if (this.element) {
+			this.element.tabIndex = -1;
+		}
+		if (this._button) {
+			this._button.element.tabIndex = focusable ? 0 : -1;
+		}
 	}
 
 	protected override updateEnabled(): void {

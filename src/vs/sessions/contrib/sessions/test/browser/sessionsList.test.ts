@@ -459,9 +459,11 @@ suite('Sessions - SessionsList', () => {
 			const customizationsSection = Array.from(container.querySelectorAll<HTMLElement>('.session-section-shortcut'))
 				.find(element => element.querySelector('.session-section-label')?.textContent === 'Customizations');
 			const customizationsActiveBeforeOpen = customizationsSection?.classList.contains('active');
+			const customizationsAriaCurrentBeforeOpen = customizationsSection?.closest('.monaco-list-row')?.getAttribute('aria-current');
 			editorState.activeEditor = disposables.add(AICustomizationManagementEditorInput.getOrCreate());
 			activeEditorChanged.fire();
 			const customizationsActiveWhileOpen = customizationsSection?.classList.contains('active');
+			const customizationsAriaCurrentWhileOpen = customizationsSection?.closest('.monaco-list-row')?.getAttribute('aria-current');
 
 			showNavigationShortcuts = false;
 			list.updateNavigationVisibility();
@@ -478,6 +480,7 @@ suite('Sessions - SessionsList', () => {
 				shortcutCollapseStates,
 				headerInTreatment,
 				customizationsActive: [customizationsActiveBeforeOpen, customizationsActiveWhileOpen],
+				customizationsAriaCurrent: [customizationsAriaCurrentBeforeOpen, customizationsAriaCurrentWhileOpen],
 				headerRestoredToControl: sessionsHeader.parentElement === sessionsHeaderContainer,
 				controlAutomationsFocused: list.isAutomationsFocused(),
 			}, {
@@ -493,6 +496,7 @@ suite('Sessions - SessionsList', () => {
 				],
 				headerInTreatment: true,
 				customizationsActive: [false, true],
+				customizationsAriaCurrent: [null, 'page'],
 				headerRestoredToControl: true,
 				controlAutomationsFocused: true,
 			});
@@ -560,7 +564,7 @@ suite('Sessions - SessionsList', () => {
 			const sessions = Array.from({ length: 20 }, (_, index) => createTestSession(`session-${index}`).session);
 			const harness = createListHarness(disposables, sessions, instantiationService => {
 				ChatAutomationsEnabledContext.bindTo(instantiationService.get(IContextKeyService)).set(true);
-				void (instantiationService.get(IConfigurationService) as TestConfigurationService).setUserConfiguration('workbench.tree.enableStickyScroll', true);
+				void (instantiationService.get(IConfigurationService) as TestConfigurationService).setUserConfiguration('workbench.tree.enableStickyScroll', false);
 				instantiationService.stub(IAutomationService, new class extends mock<IAutomationService>() {
 					override readonly automations = constObservable([]);
 					override readonly runs = constObservable([]);

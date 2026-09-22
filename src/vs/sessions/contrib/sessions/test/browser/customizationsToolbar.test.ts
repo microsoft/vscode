@@ -4,8 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { ActionBar } from '../../../../../base/browser/ui/actionbar/actionbar.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
-import { Action } from '../../../../../base/common/actions.js';
+import { Action, IAction } from '../../../../../base/common/actions.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { constObservable, derived } from '../../../../../base/common/observable.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
@@ -86,6 +87,38 @@ suite('Customizations toolbar', () => {
 			buttonCount: 1,
 			focusableCount: 1,
 			runCount: 1,
+		});
+	});
+
+	test('forwards ActionBar roving focus to the nested button', () => {
+		const container = mainWindow.document.createElement('div');
+		const createViewItem = (action: IAction) => new CustomizationLinkViewItem(
+			action,
+			{},
+			{ id: action.id, label: action.label, icon: Codicon.settingsGear },
+			new class extends mock<IAICustomizationItemsModel>() { },
+			new class extends mock<IAICustomizationMcpServerCountService>() { },
+			new class extends mock<ILanguageModelToolsService>() { },
+			new class extends mock<IAgentHostToolSetEnablementService>() { },
+		);
+		const actionBar = disposables.add(new ActionBar(container, {
+			actionViewItemProvider: action => createViewItem(action),
+		}));
+		const actions = [
+			disposables.add(new Action('test.one', 'One')),
+			disposables.add(new Action('test.two', 'Two')),
+		];
+
+		actionBar.push(actions);
+
+		assert.deepStrictEqual({
+			itemTabIndexes: Array.from(container.querySelectorAll<HTMLElement>('li'), element => element.tabIndex),
+			buttonTabIndexes: Array.from(container.querySelectorAll<HTMLElement>('.customization-link-button'), element => element.tabIndex),
+			focusableElements: Array.from(container.querySelectorAll<HTMLElement>('li, a, button')).filter(element => element.tabIndex === 0).length,
+		}, {
+			itemTabIndexes: [-1, -1],
+			buttonTabIndexes: [0, -1],
+			focusableElements: 1,
 		});
 	});
 });
