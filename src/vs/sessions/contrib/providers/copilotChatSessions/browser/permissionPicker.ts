@@ -27,7 +27,7 @@ import { AgentSandboxEnabledSettingValue, isAgentSandboxEnabledValue } from '../
 import { maybeConfirmElevatedPermissionLevel } from '../../../../../workbench/contrib/chat/common/chatPermissionWarnings.js';
 import { IChatSessionsService } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ChatConfiguration, ChatPermissionLevel, isChatPermissionLevel } from '../../../../../workbench/contrib/chat/common/constants.js';
-import { IModePickerPermissions } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostModePickerPresentation.js';
+import { getPermissionLevelBadge, IModePickerPermissions } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostModePickerPresentation.js';
 import { reportNewChatPickerClosed } from '../../../chat/browser/newChatPickerTelemetry.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
@@ -64,8 +64,8 @@ export interface IPermissionPickerDelegate {
 	/**
 	 * The ordered set of permission levels the picker should offer. When
 	 * omitted, the picker offers the default Copilot set
-	 * (`Default` / `Bypass` / `Autopilot`). Agent-host sessions override this
-	 * to offer `Default` / `Bypass`.
+	 * (`Default` / `Bypass` / `Autopilot`). Agent-host sessions offer the
+	 * supported subset of `Default` / `Assisted` / `Bypass`.
 	 */
 	readonly availableLevels?: readonly ChatPermissionLevel[];
 
@@ -81,7 +81,7 @@ export interface IPermissionPickerDelegate {
 	 * Called after the user selects a level (and any required confirmation
 	 * dialog has been accepted).
 	 */
-	setPermissionLevel(level: ChatPermissionLevel): void;
+	setPermissionLevel(level: ChatPermissionLevel): void | Promise<void>;
 
 	/**
 	 * Optional hover content for delegates that need provider-specific copy.
@@ -89,6 +89,8 @@ export interface IPermissionPickerDelegate {
 	getPermissionLevelHover?(level: ChatPermissionLevel, meta: IPermissionLevelMeta): string | undefined;
 	readonly isSandboxToggleApplicable?: () => boolean;
 	readonly getSandboxToggleSettingId?: () => string | undefined;
+	/** Tracks asynchronous setting ID changes, including agent host switches. */
+	readonly sandboxToggleSettingId?: IObservable<string | undefined>;
 	readonly getSandboxToggleProvider?: () => string | undefined;
 	readonly sandboxEnabled?: IObservable<boolean | undefined>;
 	setSandboxEnabled?(enabled: boolean): void;
@@ -255,6 +257,7 @@ export class PermissionPicker extends Disposable {
 			this._delegate.isApplicable?.read(reader);
 			this._delegate.managedSandboxEnforced?.read(reader);
 			this._delegate.sandboxEnabled?.read(reader);
+			this._delegate.sandboxToggleSettingId?.read(reader);
 			this.agentHostEnablementService.managedSandboxAllowsBypass.read(reader);
 			this._updateTriggerLabel(trigger);
 		}));
@@ -286,6 +289,7 @@ export class PermissionPicker extends Disposable {
 			const permission = item.item;
 			return {
 				...item,
+				filterItems: undefined,
 				item: permission ? toAction({
 					id: `permissionPicker.${permission.level ?? permission.kind}`,
 					label: permission.label,
@@ -306,11 +310,12 @@ export class PermissionPicker extends Disposable {
 			// Default is never policy-restricted; elevated levels are disabled
 			// when enterprise policy turns off global auto-approval.
 			const disabled = level !== ChatPermissionLevel.Default && policyRestricted;
-			const hover = this._delegate.getPermissionLevelHover
-				? (disabled ? localize('permissions.policyDescription', "Disabled by enterprise policy") : this._getPermissionLevelHover(level, meta))
-				: meta.hover;
+			const hover = disabled
+				? localize('permissions.policyDescription', "Disabled by enterprise policy")
+				: this._getPermissionLevelHover(level, meta);
 			return {
 				kind: ActionListItemKind.Action,
+				...getPermissionLevelBadge(level),
 				group: { kind: ActionListItemKind.Header, title: '', icon: meta.icon },
 				item: {
 					level,
@@ -397,7 +402,7 @@ export class PermissionPicker extends Disposable {
 			},
 		};
 
-		const listOptions: IActionListOptions = { minWidth: 255 };
+		const listOptions: IActionListOptions = { minWidth: items.some(item => item.badge) ? 300 : 255 };
 		this.actionWidgetService.show<IPermissionItem>(
 			'permissionPicker',
 			false,
@@ -416,8 +421,9 @@ export class PermissionPicker extends Disposable {
 
 	watchSandboxToggle<T>(items: readonly IActionListItem<T>[]): IDisposable {
 		const sandboxToggle = items.find(item => item.standaloneToggle)?.standaloneToggle;
+		const settingId = this._delegate.getSandboxToggleSettingId?.();
 		let previousToggle = sandboxToggle;
-		if (!sandboxToggle) {
+		if (!sandboxToggle && !this._delegate.sandboxToggleSettingId) {
 			return Disposable.None;
 		}
 		const disposables = new DisposableStore();
@@ -427,6 +433,11 @@ export class PermissionPicker extends Disposable {
 			}
 		}));
 		disposables.add(autorun(reader => {
+			this._delegate.sandboxToggleSettingId?.read(reader);
+			if (this._delegate.getSandboxToggleSettingId?.() !== settingId) {
+				this.actionWidgetService.hide();
+				return;
+			}
 			this._delegate.managedSandboxEnforced?.read(reader);
 			this._delegate.sandboxEnabled?.read(reader);
 			this._sandboxDefaultChanged.read(reader);
@@ -456,7 +467,8 @@ export class PermissionPicker extends Disposable {
 			defaultSettingKey: this._delegate.defaultSettingKey,
 			levelLabel: this._getPermissionLevelMeta(level).label,
 		});
-		if (!confirmed || isCurrentContext?.() === false) {
+		const policyRestricted = this.configurationService.inspect<boolean>(ChatConfiguration.GlobalAutoApprove).policyValue === false;
+		if (!confirmed || isCurrentContext?.() === false || (policyRestricted && level !== ChatPermissionLevel.Default)) {
 			reportNewChatPickerClosed(this.telemetryService, {
 				id: 'NewChatPermissionPicker',
 				name: 'NewChatPermissionPicker',
@@ -481,7 +493,7 @@ export class PermissionPicker extends Disposable {
 
 		this._currentLevel = level;
 		this._updateTriggerLabel(this._triggerElement);
-		this._delegate.setPermissionLevel(level);
+		await this._delegate.setPermissionLevel(level);
 	}
 
 	private _updateTriggerLabel(trigger: HTMLElement | undefined): void {

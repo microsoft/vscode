@@ -21,6 +21,8 @@ export const enum AgentSystemNotificationKind {
 	AgentMergeDisabled = 'agentMergeDisabled',
 	/** The pull request Agent Merge was monitoring was merged. */
 	AgentMergePullRequestMerged = 'agentMergePullRequestMerged',
+	/** The model ended a response round without text or tool calls; clients settle any open thinking section and render nothing. */
+	ResponseRoundEnded = 'responseRoundEnded',
 }
 
 export const enum AgentSystemNotificationWorkspaceKind {
@@ -42,6 +44,7 @@ const knownKinds: ReadonlySet<string> = new Set<string>([
 	AgentSystemNotificationKind.AgentMergeConfigurationChanged,
 	AgentSystemNotificationKind.AgentMergeDisabled,
 	AgentSystemNotificationKind.AgentMergePullRequestMerged,
+	AgentSystemNotificationKind.ResponseRoundEnded,
 ]);
 
 interface IHasSystemNotificationMeta {

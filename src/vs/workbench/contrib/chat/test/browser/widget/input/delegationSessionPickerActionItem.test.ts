@@ -30,13 +30,14 @@ import { NullTelemetryService } from '../../../../../../../platform/telemetry/co
 import { IWorkspaceContextService } from '../../../../../../../platform/workspace/common/workspace.js';
 import { IsSessionsWindowContext } from '../../../../../../common/contextkeys.js';
 import { IGitService } from '../../../../../git/common/gitService.js';
+import { IAgentSdkSetupService } from '../../../../../../services/agentHost/browser/agentSdkSetupService.js';
+import { ICodexAccountService } from '../../../../../../services/agentHost/browser/codexAccountService.js';
 import { IChatEntitlementService } from '../../../../../../services/chat/common/chatEntitlementService.js';
 import { TestChatEntitlementService, TestContextService } from '../../../../../../test/common/workbenchTestServices.js';
 import { OpenDelegationPickerAction } from '../../../../browser/actions/chatExecuteActions.js';
 import { AgentSessionProviders, AgentSessionTarget } from '../../../../browser/agentSessions/agentSessions.js';
 import { IChatWidget, IChatWidgetService } from '../../../../browser/chat.js';
 import { ChatInputPart } from '../../../../browser/widget/input/chatInputPart.js';
-import { IChatInputNotificationService } from '../../../../browser/widget/input/chatInputNotificationService.js';
 import { DelegationSessionPickerActionItem } from '../../../../browser/widget/input/delegationSessionPickerActionItem.js';
 import { ChatContextKeys } from '../../../../common/actions/chatContextKeys.js';
 import { IChatSessionsService, ResolvedChatSessionsExtensionPoint } from '../../../../common/chatSessionsService.js';
@@ -126,9 +127,8 @@ suite('DelegationSessionPickerActionItem', () => {
 		instantiationService.stub(ILanguageModelsService, new class extends mock<ILanguageModelsService>() {
 			override getLanguageModelIds() { return []; }
 		}());
-		instantiationService.stub(IChatInputNotificationService, new class extends mock<IChatInputNotificationService>() {
-			override getActiveNotification() { return undefined; }
-		}());
+		instantiationService.stub(IAgentSdkSetupService, { setups: [] });
+		instantiationService.stub(ICodexAccountService, { account: { status: 'unknown' } });
 		instantiationService.stub(IGitService, new class extends mock<IGitService>() { }());
 
 		const action = instantiationService.createInstance(MenuItemAction, new OpenDelegationPickerAction().desc, undefined, undefined, undefined, undefined);
@@ -161,43 +161,41 @@ suite('DelegationSessionPickerActionItem', () => {
 		};
 	}
 
-	for (const isSessionsWindow of [false, true]) {
-		for (const harness of harnesses) {
-			test(`shows ${harness.label} disabled without a tooltip in the ${isSessionsWindow ? 'Agents' : 'editor'} window`, () => {
-				const { picker, element, container, getShowCount, getPendingTarget } = createPicker(harness.type, isSessionsWindow);
-				element.dispatchEvent(new MouseEvent('mousedown', { button: 0, bubbles: true }));
-				element.click();
-				for (const [key, keyCode] of [['Enter', 13], [' ', 32]] as const) {
-					element.dispatchEvent(new KeyboardEvent('keydown', { key, keyCode, bubbles: true }));
-				}
-				picker.show();
-				picker.setFocusable(true);
+	for (const harness of harnesses) {
+		test(`shows ${harness.label} disabled without a tooltip in the editor window`, () => {
+			const { picker, element, container, getShowCount, getPendingTarget } = createPicker(harness.type);
+			element.dispatchEvent(new MouseEvent('mousedown', { button: 0, bubbles: true }));
+			element.click();
+			for (const [key, keyCode] of [['Enter', 13], [' ', 32]] as const) {
+				element.dispatchEvent(new KeyboardEvent('keydown', { key, keyCode, bubbles: true }));
+			}
+			picker.show();
+			picker.setFocusable(true);
 
-				assert.deepStrictEqual({
-					label: element.textContent,
-					ariaLabel: element.ariaLabel,
-					ariaDisabled: element.getAttribute('aria-disabled'),
-					expanded: element.getAttribute('aria-expanded'),
-					tabIndex: element.tabIndex,
-					disabledStyle: container.classList.contains('disabled'),
-					enabled: picker.isEnabled(),
-					tooltip: picker.getTooltip(),
-					showCount: getShowCount(),
-					pendingTarget: getPendingTarget(),
-				}, {
-					label: harness.label,
-					ariaLabel: harness.label,
-					ariaDisabled: 'true',
-					expanded: 'false',
-					tabIndex: -1,
-					disabledStyle: true,
-					enabled: false,
-					tooltip: '',
-					showCount: 0,
-					pendingTarget: undefined,
-				});
+			assert.deepStrictEqual({
+				label: element.textContent,
+				ariaLabel: element.ariaLabel,
+				ariaDisabled: element.getAttribute('aria-disabled'),
+				expanded: element.getAttribute('aria-expanded'),
+				tabIndex: element.tabIndex,
+				disabledStyle: container.classList.contains('disabled'),
+				enabled: picker.isEnabled(),
+				tooltip: picker.getTooltip(),
+				showCount: getShowCount(),
+				pendingTarget: getPendingTarget(),
+			}, {
+				label: harness.label,
+				ariaLabel: harness.label,
+				ariaDisabled: 'true',
+				expanded: 'false',
+				tabIndex: -1,
+				disabledStyle: true,
+				enabled: false,
+				tooltip: '',
+				showCount: 0,
+				pendingTarget: undefined,
 			});
-		}
+		});
 	}
 
 	test('stays disabled before registration and refreshes the remote harness label when metadata arrives', () => {

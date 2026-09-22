@@ -55,6 +55,7 @@ suite('WorktreeIsolation', () => {
 			restoredTurnsSame: await isolation.applyRestoreAnnouncement(session, turns) === turns,
 			deletion: await isolation.prepareSessionDeletion(session, 'session'),
 			adopted: await isolation.adoptExistingWorktreeMetadata(session, workingDirectory),
+			externalProject: await isolation.resolveExternalWorktreeProject(workingDirectory),
 			project: await isolation.resolveWorktreeProject(session),
 		}, {
 			supported: false,
@@ -66,6 +67,7 @@ suite('WorktreeIsolation', () => {
 			restoredTurnsSame: true,
 			deletion: undefined,
 			adopted: false,
+			externalProject: undefined,
 			project: undefined,
 		});
 	});
@@ -76,6 +78,8 @@ suite('WorktreeIsolation', () => {
 	let addWorktreeCalls: IAddWorktreeOptions[];
 	let addExistingCalls: { worktree: URI; branchName: string }[];
 	let removeCalls: { worktree: URI; force: boolean }[];
+	let commitCalls: { worktree: URI; message: string }[];
+	let commitError: Error | undefined;
 	let copyIncludeCalls: { repositoryRoot: URI; worktree: URI; globs: readonly string[] }[];
 	let copyIncludeError: Error | undefined;
 	let branchName: string;
@@ -100,6 +104,12 @@ suite('WorktreeIsolation', () => {
 			],
 			branchExists: async () => branchExists,
 			hasUncommittedChanges: async () => hasUncommittedChanges,
+			commitAll: async (worktree, message) => {
+				commitCalls.push({ worktree, message });
+				if (commitError) {
+					throw commitError;
+				}
+			},
 			getSessionGitState: async () => sessionGitState,
 			addWorktree: async (_root, options) => {
 				addWorktreeCalls.push(options);
@@ -161,6 +171,8 @@ suite('WorktreeIsolation', () => {
 		addWorktreeCalls = [];
 		addExistingCalls = [];
 		removeCalls = [];
+		commitCalls = [];
+		commitError = undefined;
 		copyIncludeCalls = [];
 		copyIncludeError = undefined;
 		branchName = 'agents/my-feature';
@@ -365,7 +377,7 @@ suite('WorktreeIsolation', () => {
 			existsAfterUnarchive: true,
 			addExistingCalls: [{ worktree: created.worktree.toString(), branchName }],
 			removeCalls: [
-				{ worktree: created.worktree.toString(), force: false },
+				{ worktree: created.worktree.toString(), force: true },
 				{ worktree: created.worktree.toString(), force: true },
 			],
 		});
@@ -1071,11 +1083,11 @@ suite('WorktreeIsolation', () => {
 		});
 	});
 
-	test('cleanup on archive removes a clean worktree and unarchive recreates it', async () => {
+	test('automatic cleanup removes a clean worktree and unarchive recreates it', async () => {
 		const isolation = createIsolation(disposables);
 		const worktree = await isolation.resolveWorkingDirectory({ sessionUri, sessionId, workingDirectory: repoRoot, config: { [SessionConfigKey.Isolation]: 'worktree', [SessionConfigKey.Branch]: 'main' } });
 
-		await isolation.cleanupWorktreeOnArchive(sessionUri, sessionId);
+		await isolation.cleanupWorktree(sessionUri, sessionId);
 		const removedDuringArchive = worktree ? !existsSync(worktree.fsPath) : false;
 		await isolation.recreateWorktreeOnUnarchive(sessionUri, sessionId);
 		const restoredDuringUnarchive = worktree ? existsSync(worktree.fsPath) : false;
@@ -1090,6 +1102,43 @@ suite('WorktreeIsolation', () => {
 			removedDuringArchive: true,
 			addExistingCalls: [{ worktree: worktree!.toString(), branchName }],
 			restoredDuringUnarchive: true,
+		});
+	});
+
+	test('manual archive commits uncommitted changes and removes the worktree', async () => {
+		const isolation = createIsolation(disposables);
+		const worktree = await isolation.resolveWorkingDirectory({ sessionUri, sessionId, workingDirectory: repoRoot, config: { [SessionConfigKey.Isolation]: 'worktree', [SessionConfigKey.Branch]: 'main' } });
+		hasUncommittedChanges = true;
+
+		await isolation.cleanupWorktreeOnArchive(sessionUri, sessionId);
+
+		assert.deepStrictEqual({
+			commitCalls: commitCalls.map(call => ({ worktree: call.worktree.toString(), message: call.message })),
+			removeCalls: removeCalls.map(call => ({ worktree: call.worktree.toString(), force: call.force })),
+			stillExists: worktree ? existsSync(worktree.fsPath) : false,
+		}, {
+			commitCalls: [{ worktree: worktree!.toString(), message: 'Saving uncommitted changes before archiving session' }],
+			removeCalls: [{ worktree: worktree!.toString(), force: true }],
+			stillExists: false,
+		});
+	});
+
+	test('manual archive keeps the worktree when committing uncommitted changes fails', async () => {
+		const isolation = createIsolation(disposables);
+		const worktree = await isolation.resolveWorkingDirectory({ sessionUri, sessionId, workingDirectory: repoRoot, config: { [SessionConfigKey.Isolation]: 'worktree', [SessionConfigKey.Branch]: 'main' } });
+		hasUncommittedChanges = true;
+		commitError = new Error('commit failed');
+
+		await isolation.cleanupWorktreeOnArchive(sessionUri, sessionId);
+
+		assert.deepStrictEqual({
+			commitCalls: commitCalls.length,
+			removeCalls: removeCalls.length,
+			stillExists: worktree ? existsSync(worktree.fsPath) : false,
+		}, {
+			commitCalls: 1,
+			removeCalls: 0,
+			stillExists: true,
 		});
 	});
 

@@ -508,6 +508,86 @@ suite('Model picker destinations', () => {
 		);
 	});
 
+	test('a pair remembers its speed without overriding an explicit selection', () => {
+		const standard = createModel('example-2.5', 'Example 2.5');
+		const fast = createModel('example-2.5-fast', 'Example 2.5 (fast mode)');
+		const models = [gpt, standard, fast];
+		const variants = buildSpeedVariants(models);
+		const preferred = new Map([[standard.identifier, fast.identifier]]);
+		const ids = (selected: string | undefined) =>
+			collapseSpeedVariants(models, variants, selected, preferred).map(model => model.identifier);
+
+		assert.deepStrictEqual({
+			unselected: ids(undefined),
+			otherSelected: ids(gpt.identifier),
+			standardSelected: ids(standard.identifier),
+			fastSelected: ids(fast.identifier),
+		}, {
+			unselected: [gpt.identifier, fast.identifier],
+			otherSelected: [gpt.identifier, fast.identifier],
+			standardSelected: [gpt.identifier, standard.identifier],
+			fastSelected: [gpt.identifier, fast.identifier],
+		});
+	});
+
+	test('pins on either speed produce one pinned row for the selected variant', () => {
+		const standard = createModel('example-2.5', 'Example 2.5');
+		const fast = createModel('example-2.5-fast', 'Example 2.5 (fast mode)');
+		const sections = buildModelPickerSections({
+			models: [gpt, standard, fast],
+			selectedModelId: fast.identifier,
+			recentModelIds: [],
+			pinnedModelIds: [standard.identifier, fast.identifier],
+			controlModels: {},
+			showSuggested: true,
+		});
+
+		assert.deepStrictEqual({
+			pinned: sections.pinned.map(model => model.identifier),
+			suggested: sections.suggested.map(model => model.identifier),
+			other: sections.other.map(model => model.identifier),
+		}, {
+			pinned: [fast.identifier],
+			suggested: [gpt.identifier],
+			other: [],
+		});
+	});
+
+	test('collapsing speed variants preserves real availability and update restrictions', () => {
+		const standard = createModel('example-2.5', 'Example 2.5');
+		const fast = createModel('example-2.5-fast', 'Example 2.5 (fast mode)');
+		const inspect = (models: ILanguageModelChatMetadataAndIdentifier[], minVSCodeVersion?: string) => {
+			const sections = buildModelPickerSections({
+				models,
+				selectedModelId: fast.identifier,
+				recentModelIds: [],
+				pinnedModelIds: [],
+				controlModels: {
+					[standard.metadata.id]: { label: standard.metadata.name, featured: true, exists: false },
+					[fast.metadata.id]: { label: fast.metadata.name, featured: true, exists: false, minVSCodeVersion },
+				},
+				showSuggested: true,
+				showUnavailable: true,
+				currentVSCodeVersion: '1.100.0',
+			});
+			return {
+				selectable: [...sections.pinned, ...sections.suggested, ...sections.other].map(model => model.identifier),
+				unavailable: sections.unavailable.map(entry => ({ id: entry.id, needsUpdate: entry.needsUpdate })),
+				pairedVariants: sections.speedVariants.size,
+			};
+		};
+
+		assert.deepStrictEqual({
+			bothAvailable: inspect([standard, fast]),
+			standardUnavailable: inspect([fast]),
+			fastNeedsUpdate: inspect([standard, fast], '99.0.0'),
+		}, {
+			bothAvailable: { selectable: [fast.identifier], unavailable: [], pairedVariants: 2 },
+			standardUnavailable: { selectable: [fast.identifier], unavailable: [{ id: standard.metadata.id, needsUpdate: false }], pairedVariants: 0 },
+			fastNeedsUpdate: { selectable: [standard.identifier], unavailable: [{ id: fast.metadata.id, needsUpdate: true }], pairedVariants: 0 },
+		});
+	});
+
 	test('badges rank a retiring model over an offer over the settings a model was tuned to', () => {
 		const retiring = { ...gpt, metadata: { ...gpt.metadata, warningText: { model_pending_deprecation: 'Retiring soon.' } } };
 		const promo = { ...claude, metadata: { ...claude.metadata, promo: { id: 'p', discountPercent: 25, message: 'Save now.' } } };

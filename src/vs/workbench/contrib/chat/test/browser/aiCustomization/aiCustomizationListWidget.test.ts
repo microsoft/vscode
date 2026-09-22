@@ -9,6 +9,7 @@ import { CancellationToken } from '../../../../../../base/common/cancellation.js
 import { Event } from '../../../../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { derived, observableValue } from '../../../../../../base/common/observable.js';
+import { setARIAContainer } from '../../../../../../base/browser/ui/aria/aria.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IListService, ListService } from '../../../../../../platform/list/browser/listService.js';
@@ -732,6 +733,50 @@ suite('aiCustomizationListWidget', () => {
 				hasOverflowAction: true,
 				sectionExpanded: 'true',
 			});
+		});
+
+		test('announces updated item count when the model changes after section load', async () => {
+			const ariaHost = document.createElement('div');
+			document.body.appendChild(ariaHost);
+			disposables.add(toDisposable(() => ariaHost.remove()));
+			setARIAContainer(ariaHost);
+
+			const createAgent = (index: number): IAICustomizationListItem => ({
+				id: `agent-${index}`,
+				uri: URI.file(`Q:\\workspace\\.github\\agents\\agent-${index}.agent.md`),
+				name: `agent-${index}`,
+				filename: `agent-${index}.agent.md`,
+				source: PromptsStorage.local,
+				promptType: PromptsType.agent,
+				disabled: false,
+			});
+			const items = observableValue<readonly IAICustomizationListItem[]>('test', [
+				createAgent(1),
+				createAgent(2),
+				createAgent(3),
+			]);
+			instaService.stub(IAICustomizationItemsModel, {
+				getItems: () => items,
+				getCount: () => observableValue('test', items.get().length),
+				getPluginCount: () => observableValue('test', 0),
+				whenSectionLoaded: async () => { },
+				getActiveItemSource: () => ({ onDidAICustomizationItemsChange: Event.None, fetchProviderItems: async () => [], fetchAICustomizationItems: async () => [], fetchSourceFolders: async () => [], sessionResource: URI.parse('test:///session'), dispose() { } }),
+			});
+			const widget = disposables.add(instaService.createInstance(AICustomizationListWidget));
+			document.body.appendChild(widget.element);
+			disposables.add(toDisposable(() => widget.element.remove()));
+
+			await widget.setSection(AICustomizationManagementSection.Agents);
+			assert.deepStrictEqual(
+				[...ariaHost.querySelectorAll('.monaco-status')].map(element => element.textContent).filter(Boolean),
+				['3 agents'],
+			);
+
+			items.set([createAgent(1), createAgent(2)], undefined);
+			assert.deepStrictEqual(
+				[...ariaHost.querySelectorAll('.monaco-status')].map(element => element.textContent).filter(Boolean),
+				['2 agents'],
+			);
 		});
 
 		for (const isSessionsWindow of [false, true]) {

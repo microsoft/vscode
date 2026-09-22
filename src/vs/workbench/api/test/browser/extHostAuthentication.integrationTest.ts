@@ -427,51 +427,45 @@ suite('ExtHostAuthentication', () => {
 	//#region error cases
 
 	test('createIfNone and forceNewSession', async () => {
-		try {
-			await extHostAuthentication.getSession(
+		await assert.rejects(
+			() => extHostAuthentication.getSession(
 				extensionDescription,
 				'test',
 				['foo'],
 				{
 					createIfNone: true,
 					forceNewSession: true
-				});
-			assert.fail('should have thrown an Error.');
-		} catch (e) {
-			assert.ok(e);
-		}
+				}),
+			/Invalid combination of options/
+		);
 	});
 
 	test('forceNewSession and silent', async () => {
-		try {
-			await extHostAuthentication.getSession(
+		await assert.rejects(
+			() => extHostAuthentication.getSession(
 				extensionDescription,
 				'test',
 				['foo'],
 				{
 					forceNewSession: true,
 					silent: true
-				});
-			assert.fail('should have thrown an Error.');
-		} catch (e) {
-			assert.ok(e);
-		}
+				}),
+			/Invalid combination of options/
+		);
 	});
 
 	test('createIfNone and silent', async () => {
-		try {
-			await extHostAuthentication.getSession(
+		await assert.rejects(
+			() => extHostAuthentication.getSession(
 				extensionDescription,
 				'test',
 				['foo'],
 				{
 					createIfNone: true,
 					silent: true
-				});
-			assert.fail('should have thrown an Error.');
-		} catch (e) {
-			assert.ok(e);
-		}
+				}),
+			/Invalid combination of options/
+		);
 	});
 
 	test('Can get multiple sessions (with different scopes) in one extension', async () => {
@@ -652,6 +646,32 @@ suite('ExtHostAuthentication', () => {
 		assert.ok(operationOrder.includes('get-end-scope1'), 'Should have completed getSessions for existing scope1 session');
 	});
 
+	test('session lookup can be retried after a provider failure', async () => {
+		const provider = new TestAuthProvider('retry-test');
+		const expectedSession = await provider.createSession(['scope']);
+		const expectedError = new Error('Session lookup failed');
+		let lookupAttempts = 0;
+
+		provider.getSessions = async () => {
+			lookupAttempts++;
+			if (lookupAttempts === 1) {
+				throw expectedError;
+			}
+			return [expectedSession];
+		};
+
+		disposables.add(extHostAuthentication.registerAuthenticationProvider('retry-test', 'Retry Test', provider));
+		const getSession = () => extHostAuthentication.getSession(extensionDescription, 'retry-test', ['scope'], { createIfNone: true });
+
+		await assert.rejects(getSession, expectedError);
+
+		const session = await getSession();
+		assert.deepStrictEqual(
+			{ lookupAttempts, accessToken: session.accessToken },
+			{ lookupAttempts: 2, accessToken: expectedSession.accessToken }
+		);
+	});
+
 	test('provider registration and immediate disposal race condition', async () => {
 		const provider = new TestAuthProvider('race-test');
 
@@ -660,13 +680,10 @@ suite('ExtHostAuthentication', () => {
 		disposable.dispose();
 
 		// Try to use the provider after disposal - should fail gracefully
-		try {
-			await extHostAuthentication.getSession(extensionDescription, 'race-test', ['scope'], { createIfNone: true });
-			assert.fail('Should have thrown an error for non-existent provider');
-		} catch (error) {
-			// Expected - provider should be unavailable
-			assert.ok(error);
-		}
+		await assert.rejects(
+			() => extHostAuthentication.getSession(extensionDescription, 'race-test', ['scope'], { createIfNone: true }),
+			/authentication provider.*race-test/
+		);
 	});
 
 	test('provider re-registration after proper disposal', async () => {

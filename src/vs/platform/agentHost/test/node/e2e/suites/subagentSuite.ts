@@ -36,6 +36,13 @@ import type { IAgentHostE2ETestContext } from './e2eTestContext.js';
 
 export function defineSubagentTests(context: IAgentHostE2ETestContext): void {
 	const { config, createdSessions, tempDirs, isWindows } = context;
+	// Copilot captures store one wire dialect, so keep nested model calls on the parent's Anthropic endpoint.
+	const stableSubagentModelInstruction = config.provider === 'copilotcli'
+		? 'Explicitly set the subagent model to `claude-sonnet-5`. '
+		: '';
+	const stableSubagentFileListingInstruction = config.provider === 'copilotcli'
+		? 'Then the subagent should call a single read-only file-listing tool (e.g. `Glob` or `view`) to list the files; do not run a shell command. '
+		: 'Then the subagent should list the files. ';
 
 	function createCustomAgentWorkspace(prefix: string, allTools = false): string {
 		const workspace = mkdtempSync(join(tmpdir(), prefix));
@@ -87,6 +94,30 @@ export function defineSubagentTests(context: IAgentHostE2ETestContext): void {
 			.filter(part => part.kind === ResponsePartKind.Markdown)
 			.map(part => part.content)
 			.join('') ?? '';
+	}
+
+	function isCompletedChild(state: ChatState | undefined, expectedTurnCount: number): state is ChatState {
+		return !!state
+			&& !state.activeTurn
+			&& state.turns.length === expectedTurnCount
+			&& state.turns.every(turn => turn.state === TurnState.Complete);
+	}
+
+	async function subscribeToCompletedChild(subagentChat: string): Promise<ChatState> {
+		const initialSubscription = await context.client.call<SubscribeResult>('subscribe', { channel: subagentChat });
+		const initialChild = initialSubscription.snapshot?.state as ChatState | undefined;
+		if (!isCompletedChild(initialChild, 1)) {
+			await context.client.waitForNotification(n => {
+				if (!isActionNotification(n, 'chat/turnComplete')) {
+					return false;
+				}
+				return getActionEnvelope(n).channel === subagentChat;
+			}, 5_000);
+		}
+		const snapshot = await context.client.call<SubscribeResult>('subscribe', { channel: subagentChat });
+		const child = snapshot.snapshot?.state as ChatState | undefined;
+		assert.ok(isCompletedChild(child, 1));
+		return child;
 	}
 
 	function responsePartIds(turns: ISessionWithDefaultChat['turns']): string[] {
@@ -183,8 +214,7 @@ export function defineSubagentTests(context: IAgentHostE2ETestContext): void {
 
 			const subagentChat = subagentChatFromReceived(parentChat);
 			assert.ok(subagentChat, 'the parent tool call should expose the custom subagent chat');
-			const snapshot = await context.client.call<SubscribeResult>('subscribe', { channel: subagentChat });
-			const child = snapshot.snapshot?.state as ChatState | undefined;
+			const child = await subscribeToCompletedChild(subagentChat);
 			const parent = await fetchSessionWithChat(context.client, sessionUri);
 			assert.deepStrictEqual({
 				childResponse: markdownText(child).trim(),
@@ -245,8 +275,8 @@ export function defineSubagentTests(context: IAgentHostE2ETestContext): void {
 		assert.match(setup.responseText, /SETUP_DONE/);
 		const subagentChat = subagentChatFromReceived(parentChat);
 		assert.ok(subagentChat, 'the custom subagent should remain in the parent chat catalog');
-		const child = await context.client.call<SubscribeResult>('subscribe', { channel: subagentChat });
-		assert.strictEqual(markdownText(child.snapshot?.state as ChatState | undefined).trim(), 'CUSTOM_AGENT_CHILD_OK');
+		const child = await subscribeToCompletedChild(subagentChat);
+		assert.strictEqual(markdownText(child).trim(), 'CUSTOM_AGENT_CHILD_OK');
 		context.client.notify('unsubscribe', { channel: subagentChat });
 
 		const liveParent = await fetchSessionWithChat(context.client, sessionUri);
@@ -300,6 +330,13 @@ export function defineSubagentTests(context: IAgentHostE2ETestContext): void {
 		tempDirs.push(workspace);
 		const sessionUri = await createRealSession(context.client, config, 'retained-subagent-followups', createdSessions, URI.file(workspace));
 		const parentChat = buildDefaultChatUri(sessionUri);
+		const assertParentToolNames = (expected: readonly string[]) => {
+			const actual = context.client.receivedNotifications(n => isActionNotification(n, 'chat/toolCallStart'))
+				.map(n => ({ channel: getActionEnvelope(n).channel, action: getActionEnvelope(n).action as ChatToolCallStartAction }))
+				.filter(({ channel }) => channel === parentChat)
+				.map(({ action }) => action.toolName);
+			assert.deepStrictEqual(actual, expected);
+		};
 
 		context.client.beginAhpSnapshotRound();
 		const initial = await driveTurnToCompletion(
@@ -312,19 +349,39 @@ export function defineSubagentTests(context: IAgentHostE2ETestContext): void {
 			2,
 		);
 		assert.match(initial.responseText.trim(), /PARENT_INITIAL_DONE$/);
+		assertParentToolNames(['task', 'read_agent']);
 		const subagentChat = subagentChatFromReceived(parentChat);
 		assert.ok(subagentChat, 'the task tool should expose the retained subagent chat');
+		assert.ok(context.client.receivedNotifications(n => isActionNotification(n, 'session/chatAdded')).some(notification => {
+			const envelope = getActionEnvelope(notification);
+			return envelope.channel === sessionUri
+				&& envelope.action.type === ActionType.SessionChatAdded
+				&& envelope.action.summary.resource.toString() === subagentChat;
+		}), 'the retained subagent chat should be added to the session catalog');
+		const initialChildSubscription = await context.client.call<SubscribeResult>('subscribe', { channel: subagentChat });
+		const initialChild = initialChildSubscription.snapshot?.state as ChatState | undefined;
+		let childCompletionObserved = isCompletedChild(initialChild, 1);
 
 		async function readCompletedChild(expectedTurnCount: number): Promise<ChatState> {
-			let child: ChatState | undefined;
-			await retry(async () => {
-				const snapshot = await context.client.call<SubscribeResult>('subscribe', { channel: subagentChat });
-				child = snapshot.snapshot?.state as ChatState | undefined;
-				if (child?.activeTurn || child?.turns.length !== expectedTurnCount || child.turns.some(turn => turn.state !== TurnState.Complete)) {
-					throw new Error(`retained child has not completed ${expectedTurnCount} turns`);
-				}
-			}, 50, 100);
+			if (!childCompletionObserved) {
+				await context.client.waitForNotification(n => {
+					if (!isActionNotification(n, 'chat/turnComplete')) {
+						return false;
+					}
+					return getActionEnvelope(n).channel === subagentChat;
+				}, 5_000);
+			}
+			childCompletionObserved = false;
+			const snapshot = await context.client.call<SubscribeResult>('subscribe', { channel: subagentChat });
+			const child = snapshot.snapshot?.state as ChatState | undefined;
 			assert.ok(child);
+			assert.deepStrictEqual({
+				active: child.activeTurn !== undefined,
+				states: child.turns.map(turn => turn.state),
+			}, {
+				active: false,
+				states: Array<TurnState>(expectedTurnCount).fill(TurnState.Complete),
+			});
 			return child;
 		}
 
@@ -353,6 +410,7 @@ export function defineSubagentTests(context: IAgentHostE2ETestContext): void {
 				2 + index,
 			);
 			assert.match(result.responseText.trim(), new RegExp(`${parentResponse}$`));
+			assertParentToolNames(['write_agent', 'read_agent']);
 			recordChildState(await readCompletedChild(index + 1));
 		}
 
@@ -373,7 +431,11 @@ export function defineSubagentTests(context: IAgentHostE2ETestContext): void {
 				active: false,
 			},
 		]);
-		await assertRecordedAhpSnapshot(this.test!, context.client, behaviorSnapshot);
+		await assertRecordedAhpSnapshot(this.test!, context.client, {
+			...behaviorSnapshot,
+			ignoredActionTypes: [ActionType.SessionChatAdded, ActionType.ChatToolCallStart],
+			orderIndependentActionTypes: [ActionType.ChatTurnComplete],
+		});
 	});
 
 	(config.supportsSubagents ? test : test.skip)('subagent tool calls are routed to the subagent session, not flat in the parent', async function () {
@@ -424,6 +486,7 @@ export function defineSubagentTests(context: IAgentHostE2ETestContext): void {
 
 		dispatchTurn(context.client, sessionUri, 'turn-sa',
 			`Use the \`${config.subagentToolNames[0]}\` tool to spawn a subagent to list the files in the current working directory. ` +
+			stableSubagentModelInstruction +
 			'The subagent should call a single read-only file-listing tool (e.g. `Glob` or `view`) to enumerate the directory; do not run a shell command. ' +
 			'Do not enumerate the directory yourself — delegate to the subagent.',
 			1);
@@ -541,8 +604,9 @@ export function defineSubagentTests(context: IAgentHostE2ETestContext): void {
 
 		dispatchTurn(context.client, sessionUri, 'turn-sa-replay',
 			`Use the \`${config.subagentToolNames[0]}\` tool to spawn a subagent to list the files in the current working directory. ` +
+			stableSubagentModelInstruction +
 			`Instruct the subagent to begin its response with this sentence on its own line: ${sentinel}. ` +
-			'Then the subagent should list the files. ' +
+			stableSubagentFileListingInstruction +
 			`After the subagent completes, you, the main agent, must reply exactly "${parentResponse}" and must not repeat that sentence.`,
 			1);
 

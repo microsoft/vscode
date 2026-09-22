@@ -202,6 +202,38 @@ suite('ChatInputModelSelectionController', () => {
 		});
 	});
 
+	test('refreshes selected model metadata when the same identifier is republished', () => {
+		const modelChanges = disposables.add(new Emitter<string>());
+		const initial = model('agent-host-codex:openai/gpt-5.6-sol');
+		const enriched = {
+			...initial,
+			metadata: {
+				...initial.metadata,
+				configurationSchema: {
+					properties: {
+						thinkingLevel: { group: 'navigation', enum: ['low', 'high'], default: 'low' },
+						contextSize: { group: 'tokens', enum: [200_000, 922_000], default: 200_000 },
+					},
+				},
+			},
+		} satisfies ILanguageModelChatMetadataAndIdentifier;
+		const state: IRuntimeState = { models: [initial], sessionType: 'agent-host-codex' };
+		const applied: string[] = [];
+		const controller = disposables.add(new ChatInputModelSelectionController(createRuntime(state, modelChanges, applied)));
+
+		controller.applySelection(initial, () => { }, false);
+		state.models = [enriched];
+		modelChanges.fire('agent-host-codex');
+
+		assert.deepStrictEqual({
+			selectedModel: controller.currentModel.get(),
+			applied,
+		}, {
+			selectedModel: enriched,
+			applied: [],
+		});
+	});
+
 	test('rolls back a failed explicit selection effect', () => {
 		const modelChanges = disposables.add(new Emitter<string>());
 		const controller = disposables.add(new ChatInputModelSelectionController(createRuntime({ models: [], sessionType: 'test' }, modelChanges, [])));

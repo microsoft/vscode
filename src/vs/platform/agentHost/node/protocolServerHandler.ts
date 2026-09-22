@@ -71,6 +71,8 @@ import type { Implementation } from '../common/state/protocol/common/commands.js
 import { AGENT_HOST_CLIENT_CONNECTION_HISTORY_RETENTION, IAgentHostClientConnectionService, type IAgentHostClientConnectionSource } from './agentHostClientConnectionService.js';
 import { AgentHostTelemetryReporter } from './agentHostTelemetryReporter.js';
 import { isAgentHostTelemetryService } from './agentHostTelemetryService.js';
+import { IDevContainerAgentHostMainService } from '../common/devContainerAgentHost.js';
+import { DevContainerAgentHostProtocol } from './devContainerAgentHostProtocol.js';
 
 /** Default capacity of the server-side action replay buffer. */
 const REPLAY_BUFFER_CAPACITY = 1000;
@@ -204,6 +206,7 @@ type ChannelSubscription =
  * Represents a connected protocol client with its subscription state.
  */
 interface IConnectedClient {
+	devContainers?: DevContainerAgentHostProtocol;
 	readonly clientId: string;
 	readonly clientInfo: Implementation | undefined;
 	readonly telemetryContext: IAgentHostClientTelemetryContext;
@@ -316,8 +319,9 @@ export interface IProtocolServerConfig {
 	/** Default directory returned to clients during the initialize handshake. */
 	readonly defaultDirectory?: string;
 	/**
-	 * Whether to expose VS Code extension methods outside the Agent Host Protocol.
-	 * Defaults to `true` for existing remote listeners.
+	 * Whether to expose VS Code host-control methods outside the Agent Host
+	 * Protocol. Defaults to `true` for existing remote listeners. Session-data
+	 * methods such as `vscode/removeSessionArtifact` are always available.
 	 */
 	readonly allowExtensionMethods?: boolean;
 	/**
@@ -390,6 +394,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IAgentHostManagedSettingsService private readonly _managedSettingsService: IAgentHostManagedSettingsService,
 		@IAgentHostClientConnectionService private readonly _clientConnections: IAgentHostClientConnectionService,
+		@IDevContainerAgentHostMainService private readonly _devContainerService: IDevContainerAgentHostMainService,
 	) {
 		super();
 		this._telemetryReporter = new AgentHostTelemetryReporter(this._telemetryService);
@@ -640,6 +645,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		};
 		this._attachConnection(params.clientId, client);
 		try {
+			this._initializeDevContainers(client);
 			this._registerClientFileSystemAuthority(params.clientId, initializationDisposables);
 
 			const snapshots: IStateSnapshot[] = [];
@@ -679,7 +685,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			const response: IAgentHostExtensionInitializeResult = {
 				protocolVersion: negotiated,
 				serverSeq: this._stateManager.serverSeq,
-				_meta: getAgentHostExtensionInitializeResultMeta(this._config.allowExtensionMethods !== false && !!this._agentService.removeSessionArtifact),
+				_meta: getAgentHostExtensionInitializeResultMeta(!!this._agentService.removeSessionArtifact, !!client.devContainers),
 				snapshots,
 				defaultDirectory: this._config.defaultDirectory,
 				completionTriggerCharacters: this._config.completionTriggerCharacters ? [...this._config.completionTriggerCharacters] : undefined,
@@ -867,6 +873,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		};
 		this._attachConnection(params.clientId, client);
 		try {
+			this._initializeDevContainers(client);
 			// Re-establish the reverse-RPC filesystem authority for this client.
 			// The prior transport's `onClose` disposed the previous registration,
 			// so without this step any subsequent `resourceRead` / `resourceWrite`
@@ -1599,7 +1606,9 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 				return null;
 			}
 			const source = params.source;
-			let options: IAgentCreateChatRequestOptions | undefined;
+			let options: IAgentCreateChatRequestOptions | undefined = params.workingDirectories !== undefined
+				? { workingDirectories: params.workingDirectories.map(directory => URI.parse(directory)) }
+				: undefined;
 			if (source) {
 				switch (source.kind) {
 					case ChatSourceKind.Fork:
@@ -1607,6 +1616,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 						break;
 					case ChatSourceKind.SideChat:
 						options = {
+							...options,
 							sideChat: {
 								source: URI.parse(source.chat),
 								turnId: source.turnId,
@@ -1655,6 +1665,13 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 					...(s.project ? { project: { uri: s.project.uri.toString(), displayName: s.project.displayName } } : {}),
 					workingDirectories: s.workingDirectories?.map(d => d.toString()),
 					changes: s.changes,
+					chats: s.chats?.map(chat => ({
+						resource: chat.chat.toString(),
+						title: chat.summary ?? '',
+						origin: chat.origin,
+						...(chat.interactivity !== undefined ? { interactivity: chat.interactivity } : {}),
+					})),
+					defaultChat: s.chats?.find(chat => chat.kind === 'default')?.chat.toString(),
 					// `_meta` carries durable host provenance, including session kind
 					// and provider-native discovery provenance.
 					...(s._meta !== undefined ? { _meta: s._meta } : {}),
@@ -1771,6 +1788,10 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		if (!client) {
 			return Promise.reject(new Error(`Client ${clientId} is not connected`));
 		}
+		return this._sendReverseRequestToConnection(client, method, params);
+	}
+
+	private _sendReverseRequestToConnection<T>(client: IConnectedClient, method: string, params: unknown): Promise<T> {
 		const id = ++this._reverseRequestId;
 		return new Promise<T>((resolve, reject) => {
 			this._pendingReverseRequests.set(id, { client, resolve: resolve as (value: unknown) => void, reject });
@@ -1808,7 +1829,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		}
 
 		// VS Code extension methods (not in the typed protocol maps yet)
-		const extensionResult = this._handleExtensionRequest(method, params);
+		const extensionResult = client.devContainers?.handleRequest(method, params) ?? this._handleExtensionRequest(method, params);
 		if (extensionResult) {
 			this._trackRequest(extensionResult).then(result => {
 				client.transport.send(jsonRpcSuccess(id, result ?? null));
@@ -1857,11 +1878,47 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 	}
 
 	/**
+	 * Handle the `vscode/removeSessionArtifact` session-data method. Returns a
+	 * Promise when the underlying service supports removal, undefined otherwise.
+	 */
+	private _handleRemoveSessionArtifactRequest(params: unknown): Promise<unknown> | undefined {
+		if (!this._agentService.removeSessionArtifact) {
+			return undefined;
+		}
+		const validated = removeSessionArtifactParamsValidator.validate(params);
+		if (validated.error) {
+			return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, validated.error.message));
+		}
+		const { session: sessionParam, artifactId } = validated.content;
+		if (!artifactId.trim()) {
+			return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'artifactId must be a non-empty string'));
+		}
+		let session: URI;
+		try {
+			session = URI.parse(sessionParam, true);
+		} catch {
+			return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'session must be a valid URI string'));
+		}
+		if (!AgentSession.provider(session) || !session.path.startsWith('/') || session.path.length < 2
+			|| session.authority || session.query || session.fragment || parseChatUri(session)) {
+			return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'session must be an Agent Session URI'));
+		}
+		return this._agentService.removeSessionArtifact(session, artifactId);
+	}
+
+	/**
 	 * Handle VS Code extension methods that are not yet part of the typed
 	 * protocol. Returns a Promise if the method was recognized, undefined
 	 * otherwise.
 	 */
 	private _handleExtensionRequest(method: string, params: unknown): Promise<unknown> | undefined {
+		// Session-data methods operate on state the client already drives through
+		// the data plane, so they are available to every connected client. Only
+		// host-control methods below are gated by `allowExtensionMethods`.
+		if (method === RemoveSessionArtifactExtensionMethod) {
+			return this._handleRemoveSessionArtifactRequest(params);
+		}
+
 		if (this._config.allowExtensionMethods === false) {
 			return undefined;
 		}
@@ -1912,30 +1969,6 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 					}
 				}
 				return this._agentService.getSessionStateFile(session, chat).then(resource => ({ resource: resource?.toString() }));
-			}
-			case RemoveSessionArtifactExtensionMethod: {
-				if (!this._agentService.removeSessionArtifact) {
-					return undefined;
-				}
-				const validated = removeSessionArtifactParamsValidator.validate(params);
-				if (validated.error) {
-					return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, validated.error.message));
-				}
-				const { session: sessionParam, artifactId } = validated.content;
-				if (!artifactId.trim()) {
-					return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'artifactId must be a non-empty string'));
-				}
-				let session: URI;
-				try {
-					session = URI.parse(sessionParam, true);
-				} catch {
-					return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'session must be a valid URI string'));
-				}
-				if (!AgentSession.provider(session) || !session.path.startsWith('/') || session.path.length < 2
-					|| session.authority || session.query || session.fragment || parseChatUri(session)) {
-					return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'session must be an Agent Session URI'));
-				}
-				return this._agentService.removeSessionArtifact(session, artifactId);
 			}
 			case CreateAgentHostDetachedWorktreeExtensionMethod: {
 				if (!this._agentService.createDetachedWorktree) {
@@ -2095,6 +2128,24 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			}
 			default:
 				return undefined;
+		}
+	}
+
+	private _initializeDevContainers(client: IConnectedClient): void {
+		if (this._config.allowExtensionMethods !== false && this._devContainerService) {
+			client.devContainers = client.initializationDisposables.add(new DevContainerAgentHostProtocol(
+				async workspace => {
+					const result = await this._sendReverseRequestToConnection<IAgentHostExtensionServerCommandMap[typeof RequestAgentHostWorkspaceTrustExtensionMethod]['result']>(
+						client,
+						RequestAgentHostWorkspaceTrustExtensionMethod,
+						{ workspace: URI.file(workspace).toString() },
+					);
+					return result?.trusted === true;
+				},
+				(method, params) => client.transport.send({ jsonrpc: '2.0', method, params }),
+				this._devContainerService,
+				this._logService,
+			));
 		}
 	}
 

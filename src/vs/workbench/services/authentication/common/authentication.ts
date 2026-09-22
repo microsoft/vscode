@@ -34,7 +34,7 @@ export interface AuthenticationSession {
 	account: AuthenticationSessionAccount;
 	scopes: ReadonlyArray<string>;
 	idToken?: string;
-	expiresIn?: number;
+	expiresAfter?: number;
 }
 
 export interface AuthenticationSessionsChangeEvent {

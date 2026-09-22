@@ -6,14 +6,14 @@
 import { localize } from '../../../../nls.js';
 import { ChatInteractivity, effectiveChatInteractivity, ISession } from '../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
-import { ISessionPullRequestCreation, ISessionPullRequestOptions, SessionPullRequestMergeMethod } from '../common/pullRequestCreation.js';
+import { ISessionPullRequestChatOptions, ISessionPullRequestCreation, SessionPullRequestMergeMethod } from '../common/pullRequestCreation.js';
 
 export class CreatePullRequestChatRequest {
 	constructor(
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 	) { }
 
-	async send(session: ISession, options: ISessionPullRequestOptions, creation: ISessionPullRequestCreation): Promise<void> {
+	async send(session: ISession, options: ISessionPullRequestChatOptions, creation: ISessionPullRequestCreation): Promise<void> {
 		const request = await creation.prepareChatRequest(createPullRequestMessage(options), options);
 		const chat = session.mainChat.get();
 		if (effectiveChatInteractivity(session.isArchived.get() || chat.isArchived.get(), chat.interactivity.get()) !== ChatInteractivity.Full) {
@@ -23,7 +23,7 @@ export class CreatePullRequestChatRequest {
 	}
 }
 
-export function createPullRequestMessage(options: ISessionPullRequestOptions): string {
+export function createPullRequestMessage(options: ISessionPullRequestChatOptions): string {
 	const mergeMethods: Record<SessionPullRequestMergeMethod, string> = {
 		MERGE: localize('createPR.message.merge', "a merge commit"),
 		SQUASH: localize('createPR.message.squash', "squash merging"),
@@ -38,7 +38,7 @@ export function createPullRequestMessage(options: ISessionPullRequestOptions): s
 			...(options.expectedContext.branchName === options.expectedContext.baseBranchName ? [localize('createPR.message.newBranch', "Create and switch to a new source branch before committing changes.")] : []),
 		] : []),
 		localize('createPR.message.push', "Commit any uncommitted changes and push the source branch as needed."),
-		localize('createPR.message.details', "Use the following title and description exactly (provided as JSON):\n{0}", JSON.stringify({ title: options.title, description: options.description }, undefined, 2)),
+		localize('createPR.message.generateDetails', "Generate a title and description that summarize the changes."),
 		options.autoMergeMethod
 			? localize('createPR.message.autoMerge', "Enable GitHub auto-merge using {0}, so the pull request merges when required checks and approvals pass. Do not bypass these requirements.", mergeMethods[options.autoMergeMethod])
 			: localize('createPR.message.manualMerge', "Do not merge the pull request or enable GitHub auto-merge."),

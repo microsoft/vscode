@@ -16,9 +16,8 @@ import { IWorkbenchContribution } from '../../../../common/contributions.js';
 import { readAgentHostSandboxValues, SANDBOX_SETTING_KEYS } from '../common/sandboxSettingsReader.js';
 
 /**
- * Forwards the workbench user's sandbox setting values into every connected
- * agent host (local + remote) via `RootConfigChanged` actions, so the
- * agent-host terminal sandbox engine can mirror the user's preferences.
+ * Forwards the workbench user's applicable sandbox setting values into every
+ * connected agent host (local + remote) via `RootConfigChanged` actions.
  *
  * The forwarder is deliberately one-directional: it pushes only when
  *  - a connection comes online (initial push, deferred until the host

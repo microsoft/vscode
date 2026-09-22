@@ -6,6 +6,7 @@
 import * as dom from '../../../../../base/browser/dom.js';
 import { Gesture, EventType as TouchEventType } from '../../../../../base/browser/touch.js';
 import { renderLabelWithIcons } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
+import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { StandardKeyboardEvent } from '../../../../../base/browser/keyboardEvent.js';
 import { IAction } from '../../../../../base/common/actions.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
@@ -13,6 +14,7 @@ import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { localize } from '../../../../../nls.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { AgentHostFilterConnectionStatus, IAgentHostFilterEntry, IAgentHostFilterService } from '../../../../services/agentHostFilter/common/agentHostFilter.js';
 import { HostFilterActionViewItem } from './hostFilterActionViewItem.js';
@@ -37,9 +39,10 @@ export class MobileHostFilterActionViewItem extends HostFilterActionViewItem {
 		action: IAction,
 		@IAgentHostFilterService filterService: IAgentHostFilterService,
 		@IContextMenuService contextMenuService: IContextMenuService,
-		@IHoverService hoverService: IHoverService,
+		@IHoverService private readonly sheetHoverService: IHoverService,
+		@ICommandService commandService: ICommandService,
 	) {
-		super(action, 'titlebar', filterService, contextMenuService, hoverService);
+		super(action, 'titlebar', filterService, contextMenuService, sheetHoverService, commandService);
 	}
 
 	/**
@@ -58,6 +61,10 @@ export class MobileHostFilterActionViewItem extends HostFilterActionViewItem {
 	 */
 	protected override _retriesOnClick(): boolean {
 		return false;
+	}
+
+	protected override _renderDiagnosticsButton(): void {
+		// Connection information belongs inside the Hosts sheet on phones.
 	}
 
 	protected override _showMenu(_e: Event): void {
@@ -109,12 +116,35 @@ export class MobileHostFilterActionViewItem extends HostFilterActionViewItem {
 			disposables.add({ dispose: () => clearTimeout(fallback) });
 		};
 
-		disposables.add({ dispose: () => overlay.remove() });
+		disposables.add({
+			dispose: () => {
+				overlay.remove();
+				this.focus();
+			}
+		});
 
 		// --- Header (drag-handle + title + close) ----------------------------
 		dom.append(sheet, $('div.host-picker-sheet-handle'));
 		const header = dom.append(sheet, $('div.host-picker-sheet-header'));
-		dom.append(header, $('div.host-picker-sheet-title')).textContent = localize('agentHostFilter.sheet.title', "Hosts");
+		const heading = dom.append(header, $('div.host-picker-sheet-heading'));
+		dom.append(heading, $('div.host-picker-sheet-title')).textContent = localize('agentHostFilter.sheet.title', "Hosts");
+		const information = dom.append(heading, $('button.host-picker-sheet-close.host-picker-sheet-information', { type: 'button' })) as HTMLButtonElement;
+		const informationLabel = localize('agentHostFilter.sheet.information', "Open Connection Information");
+		information.setAttribute('aria-label', informationLabel);
+		disposables.add(this.sheetHoverService.setupManagedHover(getDefaultHoverDelegate('element'), information, () => informationLabel));
+		dom.append(information, $('span.codicon.codicon-info', { 'aria-hidden': 'true' }));
+		disposables.add(Gesture.addTarget(information));
+		for (const eventType of [dom.EventType.CLICK, TouchEventType.Tap]) {
+			disposables.add(dom.addDisposableListener(information, eventType, e => {
+				dom.EventHelper.stop(e, true);
+				if (dismissing || this._sheet.value !== disposables) {
+					return;
+				}
+				dismissing = true;
+				this._sheet.clear();
+				this._showConnectionInformation();
+			}));
+		}
 		const closeBtn = dom.append(header, $('button.host-picker-sheet-close', { type: 'button' })) as HTMLButtonElement;
 		closeBtn.setAttribute('aria-label', localize('agentHostFilter.sheet.close', "Close"));
 		dom.append(closeBtn, $('span.codicon.codicon-close'));
@@ -180,7 +210,7 @@ export class MobileHostFilterActionViewItem extends HostFilterActionViewItem {
 		}));
 
 		// Focus the currently selected host when the sheet opens.
-		focusRefs.firstCheckedHost?.focus();
+		(focusRefs.firstCheckedHost ?? focusRefs.firstHost ?? focusRefs.rediscover)?.focus();
 	}
 
 	private _renderHostList(disposables: DisposableStore, body: HTMLElement, finish: () => void, focusRefs: { firstHost?: HTMLButtonElement; firstCheckedHost?: HTMLButtonElement }): void {
@@ -189,7 +219,7 @@ export class MobileHostFilterActionViewItem extends HostFilterActionViewItem {
 
 		if (hosts.length === 0) {
 			const empty = dom.append(body, $('div.host-picker-sheet-empty'));
-			empty.textContent = this._filterService.isDiscovering
+			dom.append(empty, $('span')).textContent = this._filterService.isDiscovering
 				? localize('agentHostFilter.sheet.searching', "Searching for hosts…")
 				: localize('agentHostFilter.sheet.empty', "No hosts found yet.");
 			return;

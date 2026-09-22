@@ -19,6 +19,7 @@ import { SessionServerToolName } from '../../common/serverToolNames.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import type { AgentHostStateManager } from '../agentHostStateManager.js';
+import type { AutomaticTitleGenerationStrategy } from '../agentHostSessionTitleController.js';
 import type { IServerToolDisplay, IServerToolDisplayResult, IServerToolGroup } from './agentServerToolHost.js';
 
 /**
@@ -104,7 +105,7 @@ const setWorkspaceInputSchema: ToolDefinition['inputSchema'] = {
 	required: ['workspaceFolder', 'isolation'],
 };
 
-const renameChatInputSchema: ToolDefinition['inputSchema'] = {
+const renameChatInputSchema: NonNullable<ToolDefinition['inputSchema']> = {
 	type: 'object',
 	properties: {
 		session: { type: 'string', description: 'Optional owning session: a session URI from `list_sessions` or an `agent-host-session://` link. When provided with `chat`, it must match that chat\'s session.' },
@@ -167,7 +168,7 @@ export const sessionServerToolDefinitions: IAgentServerToolDefinition[] = [
 	{
 		name: SessionServerToolName.SetWorkspace,
 		title: 'Set Workspace',
-		description: 'Set the current session\'s workspace when the task should continue in a workspace not yet attached to this session. This preserves the session, chat, and conversation history. Immediately before every call to this tool, always use the available user-input tool to ask the user to confirm both the workspace and whether the work should be isolated, even if the user previously mentioned or requested those choices. Tool approval is separate and does not replace this confirmation. Set `isolation` to true to create a managed Git worktree, or false to work directly in the folder. The workspace change is deferred until the current turn ends, then the host automatically continues the original task in the selected workspace. Make this the final tool call of the turn.',
+		description: 'Attach a real workspace only to modify its files or run commands requiring its project environment. Do not use for self-contained scratch work on attachments, pasted/generated content, or throwaway/exportable artifacts. The session, chat, and history are preserved. Immediately before every call, use the available user-input tool to ask one question confirming both workspace and isolation, even if already specified; tool approval is not confirmation. Set `isolation` to true for a managed Git worktree or false for the folder directly. After this turn, the host attaches the workspace and continues the original task. Make this the turn\'s final tool call.',
 		inputSchema: setWorkspaceInputSchema,
 		annotations: { readOnlyHint: false },
 	},
@@ -240,6 +241,7 @@ export type IResolvedCreateSessionArgs = {
 /** AgentService-owned operations used by the session server-tool group. */
 export interface IAgentServiceSessionServerToolAccessor {
 	readonly isActiveAgentTitleGenerationEnabled: () => boolean;
+	readonly getAutomaticTitleGenerationStrategy: (session?: ProtocolURI) => AutomaticTitleGenerationStrategy;
 	readonly canConvertWorkspace: (session: URI) => boolean;
 	readonly listSessions: () => Promise<readonly IAgentSessionMetadata[]>;
 	readonly getSession: (session: URI) => Promise<IAgentSessionMetadata | undefined>;
@@ -1515,8 +1517,19 @@ export function createSessionServerToolGroup(accessor?: ISessionServerToolAccess
 		// Remove after 2026-10-26; self-mapped because its arguments differ from create_session.
 		legacyToolNames: new Map([[SessionServerToolName.CreateChat, SessionServerToolName.CreateChat]]),
 		materializeDefinitions: true,
-		isEnabled(toolName: string): boolean {
-			return toolName !== SessionServerToolName.RenameChat || accessor?.isActiveAgentTitleGenerationEnabled() !== false;
+		isEnabled(toolName: string, sessionUri?: ProtocolURI): boolean {
+			return toolName !== SessionServerToolName.RenameChat || accessor?.getAutomaticTitleGenerationStrategy(sessionUri) !== 'utility';
+		},
+		getDefinitionForSession(definition, sessionUri): IAgentServerToolDefinition {
+			if (definition.name !== SessionServerToolName.RenameChat || accessor?.getAutomaticTitleGenerationStrategy(sessionUri) !== 'deferred') {
+				return definition;
+			}
+			const { automatic: _automatic, ...properties } = renameChatInputSchema.properties ?? {};
+			return {
+				...definition,
+				description: 'Rename one specific chat when the user explicitly asks to rename it. Automatic naming is handled by the host; do not call this tool to name a fresh chat. Renaming the default chat also names its owning session, while peer-chat titles remain independent. Use a short, human-friendly chat name in sentence case (1-4 words). Pass an `agent-host-session://` session or chat link to target another chat, or omit `chat` to rename the chat in which this tool is running. Every invocation replaces the current title.',
+				inputSchema: { ...renameChatInputSchema, properties },
+			};
 		},
 		isEnabledForSession(toolName: string, sessionUri: ProtocolURI): boolean {
 			return toolName !== SessionServerToolName.SetWorkspace || accessor?.canConvertWorkspace(URI.parse(sessionUri)) === true;

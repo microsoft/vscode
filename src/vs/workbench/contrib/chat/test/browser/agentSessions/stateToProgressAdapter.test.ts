@@ -100,6 +100,7 @@ function turnsToHistory(backendSession: Parameters<typeof rawTurnsToHistory>[0],
 function makeLookup(prefix: string, displayNames: Record<string, string>, fallbackRawModelId?: string): TurnModelLookup {
 	const resolveRaw = (raw: string | undefined): string | undefined => raw ?? fallbackRawModelId;
 	return {
+		toActualModelId: raw => raw ? `${prefix}${raw}` : undefined,
 		toLanguageModelId: (raw) => {
 			const r = resolveRaw(raw);
 			return r ? `${prefix}${r}` : undefined;
@@ -230,6 +231,24 @@ suite('stateToProgressAdapter', () => {
 	});
 
 	suite('rewriteAgentHostLinkTarget', () => {
+		for (const authority of ['local', 'my-host']) {
+			test(`preserves preview metadata and resource queries on ${authority}`, () => {
+				const resource = URI.parse('file:///remote/report.md?view=full#section');
+				const link = resource.with({ query: `${resource.query}&vscodeLinkType=markdown-preview` });
+
+				const rewritten = URI.parse(rewriteAgentHostLinkTarget(link.toString(), authority));
+				const params = new URLSearchParams(rewritten.query);
+				const linkType = params.get('vscodeLinkType');
+				params.delete('vscodeLinkType');
+				const target = fromAgentHostUri(rewritten.with({ query: params.toString() }));
+
+				assert.deepStrictEqual({ linkType, resource: target.toString() }, {
+					linkType: 'markdown-preview',
+					resource: resource.toString(),
+				});
+			});
+		}
+
 		test('supports absolute paths and file URIs with validated locations', () => {
 			const unwrap = (href: string) => fromAgentHostUri(URI.parse(rewriteAgentHostLinkTarget(href, 'my-host'))).toString();
 			assert.deepStrictEqual(
@@ -853,6 +872,23 @@ suite('stateToProgressAdapter', () => {
 			);
 		});
 
+		test('preserves selected models and configuration independently of routed models in restored requests', () => {
+			const turns = [
+				createTurn({ message: { ...message('Auto'), model: { id: 'auto' } }, usage: { model: 'gpt-5', inputTokens: 100, outputTokens: 20 } }),
+				createTurn({ message: { ...message('Explicit model'), model: { id: 'opus-4.7', config: { reasoningEffort: 'xhigh' } } }, usage: { inputTokens: 100, outputTokens: 20 } }),
+			];
+			const history = turnsToHistory(URI.file('/'), turns, 'p', makeLookup('agent-host-copilot:', { 'gpt-5': 'GPT-5', 'opus-4.7': 'Claude Opus 4.7' }, 'opus-4.7'));
+
+			assert.deepStrictEqual(history.map(item => item.type === 'request'
+				? { type: item.type, modelId: item.modelId, modelConfiguration: item.modelConfiguration }
+				: { type: item.type, details: item.details, actualModelId: item.parts.find(part => part.kind === 'usage')?.actualModelId }), [
+				{ type: 'request', modelId: 'agent-host-copilot:auto', modelConfiguration: undefined },
+				{ type: 'response', details: 'GPT-5', actualModelId: 'agent-host-copilot:gpt-5' },
+				{ type: 'request', modelId: 'agent-host-copilot:opus-4.7', modelConfiguration: { reasoningEffort: 'xhigh' } },
+				{ type: 'response', details: 'Claude Opus 4.7', actualModelId: undefined },
+			]);
+		});
+
 		test('restores Auto model routing with the shared chat UI part', () => {
 			const turn = createTurn({
 				usage: {
@@ -1390,6 +1426,36 @@ suite('stateToProgressAdapter', () => {
 			assert.strictEqual(invocation.toolCallId, 'tc-42');
 			assert.strictEqual(invocation.toolId, 'my_tool');
 			assert.strictEqual(invocation.source, ToolDataSource.Internal);
+		});
+
+		test('preserves MCP tool titles and server origins in live calls and history', () => {
+			const tc = createToolCallState({
+				toolName: 'io-github-github-github-mcp-server-issue_read',
+				displayName: 'Read issue',
+				invocationMessage: 'Read issue',
+				_meta: { mcpServerName: 'GitHub', mcpToolName: 'issue_read' },
+			});
+			const live = toolCallStateToInvocation(tc);
+			const pending = toolCallStateToInvocation({ ...tc, status: ToolCallStatus.PendingConfirmation, confirmationTitle: 'Allow tool from GitHub?' });
+			const completed = createCompletedToolCall({ ...tc, status: ToolCallStatus.Completed, pastTenseMessage: 'Read issue' });
+			finalizeToolInvocation(live, completed);
+			const restored = completedToolCallToSerialized(completed, undefined, URI.file('/'), 'local');
+
+			assert.deepStrictEqual([live, pending, restored].map(invocation => ({
+				toolId: invocation.toolId,
+				invocationMessage: invocation.invocationMessage,
+				originMessage: invocation.originMessage,
+			})), [live, pending, restored].map(() => ({
+				toolId: tc.toolName,
+				invocationMessage: 'Read issue',
+				originMessage: 'GitHub (MCP Server)',
+			})));
+		});
+
+		test('does not invent an MCP origin without valid server metadata', () => {
+			assert.deepStrictEqual([undefined, {}, { mcpServerName: 123 }, { mcpServerName: '  ' }].map(_meta =>
+				toolCallStateToInvocation(createToolCallState({ _meta })).originMessage
+			), [undefined, undefined, undefined, undefined]);
 		});
 
 		test('set_workspace confirmation hides implementation input', () => {
@@ -2185,6 +2251,46 @@ suite('stateToProgressAdapter', () => {
 			assert.strictEqual(streaming.state.get().type, IChatToolInvocation.StateKind.Executing);
 		});
 
+		test('keeps the MCP origin when metadata arrives after streaming starts', () => {
+			const toolName = 'io-github-github-github-mcp-server-issue_read';
+			const invocation = toolCallStateToStreamingInvocation({
+				toolCallId: 'tc-mcp',
+				toolName,
+				displayName: toolName,
+				status: ToolCallStatus.Streaming,
+			}, undefined);
+			const running = createToolCallState({
+				toolCallId: 'tc-mcp',
+				toolName,
+				displayName: 'Read issue',
+				invocationMessage: 'Read issue',
+				_meta: { mcpServerName: 'GitHub', mcpToolName: 'issue_read' },
+			});
+			invocation.transitionFromStreaming(toolCallStateToPreparedInvocation(running), undefined, undefined);
+			const runningOrigin = invocation.originMessage;
+			invocation.requestConfirmation(toolCallStateToPreparedInvocation({
+				...running,
+				status: ToolCallStatus.PendingConfirmation,
+				confirmationTitle: 'Allow tool from GitHub?',
+			}));
+			const pendingOrigin = invocation.originMessage;
+			finalizeToolInvocation(invocation, createCompletedToolCall({ ...running, status: ToolCallStatus.Completed, pastTenseMessage: 'Read issue' }));
+
+			assert.deepStrictEqual({
+				runningOrigin,
+				pendingOrigin,
+				completedOrigin: invocation.toJSON().originMessage,
+				invocationMessage: invocation.invocationMessage,
+				pastTenseMessage: invocation.pastTenseMessage,
+			}, {
+				runningOrigin: 'GitHub (MCP Server)',
+				pendingOrigin: 'GitHub (MCP Server)',
+				completedOrigin: 'GitHub (MCP Server)',
+				invocationMessage: 'Read issue',
+				pastTenseMessage: 'Read issue',
+			});
+		});
+
 		test('requestConfirmation re-arms confirmation from Executing (Copilot Running → PendingConfirmation)', () => {
 			// Real Copilot flow: onToolStart readies the tool (Running/Executing)
 			// before the permission callback bounces it to PendingConfirmation.
@@ -2659,6 +2765,25 @@ suite('stateToProgressAdapter', () => {
 			assert.strictEqual(result.length, 1);
 			assert.strictEqual(result[0].kind, 'markdownContent');
 			assert.strictEqual((result[0] as IChatMarkdownContent).content.value, 'Hello world');
+		});
+
+		test('restores an ended response round as a hidden thinking-section boundary', () => {
+			const result = activeTurnToProgress(URI.file('/'), createActiveTurnState([
+				{ kind: ResponsePartKind.Reasoning, id: 'reasoning', content: 'Assessing final output steps' },
+				{ kind: ResponsePartKind.SystemNotification, content: '', _meta: toAgentSystemNotificationMeta({ kind: AgentSystemNotificationKind.ResponseRoundEnded }) },
+				{ kind: ResponsePartKind.Markdown, id: 'streaming-text', content: '' },
+			]), undefined);
+
+			assert.deepStrictEqual(result, [
+				{ kind: 'thinking', id: 'reasoning', value: 'Assessing final output steps' },
+				{ kind: 'thinking', value: '' },
+			]);
+		});
+
+		test('drops an empty system notification without boundary metadata', () => {
+			assert.deepStrictEqual(activeTurnToProgress(URI.file('/'), createActiveTurnState([
+				{ kind: ResponsePartKind.SystemNotification, content: '' },
+			]), undefined), []);
 		});
 
 		test('produces system notification for system notification response part', () => {
@@ -3454,7 +3579,7 @@ suite('stateToProgressAdapter', () => {
 			}
 		});
 
-		test('preserves subagent model name when refreshing toolSpecificData from content', () => {
+		test('preserves subagent model identity and name when refreshing toolSpecificData from content', () => {
 			const tc = createToolCallState({
 				_meta: { toolKind: 'subagent', subagentDescription: 'Find related files' },
 			});
@@ -3463,6 +3588,7 @@ suite('stateToProgressAdapter', () => {
 
 			// Simulate the session handler having recorded this subagent's model.
 			if (invocation.toolSpecificData?.kind === 'subagent') {
+				invocation.toolSpecificData.modelId = 'agent-host-copilotcli:claude-sonnet-4';
 				invocation.toolSpecificData.modelName = 'Claude Sonnet 4';
 			}
 
@@ -3483,9 +3609,33 @@ suite('stateToProgressAdapter', () => {
 
 			assert.strictEqual(invocation.toolSpecificData?.kind, 'subagent');
 			if (invocation.toolSpecificData?.kind === 'subagent') {
-				assert.strictEqual(invocation.toolSpecificData.modelName, 'Claude Sonnet 4', 'model name should survive a toolSpecificData refresh');
+				assert.deepStrictEqual({
+					modelId: invocation.toolSpecificData.modelId,
+					modelName: invocation.toolSpecificData.modelName,
+				}, { modelId: 'agent-host-copilotcli:claude-sonnet-4', modelName: 'Claude Sonnet 4' });
 			}
 		});
+
+		for (const withDiscovery of [false, true]) {
+			test(`preserves subagent model identity through completion and serialization (discovery=${withDiscovery})`, () => {
+				const invocation = toolCallStateToInvocation(createToolCallState({ toolName: 'task' }));
+				assert.ok(invocation.toolSpecificData?.kind === 'subagent');
+				invocation.toolSpecificData.modelId = 'agent-host-copilotcli:openrouter/amazon/nova-micro-v1';
+				invocation.toolSpecificData.modelName = 'OpenRouter/Amazon: Nova Micro 1.0';
+				finalizeToolInvocation(invocation, createCompletedToolCall({
+					toolName: 'task',
+					content: withDiscovery ? [{ type: ToolResultContentType.Subagent, resource: 'copilot://session/subagent/tc-1', title: 'Explore' }] : [],
+				}));
+				const serialized = invocation.toJSON();
+				assert.deepStrictEqual(serialized.toolSpecificData?.kind === 'subagent' ? {
+					modelId: serialized.toolSpecificData.modelId,
+					modelName: serialized.toolSpecificData.modelName,
+				} : undefined, {
+					modelId: 'agent-host-copilotcli:openrouter/amazon/nova-micro-v1',
+					modelName: 'OpenRouter/Amazon: Nova Micro 1.0',
+				});
+			});
+		}
 
 		test('mounts MCP App toolSpecificData when a confirmed MCP tool starts running', () => {
 			// The MCP App channel is present in `_meta.ui` from the first tool

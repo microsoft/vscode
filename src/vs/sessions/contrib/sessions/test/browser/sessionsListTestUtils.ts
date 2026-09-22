@@ -65,6 +65,10 @@ export class TestSessionsManagementService extends mock<ISessionsManagementServi
 		this.readSessions.push(session);
 	}
 
+	override async markAllRead(sessions: readonly ISession[]): Promise<void> {
+		this.readSessions.push(...sessions);
+	}
+
 	override async renameSession(session: ISession, title: string): Promise<void> {
 		this.renamed.push({ session, title });
 		if (this.renameError) {
@@ -76,9 +80,10 @@ export class TestSessionsManagementService extends mock<ISessionsManagementServi
 		this.archived.push(session);
 	}
 
-	override async deleteChat(session: ISession, chatResource: URI, options?: IDeleteChatOptions): Promise<void> {
+	override async deleteChat(session: ISession, chatResource: URI, options?: IDeleteChatOptions): Promise<boolean> {
 		this.deletedChats.push({ session, chatResource });
 		this.deleteChatOptions.push(options);
+		return true;
 	}
 
 	override async renameChat(session: ISession, chatResource: URI, title: string): Promise<void> {
@@ -94,6 +99,7 @@ export interface ITestSession {
 	readonly capabilities: ISettableObservable<ISessionCapabilities, void>;
 	readonly status: ISettableObservable<SessionStatus, void>;
 	readonly isArchived: ISettableObservable<boolean, void>;
+	readonly isRead: ISettableObservable<boolean, void>;
 }
 
 export interface ITestSessionOptions {
@@ -101,6 +107,7 @@ export interface ITestSessionOptions {
 	readonly workspaceLabel?: string;
 	readonly status?: SessionStatus;
 	readonly isArchived?: boolean;
+	readonly isRead?: boolean;
 	readonly isQuickChat?: boolean;
 	readonly changesSummary?: ISessionChangesSummary;
 }
@@ -116,6 +123,7 @@ export function createTestSession(title: string, options: ITestSessionOptions = 
 		override readonly status = status;
 	}();
 	const isArchived = observableValue(`archived-${resourceId}`, options.isArchived ?? false);
+	const isRead = observableValue(`read-${resourceId}`, options.isRead ?? true);
 	const workspaceLabel = options.workspaceLabel ?? 'Workspace';
 	const isQuickChat = options.isQuickChat ?? false;
 	const session: ISession = {
@@ -144,14 +152,14 @@ export function createTestSession(title: string, options: ITestSessionOptions = 
 		mode: constObservable(undefined),
 		loading: constObservable(false),
 		isArchived,
-		isRead: constObservable(true),
+		isRead,
 		description: constObservable(undefined),
 		lastTurnEnd: constObservable(undefined),
 		chats: constObservable<readonly IChat[]>([]),
 		mainChat: constObservable(mainChat),
 		capabilities,
 	};
-	return { session, capabilities, status, isArchived };
+	return { session, capabilities, status, isArchived, isRead };
 }
 
 export function createSession(title: string, resourceId: string = title): ITestSession {

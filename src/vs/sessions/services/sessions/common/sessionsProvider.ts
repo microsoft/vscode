@@ -57,6 +57,14 @@ export interface ISessionsProviderCreateSessionOptions {
 	readonly automationConfiguration?: IAutomationSessionConfiguration;
 }
 
+/** A detached configuration snapshot with provider-neutral properties and the full provider-specific values. */
+export interface ISessionConfigurationSnapshot {
+	/** Selected isolation mode, or undefined when the provider cannot determine it. */
+	readonly isolation?: 'worktree' | 'folder';
+	/** Provider-specific values may contain sensitive data and must not be logged wholesale. */
+	readonly providerConfig: Readonly<Record<string, unknown>>;
+}
+
 /** Provider-owned Automation draft state plus temporary compatibility projections. */
 export interface IAutomationSessionConfiguration {
 	readonly sessionTemplate?: IAutomationSessionTemplate;
@@ -281,6 +289,13 @@ export interface ISessionsProvider {
 	resolveWorkspace(workspaceUri: URI): ISessionWorkspace | undefined;
 
 	/**
+	 * Returns the canonical URI for a workspace represented by this provider.
+	 * Providers may use this to collapse alternate execution environments onto
+	 * the user-selected source workspace.
+	 */
+	canonicalizeWorkspaceUri?(workspaceUri: URI): URI;
+
+	/**
 	 * Create a new session for the given workspace URI.
 	 * The provider should not add this session to its session list until the first request is sent.
 	 * Multiple new sessions may be created and tracked concurrently; each is
@@ -411,6 +426,9 @@ export interface ISessionsProvider {
 	 * @param level The permission level to set.
 	 */
 	setPermissionLevel?(sessionId: string, level: string): void;
+
+	/** Snapshots the draft configuration after pending changes settle, normalizing common properties at the provider boundary. */
+	getNewSessionConfig?(sessionId: string): Promise<ISessionConfigurationSnapshot | undefined>;
 
 	/**
 	 * Set the isolation mode for a session.

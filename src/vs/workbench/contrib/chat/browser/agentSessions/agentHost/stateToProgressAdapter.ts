@@ -502,12 +502,16 @@ export function isSubagentToolName(toolName: string): boolean {
 }
 
 export function systemNotificationToChatPart(content: StringOrMarkdown | undefined, connectionAuthority: string, _meta?: Record<string, unknown>): IChatProgress | undefined {
+	const meta = readAgentSystemNotificationMeta({ _meta });
+	if (meta.kind === AgentSystemNotificationKind.ResponseRoundEnded) {
+		// The chat model already treats an empty thinking chunk as the end of a thinking section.
+		return { kind: 'thinking', value: '' };
+	}
 	if (!content) {
 		return undefined;
 	}
 	const value = stringOrMarkdownToString(content, connectionAuthority);
 	const markdown = typeof value === 'string' ? new MarkdownString(value) : value;
-	const meta = readAgentSystemNotificationMeta({ _meta });
 	switch (meta.kind) {
 		case AgentSystemNotificationKind.WorktreeCreationFailure:
 			return meta.severity === AgentSystemNotificationSeverity.Warning
@@ -584,16 +588,13 @@ export function getTerminalContent(content: ToolResultContent[] | undefined): Ex
 }
 
 /**
- * Resolves a raw per-turn model id (as it appears on `UsageInfo.model`) into
- * the chat layer's namespaced language-model id and a human-readable display
- * details. Both halves are independent: the id flows onto request history
- * items (so the input picker shows the model that ran), while the details
- * flow onto response history items (so the response footer shows the model
- * and any usage metadata).
+ * Resolves selected and actual model identifiers independently, along with response display details.
  */
 export interface TurnModelLookup {
 	/** Returns the chat-layer namespaced model id for a raw AHP model id. */
 	toLanguageModelId(rawModelId: string | undefined): string | undefined;
+	/** Resolves the actual model's registered id when available, without falling back to the selected model. */
+	toActualModelId(rawModelId: string | undefined): string | undefined;
 	/** Returns the registered display name for a raw AHP model id. */
 	toModelDisplayName?(rawModelId: string): string | undefined;
 	/** Returns the human-readable response details, or undefined if unknown. */
@@ -601,10 +602,15 @@ export interface TurnModelLookup {
 	/** Returns the Auto model routing part carried by this usage report, if any. */
 	toAutoModeResolution?(usage: UsageInfo | undefined): IChatAutoModeResolutionPart | undefined;
 	/**
-	 * Returns the display name of the model a turn bills to, reading Auto's pick
+	 * Returns the identity and display name of the model a turn bills to, reading Auto's pick
 	 * when it routed and folding back to "Auto" while explainability is hidden.
 	 */
-	toBilledModelDisplayName?(usage: UsageInfo | undefined): string | undefined;
+	toBilledModelInfo?(usage: UsageInfo | undefined): ITurnModelInfo | undefined;
+}
+
+export interface ITurnModelInfo {
+	readonly modelId: string;
+	readonly modelName: string;
 }
 
 /** Minimal model metadata needed to render a turn's response footer (kept small for unit testing). */
@@ -956,16 +962,14 @@ export function usageInfoToQuotas(usage: UsageInfo | undefined): IAgentHostQuota
 /**
  * Converts completed turns from the protocol state into session history items.
  *
- * Per turn, prefers `turn.usage?.model` so each request/response pair shows
- * the model that actually ran, even if the user changed models mid-session.
- * The `lookup` callback is responsible for any session-level fallback (e.g.
- * `summary.model?.id` when usage hasn't reported a model yet).
+ * Requests preserve the selected model, while response details use the model that actually ran.
+ * The `lookup` callback supplies the session-level fallback for missing model metadata.
  */
 export function turnsToHistory(backendSession: URI, turns: readonly Turn[], participantId: string, connectionAuthority: string, lookup?: TurnModelLookup, errorContext?: IChatErrorContext, terminalCommandPrefix?: string, resourceUris: IAgentHostResourceUriMapper = createAgentHostResourceUriMapper(connectionAuthority), logicalSessionScheme: string = backendSession.scheme, errorDetailsProvider?: (turn: Turn) => IChatResponseErrorDetails | undefined): IChatSessionHistoryItem[] {
 	const history: IChatSessionHistoryItem[] = [];
 	for (const turn of turns) {
 		const rawModelId = turn.usage?.model;
-		const modelId = lookup?.toLanguageModelId(rawModelId);
+		const modelId = lookup?.toLanguageModelId(turn.message.model?.id ?? rawModelId);
 		const details = lookup?.toResponseDetails(rawModelId, turn.usage);
 
 		// Request
@@ -983,6 +987,7 @@ export function turnsToHistory(backendSession: URI, turns: readonly Turn[], part
 			prompt: turn.message.text,
 			participant: participantId,
 			modelId,
+			...(turn.message.model?.config ? { modelConfiguration: turn.message.model.config } : {}),
 			...(turn.startedAt !== undefined && Number.isFinite(Date.parse(turn.startedAt)) ? { timestamp: Date.parse(turn.startedAt) } : {}),
 			variableData,
 			...(isMessageHiddenFromTranscript(turn.message) ? { isHidden: true } : {}),
@@ -1008,6 +1013,10 @@ export function turnsToHistory(backendSession: URI, turns: readonly Turn[], part
 
 		const usage = usageInfoToChatUsage(turn.usage, lookup?.toModelDisplayName);
 		if (usage) {
+			const actualModelId = lookup?.toActualModelId(rawModelId);
+			if (actualModelId) {
+				usage.actualModelId = actualModelId;
+			}
 			parts.push(usage);
 		}
 
@@ -1864,6 +1873,11 @@ function createSessionTitleFromArgs(toolInput: string | undefined): string | und
 	}
 }
 
+function toolCallOriginMessage(tc: ToolCallState): string | undefined {
+	const serverName = readToolCallMeta(tc).mcpServerName?.trim();
+	return serverName ? localize('agentHost.mcpServer.origin', "{0} (MCP Server)", serverName) : undefined;
+}
+
 function completedToolCallConfirmedReason(tc: ICompletedToolCall): NonNullable<IChatToolInvocationSerialized['isConfirmed']> {
 	if (tc.status === ToolCallStatus.Completed) {
 		return { type: ToolConfirmKind.ConfirmationNotNeeded };
@@ -1895,7 +1909,7 @@ export function completedToolCallToSerialized(tc: ICompletedToolCall, subAgentIn
 			toolId: tc.toolName,
 			source: ToolDataSource.Internal,
 			invocationMessage: invocationMsg,
-			originMessage: undefined,
+			originMessage: toolCallOriginMessage(tc),
 			pastTenseMessage: pastTenseMsg,
 			isConfirmed: completedToolCallConfirmedReason(tc),
 			isComplete: true,
@@ -1952,7 +1966,7 @@ export function completedToolCallToSerialized(tc: ICompletedToolCall, subAgentIn
 		toolId: tc.toolName,
 		source: ToolDataSource.Internal,
 		invocationMessage: invocationMsg,
-		originMessage: undefined,
+		originMessage: toolCallOriginMessage(tc),
 		pastTenseMessage: isTerminal ? undefined : pastTenseMsg,
 		isConfirmed: completedToolCallConfirmedReason(tc),
 		isComplete: true,
@@ -2231,6 +2245,13 @@ export function rewriteAgentHostLinkTarget(href: string, connectionAuthority: st
 		}
 	}
 
+	const linkParams = new URLSearchParams(parsed.query);
+	const linkType = linkParams.get('vscodeLinkType');
+	if (linkType) {
+		linkParams.delete('vscodeLinkType');
+		parsed = parsed.with({ query: linkParams.toString() });
+	}
+
 	let agentHostUri: URI;
 	try {
 		agentHostUri = resourceUris.fromAgentHost(parsed);
@@ -2240,7 +2261,11 @@ export function rewriteAgentHostLinkTarget(href: string, connectionAuthority: st
 	} catch {
 		return href;
 	}
-	if (isSkillFileUri(parsed) && !agentHostUri.query.includes('vscodeLinkType=')) {
+	if (linkType) {
+		const params = new URLSearchParams(agentHostUri.query);
+		params.set('vscodeLinkType', linkType);
+		agentHostUri = agentHostUri.with({ query: params.toString() });
+	} else if (isSkillFileUri(parsed) && !agentHostUri.query.includes('vscodeLinkType=')) {
 		const existing = agentHostUri.query;
 		agentHostUri = agentHostUri.with({ query: existing ? `${existing}&vscodeLinkType=skill` : 'vscodeLinkType=skill' });
 	}
@@ -2436,6 +2461,7 @@ export function toolCallStateToInvocation(tc: ToolCallState, subAgentInvocationI
 		return new ChatToolInvocation(
 			{
 				invocationMessage: stringOrMarkdownToString(tc.invocationMessage, connectionAuthority),
+				originMessage: toolCallOriginMessage(tc),
 				confirmationMessages,
 				presentation: ToolInvocationPresentation.HiddenAfterComplete,
 				toolSpecificData,
@@ -2447,7 +2473,7 @@ export function toolCallStateToInvocation(tc: ToolCallState, subAgentInvocationI
 		);
 	}
 
-	const invocation = new ChatToolInvocation(undefined, toolData, tc.toolCallId, subAgentInvocationId, undefined);
+	const invocation = new ChatToolInvocation({ originMessage: toolCallOriginMessage(tc) }, toolData, tc.toolCallId, subAgentInvocationId, undefined);
 	invocation.invocationMessage = stringOrMarkdownToString(tc.invocationMessage, connectionAuthority) ?? tc.displayName;
 	if (isAgentHostAskUserTool(tc.toolName)) {
 		invocation.invocationMessage = localize('agentHost.askUser.waiting', "Waiting for answer...");
@@ -2577,6 +2603,7 @@ export function updateStreamingToolInvocation(existing: ChatToolInvocation, tc: 
 	if (tc.status !== ToolCallStatus.Streaming) {
 		return undefined;
 	}
+	existing.originMessage = toolCallOriginMessage(tc) ?? existing.originMessage;
 	// Partial read paths render as misleading file links, so wait for the complete input.
 	if (getToolKind(tc) === 'read') {
 		existing.updatePartialInput(undefined);
@@ -2605,6 +2632,7 @@ export function toolCallStateToPreparedInvocation(tc: ToolCallState, sessionReso
 	const built = toolCallStateToInvocation(tc, undefined, sessionResource, connectionAuthority, mcpServerAuthority, options, resourceUris);
 	return {
 		invocationMessage: built.invocationMessage,
+		originMessage: built.originMessage,
 		pastTenseMessage: built.pastTenseMessage,
 		confirmationMessages: built.confirmationMessages,
 		presentation: built.presentation,
@@ -2624,6 +2652,7 @@ export function updateRunningToolSpecificData(existing: ChatToolInvocation, tc: 
 		return;
 	}
 	existing.invocationMessage = stringOrMarkdownToString(tc.invocationMessage, connectionAuthority) ?? existing.invocationMessage;
+	existing.originMessage = toolCallOriginMessage(tc) ?? existing.originMessage;
 	if (isAgentHostAskUserTool(tc.toolName)) {
 		existing.invocationMessage = localize('agentHost.askUser.waiting', "Waiting for answer...");
 		existing.presentation = ToolInvocationPresentation.HiddenAfterComplete;
@@ -2644,6 +2673,7 @@ export function updateRunningToolSpecificData(existing: ChatToolInvocation, tc: 
 			agentDisplayName: subagentContent.title,
 			agentName: subagentContent.agentName,
 			credits: existing.toolSpecificData?.kind === 'subagent' ? existing.toolSpecificData.credits : undefined,
+			...(existing.toolSpecificData?.kind === 'subagent' && existing.toolSpecificData.modelId ? { modelId: existing.toolSpecificData.modelId } : {}),
 			modelName: existing.toolSpecificData?.kind === 'subagent' ? existing.toolSpecificData.modelName : undefined,
 			startedAt: existing.toolSpecificData?.kind === 'subagent' ? existing.toolSpecificData.startedAt : undefined,
 			duration: existing.toolSpecificData?.kind === 'subagent' ? existing.toolSpecificData.duration : undefined,
@@ -2740,6 +2770,7 @@ export function finalizeToolInvocation(invocation: ChatToolInvocation, tc: ToolC
 
 	if ((isCompleted || isCancelled) && hasKey(tc, { invocationMessage: true })) {
 		invocation.invocationMessage = stringOrMarkdownToString(tc.invocationMessage, connectionAuthority) ?? invocation.invocationMessage;
+		invocation.originMessage = toolCallOriginMessage(tc) ?? invocation.originMessage;
 	}
 	// Tools that render a bespoke, client-authored message override the
 	// invocation text here. Add new per-tool cases alongside this branch.
@@ -2765,6 +2796,7 @@ export function finalizeToolInvocation(invocation: ChatToolInvocation, tc: ToolC
 				agentName: subagentContent.agentName,
 				result: resultText,
 				credits: invocation.toolSpecificData?.kind === 'subagent' ? invocation.toolSpecificData.credits : undefined,
+				...(invocation.toolSpecificData?.kind === 'subagent' && invocation.toolSpecificData.modelId ? { modelId: invocation.toolSpecificData.modelId } : {}),
 				modelName: invocation.toolSpecificData?.kind === 'subagent' ? invocation.toolSpecificData.modelName : undefined,
 				startedAt: invocation.toolSpecificData?.kind === 'subagent' ? invocation.toolSpecificData.startedAt : undefined,
 				duration: invocation.toolSpecificData?.kind === 'subagent' ? invocation.toolSpecificData.duration : undefined,
@@ -2783,6 +2815,7 @@ export function finalizeToolInvocation(invocation: ChatToolInvocation, tc: ToolC
 				agentName: getSubagentAgentName(tc) ?? invocation.toolSpecificData.agentName,
 				result: getToolOutputText(tc),
 				credits: invocation.toolSpecificData.credits,
+				...(invocation.toolSpecificData.modelId ? { modelId: invocation.toolSpecificData.modelId } : {}),
 				modelName: invocation.toolSpecificData.modelName,
 				startedAt: invocation.toolSpecificData.startedAt,
 				duration: invocation.toolSpecificData.duration,

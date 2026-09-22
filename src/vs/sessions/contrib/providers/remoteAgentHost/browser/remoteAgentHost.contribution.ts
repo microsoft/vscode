@@ -43,7 +43,7 @@ import { findRemoteAgentHostSessionTypeAuthority, isRemoteAgentHostSessionType, 
 import { createRemoteAgentHarnessDescriptor, RemoteAgentPluginController } from './remoteAgentHostCustomizationHarness.js';
 import { RemoteAgentHostLogForwarder } from './remoteAgentHostLogForwarder.js';
 import { RemoteAgentHostSessionsProvider } from './remoteAgentHostSessionsProvider.js';
-import { IRemoteAgentHostConnectionCustomizationService, RemoteAgentHostConnectionCustomizationService } from './remoteAgentHostConnectionCustomization.js';
+import { IRemoteAgentHostConnectionCustomizationService, RemoteAgentHostConnectionCustomizationService, RemoteAgentHostSessionPreparation } from './remoteAgentHostConnectionCustomization.js';
 import { InstantiationType, registerSingleton } from '../../../../../platform/instantiation/common/extensions.js';
 import { IAgentHostTerminalService } from '../../../../../workbench/contrib/terminal/browser/agentHostTerminalService.js';
 import { IWorkbenchEnvironmentService } from '../../../../../workbench/services/environment/common/environmentService.js';
@@ -117,13 +117,16 @@ class ConnectionState extends Disposable {
 	readonly modelProviders = new Map<AgentProvider, AgentHostLanguageModelProvider>();
 	/** Dedupes redundant `authenticate` RPCs when the resolved token hasn't changed. */
 	readonly authTokenCache = new AgentHostAuthTokenCache();
-	readonly authRecovery = new AgentHostAuthenticationRecovery();
+	readonly authRecovery: AgentHostAuthenticationRecovery;
+	prepareSession: RemoteAgentHostSessionPreparation | undefined;
 
 	constructor(
 		readonly name: string | undefined,
 		readonly connection: IAgentConnection,
+		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super();
+		this.authRecovery = instantiationService.createInstance(AgentHostAuthenticationRecovery);
 	}
 }
 
@@ -252,6 +255,7 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 		const connState = this._instantiationService.createInstance(ConnectionState, name, connection);
 		this._connections.set(address, connState);
 		const store = connState.store;
+		connState.prepareSession = this._connectionCustomizations.get(address)?.createSessionPreparation?.(connection, store);
 
 		// Bridge the host's OTLP logs channel into a dedicated workbench
 		// Output channel (`Agent Host (${name})`). Concrete clients
@@ -332,10 +336,6 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 		const agentId = sessionType;
 		const vendor = sessionType;
 
-		// User-facing display name for this agent. We always include the
-		// agent's own name so that a host exposing multiple agents (e.g.
-		// `copilot` + `openai` from the same machine) produces distinct
-		// labels instead of collapsing to a single `configuredName`.
 		const hostLabel = configuredName || address;
 		const agentLabel = agent.displayName?.trim() || agent.provider;
 		const displayName = `${agentLabel} [${hostLabel}]`;
@@ -343,6 +343,7 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 		// Per-agent working directory cache, scoped to the agent store lifetime
 		const sessionWorkingDirs = new Map<string, URI>();
 		agentStore.add(toDisposable(() => sessionWorkingDirs.clear()));
+		const prepareSession = connState.prepareSession;
 
 		// Capture the working directory from the session that is being created.
 		const resolveWorkingDirectory = (sessionResource: URI): URI | undefined => {
@@ -433,6 +434,12 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 			extensionId: 'vscode.remote-agent-host',
 			extensionDisplayName: 'Remote Agent Host',
 			resolveWorkingDirectory,
+			prepareSession: prepareSession ? async (sessionResource, token) => {
+				const directory = await prepareSession(resolveWorkingDirectory(sessionResource), token);
+				if (directory) {
+					sessionWorkingDirs.set(sessionResource.toString(), connection.resourceUris.fromAgentHost(directory));
+				}
+			} : undefined,
 			isNewSession,
 			resolveAuthentication: (resources) => this._resolveAuthenticationInteractively(address, connection, resources),
 		}));

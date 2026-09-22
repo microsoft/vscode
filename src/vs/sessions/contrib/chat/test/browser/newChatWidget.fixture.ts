@@ -41,12 +41,12 @@ import { ISearchService } from '../../../../../workbench/services/search/common/
 import { FixtureMenuService, registerChatFixtureServices } from '../../../../../workbench/test/browser/componentFixtures/chat/chatFixtureUtils.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup } from '../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
 import { activeSessionViewBackground } from '../../../../common/theme.js';
-import { Menus } from '../../../../browser/menus.js';
+import { getNewSessionRepositoryConfigGroup, Menus } from '../../../../browser/menus.js';
 import { AgentHostFilterConnectionStatus, IAgentHostFilterService } from '../../../../services/agentHostFilter/common/agentHostFilter.js';
 import { ISessionsChatBackgroundService } from '../../../../services/chatBackground/browser/chatBackgroundService.js';
 import { SessionsChatBackgroundRenderer } from '../../../../services/chatBackground/browser/chatBackgroundRenderer.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
-import { ISessionsRecentWorkspacesService } from '../../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
+import { IRecentWorkspace, ISessionsRecentWorkspacesService } from '../../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ChatModelSource, IChat, ISession, ISessionWorkspace, ISessionType, SESSION_WORKSPACE_GROUP_GITHUB, SESSION_WORKSPACE_GROUP_LOCAL, SESSION_WORKSPACE_GROUP_REMOTE, SessionStatus, SessionTypeAuthRequirement } from '../../../../services/sessions/common/session.js';
@@ -242,7 +242,8 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 			}());
 			reg.defineInstance(ISessionsRecentWorkspacesService, new class extends mock<ISessionsRecentWorkspacesService>() {
 				override readonly onDidChangeRecentWorkspaces = Event.None;
-				override getRecentWorkspaces() { return activeSession ? [{ workspace, providerId: provider.id, checked: true }] : []; }
+				override readonly historyLoadState = constObservable('loaded' as const);
+				override getRecentWorkspaces(): IRecentWorkspace[] { return activeSession ? [{ workspace, providerId: provider.id, checked: true, source: 'agents' }] : []; }
 				override addRecentWorkspace(): void { }
 				override removeRecentWorkspace(): void { }
 				override clearCheckedWorkspace(): void { }
@@ -266,7 +267,7 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 				};
 				override readonly hosts = [];
 				override readonly isDiscovering = false;
-				override async rediscover(): Promise<void> { }
+				override async rediscover(): Promise<boolean> { return true; }
 			}());
 			reg.defineInstance(IAquariumService, new class extends mock<IAquariumService>() {
 				override mountToggle() {
@@ -364,6 +365,16 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 		const menuService = instantiationService.get(IMenuService) as FixtureMenuService;
 		menuService.addItem(Menus.NewSessionControl, { command: { id: 'fixture.plan', title: 'Plan' }, group: 'navigation', order: 0 });
 		menuService.addItem(Menus.NewSessionControl, { command: { id: 'fixture.allowAll', title: 'Allow All' }, group: 'navigation', order: 10 });
+		menuService.addItem(Menus.NewSessionRepositoryConfig, {
+			command: { id: 'fixture.worktree', title: 'New Worktree' },
+			group: getNewSessionRepositoryConfigGroup(1, 'fixture.worktree'),
+			order: 1,
+		});
+		menuService.addItem(Menus.NewSessionRepositoryConfig, {
+			command: { id: 'fixture.branch', title: 'Branch' },
+			group: getNewSessionRepositoryConfigGroup(2, 'fixture.branch'),
+			order: 2,
+		});
 	}
 
 	const view = disposableStore.add(instantiationService.createInstance(NewChatView, false, {
@@ -375,6 +386,30 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 	const nextFrame = () => new Promise<void>(resolve => targetWindow.requestAnimationFrame(() => resolve()));
 	await nextFrame();
 	await nextFrame();
+	const repositoryConfigContainer = view.element.querySelector<HTMLElement>('.new-chat-repo-config-container');
+	if (withControlPickers) {
+		const separators = view.element.querySelectorAll<HTMLElement>('.new-chat-repo-config-container .action-item.repository-config-separator');
+		const separatorLabel = separators[0]?.querySelector<HTMLElement>('.action-label.separator');
+		const separatorStyle = separatorLabel && targetWindow.getComputedStyle(separatorLabel);
+		const repositoryActionBar = view.element.querySelector<HTMLElement>('.new-chat-repo-config-container .monaco-action-bar');
+		const repositoryActionBarStyle = repositoryActionBar && targetWindow.getComputedStyle(repositoryActionBar);
+		const repositoryActions = repositoryActionBar?.querySelectorAll<HTMLElement>('.action-label:not(.separator)');
+		assert(separators.length === 1
+			&& targetWindow.getComputedStyle(separators[0]).minWidth === '0px'
+			&& separatorStyle?.margin === '0px'
+			&& separatorStyle?.height === '12px'
+			&& repositoryActionBarStyle?.height === '22px'
+			&& repositoryActionBarStyle?.borderTopStyle === 'solid'
+			&& repositoryActions?.length === 2
+			&& [...repositoryActions].every(action => {
+				const style = targetWindow.getComputedStyle(action);
+				return style.backgroundColor === 'rgba(0, 0, 0, 0)' && style.backgroundImage === 'none' && style.borderTopStyle === 'none';
+			}));
+	} else if (withChatBackground) {
+		assert(!!repositoryConfigContainer
+			&& repositoryConfigContainer.classList.contains('has-no-actions')
+			&& targetWindow.getComputedStyle(repositoryConfigContainer).display === 'none');
+	}
 	if (phoneLayout && withAttachedContext) {
 		const content = view.element.querySelector<HTMLElement>('.new-chat-widget-content');
 		assert(!!content);

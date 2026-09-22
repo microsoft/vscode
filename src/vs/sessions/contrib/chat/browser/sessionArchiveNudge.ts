@@ -6,30 +6,23 @@
 import { structuralEquals } from '../../../../base/common/equals.js';
 import { Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun, derived, derivedOpts, IObservable, IReader, observableSignalFromEvent, observableValue } from '../../../../base/common/observable.js';
-import { localize, localize2 } from '../../../../nls.js';
-import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
-import { Action2 } from '../../../../platform/actions/common/actions.js';
+import { autorun, derived, derivedOpts, IObservable, IReader, observableSignalFromEvent } from '../../../../base/common/observable.js';
+import { localize } from '../../../../nls.js';
 import { getChatSessionArchiveActionWording } from '../../../../platform/chat/common/sessionArchiveActions.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
-import { createDecorator, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
-import { IsSessionsWindowContext } from '../../../../workbench/common/contextkeys.js';
 import { IChatSessionArchiveNudgeOptions } from '../../../../workbench/contrib/chat/browser/widget/input/chatSessionArchiveNudge.js';
-import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { onboardingScenarioRegistry } from '../../../../workbench/contrib/onboarding/common/onboardingRegistry.js';
 import { OnboardingOutcome } from '../../../../workbench/contrib/onboarding/common/onboardingScenario.js';
 import { IOnboardingScenarioService, ONBOARDING_ENABLED_CONFIG } from '../../../../workbench/contrib/onboarding/common/onboardingScenarioService.js';
 import { IChatEntitlementService } from '../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
-import { SessionIsActiveContext, SessionIsArchivedContext, SessionIsCreatedContext } from '../../../common/contextkeys.js';
 import { hashSessionIdForTelemetry } from '../../../common/sessionsTelemetry.js';
-import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
-import { isActiveSessionStatus, ISession, ISessionArtifact, SessionArtifactKind, SessionStatus } from '../../../services/sessions/common/session.js';
+import { getSessionOwnedGitHubPullRequestRefs, isActiveSessionStatus, ISession, SessionArtifactKind, SessionStatus } from '../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { IGitHubService } from '../../github/browser/githubService.js';
 import { GitHubPullRequestState } from '../../github/common/types.js';
@@ -42,19 +35,19 @@ import { SessionsView, SessionsViewId } from '../../sessions/browser/views/sessi
 export const SESSION_ARCHIVE_NUDGE_SETTING = 'chat.agentSessions.archiveNudge.enabled';
 
 const DISMISSED_STORAGE_KEY_PREFIX = 'sessions.archiveNudge.dismissed.';
+const ARCHIVE_COUNT_STORAGE_KEY = 'sessions.archiveNudge.archiveCount';
+const COMPACT_AFTER_ARCHIVE_COUNT = 3;
 
 interface ISessionArchiveNudgeState {
 	readonly session: ISession;
 	readonly hasWorktree: boolean;
 	readonly pullRequestCount: number;
-	readonly isDebug?: boolean;
 }
 
 export interface ISessionArchiveNudgeService {
 	readonly _serviceBrand: undefined;
-	readonly debugSession: IObservable<ISession | undefined>;
-	showForTesting(session: ISession): void;
 	isDismissed(session: ISession, reader: IReader | undefined): boolean;
+	shouldShowCompact(reader: IReader | undefined): boolean;
 	markShown(state: ISessionArchiveNudgeState): void;
 	dismiss(state: ISessionArchiveNudgeState): void;
 	showArchiveOnboarding(session: ISession): Promise<void>;
@@ -72,10 +65,10 @@ type SessionArchiveNudgeEvent = {
 
 type SessionArchiveNudgeClassification = {
 	owner: 'benibenj';
-	comment: 'Tracks exposure to and interaction with the session archive suggestion after pull request artifacts have merged.';
+	comment: 'Tracks exposure to and interaction with the session archive suggestion after GitHub pull requests associated with the session have merged.';
 	agentSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'SHA-1 hash of the globally unique session identifier, matching session lifecycle events without exposing provider or resource details.' };
 	action: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the suggestion was shown, dismissed, or used to archive the session.' };
-	pullRequestCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of distinct merged GitHub pull request artifacts.' };
+	pullRequestCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of distinct merged GitHub pull requests from session artifacts and session-owned associations.' };
 	hasWorktree: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the suggestion explained worktree cleanup.' };
 };
 
@@ -83,9 +76,8 @@ export class SessionArchiveNudgeService extends Disposable implements ISessionAr
 	declare readonly _serviceBrand: undefined;
 
 	private readonly _shown = new Set<string>();
-	private readonly _debugSession = observableValue<ISession | undefined>(this, undefined);
-	readonly debugSession: IObservable<ISession | undefined> = this._debugSession;
 	private readonly _dismissalChanged: IObservable<void>;
+	private readonly _archiveCountChanged: IObservable<void>;
 	private readonly _onboardingStore = this._register(new MutableDisposable<DisposableStore>());
 	private _onboardingInFlight: Promise<void> | undefined;
 
@@ -103,6 +95,7 @@ export class SessionArchiveNudgeService extends Disposable implements ISessionAr
 			this._storageService.onDidChangeValue(StorageScope.PROFILE, undefined, this._store),
 			event => event.key.startsWith(DISMISSED_STORAGE_KEY_PREFIX),
 		));
+		this._archiveCountChanged = observableSignalFromEvent(this, this._storageService.onDidChangeValue(StorageScope.PROFILE, ARCHIVE_COUNT_STORAGE_KEY, this._store));
 		this._register(this._sessionsManagementService.onDidArchiveSession(session => this._clear(session)));
 		this._register(this._sessionsManagementService.onDidUnarchiveSession(session => this._clear(session)));
 		this._register(this._sessionsManagementService.onDidDeleteSession(session => this._clear(session)));
@@ -124,15 +117,13 @@ export class SessionArchiveNudgeService extends Disposable implements ISessionAr
 		return this._storageService.getBoolean(`${DISMISSED_STORAGE_KEY_PREFIX}${session.sessionId}`, StorageScope.PROFILE, false);
 	}
 
-	showForTesting(session: ISession): void {
-		if (!isSessionAvailableForArchiveNudge(session, undefined)) {
-			throw new Error(localize('sessionArchiveNudge.debugUnavailable', "Select a connected, idle session that has not been archived or marked as done, then try again."));
-		}
-		this._debugSession.set(session, undefined);
+	shouldShowCompact(reader: IReader | undefined): boolean {
+		this._archiveCountChanged.read(reader);
+		return this._storageService.getNumber(ARCHIVE_COUNT_STORAGE_KEY, StorageScope.PROFILE, 0) >= COMPACT_AFTER_ARCHIVE_COUNT;
 	}
 
 	markShown(state: ISessionArchiveNudgeState): void {
-		if (!state.isDebug && !this._shown.has(state.session.sessionId)) {
+		if (!this._shown.has(state.session.sessionId)) {
 			this._shown.add(state.session.sessionId);
 			this._log(state, 'shown');
 		}
@@ -140,9 +131,6 @@ export class SessionArchiveNudgeService extends Disposable implements ISessionAr
 
 	dismiss(state: ISessionArchiveNudgeState): void {
 		this._storageService.store(`${DISMISSED_STORAGE_KEY_PREFIX}${state.session.sessionId}`, true, StorageScope.PROFILE, StorageTarget.MACHINE);
-		if (state.isDebug) {
-			this._debugSession.set(undefined, undefined);
-		}
 		this._log(state, 'dismissed');
 	}
 
@@ -151,6 +139,8 @@ export class SessionArchiveNudgeService extends Disposable implements ISessionAr
 		if (!state.session.isArchived.get()) {
 			throw new Error(localize('sessionArchiveNudge.updateFailed', "The session could not be updated. Check its connection and try again."));
 		}
+		const archiveCount = this._storageService.getNumber(ARCHIVE_COUNT_STORAGE_KEY, StorageScope.PROFILE, 0);
+		this._storageService.store(ARCHIVE_COUNT_STORAGE_KEY, Math.min(archiveCount + 1, COMPACT_AFTER_ARCHIVE_COUNT), StorageScope.PROFILE, StorageTarget.MACHINE);
 		this._log(state, 'archived');
 	}
 
@@ -186,8 +176,8 @@ export class SessionArchiveNudgeService extends Disposable implements ISessionAr
 			store.add(onboardingScenarioRegistry.register(scenario));
 			const outcome = await this._onboardingService.runScenario(scenario.id);
 			if (outcome !== OnboardingOutcome.Completed && outcome !== OnboardingOutcome.Skipped) {
+				// Allow the optional introduction to retry later without blocking the requested archive.
 				this._onboardingService.reset(scenario.id);
-				throw new Error(localize('archiveOnboarding.interrupted', "The session list introduction was interrupted. Try again."));
 			}
 		} finally {
 			this._onboardingStore.clear();
@@ -195,17 +185,11 @@ export class SessionArchiveNudgeService extends Disposable implements ISessionAr
 	}
 
 	private _clear(session: ISession): void {
-		if (this._debugSession.get()?.sessionId === session.sessionId) {
-			this._debugSession.set(undefined, undefined);
-		}
 		this._shown.delete(session.sessionId);
 		this._storageService.remove(`${DISMISSED_STORAGE_KEY_PREFIX}${session.sessionId}`, StorageScope.PROFILE);
 	}
 
 	private _log(state: ISessionArchiveNudgeState, action: SessionArchiveNudgeEvent['action']): void {
-		if (state.isDebug) {
-			return;
-		}
 		this._telemetryService.publicLog2<SessionArchiveNudgeEvent, SessionArchiveNudgeClassification>('agents/sessionArchiveNudge', {
 			agentSessionId: hashSessionIdForTelemetry(state.session.sessionId),
 			action,
@@ -220,29 +204,6 @@ export class SessionArchiveNudgeContribution {
 	static readonly ID = 'workbench.contrib.sessionArchiveNudge';
 
 	constructor(@ISessionArchiveNudgeService _service: ISessionArchiveNudgeService) { }
-}
-
-export class ShowSessionArchiveNudgeAction extends Action2 {
-	constructor() {
-		super({
-			id: 'sessions.debug.showArchiveNudge',
-			title: localize2('sessions.debug.showArchiveNudge', "Show Session Archive Nudge"),
-			category: Categories.Developer,
-			f1: true,
-			precondition: ContextKeyExpr.and(IsSessionsWindowContext, ChatContextKeys.enabled, SessionIsCreatedContext, SessionIsArchivedContext.negate(), SessionIsActiveContext.negate()),
-		});
-	}
-
-	override async run(accessor: ServicesAccessor): Promise<void> {
-		const sessionsService = accessor.get(ISessionsService);
-		const nudgeService = accessor.get(ISessionArchiveNudgeService);
-		const session = sessionsService.activeSession.get();
-		if (!session || accessor.get(IChatEntitlementService).sentimentObs.get().hidden) {
-			throw new Error(localize('sessionArchiveNudge.debugNoSession', "Open a session with chat enabled before showing the archive suggestion."));
-		}
-		await sessionsService.openChat(session, session.mainChat.get().resource);
-		nudgeService.showForTesting(session);
-	}
 }
 
 function isSessionAvailableForArchiveNudge(session: ISession, reader: IReader | undefined): boolean {
@@ -260,9 +221,19 @@ function isSessionAvailableForArchiveNudge(session: ISession, reader: IReader | 
 	return !connectionStatus || connectionStatus.kind === 'connected';
 }
 
-function getPullRequestArtifacts(artifacts: readonly ISessionArtifact[]): readonly { owner: string; repo: string; number: number }[] | undefined {
+function getSessionPullRequests(session: ISession, reader: IReader): readonly { owner: string; repo: string; number: number }[] | undefined {
 	const pullRequests = new Map<string, { owner: string; repo: string; number: number }>();
-	for (const artifact of artifacts) {
+	function addPullRequest(pullRequest: { owner: string; repo: string; number: number }): boolean {
+		const { number } = pullRequest;
+		if (!Number.isSafeInteger(number) || number < 1) {
+			return false;
+		}
+		const owner = pullRequest.owner.toLowerCase();
+		const repo = pullRequest.repo.toLowerCase();
+		pullRequests.set(getPullRequestKey(owner, repo, number), { owner, repo, number });
+		return true;
+	}
+	for (const artifact of session.artifacts?.read(reader) ?? []) {
 		if (!artifact.isArtifact || artifact.kind !== SessionArtifactKind.PullRequest || artifact.isGitHub === false) {
 			continue;
 		}
@@ -273,15 +244,19 @@ function getPullRequestArtifacts(artifacts: readonly ISessionArtifact[]): readon
 			}
 			continue;
 		}
-		const { number } = pullRequest;
-		if (!Number.isSafeInteger(number) || number < 1) {
+		if (!addPullRequest(pullRequest)) {
 			return undefined;
 		}
-		const owner = pullRequest.owner.toLowerCase();
-		const repo = pullRequest.repo.toLowerCase();
-		pullRequests.set(getPullRequestKey(owner, repo, number), { owner, repo, number });
 	}
-	return [...pullRequests.values()];
+	for (const folder of session.workspace.read(reader)?.folders ?? []) {
+		for (const ref of getSessionOwnedGitHubPullRequestRefs(folder.gitRepository?.gitHubInfo.read(reader))) {
+			const pullRequest = parseGitHubPullRequestUrl(ref.uri.toString());
+			if (!pullRequest || !addPullRequest(pullRequest)) {
+				return undefined;
+			}
+		}
+	}
+	return [...pullRequests.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([, pullRequest]) => pullRequest);
 }
 
 export class SessionArchiveNudge extends Disposable {
@@ -307,19 +282,15 @@ export class SessionArchiveNudge extends Disposable {
 			if (!current || !isSessionAvailableForArchiveNudge(current, reader)) {
 				return undefined;
 			}
-			if (this._nudgeService.debugSession.read(reader) !== current && (!enabled.read(reader) || this._nudgeService.isDismissed(current, reader))) {
+			if (!enabled.read(reader) || this._nudgeService.isDismissed(current, reader)) {
 				return undefined;
 			}
 			return current;
 		});
-		const pullRequests = derivedOpts<ReturnType<typeof getPullRequestArtifacts>>({ owner: this, equalsFn: structuralEquals }, reader => {
+		const pullRequests = derivedOpts<ReturnType<typeof getSessionPullRequests>>({ owner: this, equalsFn: structuralEquals }, reader => {
 			const current = eligibleSession.read(reader);
-			if (current === this._nudgeService.debugSession.read(reader)) {
-				return undefined;
-			}
-			const artifacts = current?.artifacts?.read(reader);
-			// The shared model must not resolve a github.com artifact against an enterprise host.
-			return artifacts?.length && !gitHubService.enterpriseHost ? getPullRequestArtifacts(artifacts) : undefined;
+			// The shared model must not resolve github.com pull requests against an enterprise host.
+			return current && !gitHubService.enterpriseHost ? getSessionPullRequests(current, reader) : undefined;
 		});
 		const models = derived(this, reader => {
 			return pullRequests.read(reader)?.map(pullRequest => {
@@ -332,16 +303,15 @@ export class SessionArchiveNudge extends Disposable {
 		this._state = derivedOpts({
 			owner: this,
 			equalsFn: (a: ISessionArchiveNudgeState | undefined, b: ISessionArchiveNudgeState | undefined) =>
-				a?.session === b?.session && a?.hasWorktree === b?.hasWorktree && a?.pullRequestCount === b?.pullRequestCount && a?.isDebug === b?.isDebug,
+				a?.session === b?.session && a?.hasWorktree === b?.hasWorktree && a?.pullRequestCount === b?.pullRequestCount,
 		}, reader => {
 			const current = eligibleSession.read(reader);
 			if (!current) {
 				return undefined;
 			}
-			const isDebug = this._nudgeService.debugSession.read(reader) === current;
 			const pullRequestModels = models.read(reader);
-			const pullRequestCount = isDebug ? 1 : pullRequestModels?.length;
-			if (!pullRequestCount || (!isDebug && !pullRequestModels?.every(model => model.pullRequest.read(reader)?.state === GitHubPullRequestState.Merged))) {
+			const pullRequestCount = pullRequestModels?.length;
+			if (!pullRequestCount || !pullRequestModels?.every(model => model.pullRequest.read(reader)?.state === GitHubPullRequestState.Merged)) {
 				return undefined;
 			}
 			const workspace = current.workspace.read(reader);
@@ -349,12 +319,12 @@ export class SessionArchiveNudge extends Disposable {
 				session: current,
 				hasWorktree: !!workspace && !workspace.isVirtualWorkspace && (!!current.worktreePending?.read(reader) || workspace.folders.some(folder => !!folder.gitRepository?.workTreeUri)),
 				pullRequestCount,
-				isDebug,
 			};
 		});
-		this.options = this._state.map(state => state && ({
+		this.options = this._state.map((state, reader) => state && ({
 			hasWorktree: state.hasWorktree,
 			pullRequestCount: state.pullRequestCount,
+			compact: this._nudgeService.shouldShowCompact(reader),
 			onDismiss: () => this._nudgeService.dismiss(state),
 			onOpenCleanupSettings: () => commandService.executeCommand('workbench.action.openSettings', AUTOMATIC_MERGED_SESSION_CLEANUP_SETTINGS_QUERY),
 			onArchive: async () => {
