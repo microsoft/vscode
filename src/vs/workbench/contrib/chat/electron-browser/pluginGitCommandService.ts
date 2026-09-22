@@ -123,21 +123,19 @@ export class NativePluginGitCommandService implements IPluginGitService {
 		runWithAuthentication: (authentication: IGitAuthentication) => Promise<T>,
 		beforeRetry?: () => Promise<void>,
 	): Promise<T> {
+		const canUseEditorAuthentication = remoteUrl !== undefined && isCanonicalGitHubCloneUrl(remoteUrl);
+		const authentication = canUseEditorAuthentication ? await this._getGitHubAuthentication(token) : undefined;
+		this._throwIfCancelled(token);
+
 		try {
 			return await runNative();
 		} catch (error) {
-			if (!remoteUrl || !isCanonicalGitHubCloneUrl(remoteUrl) || !this._isAuthenticationFailure(error)) {
+			if (!authentication || !this._isAuthenticationFailure(error)) {
 				this._logGitError(operation, error);
 				throw error;
 			}
 
-			const authentication = await this._getGitHubAuthentication(token);
 			this._throwIfCancelled(token);
-			if (!authentication) {
-				this._logGitError(operation, error);
-				throw error;
-			}
-
 			this._logService.warn(`[NativePluginGitCommandService] Native Git authentication failed for '${operation}'. Retrying with VS Code authentication.`);
 			await beforeRetry?.();
 			return runWithAuthentication(authentication);
