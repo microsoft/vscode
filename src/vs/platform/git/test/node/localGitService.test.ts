@@ -15,18 +15,22 @@ import { LocalGitService } from '../../node/localGitService.js';
 
 interface IExecFileExpectation {
 	args: string[];
+	environment?: Record<string, string>;
 	stdout?: string;
 	stderr?: string;
 	error?: cp.ExecFileException;
 }
 
 function createExecFile(expectations: IExecFileExpectation[]): typeof cp.execFile {
-	return ((command: string, args: readonly string[], _options: cp.ExecFileOptions, callback: (error: cp.ExecFileException | null, stdout: string, stderr: string) => void) => {
+	return ((command: string, args: readonly string[], options: cp.ExecFileOptions, callback: (error: cp.ExecFileException | null, stdout: string, stderr: string) => void) => {
 		assert.strictEqual(command, 'git');
 
 		const expectation = expectations.shift();
 		assert.ok(expectation, `Unexpected git call: ${(args as string[]).join(' ')}`);
 		assert.deepStrictEqual(args, expectation.args);
+		for (const [key, value] of Object.entries(expectation.environment ?? {})) {
+			assert.strictEqual(options.env?.[key], value);
+		}
 
 		queueMicrotask(() => callback(expectation.error ?? null, expectation.stdout ?? '', expectation.stderr ?? ''));
 
@@ -56,6 +60,29 @@ suite('LocalGitService', () => {
 
 	teardown(async () => {
 		await Promise.all(temporaryDirectories.splice(0).map(directory => fs.rm(directory, { recursive: true, force: true })));
+	});
+
+	test('clone passes scoped HTTP authentication through Git config environment variables', async () => {
+		const configuredCount = Number.parseInt(process.env.GIT_CONFIG_COUNT ?? '', 10);
+		const index = Number.isInteger(configuredCount) && configuredCount >= 0 ? configuredCount : 0;
+		const expectations: IExecFileExpectation[] = [{
+			args: ['clone', '--', 'https://github.com/test/private.git', '/tmp/private'],
+			environment: {
+				GIT_CONFIG_COUNT: String(index + 1),
+				[`GIT_CONFIG_KEY_${index}`]: 'http.https://github.com/.extraHeader',
+				[`GIT_CONFIG_VALUE_${index}`]: 'Authorization: Basic secret',
+			},
+		}];
+		const service = new LocalGitService(new NullLogService(), createExecFile(expectations));
+
+		await service.clone('test-op', 'https://github.com/test/private.git', '/tmp/private', undefined, {
+			authentication: {
+				urlPrefix: 'https://github.com/',
+				authorizationHeader: 'Authorization: Basic secret',
+			},
+		});
+
+		assert.strictEqual(expectations.length, 0);
 	});
 
 	test('pull runs ff-only for normal updates', async () => {

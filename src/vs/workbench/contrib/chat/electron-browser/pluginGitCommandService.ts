@@ -4,9 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
+import { CancellationError } from '../../../../base/common/errors.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
-import { ILocalGitService } from '../../../../platform/git/common/localGitService.js';
+import { IGitAuthentication, ILocalGitService } from '../../../../platform/git/common/localGitService.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { IAuthenticationService } from '../../../services/authentication/common/authentication.js';
+import { parseGitHubCloneUrl } from '../browser/githubRepoFetcher.js';
+import { getExistingGitHubAuthenticationToken } from '../browser/pluginGitHubAuthentication.js';
 import { IPluginGitService } from '../common/plugins/pluginGitService.js';
 
 /**
@@ -22,6 +28,8 @@ export class NativePluginGitCommandService implements IPluginGitService {
 
 	constructor(
 		@ILocalGitService private readonly _localGitService: ILocalGitService,
+		@IAuthenticationService private readonly _authenticationService: IAuthenticationService,
+		@ILogService private readonly _logService: ILogService,
 	) { }
 
 	private _withCancel<T>(token: CancellationToken | undefined, fn: (operationId: string) => Promise<T>): Promise<T> {
@@ -33,11 +41,17 @@ export class NativePluginGitCommandService implements IPluginGitService {
 	}
 
 	async cloneRepository(cloneUrl: string, targetDir: URI, ref?: string, token?: CancellationToken): Promise<void> {
-		await this._withCancel(token, id => this._localGitService.clone(id, cloneUrl, targetDir.fsPath, ref));
+		await this._withCancel(token, async id => {
+			const authentication = parseGitHubCloneUrl(cloneUrl) ? await this._getGitHubAuthentication(token) : undefined;
+			await this._localGitService.clone(id, cloneUrl, targetDir.fsPath, ref, { authentication });
+		});
 	}
 
 	async pull(repoDir: URI, token?: CancellationToken): Promise<boolean> {
-		return this._withCancel(token, id => this._localGitService.pull(id, repoDir.fsPath, { allowHardResetOnDivergence: true }));
+		return this._withCancel(token, async id => this._localGitService.pull(id, repoDir.fsPath, {
+			allowHardResetOnDivergence: true,
+			authentication: await this._getGitHubAuthentication(token),
+		}));
 	}
 
 	async checkout(repoDir: URI, treeish: string, detached?: boolean, token?: CancellationToken): Promise<void> {
@@ -53,14 +67,25 @@ export class NativePluginGitCommandService implements IPluginGitService {
 	}
 
 	async fetch(repoDir: URI, token?: CancellationToken): Promise<void> {
-		await this._withCancel(token, id => this._localGitService.fetch(id, repoDir.fsPath));
+		await this._withCancel(token, async id => this._localGitService.fetch(id, repoDir.fsPath, { authentication: await this._getGitHubAuthentication(token) }));
 	}
 
 	async fetchRepository(repoDir: URI, token?: CancellationToken): Promise<void> {
-		await this._withCancel(token, id => this._localGitService.fetch(id, repoDir.fsPath));
+		await this._withCancel(token, async id => this._localGitService.fetch(id, repoDir.fsPath, { authentication: await this._getGitHubAuthentication(token) }));
 	}
 
 	async revListCount(repoDir: URI, fromRef: string, toRef: string): Promise<number> {
 		return this._localGitService.revListCount(repoDir.fsPath, fromRef, toRef);
+	}
+
+	private async _getGitHubAuthentication(cancellationToken: CancellationToken | undefined): Promise<IGitAuthentication | undefined> {
+		const accessToken = await getExistingGitHubAuthenticationToken(this._authenticationService, this._logService);
+		if (cancellationToken?.isCancellationRequested) {
+			throw new CancellationError();
+		}
+		return accessToken ? {
+			urlPrefix: 'https://github.com/',
+			authorizationHeader: `Authorization: Basic ${encodeBase64(VSBuffer.fromString(`x-access-token:${accessToken}`))}`,
+		} : undefined;
 	}
 }
