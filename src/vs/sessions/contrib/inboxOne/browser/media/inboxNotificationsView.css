@@ -197,10 +197,6 @@
 	padding: 0 var(--vscode-spacing-size60);
 }
 
-.inbox-notifications-item-pr-state-link .codicon {
-	display: none;
-}
-
 .inbox-notifications-chat-part-host {
 	margin-top: var(--vscode-spacing-size100);
 }

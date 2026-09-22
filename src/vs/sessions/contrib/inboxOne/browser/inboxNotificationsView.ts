@@ -219,22 +219,23 @@ export class InboxNotificationsView extends AbstractCustomView {
 			const pullRequestStates = card.appendChild($('.inbox-notifications-item-pr-states'));
 			for (const pullRequestState of item.pullRequestStates) {
 				const pullRequestStateElement = pullRequestStates.appendChild($('.inbox-notifications-item-pr-state'));
-				const icon = pullRequestStateElement.appendChild(renderIcon(pullRequestState.icon));
-				icon.setAttribute('aria-hidden', 'true');
 				const pullRequestUri = pullRequestState.pullRequestUri;
 				if (pullRequestUri) {
 					const pullRequestButton = this.renderedListDisposables.add(new Button(pullRequestStateElement, {
 						...defaultButtonStyles,
 						secondary: true,
 						small: true,
+						supportIcons: true,
 						ariaLabel: localize('inboxNotifications.pullRequestStateLink.ariaLabel', "Open pull request {0}", pullRequestState.label),
 					}));
 					pullRequestButton.element.classList.add('inbox-notifications-item-pr-state-link');
-					pullRequestButton.label = pullRequestState.label;
+					pullRequestButton.label = `$(${pullRequestState.icon.id}) ${pullRequestState.label}`;
 					this.renderedListDisposables.add(pullRequestButton.onDidClick(() => {
 						void this.openerService.open(pullRequestUri).catch(onUnexpectedError);
 					}));
 				} else {
+					const icon = pullRequestStateElement.appendChild(renderIcon(pullRequestState.icon));
+					icon.setAttribute('aria-hidden', 'true');
 					pullRequestStateElement.appendChild($('span.inbox-notifications-item-pr-state-label', undefined, pullRequestState.label));
 				}
 			}
