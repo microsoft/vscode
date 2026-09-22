@@ -89,6 +89,7 @@ import { McpCustomizationController, type ISdkMcpServer } from '../shared/mcpCus
 import { getSdkMcpServerEnablement, resolveCustomizationEnablement, targetForMcpServer } from '../shared/customizationEnablementGate.js';
 import { appendSdkToolResultContent, mapSessionEvents } from './mapSessionEvents.js';
 import { CopilotFusionProgress, type ICopilotFusionProgressUpdate } from './copilotFusionProgress.js';
+import { getFusionEventKey, getFusionEventSdkTurnId } from './copilotFusionEventIdentity.js';
 import { addAttachmentDisplayKindToMimeType, addSimpleAttachmentDisplayKindToMimeType } from './copilotAttachmentUtils.js';
 import { buildPendingEditContentUri } from './pendingEditContentStore.js';
 import { IAgentHostCustomizationEnablementService } from '../agentHostCustomizationEnablementService.js';
@@ -1187,10 +1188,12 @@ export class CopilotAgentSession extends Disposable {
 	 */
 	private readonly _pendingMcpSamplings = new Set<string>();
 
-	/** Tracks whether a non-empty activity has been published, so we only emit a clear when needed. */
-	private _hasActivity = false;
 	private readonly _fusionProgress = new CopilotFusionProgress();
-	private _fusionActivity: string | undefined;
+	/** Retains workflow ownership across turn resets because steering can reassign an SDK turn id. */
+	private readonly _fusionEventTurnIds = new Map<string, string>();
+	private _requiresFusionEventOwnership = false;
+	private readonly _activities: Record<'intent' | 'fusion', string | undefined> = { intent: undefined, fusion: undefined };
+	private _publishedActivity: string | undefined;
 
 	/**
 	 * Last SDK-reported MCP status logged for each server (keyed by server
@@ -1863,7 +1866,7 @@ export class CopilotAgentSession extends Disposable {
 	 */
 	resetTurnState(turnId: string, senderClientId?: string, clientType = AgentHostClientType.Unknown, clientContext = createUnknownAgentHostClientTelemetryContext(clientType)): void {
 		this._fusionProgress.reset();
-		this._fusionActivity = undefined;
+		this._clearActivity();
 		this._detectInterruptedTurnOnRestore = false;
 		this._streamingToolCalls.clear();
 		this._streamingToolDisplaySchedulers.clearAndDisposeAll();
@@ -1990,11 +1993,7 @@ export class CopilotAgentSession extends Disposable {
 	private _clearActiveTurn(): void {
 		const turn = this._currentTurn.value;
 		this._fusionProgress.reset();
-		if (this._fusionActivity !== undefined) {
-			this._fusionActivity = undefined;
-			this._hasActivity = false;
-			this._emitAction({ type: ActionType.SessionActivityChanged, activity: undefined });
-		}
+		this._clearActivity();
 		if (turn) {
 			this._cacheTokenUsage(turn.id, turn.observedTokenUsage.snapshot());
 		}
@@ -3575,6 +3574,9 @@ export class CopilotAgentSession extends Disposable {
 		const resumingTurn = this._resumingTurnAwaitingProviderStart;
 		const abortTarget = abortingTurn ?? resumingTurn;
 		this._abortingTurn = abortTarget;
+		if (abortTarget) {
+			this._requiresFusionEventOwnership = true;
+		}
 		if (abortingTurn) {
 			this._dropLateRootTurnEvents = true;
 		}
@@ -3630,6 +3632,7 @@ export class CopilotAgentSession extends Disposable {
 				.then(() => this._disposeShellInitScript());
 		}
 		super.dispose();
+		this._fusionEventTurnIds.clear();
 	}
 
 	/**
@@ -5170,6 +5173,12 @@ export class CopilotAgentSession extends Disposable {
 				}
 			}
 			if (this._turnId) {
+				if (e.data.turnId) {
+					this._hostTurnIdsBySdkTurnId.set(e.data.turnId, this._turnId);
+				}
+				if (e.data.interactionId) {
+					this._hostTurnIdsByInteractionId.set(e.data.interactionId, this._turnId);
+				}
 				this._databaseRef.object.setTurnEventId(this._turnId, e.id);
 				this._currentTurn.value?.completeEventId(e.id);
 			}
@@ -5699,15 +5708,12 @@ export class CopilotAgentSession extends Disposable {
 			const abortingTurn = this._abortingTurn;
 			this._abortingTurn = undefined;
 			if (e.data.aborted) {
+				if (!e.agentId) {
+					this._requiresFusionEventOwnership = true;
+				}
 				this._resetAbortToken();
 			}
-			if (this._hasActivity) {
-				this._hasActivity = false;
-				this._emitAction({
-					type: ActionType.SessionActivityChanged,
-					activity: undefined,
-				});
-			}
+			this._clearActivity();
 			const turn = this._currentTurn.value;
 			if (!turn) {
 				return;
@@ -6801,6 +6807,20 @@ export class CopilotAgentSession extends Disposable {
 		}));
 	}
 
+	private _publishActivity(source: 'intent' | 'fusion', activity: string | undefined): void {
+		this._activities[source] = activity;
+		const effectiveActivity = this._activities.fusion ?? this._activities.intent;
+		if (effectiveActivity !== this._publishedActivity) {
+			this._publishedActivity = effectiveActivity;
+			this._emitAction({ type: ActionType.SessionActivityChanged, activity: effectiveActivity });
+		}
+	}
+
+	private _clearActivity(): void {
+		this._activities.intent = undefined;
+		this._publishActivity('fusion', undefined);
+	}
+
 	private _emitFusionProgress(update: ICopilotFusionProgressUpdate, trustedRootTurn = false): void {
 		const turn = this._currentTurn.value;
 		if (!turn) {
@@ -6836,11 +6856,7 @@ export class CopilotAgentSession extends Disposable {
 				}, undefined, trustedRootTurn);
 			}
 		}
-		if (update.activity !== this._fusionActivity) {
-			this._fusionActivity = update.activity;
-			this._hasActivity = update.activity !== undefined;
-			this._emitAction({ type: ActionType.SessionActivityChanged, activity: update.activity });
-		}
+		this._publishActivity('fusion', update.activity);
 	}
 
 	private _subscribeToSdkEvents(): void {
@@ -6850,6 +6866,18 @@ export class CopilotAgentSession extends Disposable {
 		this._register(wrapper.onFusionEvent(event => {
 			const turn = this._currentTurn.value;
 			if (!turn || event.agentId || this._shouldDropLateRootTurnEvent(event.type, true)) {
+				return;
+			}
+			const key = getFusionEventKey(event);
+			const sdkTurnId = getFusionEventSdkTurnId(event);
+			const ownerTurnId = this._fusionEventTurnIds.get(key) ?? (sdkTurnId ? this._hostTurnIdsBySdkTurnId.get(sdkTurnId) : undefined);
+			if (ownerTurnId === undefined && this._requiresFusionEventOwnership) {
+				this._logService.trace(`[Copilot:${sessionId}] Ignoring Fusion event without request ownership after cancellation: ${event.type}`);
+				return;
+			}
+			this._fusionEventTurnIds.set(key, ownerTurnId ?? turn.id);
+			if (ownerTurnId !== undefined && ownerTurnId !== turn.id) {
+				this._logService.trace(`[Copilot:${sessionId}] Ignoring Fusion event for an earlier turn: ${event.type}`);
 				return;
 			}
 			const update = this._fusionProgress.accept(event);
@@ -7015,15 +7043,7 @@ export class CopilotAgentSession extends Disposable {
 
 		this._register(wrapper.onIntent(e => {
 			this._logService.trace(`[Copilot:${sessionId}] Intent: ${e.data.intent}`);
-			const activity = e.data.intent || undefined;
-			if (activity === undefined && !this._hasActivity) {
-				return;
-			}
-			this._hasActivity = activity !== undefined;
-			this._emitAction({
-				type: ActionType.SessionActivityChanged,
-				activity,
-			});
+			this._publishActivity('intent', e.data.intent || undefined);
 		}));
 
 		this._register(wrapper.onReasoning(e => {
@@ -7042,8 +7062,10 @@ export class CopilotAgentSession extends Disposable {
 
 		this._register(wrapper.onAbort(e => {
 			this._logService.trace(`[Copilot:${sessionId}] Aborted: ${e.data.reason}`);
-			if (!e.agentId && this._currentTurn.value) {
-				const update = this._fusionProgress.interrupt();
+			if (!e.agentId) {
+				this._requiresFusionEventOwnership = true;
+				const update = this._fusionProgress.interrupt(e.timestamp);
+				this._clearActivity();
 				if (update) {
 					this._emitFusionProgress(update, true);
 				}

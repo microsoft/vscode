@@ -97,6 +97,7 @@ export class CopilotFusionProgress {
 	private _fusionId: string | undefined;
 	private _phase: FusionPhase | undefined;
 	private _activity: string | undefined;
+	private _inFlight = false;
 	private _interrupted = false;
 	private readonly _phaseTools = new Map<string, ToolCallRunningState | ToolCallCompletedState>();
 	private readonly _patterns = new Map<string, FusionPhase['pattern']>();
@@ -107,17 +108,19 @@ export class CopilotFusionProgress {
 		this._attemptId = this._fusionId = undefined;
 		this._phase = undefined;
 		this._activity = undefined;
+		this._inFlight = false;
 		this._interrupted = false;
 		this._phaseTools.clear();
 		this._patterns.clear();
 	}
 
-	interrupt(): ICopilotFusionProgressUpdate | undefined {
-		if (!this._activity) {
+	interrupt(timestamp?: string): ICopilotFusionProgressUpdate | undefined {
+		if (!this._inFlight) {
 			return undefined;
 		}
+		this._inFlight = false;
 		this._interrupted = true;
-		const phase = this._phase ? this._updatePhase(this._phase, 'cancelled', undefined) : undefined;
+		const phase = this._phase ? this._updatePhase(this._phase, 'cancelled', timestamp) : undefined;
 		this._activity = undefined;
 		this._phase = undefined;
 		if (this._fusionId) {
@@ -142,7 +145,9 @@ export class CopilotFusionProgress {
 		let phase: ICopilotFusionProgressUpdate['phase'];
 		switch (event.type) {
 			case 'session.fusion_route_started':
+				this._inFlight = true;
 				this._attemptId = event.data.attemptId;
+				this._fusionId = undefined;
 				this._phase = undefined;
 				this._activity = localize('copilot.fusion.routing', "Choosing a HydraFusion workflow...");
 				break;
@@ -151,6 +156,7 @@ export class CopilotFusionProgress {
 				if (!this._record(`route:${d.fusionId}`)) {
 					return undefined;
 				}
+				this._inFlight = true;
 				this._fusionId = d.fusionId;
 				this._patterns.set(d.fusionId, d.pattern);
 				const plan = d.phasePlan?.map(step => step.conditional
@@ -165,10 +171,11 @@ export class CopilotFusionProgress {
 				if (this._phase?.phaseId === d.phaseId && this._phase.fusionId === d.fusionId && this._phase.model === d.model) {
 					return undefined;
 				}
+				this._inFlight = true;
 				this._fusionId = d.fusionId;
 				this._patterns.set(d.fusionId, d.pattern);
 				this._phase = d;
-				this._activity = localize('copilot.fusion.phaseRunning', "{0} running with {1}", phaseLabel(d.phaseKind, d.pattern), d.model);
+				this._activity = localize('copilot.fusion.phaseRunning', "{0} running", phaseLabel(d.phaseKind, d.pattern));
 				phase = this._updatePhase(d, 'running', event.timestamp);
 				break;
 			}
@@ -179,7 +186,7 @@ export class CopilotFusionProgress {
 				}
 				const activity = d.activity === 'tool_started'
 					? localize('copilot.fusion.toolRunning', "{0}: running a tool", phaseLabel(d.phaseKind, d.pattern))
-					: localize('copilot.fusion.phaseRunning', "{0} running with {1}", phaseLabel(d.phaseKind, d.pattern), this._phase.model);
+					: localize('copilot.fusion.phaseRunning', "{0} running", phaseLabel(d.phaseKind, d.pattern));
 				if (activity !== this._activity) {
 					this._activity = activity;
 					phase = this._updatePhase(this._phase, 'running', event.timestamp);
@@ -191,6 +198,8 @@ export class CopilotFusionProgress {
 				if (!this._record(`phase:${d.fusionId}:${d.phaseId}`)) {
 					return undefined;
 				}
+				this._inFlight = true;
+				this._fusionId = d.fusionId;
 				phase = this._updatePhase(d, d.status, event.timestamp, d.durationMs, d.verdict);
 				this._phase = undefined;
 				this._activity = d.status === 'succeeded' ? localize('copilot.fusion.continuing', "Continuing the HydraFusion workflow...") : undefined;
@@ -201,30 +210,32 @@ export class CopilotFusionProgress {
 				if (!this._record(`phase:${d.fusionId}:${d.phaseId}`)) {
 					return undefined;
 				}
+				this._inFlight = true;
+				this._fusionId = d.fusionId;
 				phase = this._updatePhase(d, d.status, event.timestamp, d.durationMs);
 				this._phase = undefined;
 				this._activity = d.degradedToPhaseId ? localize('copilot.fusion.fallback', "Continuing with a fallback phase...") : undefined;
 				break;
 			}
 			case 'session.fusion_route_failed':
-				if (this._attemptId !== undefined && this._attemptId !== event.data.attemptId || !this._record(`routeFailed:${event.data.attemptId}`)) {
+				if ((this._attemptId !== undefined && this._attemptId !== event.data.attemptId) || !this._record(`routeFailed:${event.data.attemptId}`)) {
 					return undefined;
 				}
+				this._inFlight = true;
 				part = milestone(localize('copilot.fusion.routeFailed', "HydraFusion routing failed; continuing with {0}", event.data.fallbackModel), 'degraded');
 				this._activity = undefined;
 				break;
 			case 'session.fusion_completed': {
 				const d = event.data;
 				this._finishedFusions.add(d.fusionId);
+				this._inFlight = false;
 				const degraded = d.outcome === 'degraded' || (d.degradedReason !== null && d.degradedReason !== undefined);
 				const summary = degraded
 					? localize('copilot.fusion.completedDegraded', "HydraFusion workflow completed with a fallback")
 					: d.outcome === 'completed'
 						? localize('copilot.fusion.completed', "HydraFusion workflow completed")
 						: localize('copilot.fusion.ended', "HydraFusion workflow ended: {0}", d.outcome);
-				const details = d.finalSourceModel
-					? localize('copilot.fusion.finalSource', "Selected response from {0} · {1}", d.finalSourceModel, getDurationString(d.durationMs))
-					: localize('copilot.fusion.duration', "Duration: {0}", getDurationString(d.durationMs));
+				const details = localize('copilot.fusion.duration', "Duration: {0}", getDurationString(d.durationMs));
 				part = milestone(summary, degraded || d.outcome !== 'completed' ? 'degraded' : 'completed', details);
 				this._phase = undefined;
 				this._activity = undefined;
@@ -240,6 +251,10 @@ export class CopilotFusionProgress {
 		const previousPhase = previous && readToolCallMeta(previous).fusionPhase;
 		const parsedTime = timestamp ? Date.parse(timestamp) : Date.now();
 		const startedAt = previousPhase?.startedAt ?? (Number.isFinite(parsedTime) ? parsedTime - (duration ?? 0) : Date.now());
+		if (status === 'cancelled' && duration === undefined && previousPhase?.status === 'running') {
+			const interruptedAt = Number.isFinite(parsedTime) ? parsedTime : Date.now();
+			duration = Math.max(0, interruptedAt - startedAt);
+		}
 		const phase: IFusionPhaseMeta = { fusionId: data.fusionId, phaseId: data.phaseId, model: data.model, status, startedAt, duration };
 		const label = phaseLabel(data.phaseKind, this._patterns.get(data.fusionId));
 		const base = {
@@ -261,7 +276,7 @@ export class CopilotFusionProgress {
 					: localize('copilot.fusion.phaseFailed', "{0} failed", label);
 			const details = new MarkdownString().appendText(summary);
 			if (duration !== undefined) {
-				details.appendMarkdown('\n\n').appendText(localize('copilot.fusion.phaseDetails', "{0} · {1}", data.model, getDurationString(duration)));
+				details.appendMarkdown('\n\n').appendText(localize('copilot.fusion.duration', "Duration: {0}", getDurationString(duration)));
 			}
 			if (verdict === 'accept') {
 				details.appendMarkdown('\n\n').appendText(localize('copilot.fusion.accepted', "Review accepted the result."));

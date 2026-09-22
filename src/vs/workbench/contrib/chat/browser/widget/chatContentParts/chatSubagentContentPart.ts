@@ -29,7 +29,7 @@ import { IMarkdownRenderer } from '../../../../../../platform/markdown/browser/m
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 import { CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID, ChatConfiguration } from '../../../common/constants.js';
 import { isAgentHostTarget } from '../../../common/chatSessionsService.js';
-import { formatCopilotCreditsLabel, IChatHookPart, IChatMarkdownContent, IChatToolInvocation, IChatToolInvocationSerialized, isLegacyChatTerminalToolInvocationData, ToolConfirmKind } from '../../../common/chatService/chatService.js';
+import { formatCopilotCreditsLabel, getSubagentIsActive, IChatHookPart, IChatMarkdownContent, IChatToolInvocation, IChatToolInvocationSerialized, isLegacyChatTerminalToolInvocationData, ToolConfirmKind } from '../../../common/chatService/chatService.js';
 import { getChatSessionType } from '../../../common/model/chatUri.js';
 import { IChatRendererContent, isResponseVM } from '../../../common/model/chatViewModel.js';
 import { IRunSubagentToolInputParams } from '../../../common/tools/builtinTools/runSubagentTool.js';
@@ -45,7 +45,7 @@ import { CollapsibleListPool } from './chatReferencesContentPart.js';
 import { buildPhrasePool, getToolInvocationIcon } from './chatThinkingContentPart.js';
 import { ChatThinkingStyleContentPart, createThinkingIcon } from './chatThinkingStyleContentPart.js';
 import { ChatToolInvocationPart } from './toolInvocationParts/chatToolInvocationPart.js';
-import { OpenSubagentChatActionViewItem, type ISubagentPhaseContext } from './chatSubagentOpenChat.js';
+import { FusionPhasePillActionViewItem, type ISubagentPhaseContext } from './fusionPhasePillActionViewItem.js';
 import './media/chatSubagentContent.css';
 
 const MAX_TITLE_LENGTH = 100;
@@ -314,7 +314,7 @@ export class ChatSubagentContentPart extends ChatThinkingStyleContentPart implem
 		this._openChatToolbar = this._register(this.instantiationService.createInstance(WorkbenchToolBar, container, {
 			hiddenItemStrategy: HiddenItemStrategy.Ignore,
 			actionViewItemProvider: (action, options) => isPhase
-				? this.instantiationService.createInstance(OpenSubagentChatActionViewItem, undefined, action, { ...options, showElapsedOnly: true }, false)
+				? this.instantiationService.createInstance(FusionPhasePillActionViewItem, undefined, action, { ...options, showElapsedOnly: true }, false)
 				: actionViewItemProvider?.(action, options, this.instantiationService, dom.getWindow(container).vscodeWindowId),
 		}));
 		this._openChatToolbar.setActions([menuAction]);
@@ -464,9 +464,9 @@ export class ChatSubagentContentPart extends ChatThinkingStyleContentPart implem
 		this.modelName = modelName;
 		this.credits = credits;
 		this.isInitiallyComplete = IChatToolInvocation.isComplete(toolInvocation);
-		this.isExternallyActive = toolInvocation.toolSpecificData?.kind === 'subagent' && toolInvocation.toolSpecificData.isActive === true;
+		this.isExternallyActive = toolInvocation.toolSpecificData?.kind === 'subagent' && getSubagentIsActive(toolInvocation.toolSpecificData) === true;
 		this.isActive = toolInvocation.toolSpecificData?.kind === 'subagent'
-			? toolInvocation.toolSpecificData.isActive ?? !this.isInitiallyComplete
+			? getSubagentIsActive(toolInvocation.toolSpecificData) ?? !this.isInitiallyComplete
 			: !this.isInitiallyComplete;
 		this.subagentActivity = toolInvocation.toolSpecificData?.kind === 'subagent' ? toolInvocation.toolSpecificData.activity : undefined;
 		this._subagentToolInvocation = toolInvocation;
@@ -782,7 +782,7 @@ export class ChatSubagentContentPart extends ChatThinkingStyleContentPart implem
 		if (force && this._subagentToolInvocation.toolSpecificData?.kind === 'subagent') {
 			const data = this._subagentToolInvocation.toolSpecificData;
 			// An independently observed child can outlive the completed parent response.
-			if (data.hasStarted === true && data.isActive === true) {
+			if (data.hasStarted === true && getSubagentIsActive(data) === true) {
 				return;
 			}
 			data.isActive = false;
@@ -825,11 +825,12 @@ export class ChatSubagentContentPart extends ChatThinkingStyleContentPart implem
 			return;
 		}
 		this._updateOpenChatToolbarContext();
-		if (toolInvocation.toolSpecificData.isActive === undefined) {
+		const isActive = getSubagentIsActive(toolInvocation.toolSpecificData);
+		if (isActive === undefined) {
 			return;
 		}
-		this.isExternallyActive = toolInvocation.toolSpecificData.isActive;
-		if (toolInvocation.toolSpecificData.isActive) {
+		this.isExternallyActive = isActive;
+		if (isActive) {
 			this.markAsActive();
 		} else {
 			this.markAsInactive();

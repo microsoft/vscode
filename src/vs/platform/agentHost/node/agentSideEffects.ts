@@ -22,7 +22,7 @@ import { AgentHostClientType } from '../common/agentHostClientInfo.js';
 import { isRenameChatTool } from '../common/serverToolNames.js';
 import { AgentHostLaunchKind, createUnknownAgentHostClientTelemetryContext, type IAgentHostClientTelemetryContext } from '../common/agentHostTelemetry.js';
 import { AgentSession, AgentSignal, IAgent, IAgentChatContext, IAgentToolPendingConfirmationSignal, type AgentSubagentTaskModelSource, type IAgentModelCallCompletedSignal, type IAgentModelCallFinishedSignal } from '../common/agent.js';
-import { readToolCallMeta, toToolCallMeta } from '../common/meta/agentToolCallMeta.js';
+import { isPresentationOnlyToolCall, readToolCallMeta, toToolCallMeta } from '../common/meta/agentToolCallMeta.js';
 import { isAgentMergeMessage } from '../common/meta/agentMergeMessageMeta.js';
 
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
@@ -53,6 +53,7 @@ import {
 	SessionLifecycle,
 	CustomizationType,
 	ToolCallStatus,
+	ToolCallConfirmationReason,
 	ToolResultContentType,
 	type ErrorInfo,
 	type ISessionWithDefaultChat,
@@ -356,7 +357,7 @@ export class AgentSideEffects extends Disposable {
 					void this._checkpointService.discardTurnStartCheckpoint(URI.parse(sessionChannel), URI.parse(envelope.channel), envelope.action.turnId).catch(() => undefined);
 				}
 			}
-			if (!envelope.origin && envelope.action.type === ActionType.ChatToolCallComplete) {
+			if (!envelope.origin && envelope.action.type === ActionType.ChatToolCallComplete && !isPresentationOnlyToolCall(envelope.action)) {
 				const action = envelope.action;
 				// Chat-action envelopes are emitted on the chat channel URI;
 				// agents are keyed by session URI, so resolve back to the
@@ -779,8 +780,18 @@ export class AgentSideEffects extends Disposable {
 			}
 		}
 
-		if (action.type === ActionType.ChatToolCallStart && this._permissionToolStarts.get(`${sessionKey}:${action.toolCallId}`) === action.turnId) {
-			this._logService.trace(`[AgentSideEffects] Tool start already represented by its permission request: ${action.toolCallId}`);
+		if ((action.type === ActionType.ChatToolCallStart || (action.type === ActionType.ChatToolCallReady && action.confirmed === ToolCallConfirmationReason.NotNeeded))
+			&& this._permissionToolStarts.get(`${sessionKey}\0${action.toolCallId}`) === action.turnId) {
+			this._logService.trace(`[AgentSideEffects] Tool lifecycle already represented by its permission request: ${action.type}, ${action.toolCallId}`);
+			return;
+		}
+		if ((action.type === ActionType.ChatToolCallStart || action.type === ActionType.ChatToolCallReady || action.type === ActionType.ChatToolCallComplete)
+			&& isPresentationOnlyToolCall(action)) {
+			this._stateManager.dispatchServerAction(sessionKey, action);
+			this._turnTracker.markActivity(sessionKey, turnId, action.type);
+			if (action.type === ActionType.ChatToolCallStart) {
+				this._turnTracker.markFirstProgress(sessionKey, turnId);
+			}
 			return;
 		}
 		if (action.type === ActionType.ChatToolCallStart && agent) {
@@ -966,7 +977,7 @@ export class AgentSideEffects extends Disposable {
 	 */
 	private _completeTurn(channel: string, turnId: string, result: AgentHostTurnResult, failure?: IAgentHostTurnFailure): boolean {
 		for (const [key, ownerTurnId] of this._permissionToolStarts) {
-			if (key.startsWith(`${channel}:`) && ownerTurnId === turnId) {
+			if (key.startsWith(`${channel}\0`) && ownerTurnId === turnId) {
 				this._permissionToolStarts.delete(key);
 			}
 		}
@@ -1242,7 +1253,7 @@ export class AgentSideEffects extends Disposable {
 		this._toolCallTracker.clearSession(channel);
 		this._turnTracker.clearSession(channel);
 		for (const key of this._permissionToolStarts.keys()) {
-			if (key.startsWith(`${channel}:`)) {
+			if (key.startsWith(`${channel}\0`)) {
 				this._permissionToolStarts.delete(key);
 			}
 		}
@@ -1408,7 +1419,7 @@ export class AgentSideEffects extends Disposable {
 					contributor: effective.state.contributor, intention: effective.state.intention, _meta: effective.state._meta,
 				},
 			}, sessionKey, turnId, 'preserve', agent);
-			this._permissionToolStarts.set(toolCallKey, turnId);
+			this._permissionToolStarts.set(`${sessionKey}\0${e.state.toolCallId}`, turnId);
 		}
 		this._toolCallTracker.toolCallMetadataUpdated(sessionKey, readyAction.toolCallId, readyAction.contributor);
 		this._turnTracker.toolCallMetadataUpdated(sessionKey, turnId, readyAction.toolCallId, readyAction.contributor);

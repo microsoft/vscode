@@ -67,10 +67,13 @@ suite('mapSessionEvents — history replay', () => {
 		assert.deepStrictEqual({
 			turnCount: turns.length,
 			parts: fusionParts(turns[0].responseParts),
+			completionDetails: turns[0].responseParts.flatMap(part => part.kind === ResponsePartKind.SystemNotification
+				&& readAgentSystemNotificationMeta(part).fusionStatus === 'completed' ? [part.content] : []),
 			leaksPhaseContent: JSON.stringify(turns).includes('PRIVATE'),
 		}, {
 			turnCount: 1,
 			parts: ['selected', 'succeeded', 'Selected final answer', 'completed'],
+			completionDetails: [{ markdown: 'HydraFusion&nbsp;workflow&nbsp;completed\n\nDuration:&nbsp;2.3s' }],
 			leaksPhaseContent: false,
 		});
 	});
@@ -93,7 +96,51 @@ suite('mapSessionEvents — history replay', () => {
 		})), [{ id: 'user-1', milestones: 0 }, { id: 'user-2', milestones: 3 }]);
 	});
 
-	for (const abortAfter of ['resolved', 'phase completed', 'phase failed with fallback'] as const) {
+	for (const correlation of ['user', 'assistant', 'interaction', 'missing'] as const) {
+		for (const earlyRouting of [false, true]) {
+			test(`correlates delayed routing after cancellation (${correlation}, ${earlyRouting ? 'early' : 'normal'} next routing)`, async () => {
+				const next = fusionTurnData(2);
+				const oldResolution = event('session.fusion_resolved', { ...fusion.resolved, turnId: 'sdk-first' });
+				const nextResolution = event('session.fusion_resolved', next.resolved);
+				const { turns } = await mapSessionEvents(session, undefined, [
+					...(correlation === 'interaction' ? [event('assistant.turn_start', { turnId: 'sdk-first', interactionId: 'interaction-first' })] : []),
+					event('user.message', {
+						content: 'First request',
+						...(correlation === 'user' ? { turnId: 'sdk-first' } : {}),
+						...(correlation === 'interaction' ? { interactionId: 'interaction-first' } : {}),
+					}, { id: 'user-1' }),
+					...(correlation === 'assistant' ? [event('assistant.turn_start', { turnId: 'sdk-first' })] : []),
+					event('abort', { reason: 'user_initiated' }),
+					...(earlyRouting ? [oldResolution, nextResolution] : []),
+					event('user.message', {
+						content: 'Second request',
+						...(correlation === 'user' ? { turnId: next.resolved.turnId } : {}),
+						...(correlation === 'interaction' ? { interactionId: 'interaction-next' } : {}),
+					}, { id: 'user-2' }),
+					...(correlation === 'assistant' || correlation === 'interaction'
+						? [event('assistant.turn_start', { turnId: next.resolved.turnId, ...(correlation === 'interaction' ? { interactionId: 'interaction-next' } : {}) })] : []),
+					...(!earlyRouting ? [oldResolution, nextResolution] : []),
+					event('assistant.fusion_phase_completed', fusion.phaseCompleted),
+					event('session.fusion_completed', { ...fusion.completed, turnId: 'sdk-first' }),
+					event('assistant.fusion_phase_completed', next.phaseCompleted),
+					event('assistant.message', { messageId: 'answer', content: 'Second answer' }),
+					event('session.fusion_completed', next.completed),
+				]);
+				assert.deepStrictEqual(turns.map(turn => ({ id: turn.id, state: turn.state, parts: fusionParts(turn.responseParts) })), [
+					{ id: 'user-1', state: TurnState.Cancelled, parts: [] },
+					{ id: 'user-2', state: TurnState.Complete, parts: correlation === 'missing' ? ['Second answer'] : ['selected', 'succeeded', 'Second answer', 'completed'] },
+				]);
+			});
+		}
+	}
+
+	for (const [abortAfter, phaseEvent, phaseStatus] of [
+		['resolved', undefined, undefined],
+		['phase completed', event('assistant.fusion_phase_completed', fusion.phaseCompleted), 'succeeded'],
+		['phase failed with fallback', event('assistant.fusion_phase_failed', { ...fusion.phaseFailed, degradedToPhaseId: 'fallback' }), 'failed'],
+		['phase failed', event('assistant.fusion_phase_failed', fusion.phaseFailed), 'failed'],
+		['phase cancelled', event('assistant.fusion_phase_failed', { ...fusion.phaseFailed, status: 'cancelled' }), 'cancelled'],
+	] as const) {
 		for (const earlyRouting of [false, true]) {
 			for (const idle of [false, true]) {
 				test(`restores Fusion after abort following ${abortAfter} (${earlyRouting ? 'early' : 'normal'} routing, ${idle ? 'with' : 'without'} idle)`, async () => {
@@ -111,17 +158,16 @@ suite('mapSessionEvents — history replay', () => {
 						event('session.fusion_completed', fusion.completed),
 					];
 					const { turns } = await mapSessionEvents(session, undefined, [
-						event('user.message', { content: 'First request' }, { id: 'user-1' }),
+						event('user.message', { content: 'First request', turnId: fusion.resolved.turnId }, { id: 'user-1' }),
 						event('session.fusion_route_started', fusion.routeStarted),
 						event('session.fusion_resolved', fusion.resolved),
-						...(abortAfter === 'phase completed' ? [event('assistant.fusion_phase_completed', fusion.phaseCompleted)]
-							: abortAfter === 'phase failed with fallback' ? [event('assistant.fusion_phase_failed', { ...fusion.phaseFailed, degradedToPhaseId: 'fallback' })] : []),
+						...(phaseEvent ? [phaseEvent] : []),
 						event('abort', { reason: 'user_initiated' }),
 						...lateEvents,
 						...(idle ? [event('session.idle', {})] : []),
 						...lateEvents,
 						...(earlyRouting ? routing : []),
-						event('user.message', { content: 'Second request' }, { id: 'user-2' }),
+						event('user.message', { content: 'Second request', turnId: next.resolved.turnId }, { id: 'user-2' }),
 						...lateEvents,
 						...(earlyRouting ? [] : routing),
 						event('session.fusion_resolved', next.resolved),
@@ -139,13 +185,47 @@ suite('mapSessionEvents — history replay', () => {
 						{
 							id: 'user-1',
 							state: TurnState.Cancelled,
-							parts: ['selected', ...(abortAfter === 'resolved' ? [] : [abortAfter === 'phase completed' ? 'succeeded' : 'failed']), 'cancelled'],
+							parts: ['selected', ...(phaseStatus ? [phaseStatus] : []), 'cancelled'],
 						},
 						{ id: 'user-2', state: TurnState.Complete, parts: ['selected', 'succeeded', 'Second answer', 'completed'] },
 					]);
 				});
 			}
 		}
+	}
+
+	for (const earlyRouting of [false, true]) {
+		test(`cancels a routing fallback and ignores late workflow completion (${earlyRouting ? 'early' : 'normal'} routing)`, async () => {
+			const next = fusionTurnData(2);
+			const routing = [
+				event('session.fusion_route_started', fusion.routeStarted),
+				event('session.fusion_route_failed', fusion.routeFailed),
+			];
+			const { turns } = await mapSessionEvents(session, undefined, [
+				...(earlyRouting ? routing : []),
+				event('user.message', { content: 'First request', turnId: fusion.resolved.turnId }, { id: 'user-1' }),
+				...(earlyRouting ? [] : routing),
+				event('abort', { reason: 'user_initiated' }),
+				event('session.fusion_completed', fusion.completed),
+				event('session.fusion_resolved', fusion.resolved),
+				event('session.idle', {}),
+				event('session.fusion_route_started', next.routeStarted),
+				event('session.fusion_completed', fusion.completed),
+				event('user.message', { content: 'Second request', turnId: next.resolved.turnId }, { id: 'user-2' }),
+				event('session.fusion_route_failed', fusion.routeFailed),
+				event('session.fusion_resolved', next.resolved),
+				event('assistant.fusion_phase_completed', next.phaseCompleted),
+				event('session.fusion_completed', next.completed),
+				event('abort', { reason: 'user_initiated' }),
+			]);
+			assert.deepStrictEqual(turns.map(turn => ({
+				id: turn.id,
+				parts: fusionParts(turn.responseParts),
+			})), [
+				{ id: 'user-1', parts: ['degraded', 'cancelled'] },
+				{ id: 'user-2', parts: ['selected', 'succeeded', 'completed'] },
+			]);
+		});
 	}
 
 	test('restores consecutive cancelled and completed Fusion turns without reviving prior workflows', async () => {
@@ -158,7 +238,7 @@ suite('mapSessionEvents — history replay', () => {
 			];
 			return [
 				...(index % 2 === 0 ? routing : []),
-				event('user.message', { content: `Request ${index + 1}` }, { id: `user-${index + 1}` }),
+				event('user.message', { content: `Request ${index + 1}`, turnId: data.resolved.turnId }, { id: `user-${index + 1}` }),
 				...(index % 2 === 0 ? [] : routing),
 				event('assistant.fusion_phase_completed', data.phaseCompleted),
 				...(state === TurnState.Cancelled ? [event('abort', { reason: 'user_initiated' })] : [

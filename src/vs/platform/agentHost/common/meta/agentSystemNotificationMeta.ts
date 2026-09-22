@@ -85,7 +85,7 @@ export function readAgentSystemNotificationMeta(source: IHasSystemNotificationMe
 		severity: meta['severity'] === AgentSystemNotificationSeverity.Warning ? meta['severity'] : undefined,
 		workspaceKind: workspaceKind === AgentSystemNotificationWorkspaceKind.Folder || workspaceKind === AgentSystemNotificationWorkspaceKind.Worktree ? workspaceKind : undefined,
 		workspaceName: typeof meta['workspaceName'] === 'string' ? meta['workspaceName'] : undefined,
-		...(typeof fusionStatus === 'string' && fusionStatuses.has(fusionStatus) ? { fusionStatus: fusionStatus as AgentFusionProgressStatus } : {}),
+		fusionStatus: typeof fusionStatus === 'string' && fusionStatuses.has(fusionStatus) ? fusionStatus as AgentFusionProgressStatus : undefined,
 	};
 }
 

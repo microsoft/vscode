@@ -37,7 +37,7 @@ import { normalizeFileEdit } from '../../../../../../platform/agentHost/common/f
 import { AgentSession } from '../../../../../../platform/agentHost/common/agentService.js';
 import product from '../../../../../../platform/product/common/product.js';
 import { ConfigureAutomationToolReferenceName } from '../../../common/automations/automationService.js';
-import { formatCopilotCreditsLabel, ElicitationState, type ChatExternalEditKind, type ChatMcpAppData, type IChatAgentFeedbackReviewConfirmationData, type IChatAutomationConfiguredData, type IChatAutoModeResolutionPart, type IChatExternalEdit, type IChatGeneratedImageData, type IChatMcpAuthenticationRequiredServer, type IChatModifiedFilesConfirmationData, type IChatPlanReviewResult, type IChatProgress, type IChatQuestion, type IChatQuestionAnswerValue, type IChatQuestionAnswers, type IChatResponseErrorDetails, type IChatSearchToolInvocationData, type IChatSessionCreatedData, type IChatSubagentToolInvocationData, type IChatTerminalToolInvocationData, type IChatToolInputInvocationData, type IChatToolInvocationSerialized, type IChatUsage, type IChatUsagePromptTokenDetail, ToolConfirmKind, AgentFeedbackReviewCommandId } from '../../../common/chatService/chatService.js';
+import { formatCopilotCreditsLabel, getSubagentIsActive, ElicitationState, type ChatExternalEditKind, type ChatMcpAppData, type IChatAgentFeedbackReviewConfirmationData, type IChatAutomationConfiguredData, type IChatAutoModeResolutionPart, type IChatExternalEdit, type IChatGeneratedImageData, type IChatMcpAuthenticationRequiredServer, type IChatModifiedFilesConfirmationData, type IChatPlanReviewResult, type IChatProgress, type IChatQuestion, type IChatQuestionAnswerValue, type IChatQuestionAnswers, type IChatResponseErrorDetails, type IChatSearchToolInvocationData, type IChatSessionCreatedData, type IChatSubagentToolInvocationData, type IChatTerminalToolInvocationData, type IChatToolInputInvocationData, type IChatToolInvocationSerialized, type IChatUsage, type IChatUsagePromptTokenDetail, ToolConfirmKind, AgentFeedbackReviewCommandId } from '../../../common/chatService/chatService.js';
 import { isTerminalCommandPrompt, type IChatSessionHistoryItem } from '../../../common/chatSessionsService.js';
 import { type IQuotaSnapshot, type IRateLimitSnapshot } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
@@ -405,13 +405,15 @@ function getSubagentChatResource(tc: ToolCallState, subagentContent: ToolResultS
 function getSubagentToolSpecificData(tc: ToolCallState, sessionResource: URI): IChatSubagentToolInvocationData | undefined {
 	const phase = readToolCallMeta(tc).fusionPhase;
 	if (getToolKind(tc) === 'fusionPhase' && phase) {
+		const phaseStatus = tc.status === ToolCallStatus.Cancelled ? 'cancelled' : phase.status;
+		const isActive = getSubagentIsActive({ presentation: 'phase', phaseStatus });
 		return {
 			kind: 'subagent',
 			presentation: 'phase',
-			phaseStatus: tc.status === ToolCallStatus.Cancelled ? 'cancelled' : phase.status,
-			activityDescription: tc.status === ToolCallStatus.Running ? readToolCallMeta(tc).progressMessage : undefined,
+			phaseStatus,
+			activityDescription: isActive ? readToolCallMeta(tc).progressMessage : undefined,
 			hasStarted: true,
-			isActive: tc.status === ToolCallStatus.Running,
+			isActive,
 			description: getSubagentTaskDescription(tc) ?? tc.displayName,
 			modelId: phase.model,
 			modelName: phase.model,
@@ -587,6 +589,7 @@ export function getAgentHostActivityProgressId(parts: readonly ResponsePart[]): 
 	if (parts.length === 0) {
 		return 'agentHost.chatActivity';
 	}
+	// Each milestone boundary needs a new activity row, rather than updating an earlier row now hidden by that milestone.
 	return parts.every(part => part.kind === ResponsePartKind.SystemNotification
 		&& readAgentSystemNotificationMeta(part).kind === AgentSystemNotificationKind.FusionProgress)
 		? `agentHost.chatActivity:fusion:${parts.length}` : undefined;

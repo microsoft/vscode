@@ -21,7 +21,9 @@ import { getInvocationMessage, getPastTenseMessage, getShellIntention, getShellL
 import { buildSessionDbUri } from '../../common/sessionDbUri.js';
 import { getMediaMime } from '../../../../base/common/mime.js';
 import { buildCopilotSystemNotification } from './copilotSystemNotification.js';
-import { CopilotFusionProgress, isCopilotFusionEvent, isProvisionalFusionConversationEvent, type ICopilotFusionProgressUpdate } from './copilotFusionProgress.js';
+import { isCopilotFusionEvent, isProvisionalFusionConversationEvent } from './copilotFusionProgress.js';
+import { FusionReplayState } from './copilotFusionReplay.js';
+import { isSyntheticUserMessage } from './copilotFusionEventIdentity.js';
 import { buildChatErrorInfoFromCopilotSdkFields } from './copilotSdkChatError.js';
 import { buildMcpChannel, buildMcpTopLevelCustomizationId } from '../shared/mcpCustomizationController.js';
 import { readSimpleAttachmentDisplayKindFromMimeType } from './copilotAttachmentUtils.js';
@@ -31,22 +33,6 @@ function tryStringify(value: unknown): string | undefined {
 		return JSON.stringify(value);
 	} catch {
 		return undefined;
-	}
-}
-
-function appendFusionProgress(parts: ResponsePart[], update: ICopilotFusionProgressUpdate): void {
-	if (update.part) {
-		parts.push(update.part);
-	}
-	if (update.phase) {
-		const part: ResponsePart = { kind: ResponsePartKind.ToolCall, toolCall: update.phase.toolCall };
-		const index = parts.findIndex(existing => existing.kind === ResponsePartKind.ToolCall
-			&& existing.toolCall.toolCallId === update.phase?.toolCall.toolCallId);
-		if (index < 0) {
-			parts.push(part);
-		} else {
-			parts[index] = part;
-		}
 	}
 }
 
@@ -64,14 +50,6 @@ function resolveToolDisplayPath(path: string, workingDirectory: URI | undefined)
  * persisted before `source` existed will not be filtered; that is accepted
  * leakage rather than guessed-at content sniffing.
  */
-function isSyntheticUserMessage(event: SessionEvent): boolean {
-	if (event.type !== 'user.message') {
-		return false;
-	}
-	const source = event.data.source;
-	return !!source && source.toLowerCase() !== 'user';
-}
-
 /**
  * Recovers the text the user actually typed from a persisted `user.message`
  * `content`. The chat client renders the raw prompt first, then appends
@@ -452,16 +430,7 @@ export async function mapSessionEvents(
 	/** Same, per subagent tool call: applied when that subagent's turn is built. */
 	const pendingSubagentAutoModeResolved = new Map<string, Extract<SessionEvent, { type: 'session.auto_mode_resolved' }>['data']>();
 	const subagentModels = new Map<string, string>();
-	const fusionProgress = new CopilotFusionProgress();
-	const pendingFusionParts: ResponsePart[] = [];
-	const fusionEventTurns = new Map<string, number>();
-	let fusionTurn = 0;
-	let pendingFusionTurn = false;
-
-	const resetFusionProgress = (): void => {
-		fusionProgress.reset();
-		fusionTurn++;
-	};
+	const fusionReplay = new FusionReplayState(events);
 
 	const recordSubagentModel = (parentToolCallId: string | undefined, model: string | undefined): void => {
 		if (!parentToolCallId || !model) {
@@ -545,34 +514,9 @@ export async function mapSessionEvents(
 		}
 		currentEventTimestamp = readEventTimestamp(e);
 		if (isCopilotFusionEvent(e)) {
-			if (e.agentId) {
-				continue;
-			}
-			const key = e.type === 'session.fusion_route_started' || e.type === 'session.fusion_route_failed'
-				? `attempt:${e.data.attemptId}` : `fusion:${e.data.fusionId}`;
-			const eventTurn = fusionEventTurns.get(key);
-			if (eventTurn !== undefined && eventTurn !== fusionTurn) {
-				// Resetting for a new turn must not revive an earlier turn's late events.
-				continue;
-			}
-			if (eventTurn === undefined && !rootRequestActive && !pendingFusionTurn
-				&& (!parentBuilder || e.type === 'session.fusion_route_started' || e.type === 'session.fusion_resolved' || e.type === 'session.fusion_route_failed')) {
-				// Routing can precede the user message that owns this Fusion workflow.
-				resetFusionProgress();
-				pendingFusionTurn = true;
-			}
-			fusionEventTurns.set(key, fusionTurn);
-			if (e.ephemeral) {
-				continue;
-			}
-			const update = fusionProgress.accept(e);
-			if (update && (update.part || update.phase)) {
-				if (!parentBuilder || pendingFusionTurn) {
-					appendFusionProgress(pendingFusionParts, update);
-				} else {
-					appendFusionProgress(parentBuilder.responseParts, update);
-					touch(parentBuilder);
-				}
+			fusionReplay.observe(e, { requestActive: rootRequestActive, hasTurn: !!parentBuilder });
+			if (parentBuilder && fusionReplay.drain(parentBuilder.responseParts)) {
+				touch(parentBuilder);
 			}
 			continue;
 		}
@@ -682,13 +626,10 @@ export async function mapSessionEvents(
 					// turn id round-trips back to the SDK boundary id that
 					// fork / truncate RPCs operate on.
 					flushParent();
-					if (!pendingFusionTurn) {
-						resetFusionProgress();
-					}
-					pendingFusionTurn = false;
 					const turnId = e.id ?? messageId;
+					fusionReplay.beginTurn(turnId);
 					parentBuilder = newTurnBuilder(turnId, content, { attachments, model: currentModel, agent: currentAgent, startedAt: currentEventTimestamp });
-					parentBuilder.responseParts.push(...pendingFusionParts.splice(0));
+					fusionReplay.drain(parentBuilder.responseParts);
 					rootRequestActive = true;
 					if (pendingAutoModeResolved) {
 						parentBuilder.usage = {
@@ -886,9 +827,9 @@ export async function mapSessionEvents(
 						subagentTurnStates.set(parentToolCallId, TurnState.Cancelled);
 					}
 				} else if (!e.agentId) {
-					const update = fusionProgress.interrupt();
-					if (update && parentBuilder) {
-						appendFusionProgress(parentBuilder.responseParts, update);
+					fusionReplay.interrupt(e.timestamp);
+					if (parentBuilder) {
+						fusionReplay.drain(parentBuilder.responseParts);
 					}
 					rootAssistantTurnActive = false;
 					rootRequestActive = false;

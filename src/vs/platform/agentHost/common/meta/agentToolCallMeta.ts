@@ -56,11 +56,15 @@ export interface IToolCallMeta {
 	readonly fusionPhase?: IFusionPhaseMeta;
 }
 
+const fusionPhaseStatuses = ['running', 'succeeded', 'failed', 'cancelled'] as const;
+export type AgentFusionPhaseStatus = typeof fusionPhaseStatuses[number];
+const knownFusionPhaseStatuses: ReadonlySet<string> = new Set(fusionPhaseStatuses);
+
 export interface IFusionPhaseMeta {
 	readonly fusionId: string;
 	readonly phaseId: string;
 	readonly model: string;
-	readonly status: 'running' | 'succeeded' | 'failed' | 'cancelled';
+	readonly status: AgentFusionPhaseStatus;
 	readonly startedAt: number;
 	readonly duration?: number;
 }
@@ -99,7 +103,7 @@ function readFusionPhase(value: unknown): IFusionPhaseMeta | undefined {
 	}
 	const data = value as Partial<IFusionPhaseMeta>;
 	if (typeof data.fusionId !== 'string' || typeof data.phaseId !== 'string' || typeof data.model !== 'string'
-		|| !['running', 'succeeded', 'failed', 'cancelled'].includes(data.status ?? '')
+		|| typeof data.status !== 'string' || !knownFusionPhaseStatuses.has(data.status)
 		|| typeof data.startedAt !== 'number' || !Number.isFinite(data.startedAt)
 		|| (data.duration !== undefined && (typeof data.duration !== 'number' || !Number.isFinite(data.duration) || data.duration < 0))) {
 		return undefined;
@@ -171,6 +175,14 @@ export function readToolCallMeta(source: IHasToolCallMeta): IToolCallMeta {
 	const ui = readToolCallUiMeta(meta['ui']);
 	if (ui) { result.ui = ui; }
 	return result;
+}
+
+/**
+ * Identifies tool calls that present progress without executing a tool.
+ * Producers must stamp `_meta.toolKind` on every lifecycle action.
+ */
+export function isPresentationOnlyToolCall(source: IHasToolCallMeta): boolean {
+	return readToolCallMeta(source).toolKind === 'fusionPhase';
 }
 
 /**

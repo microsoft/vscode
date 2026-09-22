@@ -159,7 +159,7 @@ async function renderSubagent(context: ComponentFixtureContext, state: 'pending'
 				toolCallId: `fusion:fixture:${index}`, toolName: 'hydrafusion_phase', displayName: label, invocationMessage: label,
 				confirmed: ToolCallConfirmationReason.NotNeeded,
 				_meta: {
-					toolKind: 'fusionPhase', subagentDescription: label, progressMessage: `${label} running with ${phaseModel}`,
+					toolKind: 'fusionPhase', subagentDescription: label, progressMessage: `${label} running`,
 					fusionPhase: { fusionId: 'fixture', phaseId: String(index), model: phaseModel, status, startedAt: Date.now(), duration: status === 'running' ? undefined : 2000 },
 				},
 			};

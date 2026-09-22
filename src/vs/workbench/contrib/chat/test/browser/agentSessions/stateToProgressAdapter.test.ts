@@ -188,6 +188,38 @@ suite('stateToProgressAdapter', () => {
 		]);
 	});
 
+	test('Fusion activity derives from phase status, with tool cancellation overriding stale metadata', () => {
+		const snapshots = (['running', 'succeeded', 'failed', 'cancelled'] as const).map(status => {
+			const invocation = toolCallStateToInvocation(createToolCallState({
+				_meta: {
+					toolKind: 'fusionPhase', progressMessage: 'Generating output',
+					fusionPhase: { fusionId: 'fusion-1', phaseId: 'phase-1', model: 'model-a', status, startedAt: 1000 },
+				},
+			}));
+			const data = invocation.toolSpecificData;
+			assert.ok(data?.kind === 'subagent');
+			return { status: data.phaseStatus, isActive: data.isActive, activity: data.activityDescription };
+		});
+		const cancelled = completedToolCallToSerialized({
+			toolCallId: 'phase-1', toolName: 'hydrafusion_phase', displayName: 'Main pass',
+			invocationMessage: 'Running main pass',
+			status: ToolCallStatus.Cancelled, reason: ToolCallCancellationReason.Denied,
+			_meta: { toolKind: 'fusionPhase', fusionPhase: { fusionId: 'fusion-1', phaseId: 'phase-1', model: 'model-a', status: 'running', startedAt: 1000 } },
+		}, undefined, URI.file('/'), 'local').toolSpecificData;
+		assert.deepStrictEqual({
+			snapshots,
+			cancelled: cancelled?.kind === 'subagent' ? { status: cancelled.phaseStatus, isActive: cancelled.isActive } : undefined,
+		}, {
+			snapshots: [
+				{ status: 'running', isActive: true, activity: 'Generating output' },
+				{ status: 'succeeded', isActive: false, activity: undefined },
+				{ status: 'failed', isActive: false, activity: undefined },
+				{ status: 'cancelled', isActive: false, activity: undefined },
+			],
+			cancelled: { status: 'cancelled', isActive: false },
+		});
+	});
+
 	test('Fusion activity advances past milestones but yields to actual response content', () => {
 		const milestone = { kind: ResponsePartKind.SystemNotification, content: 'Selected Single workflow', _meta: toAgentSystemNotificationMeta({ kind: AgentSystemNotificationKind.FusionProgress }) } as const;
 		assert.deepStrictEqual([

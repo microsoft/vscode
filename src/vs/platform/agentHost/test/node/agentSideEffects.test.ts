@@ -52,7 +52,7 @@ import { createTestAgentHostProviderService } from './testAgentHostProviderServi
 import { AgentHostSessionTitleController, IAgentHostSessionTitleController } from '../../node/agentHostSessionTitleController.js';
 import { registerBuiltInChatContributions } from '../../node/chatContributions/builtInChatContributions.js';
 import { ISessionWorkspaceConversionService } from '../../node/chatContributions/sessionWorkspaceConversion/sessionWorkspaceConversionService.js';
-import { AgentHostTelemetryReporter, IAgentHostTelemetryReporter, type IAgentHostAskQuestionsToolInvokedEvent } from '../../node/agentHostTelemetryReporter.js';
+import { AgentHostTelemetryReporter, IAgentHostTelemetryReporter, type IAgentHostAskQuestionsToolInvokedEvent, type IAgentHostTurnCompletedEvent } from '../../node/agentHostTelemetryReporter.js';
 import { AgentHostToolCallTracker, IAgentHostToolCallTracker } from '../../node/agentHostToolCallTracker.js';
 import { AgentHostTurnTracker, IAgentHostTurnTracker } from '../../node/agentHostTurnTracker.js';
 import { AgentHostTurnService, IAgentHostTurnService } from '../../node/agentHostTurnService.js';
@@ -3330,6 +3330,52 @@ suite('AgentSideEffects', () => {
 			});
 		});
 
+		for (const phaseStatus of ['succeeded', 'failed', 'cancelled'] as const) {
+			test(`Fusion ${phaseStatus} phase is visible progress without tool execution accounting`, () => {
+				setupSession();
+				disposables.add(sideEffects.registerProgressListener(agent));
+				const metadata = {
+					toolKind: 'fusionPhase',
+					fusionPhase: { fusionId: 'fusion-1', phaseId: 'phase-1', model: 'model-a', status: 'running', startedAt: 0 },
+				};
+				const actions: ChatAction[] = [
+					{
+						type: ActionType.ChatTurnStarted, turnId: 'fusion-turn', startedAt: '2025-01-01T00:00:00.000Z',
+						message: { text: 'Run Fusion', origin: { kind: MessageKind.User } },
+					},
+					{
+						type: ActionType.ChatToolCallStart, turnId: 'fusion-turn', toolCallId: 'fusion:fusion-1:phase-1',
+						toolName: 'hydrafusion_phase', displayName: 'Main pass', _meta: metadata,
+					},
+					{
+						type: ActionType.ChatToolCallReady, turnId: 'fusion-turn', toolCallId: 'fusion:fusion-1:phase-1',
+						invocationMessage: 'Main pass', confirmed: ToolCallConfirmationReason.NotNeeded, _meta: metadata,
+					},
+					{
+						type: ActionType.ChatToolCallComplete, turnId: 'fusion-turn', toolCallId: 'fusion:fusion-1:phase-1',
+						result: { success: phaseStatus === 'succeeded', pastTenseMessage: 'Main pass ended' },
+						_meta: { ...metadata, fusionPhase: { ...metadata.fusionPhase, status: phaseStatus } },
+					},
+					{ type: ActionType.ChatTurnComplete, turnId: 'fusion-turn', duration: 1000 },
+				];
+				for (const action of actions) {
+					agent.fireProgress({ kind: 'action', resource: URI.parse(defaultChatUri), action });
+				}
+
+				const completed = telemetryService.events.find(event => event.eventName === 'agentHost.turnCompleted')?.data as IAgentHostTurnCompletedEvent | undefined;
+				const phase = stateManager.getChatState(defaultChatUri)?.turns[0].responseParts[0];
+				assert.deepStrictEqual({
+					visibleProgress: typeof completed?.timeToFirstProgress === 'number',
+					substantiveProgress: completed?.timeToFirstSubstantiveProgress,
+					toolEvents: telemetryService.events.filter(event => event.eventName === 'languageModelToolInvoked' || event.eventName === 'agentHost.toolInvoked'),
+					providerCompletions: agent.clientToolCallCompleteCalls,
+					status: phase?.kind === ResponsePartKind.ToolCall ? readToolCallMeta(phase.toolCall).fusionPhase?.status : undefined,
+				}, {
+					visibleProgress: true, substantiveProgress: undefined, toolEvents: [], providerCompletions: [], status: phaseStatus,
+				});
+			});
+		}
+
 		test('stale completion does not clear active turn tool tracking', () => {
 			setupSession();
 			startTurn('turn-1');
@@ -4609,22 +4655,43 @@ suite('AgentSideEffects', () => {
 						hasOptions: !!part.toolCall.options?.length, permissionResponses: agent.respondToPermissionCalls,
 					}, { contributor, title: 'Allow tests?', hasOptions: true, permissionResponses: [] });
 
-					// The provider may publish the held start later. It must not
-					// duplicate the row or erase its pending approval.
-					agent.fireProgress({
-						kind: 'action', resource: URI.parse(defaultChatUri),
-						action: { type: ActionType.ChatToolCallStart, turnId: 'turn-1', toolCallId: 'held-tool', toolName, displayName: 'Run tests', contributor },
-					});
+					const lateActions: ChatAction[] = [
+						{ type: ActionType.ChatToolCallStart, turnId: 'turn-1', toolCallId: 'held-tool', toolName, displayName: 'Run tests', contributor },
+						{ type: ActionType.ChatToolCallReady, turnId: 'turn-1', toolCallId: 'held-tool', invocationMessage: 'Run tests', toolInput: 'npm test', confirmed: ToolCallConfirmationReason.NotNeeded },
+					];
+					for (const action of lateActions) {
+						agent.fireProgress({ kind: 'action', resource: URI.parse(defaultChatUri), action });
+					}
 					const afterStart = stateManager.getSessionState(defaultChatUri)?.activeTurn?.responseParts;
 					assert.deepStrictEqual({
 						rows: afterStart?.length,
 						status: afterStart?.[0].kind === ResponsePartKind.ToolCall ? afterStart[0].toolCall.status : undefined,
 						starts: envelopes.filter(e => e.action.type === ActionType.ChatToolCallStart).length,
 					}, { rows: 1, status: ToolCallStatus.PendingConfirmation, starts: 1 });
-					sideEffects.handleAction(defaultChatUri, approved
-						? { type: ActionType.ChatToolCallConfirmed, turnId: 'turn-1', toolCallId: 'held-tool', approved: true, confirmed: ToolCallConfirmationReason.UserAction }
-						: { type: ActionType.ChatToolCallConfirmed, turnId: 'turn-1', toolCallId: 'held-tool', approved: false, reason: ToolCallCancellationReason.Denied });
-					assert.deepStrictEqual(agent.respondToPermissionCalls, [{ requestId: 'held-tool', approved }]);
+					const selectedOption = part.toolCall.options?.[0];
+					const confirmation: ChatAction = approved
+						? { type: ActionType.ChatToolCallConfirmed, turnId: 'turn-1', toolCallId: 'held-tool', approved: true, confirmed: ToolCallConfirmationReason.UserAction, selectedOptionId: selectedOption?.id, editedToolInput: 'npm run test:unit' }
+						: { type: ActionType.ChatToolCallConfirmed, turnId: 'turn-1', toolCallId: 'held-tool', approved: false, reason: ToolCallCancellationReason.Denied };
+					stateManager.dispatchClientAction(defaultChatUri, confirmation, { clientId: 'test', clientSeq: 2 });
+					sideEffects.handleAction(defaultChatUri, confirmation);
+					for (const action of lateActions) {
+						agent.fireProgress({ kind: 'action', resource: URI.parse(defaultChatUri), action });
+					}
+					const finalPart = stateManager.getChatState(defaultChatUri)?.activeTurn?.responseParts[0];
+					const finalTool = finalPart?.kind === ResponsePartKind.ToolCall ? finalPart.toolCall : undefined;
+					assert.deepStrictEqual({
+						permissionResponses: agent.respondToPermissionCalls,
+						status: finalTool?.status,
+						confirmed: finalTool?.status === ToolCallStatus.Running ? finalTool.confirmed : undefined,
+						selectedOption: finalTool?.status === ToolCallStatus.Running ? finalTool.selectedOption : undefined,
+						toolInput: finalTool && finalTool.status !== ToolCallStatus.Streaming ? finalTool.toolInput : undefined,
+					}, {
+						permissionResponses: [{ requestId: 'held-tool', approved }],
+						status: approved ? ToolCallStatus.Running : ToolCallStatus.Cancelled,
+						confirmed: approved ? ToolCallConfirmationReason.UserAction : undefined,
+						selectedOption: approved ? selectedOption : undefined,
+						toolInput: approved ? 'npm run test:unit' : 'npm test',
+					});
 				});
 			}
 		}
