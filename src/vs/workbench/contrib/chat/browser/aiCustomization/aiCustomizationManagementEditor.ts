@@ -2222,17 +2222,17 @@ export class AICustomizationManagementEditor extends EditorPane {
 		const group = DOM.append(this.migrationListContainer!, $('.prompt-migration-group'));
 		const groupHeader = DOM.append(group, $('.prompt-migration-group-header'));
 		const groupHeading = DOM.append(groupHeader, $('.prompt-migration-group-heading'));
-		DOM.append(groupHeading, $('h3.prompt-migration-group-title')).textContent = localize('mcpMigrationUnavailableGroup', "Unsupported servers");
+		DOM.append(groupHeading, $('h3.prompt-migration-group-title')).textContent = localize('mcpMigrationUnavailableGroup', "Not migratable");
 		DOM.append(groupHeading, $('span.prompt-migration-group-count')).textContent = String(exclusions.length);
 		const items = DOM.append(group, $('.prompt-migration-group-items.prompt-migration-unsupported-items', {
 			role: 'list',
-			'aria-label': localize('mcpMigrationUnavailableGroupAriaLabel', "Unsupported MCP servers"),
+			'aria-label': localize('mcpMigrationUnavailableGroupAriaLabel', "MCP servers that cannot be migrated"),
 		}));
 		for (const exclusion of exclusions) {
 			const sourceLabel = this.labelService.getUriLabel(exclusion.sourceUri, { relative: true });
 			const item = DOM.append(items, $('.ai-customization-list-item.prompt-migration-item.prompt-migration-unsupported-item', {
 				role: 'listitem',
-				'aria-label': localize('mcpMigrationUnavailableItemAriaLabel', "{0}, unsupported MCP server. Source: {1}", exclusion.name, sourceLabel),
+				'aria-label': localize('mcpMigrationUnavailableItemAriaLabel', "{0}, cannot be migrated. Source: {1}", exclusion.name, sourceLabel),
 			}));
 			this.migrationPageDisposables.add(DOM.addDisposableListener(item, DOM.EventType.CLICK, event => {
 				if (DOM.isHTMLElement(event.target) && event.target.closest('a, button')) {
@@ -2249,6 +2249,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 				'aria-label': sourceAriaLabel,
 			})) as HTMLAnchorElement;
 			sourceLink.textContent = sourceLabel;
+			this.migrationFirstFocusableElement ??= sourceLink;
 			this.migrationPageDisposables.add(DOM.addDisposableListener(sourceLink, DOM.EventType.CLICK, event => {
 				event.preventDefault();
 				void this.editorService.openEditor({
@@ -2638,8 +2639,8 @@ export class AICustomizationManagementEditor extends EditorPane {
 				return {
 					id, count,
 					label: localize('migrationChecklistMcp', "MCP Servers"),
-					description: localize('migrationChecklistMcpDescription', "Move supported workspace servers to the root .mcp.json and review servers that cannot be migrated."),
-					countLabel: localize('migrationChecklistMcpSupportCounts', "{0} supported · {1} unsupported", count, unavailableCount),
+					description: localize('migrationChecklistMcpDescription', "Move eligible workspace servers to the root .mcp.json and review servers that cannot be migrated."),
+					countLabel: localize('migrationChecklistMcpSupportCounts', "{0} migratable · {1} not migratable", count, unavailableCount),
 					hasDetails: unavailableCount > 0,
 				};
 			}

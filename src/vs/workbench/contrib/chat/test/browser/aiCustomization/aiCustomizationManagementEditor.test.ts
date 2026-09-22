@@ -913,6 +913,7 @@ suite('aiCustomizationManagementEditor', () => {
 				reasonRows: host.querySelectorAll('.prompt-migration-item-reason').length,
 				source: host.querySelector('.prompt-migration-source-link')?.textContent,
 				openedSources: openedSources.map(uri => uri.path),
+				firstFocusableIsSource: editor.migrationFirstFocusableElement === host.querySelector('.prompt-migration-source-link'),
 				detailsButtonLabel: host.querySelector('.prompt-migration-details-button')?.getAttribute('aria-label'),
 				openedDetails: openedDetails.map(detail => ({
 					name: detail.name,
@@ -925,16 +926,17 @@ suite('aiCustomizationManagementEditor', () => {
 				dashboardCategory: [{
 					label: 'MCP Servers',
 					count: 0,
-					countLabel: '0 supported · 1 unsupported',
+					countLabel: '0 migratable · 1 not migratable',
 					hasDetails: true,
 				}],
 				heading: 'Migrate MCP Servers',
-				group: 'Unsupported servers',
+				group: 'Not migratable',
 				count: '1',
 				name: 'Unsupported server',
 				reasonRows: 0,
 				source: '/workspace/.vscode/mcp.json',
 				openedSources: ['/workspace/.vscode/mcp.json'],
+				firstFocusableIsSource: true,
 				detailsButtonLabel: 'Open details for Unsupported server',
 				openedDetails: [
 					{
@@ -1846,7 +1848,7 @@ suite('aiCustomizationManagementEditor', () => {
 		}, {
 			scopes: [
 				{ label: 'Your profile', count: 2, skipped: false, categories: [['Prompts to skills', '1 prompt'], ['User Data', '1 agent']] },
-				{ label: 'vscode', count: 2, skipped: true, categories: [['Prompts to skills', '1 prompt'], ['MCP Servers', '1 supported · 0 unsupported']] },
+				{ label: 'vscode', count: 2, skipped: true, categories: [['Prompts to skills', '1 prompt'], ['MCP Servers', '1 migratable · 0 not migratable']] },
 			],
 			profile: [profile], workspace: [workspace], all: [profile, workspace], mcpProfile: [],
 		});

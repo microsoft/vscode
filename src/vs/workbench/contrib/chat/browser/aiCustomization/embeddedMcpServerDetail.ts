@@ -567,7 +567,8 @@ function getMcpServerConfigurationRange(content: string, serverName: string): Ra
 	const root = parseTree(content);
 	const node = findNodeAtLocation(root, ['servers', serverName])
 		?? findNodeAtLocation(root, ['mcpServers', serverName])
-		?? findNodeAtLocation(root, ['mcp', 'servers', serverName]);
+		?? findNodeAtLocation(root, ['mcp', 'servers', serverName])
+		?? findNodeAtLocation(root, ['settings', 'mcp', 'servers', serverName]);
 	if (!node) {
 		return undefined;
 	}
