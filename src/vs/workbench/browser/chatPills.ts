@@ -122,18 +122,18 @@ export function createChatPillImagePreview(entry: IChatPillEntry & { readonly im
 		}
 		const url = URL.createObjectURL(new Blob([content.value.buffer as Uint8Array<ArrayBuffer>], { type: preview.mimeType }));
 		previewImageUrl.value = toDisposable(() => URL.revokeObjectURL(url));
-		image.onload = () => {
+		disposables.add(addDisposableListener(image, EventType.LOAD, () => {
 			previewImageUrl.clear();
 			if (disposables.isDisposed) {
 				return;
 			}
 			container.setAttribute('aria-busy', 'false');
 			container.classList.add('loaded');
-		};
-		image.onerror = () => {
+		}));
+		disposables.add(addDisposableListener(image, EventType.ERROR, () => {
 			previewImageUrl.clear();
 			showUnavailable();
-		};
+		}));
 		image.src = url;
 	}, () => {
 		showUnavailable();

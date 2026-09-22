@@ -12,7 +12,7 @@ import { onUnexpectedError } from '../../base/common/errors.js';
 import { IObservable, autorun, derived } from '../../base/common/observable.js';
 import { ThemeIcon } from '../../base/common/themables.js';
 import { asCssVariable } from '../../platform/theme/common/colorUtils.js';
-import { ActionListItemKind, IActionListDelegate, IActionListItem } from '../../platform/actionWidget/browser/actionList.js';
+import { ActionListItemKind, IActionListDelegate, IActionListItem, type IActionListItemHover } from '../../platform/actionWidget/browser/actionList.js';
 import { IActionWidgetService } from '../../platform/actionWidget/browser/actionWidget.js';
 import { getIconClasses } from '../../editor/common/services/getIconClasses.js';
 import { ILanguageService } from '../../editor/common/languages/language.js';
@@ -100,6 +100,7 @@ export class ChatDropdownPillActionViewItem extends ChatPillActionViewItem {
 	private _entries: readonly IChatPillEntry[] = [];
 	private _summaryIcon: ThemeIcon | undefined;
 	private readonly _imageHoverContents = new WeakMap<IChatPillEntry, IManagedHoverContent>();
+	private readonly _imageDropdownHovers = new WeakMap<IChatPillEntry, IActionListItemHover>();
 
 	protected override renderContent(): void {
 		this._register(autorun(reader => {
@@ -329,21 +330,6 @@ export class ChatDropdownPillActionViewItem extends ChatPillActionViewItem {
 			}
 			items.push({ kind: ActionListItemKind.Header, label: section.title, group: { title: section.title } });
 			for (const entry of section.entries) {
-				let hover = entry.hover;
-				if (entry.imagePreview) {
-					const imagePreview = entry.imagePreview;
-					let preview: ReturnType<typeof createChatPillImagePreview> | undefined;
-					hover = {
-						...entry.hover,
-						content: () => {
-							preview ??= createChatPillImagePreview({ ...entry, imagePreview }, this._fileService);
-							return preview.element;
-						},
-						disposable: { dispose: () => preview?.disposable.dispose() },
-						contentOwnsPadding: true,
-						alignToAnchorTop: true,
-					};
-				}
 				items.push({
 					kind: ActionListItemKind.Action,
 					label: entry.label,
@@ -353,12 +339,40 @@ export class ChatDropdownPillActionViewItem extends ChatPillActionViewItem {
 					...(entry.resource ? { iconClasses: getIconClasses(this._modelService, this._languageService, entry.resource, FileKind.FILE) } : {}),
 					...((entry.toolbarActions?.length || entry.promotedAction) ? { toolbarActions: [...getChatPillEntryToolbarActions(entry)] } : {}),
 					ariaDescription: entry.ariaDescription,
-					hover,
+					hover: this._getDropdownHover(entry),
 					item: entry,
 				});
 			}
 		}
 		return items;
+	}
+
+	private _getDropdownHover(entry: IChatPillEntry): IActionListItemHover | undefined {
+		if (!entry.imagePreview) {
+			return entry.hover;
+		}
+		let hover = this._imageDropdownHovers.get(entry);
+		if (!hover) {
+			const imagePreview = entry.imagePreview;
+			let preview: ReturnType<typeof createChatPillImagePreview> | undefined;
+			hover = {
+				...entry.hover,
+				content: () => {
+					preview ??= createChatPillImagePreview({ ...entry, imagePreview }, this._fileService);
+					return preview.element;
+				},
+				disposable: {
+					dispose: () => {
+						preview?.disposable.dispose();
+						preview = undefined;
+					},
+				},
+				contentOwnsPadding: true,
+				alignToAnchorTop: true,
+			};
+			this._imageDropdownHovers.set(entry, hover);
+		}
+		return hover;
 	}
 
 	override dispose(): void {

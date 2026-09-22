@@ -120,18 +120,26 @@ suite('ChatPills', () => {
 			singleEntry: ChatPillSingleEntry.Summary,
 		}));
 		const mappedEntry = getDropdownPillItems.call(viewItem)[1];
+		const firstContent = typeof mappedEntry.hover?.content === 'function' ? mappedEntry.hover.content() : undefined;
+		const refreshedMappedEntry = getDropdownPillItems.call(viewItem)[1];
+		const refreshedContent = typeof refreshedMappedEntry.hover?.content === 'function' ? refreshedMappedEntry.hover.content() : undefined;
 
 		assert.deepStrictEqual({
+			sameHover: mappedEntry.hover === refreshedMappedEntry.hover,
+			sameContent: firstContent === refreshedContent,
 			contentType: typeof mappedEntry.hover?.content,
 			contentOwnsPadding: mappedEntry.hover?.contentOwnsPadding,
 			hasDisposable: !!mappedEntry.hover?.disposable,
 			alignToAnchorTop: mappedEntry.hover?.alignToAnchorTop,
 		}, {
+			sameHover: true,
+			sameContent: true,
 			contentType: 'function',
 			contentOwnsPadding: true,
 			hasDisposable: true,
 			alignToAnchorTop: true,
 		});
+		mappedEntry.hover?.disposable?.dispose();
 
 		disposables.dispose();
 	});
