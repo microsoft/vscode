@@ -18,7 +18,7 @@ parameters:
 #
 # The ONNX libraries are fetched from NuGet for the target's explicit RID (see
 # build/dictation-runtime/nuget.ts), so ARM64 targets build fine on x64 pools;
-# both addons and the Foundry Local library are copied from the already-restored
+# the addons and Foundry Local library are copied from the already-restored
 # node_modules. No npm registry auth is needed.
 #
 # Steps:

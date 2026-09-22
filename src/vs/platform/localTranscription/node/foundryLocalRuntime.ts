@@ -17,21 +17,20 @@ import { CancellationError } from '../../../base/common/errors.js';
  *
  * `foundry-local-sdk` ships two prebuilt N-API addons (`foundry_local_node.node`
  * and `foundry_local_preload.node`) and native libraries (Foundry Local + ONNX
- * Runtime + ONNX Runtime GenAI). The shared libraries require a newer glibc than
- * VS Code's minimum supported Linux distros, so we bundle only the addons with
- * the product (see `build/gulpfile.vscode.ts`). We republish the per-target
- * shared libraries to VS Code's CDN at build time (see
- * `build/dictation-runtime/`) and download them here, at runtime, into a
- * per-user writable cache. This keeps the shipped package's glibc floor intact
- * and avoids any runtime dependency on the npm registry or NuGet.
+ * Runtime + ONNX Runtime GenAI). These native files may require a newer glibc
+ * than VS Code supports, so we republish the per-target payload to VS Code's CDN
+ * at build time (see `build/dictation-runtime/`) and download it here, at
+ * runtime, into a per-user writable cache. This keeps the shipped package's
+ * glibc floor intact and avoids any runtime dependency on the npm registry or
+ * NuGet.
  *
  * The tarball's internal layout mirrors the SDK's own package layout:
  *
  *   <cacheRoot>/<version>/prebuilds/<target>/<shared libraries>
  *
- * The SDK keeps its addons in the packaged npm module and is configured through
- * `configureNativeLoader`/`FoundryLocalConfig.libraryPath` to preload the shared
- * libraries from this cache directory.
+ * The SDK loader is patched at install time so
+ * `configureNativeLoader`/`FoundryLocalConfig.libraryPath` loads both addons and
+ * shared libraries from this cache directory.
  *
  * NOTE: the single CDN download leg honors the standard proxy environment
  * variables (`HTTPS_PROXY`/`HTTP_PROXY`/`ALL_PROXY`, with `NO_PROXY`). VS Code's
@@ -350,7 +349,7 @@ function detectGlibcVersion(): [number, number] | undefined {
 /**
  * Download the per-target runtime tarball from `url` and extract it into
  * `stagingDir`, which then contains
- * `prebuilds/<target>/<shared libraries>`. The tarball is published
+ * `prebuilds/<target>/<native files>`. The tarball is published
  * to VS Code's CDN by `build/dictation-runtime/`.
  */
 async function downloadAndExtractTarball(url: string, stagingDir: string, token: CancellationToken): Promise<void> {
@@ -376,6 +375,8 @@ export function requiredRuntimeFileNames(platformKey: string): string[] {
 	const ext = isWin ? '.dll' : isDarwin ? '.dylib' : '.so';
 	const prefix = isWin ? '' : 'lib';
 	return [
+		'foundry_local_node.node',
+		'foundry_local_preload.node',
 		`${prefix}foundry_local${ext}`,
 		isWin ? 'onnxruntime.dll' : isDarwin ? 'libonnxruntime.1.dylib' : 'libonnxruntime.so.1',
 		`${prefix}onnxruntime-genai${ext}`,
