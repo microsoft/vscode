@@ -98,7 +98,7 @@ suite('AgentHostTelemetryReporter', () => {
 				permissionLevel: undefined, interactionMode: undefined, messageOriginKind: undefined, failure: undefined,
 				isMultiRoot: false, folderCount: 0, billedNanoAiu: undefined, directPromptTokenCount: undefined,
 				directPromptCacheTokenCount: undefined, directCompletionTokenCount: undefined, directBilledNanoAiu: undefined,
-				modelCallCount: 0, ...cohort,
+				modelCallCount: 0, startedWithSteering: false, receivedSteering: false, ...cohort,
 			});
 		}
 		const cohortKeys = ['hostRootTurnOrdinal', 'hostProcessAgeMs', 'titleGenerationStrategy'];
