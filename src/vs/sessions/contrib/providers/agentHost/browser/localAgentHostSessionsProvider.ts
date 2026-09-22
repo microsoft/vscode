@@ -225,7 +225,13 @@ export class LocalAgentHostSessionsProvider extends DevContainerAgentHostSession
 			}
 		};
 		bindConnection();
-		this._register(this._agentHostService.onAgentHostStart(bindConnection));
+		this._register(this._agentHostService.onAgentHostStart(() => {
+			bindConnection();
+			// Reconcile missed notifications and open the restarted host's first-listing discovery barrier.
+			if (!this._agentHostService.authenticationPending.get()) {
+				void this._refreshSessions();
+			}
+		}));
 		this._register(this._agentHostService.onAgentHostExit(() => {
 			connectionListeners.clear();
 			automations.clearConnection();

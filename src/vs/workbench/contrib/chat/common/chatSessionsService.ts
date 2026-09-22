@@ -430,6 +430,8 @@ export interface IChatSession extends IDisposable {
 	readonly title?: string;
 
 	readonly history: readonly IChatSessionHistoryItem[];
+	/** Updated persisted transcript; applying it must preserve the current draft and locally running requests. */
+	readonly onDidChangeHistory?: Event<readonly IChatSessionHistoryItem[]>;
 
 
 	readonly options?: ReadonlyChatSessionOptionsMap;
