@@ -8,6 +8,7 @@ import sinon from 'sinon';
 import { CancellationError } from '../../../../base/common/errors.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { runWithFakedTimers } from '../../../../base/test/common/virtualScheduling/index.js';
 import { InstantiationService } from '../../../instantiation/common/instantiationService.js';
 import { ServiceCollection } from '../../../instantiation/common/serviceCollection.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
@@ -160,9 +161,8 @@ suite('WorkspaceContextContribution', () => {
 		});
 	});
 
-	test('bounds the wait for a slow filesystem', async () => {
+	test('bounds the wait for a slow filesystem', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const context = setupContext();
-		const clock = sinon.useFakeTimers();
 		context.enumerate.callsFake((_root, token) => new Promise((_resolve, reject) => {
 			const listener = token.onCancellationRequested(() => {
 				listener.dispose();
@@ -170,8 +170,8 @@ suite('WorkspaceContextContribution', () => {
 			});
 			store.add(listener);
 		}));
-		const pending = context.send();
-		await clock.tickAsync(2000);
-		assert.deepStrictEqual(await pending, { message: { text: 'Bump the version to 2', origin: { kind: MessageKind.User } } });
-	});
+		const started = Date.now();
+		assert.deepStrictEqual(await context.send(), { message: { text: 'Bump the version to 2', origin: { kind: MessageKind.User } } });
+		assert.strictEqual(Date.now() - started, 2000);
+	}));
 });
