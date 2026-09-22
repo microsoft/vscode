@@ -95,6 +95,7 @@ export function makeSession(resource: URI, opts?: {
 		status,
 		checkpoints: observableValue('checkpoints', undefined),
 		changes: observableValue('changes', opts?.changes ?? []),
+		changesets: constObservable([]),
 		modelId: observableValue('modelId', undefined),
 		modelSource: observableValue('modelSource', undefined),
 		mode: observableValue('mode', undefined),

@@ -8,7 +8,7 @@ import { IReader, ISettableObservable, observableValue } from '../../../../base/
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
-import { ISession } from './session.js';
+import { IChat, ISession, ISessionChangeset, ISessionFileChange } from './session.js';
 
 /** The aggregate diff counts the changes pill reports for a session. */
 export interface ISessionChangesStats {
@@ -33,10 +33,18 @@ export function readSessionChangesStats(session: ISession, reader: IReader | und
 		return { files: summary.files, insertions: summary.additions, deletions: summary.deletions };
 	}
 
-	const changesets = session.changesets.read(reader);
+	return readChangesStats(session.changesets.read(reader), session.changes.read(reader), reader);
+}
+
+/** The active chat's changes as represented by its default changeset. */
+export function readChatChangesStats(chat: IChat, reader: IReader | undefined): ISessionChangesStats | undefined {
+	return readChangesStats(chat.changesets.read(reader), chat.changes.read(reader), reader);
+}
+
+function readChangesStats(changesets: readonly ISessionChangeset[] | undefined, fallbackChanges: readonly ISessionFileChange[], reader: IReader | undefined): ISessionChangesStats | undefined {
 	const defaultChangeset = changesets?.find(changeset => changeset.isDefault.read(reader));
-	const changes = defaultChangeset?.changes.read(reader) ?? session.changes.read(reader);
-	if (changesets === undefined && changes.length === 0) {
+	const changes = defaultChangeset?.changes.read(reader) ?? fallbackChanges;
+	if (changesets === undefined && fallbackChanges.length === 0) {
 		return undefined;
 	}
 

@@ -30,7 +30,7 @@ import { GitHubPullRequestModel } from '../../../github/browser/models/githubPul
 import { GitHubPullRequestState, IGitHubPRComment, IGitHubPullRequestReview, IGitHubPullRequestReviewThread } from '../../../github/common/types.js';
 import { toPRContentUri } from '../../../github/common/utils.js';
 import { SessionChangesEditorInput } from '../../../changes/browser/sessionChangesEditorInput.js';
-import { IGitHubInfo, ISession, ISessionWorkspace } from '../../../../services/sessions/common/session.js';
+import { IChat, IGitHubInfo, ISession, ISessionWorkspace } from '../../../../services/sessions/common/session.js';
 import { commentableRightLines, mapCurrentLineToPullRequestLine, mapCurrentRangeToPullRequestRange, ICodeReviewService, CodeReviewService, PRReviewStateKind } from '../../browser/codeReviewService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { IActiveSession, ISendRequestOptions, ISessionsChangeEvent, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
@@ -70,9 +70,9 @@ suite('CodeReviewService', () => {
 		}
 
 		addSession(resource: URI, changes?: readonly IChatSessionFileChange2[], archived = false): ISession {
-			const changesObs = observableValue<readonly IChatSessionFileChange[]>('test.changes',
-				(changes ?? []).map(c => ({ modifiedUri: c.modifiedUri ?? c.uri, originalUri: c.originalUri, insertions: c.insertions, deletions: c.deletions }))
-			);
+			const initialChanges = (changes ?? []).map(c => ({ modifiedUri: c.modifiedUri ?? c.uri, originalUri: c.originalUri, insertions: c.insertions, deletions: c.deletions }));
+			const changesObs = observableValue<readonly IChatSessionFileChange[]>('test.chatChanges', initialChanges);
+			const aggregateChangesObs = observableValue<readonly IChatSessionFileChange[]>('test.sessionChanges', initialChanges);
 			const isArchivedObs = observableValue<boolean>('test.isArchived', archived);
 			const gitHubInfoObs = observableValue<IGitHubInfo | undefined>('test.gitHubInfo', undefined);
 			const workspaceUri = URI.file('/workspace');
@@ -90,11 +90,20 @@ suite('CodeReviewService', () => {
 				requiresWorkspaceTrust: false,
 				isVirtualWorkspace: false,
 			});
+			const chat = new class extends mock<IChat>() {
+				override readonly resource = resource;
+				override readonly workspace = workspaceObs;
+				override readonly changesets = constObservable([]);
+				override readonly changes = changesObs;
+			}();
+			const chatObs = constObservable(chat);
 			const sessionData: ISession = {
 				sessionId: `test:${resource.toString()}`,
 				resource,
 				workspace: workspaceObs,
-				changes: changesObs,
+				changes: aggregateChangesObs,
+				mainChat: chatObs,
+				activeChat: chatObs,
 				isArchived: isArchivedObs,
 			} as unknown as ISession;
 			this._sessions.set(resource.toString(), sessionData);
@@ -119,11 +128,21 @@ suite('CodeReviewService', () => {
 		updateSessionChanges(resource: URI, changes: readonly IChatSessionFileChange2[] | undefined): void {
 			const session = this._sessions.get(resource.toString());
 			if (session) {
-				const obs = session.changes as ReturnType<typeof observableValue<readonly IChatSessionFileChange[]>>;
-				obs.set(
-					(changes ?? []).map(c => ({ modifiedUri: c.modifiedUri ?? c.uri, originalUri: c.originalUri, insertions: c.insertions, deletions: c.deletions })),
-					undefined
-				);
+				const mappedChanges = (changes ?? []).map(c => ({ modifiedUri: c.modifiedUri ?? c.uri, originalUri: c.originalUri, insertions: c.insertions, deletions: c.deletions }));
+				(session.changes as ReturnType<typeof observableValue<readonly IChatSessionFileChange[]>>).set(mappedChanges, undefined);
+				(session.mainChat.get().changes as ReturnType<typeof observableValue<readonly IChatSessionFileChange[]>>).set(mappedChanges, undefined);
+			}
+		}
+
+		updateAggregateSessionChanges(resource: URI, changes: readonly IChatSessionFileChange2[]): void {
+			const session = this._sessions.get(resource.toString());
+			if (session) {
+				(session.changes as ReturnType<typeof observableValue<readonly IChatSessionFileChange[]>>).set(changes.map(c => ({
+					modifiedUri: c.modifiedUri ?? c.uri,
+					originalUri: c.originalUri,
+					insertions: c.insertions,
+					deletions: c.deletions,
+				})), undefined);
 			}
 		}
 
@@ -408,6 +427,33 @@ suite('CodeReviewService', () => {
 				pendingReview: { id: 42, nodeId: 'PRR_pending' },
 			}],
 			threadRefreshes: 1,
+		});
+	});
+
+	test('resolves review comment resources from active chat changes instead of aggregate session changes', () => {
+		const workspaceResource = URI.file('/workspace/src/a.ts');
+		const virtualResource = URI.parse('git:/workspace/src/a.ts?ref=head');
+		const change = {
+			uri: workspaceResource,
+			originalUri: virtualResource,
+			modifiedUri: workspaceResource,
+			insertions: 1,
+			deletions: 0,
+		};
+		const activeSession = sessionsManagement.addSession(session);
+		sessionsManagement.setGitHubInfo(session, makeGitHubInfo());
+		sessionsManagement.setActiveSession(activeSession);
+		sessionsManagement.updateAggregateSessionChanges(session, [change]);
+		const withAggregateChangesOnly = service.getPRReviewCommentPullRequests(session, virtualResource);
+
+		sessionsManagement.updateSessionChanges(session, [change]);
+
+		assert.deepStrictEqual({
+			withAggregateChangesOnly: withAggregateChangesOnly.map(pullRequest => pullRequest.number),
+			withActiveChatChanges: service.getPRReviewCommentPullRequests(session, virtualResource).map(pullRequest => pullRequest.number),
+		}, {
+			withAggregateChangesOnly: [],
+			withActiveChatChanges: [1],
 		});
 	});
 

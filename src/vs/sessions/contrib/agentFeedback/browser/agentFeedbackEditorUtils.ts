@@ -44,7 +44,7 @@ export function getSessionChangeForResource(
 
 	const sessionData = sessionsManagementService.getSession(sessionResource);
 	if (sessionData) {
-		const changes = sessionData.changes.get();
+		const changes = sessionData.mainChat.get().changes.get();
 		return changes.find(change => changeMatchesResource(change, resourceUri));
 	}
 

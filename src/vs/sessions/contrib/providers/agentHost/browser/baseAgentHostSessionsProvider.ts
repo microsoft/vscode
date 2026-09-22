@@ -2482,6 +2482,7 @@ class NewSession extends Disposable {
 			workspace: this._workspace,
 			status: this._status,
 			changes,
+			changesets: this._changesets,
 			checkpoints,
 			modelId: this._modelId,
 			modelSource: this._modelSource,

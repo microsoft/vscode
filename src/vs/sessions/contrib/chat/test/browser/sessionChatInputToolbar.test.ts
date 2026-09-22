@@ -61,26 +61,29 @@ suite('SessionChatInputToolbar', () => {
 		return { instantiationService, visibility };
 	}
 
-	test('uses session-scoped changes rather than the last turn', () => {
-		const session = upcastPartial<IActiveSession>({
-			sessionId: 'provider:session',
+	test('uses chat-scoped changes rather than aggregate session changes', () => {
+		const chat = upcastPartial<IChat>({
 			workspace: constObservable(upcastPartial<ISessionWorkspace>({ folders: [] })),
 			changesets: constObservable([]),
 			changes: constObservable([{
-				modifiedUri: URI.file('/session-change.ts'),
+				modifiedUri: URI.file('/chat-change.ts'),
 				insertions: 10,
 				deletions: 4,
 			}]),
 		});
-		const cache = upcastPartial<ISessionChangesStatsCache>({
-			get: () => ({ files: 2, insertions: 8, deletions: 3 }),
+		const session = upcastPartial<IActiveSession>({
+			sessionId: 'provider:session',
+			workspace: constObservable(upcastPartial<ISessionWorkspace>({ folders: [] })),
+			changesets: constObservable([]),
+			changes: constObservable([]),
+			activeChat: constObservable(chat),
 		});
-		const stats = derived(reader => computeSessionInputPillStats(session, cache, reader));
+		const stats = derived(reader => computeSessionInputPillStats(session, chat, reader));
 		const pendingSession = upcastPartial<IActiveSession>({
 			...session,
 			worktreePending: constObservable(true),
 		});
-		const pendingStats = derived(reader => computeSessionInputPillStats(pendingSession, cache, reader));
+		const pendingStats = derived(reader => computeSessionInputPillStats(pendingSession, chat, reader));
 
 		assert.deepStrictEqual({
 			session: stats.get(),
@@ -119,6 +122,16 @@ suite('SessionChatInputToolbar', () => {
 					}],
 				});
 				const workspace = observableValue('workspace', createWorkspace(worktree));
+				const chat = upcastPartial<IChat>({
+					resource: URI.parse('chat:main'),
+					workspace,
+					changesets: constObservable([]),
+					changes: constObservable([{
+						modifiedUri: URI.file('/chat-change.ts'),
+						insertions: 10,
+						deletions: 4,
+					}]),
+				});
 				const session = upcastPartial<IActiveSession>({
 					sessionId: 'provider:session',
 					capabilities: constObservable({ supportsMultipleChats: false }),
@@ -126,11 +139,7 @@ suite('SessionChatInputToolbar', () => {
 					chats: constObservable([]),
 					workspace,
 					changesets: constObservable([]),
-					changes: constObservable([{
-						modifiedUri: URI.file('/session-change.ts'),
-						insertions: 10,
-						deletions: 4,
-					}]),
+					changes: constObservable([]),
 				});
 				const calls: { action: string; resource?: URI; options?: ISessionChangesEditorOptions }[] = [];
 				instantiationService.stub(ISessionsService, 'setActive', (session: IActiveSession | undefined) => {
@@ -146,7 +155,7 @@ suite('SessionChatInputToolbar', () => {
 					},
 				}));
 				const toolbar = store.add(instantiationService.createInstance(SessionChatInputToolbar, false, undefined));
-				toolbar.setSession(session, undefined);
+				toolbar.setSession(session, chat);
 				for (const currentWorktree of [worktree, !worktree]) {
 					workspace.set(createWorkspace(currentWorktree), undefined);
 					const pill = toolbar.element.querySelector<HTMLElement>('.chat-changes-pill-button');
@@ -651,21 +660,36 @@ suite('SessionChatInputToolbar', () => {
 
 	test('hides the pills in a subagent chat', () => {
 		const { instantiationService, visibility } = createServices();
+		const workspace = constObservable(upcastPartial<ISessionWorkspace>({ folders: [] }));
+		const changes = constObservable([{
+			modifiedUri: URI.file('/chat-change.ts'),
+			insertions: 10,
+			deletions: 4,
+		}]);
 		const chat = upcastPartial<IChat>({
 			resource: URI.parse('chat:main'),
 			title: constObservable('Main chat'),
 			status: constObservable(SessionStatus.InProgress),
+			workspace,
+			changesets: constObservable([]),
+			changes,
 		});
 		const subagentChat = upcastPartial<IChat>({
 			resource: URI.parse('chat:subagent'),
 			title: constObservable('Subagent'),
 			status: constObservable(SessionStatus.InProgress),
+			workspace,
+			changesets: constObservable([]),
+			changes,
 			origin: { kind: ChatOriginKind.Tool, parentChat: chat.resource },
 		});
 		const forkedChat = upcastPartial<IChat>({
 			resource: URI.parse('chat:fork'),
 			title: constObservable('Fork'),
 			status: constObservable(SessionStatus.InProgress),
+			workspace,
+			changesets: constObservable([]),
+			changes,
 			origin: { kind: ChatOriginKind.Fork, parentChat: chat.resource },
 		});
 		const session = upcastPartial<IActiveSession>({
@@ -723,10 +747,15 @@ suite('SessionChatInputToolbar', () => {
 					},
 					hide: () => hideDropdown?.(),
 				});
+				const workspace = constObservable(upcastPartial<ISessionWorkspace>({ folders: [] }));
+				const chatChanges = constObservable(withChanges ? [{ modifiedUri: URI.file('/change.ts'), insertions: 1, deletions: 0 }] : []);
 				const chat = upcastPartial<IChat>({
 					resource: URI.parse('chat:main'),
 					title: constObservable('Main'),
 					status: constObservable(SessionStatus.InProgress),
+					workspace,
+					changesets: constObservable([]),
+					changes: chatChanges,
 				});
 				const runningStatus = observableValue('runningStatus', SessionStatus.InProgress);
 				const waitingStatus = observableValue('waitingStatus', SessionStatus.NeedsInput);
@@ -746,9 +775,9 @@ suite('SessionChatInputToolbar', () => {
 					capabilities: constObservable({ supportsMultipleChats: true }),
 					resource: URI.parse('session:1'),
 					chats: constObservable([chat, ...subagents]),
-					workspace: constObservable(upcastPartial<ISessionWorkspace>({ folders: [] })),
+					workspace,
 					changesets: constObservable([]),
-					changes: constObservable(withChanges ? [{ modifiedUri: URI.file('/change.ts'), insertions: 1, deletions: 0 }] : []),
+					changes: chatChanges,
 				});
 				const toolbar = store.add(instantiationService.createInstance(SessionChatInputToolbar, false, undefined));
 				document.body.appendChild(toolbar.element);
@@ -1039,7 +1068,21 @@ suite('SessionChatInputToolbar', () => {
 		const artifacts = observableValue<readonly ISessionArtifact[]>('artifacts', [{
 			id: 'durable-artifact', kind: SessionArtifactKind.File, label: 'Plan', isArtifact: true, uri: URI.file('/repo/plan.md'),
 		}]);
-		const chat = upcastPartial<IChat>({ resource: URI.parse('chat:main'), title: constObservable('Chat'), status: constObservable(SessionStatus.Completed) });
+		const workspace = constObservable(upcastPartial<ISessionWorkspace>({
+			folders: [{
+				root: URI.file('/repo'), workingDirectory: URI.file('/repo'), name: 'repo', description: undefined,
+				gitRepository: { uri: URI.file('/repo'), workTreeUri: undefined, baseBranchName: 'main', gitHubInfo: constObservable(undefined) },
+			}],
+		}));
+		const changes = constObservable([{ modifiedUri: URI.file('/repo/changed.ts'), insertions: 3, deletions: 1 }]);
+		const chat = upcastPartial<IChat>({
+			resource: URI.parse('chat:main'),
+			title: constObservable('Chat'),
+			status: constObservable(SessionStatus.Completed),
+			workspace,
+			changesets: constObservable([]),
+			changes,
+		});
 		// A browser the agent opened, and a file diff: both are live/derived state
 		// rather than recorded artifact records, so neither may offer record removal.
 		const browser = upcastPartial<BrowserEditorInput>({
@@ -1050,13 +1093,8 @@ suite('SessionChatInputToolbar', () => {
 			sessionId: 'owning-session', resource: URI.parse('session:owning'), artifacts,
 			capabilities: constObservable({ supportsMultipleChats: false, supportsRemoveArtifacts: true }),
 			chats: constObservable([chat]), changesets: constObservable([]),
-			changes: constObservable([{ modifiedUri: URI.file('/repo/changed.ts'), insertions: 3, deletions: 1 }]),
-			workspace: constObservable(upcastPartial<ISessionWorkspace>({
-				folders: [{
-					root: URI.file('/repo'), workingDirectory: URI.file('/repo'), name: 'repo', description: undefined,
-					gitRepository: { uri: URI.file('/repo'), workTreeUri: undefined, baseBranchName: 'main', gitHubInfo: constObservable(undefined) },
-				}],
-			})),
+			changes,
+			workspace,
 		});
 		instantiationService.stub(IBrowserViewWorkbenchService, upcastPartial<IBrowserViewWorkbenchService>({
 			onDidChangeBrowserViews: Event.None, getKnownBrowserViews: () => new Map([['browser-1', browser]]),

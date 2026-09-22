@@ -109,7 +109,7 @@ export function agentHostChangesetFileToEntryDiff(file: ChangesetFile, connectio
  * source backing the Agents-app Changes view), rather than from the chat
  * editing session.
  *
- * For each `(sessionResource, requestId)` it subscribes to the session's
+ * For each `(sessionResource, requestId)` it subscribes to the owning chat's
  * per-turn changeset — `requestId` is the agent host turn id — and maps its
  * files into {@link IEditSessionEntryDiff} entries. Subscriptions are acquired
  * lazily inside the returned observable (so they exist only while a summary is
@@ -174,18 +174,22 @@ export class AgentHostResponseFileChangesProvider extends Disposable implements 
 		// advertises a `turn` changeset in its catalogue. Agents that don't
 		// support per-turn changesets never produce a turn-changeset URI, so
 		// the summary stays empty (and self-hidden) for them.
-		const sessionStateObs = this._subscribe<SessionState>(StateComponents.Session, constObservable(backendSession));
+		const changesetOwner = backendChat ?? backendSession;
+		const changesetOwnerStateObs = this._subscribe<Pick<SessionState, 'changesets'> | Pick<ChatState, 'changesets'>>(
+			backendChat ? StateComponents.Chat : StateComponents.Session,
+			constObservable(changesetOwner),
+		);
 
 		const turnChangesetUriObs = derivedOpts<URI | undefined>({ equalsFn: isEqual }, reader => {
-			const sessionState = sessionStateObs.read(reader).read(reader);
-			if (!sessionState || sessionState instanceof Error) {
+			const changesetOwnerState = changesetOwnerStateObs.read(reader).read(reader);
+			if (!changesetOwnerState || changesetOwnerState instanceof Error) {
 				return undefined;
 			}
-			const supportsTurnChangeset = sessionState.changesets?.some(c => c.changeKind === ChangesetKind.Turn);
+			const supportsTurnChangeset = changesetOwnerState.changesets?.some(c => c.changeKind === ChangesetKind.Turn);
 			if (!supportsTurnChangeset) {
 				return undefined;
 			}
-			return URI.parse(buildTurnChangesetUri(backendSession.toString(), requestId));
+			return URI.parse(buildTurnChangesetUri(changesetOwner.toString(), requestId));
 		});
 
 		const changesetStateObs = this._subscribe<ChangesetState>(StateComponents.Changeset, turnChangesetUriObs);

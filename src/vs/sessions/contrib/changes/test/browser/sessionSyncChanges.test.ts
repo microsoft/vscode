@@ -31,7 +31,7 @@ import { SessionIdContext } from '../../../../common/contextkeys.js';
 import { ISessionContext, SessionContext } from '../../../../services/sessions/browser/sessionContext.js';
 import { ISessionsPartService } from '../../../../services/sessions/browser/sessionsPartService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import { ISessionChangeset, ISessionChangesetOperation, ISessionFolder, ISessionGitRepository, ISessionWorkspace, SessionChangesetOperationScope, SessionChangesetOperationStatus, UNCOMMITTED_CHANGES_CHANGESET_ID } from '../../../../services/sessions/common/session.js';
+import { IChat, ISessionChangeset, ISessionChangesetOperation, ISessionFolder, ISessionGitRepository, ISessionWorkspace, SessionChangesetOperationScope, SessionChangesetOperationStatus, UNCOMMITTED_CHANGES_CHANGESET_ID } from '../../../../services/sessions/common/session.js';
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 import { SessionSyncChangesActionViewItem, SessionSyncChangesContribution } from '../../browser/sessionSyncChanges.js';
 import '../../../../../base/browser/ui/actionbar/actionbar.css';
@@ -74,12 +74,17 @@ suite('Session Sync Changes', () => {
 		const changesets = observableValue<readonly ISessionChangeset[] | undefined>('changesets', [changeset]);
 		const workspace = observableValue<ISessionWorkspace | undefined>('workspace', createWorkspace(0, 2));
 		const worktreePending = observableValue('worktreePending', false);
+		const activeChat = upcastPartial<IChat>({
+			changesets,
+			workspace,
+		});
 		const session = upcastPartial<IActiveSession>({
 			sessionId: id,
 			resource: URI.parse(`test-session:/${id}`),
-			changesets,
+			changesets: constObservable([]),
 			workspace,
 			worktreePending,
+			activeChat: constObservable(activeChat),
 		});
 		return { session, operation, operations, enabled, changeset, changesets, invocations, workspace, worktreePending };
 	}

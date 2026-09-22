@@ -37,7 +37,7 @@ import {
 	SessionHasGitRepositoryContext,
 } from '../../../common/contextkeys.js';
 import { ChatOriginKind, getChatCapabilities, isActiveSessionStatus, isSideChatOf, ISession, SessionStatus } from './session.js';
-import { ISessionChangesStatsCache, readSessionChangesStats } from './sessionChangesStatsCache.js';
+import { ISessionChangesStatsCache, readChatChangesStats, readSessionChangesStats } from './sessionChangesStatsCache.js';
 import { IActiveSession } from './sessionsManagement.js';
 
 /**
@@ -203,6 +203,10 @@ export function setActiveSessionContextKeys(session: IActiveSession | undefined,
 	const keys = getBoundKeys(contextKeyService);
 	keys.isCreated.set(session?.isCreated.read(reader) ?? false);
 	keys.sticky.set(session?.sticky.read(reader) ?? false);
+	const activeChatStats = session ? readChatChangesStats(session.activeChat.read(reader), reader) : undefined;
+	const worktreePending = session?.worktreePending?.read(reader) ?? false;
+	keys.hasChanges.set(!worktreePending && !!activeChatStats && (activeChatStats.insertions > 0 || activeChatStats.deletions > 0));
+	keys.hasCachedChanges.set(false);
 
 	// Count committed (non-draft) chats: untitled in-composer drafts are excluded
 	// so the Chats dropdown only surfaces once a session has more than one

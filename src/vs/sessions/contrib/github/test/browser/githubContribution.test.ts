@@ -523,6 +523,7 @@ class TestSession implements ISession {
 			updatedAt: this.updatedAt,
 			status: this.status,
 			changes: this.changes,
+			changesets: this.changesets,
 			checkpoints,
 			modelId: this.modelId,
 			modelSource: constObservable(undefined),

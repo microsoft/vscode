@@ -111,6 +111,7 @@ const chat = {
 	updatedAt: constObservable(new Date()),
 	status: constObservable(SessionStatus.Completed),
 	changes: constObservable([]),
+	changesets: constObservable([]),
 	checkpoints: constObservable(undefined),
 	modelId: constObservable(undefined),
 	modelSource: constObservable(undefined),

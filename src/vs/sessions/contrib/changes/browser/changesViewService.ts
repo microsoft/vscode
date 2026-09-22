@@ -144,8 +144,7 @@ export class ChangesViewService extends Disposable implements IChangesViewServic
 		// Changesets
 		const activeSessionChangesetsObs = derived(reader => {
 			const activeSession = this.sessionsService.activeSession.read(reader);
-			const activeChat = activeSession?.activeChat.read(reader);
-			return activeChat?.changesets?.read(reader) ?? activeSession?.changesets.read(reader);
+			return activeSession?.activeChat.read(reader).changesets.read(reader);
 		});
 		this.activeSessionChangesetsObs = derived(reader => {
 			const changesets = activeSessionChangesetsObs.read(reader);
@@ -391,8 +390,9 @@ export class ChangesViewService extends Disposable implements IChangesViewServic
 			}
 
 			const activeSession = this.sessionsService.activeSession.read(reader);
-			const activeSessionChanges = activeSession?.changes.read(reader) ?? [];
-			const workspace = activeSession?.workspace.read(reader);
+			const activeChat = activeSession?.activeChat.read(reader);
+			const activeSessionChanges = activeChat?.changes.read(reader) ?? [];
+			const workspace = activeChat?.workspace.read(reader);
 
 			// Session state
 			const workspaceFolder = workspace?.folders[0];

@@ -426,6 +426,28 @@ suite('ChangesViewService', () => {
 		});
 	});
 
+	test('does not fall back to session changesets before the active chat publishes changesets', () => {
+		const sessionChangeset = createChangeset([]);
+		const activeChat = upcastPartial<IChat>({
+			resource: URI.from({ scheme: 'test-chat', path: '/active' }),
+			workspace: constObservable(undefined),
+			changes: constObservable([]),
+			changesets: constObservable(undefined),
+		});
+		const { service } = createHarness(createSession('a', {
+			changesets: [sessionChangeset],
+			activeChat: constObservable(activeChat),
+		}));
+
+		assert.deepStrictEqual({
+			changesets: service.activeSessionChangesetsObs.get(),
+			loading: service.activeSessionChangesetsLoadingObs.get(),
+		}, {
+			changesets: undefined,
+			loading: true,
+		});
+	});
+
 	test('hides checkout from generic changeset operations', () => {
 		const changeset = createChangeset([
 			{

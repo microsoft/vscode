@@ -227,6 +227,7 @@ function buildChatFromSession(chat: Omit<ICopilotChatSession, 'mainChat'>): ICha
 		updatedAt: chat.updatedAt,
 		status: chat.status,
 		changes: chat.changes,
+		changesets: constObservable(undefined),
 		checkpoints: chat.checkpoints,
 		modelId: chat.modelId,
 		modelSource: chat.modelSource,
@@ -3817,7 +3818,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		// The primary chat owns the settable `mainChat` observable. When `createNewChat`
 		// commits a new session, it updates `primaryChat.mainChat` so the wrapping ISession
 		// reflects the real backend resource without rebuilding the cached wrapper.
-		const mainChat = primaryChat.mainChat;
+		const mainChat = primaryChat.mainChat.map(chat => this._withChangesets(chat, primaryChat.sessionType, primaryChat.workspace));
 
 		const membershipSignal = this._getGroupMembershipSignal(sessionId);
 		const groupChatsObs = derivedOpts<readonly IChat[] | undefined>({
@@ -3895,7 +3896,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 	}
 
 	private _chatToSingleChatSession(chat: ICopilotChatSession): ISession {
-		const mainChat = chat.mainChat;
+		const mainChat = chat.mainChat.map(mainChat => this._withChangesets(mainChat, chat.sessionType, chat.workspace));
 		const chatsObs = mainChat.map(c => [c] as readonly IChat[]);
 		const changesets = this._createChangesets(chat.sessionType, chat.workspace, chatsObs);
 
@@ -3946,7 +3947,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 	}
 
 	private _toChat(chat: ICopilotChatSession, resource?: URI, interactivity: ChatInteractivity = ChatInteractivity.Full): IChat {
-		return {
+		return this._withChangesets({
 			resource: resource ?? chat.resource,
 			createdAt: chat.createdAt,
 			workspace: chat.workspace,
@@ -3963,10 +3964,17 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 			interactivity: constObservable(interactivity),
 			description: chat.description,
 			lastTurnEnd: chat.lastTurnEnd,
+		}, chat.sessionType, chat.workspace);
+	}
+
+	private _withChangesets(chat: Omit<IChat, 'changesets'>, sessionType: string, workspace: IObservable<ISessionWorkspace | undefined>): IChat {
+		return {
+			...chat,
+			changesets: this._createChangesets(sessionType, workspace, constObservable([chat])),
 		};
 	}
 
-	private _createChangesets(sessionType: string, workspaceObs: IObservable<ISessionWorkspace | undefined>, chatsObs: IObservable<readonly IChat[]>): IObservable<readonly ISessionChangeset[]> {
+	private _createChangesets(sessionType: string, workspaceObs: IObservable<ISessionWorkspace | undefined>, chatsObs: IObservable<readonly Pick<IChat, 'changes' | 'checkpoints' | 'isArchived' | 'lastTurnEnd'>[]>): IObservable<readonly ISessionChangeset[]> {
 		return createChangesets(sessionType, workspaceObs, chatsObs, this.instantiationService);
 	}
 

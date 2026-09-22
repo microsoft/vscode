@@ -34,6 +34,7 @@ function makeActiveSession(providerId: string): IActiveSession {
 		updatedAt: observableValue('u', new Date()),
 		status: observableValue('s', 0),
 		changes: observableValue('c', []),
+		changesets: constObservable([]),
 		modelId: observableValue('m', undefined),
 		modelSource: observableValue('ms', undefined),
 		mode: observableValue('mo', undefined),

@@ -39,7 +39,7 @@ import { SessionBrowsersControl } from './sessionBrowsersControl.js';
 import type { ISessionChatPillsDebugData } from './sessionChatInputToolbarDebug.js';
 import { SessionActivatingActionRunner } from '../../../browser/sessionActionRunner.js';
 import { computePullRequestIcon } from '../../../../workbench/common/chatPullRequest.js';
-import { ISessionChangesStatsCache, readSessionChangesStats } from '../../../services/sessions/common/sessionChangesStatsCache.js';
+import { readChatChangesStats } from '../../../services/sessions/common/sessionChangesStatsCache.js';
 import { ISessionChangesService } from '../../changes/browser/sessionChangesService.js';
 import { IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
 import { getSessionAgentMergeConfigurationObservable } from '../../../browser/sessionAgentMerge.js';
@@ -252,15 +252,12 @@ export function buildSessionIssueSections(issues: readonly IResolvedSessionIssue
 	return entries.length > 0 ? [{ title: localize('sessionChatPills.issues', "Issues"), entries }] : [];
 }
 
-/** Returns the session-scoped changes counts represented by the shared Changes pill. */
-export function computeSessionInputPillStats(session: IActiveSession | undefined, changesStatsCache: ISessionChangesStatsCache, reader: IReader): IDiffStats {
+/** Returns the focused chat's changes counts represented by the shared Changes pill. */
+export function computeSessionInputPillStats(session: IActiveSession | undefined, chat: IChat | undefined, reader: IReader): IDiffStats {
 	if (session?.worktreePending?.read(reader)) {
 		return EMPTY_DIFF_STATS;
 	}
-	const workspace = session?.workspace.read(reader);
-	const stats = session && workspace
-		? readSessionChangesStats(session, reader) ?? changesStatsCache.get(session.sessionId, reader)
-		: undefined;
+	const stats = chat?.workspace?.read(reader) ? readChatChangesStats(chat, reader) : undefined;
 	return stats ?? EMPTY_DIFF_STATS;
 }
 
@@ -329,7 +326,6 @@ export class SessionChatInputToolbar extends Disposable {
 		@ISessionsManagementService sessionsManagementService: ISessionsManagementService,
 		@INotificationService notificationService: INotificationService,
 		@ISessionsProvidersService sessionsProvidersService: ISessionsProvidersService,
-		@ISessionChangesStatsCache changesStatsCache: ISessionChangesStatsCache,
 		@ISessionChangesService sessionChangesService: ISessionChangesService,
 		@IAgentWorkbenchLayoutService layoutService: IAgentWorkbenchLayoutService,
 		@IOpenerService openerService: IOpenerService,
@@ -343,7 +339,7 @@ export class SessionChatInputToolbar extends Disposable {
 			if (debugData) {
 				return debugData.stats;
 			}
-			return computeSessionInputPillStats(this._session.read(reader), changesStatsCache, reader);
+			return computeSessionInputPillStats(this._session.read(reader), this._chat.read(reader), reader);
 		});
 
 		const pillsEnabled = constObservable(true);

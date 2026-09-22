@@ -45,7 +45,7 @@ import { CHANGES_VIEW_ID } from '../../../../../../contrib/changes/common/change
 import { ISessionsProvidersService } from '../../../../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsService } from '../../../../../../services/sessions/browser/sessionsService.js';
 import { IActiveSession } from '../../../../../../services/sessions/common/sessionsManagement.js';
-import { ISessionChangeset, ISessionChangesetOperationTarget, ISessionWorkspace, SessionChangesetOperationScope, SessionChangesetOperationStatus, UNCOMMITTED_CHANGES_CHANGESET_ID } from '../../../../../../services/sessions/common/session.js';
+import { IChat, ISessionChangeset, ISessionChangesetOperationTarget, ISessionWorkspace, SessionChangesetOperationScope, SessionChangesetOperationStatus, UNCOMMITTED_CHANGES_CHANGESET_ID } from '../../../../../../services/sessions/common/session.js';
 import { ISessionsProvider } from '../../../../../../services/sessions/common/sessionsProvider.js';
 import { AgentHostSessionConfigPicker, AgentHostSessionConfigPickerContribution, IConfigPickerItem, PickerActionViewItem } from '../../../browser/agentHostSessionConfigPicker.js';
 import { getWindow } from '../../../../../../../base/browser/dom.js';
@@ -331,12 +331,17 @@ function setupServices(
 		}
 	}();
 	const changesetsObs = observableValue<readonly ISessionChangeset[] | undefined>('changesets', [uncommittedChangeset]);
+	const activeChat = new class extends mock<IChat>() {
+		override readonly workspace = workspace;
+		override readonly changesets = changesetsObs;
+	}();
 	const activeSession = new class extends mock<IActiveSession>() {
 		override readonly providerId = LOCAL_AGENT_HOST_PROVIDER_ID;
 		override readonly sessionId = SESSION_ID;
 		override readonly resource = SESSION_RESOURCE;
 		override readonly workspace = workspace;
-		override readonly changesets = changesetsObs;
+		override readonly changesets = constObservable([]);
+		override readonly activeChat = constObservable(activeChat);
 	}();
 	const sessionObs = observableValue<IActiveSession | undefined>('activeSession', activeSession);
 	return { instantiationService, provider, activeSession, sessionObs, workspaceObs, changesetsObs, uncommittedChangeset, actionWidget, checkoutInvocations, branchSelectionEvents, checkoutDialogs, configurationService };
@@ -1491,7 +1496,10 @@ suite('Agent Host Session Config Picker', () => {
 			providerId: LOCAL_AGENT_HOST_PROVIDER_ID,
 			sessionId: OTHER_SESSION_ID,
 			workspace: constObservable(makeWorkspace(undefined)),
-		} as IActiveSession, undefined);
+			activeChat: constObservable(new class extends mock<IChat>() {
+				override readonly changesets = constObservable([]);
+			}),
+		} as unknown as IActiveSession, undefined);
 
 		assert.strictEqual(Array.from(cache.keys()).some(key => key.startsWith(`${SESSION_ID}\0`)), false, 'stale entries for the previous session are evicted');
 		picker.dispose();
