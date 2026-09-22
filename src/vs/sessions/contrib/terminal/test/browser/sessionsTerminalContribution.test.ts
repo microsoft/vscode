@@ -56,6 +56,7 @@ type TestTerminalInstance = ITerminalInstance & {
 };
 
 type TestActiveSession = IActiveSession & {
+	activeChat: ReturnType<typeof observableValue<IChat>>;
 	loading: ReturnType<typeof observableValue<boolean>>;
 	isArchived: ReturnType<typeof observableValue<boolean>>;
 	worktreePending: ReturnType<typeof observableValue<boolean>>;
@@ -80,9 +81,20 @@ function makeAgentSession(opts: {
 		description: undefined,
 		gitRepository: { uri: opts.repository ?? opts.worktree!, workTreeUri: opts.worktree, baseBranchName: undefined, gitHubInfo: constObservable(undefined) },
 	} : undefined;
+	const workspace = observableValue('test.workspace', folder
+		? {
+			uri: folder.root,
+			label: 'test',
+			icon: Codicon.repo,
+			folders: [folder],
+			requiresWorkspaceTrust: false,
+			isVirtualWorkspace: false
+		} satisfies ISessionWorkspace
+		: undefined);
 	const chat = {
 		resource: URI.parse('file:///session'),
 		createdAt: new Date(),
+		workspace,
 		title: observableValue('test.title', 'Test Session'),
 		updatedAt: observableValue('test.updatedAt', new Date()),
 		status: observableValue('test.status', 0),
@@ -104,16 +116,7 @@ function makeAgentSession(opts: {
 		sessionType: opts.providerType ?? AgentSessionProviders.Local,
 		icon: Codicon.copilot,
 		createdAt: chat.createdAt,
-		workspace: observableValue('test.workspace', folder
-			? {
-				uri: folder.root,
-				label: 'test',
-				icon: Codicon.repo,
-				folders: [folder],
-				requiresWorkspaceTrust: false,
-				isVirtualWorkspace: false
-			} satisfies ISessionWorkspace
-			: undefined),
+		workspace,
 		title: chat.title,
 		updatedAt: chat.updatedAt,
 		status: chat.status,
@@ -143,7 +146,7 @@ function makeAgentSession(opts: {
 	return session;
 }
 
-function makeNonAgentSession(opts: { repository?: URI; worktree?: URI; providerType?: string; sessionId?: string }): ISession {
+function makeNonAgentSession(opts: { repository?: URI; worktree?: URI; providerType?: string; sessionId?: string }): IActiveSession {
 	const folder = opts.repository || opts.worktree ? {
 		root: opts.repository ?? opts.worktree!,
 		workingDirectory: opts.worktree ?? opts.repository!,
@@ -151,9 +154,18 @@ function makeNonAgentSession(opts: { repository?: URI; worktree?: URI; providerT
 		description: undefined,
 		gitRepository: { uri: opts.repository ?? opts.worktree!, workTreeUri: opts.worktree, baseBranchName: undefined, gitHubInfo: constObservable(undefined) },
 	} : undefined;
+	const workspace = observableValue('test.workspace', folder
+		? {
+			uri: folder.root,
+			label: 'test',
+			icon: Codicon.repo,
+			folders: [folder],
+			requiresWorkspaceTrust: false,
+		} as ISessionWorkspace : undefined);
 	const chat: IChat = {
 		resource: URI.parse('file:///session'),
 		createdAt: new Date(),
+		workspace,
 		title: observableValue('test.title', 'Test Session'),
 		updatedAt: observableValue('test.updatedAt', new Date()),
 		status: observableValue('test.status', 0),
@@ -175,14 +187,7 @@ function makeNonAgentSession(opts: { repository?: URI; worktree?: URI; providerT
 		sessionType: opts.providerType ?? AgentSessionProviders.Local,
 		icon: Codicon.copilot,
 		createdAt: chat.createdAt,
-		workspace: observableValue('test.workspace', folder
-			? {
-				uri: folder.root,
-				label: 'test',
-				icon: Codicon.repo,
-				folders: [folder],
-				requiresWorkspaceTrust: false,
-			} as ISessionWorkspace : undefined),
+		workspace,
 		title: chat.title,
 		updatedAt: chat.updatedAt,
 		status: chat.status,
@@ -196,9 +201,17 @@ function makeNonAgentSession(opts: { repository?: URI; worktree?: URI; providerT
 		lastTurnEnd: chat.lastTurnEnd,
 		description: chat.description,
 		chats: observableValue('test.chats', [chat]),
+		activeChat: observableValue('test.activeChat', chat),
 		mainChat: constObservable(chat),
 		capabilities: constObservable({ supportsMultipleChats: false }),
-	} satisfies ISession;
+		isCreated: observableValue('test.isCreated', true),
+		sticky: observableValue('test.sticky', false),
+		openChats: observableValue('test.openChats', [chat]),
+		closedChats: constObservable([]),
+		lastClosedChat: undefined,
+		visibleChatTabs: constObservable([chat]),
+		shouldShowChatTabs: constObservable(false),
+	} satisfies IActiveSession;
 	return session;
 }
 
@@ -513,9 +526,42 @@ suite('SessionsTerminalContribution', () => {
 		assert.strictEqual(createdTerminals[0].cwd.fsPath, URI.file('/worktree').fsPath);
 	});
 
+	test('updates the terminal cwd when the active chat workspace changes', async () => {
+		const session = makeAgentSession({ repository: URI.file('/repo-a'), providerType: AgentSessionProviders.Local });
+		activeSessionObs.set(session, undefined);
+		await tick();
+
+		const activeChat = session.activeChat.get();
+		const secondWorkspace: ISessionWorkspace = {
+			...session.workspace.get()!,
+			uri: URI.file('/repo-b'),
+			folders: [{
+				root: URI.file('/repo-b'),
+				workingDirectory: URI.file('/repo-b'),
+				name: 'repo-b',
+				description: undefined,
+			}],
+		};
+		session.activeChat.set({
+			...activeChat,
+			resource: URI.parse('file:///session/chat-b'),
+			workspace: constObservable(secondWorkspace),
+		}, undefined);
+		await tick();
+		await tick();
+
+		assert.deepStrictEqual({
+			createdCwds: createdTerminals.map(terminal => terminal.cwd.fsPath),
+			defaultCwd: defaultCwdCalls.at(-1)?.fsPath,
+		}, {
+			createdCwds: [URI.file('/repo-a').fsPath, URI.file('/repo-b').fsPath],
+			defaultCwd: URI.file('/repo-b').fsPath,
+		});
+	});
+
 	test('uses home directory for a non-agent session', async () => {
 		const session = makeNonAgentSession({ repository: URI.file('/repo') });
-		activeSessionObs.set(session as IActiveSession, undefined);
+		activeSessionObs.set(session, undefined);
 		await tick();
 
 		assert.strictEqual(createdTerminals.length, 1);

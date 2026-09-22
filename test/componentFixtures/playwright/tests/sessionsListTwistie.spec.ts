@@ -29,6 +29,23 @@ test('reveals the nested chat twistie only while hovering the session row', asyn
 	await expect(statusIcon).toHaveCSS('visibility', 'visible');
 });
 
+test('aligns the nested chat twistie with the compact session status icon', async ({ page }) => {
+	await openFixture(page, 'sessions/sessionsList/SessionsList_Compact/Dark', '.sessions-list-control');
+
+	const sessionRow = page.locator('.monaco-list-row').filter({ has: page.locator('.session-item') }).first();
+	const twistie = sessionRow.locator('.session-chat-twistie.collapsible');
+	const statusIcon = sessionRow.locator('.session-icon > .codicon');
+
+	await sessionRow.hover();
+	await expect(twistie).toBeVisible();
+
+	const twistieBounds = await twistie.boundingBox();
+	const statusIconBounds = await statusIcon.boundingBox();
+	expect(twistieBounds).not.toBeNull();
+	expect(statusIconBounds).not.toBeNull();
+	expect(twistieBounds!.y + twistieBounds!.height / 2).toBe(statusIconBounds!.y + statusIconBounds!.height / 2);
+});
+
 for (const theme of ['Dark', 'Light', 'DarkHighContrast', 'LightHighContrast']) {
 	for (const { name, fixture, ariaStatus, indicatorClass, color, count } of [
 		{ name: 'unread', fixture: 'SessionsList_CollapsedUnreadSections', ariaStatus: 'contains unread sessions', indicatorClass: '.codicon-circle-filled', color: '--vscode-textLink-foreground', count: 1 },

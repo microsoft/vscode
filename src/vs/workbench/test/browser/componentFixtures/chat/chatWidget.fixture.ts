@@ -38,6 +38,7 @@ import { MockLanguageModelToolsService } from '../../../../contrib/chat/test/com
 import { IChatToolRiskAssessmentService, IToolRiskAssessment, ToolRiskLevel } from '../../../../contrib/chat/browser/tools/chatToolRiskAssessmentService.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ILinkPresentationService } from '../../../../../platform/dataChannel/common/dataChannel.js';
+import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID, ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatProgressAnimation, ThinkingDisplayMode } from '../../../../contrib/chat/common/constants.js';
@@ -46,6 +47,7 @@ import { SessionType } from '../../../../contrib/chat/common/chatSessionsService
 import { IChatEditingService, IChatEditingSession, IEditSessionEntryDiff } from '../../../../contrib/chat/common/editing/chatEditingService.js';
 import { IChatResponseFileChangesService, IChatResponseFileEdit } from '../../../../contrib/chat/browser/chatResponseFileChangesService.js';
 import { MockChatService } from '../../../../contrib/chat/test/common/chatService/mockChatService.js';
+import { TestFileService } from '../../../common/workbenchTestServices.js';
 import { MockChatEditingSession } from '../../../../contrib/chat/test/common/mockChatEditingSession.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, type ServiceRegistration } from '../fixtureUtils.js';
 import { FixtureMenuService, registerChatFixtureServices, registerSubagentFixtureServices } from './chatFixtureUtils.js';
@@ -1462,7 +1464,7 @@ function defineThinkingStyleScenarios(thinkingStyle: ThinkingDisplayMode, defaul
 		PlanReview: scenario(PERSISTENT_PROGRESS_PLAN_REVIEW, { expectedText: 'Plan review required' }),
 		PlanApproved: scenario(PERSISTENT_PROGRESS_PLAN_REVIEW, { submitInteraction: 'planReview' }),
 		WorktreeCreation: scenario(PERSISTENT_PROGRESS_WORKTREE),
-		ParallelSubagents: scenario(parallelSubagentMessages(), {}, false),
+		ParallelSubagents: scenario(parallelSubagentMessages(), { expectedText: 'Waiting for 5 subagents' }, false),
 		CompletedSubagentNotices: scenario(parallelSubagentMessages(true), {}, false),
 		// The legacy fixed-scrolling thinking container reports a ResizeObserver loop when
 		// subagent pills expand inside it (independent of this setting), which the headless
@@ -1633,7 +1635,26 @@ function defineToolChainScenarios(progressAnimation = ChatProgressAnimation.Weav
 		PlanApproved: scenario(PERSISTENT_PROGRESS_PLAN_REVIEW, { submitInteraction: 'planReview' }),
 		WorktreeCreation: scenario(PERSISTENT_PROGRESS_WORKTREE),
 		McpStarting: scenario(PERSISTENT_PROGRESS_MCP_STARTING),
-		ParallelSubagents: scenario(parallelSubagentMessages()),
+		ParallelSubagents: scenario(parallelSubagentMessages(), { expectedText: 'Waiting for 5 subagents' }),
+		// A single background agent is counted while the parent has nothing of its own in flight.
+		BackgroundAgent: scenario(tools([
+			{ kind: 'thinking', text: '**Delegating the investigation**\nHand the faint chronology to a research agent while the plan is drafted.' },
+			{ kind: 'markdown', text: 'I started a research agent to trace every faint.' },
+			{ kind: 'subagent', id: 'faint-census', description: 'Track faint investigation' },
+		]), { expectedText: 'Waiting for 1 subagent' }),
+		// Reading a background agent blocks the parent until the agent reports back.
+		ReadBackgroundAgent: scenario(tools([
+			{ kind: 'subagent', id: 'faint-census', description: 'Track faint investigation' },
+			{ kind: 'thinking', text: '**Reviewing the plan**\nCheck the drafted plan against the notes before reading the agent result.' },
+			{ kind: 'markdown', text: 'The plan is ready. I will wait for the research agent before deciding on the battle strategy.' },
+			tool('read_agent', 'Read agent `faint-census`'),
+		]), { expectedText: 'Waiting for 1 subagent' }),
+		// Reading a background terminal blocks the parent on its output.
+		ReadBackgroundTerminal: scenario(tools([
+			...before,
+			{ kind: 'markdown', text: 'The build is running in a background terminal. I will check its output before continuing.' },
+			tool('get_terminal_output', 'Checking terminal output'),
+		]), { expectedText: 'Waiting for terminal output' }),
 		CompletedSubagentNotices: scenario(parallelSubagentMessages(true)),
 		ReducedMotion: scenario(interwoven, { reducedMotion: true }),
 	});
@@ -2084,6 +2105,20 @@ async function renderDisabledPetResizeObserverProbe(context: ComponentFixtureCon
 
 export default defineThemedFixtureGroup({ path: 'chat/widget/' }, {
 	SimpleQA: defineComponentFixture({ render: ctx => renderChatWidget(ctx, { messages: SIMPLE_QA }) }),
+	SandboxPolicyLink: defineComponentFixture({
+		render: ctx => renderChatWidget(ctx, {
+			additionalServices: reg => reg.defineInstance(IFileService, ctx.disposableStore.add(new TestFileService())),
+			inputVisible: false,
+			height: 240,
+			messages: [{
+				user: '/sandbox-policy',
+				assistant: [{
+					kind: 'markdown',
+					text: '[Open Sandbox Policy](file:///session/diagnostics/sandbox-policy.md?vscodeLinkType=markdown-preview)\n\n[Regular chat link](https://example.com)',
+				}],
+			}],
+		}),
+	}),
 	ScrollToBottomAction: defineComponentFixture({ render: renderScrollToBottomAction }),
 	Streaming: defineComponentFixture({ labels: { kind: 'animated' }, render: ctx => renderChatWidget(ctx, { messages: STREAMING }) }),
 	PendingToolApproval: defineComponentFixture({ render: ctx => renderChatWidget(ctx, { messages: PENDING_TOOL_APPROVAL }) }),

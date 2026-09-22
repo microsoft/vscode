@@ -14,6 +14,26 @@ import { AGENT_SESSION_RENAME_ACTION_ID } from '../../../browser/agentSessions/a
 suite('Chat Accessibility Help', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('documents the sandbox policy command and report link', () => {
+		const help = getAccessibilityHelpText('agentView', new MockKeybindingService(), true);
+		assert.ok(help.includes('use /sandbox-policy to view the effective sandbox policy. In the response, use Tab to focus Open Sandbox Policy and Enter to open the formatted report.'));
+	});
+
+	for (const type of ['panelChat', 'editsView', 'agentView'] as const) {
+		test(`documents draft copying, preservation, and invitation dismissal in ${type}`, () => {
+			const help = getAccessibilityHelpText(type, new MockKeybindingService(), false);
+			assert.deepStrictEqual({
+				agentHostOnly: help.includes('When another Agent Host session is running, a new Agent Host chat'),
+				copy: help.includes('copies the current prompt and attachments from that input without sending them or clearing it'),
+				singleOwner: help.includes('Only one chat input shows the invitation at a time'),
+				preserve: help.includes('An existing draft in the Agents Window is kept'),
+				ignore: help.includes('Ignore turns off future invitations'),
+				dismiss: help.includes('only hides the invitation for this chat until the window reloads'),
+				hiddenInAgents: !getAccessibilityHelpText(type, new MockKeybindingService(), false, true).includes('chat may show an invitation'),
+			}, { agentHostOnly: true, copy: true, singleOwner: true, preserve: true, ignore: true, dismiss: true, hiddenInAgents: true });
+		});
+	}
+
 	test('documents accepting the selected confirmation primary action', () => {
 		const help = getAccessibilityHelpText('agentView', new MockKeybindingService(), true);
 		assert.deepStrictEqual({

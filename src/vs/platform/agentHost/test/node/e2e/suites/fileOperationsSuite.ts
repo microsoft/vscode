@@ -531,6 +531,10 @@ Use your file creation tool; do not run a shell command. Then reply exactly "don
 		await assertRecordedAhpSnapshot(this.test!, context.client, BEHAVIOR_SNAPSHOT);
 	}, shellResultTextAvailable);
 
+	// Codex replays the recorded `exec_command` turn on Windows but the workspace
+	// file is intermittently absent once the turn completes, while the adjacent
+	// edit, nested-create, rename, and delete scenarios pass on the same worker.
+	const createFileReplayEnabled = RECORDING || !isWindows || !config.fileCreateReplayUnstableOnWindows;
 	fileOperationTest(context, 'creates a new text file', async function () {
 		this.timeout(180_000);
 		const workspace = mkdtempSync(join(tmpdir(), 'ahp-coverage-create-'));
@@ -549,7 +553,7 @@ Use your file creation tool; do not run a shell command. Then reply exactly "don
 		await driveTurnToCompletion(context.client, sessionUri, 'turn-create', prompt, 1);
 		assert.strictEqual(readFileSync(join(workspace, 'result.txt'), 'utf8'), 'CREATED_VALUE');
 		await assertRecordedAhpSnapshot(this.test!, context.client, BEHAVIOR_SNAPSHOT);
-	});
+	}, createFileReplayEnabled);
 
 	fileOperationTest(context, 'edits an existing text file', async function () {
 		this.timeout(180_000);

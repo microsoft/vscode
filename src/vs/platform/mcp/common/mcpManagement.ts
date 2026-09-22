@@ -283,12 +283,15 @@ export interface IAllowedMcpServersService {
 	readonly _serviceBrand: undefined;
 
 	readonly onDidChangeAllowedMcpServers: Event<void>;
+	/** Checks a server definition before resolution, deferring rules for variable-dependent URL/command fields. */
 	isAllowed(mcpServer: IGalleryMcpServer | ILocalMcpServer | IInstallableMcpServer): true | IMarkdownString;
 
+	/** Checks a definition identity before resolution; access and name restrictions are never deferred. */
+	isServerAllowedBeforeResolution(identity: IMcpServerIdentity): true | IMarkdownString;
+
 	/**
-	 * Checks whether an MCP server identified by name / remote URL / local command is permitted by
-	 * the `chat.mcp.allowedServers` allowlist (in addition to the `chat.mcp.access` gate). Used by
-	 * the runtime enforcement path, which does not have a gallery/local/installable representation.
+	 * Checks access and allow/deny rules against a resolved runtime identity without deferring URL rules.
+	 * Runtime callers must use this after resolving a server definition.
 	 */
 	isServerAllowed(identity: IMcpServerIdentity): true | IMarkdownString;
 }

@@ -62,10 +62,11 @@ suite('SessionServerTools', () => {
 		return { sessionUri, chatUri: buildDefaultChatUri(sessionUri), turnId: 'turn-1' };
 	}
 
-	function createAccessor(overrides?: Partial<ISessionServerToolAccessor> & { onCreate?: (config: IAgentCreateSessionConfig) => void; onPrompt?: (...args: Parameters<ISessionServerToolAccessor['startPrompt']>) => void; onCreateChat?: (session: URI, chat: URI, options?: { title?: string; model?: ModelSelection }) => void; onRenameChat?: (session: URI, chat: URI, title: string) => void; onDelete?: (session: URI) => void; depths?: Map<string, number> }): ISessionServerToolAccessor {
+	function createAccessor(overrides?: Partial<ISessionServerToolAccessor> & { onCreate?: (config: IAgentCreateSessionConfig) => void; onPrompt?: (...args: Parameters<ISessionServerToolAccessor['startPrompt']>) => void; onCreateChat?: (...args: Parameters<ISessionServerToolAccessor['createChat']>) => void; onRenameChat?: (session: URI, chat: URI, title: string) => void; onDelete?: (session: URI) => void; depths?: Map<string, number> }): ISessionServerToolAccessor {
 		const depths = overrides?.depths ?? new Map<string, number>();
 		return {
 			isActiveAgentTitleGenerationEnabled: overrides?.isActiveAgentTitleGenerationEnabled ?? (() => true),
+			getAutomaticTitleGenerationStrategy: overrides?.getAutomaticTitleGenerationStrategy ?? (() => overrides?.isActiveAgentTitleGenerationEnabled?.() === false ? 'utility' : 'activeAgent'),
 			canConvertWorkspace: overrides?.canConvertWorkspace ?? (() => true),
 			listSessions: overrides?.listSessions ?? (async () => [sessionMeta('s1', SessionStatus.InProgress, workspace)]),
 			getSession: overrides?.getSession ?? (async session => session.toString() === 'copilot:/s1' ? sessionMeta('s1', SessionStatus.InProgress, workspace) : undefined),
@@ -75,6 +76,7 @@ suite('SessionServerTools', () => {
 			getCreationDefaults: overrides?.getCreationDefaults ?? (() => undefined),
 			startPrompt: overrides?.startPrompt ?? (async (session, chat, prompt, delegation) => { overrides?.onPrompt?.(session, chat, prompt, delegation); }),
 			createChat: overrides?.createChat ?? (async (session, chat, options) => { overrides?.onCreateChat?.(session, chat, options); }),
+			addSessionWorkingDirectory: overrides?.addSessionWorkingDirectory ?? (async (_session, directory) => directory),
 			renameChat: overrides?.renameChat ?? (async (session, chat, title) => { overrides?.onRenameChat?.(session, chat, title); return { title }; }),
 			reportToolError: overrides?.reportToolError ?? (() => { }),
 			deleteSession: overrides?.deleteSession ?? (async session => { overrides?.onDelete?.(session); }),
@@ -307,7 +309,37 @@ suite('SessionServerTools', () => {
 			'Renamed chat to "Still enabled".',
 		);
 		assert.ok(host.getDefinitionsForSession(session).some(tool => tool.name === SessionServerToolName.RenameChat));
+		assert.ok(host.toolNames.includes(SessionServerToolName.RenameChat));
 		stateManager.dispose();
+	});
+
+	test('deferred naming keeps explicit rename tools without automatic naming guidance', async () => {
+		const stateManager = new AgentHostStateManager(new NullLogService());
+		try {
+			const session = 'copilot:/s1';
+			stateManager.createSession({
+				resource: session, provider: 'copilot', title: 'Seed title', status: SessionStatus.Idle,
+				createdAt: new Date(0).toISOString(), modifiedAt: new Date(0).toISOString(),
+			});
+			const host = new AgentServerToolHost(stateManager, [createSessionServerToolGroup(createAccessor({
+				isActiveAgentTitleGenerationEnabled: () => false,
+				getAutomaticTitleGenerationStrategy: () => 'deferred',
+			}))]);
+			host.advertise(session);
+			const definition = host.getDefinitionsForSession(session).find(tool => tool.name === SessionServerToolName.RenameChat);
+			assert.ok(definition?.inputSchema && definition.description);
+			assert.deepStrictEqual({
+				explicitOnly: definition.description.includes('when the user explicitly asks'),
+				noAutomaticNaming: definition.description.includes('do not call this tool to name a fresh chat'),
+				automaticArgument: definition.inputSchema.properties?.automatic,
+				result: await host.executeTool(buildDefaultChatUri(session), SessionServerToolName.RenameChat, { title: 'Requested title' }),
+			}, {
+				explicitOnly: true, noAutomaticNaming: true, automaticArgument: undefined,
+				result: 'Renamed chat to "Requested title".',
+			});
+		} finally {
+			stateManager.dispose();
+		}
 	});
 
 	test('set_workspace is not advertised or executable when the provider cannot change working directory', async () => {

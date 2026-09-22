@@ -69,7 +69,7 @@ export class CloudBackendInstrumentation implements ICloudBackendInstrumentation
 					"outcome": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Whether task creation succeeded or failed." },
 					"errorType": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Low-cardinality error classifier (e.g. http_500) when creation failed." },
 					"errorMessage": { "classification": "CallstackOrException", "purpose": "PerformanceAndHealth", "comment": "Error message when creation failed." },
-					"durationMs": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true, "comment": "Time in milliseconds from create attempt to failure." }
+					"durationMs": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true, "comment": "Time in milliseconds from create attempt to success or failure." }
 				}
 			*/
 			this._telemetryService.sendMSFTTelemetryErrorEvent('copilotcloud.chat.sessionCreate', {
@@ -83,7 +83,7 @@ export class CloudBackendInstrumentation implements ICloudBackendInstrumentation
 					"owner": "osortega",
 					"comment": "Cloud agent task creation outcome.",
 					"outcome": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Whether task creation succeeded or failed." },
-					"durationMs": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true, "comment": "Time in milliseconds from create attempt to success." }
+					"durationMs": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true, "comment": "Time in milliseconds from create attempt to success or failure." }
 				}
 			*/
 			this._telemetryService.sendMSFTTelemetryEvent('copilotcloud.chat.sessionCreate', { outcome }, { durationMs });

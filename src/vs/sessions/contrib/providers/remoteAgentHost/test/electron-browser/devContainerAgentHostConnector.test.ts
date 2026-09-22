@@ -212,6 +212,8 @@ suite('Dev Container Agent Host Connector', () => {
 			const disconnected: string[] = [];
 			const outputs = store.add(new Emitter<{ connectionId: string; data: string }>());
 			const output: string[] = [];
+			const writtenChannels: string[] = [];
+			const shownChannels: string[] = [];
 			let dockerChecks = 0;
 			let dockerAvailable = true;
 			let supported = true;
@@ -252,10 +254,14 @@ suite('Dev Container Agent Host Connector', () => {
 				new TestConfigurationService({ [DevContainerAgentHostEnabledSettingId]: true, [RemoteAgentHostsEnabledSettingId]: true }),
 				new class extends mock<IEnvironmentService>() { }(),
 				new class extends mock<IOutputService>() {
-					override getChannel(): IOutputChannel {
+					override getChannel(id: string): IOutputChannel {
+						writtenChannels.push(id);
 						return new class extends mock<IOutputChannel>() {
 							override append(value: string): void { output.push(value); }
 						}();
+					}
+					override async showChannel(id: string): Promise<void> {
+						shownChannels.push(id);
 					}
 				}(),
 				new class extends mock<IFileService>() {
@@ -277,7 +283,10 @@ suite('Dev Container Agent Host Connector', () => {
 			dockerAvailable = false;
 			const withoutDocker = await connector.isAvailable(workspaceUri);
 			dockerAvailable = true;
+			await connector.showLog(workspaceUri);
 			const target = await connector.createConnection(workspaceUri, 'devcontainer:test', CancellationToken.None);
+			await connector.showLog(workspaceUri);
+			assert.deepStrictEqual(shownChannels, [writtenChannels[0], writtenChannels[0]]);
 			target.transportDisposable?.dispose();
 			await Promise.resolve();
 			assert.deepStrictEqual({

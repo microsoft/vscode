@@ -34,7 +34,7 @@ import { ICommandService } from '../../../../../platform/commands/common/command
 import { IContextKey, IContextKeyService, RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
 import { MarshalledId } from '../../../../../base/common/marshallingIds.js';
 import { SessionProviderIdContext, SessionSupportsDeleteContext, SessionSupportsMultipleChatsContext, SessionSupportsRenameContext, SessionTypeContext, IsPhoneLayoutContext, IsQuickChatSessionContext, SessionIsArchivedContext, SessionIsReadContext, SessionHasPullRequestContext } from '../../../../common/contextkeys.js';
-import { ARCHIVE_SESSION_COMMAND_ID, RENAME_SESSION_COMMAND_ID } from '../../../../common/sessionCommands.js';
+import { ARCHIVE_SESSION_COMMAND_ID, RENAME_CHAT_COMMAND_ID, RENAME_SESSION_COMMAND_ID } from '../../../../common/sessionCommands.js';
 import { IContextMenuService, IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
@@ -117,7 +117,6 @@ const EMPTY_GUIDE_SESSION_IDS: ReadonlySet<string> = new Set();
 export const SessionItemContextMenuId = MenuId.SessionItemContextMenu;
 export const SessionSectionToolbarMenuId = new MenuId('SessionSectionToolbar');
 export const SessionGroupToolbarMenuId = new MenuId('SessionGroupToolbar');
-export const RENAME_SESSION_LIST_CHAT_ACTION_ID = 'sessions.list.renameChat';
 export const NEW_SESSION_FOR_WORKSPACE_ACTION_ID = 'sessionsView.sectionNewSession';
 
 /** Controls whether the empty default Chats group is shown in the sessions list. */
@@ -221,8 +220,8 @@ function getSessionListChats(session: ISession, reader?: IReader): readonly ICha
 	);
 }
 
-/** Preserves active main-chat states; otherwise summarizes hidden child progress before returning the main-chat status. */
-function getSessionRowStatus(session: ISession, reader: IReader | undefined, deriveFromMainChat: boolean, includeVisibleChildProgress = true): SessionStatus {
+/** Preserves active main-chat states and uses the session aggregate for collapsed child progress. */
+function getSessionRowStatus(session: ISession, reader: IReader | undefined, deriveFromMainChat: boolean, collapsed = true): SessionStatus {
 	const sessionStatus = session.status.read(reader);
 	if (!deriveFromMainChat) {
 		return sessionStatus;
@@ -231,11 +230,7 @@ function getSessionRowStatus(session: ISession, reader: IReader | undefined, der
 	if (mainChatStatus === SessionStatus.InProgress || mainChatStatus === SessionStatus.NeedsInput) {
 		return mainChatStatus;
 	}
-	const visibleChildChats = includeVisibleChildProgress ? undefined : getSessionListChats(session, reader);
-	if (session.chats.read(reader).some(chat =>
-		chat.status.read(reader) === SessionStatus.InProgress &&
-		(includeVisibleChildProgress || !visibleChildChats?.includes(chat))
-	)) {
+	if (collapsed && sessionStatus === SessionStatus.InProgress) {
 		return SessionStatus.InProgress;
 	}
 	return mainChatStatus;
@@ -2007,6 +2002,7 @@ interface ISessionGroupRendererDelegate {
 class SessionGroupRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, ISessionGroupTemplate> {
 	static readonly TEMPLATE_ID = 'session-group';
 	readonly templateId = SessionGroupRenderer.TEMPLATE_ID;
+	readonly rowClassName = 'session-list-section-row';
 
 	private readonly templatesByElement = new WeakMap<ISessionGroupItem, ISessionGroupTemplate>();
 	private readonly templatesById = new Map<string, ISessionGroupTemplate>();
@@ -2887,6 +2883,7 @@ export interface ISessionsList {
 export class SessionsList extends Disposable implements ISessionsList {
 
 	private static readonly SECTION_COLLAPSE_STATE_KEY = 'sessionsListControl.sectionCollapseState';
+	private static readonly SESSION_COLLAPSE_STATE_KEY = 'sessionsListControl.sessionCollapseState';
 	private static readonly EXCLUDED_TYPES_KEY = 'sessionsListControl.excludedSessionTypes';
 	private static readonly EXCLUDED_STATUSES_KEY = 'sessionsListControl.excludedStatuses';
 	private static readonly EXCLUDE_ARCHIVED_KEY = 'sessionsListControl.excludeArchived';
@@ -2907,6 +2904,8 @@ export class SessionsList extends Disposable implements ISessionsList {
 	private sessions: ISession[] = [];
 	private readonly sessionChatsObserver = this._register(new MutableDisposable());
 	private readonly activeSessionUpdate = this._register(new MutableDisposable());
+	private readonly collapsedSessionResources: Set<string>;
+	private nestedSessionResources = new Set<string>();
 	/**
 	 * Reactively reconciles each chat row's virtualized height with its live
 	 * approval state. Owned by the list (not the row templates), so an approval
@@ -3048,6 +3047,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		this._excludeRead = this.storageService.getBoolean(SessionsList.EXCLUDE_READ_KEY, StorageScope.PROFILE, false);
 		this._showEmptyGroups = this.storageService.getBoolean(SessionsList.SHOW_EMPTY_GROUPS_KEY, StorageScope.PROFILE, true);
 		this.workspaceGroupCapped = this.storageService.getBoolean(SessionsList.WORKSPACE_GROUP_CAPPED_KEY, StorageScope.PROFILE, true);
+		this.collapsedSessionResources = this.loadCollapsedSessionResources();
 
 		this.listContainer = DOM.append(container, $('.sessions-list-control.session-list-row-spacing'));
 		this.listContainer.classList.toggle('compact', this.isCompact());
@@ -3461,6 +3461,9 @@ export class SessionsList extends Disposable implements ISessionsList {
 				}
 			} else if (element && isSessionItem(element)) {
 				this.syncCollapsedSessionIds();
+				if (!this.suspendCollapseStatePersistence) {
+					this.saveSessionCollapseState(element, e.node.collapsed);
+				}
 			}
 		}));
 
@@ -3603,6 +3606,11 @@ export class SessionsList extends Disposable implements ISessionsList {
 	update(expandAll?: boolean): void {
 		const activeSession = this._sessionsService.activeSession.get();
 		const archiveOnboardingSession = this.archiveOnboardingSession.get();
+		const nextNestedSessionResources = new Set(
+			this.sessions
+				.filter(session => getSessionListChats(session).length > 0)
+				.map(session => session.resource.toString())
+		);
 
 		// Scope to the selected host's providers; an empty set (a declared
 		// group with no members yet) matches nothing rather than everything.
@@ -3751,10 +3759,19 @@ export class SessionsList extends Disposable implements ISessionsList {
 		const toSessionChildren = (sessions: readonly ISession[]): IObjectTreeElement<SessionListItem>[] =>
 			sessions.map(session => {
 				const chats = getSessionListChats(session);
+				const resource = session.resource.toString();
+				const wasNested = this.nestedSessionResources.has(resource);
+				const persistedCollapsed = this.collapsedSessionResources.has(resource);
 				return {
 					element: session as SessionListItem,
 					collapsible: chats.length > 0,
-					collapsed: ObjectTreeElementCollapseState.PreserveOrExpanded,
+					collapsed: wasNested
+						? persistedCollapsed
+							? ObjectTreeElementCollapseState.PreserveOrCollapsed
+							: ObjectTreeElementCollapseState.PreserveOrExpanded
+						: persistedCollapsed
+							? ObjectTreeElementCollapseState.Collapsed
+							: ObjectTreeElementCollapseState.Expanded,
 					children: chats.length > 0
 						? chats.map(chat => ({ element: new SessionChatItem(session, chat) }))
 						: undefined,
@@ -3938,6 +3955,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		}
 
 		this.tree.setChildren(null, children);
+		this.nestedSessionResources = nextNestedSessionResources;
 		this.syncCollapsedSessionIds();
 		this.reconcileChatApprovalHeights();
 		this._onDidUpdate.fire();
@@ -4016,7 +4034,13 @@ export class SessionsList extends Disposable implements ISessionsList {
 			this.tree.setSelection([session]);
 			return;
 		}
-		this.tree.expand(session);
+		const previousSuspendCollapseStatePersistence = this.suspendCollapseStatePersistence;
+		this.suspendCollapseStatePersistence = true;
+		try {
+			this.tree.expand(session);
+		} finally {
+			this.suspendCollapseStatePersistence = previousSuspendCollapseStatePersistence;
+		}
 		this.tree.reveal(chatItem, 0.5);
 		this.tree.setFocus([chatItem]);
 		this.tree.setSelection([chatItem]);
@@ -4308,7 +4332,9 @@ export class SessionsList extends Disposable implements ISessionsList {
 		if (this.pendingOpenRequest !== request) {
 			return false;
 		}
-		this.markRead(session);
+		if (this._sessionsService.activeSession.get()?.sessionId !== session.sessionId) {
+			this.markRead(session);
+		}
 		this.invokeOpenRequest(request);
 		return true;
 	}
@@ -4635,7 +4661,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			[SessionProviderIdContext.key, element.session.providerId],
 		]);
 		const menu = this.menuService.createMenu(Menus.SessionChatItemContext, contextKeyService);
-		const wrapAction = (action: IAction): IAction => action.id === RENAME_SESSION_LIST_CHAT_ACTION_ID
+		const wrapAction = (action: IAction): IAction => action.id === RENAME_CHAT_COMMAND_ID
 			? toAction({
 				id: action.id,
 				label: action.label,
@@ -5033,6 +5059,39 @@ export class SessionsList extends Disposable implements ISessionsList {
 			}
 		}
 		this.storageService.store(SessionsList.SECTION_COLLAPSE_STATE_KEY, JSON.stringify(state), StorageScope.PROFILE, StorageTarget.USER);
+	}
+
+	private loadCollapsedSessionResources(): Set<string> {
+		const raw = this.storageService.get(SessionsList.SESSION_COLLAPSE_STATE_KEY, StorageScope.PROFILE);
+		if (raw) {
+			try {
+				const resources = JSON.parse(raw);
+				if (Array.isArray(resources)) {
+					return new Set(resources.filter(resource => typeof resource === 'string'));
+				}
+			} catch {
+				// Ignore corrupt persisted state.
+			}
+		}
+		return new Set();
+	}
+
+	private saveSessionCollapseState(session: ISession, collapsed: boolean): void {
+		const resource = session.resource.toString();
+		const changed = collapsed
+			? !this.collapsedSessionResources.has(resource)
+			: this.collapsedSessionResources.delete(resource);
+		if (!changed) {
+			return;
+		}
+		if (collapsed) {
+			this.collapsedSessionResources.add(resource);
+		}
+		if (this.collapsedSessionResources.size === 0) {
+			this.storageService.remove(SessionsList.SESSION_COLLAPSE_STATE_KEY, StorageScope.PROFILE);
+		} else {
+			this.storageService.store(SessionsList.SESSION_COLLAPSE_STATE_KEY, JSON.stringify([...this.collapsedSessionResources]), StorageScope.PROFILE, StorageTarget.USER);
+		}
 	}
 
 }
@@ -5550,7 +5609,7 @@ export class SessionsFlatList extends Disposable {
 			if (!element || !isSessionItem(element)) {
 				return;
 			}
-			if (this.options.markSessionReadOnOpen !== false) {
+			if (this.options.markSessionReadOnOpen !== false && this._sessionsService.activeSession.get()?.sessionId !== element.sessionId) {
 				this._sessionsManagementService.markRead(element);
 			}
 			const isLeftClick = DOM.isMouseEvent(e.browserEvent) && e.browserEvent.button === 0;

@@ -138,6 +138,11 @@ export interface ICreateNewChatInSessionOptions {
 	readonly forceNew?: boolean;
 }
 
+export interface IMarkSessionReadOptions {
+	/** Keep an explicit unread mark during automatic updates within the current visit. */
+	readonly preserveExplicitUnread?: boolean;
+}
+
 /**
  * Event fired when sessions change within a provider.
  */
@@ -543,7 +548,7 @@ export interface ISessionsManagementService {
 	setSessionReadState(session: ISession, isRead: boolean): Promise<void>;
 
 	/** Mark a session as read through its provider. */
-	markRead(session: ISession): Promise<void>;
+	markRead(session: ISession, options?: IMarkSessionReadOptions): Promise<void>;
 
 	/** Mark a session as unread through its provider. */
 	markUnread(session: ISession): Promise<void>;
@@ -563,8 +568,8 @@ export interface ISessionsManagementService {
 	 */
 	deleteSessions(sessions: readonly ISession[]): Promise<void>;
 
-	/** Delete a single chat from a session by its URI. */
-	deleteChat(session: ISession, chatUri: URI, options?: IDeleteChatOptions): Promise<void>;
+	/** Delete a single chat from a session by its URI, returning whether it was deleted. */
+	deleteChat(session: ISession, chatUri: URI, options?: IDeleteChatOptions): Promise<boolean>;
 
 	/** Rename a chat within a session. */
 	renameChat(session: ISession, chatUri: URI, title: string): Promise<void>;

@@ -135,6 +135,10 @@ class TestDevContainerAgentHostMainService extends DevContainerAgentHostMainServ
 		return this._resolveDevContainerEnvironment();
 	}
 
+	getDevContainerSpawnEnvironment(environment: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
+		return this._getDevContainerSpawnEnvironment(environment);
+	}
+
 	protected override _isFile(path: string): Promise<boolean> {
 		return Promise.resolve(this._existingCertificateFiles.has(path));
 	}
@@ -326,6 +330,30 @@ suite('Dev Container Agent Host Main Service', () => {
 			exists: true,
 			status: 0,
 			version: '0.88.0',
+		});
+	});
+
+	test('does not propagate debugger environment to the Dev Container CLI', () => {
+		const service = store.add(new TestDevContainerAgentHostMainService());
+		const environment = {
+			PATH: '/bin',
+			NODE_OPTIONS: '--require debuggerBootloader.js',
+			VSCODE_INSPECTOR_OPTIONS: '{"inspectorIpc":"/tmp/node-cdp.sock"}',
+		};
+
+		assert.deepStrictEqual({
+			spawnEnvironment: service.getDevContainerSpawnEnvironment(environment),
+			originalEnvironment: environment,
+		}, {
+			spawnEnvironment: {
+				PATH: '/bin',
+				ELECTRON_RUN_AS_NODE: '1',
+			},
+			originalEnvironment: {
+				PATH: '/bin',
+				NODE_OPTIONS: '--require debuggerBootloader.js',
+				VSCODE_INSPECTOR_OPTIONS: '{"inspectorIpc":"/tmp/node-cdp.sock"}',
+			},
 		});
 	});
 

@@ -68,7 +68,7 @@ import { COPILOT_AGENT_HOST_SYSTEM_MESSAGE, CopilotAgent, getCopilotManagedSetti
 import { CopilotGitHubSessionCredentials } from '../../node/copilot/copilotGitHubCredentials.js';
 import { GITHUB_MCP_SERVER_NAME } from '../../node/shared/githubMcpServer.js';
 import { AGENT_HOST_FILE_LINK_INSTRUCTIONS } from '../../node/shared/fileLinkInstructions.js';
-import { COPILOT_AGENT_HOST_LARGE_OUTPUT_TOOL_INSTRUCTION } from '../../node/copilot/prompts/toolInstructions.js';
+import { COPILOT_AGENT_HOST_LARGE_OUTPUT_TOOL_INSTRUCTION, COPILOT_AGENT_HOST_SUBAGENT_TOOL_INSTRUCTIONS } from '../../node/copilot/prompts/toolInstructions.js';
 import { NULL_CHECKPOINT_SERVICE } from '../../common/agentHostCheckpointService.js';
 import { IAgentHostReviewService, NULL_REVIEW_SERVICE } from '../../common/agentHostReviewService.js';
 import { getCopilotHomePath } from '../../common/copilotHome.js';
@@ -1305,6 +1305,26 @@ async function disposeAgent(agent: CopilotAgent): Promise<void> {
 suite('CopilotAgent', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+	const proxyEnvironmentKeys = ['HTTPS_PROXY', 'https_proxy', 'HTTP_PROXY', 'http_proxy', 'ALL_PROXY', 'all_proxy', 'NO_PROXY', 'no_proxy'] as const;
+	const proxyEnvironmentKeyNames = new Set(proxyEnvironmentKeys.map(key => key.toLowerCase()));
+	const savedProxyEnvironment: NodeJS.ProcessEnv = {};
+	for (const [key, value] of Object.entries(process.env)) {
+		if (value !== undefined && proxyEnvironmentKeyNames.has(key.toLowerCase())) {
+			savedProxyEnvironment[key] = value;
+		}
+	}
+
+	const clearProxyEnvironment = () => {
+		for (const key of proxyEnvironmentKeys) {
+			delete process.env[key];
+		}
+	};
+
+	setup(clearProxyEnvironment);
+	teardown(() => {
+		clearProxyEnvironment();
+		Object.assign(process.env, savedProxyEnvironment);
+	});
 
 	test('sandbox override survives config resolution but is not inherited by forks', async () => {
 		const agent = createTestAgent(disposables);
@@ -1740,6 +1760,27 @@ suite('CopilotAgent', () => {
 					applicationVersion: '1.2.3',
 				},
 				onGitHubTelemetry: 'function',
+			});
+		} finally {
+			await disposeAgent(agent);
+		}
+	});
+
+	test('launches the runtime owned by the Copilot SDK platform package', async () => {
+		const client = new TestCopilotClient([]);
+		const agent = createTestAgent(disposables, { copilotClient: client }) as TestableCopilotAgent;
+		try {
+			await agent.listChatsToMigrate();
+			const connection = getCreatedClientOptions(agent).at(-1)?.connection;
+			const runtimePath = connection?.kind === 'stdio' ? connection.path?.replaceAll('\\', '/') : undefined;
+			assert.deepStrictEqual({
+				kind: connection?.kind,
+				sdkRuntime: runtimePath?.includes('/node_modules/@github/copilot-sdk-'),
+				runtimeExecutable: runtimePath?.endsWith(process.platform === 'win32' ? '/copilot-runtime.exe' : '/copilot-runtime'),
+			}, {
+				kind: 'stdio',
+				sdkRuntime: true,
+				runtimeExecutable: true,
 			});
 		} finally {
 			await disposeAgent(agent);
@@ -5727,36 +5768,33 @@ suite('CopilotAgent', () => {
 			assert.deepStrictEqual([
 				createCopilotCliEnvironment({})['SKILL_CHAR_BUDGET'],
 				createCopilotCliEnvironment({ SKILL_CHAR_BUDGET: '15000' })['SKILL_CHAR_BUDGET'],
-				createCopilotCliEnvironment({}, [], false, false, 30_000)['SKILL_CHAR_BUDGET'],
+				createCopilotCliEnvironment({}, [], false, 30_000)['SKILL_CHAR_BUDGET'],
 			], ['15000', '15000', '30000']);
 		});
 
-		for (const enabled of [false, true]) {
-			test(`sets standalone HydraFusion flags to ${enabled} and preserves inherited environment`, () => {
-				const ambient = Object.freeze({
-					COPILOT_CLI_ENABLED_FEATURE_FLAGS: 'COMPUTER_USE, HYDRAFUSION,HYDRAFUSION_ROLLOUT,COMPUTER_USE',
-					HYDRAFUSION: String(!enabled),
-					HYDRAFUSION_ROLLOUT: String(!enabled),
-					COMPUTER_USE: 'true',
-					PATH: '/usr/bin',
-				});
-				const env = createCopilotCliEnvironment(ambient, [], false, enabled);
-
-				assert.deepStrictEqual({
-					hydraFusion: env['HYDRAFUSION'],
-					hydraFusionRollout: env['HYDRAFUSION_ROLLOUT'],
-					featureFlags: env['COPILOT_CLI_ENABLED_FEATURE_FLAGS'],
-					computerUse: env['COMPUTER_USE'],
-					path: env['PATH'],
-				}, {
-					hydraFusion: String(enabled),
-					hydraFusionRollout: String(enabled),
-					featureFlags: ambient.COPILOT_CLI_ENABLED_FEATURE_FLAGS,
-					computerUse: 'true',
-					path: '/usr/bin',
-				});
+		test('strips inherited HydraFusion flags and preserves unrelated environment', () => {
+			const env = createCopilotCliEnvironment({
+				COPILOT_CLI_ENABLED_FEATURE_FLAGS: 'COMPUTER_USE, HYDRAFUSION, HYDRAFUSION_ROLLOUT',
+				HYDRAFUSION: 'true',
+				HYDRAFUSION_ROLLOUT: 'true',
+				COMPUTER_USE: 'true',
+				PATH: '/usr/bin',
 			});
-		}
+
+			assert.deepStrictEqual({
+				hydraFusion: env['HYDRAFUSION'],
+				hydraFusionRollout: env['HYDRAFUSION_ROLLOUT'],
+				featureFlags: env['COPILOT_CLI_ENABLED_FEATURE_FLAGS'],
+				computerUse: env['COMPUTER_USE'],
+				path: env['PATH'],
+			}, {
+				hydraFusion: undefined,
+				hydraFusionRollout: undefined,
+				featureFlags: 'COMPUTER_USE',
+				computerUse: 'true',
+				path: '/usr/bin',
+			});
+		});
 
 		test('does not block client startup on system proxy resolution', async () => {
 			const client = new TestCopilotClient([]);
@@ -6360,7 +6398,7 @@ suite('CopilotAgent', () => {
 			}
 		});
 
-		test('enables Rubber Duck and disables Claude Advisor and HydraFusion by default', async () => {
+		test('enables Rubber Duck and disables Claude Advisor by default', async () => {
 			const client = new TestCopilotClient([]);
 			const { agent } = createTestAgentContext(disposables, { copilotClient: client });
 			try {
@@ -6371,14 +6409,10 @@ suite('CopilotAgent', () => {
 				assert.deepStrictEqual({
 					rubberDuck: env?.['RUBBER_DUCK_AGENT'],
 					advisor: env?.['ANTHROPIC_ADVISOR'],
-					hydraFusion: env?.['HYDRAFUSION'],
-					hydraFusionRollout: env?.['HYDRAFUSION_ROLLOUT'],
 					skillCharBudget: env?.['SKILL_CHAR_BUDGET'],
 				}, {
 					rubberDuck: 'true',
 					advisor: 'false',
-					hydraFusion: 'false',
-					hydraFusionRollout: 'false',
 					skillCharBudget: '15000',
 				});
 			} finally {
@@ -6444,12 +6478,8 @@ suite('CopilotAgent', () => {
 
 				assert.deepStrictEqual({
 					models: agent.models.get().map(model => model.id),
-					hydraFusion: getCreatedClientOptions(agent).at(-1)?.env?.['HYDRAFUSION'],
-					hydraFusionRollout: getCreatedClientOptions(agent).at(-1)?.env?.['HYDRAFUSION_ROLLOUT'],
 				}, {
 					models: ['gpt-5', 'hydrafusion'],
-					hydraFusion: 'true',
-					hydraFusionRollout: 'true',
 				});
 
 				configurationService.updateRootConfig({ [CopilotCliConfigKey.HydraFusion]: false });
@@ -6457,13 +6487,9 @@ suite('CopilotAgent', () => {
 				await agent.refreshModels();
 				assert.deepStrictEqual({
 					models: agent.models.get().map(model => model.id),
-					hydraFusion: getCreatedClientOptions(agent).at(-1)?.env?.['HYDRAFUSION'],
-					hydraFusionRollout: getCreatedClientOptions(agent).at(-1)?.env?.['HYDRAFUSION_ROLLOUT'],
 					stopCallCount: client.stopCallCount,
 				}, {
 					models: ['gpt-5'],
-					hydraFusion: 'false',
-					hydraFusionRollout: 'false',
 					stopCallCount: 1,
 				});
 			} finally {
@@ -7256,7 +7282,7 @@ suite('CopilotAgent', () => {
 		}));
 
 		try {
-			modelSnapshots.fire([{ vendor: 'acme', id: 'model', name: 'Model' }]);
+			modelSnapshots.fire([{ vendor: 'acme', id: 'model', name: 'Model', maxContextWindowTokens: 128000, maxPromptTokens: 32000, maxOutputTokens: 4000 }]);
 			const disabledModels = agent.models.get();
 			configurationService.updateRootConfig({ [AgentHostByokModelsEnabledConfigKey]: true });
 			const enabledModels = await waitForState(agent.models, models => models.length === 1);
@@ -7265,11 +7291,11 @@ suite('CopilotAgent', () => {
 
 			assert.deepStrictEqual({
 				disabled: disabledModels.map(model => model.id),
-				enabled: enabledModels.map(model => model.id),
+				enabled: enabledModels.map(({ id, maxContextWindow, maxPromptTokens, maxOutputTokens }) => ({ id, maxContextWindow, maxPromptTokens, maxOutputTokens })),
 				disabledAgain: disabledAgainModels.map(model => model.id),
 			}, {
 				disabled: [],
-				enabled: ['acme/model'],
+				enabled: [{ id: 'acme/model', maxContextWindow: 128000, maxPromptTokens: 32000, maxOutputTokens: 4000 }],
 				disabledAgain: [],
 			});
 		} finally {
@@ -10468,7 +10494,7 @@ suite('CopilotAgent', () => {
 						...COPILOT_AGENT_HOST_SYSTEM_MESSAGE.sections,
 						tool_instructions: {
 							action: 'append',
-							content: `\n${COPILOT_AGENT_HOST_LARGE_OUTPUT_TOOL_INSTRUCTION}`,
+							content: `\n${COPILOT_AGENT_HOST_LARGE_OUTPUT_TOOL_INSTRUCTION}\n${COPILOT_AGENT_HOST_SUBAGENT_TOOL_INSTRUCTIONS}`,
 						},
 					},
 					content: AGENT_HOST_FILE_LINK_INSTRUCTIONS,
@@ -12520,6 +12546,179 @@ suite('CopilotAgent', () => {
 
 				const stored = await sessionDataService.openDatabase(session).object.getMetadata('copilot.model');
 				assert.deepStrictEqual(JSON.parse(stored ?? 'null'), { id: 'model-b' });
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('changeModel rejects a model outside the populated catalog', async () => {
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			const client = new TestCopilotClient([], [{ id: 'model-a', name: 'Model A' }]);
+			const sdkSession = new MockCopilotSession();
+			client.createSession = async () => sdkSession as unknown as CopilotSession;
+			const { agent } = createTestAgentContext(disposables, { sessionDataService, copilotClient: client });
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+				await waitForState(agent.models, models => models.length > 0);
+				const session = AgentSession.uri('copilotcli', 'invalid-model-session');
+				const chat = defaultChatUri(session);
+				const result = await provisionSession(agent, {
+					session,
+					workingDirectories: [URI.file('/workspace')],
+					model: { id: 'model-a' },
+				});
+				await agent.chats.sendMessage(chat, 'hello', undefined, undefined, undefined, undefined, exactChatContext(result.session, chat, result.session));
+
+				await assert.rejects(
+					agent.chats.changeModel(chat, { id: 'missing-model' }, exactChatContext(result.session, chat, result.session)),
+					/Model 'missing-model' is not available\./,
+				);
+
+				const stored = await sessionDataService.openDatabase(session).object.getMetadata('copilot.model');
+				assert.deepStrictEqual({
+					modelCalls: sdkSession.setModelCalls,
+					storedModel: JSON.parse(stored ?? 'null'),
+				}, {
+					modelCalls: [],
+					storedModel: { id: 'model-a' },
+				});
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('changeModel does not wait on an in-flight catalog refresh for a model already in the catalog', async () => {
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			const client = new TestCopilotClient([], [{ id: 'model-a', name: 'Model A' }]);
+			const sdkSession = new MockCopilotSession();
+			client.createSession = async () => sdkSession as unknown as CopilotSession;
+			const { agent } = createTestAgentContext(disposables, { sessionDataService, copilotClient: client });
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+				await waitForState(agent.models, models => models.length > 0);
+				const session = AgentSession.uri('copilotcli', 'known-model-session');
+				const chat = defaultChatUri(session);
+				const result = await provisionSession(agent, {
+					session,
+					workingDirectories: [URI.file('/workspace')],
+					model: { id: 'model-a' },
+				});
+				await agent.chats.sendMessage(chat, 'hello', undefined, undefined, undefined, undefined, exactChatContext(result.session, chat, result.session));
+
+				// Park a catalog refresh in flight. Selecting a model the catalog
+				// already lists must not block the turn behind it.
+				const gate = new DeferredPromise<void>();
+				client.modelListGates.push(gate.p);
+				client.modelListResponses.push([{ id: 'model-a', name: 'Model A' }]);
+				const requestsBefore = client.modelListRequests.length;
+				const refresh = agent.refreshModels();
+				for (let i = 0; i < 500 && client.modelListRequests.length <= requestsBefore; i++) {
+					await timeout(1);
+				}
+				assert.strictEqual(client.modelListRequests.length, requestsBefore + 1, 'expected the gated model request to start');
+
+				await agent.chats.changeModel(chat, { id: 'model-a' }, exactChatContext(result.session, chat, result.session));
+
+				// Asserted while the refresh is still gated: the selection reached
+				// the SDK without the catalog round-trip completing.
+				assert.strictEqual(sdkSession.setModelCalls.length, 1);
+				gate.complete();
+				await refresh;
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('changeModel still waits for a credential-invalidated catalog refresh before trusting a cached model', async () => {
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			const client = new TestCopilotClient([], [{ id: 'model-a', name: 'Model A' }]);
+			const sdkSession = new MockCopilotSession();
+			client.createSession = async () => sdkSession as unknown as CopilotSession;
+			const { agent } = createTestAgentContext(disposables, { sessionDataService, copilotClient: client });
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+				await waitForState(agent.models, models => models.length > 0);
+				const session = AgentSession.uri('copilotcli', 'rotated-token-session');
+				const chat = defaultChatUri(session);
+				const result = await provisionSession(agent, {
+					session,
+					workingDirectories: [URI.file('/workspace')],
+					model: { id: 'model-a' },
+				});
+				await agent.chats.sendMessage(chat, 'hello', undefined, undefined, undefined, undefined, exactChatContext(result.session, chat, result.session));
+
+				// A new credential schedules an invalidating refresh without
+				// clearing the catalog, so the published list still belongs to the
+				// previous token. The replacement catalog drops `model-a`.
+				const gate = new DeferredPromise<void>();
+				client.modelListGates.push(gate.p);
+				client.modelListResponses.push([{ id: 'model-b', name: 'Model B' }]);
+				await agent.authenticate('https://api.github.com', 'rotated-token');
+
+				const selection = agent.chats.changeModel(chat, { id: 'model-a' }, exactChatContext(result.session, chat, result.session));
+				const rejected = selection.then(() => false, () => true);
+				gate.complete();
+
+				assert.deepStrictEqual({
+					rejected: await rejected,
+					modelCalls: sdkSession.setModelCalls.length,
+				}, {
+					rejected: true,
+					modelCalls: 0,
+				});
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('changeModel still waits for a credential-invalidated catalog refresh after its request has started', async () => {
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			const client = new TestCopilotClient([], [{ id: 'model-a', name: 'Model A' }]);
+			const sdkSession = new MockCopilotSession();
+			client.createSession = async () => sdkSession as unknown as CopilotSession;
+			const { agent } = createTestAgentContext(disposables, { sessionDataService, copilotClient: client });
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+				await waitForState(agent.models, models => models.length > 0);
+				const session = AgentSession.uri('copilotcli', 'rotated-token-inflight-session');
+				const chat = defaultChatUri(session);
+				const result = await provisionSession(agent, {
+					session,
+					workingDirectories: [URI.file('/workspace')],
+					model: { id: 'model-a' },
+				});
+				await agent.chats.sendMessage(chat, 'hello', undefined, undefined, undefined, undefined, exactChatContext(result.session, chat, result.session));
+
+				const gate = new DeferredPromise<void>();
+				client.modelListGates.push(gate.p);
+				client.modelListResponses.push([{ id: 'model-b', name: 'Model B' }]);
+				const requestsBefore = client.modelListRequests.length;
+				await agent.authenticate('https://api.github.com', 'rotated-token');
+
+				// Wait until the credential-triggered request is actually in
+				// flight. The scheduler clears its bookkeeping at this point, so
+				// this is the window where a scheduled-only check fails open.
+				for (let i = 0; i < 500 && client.modelListRequests.length <= requestsBefore; i++) {
+					await timeout(1);
+				}
+				assert.strictEqual(client.modelListRequests.length, requestsBefore + 1, 'expected the credential-triggered request to start');
+
+				const selection = agent.chats.changeModel(chat, { id: 'model-a' }, exactChatContext(result.session, chat, result.session));
+				const settled = selection.then(() => 'resolved', () => 'rejected');
+				// Still gated: the selection must not have been answered from the
+				// superseded catalog.
+				const raced = await Promise.race([settled, timeout(20).then(() => 'pending')]);
+				gate.complete();
+
+				assert.deepStrictEqual({
+					whileGated: raced,
+					outcome: await settled,
+					modelCalls: sdkSession.setModelCalls.length,
+				}, {
+					whileGated: 'pending',
+					outcome: 'rejected',
+					modelCalls: 0,
+				});
 			} finally {
 				await disposeAgent(agent);
 			}
