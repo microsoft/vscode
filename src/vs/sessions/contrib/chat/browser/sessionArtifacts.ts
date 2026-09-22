@@ -222,13 +222,17 @@ function toEntry(artifact: ISessionArtifact, actions: ISessionArtifactActions, l
 		return undefined;
 	}
 	const link = artifact.link;
-	const isGitHubReference = artifact.kind === SessionArtifactKind.PullRequest || artifact.kind === SessionArtifactKind.Issue;
-	const copyLinkAction = isGitHubReference
+	const copyLinkLabel = artifact.kind === SessionArtifactKind.PullRequest
+		? localize('sessionArtifacts.copyPullRequestLink', "Copy Pull Request Link")
+		: artifact.kind === SessionArtifactKind.Issue
+			? localize('sessionArtifacts.copyIssueLink', "Copy Issue Link")
+			: artifact.kind === SessionArtifactKind.Website
+				? localize('sessionArtifacts.copyWebsiteUrl', "Copy Website URL")
+				: undefined;
+	const copyLinkAction = copyLinkLabel
 		? [toAction({
 			id: 'sessions.artifacts.copyLink',
-			label: artifact.kind === SessionArtifactKind.PullRequest
-				? localize('sessionArtifacts.copyPullRequestLink', "Copy Pull Request Link")
-				: localize('sessionArtifacts.copyIssueLink', "Copy Issue Link"),
+			label: copyLinkLabel,
 			class: ThemeIcon.asClassName(Codicon.copy),
 			run: () => actions.copy(link.toString(true)),
 		})]

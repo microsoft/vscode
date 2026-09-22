@@ -864,18 +864,25 @@ export class AgentHostSessionInputPills extends Disposable {
 		const icon = artifactIcons.get(artifact.type) ?? Codicon.archive;
 		if (link) {
 			const copyAction = artifact.type === SessionArtifactType.Commit && artifact.commitHash
-				? [toAction({
+				? toAction({
 					id: 'chat.agentHost.sessionPills.copyCommitHash',
 					label: localize('agentHostSessionPills.copyCommitHash', "Copy Commit Hash"),
 					class: ThemeIcon.asClassName(Codicon.copy),
 					run: () => this._clipboardService.writeText(artifact.commitHash!),
-				})]
-				: undefined;
+				})
+				: artifact.type === SessionArtifactType.Website
+					? toAction({
+						id: `chat.agentHost.sessionPills.copyWebsiteUrl.${artifact.id}`,
+						label: localize('agentHostSessionPills.copyWebsiteUrl', "Copy Website URL"),
+						class: ThemeIcon.asClassName(Codicon.copy),
+						run: () => this._clipboardService.writeText(link.toString(true)),
+					})
+					: undefined;
 			return {
 				id: artifact.id,
 				label: artifact.label,
 				icon,
-				...(copyAction ? { toolbarActions: copyAction } : {}),
+				...(copyAction ? { toolbarActions: [copyAction] } : {}),
 				...getChatPillResourceLocation(link, artifact.label),
 				open: () => this._openExternal(link),
 			};

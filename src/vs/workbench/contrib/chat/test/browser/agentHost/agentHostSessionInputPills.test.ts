@@ -23,6 +23,7 @@ import { AgentHostArtifactRemovalCapabilityMetaKey } from '../../../../../../pla
 import { buildDefaultChatUri, buildSubagentChatUri, Changeset, ChangesetState, ChangesetStatus, ChatOriginKind, ComponentToState, SessionState, StateComponents, withSessionGitHubState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import type { InitializeResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { IClipboardService } from '../../../../../../platform/clipboard/common/clipboardService.js';
+import { TestClipboardService } from '../../../../../../platform/clipboard/test/common/testClipboardService.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IGitHubService } from '../../../../../../platform/github/common/githubService.js';
 import { PullRequestSnapshot } from '../../../../../../platform/github/common/githubPullRequestService.js';
@@ -1041,8 +1042,8 @@ suite('AgentHostSessionInputPills', () => {
 			updateItems: () => { },
 			focusItemById: () => { },
 		}));
-		const [clipboardService, configurationService, editorService, openerService] = instantiationService.invokeFunction(accessor => [
-			accessor.get(IClipboardService),
+		const clipboardService = new TestClipboardService();
+		const [configurationService, editorService, openerService] = instantiationService.invokeFunction(accessor => [
 			accessor.get(IConfigurationService),
 			accessor.get(IEditorService),
 			accessor.get(IOpenerService),
@@ -1064,19 +1065,24 @@ suite('AgentHostSessionInputPills', () => {
 			upcastPartial<INotificationService>({ error: error => errors.push(String(error)) }),
 		));
 		persistentContent.querySelector<HTMLElement>('.chat-dropdown-pill-button')?.click();
+		const copyWebsite = dropdownActions.find(action => action.label === 'Copy Website URL');
+		await copyWebsite?.run();
+		const copied = await clipboardService.readText();
 		connection.removeSessionArtifactError = new Error('write failed');
-		await dropdownActions[0].run();
+		await dropdownActions.find(action => action.label.startsWith('Remove '))?.run();
 
 		assert.deepStrictEqual({
 			pills: Array.from(persistentContent.querySelectorAll('.chat-pill-label')).map(label => label.textContent),
 			empty: persistentContent.querySelector('.agent-host-session-input-pills')?.classList.contains('empty'),
 			dropdownActionLabels: dropdownActions.map(action => action.label),
+			copied,
 			removeCalls: connection.removeSessionArtifactCalls.map(({ session, artifactId }) => ({ session: session.toString(), artifactId })),
 			errors,
 		}, {
 			pills: ['1 Reference'],
 			empty: false,
-			dropdownActionLabels: ['Remove Preview from Session'],
+			dropdownActionLabels: ['Copy Website URL', 'Remove Preview from Session'],
+			copied: website.toString(true),
 			removeCalls: [{ session: backendSession.toString(), artifactId: 'preview' }],
 			errors: ['Could not remove Preview from this session: write failed'],
 		});
