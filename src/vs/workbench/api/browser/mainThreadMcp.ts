@@ -230,7 +230,7 @@ export class MainThreadMcp extends Disposable implements MainThreadMcpShape {
 		if (!server) {
 			return undefined;
 		}
-		return this._getSessionForProvider(id, server, providerId, scopes, undefined, options.errorOnUserInteraction, options.clientId);
+		return this._getSessionForProvider(id, server, providerId, scopes, { clientId: options.clientId }, options.errorOnUserInteraction);
 	}
 
 	async $getTokenFromServerMetadata(id: number, authDetails: IMcpAuthenticationDetails, { errorOnUserInteraction, forceNewRegistration, clientId }: IMcpAuthenticationOptions = {}): Promise<string | undefined> {
@@ -270,31 +270,33 @@ export class MainThreadMcp extends Disposable implements MainThreadMcpShape {
 				return undefined;
 			}
 			const resourceClientId = clientId ?? authDetails.clientId;
-			// Resolve the resource-AS client secret from secret storage, keyed by the resource indicator
-			// + the configured resource client_id. Set via the "Set Client Secret" code lens above
-			// `oauth.clientId` in mcp.json (the server URL equals the resource indicator per RFC 9470).
-			// Using `resource` (not the server launch URI) ensures the key matches what the prompt
-			// writes in $promptForResourceClientSecret, so prompted secrets survive window reload.
+			let clientSecretStorageKey: string | undefined;
 			let resourceClientSecret: string | undefined;
 			if (resourceClientId) {
+				// Match the resource-scoped key used by $promptForResourceClientSecret.
+				clientSecretStorageKey = mcpOAuthClientSecretStorageKey(resource, resourceClientId);
 				try {
-					resourceClientSecret = await this._secretStorageService.get(mcpOAuthClientSecretStorageKey(resource, resourceClientId));
+					resourceClientSecret = await this._secretStorageService.get(clientSecretStorageKey);
 				} catch {
 					// Best-effort lookup; fall through.
 				}
 			}
-			return this._getSessionForProvider(id, server, xaaProviderId, xaaScopes, issuer, errorOnUserInteraction, resourceClientId, resource, audience, resourceClientSecret);
+			return this._getSessionForProvider(id, server, xaaProviderId, xaaScopes, {
+				authorizationServer: issuer, clientId: resourceClientId, resource, audience, clientSecretStorageKey
+			}, errorOnUserInteraction, resourceClientSecret);
 		}
 
 		let providerId = await this._authenticationService.getOrActivateProviderIdForServer(authorizationServer, resourceServer);
 
 		const resolvedClientId = clientId ?? authDetails.clientId;
 		const mcpServerUrl = server.launch.type === McpServerTransportType.HTTP ? server.launch.uri.toString(true) : undefined;
+		let clientSecretStorageKey: string | undefined;
 		let clientSecret: string | undefined;
 		let didLookupClientSecret = false;
 		if (resolvedClientId && mcpServerUrl) {
+			clientSecretStorageKey = mcpOAuthClientSecretStorageKey(mcpServerUrl, resolvedClientId);
 			try {
-				clientSecret = await this._secretStorageService.get(mcpOAuthClientSecretStorageKey(mcpServerUrl, resolvedClientId));
+				clientSecret = await this._secretStorageService.get(clientSecretStorageKey);
 				didLookupClientSecret = true;
 			} catch {
 				// Best-effort lookup; proceed without a client secret.
@@ -331,7 +333,9 @@ export class MainThreadMcp extends Disposable implements MainThreadMcpShape {
 			providerId = provider.id;
 		}
 
-		return this._getSessionForProvider(id, server, providerId, resolvedScopes, authorizationServer, errorOnUserInteraction, resolvedClientId, authDetails.resourceMetadata?.resource, /* audience */ undefined, clientSecret);
+		return this._getSessionForProvider(id, server, providerId, resolvedScopes, {
+			authorizationServer, clientId: resolvedClientId, resource: authDetails.resourceMetadata?.resource, clientSecretStorageKey
+		}, errorOnUserInteraction, clientSecret);
 	}
 
 	private _ensureXaaIssuer(): URI {
@@ -357,14 +361,11 @@ export class MainThreadMcp extends Disposable implements MainThreadMcpShape {
 		server: McpServerDefinition,
 		providerId: string,
 		scopes: string[],
-		authorizationServer?: URI,
+		authContext: IMcpServerAuthContext,
 		errorOnUserInteraction: boolean = false,
-		clientId?: string,
-		resource?: string,
-		audience?: string,
 		clientSecret?: string,
 	): Promise<string | undefined> {
-		const authContext: IMcpServerAuthContext = { authorizationServer, clientId, resource, audience };
+		const { authorizationServer, clientId, resource, audience } = authContext;
 		const providerOptions = { authorizationServer, clientId, clientSecret, resource, audience };
 		const sessions = await this._authenticationService.getSessions(providerId, scopes, { ...providerOptions, silent: errorOnUserInteraction }, true);
 		// Only HTTP servers authenticate, so the server URL is always known here. A token is only released
@@ -486,20 +487,20 @@ export class MainThreadMcp extends Disposable implements MainThreadMcpShape {
 				continue;
 			}
 
-			// Validate if the session is still available. Replay the authorization server, client
-			// id, resource, and audience captured when the session was established so the silent
-			// token request targets the same authority the user signed in against — dropping the
-			// authorization server here would fall back to the provider's default authority (e.g.
-			// the Microsoft provider's `organizations` tenant) and can tear down a working server.
 			try {
-				await this._getSessionForProvider(serverId, serverDefinition, providerId, scopes, context.authorizationServer, true, context.clientId, context.resource, context.audience);
+				// Replay the original context, but resolve the current secret so rotation takes effect.
+				const clientSecret = context.clientSecretStorageKey
+					? await this._secretStorageService.get(context.clientSecretStorageKey)
+					: undefined;
+				await this._getSessionForProvider(serverId, serverDefinition, providerId, scopes, context, true, clientSecret);
 			} catch (e) {
 				if (UserInteractionRequiredError.is(e)) {
 					// Session is no longer valid, stop the server
 					server.pushLog(LogLevel.Warning, nls.localize('mcpAuthSessionRemoved', "Authentication session for {0} removed, stopping server", providerLabel));
 					server.stop();
+				} else {
+					server.pushLog(LogLevel.Warning, nls.localize('mcpAuthRevalidationFailed', "Unable to revalidate authentication for {0}.", providerLabel));
 				}
-				// Ignore other errors to avoid disrupting other servers
 			}
 		}
 	}
@@ -653,6 +654,8 @@ export interface IMcpServerAuthContext {
 	readonly clientId?: string;
 	readonly resource?: string;
 	readonly audience?: string;
+	/** Secret-storage reference; the secret itself is never retained here. */
+	readonly clientSecretStorageKey?: string;
 }
 
 /**

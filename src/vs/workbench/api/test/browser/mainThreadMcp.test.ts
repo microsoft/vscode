@@ -11,6 +11,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { ISecretStorageService } from '../../../../platform/secrets/common/secrets.js';
@@ -18,7 +19,8 @@ import { StorageScope } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IWorkbenchMcpGatewayService } from '../../../contrib/mcp/common/mcpGatewayService.js';
 import { IMcpHostDelegate, IMcpRegistry } from '../../../contrib/mcp/common/mcpRegistryTypes.js';
-import { McpCollectionDefinition, McpCollectionSortOrder, McpConnectionState, McpServerDefinition, McpServerLaunch, McpServerTransportType, McpServerTrust } from '../../../contrib/mcp/common/mcpTypes.js';
+import { McpCollectionDefinition, McpCollectionSortOrder, McpConnectionState, McpServerDefinition, McpServerLaunch, McpServerTransportType, McpServerTrust, mcpOAuthClientSecretStorageKey } from '../../../contrib/mcp/common/mcpTypes.js';
+import { mcpEnterpriseManagedAuthIdpSection } from '../../../contrib/mcp/common/mcpConfiguration.js';
 import { IAuthenticationMcpAccessService } from '../../../services/authentication/browser/authenticationMcpAccessService.js';
 import { IAuthenticationMcpService } from '../../../services/authentication/browser/authenticationMcpService.js';
 import { IAuthenticationMcpUsageService } from '../../../services/authentication/browser/authenticationMcpUsageService.js';
@@ -181,13 +183,18 @@ suite('MainThreadMcp - re-validation', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	// Guards the #324925 regression end-to-end: an unrelated auth-session change must re-validate the
-	// tracked server by replaying the authorization server / client id / resource / audience it was
-	// established with, rather than dropping them (which fell back to the wrong tenant authority). The
-	// McpServerAuthTracker tests only prove the context is *stored*; this proves it is *forwarded*.
-	test('replays the tracked auth context to getSessions on an unrelated session change (#324925)', async () => {
+	async function assertRevalidationContext(enterpriseManaged: boolean, clientId: string | undefined): Promise<void> {
 		const authorizationServer = URI.parse('https://login.microsoftonline.com/72f988bf-86f1-41af-91ab-2d7cd011db47');
-		const resource = 'api://icmmcpapi-prod/mcp.tools';
+		const configuredIssuer = URI.parse('https://sso.example/issuer');
+		const resource = 'https://resource.example/mcp';
+		const serverUrl = 'https://myserver.example/mcp';
+		const audience = enterpriseManaged ? 'https://resource-as.example' : undefined;
+		const secretStorageKey = clientId ? mcpOAuthClientSecretStorageKey(enterpriseManaged ? resource : serverUrl, clientId) : undefined;
+		const secrets = new Map<string, string>();
+		if (secretStorageKey) {
+			secrets.set(secretStorageKey, 'original-secret');
+		}
+		const secretStorageReads: string[] = [];
 		const session: AuthenticationSession = {
 			id: 'session-1',
 			accessToken: 'access-token',
@@ -195,16 +202,17 @@ suite('MainThreadMcp - re-validation', () => {
 			scopes: ['scope.read'],
 		};
 
-		// The options bag passed to getSessions on each call, in order. Index 0 is the initial
-		// acquisition; index 1 is the re-validation triggered by the unrelated session change.
 		const getSessionsOptions: Array<IAuthenticationGetSessionsOptions | undefined> = [];
-		const revalidated = new DeferredPromise<void>();
+		let revalidated = new DeferredPromise<void>();
 
 		const onDidChangeSessions = disposables.add(new Emitter<{ providerId: string; label: string; event: AuthenticationSessionsChangeEvent }>());
 
 		const authenticationService = new class extends mock<IAuthenticationService>() {
 			override readonly onDidChangeSessions = onDidChangeSessions.event;
 			override async getOrActivateProviderIdForServer(): Promise<string | undefined> {
+				return 'test-provider';
+			}
+			override async createOrGetXaaProvider(): Promise<string | undefined> {
 				return 'test-provider';
 			}
 			override isDynamicAuthenticationProvider(): boolean {
@@ -219,7 +227,7 @@ suite('MainThreadMcp - re-validation', () => {
 			}
 			override async getSessions(_id: string, _scopes?: ReadonlyArray<string> | IAuthenticationWwwAuthenticateRequest, options?: IAuthenticationGetSessionsOptions): Promise<ReadonlyArray<AuthenticationSession>> {
 				getSessionsOptions.push(options);
-				if (getSessionsOptions.length === 2) {
+				if (getSessionsOptions.length > 1) {
 					revalidated.complete();
 				}
 				return [session];
@@ -241,6 +249,10 @@ suite('MainThreadMcp - re-validation', () => {
 				return { dispose() { } };
 			}
 		};
+		const configurationService = new TestConfigurationService({
+			[mcpEnterpriseManagedAuthIdpSection]: { issuer: configuredIssuer.toString(true) }
+		});
+		disposables.add(configurationService.onDidChangeConfigurationEmitter);
 
 		const mainThreadMcp = disposables.add(new MainThreadMcp(
 			SingleProxyRPCProtocol(proxy),
@@ -261,14 +273,17 @@ suite('MainThreadMcp - re-validation', () => {
 			new class extends mock<IContextKeyService>() { },
 			new class extends mock<ITelemetryService>() { },
 			new class extends mock<IWorkbenchMcpGatewayService>() { },
-			new class extends mock<IConfigurationService>() { },
+			configurationService,
 			new class extends mock<ISecretStorageService>() {
-				override async get(): Promise<string | undefined> { return undefined; }
+				override async get(key: string): Promise<string | undefined> {
+					secretStorageReads.push(key);
+					return secrets.get(key);
+				}
 			},
 		));
 
 		// Register a running HTTP server via the host delegate (the only path into the private maps).
-		const launch: McpServerLaunch = { type: McpServerTransportType.HTTP, uri: URI.parse('https://myserver.example/mcp'), headers: [] };
+		const launch: McpServerLaunch = { type: McpServerTransportType.HTTP, uri: URI.parse(serverUrl), headers: [] };
 		const serverDefinition: McpServerDefinition = { id: 'my-server', label: 'My Server', launch, cacheNonce: 'nonce-1' };
 		const collection: McpCollectionDefinition = {
 			remoteAuthority: null,
@@ -284,30 +299,52 @@ suite('MainThreadMcp - re-validation', () => {
 		capturedDelegate.start(collection, serverDefinition, launch, {});
 		mainThreadMcp.$onDidChangeState(1, { state: McpConnectionState.Kind.Running });
 
-		// Establish (and track) the session against the tenant-specific authority + resource.
 		const authDetails: IMcpAuthenticationDetails = {
 			authorizationServer,
 			authorizationServerMetadata: { issuer: authorizationServer.toString(), response_types_supported: ['code'], scopes_supported: ['scope.read'] },
-			resourceMetadata: { resource, scopes_supported: ['scope.read'] },
+			resourceMetadata: { resource, scopes_supported: ['scope.read'], authorization_servers: ['https://resource-as.example'] },
 			scopes: ['scope.read'],
-			clientId: 'client-abc',
+			clientId,
+			enterpriseManaged,
 		};
 		await mainThreadMcp.$getTokenFromServerMetadata(1, authDetails, {});
-		assert.strictEqual(getSessionsOptions.length, 1, 'the initial acquisition queried getSessions once');
 
-		// An unrelated Microsoft session change fires -> every tracked server is re-validated.
-		onDidChangeSessions.fire({ providerId: 'test-provider', label: 'Test Provider', event: { added: undefined, removed: undefined, changed: undefined } });
-		await revalidated.p;
+		for (const secret of ['rotated-secret', undefined]) {
+			if (secretStorageKey) {
+				if (secret === undefined) {
+					secrets.delete(secretStorageKey);
+				} else {
+					secrets.set(secretStorageKey, secret);
+				}
+			}
+			revalidated = new DeferredPromise<void>();
+			onDidChangeSessions.fire({ providerId: 'test-provider', label: 'Test Provider', event: { added: undefined, removed: undefined, changed: undefined } });
+			await revalidated.p;
+		}
 
-		// The re-validation call must carry the tracked context, not undefined. Dropping the
-		// authorization server here is exactly the #324925 regression (wrong-tenant token request).
-		assert.deepStrictEqual(getSessionsOptions[1], {
-			authorizationServer,
-			clientId: 'client-abc',
-			clientSecret: undefined,
-			resource,
-			audience: undefined,
-			silent: true,
+		const expectedSecrets = clientId ? ['original-secret', 'rotated-secret', undefined] : [undefined, undefined, undefined];
+		assert.deepStrictEqual({ getSessionsOptions, secretStorageReads }, {
+			getSessionsOptions: expectedSecrets.map((clientSecret, index) => ({
+				authorizationServer: enterpriseManaged ? configuredIssuer : authorizationServer,
+				clientId,
+				clientSecret,
+				resource,
+				audience,
+				silent: index > 0,
+			})),
+			secretStorageReads: secretStorageKey ? [secretStorageKey, secretStorageKey, secretStorageKey] : [],
 		});
+	}
+
+	test('replays the tracked auth context with a rotated or removed client secret (#324925)', async () => {
+		await assertRevalidationContext(false, 'client-abc');
+	});
+
+	test('replays XAA resource auth context with a rotated or removed client secret', async () => {
+		await assertRevalidationContext(true, 'resource-client');
+	});
+
+	test('revalidates clients without a secret-storage key without reading secret storage', async () => {
+		await assertRevalidationContext(false, undefined);
 	});
 });
