@@ -14,7 +14,7 @@ import { extUriBiasedIgnorePathCase } from '../../../../../base/common/resources
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
-import { mock } from '../../../../../base/test/common/mock.js';
+import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -547,6 +547,9 @@ suite('SessionsManagementService', () => {
 			let draftsCreated = 0;
 			const deleted: string[] = [];
 			const provider = new class extends TestSessionsProvider {
+				override readonly automations = upcastPartial<NonNullable<ISessionsProvider['automations']>>({
+					catalogueState: constObservable('ready'),
+				});
 				override resolveWorkspace(): ISessionWorkspace {
 					return { uri: folderUri, label: 'Folder', icon: Codicon.folder, folders: [], requiresWorkspaceTrust: false, isVirtualWorkspace: false };
 				}
