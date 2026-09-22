@@ -77,25 +77,37 @@ suite('LocalGitService', () => {
 		await Promise.all(temporaryDirectories.splice(0).map(directory => fs.rm(directory, { recursive: true, force: true })));
 	});
 
-	test('clone passes scoped HTTP authentication through Git config environment variables', async () => {
+	test('clone retries with scoped HTTP authentication after native authentication failure', async () => {
 		const configuredCount = Number.parseInt(process.env.GIT_CONFIG_COUNT ?? '', 10);
 		const index = Number.isInteger(configuredCount) && configuredCount >= 0 ? configuredCount : 0;
+		const parentPath = await fs.mkdtemp(join(tmpdir(), 'vscode-plugin-git-editor-auth-'));
+		temporaryDirectories.push(parentPath);
+		const targetPath = join(parentPath, 'repo');
 		const expectations: IExecFileExpectation[] = [
+			{
+				args: ['clone', '--', 'https://github.com/test/private.git', targetPath],
+				environmentUndefined: true,
+				error: createCredentialPromptError(),
+			},
 			{ args: ['--version'], stdout: 'git version 2.31.0\n' },
 			{
-				args: ['clone', '--', 'https://github.com/test/private.git', '/tmp/private'],
+				args: ['clone', '--', 'https://github.com/test/private.git', targetPath],
 				environment: {
-					GIT_CONFIG_COUNT: String(index + 2),
+					GIT_CONFIG_COUNT: String(index + 4),
 					[`GIT_CONFIG_KEY_${index}`]: 'http.https://github.com/.extraHeader',
-					[`GIT_CONFIG_VALUE_${index}`]: 'Authorization: Basic secret',
-					[`GIT_CONFIG_KEY_${index + 1}`]: 'http.https://www.github.com/.extraHeader',
+					[`GIT_CONFIG_VALUE_${index}`]: '',
+					[`GIT_CONFIG_KEY_${index + 1}`]: 'http.https://github.com/.extraHeader',
 					[`GIT_CONFIG_VALUE_${index + 1}`]: 'Authorization: Basic secret',
+					[`GIT_CONFIG_KEY_${index + 2}`]: 'http.https://www.github.com/.extraHeader',
+					[`GIT_CONFIG_VALUE_${index + 2}`]: '',
+					[`GIT_CONFIG_KEY_${index + 3}`]: 'http.https://www.github.com/.extraHeader',
+					[`GIT_CONFIG_VALUE_${index + 3}`]: 'Authorization: Basic secret',
 				},
 			},
 		];
 		const service = new LocalGitService(new NullLogService(), createExecFile(expectations));
 
-		await service.clone('test-op', 'https://github.com/test/private.git', '/tmp/private', undefined, {
+		await service.clone('test-op', 'https://github.com/test/private.git', targetPath, undefined, {
 			authentication: {
 				urlPrefixes: ['https://github.com/', 'https://www.github.com/'],
 				authorizationHeader: 'Authorization: Basic secret',
@@ -105,9 +117,8 @@ suite('LocalGitService', () => {
 		assert.strictEqual(expectations.length, 0);
 	});
 
-	test('clone falls back to unauthenticated operation on Git versions before 2.31', async () => {
+	test('clone uses the native path without probing Git when it succeeds', async () => {
 		const expectations: IExecFileExpectation[] = [
-			{ args: ['--version'], stdout: 'git version 2.30.9\n' },
 			{
 				args: ['clone', '--', 'https://github.com/test/public.git', '/tmp/public'],
 				environmentUndefined: true,
@@ -125,55 +136,45 @@ suite('LocalGitService', () => {
 		assert.strictEqual(expectations.length, 0);
 	});
 
-	test('clone retries without authentication after authentication failure', async () => {
-		const configuredCount = Number.parseInt(process.env.GIT_CONFIG_COUNT ?? '', 10);
-		const index = Number.isInteger(configuredCount) && configuredCount >= 0 ? configuredCount : 0;
-		const parentPath = await fs.mkdtemp(join(tmpdir(), 'vscode-plugin-git-auth-retry-'));
-		temporaryDirectories.push(parentPath);
-		const targetPath = join(parentPath, 'repo');
+	test('clone preserves native authentication failure when Git before 2.31 cannot use editor authentication', async () => {
+		const nativeError = createCredentialPromptError();
 		const expectations: IExecFileExpectation[] = [
-			{ args: ['--version'], stdout: 'git version 2.31.0\n' },
 			{
-				args: ['clone', '--', 'https://github.com/microsoft/vscode.git', targetPath],
-				environment: {
-					GIT_CONFIG_COUNT: String(index + 1),
-					[`GIT_CONFIG_KEY_${index}`]: 'http.https://github.com/.extraHeader',
-					[`GIT_CONFIG_VALUE_${index}`]: 'Authorization: Basic stale',
-				},
-				error: createCredentialPromptError(),
-			},
-			{
-				args: ['clone', '--', 'https://github.com/microsoft/vscode.git', targetPath],
+				args: ['clone', '--', 'https://github.com/test/private.git', '/tmp/private'],
 				environmentUndefined: true,
+				error: nativeError,
 			},
+			{ args: ['--version'], stdout: 'git version 2.30.9\n' },
 		];
 		const service = new LocalGitService(new NullLogService(), createExecFile(expectations));
 
-		await service.clone('test-op', 'https://github.com/microsoft/vscode.git', targetPath, undefined, {
-			authentication: {
-				urlPrefixes: ['https://github.com/'],
-				authorizationHeader: 'Authorization: Basic stale',
-			},
-		});
-
+		await assert.rejects(
+			() => service.clone('test-op', 'https://github.com/test/private.git', '/tmp/private', undefined, {
+				authentication: {
+					urlPrefixes: ['https://github.com/'],
+					authorizationHeader: 'Authorization: Basic secret',
+				},
+			}),
+			error => error === nativeError
+		);
 		assert.strictEqual(expectations.length, 0);
 	});
 
-	test('clone preserves authentication error when anonymous retry fails', async () => {
+	test('clone returns editor authentication error when the retry fails', async () => {
 		const authenticationError = createAuthenticationError();
 		const parentPath = await fs.mkdtemp(join(tmpdir(), 'vscode-plugin-git-auth-failure-'));
 		temporaryDirectories.push(parentPath);
 		const targetPath = join(parentPath, 'repo');
 		const expectations: IExecFileExpectation[] = [
-			{ args: ['--version'], stdout: 'git version 2.31.0\n' },
-			{
-				args: ['clone', '--', 'https://github.com/test/private.git', targetPath],
-				error: authenticationError,
-			},
 			{
 				args: ['clone', '--', 'https://github.com/test/private.git', targetPath],
 				environmentUndefined: true,
 				error: createPullError('fatal: could not read Username', 'fatal: terminal prompts disabled'),
+			},
+			{ args: ['--version'], stdout: 'git version 2.31.0\n' },
+			{
+				args: ['clone', '--', 'https://github.com/test/private.git', targetPath],
+				error: authenticationError,
 			},
 		];
 		const service = new LocalGitService(new NullLogService(), createExecFile(expectations));

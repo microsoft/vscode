@@ -54,6 +54,9 @@ export class LocalGitService implements ILocalGitService {
 		let index = Number.isInteger(configuredCount) && configuredCount >= 0 ? configuredCount : 0;
 		for (const urlPrefix of authentication.urlPrefixes) {
 			environment[`GIT_CONFIG_KEY_${index}`] = `http.${urlPrefix}.extraHeader`;
+			environment[`GIT_CONFIG_VALUE_${index}`] = '';
+			index++;
+			environment[`GIT_CONFIG_KEY_${index}`] = `http.${urlPrefix}.extraHeader`;
 			environment[`GIT_CONFIG_VALUE_${index}`] = authentication.authorizationHeader;
 			index++;
 		}
@@ -185,32 +188,41 @@ export class LocalGitService implements ILocalGitService {
 		await this._execNetwork(operationId, ['fetch'], repoPath, options);
 	}
 
-	private async _execNetwork(
+	private _execNetwork(
 		operationId: string,
 		args: string[],
 		cwd: string | undefined,
 		options: IGitNetworkOptions | undefined,
-		beforeAnonymousRetry?: () => Promise<void>,
+		beforeAuthenticationRetry?: () => Promise<void>,
 	): Promise<string> {
-		const networkOptions = await this._getSupportedNetworkOptions(operationId, options);
-		if (!networkOptions?.authentication) {
-			return this._exec(operationId, args, cwd, networkOptions);
+		if (!options?.authentication) {
+			return this._exec(operationId, args, cwd);
 		}
+		return this._execNetworkWithAuthentication(operationId, args, cwd, options, beforeAuthenticationRetry);
+	}
 
+	private async _execNetworkWithAuthentication(
+		operationId: string,
+		args: string[],
+		cwd: string | undefined,
+		options: IGitNetworkOptions,
+		beforeAuthenticationRetry: (() => Promise<void>) | undefined,
+	): Promise<string> {
 		try {
-			return await this._exec(operationId, args, cwd, networkOptions);
+			return await this._exec(operationId, args, cwd);
 		} catch (error) {
 			if (!this._isAuthenticationFailure(error)) {
 				throw error;
 			}
 
-			this._logService.warn(`[LocalGitService] Git authentication failed for '${args[0]}'. Retrying without VS Code authentication.`);
-			await beforeAnonymousRetry?.();
-			try {
-				return await this._exec(operationId, args, cwd);
-			} catch {
+			const networkOptions = await this._getSupportedNetworkOptions(operationId, options);
+			if (!networkOptions?.authentication) {
 				throw error;
 			}
+
+			this._logService.warn(`[LocalGitService] Native Git authentication failed for '${args[0]}'. Retrying with VS Code authentication.`);
+			await beforeAuthenticationRetry?.();
+			return this._exec(operationId, args, cwd, networkOptions);
 		}
 	}
 
