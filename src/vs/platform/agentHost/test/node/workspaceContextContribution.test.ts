@@ -55,10 +55,12 @@ suite('WorkspaceContextContribution', () => {
 	}
 
 	test('adds a sorted file-name tree and preserves the user message', async () => {
-		const context = setupContext({ files: [
-			'/workspace/tests/main.test.ts', '/workspace/src/main.ts', '/workspace/meta.json',
-			'/workspace/.env', '/workspace/.git/config', '/workspace/node_modules/pkg/index.js', '/other/private.txt',
-		] });
+		const context = setupContext({
+			files: [
+				'/workspace/tests/main.test.ts', '/workspace/src/main.ts', '/workspace/meta.json',
+				'/workspace/.env', '/workspace/.git/config', '/workspace/node_modules/pkg/index.js', '/other/private.txt',
+			]
+		});
 		assert.deepStrictEqual(await context.send(), {
 			message: { text: 'Bump the version to 2', origin: { kind: MessageKind.User } },
 			instructions: ['<workspace_info>\nInitial workspace structure (file names only):\n```text\n/workspace\nmeta.json\nsrc/\n\tmain.ts\ntests/\n\tmain.test.ts\n```\nThis snapshot may be truncated or stale. Use tools to inspect file contents and collect more context as needed.\n</workspace_info>'],
@@ -113,10 +115,12 @@ suite('WorkspaceContextContribution', () => {
 	});
 
 	test('bounds the snapshot and keeps root-level orientation ahead of deep files', async () => {
-		const context = setupContext({ files: [
-			'/workspace/meta.json', '/workspace/z-last/test.ts',
-			...Array.from({ length: 1000 }, (_, i) => `/workspace/a-large/file-${String(i).padStart(4, '0')}.ts`),
-		] });
+		const context = setupContext({
+			files: [
+				'/workspace/meta.json', '/workspace/z-last/test.ts',
+				...Array.from({ length: 1000 }, (_, i) => `/workspace/a-large/file-${String(i).padStart(4, '0')}.ts`),
+			]
+		});
 		const instruction = (await context.send()).instructions?.[0];
 		assert.ok(instruction);
 		const structure = instruction.split('```text\n')[1].split('\n```')[0];
