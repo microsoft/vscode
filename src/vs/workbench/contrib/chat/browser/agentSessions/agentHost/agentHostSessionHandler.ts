@@ -100,6 +100,7 @@ import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chat
 import { getChatSessionType, isUntitledChatSession } from '../../../common/model/chatUri.js';
 import { IChatAgentData, IChatAgentImplementation, IChatAgentRequest, IChatAgentResult, IChatAgentService } from '../../../common/participants/chatAgents.js';
 import { ILanguageModelToolsService, IToolData, IToolResult, stringifyPromptTsxPart, ToolInvocationPresentation } from '../../../common/tools/languageModelToolsService.js';
+import { CustomizationMigrationType, ICustomizationMigrationService } from '../../../common/promptSyntax/service/customizationMigrationService.js';
 import { IChatWidgetService } from '../../chat.js';
 import { getAgentSessionProviderIcon } from '../agentSessions.js';
 import { IAgentCustomizationScope, IAgentHostActiveClientService } from './agentHostActiveClientService.js';
@@ -1204,6 +1205,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		@IPathService private readonly _pathService: IPathService,
 		@IRemoteAgentHostService private readonly _remoteAgentHostService: IRemoteAgentHostService,
 		@IAgentHostCustomizationService private readonly _customizationService: IAgentHostCustomizationService,
+		@ICustomizationMigrationService private readonly _customizationMigrationService: ICustomizationMigrationService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IWorkbenchAssignmentService assignmentService: IWorkbenchAssignmentService,
 	) {
@@ -3556,14 +3558,43 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			// turn begins without any content arriving from the host. The part
 			// updates as servers finish and hides once every server has started,
 			// content starts being received, or the turn ends — whichever comes
-			// first. It carries no interactive affordance (no "Skip").
+			// first. It has no startup controls but may link to migration review.
 			{
 				const MCP_STARTING_GRACE_MS = 5000;
 
 				let didAppend = false;
+				let didStartMigrationLookup = false;
 				const hasContent$ = responseParts$.map(r => r.length > 0);
 				const hasServersStarting$ = mcpStarting$.map(s => s.length > 0);
 				const serversStartingInput = observableValue('mcpStartingServersInput', constObservable<IChatMcpStartingServer[]>([]));
+				const serversNeedingMigration = observableValue<readonly IChatMcpStartingServer[]>('mcpServersNeedingMigration', []);
+				const migrationCancellation = new CancellationTokenSource();
+				store.add(toDisposable(() => migrationCancellation.dispose(true)));
+
+				store.add(autorun(reader => {
+					if (didStartMigrationLookup || hasContent$.read(reader) || !hasServersStarting$.read(reader)) {
+						return;
+					}
+					if (!this._configurationService.getValue<boolean>(ChatConfiguration.ChatCustomizationsMcpServerMigrationEnabled)) {
+						return;
+					}
+
+					didStartMigrationLookup = true;
+					void this._customizationMigrationService.computeMigration(
+						opts.sessionResource,
+						CustomizationMigrationType.McpServers,
+						migrationCancellation.token,
+					).then(migration => {
+						serversNeedingMigration.set(
+							migration.candidates.map(candidate => ({ id: candidate.id, name: candidate.name })),
+							undefined,
+						);
+					}).catch(error => {
+						if (!isCancellationError(error)) {
+							this._logService.warn('[AgentHost] Failed to compute MCP server migrations for the startup status', error);
+						}
+					});
+				}));
 
 				store.add(autorun(reader => {
 					if (hasContent$.read(reader) || !hasServersStarting$.read(reader)) {
@@ -3579,6 +3610,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 								kind: 'mcpServersStartingSlow',
 								sessionResource: opts.sessionResource,
 								servers: serversStartingInput.map((o, r) => o.read(r)),
+								serversNeedingMigration,
 							}]);
 						}
 

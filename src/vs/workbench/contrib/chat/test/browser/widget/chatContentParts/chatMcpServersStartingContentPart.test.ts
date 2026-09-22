@@ -25,12 +25,14 @@ suite('ChatMcpServersStartingContentPart', () => {
 		instantiationService = workbenchInstantiationService(undefined, disposables);
 	});
 
-	function createPart(servers: readonly IChatMcpStartingServer[], showSpinner = true) {
+	function createPart(servers: readonly IChatMcpStartingServer[], showSpinner = true, serversNeedingMigration: readonly IChatMcpStartingServer[] = []) {
 		const servers$ = observableValue<readonly IChatMcpStartingServer[]>('servers', servers);
+		const serversNeedingMigration$ = observableValue<readonly IChatMcpStartingServer[]>('serversNeedingMigration', serversNeedingMigration);
 		const data: IChatMcpServersStartingSlow = {
 			kind: 'mcpServersStartingSlow',
 			sessionResource: URI.parse('chat-session://test/session1'),
 			servers: servers$,
+			serversNeedingMigration: serversNeedingMigration$,
 		};
 		let disposedSpinners = 0;
 		const createSpinner = (parent?: HTMLElement) => {
@@ -45,7 +47,7 @@ suite('ChatMcpServersStartingContentPart', () => {
 			showSpinner,
 			onDidFinishStarting: () => finishedCount++,
 		}));
-		return { part, servers$, getFinishedCount: () => finishedCount, getDisposedSpinners: () => disposedSpinners };
+		return { part, servers$, serversNeedingMigration$, getFinishedCount: () => finishedCount, getDisposedSpinners: () => disposedSpinners };
 	}
 
 	test('reflects the starting servers and hides when empty as the observable updates', () => {
@@ -95,6 +97,31 @@ suite('ChatMcpServersStartingContentPart', () => {
 			hidden: true,
 			disposedSpinners: 0,
 			finishedCount: 1,
+		});
+	});
+
+	test('shows servers needing migration with a review link', () => {
+		const { part, serversNeedingMigration$ } = createPart(
+			[{ id: 'a', name: 'alpha' }, { id: 'b', name: 'beta' }],
+			true,
+			[{ id: 'a', name: 'alpha' }],
+		);
+		const initial = {
+			text: part.domNode.textContent,
+			reviewLink: part.domNode.querySelector<HTMLAnchorElement>('a')?.getAttribute('data-href'),
+		};
+
+		serversNeedingMigration$.set([{ id: 'a', name: 'alpha' }, { id: 'b', name: 'beta' }], undefined);
+
+		assert.deepStrictEqual({
+			initial,
+			updatedText: part.domNode.textContent,
+		}, {
+			initial: {
+				text: 'Starting MCP servers alpha, beta... Some servers need migration. Review migrations',
+				reviewLink: 'command:aiCustomization.openManagementEditor?%255B%257B%2522migration%2522%253Atrue%252C%2522migrationCategory%2522%253A%2522mcpServers%2522%257D%255D',
+			},
+			updatedText: 'Starting MCP servers alpha, beta... Some servers need migration. Review migrations',
 		});
 	});
 

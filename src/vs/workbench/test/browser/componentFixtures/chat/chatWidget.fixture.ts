@@ -533,6 +533,7 @@ export async function renderChatWidget(context: ComponentFixtureContext, options
 						kind: 'mcpServersStartingSlow',
 						sessionResource: model.sessionResource,
 						servers: observableValue('mcpStartup', servers),
+						serversNeedingMigration: observableValue('mcpServersNeedingMigration', []),
 					});
 				}
 			} else if (part.kind === 'elicitation') {

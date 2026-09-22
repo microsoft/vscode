@@ -1432,6 +1432,7 @@ suite('ChatListRenderer', () => {
 			kind: 'mcpServersStartingSlow',
 			sessionResource: URI.parse('chat-session://test/session1'),
 			servers,
+			serversNeedingMigration: observableValue('serversNeedingMigration', []),
 		};
 
 		const whileStarting = isWaitingForMcpServers([part]);
@@ -2410,7 +2411,12 @@ suite('ChatListRenderer', () => {
 					{ id: 'run_in_terminal', displayName: 'Terminal', modelDescription: 'Terminal', source: ToolDataSource.Internal },
 					'terminal-1', undefined, {},
 				)
-				: { kind: 'mcpServersStartingSlow', sessionResource: response.sessionResource, servers: observableValue('servers', [{ id: 'a', name: 'alpha' }]) };
+				: {
+					kind: 'mcpServersStartingSlow',
+					sessionResource: response.sessionResource,
+					servers: observableValue('servers', [{ id: 'a', name: 'alpha' }]),
+					serversNeedingMigration: observableValue('serversNeedingMigration', []),
+				};
 			model.acceptResponseProgress(request, content);
 			const countTerminalAnimations = () => template.value.querySelector('.chat-terminal-content-part .monaco-pixel-spinner')?.getAnimations({ subtree: true }).filter(animation => {
 				// Reduced motion can leave a paused, zero-duration dot animation in Chromium.
@@ -3883,7 +3889,12 @@ suite('ChatListRenderer', () => {
 				? new ChatQuestionCarouselData([{ id: 'scope', type: 'text', title: 'Search scope', defaultValue: 'Workspace' }], true)
 				: kind === 'confirmation'
 					? new ChatElicitationRequestPart('Continue searching?', 'Search all files?', '', 'Continue', 'Cancel', async () => ElicitationState.Accepted, async () => ElicitationState.Rejected)
-					: { kind: 'mcpServersStartingSlow' as const, sessionResource: response.sessionResource, servers: observableValue('servers', [{ id: 'docs', name: 'Documentation' }]) };
+					: {
+						kind: 'mcpServersStartingSlow' as const,
+						sessionResource: response.sessionResource,
+						servers: observableValue('servers', [{ id: 'docs', name: 'Documentation' }]),
+						serversNeedingMigration: observableValue('serversNeedingMigration', []),
+					};
 			model.acceptResponseProgress(request, part);
 			renderer.renderElement(node, 0, template);
 			const expectedClass = kind === 'question' ? 'chat-question-carousel-container' : kind === 'confirmation' ? 'chat-confirmation-widget-container' : 'chat-mcp-servers-interaction';

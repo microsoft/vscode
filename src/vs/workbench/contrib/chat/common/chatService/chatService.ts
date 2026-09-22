@@ -1457,13 +1457,15 @@ export interface IChatMcpAuthenticationRequiredServer {
  * starts being received, or the turn ends — whichever happens first.
  *
  * Unlike {@link IChatMcpServersStarting} (used by the in-process MCP autostart
- * flow), this is a lightweight progress hint with no interactive affordance
- * (there is no "Skip" button).
+ * flow), this is a lightweight progress hint with no startup controls (there
+ * is no "Skip" button), though it may link to migration review.
  */
 export interface IChatMcpServersStartingSlow {
 	readonly kind: 'mcpServersStartingSlow';
 	readonly sessionResource: UriComponents;
 	readonly servers: IObservable<readonly IChatMcpStartingServer[]>;
+	/** Servers eligible for migration while the MCP server migration feature is enabled. */
+	readonly serversNeedingMigration: IObservable<readonly IChatMcpStartingServer[]>;
 }
 
 export interface IChatMcpStartingServer {

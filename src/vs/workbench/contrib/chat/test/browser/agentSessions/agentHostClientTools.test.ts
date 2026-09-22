@@ -65,6 +65,7 @@ import { ILanguageModelToolsService, IToolData, IToolInvocation, IToolResult, IT
 import { IChatSessionsService } from '../../../common/chatSessionsService.js';
 import { IChatWidgetService } from '../../../browser/chat.js';
 import { ICustomizationHarnessService } from '../../../common/customizationHarnessService.js';
+import { ICustomizationMigrationService } from '../../../common/promptSyntax/service/customizationMigrationService.js';
 import { IAgentPluginService } from '../../../common/plugins/agentPluginService.js';
 import { IOutputService } from '../../../../../services/output/common/output.js';
 import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
@@ -807,6 +808,7 @@ suite('AgentHostClientTools', () => {
 				registerLanguageModelProvider: () => toDisposable(() => { }),
 			});
 			instantiationService.stub(IConfigurationService, configService);
+			instantiationService.stub(ICustomizationMigrationService, new class extends mock<ICustomizationMigrationService>() { });
 			instantiationService.stub(IOutputService, { getChannel: () => undefined });
 			instantiationService.stub(IWorkspaceContextService, { getWorkspace: () => ({ id: '', folders: [] }), getWorkspaceFolder: () => null });
 			instantiationService.stub(IChatEditingService, {

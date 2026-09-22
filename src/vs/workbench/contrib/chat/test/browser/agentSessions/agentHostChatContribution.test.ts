@@ -57,6 +57,7 @@ import { IAuthenticationMcpUsageService } from '../../../../../services/authenti
 import { ChatEntitlement, IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { IChatAgentData, IChatAgentImplementation, IChatAgentRequest, IChatAgentService } from '../../../common/participants/chatAgents.js';
 import { CHAT_SUBAGENT_RESOURCE_QUERY_PARAM, ChatAIDisabledSettingId, ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../../common/constants.js';
+import { ICustomizationMigrationService } from '../../../common/promptSyntax/service/customizationMigrationService.js';
 import { ChatErrorLevel, ChatRequestQueueKind, ElicitationState, IChatService, IRemotePendingRequest, IChatMarkdownContent, IChatMcpAuthenticationRequired, IChatProgress, IChatSubagentToolInvocationData, IChatTerminalToolInvocationData, IChatToolInputInvocationData, IChatToolInvocation, IChatToolInvocationSerialized, IChatUsage, ToolConfirmKind } from '../../../common/chatService/chatService.js';
 import { IChatDebugService } from '../../../common/chatDebugService.js';
 import { IChatEditingService } from '../../../common/editing/chatEditingService.js';
@@ -816,10 +817,14 @@ function createTestServices(disposables: DisposableStore, workingDirectoryResolv
 				if (key === 'chat.agentHost.clientTools') {
 					return [];
 				}
+				if (key === ChatConfiguration.ChatCustomizationsMcpServerMigrationEnabled) {
+					return false;
+				}
 			}
 			return true;
 		},
 	});
+	instantiationService.stub(ICustomizationMigrationService, new class extends mock<ICustomizationMigrationService>() { });
 	instantiationService.stub(ILanguageModelToolsService, {
 		observeTools: () => observableValue('tools', []),
 		onDidChangeTools: Event.None,
