@@ -197,6 +197,20 @@ suite('Sessions policy update explanation', () => {
 		}, { preserved: true, inert: false, fallbackFocusCalls: [] });
 	});
 
+	test('does not steal focus from another surface when the update overlay rerenders', () => {
+		const { root, updateInfo, fallbackFocusCalls } = setup(info);
+		const otherSurface = append(root, $('button', undefined, 'Title bar action'));
+		otherSurface.focus();
+		updateInfo.set({ ...info, action: undefined }, undefined);
+		const preservedDuringUpdate = mainWindow.document.activeElement === otherSurface;
+		updateInfo.set(undefined, undefined);
+		assert.deepStrictEqual({
+			preservedDuringUpdate,
+			preservedAfterClear: mainWindow.document.activeElement === otherSurface,
+			fallbackFocusCalls,
+		}, { preservedDuringUpdate: true, preservedAfterClear: true, fallbackFocusCalls: [] });
+	});
+
 	for (const unavailable of ['removed', 'disabled'] as const) {
 		test(`focuses the active Sessions view if the prior target is ${unavailable}`, () => {
 			const { content, updateInfo, activeSession, fallbackFocusTarget, fallbackFocusCalls } = setup(undefined);
@@ -230,7 +244,7 @@ suite('Sessions policy update explanation', () => {
 	});
 
 	test('wraps long unbroken versions and keeps recovery actions reachable in a short viewport', () => {
-		const { root, updateInfo } = setup(undefined);
+		const { root, updateInfo, layoutEvent } = setup(undefined);
 		root.style.width = '320px';
 		root.style.height = '220px';
 		const longInfo = getManagedSettingsUpdateInfo({
@@ -245,13 +259,18 @@ suite('Sessions policy update explanation', () => {
 		button.focus();
 		const viewport = scrollContent.getBoundingClientRect();
 		const buttonBounds = button.getBoundingClientRect();
+		root.style.height = '160px';
+		layoutEvent.fire({ width: 320, height: 160 });
+		const resizedViewport = scrollContent.getBoundingClientRect();
+		const resizedButton = button.getBoundingClientRect();
 		assert.deepStrictEqual({
 			noHorizontalOverflow: [...overlay.querySelectorAll<HTMLElement>('.sessions-policy-blocked-scroll-content, .sessions-policy-blocked-card, h2, p')].every(element => element.scrollWidth <= element.clientWidth),
 			verticalOverflow: scrollContent.scrollHeight > scrollContent.clientHeight,
 			scrollsToAction: scrollContent.scrollTop > 0,
 			actionVisible: buttonBounds.top >= viewport.top && buttonBounds.bottom <= viewport.bottom,
+			focusedActionStillVisibleAfterResize: resizedButton.top >= resizedViewport.top && resizedButton.bottom <= resizedViewport.bottom,
 			focused: mainWindow.document.activeElement === button,
-		}, { noHorizontalOverflow: true, verticalOverflow: true, scrollsToAction: true, actionVisible: true, focused: true });
+		}, { noHorizontalOverflow: true, verticalOverflow: true, scrollsToAction: true, actionVisible: true, focusedActionStillVisibleAfterResize: true, focused: true });
 	});
 
 	test('leaves generic blocked-state layout unchanged', () => {

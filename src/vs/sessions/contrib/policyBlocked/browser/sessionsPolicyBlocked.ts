@@ -39,6 +39,7 @@ export interface ISessionsBlockedOverlayOptions {
 	readonly accountName?: string;
 	readonly freshness?: Extract<IManagedSettingsFreshness, { state: ManagedSettingsFreshnessState.Blocked }>;
 	readonly updateInfo?: IManagedSettingsUpdateInfo;
+	readonly shouldFocus?: boolean;
 }
 
 /**
@@ -69,7 +70,9 @@ export class SessionsPolicyBlockedOverlay extends Disposable {
 			this.overlay.setAttribute('aria-modal', 'true');
 		}
 		this.overlay.tabIndex = -1;
-		this.overlay.focus();
+		if (options.shouldFocus !== false) {
+			this.overlay.focus();
+		}
 		this._register(toDisposable(() => this.overlay.remove()));
 
 		const workbenchRoot = layoutService.mainContainer;
@@ -104,6 +107,11 @@ export class SessionsPolicyBlockedOverlay extends Disposable {
 					}
 				}
 				scrollable?.scanDomNode();
+				const focusedElement = getActiveElement();
+				if (isHTMLElement(focusedElement) && scrollContent.contains(focusedElement)) {
+					focusedElement.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+					scrollable?.scanDomNode();
+				}
 			};
 			layout();
 			this._register(layoutService.onDidLayoutMainContainer(layout));
@@ -145,14 +153,20 @@ export class SessionsPolicyBlockedOverlay extends Disposable {
 			case SessionsBlockedReason.UpdateRequired: {
 				const button = this._renderUpdateRequired(card, options.updateInfo!);
 				scrollable?.scanDomNode();
-				button.focus();
+				if (options.shouldFocus !== false) {
+					button.focus();
+				}
 				break;
 			}
 		}
 	}
 
+	hasFocus(): boolean {
+		return this.overlay.contains(getActiveElement());
+	}
+
 	override dispose(): void {
-		const restoreFocus = this.options.reason === SessionsBlockedReason.UpdateRequired && this.overlay.contains(getActiveElement());
+		const restoreFocus = this.options.reason === SessionsBlockedReason.UpdateRequired && this.hasFocus();
 		super.dispose();
 		if (!restoreFocus) {
 			return;

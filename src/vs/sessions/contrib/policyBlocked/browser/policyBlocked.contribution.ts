@@ -21,7 +21,7 @@ export class SessionsPolicyBlockedContribution extends Disposable implements IWo
 
 	static readonly ID = 'workbench.contrib.sessionsPolicyBlocked';
 
-	private readonly overlayRef = this._register(new MutableDisposable());
+	private readonly overlayRef = this._register(new MutableDisposable<SessionsPolicyBlockedOverlay>());
 	private currentOptions: ISessionsBlockedOverlayOptions | undefined;
 
 	constructor(
@@ -103,13 +103,14 @@ export class SessionsPolicyBlockedContribution extends Disposable implements IWo
 		if (equals(this.currentOptions, options)) {
 			return;
 		}
+		const shouldFocus = options.reason !== SessionsBlockedReason.UpdateRequired || !this.overlayRef.value || this.overlayRef.value.hasFocus();
 		this.overlayRef.clear();
 		this.currentOptions = options;
 
 		this.overlayRef.value = this.instantiationService.createInstance(
 			SessionsPolicyBlockedOverlay,
 			this.layoutService.mainContainer,
-			options,
+			{ ...options, shouldFocus },
 		);
 	}
 }
