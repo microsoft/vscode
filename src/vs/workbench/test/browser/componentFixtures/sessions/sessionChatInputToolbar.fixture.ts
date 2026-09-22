@@ -4,11 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { mock } from '../../../../../base/test/common/mock.js';
+import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { Event } from '../../../../../base/common/event.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { constObservable, IObservable } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { ActionWidgetService, IActionWidgetService } from '../../../../../platform/actionWidget/browser/actionWidget.js';
+import { IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
+import { ContextViewService } from '../../../../../platform/contextview/browser/contextViewService.js';
+import { IFileContent, IFileService } from '../../../../../platform/files/common/files.js';
+import { ILayoutService } from '../../../../../platform/layout/browser/layoutService.js';
 import { computePullRequestIcon } from '../../../../common/chatPullRequest.js';
 import { chatPersistentContentVisibleClass } from '../../../../contrib/chat/browser/widget/chatWidget.js';
 import { BrowserEditorInput } from '../../../../contrib/browserView/common/browserEditorInput.js';
@@ -192,7 +198,36 @@ function registerSessionChatPillFixtureServices(registration: ServiceRegistratio
 // Render helpers
 // ============================================================================
 
-function renderPills(ctx: ComponentFixtureContext, sessionMock: IMockSessionAndChat, options?: { readonly compact?: boolean | 'auto'; readonly debugData?: ISessionChatPillsDebugData; readonly width?: string }): void {
+function createImageReferenceContent(resource: URI): IFileContent {
+	const value = VSBuffer.fromString(`
+		<svg xmlns="http://www.w3.org/2000/svg" width="640" height="360" viewBox="0 0 640 360">
+			<defs>
+				<linearGradient id="background" x1="0" y1="0" x2="1" y2="1">
+					<stop offset="0" stop-color="#7456d7"/>
+					<stop offset="1" stop-color="#19a7a0"/>
+				</linearGradient>
+			</defs>
+			<rect width="640" height="360" rx="24" fill="url(#background)"/>
+			<circle cx="500" cy="105" r="48" fill="#f8dc75"/>
+			<path d="M0 300 160 155l110 100 90-70 280 175H0Z" fill="#15202b" opacity=".78"/>
+			<text x="36" y="58" fill="#fff" font-family="sans-serif" font-size="28" font-weight="600">Referenced image</text>
+		</svg>
+	`);
+	return {
+		resource,
+		name: resource.path.split('/').at(-1) ?? resource.path,
+		mtime: 0,
+		ctime: 0,
+		etag: 'fixture',
+		size: value.byteLength,
+		readonly: true,
+		locked: false,
+		executable: false,
+		value,
+	};
+}
+
+function renderPills(ctx: ComponentFixtureContext, sessionMock: IMockSessionAndChat, options?: { readonly compact?: boolean | 'auto'; readonly debugData?: ISessionChatPillsDebugData; readonly height?: string; readonly width?: string }): void {
 	const { container, disposableStore } = ctx;
 
 	const instantiationService = createEditorServices(disposableStore, {
@@ -204,6 +239,20 @@ function renderPills(ctx: ComponentFixtureContext, sessionMock: IMockSessionAndC
 			// (which register a partial ISessionsService).
 			registerChatFixtureServices(reg);
 			registerSessionChatPillFixtureServices(reg, sessionMock);
+			reg.defineInstance(ILayoutService, new class extends mock<ILayoutService>() {
+				override readonly mainContainer = container;
+				override readonly activeContainer = container;
+				override readonly onDidLayoutContainer = Event.None;
+				override getContainer(): HTMLElement { return container; }
+			}());
+			reg.define(IContextViewService, ContextViewService);
+			reg.define(IActionWidgetService, ActionWidgetService);
+			reg.defineInstance(IFileService, new class extends mock<IFileService>() {
+				override readonly onDidFilesChange = Event.None;
+				override readonly onDidRunOperation = Event.None;
+				override hasProvider(): boolean { return true; }
+				override async readFile(resource: URI): Promise<IFileContent> { return createImageReferenceContent(resource); }
+			}());
 			if (options?.debugData) {
 				reg.defineInstance(IAgentFeedbackService, new class extends mock<IAgentFeedbackService>() {
 					override readonly onDidChangeFeedback = Event.None;
@@ -229,6 +278,7 @@ function renderPills(ctx: ComponentFixtureContext, sessionMock: IMockSessionAndC
 	}
 
 	container.style.padding = '12px';
+	container.style.height = options?.height ?? 'auto';
 	container.style.width = options?.width ?? 'auto';
 	container.style.backgroundColor = 'var(--vscode-sideBar-background)';
 }
@@ -443,6 +493,16 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 		render: (ctx) => renderPills(ctx, createMockSession({
 			artifacts: [{ id: 'r1', kind: SessionArtifactKind.Commit, label: 'Commit that broke login', isArtifact: false, link: URI.parse('https://github.com/microsoft/vscode/commit/def5678'), commitHash: 'def5678' }],
 		})),
+	}),
+
+	SessionChatPills_ImageReferences: defineComponentFixture({
+		render: ctx => renderPills(ctx, createMockSession({
+			artifacts: [
+				{ id: 'r1', kind: SessionArtifactKind.File, label: 'Landing page', isArtifact: false, uri: URI.file('/repo/design/landing-page.svg') },
+				{ id: 'r2', kind: SessionArtifactKind.File, label: 'Settings flow', isArtifact: false, uri: URI.file('/repo/design/settings-flow.svg') },
+				{ id: 'r3', kind: SessionArtifactKind.File, label: 'Empty state', isArtifact: false, uri: URI.file('/repo/design/empty-state.svg') },
+			],
+		}), { height: '500px', width: '760px' }),
 	}),
 
 	SessionChatPills_ArtifactsAndReferences: defineComponentFixture({

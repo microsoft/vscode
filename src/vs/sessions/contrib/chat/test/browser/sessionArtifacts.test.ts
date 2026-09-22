@@ -151,6 +151,41 @@ suite('Session Artifacts', () => {
 		]);
 	});
 
+	test('adds image previews to references without changing image artifacts', () => {
+		const referenceUri = URI.file('/home/alice/references/design.png');
+		const artifactUri = URI.file('/home/alice/artifacts/result.jpg');
+		const sections = buildSessionArtifactSections([
+			{ id: 'reference', kind: SessionArtifactKind.File, label: 'Design', isArtifact: false, uri: referenceUri },
+			{ id: 'artifact', kind: SessionArtifactKind.File, label: 'Result', isArtifact: true, uri: artifactUri },
+		], actions, labelService, true, new Set());
+
+		assert.deepStrictEqual(sections.map(section => ({
+			title: section.title,
+			entries: section.entries.map(entry => ({
+				id: entry.id,
+				imagePreview: entry.imagePreview && {
+					resource: entry.imagePreview.resource.toString(),
+					mimeType: entry.imagePreview.mimeType,
+				},
+				ariaDescription: entry.ariaDescription,
+			})),
+		})), [{
+			title: 'Images',
+			entries: [{
+				id: 'reference',
+				imagePreview: {
+					resource: referenceUri.toString(),
+					mimeType: 'image/png',
+				},
+				ariaDescription: '~/references/design.png',
+			}, {
+				id: 'artifact',
+				imagePreview: undefined,
+				ariaDescription: '~/artifacts/result.jpg',
+			}],
+		}]);
+	});
+
 	test('leaves out websites the browsers pill already lists', () => {
 		const pullRequestLink = URI.parse('https://github.com/microsoft/vscode/pull/12');
 		const artifacts: readonly ISessionArtifact[] = [

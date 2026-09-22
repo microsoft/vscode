@@ -97,6 +97,45 @@ suite('ChatPills', () => {
 		disposables.dispose();
 	});
 
+	test('maps image previews to rich row and inline hover content', () => {
+		const disposables = store.add(new DisposableStore());
+		const instantiationService = workbenchInstantiationService(undefined, disposables);
+		const action = disposables.add(new Action('references', 'References'));
+		const resource = URI.file('/repo/design.png');
+		const entry: IChatPillEntry = {
+			id: 'design',
+			label: 'design.png',
+			resource,
+			imagePreview: { resource, mimeType: 'image/png' },
+			ariaDescription: 'design.png',
+			open: () => { },
+		};
+		const sections = constObservable<readonly IChatPillSection[]>([{ title: 'Images', entries: [entry] }]);
+		const viewItem = disposables.add(instantiationService.createInstance(ChatDropdownPillActionViewItem, action, {}, sections, {
+			widgetId: 'references',
+			icon: Codicon.references,
+			title: 'References',
+			summaryLabel: count => `${count} References`,
+			summaryAriaLabel: count => `Show ${count} references`,
+			singleEntry: ChatPillSingleEntry.Summary,
+		}));
+		const mappedEntry = getDropdownPillItems.call(viewItem)[1];
+
+		assert.deepStrictEqual({
+			contentType: typeof mappedEntry.hover?.content,
+			contentOwnsPadding: mappedEntry.hover?.contentOwnsPadding,
+			hasDisposable: !!mappedEntry.hover?.disposable,
+			alignToAnchorTop: mappedEntry.hover?.alignToAnchorTop,
+		}, {
+			contentType: 'function',
+			contentOwnsPadding: true,
+			hasDisposable: true,
+			alignToAnchorTop: true,
+		});
+
+		disposables.dispose();
+	});
+
 	test('uses the main DOM realm and target auxiliary window', () => {
 		const disposables = store.add(new DisposableStore());
 		const iframe = mainWindow.document.createElement('iframe');
