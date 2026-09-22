@@ -318,6 +318,7 @@ export class InboxNotificationsView extends AbstractCustomView {
 
 		const provider = this.sessionsProvidersService.getProvider(session.providerId);
 		if (!provider || !isAgentHostProvider(provider)) {
+			this.notificationService.warn(localize('inboxNotifications.agentMergeUnavailable', "These actions are available once the session provider finishes connecting."));
 			return;
 		}
 

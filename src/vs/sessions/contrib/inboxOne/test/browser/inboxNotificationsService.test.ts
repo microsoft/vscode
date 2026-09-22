@@ -285,7 +285,7 @@ suite('InboxNotificationsService', () => {
 		}]);
 	});
 
-	test('adds merge action when provider registers after notification creation', () => {
+	test('shows merge action for agent-host sessions before provider registration', () => {
 		const gitHubService = new TestGitHubService();
 		const fixture = createFixture([createSession({
 			id: 'late-provider',
@@ -308,13 +308,35 @@ suite('InboxNotificationsService', () => {
 
 		assert.deepStrictEqual(fixture.service.notifications.get().map(item => item.actions.map(action => action.kind)), [[
 			InboxNotificationActionKind.OpenSession,
+			InboxNotificationActionKind.AgentMergeMergePullRequest,
 			InboxNotificationActionKind.Dismiss,
 		]]);
+	});
 
-		fixture.setAgentHostProviderRegistered(true);
+	test('does not show merge action for non-agent-host sessions', () => {
+		const gitHubService = new TestGitHubService();
+		const fixture = createFixture([createSession({
+			id: 'non-agent-host',
+			providerId: 'copilot-chat-sessions',
+			status: SessionStatus.Completed,
+			updatedAt: 100,
+			isRead: true,
+			pullRequest: { owner: 'owner', repo: 'repo', number: 45 },
+		})], undefined, gitHubService);
+
+		gitHubService.setPullRequest('owner', 'repo', 45, openPullRequest(45, 'sha45'));
+		gitHubService.setCIStatus('owner', 'repo', 45, 'sha45', GitHubCIOverallStatus.Success, [{
+			id: 2,
+			name: 'CI',
+			status: GitHubCheckStatus.Completed,
+			conclusion: GitHubCheckConclusion.Success,
+			startedAt: '2026-09-21T16:02:00Z',
+			completedAt: '2026-09-21T16:03:00Z',
+			detailsUrl: undefined,
+		}]);
+
 		assert.deepStrictEqual(fixture.service.notifications.get().map(item => item.actions.map(action => action.kind)), [[
 			InboxNotificationActionKind.OpenSession,
-			InboxNotificationActionKind.AgentMergeMergePullRequest,
 			InboxNotificationActionKind.Dismiss,
 		]]);
 	});

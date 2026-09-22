@@ -8,7 +8,7 @@ import { autorun, derived, IObservable, IReader, IReaderWithStore, ISettableObse
 import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { localize } from '../../../../nls.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
-import { isAgentHostProvider } from '../../../common/agentHostSessionsProvider.js';
+import { isAgentHostProviderId } from '../../../common/agentHostSessionsProvider.js';
 import { IGitHubService } from '../../github/browser/githubService.js';
 import { GitHubCIOverallStatus, GitHubPullRequestState, IGitHubPRComment, IGitHubPullRequestReviewThread } from '../../github/common/types.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
@@ -313,8 +313,7 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 	}
 
 	private pullRequestActions(session: ISession, kind: InboxNotificationKind): readonly IInboxNotificationAction[] {
-		const provider = this.sessionsProvidersService.getProvider(session.providerId);
-		if (!provider || !isAgentHostProvider(provider)) {
+		if (!isAgentHostProviderId(session.providerId)) {
 			return this.sessionActions(true, false);
 		}
 
