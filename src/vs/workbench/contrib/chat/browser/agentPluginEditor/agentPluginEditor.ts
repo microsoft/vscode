@@ -102,6 +102,7 @@ export class AgentPluginEditor extends EditorPane {
 		@IPluginMarketplaceService private readonly pluginMarketplaceService: IPluginMarketplaceService,
 		@ILabelService private readonly labelService: ILabelService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
+		@INotificationService private readonly notificationService: INotificationService,
 	) {
 		super(AgentPluginEditor.ID, group, telemetryService, themeService, storageService);
 	}
@@ -336,8 +337,7 @@ export class AgentPluginEditor extends EditorPane {
 			}
 		}
 
-		const notificationService = this.instantiationService.invokeFunction(a => a.get(INotificationService));
-		const policyAction = createPolicyManagedEnablementAction(item.plugin, notificationService);
+		const policyAction = createPolicyManagedEnablementAction(item.plugin, this.notificationService);
 		if (policyAction) {
 			actions.push(policyAction);
 		} else {
