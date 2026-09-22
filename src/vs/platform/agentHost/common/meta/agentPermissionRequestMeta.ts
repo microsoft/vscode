@@ -10,6 +10,13 @@
  * A remote host describes the pending decision (run a command, read a file, …)
  * but does not stamp the `_meta.toolKind` rendering hint local agent adapters
  * provide, so the kind is recovered from here instead.
+ *
+ * Compatibility bridge, not the durable contract: `promptRequest` and
+ * `permissionRequest` are raw Copilot runtime payloads, not protocol fields, so
+ * their shape can change without a version bump and every client has to learn
+ * Copilot internals to render an approval. Delete this file, and its use in
+ * `getToolKind`, once the minimum supported host describes confirmations
+ * natively.
  */
 
 interface IHasPermissionRequestMeta {

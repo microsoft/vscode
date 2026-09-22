@@ -109,6 +109,25 @@ suite('copilotToolDisplay — friendly tool names', () => {
 	test('falls back to the raw tool name for unknown tools', () => {
 		assert.strictEqual(getToolDisplayName('some_new_tool'), 'some_new_tool');
 	});
+
+	test('prefers canonical tool titles and falls back to original MCP tool names', () => {
+		const toolName = 'io-github-github-github-mcp-server-issue_read';
+		assert.deepStrictEqual({
+			title: getToolDisplayName(toolName, { toolTitle: 'Read issue', mcpToolName: 'issue_read' }),
+			shortName: getToolDisplayName(toolName, { mcpToolName: 'issue_read' }),
+			blankTitle: getToolDisplayName(toolName, { toolTitle: '  ', mcpToolName: 'issue_read' }),
+			trimmedTitle: getToolDisplayName(toolName, { toolTitle: ' Read issue ' }),
+			blankMetadata: getToolDisplayName(toolName, { toolTitle: '', mcpToolName: '  ' }),
+			builtIn: getToolDisplayName('bash', { toolTitle: 'SDK shell title' }),
+		}, {
+			title: 'Read issue',
+			shortName: 'issue_read',
+			blankTitle: 'issue_read',
+			trimmedTitle: 'Read issue',
+			blankMetadata: toolName,
+			builtIn: 'Run Shell Command',
+		});
+	});
 });
 
 suite('copilotToolDisplay — edit tool classification', () => {
@@ -207,6 +226,58 @@ suite('getPermissionDisplay — read confirmation title', () => {
 			relative: 'Allow reading file?',
 			unknownWorkspace: 'Allow reading file?',
 			sandboxBypass: 'Read file outside the sandbox?',
+		});
+	});
+});
+
+suite('getPermissionDisplay — server tool confirmation', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('uses the plain-language set_workspace confirmation without raw input', () => {
+		assert.deepStrictEqual(
+			getPermissionDisplay(customToolPermissionRequest('set_workspace', {
+				workspaceFolder: '/workspace/app',
+				isolation: false,
+			})),
+			{
+				confirmationTitle: 'Continue in app?',
+				invocationMessage: 'Continue this session in /workspace/app and make changes directly in that folder?',
+				toolInput: undefined,
+				permissionKind: 'custom-tool',
+				permissionPath: undefined,
+			},
+		);
+	});
+});
+
+suite('getPermissionDisplay — MCP tool confirmation', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('uses the canonical tool title without changing the permission request', () => {
+		const request: PermissionRequest = {
+			kind: 'mcp',
+			serverName: 'GitHub',
+			toolName: 'issue_read',
+			toolTitle: 'Read issue',
+			readOnly: true,
+			args: { issue_number: 123 },
+		};
+		assert.deepStrictEqual({
+			display: getPermissionDisplay(request),
+			fallback: getPermissionDisplay({ ...request, toolTitle: '' }).invocationMessage,
+			toolName: request.toolName,
+		}, {
+			display: {
+				confirmationTitle: 'Allow tool from GitHub?',
+				invocationMessage: 'GitHub: Read issue',
+				toolInput: '{"serverName":"GitHub","toolName":"issue_read"}',
+				permissionKind: 'mcp',
+				permissionPath: undefined,
+			},
+			fallback: 'GitHub: issue_read',
+			toolName: 'issue_read',
 		});
 	});
 });
@@ -416,6 +487,36 @@ suite('copilotToolDisplay — built-in tool invocation/past-tense messages', () 
 		assert.strictEqual(pastTense('read_agent', { agent_id: 'math-helper' }), 'Read agent `math-helper`');
 		assert.strictEqual(invocation('write_agent', { agent_id: 'math-helper', message: 'hi' }), 'Write to agent `math-helper`');
 		assert.strictEqual(pastTense('write_agent', { agent_id: 'math-helper', message: 'hi' }), 'Write to agent `math-helper`');
+	});
+
+	for (const [toolName, verb] of [['read_agent', 'Read agent'], ['write_agent', 'Write to agent']]) {
+		test(`uses the canonical agent name in streaming, ready, and completed ${toolName} messages`, () => {
+			const agentId = '37241a58-7d95-4763-a3fb-2494dcfcf540';
+			const parameters = { agent_id: agentId };
+			const resolveAgentName = (id: string) => id === agentId ? 'catalog-perf' : undefined;
+			const displayName = getToolDisplayName(toolName);
+			const messages = [
+				getStreamingInvocationMessage(toolName, displayName, parameters, undefined, resolveAgentName),
+				getInvocationMessage(toolName, displayName, parameters, undefined, resolveAgentName),
+				getPastTenseMessage(toolName, displayName, parameters, true, undefined, undefined, resolveAgentName),
+			].map(message => typeof message === 'string' ? message : message.markdown);
+
+			assert.deepStrictEqual({ messages, parameters }, {
+				messages: Array(3).fill(`${verb} \`catalog-perf\``),
+				parameters: { agent_id: agentId },
+			});
+		});
+	}
+
+	test('keeps the execution id as the display fallback when the agent name is unknown or blank', () => {
+		const names: Record<string, string | undefined> = { 'blank-agent': '   ' };
+		assert.deepStrictEqual({
+			unknown: getInvocationMessage('read_agent', 'Read Agent', { agent_id: 'unknown-agent' }, undefined, id => names[id]),
+			blank: getInvocationMessage('read_agent', 'Read Agent', { agent_id: 'blank-agent' }, undefined, id => names[id]),
+		}, {
+			unknown: { markdown: 'Read agent `unknown-agent`' },
+			blank: { markdown: 'Read agent `blank-agent`' },
+		});
 	});
 
 	test('agent tools fall back to a generic phrase without an agent id', () => {

@@ -21,6 +21,16 @@ export function isAutoModeTier(value: unknown): value is AutoModeTier {
 	return autoModeTiers.some(tier => tier === value);
 }
 
+/** Maps retired picker and override values to the current runtime names, matching the Copilot extension. */
+export function normalizeAutoModeTier(value: unknown): unknown {
+	switch (value) {
+		case 'eco': return 'efficiency';
+		case 'balanced': return 'balance';
+		case 'max': return 'intelligence';
+		default: return value;
+	}
+}
+
 /**
  * Localized picker label for a routing profile, capitalizing an unrecognized value so a new profile
  * never surfaces raw. Wording matches the extension's `getAutoModeTierLabel`, which cannot be imported here.
@@ -37,9 +47,9 @@ export function getAutoModeTierLabel(tier: string): string {
 /** Localized picker description, or nothing for an unrecognized value so callers can omit it. */
 export function getAutoModeTierDescription(tier: string): string | undefined {
 	switch (tier) {
-		case 'efficiency': return localize('autoModeTier.efficiencyDescription', "Cheaper models for everyday tasks");
-		case 'balance': return localize('autoModeTier.balanceDescription', "Balances capability and cost");
-		case 'intelligence': return localize('autoModeTier.intelligenceDescription', "Most capable models, higher cost");
+		case 'efficiency': return localize('autoModeTier.efficiencyDescription', "Optimizes for cost and speed, using more capable models only when needed.");
+		case 'balance': return localize('autoModeTier.balanceDescription', "Balances cost/speed and capability based on task complexity.");
+		case 'intelligence': return localize('autoModeTier.intelligenceDescription', "Optimizes for capability, using faster models only when the task allows it.");
 		default: return undefined;
 	}
 }

@@ -5,7 +5,6 @@
 
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
-import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { AutomationService } from '../../browser/automationService.js';
 import { IAutomationStorageCompareAndSwapResult, IAutomationStorageService } from '../../common/automationStorageService.js';
 
@@ -31,6 +30,6 @@ export class TestAutomationStorageService implements IAutomationStorageService {
 	}
 }
 
-export function createAutomationService(storageService: IStorageService, logService: ILogService, telemetryService: ITelemetryService): AutomationService {
-	return new AutomationService(storageService, logService, telemetryService, new TestAutomationStorageService(storageService));
+export function createAutomationService(storageService: IStorageService, logService: ILogService): AutomationService {
+	return new AutomationService(storageService, logService, new TestAutomationStorageService(storageService));
 }

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import '../../browser/media/multiFileDiffEditor.css';
+import '../../browser/media/sessionChangesEditor.css';
 import '../../../agentFeedback/browser/media/agentFeedbackEditorInput.css';
 import '../../../../../base/browser/ui/codicons/codiconStyles.js';
 import { $, Dimension, getWindow } from '../../../../../base/browser/dom.js';
@@ -17,7 +17,7 @@ import { mock } from '../../../../../base/test/common/mock.js';
 import { MultiDiffEditorWidget } from '../../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorWidget.js';
 import { IDiffProviderFactoryService } from '../../../../../editor/browser/widget/diffEditor/diffProviderFactoryService.js';
 import { RefCounted } from '../../../../../editor/browser/widget/diffEditor/utils.js';
-import { IDocumentDiffItem } from '../../../../../editor/browser/widget/multiDiffEditor/model.js';
+import { DiffItemSource, IDocumentDiffItem } from '../../../../../editor/browser/widget/multiDiffEditor/model.js';
 import { IResourceLabel, IWorkbenchUIElementFactory } from '../../../../../editor/browser/widget/multiDiffEditor/workbenchUIElementFactory.js';
 import { TestDiffProviderFactoryService } from '../../../../../editor/test/browser/diff/testDiffProviderFactoryService.js';
 import { IMenu, IMenuActionOptions, IMenuService, MenuId, MenuItemAction } from '../../../../../platform/actions/common/actions.js';
@@ -41,6 +41,8 @@ import { clearAllFeedbackActionId, navigateNextFeedbackActionId, navigatePreviou
 import { AgentFeedbackKind, AgentFeedbackState, IAgentFeedback, IAgentFeedbackService } from '../../../agentFeedback/browser/agentFeedbackService.js';
 import { Menus } from '../../../../browser/menus.js';
 import { ISession } from '../../../../services/sessions/common/session.js';
+import { ICodeReviewService } from '../../../codeReview/browser/codeReviewService.js';
+import { createMockCodeReviewService } from '../../../../../workbench/test/browser/componentFixtures/sessions/mockCodeReviewService.js';
 
 const SESSION_RESOURCE = URI.parse('fixture-session://agents-diff');
 const MODIFIED_FIRST_RESOURCE = URI.file('/workspace/src/first.ts');
@@ -60,13 +62,6 @@ class FixtureAgentFeedbackMenuService implements IMenuService {
 	) { }
 
 	createMenu(id: MenuId): IMenu {
-		if (id !== Menus.AgentFeedbackEditorContent) {
-			return {
-				onDidChange: Event.None,
-				dispose: () => { },
-				getActions: () => [],
-			};
-		}
 		const createAction = (actionId: string, title: string, icon: ThemeIcon) => this.instantiationService.createInstance(
 			MenuItemAction,
 			{ id: actionId, title, icon },
@@ -75,6 +70,20 @@ class FixtureAgentFeedbackMenuService implements IMenuService {
 			undefined,
 			undefined,
 		);
+		if (id === MenuId.MultiDiffEditorFileToolbar) {
+			return {
+				onDidChange: Event.None,
+				dispose: () => { },
+				getActions: () => [['navigation', [createAction('fixture.expandFullFile', 'Expand Full File', Codicon.unfold)]]],
+			};
+		}
+		if (id !== Menus.AgentFeedbackEditorContent) {
+			return {
+				onDidChange: Event.None,
+				dispose: () => { },
+				getActions: () => [],
+			};
+		}
 		const navigateActions = [
 			createAction(navigationBearingFakeActionId, 'Navigation Status', Codicon.commentDiscussion),
 			createAction(navigatePreviousFeedbackActionId, 'Previous', Codicon.arrowUp),
@@ -100,11 +109,6 @@ class FixtureAgentFeedbackMenuService implements IMenuService {
 }
 
 class AgentsDiffUIElementFactory implements IWorkbenchUIElementFactory {
-
-	readonly headerClickToCollapse = true;
-	readonly diffEditorItemHorizontalInsets = { left: 0, right: 0 };
-	readonly diffEditorItemHeaderHeight = 32;
-	readonly diffEditorItemContentBottomPadding = 8;
 
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -140,6 +144,7 @@ function createAgentFeedbackService(feedback: readonly IAgentFeedback[] = [], fe
 		override readonly onDidChangeNavigation = Event.None;
 		override readonly onDidChangeFeedbackScope = Event.None;
 		override readonly onDidRevealSessionComment = Event.None;
+		override isAgentHostSession(): boolean { return false; }
 		override getVisibleResolvedFeedbackIds(): ReadonlySet<string> {
 			return new Set();
 		}
@@ -241,6 +246,7 @@ async function renderAgentsDiffEditor({ container, disposableStore, disposableSt
 		additionalServices: reg => {
 			registerWorkbenchServices(reg);
 			reg.defineInstance(IAgentFeedbackService, agentFeedbackService);
+			reg.defineInstance(ICodeReviewService, createMockCodeReviewService());
 			reg.defineInstance(IContextKeyService, createContextKeyService());
 			reg.define(IMenuService, FixtureAgentFeedbackMenuService);
 			reg.defineInstance(IDecorationsService, new class extends mock<IDecorationsService>() { override onDidChangeDecorations = Event.None; }());
@@ -260,17 +266,26 @@ async function renderAgentsDiffEditor({ container, disposableStore, disposableSt
 	const secondOriginal = textModels.add(createTextModel(instantiationService, 'export function count() {\n\treturn 1;\n}', URI.file('/workspace/src/second.original.ts'), 'typescript'));
 	const secondModified = textModels.add(createTextModel(instantiationService, 'export function count() {\n\treturn 2;\n}', URI.file('/workspace/src/second.ts'), 'typescript'));
 
-	const first = RefCounted.createOfNonDisposable<IDocumentDiffItem>({ original: firstOriginal, modified: firstModified }, { dispose() { } });
-	const second = RefCounted.createOfNonDisposable<IDocumentDiffItem>({ original: secondOriginal, modified: secondModified }, { dispose() { } });
+	const first = RefCounted.createOfNonDisposable<IDocumentDiffItem>({
+		original: new DiffItemSource(firstOriginal.uri, firstOriginal),
+		modified: new DiffItemSource(firstModified.uri, firstModified),
+	}, { dispose() { } });
+	const second = RefCounted.createOfNonDisposable<IDocumentDiffItem>({
+		original: new DiffItemSource(secondOriginal.uri, secondOriginal),
+		modified: new DiffItemSource(secondModified.uri, secondModified),
+	}, { dispose() { } });
 	const widget = disposableStackStore.add(instantiationService.createInstance(
 		MultiDiffEditorWidget,
 		editorInstance,
 		instantiationService.createInstance(AgentsDiffUIElementFactory),
 		{
-			hideOriginalLineNumbers: true,
-			folding: false,
-			hideUnchangedRegions: { enabled: true },
-			lineNumbersMinChars: 3,
+			variant: 'noCards',
+			diffEditorOptions: {
+				hideOriginalLineNumbers: true,
+				folding: false,
+				hideUnchangedRegions: { enabled: true },
+				lineNumbersMinChars: 3,
+			},
 		},
 	));
 	widget.setRenderSideBySide(false);

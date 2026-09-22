@@ -442,6 +442,19 @@ describe.skipIf(isWindows)('isExternalSymlinkedFile', () => {
 		await expect(isExternalSymlinkedFile(URI.file(file), getFolder)).resolves.toBe(false);
 	});
 
+	test('returns false when the workspace folder itself is symlinked', async () => {
+		const symlinkedWorkspace = path.join(temporaryDirectory, 'workspace-link');
+		const workspaceFile = path.join(workspaceDirectory, 'file.txt');
+		fs.writeFileSync(workspaceFile, 'content');
+		fs.symlinkSync(workspaceDirectory, symlinkedWorkspace, 'dir');
+		const symlinkedWorkspaceUri = URI.file(symlinkedWorkspace);
+
+		await expect(isExternalSymlinkedFile(
+			URI.file(path.join(symlinkedWorkspace, 'file.txt')),
+			uri => uri.fsPath.startsWith(`${symlinkedWorkspace}${path.sep}`) ? symlinkedWorkspaceUri : undefined
+		)).resolves.toBe(false);
+	});
+
 	test('returns false when the file does not exist', async () => {
 		await expect(isExternalSymlinkedFile(URI.file(path.join(workspaceDirectory, 'missing.txt')), getFolder)).resolves.toBe(false);
 	});

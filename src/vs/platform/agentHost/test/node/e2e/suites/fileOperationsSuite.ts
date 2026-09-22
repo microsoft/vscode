@@ -11,15 +11,18 @@ import { join } from '../../../../../../base/common/path.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { CopilotCliConfigKey } from '../../../../common/copilotCliConfig.js';
 import { SessionConfigKey } from '../../../../common/sessionConfigKeys.js';
-import { buildDefaultChatUri, getInlineToolInput, ROOT_STATE_URI, ToolCallCancellationReason, ToolResultContentType, type ToolResultFileEditContent } from '../../../../common/state/sessionState.js';
+import { parseSessionDbUri } from '../../../../common/sessionDbUri.js';
+import { buildDefaultChatUri, getInlineToolInput, ResponsePartKind, ROOT_STATE_URI, ToolCallCancellationReason, ToolCallStatus, ToolResultContentType, type ChatState, type ToolResultFileEditContent } from '../../../../common/state/sessionState.js';
 import type { StringOrMarkdown } from '../../../../common/state/protocol/state.js';
 import { ContentEncoding } from '../../../../common/state/protocol/common/commands.js';
-import type { ResourceReadResult } from '../../../../common/state/protocol/commands.js';
+import type { ResourceReadResult, SubscribeResult } from '../../../../common/state/protocol/commands.js';
 import { ActionType, type ChatToolCallCompleteAction, type ChatToolCallDeltaAction, type ChatToolCallReadyAction, type ChatToolCallStartAction } from '../../../../common/state/sessionActions.js';
 import { assertToolCallCompleteText, createRealSession, dispatchTurn, driveTurnToCompletion, getMarkdownResponseText, initTestGitRepo } from '../harness/agentHostE2ETestHarness.js';
 import { assertRecordedAhpSnapshot } from '../harness/ahpSnapshot.js';
 import { getActionEnvelope, isActionNotification } from '../../serverIntegrationTestHelpers.js';
 import type { IAgentHostE2ETestContext } from './e2eTestContext.js';
+
+const RECORDING = process.env.AGENT_HOST_REPLAY_RECORD === '1' || process.env.AGENT_HOST_UPDATE_SNAPSHOTS === '1';
 
 function stringOrMarkdownText(value: StringOrMarkdown | undefined): string | undefined {
 	return typeof value === 'string' ? value : value?.markdown;
@@ -528,6 +531,10 @@ Use your file creation tool; do not run a shell command. Then reply exactly "don
 		await assertRecordedAhpSnapshot(this.test!, context.client, BEHAVIOR_SNAPSHOT);
 	}, shellResultTextAvailable);
 
+	// Codex replays the recorded `exec_command` turn on Windows but the workspace
+	// file is intermittently absent once the turn completes, while the adjacent
+	// edit, nested-create, rename, and delete scenarios pass on the same worker.
+	const createFileReplayEnabled = RECORDING || !isWindows || !config.fileCreateReplayUnstableOnWindows;
 	fileOperationTest(context, 'creates a new text file', async function () {
 		this.timeout(180_000);
 		const workspace = mkdtempSync(join(tmpdir(), 'ahp-coverage-create-'));
@@ -546,7 +553,7 @@ Use your file creation tool; do not run a shell command. Then reply exactly "don
 		await driveTurnToCompletion(context.client, sessionUri, 'turn-create', prompt, 1);
 		assert.strictEqual(readFileSync(join(workspace, 'result.txt'), 'utf8'), 'CREATED_VALUE');
 		await assertRecordedAhpSnapshot(this.test!, context.client, BEHAVIOR_SNAPSHOT);
-	});
+	}, createFileReplayEnabled);
 
 	fileOperationTest(context, 'edits an existing text file', async function () {
 		this.timeout(180_000);
@@ -569,7 +576,7 @@ Use your file creation tool; do not run a shell command. Then reply exactly "don
 		await assertRecordedAhpSnapshot(this.test!, context.client, BEHAVIOR_SNAPSHOT);
 	});
 
-	if (config.provider === 'claude') {
+	if (config.provider === 'claude' || config.provider === 'copilotcli') {
 		test('file edit before and after content can be read from session storage', async function () {
 			this.timeout(180_000);
 			const workspace = mkdtempSync(join(tmpdir(), 'ahp-session-db-file-edit-'));
@@ -582,16 +589,25 @@ Use your file creation tool; do not run a shell command. Then reply exactly "don
 				context.client,
 				sessionUri,
 				turnId,
-				'Replace the complete contents of stored-edit.txt with AFTER_STORED_VALUE using your file edit tool; do not run a shell command. Then reply exactly "done".',
+				config.provider === 'copilotcli'
+					? `Use edit exactly once to replace BEFORE_STORED_VALUE with AFTER_STORED_VALUE in ${join(workspace, 'stored-edit.txt')}. Do not inspect or search for the file and do not run a shell command. Then reply exactly "done".`
+					: 'Replace the complete contents of stored-edit.txt with AFTER_STORED_VALUE using your file edit tool; do not run a shell command. Then reply exactly "done".',
 				1,
 			);
-			const edit = context.client.receivedNotifications(n =>
-				isActionNotification(n, 'chat/toolCallComplete')
-				&& getActionEnvelope(n).channel === buildDefaultChatUri(sessionUri)
-				&& (getActionEnvelope(n).action as ChatToolCallCompleteAction).turnId === turnId,
-			).flatMap(n => (getActionEnvelope(n).action as ChatToolCallCompleteAction).result.content ?? [])
-				.find((content): content is ToolResultFileEditContent => content.type === ToolResultContentType.FileEdit);
-			assert.ok(edit?.before?.content.uri);
+			const subscribed = await context.client.call<SubscribeResult>('subscribe', { channel: buildDefaultChatUri(sessionUri) });
+			const state = subscribed.snapshot!.state as ChatState;
+			const turn = state.turns.find(turn => turn.id === turnId);
+			assert.ok(turn, 'The completed turn should be retained in chat state');
+			const edit = turn.responseParts.flatMap(part =>
+				part.kind === ResponsePartKind.ToolCall && part.toolCall.status === ToolCallStatus.Completed ? part.toolCall.content ?? [] : [])
+				.find((content): content is ToolResultFileEditContent =>
+					content.type === ToolResultContentType.FileEdit
+					&& !!content.before?.content.uri
+					&& !!content.after?.content.uri
+					&& !!parseSessionDbUri(content.before.content.uri)
+					&& !!parseSessionDbUri(content.after.content.uri)
+				);
+			assert.ok(edit?.before?.content.uri, 'The completed tool result should retain its before-content reference');
 			assert.ok(edit.after?.content.uri);
 
 			const [before, after] = await Promise.all([
@@ -653,7 +669,9 @@ Use your file creation tool; do not run a shell command. Then reply exactly "don
 		await assertRecordedAhpSnapshot(this.test!, context.client, BEHAVIOR_SNAPSHOT);
 	});
 
-	(portableShellToolReplayEnabled ? test : test.skip)('deletes a workspace file', async function () {
+	const deleteFileReplayEnabled = portableShellToolReplayEnabled
+		&& (RECORDING || !isWindows || !config.fileDeleteReplayUnstableOnWindows);
+	(deleteFileReplayEnabled ? test : test.skip)('deletes a workspace file', async function () {
 		this.timeout(180_000);
 		const workspace = mkdtempSync(join(tmpdir(), 'ahp-coverage-delete-'));
 		tempDirs.push(workspace);

@@ -11,6 +11,7 @@ import { IMarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { localize } from '../../../../../../nls.js';
+import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IMarkdownRenderer } from '../../../../../../platform/markdown/browser/markdownRenderer.js';
 import { IChatSystemNotificationPart } from '../../../common/chatService/chatService.js';
@@ -35,24 +36,81 @@ const transparentButtonStyles: IButtonStyles = {
 
 export class ChatSystemNotificationContentPart extends Disposable implements IChatContentPart {
 	readonly domNode: HTMLElement;
+	readonly inlineTimingContainer: HTMLElement | undefined;
 
 	constructor(
 		private readonly notification: IChatSystemNotificationPart,
 		renderer: IMarkdownRenderer,
 		@IInstantiationService instantiationService: IInstantiationService,
+		@IHoverService private readonly hoverService: IHoverService,
 	) {
 		super();
 
-		if (notification.collapsible) {
+		let notificationNode: HTMLElement;
+		if (notification.presentation === 'workspaceTransition') {
+			notificationNode = this._renderWorkspaceTransition(notification);
+		} else if (notification.presentation === 'workflow') {
+			notificationNode = this._renderWorkflow(notification, renderer);
+		} else if (notification.collapsible) {
 			const firstLineBreak = notification.content.value.indexOf('\n');
 			const detailsValue = firstLineBreak === -1 ? '' : notification.content.value.slice(firstLineBreak).trim();
 			if (detailsValue) {
-				this.domNode = this._renderCollapsibleNotification(notification, renderer, firstLineBreak, detailsValue);
-				return;
+				notificationNode = this._renderCollapsibleNotification(notification, renderer, firstLineBreak, detailsValue);
+			} else {
+				notificationNode = this._renderNotification(notification, renderer, instantiationService);
 			}
+		} else {
+			notificationNode = this._renderNotification(notification, renderer, instantiationService);
 		}
+
+		if (notification.renderInlineTiming) {
+			this.domNode = dom.$('.chat-system-notification-layout');
+			this.domNode.appendChild(notificationNode);
+			this.inlineTimingContainer = dom.append(this.domNode, dom.$('span.chat-system-notification-timing'));
+		} else {
+			this.domNode = notificationNode;
+			this.inlineTimingContainer = undefined;
+		}
+	}
+
+	private _renderWorkflow(notification: IChatSystemNotificationPart, renderer: IMarkdownRenderer): HTMLElement {
+		const firstLineBreak = notification.content.value.indexOf('\n');
+		const title = firstLineBreak === -1 ? notification.content.value : notification.content.value.slice(0, firstLineBreak);
+		const body = firstLineBreak === -1 ? '' : notification.content.value.slice(firstLineBreak).trim();
+		const owner = dom.$('.chat-system-notification-workflow');
+		const renderedTitle = this._register(renderer.render({ ...notification.content, value: title }));
+		renderedTitle.element.classList.add('chat-system-notification-workflow-title');
+		owner.appendChild(renderedTitle.element);
+		if (body) {
+			const renderedBody = this._register(renderer.render({ ...notification.content, value: body }));
+			renderedBody.element.classList.add('chat-system-notification-workflow-body');
+			owner.appendChild(renderedBody.element);
+		}
+		return owner;
+	}
+
+	private _renderWorkspaceTransition(notification: IChatSystemNotificationPart): HTMLElement {
+		const owner = dom.$('.chat-workspace-transition');
+		owner.setAttribute('role', 'separator');
+		owner.setAttribute('aria-orientation', 'horizontal');
+		owner.setAttribute('aria-label', notification.accessibilityLabel ?? renderAsPlaintext(notification.content));
+		dom.append(owner, dom.$('span.chat-workspace-transition-line')).setAttribute('aria-hidden', 'true');
+		const label = dom.append(owner, dom.$('span.chat-workspace-transition-label'));
+		this._register(this.hoverService.setupDelayedHover(label, { content: renderAsPlaintext(notification.content) }));
+		const workspaceNameIndex = notification.workspaceName ? notification.content.value.lastIndexOf(notification.workspaceName) : -1;
+		const iconIndex = workspaceNameIndex >= 0 ? workspaceNameIndex : 0;
+		label.append(notification.content.value.slice(0, iconIndex));
+		const icon = dom.append(label, dom.$('span.chat-workspace-transition-icon'));
+		icon.classList.add(...ThemeIcon.asClassNameArray(notification.icon ?? Codicon.folderCompact));
+		icon.setAttribute('aria-hidden', 'true');
+		label.append(notification.content.value.slice(iconIndex));
+		dom.append(owner, dom.$('span.chat-workspace-transition-line')).setAttribute('aria-hidden', 'true');
+		return owner;
+	}
+
+	private _renderNotification(notification: IChatSystemNotificationPart, renderer: IMarkdownRenderer, instantiationService: IInstantiationService): HTMLElement {
 		const rendered = this._register(renderer.render(notification.content));
-		this.domNode = this._register(instantiationService.createInstance(ChatProgressSubPart, rendered.element, notification.icon ?? Codicon.check, undefined)).domNode;
+		return this._register(instantiationService.createInstance(ChatProgressSubPart, rendered.element, notification.icon ?? Codicon.check, undefined)).domNode;
 	}
 
 	private _renderCollapsibleNotification(notification: IChatSystemNotificationPart, renderer: IMarkdownRenderer, firstLineBreak: number, detailsValue: string): HTMLElement {
@@ -101,6 +159,10 @@ export class ChatSystemNotificationContentPart extends Disposable implements ICh
 		return other.kind === 'systemNotification'
 			&& other.content.value === this.notification.content.value
 			&& ThemeIcon.isEqual(other.icon ?? Codicon.check, this.notification.icon ?? Codicon.check)
-			&& !!other.collapsible === !!this.notification.collapsible;
+			&& !!other.collapsible === !!this.notification.collapsible
+			&& !!other.renderInlineTiming === !!this.notification.renderInlineTiming
+			&& other.presentation === this.notification.presentation
+			&& other.workspaceName === this.notification.workspaceName
+			&& other.accessibilityLabel === this.notification.accessibilityLabel;
 	}
 }

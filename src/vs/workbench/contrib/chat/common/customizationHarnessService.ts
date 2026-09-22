@@ -22,6 +22,7 @@ import { ExtensionIdentifier } from '../../../../platform/extensions/common/exte
 import { getCanonicalPluginCommandId } from './plugins/agentPluginService.js';
 import { getChatSessionType, LocalChatSessionUri } from './model/chatUri.js';
 import { type CustomizationDisabledReason } from '../../../../platform/agentHost/common/customizationEnablement.js';
+import { isAgentBuiltinCustomizationUri } from '../../../../platform/agentHost/common/agentHostCustomizationUri.js';
 import { CustomizationEnablementKind } from '../../../../platform/agentHost/common/state/protocol/state.js';
 
 
@@ -68,6 +69,25 @@ export interface ICustomizationItemAction {
 	readonly icon?: ThemeIcon;
 	readonly enabled?: boolean;
 	run(): void | Promise<void>;
+}
+
+export type CustomizationMcpServerCompatibilityKind = 'supported' | 'partiallySupported' | 'unsupported' | 'unknown';
+
+export interface ICustomizationMcpServerCompatibility {
+	readonly id: string;
+	readonly kind: CustomizationMcpServerCompatibilityKind;
+	/** Localized reasons for non-supported compatibility states. */
+	readonly details?: readonly string[];
+}
+
+export interface ICustomizationMcpServerCompatibilityScope extends IDisposable {
+	readonly servers: IObservable<readonly ICustomizationMcpServerCompatibility[]>;
+	/** Whether the current server compatibility assessment has settled. */
+	readonly isResolved: IObservable<boolean>;
+}
+
+export interface ICustomizationMcpServerCompatibilityProvider {
+	acquire(sessionResource: URI): ICustomizationMcpServerCompatibilityScope | undefined;
 }
 
 /**
@@ -139,6 +159,10 @@ export interface IHarnessDescriptor {
 	 * belongs to a hidden collection.
 	 */
 	readonly hiddenMcpServerCollectionIds?: readonly string[];
+	/**
+	 * Supplies harness-specific compatibility for MCP servers in the active session.
+	 */
+	readonly mcpServerCompatibilityProvider?: ICustomizationMcpServerCompatibilityProvider;
 }
 
 /**
@@ -261,6 +285,8 @@ export interface ICustomizationSourceFolder {
 	readonly label: string;
 	/** Customization source for this folder (typically 'local' or 'user' for writable creation locations). */
 	readonly source: AICustomizationSource;
+	/** Opaque provider-defined identity shared by folders that belong to the same destination. */
+	readonly destinationGroupId?: string;
 }
 
 /**
@@ -641,6 +667,9 @@ export class CustomizationHarnessServiceBase implements ICustomizationHarnessSer
 		const commands = await this.getSlashCommands(sessionResource, token);
 		const command = commands.find(cmd => cmd.name === name);
 		if (command) {
+			if (isAgentBuiltinCustomizationUri(command.uri)) {
+				return command;
+			}
 			const parsedPromptFile = await this.promptsService.parseNew(command.uri, token);
 			return {
 				...command,

@@ -11,7 +11,7 @@ import { autorun, derived, derivedObservableWithCache, derivedOpts, IObservable,
 import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
-import { AGENT_HOST_MERGE_CHANGESET_OPERATION_ID } from '../../../../platform/agentHost/common/agentHostChangesetOperationService.js';
+import { AGENT_HOST_CHECKOUT_CHANGESET_OPERATION_ID, AGENT_HOST_MERGE_CHANGESET_OPERATION_ID } from '../../../../platform/agentHost/common/agentHostChangesetOperationService.js';
 import { bindContextKey } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
@@ -206,7 +206,8 @@ export class ChangesViewService extends Disposable implements IChangesViewServic
 
 		this.activeSessionChangesetOperationsObs = derived(reader => {
 			const changeset = this.activeSessionChangesetObs.read(reader);
-			const operations = changeset?.operations.read(reader) ?? [];
+			const operations = (changeset?.operations.read(reader) ?? [])
+				.filter(operation => operation.id !== AGENT_HOST_CHECKOUT_CHANGESET_OPERATION_ID);
 			return activeSessionBaseBranchProtected.read(reader)
 				? operations.filter(operation => operation.id !== AGENT_HOST_MERGE_CHANGESET_OPERATION_ID)
 				: operations;
@@ -223,8 +224,9 @@ export class ChangesViewService extends Disposable implements IChangesViewServic
 			const activeSessionLoading = activeSession?.loading.read(reader) ?? true;
 			const activeSessionChangesetsLoading = this.activeSessionChangesetsLoadingObs.read(reader);
 			const activeSessionChangesetLoading = this.activeSessionChangesetLoadingObs.read(reader);
+			const activeSessionHasChanges = this.activeSessionChangesObs.read(reader).length > 0;
 
-			return activeSessionLoading || activeSessionChangesetsLoading || activeSessionChangesetLoading;
+			return activeSessionLoading || activeSessionChangesetsLoading || (activeSessionChangesetLoading && !activeSessionHasChanges);
 		});
 
 		// Active session state

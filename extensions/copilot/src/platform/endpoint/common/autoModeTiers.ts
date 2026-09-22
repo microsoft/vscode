@@ -15,7 +15,7 @@ export type AutoModeTier = typeof autoModeTiers[number];
  * The tiers offered in the model picker. `fast` is excluded: it is the profile
  * inline chat falls back to when the user has not picked a tier, and is not
  * offered as a choice. It remains reachable through the internal
- * {@link ConfigKey.Advanced.AutoModeTierOverride} setting.
+ * {@link ConfigKey.Shared.AutoModeTierOverride} setting.
  */
 export const selectableAutoModeTiers: readonly AutoModeTier[] = ['efficiency', 'balance', 'intelligence'];
 

@@ -70,16 +70,17 @@ export function getReasoningEffortLabel(level: string): string {
  * Builds the `reasoningEffort` property descriptor for a model's
  * {@link LanguageModelConfigurationSchema}. Centralises the default-selection
  * and localized descriptions so the picker stays consistent across the
- * Copilot and BYOK code paths.
+ * Copilot and BYOK code paths. `defaultOverride` wins over the family default
+ * when it is one of the advertised levels.
  */
-export function buildReasoningEffortSchemaProperty(effortLevels: readonly string[], family: string): NonNullable<LanguageModelConfigurationSchema['properties']>[string] {
+export function buildReasoningEffortSchemaProperty(effortLevels: readonly string[], family: string, defaultOverride?: string): NonNullable<LanguageModelConfigurationSchema['properties']>[string] {
 	return {
 		type: 'string',
 		title: l10n.t('Thinking Effort'),
 		enum: effortLevels,
 		enumItemLabels: effortLevels.map(getReasoningEffortLabel),
 		enumDescriptions: effortLevels.map(getReasoningEffortDescription),
-		default: pickDefaultReasoningEffort(effortLevels, family),
+		default: defaultOverride && effortLevels.includes(defaultOverride) ? defaultOverride : pickDefaultReasoningEffort(effortLevels, family),
 		group: 'navigation',
 	};
 }
@@ -104,9 +105,9 @@ export function getAutoModeTierLabel(tier: string): string {
  */
 export function getAutoModeTierDescription(tier: string): string {
 	switch (tier) {
-		case 'efficiency': return l10n.t('Cheaper models for everyday tasks');
-		case 'balance': return l10n.t('Balances capability and cost');
-		case 'intelligence': return l10n.t('Most capable models, higher cost');
+		case 'efficiency': return l10n.t("Optimizes for cost and speed, using more capable models only when needed.");
+		case 'balance': return l10n.t("Balances cost/speed and capability based on task complexity.");
+		case 'intelligence': return l10n.t("Optimizes for capability, using faster models only when the task allows it.");
 		case 'fast': return l10n.t('Lowest latency models');
 		default: return tier;
 	}

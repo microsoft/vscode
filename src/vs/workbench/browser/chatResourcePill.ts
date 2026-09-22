@@ -3,14 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { $ } from '../../base/browser/dom.js';
 import { IActionViewItemOptions } from '../../base/browser/ui/actionbar/actionViewItems.js';
 import { Button } from '../../base/browser/ui/button/button.js';
+import type { IManagedHoverOptions } from '../../base/browser/ui/hover/hover.js';
 import { IAction } from '../../base/common/actions.js';
+import { Codicon } from '../../base/common/codicons.js';
 import { onUnexpectedError } from '../../base/common/errors.js';
 import { IObservable, autorun } from '../../base/common/observable.js';
+import { ThemeIcon } from '../../base/common/themables.js';
 import { localize } from '../../nls.js';
 import { FileKind } from '../../platform/files/common/files.js';
-import { ChatPillActionViewItemBase, type IChatPillEntry } from './chatPills.js';
+import { ChatPillActionViewItemBase, getChatPillEntryToolbarActions, type IChatPillEntry } from './chatPills.js';
 import { ResourceLabels } from './labels.js';
 
 /**
@@ -32,6 +36,7 @@ export class ChatResourcePillActionViewItem extends ChatPillActionViewItemBase {
 	}
 
 	protected override renderContent(button: Button): void {
+		button.element.appendChild($(`span.chat-pill-icon.chat-resource-pill-compact-icon${ThemeIcon.asCSSSelector(Codicon.file)}`, { 'aria-hidden': 'true' }));
 		const label = this._register(this._resourceLabels.create(button.element));
 		this._register(autorun(reader => {
 			const entry = this._entry.read(reader);
@@ -40,6 +45,11 @@ export class ChatResourcePillActionViewItem extends ChatPillActionViewItemBase {
 			}
 			this.updateTooltip();
 			this.updateAriaLabel();
+			if (entry?.ariaDescription) {
+				button.element.setAttribute('aria-description', entry.ariaDescription);
+			} else {
+				button.element.removeAttribute('aria-description');
+			}
 		}));
 	}
 
@@ -50,6 +60,20 @@ export class ChatResourcePillActionViewItem extends ChatPillActionViewItemBase {
 
 	protected override getAriaLabel(): string | undefined {
 		return this._entry.get()?.ariaLabel ?? super.getAriaLabel();
+	}
+
+	protected override getHoverOptions(): IManagedHoverOptions | undefined {
+		const entry = this._entry.get();
+		const toolbarActions = entry ? getChatPillEntryToolbarActions(entry) : undefined;
+		return toolbarActions?.length ? {
+			trapFocus: true,
+			actions: toolbarActions.map(action => ({
+				commandId: action.id,
+				label: action.label,
+				iconClass: action.class,
+				run: () => { void action.run(); },
+			})),
+		} : undefined;
 	}
 
 	protected override onDidClickButton(): void {

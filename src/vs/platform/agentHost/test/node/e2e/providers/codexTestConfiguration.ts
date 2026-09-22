@@ -5,6 +5,7 @@
 
 import { existsSync } from 'fs';
 import { join } from '../../../../../../base/common/path.js';
+import { CodexSessionConfigKey } from '../../../../common/codexSessionConfigKeys.js';
 import type { IAgentHostE2EProviderConfig } from '../harness/agentHostE2ETestHarness.js';
 
 function resolveCodexSdkRoot(): string | undefined {
@@ -34,6 +35,7 @@ export const CODEX_CONFIG: IAgentHostE2EProviderConfig = {
 	inputRequestMode: 'plan',
 	enabled: !!CODEX_SDK_ROOT,
 	codexSdkRoot: CODEX_SDK_ROOT,
+	sessionConfig: { [CodexSessionConfigKey.PermissionsPreset]: 'full-access' },
 	supportsWorktreeIsolation: true,
 	supportsHostTerminalTool: false,
 	supportsSubagents: false,
@@ -51,6 +53,8 @@ export const CODEX_CONFIG: IAgentHostE2EProviderConfig = {
 	supportsChatForkE2E: true,
 	supportsSideChats: true,
 	supportsSideChatsE2E: true,
-	shellToolReplayUnstableOnLinux: true,
 	shellToolResultTextUnreliable: true,
+	// The recorded file-creation `exec_command` turn completes on Windows without
+	// the created file being present (see KNOWN_ISSUES.md).
+	fileCreateReplayUnstableOnWindows: true,
 };

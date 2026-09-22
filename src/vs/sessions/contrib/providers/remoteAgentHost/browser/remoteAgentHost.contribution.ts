@@ -13,11 +13,13 @@ import { type AgentProvider, type AuthenticateParams, type AuthenticateResult } 
 import { type IAgentConnection } from '../../../../../platform/agentHost/common/agentService.js';
 import { IRemoteAgentHostConnectionInfo, IRemoteAgentHostService, RemoteAgentHostAutoConnectSettingId, RemoteAgentHostConnectionStatus, RemoteAgentHostsEnabledSettingId, RemoteAgentHostsSettingId, getEntryAddress } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { TunnelAgentHostsSettingId } from '../../../../../platform/agentHost/common/tunnelAgentHost.js';
+import { WslAutoStartSettingId } from '../../../../../platform/agentHost/common/wslRemoteAgentHost.js';
 import { CloudSandboxEnabledSettingId } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { AgentHostLocalFilePermissionsSettingId } from '../../../../../platform/agentHost/common/agentHostResourceService.js';
 import { type ProtectedResourceMetadata } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import { type AgentInfo, type RootState } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { NotificationType, type INotification } from '../../../../../platform/agentHost/common/state/sessionActions.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../../platform/configuration/common/configurationRegistry.js';
 import { IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -26,7 +28,7 @@ import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../../workbench/common/contributions.js';
 import { registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { OpenAgentHostStateFileAction } from '../../agentHost/browser/openAgentHostStateFileAction.js';
-import { authenticateProtectedResources, AgentHostAuthenticationRecovery, AgentHostAuthTokenCache, resolveAuthenticationInteractively, revokeAuthenticationForRemovedSessions } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostAuth.js';
+import { authenticateAgentProtectedResourcesWithToken, authenticateProtectedResources, authenticateProtectedResourcesWithToken, AgentHostAuthenticationRecovery, AgentHostAuthTokenCache, resolveAuthenticationInteractively, revokeAuthenticationForRemovedSessions } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostAuth.js';
 import { AgentHostLanguageModelProvider, agentHostProviderSupportsAutoModel } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostLanguageModelProvider.js';
 import { AgentHostSessionHandler } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostSessionHandler.js';
 import { IAgentHostActiveClientService } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostActiveClientService.js';
@@ -41,9 +43,10 @@ import { findRemoteAgentHostSessionTypeAuthority, isRemoteAgentHostSessionType, 
 import { createRemoteAgentHarnessDescriptor, RemoteAgentPluginController } from './remoteAgentHostCustomizationHarness.js';
 import { RemoteAgentHostLogForwarder } from './remoteAgentHostLogForwarder.js';
 import { RemoteAgentHostSessionsProvider } from './remoteAgentHostSessionsProvider.js';
-import { IRemoteAgentHostConnectionCustomizationService, RemoteAgentHostConnectionCustomizationService } from './remoteAgentHostConnectionCustomization.js';
+import { IRemoteAgentHostConnectionCustomizationService, RemoteAgentHostConnectionCustomizationService, RemoteAgentHostSessionPreparation } from './remoteAgentHostConnectionCustomization.js';
 import { InstantiationType, registerSingleton } from '../../../../../platform/instantiation/common/extensions.js';
 import { IAgentHostTerminalService } from '../../../../../workbench/contrib/terminal/browser/agentHostTerminalService.js';
+import { IWorkbenchEnvironmentService } from '../../../../../workbench/services/environment/common/environmentService.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { logTerminalRecovery } from '../../../../common/sessionsTelemetry.js';
 
@@ -114,13 +117,16 @@ class ConnectionState extends Disposable {
 	readonly modelProviders = new Map<AgentProvider, AgentHostLanguageModelProvider>();
 	/** Dedupes redundant `authenticate` RPCs when the resolved token hasn't changed. */
 	readonly authTokenCache = new AgentHostAuthTokenCache();
-	readonly authRecovery = new AgentHostAuthenticationRecovery();
+	readonly authRecovery: AgentHostAuthenticationRecovery;
+	prepareSession: RemoteAgentHostSessionPreparation | undefined;
 
 	constructor(
 		readonly name: string | undefined,
 		readonly connection: IAgentConnection,
+		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super();
+		this.authRecovery = instantiationService.createInstance(AgentHostAuthenticationRecovery);
 	}
 }
 
@@ -139,6 +145,7 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 
 	/** Per-connection state: client state + per-agent registrations. */
 	private readonly _connections = this._register(new DisposableMap<string, ConnectionState>());
+	private readonly _enableSmokeTestDriver: boolean;
 
 	constructor(
 		@IRemoteAgentHostService private readonly _remoteAgentHostService: IRemoteAgentHostService,
@@ -155,8 +162,11 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IAgentHostActiveClientService private readonly _activeClientService: IAgentHostActiveClientService,
 		@IRemoteAgentHostConnectionCustomizationService private readonly _connectionCustomizations: IRemoteAgentHostConnectionCustomizationService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 	) {
 		super();
+		this._enableSmokeTestDriver = !!environmentService.enableSmokeTestDriver;
 
 		this._register(this._remoteAgentHostService.onDidChangeConnections(() => this._reconcile()));
 		this._register(this._defaultAccountService.onDidChangeDefaultAccount(() => this._authenticateAllConnections()));
@@ -176,7 +186,7 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 		const currentConnections = this._remoteAgentHostService.connections;
 		const connectedAddresses = new Set(
 			currentConnections
-				.filter(c => RemoteAgentHostConnectionStatus.isConnected(c.status))
+				.filter(c => RemoteAgentHostConnectionStatus.isConnected(c.status) && c.clientId !== undefined)
 				.map(c => c.address)
 		);
 		const allAddresses = new Set(currentConnections.map(c => c.address));
@@ -195,7 +205,7 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 		// Add or update connections
 		for (const connectionInfo of currentConnections) {
 			// Only set up contribution state for connected entries
-			if (!RemoteAgentHostConnectionStatus.isConnected(connectionInfo.status)) {
+			if (!RemoteAgentHostConnectionStatus.isConnected(connectionInfo.status) || connectionInfo.clientId === undefined) {
 				continue;
 			}
 			const existing = this._connections.get(connectionInfo.address);
@@ -245,6 +255,7 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 		const connState = this._instantiationService.createInstance(ConnectionState, name, connection);
 		this._connections.set(address, connState);
 		const store = connState.store;
+		connState.prepareSession = this._connectionCustomizations.get(address)?.createSessionPreparation?.(connection, store);
 
 		// Bridge the host's OTLP logs channel into a dedicated workbench
 		// Output channel (`Agent Host (${name})`). Concrete clients
@@ -325,10 +336,6 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 		const agentId = sessionType;
 		const vendor = sessionType;
 
-		// User-facing display name for this agent. We always include the
-		// agent's own name so that a host exposing multiple agents (e.g.
-		// `copilot` + `openai` from the same machine) produces distinct
-		// labels instead of collapsing to a single `configuredName`.
 		const hostLabel = configuredName || address;
 		const agentLabel = agent.displayName?.trim() || agent.provider;
 		const displayName = `${agentLabel} [${hostLabel}]`;
@@ -336,6 +343,7 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 		// Per-agent working directory cache, scoped to the agent store lifetime
 		const sessionWorkingDirs = new Map<string, URI>();
 		agentStore.add(toDisposable(() => sessionWorkingDirs.clear()));
+		const prepareSession = connState.prepareSession;
 
 		// Capture the working directory from the session that is being created.
 		const resolveWorkingDirectory = (sessionResource: URI): URI | undefined => {
@@ -368,7 +376,7 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 			requiresCustomModels: true,
 			supportsAutoModel: agentHostProviderSupportsAutoModel(agent.provider),
 			agentHostProviderId: agent.provider,
-			supportsDelegation: true,
+			supportsDelegation: false,
 			capabilities: {
 				supportsCheckpoints: true,
 				supportsPromptAttachments: true,
@@ -426,6 +434,12 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 			extensionId: 'vscode.remote-agent-host',
 			extensionDisplayName: 'Remote Agent Host',
 			resolveWorkingDirectory,
+			prepareSession: prepareSession ? async (sessionResource, token) => {
+				const directory = await prepareSession(resolveWorkingDirectory(sessionResource), token);
+				if (directory) {
+					sessionWorkingDirs.set(sessionResource.toString(), connection.resourceUris.fromAgentHost(directory));
+				}
+			} : undefined,
 			isNewSession,
 			resolveAuthentication: (resources) => this._resolveAuthenticationInteractively(address, connection, resources),
 		}));
@@ -489,6 +503,14 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 		const authTokenCache = this._connections.get(address)?.authTokenCache;
 		provider?.setAuthenticationPending(true);
 		try {
+			const testToken = this._getScenarioAutomationToken();
+			if (testToken !== undefined) {
+				await authenticateAgentProtectedResourcesWithToken(agents, testToken, {
+					authTokenCache,
+					authenticate: this._authenticateCallback(address, connection),
+				});
+				return;
+			}
 			await this._instantiationService.invokeFunction(authenticateProtectedResources, agents, {
 				authTokenCache,
 				logPrefix: '[RemoteAgentHost]',
@@ -499,6 +521,14 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 		} finally {
 			provider?.setAuthenticationPending(false);
 		}
+	}
+
+	private _getScenarioAutomationToken(): string | undefined {
+		if (!this._enableSmokeTestDriver) {
+			return undefined;
+		}
+		const token = this._configurationService.getValue('chat.agentHost.unsafeTestToken');
+		return typeof token === 'string' && token.length > 0 ? token : undefined;
 	}
 
 	private _handleAuthenticationRequiredNotification(address: string, connection: IAgentConnection, notification: INotification): void {
@@ -559,6 +589,14 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 	 */
 	private async _resolveAuthenticationInteractively(address: string, connection: IAgentConnection, protectedResources: readonly ProtectedResourceMetadata[]): Promise<boolean> {
 		const authTokenCache = this._connections.get(address)?.authTokenCache;
+		const testToken = this._getScenarioAutomationToken();
+		if (testToken !== undefined) {
+			await authenticateProtectedResourcesWithToken(protectedResources, testToken, {
+				authTokenCache,
+				authenticate: this._authenticateCallback(address, connection),
+			});
+			return protectedResources.length > 0;
+		}
 		return this._instantiationService.invokeFunction(resolveAuthenticationInteractively, protectedResources, {
 			authTokenCache,
 			logPrefix: '[RemoteAgentHost]',
@@ -580,6 +618,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			description: nls.localize('chat.remoteAgentHosts.enabled', "Enable connecting to remote agent hosts."),
 			default: true,
 			scope: ConfigurationScope.APPLICATION,
+			restricted: true,
 			tags: ['experimental', 'advanced'],
 		},
 		[RemoteAgentHostAutoConnectSettingId]: {
@@ -622,6 +661,13 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			scope: ConfigurationScope.APPLICATION,
 			tags: ['experimental', 'advanced'],
 		},
+		[WslAutoStartSettingId]: {
+			type: 'boolean',
+			description: nls.localize('chat.agentHost.wsl.autoStart', "Automatically start a WSL distribution when opening a chat whose distribution is not running. When disabled, the chat shows a Start button instead."),
+			default: false,
+			scope: ConfigurationScope.APPLICATION,
+			tags: ['experimental', 'advanced'],
+		},
 		[RemoteAgentHostsSettingId]: {
 			type: 'array',
 			items: {
@@ -636,6 +682,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			description: nls.localize('chat.remoteAgentHosts', "A list of WebSocket remote agent host addresses to connect to (e.g. \"localhost:3000\"). SSH remote agent host details are managed by VS Code."),
 			default: [],
 			scope: ConfigurationScope.APPLICATION,
+			restricted: true,
 			tags: ['experimental', 'advanced'],
 		},
 		[TunnelAgentHostsSettingId]: {
@@ -681,6 +728,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			},
 			default: {},
 			scope: ConfigurationScope.APPLICATION,
+			restricted: true,
 			tags: ['experimental', 'advanced'],
 		},
 	},

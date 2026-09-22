@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from '../../../../base/common/cancellation.js';
-import { Codicon } from '../../../../base/common/codicons.js';
 import { arrayEquals } from '../../../../base/common/equals.js';
 import { IMarkdownString } from '../../../../base/common/htmlContent.js';
 import { IObservable, IReader } from '../../../../base/common/observable.js';
@@ -12,7 +11,10 @@ import { isEqual } from '../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
+import { getHighestPriorityPullRequestIcon } from '../../../../workbench/common/chatPullRequest.js';
 import { IChatSessionFileChange, IChatSessionFileChange2, isIChatSessionFileChange2 } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
+
+export { getHighestPriorityPullRequestIcon };
 
 export interface ISessionType {
 	/** Unique identifier (e.g., 'copilot-cli', 'copilot-cloud', 'agent-host-claude'). */
@@ -39,6 +41,14 @@ export interface ISessionType {
 	 * credentials come and go).
 	 */
 	readonly authRequirement: SessionTypeAuthRequirement;
+	/**
+	 * Selection-time initialization advertised by the provider while this type
+	 * is not usable yet. Absent when selecting the type cannot make progress.
+	 */
+	readonly initializationOnSelection?: {
+		/** Whether the provider already has non-GitHub authentication for initialization. */
+		readonly canInitializeWithoutGitHub: boolean;
+	};
 }
 
 /**
@@ -81,6 +91,22 @@ export const enum SessionStatus {
 	Error = 4,
 }
 
+/**
+ * Connection state of the remote agent host backing a session.
+ */
+export type SessionRemoteConnectionStatus =
+	| { readonly kind: 'connected' }
+	| { readonly kind: 'connecting' }
+	| { readonly kind: 'reconnecting'; readonly nextAttemptAt?: number }
+	| { readonly kind: 'disconnected'; readonly reason: SessionRemoteConnectionFailureReason }
+	| { readonly kind: 'incompatible' };
+
+/** Machine-readable reasons a remote session's host is disconnected. */
+export const enum SessionRemoteConnectionFailureReason {
+	Unknown = 'unknown',
+	HostNotRunning = 'hostNotRunning',
+}
+
 /** Whether a session still has active work, including work blocked on user input. */
 export function isActiveSessionStatus(status: SessionStatus): boolean {
 	return status === SessionStatus.InProgress || status === SessionStatus.NeedsInput;
@@ -97,6 +123,13 @@ export function getSessionStatusMessage(status: SessionStatus, description: IMar
 		default:
 			return undefined;
 	}
+}
+
+/** Provider-owned progress while preparing a draft for its first request. */
+export interface ISessionPreparationProgress {
+	readonly message: string;
+	readonly showLog?: () => void;
+	cancel(): void;
 }
 
 /**
@@ -133,6 +166,10 @@ export function effectiveChatInteractivity(isArchived: boolean, interactivity: C
 }
 
 export interface ISessionGitRepository {
+	/** Whether the folder is a Git repository. */
+	readonly isRepository?: IObservable<boolean>;
+	/** Starts resolving repository information when it is exposed lazily. */
+	readonly resolveRepository?: () => void;
 	/** The source repository URI. */
 	readonly uri: URI;
 	/** The working directory URI (e.g., a git worktree or checkout path). */
@@ -345,9 +382,11 @@ export interface IGitHubPullRequestRef {
 	 * discovered from git state, which carry no title until they are fetched live.
 	 */
 	readonly title?: string;
+	/** Stable ID of the recorded session artifact or reference represented by this entry, when recorded via `add_artifact_or_reference`. Absent for git-/session-discovered associations. */
+	readonly recordedReferenceId?: string;
 	/**
-	 * Whether this pull request originated in the session, as opposed to being
-	 * inherited from the checkout it started from or merely referenced by the agent.
+	 * Whether this pull request originated in or was explicitly recorded as the session's own artifact, as opposed to being
+	 * inherited from the checkout it started from or merely recorded as a reference by the agent.
 	 */
 	readonly createdByThisSession?: boolean;
 }
@@ -372,30 +411,11 @@ export function getGitHubPullRequestRefs(gitHubInfo: IGitHubInfo | undefined): r
 	}];
 }
 
-const pullRequestIconPriority = new Map<string, number>([
-	[Codicon.gitPullRequestError.id, 6],
-	[Codicon.gitPullRequestComment.id, 5],
-	[Codicon.gitPullRequest.id, 4],
-	[Codicon.gitPullRequestDraft.id, 3],
-	[Codicon.gitPullRequestDone.id, 2],
-	[Codicon.gitPullRequestClosed.id, 1],
-]);
-
-/** Returns the most important status icon across a session's pull requests. */
-export function getHighestPriorityPullRequestIcon(icons: readonly (ThemeIcon | undefined)[]): ThemeIcon | undefined {
-	let result: ThemeIcon | undefined;
-	let resultPriority = -1;
-	for (const icon of icons) {
-		if (!icon) {
-			continue;
-		}
-		const priority = pullRequestIconPriority.get(icon.id) ?? 0;
-		if (priority > resultPriority) {
-			result = icon;
-			resultPriority = priority;
-		}
-	}
-	return result;
+/** Excludes inherited checkout PRs, while accepting the primary PR from providers without provenance. */
+export function getSessionOwnedGitHubPullRequestRefs(gitHubInfo: IGitHubInfo | undefined): readonly IGitHubPullRequestRef[] {
+	return gitHubInfo?.pullRequests
+		? gitHubInfo.pullRequests.filter(ref => ref.createdByThisSession)
+		: getGitHubPullRequestRefs(gitHubInfo);
 }
 
 /** A GitHub issue referenced by a session. */
@@ -408,6 +428,10 @@ export interface IGitHubIssueRef {
 	readonly number: number;
 	/** URI of the issue. */
 	readonly uri: URI;
+	/** Issue title recorded by the session, when known. */
+	readonly title?: string;
+	/** Stable ID of the recorded session artifact or reference represented by this entry, when recorded via `add_artifact_or_reference`. Absent for git-/session-discovered associations. */
+	readonly recordedReferenceId?: string;
 }
 
 export interface ISessionChangesSummary {
@@ -429,7 +453,7 @@ export type ISessionTurnFileChange = ISessionFileChange & {
  * want the branch diff — regardless of the changeset currently selected in the
  * Changes view — can locate it in {@link ISession.changesets} by id.
  */
-export const BRANCH_CHANGES_CHANGESET_ID = 'branchChanges';
+export const BRANCH_CHANGES_CHANGESET_ID = 'branch';
 
 /**
  * Well-known id of the changeset that holds uncommitted working-tree changes.
@@ -437,6 +461,12 @@ export const BRANCH_CHANGES_CHANGESET_ID = 'branchChanges';
  * Must match the agent host provider's `ChangesetKind.Uncommitted` value.
  */
 export const UNCOMMITTED_CHANGES_CHANGESET_ID = 'uncommitted';
+
+/**
+ * Well-known id of the changeset that holds the cumulative changes for the
+ * entire session.
+ */
+export const SESSION_CHANGES_CHANGESET_ID = 'session';
 
 /**
  * Well-known id of the changeset that holds the diff made during the session's
@@ -455,8 +485,6 @@ export interface ISessionChangeset {
 	readonly label: string;
 	/** Optional description for the changeset. */
 	readonly description?: string;
-	/** Optional category for the changeset. */
-	readonly category?: string;
 	/** Whether the changeset is enabled. */
 	readonly isEnabled: IObservable<boolean>;
 	/**
@@ -484,11 +512,10 @@ export interface ISessionChangeset {
 
 	/**
 	 * Invoke an operation declared in {@link operations}. `target` must be
-	 * provided for resource-scoped operations and omitted for changeset-
-	 * scoped ones — implementations are expected to validate this against
-	 * the corresponding {@link ISessionChangesetOperation.scopes}.
+	 * provided for resource-scoped operations and omitted for changeset-scoped
+	 * ones. `_meta` carries optional operation-specific request metadata.
 	 */
-	invokeOperation(operationId: string, target?: ISessionChangesetOperationTarget): Promise<void>;
+	invokeOperation(operationId: string, target?: ISessionChangesetOperationTarget, _meta?: Record<string, unknown>): Promise<void>;
 
 	/**
 	 * Sets the review state for a list of resources when the changeset supports review.
@@ -641,6 +668,8 @@ export interface IChat {
 
 	// Reactive properties
 
+	/** The effective workspace available to this chat. */
+	readonly workspace: IObservable<ISessionWorkspace | undefined>;
 	/** Chat display title (changes when auto-titled or renamed). */
 	readonly title: IObservable<string>;
 	/** When the chat was last updated. */
@@ -706,6 +735,13 @@ export interface IChat {
 	readonly capabilities?: IObservable<IChatCapabilities>;
 }
 
+/** Whether the chat is a side chat spawned by the given parent chat. */
+export function isSideChatOf(chat: IChat, parentChat: URI): boolean {
+	return chat.origin?.kind === ChatOriginKind.SideChat
+		&& !!chat.origin.parentChat
+		&& isEqual(chat.origin.parentChat, parentChat);
+}
+
 /**
  * Resolve a chat's effective capabilities. Combines the chat's own advertised
  * {@link IChat.capabilities} (falling back to {@link DEFAULT_CHAT_CAPABILITIES})
@@ -753,6 +789,8 @@ export interface ISession {
 	readonly isAutomation?: IObservable<boolean>;
 	/** Whether this session was discovered in an application other than the current host. Absent means `false`. */
 	readonly isExternal?: IObservable<boolean>;
+	/** Connection state of the backing remote host. Absent when the session has no remote host. */
+	readonly remoteConnectionStatus?: IObservable<SessionRemoteConnectionStatus>;
 	/** Session turn that created this session, when it was created by another agent session. */
 	readonly createdBySession?: IObservable<ISessionCreationReference | undefined>;
 
@@ -786,6 +824,7 @@ export interface ISession {
 	readonly loading: IObservable<boolean>;
 	/** Whether the first request lifecycle is in progress. Used to present a still-untitled draft as active during preparation. Absent means `false`. */
 	readonly isNewSessionRequestInProgress?: IObservable<boolean>;
+	readonly preparationProgress?: IObservable<ISessionPreparationProgress | undefined>;
 	/** Whether the session is archived. */
 	readonly isArchived: IObservable<boolean>;
 	/** Whether the session has been read. */
@@ -845,6 +884,8 @@ export function toSessionId(providerId: string, resource: URI): string {
  * Consumers check these before surfacing session-specific features in the UI.
  */
 export interface ISessionCapabilities {
+	/** Whether recorded artifacts can be removed from this session. */
+	readonly supportsRemoveArtifacts?: boolean;
 	/** Whether this session supports multiple chats. */
 	readonly supportsMultipleChats: boolean;
 	/**
@@ -932,6 +973,8 @@ export interface ISessionWorkspaceBrowseAction {
 	 * execution workspace.
 	 */
 	readonly attachesContext?: boolean;
+	/** Whether this action can select a repository to attach as prompt context. */
+	readonly supportsContextAttachment?: boolean;
 	/**
 	 * Execute the browse action and return the selected workspace, or undefined
 	 * if cancelled. The current execution workspace is provided so context
@@ -1038,6 +1081,7 @@ export function gitHubInfoEqual(a: IGitHubInfo | undefined, b: IGitHubInfo | und
 			x.state === y.state &&
 			x.liveState === y.liveState &&
 			x.title === y.title &&
+			x.recordedReferenceId === y.recordedReferenceId &&
 			x.createdByThisSession === y.createdByThisSession &&
 			(x.icon === y.icon || (!!x.icon && !!y.icon && ThemeIcon.isEqual(x.icon, y.icon)))) &&
 		a.pullRequest?.number === b.pullRequest?.number &&
@@ -1047,7 +1091,14 @@ export function gitHubInfoEqual(a: IGitHubInfo | undefined, b: IGitHubInfo | und
 		(aIcon === bIcon || (!!aIcon && !!bIcon && ThemeIcon.isEqual(aIcon, bIcon))) &&
 		a.pullRequest?.title === b.pullRequest?.title &&
 		a.pullRequest?.baseRefOid === b.pullRequest?.baseRefOid &&
-		a.pullRequest?.headRefOid === b.pullRequest?.headRefOid;
+		a.pullRequest?.headRefOid === b.pullRequest?.headRefOid &&
+		arrayEquals(a.issues ?? [], b.issues ?? [], (x, y) =>
+			x.owner === y.owner &&
+			x.repo === y.repo &&
+			x.number === y.number &&
+			isEqual(x.uri, y.uri) &&
+			x.title === y.title &&
+			x.recordedReferenceId === y.recordedReferenceId);
 }
 
 /**
@@ -1101,6 +1152,7 @@ export function sessionGitRepositoryEqual(a: ISessionGitRepository | undefined, 
 	}
 	return isEqual(a.uri, b.uri)
 		&& isEqual(a.workTreeUri, b.workTreeUri)
+		&& a.isRepository?.get() === b.isRepository?.get()
 		&& a.branchName === b.branchName
 		&& a.baseBranchName === b.baseBranchName
 		&& a.baseBranchProtected === b.baseBranchProtected

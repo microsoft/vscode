@@ -69,7 +69,7 @@
 							},
 							"entrypoint": {
 								"type": "string",
-								"description": "Extension-relative path to a self-contained HTML document"
+								"description": "Extension-relative path to the editor's HTML entrypoint. Relative scripts and assets are resolved from this file's directory"
 							},
 							"contentType": {
 								"type": "string",
@@ -85,7 +85,7 @@
 				},
 				"markdown.codeBlockEditorProviders": {
 						"type": "array",
-						"description": "Providers for self-contained HTML editors used by fenced code blocks in the Markdown editor",
+						"description": "Providers for HTML editors used by fenced code blocks in the Markdown editor",
 						"items": {
 							"type": "object",
 							"additionalProperties": false,
@@ -99,6 +99,12 @@
 									"type": "string",
 									"minLength": 1,
 									"description": "Identifier for this provider, unique within the extension"
+								},
+								"runtimeKey": {
+									"type": "string",
+									"minLength": 1,
+									"maxLength": 256,
+									"description": "Opaque identity for the editor runtime template. Only compatible editors with equal runtime keys may reuse an iframe"
 								},
 								"selector": {
 									"oneOf": [
@@ -140,7 +146,7 @@
 												},
 												"entrypoint": {
 													"type": "string",
-													"description": "Extension-relative path to a self-contained HTML document"
+													"description": "Extension-relative path to the editor's HTML entrypoint. Relative scripts and assets are resolved from this file's directory"
 												}
 											}
 										},

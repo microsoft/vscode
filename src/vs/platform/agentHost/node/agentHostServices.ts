@@ -58,12 +58,16 @@ import { AgentHostTelemetryReporter, IAgentHostTelemetryReporter } from './agent
 import { AgentHostToolCallTracker, IAgentHostToolCallTracker } from './agentHostToolCallTracker.js';
 import { AgentHostTurnTracker, IAgentHostTurnTracker } from './agentHostTurnTracker.js';
 import { AgentHostProviderService, IAgentHostProviderService } from './agentHostProviderService.js';
+import { AdditionalWorktreeLifecycleService, IAdditionalWorktreeLifecycleService } from './chatContributions/additionalWorktreeLifecycle/additionalWorktreeLifecycleService.js';
 import { AgentEditAttributionService } from './shared/agentEditAttributionService.js';
 import { AgentHostOctoKitService, IAgentHostOctoKitService } from './shared/agentHostOctoKitService.js';
 import { EditArcReporterService, IEditArcReporterService } from './shared/editArcReporter.js';
 import { EditSurvivalReporterFactory, IEditSurvivalReporterFactory } from './shared/editSurvivalReporter.js';
 import { IAgentHostWorktreeIsolation, WorktreeIsolation } from './shared/worktreeIsolation.js';
 import { AgentBranchNameGenerator, IAgentBranchNameGenerator } from './shared/agentBranchNameGenerator.js';
+import { AgentHostTurnService, IAgentHostTurnService } from './agentHostTurnService.js';
+import { IDevContainerAgentHostMainService } from '../common/devContainerAgentHost.js';
+import { RemoteDevContainerAgentHostService } from './devContainerAgentHostService.js';
 
 export interface IAgentHostCoreServiceInputs {
 	readonly storageResource: URI | undefined;
@@ -99,12 +103,14 @@ export function registerAgentHostCoreServices(services: ServiceCollection, input
 	services.set(IAgentHostCompletions, new SyncDescriptor(AgentHostCompletions));
 	services.set(IAgentHostTerminalManager, new SyncDescriptor(AgentHostTerminalManager));
 	services.set(IAgentHostChatContributions, new SyncDescriptor(AgentHostChatContributions));
+	services.set(IAgentHostTurnService, new SyncDescriptor(AgentHostTurnService));
 	services.set(IAgentHostTelemetryReporter, new SyncDescriptor(AgentHostTelemetryReporter));
 	services.set(IAgentHostTurnTracker, new SyncDescriptor(AgentHostTurnTracker));
 	services.set(IAgentHostToolCallTracker, new SyncDescriptor(AgentHostToolCallTracker));
 	services.set(IAgentHostProviderService, new SyncDescriptor(AgentHostProviderService));
 	services.set(IAgentBranchNameGenerator, new SyncDescriptor(AgentBranchNameGenerator));
 	services.set(IAgentHostWorktreeIsolation, new SyncDescriptor(WorktreeIsolation));
+	services.set(IAdditionalWorktreeLifecycleService, new SyncDescriptor(AdditionalWorktreeLifecycleService));
 }
 
 export interface IAgentHostHostServiceInputs {
@@ -114,6 +120,7 @@ export interface IAgentHostHostServiceInputs {
 }
 
 export function registerAgentHostHostServices(services: ServiceCollection, inputs: IAgentHostHostServiceInputs): void {
+	services.set(IDevContainerAgentHostMainService, new SyncDescriptor(RemoteDevContainerAgentHostService));
 	services.set(IWindowsMxcTerminalSandboxRuntime, new SyncDescriptor(WindowsMxcTerminalSandboxRuntime));
 	services.set(ISandboxHelperService, new SyncDescriptor(SandboxHelperService));
 	services.set(IAgentHostGitService, new SyncDescriptor(AgentHostGitService));
@@ -121,7 +128,7 @@ export function registerAgentHostHostServices(services: ServiceCollection, input
 	services.set(IAgentSdkDownloader, new SyncDescriptor(AgentSdkDownloader));
 	services.set(IClaudeAgentSdkService, new SyncDescriptor(ClaudeAgentSdkService));
 	services.set(IClaudeProxyService, new SyncDescriptor(ClaudeProxyService));
-	services.set(ICodexProxyService, new SyncDescriptor(CodexProxyService));
+	services.set(ICodexProxyService, new SyncDescriptor(CodexProxyService, [undefined]));
 	services.set(IAgentHostOTelService, new SyncDescriptor(AgentHostOTelService, [inputs.fetchFn]));
 	services.set(
 		IByokLmProxyService,

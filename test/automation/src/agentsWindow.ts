@@ -12,11 +12,16 @@ const AGENTS_WORKBENCH = '.agent-sessions-workbench';
 const NEW_SESSION_VIEW = '.sessions-chat-widget .new-chat-widget-container';
 const SESSION_TYPE_PICKER = '.sessions-chat-session-type-picker .action-label';
 const SESSION_TYPE_PICKER_VISIBLE = `${SESSION_TYPE_PICKER}:not(.hidden)`;
+const WORKSPACE_PICKER = `${NEW_SESSION_VIEW} .sessions-workspace-picker-trigger > .action-label`;
+const WORKSPACE_PICKER_ROW = '.action-widget .sessions-new-chat-picker-list .monaco-list-row.action';
+const WORKSPACE_PICKER_DEV_CONTAINER_ROW = `${WORKSPACE_PICKER_ROW}:has(.action-list-submenu-indicator.has-submenu):not([aria-label="Remote"]):not([aria-label="Chat"])`;
+const WORKSPACE_PICKER_SUBMENU_ROW = '.action-list-submenu-panel .monaco-list-row.action';
 const NEW_CHAT_EDITOR = `${NEW_SESSION_VIEW} .sessions-chat-editor .monaco-editor[role="code"]`;
 const SEND_BUTTON_ENABLED = `${NEW_SESSION_VIEW} .sessions-chat-send-button .monaco-button:not(.disabled)`;
 const ACTIVE_SESSION = `${AGENTS_WORKBENCH} .session-view.is-active`;
 const ACTIVE_SESSION_INPUT_EDITOR = `${ACTIVE_SESSION} .interactive-session .interactive-input-part .monaco-editor[role="code"]`;
 const ACTIVE_SESSION_SEND_BUTTON_ENABLED = `${ACTIVE_SESSION} .interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item:not(.disabled) > .action-label.codicon-arrow-up-compact`;
+const ACTIVE_SESSION_STOP_BUTTON_ENABLED = `${ACTIVE_SESSION} .interactive-session .chat-execute-toolbar .action-item:not(.disabled) > .action-label.codicon-stop-circle`;
 const RESPONSE = `${AGENTS_WORKBENCH} .interactive-item-container.interactive-response`;
 const SESSION_LIST_ROW = `${AGENTS_WORKBENCH} .sessions-list-control .monaco-list-row`;
 
@@ -115,9 +120,240 @@ export class AgentsWindow {
 		await this.code.waitForElement(ACTIVE_SESSION_INPUT_EDITOR, undefined, retryCount);
 	}
 
+	async waitForSessionPreparation(): Promise<void> {
+		const page = this.code.driver.currentPage;
+		const progress = page.locator(`${ACTIVE_SESSION} .chat-transcript-progress:not([hidden])`);
+		await progress.getByText('Starting Dev Container...', { exact: false }).waitFor({ state: 'visible', timeout: 30_000 });
+		await progress.getByRole('button', { name: 'Show Log', exact: true }).waitFor({ state: 'visible' });
+		if (await progress.locator('.xterm-screen').count()) {
+			throw new Error('Startup logs must remain in the output channel, not the transcript');
+		}
+		await page.locator(NEW_SESSION_VIEW).waitFor({ state: 'hidden' });
+		await page.locator(ACTIVE_SESSION_INPUT_EDITOR).waitFor({ state: 'visible' });
+		await page.locator(ACTIVE_SESSION_STOP_BUTTON_ENABLED).waitFor({ state: 'visible' });
+		await page.locator(`${ACTIVE_SESSION} .chat-input-toolbar[inert]`).waitFor({ state: 'visible' });
+		await page.locator(`${ACTIVE_SESSION} .chat-attachments-container[inert]`).waitFor({ state: 'attached' });
+		await page.waitForFunction(selector => !!document.querySelector(selector)?.closest('[inert]'), ACTIVE_SESSION_INPUT_EDITOR);
+		await page.locator(ACTIVE_SESSION_SEND_BUTTON_ENABLED).waitFor({ state: 'hidden' });
+	}
+
+	async showSessionPreparationLog(): Promise<void> {
+		const page = this.code.driver.currentPage;
+		await page.locator(`${ACTIVE_SESSION} .chat-transcript-progress`).getByRole('button', { name: 'Show Log', exact: true }).click();
+		await page.locator('.output-view .monaco-editor').waitFor({ state: 'visible' });
+		await this.code.waitForTextContent('.output-view .view-lines', undefined, text => /Starting Dev Container|Dev Containers|Start:/.test(text.replace(/\u00a0/g, ' ')));
+		await this.quickaccess.runCommand('workbench.action.closePanel');
+	}
+
+	async verifyInputEnabledAfterPreparation(): Promise<void> {
+		const page = this.code.driver.currentPage;
+		await page.waitForFunction(selector => {
+			const editor = document.querySelector(selector);
+			return editor && !editor.closest('[inert]') && !editor.classList.contains('readonly');
+		}, ACTIVE_SESSION_INPUT_EDITOR);
+		await page.locator(`${ACTIVE_SESSION} .chat-input-toolbar:not([inert])`).waitFor({ state: 'visible' });
+		await this.code.waitAndClick(ACTIVE_SESSION_INPUT_EDITOR);
+		await this.code.waitForTypeInEditor(this.activeSessionInputSelector, 'Follow-up after preparation');
+		await page.keyboard.press(process.platform === 'darwin' ? 'Meta+a' : 'Control+a');
+		await page.keyboard.press('Backspace');
+		await this.code.waitForTextContent(`${ACTIVE_SESSION_INPUT_EDITOR} .view-lines`, '', text => text.trim() === '');
+	}
+
+	async cancelSessionPreparation(originalPrompt: string): Promise<void> {
+		await this.code.waitAndClick(ACTIVE_SESSION_STOP_BUTTON_ENABLED);
+		await this.waitForNewSessionView();
+		await this.code.waitForTextContent(`${NEW_CHAT_EDITOR} .view-lines`, undefined, text => text.replace(/\u00a0/g, ' ') === originalPrompt);
+	}
+
+	async retrySessionPreparation(): Promise<void> {
+		await this.code.driver.currentPage.locator(SEND_BUTTON_ENABLED).click();
+		await this.code.driver.currentPage.locator(NEW_SESSION_VIEW).waitFor({ state: 'hidden' });
+	}
+
+	async connectSSHHost(options: { name: string; host: string; port: number; username: string; password: string; fingerprint: string }, workspacePath: string): Promise<void> {
+		const page = this.code.driver.currentPage;
+		await this.fillQuickInputAfterCommand('workbench.action.sessions.connectViaSSH', 'Connect via SSH', `${options.username}@${options.host}:${options.port}`, 120_000);
+		const authPicker = page.locator('.quick-input-widget:visible').filter({
+			has: page.locator('.quick-input-title', { hasText: 'Authentication Method' }),
+		});
+		await authPicker.getByText('Password', { exact: true }).waitFor();
+		// Draft initialization can move focus back to the composer while authentication is open.
+		await page.locator(NEW_CHAT_EDITOR).click();
+		await authPicker.getByText('Password', { exact: true }).click();
+		await this.fillQuickInput('SSH Password', options.password);
+		await this.fillQuickInput('Name Remote', options.name);
+		const trustDialog = page.locator('.monaco-dialog-box').filter({ hasText: 'The authenticity of host' });
+		await trustDialog.getByText(options.fingerprint, { exact: false }).waitFor({ timeout: 30_000 });
+		await trustDialog.getByRole('button', { name: 'Connect', exact: true }).click();
+		await this.selectRemoteFolder(options.name, workspacePath);
+	}
+
+	async connectTunnelHost(name: string, workspacePath: string): Promise<void> {
+		const page = this.code.driver.currentPage;
+		await this.quickaccess.runCommand('workbench.action.sessions.connectViaTunnel', { keepOpen: true });
+		await page.locator('.quick-input-widget:visible .quick-input-list .monaco-list-row').filter({
+			has: page.getByText(name, { exact: true }),
+		}).click({ timeout: 120_000 });
+		await this.selectRemoteFolder(name, workspacePath);
+	}
+
+	async connectWSLHost(distro: string, workspacePath: string): Promise<void> {
+		const page = this.code.driver.currentPage;
+		this.code.logger.log(`[agentsWindow] WSL connection: executing Connect via WSL for ${distro}`);
+		const distroPicker = page.locator('.quick-input-widget:visible').filter({ has: page.locator('.quick-input-title', { hasText: 'Connect via WSL' }) });
+		const folderPicker = page.locator('.quick-input-widget:visible').filter({ has: page.locator('.quick-input-title', { hasText: `Select Folder on ${distro}` }) });
+		await this.waitForQuickInputAfterCommand('workbench.action.sessions.connectViaWSL', () => distroPicker.or(folderPicker).first(), 120_000);
+		this.code.logger.log('[agentsWindow] WSL connection: command selected; distribution or folder picker opened');
+		if (await distroPicker.isVisible()) {
+			this.code.logger.log(`[agentsWindow] WSL connection: selecting distribution ${distro}`);
+			await distroPicker.locator('.quick-input-list .monaco-list-row').filter({
+				has: page.getByText(distro, { exact: true }),
+			}).click({ timeout: 30_000 });
+		}
+		this.code.logger.log(`[agentsWindow] WSL connection: selecting folder on ${distro}`);
+		await this.selectRemoteFolder(distro, workspacePath);
+		this.code.logger.log('[agentsWindow] WSL connection: folder selected');
+	}
+
+	async getRemoteConnectionDiagnostics(): Promise<string> {
+		return JSON.stringify(await this.code.driver.currentPage.evaluate(() => {
+			const activeElement = document.activeElement;
+			return {
+				windowFocused: document.hasFocus(),
+				activeElement: activeElement ? { tag: activeElement.tagName, id: activeElement.id, className: activeElement.getAttribute('class')?.slice(0, 500) } : undefined,
+				quickInputs: Array.from(document.querySelectorAll('.quick-input-widget')).filter(element => element.checkVisibility()).slice(0, 5).map(element => ({
+					title: element.querySelector('.quick-input-title')?.textContent?.slice(0, 500),
+					value: element.querySelector('input')?.value.slice(0, 500),
+					focusedRow: element.querySelector('.monaco-list-row.focused')?.textContent?.slice(0, 500),
+					rows: Array.from(element.querySelectorAll('.monaco-list-row')).slice(0, 10).map(row => row.textContent?.slice(0, 500)),
+				})),
+				notifications: Array.from(document.querySelectorAll('.notification-list-item')).slice(-10).map(element => ({
+					message: element.querySelector('.notification-list-item-message')?.textContent?.slice(0, 2000),
+					source: element.querySelector('.notification-list-item-source')?.textContent?.slice(0, 500),
+				})),
+				dialogs: Array.from(document.querySelectorAll('.monaco-dialog-box')).filter(element => element.checkVisibility()).slice(0, 5).map(element => element.textContent?.slice(0, 2000)),
+			};
+		}));
+	}
+
+	private async fillQuickInput(title: string, value: string): Promise<void> {
+		const page = this.code.driver.currentPage;
+		const widget = page.locator('.quick-input-widget:visible').filter({ has: page.locator('.quick-input-title', { hasText: title }) });
+		const input = widget.locator('.quick-input-box input');
+		await input.fill(value, { timeout: 30_000 });
+		await input.press('Enter');
+	}
+
+	private async fillQuickInputAfterCommand(commandId: string, title: string, value: string, timeoutMs: number): Promise<void> {
+		let lastError: unknown;
+		for (let attempt = 0; attempt < 2; attempt++) {
+			await this.quickaccess.runCommand(commandId, { keepOpen: true });
+			const page = this.code.driver.currentPage;
+			const widget = page.locator('.quick-input-widget:visible').filter({ has: page.locator('.quick-input-title', { hasText: title }) });
+			try {
+				await widget.waitFor({ timeout: timeoutMs });
+				const input = widget.locator('.quick-input-box input');
+				await input.fill(value, { timeout: timeoutMs });
+				await input.press('Enter');
+				return;
+			} catch (error) {
+				lastError = error;
+			}
+		}
+		throw lastError instanceof Error ? lastError : new Error(`Timed out waiting for quick input "${title}" after running ${commandId}`);
+	}
+
+	private async waitForQuickInputAfterCommand(commandId: string, getWidget: () => { waitFor: (options: { timeout: number }) => Promise<unknown> }, timeoutMs: number): Promise<void> {
+		let lastError: unknown;
+		for (let attempt = 0; attempt < 2; attempt++) {
+			await this.quickaccess.runCommand(commandId, { keepOpen: true });
+			const widget = getWidget();
+			try {
+				await widget.waitFor({ timeout: timeoutMs });
+				return;
+			} catch (error) {
+				lastError = error;
+			}
+		}
+		throw lastError instanceof Error ? lastError : new Error(`Timed out waiting for quick input after running ${commandId}`);
+	}
+
+	private async selectRemoteFolder(hostName: string, workspacePath: string): Promise<void> {
+		const page = this.code.driver.currentPage;
+		const widget = page.locator('.quick-input-widget:visible').filter({
+			has: page.locator('.quick-input-title', { hasText: `Select Folder on ${hostName}` }),
+		});
+		const input = widget.locator('.quick-input-box input');
+		await widget.locator('.quick-input-list .monaco-list-row').first().waitFor({ timeout: 30_000 });
+		await input.fill(workspacePath.replace(/\\/g, '/') + '/', { timeout: 120_000 });
+		await widget.getByText('.devcontainer', { exact: true }).waitFor({ timeout: 30_000 });
+		await widget.locator('.quick-input-progress[aria-hidden="true"]').waitFor({ state: 'attached', timeout: 30_000 });
+		await input.press('Enter');
+		await widget.waitFor({ state: 'hidden', timeout: 30_000 });
+		await page.locator(WORKSPACE_PICKER).filter({ hasText: hostName }).waitFor({ timeout: 30_000 });
+	}
+
+	async selectDevContainer(workspaceLabel?: string): Promise<void> {
+		const page = this.code.driver.currentPage;
+		const picker = page.locator(WORKSPACE_PICKER).first();
+		const devContainerRow = page.locator(WORKSPACE_PICKER_SUBMENU_ROW, { hasText: 'Use Dev Container' }).first();
+		const recentDevContainerRow = page.locator(WORKSPACE_PICKER_ROW).filter({
+			has: page.locator('.title', { hasText: / Dev Container$/ }),
+		}).first();
+		const deadline = Date.now() + 120_000;
+		let lastError: unknown;
+
+		while (Date.now() < deadline) {
+			if (await picker.getAttribute('aria-expanded') === 'true') {
+				await page.keyboard.press('Escape');
+			}
+			try {
+				await picker.click();
+				if (workspaceLabel) {
+					const remoteRow = page.locator('.action-widget .sessions-new-chat-picker-list .monaco-list-row.action[aria-label="Remote"]');
+					if (await remoteRow.isVisible()) {
+						await remoteRow.locator('.action-list-submenu-indicator.has-submenu').click();
+					}
+				}
+				const workspaceRow = workspaceLabel
+					? page.locator('.action-widget .monaco-list-row.action, .action-list-submenu-panel .monaco-list-row.action').filter({ has: page.getByText(workspaceLabel, { exact: true }) }).first()
+					: page.locator(WORKSPACE_PICKER_DEV_CONTAINER_ROW).first();
+				try {
+					await workspaceRow.waitFor({ state: 'visible', timeout: 5_000 });
+					await workspaceRow.locator('.action-list-submenu-indicator.has-submenu').click();
+					await devContainerRow.waitFor({ state: 'visible', timeout: 5_000 });
+					await devContainerRow.click();
+				} catch (error) {
+					if (workspaceLabel || !await recentDevContainerRow.isVisible()) {
+						throw error;
+					}
+					await recentDevContainerRow.click();
+				}
+				await page.waitForFunction(
+					selector => document.querySelector(selector)?.textContent?.includes('Dev Container') === true,
+					WORKSPACE_PICKER,
+					{ timeout: 15_000 },
+				);
+				return;
+			} catch (error) {
+				lastError = error;
+				if (await picker.getAttribute('aria-expanded') === 'true') {
+					await page.keyboard.press('Escape');
+				}
+				await new Promise(resolve => setTimeout(resolve, 500));
+			}
+		}
+		throw new Error(`Timed out selecting Use Dev Container from the workspace picker. Last error: ${lastError instanceof Error ? lastError.message : String(lastError)}`);
+	}
+
 	private async isSessionTypeSelected(label: string): Promise<boolean> {
 		const picker = this.code.driver.currentPage.locator(SESSION_TYPE_PICKER_VISIBLE).first();
 		return ((await picker.textContent()) ?? '').trim().toLowerCase() === label.trim().toLowerCase();
+	}
+
+	private async isSessionTypePickerDisabled(): Promise<boolean> {
+		const picker = this.code.driver.currentPage.locator(SESSION_TYPE_PICKER_VISIBLE).first();
+		return await picker.getAttribute('aria-disabled') === 'true';
 	}
 
 	/**
@@ -190,25 +426,55 @@ export class AgentsWindow {
 	 * The picker trigger is the `.action-label` inside
 	 * `.sessions-chat-session-type-picker`. Clicking it opens the action
 	 * widget popup; we then locate the matching `.monaco-list-row` by its
-	 * text content and click it. The dropdown is async-populated, so we
-	 * wait for at least the requested label to appear before committing.
+	 * text content and click it. When `options.providerLabel` is provided,
+	 * rows are scoped to that provider header when headers are present so
+	 * duplicate labels (for example two "Copilot" rows) pick the intended
+	 * provider. The dropdown is async-populated, so we wait for at least
+	 * the requested label to appear before committing.
 	 */
-	async selectSessionType(label: string): Promise<void> {
+	async selectSessionType(label: string, options?: { providerLabel?: string }): Promise<void> {
 		await this.code.waitForElement(SESSION_TYPE_PICKER_VISIBLE);
 
-		if (await this.isSessionTypeSelected(label)) {
+		if (await this.isSessionTypeSelected(label) && (!options?.providerLabel || await this.isSessionTypePickerDisabled())) {
 			return;
 		}
 
 		const itemSel = `.action-widget .monaco-list-row`;
 		const maxAttempts = 3;
 		const needle = label.toLowerCase();
+		const providerNeedle = options?.providerLabel?.trim().toLowerCase();
 		const isActionRow = (el: { className: string }) => el.className.includes('action');
 		const isEnabledActionRow = (el: { className: string }) => isActionRow(el) && !el.className.includes('option-disabled');
 		const rowText = (el: { textContent: string }) => (el.textContent ?? '').trim().toLowerCase();
 		const actionLabelMatches = (el: { textContent: string; attributes: Record<string, string> }) => {
 			const ariaLabel = (el.attributes['aria-label'] ?? '').trim().toLowerCase();
 			return ariaLabel === needle || ariaLabel.startsWith(`${needle}, `) || (!ariaLabel && rowText(el) === needle);
+		};
+		type IPickerRow = { className: string; textContent: string; attributes: Record<string, string> };
+		const findMatchingActionIndex = (items: readonly IPickerRow[]): number => {
+			if (!providerNeedle) {
+				return items.findIndex(el => isEnabledActionRow(el) && actionLabelMatches(el));
+			}
+
+			const hasAnyProviderHeaders = items.some(el => !isActionRow(el) && rowText(el).length > 0);
+			const providerHeaderIndex = items.findIndex(el => !isActionRow(el) && rowText(el) === providerNeedle);
+			if (providerHeaderIndex >= 0) {
+				for (let i = providerHeaderIndex + 1; i < items.length; i++) {
+					const row = items[i];
+					if (!isActionRow(row)) {
+						if (rowText(row).length > 0) {
+							break;
+						}
+						continue;
+					}
+					if (isEnabledActionRow(row) && actionLabelMatches(row)) {
+						return i;
+					}
+				}
+				return -1;
+			}
+
+			return hasAnyProviderHeaders ? -1 : items.findIndex(el => isEnabledActionRow(el) && actionLabelMatches(el));
 		};
 
 		// The picker click can silently do nothing if the active session
@@ -219,7 +485,7 @@ export class AgentsWindow {
 		// appears, instead of just waiting for "any item".
 		let lastSeen: string[] = [];
 		outer: for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-			if (await this.isSessionTypeSelected(label)) {
+			if (await this.isSessionTypeSelected(label) && (!providerNeedle || await this.isSessionTypePickerDisabled())) {
 				return;
 			}
 
@@ -228,10 +494,7 @@ export class AgentsWindow {
 			while (Date.now() < deadline) {
 				const items = await this.code.getElements(itemSel, /* recursive */ true);
 				lastSeen = (items ?? []).map(i => (i.textContent ?? '').trim());
-				if ((items ?? []).some(item =>
-					(isEnabledActionRow(item) && actionLabelMatches(item)) ||
-					(!isActionRow(item) && rowText(item) === needle)
-				)) {
+				if (findMatchingActionIndex(items ?? []) >= 0 || (!providerNeedle && (items ?? []).some(item => !isActionRow(item) && rowText(item) === needle))) {
 					break outer;
 				}
 				await new Promise(r => setTimeout(r, 250));
@@ -246,11 +509,11 @@ export class AgentsWindow {
 
 		// Prefer an enabled actionable row whose label matches exactly (e.g. a
 		// session type label like "Claude" or "Copilot CLI").
-		let matchIndex = items.findIndex(el => isEnabledActionRow(el) && actionLabelMatches(el));
+		let matchIndex = findMatchingActionIndex(items);
 		// Otherwise treat the label as a provider section header (e.g. "Local
 		// Agent Host"): headers are non-clickable rows rendered above their
 		// session types, so select the first actionable row beneath the header.
-		if (matchIndex < 0) {
+		if (matchIndex < 0 && !providerNeedle) {
 			const headerIndex = items.findIndex(el => !isActionRow(el) && rowText(el) === needle);
 			if (headerIndex >= 0) {
 				matchIndex = items.findIndex((el, index) => index > headerIndex && isEnabledActionRow(el));
@@ -638,19 +901,8 @@ export class AgentsWindow {
 				// to narrow the list.
 				await page.keyboard.type(modelName);
 				await row.waitFor({ state: 'visible', timeout: 5_000 });
-				// `force` bypasses the transient `context-view-pointerBlock` overlay
-				// that intercepts pointer events while the action widget animates open.
-				await row.click({ force: true });
-				// Confirm the selection actually committed: the picker name button
-				// must now reflect the chosen model. A non-committing click (e.g.
-				// absorbed by the animating pointer-block overlay) silently leaves the
-				// previous model selected and the picker dismissed, so waiting only
-				// for the popup to close would miss it. Match on the button's accessible
-				// name (aria-label, e.g. "Models, <modelName>") rather than the visible
-				// text: when the input is narrow the picker collapses to an icon-only
-				// button and no longer renders the model name as visible text. Scope to
-				// `:visible` so a hidden overflow duplicate of the name button can't
-				// produce a false positive.
+				await row.click();
+				// Match the accessible name because narrow inputs collapse the picker to an icon-only button.
 				await page.locator(`${ACTIVE_SESSION_MODEL_PICKER_NAME}[aria-label*="${modelName}"]:visible`)
 					.first()
 					.waitFor({ state: 'visible', timeout: 15_000 });

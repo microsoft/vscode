@@ -4,16 +4,20 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { mkdtempSync, writeFileSync } from 'fs';
+import { mkdirSync, mkdtempSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { retry } from '../../../../../../base/common/async.js';
+import { join } from '../../../../../../base/common/path.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { SubscribeResult } from '../../../../common/state/protocol/commands.js';
 import { ActionType, type ChatToolCallStartAction } from '../../../../common/state/sessionActions.js';
 import {
 	ResponsePartKind,
+	MessageKind,
+	ROOT_STATE_URI,
 	ToolCallConfirmationReason,
 	ToolResultContentType,
+	TurnState,
 	buildDefaultChatUri,
 	buildSubagentSessionUri,
 	parseChatUri,
@@ -22,12 +26,400 @@ import {
 	type ToolResultContent,
 	type ToolResultSubagentContent,
 } from '../../../../common/state/sessionState.js';
-import { createRealSession, dispatchTurn } from '../harness/agentHostE2ETestHarness.js';
+import { PROTOCOL_VERSION } from '../../../../common/state/protocol/version/registry.js';
+import { createRealSession, dispatchTurn, driveTurnToCompletion, getMarkdownResponseText, resolveGitHubToken } from '../harness/agentHostE2ETestHarness.js';
+import { assertRecordedAhpSnapshot } from '../harness/ahpSnapshot.js';
+import { summarizeAnthropicRequest } from '../harness/capiWireCodec.js';
 import { fetchSessionWithChat, getActionEnvelope, isActionNotification } from '../../serverIntegrationTestHelpers.js';
 import type { IAgentHostE2ETestContext } from './e2eTestContext.js';
 
 export function defineSubagentTests(context: IAgentHostE2ETestContext): void {
-	const { config, createdSessions, tempDirs, isWindows } = context;
+	const { config, createdSessions, tempDirs } = context;
+	// Copilot captures store one wire dialect, so keep nested model calls on the parent's Anthropic endpoint.
+	const stableSubagentModelInstruction = config.provider === 'copilotcli'
+		? 'Explicitly set the subagent model to `claude-sonnet-5`. '
+		: '';
+	const stableSubagentFileListingInstruction = config.provider === 'copilotcli'
+		? 'Then the subagent should call a single read-only file-listing tool (e.g. `Glob` or `view`) to list the files; do not run a shell command. '
+		: 'Then the subagent should list the files. ';
+
+	function createCustomAgentWorkspace(prefix: string, allTools = false): string {
+		const workspace = mkdtempSync(join(tmpdir(), prefix));
+		const agentsDirectory = join(workspace, '.github', 'agents');
+		mkdirSync(agentsDirectory, { recursive: true });
+		writeFileSync(join(agentsDirectory, 'display-name-child.agent.md'), [
+			'---',
+			'name: e2e-display-name-child',
+			'description: Returns the custom child sentinel',
+			...(allTools ? [] : ['tools:', '  - view']),
+			'---',
+			'Reply exactly "CUSTOM_AGENT_CHILD_OK". Do not call tools.',
+		].join('\n'));
+		tempDirs.push(workspace);
+		return workspace;
+	}
+
+	async function createCustomAgentSession(prefix: string, allTools = false): Promise<string> {
+		const workspace = createCustomAgentWorkspace(prefix, allTools);
+		return createRealSession(context.client, config, prefix, createdSessions, URI.file(workspace));
+	}
+
+	function subagentChatFromReceived(parentChat: string): string | undefined {
+		for (const notification of context.client.receivedNotifications(n => isActionNotification(n, 'chat/toolCallContentChanged'))) {
+			const envelope = getActionEnvelope(notification);
+			if (envelope.channel !== parentChat) {
+				continue;
+			}
+			const content = (envelope.action as { content: readonly ToolResultContent[] }).content;
+			const subagent = content.find((item): item is ToolResultSubagentContent => item.type === ToolResultContentType.Subagent);
+			if (subagent) {
+				return subagent.resource;
+			}
+		}
+		return undefined;
+	}
+
+	function markdownText(state: Pick<ChatState, 'turns'> | undefined): string {
+		return state?.turns.flatMap(turn => turn.responseParts)
+			.filter(part => part.kind === ResponsePartKind.Markdown)
+			.map(part => part.content)
+			.join('') ?? '';
+	}
+
+	function isCompletedChild(state: ChatState | undefined, expectedTurnCount: number): state is ChatState {
+		return !!state
+			&& !state.activeTurn
+			&& state.turns.length === expectedTurnCount
+			&& state.turns.every(turn => turn.state === TurnState.Complete);
+	}
+
+	async function subscribeToCompletedChild(subagentChat: string): Promise<ChatState> {
+		const initialSubscription = await context.client.call<SubscribeResult>('subscribe', { channel: subagentChat });
+		const initialChild = initialSubscription.snapshot?.state as ChatState | undefined;
+		if (!isCompletedChild(initialChild, 1)) {
+			await context.client.waitForNotification(n => {
+				if (!isActionNotification(n, 'chat/turnComplete')) {
+					return false;
+				}
+				return getActionEnvelope(n).channel === subagentChat;
+			}, 5_000);
+		}
+		const snapshot = await context.client.call<SubscribeResult>('subscribe', { channel: subagentChat });
+		const child = snapshot.snapshot?.state as ChatState | undefined;
+		assert.ok(isCompletedChild(child, 1));
+		return child;
+	}
+
+	function responsePartIds(turns: ISessionWithDefaultChat['turns']): string[] {
+		return turns.flatMap(turn => turn.responseParts.flatMap(part => {
+			const id = Reflect.get(part, 'id');
+			return typeof id === 'string' ? [id] : [];
+		}));
+	}
+
+	const copilotCustomAgentTest = config.provider === 'copilotcli' && config.supportsSubagents;
+	const behaviorSnapshot = { profile: 'behavior' } as const;
+
+	for (const initiallySelected of [true, false]) {
+		const title = initiallySelected
+			? 'session with a custom agent selected on its first turn remains resumable'
+			: 'session with a custom agent selected after a default turn remains resumable';
+		(copilotCustomAgentTest ? test : test.skip)(title, async function () {
+			this.timeout(180_000);
+			const workspace = createCustomAgentWorkspace('ahp-selected-custom-agent-', true);
+			const sessionUri = await createRealSession(context.client, config, 'selected-custom-agent', createdSessions, URI.file(workspace));
+			if (!initiallySelected) {
+				await driveTurnToCompletion(context.client, sessionUri, 'turn-default-agent', 'Reply exactly "DEFAULT_READY".', 1);
+			}
+			const chatUri = buildDefaultChatUri(sessionUri);
+			const agent = { uri: URI.file(join(workspace, '.github', 'agents', 'display-name-child.agent.md')).toString() };
+			context.client.clearReceived();
+			context.client.dispatch({
+				channel: chatUri,
+				clientSeq: initiallySelected ? 1 : 2,
+				action: {
+					type: ActionType.ChatTurnStarted,
+					turnId: 'turn-selected-agent',
+					startedAt: new Date().toISOString(),
+					message: { text: 'Reply with the exact sentinel from your agent instructions.', origin: { kind: MessageKind.User }, agent },
+				},
+			});
+			await context.client.waitForNotification(n => {
+				if (!isActionNotification(n, 'chat/turnComplete')) {
+					return false;
+				}
+				const envelope = getActionEnvelope(n);
+				return envelope.channel === chatUri
+					&& envelope.action.type === ActionType.ChatTurnComplete
+					&& envelope.action.turnId === 'turn-selected-agent';
+			}, 90_000);
+			const before = await fetchSessionWithChat(context.client, sessionUri);
+			assert.strictEqual(markdownText({ turns: before.turns.slice(-1) }).trim(), 'CUSTOM_AGENT_CHILD_OK');
+
+			await context.restartServer();
+			context.client.setWorkingDirectory(workspace);
+			await context.client.call('initialize', { channel: ROOT_STATE_URI, protocolVersions: [PROTOCOL_VERSION], clientId: 'selected-custom-agent-restored' });
+			await context.client.call('authenticate', { channel: ROOT_STATE_URI, resource: 'https://api.github.com', token: config.githubToken ?? resolveGitHubToken() });
+			const restored = await fetchSessionWithChat(context.client, sessionUri);
+			assert.deepStrictEqual({
+				messages: restored.turns.map(turn => turn.message.text),
+				response: markdownText({ turns: restored.turns.slice(-1) }).trim(),
+				states: restored.turns.map(turn => turn.state),
+			}, {
+				messages: before.turns.map(turn => turn.message.text),
+				response: 'CUSTOM_AGENT_CHILD_OK',
+				states: before.turns.map(() => TurnState.Complete),
+			});
+			const followup = await driveTurnToCompletion(context.client, sessionUri, 'turn-after-selected-agent', 'Reply exactly "RESUMED".', initiallySelected ? 2 : 3);
+			const request: { stream?: boolean } = JSON.parse(context.observedModelRequestBodies.at(-1)!);
+			assert.deepStrictEqual({ response: followup.responseText.trim(), streaming: request.stream }, { response: 'RESUMED', streaming: true });
+		});
+	}
+
+	for (const { title, allTools, checkFileOutputGuidance } of [
+		{ title: 'custom agent without a display name completes as a subagent', allTools: false, checkFileOutputGuidance: false },
+		{ title: 'custom agent without a tools list completes as a subagent', allTools: true, checkFileOutputGuidance: false },
+		{ title: 'custom subagent permits requested file output in its system instructions', allTools: false, checkFileOutputGuidance: true },
+	]) {
+		(copilotCustomAgentTest ? test : test.skip)(title, async function () {
+			this.timeout(180_000);
+
+			const sessionUri = await createCustomAgentSession('ahp-custom-agent-display-name-', allTools);
+			const parentChat = buildDefaultChatUri(sessionUri);
+			await driveTurnToCompletion(
+				context.client,
+				sessionUri,
+				'turn-custom-agent-display-name',
+				'Use the task tool exactly once with agent_type "e2e-display-name-child". Wait for it, then reply exactly "PARENT_DONE".',
+				1,
+			);
+
+			const subagentChat = subagentChatFromReceived(parentChat);
+			assert.ok(subagentChat, 'the parent tool call should expose the custom subagent chat');
+			const child = await subscribeToCompletedChild(subagentChat);
+			const parent = await fetchSessionWithChat(context.client, sessionUri);
+			assert.deepStrictEqual({
+				childResponse: markdownText(child).trim(),
+				childTurns: child?.turns.map(turn => turn.state),
+				parentResponse: markdownText(parent).trim(),
+			}, {
+				childResponse: 'CUSTOM_AGENT_CHILD_OK',
+				childTurns: [TurnState.Complete],
+				parentResponse: 'PARENT_DONE',
+			});
+			if (!allTools && !checkFileOutputGuidance) {
+				const request: {
+					tools: {
+						name: string;
+						input_schema: { properties: { model?: { enum?: string[] }; agent_type?: { enum?: string[] }; mode?: { description?: string } } };
+					}[];
+				} = JSON.parse(context.observedModelRequestBodies[0]);
+				const task = request.tools.find(tool => tool.name === 'task');
+				assert.deepStrictEqual({
+					modelAllowed: task?.input_schema.properties.model?.enum?.includes('claude-sonnet-5'),
+					customAgentAllowed: task?.input_schema.properties.agent_type?.enum?.includes('e2e-display-name-child'),
+					modeDescription: task?.input_schema.properties.mode?.description,
+				}, {
+					modelAllowed: true,
+					customAgentAllowed: true,
+					modeDescription: 'sync waits; background returns immediately. Await results before use.',
+				});
+			}
+			if (checkFileOutputGuidance) {
+				const childRequest = context.observedModelRequestBodies.find(body => {
+					const request = summarizeAnthropicRequest(body);
+					return request?.messages.length === 1 && request.messages[0].content === child?.turns[0].message.text;
+				});
+				assert.ok(childRequest, 'the custom child must make its own model request');
+				assert.deepStrictEqual({
+					requiresReplyToCaller: childRequest.includes('**CRITICAL: Ensure a response is returned to your caller.**'),
+					forbidsAllFileOutput: childRequest.includes('**CRITICAL: Do NOT write output to files.**'),
+				}, {
+					requiresReplyToCaller: true,
+					forbidsAllFileOutput: false,
+				});
+			}
+		});
+	}
+
+	(copilotCustomAgentTest ? test : test.skip)('restored parent accepts a new turn after a custom subagent completes', async function () {
+		this.timeout(240_000);
+
+		const sessionUri = await createCustomAgentSession('ahp-restored-custom-agent-');
+		const parentChat = buildDefaultChatUri(sessionUri);
+		const setup = await driveTurnToCompletion(
+			context.client,
+			sessionUri,
+			'turn-custom-agent-setup',
+			'Use the task tool exactly once with agent_type "e2e-display-name-child". Wait for it, then reply exactly "SETUP_DONE".',
+			1,
+		);
+		assert.match(setup.responseText, /SETUP_DONE/);
+		const subagentChat = subagentChatFromReceived(parentChat);
+		assert.ok(subagentChat, 'the custom subagent should remain in the parent chat catalog');
+		const child = await subscribeToCompletedChild(subagentChat);
+		assert.strictEqual(markdownText(child).trim(), 'CUSTOM_AGENT_CHILD_OK');
+		context.client.notify('unsubscribe', { channel: subagentChat });
+
+		const liveParent = await fetchSessionWithChat(context.client, sessionUri);
+		const liveResponsePartIds = responsePartIds(liveParent.turns);
+		assert.ok(liveResponsePartIds.length > 0);
+
+		const unsubscribeParent = () => {
+			context.client.notify('unsubscribe', { channel: parentChat });
+			context.client.notify('unsubscribe', { channel: sessionUri });
+		};
+		unsubscribeParent();
+
+		await retry(async () => {
+			const restored = await fetchSessionWithChat(context.client, sessionUri);
+			const restoredResponsePartIds = responsePartIds(restored.turns);
+			if (restoredResponsePartIds.length === liveResponsePartIds.length
+				&& restoredResponsePartIds.every((id, index) => id === liveResponsePartIds[index])) {
+				unsubscribeParent();
+				throw new Error('parent session has not been reconstructed from persisted provider state');
+			}
+		}, 50, 100);
+
+		context.client.clearReceived();
+		dispatchTurn(context.client, sessionUri, 'turn-after-custom-agent', 'Reply exactly "PARENT_RECOVERED".', 2);
+		const started = await context.client.waitForNotification(n => {
+			if (!isActionNotification(n, 'chat/turnStarted')) {
+				return false;
+			}
+			const envelope = getActionEnvelope(n);
+			return envelope.channel === parentChat
+				&& envelope.action.type === ActionType.ChatTurnStarted
+				&& envelope.action.turnId === 'turn-after-custom-agent';
+		}, 30_000);
+		assert.strictEqual(getActionEnvelope(started).rejectionReason, undefined);
+		await context.client.waitForNotification(n => {
+			if (!isActionNotification(n, 'chat/turnComplete')) {
+				return false;
+			}
+			const envelope = getActionEnvelope(n);
+			return envelope.channel === parentChat
+				&& envelope.action.type === ActionType.ChatTurnComplete
+				&& envelope.action.turnId === 'turn-after-custom-agent';
+		}, 90_000);
+		assert.match(getMarkdownResponseText(context.client), /PARENT_RECOVERED/);
+	});
+
+	(copilotCustomAgentTest ? test : test.skip)('retained background subagent completes repeated follow-up turns', async function () {
+		this.timeout(300_000);
+
+		const workspace = mkdtempSync(join(tmpdir(), 'ahp-retained-subagent-'));
+		tempDirs.push(workspace);
+		const sessionUri = await createRealSession(context.client, config, 'retained-subagent-followups', createdSessions, URI.file(workspace));
+		const parentChat = buildDefaultChatUri(sessionUri);
+		const assertParentToolNames = (expected: readonly string[]) => {
+			const actual = context.client.receivedNotifications(n => isActionNotification(n, 'chat/toolCallStart'))
+				.map(n => ({ channel: getActionEnvelope(n).channel, action: getActionEnvelope(n).action as ChatToolCallStartAction }))
+				.filter(({ channel }) => channel === parentChat)
+				.map(({ action }) => action.toolName);
+			assert.deepStrictEqual(actual, expected);
+		};
+
+		context.client.beginAhpSnapshotRound();
+		const initial = await driveTurnToCompletion(
+			context.client,
+			sessionUri,
+			'turn-retained-initial',
+			'Use the task tool exactly once with agent_type "general-purpose" and mode "background". '
+			+ 'Tell it to reply exactly "CHILD_INITIAL_DONE" and not use tools. '
+			+ 'Wait for its completion notification, call read_agent with wait true, then reply exactly "PARENT_INITIAL_DONE". Do not stop the subagent.',
+			2,
+		);
+		assert.match(initial.responseText.trim(), /PARENT_INITIAL_DONE$/);
+		assertParentToolNames(['task', 'read_agent']);
+		const subagentChat = subagentChatFromReceived(parentChat);
+		assert.ok(subagentChat, 'the task tool should expose the retained subagent chat');
+		assert.ok(context.client.receivedNotifications(n => isActionNotification(n, 'session/chatAdded')).some(notification => {
+			const envelope = getActionEnvelope(notification);
+			return envelope.channel === sessionUri
+				&& envelope.action.type === ActionType.SessionChatAdded
+				&& envelope.action.summary.resource.toString() === subagentChat;
+		}), 'the retained subagent chat should be added to the session catalog');
+		const initialChildSubscription = await context.client.call<SubscribeResult>('subscribe', { channel: subagentChat });
+		const initialChild = initialChildSubscription.snapshot?.state as ChatState | undefined;
+		let childCompletionObserved = isCompletedChild(initialChild, 1);
+
+		async function readCompletedChild(expectedTurnCount: number): Promise<ChatState> {
+			if (!childCompletionObserved) {
+				await context.client.waitForNotification(n => {
+					if (!isActionNotification(n, 'chat/turnComplete')) {
+						return false;
+					}
+					return getActionEnvelope(n).channel === subagentChat;
+				}, 5_000);
+			}
+			childCompletionObserved = false;
+			const snapshot = await context.client.call<SubscribeResult>('subscribe', { channel: subagentChat });
+			const child = snapshot.snapshot?.state as ChatState | undefined;
+			assert.ok(child);
+			assert.deepStrictEqual({
+				active: child.activeTurn !== undefined,
+				states: child.turns.map(turn => turn.state),
+			}, {
+				active: false,
+				states: Array<TurnState>(expectedTurnCount).fill(TurnState.Complete),
+			});
+			return child;
+		}
+
+		const states: Array<{ responses: string[]; states: TurnState[]; active: boolean }> = [];
+		const recordChildState = (child: ChatState) => {
+			states.push({
+				responses: child.turns.map(turn => markdownText({ turns: [turn] }).trim()),
+				states: child.turns.map(turn => turn.state),
+				active: child.activeTurn !== undefined,
+			});
+		};
+		recordChildState(await readCompletedChild(1));
+
+		for (const [index, childResponse, parentResponse] of [
+			[1, 'CHILD_FOLLOWUP_ONE_DONE', 'PARENT_FOLLOWUP_ONE_DONE'],
+			[2, 'CHILD_FOLLOWUP_TWO_DONE', 'PARENT_FOLLOWUP_TWO_DONE'],
+		] as const) {
+			context.client.beginAhpSnapshotRound();
+			const result = await driveTurnToCompletion(
+				context.client,
+				sessionUri,
+				`turn-retained-followup-${index}`,
+				`Use write_agent exactly once to send the same retained subagent this message: `
+				+ `"Reply exactly ${childResponse} and do not use tools." `
+				+ `Wait for its completion notification, call read_agent with wait true, then reply exactly "${parentResponse}". Do not start or stop a subagent.`,
+				2 + index,
+			);
+			assert.match(result.responseText.trim(), new RegExp(`${parentResponse}$`));
+			assertParentToolNames(['write_agent', 'read_agent']);
+			recordChildState(await readCompletedChild(index + 1));
+		}
+
+		assert.deepStrictEqual(states, [
+			{
+				responses: ['CHILD_INITIAL_DONE'],
+				states: [TurnState.Complete],
+				active: false,
+			},
+			{
+				responses: ['CHILD_INITIAL_DONE', 'CHILD_FOLLOWUP_ONE_DONE'],
+				states: [TurnState.Complete, TurnState.Complete],
+				active: false,
+			},
+			{
+				responses: ['CHILD_INITIAL_DONE', 'CHILD_FOLLOWUP_ONE_DONE', 'CHILD_FOLLOWUP_TWO_DONE'],
+				states: [TurnState.Complete, TurnState.Complete, TurnState.Complete],
+				active: false,
+			},
+		]);
+		await assertRecordedAhpSnapshot(this.test!, context.client, {
+			...behaviorSnapshot,
+			ignoredActionTypes: [ActionType.SessionChatAdded, ActionType.ChatToolCallStart],
+			orderIndependentActionTypes: [ActionType.ChatTurnComplete],
+		});
+	});
+
 	(config.supportsSubagents ? test : test.skip)('subagent tool calls are routed to the subagent session, not flat in the parent', async function () {
 		this.timeout(180_000);
 
@@ -76,6 +468,7 @@ export function defineSubagentTests(context: IAgentHostE2ETestContext): void {
 
 		dispatchTurn(context.client, sessionUri, 'turn-sa',
 			`Use the \`${config.subagentToolNames[0]}\` tool to spawn a subagent to list the files in the current working directory. ` +
+			stableSubagentModelInstruction +
 			'The subagent should call a single read-only file-listing tool (e.g. `Glob` or `view`) to enumerate the directory; do not run a shell command. ' +
 			'Do not enumerate the directory yourself — delegate to the subagent.',
 			1);
@@ -135,8 +528,7 @@ export function defineSubagentTests(context: IAgentHostE2ETestContext): void {
 			`Parent tool calls: ${JSON.stringify(parentStarts.map(a => a.toolName))}`);
 	});
 
-	// Windows-skipped for providers with on-disk subagent replay (see `subagentReplayUnstableOnWindows`).
-	((isWindows && config.subagentReplayUnstableOnWindows) ? test.skip : (config.supportsSubagents ? test : test.skip))('reopening a session keeps sub-agent messages out of the parent transcript (replay path)', async function () {
+	(config.supportsSubagents ? test : test.skip)('reopening a session keeps sub-agent messages out of the parent transcript (replay path)', async function () {
 		this.timeout(180_000);
 
 		const tempDir = mkdtempSync(`${tmpdir()}/ahp-subagent-replay-`);
@@ -193,8 +585,9 @@ export function defineSubagentTests(context: IAgentHostE2ETestContext): void {
 
 		dispatchTurn(context.client, sessionUri, 'turn-sa-replay',
 			`Use the \`${config.subagentToolNames[0]}\` tool to spawn a subagent to list the files in the current working directory. ` +
+			stableSubagentModelInstruction +
 			`Instruct the subagent to begin its response with this sentence on its own line: ${sentinel}. ` +
-			'Then the subagent should list the files. ' +
+			stableSubagentFileListingInstruction +
 			`After the subagent completes, you, the main agent, must reply exactly "${parentResponse}" and must not repeat that sentence.`,
 			1);
 
@@ -228,12 +621,6 @@ export function defineSubagentTests(context: IAgentHostE2ETestContext): void {
 
 		const assistantText = (turns: ISessionWithDefaultChat['turns']): string =>
 			turns.map(t => t.responseParts.map(p => p.kind === ResponsePartKind.Markdown ? p.content : '').join('')).join('\n');
-
-		const responsePartIds = (turns: ISessionWithDefaultChat['turns']): string[] =>
-			turns.flatMap(turn => turn.responseParts.flatMap(part => {
-				const id = Reflect.get(part, 'id');
-				return typeof id === 'string' ? [id] : [];
-			}));
 
 		const liveParent = await fetchSessionWithChat(context.client, sessionUri);
 		const liveParentResponsePartIds = responsePartIds(liveParent.turns);

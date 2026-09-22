@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { equals } from '../../../../base/common/arrays.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { localize } from '../../../../nls.js';
 import { IActionWidgetService } from '../../../../platform/actionWidget/browser/actionWidget.js';
@@ -12,8 +13,11 @@ import { IRemoteAgentHostService } from '../../../../platform/agentHost/common/r
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
-import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
+import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
+import { IDialogService, IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
+import { IFileService } from '../../../../platform/files/common/files.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
+import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
@@ -62,6 +66,10 @@ export class WebWorkspacePicker extends WorkspacePicker {
 		@ITelemetryService telemetryService: ITelemetryService,
 		@INotificationService notificationService: INotificationService,
 		@IHoverService hoverService: IHoverService,
+		@IKeybindingService keybindingService: IKeybindingService,
+		@IContextMenuService contextMenuService: IContextMenuService,
+		@IFileService fileService: IFileService,
+		@IDialogService dialogService: IDialogService,
 		@IAgentHostFilterService private readonly _agentHostFilterService: IAgentHostFilterService,
 		@IWorkbenchLayoutService private readonly _layoutService: IWorkbenchLayoutService,
 	) {
@@ -84,12 +92,26 @@ export class WebWorkspacePicker extends WorkspacePicker {
 			telemetryService,
 			notificationService,
 			hoverService,
+			keybindingService,
+			contextMenuService,
+			fileService,
+			dialogService,
 		);
 
 		// When the scoped host changes, if the current selection no longer
 		// belongs to the selected host, reset it: prefer the most recent
 		// workspace for the new host, otherwise clear the selection.
-		this._register(this._agentHostFilterService.onDidChange(() => this._onScopedHostChanged()));
+		let scopedHost = this._agentHostFilterService.selectedHost;
+		this._register(this._agentHostFilterService.onDidChange(() => {
+			const nextHost = this._agentHostFilterService.selectedHost;
+			// Connection status updates must not reset the workspace and steal
+			// focus from an open host picker through onDidSelectWorkspace.
+			if (nextHost?.id === scopedHost?.id && equals(nextHost?.providerIds ?? [], scopedHost?.providerIds ?? [])) {
+				return;
+			}
+			scopedHost = nextHost;
+			this._onScopedHostChanged();
+		}));
 	}
 
 	protected override _showTabs(): boolean {
@@ -119,6 +141,7 @@ export class WebWorkspacePicker extends WorkspacePicker {
 			items,
 			item => this._dispatchPickerItem(item),
 			this._getAllBrowseActions(),
+			this._useConsolidatedRemoteWorkspaces() && attachesContext !== true,
 		);
 	}
 
@@ -146,9 +169,15 @@ export class WebWorkspacePicker extends WorkspacePicker {
 		}
 
 		// 1. Recent workspaces across every provider the entry scopes to.
-		const isGitHubCategory = this._directPickerGroup === SESSION_WORKSPACE_GROUP_GITHUB;
+		const isConsolidatedWorkspacePicker = this._useConsolidatedRemoteWorkspaces()
+			&& this._directPickerGroup === undefined
+			&& this._directPickerAttachesContext !== true;
+		const includeGitHub = this._directPickerGroup === SESSION_WORKSPACE_GROUP_GITHUB || isConsolidatedWorkspacePicker;
+		const gitHubGroupAction = isConsolidatedWorkspacePicker
+			? this.options.getWorkspaceGroupAction?.(SESSION_WORKSPACE_GROUP_GITHUB)
+			: undefined;
 		const recents = this._getRecentWorkspaces().filter(w =>
-			(scopedProviderIds.has(w.providerId) || isGitHubCategory)
+			(scopedProviderIds.has(w.providerId) || (includeGitHub && w.workspace.group === SESSION_WORKSPACE_GROUP_GITHUB))
 			&& this._directPickerAttachesContext !== true
 			&& (this._directPickerGroup === undefined || w.workspace.group === this._directPickerGroup)
 		);
@@ -175,10 +204,20 @@ export class WebWorkspacePicker extends WorkspacePicker {
 		const allBrowseActions = this._getAllBrowseActions();
 		const browseActions = allBrowseActions
 			.map((action, index) => ({ action, index }))
-			.filter(({ action }) => (!scoped.grouped && scopedProviderIds.has(action.providerId)) || this._directPickerGroup === SESSION_WORKSPACE_GROUP_GITHUB);
-		if (browseActions.length > 0) {
+			.filter(({ action }) => (!scoped.grouped && scopedProviderIds.has(action.providerId))
+				|| (includeGitHub && action.group === SESSION_WORKSPACE_GROUP_GITHUB));
+		if (gitHubGroupAction || browseActions.length > 0) {
 			if (items.length > 0) {
 				items.push({ kind: ActionListItemKind.Separator, label: '' });
+			}
+			if (gitHubGroupAction) {
+				items.push({
+					kind: ActionListItemKind.Action,
+					label: gitHubGroupAction.label,
+					description: gitHubGroupAction.description,
+					group: { title: '', icon: gitHubGroupAction.icon },
+					item: { commandId: gitHubGroupAction.commandId },
+				});
 			}
 			for (const { action, index } of browseActions) {
 				items.push({
@@ -192,7 +231,7 @@ export class WebWorkspacePicker extends WorkspacePicker {
 			}
 		}
 
-		if (items.length === 0 && this._directPickerGroup === SESSION_WORKSPACE_GROUP_GITHUB) {
+		if (items.length === 0 && includeGitHub) {
 			items.push({
 				kind: ActionListItemKind.Action,
 				label: localize('scopedWorkspacePicker.githubLoading', "GitHub repositories are still loading"),
