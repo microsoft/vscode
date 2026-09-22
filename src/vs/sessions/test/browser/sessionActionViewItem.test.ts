@@ -65,6 +65,7 @@ suite('SessionActionViewItem', () => {
 	test('resolves configured archive animation when clicked', async () => {
 		const configurationService = new TestConfigurationService();
 		const options = getSessionArchiveActionViewItemOptions({ icon: true }, configurationService);
+		await configurationService.setUserConfiguration(SESSIONS_MARK_AS_DONE_CONFETTI_SETTING, false);
 		const disabled = options.onClickAnimation;
 		await configurationService.setUserConfiguration(SESSIONS_MARK_AS_DONE_CONFETTI_SETTING, true);
 		const enabled = options.onClickAnimation;

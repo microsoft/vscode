@@ -176,6 +176,15 @@ suite('ChatSessionArchiveNudge', () => {
 		assert.ok(animation);
 	});
 
+	test('does not show confetti when disabled', async () => {
+		const { archive, configurationService } = createWidget(undefined, undefined, ChatSessionArchiveActionWording.MarkAsDone);
+		await configurationService.setUserConfiguration(SESSIONS_MARK_AS_DONE_CONFETTI_SETTING, false);
+
+		archive.click();
+
+		assert.strictEqual(document.body.querySelector('.animation-overlay'), null);
+	});
+
 	test('does not show confetti when reduced motion is enabled', async () => {
 		const { archive, configurationService } = createWidget(undefined, undefined, ChatSessionArchiveActionWording.MarkAsDone, true);
 		await configurationService.setUserConfiguration(SESSIONS_MARK_AS_DONE_CONFETTI_SETTING, true);
