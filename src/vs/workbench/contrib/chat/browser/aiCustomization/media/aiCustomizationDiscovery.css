@@ -82,8 +82,16 @@
 	width: auto;
 }
 
+.customization-discovery-search-row {
+	display: flex;
+	align-items: stretch;
+	gap: var(--vscode-spacing-size80);
+}
+
 .customization-discovery-search {
 	position: relative;
+	flex: 1;
+	min-width: 0;
 	height: var(--vscode-spacing-size240);
 }
 
@@ -100,6 +108,25 @@
 	display: flex;
 	align-items: center;
 	height: 100%;
+}
+
+.customization-discovery-source {
+	flex: none;
+	min-width: 0;
+}
+
+.customization-discovery-source > .monaco-button {
+	width: auto;
+	max-width: 220px;
+	height: var(--vscode-spacing-size240);
+	min-height: var(--vscode-spacing-size240);
+	padding: var(--vscode-spacing-size20) var(--vscode-spacing-size80);
+	white-space: nowrap;
+}
+
+.customization-discovery-source > .monaco-button .monaco-button-label {
+	overflow: hidden;
+	text-overflow: ellipsis;
 }
 
 .customization-discovery-filters {

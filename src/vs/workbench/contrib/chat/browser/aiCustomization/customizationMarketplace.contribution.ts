@@ -48,6 +48,7 @@ class CustomizationDiscoveryAccessibleView implements IAccessibleViewImplementat
 				localize('customizationDiscovery.help.overview', "Discover customizations searches installed agents, skills, instructions, prompts, hooks, MCP servers, and plugins, and can browse available marketplace items."),
 				localize('customizationDiscovery.help.search', "Type words or use @installed, @type:skill, @type:mcp, and @type:plugin. Quick filters update the same query and can be combined."),
 				localize('customizationDiscovery.help.browse', "Clear the search to browse. Show All on a section applies its type filter and moves to search results."),
+				localize('customizationDiscovery.help.sources', "Use the source picker to search all available marketplace feeds or one feed. Configure Marketplaces opens the related settings."),
 				localize('customizationDiscovery.help.navigation', "Use Tab and Shift+Tab between controls. In search results, use the arrow keys, Home, and End to navigate Installed and Available groups. Press Enter to open an installed item."),
 				localize('customizationDiscovery.help.install', "Review an available item's source, then choose Install. VS Code continues to apply destination, trust, policy, and compatibility checks."),
 				localize('customizationDiscovery.help.links', "Available customization names open their external resource so you can review it before installing."),

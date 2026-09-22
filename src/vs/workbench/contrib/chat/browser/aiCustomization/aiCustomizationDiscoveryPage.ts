@@ -22,7 +22,8 @@ import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
-import { CustomizationMarketplaceMediaType, getCustomizationMarketplaceResourceKey, ICustomizationMarketplaceCursor, ICustomizationMarketplaceResource, ICustomizationMarketplaceService } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { CustomizationMarketplaceMediaType, getCustomizationMarketplaceResourceKey, ICustomizationMarketplaceCursor, ICustomizationMarketplaceResource, ICustomizationMarketplaceService, ICustomizationMarketplaceSourceDescriptor } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
@@ -103,6 +104,11 @@ type DiscoveryListEntry = IInstalledDiscoveryItem | ICatalogDiscoveryItem | IDis
 interface ICatalogPageState {
 	readonly items: readonly ICustomizationMarketplaceResource[];
 	readonly nextCursor?: ICustomizationMarketplaceCursor;
+}
+
+interface IBrowseCatalogCache {
+	readonly items: readonly ICustomizationMarketplaceResource[];
+	readonly pages: ReadonlyMap<string, ICatalogPageState>;
 }
 
 interface IDiscoveryRowTemplate {
@@ -379,6 +385,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 	private readonly searchWidget: SuggestEnabledInput;
 	private readonly searchActionsContainer: HTMLElement;
 	private readonly searchToolbar: WorkbenchToolBar;
+	private readonly sourceButton: Button;
 	private readonly quickFilters = new Map<'installed' | CustomizationDiscoveryType, Button>();
 	private readonly browseScrollable: DomScrollableElement;
 	private readonly browseContent: HTMLElement;
@@ -391,15 +398,19 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 	private readonly loadMoreButton: Button;
 	private readonly browseDisposables = this._register(new DisposableStore());
 	private readonly searchActionDisposables = this._register(new DisposableStore());
+	private readonly sourceHover = this._register(new MutableDisposable());
 	private readonly request = this._register(new MutableDisposable<CancellationTokenSource>());
 	private readonly searchScheduler = this._register(new RunOnceScheduler(() => void this.loadCatalog(false), searchDelay));
 	private readonly catalogPages = new Map<string, ICatalogPageState>();
+	private readonly browseCatalogCache = new Map<string, IBrowseCatalogCache>();
 	private readonly installErrors = new Map<string, string>();
 	private readonly pendingInstalls = new Set<string>();
 	private query = CustomizationDiscoveryQuery.parse('');
 	private installedItems: readonly IInstalledDiscoveryItem[] = [];
 	private providerPlugins: readonly IInstalledDiscoveryItem[] = [];
 	private catalogItems: readonly ICustomizationMarketplaceResource[] = [];
+	private marketplaceSources: readonly ICustomizationMarketplaceSourceDescriptor[] = [];
+	private selectedSourceId: string | undefined;
 	private visibleSectionIds = new Set<AICustomizationManagementSection>();
 	private visible = false;
 	private loaded = false;
@@ -421,6 +432,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 		@IOpenerService private readonly openerService: IOpenerService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@ICommandService private readonly commandService: ICommandService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@IChatEntitlementService private readonly entitlementService: IChatEntitlementService,
 		@ICustomizationMarketplaceService private readonly marketplaceService: ICustomizationMarketplaceService,
@@ -453,7 +465,8 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 		reviewMigrationsButton.label = localize('customizationDiscovery.reviewMigrations', "Review");
 		this._register(reviewMigrationsButton.onDidClick(() => this.callbacks.reviewMigrations()));
 
-		const searchContainer = DOM.append(header, $('.customization-discovery-search'));
+		const searchRow = DOM.append(header, $('.customization-discovery-search-row'));
+		const searchContainer = DOM.append(searchRow, $('.customization-discovery-search'));
 		const placeholder = localize('customizationDiscovery.searchPlaceholder', "Search customizations");
 		this.searchWidget = this._register(this.instantiationService.createInstance(
 			SuggestEnabledInput,
@@ -477,6 +490,10 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 		this._register(this.searchWidget.onInputDidChange(() => this.onQueryChanged()));
 		this.updateSearchAriaLabel();
 		this._register(this.keybindingService.onDidUpdateKeybindings(() => this.updateSearchAriaLabel()));
+		const sourceContainer = DOM.append(searchRow, $('.customization-discovery-source'));
+		this.sourceButton = this._register(new Button(sourceContainer, { ...defaultButtonStyles, secondary: true, small: true, supportIcons: true }));
+		this.updateSourceButton();
+		this._register(this.sourceButton.onDidClick(() => this.showSourceMenu()));
 
 		const filterContainer = DOM.append(header, $('.customization-discovery-filters'));
 		this.createQuickFilter(filterContainer, 'installed', localize('customizationDiscovery.filterInstalled', "Installed"));
@@ -567,6 +584,84 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 
 		this.updateQuickFilters();
 		this.render();
+		void this.loadSources();
+	}
+
+	private async loadSources(): Promise<void> {
+		try {
+			this.marketplaceSources = await (this.marketplaceService.getSources?.() ?? Promise.resolve([]));
+			if (this.selectedSourceId && !this.marketplaceSources.some(source => source.id === this.selectedSourceId)) {
+				this.selectedSourceId = undefined;
+				this.resetCatalogState();
+				if (this.shouldQueryCatalog() && !this.loaded) {
+					void this.loadCatalog(false);
+				}
+			}
+			this.updateSourceButton();
+		} catch (error) {
+			this.notificationService.error(localize('customizationDiscovery.sourcesError', "Could not load customization marketplace sources. {0}", getErrorMessage(error)));
+		}
+	}
+
+	private updateSourceButton(): void {
+		const selectedSource = this.marketplaceSources.find(source => source.id === this.selectedSourceId);
+		const label = selectedSource?.label ?? localize('customizationDiscovery.allSources', "All sources");
+		this.sourceButton.label = localize('customizationDiscovery.sourceButton', "{0} {1}", label, '$(chevron-down)');
+		this.sourceButton.setAriaLabel(localize('customizationDiscovery.sourceButtonAriaLabel', "Customization source: {0}", label));
+		this.sourceButton.element.removeAttribute('title');
+		this.sourceHover.value = this.hoverService.setupDelayedHover(this.sourceButton.element, { content: label });
+	}
+
+	private showSourceMenu(): void {
+		const disposables = new DisposableStore();
+		const allSources = disposables.add(new Action(
+			'customizationDiscovery.source.all',
+			localize('customizationDiscovery.allSources', "All sources"),
+			undefined,
+			true,
+			() => this.selectSource(undefined),
+		));
+		allSources.checked = this.selectedSourceId === undefined;
+		const sourceActions = this.marketplaceSources.map(source => {
+			const action = disposables.add(new Action(
+				`customizationDiscovery.source.${source.id}`,
+				source.label,
+				undefined,
+				true,
+				() => this.selectSource(source.id),
+			));
+			action.checked = source.id === this.selectedSourceId;
+			return action;
+		});
+		const configure = disposables.add(new Action(
+			'customizationDiscovery.source.configure',
+			localize('customizationDiscovery.configureMarketplaces', "Configure Marketplaces"),
+			ThemeIcon.asClassName(Codicon.settingsGear),
+			true,
+			() => this.commandService.executeCommand('workbench.action.openSettings', 'marketplace'),
+		));
+		this.contextMenuService.showContextMenu({
+			getAnchor: () => this.sourceButton.element,
+			getActions: () => [allSources, ...sourceActions, new Separator(), configure],
+			onHide: () => disposables.dispose(),
+		});
+	}
+
+	private selectSource(sourceId: string | undefined): void {
+		if (this.selectedSourceId === sourceId) {
+			return;
+		}
+		this.selectedSourceId = sourceId;
+		this.updateSourceButton();
+		this.cancelCatalogRequest();
+		this.searchScheduler.cancel();
+		this.resetCatalogState();
+		this.resultList.scrollTop = 0;
+		this.lastAnnouncement = undefined;
+		this.render();
+		if (this.shouldQueryCatalog() && !this.loaded) {
+			void this.loadCatalog(false);
+		}
 	}
 
 	private createAddButton(parent: HTMLElement): void {
@@ -626,9 +721,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 			return;
 		}
 		this.query = next;
-		this.catalogPages.clear();
-		this.catalogItems = [];
-		this.loaded = false;
+		this.resetCatalogState();
 		this.errorMessage = undefined;
 		this.cancelCatalogRequest();
 		this.resultList.scrollTop = 0;
@@ -636,16 +729,14 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 		this.updateQuickFilters();
 		this.render();
 		this.searchScheduler.cancel();
-		if (this.shouldQueryCatalog()) {
+		if (this.shouldQueryCatalog() && !this.loaded) {
 			this.searchScheduler.schedule();
 		}
 	}
 
 	private setQuery(query: CustomizationDiscoveryQuery): void {
 		this.query = query;
-		this.catalogPages.clear();
-		this.catalogItems = [];
-		this.loaded = false;
+		this.resetCatalogState();
 		this.errorMessage = undefined;
 		this.cancelCatalogRequest();
 		this.searchScheduler.cancel();
@@ -654,10 +745,25 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 		this.searchWidget.setValue(query.toString());
 		this.updateQuickFilters();
 		this.render();
-		if (this.shouldQueryCatalog()) {
+		if (this.shouldQueryCatalog() && !this.loaded) {
 			this.searchScheduler.schedule(0);
 		}
 		this.searchWidget.focus();
+	}
+
+	private resetCatalogState(): void {
+		this.catalogPages.clear();
+		const cached = this.query.isEmpty() ? this.browseCatalogCache.get(this.selectedSourceId ?? '') : undefined;
+		if (cached) {
+			for (const [key, page] of cached.pages) {
+				this.catalogPages.set(key, page);
+			}
+			this.catalogItems = cached.items;
+			this.loaded = true;
+		} else {
+			this.catalogItems = [];
+			this.loaded = false;
+		}
 	}
 
 	private updateQuickFilters(): void {
@@ -739,6 +845,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 		if (!this.isCatalogEnabled()) {
 			this.cancelCatalogRequest();
 			this.catalogPages.clear();
+			this.browseCatalogCache.clear();
 			this.catalogItems = [];
 			this.loaded = false;
 			this.errorMessage = undefined;
@@ -914,6 +1021,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 				const page = await this.marketplaceService.query({
 					query: this.query.text || undefined,
 					mediaType,
+					sourceIds: this.selectedSourceId ? [this.selectedSourceId] : undefined,
 					pageSize: catalogPageSize,
 					cursor: append ? previous?.nextCursor : undefined,
 				}, request.token);
@@ -940,6 +1048,12 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 				return true;
 			});
 			this.loaded = true;
+			if (this.query.isEmpty()) {
+				this.browseCatalogCache.set(this.selectedSourceId ?? '', {
+					items: this.catalogItems,
+					pages: new Map(this.catalogPages),
+				});
+			}
 			this.loading = false;
 			this.render();
 		} catch (error) {
@@ -1314,6 +1428,9 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 			this.query.isEmpty()
 				? localize('customizationDiscovery.accessibleBrowse', "Browse mode.")
 				: localize('customizationDiscovery.accessibleSearch', "Search: {0}", this.query.toString()),
+			this.selectedSourceId
+				? localize('customizationDiscovery.accessibleSource', "Source: {0}", this.marketplaceSources.find(source => source.id === this.selectedSourceId)?.label ?? this.selectedSourceId)
+				: localize('customizationDiscovery.accessibleAllSources', "Source: All sources"),
 			this.loading ? localize('customizationDiscovery.loading', "Loading customizations...") : undefined,
 			this.errorMessage,
 			installed.length ? localize('customizationDiscovery.installedGroup', "Installed") : undefined,

@@ -75,6 +75,17 @@ suite('CustomizationMarketplaceIpc', () => {
 		assert.strictEqual(CUSTOMIZATION_MARKETPLACE_CHANNEL_NAME, 'customizationMarketplace');
 	});
 
+	test('forwards marketplace source descriptors', async () => {
+		const sources = [{ id: 'first', label: 'Marketplace 1' }, { id: 'second', label: 'Marketplace 2' }];
+		const client = createClient({
+			_serviceBrand: undefined,
+			getSources: async () => sources,
+			query: async () => ({ items: [] }),
+		});
+
+		assert.deepStrictEqual(await client.getSources(), sources);
+	});
+
 	test('forwards browse and search options and cancellation tokens', async () => {
 		const source = disposables.add(new CancellationTokenSource());
 		const calls: { options: ICustomizationMarketplaceQuery; token: CancellationToken }[] = [];
@@ -91,7 +102,7 @@ suite('CustomizationMarketplaceIpc', () => {
 				cursor: { query: '', mediaType: CustomizationMarketplaceMediaType.McpServer, pageSize: 24, sources: [{ id: 'testSource', cursor: 'browse-page-2' }] },
 			},
 			{
-				query: 'postgres', mediaType: CustomizationMarketplaceMediaType.Skill, pageSize: 2,
+				query: 'postgres', mediaType: CustomizationMarketplaceMediaType.Skill, sourceIds: ['testSource'], pageSize: 2,
 				cursor: { query: 'postgres', mediaType: CustomizationMarketplaceMediaType.Skill, pageSize: 2, sources: [{ id: 'testSource', cursor: 'opaque+/=&token' }] },
 			},
 		];

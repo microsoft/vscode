@@ -48,6 +48,34 @@ suite('CustomizationMarketplaceService', () => {
 		});
 	});
 
+	test('describes and filters registered sources', async () => {
+		const calls: string[] = [];
+		const sources: ICustomizationMarketplaceSource[] = [
+			{ id: 'first', label: 'Marketplace 1', query: async () => { calls.push('first'); return { items: [entry] }; } },
+			{ id: 'second', label: 'Marketplace 2', query: async () => { calls.push('second'); return { items: [entry] }; } },
+		];
+		const service = new CustomizationMarketplaceService(sources);
+		const sourceDescriptors = await service.getSources();
+		const page = await service.query({ sourceIds: ['second'] }, CancellationToken.None);
+		await assert.rejects(service.query({ sourceIds: [] }, CancellationToken.None), /query is invalid/);
+		await assert.rejects(service.query({ sourceIds: ['missing'] }, CancellationToken.None), /query is invalid/);
+
+		assert.deepStrictEqual({
+			sourceDescriptors,
+			calls,
+			resultSources: page.items.map(item => item.sourceId),
+			cursorSources: page.nextCursor?.sources.map(source => source.id),
+		}, {
+			sourceDescriptors: [
+				{ id: 'first', label: 'Marketplace 1' },
+				{ id: 'second', label: 'Marketplace 2' },
+			],
+			calls: ['second'],
+			resultSources: ['second'],
+			cursorSources: undefined,
+		});
+	});
+
 	test('continues each source with its own opaque cursor and retains exhausted source totals', async () => {
 		const calls: { source: string; cursor: string | undefined }[] = [];
 		const source = (id: string, hasMore: boolean): ICustomizationMarketplaceSource => ({
@@ -120,7 +148,7 @@ suite('CustomizationMarketplaceService', () => {
 		const service = new CustomizationMarketplaceService(sources);
 		const options = { query: 'review', mediaType: CustomizationMarketplaceMediaType.Skill, pageSize: 24 };
 		const page = await service.query(options, CancellationToken.None);
-		for (const change of [{ query: '' }, { query: 'another' }, { mediaType: CustomizationMarketplaceMediaType.McpServer }, { pageSize: 12 }]) {
+		for (const change of [{ query: '' }, { query: 'another' }, { mediaType: CustomizationMarketplaceMediaType.McpServer }, { pageSize: 12 }, { sourceIds: ['first'] }]) {
 			await assert.rejects(service.query({ ...options, ...change, cursor: page.nextCursor }, CancellationToken.None), /Start a new search/);
 		}
 		for (const changedSources of [[...sources].reverse(), sources.slice(1), [...sources, { id: 'third', query: sources[0].query }]]) {

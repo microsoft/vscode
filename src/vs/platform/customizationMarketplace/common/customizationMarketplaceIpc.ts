@@ -10,7 +10,7 @@ import { Lazy } from '../../../base/common/lazy.js';
 import { revive } from '../../../base/common/marshalling.js';
 import { IChannel, IServerChannel } from '../../../base/parts/ipc/common/ipc.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
-import { CustomizationMarketplaceConfiguration, ICustomizationMarketplacePage, ICustomizationMarketplaceQuery, ICustomizationMarketplaceService } from './customizationMarketplaceService.js';
+import { CustomizationMarketplaceConfiguration, ICustomizationMarketplacePage, ICustomizationMarketplaceQuery, ICustomizationMarketplaceService, ICustomizationMarketplaceSourceDescriptor } from './customizationMarketplaceService.js';
 
 export const CUSTOMIZATION_MARKETPLACE_CHANNEL_NAME = 'customizationMarketplace';
 
@@ -27,6 +27,8 @@ export class CustomizationMarketplaceChannel implements IServerChannel {
 
 	call<T>(_context: unknown, command: string, query?: ICustomizationMarketplaceQuery, token: CancellationToken = CancellationToken.None): Promise<T> {
 		switch (command) {
+			case 'getSources':
+				return (this.service.value.getSources?.() ?? Promise.resolve([])) as Promise<T>;
 			case 'query':
 				if (token.isCancellationRequested) {
 					return Promise.reject(new CancellationError());
@@ -44,6 +46,10 @@ export class CustomizationMarketplaceChannelClient implements ICustomizationMark
 		private readonly channel: IChannel,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) { }
+
+	async getSources(): Promise<readonly ICustomizationMarketplaceSourceDescriptor[]> {
+		return this.channel.call<readonly ICustomizationMarketplaceSourceDescriptor[]>('getSources');
+	}
 
 	async query(options: ICustomizationMarketplaceQuery, token: CancellationToken): Promise<ICustomizationMarketplacePage> {
 		if (this.configurationService.getValue<boolean>(CustomizationMarketplaceConfiguration.Enabled) !== true || token.isCancellationRequested) {

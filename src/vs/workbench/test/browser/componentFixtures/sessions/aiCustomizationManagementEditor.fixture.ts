@@ -834,6 +834,7 @@ interface IRenderEditorOptions {
 	readonly customizationMarketplaceState?: 'ready' | 'empty' | 'error' | 'loading' | 'loadingMore';
 	readonly customizationMarketplaceInstallationState?: 'mixed' | 'error';
 	readonly discoveryQuery?: string;
+	readonly clearDiscoveryQuery?: boolean;
 	readonly selectDiscoveryResult?: boolean;
 	readonly customizationSearchQuery?: string;
 	readonly mcpSearchQuery?: string;
@@ -973,6 +974,13 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 				override readonly onDidChangeSentiment = Event.None;
 			}());
 			reg.defineInstance(ICustomizationMarketplaceService, new class extends mock<ICustomizationMarketplaceService>() {
+				override async getSources() {
+					return [
+						{ id: 'testSource', label: 'Marketplace 1' },
+						{ id: 'otherSource', label: 'Marketplace 2' },
+					];
+				}
+
 				override async query(query: ICustomizationMarketplaceQuery): Promise<ICustomizationMarketplacePage> {
 					customizationMarketplaceQueryCount++;
 					assert(customizationMarketplaceEnabled, 'A disabled Marketplace fixture must not query the catalog.');
@@ -995,6 +1003,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 					const text = query.query?.toLowerCase() ?? '';
 					const resources = customizationMarketplaceResources.filter(resource =>
 						(!query.mediaType || resource.mediaType === query.mediaType)
+						&& (!query.sourceIds || query.sourceIds.includes(resource.sourceId))
 						&& (!text || `${resource.displayName} ${resource.description} ${resource.tags.join(' ')}`.toLowerCase().includes(text)));
 					const offset = Number(query.cursor?.sources[0].cursor ?? 0);
 					return {
@@ -1425,6 +1434,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 		assert(ctx.container.querySelector('.customization-discovery') !== null, 'The customization overview must render Discover.');
 		assert(ctx.container.querySelector<HTMLElement>('.customization-discovery-search')?.offsetHeight === 24, 'Discover must use the standard compact search control height.');
 		assert(ctx.container.querySelector('.customization-discovery-search-actions .codicon-filter') !== null, 'Discover must expose Marketplace-style search filters.');
+		assert(ctx.container.querySelector<HTMLElement>('.customization-discovery-source')?.textContent?.includes('All sources') === true, 'Discover must default to all customization sources.');
 	}
 
 	if (options.discoveryQuery) {
@@ -1448,6 +1458,12 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 			assert(customizationMarketplaceQueryCount === 1, 'The Installed filter must not issue another catalog query.');
 			assert(!resultList.textContent?.includes('Available ('), 'The Installed filter must hide the Available group.');
 			assert(ctx.container.querySelector<HTMLElement>('.customization-discovery-footer')?.hidden === true, 'The Installed filter must hide catalog paging.');
+		}
+		if (options.clearDiscoveryQuery) {
+			editor.getWelcomePage()?.setSearchQuery('');
+			await Promise.resolve();
+			assert(resultList.hidden, 'Clearing Discover search must hide the results list.');
+			assert(ctx.container.querySelector('.customization-discovery-section.featured') !== null, 'Clearing Discover search must restore featured items immediately.');
 		}
 	}
 
@@ -2683,6 +2699,16 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
 			discoveryQuery: 'review',
+		}),
+	}),
+
+	DiscoverClearedSearch: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['Clearing the search restores the featured customization cards immediately and the source picker defaults to All sources.'],
+		render: ctx => renderEditor(ctx, {
+			sessionResource: localSessionResource,
+			discoveryQuery: 'review',
+			clearDiscoveryQuery: true,
 		}),
 	}),
 
