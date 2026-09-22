@@ -313,7 +313,9 @@ suite('Managed settings update presentation', () => {
 			requirement: text.includes('Your organization requires Code - Insiders 1.141.0 or later to use AI features.'),
 			keyboard: text.includes('Use Tab or Shift+Tab'),
 			bannerHelp: text.includes('banner'),
-		}, { requirement: true, keyboard: true, bannerHelp: false });
+			blockedOverlay: text.includes('The Agents window is blocked') && text.includes('The overlay explains'),
+			readOnlyChat: text.includes('Chat is read-only'),
+		}, { requirement: true, keyboard: true, bannerHelp: false, blockedOverlay: true, readOnlyChat: false });
 	});
 
 	for (const isSessionsWindow of [false, true]) {
@@ -329,10 +331,43 @@ suite('Managed settings update presentation', () => {
 			const provider = store.add(services.invokeFunction(accessor => help.getProvider(accessor))!);
 			const text = provider.provideContent();
 			assert.deepStrictEqual({
-				updateAction: text.includes('reach the update action'),
+				updateAction: text.includes('The available update action is'),
 				editorWindowAction: text.includes('reach Open Editor Window'),
 				administrator: text.includes('Contact your administrator for an approved update.'),
 			}, { updateAction: false, editorWindowAction: isSessionsWindow, administrator: true });
+		});
+	}
+
+	for (const isSessionsWindow of [false, true]) {
+		test(`help describes the ${isSessionsWindow ? 'Agents overlay' : 'Chat notice'} and only currently available actions`, () => {
+			const { service, setUpdate } = createService(error);
+			const services = store.add(new TestInstantiationService());
+			services.stub(IManagedSettingsUpdateService, service);
+			services.stub(IWorkbenchEnvironmentService, new class extends mock<IWorkbenchEnvironmentService>() {
+				override readonly isSessionsWindow = isSessionsWindow;
+			}());
+			const help = AccessibleViewRegistry.getImplementations().find(implementation => implementation.name === 'managedSettingsUpdate')!;
+			const states = [idle, State.Downloading(update, true, false), State.Uninitialized, State.Disabled(DisablementReason.Policy)];
+			assert.deepStrictEqual(states.map(state => {
+				setUpdate(state);
+				const provider = store.add(services.invokeFunction(accessor => help.getProvider(accessor))!);
+				const text = provider.provideContent();
+				return {
+					overlay: text.includes('The Agents window is blocked'),
+					readOnlyChat: text.includes('Chat is read-only'),
+					availableActions: text.includes('move between available actions'),
+					updateAction: text.includes('The available update action is Check for Updates.'),
+					editorWindow: text.includes('reach Open Editor Window'),
+					banner: text.includes('Focus Banner'),
+				};
+			}), states.map((_, index) => ({
+				overlay: isSessionsWindow,
+				readOnlyChat: !isSessionsWindow,
+				availableActions: true,
+				updateAction: index === 0,
+				editorWindow: isSessionsWindow,
+				banner: !isSessionsWindow,
+			})));
 		});
 	}
 });

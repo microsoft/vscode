@@ -5,7 +5,7 @@
 
 import './media/sessionsPolicyBlocked.css';
 import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { $, addDisposableGenericMouseDownListener, append, EventType, addDisposableListener, getWindow } from '../../../../base/browser/dom.js';
+import { $, addDisposableGenericMouseDownListener, append, EventType, addDisposableListener, getActiveElement, getWindow, isHTMLElement } from '../../../../base/browser/dom.js';
 import { localize } from '../../../../nls.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
 import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
@@ -18,6 +18,10 @@ import { IDefaultAccountService } from '../../../../platform/defaultAccount/comm
 import { IManagedSettingsFreshness, ManagedSettingsFreshnessFailure, ManagedSettingsFreshnessState } from '../../../../platform/policy/common/managedSettingsFreshness.js';
 import { IManagedSettingsUpdateInfo } from '../../../../workbench/services/policies/common/managedSettingsUpdate.js';
 import { mainWindow } from '../../../../base/browser/window.js';
+import { DomScrollableElement } from '../../../../base/browser/ui/scrollbar/scrollableElement.js';
+import { ScrollbarVisibility } from '../../../../base/common/scrollable.js';
+import { ISessionsPartService } from '../../../services/sessions/browser/sessionsPartService.js';
+import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 
 export const enum SessionsBlockedReason {
 	AgentDisabled = 'agentDisabled',
@@ -43,18 +47,22 @@ export interface ISessionsBlockedOverlayOptions {
 export class SessionsPolicyBlockedOverlay extends Disposable {
 
 	private readonly overlay: HTMLElement;
+	private readonly previouslyFocused: Element | null;
 
 	constructor(
 		container: HTMLElement,
-		options: ISessionsBlockedOverlayOptions,
+		private readonly options: ISessionsBlockedOverlayOptions,
 		@ICommandService private readonly commandService: ICommandService,
 		@IOpenerService private readonly openerService: IOpenerService,
 		@IProductService private readonly productService: IProductService,
 		@IDefaultAccountService private readonly defaultAccountService: IDefaultAccountService,
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
+		@ISessionsPartService private readonly sessionsPartService: ISessionsPartService,
+		@ISessionsService private readonly sessionsService: ISessionsService,
 	) {
 		super();
 
+		this.previouslyFocused = getActiveElement();
 		this.overlay = append(container, $('.sessions-policy-blocked-overlay'));
 		this.overlay.setAttribute('role', options.reason === SessionsBlockedReason.UpdateRequired ? 'region' : 'dialog');
 		if (options.reason !== SessionsBlockedReason.UpdateRequired) {
@@ -68,7 +76,16 @@ export class SessionsPolicyBlockedOverlay extends Disposable {
 		workbenchRoot.classList.add('sessions-policy-blocked');
 		this._register(toDisposable(() => workbenchRoot.classList.remove('sessions-policy-blocked')));
 
-		const card = append(this.overlay, $('.sessions-policy-blocked-card'));
+		const scrollContent = options.reason === SessionsBlockedReason.UpdateRequired ? $('.sessions-policy-blocked-scroll-content') : this.overlay;
+		const scrollable = options.reason === SessionsBlockedReason.UpdateRequired
+			? this._register(new DomScrollableElement(scrollContent, { horizontal: ScrollbarVisibility.Hidden, vertical: ScrollbarVisibility.Auto, useShadows: false }))
+			: undefined;
+		if (scrollable) {
+			const scrollContainer = append(this.overlay, scrollable.getDomNode());
+			scrollContainer.classList.add('sessions-policy-blocked-scrollable');
+			this._register(addDisposableListener(scrollContent, EventType.SCROLL, () => scrollable.setScrollPosition({ scrollTop: scrollContent.scrollTop })));
+		}
+		const card = append(scrollContent, $('.sessions-policy-blocked-card'));
 		if (options.reason === SessionsBlockedReason.UpdateRequired) {
 			this.overlay.classList.add('update-required');
 			const inertParts = new Map<HTMLElement, boolean>();
@@ -86,6 +103,7 @@ export class SessionsPolicyBlockedOverlay extends Disposable {
 						part.inert = true;
 					}
 				}
+				scrollable?.scanDomNode();
 			};
 			layout();
 			this._register(layoutService.onDidLayoutMainContainer(layout));
@@ -126,10 +144,29 @@ export class SessionsPolicyBlockedOverlay extends Disposable {
 				break;
 			case SessionsBlockedReason.UpdateRequired: {
 				const button = this._renderUpdateRequired(card, options.updateInfo!);
+				scrollable?.scanDomNode();
 				button.focus();
 				break;
 			}
 		}
+	}
+
+	override dispose(): void {
+		const restoreFocus = this.options.reason === SessionsBlockedReason.UpdateRequired && this.overlay.contains(getActiveElement());
+		super.dispose();
+		if (!restoreFocus) {
+			return;
+		}
+
+		if (isHTMLElement(this.previouslyFocused) && this.previouslyFocused.isConnected
+			&& this.previouslyFocused !== this.previouslyFocused.ownerDocument.body
+			&& this.previouslyFocused !== this.previouslyFocused.ownerDocument.documentElement) {
+			this.previouslyFocused.focus({ preventScroll: true });
+			if (getActiveElement() === this.previouslyFocused) {
+				return;
+			}
+		}
+		this.sessionsPartService.focusSession(this.sessionsService.activeSession.get());
 	}
 
 	private _renderUpdateRequired(card: HTMLElement, info: IManagedSettingsUpdateInfo): Button {
