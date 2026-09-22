@@ -21,6 +21,7 @@ import { TestConfigurationService } from '../../../../../../../platform/configur
 import { workbenchInstantiationService } from '../../../../../../test/browser/workbenchTestServices.js';
 import { IChatMarkdownAnchorService } from '../../../../browser/widget/chatContentParts/chatMarkdownAnchorService.js';
 import { IChatContentPartRenderContext, InlineTextModelCollection } from '../../../../browser/widget/chatContentParts/chatContentParts.js';
+import { ChatProgressContentPart } from '../../../../browser/widget/chatContentParts/chatProgressContentPart.js';
 import { ChatAutomationConfiguredResultSubPart } from '../../../../browser/widget/chatContentParts/toolInvocationParts/chatAutomationConfiguredResultSubPart.js';
 import { ChatSessionCreatedResultSubPart } from '../../../../browser/widget/chatContentParts/toolInvocationParts/chatSessionCreatedResultSubPart.js';
 import { ChatToolInvocationPart } from '../../../../browser/widget/chatContentParts/toolInvocationParts/chatToolInvocationPart.js';
@@ -110,11 +111,12 @@ suite('ChatToolProgressSubPart', () => {
 		toolId?: string;
 		isComplete?: boolean;
 		invocationMessage?: string | IMarkdownString;
+		originMessage?: string | IMarkdownString;
 	} = {}): IChatToolInvocationSerialized {
 		return {
 			presentation: undefined,
 			toolSpecificData: undefined,
-			originMessage: undefined,
+			originMessage: options.originMessage,
 			invocationMessage: options.invocationMessage ?? 'Running tool...',
 			pastTenseMessage: undefined,
 			resultDetails: undefined,
@@ -131,6 +133,7 @@ suite('ChatToolProgressSubPart', () => {
 		source?: ToolDataSourceType;
 		toolId?: string;
 		invocationMessage?: string | IMarkdownString;
+		originMessage?: string | IMarkdownString;
 		progressMessage?: string;
 	} = {}): IChatToolInvocation {
 		const source = options.source ?? ToolDataSource.Internal;
@@ -138,7 +141,7 @@ suite('ChatToolProgressSubPart', () => {
 		return {
 			presentation: undefined,
 			toolSpecificData: undefined,
-			originMessage: undefined,
+			originMessage: options.originMessage,
 			invocationMessage: options.invocationMessage ?? 'Running tool...',
 			pastTenseMessage: undefined,
 			source,
@@ -153,7 +156,7 @@ suite('ChatToolProgressSubPart', () => {
 			toolSpecificDataKind: observableValue('test', undefined),
 			isAttachedToThinking: false,
 			kind: 'toolInvocation',
-			toJSON: () => createSerializedToolInvocation({ source, toolId, invocationMessage: options.invocationMessage })
+			toJSON: () => createSerializedToolInvocation({ source, toolId, invocationMessage: options.invocationMessage, originMessage: options.originMessage })
 		};
 	}
 
@@ -480,6 +483,69 @@ suite('ChatToolProgressSubPart', () => {
 			renderCount: 2,
 			sessionIdBeforeUpdate: '',
 			sessionIdAfterUpdate: 'terminal-session',
+		});
+	});
+
+	for (const persistentProgress of [false, true]) {
+		test(`renders MCP attribution in running and streaming rows with persistent progress ${persistentProgress ? 'on' : 'off'}`, () => {
+			const originMessage = 'GitHub (MCP Server)';
+			const context = { ...createRenderContext(false), suppressProgressShimmer: persistentProgress };
+			const renderer: IMarkdownRenderer = { render: (markdown, options) => renderMarkdown(markdown, options) };
+			const running = disposables.add(instantiationService.createInstance(
+				ChatToolProgressSubPart,
+				createToolInvocation({ invocationMessage: 'Read issue', originMessage }),
+				context,
+				renderer,
+				new Set<string>(),
+			));
+			const streaming = disposables.add(instantiationService.createInstance(
+				ChatToolStreamingSubPart,
+				{ ...createStreamingToolInvocation('Read issue'), originMessage: new MarkdownString('**GitHub** (MCP Server)') },
+				context,
+				renderer,
+			));
+
+			assert.deepStrictEqual([running, streaming].map(part => ({
+				message: part.domNode.querySelector('.progress-step > p')?.textContent?.replaceAll('\u00a0', ' '),
+				origin: part.domNode.querySelector('.chat-progress-origin')?.textContent?.replaceAll('\u00a0', ' '),
+				originCount: part.domNode.querySelectorAll('.chat-progress-origin').length,
+				originShimmers: !!part.domNode.querySelector('.chat-progress-origin .chat-progress-shimmer-text'),
+			})), [running, streaming].map(() => ({
+				message: 'Read issue',
+				origin: originMessage,
+				originCount: 1,
+				originShimmers: false,
+			})));
+		});
+	}
+
+	test('preserves and escapes the MCP origin when progress messages are updated', () => {
+		const originMessage = 'GitHub **tools** (MCP Server)';
+		const part = disposables.add(instantiationService.createInstance(
+			ChatProgressContentPart,
+			{ content: new MarkdownString('Read issue') },
+			{ render: (markdown, options) => renderMarkdown(markdown, options) },
+			createRenderContext(false),
+			false,
+			true,
+			undefined,
+			createToolInvocation({ originMessage }),
+			false,
+			undefined,
+		));
+		part.updateMessage(new MarkdownString('Reading issue details'));
+		part.updateMessage(new MarkdownString('Read issue details'));
+
+		assert.deepStrictEqual({
+			message: part.domNode.querySelector('.progress-step > p')?.textContent,
+			origin: part.domNode.querySelector('.chat-progress-origin')?.textContent?.replaceAll('\u00a0', ' '),
+			originCount: part.domNode.querySelectorAll('.chat-progress-origin').length,
+			boldCount: part.domNode.querySelectorAll('.chat-progress-origin strong').length,
+		}, {
+			message: 'Read issue details',
+			origin: originMessage,
+			originCount: 1,
+			boldCount: 0,
 		});
 	});
 
