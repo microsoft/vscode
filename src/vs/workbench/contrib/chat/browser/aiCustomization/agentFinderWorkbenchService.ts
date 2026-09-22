@@ -6,6 +6,7 @@
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../../base/common/errors.js';
 import { Lazy } from '../../../../../base/common/lazy.js';
+import { AgentFinderRestProvider } from '../../../../../platform/agentFinder/common/agentFinderRestProvider.js';
 import { AgentFinderService, IAgentFinderPage, IAgentFinderQuery, IAgentFinderService } from '../../../../../platform/agentFinder/common/agentFinderService.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -19,7 +20,10 @@ export class AgentFinderWorkbenchService implements IAgentFinderService {
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
-		this.service = new Lazy(() => instantiationService.createInstance(AgentFinderService));
+		this.service = new Lazy(() => {
+			const provider = instantiationService.createInstance(AgentFinderRestProvider);
+			return new AgentFinderService(provider, provider);
+		});
 	}
 
 	query(options: IAgentFinderQuery, token: CancellationToken): Promise<IAgentFinderPage> {

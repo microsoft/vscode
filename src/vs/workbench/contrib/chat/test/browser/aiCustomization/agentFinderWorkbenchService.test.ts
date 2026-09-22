@@ -9,9 +9,10 @@ import { bufferToStream, VSBuffer } from '../../../../../../base/common/buffer.j
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { isCancellationError } from '../../../../../../base/common/errors.js';
 import { toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { IRequestOptions } from '../../../../../../base/parts/request/common/request.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { AgentFinderService } from '../../../../../../platform/agentFinder/common/agentFinderService.js';
+import { AgentFinderRestProvider } from '../../../../../../platform/agentFinder/common/agentFinderRestProvider.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -25,11 +26,12 @@ suite('AgentFinderWorkbenchService', () => {
 	test('disabled and cancelled queries do not instantiate the catalog client or perform requests', async () => {
 		const configuration = new TestConfigurationService();
 		store.add(configuration.onDidChangeConfigurationEmitter);
-		let requests = 0;
+		const requests: IRequestOptions[] = [];
 		const requestService = new class extends mock<IRequestService>() {
-			override async request() {
-				requests++;
-				return { res: { statusCode: 200, headers: {} }, stream: bufferToStream(VSBuffer.fromString(JSON.stringify({ results: [], total: 0, offset: 0, pageSize: 30 }))) };
+			override async request(options: IRequestOptions) {
+				requests.push(options);
+				const response = options.type === 'POST' ? { results: [] } : { results: [], total: 0, offset: 0, pageSize: 30 };
+				return { res: { statusCode: 200, headers: {} }, stream: bufferToStream(VSBuffer.fromString(JSON.stringify(response))) };
 			}
 		}();
 		const instantiationService = store.add(new TestInstantiationService());
@@ -42,19 +44,21 @@ suite('AgentFinderWorkbenchService', () => {
 		await assert.rejects(service.query({}, CancellationToken.None), isCancellationError);
 		await configuration.setUserConfiguration(ChatConfiguration.AgentFinderEnabled, false);
 		await assert.rejects(service.query({}, CancellationToken.None), isCancellationError);
+		await assert.rejects(service.query({ query: 'review' }, CancellationToken.None), isCancellationError);
 		await configuration.setUserConfiguration(ChatConfiguration.AgentFinderEnabled, true);
 		await assert.rejects(service.query({}, CancellationToken.Cancelled), isCancellationError);
-		const whileDisabled = { creations: create.callCount, requests };
+		await assert.rejects(service.query({ query: 'review' }, CancellationToken.Cancelled), isCancellationError);
+		const whileDisabled = { creations: create.callCount, requests: requests.length };
 		await service.query({}, CancellationToken.None);
-		await service.query({}, CancellationToken.None);
+		await service.query({ query: 'review' }, CancellationToken.None);
 		await configuration.setUserConfiguration(ChatConfiguration.AgentFinderEnabled, false);
 		await assert.rejects(service.query({}, CancellationToken.None), isCancellationError);
 
 		assert.deepStrictEqual({
 			whileDisabled,
-			createdCatalogClient: create.firstCall.args[0] === AgentFinderService,
+			createdCatalogClient: create.firstCall.args[0] === AgentFinderRestProvider,
 			creations: create.callCount,
-			requests,
-		}, { whileDisabled: { creations: 0, requests: 0 }, createdCatalogClient: true, creations: 1, requests: 2 });
+			requests: requests.map(request => request.type),
+		}, { whileDisabled: { creations: 0, requests: 0 }, createdCatalogClient: true, creations: 1, requests: ['GET', 'POST'] });
 	});
 });

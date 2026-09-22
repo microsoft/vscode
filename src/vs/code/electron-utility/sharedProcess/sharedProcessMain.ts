@@ -19,6 +19,7 @@ import { LocalizationsUpdater } from './contrib/localizationsUpdater.js';
 import { LogsDataCleaner } from './contrib/logsDataCleaner.js';
 import { UnusedWorkspaceStorageDataCleaner } from './contrib/storageDataCleaner.js';
 import { AGENT_FINDER_CHANNEL_NAME, AgentFinderChannel } from '../../../platform/agentFinder/common/agentFinderIpc.js';
+import { AgentFinderRestProvider } from '../../../platform/agentFinder/common/agentFinderRestProvider.js';
 import { AgentFinderService } from '../../../platform/agentFinder/common/agentFinderService.js';
 import { IChecksumService } from '../../../platform/checksum/common/checksumService.js';
 import { ChecksumService } from '../../../platform/checksum/node/checksumService.js';
@@ -441,7 +442,10 @@ class SharedProcessMain extends Disposable implements IClientConnectionFilter {
 	private initChannels(accessor: ServicesAccessor): void {
 
 		const instantiationService = accessor.get(IInstantiationService);
-		this.server.registerChannel(AGENT_FINDER_CHANNEL_NAME, new AgentFinderChannel(() => instantiationService.createInstance(AgentFinderService)));
+		this.server.registerChannel(AGENT_FINDER_CHANNEL_NAME, new AgentFinderChannel(() => {
+			const provider = instantiationService.createInstance(AgentFinderRestProvider);
+			return new AgentFinderService(provider, provider);
+		}));
 
 		// Extensions Management
 		const channel = new ExtensionManagementChannel(accessor.get(IExtensionManagementService), () => null);
