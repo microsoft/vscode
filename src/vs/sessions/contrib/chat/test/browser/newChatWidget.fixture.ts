@@ -414,8 +414,7 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 	}
 
 	if (migrationCount > 0) {
-		await (instantiationService.get(IConfigurationService) as TestConfigurationService)
-			.setUserConfiguration(getCustomizationMigrationEnablementSetting(CustomizationMigrationType.PromptFiles), true);
+		await configurationService.setUserConfiguration(getCustomizationMigrationEnablementSetting(CustomizationMigrationType.PromptFiles), true);
 	}
 	const view = disposableStore.add(instantiationService.createInstance(NewChatView, false, {
 		initialAttachments: withAttachedContext ? createFixtureAttachments() : undefined,
