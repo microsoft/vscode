@@ -9,7 +9,7 @@ import { DisposableStore, IDisposable } from '../../../base/common/lifecycle.js'
 import { IChannelClient } from '../../../base/parts/ipc/common/ipc.js';
 import { truncate } from '../../../base/common/strings.js';
 import { IAuthorizationProtectedResourceMetadata } from '../../../base/common/oauth.js';
-import type { IObservable } from '../../../base/common/observable.js';
+import type { IObservable, IReader } from '../../../base/common/observable.js';
 import { isEqual } from '../../../base/common/resources.js';
 import { URI } from '../../../base/common/uri.js';
 import type { IAgentServerToolHost } from './agentServerTools.js';
@@ -1374,6 +1374,9 @@ export interface IAgent {
 
 	/** Optional current authentication requirement for providers that can require re-authentication after startup. */
 	readonly authenticationRequired?: IObservable<Omit<AuthRequiredParams, 'channel'> | undefined>;
+
+	/** Whether model-dependent prerequisites for unattended execution are ready; absent means no additional readiness gate. */
+	isReadyForAutomation?(model: ModelSelection | undefined, reader?: IReader): boolean;
 
 	/** Optional endpoint list when the provider owns probeable network traffic. */
 	getNetworkDiagnosticsEndpoints?(): Promise<readonly IAgentHostNetworkEndpoint[]>;

@@ -22,6 +22,12 @@ export const enum CustomizationMigrationCategoryId {
 	McpServers = 'mcpServers',
 }
 
+export const homepageMigrationCategories = [
+	CustomizationMigrationCategoryId.PromptFiles,
+	CustomizationMigrationCategoryId.UserData,
+	CustomizationMigrationCategoryId.McpServers,
+] as const;
+
 export interface ICustomizationMigrationGroup {
 	readonly key: string;
 	readonly label: string;

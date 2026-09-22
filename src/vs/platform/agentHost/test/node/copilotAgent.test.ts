@@ -3295,6 +3295,25 @@ suite('CopilotAgent', () => {
 		}
 	});
 
+	test('Automation readiness waits for applied credentials and follows revocation', async () => {
+		const agent = createTestAgent(disposables, { copilotClient: new TestCopilotClient([], []) });
+		try {
+			const initial = agent.isReadyForAutomation(undefined);
+			const authentication = agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'automation-token');
+			const whileApplying = agent.isReadyForAutomation(undefined);
+			await authentication;
+			const authenticated = agent.isReadyForAutomation(undefined);
+			await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, '');
+			const revoked = agent.isReadyForAutomation(undefined);
+			await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'replacement-token');
+			assert.deepStrictEqual({ initial, whileApplying, authenticated, revoked, restored: agent.isReadyForAutomation(undefined) }, {
+				initial: false, whileApplying: false, authenticated: true, revoked: false, restored: true,
+			});
+		} finally {
+			await disposeAgent(agent);
+		}
+	});
+
 	test('keeps the requirement raised when a second revocation arrives while tokenless', async () => {
 		const client = new TestCopilotClient([], [{
 			id: 'gpt-4o',
@@ -7317,11 +7336,15 @@ suite('CopilotAgent', () => {
 
 		try {
 			const initiallyRequired = copilotRequired();
+			const initiallyReady = agent.isReadyForAutomation(undefined);
 			configurationService.updateRootConfig({ [AgentHostConfigKey.AllowSignedOutWhenUsable]: true });
 			const requiredWithoutByok = copilotRequired();
 			modelSnapshots.fire([{ vendor: 'gemini', id: 'gemini-2.5-pro', modelIdentifier: 'gemini/Gemini/gemini-2.5-pro' }]);
 			await waitForState(agent.models, models => models.length === 1);
 			const optionalWithByok = copilotRequired();
+			const selectedModel = { id: agent.models.get()[0].id };
+			const readyWithByok = agent.isReadyForAutomation(selectedModel);
+			const copilotStillBlocked = !agent.isReadyForAutomation({ id: 'gpt-4o' });
 			modelSnapshots.fire([]);
 			await waitForState(agent.models, models => models.length === 0);
 			const requiredAfterHide = copilotRequired();
@@ -7334,12 +7357,20 @@ suite('CopilotAgent', () => {
 				optionalWithByok,
 				requiredAfterHide,
 				requiredAfterDisable,
+				initiallyReady,
+				readyWithByok,
+				copilotStillBlocked,
+				readyAfterHide: agent.isReadyForAutomation(selectedModel),
 			}, {
 				initiallyRequired: true,
 				requiredWithoutByok: true,
 				optionalWithByok: false,
 				requiredAfterHide: true,
 				requiredAfterDisable: true,
+				initiallyReady: false,
+				readyWithByok: true,
+				copilotStillBlocked: true,
+				readyAfterHide: false,
 			});
 		} finally {
 			await disposeAgent(agent);
@@ -12871,6 +12902,67 @@ suite('CopilotAgent', () => {
 				await disposeAgent(agent);
 			}
 		});
+
+		for (const selectedTier of ['balance', 'efficiency'] as const) {
+			test(`explicit ${selectedTier} selected during Auto initialization wins after the captured send`, async () => {
+				const sessionDataService = disposables.add(new TestSessionDataService());
+				const client = new TestCopilotClient([], [{ id: 'auto', name: 'Auto' }]);
+				const launchStarted = new DeferredPromise<void>();
+				const launchGate = new DeferredPromise<void>();
+				let initialTier: SessionConfig['capi'];
+				const sentTiers: (string | null | undefined)[] = [];
+				const sdkSession = new class extends MockCopilotSession {
+					override async send(): Promise<string> {
+						sentTiers.push(this.setModelCalls.at(-1)?.[1]?.autoTier ?? initialTier?.autoTier);
+						return '';
+					}
+				}();
+				client.createSession = async config => {
+					initialTier = config.capi;
+					reportManagedSettings(config);
+					launchStarted.complete();
+					await launchGate.p;
+					return sdkSession as unknown as CopilotSession;
+				};
+				const { agent } = createTestAgentContext(disposables, { sessionDataService, copilotClient: client });
+				try {
+					await agent.authenticate('https://api.github.com', 'token');
+					await waitForState(agent.models, models => models.length > 0);
+					const session = AgentSession.uri('copilotcli', `auto-default-race-${selectedTier}`);
+					const chat = defaultChatUri(session);
+					const created = await provisionSession(agent, {
+						session, workingDirectories: [URI.file('/workspace')],
+						model: { id: 'auto', config: { tier: 'intelligence', tierSource: 'managed' } },
+					});
+					const context = exactChatContext(created.session, chat, created.session);
+					const firstSend = agent.chats.sendMessage(chat, 'first', undefined, undefined, undefined, undefined, context);
+					await launchStarted.p;
+					const explicit: ModelSelection = { id: 'auto', config: { tier: selectedTier, tierSource: 'explicit' } };
+					const selection = agent.chats.changeModel(chat, explicit, context);
+					await Promise.resolve();
+					const callsWhileInitializing = sdkSession.setModelCalls.length;
+					launchGate.complete();
+					await Promise.all([firstSend, selection]);
+					await agent.chats.sendMessage(chat, 'next', undefined, undefined, undefined, undefined, context);
+					const database = disposables.add(sessionDataService.openDatabase(session));
+					assert.deepStrictEqual({
+						callsWhileInitializing, initialTier, sentTiers,
+						modelCalls: sdkSession.setModelCalls,
+						stored: JSON.parse(await database.object.getMetadata('copilot.model') ?? 'null'),
+					}, {
+						callsWhileInitializing: 0, initialTier: { autoTier: 'intelligence' },
+						sentTiers: ['intelligence', selectedTier],
+						modelCalls: [['auto', { reasoningEffort: undefined, contextTier: undefined, autoTier: selectedTier }]],
+						stored: explicit,
+					});
+				} finally {
+					if (!launchGate.isSettled) {
+						launchGate.complete();
+					}
+					await disposeAgent(agent);
+				}
+			});
+		}
 
 		test('changeAgent resolves and applies the agent to the targeted chat, and clears it with undefined', async () => {
 			const agent = createTestAgent(disposables);

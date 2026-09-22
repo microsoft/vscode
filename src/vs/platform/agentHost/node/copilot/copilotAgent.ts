@@ -16,7 +16,7 @@ import { Disposable, DisposableMap, DisposableSet, DisposableStore, type IDispos
 import { ResourceMap } from '../../../../base/common/map.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { equals } from '../../../../base/common/objects.js';
-import { autorun, observableValue, observableValueOpts, type IObservable, type ISettableObservable } from '../../../../base/common/observable.js';
+import { autorun, observableValue, observableValueOpts, type IObservable, type IReader, type ISettableObservable } from '../../../../base/common/observable.js';
 import { delimiter, dirname, isAbsolute, join } from '../../../../base/common/path.js';
 import { basename as resourceBasename, isEqual, isEqualOrParent, joinPath as resourceJoinPath, relativePath } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -750,6 +750,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		undefined,
 	);
 	readonly authenticationRequired: IObservable<Omit<AuthRequiredParams, 'channel'> | undefined> = this._authenticationRequired;
+	private readonly _automationAuthenticationReady = observableValue(this, false);
 	/**
 	 * Membership channel for chats the agent spawns itself — sub-agents
 	 * delegated by a tool call (the same fan-out the `subagent_started` /
@@ -1737,6 +1738,20 @@ export class CopilotAgent extends Disposable implements IAgent {
 		};
 	}
 
+	isReadyForAutomation(model: ModelSelection | undefined, reader?: IReader): boolean {
+		const authenticated = this._automationAuthenticationReady.read(reader) && this._authenticationRequired.read(reader) === undefined;
+		if (authenticated) {
+			return true;
+		}
+		const models = this._models.read(reader);
+		const allowSignedOut = this._configurationService.getRootValue(agentHostCustomizationConfigSchema, AgentHostConfigKey.AllowSignedOutWhenUsable) === true;
+		if (!allowSignedOut || model === undefined) {
+			return false;
+		}
+		const selectedModel = models.find(candidate => candidate.id === model.id);
+		return selectedModel !== undefined && this._byokModels.includes(selectedModel);
+	}
+
 	async authenticate(resource: string, token: string, expiresIn?: number): Promise<boolean> {
 		if (resource === this._gitHubEndpointService.getRepoResource().resource) {
 			return true;
@@ -1745,6 +1760,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			return false;
 		}
 		await this._authenticationSequencer.queue(async () => {
+			this._automationAuthenticationReady.set(false, undefined);
 			// Only a supplied credential rearms the requirement. Clearing it for an
 			// empty token would silence the outstanding requirement when a second
 			// revocation arrives while the agent is already tokenless, because
@@ -1753,6 +1769,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				this._authenticationRequired.set(undefined, undefined);
 			}
 			await this._applyGitHubToken(token || undefined, expiresIn);
+			this._automationAuthenticationReady.set(token.length > 0, undefined);
 		});
 		return true;
 	}
