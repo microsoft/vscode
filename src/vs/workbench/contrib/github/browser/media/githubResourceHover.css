@@ -18,6 +18,15 @@
 	padding: var(--vscode-spacing-size80) var(--vscode-spacing-size120);
 }
 
+:is(.sessions-issue-hover, .sessions-pr-hover) a {
+	color: var(--vscode-textLink-foreground);
+}
+
+:is(.sessions-issue-hover, .sessions-pr-hover) a:hover,
+:is(.sessions-issue-hover, .sessions-pr-hover) a:active {
+	color: var(--vscode-textLink-activeForeground);
+}
+
 :is(.sessions-issue-hover, .sessions-pr-hover) :is(a, button):focus-visible {
 	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
 	outline-offset: var(--vscode-spacing-size20);
