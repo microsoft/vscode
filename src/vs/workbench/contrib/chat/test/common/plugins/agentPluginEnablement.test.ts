@@ -202,6 +202,38 @@ suite('AgentPlugin enablement', () => {
 		]);
 	});
 
+	test('cannot enable an unmanaged duplicate while another duplicate is force-enabled', () => {
+		const required = URI.file('/plugins/required').toString();
+		const unmanaged = URI.file('/plugins/unmanaged').toString();
+		const stored = new Map<string, ContributionEnablementState>([
+			[unmanaged, ContributionEnablementState.DisabledProfile],
+		]);
+		const base: IEnablementModel = {
+			readEnabled: key => stored.get(key) ?? ContributionEnablementState.EnabledProfile,
+			readProfileEnabled: key => (stored.get(key) ?? ContributionEnablementState.EnabledProfile) === ContributionEnablementState.EnabledProfile,
+			setEnabled: (key, value) => stored.set(key, value),
+			remove: key => stored.delete(key),
+		};
+		const policy = observableValue<ReadonlyMap<string, boolean>>('managedPluginEnablement', new Map([[required, true]]));
+		const groups = observableValue<ReadonlyMap<string, readonly string[]>>('collisionGroups', new Map([
+			[required, [required, unmanaged]],
+			[unmanaged, [required, unmanaged]],
+		]));
+		const enablementModel = new AgentPluginCollisionEnablementModel(base, groups, policy);
+
+		enablementModel.setEnabled(unmanaged, ContributionEnablementState.EnabledProfile);
+
+		assert.deepStrictEqual({
+			required: enablementModel.readEnabled(required),
+			unmanaged: enablementModel.readEnabled(unmanaged),
+			storedUnmanaged: stored.get(unmanaged),
+		}, {
+			required: ContributionEnablementState.EnabledProfile,
+			unmanaged: ContributionEnablementState.DisabledProfile,
+			storedUnmanaged: ContributionEnablementState.DisabledProfile,
+		});
+	});
+
 	test('same-URI duplicates collapse before collision grouping', () => {
 		const sharedUri = URI.file('/Users/test/.copilot/installed-plugins/team/model-council');
 		const discoveries: IDiscoveredAgentPlugins[] = [

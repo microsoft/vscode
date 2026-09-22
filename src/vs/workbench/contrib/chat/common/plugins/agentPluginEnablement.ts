@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IObservable, IReader, ITransaction, transaction } from '../../../../../base/common/observable.js';
+import { IObservable, IReader, ITransaction } from '../../../../../base/common/observable.js';
 import { AgentPluginDiscoveryPriority, IAgentPlugin } from './agentPluginService.js';
 import { IGitHubPluginSource, IGitUrlPluginSource, IMarketplacePlugin, INpmPluginSource, IPipPluginSource, PluginSourceKind } from './pluginMarketplaceService.js';
 import { type IMarketplaceReference } from './marketplaceReference.js';
-import { ContributionEnablementState, IEnablementModel, isContributionEnabled } from '../enablement.js';
+import { CollisionEnablementModel, ContributionEnablementState, IEnablementModel, isContributionEnabled } from '../enablement.js';
 
 export interface IDiscoveredAgentPlugins {
 	readonly plugins: readonly IAgentPlugin[];
@@ -28,33 +28,19 @@ interface IAgentPluginCandidate {
  */
 const COPILOT_CLI_INSTALL_PATH_FRAGMENT = '/.copilot/installed-plugins/';
 
-export class AgentPluginCollisionEnablementModel implements IEnablementModel {
+class AgentPluginPolicyEnablementModel implements IEnablementModel {
 	constructor(
 		private readonly base: IEnablementModel,
-		private readonly collisionGroups: IObservable<ReadonlyMap<string, readonly string[]>>,
 		private readonly policyEnablement?: IObservable<ReadonlyMap<string, boolean>>,
 	) { }
 
 	readEnabled(key: string, reader?: IReader): ContributionEnablementState {
-		const baseState = this.readPolicyAwareBase(key, reader);
-		if (!isContributionEnabled(baseState)) {
-			return baseState;
-		}
-
-		const group = this.collisionGroups.read(reader).get(key);
-		if (!group) {
-			return baseState;
-		}
-
-		for (const otherId of group) {
-			if (otherId === key) {
-				return baseState;
-			}
-			if (isContributionEnabled(this.readPolicyAwareBase(otherId, reader))) {
-				return ContributionEnablementState.DisabledProfile;
-			}
-		}
-		return baseState;
+		const policyValue = this.policyEnablement?.read(reader).get(key);
+		return policyValue === true
+			? ContributionEnablementState.EnabledProfile
+			: policyValue === false
+				? ContributionEnablementState.DisabledProfile
+				: this.base.readEnabled(key, reader);
 	}
 
 	readProfileEnabled(key: string, reader?: IReader): boolean {
@@ -66,32 +52,7 @@ export class AgentPluginCollisionEnablementModel implements IEnablementModel {
 		if (policy?.has(key)) {
 			return;
 		}
-
-		const isEnabling = state === ContributionEnablementState.EnabledProfile || state === ContributionEnablementState.EnabledWorkspace;
-		const group = isEnabling ? this.collisionGroups.get().get(key) : undefined;
-		if (!group) {
-			this.base.setEnabled(key, state, tx);
-			return;
-		}
-
-		if (group.some(otherId => otherId !== key && policy?.get(otherId) === true)) {
-			return;
-		}
-
-		const updateGroup = (innerTx: ITransaction) => {
-			this.base.setEnabled(key, state, innerTx);
-			for (const otherId of group) {
-				if (otherId !== key && !policy?.has(otherId)) {
-					this.base.setEnabled(otherId, ContributionEnablementState.DisabledWorkspace, innerTx);
-				}
-			}
-		};
-
-		if (tx) {
-			updateGroup(tx);
-		} else {
-			transaction(innerTx => updateGroup(innerTx));
-		}
+		this.base.setEnabled(key, state, tx);
 	}
 
 	remove(key: string): void {
@@ -99,14 +60,23 @@ export class AgentPluginCollisionEnablementModel implements IEnablementModel {
 			this.base.remove(key);
 		}
 	}
+}
 
-	private readPolicyAwareBase(key: string, reader?: IReader): ContributionEnablementState {
-		const policyValue = this.policyEnablement?.read(reader).get(key);
-		return policyValue === true
-			? ContributionEnablementState.EnabledProfile
-			: policyValue === false
-				? ContributionEnablementState.DisabledProfile
-				: this.base.readEnabled(key, reader);
+export class AgentPluginCollisionEnablementModel extends CollisionEnablementModel {
+	constructor(
+		base: IEnablementModel,
+		private readonly collisionGroups: IObservable<ReadonlyMap<string, readonly string[]>>,
+		private readonly policyEnablement?: IObservable<ReadonlyMap<string, boolean>>,
+	) {
+		super(new AgentPluginPolicyEnablementModel(base, policyEnablement), collisionGroups);
+	}
+
+	override setEnabled(key: string, state: ContributionEnablementState, tx?: ITransaction): void {
+		const group = isContributionEnabled(state) ? this.collisionGroups.get().get(key) : undefined;
+		if (group?.some(otherId => otherId !== key && this.policyEnablement?.get().get(otherId) === true)) {
+			return;
+		}
+		super.setEnabled(key, state, tx);
 	}
 }
 
