@@ -4,8 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
-import { DisposableStore, IReference } from '../../../../../../base/common/lifecycle.js';
+import { DisposableStore, IReference, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
@@ -16,10 +17,15 @@ import { buildBranchChangesetUri, buildTurnChangesetUri } from '../../../../../.
 import { fromAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { toAgentMergeMessageMeta } from '../../../../../../platform/agentHost/common/meta/agentMergeMessageMeta.js';
 import { toAgentWorkspaceContinuationMessageMeta } from '../../../../../../platform/agentHost/common/meta/agentWorkspaceContinuationMeta.js';
-import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
+import { AgentSubscriptionManager, IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
+import { chatReducer } from '../../../../../../platform/agentHost/common/state/protocol/channels-chat/reducer.js';
+import { ActionType } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import {
 	buildDefaultChatUri,
 	ChangesetStatus,
+	createActiveTurn,
+	createChatState,
+	createSessionState,
 	MessageKind,
 	ResponsePartKind,
 	SessionStatus,
@@ -31,7 +37,11 @@ import {
 	withMessageRequestHiddenFromTranscript,
 	type ChangesetState,
 	type ChatState,
-	type SessionState
+	type ComponentToState,
+	type ISessionFileDiff,
+	type SessionState,
+	type ToolCallResponsePart,
+	type Turn
 } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IEditSessionEntryDiff } from '../../../common/editing/chatEditingService.js';
 import { AgentHostResponseFileChangesProvider } from '../../../browser/agentSessions/agentHost/agentHostResponseFileChanges.js';
@@ -43,6 +53,11 @@ class FakeAgentConnection extends mock<IAgentConnection>() {
 	private readonly _emitters = new Map<string, Emitter<unknown>>();
 	private readonly _values = new Map<string, unknown>();
 	private readonly _subscriptionCounts = new Map<string, number>();
+	private _activeSubscriptions = 0;
+
+	get activeSubscriptions(): number {
+		return this._activeSubscriptions;
+	}
 
 	setState(resource: string, value: unknown): void {
 		this._values.set(resource, value);
@@ -56,6 +71,7 @@ class FakeAgentConnection extends mock<IAgentConnection>() {
 	override getSubscription<T extends StateComponents>(_kind: T, resource: URI, _owner: string): IReference<IAgentSubscription<never>> {
 		const key = resource.toString();
 		this._subscriptionCounts.set(key, (this._subscriptionCounts.get(key) ?? 0) + 1);
+		this._activeSubscriptions++;
 		let emitter = this._emitters.get(key);
 		if (!emitter) {
 			emitter = new Emitter<unknown>();
@@ -69,7 +85,8 @@ class FakeAgentConnection extends mock<IAgentConnection>() {
 			onWillApplyAction: Event.None,
 			onDidApplyAction: Event.None,
 		} as unknown as IAgentSubscription<never>;
-		return { object: sub, dispose: () => { } };
+		const reference = toDisposable(() => this._activeSubscriptions--);
+		return { object: sub, dispose: () => reference.dispose() };
 	}
 }
 
@@ -115,11 +132,128 @@ suite('AgentHostResponseFileChangesProvider', () => {
 		return new AgentHostResponseFileChangesProvider(conn, authority, resolveBackendSession, resolveBackendChat, new NullLogService());
 	}
 
-	function observe(provider: AgentHostResponseFileChangesProvider, ds: DisposableStore): { latest: () => readonly IEditSessionEntryDiff[] } {
-		const obs = provider.getChangesForRequest(chatResource, 't1')!;
+	function observe(provider: AgentHostResponseFileChangesProvider, ds: DisposableStore, requestId = 't1') {
+		const obs = provider.getChangesForRequest(chatResource, requestId)!;
 		let latest: readonly IEditSessionEntryDiff[] = [];
-		ds.add(autorun(r => { latest = obs.read(r); }));
-		return { latest: () => latest };
+		let runs = 0;
+		ds.add(autorun(r => { latest = obs.read(r); runs++; }));
+		return { latest: () => latest, runs: () => runs };
+	}
+
+	function fileEdit(path: string, added = 1, onRead?: () => void): ISessionFileDiff {
+		const uri = URI.file(path).toString();
+		return {
+			before: { uri, content: { uri: `git-blob:/before${path}` } },
+			after: {
+				get uri() { onRead?.(); return uri; },
+				content: { uri: `git-blob:/after${path}` },
+			},
+			diff: { added, removed: 0 },
+		};
+	}
+
+	function toolCallPart(edit: ISessionFileDiff, toolCallId = 'tool'): ToolCallResponsePart {
+		return {
+			kind: ResponsePartKind.ToolCall,
+			toolCall: {
+				toolCallId,
+				toolName: 'edit_file',
+				displayName: 'Edit File',
+				invocationMessage: 'Editing file',
+				pastTenseMessage: 'Edited file',
+				status: ToolCallStatus.Completed,
+				success: true,
+				confirmed: ToolCallConfirmationReason.NotNeeded,
+				content: [{ type: ToolResultContentType.FileEdit, ...edit }],
+			},
+		};
+	}
+
+	function completedTurn(id: string, edit: ISessionFileDiff = fileEdit(`/repo/${id}.ts`)): Turn {
+		return {
+			id,
+			message: { text: 'Edit a file', origin: { kind: MessageKind.User } },
+			responseParts: [toolCallPart(edit)],
+			state: TurnState.Complete,
+			usage: undefined,
+		};
+	}
+
+	function chatWithTurns(turns: Turn[] = [], activeTurnId = 'active'): ChatState {
+		const chat = createChatState({
+			resource: buildDefaultChatUri(backendSession.toString()),
+			title: 'Chat',
+			status: SessionStatus.InProgress,
+			modifiedAt: new Date(0).toISOString(),
+		});
+		const activeTurn = createActiveTurn(activeTurnId, { text: 'Edit a file', origin: { kind: MessageKind.User } }, chat.modifiedAt);
+		activeTurn.responseParts = [
+			{ kind: ResponsePartKind.Markdown, id: 'text', content: '' },
+			{ kind: ResponsePartKind.Reasoning, id: 'reasoning', content: '' },
+		];
+		return { ...chat, turns, activeTurn };
+	}
+
+	function streamText(conn: FakeAgentConnection, chat: ChatState, count = 100): ChatState {
+		for (let i = 0; i < count; i++) {
+			chat = chatReducer(chat, {
+				type: i % 2 === 0 ? ActionType.ChatDelta : ActionType.ChatReasoning,
+				turnId: chat.activeTurn!.id,
+				partId: i % 2 === 0 ? 'text' : 'reasoning',
+				content: 'token',
+			});
+			conn.setState(chat.resource, chat);
+		}
+		return chat;
+	}
+
+	function createManagedConnection(ds: DisposableStore) {
+		const chat = chatWithTurns([
+			completedTurn('t1', fileEdit('/repo/t1.ts', 1)),
+			completedTurn('t2', fileEdit('/repo/t2.ts', 2)),
+			completedTurn('t3', fileEdit('/repo/t3.ts', 3)),
+		]);
+		const session = createSessionState({
+			resource: backendSession.toString(),
+			provider: 'copilot',
+			title: 'Session',
+			status: SessionStatus.Idle,
+			createdAt: chat.modifiedAt,
+			modifiedAt: chat.modifiedAt,
+			project: { uri: URI.file('/repo').toString(), displayName: 'Repo' },
+		});
+		session.changesets = sessionStateWithTurnSupport().changesets;
+		const snapshots = new Map<string, SessionState | ChatState | ChangesetState>([
+			[backendSession.toString(), session],
+			[chat.resource, chat],
+			...chat.turns.map((turn): [string, ChangesetState] => [
+				turnChangesetUri(turn.id), { status: ChangesetStatus.Computing, files: [] },
+			]),
+		]);
+		const failures = new Set<string>();
+		const pending = new Map<string, DeferredPromise<void>>();
+		const attempts = new Map<string, number>();
+		let sequence = 0;
+		const manager = ds.add(new AgentSubscriptionManager('test-client', () => ++sequence, () => { }, async resource => {
+			const key = resource.toString();
+			attempts.set(key, (attempts.get(key) ?? 0) + 1);
+			const wait = pending.get(key);
+			if (wait) {
+				await wait.p;
+			}
+			if (failures.has(key)) {
+				throw new Error('Temporary subscription failure');
+			}
+			const state = snapshots.get(key);
+			assert.ok(state, `Missing snapshot for ${key}`);
+			return { resource: key, state, fromSeq: 0 };
+		}, () => { }));
+		const connection = new class extends mock<IAgentConnection>() {
+			override getSubscription<T extends StateComponents>(kind: T, resource: URI, owner: string): IReference<IAgentSubscription<ComponentToState[T]>> {
+				return manager.getSubscription<ComponentToState[T]>(kind, resource, owner);
+			}
+		}();
+		return { connection, manager, chat, failures, attempts, pending };
 	}
 
 	test('maps per-turn changeset files into entry diffs', () => {
@@ -260,6 +394,577 @@ suite('AgentHostResponseFileChangesProvider', () => {
 			conn.getSubscriptionCount(turnChangesetUri('t1')),
 		], [1, 1]);
 	});
+
+	for (const status of [ChangesetStatus.Ready, ChangesetStatus.Computing]) {
+		test(`keeps historical ${status} diffs stable while another turn streams`, () => {
+			const ds = store.add(new DisposableStore());
+			const conn = new FakeAgentConnection();
+			const provider = ds.add(createProvider(conn));
+			let historyVisits = 0;
+			let responseReads = 0;
+			let editReads = 0;
+			const turns = Array.from({ length: 5 }, (_, index): Turn => {
+				const id = `history-${index}`;
+				const edit = fileEdit(`/repo/${id}.ts`, index + 1, () => editReads++);
+				const turn = completedTurn(id, edit);
+				const responseParts = turn.responseParts;
+				conn.setState(turnChangesetUri(id), {
+					status,
+					files: status === ChangesetStatus.Ready ? [{ id, edit }] : [],
+				} satisfies ChangesetState);
+				return {
+					...turn,
+					get id() { historyVisits++; return id; },
+					get responseParts() { responseReads++; return responseParts; },
+				};
+			});
+			const session = sessionStateWithTurnSupport();
+			conn.setState(backendSession.toString(), session);
+			let chat = chatWithTurns(turns);
+			conn.setState(chat.resource, chat);
+			const observed = turns.map((_, index) => observe(provider, ds, `history-${index}`));
+			const initial = observed.map(result => result.latest());
+			const initialEditReads = editReads;
+
+			chat = streamText(conn, chat);
+			conn.setState(backendSession.toString(), { ...session, title: 'Renamed session' });
+			conn.setState(chat.resource, chatReducer(chat, { type: ActionType.ChatTurnComplete, turnId: 'active', duration: 1 }));
+
+			assert.deepStrictEqual({
+				historyVisits,
+				responseReads,
+				extraEditReads: editReads - initialEditReads,
+				runs: observed.map(result => result.runs()),
+				sameResults: observed.every((result, index) => result.latest() === initial[index]),
+				chatSubscriptions: conn.getSubscriptionCount(chat.resource),
+				sessionSubscriptions: conn.getSubscriptionCount(backendSession.toString()),
+			}, {
+				historyVisits: 10,
+				responseReads: status === ChangesetStatus.Ready ? 0 : 5,
+				extraEditReads: 0,
+				runs: [1, 1, 1, 1, 1],
+				sameResults: true,
+				chatSubscriptions: 1,
+				sessionSubscriptions: 1,
+			});
+		});
+	}
+
+	test('only reparses the active fallback when file edits change and stops when a changeset takes over', () => {
+		const ds = store.add(new DisposableStore());
+		const conn = new FakeAgentConnection();
+		const provider = ds.add(createProvider(conn));
+		let editReads = 0;
+		let chat = chatWithTurns([], 't1');
+		chat.activeTurn!.responseParts.push(toolCallPart(fileEdit('/repo/a.ts', 2, () => editReads++)));
+		conn.setState(backendSession.toString(), sessionStateWithTurnSupport());
+		conn.setState(chat.resource, chat);
+		conn.setState(turnChangesetUri('t1'), { status: ChangesetStatus.Computing, files: [] } satisfies ChangesetState);
+		const observed = observe(provider, ds);
+		const initial = observed.latest();
+		const initialReads = editReads;
+		chat = streamText(conn, chat);
+		const afterText = {
+			sameResult: observed.latest() === initial,
+			extraEditReads: editReads - initialReads,
+			runs: observed.runs(),
+		};
+
+		chat = chatReducer(chat, {
+			type: ActionType.ChatResponsePart,
+			turnId: 't1',
+			part: toolCallPart(fileEdit('/repo/a.ts', 3), 'second-tool'),
+		});
+		conn.setState(chat.resource, chat);
+		const afterEdit = { added: observed.latest()[0].added, runs: observed.runs() };
+
+		conn.setState(turnChangesetUri('t1'), {
+			status: ChangesetStatus.Ready,
+			files: [{ id: 'authoritative', edit: fileEdit('/repo/a.ts', 10) }],
+		} satisfies ChangesetState);
+		const authoritative = observed.latest();
+		const authoritativeReads = editReads;
+		chat = chatReducer(chat, {
+			type: ActionType.ChatResponsePart,
+			turnId: 't1',
+			part: toolCallPart(fileEdit('/repo/b.ts'), 'third-tool'),
+		});
+		conn.setState(chat.resource, chat);
+		streamText(conn, chat);
+
+		assert.deepStrictEqual({
+			afterText,
+			afterEdit,
+			afterChangeset: {
+				sameResult: observed.latest() === authoritative,
+				added: observed.latest()[0].added,
+				extraEditReads: editReads - authoritativeReads,
+				runs: observed.runs(),
+			},
+		}, {
+			afterText: { sameResult: true, extraEditReads: 0, runs: 1 },
+			afterEdit: { added: 5, runs: 2 },
+			afterChangeset: { sameResult: true, added: 10, extraEditReads: 0, runs: 3 },
+		});
+	});
+
+	test('only maps changeset files whose edits changed', () => {
+		const ds = store.add(new DisposableStore());
+		const conn = new FakeAgentConnection();
+		const provider = ds.add(createProvider(conn));
+		let unchangedReads = 0;
+		const files = [
+			{ id: 'a', edit: fileEdit('/repo/a.ts', 1, () => unchangedReads++) },
+			{ id: 'b', edit: fileEdit('/repo/b.ts', 2) },
+		];
+		conn.setState(backendSession.toString(), sessionStateWithTurnSupport());
+		conn.setState(turnChangesetUri('t1'), { status: ChangesetStatus.Ready, files } satisfies ChangesetState);
+		const observed = observe(provider, ds);
+		const initial = observed.latest();
+		const initialReads = unchangedReads;
+		conn.setState(turnChangesetUri('t1'), { status: ChangesetStatus.Computing, files } satisfies ChangesetState);
+		conn.setState(turnChangesetUri('t1'), {
+			status: ChangesetStatus.Ready,
+			files: files.map(file => ({ ...file, reviewed: true })),
+			operations: [],
+		} satisfies ChangesetState);
+		const afterMetadata = { sameResult: observed.latest() === initial, runs: observed.runs() };
+		conn.setState(turnChangesetUri('t1'), {
+			status: ChangesetStatus.Ready,
+			files: [files[0], { id: 'b', edit: fileEdit('/repo/b.ts', 5) }],
+		} satisfies ChangesetState);
+
+		assert.deepStrictEqual({
+			afterMetadata,
+			sameUnchangedEntry: observed.latest()[0] === initial[0],
+			extraUnchangedReads: unchangedReads - initialReads,
+			additions: observed.latest().map(diff => diff.added),
+			runs: observed.runs(),
+		}, {
+			afterMetadata: { sameResult: true, runs: 1 },
+			sameUnchangedEntry: true,
+			extraUnchangedReads: 0,
+			additions: [1, 5],
+			runs: 2,
+		});
+	});
+
+	test('updates file edits after history loading, truncation and replacement snapshots', () => {
+		const ds = store.add(new DisposableStore());
+		const conn = new FakeAgentConnection();
+		const provider = ds.add(createProvider(conn));
+		let chat = chatWithTurns([completedTurn('t1')]);
+		conn.setState(backendSession.toString(), sessionStateWithTurnSupport());
+		conn.setState(chat.resource, chat);
+		const edits = provider.getFileEditsForRequest(chatResource, 'older')!;
+		const observed: number[][] = [];
+		ds.add(autorun(reader => observed.push(edits.read(reader).map(diff => diff.added))));
+		chat = chatReducer(chat, {
+			type: ActionType.ChatTurnsLoaded,
+			turns: [completedTurn('older', fileEdit('/repo/older.ts', 2))],
+		});
+		conn.setState(chat.resource, chat);
+		chat = chatReducer(chat, { type: ActionType.ChatTruncated, turnId: undefined });
+		conn.setState(chat.resource, chat);
+		chat = { ...chat, turns: [completedTurn('older', fileEdit('/repo/older.ts', 3))] };
+		conn.setState(chat.resource, chat);
+		conn.setState(chat.resource, undefined);
+		conn.setState(chat.resource, { ...chat, turns: [completedTurn('older', fileEdit('/repo/older.ts', 4))] });
+
+		assert.deepStrictEqual(observed, [[], [2], [], [3], [], [4]]);
+	});
+
+	test('keeps changeset mapping selective after reobserving', () => {
+		const ds = store.add(new DisposableStore());
+		const observers = ds.add(new DisposableStore());
+		const conn = new FakeAgentConnection();
+		const provider = ds.add(createProvider(conn));
+		let unchangedReads = 0;
+		const files = [
+			{ id: 'a', edit: fileEdit('/repo/a.ts', 1, () => unchangedReads++) },
+			{ id: 'b', edit: fileEdit('/repo/b.ts', 2) },
+		];
+		conn.setState(backendSession.toString(), sessionStateWithTurnSupport());
+		conn.setState(turnChangesetUri('t1'), { status: ChangesetStatus.Ready, files } satisfies ChangesetState);
+		observe(provider, observers);
+		observers.clear();
+		const observed = observe(provider, observers);
+		const initial = observed.latest();
+		const initialReads = unchangedReads;
+		const reviewed = { ...files[0], reviewed: true };
+		conn.setState(turnChangesetUri('t1'), {
+			status: ChangesetStatus.Ready,
+			files: [reviewed, files[1]],
+		} satisfies ChangesetState);
+		conn.setState(turnChangesetUri('t1'), {
+			status: ChangesetStatus.Ready,
+			files: [reviewed, { id: 'b', edit: fileEdit('/repo/b.ts', 5) }],
+		} satisfies ChangesetState);
+
+		assert.deepStrictEqual({
+			sameEntry: observed.latest()[0] === initial[0],
+			extraReads: unchangedReads - initialReads,
+			additions: observed.latest().map(diff => diff.added),
+		}, { sameEntry: true, extraReads: 0, additions: [1, 5] });
+	});
+
+	test('reclassifies file edits only when workspace roots change', () => {
+		const ds = store.add(new DisposableStore());
+		const conn = new FakeAgentConnection();
+		const provider = ds.add(createProvider(conn));
+		let editReads = 0;
+		const chat = chatWithTurns([completedTurn('t1', fileEdit('/repo/a.ts', 1, () => editReads++))]);
+		const session: SessionState = {
+			...sessionStateWithTurnSupport(),
+			project: { uri: URI.file('/repo').toString(), displayName: 'Repo' },
+			workingDirectories: [URI.file('/repo').toString()],
+		};
+		conn.setState(backendSession.toString(), session);
+		conn.setState(chat.resource, chat);
+		const edits = provider.getFileEditsForRequest(chatResource, 't1')!;
+		const outsideWorkspace: boolean[] = [];
+		ds.add(autorun(reader => outsideWorkspace.push(edits.read(reader)[0].isOutsideWorkspace)));
+		const initialReads = editReads;
+		conn.setState(backendSession.toString(), {
+			...session,
+			title: 'Renamed',
+			project: { ...session.project!, displayName: 'Renamed repo' },
+			workingDirectories: [...session.workingDirectories!],
+		});
+		const metadataEditReads = editReads - initialReads;
+		conn.setState(backendSession.toString(), {
+			...session,
+			project: { uri: URI.file('/other').toString(), displayName: 'Other repo' },
+			workingDirectories: [URI.file('/other').toString()],
+		});
+
+		assert.deepStrictEqual({ metadataEditReads, outsideWorkspace }, {
+			metadataEditReads: 0,
+			outsideWorkspace: [false, true],
+		});
+	});
+
+	test('keeps file edits consistent when an errored turn resumes and completes again', () => {
+		const ds = store.add(new DisposableStore());
+		const conn = new FakeAgentConnection();
+		const provider = ds.add(createProvider(conn));
+		const turn = completedTurn('t1', fileEdit('/repo/a.ts', 2));
+		turn.state = TurnState.Error;
+		turn.responseParts.push({
+			kind: ResponsePartKind.Error,
+			error: { errorType: 'network', message: 'Retry' },
+			resumable: true,
+		});
+		let chat: ChatState = { ...chatWithTurns([turn]), activeTurn: undefined };
+		conn.setState(backendSession.toString(), sessionStateWithTurnSupport());
+		conn.setState(chat.resource, chat);
+		const edits = provider.getFileEditsForRequest(chatResource, 't1')!;
+		const observed: number[][] = [];
+		ds.add(autorun(reader => observed.push(edits.read(reader).map(diff => diff.added))));
+		chat = chatReducer(chat, { type: ActionType.ChatTurnResume, turnId: 't1' });
+		conn.setState(chat.resource, chat);
+		chat = chatReducer(chat, {
+			type: ActionType.ChatResponsePart,
+			turnId: 't1',
+			part: toolCallPart(fileEdit('/repo/a.ts', 3), 'second-tool'),
+		});
+		conn.setState(chat.resource, chat);
+		chat = chatReducer(chat, { type: ActionType.ChatTurnComplete, turnId: 't1', duration: 1 });
+		conn.setState(chat.resource, chat);
+
+		assert.deepStrictEqual(observed, [[2], [5]]);
+	});
+
+	test('discovers turns in newly listed peer chats', () => {
+		const ds = store.add(new DisposableStore());
+		const conn = new FakeAgentConnection();
+		const provider = ds.add(createProvider(conn));
+		const session = sessionStateWithTurnSupport();
+		const defaultChat = chatWithTurns();
+		const peerChat = { ...chatWithTurns([completedTurn('t1')]), resource: 'ahp-chat://peer/sess-1' };
+		conn.setState(backendSession.toString(), session);
+		conn.setState(defaultChat.resource, defaultChat);
+		conn.setState(peerChat.resource, peerChat);
+		conn.setState(turnChangesetUri('t1'), { status: ChangesetStatus.Computing, files: [] } satisfies ChangesetState);
+		const observed = observe(provider, ds);
+		const before = observed.latest().length;
+		conn.setState(backendSession.toString(), { ...session, chats: [peerChat] } satisfies SessionState);
+		const after = observed.latest();
+		streamText(conn, defaultChat);
+
+		assert.deepStrictEqual({
+			before,
+			after: after.map(diff => diff.added),
+			sameResult: observed.latest() === after,
+			peerSubscriptions: conn.getSubscriptionCount(peerChat.resource),
+		}, {
+			before: 0,
+			after: [1],
+			sameResult: true,
+			peerSubscriptions: 1,
+		});
+	});
+
+	test('shares lazy subscriptions and releases them when the last observer leaves', () => {
+		const ds = store.add(new DisposableStore());
+		const observers = ds.add(new DisposableStore());
+		const conn = new FakeAgentConnection();
+		const provider = ds.add(createProvider(conn));
+		const chat = chatWithTurns([completedTurn('t1'), completedTurn('t2')]);
+		conn.setState(backendSession.toString(), sessionStateWithTurnSupport());
+		conn.setState(chat.resource, chat);
+		for (const id of ['t1', 't2']) {
+			conn.setState(turnChangesetUri(id), { status: ChangesetStatus.Computing, files: [] } satisfies ChangesetState);
+			provider.getChangesForRequest(chatResource, id);
+			provider.getFileEditsForRequest(chatResource, id);
+		}
+		const beforeObserving = conn.activeSubscriptions;
+		observe(provider, observers, 't1');
+		observe(provider, observers, 't2');
+		const fileEdits = provider.getFileEditsForRequest(chatResource, 't1')!;
+		observers.add(autorun(reader => fileEdits.read(reader)));
+		const whileObserving = {
+			active: conn.activeSubscriptions,
+			session: conn.getSubscriptionCount(backendSession.toString()),
+			chat: conn.getSubscriptionCount(chat.resource),
+		};
+		observers.clear();
+		const afterObserving = conn.activeSubscriptions;
+		conn.setState(chat.resource, { ...chat, turns: [completedTurn('t1', fileEdit('/repo/replaced.ts', 5))] });
+		let additions: number[] = [];
+		observers.add(autorun(reader => { additions = fileEdits.read(reader).map(diff => diff.added); }));
+		observers.clear();
+
+		assert.deepStrictEqual({
+			beforeObserving, whileObserving, afterObserving, additions,
+			afterReobserving: conn.activeSubscriptions,
+		}, {
+			beforeObserving: 0,
+			whileObserving: { active: 4, session: 1, chat: 1 },
+			afterObserving: 0,
+			additions: [5],
+			afterReobserving: 0,
+		});
+	});
+
+	for (const [component, label] of [[StateComponents.Session, 'session'], [StateComponents.Chat, 'chat']] as const) {
+		for (const explicitChat of [false, true]) {
+			test(`retries failed ${label} subscriptions for new and existing observers (${explicitChat ? 'explicit' : 'discovered'} chat)`, async () => {
+				const ds = store.add(new DisposableStore());
+				const firstObserver = ds.add(new DisposableStore());
+				const secondObserver = ds.add(new DisposableStore());
+				const { connection, manager, chat, failures, attempts } = createManagedConnection(ds);
+				const failedUri = component === StateComponents.Session ? backendSession : URI.parse(chat.resource);
+				failures.add(failedUri.toString());
+				const provider = ds.add(createProvider(connection, () => backendSession, explicitChat ? () => URI.parse(chat.resource) : undefined));
+				const secondChanges = provider.getChangesForRequest(chatResource, 't2')!;
+				const beforeObserving = attempts.size;
+				const first = observe(provider, firstObserver);
+				await timeout(0);
+				const afterFailure = {
+					attempts: attempts.get(failedUri.toString()),
+					files: first.latest().length,
+					failed: manager.getSubscriptionUnmanaged(failedUri)?.value instanceof Error,
+				};
+
+				failures.clear();
+				let second: readonly IEditSessionEntryDiff[] = [];
+				secondObserver.add(autorun(reader => { second = secondChanges.read(reader); }));
+				await timeout(0);
+				const afterRecovery = {
+					attempts: attempts.get(failedUri.toString()),
+					first: first.latest().map(diff => diff.added),
+					second: second.map(diff => diff.added),
+					shared: manager.getActiveSubscriptions().every(subscription => subscription.refCount === 1),
+				};
+				secondObserver.clear();
+				manager.applyReconnectSnapshot(chat.resource, {
+					...chat,
+					turns: [completedTurn('t1', fileEdit('/repo/t1.ts', 7))],
+				} satisfies ChatState, 1);
+				const firstAfterSecondLeaves = first.latest().map(diff => diff.added);
+				firstObserver.clear();
+
+				assert.deepStrictEqual({
+					beforeObserving,
+					afterFailure,
+					afterRecovery,
+					firstAfterSecondLeaves,
+					remainingSubscriptions: manager.getActiveSubscriptions().length,
+				}, {
+					beforeObserving: 0,
+					afterFailure: { attempts: 1, files: 0, failed: true },
+					afterRecovery: { attempts: 2, first: [1], second: [2], shared: true },
+					firstAfterSecondLeaves: [7],
+					remainingSubscriptions: 0,
+				});
+			});
+		}
+
+		test(`does not retry a failed ${label} subscription until another request is observed`, async () => {
+			const ds = store.add(new DisposableStore());
+			const observers = ds.add(new DisposableStore());
+			const { connection, manager, chat, failures, attempts } = createManagedConnection(ds);
+			const failedUri = component === StateComponents.Session ? backendSession : URI.parse(chat.resource);
+			failures.add(failedUri.toString());
+			const provider = ds.add(createProvider(connection));
+			observe(provider, observers);
+			await timeout(0);
+			for (let i = 0; i < 10; i++) {
+				provider.getChangesForRequest(chatResource, 't2');
+				provider.getFileEditsForRequest(chatResource, 't2');
+			}
+			await timeout(0);
+			const afterUnobservedLookups = attempts.get(failedUri.toString());
+			observe(provider, observers, 't2');
+			await timeout(0);
+			await timeout(0);
+			const afterFailedRetry = attempts.get(failedUri.toString());
+			failures.clear();
+			const recovered = observe(provider, observers, 't3');
+			await timeout(0);
+			const afterRecovery = {
+				attempts: attempts.get(failedUri.toString()),
+				additions: recovered.latest().map(diff => diff.added),
+			};
+			observers.clear();
+
+			assert.deepStrictEqual({
+				afterUnobservedLookups,
+				afterFailedRetry,
+				afterRecovery,
+				remainingSubscriptions: manager.getActiveSubscriptions().length,
+			}, {
+				afterUnobservedLookups: 1,
+				afterFailedRetry: 2,
+				afterRecovery: { attempts: 3, additions: [3] },
+				remainingSubscriptions: 0,
+			});
+		});
+
+		test(`joins an externally replaced ${label} subscription without another server subscribe`, async () => {
+			const ds = store.add(new DisposableStore());
+			const observers = ds.add(new DisposableStore());
+			const { connection, manager, chat, failures, attempts } = createManagedConnection(ds);
+			const failedUri = component === StateComponents.Session ? backendSession : URI.parse(chat.resource);
+			failures.add(failedUri.toString());
+			const provider = ds.add(createProvider(connection));
+			const first = observe(provider, observers);
+			await timeout(0);
+			failures.clear();
+			const external = ds.add(manager.getSubscription(component, failedUri, 'ExternalObserver'));
+			await timeout(0);
+			const second = observe(provider, observers, 't2');
+			await timeout(0);
+			const recovered = {
+				attempts: attempts.get(failedUri.toString()),
+				first: first.latest().map(diff => diff.added),
+				second: second.latest().map(diff => diff.added),
+			};
+			external.dispose();
+			observers.clear();
+
+			assert.deepStrictEqual({
+				...recovered,
+				remainingSubscriptions: manager.getActiveSubscriptions().length,
+			}, { attempts: 2, first: [1], second: [2], remainingSubscriptions: 0 });
+		});
+
+		test(`recovers the file edits API from a failed ${label} subscription`, async () => {
+			const ds = store.add(new DisposableStore());
+			const observers = ds.add(new DisposableStore());
+			const { connection, manager, chat, failures, attempts } = createManagedConnection(ds);
+			const failedUri = component === StateComponents.Session ? backendSession : URI.parse(chat.resource);
+			failures.add(failedUri.toString());
+			const provider = ds.add(createProvider(connection));
+			const firstEdits = provider.getFileEditsForRequest(chatResource, 't1')!;
+			const secondEdits = provider.getFileEditsForRequest(chatResource, 't2')!;
+			let first: readonly IChatResponseFileEdit[] = [];
+			let second: readonly IChatResponseFileEdit[] = [];
+			observers.add(autorun(reader => { first = firstEdits.read(reader); }));
+			await timeout(0);
+			failures.clear();
+			observers.add(autorun(reader => { second = secondEdits.read(reader); }));
+			await timeout(0);
+			const recovered = [first, second].map(edits => edits.map(edit => ({ added: edit.added, outside: edit.isOutsideWorkspace })));
+			observers.clear();
+
+			assert.deepStrictEqual({
+				attempts: attempts.get(failedUri.toString()),
+				recovered,
+				remainingSubscriptions: manager.getActiveSubscriptions().length,
+			}, {
+				attempts: 2,
+				recovered: [[{ added: 1, outside: false }], [{ added: 2, outside: false }]],
+				remainingSubscriptions: 0,
+			});
+		});
+
+		test(`retries a missing ${label} subscription when a cached request is reobserved`, async () => {
+			const ds = store.add(new DisposableStore());
+			const firstObserver = ds.add(new DisposableStore());
+			const secondObserver = ds.add(new DisposableStore());
+			const { connection, manager, chat, attempts } = createManagedConnection(ds);
+			const failedUri = component === StateComponents.Session ? backendSession : URI.parse(chat.resource);
+			const provider = ds.add(createProvider(connection));
+			const first = observe(provider, firstObserver);
+			observe(provider, secondObserver, 't2');
+			await timeout(0);
+			secondObserver.clear();
+			manager.markSubscriptionsMissing([failedUri]);
+			const retained = first.latest().map(diff => diff.added);
+			const second = observe(provider, secondObserver, 't2');
+			await timeout(0);
+			const recovered = {
+				attempts: attempts.get(failedUri.toString()),
+				first: first.latest().map(diff => diff.added),
+				second: second.latest().map(diff => diff.added),
+				ready: !(manager.getSubscriptionUnmanaged(failedUri)?.value instanceof Error),
+			};
+			firstObserver.clear();
+			secondObserver.clear();
+
+			assert.deepStrictEqual({ retained, recovered, remainingSubscriptions: manager.getActiveSubscriptions().length }, {
+				retained: [1],
+				recovered: { attempts: 2, first: [1], second: [2], ready: true },
+				remainingSubscriptions: 0,
+			});
+		});
+
+		test(`shares pending ${label} subscriptions and releases them before hydration`, async () => {
+			const ds = store.add(new DisposableStore());
+			const observers = ds.add(new DisposableStore());
+			const { connection, manager, chat, pending, attempts } = createManagedConnection(ds);
+			const delayedUri = component === StateComponents.Session ? backendSession : URI.parse(chat.resource);
+			const hydration = new DeferredPromise<void>();
+			pending.set(delayedUri.toString(), hydration);
+			const provider = ds.add(createProvider(connection));
+			observe(provider, observers);
+			observe(provider, observers, 't2');
+			await timeout(0);
+			const pendingAttempts = attempts.get(delayedUri.toString());
+			observers.clear();
+			const afterDisposal = manager.getActiveSubscriptions().length;
+			await hydration.complete();
+			await timeout(0);
+			const afterHydration = manager.getActiveSubscriptions().length;
+			const first = observe(provider, observers);
+			await timeout(0);
+			const reobserved = { attempts: attempts.get(delayedUri.toString()), additions: first.latest().map(diff => diff.added) };
+			observers.clear();
+
+			assert.deepStrictEqual({
+				pendingAttempts, afterDisposal, afterHydration, reobserved,
+				remainingSubscriptions: manager.getActiveSubscriptions().length,
+			}, {
+				pendingAttempts: 1,
+				afterDisposal: 0,
+				afterHydration: 0,
+				reobserved: { attempts: 2, additions: [1] },
+				remainingSubscriptions: 0,
+			});
+		});
+	}
 
 	test('falls back to the owning peer chat file edits when a turn checkpoint is unavailable', () => {
 		const ds = store.add(new DisposableStore());
@@ -603,6 +1308,28 @@ suite('AgentHostResponseFileChangesProvider', () => {
 			perRequestFileEditsSize: 1000,
 			firstChangesEvicted: true,
 			firstFileEditsEvicted: true,
+		});
+	});
+
+	test('bounds shared source caches without acquiring unobserved subscriptions', () => {
+		const conn = new FakeAgentConnection();
+		const provider = store.add(new AgentHostResponseFileChangesProvider(
+			conn, authority, resource => resource, resource => resource, new NullLogService(),
+		));
+		for (let index = 0; index < 1100; index++) {
+			provider.getChangesForRequest(URI.parse(`copilot:/session-${index}`), 't1');
+		}
+		const sessionSources = Reflect.get(provider, '_sessionSources') as { readonly size: number };
+		const chatSources = Reflect.get(provider, '_chatSources') as { readonly size: number };
+
+		assert.deepStrictEqual({
+			sessions: sessionSources.size,
+			chats: chatSources.size,
+			activeSubscriptions: conn.activeSubscriptions,
+		}, {
+			sessions: 1000,
+			chats: 1000,
+			activeSubscriptions: 0,
 		});
 	});
 
