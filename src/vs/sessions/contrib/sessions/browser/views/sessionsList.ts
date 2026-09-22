@@ -2362,9 +2362,10 @@ class SessionGroupRenderer implements ITreeRenderer<SessionListItem, FuzzyScore,
 		template.icon.className = 'session-section-icon';
 		template.icon.classList.add(...ThemeIcon.asClassNameArray(isComparison ? Codicon.layers : Codicon.folderLibrary));
 		template.label.textContent = element.comparison?.title ?? element.group.name;
-		if (element.comparison) {
+		const comparison = element.comparison;
+		if (comparison) {
 			template.elementDisposables.add(autorun(reader => {
-				template.description.textContent = element.comparison?.summary(reader) ?? '';
+				template.description.textContent = comparison.summary(reader);
 			}));
 			template.elementDisposables.add(autorun(reader => {
 				const runningSessions = element.sessions.filter(session => isSessionInProgress(session, reader));
@@ -2380,9 +2381,7 @@ class SessionGroupRenderer implements ITreeRenderer<SessionListItem, FuzzyScore,
 				if (runningSessions.length === 0) {
 					return;
 				}
-				if (element.comparison) {
-					this.sessionComparisonService.cancelComparison(element.comparison.id);
-				}
+				this.sessionComparisonService.cancelComparison(comparison.id);
 				template.comparisonStopAll.element.dataset.pending = 'true';
 				template.comparisonStopAll.enabled = false;
 				const results = await Promise.allSettled(runningSessions.map(session => this.sessionsManagementService.cancelCurrentRequest(session)));
@@ -2408,6 +2407,7 @@ class SessionGroupRenderer implements ITreeRenderer<SessionListItem, FuzzyScore,
 					for (const session of element.sessions) {
 						await this.sessionsManagementService.archiveSession(session);
 					}
+					this.sessionComparisonService.archiveComparison(comparison.id);
 					this.sessionGroupsService.deleteGroup(element.group.id);
 					status(localize('comparisonArchived', "Comparison archived"));
 				} catch (error) {
@@ -5350,6 +5350,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 	private showGroupContextMenu(groupItem: ISessionGroupItem, anchor: ITreeContextMenuEvent<SessionListItem>['anchor']): void {
 		const actions: IAction[] = [];
+		const comparison = groupItem.comparison;
 		if (this.options.grouping() === SessionsGrouping.Workspace && !groupItem.isEmpty) {
 			actions.push(this.getMarkAllSessionsReadAction(() => {
 				const sessionIds = new Set(this._sessionGroupsService.getSessionIdsInGroup(groupItem.group.id));
@@ -5357,7 +5358,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			}), new Separator());
 		}
 		actions.push(this.getCreateGroupAction());
-		if (!groupItem.comparison) {
+		if (!comparison) {
 			actions.push(
 				new Separator(),
 				toAction({
@@ -5367,8 +5368,20 @@ export class SessionsList extends Disposable implements ISessionsList {
 				}),
 				this.getDeleteGroupAction(groupItem),
 			);
-		} else if (!groupItem.sessions.some(session => isSessionInProgress(session, undefined))) {
-			actions.push(new Separator(), this.getDeleteGroupAction(groupItem));
+		} else {
+			if (this.sessionComparisonService.canRetryJudge(comparison.id)) {
+				actions.push(
+					new Separator(),
+					toAction({
+						id: 'sessions.retryComparisonJudge',
+						label: localize('retryComparisonJudge', "Retry Judge"),
+						run: () => this.sessionComparisonService.retryJudge(comparison.id),
+					}),
+				);
+			}
+			if (!groupItem.sessions.some(session => isSessionInProgress(session, undefined))) {
+				actions.push(new Separator(), this.getDeleteGroupAction(groupItem));
+			}
 		}
 		this.contextMenuService.showContextMenu({
 			getActions: () => actions,

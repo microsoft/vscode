@@ -11,6 +11,7 @@ import { status } from '../../../../base/browser/ui/aria/aria.js';
 import { Button, ButtonWithDropdown, IButton } from '../../../../base/browser/ui/button/button.js';
 import { InputBox } from '../../../../base/browser/ui/inputbox/inputBox.js';
 import { Action, toAction } from '../../../../base/common/actions.js';
+import { RunOnceScheduler } from '../../../../base/common/async.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
@@ -390,17 +391,41 @@ export class SessionComparisonResult extends Disposable {
 		start.label = localize('sessionComparisonResult.startWithInstructions', "Start Synthesis with Instructions");
 		const updateStartEnabled = () => start.enabled = getValue() !== undefined;
 		const startWithInstructions = () => {
+			flushInstructions();
 			const plan = createRecommendedSynthesisPlan(getValue());
 			if (plan) {
 				void this.synthesize(comparison, start, plan);
 			}
 		};
+		let instructionsPending = false;
+		const persistInstructions = () => {
+			if (!instructionsPending) {
+				return;
+			}
+			instructionsPending = false;
+			const current = this.comparisonService.getComparison(comparison.id);
+			if (!current) {
+				return;
+			}
+			this.comparisonService.setSynthesisPlan(
+				comparison.id,
+				createSynthesisPlanWithSelections(current.synthesisPlan?.selections ?? [], getValue()),
+			);
+		};
+		const saveInstructions = new RunOnceScheduler(persistInstructions, 250);
+		const flushInstructions = () => {
+			saveInstructions.cancel();
+			persistInstructions();
+		};
+		this.renderStore.add(toDisposable(flushInstructions));
+		this.renderStore.add(saveInstructions);
 		updateStartEnabled();
 		this.renderStore.add(input.onDidChange(() => {
-			const currentSelections = this.comparisonService.getComparison(comparison.id)?.synthesisPlan?.selections ?? [];
-			this.comparisonService.setSynthesisPlan(comparison.id, createSynthesisPlanWithSelections(currentSelections, getValue()));
+			instructionsPending = true;
+			saveInstructions.schedule();
 			updateStartEnabled();
 		}));
+		this.renderStore.add(dom.addDisposableListener(input.inputElement, dom.EventType.BLUR, flushInstructions));
 		this.renderStore.add(input.onDidHeightChange(() => this.onDidChangeLayout()));
 		this.renderStore.add(start.onDidClick(startWithInstructions));
 		this.renderStore.add(dom.addDisposableListener(input.inputElement, dom.EventType.KEY_DOWN, event => {

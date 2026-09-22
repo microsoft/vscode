@@ -20,6 +20,7 @@ import { IActiveSession } from '../../../services/sessions/common/sessionsManage
 import { HIDE_INACTIVE_COMPARISON_INPUTS_SETTING } from '../common/sessionComparison.js';
 
 const HIDE_INACTIVE_COMPARISON_INPUTS_CLASS = 'session-comparison-hide-inactive-inputs';
+const COMPARISON_GRID_ACTIVE_CLASS = 'session-comparison-grid-active';
 
 export class SessionComparisonGridController extends Disposable implements IWorkbenchContribution {
 
@@ -28,6 +29,7 @@ export class SessionComparisonGridController extends Disposable implements IWork
 	private _isolatedJudgeSessionId: string | undefined;
 	private _keepSidePaneHidden = false;
 	private _pendingJudgeIsolationSessionId: string | undefined;
+	private readonly _partsHiddenByController = new Set<Parts>();
 
 	constructor(
 		@ISessionsPartService sessionsPartService: ISessionsPartService,
@@ -54,6 +56,7 @@ export class SessionComparisonGridController extends Disposable implements IWork
 			const activeSession = this.sessionsService.activeSession.read(reader);
 			const comparisons = this.comparisonService.comparisons.read(reader);
 			this._comparisonGridActive = layout === 'grid' && this._isComparisonGrid(visibleSessions, comparisons);
+			this.layoutService.mainContainer.classList.toggle(COMPARISON_GRID_ACTIVE_CLASS, this._comparisonGridActive);
 			this.layoutService.mainContainer.classList.toggle(
 				HIDE_INACTIVE_COMPARISON_INPUTS_CLASS,
 				hideInactiveInputs.read(reader)
@@ -68,23 +71,24 @@ export class SessionComparisonGridController extends Disposable implements IWork
 					|| activeSession?.sessionId !== this._isolatedJudgeSessionId)) {
 				this._isolatedJudgeSessionId = undefined;
 			}
-			this._keepSidePaneHidden = this._comparisonGridActive || this._isolatedJudgeSessionId !== undefined;
+			const keepSidePaneHidden = this._comparisonGridActive || this._isolatedJudgeSessionId !== undefined;
 			const activeJudgeSessionId = this._getJudgeSessionId(activeSession, visibleSessions, comparisons);
 			if (activeJudgeSessionId) {
 				this._scheduleJudgeIsolation(activeJudgeSessionId);
 			}
-			if (this._keepSidePaneHidden) {
-				this._hideSidePane();
-			}
+			this._setSidePaneSuppressed(keepSidePaneHidden);
 		}));
 		this._register(this.layoutService.onDidChangePartVisibility(event => {
 			if (event.visible && this._keepSidePaneHidden
 				&& (event.partId === Parts.EDITOR_PART || event.partId === Parts.AUXILIARYBAR_PART)) {
-				this._hideSidePane();
+				this._partsHiddenByController.delete(event.partId);
 			}
 		}));
 		this._register(sessionsPartService.onDidFocusSession(sessionId => this._onDidFocusSession(sessionId)));
-		this._register(toDisposable(() => this.layoutService.mainContainer.classList.remove(HIDE_INACTIVE_COMPARISON_INPUTS_CLASS)));
+		this._register(toDisposable(() => {
+			this._setSidePaneSuppressed(false);
+			this.layoutService.mainContainer.classList.remove(HIDE_INACTIVE_COMPARISON_INPUTS_CLASS, COMPARISON_GRID_ACTIVE_CLASS);
+		}));
 	}
 
 	private _onDidFocusSession(sessionId: string | undefined): void {
@@ -120,9 +124,8 @@ export class SessionComparisonGridController extends Disposable implements IWork
 			return;
 		}
 		this._isolatedJudgeSessionId = sessionId;
-		this._keepSidePaneHidden = true;
 		this.sessionsService.showOnlySession(judgeSession);
-		this._hideSidePane();
+		this._setSidePaneSuppressed(true);
 	}
 
 	private _isComparisonGrid(visibleSessions: readonly (IActiveSession | undefined)[], comparisons: readonly ISessionComparison[]): boolean {
@@ -160,18 +163,41 @@ export class SessionComparisonGridController extends Disposable implements IWork
 			: undefined;
 	}
 
+	private _setSidePaneSuppressed(suppressed: boolean): void {
+		if (this._keepSidePaneHidden === suppressed) {
+			return;
+		}
+		this._keepSidePaneHidden = suppressed;
+		if (suppressed) {
+			this._hideSidePane();
+		} else {
+			this._restoreSidePane();
+		}
+	}
+
 	private _hideSidePane(): void {
 		const suppression = this.layoutService.suppressEditorPartAutoVisibility();
 		try {
 			if (this.layoutService.isVisible(Parts.AUXILIARYBAR_PART)) {
+				this._partsHiddenByController.add(Parts.AUXILIARYBAR_PART);
 				this.layoutService.setPartHidden(true, Parts.AUXILIARYBAR_PART);
 			}
 			if (this.layoutService.isVisible(Parts.EDITOR_PART, mainWindow)) {
+				this._partsHiddenByController.add(Parts.EDITOR_PART);
 				this.layoutService.setPartHidden(true, Parts.EDITOR_PART);
 			}
 		} finally {
 			suppression.dispose();
 		}
+	}
+
+	private _restoreSidePane(): void {
+		for (const part of this._partsHiddenByController) {
+			if (!this.layoutService.isVisible(part, mainWindow)) {
+				this.layoutService.setPartHidden(false, part);
+			}
+		}
+		this._partsHiddenByController.clear();
 	}
 
 }

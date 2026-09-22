@@ -10,7 +10,7 @@ import { Emitter, Event } from '../../../../../base/common/event.js';
 import { observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { mock } from '../../../../../base/test/common/mock.js';
+import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { FocusMode } from '../../../../../platform/native/common/native.js';
 import { ChatConfiguration, ChatNotificationMode } from '../../../../../workbench/contrib/chat/common/constants.js';
@@ -20,6 +20,7 @@ import { IChatWidgetService } from '../../../../../workbench/contrib/chat/browse
 import { IHostService, IToastOptions, IToastResult } from '../../../../../workbench/services/host/browser/host.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { ISession, ISessionWorkspace, SessionStatus } from '../../../../services/sessions/common/session.js';
+import { ISessionComparison, ISessionComparisonService } from '../../../../services/sessions/common/sessionComparison.js';
 import { IActiveSession, ISessionsChangeEvent, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { SessionsWindowNotifier } from '../../browser/sessionsWindowNotifier.js';
 
@@ -104,6 +105,16 @@ function createSession(id: string, initialStatus: SessionStatus, workspaceLabel 
 	return { session, status };
 }
 
+function comparisonService(...sessions: ISession[]): ISessionComparisonService {
+	const comparison = upcastPartial<ISessionComparison>({ id: 'comparison' });
+	const resources = new Set(sessions.map(session => session.resource.toString()));
+	return new class extends mock<ISessionComparisonService>() {
+		override getComparisonForSession(resource: URI): ISessionComparison | undefined {
+			return resources.has(resource.toString()) ? comparison : undefined;
+		}
+	};
+}
+
 suite('SessionsWindowNotifier', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
@@ -133,6 +144,7 @@ suite('SessionsWindowNotifier', () => {
 			new TestConfigurationService(configuration),
 			chat,
 			widgets,
+			comparisonService(),
 		));
 		store.add(management);
 		return { notifier, sessions, host };
@@ -262,6 +274,7 @@ suite('SessionsWindowNotifier', () => {
 			}),
 			chat,
 			new TestChatWidgetService(),
+			comparisonService(active.session, waiting.session),
 		));
 		store.add(management);
 
@@ -275,6 +288,38 @@ suite('SessionsWindowNotifier', () => {
 			toasts: ['chat-session:test:/waiting:needsInput'],
 			focusModes: [],
 		});
+	});
+
+	test('does not notify an inactive ordinary pane while the window is focused', async () => {
+		const active = createSession('ordinary-active', SessionStatus.InProgress);
+		const waiting = createSession('ordinary-waiting', SessionStatus.InProgress);
+		const management = new TestSessionsManagementService([waiting.session]);
+		const sessions = new TestSessionsService();
+		sessions.activeSession.set(active.session as IActiveSession, undefined);
+		sessions.visibleSessions.set([active.session as IActiveSession, waiting.session as IActiveSession], undefined);
+		const host = new TestHostService();
+		host.hasFocus = true;
+		const chat = new TestChatService();
+		chat.model = new class extends mock<IChatModel>() {
+			override readonly requestNeedsInput = observableValue('requestNeedsInput', { title: 'Fix waiting' });
+		};
+		store.add(new TestSessionsWindowNotifier(
+			management,
+			sessions,
+			host,
+			new TestConfigurationService({
+				[ChatConfiguration.NotifyWindowOnConfirmation]: ChatNotificationMode.WindowNotFocused,
+			}),
+			chat,
+			new TestChatWidgetService(),
+			comparisonService(),
+		));
+		store.add(management);
+
+		waiting.status.set(SessionStatus.NeedsInput, undefined);
+		await flushNotifications();
+
+		assert.deepStrictEqual(host.toasts, []);
 	});
 
 	test('falls back to session status when a live model misses its needs-input state', async () => {
@@ -295,6 +340,7 @@ suite('SessionsWindowNotifier', () => {
 			}),
 			chat,
 			new TestChatWidgetService(),
+			comparisonService(),
 		));
 		store.add(management);
 
@@ -322,6 +368,7 @@ suite('SessionsWindowNotifier', () => {
 			}),
 			chat,
 			new TestChatWidgetService(),
+			comparisonService(),
 		));
 		store.add(management);
 

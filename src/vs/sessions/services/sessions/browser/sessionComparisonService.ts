@@ -15,7 +15,7 @@ import { InstantiationType, registerSingleton } from '../../../../platform/insta
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
-import { withSessionComparisonMetadata, type IAgentSessionComparisonHarnessMetadata, type IAgentSessionComparisonLaunchMetadata } from '../../../../platform/agentHost/common/state/sessionState.js';
+import { withSessionComparisonMetadata } from '../../../../platform/agentHost/common/state/sessionState.js';
 import { createSessionComparisonJudgePrompt } from '../../../../platform/agentHost/common/sessionComparisonPrompts.js';
 import { localize } from '../../../../nls.js';
 import { IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
@@ -23,7 +23,7 @@ import { IChatService } from '../../../../workbench/contrib/chat/common/chatServ
 import { aggregateChatUsage } from '../../../../workbench/contrib/chat/common/chatUsage.js';
 import { isActiveSessionStatus, ISession, SessionStatus } from '../common/session.js';
 import { ISessionGroupsService } from './sessionGroupsService.js';
-import { ISessionsManagementService } from '../common/sessionsManagement.js';
+import { ISessionsChangeEvent, ISessionsManagementService } from '../common/sessionsManagement.js';
 import { getSessionComparisonAttemptLabel, getSessionComparisonHarnessLabel, ISessionComparison, ISessionComparisonHarness, ISessionComparisonParticipant, ISessionComparisonService, ISessionComparisonSynthesisPlan, ISessionComparisonVerdict, IStartSessionComparisonOptions, SESSION_COMPARISON_SYNTHESIS_INSTRUCTIONS_MAX_LENGTH, SessionComparisonDecisionAssessment, SessionComparisonParticipantRole } from '../common/sessionComparison.js';
 import { getSessionsTelemetryProviderId, hashSessionIdForTelemetry, logSessionComparisonAttemptCompleted, logSessionComparisonModelOutcome } from '../../../common/sessionsTelemetry.js';
 
@@ -55,7 +55,7 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 	private readonly _migratingAttemptTitles = new Set<string>();
 	private readonly _migratedAttemptTitles = new Set<string>();
 	private readonly _reportedAttemptTelemetry = new Set<string>();
-	private _hasObservedSessionChanges = false;
+	private readonly _comparisonIdsBySession = new Map<string, string>();
 	constructor(
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 		@ISessionGroupsService private readonly sessionGroupsService: ISessionGroupsService,
@@ -68,22 +68,28 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 		this._loadAttemptTelemetryState();
 		const comparisons = this._load();
 		this._comparisons.set(comparisons, undefined);
-		this._removeComparisonsWithMissingGroups();
+		for (const comparison of comparisons) {
+			this._indexComparisonSessions(comparison);
+		}
+		this._archiveComparisonsWithMissingGroups();
+		this._pruneAttemptTelemetryState(new Set(this._comparisons.get()
+			.filter(comparison => comparison.archivedAt === undefined)
+			.map(comparison => comparison.id)));
 		this._ensureComparisonGroupMembership(this._comparisons.get());
 		this._migrateLegacyAttemptTitles(this._comparisons.get());
-		this._register(this.sessionsManagementService.onDidChangeSessions(() => {
-			this._hasObservedSessionChanges = true;
-			const comparisons = this._comparisons.get();
-			this._ensureComparisonGroupMembership(comparisons);
-			this._migrateLegacyAttemptTitles(comparisons);
-			this._checkComparisons(true);
+		this._register(this.sessionsManagementService.onDidChangeSessions(event => {
+			const comparisons = this._getComparisonsForSessionChanges(event);
+			const reconciled = comparisons.map(comparison => this._reconcileSessionAvailability(comparison, event));
+			this._ensureComparisonGroupMembership(reconciled);
+			this._migrateLegacyAttemptTitles(reconciled);
+			this._checkComparisons(reconciled);
 		}));
 		this._register(this.sessionGroupsService.onDidChange(event => {
 			if (event.groupsChanged) {
-				this._removeComparisonsWithMissingGroups();
+				this._archiveComparisonsWithMissingGroups();
 			}
 		}));
-		this._checkComparisons(false);
+		this._checkComparisons(this._comparisons.get());
 	}
 
 	async startComparison(options: IStartSessionComparisonOptions, token: CancellationToken = CancellationToken.None): Promise<ISessionComparison> {
@@ -169,12 +175,6 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 		if (successfulAttemptCount < 2) {
 			this._removeComparison(comparison.id);
 			this.sessionGroupsService.deleteGroup(comparison.groupId);
-			await this._cancelAndDeleteSessions(
-				launchedAttempts
-					.map(participant => participant.sessionResource ? this.sessionsManagementService.getSession(participant.sessionResource) : undefined)
-					.filter((session): session is ISession => session !== undefined),
-				'attempt startup cleanup',
-			);
 			const launchFailures = launchedAttempts
 				.filter(participant => participant.launchError)
 				.map(participant => `${getSessionComparisonHarnessLabel(participant)}: ${participant.launchError}`)
@@ -195,8 +195,8 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 	}
 
 	getComparisonForSession(resource: URI): ISessionComparison | undefined {
-		return this._comparisons.get().find(comparison =>
-			comparison.participants.some(participant => participant.sessionResource && isEqual(participant.sessionResource, resource)));
+		const comparisonId = this._comparisonIdsBySession.get(resource.toString());
+		return comparisonId ? this.getComparison(comparisonId) : undefined;
 	}
 
 	cancelComparison(comparisonId: string): void {
@@ -209,6 +209,20 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 			cancelledAt: Date.now(),
 			synthesisPlan: undefined,
 		});
+	}
+
+	archiveComparison(comparisonId: string): void {
+		const comparison = this._requireComparison(comparisonId);
+		if (comparison.archivedAt !== undefined) {
+			return;
+		}
+		this._replaceComparison({
+			...comparison,
+			archivedAt: Date.now(),
+		});
+		this._pruneAttemptTelemetryState(new Set(this._comparisons.get()
+			.filter(candidate => candidate.archivedAt === undefined)
+			.map(candidate => candidate.id)));
 	}
 
 	selectAttempt(comparisonId: string, participantId: string): void {
@@ -260,14 +274,24 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 		this._checkComparison(updated);
 	}
 
+	canRetryJudge(comparisonId: string): boolean {
+		const comparison = this.getComparison(comparisonId);
+		return !!comparison
+			&& comparison.cancelledAt === undefined
+			&& comparison.archivedAt === undefined
+			&& !this._judgeStarting.has(comparisonId)
+			&& comparison.participants.some(participant =>
+				participant.role === SessionComparisonParticipantRole.Judge && !participant.sessionResource);
+	}
+
 	retryJudge(comparisonId: string): void {
-		const comparison = this._requireComparison(comparisonId);
-		const failedJudgeIds = comparison.participants
-			.filter(participant => participant.role === SessionComparisonParticipantRole.Judge && !participant.sessionResource && !!participant.launchError)
-			.map(participant => participant.id);
-		if (failedJudgeIds.length === 0) {
+		if (!this.canRetryJudge(comparisonId)) {
 			return;
 		}
+		const comparison = this._requireComparison(comparisonId);
+		const failedJudgeIds = comparison.participants
+			.filter(participant => participant.role === SessionComparisonParticipantRole.Judge && !participant.sessionResource)
+			.map(participant => participant.id);
 		const updated = {
 			...comparison,
 			participants: comparison.participants.filter(participant => !failedJudgeIds.includes(participant.id)),
@@ -429,17 +453,7 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 				role: 'attempt',
 				attemptIndex,
 				attemptCount: options.attempts.length,
-				launch: this._createHostLaunchMetadata(options),
 			}),
-		};
-	}
-
-	private _createHostLaunchMetadata(options: IStartSessionComparisonOptions): IAgentSessionComparisonLaunchMetadata {
-		return {
-			workspace: options.workspace.toString(),
-			...(options.branch ? { branch: options.branch } : {}),
-			judge: toHostLaunchHarnessMetadata(options.judgeHarness, options.permissionLevel),
-			...(options.synthesisHarness ? { synthesis: toHostLaunchHarnessMetadata(options.synthesisHarness, options.permissionLevel) } : {}),
 		};
 	}
 
@@ -461,40 +475,17 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 		return comparison;
 	}
 
-	private _checkComparisons(detectMissingSessions: boolean = this._hasObservedSessionChanges): void {
-		for (const comparison of this._comparisons.get()) {
-			this._checkComparison(comparison, detectMissingSessions);
+	private _checkComparisons(comparisons: readonly ISessionComparison[]): void {
+		for (const comparison of comparisons) {
+			this._checkComparison(comparison);
 		}
 	}
 
-	private _checkComparison(comparison: ISessionComparison, detectMissingSessions: boolean = this._hasObservedSessionChanges): void {
-		comparison = this._captureTerminalAttemptMetrics(comparison);
-		if (comparison.cancelledAt !== undefined) {
+	private _checkComparison(comparison: ISessionComparison): void {
+		if (comparison.cancelledAt !== undefined || comparison.archivedAt !== undefined) {
 			return;
 		}
-		if (detectMissingSessions) {
-			const attemptsWithMissingSessions = comparison.participants.some(participant =>
-				participant.role === SessionComparisonParticipantRole.Attempt
-				&& !participant.launchError
-				&& !!participant.sessionResource
-				&& !this.sessionsManagementService.getSession(participant.sessionResource));
-			if (attemptsWithMissingSessions) {
-				comparison = {
-					...comparison,
-					participants: comparison.participants.map(participant =>
-						participant.role === SessionComparisonParticipantRole.Attempt
-							&& !participant.launchError
-							&& participant.sessionResource
-							&& !this.sessionsManagementService.getSession(participant.sessionResource)
-							? {
-								...participant,
-								launchError: localize('sessionComparison.attemptMissing', "The attempt session is no longer available."),
-							}
-							: participant),
-				};
-				this._replaceComparison(comparison);
-			}
-		}
+		comparison = this._captureTerminalAttemptMetrics(comparison);
 		if (this._judgeStarting.has(comparison.id)
 			|| comparison.participants.some(participant => participant.role === SessionComparisonParticipantRole.Judge)) {
 			return;
@@ -506,12 +497,15 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 		const attempts = comparison.participants.filter(participant => participant.role === SessionComparisonParticipantRole.Attempt);
 		let successfulAttemptCount = 0;
 		for (const participant of attempts) {
-			if (participant.launchError || !participant.sessionResource) {
+			if (participant.launchError) {
 				continue;
+			}
+			if (!participant.sessionResource) {
+				return;
 			}
 			const session = this.sessionsManagementService.getSession(participant.sessionResource);
 			if (!session) {
-				continue;
+				return;
 			}
 			const status = session.status.get();
 			if (status === SessionStatus.Completed) {
@@ -665,7 +659,13 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 			},
 		});
 		const current = this.getComparison(comparison.id);
-		if (!current) {
+		if (!current || current.archivedAt !== undefined) {
+			if (current) {
+				this._replaceComparison({
+					...current,
+					participants: current.participants.filter(participant => participant.id !== judgeParticipantId),
+				});
+			}
 			if (session) {
 				await this._cancelAndDeleteSessions([session], 'orphaned Judge cleanup');
 			}
@@ -771,6 +771,9 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 
 	private _ensureComparisonGroupMembership(comparisons: readonly ISessionComparison[]): void {
 		for (const comparison of comparisons) {
+			if (comparison.archivedAt !== undefined) {
+				continue;
+			}
 			const sessionIds = comparison.participants
 				.map(participant => participant.sessionResource ? this.sessionsManagementService.getSession(participant.sessionResource)?.sessionId : undefined)
 				.filter(sessionId => sessionId !== undefined);
@@ -778,14 +781,25 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 		}
 	}
 
-	private _removeComparisonsWithMissingGroups(): void {
+	private _archiveComparisonsWithMissingGroups(): void {
 		const comparisons = this._comparisons.get();
-		const remaining = comparisons.filter(comparison => this.sessionGroupsService.getGroup(comparison.groupId));
-		if (remaining.length === comparisons.length) {
+		const archivedAt = Date.now();
+		let changed = false;
+		const updated = comparisons.map(comparison => {
+			if (comparison.archivedAt !== undefined || this.sessionGroupsService.getGroup(comparison.groupId)) {
+				return comparison;
+			}
+			changed = true;
+			return { ...comparison, archivedAt };
+		});
+		if (!changed) {
 			return;
 		}
-		this._comparisons.set(remaining, undefined);
+		this._comparisons.set(updated, undefined);
 		this._save();
+		this._pruneAttemptTelemetryState(new Set(updated
+			.filter(comparison => comparison.archivedAt === undefined)
+			.map(comparison => comparison.id)));
 	}
 
 	private _migrateLegacyAttemptTitles(comparisons: readonly ISessionComparison[]): void {
@@ -820,18 +834,95 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 	}
 
 	private _addComparison(comparison: ISessionComparison): void {
+		this._indexComparisonSessions(comparison);
 		this._comparisons.set([...this._comparisons.get(), comparison], undefined);
 		this._save();
 	}
 
 	private _replaceComparison(comparison: ISessionComparison): void {
+		const previous = this.getComparison(comparison.id);
+		if (previous) {
+			this._unindexComparisonSessions(previous);
+		}
+		this._indexComparisonSessions(comparison);
 		this._comparisons.set(this._comparisons.get().map(candidate => candidate.id === comparison.id ? comparison : candidate), undefined);
 		this._save();
 	}
 
 	private _removeComparison(comparisonId: string): void {
+		const comparison = this.getComparison(comparisonId);
+		if (comparison) {
+			this._unindexComparisonSessions(comparison);
+		}
 		this._comparisons.set(this._comparisons.get().filter(comparison => comparison.id !== comparisonId), undefined);
 		this._save();
+		this._pruneAttemptTelemetryState(new Set(this._comparisons.get()
+			.filter(comparison => comparison.archivedAt === undefined)
+			.map(comparison => comparison.id)));
+	}
+
+	private _indexComparisonSessions(comparison: ISessionComparison): void {
+		for (const participant of comparison.participants) {
+			if (participant.sessionResource) {
+				this._comparisonIdsBySession.set(participant.sessionResource.toString(), comparison.id);
+			}
+		}
+	}
+
+	private _unindexComparisonSessions(comparison: ISessionComparison): void {
+		for (const participant of comparison.participants) {
+			if (participant.sessionResource
+				&& this._comparisonIdsBySession.get(participant.sessionResource.toString()) === comparison.id) {
+				this._comparisonIdsBySession.delete(participant.sessionResource.toString());
+			}
+		}
+	}
+
+	private _getComparisonsForSessionChanges(event: ISessionsChangeEvent): readonly ISessionComparison[] {
+		const comparisonIds = new Set<string>();
+		for (const session of [...event.added, ...event.removed, ...event.changed]) {
+			const comparisonId = this._comparisonIdsBySession.get(session.resource.toString());
+			if (comparisonId) {
+				comparisonIds.add(comparisonId);
+			}
+		}
+		return [...comparisonIds].flatMap(comparisonId => {
+			const comparison = this.getComparison(comparisonId);
+			return comparison ? [comparison] : [];
+		});
+	}
+
+	private _reconcileSessionAvailability(comparison: ISessionComparison, event: ISessionsChangeEvent): ISessionComparison {
+		const availableResources = new Set([...event.added, ...event.changed].map(session => session.resource.toString()));
+		const missingResources = new Set(event.removed
+			.filter(session => !session.isArchived.get() && !this.sessionsManagementService.getSession(session.resource))
+			.map(session => session.resource.toString()));
+		let changed = false;
+		const participants = comparison.participants.map(participant => {
+			const resource = participant.sessionResource?.toString();
+			if (!resource) {
+				return participant;
+			}
+			if (participant.missingSession && availableResources.has(resource)) {
+				changed = true;
+				return { ...participant, missingSession: undefined, launchError: undefined };
+			}
+			if (!participant.launchError && missingResources.has(resource)) {
+				changed = true;
+				return {
+					...participant,
+					missingSession: true,
+					launchError: localize('sessionComparison.attemptMissing', "The attempt session is no longer available."),
+				};
+			}
+			return participant;
+		});
+		if (!changed) {
+			return comparison;
+		}
+		const updated = { ...comparison, participants };
+		this._replaceComparison(updated);
+		return updated;
 	}
 
 	private _load(): readonly ISessionComparison[] {
@@ -893,16 +984,20 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 		);
 	}
 
-}
+	private _pruneAttemptTelemetryState(comparisonIds: ReadonlySet<string>): void {
+		let changed = false;
+		for (const key of [...this._reportedAttemptTelemetry]) {
+			const separator = key.indexOf('/');
+			if (separator < 0 || !comparisonIds.has(key.slice(0, separator))) {
+				this._reportedAttemptTelemetry.delete(key);
+				changed = true;
+			}
+		}
+		if (changed) {
+			this._saveAttemptTelemetryState();
+		}
+	}
 
-function toHostLaunchHarnessMetadata(harness: ISessionComparisonHarness, fallbackPermissionId: string | undefined): IAgentSessionComparisonHarnessMetadata {
-	return {
-		providerId: harness.providerId,
-		sessionTypeId: harness.sessionTypeId,
-		...(harness.modelId ? { modelId: harness.modelId } : {}),
-		...(harness.modelConfiguration ? { modelConfiguration: harness.modelConfiguration } : {}),
-		...(harness.permissionId ?? fallbackPermissionId ? { permissionId: harness.permissionId ?? fallbackPermissionId } : {}),
-	};
 }
 
 function snapshotAttachedContext(attachedContext: readonly IChatRequestVariableEntry[]): readonly IChatRequestVariableEntry[] {

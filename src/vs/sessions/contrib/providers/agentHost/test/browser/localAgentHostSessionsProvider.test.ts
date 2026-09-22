@@ -990,9 +990,9 @@ suite('LocalAgentHostSessionsProvider', () => {
 			provider.sessionTypes.map(t => ({ id: t.id, icon: t.icon.id, supportsWorktreeConfiguration: t.supportsWorktreeConfiguration })),
 			[
 				{ id: 'copilotcli', icon: 'copilot', supportsWorktreeConfiguration: true },
-				{ id: 'claude', icon: 'claude', supportsWorktreeConfiguration: true },
-				{ id: 'openai', icon: 'openai', supportsWorktreeConfiguration: true },
-				{ id: 'unknown-agent', icon: 'vm', supportsWorktreeConfiguration: true },
+				{ id: 'claude', icon: 'claude', supportsWorktreeConfiguration: false },
+				{ id: 'openai', icon: 'openai', supportsWorktreeConfiguration: false },
+				{ id: 'unknown-agent', icon: 'vm', supportsWorktreeConfiguration: false },
 			],
 		);
 	});

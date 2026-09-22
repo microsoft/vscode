@@ -322,6 +322,10 @@ suite('Sessions - Comparison Result', () => {
 		synthesisDropdown?.click();
 		await synthesisActions[0]?.run();
 		if (instructionsInput) {
+			instructionsInput.value = 'Preserve';
+			instructionsInput.dispatchEvent(new mainWindow.Event('input', { bubbles: true }));
+			instructionsInput.value = 'Preserve the public API';
+			instructionsInput.dispatchEvent(new mainWindow.Event('input', { bubbles: true }));
 			instructionsInput.value = 'Preserve the public API and add focused tests.';
 			instructionsInput.dispatchEvent(new mainWindow.Event('input', { bubbles: true }));
 		}
