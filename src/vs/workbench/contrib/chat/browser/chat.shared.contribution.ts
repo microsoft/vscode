@@ -2530,7 +2530,7 @@ configurationRegistry.registerConfiguration({
 		[ChatConfiguration.ChatCustomizationsMcpServerMigrationEnabled]: {
 			type: 'boolean',
 			tags: ['experimental'],
-			description: nls.localize('chat.customizations.mcpServerMigration.enabled', "Controls whether the Chat Customizations editor offers to move supported workspace MCP servers out of .vscode/mcp.json and into a .mcp.json file at the workspace root, where the active agent-host harness discovers them directly. When disabled, the migration card and sidebar shortcut are hidden."),
+			description: nls.localize('chat.customizations.mcpServerMigration.enabled', "Controls whether VS Code shows MCP server migration actions, hints, compatibility badges, and compatibility details. Migration moves eligible workspace MCP servers out of .vscode/mcp.json and into a .mcp.json file at the workspace root, where the active agent-host harness discovers them directly."),
 			default: false,
 		},
 		[ChatConfiguration.ChatCustomizationsMigrationHint]: {

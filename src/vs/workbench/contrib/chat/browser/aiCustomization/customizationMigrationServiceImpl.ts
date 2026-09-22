@@ -34,8 +34,10 @@ export class CustomizationMigrationService extends Disposable implements ICustom
 				? this.emptyMcpServerMigration()
 				: { type, files: [], candidates: [] };
 		}
-		if (type !== CustomizationMigrationType.McpServers && !this.isMigrationEnabled(type)) {
-			return { type, files: [], candidates: [] };
+		if (!this.isMigrationEnabled(type)) {
+			return type === CustomizationMigrationType.McpServers
+				? this.emptyMcpServerMigration()
+				: { type, files: [], candidates: [] };
 		}
 
 		switch (type) {
@@ -109,7 +111,9 @@ export class CustomizationMigrationService extends Disposable implements ICustom
 		const workspaceFileCount = fileCandidates.filter(candidate => candidate.storage === PromptsStorage.local).length;
 		const userFileCount = fileCandidates.filter(candidate => candidate.storage === PromptsStorage.user).length;
 		const migratableMcpServerCount = this.isMigrationEnabled(CustomizationMigrationType.McpServers) ? mcpServerMigration.candidates.length : 0;
-		const unsupportedMcpServerCount = mcpServerMigration.servers.filter(server => !server.supported).length;
+		const unsupportedMcpServerCount = this.isMigrationEnabled(CustomizationMigrationType.McpServers)
+			? mcpServerMigration.servers.filter(server => !server.supported).length
+			: 0;
 		const fileHint = this.formatFileMigrationHint(workspaceFileCount, userFileCount, harness.label);
 		const migratableMcpHint = migratableMcpServerCount === 0
 			? undefined
@@ -189,6 +193,7 @@ export class CustomizationMigrationService extends Disposable implements ICustom
 			type: CustomizationMigrationType.McpServers,
 			servers: [],
 			candidates: [],
+			exclusions: [],
 			discoveryComplete: true,
 			coverage: {
 				restrictedByMcpAccess: false,

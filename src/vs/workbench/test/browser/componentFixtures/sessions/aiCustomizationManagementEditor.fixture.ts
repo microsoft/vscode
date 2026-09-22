@@ -1008,6 +1008,14 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 				new NullLogService(),
 				configurationService,
 				new FixtureConfigurationResolverService(),
+				new class extends mock<IMcpService>() {
+					override readonly enablementModel = {
+						readEnabled: () => ContributionEnablementState.EnabledProfile,
+						readProfileEnabled: () => true,
+						setEnabled: () => { },
+						remove: () => { },
+					};
+				}(),
 			));
 			const activeDescriptor = harnessService.findHarnessById(getChatSessionType(options.sessionResource));
 			if (activeDescriptor) {
