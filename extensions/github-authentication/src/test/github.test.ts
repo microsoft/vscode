@@ -510,6 +510,7 @@ suite('GitHub Microsoft-brokered sessions', () => {
 		}));
 		const removing = harness.provider.removeSession(existing.id);
 		await logoutStarted.promise;
+		const announcedBeforeRevocation = [...harness.announced];
 		let restored = false;
 		const reading = harness.provider.getSessions(SCOPES).then(sessions => {
 			restored = true;
@@ -525,13 +526,34 @@ suite('GitHub Microsoft-brokered sessions', () => {
 		const [sessions] = await Promise.all([reading, removing]);
 
 		assert.deepStrictEqual({
+			announcedBeforeRevocation,
 			restoredBeforeRevocation,
 			accounts: sessions.map(session => session.account.label),
 			announced: harness.announced,
 		}, {
+			announcedBeforeRevocation: ['removed hubot'],
 			restoredBeforeRevocation: true,
 			accounts: ['mona_contoso'],
-			announced: ['added mona_contoso', 'removed hubot'],
+			announced: ['removed hubot', 'added mona_contoso'],
+		});
+	});
+
+	test('announces persisted-session removal even when remote OAuth revocation fails', async () => {
+		const existing = sessionFor('hubot', 'persisted', 'gho_persisted');
+		const failure = new Error('Remote revocation failed');
+		const harness = createHarness({
+			persisted: [existing],
+			logout: async () => { throw failure; },
+		});
+
+		await assert.rejects(harness.provider.removeSession(existing.id), failure);
+
+		assert.deepStrictEqual({
+			sessions: await harness.provider.getSessions(SCOPES),
+			announced: harness.announced,
+		}, {
+			sessions: [],
+			announced: ['removed hubot'],
 		});
 	});
 
