@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IObservable } from '../../../../../base/common/observable.js';
+import { IObservable, IReader, ITransaction, transaction } from '../../../../../base/common/observable.js';
 import { AgentPluginDiscoveryPriority, IAgentPlugin } from './agentPluginService.js';
 import { IGitHubPluginSource, IGitUrlPluginSource, IMarketplacePlugin, INpmPluginSource, IPipPluginSource, PluginSourceKind } from './pluginMarketplaceService.js';
 import { type IMarketplaceReference } from './marketplaceReference.js';
-import { CollisionEnablementModel, IEnablementModel } from '../enablement.js';
+import { ContributionEnablementState, IEnablementModel, isContributionEnabled } from '../enablement.js';
 
 export interface IDiscoveredAgentPlugins {
 	readonly plugins: readonly IAgentPlugin[];
@@ -28,9 +28,85 @@ interface IAgentPluginCandidate {
  */
 const COPILOT_CLI_INSTALL_PATH_FRAGMENT = '/.copilot/installed-plugins/';
 
-export class AgentPluginCollisionEnablementModel extends CollisionEnablementModel {
-	constructor(base: IEnablementModel, collisionGroups: IObservable<ReadonlyMap<string, readonly string[]>>) {
-		super(base, collisionGroups);
+export class AgentPluginCollisionEnablementModel implements IEnablementModel {
+	constructor(
+		private readonly base: IEnablementModel,
+		private readonly collisionGroups: IObservable<ReadonlyMap<string, readonly string[]>>,
+		private readonly policyEnablement?: IObservable<ReadonlyMap<string, boolean>>,
+	) { }
+
+	readEnabled(key: string, reader?: IReader): ContributionEnablementState {
+		const baseState = this.readPolicyAwareBase(key, reader);
+		if (!isContributionEnabled(baseState)) {
+			return baseState;
+		}
+
+		const group = this.collisionGroups.read(reader).get(key);
+		if (!group) {
+			return baseState;
+		}
+
+		for (const otherId of group) {
+			if (otherId === key) {
+				return baseState;
+			}
+			if (isContributionEnabled(this.readPolicyAwareBase(otherId, reader))) {
+				return ContributionEnablementState.DisabledProfile;
+			}
+		}
+		return baseState;
+	}
+
+	readProfileEnabled(key: string, reader?: IReader): boolean {
+		return this.policyEnablement?.read(reader).get(key) ?? this.base.readProfileEnabled(key, reader);
+	}
+
+	setEnabled(key: string, state: ContributionEnablementState, tx?: ITransaction): void {
+		const policy = this.policyEnablement?.get();
+		if (policy?.has(key)) {
+			return;
+		}
+
+		const isEnabling = state === ContributionEnablementState.EnabledProfile || state === ContributionEnablementState.EnabledWorkspace;
+		const group = isEnabling ? this.collisionGroups.get().get(key) : undefined;
+		if (!group) {
+			this.base.setEnabled(key, state, tx);
+			return;
+		}
+
+		if (group.some(otherId => otherId !== key && policy?.get(otherId) === true)) {
+			return;
+		}
+
+		const updateGroup = (innerTx: ITransaction) => {
+			this.base.setEnabled(key, state, innerTx);
+			for (const otherId of group) {
+				if (otherId !== key && !policy?.has(otherId)) {
+					this.base.setEnabled(otherId, ContributionEnablementState.DisabledWorkspace, innerTx);
+				}
+			}
+		};
+
+		if (tx) {
+			updateGroup(tx);
+		} else {
+			transaction(innerTx => updateGroup(innerTx));
+		}
+	}
+
+	remove(key: string): void {
+		if (!this.policyEnablement?.get().has(key)) {
+			this.base.remove(key);
+		}
+	}
+
+	private readPolicyAwareBase(key: string, reader?: IReader): ContributionEnablementState {
+		const policyValue = this.policyEnablement?.read(reader).get(key);
+		return policyValue === true
+			? ContributionEnablementState.EnabledProfile
+			: policyValue === false
+				? ContributionEnablementState.DisabledProfile
+				: this.base.readEnabled(key, reader);
 	}
 }
 
@@ -39,24 +115,28 @@ export function getSortedAgentPlugins(discoveries: readonly IDiscoveredAgentPlug
 		.map(candidate => candidate.plugin)
 		.sort((a, b) => a.uri.toString().localeCompare(b.uri.toString()));
 }
-
-export function getCanonicalAgentPluginCollisionGroups(discoveries: readonly IDiscoveredAgentPlugins[], isBlocked?: (plugin: IAgentPlugin) => boolean): ReadonlyMap<string, readonly string[]> {
+export function getCanonicalAgentPluginCollisionGroups(
+	discoveries: readonly IDiscoveredAgentPlugins[],
+	isBlocked?: (plugin: IAgentPlugin) => boolean,
+	isForceEnabled?: (plugin: IAgentPlugin) => boolean,
+): ReadonlyMap<string, readonly string[]> {
 	const candidates = getUniqueAgentPluginCandidates(discoveries);
-	const byCanonicalKey = new Map<string, string[]>();
+	const byCanonicalKey = new Map<string, { forced: string[]; others: string[] }>();
 	for (const candidate of candidates) {
 		if (isBlocked?.(candidate.plugin)) {
 			continue;
 		}
 		let group = byCanonicalKey.get(candidate.canonicalKey);
 		if (!group) {
-			group = [];
+			group = { forced: [], others: [] };
 			byCanonicalKey.set(candidate.canonicalKey, group);
 		}
-		group.push(candidate.plugin.uri.toString());
+		(isForceEnabled?.(candidate.plugin) ? group.forced : group.others).push(candidate.plugin.uri.toString());
 	}
 
 	const groups = new Map<string, readonly string[]>();
-	for (const group of byCanonicalKey.values()) {
+	for (const { forced, others } of byCanonicalKey.values()) {
+		const group = [...forced, ...others];
 		if (group.length < 2) {
 			continue;
 		}
@@ -67,29 +147,27 @@ export function getCanonicalAgentPluginCollisionGroups(discoveries: readonly IDi
 	return groups;
 }
 
-/**
- * Whether the `ChatEnabledPlugins` enterprise policy explicitly blocks this plugin.
- *
- * The policy is a **deny list**, not an allowlist: enterprise-managed `enabledPlugins` entries
- * add to (never replace) the plugins a user has installed. A plugin is blocked only when its
- * policy id is mapped to `false`; entries mapped to `true` enable the plugin, and a plugin the
- * policy never mentions is left to the user's own enablement. This keeps a customer's existing
- * plugins working when their enterprise deploys `enabledPlugins` for a different plugin.
- */
+/** Whether the `ChatEnabledPlugins` enterprise policy explicitly blocks this plugin. */
 export function isAgentPluginBlockedByPolicy(
 	plugin: IAgentPlugin,
 	enabledPluginsPolicy: Record<string, boolean> | undefined,
 ): boolean {
-	const pluginId = getAgentPluginPolicyId(plugin);
-	return pluginId !== undefined && enabledPluginsPolicy?.[pluginId] === false;
+	return getAgentPluginPolicyEnablement(plugin, enabledPluginsPolicy) === false;
 }
 
 export function isAgentPluginForceEnabledByPolicy(
 	plugin: IAgentPlugin,
 	enabledPluginsPolicy: Record<string, boolean> | undefined,
 ): boolean {
+	return getAgentPluginPolicyEnablement(plugin, enabledPluginsPolicy) === true;
+}
+
+export function getAgentPluginPolicyEnablement(
+	plugin: IAgentPlugin,
+	enabledPluginsPolicy: Record<string, boolean> | undefined,
+): boolean | undefined {
 	const pluginId = getAgentPluginPolicyId(plugin);
-	return pluginId !== undefined && enabledPluginsPolicy?.[pluginId] === true;
+	return pluginId === undefined ? undefined : enabledPluginsPolicy?.[pluginId];
 }
 
 export function getAgentPluginPolicyId(plugin: IAgentPlugin): string | undefined {
