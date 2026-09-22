@@ -166,14 +166,23 @@ suite('ChatSessionArchiveNudge', () => {
 	});
 
 	test('shows confetti when marking a merged pull request session as done', async () => {
-		const { archive, configurationService } = createWidget(undefined, undefined, ChatSessionArchiveActionWording.MarkAsDone);
+		const pending = new DeferredPromise<void>();
+		const { archive, configurationService } = createWidget({ onArchive: () => pending.p }, undefined, ChatSessionArchiveActionWording.MarkAsDone);
 		await configurationService.setUserConfiguration(SESSIONS_MARK_AS_DONE_CONFETTI_SETTING, true);
 
 		archive.click();
+		const animationBeforeArchive = document.body.querySelector('.animation-overlay');
+		await pending.complete();
 		const animation = document.body.querySelector('.animation-overlay');
 		animation?.remove();
 
-		assert.ok(animation);
+		assert.deepStrictEqual({
+			animationBeforeArchive,
+			animationAfterArchive: !!animation,
+		}, {
+			animationBeforeArchive: null,
+			animationAfterArchive: true,
+		});
 	});
 
 	test('does not show confetti when disabled', async () => {
@@ -518,14 +527,16 @@ suite('ChatSessionArchiveNudge', () => {
 
 	test('uses Mark as Done wording for errors and retry', async () => {
 		const pending = new DeferredPromise<void>();
-		const { archive, errors } = createWidget({ onArchive: () => pending.p }, undefined, ChatSessionArchiveActionWording.MarkAsDone);
+		const { archive, configurationService, errors } = createWidget({ onArchive: () => pending.p }, undefined, ChatSessionArchiveActionWording.MarkAsDone);
+		await configurationService.setUserConfiguration(SESSIONS_MARK_AS_DONE_CONFETTI_SETTING, true);
 		archive.click();
 		await pending.error(new Error('Worktree cleanup failed'));
 
-		assert.deepStrictEqual({ errors, button: archive.textContent, disabled: archive.getAttribute('aria-disabled') }, {
+		assert.deepStrictEqual({ errors, button: archive.textContent, disabled: archive.getAttribute('aria-disabled'), animation: document.body.querySelector('.animation-overlay') }, {
 			errors: ['Unable to mark the session as done: Worktree cleanup failed'],
 			button: 'Mark as Done',
 			disabled: 'false',
+			animation: null,
 		});
 	});
 
