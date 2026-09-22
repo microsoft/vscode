@@ -91,7 +91,7 @@
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/43e60469b7fa9c01ac465f18b516fdd3c3698946972cb796a2cf66ce9ea2f7c3)
 
 #### chat/aiCustomizations/aiCustomizationManagementEditor/MigrationDashboard/Dark
-![screenshot](https://hediet-screenshots.azurewebsites.net/images/1781ac88435dbb4ba74032d0d809c99f999350acd5f7a4a645c4823a83c596ae)
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/956a993e331c505a934c09fdeb5279f79a5cda84a957eb8699aa0ea7eb7ebccb)
 
 #### chat/aiCustomizations/aiCustomizationManagementEditor/MigrationDashboard/Light
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/169da52dc7c6a11f8eae9034d5252a5cbee0e1fa71f0f43da70db1f56fe09dc0)
