@@ -4,7 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { spawnSync } from 'child_process';
+import { createHash } from 'crypto';
 import { suite, test, type TestContext } from 'node:test';
+import { fileURLToPath } from 'url';
 import { $, ProcessOutput } from 'zx';
 import { monitorCodesignProcess, streamProcessOutputAndCheckResult } from '../../azure-pipelines/common/codesign.ts';
 
@@ -152,6 +155,35 @@ suite('Codesign diagnostics', () => {
 });
 
 suite('Codesign output streaming', () => {
+	for (const scenario of ['completed', 'buffered', 'live', 'mixed', 'failure', 'live-failure']) {
+		test(`preserves complete stdout and stderr for ${scenario} processes`, () => {
+			const outputSize = 256 * 1024;
+			const result = spawnSync(process.execPath, [
+				fileURLToPath(new URL('./codesignOutput.fixture.ts', import.meta.url)),
+				scenario,
+			], { encoding: 'utf8', maxBuffer: 4 * 1024 * 1024, timeout: 10_000 });
+			const summarize = (output: string) => ({
+				bytes: Buffer.byteLength(output),
+				sha256: createHash('sha256').update(output).digest('hex'),
+			});
+			const expectedStdout = 'A'.repeat(outputSize) + '\n\nfirst completed successfully. Duration: <duration> ms\n'
+				+ 'B'.repeat(outputSize) + '\n'
+				+ (scenario.endsWith('failure') ? '' : '\nsecond completed successfully. Duration: <duration> ms\n');
+
+			assert.deepStrictEqual({
+				status: result.status,
+				error: result.error?.message,
+				stdout: summarize(result.stdout.replace(/\d+(?= ms)/g, '<duration>')),
+				stderr: summarize(result.stderr),
+			}, {
+				status: 0,
+				error: undefined,
+				stdout: summarize(expectedStdout),
+				stderr: summarize('a'.repeat(outputSize) + '\n' + 'b'.repeat(outputSize) + '\n'),
+			});
+		});
+	}
+
 	test('uses each original process duration when reusing stdout', async context => {
 		const messages: string[] = [];
 		context.mock.method(console, 'log', (message: string) => { messages.push(message); });
