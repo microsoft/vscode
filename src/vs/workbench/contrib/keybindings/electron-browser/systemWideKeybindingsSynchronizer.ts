@@ -78,6 +78,8 @@ export class SystemWideKeybindingsSynchronizer extends Disposable {
 			}
 		} catch (error) {
 			if (!this._store.isDisposed) {
+				this.lastProcessedPayload = undefined;
+				this.lastProcessedPayloadHadFailures = false;
 				this.logService.error(`[${this.options.logLabel}] failed to sync system-wide keybindings with the main process`, error);
 			}
 		}
