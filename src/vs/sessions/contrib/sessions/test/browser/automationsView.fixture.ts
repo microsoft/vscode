@@ -94,7 +94,9 @@ class FixtureAutomationService extends mock<IAutomationService>() {
 		this.unavailableProviders = constObservable(unavailableProviders);
 	}
 
-	override async deleteRun(): Promise<void> { }
+	override canRunAutomation(): boolean { return true; }
+	override canUpdateAutomation(): boolean { return true; }
+	override canDeleteAutomation(): boolean { return true; }
 }
 
 class FixtureSessionsManagementService extends mock<ISessionsManagementService>() {
@@ -414,6 +416,5 @@ function createRun(id: string, automationId: string, status: IAutomationRun['sta
 		startedAt: startedAt.toISOString(),
 		completedAt: status === 'completed' || status === 'failed' ? startedAt.toISOString() : undefined,
 		errorMessage,
-		leaderWindowId: 1,
 	};
 }

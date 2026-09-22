@@ -22,6 +22,7 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
+import { InMemoryStorageService, IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { asCssVariable } from '../../../../../platform/theme/common/colorUtils.js';
 import { isHighContrast } from '../../../../../platform/theme/common/theme.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
@@ -35,7 +36,10 @@ import { IVoiceInputModeService, VoiceInputMode } from '../../../../../workbench
 import { IAICustomizationWorkspaceService } from '../../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
 import { ICustomizationHarnessService } from '../../../../../workbench/contrib/chat/common/customizationHarnessService.js';
 import { IChatRequestVariableEntry, toPasteVariableEntry } from '../../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
-import { IPromptsService } from '../../../../../workbench/contrib/chat/common/promptSyntax/service/promptsService.js';
+import { IPromptsService, PromptsStorage } from '../../../../../workbench/contrib/chat/common/promptSyntax/service/promptsService.js';
+import { PromptsType } from '../../../../../workbench/contrib/chat/common/promptSyntax/promptTypes.js';
+import { CustomizationMigration, CustomizationMigrationType, FileCustomizationMigration, FileCustomizationMigrationType, getCustomizationMigrationEnablementSetting, ICustomizationMigrationService, McpServerCustomizationMigration } from '../../../../../workbench/contrib/chat/common/promptSyntax/service/customizationMigrationService.js';
+import { IMcpWorkbenchService } from '../../../../../workbench/contrib/mcp/common/mcpTypes.js';
 import { ChatAgentLocation } from '../../../../../workbench/contrib/chat/common/constants.js';
 import { ILanguageModelChatMetadataAndIdentifier } from '../../../../../workbench/contrib/chat/common/languageModels.js';
 import { IHistoryService } from '../../../../../workbench/services/history/common/history.js';
@@ -91,6 +95,7 @@ interface INewChatWidgetFixtureOptions {
 	readonly primaryToolbarWidth?: number;
 	readonly phoneLayout?: boolean;
 	readonly withChatBackground?: boolean;
+	readonly migrationCount?: number;
 }
 
 class AutoModelFixtureMenuService extends FixtureMenuService {
@@ -173,6 +178,7 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 		primaryToolbarWidth,
 		phoneLayout = false,
 		withChatBackground = false,
+		migrationCount = 0,
 	} = options;
 	const feedbackItems: readonly IAgentFeedback[] = Array.from({ length: commentCount }, (_, index) => ({
 		id: `feedback-${index}`,
@@ -186,7 +192,7 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 	const workspace = createFixtureWorkspace(withRemoteWorkspace);
 	const sessionTypes = createFixtureSessionTypes();
 	const provider = createFixtureProvider(workspace, sessionTypes, withConfiguredModel ? [createFixtureConfiguredModel()] : withAutoModel ? [createFixtureAutoModel()] : []);
-	const activeSession = promptOptions || withWorkspace || withRemoteWorkspace || withAttachedContext ? createFixtureActiveSession(workspace, sessionTypes[0]) : undefined;
+	const activeSession = promptOptions || withWorkspace || withRemoteWorkspace || withAttachedContext ? createFixtureActiveSession(workspace, sessionTypes[0], migrationCount > 0) : undefined;
 	const activeSessionObservable = observableValue<IActiveSession | undefined>('activeSession', activeSession);
 	const composerService = disposableStore.add(new NewSessionComposerService());
 	const sessionsService = new class extends mock<ISessionsService>() {
@@ -203,6 +209,9 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 		additionalServices: reg => {
 			registerChatFixtureServices(reg);
 			reg.defineInstance(IConfigurationService, configurationService);
+			if (migrationCount > 0) {
+				reg.defineInstance(IStorageService, disposableStore.add(new InMemoryStorageService()));
+			}
 			if (withAutoModel || withConfiguredModel) {
 				reg.define(IMenuService, AutoModelFixtureMenuService);
 			}
@@ -297,6 +306,27 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 			}());
 			reg.defineInstance(IPromptsService, new class extends mock<IPromptsService>() {
 				override readonly onDidChangeSlashCommands = Event.None;
+				override readonly onDidChangeCustomAgents = Event.None;
+				override readonly onDidChangeInstructions = Event.None;
+				override readonly onDidChangeAgentInstructions = Event.None;
+			}());
+			reg.defineInstance(IMcpWorkbenchService, new class extends mock<IMcpWorkbenchService>() {
+				override readonly onChange = Event.None;
+				override readonly onReset = Event.None;
+			}());
+			reg.defineInstance(ICustomizationMigrationService, new class extends mock<ICustomizationMigrationService>() {
+				override computeMigration(resource: URI, type: FileCustomizationMigrationType): Promise<FileCustomizationMigration>;
+				override computeMigration(resource: URI, type: CustomizationMigrationType.McpServers): Promise<McpServerCustomizationMigration>;
+				override async computeMigration(_resource: URI, type: CustomizationMigrationType): Promise<CustomizationMigration> {
+					if (type === CustomizationMigrationType.McpServers) {
+						return { type, candidates: [], servers: [], discoveryComplete: true, coverage: { restrictedByMcpAccess: false, restrictedByCustomizationPolicy: false } };
+					}
+					const candidates = Array.from({ length: migrationCount }, (_, index) => ({
+						uri: URI.file(`/workspace/.github/prompts/prompt-${index}.prompt.md`),
+						type: PromptsType.prompt, storage: PromptsStorage.local,
+					}));
+					return { type, candidates, files: candidates.map(candidate => candidate.uri) };
+				}
 			}());
 			reg.defineInstance(ICustomizationHarnessService, new class extends mock<ICustomizationHarnessService>() {
 				override readonly onDidChangeSlashCommands = Event.None;
@@ -383,6 +413,10 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 		});
 	}
 
+	if (migrationCount > 0) {
+		await (instantiationService.get(IConfigurationService) as TestConfigurationService)
+			.setUserConfiguration(getCustomizationMigrationEnablementSetting(CustomizationMigrationType.PromptFiles), true);
+	}
 	const view = disposableStore.add(instantiationService.createInstance(NewChatView, false, {
 		initialAttachments: withAttachedContext ? createFixtureAttachments() : undefined,
 	}));
@@ -392,6 +426,19 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 	const nextFrame = () => new Promise<void>(resolve => targetWindow.requestAnimationFrame(() => resolve()));
 	await nextFrame();
 	await nextFrame();
+	if (migrationCount > 0) {
+		const notice = view.element.querySelector<HTMLElement>('.new-chat-migration-notice');
+		const input = view.element.querySelector<HTMLElement>('.new-chat-input-container');
+		assert(!!notice && !!input && targetWindow.getComputedStyle(notice).display !== 'none');
+		const before = input.getBoundingClientRect();
+		notice.style.display = 'none';
+		const withoutNotice = input.getBoundingClientRect();
+		notice.style.display = '';
+		assert(before.x === withoutNotice.x && before.y === withoutNotice.y && before.height === withoutNotice.height,
+			'The migration notice must not move or resize the centered input.');
+		assert(notice.getBoundingClientRect().bottom <= container.getBoundingClientRect().bottom,
+			'The migration notice must fit below the input.');
+	}
 	const repositoryConfigContainer = view.element.querySelector<HTMLElement>('.new-chat-repo-config-container');
 	if (withControlPickers) {
 		const separators = view.element.querySelectorAll<HTMLElement>('.new-chat-repo-config-container .action-item.repository-config-separator');
@@ -474,6 +521,15 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 }
 
 export default defineThemedFixtureGroup({ path: 'sessions/chat/newWidget/' }, {
+	Migrations: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		render: context => renderNewChatWidget(context, { withWorkspace: true, migrationCount: 4 }),
+	}),
+	MigrationsNarrow: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: context => renderNewChatWidget(context, { width: 420, height: 560, withWorkspace: true, migrationCount: 4 }),
+	}),
 	NewSessionDefault: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		render: context => renderNewChatWidget(context, { withWorkspace: true }),
@@ -814,7 +870,7 @@ function createAttachedRepositoryWorkspace(): ISessionWorkspace {
 	};
 }
 
-function createFixtureActiveSession(workspace: ISessionWorkspace, sessionType: ISessionType): IActiveSession {
+function createFixtureActiveSession(workspace: ISessionWorkspace, sessionType: ISessionType, withMigrations = false): IActiveSession {
 	const activeChat = new class extends mock<IChat>() {
 		override readonly resource = URI.parse('fixture-chat://new-session');
 		// Read by model selection: an untitled chat with no model of its own.
@@ -823,7 +879,7 @@ function createFixtureActiveSession(workspace: ISessionWorkspace, sessionType: I
 		override readonly modelSource = constObservable<ChatModelSource | undefined>(undefined);
 	}();
 	return new class extends mock<IActiveSession>() {
-		override readonly resource = URI.from({ scheme: 'fixture-session', path: '/fixture-session' });
+		override readonly resource = URI.from({ scheme: withMigrations ? 'agent-host-copilotcli' : 'fixture-session', path: '/fixture-session' });
 		override readonly sessionId = 'fixture-session';
 		override readonly providerId = 'fixture-provider';
 		override readonly sessionType = sessionType.id;
