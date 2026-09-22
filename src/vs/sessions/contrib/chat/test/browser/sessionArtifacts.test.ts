@@ -7,7 +7,6 @@ import assert from 'assert';
 import { timeout } from '../../../../../base/common/async.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Event } from '../../../../../base/common/event.js';
-import { isMarkdownString } from '../../../../../base/common/htmlContent.js';
 import { autorun, constObservable, observableValue, type IReader } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
@@ -146,14 +145,15 @@ suite('Session Artifacts', () => {
 				label: entry.label,
 				ariaLabel: entry.ariaLabel,
 				ariaDescription: entry.ariaDescription,
-				hover: isMarkdownString(content) ? content.value : undefined,
+				hover: content instanceof HTMLElement ? content.textContent : undefined,
+				hoverClassName: content instanceof HTMLElement ? content.className : undefined,
+				panelClassName: entry.hover?.panelClassName,
 				tooltip: entry.tooltip,
 			};
 		}), [
-			{ label: 'PR #12', ariaLabel: 'Open PR #12', ariaDescription: pullRequestLink.toString(true), hover: pullRequestLink.toString(true), tooltip: pullRequestLink.toString(true) },
-			// The hover is markdown, so its `~` arrives escaped.
-			{ label: 'report.md', ariaLabel: 'Open report.md', ariaDescription: '~/artifacts/report.md', hover: '\\~/artifacts/report.md', tooltip: '~/artifacts/report.md' },
-			{ label: 'Resource', ariaLabel: 'Open Resource', ariaDescription: resourceUri.toString(true), hover: resourceUri.toString(true), tooltip: resourceUri.toString(true) },
+			{ label: 'PR #12', ariaLabel: 'Open PR #12', ariaDescription: pullRequestLink.toString(true), hover: pullRequestLink.toString(true), hoverClassName: 'chat-pill-location-hover', panelClassName: 'chat-pill-location-hover-panel', tooltip: pullRequestLink.toString(true) },
+			{ label: 'report.md', ariaLabel: 'Open report.md', ariaDescription: '~/artifacts/report.md', hover: '~/artifacts/report.md', hoverClassName: 'chat-pill-location-hover', panelClassName: 'chat-pill-location-hover-panel', tooltip: '~/artifacts/report.md' },
+			{ label: 'Resource', ariaLabel: 'Open Resource', ariaDescription: resourceUri.toString(true), hover: resourceUri.toString(true), hoverClassName: 'chat-pill-location-hover', panelClassName: 'chat-pill-location-hover-panel', tooltip: resourceUri.toString(true) },
 		]);
 	});
 
@@ -354,11 +354,11 @@ suite('Session Artifacts', () => {
 			copied,
 		}, {
 			entries: [
-				['PR #12', ['Copy Pull Request Link']],
-				['Issue #34', ['Copy Issue Link']],
-				['Commit', ['Copy Commit URL']],
-				['Docs', ['Copy Website URL']],
-				['index.ts', ['Copy Path']],
+				['PR #12', ['Copy pull request link']],
+				['Issue #34', ['Copy issue link']],
+				['Commit', ['Copy commit URL']],
+				['Docs', ['Copy website URL']],
+				['index.ts', ['Copy path']],
 				['Chat settings', ['Copy URI']],
 			],
 			copied: [
@@ -404,8 +404,8 @@ suite('Session Artifacts', () => {
 			copied,
 		}, {
 			label: 'Authoritative subject',
-			actionLabels: ['Copy Commit URL'],
-			hoverActionLabels: ['Copy Commit Hash'],
+			actionLabels: ['Copy commit URL'],
+			hoverActionLabels: ['Copy commit hash'],
 			hoverClassName: 'sessions-commit-hover compact',
 			hoverText: 'microsoft/vscodeon Sep 22Authoritative subject @abc123Detailed commit body@octocat committed this change',
 			copied: ['abc123', link.toString(true)],
@@ -438,8 +438,8 @@ suite('Session Artifacts', () => {
 			hoverText: hover?.textContent,
 		}, {
 			label: 'Resolved commit subject',
-			rowActions: ['Copy Commit URL'],
-			hoverActions: ['Copy Commit Hash'],
+			rowActions: ['Copy commit URL'],
+			hoverActions: ['Copy commit hash'],
 			hoverClassName: 'sessions-commit-hover compact',
 			hoverText: 'microsoft/vscodeon Sep 22Resolved commit subject @abc123Resolved commit body@octocat committed this change',
 		});

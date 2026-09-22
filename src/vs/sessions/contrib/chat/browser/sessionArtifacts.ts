@@ -6,7 +6,6 @@
 import { Codicon } from '../../../../base/common/codicons.js';
 import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Event } from '../../../../base/common/event.js';
-import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { getMediaMime } from '../../../../base/common/mime.js';
 import { matchesSomeScheme, Schemas } from '../../../../base/common/network.js';
@@ -30,7 +29,7 @@ import { observableConfigValue } from '../../../../platform/observable/common/pl
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
-import { chatPillCopyHashHoverLabel, chatPillCopyUrlHoverLabel, chatPillRemoveReferenceHoverLabel, type IChatPillEntry, type IChatPillSection, withChatPillHoverLabel } from '../../../../workbench/browser/chatPills.js';
+import { chatPillCopyHashHoverLabel, chatPillCopyUrlHoverLabel, chatPillRemoveReferenceHoverLabel, getChatPillLocationHover, type IChatPillEntry, type IChatPillSection, withChatPillHoverLabel } from '../../../../workbench/browser/chatPills.js';
 import { openChatTurnFile, previewKind } from '../../../../workbench/contrib/chat/browser/widget/chatTurnPills.js';
 import { ChatConfiguration } from '../../../../workbench/contrib/chat/common/constants.js';
 import type { IImageCarouselCollection } from '../../../../workbench/contrib/imageCarousel/browser/imageCarouselTypes.js';
@@ -124,7 +123,7 @@ export function sessionArtifactLocation(location: string, label: string): Pick<I
 	return {
 		ariaDescription: location,
 		ariaLabel: localize('sessionArtifacts.open', "Open {0}", label),
-		hover: { content: new MarkdownString().appendText(location) },
+		hover: getChatPillLocationHover(location),
 		tooltip: location,
 	};
 }
@@ -205,13 +204,13 @@ function toEntry(artifact: ISessionArtifact, actions: ISessionArtifactActions, l
 			resource: uri,
 			toolbarActions: [toAction({
 				id: `sessions.artifacts.copyFilePath.${artifact.id}`,
-				label: localize('sessionArtifacts.copyFilePath', "Copy Path"),
+				label: localize('sessionArtifacts.copyFilePath', "Copy path"),
 				class: ThemeIcon.asClassName(Codicon.copy),
 				run: () => actions.copy(fullPath),
 			})],
 			hoverActions: [toAction({
 				id: `sessions.artifacts.copyFileRelativePath.${artifact.id}`,
-				label: localize('sessionArtifacts.copyFileRelativePath', "Copy Relative Path"),
+				label: localize('sessionArtifacts.copyFileRelativePath', "Copy relative path"),
 				class: ThemeIcon.asClassName(Codicon.copy),
 				run: () => actions.copy(relativePath),
 			})],
@@ -250,14 +249,14 @@ function toEntry(artifact: ISessionArtifact, actions: ISessionArtifactActions, l
 			icon,
 			toolbarActions: [withChatPillHoverLabel(toAction({
 				id: `sessions.artifacts.copyCommitUrl.${artifact.id}`,
-				label: localize('sessionArtifacts.copyCommitUrl', "Copy Commit URL"),
+				label: localize('sessionArtifacts.copyCommitUrl', "Copy commit URL"),
 				class: ThemeIcon.asClassName(Codicon.copy),
 				run: () => actions.copy(link.toString(true)),
 			}), chatPillCopyUrlHoverLabel)],
 			...((artifact.commitHash || commit?.sha) ? {
 				hoverActions: [withChatPillHoverLabel(toAction({
 					id: `sessions.artifacts.copyCommitHash.${artifact.id}`,
-					label: localize('sessionArtifacts.copyCommitHash', "Copy Commit Hash"),
+					label: localize('sessionArtifacts.copyCommitHash', "Copy commit hash"),
 					class: ThemeIcon.asClassName(Codicon.copy),
 					run: () => actions.copy(artifact.commitHash ?? commit!.sha),
 				}), chatPillCopyHashHoverLabel)],
@@ -296,11 +295,11 @@ function toEntry(artifact: ISessionArtifact, actions: ISessionArtifactActions, l
 	}
 	const link = artifact.link;
 	const copyLinkLabel = artifact.kind === SessionArtifactKind.PullRequest
-		? localize('sessionArtifacts.copyPullRequestLink', "Copy Pull Request Link")
+		? localize('sessionArtifacts.copyPullRequestLink', "Copy pull request link")
 		: artifact.kind === SessionArtifactKind.Issue
-			? localize('sessionArtifacts.copyIssueLink', "Copy Issue Link")
+			? localize('sessionArtifacts.copyIssueLink', "Copy issue link")
 			: artifact.kind === SessionArtifactKind.Website
-				? localize('sessionArtifacts.copyWebsiteUrl', "Copy Website URL")
+				? localize('sessionArtifacts.copyWebsiteUrl', "Copy website URL")
 				: undefined;
 	const copyLinkAction = copyLinkLabel
 		? [withChatPillHoverLabel(toAction({
@@ -369,13 +368,13 @@ export function buildSessionArtifactSections(artifacts: readonly ISessionArtifac
 						resource: uri,
 						toolbarActions: [toAction({
 							id: `sessions.artifacts.copyFilePath.${artifact.id}`,
-							label: localize('sessionArtifacts.copyFilePath', "Copy Path"),
+							label: localize('sessionArtifacts.copyFilePath', "Copy path"),
 							class: ThemeIcon.asClassName(Codicon.copy),
 							run: () => actions.copy(fullPath),
 						})],
 						hoverActions: [toAction({
 							id: `sessions.artifacts.copyFileRelativePath.${artifact.id}`,
-							label: localize('sessionArtifacts.copyFileRelativePath', "Copy Relative Path"),
+							label: localize('sessionArtifacts.copyFileRelativePath', "Copy relative path"),
 							class: ThemeIcon.asClassName(Codicon.copy),
 							run: () => actions.copy(relativePath),
 						})],

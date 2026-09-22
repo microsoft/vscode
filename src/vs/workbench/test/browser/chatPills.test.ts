@@ -117,6 +117,7 @@ suite('ChatPills', () => {
 			fixedHeightRemoved: containerStyle.height !== '240px',
 			captionElement: caption.tagName,
 			captionUsesHoverForeground: captionStyle.color === hoverStyle.color,
+			captionWraps: captionStyle.whiteSpace === 'normal' && captionStyle.overflowWrap === 'anywhere',
 			imageMaxHeight: imageStyle.maxHeight,
 			imageMinHeight: imageStyle.minHeight,
 			imageObjectFit: imageStyle.objectFit,
@@ -125,6 +126,7 @@ suite('ChatPills', () => {
 			fixedHeightRemoved: true,
 			captionElement: 'DIV',
 			captionUsesHoverForeground: true,
+			captionWraps: true,
 			imageMaxHeight: '350px',
 			imageMinHeight: '0px',
 			imageObjectFit: 'contain',
@@ -426,9 +428,9 @@ suite('ChatPills', () => {
 		viewItem.render(container);
 
 		const fallbackHover = getDropdownPillHoverContents.call(viewItem);
-		const copyAction = withChatPillHoverLabel(disposables.add(new Action('copy', 'Copy Pull Request URL')), 'Copy URL');
-		const copyHashAction = withChatPillHoverLabel(disposables.add(new Action('copyHash', 'Copy Commit Hash')), 'Copy Hash');
-		const removeAction = withChatPillHoverLabel(disposables.add(new Action('remove', 'Remove Pull Request Reference from Session')), 'Remove Reference');
+		const copyAction = withChatPillHoverLabel(disposables.add(new Action('copy', 'Copy pull request URL')), 'Copy URL');
+		const copyHashAction = withChatPillHoverLabel(disposables.add(new Action('copyHash', 'Copy commit hash')), 'Copy hash');
+		const removeAction = withChatPillHoverLabel(disposables.add(new Action('remove', 'Remove pull request reference from session')), 'Remove reference');
 		sections.set([{
 			title: 'Pull Requests', entries: [{
 				...entry('1', richHover),
@@ -461,13 +463,13 @@ suite('ChatPills', () => {
 		}, {
 			fallbackHover: 'https://github.com/microsoft/vscode/pull/1',
 			usesRichHover: true,
-			singularFooterActions: ['Copy URL', 'Copy Hash', 'Remove Reference'],
+			singularFooterActions: ['Copy URL', 'Copy hash', 'Remove reference'],
 			mappedEntry: {
 				label: 'Pull Request #1',
 				badge: '#1',
 				className: 'chat-pill-github-reference',
-				rowActions: ['Copy Pull Request URL', 'Remove Pull Request Reference from Session'],
-				footerActions: ['Copy Hash'],
+				rowActions: ['Copy pull request URL', 'Remove pull request reference from session'],
+				footerActions: ['Copy hash'],
 			},
 			summaryHover: 'Show 2 pull requests',
 		});

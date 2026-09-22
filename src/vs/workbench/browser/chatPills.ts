@@ -16,7 +16,6 @@ import { IAction, IActionRunner } from '../../base/common/actions.js';
 import { disposableTimeout } from '../../base/common/async.js';
 import { CancellationToken } from '../../base/common/cancellation.js';
 import { Emitter, Event } from '../../base/common/event.js';
-import { MarkdownString } from '../../base/common/htmlContent.js';
 import { KeyCode } from '../../base/common/keyCodes.js';
 import { isMacintosh } from '../../base/common/platform.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../base/common/lifecycle.js';
@@ -95,11 +94,18 @@ export interface IChatPillAction extends IAction {
 }
 
 export const chatPillCopyUrlHoverLabel = localize('chatPills.copyUrl', "Copy URL");
-export const chatPillCopyHashHoverLabel = localize('chatPills.copyHash', "Copy Hash");
-export const chatPillRemoveReferenceHoverLabel = localize('chatPills.removeReference', "Remove Reference");
+export const chatPillCopyHashHoverLabel = localize('chatPills.copyHash', "Copy hash");
+export const chatPillRemoveReferenceHoverLabel = localize('chatPills.removeReference', "Remove reference");
 
 export function withChatPillHoverLabel<T extends IAction>(action: T, hoverLabel: string): T & IChatPillAction {
 	return Object.assign(action, { hoverLabel });
+}
+
+export function getChatPillLocationHover(location: string): IActionListItemHover {
+	return {
+		content: $('.chat-pill-location-hover', undefined, location),
+		panelClassName: 'chat-pill-location-hover-panel',
+	};
 }
 
 export interface IChatPillImagePreview {
@@ -187,7 +193,7 @@ export function getChatPillResourceLocation(uri: URI, label: string, ariaLabel =
 	return {
 		ariaDescription: value,
 		ariaLabel,
-		hover: { content: new MarkdownString().appendText(value) },
+		hover: getChatPillLocationHover(value),
 		tooltip: value,
 	};
 }

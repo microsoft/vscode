@@ -39,9 +39,6 @@
 	max-width: 100%;
 	margin-top: var(--vscode-spacing-size40);
 	padding: var(--vscode-spacing-size20) 0;
-	overflow: hidden;
-	white-space: nowrap;
-	text-overflow: ellipsis;
 }
 
 .chat-image-hover-location-separator {

@@ -127,6 +127,7 @@
 	padding: 0px 8px;
 	width: 100%;
 	box-sizing: border-box;
+	background: var(--vscode-editorHoverWidget-statusBarBackground);
 }
 
 .hover-row.status-bar .actions .action-container {

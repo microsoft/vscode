@@ -46,7 +46,7 @@ export function createChatImageHoverContent(
 	}
 
 	if (resource) {
-		const location = $('.chat-image-hover-location.chat-attached-context-url', undefined, fullName);
+		const location = $('.chat-image-hover-location.chat-attached-context-url.chat-pill-location-hover', undefined, fullName);
 		hoverElement.append($('.chat-image-hover-location-separator.chat-attached-context-url-separator'), location);
 	}
 

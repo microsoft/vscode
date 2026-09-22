@@ -156,13 +156,13 @@ export function buildSessionPullRequestSections(pullRequests: readonly IResolved
 			pullRequestState: state,
 			promotedAction: recordedReferenceId && referenceActions ? withChatPillHoverLabel(toAction({
 				id: `sessionChatPills.removePullRequest.${recordedReferenceId}`,
-				label: localize('sessionChatPills.removePullRequest', "Remove Pull Request Reference from Session"),
+				label: localize('sessionChatPills.removePullRequest', "Remove pull request reference from session"),
 				class: ThemeIcon.asClassName(Codicon.close),
 				run: () => referenceActions.remove(recordedReferenceId, resourceLabel),
 			}), chatPillRemoveReferenceHoverLabel) : undefined,
 			toolbarActions: [withChatPillHoverLabel(toAction({
 				id: `sessionChatPills.copyPullRequest.${ref.owner}.${ref.repo}.${ref.number}`,
-				label: localize('sessionChatPills.copyPullRequest', "Copy Pull Request URL"),
+				label: localize('sessionChatPills.copyPullRequest', "Copy pull request URL"),
 				class: ThemeIcon.asClassName(Codicon.copy),
 				run: () => clipboardService.writeText(ref.uri.toString(true)),
 			}), chatPillCopyUrlHoverLabel)],
@@ -222,13 +222,13 @@ export function buildSessionIssueSections(issues: readonly IResolvedSessionIssue
 			icon: issue ? computeIssueIcon(issue.state, issue.stateReason) : computeIssueIcon(GitHubIssueState.Open, undefined),
 			promotedAction: recordedReferenceId && referenceActions ? withChatPillHoverLabel(toAction({
 				id: `sessionChatPills.removeIssue.${recordedReferenceId}`,
-				label: localize('sessionChatPills.removeIssue', "Remove Issue Reference from Session"),
+				label: localize('sessionChatPills.removeIssue', "Remove issue reference from session"),
 				class: ThemeIcon.asClassName(Codicon.close),
 				run: () => referenceActions.remove(recordedReferenceId, resourceLabel),
 			}), chatPillRemoveReferenceHoverLabel) : undefined,
 			toolbarActions: [withChatPillHoverLabel(toAction({
 				id: `sessionChatPills.copyIssue.${ref.owner}.${ref.repo}.${ref.number}`,
-				label: localize('sessionChatPills.copyIssue', "Copy Issue URL"),
+				label: localize('sessionChatPills.copyIssue', "Copy issue URL"),
 				class: ThemeIcon.asClassName(Codicon.copy),
 				run: () => clipboardService.writeText(ref.uri.toString(true)),
 			}), chatPillCopyUrlHoverLabel)],

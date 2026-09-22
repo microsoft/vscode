@@ -533,10 +533,10 @@ suite('AgentHostSessionInputPills', () => {
 				hoverClassName: 'sessions-pr-hover compact',
 				hoverText: 'microsoft/vscodeon Sep 1Live pull request 332982 #332982OpenLive pull request bodymain←feature@pr-author opened this pull request',
 				actionLabels: [
-					'Copy Pull Request URL',
-					'Remove Chat: unify Agent Host status pills across chat surfaces from Session',
-					'Copy Pull Request URL',
-					'Remove sessions: preserve recorded issue titles in pills from Session',
+					'Copy pull request URL',
+					'Remove Chat: unify Agent Host status pills across chat surfaces from session',
+					'Copy pull request URL',
+					'Remove sessions: preserve recorded issue titles in pills from session',
 				],
 			},
 			issue: {
@@ -1107,7 +1107,7 @@ suite('AgentHostSessionInputPills', () => {
 			copied.push(await clipboardService.readText());
 		}
 		connection.removeSessionArtifactError = new Error('write failed');
-		await dropdownActions.find(action => action.label === 'Remove Preview from Session')?.run();
+		await dropdownActions.find(action => action.label === 'Remove Preview from session')?.run();
 
 		assert.deepStrictEqual({
 			pills: Array.from(persistentContent.querySelectorAll('.chat-pill-label')).map(label => label.textContent),
@@ -1121,16 +1121,16 @@ suite('AgentHostSessionInputPills', () => {
 			pills: ['4 References'],
 			empty: false,
 			dropdownActionLabels: [
-				'Copy Commit URL',
-				'Remove Commit from Session',
-				'Copy Website URL',
-				'Remove Preview from Session',
-				'Copy Path',
-				'Remove README from Session',
+				'Copy commit URL',
+				'Remove Commit from session',
+				'Copy website URL',
+				'Remove Preview from session',
+				'Copy path',
+				'Remove README from session',
 				'Copy URI',
-				'Remove Chat settings from Session',
+				'Remove Chat settings from session',
 			],
-			dropdownFooterActionLabels: ['Copy Hash', 'Copy Relative Path'],
+			dropdownFooterActionLabels: ['Copy hash', 'Copy relative path'],
 			copied: [
 				'https://github.com/microsoft/vscode/commit/abc123',
 				website.toString(true),
