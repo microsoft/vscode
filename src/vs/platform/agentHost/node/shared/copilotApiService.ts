@@ -521,6 +521,9 @@ export interface ICopilotApiService {
 
 	/** Read the SKU only while its account discovery cache entry remains usable. */
 	getCachedCopilotSku?(githubToken: string): string | undefined;
+
+	/** Capture a SKU reader that is permanently invalidated when this credential's cache is rejected. */
+	captureCopilotSku?(githubToken: string): () => string | undefined;
 }
 
 export class CopilotApiService extends Disposable implements ICopilotApiService {
@@ -529,6 +532,8 @@ export class CopilotApiService extends Disposable implements ICopilotApiService 
 
 	private _capiBasePromise: Promise<ICapiBase> | null = null;
 	private readonly _clientsByToken = new Map<string, IClientRequest>();
+	private _copilotSkuCacheEpoch = 0;
+	private readonly _copilotSkuTokenGenerations = new Map<string, number>();
 	private readonly _fetch: FetchFunction;
 
 	constructor(
@@ -539,8 +544,8 @@ export class CopilotApiService extends Disposable implements ICopilotApiService 
 	) {
 		super();
 		this._fetch = fetchFn ?? globalThis.fetch;
-		this._register(this._gitHubEndpointService.onDidChange(() => this._clientsByToken.clear()));
-		this._register(toDisposable(() => this._clientsByToken.clear()));
+		this._register(this._gitHubEndpointService.onDidChange(() => this._clearClients()));
+		this._register(toDisposable(() => this._clearClients()));
 	}
 
 	// #region Public API
@@ -878,7 +883,16 @@ export class CopilotApiService extends Disposable implements ICopilotApiService 
 
 	getCachedCopilotSku(githubToken: string): string | undefined {
 		const entry = this._clientsByToken.get(githubToken)?.value;
-		return entry && entry.expiresAt - Date.now() / 1000 > CAPI_CONTEXT_REFRESH_BUFFER_SECONDS ? entry.copilotSku : undefined;
+		return entry && entry.expiresAt > Date.now() / 1000 ? entry.copilotSku : undefined;
+	}
+
+	captureCopilotSku(githubToken: string): () => string | undefined {
+		const cacheEpoch = this._copilotSkuCacheEpoch;
+		const tokenGeneration = this._copilotSkuTokenGenerations.get(githubToken) ?? 0;
+		return () => cacheEpoch === this._copilotSkuCacheEpoch
+			&& tokenGeneration === (this._copilotSkuTokenGenerations.get(githubToken) ?? 0)
+			? this.getCachedCopilotSku(githubToken)
+			: undefined;
 	}
 
 	private _getEntryForToken(githubToken: string): Promise<ICachedClient> {
@@ -902,6 +916,9 @@ export class CopilotApiService extends Disposable implements ICopilotApiService 
 			}).catch(err => {
 				if (this._clientsByToken.get(githubToken) === pending) {
 					this._clientsByToken.delete(githubToken);
+					if (err instanceof CopilotApiError && (err.status === 401 || err.status === 403)) {
+						this._invalidateCopilotSkuForToken(githubToken);
+					}
 				}
 				throw err;
 			}),
@@ -913,7 +930,18 @@ export class CopilotApiService extends Disposable implements ICopilotApiService 
 	private _invalidateClientForToken(githubToken: string, capiClient: CAPIClient): void {
 		if (this._clientsByToken.get(githubToken)?.value?.capiClient === capiClient) {
 			this._clientsByToken.delete(githubToken);
+			this._invalidateCopilotSkuForToken(githubToken);
 		}
+	}
+
+	private _invalidateCopilotSkuForToken(githubToken: string): void {
+		this._copilotSkuTokenGenerations.set(githubToken, (this._copilotSkuTokenGenerations.get(githubToken) ?? 0) + 1);
+	}
+
+	private _clearClients(): void {
+		this._copilotSkuCacheEpoch++;
+		this._copilotSkuTokenGenerations.clear();
+		this._clientsByToken.clear();
 	}
 
 	private async _buildClientForToken(githubToken: string): Promise<ICachedClient> {

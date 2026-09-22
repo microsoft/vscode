@@ -2019,6 +2019,40 @@ suite('ClaudeAgent', () => {
 		});
 	});
 
+	test('an older proxy startup cannot replace a newer authentication on the same endpoint', async () => {
+		const { agent, proxy } = createTestContext(disposables);
+		const starts = new Map<string, DeferredPromise<IClaudeProxyHandle>>();
+		const disposed: string[] = [];
+		proxy.start = async token => {
+			proxy.startCalls.push({ token });
+			const started = new DeferredPromise<IClaudeProxyHandle>();
+			starts.set(token, started);
+			return started.p;
+		};
+		const handle = (token: string): IClaudeProxyHandle => ({
+			baseUrl: 'http://127.0.0.1:0',
+			nonce: `nonce-for-${token}`,
+			dispose: () => disposed.push(token),
+		});
+
+		const older = agent.authenticate('https://api.github.com', 'tokA');
+		const newer = agent.authenticate('https://api.github.com', 'tokB');
+		starts.get('tokB')?.complete(handle('tokB'));
+		await newer;
+		starts.get('tokA')?.complete(handle('tokA'));
+		await older;
+
+		assert.deepStrictEqual({
+			githubToken: agent['_githubToken'],
+			proxyNonce: agent['_proxyHandle']?.nonce,
+			disposed,
+		}, {
+			githubToken: 'tokB',
+			proxyNonce: 'nonce-for-tokB',
+			disposed: ['tokA'],
+		});
+	});
+
 	test('revoking authentication disposes the Copilot proxy and clears its models', async () => {
 		const { agent, proxy } = createTestContext(disposables);
 		await agent.authenticate('https://api.github.com', 'tok');

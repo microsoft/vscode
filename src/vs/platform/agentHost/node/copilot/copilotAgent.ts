@@ -1850,6 +1850,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	private _handleCopilotSessionAuthRequired(credentialInvalid = true): void {
+		if (credentialInvalid && !this._githubCredentialInvalid) {
+			this._telemetryAuthenticationGeneration++;
+		}
 		this._githubCredentialInvalid ||= credentialInvalid;
 		this._authenticationRequired.set({
 			resource: this._gitHubEndpointService.getCopilotResource(),
@@ -5462,6 +5465,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				hostCustomizations: () => this._retainedHostCustomizations(sessionUri),
 				serverToolHost: this._serverToolHost,
 				onTurnEnded: () => this._onChatTurnEnded(),
+				telemetryContext: () => this.getTelemetryContext(),
 			},
 		);
 		return agentSession;

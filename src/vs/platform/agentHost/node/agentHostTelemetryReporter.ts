@@ -1144,6 +1144,7 @@ export class AgentHostTelemetryReporter {
 		const toolCounts = JSON.stringify(report.toolCounts);
 		this._telemetryService.publicLog2<IAgentHostToolCallDetailsEvent, IAgentHostToolCallDetailsClassification>('toolCallDetails', {
 			...toInitiatorTelemetry(report.clientContext),
+			...report.telemetryContext,
 			provider: report.provider,
 			agentSessionId: conversationId,
 			isSubagentSession: isSubagentSession(session),
@@ -1171,6 +1172,7 @@ export class AgentHostTelemetryReporter {
 			requestId: report.turnId,
 			messageId: report.turnId,
 			initiatorClientType: report.clientType,
+			...report.telemetryContext,
 			responseType: report.responseType,
 			...(report.model ? { model: report.model } : {}),
 			toolCounts,
@@ -1196,6 +1198,7 @@ export class AgentHostTelemetryReporter {
 		const agentSessionId = AgentSession.id(session);
 		this._telemetryService.publicLog2<IAgentHostToolApprovalEvent, IAgentHostToolApprovalClassification>('chat.toolApproval', {
 			...toInitiatorTelemetry(report.clientContext),
+			...report.telemetryContext,
 			provider: report.provider,
 			agentSessionId,
 			isSubagentSession: isSubagentSession(session),
@@ -1538,6 +1541,7 @@ export class AgentHostTelemetryReporter {
 		const session = isAhpChatChannel(report.session) ? parseRequiredSessionUriFromChatUri(report.session) : report.session;
 		this._telemetryService.publicLog2<IAgentHostAskQuestionsToolInvokedEvent, IAgentHostAskQuestionsToolInvokedClassification>('askQuestionsToolInvoked', {
 			...toInitiatorTelemetry(report.clientContext),
+			...report.telemetryContext,
 			requestId: report.requestId,
 			questionCount: report.questionCount,
 			answeredCount: report.answeredCount,

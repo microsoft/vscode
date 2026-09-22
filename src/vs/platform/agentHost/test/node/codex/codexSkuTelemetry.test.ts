@@ -320,6 +320,32 @@ suite('Codex Copilot SKU telemetry', () => {
 		}, { skus: ['sku-a', undefined], exposesIdentity: false });
 	});
 
+	test('does not revive a captured context after the credential cache is rejected and rediscovered', async () => {
+		let sku = 'sku-a';
+		const harness = createHarness(disposables, async url => String(url).endsWith('/responses')
+			? new Response('Unauthorized', { status: 401 })
+			: Response.json({ endpoints: { api: 'https://api.githubcopilot.com' }, access_type_sku: sku }));
+		await harness.authenticate('test-token-a');
+		const contextBeforeRejection = harness.agent.getTelemetryContext();
+
+		await assert.rejects(harness.apiService.responses('test-token-a', '{"model":"gpt-5.4"}'), CopilotApiError);
+		const skuAfterRejection = contextBeforeRejection.copilotSku;
+		sku = 'sku-b';
+		await harness.apiService.resolveCopilotSku('test-token-a');
+		const rejectedContextAfterRediscovery = contextBeforeRejection.copilotSku;
+		harness.completeTurn('rediscovered-account');
+
+		assert.deepStrictEqual({
+			skuAfterRejection,
+			rejectedContextAfterRediscovery,
+			turnSkus: harness.turnSkus(),
+		}, {
+			skuAfterRejection: undefined,
+			rejectedContextAfterRediscovery: undefined,
+			turnSkus: ['sku-b'],
+		});
+	});
+
 	test('uses metadata recovered by a CAPI request after initial discovery failed', async () => {
 		let available = false;
 		const harness = createHarness(disposables, async () => available
@@ -375,6 +401,22 @@ suite('Codex Copilot SKU telemetry', () => {
 		harness.completeTurn('late-discovery');
 
 		assert.deepStrictEqual(harness.turnSkus(), ['enterprise-sku', 'enterprise-sku']);
+	});
+
+	test('retains account metadata through the cache TTL refresh window', async () => {
+		const harness = createHarness(disposables, async () => Response.json({
+			endpoints: { api: 'https://api.githubcopilot.com' }, access_type_sku: 'sku-a',
+		}));
+		await harness.authenticate('test-token-a');
+		const clock = sinon.useFakeTimers({ now: Date.now(), toFake: ['Date'] });
+		try {
+			clock.setSystemTime(Date.now() + 26 * 60 * 1000);
+			harness.completeTurn('refresh-window');
+
+			assert.deepStrictEqual(harness.turnSkus(), ['sku-a']);
+		} finally {
+			clock.restore();
+		}
 	});
 
 	test('omits expired metadata and follows a refreshed entitlement for the same token', async () => {

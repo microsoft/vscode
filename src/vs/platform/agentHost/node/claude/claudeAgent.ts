@@ -371,6 +371,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 
 	private _githubToken: string | undefined;
 	private _gitHubEndpointGeneration = 0;
+	private _gitHubAuthenticationGeneration = 0;
 	private _proxyHandle: IClaudeProxyHandle | undefined;
 	private _serverToolHost: IAgentServerToolHost | undefined;
 
@@ -776,6 +777,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 			return false;
 		}
 		const endpointGeneration = this._gitHubEndpointGeneration;
+		const authenticationGeneration = ++this._gitHubAuthenticationGeneration;
 		if (!token) {
 			const oldHandle = this._proxyHandle;
 			const changed = this._githubToken !== undefined || oldHandle !== undefined;
@@ -814,7 +816,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		try {
 			newHandle = await this._claudeProxyService.start(token);
 		} catch (err) {
-			if (endpointGeneration !== this._gitHubEndpointGeneration) {
+			if (endpointGeneration !== this._gitHubEndpointGeneration || authenticationGeneration !== this._gitHubAuthenticationGeneration) {
 				this._logService.debug('[Claude] Superseded Copilot proxy startup failed', err);
 				return true;
 			}
@@ -844,7 +846,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 			void this._startModelRefresh();
 			return true;
 		}
-		if (endpointGeneration !== this._gitHubEndpointGeneration || this._store.isDisposed) {
+		if (endpointGeneration !== this._gitHubEndpointGeneration || authenticationGeneration !== this._gitHubAuthenticationGeneration || this._store.isDisposed) {
 			newHandle.dispose();
 			return true;
 		}

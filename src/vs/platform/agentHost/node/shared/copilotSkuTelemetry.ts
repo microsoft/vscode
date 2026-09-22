@@ -8,9 +8,13 @@ import type { ICopilotApiService } from './copilotApiService.js';
 
 /** Read late-arriving account metadata only while the captured authentication is still current. */
 export function captureCopilotTelemetryContext(apiService: ICopilotApiService, token: string | undefined, isCurrent: () => boolean): IAgentTelemetryContext {
+	const capturedSku = token ? apiService.captureCopilotSku?.(token) : undefined;
 	return {
 		get copilotSku() {
-			return token && isCurrent() ? apiService.getCachedCopilotSku?.(token) : undefined;
+			if (!token || !isCurrent()) {
+				return undefined;
+			}
+			return capturedSku ? capturedSku() : apiService.getCachedCopilotSku?.(token);
 		},
 	};
 }

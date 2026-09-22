@@ -3369,22 +3369,24 @@ suite('CopilotAgent', () => {
 
 			await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'fresh-token');
 			const authenticatedSku = agent.getTelemetryContext().copilotSku;
+			const contextBeforeRejection = agent.getTelemetryContext();
 			authError('authorization');
 			const rejectedSku = agent.getTelemetryContext().copilotSku;
 			await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'fresh-token');
 			const refreshedSku = agent.getTelemetryContext().copilotSku;
+			const rejectedContextAfterRefresh = contextBeforeRejection.copilotSku;
 			authError('authentication');
 			await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'new-token');
 			authError('authentication');
 
-			assert.deepStrictEqual({ authRequests, authenticatedSku, rejectedSku, refreshedSku }, {
+			assert.deepStrictEqual({ authRequests, authenticatedSku, rejectedSku, refreshedSku, rejectedContextAfterRefresh }, {
 				authRequests: [
 					{ resource: GITHUB_COPILOT_PROTECTED_RESOURCE, reason: 'expired' },
 					{ resource: GITHUB_COPILOT_PROTECTED_RESOURCE, reason: 'expired' },
 					{ resource: GITHUB_COPILOT_PROTECTED_RESOURCE, reason: 'expired' },
 					{ resource: GITHUB_COPILOT_PROTECTED_RESOURCE, reason: 'expired' },
 				],
-				authenticatedSku: 'sku-a', rejectedSku: undefined, refreshedSku: 'sku-a',
+				authenticatedSku: 'sku-a', rejectedSku: undefined, refreshedSku: 'sku-a', rejectedContextAfterRefresh: undefined,
 			});
 		} finally {
 			await disposeAgent(agent);
