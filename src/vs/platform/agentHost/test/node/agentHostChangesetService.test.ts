@@ -1897,7 +1897,7 @@ suite('AgentHostChangesetService - multi-root turn changeset', () => {
 		});
 	});
 
-	test('ready sessions publish changesets only from chat catalogues using the chat Git state', () => {
+	test('ready sessions publish session changes and chat catalogues using the chat Git state', () => {
 		const peerResource = buildChatUri(sessionStr, 'peer');
 		const { svc, stateManager } = build({
 			workingDirectories: ['file:///session'],
@@ -1935,7 +1935,12 @@ suite('AgentHostChangesetService - multi-root turn changeset', () => {
 			chatChangesLabel: withChatGit?.find(changeset => changeset.changeKind === 'session')?.label,
 			branchDescription: withChatGit?.find(changeset => changeset.changeKind === 'branch')?.description,
 		}, {
-			sessionCatalogue: undefined,
+			sessionCatalogue: [{
+				label: 'Session Changes',
+				description: 'Show all changes made in this session',
+				uriTemplate: buildSessionChangesetUri(sessionStr),
+				changeKind: 'session',
+			}],
 			withoutChatGit: ['session', 'turn'],
 			withChatGit: ['branch', 'uncommitted', 'session', 'turn', 'compare-turns'],
 			chatChangesLabel: 'Chat Changes',
