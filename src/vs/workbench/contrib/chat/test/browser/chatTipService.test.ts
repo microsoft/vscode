@@ -244,22 +244,26 @@ suite('ChatTipService', () => {
 		const tip = TIP_CATALOG.find(tip => tip.id === 'tip.btw');
 		assert.ok(tip?.when);
 
-		const baseContext: Record<string, boolean> = {
-			[IsSessionsWindowContext.key]: true,
-			sessionIsCreated: true,
-			sessionIsArchived: false,
-			sessionSupportsSideChat: true,
-		};
-		const contexts = [
-			baseContext,
-			{ ...baseContext, [IsSessionsWindowContext.key]: false },
-			{ ...baseContext, sessionIsCreated: false },
-			{ ...baseContext, sessionIsArchived: true },
-			{ ...baseContext, sessionSupportsSideChat: false },
-		];
+		const isSessionsWindow = contextKeyService.createKey<boolean>(IsSessionsWindowContext.key, true);
+		const isCreated = contextKeyService.createKey<boolean>('sessionIsCreated', true);
+		const isArchived = contextKeyService.createKey<boolean>('sessionIsArchived', false);
+		const supportsSideChat = contextKeyService.createKey<boolean>('sessionSupportsSideChat', true);
+		const eligibility = [contextKeyService.contextMatchesRules(tip.when)];
+
+		isSessionsWindow.set(false);
+		eligibility.push(contextKeyService.contextMatchesRules(tip.when));
+		isSessionsWindow.set(true);
+		isCreated.set(false);
+		eligibility.push(contextKeyService.contextMatchesRules(tip.when));
+		isCreated.set(true);
+		isArchived.set(true);
+		eligibility.push(contextKeyService.contextMatchesRules(tip.when));
+		isArchived.set(false);
+		supportsSideChat.set(false);
+		eligibility.push(contextKeyService.contextMatchesRules(tip.when));
 
 		assert.deepStrictEqual(
-			contexts.map(context => tip.when!.evaluate({ getValue: key => context[key] })),
+			eligibility,
 			[true, false, false, false, false],
 		);
 		assert.strictEqual(
