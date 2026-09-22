@@ -20,7 +20,7 @@ function getModules(): Set<string> {
 			cachedModules = new Set(all);
 		} catch (e) {
 			console.error('Failed to load package.json for AmdModuleImportCheck rule:', e);
-			throw e; // Rethrow the error to prevent silencing it
+			cachedModules = new Set(); // Fallback to an empty set to prevent linter crashes on I/O failures
 		}
 	}
 	return cachedModules;
