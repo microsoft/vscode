@@ -8,6 +8,7 @@ import { createDecorator } from '../../../../platform/instantiation/common/insta
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 
 export type ConnectorConnectionStatus = 'not_connected' | 'pending' | 'connected' | 'error';
+export type ConnectorConnectionStatusDetail = 'sign_in_required' | 'reconnect_required' | 'review_required' | 'retryable_error' | 'unavailable';
 
 export interface IConnectorAuthorPresentation {
 	readonly name?: string;
@@ -43,6 +44,7 @@ export interface IConnectorPresentation {
 	readonly skills?: readonly string[];
 	readonly mcpServers?: readonly IConnectorMcpServerPresentation[];
 	readonly connectionStatus: ConnectorConnectionStatus;
+	readonly connectionStatusDetail?: ConnectorConnectionStatusDetail;
 	readonly connectionErrorMessage?: string;
 }
 

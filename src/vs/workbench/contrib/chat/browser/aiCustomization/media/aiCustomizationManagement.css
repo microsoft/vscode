@@ -2830,6 +2830,33 @@ per-word capitalization does not survive translation. */
 	flex-shrink: 0;
 }
 
+.plugin-list-widget .connector-row-status-icon {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	flex-shrink: 0;
+	width: var(--vscode-spacing-size160);
+	height: var(--vscode-spacing-size160);
+	font-size: var(--vscode-codiconFontSize);
+	color: var(--vscode-descriptionForeground);
+}
+
+.plugin-list-widget .connector-row-status-connected {
+	color: var(--vscode-charts-green);
+}
+
+.plugin-list-widget .connector-row-status-attention {
+	color: var(--vscode-list-warningForeground, var(--vscode-editorWarning-foreground));
+}
+
+.plugin-list-widget .connector-row-status-pending {
+	color: var(--vscode-progressBar-background);
+}
+
+.plugin-list-widget .connector-row-status-error {
+	color: var(--vscode-errorForeground);
+}
+
 .plugin-list-widget .plugin-home-row .plugin-card-icon-button.monaco-button {
 	width: var(--vscode-spacing-size240);
 	min-width: var(--vscode-spacing-size240);

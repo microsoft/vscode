@@ -91,12 +91,6 @@ export class PromptLaunchersAICustomizationWelcomePage extends Disposable implem
 			description: localize('pluginsDesc', "Install reusable packages that extend the agent. Plugins can add tools, skills, agents, hooks, and MCP servers."),
 		},
 		{
-			id: AICustomizationManagementSection.Connectors,
-			label: localize('connectors', "Connectors"),
-			icon: Codicon.debugConnected,
-			description: localize('connectorsDesc', "Connect services to give agents secure access to your work and data."),
-		},
-		{
 			id: AICustomizationManagementSection.McpServers,
 			label: localize('mcpServers', "MCP Servers"),
 			icon: Codicon.server,

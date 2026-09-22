@@ -41,6 +41,7 @@ import {
 	isMcpServerCollectionVisible,
 	isPrimaryMcpServerEnabled,
 	getMcpStatusRenderSignature,
+	getConnectorRowPresentation,
 	getServerItemContextMenuActions,
 	getToggledMcpEnablementState,
 	McpListWidget,
@@ -52,6 +53,7 @@ import {
 	setPrimaryMcpServerEnablement,
 	shouldLoadMcpGallerySnapshot,
 } from '../../../browser/aiCustomization/mcpListWidget.js';
+import { IConnectorPresentation } from '../../../common/connectorsManagementService.js';
 
 function createAgentHostServer(overrides: Partial<AgentHostMcpServer> = {}): AgentHostMcpServer {
 	return {
@@ -65,6 +67,16 @@ function createAgentHostServer(overrides: Partial<AgentHostMcpServer> = {}): Age
 		stop: () => { },
 		...overrides,
 	} as AgentHostMcpServer;
+}
+
+function createConnector(overrides: Partial<IConnectorPresentation>): IConnectorPresentation {
+	return {
+		id: 'connector',
+		displayName: 'Connector',
+		description: 'Connector description',
+		connectionStatus: 'not_connected',
+		...overrides,
+	};
 }
 
 function createAgentHostCustomizations(hasWorkspace = true): { service: IAgentHostCustomizationService; calls: unknown[][] } {
@@ -195,6 +207,28 @@ function createMcpAccessTestWidget(access: McpAccessValue, policyAccess: McpAcce
 
 suite('mcpListWidget', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('maps connector state details to quiet status icons and contextual actions', () => {
+		assert.deepStrictEqual({
+			connected: getConnectorRowPresentation(createConnector({ connectionStatus: 'connected' })),
+			pending: getConnectorRowPresentation(createConnector({ connectionStatus: 'pending' })),
+			connect: getConnectorRowPresentation(createConnector({})),
+			signIn: getConnectorRowPresentation(createConnector({ connectionStatus: 'error', connectionStatusDetail: 'sign_in_required' })),
+			reconnect: getConnectorRowPresentation(createConnector({ connectionStatus: 'error', connectionStatusDetail: 'reconnect_required' })),
+			review: getConnectorRowPresentation(createConnector({ connectionStatus: 'error', connectionStatusDetail: 'review_required' })),
+			retry: getConnectorRowPresentation(createConnector({ connectionStatus: 'error', connectionStatusDetail: 'retryable_error' })),
+			unavailable: getConnectorRowPresentation(createConnector({ connectionStatusDetail: 'unavailable' })),
+		}, {
+			connected: { statusLabel: 'Connected', statusIcon: 'connected', action: 'more' },
+			pending: { statusLabel: 'Connection pending', statusIcon: 'pending' },
+			connect: { statusLabel: 'Not connected', action: 'connect', actionLabel: 'Connect' },
+			signIn: { statusLabel: 'Sign in required', statusIcon: 'attention', action: 'sign_in', actionLabel: 'Sign in' },
+			reconnect: { statusLabel: 'Reconnect required', statusIcon: 'attention', action: 'reconnect', actionLabel: 'Reconnect' },
+			review: { statusLabel: 'Review required', statusIcon: 'attention', action: 'review', actionLabel: 'Review' },
+			retry: { statusLabel: 'Connection failed', statusIcon: 'error', action: 'retry', actionLabel: 'Try again' },
+			unavailable: { statusLabel: 'Currently unavailable', statusIcon: 'info' },
+		});
+	});
 
 	test('classifies active-session-only MCP servers as built-in entries', () => {
 		const server = createAgentHostServer({ name: 'node_repl' });

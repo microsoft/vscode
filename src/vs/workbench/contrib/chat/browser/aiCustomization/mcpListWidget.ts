@@ -57,12 +57,89 @@ import { createWorkbenchMcpServerDetailInput, IMcpServerDetailInput } from './em
 import { createCustomizationCardPrimaryAction, CustomizationCardListController } from './customizationCardList.js';
 import { DomScrollableElement } from '../../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { ScrollbarVisibility } from '../../../../../base/common/scrollable.js';
+import { IConnectorPresentation, IConnectorsManagementService } from '../../common/connectorsManagementService.js';
+import { getConnectorActionLabel, getConnectorPrimaryAction, getConnectorStatusLabel } from './connectorsListWidget.js';
 
 const $ = DOM.$;
 
 const PLUGIN_COLLECTION_PREFIX = MCP_PLUGIN_COLLECTION_ID_PREFIX;
 
 const COPILOT_EXTENSION_IDS = ['github.copilot', 'github.copilot-chat'];
+
+export type ConnectorRowAction = 'connect' | 'sign_in' | 'reconnect' | 'review' | 'retry' | 'more';
+export type ConnectorRowStatusIcon = 'connected' | 'attention' | 'pending' | 'error' | 'info';
+
+export interface IConnectorRowPresentation {
+	readonly statusLabel: string;
+	readonly statusIcon?: ConnectorRowStatusIcon;
+	readonly action?: ConnectorRowAction;
+	readonly actionLabel?: string;
+}
+
+export function getConnectorRowPresentation(connector: IConnectorPresentation): IConnectorRowPresentation {
+	switch (connector.connectionStatusDetail) {
+		case 'sign_in_required':
+			return {
+				statusLabel: localize('connectors.status.signInRequired', "Sign in required"),
+				statusIcon: 'attention',
+				action: 'sign_in',
+				actionLabel: localize('connectors.action.signIn', "Sign in"),
+			};
+		case 'reconnect_required':
+			return {
+				statusLabel: localize('connectors.status.reconnectRequired', "Reconnect required"),
+				statusIcon: 'attention',
+				action: 'reconnect',
+				actionLabel: localize('connectors.action.reconnect', "Reconnect"),
+			};
+		case 'review_required':
+			return {
+				statusLabel: localize('connectors.status.reviewRequired', "Review required"),
+				statusIcon: 'attention',
+				action: 'review',
+				actionLabel: localize('connectors.action.review', "Review"),
+			};
+		case 'retryable_error':
+			return {
+				statusLabel: localize('connectors.status.retryableError', "Connection failed"),
+				statusIcon: 'error',
+				action: 'retry',
+				actionLabel: localize('connectors.action.tryAgain', "Try again"),
+			};
+		case 'unavailable':
+			return {
+				statusLabel: localize('connectors.status.unavailable', "Currently unavailable"),
+				statusIcon: 'info',
+			};
+	}
+
+	switch (connector.connectionStatus) {
+		case 'connected':
+			return {
+				statusLabel: getConnectorStatusLabel(connector.connectionStatus),
+				statusIcon: 'connected',
+				action: 'more',
+			};
+		case 'pending':
+			return {
+				statusLabel: getConnectorStatusLabel(connector.connectionStatus),
+				statusIcon: 'pending',
+			};
+		case 'error':
+			return {
+				statusLabel: getConnectorStatusLabel(connector.connectionStatus),
+				statusIcon: 'error',
+				action: 'reconnect',
+				actionLabel: getConnectorActionLabel('reconnect'),
+			};
+		case 'not_connected':
+			return {
+				statusLabel: getConnectorStatusLabel(connector.connectionStatus),
+				action: 'connect',
+				actionLabel: getConnectorActionLabel('connect'),
+			};
+	}
+}
 
 function isCopilotExtension(id: ExtensionIdentifier): boolean {
 	return COPILOT_EXTENSION_IDS.some(copilotId => ExtensionIdentifier.equals(id, copilotId));
@@ -120,6 +197,7 @@ type IMcpInstalledEntry = IMcpServerItemEntry | IMcpSessionServerItemEntry | IMc
 
 interface IMcpInstalledPresentation {
 	readonly entry: IMcpInstalledEntry;
+	readonly connector?: IConnectorPresentation;
 }
 
 export type McpStatusKind = McpConnectionState.Kind | McpServerStatus | 'disabled';
@@ -1061,6 +1139,9 @@ export class McpListWidget extends Disposable {
 	private readonly _onDidRequestShowPlugin = this._register(new Emitter<IAgentPluginItem>());
 	readonly onDidRequestShowPlugin = this._onDidRequestShowPlugin.event;
 
+	private readonly _onDidSelectConnector = this._register(new Emitter<IConnectorPresentation>());
+	readonly onDidSelectConnector = this._onDidSelectConnector.event;
+
 	private sectionTitleHeader!: HTMLElement;
 	private sectionLink!: HTMLAnchorElement;
 	private searchAndButtonContainer!: HTMLElement;
@@ -1087,6 +1168,12 @@ export class McpListWidget extends Disposable {
 	private gallerySnapshotFailed = false;
 	private gallerySnapshotLoading = false;
 	private gallerySearchLoading = false;
+	private connectors: readonly IConnectorPresentation[] = [];
+	private filteredConnectors: readonly IConnectorPresentation[] = [];
+	private unmatchedConnectorMcpServers: readonly { readonly connector: IConnectorPresentation; readonly server: NonNullable<IConnectorPresentation['mcpServers']>[number] }[] = [];
+	private connectorsAvailable = false;
+	private connectorsLoading = false;
+	private connectorsLoadGeneration = 0;
 	private visible = false;
 	private mcpAccessEnabled = false;
 	private firstCardFocusElement: HTMLElement | undefined;
@@ -1120,6 +1207,8 @@ export class McpListWidget extends Disposable {
 		@IAICustomizationWorkspaceService private readonly workspaceService: IAICustomizationWorkspaceService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IMcpGalleryManifestService mcpGalleryManifestService: IMcpGalleryManifestService,
+		@IConnectorsManagementService private readonly connectorsService: IConnectorsManagementService,
+		@IHoverService private readonly hoverService: IHoverService,
 	) {
 		super();
 		this.element = $('.mcp-list-widget.plugin-list-widget');
@@ -1151,6 +1240,11 @@ export class McpListWidget extends Disposable {
 				this.updateAccessState();
 			}
 		}));
+		this._register(this.connectorsService.onDidChangeConnectors(() => {
+			if (this.visible) {
+				void this.refreshConnectors();
+			}
+		}));
 		this._register({
 			dispose: () => {
 				this.delayedFilter.cancel();
@@ -1168,7 +1262,7 @@ export class McpListWidget extends Disposable {
 		sectionTitle.textContent = localize('mcpServers', "MCP Servers");
 		const sectionTitleDescription = DOM.append(this.sectionTitleHeader, $('p.section-title-description'));
 		const sectionTitleDescriptionText = DOM.append(sectionTitleDescription, $('span.section-title-description-text'));
-		sectionTitleDescriptionText.textContent = localize('mcpServersDescription', "An open standard that lets AI use external tools and services. MCP servers provide tools for file operations, databases, APIs, and more.");
+		sectionTitleDescriptionText.textContent = localize('mcpServersDescription', "Connect AI to external tools and services. Install MCP servers for VS Code or connect services across supported Copilot experiences.");
 		// Real whitespace text node between description and link so the gap collapses
 		// when the link wraps to a new line (a CSS margin-left would push it inward).
 		sectionTitleDescription.appendChild(document.createTextNode(' '));
@@ -1210,7 +1304,8 @@ export class McpListWidget extends Disposable {
 		// Search container
 		const searchContainer = DOM.append(this.searchAndButtonContainer, $('.list-search-container'));
 		this.searchInput = this._register(new InputBox(searchContainer, this.contextViewService, {
-			placeholder: localize('searchMcpPlaceholder', "Type to search..."),
+			placeholder: localize('searchMcpPlaceholder', "Search MCP servers and connectors..."),
+			ariaLabel: localize('searchMcpAriaLabel', "Search MCP servers and connectors"),
 			inputBoxStyles: defaultInputBoxStyles,
 		}));
 
@@ -1307,6 +1402,31 @@ export class McpListWidget extends Disposable {
 		}
 	}
 
+	private async refreshConnectors(): Promise<void> {
+		const generation = ++this.connectorsLoadGeneration;
+		this.connectorsLoading = true;
+		try {
+			const snapshot = await this.connectorsService.getConnectors();
+			if (generation !== this.connectorsLoadGeneration) {
+				return;
+			}
+			this.connectorsAvailable = snapshot.available;
+			this.connectors = snapshot.connectors;
+		} catch (error) {
+			if (generation !== this.connectorsLoadGeneration) {
+				return;
+			}
+			this.connectorsAvailable = true;
+			this.connectors = [];
+			this.notificationService.error(localize('connectors.loadFailed', "Unable to load connectors: {0}", getErrorMessage(error)));
+		} finally {
+			if (generation === this.connectorsLoadGeneration) {
+				this.connectorsLoading = false;
+				this.filterServers();
+			}
+		}
+	}
+
 	setVisible(visible: boolean): void {
 		if (this.visible === visible) {
 			return;
@@ -1314,6 +1434,7 @@ export class McpListWidget extends Disposable {
 		this.visible = visible;
 		if (visible) {
 			void this.refresh();
+			void this.refreshConnectors();
 		}
 	}
 
@@ -1427,7 +1548,7 @@ export class McpListWidget extends Disposable {
 			if (this.galleryCts === cts && !cts.token.isCancellationRequested && this.mcpAccessEnabled && this.searchQuery.trim() === query) {
 				this.galleryServers = this.gallerySnapshotServers.filter(server => this.matchesGalleryServerQuery(server, query.toLowerCase()));
 				this.searchInput.showMessage({
-					content: localize('mcpSearchMarketplaceUnavailable', "Marketplace results are unavailable. Showing installed MCP servers only."),
+					content: localize('mcpSearchMarketplaceUnavailable', "Marketplace results are unavailable. Showing installed MCP servers and connectors only."),
 					type: MessageType.WARNING,
 				});
 			}
@@ -1504,21 +1625,24 @@ export class McpListWidget extends Disposable {
 		this.showCardSurface();
 
 		const content = this.createCardScrollContent();
-		this.renderFeaturedServers(content);
+		const connectorMcpServers = this.getConnectedConnectorMcpServers();
 
 		const installedList = this.renderCardSection(
 			content,
 			localize('installedMcpServersSection', "Installed"),
 			undefined,
 			'installed-mcp-servers-section',
-			this.installedEntries.length,
+			this.installedEntries.length + connectorMcpServers.length,
 			header => this.renderInstalledSectionActions(header),
 		);
 		installedList.classList.add('plugin-inventory-list');
-		if (this.installedEntries.length === 0) {
+		if (this.installedEntries.length === 0 && connectorMcpServers.length === 0) {
 			const empty = DOM.append(installedList, $('.plugin-inventory-empty'));
 			empty.textContent = localize('noInstalledMcpServers', "No MCP servers are installed.");
 		} else {
+			for (const { connector, server } of connectorMcpServers) {
+				this.appendConnectorMcpServerRow(installedList, connector, server.name);
+			}
 			for (const presentation of this.installedEntries) {
 				this.appendInstalledServerRow(installedList, presentation);
 			}
@@ -1526,6 +1650,13 @@ export class McpListWidget extends Disposable {
 		this.cardListControllers.get(installedList)?.finalize();
 
 		this.renderAvailableServers(content, this.getAvailableGalleryServers(), true);
+		this.renderConnectorSection(
+			content,
+			localize('connectorsSection', "Connectors"),
+			this.filteredConnectors,
+			'connectors-section',
+			localize('availableConnectorsDescription', "Connect services to make their MCP servers available across supported Copilot experiences."),
+		);
 	}
 
 	private renderInstalledSectionActions(header: HTMLElement): void {
@@ -1538,42 +1669,10 @@ export class McpListWidget extends Disposable {
 		this.cardDisposables.add(add.onDidClick(() => this.commandService.executeCommand(McpCommandIds.AddConfiguration)));
 	}
 
-	private renderFeaturedServers(parent: HTMLElement): void {
-		const featured = this.getAvailableGalleryServers().slice(0, 3);
-		if (featured.length === 0) {
-			if (this.gallerySnapshotFailed) {
-				const grid = this.renderCardSection(
-					parent,
-					localize('mcpMarketplaceUnavailable', "Featured MCP servers could not be loaded"),
-					localize('mcpMarketplaceUnavailableDescription', "Check your connection, then try loading marketplace results again."),
-					'plugin-discovery-section',
-				);
-				const retry = this.cardDisposables.add(new Button(grid, { ...defaultButtonStyles, secondary: true, ariaLabel: localize('retryMcpMarketplace', "Retry Loading MCP Servers") }));
-				retry.label = localize('retry', "Retry");
-				this.cardDisposables.add(retry.onDidClick(() => {
-					this.gallerySnapshotFailed = false;
-					void this.queryGallerySnapshot();
-				}));
-			}
-			return;
-		}
-
-		const grid = this.renderCardSection(
-			parent,
-			localize('featuredMcpServers', "Featured"),
-			localize('featuredMcpServersDescription', "Discover MCP servers that connect agents to popular tools and services."),
-			'plugin-discovery-section',
-		);
-		for (const server of featured) {
-			this.appendMarketplaceServerCard(grid, server);
-		}
-		this.cardListControllers.get(grid)?.finalize();
-	}
-
 	private renderAvailableServers(parent: HTMLElement, servers: readonly IWorkbenchMcpServer[], showDescription: boolean): void {
 		const availableList = this.renderCardSection(
 			parent,
-			localize('availableMcpServersSection', "Available"),
+			localize('availableMcpServersSection', "Available from marketplace"),
 			showDescription ? localize('availableMcpServersSectionDescription', "Browse and install MCP servers from the marketplace.") : undefined,
 			'available-mcp-servers-section',
 			servers.length,
@@ -1584,6 +1683,8 @@ export class McpListWidget extends Disposable {
 			const empty = DOM.append(availableList, $('.plugin-inventory-empty'));
 			empty.textContent = this.gallerySnapshotLoading
 				? localize('loadingMcpMarketplace', "Loading marketplace MCP servers...")
+				: this.gallerySnapshotFailed
+					? localize('mcpMarketplaceUnavailableDescription', "Marketplace MCP servers could not be loaded. Check your connection, then try again.")
 				: localize('noAvailableMcpServers', "No marketplace MCP servers are available.");
 			this.cardListControllers.get(availableList)?.finalize();
 			return;
@@ -1592,6 +1693,125 @@ export class McpListWidget extends Disposable {
 			this.appendMarketplaceServerRow(availableList, server);
 		}
 		this.cardListControllers.get(availableList)?.finalize();
+	}
+
+	private renderConnectorSection(parent: HTMLElement, title: string, connectors: readonly IConnectorPresentation[], className: string, description?: string): void {
+		if (!this.connectorsAvailable || (connectors.length === 0 && !this.connectorsLoading)) {
+			return;
+		}
+		const list = this.renderCardSection(parent, title, description, className, connectors.length);
+		list.classList.add('plugin-inventory-list');
+		if (connectors.length === 0) {
+			const empty = DOM.append(list, $('.plugin-inventory-empty'));
+			empty.textContent = localize('loadingConnectors', "Loading connectors...");
+		} else {
+			for (const connector of connectors) {
+				this.appendConnectorRow(list, connector);
+			}
+		}
+		this.cardListControllers.get(list)?.finalize();
+	}
+
+	private appendConnectorRow(parent: HTMLElement, connector: IConnectorPresentation): void {
+		const row = DOM.append(parent, $('.plugin-list-item.plugin-home-row.connector-home-row'));
+		const presentation = getConnectorRowPresentation(connector);
+		const statusDescription = connector.connectionErrorMessage
+			? localize('connectorStatusWithDetails', "{0}. {1}", presentation.statusLabel, connector.connectionErrorMessage)
+			: presentation.statusLabel;
+		const primaryAction = this.addSurfaceActivation(
+			row,
+			localize('connectorRowAriaLabel', "{0}. {1} Status: {2}", connector.displayName, connector.description, statusDescription),
+			() => this._onDidSelectConnector.fire(connector),
+		);
+		const details = DOM.append(primaryAction, $('.plugin-list-item-details'));
+		const nameRow = DOM.append(details, $('.plugin-list-item-name-row'));
+		const name = DOM.append(nameRow, $('.plugin-list-item-name'));
+		name.textContent = connector.displayName;
+		name.title = connector.displayName;
+		if (connector.releaseTag) {
+			const releaseTag = DOM.append(nameRow, $('.inline-badge.connector-release-tag'));
+			releaseTag.textContent = connector.releaseTag;
+		}
+		const description = DOM.append(details, $('.plugin-list-item-description'));
+		description.textContent = connector.description;
+
+		const actions = DOM.append(row, $('.plugin-list-item-action'));
+		if (presentation.statusIcon) {
+			const statusIcon = DOM.append(actions, $('.connector-row-status-icon'));
+			statusIcon.classList.add(`connector-row-status-${presentation.statusIcon}`);
+			statusIcon.setAttribute('aria-hidden', 'true');
+			switch (presentation.statusIcon) {
+				case 'connected':
+					statusIcon.classList.add(...ThemeIcon.asClassNameArray(Codicon.pass));
+					break;
+				case 'attention':
+					statusIcon.classList.add(...ThemeIcon.asClassNameArray(Codicon.warning));
+					break;
+				case 'pending':
+					statusIcon.classList.add(...ThemeIcon.asClassNameArray(Codicon.loading), 'codicon-modifier-spin');
+					break;
+				case 'error':
+					statusIcon.classList.add(...ThemeIcon.asClassNameArray(Codicon.error));
+					break;
+				case 'info':
+					statusIcon.classList.add(...ThemeIcon.asClassNameArray(Codicon.info));
+					break;
+			}
+			statusIcon.title = statusDescription;
+			this.cardDisposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), statusIcon, statusDescription));
+		}
+		const actionElements: HTMLElement[] = [];
+		if (presentation.action === 'more') {
+			const more = this.cardDisposables.add(new Button(actions, { ...getButtonStyles({ buttonSecondaryBackground: undefined, buttonSecondaryBorder: undefined }), secondary: true, supportIcons: true, ariaLabel: localize('connectorMoreActionsAria', "More actions for {0}", connector.displayName) }));
+			more.element.classList.add('plugin-card-icon-button');
+			more.label = `$(${Codicon.ellipsis.id})`;
+			this.cardDisposables.add(more.onDidClick(event => {
+				event?.stopPropagation();
+				this.showConnectorActions(connector, more.element);
+			}));
+			actionElements.push(more.element);
+		} else if (presentation.action && presentation.actionLabel) {
+			const action = presentation.action;
+			const isConnectAction = action === 'connect';
+			const actionButton = this.cardDisposables.add(new Button(actions, { ...defaultButtonStyles, secondary: true, ariaLabel: localize('connectors.actionFor', "{0} {1}", presentation.actionLabel, connector.displayName) }));
+			if (isConnectAction) {
+				actionButton.element.classList.add('plugin-list-item-install-button');
+			}
+			actionButton.label = presentation.actionLabel;
+			this.cardDisposables.add(actionButton.onDidClick(event => {
+				event?.stopPropagation();
+				this.runConnectorRowAction(connector, action);
+			}));
+			actionElements.push(actionButton.element);
+		}
+		this.cardListControllers.get(parent)?.addItem({
+			row,
+			primaryAction,
+			label: connector.displayName,
+			actions: actionElements,
+			contextMenuAction: presentation.action === 'more' ? actionElements[0] : undefined,
+		});
+	}
+
+	private appendConnectorMcpServerRow(parent: HTMLElement, connector: IConnectorPresentation, serverName: string): void {
+		const row = DOM.append(parent, $('.plugin-list-item.plugin-home-row.mcp-installed-home-row.connector-mcp-home-row'));
+		const description = localize('mcpServerFromConnector', "connector: {0}", connector.displayName);
+		const primaryAction = this.addSurfaceActivation(
+			row,
+			localize('connectorMcpServerAriaLabel', "{0}. {1}.", serverName, description),
+			() => this._onDidSelectConnector.fire(connector),
+		);
+		const details = DOM.append(primaryAction, $('.plugin-list-item-details'));
+		const name = DOM.append(DOM.append(details, $('.plugin-list-item-name-row')), $('.plugin-list-item-name'));
+		name.textContent = serverName;
+		name.title = serverName;
+		DOM.append(details, $('.plugin-list-item-description')).textContent = description;
+		this.cardListControllers.get(parent)?.addItem({
+			row,
+			primaryAction,
+			label: serverName,
+			actions: [],
+		});
 	}
 
 	private appendInstalledServerRow(parent: HTMLElement, presentation: IMcpInstalledPresentation): void {
@@ -1639,7 +1859,9 @@ export class McpListWidget extends Disposable {
 				getMcpStatusKind(entry, this.workspaceService.isSessionsWindow),
 				getMcpDisabledReason(entry),
 				getMcpEntryAriaLabel(entry, this.workspaceService.isSessionsWindow),
-				this.getInstalledEntryDescription(entry),
+				presentation.connector
+					? localize('mcpServerFromConnector', "connector: {0}", presentation.connector.displayName)
+					: this.getInstalledEntryDescription(entry),
 			);
 		}));
 		this.cardDisposables.add(this.agentHostCustomizationService.onDidChangeCustomizations(() => {
@@ -1655,7 +1877,9 @@ export class McpListWidget extends Disposable {
 				getMcpStatusKind(entry, this.workspaceService.isSessionsWindow),
 				getMcpDisabledReason(entry),
 				getMcpEntryAriaLabel(entry, this.workspaceService.isSessionsWindow),
-				this.getInstalledEntryDescription(entry),
+				presentation.connector
+					? localize('mcpServerFromConnector', "connector: {0}", presentation.connector.displayName)
+					: this.getInstalledEntryDescription(entry),
 			);
 			signIn?.update();
 			toggle.update();
@@ -1756,27 +1980,6 @@ export class McpListWidget extends Disposable {
 		});
 	}
 
-	private appendMarketplaceServerCard(parent: HTMLElement, server: IWorkbenchMcpServer): void {
-		const card = DOM.append(parent, $('.plugin-card.plugin-marketplace-card'));
-		const header = DOM.append(card, $('.plugin-card-header'));
-		const titleBlock = this.addSurfaceActivation(header, localize('marketplaceMcpServerCardAriaLabel', "{0}. Featured MCP server available to install.", server.label), () => this._onDidSelectServer.fire(createWorkbenchMcpServerDetailInput(server)), 'plugin-card-title-block');
-		const name = DOM.append(titleBlock, $('.plugin-card-title'));
-		name.textContent = server.label;
-		name.title = server.label;
-		const description = DOM.append(titleBlock, $('.plugin-card-subtitle'));
-		description.textContent = truncateToFirstLine(server.description || localize('mcpNoDescription', "No description provided."));
-		const actions = DOM.append(header, $('.plugin-card-actions'));
-		const install = this.cardDisposables.add(new Button(actions, { ...defaultButtonStyles, ariaLabel: localize('installMcpServerAria', "Install {0}", server.label) }));
-		install.label = localize('install', "Install");
-		this.cardDisposables.add(install.onDidClick(() => this.installMarketplaceServer(server, install)));
-		this.cardListControllers.get(parent)?.addItem({
-			row: card,
-			primaryAction: titleBlock,
-			label: server.label,
-			actions: [install.element],
-		});
-	}
-
 	private async installMarketplaceServer(server: IWorkbenchMcpServer, button: Button): Promise<void> {
 		button.label = localize('installing', "Installing...");
 		button.enabled = false;
@@ -1854,7 +2057,8 @@ export class McpListWidget extends Disposable {
 
 	private updateSearchResults(): void {
 		const available = this.getAvailableGalleryServers();
-		if (this.installedEntries.length === 0 && available.length === 0) {
+		const connectorMcpServers = this.getConnectedConnectorMcpServers();
+		if (this.installedEntries.length === 0 && connectorMcpServers.length === 0 && available.length === 0 && this.filteredConnectors.length === 0) {
 			this.showEmptySurface(
 				this.gallerySearchLoading
 					? localize('searchingMcpMarketplace', "Searching the MCP marketplace...")
@@ -1871,9 +2075,12 @@ export class McpListWidget extends Disposable {
 		DOM.clearNode(this.cardContainer);
 		this.showCardSurface();
 		const content = this.createCardScrollContent('plugin-search-results');
-		if (this.installedEntries.length > 0) {
-			const installedList = this.renderCardSection(content, localize('installedSearchHeader', "Installed"), undefined, 'installed-mcp-servers-section', this.installedEntries.length);
+		if (this.installedEntries.length > 0 || connectorMcpServers.length > 0) {
+			const installedList = this.renderCardSection(content, localize('installedSearchHeader', "Installed"), undefined, 'installed-mcp-servers-section', this.installedEntries.length + connectorMcpServers.length);
 			installedList.classList.add('plugin-inventory-list');
+			for (const { connector, server } of connectorMcpServers) {
+				this.appendConnectorMcpServerRow(installedList, connector, server.name);
+			}
 			for (const presentation of this.installedEntries) {
 				this.appendInstalledServerRow(installedList, presentation);
 			}
@@ -1882,10 +2089,17 @@ export class McpListWidget extends Disposable {
 		if (available.length > 0) {
 			this.renderAvailableServers(content, available, false);
 		}
+		this.renderConnectorSection(content, localize('connectorsSection', "Connectors"), this.filteredConnectors, 'connectors-section');
 	}
 
 	private filterServers(render = true): void {
 		const query = this.searchQuery.toLowerCase().trim();
+		this.filteredConnectors = this.connectors.filter(connector =>
+			!query ||
+			connector.displayName.toLowerCase().includes(query) ||
+			connector.description.toLowerCase().includes(query) ||
+			connector.mcpServers?.some(server => server.name.toLowerCase().includes(query))
+		);
 		const activeSessionResource = this.customizationHarnessService.activeSessionResource.get();
 		const activeSessionMatcher = new ActiveSessionMcpServerMatcher(this.agentHostCustomizationService.getMcpServers(activeSessionResource));
 		const localServerMatcher = new LocalMcpServerMatcher(this.mcpService.servers.get());
@@ -1948,13 +2162,29 @@ export class McpListWidget extends Disposable {
 		}
 		const activeSessionOnlyServers = activeSessionMatcher.unmatched(query);
 		const activeSessionBuiltinEntries = createBuiltinActiveSessionMcpEntries(activeSessionOnlyServers);
-		this.installedEntries = [
+		const installedEntries: IMcpInstalledPresentation[] = [
 			...groups.flatMap(group => group.entries.map(entry => ({ entry }))),
 			...pluginServers.map(({ server, activeSessionServer }) => ({ entry: createBuiltinEntry(server, activeSessionServer) })),
 			...extensionServers.map(({ server, activeSessionServer }) => ({ entry: createBuiltinEntry(server, activeSessionServer) })),
 			...otherBuiltinServers.map(({ server, activeSessionServer }) => ({ entry: createBuiltinEntry(server, activeSessionServer) })),
 			...activeSessionBuiltinEntries.map(entry => ({ entry })),
 		];
+		const connectorMcpServers = this.filteredConnectors.flatMap(connector =>
+			connector.connectionStatus === 'connected'
+				? (connector.mcpServers ?? []).map(server => ({ connector, server }))
+				: []
+		);
+		const unmatchedConnectorMcpServers = [...connectorMcpServers];
+		this.installedEntries = installedEntries.map(presentation => {
+			const label = getMcpEntryLabel(presentation.entry);
+			const connectorServerIndex = unmatchedConnectorMcpServers.findIndex(({ server }) => server.name.toLowerCase() === label.toLowerCase());
+			if (connectorServerIndex < 0) {
+				return presentation;
+			}
+			const [{ connector }] = unmatchedConnectorMcpServers.splice(connectorServerIndex, 1);
+			return { ...presentation, connector };
+		});
+		this.unmatchedConnectorMcpServers = unmatchedConnectorMcpServers;
 
 		// Compute sidebar badge directly from the data arrays (same source as group headers)
 		this.filteredBuiltinCount = builtinServers.length;
@@ -1986,7 +2216,71 @@ export class McpListWidget extends Disposable {
 	 * (the same source used to build group headers).
 	 */
 	get itemCount(): number {
-		return this.filteredServers.length + this.filteredBuiltinCount + this.filteredActiveSessionCount;
+		return this.filteredServers.length + this.filteredBuiltinCount + this.filteredActiveSessionCount + this.getConnectedConnectorMcpServers().length;
+	}
+
+	private getConnectedConnectorMcpServers(): readonly { readonly connector: IConnectorPresentation; readonly server: NonNullable<IConnectorPresentation['mcpServers']>[number] }[] {
+		return this.unmatchedConnectorMcpServers;
+	}
+
+	private async runConnectorAction(connector: IConnectorPresentation): Promise<void> {
+		const action = getConnectorPrimaryAction(connector.connectionStatus);
+		try {
+			switch (action) {
+				case 'connect':
+				case 'reconnect':
+					await this.connectorsService.connect(connector.id);
+					break;
+				case 'refresh':
+					await this.connectorsService.refresh(connector.id);
+					break;
+				case 'disconnect':
+					await this.connectorsService.disconnect(connector.id);
+					break;
+			}
+			await this.refreshConnectors();
+			status(localize('connectors.actionComplete', "{0}: {1}", connector.displayName, getConnectorActionLabel(action)));
+		} catch (error) {
+			this.notificationService.error(localize('connectors.actionFailed', "Unable to update {0}: {1}", connector.displayName, getErrorMessage(error)));
+		}
+	}
+
+	private async runConnectorRowAction(connector: IConnectorPresentation, action: Exclude<ConnectorRowAction, 'more'>): Promise<void> {
+		if (action === 'review') {
+			this._onDidSelectConnector.fire(connector);
+			return;
+		}
+		const actionLabel = getConnectorRowPresentation(connector).actionLabel ?? localize('connectors.action.updated', "Updated");
+		try {
+			switch (action) {
+				case 'connect':
+				case 'sign_in':
+				case 'reconnect':
+				case 'retry':
+					await this.connectorsService.connect(connector.id);
+					break;
+			}
+			await this.refreshConnectors();
+			status(localize('connectors.actionComplete', "{0}: {1}", connector.displayName, actionLabel));
+		} catch (error) {
+			this.notificationService.error(localize('connectors.actionFailed', "Unable to update {0}: {1}", connector.displayName, getErrorMessage(error)));
+		}
+	}
+
+	private showConnectorActions(connector: IConnectorPresentation, anchor: HTMLElement): void {
+		const disposables = new DisposableStore();
+		const disconnect = disposables.add(new Action(
+			'connectors.disconnect',
+			getConnectorActionLabel('disconnect'),
+			undefined,
+			true,
+			() => this.runConnectorAction(connector),
+		));
+		this.contextMenuService.showContextMenu({
+			getAnchor: () => anchor,
+			getActions: () => [disconnect],
+			onHide: () => disposables.dispose(),
+		});
 	}
 
 	/**
