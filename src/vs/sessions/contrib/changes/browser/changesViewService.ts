@@ -224,8 +224,9 @@ export class ChangesViewService extends Disposable implements IChangesViewServic
 			const activeSessionLoading = activeSession?.loading.read(reader) ?? true;
 			const activeSessionChangesetsLoading = this.activeSessionChangesetsLoadingObs.read(reader);
 			const activeSessionChangesetLoading = this.activeSessionChangesetLoadingObs.read(reader);
+			const activeSessionHasChanges = this.activeSessionChangesObs.read(reader).length > 0;
 
-			return activeSessionLoading || activeSessionChangesetsLoading || activeSessionChangesetLoading;
+			return activeSessionLoading || activeSessionChangesetsLoading || (activeSessionChangesetLoading && !activeSessionHasChanges);
 		});
 
 		// Active session state

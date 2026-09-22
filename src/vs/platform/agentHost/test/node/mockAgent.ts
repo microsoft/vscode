@@ -60,6 +60,7 @@ export class MockAgent implements IAgent {
 	readonly onDidChangeChatData = Event.None;
 	readonly onDidSpawnChat = Event.None;
 	getTurnDiagnosticSnapshot?: IAgent['getTurnDiagnosticSnapshot'];
+	captureTurnTelemetryContext?: IAgent['captureTurnTelemetryContext'];
 
 	recordModelCallTurnCorrelation(chat: URI, modelCallId: string, turnId: string): void {
 		this.modelCallTurnCorrelationCalls.push({ chat, modelCallId, turnId });
