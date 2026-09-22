@@ -29,6 +29,7 @@ import { IGitHubService } from '../../../../../../platform/github/common/githubS
 import { PullRequestSnapshot } from '../../../../../../platform/github/common/githubPullRequestService.js';
 import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
+import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { BrowserEditorInput } from '../../../../browserView/common/browserEditorInput.js';
 import { IBrowserViewModel, IBrowserViewWorkbenchService } from '../../../../browserView/common/browserView.js';
@@ -110,6 +111,9 @@ suite('AgentHostSessionInputPills', () => {
 		get: () => undefined,
 	});
 	const notificationService = upcastPartial<INotificationService>({ error: () => { } });
+	const labelService = upcastPartial<ILabelService>({
+		getUriLabel: (resource, options) => options?.relative ? resource.path.replace(/^\/repo\/?/, '') : resource.fsPath,
+	});
 	const createInstantiationService = () => {
 		const instantiationService = workbenchInstantiationService(undefined, store);
 		instantiationService.stub(IGitHubService, upcastPartial<IGitHubService>({
@@ -243,6 +247,7 @@ suite('AgentHostSessionInputPills', () => {
 			widget, false, connectionsService, browserViewService, clipboardService,
 			configurationService, editorService, instantiationService, openerService, visibility,
 			provisionalSessions,
+			labelService,
 			notificationService,
 		));
 		const draft = URI.parse('agent-host-copilotcli:/untitled-draft');
@@ -478,6 +483,7 @@ suite('AgentHostSessionInputPills', () => {
 			openerService,
 			visibility,
 			noProvisionalSessions,
+			labelService,
 			notificationService,
 		));
 		await timeout(0);
@@ -667,6 +673,7 @@ suite('AgentHostSessionInputPills', () => {
 			openerService,
 			visibility,
 			noProvisionalSessions,
+			labelService,
 			notificationService,
 		));
 		const row = persistentContent.querySelector<HTMLElement>('.agent-host-session-input-pills');
@@ -768,6 +775,7 @@ suite('AgentHostSessionInputPills', () => {
 			openerService,
 			visibility,
 			noProvisionalSessions,
+			labelService,
 			notificationService,
 		));
 		const row = persistentContent.querySelector<HTMLElement>('.agent-host-session-input-pills');
@@ -912,6 +920,7 @@ suite('AgentHostSessionInputPills', () => {
 			openerService,
 			visibility,
 			noProvisionalSessions,
+			labelService,
 			notificationService,
 		));
 		const button = persistentContent.querySelector<HTMLElement>('.chat-dropdown-pill-button');
@@ -1057,10 +1066,12 @@ suite('AgentHostSessionInputPills', () => {
 		visibility.hide(SessionChatPillKind.Browsers);
 		instantiationService.stub(ISessionChatPillVisibilityService, visibility);
 		let dropdownActions: readonly IAction[] = [];
+		let dropdownFooterActionLabels: readonly string[] = [];
 		instantiationService.stub(IActionWidgetService, upcastPartial<IActionWidgetService>({
 			isVisible: false,
 			show: (_user, _supportsPreview, items) => {
 				dropdownActions = items.flatMap(item => item.toolbarActions ?? []);
+				dropdownFooterActionLabels = items.flatMap(item => item.hover?.actions?.map(action => action.label) ?? []);
 			},
 			hide: () => { },
 			updateItems: () => { },
@@ -1086,6 +1097,7 @@ suite('AgentHostSessionInputPills', () => {
 			openerService,
 			visibility,
 			noProvisionalSessions,
+			labelService,
 			upcastPartial<INotificationService>({ error: error => errors.push(String(error)) }),
 		));
 		persistentContent.querySelector<HTMLElement>('.chat-dropdown-pill-button')?.click();
@@ -1101,6 +1113,7 @@ suite('AgentHostSessionInputPills', () => {
 			pills: Array.from(persistentContent.querySelectorAll('.chat-pill-label')).map(label => label.textContent),
 			empty: persistentContent.querySelector('.agent-host-session-input-pills')?.classList.contains('empty'),
 			dropdownActionLabels: dropdownActions.map(action => action.label),
+			dropdownFooterActionLabels,
 			copied,
 			removeCalls: connection.removeSessionArtifactCalls.map(({ session, artifactId }) => ({ session: session.toString(), artifactId })),
 			errors,
@@ -1117,6 +1130,7 @@ suite('AgentHostSessionInputPills', () => {
 				'Copy URI',
 				'Remove Chat settings from Session',
 			],
+			dropdownFooterActionLabels: ['Copy Hash', 'Copy Relative Path'],
 			copied: [
 				'https://github.com/microsoft/vscode/commit/abc123',
 				website.toString(true),
@@ -1197,6 +1211,7 @@ suite('AgentHostSessionInputPills', () => {
 			openerService,
 			visibility,
 			noProvisionalSessions,
+			labelService,
 			notificationService,
 		));
 		const showChat = (resource: URI) => {

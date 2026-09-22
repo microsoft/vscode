@@ -8,7 +8,7 @@ import { getWindow } from '../../../base/browser/dom.js';
 import { StandardMouseEvent } from '../../../base/browser/mouseEvent.js';
 import { IAnchor } from '../../../base/browser/ui/contextview/contextview.js';
 import { ensureCodeWindow, mainWindow } from '../../../base/browser/window.js';
-import type { IManagedHoverContent } from '../../../base/browser/ui/hover/hover.js';
+import type { IManagedHoverContent, IManagedHoverOptions } from '../../../base/browser/ui/hover/hover.js';
 import { IListAccessibilityProvider } from '../../../base/browser/ui/list/listWidget.js';
 import { timeout } from '../../../base/common/async.js';
 import { Action, IAction } from '../../../base/common/actions.js';
@@ -27,6 +27,7 @@ import { DEFAULT_LABELS_CONTAINER, ResourceLabels } from '../../browser/labels.j
 import { workbenchInstantiationService } from './workbenchTestServices.js';
 
 const getDropdownPillHoverContents = Reflect.get(ChatDropdownPillActionViewItem.prototype, 'getHoverContents') as (this: ChatDropdownPillActionViewItem) => IManagedHoverContent;
+const getDropdownPillHoverOptions = Reflect.get(ChatDropdownPillActionViewItem.prototype, 'getHoverOptions') as (this: ChatDropdownPillActionViewItem) => IManagedHoverOptions | undefined;
 const getDropdownPillItems = Reflect.get(ChatDropdownPillActionViewItem.prototype, '_getDropdownItems') as (this: ChatDropdownPillActionViewItem) => IActionListItem<IChatPillEntry>[];
 
 suite('ChatPills', () => {
@@ -440,6 +441,7 @@ suite('ChatPills', () => {
 			}]
 		}], undefined);
 		const enrichedHover = getDropdownPillHoverContents.call(viewItem);
+		const singularFooterActions = getDropdownPillHoverOptions.call(viewItem)?.actions?.map(action => action.label);
 		const mappedEntry = getDropdownPillItems.call(viewItem)[1];
 		sections.set([{ title: 'Pull Requests', entries: [entry('1', richHover), entry('2')] }], undefined);
 		const summaryHover = getDropdownPillHoverContents.call(viewItem);
@@ -447,6 +449,7 @@ suite('ChatPills', () => {
 		assert.deepStrictEqual({
 			fallbackHover,
 			usesRichHover: enrichedHover === richHover,
+			singularFooterActions,
 			mappedEntry: {
 				label: mappedEntry.label,
 				badge: mappedEntry.badge,
@@ -458,12 +461,13 @@ suite('ChatPills', () => {
 		}, {
 			fallbackHover: 'https://github.com/microsoft/vscode/pull/1',
 			usesRichHover: true,
+			singularFooterActions: ['Copy URL', 'Copy Hash', 'Remove Reference'],
 			mappedEntry: {
 				label: 'Pull Request #1',
 				badge: '#1',
 				className: 'chat-pill-github-reference',
 				rowActions: ['Copy Pull Request URL', 'Remove Pull Request Reference from Session'],
-				footerActions: ['Copy URL', 'Copy Hash', 'Remove Reference'],
+				footerActions: ['Copy Hash'],
 			},
 			summaryHover: 'Show 2 pull requests',
 		});

@@ -29,6 +29,7 @@ import { GitHubIssue, GitHubIssueRef } from '../../../../../../platform/github/c
 import { PullRequestCheck, PullRequestCore, PullRequestRef, PullRequestSnapshot } from '../../../../../../platform/github/common/githubPullRequestService.js';
 import { IGitHubService } from '../../../../../../platform/github/common/githubService.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
+import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
@@ -495,6 +496,7 @@ export class AgentHostSessionInputPills extends Disposable {
 		@IOpenerService private readonly _openerService: IOpenerService,
 		@ISessionChatPillVisibilityService visibility: ISessionChatPillVisibilityService,
 		@IAgentHostUntitledProvisionalSessionService provisionalSessions: IAgentHostUntitledProvisionalSessionService,
+		@ILabelService private readonly _labelService: ILabelService,
 		@INotificationService private readonly _notificationService: INotificationService,
 	) {
 		super();
@@ -857,6 +859,8 @@ export class AgentHostSessionInputPills extends Disposable {
 				: artifactResource;
 			const label = artifact.type === SessionArtifactType.File ? basename(resource) : artifact.label;
 			const imageMimeType = artifact.type === SessionArtifactType.File && !artifact.isArtifact ? getMediaMime(resource.path) : undefined;
+			const fullPath = artifact.type === SessionArtifactType.File ? this._labelService.getUriLabel(resource, { noPrefix: true }) : undefined;
+			const relativePath = artifact.type === SessionArtifactType.File ? this._labelService.getUriLabel(resource, { relative: true, noPrefix: true }) : undefined;
 			return {
 				id: artifact.id,
 				label,
@@ -869,8 +873,16 @@ export class AgentHostSessionInputPills extends Disposable {
 						? localize('agentHostSessionPills.copyFilePath', "Copy Path")
 						: localize('agentHostSessionPills.copyResourceUri', "Copy URI"),
 					class: ThemeIcon.asClassName(Codicon.copy),
-					run: () => this._clipboardService.writeText(artifact.type === SessionArtifactType.File ? resource.fsPath : resource.toString(true)),
+					run: () => this._clipboardService.writeText(fullPath ?? resource.toString(true)),
 				})],
+				...(relativePath ? {
+					hoverActions: [toAction({
+						id: `chat.agentHost.sessionPills.copyFileRelativePath.${artifact.id}`,
+						label: localize('agentHostSessionPills.copyFileRelativePath', "Copy Relative Path"),
+						class: ThemeIcon.asClassName(Codicon.copy),
+						run: () => this._clipboardService.writeText(relativePath),
+					})],
+				} : {}),
 				...(imageMimeType?.startsWith('image/') ? { imagePreview: { resource, mimeType: imageMimeType } } : {}),
 				...getChatPillResourceLocation(resource, label),
 				open: () => this._openResource(resource),

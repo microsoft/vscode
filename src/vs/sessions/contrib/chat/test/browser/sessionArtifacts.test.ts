@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { timeout } from '../../../../../base/common/async.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Event } from '../../../../../base/common/event.js';
 import { isMarkdownString } from '../../../../../base/common/htmlContent.js';
@@ -17,12 +18,13 @@ import { TestConfigurationService } from '../../../../../platform/configuration/
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
-import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { NullLogService } from '../../../../../platform/log/common/log.js';
+import { GitHubCommit } from '../../../../../platform/github/common/githubQueryService.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { buildSessionArtifactSections, sessionArtifactLocationText, SessionArtifacts, type ISessionArtifactActions } from '../../browser/sessionArtifacts.js';
 import { type IGitHubInfo, type ISessionArtifact, type ISessionWorkspace, SessionArtifactKind } from '../../../../services/sessions/common/session.js';
 import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
-import { GitHubCommitResolver } from '../../../../../workbench/contrib/github/browser/githubCommitResolver.js';
+import { IGitHubService as ISessionsGitHubService } from '../../../github/browser/githubService.js';
 
 suite('Session Artifacts', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -42,7 +44,7 @@ suite('Session Artifacts', () => {
 		},
 	};
 
-	function createPresentation(entries: readonly ISessionArtifact[], info?: IGitHubInfo) {
+	function createPresentation(entries: readonly ISessionArtifact[], info?: IGitHubInfo, commit?: GitHubCommit) {
 		const artifacts = observableValue('artifacts', entries);
 		const removed: string[] = [];
 		const errors: string[] = [];
@@ -70,11 +72,6 @@ suite('Session Artifacts', () => {
 		}());
 		const configurationService = new TestConfigurationService();
 		disposables.add(configurationService.onDidChangeConfigurationEmitter);
-		const commitResolver = new class extends mock<GitHubCommitResolver>() {
-			override get() { return constObservable(undefined); }
-			override retain(): void { }
-			override dispose(): void { }
-		}();
 		const presentation = disposables.add(new SessionArtifacts(
 			session,
 			constObservable(new Set<string>()),
@@ -101,7 +98,8 @@ suite('Session Artifacts', () => {
 			new class extends mock<IWorkspaceContextService>() {
 				override readonly onDidChangeWorkspaceFolders = Event.None;
 			}(),
-			upcastPartial<IInstantiationService>({ createInstance: () => commitResolver }),
+			upcastPartial<ISessionsGitHubService>({ getCommit: () => commit ? Promise.resolve(commit) : new Promise(() => { }) }),
+			new NullLogService(),
 		));
 		return { presentation, session, artifacts, workspace, gitHubInfo, removed, errors, setRemovalError: (error: Error | undefined) => { removalError = error; } };
 	}
@@ -411,6 +409,39 @@ suite('Session Artifacts', () => {
 			hoverClassName: 'sessions-commit-hover compact',
 			hoverText: 'microsoft/vscodeon Sep 22Authoritative subject @abc123Detailed commit body@octocat committed this change',
 			copied: ['abc123', link.toString(true)],
+		});
+	});
+
+	test('hydrates GitHub commit metadata through the Agents window GitHub service', async () => {
+		const link = URI.parse('https://github.com/microsoft/vscode/commit/abc123');
+		const commit: GitHubCommit = {
+			sha: 'abc123',
+			message: 'Resolved commit subject\n\nResolved commit body',
+			url: link.toString(true),
+			author: { login: 'octocat' },
+			committedAt: '2026-09-22T12:00:00Z',
+		};
+		const { presentation } = createPresentation([
+			{ id: 'commit', kind: SessionArtifactKind.Commit, label: 'Recorded commit', isArtifact: false, link, commitHash: 'abc123' },
+		], undefined, commit);
+
+		presentation.referenceSections.get();
+		await timeout(0);
+		const entry = presentation.referenceSections.get().flatMap(section => section.entries)[0];
+		const hover = typeof entry.hover?.content === 'function' ? entry.hover.content() : undefined;
+
+		assert.deepStrictEqual({
+			label: entry.label,
+			rowActions: entry.toolbarActions?.map(action => action.label),
+			hoverActions: entry.hoverActions?.map(action => action.label),
+			hoverClassName: hover?.className,
+			hoverText: hover?.textContent,
+		}, {
+			label: 'Resolved commit subject',
+			rowActions: ['Copy Commit URL'],
+			hoverActions: ['Copy Commit Hash'],
+			hoverClassName: 'sessions-commit-hover compact',
+			hoverText: 'microsoft/vscodeon Sep 22Resolved commit subject @abc123Resolved commit body@octocat committed this change',
 		});
 	});
 

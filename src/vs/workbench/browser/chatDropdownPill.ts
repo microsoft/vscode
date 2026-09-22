@@ -351,7 +351,7 @@ export class ChatDropdownPillActionViewItem extends ChatPillActionViewItem {
 	private _getDropdownHover(entry: IChatPillEntry): IActionListItemHover | undefined {
 		let baseHover = this._dropdownHovers.get(entry);
 		if (!baseHover) {
-			const actions = getChatPillEntryHoverActions(entry).map(action => ({
+			const actions = (entry.hoverActions ?? []).map(action => ({
 				commandId: action.id,
 				label: action.hoverLabel ?? action.label,
 				iconClass: action.class,
