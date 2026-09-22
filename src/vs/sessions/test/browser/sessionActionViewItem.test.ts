@@ -68,7 +68,9 @@ suite('SessionActionViewItem', () => {
 			new class extends mock<IContextKeyService>() { }(),
 			new TestThemeService(),
 			new class extends mock<IContextMenuService>() { }(),
-			new TestAccessibilityService(),
+			new class extends TestAccessibilityService {
+				override isMotionReduced(): boolean { return false; }
+			}(),
 		));
 		viewItem.element = dom.$('button');
 		return viewItem;
