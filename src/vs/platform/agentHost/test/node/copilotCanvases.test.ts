@@ -12,6 +12,7 @@ import { CancellationToken, CancellationTokenSource } from '../../../../base/com
 import { isCancellationError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import type { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { Schemas } from '../../../../base/common/network.js';
 import { join } from '../../../../base/common/path.js';
 import { basename, dirname } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -21,7 +22,7 @@ import { NullLogService } from '../../../log/common/log.js';
 import type { IAgentCanvasOperation } from '../../common/agentHostCanvases.js';
 import { AgentHostWorkspaceTrustConfigKey, type IAgentHostWorkspaceTrust } from '../../common/agentHostSchema.js';
 import { isCanvasSessionRetained } from '../../common/meta/agentCanvasSessionMeta.js';
-import { CanvasAvailabilityStatus, CanvasTrustStatus, type CanvasState } from '../../common/state/protocol/channels-canvas/state.js';
+import { CanvasAvailabilityStatus, CanvasSourceKind, CanvasTrustStatus, type CanvasState } from '../../common/state/protocol/channels-canvas/state.js';
 import type { OpenCanvasParams } from '../../common/state/protocol/channels-canvas/commands.js';
 import type { IAgentHostCanvasesService } from '../../node/agentHostCanvasesService.js';
 import { AgentConfigurationService } from '../../node/agentConfigurationService.js';
@@ -36,6 +37,9 @@ type NativeCanvas = Awaited<ReturnType<CopilotSession['rpc']['canvas']['list']>>
 type NativeInstance = Awaited<ReturnType<CopilotSession['rpc']['canvas']['listOpen']>>['openCanvases'][number];
 
 const nativeIdentity = { extensionId: 'project:counter', canvasId: 'counter', instanceId: 'main' };
+const userExtensionId = 'user:counter';
+const userNativeIdentity = { ...nativeIdentity, extensionId: userExtensionId };
+const userCanvasIdentity = { ...canvasIdentity, source: { kind: CanvasSourceKind.Extension, extensionId: userExtensionId } } satisfies typeof canvasIdentity;
 const endpoint = 'http://127.0.0.1:8123/app?transient=not-persisted';
 const openParams: OpenCanvasParams = { channel: canvasSession, canvas: 'ahp-canvas:/native', identity: canvasIdentity, title: 'Counter', requestId: 'open' };
 const testModule = URI.parse(import.meta.url);
@@ -65,6 +69,7 @@ function createFixture(store: Pick<DisposableStore, 'add'>, canvases?: IAgentHos
 	let onRecover = async () => { };
 	let workingDirectory: URI | undefined = testWorkspace;
 	const configuration = store.add(new AgentConfigurationService(store.add(new AgentHostStateManager(new NullLogService())), new NullLogService()));
+	configuration.publishRootTransientValues({ [AgentHostWorkspaceTrustConfigKey]: { enabled: false, trustedUris: [] } });
 	const events = store.add(new Emitter<SessionEvent>());
 	let catalog: NativeCanvas[] = [{ ...nativeIdentity, displayName: 'Counter', description: 'Counter', actions: [{ name: 'increment' }] }];
 	let instances: NativeInstance[] = [{ ...nativeIdentity, title: 'Counter', url: endpoint }];
@@ -179,8 +184,11 @@ suite('Copilot canvases', () => {
 		assert.strictEqual(f.adapter.available, true);
 	});
 
-	test('admission binds the exact chat and retains before returning the original recipe', async () => {
+	test('explicit source admission binds the exact chat and retains before returning the original recipe', async () => {
 		const f = createFixture(store);
+		f.request.source = 'user';
+		f.request.id = userExtensionId;
+		f.setApproval(async () => true);
 		f.start();
 		f.bind();
 		const retained = new DeferredPromise<void>();
@@ -223,32 +231,49 @@ suite('Copilot canvases', () => {
 	});
 
 	for (const { name, workingDirectory, trust } of [
-		{ name: 'missing trust', workingDirectory: testWorkspace, trust: undefined },
+		{ name: 'missing trust data', workingDirectory: testWorkspace, trust: undefined },
 		{ name: 'untrusted workspace', workingDirectory: testWorkspace, trust: { enabled: true, trustedUris: [] } },
-		{ name: 'another trusted workspace', workingDirectory: testWorkspace, trust: { enabled: true, trustedUris: [URI.file('/other-workspace').toString()] } },
-		{ name: 'only the source is trusted', workingDirectory: testWorkspace, trust: { enabled: true, trustedUris: [testModule.toString()] } },
-		{ name: 'only the working directory is trusted', workingDirectory: URI.file('/other-workspace'), trust: { enabled: true, trustedUris: [URI.file('/other-workspace').toString()] } },
-		{ name: 'no working directory', workingDirectory: undefined, trust: { enabled: false, trustedUris: [] } },
+		{ name: 'foreign trusted workspace', workingDirectory: testWorkspace, trust: { enabled: true, trustedUris: [URI.file('/other-workspace').toString()] } },
+		{ name: 'trusted source without a trusted owner workspace', workingDirectory: testWorkspace, trust: { enabled: true, trustedUris: [testModule.toString()] } },
+		{ name: 'source outside the trusted owner workspace', workingDirectory: URI.file('/other-workspace'), trust: { enabled: true, trustedUris: [URI.file('/other-workspace').toString()] } },
+		{ name: 'missing working directory', workingDirectory: undefined, trust: { enabled: false, trustedUris: [] } },
+		{ name: 'non-file working directory', workingDirectory: URI.from({ scheme: Schemas.vscodeRemote, authority: 'ssh-remote+example', path: '/workspace' }), trust: { enabled: false, trustedUris: [] } },
 	]) {
-		test(`${name} retains explicit source approval`, async () => {
+		test(`${name} rejects a project source before approval or retention`, async () => {
 			const f = createFixture(store);
 			f.setWorkspaceTrust(trust);
 			f.setWorkingDirectory(workingDirectory);
-			f.setApproval(async () => false);
+			f.setApproval(async () => true);
 			f.start();
 			f.bind();
 			assert.deepStrictEqual({
 				result: await f.admit(), approvals: f.approvals.map(approval => approval.chat), calls: f.calls,
-			}, { result: { launch: null }, approvals: [canvasChat], calls: [] });
+			}, { result: { launch: null }, approvals: [], calls: [] });
 		});
 	}
+
+	test('a rejected untrusted project launch leaves no stale pending admission', async () => {
+		const f = createFixture(store);
+		f.setWorkspaceTrust({ enabled: true, trustedUris: [] });
+		f.setApproval(async () => false);
+		f.start();
+		f.bind();
+		const rejected = await f.admit();
+		f.setWorkspaceTrust({ enabled: true, trustedUris: [testWorkspace.toString(), URI.file(await realpath(testWorkspace.fsPath)).toString()] });
+		const admitted = await f.admit();
+		assert.deepStrictEqual({
+			rejected, admitted, approvals: f.approvals, calls: f.calls,
+		}, {
+			rejected: { launch: null }, admitted: { launch: f.request.defaultLaunch }, approvals: [], calls: ['retain:native-session'],
+		});
+	});
 
 	for (const [source, id] of [
 		['user', 'user:counter'],
 		['plugin', 'plugin:example:counter'],
 		['session', 'session:example:counter'],
 	] as const) {
-		test(`${source} sources retain their own approval in a trusted workspace`, async () => {
+		test(`${source} sources still require explicit approval in a trusted workspace`, async () => {
 			const f = createFixture(store);
 			f.setWorkspaceTrust({ enabled: false, trustedUris: [] });
 			f.request.source = source;
@@ -312,7 +337,7 @@ suite('Copilot canvases', () => {
 		}, { result: { launch: null }, approvals: [], calls: [] });
 	});
 
-	test('a project source symlink outside trusted folders still requires approval', async () => {
+	test('a project source symlink outside trusted folders is rejected before approval or retention', async () => {
 		const directory = await mkdtemp(join(tmpdir(), 'vscode-canvas-trust-'));
 		try {
 			const f = createFixture(store);
@@ -322,12 +347,12 @@ suite('Copilot canvases', () => {
 			f.request.modulePath = join(linked, basename(testModule));
 			f.setWorkingDirectory(workspace);
 			f.setWorkspaceTrust({ enabled: true, trustedUris: [workspace.toString()] });
-			f.setApproval(async () => false);
+			f.setApproval(async () => true);
 			f.start();
 			f.bind();
 			assert.deepStrictEqual({
 				result: await f.admit(), approvals: f.approvals.map(approval => approval.chat), calls: f.calls,
-			}, { result: { launch: null }, approvals: [canvasChat], calls: [] });
+			}, { result: { launch: null }, approvals: [], calls: [] });
 		} finally {
 			await rm(directory, { recursive: true, force: true });
 		}
@@ -463,6 +488,8 @@ suite('Copilot canvases', () => {
 		test(`host ${command} keeps source approvals authoritative after the SDK handle returns and before startup completes`, async () => {
 			const services = createCanvasHostServices(store);
 			const f = createFixture(store, services.service);
+			f.request.source = 'user';
+			f.request.id = userExtensionId;
 			services.providers.registerProvider(new class extends MockAgent {
 				readonly canvases = f.adapter;
 			}('copilot'));
@@ -492,7 +519,7 @@ suite('Copilot canvases', () => {
 			});
 			const initializing = command === 'initialize'
 				? connection.initializeCanvasChat({ channel: canvasChat, requestId: command })
-				: connection.openCanvas({ ...openParams, requestId: command });
+				: connection.openCanvas({ ...openParams, identity: userCanvasIdentity, requestId: command });
 			const outcome = initializing.then(() => 'complete', () => 'rejected');
 			const { launch, resolving } = await materialized.p;
 			await timeout(0);
@@ -504,7 +531,7 @@ suite('Copilot canvases', () => {
 			const result = await resolving;
 			const granted = result.launch === f.request.defaultLaunch;
 			if (granted) {
-				const declaration: NativeCanvas = { ...nativeIdentity, displayName: 'Counter', description: '', actions: [] };
+				const declaration: NativeCanvas = { ...userNativeIdentity, displayName: 'Counter', description: '', actions: [] };
 				f.setCatalog([declaration]);
 				launch.onEvent(nativeEvent('session.canvas.registry_changed', { canvases: [declaration] }));
 			}
@@ -579,13 +606,15 @@ suite('Copilot canvases', () => {
 
 	test('denial, wrong session, relative source, namespace mismatch and racing IDs cannot launch', async () => {
 		const f = createFixture(store);
+		f.request.source = 'user';
+		f.request.id = userExtensionId;
 		f.start();
 		f.bind();
 		f.setApproval(async () => false);
 		const denied = await f.admit();
 		const wrong = await f.adapter.launchProvider.resolve({ ...f.request, sessionId: 'other-chat' });
 		const relative = await f.adapter.launchProvider.resolve({ ...f.request, modulePath: 'relative.js' });
-		const namespace = await f.adapter.launchProvider.resolve({ ...f.request, id: 'user:counter' });
+		const namespace = await f.adapter.launchProvider.resolve({ ...f.request, id: 'project:counter' });
 		const approval = new DeferredPromise<boolean>();
 		f.setApproval(() => approval.p);
 		const pending = f.admit();
@@ -598,6 +627,8 @@ suite('Copilot canvases', () => {
 
 	test('SDK cancellation prevents late consent and retention', async () => {
 		const f = createFixture(store);
+		f.request.source = 'user';
+		f.request.id = userExtensionId;
 		f.start();
 		f.bind();
 		const cancellation = store.add(new CancellationTokenSource());
@@ -615,12 +646,14 @@ suite('Copilot canvases', () => {
 
 	test('canvas-first cancellation retires pending source admission without a synthetic turn', async () => {
 		const f = createFixture(store);
+		f.request.source = 'user';
+		f.request.id = userExtensionId;
 		f.start();
 		const cancellation = store.add(new CancellationTokenSource());
 		const approval = new DeferredPromise<boolean>();
 		f.setApproval(() => approval.p);
 		f.setPrepare(async () => { f.bind(); await f.admit(); });
-		const prepared = f.adapter.prepare(canvasIdentity, { ...f.operation, token: cancellation.token });
+		const prepared = f.adapter.prepare(userCanvasIdentity, { ...f.operation, token: cancellation.token });
 		while (!f.approvals.length) {
 			await timeout(0);
 		}
@@ -638,8 +671,8 @@ suite('Copilot canvases', () => {
 		const approved = await launch.permission({ kind: 'extension-env-access', extensionName: 'project:counter', environmentVariables: ['PROJECT_TOKEN'] });
 		const rejected = await launch.permission({ kind: 'extension-env-access', extensionName: 'user:counter', environmentVariables: ['PROJECT_TOKEN'] });
 		const invalidName = await launch.permission({ kind: 'extension-env-access', extensionName: 'project:counter', environmentVariables: ['NOT-A-NAME'] });
-		assert.deepStrictEqual([approved, rejected, invalidName, f.approvals.map(value => value.chat)], [{ kind: 'approve-once' }, { kind: 'reject' }, { kind: 'reject' }, [canvasChat, canvasChat]]);
-		assert.match(f.approvals[1].message, /project:counter.*PROJECT_TOKEN.*Values are never included/);
+		assert.deepStrictEqual([approved, rejected, invalidName, f.approvals.map(value => value.chat)], [{ kind: 'approve-once' }, { kind: 'reject' }, { kind: 'reject' }, [canvasChat]]);
+		assert.match(f.approvals[0].message, /project:counter.*PROJECT_TOKEN.*Values are never included/);
 	});
 
 	test('Workspace Trust does not approve access to sensitive environment variables', async () => {

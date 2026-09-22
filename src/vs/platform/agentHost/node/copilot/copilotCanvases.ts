@@ -167,8 +167,11 @@ export class CopilotCanvases extends Disposable implements IAgentCanvases {
 			}
 			try {
 				const canonicalPath = await realpath(request.modulePath);
-				const approvedByWorkspaceTrust = this._isWorkspaceSourceTrusted(backing, request, canonicalPath);
-				if (!approvedByWorkspaceTrust) {
+				const isProjectSource = request.source === 'project';
+				if (isProjectSource && !this._isWorkspaceSourceTrusted(backing, request, canonicalPath)) {
+					return { launch: null };
+				}
+				if (!isProjectSource) {
 					const approved = await this._canvases.requestApproval(backing.chat, this._sourcePrompt(request, canonicalPath), lifetime.token, backing.clientId, backing.initiator);
 					if (!approved) {
 						return { launch: null };
@@ -176,7 +179,7 @@ export class CopilotCanvases extends Disposable implements IAgentCanvases {
 				}
 				const approvedPath = await realpath(request.modulePath);
 				if (lifetime.token.isCancellationRequested || this._client !== client || !this.available || backing.store.isDisposed || approvedPath !== canonicalPath
-					|| approvedByWorkspaceTrust && !this._isWorkspaceSourceTrusted(backing, request, canonicalPath)) {
+					|| isProjectSource && !this._isWorkspaceSourceTrusted(backing, request, canonicalPath)) {
 					return { launch: null };
 				}
 				// Top-level extension code is effectful. Retention must precede the launch recipe.
@@ -187,7 +190,7 @@ export class CopilotCanvases extends Disposable implements IAgentCanvases {
 				await this._canvases.retainChat(backing.chat, lifetime.token);
 				const currentPath = await realpath(request.modulePath);
 				if (lifetime.token.isCancellationRequested || backing.store.isDisposed || this._client !== client || !this.available || currentPath !== canonicalPath
-					|| approvedByWorkspaceTrust && !this._isWorkspaceSourceTrusted(backing, request, canonicalPath)) {
+					|| isProjectSource && !this._isWorkspaceSourceTrusted(backing, request, canonicalPath)) {
 					return { launch: null };
 				}
 				backing.sources.set(request.id, { modulePath: request.modulePath, canonicalPath });
