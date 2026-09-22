@@ -5,6 +5,7 @@
 
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { Schemas } from '../../../../../base/common/network.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
@@ -159,6 +160,7 @@ class InstallFromSourceAction extends Action2 {
 				canSelectFiles: false,
 				canSelectFolders: true,
 				canSelectMany: false,
+				availableFileSystems: [Schemas.file],
 			}))?.[0];
 			if (folder) {
 				inputBox.value = folder.fsPath;
