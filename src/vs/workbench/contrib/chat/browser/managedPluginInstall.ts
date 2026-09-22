@@ -75,16 +75,22 @@ export class ManagedPluginInstall extends Disposable implements IWorkbenchContri
 		try {
 			do {
 				this._reconcileQueued = false;
-				await this._reconcileRequiredPlugins();
+				try {
+					await this._reconcileRequiredPlugins();
+				} catch (error) {
+					this._logService.error('[ManagedPluginInstall] Failed to reconcile required plugins:', error);
+					if (!this._isReconcileStale()) {
+						this._setUnavailableNotification(this._getMissingRequiredPluginIds());
+					}
+				}
 			} while (this._reconcileQueued && !this._store.isDisposed);
-		} catch (error) {
-			this._logService.error('[ManagedPluginInstall] Failed to reconcile required plugins:', error);
-			if (!this._store.isDisposed) {
-				this._setUnavailableNotification(this._getMissingRequiredPluginIds());
-			}
 		} finally {
 			this._reconcileInFlight = false;
 		}
+	}
+
+	private _isReconcileStale(): boolean {
+		return this._store.isDisposed || this._reconcileQueued;
 	}
 
 	override dispose(): void {
@@ -106,7 +112,7 @@ export class ManagedPluginInstall extends Disposable implements IWorkbenchContri
 		}
 
 		await this._pluginMarketplaceService.whenInstalledPluginsReady();
-		if (this._store.isDisposed) {
+		if (this._isReconcileStale()) {
 			return;
 		}
 
@@ -117,7 +123,7 @@ export class ManagedPluginInstall extends Disposable implements IWorkbenchContri
 		}
 
 		const marketplacePlugins = await this._pluginMarketplaceService.fetchMarketplacePlugins(CancellationToken.None);
-		if (this._store.isDisposed) {
+		if (this._isReconcileStale()) {
 			return;
 		}
 
@@ -125,7 +131,7 @@ export class ManagedPluginInstall extends Disposable implements IWorkbenchContri
 		const pluginIdsByInstallUri = new ResourceMap<string>();
 		const conflictingPluginIds = new Set<string>();
 		for (const plugin of marketplacePlugins) {
-			if (this._store.isDisposed) {
+			if (this._isReconcileStale()) {
 				return;
 			}
 			const managedMarketplace = this._pluginMarketplaceService.getManagedMarketplace(plugin.marketplaceReference);
@@ -158,7 +164,7 @@ export class ManagedPluginInstall extends Disposable implements IWorkbenchContri
 
 		const unavailablePluginIds = new Set(missingPluginIds);
 		for (const plugin of requiredPlugins) {
-			if (this._store.isDisposed) {
+			if (this._isReconcileStale()) {
 				return;
 			}
 			const pluginId = getMarketplacePluginPolicyId(plugin);
@@ -166,10 +172,16 @@ export class ManagedPluginInstall extends Disposable implements IWorkbenchContri
 				continue;
 			}
 
-			if (this._pluginMarketplaceService.isPluginInstalled(plugin)
-				|| await this._installRequiredPlugin(plugin)) {
-				unavailablePluginIds.delete(pluginId);
+			if (!this._pluginMarketplaceService.isPluginInstalled(plugin)) {
+				const installed = await this._installRequiredPlugin(plugin);
+				if (this._isReconcileStale()) {
+					return;
+				}
+				if (!installed) {
+					continue;
+				}
 			}
+			unavailablePluginIds.delete(pluginId);
 		}
 
 		if (unavailablePluginIds.size > 0) {

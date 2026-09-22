@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { timeout } from '../../../../../../base/common/async.js';
-import { Event } from '../../../../../../base/common/event.js';
+import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
+import { Emitter } from '../../../../../../base/common/event.js';
 import { observableValue } from '../../../../../../base/common/observable.js';
 import { joinPath } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { ConfigurationTarget, IConfigurationChangeEvent, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
@@ -50,8 +50,11 @@ suite('ManagedPluginInstall', () => {
 		readonly installCalls: string[];
 		readonly fetchCalls: number[];
 		readonly notifications: Map<string, IChatInputNotification>;
+		readonly notificationHistory: IChatInputNotification[];
+		readonly configurationChanges: Emitter<IConfigurationChangeEvent>;
 		catalog: IMarketplacePlugin[];
 		fetchImplementation?: () => Promise<IMarketplacePlugin[]>;
+		installImplementation?: (plugin: IMarketplacePlugin) => Promise<void>;
 		getPluginInstallUri: (plugin: IMarketplacePlugin) => URI;
 		managedMarketplaces: Map<string, IMarketplacePlugin['marketplaceReference']>;
 		enabledPluginsPolicy: Record<string, boolean> | undefined;
@@ -70,8 +73,11 @@ suite('ManagedPluginInstall', () => {
 			installCalls: [],
 			fetchCalls: [],
 			notifications: new Map(),
+			notificationHistory: [],
+			configurationChanges: store.add(new Emitter<IConfigurationChangeEvent>()),
 			catalog: [],
 			fetchImplementation: undefined,
+			installImplementation: undefined,
 			getPluginInstallUri: plugin => joinPath(plugin.marketplaceReference.localRepositoryUri ?? URI.file('/marketplace'), plugin.source),
 			managedMarketplaces: new Map(),
 			enabledPluginsPolicy: undefined,
@@ -81,7 +87,7 @@ suite('ManagedPluginInstall', () => {
 		};
 
 		instantiationService.stub(IConfigurationService, {
-			onDidChangeConfiguration: Event.None,
+			onDidChangeConfiguration: state.configurationChanges.event,
 			getValue: (key: string) => key === ChatConfiguration.PluginsEnabled ? state.pluginsEnabled : undefined,
 			inspect: (key: string) => ({
 				policyValue: key === ChatConfiguration.EnabledPlugins ? state.enabledPluginsPolicy : undefined,
@@ -102,6 +108,7 @@ suite('ManagedPluginInstall', () => {
 			installPlugin: async plugin => {
 				const pluginId = getMarketplacePluginPolicyId(plugin);
 				state.installCalls.push(pluginId);
+				await state.installImplementation?.(plugin);
 				state.installedPluginIds.add(pluginId);
 			},
 		} as Partial<IPluginInstallService> as IPluginInstallService);
@@ -112,7 +119,10 @@ suite('ManagedPluginInstall', () => {
 			sentimentObs: state.sentiment,
 		} as Partial<IChatEntitlementService> as IChatEntitlementService);
 		instantiationService.stub(IChatInputNotificationService, {
-			setNotification: notification => state.notifications.set(notification.id, notification),
+			setNotification: notification => {
+				state.notifications.set(notification.id, notification);
+				state.notificationHistory.push(notification);
+			},
 			deleteNotification: id => state.notifications.delete(id),
 		} as Partial<IChatInputNotificationService> as IChatInputNotificationService);
 		instantiationService.stub(ILogService, new NullLogService());
@@ -135,6 +145,15 @@ suite('ManagedPluginInstall', () => {
 
 	function blockingNotification(state: MockState): IChatInputNotification | undefined {
 		return [...state.notifications.values()].find(notification => notification.blocksSubmission);
+	}
+
+	function fireConfigurationChange(state: MockState, key: string): void {
+		state.configurationChanges.fire({
+			source: ConfigurationTarget.DEFAULT,
+			affectedKeys: new Set([key]),
+			change: { keys: [key], overrides: [] },
+			affectsConfiguration: configuration => configuration === key,
+		});
 	}
 
 	test('installs only managed plugins explicitly required by policy', async () => {
@@ -319,6 +338,212 @@ suite('ManagedPluginInstall', () => {
 			installCalls: [],
 			blockingNotificationAfterDispose: undefined,
 			blockingNotificationAfterFetch: undefined,
+		});
+	});
+
+	test('abandons stale requirements while the installed-plugin manifest initializes', async () => {
+		const ready = new DeferredPromise<void>();
+		const required = createPlugin('required', 'managed-marketplace', 'file:///managed-marketplace');
+		const { state } = createContribution({
+			catalog: [required],
+			managedMarketplaces: new Map([[required.marketplaceReference.canonicalId, managedReference(required)]]),
+			enabledPluginsPolicy: { [getMarketplacePluginPolicyId(required)]: true },
+			whenInstalledPluginsReady: ready.p,
+		});
+
+		await timeout(0);
+		state.enabledPluginsPolicy = undefined;
+		fireConfigurationChange(state, ChatConfiguration.EnabledPlugins);
+		await ready.complete();
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			fetchCalls: state.fetchCalls,
+			installCalls: state.installCalls,
+			notification: blockingNotification(state),
+		}, {
+			fetchCalls: [],
+			installCalls: [],
+			notification: undefined,
+		});
+	});
+
+	for (const change of ['requirement removed', 'plugins disabled', 'AI hidden']) {
+		test(`abandons a stale marketplace fetch after ${change}`, async () => {
+			const fetch = new DeferredPromise<IMarketplacePlugin[]>();
+			const required = createPlugin('required', 'managed-marketplace', 'file:///managed-marketplace');
+			const { state } = createContribution({
+				managedMarketplaces: new Map([[required.marketplaceReference.canonicalId, managedReference(required)]]),
+				enabledPluginsPolicy: { [getMarketplacePluginPolicyId(required)]: true },
+				fetchImplementation: () => fetch.p,
+			});
+
+			await waitFor(() => state.fetchCalls.length === 1);
+			if (change === 'requirement removed') {
+				state.enabledPluginsPolicy = undefined;
+				fireConfigurationChange(state, ChatConfiguration.EnabledPlugins);
+			} else if (change === 'plugins disabled') {
+				state.pluginsEnabled = false;
+				fireConfigurationChange(state, ChatConfiguration.PluginsEnabled);
+			} else {
+				state.sentiment.set({ hidden: true }, undefined);
+			}
+			state.notificationHistory.length = 0;
+			await fetch.complete([required]);
+			await timeout(0);
+
+			assert.deepStrictEqual({
+				installCalls: state.installCalls,
+				notificationsAfterChange: state.notificationHistory,
+				notification: blockingNotification(state),
+			}, {
+				installCalls: [],
+				notificationsAfterChange: [],
+				notification: undefined,
+			});
+		});
+	}
+
+	test('does not republish a stale fetch failure after AI is hidden', async () => {
+		const fetch = new DeferredPromise<IMarketplacePlugin[]>();
+		const { state } = createContribution({
+			enabledPluginsPolicy: { 'required@managed-marketplace': true },
+			fetchImplementation: () => fetch.p,
+		});
+
+		await waitFor(() => state.fetchCalls.length === 1);
+		state.sentiment.set({ hidden: true }, undefined);
+		state.notificationHistory.length = 0;
+		await fetch.error(new Error('Marketplace unavailable'));
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			notificationsAfterChange: state.notificationHistory,
+			notification: blockingNotification(state),
+		}, {
+			notificationsAfterChange: [],
+			notification: undefined,
+		});
+	});
+
+	test('reconciles current requirements after a stale fetch fails', async () => {
+		const fetch = new DeferredPromise<IMarketplacePlugin[]>();
+		const previous = createPlugin('previous', 'managed-marketplace', 'file:///managed-marketplace');
+		const current = createPlugin('current', 'managed-marketplace', 'file:///managed-marketplace');
+		let fetchCount = 0;
+		const { state } = createContribution({
+			managedMarketplaces: new Map([[previous.marketplaceReference.canonicalId, managedReference(previous)]]),
+			enabledPluginsPolicy: { [getMarketplacePluginPolicyId(previous)]: true },
+			fetchImplementation: () => ++fetchCount === 1 ? fetch.p : Promise.resolve([current]),
+		});
+
+		await waitFor(() => state.fetchCalls.length === 1);
+		state.enabledPluginsPolicy = { [getMarketplacePluginPolicyId(current)]: true };
+		fireConfigurationChange(state, ChatConfiguration.EnabledPlugins);
+		await fetch.error(new Error('Old marketplace request failed'));
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			fetchCount,
+			installCalls: state.installCalls,
+			notification: blockingNotification(state),
+		}, {
+			fetchCount: 2,
+			installCalls: ['current@managed-marketplace'],
+			notification: undefined,
+		});
+	});
+
+	test('continues installing distinct required plugins when installation queues another pass', async () => {
+		const first = createPlugin('first', 'managed-marketplace', 'file:///managed-marketplace');
+		const second = createPlugin('second', 'managed-marketplace', 'file:///managed-marketplace');
+		const { state } = createContribution({
+			catalog: [first, second],
+			managedMarketplaces: new Map([[first.marketplaceReference.canonicalId, managedReference(first)]]),
+			enabledPluginsPolicy: {
+				[getMarketplacePluginPolicyId(first)]: true,
+				[getMarketplacePluginPolicyId(second)]: true,
+			},
+		});
+		state.installImplementation = async plugin => {
+			state.installedPlugins.set([
+				...state.installedPlugins.get(),
+				{ pluginUri: state.getPluginInstallUri(plugin), plugin },
+			], undefined);
+		};
+
+		await waitFor(() => state.installedPluginIds.size === 2);
+
+		assert.deepStrictEqual({
+			installCalls: state.installCalls,
+			fetchCalls: state.fetchCalls.length,
+			notification: blockingNotification(state),
+		}, {
+			installCalls: ['first@managed-marketplace', 'second@managed-marketplace'],
+			fetchCalls: 2,
+			notification: undefined,
+		});
+	});
+
+	for (const installFails of [false, true]) {
+		test(`abandons a stale pass after an in-flight install ${installFails ? 'fails' : 'finishes'}`, async () => {
+			const installing = new DeferredPromise<void>();
+			const first = createPlugin('first', 'managed-marketplace', 'file:///managed-marketplace');
+			const second = createPlugin('second', 'managed-marketplace', 'file:///managed-marketplace');
+			const { state } = createContribution({
+				catalog: [first, second],
+				managedMarketplaces: new Map([[first.marketplaceReference.canonicalId, managedReference(first)]]),
+				enabledPluginsPolicy: {
+					[getMarketplacePluginPolicyId(first)]: true,
+					[getMarketplacePluginPolicyId(second)]: true,
+				},
+				installImplementation: () => installing.p,
+			});
+
+			await waitFor(() => state.installCalls.length === 1);
+			state.sentiment.set({ hidden: true }, undefined);
+			state.notificationHistory.length = 0;
+			if (installFails) {
+				await installing.error(new Error('Install failed'));
+			} else {
+				await installing.complete();
+			}
+			await timeout(0);
+
+			assert.deepStrictEqual({
+				installCalls: state.installCalls,
+				notificationsAfterChange: state.notificationHistory,
+				notification: blockingNotification(state),
+			}, {
+				installCalls: ['first@managed-marketplace'],
+				notificationsAfterChange: [],
+				notification: undefined,
+			});
+		});
+	}
+
+	test('does not republish an in-flight install failure after disposal', async () => {
+		const installing = new DeferredPromise<void>();
+		const required = createPlugin('required', 'managed-marketplace', 'file:///managed-marketplace');
+		const { contribution, state } = createContribution({
+			catalog: [required],
+			managedMarketplaces: new Map([[required.marketplaceReference.canonicalId, managedReference(required)]]),
+			enabledPluginsPolicy: { [getMarketplacePluginPolicyId(required)]: true },
+			installImplementation: () => installing.p,
+		});
+
+		await waitFor(() => state.installCalls.length === 1);
+		contribution.dispose();
+		state.notificationHistory.length = 0;
+		await installing.error(new Error('Install failed'));
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			notificationsAfterDispose: state.notificationHistory,
+			notification: blockingNotification(state),
+		}, {
+			notificationsAfterDispose: [],
+			notification: undefined,
 		});
 	});
 
