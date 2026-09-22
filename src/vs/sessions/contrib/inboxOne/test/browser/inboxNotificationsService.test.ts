@@ -178,7 +178,7 @@ suite('InboxNotificationsService', () => {
 			{
 				kind: InboxNotificationKind.Completed,
 				priority: InboxNotificationPriority.Low,
-				actionKinds: [InboxNotificationActionKind.OpenSession, InboxNotificationActionKind.MarkSessionRead, InboxNotificationActionKind.MarkDone],
+				actionKinds: [InboxNotificationActionKind.OpenSession, InboxNotificationActionKind.MarkDone],
 			},
 		]);
 	});

@@ -136,6 +136,11 @@
 	flex: 0 0 auto;
 }
 
+.inbox-notifications-item-actions .inbox-notifications-item-action-done {
+	min-width: 0;
+	padding: 0 var(--vscode-spacing-size80);
+}
+
 .inbox-notifications-empty {
 	color: var(--vscode-descriptionForeground);
 	padding: var(--vscode-spacing-size320) var(--vscode-spacing-size100);

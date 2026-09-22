@@ -177,8 +177,12 @@ export class InboxNotificationsView extends AbstractCustomView {
 				...defaultButtonStyles,
 				secondary: !action.primary,
 				small: true,
-				ariaLabel: localize('inboxNotifications.actionAriaLabel', "{0} for {1}", action.label, item.title),
+				supportIcons: action.kind === InboxNotificationActionKind.MarkDone,
+				ariaLabel: localize('inboxNotifications.actionAriaLabel', "{0} for {1}", action.ariaLabel ?? action.label, item.title),
 			}));
+			if (action.kind === InboxNotificationActionKind.MarkDone) {
+				button.element.classList.add('inbox-notifications-item-action-done');
+			}
 			button.label = action.label;
 			this.renderedListDisposables.add(button.onDidClick(() => void this.runAction(item, action)));
 		}
@@ -269,17 +273,6 @@ export class InboxNotificationsView extends AbstractCustomView {
 						return;
 					}
 					await this.sessionsService.openSession(item.sessionResource);
-					return;
-				}
-				case InboxNotificationActionKind.MarkSessionRead: {
-					if (!item.sessionResource) {
-						return;
-					}
-					const session = this.sessionsManagementService.getSession(item.sessionResource);
-					if (!session) {
-						return;
-					}
-					await this.sessionsManagementService.markRead(session);
 					return;
 				}
 				case InboxNotificationActionKind.AgentMergeFixCI:

@@ -152,7 +152,7 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 				description: localize('inboxNotifications.needsInput.description', "Open this session to answer the pending question and continue."),
 				timestamp: updatedAt,
 				sessionResource: session.resource,
-				actions: this.sessionActions(true, false),
+				actions: this.sessionActions(true),
 			});
 		}
 
@@ -163,10 +163,10 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 				kind: InboxNotificationKind.Completed,
 				priority: InboxNotificationPriority.Low,
 				title: localize('inboxNotifications.completed.title', "Completed: {0}", title),
-				description: localize('inboxNotifications.completed.description', "Review this completed session or mark it as read."),
+				description: localize('inboxNotifications.completed.description', "Review this completed session or mark it done."),
 				timestamp: updatedAt,
 				sessionResource: session.resource,
-				actions: this.sessionActions(true, true),
+				actions: this.sessionActions(true),
 			});
 		}
 
@@ -313,7 +313,7 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 
 	private pullRequestActions(_session: ISession, kind: InboxNotificationKind): readonly IInboxNotificationAction[] {
 		const agentMergeAction = this.agentMergeActionForNotificationKind(kind);
-		return this.sessionActions(true, false, agentMergeAction ? [agentMergeAction] : undefined);
+		return this.sessionActions(true, agentMergeAction ? [agentMergeAction] : undefined);
 	}
 
 	private agentMergeActionForNotificationKind(kind: InboxNotificationKind): IInboxNotificationAction | undefined {
@@ -363,7 +363,7 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 		return pullRequestRefs;
 	}
 
-	private sessionActions(includeOpen: boolean, includeMarkRead: boolean, additionalActions?: readonly IInboxNotificationAction[]): readonly IInboxNotificationAction[] {
+	private sessionActions(includeOpen: boolean, additionalActions?: readonly IInboxNotificationAction[]): readonly IInboxNotificationAction[] {
 		const actions: IInboxNotificationAction[] = [];
 		if (includeOpen) {
 			actions.push({
@@ -373,19 +373,13 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 				primary: true,
 			});
 		}
-		if (includeMarkRead) {
-			actions.push({
-				id: 'mark-read',
-				label: localize('inboxNotifications.action.markRead', "Mark as Read"),
-				kind: InboxNotificationActionKind.MarkSessionRead,
-			});
-		}
 		if (additionalActions?.length) {
 			actions.push(...additionalActions);
 		}
 		actions.push({
 			id: 'mark-done',
-			label: localize('inboxNotifications.action.markDone', "✓ Done"),
+			label: '$(check)',
+			ariaLabel: localize('inboxNotifications.action.markDone', "Done"),
 			kind: InboxNotificationActionKind.MarkDone,
 		});
 		return actions;
@@ -394,7 +388,8 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 	private dismissActionOnly(): readonly IInboxNotificationAction[] {
 		return [{
 			id: 'mark-done',
-			label: localize('inboxNotifications.action.markDone', "✓ Done"),
+			label: '$(check)',
+			ariaLabel: localize('inboxNotifications.action.markDone', "Done"),
 			kind: InboxNotificationActionKind.MarkDone,
 		}];
 	}

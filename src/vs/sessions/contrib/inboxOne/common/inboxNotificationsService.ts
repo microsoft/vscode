@@ -28,7 +28,6 @@ export const enum InboxNotificationKind {
 
 export const enum InboxNotificationActionKind {
 	OpenSession = 'openSession',
-	MarkSessionRead = 'markSessionRead',
 	MarkDone = 'markDone',
 	AgentMergeFixCI = 'agentMergeFixCI',
 	AgentMergeAddressReviews = 'agentMergeAddressReviews',
@@ -40,6 +39,7 @@ export const enum InboxNotificationActionKind {
 export interface IInboxNotificationAction {
 	readonly id: string;
 	readonly label: string;
+	readonly ariaLabel?: string;
 	readonly kind: InboxNotificationActionKind;
 	readonly commandId?: string;
 	readonly commandArgs?: readonly unknown[];

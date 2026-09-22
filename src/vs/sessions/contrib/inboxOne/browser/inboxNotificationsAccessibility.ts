@@ -27,7 +27,7 @@ class InboxNotificationsAccessibilityHelp implements IAccessibleViewImplementati
 			localize('inboxNotifications.help.overview', "You are in the Inbox view. It lists prioritized notifications that need attention."),
 			localize('inboxNotifications.help.navigation', "Use Up Arrow and Down Arrow to move focus between notification cards. Tab moves through actions for the focused notification."),
 			localize('inboxNotifications.help.actions', "Use Open Session to navigate to the session. CI and review notifications may include actions such as Fix CI Failures, Address Reviews, and Merge Pull Request. Use Done to clear a notification."),
-			localize('inboxNotifications.help.markRead', "Completed session notifications include Mark as Read to clear unread state without opening."),
+			localize('inboxNotifications.help.done', "Done clears a notification and marks its session as read when available."),
 			localize('inboxNotifications.help.accessibleView', "Use Open Accessible View to read the full notification list as plain text."),
 		].join('\n');
 		return new AccessibleContentProvider(
