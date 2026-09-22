@@ -65,8 +65,10 @@ export class CustomizationMigrationService extends Disposable implements ICustom
 				? this.emptyMcpServerMigration()
 				: { type, files: [], candidates: [] };
 		}
-		if (type !== CustomizationMigrationType.McpServers && !this.isMigrationEnabled(type)) {
-			return { type, files: [], candidates: [] };
+		if (!this.isMigrationEnabled(type)) {
+			return type === CustomizationMigrationType.McpServers
+				? this.emptyMcpServerMigration()
+				: { type, files: [], candidates: [] };
 		}
 
 		switch (type) {

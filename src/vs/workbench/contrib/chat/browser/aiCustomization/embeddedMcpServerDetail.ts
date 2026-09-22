@@ -28,6 +28,7 @@ import { defaultButtonStyles } from '../../../../../platform/theme/browser/defau
 import { getSimpleEditorOptions } from '../../../codeEditor/browser/simpleEditorOptions.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { CustomizationMcpServerCompatibilityKind, ICustomizationHarnessService, ICustomizationMcpServerCompatibility } from '../../common/customizationHarnessService.js';
+import { ChatConfiguration } from '../../common/constants.js';
 import { IMcpWorkbenchService, IWorkbenchMcpServer, McpServerInstallState } from '../../../mcp/common/mcpTypes.js';
 
 const $ = DOM.$;
@@ -178,6 +179,11 @@ export class EmbeddedMcpServerDetail extends Disposable {
 				this.current = { ...createWorkbenchMcpServerDetailInput(server), error, compatibilityId, migratable };
 				this.bindDiagnostics();
 				this.renderItem();
+			}
+		}));
+		this._register(this.configurationService.onDidChangeConfiguration(event => {
+			if (event.affectsConfiguration(ChatConfiguration.ChatCustomizationsMcpServerMigrationEnabled)) {
+				this.bindDiagnostics();
 			}
 		}));
 
@@ -341,6 +347,11 @@ export class EmbeddedMcpServerDetail extends Disposable {
 			this.customizationHarnessService.availableHarnesses.read(reader);
 			const descriptor = this.customizationHarnessService.getActiveDescriptor();
 			this.harnessLabel = descriptor.label || localize('currentHarness', "the current harness");
+			if (this.configurationService.getValue<boolean>(ChatConfiguration.ChatCustomizationsMcpServerMigrationEnabled) !== true) {
+				this.compatibilityState = { kind: 'unavailable', details: [] };
+				this.renderCompatibility();
+				return;
+			}
 			if (server.installState !== McpServerInstallState.Installed) {
 				this.compatibilityState = { kind: 'unavailable', details: [] };
 				this.renderCompatibility();

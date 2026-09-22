@@ -829,7 +829,7 @@ suite('CustomizationMigrationService', () => {
 		});
 	});
 
-	test('keeps MCP support diagnostics when MCP migration is disabled', async () => {
+	test('does not compute MCP migration or compatibility hints when MCP migration is disabled', async () => {
 		const root = URI.file('/workspace');
 		const sourceUri = URI.joinPath(root, '.vscode', 'mcp.json');
 		const fileService = store.add(new FileService(new NullLogService()));
@@ -884,13 +884,17 @@ suite('CustomizationMigrationService', () => {
 			discoveryComplete: true,
 			coverage: { restrictedByMcpAccess: false, restrictedByCustomizationPolicy: false },
 		};
+		let supportScopeAcquisitions = 0;
 		const activeClientService = {
-			acquireMcpServerSupportScope: () => ({
-				support: constObservable(snapshot),
-				isResolved: constObservable(true),
-				whenResolved: () => Promise.resolve(),
-				dispose: () => { },
-			}),
+			acquireMcpServerSupportScope: () => {
+				supportScopeAcquisitions++;
+				return {
+					support: constObservable(snapshot),
+					isResolved: constObservable(true),
+					whenResolved: () => Promise.resolve(),
+					dispose: () => { },
+				};
+			},
 		} as Partial<IAgentHostActiveClientService> as IAgentHostActiveClientService;
 		const agentHostCustomizationService = {
 			onDidChangeCustomizations: Event.None,
@@ -908,21 +912,16 @@ suite('CustomizationMigrationService', () => {
 				exclusions: migration.exclusions,
 			},
 			hint,
+			supportScopeAcquisitions,
 			fileReads: fileProvider.readRequests.map(resource => resource.path),
 		}, {
 			migration: {
-				servers: [
-					{ id: 'mcp.config.ws0.supported', name: 'supported', supported: true },
-					{ id: 'mcp.config.ws0.unsupported', name: 'unsupported', supported: false },
-				],
+				servers: [],
 				candidates: [],
 				exclusions: [],
 			},
-			hint: {
-				message: 'Found 1 MCP server that is not fully supported by Copilot.',
-				target: CustomizationMigrationHintTarget.McpServers,
-				counts: [{ type: CustomizationMigrationType.McpServers, count: 1 }],
-			},
+			hint: undefined,
+			supportScopeAcquisitions: 0,
 			fileReads: [],
 		});
 	});

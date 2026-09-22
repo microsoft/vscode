@@ -49,6 +49,7 @@ import { CustomizationMcpServerCompatibilityKind, getCustomizationDisabledLabel,
 import { IAgentHostCustomizationService } from '../agentSessions/agentHost/agentHostCustomizationService.js';
 import { CustomizationEnablementKind, McpServerStatus } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import { IOutputService } from '../../../../services/output/common/output.js';
+import { ChatConfiguration } from '../../common/constants.js';
 import { getCustomizationScopeEnablement, type CustomizationDisabledReason } from '../../../../../platform/agentHost/common/customizationEnablement.js';
 import { createAgentHostEnablePluginAction } from '../agentPluginActions.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
@@ -1309,6 +1310,9 @@ export class McpListWidget extends Disposable {
 			if (e.affectsConfiguration(mcpAccessConfig)) {
 				this.updateAccessState();
 			}
+			if (e.affectsConfiguration(ChatConfiguration.ChatCustomizationsMcpServerMigrationEnabled)) {
+				this.updateMcpServerCompatibilityScope();
+			}
 		}));
 		this._register({
 			dispose: () => {
@@ -1484,6 +1488,9 @@ export class McpListWidget extends Disposable {
 	private updateMcpServerCompatibilityScope(): void {
 		this.clearMcpServerCompatibilityScope();
 		if (!this.visible) {
+			return;
+		}
+		if (this.configurationService.getValue<boolean>(ChatConfiguration.ChatCustomizationsMcpServerMigrationEnabled) !== true) {
 			return;
 		}
 		const descriptor = this.customizationHarnessService.getActiveDescriptor();
