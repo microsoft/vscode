@@ -14,7 +14,7 @@ import { DisposableStore } from '../../../../util/vs/base/common/lifecycle';
 import { SyncDescriptor } from '../../../../util/vs/platform/instantiation/common/descriptors';
 import { IInstantiationService } from '../../../../util/vs/platform/instantiation/common/instantiation';
 import { createExtensionUnitTestingServices } from '../../../test/node/services';
-import { ILanguageModelRequestMiddlewareRegistry } from '../../common/languageModelRequestMiddleware';
+import { ILanguageModelRequestMiddlewareRegistry, LanguageModelRequestContext } from '../../common/languageModelRequestMiddleware';
 import { AzureBYOKModelProvider, azureSupportedEndpointsForUrl, resolveAzureUrl } from '../azureProvider';
 import type { IBYOKStorageService } from '../byokStorageService';
 import { CapturingChatMLFetcher } from './capturingChatMLFetcher';
@@ -56,15 +56,20 @@ describe('AzureBYOKModelProvider', () => {
 		it('applies request middleware headers to the Entra-authenticated endpoint and keeps the Entra credential', async () => {
 			const getSession = vi.spyOn(vscode.authentication, 'getSession').mockResolvedValue({ id: 'session', accessToken: 'entra-token', account: { id: 'user', label: 'User' }, scopes: [AzureAuthMode.COGNITIVE_SERVICES_SCOPE] });
 			const registry = accessor.get(ILanguageModelRequestMiddlewareRegistry);
+			const contexts: LanguageModelRequestContext[] = [];
 			disposables.add(registry.register({
-				selector: { vendors: ['azure'] },
-				provideRequestHeaders: async () => ({ 'x-dynamic': 'value', 'x-shared': 'middleware', Authorization: 'Bearer middleware-token' }),
+				selector: { vendors: ['azure'], providerGroups: ['Azure Prod'] },
+				provideRequestHeaders: async context => {
+					contexts.push(context);
+					return { 'x-dynamic': 'value', 'x-shared': 'middleware', Authorization: 'Bearer middleware-token' };
+				},
 			}));
 			const provider = instaService.createInstance(AzureBYOKModelProvider, createStorageService());
 			const tokenSource = disposables.add(new vscode.CancellationTokenSource());
 			// No apiKey in the configuration: the provider authenticates with Entra ID.
 			const [model] = await provider.provideLanguageModelChatInformation({
 				silent: true,
+				group: 'Azure Prod',
 				configuration: {
 					models: [{
 						id: 'gpt-4-deployment',
@@ -93,9 +98,17 @@ describe('AzureBYOKModelProvider', () => {
 
 			expect({
 				authProvider: getSession.mock.calls[0]?.[0],
+				contexts: contexts.map(({ cancellationToken, ...context }) => context),
 				headers: chatMLFetcher.requests[0]?.endpoint.getExtraHeaders?.(),
 			}).toEqual({
 				authProvider: AzureAuthMode.MICROSOFT_AUTH_PROVIDER,
+				contexts: [{
+					vendor: 'azure',
+					modelId: 'gpt-4-deployment',
+					url: 'https://my-resource.openai.azure.com/openai/deployments/gpt-4-deployment/chat/completions?api-version=2025-01-01-preview',
+					providerGroup: 'Azure Prod',
+					requestInitiator: 'core',
+				}],
 				headers: {
 					'Content-Type': 'application/json',
 					Authorization: 'Bearer entra-token',

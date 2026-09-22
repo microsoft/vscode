@@ -13,6 +13,8 @@ describe('LanguageModelRequestMiddlewareRegistry', () => {
 	const request = {
 		vendor: 'customendpoint',
 		modelId: 'model-a',
+		url: 'https://gateway.example.com/v1/chat/completions',
+		providerGroup: 'Acme Premium',
 		requestInitiator: 'core',
 		cancellationToken: CancellationToken.None,
 	};
@@ -48,6 +50,36 @@ describe('LanguageModelRequestMiddlewareRegistry', () => {
 
 		expect(await registry.provideRequestHeaders(request)).toEqual({});
 		expect(invocations).toBe(0);
+	});
+
+	it('matches on provider group', async () => {
+		const registry = createRegistry();
+		registry.register({
+			selector: { providerGroups: ['Acme Premium'] },
+			provideRequestHeaders: async () => ({ Authorization: 'Bearer premium' }),
+		});
+		registry.register({
+			selector: { providerGroups: ['Acme Budget'] },
+			provideRequestHeaders: async () => ({ Authorization: 'Bearer budget' }),
+		});
+
+		expect({
+			premium: await registry.provideRequestHeaders(request),
+			budget: await registry.provideRequestHeaders({ ...request, providerGroup: 'Acme Budget' }),
+		}).toEqual({
+			premium: { Authorization: 'Bearer premium' },
+			budget: { Authorization: 'Bearer budget' },
+		});
+	});
+
+	it('does not match a provider group selector when the request has no group', async () => {
+		const registry = createRegistry();
+		registry.register({
+			selector: { providerGroups: ['Acme Premium'] },
+			provideRequestHeaders: async () => ({ Authorization: 'Bearer premium' }),
+		});
+
+		expect(await registry.provideRequestHeaders({ ...request, providerGroup: undefined })).toEqual({});
 	});
 
 	it('merges matching middleware in registration order, case-insensitively', async () => {

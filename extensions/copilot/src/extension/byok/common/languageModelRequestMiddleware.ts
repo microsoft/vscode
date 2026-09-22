@@ -20,6 +20,10 @@ export interface LanguageModelRequestContext {
 	readonly vendor: string;
 	/** The id of the selected model. */
 	readonly modelId: string;
+	/** The fully resolved URL the request is sent to, e.g. `https://gateway.example.com/v1/chat/completions`. */
+	readonly url: string;
+	/** The name of the provider group the model was configured in; `undefined` for models requested without a group. */
+	readonly providerGroup: string | undefined;
 	/** Who initiated the request, e.g. `core` for chat or an extension id for `vscode.lm` callers. */
 	readonly requestInitiator: string;
 	/** Cancelled when the language model request is cancelled. */
@@ -33,6 +37,7 @@ export interface LanguageModelRequestContext {
 export interface LanguageModelRequestMiddlewareSelector {
 	readonly vendors?: readonly string[];
 	readonly modelIds?: readonly string[];
+	readonly providerGroups?: readonly string[];
 }
 
 /**
@@ -174,13 +179,15 @@ function matchesSelector(selector: LanguageModelRequestMiddlewareSelector | unde
 	}
 
 	return (selector.vendors === undefined || selector.vendors.includes(context.vendor))
-		&& (selector.modelIds === undefined || selector.modelIds.includes(context.modelId));
+		&& (selector.modelIds === undefined || selector.modelIds.includes(context.modelId))
+		&& (selector.providerGroups === undefined || (context.providerGroup !== undefined && selector.providerGroups.includes(context.providerGroup)));
 }
 
 function describeSelector(selector: LanguageModelRequestMiddlewareSelector | undefined): string {
 	const vendors = selector?.vendors?.join(', ') ?? '*';
 	const modelIds = selector?.modelIds?.join(', ') ?? '*';
-	return `vendors [${vendors}] models [${modelIds}]`;
+	const providerGroups = selector?.providerGroups?.join(', ') ?? '*';
+	return `vendors [${vendors}] models [${modelIds}] groups [${providerGroups}]`;
 }
 
 function toErrorMessage(error: unknown): string {

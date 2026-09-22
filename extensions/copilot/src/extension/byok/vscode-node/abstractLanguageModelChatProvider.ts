@@ -24,6 +24,8 @@ export interface LanguageModelChatConfiguration {
 
 export interface ExtendedLanguageModelChatInformation<C extends LanguageModelChatConfiguration> extends LanguageModelChatInformation {
 	readonly configuration?: C;
+	/** The name of the provider group the model was configured in, if any. */
+	readonly providerGroup?: string;
 }
 
 export abstract class AbstractLanguageModelChatProvider<C extends LanguageModelChatConfiguration = LanguageModelChatConfiguration, T extends ExtendedLanguageModelChatInformation<C> = ExtendedLanguageModelChatInformation<C>> implements LanguageModelChatProvider<T> {
@@ -59,7 +61,7 @@ export abstract class AbstractLanguageModelChatProvider<C extends LanguageModelC
 		await commands.executeCommand('lm.migrateLanguageModelsProviderGroup', { vendor: this._id, name, ...configuration });
 	}
 
-	async provideLanguageModelChatInformation({ silent, configuration }: PrepareLanguageModelChatModelOptions, token: CancellationToken): Promise<T[]> {
+	async provideLanguageModelChatInformation({ silent, group, configuration }: PrepareLanguageModelChatModelOptions, token: CancellationToken): Promise<T[]> {
 		let apiKey: string | undefined = (configuration as C)?.apiKey;
 		if (!apiKey) {
 			apiKey = await this.configureDefaultGroupWithApiKeyOnly();
@@ -70,7 +72,8 @@ export abstract class AbstractLanguageModelChatProvider<C extends LanguageModelC
 			...model,
 			isBYOK: true,
 			apiKey,
-			configuration
+			configuration,
+			providerGroup: group,
 		}));
 	}
 
@@ -117,6 +120,8 @@ export abstract class AbstractOpenAICompatibleLMProvider<T extends LanguageModel
 		const requestHeaders = await this._requestMiddlewareRegistry.provideRequestHeaders({
 			vendor: this._id,
 			modelId: model.id,
+			url: endpoint.urlOrRequestMetadata,
+			providerGroup: model.providerGroup,
 			requestInitiator: options.requestInitiator,
 			cancellationToken: token,
 		});

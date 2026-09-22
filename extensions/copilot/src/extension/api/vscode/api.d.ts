@@ -33,6 +33,29 @@ export interface CopilotExtensionApi {
 	 * any `Proxy-*` or `Sec-*` header. At most 20 headers per request are
 	 * applied.
 	 *
+	 * A provider can back several user-configured provider groups, at different
+	 * services or at the same service with different credentials and model
+	 * lists, and model ids are not unique across groups. Use
+	 * {@link LanguageModelRequestMiddlewareSelector.providerGroups providerGroups}
+	 * to limit a middleware to one group and register once per group. A group
+	 * name is chosen by the user and can be renamed or reused for another
+	 * service, so a middleware that returns a credential must also verify
+	 * {@link LanguageModelRequestContext.url} before returning it:
+	 *
+	 * ```ts
+	 * for (const group of ['Acme Premium', 'Acme Budget']) {
+	 * 	api.registerLanguageModelRequestMiddleware({
+	 * 		selector: { vendors: ['customendpoint'], providerGroups: [group] },
+	 * 		provideRequestHeaders: async ({ url }) => {
+	 * 			if (new URL(url).origin !== 'https://gateway.example.com') {
+	 * 				return {};
+	 * 			}
+	 * 			return { Authorization: `Bearer ${await getToken(group)}` };
+	 * 		},
+	 * 	});
+	 * }
+	 * ```
+	 *
 	 * Available since API version 2, i.e. `getAPI(2)`.
 	 *
 	 * @param middleware The middleware to register.
@@ -66,6 +89,16 @@ export interface LanguageModelRequestContext {
 	 */
 	readonly modelId: string;
 	/**
+	 * The fully resolved URL the request is sent to: the configured provider URL
+	 * with the API path appended, e.g. `https://gateway.example.com/v1/chat/completions`.
+	 */
+	readonly url: string;
+	/**
+	 * The name of the provider group the model was configured in, as shown in the
+	 * model picker, or `undefined` for a model that was provided without a group.
+	 */
+	readonly providerGroup: string | undefined;
+	/**
 	 * Who initiated the request: `core` for requests made by chat itself, or the
 	 * id of the extension that called `vscode.lm`.
 	 */
@@ -91,6 +124,11 @@ export interface LanguageModelRequestMiddlewareSelector {
 	 * Model ids to match, see {@link LanguageModelRequestContext.modelId}.
 	 */
 	readonly modelIds?: readonly string[];
+	/**
+	 * Provider group names to match, see {@link LanguageModelRequestContext.providerGroup}.
+	 * A request for a model that was provided without a group never matches.
+	 */
+	readonly providerGroups?: readonly string[];
 }
 
 /**
