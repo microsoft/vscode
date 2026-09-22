@@ -29,7 +29,7 @@ import { checkApiProposalNamesTask, copyCodiconsTask } from './lib/compilation.t
 import { ensureCopilotPlatformPackage, getCopilotExcludeFilter, getCopilotRuntimePrebuildFiles, getCopilotRuntimeVersion, getCopilotTgrepExcludeFilter, getMxcExcludeFilter, getRipgrepExcludeFilter, prepareBuiltInCopilotRipgrepShim } from './lib/copilot.ts';
 import { ensureOSProxyResolverPlatformPackage, getOSProxyResolverExcludeFilter, getOSProxyResolverPlatformFiles } from './lib/osProxyResolver.ts';
 import { readAgentSdkResults } from './agent-sdk/common.ts';
-import { getRuntimeTargetForBuild, readDictationRuntimeResults } from './dictation-runtime/common.ts';
+import { readDictationRuntimeResults } from './dictation-runtime/common.ts';
 import { promisify } from 'util';
 import globCallback from 'glob';
 import rceditCallback from 'rcedit';
@@ -115,20 +115,13 @@ function computeChecksum(filename: string): string {
 	return hash;
 }
 
-// foundry-local-sdk (on-device chat dictation) loads two N-API addons from its
-// package, while configureNativeLoader redirects its shared libraries to the
-// per-user runtime cache. Keep the target platform's addons but exclude the
-// shared libraries, which require a newer glibc than VS Code's minimum supported
-// Linux distros.
-function getFoundryLocalExcludeFilter(platform: string, arch: string): string[] {
-	const target = getRuntimeTargetForBuild(platform, arch);
+// foundry-local-sdk (on-device chat dictation) loads its N-API addons and shared
+// libraries from the per-user runtime cache. Exclude the package's native files,
+// which may require a newer glibc than VS Code's supported maximum.
+function getFoundryLocalExcludeFilter(): string[] {
 	return [
 		'**',
 		'!**/foundry-local-sdk/prebuilds/**',
-		...(target ? [
-			`**/foundry-local-sdk/prebuilds/${target}/foundry_local_node.node`,
-			`**/foundry-local-sdk/prebuilds/${target}/foundry_local_preload.node`,
-		] : []),
 	];
 }
 
@@ -259,7 +252,7 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 			.pipe(filter(getCopilotTgrepExcludeFilter(platform, arch)))
 			.pipe(filter(getRipgrepExcludeFilter(platform, arch)))
 			.pipe(filter(getMxcExcludeFilter(arch)))
-			.pipe(filter(getFoundryLocalExcludeFilter(platform, arch)))
+			.pipe(filter(getFoundryLocalExcludeFilter()))
 			.pipe(filter(getOSProxyResolverExcludeFilter(platform, arch)))
 			.pipe(jsFilter)
 			.pipe(util.rewriteSourceMappingURL(sourceMappingURLBase))

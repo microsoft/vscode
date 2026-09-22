@@ -4,24 +4,24 @@
  *--------------------------------------------------------------------------------------------*/
 
 /**
- * Builds one per-target tarball of the Foundry Local native runtime (the
- * Foundry Local / onnxruntime / onnxruntime-genai shared libraries). Callable
- * as both a Node library (`buildOne(...)`) and a thin
+ * Builds one per-target tarball of the Foundry Local native runtime (the N-API
+ * addons and Foundry Local / onnxruntime / onnxruntime-genai shared libraries).
+ * Callable as both a Node library (`buildOne(...)`) and a thin
  * CLI (bottom of this file).
  *
  * The library form is what `produce.ts` calls during the per-platform
  * "Dictation runtime: build + upload" pipeline step; the CLI form is for local
  * one-off builds and requires `VSS_NUGET_ACCESSTOKEN` for the VS Code NuGet feed.
  *
- * The Foundry Local library is copied from the pinned `foundry-local-sdk`
- * package's `prebuilds/` (which ships every target), and the ONNX libraries are
- * fetched from NuGet for the requested target's RID via
+ * The Foundry Local addons and library are copied from the pinned
+ * `foundry-local-sdk` package's `prebuilds/` (which ships every target), and
+ * the ONNX libraries are fetched from NuGet for the requested target's RID via
  * `fetchDependencyLibraries`, so ANY build host can produce ANY target's tarball.
  *
  * The produced tarball's internal layout mirrors the runtime cache layout so the
  * runtime extraction is a plain untar:
  *
- *   prebuilds/<target>/<shared libraries>
+ *   prebuilds/<target>/<native files>
  */
 
 import * as fs from 'fs';
@@ -62,7 +62,7 @@ export async function buildOne(args: IBuildArgs): Promise<IBuildResult> {
 	try {
 		console.log(`[${SCRIPT}] Building ${SDK_PACKAGE_NAME}@${version} native runtime for ${args.target} in ${stagingDir}`);
 
-		await stageSdkSharedLibraries(stagingDir, args.target);
+		await stageSdkNativeFiles(stagingDir, args.target);
 		await stageDependencyLibraries(stagingDir, args.target);
 
 		fs.mkdirSync(args.outDir, { recursive: true });
@@ -80,10 +80,10 @@ export async function buildOne(args: IBuildArgs): Promise<IBuildResult> {
 }
 
 /**
- * Copy the Foundry Local shared library shipped in the SDK's prebuild directory
- * for `target`. The Node-API addons are bundled with the product.
+ * Copy the Foundry Local addons and shared libraries shipped in the SDK's
+ * prebuild directory for `target`.
  */
-async function stageSdkSharedLibraries(stagingDir: string, target: string): Promise<void> {
+async function stageSdkNativeFiles(stagingDir: string, target: string): Promise<void> {
 	const sourceDir = path.join(SDK_ROOT, 'prebuilds', target);
 	if (!fs.existsSync(sourceDir)) {
 		throw new Error(`[${SCRIPT}] Prebuild directory not found for ${target} at ${sourceDir}. Is ${SDK_PACKAGE_NAME} installed?`);
@@ -91,13 +91,13 @@ async function stageSdkSharedLibraries(stagingDir: string, target: string): Prom
 	const targetDir = path.join(stagingDir, 'prebuilds', target);
 	fs.mkdirSync(targetDir, { recursive: true });
 	for (const entry of fs.readdirSync(sourceDir, { withFileTypes: true })) {
-		if (entry.isFile() && isSharedLibrary(entry.name)) {
+		if (entry.isFile() && isNativeRuntimeFile(entry.name)) {
 			fs.copyFileSync(path.join(sourceDir, entry.name), path.join(targetDir, entry.name));
 		}
 	}
-	for (const name of requiredSdkSharedLibraryNames(target)) {
+	for (const name of requiredSdkNativeFileNames(target)) {
 		if (!fs.existsSync(path.join(targetDir, name))) {
-			throw new Error(`[${SCRIPT}] SDK shared library '${name}' not found for ${target} in ${sourceDir}.`);
+			throw new Error(`[${SCRIPT}] SDK native file '${name}' not found for ${target} in ${sourceDir}.`);
 		}
 	}
 }
@@ -122,17 +122,21 @@ async function stageDependencyLibraries(stagingDir: string, target: string): Pro
 	}
 }
 
-function requiredSdkSharedLibraryNames(target: string): readonly string[] {
+function requiredSdkNativeFileNames(target: string): readonly string[] {
 	const foundryLocalLibrary = target.startsWith('win32-')
 		? 'foundry_local.dll'
 		: target.startsWith('darwin-')
 			? 'libfoundry_local.dylib'
 			: 'libfoundry_local.so';
-	return [foundryLocalLibrary];
+	return [
+		'foundry_local_node.node',
+		'foundry_local_preload.node',
+		foundryLocalLibrary,
+	];
 }
 
-function isSharedLibrary(name: string): boolean {
-	return name.endsWith('.dll') || name.includes('.dylib') || name.includes('.so');
+function isNativeRuntimeFile(name: string): boolean {
+	return name.endsWith('.node') || name.endsWith('.dll') || name.includes('.dylib') || name.includes('.so');
 }
 
 /**

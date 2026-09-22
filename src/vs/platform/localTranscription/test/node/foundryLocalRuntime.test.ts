@@ -79,15 +79,15 @@ flakySuite('FoundryLocalRuntime', () => {
 		assert.strictEqual(isRuntimeProvisioned(testDir, platformKey), false);
 	});
 
-	test('requiredRuntimeFileNames: includes only shared libraries', () => {
+	test('requiredRuntimeFileNames: includes addons and shared libraries', () => {
 		assert.deepStrictEqual({
 			linux: requiredRuntimeFileNames('linux-x64'),
 			darwin: requiredRuntimeFileNames('darwin-arm64'),
 			win32: requiredRuntimeFileNames('win32-x64'),
 		}, {
-			linux: ['libfoundry_local.so', 'libonnxruntime.so.1', 'libonnxruntime-genai.so'],
-			darwin: ['libfoundry_local.dylib', 'libonnxruntime.1.dylib', 'libonnxruntime-genai.dylib'],
-			win32: ['foundry_local.dll', 'onnxruntime.dll', 'onnxruntime-genai.dll'],
+			linux: ['foundry_local_node.node', 'foundry_local_preload.node', 'libfoundry_local.so', 'libonnxruntime.so.1', 'libonnxruntime-genai.so'],
+			darwin: ['foundry_local_node.node', 'foundry_local_preload.node', 'libfoundry_local.dylib', 'libonnxruntime.1.dylib', 'libonnxruntime-genai.dylib'],
+			win32: ['foundry_local_node.node', 'foundry_local_preload.node', 'foundry_local.dll', 'onnxruntime.dll', 'onnxruntime-genai.dll'],
 		});
 	});
 

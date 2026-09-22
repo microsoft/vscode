@@ -525,13 +525,13 @@ export class LocalTranscriptionService extends Disposable implements ILocalTrans
 				// The model cache state is unknown until the catalog is queried.
 				this._setStatus({ state: LocalTranscriptionModelState.Loading });
 
-				// Ensure the Foundry Local shared libraries are available before
-				// loading the SDK. Packaged builds keep the two addons but download
-				// the shared libraries on demand from VS Code's CDN into a per-user
-				// cache and point the SDK loader at it via libraryPath.
+				// Ensure the Foundry Local native files are available before
+				// loading the SDK. Packaged builds download the addons and shared
+				// libraries on demand from VS Code's CDN into a per-user cache and
+				// point the SDK loader at it via libraryPath.
 				// This is a no-op once cached. In dev builds (no product config)
-				// the SDK resolves its addons + shared libraries from node_modules, so we
-				// skip provisioning and leave the loader on its default path.
+				// the SDK resolves its native files from node_modules, so we skip
+				// provisioning and leave the loader on its default path.
 				let nativeLibraryPath: string | undefined;
 				if (this._runtimeDownload) {
 					nativeLibraryPath = await ensureFoundryLocalRuntime(runtimeCacheDir(cacheDir), this._runtimeDownload, cts.token);
