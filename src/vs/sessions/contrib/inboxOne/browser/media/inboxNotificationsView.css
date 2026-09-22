@@ -205,6 +205,14 @@
 	margin-top: var(--vscode-spacing-size100);
 }
 
+.inbox-notifications-chat-part-host.interactive-session {
+	display: block;
+	width: 100%;
+	height: auto;
+	max-width: none;
+	margin: 0;
+}
+
 .inbox-notifications-chat-part-host .chat-confirmation-widget-container,
 .inbox-notifications-chat-part-host .chat-question-carousel-container {
 	width: 100%;
