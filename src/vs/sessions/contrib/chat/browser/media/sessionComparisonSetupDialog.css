@@ -531,6 +531,22 @@
 	width: auto;
 }
 
+.session-comparison-setup-navigation .session-comparison-setup-run-button {
+	display: inline-flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size40);
+}
+
+.session-comparison-setup-navigation .session-comparison-setup-run-button .codicon-warning {
+	display: none;
+	font-size: var(--vscode-codiconFontSize);
+}
+
+.session-comparison-setup-navigation .session-comparison-setup-run-button:hover .codicon-warning,
+.session-comparison-setup-navigation .session-comparison-setup-run-button:focus-visible .codicon-warning {
+	display: inline-flex;
+}
+
 .session-comparison-setup-validation {
 	font-size: var(--vscode-fontSize-label1);
 }

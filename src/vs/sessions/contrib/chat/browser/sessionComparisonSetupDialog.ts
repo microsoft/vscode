@@ -436,17 +436,19 @@ export class SessionComparisonSetupDialog extends Disposable {
 			const workspaceError = getSessionComparisonWorkspaceError(branch, hasGitRemote);
 			const hasHarnesses = getHarnesses().length > 0;
 			const isValid = count >= 2 && hasPrompt && !workspaceError && hasHarnesses;
+			const startSessionsLabel = localize('sessionComparisonSetup.startSessionCount', "Start {0} sessions in parallel", count);
+			const startSessionsLabelWithIcon = localize('sessionComparisonSetup.startSessionCountWithIcon', "$(warning) {0}", startSessionsLabel);
 			if (confirmButton) {
 				confirmButton.element.hidden = true;
 				confirmButton.enabled = isValid;
-				confirmButton.label = localize('sessionComparisonSetup.runAttemptCount', "Run {0} attempts", count);
+				confirmButton.label = startSessionsLabel;
 			}
 			if (nextButton) {
 				nextButton.enabled = currentStep !== 'attempts' || isValid;
 			}
 			if (runButton) {
 				runButton.enabled = isValid;
-				runButton.label = localize('sessionComparisonSetup.runAttemptCount', "Run {0} attempts", count);
+				runButton.label = startSessionsLabelWithIcon;
 			}
 			if (validationElement) {
 				validationElement.hidden = isValid;
@@ -1072,8 +1074,16 @@ export class SessionComparisonSetupDialog extends Disposable {
 			} else {
 				runButton = rowsDisposables.add(new Button(navigation, {
 					...defaultButtonStyles,
-					ariaLabel: localize('sessionComparisonSetup.runAriaLabel', "Run the configured comparison attempts"),
+					supportIcons: true,
+					ariaLabel: localize('sessionComparisonSetup.runAriaLabel', "Start the configured sessions in parallel"),
 				}));
+				runButton.element.classList.add('session-comparison-setup-run-button');
+				rowsDisposables.add(this.hoverService.setupDelayedHover(
+					runButton.element,
+					{
+						content: localize('sessionComparisonSetup.runTokenWarning', "This will use tokens for each session."),
+					},
+				));
 				rowsDisposables.add(runButton.onDidClick(() => confirmButton?.element.click()));
 			}
 			updateValidation();
@@ -1107,7 +1117,7 @@ export class SessionComparisonSetupDialog extends Disposable {
 				this.layoutService.activeContainer,
 				localize('sessionComparisonSetup.title', "Run and Compare Agents"),
 				[
-					localize('sessionComparisonSetup.confirm', "Run {0} attempts", attempts.length),
+					localize('sessionComparisonSetup.confirm', "Start {0} sessions in parallel", attempts.length),
 					localize('sessionComparisonSetup.cancel', "Cancel"),
 				],
 				{
