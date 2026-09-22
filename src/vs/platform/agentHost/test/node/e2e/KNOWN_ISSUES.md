@@ -820,16 +820,6 @@ Use the affected provider command with `--grep "<exact test title>"` and tempora
 
   Temporarily clear `shellToolResultTextUnreliable`.
 
-### Claude subagent replay on Windows
-
-- Test: `reopening a session keeps sub-agent messages out of the parent transcript (replay path)`.
-- Scope: Claude on Windows.
-- Expected: the reopened parent transcript excludes subagent-only messages.
-- Observed: Claude reconstructs the subagent transcript from `subagents/agent-*.jsonl`, which is not reliably visible immediately on Windows.
-- Gate: `subagentReplayUnstableOnWindows: true`.
-- Related investigation: [#325284](https://github.com/microsoft/vscode/pull/325284).
-- Reproduce: temporarily clear the gate and run the exact title with `scripts\test-integration.bat`.
-
 ### Claude file deletion replay on Windows
 
 A user can ask Claude to delete a file from the workspace through its shell tool. On Windows, the bundled Claude runtime can exit during this turn instead of reporting the tool result, which interrupts the session even though the same portable Node.js command succeeds in adjacent file-operation scenarios.
