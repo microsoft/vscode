@@ -17,7 +17,7 @@ import { basename, dirname, isEqualOrParent, joinPath } from '../../../../../../
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { AgentFinderMediaType, IAgentFinderResource } from '../../../../../../platform/agentFinder/common/agentFinderService.js';
+import { CustomizationMarketplaceMediaType, ICustomizationMarketplaceResource } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
 import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IConfirmation, IConfirmationResult, IDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
@@ -32,7 +32,7 @@ import { IProgress, IProgressService, IProgressStep, ProgressLocation } from '..
 import { IQuickInputService } from '../../../../../../platform/quickinput/common/quickInput.js';
 import { IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { IMcpWorkbenchService, IWorkbenchMcpServer, McpServerInstallState } from '../../../../mcp/common/mcpTypes.js';
-import { AgentFinderInstallService } from '../../../browser/aiCustomization/agentFinderInstallService.js';
+import { CustomizationMarketplaceInstallService } from '../../../browser/aiCustomization/customizationMarketplaceInstallService.js';
 import { IAICustomizationWorkspaceService } from '../../../common/aiCustomizationWorkspaceService.js';
 import { ChatConfiguration } from '../../../common/constants.js';
 import { ICustomizationHarnessService, ICustomizationSourceFolder, IHarnessDescriptor } from '../../../common/customizationHarnessService.js';
@@ -49,12 +49,13 @@ const destinationDirectory = URI.file('/workspace/.github/skills');
 const skillDestination = joinPath(destinationDirectory, 'demo-skill');
 const skillContent = '# Demo skill\n';
 
-function resource(overrides: Partial<IAgentFinderResource> = {}): IAgentFinderResource {
+function resource(overrides: Partial<ICustomizationMarketplaceResource> = {}): ICustomizationMarketplaceResource {
 	return {
+		sourceId: 'testSource',
 		identifier: 'skill-resource',
 		displayName: 'Demo Skill',
 		description: 'A skill with scripts and assets',
-		mediaType: AgentFinderMediaType.Skill,
+		mediaType: CustomizationMarketplaceMediaType.Skill,
 		tags: [],
 		capabilities: [],
 		representativeQueries: [],
@@ -63,18 +64,18 @@ function resource(overrides: Partial<IAgentFinderResource> = {}): IAgentFinderRe
 	};
 }
 
-function pluginResource(path = 'plugins/demo'): IAgentFinderResource {
+function pluginResource(path = 'plugins/demo'): ICustomizationMarketplaceResource {
 	return resource({
 		identifier: 'plugin-resource',
-		mediaType: AgentFinderMediaType.CopilotPlugin,
+		mediaType: CustomizationMarketplaceMediaType.CopilotPlugin,
 		installation: { kind: 'plugin', repository: 'owner/catalog', ref: 'release', path },
 	});
 }
 
-function mcpResource(): IAgentFinderResource {
+function mcpResource(): ICustomizationMarketplaceResource {
 	return resource({
 		identifier: 'mcp-resource',
-		mediaType: AgentFinderMediaType.McpServer,
+		mediaType: CustomizationMarketplaceMediaType.McpServer,
 		url: URI.parse('https://untrusted.example/server.json'),
 		installation: { kind: 'mcp', name: 'io.example/demo' },
 	});
@@ -110,7 +111,7 @@ function mcpServer(name = 'io.example/demo', installState = McpServerInstallStat
 }
 
 function isStaging(resource: URI): boolean {
-	return resource.path.split('/').some(segment => segment.startsWith('.agentfinder-'));
+	return resource.path.split('/').some(segment => segment.startsWith('.customization-marketplace-'));
 }
 
 class SkillFileSystemProvider extends InMemoryFileSystemProvider {
@@ -145,7 +146,7 @@ class SkillFileSystemProvider extends InMemoryFileSystemProvider {
 	}
 }
 
-suite('AgentFinderInstallService', () => {
+suite('CustomizationMarketplaceInstallService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	async function createFixture(options: { enabled?: boolean } = { enabled: true }) {
@@ -251,7 +252,7 @@ suite('AgentFinderInstallService', () => {
 		const configurationService = new TestConfigurationService({ [ChatConfiguration.PluginsEnabled]: true });
 		store.add(configurationService.onDidChangeConfigurationEmitter);
 		if (options.enabled !== undefined) {
-			await configurationService.setUserConfiguration(ChatConfiguration.AgentFinderEnabled, options.enabled);
+			await configurationService.setUserConfiguration(ChatConfiguration.ChatCustomizationsUnifiedMarketplaceEnabled, options.enabled);
 		}
 		const dialogService = new class extends mock<IDialogService>() {
 			readonly confirmations: IConfirmation[] = [];
@@ -305,7 +306,7 @@ suite('AgentFinderInstallService', () => {
 		instantiationService.stub(IQuickInputService, quickInputService);
 		instantiationService.stub(ILabelService, labelService);
 		instantiationService.stub(ILogService, logService);
-		const service = store.add(instantiationService.createInstance(AgentFinderInstallService));
+		const service = store.add(instantiationService.createInstance(CustomizationMarketplaceInstallService));
 		return {
 			service, fileService, provider, installedPlugins, marketplaceService, pluginService, repositoryService, mcpService, mcpChanges,
 			harnessService, workspaceService, entitlementService, sentimentChanges, configurationService, dialogService, progressService, quickInputService,
@@ -319,8 +320,8 @@ suite('AgentFinderInstallService', () => {
 	}
 
 	async function setExperimentEnabled(configurationService: TestConfigurationService, enabled: boolean): Promise<void> {
-		await configurationService.setUserConfiguration(ChatConfiguration.AgentFinderEnabled, enabled);
-		fireConfigurationChange(configurationService, ChatConfiguration.AgentFinderEnabled);
+		await configurationService.setUserConfiguration(ChatConfiguration.ChatCustomizationsUnifiedMarketplaceEnabled, enabled);
+		fireConfigurationChange(configurationService, ChatConfiguration.ChatCustomizationsUnifiedMarketplaceEnabled);
 	}
 
 	async function stagingDirectories(fileService: IFileService): Promise<string[]> {
@@ -346,9 +347,10 @@ suite('AgentFinderInstallService', () => {
 		for (const enabled of [undefined, false]) {
 			test(`blocks all installation activity when the experiment is ${enabled === undefined ? 'unset' : 'explicitly disabled'}`, async () => {
 				const fixture = await createFixture({ enabled });
+				await fixture.configurationService.setUserConfiguration('chat.agentFinder.enabled', true);
 				const candidates = [resource(), pluginResource(), mcpResource()];
 				for (const candidate of candidates) {
-					await assert.rejects(fixture.service.install(candidate), /AgentFinder experiment/);
+					await assert.rejects(fixture.service.install(candidate), /unified marketplace experiment/);
 				}
 				assert.deepStrictEqual({
 					states: candidates.map(candidate => fixture.service.getInstallState(candidate).kind),
@@ -552,7 +554,7 @@ suite('AgentFinderInstallService', () => {
 	test('resources without validated installation metadata are unavailable and never invoke installers', async () => {
 		const fixture = await createFixture();
 		const states = [];
-		for (const mediaType of [AgentFinderMediaType.Skill, AgentFinderMediaType.CopilotPlugin, AgentFinderMediaType.McpServer, AgentFinderMediaType.CursorPlugin, 'application/unsupported']) {
+		for (const mediaType of [CustomizationMarketplaceMediaType.Skill, CustomizationMarketplaceMediaType.CopilotPlugin, CustomizationMarketplaceMediaType.McpServer, CustomizationMarketplaceMediaType.CursorPlugin, 'application/unsupported']) {
 			const candidate = resource({ mediaType, installation: undefined });
 			const state = fixture.service.getInstallState(candidate);
 			states.push({ mediaType, kind: state.kind, hasReason: state.kind === 'unavailable' && state.message.length > 0 });
@@ -564,7 +566,7 @@ suite('AgentFinderInstallService', () => {
 			mcpLookups: fixture.mcpService.lookups,
 			repositoryCalls: fixture.repositoryService.calls,
 		}, {
-			states: [AgentFinderMediaType.Skill, AgentFinderMediaType.CopilotPlugin, AgentFinderMediaType.McpServer, AgentFinderMediaType.CursorPlugin, 'application/unsupported']
+			states: [CustomizationMarketplaceMediaType.Skill, CustomizationMarketplaceMediaType.CopilotPlugin, CustomizationMarketplaceMediaType.McpServer, CustomizationMarketplaceMediaType.CursorPlugin, 'application/unsupported']
 				.map(mediaType => ({ mediaType, kind: 'unavailable', hasReason: true })),
 			pluginCalls: [],
 			mcpLookups: [],
@@ -670,6 +672,51 @@ suite('AgentFinderInstallService', () => {
 				pendingState,
 				state: fixture.service.getInstallState(candidate),
 			}, { calls: 1, pendingState: { kind: 'installing' }, state: { kind: 'installed' } });
+		});
+
+		for (const identity of [{ sourceId: 'anotherSource' }, { version: '2.0' }]) {
+			test(`does not share pending plugin installations across ${identity.sourceId ? 'sources' : 'versions'}`, async () => {
+				const fixture = await createFixture();
+				const first = { ...pluginResource(), version: '1.0' };
+				const second = { ...pluginResource('plugins/other'), version: '1.0', ...identity };
+				const result = new DeferredPromise<IInstallPluginFromSourceResult>();
+				fixture.pluginService.onInstall = () => result.p;
+				const firstInstall = fixture.service.install(first);
+				const beforeSecondInstall = [first, second].map(candidate => fixture.service.getInstallState(candidate).kind);
+				const secondInstall = fixture.service.install(second);
+				const during = [first, second].map(candidate => fixture.service.getInstallState(candidate).kind);
+				await result.complete({ success: true });
+				await Promise.all([firstInstall, secondInstall]);
+				assert.deepStrictEqual({ beforeSecondInstall, during, calls: fixture.pluginService.calls }, {
+					beforeSecondInstall: ['installing', 'available'],
+					during: ['installing', 'installing'],
+					calls: [
+						{ source: 'owner/catalog#release', options: { path: 'plugins/demo' } },
+						{ source: 'owner/catalog#release', options: { path: 'plugins/other' } },
+					],
+				});
+			});
+		}
+
+		test('dispatches identical identifiers from different sources to their own installation flows', async () => {
+			const fixture = await createFixture();
+			const plugin = pluginResource();
+			const server = { ...mcpResource(), sourceId: 'otherSource', identifier: plugin.identifier };
+			const result = new DeferredPromise<IInstallPluginFromSourceResult>();
+			fixture.pluginService.onInstall = () => result.p;
+			const pluginInstall = fixture.service.install(plugin);
+			const mcpInstall = fixture.service.install(server);
+			await result.complete({ success: true });
+			await Promise.all([pluginInstall, mcpInstall]);
+			assert.deepStrictEqual({
+				plugins: fixture.pluginService.calls,
+				mcpLookups: fixture.mcpService.lookups,
+				mcpInstalls: fixture.mcpService.installs.map(server => server.name),
+			}, {
+				plugins: [{ source: 'owner/catalog#release', options: { path: 'plugins/demo' } }],
+				mcpLookups: ['io.example/demo'],
+				mcpInstalls: ['io.example/demo'],
+			});
 		});
 
 		for (const result of [{ success: false, message: 'Plugin source is blocked by policy' }, { success: false }]) {
@@ -1204,6 +1251,17 @@ suite('AgentFinderInstallService', () => {
 				}, { state: { kind: excessBytes ? 'available' : 'installed' }, targetExists: !excessBytes, installedBytes: excessBytes ? 0 : payloadBytes, staging: [] });
 			});
 		}
+
+		test('does not reuse installed skill state across sources or versions', async () => {
+			const fixture = await createFixture();
+			const candidate = { ...resource(), version: '1.0' };
+			await fixture.service.install(candidate);
+			assert.deepStrictEqual([
+				candidate,
+				{ ...candidate, sourceId: 'anotherSource' },
+				{ ...candidate, version: '2.0' },
+			].map(item => fixture.service.getInstallState(item).kind), ['installed', 'available', 'available']);
+		});
 
 		test('scopes installed skills to the project and harness, and invalidates them when deleted', async () => {
 			const fixture = await createFixture();

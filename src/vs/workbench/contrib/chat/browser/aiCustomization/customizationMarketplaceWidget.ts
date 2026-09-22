@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import './media/agentFinder.css';
+import './media/customizationMarketplace.css';
 import * as DOM from '../../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../../base/browser/keyboardEvent.js';
 import { alert, status } from '../../../../../base/browser/ui/aria/aria.js';
@@ -23,7 +23,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { localize } from '../../../../../nls.js';
 import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
-import { AgentFinderMediaType, IAgentFinderPage, IAgentFinderResource, IAgentFinderService } from '../../../../../platform/agentFinder/common/agentFinderService.js';
+import { CustomizationMarketplaceMediaType, getCustomizationMarketplaceResourceKey, ICustomizationMarketplacePage, ICustomizationMarketplaceResource, ICustomizationMarketplaceService } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
@@ -33,39 +33,39 @@ import { IOpenerService } from '../../../../../platform/opener/common/opener.js'
 import { defaultButtonStyles, defaultInputBoxStyles, defaultSelectBoxStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 import { AccessibilityVerbositySettingId } from '../../../accessibility/browser/accessibilityConfiguration.js';
-import { AgentFinderInstallState, IAgentFinderInstallService } from '../../common/agentFinderInstallService.js';
+import { CustomizationMarketplaceInstallState, ICustomizationMarketplaceInstallService } from '../../common/customizationMarketplaceInstallService.js';
 import { ChatConfiguration } from '../../common/constants.js';
 
-const resourceTypes: readonly { readonly mediaType: AgentFinderMediaType | undefined; readonly label: string }[] = [
-	{ mediaType: undefined, label: localize('agentFinder.allTypes', "All Resource Types") },
-	{ mediaType: AgentFinderMediaType.Skill, label: localize('agentFinder.skills', "Skills") },
-	{ mediaType: AgentFinderMediaType.McpServer, label: localize('agentFinder.mcpServers', "MCP Servers") },
-	{ mediaType: AgentFinderMediaType.CopilotPlugin, label: localize('agentFinder.copilotPlugins', "Copilot Plugins") },
-	{ mediaType: AgentFinderMediaType.ClaudePlugin, label: localize('agentFinder.claudePlugins', "Claude Plugins") },
-	{ mediaType: AgentFinderMediaType.CursorPlugin, label: localize('agentFinder.cursorPlugins', "Cursor Plugins") },
+const resourceTypes: readonly { readonly mediaType: CustomizationMarketplaceMediaType | undefined; readonly label: string }[] = [
+	{ mediaType: undefined, label: localize('customizationMarketplace.allTypes', "All Resource Types") },
+	{ mediaType: CustomizationMarketplaceMediaType.Skill, label: localize('customizationMarketplace.skills', "Skills") },
+	{ mediaType: CustomizationMarketplaceMediaType.McpServer, label: localize('customizationMarketplace.mcpServers', "MCP Servers") },
+	{ mediaType: CustomizationMarketplaceMediaType.CopilotPlugin, label: localize('customizationMarketplace.copilotPlugins', "Copilot Plugins") },
+	{ mediaType: CustomizationMarketplaceMediaType.ClaudePlugin, label: localize('customizationMarketplace.claudePlugins', "Claude Plugins") },
+	{ mediaType: CustomizationMarketplaceMediaType.CursorPlugin, label: localize('customizationMarketplace.cursorPlugins', "Cursor Plugins") },
 ];
 
 function getResourceTypeLabel(mediaType: string): string {
 	switch (mediaType) {
-		case AgentFinderMediaType.Skill: return localize('agentFinder.skill', "Skill");
-		case AgentFinderMediaType.McpServer: return localize('agentFinder.mcpServer', "MCP server");
-		case AgentFinderMediaType.CopilotPlugin: return localize('agentFinder.copilotPlugin', "Copilot plugin");
-		case AgentFinderMediaType.ClaudePlugin: return localize('agentFinder.claudePlugin', "Claude plugin");
-		case AgentFinderMediaType.CursorPlugin: return localize('agentFinder.cursorPlugin', "Cursor plugin");
+		case CustomizationMarketplaceMediaType.Skill: return localize('customizationMarketplace.skill', "Skill");
+		case CustomizationMarketplaceMediaType.McpServer: return localize('customizationMarketplace.mcpServer', "MCP server");
+		case CustomizationMarketplaceMediaType.CopilotPlugin: return localize('customizationMarketplace.copilotPlugin', "Copilot plugin");
+		case CustomizationMarketplaceMediaType.ClaudePlugin: return localize('customizationMarketplace.claudePlugin', "Claude plugin");
+		case CustomizationMarketplaceMediaType.CursorPlugin: return localize('customizationMarketplace.cursorPlugin', "Cursor plugin");
 		default: return mediaType;
 	}
 }
 
-function getInstallStateDescription(state: AgentFinderInstallState): string {
+function getInstallStateDescription(state: CustomizationMarketplaceInstallState): string {
 	switch (state.kind) {
-		case 'available': return localize('agentFinder.installAvailable', "Available to install");
-		case 'installing': return localize('agentFinder.installing', "Installing...");
-		case 'installed': return localize('agentFinder.installed', "Installed");
-		case 'unavailable': return localize('agentFinder.installUnavailable', "Installation unavailable. {0}", state.message);
+		case 'available': return localize('customizationMarketplace.installAvailable', "Available to install");
+		case 'installing': return localize('customizationMarketplace.installing', "Installing...");
+		case 'installed': return localize('customizationMarketplace.installed', "Installed");
+		case 'unavailable': return localize('customizationMarketplace.installUnavailable', "Installation unavailable. {0}", state.message);
 	}
 }
 
-export class AgentFinderWidget extends Disposable {
+export class CustomizationMarketplaceWidget extends Disposable {
 	readonly element: HTMLElement;
 	private readonly searchInput: InputBox;
 	private readonly refreshButton: Button;
@@ -81,11 +81,11 @@ export class AgentFinderWidget extends Disposable {
 	private readonly cardDisposables = this._register(new DisposableStore());
 	private readonly installActions = new Map<string, { update(): void; getAccessibilityContent(): string }>();
 	private readonly searchScheduler = this._register(new RunOnceScheduler(() => void this.loadPage(), 300));
-	private items: readonly IAgentFinderResource[] = [];
-	private nextCursor: IAgentFinderPage['nextCursor'];
+	private items: readonly ICustomizationMarketplaceResource[] = [];
+	private nextCursor: ICustomizationMarketplacePage['nextCursor'];
 	private total: number | undefined;
 	private query = '';
-	private mediaType: AgentFinderMediaType | undefined;
+	private mediaType: CustomizationMarketplaceMediaType | undefined;
 	private visible = false;
 	private loading = false;
 	private loaded = false;
@@ -94,7 +94,7 @@ export class AgentFinderWidget extends Disposable {
 
 	constructor(
 		container: HTMLElement,
-		@IAgentFinderService private readonly agentFinderService: IAgentFinderService,
+		@ICustomizationMarketplaceService private readonly customizationMarketplaceService: ICustomizationMarketplaceService,
 		@IContextViewService contextViewService: IContextViewService,
 		@IHoverService private readonly hoverService: IHoverService,
 		@IOpenerService private readonly openerService: IOpenerService,
@@ -103,19 +103,19 @@ export class AgentFinderWidget extends Disposable {
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@IAccessibilitySignalService private readonly accessibilitySignalService: IAccessibilitySignalService,
-		@IAgentFinderInstallService private readonly installService: IAgentFinderInstallService,
+		@ICustomizationMarketplaceInstallService private readonly installService: ICustomizationMarketplaceInstallService,
 	) {
 		super();
 		this.aiHidden = !!this.chatEntitlementService.sentiment.hidden;
-		this.element = DOM.append(container, DOM.$('.agent-finder-widget'));
-		const header = DOM.append(this.element, DOM.$('.agent-finder-header'));
-		DOM.append(header, DOM.$('h2')).textContent = localize('agentFinder.title', "AgentFinder");
-		DOM.append(header, DOM.$('p.agent-finder-description')).textContent = localize('agentFinder.subtitle', "Discover skills, MCP servers, and plugins from GitHub's public catalog.");
+		this.element = DOM.append(container, DOM.$('.customization-marketplace-widget'));
+		const header = DOM.append(this.element, DOM.$('.customization-marketplace-header'));
+		DOM.append(header, DOM.$('h2')).textContent = localize('customizationMarketplace.title', "Marketplace");
+		DOM.append(header, DOM.$('p.customization-marketplace-description')).textContent = localize('customizationMarketplace.subtitle', "Discover skills, MCP servers, and plugins for your agents.");
 
-		const controls = DOM.append(header, DOM.$('.agent-finder-controls'));
-		this.searchInput = this._register(new InputBox(DOM.append(controls, DOM.$('.agent-finder-search')), contextViewService, {
-			placeholder: localize('agentFinder.searchPlaceholder', "Search the catalog"),
-			ariaLabel: localize('agentFinder.searchLabel', "Search AgentFinder"),
+		const controls = DOM.append(header, DOM.$('.customization-marketplace-controls'));
+		this.searchInput = this._register(new InputBox(DOM.append(controls, DOM.$('.customization-marketplace-search')), contextViewService, {
+			placeholder: localize('customizationMarketplace.searchPlaceholder', "Search the marketplace"),
+			ariaLabel: localize('customizationMarketplace.searchLabel', "Search marketplace"),
 			inputBoxStyles: defaultInputBoxStyles,
 		}));
 		const typeSelector = this._register(new SelectBox(
@@ -123,35 +123,35 @@ export class AgentFinderWidget extends Disposable {
 			0,
 			contextViewService,
 			defaultSelectBoxStyles,
-			{ ariaLabel: localize('agentFinder.filterLabel', "Resource type") },
+			{ ariaLabel: localize('customizationMarketplace.filterLabel', "Resource type") },
 		));
-		typeSelector.render(DOM.append(controls, DOM.$('.agent-finder-type-filter')));
+		typeSelector.render(DOM.append(controls, DOM.$('.customization-marketplace-type-filter')));
 		this.refreshButton = this._register(new Button(controls, { ...defaultButtonStyles, secondary: true }));
-		this.refreshButton.label = localize('agentFinder.refresh', "Refresh");
-		this.statusElement = DOM.append(header, DOM.$('.agent-finder-status'));
+		this.refreshButton.label = localize('customizationMarketplace.refresh', "Refresh");
+		this.statusElement = DOM.append(header, DOM.$('.customization-marketplace-status'));
 
-		const content = DOM.$('.agent-finder-scroll-content');
-		this.resultsElement = DOM.append(content, DOM.$('ul.agent-finder-results'));
-		this.resultsElement.setAttribute('aria-label', localize('agentFinder.results', "AgentFinder results"));
-		this.loadingElement = DOM.append(content, DOM.$('.agent-finder-loading'));
+		const content = DOM.$('.customization-marketplace-scroll-content');
+		this.resultsElement = DOM.append(content, DOM.$('ul.customization-marketplace-results'));
+		this.resultsElement.setAttribute('aria-label', localize('customizationMarketplace.results', "Marketplace results"));
+		this.loadingElement = DOM.append(content, DOM.$('.customization-marketplace-loading'));
 		this.loadingElement.setAttribute('aria-hidden', 'true');
-		this.emptyElement = DOM.append(content, DOM.$('.agent-finder-empty'));
-		const footer = DOM.append(content, DOM.$('.agent-finder-footer'));
-		this.errorElement = DOM.append(footer, DOM.$('p.agent-finder-error'));
+		this.emptyElement = DOM.append(content, DOM.$('.customization-marketplace-empty'));
+		const footer = DOM.append(content, DOM.$('.customization-marketplace-footer'));
+		this.errorElement = DOM.append(footer, DOM.$('p.customization-marketplace-error'));
 		this.retryButton = this._register(new Button(footer, { ...defaultButtonStyles, secondary: true }));
-		this.retryButton.label = localize('agentFinder.retry', "Retry");
+		this.retryButton.label = localize('customizationMarketplace.retry', "Retry");
 		this.loadMoreButton = this._register(new Button(footer, { ...defaultButtonStyles, secondary: true }));
-		this.loadMoreButton.label = localize('agentFinder.loadMore', "Load More");
+		this.loadMoreButton.label = localize('customizationMarketplace.loadMore', "Load More");
 
 		this.scrollable = this._register(new DomScrollableElement(content, {
 			horizontal: ScrollbarVisibility.Hidden,
 			vertical: ScrollbarVisibility.Auto,
 		}));
-		this.scrollable.getDomNode().classList.add('agent-finder-scrollable');
+		this.scrollable.getDomNode().classList.add('customization-marketplace-scrollable');
 		this.element.appendChild(this.scrollable.getDomNode());
-		DOM.append(this.element, DOM.$('p.agent-finder-disclaimer')).textContent = localize('agentFinder.disclaimer', "Review each resource's source before installing. Install uses VS Code's existing prompts and destination choices. Repository images identify GitHub owners, not verified publishers.");
+		DOM.append(this.element, DOM.$('p.customization-marketplace-disclaimer')).textContent = localize('customizationMarketplace.disclaimer', "Review each resource's source before installing. Install uses VS Code's existing prompts and destination choices. GitHub images identify repository owners, not verified publishers.");
 
-		const resizeObserver = this._register(new DOM.DisposableResizeObserver('AgentFinderWidget', () => this.layout(), DOM.getWindow(this.element)));
+		const resizeObserver = this._register(new DOM.DisposableResizeObserver('CustomizationMarketplaceWidget', () => this.layout(), DOM.getWindow(this.element)));
 		this._register(resizeObserver.observe(this.element));
 		this._register(this.searchInput.onDidChange(value => {
 			if (this.query !== value.trim()) {
@@ -187,11 +187,11 @@ export class AgentFinderWidget extends Disposable {
 			this.updateVisibility();
 		}));
 		this._register(this.configurationService.onDidChangeConfiguration(event => {
-			if (event.affectsConfiguration(ChatConfiguration.AgentFinderEnabled)) {
+			if (event.affectsConfiguration(ChatConfiguration.ChatCustomizationsUnifiedMarketplaceEnabled)) {
 				this.resetSearch(false);
 				this.updateVisibility();
 			}
-			if (event.affectsConfiguration(AccessibilityVerbositySettingId.AgentFinder)) {
+			if (event.affectsConfiguration(AccessibilityVerbositySettingId.CustomizationMarketplace)) {
 				this.updateSearchAriaLabel();
 			}
 		}));
@@ -261,7 +261,7 @@ export class AgentFinderWidget extends Disposable {
 		this.renderStatus();
 		status(this.getLoadingLabel());
 		try {
-			const page = await this.agentFinderService.query({
+			const page = await this.customizationMarketplaceService.query({
 				query: this.query,
 				mediaType: this.mediaType,
 				pageSize: 24,
@@ -270,12 +270,13 @@ export class AgentFinderWidget extends Disposable {
 			if (token.isCancellationRequested) {
 				return;
 			}
-			const identifiers = new Set(this.items.map(item => item.identifier));
+			const resourceKeys = new Set(this.items.map(getCustomizationMarketplaceResourceKey));
 			const newItems = page.items.filter(item => {
-				if (identifiers.has(item.identifier)) {
+				const key = getCustomizationMarketplaceResourceKey(item);
+				if (resourceKeys.has(key)) {
 					return false;
 				}
-				identifiers.add(item.identifier);
+				resourceKeys.add(key);
 				return true;
 			});
 			this.items = [...this.items, ...newItems];
@@ -299,7 +300,7 @@ export class AgentFinderWidget extends Disposable {
 			status(this.getResultsLabel());
 		} catch (error) {
 			if (!token.isCancellationRequested && !isCancellationError(error)) {
-				this.errorMessage = localize('agentFinder.loadError', "Could not load AgentFinder. {0}", getErrorMessage(error));
+				this.errorMessage = localize('customizationMarketplace.loadError', "Could not load the marketplace. {0}", getErrorMessage(error));
 				alert(this.errorMessage);
 				void this.accessibilitySignalService.playSignal(AccessibilitySignal.taskFailed, { modality: 'sound' }).catch(onUnexpectedError);
 			}
@@ -324,17 +325,17 @@ export class AgentFinderWidget extends Disposable {
 			DOM.clearNode(this.loadingElement);
 		} else if (!this.loadingElement.childElementCount) {
 			for (let index = 0; index < (this.items.length ? 2 : 6); index++) {
-				const card = DOM.append(this.loadingElement, DOM.$('.agent-finder-loading-card'));
-				const header = DOM.append(card, DOM.$('.agent-finder-card-header'));
-				DOM.append(header, DOM.$('.agent-finder-skeleton-block.agent-finder-skeleton-icon'));
-				const identity = DOM.append(header, DOM.$('.agent-finder-skeleton-identity'));
-				DOM.append(identity, DOM.$('.agent-finder-skeleton-block.agent-finder-skeleton-title'));
-				DOM.append(identity, DOM.$('.agent-finder-skeleton-block.agent-finder-skeleton-subtitle'));
-				const description = DOM.append(card, DOM.$('.agent-finder-skeleton-description'));
-				DOM.append(description, DOM.$('.agent-finder-skeleton-block'));
-				DOM.append(description, DOM.$('.agent-finder-skeleton-block'));
-				DOM.append(description, DOM.$('.agent-finder-skeleton-block.agent-finder-skeleton-short'));
-				DOM.append(card, DOM.$('.agent-finder-skeleton-block.agent-finder-skeleton-action'));
+				const card = DOM.append(this.loadingElement, DOM.$('.customization-marketplace-loading-card'));
+				const header = DOM.append(card, DOM.$('.customization-marketplace-card-header'));
+				DOM.append(header, DOM.$('.customization-marketplace-skeleton-block.customization-marketplace-skeleton-icon'));
+				const identity = DOM.append(header, DOM.$('.customization-marketplace-skeleton-identity'));
+				DOM.append(identity, DOM.$('.customization-marketplace-skeleton-block.customization-marketplace-skeleton-title'));
+				DOM.append(identity, DOM.$('.customization-marketplace-skeleton-block.customization-marketplace-skeleton-subtitle'));
+				const description = DOM.append(card, DOM.$('.customization-marketplace-skeleton-description'));
+				DOM.append(description, DOM.$('.customization-marketplace-skeleton-block'));
+				DOM.append(description, DOM.$('.customization-marketplace-skeleton-block'));
+				DOM.append(description, DOM.$('.customization-marketplace-skeleton-block.customization-marketplace-skeleton-short'));
+				DOM.append(card, DOM.$('.customization-marketplace-skeleton-block.customization-marketplace-skeleton-action'));
 			}
 		}
 		this.resultsElement.setAttribute('aria-busy', String(this.loading));
@@ -346,34 +347,34 @@ export class AgentFinderWidget extends Disposable {
 		this.errorElement.style.display = this.errorMessage ? '' : 'none';
 		this.retryButton.element.style.display = this.errorMessage ? '' : 'none';
 		this.emptyElement.style.display = this.loaded && !this.items.length && !this.loading && !this.errorMessage ? '' : 'none';
-		this.emptyElement.textContent = localize('agentFinder.noResults', "No resources found. Try a different search or resource type.");
+		this.emptyElement.textContent = localize('customizationMarketplace.noResults', "No resources found. Try a different search or resource type.");
 		this.layout();
 	}
 
 	private getResultsLabel(): string {
 		return this.total !== undefined
-			? localize('agentFinder.resultCount', "Showing {0} of {1} resources", this.items.length.toLocaleString(), this.total.toLocaleString())
-			: localize('agentFinder.resultsLoaded', "{0} resources loaded", this.items.length.toLocaleString());
+			? localize('customizationMarketplace.resultCount', "Showing {0} of {1} resources", this.items.length.toLocaleString(), this.total.toLocaleString())
+			: localize('customizationMarketplace.resultsLoaded', "{0} resources loaded", this.items.length.toLocaleString());
 	}
 
 	private getLoadingLabel(): string {
 		return this.items.length
-			? localize('agentFinder.loadingMore', "Loading more resources...")
-			: localize('agentFinder.loading', "Loading resources...");
+			? localize('customizationMarketplace.loadingMore', "Loading more resources...")
+			: localize('customizationMarketplace.loading', "Loading resources...");
 	}
 
-	private renderCard(item: IAgentFinderResource): HTMLElement {
-		const card = DOM.append(this.resultsElement, DOM.$('li.agent-finder-card'));
+	private renderCard(item: ICustomizationMarketplaceResource): HTMLElement {
+		const card = DOM.append(this.resultsElement, DOM.$('li.customization-marketplace-card'));
 		card.tabIndex = 0;
 		const typeLabel = getResourceTypeLabel(item.mediaType);
-		card.setAttribute('aria-label', localize('agentFinder.cardLabel', "{0}, {1}. {2}", item.displayName, typeLabel, item.description));
-		const header = DOM.append(card, DOM.$('.agent-finder-card-header'));
-		const iconContainer = DOM.append(header, DOM.$('.agent-finder-icon'));
+		card.setAttribute('aria-label', localize('customizationMarketplace.cardLabel', "{0}, {1}. {2}", item.displayName, typeLabel, item.description));
+		const header = DOM.append(card, DOM.$('.customization-marketplace-card-header'));
+		const iconContainer = DOM.append(header, DOM.$('.customization-marketplace-icon'));
 		iconContainer.setAttribute('aria-hidden', 'true');
 		const fallback = DOM.append(iconContainer, DOM.$('span'));
 		fallback.classList.add(...ThemeIcon.asClassNameArray(
-			item.mediaType === AgentFinderMediaType.Skill ? Codicon.lightbulb
-				: item.mediaType === AgentFinderMediaType.McpServer ? Codicon.server : Codicon.extensions,
+			item.mediaType === CustomizationMarketplaceMediaType.Skill ? Codicon.lightbulb
+				: item.mediaType === CustomizationMarketplaceMediaType.McpServer ? Codicon.server : Codicon.extensions,
 		));
 		if (item.icon) {
 			const image = DOM.append(iconContainer, DOM.$<HTMLImageElement>('img'));
@@ -391,40 +392,40 @@ export class AgentFinderWidget extends Disposable {
 			}));
 			image.src = item.icon.toString(true);
 		}
-		const identity = DOM.append(header, DOM.$('.agent-finder-identity'));
-		const name = DOM.append(identity, DOM.$('h3.agent-finder-name'));
+		const identity = DOM.append(header, DOM.$('.customization-marketplace-identity'));
+		const name = DOM.append(identity, DOM.$('h3.customization-marketplace-name'));
 		name.textContent = item.displayName;
 		this.cardDisposables.add(this.hoverService.setupDelayedHover(name, { content: item.displayName }));
-		const publisher = DOM.append(identity, DOM.$('.agent-finder-publisher'));
-		publisher.textContent = item.publisher ?? localize('agentFinder.unknownPublisher', "Publisher not provided");
+		const publisher = DOM.append(identity, DOM.$('.customization-marketplace-publisher'));
+		publisher.textContent = item.publisher ?? localize('customizationMarketplace.unknownPublisher', "Publisher not provided");
 		this.cardDisposables.add(this.hoverService.setupDelayedHover(publisher, { content: publisher.textContent }));
 
-		const metadata = DOM.append(card, DOM.$('.agent-finder-metadata'));
-		DOM.append(metadata, DOM.$('span.agent-finder-kind')).textContent = typeLabel;
+		const metadata = DOM.append(card, DOM.$('.customization-marketplace-metadata'));
+		DOM.append(metadata, DOM.$('span.customization-marketplace-kind')).textContent = typeLabel;
 		if (item.version) {
-			DOM.append(metadata, DOM.$('span')).textContent = localize('agentFinder.version', "Version {0}", item.version);
+			DOM.append(metadata, DOM.$('span')).textContent = localize('customizationMarketplace.version', "Version {0}", item.version);
 		}
 		if (item.stars !== undefined) {
-			DOM.append(metadata, DOM.$('span')).textContent = localize('agentFinder.stars', "{0} GitHub stars", item.stars.toLocaleString());
+			DOM.append(metadata, DOM.$('span')).textContent = localize('customizationMarketplace.stars', "{0} stars", item.stars.toLocaleString());
 		}
-		const description = DOM.append(card, DOM.$('p.agent-finder-card-description'));
+		const description = DOM.append(card, DOM.$('p.customization-marketplace-card-description'));
 		description.textContent = item.description;
 		this.cardDisposables.add(this.hoverService.setupDelayedHover(description, { content: item.description }));
 		if (item.tags.length) {
-			const tags = DOM.append(card, DOM.$('.agent-finder-tags'));
+			const tags = DOM.append(card, DOM.$('.customization-marketplace-tags'));
 			for (const tag of item.tags.slice(0, 4)) {
-				const tagElement = DOM.append(tags, DOM.$('span.agent-finder-tag'));
+				const tagElement = DOM.append(tags, DOM.$('span.customization-marketplace-tag'));
 				tagElement.textContent = tag;
 				this.cardDisposables.add(this.hoverService.setupDelayedHover(tagElement, { content: tag }));
 			}
 		}
 		if (item.capabilities.length || item.representativeQueries.length || item.tags.length > 4) {
-			const details = DOM.append(card, DOM.$('details.agent-finder-details'));
-			DOM.append(details, DOM.$('summary')).textContent = localize('agentFinder.details', "Details");
+			const details = DOM.append(card, DOM.$('details.customization-marketplace-details'));
+			DOM.append(details, DOM.$('summary')).textContent = localize('customizationMarketplace.details', "Details");
 			const sections = [
-				{ label: localize('agentFinder.capabilities', "Capabilities"), values: item.capabilities },
-				{ label: localize('agentFinder.examples', "Example queries"), values: item.representativeQueries },
-				{ label: localize('agentFinder.tags', "Tags"), values: item.tags.length > 4 ? item.tags : [] },
+				{ label: localize('customizationMarketplace.capabilities', "Capabilities"), values: item.capabilities },
+				{ label: localize('customizationMarketplace.examples', "Example queries"), values: item.representativeQueries },
+				{ label: localize('customizationMarketplace.tags', "Tags"), values: item.tags.length > 4 ? item.tags : [] },
 			];
 			for (const section of sections) {
 				if (section.values.length) {
@@ -437,27 +438,27 @@ export class AgentFinderWidget extends Disposable {
 			}
 			this.cardDisposables.add(DOM.addDisposableListener(details, 'toggle', () => this.layout()));
 		}
-		const actions = DOM.append(card, DOM.$('.agent-finder-card-actions'));
+		const actions = DOM.append(card, DOM.$('.customization-marketplace-card-actions'));
 		this.renderInstallAction(card, actions, item);
 		const resourceUrl = item.externalUrl ?? item.url;
 		if (resourceUrl) {
-			this.renderLink(actions, localize('agentFinder.openResource', "Open Resource"), resourceUrl);
+			this.renderLink(actions, localize('customizationMarketplace.openResource', "Open Resource"), resourceUrl);
 		}
 		if (item.repository) {
-			this.renderLink(actions, localize('agentFinder.viewRepository', "View Repository"), item.repository);
+			this.renderLink(actions, localize('customizationMarketplace.viewRepository', "View Repository"), item.repository);
 		}
 		return card;
 	}
 
-	private renderInstallAction(card: HTMLElement, actions: HTMLElement, item: IAgentFinderResource): void {
+	private renderInstallAction(card: HTMLElement, actions: HTMLElement, item: ICustomizationMarketplaceResource): void {
 		const disposables = this.cardDisposables.add(new DisposableStore());
 		const button = disposables.add(new Button(actions, { ...defaultButtonStyles, secondary: true, small: true }));
-		button.element.classList.add('agent-finder-install-button');
-		const errorElement = DOM.append(card, DOM.$('p.agent-finder-install-error'));
-		errorElement.id = `agent-finder-install-error-${generateUuid()}`;
+		button.element.classList.add('customization-marketplace-install-button');
+		const errorElement = DOM.append(card, DOM.$('p.customization-marketplace-install-error'));
+		errorElement.id = `customization-marketplace-install-error-${generateUuid()}`;
 		let pending = false;
 		let errorMessage: string | undefined;
-		const getState = (): AgentFinderInstallState => {
+		const getState = (): CustomizationMarketplaceInstallState => {
 			const state = this.installService.getInstallState(item);
 			return pending && state.kind === 'available' ? { kind: 'installing' } : state;
 		};
@@ -468,12 +469,12 @@ export class AgentFinderWidget extends Disposable {
 				errorMessage = undefined;
 			}
 			button.label = state.kind === 'installing' || state.kind === 'installed' ? getInstallStateDescription(state)
-				: errorMessage && state.kind === 'available' ? localize('agentFinder.retryInstall', "Retry Install")
-					: localize('agentFinder.install', "Install");
+				: errorMessage && state.kind === 'available' ? localize('customizationMarketplace.retryInstall', "Retry Install")
+					: localize('customizationMarketplace.install', "Install");
 			button.enabled = state.kind === 'available';
 			button.setAriaLabel(state.kind === 'unavailable'
-				? localize('agentFinder.unavailableInstallLabel', "Install {0}. {1}", item.displayName, state.message)
-				: localize('agentFinder.installLabel', "{0}: {1}", button.label, item.displayName));
+				? localize('customizationMarketplace.unavailableInstallLabel', "Install {0}. {1}", item.displayName, state.message)
+				: localize('customizationMarketplace.installLabel', "{0}: {1}", button.label, item.displayName));
 			button.element.setAttribute('aria-busy', String(state.kind === 'installing'));
 			errorElement.textContent = errorMessage ?? '';
 			errorElement.hidden = !errorMessage;
@@ -483,11 +484,12 @@ export class AgentFinderWidget extends Disposable {
 				button.element.removeAttribute('aria-describedby');
 			}
 		};
-		this.installActions.set(item.identifier, { update, getAccessibilityContent });
-		disposables.add(toDisposable(() => this.installActions.delete(item.identifier)));
+		const resourceKey = getCustomizationMarketplaceResourceKey(item);
+		this.installActions.set(resourceKey, { update, getAccessibilityContent });
+		disposables.add(toDisposable(() => this.installActions.delete(resourceKey)));
 		disposables.add(this.hoverService.setupDelayedHover(button.element, () => ({
 			content: getState().kind === 'available' && !errorMessage
-				? localize('agentFinder.installHint', "Review the source, then follow VS Code's installation prompts to choose where to install.")
+				? localize('customizationMarketplace.installHint', "Review the source, then follow VS Code's installation prompts to choose where to install.")
 				: getAccessibilityContent(),
 		})));
 
@@ -500,20 +502,20 @@ export class AgentFinderWidget extends Disposable {
 			errorMessage = undefined;
 			update();
 			this.layout();
-			status(localize('agentFinder.installStarted', "Installing {0}.", item.displayName));
+			status(localize('customizationMarketplace.installStarted', "Installing {0}.", item.displayName));
 			try {
 				await this.installService.install(item);
 				if (!disposables.isDisposed && this.visible && !this.chatEntitlementService.sentiment.hidden
 					&& this.installService.getInstallState(item).kind === 'installed') {
-					status(localize('agentFinder.installComplete', "Installed {0}.", item.displayName));
+					status(localize('customizationMarketplace.installComplete', "Installed {0}.", item.displayName));
 				}
 			} catch (error) {
 				if (isCancellationError(error)) {
 					if (!disposables.isDisposed && this.visible && !this.chatEntitlementService.sentiment.hidden) {
-						status(localize('agentFinder.installCancelled', "Installation cancelled for {0}.", item.displayName));
+						status(localize('customizationMarketplace.installCancelled', "Installation cancelled for {0}.", item.displayName));
 					}
 				} else {
-					const message = localize('agentFinder.installFailed', "Could not install {0}. {1}", item.displayName, getErrorMessage(error));
+					const message = localize('customizationMarketplace.installFailed', "Could not install {0}. {1}", item.displayName, getErrorMessage(error));
 					if (!disposables.isDisposed) {
 						errorMessage = message;
 					}
@@ -548,7 +550,7 @@ export class AgentFinderWidget extends Disposable {
 			try {
 				await this.openerService.open(uri, { openExternal: true, allowCommands: false, allowContributedOpeners: false });
 			} catch (error) {
-				this.notificationService.error(localize('agentFinder.openError', "Could not open the AgentFinder resource. {0}", getErrorMessage(error)));
+				this.notificationService.error(localize('customizationMarketplace.openError', "Could not open the marketplace resource. {0}", getErrorMessage(error)));
 			}
 		}));
 	}
@@ -581,18 +583,18 @@ export class AgentFinderWidget extends Disposable {
 
 	private updateSearchAriaLabel(): void {
 		const keybinding = this.keybindingService.lookupKeybinding('editor.action.accessibilityHelp')?.getAriaLabel();
-		this.searchInput.setAriaLabel(this.configurationService.getValue<boolean>(AccessibilityVerbositySettingId.AgentFinder) && keybinding
-			? localize('agentFinder.searchWithHelp', "Search AgentFinder. Use {0} for accessibility help.", keybinding)
-			: localize('agentFinder.searchLabel', "Search AgentFinder"));
+		this.searchInput.setAriaLabel(this.configurationService.getValue<boolean>(AccessibilityVerbositySettingId.CustomizationMarketplace) && keybinding
+			? localize('customizationMarketplace.searchWithHelp', "Search marketplace. Use {0} for accessibility help.", keybinding)
+			: localize('customizationMarketplace.searchLabel', "Search marketplace"));
 	}
 
 	private isEnabled(): boolean {
-		return this.configurationService.getValue<boolean>(ChatConfiguration.AgentFinderEnabled) === true && !this.chatEntitlementService.sentiment.hidden;
+		return this.configurationService.getValue<boolean>(ChatConfiguration.ChatCustomizationsUnifiedMarketplaceEnabled) === true && !this.chatEntitlementService.sentiment.hidden;
 	}
 
 	getAccessibilityContent(): string {
 		return [
-			localize('agentFinder.title', "AgentFinder"),
+			localize('customizationMarketplace.title', "Marketplace"),
 			this.loading ? this.getLoadingLabel() : undefined,
 			this.statusElement.textContent,
 			this.errorMessage,
@@ -601,14 +603,14 @@ export class AgentFinderWidget extends Disposable {
 				getResourceTypeLabel(item.mediaType),
 				item.publisher,
 				item.description,
-				item.version ? localize('agentFinder.version', "Version {0}", item.version) : undefined,
-				item.stars !== undefined ? localize('agentFinder.stars', "{0} GitHub stars", item.stars.toLocaleString()) : undefined,
-				item.tags.length ? localize('agentFinder.accessibleTags', "Tags:\n{0}", item.tags.join('\n')) : undefined,
-				item.capabilities.length ? localize('agentFinder.accessibleCapabilities', "Capabilities:\n{0}", item.capabilities.join('\n')) : undefined,
-				item.representativeQueries.length ? localize('agentFinder.accessibleExamples', "Example queries:\n{0}", item.representativeQueries.join('\n')) : undefined,
-				this.installActions.get(item.identifier)?.getAccessibilityContent(),
-				item.externalUrl || item.url ? localize('agentFinder.accessibleResource', "Resource: {0}", item.externalUrl ?? item.url?.toString(true)) : undefined,
-				item.repository ? localize('agentFinder.accessibleRepository', "Repository: {0}", item.repository.toString(true)) : undefined,
+				item.version ? localize('customizationMarketplace.version', "Version {0}", item.version) : undefined,
+				item.stars !== undefined ? localize('customizationMarketplace.stars', "{0} stars", item.stars.toLocaleString()) : undefined,
+				item.tags.length ? localize('customizationMarketplace.accessibleTags', "Tags:\n{0}", item.tags.join('\n')) : undefined,
+				item.capabilities.length ? localize('customizationMarketplace.accessibleCapabilities', "Capabilities:\n{0}", item.capabilities.join('\n')) : undefined,
+				item.representativeQueries.length ? localize('customizationMarketplace.accessibleExamples', "Example queries:\n{0}", item.representativeQueries.join('\n')) : undefined,
+				this.installActions.get(getCustomizationMarketplaceResourceKey(item))?.getAccessibilityContent(),
+				item.externalUrl || item.url ? localize('customizationMarketplace.accessibleResource', "Resource: {0}", item.externalUrl ?? item.url?.toString(true)) : undefined,
+				item.repository ? localize('customizationMarketplace.accessibleRepository', "Repository: {0}", item.repository.toString(true)) : undefined,
 			].filter(Boolean).join('\n')),
 			this.loaded && !this.items.length ? this.emptyElement.textContent : undefined,
 		].filter(Boolean).join('\n\n');

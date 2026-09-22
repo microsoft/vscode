@@ -2521,10 +2521,10 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('chat.customizations.structuredPreview.enabled', "Controls whether the Chat Customizations editor shows a structured preview for markdown customization files (agents, skills, instructions, prompts). When disabled, the editor always opens the raw markdown in the embedded code editor."),
 			default: false,
 		},
-		[ChatConfiguration.AgentFinderEnabled]: {
+		[ChatConfiguration.ChatCustomizationsUnifiedMarketplaceEnabled]: {
 			type: 'boolean',
 			tags: ['experimental'],
-			description: nls.localize('chat.agentFinder.enabled', "Enables AgentFinder in Agent Customizations to discover and install skills, MCP servers, and plugins. When disabled, AgentFinder is hidden and does not initialize or access the catalog."),
+			description: nls.localize('chat.customizations.unifiedMarketplace.enabled', "Enables the unified marketplace in Chat Customizations to discover and install skills, MCP servers, and plugins. When disabled, the marketplace is hidden and its sources are not initialized or queried."),
 			default: false,
 			experiment: { mode: 'auto' },
 		},

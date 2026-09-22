@@ -13,8 +13,8 @@ import { listenStream } from '../../../base/common/stream.js';
 import { URI } from '../../../base/common/uri.js';
 import { IRequestContext, IRequestOptions } from '../../../base/parts/request/common/request.js';
 import { localize } from '../../../nls.js';
+import { CustomizationMarketplaceInstallation, CustomizationMarketplaceMediaType, ICustomizationMarketplaceEntry, ICustomizationMarketplaceProvider, ICustomizationMarketplaceSourcePage, ICustomizationMarketplaceSourceQuery } from '../../customizationMarketplace/common/customizationMarketplaceService.js';
 import { IRequestService } from '../../request/common/request.js';
-import { AgentFinderInstallation, AgentFinderMediaType, IAgentFinderPage, IAgentFinderProvider, IAgentFinderQuery, IAgentFinderResource } from './agentFinderService.js';
 
 const endpoint = 'https://agentfinder.github.com/api/v1';
 const requestTimeout = 30_000;
@@ -27,12 +27,12 @@ const maxMetadataTextLength = 512;
 
 class AgentFinderError extends Error { }
 
-export class AgentFinderRestProvider implements IAgentFinderProvider {
+export class AgentFinderRestProvider implements ICustomizationMarketplaceProvider {
 	constructor(
 		@IRequestService private readonly requestService: IRequestService,
 	) { }
 
-	async query(options: IAgentFinderQuery, token: CancellationToken): Promise<IAgentFinderPage> {
+	async query(options: ICustomizationMarketplaceSourceQuery, token: CancellationToken): Promise<ICustomizationMarketplaceSourcePage> {
 		if (token.isCancellationRequested) {
 			throw new CancellationError();
 		}
@@ -40,17 +40,11 @@ export class AgentFinderRestProvider implements IAgentFinderProvider {
 		const query = options.query?.trim() ?? '';
 		const requestedPageSize = options.pageSize ?? 30;
 		if (query.length > 4096 || !isNonNegativeInteger(requestedPageSize) || requestedPageSize === 0 ||
-			(options.mediaType !== undefined && !Object.values(AgentFinderMediaType).includes(options.mediaType))) {
-			throw new AgentFinderError(localize('agentFinder.invalidQuery', "The Agent Finder query is invalid."));
+			(options.mediaType !== undefined && !Object.values(CustomizationMarketplaceMediaType).includes(options.mediaType))) {
+			throw new AgentFinderError(localize('agentFinder.invalidQuery', "The customization catalog query is invalid."));
 		}
 		const pageSize = Math.min(requestedPageSize, 100);
-		const cursor = options.cursor;
-		if (cursor && (query
-			? cursor.kind !== 'search' || !isPageToken(cursor.pageToken)
-			: cursor.kind !== 'browse' || !isNonNegativeInteger(cursor.offset))) {
-			throw new AgentFinderError(localize('agentFinder.invalidCursor', "The Agent Finder page is invalid. Start a new search."));
-		}
-
+		const cursor = options.cursor === undefined ? undefined : parseCursor(options.cursor, !!query);
 		const offset = cursor?.kind === 'browse' ? cursor.offset : 0;
 		const pageToken = cursor?.kind === 'search' ? cursor.pageToken : undefined;
 		const request: IRequestOptions = {
@@ -83,12 +77,12 @@ export class AgentFinderRestProvider implements IAgentFinderProvider {
 				throw new CancellationError();
 			}
 			if (timedOut) {
-				throw new AgentFinderError(localize('agentFinder.timeout', "Agent Finder took too long to respond. Try again."));
+				throw new AgentFinderError(localize('agentFinder.timeout', "The customization catalog took too long to respond. Try again."));
 			}
 			if (error instanceof AgentFinderError || isCancellationError(error)) {
 				throw error;
 			}
-			throw new AgentFinderError(localize('agentFinder.unavailable', "Unable to reach Agent Finder. Check your connection and try again."));
+			throw new AgentFinderError(localize('agentFinder.unavailable', "Unable to reach the customization catalog. Check your connection and try again."));
 		} finally {
 			cancellation.cancel();
 			store.dispose();
@@ -103,16 +97,16 @@ export class AgentFinderRestProvider implements IAgentFinderProvider {
 			}
 			const status = context.res.statusCode;
 			if (status === 429) {
-				throw new AgentFinderError(localize('agentFinder.rateLimited', "Agent Finder is receiving too many requests. Try again later."));
+				throw new AgentFinderError(localize('agentFinder.rateLimited', "The customization catalog is receiving too many requests. Try again later."));
 			}
 			if (!status || status < 200 || status >= 300) {
-				throw new AgentFinderError(localize('agentFinder.httpError', "Agent Finder could not complete the request (HTTP {0}). Try again later.", status ?? '—'));
+				throw new AgentFinderError(localize('agentFinder.httpError', "The customization catalog could not complete the request (HTTP {0}). Try again later.", status ?? '—'));
 			}
 			const text = await raceCancellationError(readResponse(context), token);
 			try {
 				return JSON.parse(text);
 			} catch {
-				throw new AgentFinderError(localize('agentFinder.invalidJson', "Agent Finder returned invalid JSON. Try again later."));
+				throw new AgentFinderError(localize('agentFinder.invalidJson', "The customization catalog returned invalid JSON. Try again later."));
 			}
 		} finally {
 			context.stream.destroy();
@@ -128,7 +122,7 @@ function readResponse(context: IRequestContext): Promise<string> {
 			onData: chunk => {
 				bytes += chunk.byteLength;
 				if (bytes > maxResponseBytes) {
-					reject(new AgentFinderError(localize('agentFinder.responseTooLarge', "The Agent Finder response is too large. Try a smaller page.")));
+					reject(new AgentFinderError(localize('agentFinder.responseTooLarge', "The customization catalog response is too large. Try a smaller page.")));
 					context.stream.destroy();
 				} else {
 					chunks.push(chunk);
@@ -141,7 +135,7 @@ function readResponse(context: IRequestContext): Promise<string> {
 }
 
 function invalidResponse(): AgentFinderError {
-	return new AgentFinderError(localize('agentFinder.invalidResponse', "Agent Finder returned an invalid response. Try again later."));
+	return new AgentFinderError(localize('agentFinder.invalidResponse', "The customization catalog returned an invalid response. Try again later."));
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -154,6 +148,28 @@ function isNonNegativeInteger(value: unknown): value is number {
 
 function isPageToken(value: unknown): value is string {
 	return typeof value === 'string' && value.length > 0 && value.length <= maxPageTokenLength;
+}
+
+function parseCursor(value: string, search: boolean): { kind: 'browse'; offset: number } | { kind: 'search'; pageToken: string } {
+	const invalidCursor = () => new AgentFinderError(localize('agentFinder.invalidCursor', "The customization catalog page is invalid. Start a new search."));
+	if (typeof value !== 'string' || value.length > maxPageTokenLength * 6 + 64) {
+		throw invalidCursor();
+	}
+	let cursor: unknown;
+	try {
+		cursor = JSON.parse(value);
+	} catch {
+		throw invalidCursor();
+	}
+	if (isRecord(cursor)) {
+		if (!search && cursor.kind === 'browse' && isNonNegativeInteger(cursor.offset)) {
+			return { kind: 'browse', offset: cursor.offset };
+		}
+		if (search && cursor.kind === 'search' && isPageToken(cursor.pageToken)) {
+			return { kind: 'search', pageToken: cursor.pageToken };
+		}
+	}
+	throw invalidCursor();
 }
 
 function text(value: unknown, maxLength = maxResourceTextLength): string | undefined {
@@ -176,7 +192,7 @@ function strings(value: unknown): readonly string[] {
 	return value.filter((item): item is string => !!text(item, maxMetadataTextLength));
 }
 
-function parsePage(value: unknown, pageSize: number, cursor: { kind: 'browse'; offset: number } | { kind: 'search'; pageToken?: string }): IAgentFinderPage {
+function parsePage(value: unknown, pageSize: number, cursor: { kind: 'browse'; offset: number } | { kind: 'search'; pageToken?: string }): ICustomizationMarketplaceSourcePage {
 	if (!isRecord(value) || !Array.isArray(value.results) || value.results.length > pageSize) {
 		throw invalidResponse();
 	}
@@ -187,7 +203,7 @@ function parsePage(value: unknown, pageSize: number, cursor: { kind: 'browse'; o
 			throw invalidResponse();
 		}
 		const nextOffset = cursor.offset + items.length;
-		return { items, total: value.total, nextCursor: nextOffset < value.total ? { kind: 'browse', offset: nextOffset } : undefined };
+		return { items, total: value.total, nextCursor: nextOffset < value.total ? JSON.stringify({ kind: 'browse', offset: nextOffset }) : undefined };
 	}
 	if ((value.total !== undefined && !isNonNegativeInteger(value.total)) ||
 		(value.pageToken !== undefined && value.pageToken !== '' &&
@@ -197,11 +213,11 @@ function parsePage(value: unknown, pageSize: number, cursor: { kind: 'browse'; o
 	return {
 		items,
 		total: value.total,
-		nextCursor: isPageToken(value.pageToken) ? { kind: 'search', pageToken: value.pageToken } : undefined,
+		nextCursor: isPageToken(value.pageToken) ? JSON.stringify({ kind: 'search', pageToken: value.pageToken }) : undefined,
 	};
 }
 
-function parseResource(value: unknown): IAgentFinderResource {
+function parseResource(value: unknown): ICustomizationMarketplaceEntry {
 	if (!isRecord(value)) {
 		throw invalidResponse();
 	}
@@ -236,11 +252,11 @@ function parseResource(value: unknown): IAgentFinderResource {
 	};
 }
 
-function parseInstallation(mediaType: string, metadata: Record<string, unknown> | undefined, url: URI | undefined, externalUrl: string | undefined): AgentFinderInstallation | undefined {
+function parseInstallation(mediaType: string, metadata: Record<string, unknown> | undefined, url: URI | undefined, externalUrl: string | undefined): CustomizationMarketplaceInstallation | undefined {
 	if (!metadata || !url || !externalUrl || url.scheme !== Schemas.https || url.query || url.fragment) {
 		return undefined;
 	}
-	if (mediaType === AgentFinderMediaType.McpServer) {
+	if (mediaType === CustomizationMarketplaceMediaType.McpServer) {
 		const name = metadata.serverName;
 		if (typeof name !== 'string' || name.length > 512 || !/^[a-z0-9][a-z0-9._-]*\/[a-z0-9][a-z0-9._-]*$/i.test(name) || !isSafeSourcePath(name)) {
 			return undefined;
@@ -254,10 +270,10 @@ function parseInstallation(mediaType: string, metadata: Record<string, unknown> 
 		return undefined;
 	}
 
-	const kind = mediaType === AgentFinderMediaType.Skill ? 'skill' : 'plugin';
-	const manifest = mediaType === AgentFinderMediaType.Skill ? 'SKILL.md'
-		: mediaType === AgentFinderMediaType.CopilotPlugin ? 'plugin.json'
-			: mediaType === AgentFinderMediaType.ClaudePlugin ? '.claude-plugin/plugin.json'
+	const kind = mediaType === CustomizationMarketplaceMediaType.Skill ? 'skill' : 'plugin';
+	const manifest = mediaType === CustomizationMarketplaceMediaType.Skill ? 'SKILL.md'
+		: mediaType === CustomizationMarketplaceMediaType.CopilotPlugin ? 'plugin.json'
+			: mediaType === CustomizationMarketplaceMediaType.ClaudePlugin ? '.claude-plugin/plugin.json'
 				: undefined;
 	const sourceSet = metadata.sourceSet;
 	const repoPath = metadata.repoPath;
@@ -274,7 +290,7 @@ function parseInstallation(mediaType: string, metadata: Record<string, unknown> 
 		return undefined;
 	}
 	const path = repoPath === manifest ? '' : repoPath.slice(0, -manifest.length - 1);
-	if (mediaType === AgentFinderMediaType.CopilotPlugin && ['.claude-plugin', '.cursor-plugin', '.plugin'].includes(path.split('/').at(-1) ?? '')) {
+	if (mediaType === CustomizationMarketplaceMediaType.CopilotPlugin && ['.claude-plugin', '.cursor-plugin', '.plugin'].includes(path.split('/').at(-1) ?? '')) {
 		return undefined;
 	}
 	const refAndPath = parts.join('/');

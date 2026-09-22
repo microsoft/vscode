@@ -12,31 +12,31 @@ import { URI } from '../../../../base/common/uri.js';
 import { IChannel } from '../../../../base/parts/ipc/common/ipc.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
-import { AGENT_FINDER_CHANNEL_NAME, AgentFinderChannel, AgentFinderChannelClient } from '../../common/agentFinderIpc.js';
-import { AgentFinderConfiguration, AgentFinderInstallation, AgentFinderMediaType, IAgentFinderPage, IAgentFinderQuery, IAgentFinderService } from '../../common/agentFinderService.js';
+import { CUSTOMIZATION_MARKETPLACE_CHANNEL_NAME, CustomizationMarketplaceChannel, CustomizationMarketplaceChannelClient } from '../../common/customizationMarketplaceIpc.js';
+import { CustomizationMarketplaceConfiguration, CustomizationMarketplaceInstallation, CustomizationMarketplaceMediaType, ICustomizationMarketplacePage, ICustomizationMarketplaceQuery, ICustomizationMarketplaceService } from '../../common/customizationMarketplaceService.js';
 
-suite('AgentFinderIpc', () => {
+suite('CustomizationMarketplaceIpc', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createClient(service: IAgentFinderService): AgentFinderChannelClient {
-		const server = new AgentFinderChannel(() => service);
+	function createClient(service: ICustomizationMarketplaceService): CustomizationMarketplaceChannelClient {
+		const server = new CustomizationMarketplaceChannel(() => service);
 		const channel: IChannel = {
-			async call<T>(command: string, options?: IAgentFinderQuery, token?: CancellationToken): Promise<T> {
-				return JSON.parse(JSON.stringify(await server.call<IAgentFinderPage>('test', command, options, token)));
+			async call<T>(command: string, options?: ICustomizationMarketplaceQuery, token?: CancellationToken): Promise<T> {
+				return JSON.parse(JSON.stringify(await server.call<ICustomizationMarketplacePage>('test', command, options, token)));
 			},
 			listen<T>(event: string): Event<T> {
 				return server.listen('test', event);
 			},
 		};
-		const configuration = new TestConfigurationService({ [AgentFinderConfiguration.Enabled]: true });
+		const configuration = new TestConfigurationService({ [CustomizationMarketplaceConfiguration.Enabled]: true });
 		disposables.add(configuration.onDidChangeConfigurationEmitter);
-		return new AgentFinderChannelClient(channel, configuration);
+		return new CustomizationMarketplaceChannelClient(channel, configuration);
 	}
 
 	test('does not construct the shared-process catalog service until an uncancelled query', async () => {
 		let constructed = 0;
 		let queried = 0;
-		const server = new AgentFinderChannel(() => {
+		const server = new CustomizationMarketplaceChannel(() => {
 			constructed++;
 			return {
 				_serviceBrand: undefined,
@@ -63,21 +63,21 @@ suite('AgentFinderIpc', () => {
 			listen: () => Event.None,
 		};
 		for (const enabled of [undefined, false]) {
-			const configuration = new TestConfigurationService({ [AgentFinderConfiguration.Enabled]: enabled });
+			const configuration = new TestConfigurationService({ [CustomizationMarketplaceConfiguration.Enabled]: enabled, 'chat.agentFinder.enabled': true });
 			disposables.add(configuration.onDidChangeConfigurationEmitter);
-			const client = new AgentFinderChannelClient(channel, configuration);
+			const client = new CustomizationMarketplaceChannelClient(channel, configuration);
 			await assert.rejects(client.query({}, CancellationToken.None), isCancellationError);
 		}
 		assert.strictEqual(calls, 0);
 	});
 
-	test('uses the fixed Agent Finder channel name', () => {
-		assert.strictEqual(AGENT_FINDER_CHANNEL_NAME, 'agentFinder');
+	test('uses the source-neutral marketplace channel name', () => {
+		assert.strictEqual(CUSTOMIZATION_MARKETPLACE_CHANNEL_NAME, 'customizationMarketplace');
 	});
 
 	test('forwards browse and search options and cancellation tokens', async () => {
 		const source = disposables.add(new CancellationTokenSource());
-		const calls: { options: IAgentFinderQuery; token: CancellationToken }[] = [];
+		const calls: { options: ICustomizationMarketplaceQuery; token: CancellationToken }[] = [];
 		const client = createClient({
 			_serviceBrand: undefined,
 			async query(options, token) {
@@ -85,9 +85,15 @@ suite('AgentFinderIpc', () => {
 				return { items: [] };
 			},
 		});
-		const queries: IAgentFinderQuery[] = [
-			{ mediaType: AgentFinderMediaType.McpServer, pageSize: 24, cursor: { kind: 'browse', offset: 24 } },
-			{ query: 'postgres', mediaType: AgentFinderMediaType.Skill, pageSize: 2, cursor: { kind: 'search', pageToken: 'opaque+/=&token' } },
+		const queries: ICustomizationMarketplaceQuery[] = [
+			{
+				mediaType: CustomizationMarketplaceMediaType.McpServer, pageSize: 24,
+				cursor: { query: '', mediaType: CustomizationMarketplaceMediaType.McpServer, pageSize: 24, sources: [{ id: 'testSource', cursor: 'browse-page-2' }] },
+			},
+			{
+				query: 'postgres', mediaType: CustomizationMarketplaceMediaType.Skill, pageSize: 2,
+				cursor: { query: 'postgres', mediaType: CustomizationMarketplaceMediaType.Skill, pageSize: 2, sources: [{ id: 'testSource', cursor: 'opaque+/=&token' }] },
+			},
 		];
 		for (const query of queries) {
 			await client.query(query, source.token);
@@ -97,8 +103,8 @@ suite('AgentFinderIpc', () => {
 	});
 
 	test('defaults missing server arguments to an initial browse and no cancellation', async () => {
-		const calls: { options: IAgentFinderQuery; token: CancellationToken }[] = [];
-		const server = new AgentFinderChannel(() => ({
+		const calls: { options: ICustomizationMarketplaceQuery; token: CancellationToken }[] = [];
+		const server = new CustomizationMarketplaceChannel(() => ({
 			_serviceBrand: undefined,
 			async query(options, token) {
 				calls.push({ options, token });
@@ -117,7 +123,7 @@ suite('AgentFinderIpc', () => {
 			_serviceBrand: undefined,
 			query(_options, token) {
 				receivedToken = token;
-				return raceCancellationError(new Promise<IAgentFinderPage>(() => { }), token);
+				return raceCancellationError(new Promise<ICustomizationMarketplacePage>(() => { }), token);
 			},
 		});
 		const pending = client.query({ query: 'postgres' }, source.token);
@@ -129,12 +135,13 @@ suite('AgentFinderIpc', () => {
 
 	test('revives all URI fields and preserves original external URL encoding and pagination', async () => {
 		const externalUrl = 'https://api.mcp.github.com/oss/v0.1/servers/io.github.pgEdge%2Fpostgres-mcp/versions/latest?value=a%2Bb';
-		const page: IAgentFinderPage = {
+		const page: ICustomizationMarketplacePage = {
 			items: [{
+				sourceId: 'testSource',
 				identifier: 'postgres',
 				displayName: 'Postgres',
 				description: 'Postgres discovery resource',
-				mediaType: AgentFinderMediaType.McpServer,
+				mediaType: CustomizationMarketplaceMediaType.McpServer,
 				tags: ['postgres'],
 				capabilities: ['query'],
 				representativeQueries: ['query postgres'],
@@ -146,7 +153,10 @@ suite('AgentFinderIpc', () => {
 				version: '1.0',
 			}],
 			total: 10,
-			nextCursor: { kind: 'search', pageToken: 'opaque+/=&token' },
+			nextCursor: {
+				query: 'postgres', pageSize: 30,
+				sources: [{ id: 'testSource', cursor: 'opaque+/=&token', total: 8 }, { id: 'otherSource', total: 2 }],
+			},
 		};
 		const client = createClient({ _serviceBrand: undefined, query: async () => page });
 		const result = await client.query({ query: 'postgres' }, CancellationToken.None);
@@ -163,17 +173,18 @@ suite('AgentFinderIpc', () => {
 	});
 
 	test('does not fabricate absent URI fields or a search total', async () => {
-		const page: IAgentFinderPage = {
+		const page: ICustomizationMarketplacePage = {
 			items: [{
+				sourceId: 'testSource',
 				identifier: 'test',
 				displayName: 'Test',
 				description: '',
-				mediaType: AgentFinderMediaType.Skill,
+				mediaType: CustomizationMarketplaceMediaType.Skill,
 				tags: [],
 				capabilities: [],
 				representativeQueries: [],
 			}],
-			nextCursor: { kind: 'browse', offset: 1 },
+			nextCursor: { query: '', pageSize: 30, sources: [{ id: 'testSource', cursor: 'next-page' }] },
 		};
 		const client = createClient({ _serviceBrand: undefined, query: async () => page });
 
@@ -181,17 +192,18 @@ suite('AgentFinderIpc', () => {
 	});
 
 	test('preserves installation provenance, root paths and exact refs through IPC', async () => {
-		const installations: AgentFinderInstallation[] = [
+		const installations: CustomizationMarketplaceInstallation[] = [
 			{ kind: 'skill', repository: 'ChromeDevTools/chrome-devtools-mcp', ref: 'release/next', path: 'skills/a11y-debugging' },
 			{ kind: 'plugin', repository: 'JetBrains/go-modern-guidelines', ref: 'v1.2.3', path: '' },
 			{ kind: 'mcp', name: 'ai.bittlebits/bittlebits' },
 		];
-		const page: IAgentFinderPage = {
+		const page: ICustomizationMarketplacePage = {
 			items: installations.map(installation => ({
+				sourceId: 'testSource',
 				identifier: installation.kind,
 				displayName: installation.kind,
 				description: '',
-				mediaType: AgentFinderMediaType.Skill,
+				mediaType: CustomizationMarketplaceMediaType.Skill,
 				tags: [],
 				capabilities: [],
 				representativeQueries: [],
@@ -210,18 +222,18 @@ suite('AgentFinderIpc', () => {
 			_serviceBrand: undefined,
 			async query() {
 				calls++;
-				throw new Error('Agent Finder is receiving too many requests. Try again later.');
+				throw new Error('The customization catalog is receiving too many requests. Try again later.');
 			},
 		});
 		await assert.rejects(client.query({}, CancellationToken.None), {
-			message: 'Agent Finder is receiving too many requests. Try again later.',
+			message: 'The customization catalog is receiving too many requests. Try again later.',
 		});
 		assert.strictEqual(calls, 1);
 	});
 
 	test('rejects unsupported commands and events without invoking the service', () => {
 		let calls = 0;
-		const server = new AgentFinderChannel(() => ({
+		const server = new CustomizationMarketplaceChannel(() => ({
 			_serviceBrand: undefined,
 			async query() {
 				calls++;

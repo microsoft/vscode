@@ -17,10 +17,10 @@ import { IConfigurationService } from '../../../../../../platform/configuration/
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IRequestService } from '../../../../../../platform/request/common/request.js';
-import { AgentFinderWorkbenchService } from '../../../browser/aiCustomization/agentFinderWorkbenchService.js';
+import { CustomizationMarketplaceWorkbenchService } from '../../../browser/aiCustomization/customizationMarketplaceWorkbenchService.js';
 import { ChatConfiguration } from '../../../common/constants.js';
 
-suite('AgentFinderWorkbenchService', () => {
+suite('CustomizationMarketplaceWorkbenchService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('disabled and cancelled queries do not instantiate the catalog client or perform requests', async () => {
@@ -30,28 +30,33 @@ suite('AgentFinderWorkbenchService', () => {
 		const requestService = new class extends mock<IRequestService>() {
 			override async request(options: IRequestOptions) {
 				requests.push(options);
-				const response = options.type === 'POST' ? { results: [] } : { results: [], total: 0, offset: 0, pageSize: 30 };
+				const results = [{ identifier: 'example', displayName: 'Example', type: 'application/ai-skill' }];
+				const response = options.type === 'POST' ? { results } : { results, total: 1, offset: 0, pageSize: 30 };
 				return { res: { statusCode: 200, headers: {} }, stream: bufferToStream(VSBuffer.fromString(JSON.stringify(response))) };
 			}
 		}();
 		const instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(IConfigurationService, configuration);
 		instantiationService.stub(IRequestService, requestService);
-		const service = instantiationService.createInstance(AgentFinderWorkbenchService);
+		const service = instantiationService.createInstance(CustomizationMarketplaceWorkbenchService);
 		const create = sinon.spy(instantiationService, 'createInstance');
 		store.add(toDisposable(() => create.restore()));
 
 		await assert.rejects(service.query({}, CancellationToken.None), isCancellationError);
-		await configuration.setUserConfiguration(ChatConfiguration.AgentFinderEnabled, false);
+		await configuration.setUserConfiguration('chat.agentFinder.enabled', true);
+		await assert.rejects(service.query({}, CancellationToken.None), isCancellationError);
+		await configuration.setUserConfiguration(ChatConfiguration.ChatCustomizationsUnifiedMarketplaceEnabled, false);
 		await assert.rejects(service.query({}, CancellationToken.None), isCancellationError);
 		await assert.rejects(service.query({ query: 'review' }, CancellationToken.None), isCancellationError);
-		await configuration.setUserConfiguration(ChatConfiguration.AgentFinderEnabled, true);
+		await configuration.setUserConfiguration(ChatConfiguration.ChatCustomizationsUnifiedMarketplaceEnabled, true);
 		await assert.rejects(service.query({}, CancellationToken.Cancelled), isCancellationError);
 		await assert.rejects(service.query({ query: 'review' }, CancellationToken.Cancelled), isCancellationError);
 		const whileDisabled = { creations: create.callCount, requests: requests.length };
-		await service.query({}, CancellationToken.None);
-		await service.query({ query: 'review' }, CancellationToken.None);
-		await configuration.setUserConfiguration(ChatConfiguration.AgentFinderEnabled, false);
+		const pages = [
+			await service.query({}, CancellationToken.None),
+			await service.query({ query: 'review' }, CancellationToken.None),
+		];
+		await configuration.setUserConfiguration(ChatConfiguration.ChatCustomizationsUnifiedMarketplaceEnabled, false);
 		await assert.rejects(service.query({}, CancellationToken.None), isCancellationError);
 
 		assert.deepStrictEqual({
@@ -59,6 +64,7 @@ suite('AgentFinderWorkbenchService', () => {
 			createdCatalogClient: create.firstCall.args[0] === AgentFinderRestProvider,
 			creations: create.callCount,
 			requests: requests.map(request => request.type),
-		}, { whileDisabled: { creations: 0, requests: 0 }, createdCatalogClient: true, creations: 1, requests: ['GET', 'POST'] });
+			sources: pages.map(page => page.items.map(item => item.sourceId)),
+		}, { whileDisabled: { creations: 0, requests: 0 }, createdCatalogClient: true, creations: 1, requests: ['GET', 'POST'], sources: [['agentFinder'], ['agentFinder']] });
 	});
 });

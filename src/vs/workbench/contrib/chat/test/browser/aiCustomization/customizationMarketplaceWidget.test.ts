@@ -18,7 +18,7 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/virtualScheduling/index.js';
-import { AgentFinderMediaType, IAgentFinderPage, IAgentFinderQuery, IAgentFinderResource, IAgentFinderService } from '../../../../../../platform/agentFinder/common/agentFinderService.js';
+import { CustomizationMarketplaceMediaType, getCustomizationMarketplaceResourceKey, ICustomizationMarketplaceCursor, ICustomizationMarketplacePage, ICustomizationMarketplaceQuery, ICustomizationMarketplaceResource, ICustomizationMarketplaceService } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
 import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 import { IConfigurationChangeEvent } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -30,62 +30,67 @@ import { INotificationService } from '../../../../../../platform/notification/co
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
 import { IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { AccessibilityVerbositySettingId } from '../../../../accessibility/browser/accessibilityConfiguration.js';
-import { AgentFinderWidget } from '../../../browser/aiCustomization/agentFinderWidget.js';
-import { AgentFinderInstallState, IAgentFinderInstallService } from '../../../common/agentFinderInstallService.js';
+import { CustomizationMarketplaceWidget } from '../../../browser/aiCustomization/customizationMarketplaceWidget.js';
+import { CustomizationMarketplaceInstallState, ICustomizationMarketplaceInstallService } from '../../../common/customizationMarketplaceInstallService.js';
 import { ChatConfiguration } from '../../../common/constants.js';
 
 interface IRecordedQuery {
-	readonly options: IAgentFinderQuery;
+	readonly options: ICustomizationMarketplaceQuery;
 	readonly token: CancellationToken;
-	readonly result: DeferredPromise<IAgentFinderPage>;
+	readonly result: DeferredPromise<ICustomizationMarketplacePage>;
 }
 
-class TestAgentFinderService extends mock<IAgentFinderService>() {
+class TestCustomizationMarketplaceService extends mock<ICustomizationMarketplaceService>() {
 	readonly requests: IRecordedQuery[] = [];
 
-	override query(options: IAgentFinderQuery, token: CancellationToken): Promise<IAgentFinderPage> {
-		const result = new DeferredPromise<IAgentFinderPage>();
+	override query(options: ICustomizationMarketplaceQuery, token: CancellationToken): Promise<ICustomizationMarketplacePage> {
+		const result = new DeferredPromise<ICustomizationMarketplacePage>();
 		this.requests.push({ options, token, result });
 		return result.p;
 	}
 }
 
-class TestAgentFinderInstallService extends Disposable implements IAgentFinderInstallService {
+class TestCustomizationMarketplaceInstallService extends Disposable implements ICustomizationMarketplaceInstallService {
 	declare readonly _serviceBrand: undefined;
 	private readonly changeEmitter = this._register(new Emitter<void>());
 	readonly onDidChange = this.changeEmitter.event;
-	private readonly states = new Map<string, AgentFinderInstallState>();
-	readonly requests: { resource: IAgentFinderResource; result: DeferredPromise<void> }[] = [];
+	private readonly states = new Map<string, CustomizationMarketplaceInstallState>();
+	readonly requests: { resource: ICustomizationMarketplaceResource; result: DeferredPromise<void> }[] = [];
 	readonly stateReads: string[] = [];
 
-	getInstallState(resource: IAgentFinderResource): AgentFinderInstallState {
+	getInstallState(resource: ICustomizationMarketplaceResource): CustomizationMarketplaceInstallState {
 		this.stateReads.push(resource.identifier);
-		return this.states.get(resource.identifier) ?? { kind: 'available' };
+		return this.states.get(getCustomizationMarketplaceResourceKey(resource)) ?? { kind: 'available' };
 	}
 
-	install(resource: IAgentFinderResource): Promise<void> {
+	install(resource: ICustomizationMarketplaceResource): Promise<void> {
 		const result = new DeferredPromise<void>();
 		this.requests.push({ resource, result });
 		return result.p;
 	}
 
-	setState(identifier: string, state: AgentFinderInstallState): void {
-		this.states.set(identifier, state);
+	setState(resource: ICustomizationMarketplaceResource, state: CustomizationMarketplaceInstallState): void {
+		this.states.set(getCustomizationMarketplaceResourceKey(resource), state);
 		this.changeEmitter.fire();
 	}
 }
 
-function createResource(identifier: string, overrides: Partial<IAgentFinderResource> = {}): IAgentFinderResource {
+function createResource(identifier: string, overrides: Partial<ICustomizationMarketplaceResource> = {}): ICustomizationMarketplaceResource {
 	return {
+		sourceId: 'testSource',
 		identifier,
 		displayName: identifier,
 		description: `Description of ${identifier}`,
-		mediaType: AgentFinderMediaType.Skill,
+		mediaType: CustomizationMarketplaceMediaType.Skill,
 		tags: [],
 		capabilities: [],
 		representativeQueries: [],
 		...overrides,
 	};
+}
+
+function createCursor(cursor: string, query = ''): ICustomizationMarketplaceCursor {
+	return { query, pageSize: 24, sources: [{ id: 'testSource', cursor }] };
 }
 
 function getElement<T extends HTMLElement = HTMLElement>(container: HTMLElement, selector: string): T {
@@ -101,12 +106,12 @@ function getButton(container: HTMLElement, label: string): HTMLElement {
 }
 
 function getCardNames(container: HTMLElement): string[] {
-	return Array.from(container.querySelectorAll('.agent-finder-name'), element => element.textContent ?? '');
+	return Array.from(container.querySelectorAll('.customization-marketplace-name'), element => element.textContent ?? '');
 }
 
 function getInstallPresentation(container: HTMLElement) {
-	const button = getElement(container, '.agent-finder-install-button');
-	const error = getElement(container, '.agent-finder-install-error');
+	const button = getElement(container, '.customization-marketplace-install-button');
+	const error = getElement(container, '.customization-marketplace-install-error');
 	return {
 		label: button.textContent,
 		enabled: button.getAttribute('aria-disabled') === 'false',
@@ -116,7 +121,7 @@ function getInstallPresentation(container: HTMLElement) {
 }
 
 function setSearch(container: HTMLElement, value: string): HTMLInputElement {
-	const input = getElement<HTMLInputElement>(container, '.agent-finder-search input');
+	const input = getElement<HTMLInputElement>(container, '.customization-marketplace-search input');
 	input.value = value;
 	input.dispatchEvent(new InputEvent('input', { bubbles: true, data: value, inputType: 'insertText' }));
 	return input;
@@ -128,30 +133,30 @@ function pressKey(element: HTMLElement, key: string, keyCode: number, isComposin
 	return event;
 }
 
-suite('AgentFinderWidget', () => {
+suite('CustomizationMarketplaceWidget', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	function createWidget(
 		hidden = false,
 		parent: HTMLElement = document.body,
-		widgetConstructor: typeof AgentFinderWidget = AgentFinderWidget,
-		options: { agentFinderEnabled?: boolean } = { agentFinderEnabled: true },
+		widgetConstructor: typeof CustomizationMarketplaceWidget = CustomizationMarketplaceWidget,
+		options: { customizationMarketplaceEnabled?: boolean } = { customizationMarketplaceEnabled: true },
 	) {
-		const container = DOM.append(parent, DOM.$('.agent-finder-test'));
+		const container = DOM.append(parent, DOM.$('.customization-marketplace-test'));
 		store.add(toDisposable(() => container.remove()));
 		container.style.width = '900px';
 		container.style.height = '600px';
 
-		const service = new TestAgentFinderService();
-		const installService = store.add(new TestAgentFinderInstallService());
+		const service = new TestCustomizationMarketplaceService();
+		const installService = store.add(new TestCustomizationMarketplaceInstallService());
 		const sentimentChanged = store.add(new Emitter<void>());
 		const entitlement = new class extends mock<IChatEntitlementService>() {
 			override readonly sentiment = { hidden };
 			override readonly onDidChangeSentiment = sentimentChanged.event;
 		}();
 		const configuration = new TestConfigurationService({
-			[AccessibilityVerbositySettingId.AgentFinder]: true,
-			...(options.agentFinderEnabled !== undefined ? { [ChatConfiguration.AgentFinderEnabled]: options.agentFinderEnabled } : {}),
+			[AccessibilityVerbositySettingId.CustomizationMarketplace]: true,
+			...(options.customizationMarketplaceEnabled !== undefined ? { [ChatConfiguration.ChatCustomizationsUnifiedMarketplaceEnabled]: options.customizationMarketplaceEnabled } : {}),
 		});
 		store.add(configuration.onDidChangeConfigurationEmitter);
 		const keybindingsChanged = store.add(new Emitter<void>());
@@ -209,10 +214,10 @@ suite('AgentFinderWidget', () => {
 		));
 		return {
 			container, widget, service, installService, opened, notifications, signals, configuration, hovers,
-			async setAgentFinderEnabled(enabled: boolean) {
-				await configuration.setUserConfiguration(ChatConfiguration.AgentFinderEnabled, enabled);
+			async setCustomizationMarketplaceEnabled(enabled: boolean) {
+				await configuration.setUserConfiguration(ChatConfiguration.ChatCustomizationsUnifiedMarketplaceEnabled, enabled);
 				configuration.onDidChangeConfigurationEmitter.fire(new class extends mock<IConfigurationChangeEvent>() {
-					override affectsConfiguration(section: string) { return section === ChatConfiguration.AgentFinderEnabled; }
+					override affectsConfiguration(section: string) { return section === ChatConfiguration.ChatCustomizationsUnifiedMarketplaceEnabled; }
 				}());
 			},
 			setAIHidden(value: boolean) {
@@ -243,15 +248,15 @@ suite('AgentFinderWidget', () => {
 		const auxiliaryWindow = frameWindow;
 		const observed = new DeferredPromise<boolean>();
 		let captureLayout = false;
-		class AuxiliaryWindowWidget extends AgentFinderWidget {
+		class AuxiliaryWindowWidget extends CustomizationMarketplaceWidget {
 			override layout(): void {
 				super.layout();
 				if (captureLayout) {
 					const message = 'ResizeObserver loop completed with undelivered notifications.';
 					const auxiliaryContext = DOM.getRecentDisposableResizeObserverContextForLoopError(message, auxiliaryWindow);
 					const mainContext = DOM.getRecentDisposableResizeObserverContextForLoopError(message, mainWindow);
-					if (auxiliaryContext?.includes('AgentFinderWidget') || mainContext?.includes('AgentFinderWidget')) {
-						void observed.complete(!!auxiliaryContext?.includes('AgentFinderWidget'));
+					if (auxiliaryContext?.includes('CustomizationMarketplaceWidget') || mainContext?.includes('CustomizationMarketplaceWidget')) {
+						void observed.complete(!!auxiliaryContext?.includes('CustomizationMarketplaceWidget'));
 					}
 				}
 			}
@@ -266,26 +271,26 @@ suite('AgentFinderWidget', () => {
 
 	for (const initialFlag of [undefined, false]) {
 		test(`does no catalog work when the experiment is ${initialFlag === undefined ? 'unset' : 'false'}`, () => runWithFakedTimers({}, async () => {
-			const { container, widget, service, installService, configuration, setAgentFinderEnabled } = createWidget(
-				false, document.body, AgentFinderWidget, initialFlag === undefined ? {} : { agentFinderEnabled: initialFlag });
+			const { container, widget, service, installService, configuration, setCustomizationMarketplaceEnabled } = createWidget(
+				false, document.body, CustomizationMarketplaceWidget, initialFlag === undefined ? {} : { customizationMarketplaceEnabled: initialFlag });
 			widget.setVisible(true);
 			pressKey(setSearch(container, 'review'), 'Enter', 13);
 			getButton(container, 'Refresh').click();
-			const select = getElement<HTMLSelectElement>(container, '.agent-finder-type-filter select');
+			const select = getElement<HTMLSelectElement>(container, '.customization-marketplace-type-filter select');
 			select.selectedIndex = 2;
 			select.dispatchEvent(new Event('change', { bubbles: true }));
 			await timeout(400);
 			widget.setVisible(false);
 			widget.setVisible(true);
 			const disabled = {
-				setting: configuration.getValue(ChatConfiguration.AgentFinderEnabled),
+				setting: configuration.getValue(ChatConfiguration.ChatCustomizationsUnifiedMarketplaceEnabled),
 				queryCount: service.requests.length,
 				installCount: installService.requests.length,
 				installStateReads: installService.stateReads.slice(),
 				display: widget.element.style.display,
 				names: getCardNames(container),
 			};
-			await setAgentFinderEnabled(true);
+			await setCustomizationMarketplaceEnabled(true);
 			await service.requests[0].result.complete({ items: [createResource('Enabled')] });
 
 			assert.deepStrictEqual({
@@ -295,22 +300,52 @@ suite('AgentFinderWidget', () => {
 				display: widget.element.style.display,
 			}, {
 				disabled: { setting: initialFlag, queryCount: 0, installCount: 0, installStateReads: [], display: 'none', names: [] },
-				queries: [{ query: 'review', mediaType: AgentFinderMediaType.McpServer, pageSize: 24, cursor: undefined }],
+				queries: [{ query: 'review', mediaType: CustomizationMarketplaceMediaType.McpServer, pageSize: 24, cursor: undefined }],
 				names: ['Enabled'],
 				display: '',
 			});
 		}));
 	}
 
+	test('the old catalog setting cannot enable marketplace discovery or installation', () => runWithFakedTimers({}, async () => {
+		const { container, widget, service, installService, configuration } = createWidget(
+			false, document.body, CustomizationMarketplaceWidget, {});
+		const oldSetting = 'chat.agentFinder.enabled';
+		await configuration.setUserConfiguration(oldSetting, true);
+		configuration.onDidChangeConfigurationEmitter.fire(new class extends mock<IConfigurationChangeEvent>() {
+			override affectsConfiguration(section: string) { return section === oldSetting; }
+		}());
+		widget.setVisible(true);
+		pressKey(setSearch(container, 'review'), 'Enter', 13);
+		getButton(container, 'Refresh').click();
+		await timeout(400);
+
+		assert.deepStrictEqual({
+			enabled: configuration.getValue(ChatConfiguration.ChatCustomizationsUnifiedMarketplaceEnabled),
+			queries: service.requests.length,
+			installs: installService.requests.length,
+			installStateReads: installService.stateReads,
+			display: widget.element.style.display,
+			names: getCardNames(container),
+		}, {
+			enabled: undefined,
+			queries: 0,
+			installs: 0,
+			installStateReads: [],
+			display: 'none',
+			names: [],
+		});
+	}));
+
 	for (const lateResponse of ['success', 'failure'] as const) {
 		test(`disabling the experiment cancels pending queries and ignores a late ${lateResponse}`, async () => {
-			const { container, widget, service, notifications, signals, setAgentFinderEnabled } = createWidget();
+			const { container, widget, service, notifications, signals, setCustomizationMarketplaceEnabled } = createWidget();
 			widget.setVisible(true);
-			await setAgentFinderEnabled(false);
+			await setCustomizationMarketplaceEnabled(false);
 			const disabled = {
 				cancelled: service.requests[0].token.isCancellationRequested,
 				display: widget.element.style.display,
-				busy: getElement(container, '.agent-finder-results').getAttribute('aria-busy'),
+				busy: getElement(container, '.customization-marketplace-results').getAttribute('aria-busy'),
 			};
 			if (lateResponse === 'success') {
 				await service.requests[0].result.complete({ items: [createResource('Disabled result')] });
@@ -319,9 +354,9 @@ suite('AgentFinderWidget', () => {
 			}
 			const afterLateResponse = {
 				names: getCardNames(container),
-				error: getElement(container, '.agent-finder-error').textContent,
+				error: getElement(container, '.customization-marketplace-error').textContent,
 			};
-			await setAgentFinderEnabled(true);
+			await setCustomizationMarketplaceEnabled(true);
 			await service.requests[1].result.complete({ items: [createResource('Enabled result')] });
 
 			assert.deepStrictEqual({
@@ -345,19 +380,19 @@ suite('AgentFinderWidget', () => {
 	}
 
 	test('disabling the experiment cancels debounced search until it is enabled again', () => runWithFakedTimers({}, async () => {
-		const { container, widget, service, setAgentFinderEnabled } = createWidget();
+		const { container, widget, service, setCustomizationMarketplaceEnabled } = createWidget();
 		widget.setVisible(true);
 		await service.requests[0].result.complete({ items: [createResource('Original')] });
 		setSearch(container, 'pending');
 		await timeout(100);
-		await setAgentFinderEnabled(false);
+		await setCustomizationMarketplaceEnabled(false);
 		await timeout(400);
 		const disabled = {
 			queryCount: service.requests.length,
 			display: widget.element.style.display,
 			names: getCardNames(container),
 		};
-		await setAgentFinderEnabled(true);
+		await setCustomizationMarketplaceEnabled(true);
 		await service.requests[1].result.complete({ items: [createResource('Enabled')] });
 		await timeout(400);
 
@@ -379,20 +414,24 @@ suite('AgentFinderWidget', () => {
 		const beforeVisible = service.requests.length;
 		widget.setVisible(true);
 		widget.setVisible(true);
-		const loading = getElement(container, '.agent-finder-results').getAttribute('aria-busy');
+		const loading = getElement(container, '.customization-marketplace-results').getAttribute('aria-busy');
 		await service.requests[0].result.complete({ items: [createResource('Review')], total: 1 });
 		widget.setVisible(false);
 		widget.setVisible(true);
 
 		assert.deepStrictEqual({
 			beforeVisible,
+			heading: getElement(container, 'h2').textContent,
+			description: getElement(container, '.customization-marketplace-description').textContent,
 			queries: service.requests.map(request => request.options),
 			loading,
-			busy: getElement(container, '.agent-finder-results').getAttribute('aria-busy'),
+			busy: getElement(container, '.customization-marketplace-results').getAttribute('aria-busy'),
 			names: getCardNames(container),
-			status: getElement(container, '.agent-finder-status').textContent,
+			status: getElement(container, '.customization-marketplace-status').textContent,
 		}, {
 			beforeVisible: 0,
+			heading: 'Marketplace',
+			description: 'Discover skills, MCP servers, and plugins for your agents.',
 			queries: [{ query: '', mediaType: undefined, pageSize: 24, cursor: undefined }],
 			loading: 'true',
 			busy: 'false',
@@ -404,12 +443,12 @@ suite('AgentFinderWidget', () => {
 	test('initial loading shows decorative skeleton cards and an accessible loading state', async () => {
 		const { container, widget, service } = createWidget();
 		widget.setVisible(true);
-		const loading = getElement(container, '.agent-finder-loading');
+		const loading = getElement(container, '.customization-marketplace-loading');
 		const before = {
 			skeletons: loading.children.length,
 			ariaHidden: loading.getAttribute('aria-hidden'),
 			focusable: loading.querySelectorAll('a, button, input, select, [tabindex]').length,
-			visibleStatus: getElement(container, '.agent-finder-status').textContent,
+			visibleStatus: getElement(container, '.customization-marketplace-status').textContent,
 			accessible: widget.getAccessibilityContent(),
 		};
 		await service.requests[0].result.complete({ items: [createResource('Review')], total: 1 });
@@ -418,7 +457,7 @@ suite('AgentFinderWidget', () => {
 			before,
 			after: { skeletons: loading.children.length, display: loading.style.display, names: getCardNames(container) },
 		}, {
-			before: { skeletons: 6, ariaHidden: 'true', focusable: 0, visibleStatus: '', accessible: 'AgentFinder\n\nLoading resources...' },
+			before: { skeletons: 6, ariaHidden: 'true', focusable: 0, visibleStatus: '', accessible: 'Marketplace\n\nLoading resources...' },
 			after: { skeletons: 0, display: 'none', names: ['Review'] },
 		});
 	});
@@ -427,32 +466,32 @@ suite('AgentFinderWidget', () => {
 		const { container, widget, service } = createWidget();
 		widget.setVisible(true);
 		await service.requests[0].result.complete({
-			items: [createResource('First')], total: 2, nextCursor: { kind: 'browse', offset: 1 },
+			items: [createResource('First')], total: 2, nextCursor: createCursor('next-page'),
 		});
 		getButton(container, 'Load More').click();
-		const loading = getElement(container, '.agent-finder-loading');
+		const loading = getElement(container, '.customization-marketplace-loading');
 		const before = {
 			skeletons: loading.children.length,
 			appended: loading.classList.contains('loading-more'),
 			names: getCardNames(container),
-			status: getElement(container, '.agent-finder-status').textContent,
+			status: getElement(container, '.customization-marketplace-status').textContent,
 			accessibleLoading: widget.getAccessibilityContent().includes('Loading more resources...'),
 		};
 		await service.requests[1].result.error(new Error('Offline'));
 
 		assert.deepStrictEqual({
 			before,
-			after: { skeletons: loading.children.length, names: getCardNames(container), error: getElement(container, '.agent-finder-error').textContent },
+			after: { skeletons: loading.children.length, names: getCardNames(container), error: getElement(container, '.customization-marketplace-error').textContent },
 		}, {
 			before: { skeletons: 2, appended: true, names: ['First'], status: 'Showing 1 of 2 resources', accessibleLoading: true },
-			after: { skeletons: 0, names: ['First'], error: 'Could not load AgentFinder. Offline' },
+			after: { skeletons: 0, names: ['First'], error: 'Could not load the marketplace. Offline' },
 		});
 	});
 
 	test('hiding and disposing remove shimmer placeholders and ignore cancelled responses', async () => {
 		const { container, widget, service } = createWidget();
 		widget.setVisible(true);
-		const loading = getElement(container, '.agent-finder-loading');
+		const loading = getElement(container, '.customization-marketplace-loading');
 		widget.setVisible(false);
 		const hidden = { skeletons: loading.children.length, cancelled: service.requests[0].token.isCancellationRequested };
 		await service.requests[0].result.complete({ items: [createResource('Hidden')] });
@@ -469,7 +508,7 @@ suite('AgentFinderWidget', () => {
 	test('reduced motion and high contrast use static placeholders', () => {
 		const { container, widget } = createWidget();
 		widget.setVisible(true);
-		const block = getElement(container, '.agent-finder-skeleton-block');
+		const block = getElement(container, '.customization-marketplace-skeleton-block');
 		const animations = [];
 		for (const className of ['monaco-reduce-motion', 'hc-black', 'hc-light']) {
 			container.classList.add(className);
@@ -548,9 +587,9 @@ suite('AgentFinderWidget', () => {
 		await service.requests[0].result.complete({ items: [createResource('Stale')] });
 		await service.requests[1].result.error(new Error('Obsolete failure'));
 		const pendingState = {
-			busy: getElement(container, '.agent-finder-results').getAttribute('aria-busy'),
+			busy: getElement(container, '.customization-marketplace-results').getAttribute('aria-busy'),
 			names: getCardNames(container),
-			error: getElement(container, '.agent-finder-error').textContent,
+			error: getElement(container, '.customization-marketplace-error').textContent,
 		};
 		await service.requests[2].result.complete({ items: [createResource('Latest')] });
 
@@ -574,7 +613,7 @@ suite('AgentFinderWidget', () => {
 
 		assert.deepStrictEqual({
 			names: getCardNames(container),
-			status: getElement(container, '.agent-finder-status').textContent,
+			status: getElement(container, '.customization-marketplace-status').textContent,
 		}, { names: ['Current'], status: 'Showing 1 of 1 resources' });
 	});
 
@@ -583,10 +622,10 @@ suite('AgentFinderWidget', () => {
 		widget.setVisible(true);
 		await service.requests[0].result.complete({
 			items: [createResource('Original')],
-			nextCursor: { kind: 'browse', offset: 24 },
+			nextCursor: createCursor('next-page'),
 		});
 		pressKey(setSearch(container, 'review'), 'Enter', 13);
-		const select = getElement<HTMLSelectElement>(container, '.agent-finder-type-filter select');
+		const select = getElement<HTMLSelectElement>(container, '.customization-marketplace-type-filter select');
 		for (let index = 1; index < select.options.length; index++) {
 			select.selectedIndex = index;
 			select.dispatchEvent(new Event('change', { bubbles: true }));
@@ -601,9 +640,9 @@ suite('AgentFinderWidget', () => {
 		}, {
 			labels: ['All Resource Types', 'Skills', 'MCP Servers', 'Copilot Plugins', 'Claude Plugins', 'Cursor Plugins'],
 			queries: [
-				AgentFinderMediaType.Skill, AgentFinderMediaType.McpServer,
-				AgentFinderMediaType.CopilotPlugin, AgentFinderMediaType.ClaudePlugin,
-				AgentFinderMediaType.CursorPlugin, undefined,
+				CustomizationMarketplaceMediaType.Skill, CustomizationMarketplaceMediaType.McpServer,
+				CustomizationMarketplaceMediaType.CopilotPlugin, CustomizationMarketplaceMediaType.ClaudePlugin,
+				CustomizationMarketplaceMediaType.CursorPlugin, undefined,
 			].map(mediaType => ({ query: 'review', mediaType, pageSize: 24, cursor: undefined })),
 			names: [],
 		});
@@ -615,7 +654,7 @@ suite('AgentFinderWidget', () => {
 		await service.requests[0].result.complete({
 			items: [createResource('First'), createResource('First')],
 			total: 3,
-			nextCursor: { kind: 'browse', offset: 24 },
+			nextCursor: createCursor('next-page'),
 		});
 		const loadMoreButton = getButton(container, 'Load More');
 		loadMoreButton.focus();
@@ -624,7 +663,7 @@ suite('AgentFinderWidget', () => {
 		const retryButton = getButton(container, 'Retry');
 		const afterFailure = {
 			names: getCardNames(container),
-			error: getElement(container, '.agent-finder-error').textContent,
+			error: getElement(container, '.customization-marketplace-error').textContent,
 			retryVisible: retryButton.style.display !== 'none',
 			loadMoreVisible: loadMoreButton.style.display !== 'none',
 			retryFocused: DOM.getActiveElement() === retryButton,
@@ -635,7 +674,7 @@ suite('AgentFinderWidget', () => {
 		const pendingRetry = {
 			requests: service.requests.length,
 			names: getCardNames(container),
-			error: getElement(container, '.agent-finder-error').textContent,
+			error: getElement(container, '.customization-marketplace-error').textContent,
 			visible: retryButton.style.display !== 'none',
 			disabled: retryButton.getAttribute('aria-disabled'),
 			focused: DOM.getActiveElement() === retryButton,
@@ -650,15 +689,15 @@ suite('AgentFinderWidget', () => {
 			pendingRetry,
 			cursors: service.requests.slice(1).map(request => request.options.cursor),
 			names: getCardNames(container),
-			status: getElement(container, '.agent-finder-status').textContent,
+			status: getElement(container, '.customization-marketplace-status').textContent,
 			retryVisible: getButton(container, 'Retry').style.display !== 'none',
 			loadMoreVisible: getButton(container, 'Load More').style.display !== 'none',
-			focused: DOM.getActiveElement()?.querySelector('.agent-finder-name')?.textContent,
+			focused: DOM.getActiveElement()?.querySelector('.customization-marketplace-name')?.textContent,
 			signals,
 		}, {
 			afterFailure: {
 				names: ['First'],
-				error: 'Could not load AgentFinder. Network unavailable',
+				error: 'Could not load the marketplace. Network unavailable',
 				retryVisible: true,
 				loadMoreVisible: false,
 				retryFocused: true,
@@ -666,12 +705,12 @@ suite('AgentFinderWidget', () => {
 			pendingRetry: {
 				requests: 3,
 				names: ['First'],
-				error: 'Could not load AgentFinder. Network unavailable',
+				error: 'Could not load the marketplace. Network unavailable',
 				visible: true,
 				disabled: 'true',
 				focused: true,
 			},
-			cursors: [{ kind: 'browse', offset: 24 }, { kind: 'browse', offset: 24 }],
+			cursors: [createCursor('next-page'), createCursor('next-page')],
 			names: ['First', 'Second', 'Third'],
 			status: 'Showing 3 of 3 resources',
 			retryVisible: false,
@@ -681,13 +720,45 @@ suite('AgentFinderWidget', () => {
 		});
 	});
 
+	test('deduplicates by source, identifier and version while forwarding opaque cursors unchanged', async () => {
+		const { container, widget, service } = createWidget();
+		const first = createResource('shared', { displayName: 'First source', version: '1.0.0' });
+		const second = createResource('shared', { sourceId: 'otherTestSource', displayName: 'Second source', version: '1.0.0' });
+		const nextVersion = createResource('shared', { displayName: 'Next version', version: '2.0.0' });
+		const nextCursor: ICustomizationMarketplaceCursor = {
+			query: '',
+			pageSize: 24,
+			sources: [
+				{ id: 'testSource', cursor: 'opaque-page-token', total: 2 },
+				{ id: 'otherTestSource', total: 1 },
+			],
+		};
+		widget.setVisible(true);
+		await service.requests[0].result.complete({ items: [first, first, second, second], total: 3, nextCursor });
+		const firstPageNames = getCardNames(container);
+		getButton(container, 'Load More').click();
+		await service.requests[1].result.complete({ items: [first, second, nextVersion, nextVersion], total: 3 });
+
+		assert.deepStrictEqual({
+			firstPageNames,
+			names: getCardNames(container),
+			cursorForwardedUnchanged: service.requests[1].options.cursor === nextCursor,
+			status: getElement(container, '.customization-marketplace-status').textContent,
+		}, {
+			firstPageNames: ['First source', 'Second source'],
+			names: ['First source', 'Second source', 'Next version'],
+			cursorForwardedUnchanged: true,
+			status: 'Showing 3 of 3 resources',
+		});
+	});
+
 	test('refresh replaces the current search from the first page', async () => {
 		const { container, widget, service } = createWidget();
 		widget.setVisible(true);
 		pressKey(setSearch(container, 'review'), 'Enter', 13);
 		await service.requests[1].result.complete({
 			items: [createResource('Original')],
-			nextCursor: { kind: 'search', pageToken: 'next-page' },
+			nextCursor: createCursor('next-page', 'review'),
 		});
 		getButton(container, 'Load More').click();
 		await service.requests[2].result.complete({ items: [createResource('More')] });
@@ -699,7 +770,7 @@ suite('AgentFinderWidget', () => {
 			refresh: service.requests[3].options,
 			names: getCardNames(container),
 		}, {
-			pagination: { query: 'review', mediaType: undefined, pageSize: 24, cursor: { kind: 'search', pageToken: 'next-page' } },
+			pagination: { query: 'review', mediaType: undefined, pageSize: 24, cursor: createCursor('next-page', 'review') },
 			refresh: { query: 'review', mediaType: undefined, pageSize: 24, cursor: undefined },
 			names: ['Updated'],
 		});
@@ -811,10 +882,10 @@ suite('AgentFinderWidget', () => {
 		widget.setVisible(true);
 		const firstPage = Array.from({ length: 12 }, (_, index) => createResource(`First ${index}`));
 		const secondPage = Array.from({ length: 12 }, (_, index) => createResource(`Second ${index}`));
-		await service.requests[0].result.complete({ items: firstPage, nextCursor: { kind: 'search', pageToken: 'page-2' } });
+		await service.requests[0].result.complete({ items: firstPage, nextCursor: createCursor('page-2', 'review') });
 		getButton(container, 'Load More').click();
-		await service.requests[1].result.complete({ items: secondPage, nextCursor: { kind: 'search', pageToken: 'page-3' } });
-		const scroll = getElement(container, '.agent-finder-scroll-content');
+		await service.requests[1].result.complete({ items: secondPage, nextCursor: createCursor('page-3', 'review') });
+		const scroll = getElement(container, '.customization-marketplace-scroll-content');
 		scroll.scrollTop = 120;
 		widget.layout();
 
@@ -823,7 +894,7 @@ suite('AgentFinderWidget', () => {
 		}
 		const unchanged = {
 			requests: service.requests.length,
-			query: getElement<HTMLInputElement>(container, '.agent-finder-search input').value,
+			query: getElement<HTMLInputElement>(container, '.customization-marketplace-search input').value,
 			names: getCardNames(container),
 			scrollTop: scroll.scrollTop,
 		};
@@ -835,7 +906,7 @@ suite('AgentFinderWidget', () => {
 			unchanged: {
 				requests: 2, query: 'review', names: [...firstPage, ...secondPage].map(item => item.displayName), scrollTop: 120,
 			},
-			nextRequest: { query: 'review', mediaType: undefined, pageSize: 24, cursor: { kind: 'search', pageToken: 'page-3' } },
+			nextRequest: { query: 'review', mediaType: undefined, pageSize: 24, cursor: createCursor('page-3', 'review') },
 		});
 	});
 
@@ -849,14 +920,14 @@ suite('AgentFinderWidget', () => {
 
 		assert.deepStrictEqual({
 			errorContent,
-			emptyVisible: getElement(container, '.agent-finder-empty').style.display !== 'none',
-			errorVisible: getElement(container, '.agent-finder-error').style.display !== 'none',
+			emptyVisible: getElement(container, '.customization-marketplace-empty').style.display !== 'none',
+			errorVisible: getElement(container, '.customization-marketplace-error').style.display !== 'none',
 			content: widget.getAccessibilityContent(),
 		}, {
-			errorContent: 'AgentFinder\n\nCould not load AgentFinder. Try later',
+			errorContent: 'Marketplace\n\nCould not load the marketplace. Try later',
 			emptyVisible: true,
 			errorVisible: false,
-			content: 'AgentFinder\n\nShowing 0 of 0 resources\n\nNo resources found. Try a different search or resource type.',
+			content: 'Marketplace\n\nShowing 0 of 0 resources\n\nNo resources found. Try a different search or resource type.',
 		});
 	});
 
@@ -866,9 +937,9 @@ suite('AgentFinderWidget', () => {
 		await service.requests[0].result.error(new CancellationError());
 
 		assert.deepStrictEqual({
-			error: getElement(container, '.agent-finder-error').textContent,
+			error: getElement(container, '.customization-marketplace-error').textContent,
 			retryVisible: getButton(container, 'Retry').style.display !== 'none',
-			busy: getElement(container, '.agent-finder-results').getAttribute('aria-busy'),
+			busy: getElement(container, '.customization-marketplace-results').getAttribute('aria-busy'),
 			signals,
 		}, { error: '', retryVisible: false, busy: 'false', signals: [] });
 	});
@@ -877,15 +948,15 @@ suite('AgentFinderWidget', () => {
 		const { container, widget, service, installService, hovers } = createWidget();
 		widget.setVisible(true);
 		await service.requests[0].result.complete({ items: [createResource('Review')] });
-		const button = getElement(container, '.agent-finder-install-button');
+		const button = getElement(container, '.customization-marketplace-install-button');
 		const presentations = [getInstallPresentation(container)];
 		for (const kind of ['installing', 'installed'] as const) {
-			installService.setState('Review', { kind });
+			installService.setState(createResource('Review'), { kind });
 			button.click();
 			presentations.push(getInstallPresentation(container));
 		}
 		const reason = 'Installation is disabled by your organization.';
-		installService.setState('Review', { kind: 'unavailable', message: reason });
+		installService.setState(createResource('Review'), { kind: 'unavailable', message: reason });
 		button.click();
 		presentations.push(getInstallPresentation(container));
 		const hover = hovers.find(([target]) => target === button)?.[1];
@@ -910,29 +981,61 @@ suite('AgentFinderWidget', () => {
 		});
 	});
 
+	test('installation and accessible states remain independent across sources and versions', async () => {
+		const { container, widget, service, installService } = createWidget();
+		const first = createResource('shared', { displayName: 'First source', version: '1.0.0' });
+		const second = createResource('shared', { sourceId: 'otherTestSource', displayName: 'Second source', version: '1.0.0' });
+		const nextVersion = createResource('shared', { displayName: 'Next version', version: '2.0.0' });
+		widget.setVisible(true);
+		await service.requests[0].result.complete({ items: [first, second, nextVersion], total: 3 });
+		installService.setState(first, { kind: 'installed' });
+		installService.setState(second, { kind: 'unavailable', message: 'This source does not support installation.' });
+		installService.setState(nextVersion, { kind: 'installing' });
+		const cards = Array.from(container.querySelectorAll<HTMLElement>('.customization-marketplace-card'));
+
+		assert.deepStrictEqual({
+			names: getCardNames(container),
+			actions: cards.map(card => ({
+				...getInstallPresentation(card),
+				ariaLabel: getElement(card, '.customization-marketplace-install-button').getAttribute('aria-label'),
+			})),
+			accessibleStates: widget.getAccessibilityContent().split('\n\n').slice(2).map(content => content.split('\n').at(-1)),
+			installs: installService.requests.length,
+		}, {
+			names: ['First source', 'Second source', 'Next version'],
+			actions: [
+				{ label: 'Installed', enabled: false, busy: false, error: '', ariaLabel: 'Installed: First source' },
+				{ label: 'Install', enabled: false, busy: false, error: '', ariaLabel: 'Install Second source. This source does not support installation.' },
+				{ label: 'Installing...', enabled: false, busy: true, error: '', ariaLabel: 'Installing...: Next version' },
+			],
+			accessibleStates: ['Installed', 'Installation unavailable. This source does not support installation.', 'Installing...'],
+			installs: 0,
+		});
+	});
+
 	test('installation suppresses duplicate activation and preserves focus and catalog controls', async () => {
 		const { container, widget, service, installService, opened } = createWidget();
 		const resource = createResource('Review', { url: URI.parse('https://example.com/review') });
 		widget.setVisible(true);
 		pressKey(setSearch(container, 'review'), 'Enter', 13);
 		await service.requests[1].result.complete({ items: [resource] });
-		const button = getElement(container, '.agent-finder-install-button');
+		const button = getElement(container, '.customization-marketplace-install-button');
 		button.focus();
 		pressKey(button, 'Enter', 13);
 		button.click();
 		pressKey(button, ' ', 32);
 		const pending = getInstallPresentation(container);
-		installService.setState(resource.identifier, { kind: 'installed' });
+		installService.setState(resource, { kind: 'installed' });
 		await installService.requests[0].result.complete();
 		const installationKeptFocus = DOM.getActiveElement() === button;
-		getElement<HTMLAnchorElement>(container, '.agent-finder-card a[href]').click();
+		getElement<HTMLAnchorElement>(container, '.customization-marketplace-card a[href]').click();
 
 		assert.deepStrictEqual({
 			calls: installService.requests.map(request => request.resource),
 			pending,
 			completed: getInstallPresentation(container),
 			installationKeptFocus,
-			query: getElement<HTMLInputElement>(container, '.agent-finder-search input').value,
+			query: getElement<HTMLInputElement>(container, '.customization-marketplace-search input').value,
 			names: getCardNames(container),
 			catalogCalls: service.requests.length,
 			opened,
@@ -952,7 +1055,7 @@ suite('AgentFinderWidget', () => {
 		const { container, widget, service, installService, notifications, signals } = createWidget();
 		widget.setVisible(true);
 		await service.requests[0].result.complete({ items: [createResource('Review')] });
-		const button = getElement(container, '.agent-finder-install-button');
+		const button = getElement(container, '.customization-marketplace-install-button');
 		button.focus();
 		button.click();
 		await installService.requests[0].result.error(new CancellationError());
@@ -977,17 +1080,17 @@ suite('AgentFinderWidget', () => {
 		widget.setVisible(true);
 		pressKey(setSearch(container, 'review'), 'Enter', 13);
 		await service.requests[1].result.complete({ items: [createResource('Review')] });
-		const button = getElement(container, '.agent-finder-install-button');
+		const button = getElement(container, '.customization-marketplace-install-button');
 		button.focus();
 		button.click();
 		await installService.requests[0].result.error(new Error('Destination is not writable'));
 		const failed = getInstallPresentation(container);
-		const error = getElement(container, '.agent-finder-install-error');
+		const error = getElement(container, '.customization-marketplace-install-error');
 		const errorAssociatedWithButton = button.getAttribute('aria-describedby') === error.id;
 		const accessibleError = widget.getAccessibilityContent().split('\n').at(-1);
 		button.click();
 		const retrying = getInstallPresentation(container);
-		installService.setState('Review', { kind: 'installed' });
+		installService.setState(createResource('Review'), { kind: 'installed' });
 		await installService.requests[1].result.complete();
 
 		assert.deepStrictEqual({
@@ -996,7 +1099,7 @@ suite('AgentFinderWidget', () => {
 			accessibleError,
 			retrying,
 			completed: getInstallPresentation(container),
-			query: getElement<HTMLInputElement>(container, '.agent-finder-search input').value,
+			query: getElement<HTMLInputElement>(container, '.customization-marketplace-search input').value,
 			names: getCardNames(container),
 			requests: installService.requests.length,
 			focused: DOM.getActiveElement() === button,
@@ -1024,7 +1127,7 @@ suite('AgentFinderWidget', () => {
 		const { container, widget, service, installService, notifications, signals } = createWidget();
 		widget.setVisible(true);
 		await service.requests[0].result.complete({ items: [createResource('Review')] });
-		getElement(container, '.agent-finder-install-button').click();
+		getElement(container, '.customization-marketplace-install-button').click();
 		await installService.requests[0].result.complete();
 
 		assert.deepStrictEqual({
@@ -1045,13 +1148,13 @@ suite('AgentFinderWidget', () => {
 		widget.setVisible(true);
 		await service.requests[0].result.complete({
 			items: [createResource('Review')],
-			nextCursor: { kind: 'browse', offset: 24 },
+			nextCursor: createCursor('next-page'),
 		});
-		getElement(container, '.agent-finder-install-button').click();
+		getElement(container, '.customization-marketplace-install-button').click();
 		getButton(container, 'Load More').click();
 		widget.setVisible(false);
 		const installationStillPending = !installService.requests[0].result.isSettled;
-		installService.setState('Review', { kind: 'installed' });
+		installService.setState(createResource('Review'), { kind: 'installed' });
 		await installService.requests[0].result.complete();
 		await service.requests[1].result.complete({ items: [createResource('Hidden result')] });
 		widget.setVisible(true);
@@ -1081,12 +1184,12 @@ suite('AgentFinderWidget', () => {
 		const { container, widget, service, installService, notifications, signals } = createWidget();
 		widget.setVisible(true);
 		await service.requests[0].result.complete({ items: [createResource('Review')] });
-		getElement(container, '.agent-finder-install-button').click();
-		const card = getElement(container, '.agent-finder-card');
+		getElement(container, '.customization-marketplace-install-button').click();
+		const card = getElement(container, '.customization-marketplace-card');
 		widget.dispose();
 		const disposedMarkup = card.innerHTML;
 		installService.stateReads.length = 0;
-		installService.setState('Review', { kind: 'installed' });
+		installService.setState(createResource('Review'), { kind: 'installed' });
 		await installService.requests[0].result.complete();
 
 		assert.deepStrictEqual({
@@ -1101,13 +1204,13 @@ suite('AgentFinderWidget', () => {
 		const { container, widget, service, installService } = createWidget();
 		widget.setVisible(true);
 		await service.requests[0].result.complete({ items: [createResource('Review')] });
-		getElement(container, '.agent-finder-install-button').click();
-		const oldCard = getElement(container, '.agent-finder-card');
+		getElement(container, '.customization-marketplace-install-button').click();
+		const oldCard = getElement(container, '.customization-marketplace-card');
 		pressKey(setSearch(container, 'browser'), 'Enter', 13);
 		const oldMarkup = oldCard.innerHTML;
 		await service.requests[1].result.complete({ items: [createResource('Browser')] });
 		installService.stateReads.length = 0;
-		installService.setState('Review', { kind: 'installed' });
+		installService.setState(createResource('Review'), { kind: 'installed' });
 		await installService.requests[0].result.complete();
 
 		assert.deepStrictEqual({
@@ -1130,7 +1233,7 @@ suite('AgentFinderWidget', () => {
 			const { container, widget, service, installService, notifications, signals } = createWidget();
 			widget.setVisible(true);
 			await service.requests[0].result.complete({ items: [createResource('Review')] });
-			getElement(container, '.agent-finder-install-button').click();
+			getElement(container, '.customization-marketplace-install-button').click();
 			if (lifecycle === 'hidden') {
 				widget.setVisible(false);
 			} else {
@@ -1169,19 +1272,19 @@ suite('AgentFinderWidget', () => {
 		});
 		widget.setVisible(true);
 		await service.requests[0].result.complete({ items: [resource] });
-		const links = Array.from(container.querySelectorAll<HTMLAnchorElement>('.agent-finder-card a[href]'));
+		const links = Array.from(container.querySelectorAll<HTMLAnchorElement>('.customization-marketplace-card a[href]'));
 		for (const link of links) {
 			link.click();
 		}
 
 		assert.deepStrictEqual({
-			name: getElement(container, '.agent-finder-name').textContent,
-			description: getElement(container, '.agent-finder-card-description').textContent,
-			publisher: getElement(container, '.agent-finder-publisher').textContent,
-			executableElements: container.querySelectorAll('.agent-finder-card img, .agent-finder-card script, .agent-finder-card iframe').length,
+			name: getElement(container, '.customization-marketplace-name').textContent,
+			description: getElement(container, '.customization-marketplace-card-description').textContent,
+			publisher: getElement(container, '.customization-marketplace-publisher').textContent,
+			executableElements: container.querySelectorAll('.customization-marketplace-card img, .customization-marketplace-card script, .customization-marketplace-card iframe').length,
 			actions: links.map(link => ({ label: link.textContent, rel: link.rel })),
-			inlineTags: Array.from(container.querySelectorAll('.agent-finder-tag'), tag => tag.textContent),
-			details: Array.from(container.querySelectorAll('.agent-finder-details li'), item => item.textContent),
+			inlineTags: Array.from(container.querySelectorAll('.customization-marketplace-tag'), tag => tag.textContent),
+			details: Array.from(container.querySelectorAll('.customization-marketplace-details li'), item => item.textContent),
 			opened,
 		}, {
 			name: resource.displayName,
@@ -1207,7 +1310,7 @@ suite('AgentFinderWidget', () => {
 		await service.requests[0].result.complete({
 			items: [createResource('Review', { url: URI.parse('https://example.com/review') })],
 		});
-		getElement<HTMLAnchorElement>(container, '.agent-finder-card a[href]').click();
+		getElement<HTMLAnchorElement>(container, '.customization-marketplace-card a[href]').click();
 		await Promise.resolve();
 
 		assert.deepStrictEqual({
@@ -1215,7 +1318,7 @@ suite('AgentFinderWidget', () => {
 			notifications,
 		}, {
 			names: ['Review'],
-			notifications: ['Could not open the AgentFinder resource. Browser unavailable'],
+			notifications: ['Could not open the marketplace resource. Browser unavailable'],
 		});
 	});
 
@@ -1225,12 +1328,12 @@ suite('AgentFinderWidget', () => {
 		widget.setVisible(true);
 		await service.requests[0].result.complete({
 			items: [createResource('Encoded server', {
-				mediaType: AgentFinderMediaType.McpServer,
+				mediaType: CustomizationMarketplaceMediaType.McpServer,
 				url: URI.parse(externalUrl),
 				externalUrl,
 			})],
 		});
-		const link = getElement<HTMLAnchorElement>(container, '.agent-finder-card a[href]');
+		const link = getElement<HTMLAnchorElement>(container, '.customization-marketplace-card a[href]');
 		const hoverOptions = hovers.find(([target]) => target === link)?.[1];
 		link.click();
 
@@ -1254,11 +1357,11 @@ suite('AgentFinderWidget', () => {
 		await service.requests[0].result.complete({
 			items: [
 				createResource('Loaded', { icon }),
-				createResource('Failed', { icon, mediaType: AgentFinderMediaType.McpServer }),
-				createResource('No icon', { mediaType: AgentFinderMediaType.CopilotPlugin }),
+				createResource('Failed', { icon, mediaType: CustomizationMarketplaceMediaType.McpServer }),
+				createResource('No icon', { mediaType: CustomizationMarketplaceMediaType.CopilotPlugin }),
 			],
 		});
-		const cards = container.querySelectorAll<HTMLElement>('.agent-finder-card');
+		const cards = container.querySelectorAll<HTMLElement>('.customization-marketplace-card');
 		const loadedImage = getElement<HTMLImageElement>(cards[0], 'img');
 		const failedImage = getElement<HTMLImageElement>(cards[1], 'img');
 		const beforeLoad = {
@@ -1279,7 +1382,7 @@ suite('AgentFinderWidget', () => {
 				fallbackDisplay: getElement(cards[0], '.codicon').style.display,
 				alt: loadedImage.alt,
 				referrerPolicy: loadedImage.referrerPolicy,
-				iconHidden: getElement(cards[0], '.agent-finder-icon').getAttribute('aria-hidden'),
+				iconHidden: getElement(cards[0], '.customization-marketplace-icon').getAttribute('aria-hidden'),
 			},
 			failed: {
 				fallbackAfterLoad: failedFallbackAfterLoad,
@@ -1304,9 +1407,9 @@ suite('AgentFinderWidget', () => {
 		await service.requests[0].result.complete({
 			items: ['First', 'Second', 'Third'].map(name => createResource(name, { url: URI.parse('https://example.com/resource') })),
 		});
-		const results = getElement(container, '.agent-finder-results');
+		const results = getElement(container, '.customization-marketplace-results');
 		results.style.gridTemplateColumns = '1fr';
-		const cards = Array.from(container.querySelectorAll<HTMLElement>('.agent-finder-card'));
+		const cards = Array.from(container.querySelectorAll<HTMLElement>('.customization-marketplace-card'));
 		cards[0].focus();
 		const focused: number[] = [];
 		for (const [key, keyCode] of [['ArrowRight', 39], ['End', 35], ['ArrowDown', 40], ['Home', 36], ['ArrowDown', 40], ['ArrowUp', 38], ['ArrowLeft', 37]] as const) {
@@ -1326,7 +1429,7 @@ suite('AgentFinderWidget', () => {
 			linkKeyPrevented: linkKey.defaultPrevented,
 			tabKeyPrevented: tabKey.defaultPrevented,
 			linkKeptFocus,
-			searchFocused: DOM.getActiveElement() === getElement(container, '.agent-finder-search input'),
+			searchFocused: DOM.getActiveElement() === getElement(container, '.customization-marketplace-search input'),
 		}, {
 			focused: [1, 2, 2, 0, 1, 0, 0],
 			tabIndexes: [0, 0, 0],
@@ -1342,7 +1445,7 @@ suite('AgentFinderWidget', () => {
 		widget.setVisible(true);
 		await service.requests[0].result.complete({
 			items: [createResource('First')],
-			nextCursor: { kind: 'browse', offset: 24 },
+			nextCursor: createCursor('next-page'),
 		});
 		const button = getButton(container, 'Load More');
 		button.focus();
@@ -1351,7 +1454,7 @@ suite('AgentFinderWidget', () => {
 
 		assert.deepStrictEqual({
 			names: getCardNames(container),
-			focused: DOM.getActiveElement()?.querySelector('.agent-finder-name')?.textContent,
+			focused: DOM.getActiveElement()?.querySelector('.customization-marketplace-name')?.textContent,
 		}, { names: ['First', 'Second'], focused: 'Second' });
 	});
 
@@ -1360,7 +1463,7 @@ suite('AgentFinderWidget', () => {
 		widget.setVisible(true);
 		await service.requests[0].result.complete({
 			items: [createResource('First')],
-			nextCursor: { kind: 'browse', offset: 24 },
+			nextCursor: createCursor('next-page'),
 		});
 		const button = getButton(container, 'Load More');
 		button.focus();
@@ -1370,7 +1473,7 @@ suite('AgentFinderWidget', () => {
 
 		assert.deepStrictEqual({
 			names: getCardNames(container),
-			searchFocused: DOM.getActiveElement() === getElement(container, '.agent-finder-search input'),
+			searchFocused: DOM.getActiveElement() === getElement(container, '.customization-marketplace-search input'),
 		}, { names: ['First', 'Second'], searchFocused: true });
 	});
 
@@ -1379,18 +1482,18 @@ suite('AgentFinderWidget', () => {
 		widget.setVisible(true);
 		await service.requests[0].result.complete({
 			items: [createResource('First')],
-			nextCursor: { kind: 'browse', offset: 24 },
+			nextCursor: createCursor('next-page'),
 		});
 		const button = getButton(container, 'Load More');
 		button.focus();
 		pressKey(button, 'Enter', 13);
 		widget.focus();
 		await service.requests[1].result.error(new Error('Try again'));
-		const searchFocusedAfterFailure = DOM.getActiveElement() === getElement(container, '.agent-finder-search input');
+		const searchFocusedAfterFailure = DOM.getActiveElement() === getElement(container, '.customization-marketplace-search input');
 		const retry = getButton(container, 'Retry');
 		retry.focus();
 		pressKey(retry, 'Enter', 13);
-		const firstCard = getElement(container, '.agent-finder-card');
+		const firstCard = getElement(container, '.customization-marketplace-card');
 		firstCard.focus();
 		await service.requests[2].result.complete({ items: [createResource('Second')] });
 
@@ -1408,7 +1511,7 @@ suite('AgentFinderWidget', () => {
 	test('accessible content includes all metadata, tags and external destinations', async () => {
 		const { container, widget, service } = createWidget();
 		const resource = createResource('Browser tools', {
-			mediaType: AgentFinderMediaType.McpServer,
+			mediaType: CustomizationMarketplaceMediaType.McpServer,
 			publisher: 'Example Publisher',
 			version: '2.4.0',
 			stars: 12,
@@ -1422,16 +1525,16 @@ suite('AgentFinderWidget', () => {
 		await service.requests[0].result.complete({ items: [resource], total: 1 });
 
 		assert.deepStrictEqual({
-			label: getElement(container, '.agent-finder-card').getAttribute('aria-label'),
+			label: getElement(container, '.customization-marketplace-card').getAttribute('aria-label'),
 			content: widget.getAccessibilityContent(),
 		}, {
 			label: 'Browser tools, MCP server. Description of Browser tools',
 			content: [
-				'AgentFinder',
+				'Marketplace',
 				'Showing 1 of 1 resources',
 				[
 					'Browser tools', 'MCP server', 'Example Publisher', 'Description of Browser tools',
-					'Version 2.4.0', '12 GitHub stars',
+					'Version 2.4.0', '12 stars',
 					'Tags:', ...resource.tags,
 					'Capabilities:', ...resource.capabilities,
 					'Example queries:', ...resource.representativeQueries,
@@ -1448,7 +1551,7 @@ suite('AgentFinderWidget', () => {
 		await service.requests[0].result.complete({ items: [createResource('Review')], total: 1 });
 
 		assert.strictEqual(widget.getAccessibilityContent(), [
-			'AgentFinder',
+			'Marketplace',
 			'Showing 1 of 1 resources',
 			['Review', 'Skill', 'Description of Review', 'Available to install'].join('\n'),
 		].join('\n\n'));
@@ -1456,25 +1559,25 @@ suite('AgentFinderWidget', () => {
 
 	test('accessibility hints follow the verbosity setting and keybinding changes', async () => {
 		const { container, configuration, setHelpKeybinding } = createWidget();
-		const input = getElement(container, '.agent-finder-search input');
+		const input = getElement(container, '.customization-marketplace-search input');
 		const labels = [input.getAttribute('aria-label')];
 		setHelpKeybinding(new USLayoutResolvedKeybinding(
 			[new KeyCodeChord(true, false, false, false, KeyCode.KeyH)], OperatingSystem.Linux));
 		labels.push(input.getAttribute('aria-label'));
-		await configuration.setUserConfiguration(AccessibilityVerbositySettingId.AgentFinder, false);
+		await configuration.setUserConfiguration(AccessibilityVerbositySettingId.CustomizationMarketplace, false);
 		configuration.onDidChangeConfigurationEmitter.fire(new class extends mock<IConfigurationChangeEvent>() {
-			override affectsConfiguration(section: string) { return section === AccessibilityVerbositySettingId.AgentFinder; }
+			override affectsConfiguration(section: string) { return section === AccessibilityVerbositySettingId.CustomizationMarketplace; }
 		}());
 		labels.push(input.getAttribute('aria-label'));
-		await configuration.setUserConfiguration(AccessibilityVerbositySettingId.AgentFinder, true);
+		await configuration.setUserConfiguration(AccessibilityVerbositySettingId.CustomizationMarketplace, true);
 		setHelpKeybinding(undefined);
 		labels.push(input.getAttribute('aria-label'));
 
 		assert.deepStrictEqual(labels, [
-			'Search AgentFinder. Use Alt+F1 for accessibility help.',
-			'Search AgentFinder. Use Control+H for accessibility help.',
-			'Search AgentFinder',
-			'Search AgentFinder',
+			'Search marketplace. Use Alt+F1 for accessibility help.',
+			'Search marketplace. Use Control+H for accessibility help.',
+			'Search marketplace',
+			'Search marketplace',
 		]);
 	});
 });

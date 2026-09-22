@@ -235,7 +235,7 @@ suite('aiCustomizationManagementEditor', () => {
 		// Default to enabling the structured preview so existing assertions exercise the preview path.
 		const merged: Record<string, unknown> = {
 			[ChatConfiguration.ChatCustomizationsStructuredPreviewEnabled]: true,
-			[ChatConfiguration.AgentFinderEnabled]: true,
+			[ChatConfiguration.ChatCustomizationsUnifiedMarketplaceEnabled]: true,
 			...values,
 		};
 		return {
@@ -395,9 +395,9 @@ suite('aiCustomizationManagementEditor', () => {
 	}
 
 	function createGatedSectionEditor(enabled?: boolean) {
-		const context = createContributedSectionEditor(ChatConfiguration.AgentFinderEnabled);
+		const context = createContributedSectionEditor(ChatConfiguration.ChatCustomizationsUnifiedMarketplaceEnabled);
 		const { editor, section } = context;
-		const configuration = createConfigurationServiceStub({ [ChatConfiguration.AgentFinderEnabled]: enabled });
+		const configuration = createConfigurationServiceStub({ [ChatConfiguration.ChatCustomizationsUnifiedMarketplaceEnabled]: enabled });
 		editor.configurationService = configuration;
 		const sections: { id: AICustomizationManagementSection }[] = [];
 		let overview: readonly AICustomizationManagementSection[] = [];
@@ -449,7 +449,7 @@ suite('aiCustomizationManagementEditor', () => {
 		const container = editor.contributedSectionContainers.get(section)!;
 		container.textContent = 'Feature content';
 
-		await configuration.updateValue(ChatConfiguration.AgentFinderEnabled, false);
+		await configuration.updateValue(ChatConfiguration.ChatCustomizationsUnifiedMarketplaceEnabled, false);
 		editor.updateContributedSectionEnablement();
 		const disabled = {
 			created: state.created,
@@ -460,7 +460,7 @@ suite('aiCustomizationManagementEditor', () => {
 			sections: sections.map(section => section.id),
 			overview: getOverview(),
 		};
-		await configuration.updateValue(ChatConfiguration.AgentFinderEnabled, true);
+		await configuration.updateValue(ChatConfiguration.ChatCustomizationsUnifiedMarketplaceEnabled, true);
 		editor.updateContributedSectionEnablement();
 		editor.selectSectionById(section);
 
@@ -555,27 +555,27 @@ suite('aiCustomizationManagementEditor', () => {
 	test('contributed sections load only in the selected visible editor and hide in detail modes', () => {
 		const editor = createTestEditor();
 		store.add(editor.editorPreviewDisposables);
-		let finderVisible = false;
+		let marketplaceVisible = false;
 		let otherVisible = false;
-		const finder = editor.editorDisposables.add({
-			setVisible(visible: boolean) { finderVisible = visible; },
+		const marketplace = editor.editorDisposables.add({
+			setVisible(visible: boolean) { marketplaceVisible = visible; },
 			dispose() { },
 		});
 		const other = editor.editorDisposables.add({
 			setVisible(visible: boolean) { otherVisible = visible; },
 			dispose() { },
 		});
-		editor.contributedSectionContainers.set(AICustomizationManagementSection.AgentFinder, document.createElement('div'));
+		editor.contributedSectionContainers.set(AICustomizationManagementSection.Marketplace, document.createElement('div'));
 		editor.contributedSectionContainers.set(AICustomizationManagementSection.HarnessSettings, document.createElement('div'));
-		editor.contributedSectionWidgets.set(AICustomizationManagementSection.AgentFinder, finder);
+		editor.contributedSectionWidgets.set(AICustomizationManagementSection.Marketplace, marketplace);
 		editor.contributedSectionWidgets.set(AICustomizationManagementSection.HarnessSettings, other);
 		const readVisibility = () => ({
-			finderVisible,
+			marketplaceVisible,
 			otherVisible,
-			active: editor.getActiveSectionWidget() === finder ? 'finder' : editor.getActiveSectionWidget() === other ? 'other' : undefined,
+			active: editor.getActiveSectionWidget() === marketplace ? 'marketplace' : editor.getActiveSectionWidget() === other ? 'other' : undefined,
 		});
 
-		editor.selectedSection = AICustomizationManagementSection.AgentFinder;
+		editor.selectedSection = AICustomizationManagementSection.Marketplace;
 		editor.updateContentVisibility();
 		const hidden = readVisibility();
 		editor.setVisible(true);
@@ -601,13 +601,13 @@ suite('aiCustomizationManagementEditor', () => {
 		assert.deepStrictEqual({
 			hidden, visible, hiddenInDetails, switched, closed, reopened, welcome,
 		}, {
-			hidden: { finderVisible: false, otherVisible: false, active: 'finder' },
-			visible: { finderVisible: true, otherVisible: false, active: 'finder' },
-			hiddenInDetails: detailModes.map(() => ({ finderVisible: false, otherVisible: false, active: undefined })),
-			switched: { finderVisible: false, otherVisible: true, active: 'other' },
-			closed: { finderVisible: false, otherVisible: false, active: 'other' },
-			reopened: { finderVisible: false, otherVisible: true, active: 'other' },
-			welcome: { finderVisible: false, otherVisible: false, active: undefined },
+			hidden: { marketplaceVisible: false, otherVisible: false, active: 'marketplace' },
+			visible: { marketplaceVisible: true, otherVisible: false, active: 'marketplace' },
+			hiddenInDetails: detailModes.map(() => ({ marketplaceVisible: false, otherVisible: false, active: undefined })),
+			switched: { marketplaceVisible: false, otherVisible: true, active: 'other' },
+			closed: { marketplaceVisible: false, otherVisible: false, active: 'other' },
+			reopened: { marketplaceVisible: false, otherVisible: true, active: 'other' },
+			welcome: { marketplaceVisible: false, otherVisible: false, active: undefined },
 		});
 	});
 
@@ -624,8 +624,8 @@ suite('aiCustomizationManagementEditor', () => {
 			setVisible(visible: boolean) { events.push(visible); },
 			dispose() { events.push('disposed'); },
 		});
-		editor.contributedSectionWidgets.set(AICustomizationManagementSection.AgentFinder, widget);
-		editor.selectedSection = AICustomizationManagementSection.AgentFinder;
+		editor.contributedSectionWidgets.set(AICustomizationManagementSection.Marketplace, widget);
+		editor.selectedSection = AICustomizationManagementSection.Marketplace;
 
 		editor.setVisible(true);
 		editor.clearInput();

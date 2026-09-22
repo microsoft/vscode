@@ -14,11 +14,11 @@ import { toDisposable } from '../../../../base/common/lifecycle.js';
 import { IRequestContext, IRequestOptions } from '../../../../base/parts/request/common/request.js';
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { CustomizationMarketplaceMediaType, ICustomizationMarketplaceEntry, ICustomizationMarketplaceSourceQuery } from '../../../customizationMarketplace/common/customizationMarketplaceService.js';
 import { IRequestService } from '../../../request/common/request.js';
 import { AgentFinderRestProvider } from '../../common/agentFinderRestProvider.js';
-import { AgentFinderMediaType, IAgentFinderQuery, IAgentFinderResource } from '../../common/agentFinderService.js';
 
-// Representative public Agent Finder responses; fixtures never make network requests.
+// Representative public AgentFinder responses; fixtures never make network requests.
 const skill = {
 	identifier: 'urn:air:github.com:ChromeDevTools:chrome-devtools-mcp:a11y-debugging',
 	displayName: 'A11Y Debugging',
@@ -80,7 +80,7 @@ function response(body: unknown, statusCode = 200): IRequestContext {
 	};
 }
 
-function resourceSnapshot(resource: IAgentFinderResource) {
+function resourceSnapshot(resource: ICustomizationMarketplaceEntry) {
 	return {
 		...resource,
 		url: resource.url?.toString(),
@@ -100,7 +100,7 @@ suite('AgentFinderRestProvider', () => {
 
 	test('parses an observed skill browse response and derives the repository owner avatar', async () => {
 		const { service, requests } = createService({ results: [skill], total: 1678, offset: 0, pageSize: 1 });
-		const page = await service.query({ mediaType: AgentFinderMediaType.Skill, pageSize: 1 }, CancellationToken.None);
+		const page = await service.query({ mediaType: CustomizationMarketplaceMediaType.Skill, pageSize: 1 }, CancellationToken.None);
 
 		assert.deepStrictEqual({
 			items: page.items.map(resourceSnapshot),
@@ -125,7 +125,7 @@ suite('AgentFinderRestProvider', () => {
 				installation: { kind: 'skill', repository: 'ChromeDevTools/chrome-devtools-mcp', ref: 'main', path: 'skills/a11y-debugging' },
 			}],
 			total: 1678,
-			nextCursor: { kind: 'browse', offset: 1 },
+			nextCursor: JSON.stringify({ kind: 'browse', offset: 1 }),
 			requests: [{
 				url: 'https://agentfinder.github.com/api/v1/agents?pageSize=1&offset=0&type=application%2Fai-skill',
 				type: 'GET',
@@ -154,7 +154,7 @@ suite('AgentFinderRestProvider', () => {
 			stars: item.stars,
 		})), [{
 			displayName: 'pgEdge Postgres',
-			mediaType: AgentFinderMediaType.McpServer,
+			mediaType: CustomizationMarketplaceMediaType.McpServer,
 			version: '1.0.0',
 			url: 'https://api.mcp.github.com/oss/v0.1/servers/io.github.pgEdge/postgres-mcp/versions/latest',
 			externalUrl: mcpServer.url,
@@ -167,9 +167,9 @@ suite('AgentFinderRestProvider', () => {
 
 	test('parses observed metadata for each plugin media type', async () => {
 		const plugins = [
-			{ mediaType: AgentFinderMediaType.ClaudePlugin, sourceSet: 'JetBrains/go-modern-guidelines', repoPath: 'claude/modern-go-guidelines/.claude-plugin/plugin.json' },
-			{ mediaType: AgentFinderMediaType.CopilotPlugin, sourceSet: 'github/awesome-copilot', repoPath: 'plugins/accessibility-kanban/plugin.json' },
-			{ mediaType: AgentFinderMediaType.CursorPlugin, sourceSet: 'ChromeDevTools/chrome-devtools-mcp', repoPath: '.cursor-plugin/plugin.json' },
+			{ mediaType: CustomizationMarketplaceMediaType.ClaudePlugin, sourceSet: 'JetBrains/go-modern-guidelines', repoPath: 'claude/modern-go-guidelines/.claude-plugin/plugin.json' },
+			{ mediaType: CustomizationMarketplaceMediaType.CopilotPlugin, sourceSet: 'github/awesome-copilot', repoPath: 'plugins/accessibility-kanban/plugin.json' },
+			{ mediaType: CustomizationMarketplaceMediaType.CursorPlugin, sourceSet: 'ChromeDevTools/chrome-devtools-mcp', repoPath: '.cursor-plugin/plugin.json' },
 		];
 		const { service } = createService({
 			results: plugins.map(plugin => ({ ...skill, type: plugin.mediaType, mediaType: plugin.mediaType, metadata: { sourceSet: plugin.sourceSet, repoPath: plugin.repoPath } })),
@@ -178,29 +178,29 @@ suite('AgentFinderRestProvider', () => {
 		const page = await service.query({}, CancellationToken.None);
 
 		assert.deepStrictEqual(page.items.map(item => [item.mediaType, item.repository?.toString(), item.publisher, item.stars]), [
-			[AgentFinderMediaType.ClaudePlugin, 'https://github.com/JetBrains/go-modern-guidelines', 'JetBrains', undefined],
-			[AgentFinderMediaType.CopilotPlugin, 'https://github.com/github/awesome-copilot', 'github', undefined],
-			[AgentFinderMediaType.CursorPlugin, 'https://github.com/ChromeDevTools/chrome-devtools-mcp', 'ChromeDevTools', undefined],
+			[CustomizationMarketplaceMediaType.ClaudePlugin, 'https://github.com/JetBrains/go-modern-guidelines', 'JetBrains', undefined],
+			[CustomizationMarketplaceMediaType.CopilotPlugin, 'https://github.com/github/awesome-copilot', 'github', undefined],
+			[CustomizationMarketplaceMediaType.CursorPlugin, 'https://github.com/ChromeDevTools/chrome-devtools-mcp', 'ChromeDevTools', undefined],
 		]);
 	});
 
 	suite('installation provenance', () => {
 		const copilotPlugin = {
 			...skill,
-			type: AgentFinderMediaType.CopilotPlugin,
-			mediaType: AgentFinderMediaType.CopilotPlugin,
+			type: CustomizationMarketplaceMediaType.CopilotPlugin,
+			mediaType: CustomizationMarketplaceMediaType.CopilotPlugin,
 			url: 'https://github.com/github/awesome-copilot/blob/main/plugins/accessibility-kanban/plugin.json',
 			metadata: { sourceSet: 'github/awesome-copilot', repoPath: 'plugins/accessibility-kanban/plugin.json' },
 		};
 		const claudePlugin = {
 			...skill,
-			type: AgentFinderMediaType.ClaudePlugin,
-			mediaType: AgentFinderMediaType.ClaudePlugin,
+			type: CustomizationMarketplaceMediaType.ClaudePlugin,
+			mediaType: CustomizationMarketplaceMediaType.ClaudePlugin,
 			url: 'https://github.com/JetBrains/go-modern-guidelines/blob/main/claude/modern-go-guidelines',
 			metadata: { sourceSet: 'JetBrains/go-modern-guidelines', repoPath: 'claude/modern-go-guidelines/.claude-plugin/plugin.json' },
 		};
 
-		async function resources(values: readonly object[]): Promise<readonly IAgentFinderResource[]> {
+		async function resources(values: readonly object[]): Promise<readonly ICustomizationMarketplaceEntry[]> {
 			const { service } = createService({ results: values, total: values.length, offset: 0, pageSize: 100 });
 			return (await service.query({ pageSize: 100 }, CancellationToken.None)).items;
 		}
@@ -212,8 +212,8 @@ suite('AgentFinderRestProvider', () => {
 				claudePlugin,
 				{
 					...skill,
-					type: AgentFinderMediaType.CursorPlugin,
-					mediaType: AgentFinderMediaType.CursorPlugin,
+					type: CustomizationMarketplaceMediaType.CursorPlugin,
+					mediaType: CustomizationMarketplaceMediaType.CursorPlugin,
 					url: 'https://github.com/ChromeDevTools/chrome-devtools-mcp/blob/main',
 					metadata: { sourceSet: 'ChromeDevTools/chrome-devtools-mcp', repoPath: '.cursor-plugin/plugin.json' },
 				},
@@ -397,11 +397,11 @@ suite('AgentFinderRestProvider', () => {
 
 	test('encodes media types containing plus signs and does not implicitly fetch more pages', async () => {
 		const { service, requests } = createService({ results: [skill], total: 100, offset: 7, pageSize: 2 });
-		const page = await service.query({ mediaType: AgentFinderMediaType.ClaudePlugin, pageSize: 2, cursor: { kind: 'browse', offset: 7 } }, CancellationToken.None);
+		const page = await service.query({ mediaType: CustomizationMarketplaceMediaType.ClaudePlugin, pageSize: 2, cursor: JSON.stringify({ kind: 'browse', offset: 7 }) }, CancellationToken.None);
 
 		assert.deepStrictEqual({ urls: requests.requests.map(request => request.url), nextCursor: page.nextCursor }, {
 			urls: ['https://agentfinder.github.com/api/v1/agents?pageSize=2&offset=7&type=application%2Fvnd.anthropic.claude-plugin%2Bjson'],
-			nextCursor: { kind: 'browse', offset: 8 },
+			nextCursor: JSON.stringify({ kind: 'browse', offset: 8 }),
 		});
 	});
 
@@ -416,7 +416,7 @@ suite('AgentFinderRestProvider', () => {
 		const second = await service.query({ pageSize: 2, cursor: first.nextCursor }, CancellationToken.None);
 
 		assert.deepStrictEqual({ cursors: [first.nextCursor, second.nextCursor], lengths: [first.items.length, second.items.length], requests: requests.requests.length }, {
-			cursors: [{ kind: 'browse', offset: 2 }, undefined], lengths: [2, 1], requests: 2,
+			cursors: [JSON.stringify({ kind: 'browse', offset: 2 }), undefined], lengths: [2, 1], requests: 2,
 		});
 	});
 
@@ -428,7 +428,7 @@ suite('AgentFinderRestProvider', () => {
 		];
 		const requests = new TestRequestService(async () => response(responses.shift()));
 		const service = new AgentFinderRestProvider(requests);
-		const options = { query: ' postgres + "JSON" & café ', mediaType: AgentFinderMediaType.Skill, pageSize: 2 };
+		const options = { query: ' postgres + "JSON" & café ', mediaType: CustomizationMarketplaceMediaType.Skill, pageSize: 2 };
 		const first = await service.query(options, CancellationToken.None);
 		const second = await service.query({ ...options, cursor: first.nextCursor }, CancellationToken.None);
 
@@ -436,12 +436,12 @@ suite('AgentFinderRestProvider', () => {
 			pages: [first, second].map(page => ({ total: page.total, nextCursor: page.nextCursor })),
 			requests: requests.requests.map(request => ({ type: request.type, url: request.url, headers: request.headers, body: JSON.parse(request.data!) })),
 		}, {
-			pages: [{ total: undefined, nextCursor: { kind: 'search', pageToken } }, { total: undefined, nextCursor: undefined }],
+			pages: [{ total: undefined, nextCursor: JSON.stringify({ kind: 'search', pageToken }) }, { total: undefined, nextCursor: undefined }],
 			requests: [undefined, pageToken].map(token => ({
 				type: 'POST',
 				url: 'https://agentfinder.github.com/api/v1/search',
 				headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
-				body: { query: { text: 'postgres + "JSON" & café', filter: { type: [AgentFinderMediaType.Skill] } }, pageSize: 2, ...(token ? { pageToken: token } : {}) },
+				body: { query: { text: 'postgres + "JSON" & café', filter: { type: [CustomizationMarketplaceMediaType.Skill] } }, pageSize: 2, ...(token ? { pageToken: token } : {}) },
 			})),
 		});
 	});
@@ -582,7 +582,7 @@ suite('AgentFinderRestProvider', () => {
 			{ ...valid, results: Array.from({ length: 31 }, () => skill) },
 		]) {
 			const { service } = createService(body);
-			await assert.rejects(service.query({}, CancellationToken.None), /Agent Finder returned an invalid response/);
+			await assert.rejects(service.query({}, CancellationToken.None), /The customization catalog returned an invalid response/);
 		}
 	});
 
@@ -593,7 +593,7 @@ suite('AgentFinderRestProvider', () => {
 			{ ...skill, type: 42 }, { ...skill, type: 'different/type' }, { ...skill, type: undefined, mediaType: '' },
 		]) {
 			const { service } = createService({ results: [skill, item], total: 2, offset: 0, pageSize: 30 });
-			await assert.rejects(service.query({}, CancellationToken.None), /Agent Finder returned an invalid response/);
+			await assert.rejects(service.query({}, CancellationToken.None), /The customization catalog returned an invalid response/);
 		}
 	});
 
@@ -603,18 +603,20 @@ suite('AgentFinderRestProvider', () => {
 			{ results: [skill], pageToken: 'x'.repeat(8193) }, { results: [skill], pageToken: 'current' }, { results: [], pageToken: 'next' },
 		]) {
 			const { service } = createService(body);
-			await assert.rejects(service.query({ query: 'postgres', cursor: { kind: 'search', pageToken: 'current' } }, CancellationToken.None), /invalid response/);
+			await assert.rejects(service.query({ query: 'postgres', cursor: JSON.stringify({ kind: 'search', pageToken: 'current' }) }, CancellationToken.None), /invalid response/);
 		}
 	});
 
 	test('validates query bounds and cursor modes before requesting', async () => {
 		const { service, requests } = createService({});
-		const queries: IAgentFinderQuery[] = [
+		const queries: ICustomizationMarketplaceSourceQuery[] = [
 			{ query: 'x'.repeat(4097) }, { pageSize: 0 }, { pageSize: -1 }, { pageSize: 1.5 }, { pageSize: NaN }, { pageSize: Infinity },
-			{ cursor: { kind: 'browse', offset: -1 } }, { cursor: { kind: 'browse', offset: 0.5 } },
-			{ cursor: { kind: 'browse', offset: Number.MAX_SAFE_INTEGER + 1 } },
-			{ query: 'postgres', cursor: { kind: 'browse', offset: 0 } }, { cursor: { kind: 'search', pageToken: 'token' } },
-			{ query: 'postgres', cursor: { kind: 'search', pageToken: '' } }, { query: 'postgres', cursor: { kind: 'search', pageToken: 'x'.repeat(8193) } },
+			{ cursor: JSON.stringify({ kind: 'browse', offset: -1 }) }, { cursor: JSON.stringify({ kind: 'browse', offset: 0.5 }) },
+			{ cursor: JSON.stringify({ kind: 'browse', offset: Number.MAX_SAFE_INTEGER + 1 }) },
+			{ query: 'postgres', cursor: JSON.stringify({ kind: 'browse', offset: 0 }) }, { cursor: JSON.stringify({ kind: 'search', pageToken: 'token' }) },
+			{ query: 'postgres', cursor: JSON.stringify({ kind: 'search', pageToken: '' }) }, { query: 'postgres', cursor: JSON.stringify({ kind: 'search', pageToken: 'x'.repeat(8193) }) },
+			{ cursor: '' }, { cursor: 'not-json' }, { cursor: 'null' }, { cursor: '[]' }, { cursor: '{}' },
+			{ cursor: 'x'.repeat(8192 * 6 + 65) },
 		];
 		for (const query of queries) {
 			await assert.rejects(service.query(query, CancellationToken.None), /invalid/);
@@ -627,8 +629,8 @@ suite('AgentFinderRestProvider', () => {
 			const { service, requests } = createService({ message: 'private upstream details' }, status);
 			await assert.rejects(service.query({ query: 'postgres' }, CancellationToken.None), {
 				message: status === 429
-					? 'Agent Finder is receiving too many requests. Try again later.'
-					: `Agent Finder could not complete the request (HTTP ${status}). Try again later.`,
+					? 'The customization catalog is receiving too many requests. Try again later.'
+					: `The customization catalog could not complete the request (HTTP ${status}). Try again later.`,
 			});
 			assert.deepStrictEqual(requests.requests.map(request => request.type), ['POST']);
 		}
@@ -640,14 +642,14 @@ suite('AgentFinderRestProvider', () => {
 			stream: bufferToStream(VSBuffer.fromString('<html>private upstream details</html>')),
 		}));
 		await assert.rejects(new AgentFinderRestProvider(requests).query({}, CancellationToken.None), {
-			message: 'Agent Finder returned invalid JSON. Try again later.',
+			message: 'The customization catalog returned invalid JSON. Try again later.',
 		});
 	});
 
 	test('reports transport and stream failures without exposing underlying details', async () => {
 		const requests = new TestRequestService(async () => { throw new Error('private transport details'); });
 		await assert.rejects(new AgentFinderRestProvider(requests).query({}, CancellationToken.None), {
-			message: 'Unable to reach Agent Finder. Check your connection and try again.',
+			message: 'Unable to reach the customization catalog. Check your connection and try again.',
 		});
 
 		const stream = newWriteableBufferStream();
@@ -655,7 +657,7 @@ suite('AgentFinderRestProvider', () => {
 		stream.error(new Error('private stream details'));
 		const streamRequests = new TestRequestService(async () => ({ res: { statusCode: 200, headers: {} }, stream }));
 		await assert.rejects(new AgentFinderRestProvider(streamRequests).query({}, CancellationToken.None), {
-			message: 'Unable to reach Agent Finder. Check your connection and try again.',
+			message: 'Unable to reach the customization catalog. Check your connection and try again.',
 		});
 	});
 
@@ -698,7 +700,7 @@ suite('AgentFinderRestProvider', () => {
 	test('times out and cancels a request that never resolves', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const requests = new TestRequestService(() => new Promise(() => { }));
 		await assert.rejects(new AgentFinderRestProvider(requests).query({}, CancellationToken.None), {
-			message: 'Agent Finder took too long to respond. Try again.',
+			message: 'The customization catalog took too long to respond. Try again.',
 		});
 		assert.strictEqual(requests.tokens[0].isCancellationRequested, true);
 	}));

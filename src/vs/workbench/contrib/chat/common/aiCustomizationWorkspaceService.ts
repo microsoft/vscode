@@ -36,7 +36,7 @@ export const BUILTIN_STORAGE = AICustomizationSources.builtin;
  * Possible section IDs for the AI Customization Management Editor sidebar.
  */
 export const AICustomizationManagementSection = {
-	AgentFinder: 'agentFinder',
+	Marketplace: 'marketplace',
 	Agents: 'agents',
 	Skills: 'skills',
 	Instructions: 'instructions',

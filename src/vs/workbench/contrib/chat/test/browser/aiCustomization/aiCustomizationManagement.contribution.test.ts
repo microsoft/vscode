@@ -31,11 +31,17 @@ suite('AI customization management contribution', () => {
 		'aiCustomizationManagement.installChatCustomizationExtension',
 	]);
 
-	test('AgentFinder declares its experiment gate before any widget is created', () => {
-		assert.strictEqual(
-			aiCustomizationManagementSectionRegistry.getDefault(AICustomizationManagementSection.AgentFinder)?.enablementSetting,
-			ChatConfiguration.AgentFinderEnabled,
-		);
+	test('Marketplace declares its experiment gate and source-neutral label before any widget is created', () => {
+		const section = aiCustomizationManagementSectionRegistry.getDefault(AICustomizationManagementSection.Marketplace);
+		assert.deepStrictEqual({
+			id: section?.id,
+			label: section?.label,
+			enablementSetting: section?.enablementSetting,
+		}, {
+			id: 'marketplace',
+			label: 'Marketplace',
+			enablementSetting: ChatConfiguration.ChatCustomizationsUnifiedMarketplaceEnabled,
+		});
 	});
 
 	test('isolates synthetic items from extension-contributed item actions', () => {

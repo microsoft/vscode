@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.agent-finder-widget {
+.customization-marketplace-widget {
 	display: flex;
 	flex-direction: column;
 	height: 100%;
@@ -17,77 +17,77 @@
 	border-radius: var(--vscode-cornerRadius-medium);
 }
 
-.agent-finder-widget .agent-finder-header {
+.customization-marketplace-widget .customization-marketplace-header {
 	padding: var(--vscode-spacing-size240) var(--vscode-spacing-size240) var(--vscode-spacing-size120);
 }
 
-.agent-finder-widget h2 {
+.customization-marketplace-widget h2 {
 	margin: 0;
 	font-size: var(--vscode-fontSize-heading2);
 	font-weight: var(--vscode-fontWeight-semiBold);
 }
 
-.agent-finder-widget .agent-finder-description {
+.customization-marketplace-widget .customization-marketplace-description {
 	margin: var(--vscode-spacing-size80) 0 var(--vscode-spacing-size200);
 	color: var(--vscode-descriptionForeground);
 	font-size: var(--vscode-fontSize-body1);
 }
 
-.agent-finder-widget .agent-finder-controls {
+.customization-marketplace-widget .customization-marketplace-controls {
 	display: flex;
 	flex-wrap: wrap;
 	align-items: center;
 	gap: var(--vscode-spacing-size80);
 }
 
-.agent-finder-widget .agent-finder-search {
+.customization-marketplace-widget .customization-marketplace-search {
 	flex: 1 1 220px;
 	min-width: 0;
 }
 
-.agent-finder-widget .agent-finder-search > .monaco-inputbox {
+.customization-marketplace-widget .customization-marketplace-search > .monaco-inputbox {
 	width: 100%;
 	min-height: 26px;
 }
 
-.agent-finder-widget .agent-finder-type-filter {
+.customization-marketplace-widget .customization-marketplace-type-filter {
 	flex: 0 1 180px;
 	min-width: 0;
 }
 
-.agent-finder-widget .agent-finder-type-filter .monaco-select-box {
+.customization-marketplace-widget .customization-marketplace-type-filter .monaco-select-box {
 	box-sizing: border-box;
 	min-height: 26px;
 	padding: var(--vscode-spacing-size20) var(--vscode-spacing-size240) var(--vscode-spacing-size20) var(--vscode-spacing-size80);
 	font: inherit;
 }
 
-.agent-finder-widget .agent-finder-controls > .monaco-button,
-.agent-finder-widget .agent-finder-footer > .monaco-button {
+.customization-marketplace-widget .customization-marketplace-controls > .monaco-button,
+.customization-marketplace-widget .customization-marketplace-footer > .monaco-button {
 	width: auto;
 }
 
-.agent-finder-widget .agent-finder-status {
+.customization-marketplace-widget .customization-marketplace-status {
 	margin-top: var(--vscode-spacing-size120);
 	min-height: 1.4em;
 	font-size: var(--vscode-fontSize-label1);
 	color: var(--vscode-descriptionForeground);
 }
 
-.agent-finder-widget .agent-finder-scrollable {
+.customization-marketplace-widget .customization-marketplace-scrollable {
 	flex: 1;
 	min-height: 0;
 }
 
-.agent-finder-widget .agent-finder-scroll-content {
+.customization-marketplace-widget .customization-marketplace-scroll-content {
 	height: 100%;
 	overflow: hidden;
 	padding: var(--vscode-spacing-size40) var(--vscode-spacing-size240);
 	box-sizing: border-box;
 }
 
-.agent-finder-widget .agent-finder-results,
-.agent-finder-widget .agent-finder-loading {
+.customization-marketplace-widget .customization-marketplace-results,
+.customization-marketplace-widget .customization-marketplace-loading {
 	display: grid;
 	grid-template-columns: repeat(auto-fill, minmax(min(100%, 290px), 1fr));
 	gap: var(--vscode-spacing-size160);
@@ -96,8 +96,8 @@
 	list-style: none;
 }
 
-.agent-finder-widget .agent-finder-card,
-.agent-finder-widget .agent-finder-loading-card {
+.customization-marketplace-widget .customization-marketplace-card,
+.customization-marketplace-widget .customization-marketplace-loading-card {
 	display: flex;
 	flex-direction: column;
 	min-width: 0;
@@ -109,15 +109,15 @@
 	overflow-wrap: anywhere;
 }
 
-.agent-finder-widget .agent-finder-loading.loading-more {
+.customization-marketplace-widget .customization-marketplace-loading.loading-more {
 	margin-top: var(--vscode-spacing-size160);
 }
 
-.agent-finder-widget .agent-finder-loading-card {
+.customization-marketplace-widget .customization-marketplace-loading-card {
 	min-height: 200px;
 }
 
-.agent-finder-widget .agent-finder-skeleton-block {
+.customization-marketplace-widget .customization-marketplace-skeleton-block {
 	height: var(--vscode-spacing-size120);
 	border-radius: var(--vscode-cornerRadius-small);
 	background: linear-gradient(
@@ -127,88 +127,88 @@
 		var(--vscode-descriptionForeground) 75%
 	);
 	background-size: 200% 100%;
-	animation: agent-finder-shimmer 2s linear infinite;
+	animation: customization-marketplace-shimmer 2s linear infinite;
 	opacity: 0.15;
 }
 
-.agent-finder-widget .agent-finder-skeleton-icon {
+.customization-marketplace-widget .customization-marketplace-skeleton-icon {
 	flex: 0 0 40px;
 	height: 40px;
 }
 
-.agent-finder-widget .agent-finder-skeleton-identity,
-.agent-finder-widget .agent-finder-skeleton-description {
+.customization-marketplace-widget .customization-marketplace-skeleton-identity,
+.customization-marketplace-widget .customization-marketplace-skeleton-description {
 	display: flex;
 	flex-direction: column;
 	gap: var(--vscode-spacing-size80);
 }
 
-.agent-finder-widget .agent-finder-skeleton-identity {
+.customization-marketplace-widget .customization-marketplace-skeleton-identity {
 	flex: 1;
 	min-width: 0;
 }
 
-.agent-finder-widget .agent-finder-skeleton-title {
+.customization-marketplace-widget .customization-marketplace-skeleton-title {
 	width: 75%;
 }
 
-.agent-finder-widget .agent-finder-skeleton-subtitle {
+.customization-marketplace-widget .customization-marketplace-skeleton-subtitle {
 	width: 45%;
 }
 
-.agent-finder-widget .agent-finder-skeleton-short {
+.customization-marketplace-widget .customization-marketplace-skeleton-short {
 	width: 65%;
 }
 
-.agent-finder-widget .agent-finder-skeleton-action {
+.customization-marketplace-widget .customization-marketplace-skeleton-action {
 	width: 80px;
 	height: 26px;
 	margin-top: auto;
 }
 
-@keyframes agent-finder-shimmer {
+@keyframes customization-marketplace-shimmer {
 	from { background-position: 120% 0; }
 	to { background-position: -120% 0; }
 }
 
-.monaco-reduce-motion .agent-finder-widget .agent-finder-skeleton-block {
+.monaco-reduce-motion .customization-marketplace-widget .customization-marketplace-skeleton-block {
 	animation: none;
 	background: var(--vscode-descriptionForeground);
 }
 
 @media (prefers-reduced-motion: reduce) {
-	.agent-finder-widget .agent-finder-skeleton-block {
+	.customization-marketplace-widget .customization-marketplace-skeleton-block {
 		animation: none;
 		background: var(--vscode-descriptionForeground);
 	}
 }
 
-.hc-black .agent-finder-widget .agent-finder-skeleton-block,
-.hc-light .agent-finder-widget .agent-finder-skeleton-block {
+.hc-black .customization-marketplace-widget .customization-marketplace-skeleton-block,
+.hc-light .customization-marketplace-widget .customization-marketplace-skeleton-block {
 	animation: none;
 	background: var(--vscode-contrastBorder);
 	opacity: 1;
 }
 
-.agent-finder-widget .agent-finder-card:hover {
+.customization-marketplace-widget .customization-marketplace-card:hover {
 	border-color: var(--vscode-focusBorder);
 }
 
-.agent-finder-widget .agent-finder-card:focus-visible,
-.agent-finder-widget summary:focus-visible,
-.agent-finder-widget a:focus-visible {
+.customization-marketplace-widget .customization-marketplace-card:focus-visible,
+.customization-marketplace-widget summary:focus-visible,
+.customization-marketplace-widget a:focus-visible {
 	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
 	outline-offset: -1px;
 }
 
-.agent-finder-widget .agent-finder-card-header {
+.customization-marketplace-widget .customization-marketplace-card-header {
 	display: flex;
 	align-items: center;
 	gap: var(--vscode-spacing-size120);
 	min-width: 0;
 }
 
-.agent-finder-widget .agent-finder-icon {
+.customization-marketplace-widget .customization-marketplace-icon {
 	position: relative;
 	display: flex;
 	align-items: center;
@@ -221,7 +221,7 @@
 	overflow: hidden;
 }
 
-.agent-finder-widget .agent-finder-icon img {
+.customization-marketplace-widget .customization-marketplace-icon img {
 	position: absolute;
 	inset: 0;
 	width: 100%;
@@ -229,37 +229,37 @@
 	object-fit: contain;
 }
 
-.agent-finder-widget .agent-finder-icon .codicon {
+.customization-marketplace-widget .customization-marketplace-icon .codicon {
 	font-size: var(--vscode-codiconFontSize);
 }
 
-.agent-finder-widget .agent-finder-identity {
+.customization-marketplace-widget .customization-marketplace-identity {
 	flex: 1;
 	min-width: 0;
 }
 
-.agent-finder-widget .agent-finder-name,
-.agent-finder-widget .agent-finder-publisher {
+.customization-marketplace-widget .customization-marketplace-name,
+.customization-marketplace-widget .customization-marketplace-publisher {
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
 }
 
-.agent-finder-widget .agent-finder-name {
+.customization-marketplace-widget .customization-marketplace-name {
 	margin: 0;
 	font-size: var(--vscode-fontSize-body1);
 	font-weight: var(--vscode-fontWeight-semiBold);
 }
 
-.agent-finder-widget .agent-finder-publisher {
+.customization-marketplace-widget .customization-marketplace-publisher {
 	margin-top: var(--vscode-spacing-size40);
 	color: var(--vscode-descriptionForeground);
 	font-size: var(--vscode-fontSize-label1);
 }
 
-.agent-finder-widget .agent-finder-metadata,
-.agent-finder-widget .agent-finder-tags,
-.agent-finder-widget .agent-finder-card-actions {
+.customization-marketplace-widget .customization-marketplace-metadata,
+.customization-marketplace-widget .customization-marketplace-tags,
+.customization-marketplace-widget .customization-marketplace-card-actions {
 	display: flex;
 	flex-wrap: wrap;
 	align-items: center;
@@ -267,16 +267,16 @@
 	font-size: var(--vscode-fontSize-label1);
 }
 
-.agent-finder-widget .agent-finder-metadata {
+.customization-marketplace-widget .customization-marketplace-metadata {
 	color: var(--vscode-descriptionForeground);
 }
 
-.agent-finder-widget .agent-finder-kind {
+.customization-marketplace-widget .customization-marketplace-kind {
 	color: var(--vscode-foreground);
 	font-weight: var(--vscode-fontWeight-semiBold);
 }
 
-.agent-finder-widget .agent-finder-card-description {
+.customization-marketplace-widget .customization-marketplace-card-description {
 	margin: 0;
 	line-height: 1.5;
 	font-size: var(--vscode-fontSize-body1);
@@ -286,7 +286,7 @@
 	overflow: hidden;
 }
 
-.agent-finder-widget .agent-finder-tag {
+.customization-marketplace-widget .customization-marketplace-tag {
 	max-width: 100%;
 	padding: var(--vscode-spacing-size20) var(--vscode-spacing-size80);
 	overflow: hidden;
@@ -298,55 +298,55 @@
 	border-radius: var(--vscode-cornerRadius-circle);
 }
 
-.agent-finder-widget .agent-finder-details {
+.customization-marketplace-widget .customization-marketplace-details {
 	font-size: var(--vscode-fontSize-label1);
 	color: var(--vscode-descriptionForeground);
 }
 
-.agent-finder-widget .agent-finder-details summary {
+.customization-marketplace-widget .customization-marketplace-details summary {
 	cursor: pointer;
 	color: var(--vscode-foreground);
 }
 
-.agent-finder-widget .agent-finder-details h4 {
+.customization-marketplace-widget .customization-marketplace-details h4 {
 	font-size: var(--vscode-fontSize-label1);
 	font-weight: var(--vscode-fontWeight-semiBold);
 	margin: var(--vscode-spacing-size120) 0 var(--vscode-spacing-size40);
 }
 
-.agent-finder-widget .agent-finder-details ul {
+.customization-marketplace-widget .customization-marketplace-details ul {
 	margin: 0;
 	padding-left: var(--vscode-spacing-size200);
 }
 
-.agent-finder-widget .agent-finder-card-actions {
+.customization-marketplace-widget .customization-marketplace-card-actions {
 	margin-top: auto;
 	padding-top: var(--vscode-spacing-size40);
 	column-gap: var(--vscode-spacing-size160);
 }
 
-.agent-finder-widget .agent-finder-card-actions > .agent-finder-install-button {
+.customization-marketplace-widget .customization-marketplace-card-actions > .customization-marketplace-install-button {
 	width: auto;
 }
 
-.agent-finder-widget .agent-finder-install-error {
+.customization-marketplace-widget .customization-marketplace-install-error {
 	margin: 0;
 	color: var(--vscode-errorForeground);
 	font-size: var(--vscode-fontSize-label1);
 	overflow-wrap: anywhere;
 }
 
-.agent-finder-widget a[href] {
+.customization-marketplace-widget a[href] {
 	color: var(--vscode-textLink-foreground);
 	text-decoration: none;
 }
 
-.agent-finder-widget a[href]:hover {
+.customization-marketplace-widget a[href]:hover {
 	color: var(--vscode-textLink-activeForeground);
 	text-decoration: underline;
 }
 
-.agent-finder-widget .agent-finder-footer {
+.customization-marketplace-widget .customization-marketplace-footer {
 	display: flex;
 	flex-direction: column;
 	align-items: center;
@@ -354,19 +354,19 @@
 	padding: var(--vscode-spacing-size200) 0;
 }
 
-.agent-finder-widget .agent-finder-error {
+.customization-marketplace-widget .customization-marketplace-error {
 	margin: 0;
 	color: var(--vscode-errorForeground);
 	overflow-wrap: anywhere;
 }
 
-.agent-finder-widget .agent-finder-empty {
+.customization-marketplace-widget .customization-marketplace-empty {
 	padding: var(--vscode-spacing-size320) var(--vscode-spacing-size160);
 	text-align: center;
 	color: var(--vscode-descriptionForeground);
 }
 
-.agent-finder-widget .agent-finder-disclaimer {
+.customization-marketplace-widget .customization-marketplace-disclaimer {
 	margin: 0;
 	padding: var(--vscode-spacing-size120) var(--vscode-spacing-size240);
 	color: var(--vscode-descriptionForeground);
@@ -374,11 +374,11 @@
 	line-height: 1.5;
 }
 
-.hc-black .agent-finder-widget,
-.hc-light .agent-finder-widget,
-.hc-black .agent-finder-widget .agent-finder-card,
-.hc-light .agent-finder-widget .agent-finder-card,
-.hc-black .agent-finder-widget .agent-finder-loading-card,
-.hc-light .agent-finder-widget .agent-finder-loading-card {
+.hc-black .customization-marketplace-widget,
+.hc-light .customization-marketplace-widget,
+.hc-black .customization-marketplace-widget .customization-marketplace-card,
+.hc-light .customization-marketplace-widget .customization-marketplace-card,
+.hc-black .customization-marketplace-widget .customization-marketplace-loading-card,
+.hc-light .customization-marketplace-widget .customization-marketplace-loading-card {
 	border-color: var(--vscode-contrastBorder);
 }

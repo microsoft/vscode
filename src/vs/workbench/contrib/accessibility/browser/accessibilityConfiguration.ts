@@ -52,7 +52,7 @@ export const enum AccessibilityVerbositySettingId {
 	MergeEditor = 'accessibility.verbosity.mergeEditor',
 	Chat = 'accessibility.verbosity.panelChat',
 	CustomizationMigrations = 'accessibility.verbosity.customizationMigrations',
-	AgentFinder = 'accessibility.verbosity.agentFinder',
+	CustomizationMarketplace = 'accessibility.verbosity.customizationMarketplace',
 	InlineChat = 'accessibility.verbosity.inlineChat',
 	TerminalInlineChat = 'accessibility.verbosity.terminalChat',
 	TerminalChatOutput = 'accessibility.verbosity.terminalChatOutput',
@@ -154,8 +154,8 @@ const configuration: IConfigurationNode = {
 			description: localize('verbosity.customizationMigrations.description', "Provide information about how to access accessibility help for the customization migration checklist."),
 			...baseVerbosityProperty
 		},
-		[AccessibilityVerbositySettingId.AgentFinder]: {
-			description: localize('verbosity.agentFinder.description', "Provide information about how to access accessibility help when searching AgentFinder."),
+		[AccessibilityVerbositySettingId.CustomizationMarketplace]: {
+			description: localize('verbosity.customizationMarketplace.description', "Provide information about how to access accessibility help when searching the marketplace."),
 			...baseVerbosityProperty
 		},
 		[AccessibilityVerbositySettingId.InlineChat]: {

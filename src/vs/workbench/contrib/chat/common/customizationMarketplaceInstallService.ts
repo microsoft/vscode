@@ -4,19 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from '../../../../base/common/event.js';
-import { IAgentFinderResource } from '../../../../platform/agentFinder/common/agentFinderService.js';
+import { ICustomizationMarketplaceResource } from '../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 
-export type AgentFinderInstallState =
+export type CustomizationMarketplaceInstallState =
 	| { readonly kind: 'available' | 'installing' | 'installed' }
 	| { readonly kind: 'unavailable'; readonly message: string };
 
-export const IAgentFinderInstallService = createDecorator<IAgentFinderInstallService>('agentFinderInstallService');
+export const ICustomizationMarketplaceInstallService = createDecorator<ICustomizationMarketplaceInstallService>('customizationMarketplaceInstallService');
 
-export interface IAgentFinderInstallService {
+export interface ICustomizationMarketplaceInstallService {
 	readonly _serviceBrand: undefined;
 	readonly onDidChange: Event<void>;
-	getInstallState(resource: IAgentFinderResource): AgentFinderInstallState;
+	getInstallState(resource: ICustomizationMarketplaceResource): CustomizationMarketplaceInstallState;
 	/** Uses the owning install flow; cancellation rejects with a CancellationError. */
-	install(resource: IAgentFinderResource): Promise<void>;
+	install(resource: ICustomizationMarketplaceResource): Promise<void>;
 }

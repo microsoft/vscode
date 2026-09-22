@@ -22,7 +22,7 @@ import { Range } from '../../../../../editor/common/core/range.js';
 import { ILanguageService } from '../../../../../editor/common/languages/language.js';
 import { IModelService } from '../../../../../editor/common/services/model.js';
 import { IResolvedTextEditorModel, ITextModelService } from '../../../../../editor/common/services/resolverService.js';
-import { AgentFinderMediaType, IAgentFinderPage, IAgentFinderQuery, IAgentFinderResource, IAgentFinderService } from '../../../../../platform/agentFinder/common/agentFinderService.js';
+import { CustomizationMarketplaceMediaType, getCustomizationMarketplaceResourceKey, ICustomizationMarketplacePage, ICustomizationMarketplaceQuery, ICustomizationMarketplaceResource, ICustomizationMarketplaceService } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
 import { IDialogService, IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IFileContent, IFileService, IFileStatWithMetadata } from '../../../../../platform/files/common/files.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
@@ -54,7 +54,7 @@ import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { IWorkingCopyService } from '../../../../services/workingCopy/common/workingCopyService.js';
 import { IWebviewService } from '../../../../contrib/webview/browser/webview.js';
 import { IAICustomizationWorkspaceService, AICustomizationManagementSection, AICustomizationSource } from '../../../../contrib/chat/common/aiCustomizationWorkspaceService.js';
-import { AgentFinderInstallState, IAgentFinderInstallService } from '../../../../contrib/chat/common/agentFinderInstallService.js';
+import { CustomizationMarketplaceInstallState, ICustomizationMarketplaceInstallService } from '../../../../contrib/chat/common/customizationMarketplaceInstallService.js';
 import { ICustomizationHarnessService, ICustomizationItem, ICustomizationItemProvider, ICustomizationMcpServerCompatibility, ICustomizationSourceFolder, IHarnessDescriptor, createVSCodeHarnessDescriptor } from '../../../../contrib/chat/common/customizationHarnessService.js';
 import { IChatSessionsService } from '../../../../contrib/chat/common/chatSessionsService.js';
 import { getChatSessionType, LocalChatSessionUri } from '../../../../contrib/chat/common/model/chatUri.js';
@@ -115,7 +115,7 @@ import { ThemeIcon } from '../../../../../base/common/themables.js';
 import '../../../../../platform/theme/common/colors/inputColors.js';
 import '../../../../../platform/theme/common/colors/listColors.js';
 import '../../../../contrib/chat/browser/aiCustomization/media/aiCustomizationManagement.css';
-import '../../../../contrib/chat/browser/aiCustomization/agentFinder.contribution.js';
+import '../../../../contrib/chat/browser/aiCustomization/customizationMarketplace.contribution.js';
 
 // ============================================================================
 // Mock helpers
@@ -738,12 +738,13 @@ const overflowingExtensionToolSets: readonly IToolSet[] = Array.from({ length: 8
 	};
 });
 
-const agentFinderResources: readonly IAgentFinderResource[] = [
+const customizationMarketplaceResources: readonly ICustomizationMarketplaceResource[] = [
 	{
+		sourceId: 'testSource',
 		identifier: 'example/repository-review',
 		displayName: 'Repository review',
 		description: 'Review a pull request for correctness, missing tests, and changes that need a closer look before merging.',
-		mediaType: AgentFinderMediaType.Skill,
+		mediaType: CustomizationMarketplaceMediaType.Skill,
 		publisher: 'Example Engineering',
 		version: '1.2.0',
 		stars: 128,
@@ -754,10 +755,11 @@ const agentFinderResources: readonly IAgentFinderResource[] = [
 		repository: URI.parse('https://github.com/example/repository-review'),
 	},
 	{
+		sourceId: 'testSource',
 		identifier: 'example/browser-tools',
 		displayName: 'Browser tools',
 		description: 'Explore a website, inspect page content, and reproduce a UI workflow with browser automation tools. Results may require additional configuration in the selected agent.',
-		mediaType: AgentFinderMediaType.McpServer,
+		mediaType: CustomizationMarketplaceMediaType.McpServer,
 		publisher: 'Example Browser Tools',
 		version: '2.4.1',
 		stars: 842,
@@ -769,10 +771,11 @@ const agentFinderResources: readonly IAgentFinderResource[] = [
 		repository: URI.parse('https://github.com/example/browser-tools'),
 	},
 	{
+		sourceId: 'testSource',
 		identifier: 'example/dependency-maintenance',
 		displayName: 'Repository-wide dependency maintenance and compatibility review',
 		description: 'A plugin for preparing dependency updates across packages with very long workspace and dependency names, while preserving release notes and compatibility checks.',
-		mediaType: AgentFinderMediaType.CopilotPlugin,
+		mediaType: CustomizationMarketplaceMediaType.CopilotPlugin,
 		publisher: 'Example Developer Productivity and Dependency Maintenance Team',
 		version: '2026.9.0',
 		stars: 64,
@@ -782,10 +785,11 @@ const agentFinderResources: readonly IAgentFinderResource[] = [
 		repository: URI.parse('https://github.com/example/dependency-maintenance'),
 	},
 	{
+		sourceId: 'testSource',
 		identifier: 'example/docs-workflow',
 		displayName: 'Documentation workflow',
 		description: 'Draft task-oriented documentation and identify examples that should be updated alongside code changes.',
-		mediaType: AgentFinderMediaType.ClaudePlugin,
+		mediaType: CustomizationMarketplaceMediaType.ClaudePlugin,
 		publisher: 'Example Documentation',
 		version: '0.8.0',
 		tags: ['documentation', 'examples'],
@@ -794,10 +798,11 @@ const agentFinderResources: readonly IAgentFinderResource[] = [
 		repository: URI.parse('https://github.com/example/docs-workflow'),
 	},
 	{
+		sourceId: 'testSource',
 		identifier: 'example/design-review',
 		displayName: 'Design review',
 		description: 'Check interface consistency, keyboard navigation, and focus order. Catalog descriptions are plain text, including **Markdown** and <markup>.',
-		mediaType: AgentFinderMediaType.CursorPlugin,
+		mediaType: CustomizationMarketplaceMediaType.CursorPlugin,
 		publisher: 'Example Design',
 		stars: 0,
 		tags: ['design', 'keyboard'],
@@ -806,10 +811,11 @@ const agentFinderResources: readonly IAgentFinderResource[] = [
 		url: URI.parse('https://example.com/design-review'),
 	},
 	{
+		sourceId: 'testSource',
 		identifier: 'example/project-notes',
 		displayName: 'Project notes',
 		description: 'Summarize project conventions. This catalog entry has no publisher, version, image, or external link.',
-		mediaType: AgentFinderMediaType.Skill,
+		mediaType: CustomizationMarketplaceMediaType.Skill,
 		tags: [],
 		capabilities: [],
 		representativeQueries: [],
@@ -825,9 +831,10 @@ interface IRenderEditorOptions {
 	readonly managementSections?: readonly AICustomizationManagementSection[];
 	readonly availableHarnesses?: readonly IHarnessDescriptor[];
 	readonly selectedSection?: AICustomizationManagementSection;
-	readonly agentFinderEnabled?: boolean;
-	readonly agentFinderState?: 'ready' | 'empty' | 'error' | 'loading' | 'loadingMore';
-	readonly agentFinderInstallationState?: 'mixed' | 'error';
+	readonly staleSavedSection?: string;
+	readonly customizationMarketplaceEnabled?: boolean;
+	readonly customizationMarketplaceState?: 'ready' | 'empty' | 'error' | 'loading' | 'loadingMore';
+	readonly customizationMarketplaceInstallationState?: 'mixed' | 'error';
 	readonly customizationSearchQuery?: string;
 	readonly mcpSearchQuery?: string;
 	readonly toolsSearchQuery?: string;
@@ -865,7 +872,8 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 	ctx.container.style.height = `${height}px`;
 
 	const isSessionsWindow = options.isSessionsWindow ?? false;
-	const agentFinderEnabled = options.agentFinderEnabled ?? true;
+	const customizationMarketplaceEnabled = options.customizationMarketplaceEnabled ?? true;
+	const savedSection = options.staleSavedSection ?? (!customizationMarketplaceEnabled ? AICustomizationManagementSection.Marketplace : undefined);
 	const skillUIIntegrations = options.skillUIIntegrations ?? new Map();
 	const managementSections = options.managementSections ?? [
 		AICustomizationManagementSection.Plugins,
@@ -876,7 +884,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 		AICustomizationManagementSection.Hooks,
 		AICustomizationManagementSection.Tools,
 		AICustomizationManagementSection.Prompts,
-		AICustomizationManagementSection.AgentFinder,
+		AICustomizationManagementSection.Marketplace,
 	];
 	const mcpServerCompatibility = options.mcpServerCompatibility;
 	const availableHarnesses = options.availableHarnesses ?? [
@@ -934,15 +942,15 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 	// service is created.
 	const modelServiceRef: { value: IModelService | undefined } = { value: undefined };
 	const languageServiceRef: { value: ILanguageService | undefined } = { value: undefined };
-	let agentFinderQueryCount = 0;
-	const agentFinderInstallChanged = ctx.disposableStore.add(new Emitter<void>());
-	const agentFinderInstallStates = new Map<string, AgentFinderInstallState>([
-		['example/design-review', { kind: 'unavailable', message: 'Cursor plugins cannot be installed in VS Code.' }],
-		['example/project-notes', { kind: 'unavailable', message: 'This resource does not provide trusted installation information.' }],
+	let customizationMarketplaceQueryCount = 0;
+	const customizationMarketplaceInstallChanged = ctx.disposableStore.add(new Emitter<void>());
+	const customizationMarketplaceInstallStates = new Map<string, CustomizationMarketplaceInstallState>([
+		[getCustomizationMarketplaceResourceKey(customizationMarketplaceResources[4]), { kind: 'unavailable', message: 'Cursor plugins cannot be installed in VS Code.' }],
+		[getCustomizationMarketplaceResourceKey(customizationMarketplaceResources[5]), { kind: 'unavailable', message: 'This resource does not provide trusted installation information.' }],
 	]);
-	if (options.agentFinderInstallationState === 'mixed') {
-		agentFinderInstallStates.set('example/repository-review', { kind: 'installing' });
-		agentFinderInstallStates.set('example/browser-tools', { kind: 'installed' });
+	if (options.customizationMarketplaceInstallationState === 'mixed') {
+		customizationMarketplaceInstallStates.set(getCustomizationMarketplaceResourceKey(customizationMarketplaceResources[0]), { kind: 'installing' });
+		customizationMarketplaceInstallStates.set(getCustomizationMarketplaceResourceKey(customizationMarketplaceResources[1]), { kind: 'installed' });
 	}
 
 	const instantiationService = createEditorServices(ctx.disposableStore, {
@@ -958,59 +966,65 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 				[ChatConfiguration.ChatCustomizationsLocationsMigrationEnabled]: true,
 				[ChatConfiguration.ChatCustomizationsMcpServerMigrationEnabled]: true,
 				...options.configuration,
-				[ChatConfiguration.AgentFinderEnabled]: agentFinderEnabled,
+				[ChatConfiguration.ChatCustomizationsUnifiedMarketplaceEnabled]: customizationMarketplaceEnabled,
 			});
 			ctx.disposableStore.add({ dispose: () => configurationService.onDidChangeConfigurationEmitter.dispose() });
 			registerWorkbenchServices(reg);
-			if (!agentFinderEnabled) {
+			if (savedSection) {
 				reg.defineInstance(IStorageService, ctx.disposableStore.add(new InMemoryStorageService()));
 			}
 			reg.defineInstance(IChatEntitlementService, new class extends mock<IChatEntitlementService>() {
 				override readonly sentiment = { hidden: false };
 				override readonly onDidChangeSentiment = Event.None;
 			}());
-			reg.defineInstance(IAgentFinderService, new class extends mock<IAgentFinderService>() {
-				override async query(query: IAgentFinderQuery): Promise<IAgentFinderPage> {
-					agentFinderQueryCount++;
-					assert(agentFinderEnabled, 'A disabled AgentFinder fixture must not query the catalog.');
-					switch (options.agentFinderState) {
-						case 'loading': return new DeferredPromise<IAgentFinderPage>().p;
+			reg.defineInstance(ICustomizationMarketplaceService, new class extends mock<ICustomizationMarketplaceService>() {
+				override async query(query: ICustomizationMarketplaceQuery): Promise<ICustomizationMarketplacePage> {
+					customizationMarketplaceQueryCount++;
+					assert(customizationMarketplaceEnabled, 'A disabled Marketplace fixture must not query the catalog.');
+					const pageSize = query.pageSize ?? 24;
+					const createCursor = (offset: number) => ({
+						query: query.query ?? '',
+						mediaType: query.mediaType,
+						pageSize,
+						sources: [{ id: 'testSource', cursor: String(offset) }],
+					});
+					switch (options.customizationMarketplaceState) {
+						case 'loading': return new DeferredPromise<ICustomizationMarketplacePage>().p;
 						case 'loadingMore':
 							return query.cursor
-								? new DeferredPromise<IAgentFinderPage>().p
-								: { items: agentFinderResources.slice(0, 2), total: agentFinderResources.length, nextCursor: { kind: 'browse', offset: 2 } };
+								? new DeferredPromise<ICustomizationMarketplacePage>().p
+								: { items: customizationMarketplaceResources.slice(0, 2), total: customizationMarketplaceResources.length, nextCursor: createCursor(2) };
 						case 'error': throw new Error('The catalog is temporarily unavailable. Try again later.');
 						case 'empty': return { items: [], total: 0 };
 					}
 					const text = query.query?.toLowerCase() ?? '';
-					const resources = agentFinderResources.filter(resource =>
+					const resources = customizationMarketplaceResources.filter(resource =>
 						(!query.mediaType || resource.mediaType === query.mediaType)
 						&& (!text || `${resource.displayName} ${resource.description} ${resource.tags.join(' ')}`.toLowerCase().includes(text)));
-					const offset = query.cursor?.kind === 'browse' ? query.cursor.offset : 0;
-					const pageSize = query.pageSize ?? 24;
+					const offset = Number(query.cursor?.sources[0].cursor ?? 0);
 					return {
 						items: resources.slice(offset, offset + pageSize),
 						total: resources.length,
-						nextCursor: offset + pageSize < resources.length ? { kind: 'browse', offset: offset + pageSize } : undefined,
+						nextCursor: offset + pageSize < resources.length ? createCursor(offset + pageSize) : undefined,
 					};
 				}
 			}());
-			reg.defineInstance(IAgentFinderInstallService, new class extends mock<IAgentFinderInstallService>() {
-				override readonly onDidChange = agentFinderInstallChanged.event;
-				override getInstallState(resource: IAgentFinderResource): AgentFinderInstallState {
-					assert(agentFinderEnabled, 'A disabled AgentFinder fixture must not request installation state.');
-					return agentFinderInstallStates.get(resource.identifier) ?? { kind: 'available' };
+			reg.defineInstance(ICustomizationMarketplaceInstallService, new class extends mock<ICustomizationMarketplaceInstallService>() {
+				override readonly onDidChange = customizationMarketplaceInstallChanged.event;
+				override getInstallState(resource: ICustomizationMarketplaceResource): CustomizationMarketplaceInstallState {
+					assert(customizationMarketplaceEnabled, 'A disabled Marketplace fixture must not request installation state.');
+					return customizationMarketplaceInstallStates.get(getCustomizationMarketplaceResourceKey(resource)) ?? { kind: 'available' };
 				}
-				override async install(resource: IAgentFinderResource): Promise<void> {
-					assert(agentFinderEnabled, 'A disabled AgentFinder fixture must not install resources.');
-					if (options.agentFinderInstallationState === 'error') {
+				override async install(resource: ICustomizationMarketplaceResource): Promise<void> {
+					assert(customizationMarketplaceEnabled, 'A disabled Marketplace fixture must not install resources.');
+					if (options.customizationMarketplaceInstallationState === 'error') {
 						throw new Error('Choose a writable installation destination and try again.');
 					}
-					agentFinderInstallStates.set(resource.identifier, { kind: 'installing' });
-					agentFinderInstallChanged.fire();
+					customizationMarketplaceInstallStates.set(getCustomizationMarketplaceResourceKey(resource), { kind: 'installing' });
+					customizationMarketplaceInstallChanged.fire();
 					await Promise.resolve();
-					agentFinderInstallStates.set(resource.identifier, { kind: 'installed' });
-					agentFinderInstallChanged.fire();
+					customizationMarketplaceInstallStates.set(getCustomizationMarketplaceResourceKey(resource), { kind: 'installed' });
+					customizationMarketplaceInstallChanged.fire();
 				}
 			}());
 			if (options.migrationActivity) {
@@ -1390,10 +1404,10 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 		}
 	}
 
-	if (!agentFinderEnabled) {
+	if (savedSection) {
 		const storageService = instantiationService.get(IStorageService);
-		storageService.store(AI_CUSTOMIZATION_MANAGEMENT_SELECTED_SECTION_KEY, AICustomizationManagementSection.AgentFinder, StorageScope.PROFILE, StorageTarget.USER);
-		assert(storageService.get(AI_CUSTOMIZATION_MANAGEMENT_SELECTED_SECTION_KEY, StorageScope.PROFILE) === AICustomizationManagementSection.AgentFinder, 'The disabled fixture must start with a persisted AgentFinder selection.');
+		storageService.store(AI_CUSTOMIZATION_MANAGEMENT_SELECTED_SECTION_KEY, savedSection, StorageScope.PROFILE, StorageTarget.USER);
+		assert(storageService.get(AI_CUSTOMIZATION_MANAGEMENT_SELECTED_SECTION_KEY, StorageScope.PROFILE) === savedSection, 'The fixture must start with its persisted section selection.');
 	}
 	const editor = ctx.disposableStore.add(
 		instantiationService.createInstance(AICustomizationManagementEditor, createMockEditorGroup())
@@ -1407,51 +1421,58 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 	if (options.selectedSection) {
 		editor.selectSectionById(options.selectedSection);
 	}
-	if (!agentFinderEnabled) {
+	if (options.staleSavedSection) {
 		editor.setVisible(true);
-		editor.selectSectionById(AICustomizationManagementSection.AgentFinder);
+		await Promise.resolve();
+		const overview = ctx.container.querySelector<HTMLElement>('.welcome-page-host');
+		assert(overview !== null && overview.style.display !== 'none', 'An unrecognized saved section must fall back to the overview.');
+		assert(ctx.container.querySelector('.customization-marketplace-widget') === null && editor.getActiveSectionWidget() === undefined, 'An unrecognized saved section must not be treated as a Marketplace alias.');
+		assert(customizationMarketplaceQueryCount === 0, 'Restoring an unrecognized saved section must not query the marketplace.');
+	} else if (!customizationMarketplaceEnabled) {
+		editor.setVisible(true);
+		editor.selectSectionById(AICustomizationManagementSection.Marketplace);
 		await Promise.resolve();
 		const sidebar = ctx.container.querySelector<HTMLElement>('.management-sidebar');
 		const overview = ctx.container.querySelector<HTMLElement>('.welcome-page-host');
-		assert(sidebar !== null && !sidebar.textContent?.includes('AgentFinder'), 'Disabled AgentFinder must be absent from the sidebar.');
-		assert(overview !== null && overview.style.display !== 'none' && !overview.textContent?.includes('AgentFinder'), 'A disabled saved selection must show the overview without AgentFinder.');
-		assert(ctx.container.querySelector('.agent-finder-widget') === null && editor.getActiveSectionWidget() === undefined, 'Restoring or selecting disabled AgentFinder must not create its widget.');
-		assert(agentFinderQueryCount === 0, 'Disabled AgentFinder must not query the catalog.');
-	} else if (options.selectedSection === AICustomizationManagementSection.AgentFinder) {
-		const queriesBeforeVisible = agentFinderQueryCount;
+		assert(sidebar !== null && !sidebar.textContent?.includes('Marketplace'), 'Disabled Marketplace must be absent from the sidebar.');
+		assert(overview !== null && overview.style.display !== 'none' && !overview.textContent?.includes('Marketplace'), 'A disabled saved selection must show the overview without Marketplace.');
+		assert(ctx.container.querySelector('.customization-marketplace-widget') === null && editor.getActiveSectionWidget() === undefined, 'Restoring or selecting disabled Marketplace must not create its widget.');
+		assert(customizationMarketplaceQueryCount === 0, 'Disabled Marketplace must not query the catalog.');
+	} else if (options.selectedSection === AICustomizationManagementSection.Marketplace) {
+		const queriesBeforeVisible = customizationMarketplaceQueryCount;
 		editor.setVisible(true);
 		await Promise.resolve();
-		assert(queriesBeforeVisible === 0 && agentFinderQueryCount === 1, 'The catalog must make one mock query only after its selected editor becomes visible.');
-		const finder = ctx.container.querySelector<HTMLElement>('.agent-finder-widget');
-		assert(finder !== null && finder.style.display !== 'none', 'The AgentFinder section must be visible.');
-		assert(finder.querySelectorAll('img').length === 0, 'AgentFinder fixtures must not request remote images.');
-		const search = finder.querySelector<HTMLElement>('.agent-finder-search .monaco-inputbox');
-		const filter = finder.querySelector<HTMLElement>('.agent-finder-type-filter .monaco-select-box');
-		const refresh = finder.querySelector<HTMLElement>('.agent-finder-controls > .monaco-button');
-		assert(search !== null && filter !== null && refresh !== null, 'The AgentFinder toolbar must provide all three controls.');
+		assert(queriesBeforeVisible === 0 && customizationMarketplaceQueryCount === 1, 'The catalog must make one mock query only after its selected editor becomes visible.');
+		const marketplace = ctx.container.querySelector<HTMLElement>('.customization-marketplace-widget');
+		assert(marketplace !== null && marketplace.style.display !== 'none', 'The Marketplace section must be visible.');
+		assert(marketplace.querySelectorAll('img').length === 0, 'Marketplace fixtures must not request remote images.');
+		const search = marketplace.querySelector<HTMLElement>('.customization-marketplace-search .monaco-inputbox');
+		const filter = marketplace.querySelector<HTMLElement>('.customization-marketplace-type-filter .monaco-select-box');
+		const refresh = marketplace.querySelector<HTMLElement>('.customization-marketplace-controls > .monaco-button');
+		assert(search !== null && filter !== null && refresh !== null, 'The Marketplace toolbar must provide all three controls.');
 		const refreshBounds = refresh.getBoundingClientRect();
-		assert(refreshBounds.height > 0 && [search, filter].every(control => Math.abs(control.getBoundingClientRect().height - refreshBounds.height) < 1), 'AgentFinder controls must share the same height.');
+		assert(refreshBounds.height > 0 && [search, filter].every(control => Math.abs(control.getBoundingClientRect().height - refreshBounds.height) < 1), 'Marketplace controls must share the same height.');
 		assert(Math.abs(filter.getBoundingClientRect().top - refreshBounds.top) < 1, 'The resource filter must align with the Refresh button when the toolbar wraps.');
-		if (options.agentFinderState === 'loadingMore') {
-			const more = Array.from(finder.querySelectorAll<HTMLElement>('.agent-finder-footer .monaco-button')).find(button => button.textContent === 'Load More');
+		if (options.customizationMarketplaceState === 'loadingMore') {
+			const more = Array.from(marketplace.querySelectorAll<HTMLElement>('.customization-marketplace-footer .monaco-button')).find(button => button.textContent === 'Load More');
 			assert(more !== undefined, 'The loading-more fixture must expose pagination.');
 			more.click();
 			await Promise.resolve();
-			assert(finder.querySelectorAll('.agent-finder-card').length === 2, 'Loading more must preserve existing results.');
+			assert(marketplace.querySelectorAll('.customization-marketplace-card').length === 2, 'Loading more must preserve existing results.');
 		}
-		if (options.agentFinderState === 'loading' || options.agentFinderState === 'loadingMore') {
-			const loading = finder.querySelector<HTMLElement>('.agent-finder-loading');
-			assert(loading !== null && loading.getAttribute('aria-hidden') === 'true' && loading.children.length === (options.agentFinderState === 'loading' ? 6 : 2), 'Pending requests must show decorative skeleton cards.');
+		if (options.customizationMarketplaceState === 'loading' || options.customizationMarketplaceState === 'loadingMore') {
+			const loading = marketplace.querySelector<HTMLElement>('.customization-marketplace-loading');
+			assert(loading !== null && loading.getAttribute('aria-hidden') === 'true' && loading.children.length === (options.customizationMarketplaceState === 'loading' ? 6 : 2), 'Pending requests must show decorative skeleton cards.');
 		}
-		if (!options.agentFinderState || options.agentFinderState === 'ready') {
-			assert(finder.querySelectorAll('.agent-finder-card').length === agentFinderResources.length, 'The catalog must render deterministic mock resources.');
+		if (!options.customizationMarketplaceState || options.customizationMarketplaceState === 'ready') {
+			assert(marketplace.querySelectorAll('.customization-marketplace-card').length === customizationMarketplaceResources.length, 'The catalog must render deterministic mock resources.');
 		}
-		if (options.agentFinderInstallationState === 'error') {
-			const install = finder.querySelector<HTMLElement>('.agent-finder-install-button');
+		if (options.customizationMarketplaceInstallationState === 'error') {
+			const install = marketplace.querySelector<HTMLElement>('.customization-marketplace-install-button');
 			assert(install !== null, 'The resource must provide an Install action.');
 			install.click();
 			await Promise.resolve();
-			const error = finder.querySelector<HTMLElement>('.agent-finder-install-error');
+			const error = marketplace.querySelector<HTMLElement>('.customization-marketplace-install-error');
 			assert(error !== null && !error.hidden && install.textContent === 'Retry Install', 'A failed mock installation must show an inline error and retry action.');
 		}
 	}
@@ -2660,100 +2681,109 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 		}),
 	}),
 
-	AgentFinderTab: defineComponentFixture({
+	MarketplaceTab: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: true },
-		expectedVisualDescriptions: ['AgentFinder shows a search field, a resource type filter, and cards with metadata, tags, Details, neutral secondary Install buttons, and external source links. Installation uses existing VS Code prompts and destination choices.'],
+		expectedVisualDescriptions: ['Marketplace shows a search field, a resource type filter, and cards with metadata, tags, Details, neutral secondary Install buttons, and external source links. Installation uses existing VS Code prompts and destination choices.'],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
-			selectedSection: AICustomizationManagementSection.AgentFinder,
+			selectedSection: AICustomizationManagementSection.Marketplace,
 		}),
 	}),
 
-	AgentFinderDisabled: defineComponentFixture({
+	MarketplaceDisabled: defineComponentFixture({
 		labels: { kind: 'screenshot' },
-		expectedVisualDescriptions: ['The Agent Customizations overview and sidebar omit AgentFinder when its experiment is disabled, even when the previous selection was AgentFinder.'],
+		expectedVisualDescriptions: ['The Agent Customizations overview and sidebar omit Marketplace when its experiment is disabled, even when the previous selection was Marketplace.'],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
-			selectedSection: AICustomizationManagementSection.AgentFinder,
-			agentFinderEnabled: false,
+			selectedSection: AICustomizationManagementSection.Marketplace,
+			customizationMarketplaceEnabled: false,
 		}),
 	}),
 
-	AgentFinderTabNarrow: defineComponentFixture({
+	MarketplaceStaleSelection: defineComponentFixture({
 		labels: { kind: 'screenshot' },
-		expectedVisualDescriptions: ['The narrow AgentFinder section wraps its controls and shows a single card column without horizontal overflow.'],
+		expectedVisualDescriptions: ['A former saved section opens the overview without starting marketplace discovery. The Marketplace entry is available but not selected.'],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
-			selectedSection: AICustomizationManagementSection.AgentFinder,
+			staleSavedSection: 'agentFinder',
+		}),
+	}),
+
+	MarketplaceTabNarrow: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['The narrow Marketplace section wraps its controls and shows a single card column without horizontal overflow.'],
+		render: ctx => renderEditor(ctx, {
+			sessionResource: localSessionResource,
+			selectedSection: AICustomizationManagementSection.Marketplace,
 			width: 550,
 			height: 500,
 		}),
 	}),
 
-	SessionsAgentFinderTab: defineComponentFixture({
+	MarketplaceSessionsTab: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		render: ctx => renderEditor(ctx, {
 			sessionResource: agentHostCopilotSessionResource,
 			isSessionsWindow: true,
-			selectedSection: AICustomizationManagementSection.AgentFinder,
+			selectedSection: AICustomizationManagementSection.Marketplace,
 		}),
 	}),
 
-	AgentFinderEmpty: defineComponentFixture({
+	MarketplaceEmpty: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
-			selectedSection: AICustomizationManagementSection.AgentFinder,
-			agentFinderState: 'empty',
+			selectedSection: AICustomizationManagementSection.Marketplace,
+			customizationMarketplaceState: 'empty',
 		}),
 	}),
 
-	AgentFinderError: defineComponentFixture({
+	MarketplaceError: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
-			selectedSection: AICustomizationManagementSection.AgentFinder,
-			agentFinderState: 'error',
+			selectedSection: AICustomizationManagementSection.Marketplace,
+			customizationMarketplaceState: 'error',
 		}),
 	}),
 
-	AgentFinderLoading: defineComponentFixture({
+	MarketplaceLoading: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		expectedVisualDescriptions: ['Six decorative card-shaped shimmer placeholders replace visible loading text. The search toolbar remains available.'],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
-			selectedSection: AICustomizationManagementSection.AgentFinder,
-			agentFinderState: 'loading',
+			selectedSection: AICustomizationManagementSection.Marketplace,
+			customizationMarketplaceState: 'loading',
 		}),
 	}),
 
-	AgentFinderLoadingMore: defineComponentFixture({
+	MarketplaceLoadingMore: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		expectedVisualDescriptions: ['Existing catalog cards and their result count remain visible while decorative loading placeholders are appended for the next page.'],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
-			selectedSection: AICustomizationManagementSection.AgentFinder,
-			agentFinderState: 'loadingMore',
+			selectedSection: AICustomizationManagementSection.Marketplace,
+			customizationMarketplaceState: 'loadingMore',
 		}),
 	}),
 
-	AgentFinderInstallStates: defineComponentFixture({
+	MarketplaceInstallStates: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		expectedVisualDescriptions: ['The first resource shows Installing and the second shows Installed. Remaining resources have neutral Install actions, with unsupported resources disabled and explained through accessibility labels and hovers.'],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
-			selectedSection: AICustomizationManagementSection.AgentFinder,
-			agentFinderInstallationState: 'mixed',
+			selectedSection: AICustomizationManagementSection.Marketplace,
+			customizationMarketplaceInstallationState: 'mixed',
 		}),
 	}),
 
-	AgentFinderInstallError: defineComponentFixture({
+	MarketplaceInstallError: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		expectedVisualDescriptions: ['The first resource has an inline installation error and Retry Install action. Resource cards, search controls, and external source links remain available.'],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
-			selectedSection: AICustomizationManagementSection.AgentFinder,
-			agentFinderInstallationState: 'error',
+			selectedSection: AICustomizationManagementSection.Marketplace,
+			customizationMarketplaceInstallationState: 'error',
 		}),
 	}),
 

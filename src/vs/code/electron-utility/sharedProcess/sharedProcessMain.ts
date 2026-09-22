@@ -18,13 +18,14 @@ import { LanguagePackCachedDataCleaner } from './contrib/languagePackCachedDataC
 import { LocalizationsUpdater } from './contrib/localizationsUpdater.js';
 import { LogsDataCleaner } from './contrib/logsDataCleaner.js';
 import { UnusedWorkspaceStorageDataCleaner } from './contrib/storageDataCleaner.js';
-import { AGENT_FINDER_CHANNEL_NAME, AgentFinderChannel } from '../../../platform/agentFinder/common/agentFinderIpc.js';
 import { AgentFinderRestProvider } from '../../../platform/agentFinder/common/agentFinderRestProvider.js';
-import { AgentFinderService } from '../../../platform/agentFinder/common/agentFinderService.js';
+import { AgentFinderSource } from '../../../platform/agentFinder/common/agentFinderSource.js';
 import { IChecksumService } from '../../../platform/checksum/common/checksumService.js';
 import { ChecksumService } from '../../../platform/checksum/node/checksumService.js';
 import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
 import { ConfigurationService } from '../../../platform/configuration/common/configurationService.js';
+import { CUSTOMIZATION_MARKETPLACE_CHANNEL_NAME, CustomizationMarketplaceChannel } from '../../../platform/customizationMarketplace/common/customizationMarketplaceIpc.js';
+import { CustomizationMarketplaceService } from '../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
 import { IDiagnosticsService } from '../../../platform/diagnostics/common/diagnostics.js';
 import { DiagnosticsService } from '../../../platform/diagnostics/node/diagnosticsService.js';
 import { IDownloadService } from '../../../platform/download/common/download.js';
@@ -442,9 +443,9 @@ class SharedProcessMain extends Disposable implements IClientConnectionFilter {
 	private initChannels(accessor: ServicesAccessor): void {
 
 		const instantiationService = accessor.get(IInstantiationService);
-		this.server.registerChannel(AGENT_FINDER_CHANNEL_NAME, new AgentFinderChannel(() => {
+		this.server.registerChannel(CUSTOMIZATION_MARKETPLACE_CHANNEL_NAME, new CustomizationMarketplaceChannel(() => {
 			const provider = instantiationService.createInstance(AgentFinderRestProvider);
-			return new AgentFinderService(provider, provider);
+			return new CustomizationMarketplaceService([new AgentFinderSource(provider, provider)]);
 		}));
 
 		// Extensions Management

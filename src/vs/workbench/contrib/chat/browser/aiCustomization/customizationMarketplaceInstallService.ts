@@ -14,7 +14,7 @@ import { dirname, getComparisonKey, isEqual, joinPath } from '../../../../../bas
 import { URI } from '../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { localize } from '../../../../../nls.js';
-import { AgentFinderMediaType, IAgentFinderResource } from '../../../../../platform/agentFinder/common/agentFinderService.js';
+import { CustomizationMarketplaceMediaType, getCustomizationMarketplaceResourceKey, ICustomizationMarketplaceResource } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { FileChangeType, IFileService } from '../../../../../platform/files/common/files.js';
@@ -24,7 +24,7 @@ import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IProgressService, ProgressLocation } from '../../../../../platform/progress/common/progress.js';
 import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 import { IMcpWorkbenchService, McpServerInstallState } from '../../../mcp/common/mcpTypes.js';
-import { AgentFinderInstallState, IAgentFinderInstallService } from '../../common/agentFinderInstallService.js';
+import { CustomizationMarketplaceInstallState, ICustomizationMarketplaceInstallService } from '../../common/customizationMarketplaceInstallService.js';
 import { IAICustomizationWorkspaceService } from '../../common/aiCustomizationWorkspaceService.js';
 import { ChatConfiguration } from '../../common/constants.js';
 import { ICustomizationHarnessService } from '../../common/customizationHarnessService.js';
@@ -38,7 +38,7 @@ import { CustomizationLocationPicker } from './customizationCreatorService.js';
 const maxSkillEntries = 1000;
 const maxSkillBytes = 50 * 1024 * 1024;
 
-export class AgentFinderInstallService extends Disposable implements IAgentFinderInstallService {
+export class CustomizationMarketplaceInstallService extends Disposable implements ICustomizationMarketplaceInstallService {
 	declare readonly _serviceBrand: undefined;
 
 	private readonly _onDidChange = this._register(new Emitter<void>());
@@ -69,7 +69,7 @@ export class AgentFinderInstallService extends Disposable implements IAgentFinde
 		super();
 		this.locationPicker = instantiationService.createInstance(CustomizationLocationPicker);
 		this._register(this.configurationService.onDidChangeConfiguration(event => {
-			if (event.affectsConfiguration(ChatConfiguration.AgentFinderEnabled)) {
+			if (event.affectsConfiguration(ChatConfiguration.ChatCustomizationsUnifiedMarketplaceEnabled)) {
 				this.updateEnablement();
 			} else if (this.isEnabled() && event.affectsConfiguration(ChatConfiguration.PluginsEnabled)) {
 				this._onDidChange.fire();
@@ -79,7 +79,7 @@ export class AgentFinderInstallService extends Disposable implements IAgentFinde
 	}
 
 	private isEnabled(): boolean {
-		return this.configurationService.getValue<boolean>(ChatConfiguration.AgentFinderEnabled) === true;
+		return this.configurationService.getValue<boolean>(ChatConfiguration.ChatCustomizationsUnifiedMarketplaceEnabled) === true;
 	}
 
 	private updateEnablement(): void {
@@ -113,28 +113,28 @@ export class AgentFinderInstallService extends Disposable implements IAgentFinde
 		}));
 	}
 
-	getInstallState(resource: IAgentFinderResource): AgentFinderInstallState {
+	getInstallState(resource: ICustomizationMarketplaceResource): CustomizationMarketplaceInstallState {
 		if (!this.isEnabled()) {
-			return { kind: 'unavailable', message: localize('agentFinder.experimentDisabled', "Enable the AgentFinder experiment to install resources.") };
+			return { kind: 'unavailable', message: localize('customizationMarketplace.experimentDisabled', "Enable the unified marketplace experiment to install resources.") };
 		}
 		if (this.entitlementService.sentiment.hidden) {
-			return { kind: 'unavailable', message: localize('agentFinder.aiDisabled', "Enable AI features to install customizations.") };
+			return { kind: 'unavailable', message: localize('customizationMarketplace.aiDisabled', "Enable AI features to install customizations.") };
 		}
-		if (this.pending.has(resource.identifier)) {
+		if (this.pending.has(getCustomizationMarketplaceResourceKey(resource))) {
 			return { kind: 'installing' };
 		}
 		const source = resource.installation;
 		if (!source) {
 			return {
 				kind: 'unavailable',
-				message: resource.mediaType === AgentFinderMediaType.CursorPlugin
-					? localize('agentFinder.cursorUnsupported', "Cursor plugins cannot be installed in VS Code. Open the resource to view its installation instructions.")
-					: localize('agentFinder.sourceUnavailable', "This resource does not provide a supported installation source."),
+				message: resource.mediaType === CustomizationMarketplaceMediaType.CursorPlugin
+					? localize('customizationMarketplace.cursorUnsupported', "Cursor plugins cannot be installed in VS Code. Open the resource to view its installation instructions.")
+					: localize('customizationMarketplace.sourceUnavailable', "This resource does not provide a supported installation source."),
 			};
 		}
 		if (source.kind === 'plugin') {
 			if (!this.configurationService.getValue<boolean>(ChatConfiguration.PluginsEnabled)) {
-				return { kind: 'unavailable', message: localize('agentFinder.pluginsDisabled', "Enable agent plugins to install this resource.") };
+				return { kind: 'unavailable', message: localize('customizationMarketplace.pluginsDisabled', "Enable agent plugins to install this resource.") };
 			}
 			const installed = this.pluginMarketplaceService.installedPlugins.get().some(({ plugin }) => {
 				const descriptor = plugin.sourceDescriptor;
@@ -154,8 +154,9 @@ export class AgentFinderInstallService extends Disposable implements IAgentFinde
 		return { kind: this.installedSkills.has(this.getSkillKey(resource)) ? 'installed' : 'available' };
 	}
 
-	async install(resource: IAgentFinderResource): Promise<void> {
-		const pending = this.pending.get(resource.identifier);
+	async install(resource: ICustomizationMarketplaceResource): Promise<void> {
+		const key = getCustomizationMarketplaceResourceKey(resource);
+		const pending = this.pending.get(key);
 		if (pending) {
 			return pending;
 		}
@@ -168,7 +169,7 @@ export class AgentFinderInstallService extends Disposable implements IAgentFinde
 		}
 		const token = this.enabledToken;
 		const operation = this.doInstall(resource, token);
-		this.pending.set(resource.identifier, operation);
+		this.pending.set(key, operation);
 		this._onDidChange.fire();
 		try {
 			await operation;
@@ -178,24 +179,24 @@ export class AgentFinderInstallService extends Disposable implements IAgentFinde
 			}
 			throw error;
 		} finally {
-			this.pending.delete(resource.identifier);
+			this.pending.delete(key);
 			if (this.isEnabled()) {
 				this._onDidChange.fire();
 			}
 		}
 	}
 
-	private async doInstall(resource: IAgentFinderResource, token: CancellationToken): Promise<void> {
+	private async doInstall(resource: ICustomizationMarketplaceResource, token: CancellationToken): Promise<void> {
 		this.checkEnabled(token);
 		const source = resource.installation;
 		if (!source) {
-			throw new Error(localize('agentFinder.sourceUnavailable', "This resource does not provide a supported installation source."));
+			throw new Error(localize('customizationMarketplace.sourceUnavailable', "This resource does not provide a supported installation source."));
 		}
 		if (source.kind === 'mcp') {
 			const server = await this.mcpWorkbenchService.getMcpServerFromGallery(source.name);
 			this.checkEnabled(token);
 			if (!server) {
-				throw new Error(localize('agentFinder.mcpUnavailable', "The MCP server '{0}' is not available in the configured registry.", source.name));
+				throw new Error(localize('customizationMarketplace.mcpUnavailable', "The MCP server '{0}' is not available in the configured registry.", source.name));
 			}
 			const canInstall = this.mcpWorkbenchService.canInstall(server);
 			if (canInstall !== true) {
@@ -203,7 +204,7 @@ export class AgentFinderInstallService extends Disposable implements IAgentFinde
 			}
 			const installed = await this.mcpWorkbenchService.install(server);
 			if (installed.installState !== McpServerInstallState.Installed) {
-				throw new Error(localize('agentFinder.mcpInstallIncomplete', "The MCP server could not be installed. Review the installation error and try again."));
+				throw new Error(localize('customizationMarketplace.mcpInstallIncomplete', "The MCP server could not be installed. Review the installation error and try again."));
 			}
 			return;
 		}
@@ -220,22 +221,22 @@ export class AgentFinderInstallService extends Disposable implements IAgentFinde
 		await this.installSkill(resource, token);
 	}
 
-	private async installSkill(resource: IAgentFinderResource, enabledToken: CancellationToken): Promise<void> {
+	private async installSkill(resource: ICustomizationMarketplaceResource, enabledToken: CancellationToken): Promise<void> {
 		const source = resource.installation;
 		if (source?.kind !== 'skill') {
-			throw new Error(localize('agentFinder.invalidSkillSource', "The skill's installation source is invalid."));
+			throw new Error(localize('customizationMarketplace.invalidSkillSource', "The skill's installation source is invalid."));
 		}
 		const sourceSegments = source.path ? source.path.split('/') : [];
 		if (sourceSegments.some(segment => !segment || segment === '.' || segment === '..' || /[:\\\u0000-\u001f\u007f]/.test(segment) || segment.toLowerCase() === '.git')) {
-			throw new Error(localize('agentFinder.invalidSkillSource', "The skill's installation source is invalid."));
+			throw new Error(localize('customizationMarketplace.invalidSkillSource', "The skill's installation source is invalid."));
 		}
 		const name = posix.basename(source.path || source.repository);
 		if (!VALID_SKILL_NAME_REGEX.test(name) || name.length > 64) {
-			throw new Error(localize('agentFinder.invalidSkillName', "The skill's folder name '{0}' is not supported. Open the source to review its installation instructions.", name));
+			throw new Error(localize('customizationMarketplace.invalidSkillName', "The skill's folder name '{0}' is not supported. Open the source to review its installation instructions.", name));
 		}
 		const reference = parseMarketplaceReference(`${source.repository}#${source.ref}`);
 		if (!reference || reference.kind !== MarketplaceReferenceKind.GitHubShorthand) {
-			throw new Error(localize('agentFinder.invalidSkillSource', "The skill's installation source is invalid."));
+			throw new Error(localize('customizationMarketplace.invalidSkillSource', "The skill's installation source is invalid."));
 		}
 		const session = this.harnessService.activeSessionResource.get();
 		const harness = this.harnessService.activeHarness.get();
@@ -253,18 +254,18 @@ export class AgentFinderInstallService extends Disposable implements IAgentFinde
 			throw new CancellationError();
 		}
 		if (!targetDirectory) {
-			throw new Error(localize('agentFinder.noSkillDestination', "The selected agent does not provide a writable skill installation location."));
+			throw new Error(localize('customizationMarketplace.noSkillDestination', "The selected agent does not provide a writable skill installation location."));
 		}
 		const target = joinPath(targetDirectory, name);
 		if (await this.fileService.exists(target)) {
-			throw new Error(localize('agentFinder.skillExists', "A skill already exists at '{0}'. Remove or rename it before installing this resource.", this.labelService.getUriLabel(target)));
+			throw new Error(localize('customizationMarketplace.skillExists', "A skill already exists at '{0}'. Remove or rename it before installing this resource.", this.labelService.getUriLabel(target)));
 		}
 		const confirmation = await this.dialogService.confirm({
 			type: 'question',
-			message: localize('agentFinder.confirmSkill', "Install '{0}'?", resource.displayName),
-			detail: localize('agentFinder.confirmSkillDetail', "Skills can supply instructions and scripts that an agent may run. Only install resources from sources you trust.\n\nSource: {0}\nRevision: {1}\nDestination: {2}",
+			message: localize('customizationMarketplace.confirmSkill', "Install '{0}'?", resource.displayName),
+			detail: localize('customizationMarketplace.confirmSkillDetail', "Skills can supply instructions and scripts that an agent may run. Only install resources from sources you trust.\n\nSource: {0}\nRevision: {1}\nDestination: {2}",
 				`${source.repository}/${source.path}`, source.ref, this.labelService.getUriLabel(target)),
-			primaryButton: localize('agentFinder.installSkillButton', "Install"),
+			primaryButton: localize('customizationMarketplace.installSkillButton', "Install"),
 			custom: { icon: Codicon.shield },
 		});
 		if (!confirmation.confirmed) {
@@ -277,7 +278,7 @@ export class AgentFinderInstallService extends Disposable implements IAgentFinde
 		try {
 			await this.progressService.withProgress({
 				location: ProgressLocation.Notification,
-				title: localize('agentFinder.installingSkill', "Installing skill '{0}'", resource.displayName),
+				title: localize('customizationMarketplace.installingSkill', "Installing skill '{0}'", resource.displayName),
 				cancellable: true,
 			}, async () => {
 				const repository = await this.repositoryService.ensureRepository(reference, { token });
@@ -287,18 +288,18 @@ export class AgentFinderInstallService extends Disposable implements IAgentFinde
 					sourceDirectory = joinPath(sourceDirectory, segment);
 					const stat = await this.fileService.resolve(sourceDirectory);
 					if (!stat.isDirectory || stat.isSymbolicLink) {
-						throw new Error(localize('agentFinder.unsafeSkillDirectory', "The skill must be a directory inside its repository, without symbolic links."));
+						throw new Error(localize('customizationMarketplace.unsafeSkillDirectory', "The skill must be a directory inside its repository, without symbolic links."));
 					}
 				}
 				const skill = await this.fileService.resolve(joinPath(sourceDirectory, SKILL_FILENAME));
 				if (!skill.isFile || skill.isSymbolicLink) {
-					throw new Error(localize('agentFinder.missingSkillFile', "The source does not contain a regular SKILL.md file."));
+					throw new Error(localize('customizationMarketplace.missingSkillFile', "The source does not contain a regular SKILL.md file."));
 				}
-				const staging = joinPath(dirname(targetDirectory), `.agentfinder-${generateUuid()}`);
+				const staging = joinPath(dirname(targetDirectory), `.customization-marketplace-${generateUuid()}`);
 				try {
 					await this.copySkill(sourceDirectory, staging, () => checkContext(token), token);
 					if (!await this.fileService.exists(joinPath(staging, SKILL_FILENAME))) {
-						throw new Error(localize('agentFinder.missingStagedSkillFile', "The source changed before the skill was fully copied. Try installing it again."));
+						throw new Error(localize('customizationMarketplace.missingStagedSkillFile', "The source changed before the skill was fully copied. Try installing it again."));
 					}
 					checkContext(token);
 					await this.fileService.move(staging, target, false);
@@ -309,7 +310,7 @@ export class AgentFinderInstallService extends Disposable implements IAgentFinde
 							await this.fileService.del(staging, { recursive: true });
 						}
 					} catch (error) {
-						this.logService.error('[AgentFinder] Unable to clean up staged skill installation', error);
+						this.logService.error('[CustomizationMarketplace] Unable to clean up staged skill installation', error);
 					}
 				}
 			}, () => cancellation.cancel());
@@ -328,7 +329,7 @@ export class AgentFinderInstallService extends Disposable implements IAgentFinde
 			const directory = directories.pop()!;
 			const stat = await this.fileService.resolve(directory.source);
 			if (!stat.isDirectory || stat.isSymbolicLink) {
-				throw new Error(localize('agentFinder.unsafeSkillDirectory', "The skill must be a directory inside its repository, without symbolic links."));
+				throw new Error(localize('customizationMarketplace.unsafeSkillDirectory', "The skill must be a directory inside its repository, without symbolic links."));
 			}
 			await this.fileService.createFolder(directory.target);
 			for (const child of stat.children ?? []) {
@@ -337,7 +338,7 @@ export class AgentFinderInstallService extends Disposable implements IAgentFinde
 					continue;
 				}
 				if (++entries > maxSkillEntries || child.isSymbolicLink) {
-					throw new Error(localize('agentFinder.unsafeSkillContents', "The skill contains symbolic links or too many files. Review the source before installing it manually."));
+					throw new Error(localize('customizationMarketplace.unsafeSkillContents', "The skill contains symbolic links or too many files. Review the source before installing it manually."));
 				}
 				const destination = joinPath(directory.target, child.name);
 				if (child.isDirectory) {
@@ -345,24 +346,24 @@ export class AgentFinderInstallService extends Disposable implements IAgentFinde
 				} else if (child.isFile) {
 					const content = await this.fileService.readFile(child.resource, { limits: { size: maxSkillBytes - bytes } }, token);
 					if (isEqual(child.resource, skillFile) && !content.value.toString().trim()) {
-						throw new Error(localize('agentFinder.emptySkillFile', "The source's SKILL.md file is empty."));
+						throw new Error(localize('customizationMarketplace.emptySkillFile', "The source's SKILL.md file is empty."));
 					}
 					bytes += content.value.byteLength;
 					if (bytes > maxSkillBytes) {
-						throw new Error(localize('agentFinder.skillTooLarge', "The skill exceeds the 50 MB installation limit."));
+						throw new Error(localize('customizationMarketplace.skillTooLarge', "The skill exceeds the 50 MB installation limit."));
 					}
 					checkContext();
 					await this.fileService.createFile(destination, content.value, { overwrite: false });
 				} else {
-					throw new Error(localize('agentFinder.unsupportedSkillFile', "The skill contains a file type that cannot be installed."));
+					throw new Error(localize('customizationMarketplace.unsupportedSkillFile', "The skill contains a file type that cannot be installed."));
 				}
 			}
 		}
 	}
 
-	private getSkillKey(resource: IAgentFinderResource): string {
+	private getSkillKey(resource: ICustomizationMarketplaceResource): string {
 		const root = this.workspaceService.getActiveProjectRoot();
-		return JSON.stringify([resource.identifier, this.harnessService.activeHarness.get(), root ? getComparisonKey(root) : '']);
+		return JSON.stringify([getCustomizationMarketplaceResourceKey(resource), this.harnessService.activeHarness.get(), root ? getComparisonKey(root) : '']);
 	}
 
 	private checkEnabled(token: CancellationToken): void {

@@ -10,14 +10,14 @@ import { Lazy } from '../../../base/common/lazy.js';
 import { revive } from '../../../base/common/marshalling.js';
 import { IChannel, IServerChannel } from '../../../base/parts/ipc/common/ipc.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
-import { AgentFinderConfiguration, IAgentFinderPage, IAgentFinderQuery, IAgentFinderService } from './agentFinderService.js';
+import { CustomizationMarketplaceConfiguration, ICustomizationMarketplacePage, ICustomizationMarketplaceQuery, ICustomizationMarketplaceService } from './customizationMarketplaceService.js';
 
-export const AGENT_FINDER_CHANNEL_NAME = 'agentFinder';
+export const CUSTOMIZATION_MARKETPLACE_CHANNEL_NAME = 'customizationMarketplace';
 
-export class AgentFinderChannel implements IServerChannel {
-	private readonly service: Lazy<IAgentFinderService>;
+export class CustomizationMarketplaceChannel implements IServerChannel {
+	private readonly service: Lazy<ICustomizationMarketplaceService>;
 
-	constructor(getService: () => IAgentFinderService) {
+	constructor(getService: () => ICustomizationMarketplaceService) {
 		this.service = new Lazy(getService);
 	}
 
@@ -25,7 +25,7 @@ export class AgentFinderChannel implements IServerChannel {
 		throw new Error('Invalid listen');
 	}
 
-	call<T>(_context: unknown, command: string, query?: IAgentFinderQuery, token: CancellationToken = CancellationToken.None): Promise<T> {
+	call<T>(_context: unknown, command: string, query?: ICustomizationMarketplaceQuery, token: CancellationToken = CancellationToken.None): Promise<T> {
 		switch (command) {
 			case 'query':
 				if (token.isCancellationRequested) {
@@ -37,7 +37,7 @@ export class AgentFinderChannel implements IServerChannel {
 	}
 }
 
-export class AgentFinderChannelClient implements IAgentFinderService {
+export class CustomizationMarketplaceChannelClient implements ICustomizationMarketplaceService {
 	declare readonly _serviceBrand: undefined;
 
 	constructor(
@@ -45,10 +45,10 @@ export class AgentFinderChannelClient implements IAgentFinderService {
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) { }
 
-	async query(options: IAgentFinderQuery, token: CancellationToken): Promise<IAgentFinderPage> {
-		if (this.configurationService.getValue<boolean>(AgentFinderConfiguration.Enabled) !== true || token.isCancellationRequested) {
+	async query(options: ICustomizationMarketplaceQuery, token: CancellationToken): Promise<ICustomizationMarketplacePage> {
+		if (this.configurationService.getValue<boolean>(CustomizationMarketplaceConfiguration.Enabled) !== true || token.isCancellationRequested) {
 			throw new CancellationError();
 		}
-		return revive<IAgentFinderPage>(await this.channel.call<IAgentFinderPage>('query', options, token));
+		return revive<ICustomizationMarketplacePage>(await this.channel.call<ICustomizationMarketplacePage>('query', options, token));
 	}
 }

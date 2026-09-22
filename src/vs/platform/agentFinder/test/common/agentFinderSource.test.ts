@@ -7,24 +7,25 @@ import assert from 'assert';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { isCancellationError } from '../../../../base/common/errors.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { AgentFinderMediaType, AgentFinderService, IAgentFinderPage, IAgentFinderProvider, IAgentFinderQuery } from '../../common/agentFinderService.js';
+import { CustomizationMarketplaceMediaType, ICustomizationMarketplaceProvider, ICustomizationMarketplaceSourcePage, ICustomizationMarketplaceSourceQuery } from '../../../customizationMarketplace/common/customizationMarketplaceService.js';
+import { AgentFinderSource } from '../../common/agentFinderSource.js';
 
-suite('AgentFinderService', () => {
+suite('AgentFinderSource', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	function createService() {
-		const calls: { provider: 'browse' | 'search'; options: IAgentFinderQuery; token: CancellationToken }[] = [];
-		const pages: Record<'browse' | 'search', IAgentFinderPage> = {
+		const calls: { provider: 'browse' | 'search'; options: ICustomizationMarketplaceSourceQuery; token: CancellationToken }[] = [];
+		const pages: Record<'browse' | 'search', ICustomizationMarketplaceSourcePage> = {
 			browse: { items: [], total: 0 },
 			search: { items: [] },
 		};
-		const provider = (name: 'browse' | 'search'): IAgentFinderProvider => ({
+		const provider = (name: 'browse' | 'search'): ICustomizationMarketplaceProvider => ({
 			query: async (options, token) => {
 				calls.push({ provider: name, options, token });
 				return pages[name];
 			},
 		});
-		return { service: new AgentFinderService(provider('browse'), provider('search')), calls, pages };
+		return { service: new AgentFinderSource(provider('browse'), provider('search')), calls, pages };
 	}
 
 	test('routes absent, empty, and whitespace-only queries to browsing', async () => {
@@ -49,11 +50,11 @@ suite('AgentFinderService', () => {
 	test('routes trimmed text to the independently supplied search provider', async () => {
 		const { service, calls, pages } = createService();
 		const token = store.add(new CancellationTokenSource()).token;
-		const options = Object.freeze<IAgentFinderQuery>({
+		const options = Object.freeze<ICustomizationMarketplaceSourceQuery>({
 			query: '  postgres  ',
-			mediaType: AgentFinderMediaType.McpServer,
+			mediaType: CustomizationMarketplaceMediaType.McpServer,
 			pageSize: 24,
-			cursor: { kind: 'search', pageToken: 'opaque/token==' },
+			cursor: 'opaque/token==',
 		});
 		const page = await service.query(options, token);
 		assert.deepStrictEqual({
@@ -69,10 +70,10 @@ suite('AgentFinderService', () => {
 
 	test('forwards browse filters and pagination without invoking search', async () => {
 		const { service, calls } = createService();
-		const options: IAgentFinderQuery = {
-			mediaType: AgentFinderMediaType.ClaudePlugin,
+		const options: ICustomizationMarketplaceSourceQuery = {
+			mediaType: CustomizationMarketplaceMediaType.ClaudePlugin,
 			pageSize: 24,
-			cursor: { kind: 'browse', offset: 24 },
+			cursor: 'browse-page-2',
 		};
 		await service.query(options, CancellationToken.None);
 		assert.deepStrictEqual(calls, [{
@@ -83,21 +84,21 @@ suite('AgentFinderService', () => {
 	});
 
 	test('does not reinterpret provider resources or manufacture installation provenance', async () => {
-		const page: IAgentFinderPage = {
+		const page: ICustomizationMarketplaceSourcePage = {
 			items: [{
 				identifier: 'provider-resource',
 				displayName: 'Resource',
 				description: '',
-				mediaType: AgentFinderMediaType.Skill,
+				mediaType: CustomizationMarketplaceMediaType.Skill,
 				tags: [],
 				capabilities: [],
 				representativeQueries: [],
 				externalUrl: 'https://github.com/example/skills/blob/main/review/SKILL.md',
 			}],
-			nextCursor: { kind: 'search', pageToken: 'next' },
+			nextCursor: 'next',
 		};
-		const provider: IAgentFinderProvider = { query: async () => page };
-		const service = new AgentFinderService(provider, provider);
+		const provider: ICustomizationMarketplaceProvider = { query: async () => page };
+		const service = new AgentFinderSource(provider, provider);
 		assert.strictEqual(await service.query({ query: 'review' }, CancellationToken.None), page);
 	});
 
@@ -105,13 +106,13 @@ suite('AgentFinderService', () => {
 		test(`${operation} failures do not fall back to another provider`, async () => {
 			const error = new Error('Provider refused the request');
 			const calls: string[] = [];
-			const provider = (name: string): IAgentFinderProvider => ({
+			const provider = (name: string): ICustomizationMarketplaceProvider => ({
 				query: async () => {
 					calls.push(name);
 					throw error;
 				},
 			});
-			const service = new AgentFinderService(provider('browse'), provider('search'));
+			const service = new AgentFinderSource(provider('browse'), provider('search'));
 			await assert.rejects(service.query({ query: operation === 'search' ? 'review' : undefined }, CancellationToken.None), actual => actual === error);
 			assert.deepStrictEqual(calls, [operation]);
 		});

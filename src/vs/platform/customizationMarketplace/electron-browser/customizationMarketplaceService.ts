@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { registerSharedProcessRemoteService } from '../../ipc/electron-browser/services.js';
-import { AGENT_FINDER_CHANNEL_NAME, AgentFinderChannelClient } from '../common/agentFinderIpc.js';
-import { IAgentFinderService } from '../common/agentFinderService.js';
+import { CUSTOMIZATION_MARKETPLACE_CHANNEL_NAME, CustomizationMarketplaceChannelClient } from '../common/customizationMarketplaceIpc.js';
+import { ICustomizationMarketplaceService } from '../common/customizationMarketplaceService.js';
 
-registerSharedProcessRemoteService(IAgentFinderService, AGENT_FINDER_CHANNEL_NAME, { channelClientCtor: AgentFinderChannelClient });
+registerSharedProcessRemoteService(ICustomizationMarketplaceService, CUSTOMIZATION_MARKETPLACE_CHANNEL_NAME, { channelClientCtor: CustomizationMarketplaceChannelClient });

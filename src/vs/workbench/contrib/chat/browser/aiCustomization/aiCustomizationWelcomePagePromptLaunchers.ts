@@ -57,10 +57,10 @@ export class PromptLaunchersAICustomizationWelcomePage extends Disposable implem
 
 	private readonly categoryDescriptions: IPromptLaunchersCategoryDescription[] = [
 		{
-			id: AICustomizationManagementSection.AgentFinder,
-			label: localize('agentFinder', "AgentFinder"),
+			id: AICustomizationManagementSection.Marketplace,
+			label: localize('customizationMarketplace', "Marketplace"),
 			icon: Codicon.search,
-			description: localize('agentFinderDesc', "Discover skills, MCP servers, and plugins in GitHub's public catalog. Review their sources before adding them to your agent."),
+			description: localize('customizationMarketplaceDesc', "Discover skills, MCP servers, and plugins for your agents. Review their sources before installing."),
 		},
 		{
 			id: AICustomizationManagementSection.Agents,
