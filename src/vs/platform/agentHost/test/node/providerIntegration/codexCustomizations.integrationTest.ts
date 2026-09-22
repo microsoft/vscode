@@ -126,7 +126,9 @@ suite('Agent Host Provider Integration — Codex Customizations', function () {
 		userHomeDir = await mkdtemp(join(process.cwd(), '.build', 'codex-customizations-home-'));
 		const codexHomeDir = join(userHomeDir, '.codex');
 		await mkdir(codexHomeDir, { recursive: true });
-		const nativeSkillDirectory = join(userHomeDir, '.agents', 'skills', 'native-skill');
+		const nativeSkillDirectory = process.platform === 'win32'
+			? join(codexHomeDir, 'skills', 'native-skill')
+			: join(userHomeDir, '.agents', 'skills', 'native-skill');
 		await mkdir(nativeSkillDirectory, { recursive: true });
 		await writeFile(join(nativeSkillDirectory, 'SKILL.md'), `---\nname: native-skill\ndescription: ${NATIVE_SKILL_MARKER}\n---\nUse this native skill when requested.`);
 		server = await startRealServer({
