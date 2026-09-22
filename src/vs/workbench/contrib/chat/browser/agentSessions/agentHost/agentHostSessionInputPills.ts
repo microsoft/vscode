@@ -4,8 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { getWindow } from '../../../../../../base/browser/dom.js';
+import { status } from '../../../../../../base/browser/ui/aria/aria.js';
 import { toAction } from '../../../../../../base/common/actions.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
+import { toErrorMessage } from '../../../../../../base/common/errorMessage.js';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { getMediaMime } from '../../../../../../base/common/mime.js';
 import { autorun, constObservable, derived, derivedObservableWithCache, derivedOpts, IObservable, IReader, observableFromEvent, observableSignal, observableSignalFromEvent, observableValue } from '../../../../../../base/common/observable.js';
@@ -18,6 +20,7 @@ import { IAgentHostConnectionsService, IAgentHostSessionResolution } from '../..
 import { toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { resolveChangesetUriTemplate, selectDefaultChangeset, type DefaultChangesetKind } from '../../../../../../platform/agentHost/common/changesetUri.js';
 import { ISessionArtifact, isGitHubArtifactLink, readSessionArtifactsNewestFirst, SessionArtifactType } from '../../../../../../platform/agentHost/common/sessionArtifacts.js';
+import { supportsAgentHostArtifactRemoval } from '../../../../../../platform/agentHost/common/meta/agentHostArtifactRemovalMeta.js';
 import { observableFromSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { Changeset, ChangesetState, ChangesetStatus, ChatOriginKind, DEFAULT_CHAT_ID, getSessionChatResource, getSessionRelatedPullRequestUrls, isSubagentChatUri, parseChatUri, readSessionGitHubState, SessionState, SessionSummaryMeta, StateComponents } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IClipboardService } from '../../../../../../platform/clipboard/common/clipboardService.js';
@@ -27,6 +30,7 @@ import { PullRequestCheck, PullRequestCore, PullRequestRef, PullRequestSnapshot 
 import { IGitHubService } from '../../../../../../platform/github/common/githubService.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
+import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
 import { CHAT_INPUT_PILLS_ROW_HEIGHT, getChatPillEntries, getChatPillResourceLocation, IChatPillEntry, IChatPillSection, type ChatPillsCompactMode } from '../../../../../browser/chatPills.js';
 import { chatChangesStatsEqual, EMPTY_CHAT_CHANGES_STATS, IChatChangesStats } from '../../../../../browser/chatChangesPill.js';
@@ -76,8 +80,10 @@ const artifactSectionOrder: readonly { readonly type: SessionArtifactType; reado
 export interface IAgentHostSessionPillMetadata {
 	readonly pullRequestUrls: readonly string[];
 	readonly pullRequestTitles: ReadonlyMap<string, string>;
+	readonly pullRequestArtifacts: ReadonlyMap<string, ISessionArtifact>;
 	readonly issueUrls: readonly string[];
 	readonly issueTitles: ReadonlyMap<string, string>;
+	readonly issueArtifacts: ReadonlyMap<string, ISessionArtifact>;
 	readonly artifacts: readonly ISessionArtifact[];
 	readonly references: readonly ISessionArtifact[];
 }
@@ -126,15 +132,19 @@ export function getAgentHostSessionPillMetadata(meta: SessionSummaryMeta | undef
 	// Recorded pull requests lead discovered ones, as in the Agents Window.
 	const pullRequestUrls = dedupeLinks(artifactPullRequests.map(entry => entry.link), getSessionRelatedPullRequestUrls(github));
 	const pullRequestTitles = new Map(artifactPullRequests.filter(entry => entry.label).map(entry => [linkKey(entry.link), entry.label]));
+	const pullRequestArtifacts = new Map(artifactPullRequests.map(entry => [linkKey(entry.link), entry]));
 	const issueUrls = dedupeLinks(artifactIssues.map(entry => entry.link));
 	const issueTitles = new Map(artifactIssues.map(entry => [linkKey(entry.link), entry.label]));
+	const issueArtifacts = new Map(artifactIssues.map(entry => [linkKey(entry.link), entry]));
 	const promotedLinks = new Set([...pullRequestUrls, ...issueUrls].map(linkKey));
 	const remaining = entries.filter(entry => !entry.link || !promotedLinks.has(linkKey(entry.link)));
 	return {
 		pullRequestUrls,
 		pullRequestTitles,
+		pullRequestArtifacts,
 		issueUrls,
 		issueTitles,
+		issueArtifacts,
 		artifacts: remaining.filter(entry => entry.isArtifact),
 		references: remaining.filter(entry => !entry.isArtifact),
 	};
@@ -484,6 +494,7 @@ export class AgentHostSessionInputPills extends Disposable {
 		@IOpenerService private readonly _openerService: IOpenerService,
 		@ISessionChatPillVisibilityService visibility: ISessionChatPillVisibilityService,
 		@IAgentHostUntitledProvisionalSessionService provisionalSessions: IAgentHostUntitledProvisionalSessionService,
+		@INotificationService private readonly _notificationService: INotificationService,
 	) {
 		super();
 		const gitHubReferenceResolver = this._register(instantiationService.createInstance(AgentHostGitHubReferenceResolver));
@@ -601,7 +612,17 @@ export class AgentHostSessionInputPills extends Disposable {
 
 		const pullRequestSections = derived(this, reader => {
 			const currentMetadata = metadata.read(reader);
-			return this._buildReferenceSections(currentMetadata.pullRequestUrls, 'pullRequest', reader, gitHubReferenceResolver, gitHubState.read(reader), currentMetadata.pullRequestTitles);
+			const currentResolution = resolution.read(reader);
+			return this._buildReferenceSections(
+				currentMetadata.pullRequestUrls,
+				'pullRequest',
+				reader,
+				gitHubReferenceResolver,
+				gitHubState.read(reader),
+				currentMetadata.pullRequestTitles,
+				currentMetadata.pullRequestArtifacts,
+				this._getRemoveArtifactAction(currentResolution, reader),
+			);
 		});
 		const pullRequestIcon = derived(this, reader => {
 			const icons = getChatPillEntries(pullRequestSections.read(reader)).map(entry => entry.icon);
@@ -609,18 +630,28 @@ export class AgentHostSessionInputPills extends Disposable {
 		});
 		const issueSections = derived(this, reader => {
 			const currentMetadata = metadata.read(reader);
-			return this._buildReferenceSections(currentMetadata.issueUrls, 'issue', reader, gitHubReferenceResolver, undefined, currentMetadata.issueTitles);
+			const currentResolution = resolution.read(reader);
+			return this._buildReferenceSections(
+				currentMetadata.issueUrls,
+				'issue',
+				reader,
+				gitHubReferenceResolver,
+				undefined,
+				currentMetadata.issueTitles,
+				currentMetadata.issueArtifacts,
+				this._getRemoveArtifactAction(currentResolution, reader),
+			);
 		});
 		const artifactSections = derived(this, reader => {
 			const currentResolution = resolution.read(reader);
 			return currentResolution
-				? this._buildArtifactSections(metadata.read(reader).artifacts, browserUrls.read(reader), currentResolution)
+				? this._buildArtifactSections(metadata.read(reader).artifacts, browserUrls.read(reader), currentResolution, this._getRemoveArtifactAction(currentResolution, reader))
 				: [];
 		});
 		const referenceSections = derived(this, reader => {
 			const currentResolution = resolution.read(reader);
 			return currentResolution
-				? this._buildArtifactSections(metadata.read(reader).references, browserUrls.read(reader), currentResolution)
+				? this._buildArtifactSections(metadata.read(reader).references, browserUrls.read(reader), currentResolution, this._getRemoveArtifactAction(currentResolution, reader))
 				: [];
 		});
 		const browserSections = derived(this, reader => {
@@ -664,7 +695,16 @@ export class AgentHostSessionInputPills extends Disposable {
 		updateVisibility(inputPills.visible);
 	}
 
-	private _buildReferenceSections(links: readonly string[], kind: 'pullRequest' | 'issue', reader: IReader, gitHubReferenceResolver: AgentHostGitHubReferenceResolver, gitHubState?: ReturnType<typeof readSessionGitHubState>, titles?: ReadonlyMap<string, string>) {
+	private _buildReferenceSections(
+		links: readonly string[],
+		kind: 'pullRequest' | 'issue',
+		reader: IReader,
+		gitHubReferenceResolver: AgentHostGitHubReferenceResolver,
+		gitHubState?: ReturnType<typeof readSessionGitHubState>,
+		titles?: ReadonlyMap<string, string>,
+		artifacts?: ReadonlyMap<string, ISessionArtifact>,
+		removeArtifact?: (artifact: ISessionArtifact) => Promise<void>,
+	) {
 		const entries = links.map(link => {
 			const resource = parseUri(link);
 			if (!resource) {
@@ -672,6 +712,7 @@ export class AgentHostSessionInputPills extends Disposable {
 			}
 			const number = githubReferenceNumber(resource, kind);
 			const title = titles?.get(linkKey(link));
+			const artifact = artifacts?.get(linkKey(link));
 			const label = referenceLabel(link, kind, title);
 			const target = parseGitHubReferenceTarget(resource, kind);
 			const pullRequestDetails = kind === 'pullRequest' && target
@@ -746,6 +787,7 @@ export class AgentHostSessionInputPills extends Disposable {
 				...(kind === 'pullRequest' && number ? { pillLabel: `#${number}` } : {}),
 				icon: kind === 'pullRequest' ? computePullRequestIcon(pullRequestState) : Codicon.issues,
 				pullRequestState: kind === 'pullRequest' ? pullRequestState : undefined,
+				promotedAction: artifact && removeArtifact ? this._createRemoveAction(artifact, removeArtifact) : undefined,
 				toolbarActions: [toAction({
 					id: `chatInputPills.copy.${kind}.${linkKey(link)}`,
 					label: kind === 'pullRequest'
@@ -774,7 +816,7 @@ export class AgentHostSessionInputPills extends Disposable {
 		return entries.length > 0 ? [{ title, entries }] : [];
 	}
 
-	private _buildArtifactSections(entries: readonly ISessionArtifact[], browserUrls: ReadonlySet<string>, resolution: IAgentHostSessionResolution): readonly IChatPillSection[] {
+	private _buildArtifactSections(entries: readonly ISessionArtifact[], browserUrls: ReadonlySet<string>, resolution: IAgentHostSessionResolution, removeArtifact?: (artifact: ISessionArtifact) => Promise<void>): readonly IChatPillSection[] {
 		const browserKeys = new Set([...browserUrls].map(websiteKey).filter(isDefined));
 		const entriesByType = new Map<SessionArtifactType, IChatPillEntry[]>();
 		for (const artifact of entries) {
@@ -787,7 +829,7 @@ export class AgentHostSessionInputPills extends Disposable {
 			const entry = this._artifactEntry(artifact, resolution);
 			if (entry) {
 				const typeEntries = entriesByType.get(artifact.type) ?? [];
-				typeEntries.push(entry);
+				typeEntries.push(removeArtifact ? { ...entry, promotedAction: this._createRemoveAction(artifact, removeArtifact) } : entry);
 				entriesByType.set(artifact.type, typeEntries);
 			}
 		}
@@ -849,6 +891,33 @@ export class AgentHostSessionInputPills extends Disposable {
 			};
 		}
 		return undefined;
+	}
+
+	private _getRemoveArtifactAction(resolution: IAgentHostSessionResolution | undefined, reader: IReader): ((artifact: ISessionArtifact) => Promise<void>) | undefined {
+		return resolution?.connection.removeSessionArtifact && supportsAgentHostArtifactRemoval(resolution.connection.initializeResult.read(reader))
+			? artifact => this._removeArtifact(resolution, artifact)
+			: undefined;
+	}
+
+	private _createRemoveAction(artifact: ISessionArtifact, removeArtifact: (artifact: ISessionArtifact) => Promise<void>) {
+		return toAction({
+			id: `chat.agentHost.sessionPills.removeArtifact.${artifact.id}`,
+			label: localize('agentHostSessionPills.removeArtifact', "Remove {0} from Session", artifact.label),
+			class: ThemeIcon.asClassName(Codicon.close),
+			run: () => removeArtifact(artifact),
+		});
+	}
+
+	private async _removeArtifact(resolution: IAgentHostSessionResolution, artifact: ISessionArtifact): Promise<void> {
+		try {
+			if (!resolution.connection.removeSessionArtifact) {
+				throw new Error(localize('agentHostSessionPills.removeArtifactUnavailable', "Removing references is unavailable for this session."));
+			}
+			await resolution.connection.removeSessionArtifact(resolution.backendSession, artifact.id);
+			status(localize('agentHostSessionPills.artifactRemoved', "{0} removed from session.", artifact.label));
+		} catch (error) {
+			this._notificationService.error(localize('agentHostSessionPills.removeArtifactFailed', "Could not remove {0} from this session: {1}", artifact.label, toErrorMessage(error)));
+		}
 	}
 
 	private _browserEntry(input: BrowserEditorInput, sessionResource: URI | undefined): IChatPillEntry {

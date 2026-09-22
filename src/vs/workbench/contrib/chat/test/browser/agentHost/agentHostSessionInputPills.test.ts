@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { timeout } from '../../../../../../base/common/async.js';
+import { IAction } from '../../../../../../base/common/actions.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { Disposable, toDisposable, type IReference } from '../../../../../../base/common/lifecycle.js';
 import { constObservable } from '../../../../../../base/common/observable.js';
@@ -18,11 +19,14 @@ import { IActionWidgetService } from '../../../../../../platform/actionWidget/br
 import { ChangesetKind } from '../../../../../../platform/agentHost/common/changesetUri.js';
 import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ISessionArtifact, SessionArtifactType, withSessionArtifacts } from '../../../../../../platform/agentHost/common/sessionArtifacts.js';
+import { AgentHostArtifactRemovalCapabilityMetaKey } from '../../../../../../platform/agentHost/common/meta/agentHostArtifactRemovalMeta.js';
 import { buildDefaultChatUri, buildSubagentChatUri, Changeset, ChangesetState, ChangesetStatus, ChatOriginKind, ComponentToState, SessionState, StateComponents, withSessionGitHubState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import type { InitializeResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { IClipboardService } from '../../../../../../platform/clipboard/common/clipboardService.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IGitHubService } from '../../../../../../platform/github/common/githubService.js';
 import { PullRequestSnapshot } from '../../../../../../platform/github/common/githubPullRequestService.js';
+import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { BrowserEditorInput } from '../../../../browserView/common/browserEditorInput.js';
@@ -41,10 +45,16 @@ import { ChatViewModel } from '../../../common/model/chatViewModel.js';
 class StaticAgentConnection extends mock<IAgentConnection>() {
 	readonly requested: Array<{ kind: StateComponents; resource: URI }> = [];
 	readonly released: URI[] = [];
+	readonly removeSessionArtifactCalls: { readonly session: URI; readonly artifactId: string }[] = [];
+	override readonly initializeResult;
+	removeSessionArtifactError: Error | undefined;
 	private readonly emitters = new Map<StateComponents, Emitter<unknown>>();
 
-	constructor(private readonly values: ReadonlyMap<StateComponents, SessionState | ChangesetState>) {
+	constructor(private readonly values: ReadonlyMap<StateComponents, SessionState | ChangesetState>, supportsArtifactRemoval = false) {
 		super();
+		this.initializeResult = constObservable<InitializeResult | undefined>(supportsArtifactRemoval ? upcastPartial<InitializeResult>({
+			_meta: { [AgentHostArtifactRemovalCapabilityMetaKey]: true },
+		}) : undefined);
 	}
 
 	override getSubscription<T extends StateComponents>(kind: T, resource: URI): IReference<IAgentSubscription<ComponentToState[T]>> {
@@ -71,6 +81,13 @@ class StaticAgentConnection extends mock<IAgentConnection>() {
 		(this.values as Map<StateComponents, SessionState | ChangesetState>).set(kind, value);
 		this.emitters.get(kind)?.fire(value);
 	}
+
+	override async removeSessionArtifact(session: URI, artifactId: string): Promise<void> {
+		this.removeSessionArtifactCalls.push({ session, artifactId });
+		if (this.removeSessionArtifactError) {
+			throw this.removeSessionArtifactError;
+		}
+	}
 }
 
 class TestOpenerService extends mock<IOpenerService>() {
@@ -91,6 +108,7 @@ suite('AgentHostSessionInputPills', () => {
 		onDidChange: Event.None,
 		get: () => undefined,
 	});
+	const notificationService = upcastPartial<INotificationService>({ error: () => { } });
 	const createInstantiationService = () => {
 		const instantiationService = workbenchInstantiationService(undefined, store);
 		instantiationService.stub(IGitHubService, upcastPartial<IGitHubService>({
@@ -224,6 +242,7 @@ suite('AgentHostSessionInputPills', () => {
 			widget, false, connectionsService, browserViewService, clipboardService,
 			configurationService, editorService, instantiationService, openerService, visibility,
 			provisionalSessions,
+			notificationService,
 		));
 		const draft = URI.parse('agent-host-copilotcli:/untitled-draft');
 		viewModel = upcastPartial<ChatViewModel>({ sessionResource: draft });
@@ -285,8 +304,10 @@ suite('AgentHostSessionInputPills', () => {
 		assert.deepStrictEqual({
 			pullRequestUrls: metadata.pullRequestUrls,
 			pullRequestTitles: [...metadata.pullRequestTitles],
+			pullRequestArtifactIds: [...metadata.pullRequestArtifacts].map(([link, artifact]) => [link, artifact.id]),
 			issueUrls: metadata.issueUrls,
 			issueTitles: [...metadata.issueTitles],
+			issueArtifactIds: [...metadata.issueArtifacts].map(([link, artifact]) => [link, artifact.id]),
 			artifactIds: metadata.artifacts.map(artifact => artifact.id),
 			referenceIds: metadata.references.map(reference => reference.id),
 		}, {
@@ -296,8 +317,13 @@ suite('AgentHostSessionInputPills', () => {
 				'https://github.com/microsoft/vscode/pull/1',
 			],
 			pullRequestTitles: [['https://github.com/microsoft/vscode/pull/2', 'Created PR']],
+			pullRequestArtifactIds: [
+				['https://github.com/microsoft/vscode/pull/3', 'untitled-pr'],
+				['https://github.com/microsoft/vscode/pull/2', 'created-pr'],
+			],
 			issueUrls: ['https://github.com/microsoft/vscode/issues/3'],
 			issueTitles: [['https://github.com/microsoft/vscode/issues/3', 'Created Issue']],
+			issueArtifactIds: [['https://github.com/microsoft/vscode/issues/3', 'created-issue']],
 			artifactIds: ['website'],
 			// Newest first: `resource` was recorded after `issue-reference`.
 			referenceIds: ['resource', 'issue-reference'],
@@ -321,8 +347,10 @@ suite('AgentHostSessionInputPills', () => {
 		assert.deepStrictEqual({
 			pullRequestUrls: metadata.pullRequestUrls,
 			pullRequestTitles: [...metadata.pullRequestTitles],
+			pullRequestArtifactIds: [...metadata.pullRequestArtifacts].map(([link, artifact]) => [link, artifact.id]),
 			issueUrls: metadata.issueUrls,
 			issueTitles: [...metadata.issueTitles],
+			issueArtifactIds: [...metadata.issueArtifacts].map(([link, artifact]) => [link, artifact.id]),
 			artifactIds: metadata.artifacts.map(artifact => artifact.id),
 			referenceIds: metadata.references.map(reference => reference.id),
 		}, {
@@ -334,6 +362,10 @@ suite('AgentHostSessionInputPills', () => {
 				['https://github.com/microsoft/vscode/pull/2', 'New PR'],
 				['https://github.com/microsoft/vscode/pull/1', 'Old PR'],
 			],
+			pullRequestArtifactIds: [
+				['https://github.com/microsoft/vscode/pull/2', 'new-pr'],
+				['https://github.com/microsoft/vscode/pull/1', 'old-pr'],
+			],
 			issueUrls: [
 				'https://github.com/microsoft/vscode/issues/2',
 				'https://github.com/microsoft/vscode/issues/1',
@@ -341,6 +373,10 @@ suite('AgentHostSessionInputPills', () => {
 			issueTitles: [
 				['https://github.com/microsoft/vscode/issues/2', 'New Issue'],
 				['https://github.com/microsoft/vscode/issues/1', 'Old Issue'],
+			],
+			issueArtifactIds: [
+				['https://github.com/microsoft/vscode/issues/2', 'new-issue'],
+				['https://github.com/microsoft/vscode/issues/1', 'old-issue'],
 			],
 			artifactIds: ['new-website', 'old-website'],
 			referenceIds: ['new-reference', 'old-reference'],
@@ -387,7 +423,7 @@ suite('AgentHostSessionInputPills', () => {
 					},
 				]),
 			} as unknown as SessionState],
-		]));
+		]), true);
 		const persistentContent = document.createElement('div');
 		document.body.appendChild(persistentContent);
 		store.add(toDisposable(() => persistentContent.remove()));
@@ -441,6 +477,7 @@ suite('AgentHostSessionInputPills', () => {
 			openerService,
 			visibility,
 			noProvisionalSessions,
+			notificationService,
 		));
 		await timeout(0);
 
@@ -451,6 +488,8 @@ suite('AgentHostSessionInputPills', () => {
 		const pullRequestHover = pullRequestDropdownItems.find(item => typeof item.hover?.content === 'function')?.hover?.content;
 		const pullRequestHoverElement = typeof pullRequestHover === 'function' ? pullRequestHover() : undefined;
 		issueButton?.click();
+		const removePullRequest = pullRequestDropdownItems.flatMap(item => item.toolbarActions ?? []).find(action => action.label.startsWith('Remove '));
+		await removePullRequest?.run();
 		const presentation = {
 			pullRequests: {
 				label: pullRequestButton?.querySelector('.chat-pill-label')?.textContent,
@@ -458,6 +497,7 @@ suite('AgentHostSessionInputPills', () => {
 				dropdownLabels: pullRequestDropdownItems.map(item => item.label ?? ''),
 				hoverClassName: pullRequestHoverElement instanceof HTMLElement ? pullRequestHoverElement.className : undefined,
 				hoverText: pullRequestHoverElement instanceof HTMLElement ? pullRequestHoverElement.textContent : undefined,
+				actionLabels: pullRequestDropdownItems.flatMap(item => item.toolbarActions ?? []).map(action => action.label),
 			},
 			issue: {
 				label: issueButton?.querySelector('.chat-pill-label')?.textContent,
@@ -465,6 +505,7 @@ suite('AgentHostSessionInputPills', () => {
 				ariaDescription: issueButton?.getAttribute('aria-description'),
 			},
 			opened: openerService.opened.map(({ resource, options }) => ({ resource: resource.toString(true), options })),
+			removed: connection.removeSessionArtifactCalls.map(({ session, artifactId }) => ({ session: session.toString(), artifactId })),
 		};
 		connection.setState(StateComponents.Session, {
 			defaultChat: buildDefaultChatUri(backendSession),
@@ -484,6 +525,12 @@ suite('AgentHostSessionInputPills', () => {
 				],
 				hoverClassName: 'sessions-pr-hover compact',
 				hoverText: 'microsoft/vscodeon Sep 1Live pull request 332982 #332982OpenLive pull request bodymain←feature@pr-author opened this pull request',
+				actionLabels: [
+					'Copy Pull Request URL',
+					'Remove Chat: unify Agent Host status pills across chat surfaces from Session',
+					'Copy Pull Request URL',
+					'Remove sessions: preserve recorded issue titles in pills from Session',
+				],
 			},
 			issue: {
 				label: 'Live issue title',
@@ -494,6 +541,7 @@ suite('AgentHostSessionInputPills', () => {
 				resource: issueUrl,
 				options: { openExternal: true, allowContributedOpeners: true, fromUserGesture: true },
 			}],
+			removed: [{ session: backendSession.toString(), artifactId: 'second-pr' }],
 			disposedSubscriptions: ['issue:335383', 'pullRequest:332982', 'pullRequest:335387'],
 		});
 	});
@@ -618,6 +666,7 @@ suite('AgentHostSessionInputPills', () => {
 			openerService,
 			visibility,
 			noProvisionalSessions,
+			notificationService,
 		));
 		const row = persistentContent.querySelector<HTMLElement>('.agent-host-session-input-pills');
 
@@ -718,6 +767,7 @@ suite('AgentHostSessionInputPills', () => {
 			openerService,
 			visibility,
 			noProvisionalSessions,
+			notificationService,
 		));
 		const row = persistentContent.querySelector<HTMLElement>('.agent-host-session-input-pills');
 		const button = row?.querySelector('.chat-pill-button');
@@ -861,6 +911,7 @@ suite('AgentHostSessionInputPills', () => {
 			openerService,
 			visibility,
 			noProvisionalSessions,
+			notificationService,
 		));
 		const button = persistentContent.querySelector<HTMLElement>('.chat-dropdown-pill-button');
 		const icon = button?.querySelector<HTMLElement>('.chat-pill-icon');
@@ -927,7 +978,7 @@ suite('AgentHostSessionInputPills', () => {
 		});
 	});
 
-	test('keeps a matching website artifact visible while Browsers is hidden', () => {
+	test('keeps a matching website reference visible and removable while Browsers is hidden', async () => {
 		const instantiationService = createInstantiationService();
 		const sessionResource = URI.parse('agent-host-copilot:/session');
 		const backendSession = URI.parse('copilot:/session');
@@ -941,10 +992,10 @@ suite('AgentHostSessionInputPills', () => {
 					type: SessionArtifactType.Website,
 					label: 'Preview',
 					link: website.toString(),
-					isArtifact: true,
+					isArtifact: false,
 				}]),
 			} as unknown as SessionState],
-		]));
+		]), true);
 		const browserModel = upcastPartial<IBrowserViewModel>({
 			owner: { type: 'agent', sessionId: sessionResource.toString() },
 		});
@@ -980,6 +1031,16 @@ suite('AgentHostSessionInputPills', () => {
 		const visibility = store.add(instantiationService.createInstance(SessionChatPillVisibility));
 		visibility.hide(SessionChatPillKind.Browsers);
 		instantiationService.stub(ISessionChatPillVisibilityService, visibility);
+		let dropdownActions: readonly IAction[] = [];
+		instantiationService.stub(IActionWidgetService, upcastPartial<IActionWidgetService>({
+			isVisible: false,
+			show: (_user, _supportsPreview, items) => {
+				dropdownActions = items.flatMap(item => item.toolbarActions ?? []);
+			},
+			hide: () => { },
+			updateItems: () => { },
+			focusItemById: () => { },
+		}));
 		const [clipboardService, configurationService, editorService, openerService] = instantiationService.invokeFunction(accessor => [
 			accessor.get(IClipboardService),
 			accessor.get(IConfigurationService),
@@ -987,6 +1048,7 @@ suite('AgentHostSessionInputPills', () => {
 			accessor.get(IOpenerService),
 		] as const);
 
+		const errors: string[] = [];
 		store.add(new AgentHostSessionInputPills(
 			widget,
 			false,
@@ -999,14 +1061,24 @@ suite('AgentHostSessionInputPills', () => {
 			openerService,
 			visibility,
 			noProvisionalSessions,
+			upcastPartial<INotificationService>({ error: error => errors.push(String(error)) }),
 		));
+		persistentContent.querySelector<HTMLElement>('.chat-dropdown-pill-button')?.click();
+		connection.removeSessionArtifactError = new Error('write failed');
+		await dropdownActions[0].run();
 
 		assert.deepStrictEqual({
 			pills: Array.from(persistentContent.querySelectorAll('.chat-pill-label')).map(label => label.textContent),
 			empty: persistentContent.querySelector('.agent-host-session-input-pills')?.classList.contains('empty'),
+			dropdownActionLabels: dropdownActions.map(action => action.label),
+			removeCalls: connection.removeSessionArtifactCalls.map(({ session, artifactId }) => ({ session: session.toString(), artifactId })),
+			errors,
 		}, {
-			pills: ['1 Artifact'],
+			pills: ['1 Reference'],
 			empty: false,
+			dropdownActionLabels: ['Remove Preview from Session'],
+			removeCalls: [{ session: backendSession.toString(), artifactId: 'preview' }],
+			errors: ['Could not remove Preview from this session: write failed'],
 		});
 	});
 
@@ -1079,6 +1151,7 @@ suite('AgentHostSessionInputPills', () => {
 			openerService,
 			visibility,
 			noProvisionalSessions,
+			notificationService,
 		));
 		const showChat = (resource: URI) => {
 			const previousSessionResource = viewModel.sessionResource;
