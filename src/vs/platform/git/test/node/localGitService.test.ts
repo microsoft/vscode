@@ -63,6 +63,10 @@ function createAuthenticationError(): cp.ExecFileException {
 	);
 }
 
+function createCredentialPromptError(): cp.ExecFileException {
+	return createPullError('fatal: unable to get password from user', 'fatal: unable to get password from user');
+}
+
 suite('LocalGitService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	const temporaryDirectories: string[] = [];
@@ -136,7 +140,7 @@ suite('LocalGitService', () => {
 					[`GIT_CONFIG_KEY_${index}`]: 'http.https://github.com/.extraHeader',
 					[`GIT_CONFIG_VALUE_${index}`]: 'Authorization: Basic stale',
 				},
-				error: createAuthenticationError(),
+				error: createCredentialPromptError(),
 			},
 			{
 				args: ['clone', '--', 'https://github.com/microsoft/vscode.git', targetPath],

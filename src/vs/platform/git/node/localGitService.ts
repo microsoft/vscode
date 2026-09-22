@@ -221,7 +221,7 @@ export class LocalGitService implements ILocalGitService {
 		}
 
 		const details = `${candidate.stderr ?? ''}\n${candidate.message ?? ''}`;
-		return /authentication failed|invalid username or token|could not read (?:username|password)|terminal prompts disabled/i.test(details);
+		return /authentication failed|invalid username or token|(?:could not read|unable to get) (?:username|password)|terminal prompts disabled/i.test(details);
 	}
 
 	private async _getSupportedNetworkOptions(operationId: string, options: IGitNetworkOptions | undefined): Promise<IGitNetworkOptions | undefined> {
