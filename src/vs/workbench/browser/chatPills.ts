@@ -67,15 +67,15 @@ export interface IChatPillEntry {
 		readonly mimeType: string;
 	};
 	/** Actions shown at the trailing edge of the entry's dropdown row. */
-	readonly toolbarActions?: readonly IAction[];
+	readonly toolbarActions?: readonly IChatPillAction[];
 	/** Additional actions shown only in the rich hover footer. */
-	readonly hoverActions?: readonly IAction[];
+	readonly hoverActions?: readonly IChatPillAction[];
 	/**
 	 * Action shown on the entry's dropdown row alongside {@link toolbarActions},
 	 * which consumers may also promote onto the pill itself when this is its
 	 * only entry.
 	 */
-	readonly promotedAction?: IAction;
+	readonly promotedAction?: IChatPillAction;
 	/** Accessible name used when this entry is rendered as the pill itself. */
 	readonly ariaLabel?: string;
 	/** Plain-text description of the content shown beside the dropdown entry. */
@@ -87,6 +87,19 @@ export interface IChatPillEntry {
 	/** Rich hover content for the pill when this is the only entry. */
 	readonly pillHover?: IManagedHoverContent;
 	open(): void;
+}
+
+export interface IChatPillAction extends IAction {
+	/** Concise label used in the hover footer; the full label remains the row-action tooltip. */
+	readonly hoverLabel?: string;
+}
+
+export const chatPillCopyUrlHoverLabel = localize('chatPills.copyUrl', "Copy URL");
+export const chatPillCopyHashHoverLabel = localize('chatPills.copyHash', "Copy Hash");
+export const chatPillRemoveReferenceHoverLabel = localize('chatPills.removeReference', "Remove Reference");
+
+export function withChatPillHoverLabel<T extends IAction>(action: T, hoverLabel: string): T & IChatPillAction {
+	return Object.assign(action, { hoverLabel });
 }
 
 export interface IChatPillImagePreview {
@@ -145,7 +158,7 @@ export function createChatPillImagePreview(entry: IChatPillEntry & { readonly im
 }
 
 /** Row actions for an entry: its {@link IChatPillEntry.toolbarActions} followed by any {@link IChatPillEntry.promotedAction}. */
-export function getChatPillEntryToolbarActions(entry: IChatPillEntry): readonly IAction[] {
+export function getChatPillEntryToolbarActions(entry: IChatPillEntry): readonly IChatPillAction[] {
 	const actions = [...entry.toolbarActions ?? []];
 	if (entry.promotedAction && !actions.includes(entry.promotedAction)) {
 		actions.push(entry.promotedAction);
@@ -154,7 +167,7 @@ export function getChatPillEntryToolbarActions(entry: IChatPillEntry): readonly 
 }
 
 /** Footer actions for a rich entry hover, including row actions and hover-only actions. */
-export function getChatPillEntryHoverActions(entry: IChatPillEntry): readonly IAction[] {
+export function getChatPillEntryHoverActions(entry: IChatPillEntry): readonly IChatPillAction[] {
 	const actions = [...entry.toolbarActions ?? [], ...entry.hoverActions ?? []];
 	if (entry.promotedAction && !actions.includes(entry.promotedAction)) {
 		actions.push(entry.promotedAction);

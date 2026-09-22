@@ -29,7 +29,7 @@ import { observableConfigValue } from '../../../../platform/observable/common/pl
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
-import type { IChatPillEntry, IChatPillSection } from '../../../../workbench/browser/chatPills.js';
+import { chatPillCopyHashHoverLabel, chatPillCopyUrlHoverLabel, chatPillRemoveReferenceHoverLabel, type IChatPillEntry, type IChatPillSection, withChatPillHoverLabel } from '../../../../workbench/browser/chatPills.js';
 import { openChatTurnFile, previewKind } from '../../../../workbench/contrib/chat/browser/widget/chatTurnPills.js';
 import { ChatConfiguration } from '../../../../workbench/contrib/chat/common/constants.js';
 import type { IImageCarouselCollection } from '../../../../workbench/contrib/imageCarousel/browser/imageCarouselTypes.js';
@@ -179,12 +179,12 @@ function withRemoveAction(artifact: ISessionArtifact, entry: IChatPillEntry, act
 	}
 	return {
 		...entry,
-		promotedAction: toAction({
+		promotedAction: withChatPillHoverLabel(toAction({
 			id: `sessions.artifacts.remove.${artifact.id}`,
 			label: localize('sessionArtifacts.removeArtifact', "Remove {0} from Session", artifact.label),
 			class: ThemeIcon.asClassName(Codicon.close),
 			run: () => remove(artifact.id, artifact.label),
-		}),
+		}), chatPillRemoveReferenceHoverLabel),
 	};
 }
 
@@ -238,19 +238,19 @@ function toEntry(artifact: ISessionArtifact, actions: ISessionArtifactActions, l
 			id: artifact.id,
 			label,
 			icon,
-			toolbarActions: [toAction({
+			toolbarActions: [withChatPillHoverLabel(toAction({
 				id: `sessions.artifacts.copyCommitUrl.${artifact.id}`,
 				label: localize('sessionArtifacts.copyCommitUrl', "Copy Commit URL"),
 				class: ThemeIcon.asClassName(Codicon.copy),
 				run: () => actions.copy(link.toString(true)),
-			})],
+			}), chatPillCopyUrlHoverLabel)],
 			...((artifact.commitHash || commit?.sha) ? {
-				hoverActions: [toAction({
+				hoverActions: [withChatPillHoverLabel(toAction({
 					id: `sessions.artifacts.copyCommitHash.${artifact.id}`,
 					label: localize('sessionArtifacts.copyCommitHash', "Copy Commit Hash"),
 					class: ThemeIcon.asClassName(Codicon.copy),
 					run: () => actions.copy(artifact.commitHash ?? commit!.sha),
-				})],
+				}), chatPillCopyHashHoverLabel)],
 			} : {}),
 			...sessionArtifactLocation(sessionArtifactLocationText(link, labelService), label),
 			...(createDropdownHover && createHover ? {
@@ -293,12 +293,12 @@ function toEntry(artifact: ISessionArtifact, actions: ISessionArtifactActions, l
 				? localize('sessionArtifacts.copyWebsiteUrl', "Copy Website URL")
 				: undefined;
 	const copyLinkAction = copyLinkLabel
-		? [toAction({
+		? [withChatPillHoverLabel(toAction({
 			id: 'sessions.artifacts.copyLink',
 			label: copyLinkLabel,
 			class: ThemeIcon.asClassName(Codicon.copy),
 			run: () => actions.copy(link.toString(true)),
-		})]
+		}), chatPillCopyUrlHoverLabel)]
 		: [];
 	return withRemoveAction(artifact, { id: artifact.id, label: artifact.label, icon, toolbarActions: copyLinkAction, ...sessionArtifactLocation(sessionArtifactLocationText(link, labelService), artifact.label), open: () => actions.openExternal(link) }, actions);
 }

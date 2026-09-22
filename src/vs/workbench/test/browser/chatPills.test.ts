@@ -22,7 +22,7 @@ import { IActionListDelegate, IActionListItem } from '../../../platform/actionWi
 import { IActionWidgetService } from '../../../platform/actionWidget/browser/actionWidget.js';
 import { ChatDropdownPillActionViewItem, ChatPillSingleEntry, createChatSectionPill } from '../../browser/chatDropdownPill.js';
 import { createChatImageHoverContent } from '../../browser/chatImagePreview.js';
-import { ChatPillsRow, ChatPillsWidget, type IChatPill, type IChatPillEntry, type IChatPillSection } from '../../browser/chatPills.js';
+import { ChatPillsRow, ChatPillsWidget, type IChatPill, type IChatPillEntry, type IChatPillSection, withChatPillHoverLabel } from '../../browser/chatPills.js';
 import { DEFAULT_LABELS_CONTAINER, ResourceLabels } from '../../browser/labels.js';
 import { workbenchInstantiationService } from './workbenchTestServices.js';
 
@@ -425,9 +425,9 @@ suite('ChatPills', () => {
 		viewItem.render(container);
 
 		const fallbackHover = getDropdownPillHoverContents.call(viewItem);
-		const copyAction = disposables.add(new Action('copy', 'Copy URL'));
-		const copyHashAction = disposables.add(new Action('copyHash', 'Copy Hash'));
-		const removeAction = disposables.add(new Action('remove', 'Remove'));
+		const copyAction = withChatPillHoverLabel(disposables.add(new Action('copy', 'Copy Pull Request URL')), 'Copy URL');
+		const copyHashAction = withChatPillHoverLabel(disposables.add(new Action('copyHash', 'Copy Commit Hash')), 'Copy Hash');
+		const removeAction = withChatPillHoverLabel(disposables.add(new Action('remove', 'Remove Pull Request Reference from Session')), 'Remove Reference');
 		sections.set([{
 			title: 'Pull Requests', entries: [{
 				...entry('1', richHover),
@@ -462,8 +462,8 @@ suite('ChatPills', () => {
 				label: 'Pull Request #1',
 				badge: '#1',
 				className: 'chat-pill-github-reference',
-				rowActions: ['Copy URL', 'Remove'],
-				footerActions: ['Copy URL', 'Copy Hash', 'Remove'],
+				rowActions: ['Copy Pull Request URL', 'Remove Pull Request Reference from Session'],
+				footerActions: ['Copy URL', 'Copy Hash', 'Remove Reference'],
 			},
 			summaryHover: 'Show 2 pull requests',
 		});

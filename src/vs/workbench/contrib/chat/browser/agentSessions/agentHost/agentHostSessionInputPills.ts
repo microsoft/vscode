@@ -32,7 +32,7 @@ import { IInstantiationService } from '../../../../../../platform/instantiation/
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
-import { CHAT_INPUT_PILLS_ROW_HEIGHT, getChatPillEntries, getChatPillResourceLocation, IChatPillEntry, IChatPillSection, type ChatPillsCompactMode } from '../../../../../browser/chatPills.js';
+import { CHAT_INPUT_PILLS_ROW_HEIGHT, chatPillCopyHashHoverLabel, chatPillCopyUrlHoverLabel, chatPillRemoveReferenceHoverLabel, getChatPillEntries, getChatPillResourceLocation, IChatPillEntry, IChatPillSection, type ChatPillsCompactMode, withChatPillHoverLabel } from '../../../../../browser/chatPills.js';
 import { chatChangesStatsEqual, EMPTY_CHAT_CHANGES_STATS, IChatChangesStats } from '../../../../../browser/chatChangesPill.js';
 import { BrowserEditorInput } from '../../../../browserView/common/browserEditorInput.js';
 import { browserViewUrlMatches, BrowserViewSharingState, getAgentBrowserViewsNewestFirst, IBrowserViewWorkbenchService } from '../../../../browserView/common/browserView.js';
@@ -795,14 +795,14 @@ export class AgentHostSessionInputPills extends Disposable {
 				icon: kind === 'pullRequest' ? computePullRequestIcon(pullRequestState) : Codicon.issues,
 				pullRequestState: kind === 'pullRequest' ? pullRequestState : undefined,
 				promotedAction: artifact && removeArtifact ? this._createRemoveAction(artifact, removeArtifact) : undefined,
-				toolbarActions: [toAction({
+				toolbarActions: [withChatPillHoverLabel(toAction({
 					id: `chatInputPills.copy.${kind}.${linkKey(link)}`,
 					label: kind === 'pullRequest'
 						? localize('agentHostSessionPills.copyPullRequest', "Copy Pull Request URL")
 						: localize('agentHostSessionPills.copyIssue', "Copy Issue URL"),
 					class: ThemeIcon.asClassName(Codicon.copy),
 					run: () => this._clipboardService.writeText(resource.toString(true)),
-				})],
+				}), chatPillCopyUrlHoverLabel)],
 				...getChatPillResourceLocation(resource, resourceLabel),
 				...(stateDescription ? {
 					ariaDescription: checksDescription
@@ -900,28 +900,28 @@ export class AgentHostSessionInputPills extends Disposable {
 				return hover.element;
 			} : undefined;
 			const copyAction = artifact.type === SessionArtifactType.Commit
-				? toAction({
+				? withChatPillHoverLabel(toAction({
 					id: `chat.agentHost.sessionPills.copyCommitUrl.${artifact.id}`,
 					label: localize('agentHostSessionPills.copyCommitUrl', "Copy Commit URL"),
 					class: ThemeIcon.asClassName(Codicon.copy),
 					run: () => this._clipboardService.writeText(link.toString(true)),
-				})
+				}), chatPillCopyUrlHoverLabel)
 				: artifact.type === SessionArtifactType.Website
-					? toAction({
+					? withChatPillHoverLabel(toAction({
 						id: `chat.agentHost.sessionPills.copyWebsiteUrl.${artifact.id}`,
 						label: localize('agentHostSessionPills.copyWebsiteUrl', "Copy Website URL"),
 						class: ThemeIcon.asClassName(Codicon.copy),
 						run: () => this._clipboardService.writeText(link.toString(true)),
-					})
+					}), chatPillCopyUrlHoverLabel)
 					: artifact.type === SessionArtifactType.PullRequest || artifact.type === SessionArtifactType.Issue
-						? toAction({
+						? withChatPillHoverLabel(toAction({
 							id: `chat.agentHost.sessionPills.copyReferenceUrl.${artifact.id}`,
 							label: artifact.type === SessionArtifactType.PullRequest
 								? localize('agentHostSessionPills.copyPullRequestUrl', "Copy Pull Request URL")
 								: localize('agentHostSessionPills.copyIssueUrl', "Copy Issue URL"),
 							class: ThemeIcon.asClassName(Codicon.copy),
 							run: () => this._clipboardService.writeText(link.toString(true)),
-						})
+						}), chatPillCopyUrlHoverLabel)
 						: undefined;
 			return {
 				id: artifact.id,
@@ -929,12 +929,12 @@ export class AgentHostSessionInputPills extends Disposable {
 				icon,
 				...(copyAction ? { toolbarActions: [copyAction] } : {}),
 				...((artifact.type === SessionArtifactType.Commit && (artifact.commitHash || commit?.sha)) ? {
-					hoverActions: [toAction({
+					hoverActions: [withChatPillHoverLabel(toAction({
 						id: `chat.agentHost.sessionPills.copyCommitHash.${artifact.id}`,
 						label: localize('agentHostSessionPills.copyCommitHash', "Copy Commit Hash"),
 						class: ThemeIcon.asClassName(Codicon.copy),
 						run: () => this._clipboardService.writeText(artifact.commitHash ?? commit!.sha),
-					})],
+					}), chatPillCopyHashHoverLabel)],
 				} : {}),
 				...getChatPillResourceLocation(link, label),
 				...(createCommitDropdownHover && createCommitHover ? {
@@ -964,12 +964,12 @@ export class AgentHostSessionInputPills extends Disposable {
 	}
 
 	private _createRemoveAction(artifact: ISessionArtifact, removeArtifact: (artifact: ISessionArtifact) => Promise<void>) {
-		return toAction({
+		return withChatPillHoverLabel(toAction({
 			id: `chat.agentHost.sessionPills.removeArtifact.${artifact.id}`,
 			label: localize('agentHostSessionPills.removeArtifact', "Remove {0} from Session", artifact.label),
 			class: ThemeIcon.asClassName(Codicon.close),
 			run: () => removeArtifact(artifact),
-		});
+		}), chatPillRemoveReferenceHoverLabel);
 	}
 
 	private async _removeArtifact(resolution: IAgentHostSessionResolution, artifact: ISessionArtifact): Promise<void> {

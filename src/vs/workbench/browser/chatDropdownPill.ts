@@ -254,7 +254,7 @@ export class ChatDropdownPillActionViewItem extends ChatPillActionViewItem {
 			trapFocus: true,
 			actions: hoverActions.map(action => ({
 				commandId: action.id,
-				label: action.label,
+				label: action.hoverLabel ?? action.label,
 				iconClass: action.class,
 				run: () => { void action.run(); },
 			})),
@@ -353,7 +353,7 @@ export class ChatDropdownPillActionViewItem extends ChatPillActionViewItem {
 		if (!baseHover) {
 			const actions = getChatPillEntryHoverActions(entry).map(action => ({
 				commandId: action.id,
-				label: action.label,
+				label: action.hoverLabel ?? action.label,
 				iconClass: action.class,
 				run: () => { void action.run(); },
 			}));
