@@ -6,6 +6,7 @@
 import { IObservable } from '../../../../../base/common/observable.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { stableStringify } from '../../../../../base/common/objects.js';
+import { localize } from '../../../../../nls.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ChatPermissionLevel } from '../constants.js';
 import { IAutomationDescriptor, IAutomationRun, IAutomationSchedule, IAutomationSessionTemplate, AutomationTarget } from './automation.js';
@@ -37,6 +38,13 @@ export type AutomationMutationGuard = () => void;
 
 /** The selected Automation authority cannot currently accept the operation. */
 export class AutomationUnavailableError extends Error { }
+
+/** Rejects ownership changes because AHP has no history-preserving cross-host transfer operation. */
+export function assertAutomationTargetAuthority(current: IAutomationDescriptor, target: AutomationTarget | undefined): void {
+	if (target !== undefined && target.providerId !== current.target.providerId) {
+		throw new AutomationUnavailableError(localize('automationHostChangeUnsupported', "An automation cannot move between Agent Hosts. Duplicate it on the new host to keep the original run history. The original continues scheduling until you disable it."));
+	}
+}
 
 /** Signals that deprecated configuration aliases cannot modify an explicit provider template. */
 export class AutomationSessionTemplateAuthorityError extends Error {

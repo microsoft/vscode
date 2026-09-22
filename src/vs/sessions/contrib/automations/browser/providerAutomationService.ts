@@ -8,7 +8,7 @@ import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { derived, IObservable, observableSignalFromEvent } from '../../../../base/common/observable.js';
 import { localize } from '../../../../nls.js';
 import { IAutomationDescriptor, IAutomationRun } from '../../../../workbench/contrib/chat/common/automations/automation.js';
-import { AutomationCatalogueState, AutomationMutationGuard, AutomationUnavailableError, combineAutomationCatalogueStates, IAutomationProviderDescriptor, IAutomationRunRequestResult, IAutomationService, ICreateAutomationOptions, IGuardedAutomationUpdateResult, serializeAutomationEditableState, IUpdateAutomationOptions } from '../../../../workbench/contrib/chat/common/automations/automationService.js';
+import { AutomationCatalogueState, AutomationMutationGuard, AutomationUnavailableError, assertAutomationTargetAuthority, combineAutomationCatalogueStates, IAutomationProviderDescriptor, IAutomationRunRequestResult, IAutomationService, ICreateAutomationOptions, IGuardedAutomationUpdateResult, serializeAutomationEditableState, IUpdateAutomationOptions } from '../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsProviderAutomations } from '../../../services/sessions/common/sessionsProvider.js';
 
@@ -102,7 +102,7 @@ export class ProviderAutomationService extends Disposable implements IAutomation
 
 	updateAutomation(id: string, patch: IUpdateAutomationOptions): Promise<IAutomationDescriptor> {
 		const store = this.requireAutomationStore(id);
-		this.validateTarget(store.getAutomation(id)!, patch);
+		assertAutomationTargetAuthority(store.getAutomation(id)!, patch.target);
 		return store.updateAutomation(id, patch);
 	}
 
@@ -113,7 +113,7 @@ export class ProviderAutomationService extends Disposable implements IAutomation
 		if (!current || serializeAutomationEditableState(current) !== serializeAutomationEditableState(expected)) {
 			return { kind: 'conflict', current };
 		}
-		this.validateTarget(current, patch);
+		assertAutomationTargetAuthority(current, patch.target);
 		return store.updateAutomationIfUnchanged(id, patch, expected, mutationGuard);
 	}
 
@@ -159,10 +159,4 @@ export class ProviderAutomationService extends Disposable implements IAutomation
 		return store;
 	}
 
-	/** Rejects ownership changes because AHP has no history-preserving cross-host transfer operation. */
-	private validateTarget(current: IAutomationDescriptor, patch: IUpdateAutomationOptions): void {
-		if (patch.target && patch.target.providerId !== current.target.providerId) {
-			throw new AutomationUnavailableError(localize('automationHostChangeUnsupported', "An automation cannot move between Agent Hosts. Duplicate it on the new host to keep the original run history. The original continues scheduling until you disable it."));
-		}
-	}
 }

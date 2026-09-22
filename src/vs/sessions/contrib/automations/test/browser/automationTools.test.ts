@@ -59,10 +59,12 @@ class FakeAutomationService extends mock<IAutomationService>() {
 	readonly updated: Array<{ readonly id: string; readonly patch: IUpdateAutomationOptions }> = [];
 	readonly deleted: string[] = [];
 	available = true;
+	creationAllowed = true;
+	updatesAllowed = true;
 
-	override canCreateAutomation(): boolean { return this.available; }
+	override canCreateAutomation(): boolean { return this.available && this.creationAllowed; }
 	override canRunAutomation(): boolean { return this.available; }
-	override canUpdateAutomation(): boolean { return this.available; }
+	override canUpdateAutomation(): boolean { return this.available && this.updatesAllowed; }
 	override canDeleteAutomation(): boolean { return this.available; }
 
 	constructor(automations: readonly IAutomationDescriptor[] = []) {
@@ -1072,6 +1074,73 @@ suite('AutomationTools', () => {
 			status: 'updated',
 			updated: [{ id: existing.id, patch: { name: 'Proposed name' } }],
 		});
+	});
+
+	for (const target of [
+		{ kind: 'workspace', folderUri: 'file:///another-workspace', providerId: 'local-agent-host', sessionTypeId: 'copilot', isolation: 'folder' },
+		{ kind: 'workspace', folderUri: FOLDER.toString(), providerId: 'local-agent-host', sessionTypeId: 'claude', isolation: 'worktree', branch: 'main' },
+		{ kind: 'quickChat', providerId: 'local-agent-host', sessionTypeId: 'claude' },
+	]) {
+		test(`configureAutomation updates ${target.kind}/${target.sessionTypeId} on an update-only host`, async () => {
+			const existing = createAutomation();
+			const automationService = new FakeAutomationService([existing]);
+			automationService.creationAllowed = false;
+			const candidates = [providerSessionType('local-agent-host', 'copilot', true), providerSessionType('local-agent-host', 'claude', true)];
+			const tool = new ConfigureAutomationTool(
+				automationService, new FakeSessionsManagementService(undefined, false, candidates, candidates), createConfigurationService(),
+			);
+			const result = await invoke(tool, { automationId: existing.id, target });
+			const [update] = automationService.updated;
+			assert.deepStrictEqual({
+				error: result.toolResultError,
+				status: JSON.parse(getText(result)).status,
+				updates: automationService.updated.length,
+				creates: automationService.created.length,
+				owner: update?.patch.target?.providerId,
+				agent: update?.patch.target?.sessionTypeId,
+				targetKind: update?.patch.target?.kind,
+			}, {
+				error: undefined, status: 'updated', updates: 1, creates: 0,
+				owner: 'local-agent-host', agent: target.sessionTypeId, targetKind: target.kind,
+			});
+		});
+	}
+
+	test('configureAutomation rejects new definitions and unsupported edits on an update-only host', async () => {
+		const existing = createAutomation();
+		const automationService = new FakeAutomationService([existing]);
+		automationService.creationAllowed = false;
+		const tool = new ConfigureAutomationTool(
+			automationService,
+			new FakeSessionsManagementService(createSession({ quickChat: true }), false, [], [providerSessionType('local-agent-host', 'copilot')]),
+			createConfigurationService(),
+		);
+		const created = await invoke(tool, { name: 'New', prompt: 'Review', schedule: { interval: 'manual' } });
+		automationService.updatesAllowed = false;
+		const updated = await invoke(tool, { automationId: existing.id, target: { kind: 'quickChat', providerId: 'local-agent-host', sessionTypeId: 'copilot' } });
+		assert.deepStrictEqual({
+			creationRejected: created.toolResultError !== undefined,
+			updateRejected: updated.toolResultError !== undefined,
+			created: automationService.created, updated: automationService.updated,
+		}, { creationRejected: true, updateRejected: true, created: [], updated: [] });
+	});
+
+	test('configureAutomation reports stale approval before target authority or availability failures', async () => {
+		const existing = createAutomation();
+		const automationService = new FakeAutomationService([existing]);
+		automationService.creationAllowed = false;
+		const tool = new ConfigureAutomationTool(automationService, new FakeSessionsManagementService(undefined), createConfigurationService());
+		const parameters = {
+			automationId: existing.id,
+			target: { kind: 'quickChat', providerId: 'another-host', sessionTypeId: 'copilot' },
+		};
+		const prepared = await tool.prepareToolInvocation({
+			parameters, toolCallId: 'update-call', chatSessionResource: SESSION_RESOURCE,
+		}, CancellationToken.None);
+		automationService.automations.set([{ ...existing, name: 'Changed elsewhere' }], undefined);
+		const result = await invoke(tool, parameters, SESSION_RESOURCE, CancellationToken.None, undefined, prepared.toolSpecificData);
+		assert.match(result.toolResultError ?? '', /changed before the update was applied/);
+		assert.deepStrictEqual(automationService.updated, []);
 	});
 
 	test('configureAutomation validates explicit targets before writing', async () => {
