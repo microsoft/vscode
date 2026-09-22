@@ -4,10 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { timeout } from '../../../../../base/common/async.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import type { ITelemetryData } from '../../../../telemetry/common/telemetry.js';
 import { NullTelemetryServiceShape } from '../../../../telemetry/common/telemetryUtils.js';
+import { getCodexAccountTelemetryContext } from '../../../node/codex/codexAccountTelemetry.js';
 import { reportCodexProviderSwitch } from '../../../node/codex/codexProviderSwitchTelemetry.js';
 
 class TestTelemetryService extends NullTelemetryServiceShape {
@@ -21,19 +23,22 @@ class TestTelemetryService extends NullTelemetryServiceShape {
 suite('CodexProviderSwitchTelemetry', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
+	const unknownContext = getCodexAccountTelemetryContext(undefined);
+	const signedInAccount = { usageSource: 'openai', status: 'signedIn', authType: 'chatgpt' } as const;
+
 	for (const isDesktopThread of [false, true]) {
 		test(`reports both subscription directions with desktop origin ${isDesktopThread}`, () => {
 			const telemetryService = new TestTelemetryService();
 
-			reportCodexProviderSwitch(telemetryService, 'openai', 'vscode-proxy', isDesktopThread);
-			reportCodexProviderSwitch(telemetryService, 'vscode-proxy', 'openai', isDesktopThread);
+			reportCodexProviderSwitch(telemetryService, 'openai', 'vscode-proxy', isDesktopThread, unknownContext);
+			reportCodexProviderSwitch(telemetryService, 'vscode-proxy', 'openai', isDesktopThread, unknownContext);
 
 			assert.deepStrictEqual(telemetryService.events, [{
 				name: 'agentHost.codexProviderSwitch',
-				data: { fromProvider: 'openai', toProvider: 'copilot', isDesktopThread },
+				data: { fromProvider: 'openai', toProvider: 'copilot', isDesktopThread, ...unknownContext },
 			}, {
 				name: 'agentHost.codexProviderSwitch',
-				data: { fromProvider: 'copilot', toProvider: 'openai', isDesktopThread },
+				data: { fromProvider: 'copilot', toProvider: 'openai', isDesktopThread, ...unknownContext },
 			}]);
 		});
 	}
@@ -44,15 +49,19 @@ suite('CodexProviderSwitchTelemetry', () => {
 			const telemetryService = new TestTelemetryService();
 			const samples = [[0, 0], [9.99, 0], [10, 10], [42.4, 40], [79.9, 70], [80, 80], [89.99, 80], [90, 90], [99.99, 90], [100, 100]];
 			for (const [usedPercent] of samples) {
-				reportCodexProviderSwitch(telemetryService, 'openai', 'vscode-proxy', true, {
+				reportCodexProviderSwitch(telemetryService, 'openai', 'vscode-proxy', true, getCodexAccountTelemetryContext(signedInAccount, {
 					rateLimit: { usedPercent, windowDurationMins: 7 * 24 * 60, resetsAt: now / 1000 + 3600 },
 					observedAt: now - 5 * 60 * 1000,
-				});
+				}));
 			}
 
 			assert.deepStrictEqual(telemetryService.events, samples.map(([, expectedBucket]) => ({
 				name: 'agentHost.codexProviderSwitch',
-				data: { fromProvider: 'openai', toProvider: 'copilot', isDesktopThread: true, chatgptWeeklyUsedPercentBucket: expectedBucket },
+				data: {
+					fromProvider: 'openai', toProvider: 'copilot', isDesktopThread: true,
+					chatgptAccountState: 'signedIn', chatgptPlanTier: 'unknown',
+					chatgptWeeklyQuotaState: 'available', chatgptWeeklyUsedPercentBucket: expectedBucket,
+				},
 			})));
 		});
 	});
@@ -81,13 +90,14 @@ suite('CodexProviderSwitchTelemetry', () => {
 				{ ...snapshot, rateLimit: { ...rateLimit, usedPercent: -1 } },
 				{ ...snapshot, rateLimit: { ...rateLimit, usedPercent: 101 } },
 			];
-			for (const invalidSnapshot of invalidSnapshots) {
-				reportCodexProviderSwitch(telemetryService, 'openai', 'vscode-proxy', true, invalidSnapshot);
+			const contexts = invalidSnapshots.map(value => getCodexAccountTelemetryContext(signedInAccount, value));
+			for (const context of contexts) {
+				reportCodexProviderSwitch(telemetryService, 'openai', 'vscode-proxy', true, context);
 			}
 
-			assert.deepStrictEqual(telemetryService.events, invalidSnapshots.map(() => ({
+			assert.deepStrictEqual(telemetryService.events, contexts.map(context => ({
 				name: 'agentHost.codexProviderSwitch',
-				data: { fromProvider: 'openai', toProvider: 'copilot', isDesktopThread: true },
+				data: { fromProvider: 'openai', toProvider: 'copilot', isDesktopThread: true, ...context },
 			})));
 		});
 	});
@@ -106,9 +116,29 @@ suite('CodexProviderSwitchTelemetry', () => {
 			['openai', 'openai'],
 			['vscode-proxy', 'vscode-proxy'],
 		]) {
-			reportCodexProviderSwitch(telemetryService, fromProvider, toProvider, true);
+			reportCodexProviderSwitch(telemetryService, fromProvider, toProvider, true, unknownContext);
 		}
 
 		assert.deepStrictEqual(telemetryService.events, []);
+	});
+
+	test('does not reclassify the admitted snapshot after a delayed acceptance', async () => {
+		await runWithFakedTimers({ useFakeTimers: true, startTime: 1_000_000 }, async () => {
+			const telemetryService = new TestTelemetryService();
+			const accountContext = getCodexAccountTelemetryContext(signedInAccount, {
+				rateLimit: { usedPercent: 42.4, windowDurationMins: 7 * 24 * 60, resetsAt: Date.now() / 1000 + 1 },
+				observedAt: Date.now(),
+			});
+			await timeout(5 * 60 * 1000 + 1);
+			reportCodexProviderSwitch(telemetryService, 'openai', 'vscode-proxy', false, accountContext);
+			assert.deepStrictEqual(telemetryService.events, [{
+				name: 'agentHost.codexProviderSwitch',
+				data: {
+					fromProvider: 'openai', toProvider: 'copilot', isDesktopThread: false,
+					chatgptAccountState: 'signedIn', chatgptPlanTier: 'unknown',
+					chatgptWeeklyQuotaState: 'available', chatgptWeeklyUsedPercentBucket: 40,
+				},
+			}]);
+		});
 	});
 });

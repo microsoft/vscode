@@ -3,13 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { IAgent, IAgentChatContext } from '../common/agent.js';
+import { CODEX_AGENT_PROVIDER_ID, type IAgent, type IAgentChatContext } from '../common/agent.js';
+import type { IAgentTurnTelemetryContext } from '../common/agentHostTelemetry.js';
+import type { ICodexAccountTelemetry } from '../common/codexAccountTelemetry.js';
 import type { SessionMode } from '../common/agentHostSchema.js';
 import { readAgentModelByokIdentifier } from '../common/agentModelByokMeta.js';
 import { SessionConfigKey } from '../common/sessionConfigKeys.js';
 import type { SessionState, URI as ProtocolURI } from '../common/state/sessionState.js';
 import { URI } from '../../../base/common/uri.js';
 import type { AgentHostModelTelemetryKind } from './agentHostTelemetryReporter.js';
+import { getCodexAccountTelemetryContext } from './codex/codexAccountTelemetry.js';
 
 export interface IAgentHostTurnTelemetryContext {
 	readonly model: string | undefined;
@@ -17,6 +20,27 @@ export interface IAgentHostTurnTelemetryContext {
 	readonly modelSelectionKind: 'default' | 'auto' | 'explicit';
 	readonly permissionLevel: string | undefined;
 	readonly interactionMode: SessionMode | undefined;
+}
+
+export function captureTurnTelemetryContext(agent: IAgent): IAgentTurnTelemetryContext | undefined {
+	if (agent.id !== CODEX_AGENT_PROVIDER_ID) {
+		return undefined;
+	}
+	let account: ICodexAccountTelemetry | undefined;
+	try {
+		account = agent.getTurnTelemetryContext?.()?.codexAccount;
+	} catch {
+		// Optional telemetry must not block admission.
+	}
+	account ??= getCodexAccountTelemetryContext(undefined);
+	return Object.freeze({
+		codexAccount: Object.freeze({
+			chatgptAccountState: account.chatgptAccountState,
+			...(account.chatgptPlanTier !== undefined ? { chatgptPlanTier: account.chatgptPlanTier } : {}),
+			chatgptWeeklyQuotaState: account.chatgptWeeklyQuotaState,
+			...(account.chatgptWeeklyUsedPercentBucket !== undefined ? { chatgptWeeklyUsedPercentBucket: account.chatgptWeeklyUsedPercentBucket } : {}),
+		}),
+	});
 }
 
 export function getConfiguredSessionMode(config: SessionState['config'] | undefined): SessionMode | undefined {
