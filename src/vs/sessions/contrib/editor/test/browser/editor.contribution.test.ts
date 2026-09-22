@@ -218,13 +218,16 @@ suite('Sessions - Editor Contribution', () => {
 	test('new file tab action opens pinned empty file editor', async () => {
 		const instantiationService = store.add(new TestInstantiationService());
 		const opened: { editor: EditorInput; options: IEditorOptions | undefined }[] = [];
-		const workspaceFolder = URI.file('/repo/worktree');
-		const workspace = createWorkspace(workspaceFolder);
+		const sessionWorkspace = createWorkspace(URI.file('/repo/session'));
+		const chatWorkspace = createWorkspace(URI.file('/repo/chat'));
 		stubEditorGroupCount(instantiationService, 7);
 		stubEditorVisibility(instantiationService, true);
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
 			override readonly activeSession = constObservable({
-				workspace: constObservable(workspace)
+				workspace: constObservable(sessionWorkspace),
+				activeChat: constObservable({
+					workspace: constObservable(chatWorkspace),
+				}),
 			} as IActiveSession);
 		});
 
@@ -244,8 +247,17 @@ suite('Sessions - Editor Contribution', () => {
 			isEmptyFileEditor: editor instanceof EmptyFileEditorInput,
 			resource: editor.resource?.toString(),
 			pinned: options?.pinned,
-			index: options?.index
-		})), [{ isEmptyFileEditor: true, resource: undefined, pinned: true, index: 7 }]);
+			index: options?.index,
+			workspaceFolders: editor instanceof EmptyFileEditorInput
+				? editor.workspace?.folders.map(folder => folder.workingDirectory.toString())
+				: undefined,
+		})), [{
+			isEmptyFileEditor: true,
+			resource: undefined,
+			pinned: true,
+			index: 7,
+			workspaceFolders: [URI.file('/repo/chat').toString()],
+		}]);
 	});
 
 	test('new browser tab action opens a pinned browser editor', async () => {

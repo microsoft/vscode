@@ -810,6 +810,24 @@
 
 /* Section Header */
 
+.sessions-list-header {
+	width: 100%;
+	padding: var(--vscode-spacing-size100) 0 0;
+	box-sizing: border-box;
+}
+
+.sessions-list-header-row {
+	--vscode-list-hoverBackground: transparent;
+}
+
+.agent-sessions-workbench .agent-sessions-viewpane .agent-sessions-control-container .sessions-list-control .monaco-list .monaco-list-row.sessions-list-header-row,
+.agent-sessions-workbench .agent-sessions-viewpane .agent-sessions-control-container .sessions-list-control .monaco-list .monaco-list-row.sessions-list-header-row:hover,
+.agent-sessions-workbench .agent-sessions-viewpane .agent-sessions-control-container .sessions-list-control .monaco-list .monaco-list-row.sessions-list-header-row.focused,
+.agent-sessions-workbench .agent-sessions-viewpane .agent-sessions-control-container .sessions-list-control .monaco-list .monaco-list-row.sessions-list-header-row.selected {
+	background-color: transparent;
+	cursor: default;
+}
+
 .session-section {
 	display: flex;
 	align-items: center;
@@ -937,7 +955,7 @@
 	display: block;
 }
 
-/* Shortcut sections (Automations) only show toolbar on hover, not on focus */
+/* Shortcut sections only show toolbar on hover, not on focus */
 .monaco-list-row.focused .session-section.session-section-shortcut .session-section-toolbar {
 	visibility: hidden;
 }
@@ -992,8 +1010,10 @@
 	}
 
 	&.session-section-focus-from-pointer {
-		.monaco-list-row.focused:has(.session-section),
-		.monaco-list-row.selected:has(.session-section) {
+		.monaco-list-row.session-list-section-row.focused,
+		.monaco-list-row.session-list-section-row.selected,
+		.monaco-list-row.session-list-shortcut-row.focused,
+		.monaco-list-row.session-list-shortcut-row.selected {
 			outline: none !important;
 		}
 	}

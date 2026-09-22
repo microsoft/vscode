@@ -1,0 +1,14 @@
+{
+	"version": 1,
+	"hooks": {
+		"agentStop": [
+			{
+				"type": "command",
+				"bash": "node .github/hooks/scripts/worktree-build-fast.ts",
+				"powershell": "node .github/hooks/scripts/worktree-build-fast.ts",
+				"cwd": ".",
+				"timeoutSec": 300
+			}
+		]
+	}
+}

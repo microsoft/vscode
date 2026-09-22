@@ -36,11 +36,13 @@ import type { ICustomizationHarnessService, ICustomizationSourceFolder } from '.
 import type { IMigratedCustomizationsResult } from '../../../browser/aiCustomization/customizationMigration.js';
 import type { ICustomizationMigrationCategorySummary } from '../../../browser/aiCustomization/aiCustomizationWelcomePage.js';
 import { AICustomizationManagementEditorInput } from '../../../browser/aiCustomization/aiCustomizationManagementEditorInput.js';
+import { IMcpServerDetailInput } from '../../../browser/aiCustomization/embeddedMcpServerDetail.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { defaultCheckboxStyles } from '../../../../../../platform/theme/browser/defaultStyles.js';
 import { McpServerType } from '../../../../../../platform/mcp/common/mcpPlatformTypes.js';
 import type { ICustomizationMigrationDashboardActivity, ICustomizationMigrationDashboardDestination, ICustomizationMigrationDashboardOverview } from '../../../browser/aiCustomization/customizationMigrationDashboard.js';
 import { InMemoryStorageService, IStorageService } from '../../../../../../platform/storage/common/storage.js';
+import { McpServerInstallState } from '../../../../mcp/common/mcpTypes.js';
 
 suite('aiCustomizationManagementEditor', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -69,6 +71,36 @@ suite('aiCustomizationManagementEditor', () => {
 			isCurrentPluginContributionNavigation(2, 2, AICustomizationManagementSection.Skills, AICustomizationManagementSection.Agents, true),
 			isCurrentPluginContributionNavigation(2, 2, AICustomizationManagementSection.Skills, AICustomizationManagementSection.Skills, false),
 		], [true, false, false, false]);
+	});
+
+	test('marks an MCP detail migratable from the authoritative candidate', () => {
+		const editor = createTestEditor();
+		const sourceUri = URI.file('/workspace/.vscode/mcp.json');
+		const states: boolean[] = [];
+		editor.viewMode = 'mcpDetail';
+		editor.mcpDetailInput = {
+			id: 'server-row',
+			name: 'server',
+			label: 'Server',
+			installState: McpServerInstallState.Installed,
+			compatibilityId: 'server-id',
+			source: { uri: sourceUri },
+		};
+		editor.embeddedMcpDetail = { setMigratable: migratable => states.push(migratable) };
+		editor.customizationsByMigrationCategory.set(CustomizationMigrationCategoryId.McpServers, [{
+			type: CustomizationMigrationType.McpServers,
+			id: 'server-id',
+			name: 'server',
+			sourceUri,
+			targetUri: URI.file('/workspace/.mcp.json'),
+			projectedConfiguration: { type: McpServerType.LOCAL, command: 'server' },
+		}]);
+		editor.refreshMcpDetailMigrationState();
+		editor.mcpDetailInput = { ...editor.mcpDetailInput, source: { uri: URI.file('/other/.vscode/mcp.json') } };
+		editor.refreshMcpDetailMigrationState();
+		editor.editorPreviewDisposables.dispose();
+
+		assert.deepStrictEqual(states, [true, false]);
 	});
 
 	type TestableEditor = {
@@ -106,6 +138,9 @@ suite('aiCustomizationManagementEditor', () => {
 		editorPreviewDisposables: DisposableStore;
 		editorPreviewRenderScheduler: { cancel(): void; schedule(): void };
 		viewMode: 'list' | 'migration' | 'editor' | 'mcpDetail' | 'pluginDetail' | 'toolsDetail';
+		mcpDetailInput: IMcpServerDetailInput | undefined;
+		embeddedMcpDetail: { setMigratable(migratable: boolean): void } | undefined;
+		refreshMcpDetailMigrationState(): void;
 		dimension: undefined;
 		hoverService: IHoverService;
 		instantiationService: IInstantiationService;
@@ -1615,7 +1650,13 @@ suite('aiCustomizationManagementEditor', () => {
 				categoryLabel: 'MCP Servers',
 				scopeLabel: 'vscode',
 				storage: PromptsStorage.local,
-				items: [{ label: 'server', sourceLabel: '/workspace/.vscode/mcp.json', targetLabel: '/workspace/.mcp.json', operation: 'server' }],
+				items: [{
+					label: 'server',
+					sourceLabel: '/workspace/.vscode/mcp.json',
+					targetLabel: '/workspace/.mcp.json',
+					operation: 'server',
+					migrationKey: 'mcp:["mcp.config.ws0.server","server","file:///workspace/.vscode/mcp.json","file:///workspace/.mcp.json"]',
+				}],
 			}],
 		});
 		editor.editorPreviewDisposables.dispose();
@@ -1757,6 +1798,64 @@ suite('aiCustomizationManagementEditor', () => {
 			currentWorkspace: [], profile: [], reopenedWorkspace: [['server']],
 		});
 		reopened.editorPreviewDisposables.dispose();
+		editor.editorPreviewDisposables.dispose();
+	});
+
+	test('removes reverted migration activity while preserving copied activity', () => {
+		const editor = createTestEditor(undefined, createConfigurationServiceStub({
+			[ChatConfiguration.ChatCustomizationsPromptMigrationEnabled]: true,
+		}));
+		const category = getCustomizationMigrationCategory(CustomizationMigrationCategoryId.PromptFiles);
+		const context = editor.getMigrationActivityContext(PromptsStorage.local);
+		const revertedPrompt: MigratableConfiguration = {
+			uri: URI.file('/workspace/.github/prompts/review.prompt.md'),
+			name: 'review.prompt.md',
+			storage: PromptsStorage.local,
+			type: PromptsType.prompt,
+			source: PromptFileSource.GitHubWorkspace,
+		};
+		const legacyPrompt: MigratableConfiguration = {
+			...revertedPrompt,
+			uri: URI.file('/workspace/.github/prompts/legacy.prompt.md'),
+			name: 'legacy.prompt.md',
+		};
+		editor.recordMigrationActivity(category, context, [{
+			label: 'review.prompt.md',
+			sourceLabel: '/workspace/.github/prompts/review.prompt.md',
+			targetLabel: '/workspace/.github/skills/review/SKILL.md',
+			operation: 'converted',
+			migrationKey: `file:${PromptsStorage.local}:${revertedPrompt.uri.toString()}`,
+		}, {
+			label: 'legacy.prompt.md',
+			sourceLabel: '/workspace/.github/prompts/legacy.prompt.md',
+			targetLabel: '/workspace/.github/skills/legacy/SKILL.md',
+			operation: 'converted',
+		}, {
+			label: 'review.prompt.md',
+			sourceLabel: '/workspace/.github/prompts/review.prompt.md',
+			targetLabel: '/workspace/.agents/prompts/review.prompt.md',
+			operation: 'copied',
+			migrationKey: `file:${PromptsStorage.local}:${revertedPrompt.uri.toString()}`,
+		}]);
+
+		editor.setCustomizationsToMigrate(new Map([[category.id, [revertedPrompt, legacyPrompt]]]), new Map());
+
+		const state = editor.getMigrationActivityState(PromptsStorage.local);
+		assert.deepStrictEqual({
+			activity: state.activity.map(entry => entry.items),
+			skipped: state.skipped,
+			started: state.started,
+		}, {
+			activity: [[{
+				label: 'review.prompt.md',
+				sourceLabel: '/workspace/.github/prompts/review.prompt.md',
+				targetLabel: '/workspace/.agents/prompts/review.prompt.md',
+				operation: 'copied',
+				migrationKey: `file:${PromptsStorage.local}:${revertedPrompt.uri.toString()}`,
+			}]],
+			skipped: false,
+			started: true,
+		});
 		editor.editorPreviewDisposables.dispose();
 	});
 

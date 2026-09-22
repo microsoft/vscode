@@ -268,7 +268,7 @@ suite('Sessions - Session View', () => {
 
 		const getState = () => ({
 			headerDisplay: view.element.querySelector<HTMLElement>('.session-header-bar')?.style.display,
-			tabBarDisplay: view.element.querySelector<HTMLElement>('.chat-groups-view .chat-composite-bar')?.style.display,
+			tabBarDisplay: view.element.querySelector<HTMLElement>('.chat-groups-view .session-chat-tabs-bar')?.style.display,
 			tabsReplaceHeader: view.element.classList.contains('tabs-replace-header'),
 		});
 		const setChatTabsMode = async (mode: SessionsChatTabsMode) => {
@@ -284,15 +284,21 @@ suite('Sessions - Session View', () => {
 		const multiple = getState();
 		await setChatTabsMode(SessionsChatTabsMode.Single);
 		const single = getState();
+		const groupsView = Reflect.get(view, '_groupsView') as { _setGroupCount(count: number): void };
+		groupsView._setGroupCount(2);
+		const singleSideBySide = getState();
+		groupsView._setGroupCount(1);
 		await setChatTabsMode(SessionsChatTabsMode.Multiple);
 
 		assert.deepStrictEqual({
 			multiple,
 			single,
+			singleSideBySide,
 			restoredMultiple: getState(),
 		}, {
 			multiple: { headerDisplay: 'none', tabBarDisplay: '', tabsReplaceHeader: true },
 			single: { headerDisplay: '', tabBarDisplay: 'none', tabsReplaceHeader: false },
+			singleSideBySide: { headerDisplay: 'none', tabBarDisplay: 'none', tabsReplaceHeader: false },
 			restoredMultiple: { headerDisplay: 'none', tabBarDisplay: '', tabsReplaceHeader: true },
 		});
 	});
