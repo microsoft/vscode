@@ -18,7 +18,7 @@ import { getIconClasses } from '../../editor/common/services/getIconClasses.js';
 import { ILanguageService } from '../../editor/common/languages/language.js';
 import { IModelService } from '../../editor/common/services/model.js';
 import { FileKind, IFileService } from '../../platform/files/common/files.js';
-import { ChatPillActionViewItem, createChatPillImagePreview, getChatPillEntries, getChatPillEntryToolbarActions, type IChatPill, type IChatPillEntry, type IChatPillSection } from './chatPills.js';
+import { ChatPillActionViewItem, createChatPillImagePreview, getChatPillEntries, getChatPillEntryHoverActions, getChatPillEntryToolbarActions, type IChatPill, type IChatPillEntry, type IChatPillSection } from './chatPills.js';
 import { ChatResourcePillActionViewItem } from './chatResourcePill.js';
 import type { ResourceLabels } from './labels.js';
 import type { IInstantiationService } from '../../platform/instantiation/common/instantiation.js';
@@ -100,6 +100,7 @@ export class ChatDropdownPillActionViewItem extends ChatPillActionViewItem {
 	private _entries: readonly IChatPillEntry[] = [];
 	private _summaryIcon: ThemeIcon | undefined;
 	private readonly _imageHoverContents = new WeakMap<IChatPillEntry, IManagedHoverContent>();
+	private readonly _dropdownHovers = new WeakMap<IChatPillEntry, IActionListItemHover>();
 	private readonly _imageDropdownHovers = new WeakMap<IChatPillEntry, IActionListItemHover>();
 
 	protected override renderContent(): void {
@@ -248,10 +249,10 @@ export class ChatDropdownPillActionViewItem extends ChatPillActionViewItem {
 
 	protected override getHoverOptions(): IManagedHoverOptions | undefined {
 		const entry = this.isSummarized ? undefined : this.entries.at(0);
-		const toolbarActions = entry ? getChatPillEntryToolbarActions(entry) : undefined;
-		return toolbarActions?.length ? {
+		const hoverActions = entry ? getChatPillEntryHoverActions(entry) : undefined;
+		return hoverActions?.length ? {
 			trapFocus: true,
-			actions: toolbarActions.map(action => ({
+			actions: hoverActions.map(action => ({
 				commandId: action.id,
 				label: action.label,
 				iconClass: action.class,
@@ -348,15 +349,28 @@ export class ChatDropdownPillActionViewItem extends ChatPillActionViewItem {
 	}
 
 	private _getDropdownHover(entry: IChatPillEntry): IActionListItemHover | undefined {
+		let baseHover = this._dropdownHovers.get(entry);
+		if (!baseHover) {
+			const actions = getChatPillEntryHoverActions(entry).map(action => ({
+				commandId: action.id,
+				label: action.label,
+				iconClass: action.class,
+				run: () => { void action.run(); },
+			}));
+			baseHover = actions.length ? { ...entry.hover, actions } : entry.hover;
+			if (baseHover) {
+				this._dropdownHovers.set(entry, baseHover);
+			}
+		}
 		if (!entry.imagePreview) {
-			return entry.hover;
+			return baseHover;
 		}
 		let hover = this._imageDropdownHovers.get(entry);
 		if (!hover) {
 			const imagePreview = entry.imagePreview;
 			let preview: ReturnType<typeof createChatPillImagePreview> | undefined;
 			hover = {
-				...entry.hover,
+				...baseHover,
 				content: () => {
 					preview ??= createChatPillImagePreview({ ...entry, imagePreview }, this._fileService);
 					return preview.element;

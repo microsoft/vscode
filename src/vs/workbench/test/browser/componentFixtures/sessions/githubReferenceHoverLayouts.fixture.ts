@@ -130,7 +130,6 @@ function renderCommitHover(context: ComponentFixtureContext, density: 'default' 
 			committedAt: hoursAgo(12),
 		},
 		density,
-		onDidCopyHash: () => { },
 	});
 	renderInHover(context, hover.element, density);
 }

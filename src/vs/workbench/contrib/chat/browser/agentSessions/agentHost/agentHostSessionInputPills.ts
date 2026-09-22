@@ -893,7 +893,6 @@ export class AgentHostSessionInputPills extends Disposable {
 				density,
 				onDidClickRepository: () => this._openExternal(URI.parse(`https://github.com/${commitTarget.owner}/${commitTarget.repo}`)),
 				onDidClickReference: () => this._openExternal(link),
-				onDidCopyHash: () => this._clipboardService.writeText(artifact.commitHash ?? commit.sha),
 			}) : undefined;
 			const createCommitDropdownHover = createCommitHover ? () => {
 				const hover = createCommitHover('compact');
@@ -929,6 +928,14 @@ export class AgentHostSessionInputPills extends Disposable {
 				label,
 				icon,
 				...(copyAction ? { toolbarActions: [copyAction] } : {}),
+				...((artifact.type === SessionArtifactType.Commit && (artifact.commitHash || commit?.sha)) ? {
+					hoverActions: [toAction({
+						id: `chat.agentHost.sessionPills.copyCommitHash.${artifact.id}`,
+						label: localize('agentHostSessionPills.copyCommitHash', "Copy Commit Hash"),
+						class: ThemeIcon.asClassName(Codicon.copy),
+						run: () => this._clipboardService.writeText(artifact.commitHash ?? commit!.sha),
+					})],
+				} : {}),
 				...getChatPillResourceLocation(link, label),
 				...(createCommitDropdownHover && createCommitHover ? {
 					hover: { content: createCommitDropdownHover, expandable: true, showIndicator: false, tabThroughPanel: true, getTabbableElements: () => hoverTabbableElements, contentOwnsPadding: true },

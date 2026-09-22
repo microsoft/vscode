@@ -228,7 +228,6 @@ function toEntry(artifact: ISessionArtifact, actions: ISessionArtifactActions, l
 			density,
 			onDidClickRepository: () => actions.openExternal(URI.parse(`https://github.com/${target.owner}/${target.repo}`)),
 			onDidClickReference: () => actions.openExternal(link),
-			onDidCopyHash: () => actions.copy(artifact.commitHash ?? commit.sha),
 		}) : undefined;
 		const createDropdownHover = createHover ? () => {
 			const hover = createHover('compact');
@@ -245,6 +244,14 @@ function toEntry(artifact: ISessionArtifact, actions: ISessionArtifactActions, l
 				class: ThemeIcon.asClassName(Codicon.copy),
 				run: () => actions.copy(link.toString(true)),
 			})],
+			...((artifact.commitHash || commit?.sha) ? {
+				hoverActions: [toAction({
+					id: `sessions.artifacts.copyCommitHash.${artifact.id}`,
+					label: localize('sessionArtifacts.copyCommitHash', "Copy Commit Hash"),
+					class: ThemeIcon.asClassName(Codicon.copy),
+					run: () => actions.copy(artifact.commitHash ?? commit!.sha),
+				})],
+			} : {}),
 			...sessionArtifactLocation(sessionArtifactLocationText(link, labelService), label),
 			...(createDropdownHover && createHover ? {
 				hover: { content: createDropdownHover, expandable: true, showIndicator: false, tabThroughPanel: true, getTabbableElements: () => hoverTabbableElements, contentOwnsPadding: true },

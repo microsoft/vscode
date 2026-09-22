@@ -84,7 +84,6 @@ export interface IGitHubCommitHoverModel {
 
 export interface ICommitResourceHoverData extends IGitHubResourceHoverData {
 	readonly commit: IGitHubCommitHoverModel;
-	readonly onDidCopyHash: () => void;
 }
 
 export function createIssueResourceHover(data: IIssueResourceHoverData): IGitHubResourceHover {
@@ -194,14 +193,8 @@ export function createCommitResourceHover(data: ICommitResourceHoverData): IGitH
 	titleElement.title = title;
 
 	appendDescription(hoverElement, 'sessions-commit-hover', descriptionLines.join('\n').trim(), localize('github.commitHover.bodyFallback', "No additional commit message."));
-	const metadataRow = append(hoverElement, $('.sessions-commit-hover-metadata'));
-	const copyHash = append(metadataRow, $<HTMLButtonElement>('button.sessions-commit-hover-hash'));
-	copyHash.type = 'button';
-	copyHash.ariaLabel = localize('github.commitHover.copyHash', "Copy commit hash {0}", data.commit.sha);
-	append(copyHash, renderIcon(Codicon.copy), $('span', undefined, localize('github.commitHover.copyHashLabel', "Copy Hash")));
-	copyHash.onclick = () => data.onDidCopyHash();
 	append(hoverElement, $('.sessions-commit-hover-author', undefined, localize('github.commitHover.author', "@{0} committed this change", data.commit.author.login)));
-	return { element: hoverElement, tabbableElements: [repositoryLink, referenceLink, copyHash] };
+	return { element: hoverElement, tabbableElements: [repositoryLink, referenceLink] };
 }
 
 export function getIssueResourceStatus(issue: IGitHubIssueHoverModel): { readonly kind: 'open' | 'closed' | 'notPlanned' | 'duplicate'; readonly label: string } {

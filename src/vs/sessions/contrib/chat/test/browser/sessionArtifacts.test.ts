@@ -394,20 +394,22 @@ suite('Session Artifacts', () => {
 		);
 		const entry = sections[0].entries[0];
 		const hover = typeof entry.hover?.content === 'function' ? entry.hover.content() : undefined;
-		hover?.querySelector<HTMLButtonElement>('.sessions-commit-hover-hash')?.click();
+		void entry.hoverActions?.[0].run();
 		void entry.toolbarActions?.[0].run();
 
 		assert.deepStrictEqual({
 			label: entry.label,
 			actionLabels: entry.toolbarActions?.map(action => action.label),
+			hoverActionLabels: entry.hoverActions?.map(action => action.label),
 			hoverClassName: hover?.className,
 			hoverText: hover?.textContent,
 			copied,
 		}, {
 			label: 'Authoritative subject',
 			actionLabels: ['Copy Commit URL'],
+			hoverActionLabels: ['Copy Commit Hash'],
 			hoverClassName: 'sessions-commit-hover compact',
-			hoverText: 'microsoft/vscodeon Sep 22Authoritative subject @abc123Detailed commit bodyCopy Hash@octocat committed this change',
+			hoverText: 'microsoft/vscodeon Sep 22Authoritative subject @abc123Detailed commit body@octocat committed this change',
 			copied: ['abc123', link.toString(true)],
 		});
 	});

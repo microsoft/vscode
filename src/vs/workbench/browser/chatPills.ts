@@ -68,6 +68,8 @@ export interface IChatPillEntry {
 	};
 	/** Actions shown at the trailing edge of the entry's dropdown row. */
 	readonly toolbarActions?: readonly IAction[];
+	/** Additional actions shown only in the rich hover footer. */
+	readonly hoverActions?: readonly IAction[];
 	/**
 	 * Action shown on the entry's dropdown row alongside {@link toolbarActions},
 	 * which consumers may also promote onto the pill itself when this is its
@@ -145,6 +147,15 @@ export function createChatPillImagePreview(entry: IChatPillEntry & { readonly im
 /** Row actions for an entry: its {@link IChatPillEntry.toolbarActions} followed by any {@link IChatPillEntry.promotedAction}. */
 export function getChatPillEntryToolbarActions(entry: IChatPillEntry): readonly IAction[] {
 	const actions = [...entry.toolbarActions ?? []];
+	if (entry.promotedAction && !actions.includes(entry.promotedAction)) {
+		actions.push(entry.promotedAction);
+	}
+	return actions;
+}
+
+/** Footer actions for a rich entry hover, including row actions and hover-only actions. */
+export function getChatPillEntryHoverActions(entry: IChatPillEntry): readonly IAction[] {
+	const actions = [...entry.toolbarActions ?? [], ...entry.hoverActions ?? []];
 	if (entry.promotedAction && !actions.includes(entry.promotedAction)) {
 		actions.push(entry.promotedAction);
 	}

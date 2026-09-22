@@ -425,7 +425,20 @@ suite('ChatPills', () => {
 		viewItem.render(container);
 
 		const fallbackHover = getDropdownPillHoverContents.call(viewItem);
-		sections.set([{ title: 'Pull Requests', entries: [{ ...entry('1', richHover), badge: '#1', className: 'chat-pill-github-reference' }] }], undefined);
+		const copyAction = disposables.add(new Action('copy', 'Copy URL'));
+		const copyHashAction = disposables.add(new Action('copyHash', 'Copy Hash'));
+		const removeAction = disposables.add(new Action('remove', 'Remove'));
+		sections.set([{
+			title: 'Pull Requests', entries: [{
+				...entry('1', richHover),
+				badge: '#1',
+				className: 'chat-pill-github-reference',
+				hover: { content: mainWindow.document.createElement('div') },
+				toolbarActions: [copyAction],
+				hoverActions: [copyHashAction],
+				promotedAction: removeAction,
+			}]
+		}], undefined);
 		const enrichedHover = getDropdownPillHoverContents.call(viewItem);
 		const mappedEntry = getDropdownPillItems.call(viewItem)[1];
 		sections.set([{ title: 'Pull Requests', entries: [entry('1', richHover), entry('2')] }], undefined);
@@ -434,12 +447,24 @@ suite('ChatPills', () => {
 		assert.deepStrictEqual({
 			fallbackHover,
 			usesRichHover: enrichedHover === richHover,
-			mappedEntry: { label: mappedEntry.label, badge: mappedEntry.badge, className: mappedEntry.className },
+			mappedEntry: {
+				label: mappedEntry.label,
+				badge: mappedEntry.badge,
+				className: mappedEntry.className,
+				rowActions: mappedEntry.toolbarActions?.map(action => action.label),
+				footerActions: mappedEntry.hover?.actions?.map(action => action.label),
+			},
 			summaryHover,
 		}, {
 			fallbackHover: 'https://github.com/microsoft/vscode/pull/1',
 			usesRichHover: true,
-			mappedEntry: { label: 'Pull Request #1', badge: '#1', className: 'chat-pill-github-reference' },
+			mappedEntry: {
+				label: 'Pull Request #1',
+				badge: '#1',
+				className: 'chat-pill-github-reference',
+				rowActions: ['Copy URL', 'Remove'],
+				footerActions: ['Copy URL', 'Copy Hash', 'Remove'],
+			},
 			summaryHover: 'Show 2 pull requests',
 		});
 
