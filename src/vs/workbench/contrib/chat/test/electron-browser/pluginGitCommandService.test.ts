@@ -112,8 +112,8 @@ suite('NativePluginGitCommandService', () => {
 		}), 'github-token');
 
 		const repository = URI.file('/tmp/repo');
-		await service.pull(repository);
-		await service.fetchRepository(repository);
+		await service.pull(repository, 'https://github.com/test/private.git');
+		await service.fetchRepository(repository, 'https://github.com/test/private.git');
 
 		assert.deepStrictEqual(authentications, [{
 			urlPrefixes: ['https://github.com/', 'https://www.github.com/'],
@@ -122,6 +122,25 @@ suite('NativePluginGitCommandService', () => {
 			urlPrefixes: ['https://github.com/', 'https://www.github.com/'],
 			authorizationHeader: 'Authorization: Basic eC1hY2Nlc3MtdG9rZW46Z2l0aHViLXRva2Vu',
 		}]);
+	});
+
+	test('pull and fetch do not forward GitHub authentication to non-GitHub remotes', async () => {
+		const authentications: (IGitAuthentication | undefined)[] = [];
+		const service = createService(createLocalGitStub({
+			pull: async (_operationId, _repoPath, options) => {
+				authentications.push(options?.authentication);
+				return false;
+			},
+			fetch: async (_operationId, _repoPath, options) => {
+				authentications.push(options?.authentication);
+			},
+		}), 'github-token');
+
+		const repository = URI.file('/tmp/repo');
+		await service.pull(repository, 'https://gitlab.com/test/private.git');
+		await service.fetchRepository(repository, 'https://gitlab.com/test/private.git');
+
+		assert.deepStrictEqual(authentications, [undefined, undefined]);
 	});
 
 	test('checkout delegates to ILocalGitService with detached flag', async () => {

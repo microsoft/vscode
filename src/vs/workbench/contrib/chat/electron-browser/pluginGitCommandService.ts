@@ -44,15 +44,15 @@ export class NativePluginGitCommandService implements IPluginGitService {
 
 	async cloneRepository(cloneUrl: string, targetDir: URI, ref?: string, token?: CancellationToken): Promise<void> {
 		await this._withCancel(token, async id => {
-			const authentication = parseGitHubCloneUrl(cloneUrl) ? await this._getGitHubAuthentication(token) : undefined;
+			const authentication = await this._getGitHubAuthentication(cloneUrl, token);
 			await this._localGitService.clone(id, cloneUrl, targetDir.fsPath, ref, { authentication });
 		});
 	}
 
-	async pull(repoDir: URI, token?: CancellationToken): Promise<boolean> {
+	async pull(repoDir: URI, remoteUrl?: string, token?: CancellationToken): Promise<boolean> {
 		return this._withCancel(token, async id => this._localGitService.pull(id, repoDir.fsPath, {
 			allowHardResetOnDivergence: true,
-			authentication: await this._getGitHubAuthentication(token),
+			authentication: await this._getGitHubAuthentication(remoteUrl, token),
 		}));
 	}
 
@@ -68,19 +68,22 @@ export class NativePluginGitCommandService implements IPluginGitService {
 		return this._localGitService.revParse(repoDir.fsPath, ref);
 	}
 
-	async fetch(repoDir: URI, token?: CancellationToken): Promise<void> {
-		await this._withCancel(token, async id => this._localGitService.fetch(id, repoDir.fsPath, { authentication: await this._getGitHubAuthentication(token) }));
+	async fetch(repoDir: URI, remoteUrl?: string, token?: CancellationToken): Promise<void> {
+		await this._withCancel(token, async id => this._localGitService.fetch(id, repoDir.fsPath, { authentication: await this._getGitHubAuthentication(remoteUrl, token) }));
 	}
 
-	async fetchRepository(repoDir: URI, token?: CancellationToken): Promise<void> {
-		await this._withCancel(token, async id => this._localGitService.fetch(id, repoDir.fsPath, { authentication: await this._getGitHubAuthentication(token) }));
+	async fetchRepository(repoDir: URI, remoteUrl?: string, token?: CancellationToken): Promise<void> {
+		await this._withCancel(token, async id => this._localGitService.fetch(id, repoDir.fsPath, { authentication: await this._getGitHubAuthentication(remoteUrl, token) }));
 	}
 
 	async revListCount(repoDir: URI, fromRef: string, toRef: string): Promise<number> {
 		return this._localGitService.revListCount(repoDir.fsPath, fromRef, toRef);
 	}
 
-	private async _getGitHubAuthentication(cancellationToken: CancellationToken | undefined): Promise<IGitAuthentication | undefined> {
+	private async _getGitHubAuthentication(remoteUrl: string | undefined, cancellationToken: CancellationToken | undefined): Promise<IGitAuthentication | undefined> {
+		if (!remoteUrl || !parseGitHubCloneUrl(remoteUrl)) {
+			return undefined;
+		}
 		const accessToken = await getExistingGitHubAuthenticationToken(this._authenticationService, this._logService);
 		if (cancellationToken?.isCancellationRequested) {
 			throw new CancellationError();

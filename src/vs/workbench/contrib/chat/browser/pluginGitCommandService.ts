@@ -123,7 +123,7 @@ export class BrowserPluginGitCommandService implements IPluginGitService {
 		throw lastErr;
 	}
 
-	async pull(repoDir: URI, token?: CancellationToken): Promise<boolean> {
+	async pull(repoDir: URI, _remoteUrl?: string, token?: CancellationToken): Promise<boolean> {
 		const entry = this._getCacheEntry(repoDir);
 		if (!entry) {
 			throw new Error(`Cannot pull plugin: no cached metadata for ${repoDir.toString()}`);
@@ -208,11 +208,11 @@ export class BrowserPluginGitCommandService implements IPluginGitService {
 		return entry.sha;
 	}
 
-	async fetch(_repoDir: URI, _token?: CancellationToken): Promise<void> {
+	async fetch(_repoDir: URI, _remoteUrl?: string, _token?: CancellationToken): Promise<void> {
 		// No-op: there is no local git database. `pull()` re-fetches when needed.
 	}
 
-	async fetchRepository(_repoDir: URI, _token?: CancellationToken): Promise<void> {
+	async fetchRepository(_repoDir: URI, _remoteUrl?: string, _token?: CancellationToken): Promise<void> {
 		// No-op for the same reason as `fetch()`.
 	}
 
