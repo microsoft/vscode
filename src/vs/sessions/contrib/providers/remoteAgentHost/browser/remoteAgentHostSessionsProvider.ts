@@ -45,8 +45,6 @@ import { IGitHubService } from '../../../github/browser/githubService.js';
 import { DevContainerAgentHostSessionsProvider } from '../../agentHost/browser/devContainerAgentHostSessionsProvider.js';
 import { ReconnectableAgentHostAutomationStore } from '../../agentHost/browser/reconnectableAgentHostAutomationStore.js';
 import type { ISessionsProviderAutomations, SessionResourceResolveReason } from '../../../../services/sessions/common/sessionsProvider.js';
-import { AutomationStore } from '../../../automations/browser/automationService.js';
-import { providerAutomationStorageKey } from '../../../automations/common/automationStorageService.js';
 import { remoteAgentHostSessionTypeAuthorityPrefix, remoteAgentHostSessionTypeId } from '../../../../../platform/agentHost/common/agentHostSessionType.js';
 import { readAgentDevContainerWorktreeMetadata } from '../../../../../platform/agentHost/common/meta/agentDevContainerWorktreeMeta.js';
 
@@ -138,12 +136,14 @@ export interface IRemoteAgentHostSessionsProviderConfig {
 export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessionsProvider {
 
 	readonly id: string;
-	readonly label: string;
+	private _label: string;
+	get label(): string { return this._label; }
 	readonly icon: ThemeIcon = Codicon.remote;
 	readonly remoteAddress: string;
 	readonly remoteLocationPreferenceKey: string;
 	readonly hostGroup: IAgentHostGroup | undefined;
-	readonly browseActions: readonly ISessionWorkspaceBrowseAction[];
+	private _browseActions: readonly ISessionWorkspaceBrowseAction[];
+	get browseActions(): readonly ISessionWorkspaceBrowseAction[] { return this._browseActions; }
 	readonly canConnectOnDemand: boolean;
 	readonly onDidReportConnectProgress: Event<IAgentHostConnectProgress> | undefined;
 	readonly showConnectionLog?: () => Promise<void>;
@@ -274,13 +274,12 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 		const displayName = config.name || config.address;
 
 		this.id = `agenthost-${this._connectionAuthority}`;
-		this.label = displayName;
+		this._label = displayName;
 		this.remoteAddress = config.address;
 		this.remoteLocationPreferenceKey = config.preferenceKey ?? config.address;
 		this.hostGroup = config.hostGroup;
 		this._storageKey = `${CACHED_SESSIONS_STORAGE_PREFIX}${this._connectionAuthority}`;
-		const legacyAutomations = this._register(instantiationService.createInstance(AutomationStore, providerAutomationStorageKey(this.id)));
-		this._automationStore = this._register(instantiationService.createInstance(ReconnectableAgentHostAutomationStore, this.id, legacyAutomations, {
+		this._automationStore = this._register(instantiationService.createInstance(ReconnectableAgentHostAutomationStore, this.id, {
 			toHost: resource => fromAgentHostUri(resource),
 			fromHost: resource => toAgentHostUri(resource, this._connectionAuthority),
 			resourceSchemeForProvider: provider => this.resourceSchemeForProvider(provider),
@@ -292,7 +291,7 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 		}));
 		this.automations = this._automationStore;
 
-		this.browseActions = [{
+		this._browseActions = [{
 			label: localize('folders', "Folders"),
 			description: displayName,
 			group: SESSION_WORKSPACE_GROUP_REMOTE,
@@ -454,7 +453,6 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 	}
 
 	protected _adapterOptions() {
-		const hostLabel = this._workspaceHostLabel;
 		const typeIcon = this._workspaceTypeIcon;
 		return {
 			readOnly: this._readOnly,
@@ -464,7 +462,7 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 				const uriForDescription = project?.uri ?? primary;
 				const description = uriForDescription ? this._labelService.getUriLabel(dirname(uriForDescription), { relative: false }) : undefined;
 				const branchProtectionPatterns = readBranchProtectionPatterns(this._configurationService, primary ?? project?.uri);
-				return RemoteAgentHostSessionsProvider.buildWorkspace(project, workingDirectories, hostLabel, gitHubInfo, gitState, description, branchProtectionPatterns, typeIcon);
+				return RemoteAgentHostSessionsProvider.buildWorkspace(project, workingDirectories, this._workspaceHostLabel, gitHubInfo, gitState, description, branchProtectionPatterns, typeIcon);
 			},
 		};
 	}
@@ -566,16 +564,20 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 		this._connectionStatus.set(status, undefined);
 	}
 
-	/**
-	 * Seed discovered session summaries into the cache so they surface in the sessions list
-	 * **before** a connection is established (lazy discovery).
-	 *
-	 * An entry that already exists keeps everything the host has told us, except for a missing
-	 * project: the repository name is resolved over the network and that lookup can fail, so
-	 * filling it in on a later pass is what makes retrying worth anything. Opening a seeded session
-	 * triggers `connectOnDemand`, after which `_refreshSessions` reconciles against the host.
-	 */
-	seedSessions(metas: readonly IAgentSessionMetadata[]): void {
+	/** Refresh the provider's display name and notify picker consumers. */
+	setLabel(name: string): void {
+		const label = name || this.remoteAddress;
+		if (this._label === label) {
+			return;
+		}
+		this._label = label;
+		this._browseActions = this._browseActions.map(action => ({ ...action, description: label }));
+		this._refreshSessionWorkspaces();
+		this._onDidChangeSessionTypes.fire();
+	}
+
+	/** Seed offline rows, optionally refreshing discovery-owned title, timestamp and project fields. */
+	seedSessions(metas: readonly IAgentSessionMetadata[], options?: { readonly updateExisting?: boolean }): void {
 		const added: ISession[] = [];
 		const changed: ISession[] = [];
 		for (const rawMeta of metas) {
@@ -583,14 +585,18 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 			const rawId = AgentSession.id(meta.session);
 			const existing = this._sessionCache.get(rawId);
 			if (existing) {
-				// Announcing the change also marks the session cache dirty, so the filled-in
-				// project reaches the next persisted snapshot.
-				if (meta.project && !existing.project && existing.backfillProject(meta.project)) {
+				const didChange = options?.updateExisting
+					? existing.updateDiscoveryMetadata(meta)
+					: existing.backfillProject(meta.project);
+				if (didChange) {
 					changed.push(existing);
 				}
 				continue;
 			}
 			const adapter = this.createAdapter(meta);
+			if (options?.updateExisting) {
+				adapter.updateDiscoveryMetadata(meta);
+			}
 			this._sessionCache.set(rawId, adapter);
 			added.push(adapter);
 		}

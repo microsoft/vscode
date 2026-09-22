@@ -53,13 +53,12 @@ interface IMcpServerCustomizationMigrationExecutionOptions {
 }
 
 /**
- * Whether the Agent Host would still forward this server's exact configuration from the client.
+ * Whether the migration planner can assess this server's projected configuration.
  */
 export function isMcpServerMigrationDeliverable(server: IAgentHostMcpServerSupport): server is IAgentHostMcpServerSupport & { readonly projectedConfiguration: IMcpServerConfiguration } {
-	return server.enablement.enabled
-		&& server.applicability === AgentHostMcpServerApplicability.Applicable
+	return server.applicability === AgentHostMcpServerApplicability.Applicable
 		&& server.delivery === AgentHostMcpServerDelivery.ClientForwarded
-		&& server.compatibility.kind === 'supported'
+		&& (server.compatibility.kind === 'supported' || server.compatibility.kind === 'partiallySupported')
 		&& server.projectedConfiguration !== undefined;
 }
 

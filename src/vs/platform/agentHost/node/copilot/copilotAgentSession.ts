@@ -7,7 +7,7 @@ import type { CopilotSession, CurrentToolMetadata, ElicitationContext, Elicitati
 import { realpath as fsRealpath } from 'fs';
 import { cp, rm } from 'fs/promises';
 import { promisify } from 'util';
-import { DeferredPromise, firstParallel, raceCancellation, raceTimeout, RunOnceScheduler, Sequencer, SequencerByKey, Throttler, timeout } from '../../../../base/common/async.js';
+import { DeferredPromise, firstParallel, raceCancellation, raceCancellationError, raceTimeout, RunOnceScheduler, Sequencer, SequencerByKey, Throttler, timeout } from '../../../../base/common/async.js';
 import { encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Emitter } from '../../../../base/common/event.js';
@@ -946,6 +946,7 @@ export class CopilotAgentSession extends Disposable {
 	 * replacing or clearing it disposes the old turn.
 	 */
 	private readonly _currentTurn = this._register(new MutableDisposable<CopilotTurn>());
+	private readonly _idleWaiters = new Set<DeferredPromise<boolean>>();
 	private readonly _completedTokenUsage = new Map<string, IAgentTurnTokenUsage>();
 	private readonly _subagentObservedTokenUsage = new LRUCache<string, ObservedTokenUsage>(256);
 	private readonly _observedUsageEventIds = new Set<string>();
@@ -975,6 +976,27 @@ export class CopilotAgentSession extends Disposable {
 	get currentTurnId(): string | undefined { return this._currentTurn.value?.id; }
 
 	get isDisposed(): boolean { return this._store.isDisposed; }
+
+	/** Waits for idle, or returns false if the runtime is disposed first. */
+	async waitForIdle(token: CancellationToken = CancellationToken.None): Promise<boolean> {
+		if (token.isCancellationRequested) {
+			throw new CancellationError();
+		}
+		if (this.isDisposed) {
+			return false;
+		}
+		if (!this.hasActiveTurn) {
+			return true;
+		}
+		const waiter = new DeferredPromise<boolean>();
+		this._idleWaiters.add(waiter);
+		try {
+			return await raceCancellationError(waiter.p, token);
+		} finally {
+			this._idleWaiters.delete(waiter);
+			waiter.complete(false);
+		}
+	}
 
 	/**
 	 * Captures terminal-only observed usage, excluding descendants and restored history.
@@ -2030,6 +2052,7 @@ export class CopilotAgentSession extends Disposable {
 			this._resumingTurnAwaitingProviderStart = undefined;
 		}
 		this._currentTurn.clear();
+		this._settleIdleWaiters(true);
 		this._agentMergeTurn = false;
 		this._streamingToolCalls.clear();
 		this._streamingToolDisplaySchedulers.clearAndDisposeAll();
@@ -2042,6 +2065,13 @@ export class CopilotAgentSession extends Disposable {
 			// `send()` failure path, replace the error we are propagating.
 			this._logService.error(err, `[Copilot:${this.sessionId}] onTurnEnded callback failed`);
 		}
+	}
+
+	private _settleIdleWaiters(idle: boolean): void {
+		for (const waiter of this._idleWaiters) {
+			waiter.complete(idle);
+		}
+		this._idleWaiters.clear();
 	}
 
 	private _reportToolCallDetails(turn: CopilotTurn, responseType: 'success' | 'cancelled' | 'failed'): void {
@@ -3655,6 +3685,7 @@ export class CopilotAgentSession extends Disposable {
 	 * backstop, since {@link _beginAbort} no-ops when already aborted.
 	 */
 	override dispose(): void {
+		this._settleIdleWaiters(false);
 		void this._editTracker.flushAttribution().catch(error => {
 			this._logService.warn(`[Copilot:${this.sessionId}] Failed to flush edit attribution: ${error}`);
 		});
@@ -3761,13 +3792,18 @@ export class CopilotAgentSession extends Disposable {
 	 * Starts a server or renews exhausted authentication callbacks via the SDK's OAuth reset.
 	 * An existing callback needs only a token response; SDK lifecycle updates determine connection progress.
 	 */
-	async startMcpServer(id: string): Promise<void> {
+	async startMcpServer(id: string, token: CancellationToken = CancellationToken.None): Promise<void> {
+		if (token.isCancellationRequested) {
+			throw new CancellationError();
+		}
 		const serverName = this._mcpCustomizations.serverNameForCustomizationId(id);
 		if (!serverName) {
-			this._logService.warn(`[Copilot:${this.sessionId}] Cannot start unknown MCP server customization ${id}`);
-			return;
+			throw new Error(`Cannot start unknown MCP server customization ${id}`);
 		}
-		return this._mcpServerLifecycleSequencer.queue(serverName, async () => {
+		return raceCancellationError(this._mcpServerLifecycleSequencer.queue(serverName, async () => {
+			if (token.isCancellationRequested) {
+				throw new CancellationError();
+			}
 			const state = this._mcpCustomizations.stateForServer(serverName);
 			if (state?.kind === McpServerStatus.AuthRequired) {
 				if (this._hasPendingMcpAuthentication(serverName)) {
@@ -3789,7 +3825,7 @@ export class CopilotAgentSession extends Disposable {
 				// where the start rejects before any status is emitted.
 				this._seedMcpServersFromRpc();
 			}
-		});
+		}), token);
 	}
 
 	private _reconcileMcpServerEnablement(): Promise<void> {
