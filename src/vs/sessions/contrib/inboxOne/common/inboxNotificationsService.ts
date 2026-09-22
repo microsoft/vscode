@@ -82,7 +82,24 @@ export interface IInboxNotificationQuestionCarouselPart {
 	readonly questions: readonly IChatQuestion[];
 }
 
-export type IInboxNotificationNeedsInputPart = IInboxNotificationConfirmationPart | IInboxNotificationQuestionCarouselPart;
+export interface IInboxNotificationToolConfirmationButton {
+	readonly label: string;
+	readonly id?: string;
+	readonly kind: 'approve' | 'deny';
+	readonly useUserActionReason?: boolean;
+}
+
+export interface IInboxNotificationToolConfirmationPart {
+	readonly kind: 'toolConfirmation';
+	readonly chatResource: URI;
+	readonly requestId: string;
+	readonly toolCallId: string;
+	readonly title: string | IMarkdownString;
+	readonly message: string | IMarkdownString;
+	readonly buttons: readonly IInboxNotificationToolConfirmationButton[];
+}
+
+export type IInboxNotificationNeedsInputPart = IInboxNotificationConfirmationPart | IInboxNotificationQuestionCarouselPart | IInboxNotificationToolConfirmationPart;
 
 export interface IInboxNotificationItem {
 	readonly id: string;

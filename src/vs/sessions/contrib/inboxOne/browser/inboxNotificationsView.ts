@@ -23,7 +23,7 @@ import { INotificationService } from '../../../../platform/notification/common/n
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { fromNowByDay } from '../../../../base/common/date.js';
-import { ChatSendResult, IChatQuestionAnswerValue, IChatQuestionCarousel, IChatSendRequestOptions, IChatService } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
+import { ChatSendResult, IChatQuestionAnswerValue, IChatQuestionCarousel, IChatSendRequestOptions, IChatService, IChatToolInvocation, ToolConfirmKind } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatContentPartRenderContext } from '../../../../workbench/contrib/chat/browser/widget/chatContentParts/chatContentParts.js';
 import { SimpleChatConfirmationWidget } from '../../../../workbench/contrib/chat/browser/widget/chatContentParts/chatConfirmationWidget.js';
 import { ChatQuestionCarouselPart } from '../../../../workbench/contrib/chat/browser/widget/chatContentParts/chatQuestionCarouselPart.js';
@@ -40,6 +40,7 @@ import {
 	IInboxNotificationItem,
 	IInboxNotificationConfirmationPart,
 	IInboxNotificationQuestionCarouselPart,
+	IInboxNotificationToolConfirmationPart,
 	IInboxNotificationsService,
 	InboxNotificationActionKind,
 	InboxNotificationPriority,
@@ -293,6 +294,28 @@ export class InboxNotificationsView extends AbstractCustomView {
 			return;
 		}
 
+		if (part.kind === 'toolConfirmation') {
+			const toolConfirmationWidget = this.renderedListDisposables.add(this.instantiationService.createInstance(
+				SimpleChatConfirmationWidget<{ buttonIndex: number }>,
+				this.createChatContentPartRenderContext(),
+				{
+					title: part.title,
+					message: part.message,
+					buttons: part.buttons.map((button, buttonIndex) => ({
+						label: button.label,
+						data: { buttonIndex },
+						isSecondary: button.kind === 'deny',
+					})),
+				},
+			));
+			const host = card.appendChild($('.inbox-notifications-chat-part-host'));
+			host.appendChild(toolConfirmationWidget.domNode);
+			this.renderedListDisposables.add(toolConfirmationWidget.onDidClick(({ button }) => {
+				void this.submitToolConfirmationPart(item, part, button.data.buttonIndex);
+			}));
+			return;
+		}
+
 		const carousel: IChatQuestionCarousel = {
 			kind: 'questionCarousel',
 			allowSkip: part.allowSkip,
@@ -332,6 +355,45 @@ export class InboxNotificationsView extends AbstractCustomView {
 		if (ChatSendResult.isSent(sendResult)) {
 			await this.completeNeedsInputNotification(item);
 		}
+	}
+
+	private async submitToolConfirmationPart(
+		item: IInboxNotificationItem,
+		part: IInboxNotificationToolConfirmationPart,
+		buttonIndex: number,
+	): Promise<void> {
+		const chatModel = this.chatService.getSession(part.chatResource);
+		if (!chatModel) {
+			this.notificationService.error(localize('inboxNotifications.toolConfirmation.chatMissing', "Unable to find the session for this confirmation. Open the session and try again."));
+			return;
+		}
+
+		const request = chatModel.getRequests().find(candidate => candidate.response?.requestId === part.requestId);
+		const response = request?.response;
+		const toolInvocation = response?.response.value.find(candidate => candidate.kind === 'toolInvocation' && candidate.toolCallId === part.toolCallId);
+		if (!toolInvocation || toolInvocation.kind !== 'toolInvocation') {
+			this.notificationService.error(localize('inboxNotifications.toolConfirmation.invocationMissing', "This confirmation is no longer available. Open the session for the latest state."));
+			return;
+		}
+
+		const button = part.buttons[buttonIndex] ?? part.buttons[0];
+		if (!button) {
+			this.notificationService.error(localize('inboxNotifications.toolConfirmation.buttonMissing', "Unable to resolve the selected confirmation option."));
+			return;
+		}
+
+		const reason = button.useUserActionReason
+			? {
+				type: ToolConfirmKind.UserAction as const,
+				selectedButton: button.id ?? button.label,
+			}
+			: { type: ToolConfirmKind.Skipped as const };
+		const didConfirm = IChatToolInvocation.confirmWith(toolInvocation, reason);
+		if (!didConfirm) {
+			this.notificationService.error(localize('inboxNotifications.toolConfirmation.staleState', "This confirmation changed before your action was applied. Open the session and try again."));
+			return;
+		}
+		await this.completeNeedsInputNotification(item);
 	}
 
 	private async submitQuestionCarouselPart(

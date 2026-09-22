@@ -14,6 +14,7 @@ import { localize } from '../../../../nls.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IChatService, IChatToolInvocation } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatResponseModel } from '../../../../workbench/contrib/chat/common/model/chatModel.js';
+import { ConfirmationOptionKind } from '../../../../platform/agentHost/common/state/protocol/state.js';
 import { IGitHubService } from '../../github/browser/githubService.js';
 import { computePullRequestIcon, GitHubCIOverallStatus, GitHubPullRequestState, IGitHubPRComment, IGitHubPullRequestReviewThread } from '../../github/common/types.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
@@ -29,6 +30,8 @@ import {
 	IInboxNotificationNeedsInputPart,
 	IInboxNotificationPullRequestState,
 	IInboxNotificationQuestionCarouselPart,
+	IInboxNotificationToolConfirmationButton,
+	IInboxNotificationToolConfirmationPart,
 	IInboxNotificationsService,
 	InboxNotificationActionKind,
 	InboxNotificationKind,
@@ -605,14 +608,58 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 				&& state.type !== IChatToolInvocation.StateKind.WaitingForPostApproval) {
 				continue;
 			}
+
+			const title = state.type === IChatToolInvocation.StateKind.WaitingForConfirmation
+				? state.confirmationMessages?.title ?? localize('inboxNotifications.toolConfirmation.title.default', "Approve Tool Run")
+				: localize('inboxNotifications.toolConfirmation.title.postApproval', "Review Tool Results");
+			const message = state.type === IChatToolInvocation.StateKind.WaitingForConfirmation
+				? state.confirmationMessages?.message ?? localize('inboxNotifications.toolConfirmation.message.default', "Review this tool request before continuing.")
+				: localize('inboxNotifications.toolConfirmation.message.postApproval', "Review the tool output and decide whether to continue.");
+			const toolConfirmationPart: IInboxNotificationToolConfirmationPart = {
+				kind: 'toolConfirmation',
+				chatResource,
+				requestId: response.requestId,
+				toolCallId: part.toolCallId,
+				title,
+				message,
+				buttons: this.getToolConfirmationButtons(state),
+			};
+			return toolConfirmationPart;
 		}
 
 		return undefined;
 	}
 
+	private getToolConfirmationButtons(
+		state: IChatToolInvocation.State
+	): readonly IInboxNotificationToolConfirmationButton[] {
+		const customOptions = state.type === IChatToolInvocation.StateKind.WaitingForConfirmation
+			? state.confirmationMessages?.customOptions
+			: undefined;
+		if (customOptions?.length) {
+			return customOptions.map(option => ({
+				label: option.label,
+				id: option.id,
+				kind: option.kind === ConfirmationOptionKind.Deny ? 'deny' : 'approve',
+				useUserActionReason: true,
+			}));
+		}
+
+		const primaryLabel = state.type === IChatToolInvocation.StateKind.WaitingForConfirmation && state.confirmationMessages?.confirmResults
+			? localize('inboxNotifications.toolConfirmation.allowReview', "Allow and Review Once")
+			: localize('inboxNotifications.toolConfirmation.allow', "Allow Once");
+		return [
+			{ label: primaryLabel, kind: 'approve', useUserActionReason: true },
+			{ label: localize('inboxNotifications.toolConfirmation.skip', "Skip"), kind: 'deny', useUserActionReason: false },
+		];
+	}
+
 	private getNeedsInputPartDescription(part: IInboxNotificationNeedsInputPart): string {
 		if (part.kind === 'questionCarousel') {
 			return localize('inboxNotifications.needsInput.description.questionCarousel', "Answer the pending questions below.");
+		}
+		if (part.kind === 'toolConfirmation') {
+			return localize('inboxNotifications.needsInput.description.toolConfirmation', "Review and approve the pending tool request below.");
 		}
 		return localize('inboxNotifications.needsInput.description.confirmation', "Review the confirmation request below.");
 	}

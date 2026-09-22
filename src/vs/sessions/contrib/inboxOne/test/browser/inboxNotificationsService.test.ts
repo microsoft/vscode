@@ -25,7 +25,7 @@ import { InboxNotificationActionKind, InboxNotificationKind, InboxNotificationPr
 import { GitHubPullRequestModel } from '../../../github/browser/models/githubPullRequestModel.js';
 import { GitHubPullRequestCIModel } from '../../../github/browser/models/githubPullRequestCIModel.js';
 import { GitHubPullRequestReviewThreadsModel } from '../../../github/browser/models/githubPullRequestReviewThreadsModel.js';
-import { IChatQuestionCarousel, IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
+import { IChatQuestionCarousel, IChatService, IChatToolInvocation } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatModel, IChatRequestModel, IChatResponseModel } from '../../../../../workbench/contrib/chat/common/model/chatModel.js';
 
 suite('InboxNotificationsService', () => {
@@ -369,6 +369,56 @@ suite('InboxNotificationsService', () => {
 			kind: InboxNotificationKind.NeedsInput,
 			needsInputPartKind: 'confirmation',
 			description: 'Review the confirmation request below.',
+		}]);
+	});
+
+	test('includes pending tool confirmation data for needs-input notifications', () => {
+		const chatResource = URI.parse('test:///chat/pending-tool-confirmation');
+		const chatService = new TestChatService();
+		const fixture = createFixture([
+			createSession({ id: 'pending-tool-confirmation', status: SessionStatus.NeedsInput, updatedAt: 200, chatResource }),
+		], undefined, undefined, chatService);
+
+		chatService.setPendingParts(chatResource, {
+			requestId: 'request-tool-confirmation',
+			startedWaitingAt: 10,
+			parts: [
+				upcastPartial({
+					kind: 'toolInvocation',
+					toolCallId: 'tool-call-1',
+					state: observableValue('test.toolInvocationState', {
+						type: IChatToolInvocation.StateKind.WaitingForConfirmation,
+						confirmationMessages: {
+							title: 'List directory contents',
+							message: 'Allow listing this directory?',
+						},
+					}),
+				}),
+			] as unknown as IChatResponseModel['response']['value'],
+		});
+
+		assert.deepStrictEqual(fixture.service.notifications.get().map(item => ({
+			kind: item.kind,
+			description: item.description,
+			needsInputPart: item.needsInputPart ? {
+				kind: item.needsInputPart.kind,
+				requestId: item.needsInputPart.requestId,
+				toolCallId: item.needsInputPart.kind === 'toolConfirmation' ? item.needsInputPart.toolCallId : undefined,
+				title: item.needsInputPart.kind === 'toolConfirmation'
+					? (typeof item.needsInputPart.title === 'string' ? item.needsInputPart.title : item.needsInputPart.title.value)
+					: undefined,
+				buttonLabels: item.needsInputPart.kind === 'toolConfirmation' ? item.needsInputPart.buttons.map(button => button.label) : undefined,
+			} : undefined,
+		})), [{
+			kind: InboxNotificationKind.NeedsInput,
+			description: 'Review and approve the pending tool request below.',
+			needsInputPart: {
+				kind: 'toolConfirmation',
+				requestId: 'request-tool-confirmation',
+				toolCallId: 'tool-call-1',
+				title: 'List directory contents',
+				buttonLabels: ['Allow Once', 'Skip'],
+			},
 		}]);
 	});
 
