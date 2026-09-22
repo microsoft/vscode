@@ -5,6 +5,18 @@
 
 declare module 'vscode' {
 
+	export interface LanguageModelChatNewSessionDefault {
+		readonly useAuto: boolean;
+		readonly assignmentContext: string;
+	}
+
+	export interface LanguageModelChatProvider {
+		/** Invalidates pending decisions when authentication or API origin changes. */
+		readonly onDidInvalidateNewSessionDefault?: Event<void>;
+		/** Refreshes the decision for a newly created conversation. */
+		provideNewSessionDefault?(token: CancellationToken): Thenable<LanguageModelChatNewSessionDefault | undefined>;
+	}
+
 	/**
 	* The provider version of {@linkcode LanguageModelChatRequestOptions}
 	*/

@@ -9,7 +9,7 @@ import { toDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { ExtensionIdentifier } from '../../../../../../../platform/extensions/common/extensions.js';
 import { ChatAgentLocation, ChatModeKind } from '../../../../common/constants.js';
-import { ILanguageModelChatMetadataAndIdentifier } from '../../../../common/languageModels.js';
+import { ILanguageModelChatMetadataAndIdentifier, ILanguageModelNewSessionDefault } from '../../../../common/languageModels.js';
 import { ModelSelectionReason, resolveModelIdentifierFromCatalog, type IIntendedModelSelection } from '../../../../common/modelSelection.js';
 import { ChatInputModelSelectionController, IChatInputModelSelectionRuntime } from '../../../../browser/widget/input/chatInputModelSelectionController.js';
 import { hasModelsTargetingSession, isModelSupportedForInlineChat, isModelSupportedForMode } from '../../../../browser/widget/input/chatInputModelUtils.js';
@@ -61,6 +61,9 @@ function createIntentStore(
 }
 
 interface IRuntimeState {
+	newSessionDefault?: ILanguageModelNewSessionDefault;
+	isNewSession?: boolean;
+	hasExplicitConfiguration?: boolean;
 	models: ILanguageModelChatMetadataAndIdentifier[];
 	readonly sessionType: string;
 	configuredModel?: string;
@@ -90,6 +93,9 @@ function createRuntime(
 		getModels: () => state.models,
 		getAllModels: () => state.models,
 		getConfiguredModelValue: () => state.configuredModel,
+		getNewSessionDefault: () => state.newSessionDefault,
+		isNewSession: () => state.isNewSession === true,
+		hasExplicitDefaultConfiguration: () => state.hasExplicitConfiguration === true,
 		...(state.awaitsSessionModels ? { isAwaitingSessionModels: (type: string) => !hasModelsTargetingSession(state.models, type) } : {}),
 		isModelSupportedHere: model => isModelSupportedForMode(model, ChatModeKind.Ask) && isModelSupportedForInlineChat(model, ChatAgentLocation.Chat),
 		getDeclaredDefaultModel: models => models.find(model => model.metadata.isDefaultForLocation[ChatAgentLocation.Chat]),
@@ -169,6 +175,122 @@ function runConformanceScenario(
 suite('ChatInputModelSelectionController', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	suite('server new session default', () => {
+		function createState(): IRuntimeState {
+			const auto = model('copilot/auto');
+			return {
+				models: [model('copilot/previous'), { ...auto, metadata: { ...auto.metadata, vendor: 'copilot', id: 'auto' } }],
+				sessionType: 'local',
+				isNewSession: true,
+				newSessionDefault: { variant: 'treatment', assignmentContext: 'fixture-auto-default:treatment' },
+			};
+		}
+
+		for (const scenario of [
+			{ name: 'treatment beats remembered model', change: (_state: IRuntimeState) => { }, expected: 'copilot/auto' },
+			{ name: 'control preserves remembered model', change: (state: IRuntimeState) => { state.newSessionDefault = { variant: 'control', assignmentContext: 'fixture-auto-default:control' }; }, expected: 'copilot/previous' },
+			{ name: 'missing decision preserves baseline', change: (state: IRuntimeState) => { state.newSessionDefault = undefined; }, expected: 'copilot/previous' },
+			{ name: 'restored empty session stays unchanged', change: (state: IRuntimeState) => { state.isNewSession = false; }, expected: 'copilot/previous' },
+			{ name: 'history stays unchanged', change: (state: IRuntimeState) => { state.isEmpty = false; }, expected: 'copilot/previous' },
+			{ name: 'explicit empty setting wins', change: (state: IRuntimeState) => { state.hasExplicitConfiguration = true; }, expected: 'copilot/previous' },
+			{ name: 'unavailable configured model wins', change: (state: IRuntimeState) => { state.configuredModel = 'unavailable'; }, expected: 'copilot/previous' },
+			{ name: 'missing eligible Auto preserves baseline', change: (state: IRuntimeState) => { state.models.pop(); }, expected: 'copilot/previous' },
+		]) {
+			test(scenario.name, () => {
+				const state = createState();
+				scenario.change(state);
+				const changes = disposables.add(new Emitter<string>());
+				const controller = disposables.add(new ChatInputModelSelectionController(createRuntime(state, changes, [])));
+				controller.initialize('copilot/previous');
+				assert.strictEqual(controller.currentModel.get()?.identifier, scenario.expected);
+			});
+		}
+
+		test('late treatment respects a deliberate composer choice', () => {
+			const state = createState();
+			state.newSessionDefault = undefined;
+			const changes = disposables.add(new Emitter<string>());
+			const controller = disposables.add(new ChatInputModelSelectionController(createRuntime(state, changes, [])));
+			controller.initialize('copilot/previous');
+			controller.applySelection(state.models[0], () => { }, true);
+			state.newSessionDefault = createState().newSessionDefault;
+			changes.fire('copilot');
+			assert.deepStrictEqual([controller.currentModel.get()?.identifier, controller.selectionReason], ['copilot/previous', ModelSelectionReason.UserSelection]);
+		});
+
+		test('Auto does not wait for the remembered model it superseded', () => {
+			const state = createState();
+			const changes = disposables.add(new Emitter<string>());
+			const controller = disposables.add(new ChatInputModelSelectionController(createRuntime(state, changes, [])));
+			controller.initialize('copilot/removed-model');
+			assert.deepStrictEqual([controller.currentModel.get()?.identifier, controller.isAwaitingRememberedModel()], ['copilot/auto', false]);
+		});
+
+		test('late treatment seeds an untouched composer but not a submitted session', () => {
+			const state = createState();
+			state.newSessionDefault = undefined;
+			const changes = disposables.add(new Emitter<string>());
+			const controller = disposables.add(new ChatInputModelSelectionController(createRuntime(state, changes, [])));
+			controller.initialize('copilot/previous');
+			state.newSessionDefault = createState().newSessionDefault;
+			changes.fire('copilot');
+			const seeded = controller.currentModel.get()?.identifier;
+			state.isEmpty = false;
+			state.newSessionDefault = undefined;
+			changes.fire('copilot');
+			assert.deepStrictEqual([seeded, controller.currentModel.get()?.identifier], ['copilot/auto', 'copilot/auto']);
+		});
+
+		test('withdrawal restores baseline after the default echoes through draft state', () => {
+			const state = createState();
+			const changes = disposables.add(new Emitter<string>());
+			const controller = disposables.add(new ChatInputModelSelectionController(createRuntime(state, changes, [])));
+			controller.initialize('copilot/previous');
+			controller.syncFromConversationState(state.models[1], undefined, 'local', 'chat:one');
+			state.newSessionDefault = undefined;
+			changes.fire('copilot');
+			assert.strictEqual(controller.currentModel.get()?.identifier, 'copilot/previous');
+		});
+
+		test('a choice in one session does not block the next genuinely new session', () => {
+			const state = createState();
+			const changes = disposables.add(new Emitter<string>());
+			const controller = disposables.add(new ChatInputModelSelectionController(createRuntime(state, changes, [])));
+			controller.initialize('copilot/previous');
+			controller.applySelection(state.models[0], () => { }, true);
+			state.conversationKey = 'chat:two';
+			controller.beginConversationSwitch();
+			controller.initialize('copilot/previous');
+			assert.deepStrictEqual([controller.currentModel.get()?.identifier, controller.selectionReason], ['copilot/auto', ModelSelectionReason.NewSessionDefault]);
+		});
+
+		test('reports both assigned arms and skipped choices without unassigned or resumed exposure', () => {
+			const outcomes: string[] = [];
+			for (const scenario of ['treatment', 'control', 'configuration', 'selection', 'unassigned', 'resumed']) {
+				const state = createState();
+				const changes = disposables.add(new Emitter<string>());
+				if (scenario === 'control') {
+					state.newSessionDefault = { variant: 'control', assignmentContext: 'fixture-auto-default:control' };
+				} else if (scenario === 'configuration') {
+					state.configuredModel = 'copilot/previous';
+				} else if (scenario === 'unassigned') {
+					state.newSessionDefault = undefined;
+				} else if (scenario === 'resumed') {
+					state.isNewSession = false;
+				}
+				const controller = disposables.add(new ChatInputModelSelectionController({
+					...createRuntime(state, changes, []),
+					reportNewSessionDefault: (_decision, outcome) => outcomes.push(outcome),
+				}));
+				if (scenario === 'selection') {
+					controller.applyProgrammaticSelection(state.models[0]);
+				}
+				controller.applyConfiguredDefault();
+			}
+			assert.deepStrictEqual(outcomes, ['applied', 'control', 'configuration', 'selection']);
+		});
+	});
 
 	suite('model selection conformance', () => {
 		for (const scenario of modelSelectionConformanceScenarios) {

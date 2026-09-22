@@ -18,6 +18,7 @@ import { ChatEndpointFamily, IEndpointProvider } from '../../../platform/endpoin
 import { CustomDataPartMimeTypes } from '../../../platform/endpoint/common/endpointTypes';
 import { encodeStatefulMarker } from '../../../platform/endpoint/common/statefulMarkerContainer';
 import { AutoChatEndpoint } from '../../../platform/endpoint/node/autoChatEndpoint';
+import { NewSessionPolicyService } from '../../../platform/endpoint/node/newSessionPolicyService';
 import { IAutomodeService, type IAutoModeRoutingRequest } from '../../../platform/endpoint/node/automodeService';
 import { CopilotChatEndpoint } from '../../../platform/endpoint/node/copilotChatEndpoint';
 import type { ExtensionLanguageModelRequestOptions } from '../../../platform/endpoint/vscode-node/extChatEndpoint';
@@ -277,7 +278,16 @@ export class LanguageModelAccess extends Disposable implements IExtensionContrib
 	}
 
 	private async _registerChatProvider(): Promise<void> {
+		const sessionPolicy = this._register(this._instantiationService.createInstance(NewSessionPolicyService));
 		const provider: vscode.LanguageModelChatProvider = {
+			onDidInvalidateNewSessionDefault: sessionPolicy.onDidChange,
+			provideNewSessionDefault: async token => {
+				if (token.isCancellationRequested) {
+					return undefined;
+				}
+				const decision = await sessionPolicy.refresh();
+				return decision && !token.isCancellationRequested ? { useAuto: decision.variant === 'treatment', assignmentContext: decision.assignmentContext } : undefined;
+			},
 			onDidChangeLanguageModelChatInformation: this._onDidChange.event,
 			provideLanguageModelChatInformation: this._provideLanguageModelChatInfo.bind(this),
 			provideLanguageModelChatResponse: this._provideLanguageModelChatResponse.bind(this),

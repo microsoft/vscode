@@ -3109,6 +3109,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			return undefined;
 		}
 
+		this.input.freezeNewSessionDefault();
 		if (!options?.preserveInput) {
 			// preserveInput submissions (e.g. /compact or programmatic maintenance
 			// requests) leave the input draft untouched, so they must not stop an

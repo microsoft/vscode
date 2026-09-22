@@ -144,6 +144,7 @@ export function resolveConfiguredModel(
 
 export const enum ModelSelectionReason {
 	ConfiguredDefault = 'configuredDefault',
+	NewSessionDefault = 'newSessionDefault',
 	FirstAvailable = 'firstAvailable',
 	ProgrammaticSelection = 'programmaticSelection',
 	Remembered = 'remembered',

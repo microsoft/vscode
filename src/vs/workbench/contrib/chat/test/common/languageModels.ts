@@ -24,6 +24,8 @@ export class NullLanguageModelsService implements ILanguageModelsService {
 	}
 
 	onDidChangeLanguageModels = Event.None;
+	onDidInvalidateNewSessionDefault = Event.None;
+	async refreshNewSessionDefault(): Promise<undefined> { return undefined; }
 	onDidChangeLanguageModelVendors = Event.None;
 	onDidChangeModelsControlManifest = Event.None;
 	onDidChangePinnedModels = Event.None;

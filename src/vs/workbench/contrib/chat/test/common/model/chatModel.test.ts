@@ -73,6 +73,23 @@ suite('ChatModel', () => {
 		assert.ok(model.timestamp > 0); // Should have generated timestamp
 	});
 
+	test('only explicitly created sessions are eligible for a new session default', () => {
+		const create = (isNewSession: boolean, restored: boolean) => testDisposables.add(instantiationService.createInstance(
+			ChatModel,
+			restored ? { value: { initialLocation: ChatAgentLocation.Chat, requests: [], responderUsername: 'bot' }, serializer: undefined! } : undefined,
+			{ initialLocation: ChatAgentLocation.Chat, canUseTools: true, isNewSession }
+		));
+		const fresh = create(true, false);
+		const beforeSend = fresh.inputModel.isNewSession;
+		fresh.addRequest({ text: 'Hello', parts: [] }, { variables: [] }, 0);
+		assert.deepStrictEqual({
+			fresh: beforeSend,
+			started: fresh.inputModel.isNewSession,
+			restored: create(true, true).inputModel.isNewSession,
+			existing: create(false, false).inputModel.isNewSession,
+		}, { fresh: true, started: false, restored: false, existing: false });
+	});
+
 	test('initialization with full serializable data (not imported)', async () => {
 		const now = Date.now();
 		const serializableData: ISerializableChatData3 = {
