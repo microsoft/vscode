@@ -42,14 +42,67 @@ suite('Agent host _meta readers', () => {
 			role: 'attempt',
 			attemptIndex: 1,
 			attemptCount: 3,
+			launch: {
+				workspace: 'file:///workspace',
+				branch: 'feature/comparison',
+				judge: {
+					providerId: 'judge-provider',
+					sessionTypeId: 'judge-type',
+					modelId: 'judge-model',
+				},
+				synthesis: {
+					providerId: 'synthesis-provider',
+					sessionTypeId: 'synthesis-type',
+					modelConfiguration: { thinkingLevel: 'high' },
+					permissionId: 'allowedTools',
+				},
+			},
 		})), {
 			id: 'comparison',
 			role: 'attempt',
 			attemptIndex: 1,
 			attemptCount: 3,
+			launch: {
+				workspace: 'file:///workspace',
+				branch: 'feature/comparison',
+				judge: {
+					providerId: 'judge-provider',
+					sessionTypeId: 'judge-type',
+					modelId: 'judge-model',
+				},
+				synthesis: {
+					providerId: 'synthesis-provider',
+					sessionTypeId: 'synthesis-type',
+					modelConfiguration: { thinkingLevel: 'high' },
+					permissionId: 'allowedTools',
+				},
+			},
 		});
 		assert.strictEqual(readSessionComparisonMetadata({
 			'agentHost/sessionComparison': { id: 'comparison', role: 'attempt', attemptIndex: 3, attemptCount: 3 },
+		}), undefined);
+		assert.strictEqual(readSessionComparisonMetadata({
+			'agentHost/sessionComparison': {
+				id: 'comparison',
+				role: 'judge',
+				attemptCount: 3,
+				launch: {
+					workspace: 'file:///workspace',
+					judge: { providerId: 'judge-provider', sessionTypeId: 'judge-type' },
+				},
+			},
+		}), undefined);
+		assert.strictEqual(readSessionComparisonMetadata({
+			'agentHost/sessionComparison': {
+				id: 'comparison',
+				role: 'attempt',
+				attemptIndex: 0,
+				attemptCount: 3,
+				launch: {
+					workspace: 'file:///workspace',
+					judge: { providerId: 'judge-provider', sessionTypeId: '' },
+				},
+			},
 		}), undefined);
 	});
 

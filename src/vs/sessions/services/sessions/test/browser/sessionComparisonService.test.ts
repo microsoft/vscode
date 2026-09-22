@@ -463,9 +463,39 @@ suite('SessionComparisonService', () => {
 				.map(event => ({ attemptIndex: event.data.attemptIndex, attemptCount: event.data.attemptCount, recommended: event.data.recommended })),
 		}, {
 			launchMetadata: [
-				{ id: hashSessionIdForTelemetry(comparison.id), role: 'attempt', attemptIndex: 0, attemptCount: 3 },
-				{ id: hashSessionIdForTelemetry(comparison.id), role: 'attempt', attemptIndex: 1, attemptCount: 3 },
-				{ id: hashSessionIdForTelemetry(comparison.id), role: 'attempt', attemptIndex: 2, attemptCount: 3 },
+				{
+					id: hashSessionIdForTelemetry(comparison.id),
+					role: 'attempt',
+					attemptIndex: 0,
+					attemptCount: 3,
+					launch: {
+						workspace: 'file:///workspace',
+						judge: { providerId: 'judge-provider', sessionTypeId: 'judge-type', modelId: 'judge-model' },
+						synthesis: { providerId: 'synthesis-provider', sessionTypeId: 'synthesis-type', modelId: 'synthesis-model' },
+					},
+				},
+				{
+					id: hashSessionIdForTelemetry(comparison.id),
+					role: 'attempt',
+					attemptIndex: 1,
+					attemptCount: 3,
+					launch: {
+						workspace: 'file:///workspace',
+						judge: { providerId: 'judge-provider', sessionTypeId: 'judge-type', modelId: 'judge-model' },
+						synthesis: { providerId: 'synthesis-provider', sessionTypeId: 'synthesis-type', modelId: 'synthesis-model' },
+					},
+				},
+				{
+					id: hashSessionIdForTelemetry(comparison.id),
+					role: 'attempt',
+					attemptIndex: 2,
+					attemptCount: 3,
+					launch: {
+						workspace: 'file:///workspace',
+						judge: { providerId: 'judge-provider', sessionTypeId: 'judge-type', modelId: 'judge-model' },
+						synthesis: { providerId: 'synthesis-provider', sessionTypeId: 'synthesis-type', modelId: 'synthesis-model' },
+					},
+				},
 			],
 			completionEvents: [
 				{ attemptIndex: 0, elapsedMs: 10 },
@@ -497,14 +527,34 @@ suite('SessionComparisonService', () => {
 				sessionTypeId: 'type-one',
 				modelId: 'model-one',
 				permissionLevel: 'allowedTools',
-				comparison: { id: hashSessionIdForTelemetry(service.comparisons.get()[0].id), role: 'attempt', attemptIndex: 0, attemptCount: 2 },
+				comparison: {
+					id: hashSessionIdForTelemetry(service.comparisons.get()[0].id),
+					role: 'attempt',
+					attemptIndex: 0,
+					attemptCount: 2,
+					launch: {
+						workspace: 'file:///workspace',
+						judge: { providerId: 'judge-provider', sessionTypeId: 'judge-type', modelId: 'judge-model', permissionId: 'allowedTools' },
+						synthesis: { providerId: 'synthesis-provider', sessionTypeId: 'synthesis-type', modelId: 'synthesis-model', permissionId: 'allowedTools' },
+					},
+				},
 			},
 			{
 				providerId: 'provider-two',
 				sessionTypeId: 'type-two',
 				modelId: 'model-two',
 				permissionLevel: 'allowedTools',
-				comparison: { id: hashSessionIdForTelemetry(service.comparisons.get()[0].id), role: 'attempt', attemptIndex: 1, attemptCount: 2 },
+				comparison: {
+					id: hashSessionIdForTelemetry(service.comparisons.get()[0].id),
+					role: 'attempt',
+					attemptIndex: 1,
+					attemptCount: 2,
+					launch: {
+						workspace: 'file:///workspace',
+						judge: { providerId: 'judge-provider', sessionTypeId: 'judge-type', modelId: 'judge-model', permissionId: 'allowedTools' },
+						synthesis: { providerId: 'synthesis-provider', sessionTypeId: 'synthesis-type', modelId: 'synthesis-model', permissionId: 'allowedTools' },
+					},
+				},
 			},
 		]);
 	});

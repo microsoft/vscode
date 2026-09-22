@@ -15,7 +15,7 @@ import { InstantiationType, registerSingleton } from '../../../../platform/insta
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
-import { withSessionComparisonMetadata } from '../../../../platform/agentHost/common/state/sessionState.js';
+import { withSessionComparisonMetadata, type IAgentSessionComparisonHarnessMetadata, type IAgentSessionComparisonLaunchMetadata } from '../../../../platform/agentHost/common/state/sessionState.js';
 import { localize } from '../../../../nls.js';
 import { IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { IChatService } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
@@ -426,7 +426,17 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 				role: 'attempt',
 				attemptIndex,
 				attemptCount: options.attempts.length,
+				launch: this._createHostLaunchMetadata(options),
 			}),
+		};
+	}
+
+	private _createHostLaunchMetadata(options: IStartSessionComparisonOptions): IAgentSessionComparisonLaunchMetadata {
+		return {
+			workspace: options.workspace.toString(),
+			...(options.branch ? { branch: options.branch } : {}),
+			judge: toHostLaunchHarnessMetadata(options.judgeHarness, options.permissionLevel),
+			...(options.synthesisHarness ? { synthesis: toHostLaunchHarnessMetadata(options.synthesisHarness, options.permissionLevel) } : {}),
 		};
 	}
 
@@ -850,6 +860,16 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 		);
 	}
 
+}
+
+function toHostLaunchHarnessMetadata(harness: ISessionComparisonHarness, fallbackPermissionId: string | undefined): IAgentSessionComparisonHarnessMetadata {
+	return {
+		providerId: harness.providerId,
+		sessionTypeId: harness.sessionTypeId,
+		...(harness.modelId ? { modelId: harness.modelId } : {}),
+		...(harness.modelConfiguration ? { modelConfiguration: harness.modelConfiguration } : {}),
+		...(harness.permissionId ?? fallbackPermissionId ? { permissionId: harness.permissionId ?? fallbackPermissionId } : {}),
+	};
 }
 
 function snapshotAttachedContext(attachedContext: readonly IChatRequestVariableEntry[]): readonly IChatRequestVariableEntry[] {

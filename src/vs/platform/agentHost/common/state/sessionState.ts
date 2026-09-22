@@ -2009,11 +2009,27 @@ export const SESSION_META_COMPARISON_KEY = 'agentHost/sessionComparison';
 
 export type AgentSessionComparisonRole = 'attempt' | 'judge' | 'synthesis';
 
+export interface IAgentSessionComparisonHarnessMetadata {
+	readonly providerId: string;
+	readonly sessionTypeId: string;
+	readonly modelId?: string;
+	readonly modelConfiguration?: Readonly<Record<string, string | number | boolean | null>>;
+	readonly permissionId?: string;
+}
+
+export interface IAgentSessionComparisonLaunchMetadata {
+	readonly workspace: string;
+	readonly branch?: string;
+	readonly judge: IAgentSessionComparisonHarnessMetadata;
+	readonly synthesis?: IAgentSessionComparisonHarnessMetadata;
+}
+
 export interface IAgentSessionComparisonMetadata {
 	readonly id: string;
 	readonly role: AgentSessionComparisonRole;
 	readonly attemptIndex?: number;
 	readonly attemptCount: number;
+	readonly launch?: IAgentSessionComparisonLaunchMetadata;
 }
 
 export function readSessionComparisonMetadata(meta: SessionSummaryMeta | undefined): IAgentSessionComparisonMetadata | undefined {
@@ -2022,11 +2038,13 @@ export function readSessionComparisonMetadata(meta: SessionSummaryMeta | undefin
 		return undefined;
 	}
 	const candidate = value as { [key: string]: unknown };
+	const launch = readSessionComparisonLaunchMetadata(candidate.launch);
 	if (typeof candidate.id !== 'string' || candidate.id.length === 0 || candidate.id.length > 128
 		|| (candidate.role !== 'attempt' && candidate.role !== 'judge' && candidate.role !== 'synthesis')
 		|| !Number.isInteger(candidate.attemptCount) || (candidate.attemptCount as number) < 2
 		|| (candidate.attemptIndex !== undefined && (!Number.isInteger(candidate.attemptIndex) || (candidate.attemptIndex as number) < 0 || (candidate.attemptIndex as number) >= (candidate.attemptCount as number)))
 		|| (candidate.role === 'attempt') !== (candidate.attemptIndex !== undefined)
+		|| (candidate.launch !== undefined && (candidate.role !== 'attempt' || !launch))
 	) {
 		return undefined;
 	}
@@ -2035,11 +2053,81 @@ export function readSessionComparisonMetadata(meta: SessionSummaryMeta | undefin
 		role: candidate.role,
 		attemptIndex: candidate.attemptIndex as number | undefined,
 		attemptCount: candidate.attemptCount as number,
+		...(launch ? { launch } : {}),
 	};
 }
 
 export function withSessionComparisonMetadata(meta: SessionSummaryMeta | undefined, comparison: IAgentSessionComparisonMetadata): SessionSummaryMeta {
 	return { ...meta, [SESSION_META_COMPARISON_KEY]: comparison };
+}
+
+function readSessionComparisonLaunchMetadata(value: unknown): IAgentSessionComparisonLaunchMetadata | undefined {
+	if (!value || typeof value !== 'object') {
+		return undefined;
+	}
+	const candidate = value as { [key: string]: unknown };
+	const judge = readSessionComparisonHarnessMetadata(candidate.judge);
+	const synthesis = candidate.synthesis === undefined ? undefined : readSessionComparisonHarnessMetadata(candidate.synthesis);
+	if (typeof candidate.workspace !== 'string' || candidate.workspace.length === 0 || candidate.workspace.length > 2048
+		|| !judge
+		|| (candidate.branch !== undefined && (typeof candidate.branch !== 'string' || candidate.branch.length === 0 || candidate.branch.length > 255))
+		|| (candidate.synthesis !== undefined && !synthesis)
+	) {
+		return undefined;
+	}
+	return {
+		workspace: candidate.workspace,
+		...(candidate.branch !== undefined ? { branch: candidate.branch } : {}),
+		judge,
+		...(synthesis ? { synthesis } : {}),
+	};
+}
+
+function readSessionComparisonHarnessMetadata(value: unknown): IAgentSessionComparisonHarnessMetadata | undefined {
+	if (!value || typeof value !== 'object') {
+		return undefined;
+	}
+	const candidate = value as { [key: string]: unknown };
+	if (typeof candidate.providerId !== 'string' || candidate.providerId.length === 0 || candidate.providerId.length > 128
+		|| typeof candidate.sessionTypeId !== 'string' || candidate.sessionTypeId.length === 0 || candidate.sessionTypeId.length > 256
+		|| (candidate.modelId !== undefined && (typeof candidate.modelId !== 'string' || candidate.modelId.length === 0 || candidate.modelId.length > 256))
+		|| (candidate.permissionId !== undefined && (typeof candidate.permissionId !== 'string' || candidate.permissionId.length === 0 || candidate.permissionId.length > 128))
+	) {
+		return undefined;
+	}
+	const modelConfiguration = readSessionComparisonModelConfiguration(candidate.modelConfiguration);
+	if (candidate.modelConfiguration !== undefined && !modelConfiguration) {
+		return undefined;
+	}
+	return {
+		providerId: candidate.providerId,
+		sessionTypeId: candidate.sessionTypeId,
+		...(candidate.modelId !== undefined ? { modelId: candidate.modelId } : {}),
+		...(modelConfiguration ? { modelConfiguration } : {}),
+		...(candidate.permissionId !== undefined ? { permissionId: candidate.permissionId } : {}),
+	};
+}
+
+function readSessionComparisonModelConfiguration(value: unknown): Readonly<Record<string, string | number | boolean | null>> | undefined {
+	if (value === undefined) {
+		return undefined;
+	}
+	if (!value || typeof value !== 'object') {
+		return undefined;
+	}
+	const candidate = value as Record<string, unknown>;
+	const next: Record<string, string | number | boolean | null> = {};
+	for (const [key, field] of Object.entries(candidate)) {
+		if (key.length === 0 || key.length > 256) {
+			return undefined;
+		}
+		if (typeof field === 'string' || typeof field === 'number' || typeof field === 'boolean' || field === null) {
+			next[key] = field;
+			continue;
+		}
+		return undefined;
+	}
+	return next;
 }
 
 /**
