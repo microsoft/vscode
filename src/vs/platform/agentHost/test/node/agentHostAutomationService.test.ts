@@ -26,7 +26,7 @@ import { ActionType } from '../../common/state/sessionActions.js';
 import { AutomationMisfirePolicy, AutomationOperation, AutomationTriggerKind, type AutomationDefinition } from '../../common/state/protocol/channels-automation/state.js';
 import { AutomationRunOriginKind, AutomationRunStatus, type AutomationRunState } from '../../common/state/protocol/channels-automation-run/state.js';
 import type { RunAutomationParams } from '../../common/state/protocol/channels-automation/commands.js';
-import { buildDefaultChatUri, MessageKind, ResponsePartKind, ROOT_STATE_URI, SessionStatus } from '../../common/state/sessionState.js';
+import { AUTOMATION_CATALOG_URI, buildDefaultChatUri, MessageKind, ResponsePartKind, ROOT_STATE_URI, SessionStatus } from '../../common/state/sessionState.js';
 import { AgentHostAutomationService, type IAgentHostAutomationExecution } from '../../node/agentHostAutomationService.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { AgentHostStorageService, type IAgentHostStorageWriter } from '../../node/agentHostStorageService.js';
@@ -647,6 +647,25 @@ suite('AgentHostAutomationService', () => {
 		}, {
 			run: AutomationRunStatus.Completed,
 			summary: AutomationRunStatus.Completed,
+		});
+		const writesBeforeConfigRefresh = writeAttempts;
+		let cataloguePublications = 0;
+		disposables.add(stateManager.onDidEmitEnvelope(envelope => {
+			if (envelope.channel === AUTOMATION_CATALOG_URI && envelope.action.type === ActionType.AutomationSet) {
+				cataloguePublications++;
+			}
+		}));
+		stateManager.dispatchServerAction(ROOT_STATE_URI, {
+			type: ActionType.RootConfigChanged, config: { 'test.unrelated': true },
+		});
+		await service.handleConfigurationChanged();
+		assert.deepStrictEqual({
+			writes: writeAttempts - writesBeforeConfigRefresh,
+			cataloguePublications,
+			operations: stateManager.getAutomationCatalogState()?.entries[0].operations,
+		}, {
+			writes: 0, cataloguePublications: 0,
+			operations: [AutomationOperation.Update, AutomationOperation.Remove, AutomationOperation.Run],
 		});
 		stateManager.dispatchServerAction(buildDefaultChatUri(session), { type: ActionType.ChatTurnComplete, turnId, duration: 10 });
 		await service.fetchAutomationRuns({ channel: 'ahp-automations://', automation: params.automation });
