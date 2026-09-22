@@ -22,6 +22,7 @@ import { SessionsChatAccessibilityHelp } from '../../browser/sessionsChatAccessi
 import { SessionsListPromoteNewChatActionContext } from '../../../../common/contextkeys.js';
 import { SESSIONS_CHAT_TABS_SETTING, SessionsChatTabsMode } from '../../../../common/sessionConfig.js';
 import { RemoteSessionToolsEnabledSettingId } from '../../../remoteSessions/common/remoteSessions.js';
+import { UNIFIED_WORKSPACE_PICKER_SETTING } from '../../common/constants.js';
 
 suite('SessionsChatAccessibilityHelp', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -62,7 +63,36 @@ suite('SessionsChatAccessibilityHelp', () => {
 		instantiationService.stub(IContextKeyService, contextKeyService);
 	}
 
-	test('describes restoring filtered pull requests from another pill context menu', () => {
+	test('describes picker shortcuts only when the unified workspace picker is enabled', () => {
+		const getPickerHelp = (enabled: boolean) => {
+			const instantiationService = store.add(new TestInstantiationService());
+			const configuration = new TestConfigurationService({ [UNIFIED_WORKSPACE_PICKER_SETTING]: enabled });
+			store.add(configuration.onDidChangeConfigurationEmitter);
+			instantiationService.stub(IConfigurationService, configuration);
+			stubContextKeyService(instantiationService, configuration);
+			instantiationService.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() { }());
+			instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() { }());
+			instantiationService.stub(IWorkbenchLayoutService, { mainContainer: mainWindow.document.createElement('div') });
+			return store.add(new SessionsChatAccessibilityHelp().getProvider(instantiationService)).provideContent()
+				.split('\n')
+				.find(line => line.includes('open and focus the workspace picker'));
+		};
+		const enabledHelp = getPickerHelp(true);
+
+		assert.deepStrictEqual({
+			disabled: getPickerHelp(false) !== undefined,
+			enabled: enabledHelp !== undefined,
+			contextMenuKeybinding: enabledHelp?.includes('<keybinding:editor.action.showContextMenu>'),
+			mouseOnly: enabledHelp?.includes('Right-click'),
+		}, {
+			disabled: false,
+			enabled: true,
+			contextMenuKeybinding: true,
+			mouseOnly: false,
+		});
+	});
+
+	test('describes subagent groups and restoring filtered pills from another context menu', () => {
 		const instantiationService = store.add(new TestInstantiationService());
 		const configuration = new TestConfigurationService();
 		store.add(configuration.onDidChangeConfigurationEmitter);
@@ -72,12 +102,18 @@ suite('SessionsChatAccessibilityHelp', () => {
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() { }());
 		instantiationService.stub(IWorkbenchLayoutService, { mainContainer: mainWindow.document.createElement('div') });
 		const provider = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiationService));
-		const pillHelp = provider.provideContent().split('\n').find(line => line.includes('Pull Requests Options'));
+		const content = provider.provideContent();
+		const pillHelp = content.split('\n').find(line => line.includes('Pull Requests Options'));
 
 		assert.deepStrictEqual({
 			keyboard: pillHelp?.includes('<keybinding:editor.action.showContextMenu>'),
 			filterRecovery: pillHelp?.includes('any other pill\'s context menu or the toolbar context menu'),
-		}, { keyboard: true, filterRecovery: true });
+			subagentOptions: pillHelp?.includes('Subagent Options offers Show All and Show In Progress'),
+			persistence: pillHelp?.includes('remembered across sessions'),
+			groups: content.includes('Subagents: In Progress and Subagents: Completed'),
+			waiting: content.includes('In Progress includes subagents waiting for input'),
+			failed: content.includes('Completed includes failed subagents'),
+		}, { keyboard: true, filterRecovery: true, subagentOptions: true, persistence: true, groups: true, waiting: true, failed: true });
 	});
 
 	test('describes removing recorded artifacts and references after persistence', () => {

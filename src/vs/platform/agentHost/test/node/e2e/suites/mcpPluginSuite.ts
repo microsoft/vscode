@@ -16,7 +16,7 @@ import { CustomizationEnablementKind, McpServerStatus } from '../../../../common
 import { ActionType, type ChatToolCallCompleteAction } from '../../../../common/state/sessionActions.js';
 import { buildDefaultChatUri, ChatInputAnswerState, ChatInputAnswerValueKind, customizationId, CustomizationType, ResponsePartKind, ROOT_STATE_URI, type ChatInputAnswer, type ChatInputRequest, type ClientPluginCustomization, type McpServerCustomization, type PluginCustomization, type SessionState } from '../../../../common/state/sessionState.js';
 import { createRealSession, driveTurnToCompletion, driveTurnWithAnswersToCompletion, driveTurnWithCancelledInputToCompletion, resolveGitHubToken, textFromContent } from '../harness/agentHostE2ETestHarness.js';
-import { fetchSessionWithChat, getActionEnvelope, isActionNotification } from '../../serverIntegrationTestHelpers.js';
+import { fetchSessionWithChat, getActionEnvelope, isActionNotification, type TestProtocolClient } from '../../serverIntegrationTestHelpers.js';
 import { providerHostOnlyTest, type IAgentHostE2ETestContext } from './e2eTestContext.js';
 
 const nodeRequire = createRequire(import.meta.url);
@@ -34,6 +34,8 @@ interface IPluginSessionOptions {
 	readonly hookExitCode?: number;
 	readonly hookStdout?: string;
 	readonly pluginName?: string;
+	readonly publisher?: TestProtocolClient;
+	readonly clientId?: string;
 }
 
 export function defineMcpPluginTests(context: IAgentHostE2ETestContext): void {
@@ -172,8 +174,13 @@ export function defineMcpPluginTests(context: IAgentHostE2ETestContext): void {
 			},
 		}));
 		const pluginUri = URI.file(plugin).toString();
-		const clientId = `mcp-plugin-${prefix}-${config.provider}`;
-		const sessionUri = await createRealSession(context.client, config, clientId, createdSessions, URI.file(workspace));
+		const clientId = options.clientId ?? `mcp-plugin-${prefix}-${config.provider}`;
+		const sessionCreatorClientId = options.publisher ? `mcp-plugin-observer-${prefix}-${config.provider}` : clientId;
+		const sessionUri = await createRealSession(context.client, config, sessionCreatorClientId, createdSessions, URI.file(workspace));
+		const publisher = options.publisher ?? context.client;
+		if (publisher !== context.client) {
+			await publisher.call<SubscribeResult>('subscribe', { channel: sessionUri });
+		}
 		const customization: ClientPluginCustomization = {
 			type: CustomizationType.Plugin,
 			id: customizationId(pluginUri),
@@ -182,7 +189,7 @@ export function defineMcpPluginTests(context: IAgentHostE2ETestContext): void {
 			nonce: '1',
 			enablement: [{ kind: CustomizationEnablementKind.Global, enabled: true }],
 		};
-		context.client.dispatch({
+		publisher.dispatch({
 			channel: sessionUri,
 			clientSeq: 1,
 			action: {
@@ -318,6 +325,44 @@ export function defineMcpPluginTests(context: IAgentHostE2ETestContext): void {
 				throw new Error('Plugin customization has not been removed');
 			}
 		}, 100, 100);
+	});
+
+	providerHostOnlyTest(context, 'unsubscribing an active client removes its provider customization', async function () {
+		const clientId = `mcp-plugin-unsubscribe-${config.provider}`;
+		const publisher = await context.connectClient();
+		try {
+			await publisher.call('initialize', {
+				channel: ROOT_STATE_URI,
+				protocolVersions: [PROTOCOL_VERSION],
+				clientId,
+			});
+			const { sessionUri, pluginUri } = await createPluginSession('unsubscribe', { publisher, clientId });
+			const plugin = await pluginState(sessionUri, pluginUri);
+			context.client.clearReceived();
+
+			publisher.notify('unsubscribe', { channel: sessionUri });
+			await publisher.call('ping', { channel: ROOT_STATE_URI });
+			await context.client.waitForNotification(n => {
+				if (!isActionNotification(n, ActionType.SessionActiveClientRemoved)) {
+					return false;
+				}
+				const envelope = getActionEnvelope(n);
+				return envelope.channel === sessionUri
+					&& (envelope.action as { readonly clientId: string }).clientId === clientId;
+			}, 30_000);
+			await retry(async () => {
+				const result = await context.client.call<SubscribeResult>('subscribe', { channel: sessionUri });
+				const state = result.snapshot!.state as SessionState;
+				if (state.activeClients.some(client => client.clientId === clientId)) {
+					throw new Error('Active client has not been removed');
+				}
+				if (state.customizations?.some(customization => customization.id === plugin.id)) {
+					throw new Error('Plugin customization has not been removed');
+				}
+			}, 100, 100);
+		} finally {
+			publisher.close();
+		}
 	});
 
 	const modelBackedEnabled = config.provider === 'copilotcli';
