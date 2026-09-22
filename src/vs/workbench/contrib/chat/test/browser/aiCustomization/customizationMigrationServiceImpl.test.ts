@@ -732,7 +732,7 @@ suite('CustomizationMigrationService', () => {
 			target,
 		}, {
 			disabledMigration: {
-				servers: [{ id: 'mcp.config.ws0.server', name: 'server', supported: true }],
+				servers: [],
 				candidates: [],
 			},
 			disabledHint: undefined,
