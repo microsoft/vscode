@@ -25,10 +25,11 @@ import { INotificationService } from '../../../../platform/notification/common/n
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { fromNowByDay } from '../../../../base/common/date.js';
-import { ChatSendResult, IChatQuestionAnswerValue, IChatQuestionCarousel, IChatSendRequestOptions, IChatService, IChatToolInvocation, ToolConfirmKind } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
+import { ChatSendResult, IChatConfirmation, IChatQuestionAnswerValue, IChatQuestionCarousel, IChatSendRequestOptions, IChatService, IChatToolInvocation, ToolConfirmKind } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatContentPartRenderContext } from '../../../../workbench/contrib/chat/browser/widget/chatContentParts/chatContentParts.js';
 import { SimpleChatConfirmationWidget } from '../../../../workbench/contrib/chat/browser/widget/chatContentParts/chatConfirmationWidget.js';
 import { ChatQuestionCarouselPart } from '../../../../workbench/contrib/chat/browser/widget/chatContentParts/chatQuestionCarouselPart.js';
+import { IChatRequestModel, IChatResponseModel } from '../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { isAgentHostProvider } from '../../../common/agentHostSessionsProvider.js';
 import { AgentMergeSessionOverrides } from '../../../../platform/agentHost/common/agentMerge.js';
 import { SESSIONS_MARK_AS_DONE_CONFETTI_SETTING } from '../../../../platform/chat/common/sessionArchiveActions.js';
@@ -405,12 +406,29 @@ export class InboxNotificationsView extends AbstractCustomView {
 		buttonLabel: string,
 		buttonIndex: number,
 	): Promise<void> {
+		const requestContext = this.getNeedsInputRequestContext(part.chatResource, part.requestId);
+		if (!requestContext) {
+			this.notificationService.error(localize('inboxNotifications.confirmation.chatMissing', "Unable to find the session for this confirmation. Open the session and try again."));
+			return;
+		}
+		const confirmationPart = this.getPendingConfirmationPart(requestContext.response, part.data);
+		if (!confirmationPart) {
+			this.notificationService.error(localize('inboxNotifications.confirmation.missing', "This confirmation is no longer available. Open the session for the latest state."));
+			return;
+		}
+
 		const prompt = `${buttonLabel}: "${part.title}"`;
 		const options: IChatSendRequestOptions = buttonIndex === 0
 			? { acceptedConfirmationData: [part.data] }
 			: { rejectedConfirmationData: [part.data] };
+		options.agentId = requestContext.response.agent?.id;
+		options.slashCommand = requestContext.response.slashCommand?.name;
+		options.confirmation = buttonLabel;
+		options.modeInfo = requestContext.request.modeInfo;
+		options.locationData = requestContext.request.locationData;
 		const sendResult = await this.chatService.sendRequest(part.chatResource, prompt, options);
 		if (ChatSendResult.isSent(sendResult)) {
+			confirmationPart.isUsed = true;
 			await this.completeNeedsInputNotification(item);
 			return;
 		}
@@ -466,9 +484,54 @@ export class InboxNotificationsView extends AbstractCustomView {
 			this.notificationService.error(localize('inboxNotifications.questionCarousel.resolveIdMissing', "Unable to submit this question yet. Open the session to continue."));
 			return;
 		}
+
+		const requestContext = this.getNeedsInputRequestContext(part.chatResource, part.requestId);
+		if (!requestContext) {
+			this.notificationService.error(localize('inboxNotifications.questionCarousel.chatMissing', "Unable to find the session for these questions. Open the session and try again."));
+			return;
+		}
+		const carouselPart = requestContext.response.response.value.find(candidate => candidate.kind === 'questionCarousel' && candidate.resolveId === part.resolveId && !candidate.isUsed);
+		if (!carouselPart || carouselPart.kind !== 'questionCarousel') {
+			this.notificationService.error(localize('inboxNotifications.questionCarousel.missing', "These questions are no longer available. Open the session for the latest state."));
+			return;
+		}
+
 		const answersRecord = answers ? Object.fromEntries(answers.entries()) : undefined;
+		carouselPart.data = answersRecord ?? {};
+		carouselPart.isUsed = true;
 		this.chatService.notifyQuestionCarouselAnswer(part.requestId, part.resolveId, answersRecord);
 		await this.completeNeedsInputNotification(item);
+	}
+
+	private getNeedsInputRequestContext(chatResource: URI, requestId: string): { request: IChatRequestModel; response: IChatResponseModel } | undefined {
+		const chatModel = this.chatService.getSession(chatResource);
+		if (!chatModel) {
+			return undefined;
+		}
+
+		const request = chatModel.getRequests().find(candidate => candidate.response?.requestId === requestId);
+		const response = request?.response;
+		if (!request || !response) {
+			return undefined;
+		}
+
+		return { request, response };
+	}
+
+	private getPendingConfirmationPart(response: IChatResponseModel, confirmationData: unknown): IChatConfirmation | undefined {
+		let fallbackConfirmation: IChatConfirmation | undefined;
+		for (const part of response.response.value) {
+			if (part.kind !== 'confirmation' || part.isUsed) {
+				continue;
+			}
+
+			if (part.data === confirmationData) {
+				return part;
+			}
+			fallbackConfirmation ??= part;
+		}
+
+		return fallbackConfirmation;
 	}
 
 	private createChatContentPartRenderContext(): IChatContentPartRenderContext {
