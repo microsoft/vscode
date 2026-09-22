@@ -3384,7 +3384,7 @@ suite('ChatListRenderer', () => {
 		}, { pillCounts: ['+7', '-3'], chainDiff: { added: 7, removed: 3 }, counts: ['+7', '-3'] });
 	});
 
-	test('re-streamed subagent edit markdown replaces its previous revision instead of adding to it', async () => {
+	test('re-streamed subagent edit markdown replaces its previous revision instead of adding to it', () => runWithFakedTimers({ useFakeTimers: true, startTime: 1000 }, async () => {
 		const diff = {
 			originalURI: URI.file('/snapshots/before/tests.ts'), modifiedURI: URI.file('/workspace/tests.ts'),
 			modifiedSnapshotURI: URI.file('/snapshots/after/tests.ts'),
@@ -3394,39 +3394,47 @@ suite('ChatListRenderer', () => {
 			chatMode: ChatModeKind.Agent, collapsedTools: CollapsedToolsDisplayMode.Always,
 			editingSession: new MockChatEditingSession([diff], { synchronousDiffs: true }),
 		});
-		const { configurationService, model, request, renderer, template, node } = setup;
-		configurationService.setUserConfiguration(ChatConfiguration.SubagentsUseRichRendering, false);
-		const subagent = new ChatToolInvocation(
-			{ invocationMessage: 'Delegating work', pastTenseMessage: 'Delegated work', toolSpecificData: { kind: 'subagent', description: 'Write tests', isActive: true } },
-			{ id: 'task', displayName: 'Task', modelDescription: 'Delegate work', source: ToolDataSource.Internal },
-			'subagent-1', undefined, {},
-		);
-		model.acceptResponseProgress(request, subagent);
-		renderer.renderElement(node, 0, template);
-		const subagentPart = template.renderedParts?.find(part => part instanceof ChatSubagentContentPart);
-		assert.ok(subagentPart instanceof ChatSubagentContentPart);
-		subagentPart.domNode.querySelector<HTMLElement>('.chat-used-context-label .monaco-button')?.click();
-		const edit = (suffix: string) => ({
-			kind: 'markdownContent' as const,
-			content: new MarkdownString('```typescript\n<vscode_codeblock_uri isEdit subAgentInvocationId="subagent-1">file:///workspace/tests.ts</vscode_codeblock_uri>\nexport const tests = true;\n```' + suffix),
-		});
-		model.acceptResponseProgress(request, edit(''));
-		renderer.renderElement(node, 0, template);
-		await timeout(0);
-		const first = { ...subagentPart.diffData.get(), pills: subagentPart.domNode.querySelectorAll('.chat-codeblock-pill-container').length };
-		// The stream appends trailing text to the same markdown part, which re-renders it as a new part.
-		model.acceptResponseProgress(request, edit('\n\n'));
-		renderer.renderElement(node, 0, template);
-		await timeout(0);
-		const second = subagentPart.diffData.get();
-		assert.deepStrictEqual({
-			first: { added: first.added, removed: first.removed, pills: first.pills },
-			second: { added: second.added, removed: second.removed, resources: second.resources.length, pills: subagentPart.domNode.querySelectorAll('.chat-codeblock-pill-container').length },
-		}, {
-			first: { added: 7, removed: 3, pills: 1 },
-			second: { added: 7, removed: 3, resources: 1, pills: 1 },
-		});
-	});
+		const { disposables, configurationService, model, request, renderer, template, node } = setup;
+		try {
+			configurationService.setUserConfiguration(ChatConfiguration.SubagentsUseRichRendering, false);
+			const subagent = new ChatToolInvocation(
+				{ invocationMessage: 'Delegating work', pastTenseMessage: 'Delegated work', toolSpecificData: { kind: 'subagent', description: 'Write tests', isActive: true } },
+				{ id: 'task', displayName: 'Task', modelDescription: 'Delegate work', source: ToolDataSource.Internal },
+				'subagent-1', undefined, {},
+			);
+			model.acceptResponseProgress(request, subagent);
+			renderer.renderElement(node, 0, template);
+			const subagentPart = template.renderedParts?.find(part => part instanceof ChatSubagentContentPart);
+			assert.ok(subagentPart instanceof ChatSubagentContentPart);
+			subagentPart.domNode.querySelector<HTMLElement>('.chat-used-context-label .monaco-button')?.click();
+			model.acceptResponseProgress(request, {
+				kind: 'markdownContent',
+				content: new MarkdownString('```typescript\n<vscode_codeblock_uri isEdit subAgentInvocationId="subagent-1">file:///workspace/tests.ts</vscode_codeblock_uri>\nexport const tests = true;\n```'),
+			});
+			renderer.renderElement(node, 0, template);
+			await timeout(0);
+			const first = { ...subagentPart.diffData.get(), pills: subagentPart.domNode.querySelectorAll('.chat-codeblock-pill-container').length };
+			const firstPill = subagentPart.domNode.querySelector('.chat-codeblock-pill-container');
+			// Advance the virtual rendering clock, then append only the new markdown delta.
+			await timeout(50);
+			model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('\n\n') });
+			renderer.renderElement(node, 0, template);
+			await timeout(0);
+			const second = subagentPart.diffData.get();
+			assert.deepStrictEqual({
+				first: { added: first.added, removed: first.removed, pills: first.pills },
+				second: { added: second.added, removed: second.removed, resources: second.resources.length, pills: subagentPart.domNode.querySelectorAll('.chat-codeblock-pill-container').length },
+				replacedPill: firstPill !== subagentPart.domNode.querySelector('.chat-codeblock-pill-container'),
+			}, {
+				first: { added: 7, removed: 3, pills: 1 },
+				second: { added: 7, removed: 3, resources: 1, pills: 1 },
+				replacedPill: true,
+			});
+		} finally {
+			request.response?.complete();
+			disposables.dispose();
+		}
+	}));
 
 	for (const expandBeforeCompletion of [false, true]) {
 		test(`a background subagent that outlives a persistent response shows its own working row (expanded ${expandBeforeCompletion ? 'before' : 'after'} completion)`, async () => {

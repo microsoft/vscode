@@ -71,6 +71,25 @@ export interface ICustomizationItemAction {
 	run(): void | Promise<void>;
 }
 
+export type CustomizationMcpServerCompatibilityKind = 'supported' | 'partiallySupported' | 'unsupported' | 'unknown';
+
+export interface ICustomizationMcpServerCompatibility {
+	readonly id: string;
+	readonly kind: CustomizationMcpServerCompatibilityKind;
+	/** Localized reasons for non-supported compatibility states. */
+	readonly details?: readonly string[];
+}
+
+export interface ICustomizationMcpServerCompatibilityScope extends IDisposable {
+	readonly servers: IObservable<readonly ICustomizationMcpServerCompatibility[]>;
+	/** Whether the current server compatibility assessment has settled. */
+	readonly isResolved: IObservable<boolean>;
+}
+
+export interface ICustomizationMcpServerCompatibilityProvider {
+	acquire(sessionResource: URI): ICustomizationMcpServerCompatibilityScope | undefined;
+}
+
 /**
  * Describes a single harness option for the UI toggle.
  */
@@ -140,6 +159,10 @@ export interface IHarnessDescriptor {
 	 * belongs to a hidden collection.
 	 */
 	readonly hiddenMcpServerCollectionIds?: readonly string[];
+	/**
+	 * Supplies harness-specific compatibility for MCP servers in the active session.
+	 */
+	readonly mcpServerCompatibilityProvider?: ICustomizationMcpServerCompatibilityProvider;
 }
 
 /**

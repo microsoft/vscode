@@ -43,6 +43,7 @@ export class ChatProgressContentPart extends Disposable implements IChatContentP
 	private readonly persistentProgress: boolean;
 	private useShimmer = false;
 	private readonly renderedMessage = this._register(new MutableDisposable<IRenderedMarkdown>());
+	private readonly renderedOrigin = this._register(new MutableDisposable<IRenderedMarkdown>());
 	private readonly _fileWidgetStore = this._register(new DisposableStore());
 	protected currentContent: IMarkdownString;
 	protected progressIconElement: HTMLElement | undefined;
@@ -99,6 +100,7 @@ export class ChatProgressContentPart extends Disposable implements IChatContentP
 		if (this.useShimmer) {
 			syncShimmerPhase(this.applyShimmer(result.element));
 		}
+		this.renderToolOrigin(result.element);
 
 		const tooltip: IMarkdownString | undefined = this.createApprovalMessage();
 		const progressPart = this._register(instantiationService.createInstance(ChatProgressSubPart, result.element, progressIcon, tooltip));
@@ -136,6 +138,19 @@ export class ChatProgressContentPart extends Disposable implements IChatContentP
 		}
 		this.updateMessage(progress.content);
 		return true;
+	}
+
+	private renderToolOrigin(messageElement: HTMLElement): void {
+		this.renderedOrigin.clear();
+		const originMessage = this.toolInvocation?.originMessage;
+		if (!originMessage) {
+			return;
+		}
+		this.renderedOrigin.value = this.chatContentMarkdownRenderer.render(
+			typeof originMessage === 'string' ? new MarkdownString().appendText(originMessage) : originMessage
+		);
+		messageElement.classList.add('chat-progress-with-origin');
+		append(messageElement, $('small.chat-progress-origin', undefined, this.renderedOrigin.value.element));
 	}
 
 	/**
@@ -218,6 +233,7 @@ export class ChatProgressContentPart extends Disposable implements IChatContentP
 		if (this.persistentProgress && this.useShimmer) {
 			syncShimmerPhase(this.applyShimmer(result.element));
 		}
+		this.renderToolOrigin(result.element);
 
 		// Replace the old message container with the new one
 		if (previousElement?.parentElement) {

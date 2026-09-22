@@ -30,6 +30,7 @@ import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { IStorageService } from '../../../../../platform/storage/common/storage.js';
+import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IAgentHostActiveClientService } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostActiveClientService.js';
 import { IChatWidgetService } from '../../../../../workbench/contrib/chat/browser/chat.js';
 import { IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
@@ -39,6 +40,7 @@ import { IAgentHostAutoConnect, IAgentHostConnectProgress, IAgentHostConnectionL
 import { buildAgentHostSessionWorkspace, readBranchProtectionPatterns } from '../../../../common/agentHostSessionWorkspace.js';
 import { IGitHubInfo, ISession, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction, SESSION_WORKSPACE_GROUP_REMOTE } from '../../../../services/sessions/common/session.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
+import { ISessionsRecentWorkspacesService } from '../../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
 import { IGitHubService } from '../../../github/browser/githubService.js';
 import { DevContainerAgentHostSessionsProvider } from '../../agentHost/browser/devContainerAgentHostSessionsProvider.js';
 import { ReconnectableAgentHostAutomationStore } from '../../agentHost/browser/reconnectableAgentHostAutomationStore.js';
@@ -103,6 +105,8 @@ export interface IRemoteAgentHostSessionsProviderConfig {
 	 * one entry for the whole group instead of one per connection. See {@link IAgentHostGroup}.
 	 */
 	readonly hostGroup?: IAgentHostGroup;
+	/** Source workspace represented by this Dev Container provider. */
+	readonly devContainerSourceWorkspaceUri?: URI;
 	readonly devContainerWorktreeScope?: string;
 	/** Resolves the source host that owns this container's detached worktree handles. Defaults to the local host. */
 	readonly resolveDevContainerWorktreeConnection?: () => Promise<IAgentConnection>;
@@ -194,6 +198,7 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 	private readonly _omitHostFromWorkspaceLabel: boolean;
 	private readonly _workspaceTypeIcon: ThemeIcon | undefined;
 	private readonly _defaultChangesetKind: IRemoteAgentHostSessionsProviderConfig['defaultChangesetKind'];
+	private readonly _devContainerSourceWorkspaceUri: URI | undefined;
 	private readonly _devContainerWorktreeScope: string | undefined;
 	private readonly _resolveDevContainerWorktreeConnection: IRemoteAgentHostSessionsProviderConfig['resolveDevContainerWorktreeConnection'];
 	/** Storage key used for persisting {@link _sessionCache} snapshots. */
@@ -231,8 +236,10 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 		@IAgentHostActiveClientService activeClientService: IAgentHostActiveClientService,
 		@IDialogService dialogService: IDialogService,
 		@IWorkspaceTrustManagementService workspaceTrustManagementService: IWorkspaceTrustManagementService,
+		@ISessionsRecentWorkspacesService recentWorkspacesService: ISessionsRecentWorkspacesService,
+		@IUriIdentityService uriIdentityService: IUriIdentityService,
 	) {
-		super(chatSessionsService, chatService, chatWidgetService, languageModelsService, _configurationService, logService, gitHubService, instantiationService, sessionsService, activeClientService, storageService, dialogService, workspaceTrustManagementService);
+		super(chatSessionsService, chatService, chatWidgetService, languageModelsService, _configurationService, logService, gitHubService, instantiationService, sessionsService, activeClientService, storageService, dialogService, workspaceTrustManagementService, recentWorkspacesService, uriIdentityService);
 
 		this._connectionAuthority = agentHostAuthority(config.address);
 		this._connectOnDemand = config.connectOnDemand;
@@ -242,6 +249,7 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 		this._omitHostFromWorkspaceLabel = config.omitHostFromWorkspaceLabel === true;
 		this._workspaceTypeIcon = config.workspaceTypeIcon;
 		this._defaultChangesetKind = config.defaultChangesetKind;
+		this._devContainerSourceWorkspaceUri = config.devContainerSourceWorkspaceUri;
 		this._register(agentHostConnectionsService.registerSessionResolutionPolicy(this._connectionAuthority, {
 			sessionSchemeAlias: this._sessionSchemeAlias,
 			defaultChangesetKind: this._defaultChangesetKind,
@@ -794,6 +802,10 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 			return undefined;
 		}
 		return this._buildWorkspaceFromUri(repositoryUri);
+	}
+
+	canonicalizeWorkspaceUri(workspaceUri: URI): URI {
+		return this._devContainerSourceWorkspaceUri ?? workspaceUri;
 	}
 
 	// -- Browse --------------------------------------------------------------

@@ -458,6 +458,64 @@ suite('mapSessionEvents — history replay', () => {
 		]);
 	});
 
+	for (const { withStart, toolTitle, displayName } of [
+		{ withStart: true, toolTitle: 'Read issue', displayName: 'Read issue' },
+		{ withStart: false, toolTitle: 'Read issue', displayName: 'Read issue' },
+		{ withStart: true, toolTitle: undefined, displayName: 'issue_read' },
+	]) {
+		test(`restores MCP tool labels with title=${toolTitle} and execution_start=${withStart}`, async () => {
+			const toolName = 'io-github-github-github-mcp-server-issue_read';
+			const events: ISessionEvent[] = [
+				{ type: 'user.message', data: { interactionId: 'm1', content: 'Read the issue' } },
+				{
+					type: 'assistant.message',
+					data: {
+						messageId: 'm2',
+						content: '',
+						toolRequests: [{
+							toolCallId: 'tc-mcp',
+							name: toolName,
+							toolTitle,
+							mcpServerName: 'GitHub',
+							mcpToolName: 'issue_read',
+							arguments: { issue_number: 123 },
+						}],
+					},
+				},
+			];
+			if (withStart) {
+				events.push({
+					type: 'tool.execution_start',
+					data: {
+						toolCallId: 'tc-mcp',
+						toolName,
+						mcpServerName: 'GitHub',
+						mcpToolName: 'issue_read',
+						arguments: { issue_number: 123 },
+					},
+				});
+			}
+			events.push({ type: 'tool.execution_complete', data: { toolCallId: 'tc-mcp', success: true, result: { content: 'Issue details' } } });
+
+			const { turns } = await mapSessionEvents(session, undefined, toSessionEvents(events));
+			const part = turns[0].responseParts[0];
+			assert.ok(part.kind === ResponsePartKind.ToolCall && part.toolCall.status === ToolCallStatus.Completed);
+			assert.deepStrictEqual({
+				toolName: part.toolCall.toolName,
+				displayName: part.toolCall.displayName,
+				invocationMessage: part.toolCall.invocationMessage,
+				pastTenseMessage: part.toolCall.pastTenseMessage,
+				meta: readToolCallMeta(part.toolCall),
+			}, {
+				toolName,
+				displayName,
+				invocationMessage: displayName,
+				pastTenseMessage: displayName,
+				meta: { mcpServerName: 'GitHub', mcpToolName: 'issue_read' },
+			});
+		});
+	}
+
 	test('resolves relative patch links in restored tool messages', async () => {
 		const patch = [
 			'*** Begin Patch',
