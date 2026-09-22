@@ -10960,6 +10960,68 @@ Use the attached image as context.
 			assert.deepStrictEqual(markdown, ['Selected final answer']);
 		});
 
+		test('provisional Fusion tool call surfaced for confirmation completes on its own lifecycle', async () => {
+			const { session, mockSession, runtime, signals, waitForSignal } = await createAgentSession(disposables);
+			session.resetTurnState('fusion-turn');
+			const fusion = { fusionId: 'fusion-1', phaseId: 'phase-1', syntheticModel: 'hydrafusion', policy: 'max', pattern: 'single' };
+			const toolCallId = 'provisional-tool';
+			mockSession.fire('tool.execution_start', { toolCallId, toolName: 'read_file', arguments: { path: '/workspace/src/file.ts' }, fusion }, { ephemeral: true });
+			assert.strictEqual(signals.length, 0);
+
+			const resultPromise = runtime.handlePermissionRequest({ kind: 'read', path: '/workspace/src/file.ts', toolCallId });
+			await waitForSignal(s => s.kind === 'pending_confirmation');
+			assert.ok(session.respondToPermissionRequest(toolCallId, true));
+			assert.strictEqual((await resultPromise).kind, 'approve-once');
+
+			mockSession.fire('tool.execution_complete', { toolCallId, success: true, result: { content: 'file body' }, fusion }, { ephemeral: true });
+			const beforeCommit = signals.length;
+			mockSession.fire('tool.execution_start', { toolCallId, toolName: 'read_file', arguments: { path: '/workspace/src/file.ts' }, fusion: { ...fusion, commitId: 'commit-1' } });
+			mockSession.fire('tool.execution_complete', { toolCallId, success: true, result: { content: 'file body' }, fusion: { ...fusion, commitId: 'commit-1' } });
+
+			assert.deepStrictEqual({
+				lifecycle: signals.map(signal => signal.kind === 'action' ? signal.action.type : signal.kind),
+				committedReemission: signals.length - beforeCommit,
+				tracked: session['_activeToolCalls'].has(toolCallId),
+			}, {
+				lifecycle: [ActionType.ChatToolCallStart, ActionType.ChatToolCallReady, 'pending_confirmation', ActionType.ChatToolCallComplete],
+				committedReemission: 0,
+				tracked: false,
+			});
+		});
+
+		test('provisional Fusion tool call that streamed a visible row completes on its provisional lifecycle', async () => {
+			const { mockSession, signals } = await createAgentSession(disposables);
+			const fusion = { fusionId: 'fusion-1', phaseId: 'phase-1', syntheticModel: 'hydrafusion', policy: 'max', pattern: 'single' };
+			const toolCallId = 'streamed-provisional-tool';
+			mockSession.fire('assistant.tool_call_delta', { toolCallId, toolName: 'bash', inputDelta: '{"command":"ls"}' });
+			mockSession.fire('tool.execution_start', { toolCallId, toolName: 'bash', arguments: { command: 'ls' }, fusion }, { ephemeral: true });
+			mockSession.fire('tool.execution_complete', { toolCallId, success: true, result: { content: 'a.ts' }, fusion }, { ephemeral: true });
+			const beforeCommit = signals.length;
+			mockSession.fire('tool.execution_start', { toolCallId, toolName: 'bash', arguments: { command: 'ls' }, fusion: { ...fusion, commitId: 'commit-1' } });
+			mockSession.fire('tool.execution_complete', { toolCallId, success: true, result: { content: 'a.ts' }, fusion: { ...fusion, commitId: 'commit-1' } });
+			assert.deepStrictEqual({
+				lifecycle: signals.flatMap(signal => signal.kind === 'action' && isChatAction(signal.action) ? [signal.action.type] : []),
+				committedReemission: signals.length - beforeCommit,
+			}, {
+				lifecycle: [ActionType.ChatToolCallStart, ActionType.ChatToolCallDelta, ActionType.ChatToolCallReady, ActionType.ChatToolCallComplete],
+				committedReemission: 0,
+			});
+		});
+
+		test('provisional Fusion tool calls without a confirmation appear only once committed', async () => {
+			const { mockSession, signals } = await createAgentSession(disposables);
+			const fusion = { fusionId: 'fusion-1', phaseId: 'phase-1', syntheticModel: 'hydrafusion', policy: 'max', pattern: 'single' };
+			mockSession.fire('tool.execution_start', { toolCallId: 'provisional-tool', toolName: 'read_file', fusion }, { ephemeral: true });
+			mockSession.fire('tool.execution_complete', { toolCallId: 'provisional-tool', success: true, fusion }, { ephemeral: true });
+			assert.strictEqual(signals.length, 0);
+			mockSession.fire('tool.execution_start', { toolCallId: 'provisional-tool', toolName: 'read_file', fusion: { ...fusion, commitId: 'commit-1' } });
+			mockSession.fire('tool.execution_complete', { toolCallId: 'provisional-tool', success: true, fusion: { ...fusion, commitId: 'commit-1' } });
+			assert.deepStrictEqual(
+				signals.map(signal => signal.kind === 'action' ? signal.action.type : signal.kind),
+				[ActionType.ChatToolCallStart, ActionType.ChatToolCallReady, ActionType.ChatToolCallComplete],
+			);
+		});
+
 		test('assistant.intent from a peer chat targets the owning session', async () => {
 			const sessionUri = AgentSession.uri('copilot', 'owner');
 			const chatChannelUri = URI.parse(buildChatUri(sessionUri, 'peer'));

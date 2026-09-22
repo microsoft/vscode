@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { CopilotSession, CurrentToolMetadata, ElicitationContext, ElicitationFieldValue, ElicitationResult, ElicitationSchema, ElicitationSchemaField, ExitPlanModeCompletedData, ExitPlanModeRequest, ExitPlanModeResult, JsonValue, McpServersLoadedServer, MessageOptions, PermissionMode, PermissionAssistedApproval, PermissionRequest, PermissionRequestResult, PermissionResult, SessionConfig, SessionEvent, SessionHooks, SessionMode as CopilotSdkMode, Tool, ToolResultObject, McpServerStatus as SdkMcpServerStatus } from '@github/copilot-sdk';
+import type { CopilotSession, CurrentToolMetadata, ElicitationContext, ElicitationFieldValue, ElicitationResult, ElicitationSchema, ElicitationSchemaField, ExitPlanModeCompletedData, ExitPlanModeRequest, ExitPlanModeResult, JsonValue, McpServersLoadedServer, MessageOptions, PermissionMode, PermissionAssistedApproval, PermissionRequest, PermissionRequestResult, PermissionResult, SessionConfig, SessionEvent, SessionEventPayload, SessionHooks, SessionMode as CopilotSdkMode, Tool, ToolResultObject, McpServerStatus as SdkMcpServerStatus } from '@github/copilot-sdk';
 import { realpath as fsRealpath } from 'fs';
 import { cp, rm } from 'fs/promises';
 import { promisify } from 'util';
@@ -1198,6 +1198,17 @@ export class CopilotAgentSession extends Disposable {
 	private _hasFusionRootTurnBoundary = false;
 	private readonly _activities: Record<'intent' | 'fusion', string | undefined> = { intent: undefined, fusion: undefined };
 	private _publishedActivity: string | undefined;
+	/**
+	 * Provisional Fusion tool starts held back from the transcript until a
+	 * permission request has to surface the tool, keyed by tool call id.
+	 */
+	private readonly _provisionalFusionToolStarts = new Map<string, SessionEventPayload<'tool.execution_start'>>();
+	/**
+	 * Provisional Fusion tool calls that were surfaced for confirmation and so
+	 * already own their lifecycle; the committed re-emission is a duplicate.
+	 */
+	private readonly _surfacedProvisionalFusionToolCallIds = new Set<string>();
+	private _surfaceProvisionalFusionToolStart: ((e: SessionEventPayload<'tool.execution_start'>) => void) | undefined;
 
 	/**
 	 * Last SDK-reported MCP status logged for each server (keyed by server
@@ -1873,6 +1884,7 @@ export class CopilotAgentSession extends Disposable {
 		this._fusionTurnCancelled = false;
 		this._hasFusionRootTurnBoundary = false;
 		this._fusionProgress.reset();
+		this._clearProvisionalFusionToolCalls();
 		this._clearActivity();
 		this._detectInterruptedTurnOnRestore = false;
 		this._streamingToolCalls.clear();
@@ -2002,6 +2014,7 @@ export class CopilotAgentSession extends Disposable {
 		this._clearPendingFusionEvents();
 		this._hasFusionRootTurnBoundary = false;
 		this._fusionProgress.reset();
+		this._clearProvisionalFusionToolCalls();
 		this._clearActivity();
 		if (turn) {
 			this._cacheTokenUsage(turn.id, turn.observedTokenUsage.snapshot());
@@ -4078,7 +4091,7 @@ export class CopilotAgentSession extends Disposable {
 				? request.toolName
 				: undefined;
 			const isShellRequest = request.kind === 'shell' || customShellToolName !== undefined;
-			const trackedToolName = this._activeToolCalls.get(toolCallId)?.toolName;
+			const trackedToolName = this._activeToolCalls.get(toolCallId)?.toolName ?? this._provisionalFusionToolStarts.get(toolCallId)?.data.toolName;
 			const shellToolName = request.kind === 'shell'
 				? trackedToolName
 				: customShellToolName;
@@ -4139,6 +4152,11 @@ export class CopilotAgentSession extends Disposable {
 			if (!this._pendingPermissions.has(toolCallId)) {
 				return { kind: 'reject' };
 			}
+
+			// A tool from a provisional Fusion phase is hidden until it needs
+			// the user; show it now so the confirmation has a row to land on
+			// and its completion can close that same row.
+			this._surfaceProvisionalFusionToolCall(toolCallId);
 
 			const isNewFile = edits?.items.some(edit => !edit.before && !!edit.after);
 			const { confirmationTitle, invocationMessage, toolInput, permissionKind, permissionPath } = getPermissionDisplay(request, this._workingDirectory, isNewFile, this._appliedAdditionalDirectories);
@@ -5399,7 +5417,7 @@ export class CopilotAgentSession extends Disposable {
 			this._scheduleStreamingToolCallDisplay(e.data.toolCallId);
 		}));
 
-		this._register(wrapper.onToolStart(e => {
+		const handleToolStart = (e: SessionEventPayload<'tool.execution_start'>): void => {
 			if (!e.agentId && this._shouldDropLateRootTurnEvent('tool.execution_start')) {
 				return;
 			}
@@ -5576,9 +5594,18 @@ export class CopilotAgentSession extends Disposable {
 				confirmed: ToolCallConfirmationReason.NotNeeded,
 				_meta: toToolCallMeta(clientToolAutoApproved ? { ...meta, autoApproveBySetting: true } : meta),
 			}, parentToolCallId);
+		};
+		this._surfaceProvisionalFusionToolStart = handleToolStart;
+		this._register(wrapper.onToolStart(e => {
+			if (this._surfacedProvisionalFusionToolCallIds.has(e.data.toolCallId)) {
+				// The committed re-emission of a tool call already shown from its provisional phase.
+				this._logService.trace(`[Copilot:${sessionId}] Ignoring committed Fusion tool start already surfaced: ${e.data.toolCallId}`);
+				return;
+			}
+			handleToolStart(e);
 		}));
 
-		this._register(wrapper.onToolComplete(e => {
+		const handleToolComplete = (e: SessionEventPayload<'tool.execution_complete'>): void => {
 			this._approvedDuplicablePermissionSignatures.delete(e.data.toolCallId);
 			const tracked = this._activeToolCalls.get(e.data.toolCallId);
 			if (!tracked) {
@@ -5713,6 +5740,33 @@ export class CopilotAgentSession extends Disposable {
 				}
 			})().catch(err => this._logService.error(`[Copilot:${sessionId}] Failed to complete tool call`, err));
 			turn?.trackToolCompletion(completion);
+		};
+		this._register(wrapper.onToolComplete(e => {
+			if (this._surfacedProvisionalFusionToolCallIds.delete(e.data.toolCallId) && !this._activeToolCalls.has(e.data.toolCallId)) {
+				this._logService.trace(`[Copilot:${sessionId}] Ignoring committed Fusion tool completion already surfaced: ${e.data.toolCallId}`);
+				return;
+			}
+			handleToolComplete(e);
+		}));
+
+		this._register(wrapper.onProvisionalFusionToolEvent(e => {
+			if (e.type === 'tool.execution_start') {
+				if (this._surfacedProvisionalFusionToolCallIds.has(e.data.toolCallId)) {
+					return;
+				}
+				this._provisionalFusionToolStarts.set(e.data.toolCallId, e);
+				if (this._streamingToolCalls.get(e.data.toolCallId)?.started) {
+					// `assistant.tool_call_delta` carries no Fusion attribution, so a
+					// provisional tool that streamed its input already has a visible row.
+					this._surfaceProvisionalFusionToolCall(e.data.toolCallId);
+				}
+				return;
+			}
+			this._provisionalFusionToolStarts.delete(e.data.toolCallId);
+			if (this._surfacedProvisionalFusionToolCallIds.has(e.data.toolCallId)) {
+				// Keep the id so the committed re-emission is still recognized as a duplicate.
+				handleToolComplete(e);
+			}
 		}));
 
 		this._register(wrapper.onIdle(async e => {
@@ -6888,6 +6942,28 @@ export class CopilotAgentSession extends Disposable {
 			this._fusionEventTurnIds.set(getFusionEventKey(event), this._turnId);
 		}
 		this._pendingFusionEvents.length = 0;
+	}
+
+	private _clearProvisionalFusionToolCalls(): void {
+		this._provisionalFusionToolStarts.clear();
+		this._surfacedProvisionalFusionToolCallIds.clear();
+	}
+
+	/**
+	 * Promotes a held-back provisional Fusion tool start into the transcript
+	 * because its permission request is about to be shown. Returns false when
+	 * the tool call is not a held-back provisional start.
+	 */
+	private _surfaceProvisionalFusionToolCall(toolCallId: string): boolean {
+		const start = this._provisionalFusionToolStarts.get(toolCallId);
+		if (!start || this._activeToolCalls.has(toolCallId) || !this._surfaceProvisionalFusionToolStart) {
+			return false;
+		}
+		this._provisionalFusionToolStarts.delete(toolCallId);
+		this._surfacedProvisionalFusionToolCallIds.add(toolCallId);
+		this._logService.info(`[Copilot:${this.sessionId}] Surfacing provisional Fusion tool call for confirmation: ${toolCallId}`);
+		this._surfaceProvisionalFusionToolStart(start);
+		return true;
 	}
 
 	private _cancelFusionEvents(turnId = this._turnId): void {

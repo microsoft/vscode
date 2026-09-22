@@ -43,14 +43,6 @@ function resolveToolDisplayPath(path: string, workingDirectory: URI | undefined)
 }
 
 /**
- * Returns true if the event is a SDK-injected `user.message` that should not
- * be shown to the user (e.g. skill-content injection).
- *
- * The SDK marks these via a non-`'user'` `source` field. Older sessions
- * persisted before `source` existed will not be filtered; that is accepted
- * leakage rather than guessed-at content sniffing.
- */
-/**
  * Recovers the text the user actually typed from a persisted `user.message`
  * `content`. The chat client renders the raw prompt first, then appends
  * `<reminder>` / `<attachments>` / `<context>` and (for some clients) a

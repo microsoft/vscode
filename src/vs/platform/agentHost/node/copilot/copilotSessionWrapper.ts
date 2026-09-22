@@ -15,6 +15,9 @@ import { copilotFusionEventTypes, isProvisionalFusionConversationEvent, type Cop
 
 export type CopilotModelCallFinishedOutcome = 'success' | 'error' | 'cancelled' | 'rejected';
 
+/** Tool lifecycle events emitted by a provisional (not yet committed) Fusion phase. */
+export type CopilotProvisionalFusionToolEvent = SessionEventPayload<'tool.execution_start'> | SessionEventPayload<'tool.execution_complete'>;
+
 export interface ICopilotModelCallFinishedEvent {
 	readonly id: string;
 	readonly agentId?: string;
@@ -40,6 +43,14 @@ export class CopilotSessionWrapper extends Disposable {
 	readonly onUnhandledEvent = this._onUnhandledEvent.event;
 	private readonly _onModelCallFinished = this._register(new Emitter<ICopilotModelCallFinishedEvent>());
 	readonly onModelCallFinished = this._onModelCallFinished.event;
+	private readonly _onProvisionalFusionToolEvent = this._register(new Emitter<CopilotProvisionalFusionToolEvent>());
+	/**
+	 * Tool lifecycle from provisional Fusion phases. These never reach the
+	 * typed events because the phase output is not yet part of the parent
+	 * transcript, but a tool that asks for permission still has to be shown
+	 * and completed, so the session decides per tool call.
+	 */
+	readonly onProvisionalFusionToolEvent = this._onProvisionalFusionToolEvent.event;
 	private readonly _shutdown = new DeferredPromise<void>();
 	private _disconnectPromise: Promise<void> | undefined;
 	private _disconnectRpcState: 'notStarted' | 'pending' | 'completed' | 'failed' = 'notStarted';
@@ -55,6 +66,9 @@ export class CopilotSessionWrapper extends Disposable {
 		this._logService.info(this._lifecycleLogMessage('attached'));
 		const unsubscribeAll = session.on(event => {
 			if (isProvisionalFusionConversationEvent(event)) {
+				if (event.type === 'tool.execution_start' || event.type === 'tool.execution_complete') {
+					this._onProvisionalFusionToolEvent.fire(event);
+				}
 				return;
 			}
 			if (event.type === 'session.shutdown') {
