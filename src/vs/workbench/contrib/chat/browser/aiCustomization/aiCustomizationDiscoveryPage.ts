@@ -10,6 +10,7 @@ import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { IListRenderer, IListVirtualDelegate, NotSelectableGroupId } from '../../../../../base/browser/ui/list/list.js';
 import { DomScrollableElement } from '../../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { Action, IAction, Separator, SubmenuAction } from '../../../../../base/common/actions.js';
+import { equals } from '../../../../../base/common/arrays.js';
 import { RunOnceScheduler } from '../../../../../base/common/async.js';
 import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
@@ -23,6 +24,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 import { CustomizationMarketplaceMediaType, getCustomizationMarketplaceResourceKey, ICustomizationMarketplaceCursor, ICustomizationMarketplaceResource, ICustomizationMarketplaceService } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
+import { getEnabledCustomizationMarketplaceSources } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
@@ -41,7 +43,6 @@ import { SuggestEnabledInput } from '../../../codeEditor/browser/suggestEnabledI
 import { IMcpWorkbenchService, McpServerInstallState } from '../../../mcp/common/mcpTypes.js';
 import { CustomizationMarketplaceInstallState, ICustomizationMarketplaceInstallService } from '../../common/customizationMarketplaceInstallService.js';
 import { AICustomizationManagementSection, IAICustomizationWorkspaceService, IWelcomePageFeatures } from '../../common/aiCustomizationWorkspaceService.js';
-import { ChatConfiguration } from '../../common/constants.js';
 import { isPluginCustomizationItem } from '../../common/customizationHarnessService.js';
 import { IAgentPluginService } from '../../common/plugins/agentPluginService.js';
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
@@ -52,7 +53,7 @@ import { IAICustomizationWelcomePageImplementation, ICustomizationMigrationCateg
 
 const $ = DOM.$;
 const searchDelay = 300;
-const catalogPageSize = 30;
+const catalogPageSize = 24;
 const leadingBrowseItemCount = 4;
 const resultRowHeight = 84;
 const groupHeaderHeight = 36;
@@ -201,25 +202,18 @@ function getCatalogKeys(resource: ICustomizationMarketplaceResource): readonly s
 	return [...keys];
 }
 
-function getCatalogMediaTypes(types: ReadonlySet<CustomizationDiscoveryType>): readonly (CustomizationMarketplaceMediaType | undefined)[] {
-	if (types.size === 0) {
-		return [undefined];
+/** Multi-type filters consume one ranked feed and filter only its presentation. */
+function getCatalogMediaType(types: ReadonlySet<CustomizationDiscoveryType>): CustomizationMarketplaceMediaType | undefined {
+	if (types.size !== 1) {
+		return undefined;
 	}
-	const result: (CustomizationMarketplaceMediaType | undefined)[] = [];
 	if (types.has('skill')) {
-		result.push(CustomizationMarketplaceMediaType.Skill);
+		return CustomizationMarketplaceMediaType.Skill;
 	}
 	if (types.has('mcp')) {
-		result.push(CustomizationMarketplaceMediaType.McpServer);
+		return CustomizationMarketplaceMediaType.McpServer;
 	}
-	if (types.has('plugin')) {
-		result.push(CustomizationMarketplaceMediaType.CopilotPlugin, CustomizationMarketplaceMediaType.ClaudePlugin, CustomizationMarketplaceMediaType.CursorPlugin);
-	}
-	return result;
-}
-
-function getMediaTypeKey(mediaType: CustomizationMarketplaceMediaType | undefined): string {
-	return mediaType ?? 'all';
+	return undefined;
 }
 
 class DiscoveryListDelegate implements IListVirtualDelegate<DiscoveryListEntry> {
@@ -393,7 +387,8 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 	private readonly searchActionDisposables = this._register(new DisposableStore());
 	private readonly request = this._register(new MutableDisposable<CancellationTokenSource>());
 	private readonly searchScheduler = this._register(new RunOnceScheduler(() => void this.loadCatalog(false), searchDelay));
-	private readonly catalogPages = new Map<string, ICatalogPageState>();
+	private catalogPage: ICatalogPageState | undefined;
+	private enabledSourceIds: readonly string[];
 	private readonly installErrors = new Map<string, string>();
 	private readonly pendingInstalls = new Set<string>();
 	private query = CustomizationDiscoveryQuery.parse('');
@@ -432,6 +427,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 		@IAccessibilitySignalService private readonly accessibilitySignalService: IAccessibilitySignalService,
 	) {
 		super();
+		this.enabledSourceIds = this.getEnabledCatalogSourceIds();
 
 		this.container = DOM.append(parent, $('.customization-discovery'));
 		const content = DOM.append(this.container, $('.customization-discovery-content'));
@@ -557,7 +553,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 		this._register(this.installService.onDidChange(() => this.render()));
 		this._register(this.entitlementService.onDidChangeSentiment(() => this.handleAvailabilityChanged()));
 		this._register(this.configurationService.onDidChangeConfiguration(event => {
-			if (event.affectsConfiguration(ChatConfiguration.ChatCustomizationsUnifiedMarketplaceEnabled)) {
+			if (this.marketplaceService.sources.some(source => event.affectsConfiguration(source.enablementSetting))) {
 				this.handleAvailabilityChanged();
 			}
 			if (event.affectsConfiguration(AccessibilityVerbositySettingId.CustomizationDiscovery)) {
@@ -626,7 +622,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 			return;
 		}
 		this.query = next;
-		this.catalogPages.clear();
+		this.catalogPage = undefined;
 		this.catalogItems = [];
 		this.loaded = false;
 		this.errorMessage = undefined;
@@ -643,7 +639,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 
 	private setQuery(query: CustomizationDiscoveryQuery): void {
 		this.query = query;
-		this.catalogPages.clear();
+		this.catalogPage = undefined;
 		this.catalogItems = [];
 		this.loaded = false;
 		this.errorMessage = undefined;
@@ -736,14 +732,19 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 	}
 
 	private handleAvailabilityChanged(): void {
-		if (!this.isCatalogEnabled()) {
-			this.cancelCatalogRequest();
-			this.catalogPages.clear();
-			this.catalogItems = [];
-			this.loaded = false;
-			this.errorMessage = undefined;
-			this.render();
-		} else if (this.visible) {
+		const enabledSourceIds = this.getEnabledCatalogSourceIds();
+		if (equals(this.enabledSourceIds, enabledSourceIds)) {
+			return;
+		}
+		this.enabledSourceIds = enabledSourceIds;
+		this.searchScheduler.cancel();
+		this.cancelCatalogRequest();
+		this.catalogPage = undefined;
+		this.catalogItems = [];
+		this.loaded = false;
+		this.errorMessage = undefined;
+		this.render();
+		if (this.shouldQueryCatalog()) {
 			void this.loadCatalog(false);
 		}
 	}
@@ -879,7 +880,12 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 	}
 
 	private isCatalogEnabled(): boolean {
-		return this.configurationService.getValue<boolean>(ChatConfiguration.ChatCustomizationsUnifiedMarketplaceEnabled) === true && !this.entitlementService.sentiment.hidden;
+		return this.getEnabledCatalogSourceIds().length > 0;
+	}
+
+	private getEnabledCatalogSourceIds(): readonly string[] {
+		return this.entitlementService.sentiment.hidden ? []
+			: getEnabledCustomizationMarketplaceSources(this.configurationService, this.marketplaceService.sources).map(source => source.id);
 	}
 
 	private cancelCatalogRequest(): void {
@@ -889,7 +895,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 	}
 
 	private async loadCatalog(append: boolean): Promise<void> {
-		if (!this.shouldQueryCatalog()) {
+		if (!this.shouldQueryCatalog() || (append && !this.catalogPage?.nextCursor)) {
 			return;
 		}
 		const sequence = ++this.requestSequence;
@@ -899,39 +905,26 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 		this.errorMessage = undefined;
 		this.lastAnnouncement = undefined;
 		if (!append) {
-			this.catalogPages.clear();
+			this.catalogPage = undefined;
 		}
 		this.render();
 
-		const mediaTypes = getCatalogMediaTypes(this.query.types);
 		try {
-			const pages = await Promise.all(mediaTypes.map(async mediaType => {
-				const key = getMediaTypeKey(mediaType);
-				const previous = this.catalogPages.get(key);
-				if (append && !previous?.nextCursor) {
-					return [key, previous] as const;
-				}
-				const page = await this.marketplaceService.query({
-					query: this.query.text || undefined,
-					mediaType,
-					pageSize: catalogPageSize,
-					cursor: append ? previous?.nextCursor : undefined,
-				}, request.token);
-				return [key, {
-					items: append ? [...(previous?.items ?? []), ...page.items] : page.items,
-					nextCursor: page.nextCursor,
-				}] as const;
-			}));
+			const page = await this.marketplaceService.query({
+				query: this.query.text || undefined,
+				mediaType: getCatalogMediaType(this.query.types),
+				pageSize: catalogPageSize,
+				cursor: append ? this.catalogPage?.nextCursor : undefined,
+			}, request.token);
 			if (sequence !== this.requestSequence || request.token.isCancellationRequested) {
 				return;
 			}
-			for (const [key, page] of pages) {
-				if (page) {
-					this.catalogPages.set(key, page);
-				}
-			}
+			this.catalogPage = {
+				items: append ? [...(this.catalogPage?.items ?? []), ...page.items] : page.items,
+				nextCursor: page.nextCursor,
+			};
 			const seen = new Set<string>();
-			this.catalogItems = [...this.catalogPages.values()].flatMap(page => page.items).filter(item => {
+			this.catalogItems = this.catalogPage.items.filter(item => {
 				const key = getCustomizationMarketplaceResourceKey(item);
 				if (seen.has(key)) {
 					return false;
@@ -1031,7 +1024,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 				? localize('customizationDiscovery.loadingMore', "Loading more customizations...")
 				: '';
 		}
-		this.loadMoreContainer.hidden = catalogPending || this.query.installed || ![...this.catalogPages.values()].some(page => page.nextCursor);
+		this.loadMoreContainer.hidden = catalogPending || this.query.installed || !this.catalogPage?.nextCursor;
 		if (!catalogPending && !this.errorMessage) {
 			this.announce(localize('customizationDiscovery.resultCount', "{0} installed and {1} available customizations found.", allInstalled.length, this.query.installed ? 0 : available.length));
 		}
@@ -1041,7 +1034,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 		this.browseDisposables.clear();
 		DOM.clearNode(this.browseSections);
 		if (!this.isCatalogEnabled()) {
-			this.browseStatus.textContent = localize('customizationDiscovery.catalogDisabled', "Search your installed customizations, or enable the customization marketplace to explore available items.");
+			this.browseStatus.textContent = localize('customizationDiscovery.catalogDisabled', "Search your installed customizations, or enable a marketplace source to explore available items.");
 			return;
 		}
 		if (this.loading && this.catalogItems.length === 0) {
@@ -1308,7 +1301,10 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 
 	getAccessibilityContent(): string {
 		const installed = this.getFilteredInstalledItems();
-		const available = this.catalogItems.filter(item => this.getInstallState(item).kind !== 'installed');
+		const available = this.catalogItems.filter(item => {
+			const type = getCatalogType(item);
+			return type && this.matchesType(type) && this.getInstallState(item).kind !== 'installed';
+		});
 		return [
 			localize('customizationDiscovery.title', "Discover customizations"),
 			this.query.isEmpty()

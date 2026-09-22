@@ -225,6 +225,7 @@ function parseResource(value: unknown): ICustomizationMarketplaceEntry {
 	const displayName = text(value.displayName);
 	const mediaType = text(value.type ?? value.mediaType);
 	if (!identifier || !displayName || !mediaType ||
+		(value.score !== undefined && (typeof value.score !== 'number' || !Number.isFinite(value.score) || value.score < 0 || value.score > 100)) ||
 		(value.type !== undefined && value.mediaType !== undefined && value.type !== value.mediaType)) {
 		throw invalidResponse();
 	}
@@ -248,6 +249,7 @@ function parseResource(value: unknown): ICustomizationMarketplaceEntry {
 		icon: publisher ? URI.from({ scheme: Schemas.https, authority: 'github.com', path: `/${publisher}.png`, query: 'size=64' }) : undefined,
 		publisher,
 		version: text(value.version) ?? text(metadata?.version),
+		score: value.score,
 		installation: parseInstallation(mediaType, metadata, url, externalUrl),
 	};
 }

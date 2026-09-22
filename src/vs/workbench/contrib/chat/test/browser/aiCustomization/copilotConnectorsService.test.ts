@@ -4,13 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
 import { bufferToStream, VSBuffer } from '../../../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
+import { isCancellationError } from '../../../../../../base/common/errors.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { IRequestContext, IRequestOptions } from '../../../../../../base/parts/request/common/request.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { IConfigurationChangeEvent } from '../../../../../../platform/configuration/common/configuration.js';
 import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
@@ -52,13 +55,19 @@ function catalogResponse(status: 'available' | 'connected', names = ['mail']): u
 suite('CopilotConnectorsService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createFixture(responses: Array<{ readonly status?: number; readonly body?: unknown }>, enabled = true, enterprise = false) {
+	function createFixture(responses: Array<{ readonly status?: number; readonly body?: unknown; readonly ready?: Promise<void> }>, enabled = true, enterprise = false) {
 		const requests: Array<{ readonly type: string | undefined; readonly url: string; readonly data: string | undefined }> = [];
+		const requestTokens: CancellationToken[] = [];
+		const authenticationCalls: Parameters<IAuthenticationService['getSessions']>[] = [];
 		const requestService = new class extends mock<IRequestService>() {
-			override async request(options: IRequestOptions): Promise<IRequestContext> {
+			override async request(options: IRequestOptions, token: CancellationToken): Promise<IRequestContext> {
 				assert.ok(options.url);
 				requests.push({ type: options.type, url: options.url, data: options.data });
+				requestTokens.push(token);
 				const response = responses.shift() ?? {};
+				if (response.ready) {
+					await response.ready;
+				}
 				const body = response.body === undefined ? '' : JSON.stringify(response.body);
 				return {
 					res: { statusCode: response.status ?? 200, headers: {} },
@@ -78,7 +87,8 @@ suite('CopilotConnectorsService', () => {
 			override getDefaultAccountAuthenticationProvider() { return account.authenticationProvider; }
 		}();
 		const authenticationService = new class extends mock<IAuthenticationService>() {
-			override async getSessions() {
+			override async getSessions(...args: Parameters<IAuthenticationService['getSessions']>) {
+				authenticationCalls.push(args);
 				return [{
 					id: 'session',
 					accessToken: 'test-token',
@@ -113,7 +123,14 @@ suite('CopilotConnectorsService', () => {
 			openerService,
 			new NullLogService(),
 		));
-		return { service, requests, opened, configurationService };
+		return { service, requests, requestTokens, opened, configurationService, authenticationCalls };
+	}
+
+	async function setEnabled(configuration: TestConfigurationService, enabled: boolean): Promise<void> {
+		await configuration.setUserConfiguration(ChatConfiguration.ChatCustomizationsCopilotConnectorsEnabled, enabled);
+		configuration.onDidChangeConfigurationEmitter.fire(new class extends mock<IConfigurationChangeEvent>() {
+			override affectsConfiguration(section: string): boolean { return section === ChatConfiguration.ChatCustomizationsCopilotConnectorsEnabled; }
+		}());
 	}
 
 	test('validates catalog metadata and exposes an MCP marketplace source', async () => {
@@ -136,6 +153,69 @@ suite('CopilotConnectorsService', () => {
 			nextCursor: '1',
 			requests: ['https://api.github.test/copilot-connectors/api/v1/plugins'],
 		});
+	});
+
+	test('ranks keywords and representative queries locally using the cached authenticated catalog', async () => {
+		const fixture = createFixture([{ body: { plugins: [{
+			name: 'service',
+			metadata: { displayName: 'Entry', keywords: ['inbox'], representativeQueries: ['Schedule a meeting'] },
+		}] } }]);
+		const source = new CopilotConnectorsMarketplaceSource(fixture.service, fixture.configurationService);
+		const keywords = await source.query({ query: 'inbox' }, CancellationToken.None);
+		const examples = await source.query({ query: 'schedule meeting' }, CancellationToken.None);
+		assert.deepStrictEqual({
+			keywordScores: keywords.items.map(item => item.score),
+			exampleScores: examples.items.map(item => item.score),
+			metadata: fixture.service.connectors.map(connector => [connector.keywords, connector.representativeQueries]),
+			requests: fixture.requests.map(request => [request.type, request.url]),
+			authentication: fixture.authenticationCalls,
+		}, {
+			keywordScores: [65],
+			exampleScores: [28],
+			metadata: [[['inbox'], ['Schedule a meeting']]],
+			requests: [['GET', 'https://api.github.test/copilot-connectors/api/v1/plugins']],
+			authentication: [['github', [], { silent: true }, true]],
+		});
+	});
+
+	test('reports insufficient endpoint scope without requesting a broader GitHub session', async () => {
+		const fixture = createFixture([{ status: 403, body: { message: 'Insufficient OAuth scope' } }]);
+		await assert.rejects(fixture.service.getConnectors(CancellationToken.None), /HTTP 403/);
+		assert.deepStrictEqual({
+			requests: fixture.requests.length,
+			authentication: fixture.authenticationCalls,
+			opened: fixture.opened,
+			connectors: fixture.service.connectors,
+		}, { requests: 1, authentication: [['github', [], { silent: true }, true]], opened: [], connectors: [] });
+	});
+
+	for (const enabled of [true, false]) {
+		test(enabled ? 'unchanged enablement preserves an in-flight catalog request' : 'disabling the source cancels an in-flight catalog request', async () => {
+			const ready = new DeferredPromise<void>();
+			const fixture = createFixture([{ body: catalogResponse('available'), ready: ready.p }]);
+			const pending = fixture.service.refresh(CancellationToken.None);
+			const result = enabled ? pending : assert.rejects(pending, isCancellationError);
+			await timeout(0);
+			await setEnabled(fixture.configurationService, enabled);
+			const cancelled = fixture.requestTokens[0].isCancellationRequested;
+			await ready.complete();
+			await result;
+			assert.deepStrictEqual({
+				cancelled, requests: fixture.requests.length, names: fixture.service.connectors.map(connector => connector.name),
+			}, { cancelled: !enabled, requests: 1, names: enabled ? ['mail'] : [] });
+		});
+	}
+
+	test('re-enabling fetches a fresh catalog rather than reviving the disabled source cache', async () => {
+		const fixture = createFixture([{ body: catalogResponse('connected') }, { body: catalogResponse('available', ['calendar']) }]);
+		await fixture.service.getConnectors(CancellationToken.None);
+		await setEnabled(fixture.configurationService, false);
+		const disabled = fixture.service.connectors;
+		await setEnabled(fixture.configurationService, true);
+		await fixture.service.getConnectors(CancellationToken.None);
+		assert.deepStrictEqual({
+			disabled, names: fixture.service.connectors.map(connector => connector.name), requests: fixture.requests.length,
+		}, { disabled: [], names: ['calendar'], requests: 2 });
 	});
 
 	test('opens consent and waits for the connector to become connected', async () => {

@@ -912,8 +912,8 @@ export class AICustomizationManagementEditor extends EditorPane {
 	}
 
 	private isContributedSectionEnabled(section: AICustomizationManagementSection): boolean {
-		const setting = aiCustomizationManagementSectionRegistry.get(section, this.harnessService.activeHarness.get())?.enablementSetting;
-		return !setting || this.configurationService.getValue<boolean>(setting) === true;
+		const settings = aiCustomizationManagementSectionRegistry.get(section, this.harnessService.activeHarness.get())?.enablementSettings;
+		return !settings || settings.some(setting => this.configurationService.getValue<boolean>(setting) === true);
 	}
 
 	private updateContributedSectionEnablement(): void {
@@ -999,8 +999,8 @@ export class AICustomizationManagementEditor extends EditorPane {
 
 		this.editorDisposables.add(this.configurationService.onDidChangeConfiguration(e => {
 			if (this.allSections.some(section => {
-				const setting = aiCustomizationManagementSectionRegistry.get(section.id, this.harnessService.activeHarness.get())?.enablementSetting;
-				return setting && e.affectsConfiguration(setting);
+				const settings = aiCustomizationManagementSectionRegistry.get(section.id, this.harnessService.activeHarness.get())?.enablementSettings;
+				return settings?.some(setting => e.affectsConfiguration(setting));
 			})) {
 				this.updateContributedSectionEnablement();
 			}

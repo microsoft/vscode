@@ -20,8 +20,8 @@ export interface IAICustomizationManagementSectionContribution {
 	readonly label: string;
 	readonly icon: ThemeIcon;
 	readonly description: string;
-	/** A boolean setting that must be enabled before the section can be shown or instantiated. */
-	readonly enablementSetting?: string;
+	/** At least one of these boolean settings must be enabled to show or instantiate the section. */
+	readonly enablementSettings?: readonly string[];
 	readonly supportsHarness: (harnessId: string) => boolean;
 	create(instantiationService: IInstantiationService, container: HTMLElement): IAICustomizationManagementSectionWidget;
 }

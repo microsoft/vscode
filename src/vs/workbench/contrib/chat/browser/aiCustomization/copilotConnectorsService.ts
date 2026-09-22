@@ -8,6 +8,7 @@ import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
+import { matchesFuzzy2 } from '../../../../../base/common/filters.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { equals } from '../../../../../base/common/objects.js';
@@ -16,6 +17,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { IRequestContext, IRequestOptions } from '../../../../../base/parts/request/common/request.js';
 import { localize } from '../../../../../nls.js';
 import { CustomizationMarketplaceMediaType, ICustomizationMarketplaceEntry, ICustomizationMarketplaceSource, ICustomizationMarketplaceSourcePage, ICustomizationMarketplaceSourceQuery } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
+import { CustomizationMarketplaceSources } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
@@ -26,7 +28,9 @@ import { IRequestService } from '../../../../../platform/request/common/request.
 import { IAuthenticationService } from '../../../../services/authentication/common/authentication.js';
 import { ChatConfiguration } from '../../common/constants.js';
 
-const sourceId = 'copilotConnectors';
+const maxSearchQueryLength = 256;
+const maxSearchWords = 16;
+const fuzzyWindowSize = 128;
 const requestTimeout = 30_000;
 const maxResponseBytes = 5 * 1024 * 1024;
 const maxTextLength = 4096;
@@ -107,6 +111,7 @@ export class CopilotConnectorsService extends Disposable implements ICopilotConn
 	private readonly _onDidChange = this._register(new Emitter<void>());
 	readonly onDidChange = this._onDidChange.event;
 	private readonly enabledCancellation = this._register(new MutableDisposable<CancellationTokenSource>());
+	private enabled = false;
 	private _connectors: readonly ICopilotConnector[] = [];
 	private _lastRefreshTime = 0;
 
@@ -225,14 +230,18 @@ export class CopilotConnectorsService extends Disposable implements ICopilotConn
 	}
 
 	private updateEnablement(): void {
+		const enabled = this.isEnabled();
+		if (enabled === this.enabled) {
+			return;
+		}
+		this.enabled = enabled;
 		this.enabledCancellation.value?.cancel();
-		const cancellation = new CancellationTokenSource();
-		if (!this.isEnabled()) {
+		const cancellation = this.enabledCancellation.value = new CancellationTokenSource();
+		if (!enabled) {
 			cancellation.cancel();
 			this._lastRefreshTime = 0;
 			this.setConnectors([]);
 		}
-		this.enabledCancellation.value = cancellation;
 	}
 
 	private isEnabled(): boolean {
@@ -348,7 +357,7 @@ export class CopilotConnectorsService extends Disposable implements ICopilotConn
 }
 
 export class CopilotConnectorsMarketplaceSource implements ICustomizationMarketplaceSource {
-	readonly id = sourceId;
+	readonly id = CustomizationMarketplaceSources.CopilotConnectors.id;
 
 	constructor(
 		private readonly service: ICopilotConnectorsService,
@@ -356,28 +365,86 @@ export class CopilotConnectorsMarketplaceSource implements ICustomizationMarketp
 	) { }
 
 	async query(options: ICustomizationMarketplaceSourceQuery, token: CancellationToken): Promise<ICustomizationMarketplaceSourcePage> {
+		if (token.isCancellationRequested) {
+			throw new CancellationError();
+		}
 		if (this.configurationService.getValue<boolean>(ChatConfiguration.ChatCustomizationsCopilotConnectorsEnabled) !== true ||
 			(options.mediaType !== undefined && options.mediaType !== CustomizationMarketplaceMediaType.McpServer)) {
 			return { items: [], total: 0 };
 		}
-		const connectors = await this.service.getConnectors(token);
-		const query = options.query?.trim().toLowerCase() ?? '';
-		const matches = connectors.filter(connector => !query || [
-			connector.name,
-			connector.displayName,
-			connector.description,
-			...connector.tags,
-			...connector.capabilities,
-		].some(value => value.toLowerCase().includes(query)));
-		const pageSize = Math.min(options.pageSize ?? 30, 100);
+		const text = options.query?.trim() ?? '';
+		const words = text ? text.toLowerCase().split(/\s+/) : [];
+		const requestedPageSize = options.pageSize ?? 30;
+		if (text.length > maxSearchQueryLength || words.length > maxSearchWords || !Number.isSafeInteger(requestedPageSize) || requestedPageSize <= 0) {
+			throw new CopilotConnectorsError(localize('copilotConnectors.invalidQuery', "Use a positive page size and at most {0} characters and {1} words to search Copilot connectors.", maxSearchQueryLength, maxSearchWords));
+		}
+		const pageSize = Math.min(requestedPageSize, 100);
 		const offset = parseOffset(options.cursor);
+		const connectors = await raceCancellationError(this.service.getConnectors(token), token);
+		const matches = words.length ? connectors.flatMap(connector => {
+			const score = scoreConnector(connector, words);
+			return score === undefined ? [] : [{ ...toMarketplaceEntry(connector), score }];
+		}).sort((a, b) => b.score - a.score) : connectors.map(connector => toMarketplaceEntry(connector));
 		const page = matches.slice(offset, offset + pageSize);
 		return {
-			items: page.map(connector => toMarketplaceEntry(connector)),
+			items: page,
 			total: matches.length,
 			nextCursor: offset + page.length < matches.length ? String(offset + page.length) : undefined,
 		};
 	}
+}
+
+/** Exact names score 100; otherwise average each word's best name (70-95), keyword (40-65), or descriptive (10-35) match. */
+function scoreConnector(connector: ICopilotConnector, words: readonly string[]): number | undefined {
+	const names = [connector.name, connector.displayName];
+	if (names.some(name => name.toLowerCase().replace(/\s+/g, ' ') === words.join(' '))) {
+		return 100;
+	}
+	const fields = [
+		{ values: names, weight: 70 },
+		{ values: [...connector.keywords, ...connector.capabilities, ...connector.tags], weight: 40 },
+		{ values: [connector.description, ...connector.representativeQueries], weight: 10 },
+	];
+	let total = 0;
+	for (const word of words) {
+		let best: number | undefined;
+		for (const { values, weight } of fields) {
+			for (const value of values) {
+				const score = scoreConnectorField(word, value);
+				if (score !== undefined) {
+					best = Math.max(best ?? 0, weight + score);
+				}
+			}
+			if (best !== undefined) {
+				break;
+			}
+		}
+		if (best === undefined) {
+			return undefined;
+		}
+		total += best;
+	}
+	return Math.round(total / words.length);
+}
+
+function scoreConnectorField(word: string, value: string): number | undefined {
+	const index = value.toLowerCase().indexOf(word);
+	if (index >= 0) {
+		return value.length === word.length ? 25 : index === 0 ? 20 : 15;
+	}
+	// The fuzzy helper truncates at 128 characters; longer words must match contiguously, never by a truncated prefix.
+	if (word.length > fuzzyWindowSize) {
+		return undefined;
+	}
+	let best: number | undefined;
+	for (let start = 0; start < value.length; start += fuzzyWindowSize / 2) {
+		const matches = matchesFuzzy2(word, value.slice(start, start + fuzzyWindowSize));
+		if (matches?.length) {
+			const span = matches[matches.length - 1].end - matches[0].start;
+			best = Math.max(best ?? 0, Math.round(10 * word.length / span));
+		}
+	}
+	return best;
 }
 
 function toMarketplaceEntry(connector: ICopilotConnector): ICustomizationMarketplaceEntry {

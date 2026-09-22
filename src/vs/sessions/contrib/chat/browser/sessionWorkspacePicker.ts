@@ -25,10 +25,12 @@ import { IRemoteAgentHostService, RemoteAgentHostConnectionStatus, RemoteAgentHo
 import { TUNNEL_ADDRESS_PREFIX } from '../../../../platform/agentHost/common/tunnelAgentHost.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { IContextKeyService, IContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpression, IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { IDialogService, IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
+import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
@@ -53,6 +55,7 @@ import { type IResolvedFolderWorkspace, SessionWorkspaceFallback } from './sessi
 import { IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { ADDITIONAL_FOLDER_CONTEXT_ID_PREFIX, ADDITIONAL_REPOSITORY_CONTEXT_ID_PREFIX, getAdditionalFolderContextId, getAdditionalRepositoryContextId } from '../common/newChatContextIds.js';
 import { UNIFIED_WORKSPACE_PICKER_SETTING } from '../common/constants.js';
+import { registerPickerKeybindingPresentation } from './newChatPickerKeybinding.js';
 
 export type { IResolvedFolderWorkspace } from './sessionWorkspaceFallback.js';
 
@@ -126,6 +129,7 @@ export interface IWorkspacePickerTrigger {
 	readonly label?: string;
 	readonly ariaLabel: string;
 	readonly tooltip?: string;
+	readonly focusCommand?: { readonly id: string; readonly when: ContextKeyExpression; readonly enabled: IObservable<boolean> };
 	readonly icon?: ThemeIcon;
 	readonly hideIconWhenAttached?: boolean;
 	readonly reflectsWorkspace?: boolean;
@@ -434,6 +438,8 @@ export class WorkspacePicker extends Disposable {
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IHoverService private readonly hoverService: IHoverService,
+		@IKeybindingService private readonly keybindingService: IKeybindingService,
+		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@IFileService private readonly fileService: IFileService,
 		@IDialogService private readonly dialogService: IDialogService,
 	) {
@@ -625,7 +631,22 @@ export class WorkspacePicker extends Disposable {
 		this._triggerElement = trigger;
 		this._renderTriggerLabel(trigger);
 		if (options?.tooltip) {
-			triggerDisposables.add(this.hoverService.setupDelayedHover(trigger, { content: options.tooltip }));
+			if (options.focusCommand) {
+				registerPickerKeybindingPresentation(
+					triggerDisposables,
+					trigger,
+					options.tooltip,
+					options.focusCommand.id,
+					options.focusCommand.when,
+					options.focusCommand.enabled,
+					this.commandService,
+					this.contextMenuService,
+					this.hoverService,
+					this.keybindingService,
+				);
+			} else {
+				triggerDisposables.add(this.hoverService.setupDelayedHover(trigger, { content: options.tooltip }));
+			}
 		}
 		// Onboarding spotlight target — id is referenced by the "new session" tour
 		// in vs/sessions/contrib/onboardingTours.

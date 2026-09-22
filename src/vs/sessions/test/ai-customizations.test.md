@@ -6,6 +6,17 @@ The following test plan outlines the scenarios and specifications for the AI Cus
 
 - [`../AI_CUSTOMIZATIONS.md`](../AI_CUSTOMIZATIONS.md)
 
+## LOCAL EXPERIMENT OVERRIDES
+
+Production behavior reads the `sessions.list.rearrage` treatment directly from the assignment service. For local testing only, use the assignment service's standard developer override in the user `settings.json`:
+
+- Treatment: `"experiments.override.sessions.list.rearrage": true`
+- Control: `"experiments.override.sessions.list.rearrage": false`
+
+The Agents sidebar updates reactively when the override changes. Remove the override to use the automatically assigned experiment variant.
+
+In the treatment, Automations and Customizations are the first rows in the Sessions tree and scroll with its content. The Sessions header follows them and remains sticky while session rows scroll beneath it. The control keeps the expandable Customizations pane above the Sessions list.
+
 ## SCENARIOS
 
 ### Customization discovery
@@ -13,16 +24,16 @@ The following test plan outlines the scenarios and specifications for the AI Cus
 #### Preconditions
 
 - AI features are enabled.
-- Enable `chat.customizations.unifiedMarketplace.enabled` (experimental and disabled by default).
+- Enable `chat.customizations.marketplace.sources.agentFinderPublicFeed.enabled` for public resources and/or `chat.customizations.copilotConnectors.enabled` for authenticated connectors. Both sources are experimental and disabled by default; Marketplace itself has no feature flag.
 - Open Agent Customizations in either the editor workbench or Agents Window.
 
 #### Actions and Expected Results
 
-1. Open Discover. Browse available resources without signing in or starting a chat session.
+1. Open Discover. Browse public resources without signing in or starting a chat session. Connectors use the current default GitHub account.
 2. Check that the leading section and data-backed Skills, MCP servers, and Plugins sections show names, descriptions, publisher information, resource types, and available star metadata. Repository owner images have a fallback icon when absent or unavailable.
 3. Search for a generic topic such as `postgres`, then combine the Installed, MCPs, Plugins, and Skills quick filters. Typed `@installed` and `@type:` tokens must stay synchronized with the filters.
 4. Verify that search replaces browse cards with one virtualized list grouped into Installed and Available. Only the latest search is displayed, even if an earlier request finishes later.
-5. Choose **Load More**. Existing cards remain visible with placeholders for the next page, then results append without duplicates. Change the query or type and verify pagination resets.
+5. Choose **Load More**. Existing results remain visible while the next page loads, then results append without duplicates. Change the query or type and verify pagination resets.
 6. Interrupt a request, change tabs, or close the editor. Hidden/disposed sections cancel their requests. Returning to the tab can load again.
 7. Simulate offline, rate-limited, malformed, and oversized-metadata responses. An explicit error and **Retry** appear; failed pagination preserves previously loaded cards. Metadata lists must not exceed 32 entries or 512 characters per entry; scalar card text must not exceed 4,096 characters. URLs and pagination tokens retain their separate limits.
 8. Use Tab and Shift+Tab on controls, arrow keys in results, and Enter to open an installed item. Open Accessibility Help and Accessible View, verify that groups, install actions, resource links, and filters have distinct labels, then close the view and verify focus returns.
@@ -34,16 +45,18 @@ The following test plan outlines the scenarios and specifications for the AI Cus
 14. Install a Copilot or Claude plugin from a catalog subdirectory. The existing trust and managed-marketplace restrictions must apply, and only that plugin should be installed.
 15. Install an MCP server. It must be resolved against the configured registry and use the normal MCP installation flow, not executable configuration supplied by the catalog.
 16. Check that installation errors allow retry without losing search results, cancellations do not announce success, and unsupported formats such as Cursor plugins explain why installation is unavailable.
-17. With `chat.customizations.unifiedMarketplace.enabled` unset or false, verify Discover still searches installed customizations but performs no catalog or installation work.
-18. Enable the experiment, start a query or skill import, then disable it. Catalog requests/imports must be cancelled while installed Discover results remain available. Re-enabling must not revive a cancelled operation or reuse stale installed-skill state.
-19. With an additional test source, return overlapping identifiers, multiple versions, and different continuation tokens. All distinct source/identifier/version entries remain visible, each continuation goes only to its owning source, exhausted sources stop querying, and installation state/actions do not collide.
+17. With both source settings unset or false, verify Discover still searches installed customizations but performs no catalog or installation work. Neither former setting, `chat.agentFinder.enabled` nor `chat.customizations.unifiedMarketplace.enabled`, enables a source.
+18. Enable each source separately and together. Only enabled sources are queried or initialized. Disable a source during a query or install: discovery resets, that source's pending work is cancelled, and its resources become unavailable for installation. Other sources' installs and cached skill state remain intact. Re-enabling must not revive cancelled work.
+19. Return overlapping identifiers, multiple versions, and different source continuation tokens. All distinct source/identifier/version entries remain visible, exhausted sources stop querying, and installation state/actions do not collide. Changing the selected source set requires a new search.
+20. Supply independently ranked sources and search. Each combined page contains at most 24 entries in descending relevance order, including across **Load More** boundaries. Short native pages are backfilled, undisplayed entries are retained, and a failed or cancelled continuation can be retried without losing entries. Equal scores use source-registration order; unscored entries rank as zero. Queryless browsing preserves source/native order. Scores are internal ranking signals, not displayed quality or trust ratings.
+21. Combine type filters, including Plugins (which includes multiple formats). Verify one combined continuation is used, rather than independent pages being concatenated or re-sorted by the widget. Only selected types appear, so a displayed page may contain fewer than 24 matches; **Load More** continues the same globally ranked stream. Accessible View applies the same type filters.
 
 ### Copilot connectors
 
 #### Preconditions
 
-- Enable `chat.customizations.unifiedMarketplace.enabled`.
 - Enable `chat.customizations.copilotConnectors.enabled`.
+- Optionally enable `chat.customizations.marketplace.sources.agentFinderPublicFeed.enabled` to include public resources.
 - Sign in with a GitHub.com account that has Copilot connector access.
 
 #### Actions and Expected Results
@@ -54,6 +67,9 @@ The following test plan outlines the scenarios and specifications for the AI Cus
 4. Verify the MCP page does not show an Available marketplace section; available MCP resources remain owned by Discover.
 5. Open a connector. Its detail shows status, metadata, contained MCP servers, external information, and connection lifecycle actions instead of a raw editable MCP configuration.
 6. Disable `chat.customizations.copilotConnectors.enabled`. Connector discovery and pending authorization stop, the Connectors section disappears, and Agent Host clears connector MCP servers.
+7. Compare exact connector names, prefixes, abbreviations, mixed-case multi-word queries, keywords/tags/capabilities, and descriptions/example queries. Exact full names score 100; otherwise each word's best match is averaged from name (70–95), keyword/capability/tag (40–65), or description/example (10–35) bands. Within a band, exact, prefix, substring, and compact fuzzy matches descend in that order. These are heuristic rankings, not calibrated equivalents to AgentFinder semantic scores. Every word must match, including at the end of long metadata. Clear search and verify native catalog order returns without scores.
+8. On native desktop, verify only public-feed requests use shared-process IPC. Connectors use the workbench's existing default GitHub session; a connector endpoint scope rejection is an explicit error, not a reason to widen OAuth scopes.
+9. Check the connector search bounds: queries over 256 characters or 16 words fail explicitly without catalog access. Contiguous matching covers complete validated fields; non-contiguous matching uses overlapping 128-character windows. A word longer than 128 characters must match in full, not through a silently truncated fuzzy prefix.
 
 ### Scenario 1: Empty state — no session, no customizations
 

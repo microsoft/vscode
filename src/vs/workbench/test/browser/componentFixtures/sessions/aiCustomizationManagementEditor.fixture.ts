@@ -72,6 +72,7 @@ import { IAgentHostToolSetEnablementService, IToolEnablementState } from '../../
 import { IAgentHostActiveClientService } from '../../../../contrib/chat/browser/agentSessions/agentHost/agentHostActiveClientService.js';
 import { AgentHostMcpServerApplicability, AgentHostMcpServerDelivery, AgentHostMcpServerEnablementState, AgentHostMcpServerSourceKind, IAgentHostMcpServerSupportSnapshot } from '../../../../contrib/chat/browser/agentSessions/agentHost/agentHostMcpServerSupport.js';
 import { ExtensionState, IExtension, IExtensionsWorkbenchService } from '../../../../contrib/extensions/common/extensions.js';
+import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { IPluginMarketplaceService, IMarketplacePlugin, MarketplaceType, PluginSourceKind } from '../../../../contrib/chat/common/plugins/pluginMarketplaceService.js';
 import { MarketplaceReferenceKind } from '../../../../contrib/chat/common/plugins/marketplaceReference.js';
 import { IPluginInstallService } from '../../../../contrib/chat/common/plugins/pluginInstallService.js';
@@ -93,7 +94,7 @@ import { PromptsConfig } from '../../../../contrib/chat/common/promptSyntax/conf
 import { IAutomationDialogService } from '../../../../contrib/chat/common/automations/automationDialogService.js';
 import { IAutomationRunner } from '../../../../contrib/chat/common/automations/automationRunner.js';
 import { IAutomationService } from '../../../../contrib/chat/common/automations/automationService.js';
-import { IMcpWorkbenchService, IWorkbenchMcpServer, IMcpService, McpConnectionState, McpServerInstallState } from '../../../../contrib/mcp/common/mcpTypes.js';
+import { IMcpWorkbenchService, IWorkbenchMcpServer, IMcpService, McpConnectionState, McpServerInstallState, MCP_PLUGIN_COLLECTION_ID_PREFIX } from '../../../../contrib/mcp/common/mcpTypes.js';
 import { IMcpRegistry } from '../../../../contrib/mcp/common/mcpRegistryTypes.js';
 import { IWorkbenchLocalMcpServer, LocalMcpServerScope } from '../../../../services/mcp/common/mcpWorkbenchManagementService.js';
 import { McpListWidget } from '../../../../contrib/chat/browser/aiCustomization/mcpListWidget.js';
@@ -494,6 +495,9 @@ function makeLocalMcpServer(id: string, label: string, scope: LocalMcpServerScop
 		override readonly local = new class extends mock<IWorkbenchLocalMcpServer>() {
 			override readonly id = id;
 			override readonly scope = scope;
+			override readonly mcpResource = scope === LocalMcpServerScope.Workspace
+				? URI.file('/workspace/.vscode/mcp.json')
+				: URI.file('/home/dev/.config/Code/User/mcp.json');
 		}();
 	}();
 }
@@ -654,6 +658,8 @@ const mcpUserServers = [
 ];
 const mcpRuntimeServers = [
 	{ definition: { id: 'github-copilot-mcp', label: 'GitHub Copilot' }, collection: { id: 'ext.github.copilot/mcp', label: 'ext.github.copilot/mcp' }, enablement: constObservable(ContributionEnablementState.EnabledProfile), connectionState: constObservable({ state: McpConnectionState.Kind.Starting }), readDefinitions: () => constObservable({ server: undefined, collection: undefined }), showOutput() { } },
+	{ definition: { id: 'linear-mcp', label: 'Linear MCP' }, collection: { id: `${MCP_PLUGIN_COLLECTION_ID_PREFIX}${URI.file('/workspace/.copilot/plugins/linear').toString()}`, label: 'Linear plugin' }, enablement: constObservable(ContributionEnablementState.EnabledProfile), connectionState: constObservable({ state: McpConnectionState.Kind.Running }), readDefinitions: () => constObservable({ server: { presentation: { origin: { uri: URI.file('/workspace/.copilot/plugins/linear/.mcp.json') } } }, collection: undefined }), showOutput() { } },
+	{ definition: { id: 'acme-mcp', label: 'Acme MCP' }, collection: { id: 'acme.agent-tools/mcp', label: 'Acme extension' }, enablement: constObservable(ContributionEnablementState.EnabledProfile), connectionState: constObservable({ state: McpConnectionState.Kind.Running }), readDefinitions: () => constObservable({ server: { presentation: { origin: { uri: URI.file('/home/dev/.vscode/extensions/acme.agent-tools/mcp.json') } } }, collection: undefined }), showOutput() { } },
 	{ definition: { id: 'mcp-postgres', label: 'PostgreSQL' }, collection: { id: 'workspace-mcp', label: 'Workspace MCP' }, enablement: constObservable(ContributionEnablementState.EnabledProfile), connectionState: constObservable({ state: McpConnectionState.Kind.Error, message: 'Connection refused at localhost:5432. Check that the database is running.' }), readDefinitions: () => constObservable({ server: undefined, collection: undefined }), showOutput() { } },
 	{ definition: { id: 'mcp-web-search', label: 'Web Search' }, collection: { id: 'user-mcp', label: 'User MCP' }, enablement: constObservable(ContributionEnablementState.DisabledProfile), connectionState: constObservable({ state: McpConnectionState.Kind.Stopped }), readDefinitions: () => constObservable({ server: undefined, collection: undefined }), showOutput() { } },
 	{ definition: { id: 'mcp-filesystem', label: 'Filesystem' }, collection: { id: 'user-mcp', label: 'User MCP' }, enablement: constObservable(ContributionEnablementState.EnabledProfile), connectionState: constObservable({ state: McpConnectionState.Kind.Stopped }), readDefinitions: () => constObservable({ server: undefined, collection: undefined }), showOutput() { } },
@@ -684,9 +690,8 @@ function makeFixtureTool(id: string, displayName: string, description: string, s
 	};
 }
 
-const fixtureToolExtensionId = 'acme.agent-tools';
 const fixtureToolExtension = new class extends mock<IExtension>() {
-	override readonly identifier = { id: fixtureToolExtensionId, uuid: undefined };
+	override readonly identifier = { id: 'acme.agent-tools', uuid: undefined };
 	override readonly displayName = 'Acme Agent Tools';
 	override readonly publisherDisplayName = 'Acme';
 	override readonly description = 'Issue tracking and deployment tools for agents.';
@@ -714,17 +719,17 @@ const fixtureToolSets: readonly IToolSet[] = [
 		description: 'Acme Agent Tools',
 		detail: 'Tools contributed by the Acme extension.',
 		icon: Codicon.extensions,
-		source: { type: 'extension', label: 'Acme Agent Tools', extensionId: new ExtensionIdentifier(fixtureToolExtensionId) },
+		source: { type: 'extension', label: 'Acme Agent Tools', extensionId: new ExtensionIdentifier('acme.agent-tools') },
 		getTools: () => [
-			makeFixtureTool('acme.issues', 'Find Issues', 'Find and summarize open issues.', { type: 'extension', label: 'Acme Agent Tools', extensionId: new ExtensionIdentifier(fixtureToolExtensionId) }),
-			makeFixtureTool('acme.deploy', 'Create Deployment', 'Create a deployment for the current project.', { type: 'extension', label: 'Acme Agent Tools', extensionId: new ExtensionIdentifier(fixtureToolExtensionId) }),
+			makeFixtureTool('acme.issues', 'Find Issues', 'Find and summarize open issues.', { type: 'extension', label: 'Acme Agent Tools', extensionId: new ExtensionIdentifier('acme.agent-tools') }),
+			makeFixtureTool('acme.deploy', 'Create Deployment', 'Create a deployment for the current project.', { type: 'extension', label: 'Acme Agent Tools', extensionId: new ExtensionIdentifier('acme.agent-tools') }),
 		],
 	},
 ];
 
 const overflowingExtensionToolSets: readonly IToolSet[] = Array.from({ length: 8 }, (_, index) => {
 	const toolSetNumber = index + 1;
-	const source: ToolDataSource = { type: 'extension', label: 'Acme Agent Tools', extensionId: new ExtensionIdentifier(fixtureToolExtensionId) };
+	const source: ToolDataSource = { type: 'extension', label: 'Acme Agent Tools', extensionId: new ExtensionIdentifier('acme.agent-tools') };
 	return {
 		id: `acme-agent-tools-${toolSetNumber}`,
 		referenceName: `acme${toolSetNumber}`,
@@ -929,7 +934,7 @@ interface IRenderEditorOptions {
 	readonly managementSections?: readonly AICustomizationManagementSection[];
 	readonly availableHarnesses?: readonly IHarnessDescriptor[];
 	readonly selectedSection?: AICustomizationManagementSection;
-	readonly customizationMarketplaceEnabled?: boolean;
+	readonly agentFinderPublicFeedEnabled?: boolean;
 	readonly copilotConnectorsEnabled?: boolean;
 	readonly customizationMarketplaceState?: 'ready' | 'empty' | 'error' | 'loading' | 'loadingMore';
 	readonly customizationMarketplaceInstallationState?: 'mixed' | 'error';
@@ -972,10 +977,12 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 	ctx.container.style.height = `${height}px`;
 
 	const isSessionsWindow = options.isSessionsWindow ?? false;
-	const customizationMarketplaceEnabled = options.customizationMarketplaceEnabled ?? true;
-	const marketplaceResources = options.copilotConnectorsEnabled
-		? [...customizationMarketplaceResources, copilotConnectorMarketplaceResource]
-		: customizationMarketplaceResources;
+	const agentFinderPublicFeedEnabled = options.agentFinderPublicFeedEnabled ?? true;
+	const marketplaceEnabled = agentFinderPublicFeedEnabled || options.copilotConnectorsEnabled === true;
+	const marketplaceResources = [
+		...(agentFinderPublicFeedEnabled ? customizationMarketplaceResources : []),
+		...(options.copilotConnectorsEnabled ? [copilotConnectorMarketplaceResource] : []),
+	];
 	const skillUIIntegrations = options.skillUIIntegrations ?? new Map();
 	const managementSections = options.managementSections ?? [
 		AICustomizationManagementSection.Plugins,
@@ -1068,7 +1075,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 				[ChatConfiguration.ChatCustomizationsMcpServerMigrationEnabled]: true,
 				[ChatConfiguration.ChatCustomizationsCopilotConnectorsEnabled]: options.copilotConnectorsEnabled ?? false,
 				...options.configuration,
-				[ChatConfiguration.ChatCustomizationsUnifiedMarketplaceEnabled]: customizationMarketplaceEnabled,
+				[ChatConfiguration.AgentFinderPublicFeedEnabled]: agentFinderPublicFeedEnabled,
 			});
 			ctx.disposableStore.add({ dispose: () => configurationService.onDidChangeConfigurationEmitter.dispose() });
 			registerWorkbenchServices(reg);
@@ -1077,16 +1084,15 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 				override readonly onDidChangeSentiment = Event.None;
 			}());
 			reg.defineInstance(ICustomizationMarketplaceService, new class extends mock<ICustomizationMarketplaceService>() {
+				override readonly sources = [
+					{ id: 'testSource', enablementSetting: ChatConfiguration.AgentFinderPublicFeedEnabled },
+					{ id: 'copilotConnectors', enablementSetting: ChatConfiguration.ChatCustomizationsCopilotConnectorsEnabled },
+				];
 				override async query(query: ICustomizationMarketplaceQuery): Promise<ICustomizationMarketplacePage> {
 					customizationMarketplaceQueryCount++;
-					assert(customizationMarketplaceEnabled, 'A disabled Marketplace fixture must not query the catalog.');
+					assert(marketplaceEnabled, 'A fixture with no enabled sources must not query the catalog.');
 					const pageSize = query.pageSize ?? 24;
-					const createCursor = (offset: number) => ({
-						query: query.query ?? '',
-						mediaType: query.mediaType,
-						pageSize,
-						sources: [{ id: 'testSource', cursor: String(offset) }],
-					});
+					const createCursor = (offset: number) => ({ token: String(offset) });
 					switch (options.customizationMarketplaceState) {
 						case 'loading': return new DeferredPromise<ICustomizationMarketplacePage>().p;
 						case 'loadingMore':
@@ -1100,7 +1106,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 					const resources = marketplaceResources.filter(resource =>
 						(!query.mediaType || resource.mediaType === query.mediaType)
 						&& (!text || `${resource.displayName} ${resource.description} ${resource.tags.join(' ')}`.toLowerCase().includes(text)));
-					const offset = Number(query.cursor?.sources[0].cursor ?? 0);
+					const offset = Number(query.cursor?.token ?? 0);
 					return {
 						items: resources.slice(offset, offset + pageSize),
 						total: resources.length,
@@ -1111,11 +1117,11 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 			reg.defineInstance(ICustomizationMarketplaceInstallService, new class extends mock<ICustomizationMarketplaceInstallService>() {
 				override readonly onDidChange = customizationMarketplaceInstallChanged.event;
 				override getInstallState(resource: ICustomizationMarketplaceResource): CustomizationMarketplaceInstallState {
-					assert(customizationMarketplaceEnabled, 'A disabled Marketplace fixture must not request installation state.');
+					assert(marketplaceEnabled, 'A fixture with no enabled sources must not request installation state.');
 					return customizationMarketplaceInstallStates.get(getCustomizationMarketplaceResourceKey(resource)) ?? { kind: 'available' };
 				}
 				override async install(resource: ICustomizationMarketplaceResource): Promise<void> {
-					assert(customizationMarketplaceEnabled, 'A disabled Marketplace fixture must not install resources.');
+					assert(marketplaceEnabled, 'A fixture with no enabled sources must not install resources.');
 					if (options.customizationMarketplaceInstallationState === 'error') {
 						throw new Error('Choose a writable installation destination and try again.');
 					}
@@ -1409,6 +1415,28 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 				override readonly local = options.emptyToolExtensions ? [] : [fixtureToolExtension];
 				override readonly onChange = Event.None;
 			}());
+			if (options.selectedSection === AICustomizationManagementSection.McpServers) {
+				reg.defineInstance(ILabelService, new class extends mock<ILabelService>() {
+					override readonly onDidChangeFormatters = Event.None;
+					override getUriLabel(resource: URI, labelOptions?: Parameters<ILabelService['getUriLabel']>[1]): string {
+						if (labelOptions?.relative && resource.path.startsWith('/workspace/')) {
+							return resource.path.slice('/workspace/'.length);
+						}
+						if (!labelOptions?.noPrefix && resource.path.startsWith('/home/dev/')) {
+							return `~/${resource.path.slice('/home/dev/'.length)}`;
+						}
+						return resource.path;
+					}
+					override getUriBasenameLabel(resource: URI): string { return resource.path.split('/').pop() ?? ''; }
+					override getWorkspaceLabel(): string { return ''; }
+					override getHostLabel(): string { return ''; }
+					override getHostTooltip(): string { return ''; }
+					override getSeparator(): '/' { return '/'; }
+					override getUriHome(resource: URI): URI | undefined { return resource.path.startsWith('/home/dev/') ? URI.file('/home/dev') : undefined; }
+					override registerFormatter() { return { dispose() { } }; }
+					override registerCachedFormatter() { return { dispose() { } }; }
+				}());
+			}
 			reg.defineInstance(IExtensionManifestPropertiesService, new class extends mock<IExtensionManifestPropertiesService>() {
 				override canExecuteOnSessionsWindow() { return true; }
 			}());
@@ -1459,7 +1487,10 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 				};
 			}());
 			reg.defineInstance(IMcpRegistry, new class extends mock<IMcpRegistry>() {
-				override readonly collections = constObservable([]);
+				override readonly collections = constObservable([
+					{ id: `${MCP_PLUGIN_COLLECTION_ID_PREFIX}${URI.file('/workspace/.copilot/plugins/linear').toString()}`, source: undefined },
+					{ id: 'acme.agent-tools/mcp', source: new ExtensionIdentifier('acme.agent-tools') },
+				] as never[]);
 				override readonly delegates = constObservable([]);
 				override readonly onDidChangeInputs = Event.None;
 			}());
@@ -1518,12 +1549,12 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 		editor.selectSectionById(options.selectedSection);
 	}
 	editor.setVisible(true);
-	if (!customizationMarketplaceEnabled) {
+	if (!marketplaceEnabled) {
 		await Promise.resolve();
 		const overview = ctx.container.querySelector<HTMLElement>('.welcome-page-host');
-		assert(overview !== null && overview.style.display !== 'none', 'Disabled Marketplace must leave installed discovery available.');
-		assert(editor.getActiveSectionWidget() === undefined, 'Disabled Marketplace must not create a separate section widget.');
-		assert(customizationMarketplaceQueryCount === 0, 'Disabled Marketplace must not query the catalog.');
+		assert(overview !== null && overview.style.display !== 'none', 'Disabling all sources must leave installed discovery available.');
+		assert(editor.getActiveSectionWidget() === undefined, 'Discover must not create a separate Marketplace section widget.');
+		assert(customizationMarketplaceQueryCount === 0, 'Disabling all sources must prevent catalog queries.');
 	} else if (!options.selectedSection) {
 		await Promise.resolve();
 		assert(customizationMarketplaceQueryCount === 1, 'Visible Discover must query the catalog once for browse mode.');
@@ -1611,8 +1642,16 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 
 	if (options.scrollToBottom) {
 		editor.revealLastItem();
-		// Allow the 500ms hide delay and 800ms fade transition to complete.
-		await new Promise(resolve => setTimeout(resolve, 1400));
+		if (options.selectedSection === AICustomizationManagementSection.McpServers) {
+			await new Promise<void>(resolve => DOM.getWindow(ctx.container).requestAnimationFrame(() => resolve()));
+			// Allow the 500ms hide delay and 800ms fade transition to complete.
+			await new Promise(resolve => setTimeout(resolve, 2400));
+			for (let attempt = 0; attempt < 20 && ctx.container.querySelector('.scrollbar.vertical.visible'); attempt++) {
+				await new Promise(resolve => setTimeout(resolve, 100));
+			}
+		} else {
+			await new Promise(resolve => setTimeout(resolve, 1400));
+		}
 	}
 
 	if (options.migrationDashboard) {
@@ -1990,6 +2029,10 @@ function renderMcpDisabled(ctx: ComponentFixtureContext, byPolicy: boolean): voi
 			reg.defineInstance(IAgentPluginService, new class extends mock<IAgentPluginService>() {
 				override readonly plugins = constObservable([]);
 			}());
+			reg.defineInstance(IExtensionsWorkbenchService, new class extends mock<IExtensionsWorkbenchService>() {
+				override readonly local = [];
+				override readonly onChange = Event.None;
+			}());
 			reg.defineInstance(IDialogService, new class extends mock<IDialogService>() { }());
 			reg.defineInstance(IAICustomizationWorkspaceService, new class extends mock<IAICustomizationWorkspaceService>() {
 				override readonly isSessionsWindow = false;
@@ -2363,7 +2406,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	// MCP Servers tab with many servers to verify scrollable list layout
 	McpServersTab: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: true },
-		expectedVisualDescriptions: ['The MCP Servers page shows installed servers and no longer duplicates available marketplace results from Discover.'],
+		expectedVisualDescriptions: ['The MCP Servers page shows installed servers with workspace-relative configuration paths, without duplicating available marketplace results from Discover.'],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
 			selectedSection: AICustomizationManagementSection.McpServers,
@@ -2377,6 +2420,16 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 			sessionResource: localSessionResource,
 			selectedSection: AICustomizationManagementSection.McpServers,
 			copilotConnectorsEnabled: true,
+		}),
+	}),
+
+	McpServersProvenance: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: true },
+		expectedVisualDescriptions: ['The MCP Servers page shows linked "Plugin: Linear" and "Extension: Acme Agent Tools" provenance labels beneath their installed server names.'],
+		render: ctx => renderEditor(ctx, {
+			sessionResource: localSessionResource,
+			selectedSection: AICustomizationManagementSection.McpServers,
+			mcpSearchQuery: 'MCP',
 		}),
 	}),
 
@@ -2707,10 +2760,10 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 
 	DiscoverLocalOnly: defineComponentFixture({
 		labels: { kind: 'screenshot' },
-		expectedVisualDescriptions: ['Discover remains available for installed customization search while the customization marketplace experiment is disabled.'],
+		expectedVisualDescriptions: ['Discover remains available for installed customization search while all marketplace sources are disabled.'],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
-			customizationMarketplaceEnabled: false,
+			agentFinderPublicFeedEnabled: false,
 		}),
 	}),
 
@@ -2857,7 +2910,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 
 	McpServersTabScrolled: defineComponentFixture({
 		labels: { kind: 'screenshot' },
-		virtualTime: { durationMs: 1500 },
+		virtualTime: { durationMs: 5000 },
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
 			selectedSection: AICustomizationManagementSection.McpServers,

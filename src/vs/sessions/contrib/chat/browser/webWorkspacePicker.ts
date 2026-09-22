@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { equals } from '../../../../base/common/arrays.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { localize } from '../../../../nls.js';
 import { IActionWidgetService } from '../../../../platform/actionWidget/browser/actionWidget.js';
@@ -12,9 +13,11 @@ import { IRemoteAgentHostService } from '../../../../platform/agentHost/common/r
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { IDialogService, IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
+import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
@@ -63,6 +66,8 @@ export class WebWorkspacePicker extends WorkspacePicker {
 		@ITelemetryService telemetryService: ITelemetryService,
 		@INotificationService notificationService: INotificationService,
 		@IHoverService hoverService: IHoverService,
+		@IKeybindingService keybindingService: IKeybindingService,
+		@IContextMenuService contextMenuService: IContextMenuService,
 		@IFileService fileService: IFileService,
 		@IDialogService dialogService: IDialogService,
 		@IAgentHostFilterService private readonly _agentHostFilterService: IAgentHostFilterService,
@@ -87,6 +92,8 @@ export class WebWorkspacePicker extends WorkspacePicker {
 			telemetryService,
 			notificationService,
 			hoverService,
+			keybindingService,
+			contextMenuService,
 			fileService,
 			dialogService,
 		);
@@ -94,7 +101,17 @@ export class WebWorkspacePicker extends WorkspacePicker {
 		// When the scoped host changes, if the current selection no longer
 		// belongs to the selected host, reset it: prefer the most recent
 		// workspace for the new host, otherwise clear the selection.
-		this._register(this._agentHostFilterService.onDidChange(() => this._onScopedHostChanged()));
+		let scopedHost = this._agentHostFilterService.selectedHost;
+		this._register(this._agentHostFilterService.onDidChange(() => {
+			const nextHost = this._agentHostFilterService.selectedHost;
+			// Connection status updates must not reset the workspace and steal
+			// focus from an open host picker through onDidSelectWorkspace.
+			if (nextHost?.id === scopedHost?.id && equals(nextHost?.providerIds ?? [], scopedHost?.providerIds ?? [])) {
+				return;
+			}
+			scopedHost = nextHost;
+			this._onScopedHostChanged();
+		}));
 	}
 
 	protected override _showTabs(): boolean {
