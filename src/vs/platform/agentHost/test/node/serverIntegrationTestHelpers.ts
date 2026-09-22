@@ -730,8 +730,9 @@ export async function stopServer(server: IServerHandle | undefined, getDescendan
 			try {
 				process.kill(pid, 0);
 			} catch (probeError) {
-				if (getErrorCode(probeError) === 'ESRCH') {
-					return; // The descendant already exited during graceful shutdown.
+				const errorCode = getErrorCode(probeError);
+				if (errorCode === 'ESRCH' || errorCode === 'EPERM') {
+					return; // The descendant already exited or is no longer controllable.
 				}
 				throw probeError;
 			}
