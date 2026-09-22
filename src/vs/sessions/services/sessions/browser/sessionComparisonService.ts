@@ -55,6 +55,7 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 	private readonly _migratingAttemptTitles = new Set<string>();
 	private readonly _migratedAttemptTitles = new Set<string>();
 	private readonly _reportedAttemptTelemetry = new Set<string>();
+	private _hasObservedSessionChanges = false;
 	constructor(
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 		@ISessionGroupsService private readonly sessionGroupsService: ISessionGroupsService,
@@ -71,17 +72,18 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 		this._ensureComparisonGroupMembership(this._comparisons.get());
 		this._migrateLegacyAttemptTitles(this._comparisons.get());
 		this._register(this.sessionsManagementService.onDidChangeSessions(() => {
+			this._hasObservedSessionChanges = true;
 			const comparisons = this._comparisons.get();
 			this._ensureComparisonGroupMembership(comparisons);
 			this._migrateLegacyAttemptTitles(comparisons);
-			this._checkComparisons();
+			this._checkComparisons(true);
 		}));
 		this._register(this.sessionGroupsService.onDidChange(event => {
 			if (event.groupsChanged) {
 				this._removeComparisonsWithMissingGroups();
 			}
 		}));
-		this._checkComparisons();
+		this._checkComparisons(false);
 	}
 
 	async startComparison(options: IStartSessionComparisonOptions, token: CancellationToken = CancellationToken.None): Promise<ISessionComparison> {
@@ -459,37 +461,39 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 		return comparison;
 	}
 
-	private _checkComparisons(): void {
+	private _checkComparisons(detectMissingSessions: boolean = this._hasObservedSessionChanges): void {
 		for (const comparison of this._comparisons.get()) {
-			this._checkComparison(comparison);
+			this._checkComparison(comparison, detectMissingSessions);
 		}
 	}
 
-	private _checkComparison(comparison: ISessionComparison): void {
+	private _checkComparison(comparison: ISessionComparison, detectMissingSessions: boolean = this._hasObservedSessionChanges): void {
 		comparison = this._captureTerminalAttemptMetrics(comparison);
 		if (comparison.cancelledAt !== undefined) {
 			return;
 		}
-		const attemptsWithMissingSessions = comparison.participants.some(participant =>
-			participant.role === SessionComparisonParticipantRole.Attempt
-			&& !participant.launchError
-			&& !!participant.sessionResource
-			&& !this.sessionsManagementService.getSession(participant.sessionResource));
-		if (attemptsWithMissingSessions) {
-			comparison = {
-				...comparison,
-				participants: comparison.participants.map(participant =>
-					participant.role === SessionComparisonParticipantRole.Attempt
-						&& !participant.launchError
-						&& participant.sessionResource
-						&& !this.sessionsManagementService.getSession(participant.sessionResource)
-						? {
-							...participant,
-							launchError: localize('sessionComparison.attemptMissing', "The attempt session is no longer available."),
-						}
-						: participant),
-			};
-			this._replaceComparison(comparison);
+		if (detectMissingSessions) {
+			const attemptsWithMissingSessions = comparison.participants.some(participant =>
+				participant.role === SessionComparisonParticipantRole.Attempt
+				&& !participant.launchError
+				&& !!participant.sessionResource
+				&& !this.sessionsManagementService.getSession(participant.sessionResource));
+			if (attemptsWithMissingSessions) {
+				comparison = {
+					...comparison,
+					participants: comparison.participants.map(participant =>
+						participant.role === SessionComparisonParticipantRole.Attempt
+							&& !participant.launchError
+							&& participant.sessionResource
+							&& !this.sessionsManagementService.getSession(participant.sessionResource)
+							? {
+								...participant,
+								launchError: localize('sessionComparison.attemptMissing', "The attempt session is no longer available."),
+							}
+							: participant),
+				};
+				this._replaceComparison(comparison);
+			}
 		}
 		if (this._judgeStarting.has(comparison.id)
 			|| comparison.participants.some(participant => participant.role === SessionComparisonParticipantRole.Judge)) {

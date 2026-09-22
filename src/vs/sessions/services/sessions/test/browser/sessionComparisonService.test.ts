@@ -161,16 +161,28 @@ suite('SessionComparisonService', () => {
 		const { service, sessionsManagementService } = createServices();
 		const firstStatus = observableValue('firstStatus', SessionStatus.InProgress);
 		const secondStatus = observableValue('secondStatus', SessionStatus.InProgress);
+		const thirdStatus = observableValue('thirdStatus', SessionStatus.InProgress);
 		sessionsManagementService.enqueue(stubSession('attempt-one', firstStatus));
 		sessionsManagementService.enqueue(stubSession('attempt-two', secondStatus));
+		sessionsManagementService.enqueue(stubSession('attempt-three', thirdStatus));
 		sessionsManagementService.enqueue(stubSession('judge'));
 		let judgeBeforeCreateReturned: string | undefined;
-
-		const comparison = await service.startComparison({ ...startOptions(), permissionLevel: 'allowedTools' });
+		const base = startOptions();
+		const comparison = await service.startComparison({
+			...base,
+			permissionLevel: 'allowedTools',
+			attempts: [
+				...base.attempts,
+				{
+					id: 'attempt-three',
+					harness: { providerId: 'provider-three', sessionTypeId: 'type-three', label: 'Three', modelId: 'model-three' },
+				},
+			],
+		});
 		firstStatus.set(SessionStatus.Completed, undefined);
 		sessionsManagementService.fireChange();
 		await timeout(0);
-		assert.strictEqual(sessionsManagementService.createCalls.length, 2);
+		assert.strictEqual(sessionsManagementService.createCalls.length, 3);
 
 		sessionsManagementService.beforeCreateAndSendReturn = () => {
 			judgeBeforeCreateReturned = service.getComparison(comparison.id)?.participants.find(participant => participant.role === SessionComparisonParticipantRole.Judge)?.sessionResource?.toString();
@@ -178,31 +190,36 @@ suite('SessionComparisonService', () => {
 		secondStatus.set(SessionStatus.Error, undefined);
 		sessionsManagementService.fireChange();
 		await timeout(0);
+		assert.strictEqual(sessionsManagementService.createCalls.length, 3);
+
+		thirdStatus.set(SessionStatus.Completed, undefined);
+		sessionsManagementService.fireChange();
+		await timeout(0);
 		assert.deepStrictEqual({
 			createCalls: sessionsManagementService.createCalls.length,
 			judgeBeforeCreateReturned,
 			judgeResource: service.getComparison(comparison.id)?.participants.find(participant => participant.role === SessionComparisonParticipantRole.Judge)?.sessionResource?.toString(),
 			judgeHarness: {
-				providerId: sessionsManagementService.createCalls[2].createOptions?.providerId,
-				sessionTypeId: sessionsManagementService.createCalls[2].createOptions?.sessionTypeId,
-				modelId: sessionsManagementService.createCalls[2].createOptions?.modelId,
-				modelConfiguration: sessionsManagementService.createCalls[2].createOptions?.modelConfiguration,
-				permissionLevel: sessionsManagementService.createCalls[2].createOptions?.permissionLevel,
-				isolationMode: sessionsManagementService.createCalls[2].createOptions?.isolationMode,
-				branch: sessionsManagementService.createCalls[2].createOptions?.branch,
-				metadata: sessionsManagementService.createCalls[2].createOptions?.metadata,
-				hasOnSessionCreated: typeof sessionsManagementService.createCalls[2].createOptions?.onSessionCreated === 'function',
+				providerId: sessionsManagementService.createCalls[3].createOptions?.providerId,
+				sessionTypeId: sessionsManagementService.createCalls[3].createOptions?.sessionTypeId,
+				modelId: sessionsManagementService.createCalls[3].createOptions?.modelId,
+				modelConfiguration: sessionsManagementService.createCalls[3].createOptions?.modelConfiguration,
+				permissionLevel: sessionsManagementService.createCalls[3].createOptions?.permissionLevel,
+				isolationMode: sessionsManagementService.createCalls[3].createOptions?.isolationMode,
+				branch: sessionsManagementService.createCalls[3].createOptions?.branch,
+				metadata: sessionsManagementService.createCalls[3].createOptions?.metadata,
+				hasOnSessionCreated: typeof sessionsManagementService.createCalls[3].createOptions?.onSessionCreated === 'function',
 			},
 			judgePrompt: {
-				hasComparisonId: sessionsManagementService.createCalls[2].options.query.includes(comparison.id),
-				readsComparison: sessionsManagementService.createCalls[2].options.query.includes('#readAttemptComparison'),
-				completesComparison: sessionsManagementService.createCalls[2].options.query.includes('#completeAttemptComparison'),
-				readsReportedValidationFirst: sessionsManagementService.createCalls[2].options.query.includes('Use `get_session_context` with the exact manifest target to identify validation that the attempt already completed.'),
-				doesNotRerunReportedValidation: sessionsManagementService.createCalls[2].options.query.includes('Do not rerun a validation category when the attempt report contains a clear result.'),
-				doesNotSubstituteValidation: sessionsManagementService.createCalls[2].options.query.includes('do not substitute a different validation category.'),
+				hasComparisonId: sessionsManagementService.createCalls[3].options.query.includes(comparison.id),
+				readsComparison: sessionsManagementService.createCalls[3].options.query.includes('#readAttemptComparison'),
+				completesComparison: sessionsManagementService.createCalls[3].options.query.includes('#completeAttemptComparison'),
+				readsReportedValidationFirst: sessionsManagementService.createCalls[3].options.query.includes('Use `get_session_context` with the exact manifest target to identify validation that the attempt already completed.'),
+				doesNotRerunReportedValidation: sessionsManagementService.createCalls[3].options.query.includes('Do not rerun a validation category when the attempt report contains a clear result.'),
+				doesNotSubstituteValidation: sessionsManagementService.createCalls[3].options.query.includes('do not substitute a different validation category.'),
 			},
 		}, {
-			createCalls: 3,
+			createCalls: 4,
 			judgeBeforeCreateReturned: 'test:/judge',
 			judgeResource: 'test:/judge',
 			judgeHarness: {
@@ -217,7 +234,7 @@ suite('SessionComparisonService', () => {
 					'agentHost/sessionComparison': {
 						id: hashSessionIdForTelemetry(comparison.id),
 						role: 'judge',
-						attemptCount: 2,
+						attemptCount: 3,
 					},
 				},
 				hasOnSessionCreated: true,

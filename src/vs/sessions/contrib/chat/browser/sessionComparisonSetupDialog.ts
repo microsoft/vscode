@@ -437,7 +437,6 @@ export class SessionComparisonSetupDialog extends Disposable {
 			const hasHarnesses = getHarnesses().length > 0;
 			const isValid = count >= 2 && hasPrompt && !workspaceError && hasHarnesses;
 			const startSessionsLabel = localize('sessionComparisonSetup.startSessionCount', "Start {0} sessions in parallel", count);
-			const startSessionsLabelWithIcon = localize('sessionComparisonSetup.startSessionCountWithIcon', "$(warning) {0}", startSessionsLabel);
 			if (confirmButton) {
 				confirmButton.element.hidden = true;
 				confirmButton.enabled = isValid;
@@ -448,7 +447,7 @@ export class SessionComparisonSetupDialog extends Disposable {
 			}
 			if (runButton) {
 				runButton.enabled = isValid;
-				runButton.label = startSessionsLabelWithIcon;
+				runButton.label = startSessionsLabel;
 			}
 			if (validationElement) {
 				validationElement.hidden = isValid;
@@ -1074,10 +1073,8 @@ export class SessionComparisonSetupDialog extends Disposable {
 			} else {
 				runButton = rowsDisposables.add(new Button(navigation, {
 					...defaultButtonStyles,
-					supportIcons: true,
 					ariaLabel: localize('sessionComparisonSetup.runAriaLabel', "Start the configured sessions in parallel"),
 				}));
-				runButton.element.classList.add('session-comparison-setup-run-button');
 				rowsDisposables.add(this.hoverService.setupDelayedHover(
 					runButton.element,
 					{
