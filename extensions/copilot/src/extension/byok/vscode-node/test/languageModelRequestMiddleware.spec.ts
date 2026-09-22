@@ -16,6 +16,7 @@ describe('LanguageModelRequestMiddlewareRegistry', () => {
 		url: 'https://gateway.example.com/v1/chat/completions',
 		providerGroup: 'Acme Premium',
 		requestInitiator: 'core',
+		sessionId: 'session-1',
 		cancellationToken: CancellationToken.None,
 	};
 

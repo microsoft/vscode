@@ -194,6 +194,7 @@ describe('CustomEndpointBYOKModelProvider', () => {
 				[new vscode.LanguageModelChatMessage(vscode.LanguageModelChatMessageRole.User, 'hello')],
 				{
 					requestInitiator: 'core',
+					sessionId: 'session-1',
 					tools: [],
 					toolMode: vscode.LanguageModelChatToolMode.Auto,
 				},
@@ -212,6 +213,7 @@ describe('CustomEndpointBYOKModelProvider', () => {
 					url: 'https://api.example.com/v1/chat/completions',
 					providerGroup: 'Acme',
 					requestInitiator: 'core',
+					sessionId: 'session-1',
 				}],
 				headers: {
 					'Content-Type': 'application/json',
@@ -223,6 +225,56 @@ describe('CustomEndpointBYOKModelProvider', () => {
 			});
 			// Context-size overrides clone the endpoint; the request-scoped headers must survive.
 			expect(endpoint?.cloneWithTokenOverride(1000).getExtraHeaders?.()).toEqual(endpoint?.getExtraHeaders?.());
+		});
+
+		it('falls back to the conversation id in the model options as the session id for requests from the chat participant', async () => {
+			const registry = accessor.get(ILanguageModelRequestMiddlewareRegistry);
+			const sessionIds: (string | undefined)[] = [];
+			disposables.add(registry.register({
+				selector: { vendors: ['customendpoint'] },
+				provideRequestHeaders: async ({ sessionId }) => {
+					sessionIds.push(sessionId);
+					return {};
+				},
+			}));
+			const provider = instaService.createInstance(TestCustomEndpointBYOKModelProvider, createStorageService());
+			const tokenSource = disposables.add(new vscode.CancellationTokenSource());
+			const [model] = await provider.provideLanguageModelChatInformation({
+				silent: true,
+				configuration: {
+					apiKey: 'test-api-key',
+					models: [{
+						id: 'session-model',
+						name: 'Session Model',
+						url: 'https://api.example.com',
+						maxInputTokens: 128000,
+						maxOutputTokens: 16000,
+						toolCalling: true,
+						vision: false,
+					}],
+				}
+			}, tokenSource.token);
+
+			for (const options of [
+				{ sessionId: 'session-1', modelOptions: { _conversationId: 'conversation-1' } },
+				{ modelOptions: { _conversationId: 'conversation-1' } },
+				{},
+			]) {
+				await provider.provideLanguageModelChatResponse(
+					model,
+					[new vscode.LanguageModelChatMessage(vscode.LanguageModelChatMessageRole.User, 'hello')],
+					{
+						requestInitiator: 'core',
+						tools: [],
+						toolMode: vscode.LanguageModelChatToolMode.Auto,
+						...options,
+					},
+					{ report: () => undefined },
+					tokenSource.token,
+				);
+			}
+
+			expect(sessionIds).toEqual(['session-1', 'conversation-1', undefined]);
 		});
 
 		it('keeps a credential scoped to its provider group when two groups share a URL', async () => {

@@ -89,6 +89,7 @@ describe('AzureBYOKModelProvider', () => {
 				[new vscode.LanguageModelChatMessage(vscode.LanguageModelChatMessageRole.User, 'hello')],
 				{
 					requestInitiator: 'core',
+					sessionId: 'session-1',
 					tools: [],
 					toolMode: vscode.LanguageModelChatToolMode.Auto,
 				},
@@ -108,6 +109,7 @@ describe('AzureBYOKModelProvider', () => {
 					url: 'https://my-resource.openai.azure.com/openai/deployments/gpt-4-deployment/chat/completions?api-version=2025-01-01-preview',
 					providerGroup: 'Azure Prod',
 					requestInitiator: 'core',
+					sessionId: 'session-1',
 				}],
 				headers: {
 					'Content-Type': 'application/json',

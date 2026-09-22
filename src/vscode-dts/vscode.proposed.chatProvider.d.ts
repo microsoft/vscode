@@ -29,6 +29,13 @@ declare module 'vscode' {
 		 * Whether encrypted thinking state should be included in the response.
 		 */
 		readonly includeEncryptedThinking?: boolean;
+
+		/**
+		 * The chat session the request belongs to. All requests made on behalf of
+		 * the same session carry the same id, and different sessions carry
+		 * different ids. `undefined` when the request is not made from a chat session.
+		 */
+		readonly sessionId?: string;
 	}
 
 	/**

@@ -6,6 +6,7 @@
 import { CancellationToken, commands, LanguageModelChatInformation, LanguageModelChatMessage, LanguageModelChatMessage2, LanguageModelChatProvider, LanguageModelResponsePart2, PrepareLanguageModelChatModelOptions, Progress, ProvideLanguageModelChatResponseOptions } from 'vscode';
 import { IConfigurationService } from '../../../platform/configuration/common/configurationService';
 import { IChatModelInformation, ModelSupportedEndpoint } from '../../../platform/endpoint/common/endpointProvider';
+import type { ExtensionLanguageModelRequestOptions } from '../../../platform/endpoint/vscode-node/extChatEndpoint';
 import { ILogService } from '../../../platform/log/common/logService';
 import { IFetcherService } from '../../../platform/networking/common/fetcherService';
 import { IExperimentationService } from '../../../platform/telemetry/common/nullExperimentationService';
@@ -117,12 +118,16 @@ export abstract class AbstractOpenAICompatibleLMProvider<T extends LanguageModel
 	 * endpoint for a request must call this before making the request.
 	 */
 	protected async applyRequestMiddleware(endpoint: OpenAIEndpoint, model: OpenAICompatibleLanguageModelChatInformation<T>, options: ProvideLanguageModelChatResponseOptions, token: CancellationToken): Promise<void> {
+		// Requests from the Copilot chat participant go through `vscode.lm` and carry the
+		// conversation id in the model options instead of the request options.
+		const internalModelOptions = options.modelOptions as ExtensionLanguageModelRequestOptions | undefined;
 		const requestHeaders = await this._requestMiddlewareRegistry.provideRequestHeaders({
 			vendor: this._id,
 			modelId: model.id,
 			url: endpoint.urlOrRequestMetadata,
 			providerGroup: model.providerGroup,
 			requestInitiator: options.requestInitiator,
+			sessionId: options.sessionId ?? internalModelOptions?._conversationId,
 			cancellationToken: token,
 		});
 		endpoint.applyRequestHeaders(requestHeaders);

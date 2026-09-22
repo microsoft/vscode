@@ -56,6 +56,18 @@ export interface CopilotExtensionApi {
 	 * }
 	 * ```
 	 *
+	 * {@link LanguageModelRequestContext.sessionId} identifies the chat session a
+	 * request belongs to, so requests can be grouped per chat on the receiving
+	 * side. For example, a LiteLLM gateway can attach them to one session:
+	 *
+	 * ```ts
+	 * api.registerLanguageModelRequestMiddleware({
+	 * 	selector: { vendors: ['customendpoint'] },
+	 * 	provideRequestHeaders: async ({ sessionId }) =>
+	 * 		sessionId ? { 'x-litellm-session-id': sessionId } : {},
+	 * });
+	 * ```
+	 *
 	 * Available since API version 2, i.e. `getAPI(2)`.
 	 *
 	 * @param middleware The middleware to register.
@@ -105,6 +117,13 @@ export interface LanguageModelRequestContext {
 	 * id of the extension that called `vscode.lm`.
 	 */
 	readonly requestInitiator: string;
+	/**
+	 * The chat session the request belongs to. Every request made on behalf of
+	 * the same chat session carries the same id, and a new chat gets a new id.
+	 * `undefined` when the request was not made from a chat session, e.g. for an
+	 * extension calling `vscode.lm` directly.
+	 */
+	readonly sessionId: string | undefined;
 	/**
 	 * Cancelled when the language model request is cancelled. Middleware should
 	 * stop work and may reject when this fires.

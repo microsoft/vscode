@@ -26,6 +26,8 @@ export interface LanguageModelRequestContext {
 	readonly providerGroup: string | undefined;
 	/** Who initiated the request, e.g. `core` for chat or an extension id for `vscode.lm` callers. */
 	readonly requestInitiator: string;
+	/** The chat session the request belongs to; `undefined` when the request was not made from a chat session. */
+	readonly sessionId: string | undefined;
 	/** Cancelled when the language model request is cancelled. */
 	readonly cancellationToken: CancellationToken;
 }
