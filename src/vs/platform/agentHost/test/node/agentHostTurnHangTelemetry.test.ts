@@ -30,6 +30,7 @@ import { AgentHostLocalTurns, IAgentHostLocalTurns } from '../../node/agentHostL
 import { AgentHostLocalCommands, IAgentHostLocalCommands } from '../../node/localCommands/localChatCommand.js';
 import { AgentHostChatContributions } from '../../node/agentHostChatContributionsService.js';
 import { registerBuiltInChatContributions } from '../../node/chatContributions/builtInChatContributions.js';
+import { AdditionalWorktreeLifecycleService, IAdditionalWorktreeLifecycleService } from '../../node/chatContributions/additionalWorktreeLifecycle/additionalWorktreeLifecycleService.js';
 import { ISessionWorkspaceConversionService } from '../../node/chatContributions/sessionWorkspaceConversion/sessionWorkspaceConversionService.js';
 import { IAgentHostProviderService } from '../../node/agentHostProviderService.js';
 import { createTestAgentHostProviderService } from './testAgentHostProviderService.js';
@@ -215,6 +216,7 @@ suite('AgentSideEffects — turn hang telemetry', () => {
 			requestWorkspaceTrust: async () => true,
 		}));
 		const sharedLocalTurns = new AgentHostLocalTurns(sessionDataService, logService);
+		const worktreeIsolation = createNoopWorktreeIsolation();
 		const services = new ServiceCollection(
 			[IAgentHostLocalTurns, sharedLocalTurns],
 			[ILogService, logService],
@@ -226,7 +228,8 @@ suite('AgentSideEffects — turn hang telemetry', () => {
 			[ITelemetryService, telemetryService],
 			[IAgentHostTerminalManager, disposables.add(new TestAgentHostTerminalManager())],
 			[ISessionDataService, sessionDataService],
-			[IAgentHostWorktreeIsolation, createNoopWorktreeIsolation()],
+			[IAgentHostWorktreeIsolation, worktreeIsolation],
+			[IAdditionalWorktreeLifecycleService, new AdditionalWorktreeLifecycleService(sessionDataService, worktreeIsolation)],
 			[IAgentHostClientConnectionService, clientConnections],
 			[ISessionWorkspaceConversionService, {
 				_serviceBrand: undefined,
@@ -378,6 +381,30 @@ suite('AgentSideEffects — turn hang telemetry', () => {
 			toolSourceKind: 'agentHost',
 			inFlightToolCallCount: 1,
 		}]);
+	});
+
+	test('Fusion phase progress does not count as an in-flight tool for hang classification', async () => {
+		await runWithFakedTimers({}, async () => {
+			setupSession();
+			startTurn('turn-fusion');
+			fire({
+				type: ActionType.ChatToolCallStart, turnId: 'turn-fusion',
+				toolCallId: 'fusion:workflow:phase', toolName: 'hydrafusion_phase', displayName: 'Main pass',
+				_meta: { toolKind: 'fusionPhase' },
+			});
+			fire({
+				type: ActionType.ChatToolCallReady, turnId: 'turn-fusion', toolCallId: 'fusion:workflow:phase',
+				invocationMessage: 'Main pass', confirmed: ToolCallConfirmationReason.NotNeeded,
+				_meta: { toolKind: 'fusionPhase' },
+			});
+			await timeout(TURN_HANG_THRESHOLD_MS);
+		});
+
+		assert.deepStrictEqual(hangEvents().map(event => ({
+			hangReason: event.data.hangReason,
+			toolId: event.data.toolId,
+			inFlightToolCallCount: event.data.inFlightToolCallCount,
+		})), [{ hangReason: 'stalledAfterProgress', toolId: undefined, inFlightToolCallCount: 0 }]);
 	});
 
 	test('tags a silent long-running tool call as runningTool, then reports a real stall once it completes', async () => {

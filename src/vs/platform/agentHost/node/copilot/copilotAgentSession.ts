@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { CopilotSession, CurrentToolMetadata, ElicitationContext, ElicitationFieldValue, ElicitationResult, ElicitationSchema, ElicitationSchemaField, ExitPlanModeCompletedData, ExitPlanModeRequest, ExitPlanModeResult, JsonValue, McpServersLoadedServer, MessageOptions, PermissionMode, PermissionAssistedApproval, PermissionRequest, PermissionRequestResult, PermissionResult, SessionConfig, SessionEvent, SessionHooks, SessionMode as CopilotSdkMode, Tool, ToolResultObject, McpServerStatus as SdkMcpServerStatus } from '@github/copilot-sdk';
+import type { CopilotSession, CurrentToolMetadata, ElicitationContext, ElicitationFieldValue, ElicitationResult, ElicitationSchema, ElicitationSchemaField, ExitPlanModeCompletedData, ExitPlanModeRequest, ExitPlanModeResult, JsonValue, McpServersLoadedServer, MessageOptions, PermissionMode, PermissionAssistedApproval, PermissionRequest, PermissionRequestResult, PermissionResult, SessionConfig, SessionEvent, SessionEventPayload, SessionHooks, SessionMode as CopilotSdkMode, Tool, ToolResultObject, McpServerStatus as SdkMcpServerStatus } from '@github/copilot-sdk';
 import { realpath as fsRealpath } from 'fs';
 import { cp, rm } from 'fs/promises';
 import { promisify } from 'util';
@@ -88,6 +88,8 @@ import { buildChatErrorInfoFromCopilotSdkFields } from './copilotSdkChatError.js
 import { McpCustomizationController, type ISdkMcpServer } from '../shared/mcpCustomizationController.js';
 import { getSdkMcpServerEnablement, resolveCustomizationEnablement, targetForMcpServer } from '../shared/customizationEnablementGate.js';
 import { appendSdkToolResultContent, mapSessionEvents } from './mapSessionEvents.js';
+import { CopilotFusionProgress, type CopilotFusionEvent, type ICopilotFusionProgressUpdate } from './copilotFusionProgress.js';
+import { getFusionEventKey, getFusionEventSdkTurnId } from './copilotFusionEventIdentity.js';
 import { addAttachmentDisplayKindToMimeType, addSimpleAttachmentDisplayKindToMimeType } from './copilotAttachmentUtils.js';
 import { buildPendingEditContentUri } from './pendingEditContentStore.js';
 import { IAgentHostCustomizationEnablementService } from '../agentHostCustomizationEnablementService.js';
@@ -705,6 +707,8 @@ class CopilotTurn extends Disposable {
 	/** Current reasoning response part IDs for this turn, keyed by `parentToolCallId ?? ''`. */
 	readonly reasoningPartIds = new Map<string, string>();
 
+	readonly toolTitles = new Map<string, string>();
+
 	/**
 	 * Per-turn tool-call aggregate accumulated across the turn's `assistant.message` rounds (main
 	 * agent only), for the restricted `toolCallDetails` telemetry. `toolCounts` is keyed by tool name.
@@ -1186,8 +1190,27 @@ export class CopilotAgentSession extends Disposable {
 	 */
 	private readonly _pendingMcpSamplings = new Set<string>();
 
-	/** Tracks whether a non-empty activity has been published, so we only emit a clear when needed. */
-	private _hasActivity = false;
+	private readonly _fusionProgress = new CopilotFusionProgress();
+	/** Retains workflow ownership across turn resets because steering can reassign an SDK turn id. */
+	private readonly _fusionEventTurnIds = new Map<string, string>();
+	private readonly _reassignedFusionSdkTurnIds = new Set<string>();
+	private readonly _pendingFusionEvents: CopilotFusionEvent[] = [];
+	private _requiresFusionEventOwnership = false;
+	private _fusionTurnCancelled = false;
+	private _hasFusionRootTurnBoundary = false;
+	private readonly _activities: Record<'intent' | 'fusion', string | undefined> = { intent: undefined, fusion: undefined };
+	private _publishedActivity: string | undefined;
+	/**
+	 * Provisional Fusion tool starts held back from the transcript until a
+	 * permission request has to surface the tool, keyed by tool call id.
+	 */
+	private readonly _provisionalFusionToolStarts = new Map<string, SessionEventPayload<'tool.execution_start'>>();
+	/**
+	 * Provisional Fusion tool calls that were surfaced for confirmation and so
+	 * already own their lifecycle; the committed re-emission is a duplicate.
+	 */
+	private readonly _surfacedProvisionalFusionToolCallIds = new Set<string>();
+	private _surfaceProvisionalFusionToolStart: ((e: SessionEventPayload<'tool.execution_start'>) => void) | undefined;
 
 	/**
 	 * Last SDK-reported MCP status logged for each server (keyed by server
@@ -1458,6 +1481,9 @@ export class CopilotAgentSession extends Disposable {
 		if (activeSdkTurnId && turn) {
 			turn.activeSdkTurnId = activeSdkTurnId;
 			turn.sdkTurnIds.add(activeSdkTurnId);
+		}
+		if (activeSdkTurnId) {
+			this._recordHostSdkTurn(activeSdkTurnId, newTurnId);
 		}
 	}
 
@@ -1854,6 +1880,12 @@ export class CopilotAgentSession extends Disposable {
 	 * response part. The turn becomes `running` on the first SDK event.
 	 */
 	resetTurnState(turnId: string, senderClientId?: string, clientType = AgentHostClientType.Unknown, clientContext = createUnknownAgentHostClientTelemetryContext(clientType)): void {
+		this._clearPendingFusionEvents();
+		this._fusionTurnCancelled = false;
+		this._hasFusionRootTurnBoundary = false;
+		this._fusionProgress.reset();
+		this._clearProvisionalFusionToolCalls();
+		this._clearActivity();
 		this._detectInterruptedTurnOnRestore = false;
 		this._streamingToolCalls.clear();
 		this._streamingToolDisplaySchedulers.clearAndDisposeAll();
@@ -1979,6 +2011,11 @@ export class CopilotAgentSession extends Disposable {
 	 */
 	private _clearActiveTurn(): void {
 		const turn = this._currentTurn.value;
+		this._clearPendingFusionEvents();
+		this._hasFusionRootTurnBoundary = false;
+		this._fusionProgress.reset();
+		this._clearProvisionalFusionToolCalls();
+		this._clearActivity();
 		if (turn) {
 			this._cacheTokenUsage(turn.id, turn.observedTokenUsage.snapshot());
 		}
@@ -3559,6 +3596,9 @@ export class CopilotAgentSession extends Disposable {
 		const resumingTurn = this._resumingTurnAwaitingProviderStart;
 		const abortTarget = abortingTurn ?? resumingTurn;
 		this._abortingTurn = abortTarget;
+		if (abortTarget) {
+			this._cancelFusionEvents(abortTarget.id);
+		}
 		if (abortingTurn) {
 			this._dropLateRootTurnEvents = true;
 		}
@@ -3614,6 +3654,9 @@ export class CopilotAgentSession extends Disposable {
 				.then(() => this._disposeShellInitScript());
 		}
 		super.dispose();
+		this._pendingFusionEvents.length = 0;
+		this._reassignedFusionSdkTurnIds.clear();
+		this._fusionEventTurnIds.clear();
 	}
 
 	/**
@@ -4048,7 +4091,7 @@ export class CopilotAgentSession extends Disposable {
 				? request.toolName
 				: undefined;
 			const isShellRequest = request.kind === 'shell' || customShellToolName !== undefined;
-			const trackedToolName = this._activeToolCalls.get(toolCallId)?.toolName;
+			const trackedToolName = this._activeToolCalls.get(toolCallId)?.toolName ?? this._provisionalFusionToolStarts.get(toolCallId)?.data.toolName;
 			const shellToolName = request.kind === 'shell'
 				? trackedToolName
 				: customShellToolName;
@@ -4110,6 +4153,11 @@ export class CopilotAgentSession extends Disposable {
 				return { kind: 'reject' };
 			}
 
+			// A tool from a provisional Fusion phase is hidden until it needs
+			// the user; show it now so the confirmation has a row to land on
+			// and its completion can close that same row.
+			this._surfaceProvisionalFusionToolCall(toolCallId);
+
 			const isNewFile = edits?.items.some(edit => !edit.before && !!edit.after);
 			const { confirmationTitle, invocationMessage, toolInput, permissionKind, permissionPath } = getPermissionDisplay(request, this._workingDirectory, isNewFile, this._appliedAdditionalDirectories);
 
@@ -4130,9 +4178,10 @@ export class CopilotAgentSession extends Disposable {
 					status: ToolCallStatus.PendingConfirmation,
 					toolCallId,
 					toolName,
-					displayName: getToolDisplayName(toolName),
-					contributor: trackedToolCall?.contributor,
+					displayName: getToolDisplayName(toolName, request.kind === 'mcp' ? request : undefined),
+					contributor: trackedToolCall?.contributor ?? this._getToolCallContributor(toolName, undefined),
 					intention: trackedToolCall?.intention,
+					_meta: !trackedToolCall && isShellRequest ? toToolCallMeta({ toolKind: 'terminal', language: shellLanguage }) : undefined,
 					invocationMessage,
 					toolInput,
 					confirmationTitle,
@@ -5153,6 +5202,13 @@ export class CopilotAgentSession extends Disposable {
 				}
 			}
 			if (this._turnId) {
+				this._hasFusionRootTurnBoundary = true;
+				if (e.data.turnId) {
+					this._recordHostSdkTurn(e.data.turnId, this._turnId);
+				}
+				if (e.data.interactionId) {
+					this._hostTurnIdsByInteractionId.set(e.data.interactionId, this._turnId);
+				}
 				this._databaseRef.object.setTurnEventId(this._turnId, e.id);
 				this._currentTurn.value?.completeEventId(e.id);
 			}
@@ -5224,10 +5280,6 @@ export class CopilotAgentSession extends Disposable {
 			// turn, the live state is up to date and we skip. Only emit a fresh
 			// part when no deltas preceded the message (e.g. text after tool calls
 			// where the SDK delivered the full message at once).
-			//
-			// Other fields (toolRequests, reasoningText, encryptedContent) are
-			// only used for history reconstruction and live tool calls fire their
-			// own tool_start events, so we can safely drop them here.
 			if (this._shouldDropUnmappedSubagentEvent(e, 'assistant.message')) {
 				return;
 			}
@@ -5255,6 +5307,11 @@ export class CopilotAgentSession extends Disposable {
 				}, parentToolCallId);
 			}
 			if (e.data.toolRequests?.length) {
+				for (const request of e.data.toolRequests) {
+					if (request.toolTitle) {
+						this._currentTurn.value?.toolTitles.set(request.toolCallId, request.toolTitle);
+					}
+				}
 				// Wait for the full message boundary; clearing on an earlier tool delta would duplicate assembled markdown.
 				this._beginToolCallRound(parentToolCallId);
 			}
@@ -5360,10 +5417,12 @@ export class CopilotAgentSession extends Disposable {
 			this._scheduleStreamingToolCallDisplay(e.data.toolCallId);
 		}));
 
-		this._register(wrapper.onToolStart(e => {
+		const handleToolStart = (e: SessionEventPayload<'tool.execution_start'>): void => {
 			if (!e.agentId && this._shouldDropLateRootTurnEvent('tool.execution_start')) {
 				return;
 			}
+			const toolTitle = this._currentTurn.value?.toolTitles.get(e.data.toolCallId);
+			this._currentTurn.value?.toolTitles.delete(e.data.toolCallId);
 			if (isHiddenTool(e.data.toolName)) {
 				this._streamingToolDisplaySchedulers.deleteAndDispose(e.data.toolCallId);
 				this._streamingToolCalls.delete(e.data.toolCallId);
@@ -5382,7 +5441,7 @@ export class CopilotAgentSession extends Disposable {
 			if (stripRedundantCdPrefix(e.data.toolName, parameters, this._workingDirectory)) {
 				toolArgs = tryStringify(parameters);
 			}
-			const displayName = getToolDisplayName(e.data.toolName);
+			const displayName = getToolDisplayName(e.data.toolName, { toolTitle, mcpToolName: e.data.mcpToolName });
 			const streamed = this._streamingToolCalls.get(e.data.toolCallId);
 			this._streamingToolDisplaySchedulers.deleteAndDispose(e.data.toolCallId);
 			if (streamed?.started && streamed.displayedInputLength < streamed.input.length) {
@@ -5535,9 +5594,18 @@ export class CopilotAgentSession extends Disposable {
 				confirmed: ToolCallConfirmationReason.NotNeeded,
 				_meta: toToolCallMeta(clientToolAutoApproved ? { ...meta, autoApproveBySetting: true } : meta),
 			}, parentToolCallId);
+		};
+		this._surfaceProvisionalFusionToolStart = handleToolStart;
+		this._register(wrapper.onToolStart(e => {
+			if (this._surfacedProvisionalFusionToolCallIds.has(e.data.toolCallId)) {
+				// The committed re-emission of a tool call already shown from its provisional phase.
+				this._logService.trace(`[Copilot:${sessionId}] Ignoring committed Fusion tool start already surfaced: ${e.data.toolCallId}`);
+				return;
+			}
+			handleToolStart(e);
 		}));
 
-		this._register(wrapper.onToolComplete(e => {
+		const handleToolComplete = (e: SessionEventPayload<'tool.execution_complete'>): void => {
 			this._approvedDuplicablePermissionSignatures.delete(e.data.toolCallId);
 			const tracked = this._activeToolCalls.get(e.data.toolCallId);
 			if (!tracked) {
@@ -5672,6 +5740,33 @@ export class CopilotAgentSession extends Disposable {
 				}
 			})().catch(err => this._logService.error(`[Copilot:${sessionId}] Failed to complete tool call`, err));
 			turn?.trackToolCompletion(completion);
+		};
+		this._register(wrapper.onToolComplete(e => {
+			if (this._surfacedProvisionalFusionToolCallIds.delete(e.data.toolCallId) && !this._activeToolCalls.has(e.data.toolCallId)) {
+				this._logService.trace(`[Copilot:${sessionId}] Ignoring committed Fusion tool completion already surfaced: ${e.data.toolCallId}`);
+				return;
+			}
+			handleToolComplete(e);
+		}));
+
+		this._register(wrapper.onProvisionalFusionToolEvent(e => {
+			if (e.type === 'tool.execution_start') {
+				if (this._surfacedProvisionalFusionToolCallIds.has(e.data.toolCallId)) {
+					return;
+				}
+				this._provisionalFusionToolStarts.set(e.data.toolCallId, e);
+				if (this._streamingToolCalls.get(e.data.toolCallId)?.started) {
+					// `assistant.tool_call_delta` carries no Fusion attribution, so a
+					// provisional tool that streamed its input already has a visible row.
+					this._surfaceProvisionalFusionToolCall(e.data.toolCallId);
+				}
+				return;
+			}
+			this._provisionalFusionToolStarts.delete(e.data.toolCallId);
+			if (this._surfacedProvisionalFusionToolCallIds.has(e.data.toolCallId)) {
+				// Keep the id so the committed re-emission is still recognized as a duplicate.
+				handleToolComplete(e);
+			}
 		}));
 
 		this._register(wrapper.onIdle(async e => {
@@ -5679,15 +5774,12 @@ export class CopilotAgentSession extends Disposable {
 			const abortingTurn = this._abortingTurn;
 			this._abortingTurn = undefined;
 			if (e.data.aborted) {
+				if (!e.agentId) {
+					this._cancelFusionEvents(abortingTurn?.id);
+				}
 				this._resetAbortToken();
 			}
-			if (this._hasActivity) {
-				this._hasActivity = false;
-				this._emitAction({
-					type: ActionType.SessionActivityChanged,
-					activity: undefined,
-				});
-			}
+			this._clearActivity();
 			const turn = this._currentTurn.value;
 			if (!turn) {
 				return;
@@ -6781,12 +6873,180 @@ export class CopilotAgentSession extends Disposable {
 		}));
 	}
 
+	private _publishActivity(source: 'intent' | 'fusion', activity: string | undefined): void {
+		this._activities[source] = activity;
+		const effectiveActivity = this._activities.fusion ?? this._activities.intent;
+		if (effectiveActivity !== this._publishedActivity) {
+			this._publishedActivity = effectiveActivity;
+			this._emitAction({ type: ActionType.SessionActivityChanged, activity: effectiveActivity });
+		}
+	}
+
+	private _clearActivity(): void {
+		this._activities.intent = undefined;
+		this._publishActivity('fusion', undefined);
+	}
+
+	private _emitFusionProgress(update: ICopilotFusionProgressUpdate, trustedRootTurn = false): void {
+		const turn = this._currentTurn.value;
+		if (!turn) {
+			return;
+		}
+		if (update.part) {
+			this._beginToolCallRound(undefined);
+			this._emitAction({ type: ActionType.ChatResponsePart, turnId: turn.id, part: update.part }, undefined, trustedRootTurn);
+		}
+		if (update.phase) {
+			const { toolCall, isNew } = update.phase;
+			if (isNew) {
+				this._beginToolCallRound(undefined);
+				this._emitAction({
+					type: ActionType.ChatToolCallStart, turnId: turn.id, toolCallId: toolCall.toolCallId,
+					toolName: toolCall.toolName, displayName: toolCall.displayName, _meta: toolCall._meta,
+				}, undefined, trustedRootTurn);
+			}
+			// A terminal event can be the first observation of a phase. It still
+			// needs to enter Running before Complete; repeat Ready refreshes live metadata.
+			if (isNew || toolCall.status === ToolCallStatus.Running) {
+				this._emitAction({
+					type: ActionType.ChatToolCallReady, turnId: turn.id, toolCallId: toolCall.toolCallId,
+					invocationMessage: toolCall.invocationMessage, confirmed: ToolCallConfirmationReason.NotNeeded,
+					_meta: toolCall._meta,
+				}, undefined, trustedRootTurn);
+			}
+			if (toolCall.status === ToolCallStatus.Completed) {
+				this._emitAction({
+					type: ActionType.ChatToolCallComplete, turnId: turn.id, toolCallId: toolCall.toolCallId,
+					result: { success: toolCall.success, pastTenseMessage: toolCall.pastTenseMessage, content: toolCall.content },
+					_meta: toolCall._meta,
+				}, undefined, trustedRootTurn);
+			}
+		}
+		this._publishActivity('fusion', update.activity);
+	}
+
+	private _recordHostSdkTurn(sdkTurnId: string, hostTurnId: string): void {
+		const previous = this._hostTurnIdsBySdkTurnId.get(sdkTurnId);
+		if (previous !== undefined && previous !== hostTurnId) {
+			this._reassignedFusionSdkTurnIds.add(sdkTurnId);
+		}
+		this._hostTurnIdsBySdkTurnId.set(sdkTurnId, hostTurnId);
+		for (const event of this._pendingFusionEvents.splice(0)) {
+			this._acceptFusionEvent(event);
+		}
+	}
+
+	private _clearPendingFusionEvents(): void {
+		for (const event of this._pendingFusionEvents) {
+			// Abandoned correlations must not be revived by a later request's SDK mapping.
+			this._fusionEventTurnIds.set(getFusionEventKey(event), this._turnId);
+		}
+		this._pendingFusionEvents.length = 0;
+	}
+
+	private _clearProvisionalFusionToolCalls(): void {
+		this._provisionalFusionToolStarts.clear();
+		this._surfacedProvisionalFusionToolCallIds.clear();
+	}
+
+	/**
+	 * Promotes a held-back provisional Fusion tool start into the transcript
+	 * because its permission request is about to be shown. Returns false when
+	 * the tool call is not a held-back provisional start.
+	 */
+	private _surfaceProvisionalFusionToolCall(toolCallId: string): boolean {
+		const start = this._provisionalFusionToolStarts.get(toolCallId);
+		if (!start || this._activeToolCalls.has(toolCallId) || !this._surfaceProvisionalFusionToolStart) {
+			return false;
+		}
+		this._provisionalFusionToolStarts.delete(toolCallId);
+		this._surfacedProvisionalFusionToolCallIds.add(toolCallId);
+		this._logService.info(`[Copilot:${this.sessionId}] Surfacing provisional Fusion tool call for confirmation: ${toolCallId}`);
+		this._surfaceProvisionalFusionToolStart(start);
+		return true;
+	}
+
+	private _cancelFusionEvents(turnId = this._turnId): void {
+		this._requiresFusionEventOwnership = true;
+		if (turnId === this._turnId) {
+			this._fusionTurnCancelled = true;
+			this._hasFusionRootTurnBoundary = false;
+			this._clearPendingFusionEvents();
+		}
+	}
+
+	private _bufferFusionEvent(event: CopilotFusionEvent): void {
+		if (this._pendingFusionEvents.length >= 256) {
+			this._logService.trace(`[Copilot:${this.sessionId}] Fusion ownership buffer full; dropping ${event.type}`);
+			return;
+		}
+		// Keep progress metadata, never private model output or provider error details.
+		if (event.type === 'assistant.fusion_phase_completed') {
+			this._pendingFusionEvents.push({
+				...event,
+				data: { ...event.data, content: '', verdict: event.data.verdict === 'accept' || event.data.verdict === 'reject' ? event.data.verdict : null },
+			});
+		} else if (event.type === 'assistant.fusion_phase_failed') {
+			this._pendingFusionEvents.push({ ...event, data: { ...event.data, errorMessage: undefined } });
+		} else {
+			this._pendingFusionEvents.push(event);
+		}
+	}
+
+	private _acceptFusionEvent(event: CopilotFusionEvent): void {
+		const turn = this._currentTurn.value;
+		if (!turn || event.agentId || this._fusionTurnCancelled) {
+			return;
+		}
+		const key = getFusionEventKey(event);
+		const sdkTurnId = getFusionEventSdkTurnId(event);
+		let ownerTurnId = this._fusionEventTurnIds.get(key);
+		if (ownerTurnId === undefined && sdkTurnId) {
+			if (this._reassignedFusionSdkTurnIds.has(sdkTurnId)) {
+				this._logService.trace(`[Copilot:${this.sessionId}] Ignoring Fusion event with ambiguous SDK turn ownership: ${event.type}`);
+				return;
+			}
+			ownerTurnId = this._hostTurnIdsBySdkTurnId.get(sdkTurnId);
+		}
+		// Routing has no SDK turn ID: only a start observed after the root boundary may claim a new attempt.
+		if (ownerTurnId === undefined && event.type === 'session.fusion_route_started' && this._hasFusionRootTurnBoundary) {
+			ownerTurnId = turn.id;
+		}
+		if (ownerTurnId === undefined && this._requiresFusionEventOwnership) {
+			if (sdkTurnId || this._pendingFusionEvents.some(pending => getFusionEventKey(pending) === key)) {
+				this._bufferFusionEvent(event);
+			} else {
+				this._logService.trace(`[Copilot:${this.sessionId}] Ignoring Fusion event without request ownership after cancellation: ${event.type}`);
+			}
+			return;
+		}
+		this._fusionEventTurnIds.set(key, ownerTurnId ?? turn.id);
+		if (ownerTurnId !== undefined && ownerTurnId !== turn.id) {
+			this._logService.trace(`[Copilot:${this.sessionId}] Ignoring Fusion event for an earlier turn: ${event.type}`);
+			return;
+		}
+		if (this._shouldDropLateRootTurnEvent(event.type, true)) {
+			return;
+		}
+		const update = this._fusionProgress.accept(event);
+		if (update) {
+			this._emitFusionProgress(update);
+		}
+	}
+
 	private _subscribeToSdkEvents(): void {
 		const wrapper = this._wrapper;
 		const sessionId = this.sessionId;
 
+		this._register(wrapper.onFusionEvent(event => this._acceptFusionEvent(event)));
+
 		this._register(wrapper.onUnhandledEvent(e => {
-			this._logService.trace(`[Copilot:${sessionId}] Unhandled SDK event: ${safeStringify(e)}`);
+			// Fusion handoffs/internal events can contain model-visible prompts,
+			// including event types not yet represented in the SDK union.
+			const loggedEvent = e.type.startsWith('session.fusion_') || e.type.startsWith('assistant.fusion_')
+				? { type: e.type, id: e.id, timestamp: e.timestamp, parentId: e.parentId, ephemeral: e.ephemeral, agentId: e.agentId }
+				: e;
+			this._logService.trace(`[Copilot:${sessionId}] Unhandled SDK event: ${safeStringify(loggedEvent)}`);
 		}));
 
 		this._register(wrapper.onSessionStart(e => {
@@ -6909,6 +7169,8 @@ export class CopilotAgentSession extends Disposable {
 				if (this._currentTurn.value) {
 					this._currentTurn.value.activeSdkTurnId = e.data.turnId;
 					this._currentTurn.value.sdkTurnIds.add(e.data.turnId);
+					this._hasFusionRootTurnBoundary = true;
+					this._recordHostSdkTurn(e.data.turnId, this._currentTurn.value.id);
 					if (e.data.interactionId) {
 						this._currentTurn.value.interactionIds.add(e.data.interactionId);
 					}
@@ -6936,15 +7198,7 @@ export class CopilotAgentSession extends Disposable {
 
 		this._register(wrapper.onIntent(e => {
 			this._logService.trace(`[Copilot:${sessionId}] Intent: ${e.data.intent}`);
-			const activity = e.data.intent || undefined;
-			if (activity === undefined && !this._hasActivity) {
-				return;
-			}
-			this._hasActivity = activity !== undefined;
-			this._emitAction({
-				type: ActionType.SessionActivityChanged,
-				activity,
-			});
+			this._publishActivity('intent', e.data.intent || undefined);
 		}));
 
 		this._register(wrapper.onReasoning(e => {
@@ -6964,6 +7218,14 @@ export class CopilotAgentSession extends Disposable {
 
 		this._register(wrapper.onAbort(e => {
 			this._logService.trace(`[Copilot:${sessionId}] Aborted: ${e.data.reason}`);
+			if (!e.agentId) {
+				this._cancelFusionEvents();
+				const update = this._fusionProgress.interrupt(e.timestamp);
+				this._clearActivity();
+				if (update) {
+					this._emitFusionProgress(update, true);
+				}
+			}
 			this._cancelActiveRepoInfoTelemetry();
 			const turn = this._currentTurn.value;
 			if (turn?.isRunning) {

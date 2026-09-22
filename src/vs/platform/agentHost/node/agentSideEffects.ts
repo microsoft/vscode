@@ -22,7 +22,7 @@ import { AgentHostClientType } from '../common/agentHostClientInfo.js';
 import { isRenameChatTool } from '../common/serverToolNames.js';
 import { AgentHostLaunchKind, createUnknownAgentHostClientTelemetryContext, type IAgentHostClientTelemetryContext } from '../common/agentHostTelemetry.js';
 import { AgentSession, AgentSignal, IAgent, IAgentChatContext, IAgentToolPendingConfirmationSignal, type AgentSubagentTaskModelSource, type IAgentModelCallCompletedSignal, type IAgentModelCallFinishedSignal } from '../common/agent.js';
-import { readToolCallMeta, toToolCallMeta } from '../common/meta/agentToolCallMeta.js';
+import { isPresentationOnlyToolCall, readToolCallMeta, toToolCallMeta } from '../common/meta/agentToolCallMeta.js';
 import { isAgentMergeMessage } from '../common/meta/agentMergeMessageMeta.js';
 
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
@@ -53,6 +53,7 @@ import {
 	SessionLifecycle,
 	CustomizationType,
 	ToolCallStatus,
+	ToolCallConfirmationReason,
 	ToolResultContentType,
 	type ErrorInfo,
 	type ISessionWithDefaultChat,
@@ -196,6 +197,8 @@ export class AgentSideEffects extends Disposable {
 	private readonly _toolCallAgents = new Map<string, string>();
 	/** Managed confirmations are human-only and must never seed host-side session permissions. */
 	private readonly _managedApprovalToolCalls = new Set<string>();
+	/** Tool entries created for a real permission request before the provider publishes its start. */
+	private readonly _permissionToolStarts = new Map<string, string>();
 	private readonly _resumedTurnExecutions = new Map<string, IResumedTurnExecution>();
 	private _lastAgentInfos: readonly AgentInfo[] = [];
 
@@ -354,7 +357,7 @@ export class AgentSideEffects extends Disposable {
 					void this._checkpointService.discardTurnStartCheckpoint(URI.parse(sessionChannel), URI.parse(envelope.channel), envelope.action.turnId).catch(() => undefined);
 				}
 			}
-			if (!envelope.origin && envelope.action.type === ActionType.ChatToolCallComplete) {
+			if (!envelope.origin && envelope.action.type === ActionType.ChatToolCallComplete && !isPresentationOnlyToolCall(envelope.action)) {
 				const action = envelope.action;
 				// Chat-action envelopes are emitted on the chat channel URI;
 				// agents are keyed by session URI, so resolve back to the
@@ -787,6 +790,20 @@ export class AgentSideEffects extends Disposable {
 			}
 		}
 
+		if ((action.type === ActionType.ChatToolCallStart || (action.type === ActionType.ChatToolCallReady && action.confirmed === ToolCallConfirmationReason.NotNeeded))
+			&& this._permissionToolStarts.get(`${sessionKey}\0${action.toolCallId}`) === action.turnId) {
+			this._logService.trace(`[AgentSideEffects] Tool lifecycle already represented by its permission request: ${action.type}, ${action.toolCallId}`);
+			return;
+		}
+		if ((action.type === ActionType.ChatToolCallStart || action.type === ActionType.ChatToolCallReady || action.type === ActionType.ChatToolCallComplete)
+			&& isPresentationOnlyToolCall(action)) {
+			this._stateManager.dispatchServerAction(sessionKey, action);
+			this._turnTracker.markActivity(sessionKey, turnId, action.type);
+			if (action.type === ActionType.ChatToolCallStart) {
+				this._turnTracker.markFirstProgress(sessionKey, turnId);
+			}
+			return;
+		}
 		if (action.type === ActionType.ChatToolCallStart && agent) {
 			this._toolCallAgents.set(`${sessionKey}:${action.toolCallId}`, agent.id);
 			const modelContext = this._turnTracker.getModelTelemetryContext(sessionKey, action.turnId);
@@ -969,6 +986,11 @@ export class AgentSideEffects extends Disposable {
 	 * duplicate terminal action that ended nothing.
 	 */
 	private _completeTurn(channel: string, turnId: string, result: AgentHostTurnResult, failure?: IAgentHostTurnFailure): boolean {
+		for (const [key, ownerTurnId] of this._permissionToolStarts) {
+			if (key.startsWith(`${channel}\0`) && ownerTurnId === turnId) {
+				this._permissionToolStarts.delete(key);
+			}
+		}
 		const sessionUri = isAhpChatChannel(channel) ? parseRequiredSessionUriFromChatUri(channel) : channel;
 		const folderCount = this._agentConfigService.getEffectiveWorkingDirectories(sessionUri)?.length ?? 0;
 		return this._turnTracker.turnCompleted(channel, turnId, result, failure, { isMultiRoot: folderCount > 1, folderCount });
@@ -1240,6 +1262,11 @@ export class AgentSideEffects extends Disposable {
 	clearChannelTelemetry(channel: ProtocolURI): void {
 		this._toolCallTracker.clearSession(channel);
 		this._turnTracker.clearSession(channel);
+		for (const key of this._permissionToolStarts.keys()) {
+			if (key.startsWith(`${channel}\0`)) {
+				this._permissionToolStarts.delete(key);
+			}
+		}
 		const prefix = `${channel}\0`;
 		for (const key of this._resumedTurnExecutions.keys()) {
 			if (key.startsWith(prefix)) {
@@ -1334,7 +1361,13 @@ export class AgentSideEffects extends Disposable {
 		const autoApproval = e.managedApprovalRequired || forbiddenSnapshotWrite
 			? undefined
 			: await this._permissionManager.getAutoApproval(approvalEvent, sessionKey);
-		const part = this._stateManager.getSessionState(sessionKey)?.activeTurn?.responseParts.find(part => part.kind === ResponsePartKind.ToolCall && part.toolCall.toolCallId === e.state.toolCallId);
+		const activeTurn = this._stateManager.getSessionState(sessionKey)?.activeTurn;
+		if (turnId && activeTurn?.id !== turnId) {
+			this._logService.warn(`[AgentSideEffects] Rejecting permission after its turn ended: turnId=${turnId}, toolCallId=${e.state.toolCallId}`);
+			agent.respondToPermissionRequest(e.state.toolCallId, false);
+			return;
+		}
+		const part = activeTurn?.responseParts.find(part => part.kind === ResponsePartKind.ToolCall && part.toolCall.toolCallId === e.state.toolCallId);
 		const toolCall = part?.kind === ResponsePartKind.ToolCall ? part.toolCall : undefined;
 		if (toolCall
 			&& toolCall.status !== ToolCallStatus.Streaming
@@ -1359,14 +1392,24 @@ export class AgentSideEffects extends Disposable {
 			agent.respondToPermissionRequest(e.state.toolCallId, false);
 			return;
 		}
+		const clientShouldAutoApprove = autoApproval !== undefined
+			&& contributor?.kind === ToolCallContributorKind.Client
+			&& !!e.state.confirmationTitle;
+		if (!turnId) {
+			const approved = autoApproval !== undefined && !clientShouldAutoApprove;
+			if (!approved) {
+				this._logService.warn(`[AgentSideEffects] Rejecting permission without an active turn: toolCallId=${e.state.toolCallId}`);
+			}
+			this._toolCallAgents.delete(toolCallKey);
+			this._managedApprovalToolCalls.delete(toolCallKey);
+			agent.respondToPermissionRequest(e.state.toolCallId, approved);
+			return;
+		}
 		if (e.managedApprovalRequired) {
 			this._managedApprovalToolCalls.add(toolCallKey);
 		} else {
 			this._managedApprovalToolCalls.delete(toolCallKey);
 		}
-		const clientShouldAutoApprove = autoApproval !== undefined
-			&& contributor?.kind === ToolCallContributorKind.Client
-			&& !!e.state.confirmationTitle;
 		if (clientShouldAutoApprove) {
 			this._toolCallAgents.set(toolCallKey, agent.id);
 			effective = { ...e, state: { ...e.state, _meta: { ...toolCall?._meta, ...e.state._meta, ...toToolCallMeta({ autoApproveBySetting: true }) } } };
@@ -1385,6 +1428,19 @@ export class AgentSideEffects extends Disposable {
 			effective = { ...effective, state: { ...effective.state, _meta: { ...toolCall?._meta, ...effective.state._meta, ...toToolCallMeta({ autoApproveRuleResolvable: true }) } } };
 		}
 		const readyAction = this._permissionManager.createToolReadyAction(effective, sessionKey, turnId);
+		if (!toolCall && effective.state.confirmationTitle && activeTurn?.id === turnId) {
+			// Fusion can stage tool-start events, but an approval must be visible
+			// immediately. Use the real request identity and the normal lifecycle.
+			this._dispatchActionForSession({
+				kind: 'action', resource: URI.parse(sessionKey),
+				action: {
+					type: ActionType.ChatToolCallStart, turnId,
+					toolCallId: e.state.toolCallId, toolName: e.state.toolName, displayName: e.state.displayName,
+					contributor: effective.state.contributor, intention: effective.state.intention, _meta: effective.state._meta,
+				},
+			}, sessionKey, turnId, 'preserve', agent);
+			this._permissionToolStarts.set(`${sessionKey}\0${e.state.toolCallId}`, turnId);
+		}
 		this._toolCallTracker.toolCallMetadataUpdated(sessionKey, readyAction.toolCallId, readyAction.contributor);
 		this._turnTracker.toolCallMetadataUpdated(sessionKey, turnId, readyAction.toolCallId, readyAction.contributor);
 		if (readyAction.confirmed) {

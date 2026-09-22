@@ -3,10 +3,35 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { toAction, type IAction } from '../../../../base/common/actions.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { localize } from '../../../../nls.js';
 import { ChatPillSingleEntry, type IChatDropdownPillOptions } from '../../../browser/chatDropdownPill.js';
 import { computePullRequestIcon } from '../../../common/chatPullRequest.js';
+import { type ISessionChatPillFilter, SessionChatPillKind } from '../common/sessionChatPills.js';
+
+/** The checked choices for a pill's show-all or filtered view. */
+export function getSessionChatPillFilterActions(
+	kind: SessionChatPillKind,
+	filter: ISessionChatPillFilter,
+	filteredOption: { readonly id: string; readonly label: string },
+): readonly IAction[] {
+	const showAll = filter.showAll.get();
+	return [
+		toAction({
+			id: `chatInputPills.${kind}.showAll`,
+			label: localize('chatInputPills.showAll', "Show All"),
+			checked: showAll,
+			run: () => filter.setShowAll(true),
+		}),
+		toAction({
+			id: `chatInputPills.${kind}.${filteredOption.id}`,
+			label: filteredOption.label,
+			checked: !showAll,
+			run: () => filter.setShowAll(false),
+		}),
+	];
+}
 
 /** Shared presentation of the pull requests pill. */
 export const sessionPullRequestsPillOptions: IChatDropdownPillOptions = {
@@ -79,7 +104,7 @@ export const sessionCustomizationsPillOptions: IChatDropdownPillOptions = {
 export const sessionSubagentsPillOptions: IChatDropdownPillOptions = {
 	widgetId: 'sessionSubagents',
 	icon: Codicon.agent,
-	title: localize('sessionSubagents.title', "Background Activities"),
+	title: localize('sessionSubagents.title', "Subagents"),
 	summaryLabel: count => count === 1
 		? localize('sessionSubagents.countSingle', "1 Subagent")
 		: localize('sessionSubagents.count', "{0} Subagents", count),
