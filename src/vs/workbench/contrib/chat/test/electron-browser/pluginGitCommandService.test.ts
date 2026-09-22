@@ -100,12 +100,15 @@ suite('NativePluginGitCommandService', () => {
 
 	test('cloneRepository retries session lookup after native authentication failure', async () => {
 		let authentication: IGitAuthentication | undefined;
-		let sessionLookups = 0;
-		const authenticationService = {
-			getSessions: async () => ++sessionLookups === 1
+		const sessionLookups: string[][] = [];
+		const authenticationService: Partial<IAuthenticationService> = {
+			getSessions: async (_providerId, scopes) => {
+				sessionLookups.push([...scopes]);
+				return sessionLookups.length === 1
 				? []
-				: createAuthenticationService('github-token').getSessions('github', []),
-		} as Partial<IAuthenticationService> as IAuthenticationService;
+				: createAuthenticationService('github-token').getSessions('github', ['repo']);
+			},
+		};
 		const service = createService(createLocalGitStub({
 			clone: async (_operationId, _url, _path, _ref, options) => {
 				authentication = options?.authentication;
@@ -113,15 +116,45 @@ suite('NativePluginGitCommandService', () => {
 					throw createAuthenticationError();
 				}
 			},
-		}), undefined, createFileService(), authenticationService);
+		}), undefined, createFileService(), authenticationService as IAuthenticationService);
 
 		await service.cloneRepository('https://github.com/test/private.git', URI.file('/tmp/repo'));
 
-		assert.strictEqual(sessionLookups, 2);
-		assert.deepStrictEqual(authentication, {
-			urlPrefix: 'https://github.com/',
-			authorizationHeader: 'Authorization: Basic eC1hY2Nlc3MtdG9rZW46Z2l0aHViLXRva2Vu',
+		assert.deepStrictEqual({
+			sessionLookups,
+			authentication,
+		}, {
+			sessionLookups: [['repo'], ['repo']],
+			authentication: {
+				urlPrefix: 'https://github.com/',
+				authorizationHeader: 'Authorization: Basic eC1hY2Nlc3MtdG9rZW46Z2l0aHViLXRva2Vu',
+			},
 		});
+	});
+
+	test('cloneRepository does not use a GitHub session without repo scope', async () => {
+		const authentications: (IGitAuthentication | undefined)[] = [];
+		const authenticationService: Partial<IAuthenticationService> = {
+			getSessions: async () => [{
+				id: 'session',
+				accessToken: 'github-token',
+				account: { id: 'account', label: 'account' },
+				scopes: ['read:user'],
+			}],
+		};
+		const service = createService(createLocalGitStub({
+			clone: async (_operationId, _url, _path, _ref, options) => {
+				authentications.push(options?.authentication);
+				throw createAuthenticationError();
+			},
+		}), undefined, createFileService(), authenticationService as IAuthenticationService);
+
+		await assert.rejects(
+			service.cloneRepository('https://github.com/test/private.git', URI.file('/tmp/repo')),
+			createAuthenticationError(),
+		);
+
+		assert.deepStrictEqual(authentications, [undefined]);
 	});
 
 	test('cloneRepository does not forward GitHub authentication to unsupported origins', async () => {

@@ -7,11 +7,14 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { IAuthenticationService } from '../../../services/authentication/common/authentication.js';
 
 /**
- * Returns an existing GitHub session token without prompting. Prefers a `repo`-scoped session.
+ * Returns an existing GitHub session token without prompting.
  */
-export async function getExistingGitHubAuthenticationToken(authenticationService: IAuthenticationService, logService: ILogService): Promise<string | undefined> {
+export async function getExistingGitHubAuthenticationToken(authenticationService: IAuthenticationService, logService: ILogService, requiredScopes: readonly string[] = []): Promise<string | undefined> {
 	try {
-		const sessions = await authenticationService.getSessions('github', [], { silent: true });
+		const sessions = await authenticationService.getSessions('github', requiredScopes, { silent: true });
+		if (requiredScopes.length) {
+			return sessions.find(session => requiredScopes.every(scope => session.scopes.includes(scope)))?.accessToken;
+		}
 		const repoScopeSession = sessions.find(session => session.scopes.includes('repo'));
 		return repoScopeSession?.accessToken ?? sessions[0]?.accessToken;
 	} catch (error) {

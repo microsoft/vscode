@@ -148,7 +148,7 @@ export class NativePluginGitCommandService implements IPluginGitService {
 	}
 
 	private async _getGitHubAuthentication(cancellationToken: CancellationToken | undefined): Promise<IGitAuthentication | undefined> {
-		const accessToken = await getExistingGitHubAuthenticationToken(this._authenticationService, this._logService);
+		const accessToken = await getExistingGitHubAuthenticationToken(this._authenticationService, this._logService, ['repo']);
 		if (cancellationToken?.isCancellationRequested) {
 			throw new CancellationError();
 		}
