@@ -77,6 +77,8 @@ import { toClaudeModelSelectionId } from '../../node/claude/claudeModelSelection
 import { ClaudeAgentSession } from '../../node/claude/claudeAgentSession.js';
 import { createClaudeInternalMcpServerCustomization } from '../../node/claude/customizations/claudeSessionCustomizationDiscovery.js';
 import { ClaudeSessionMetadataStore } from '../../node/claude/claudeSessionMetadataStore.js';
+import { writeClaudeTerminalOutputRecords } from '../../node/claude/claudeTerminalOutput.js';
+import { buildNonPtyShellTerminalUri } from '../../node/shared/nonPtyShellTerminal.js';
 import { ClaudeSessionConfigKey } from '../../common/claudeSessionConfigKeys.js';
 import { ClaudeAgentSdkService, IClaudeAgentSdkService, IClaudeSdkBindings } from '../../node/claude/claudeAgentSdkService.js';
 import { AGENT_SDK_SETUP_DOWNLOAD_REQUEST_KEY, AGENT_SDK_SETUP_RELOAD_REQUEST_KEY, readAgentSdkSetupInfos } from '../../common/agentSdkSetup.js';
@@ -8290,6 +8292,66 @@ suite('ClaudeAgent (Phase 13 — transcript reconstruction)', () => {
 		assert.deepStrictEqual(sdk.getSessionMessagesCalls[0], {
 			sessionId,
 			options: { includeSystemMessages: true },
+		});
+	});
+
+	test('getMessages overlays host-persisted full output when Claude SDK history omits the structured Bash result', async () => {
+		const database = new TestSessionDatabase();
+		const stdout = `FULL-OUTPUT-START\n${'x'.repeat(1000)}`;
+		await writeClaudeTerminalOutputRecords(database, new Map([['tu1', {
+			preview: stdout.slice(0, 500),
+			persistedOutputPath: '/tmp/claude-full-output.txt',
+			persistedOutputSize: 352335,
+		}]]));
+		const { agent, sdk } = createTestContext(disposables, { database });
+		const sessionId = 'phase13-terminal-output';
+		sdk.sessionMessagesById.set(sessionId, [
+			makeUserSessionMessage('u1', 'run it'),
+			{
+				type: 'assistant',
+				uuid: 'a1',
+				session_id: sessionId,
+				parent_tool_use_id: null,
+				parent_agent_id: null,
+				message: {
+					id: 'msg_a1',
+					role: 'assistant',
+					content: [{ type: 'tool_use', id: 'tu1', name: 'Bash', input: { command: 'node large-output.cjs' } }],
+				},
+			},
+			{
+				type: 'user',
+				uuid: 'u2',
+				session_id: sessionId,
+				parent_tool_use_id: null,
+				parent_agent_id: null,
+				message: {
+					role: 'user',
+					content: [{ type: 'tool_result', tool_use_id: 'tu1', content: '<persisted-output>display prose only</persisted-output>' }],
+				},
+			},
+			makeAssistantSessionMessage('a2', 'done'),
+		]);
+
+		const sessionUri = AgentSession.uri(agent.id, sessionId);
+		await bindDefaultChat(agent, sessionUri);
+		const turns = await agent.chats.getMessages(defaultChatUri(sessionUri), chatContext(defaultChatUri(sessionUri)));
+		const part = turns[0].responseParts.find(part => part.kind === ResponsePartKind.ToolCall);
+
+		assert.ok(part?.kind === ResponsePartKind.ToolCall && part.toolCall.status === ToolCallStatus.Completed);
+		assert.deepStrictEqual(part.toolCall.content?.[0], {
+			type: ToolResultContentType.Terminal,
+			resource: buildNonPtyShellTerminalUri(defaultChatUri(sessionUri), 'tu1'),
+			title: 'node large-output.cjs',
+			isPty: false,
+			result: {
+				preview: stdout.slice(0, 500),
+				truncated: true,
+				fullOutput: {
+					uri: URI.file('/tmp/claude-full-output.txt').toString(),
+					sizeHint: 352335,
+				},
+			},
 		});
 	});
 

@@ -24,6 +24,7 @@ import { ISessionDatabase } from '../../common/sessionDataService.js';
 import { buildChatUri, buildDefaultChatUri, resolveChatUri } from '../../common/state/sessionState.js';
 import { ClaudeSdkMessageRouter } from '../../node/claude/claudeSdkMessageRouter.js';
 import { SubagentRegistry } from '../../node/claude/claudeSubagentRegistry.js';
+import { readClaudeTerminalOutputRecords } from '../../node/claude/claudeTerminalOutput.js';
 import { IEditArcReporterService, NullEditArcReporterService } from '../../node/shared/editArcReporter.js';
 import { IEditSurvivalReporterFactory, NullEditSurvivalReporterFactory } from '../../node/shared/editSurvivalReporter.js';
 import { createZeroDiffComputeService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
@@ -40,6 +41,7 @@ interface IRouterHarness {
 	readonly router: ClaudeSdkMessageRouter;
 	readonly signals: AgentSignal[];
 	readonly fileService: FileService;
+	readonly db: TestSessionDatabase;
 }
 
 class RecordingAgentEditAttributionService extends NullAgentEditAttributionService {
@@ -88,7 +90,7 @@ function createRouter(
 	));
 	const signals: AgentSignal[] = [];
 	disposables.add(router.onDidProduceSignal(s => signals.push(s)));
-	return { router, signals, fileService };
+	return { router, signals, fileService, db };
 }
 
 function assistantMessage(content: unknown): Extract<SDKMessage, { type: 'assistant' }> {
@@ -133,6 +135,33 @@ suite('ClaudeSdkMessageRouter', () => {
 		const p1 = router.handle(makeStreamEvent('sess-1', makeMessageStart()), 'turn-1');
 		assert.ok(p1 instanceof Promise);
 		await p1;
+	});
+
+	test('persists structured Bash output metadata before SDK replay strips it', async () => {
+		const { router, db } = createRouter(disposables);
+		const stdout = `FULL-OUTPUT-START\n${'x'.repeat(1000)}`;
+		await router.handle({
+			type: 'user',
+			message: {
+				content: [{
+					type: 'tool_result',
+					tool_use_id: 'bash-1',
+					content: '<persisted-output>display prose is not parsed</persisted-output>',
+				}],
+			},
+			tool_use_result: {
+				stdout,
+				stderr: 'warning',
+				persistedOutputPath: '/tmp/claude-full-output.txt',
+				persistedOutputSize: 352335,
+			},
+		} as unknown as SDKMessage, 'turn-1');
+
+		assert.deepStrictEqual(await readClaudeTerminalOutputRecords(db), new Map([['bash-1', {
+			preview: stdout.slice(0, 500),
+			persistedOutputPath: '/tmp/claude-full-output.txt',
+			persistedOutputSize: 352335,
+		}]]));
 	});
 
 	test('tracks and flushes peer chat edits by their chat channel URI', async () => {

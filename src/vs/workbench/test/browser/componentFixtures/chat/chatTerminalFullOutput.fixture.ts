@@ -150,9 +150,8 @@ async function renderTerminalFullOutput(context: ComponentFixtureContext, option
 	const sessionResource = URI.parse('chat-session://fixture/terminal-full-output');
 	const fullOutput = options.hasFullOutput ? {
 		uri: toAgentHostContentUri(URI.file(options.fullOutputPath ?? '/tmp/terminal-output.txt'), 'local', { alwaysWrap: true }),
-		name: 'list-source-files-abc12.txt',
+		name: 'terminal-output-abc12.txt',
 		sizeHint: options.sizeHint,
-		nonce: 'fixture-version',
 	} : undefined;
 	const terminalData: IChatTerminalToolInvocationData = {
 		kind: 'terminal',

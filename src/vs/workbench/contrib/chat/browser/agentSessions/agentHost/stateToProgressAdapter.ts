@@ -1526,20 +1526,15 @@ function getTerminalOutput(tc: ToolCallState, connectionAuthority: string) {
 }
 
 function createTerminalOutputName(tc: ToolCallState): string {
-	const source = tc.intention ?? getTerminalInput(tc) ?? tc.displayName ?? tc.toolName;
-	const words = source.toLowerCase().match(/[a-z0-9]+/g) ?? [];
-	const stem = words.slice(0, 4).join('-').slice(0, 32).replace(/-+$/g, '') || 'terminal-output';
 	const suffix = (hash(tc.toolCallId) >>> 0).toString(36).padStart(5, '0').slice(-5);
-	return `${stem}-${suffix}.txt`;
+	return `terminal-output-${suffix}.txt`;
 }
 
 function terminalOutputsEqual(a: IChatTerminalToolInvocationData['terminalCommandOutput'], b: IChatTerminalToolInvocationData['terminalCommandOutput']): boolean {
 	return a?.text === b?.text
 		&& a?.truncated === b?.truncated
 		&& isEqual(URI.revive(a?.fullOutput?.uri), URI.revive(b?.fullOutput?.uri))
-		&& a?.fullOutput?.nonce === b?.fullOutput?.nonce
 		&& a?.fullOutput?.name === b?.fullOutput?.name
-		&& a?.fullOutput?.contentType === b?.fullOutput?.contentType
 		&& a?.fullOutput?.sizeHint === b?.fullOutput?.sizeHint;
 }
 

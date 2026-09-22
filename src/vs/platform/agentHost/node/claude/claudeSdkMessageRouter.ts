@@ -15,6 +15,7 @@ import { ISessionDatabase } from '../../common/sessionDataService.js';
 import { ClaudeFileEditObserver } from './claudeFileEditObserver.js';
 import { ClaudeMapperState, mapSDKMessageToAgentSignals } from './claudeMapSessionEvents.js';
 import type { SubagentRegistry } from './claudeSubagentRegistry.js';
+import { getClaudeTerminalOutputRecord, getClaudeToolResultId, persistClaudeTerminalOutput } from './claudeTerminalOutput.js';
 
 interface IClaudeSdkMessageContext {
 	readonly turnDuration?: number;
@@ -48,7 +49,7 @@ export class ClaudeSdkMessageRouter extends Disposable {
 	constructor(
 		private readonly _chatChannelUri: URI,
 		resource: URI,
-		dbRef: IReference<ISessionDatabase>,
+		private readonly _dbRef: IReference<ISessionDatabase>,
 		private readonly _subagents: SubagentRegistry,
 		clientToolOwner: ((toolName: string) => string | undefined) | undefined = undefined,
 		@IInstantiationService instantiationService: IInstantiationService,
@@ -57,7 +58,7 @@ export class ClaudeSdkMessageRouter extends Disposable {
 		super();
 		this._clientToolOwner = clientToolOwner;
 		this._editObserver = this._register(
-			instantiationService.createInstance(ClaudeFileEditObserver, resource.toString(), dbRef),
+			instantiationService.createInstance(ClaudeFileEditObserver, resource.toString(), this._dbRef),
 		);
 	}
 
@@ -70,6 +71,15 @@ export class ClaudeSdkMessageRouter extends Disposable {
 			this._editObserver.observeAssistant(message, context?.mode, context?.clientContext);
 		} else if (message.type === 'user' && turnId !== undefined) {
 			await this._editObserver.observeUser(message, turnId, this._mapperState);
+			const terminalOutput = getClaudeTerminalOutputRecord(message);
+			const toolCallId = getClaudeToolResultId(message);
+			if (terminalOutput && toolCallId) {
+				try {
+					await persistClaudeTerminalOutput(this._dbRef.object, toolCallId, terminalOutput);
+				} catch (err) {
+					this._logService.warn(`[ClaudeSdkMessageRouter] failed to persist terminal output metadata for ${toolCallId}: ${err}`);
+				}
+			}
 		}
 		if (turnId === undefined) {
 			return;

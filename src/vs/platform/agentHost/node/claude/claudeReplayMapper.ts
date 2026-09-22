@@ -27,6 +27,7 @@ import { readToolCallMeta } from '../../common/meta/agentToolCallMeta.js';
 import { formatGenericToolInput } from '../../common/streamingToolCallDisplay.js';
 import { buildClaudeToolMeta, getClaudeInvocationMessage, getClaudePastTenseMessage, getClaudeToolDisplayName, getClaudeToolInputString } from './claudeToolDisplay.js';
 import { hasClientToolNamePrefix, stripClientToolNamePrefix } from './clientTools/claudeClientToolMcpServer.js';
+import { createClaudeFullTerminalOutput, type IClaudeTerminalOutputRecord } from './claudeTerminalOutput.js';
 
 /**
  * Phase 13 — replay mapper. Reduces a flat `SessionMessage[]` (the SDK's
@@ -48,8 +49,9 @@ export function mapSessionMessagesToTurns(
 	messages: readonly SessionMessage[],
 	session: URI,
 	logService: ILogService,
+	terminalOutputs: ReadonlyMap<string, IClaudeTerminalOutputRecord> = new Map(),
 ): readonly Turn[] {
-	const builder = new ReplayBuilder(session, logService);
+	const builder = new ReplayBuilder(session, logService, terminalOutputs);
 	for (const msg of messages) {
 		const parsed = parseSessionMessage(msg);
 		if (parsed === undefined) {
@@ -275,7 +277,11 @@ class ReplayBuilder {
 	/** `tool_result` blocks whose announcing `tool_use` was not in the slice. Reported once by {@link finish}. */
 	private _orphanToolResults = 0;
 
-	constructor(private readonly _session: URI, private readonly _logService: ILogService) { }
+	constructor(
+		private readonly _session: URI,
+		private readonly _logService: ILogService,
+		private readonly _terminalOutputs: ReadonlyMap<string, IClaudeTerminalOutputRecord>,
+	) { }
 
 	consume(msg: ParsedSessionMessage): void {
 		switch (msg.kind) {
@@ -436,6 +442,16 @@ class ReplayBuilder {
 			.filter((c): c is { type: ToolResultContentType.Text; text: string } => c.type === ToolResultContentType.Text)
 			.map(c => c.text)
 			.join('\n');
+		const terminalOutput = createClaudeFullTerminalOutput({
+			persistedOutput: this._terminalOutputs.get(block.tool_use_id),
+			toolName: previousState.toolName,
+			session: this._session,
+			toolCallId: previousState.toolCallId,
+			title: typeof entry.parsedInput?.command === 'string' ? entry.parsedInput.command : previousState.displayName,
+		});
+		if (terminalOutput) {
+			content.splice(0, content.length, terminalOutput, ...content.filter(item => item.type !== ToolResultContentType.Text));
+		}
 		if (isSubagent) {
 			content.push({
 				type: ToolResultContentType.Subagent,

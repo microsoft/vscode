@@ -293,7 +293,7 @@ suite('ChatModel', () => {
 	test('terminal full-output references survive chat serialization and restoration', () => {
 		const model = testDisposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
 		const request = model.addRequest({ text: 'run', parts: [] }, { variables: [] }, 0);
-		const fullOutput = { uri: URI.parse('vscode-agent-host://remote-host/output'), name: 'build-output-abc12.txt', nonce: 'one', contentType: 'text/plain', sizeHint: 8192 };
+		const fullOutput = { uri: URI.parse('vscode-agent-host://remote-host/output'), name: 'terminal-output-abc12.txt', sizeHint: 8192 };
 		model.acceptResponseProgress(request, {
 			kind: 'externalToolInvocationUpdate',
 			toolCallId: 'terminal-full-output',
@@ -2352,9 +2352,9 @@ suite('serializeSendOptions', () => {
 suite('ChatResponseResource', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('terminal output URI round-trips reserved tool IDs and distinguishes artifact versions', () => {
+	test('terminal output URI round-trips reserved tool IDs and distinguishes artifact identities', () => {
 		const session = URI.parse('vscode-chat-session://local/session1');
-		const reference = { uri: URI.file('/tmp/full output #1.txt'), name: 'npm-test-abc12.txt', nonce: 'one' };
+		const reference = { uri: URI.file('/tmp/full output #1.txt'), name: 'terminal-output-abc12.txt' };
 		const resource = ChatResponseResource.createTerminalOutputUri(session, 'call/1?#', reference);
 		const parsed = ChatResponseResource.parseTerminalOutputUri(URI.parse(resource.toString()));
 		const variants = [
@@ -2362,8 +2362,7 @@ suite('ChatResponseResource', () => {
 			ChatResponseResource.createTerminalOutputUri(session.with({ path: '/session2' }), 'call/1?#', reference),
 			ChatResponseResource.createTerminalOutputUri(session, 'call-2', reference),
 			ChatResponseResource.createTerminalOutputUri(session, 'call/1?#', { ...reference, uri: URI.file('/tmp/other.txt') }),
-			ChatResponseResource.createTerminalOutputUri(session, 'call/1?#', { ...reference, nonce: 'two' }),
-			ChatResponseResource.createTerminalOutputUri(session, 'call/1?#', { ...reference, name: 'npm-test-def34.txt' }),
+			ChatResponseResource.createTerminalOutputUri(session, 'call/1?#', { ...reference, name: 'terminal-output-def34.txt' }),
 		];
 		assert.deepStrictEqual({
 			session: parsed?.sessionResource.toString(),
@@ -2377,8 +2376,8 @@ suite('ChatResponseResource', () => {
 			toolCallId: 'call/1?#',
 			legacyParser: undefined,
 			identical: resource.toString(),
-			name: 'npm-test-abc12.txt',
-			identities: 6,
+			name: 'terminal-output-abc12.txt',
+			identities: 5,
 		});
 	});
 

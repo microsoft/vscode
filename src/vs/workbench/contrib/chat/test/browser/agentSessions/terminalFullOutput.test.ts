@@ -48,7 +48,7 @@ suite('Terminal full output - adapter to resource', () => {
 								exitCode: 0,
 								preview: 'BEGIN\n',
 								truncated: true,
-								fullOutput: { uri: artifactA.toString(), sizeHint: fullText.length, contentType: 'text/plain', nonce: 'one' },
+								fullOutput: { uri: artifactA.toString(), sizeHint: fullText.length },
 							},
 						},
 					],
@@ -85,7 +85,7 @@ suite('Terminal full output - adapter to resource', () => {
 					readonly: true,
 					reads: [artifactA.toString(), artifactA.toString()],
 				});
-				assert.match(data.terminalCommandOutput?.fullOutput?.name ?? '', /^build-[a-z0-9]{5}\.txt$/);
+				assert.match(data.terminalCommandOutput?.fullOutput?.name ?? '', /^terminal-output-[a-z0-9]{5}\.txt$/);
 			});
 		}
 	}

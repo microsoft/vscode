@@ -271,7 +271,7 @@ suite('Chat Accessibility Help', () => {
 			readonly: getAccessibilityHelpText('agentView', keybindingService, true).includes('read-only editor'),
 			bestEffort: getAccessibilityHelpText('agentView', keybindingService, true).includes('if the captured output is still available'),
 			fullOutputLink: getAccessibilityHelpText('agentView', keybindingService, true).includes('Click to open full output link'),
-			editorTitle: getAccessibilityHelpText('agentView', keybindingService, true).includes('editor title identifies the command'),
+			editorTitle: getAccessibilityHelpText('agentView', keybindingService, true).includes('editor title includes a short run identifier'),
 			previewClick: getAccessibilityHelpText('agentView', keybindingService, true).includes('click anywhere in the output preview'),
 			outputEnter: getAccessibilityHelpText('agentView', keybindingService, true).includes('focus the output region and press Enter'),
 			approximateSize: getAccessibilityHelpText('agentView', keybindingService, true).includes('approximate full-output size'),

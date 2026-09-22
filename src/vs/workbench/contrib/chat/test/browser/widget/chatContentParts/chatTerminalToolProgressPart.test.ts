@@ -13,6 +13,7 @@ import { mainWindow } from '../../../../../../../base/browser/window.js';
 import { toAction, type IAction } from '../../../../../../../base/common/actions.js';
 import { DeferredPromise, timeout } from '../../../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../../../base/common/event.js';
+import { hash } from '../../../../../../../base/common/hash.js';
 import { observableValue } from '../../../../../../../base/common/observable.js';
 import { isEqual } from '../../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../../base/common/uri.js';
@@ -58,6 +59,11 @@ import { createTerminalOutputTestFixture } from '../../../common/widget/terminal
 
 function listenerCount<T>(emitter: Emitter<T>): number {
 	return (emitter as unknown as { _size: number })._size ?? 0;
+}
+
+function terminalOutputLabel(toolCallId: string): string {
+	const runId = (hash(toolCallId) >>> 0).toString(36).padStart(5, '0').slice(-5);
+	return `Terminal Output · ${runId}`;
 }
 
 class TestTerminalChatService extends mock<ITerminalChatService>() {
@@ -251,7 +257,6 @@ interface ITerminalFullOutputPartOptions {
 	readonly command?: string;
 	readonly intention?: string;
 	readonly sizeHint?: number;
-	readonly nonce?: string;
 	readonly preview?: string;
 	readonly hasReference?: boolean;
 	readonly truncated?: boolean;
@@ -346,7 +351,7 @@ async function createTerminalFullOutputHarness(store: Pick<DisposableStore, 'add
 		readonly mode: TerminalFullOutputRenderingMode;
 		readonly sessionResource: URI;
 		readonly toolCallId: string;
-		readonly reference: { readonly uri: URI; readonly name?: string; readonly sizeHint?: number; readonly nonce?: string } | undefined;
+		readonly reference: { readonly uri: URI; readonly name?: string; readonly sizeHint?: number } | undefined;
 		readonly invocation: IChatToolInvocationSerialized;
 	} {
 		testConfigurationService.setUserConfiguration(ChatConfiguration.TerminalToolsInThinking, options.mode === 'thinking');
@@ -358,7 +363,6 @@ async function createTerminalFullOutputHarness(store: Pick<DisposableStore, 'add
 			uri: options.referenceUri ?? URI.parse('ahp-content://session/full-output'),
 			name: options.outputName,
 			sizeHint: options.sizeHint,
-			nonce: options.nonce,
 		};
 		const data: IChatTerminalToolInvocationData = {
 			kind: 'terminal',
@@ -507,6 +511,7 @@ function showFullOutputElement(part: ChatTerminalToolProgressPart): HTMLElement 
 
 suite('ChatTerminalToolProgressPart full output', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+	const fullOutputClickWait = 350;
 
 	for (const mode of ['thinking', 'simple', 'plain'] as const) {
 		test(`opens full output from the completed preview area in ${mode} mode`, async () => {
@@ -526,8 +531,8 @@ suite('ChatTerminalToolProgressPart full output', () => {
 				const target = entry.part.domNode.querySelector<HTMLElement>(selector);
 				assert.ok(target, selector);
 				target.click();
+				await timeout(fullOutputClickWait);
 			}
-			await timeout(0);
 			const output = entry.part.domNode.querySelector<HTMLElement>('.chat-terminal-output-container');
 			assert.ok(output);
 			const xterm = mainWindow.document.createElement('div');
@@ -604,7 +609,7 @@ suite('ChatTerminalToolProgressPart full output', () => {
 		mouse('mousedown', 10, 1);
 		mouse('mouseup', 10);
 		mouse('click', 10);
-		await timeout(0);
+		await timeout(fullOutputClickWait);
 
 		assert.deepStrictEqual({
 			opensAfterGestures,
@@ -633,8 +638,23 @@ suite('ChatTerminalToolProgressPart full output', () => {
 		assert.strictEqual(harness.openedEditors.length, 0);
 
 		terminal.click();
-		await timeout(0);
+		await timeout(fullOutputClickWait);
 		assert.strictEqual(harness.openedEditors.length, 1);
+	});
+
+	test('does not open the editor for a real double-click sequence', async () => {
+		const harness = await createTerminalFullOutputHarness(store);
+		const { part } = harness.createPart({ mode: 'plain' });
+		await harness.expand(part, 'plain');
+		const body = part.domNode.querySelector<HTMLElement>('.chat-terminal-output-body');
+		assert.ok(body);
+
+		body.dispatchEvent(new mainWindow.MouseEvent('click', { bubbles: true, cancelable: true, detail: 1 }));
+		body.dispatchEvent(new mainWindow.MouseEvent('click', { bubbles: true, cancelable: true, detail: 2 }));
+		body.dispatchEvent(new mainWindow.MouseEvent('dblclick', { bubbles: true, cancelable: true, detail: 2 }));
+		await timeout(fullOutputClickWait);
+
+		assert.strictEqual(harness.openedEditors.length, 0);
 	});
 
 	test('leaves existing links, nested controls, scrollbars, and modified clicks alone', async () => {
@@ -803,7 +823,7 @@ suite('ChatTerminalToolProgressPart full output', () => {
 		}
 	}
 
-	test('keeps the command in the editor title instead of repeating it in the notice in every rendering mode', async () => {
+	test('uses a concise run-specific editor title instead of repeating the command in every rendering mode', async () => {
 		const harness = await createTerminalFullOutputHarness(store);
 		const outputName = 'printf-output-abc12.txt';
 		const referenceUri = toAgentHostContentUri(URI.file('/tmp/1788905997116-copilot-tool-output-random.txt'), 'remote-host', { alwaysWrap: true });
@@ -821,20 +841,20 @@ suite('ChatTerminalToolProgressPart full output', () => {
 			}, {
 				rendered: `preview output\n\n${message}`,
 				accessible: `Command: node large-output.cjs\npreview output\n${message}\nOpen Full Output (Read-Only) opens the captured output if it is still available.`,
-				editorLabel: 'Terminal Output: node large-output.cjs',
+				editorLabel: terminalOutputLabel('terminal-tool-call'),
 			});
 		}
 	});
 
-	for (const { command, label } of [
-		{ command: 'node large-output.cjs', label: 'Terminal Output: node large-output.cjs' },
-		{ command: '  \x1b[31mnode\x1b[0m\n\tlarge-output.cjs  ', label: 'Terminal Output: node large-output.cjs' },
-		{ command: 'Get-Content "C:\\Temp\\output.log"', label: 'Terminal Output: Get-Content "C:\\Temp\\output.log"' },
-		{ command: 'printf "<output>"', label: 'Terminal Output: printf "<output>"' },
-		{ command: ' ', label: 'Terminal Output' },
-		{ command: `node /${'x'.repeat(80)}/large-output.cjs`, label: `Terminal Output: node /${'x'.repeat(18)}…${'x'.repeat(8)}/large-output.cjs` },
+	for (const command of [
+		'node large-output.cjs',
+		'  \x1b[31mnode\x1b[0m\n\tlarge-output.cjs  ',
+		'Get-Content "C:\\Temp\\output.log"',
+		'printf "<output>"',
+		' ',
+		`node /${'x'.repeat(80)}/large-output.cjs`,
 	]) {
-		test(`normalizes and bounds the output label for ${JSON.stringify(command)}`, async () => {
+		test(`keeps the output label concise for ${JSON.stringify(command)}`, async () => {
 			const harness = await createTerminalFullOutputHarness(store);
 			const { part } = harness.createPart({ mode: 'plain', command });
 			await harness.expand(part, 'plain');
@@ -844,7 +864,7 @@ suite('ChatTerminalToolProgressPart full output', () => {
 				editorLabel: harness.openedEditors[0].label,
 				notice: snapshotText(harness.raw(part)).split('\n\n').at(-1),
 			}, {
-				editorLabel: label,
+				editorLabel: terminalOutputLabel('terminal-tool-call'),
 				notice: 'Showing a preview. Click to open full output (read-only)',
 			});
 		});
@@ -886,21 +906,18 @@ suite('ChatTerminalToolProgressPart full output', () => {
 				sessionResource: URI.parse('chat-session://test/session-one'),
 				toolCallId: 'tool-one',
 				referenceUri: URI.parse('ahp-content://one/output'),
-				nonce: 'one',
 			}),
 			harness.createPart({
 				mode: 'thinking',
 				sessionResource: URI.parse('chat-session://test/session-two'),
 				toolCallId: 'tool-two',
 				referenceUri: URI.parse('ahp-content://two/output'),
-				nonce: 'two',
 			}),
 			harness.createPart({
 				mode: 'plain',
 				sessionResource: URI.parse('chat-session://test/session-three'),
 				toolCallId: 'tool-three',
 				referenceUri: URI.parse('ahp-content://three/output'),
-				nonce: 'three',
 			}),
 		];
 		for (const entry of entries) {
@@ -950,18 +967,18 @@ suite('ChatTerminalToolProgressPart full output', () => {
 		});
 		assert.deepStrictEqual({
 			resources: harness.openedEditors.map(input => input.resource.toString()),
-			labels: harness.openedEditors.map(input => input.label),
-			distinctRunDescriptions: new Set(harness.openedEditors.map(input => input.description)).size,
-			readonlyDescriptions: harness.openedEditors.every(input => /^Read-only \(run [a-z0-9]{5}\)$/.test(input.description ?? '')),
+			distinctRunLabels: new Set(harness.openedEditors.map(input => input.label)).size,
+			conciseRunLabels: harness.openedEditors.every(input => /^Terminal Output · [a-z0-9]{5}$/.test(input.label ?? '')),
+			readonlyDescriptions: harness.openedEditors.map(input => input.description),
 			revealIfOpened: harness.openedEditors.map(input => input.options?.revealIfOpened),
 			terminalActivationCount: harness.terminalActivationCount,
 			wrapperStatesBefore: wrapperStates,
 			wrapperStatesAfter: entries.slice(0, 2).map(entry => entry.part.domNode.querySelector<HTMLElement>('.chat-terminal-thinking-collapsible > .chat-used-context-label .monaco-button')?.getAttribute('aria-expanded')),
 		}, {
 			resources: expectedResources,
-			labels: ['Terminal Output: printf output', 'Terminal Output: printf output', 'Terminal Output: printf output'],
-			distinctRunDescriptions: 3,
-			readonlyDescriptions: true,
+			distinctRunLabels: 3,
+			conciseRunLabels: true,
+			readonlyDescriptions: ['Read-only', 'Read-only', 'Read-only'],
 			revealIfOpened: [true, true, true],
 			terminalActivationCount: 0,
 			wrapperStatesBefore: ['true', 'true'],
@@ -1048,7 +1065,7 @@ suite('ChatTerminalToolProgressPart full output', () => {
 			expectedResource: fixture.resource.toString(),
 			openedText: completeOutput,
 			editorName: outputName,
-			editorLabels: ['Terminal Output: printf output', 'Terminal Output: printf output'],
+			editorLabels: [terminalOutputLabel('provider-backed-tool'), terminalOutputLabel('provider-backed-tool')],
 			preview: 'preview only',
 			reads: [backingResource.toString(), backingResource.toString()],
 		});
@@ -1343,7 +1360,7 @@ suite('ChatTerminalToolOutputSection layout', () => {
 		running = false;
 		await section.refresh();
 		section.domNode.click();
-		await timeout(0);
+		await timeout(350);
 		const completedState = { opens, clickable: section.domNode.classList.contains('chat-terminal-output-clickable') };
 
 		action.enabled = false;

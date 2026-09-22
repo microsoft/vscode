@@ -68,7 +68,6 @@ suite('ChatResponseResourceFileSystemProvider', () => {
 					const reference = {
 						uri: toAgentHostContentUri(backingResource, authority, { alwaysWrap: true }),
 						sizeHint: VSBuffer.fromString(completeOutput).byteLength,
-						nonce: 'one',
 					};
 					const fixture = createTerminalOutputTestFixture(store, sessionResource, createInvocation(reference), authority, async () => ({
 						encoding,
@@ -180,13 +179,13 @@ suite('ChatResponseResourceFileSystemProvider', () => {
 			assert.deepStrictEqual(fixture.reads, []);
 		});
 
-		test('rejects stale identity or nonce instead of reopening cached or unrelated output', async () => {
-			const reference = { uri: toAgentHostContentUri(backingResource, 'local', { alwaysWrap: true }), nonce: 'one' };
+		test('rejects stale URI identity instead of reopening cached or unrelated output', async () => {
+			const reference = { uri: toAgentHostContentUri(backingResource, 'local', { alwaysWrap: true }) };
 			const invocation = createInvocation(reference);
 			const fixture = createTerminalOutputTestFixture(store, sessionResource, invocation, 'local', async () => ({
 				encoding: ContentEncoding.Utf8, data: completeOutput,
 			}));
-			const updated = { ...reference, nonce: 'two' };
+			const updated = { uri: toAgentHostContentUri(URI.file('/tmp/replacement-output.txt'), 'local', { alwaysWrap: true }) };
 			invocation.toolSpecificData = createInvocation(updated).toolSpecificData;
 			await assert.rejects(() => fixture.provider.readFile(fixture.resource), { code: FileSystemProviderErrorCode.FileNotFound });
 			const resource = ChatResponseResource.createTerminalOutputUri(sessionResource, invocation.toolCallId, updated);

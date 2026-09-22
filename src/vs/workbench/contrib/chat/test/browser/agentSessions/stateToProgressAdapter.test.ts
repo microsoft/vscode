@@ -3144,7 +3144,7 @@ suite('stateToProgressAdapter', () => {
 			for (const preview of [undefined, '', 'preview only\n']) {
 				test(`preserves reference-backed terminal output through live and history mapping on ${authority} with ${JSON.stringify(preview)} preview`, () => {
 					const sessionResource = URI.file('/');
-					const fullOutput = { uri: 'shell-output:/artifact-a', contentType: 'text/plain', sizeHint: 4096, nonce: 'one' };
+					const fullOutput = { uri: 'shell-output:/artifact-a', sizeHint: 4096 };
 					const running = createToolCallState({
 						toolName: 'bash',
 						toolInput: 'npm test',
@@ -3172,7 +3172,7 @@ suite('stateToProgressAdapter', () => {
 					const serialized = response?.parts.find(part => part.kind === 'toolInvocationSerialized');
 					assert.ok(serialized?.kind === 'toolInvocationSerialized');
 					const name = liveOutput?.fullOutput?.name;
-					assert.match(name ?? '', /^npm-test-[a-z0-9]{5}\.txt$/);
+					assert.match(name ?? '', /^terminal-output-[a-z0-9]{5}\.txt$/);
 					const expected = {
 						text: preview?.replace(/\r?\n/g, '\r\n') ?? '',
 						truncated: true,
@@ -3187,7 +3187,7 @@ suite('stateToProgressAdapter', () => {
 			}
 		}
 
-		test('uses short, stable, command-derived names that distinguish repeated large outputs', () => {
+		test('uses concise, stable names that distinguish repeated large outputs', () => {
 			const make = (toolCallId: string) => getSerializedTerminalData(toolCallStateToInvocation(createToolCallState({
 				toolCallId,
 				toolName: 'bash',
@@ -3210,7 +3210,7 @@ suite('stateToProgressAdapter', () => {
 				repeated,
 				second,
 				unique: first !== second,
-				readable: [first, second].every(name => /^generate-oversized-stdout-for-[a-z0-9]{5}\.txt$/.test(name ?? '')),
+				readable: [first, second].every(name => /^terminal-output-[a-z0-9]{5}\.txt$/.test(name ?? '')),
 				maxLength: Math.max(first?.length ?? 0, second?.length ?? 0),
 			}, {
 				first,
@@ -3218,7 +3218,7 @@ suite('stateToProgressAdapter', () => {
 				second,
 				unique: true,
 				readable: true,
-				maxLength: 39,
+				maxLength: 25,
 			});
 		});
 
@@ -3778,12 +3778,10 @@ suite('stateToProgressAdapter', () => {
 			assert.strictEqual(termData.terminalCommandOutput?.text, 'hi\r\n');
 		});
 
-		test('notifies for full-output reference and metadata changes without changing preview text', () => {
-			const reference = { uri: 'shell-output:/artifact-a', nonce: 'one', contentType: 'text/plain', sizeHint: 4096 };
+		test('notifies for full-output URI and size changes without changing preview text', () => {
+			const reference = { uri: 'shell-output:/artifact-a', sizeHint: 4096 };
 			const changedUri = { ...reference, uri: 'shell-output:/artifact-b' };
-			const changedNonce = { ...changedUri, nonce: 'two' };
-			const changedType = { ...changedNonce, contentType: 'text/plain; charset=utf-8' };
-			const changedSize = { ...changedType, sizeHint: 8192 };
+			const changedSize = { ...changedUri, sizeHint: 8192 };
 			const initialResult = { preview: 'preview', truncated: true };
 			const tc = createToolCallState({
 				toolName: 'bash',
@@ -3796,8 +3794,6 @@ suite('stateToProgressAdapter', () => {
 			const results = [
 				{ ...initialResult, fullOutput: reference },
 				{ ...initialResult, fullOutput: changedUri },
-				{ ...initialResult, fullOutput: changedNonce },
-				{ ...initialResult, fullOutput: changedType },
 				{ ...initialResult, fullOutput: changedSize },
 				initialResult,
 				{ ...initialResult, truncated: false },
@@ -3814,7 +3810,7 @@ suite('stateToProgressAdapter', () => {
 			});
 			const terminal = getSerializedTerminalData(invocation.toJSON());
 			assert.deepStrictEqual({ changes, output: terminal.terminalCommandOutput, commandId: terminal.terminalCommandId }, {
-				changes: [true, true, true, true, true, true, true, false].map(changed => ({ changed, notified: changed })),
+				changes: [true, true, true, true, true, false].map(changed => ({ changed, notified: changed })),
 				output: { text: 'preview', truncated: false },
 				commandId: 'late-command-id',
 			});

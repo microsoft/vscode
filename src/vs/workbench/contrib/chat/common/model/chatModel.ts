@@ -3569,11 +3569,8 @@ export namespace ChatResponseResource {
 		return createScopedUri(sessionResource, `/tool/${toolCallId}/${index}` + (basename ? `/${basename}` : ''));
 	}
 
-	export function createTerminalOutputUri(sessionResource: URI, toolCallId: string, reference: { readonly uri: UriComponents; readonly name?: string; readonly nonce?: string }): URI {
+	export function createTerminalOutputUri(sessionResource: URI, toolCallId: string, reference: { readonly uri: UriComponents; readonly name?: string }): URI {
 		const query = new URLSearchParams({ uri: URI.revive(reference.uri).toString() });
-		if (reference.nonce !== undefined) {
-			query.set('nonce', reference.nonce);
-		}
 		const name = reference.name?.replace(/[^a-zA-Z0-9._-]/g, '-').replace(/^[.-]+/, '').slice(0, 64) ?? '';
 		return createScopedUri(sessionResource, `/terminal/${encodeURIComponent(toolCallId)}/${name || 'terminal-output.txt'}`, query.toString());
 	}

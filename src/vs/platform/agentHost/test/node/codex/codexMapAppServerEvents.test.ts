@@ -7,7 +7,7 @@ import assert from 'assert';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { readAgentMessageDelegationMeta } from '../../../common/meta/agentMessageDelegationMeta.js';
-import { createCodexSessionMapState, extractUserInputText, finalizeCodexTurnMapState, mapAgentMessageDelta, mapCommandExecutionOutputDelta, mapFileChangePatchUpdated, mapItemCompleted, mapItemStarted, mapMcpToolCallProgress, mapReasoningSummaryPartAdded, mapReasoningSummaryTextDelta, mapReasoningTextDelta, mapTokenUsageModelCallCompleted, mapTokenUsageUpdated, mapTurnCompleted, mapTurnStarted, resetCodexTurnMapState, turnStateFromStatus, type ICodexSessionMapState } from '../../../node/codex/codexMapAppServerEvents.js';
+import { createCodexSessionMapState, extractUserInputText, finalizeCodexTurnMapState, getCodexCommandExecutionOutput, mapAgentMessageDelta, mapCommandExecutionOutputDelta, mapFileChangePatchUpdated, mapItemCompleted, mapItemStarted, mapMcpToolCallProgress, mapReasoningSummaryPartAdded, mapReasoningSummaryTextDelta, mapReasoningTextDelta, mapTokenUsageModelCallCompleted, mapTokenUsageUpdated, mapTurnCompleted, mapTurnStarted, resetCodexTurnMapState, turnStateFromStatus, type ICodexSessionMapState } from '../../../node/codex/codexMapAppServerEvents.js';
 import { ActionType, type ChatAction, type SessionAction } from '../../../common/state/sessionActions.js';
 import { chatReducer } from '../../../common/state/protocol/reducers.js';
 import { ChatOriginKind, MessageKind, ResponsePartKind, SessionStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolResultContentType, TurnState, type ChatState } from '../../../common/state/sessionState.js';
@@ -407,6 +407,7 @@ suite('codexMapAppServerEvents', () => {
 		assert.strictEqual(ready.type, ActionType.ChatToolCallReady);
 		const entry = state.itemToToolCall.get('cmd_1');
 		assert.ok(entry);
+		assert.strictEqual(entry!.toolCallId, 'cmd_1');
 		assert.strictEqual(entry!.toolCallId, (start as { toolCallId: string }).toolCallId);
 		assert.strictEqual(entry!.turnId, 'turn_a');
 		assert.strictEqual((delta as { content: string }).content, 'ls -la');
@@ -555,6 +556,30 @@ suite('codexMapAppServerEvents', () => {
 		});
 	});
 
+	test('item/commandExecution/outputDelta bounds cumulative content while retaining complete output for artifact persistence', () => {
+		const state = createCodexSessionMapState();
+		mapItemStarted(state, {
+			item: {
+				type: 'commandExecution', id: 'cmd_large',
+				command: 'node large-output.cjs', cwd: '/tmp', processId: null,
+				source: 'agent' as never, status: 'inProgress' as never,
+				commandActions: [], aggregatedOutput: null,
+				exitCode: null, durationMs: null,
+			} as never,
+			threadId: 'thr_1', turnId: 'turn_a', startedAtMs: 0,
+		});
+		const completeOutput = `FULL-OUTPUT-START\n${'x'.repeat(1000)}\nFULL-OUTPUT-END`;
+		const actions = mapCommandExecutionOutputDelta(state, { threadId: 'thr_1', turnId: 'turn_a', itemId: 'cmd_large', delta: completeOutput });
+		const changed = actions[0] as { content: Array<{ text: string }> };
+		assert.deepStrictEqual({
+			preview: changed.content[0].text,
+			retainedOutput: state.itemToToolCall.get('cmd_large')?.output,
+		}, {
+			preview: completeOutput.slice(0, 500),
+			retainedOutput: completeOutput,
+		});
+	});
+
 	test('item/completed for commandExecution falls back to streamed output when aggregated output is empty', () => {
 		const state = createCodexSessionMapState();
 		mapItemStarted(state, {
@@ -566,6 +591,12 @@ suite('codexMapAppServerEvents', () => {
 				exitCode: null, durationMs: null,
 			} as never,
 			threadId: 'thr_1', turnId: 'turn_a', startedAtMs: 0,
+		});
+
+		test('effective command output uses retained streaming data when completion omits its aggregate', () => {
+			const streamedOutput = `FULL-OUTPUT-START\n${'x'.repeat(21 * 1024)}\nFULL-OUTPUT-END`;
+			assert.strictEqual(getCodexCommandExecutionOutput({ aggregatedOutput: '' }, streamedOutput), streamedOutput);
+			assert.strictEqual(getCodexCommandExecutionOutput({ aggregatedOutput: 'complete' }, streamedOutput), 'complete');
 		});
 		const toolCallId = state.itemToToolCall.get('cmd_streamed_output')!.toolCallId;
 		mapCommandExecutionOutputDelta(state, { threadId: 'thr_1', turnId: 'turn_a', itemId: 'cmd_streamed_output', delta: 'hi\n' });
@@ -605,6 +636,61 @@ suite('codexMapAppServerEvents', () => {
 				exitCode: null, durationMs: null,
 			} as never,
 			threadId: 'thr_1', turnId: 'turn_a', startedAtMs: 0,
+		});
+
+		test('item/completed uses supplied full-output artifact instead of embedding oversized output', () => {
+			const state = createCodexSessionMapState();
+			mapItemStarted(state, {
+				item: {
+					type: 'commandExecution', id: 'cmd_artifact',
+					command: 'node large-output.cjs', cwd: '/tmp', processId: null,
+					source: 'agent' as never, status: 'inProgress' as never,
+					commandActions: [], aggregatedOutput: null,
+					exitCode: null, durationMs: null,
+				} as never,
+				threadId: 'thr_1', turnId: 'turn_a', startedAtMs: 0,
+			});
+			const toolCallId = state.itemToToolCall.get('cmd_artifact')!.toolCallId;
+			const actions = mapItemCompleted(state, {
+				item: {
+					type: 'commandExecution', id: 'cmd_artifact',
+					command: 'node large-output.cjs', cwd: '/tmp', processId: null,
+					source: 'agent' as never, status: 'completed' as never,
+					commandActions: [], aggregatedOutput: `FULL-OUTPUT-START\n${'x'.repeat(1000)}\nFULL-OUTPUT-END`,
+					exitCode: 0, durationMs: 12,
+				} as never,
+				threadId: 'thr_1', turnId: 'turn_a', completedAtMs: 0,
+			}, {
+				session: URI.parse('codex:/session-1'),
+				result: {
+					exitCode: 0,
+					preview: 'FULL-OUTPUT-START',
+					truncated: true,
+					fullOutput: { uri: 'file:///tmp/full-output.txt', sizeHint: 1024 },
+				},
+			});
+			assert.deepStrictEqual(actions, [{
+				type: ActionType.ChatToolCallComplete,
+				turnId: 'turn_a',
+				toolCallId,
+				result: {
+					success: true,
+					pastTenseMessage: 'Ran `node large-output.cjs`',
+					content: [{
+						type: ToolResultContentType.Terminal,
+						resource: 'agenthost-terminal://shell/session-1/cmd_artifact',
+						title: 'node large-output.cjs',
+						isPty: false,
+						result: {
+							exitCode: 0,
+							preview: 'FULL-OUTPUT-START',
+							truncated: true,
+							fullOutput: { uri: 'file:///tmp/full-output.txt', sizeHint: 1024 },
+						},
+					}],
+					error: undefined,
+				},
+			}]);
 		});
 		const toolCallId = state.itemToToolCall.get('cmd_2')!.toolCallId;
 		const actions = mapItemCompleted(state, {

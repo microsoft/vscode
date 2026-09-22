@@ -9543,7 +9543,7 @@ Use the attached image as context.
 					exitCode: 0,
 					preview: 'line 1\nline 2\n',
 					truncated: true,
-					fullOutput: { uri: URI.file('/tmp/artifact-a.txt').toString(), contentType: 'text/plain' },
+					fullOutput: { uri: URI.file('/tmp/artifact-a.txt').toString() },
 				},
 			});
 		});

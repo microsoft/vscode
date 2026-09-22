@@ -17,6 +17,7 @@ import { buildClaudeToolMeta, getClaudePastTenseMessage, getClaudeToolDisplayNam
 import { claudeToolDenialCode } from './claudeToolDenial.js';
 import { ClaudeToolCallRegistry } from './claudeToolCallRegistry.js';
 import { ToolCallConfirmationReason, ToolCallContributorKind, type StringOrMarkdown } from '../../common/state/protocol/state.js';
+import { createClaudeFullTerminalOutput } from './claudeTerminalOutput.js';
 
 /**
  * Cross-call state for {@link mapSDKMessageToAgentSignals}. One instance
@@ -371,6 +372,16 @@ function mapUserMessage(
 			.filter((c): c is { type: ToolResultContentType.Text; text: string } => c.type === ToolResultContentType.Text)
 			.map(c => c.text)
 			.join('\n');
+		const terminalOutput = info && createClaudeFullTerminalOutput({
+			message,
+			toolName: info.toolName,
+			session: chat,
+			toolCallId: block.tool_use_id,
+			title: typeof info.parsedInput?.command === 'string' ? info.parsedInput.command : info.displayName,
+		});
+		if (terminalOutput) {
+			content.splice(0, content.length, terminalOutput, ...content.filter(item => item.type !== ToolResultContentType.Text));
+		}
 		const pastTenseMessage: StringOrMarkdown = info
 			? info.isClientTool
 				? info.displayName

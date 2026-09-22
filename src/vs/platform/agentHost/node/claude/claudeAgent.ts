@@ -64,6 +64,7 @@ import { readClaudePermissionMode } from './claudeSessionPermissionMode.js';
 import { ClaudeSessionMetadataStore, IClaudeSessionOverlay } from './claudeSessionMetadataStore.js';
 import { IAgentHostSessionTitleSignal } from '../agentHostSessionTitleSignal.js';
 import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
+import type { IClaudeTerminalOutputRecord } from './claudeTerminalOutput.js';
 
 const USER_AGENT_PREFIX = 'vscode_claude_code';
 
@@ -209,6 +210,7 @@ interface IClaudeChatBacking {
 interface IClaudeInheritedConversation {
 	readonly sdkSessionId?: string;
 	readonly inheritedTurnId?: string;
+	readonly terminalOutputs?: ReadonlyMap<string, IClaudeTerminalOutputRecord>;
 }
 
 /**
@@ -1427,6 +1429,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		return {
 			...(forked ? { sdkSessionId: forked.sessionId } : {}),
 			...(forked?.inheritedTurnId !== undefined ? { inheritedTurnId: forked.inheritedTurnId } : {}),
+			...(forked?.terminalOutputs.size ? { terminalOutputs: forked.terminalOutputs } : {}),
 		};
 	}
 
@@ -1503,6 +1506,13 @@ export class ClaudeAgent extends Disposable implements IAgent {
 			...(agent ? { agent } : {}),
 			workingDirectories,
 		});
+		if (inherited.terminalOutputs?.size) {
+			try {
+				await this._metadataStore.writeTerminalOutputs(context.resource, inherited.terminalOutputs);
+			} catch (err) {
+				this._logService.warn(`[Claude] createChat: terminal output metadata copy failed for ${context.resource.toString()}; restored output will use the SDK transcript`, err);
+			}
+		}
 		const project = await this._resolveProject(workingDirectory);
 		const backing = this._recordChatBacking(chat, {
 			sdkSessionId,
@@ -1650,7 +1660,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	 * the source's sequencer would park the new chat behind the very turn it
 	 * branches from. The SDK's flushed transcript is read-only here.
 	 */
-	private async _forkChat(fork: { readonly source: URI; readonly turnId: string }): Promise<{ sessionId: string; inheritedTurnId: string | undefined } | undefined> {
+	private async _forkChat(fork: { readonly source: URI; readonly turnId: string }): Promise<{ sessionId: string; inheritedTurnId: string | undefined; terminalOutputs: ReadonlyMap<string, IClaudeTerminalOutputRecord> } | undefined> {
 		const sourceSdkId = this._sourceChatSdkId(fork.source);
 		if (!sourceSdkId) {
 			this._logService.warn(`[Claude] createChat fork: source ${fork.source.toString()} has no SDK chat; creating fresh chat`);
@@ -1664,8 +1674,10 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		}
 		const { sessionId } = await this._sdkService.forkSession(sourceSdkId, { upToMessageId });
 		const anchorIndex = messages.findIndex(message => message.uuid === upToMessageId);
-		const inheritedTurns = mapSessionMessagesToTurns(messages.slice(0, anchorIndex + 1), fork.source, this._logService);
-		return { sessionId, inheritedTurnId: inheritedTurns.at(-1)?.id };
+		const sourceResource = this._sourceChatScope(fork.source)?.resource ?? fork.source;
+		const terminalOutputs = await this._readTerminalOutputs(sourceResource);
+		const inheritedTurns = mapSessionMessagesToTurns(messages.slice(0, anchorIndex + 1), fork.source, this._logService, terminalOutputs);
+		return { sessionId, inheritedTurnId: inheritedTurns.at(-1)?.id, terminalOutputs };
 	}
 
 
@@ -1940,7 +1952,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		if (!context.sdkSessionId) {
 			return [];
 		}
-		return this._reconstructTurns(context.sdkSessionId, context.chat, sess?.subagents);
+		return this._reconstructTurns(context.sdkSessionId, context.chat, sess?.subagents, context.resource);
 	}
 
 	/**
@@ -1969,7 +1981,8 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		const subagents = parentSession?.subagents ?? store.add(new SubagentRegistry());
 		try {
 			if (!parentSession) {
-				await this._reconstructTurns(parentSessionId, parentChat, subagents);
+				const parentResource = this._sourceChatScope(parentChat)?.resource ?? parentChat;
+				await this._reconstructTurns(parentSessionId, parentChat, subagents, parentResource);
 			}
 			return await getSubagentTranscript(context.chat, parentChat, parentSessionId, spawnedFrom.toolCallId, subagents, this._sdkService, this._logService, CancellationToken.None);
 		} catch (err) {
@@ -1987,7 +2000,12 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	 * SDK encoded in Task tool_result blocks. Resilient: any failure warn-logs
 	 * and returns `[]` rather than propagating.
 	 */
-	private async _reconstructTurns(sdkSessionId: string, routingUri: URI, subagents: SubagentRegistry | undefined): Promise<readonly Turn[]> {
+	private async _reconstructTurns(
+		sdkSessionId: string,
+		routingUri: URI,
+		subagents: SubagentRegistry | undefined,
+		metadataResource: URI = routingUri,
+	): Promise<readonly Turn[]> {
 		let messages;
 		try {
 			messages = await this._sdkService.getSessionMessages(sdkSessionId, { includeSystemMessages: true });
@@ -1997,7 +2015,8 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		}
 		let turns: readonly Turn[];
 		try {
-			turns = mapSessionMessagesToTurns(messages, routingUri, this._logService);
+			const terminalOutputs = await this._readTerminalOutputs(metadataResource);
+			turns = mapSessionMessagesToTurns(messages, routingUri, this._logService, terminalOutputs);
 		} catch (err) {
 			// Defensive boundary: a single malformed SDK message must not
 			// blow up the entire transcript read.
@@ -2018,6 +2037,15 @@ export class ClaudeAgent extends Disposable implements IAgent {
 			this._logService.warn(`[Claude] primeFromTranscript threw for ${sdkSessionId}`, err);
 		}
 		return turns;
+	}
+
+	private async _readTerminalOutputs(session: URI): Promise<ReadonlyMap<string, IClaudeTerminalOutputRecord>> {
+		try {
+			return await this._metadataStore.readTerminalOutputs(session);
+		} catch (err) {
+			this._logService.warn(`[Claude] failed to read terminal output metadata for ${session.toString()}`, err);
+			return new Map();
+		}
 	}
 
 	private async _listClaudeCodeChats(): Promise<IAgentChatMetadata[] | undefined> {

@@ -666,6 +666,54 @@ suite('codexReplayMapper', () => {
 			success: true,
 			output: 'total 0',
 		});
+
+		test('commandExecution replay uses a supplied full-output artifact', () => {
+			const thread = {
+				id: 'thr',
+				turns: [{
+					id: 'turn_a',
+					items: [
+						{ type: 'userMessage', id: 'u', content: [{ type: 'text', text: 'run it', text_elements: [] }] },
+						{
+							type: 'commandExecution', id: 'c1',
+							command: 'node large-output.cjs', cwd: '/tmp', processId: null,
+							source: 'agent', status: 'completed',
+							commandActions: [], aggregatedOutput: `FULL-OUTPUT-START\n${'x'.repeat(1000)}\nFULL-OUTPUT-END`, exitCode: 0, durationMs: 5,
+						},
+					],
+					itemsView: { type: 'full' } as never,
+					status: 'completed' as never,
+					error: null, startedAt: null, completedAt: null, durationMs: null,
+				}],
+			} as never;
+			const turns = replayThreadToTurns(
+				thread,
+				undefined,
+				undefined,
+				new Map([['c1', {
+					exitCode: 0,
+					preview: 'FULL-OUTPUT-START',
+					truncated: true,
+					fullOutput: { uri: 'file:///tmp/full-output.txt', sizeHint: 1024 },
+				}]]),
+				URI.parse('codex:/session-1'),
+			);
+			const part = turns[0].responseParts[0];
+			assert.ok(part.kind === ResponsePartKind.ToolCall && part.toolCall.status === ToolCallStatus.Completed);
+			assert.strictEqual(part.toolCall.toolCallId, 'c1');
+			assert.deepStrictEqual(part.toolCall.content?.[0], {
+				type: ToolResultContentType.Terminal,
+				resource: 'agenthost-terminal://shell/session-1/c1',
+				title: 'node large-output.cjs',
+				isPty: false,
+				result: {
+					exitCode: 0,
+					preview: 'FULL-OUTPUT-START',
+					truncated: true,
+					fullOutput: { uri: 'file:///tmp/full-output.txt', sizeHint: 1024 },
+				},
+			});
+		});
 	});
 
 	test('imageGeneration restores its generated image', () => {

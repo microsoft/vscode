@@ -16,10 +16,10 @@ import { toToolCallMeta, type IToolCallUiMeta, type ToolKind } from '../../commo
 import { IFileEditRecord, ISessionDatabase } from '../../common/sessionDataService.js';
 import { MessageAttachmentKind, type MessageAttachment } from '../../common/state/protocol/state.js';
 import { createErrorResponsePart, MessageKind, ResponsePartKind, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, TurnState, buildSubagentSessionUri, parseChatUri, type AgentSelection, type ErrorInfo, type Message, type ModelSelection, type ResponsePart, type StringOrMarkdown, type TerminalCommandResult, type ToolCallCompletedState, type ToolResultContent, type ToolResultTerminalContent, type Turn, type UsageInfo } from '../../common/state/sessionState.js';
-import { buildNonPtyShellTerminalUri } from './copilotNonPtyShellTerminals.js';
+import { buildNonPtyShellTerminalUri } from '../shared/nonPtyShellTerminal.js';
 import { getInvocationMessage, getPastTenseMessage, getShellIntention, getShellLanguage, getSubagentMetadata, getTaskCompleteMarkdown, getToolDisplayName, getToolInputString, getToolKind, isEditTool, isHiddenTool, isTaskCompleteTool, synthesizeSkillToolCall, type ToolAgentNameResolver } from './copilotToolDisplay.js';
 import { buildSessionDbUri } from '../../common/sessionDbUri.js';
-import { getMediaMime, Mimes } from '../../../../base/common/mime.js';
+import { getMediaMime } from '../../../../base/common/mime.js';
 import { buildCopilotSystemNotification } from './copilotSystemNotification.js';
 import { buildChatErrorInfoFromCopilotSdkFields } from './copilotSdkChatError.js';
 import { buildMcpChannel, buildMcpTopLevelCustomizationId } from '../shared/mcpCustomizationController.js';
@@ -117,7 +117,7 @@ export function appendSdkToolResultContent(content: ToolResultContent[], sdkCont
 					exitCode: sdkContent.exitCode,
 					...(typeof sdkContent.outputPreview === 'string' ? { preview: sdkContent.outputPreview } : {}),
 					...(sdkContent.outputTruncated !== undefined ? { truncated: sdkContent.outputTruncated } : {}),
-					...(sdkContent.outputFilePath ? { fullOutput: { uri: URI.file(sdkContent.outputFilePath).toString(), contentType: Mimes.text } } : {}),
+					...(sdkContent.outputFilePath ? { fullOutput: { uri: URI.file(sdkContent.outputFilePath).toString() } } : {}),
 				};
 				shellExit = { shellId: sdkContent.shellId, result };
 				const terminalIndex = content.findIndex(c => c.type === ToolResultContentType.Terminal);

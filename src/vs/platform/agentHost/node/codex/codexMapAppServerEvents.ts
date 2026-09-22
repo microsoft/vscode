@@ -9,9 +9,10 @@ import { localize } from '../../../../nls.js';
 import type { IAgentModelCallCompletedSignal } from '../../common/agent.js';
 import { toToolCallMeta } from '../../common/meta/agentToolCallMeta.js';
 import { ActionType, type SessionAction, type ChatAction } from '../../common/state/sessionActions.js';
-import { createErrorResponsePart, MessageKind, ResponsePartKind, ToolCallConfirmationReason, ToolCallContributorKind, ToolResultContentType, TurnState, type ErrorInfo } from '../../common/state/sessionState.js';
+import { createErrorResponsePart, MessageKind, ResponsePartKind, ToolCallConfirmationReason, ToolCallContributorKind, ToolResultContentType, TurnState, type ErrorInfo, type TerminalCommandResult } from '../../common/state/sessionState.js';
 import { extractForwardedErrorInfo } from '../shared/proxyChatError.js';
 import { getServerToolDisplay } from '../shared/serverToolGroups.js';
+import { terminalOutputContent, terminalOutputPreview } from '../shared/terminalOutputArtifacts.js';
 import { ActiveClientToolSet } from '../activeClientState.js';
 import { toAgentMessageDelegationMeta } from '../../common/meta/agentMessageDelegationMeta.js';
 import { parseCodexDelegation } from './codexDelegation.js';
@@ -596,10 +597,9 @@ function mapItemStartedBody(
 		];
 	}
 	if (params.item.type === 'commandExecution') {
-		// Phase 4: surface shell commands as tool calls. We allocate a
-		// fresh toolCallId; the `commandExecution` item id only
-		// disambiguates the codex side.
-		const toolCallId = generateUuid();
+		// The provider item id is stable across live delivery and thread replay,
+		// which keeps terminal artifact editor identities valid after reload.
+		const toolCallId = params.item.id;
 		const meta = toToolCallMeta({ toolKind: 'terminal' });
 		state.itemToToolCall.set(params.item.id, {
 			toolCallId,
@@ -932,8 +932,15 @@ export function mapCommandExecutionOutputDelta(
 		type: ActionType.ChatToolCallContentChanged,
 		turnId: entry.turnId,
 		toolCallId: entry.toolCallId,
-		content: [{ type: ToolResultContentType.Text, text: entry.output }],
+		content: [{ type: ToolResultContentType.Text, text: terminalOutputPreview(entry.output) ?? '' }],
 	}];
+}
+
+export function getCodexCommandExecutionOutput(
+	item: { readonly aggregatedOutput?: string | null },
+	streamedOutput = '',
+): string {
+	return item.aggregatedOutput || streamedOutput;
 }
 
 export function mapFileChangePatchUpdated(
@@ -1028,6 +1035,7 @@ export function mapAgentMessageDelta(
 export function mapItemCompleted(
 	state: ICodexSessionMapState,
 	params: ItemCompletedNotification,
+	terminalOutput?: { readonly session: URI; readonly result: TerminalCommandResult },
 ): (SessionAction | ChatAction)[] {
 	if (params.item.type === 'agentMessage') {
 		state.itemToPartId.delete(params.item.id);
@@ -1060,7 +1068,7 @@ export function mapItemCompleted(
 	}
 	if (params.item.type === 'commandExecution') {
 		const success = params.item.status === 'completed' && (params.item.exitCode === 0 || params.item.exitCode === null);
-		const output = params.item.aggregatedOutput || entry.output;
+		const output = getCodexCommandExecutionOutput(params.item, entry.output);
 		const command = unwrapShellInvocation(params.item.command ?? '');
 		const exit = params.item.exitCode;
 		const pastTense = success
@@ -1076,9 +1084,11 @@ export function mapItemCompleted(
 				result: {
 					success,
 					pastTenseMessage: pastTense,
-					content: output
-						? [{ type: ToolResultContentType.Text, text: output }]
-						: undefined,
+					content: terminalOutput
+						? [terminalOutputContent(terminalOutput.session, params.item.id, command, terminalOutput.result)]
+						: output
+							? [{ type: ToolResultContentType.Text, text: output }]
+							: undefined,
 					error: success ? undefined : {
 						message: exit !== null ? `Exit code ${exit}` : 'Command failed',
 						...(declined ? { code: 'denied' } : {}),
