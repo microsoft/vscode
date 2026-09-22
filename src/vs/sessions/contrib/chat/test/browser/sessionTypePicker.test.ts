@@ -9,24 +9,24 @@ import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { autorun, constObservable, ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IActionWidgetService } from '../../../../../platform/actionWidget/browser/actionWidget.js';
+import { IActionListItem } from '../../../../../platform/actionWidget/browser/actionList.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { IChatInputNotificationService } from '../../../../../workbench/contrib/chat/browser/widget/input/chatInputNotificationService.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
-import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
-import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
-import { IChatSessionsService } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
+import { IChatSessionsService, ResolvedChatSessionsExtensionPoint, SessionType } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ILanguageModelsService } from '../../../../../workbench/contrib/chat/common/languageModels.js';
 import { ChatEntitlement, IChatEntitlementService } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { TestStorageService } from '../../../../../workbench/test/common/workbenchTestServices.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { IProviderSessionType, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
-import { SessionTypeAuthRequirement, ISession, ISessionWorkspace, SessionStatus } from '../../../../services/sessions/common/session.js';
+import { GITHUB_REMOTE_FILE_SCHEME, SessionTypeAuthRequirement, ISession, ISessionWorkspace, SessionStatus } from '../../../../services/sessions/common/session.js';
+import { ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
 import { IPickedSessionType, IPreferredSessionType, ISessionTypePickerOptions, SessionTypePicker } from '../../browser/sessionTypePicker.js';
 
 // ---- Mocks ------------------------------------------------------------------
@@ -60,6 +60,10 @@ class MockSessionsManagementService extends Disposable {
 		return this._typesByFolder.get(folderUri.toString()) ?? this._types;
 	}
 
+	getAllProviderSessionTypes(): IProviderSessionType[] {
+		return this._types;
+	}
+
 	getQuickChatSessionTypes(): IProviderSessionType[] {
 		return this._quickChatTypes;
 	}
@@ -75,8 +79,18 @@ function createFakeQuickChatSession(providerId: string, sessionTypeId: string): 
 	} as unknown as ISession;
 }
 
-function sessionType(providerId: string, id: string, label: string, chatSessionType?: string): IProviderSessionType {
-	return { providerId, sessionType: { id, label, icon: Codicon.terminal, chatSessionType, authRequirement: SessionTypeAuthRequirement.GitHub } };
+function sessionType(providerId: string, id: string, label: string, chatSessionType?: string, canInitializeWithoutGitHub?: boolean): IProviderSessionType {
+	return {
+		providerId,
+		sessionType: {
+			id,
+			label,
+			icon: Codicon.terminal,
+			chatSessionType,
+			authRequirement: SessionTypeAuthRequirement.GitHub,
+			initializationOnSelection: canInitializeWithoutGitHub === undefined ? undefined : { canInitializeWithoutGitHub },
+		},
+	};
 }
 
 function createFakeSession(providerId: string, sessionTypeId: string, folderUri: URI, status = SessionStatus.Untitled): ISession {
@@ -107,6 +121,19 @@ class TestSessionTypePicker extends SessionTypePicker {
 	pick(p: IPickedSessionType): void {
 		this._handleSelectedSessionType(p);
 	}
+
+	async prepareAndPick(p: IPickedSessionType): Promise<void> {
+		await this._selectSessionType(p);
+	}
+
+	get offeredSessionTypeIds(): readonly string[] {
+		return this._folderSessionTypes.map(type => type.sessionType.id);
+	}
+}
+
+interface ITestPickerServices {
+	readonly chatSessionsService?: IChatSessionsService;
+	readonly chatEntitlementService?: IChatEntitlementService;
 }
 
 function createPicker(
@@ -116,26 +143,32 @@ function createPicker(
 	storage: IStorageService,
 	options?: ISessionTypePickerOptions,
 	actionWidgetService: Partial<IActionWidgetService> = { isVisible: false, hide: () => { }, show: () => { } },
+	localProviderIds: readonly string[] = [],
+	services: ITestPickerServices = {},
 ): TestSessionTypePicker {
 	const instantiationService = disposables.add(new TestInstantiationService());
 	instantiationService.stub(IActionWidgetService, actionWidgetService);
 	instantiationService.stub(ISessionsManagementService, managementService);
-	instantiationService.stub(ISessionsProvidersService, { getProvider: () => undefined });
+	instantiationService.stub(ISessionsProvidersService, new class extends mock<ISessionsProvidersService>() {
+		override getProvider<T extends ISessionsProvider>(providerId: string): T | undefined {
+			return (localProviderIds.includes(providerId)
+				? { id: providerId, label: providerId, supportsLocalWorkspaces: true }
+				: undefined) as T | undefined;
+		}
+	}());
 	instantiationService.stub(IStorageService, storage);
 	instantiationService.stub(ITelemetryService, NullTelemetryService);
-	instantiationService.stub(IChatSessionsService, {
+	instantiationService.stub(IChatSessionsService, services.chatSessionsService ?? {
 		supportsAutoModelForSessionType: () => false,
 		requiresCustomModelsForSessionType: () => false,
 		getChatSessionContribution: () => undefined,
 	});
-	instantiationService.stub(IChatEntitlementService, { entitlement: ChatEntitlement.Pro });
+	instantiationService.stub(IChatEntitlementService, services.chatEntitlementService ?? { entitlement: ChatEntitlement.Pro });
 	instantiationService.stub(ILanguageModelsService, {
 		getLanguageModelIds: () => [],
 		lookupLanguageModel: () => undefined,
 	});
 	instantiationService.stub(IConfigurationService, new TestConfigurationService());
-	instantiationService.stub(IChatInputNotificationService, { getActiveNotification: () => undefined });
-	instantiationService.stub(IContextKeyService, new MockContextKeyService());
 	return disposables.add(instantiationService.createInstance(TestSessionTypePicker, session, options));
 }
 
@@ -162,6 +195,79 @@ suite('SessionTypePicker', () => {
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('reports harness visibility only after rendering an interactive picker and resets on disposal', () => {
+		const types = [
+			sessionType('copilot', 'copilot-cli', 'Copilot'),
+			sessionType('claude', 'claude', 'Claude'),
+		];
+		management.setSessionTypes(types);
+		session.set(createFakeSession('copilot', 'copilot-cli', folder), undefined);
+		const picker = createPicker(disposables, session, management, storage);
+		const visibility = [picker.isVisible.get()];
+		picker.render(document.createElement('div'));
+		visibility.push(picker.isVisible.get());
+		management.setSessionTypes([types[0]]);
+		visibility.push(picker.isVisible.get());
+		management.setSessionTypes(types);
+		visibility.push(picker.isVisible.get());
+		picker.dispose();
+		visibility.push(picker.isVisible.get());
+
+		assert.deepStrictEqual(visibility, [false, true, false, true, false]);
+	});
+
+	test('uses provider initialization metadata before models are discovered', () => {
+		const chatSessionsService = new class extends mock<IChatSessionsService>() {
+			override getChatSessionContribution(type: string): ResolvedChatSessionsExtensionPoint | undefined {
+				return type === SessionType.AgentHostCodex
+					? { type, name: type, displayName: 'Codex', description: '', icon: Codicon.openai }
+					: undefined;
+			}
+			override requiresCopilotSignInForSessionType(): boolean { return false; }
+			override supportsAutoModelForSessionType(): boolean { return false; }
+			override requiresCustomModelsForSessionType(): boolean { return true; }
+		}();
+		const isCodexDisabled = (entitlement: ChatEntitlement, canInitializeWithoutGitHub: boolean): boolean | undefined => {
+			management.setSessionTypesForFolder(folder, [
+				sessionType('local', 'local', 'Local'),
+				sessionType('agent-host', 'codex', 'Codex', SessionType.AgentHostCodex, canInitializeWithoutGitHub),
+			]);
+			session.set(createFakeSession('local', 'local', folder), undefined);
+			let codexDisabled: boolean | undefined;
+			const actionWidgetService = new class extends mock<IActionWidgetService>() {
+				override show<T>(_user: string, _supportsPreview: boolean, items: readonly IActionListItem<T>[]): void {
+					const codex = items.find(item => item.label === 'Codex');
+					assert.ok(codex);
+					codexDisabled = codex.disabled;
+				}
+			}();
+			const chatEntitlementService = new class extends mock<IChatEntitlementService>() {
+				override readonly entitlement = entitlement;
+				override readonly anonymous = false;
+				override readonly clientByokEnabled = false;
+			}();
+			const picker = createPicker(disposables, session, management, storage, undefined, actionWidgetService, [], {
+				chatSessionsService,
+				chatEntitlementService,
+			});
+			picker.render(document.createElement('div'));
+			picker.showPicker();
+			return codexDisabled;
+		};
+
+		assert.deepStrictEqual({
+			copilotFree: isCodexDisabled(ChatEntitlement.Free, false),
+			providerAuthenticated: isCodexDisabled(ChatEntitlement.Unknown, true),
+			signedOut: isCodexDisabled(ChatEntitlement.Unknown, false),
+			unresolved: isCodexDisabled(ChatEntitlement.Unresolved, false),
+		}, {
+			copilotFree: false,
+			providerAuthenticated: false,
+			signedOut: true,
+			unresolved: true,
+		});
+	});
 
 	test('preferred session type is the first one and follows session-type changes', () => {
 		management.setSessionTypes([
@@ -528,6 +634,30 @@ suite('SessionTypePicker', () => {
 		assert.deepStrictEqual(picker.selectedPick, { providerId: 'local-1', sessionTypeId: 'local' });
 	});
 
+	test('session-driven mode uses the selected workspace for availability while displaying the draft type', () => {
+		const localFolder = URI.file('/local/project');
+		const cloudFolder = URI.parse('github-remote-file://github/owner/project/HEAD');
+		management.setSessionTypesForFolder(localFolder, [
+			sessionType('copilot', 'copilot-cli', 'Copilot'),
+			sessionType('copilot', 'cloud', 'Cloud'),
+		]);
+		management.setSessionTypesForFolder(cloudFolder, [
+			sessionType('copilot', 'cloud', 'Cloud'),
+		]);
+		const picker = createPicker(disposables, session, management, storage);
+		picker.setSessionWorkspaceFolderSource(observableValue<URI | undefined>('selectedWorkspace', localFolder));
+
+		session.set(createFakeSession('copilot', 'cloud', cloudFolder), undefined);
+
+		assert.deepStrictEqual({
+			selectedPick: picker.selectedPick,
+			offeredSessionTypeIds: picker.offeredSessionTypeIds,
+		}, {
+			selectedPick: { providerId: 'copilot', sessionTypeId: 'cloud' },
+			offeredSessionTypeIds: ['copilot-cli', 'cloud'],
+		});
+	});
+
 	test('folder-driven mode seeds the provided initial pick', () => {
 		const folderA = URI.file('/a');
 		management.setSessionTypesForFolder(folderA, [
@@ -693,5 +823,87 @@ suite('SessionTypePicker', () => {
 		});
 
 		assert.deepStrictEqual(picker.selectedPick, { providerId: 'copilot', sessionTypeId: 'copilot-cli' });
+	});
+
+	test('offers local harnesses for a selected cloud repository', () => {
+		const repository = URI.from({ scheme: GITHUB_REMOTE_FILE_SCHEME, authority: 'github', path: '/microsoft/vscode/HEAD' });
+		management.setSessionTypes([
+			sessionType('cloud', 'cloud', 'Cloud'),
+			sessionType('local', 'local', 'Local'),
+			sessionType('remote', 'remote', 'Remote'),
+		]);
+		management.setSessionTypesForFolder(repository, [
+			sessionType('cloud', 'cloud', 'Cloud'),
+		]);
+		const picker = createPicker(disposables, session, management, storage, undefined, undefined, ['local']);
+
+		picker.setSessionWorkspaceFolderSource(observableValue<URI | undefined>('folder', repository));
+
+		assert.deepStrictEqual(picker.offeredSessionTypeIds, ['cloud', 'local']);
+	});
+
+	test('prepares a session type before changing the selection', async () => {
+		const prepared: IPickedSessionType[] = [];
+		let allowSelection = false;
+		const picker = createPicker(disposables, session, management, storage, {
+			prepareSessionTypeSelection: async pick => {
+				prepared.push(pick);
+				return allowSelection;
+			},
+		});
+		const fired: IPickedSessionType[] = [];
+		disposables.add(picker.onDidSelectSessionType(pick => {
+			if (pick) {
+				fired.push(pick);
+			}
+		}));
+		const pick = { providerId: 'local', sessionTypeId: 'local' };
+
+		await picker.prepareAndPick(pick);
+		allowSelection = true;
+		await picker.prepareAndPick(pick);
+
+		assert.deepStrictEqual({
+			prepared,
+			fired,
+			selected: picker.selectedPick,
+		}, {
+			prepared: [pick, pick],
+			fired: [pick],
+			selected: pick,
+		});
+	});
+
+	test('preserves the user selection when preparation recomputes the same pick', async () => {
+		const folder = URI.file('/local');
+		const cloudSession = createFakeSession('cloud', 'cloud', URI.parse('github-remote-file://github/microsoft/vscode/HEAD'));
+		session.set(cloudSession, undefined);
+		management.setSessionTypes([
+			sessionType('cloud', 'cloud', 'Cloud'),
+			sessionType('local', 'local', 'Local'),
+		]);
+		const picker = createPicker(disposables, session, management, storage, {
+			prepareSessionTypeSelection: async () => {
+				management.setSessionTypesForFolder(folder, [
+					sessionType('local', 'local', 'Local'),
+				]);
+				return true;
+			},
+		});
+		const fired: IPickedSessionType[] = [];
+		disposables.add(picker.onDidSelectSessionType(pick => {
+			if (pick) {
+				fired.push(pick);
+			}
+		}));
+		const pick = { providerId: 'local', sessionTypeId: 'local' };
+
+		await picker.prepareAndPick(pick);
+		management.setSessionTypes([
+			sessionType('cloud', 'cloud', 'Cloud'),
+			sessionType('local', 'local', 'Local'),
+		]);
+
+		assert.deepStrictEqual({ fired, selected: picker.selectedPick }, { fired: [pick], selected: pick });
 	});
 });

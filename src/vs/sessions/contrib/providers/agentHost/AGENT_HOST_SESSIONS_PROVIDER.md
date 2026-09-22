@@ -79,7 +79,7 @@ The provider cache owns adapter identity. Catalog notifications describe members
 
 Provider-specific metadata such as pull-request provenance, changesets, agent configuration, and external visibility is translated inside this provider. Shared Sessions code consumes only provider-neutral fields and capabilities.
 
-Agent-recorded artifacts and references are persisted with the session and projected together through `ISession.artifacts`, where `isArtifact` distinguishes them. Only artifacts are promoted into the existing GitHub metadata, so a pull request or issue the session produced is polled and shown on the shared GitHub surfaces rather than duplicated; a reference keeps its link identity so anything those surfaces already show is offered exactly once. Customizations used or read by the agent are derived per chat and projected through `IChat.customizations`.
+Agent-recorded artifacts and references are persisted with the session and projected together through `ISession.artifacts`, where `isArtifact` distinguishes them for presentation (dedicated pill vs. reference collection) only, not for removability. GitHub pull requests and issues are promoted into the existing GitHub metadata so they can be polled and shown on the shared GitHub surfaces rather than duplicated. Promoted entries retain their stable recorded-reference ID regardless of `isArtifact`, and presentation uses that ID for session-only removal; a git-/session-discovered GitHub association that was never recorded through `add_artifact_or_reference` has no recorded-reference ID and stays non-removable, even if it reappears after a recorded duplicate is removed. Customizations used or read by the agent are derived per chat and projected through `IChat.customizations`.
 
 ## Draft and send lifecycle
 
@@ -103,9 +103,35 @@ Existing-session requests route by the provider resource and chat resource. Host
 
 Startup metadata may seed lightweight session facades before a live connection finishes discovery. Live host state remains authoritative and upgrades or replaces cached state through the normal catalog lifecycle.
 
+The provider remembers isolation per workspace after the first request is accepted. A new draft for that workspace inherits the choice from its last started session; a workspace without a remembered choice falls back to `sessions.useWorktree`. Explicitly removing a workspace from the workspace picker forgets its isolation preference; generic recent-workspace updates do not. Draft-only changes, rejected requests, quick chats, and Automation drafts do not update this workspace preference.
+
 External sessions remain provider-owned domain objects. Visibility and interactivity fields determine whether shared Sessions surfaces present them; shared code does not infer visibility from Agent Host URI formats.
 
 Host-owned background activities remain independent of client visibility. Agent Merge monitoring prevents an enabled session from idle eviction while work is active, resumes eligible sessions after host startup, and releases that retention when monitoring ends.
+
+### Host session catalog
+
+The local Agent Host maintains a host-wide `sessions_v2` SQLite registry and catalog. Each row contains a small indexed registry and synchronization envelope plus one bounded, versioned payload for list-visible session and chat metadata. The payload's structural validator is also its TypeScript type authority and normalizes all data before canonical serialization and hashing.
+
+The row has two different ownership contracts. Registry identity and provenance (`session_uri`, provider, start time, external state, and registration source) remain authoritative. The list payload is a derived, rebuildable aggregate: central session/chat identity, provider state, and member-chat metadata can reproduce its canonical bytes and hash. Ordinary session-list reads use this stored aggregate rather than opening every member-chat database.
+
+Peer-chat membership and routing data are authoritative in the central `session_chat_catalogs` and `session_chats` tables. The default chat is implicit in session identity; ordered peer rows retain their URI, provider backing, origin, and inherited-turn identity. A chat database owns its conversation content and chat-local metadata, including its durable provider backing and title. Central chat rows and the list payload retain only the copies needed to enumerate, route, and present the containing session.
+
+During the downgrade-compatibility window, a revisioned participant mirrors central peer membership into the legacy `peerChats` session-metadata value. Current runtime reads remain central. A startup/restore importer may read that legacy value to incorporate chats created by an older build; after import, central membership wins and the compatibility mirror is regenerated. Failed mirror writes do not roll back central authority and remain unacknowledged for retry.
+
+Catalog persistence is legacy-first during the compatibility window: one per-session transaction updates downgrade-compatible metadata and a durable pending catalog snapshot before the host-wide catalog is updated. Catalog updates are serialized per session, guarded by session incarnation and source revision, and acknowledged only after the central transaction succeeds. Background reconciliation replays interrupted writes and detects metadata written by older builds. A central monotonic dirty marker lets periodic passes skip clean rows before opening their per-session databases. A persisted verification version marks every payload dirty once when compatibility rules change, so writes made by older builds that do not know about the marker are rechecked without repeating the scan on every startup. Repair clears only the marker it observed; a concurrent mutation leaves the row dirty for another pass. Because provider state has no complete change signal, an infrequent safety sweep advances a persisted cursor through bounded clean-row samples; ordinary periodic passes remain central-only.
+
+The per-session snapshot retains the canonical payload only while the central write is pending. Exact acknowledgement promotes its hash to the compact receipt and clears the pending payload/hash, so synchronized sessions do not permanently store a third copy of their list metadata.
+
+`sessions_v2` is independent of the predecessor `sessions` registry. The current-version importer unions existing v2 identities, optional predecessor registry rows, and provider discovery by session URI, then writes complete rows directly to v2. Payload-versioned per-provider markers record successful current enumeration without changing predecessor migration markers. Partial imports resume per session; durable exclusions make permanently ineligible candidates terminal and revivable by later discovery.
+
+Normal current-runtime mutations are authoritative in v2 and atomically mirror identity/provenance into `sessions` during the compatibility window so an intermediate build can see newly-created sessions. Direct migration remains v2-only. On returning from an intermediate build, the importer reconciles legacy-only additions and resolved legacy identity changes; legacy-row absence alone is never interpreted as deletion. Shared tombstones are the durable cross-version delete signal.
+
+An upsert atomically replaces the verified payload and its synchronization envelope while preserving the registered identity. It is guarded by the session incarnation and source revision. Concurrent first writers converge on the winning incarnation through a serialized retry. Older builds continue to read the mirrored predecessor metadata; no retained central generation is required.
+
+The indexed envelope also carries payload-derived top-level eligibility. Chat-backing sessions therefore remain hidden after restart without decoding their payload or opening their per-session database. For worktree sessions, both legacy metadata and the central payload derive the displayed project from the persisted repository root rather than the worktree checkout.
+
+Session listing resolves each registered session independently from its verified current-version payload. A missing, outdated, or malformed payload falls back to the legacy/provider source for that row and schedules reconciliation. A valid chat-backing envelope remains authoritative and never falls back into the top-level session list.
 
 ## Local and remote boundary
 

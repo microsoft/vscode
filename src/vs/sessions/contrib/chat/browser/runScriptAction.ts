@@ -164,8 +164,9 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
 				return undefined;
 			}
 
-			const tasks = this._sessionsConfigService.getSessionTasks(activeSession).read(reader);
-			const folder = activeSession.workspace.read(reader)?.folders[0];
+			const activeChat = activeSession.activeChat.read(reader);
+			const tasks = this._sessionsConfigService.getSessionTasks(activeChat).read(reader);
+			const folder = activeChat.workspace.read(reader)?.folders[0];
 			const pinnedTaskLabel = this._sessionsConfigService.getPinnedTaskLabel(folder?.root).read(reader);
 			const browserUrl = this._sessionsConfigService.getBrowserUrl(folder?.root).read(reader);
 			const pinnedBrowser = this._sessionsConfigService.getPinnedBrowser(folder?.root).read(reader);

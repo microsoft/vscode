@@ -205,6 +205,8 @@ suite('SessionPermissionManager', () => {
 				join('.CLAUDE', 'settings.json'),
 				join('.CLAUDE', 'settings.local.json'),
 				join('.claude', 'SETTINGS.LOCAL.JSON'),
+				join('.CODEX', 'hooks.json'),
+				join('.codex', 'CONFIG.TOML'),
 			];
 			const results = await Promise.all(files.map(file => permissions.getAutoApproval(writeEvent(join(workDir, file)), sessionUri)));
 			assert.deepStrictEqual(results, files.map(() => undefined));
@@ -273,6 +275,9 @@ suite('SessionPermissionManager', () => {
 			join('.claude', 'agents', 'dev-helper.md'),
 			join('.claude', 'settings.json'),
 			join('.claude', 'settings.local.json'),
+			join('.codex', 'agents', 'dev-helper.md'),
+			join('.codex', 'config.toml'),
+			join('.codex', 'hooks.json'),
 		];
 		const results: (ToolCallConfirmationReason | undefined)[] = [];
 		for (const file of files) {
@@ -315,6 +320,17 @@ suite('SessionPermissionManager', () => {
 		symlinkSync(join(workDir, 'real'), join(workDir, 'link-in'), directoryLinkType);
 		const result = await permissions.getAutoApproval(writeEvent(join(workDir, 'link-in', 'note.txt')), sessionUri);
 		assert.strictEqual(result, ToolCallConfirmationReason.NotNeeded);
+	});
+
+	test('shell redirects use canonical containment for symlink ancestors', async () => {
+		mkdirSync(join(workDir, 'shell-real'));
+		symlinkSync(join(workDir, 'shell-real'), join(workDir, 'shell-link-in'), directoryLinkType);
+		symlinkSync(outsideDir, join(workDir, 'shell-link-out'), directoryLinkType);
+
+		const inside = await permissions.getAutoApproval(shellEvent('echo hi > shell-link-in/note.txt', 'bash'), sessionUri);
+		const outside = await permissions.getAutoApproval(shellEvent('echo hi > shell-link-out/note.txt', 'bash'), sessionUri);
+
+		assert.deepStrictEqual([inside, outside], [ToolCallConfirmationReason.NotNeeded, undefined]);
 	});
 
 	test('requires confirmation for home-directory dotfiles', async () => {
@@ -512,6 +528,38 @@ suite('SessionPermissionManager', () => {
 			dynamicResults: [undefined, undefined, undefined, undefined, undefined, undefined],
 			literalWorkspaceDestination: ToolCallConfirmationReason.NotNeeded,
 			nullSink: ToolCallConfirmationReason.NotNeeded,
+		});
+	});
+
+	test('redirect pathname globs require confirmation', async () => {
+		const events = [
+			shellEvent('echo hi > .[g]it/config', 'bash'),
+			shellEvent('echo hi > .[e]nv', 'bash'),
+			shellEvent('echo hi > packag?.json', 'bash'),
+			shellEvent('echo hi > "packag"[e]".json"', 'bash'),
+			powershellEvent(`Write-Host hi >'.[m]cp.json'`),
+			powershellEvent(`Write-Host hi >".[c]odex/hooks.json"`),
+		];
+		assert.deepStrictEqual(
+			await Promise.all(events.map(event => permissions.getAutoApproval(event, sessionUri))),
+			events.map(() => undefined)
+		);
+		assert.deepStrictEqual(events.map(event => permissions.isAutoApproveRuleResolvable(event, sessionUri)), events.map(() => false));
+	});
+
+	test('quoted non-glob redirects outside the working directory require confirmation', async () => {
+		const events = [
+			shellEvent(`echo hi > "${outsideDir}/"report".txt"`, 'bash'),
+			shellEvent(`echo hi >> '${outsideDir}/'report'.txt'`, 'bash'),
+			powershellEvent(`Write-Host hi > '${outsideDir}/report''s.txt'`),
+			powershellEvent(`Write-Host hi >>'${outsideDir}/report''s.txt'`),
+		];
+		assert.deepStrictEqual({
+			approvals: await Promise.all(events.map(event => permissions.getAutoApproval(event, sessionUri))),
+			ruleResolvable: events.map(event => permissions.isAutoApproveRuleResolvable(event, sessionUri)),
+		}, {
+			approvals: events.map(() => undefined),
+			ruleResolvable: events.map(() => false),
 		});
 	});
 
@@ -757,7 +805,8 @@ suite('SessionPermissionManager', () => {
 			symlinkSync(workDir2, join(workDir, 'cross-link'), directoryLinkType);
 			const read = await permissions.getAutoApproval(readEvent(join(workDir, 'cross-link', 'note.txt'), multiUri), multiUri);
 			const write = await permissions.getAutoApproval(writeEvent(join(workDir, 'cross-link', 'note.txt')), multiUri);
-			assert.deepStrictEqual([read, write], [undefined, undefined]);
+			const shellWrite = await permissions.getAutoApproval(shellEvent('echo hi > cross-link/note.txt', 'bash'), multiUri);
+			assert.deepStrictEqual([read, write, shellWrite], [undefined, undefined, undefined]);
 		});
 	});
 });

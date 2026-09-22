@@ -49,6 +49,7 @@ function buildAutoModel(defaultModel?: CopilotCLIModelInfo): LanguageModelChatIn
 		version: '',
 		maxInputTokens: defaultModel?.maxInputTokens ?? defaultModel?.maxContextWindowTokens ?? 0,
 		maxOutputTokens: defaultModel?.maxOutputTokens ?? 0,
+		maxContextWindowTokens: defaultModel?.maxContextWindowTokens,
 		isUserSelectable: true,
 		capabilities: {
 			imageInput: defaultModel?.supportsVision,
@@ -391,10 +392,14 @@ describe('CopilotCLIModels', () => {
 			};
 		}
 
-		it('always includes auto model in results', async () => {
+		it('includes auto and preserves declared context limits', async () => {
 			const configService = new MockConfigurationService();
 			await configService.setConfig(ConfigKey.Advanced.CLIAutoModelEnabled, true);
-			const { models } = createModels({ hasSession: true, configService });
+			const sdk = createMockSDK([{
+				id: 'overlapping-limits', name: 'Overlapping Limits', supportsVision: false,
+				maxInputTokens: 100_000, maxOutputTokens: 20_000, maxContextWindowTokens: 100_000,
+			}]);
+			const { models } = createModels({ hasSession: true, configService, sdk });
 			const lm = createLmMock();
 			models.registerLanguageModelChatProvider(lm.mock as any);
 
@@ -403,8 +408,11 @@ describe('CopilotCLIModels', () => {
 			// Allow the _fetchAndCacheModels .then() to run
 			await new Promise(r => setTimeout(r, 0));
 
-			const result = await lm.getProvider().provideLanguageModelChatInformation({}, undefined);
-			expect(result[0]).toEqual(expect.objectContaining({ id: 'auto', name: 'Auto' }));
+			const result: LanguageModelChatInformation[] = await lm.getProvider().provideLanguageModelChatInformation({}, undefined);
+			expect(result.map(({ id, name, maxContextWindowTokens }) => ({ id, name, maxContextWindowTokens }))).toEqual([
+				{ id: 'auto', name: 'Auto', maxContextWindowTokens: 100_000 },
+				{ id: 'overlapping-limits', name: 'Overlapping Limits', maxContextWindowTokens: 100_000 },
+			]);
 		});
 
 		it('returns an empty array when not authenticated', async () => {

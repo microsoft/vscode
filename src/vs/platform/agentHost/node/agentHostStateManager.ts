@@ -120,7 +120,7 @@ class SessionSummaryNotifier extends Disposable {
 
 	constructor(
 		private readonly _getSummary: (session: string) => SessionSummary | undefined,
-		private readonly _emit: (session: string, changes: SessionSummaryChanges) => void,
+		private readonly _emit: (session: string, changes: SessionSummaryChanges, previous: SessionSummary) => void,
 	) {
 		super();
 	}
@@ -144,7 +144,7 @@ class SessionSummaryNotifier extends Disposable {
 			return false;
 		}
 		this._lastNotified.set(session, { ...lastNotified, ...changes });
-		this._emit(session, changes);
+		this._emit(session, changes, lastNotified);
 		return true;
 	}
 
@@ -212,7 +212,7 @@ class SessionSummaryNotifier extends Disposable {
 		this._lastNotified.set(session, current);
 
 		if (Object.keys(changes).length > 0) {
-			this._emit(session, changes);
+			this._emit(session, changes, lastNotified);
 		}
 	}
 }
@@ -311,8 +311,8 @@ export class AgentHostStateManager extends Disposable {
 
 	private readonly _onDidChangeSessionWorkingDirectories = this._register(new Emitter<{ session: string }>());
 	readonly onDidChangeSessionWorkingDirectories: Event<{ session: string }> = this._onDidChangeSessionWorkingDirectories.event;
-	private readonly _onDidChangeSessionSummary = this._register(new Emitter<{ session: string; changes: SessionSummaryChangedParams['changes'] }>());
-	readonly onDidChangeSessionSummary: Event<{ session: string; changes: SessionSummaryChangedParams['changes'] }> = this._onDidChangeSessionSummary.event;
+	private readonly _onDidChangeSessionSummary = this._register(new Emitter<{ session: string; changes: SessionSummaryChangedParams['changes']; previous: SessionSummary }>());
+	readonly onDidChangeSessionSummary: Event<{ session: string; changes: SessionSummaryChangedParams['changes']; previous: SessionSummary }> = this._onDidChangeSessionSummary.event;
 
 	constructor(
 		@ILogService private readonly _logService: ILogService,
@@ -341,12 +341,12 @@ export class AgentHostStateManager extends Disposable {
 				const entry = this._sessionStates.get(session);
 				return entry ? this._toSummary(session, entry) : undefined;
 			},
-			(session, changes) => this._emitSessionSummaryChanged(session, changes),
+			(session, changes, previous) => this._emitSessionSummaryChanged(session, changes, previous),
 		));
 	}
 
-	private _emitSessionSummaryChanged(session: string, changes: SessionSummaryChangedParams['changes']): void {
-		this._onDidChangeSessionSummary.fire({ session, changes });
+	private _emitSessionSummaryChanged(session: string, changes: SessionSummaryChangedParams['changes'], previous: SessionSummary): void {
+		this._onDidChangeSessionSummary.fire({ session, changes, previous });
 		if (this._publishedSessionSummaries.has(session)) {
 			this._onDidEmitNotification.fire({
 				type: 'root/sessionSummaryChanged',
@@ -862,7 +862,11 @@ export class AgentHostStateManager extends Disposable {
 		// summary see the resolved working directory. We don't need to schedule a
 		// `SessionSummaryChanged` flush because the upcoming `SessionAdded`
 		// notification carries the complete summary already.
-		entry.state = { ...entry.state, workingDirectories: summary.workingDirectories };
+		const workingDirectoriesChanged = !equals(entry.state.workingDirectories, summary.workingDirectories);
+		entry.state = { ...entry.state, workingDirectories: summary.workingDirectories, _meta: summary._meta };
+		if (workingDirectoriesChanged) {
+			this._onDidChangeSessionWorkingDirectories.fire({ session: key });
+		}
 		entry.project = summary.project;
 		entry.modifiedAt = summary.modifiedAt;
 		entry.changes = summary.changes;
@@ -900,7 +904,7 @@ export class AgentHostStateManager extends Disposable {
 			return;
 		}
 		this._summaryNotifier.announce(session, { ...announced, title });
-		this._emitSessionSummaryChanged(session, { title });
+		this._emitSessionSummaryChanged(session, { title }, announced);
 	}
 
 	/** Removes a surfaced session without affecting a live session. */
@@ -1037,7 +1041,7 @@ export class AgentHostStateManager extends Disposable {
 	 * summary (e.g. adoptable-legacy), a `sessionSummaryChanged` delta is emitted
 	 * so clients update the entry in place instead of dropping it.
 	 */
-	restoreSession(summary: SessionSummary, turns: Turn[], options?: { readonly draft?: Message; readonly defaultChatTitle?: string }): SessionState {
+	restoreSession(summary: SessionSummary, turns: Turn[], options?: { readonly draft?: Message; readonly defaultChatTitle?: string; readonly defaultChatWorkingDirectories?: readonly string[] }): SessionState {
 		const key = summary.resource;
 		const existing = this._sessionStates.get(key);
 		if (existing) {
@@ -1050,7 +1054,7 @@ export class AgentHostStateManager extends Disposable {
 			lifecycle: SessionLifecycle.Ready,
 		};
 		this._sessionStates.set(key, this._newEntry(state, summary, SessionUse.Used));
-		this._ensureDefaultChat(key, summary, turns, options?.draft, options?.defaultChatTitle);
+		this._ensureDefaultChat(key, summary, turns, options?.draft, options?.defaultChatTitle, options?.defaultChatWorkingDirectories);
 		// A session that was previously surfaced (e.g. announced as an
 		// adoptable-legacy session) is already known to clients with a different
 		// summary. Emit the delta so they update the entry in place — clearing the
@@ -1080,11 +1084,15 @@ export class AgentHostStateManager extends Disposable {
 	 * at creation/restore time, so the snapshot a client later receives on
 	 * subscribe already reflects the default chat.
 	 */
-	private _ensureDefaultChat(sessionKey: string, summary: SessionSummary, turns?: Turn[], draft?: Message, defaultChatTitle?: string): void {
+	private _ensureDefaultChat(sessionKey: string, summary: SessionSummary, turns?: Turn[], draft?: Message, defaultChatTitle?: string, workingDirectories?: readonly string[]): void {
 		const chatUri = buildDefaultChatUri(sessionKey);
 		// Empty title means "inherit the session title"; a persisted independent
 		// rename (`defaultChatTitle`) is seeded back here so it survives restore.
-		const chatSummary: ChatSummary = { ...createDefaultChatSummary(summary, chatUri), title: defaultChatTitle ?? '' };
+		const chatSummary: ChatSummary = {
+			...createDefaultChatSummary(summary, chatUri),
+			title: defaultChatTitle ?? '',
+			...(workingDirectories !== undefined ? { workingDirectories: [...workingDirectories] } : {}),
+		};
 		this._chatEntries.set(chatUri, {
 			session: sessionKey,
 			summary: chatSummary,
@@ -1122,7 +1130,7 @@ export class AgentHostStateManager extends Disposable {
 	 * chat, tool spawn). Omitting it defaults to {@link ChatOriginKind.User}
 	 * via {@link createDefaultChatSummary}, so every catalog chat has an origin.
 	 */
-	addChat(session: URI, chatUri: URI, options?: { readonly title?: string; readonly turns?: Turn[]; readonly origin?: ChatOrigin; readonly providerData?: string; readonly inheritedTurnId?: string; readonly interactivity?: ChatInteractivity }): ChatSummary | undefined {
+	addChat(session: URI, chatUri: URI, options?: { readonly title?: string; readonly turns?: Turn[]; readonly origin?: ChatOrigin; readonly providerData?: string; readonly inheritedTurnId?: string; readonly interactivity?: ChatInteractivity; readonly workingDirectories?: readonly string[] }): ChatSummary | undefined {
 		const entry = this._sessionStates.get(session);
 		if (!entry) {
 			this._logService.warn(`[AgentHostStateManager] addChat for unknown session: ${session}`);
@@ -1147,6 +1155,7 @@ export class AgentHostStateManager extends Disposable {
 			status: SessionStatus.Idle,
 			...(options?.origin ? { origin: options.origin } : {}),
 			interactivity: options?.interactivity,
+			...(options?.workingDirectories !== undefined ? { workingDirectories: [...options.workingDirectories] } : {}),
 		};
 		this._chatEntries.set(chatUri, {
 			session,
@@ -1165,7 +1174,7 @@ export class AgentHostStateManager extends Disposable {
 	 * creating conversation state. The state-manager-owned resolver installs a
 	 * complete state only through {@link resolveChatState}.
 	 */
-	registerRestoredChatSummary(session: URI, chatUri: URI, options: { readonly title?: string; readonly origin?: ChatOrigin; readonly interactivity?: ChatInteractivity; readonly draft?: Message; readonly providerData?: string; readonly inheritedTurnId?: string; readonly resolver?: RestoredChatResolver }): ChatSummary | undefined {
+	registerRestoredChatSummary(session: URI, chatUri: URI, options: { readonly title?: string; readonly origin?: ChatOrigin; readonly interactivity?: ChatInteractivity; readonly draft?: Message; readonly providerData?: string; readonly inheritedTurnId?: string; readonly workingDirectories?: readonly string[]; readonly resolver?: RestoredChatResolver }): ChatSummary | undefined {
 		const entry = this._sessionStates.get(session);
 		if (!entry) {
 			this._logService.warn(`[AgentHostStateManager] registerRestoredChatSummary for unknown session: ${session}`);
@@ -1193,6 +1202,7 @@ export class AgentHostStateManager extends Disposable {
 			// without provenance.
 			...(options.origin ? { origin: options.origin } : {}),
 			interactivity: options.interactivity,
+			...(options.workingDirectories !== undefined ? { workingDirectories: [...options.workingDirectories] } : {}),
 		};
 		entry.state.chats = [...entry.state.chats, chatSummary];
 		this._chatEntries.set(chatUri, {

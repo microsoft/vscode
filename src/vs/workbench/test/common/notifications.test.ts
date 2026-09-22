@@ -54,7 +54,9 @@ suite('Notifications', () => {
 
 		// Progress
 		assert.strictEqual(item1.hasProgress, false);
+		assert.strictEqual(item1.hasActiveProgress, false);
 		assert.strictEqual(item6.hasProgress, true);
+		assert.strictEqual(item6.hasActiveProgress, true);
 
 		// Message Box
 		assert.strictEqual(item5.canCollapse, false);
@@ -159,6 +161,65 @@ suite('Notifications', () => {
 		for (const item of [item1, item2, item3, item4, item5, item6, itemId1, itemId2, item7, item8, item9, item10, item11, item12, item13]) {
 			item.close();
 		}
+	});
+
+	test('Progress activity tracks starts, updates, completion, and restart', () => {
+		const item = NotificationViewItem.create({ severity: Severity.Info, message: 'Progress' }, noFilter)!;
+		const states: { hasProgress: boolean; hasActiveProgress: boolean; sticky: boolean; activeProgressChanged: boolean | undefined }[] = [];
+		const captureState = (activeProgressChanged?: boolean) => states.push({
+			hasProgress: item.hasProgress,
+			hasActiveProgress: item.hasActiveProgress,
+			sticky: item.sticky,
+			activeProgressChanged
+		});
+		disposables.add(item.onDidChangeContent(e => {
+			if (e.kind === NotificationViewItemContentChangeKind.PROGRESS) {
+				captureState(e.activeProgressChanged);
+			}
+		}));
+
+		captureState();
+		const progress = item.progress;
+		captureState();
+		progress.infinite();
+		progress.total(100);
+		progress.worked(10);
+		progress.done();
+		progress.infinite();
+
+		assert.deepStrictEqual(states, [
+			{ hasProgress: false, hasActiveProgress: false, sticky: false, activeProgressChanged: undefined },
+			{ hasProgress: true, hasActiveProgress: false, sticky: false, activeProgressChanged: undefined },
+			{ hasProgress: true, hasActiveProgress: true, sticky: true, activeProgressChanged: true },
+			{ hasProgress: true, hasActiveProgress: true, sticky: true, activeProgressChanged: false },
+			{ hasProgress: true, hasActiveProgress: true, sticky: true, activeProgressChanged: false },
+			{ hasProgress: true, hasActiveProgress: false, sticky: false, activeProgressChanged: true },
+			{ hasProgress: true, hasActiveProgress: true, sticky: true, activeProgressChanged: true }
+		]);
+
+		item.close();
+	});
+
+	test('Completed progress notifications remain unique', () => {
+		const model = disposables.add(new NotificationsModel());
+		const first = model.addNotification({ severity: Severity.Info, message: 'Same message' });
+		let firstClosed = false;
+		disposables.add(first.onDidClose(() => firstClosed = true));
+
+		first.progress.infinite();
+		first.progress.done();
+		const second = model.addNotification({ severity: Severity.Info, message: 'Same message' });
+
+		assert.deepStrictEqual({
+			notificationCount: model.notifications.length,
+			firstClosed
+		}, {
+			notificationCount: 2,
+			firstClosed: false
+		});
+
+		first.close();
+		second.close();
 	});
 
 	test('Items - does not fire changed when message did not change (content, severity)', async () => {

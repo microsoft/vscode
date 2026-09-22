@@ -89,8 +89,9 @@ export function toAgentHostUri(originalUri: URI, connectionAuthority: string): U
  * reads it with `resourceRead` instead of resolving it as a filesystem entry.
  * Hosts choose their own content URI shapes, so the scheme cannot identify one.
  *
- * A content ref that is already a plain `file:` URI on the local connection
- * stays unwrapped by default. `alwaysWrap` keeps reads on the owning connection.
+ * A content ref that is already a directly resolvable filesystem URI on the
+ * local connection stays unwrapped by default. `alwaysWrap` keeps reads on the
+ * owning connection.
  */
 export function toAgentHostContentUri(originalUri: URI, connectionAuthority: string, options?: { readonly alwaysWrap?: boolean }): URI {
 	return wrapAgentHostUri(originalUri, connectionAuthority, true, options?.alwaysWrap);
@@ -106,7 +107,7 @@ export function toAgentHostContentUri(originalUri: URI, connectionAuthority: str
 export type AgentHostUriMapper = (uri: URI, options?: { readonly contentRef?: boolean }) => URI;
 
 function wrapAgentHostUri(originalUri: URI, connectionAuthority: string, contentRef: boolean, alwaysWrap = false): URI {
-	if (connectionAuthority === 'local' && originalUri.scheme === Schemas.file && !alwaysWrap) {
+	if (!alwaysWrap && connectionAuthority === LOCAL_AGENT_HOST_AUTHORITY && (originalUri.scheme === Schemas.file || originalUri.scheme === Schemas.vscodeRemote)) {
 		return originalUri;
 	}
 

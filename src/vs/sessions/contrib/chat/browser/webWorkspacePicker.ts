@@ -12,8 +12,11 @@ import { IRemoteAgentHostService } from '../../../../platform/agentHost/common/r
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
-import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
+import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
+import { IDialogService, IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
+import { IFileService } from '../../../../platform/files/common/files.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
+import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
@@ -62,6 +65,10 @@ export class WebWorkspacePicker extends WorkspacePicker {
 		@ITelemetryService telemetryService: ITelemetryService,
 		@INotificationService notificationService: INotificationService,
 		@IHoverService hoverService: IHoverService,
+		@IKeybindingService keybindingService: IKeybindingService,
+		@IContextMenuService contextMenuService: IContextMenuService,
+		@IFileService fileService: IFileService,
+		@IDialogService dialogService: IDialogService,
 		@IAgentHostFilterService private readonly _agentHostFilterService: IAgentHostFilterService,
 		@IWorkbenchLayoutService private readonly _layoutService: IWorkbenchLayoutService,
 	) {
@@ -84,6 +91,10 @@ export class WebWorkspacePicker extends WorkspacePicker {
 			telemetryService,
 			notificationService,
 			hoverService,
+			keybindingService,
+			contextMenuService,
+			fileService,
+			dialogService,
 		);
 
 		// When the scoped host changes, if the current selection no longer

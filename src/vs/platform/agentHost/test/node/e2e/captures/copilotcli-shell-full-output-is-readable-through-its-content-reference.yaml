@@ -35,7 +35,7 @@ exchanges:
             - type: tool_result
               tool_use_id: toolcall_0
               content: |-
-                Output too large to read at once (256.1 KB). Saved to: ${tool_output_0}
+                Output too large to read at once (256.1 KB). Saved to: ${shell_output_0}
                 Consider using tools like grep (for searching), head/tail (for viewing start/end), view with view_range (for specific sections), or jq (for JSON) to examine portions of the output.
 
                 Preview (first 500 chars):

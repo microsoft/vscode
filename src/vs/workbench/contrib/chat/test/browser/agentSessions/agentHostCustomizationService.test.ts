@@ -24,6 +24,7 @@ import { AbstractAgentHostCustomizationService, IAgentHostCustomizationTarget, W
 import { IAgentHostUntitledProvisionalSessionService } from '../../../browser/agentSessions/agentHost/agentHostUntitledProvisionalSessionService.js';
 import { IChatService } from '../../../common/chatService/chatService.js';
 import { IAgentHostActiveClientService } from '../../../browser/agentSessions/agentHost/agentHostActiveClientService.js';
+import { assertCodexSkillItems, createCodexSkillCustomizations } from './agentHostSkillDiscoveryTestUtils.js';
 
 class FakeTarget implements IAgentHostCustomizationTarget {
 	readonly enablementChanges: { readonly rawId: string; readonly enablement: readonly CustomizationEnablement[] }[] = [];
@@ -33,6 +34,7 @@ class FakeTarget implements IAgentHostCustomizationTarget {
 		readonly workingDirectory?: string,
 		private readonly _isBundledMcpServer: (pluginUri: string, serverName: string) => boolean = () => false,
 		readonly resourceUris: IAgentHostResourceUriMapper = identityAgentHostResourceUriMapper,
+		readonly workingDirectories: readonly string[] = workingDirectory ? [workingDirectory] : [],
 	) { }
 
 	isBundledMcpServer(pluginUri: string, serverName: string): boolean {
@@ -113,6 +115,44 @@ suite('AbstractAgentHostCustomizationService', () => {
 		});
 		return store.add(new TestAgentHostCustomizationService(instantiationService, new NullLogService()));
 	}
+
+	for (const authority of ['local', 'remote-test']) {
+		test(`maps ordered ${authority} roots without changing workspace enablement URIs`, () => {
+			const sut = createSut();
+			const session = URI.parse('vscode-agent-session:///session-1');
+			const roots = [URI.file('/workspace'), URI.file('/second workspace')];
+			const hostRoots = roots.map(root => root.toString());
+			const resourceUris = createAgentHostResourceUriMapper(authority);
+			const target = new FakeTarget([mcpServer('server-1', 'Server One')], hostRoots[0], undefined, resourceUris, hostRoots);
+			sut.setTarget(session, target);
+
+			const clientRoots = sut.getClientWorkingDirectoryUris(session);
+			sut.setCustomizationEnablement(session, 'server-1', undefined, CustomizationEnablementKind.Workspace, false);
+
+			assert.deepStrictEqual({
+				primaryRoot: sut.getWorkingDirectory(session),
+				hostRoots: sut.getWorkingDirectories(session),
+				clientRoots: clientRoots.map(root => root.toString()),
+				roundTrip: clientRoots.map(root => resourceUris.toAgentHost(root).toString()),
+				enablementChanges: target.enablementChanges,
+			}, {
+				primaryRoot: hostRoots[0],
+				hostRoots,
+				clientRoots: roots.map(root => resourceUris.fromAgentHost(root).toString()),
+				roundTrip: hostRoots,
+				enablementChanges: [{ rawId: 'server-1', enablement: [{ kind: CustomizationEnablementKind.Workspace, uri: hostRoots[0], enabled: false }] }],
+			});
+		});
+	}
+
+	test('returns no client roots when the session or working directories are missing', () => {
+		const sut = createSut();
+		const session = URI.parse('vscode-agent-session:///session-1');
+		const missingSessionRoots = sut.getClientWorkingDirectoryUris(session);
+		sut.setTarget(session, new FakeTarget([]));
+
+		assert.deepStrictEqual({ missingSessionRoots, emptyRoots: sut.getClientWorkingDirectoryUris(session) }, { missingSessionRoots: [], emptyRoots: [] });
+	});
 
 	test('dispatches complete enablement decisions', () => {
 		const sut = createSut();
@@ -434,13 +474,13 @@ suite('WorkbenchAgentHostCustomizationService', () => {
 		}
 	}
 
-	function createReadinessSut() {
+	function createReadinessSut(provider = 'copilot') {
 		/** Keeps the bounded wait short so timeout coverage costs no real time. */
 		class TestTimeoutCustomizationService extends WorkbenchAgentHostCustomizationService {
 			protected override readonly _snapshotTimeoutMs = 20;
 		}
 		const sessionResource = URI.parse('untitled:chat');
-		const backendSession = URI.parse('copilot:/session');
+		const backendSession = URI.parse(`${provider}:/session`);
 		const subscription = store.add(new LiveSessionSubscription());
 		const connection = new class extends mock<IAgentConnection>() {
 			override readonly resourceUris = identityAgentHostResourceUriMapper;
@@ -499,7 +539,7 @@ suite('WorkbenchAgentHostCustomizationService', () => {
 		const stateWithDirectory: SessionState = {
 			...createSessionState({
 				resource: backendSession.toString(),
-				provider: 'copilot',
+				provider,
 				title: 'Session',
 				status: SessionStatus.Idle,
 				createdAt: new Date(0).toISOString(),
@@ -509,6 +549,17 @@ suite('WorkbenchAgentHostCustomizationService', () => {
 		};
 		return { service, subscription, sessionResource, stateWithDirectory };
 	}
+
+	test('editor window exposes Codex workspace skills and validation failures from session discovery', async () => {
+		const { service, subscription, sessionResource, stateWithDirectory } = createReadinessSut('codex');
+		subscription.setSnapshot({
+			...stateWithDirectory,
+			workingDirectories: ['file:///workspace'],
+			customizations: createCodexSkillCustomizations(),
+		});
+
+		await assertCodexSkillItems(service, sessionResource, store);
+	});
 
 	test('whenCustomizationsReady defers until the first snapshot rather than reporting no customizations', async () => {
 		const { service, subscription, sessionResource, stateWithDirectory } = createReadinessSut();
