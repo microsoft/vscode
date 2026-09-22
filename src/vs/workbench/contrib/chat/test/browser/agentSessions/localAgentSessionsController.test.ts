@@ -656,6 +656,31 @@ suite('LocalAgentsSessionsController', () => {
 			})), [{ titles: ['Updated title'], removed: undefined }]);
 		});
 
+		test('publishes working directory metadata changes and removals', async () => {
+			const controller = createController();
+			const item = createHistoryItem('working-directory-metadata');
+			const originalDirectory = URI.file('/workspace/original');
+			const changedDirectory = URI.file('/workspace/changed');
+			mockChatService.setHistorySessionItems([{ ...item, workingDirectory: originalDirectory }]);
+			await controller.refresh(CancellationToken.None);
+
+			const updates: IChatSessionItemsDelta[] = [];
+			disposables.add(controller.onDidChangeChatSessionItems(delta => updates.push(delta)));
+			for (const workingDirectory of [URI.file(originalDirectory.fsPath), changedDirectory, undefined]) {
+				mockChatService.setHistorySessionItems([{ ...item, workingDirectory }]);
+				await controller.refresh(CancellationToken.None);
+			}
+			await controller.refresh(CancellationToken.None);
+
+			assert.deepStrictEqual(updates.map(delta => ({
+				metadata: delta.addedOrUpdated?.map(item => item.metadata),
+				removed: delta.removed,
+			})), [
+				{ metadata: [{ workingDirectoryPath: changedDirectory.fsPath }], removed: undefined },
+				{ metadata: [undefined], removed: undefined },
+			]);
+		});
+
 		test('does not apply a refresh cancelled while reading history', async () => {
 			const controller = createController();
 			const item = createHistoryItem('cancelled-refresh');

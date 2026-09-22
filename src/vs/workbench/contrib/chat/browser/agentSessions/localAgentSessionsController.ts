@@ -257,6 +257,7 @@ class LocalChatSessionItem implements IChatSessionItem {
 			&& this.timing.created === other.timing.created
 			&& this.timing.lastRequestStarted === other.timing.lastRequestStarted
 			&& this.timing.lastRequestEnded === other.timing.lastRequestEnded
-			&& equals(this.changes, other.changes);
+			&& equals(this.changes, other.changes)
+			&& equals(this.metadata, other.metadata);
 	}
 }

@@ -126,8 +126,9 @@ export class ChatWidgetService extends Disposable implements IChatWidgetService 
 					this.logService.trace(`[ChatWidgetService] openSession done total=${Date.now() - t0}ms uri=${sessionResource.toString()} path=reveal`);
 					return alreadyOpenWidget;
 				}
-			} else {
-				await this.prepareSessionForMove(sessionResource, target);
+			} else if (!await this.prepareSessionForMove(sessionResource, target)) {
+				this.logService.trace(`[ChatWidgetService] openSession done total=${Date.now() - t0}ms uri=${sessionResource.toString()} path=move cancelled=true`);
+				return undefined;
 			}
 
 			// Load this session in chat view (preferred)
@@ -198,7 +199,7 @@ export class ChatWidgetService extends Disposable implements IChatWidgetService 
 		return undefined;
 	}
 
-	private async prepareSessionForMove(sessionResource: URI, target: typeof ChatViewPaneTarget | PreferredGroup | undefined): Promise<void> {
+	private async prepareSessionForMove(sessionResource: URI, target: typeof ChatViewPaneTarget | PreferredGroup | undefined): Promise<boolean> {
 		const existingWidget = this.getWidgetBySessionResource(sessionResource);
 		if (existingWidget) {
 			const existingEditor = isIChatViewViewContext(existingWidget.viewContext) ?
@@ -206,20 +207,21 @@ export class ChatWidgetService extends Disposable implements IChatWidgetService 
 				this.findExistingChatEditorByUri(sessionResource);
 
 			if (isIChatViewViewContext(existingWidget.viewContext) && target === ChatViewPaneTarget) {
-				return;
+				return true;
 			}
 
 			if (!isIChatViewViewContext(existingWidget.viewContext) && target !== ChatViewPaneTarget && existingEditor && this.isSameEditorTarget(existingEditor.group.id, target)) {
-				return;
+				return true;
 			}
 
 			if (existingEditor) {
 				// widget.clear() on an editor leaves behind an empty chat editor
-				await this.editorService.closeEditor({ editor: existingEditor.editor, groupId: existingEditor.group.id }, { preserveFocus: true });
+				return existingEditor.editor.closeForMove(existingEditor.group);
 			} else {
 				await existingWidget.clear();
 			}
 		}
+		return true;
 	}
 
 	private findExistingChatEditorByUri(sessionUri: URI): { editor: ChatEditorInput; group: IEditorGroup } | undefined {
