@@ -24,7 +24,7 @@ In the treatment, Automations and Customizations are the first rows in the Sessi
 #### Preconditions
 
 - AI features are enabled.
-- Enable `chat.customizations.unifiedMarketplace.enabled` (experimental and disabled by default).
+- Enable `chat.customizations.marketplace.sources.agentFinderPublicFeed.enabled` (experimental and disabled by default). This enables the AgentFinder public feed, currently the only production source; Marketplace itself has no feature flag.
 - Open Agent Customizations in either the editor workbench or Agents Window.
 
 #### Actions and Expected Results
@@ -46,9 +46,10 @@ In the treatment, Automations and Customizations are the first rows in the Sessi
 14. Install a Copilot or Claude plugin from a catalog subdirectory. The existing trust and managed-marketplace restrictions must apply, and only that plugin should be installed.
 15. Install an MCP server. It must be resolved against the configured registry and use the normal MCP installation flow, not executable configuration supplied by the catalog.
 16. Check that installation errors allow retry without losing search results, cancellations do not announce success, and unsupported formats such as Cursor plugins explain why installation is unavailable.
-17. With `chat.customizations.unifiedMarketplace.enabled` unset or false, verify there is no Marketplace sidebar or overview entry, no marketplace widget, and no catalog or installation work. A persisted or programmatic Marketplace selection must not bypass the gate. The former `chat.agentFinder.enabled` setting does not enable the marketplace.
-18. Enable the experiment and select Marketplace, then disable it during a query or skill import. The editor must return to the overview, requests/imports must be cancelled, and the widget must be disposed. Re-enabling must not revive a cancelled operation or reuse stale installed-skill state.
-19. With an additional test source, return overlapping identifiers, multiple versions, and different continuation tokens. All distinct source/identifier/version entries remain visible, each continuation goes only to its owning source, exhausted sources stop querying, and installation state/actions do not collide. No additional production source is enabled by this experiment.
+17. With the public feed setting unset or false and no other sources enabled, verify there is no Marketplace sidebar or overview entry, no marketplace widget, and no catalog or installation work. A persisted or programmatic Marketplace selection must not bypass the gate. Neither former setting, `chat.agentFinder.enabled` nor `chat.customizations.unifiedMarketplace.enabled`, enables a source.
+18. Enable the public feed and select Marketplace, then disable it during a query or skill import. When it is the last enabled source, the editor must return to the overview, requests/imports must be cancelled, and the widget must be disposed. Re-enabling must not revive a cancelled operation or reuse stale installed-skill state.
+19. With an additional test source and an independent enablement setting, verify each window requests only its enabled sources. A disabled source must not be initialized or queried, even when another source is active. Disabling one source resets discovery but keeps Marketplace visible, does not cancel another source's install, and does not clear that other source's installed-skill state. Installation of disabled or unknown source resources remains unavailable. Only disabling the last source hides Marketplace.
+20. Have the test sources return overlapping identifiers, multiple versions, and different continuation tokens. All distinct source/identifier/version entries remain visible, each continuation goes only to its owning source, exhausted sources stop querying, and installation state/actions do not collide. Continuation after a source-set change requires a new search. No second production source is introduced by this change.
 
 ### Scenario 1: Empty state — no session, no customizations
 

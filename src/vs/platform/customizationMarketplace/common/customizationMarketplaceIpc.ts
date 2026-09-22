@@ -10,14 +10,15 @@ import { Lazy } from '../../../base/common/lazy.js';
 import { revive } from '../../../base/common/marshalling.js';
 import { IChannel, IServerChannel } from '../../../base/parts/ipc/common/ipc.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
-import { CustomizationMarketplaceConfiguration, ICustomizationMarketplacePage, ICustomizationMarketplaceQuery, ICustomizationMarketplaceService } from './customizationMarketplaceService.js';
+import { ICustomizationMarketplacePage, ICustomizationMarketplaceQuery, ICustomizationMarketplaceQueryService, ICustomizationMarketplaceRequest, ICustomizationMarketplaceService, ICustomizationMarketplaceSourceInfo } from './customizationMarketplaceService.js';
+import { CustomizationMarketplaceSources, queryEnabledCustomizationMarketplaceSources } from './customizationMarketplaceSources.js';
 
 export const CUSTOMIZATION_MARKETPLACE_CHANNEL_NAME = 'customizationMarketplace';
 
 export class CustomizationMarketplaceChannel implements IServerChannel {
-	private readonly service: Lazy<ICustomizationMarketplaceService>;
+	private readonly service: Lazy<ICustomizationMarketplaceQueryService>;
 
-	constructor(getService: () => ICustomizationMarketplaceService) {
+	constructor(getService: () => ICustomizationMarketplaceQueryService) {
 		this.service = new Lazy(getService);
 	}
 
@@ -25,13 +26,13 @@ export class CustomizationMarketplaceChannel implements IServerChannel {
 		throw new Error('Invalid listen');
 	}
 
-	call<T>(_context: unknown, command: string, query?: ICustomizationMarketplaceQuery, token: CancellationToken = CancellationToken.None): Promise<T> {
+	call<T>(_context: unknown, command: string, query?: ICustomizationMarketplaceRequest, token: CancellationToken = CancellationToken.None): Promise<T> {
 		switch (command) {
 			case 'query':
-				if (token.isCancellationRequested) {
+				if (token.isCancellationRequested || !query?.sourceIds.length) {
 					return Promise.reject(new CancellationError());
 				}
-				return this.service.value.query(query ?? {}, token) as Promise<T>;
+				return this.service.value.query(query, token) as Promise<T>;
 		}
 		throw new Error('Invalid call');
 	}
@@ -39,6 +40,7 @@ export class CustomizationMarketplaceChannel implements IServerChannel {
 
 export class CustomizationMarketplaceChannelClient implements ICustomizationMarketplaceService {
 	declare readonly _serviceBrand: undefined;
+	readonly sources: readonly ICustomizationMarketplaceSourceInfo[] = Object.values(CustomizationMarketplaceSources);
 
 	constructor(
 		private readonly channel: IChannel,
@@ -46,9 +48,9 @@ export class CustomizationMarketplaceChannelClient implements ICustomizationMark
 	) { }
 
 	async query(options: ICustomizationMarketplaceQuery, token: CancellationToken): Promise<ICustomizationMarketplacePage> {
-		if (this.configurationService.getValue<boolean>(CustomizationMarketplaceConfiguration.Enabled) !== true || token.isCancellationRequested) {
-			throw new CancellationError();
-		}
-		return revive<ICustomizationMarketplacePage>(await this.channel.call<ICustomizationMarketplacePage>('query', options, token));
+		return revive<ICustomizationMarketplacePage>(await queryEnabledCustomizationMarketplaceSources(
+			this.configurationService, this.sources, options, token,
+			(request, token) => this.channel.call<ICustomizationMarketplacePage>('query', request, token),
+		));
 	}
 }

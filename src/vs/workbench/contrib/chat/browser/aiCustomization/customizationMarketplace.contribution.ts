@@ -9,13 +9,13 @@ import { localize } from '../../../../../nls.js';
 import { AccessibleContentProvider, AccessibleViewProviderId, AccessibleViewType } from '../../../../../platform/accessibility/browser/accessibleView.js';
 import { AccessibleViewRegistry, IAccessibleViewImplementation } from '../../../../../platform/accessibility/browser/accessibleViewRegistry.js';
 import { ICustomizationMarketplaceService } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
+import { CustomizationMarketplaceSources } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { InstantiationType, registerSingleton } from '../../../../../platform/instantiation/common/extensions.js';
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { AccessibilityVerbositySettingId } from '../../../accessibility/browser/accessibilityConfiguration.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
-import { ChatConfiguration } from '../../common/constants.js';
 import { ICustomizationMarketplaceInstallService } from '../../common/customizationMarketplaceInstallService.js';
 import { AICustomizationManagementSection, CONTEXT_AI_CUSTOMIZATION_MANAGEMENT_EDITOR, CONTEXT_AI_CUSTOMIZATION_MANAGEMENT_SECTION } from './aiCustomizationManagement.js';
 import { AICustomizationManagementEditor } from './aiCustomizationManagementEditor.js';
@@ -27,12 +27,14 @@ import { CustomizationMarketplaceWorkbenchService } from './customizationMarketp
 registerSingleton(ICustomizationMarketplaceService, CustomizationMarketplaceWorkbenchService, InstantiationType.Delayed);
 registerSingleton(ICustomizationMarketplaceInstallService, CustomizationMarketplaceInstallService, InstantiationType.Delayed);
 
+const enablementSettings = Object.values(CustomizationMarketplaceSources).map(source => source.enablementSetting);
+
 aiCustomizationManagementSectionRegistry.register({
 	id: AICustomizationManagementSection.Marketplace,
 	label: localize('customizationMarketplace.label', "Marketplace"),
 	icon: Codicon.search,
 	description: localize('customizationMarketplace.description', "Discover skills, MCP servers, and plugins for your agents."),
-	enablementSetting: ChatConfiguration.ChatCustomizationsUnifiedMarketplaceEnabled,
+	enablementSettings,
 	supportsHarness: () => true,
 	create: (instantiationService, container) => instantiationService.createInstance(CustomizationMarketplaceWidget, container),
 });
@@ -42,7 +44,7 @@ class CustomizationMarketplaceAccessibleView implements IAccessibleViewImplement
 	readonly name = 'customization-marketplace';
 	readonly when = ContextKeyExpr.and(
 		ChatContextKeys.enabled,
-		ContextKeyExpr.equals(`config.${ChatConfiguration.ChatCustomizationsUnifiedMarketplaceEnabled}`, true),
+		ContextKeyExpr.or(...enablementSettings.map(setting => ContextKeyExpr.equals(`config.${setting}`, true))),
 		CONTEXT_AI_CUSTOMIZATION_MANAGEMENT_EDITOR,
 		CONTEXT_AI_CUSTOMIZATION_MANAGEMENT_SECTION.isEqualTo(AICustomizationManagementSection.Marketplace),
 	);
@@ -60,7 +62,7 @@ class CustomizationMarketplaceAccessibleView implements IAccessibleViewImplement
 			AccessibleViewProviderId.CustomizationMarketplace,
 			{ type: this.type, language: 'plaintext' },
 			() => this.type === AccessibleViewType.Help ? [
-				localize('customizationMarketplace.help.overview', "The marketplace helps you discover skills, MCP servers, and plugins for your agents. Browsing does not install or enable anything."),
+				localize('customizationMarketplace.help.overview', "The marketplace helps you discover skills, MCP servers, and plugins for your agents from enabled marketplace sources. Browsing does not install or enable anything."),
 				localize('customizationMarketplace.help.search', "Type in the search field to find resources, or clear it to browse. Press Enter to search immediately. The resource type selector filters both browsing and search."),
 				localize('customizationMarketplace.help.loading', "Loading is shown with decorative placeholder cards and announced to screen readers. Placeholders are not results and cannot be selected. Previously loaded results remain available while the next page loads."),
 				localize('customizationMarketplace.help.navigation', "Use Tab and Shift+Tab to move between controls and result cards. When a card is focused, use the arrow keys, Home, and End to navigate the results."),

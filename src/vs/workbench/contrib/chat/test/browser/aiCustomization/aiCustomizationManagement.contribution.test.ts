@@ -31,16 +31,16 @@ suite('AI customization management contribution', () => {
 		'aiCustomizationManagement.installChatCustomizationExtension',
 	]);
 
-	test('Marketplace declares its experiment gate and source-neutral label before any widget is created', () => {
+	test('Marketplace declares its source gates and source-neutral label before any widget is created', () => {
 		const section = aiCustomizationManagementSectionRegistry.getDefault(AICustomizationManagementSection.Marketplace);
 		assert.deepStrictEqual({
 			id: section?.id,
 			label: section?.label,
-			enablementSetting: section?.enablementSetting,
+			enablementSettings: section?.enablementSettings,
 		}, {
 			id: 'marketplace',
 			label: 'Marketplace',
-			enablementSetting: ChatConfiguration.ChatCustomizationsUnifiedMarketplaceEnabled,
+			enablementSettings: [ChatConfiguration.AgentFinderPublicFeedEnabled],
 		});
 	});
 

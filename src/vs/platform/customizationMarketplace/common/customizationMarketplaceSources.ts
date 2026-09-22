@@ -1,0 +1,54 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+import { equals } from '../../../base/common/arrays.js';
+import { raceCancellationError } from '../../../base/common/async.js';
+import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
+import { CancellationError } from '../../../base/common/errors.js';
+import { DisposableStore } from '../../../base/common/lifecycle.js';
+import { IConfigurationService } from '../../configuration/common/configuration.js';
+import { ICustomizationMarketplacePage, ICustomizationMarketplaceQuery, ICustomizationMarketplaceRequest, ICustomizationMarketplaceSourceInfo } from './customizationMarketplaceService.js';
+
+export const enum CustomizationMarketplaceConfiguration {
+	AgentFinderPublicFeedEnabled = 'chat.customizations.marketplace.sources.agentFinderPublicFeed.enabled',
+}
+
+export const CustomizationMarketplaceSources = {
+	AgentFinderPublicFeed: {
+		id: 'agentFinder',
+		enablementSetting: CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled,
+	},
+} as const satisfies Record<string, ICustomizationMarketplaceSourceInfo>;
+
+export function getEnabledCustomizationMarketplaceSources(configurationService: IConfigurationService, sources: readonly ICustomizationMarketplaceSourceInfo[]): readonly ICustomizationMarketplaceSourceInfo[] {
+	return sources.filter(source => configurationService.getValue<boolean>(source.enablementSetting) === true);
+}
+
+export async function queryEnabledCustomizationMarketplaceSources(
+	configurationService: IConfigurationService,
+	sources: readonly ICustomizationMarketplaceSourceInfo[],
+	options: ICustomizationMarketplaceQuery,
+	token: CancellationToken,
+	query: (request: ICustomizationMarketplaceRequest, token: CancellationToken) => Promise<ICustomizationMarketplacePage>,
+): Promise<ICustomizationMarketplacePage> {
+	const sourceIds = getEnabledCustomizationMarketplaceSources(configurationService, sources).map(source => source.id);
+	if (token.isCancellationRequested || sourceIds.length === 0) {
+		throw new CancellationError();
+	}
+	const store = new DisposableStore();
+	const cancellation = store.add(new CancellationTokenSource(token));
+	store.add(configurationService.onDidChangeConfiguration(event => {
+		if (sources.some(source => event.affectsConfiguration(source.enablementSetting)) &&
+			!equals(sourceIds, getEnabledCustomizationMarketplaceSources(configurationService, sources).map(source => source.id))) {
+			cancellation.cancel();
+		}
+	}));
+	try {
+		return await raceCancellationError(query({ ...options, sourceIds }, cancellation.token), cancellation.token);
+	} finally {
+		cancellation.cancel();
+		store.dispose();
+	}
+}

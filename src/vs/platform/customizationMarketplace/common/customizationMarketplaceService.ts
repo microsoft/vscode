@@ -6,14 +6,11 @@
 import { raceCancellationError } from '../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
 import { CancellationError } from '../../../base/common/errors.js';
+import { Lazy } from '../../../base/common/lazy.js';
 import { DisposableStore } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
-
-export const enum CustomizationMarketplaceConfiguration {
-	Enabled = 'chat.customizations.unifiedMarketplace.enabled',
-}
 
 export const CustomizationMarketplaceMediaType = {
 	Skill: 'application/ai-skill',
@@ -81,6 +78,10 @@ export interface ICustomizationMarketplaceQuery {
 	readonly cursor?: ICustomizationMarketplaceCursor;
 }
 
+export interface ICustomizationMarketplaceRequest extends ICustomizationMarketplaceQuery {
+	readonly sourceIds: readonly string[];
+}
+
 export interface ICustomizationMarketplacePage {
 	readonly items: readonly ICustomizationMarketplaceResource[];
 	readonly total?: number;
@@ -106,15 +107,37 @@ export interface ICustomizationMarketplaceSource extends ICustomizationMarketpla
 	readonly id: string;
 }
 
+export interface ICustomizationMarketplaceSourceInfo {
+	readonly id: string;
+	readonly enablementSetting: string;
+}
+
+export function createLazyCustomizationMarketplaceSource(id: string, createProvider: () => ICustomizationMarketplaceProvider): ICustomizationMarketplaceSource {
+	const provider = new Lazy(createProvider);
+	return {
+		id,
+		query: async (options, token) => {
+			if (token.isCancellationRequested) {
+				throw new CancellationError();
+			}
+			return provider.value.query(options, token);
+		},
+	};
+}
+
 export const ICustomizationMarketplaceService = createDecorator<ICustomizationMarketplaceService>('customizationMarketplaceService');
 
 export interface ICustomizationMarketplaceService {
 	readonly _serviceBrand: undefined;
+	readonly sources: readonly ICustomizationMarketplaceSourceInfo[];
 	query(options: ICustomizationMarketplaceQuery, token: CancellationToken): Promise<ICustomizationMarketplacePage>;
 }
 
-export class CustomizationMarketplaceService implements ICustomizationMarketplaceService {
-	declare readonly _serviceBrand: undefined;
+export interface ICustomizationMarketplaceQueryService {
+	query(options: ICustomizationMarketplaceRequest, token: CancellationToken): Promise<ICustomizationMarketplacePage>;
+}
+
+export class CustomizationMarketplaceService implements ICustomizationMarketplaceQueryService {
 
 	constructor(private readonly sources: readonly ICustomizationMarketplaceSource[]) {
 		if (sources.some(source => !source.id) || new Set(sources.map(source => source.id)).size !== sources.length) {
@@ -122,40 +145,41 @@ export class CustomizationMarketplaceService implements ICustomizationMarketplac
 		}
 	}
 
-	async query(options: ICustomizationMarketplaceQuery, token: CancellationToken): Promise<ICustomizationMarketplacePage> {
-		if (token.isCancellationRequested) {
+	async query(options: ICustomizationMarketplaceRequest, token: CancellationToken): Promise<ICustomizationMarketplacePage> {
+		if (token.isCancellationRequested || options.sourceIds.length === 0) {
 			throw new CancellationError();
 		}
+		const sources = this.sources.filter(source => options.sourceIds.includes(source.id));
 		const query = options.query?.trim() ?? '';
 		const requestedPageSize = options.pageSize ?? 30;
-		if (query.length > 4096 || !Number.isSafeInteger(requestedPageSize) || requestedPageSize <= 0 ||
+		if (sources.length !== options.sourceIds.length || query.length > 4096 || !Number.isSafeInteger(requestedPageSize) || requestedPageSize <= 0 ||
 			(options.mediaType !== undefined && !Object.values(CustomizationMarketplaceMediaType).includes(options.mediaType))) {
 			throw new Error(localize('customizationMarketplace.invalidQuery', "The marketplace query is invalid."));
 		}
 		const pageSize = Math.min(requestedPageSize, 100);
 		const cursor = options.cursor;
 		if (cursor && (cursor.query !== query || cursor.mediaType !== options.mediaType || cursor.pageSize !== pageSize ||
-			cursor.sources.length !== this.sources.length || cursor.sources.some((source, index) => source.id !== this.sources[index].id))) {
+			cursor.sources.length !== sources.length || cursor.sources.some((source, index) => source.id !== sources[index].id))) {
 			throw new Error(localize('customizationMarketplace.invalidCursor', "The marketplace page is invalid. Start a new search."));
 		}
 		const store = new DisposableStore();
 		const cancellation = store.add(new CancellationTokenSource(token));
 		try {
-			const pages = await raceCancellationError(Promise.all(this.sources.map((source, index): ICustomizationMarketplaceSourcePage | Promise<ICustomizationMarketplaceSourcePage> => {
+			const pages = await raceCancellationError(Promise.all(sources.map((source, index): ICustomizationMarketplaceSourcePage | Promise<ICustomizationMarketplaceSourcePage> => {
 				const previous = cursor?.sources[index];
 				return previous && previous.cursor === undefined
 					? { items: [], total: previous.total }
 					: source.query({ query, mediaType: options.mediaType, pageSize, cursor: previous?.cursor }, cancellation.token);
 			})), cancellation.token);
-			const sources = pages.map((page, index) => ({
-				id: this.sources[index].id,
+			const cursors = pages.map((page, index) => ({
+				id: sources[index].id,
 				cursor: page.nextCursor,
 				total: page.total,
 			}));
 			return {
-				items: pages.flatMap((page, index) => page.items.map(item => ({ ...item, sourceId: this.sources[index].id }))),
+				items: pages.flatMap((page, index) => page.items.map(item => ({ ...item, sourceId: sources[index].id }))),
 				total: pages.every(page => page.total !== undefined) ? pages.reduce((total, page) => total + page.total!, 0) : undefined,
-				nextCursor: sources.some(source => source.cursor !== undefined) ? { query, mediaType: options.mediaType, pageSize, sources } : undefined,
+				nextCursor: cursors.some(source => source.cursor !== undefined) ? { query, mediaType: options.mediaType, pageSize, sources: cursors } : undefined,
 			};
 		} finally {
 			cancellation.cancel();

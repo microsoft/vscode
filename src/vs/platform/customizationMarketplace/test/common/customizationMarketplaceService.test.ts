@@ -8,7 +8,7 @@ import { DeferredPromise } from '../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { isCancellationError } from '../../../../base/common/errors.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { CustomizationMarketplaceMediaType, CustomizationMarketplaceService, getCustomizationMarketplaceResourceKey, ICustomizationMarketplaceEntry, ICustomizationMarketplaceQuery, ICustomizationMarketplaceSource, ICustomizationMarketplaceSourcePage, ICustomizationMarketplaceSourceQuery } from '../../common/customizationMarketplaceService.js';
+import { createLazyCustomizationMarketplaceSource, CustomizationMarketplaceMediaType, CustomizationMarketplaceService, getCustomizationMarketplaceResourceKey, ICustomizationMarketplaceEntry, ICustomizationMarketplaceQuery, ICustomizationMarketplaceSource, ICustomizationMarketplaceSourcePage, ICustomizationMarketplaceSourceQuery } from '../../common/customizationMarketplaceService.js';
 
 suite('CustomizationMarketplaceService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -34,7 +34,7 @@ suite('CustomizationMarketplaceService', () => {
 			},
 		}));
 		const options = { query: '  review  ', mediaType: CustomizationMarketplaceMediaType.Skill, pageSize: 24 };
-		const page = await new CustomizationMarketplaceService(sources).query(options, CancellationToken.None);
+		const page = await new CustomizationMarketplaceService(sources).query({ ...options, sourceIds: ['first', 'second'] }, CancellationToken.None);
 		assert.deepStrictEqual({
 			page,
 			calls,
@@ -58,8 +58,8 @@ suite('CustomizationMarketplaceService', () => {
 			},
 		});
 		const service = new CustomizationMarketplaceService([source('first', true), source('second', false)]);
-		const first = await service.query({ pageSize: 1 }, CancellationToken.None);
-		const second = await service.query({ pageSize: 1, cursor: first.nextCursor }, CancellationToken.None);
+		const first = await service.query({ sourceIds: ['first', 'second'], pageSize: 1 }, CancellationToken.None);
+		const second = await service.query({ sourceIds: ['first', 'second'], pageSize: 1, cursor: first.nextCursor }, CancellationToken.None);
 		assert.deepStrictEqual({ calls, firstCursor: first.nextCursor, second }, {
 			calls: [
 				{ source: 'first', cursor: undefined },
@@ -82,9 +82,28 @@ suite('CustomizationMarketplaceService', () => {
 			{ id: 'unknown', query: async () => ({ items: [entry] }) },
 			{ id: 'known', query: async options => ({ items: [entry], total: 2, nextCursor: options.cursor ? undefined : 'next' }) },
 		]);
-		const first = await service.query({}, CancellationToken.None);
-		const second = await service.query({ cursor: first.nextCursor }, CancellationToken.None);
+		const first = await service.query({ sourceIds: ['unknown', 'known'] }, CancellationToken.None);
+		const second = await service.query({ sourceIds: ['unknown', 'known'], cursor: first.nextCursor }, CancellationToken.None);
 		assert.deepStrictEqual([first.total, second.total, second.items.map(item => item.sourceId), second.nextCursor], [undefined, undefined, ['known'], undefined]);
+	});
+
+	test('pagination and totals include only the selected sources', async () => {
+		const calls: { source: string; cursor: string | undefined }[] = [];
+		const sources = ['disabled', 'enabled'].map((id): ICustomizationMarketplaceSource => ({
+			id,
+			query: async options => {
+				calls.push({ source: id, cursor: options.cursor });
+				return { items: [entry], total: 2, nextCursor: options.cursor ? undefined : 'next' };
+			},
+		}));
+		const service = new CustomizationMarketplaceService(sources);
+		const first = await service.query({ sourceIds: ['enabled'], pageSize: 1 }, CancellationToken.None);
+		const second = await service.query({ sourceIds: ['enabled'], pageSize: 1, cursor: first.nextCursor }, CancellationToken.None);
+		assert.deepStrictEqual({ calls, firstCursor: first.nextCursor, second }, {
+			calls: [{ source: 'enabled', cursor: undefined }, { source: 'enabled', cursor: 'next' }],
+			firstCursor: { query: '', mediaType: undefined, pageSize: 1, sources: [{ id: 'enabled', cursor: 'next', total: 2 }] },
+			second: { items: [{ ...entry, sourceId: 'enabled' }], total: 2, nextCursor: undefined },
+		});
 	});
 
 	test('does not fabricate installation provenance or reinterpret source metadata', async () => {
@@ -92,7 +111,7 @@ suite('CustomizationMarketplaceService', () => {
 		const entries = [entry, { ...entry, version: '2.0', installation }];
 		const page = await new CustomizationMarketplaceService([
 			{ id: 'catalog', query: async () => ({ items: entries }) },
-		]).query({}, CancellationToken.None);
+		]).query({ sourceIds: ['catalog'] }, CancellationToken.None);
 		assert.deepStrictEqual(page.items, entries.map(item => ({ ...item, sourceId: 'catalog' })));
 	});
 
@@ -118,13 +137,13 @@ suite('CustomizationMarketplaceService', () => {
 			},
 		}));
 		const service = new CustomizationMarketplaceService(sources);
-		const options = { query: 'review', mediaType: CustomizationMarketplaceMediaType.Skill, pageSize: 24 };
+		const options = { sourceIds: ['first', 'second'], query: 'review', mediaType: CustomizationMarketplaceMediaType.Skill, pageSize: 24 };
 		const page = await service.query(options, CancellationToken.None);
-		for (const change of [{ query: '' }, { query: 'another' }, { mediaType: CustomizationMarketplaceMediaType.McpServer }, { pageSize: 12 }]) {
+		for (const change of [{ query: '' }, { query: 'another' }, { mediaType: CustomizationMarketplaceMediaType.McpServer }, { pageSize: 12 }, { sourceIds: ['second'] }]) {
 			await assert.rejects(service.query({ ...options, ...change, cursor: page.nextCursor }, CancellationToken.None), /Start a new search/);
 		}
 		for (const changedSources of [[...sources].reverse(), sources.slice(1), [...sources, { id: 'third', query: sources[0].query }]]) {
-			await assert.rejects(new CustomizationMarketplaceService(changedSources).query({ ...options, cursor: page.nextCursor }, CancellationToken.None), /Start a new search/);
+			await assert.rejects(new CustomizationMarketplaceService(changedSources).query({ ...options, sourceIds: changedSources.map(source => source.id), cursor: page.nextCursor }, CancellationToken.None), /Start a new search/);
 		}
 		assert.deepStrictEqual(calls, ['first', 'second']);
 	});
@@ -142,10 +161,10 @@ suite('CustomizationMarketplaceService', () => {
 			{ query: 'x'.repeat(4097) },
 		];
 		for (const options of invalidQueries) {
-			await assert.rejects(service.query(options, CancellationToken.None), /query is invalid/);
+			await assert.rejects(service.query({ ...options, sourceIds: ['source'] }, CancellationToken.None), /query is invalid/);
 		}
-		await service.query({}, CancellationToken.None);
-		await service.query({ pageSize: 101 }, CancellationToken.None);
+		await service.query({ sourceIds: ['source'] }, CancellationToken.None);
+		await service.query({ sourceIds: ['source'], pageSize: 101 }, CancellationToken.None);
 		assert.deepStrictEqual(calls, [
 			{ query: '', mediaType: undefined, pageSize: 30, cursor: undefined },
 			{ query: '', mediaType: undefined, pageSize: 100, cursor: undefined },
@@ -161,7 +180,7 @@ suite('CustomizationMarketplaceService', () => {
 	test('cancelled requests never call sources', async () => {
 		let calls = 0;
 		const service = new CustomizationMarketplaceService([{ id: 'source', query: async () => { calls++; return { items: [] }; } }]);
-		await assert.rejects(service.query({}, CancellationToken.Cancelled), isCancellationError);
+		await assert.rejects(service.query({ sourceIds: ['source'] }, CancellationToken.Cancelled), isCancellationError);
 		assert.strictEqual(calls, 0);
 	});
 
@@ -175,7 +194,7 @@ suite('CustomizationMarketplaceService', () => {
 				return pending.p;
 			},
 		}));
-		const query = new CustomizationMarketplaceService(sources).query({}, cancellation.token);
+		const query = new CustomizationMarketplaceService(sources).query({ sourceIds: ['first', 'second'] }, cancellation.token);
 		cancellation.cancel();
 		await assert.rejects(query, isCancellationError);
 		await pending.complete({ items: [] });
@@ -197,8 +216,33 @@ suite('CustomizationMarketplaceService', () => {
 				return pending.p;
 			},
 		}));
-		await assert.rejects(new CustomizationMarketplaceService(sources).query({}, CancellationToken.None), actual => actual === error);
+		await assert.rejects(new CustomizationMarketplaceService(sources).query({ sourceIds: ['first', 'second'] }, CancellationToken.None), actual => actual === error);
 		await pending.complete({ items: [entry] });
 		assert.deepStrictEqual({ calls, cancelled: tokens.map(token => token.isCancellationRequested) }, { calls: ['first', 'second'], cancelled: [true, true] });
+	});
+
+	test('only constructs and queries sources selected by the calling window', async () => {
+		const creations: string[] = [];
+		const calls: string[] = [];
+		const sources = ['first', 'second'].map(id => createLazyCustomizationMarketplaceSource(id, () => {
+			creations.push(id);
+			return { query: async () => { calls.push(id); return { items: [entry], total: 1 }; } };
+		}));
+		const service = new CustomizationMarketplaceService(sources);
+		await assert.rejects(service.query({ sourceIds: [] }, CancellationToken.None), isCancellationError);
+		await assert.rejects(service.query({ sourceIds: ['first'] }, CancellationToken.Cancelled), isCancellationError);
+		await assert.rejects(sources[0].query({}, CancellationToken.Cancelled), isCancellationError);
+		for (const sourceIds of [['unknown'], ['first', 'first'], ['first', 'unknown']]) {
+			await assert.rejects(service.query({ sourceIds }, CancellationToken.None), /query is invalid/);
+		}
+		const beforeQuery = [...creations];
+		const second = await service.query({ sourceIds: ['second'] }, CancellationToken.None);
+		const afterSecond = [...creations];
+		await service.query({ sourceIds: ['first'] }, CancellationToken.None);
+		await service.query({ sourceIds: ['second'] }, CancellationToken.None);
+		assert.deepStrictEqual({ beforeQuery, afterSecond, creations, calls, page: second }, {
+			beforeQuery: [], afterSecond: ['second'], creations: ['second', 'first'], calls: ['second', 'first', 'second'],
+			page: { items: [{ ...entry, sourceId: 'second' }], total: 1, nextCursor: undefined },
+		});
 	});
 });

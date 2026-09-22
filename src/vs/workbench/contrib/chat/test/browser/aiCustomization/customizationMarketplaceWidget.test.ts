@@ -18,7 +18,7 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/virtualScheduling/index.js';
-import { CustomizationMarketplaceMediaType, getCustomizationMarketplaceResourceKey, ICustomizationMarketplaceCursor, ICustomizationMarketplacePage, ICustomizationMarketplaceQuery, ICustomizationMarketplaceResource, ICustomizationMarketplaceService } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
+import { CustomizationMarketplaceMediaType, getCustomizationMarketplaceResourceKey, ICustomizationMarketplaceCursor, ICustomizationMarketplacePage, ICustomizationMarketplaceQuery, ICustomizationMarketplaceResource, ICustomizationMarketplaceService, ICustomizationMarketplaceSourceInfo } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
 import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 import { IConfigurationChangeEvent } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -41,6 +41,7 @@ interface IRecordedQuery {
 }
 
 class TestCustomizationMarketplaceService extends mock<ICustomizationMarketplaceService>() {
+	override readonly sources: ICustomizationMarketplaceSourceInfo[] = [{ id: 'testSource', enablementSetting: ChatConfiguration.AgentFinderPublicFeedEnabled }];
 	readonly requests: IRecordedQuery[] = [];
 
 	override query(options: ICustomizationMarketplaceQuery, token: CancellationToken): Promise<ICustomizationMarketplacePage> {
@@ -140,7 +141,7 @@ suite('CustomizationMarketplaceWidget', () => {
 		hidden = false,
 		parent: HTMLElement = document.body,
 		widgetConstructor: typeof CustomizationMarketplaceWidget = CustomizationMarketplaceWidget,
-		options: { customizationMarketplaceEnabled?: boolean } = { customizationMarketplaceEnabled: true },
+		options: { sourceEnabled?: boolean; additionalSources?: readonly ICustomizationMarketplaceSourceInfo[] } = { sourceEnabled: true },
 	) {
 		const container = DOM.append(parent, DOM.$('.customization-marketplace-test'));
 		store.add(toDisposable(() => container.remove()));
@@ -148,6 +149,7 @@ suite('CustomizationMarketplaceWidget', () => {
 		container.style.height = '600px';
 
 		const service = new TestCustomizationMarketplaceService();
+		service.sources.push(...(options.additionalSources ?? []));
 		const installService = store.add(new TestCustomizationMarketplaceInstallService());
 		const sentimentChanged = store.add(new Emitter<void>());
 		const entitlement = new class extends mock<IChatEntitlementService>() {
@@ -156,7 +158,7 @@ suite('CustomizationMarketplaceWidget', () => {
 		}();
 		const configuration = new TestConfigurationService({
 			[AccessibilityVerbositySettingId.CustomizationMarketplace]: true,
-			...(options.customizationMarketplaceEnabled !== undefined ? { [ChatConfiguration.ChatCustomizationsUnifiedMarketplaceEnabled]: options.customizationMarketplaceEnabled } : {}),
+			...(options.sourceEnabled !== undefined ? { [ChatConfiguration.AgentFinderPublicFeedEnabled]: options.sourceEnabled } : {}),
 		});
 		store.add(configuration.onDidChangeConfigurationEmitter);
 		const keybindingsChanged = store.add(new Emitter<void>());
@@ -214,10 +216,10 @@ suite('CustomizationMarketplaceWidget', () => {
 		));
 		return {
 			container, widget, service, installService, opened, notifications, signals, configuration, hovers,
-			async setCustomizationMarketplaceEnabled(enabled: boolean) {
-				await configuration.setUserConfiguration(ChatConfiguration.ChatCustomizationsUnifiedMarketplaceEnabled, enabled);
+			async setSourceEnabled(enabled: boolean, setting: string = ChatConfiguration.AgentFinderPublicFeedEnabled) {
+				await configuration.setUserConfiguration(setting, enabled);
 				configuration.onDidChangeConfigurationEmitter.fire(new class extends mock<IConfigurationChangeEvent>() {
-					override affectsConfiguration(section: string) { return section === ChatConfiguration.ChatCustomizationsUnifiedMarketplaceEnabled; }
+					override affectsConfiguration(section: string) { return section === setting; }
 				}());
 			},
 			setAIHidden(value: boolean) {
@@ -271,8 +273,8 @@ suite('CustomizationMarketplaceWidget', () => {
 
 	for (const initialFlag of [undefined, false]) {
 		test(`does no catalog work when the experiment is ${initialFlag === undefined ? 'unset' : 'false'}`, () => runWithFakedTimers({}, async () => {
-			const { container, widget, service, installService, configuration, setCustomizationMarketplaceEnabled } = createWidget(
-				false, document.body, CustomizationMarketplaceWidget, initialFlag === undefined ? {} : { customizationMarketplaceEnabled: initialFlag });
+			const { container, widget, service, installService, configuration, setSourceEnabled } = createWidget(
+				false, document.body, CustomizationMarketplaceWidget, initialFlag === undefined ? {} : { sourceEnabled: initialFlag });
 			widget.setVisible(true);
 			pressKey(setSearch(container, 'review'), 'Enter', 13);
 			getButton(container, 'Refresh').click();
@@ -283,14 +285,14 @@ suite('CustomizationMarketplaceWidget', () => {
 			widget.setVisible(false);
 			widget.setVisible(true);
 			const disabled = {
-				setting: configuration.getValue(ChatConfiguration.ChatCustomizationsUnifiedMarketplaceEnabled),
+				setting: configuration.getValue(ChatConfiguration.AgentFinderPublicFeedEnabled),
 				queryCount: service.requests.length,
 				installCount: installService.requests.length,
 				installStateReads: installService.stateReads.slice(),
 				display: widget.element.style.display,
 				names: getCardNames(container),
 			};
-			await setCustomizationMarketplaceEnabled(true);
+			await setSourceEnabled(true);
 			await service.requests[0].result.complete({ items: [createResource('Enabled')] });
 
 			assert.deepStrictEqual({
@@ -310,10 +312,12 @@ suite('CustomizationMarketplaceWidget', () => {
 	test('the old catalog setting cannot enable marketplace discovery or installation', () => runWithFakedTimers({}, async () => {
 		const { container, widget, service, installService, configuration } = createWidget(
 			false, document.body, CustomizationMarketplaceWidget, {});
-		const oldSetting = 'chat.agentFinder.enabled';
-		await configuration.setUserConfiguration(oldSetting, true);
+		const oldSettings = ['chat.agentFinder.enabled', 'chat.customizations.unifiedMarketplace.enabled'];
+		for (const setting of oldSettings) {
+			await configuration.setUserConfiguration(setting, true);
+		}
 		configuration.onDidChangeConfigurationEmitter.fire(new class extends mock<IConfigurationChangeEvent>() {
-			override affectsConfiguration(section: string) { return section === oldSetting; }
+			override affectsConfiguration(section: string) { return oldSettings.includes(section); }
 		}());
 		widget.setVisible(true);
 		pressKey(setSearch(container, 'review'), 'Enter', 13);
@@ -321,7 +325,7 @@ suite('CustomizationMarketplaceWidget', () => {
 		await timeout(400);
 
 		assert.deepStrictEqual({
-			enabled: configuration.getValue(ChatConfiguration.ChatCustomizationsUnifiedMarketplaceEnabled),
+			enabled: configuration.getValue(ChatConfiguration.AgentFinderPublicFeedEnabled),
 			queries: service.requests.length,
 			installs: installService.requests.length,
 			installStateReads: installService.stateReads,
@@ -338,10 +342,10 @@ suite('CustomizationMarketplaceWidget', () => {
 	}));
 
 	for (const lateResponse of ['success', 'failure'] as const) {
-		test(`disabling the experiment cancels pending queries and ignores a late ${lateResponse}`, async () => {
-			const { container, widget, service, notifications, signals, setCustomizationMarketplaceEnabled } = createWidget();
+		test(`disabling the source cancels pending queries and ignores a late ${lateResponse}`, async () => {
+			const { container, widget, service, notifications, signals, setSourceEnabled } = createWidget();
 			widget.setVisible(true);
-			await setCustomizationMarketplaceEnabled(false);
+			await setSourceEnabled(false);
 			const disabled = {
 				cancelled: service.requests[0].token.isCancellationRequested,
 				display: widget.element.style.display,
@@ -356,7 +360,7 @@ suite('CustomizationMarketplaceWidget', () => {
 				names: getCardNames(container),
 				error: getElement(container, '.customization-marketplace-error').textContent,
 			};
-			await setCustomizationMarketplaceEnabled(true);
+			await setSourceEnabled(true);
 			await service.requests[1].result.complete({ items: [createResource('Enabled result')] });
 
 			assert.deepStrictEqual({
@@ -379,20 +383,20 @@ suite('CustomizationMarketplaceWidget', () => {
 		});
 	}
 
-	test('disabling the experiment cancels debounced search until it is enabled again', () => runWithFakedTimers({}, async () => {
-		const { container, widget, service, setCustomizationMarketplaceEnabled } = createWidget();
+	test('disabling the source cancels debounced search until it is enabled again', () => runWithFakedTimers({}, async () => {
+		const { container, widget, service, setSourceEnabled } = createWidget();
 		widget.setVisible(true);
 		await service.requests[0].result.complete({ items: [createResource('Original')] });
 		setSearch(container, 'pending');
 		await timeout(100);
-		await setCustomizationMarketplaceEnabled(false);
+		await setSourceEnabled(false);
 		await timeout(400);
 		const disabled = {
 			queryCount: service.requests.length,
 			display: widget.element.style.display,
 			names: getCardNames(container),
 		};
-		await setCustomizationMarketplaceEnabled(true);
+		await setSourceEnabled(true);
 		await service.requests[1].result.complete({ items: [createResource('Enabled')] });
 		await timeout(400);
 
@@ -406,6 +410,36 @@ suite('CustomizationMarketplaceWidget', () => {
 			names: ['Enabled'],
 		});
 	}));
+
+	test('changing sources resets discovery without hiding the widget until the last source is disabled', async () => {
+		const secondSetting = 'test.marketplace.second.enabled';
+		const { container, widget, service, setSourceEnabled } = createWidget(
+			false, document.body, CustomizationMarketplaceWidget,
+			{ sourceEnabled: true, additionalSources: [{ id: 'second', enablementSetting: secondSetting }] });
+		widget.setVisible(true);
+		await service.requests[0].result.complete({ items: [createResource('First source')], nextCursor: createCursor('next') });
+		await setSourceEnabled(true, secondSetting);
+		const afterAdding = { names: getCardNames(container), display: widget.element.style.display };
+		await setSourceEnabled(false);
+		await service.requests[1].result.complete({ items: [createResource('Stale combined results')] });
+		await service.requests[2].result.complete({ items: [createResource('Second source', { sourceId: 'second' })] });
+		const remainingSource = {
+			cancelledPrevious: service.requests[1].token.isCancellationRequested,
+			names: getCardNames(container),
+			display: widget.element.style.display,
+			cursors: service.requests.map(request => request.options.cursor),
+		};
+		await setSourceEnabled(false, secondSetting);
+		const noneEnabled = { names: getCardNames(container), display: widget.element.style.display, queries: service.requests.length };
+		await setSourceEnabled(true, secondSetting);
+		await service.requests[3].result.complete({ items: [createResource('Fresh second source', { sourceId: 'second' })] });
+		assert.deepStrictEqual({ afterAdding, remainingSource, noneEnabled, reenabled: getCardNames(container) }, {
+			afterAdding: { names: [], display: '' },
+			remainingSource: { cancelledPrevious: true, names: ['Second source'], display: '', cursors: [undefined, undefined, undefined] },
+			noneEnabled: { names: [], display: 'none', queries: 3 },
+			reenabled: ['Fresh second source'],
+		});
+	});
 
 	test('loads only when visible and reuses completed results on reactivation', async () => {
 		const { container, widget, service } = createWidget();

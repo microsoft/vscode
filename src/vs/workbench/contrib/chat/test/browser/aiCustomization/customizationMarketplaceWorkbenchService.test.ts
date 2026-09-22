@@ -44,11 +44,12 @@ suite('CustomizationMarketplaceWorkbenchService', () => {
 
 		await assert.rejects(service.query({}, CancellationToken.None), isCancellationError);
 		await configuration.setUserConfiguration('chat.agentFinder.enabled', true);
+		await configuration.setUserConfiguration('chat.customizations.unifiedMarketplace.enabled', true);
 		await assert.rejects(service.query({}, CancellationToken.None), isCancellationError);
-		await configuration.setUserConfiguration(ChatConfiguration.ChatCustomizationsUnifiedMarketplaceEnabled, false);
+		await configuration.setUserConfiguration(ChatConfiguration.AgentFinderPublicFeedEnabled, false);
 		await assert.rejects(service.query({}, CancellationToken.None), isCancellationError);
 		await assert.rejects(service.query({ query: 'review' }, CancellationToken.None), isCancellationError);
-		await configuration.setUserConfiguration(ChatConfiguration.ChatCustomizationsUnifiedMarketplaceEnabled, true);
+		await configuration.setUserConfiguration(ChatConfiguration.AgentFinderPublicFeedEnabled, true);
 		await assert.rejects(service.query({}, CancellationToken.Cancelled), isCancellationError);
 		await assert.rejects(service.query({ query: 'review' }, CancellationToken.Cancelled), isCancellationError);
 		const whileDisabled = { creations: create.callCount, requests: requests.length };
@@ -56,7 +57,7 @@ suite('CustomizationMarketplaceWorkbenchService', () => {
 			await service.query({}, CancellationToken.None),
 			await service.query({ query: 'review' }, CancellationToken.None),
 		];
-		await configuration.setUserConfiguration(ChatConfiguration.ChatCustomizationsUnifiedMarketplaceEnabled, false);
+		await configuration.setUserConfiguration(ChatConfiguration.AgentFinderPublicFeedEnabled, false);
 		await assert.rejects(service.query({}, CancellationToken.None), isCancellationError);
 
 		assert.deepStrictEqual({

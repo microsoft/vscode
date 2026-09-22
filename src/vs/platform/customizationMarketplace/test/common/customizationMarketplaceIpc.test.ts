@@ -4,31 +4,34 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { raceCancellationError } from '../../../../base/common/async.js';
+import { DeferredPromise, raceCancellationError } from '../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { isCancellationError } from '../../../../base/common/errors.js';
 import { Event } from '../../../../base/common/event.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IChannel } from '../../../../base/parts/ipc/common/ipc.js';
+import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { IConfigurationChangeEvent } from '../../../configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
 import { CUSTOMIZATION_MARKETPLACE_CHANNEL_NAME, CustomizationMarketplaceChannel, CustomizationMarketplaceChannelClient } from '../../common/customizationMarketplaceIpc.js';
-import { CustomizationMarketplaceConfiguration, CustomizationMarketplaceInstallation, CustomizationMarketplaceMediaType, ICustomizationMarketplacePage, ICustomizationMarketplaceQuery, ICustomizationMarketplaceService } from '../../common/customizationMarketplaceService.js';
+import { CustomizationMarketplaceInstallation, CustomizationMarketplaceMediaType, ICustomizationMarketplacePage, ICustomizationMarketplaceQuery, ICustomizationMarketplaceQueryService, ICustomizationMarketplaceRequest } from '../../common/customizationMarketplaceService.js';
+import { CustomizationMarketplaceConfiguration } from '../../common/customizationMarketplaceSources.js';
 
 suite('CustomizationMarketplaceIpc', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createClient(service: ICustomizationMarketplaceService): CustomizationMarketplaceChannelClient {
+	function createClient(service: ICustomizationMarketplaceQueryService): CustomizationMarketplaceChannelClient {
 		const server = new CustomizationMarketplaceChannel(() => service);
 		const channel: IChannel = {
-			async call<T>(command: string, options?: ICustomizationMarketplaceQuery, token?: CancellationToken): Promise<T> {
+			async call<T>(command: string, options?: ICustomizationMarketplaceRequest, token?: CancellationToken): Promise<T> {
 				return JSON.parse(JSON.stringify(await server.call<ICustomizationMarketplacePage>('test', command, options, token)));
 			},
 			listen<T>(event: string): Event<T> {
 				return server.listen('test', event);
 			},
 		};
-		const configuration = new TestConfigurationService({ [CustomizationMarketplaceConfiguration.Enabled]: true });
+		const configuration = new TestConfigurationService({ [CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled]: true });
 		disposables.add(configuration.onDidChangeConfigurationEmitter);
 		return new CustomizationMarketplaceChannelClient(channel, configuration);
 	}
@@ -39,31 +42,36 @@ suite('CustomizationMarketplaceIpc', () => {
 		const server = new CustomizationMarketplaceChannel(() => {
 			constructed++;
 			return {
-				_serviceBrand: undefined,
 				async query() { queried++; return { items: [] }; },
 			};
 		});
 		const afterRegistration = constructed;
 		assert.throws(() => server.call('test', 'invalid'), /Invalid call/);
 		assert.throws(() => server.listen('test', 'invalid'), /Invalid listen/);
-		await assert.rejects(server.call('test', 'query', {}, CancellationToken.Cancelled), isCancellationError);
+		await assert.rejects(server.call('test', 'query', { sourceIds: ['agentFinder'] }, CancellationToken.Cancelled), isCancellationError);
+		await assert.rejects(server.call('test', 'query'), isCancellationError);
+		await assert.rejects(server.call('test', 'query', { sourceIds: [] }), isCancellationError);
 		const afterIgnoredCalls = constructed;
-		await server.call('test', 'query', {});
-		await server.call('test', 'query', {});
+		await server.call('test', 'query', { sourceIds: ['agentFinder'] });
+		await server.call('test', 'query', { sourceIds: ['agentFinder'] });
 
 		assert.deepStrictEqual({ afterRegistration, afterIgnoredCalls, constructed, queried }, {
 			afterRegistration: 0, afterIgnoredCalls: 0, constructed: 1, queried: 2,
 		});
 	});
 
-	test('disabled or unset experiment prevents renderer IPC calls', async () => {
+	test('disabled or unset sources prevent renderer IPC calls regardless of the former marketplace flags', async () => {
 		let calls = 0;
 		const channel: IChannel = {
 			async call() { calls++; throw new Error('The disabled client must not call IPC'); },
 			listen: () => Event.None,
 		};
 		for (const enabled of [undefined, false]) {
-			const configuration = new TestConfigurationService({ [CustomizationMarketplaceConfiguration.Enabled]: enabled, 'chat.agentFinder.enabled': true });
+			const configuration = new TestConfigurationService({
+				[CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled]: enabled,
+				'chat.agentFinder.enabled': true,
+				'chat.customizations.unifiedMarketplace.enabled': true,
+			});
 			disposables.add(configuration.onDidChangeConfigurationEmitter);
 			const client = new CustomizationMarketplaceChannelClient(channel, configuration);
 			await assert.rejects(client.query({}, CancellationToken.None), isCancellationError);
@@ -75,11 +83,51 @@ suite('CustomizationMarketplaceIpc', () => {
 		assert.strictEqual(CUSTOMIZATION_MARKETPLACE_CHANNEL_NAME, 'customizationMarketplace');
 	});
 
+	test('each window sends only its enabled source IDs and cancels its own requests', async () => {
+		const secondSetting = 'test.marketplace.second.enabled';
+		const requests: { options: ICustomizationMarketplaceRequest; token: CancellationToken; result: DeferredPromise<ICustomizationMarketplacePage> }[] = [];
+		const server = new CustomizationMarketplaceChannel(() => ({
+			query(options, token) {
+				const result = new DeferredPromise<ICustomizationMarketplacePage>();
+				requests.push({ options, token, result });
+				return result.p;
+			},
+		}));
+		const channel: IChannel = {
+			call: (command, options, token) => server.call('test', command, options, token),
+			listen: () => Event.None,
+		};
+		class TestChannelClient extends CustomizationMarketplaceChannelClient {
+			override readonly sources = [
+				{ id: 'agentFinder', enablementSetting: CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled },
+				{ id: 'second', enablementSetting: secondSetting },
+			];
+		}
+		const firstConfiguration = new TestConfigurationService({ [CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled]: true });
+		const secondConfiguration = new TestConfigurationService({ [secondSetting]: true });
+		disposables.add(firstConfiguration.onDidChangeConfigurationEmitter);
+		disposables.add(secondConfiguration.onDidChangeConfigurationEmitter);
+		const first = new TestChannelClient(channel, firstConfiguration).query({}, CancellationToken.None);
+		const second = new TestChannelClient(channel, secondConfiguration).query({}, CancellationToken.None);
+		const cancelled = assert.rejects(first, isCancellationError);
+		await firstConfiguration.setUserConfiguration(CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled, false);
+		firstConfiguration.onDidChangeConfigurationEmitter.fire(new class extends mock<IConfigurationChangeEvent>() {
+			override affectsConfiguration(section: string): boolean { return section === CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled; }
+		}());
+		await cancelled;
+		const cancellationBeforeResults = requests.map(request => request.token.isCancellationRequested);
+		await requests[0].result.complete({ items: [], total: 1 });
+		await requests[1].result.complete({ items: [], total: 2 });
+		assert.deepStrictEqual({ options: requests.map(request => request.options), cancellationBeforeResults, second: await second }, {
+			options: [{ sourceIds: ['agentFinder'] }, { sourceIds: ['second'] }],
+			cancellationBeforeResults: [true, false], second: { items: [], total: 2 },
+		});
+	});
+
 	test('forwards browse and search options and cancellation tokens', async () => {
 		const source = disposables.add(new CancellationTokenSource());
-		const calls: { options: ICustomizationMarketplaceQuery; token: CancellationToken }[] = [];
+		const calls: { options: ICustomizationMarketplaceRequest; token: CancellationToken }[] = [];
 		const client = createClient({
-			_serviceBrand: undefined,
 			async query(options, token) {
 				calls.push({ options, token });
 				return { items: [] };
@@ -99,28 +147,34 @@ suite('CustomizationMarketplaceIpc', () => {
 			await client.query(query, source.token);
 		}
 
-		assert.deepStrictEqual(calls, queries.map(options => ({ options, token: source.token })));
+		assert.deepStrictEqual({
+			options: calls.map(call => call.options),
+			requestsDisposed: calls.map(call => call.token.isCancellationRequested),
+			callerCancelled: source.token.isCancellationRequested,
+		}, {
+			options: queries.map(options => ({ ...options, sourceIds: ['agentFinder'] })),
+			requestsDisposed: [true, true],
+			callerCancelled: false,
+		});
 	});
 
-	test('defaults missing server arguments to an initial browse and no cancellation', async () => {
+	test('defaults missing cancellation to none for an explicitly selected source', async () => {
 		const calls: { options: ICustomizationMarketplaceQuery; token: CancellationToken }[] = [];
 		const server = new CustomizationMarketplaceChannel(() => ({
-			_serviceBrand: undefined,
 			async query(options, token) {
 				calls.push({ options, token });
 				return { items: [] };
 			},
 		}));
-		await server.call('test', 'query');
+		await server.call('test', 'query', { sourceIds: ['agentFinder'] });
 
-		assert.deepStrictEqual(calls, [{ options: {}, token: CancellationToken.None }]);
+		assert.deepStrictEqual(calls, [{ options: { sourceIds: ['agentFinder'] }, token: CancellationToken.None }]);
 	});
 
 	test('cancellation reaches the service through both channel adapters', async () => {
 		const source = disposables.add(new CancellationTokenSource());
 		let receivedToken: CancellationToken | undefined;
 		const client = createClient({
-			_serviceBrand: undefined,
 			query(_options, token) {
 				receivedToken = token;
 				return raceCancellationError(new Promise<ICustomizationMarketplacePage>(() => { }), token);
@@ -158,7 +212,7 @@ suite('CustomizationMarketplaceIpc', () => {
 				sources: [{ id: 'testSource', cursor: 'opaque+/=&token', total: 8 }, { id: 'otherSource', total: 2 }],
 			},
 		};
-		const client = createClient({ _serviceBrand: undefined, query: async () => page });
+		const client = createClient({ query: async () => page });
 		const result = await client.query({ query: 'postgres' }, CancellationToken.None);
 
 		assert.deepStrictEqual({
@@ -186,7 +240,7 @@ suite('CustomizationMarketplaceIpc', () => {
 			}],
 			nextCursor: { query: '', pageSize: 30, sources: [{ id: 'testSource', cursor: 'next-page' }] },
 		};
-		const client = createClient({ _serviceBrand: undefined, query: async () => page });
+		const client = createClient({ query: async () => page });
 
 		assert.deepStrictEqual(await client.query({}, CancellationToken.None), page);
 	});
@@ -210,7 +264,7 @@ suite('CustomizationMarketplaceIpc', () => {
 				installation,
 			})),
 		};
-		const client = createClient({ _serviceBrand: undefined, query: async () => page });
+		const client = createClient({ query: async () => page });
 		const result = await client.query({}, CancellationToken.None);
 
 		assert.deepStrictEqual(result.items.map(item => item.installation), installations);
@@ -219,7 +273,6 @@ suite('CustomizationMarketplaceIpc', () => {
 	test('propagates service errors without falling back or retrying', async () => {
 		let calls = 0;
 		const client = createClient({
-			_serviceBrand: undefined,
 			async query() {
 				calls++;
 				throw new Error('The customization catalog is receiving too many requests. Try again later.');
@@ -234,14 +287,13 @@ suite('CustomizationMarketplaceIpc', () => {
 	test('rejects unsupported commands and events without invoking the service', () => {
 		let calls = 0;
 		const server = new CustomizationMarketplaceChannel(() => ({
-			_serviceBrand: undefined,
 			async query() {
 				calls++;
 				return { items: [] };
 			},
 		}));
 		for (const command of ['request', 'fetch', 'install', 'unknown', 'constructor', '__proto__']) {
-			assert.throws(() => server.call('test', command, { query: 'postgres' }), /Invalid call/);
+			assert.throws(() => server.call('test', command, { sourceIds: ['agentFinder'], query: 'postgres' }), /Invalid call/);
 		}
 		assert.throws(() => server.listen('test', 'onDidChange'), /Invalid listen/);
 		assert.strictEqual(calls, 0);

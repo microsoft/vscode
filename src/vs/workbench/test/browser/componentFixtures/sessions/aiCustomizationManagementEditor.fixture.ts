@@ -837,7 +837,7 @@ interface IRenderEditorOptions {
 	readonly availableHarnesses?: readonly IHarnessDescriptor[];
 	readonly selectedSection?: AICustomizationManagementSection;
 	readonly staleSavedSection?: string;
-	readonly customizationMarketplaceEnabled?: boolean;
+	readonly agentFinderPublicFeedEnabled?: boolean;
 	readonly customizationMarketplaceState?: 'ready' | 'empty' | 'error' | 'loading' | 'loadingMore';
 	readonly customizationMarketplaceInstallationState?: 'mixed' | 'error';
 	readonly customizationSearchQuery?: string;
@@ -877,8 +877,8 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 	ctx.container.style.height = `${height}px`;
 
 	const isSessionsWindow = options.isSessionsWindow ?? false;
-	const customizationMarketplaceEnabled = options.customizationMarketplaceEnabled ?? true;
-	const savedSection = options.staleSavedSection ?? (!customizationMarketplaceEnabled ? AICustomizationManagementSection.Marketplace : undefined);
+	const agentFinderPublicFeedEnabled = options.agentFinderPublicFeedEnabled ?? true;
+	const savedSection = options.staleSavedSection ?? (!agentFinderPublicFeedEnabled ? AICustomizationManagementSection.Marketplace : undefined);
 	const skillUIIntegrations = options.skillUIIntegrations ?? new Map();
 	const managementSections = options.managementSections ?? [
 		AICustomizationManagementSection.Plugins,
@@ -971,7 +971,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 				[ChatConfiguration.ChatCustomizationsLocationsMigrationEnabled]: true,
 				[ChatConfiguration.ChatCustomizationsMcpServerMigrationEnabled]: true,
 				...options.configuration,
-				[ChatConfiguration.ChatCustomizationsUnifiedMarketplaceEnabled]: customizationMarketplaceEnabled,
+				[ChatConfiguration.AgentFinderPublicFeedEnabled]: agentFinderPublicFeedEnabled,
 			});
 			ctx.disposableStore.add({ dispose: () => configurationService.onDidChangeConfigurationEmitter.dispose() });
 			registerWorkbenchServices(reg);
@@ -983,9 +983,10 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 				override readonly onDidChangeSentiment = Event.None;
 			}());
 			reg.defineInstance(ICustomizationMarketplaceService, new class extends mock<ICustomizationMarketplaceService>() {
+				override readonly sources = [{ id: 'testSource', enablementSetting: ChatConfiguration.AgentFinderPublicFeedEnabled }];
 				override async query(query: ICustomizationMarketplaceQuery): Promise<ICustomizationMarketplacePage> {
 					customizationMarketplaceQueryCount++;
-					assert(customizationMarketplaceEnabled, 'A disabled Marketplace fixture must not query the catalog.');
+					assert(agentFinderPublicFeedEnabled, 'A disabled Marketplace fixture must not query the catalog.');
 					const pageSize = query.pageSize ?? 24;
 					const createCursor = (offset: number) => ({
 						query: query.query ?? '',
@@ -1017,11 +1018,11 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 			reg.defineInstance(ICustomizationMarketplaceInstallService, new class extends mock<ICustomizationMarketplaceInstallService>() {
 				override readonly onDidChange = customizationMarketplaceInstallChanged.event;
 				override getInstallState(resource: ICustomizationMarketplaceResource): CustomizationMarketplaceInstallState {
-					assert(customizationMarketplaceEnabled, 'A disabled Marketplace fixture must not request installation state.');
+					assert(agentFinderPublicFeedEnabled, 'A disabled Marketplace fixture must not request installation state.');
 					return customizationMarketplaceInstallStates.get(getCustomizationMarketplaceResourceKey(resource)) ?? { kind: 'available' };
 				}
 				override async install(resource: ICustomizationMarketplaceResource): Promise<void> {
-					assert(customizationMarketplaceEnabled, 'A disabled Marketplace fixture must not install resources.');
+					assert(agentFinderPublicFeedEnabled, 'A disabled Marketplace fixture must not install resources.');
 					if (options.customizationMarketplaceInstallationState === 'error') {
 						throw new Error('Choose a writable installation destination and try again.');
 					}
@@ -1458,7 +1459,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 		assert(overview !== null && overview.style.display !== 'none', 'An unrecognized saved section must fall back to the overview.');
 		assert(ctx.container.querySelector('.customization-marketplace-widget') === null && editor.getActiveSectionWidget() === undefined, 'An unrecognized saved section must not be treated as a Marketplace alias.');
 		assert(customizationMarketplaceQueryCount === 0, 'Restoring an unrecognized saved section must not query the marketplace.');
-	} else if (!customizationMarketplaceEnabled) {
+	} else if (!agentFinderPublicFeedEnabled) {
 		editor.setVisible(true);
 		editor.selectSectionById(AICustomizationManagementSection.Marketplace);
 		await Promise.resolve();
@@ -2752,7 +2753,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
 			selectedSection: AICustomizationManagementSection.Marketplace,
-			customizationMarketplaceEnabled: false,
+			agentFinderPublicFeedEnabled: false,
 		}),
 	}),
 
