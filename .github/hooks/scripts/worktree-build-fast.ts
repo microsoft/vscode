@@ -89,25 +89,13 @@ try {
 }
 
 if (canResolveNpmRegistry) {
-	const foundryLocalNuGetFeeds = [
-		new URL('https://api.nuget.org/v3/index.json'),
-		new URL('https://pkgs.dev.azure.com/aiinfra/PublicPackages/_packaging/ORT-Nightly/nuget/v3/index.json'),
-	];
-
-	let canAccessNuGet = false;
-	for (const feed of foundryLocalNuGetFeeds) {
-		if (await canAccessNuGetFeed(feed)) {
-			canAccessNuGet = true;
-			break;
-		}
-	}
-
-	if (canAccessNuGet) {
+	const publicNuGetFeed = new URL('https://api.nuget.org/v3/index.json');
+	if (await canAccessNuGetFeed(publicNuGetFeed)) {
 		if (!runNpm(['install'], repositoryRoot)) {
 			process.stderr.write('npm install failed; continuing with the best-effort agentStop hook.\n');
 		}
 	} else {
-		process.stderr.write('Cannot access a Foundry Local NuGet feed; skipping npm install.\n');
+		process.stderr.write('Cannot access the public NuGet feed; skipping npm install.\n');
 	}
 }
 
