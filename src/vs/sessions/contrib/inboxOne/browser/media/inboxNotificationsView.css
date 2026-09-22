@@ -111,8 +111,81 @@
 	border-inline-start: var(--vscode-spacing-size20) solid var(--vscode-notificationsInfoIcon-foreground);
 }
 
-.inbox-notifications-item.priority-3 {
-	border-inline-start: var(--vscode-spacing-size20) solid var(--vscode-descriptionForeground);
+.inbox-notifications-section-header {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size100);
+	width: 100%;
+	box-sizing: border-box;
+	padding: var(--vscode-spacing-size80) var(--vscode-spacing-size100);
+	border: none;
+	border-inline-start: var(--vscode-spacing-size20) solid transparent;
+	border-radius: var(--vscode-cornerRadius-small);
+	background: transparent;
+	color: var(--vscode-foreground);
+	cursor: pointer;
+	text-align: start;
+	font-weight: 600;
+}
+
+.inbox-notifications-section-header:hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
+}
+
+.inbox-notifications-section-header:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
+.inbox-notifications-section-caret {
+	flex: 0 0 auto;
+	color: var(--vscode-descriptionForeground);
+}
+
+.inbox-notifications-section-label {
+	flex: 0 0 auto;
+	text-transform: uppercase;
+	font-size: var(--vscode-fontSize-label2);
+	letter-spacing: 0.04em;
+}
+
+.inbox-notifications-section-count {
+	flex: 0 0 auto;
+	min-width: 18px;
+	padding: 0 var(--vscode-spacing-size80);
+	border-radius: var(--vscode-cornerRadius-small);
+	background-color: var(--vscode-badge-background);
+	color: var(--vscode-badge-foreground);
+	font-size: var(--vscode-fontSize-label2);
+	text-align: center;
+}
+
+.inbox-notifications-section-header.priority-0 {
+	border-inline-start-color: var(--vscode-errorForeground);
+}
+
+.inbox-notifications-section-header.priority-0 .inbox-notifications-section-label {
+	color: var(--vscode-errorForeground);
+}
+
+.inbox-notifications-section-header.priority-1 {
+	border-inline-start-color: var(--vscode-notificationsWarningIcon-foreground);
+}
+
+.inbox-notifications-section-header.priority-1 .inbox-notifications-section-label {
+	color: var(--vscode-notificationsWarningIcon-foreground);
+}
+
+.inbox-notifications-section-header.priority-2 {
+	border-inline-start-color: var(--vscode-notificationsInfoIcon-foreground);
+}
+
+.inbox-notifications-section-header.priority-2 .inbox-notifications-section-label {
+	color: var(--vscode-notificationsInfoIcon-foreground);
+}
+
+.inbox-notifications-section-header.neutral .inbox-notifications-section-label {
+	color: var(--vscode-descriptionForeground);
 }
 
 .inbox-notifications-item-header {
@@ -136,10 +209,6 @@
 
 .inbox-notifications-item-kind-label.priority-2 {
 	color: var(--vscode-notificationsInfoIcon-foreground);
-}
-
-.inbox-notifications-item-kind-label.priority-3 {
-	color: var(--vscode-descriptionForeground);
 }
 
 .inbox-notifications-item-title {
@@ -255,6 +324,16 @@
 .inbox-notifications-chat-part-host .interactive-input-part,
 .inbox-notifications-chat-part-host .interactive-input-part > .chat-question-carousel-widget-container {
 	width: 100%;
+}
+
+/*
+ * The shared chat input styling (chat.css) applies `margin: 0 12px` to
+ * `.interactive-session .interactive-input-part`, which indents the question
+ * carousel away from the item description. Neutralize the horizontal margin so
+ * the response card aligns left with the description.
+ */
+.inbox-notifications-chat-part-host.interactive-session .interactive-input-part {
+	margin-inline: 0;
 }
 
 .inbox-notifications-chat-part-host.interactive-session .chat-question-carousel-container {

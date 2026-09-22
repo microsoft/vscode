@@ -24,6 +24,7 @@ import { IContextMenuService } from '../../../../platform/contextview/browser/co
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { URI } from '../../../../base/common/uri.js';
 import { fromNowByDay } from '../../../../base/common/date.js';
@@ -63,6 +64,21 @@ function isDismissibleQuestionCarousel(carousel: IChatQuestionCarousel): carouse
 	return typeof (carousel as { dismiss?: unknown }).dismiss === 'function';
 }
 
+const COLLAPSED_SECTIONS_STORAGE_KEY = 'sessions.inboxNotifications.collapsedSections';
+const COMPLETED_SECTION_KEY = 'completed';
+
+interface IInboxTierSpec {
+	readonly key: string;
+	readonly priority: InboxNotificationPriority;
+}
+
+/** Importance tiers in display order. Empty tiers are hidden at render time. */
+const TIER_SECTIONS: readonly IInboxTierSpec[] = [
+	{ key: 'critical', priority: InboxNotificationPriority.Critical },
+	{ key: 'moderate', priority: InboxNotificationPriority.Moderate },
+	{ key: 'low', priority: InboxNotificationPriority.Low },
+];
+
 export class InboxNotificationsView extends AbstractCustomView {
 
 	private static activeInstance: InboxNotificationsView | undefined;
@@ -82,6 +98,11 @@ export class InboxNotificationsView extends AbstractCustomView {
 	private readonly renderedListDisposables = this._register(new DisposableStore());
 	private renderedCards: HTMLElement[] = [];
 	private renderedItems: readonly IInboxNotificationItem[] = [];
+	private readonly collapsedSections = new Set<string>();
+	private collapsedSectionsLoaded = false;
+	private pendingRevealId: string | undefined;
+	private lastRevealToken = -1;
+	private readonly showCompleted = observableValue<boolean>('inboxNotificationsShowCompleted', false);
 	private deferredItems: readonly IInboxNotificationItem[] | undefined;
 	private deferredNewNotificationsCount = 0;
 	private announcedDeferredNewNotificationsCount = 0;
@@ -110,6 +131,7 @@ export class InboxNotificationsView extends AbstractCustomView {
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
 		@IOpenerService private readonly openerService: IOpenerService,
+		@IStorageService private readonly storageService: IStorageService,
 	) {
 		super();
 		InboxNotificationsView.activeInstance = this;
@@ -208,20 +230,26 @@ export class InboxNotificationsView extends AbstractCustomView {
 		this._register(autorun(reader => {
 			const sortMode = this.inboxNotificationsService.sortMode.read(reader);
 			const prioritySelected = sortMode === InboxNotificationsSortMode.Priority;
-			sortByPriorityButton.enabled = !prioritySelected;
-			sortByRecencyButton.enabled = prioritySelected;
 			sortByPriorityButton.element.classList.toggle('active', prioritySelected);
 			sortByRecencyButton.element.classList.toggle('active', !prioritySelected);
 		}));
 
-		const clearDismissedButton = this._register(new Button(toolbar, {
+		const toggleCompletedButton = this._register(new Button(toolbar, {
 			...defaultButtonStyles,
 			secondary: true,
-			ariaLabel: localize('inboxNotifications.clearDismissedAria', "Show dismissed notifications"),
 		}));
-		clearDismissedButton.label = localize('inboxNotifications.clearDismissed', "Show Dismissed");
-		this._register(clearDismissedButton.onDidClick(() => {
-			this.inboxNotificationsService.clearDismissedNotifications();
+		this._register(toggleCompletedButton.onDidClick(() => {
+			this.showCompleted.set(!this.showCompleted.get(), undefined);
+		}));
+		this._register(autorun(reader => {
+			const showing = this.showCompleted.read(reader);
+			toggleCompletedButton.label = showing
+				? localize('inboxNotifications.hideCompleted', "Hide Completed")
+				: localize('inboxNotifications.showCompleted', "Show Completed");
+			toggleCompletedButton.element.setAttribute('aria-label', showing
+				? localize('inboxNotifications.hideCompletedAria', "Hide completed notifications")
+				: localize('inboxNotifications.showCompletedAria', "Show completed notifications"));
+			toggleCompletedButton.element.classList.toggle('active', showing);
 		}));
 
 		this.deferredUpdatesBanner.appendChild(this.deferredUpdatesBannerLabel);
@@ -246,9 +274,27 @@ export class InboxNotificationsView extends AbstractCustomView {
 		}));
 		this._register(addDisposableListener(list, EventType.KEY_DOWN, event => this.onListKeyDown(event)));
 
+		this.ensureCollapsedSectionsLoaded();
+
 		this._register(autorun(reader => {
 			const items = this.inboxNotificationsService.notifications.read(reader);
 			this.handleNotificationListUpdate(items);
+		}));
+
+		this._register(autorun(reader => {
+			const showing = this.showCompleted.read(reader);
+			if (showing) {
+				this.inboxNotificationsService.dismissedNotifications.read(reader);
+			}
+			this.renderList(this.renderedItems);
+		}));
+
+		this._register(autorun(reader => {
+			const request = this.inboxNotificationsService.revealRequest.read(reader);
+			if (request && request.token !== this.lastRevealToken) {
+				this.lastRevealToken = request.token;
+				this.revealNotification(request.id);
+			}
 		}));
 	}
 
@@ -342,24 +388,147 @@ export class InboxNotificationsView extends AbstractCustomView {
 
 		this.renderedCards = [];
 		this.agentMergeDropdownButtons.clear();
-		if (items.length === 0) {
+
+		const completedItems = this.showCompleted.get() ? this.inboxNotificationsService.dismissedNotifications.get() : [];
+		if (items.length === 0 && completedItems.length === 0) {
+			this.pendingRevealId = undefined;
 			list.appendChild($('.inbox-notifications-empty', undefined, localize('inboxNotifications.empty', "You're all caught up.")));
+			this.scrollableElement.scanDomNode();
 			return;
 		}
 
-		for (const item of items) {
-			const card = this.renderItem(item);
-			this.renderedCards.push(card);
-			list.appendChild(card);
+		if (this.inboxNotificationsService.sortMode.get() === InboxNotificationsSortMode.Priority) {
+			for (const tier of TIER_SECTIONS) {
+				const tierItems = items.filter(item => item.priority === tier.priority);
+				if (tierItems.length === 0) {
+					continue;
+				}
+				this.renderSection(list, tier.key, getInboxNotificationPriorityLabel(tier.priority), tierItems, tier.priority);
+			}
+		} else {
+			for (const item of items) {
+				this.appendCard(list, item);
+			}
 		}
 
-		this.applyCardTabStops(focusedNotificationId);
-		if (hadFocusWithinList) {
+		if (completedItems.length) {
+			this.renderSection(list, COMPLETED_SECTION_KEY, localize('inboxNotifications.section.completed', "Completed"), completedItems, undefined);
+		}
+
+		const revealTarget = this.pendingRevealId
+			? this.renderedCards.find(card => card.dataset.notificationId === this.pendingRevealId)
+			: undefined;
+		this.pendingRevealId = undefined;
+
+		this.applyCardTabStops(revealTarget?.dataset.notificationId ?? focusedNotificationId);
+		if (revealTarget) {
+			revealTarget.focus();
+			revealTarget.scrollIntoView({ block: 'nearest' });
+		} else if (hadFocusWithinList) {
 			const target = this.getNotificationCards().find(card => card.tabIndex === 0);
 			target?.focus();
 		}
 
 		this.scrollableElement.scanDomNode();
+	}
+
+	private renderSection(list: HTMLElement, key: string, label: string, items: readonly IInboxNotificationItem[], accentPriority: InboxNotificationPriority | undefined): void {
+		const collapsed = this.collapsedSections.has(key);
+		const header = list.appendChild($('button.inbox-notifications-section-header'));
+		header.setAttribute('type', 'button');
+		header.classList.toggle('collapsed', collapsed);
+		header.classList.add(accentPriority !== undefined ? `priority-${accentPriority}` : 'neutral');
+		header.setAttribute('aria-expanded', String(!collapsed));
+		header.setAttribute('aria-label', localize('inboxNotifications.section.ariaLabel', "{0}, {1} notifications", label, items.length));
+		const caret = header.appendChild($('span.inbox-notifications-section-caret'));
+		caret.classList.add('codicon', collapsed ? 'codicon-chevron-right' : 'codicon-chevron-down');
+		caret.setAttribute('aria-hidden', 'true');
+		header.appendChild($('span.inbox-notifications-section-label', undefined, label));
+		header.appendChild($('span.inbox-notifications-section-count', undefined, String(items.length)));
+		this.renderedListDisposables.add(addDisposableListener(header, EventType.CLICK, () => this.toggleSection(key)));
+		if (collapsed) {
+			return;
+		}
+		for (const item of items) {
+			this.appendCard(list, item);
+		}
+	}
+
+	private appendCard(list: HTMLElement, item: IInboxNotificationItem): void {
+		const card = this.renderItem(item);
+		this.renderedCards.push(card);
+		list.appendChild(card);
+	}
+
+	private toggleSection(key: string): void {
+		if (this.collapsedSections.has(key)) {
+			this.collapsedSections.delete(key);
+		} else {
+			this.collapsedSections.add(key);
+		}
+		this.persistCollapsedSections();
+		this.renderList(this.renderedItems);
+	}
+
+	private ensureCollapsedSectionsLoaded(): void {
+		if (this.collapsedSectionsLoaded) {
+			return;
+		}
+		this.collapsedSectionsLoaded = true;
+
+		const raw = this.storageService.get(COLLAPSED_SECTIONS_STORAGE_KEY, StorageScope.APPLICATION);
+		if (raw === undefined) {
+			return;
+		}
+		try {
+			const parsed = JSON.parse(raw);
+			if (Array.isArray(parsed)) {
+				for (const key of parsed) {
+					if (typeof key === 'string') {
+						this.collapsedSections.add(key);
+					}
+				}
+			}
+		} catch (error) {
+			onUnexpectedError(error);
+		}
+	}
+
+	private persistCollapsedSections(): void {
+		this.storageService.store(
+			COLLAPSED_SECTIONS_STORAGE_KEY,
+			JSON.stringify([...this.collapsedSections]),
+			StorageScope.APPLICATION,
+			StorageTarget.USER,
+		);
+	}
+
+	private revealNotification(id: string): void {
+		const completed = this.inboxNotificationsService.dismissedNotifications.get();
+		const item = this.inboxNotificationsService.notifications.get().find(candidate => candidate.id === id)
+			?? completed.find(candidate => candidate.id === id);
+		if (!item) {
+			return;
+		}
+		const isCompleted = completed.some(candidate => candidate.id === id);
+		const sectionKey = isCompleted ? COMPLETED_SECTION_KEY : this.sectionKeyForItem(item);
+		if (sectionKey && this.collapsedSections.has(sectionKey)) {
+			this.collapsedSections.delete(sectionKey);
+			this.persistCollapsedSections();
+		}
+		this.pendingRevealId = id;
+		if (isCompleted && !this.showCompleted.get()) {
+			this.showCompleted.set(true, undefined);
+		} else {
+			this.renderList(this.renderedItems);
+		}
+	}
+
+	private sectionKeyForItem(item: IInboxNotificationItem): string | undefined {
+		if (this.inboxNotificationsService.sortMode.get() !== InboxNotificationsSortMode.Priority) {
+			return undefined;
+		}
+		return TIER_SECTIONS.find(tier => tier.priority === item.priority)?.key;
 	}
 
 	private renderItem(item: IInboxNotificationItem): HTMLElement {

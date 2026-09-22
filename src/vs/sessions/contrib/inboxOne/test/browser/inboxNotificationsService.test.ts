@@ -189,7 +189,7 @@ suite('InboxNotificationsService', () => {
 		const fixture = createFixture([
 			createSession({ id: 'input', status: SessionStatus.NeedsInput, updatedAt: 200, description: 'waiting for user answer' }),
 			createSession({ id: 'completed', status: SessionStatus.Completed, updatedAt: 300, isRead: false }),
-			createSession({ id: 'ignored', status: SessionStatus.Completed, updatedAt: 400, isRead: true }),
+			createSession({ id: 'completed-read', status: SessionStatus.Completed, updatedAt: 400, isRead: true }),
 			createSession({ id: 'archived', status: SessionStatus.NeedsInput, updatedAt: 500, isArchived: true }),
 		]);
 
@@ -201,8 +201,14 @@ suite('InboxNotificationsService', () => {
 		})), [
 			{
 				kind: InboxNotificationKind.NeedsInput,
-				priority: InboxNotificationPriority.High,
+				priority: InboxNotificationPriority.Critical,
 				description: 'waiting for user answer',
+				actionKinds: [InboxNotificationActionKind.OpenSession, InboxNotificationActionKind.MarkDone],
+			},
+			{
+				kind: InboxNotificationKind.Completed,
+				priority: InboxNotificationPriority.Low,
+				description: 'Review this completed session or mark it done.',
 				actionKinds: [InboxNotificationActionKind.OpenSession, InboxNotificationActionKind.MarkDone],
 			},
 			{

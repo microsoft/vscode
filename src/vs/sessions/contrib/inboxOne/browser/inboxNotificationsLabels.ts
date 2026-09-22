@@ -30,10 +30,8 @@ export function getInboxNotificationPriorityLabel(priority: InboxNotificationPri
 	switch (priority) {
 		case InboxNotificationPriority.Critical:
 			return localize('inboxNotifications.priority.critical', "Critical");
-		case InboxNotificationPriority.High:
-			return localize('inboxNotifications.priority.high', "High");
-		case InboxNotificationPriority.Normal:
-			return localize('inboxNotifications.priority.normal', "Normal");
+		case InboxNotificationPriority.Moderate:
+			return localize('inboxNotifications.priority.moderate', "Moderate");
 		case InboxNotificationPriority.Low:
 		default:
 			return localize('inboxNotifications.priority.low', "Low");

@@ -23,7 +23,7 @@ suite('InboxNotificationsAccessibility', () => {
 			buildInboxNotificationsAccessibleContent([
 				{
 					kind: InboxNotificationKind.NeedsInput,
-					priority: InboxNotificationPriority.High,
+					priority: InboxNotificationPriority.Critical,
 					title: 'Input Needed for Session A',
 					description: 'Open this session to answer.',
 					repositoryLabel: 'microsoft/vscode',
@@ -43,7 +43,7 @@ suite('InboxNotificationsAccessibility', () => {
 				'Inbox notifications',
 				'',
 				'1. Input Needed for Session A',
-				'   Priority: High. Type: Needs Input',
+				'   Priority: Critical. Type: Needs Input',
 				'   Repository: microsoft/vscode',
 				'   Pull request states: #123 (Checks failed), #124 (Unresolved comments)',
 				'   Open this session to answer.',

@@ -32,6 +32,7 @@ import {
 	IInboxNotificationNeedsInputPart,
 	IInboxNotificationPullRequestState,
 	IInboxNotificationQuestionCarouselPart,
+	IInboxNotificationRevealRequest,
 	IInboxNotificationToolConfirmationButton,
 	IInboxNotificationToolConfirmationPart,
 	IInboxNotificationsService,
@@ -63,6 +64,9 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 	private readonly _dismissedIds: ISettableObservable<ReadonlySet<string>>;
 	private readonly _externalItems: ISettableObservable<readonly IInboxNotificationItem[]>;
 	readonly sortMode: ISettableObservable<InboxNotificationsSortMode>;
+	private readonly _revealRequest: ISettableObservable<IInboxNotificationRevealRequest | undefined>;
+	readonly revealRequest: IObservable<IInboxNotificationRevealRequest | undefined>;
+	private _revealToken = 0;
 	private readonly _refreshedPullRequestModels = new WeakSet<object>();
 	private readonly _refreshedPullRequestReviewThreadModels = new WeakSet<object>();
 	private readonly _refreshedPullRequestCIModels = new WeakSet<object>();
@@ -72,6 +76,7 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 	private readonly _loadingCompletedPreviewChatModels = new Set<string>();
 
 	readonly notifications: IObservable<readonly IInboxNotificationItem[]>;
+	readonly dismissedNotifications: IObservable<readonly IInboxNotificationItem[]>;
 
 	constructor(
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
@@ -85,6 +90,8 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 		this._dismissedIds = observableValue('sessionsInboxNotificationsDismissed', this.loadDismissedIds());
 		this._externalItems = observableValue('sessionsInboxNotificationsExternal', []);
 		this.sortMode = observableValue('sessionsInboxNotificationsSortMode', InboxNotificationsSortMode.Priority);
+		this._revealRequest = observableValue('sessionsInboxNotificationsReveal', undefined);
+		this.revealRequest = this._revealRequest;
 
 		const sessionsChanged = observableSignalFromEvent(this, this.sessionsManagementService.onDidChangeSessions);
 		const providersChanged = observableSignalFromEvent(this, this.sessionsProvidersService.onDidChangeProviders);
@@ -138,13 +145,11 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 			this.disposeInactiveChatModels(activeCompletedPreviewChatResources, this._completedPreviewChatModelRefs);
 		}));
 
-		this.notifications = derived(this, reader => {
+		const allItems = derived(this, reader => {
 			sessionsChanged.read(reader);
 			providersChanged.read(reader);
 			this.chatService.chatModels.read(reader);
 
-			const dismissed = this._dismissedIds.read(reader);
-			const sortMode = this.sortMode.read(reader);
 			const itemsById = new Map<string, IInboxNotificationItem>();
 
 			for (const session of this.sessionsManagementService.getSessions()) {
@@ -155,8 +160,22 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 				itemsById.set(item.id, item);
 			}
 
-			return [...itemsById.values()]
+			return [...itemsById.values()];
+		});
+
+		this.notifications = derived(this, reader => {
+			const dismissed = this._dismissedIds.read(reader);
+			const sortMode = this.sortMode.read(reader);
+			return allItems.read(reader)
 				.filter(item => !dismissed.has(item.id))
+				.sort(sortMode === InboxNotificationsSortMode.Priority ? compareInboxNotifications : compareInboxNotificationsByRecency);
+		});
+
+		this.dismissedNotifications = derived(this, reader => {
+			const dismissed = this._dismissedIds.read(reader);
+			const sortMode = this.sortMode.read(reader);
+			return allItems.read(reader)
+				.filter(item => dismissed.has(item.id))
 				.sort(sortMode === InboxNotificationsSortMode.Priority ? compareInboxNotifications : compareInboxNotificationsByRecency);
 		});
 	}
@@ -168,11 +187,15 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 		this.sortMode.set(sortMode, undefined);
 	}
 
+	requestReveal(id: string): void {
+		this._revealRequest.set({ id, token: ++this._revealToken }, undefined);
+	}
+
 	publishExternalNotification(notification: IExternalInboxNotification): void {
 		const item: IInboxNotificationItem = {
 			id: notification.id,
 			kind: notification.kind ?? InboxNotificationKind.External,
-			priority: notification.priority ?? InboxNotificationPriority.Normal,
+			priority: notification.priority ?? InboxNotificationPriority.Moderate,
 			title: notification.title,
 			description: notification.description,
 			repositoryLabel: notification.repositoryLabel,
@@ -232,7 +255,7 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 			itemsById.set(id, {
 				id,
 				kind: InboxNotificationKind.NeedsInput,
-				priority: InboxNotificationPriority.High,
+				priority: InboxNotificationPriority.Critical,
 				title,
 				description: needsInputPart ? this.getNeedsInputPartDescription(needsInputPart) : this.getNeedsInputDescription(session, reader),
 				repositoryLabel,
@@ -243,8 +266,16 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 			});
 		}
 
-		if (status === SessionStatus.Completed && !session.isRead.read(reader)) {
-			const id = `${session.sessionId}:completed:${updatedAt}`;
+		const sizeBeforePullRequests = itemsById.size;
+		if (status !== SessionStatus.InProgress) {
+			this.collectPullRequestNotifications(itemsById, session, title, updatedAt, reader);
+		}
+
+		// Surface a Completed entry only when the finished session has nothing else
+		// needing attention (e.g. no open pull request notifications), and keep it
+		// regardless of read state so it stays actionable until it is dismissed.
+		if (status === SessionStatus.Completed && itemsById.size === sizeBeforePullRequests) {
+			const id = `${session.sessionId}:completed`;
 			itemsById.set(id, {
 				id,
 				kind: InboxNotificationKind.Completed,
@@ -256,10 +287,6 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 				sessionResource: session.resource,
 				actions: this.sessionActions(true),
 			});
-		}
-
-		if (status !== SessionStatus.InProgress) {
-			this.collectPullRequestNotifications(itemsById, session, title, updatedAt, reader);
 		}
 	}
 
@@ -433,7 +460,7 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 				itemsById.set(`${session.sessionId}:${kind}:${idSuffix}`, {
 					id: `${session.sessionId}:${kind}:${idSuffix}`,
 					kind,
-					priority: InboxNotificationPriority.High,
+					priority: InboxNotificationPriority.Critical,
 					title: pullRequestCount === 1
 						? localize('inboxNotifications.failingCi.title.single', "CI Failing on {0}", singularPullRequestLabel)
 						: localize('inboxNotifications.failingCi.title.multiple', "CI Failing on {0} Pull Requests", pullRequestCount),
@@ -451,7 +478,7 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 				itemsById.set(`${session.sessionId}:${kind}:${idSuffix}`, {
 					id: `${session.sessionId}:${kind}:${idSuffix}`,
 					kind,
-					priority: InboxNotificationPriority.Normal,
+					priority: InboxNotificationPriority.Moderate,
 					title: pullRequestCount === 1
 						? localize('inboxNotifications.passingCi.title.single', "CI Passing on {0}", singularPullRequestLabel)
 						: localize('inboxNotifications.passingCi.title.multiple', "CI Passing on {0} Pull Requests", pullRequestCount),
@@ -469,7 +496,7 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 				itemsById.set(`${session.sessionId}:${kind}:${idSuffix}`, {
 					id: `${session.sessionId}:${kind}:${idSuffix}`,
 					kind,
-					priority: InboxNotificationPriority.High,
+					priority: InboxNotificationPriority.Critical,
 					title: pullRequestCount === 1
 						? localize('inboxNotifications.reviewComments.title.single', "Copilot Comments on {0}", singularPullRequestLabel)
 						: localize('inboxNotifications.reviewComments.title.multiple', "Copilot Comments on {0} Pull Requests", pullRequestCount),

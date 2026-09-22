@@ -14,9 +14,8 @@ export const IInboxNotificationsService = createDecorator<IInboxNotificationsSer
 
 export const enum InboxNotificationPriority {
 	Critical = 0,
-	High = 1,
-	Normal = 2,
-	Low = 3,
+	Moderate = 1,
+	Low = 2,
 }
 
 export const enum InboxNotificationKind {
@@ -131,13 +130,26 @@ export interface IInboxNotificationsService {
 	readonly _serviceBrand: undefined;
 
 	readonly notifications: IObservable<readonly IInboxNotificationItem[]>;
+	readonly dismissedNotifications: IObservable<readonly IInboxNotificationItem[]>;
 	readonly sortMode: IObservable<InboxNotificationsSortMode>;
+
+	/** A request to reveal and focus a notification card in the view, or `undefined`. */
+	readonly revealRequest: IObservable<IInboxNotificationRevealRequest | undefined>;
 
 	publishExternalNotification(notification: IExternalInboxNotification): void;
 	removeExternalNotification(id: string): void;
 	dismissNotification(id: string): void;
 	clearDismissedNotifications(): void;
 	setSortMode(sortMode: InboxNotificationsSortMode): void;
+
+	/** Ask the inbox view to reveal and focus the notification with the given id. */
+	requestReveal(id: string): void;
+}
+
+export interface IInboxNotificationRevealRequest {
+	readonly id: string;
+	/** Increments on every request so repeated reveals of the same id retrigger. */
+	readonly token: number;
 }
 
 export function compareInboxNotifications(a: IInboxNotificationItem, b: IInboxNotificationItem): number {
