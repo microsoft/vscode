@@ -2916,7 +2916,7 @@ suite('CodexAgent prewarm eviction', () => {
 			});
 		} finally {
 			peer.exit();
-			await send;
+			await Promise.allSettled([send]);
 		}
 	});
 
@@ -2985,8 +2985,7 @@ suite('CodexAgent prewarm eviction', () => {
 			});
 		} finally {
 			peer.exit();
-			await firstSend;
-			await secondSend;
+			await Promise.allSettled([firstSend, secondSend]);
 		}
 	});
 
