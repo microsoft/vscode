@@ -160,45 +160,6 @@ suite('Automation dialog layout', () => {
 			targetUnselected: true,
 		});
 
-		test('editing honors Update without create capability and reacts when update authority is lost', () => {
-			const existing: IAutomationDescriptor = {
-				id: 'host:ahp-automation:/existing',
-				name: 'Review',
-				prompt: 'Review changes',
-				target: { kind: 'quickChat', providerId: 'host', sessionTypeId: 'copilotcli' },
-				schedule: { interval: 'manual', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 },
-				enabled: true,
-				createdAt: '2026-01-01T00:00:00Z',
-				updatedAt: '2026-01-01T00:00:00Z',
-			};
-			const catalogueState = observableValue<AutomationCatalogueState>('catalogue', 'ready');
-			const automations = observableValue<readonly IAutomationDescriptor[]>('automations', [existing]);
-			let canUpdate = true;
-			const service = upcastPartial<IAutomationService>({
-				catalogueState, automations, availableProviders: constObservable([]),
-				canCreateAutomation: () => false,
-				canUpdateAutomation: () => catalogueState.get() === 'ready' && canUpdate,
-			});
-			const editing = getAutomationDialogProviders(service, existing);
-			const creating = getAutomationDialogProviders(service, undefined);
-			const states: (readonly string[])[] = [];
-			disposables.add(autorun(reader => states.push(editing.read(reader))));
-			const state = createFormState({ providerId: 'host', isQuickChat: true, folderUri: undefined, isolationMode: undefined });
-			const validation: IValidationState = { nameError: undefined, promptError: undefined, folderError: undefined, sessionTypeError: undefined, branchError: undefined };
-			const form = document.createElement('form');
-			updateSaveButtonState(undefined, state, validation, form, () => 'Renamed review prompt', () => undefined, editing.get().includes('host'), 'host');
-			const editableError = validation.sessionTypeError;
-			canUpdate = false;
-			automations.set([{ ...existing }], undefined);
-			updateSaveButtonState(undefined, state, validation, form, () => 'Renamed review prompt', () => undefined, editing.get().includes('host'), 'host');
-			assert.deepStrictEqual({ states, creationProviders: creating.get(), editableError, restrictedError: validation.sessionTypeError }, {
-				states: [['host'], []],
-				creationProviders: [],
-				editableError: undefined,
-				restrictedError: 'Choose an available Agent Host that supports automations.',
-			});
-		});
-
 		assert.ok(targetModel);
 		targetModel.setQuickChat(true);
 		assert.strictEqual(form.querySelector('.automation-session-configuration-unavailable')?.textContent, 'Session configuration unavailable');
@@ -233,6 +194,45 @@ suite('Automation dialog layout', () => {
 				visible: true, description: targetError.id, invalid: 'true', role: 'status', live: 'polite',
 			},
 			resolved: { text: '', visible: false, description: null, invalid: null, role: 'status', live: 'polite' },
+		});
+	});
+
+	test('editing honors Update without create capability and reacts when update authority is lost', () => {
+		const existing: IAutomationDescriptor = {
+			id: 'host:ahp-automation:/existing',
+			name: 'Review',
+			prompt: 'Review changes',
+			target: { kind: 'quickChat', providerId: 'host', sessionTypeId: 'copilotcli' },
+			schedule: { interval: 'manual', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 },
+			enabled: true,
+			createdAt: '2026-01-01T00:00:00Z',
+			updatedAt: '2026-01-01T00:00:00Z',
+		};
+		const catalogueState = observableValue<AutomationCatalogueState>('catalogue', 'ready');
+		const automations = observableValue<readonly IAutomationDescriptor[]>('automations', [existing]);
+		let canUpdate = true;
+		const service = upcastPartial<IAutomationService>({
+			catalogueState, automations, availableProviders: constObservable([]),
+			canCreateAutomation: () => false,
+			canUpdateAutomation: () => catalogueState.get() === 'ready' && canUpdate,
+		});
+		const editing = getAutomationDialogProviders(service, existing);
+		const creating = getAutomationDialogProviders(service, undefined);
+		const states: (readonly string[])[] = [];
+		disposables.add(autorun(reader => states.push(editing.read(reader))));
+		const state = createFormState({ providerId: 'host', isQuickChat: true, folderUri: undefined, isolationMode: undefined });
+		const validation: IValidationState = { nameError: undefined, promptError: undefined, folderError: undefined, sessionTypeError: undefined, branchError: undefined };
+		const form = document.createElement('form');
+		updateSaveButtonState(undefined, state, validation, form, () => 'Renamed review prompt', () => undefined, editing.get().includes('host'), 'host');
+		const editableError = validation.sessionTypeError;
+		canUpdate = false;
+		automations.set([{ ...existing }], undefined);
+		updateSaveButtonState(undefined, state, validation, form, () => 'Renamed review prompt', () => undefined, editing.get().includes('host'), 'host');
+		assert.deepStrictEqual({ states, creationProviders: creating.get(), editableError, restrictedError: validation.sessionTypeError }, {
+			states: [['host'], []],
+			creationProviders: [],
+			editableError: undefined,
+			restrictedError: 'Choose an available Agent Host that supports automations.',
 		});
 	});
 
