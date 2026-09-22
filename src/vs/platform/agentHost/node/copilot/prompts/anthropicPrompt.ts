@@ -140,6 +140,28 @@ export const CLAUDE_CHAT_PARITY_TOOL_INSTRUCTIONS = [
 ].join('\n');
 
 /**
+ * Trims the SDK foundation `tool_instructions` group (~17k chars) of prose that
+ * duplicates what the tool schemas already say, mirroring Copilot Chat, whose
+ * system prompt carries no per-tool walkthroughs:
+ *  - every `<example>` block (the `bash` async/sync and `edit` batching
+ *    walkthroughs — ~1.6k chars);
+ *  - the `<ask_user>` section (~2.3k chars): interactive-UX guidance for a tool
+ *    the schema describes adequately.
+ * Everything else is kept: `<bash>` mode/`read_bash` guidance encodes runtime
+ * behavior the schema does not express, `<task>` is delegation policy, and
+ * `<sql>` carries the todo-table contract.
+ *
+ * Whole-block regexes, so an SDK rewording leaves the text in place rather than
+ * mangling it. The registry appends the host's universal tool lines after this
+ * transform's output.
+ */
+export function trimFoundationToolInstructions(content: string): string {
+	return content
+		.replace(/\n?<example>[\s\S]*?<\/example>/g, '')
+		.replace(/\n?<ask_user>[\s\S]*?<\/ask_user>/g, '');
+}
+
+/**
  * Replaces the SDK's `last_instructions` ("Your goal is to deliver complete,
  * working solutions … Verify your changes actually work before considering the
  * task done", `<task_completion>`, "be thorough in your work"). Copilot Chat has
@@ -171,8 +193,10 @@ export const CLAUDE_CHAT_PARITY_LAST_INSTRUCTIONS = [
  *   exploration restraint, operational safety and communication style.
  *   A transform (not `replace`) so dynamic foundation content in this section
  *   (e.g. rubber-duck guidance) survives.
- * - `tool_instructions` (append): Copilot Chat's tool-use rules with SDK tool
- *   names. `append` keeps the host's universal tool lines composable.
+ * - `tool_instructions` (transform): drop the foundation's `<example>` blocks and
+ *   `<ask_user>` walkthrough (see {@link trimFoundationToolInstructions}); add
+ *   Copilot Chat's tool-use rules with SDK tool names. The registry appends the
+ *   host's universal tool lines after the transform.
  * - `last_instructions` (replace): drop the closing verification/thoroughness
  *   mandate and `<task_completion>`.
  *
@@ -189,8 +213,9 @@ export function claudeChatParitySectionOverrides(model: ModelSelection): Section
 			action: content => `${dropFoundationBullets(content, GUIDELINE_BULLETS_TO_DROP)}\n${claudeChatParityGuidelines(model)}`,
 		},
 		tool_instructions: {
-			action: 'append',
-			content: CLAUDE_CHAT_PARITY_TOOL_INSTRUCTIONS,
+			// Trim the foundation prose, then add Copilot Chat's tool-use rules. The
+			// registry appends the host's universal lines after this transform.
+			action: content => `${trimFoundationToolInstructions(content)}\n${CLAUDE_CHAT_PARITY_TOOL_INSTRUCTIONS}`,
 		},
 		last_instructions: {
 			action: 'replace',

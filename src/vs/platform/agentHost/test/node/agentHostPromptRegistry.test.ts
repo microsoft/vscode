@@ -10,7 +10,7 @@ import type { SchemaValues } from '../../common/agentHostSchema.js';
 import type { ModelSelection } from '../../common/state/protocol/state.js';
 import { AgentHostPromptRegistry, agentHostPromptRegistry, type IAgentHostPromptContext } from '../../node/copilot/prompts/promptRegistry.js';
 import { COPILOT_AGENT_HOST_SYSTEM_MESSAGE } from '../../node/copilot/prompts/systemMessage.js';
-import { CLAUDE_CHAT_PARITY_IMPLEMENTATION_DISCIPLINE, CLAUDE_CHAT_PARITY_LAST_INSTRUCTIONS, CLAUDE_CHAT_PARITY_TOOL_INSTRUCTIONS, dropFoundationBullets, mergeSectionOverrides } from '../../node/copilot/prompts/anthropicPrompt.js';
+import { CLAUDE_CHAT_PARITY_IMPLEMENTATION_DISCIPLINE, CLAUDE_CHAT_PARITY_LAST_INSTRUCTIONS, CLAUDE_CHAT_PARITY_TOOL_INSTRUCTIONS, dropFoundationBullets, mergeSectionOverrides, trimFoundationToolInstructions } from '../../node/copilot/prompts/anthropicPrompt.js';
 import { AGENT_HOST_FILE_LINK_INSTRUCTIONS } from '../../node/shared/fileLinkInstructions.js';
 import { AGENT_HOST_WORKSPACELESS_INSTRUCTIONS } from '../../node/shared/workspacelessInstructions.js';
 import { COPILOT_AGENT_HOST_LARGE_OUTPUT_TOOL_INSTRUCTION, COPILOT_AGENT_HOST_SUBAGENT_TOOL_INSTRUCTIONS } from '../../node/copilot/prompts/toolInstructions.js';
@@ -258,14 +258,55 @@ suite('AgentHostPromptRegistry', () => {
 			assert.deepStrictEqual(resolve('gpt-5.6'), withUniversalAgentHostInstructions(COPILOT_AGENT_HOST_SYSTEM_MESSAGE));
 		});
 
-		test('replaces the closing verification mandate and appends tool-use rules under the universal lines', () => {
+		test('replaces the closing verification mandate', () => {
 			const sections = sectionsOf('claude-opus-5');
 			assert.deepStrictEqual(sections.last_instructions, { action: 'replace', content: CLAUDE_CHAT_PARITY_LAST_INSTRUCTIONS });
 			assert.doesNotMatch(CLAUDE_CHAT_PARITY_LAST_INSTRUCTIONS, /verif|thorough/i);
-			assert.deepStrictEqual(sections.tool_instructions, {
-				action: 'append',
-				content: `\n${CLAUDE_CHAT_PARITY_TOOL_INSTRUCTIONS}\n${UNCONDITIONAL_TOOL_INSTRUCTIONS}`,
-			});
+		});
+
+		// Representative slice of the SDK foundation `tool_instructions` group
+		// (captured from a real agent-host session; wording owned by the CLI/SDK).
+		const FOUNDATION_TOOL_INSTRUCTIONS = [
+			'<tools>',
+			'<bash>',
+			'* Use with `mode="sync"` when running long commands.',
+			'<example>',
+			'* First call: command: `npm run build`, initial_wait: 180, mode: "sync"',
+			'</example>',
+			'* read_bash is useful for retrieving the remaining output from builds.',
+			'</bash>',
+			'<edit>',
+			'You can use the **edit** tool to batch edits to the same file in a single response.',
+			'<example>',
+			'// first edit',
+			'</example>',
+			'</edit>',
+			'<ask_user>',
+			'Use the ask_user tool to ask the user clarifying questions when needed.',
+			'- Prefer multiple choice (provide choices array) over freeform for faster UX',
+			'</ask_user>',
+			'<sql>',
+			'`todos` and `todo_deps` already exist—insert into them; never create them.',
+			'</sql>',
+			'<task>',
+			'* Delegate only work needing substantial separate context.',
+			'</task>',
+			'</tools>',
+		].join('\n');
+
+		test('tool_instructions trims foundation examples and ask_user, keeps runtime guidance, then adds parity rules and the universal lines', async () => {
+			const result = await runTransform(sectionsOf('claude-opus-5').tool_instructions, FOUNDATION_TOOL_INSTRUCTIONS);
+			assert.doesNotMatch(result, /<example>|<\/example>|npm run build|first edit/);
+			assert.doesNotMatch(result, /<ask_user>|clarifying questions|multiple choice/);
+			assert.match(result, /read_bash is useful/);
+			assert.match(result, /batch edits to the same file/);
+			assert.match(result, /<sql>[\s\S]*todo_deps[\s\S]*<\/sql>/);
+			assert.match(result, /<task>[\s\S]*Delegate only[\s\S]*<\/task>/);
+			assert.ok(result.endsWith(`</tools>\n${CLAUDE_CHAT_PARITY_TOOL_INSTRUCTIONS}\n${UNCONDITIONAL_TOOL_INSTRUCTIONS}`), 'parity rules then universal lines must follow the trimmed foundation');
+		});
+
+		test('trimFoundationToolInstructions is a no-op on text without the targeted blocks', () => {
+			assert.strictEqual(trimFoundationToolInstructions('<bash>keep</bash>'), '<bash>keep</bash>');
 		});
 
 		test('code_change_rules drops the preserve-behavior mandate, keeps its closing tag and adds implementation discipline', async () => {

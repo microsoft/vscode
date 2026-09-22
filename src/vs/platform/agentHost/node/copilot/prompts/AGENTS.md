@@ -87,12 +87,12 @@ Matching: a contributor matches a model by `static matchesModel(model)` (takes p
 |---|---|---|
 | `code_change_rules` | transform | drops the "Validate that your changes preserve existing behavior" bullet; appends Copilot Chat `implementationDiscipline` |
 | `guidelines` | transform | drops the "Reflect on command output", "Clean up temporary files" and "Ask for guidance" tips; appends Copilot Chat `<instructions>` (exploration restraint, Opus or Sonnet wording), `operationalSafety`, `parallelizationStrategy`, `communicationStyle` |
-| `tool_instructions` | append | Copilot Chat `toolUseInstructions` with SDK tool names (`view`/`edit`/`create`/`bash`); `append` so the universal host lines still compose |
+| `tool_instructions` | transform | drops the foundation's `<example>` blocks and the `<ask_user>` walkthrough (~940 tokens; `trimFoundationToolInstructions`), keeps `<bash>` mode/`read_bash` guidance, `<task>` delegation policy and the `<sql>` todo contract; appends Copilot Chat `toolUseInstructions` with SDK tool names (`view`/`edit`/`create`/`bash`). The registry appends the universal host lines after the transform |
 | `last_instructions` | replace | drops "Your goal is to deliver complete, working solutions … Verify your changes actually work …", `<task_completion>` and "be thorough"; keeps the parallel-tool-call and dependency-install lines |
 
 Transforms (not `replace`) are used for `code_change_rules` and `guidelines` so dynamic foundation content in those sections (e.g. rubber-duck guidance) survives, and a foundation rewording degrades to "append only" rather than clobbering. `tone` is left alone because the host's `identity` group replacement already removes the foundation tone sub-section. When both Claude settings are on, `mergeSectionOverrides` folds the Opus 4.8 `guidelines` append after the parity transform and keeps its `tone` append.
 
-Known residual: the `bash` tool's own "Prefer short inspect → act → verify loops" sentence sits inside the `tool_instructions` group and is kept — a transform there would drop the host's universal tool lines (`composeToolInstructions` preserves transforms untouched), so the port only appends to that section.
+Known residual: the `bash` tool's own "Prefer short inspect → act → verify loops" sentence sits inside the `tool_instructions` group and is kept deliberately — the surrounding `<bash>` mode guidance encodes runtime behavior the schema does not express.
 
 Not part of the port: Copilot Chat lines that reference extension-only tools (`semantic_search`, explore/execution subagents, `manage_todo_list`), its identity sentences (the host replaces identity) and `securityRequirements` (covered by the SDK `safety` section). The per-turn `<system_reminder>` (chat title / artifact registration) is injected by the session-title controller, not this registry, and is unaffected by this setting.
 
@@ -116,6 +116,6 @@ The runtime keeps its *own* per-model config (system-prompt parts, capabilities,
 
 - **Empty overrides = no override.** `resolveSectionOverrides` returning `{}` (or `undefined`) falls back to the default message — equivalent to composing nothing over the defaults, kept explicit to avoid pointless object churn.
 - **Don't mutate the shared default.** `COPILOT_AGENT_HOST_SYSTEM_MESSAGE` is a shared constant; layering spreads into a fresh object, preserving any other customize-mode fields (e.g. `content`). Keep it that way.
-- **Spacing is relative to the foundation.** `composeToolInstructions` pads by action (`append` leads with `\n`, `prepend` trails with `\n`, `replace` owns the section). When writing a section's `content` by hand, a leading `\n` keeps appended text off the foundation's last line.
+- **Spacing is relative to the foundation.** `composeToolInstructions` pads by action (`append` leads with `\n`, `prepend` trails with `\n`, `replace` owns the section). A transform is wrapped so the universal lines are appended after its output; only `remove` is left untouched. When writing a section's `content` by hand, a leading `\n` keeps appended text off the foundation's last line.
 - **Observability.** The launcher logs `describeSystemMessageConfig(...)` at `info` (mode + overridden sections) and the full config at `trace`. Keep new config shapes summarizable there.
 - **Tests.** `../../../test/node/agentHostPromptRegistry.test.ts` covers the registry/wiring; `../../../test/node/toolInstructions.test.ts` covers the composition/gating. Add cases there, not new harnesses.
