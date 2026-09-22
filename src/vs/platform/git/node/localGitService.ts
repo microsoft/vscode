@@ -45,22 +45,18 @@ export class LocalGitService implements ILocalGitService {
 
 	private _getEnvironment(options: IGitNetworkOptions | undefined): NodeJS.ProcessEnv | undefined {
 		const authentication = options?.authentication;
-		if (!authentication || authentication.urlPrefixes.length === 0) {
+		if (!authentication) {
 			return undefined;
 		}
 
 		const environment = { ...process.env };
 		const configuredCount = Number.parseInt(environment.GIT_CONFIG_COUNT ?? '', 10);
-		let index = Number.isInteger(configuredCount) && configuredCount >= 0 ? configuredCount : 0;
-		for (const urlPrefix of authentication.urlPrefixes) {
-			environment[`GIT_CONFIG_KEY_${index}`] = `http.${urlPrefix}.extraHeader`;
-			environment[`GIT_CONFIG_VALUE_${index}`] = '';
-			index++;
-			environment[`GIT_CONFIG_KEY_${index}`] = `http.${urlPrefix}.extraHeader`;
-			environment[`GIT_CONFIG_VALUE_${index}`] = authentication.authorizationHeader;
-			index++;
-		}
-		environment.GIT_CONFIG_COUNT = String(index);
+		const index = Number.isInteger(configuredCount) && configuredCount >= 0 ? configuredCount : 0;
+		environment.GIT_CONFIG_COUNT = String(index + 2);
+		environment[`GIT_CONFIG_KEY_${index}`] = `http.${authentication.urlPrefix}.extraHeader`;
+		environment[`GIT_CONFIG_VALUE_${index}`] = '';
+		environment[`GIT_CONFIG_KEY_${index + 1}`] = `http.${authentication.urlPrefix}.extraHeader`;
+		environment[`GIT_CONFIG_VALUE_${index + 1}`] = authentication.authorizationHeader;
 		return environment;
 	}
 
@@ -237,7 +233,7 @@ export class LocalGitService implements ILocalGitService {
 	}
 
 	private async _getSupportedNetworkOptions(operationId: string, options: IGitNetworkOptions | undefined): Promise<IGitNetworkOptions | undefined> {
-		if (!options?.authentication || options.authentication.urlPrefixes.length === 0) {
+		if (!options?.authentication) {
 			return options;
 		}
 

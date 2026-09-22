@@ -15,7 +15,15 @@ import { parseGitHubCloneUrl } from '../browser/githubRepoFetcher.js';
 import { getExistingGitHubAuthenticationToken } from '../browser/pluginGitHubAuthentication.js';
 import { IPluginGitService } from '../common/plugins/pluginGitService.js';
 
-const GITHUB_HTTPS_URL_PREFIXES = ['https://github.com/', 'https://www.github.com/'];
+const GITHUB_HTTPS_URL_PREFIX = 'https://github.com/';
+
+function isCanonicalGitHubCloneUrl(cloneUrl: string): boolean {
+	if (!parseGitHubCloneUrl(cloneUrl)) {
+		return false;
+	}
+	const url = new URL(cloneUrl);
+	return url.hostname.toLowerCase() === 'github.com' && !url.port;
+}
 
 /**
  * Desktop implementation that always runs git locally via the shared process.
@@ -81,7 +89,7 @@ export class NativePluginGitCommandService implements IPluginGitService {
 	}
 
 	private async _getGitHubAuthentication(remoteUrl: string | undefined, cancellationToken: CancellationToken | undefined): Promise<IGitAuthentication | undefined> {
-		if (!remoteUrl || !parseGitHubCloneUrl(remoteUrl)) {
+		if (!remoteUrl || !isCanonicalGitHubCloneUrl(remoteUrl)) {
 			return undefined;
 		}
 		const accessToken = await getExistingGitHubAuthenticationToken(this._authenticationService, this._logService);
@@ -89,7 +97,7 @@ export class NativePluginGitCommandService implements IPluginGitService {
 			throw new CancellationError();
 		}
 		return accessToken ? {
-			urlPrefixes: GITHUB_HTTPS_URL_PREFIXES,
+			urlPrefix: GITHUB_HTTPS_URL_PREFIX,
 			authorizationHeader: `Authorization: Basic ${encodeBase64(VSBuffer.fromString(`x-access-token:${accessToken}`))}`,
 		} : undefined;
 	}

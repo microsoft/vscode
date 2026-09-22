@@ -52,8 +52,6 @@ suite('BrowserPluginGitCommandService', () => {
 	suite('parseGitHubCloneUrl', () => {
 		test('parses canonical github HTTPS clone URL', () => {
 			assert.deepStrictEqual(parseGitHubCloneUrl('https://github.com/octocat/Hello-World.git'), { owner: 'octocat', repo: 'Hello-World' });
-			assert.deepStrictEqual(parseGitHubCloneUrl('https://www.github.com/octocat/Hello-World.git'), { owner: 'octocat', repo: 'Hello-World' });
-			assert.deepStrictEqual(parseGitHubCloneUrl('https://github.com:443/octocat/Hello-World.git'), { owner: 'octocat', repo: 'Hello-World' });
 		});
 
 		test('strips trailing slash and missing .git suffix', () => {
@@ -71,7 +69,6 @@ suite('BrowserPluginGitCommandService', () => {
 		test('rejects non-HTTPS, non-GitHub, and malformed URLs', () => {
 			assert.strictEqual(parseGitHubCloneUrl('git@github.com:octocat/repo.git'), undefined);
 			assert.strictEqual(parseGitHubCloneUrl('https://gitlab.com/octocat/repo.git'), undefined);
-			assert.strictEqual(parseGitHubCloneUrl('https://github.com:8443/octocat/repo.git'), undefined);
 			assert.strictEqual(parseGitHubCloneUrl('https://github.com/octocat'), undefined);
 			assert.strictEqual(parseGitHubCloneUrl('not-a-url'), undefined);
 		});

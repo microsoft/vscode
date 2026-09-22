@@ -37,7 +37,7 @@ export function parseGitHubCloneUrl(cloneUrl: string): IGitHubRepoRef | undefine
 	} catch {
 		return undefined;
 	}
-	if (url.protocol !== 'https:' || url.port || !GITHUB_HOSTS.has(url.hostname.toLowerCase())) {
+	if (url.protocol !== 'https:' || !GITHUB_HOSTS.has(url.hostname.toLowerCase())) {
 		return undefined;
 	}
 	// Trim slashes before stripping `.git` so `.../o/r.git/` normalises to `o/r`.
