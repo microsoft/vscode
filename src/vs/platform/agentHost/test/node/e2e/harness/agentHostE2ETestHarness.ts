@@ -886,7 +886,8 @@ export class AgentHostE2EServerLease {
 	private _server: IServerHandle | undefined;
 	private _client: TestProtocolClient | undefined;
 	private readonly _shared: boolean;
-	private _dataDir: string | undefined;
+	private readonly _dataDirs: string[] = [];
+	private _needsFreshDataDirectory = false;
 	/**
 	 * Number of **model-backed** tests served by the current shared server. A
 	 * single long-lived host caches one provider SDK/CLI subprocess and reuses it
@@ -900,24 +901,18 @@ export class AgentHostE2EServerLease {
 	private _testsOnCurrentServer = 0;
 	private _cleanupClientSeq = 1_000_000;
 	private _currentCapiReplay: ReturnType<typeof capiReplayFor> | undefined;
-	private readonly _startOptions: { readonly claudeSdkRoot?: string; readonly codexSdkRoot?: string; readonly codexHomeDir: string; readonly homeDir: string; readonly userDataDir: string; readonly env: Readonly<Record<string, string>> };
+	private _startOptions: { readonly claudeSdkRoot?: string; readonly codexSdkRoot?: string; readonly codexHomeDir: string; readonly homeDir: string; readonly userDataDir: string; readonly env: Readonly<Record<string, string>> };
 	private readonly _target: IAgentHostTarget;
 
 	constructor(
 		private readonly _config: IAgentHostE2EProviderConfig,
 		startOptions: { readonly claudeSdkRoot?: string; readonly codexSdkRoot?: string; readonly target?: IAgentHostTarget } = {},
 	) {
-		const dataDir = mkdtempSync(join(tmpdir(), 'vscode-agent-host-e2e-'));
-		const codexHomeDir = join(dataDir, '.codex');
-		mkdirSync(codexHomeDir);
-		this._dataDir = dataDir;
 		this._target = startOptions.target ?? defaultAgentHostTarget;
 		this._startOptions = {
 			claudeSdkRoot: startOptions.claudeSdkRoot,
 			codexSdkRoot: startOptions.codexSdkRoot,
-			codexHomeDir,
-			homeDir: dataDir,
-			userDataDir: join(dataDir, 'user-data'),
+			...this._createDataDirectories(),
 			env: { [AgentHostSessionResidencyLimitEnvVar]: '0' },
 		};
 		// Server reuse is a replay-only optimization: recording writes one fixture
@@ -927,8 +922,20 @@ export class AgentHostE2EServerLease {
 		this._shared = !RECORD;
 	}
 
+	private _createDataDirectories() {
+		const homeDir = mkdtempSync(join(tmpdir(), 'vscode-agent-host-e2e-'));
+		this._dataDirs.push(homeDir);
+		const codexHomeDir = join(homeDir, '.codex');
+		mkdirSync(codexHomeDir);
+		return { homeDir, userDataDir: join(homeDir, 'user-data'), codexHomeDir };
+	}
+
 	/** Acquire a server + connected client for a test, returning both. */
 	async acquire(testTitle: string, modelTraffic: AgentHostE2EModelTraffic = 'recorded'): Promise<{ server: IServerHandle; client: TestProtocolClient }> {
+		if (this._needsFreshDataDirectory) {
+			this._startOptions = { ...this._startOptions, ...this._createDataDirectories() };
+			this._needsFreshDataDirectory = false;
+		}
 		const capiReplay = capiReplayFor(this._config.provider, testTitle, modelTraffic);
 		this._currentCapiReplay = capiReplay;
 		// Bound both provider-model load and host-owned resource accumulation.
@@ -1144,17 +1151,8 @@ export class AgentHostE2EServerLease {
 	}
 
 	/**
-	 * Release a test: dispose its sessions, disconnect the client, and verify the
-	 * replay traffic. A shared server is normally kept alive (with its cached SDK
-	 * client) for the next test; a per-test server is stopped.
-	 *
-	 * Pass `forceRestart` when the just-run test failed. A failed test can leave
-	 * a mid-turn session that wedges (or has already killed) the shared host, so
-	 * reusing it would cascade `ECONNREFUSED` / `createSession` timeouts into the
-	 * next, unrelated test. Restarting isolates the failure to the one test that
-	 * caused it. The strict cache-miss assertion is also skipped on restart: the
-	 * test already failed for its own reason, and a secondary cache-miss throw
-	 * would only obscure it.
+	 * Dispose the test's sessions and verify replay, reusing a healthy shared server.
+	 * Pass `forceRestart` after a failed test to isolate the next test without obscuring the original failure.
 	 */
 	async release(createdSessions: string[], forceRestart = false): Promise<void> {
 		const client = this._client;
@@ -1244,6 +1242,9 @@ export class AgentHostE2EServerLease {
 				this._testsOnCurrentServer = 0;
 			}
 		}
+		if (forceRestart || cleanupErrors.length > 0) {
+			this._needsFreshDataDirectory = true;
+		}
 		if (cleanupErrors.length > 0) {
 			if (forceRestart) {
 				process.stdout.write(`[agent-host-e2e] cleanup reported ${cleanupErrors.length} secondary error(s) after the test failed:\n`);
@@ -1256,10 +1257,8 @@ export class AgentHostE2EServerLease {
 		}
 	}
 
-	/** Tear down a shared server at the end of the suite (no-op for per-test). */
+	/** Stop the server and remove all isolated homes, including those retired after failures. */
 	async dispose(): Promise<void> {
-		const dataDir = this._dataDir;
-		this._dataDir = undefined;
 		try {
 			if (this._server) {
 				try {
@@ -1270,9 +1269,7 @@ export class AgentHostE2EServerLease {
 				}
 			}
 		} finally {
-			if (dataDir) {
-				await removeTempDirs([dataDir]);
-			}
+			await removeTempDirs(this._dataDirs);
 		}
 	}
 }
