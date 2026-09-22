@@ -226,7 +226,7 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 			}
 			const catalog = await this._waitForCatalog(state => state.entries.some(automation => automation.runs.some(run =>
 				run.resource === result.resource && (run.primarySession !== undefined || isTerminalRun(run))
-			)));
+			)), undefined, null);
 			const run = catalog.entries.flatMap(automation => automation.runs).find(candidate => candidate.resource === result.resource);
 			if (!run) {
 				throw new Error(`Automation run did not appear in the authoritative catalogue: ${result.resource}`);

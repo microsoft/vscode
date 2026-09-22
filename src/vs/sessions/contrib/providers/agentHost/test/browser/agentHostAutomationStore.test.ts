@@ -1291,7 +1291,7 @@ suite('AgentHostAutomationStore', () => {
 	});
 
 	for (const pauseAdmission of [false, true]) {
-		test(`cancels a pending run ${pauseAdmission ? 'during admission' : 'while waiting for a session'} through the client stack`, async () => {
+		test(`cancels a pending run ${pauseAdmission ? 'during admission' : 'after waiting more than 30 seconds for a session'} through the client stack`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const { store } = reconnectable();
 			const connection = disposables.add(new TestAutomationConnection());
 			connection.runPrimarySession = undefined;
@@ -1314,7 +1314,7 @@ suite('AgentHostAutomationStore', () => {
 			const operation = runner.runOnce(automation, cancellation.token);
 			await connection.runRequested.p;
 			if (!pauseAdmission) {
-				await timeout(0);
+				await timeout(31_000);
 			}
 			cancellation.cancel();
 			await barrier.complete();
@@ -1327,7 +1327,7 @@ suite('AgentHostAutomationStore', () => {
 				activeRun: store.getActiveRunFor(automation.id),
 				errors,
 			}, { kind: 'notStarted', reason: 'cancelled', cancellations: 1, activeRun: undefined, errors: [] });
-		});
+		}));
 	}
 
 	test('does not time out an authority-dispatched run after 30 seconds', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
