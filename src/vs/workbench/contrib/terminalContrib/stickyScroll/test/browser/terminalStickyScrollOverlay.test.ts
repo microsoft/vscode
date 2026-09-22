@@ -78,7 +78,7 @@ suite('TerminalStickyScrollOverlay', () => {
 			minimumSize: 0,
 			maximumSize: Number.POSITIVE_INFINITY,
 			onDidChange: Event.None,
-			layout: () => {}
+			layout: () => { }
 		}, 237);
 		if (location === 'upper split') {
 			splitView.addView({
@@ -86,7 +86,7 @@ suite('TerminalStickyScrollOverlay', () => {
 				minimumSize: 0,
 				maximumSize: Number.POSITIVE_INFINITY,
 				onDidChange: Event.None,
-				layout: () => {}
+				layout: () => { }
 			}, 100);
 		}
 		splitView.layout(237);
@@ -144,7 +144,7 @@ suite('TerminalStickyScrollOverlay', () => {
 		capabilities.add(TerminalCapability.CommandDetection, commandDetection);
 		const instance = new class extends mock<ITerminalInstance>() {
 			override readonly capabilities = capabilities;
-			override readonly targetRef = store.add({ object: location === 'editor' ? TerminalLocation.Editor : TerminalLocation.Panel, dispose: () => {} });
+			override readonly targetRef = store.add({ object: location === 'editor' ? TerminalLocation.Editor : TerminalLocation.Panel, dispose: () => { } });
 			override readonly onDidChangeTarget = Event.None;
 			override readonly onDidChangeVisibility = Event.None;
 		};
