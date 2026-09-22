@@ -447,21 +447,22 @@ Getting the host into that configuration needs a feature that genuinely reaches 
 | `RECORD` (env) | Set by `AGENT_HOST_REPLAY_RECORD=1` and internally during the first `AGENT_HOST_UPDATE_SNAPSHOTS=1` pass. The `can abort a running turn` test runs only for direct record mode, not bulk snapshot updates. |
 | `isWindows` | The worktree test is skipped on Windows (POSIX-shaped `.worktrees` paths + host-terminal `pwd`). |
 
-File-operation capability and coverage are separate concerns. A provider with no native file tools can still run the behavior scenarios through `fileOperationStrategy: 'shell'`; those prompts pin portable `node -e` commands and retain direct filesystem assertions. Native-tool-only behavior, such as streaming file-creation argument deltas, remains gated by the corresponding tool-name field. A shell strategy also respects `shellToolReplayUnstableOnLinux`, so enabling Codex file coverage on macOS and Windows does not overstate its packaged-Linux replay support.
+File-operation capability and coverage are separate concerns. A provider with no native file tools can still run the behavior scenarios through `fileOperationStrategy: 'shell'`; those prompts pin portable `node -e` commands and retain direct filesystem assertions. Native-tool-only behavior, such as streaming file-creation argument deltas, remains gated by the corresponding tool-name field. Codex shell-backed file and peer-chat scenarios also run on Linux; the independent shell-result-text and Windows file-creation limitations remain tracked in [`KNOWN_ISSUES.md`](./KNOWN_ISSUES.md).
 
 ### Interpreting Codex pending tests
 
-On platforms where Codex unified-shell replay is stable, the baseline suite has 12 intentionally pending registrations:
+The Codex suite intentionally skips scenarios for unsupported capabilities and known limitations:
 
 - freeform and multi-select questions, because `request_user_input` requires non-empty, mutually exclusive options;
 - native streaming file creation and the two subagent scenarios, because Codex advertises neither capability;
 - client-plugin discovery, because plugin synchronization can race the first turn and leave it incomplete;
 - the three live workspace-agent watcher scenarios, because Codex discovers workspace customizations initially but does not watch them;
 - mid-turn abort, which is record-only for every provider;
-- worktree include-file coverage, which remains behind its documented known-issue gate; and
-- the negative multiple-chat scenario, which runs only for a provider that does not advertise multiple chats.
+- worktree include-file coverage, which remains behind its documented known-issue gate;
+- the negative multiple-chat scenario, which runs only for a provider that does not advertise multiple chats; and
+- scenarios requiring reliable successful shell completion text, plus file creation on Windows, under their separate documented gates.
 
-Codex multiple chats, provider-backed forks, side chats, Plan-mode input, input cancellation, workspaceless sessions, runtime slash commands, cross-session server tools, host restart, and workspace customization discovery all run in strict replay. Linux can show additional pending shell-backed scenarios under `shellToolReplayUnstableOnLinux`; those are tracked separately in [`KNOWN_ISSUES.md`](./KNOWN_ISSUES.md).
+Codex multiple chats, provider-backed forks, side chats, Plan-mode input, input cancellation, workspaceless sessions, runtime slash commands, cross-session server tools, host restart, and workspace customization discovery all run in strict replay.
 
 **Rule of thumb:** if a test relies on real-time behavior, concurrency, or POSIX-specific local execution, gate it rather than fighting the fixture. Prefer a *targeted* gate (per-provider flag or `!isWindows`) so you don't disable coverage where it works.
 
@@ -510,7 +511,9 @@ The fixture was never recorded (or the test title changed and orphaned it). Reco
 
 Usually the *local execution* diverges by platform (the model replay is byte-identical everywhere). Windows shells, `pwd`, `git worktree` paths, and some SDK tool calls behave differently. Gate the test off that platform (`!isWindows` or a per-provider flag) — don't bump timeouts to mask it.
 
-Codex fixtures use its unified `exec_command` tool, so Codex record/replay servers explicitly enable `features.unified_exec` rather than inheriting an app-server configuration that advertises the incompatible legacy `shell_command` tool. Packaged Linux still completes those recorded turns without command-execution notifications, so the shell-dependent Codex replay tests are gated there.
+Codex fixtures use its unified `exec_command` tool, so Codex record/replay servers explicitly enable `features.unified_exec` rather than inheriting an app-server configuration that advertises the incompatible legacy `shell_command` tool.
+
+Codex also refuses to create helper aliases when `CODEX_HOME` is inside its effective temporary directory. With older bubblewrap versions lacking `--argv0` (including Ubuntu 22.04's 0.6.1), this makes sandbox re-entry fail before the command executes: `bwrap: execvp codex-linux-sandbox`. The private per-runtime `TMPDIR`/`TMP`/`TEMP` introduced in [#334945](https://github.com/microsoft/vscode/pull/334945) separates that directory from the isolated Codex home and fixes this replay failure without disabling sandboxing. Keep those directories separate and assert actual tool output or filesystem effects: replayed assistant success text alone does not prove execution.
 
 ### A replayed MCP call reports that its tool does not exist
 
