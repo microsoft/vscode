@@ -7,18 +7,22 @@ import assert from 'assert';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { IDefaultAccount } from '../../../../../base/common/defaultAccount.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../../base/common/observable.js';
-import { mock } from '../../../../../base/test/common/mock.js';
+import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IInlineCompletionsService } from '../../../../../editor/browser/services/inlineCompletionsService.js';
 import { ConfigurationTarget, type IConfigurationOverrides, type IConfigurationValue } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { IMarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import product from '../../../../../platform/product/common/product.js';
 import { ChatEntitlement, IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
+import { IAuthenticationService } from '../../../../services/authentication/common/authentication.js';
 import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 import { ChatStatusDashboard, IChatStatusDashboardOptions } from '../../../chat/browser/chatStatus/chatStatusDashboard.js';
 import { IChatStatusItemService } from '../../../chat/browser/chatStatus/chatStatusItemService.js';
@@ -245,11 +249,21 @@ suite('ChatStatusDashboard', () => {
 		dashboardOptions?: IChatStatusDashboardOptions;
 		configurationService?: TestConfigurationService;
 		activeTextEditorLanguageId?: string;
+		defaultAccountService?: IDefaultAccountService;
+		telemetryService?: ITelemetryService;
 	} = {}): ChatStatusDashboard {
 		const configurationService = options.configurationService;
 		const instantiationService = workbenchInstantiationService(configurationService ? { configurationService: () => configurationService } : undefined, store);
 
 		instantiationService.stub(IChatEntitlementService, entitlementService);
+		instantiationService.stub(IDefaultAccountService, options.defaultAccountService ?? upcastPartial<IDefaultAccountService>({
+			currentDefaultAccount: null,
+			onDidChangeDefaultAccount: Event.None,
+		}));
+		instantiationService.stub(IAuthenticationService, upcastPartial<IAuthenticationService>({ onDidChangeSessions: Event.None }));
+		if (options.telemetryService) {
+			instantiationService.stub(ITelemetryService, options.telemetryService);
+		}
 		instantiationService.stub(IChatStatusItemService, {
 			_serviceBrand: undefined,
 			onDidChange: Event.None,
@@ -281,6 +295,54 @@ suite('ChatStatusDashboard', () => {
 
 		return dashboard;
 	}
+
+	test('shows a keyboard-accessible request action without quotas only for fresh treatment', async () => {
+		const results = [];
+		for (const variant of ['control', 'treatment'] as const) {
+			const accountChanged = store.add(new Emitter<IDefaultAccount | null>());
+			const refreshed = new DeferredPromise<void>();
+			let account: IDefaultAccount = {
+				authenticationProvider: { id: 'github', name: 'GitHub', enterprise: false },
+				accountName: 'example',
+				sessionId: 'session',
+				enterprise: false,
+				entitlementsDataFetchedAt: Date.now() - 1000,
+				entitlementsData: {
+					access_type_sku: '', assigned_date: '', chat_enabled: false, can_signup_for_limited: true,
+					copilot_plan: '', organization_login_list: [], analytics_tracking_id: 'canonical',
+					can_request_copilot_access: true,
+					copilot_access_request_assignment: { variant, assignment_context: 'assignment', data_version: 1 }
+				}
+			};
+			const entitlement = createEntitlementService({ entitlement: ChatEntitlement.Available });
+			entitlement.update = () => refreshed.p;
+			const dashboard = createDashboard(entitlement, {
+				defaultAccountService: upcastPartial<IDefaultAccountService>({
+					get currentDefaultAccount() { return account; },
+					onDidChangeDefaultAccount: accountChanged.event,
+				})
+			});
+			account = { ...account, entitlementsDataFetchedAt: Date.now() };
+			accountChanged.fire(account);
+			await refreshed.complete();
+			await timeout(0);
+			const button = Array.from(dashboard.element.querySelectorAll<HTMLElement>('.monaco-button'))
+				.find(element => element.textContent === 'Request Copilot Access')!;
+			results.push({
+				visible: button.parentElement?.style.display !== 'none',
+				role: button.getAttribute('role'),
+				tabIndex: button.tabIndex,
+				hasSetup: dashboard.element.textContent?.includes('Use AI Features'),
+			});
+			accountChanged.fire(null);
+			dashboard.dispose();
+			dashboard.element.remove();
+		}
+		assert.deepStrictEqual(results, [
+			{ visible: false, role: 'button', tabIndex: 0, hasSetup: true },
+			{ visible: true, role: 'button', tabIndex: 0, hasSetup: true },
+		]);
+	});
 
 	test('preserves inline suggestion language setting state across writes', async () => {
 		const defaultChat = product.defaultChatAgent;

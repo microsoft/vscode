@@ -890,6 +890,7 @@ export class DefaultAccountProvider extends Disposable implements IDefaultAccoun
 				sessionId: sessions[0].id,
 				enterprise: authenticationProvider.enterprise || sessions[0].account.label.includes('_'),
 				entitlementsData,
+				entitlementsDataFetchedAt: entitlementsData ? entitlementsFetchedAt : undefined,
 			};
 			this.logService.debug('[DefaultAccount] Successfully created default account for provider:', authenticationProvider.id);
 			const accountPolicyResult: IAccountPolicyData | null = policyData || entitlementsFetchedAt

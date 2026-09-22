@@ -171,10 +171,12 @@ suite('DefaultAccountProvider', () => {
 		assert.deepStrictEqual({
 			callSites: requestService.requests.map(request => request.callSite),
 			refreshedCopilotPlan: refreshedEntitlements?.defaultAccount.entitlementsData?.copilot_plan,
+			hasFreshEntitlements: (refreshedEntitlements?.defaultAccount.entitlementsDataFetchedAt ?? 0) > fetchedAt,
 			freshness: describeFreshness(provider.managedSettingsFreshness),
 		}, {
 			callSites: ['defaultAccount.entitlements'],
 			refreshedCopilotPlan: 'business',
+			hasFreshEntitlements: true,
 			freshness: {
 				state: ManagedSettingsFreshnessState.Satisfied,
 				source: 'server',
@@ -627,6 +629,7 @@ suite('DefaultAccountProvider', () => {
 				sessionId: 'session',
 				enterprise: false,
 				entitlementsData: { chat_enabled: true },
+				entitlementsDataFetchedAt: provider.defaultAccount?.entitlementsDataFetchedAt,
 			},
 			managedSettings: {
 				'permissions.disableBypassPermissionsMode': 'disable',
