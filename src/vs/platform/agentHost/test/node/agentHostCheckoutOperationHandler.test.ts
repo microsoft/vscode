@@ -13,7 +13,7 @@ import { CheckoutBlockedByLocalChangesError, IAgentHostGitService } from '../../
 import { buildUncommittedChangesetUri } from '../../common/changesetUri.js';
 import { CheckoutOperationPreAction, checkoutOperationMeta } from '../../common/meta/agentCheckoutOperationMeta.js';
 import { JsonRpcErrorCodes, ProtocolError } from '../../common/state/sessionProtocol.js';
-import { SessionStatus } from '../../common/state/sessionState.js';
+import { buildDefaultChatUri, SessionStatus } from '../../common/state/sessionState.js';
 import { AgentHostCheckoutOperationHandler } from '../../node/agentHostCheckoutOperationHandler.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 
@@ -60,7 +60,7 @@ suite('AgentHostCheckoutOperationHandler', () => {
 		);
 
 		const result = await handler.invoke({
-			channel: buildUncommittedChangesetUri(session.toString()),
+			channel: buildUncommittedChangesetUri(buildDefaultChatUri(session.toString())),
 			operationId: AgentHostCheckoutOperationHandler.OPERATION_CHECKOUT,
 			_meta: checkoutOperationMeta('dev'),
 		}, CancellationToken.None);

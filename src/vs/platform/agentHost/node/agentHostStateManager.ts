@@ -1604,16 +1604,13 @@ export class AgentHostStateManager extends Disposable {
 	}
 
 	/**
-	 * Replaces the catalogue entries on `state.changesets` for `session` by
+	 * Replaces compatibility catalogue entries on `state.changesets` for
+	 * `session` by
 	 * dispatching a {@link ActionType.SessionChangesetsChanged} action.
 	 * Subscribers see the mutation in the standard session action stream —
-	 * the catalogue lives on session state and is not its own subscribable
-	 * resource. Aggregate `changes` counts (additions / deletions /
-	 * files) are propagated separately via {@link setSessionSummaryChanges}.
-	 *
-	 * Producers call this after each compute pass to keep the list of
-	 * available changesets (with their `changeKind`) in sync so observers
-	 * can render the correct entries without subscribing to each one.
+	 * current producers keep this empty and publish selectable catalogues on
+	 * chat state. Aggregate `changes` counts are propagated separately via
+	 * {@link setSessionSummaryChanges}.
 	 */
 	setSessionChangesets(session: URI, changesets: readonly Changeset[] | undefined): void {
 		const entry = this._sessionStates.get(session);

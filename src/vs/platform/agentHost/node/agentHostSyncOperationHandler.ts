@@ -34,15 +34,15 @@ export class AgentHostSyncOperationHandler implements IChangesetOperationHandler
 		}
 		this._throwIfCancelled(token);
 
-		const ownerUri = parsed.ownerUri;
-		const sessionState = this._getSessionState(ownerUri);
+		const sessionUri = parsed.sessionUri;
+		const sessionState = this._getSessionState(sessionUri);
 		if (!sessionState) {
-			throw new ProtocolError(AHP_SESSION_NOT_FOUND, `Session not found: ${parsed.sessionUri}`);
+			throw new ProtocolError(AHP_SESSION_NOT_FOUND, `Session not found: ${sessionUri}`);
 		}
 
 		const workingDirectoryStr = sessionState.workingDirectories?.[0];
 		if (!workingDirectoryStr) {
-			throw new ProtocolError(JsonRpcErrorCodes.InternalError, `Changeset owner has no working directory: ${ownerUri}`);
+			throw new ProtocolError(JsonRpcErrorCodes.InternalError, `Changeset owner has no working directory: ${sessionUri}`);
 		}
 		const workingDirectory = URI.parse(workingDirectoryStr);
 
@@ -52,7 +52,7 @@ export class AgentHostSyncOperationHandler implements IChangesetOperationHandler
 		}
 		this._throwIfCancelled(token);
 
-		const cachedBranchName = this._gitStateService.getSessionGitState?.(ownerUri)?.branchName;
+		const cachedBranchName = this._gitStateService.getSessionGitState?.(sessionUri)?.branchName;
 		if (cachedBranchName && cachedBranchName !== branchName) {
 			throw new ProtocolError(JsonRpcErrorCodes.InternalError, `Current branch changed from ${cachedBranchName} to ${branchName} for ${workingDirectory}`);
 		}
@@ -72,7 +72,7 @@ export class AgentHostSyncOperationHandler implements IChangesetOperationHandler
 		}
 		const upstreamBranchName = branch.upstream.ref.substring(upstreamRefPrefix.length);
 
-		this._logService.info(`[AgentHostSyncOperationHandler] Syncing branch ${branchName} for ${ownerUri}`);
+		this._logService.info(`[AgentHostSyncOperationHandler] Syncing branch ${branchName} for ${sessionUri}`);
 		try {
 			// Pull
 			await this._gitService.pull(workingDirectory, {
@@ -91,9 +91,9 @@ export class AgentHostSyncOperationHandler implements IChangesetOperationHandler
 		}
 
 		try {
-			await this._onSynced(ownerUri);
+			await this._onSynced(sessionUri);
 		} catch (err) {
-			this._logService.warn(`[AgentHostSyncOperationHandler] Post-sync refresh failed for ${ownerUri}: ${err instanceof Error ? err.message : String(err)}`);
+			this._logService.warn(`[AgentHostSyncOperationHandler] Post-sync refresh failed for ${sessionUri}: ${err instanceof Error ? err.message : String(err)}`);
 		}
 
 		return { message: { markdown: localize('agentHost.changeset.sync.synced', "Synced changes.") } };

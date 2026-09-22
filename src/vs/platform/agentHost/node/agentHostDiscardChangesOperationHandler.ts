@@ -46,10 +46,10 @@ export class AgentHostDiscardChangesOperationHandler implements IChangesetOperat
 		}
 		this._throwIfCancelled(token);
 
-		const ownerUri = parsed.ownerUri;
-		const sessionState = this._getSessionState(ownerUri);
+		const sessionUri = parsed.sessionUri;
+		const sessionState = this._getSessionState(sessionUri);
 		if (!sessionState) {
-			throw new ProtocolError(AHP_SESSION_NOT_FOUND, `Session not found: ${parsed.sessionUri}`);
+			throw new ProtocolError(AHP_SESSION_NOT_FOUND, `Session not found: ${sessionUri}`);
 		}
 
 		if (params.target?.kind !== ChangesetOperationTargetKind.Resource) {
@@ -60,13 +60,13 @@ export class AgentHostDiscardChangesOperationHandler implements IChangesetOperat
 
 		const workingDirectoryStr = sessionState.workingDirectories?.[0];
 		if (!workingDirectoryStr) {
-			throw new ProtocolError(JsonRpcErrorCodes.InternalError, `Changeset owner has no working directory: ${ownerUri}`);
+			throw new ProtocolError(JsonRpcErrorCodes.InternalError, `Changeset owner has no working directory: ${sessionUri}`);
 		}
 
 		const workingDirectory = URI.parse(workingDirectoryStr);
 		const resource = URI.parse(params.target.resource);
 
-		this._logService.info(`[AgentHostDiscardChangesOperationHandler] Restoring '${resource.fsPath}' for ${ownerUri}`);
+		this._logService.info(`[AgentHostDiscardChangesOperationHandler] Restoring '${resource.fsPath}' for ${sessionUri}`);
 
 		try {
 			await this._agentHostGitService.restore(workingDirectory, [resource.fsPath]);
@@ -77,9 +77,9 @@ export class AgentHostDiscardChangesOperationHandler implements IChangesetOperat
 				`Failed to discard changes: ${err instanceof Error ? err.message : String(err)}`);
 		}
 		try {
-			await this._onDiscarded(ownerUri);
+			await this._onDiscarded(sessionUri);
 		} catch (err) {
-			this._logService.warn(`[AgentHostDiscardChangesOperationHandler] Post-discard refresh failed for ${ownerUri}: ${err instanceof Error ? err.message : String(err)}`);
+			this._logService.warn(`[AgentHostDiscardChangesOperationHandler] Post-discard refresh failed for ${sessionUri}: ${err instanceof Error ? err.message : String(err)}`);
 		}
 
 		return { message: { markdown: localize('agentHost.changeset.discardChanges.discarded', "Discarded changes to `{0}`.", basename(resource)) } };

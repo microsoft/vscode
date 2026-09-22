@@ -11,11 +11,12 @@
  * file changes through host-executed bang commands and never cross the model
  * boundary.
  *
- * The host publishes several changesets per session, each on its own
+ * The host publishes several changesets per chat, each on its own
  * subscribable channel: `branch` (against the branch point), `uncommitted`
- * (working-tree state), and `session` (cumulative for the session). They are
- * separate channels because `changeset/*` actions are scoped to the changeset
- * URI, so a session-only subscription never receives them.
+ * (working-tree state), and `session` (cumulative for the chat). They are
+ * separate channels because `changeset/*` actions are scoped to their URI.
+ * Creating sessions temporarily advertise repository-preparation changes
+ * until their committed chat becomes authoritative.
  *
  * This contract previously existed only in the frozen `../protocol/` suite,
  * which drives a mock agent with the magic prompt `terminal-edit:<path>` and
@@ -36,7 +37,7 @@ import { ContentEncoding } from '../../../../common/state/protocol/common/comman
 import { PROTOCOL_VERSION } from '../../../../common/state/protocol/version/registry.js';
 import { ChangesetOperationTargetKind, type InvokeChangesetOperationResult } from '../../../../common/state/protocol/channels-changeset/commands.js';
 import { ActionType } from '../../../../common/state/sessionActions.js';
-import { buildChatUri, buildDefaultChatUri, readSessionGitState, ROOT_STATE_URI, type SessionState } from '../../../../common/state/sessionState.js';
+import { buildChatUri, buildDefaultChatUri, readSessionGitState, ROOT_STATE_URI, type ChatState, type SessionState } from '../../../../common/state/sessionState.js';
 import {
 	ChangesetKind,
 	buildBranchChangesetUri,
@@ -1328,28 +1329,32 @@ export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 		}));
 	});
 
-	conformanceTest(context, 'a new session advertises its initial changeset catalog on a separate channel', async function () {
+	conformanceTest(context, 'a new session advertises its initial changeset catalog only on its chat', async function () {
 		const workspace = createGitWorkspace('ahp-changeset-catalog-');
 		const sessionUri = await createSessionIn(workspace, 'changeset-catalog');
 
 		const session = await context.client.call<SubscribeResult>('subscribe', { channel: sessionUri });
-		const changesets = (session.snapshot!.state as SessionState).changesets ?? [];
-		const advertisedChannels = changesets.map(changeset => changeset.uriTemplate).filter(uri => !uri.includes('{'));
+		const chat = await context.client.call<SubscribeResult>('subscribe', { channel: buildDefaultChatUri(sessionUri) });
+		const sessionChangesets = (session.snapshot!.state as SessionState).changesets ?? [];
+		const chatChangesets = (chat.snapshot!.state as ChatState).changesets ?? [];
+		const advertisedChannels = chatChangesets.map(changeset => changeset.uriTemplate).filter(uri => !uri.includes('{'));
 		const subscribed = await Promise.all(advertisedChannels.map(channel =>
 			context.client.call<SubscribeResult>('subscribe', { channel })
 		));
 
 		assert.deepStrictEqual({
-			catalog: changesets.map(changeset => ({
+			sessionCatalog: sessionChangesets,
+			chatCatalog: chatChangesets.map(changeset => ({
 				changeKind: changeset.changeKind,
 				uriTemplate: changeset.uriTemplate,
 				canReview: changeset.capabilities?.review !== undefined,
 			})),
 			subscribedChannels: subscribed.map(result => result.snapshot!.resource),
 		}, {
-			catalog: [{
+			sessionCatalog: [],
+			chatCatalog: [{
 				changeKind: ChangesetKind.Uncommitted,
-				uriTemplate: buildUncommittedChangesetUri(sessionUri),
+				uriTemplate: buildUncommittedChangesetUri(buildDefaultChatUri(sessionUri)),
 				canReview: false,
 			}],
 			subscribedChannels: advertisedChannels,
@@ -1470,18 +1475,22 @@ export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 		assert.strictEqual(state.status, 'error');
 	});
 
-	conformanceTest(context, 'a materialized git session advertises turn and compare changeset templates', async function () {
+	conformanceTest(context, 'a materialized git session advertises changesets only on its chat', async function () {
 		const workspace = createGitWorkspace('ahp-changeset-template-catalog-');
 		const sessionUri = await createWorktreeSessionIn(workspace, 'changeset-template-catalog');
 		await runBangTurn(sessionUri, 'turn-materialize', '/rename Materialized', 1);
 
 		const session = await context.client.call<SubscribeResult>('subscribe', { channel: sessionUri });
-		const kinds = ((session.snapshot!.state as SessionState).changesets ?? []).map(changeset => changeset.changeKind);
+		const chat = await context.client.call<SubscribeResult>('subscribe', { channel: buildDefaultChatUri(sessionUri) });
+		const sessionKinds = ((session.snapshot!.state as SessionState).changesets ?? []).map(changeset => changeset.changeKind);
+		const chatKinds = ((chat.snapshot!.state as ChatState).changesets ?? []).map(changeset => changeset.changeKind);
 
 		assert.deepStrictEqual({
-			hasTurn: kinds.includes(ChangesetKind.Turn),
-			hasCompare: kinds.includes(ChangesetKind.Compare),
+			sessionKinds,
+			hasTurn: chatKinds.includes(ChangesetKind.Turn),
+			hasCompare: chatKinds.includes(ChangesetKind.Compare),
 		}, {
+			sessionKinds: [],
 			hasTurn: true,
 			hasCompare: true,
 		});

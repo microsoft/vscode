@@ -79,6 +79,8 @@ The provider cache owns adapter identity. Catalog notifications describe members
 
 Provider-specific metadata such as pull-request provenance, changesets, agent configuration, and external visibility is translated inside this provider. Shared Sessions code consumes only provider-neutral fields and capabilities.
 
+Selectable Agent Host changesets have a single catalogue owner. The default chat exists from initial draft creation and owns repository-preparation changes before provider materialization; sessions never publish a selectable catalogue. Each chat continues to own its authoritative catalogue after materialization, and the default chat also owns session-workflow entries such as Agent Merge. Compact session change summaries remain session metadata and do not duplicate selectable changesets.
+
 Agent-recorded artifacts and references are persisted with the session and projected together through `ISession.artifacts`, where `isArtifact` distinguishes them for presentation (dedicated pill vs. reference collection) only, not for removability. GitHub pull requests and issues are promoted into the existing GitHub metadata so they can be polled and shown on the shared GitHub surfaces rather than duplicated. Promoted entries retain their stable recorded-reference ID regardless of `isArtifact`, and presentation uses that ID for session-only removal; a git-/session-discovered GitHub association that was never recorded through `add_artifact_or_reference` has no recorded-reference ID and stays non-removable, even if it reappears after a recorded duplicate is removed. Customizations used or read by the agent are derived per chat and projected through `IChat.customizations`.
 
 ## Draft and send lifecycle

@@ -369,9 +369,22 @@ suite('ChangesetSessionCoordinator', () => {
 		});
 	});
 
+	test('refreshes the session and chat catalogues when the session becomes ready', () => {
+		const { coordinator, stateManager, changesets } = createEnvironment();
+		const session = AgentSession.uri('mock', 'ready-catalog').toString();
+		const defaultChat = buildDefaultChatUri(session);
+		createSession(stateManager, session);
+		const baseline = changesets.catalogRefreshes.length;
+
+		coordinator.onSessionReady(session);
+
+		assert.deepStrictEqual(changesets.catalogRefreshes.slice(baseline), [session, defaultChat]);
+	});
+
 	test('refreshes the changeset catalogue when Agent Merge enablement changes', () => {
 		const { stateManager, changesets } = createEnvironment();
 		const session = AgentSession.uri('mock', 'agent-merge-catalog').toString();
+		const defaultChat = buildDefaultChatUri(session);
 		createSession(stateManager, session);
 		stateManager.setSessionConfig(session, { schema: { type: 'object', properties: {} }, values: {} });
 
@@ -388,7 +401,7 @@ suite('ChangesetSessionCoordinator', () => {
 			config: { [SessionConfigKey.AgentMerge]: { enabled: false } },
 		});
 
-		assert.deepStrictEqual(changesets.catalogRefreshes, [session, session]);
+		assert.deepStrictEqual(changesets.catalogRefreshes, [session, defaultChat, session, defaultChat]);
 	});
 
 	test('refreshes changeset operations when GitHub state changes', () => {

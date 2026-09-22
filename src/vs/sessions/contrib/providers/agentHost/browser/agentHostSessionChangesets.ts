@@ -18,7 +18,7 @@ import { isAgentMergeMessage } from '../../../../../platform/agentHost/common/me
 import { ChangesetOperationTargetKind, InvokeChangesetOperationResult } from '../../../../../platform/agentHost/common/state/protocol/channels-changeset/commands.js';
 import { ChangesetOperation, ChangesetOperationScope, type ChangesetFile, ChangesetOperationStatus } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ActionType } from '../../../../../platform/agentHost/common/state/sessionActions.js';
-import { buildDefaultChatUri, ChangesetStatus, Changeset, isHostNoticeTurn, lastAttributableTurnId, MessageKind, StateComponents, TurnState, type ChangesetState, type ChatState, type ChatSummary, type SessionState } from '../../../../../platform/agentHost/common/state/sessionState.js';
+import { buildDefaultChatUri, ChangesetStatus, Changeset, isHostNoticeTurn, lastAttributableTurnId, MessageKind, parseRequiredSessionUriFromChatUri, StateComponents, TurnState, type ChangesetState, type ChatState, type ChatSummary, type SessionState } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { ISessionChangeset, ISessionChangesetCapabilities, ISessionChangesetOperation, ISessionChangesetOperationTarget, ISessionFileChange, SessionChangesetOperationScope, SessionChangesetOperationStatus, sessionFileChangesEqual } from '../../../../services/sessions/common/session.js';
 import { isIChatSessionFileChange2 } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
@@ -111,7 +111,8 @@ export function createChangesets(
 				...changeset, isDefault
 			}));
 		} else if (changeset.changeKind === AGENT_MERGE_CHANGESET_ID) {
-			sessionChangesets.push(options.instantiationService.createInstance(AgentHostAgentMergeChangeset, sessionUri, options, isActiveSessionObs, {
+			const agentMergeSessionUri = chatUri ? URI.parse(parseRequiredSessionUriFromChatUri(chatUri)) : sessionUri;
+			sessionChangesets.push(options.instantiationService.createInstance(AgentHostAgentMergeChangeset, agentMergeSessionUri, options, isActiveSessionObs, {
 				...changeset, isDefault
 			}));
 		}
@@ -124,6 +125,7 @@ export function createChatChangesets(
 	chatUri: URI,
 	options: IAgentHostAdapterOptions,
 	isActiveSessionObs: IObservable<boolean>,
+	currentTurnChanges?: IObservable<readonly ISessionFileChange[] | undefined>,
 ): IObservable<readonly ISessionChangeset[] | undefined> {
 	const chatStateObs = createActiveSessionSubscriptionObs<ChatState>(
 		options,
@@ -147,7 +149,10 @@ export function createChatChangesets(
 			return lastChangesets;
 		}
 		lastCatalogue = state.changesets;
-		lastChangesets = createChangesets(chatUri, options, isActiveSessionObs, state.changesets, chatUri);
+		lastChangesets = createChangesets(chatUri, options, isActiveSessionObs, state.changesets.map(changeset => ({
+			...changeset,
+			changes: changeset.changeKind === ChangesetKind.Turn ? currentTurnChanges : undefined,
+		})), chatUri);
 		return lastChangesets;
 	});
 }

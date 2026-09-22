@@ -586,10 +586,10 @@ A client can request arbitrary file bytes from the Agent Host in base64 so binar
   - `a per-turn changeset for an unknown turn reports an error`
   - `comparing a turn with itself produces an empty ready changeset`
   - `comparing two turns reports the changes between their checkpoints`
-  - `a materialized git session advertises turn and compare changeset templates`
+  - `a materialized git session advertises changesets only on its chat`
 - Scope: conformance reference provider, real worktree-isolated sessions.
-- Expected: host-local bang-command edits are represented by checkpoint-backed per-turn/compare changesets, unknown turns report an error, and materialized git sessions advertise the turn/compare templates.
-- Observed: create/edit/delete turn changesets are empty and Ready, unknown turns are empty and Ready, compare operations cannot find usable checkpoints, and the session catalog does not advertise turn/compare templates.
+- Expected: host-local bang-command edits are represented by checkpoint-backed per-turn/compare changesets, unknown turns report an error, and materialized sessions advertise selectable changesets only on the default chat.
+- Observed: create/edit/delete turn changesets are empty and Ready, unknown turns are empty and Ready, compare operations cannot find usable checkpoints, and the host-local command used by the catalogue test does not materialize the provisional provider session.
 - Gate: each affected `conformanceTest` is disabled at its declaration in `changesetSuite.ts`.
 - Reproduce:
 

@@ -22537,7 +22537,7 @@ suite('AgentService (node dispatcher)', () => {
 		});
 	});
 
-	test('provisional workspace session advertises Uncommitted Changes before materialization', async () => {
+	test('provisional workspace session advertises Uncommitted Changes only on its chat before materialization', async () => {
 		class ProvisionalMockAgent extends MockAgent {
 			override readonly chats: IAgentChats = withChatOverrides(getChatSurface(this), base => ({
 				createChat: (chat, context, options) => createProvisionalChat(base, chat, context, options),
@@ -22569,7 +22569,8 @@ suite('AgentService (node dispatcher)', () => {
 			provider: provisionalAgent.id,
 			workingDirectories: workingDirectory ? [workingDirectory] : undefined,
 		});
-		const uncommittedUri = buildUncommittedChangesetUri(workspaceSession.toString());
+		const defaultChat = buildDefaultChatUri(workspaceSession);
+		const uncommittedUri = buildUncommittedChangesetUri(defaultChat);
 		localService.addSubscriber(URI.parse(uncommittedUri), 'client-1');
 		for (let i = 0; i < 100; i++) {
 			if (getStateManager(localService).getChangesetState(uncommittedUri)?.operations?.some(operation => operation.id === 'commit')) {
@@ -22579,14 +22580,17 @@ suite('AgentService (node dispatcher)', () => {
 		}
 
 		const workspaceState = getStateManager(localService).getSessionState(workspaceSession.toString());
+		const chatState = getStateManager(localService).getChatState(defaultChat);
 		assert.deepStrictEqual({
 			lifecycle: workspaceState?.lifecycle,
-			changesets: workspaceState?.changesets?.map(changeset => changeset.changeKind),
+			sessionChangesets: workspaceState?.changesets ?? [],
+			chatChangesets: chatState?.changesets?.map(changeset => changeset.changeKind),
 			gitCalls,
 			hasCommit: getStateManager(localService).getChangesetState(uncommittedUri)?.operations?.some(operation => operation.id === 'commit'),
 		}, {
 			lifecycle: SessionLifecycle.Creating,
-			changesets: ['uncommitted'],
+			sessionChangesets: [],
+			chatChangesets: ['uncommitted'],
 			gitCalls: [workingDirectory.toString(), workingDirectory.toString()],
 			hasCommit: true,
 		});
@@ -22594,7 +22598,7 @@ suite('AgentService (node dispatcher)', () => {
 
 		const workspaceLessSession = await localService.createSession({ provider: provisionalAgent.id });
 		assert.deepStrictEqual(
-			getStateManager(localService).getSessionState(workspaceLessSession.toString())?.changesets ?? [],
+			getStateManager(localService).getChatState(buildDefaultChatUri(workspaceLessSession))?.changesets ?? [],
 			[],
 		);
 	});
@@ -22847,7 +22851,7 @@ suite('AgentService (node dispatcher)', () => {
 					// materialized and immediately disabled.
 					enabled: readAgentMergeSessionState(getStateManager(restarted).getSessionState(sessionStr)?.config?.values)?.enabled,
 					indexed: await orchestratorDb.listAgentMergeEnabledSessions(),
-					hasAgentMergeChangeset: getStateManager(restarted).getSessionState(sessionStr)?.changesets?.some(changeset => changeset.changeKind === AGENT_MERGE_CHANGESET_ID),
+					hasAgentMergeChangeset: getStateManager(restarted).getChatState(buildDefaultChatUri(sessionStr))?.changesets?.some(changeset => changeset.changeKind === AGENT_MERGE_CHANGESET_ID),
 				};
 
 				// Nothing ever subscribed, so only the monitoring pin is holding

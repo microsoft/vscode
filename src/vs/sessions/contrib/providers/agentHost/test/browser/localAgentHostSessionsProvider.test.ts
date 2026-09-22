@@ -2847,13 +2847,14 @@ suite('LocalAgentHostSessionsProvider', () => {
 			override readonly resource = session.resource;
 		}(), undefined);
 		disposables.add(autorun(reader => {
-			for (const changeset of session.changesets?.read(reader) ?? []) {
+			for (const changeset of session.mainChat.read(reader).changesets.read(reader) ?? []) {
 				changeset.changes.read(reader);
 			}
 		}));
 
 		const backendUri = agentHost.createdSessionUris.at(-1)!;
-		const changesetUri = `${backendUri}/changeset/uncommitted`;
+		const chatUri = buildDefaultChatUri(backendUri);
+		const changesetUri = `${chatUri}/changeset/uncommitted`;
 		agentHost.setSessionState(AgentSession.id(backendUri), sessionTypeId, {
 			provider: sessionTypeId,
 			title: '',
@@ -2861,6 +2862,13 @@ suite('LocalAgentHostSessionsProvider', () => {
 			lifecycle: SessionLifecycle.Ready,
 			activeClients: [],
 			chats: [],
+		});
+		agentHost.setChatState(chatUri, {
+			resource: chatUri,
+			title: '',
+			status: ProtocolSessionStatus.Idle,
+			modifiedAt: new Date().toISOString(),
+			turns: [],
 			changesets: [
 				{ label: 'Uncommitted Changes', uriTemplate: changesetUri, changeKind: 'uncommitted' },
 			],
@@ -2871,7 +2879,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		assert.strictEqual(agentHost.sessionUnsubscribeCounts.get(changesetUri), 1);
 	});
 
-	test('subscribes to the session channel for a catalogue published relative to the session', async () => {
+	test('subscribes to the chat channel for a catalogue published relative to the chat', async () => {
 		// Verbatim, `changeset/uncommitted` parses to `file:///changeset/uncommitted`.
 		const activeSession = observableValue<IActiveSession | undefined>('test.activeSession', undefined);
 		const provider = createProvider(disposables, agentHost, undefined, { activeSession });
@@ -2883,12 +2891,13 @@ suite('LocalAgentHostSessionsProvider', () => {
 			override readonly resource = session.resource;
 		}(), undefined);
 		disposables.add(autorun(reader => {
-			for (const changeset of session.changesets?.read(reader) ?? []) {
+			for (const changeset of session.mainChat.read(reader).changesets.read(reader) ?? []) {
 				changeset.changes.read(reader);
 			}
 		}));
 
 		const backendUri = agentHost.createdSessionUris.at(-1)!;
+		const chatUri = buildDefaultChatUri(backendUri);
 		agentHost.setSessionState(AgentSession.id(backendUri), sessionTypeId, {
 			provider: sessionTypeId,
 			title: '',
@@ -2896,13 +2905,20 @@ suite('LocalAgentHostSessionsProvider', () => {
 			lifecycle: SessionLifecycle.Ready,
 			activeClients: [],
 			chats: [],
+		});
+		agentHost.setChatState(chatUri, {
+			resource: chatUri,
+			title: '',
+			status: ProtocolSessionStatus.Idle,
+			modifiedAt: new Date().toISOString(),
+			turns: [],
 			changesets: [
 				{ label: 'Uncommitted Changes', uriTemplate: 'changeset/uncommitted', changeKind: 'uncommitted' },
 			],
 		});
 
 		assert.deepStrictEqual({
-			resolved: agentHost.sessionSubscribeCounts.get(`${backendUri}/changeset/uncommitted`),
+			resolved: agentHost.sessionSubscribeCounts.get(`${chatUri}/changeset/uncommitted`),
 			verbatim: agentHost.sessionSubscribeCounts.get('file:///changeset/uncommitted'),
 		}, {
 			resolved: 1,
@@ -7412,11 +7428,11 @@ suite('LocalAgentHostSessionsProvider', () => {
 			workingDirectories: [workingDirectory.toString()],
 		});
 		assert.ok(session instanceof AgentHostSessionAdapter);
-		session.updateChangesets([{
+		const chatChangesets = [{
 			label: 'Last Turn Changes',
-			uriTemplate: `${sessionUri}/changeset/turn/{turnId}`,
+			uriTemplate: `${chatUri}/changeset/turn/{turnId}`,
 			changeKind: 'turn',
-		}]);
+		}];
 		const changedFile = URI.file('/repo/live.ts');
 		const externalFile = URI.file('/outside/ignored.ts');
 		agentHost.setChatState(chatUri, {
@@ -7424,6 +7440,8 @@ suite('LocalAgentHostSessionsProvider', () => {
 			title: 'Default',
 			status: ProtocolSessionStatus.InProgress,
 			modifiedAt: new Date().toISOString(),
+			changesets: chatChangesets,
+			workingDirectories: [workingDirectory.toString()],
 			turns: [],
 			activeTurn: {
 				id: 'active-turn',
@@ -7455,7 +7473,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 			},
 		});
 
-		const changeset = session!.changesets.get()?.find(candidate => candidate.id === TURN_CHANGES_CHANGESET_ID);
+		const changeset = session!.mainChat.get().changesets.get()?.find(candidate => candidate.id === TURN_CHANGES_CHANGESET_ID);
 		assert.deepStrictEqual({
 			isLoading: changeset?.isLoadingChanges.get(),
 			changes: changeset?.changes.get().map(change => isIChatSessionFileChange2(change) ? change.uri.toString() : change.modifiedUri.toString()),
@@ -7464,13 +7482,15 @@ suite('LocalAgentHostSessionsProvider', () => {
 			changes: [changedFile.toString()],
 		});
 
-		const changesetUri = `${sessionUri}/changeset/turn/active-turn`;
+		const changesetUri = `${chatUri}/changeset/turn/active-turn`;
 		agentHost.setChangesetState(changesetUri, { status: ChangesetStatus.Computing, files: [] });
 		agentHost.setChatState(chatUri, {
 			resource: chatUri,
 			title: 'Default',
 			status: ProtocolSessionStatus.Idle,
 			modifiedAt: new Date().toISOString(),
+			changesets: chatChangesets,
+			workingDirectories: [workingDirectory.toString()],
 			turns: [{
 				id: 'active-turn',
 				message: { text: 'Edit live.ts', origin: { kind: MessageKind.User } },
@@ -7519,14 +7539,14 @@ suite('LocalAgentHostSessionsProvider', () => {
 			}],
 			workingDirectories: [workingDirectory.toString()],
 		});
-		session.updateChangesets([{
+		const chatChangesets = [{
 			label: 'Last Turn Changes',
-			uriTemplate: `${sessionUri}/changeset/turn/{turnId}`,
+			uriTemplate: `${chatUri}/changeset/turn/{turnId}`,
 			changeKind: 'turn',
-		}]);
+		}];
 
 		const changedFile = URI.file('/repo/edited.ts');
-		agentHost.setChangesetState(`${sessionUri}/changeset/turn/agent-turn`, {
+		agentHost.setChangesetState(`${chatUri}/changeset/turn/agent-turn`, {
 			status: ChangesetStatus.Ready,
 			files: [{
 				id: changedFile.toString(),
@@ -7536,7 +7556,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 				},
 			}],
 		});
-		agentHost.setChangesetState(`${sessionUri}/changeset/turn/notice-turn`, { status: ChangesetStatus.Ready, files: [] });
+		agentHost.setChangesetState(`${chatUri}/changeset/turn/notice-turn`, { status: ChangesetStatus.Ready, files: [] });
 
 		// The agent's turn, followed by a hidden Agent Merge notice turn.
 		agentHost.setChatState(chatUri, {
@@ -7544,6 +7564,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 			title: 'Default',
 			status: ProtocolSessionStatus.Idle,
 			modifiedAt: new Date().toISOString(),
+			changesets: chatChangesets,
 			turns: [{
 				id: 'agent-turn',
 				message: { text: 'Edit edited.ts', origin: { kind: MessageKind.User } },
@@ -7562,7 +7583,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 			}],
 		});
 
-		const changeset = session.changesets.get()?.find(candidate => candidate.id === TURN_CHANGES_CHANGESET_ID);
+		const changeset = session.mainChat.get().changesets.get()?.find(candidate => candidate.id === TURN_CHANGES_CHANGESET_ID);
 		assert.deepStrictEqual({
 			isEnabled: changeset?.isEnabled.get(),
 			changes: changeset?.changes.get().map(change => isIChatSessionFileChange2(change) ? change.uri.toString() : change.modifiedUri.toString()),

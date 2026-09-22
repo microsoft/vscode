@@ -96,9 +96,9 @@ export interface IAgentHostChangesetService {
 	 * Registers the two static changeset URIs (`uncommitted`, `session`)
 	 * on the state manager so client subscriptions resolve to a
 	 * `status: computing` snapshot before the first compute pass
-	 * completes. The catalogue itself (`state.changesets`) is seeded
-	 * upstream by `_buildInitialSummary` / `restoreSession` — this only
-	 * deals with the state-manager-side per-changeset entries.
+	 * completes. The owner catalogue is published separately by
+	 * {@link refreshChangesetCatalog}; this only deals with the
+	 * state-manager-side per-changeset entries.
 	 *
 	 * Idempotent; safe to call on every create and restore path.
 	 */

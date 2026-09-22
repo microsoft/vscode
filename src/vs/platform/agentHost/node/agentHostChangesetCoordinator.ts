@@ -65,8 +65,8 @@ export class AgentHostChangesetCoordinator extends Disposable {
 	// ---- Lifecycle hooks ----------------------------------------------------
 
 	/**
-	 * Seeds the create-time catalogue and registers its backing changeset state
-	 * before `SessionReady` is dispatched.
+	 * Seeds the default chat's create-time catalogue and registers its backing
+	 * changeset state before `SessionReady` is dispatched.
 	 */
 	onSessionCreated(sessionStr: string): void {
 		this._changesets.refreshChangesetCatalog(sessionStr);
@@ -108,7 +108,7 @@ export class AgentHostChangesetCoordinator extends Disposable {
 
 	/** Refreshes the catalogue and summary interest after replacing the previous config during restore. */
 	onSessionConfigRestored(sessionStr: string, previous: SessionConfigState | undefined): void {
-		this._changesets.refreshChangesetCatalog(sessionStr);
+		this._refreshChangesetCatalogs(sessionStr);
 		this._refreshSummarySource(sessionStr, previous);
 	}
 
@@ -117,10 +117,15 @@ export class AgentHostChangesetCoordinator extends Disposable {
 	 * becomes known). Recomputes every current changeset subscription.
 	 */
 	onSessionMaterialized(sessionStr: string): void {
-		this._changesets.refreshChangesetCatalog(sessionStr);
+		this._refreshChangesetCatalogs(sessionStr);
 		this._changesets.onWorkingDirectoryAvailable(sessionStr);
 
 		this._changesetFileMonitor.onSessionMaterialized(sessionStr);
+	}
+
+	/** Refreshes the chat catalogues after the session becomes ready. */
+	onSessionReady(sessionStr: string): void {
+		this._refreshChangesetCatalogs(sessionStr);
 	}
 
 	onSessionDisposed(sessionStr: string): void {
@@ -150,7 +155,14 @@ export class AgentHostChangesetCoordinator extends Disposable {
 		const wasEnabled = readAgentMergeSessionState(previous?.values)?.enabled === true;
 		const isEnabled = readAgentMergeSessionState(current?.values)?.enabled === true;
 		if (wasEnabled !== isEnabled) {
-			this._changesets.refreshChangesetCatalog(session);
+			this._refreshChangesetCatalogs(session);
+		}
+	}
+
+	private _refreshChangesetCatalogs(session: string): void {
+		this._changesets.refreshChangesetCatalog(session);
+		for (const chat of this._stateManager.getSessionState(session)?.chats ?? []) {
+			this._changesets.refreshChangesetCatalog(chat.resource);
 		}
 	}
 
@@ -179,7 +191,7 @@ export class AgentHostChangesetCoordinator extends Disposable {
 		const resourceStr = resource.toString();
 		const parsed = parseChangesetUri(resourceStr);
 
-		if (isAhpChatChannel(resourceStr)) {
+		if (!parsed && isAhpChatChannel(resourceStr)) {
 			this.onChatAvailable(resourceStr);
 			return;
 		}
@@ -380,8 +392,13 @@ export class AgentHostChangesetCoordinator extends Disposable {
 	 * Called when a session's Git state is refreshed.
 	 */
 	private onDidRunSessionGitStateRefresh(sessionStr: string): void {
-		// Refresh the list of changesets for the session.
-		this._changesets.refreshChangesetCatalog(sessionStr);
+		// Session Git refreshes can complete after SessionReady, so refresh the
+		// chat catalogues that own the selectable changesets.
+		if (isAhpChatChannel(sessionStr)) {
+			this._changesets.refreshChangesetCatalog(sessionStr);
+		} else {
+			this._refreshChangesetCatalogs(sessionStr);
+		}
 
 		// Git state has been refreshed so we need to recompute every
 		// changeset currently subscribed for the session (the service

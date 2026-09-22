@@ -1732,7 +1732,7 @@ suite('AgentHostChangesetService - multi-root turn changeset', () => {
 		});
 	});
 
-	test('chat changeset catalogues use only the chat Git state', () => {
+	test('ready sessions publish changesets only from chat catalogues using the chat Git state', () => {
 		const peerResource = buildChatUri(sessionStr, 'peer');
 		const { svc, stateManager } = build({
 			workingDirectories: ['file:///session'],
@@ -1751,6 +1751,8 @@ suite('AgentHostChangesetService - multi-root turn changeset', () => {
 		}));
 		stateManager.dispatchServerAction(sessionStr, { type: ActionType.SessionReady });
 
+		svc.refreshChangesetCatalog(sessionStr);
+		const sessionCatalogue = stateManager.getSessionState(sessionStr)?.changesets;
 		svc.refreshChangesetCatalog(peerResource);
 		const withoutChatGit = stateManager.getChatState(peerResource)?.changesets;
 
@@ -1762,12 +1764,16 @@ suite('AgentHostChangesetService - multi-root turn changeset', () => {
 		const withChatGit = stateManager.getChatState(peerResource)?.changesets;
 
 		assert.deepStrictEqual({
+			sessionCatalogue,
 			withoutChatGit: withoutChatGit?.map(changeset => changeset.changeKind),
 			withChatGit: withChatGit?.map(changeset => changeset.changeKind),
+			chatChangesLabel: withChatGit?.find(changeset => changeset.changeKind === 'session')?.label,
 			branchDescription: withChatGit?.find(changeset => changeset.changeKind === 'branch')?.description,
 		}, {
+			sessionCatalogue: undefined,
 			withoutChatGit: ['session', 'turn'],
 			withChatGit: ['branch', 'uncommitted', 'session', 'turn', 'compare-turns'],
+			chatChangesLabel: 'Chat Changes',
 			branchDescription: 'chat-feature → chat-main',
 		});
 	});

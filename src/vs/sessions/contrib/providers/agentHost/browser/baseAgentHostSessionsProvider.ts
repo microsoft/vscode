@@ -1333,7 +1333,13 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 			this.workspace.read(reader),
 			this._defaultChatWorkingDirectories.read(reader)?.map(directory => this._options.mapWorkingDirectoryUri?.(URI.parse(directory)) ?? URI.parse(directory))
 		));
-		const defaultChatChangesets = createChatChangesets(URI.parse(buildDefaultChatUri(this.backendUri)), this._options, this.isActiveSessionObs);
+		const defaultChatUri = URI.parse(buildDefaultChatUri(this.backendUri));
+		const defaultChatChangesets = createChatChangesets(
+			defaultChatUri,
+			this._options,
+			this.isActiveSessionObs,
+			this._createChatCurrentTurnChangesObservable(defaultChatUri),
+		);
 		const mainChat: IChat = {
 			resource: this.resource,
 			createdAt: this.createdAt,
@@ -1590,7 +1596,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 		const chat = new AdditionalChat(
 			resource,
 			summary,
-			createChatChangesets(backendUri, this._options, this.isActiveSessionObs),
+			createChatChangesets(backendUri, this._options, this.isActiveSessionObs, this._createChatCurrentTurnChangesObservable(backendUri)),
 			() => this._acquireChatDetails(this.sessionId),
 			this.workspace,
 			this._options.mapWorkingDirectoryUri ?? (uri => uri),
@@ -2190,6 +2196,23 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 				.filter(change => !change.isOutsideWorkspace);
 		});
 	}
+
+	private _createChatCurrentTurnChangesObservable(chatUri: URI): IObservable<readonly ISessionFileChange[] | undefined> {
+		const chatStateObs = createActiveSessionSubscriptionObs<ChatState>(
+			this._options,
+			this.isActiveSessionObs,
+			StateComponents.Chat,
+			constObservable(chatUri),
+		);
+		const lastTurnChanges = this._sessionOutput.getLastTurnChanges(chatUri);
+		return derived(reader => {
+			const chatState = chatStateObs.read(reader).read(reader);
+			if (!chatState || chatState instanceof Error || !chatState.activeTurn) {
+				return undefined;
+			}
+			return lastTurnChanges.read(reader).filter(change => !change.isOutsideWorkspace);
+		});
+	}
 }
 
 /**
@@ -2401,6 +2424,8 @@ class NewSession extends Disposable {
 	private _connection: IAgentConnection | undefined;
 	/** Held state subscription. Set after the wire `createSession` resolves. */
 	private _subscription: IReference<IAgentSubscription<SessionState>> | undefined;
+	/** Held default-chat subscription used to publish the draft's changesets. */
+	private _chatSubscription: IReference<IAgentSubscription<ChatState>> | undefined;
 	/**
 	 * `onDidChange` listener for {@link _subscription}. Forwards every
 	 * `SessionState` snapshot to the provider via {@link _onSessionState}
@@ -2409,6 +2434,7 @@ class NewSession extends Disposable {
 	 * in {@link graduate} (handoff) and {@link dispose} (close-without-send).
 	 */
 	private readonly _stateListener = this._register(new MutableDisposable());
+	private readonly _chatStateListener = this._register(new MutableDisposable());
 	/**
 	 * Autorun republishing active-client changes for this draft. Cleared in
 	 * {@link graduate} so the session handler's own reconciliation owns
@@ -2509,7 +2535,7 @@ class NewSession extends Disposable {
 			title,
 			updatedAt,
 			status: this._status,
-			changesets: this._changesets,
+			changesets: constObservable<readonly ISessionChangeset[]>([]),
 			changes,
 			modelId: this._modelId,
 			mode,
@@ -2902,6 +2928,14 @@ class NewSession extends Disposable {
 			// graduation the wire-level refcount stays positive.
 			const ref = connection.getSubscription(StateComponents.Session, backendUri, 'BaseAgentHostSessionsProvider.session');
 			this._subscription = ref;
+			const chatUri = URI.parse(buildDefaultChatUri(backendUri));
+			const chatRef = connection.getSubscription(StateComponents.Chat, chatUri, 'BaseAgentHostSessionsProvider.chat');
+			this._chatSubscription = chatRef;
+			const initialChatState = chatRef.object.value;
+			if (initialChatState && !(initialChatState instanceof Error)) {
+				this.updateChangesets(initialChatState.changesets);
+			}
+			this._chatStateListener.value = chatRef.object.onDidChange(state => this.updateChangesets(state.changesets));
 
 			// Forward `SessionState` updates back to the provider so
 			// `_lastSessionStates` (and therefore `getCustomAgents`) becomes
@@ -2911,11 +2945,9 @@ class NewSession extends Disposable {
 			if (onSessionState) {
 				const initial = ref.object.value;
 				if (initial && !(initial instanceof Error)) {
-					this.updateChangesets(initial.changesets);
 					onSessionState(this.sessionId, initial);
 				}
 				this._stateListener.value = ref.object.onDidChange(state => {
-					this.updateChangesets(state.changesets);
 					onSessionState(this.sessionId, state);
 				});
 			}
@@ -2955,10 +2987,12 @@ class NewSession extends Disposable {
 
 	private updateChangesets(changesetsMetadata: readonly Changeset[] | undefined) {
 		if (!changesetsMetadata) {
+			this._changesets.set(undefined, undefined);
 			return;
 		}
 
-		const changesets = createChangesets(this.backendUri, this._options, this._isActiveSessionObs, changesetsMetadata);
+		const chatUri = URI.parse(buildDefaultChatUri(this.backendUri));
+		const changesets = createChangesets(chatUri, this._options, this._isActiveSessionObs, changesetsMetadata, chatUri);
 
 		this._changesets.set(changesets, undefined);
 	}
@@ -2976,9 +3010,12 @@ class NewSession extends Disposable {
 		// here hands ownership cleanly to `_ensureSessionStateSubscription`
 		// without a transient empty-read window or a duplicate writer.
 		this._stateListener.clear();
+		this._chatStateListener.clear();
 		this._activeClientPublisher.clear();
 		this._subscription?.dispose();
 		this._subscription = undefined;
+		this._chatSubscription?.dispose();
+		this._chatSubscription = undefined;
 		this._backendUri = undefined;
 		this._connection = undefined;
 		this._configRequestSeq++;
@@ -2997,6 +3034,7 @@ class NewSession extends Disposable {
 		// reached the post-`createSession` branch).
 		const hadListener = !!this._stateListener.value;
 		this._stateListener.clear();
+		this._chatStateListener.clear();
 		this._activeClientPublisher.clear();
 		if (hadListener) {
 			this._onSessionState?.(this.sessionId, undefined);
@@ -3004,6 +3042,8 @@ class NewSession extends Disposable {
 
 		this._subscription?.dispose();
 		this._subscription = undefined;
+		this._chatSubscription?.dispose();
+		this._chatSubscription = undefined;
 
 		const oldUri = this._backendUri;
 		const connection = this._connection;

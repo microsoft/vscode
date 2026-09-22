@@ -54,21 +54,21 @@ export class AgentHostCommitOperationHandler implements IChangesetOperationHandl
 		}
 		this._throwIfCancelled(token);
 
-		const ownerUri = parsed.ownerUri;
-		const sessionState = this._getSessionState(ownerUri);
+		const sessionUri = parsed.sessionUri;
+		const sessionState = this._getSessionState(sessionUri);
 		if (!sessionState) {
-			throw new ProtocolError(AHP_SESSION_NOT_FOUND, `Session not found: ${parsed.sessionUri}`);
+			throw new ProtocolError(AHP_SESSION_NOT_FOUND, `Session not found: ${sessionUri}`);
 		}
 
 		const workingDirectoryStr = sessionState.workingDirectories?.[0];
 		if (!workingDirectoryStr) {
-			throw new ProtocolError(JsonRpcErrorCodes.InternalError, `Changeset owner has no working directory: ${ownerUri}`);
+			throw new ProtocolError(JsonRpcErrorCodes.InternalError, `Changeset owner has no working directory: ${sessionUri}`);
 		}
 		const workingDirectory = URI.parse(workingDirectoryStr);
 
 		const branchName = await (this._gitService.getCurrentBranchName?.(workingDirectory) ?? this._gitService.getCurrentBranch(workingDirectory));
 		if (!branchName) {
-			throw new ProtocolError(JsonRpcErrorCodes.InternalError, `Changeset owner's working directory is not a git repo: ${ownerUri}`);
+			throw new ProtocolError(JsonRpcErrorCodes.InternalError, `Changeset owner's working directory is not a git repo: ${sessionUri}`);
 		}
 
 		const hasUncommitted = await this._gitService.hasUncommittedChanges(workingDirectory);
@@ -90,7 +90,7 @@ export class AgentHostCommitOperationHandler implements IChangesetOperationHandl
 			);
 		}
 
-		const diffs = await this._gitService.computeSessionFileDiffs(workingDirectory, { sessionUri: ownerUri });
+		const diffs = await this._gitService.computeSessionFileDiffs(workingDirectory, { sessionUri });
 		if (!diffs || diffs.length === 0) {
 			throw new ProtocolError(JsonRpcErrorCodes.InternalError, localize('agentHost.changeset.commit.diffFailed', "Could not compute uncommitted changes to generate a commit message."));
 		}
@@ -117,7 +117,7 @@ export class AgentHostCommitOperationHandler implements IChangesetOperationHandl
 		}
 		this._throwIfCancelled(token);
 
-		this._logService.info(`[AgentHostCommitOperationHandler] Committing uncommitted changes for ${ownerUri}`);
+		this._logService.info(`[AgentHostCommitOperationHandler] Committing uncommitted changes for ${sessionUri}`);
 		try {
 			await this._gitService.commitAll(workingDirectory, message);
 		} catch (err) {
@@ -126,9 +126,9 @@ export class AgentHostCommitOperationHandler implements IChangesetOperationHandl
 		}
 
 		try {
-			await this._onCommitted(ownerUri);
+			await this._onCommitted(sessionUri);
 		} catch (err) {
-			this._logService.warn(`[AgentHostCommitOperationHandler] Post-commit refresh failed for ${ownerUri}: ${err instanceof Error ? err.message : String(err)}`);
+			this._logService.warn(`[AgentHostCommitOperationHandler] Post-commit refresh failed for ${sessionUri}: ${err instanceof Error ? err.message : String(err)}`);
 		}
 
 		return { message: { markdown: localize('agentHost.changeset.commit.committed', "Committed changes with message: `{0}`", message.split('\n')[0]) } };

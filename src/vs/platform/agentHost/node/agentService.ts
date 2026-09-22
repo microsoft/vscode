@@ -1621,6 +1621,9 @@ export class AgentService extends Disposable implements IAgentService {
 		return {
 			...rest,
 			session: URI.parse(parseRequiredSessionUriFromChatUri(chat)),
+			// Provider metadata describes the default chat. Sessions do not
+			// republish that catalogue at session scope.
+			changesets: undefined,
 		};
 	}
 
@@ -1898,7 +1901,7 @@ export class AgentService extends Disposable implements IAgentService {
 				: metadata.workingDirectories,
 			changes: liveSummary.changes ?? metadata.changes,
 			chats: this._sessionChatsFromSummary(liveSummary) ?? metadata.chats,
-			changesets: this._stateManager.getSessionState(metadata.session.toString())?.changesets ?? metadata.changesets,
+			changesets: this._stateManager.getSessionState(metadata.session.toString())?.changesets,
 			...(_meta !== undefined ? { _meta } : {}),
 		};
 	}
@@ -3326,13 +3329,9 @@ export class AgentService extends Disposable implements IAgentService {
 		// Overlay live session state from the state manager.
 		// For the title, prefer the state manager's value when it is
 		// non-empty, so SDK-sourced titles are not overwritten by the
-		// initial empty placeholder. The default changeset catalogue lives
-		// on `state.changesets` (seeded after `createSession` /
-		// `restoreSession` and refreshed after each compute pass) and the
-		// chip aggregate on the catalog summary's `changes`; both must be
-		// surfaced here so a fresh `listSessions` call returns the same values
-		// subscribers see via the per-session action stream and
-		// `notify/sessionSummaryChanged`.
+		// initial empty placeholder. Compact aggregate changes remain on the
+		// session summary while selectable catalogues live on subscribed chat
+		// state, so a fresh `listSessions` call only needs the aggregate.
 		const withStatus = materialized.map(s => {
 			const liveSummary = this._stateManager.getSessionSummary(s.session.toString());
 			const metadata = liveSummary
@@ -4230,6 +4229,7 @@ export class AgentService extends Disposable implements IAgentService {
 			// `SessionReady` means the agent has a live SDK session. Provisional
 			// sessions defer it to {@link _onDidMaterializeChat}.
 			this._stateManager.dispatchServerAction(session.toString(), { type: ActionType.SessionReady });
+			this._changesetCoordinator.onSessionReady(session.toString());
 			const gitHubState = readSessionGitHubState(this._stateManager.getSessionSummary(session.toString())?._meta);
 			if (gitHubState) {
 				await this._gitStateService.setSessionGitHubState(session.toString(), gitHubState);
@@ -7537,9 +7537,8 @@ export class AgentService extends Disposable implements IAgentService {
 		promises.push(this._restorePeerChats(agent, session, cachedChatCatalog));
 
 		// Register the static changeset URIs and reseed them from any
-		// persisted file lists in the batched metadata read. The catalogue
-		// itself is seeded on `state.changesets` synchronously by the
-		// `setSessionChangesets` call above. The coordinator drains any
+		// persisted file lists in the batched metadata read. The coordinator
+		// publishes the selectable catalogue on chat state and drains any
 		// uncommitted refresh deferred by an earlier `addSubscriber` —
 		// `addSubscriber`'s 0→1 trigger may have fired for
 		// `<session>/changeset/uncommitted` before this restore ran (e.g.

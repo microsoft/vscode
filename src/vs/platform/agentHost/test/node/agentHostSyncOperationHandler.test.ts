@@ -13,7 +13,7 @@ import { GitRefType, IAgentHostGitService, type IPullOptions, type IPushOptions 
 import { IAgentHostGitStateService } from '../../common/agentHostGitStateService.js';
 import { buildUncommittedChangesetUri } from '../../common/changesetUri.js';
 import { JsonRpcErrorCodes, ProtocolError } from '../../common/state/sessionProtocol.js';
-import { SessionStatus, withSessionGitState } from '../../common/state/sessionState.js';
+import { buildDefaultChatUri, SessionStatus, withSessionGitState } from '../../common/state/sessionState.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { AgentHostSyncOperationHandler } from '../../node/agentHostSyncOperationHandler.js';
 
@@ -52,7 +52,7 @@ suite('AgentHostSyncOperationHandler', () => {
 
 	function invoke(handler: AgentHostSyncOperationHandler, token = CancellationToken.None) {
 		return handler.invoke({
-			channel: buildUncommittedChangesetUri(session.toString()),
+			channel: buildUncommittedChangesetUri(buildDefaultChatUri(session.toString())),
 			operationId: AgentHostSyncOperationHandler.OPERATION_SYNC,
 		}, token);
 	}

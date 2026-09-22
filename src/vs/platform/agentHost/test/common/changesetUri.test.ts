@@ -8,7 +8,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { toAgentMergeMessageMeta } from '../../common/meta/agentMergeMessageMeta.js';
 import { AgentSystemNotificationKind, toAgentSystemNotificationMeta } from '../../common/meta/agentSystemNotificationMeta.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
-import { buildChatUri, MessageKind, ResponsePartKind, SessionLifecycle, SessionStatus, TurnState, type ISessionWithDefaultChat, type Turn } from '../../common/state/sessionState.js';
+import { buildChatUri, buildDefaultChatUri, MessageKind, ResponsePartKind, SessionLifecycle, SessionStatus, TurnState, type ISessionWithDefaultChat, type Turn } from '../../common/state/sessionState.js';
 import {
 	AGENT_MERGE_CHANGESET_ID,
 	ChangesetKind,
@@ -189,8 +189,43 @@ suite('changesetUri', () => {
 		assert.strictEqual(isUncommittedChangesetUri(buildSessionChangesetUri(sessionUri)), false);
 	});
 
+	test('advertises changesets from exactly one owner across session creation', () => {
+		const creatingState = { ...state(), lifecycle: SessionLifecycle.Creating };
+		const readyState = state();
+		const defaultChatUri = buildDefaultChatUri(sessionUri);
+
+		assert.deepStrictEqual({
+			creatingSession: buildDefaultChangesetCatalog(sessionUri, creatingState),
+			creatingChat: buildDefaultChangesetCatalog(defaultChatUri, creatingState),
+			readySession: buildDefaultChangesetCatalog(sessionUri, readyState),
+			readyChat: buildDefaultChangesetCatalog(defaultChatUri, readyState),
+		}, {
+			creatingSession: [],
+			creatingChat: [{
+				label: 'Uncommitted Changes',
+				description: 'Show uncommitted changes in this session',
+				uriTemplate: buildUncommittedChangesetUri(defaultChatUri),
+				changeKind: ChangesetKind.Uncommitted,
+			}],
+			readySession: [],
+			readyChat: [{
+				label: 'Chat Changes',
+				description: 'Show all changes made in this chat',
+				uriTemplate: buildSessionChangesetUri(defaultChatUri),
+				changeKind: ChangesetKind.Session,
+			}, {
+				label: 'This Turn',
+				description: 'Show changes made in this turn',
+				uriTemplate: buildTurnChangesetUriTemplate(defaultChatUri),
+				changeKind: ChangesetKind.Turn,
+			}],
+		});
+	});
+
 	test('advertises Agent Merge changes after enablement and preserves them across disable and restore', () => {
-		const enabledCatalog = buildDefaultChangesetCatalog(sessionUri, state(true));
+		const defaultChatUri = buildDefaultChatUri(sessionUri);
+		const peerChatUri = buildChatUri(sessionUri, 'peer');
+		const enabledCatalog = buildDefaultChangesetCatalog(defaultChatUri, state(true));
 		const enabledNotice = turn('notice', MessageKind.SystemNotification);
 		enabledNotice.responseParts.push({
 			kind: ResponsePartKind.SystemNotification,
@@ -202,13 +237,17 @@ suite('changesetUri', () => {
 			catalog.find(changeset => changeset.changeKind === AGENT_MERGE_CHANGESET_ID);
 
 		assert.deepStrictEqual({
-			neverEnabled: findAgentMerge(buildDefaultChangesetCatalog(sessionUri, state())),
-			configuredWhileDisabled: findAgentMerge(buildDefaultChangesetCatalog(sessionUri, state(false))),
+			session: findAgentMerge(buildDefaultChangesetCatalog(sessionUri, state(true))),
+			peerChat: findAgentMerge(buildDefaultChangesetCatalog(peerChatUri, state(true))),
+			neverEnabled: findAgentMerge(buildDefaultChangesetCatalog(defaultChatUri, state())),
+			configuredWhileDisabled: findAgentMerge(buildDefaultChangesetCatalog(defaultChatUri, state(false))),
 			enabled: findAgentMerge(enabledCatalog),
-			disabledAfterEnable: findAgentMerge(buildDefaultChangesetCatalog(sessionUri, state(false, [], enabledCatalog))),
-			restoredFromRepairTurn: findAgentMerge(buildDefaultChangesetCatalog(sessionUri, state(undefined, [turn('repair', MessageKind.SystemNotification, true)]))),
-			restoredFromEnabledNotice: findAgentMerge(buildDefaultChangesetCatalog(sessionUri, state(undefined, [enabledNotice]))),
+			disabledAfterEnable: findAgentMerge(buildDefaultChangesetCatalog(defaultChatUri, state(false, [], enabledCatalog))),
+			restoredFromRepairTurn: findAgentMerge(buildDefaultChangesetCatalog(defaultChatUri, state(undefined, [turn('repair', MessageKind.SystemNotification, true)]))),
+			restoredFromEnabledNotice: findAgentMerge(buildDefaultChangesetCatalog(defaultChatUri, state(undefined, [enabledNotice]))),
 		}, {
+			session: undefined,
+			peerChat: undefined,
 			neverEnabled: undefined,
 			configuredWhileDisabled: undefined,
 			enabled: {

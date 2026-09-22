@@ -20,7 +20,6 @@ import {
 	parseChangesetUri,
 	ChangesetKind,
 	buildDefaultChangesetCatalog,
-	AGENT_MERGE_CHANGESET_ID,
 } from '../common/changesetUri.js';
 import { IDiffComputeService } from '../common/diffComputeService.js';
 import { ISessionDatabase, ISessionDataService } from '../common/sessionDataService.js';
@@ -362,11 +361,13 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 
 		const chatOwned = isAhpChatChannel(session);
 		const catalogState = chatOwned
-			? { ...state, _meta: withSessionGitState(state._meta, this._gitStateService.getSessionGitState?.(session)) }
+			? {
+				...state,
+				_meta: withSessionGitState(state._meta, this._gitStateService.getSessionGitState?.(session)),
+				changesets: this._stateManager.getChatState(session)?.changesets,
+			}
 			: state;
-		const changesets = buildDefaultChangesetCatalog(session, catalogState)
-			.filter(changeset => !chatOwned || changeset.changeKind !== AGENT_MERGE_CHANGESET_ID);
-		this._stateManager.setChangesets(session, changesets);
+		this._stateManager.setChangesets(session, buildDefaultChangesetCatalog(session, catalogState));
 	}
 
 	refreshBranchChangeset(session: ProtocolURI): void {

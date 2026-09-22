@@ -12,7 +12,7 @@ import { NullLogService } from '../../../log/common/log.js';
 import { buildSessionChangesetUri, buildUncommittedChangesetUri } from '../../common/changesetUri.js';
 import { ChangesetOperationTargetKind, type InvokeChangesetOperationParams } from '../../common/state/protocol/channels-changeset/commands.js';
 import { AHP_SESSION_NOT_FOUND, JsonRpcErrorCodes, ProtocolError } from '../../common/state/sessionProtocol.js';
-import { SessionStatus, type ISessionFileDiff } from '../../common/state/sessionState.js';
+import { buildDefaultChatUri, SessionStatus, type ISessionFileDiff } from '../../common/state/sessionState.js';
 import { AgentHostDiscardChangesOperationHandler } from '../../node/agentHostDiscardChangesOperationHandler.js';
 import type { IAgentHostGitService, IBranch, IDefaultBranch } from '../../common/agentHostGitService.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
@@ -107,7 +107,7 @@ suite('AgentHostDiscardChangesOperationHandler', () => {
 		const target = URI.file('/repo/src/file.ts');
 
 		const result = await handler.invoke({
-			channel: buildUncommittedChangesetUri(session.toString()),
+			channel: buildUncommittedChangesetUri(buildDefaultChatUri(session.toString())),
 			operationId: AgentHostDiscardChangesOperationHandler.OPERATION_DISCARD_CHANGES,
 			target: makeResourceTarget(target),
 		}, CancellationToken.None);

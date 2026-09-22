@@ -65,11 +65,10 @@ export interface ChatState {
 	 */
 	workingDirectories?: URI[];
 	/**
-	 * Catalogue of changesets the server can produce for this chat. Each entry
-	 * advertises a subscribable view of file changes scoped to the chat's
-	 * effective working directories and the URI template the client expands
-	 * before subscribing. See {@link Changeset} for the full shape and
-	 * {@link /guide/changesets | Changesets} for an overview of the model.
+	 * Authoritative ordered catalogue of selectable changesets exposed by this
+	 * chat. Sessions do not duplicate these entries on the session channel.
+	 * The default chat may also advertise session-workflow entries such as
+	 * Agent Merge.
 	 *
 	 * This catalogue is intentionally absent from {@link ChatSummary}; clients
 	 * obtain it by subscribing to the chat channel.

@@ -85,9 +85,16 @@ export class AgentHostChangesetOperationService extends Disposable implements IA
 	}
 
 	getOperations(sessionKey: string, changeset: string, gitState?: ISessionGitState, gitHubState?: ISessionGitHubState): readonly ChangesetOperation[] {
+		const parsed = parseChangesetUri(changeset);
+		if (!parsed) {
+			return [];
+		}
+		const ownerKey = parsed.ownerUri;
+		sessionKey = parsed.sessionUri;
+
 		if (!gitState) {
-			gitState = this._gitStateService.getSessionGitState?.(sessionKey)
-				?? (isAhpChatChannel(sessionKey) ? undefined : readSessionGitState(this._stateManager.getSessionState(sessionKey)?._meta));
+			gitState = this._gitStateService.getSessionGitState?.(ownerKey)
+				?? (isAhpChatChannel(ownerKey) ? undefined : readSessionGitState(this._stateManager.getSessionState(sessionKey)?._meta));
 			if (!gitState) {
 				return [];
 			}
@@ -95,11 +102,6 @@ export class AgentHostChangesetOperationService extends Disposable implements IA
 
 		if (!gitHubState) {
 			gitHubState = readSessionGitHubState(this._stateManager.getSessionState(sessionKey)?._meta);
-		}
-
-		const parsed = parseChangesetUri(changeset);
-		if (!parsed) {
-			return [];
 		}
 
 		// In a multi-folder session the per-turn `turn` and `compare-turns`
@@ -142,7 +144,8 @@ export class AgentHostChangesetOperationService extends Disposable implements IA
 				operations.push(...contributed);
 			}
 		}
-		const scopedOperations = isAhpChatChannel(context.sessionKey)
+		const ownerKey = parseChangesetUri(context.changesetUri)?.ownerUri ?? context.sessionKey;
+		const scopedOperations = isAhpChatChannel(ownerKey)
 			? operations.filter(operation => operation.id !== AGENT_HOST_MERGE_CHANGESET_OPERATION_ID && operation.group !== 'pull-request' && !AGENT_HOST_PULL_REQUEST_OPERATION_IDS.has(operation.id))
 			: operations;
 
@@ -160,9 +163,15 @@ export class AgentHostChangesetOperationService extends Disposable implements IA
 	}
 
 	updateOperations(sessionKey: string, changeset?: string, gitState?: ISessionGitState, gitHubState?: ISessionGitHubState): void {
+		const ownerKey = changeset
+			? parseChangesetUri(changeset)?.ownerUri ?? sessionKey
+			: sessionKey;
+		const containingSessionKey = changeset
+			? parseChangesetUri(changeset)?.sessionUri ?? sessionKey
+			: parseChatUri(sessionKey)?.session ?? sessionKey;
 		const changesets = changeset
 			? [changeset]
-			: resolveChangesetSubscriptions(sessionKey, this._changesetSubscriptions.getSessionSubscriptions(sessionKey), this._stateManager.getSessionState(sessionKey)?.config?.values);
+			: resolveChangesetSubscriptions(ownerKey, this._changesetSubscriptions.getSessionSubscriptions(ownerKey), this._stateManager.getSessionState(containingSessionKey)?.config?.values);
 
 		// Clear the suppressed per-turn / compare-turns changesets FIRST, before
 		// the git-state gate below. A root transition (e.g. the Editor Window
@@ -174,7 +183,7 @@ export class AgentHostChangesetOperationService extends Disposable implements IA
 		const unsuppressed: string[] = [];
 		for (const changeset of changesets) {
 			const parsed = parseChangesetUri(changeset);
-			if (parsed && this._shouldSuppressOperations(sessionKey, parsed.kind)) {
+			if (parsed && this._shouldSuppressOperations(containingSessionKey, parsed.kind)) {
 				this._stateManager.dispatchServerAction(changeset, {
 					type: ActionType.ChangesetOperationsChanged,
 					operations: [],
@@ -189,12 +198,12 @@ export class AgentHostChangesetOperationService extends Disposable implements IA
 		}
 
 		if (!gitState) {
-			gitState = this._gitStateService.getSessionGitState?.(sessionKey)
-				?? (isAhpChatChannel(sessionKey) ? undefined : readSessionGitState(this._stateManager.getSessionState(sessionKey)?._meta));
+			gitState = this._gitStateService.getSessionGitState?.(ownerKey)
+				?? (isAhpChatChannel(ownerKey) ? undefined : readSessionGitState(this._stateManager.getSessionState(containingSessionKey)?._meta));
 		}
 
 		if (!gitHubState) {
-			const sessionState = this._stateManager.getSessionState(sessionKey);
+			const sessionState = this._stateManager.getSessionState(containingSessionKey);
 			gitHubState = readSessionGitHubState(sessionState?._meta);
 		}
 
@@ -203,7 +212,7 @@ export class AgentHostChangesetOperationService extends Disposable implements IA
 			if (!gitState && !this._stateManager.getChangesetState(changeset)?.operations?.length) {
 				continue;
 			}
-			const operations = this.getOperations(sessionKey, changeset, gitState, gitHubState);
+			const operations = this.getOperations(ownerKey, changeset, gitState, gitHubState);
 
 			this._stateManager.dispatchServerAction(changeset, {
 				type: ActionType.ChangesetOperationsChanged,
@@ -244,7 +253,7 @@ export class AgentHostChangesetOperationService extends Disposable implements IA
 		// stale operation must not be invocable.
 		if (parsed
 			&& (parsed.kind === ChangesetKind.Turn || parsed.kind === ChangesetKind.Compare)
-			&& isMultiRootSession(this._configurationService.getEffectiveWorkingDirectories(parsed.ownerUri))) {
+			&& isMultiRootSession(this._configurationService.getEffectiveWorkingDirectories(parsed.sessionUri))) {
 			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, `Operation '${params.operationId}' is not available on a ${parsed.kind} changeset in a multi-root session: ${params.channel}`);
 		}
 

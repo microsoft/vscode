@@ -7,7 +7,7 @@ import { localize } from '../../../nls.js';
 import { readAgentMergeSessionState } from './agentMerge.js';
 import { isAgentMergeMessage } from './meta/agentMergeMessageMeta.js';
 import { AgentSystemNotificationKind, readAgentSystemNotificationMeta } from './meta/agentSystemNotificationMeta.js';
-import { MessageKind, parseChatUri, readSessionGitState, readSessionWorkspaceless, ResponsePartKind, SessionLifecycle, type Changeset, type ISessionGitState, type ISessionWithDefaultChat, type URI } from './state/sessionState.js';
+import { buildDefaultChatUri, MessageKind, parseChatUri, readSessionGitState, readSessionWorkspaceless, ResponsePartKind, SessionLifecycle, type Changeset, type ISessionGitState, type ISessionWithDefaultChat, type URI } from './state/sessionState.js';
 
 /**
  * Helpers for building / parsing the URI clients subscribe to in order to
@@ -15,18 +15,18 @@ import { MessageKind, parseChatUri, readSessionGitState, readSessionWorkspaceles
  *
  * Shapes recognised by this module:
  *
- *     <sessionUri>/changeset/uncommitted
- *     <sessionUri>/changeset/session
- *     <sessionUri>/changeset/turn/<turnId>
- *     <sessionUri>/changeset/compare/<originalTurnId>/<modifiedTurnId>
+ *     <ownerUri>/changeset/uncommitted
+ *     <ownerUri>/changeset/session
+ *     <ownerUri>/changeset/turn/<turnId>
+ *     <ownerUri>/changeset/compare/<originalTurnId>/<modifiedTurnId>
  *
- * Catalogue entries on `summary.changesets` may also advertise the
- * URI-template forms `<sessionUri>/changeset/turn/{turnId}` and
- * `<sessionUri>/changeset/compare/{originalTurnId}/{modifiedTurnId}`;
+ * Catalogue entries may also advertise the
+ * URI-template forms `<ownerUri>/changeset/turn/{turnId}` and
+ * `<ownerUri>/changeset/compare/{originalTurnId}/{modifiedTurnId}`;
  * clients expand the template before subscribing.
  *
- * Keeping changeset URIs nested under the session URI namespace lets the
- * server cleanly tear down every changeset for a session when that session
+ * Keeping changeset URIs nested under the owner URI namespace lets the server
+ * cleanly tear down every changeset for a session or chat when that owner
  * is disposed (the reverse-lookup is just a string-prefix scan).
  */
 
@@ -60,11 +60,11 @@ const COMPARE_MODIFIED_TEMPLATE_VARIABLE = '{modifiedTurnId}';
 /** Localized human-readable label for the branch changeset entry. */
 export const branchChangesetLabel = (): string => localize('branchChangeset.label', "Branch Changes");
 
-/** Localized human-readable label for the session-wide changeset entry. */
-export const sessionChangesetLabel = (): string => localize('sessionChangeset.label', "Session Changes");
+/** Localized human-readable label for the chat-wide changeset entry. */
+export const chatChangesetLabel = (): string => localize('chatChangeset.label', "Chat Changes");
 
-/** Localized human-readable description for the session-wide changeset entry. */
-export const sessionChangesetDescription = (): string => localize('sessionChangeset.description', "Show all changes made in this session");
+/** Localized human-readable description for the chat-wide changeset entry. */
+export const chatChangesetDescription = (): string => localize('chatChangeset.description', "Show all changes made in this chat");
 
 /** Localized human-readable label for the uncommitted-changes changeset entry. */
 export const uncommittedChangesetLabel = (): string => localize('uncommittedChangeset.label', "Uncommitted Changes");
@@ -317,22 +317,32 @@ export function parseCompareTurnsChangesetUri(uri: URI): { sessionUri: URI; orig
 }
 
 /**
- * Builds the ordered `summary.changesets` catalogue for a session. Aggregate
- * counts are filled in later by the diff producer as compute passes complete.
+ * Builds the ordered changeset catalogue for a session or chat channel.
+ * Aggregate counts are filled in later by the diff producer as compute passes
+ * complete.
  *
- * The first two entries (`Branch Changes`, `Uncommitted Changes`) are
- * git-only; `AgentService._attachGitState` strips them asynchronously
- * for sessions whose working directory is not a git repo. The backing
- * per-changeset states are still registered for every session — only
- * the catalogue advertisements are stripped.
+ * Session channels never advertise selectable changesets. The default chat is
+ * created together with the session and owns the temporary uncommitted entry
+ * while the session is being created, as well as the ready-session catalogue
+ * after materialization.
  *
- * The Agent Merge entry reuses the compare-turns URI template. It is advertised
- * after Agent Merge is enabled and remains available for the rest of the
- * session, including after Agent Merge is disabled.
+ * The first two chat entries (`Branch Changes`, `Uncommitted Changes`) are
+ * included only when Git state is available. The backing per-changeset states
+ * are still registered for every owner; only the catalogue advertisement is
+ * conditional.
+ *
+ * The Agent Merge entry is advertised only by the default chat. It reuses the
+ * session-rooted compare-turns URI template because the repair range belongs to
+ * the session workflow, and remains available after Agent Merge is disabled.
  */
-export function buildDefaultChangesetCatalog(sessionUri: URI, state?: ISessionWithDefaultChat): Changeset[] {
+export function buildDefaultChangesetCatalog(ownerUri: URI, state?: ISessionWithDefaultChat): Changeset[] {
 	// Session that failed to create
 	if (!state || state.lifecycle === SessionLifecycle.Failed) {
+		return [];
+	}
+
+	const chat = parseChatUri(ownerUri);
+	if (!chat) {
 		return [];
 	}
 
@@ -347,13 +357,15 @@ export function buildDefaultChangesetCatalog(sessionUri: URI, state?: ISessionWi
 		return [{
 			label: uncommittedChangesetLabel(),
 			description: uncommittedChangesetDescription(),
-			uriTemplate: buildUncommittedChangesetUri(sessionUri),
+			uriTemplate: buildUncommittedChangesetUri(ownerUri),
 			changeKind: ChangesetKind.Uncommitted
 		}];
 	}
 
+	const sessionUri = chat.session;
+	const isDefaultChat = buildDefaultChatUri(sessionUri) === ownerUri;
 	const gitState = readSessionGitState(state._meta);
-	const agentMergeChangeset = shouldAdvertiseAgentMergeChangeset(state)
+	const agentMergeChangeset = isDefaultChat && shouldAdvertiseAgentMergeChangeset(state)
 		? [{
 			label: agentMergeChangesetLabel(),
 			description: agentMergeChangesetDescription(),
@@ -365,15 +377,15 @@ export function buildDefaultChangesetCatalog(sessionUri: URI, state?: ISessionWi
 	if (!gitState) {
 		// No git repository
 		return [{
-			label: sessionChangesetLabel(),
-			description: sessionChangesetDescription(),
-			uriTemplate: buildSessionChangesetUri(sessionUri),
+			label: chatChangesetLabel(),
+			description: chatChangesetDescription(),
+			uriTemplate: buildSessionChangesetUri(ownerUri),
 			changeKind: ChangesetKind.Session
 		},
 		{
 			label: thisTurnChangesetLabel(),
 			description: thisTurnChangesetDescription(),
-			uriTemplate: buildTurnChangesetUriTemplate(sessionUri),
+			uriTemplate: buildTurnChangesetUriTemplate(ownerUri),
 			changeKind: ChangesetKind.Turn
 		},
 		...agentMergeChangeset] satisfies Changeset[];
@@ -385,32 +397,32 @@ export function buildDefaultChangesetCatalog(sessionUri: URI, state?: ISessionWi
 			description: gitState
 				? formatBranchChangesetDescription(gitState)
 				: undefined,
-			uriTemplate: buildBranchChangesetUri(sessionUri),
+			uriTemplate: buildBranchChangesetUri(ownerUri),
 			changeKind: ChangesetKind.Branch,
 			capabilities: { review: {} }
 		},
 		{
 			label: uncommittedChangesetLabel(),
 			description: uncommittedChangesetDescription(),
-			uriTemplate: buildUncommittedChangesetUri(sessionUri),
+			uriTemplate: buildUncommittedChangesetUri(ownerUri),
 			changeKind: ChangesetKind.Uncommitted
 		},
 		{
-			label: sessionChangesetLabel(),
-			description: sessionChangesetDescription(),
-			uriTemplate: buildSessionChangesetUri(sessionUri),
+			label: chatChangesetLabel(),
+			description: chatChangesetDescription(),
+			uriTemplate: buildSessionChangesetUri(ownerUri),
 			changeKind: ChangesetKind.Session
 		},
 		{
 			label: thisTurnChangesetLabel(),
 			description: thisTurnChangesetDescription(),
-			uriTemplate: buildTurnChangesetUriTemplate(sessionUri),
+			uriTemplate: buildTurnChangesetUriTemplate(ownerUri),
 			changeKind: ChangesetKind.Turn
 		},
 		{
 			label: compareTurnsChangesetLabel(),
 			description: compareTurnsChangesetDescription(),
-			uriTemplate: buildCompareTurnsChangesetUriTemplate(sessionUri),
+			uriTemplate: buildCompareTurnsChangesetUriTemplate(ownerUri),
 			changeKind: ChangesetKind.Compare
 		},
 		...agentMergeChangeset

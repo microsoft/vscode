@@ -132,12 +132,11 @@ export interface IAgentChatMetadata {
 	 */
 	readonly changes?: ChangesSummary;
 	/**
-	 * Catalogue of changesets the agent can produce for this session — the
-	 * {@link Changeset | catalogue} that travels on
-	 * `SessionSummary.changesets`. Lightweight summary entries (id / label /
-	 * URI template / aggregate counts) without per-file detail; clients
-	 * subscribe to a specific expanded changeset URI when they need the full
-	 * file list.
+	 * Catalogue of changesets the agent can produce for this chat. These are
+	 * lightweight summary entries without per-file detail; clients subscribe
+	 * to a specific expanded changeset URI for the full file list. The host
+	 * publishes this catalogue on chat state rather than copying it to ready
+	 * session metadata.
 	 */
 	readonly changesets?: readonly Changeset[];
 	/**

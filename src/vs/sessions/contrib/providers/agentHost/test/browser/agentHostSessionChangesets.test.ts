@@ -28,7 +28,7 @@ import { createPullRequestDetailsResult, createPullRequestOperationMeta, IPullRe
 import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../../../../../../platform/agentHost/common/state/protocol/channels-changeset/commands.js';
 import { ChangesetOperationScope, ChangesetOperationStatus } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
-import { createChatState, ChangesetStatus, MessageKind, SessionLifecycle, SessionStatus, StateComponents, TurnState, type Changeset, type ChangesetState, type ChatState, type ChatSummary, type ComponentToState, type SessionState, type Turn } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { buildDefaultChatUri, createChatState, ChangesetStatus, MessageKind, SessionLifecycle, SessionStatus, StateComponents, TurnState, type Changeset, type ChangesetState, type ChatState, type ChatSummary, type ComponentToState, type SessionState, type Turn } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
 import { CommandsRegistry, ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -443,7 +443,7 @@ suite('AgentHostSessionChangesets', () => {
 
 	test('binds Agent Merge changes to completed repair turns after the last default-chat user turn', () => {
 		const sessionUri = URI.parse('ahp-session:/session-1');
-		const defaultChatUri = URI.parse('ahp-session:/session-1/chat/default');
+		const defaultChatUri = URI.parse(buildDefaultChatUri(sessionUri));
 		const modifiedAt = new Date(0).toISOString();
 		const chatSummary: ChatSummary = {
 			resource: defaultChatUri.toString(),
@@ -524,11 +524,11 @@ suite('AgentHostSessionChangesets', () => {
 			agentCapabilities: constObservable(undefined),
 			mapBackendSessionResource: resource => resource,
 		};
-		const changeset = createChangesets(sessionUri, options, constObservable(true), [{
+		const changeset = createChangesets(defaultChatUri, options, constObservable(true), [{
 			label: 'Agent Merge Changes',
 			changeKind: AGENT_MERGE_CHANGESET_ID,
 			uriTemplate: buildCompareTurnsChangesetUriTemplate(sessionUri.toString()),
-		}])[0];
+		}], defaultChatUri)[0];
 		if (!changeset) {
 			throw new Error('Expected Agent Merge changeset');
 		}

@@ -625,6 +625,25 @@ suite('SessionServerTools', () => {
 		});
 	});
 
+	test('serializeSessions omits selectable changeset catalogues', () => {
+		const session: IAgentSessionMetadata = {
+			...sessionMeta('catalogue', SessionStatus.Idle, workspace),
+			changesets: [{
+				label: 'Chat Changes',
+				changeKind: 'session',
+				uriTemplate: 'ahp-chat://default/example/changeset/session',
+			}],
+		};
+
+		assert.deepStrictEqual(JSON.parse(serializeSessions([session])).sessions[0], {
+			session: 'copilot:/catalogue',
+			openLink: 'agent-host-session://copilot/catalogue',
+			status: 'idle',
+			workingDirectory: workspace.toString(),
+			title: 'title-catalogue',
+		});
+	});
+
 	test('serializeSessions preserves remote project roots and multiple working directories', () => {
 		const project = URI.parse('vscode-remote://ssh-remote+example/home/me/app');
 		const primary = URI.parse('vscode-remote://ssh-remote+example/home/me/app-worktree');
