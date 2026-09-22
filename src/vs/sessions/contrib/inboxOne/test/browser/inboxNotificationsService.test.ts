@@ -16,7 +16,7 @@ import { InMemoryStorageService, StorageScope, StorageTarget } from '../../../..
 import { IGitHubService } from '../../../github/browser/githubService.js';
 import { GitHubCIOverallStatus, GitHubCheckConclusion, GitHubCheckStatus, GitHubPullRequestState, IGitHubCICheck, IGitHubPullRequest, IGitHubPullRequestReviewThread } from '../../../github/common/types.js';
 import { IAgentHostSessionsProvider, IAgentMergeClientState } from '../../../../common/agentHostSessionsProvider.js';
-import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
+import { ISessionsProvidersChangeEvent, ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
 import { SessionStatus, type IGitHubInfo, type ISession, type ISessionWorkspace } from '../../../../services/sessions/common/session.js';
 import { ISessionsChangeEvent, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
@@ -98,15 +98,18 @@ suite('InboxNotificationsService', () => {
 		storageService?: InMemoryStorageService,
 		gitHubService?: TestGitHubService,
 		agentHostProvider?: TestAgentHostProvider,
+		withAgentHostProvider = true,
 	): {
 		readonly service: InboxNotificationsService;
 		readonly storageService: InMemoryStorageService;
 		readonly gitHubService: TestGitHubService;
 		readonly agentHostProvider: TestAgentHostProvider;
 		setSessions(sessions: readonly ISession[]): void;
+		setAgentHostProviderRegistered(registered: boolean): void;
 	} {
 		const store = disposables.add(new DisposableStore());
 		const sessionsChangeEmitter = store.add(new Emitter<ISessionsChangeEvent>());
+		const providerChangeEmitter = store.add(new Emitter<ISessionsProvidersChangeEvent>());
 		let sessions = [...initialSessions];
 		const managementService = upcastPartial<ISessionsManagementService>({
 			onDidChangeSessions: sessionsChangeEmitter.event,
@@ -119,8 +122,9 @@ suite('InboxNotificationsService', () => {
 			id: effectiveAgentHostProvider.id,
 			getAgentMergeClientStateObservable: (sessionId: string) => effectiveAgentHostProvider.getAgentMergeClientStateObservable(sessionId),
 		});
-		const providerMap = new Map<string, ISessionsProvider>([[provider.id, provider]]);
+		const providerMap = new Map<string, ISessionsProvider>(withAgentHostProvider ? [[provider.id, provider]] : []);
 		const sessionsProvidersService = upcastPartial<ISessionsProvidersService>({
+			onDidChangeProviders: providerChangeEmitter.event,
 			getProvider<T extends ISessionsProvider>(providerId: string): T | undefined {
 				return providerMap.get(providerId) as T | undefined;
 			},
@@ -139,6 +143,16 @@ suite('InboxNotificationsService', () => {
 			setSessions(nextSessions: readonly ISession[]) {
 				sessions = [...nextSessions];
 				sessionsChangeEmitter.fire({ added: [], removed: [], changed: sessions });
+			},
+			setAgentHostProviderRegistered(registered: boolean) {
+				if (registered) {
+					if (!providerMap.has(provider.id)) {
+						providerMap.set(provider.id, provider);
+						providerChangeEmitter.fire({ added: [provider], removed: [] });
+					}
+				} else if (providerMap.delete(provider.id)) {
+					providerChangeEmitter.fire({ added: [], removed: [provider] });
+				}
 			},
 		};
 	}
@@ -269,6 +283,40 @@ suite('InboxNotificationsService', () => {
 			kind: InboxNotificationKind.ReviewComments,
 			actions: [InboxNotificationActionKind.OpenSession, InboxNotificationActionKind.AgentMergeAddressReviews, InboxNotificationActionKind.Dismiss],
 		}]);
+	});
+
+	test('adds merge action when provider registers after notification creation', () => {
+		const gitHubService = new TestGitHubService();
+		const fixture = createFixture([createSession({
+			id: 'late-provider',
+			status: SessionStatus.Completed,
+			updatedAt: 100,
+			isRead: true,
+			pullRequest: { owner: 'owner', repo: 'repo', number: 44 },
+		})], undefined, gitHubService, undefined, false);
+
+		gitHubService.setPullRequest('owner', 'repo', 44, openPullRequest(44, 'sha44'));
+		gitHubService.setCIStatus('owner', 'repo', 44, 'sha44', GitHubCIOverallStatus.Success, [{
+			id: 2,
+			name: 'CI',
+			status: GitHubCheckStatus.Completed,
+			conclusion: GitHubCheckConclusion.Success,
+			startedAt: '2026-09-21T16:02:00Z',
+			completedAt: '2026-09-21T16:03:00Z',
+			detailsUrl: undefined,
+		}]);
+
+		assert.deepStrictEqual(fixture.service.notifications.get().map(item => item.actions.map(action => action.kind)), [[
+			InboxNotificationActionKind.OpenSession,
+			InboxNotificationActionKind.Dismiss,
+		]]);
+
+		fixture.setAgentHostProviderRegistered(true);
+		assert.deepStrictEqual(fixture.service.notifications.get().map(item => item.actions.map(action => action.kind)), [[
+			InboxNotificationActionKind.OpenSession,
+			InboxNotificationActionKind.AgentMergeMergePullRequest,
+			InboxNotificationActionKind.Dismiss,
+		]]);
 	});
 
 	test('persists dismissed notifications across instances', () => {

@@ -51,6 +51,7 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 		this._externalItems = observableValue('sessionsInboxNotificationsExternal', []);
 
 		const sessionsChanged = observableSignalFromEvent(this, this.sessionsManagementService.onDidChangeSessions);
+		const providersChanged = observableSignalFromEvent(this, this.sessionsProvidersService.onDidChangeProviders);
 		this._register(this.storageService.onDidChangeValue(StorageScope.APPLICATION, DISMISSED_NOTIFICATION_IDS_STORAGE_KEY, this._store)(event => {
 			if (!event.external) {
 				return;
@@ -67,6 +68,7 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 
 		this.notifications = derived(this, reader => {
 			sessionsChanged.read(reader);
+			providersChanged.read(reader);
 
 			const dismissed = this._dismissedIds.read(reader);
 			const itemsById = new Map<string, IInboxNotificationItem>();
