@@ -552,7 +552,7 @@ suite('AgentHostSessionTitleController', () => {
 	test('legacy restored sessions do not opt into deferred naming', async () => {
 		const { controller, session } = setupDeferred();
 		await controller.restoreTitleGenerationStrategy(session.toString());
-		assert.strictEqual(controller.getAutomaticTitleGenerationStrategy(session.toString()), 'activeAgent');
+		assert.strictEqual(controller.getAutomaticTitleGenerationStrategy(session.toString()), 'utility');
 	});
 
 	test('deferred disposal cancels pending work and ephemeral sessions do not seed', async () => {
@@ -577,7 +577,7 @@ suite('AgentHostSessionTitleController', () => {
 
 	test('active-agent mode completes the word crossing the 40-character fallback target without utility generation', async () => {
 		const copilotApiService = new TestCopilotApiService();
-		const { controller, session, db, titleActions } = setup(copilotApiService, '', undefined, undefined, undefined, undefined, undefined, true);
+		const { controller, session, db, titleActions } = setup(copilotApiService, '', undefined, undefined, undefined, undefined, undefined, 'activeAgent');
 
 		controller.seedTitleFromFirstMessage(session.toString(), 'Investigate why restored Agent Host sessions sometimes lose titles');
 		const instruction = await controller.prepareInstructionForAgent(session.toString(), buildDefaultChatUri(session));
@@ -589,7 +589,7 @@ suite('AgentHostSessionTitleController', () => {
 	});
 
 	test('active-agent fallback hard-truncates a single oversized word', () => {
-		const { controller, session, titleActions } = setup(undefined, '', undefined, undefined, undefined, undefined, undefined, true);
+		const { controller, session, titleActions } = setup(undefined, '', undefined, undefined, undefined, undefined, undefined, 'activeAgent');
 
 		controller.seedTitleFromFirstMessage(session.toString(), 'x'.repeat(50));
 
@@ -597,7 +597,7 @@ suite('AgentHostSessionTitleController', () => {
 	});
 
 	test('active-agent fallback hard-caps an oversized token crossing the target', () => {
-		const { controller, session, titleActions } = setup(undefined, '', undefined, undefined, undefined, undefined, undefined, true);
+		const { controller, session, titleActions } = setup(undefined, '', undefined, undefined, undefined, undefined, undefined, 'activeAgent');
 
 		controller.seedTitleFromFirstMessage(session.toString(), `Fix https://example.com/${'x'.repeat(500)}`);
 
@@ -606,7 +606,7 @@ suite('AgentHostSessionTitleController', () => {
 	});
 
 	test('active-agent fallback omits the ellipsis when the crossing word completes the prompt', () => {
-		const { controller, session, titleActions } = setup(undefined, '', undefined, undefined, undefined, undefined, undefined, true);
+		const { controller, session, titleActions } = setup(undefined, '', undefined, undefined, undefined, undefined, undefined, 'activeAgent');
 
 		controller.seedTitleFromFirstMessage(session.toString(), 'Investigate why restored Agent Host sessions');
 
@@ -621,7 +621,7 @@ suite('AgentHostSessionTitleController', () => {
 	});
 
 	test('does not generate or instruct titles for ephemeral sessions', async () => {
-		const { controller, session, titleActions, copilotApiService } = setup(undefined, '', undefined, undefined, undefined, undefined, undefined, true, true);
+		const { controller, session, titleActions, copilotApiService } = setup(undefined, '', undefined, undefined, undefined, undefined, undefined, 'activeAgent', true);
 
 		controller.seedTitleFromFirstMessage(session.toString(), 'Optimize an inline edit');
 		controller.seedProvisionalTitle(session.toString(), 'Provisional inline edit');
@@ -640,14 +640,14 @@ suite('AgentHostSessionTitleController', () => {
 	});
 
 	test('materialized server tools override later root setting changes', async () => {
-		const enabled = setup(undefined, '', undefined, undefined, undefined, undefined, undefined, false);
+		const enabled = setup(undefined, '', undefined, undefined, undefined, undefined, undefined, 'utility');
 		enabled.stateManager.dispatchServerAction(enabled.session.toString(), {
 			type: ActionType.SessionServerToolsChanged,
 			tools: sessionServerToolDefinitions,
 		});
 		enabled.controller.seedTitleFromFirstMessage(enabled.session.toString(), 'Use advertised rename tool');
 
-		const disabled = setup(undefined, '', undefined, undefined, undefined, undefined, undefined, true);
+		const disabled = setup(undefined, '', undefined, undefined, undefined, undefined, undefined, 'activeAgent');
 		disabled.stateManager.dispatchServerAction(disabled.session.toString(), {
 			type: ActionType.SessionServerToolsChanged,
 			tools: [],
@@ -661,7 +661,7 @@ suite('AgentHostSessionTitleController', () => {
 
 	test('active-agent mode reminds peer chats and keeps deterministic fork provenance without utility calls', async () => {
 		const copilotApiService = new TestCopilotApiService();
-		const { controller, stateManager, session, db } = setup(copilotApiService, 'Session title', undefined, undefined, undefined, undefined, undefined, true);
+		const { controller, stateManager, session, db } = setup(copilotApiService, 'Session title', undefined, undefined, undefined, undefined, undefined, 'activeAgent');
 		const chat = buildChatUri(session.toString(), 'peer-1');
 		stateManager.addChat(session.toString(), chat, {});
 		controller.seedTitleFromFirstMessage(session.toString(), 'Investigate peer chat', chat);
@@ -676,7 +676,7 @@ suite('AgentHostSessionTitleController', () => {
 	});
 
 	test('multi-chat default uses its own persisted title provenance after controller recreation', async () => {
-		const independentlyRenamed = setup(undefined, 'Session title', undefined, undefined, undefined, undefined, undefined, true);
+		const independentlyRenamed = setup(undefined, 'Session title', undefined, undefined, undefined, undefined, undefined, 'activeAgent');
 		const defaultChat = buildDefaultChatUri(independentlyRenamed.session);
 		independentlyRenamed.stateManager.addChat(independentlyRenamed.session.toString(), buildChatUri(independentlyRenamed.session.toString(), 'peer'), {});
 		await independentlyRenamed.db.setMetadata(SESSION_CUSTOM_TITLE_SOURCE_KEY, AGENT_HOST_TITLE_SOURCE_AUTO);
@@ -684,7 +684,7 @@ suite('AgentHostSessionTitleController', () => {
 
 		const independentRenameInstruction = await independentlyRenamed.controller.prepareInstructionForAgent(independentlyRenamed.session.toString(), defaultChat);
 
-		const independentlyAutomatic = setup(undefined, 'Session title', undefined, undefined, undefined, undefined, undefined, true);
+		const independentlyAutomatic = setup(undefined, 'Session title', undefined, undefined, undefined, undefined, undefined, 'activeAgent');
 		independentlyAutomatic.stateManager.addChat(independentlyAutomatic.session.toString(), buildChatUri(independentlyAutomatic.session.toString(), 'peer'), {});
 		await independentlyAutomatic.db.setMetadata(SESSION_CUSTOM_TITLE_SOURCE_KEY, AGENT_HOST_TITLE_SOURCE_AGENT);
 		await independentlyAutomatic.db.setMetadata(customChatTitleSourceMetadataKey(defaultChat), AGENT_HOST_TITLE_SOURCE_AUTO);
@@ -700,7 +700,7 @@ suite('AgentHostSessionTitleController', () => {
 	});
 
 	test('clearSession releases session and peer-chat rename state', async () => {
-		const { controller, stateManager, session, db } = setup(undefined, '', undefined, undefined, undefined, undefined, undefined, true);
+		const { controller, stateManager, session, db } = setup(undefined, '', undefined, undefined, undefined, undefined, undefined, 'activeAgent');
 		const defaultChat = buildDefaultChatUri(session);
 		const chat = buildChatUri(session.toString(), 'peer-clear');
 		stateManager.addChat(session.toString(), chat, {});
