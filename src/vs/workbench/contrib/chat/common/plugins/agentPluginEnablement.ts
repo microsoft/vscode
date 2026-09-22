@@ -147,7 +147,15 @@ export function getCanonicalAgentPluginCollisionGroups(
 	return groups;
 }
 
-/** Whether the `ChatEnabledPlugins` enterprise policy explicitly blocks this plugin. */
+/**
+ * Whether the `ChatEnabledPlugins` enterprise policy explicitly blocks this plugin.
+ *
+ * The policy is a **deny list**, not an allowlist: enterprise-managed `enabledPlugins` entries
+ * add to (never replace) the plugins a user has installed. A plugin is blocked only when its
+ * policy id is mapped to `false`; entries mapped to `true` enable the plugin, and a plugin the
+ * policy never mentions is left to the user's own enablement. This keeps a customer's existing
+ * plugins working when their enterprise deploys `enabledPlugins` for a different plugin.
+ */
 export function isAgentPluginBlockedByPolicy(
 	plugin: IAgentPlugin,
 	enabledPluginsPolicy: Record<string, boolean> | undefined,
