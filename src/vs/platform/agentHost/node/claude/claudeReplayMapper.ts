@@ -22,7 +22,7 @@ import {
 	type ToolResultContent,
 	type Turn,
 } from '../../common/state/protocol/state.js';
-import { buildSubagentSessionUri } from '../../common/state/sessionState.js';
+import { buildSubagentSessionUri, withMessageRequestHiddenFromTranscript } from '../../common/state/sessionState.js';
 import { readToolCallMeta } from '../../common/meta/agentToolCallMeta.js';
 import { formatGenericToolInput } from '../../common/streamingToolCallDisplay.js';
 import { buildClaudeToolMeta, getClaudeInvocationMessage, getClaudePastTenseMessage, getClaudeToolDisplayName, getClaudeToolInputString } from './claudeToolDisplay.js';
@@ -48,9 +48,14 @@ export function mapSessionMessagesToTurns(
 	messages: readonly SessionMessage[],
 	session: URI,
 	logService: ILogService,
+	sdkTurns: ReadonlyMap<string, string> = new Map(),
 ): readonly Turn[] {
 	const builder = new ReplayBuilder(session, logService);
 	for (const msg of messages) {
+		const sdkTurnId = readSdkTurnId(msg, sdkTurns);
+		if (sdkTurnId !== undefined) {
+			builder.startSdkTurn(sdkTurnId, readTimestamp(msg));
+		}
 		const parsed = parseSessionMessage(msg);
 		if (parsed === undefined) {
 			continue;
@@ -69,11 +74,22 @@ export function mapSessionMessagesToTurns(
  * Reuses {@link parseSessionMessage} so the turn-boundary rule matches
  * {@link ReplayBuilder}; always returns an envelope `uuid`, never a `msg_…` id.
  */
-export function resolveForkAnchorUuid(messages: readonly SessionMessage[], turnId: string): string | undefined {
+export function resolveForkAnchorUuid(messages: readonly SessionMessage[], turnId: string, sdkTurns: ReadonlyMap<string, string> = new Map()): string | undefined {
 	let turnOpen = false;
 	let seenTarget = false;
 	let lastAssistantUuid: string | undefined;
 	for (const msg of messages) {
+		const sdkTurnId = readSdkTurnId(msg, sdkTurns);
+		if (sdkTurnId !== undefined) {
+			if (seenTarget) {
+				break;
+			}
+			turnOpen = true;
+			seenTarget = sdkTurnId === turnId;
+			if (seenTarget) {
+				lastAssistantUuid = msg.uuid;
+			}
+		}
 		const parsed = parseSessionMessage(msg);
 		if (parsed === undefined) {
 			continue;
@@ -109,6 +125,10 @@ export function resolveForkAnchorUuid(messages: readonly SessionMessage[], turnI
 		return undefined;
 	}
 	return lastAssistantUuid;
+}
+
+function readSdkTurnId(msg: SessionMessage, sdkTurns: ReadonlyMap<string, string>): string | undefined {
+	return msg.type === 'assistant' && msg.parent_tool_use_id === null ? sdkTurns.get(msg.uuid) : undefined;
 }
 
 // #region Parsed message union — narrow-at-the-seam adapter
@@ -236,6 +256,7 @@ export function missingPromptPlaceholder(): string {
 interface InProgressTurn {
 	readonly id: string;
 	readonly userText: string;
+	readonly sdkInitiated?: boolean;
 	readonly startedAt?: string;
 	lastResponseAt?: string;
 	readonly responseParts: ResponsePart[];
@@ -276,6 +297,11 @@ class ReplayBuilder {
 	private _orphanToolResults = 0;
 
 	constructor(private readonly _session: URI, private readonly _logService: ILogService) { }
+
+	startSdkTurn(id: string, startedAt: string | undefined): void {
+		this._closeActive();
+		this._active = { id, startedAt, userText: '', sdkInitiated: true, responseParts: [], pendingToolUseIds: new Set(), toolCallParts: new Map() };
+	}
 
 	consume(msg: ParsedSessionMessage): void {
 		switch (msg.kind) {
@@ -504,7 +530,9 @@ class ReplayBuilder {
 			id: a.id,
 			startedAt: a.startedAt,
 			duration,
-			message: { text: a.userText, origin: { kind: MessageKind.User } },
+			message: a.sdkInitiated
+				? withMessageRequestHiddenFromTranscript({ text: '', origin: { kind: MessageKind.Agent } }, true)
+				: { text: a.userText, origin: { kind: MessageKind.User } },
 			responseParts: a.responseParts,
 			usage: undefined,
 			state,

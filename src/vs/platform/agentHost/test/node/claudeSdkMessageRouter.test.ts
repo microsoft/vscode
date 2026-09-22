@@ -20,6 +20,8 @@ import { ILogService, NullLogService } from '../../../log/common/log.js';
 import { AgentSignal } from '../../common/agent.js';
 import { IDiffComputeService } from '../../common/diffComputeService.js';
 import { IAgentEditAttribution, IAgentEditAttributionService, NullAgentEditAttributionService } from '../../common/fileEditAttribution.js';
+import { ActionType } from '../../common/state/protocol/actions.js';
+import { ToolResultContentType } from '../../common/state/protocol/state.js';
 import { ISessionDatabase } from '../../common/sessionDataService.js';
 import { buildChatUri, buildDefaultChatUri, resolveChatUri } from '../../common/state/sessionState.js';
 import { ClaudeSdkMessageRouter } from '../../node/claude/claudeSdkMessageRouter.js';
@@ -40,6 +42,7 @@ interface IRouterHarness {
 	readonly router: ClaudeSdkMessageRouter;
 	readonly signals: AgentSignal[];
 	readonly fileService: FileService;
+	readonly subagents: SubagentRegistry;
 }
 
 class RecordingAgentEditAttributionService extends NullAgentEditAttributionService {
@@ -88,11 +91,11 @@ function createRouter(
 	));
 	const signals: AgentSignal[] = [];
 	disposables.add(router.onDidProduceSignal(s => signals.push(s)));
-	return { router, signals, fileService };
+	return { router, signals, fileService, subagents };
 }
 
 function assistantMessage(content: unknown): Extract<SDKMessage, { type: 'assistant' }> {
-	return { type: 'assistant', message: { content } } as Extract<SDKMessage, { type: 'assistant' }>;
+	return { type: 'assistant', message: { id: 'msg-test', model: 'claude', content } } as Extract<SDKMessage, { type: 'assistant' }>;
 }
 
 function userMessage(content: unknown): Extract<SDKMessage, { type: 'user' }> {
@@ -133,6 +136,22 @@ suite('ClaudeSdkMessageRouter', () => {
 		const p1 = router.handle(makeStreamEvent('sess-1', makeMessageStart()), 'turn-1');
 		assert.ok(p1 instanceof Promise);
 		await p1;
+	});
+
+	test('observes idle child file edits before mapping their results', async () => {
+		const attribution = new RecordingAgentEditAttributionService();
+		const { router, signals, fileService, subagents } = createRouter(disposables, undefined, attribution);
+		subagents.recordSpawn('child').background = true;
+		const file = URI.file('/work/child.txt');
+		await fileService.writeFile(file, VSBuffer.fromString('before'));
+		await router.handle({ ...assistantMessage([{ type: 'tool_use', id: 'child-write', name: 'Write', input: { file_path: file.fsPath, content: 'after' } }]), parent_tool_use_id: 'child' }, undefined);
+		await fileService.writeFile(file, VSBuffer.fromString('after'));
+		await router.handle({ ...userMessage([{ type: 'tool_result', tool_use_id: 'child-write', content: 'ok' }]), parent_tool_use_id: 'child' }, undefined);
+		assert.strictEqual(attribution.recordedSessionUris.length, 1);
+		const completion = signals.find(signal => signal.kind === 'action' && signal.action.type === ActionType.ChatToolCallComplete);
+		assert.ok(completion?.kind === 'action' && completion.action.type === ActionType.ChatToolCallComplete);
+		assert.strictEqual(completion.parentToolCallId, 'child');
+		assert.ok(completion.action.result.content?.some(content => content.type === ToolResultContentType.FileEdit));
 	});
 
 	test('tracks and flushes peer chat edits by their chat channel URI', async () => {

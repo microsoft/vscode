@@ -197,6 +197,15 @@ function fileEditToolDelta(chat: URI, turnId: string, toolCallId: string, invoca
 	};
 }
 
+/** Resolve idle child messages to their spawn; the host maps tagged actions to the child's active turn. */
+export function resolveSdkMessageTurnId(message: SDKMessage, turnId: string | undefined, registry: SubagentRegistry): string | undefined {
+	if (turnId !== undefined) {
+		return turnId;
+	}
+	const parentToolUseId = message.type === 'assistant' || message.type === 'stream_event' || message.type === 'user' ? message.parent_tool_use_id : undefined;
+	return parentToolUseId && registry.getSpawn(parentToolUseId) ? parentToolUseId : undefined;
+}
+
 /**
  * Map one SDK message to zero or more agent signals.
  *
@@ -230,7 +239,7 @@ function fileEditToolDelta(chat: URI, turnId: string, toolCallId: string, invoca
 export function mapSDKMessageToAgentSignals(
 	message: SDKMessage,
 	chat: URI,
-	turnId: string,
+	turnId: string | undefined,
 	state: ClaudeMapperState,
 	logService: ILogService,
 	registry: SubagentRegistry,
@@ -244,6 +253,10 @@ export function mapSDKMessageToAgentSignals(
 		} catch {
 			logService.trace(`[claudeMapSessionEvents] SDK message type=${message.type} (unserializable)`);
 		}
+	}
+	turnId = resolveSdkMessageTurnId(message, turnId, registry);
+	if (turnId === undefined) {
+		return message.type === 'system' ? mapSubagentSystemMessage(message, chat, registry) : [];
 	}
 	switch (message.type) {
 		case 'stream_event':

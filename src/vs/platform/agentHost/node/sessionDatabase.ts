@@ -812,6 +812,13 @@ export class SessionDatabase implements ISessionDatabase {
 		})));
 	}
 
+	reassignFileEditsToTurn(toolCallId: string, turnId: string): Promise<void> {
+		return this._track(() => this._queueMutation(async db => {
+			await dbRun(db, 'INSERT OR IGNORE INTO turns (id) VALUES (?)', [turnId]);
+			await dbRun(db, 'UPDATE file_edits SET turn_id = ? WHERE tool_call_id = ?', [turnId, toolCallId]);
+		}));
+	}
+
 	async getFileEdits(toolCallIds: string[]): Promise<IFileEditRecord[]> {
 		if (toolCallIds.length === 0) {
 			return [];

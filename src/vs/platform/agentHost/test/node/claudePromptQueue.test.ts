@@ -249,4 +249,33 @@ suite('ClaudePromptQueue', () => {
 		queue.settleHead();
 		assert.strictEqual(queue.isEmpty, true);
 	});
+
+	test('adoptUnsolicited seeds an in-flight turn that settleHead completes, without yielding anything to the SDK', async () => {
+		const { queue } = createQueue(disposables);
+		assert.strictEqual(queue.adoptUnsolicited('turn-unsolicited'), true);
+		assert.strictEqual(queue.isEmpty, false);
+		assert.strictEqual(queue.peekParent()?.turnId, 'turn-unsolicited');
+		// A prompt pushed while the adopted turn is in flight is yielded to the
+		// SDK; the adopted sentinel itself never is.
+		const iter = queue.iterable[Symbol.asyncIterator]();
+		void queue.push(makeEntry('b'));
+		const yielded = await drainOne(iter);
+		assert.strictEqual(yielded?.uuid, makeUuid('b'), 'only the real prompt reaches the SDK');
+		// peekParent still prefers the adopted in-flight head (M10).
+		assert.strictEqual(queue.peekParent()?.turnId, 'turn-unsolicited');
+		const completed = queue.settleHead();
+		assert.strictEqual(completed?.turnId, 'turn-unsolicited');
+	});
+
+	test('adoptUnsolicited is a no-op while any entry is queued or in flight', async () => {
+		const { queue } = createQueue(disposables);
+		void queue.push(makeEntry('a'));
+		assert.strictEqual(queue.adoptUnsolicited('turn-unsolicited'), false, 'queued entry blocks adoption');
+		const iter = queue.iterable[Symbol.asyncIterator]();
+		await drainOne(iter);
+		assert.strictEqual(queue.adoptUnsolicited('turn-unsolicited'), false, 'in-flight entry blocks adoption');
+		queue.settleHead();
+		assert.strictEqual(queue.adoptUnsolicited('turn-unsolicited'), true, 'drained queue allows adoption');
+		queue.settleHead();
+	});
 });
