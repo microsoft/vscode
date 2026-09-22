@@ -1,0 +1,407 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.customization-discovery {
+	height: 100%;
+	min-width: 0;
+	min-height: 0;
+	color: var(--vscode-foreground);
+	background: var(--vscode-editor-background);
+}
+
+.customization-discovery-content {
+	display: flex;
+	flex-direction: column;
+	height: 100%;
+	min-width: 0;
+	min-height: 0;
+}
+
+.customization-discovery-header {
+	box-sizing: border-box;
+	width: min(calc(100% - var(--vscode-spacing-size400) - var(--vscode-spacing-size400)), 960px);
+	margin: 0 auto;
+	padding-bottom: var(--vscode-spacing-size160);
+}
+
+.customization-discovery-title-row {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size120);
+}
+
+.customization-discovery-title {
+	flex: 1;
+	min-width: 0;
+	margin: 0;
+	font-size: var(--vscode-fontSize-heading2);
+	font-weight: var(--vscode-fontWeight-semiBold);
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.customization-discovery-title-row > .monaco-button {
+	width: auto;
+}
+
+.customization-discovery-description {
+	margin: var(--vscode-spacing-size60) 0 var(--vscode-spacing-size120);
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-body1);
+	line-height: 1.4;
+}
+
+.customization-discovery-migration {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size80);
+	box-sizing: border-box;
+	margin-bottom: var(--vscode-spacing-size120);
+	padding: var(--vscode-spacing-size80) var(--vscode-spacing-size100);
+	border: var(--vscode-strokeThickness) solid var(--vscode-inputValidation-warningBorder);
+	border-radius: var(--vscode-cornerRadius-medium);
+	background: var(--vscode-inputValidation-warningBackground);
+}
+
+.customization-discovery-migration[hidden] {
+	display: none;
+}
+
+.customization-discovery-migration-label {
+	flex: 1;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.customization-discovery-migration > .monaco-button {
+	width: auto;
+}
+
+.customization-discovery-search {
+	position: relative;
+	height: 30px;
+}
+
+.customization-discovery-search .suggest-input-container {
+	height: 30px;
+	border-radius: var(--vscode-cornerRadius-small);
+}
+
+.customization-discovery-filters {
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--vscode-spacing-size60);
+	margin-top: var(--vscode-spacing-size80);
+}
+
+.customization-discovery-filters > .monaco-button.customization-discovery-filter {
+	width: auto;
+	border-radius: var(--vscode-cornerRadius-circle);
+}
+
+.customization-discovery-browse-scrollable {
+	flex: 1;
+	min-height: 0;
+}
+
+.customization-discovery-browse {
+	box-sizing: border-box;
+	width: min(calc(100% - var(--vscode-spacing-size400) - var(--vscode-spacing-size400)), 960px);
+	margin: 0 auto;
+	padding-bottom: var(--vscode-spacing-size320);
+}
+
+.customization-discovery-sections {
+	display: flex;
+	flex-direction: column;
+	gap: var(--vscode-spacing-size280);
+}
+
+.customization-discovery-section {
+	display: flex;
+	flex-direction: column;
+	gap: var(--vscode-spacing-size100);
+}
+
+.customization-discovery-section.featured {
+	padding: var(--vscode-spacing-size160);
+	border: var(--vscode-strokeThickness) solid var(--vscode-widget-border);
+	border-radius: var(--vscode-cornerRadius-medium);
+	background: var(--vscode-editorWidget-background);
+}
+
+.customization-discovery-section-title {
+	margin: 0;
+	font-size: var(--vscode-fontSize-heading3);
+	font-weight: var(--vscode-fontWeight-semiBold);
+}
+
+.customization-discovery-grid {
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	gap: var(--vscode-spacing-size80) var(--vscode-spacing-size160);
+}
+
+.customization-discovery.narrow .customization-discovery-grid {
+	grid-template-columns: minmax(0, 1fr);
+}
+
+.customization-discovery-card {
+	display: grid;
+	grid-template-columns: 40px minmax(0, 1fr);
+	gap: var(--vscode-spacing-size120);
+	min-width: 0;
+	padding: var(--vscode-spacing-size100);
+	border-radius: var(--vscode-cornerRadius-small);
+	background: transparent;
+}
+
+.customization-discovery-card:hover,
+.customization-discovery-card:focus-within {
+	background: var(--vscode-list-hoverBackground);
+}
+
+.customization-discovery-card-icon,
+.customization-discovery-result-icon {
+	position: relative;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 40px;
+	height: 40px;
+	flex-shrink: 0;
+	overflow: hidden;
+	border-radius: var(--vscode-cornerRadius-small);
+	color: var(--vscode-descriptionForeground);
+	background: var(--vscode-editorWidget-background);
+}
+
+.customization-discovery-card-icon img,
+.customization-discovery-result-icon img {
+	position: absolute;
+	inset: 0;
+	width: 100%;
+	height: 100%;
+	object-fit: contain;
+}
+
+.customization-discovery-card-body,
+.customization-discovery-result-identity {
+	min-width: 0;
+}
+
+.customization-discovery-card-name,
+.customization-discovery-result-name {
+	font-size: var(--vscode-fontSize-body1);
+	font-weight: var(--vscode-fontWeight-semiBold);
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.customization-discovery-card-description {
+	display: -webkit-box;
+	margin-top: var(--vscode-spacing-size40);
+	overflow: hidden;
+	font-size: var(--vscode-fontSize-body2);
+	line-height: 1.4;
+	-webkit-box-orient: vertical;
+	-webkit-line-clamp: 2;
+}
+
+.customization-discovery-card-metadata,
+.customization-discovery-result-detail {
+	margin-top: var(--vscode-spacing-size40);
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-label2);
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.customization-discovery-card-actions {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size80);
+	margin-top: var(--vscode-spacing-size80);
+}
+
+.customization-discovery-card-actions > .monaco-button {
+	width: auto;
+}
+
+.customization-discovery-card-link,
+.customization-discovery-show-all {
+	color: var(--vscode-textLink-foreground);
+}
+
+.customization-discovery-card-link:hover,
+.customization-discovery-show-all:hover {
+	color: var(--vscode-textLink-activeForeground);
+}
+
+.customization-discovery-show-all {
+	align-self: flex-start;
+	padding: var(--vscode-spacing-size20) 0;
+	border: 0;
+	background: transparent;
+	font: inherit;
+	cursor: pointer;
+}
+
+.customization-discovery-show-all:focus-visible,
+.customization-discovery-card-link:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: var(--vscode-spacing-size20);
+}
+
+.customization-discovery-results {
+	display: flex;
+	flex: 1;
+	flex-direction: column;
+	min-width: 0;
+	min-height: 0;
+}
+
+.customization-discovery-results[hidden],
+.customization-discovery-browse-scrollable[hidden] {
+	display: none;
+}
+
+.customization-discovery-list {
+	flex: 1;
+	min-width: 0;
+	min-height: 0;
+}
+
+.customization-discovery-list .monaco-list-row {
+	padding: 0 max(var(--vscode-spacing-size240), calc((100% - 960px) / 2));
+	box-sizing: border-box;
+}
+
+.customization-discovery-group-header {
+	display: flex;
+	align-items: end;
+	padding-bottom: var(--vscode-spacing-size60);
+}
+
+.customization-discovery-group-label {
+	font-size: var(--vscode-fontSize-heading3);
+	font-weight: var(--vscode-fontWeight-semiBold);
+}
+
+.customization-discovery-result-content {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size120);
+	height: 100%;
+	min-width: 0;
+	padding: var(--vscode-spacing-size80) var(--vscode-spacing-size100);
+	box-sizing: border-box;
+	border-radius: var(--vscode-cornerRadius-small);
+	line-height: normal;
+}
+
+.customization-discovery-result-identity {
+	flex: 1;
+}
+
+.customization-discovery-result-heading {
+	display: flex;
+	align-items: baseline;
+	gap: var(--vscode-spacing-size80);
+	min-width: 0;
+}
+
+.customization-discovery-result-name {
+	flex-shrink: 1;
+	min-width: 0;
+}
+
+.customization-discovery-result-detail {
+	flex: 1;
+	min-width: 0;
+	margin-top: 0;
+}
+
+.customization-discovery-result-description {
+	margin-top: var(--vscode-spacing-size40);
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-body2);
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.customization-discovery-result-actions {
+	flex-shrink: 0;
+}
+
+.customization-discovery-result-actions > .monaco-button {
+	width: auto;
+}
+
+.customization-discovery-state {
+	box-sizing: border-box;
+	width: min(calc(100% - var(--vscode-spacing-size400) - var(--vscode-spacing-size400)), 960px);
+	min-height: var(--vscode-spacing-size240);
+	margin: 0 auto;
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-body1);
+}
+
+.customization-discovery-state:empty {
+	min-height: 0;
+}
+
+.customization-discovery-state > .monaco-button {
+	width: auto;
+	margin-top: var(--vscode-spacing-size80);
+}
+
+.customization-discovery-footer {
+	display: flex;
+	justify-content: center;
+	box-sizing: border-box;
+	min-height: 40px;
+	padding: var(--vscode-spacing-size60) var(--vscode-spacing-size240);
+}
+
+.customization-discovery-footer[hidden] {
+	display: none;
+}
+
+.customization-discovery-footer > .monaco-button {
+	width: auto;
+}
+
+.customization-discovery.narrow .customization-discovery-header,
+.customization-discovery.narrow .customization-discovery-browse,
+.customization-discovery.narrow .customization-discovery-state {
+	width: calc(100% - var(--vscode-spacing-size240) - var(--vscode-spacing-size240));
+}
+
+.customization-discovery.narrow .customization-discovery-list .monaco-list-row {
+	padding: 0 var(--vscode-spacing-size120);
+}
+
+.customization-discovery.narrow .customization-discovery-result-heading {
+	display: block;
+}
+
+.customization-discovery.narrow .customization-discovery-result-detail {
+	margin-top: var(--vscode-spacing-size20);
+}
+
+.hc-black .customization-discovery-card:hover,
+.hc-light .customization-discovery-card:hover,
+.hc-black .customization-discovery-card:focus-within,
+.hc-light .customization-discovery-card:focus-within {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-contrastBorder);
+	outline-offset: calc(-1 * var(--vscode-strokeThickness));
+}

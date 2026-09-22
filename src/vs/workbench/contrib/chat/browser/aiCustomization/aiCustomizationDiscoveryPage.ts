@@ -1,0 +1,1220 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+import './media/aiCustomizationDiscovery.css';
+import * as DOM from '../../../../../base/browser/dom.js';
+import { alert, status } from '../../../../../base/browser/ui/aria/aria.js';
+import { Button } from '../../../../../base/browser/ui/button/button.js';
+import { IListRenderer, IListVirtualDelegate, NotSelectableGroupId } from '../../../../../base/browser/ui/list/list.js';
+import { DomScrollableElement } from '../../../../../base/browser/ui/scrollbar/scrollableElement.js';
+import { Action, IAction } from '../../../../../base/common/actions.js';
+import { RunOnceScheduler } from '../../../../../base/common/async.js';
+import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
+import { getErrorMessage, isCancellationError, onUnexpectedError } from '../../../../../base/common/errors.js';
+import { Disposable, DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
+import { autorun } from '../../../../../base/common/observable.js';
+import { basename } from '../../../../../base/common/resources.js';
+import { ScrollbarVisibility } from '../../../../../base/common/scrollable.js';
+import { ThemeIcon } from '../../../../../base/common/themables.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { localize } from '../../../../../nls.js';
+import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
+import { CustomizationMarketplaceMediaType, getCustomizationMarketplaceResourceKey, ICustomizationMarketplaceCursor, ICustomizationMarketplaceResource, ICustomizationMarketplaceService } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
+import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
+import { WorkbenchList } from '../../../../../platform/list/browser/listService.js';
+import { INotificationService } from '../../../../../platform/notification/common/notification.js';
+import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
+import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
+import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
+import { AccessibilityVerbositySettingId } from '../../../accessibility/browser/accessibilityConfiguration.js';
+import { SuggestEnabledInput } from '../../../codeEditor/browser/suggestEnabledInput/suggestEnabledInput.js';
+import { IMcpWorkbenchService, McpServerInstallState } from '../../../mcp/common/mcpTypes.js';
+import { CustomizationMarketplaceInstallState, ICustomizationMarketplaceInstallService } from '../../common/customizationMarketplaceInstallService.js';
+import { AICustomizationManagementSection, IAICustomizationWorkspaceService, IWelcomePageFeatures } from '../../common/aiCustomizationWorkspaceService.js';
+import { ChatConfiguration } from '../../common/constants.js';
+import { isPluginCustomizationItem } from '../../common/customizationHarnessService.js';
+import { IAgentPluginService } from '../../common/plugins/agentPluginService.js';
+import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
+import { IAICustomizationListItem } from './aiCustomizationItemSource.js';
+import { IAICustomizationItemsModel, ITEMS_MODEL_SECTIONS, ItemsModelSection } from './aiCustomizationItemsModel.js';
+import { getCustomizationDiscoveryQuerySuggestions, CustomizationDiscoveryQuery, CustomizationDiscoveryType } from './aiCustomizationQuery.js';
+import { IAICustomizationWelcomePageImplementation, ICustomizationMigrationCategorySummary, IWelcomePageCallbacks } from './aiCustomizationWelcomePage.js';
+
+const $ = DOM.$;
+const searchDelay = 300;
+const catalogPageSize = 30;
+const leadingBrowseItemCount = 4;
+const resultRowHeight = 72;
+const groupHeaderHeight = 36;
+
+type DiscoveryItemType = 'agent' | 'skill' | 'instructions' | 'prompt' | 'hook' | 'mcp' | 'plugin';
+
+interface IInstalledDiscoveryItem {
+	readonly kind: 'installed';
+	readonly id: string;
+	readonly name: string;
+	readonly description: string;
+	readonly detail: string;
+	readonly type: DiscoveryItemType;
+	readonly section: AICustomizationManagementSection;
+	readonly uri?: URI;
+	readonly disabled?: boolean;
+	readonly catalogKeys: readonly string[];
+	readonly catalogResource?: ICustomizationMarketplaceResource;
+}
+
+interface ICatalogDiscoveryItem {
+	readonly kind: 'available';
+	readonly id: string;
+	readonly resource: ICustomizationMarketplaceResource;
+}
+
+interface IDiscoveryGroupHeader {
+	readonly kind: 'header';
+	readonly id: string;
+	readonly label: string;
+	readonly count: number;
+}
+
+type DiscoveryListEntry = IInstalledDiscoveryItem | ICatalogDiscoveryItem | IDiscoveryGroupHeader;
+
+interface ICatalogPageState {
+	readonly items: readonly ICustomizationMarketplaceResource[];
+	readonly nextCursor?: ICustomizationMarketplaceCursor;
+}
+
+interface IDiscoveryRowTemplate {
+	readonly root: HTMLElement;
+	readonly icon: HTMLElement;
+	readonly identity: HTMLElement;
+	readonly name: HTMLElement;
+	readonly detail: HTMLElement;
+	readonly description: HTMLElement;
+	readonly actions: HTMLElement;
+	readonly elementDisposables: DisposableStore;
+	readonly templateDisposables: DisposableStore;
+}
+
+interface IDiscoveryHeaderTemplate {
+	readonly label: HTMLElement;
+}
+
+function getSectionType(section: ItemsModelSection): DiscoveryItemType {
+	switch (section) {
+		case AICustomizationManagementSection.Agents: return 'agent';
+		case AICustomizationManagementSection.Skills: return 'skill';
+		case AICustomizationManagementSection.Instructions: return 'instructions';
+		case AICustomizationManagementSection.Hooks: return 'hook';
+		default: return 'prompt';
+	}
+}
+
+function getTypeLabel(type: DiscoveryItemType): string {
+	switch (type) {
+		case 'agent': return localize('customizationDiscovery.agent', "Agent");
+		case 'skill': return localize('customizationDiscovery.skill', "Skill");
+		case 'instructions': return localize('customizationDiscovery.instructions', "Instructions");
+		case 'prompt': return localize('customizationDiscovery.prompt', "Prompt");
+		case 'hook': return localize('customizationDiscovery.hook', "Hook");
+		case 'mcp': return localize('customizationDiscovery.mcp', "MCP server");
+		case 'plugin': return localize('customizationDiscovery.plugin', "Plugin");
+	}
+}
+
+function getCatalogType(resource: ICustomizationMarketplaceResource): 'skill' | 'mcp' | 'plugin' | undefined {
+	switch (resource.mediaType) {
+		case CustomizationMarketplaceMediaType.Skill: return 'skill';
+		case CustomizationMarketplaceMediaType.McpServer: return 'mcp';
+		case CustomizationMarketplaceMediaType.CopilotPlugin:
+		case CustomizationMarketplaceMediaType.ClaudePlugin:
+		case CustomizationMarketplaceMediaType.CursorPlugin:
+			return 'plugin';
+		default:
+			return undefined;
+	}
+}
+
+function getSectionForCatalogType(type: 'skill' | 'mcp' | 'plugin'): AICustomizationManagementSection {
+	switch (type) {
+		case 'skill': return AICustomizationManagementSection.Skills;
+		case 'mcp': return AICustomizationManagementSection.McpServers;
+		case 'plugin': return AICustomizationManagementSection.Plugins;
+	}
+}
+
+function getSourceLabel(item: IAICustomizationListItem): string {
+	if (item.isBuiltin) {
+		return localize('customizationDiscovery.builtin', "Built-in");
+	}
+	switch (item.source) {
+		case 'local': return localize('customizationDiscovery.workspace', "Workspace");
+		case 'user': return localize('customizationDiscovery.user', "User");
+		case 'extension': return item.extensionId ?? localize('customizationDiscovery.extension', "Extension");
+		case 'plugin': return localize('customizationDiscovery.pluginSource', "Plugin");
+		case 'builtin': return localize('customizationDiscovery.builtin', "Built-in");
+	}
+}
+
+function normalizedName(value: string): string {
+	return value.trim().toLowerCase();
+}
+
+function getCatalogKeys(resource: ICustomizationMarketplaceResource): readonly string[] {
+	const type = getCatalogType(resource);
+	if (!type) {
+		return [];
+	}
+	const keys = new Set<string>([`${type}:name:${normalizedName(resource.displayName)}`]);
+	const installation = resource.installation;
+	if (installation?.kind === 'mcp') {
+		keys.add(`mcp:name:${normalizedName(installation.name)}`);
+	} else if (installation?.kind === 'skill') {
+		const pathParts = installation.path.split('/').filter(Boolean);
+		keys.add(`skill:name:${normalizedName(pathParts[pathParts.length - 1] ?? resource.displayName)}`);
+		keys.add(`skill:source:${normalizedName(installation.repository)}:${normalizedName(installation.path)}`);
+	} else if (installation?.kind === 'plugin') {
+		keys.add(`plugin:source:${normalizedName(installation.repository)}:${normalizedName(installation.path)}`);
+	}
+	return [...keys];
+}
+
+function getCatalogMediaTypes(types: ReadonlySet<CustomizationDiscoveryType>): readonly (CustomizationMarketplaceMediaType | undefined)[] {
+	if (types.size === 0) {
+		return [undefined];
+	}
+	const result: (CustomizationMarketplaceMediaType | undefined)[] = [];
+	if (types.has('skill')) {
+		result.push(CustomizationMarketplaceMediaType.Skill);
+	}
+	if (types.has('mcp')) {
+		result.push(CustomizationMarketplaceMediaType.McpServer);
+	}
+	if (types.has('plugin')) {
+		result.push(CustomizationMarketplaceMediaType.CopilotPlugin, CustomizationMarketplaceMediaType.ClaudePlugin, CustomizationMarketplaceMediaType.CursorPlugin);
+	}
+	return result;
+}
+
+function getMediaTypeKey(mediaType: CustomizationMarketplaceMediaType | undefined): string {
+	return mediaType ?? 'all';
+}
+
+class DiscoveryListDelegate implements IListVirtualDelegate<DiscoveryListEntry> {
+	getHeight(element: DiscoveryListEntry): number {
+		return element.kind === 'header' ? groupHeaderHeight : resultRowHeight;
+	}
+
+	getTemplateId(element: DiscoveryListEntry): string {
+		return element.kind === 'header' ? 'discoveryHeader' : 'discoveryResult';
+	}
+}
+
+class DiscoveryHeaderRenderer implements IListRenderer<IDiscoveryGroupHeader, IDiscoveryHeaderTemplate> {
+	readonly templateId = 'discoveryHeader';
+
+	renderTemplate(container: HTMLElement): IDiscoveryHeaderTemplate {
+		container.classList.add('customization-discovery-group-header');
+		return { label: DOM.append(container, $('.customization-discovery-group-label')) };
+	}
+
+	renderElement(element: IDiscoveryGroupHeader, _index: number, templateData: IDiscoveryHeaderTemplate): void {
+		templateData.label.textContent = localize('customizationDiscovery.groupLabel', "{0} ({1})", element.label, element.count);
+	}
+
+	disposeTemplate(): void { }
+}
+
+class DiscoveryResultRenderer implements IListRenderer<IInstalledDiscoveryItem | ICatalogDiscoveryItem, IDiscoveryRowTemplate> {
+	readonly templateId = 'discoveryResult';
+
+	constructor(
+		private readonly hoverService: IHoverService,
+		private readonly getInstallState: (resource: ICustomizationMarketplaceResource) => CustomizationMarketplaceInstallState,
+		private readonly getInstallError: (resource: ICustomizationMarketplaceResource) => string | undefined,
+		private readonly onInstall: (resource: ICustomizationMarketplaceResource) => void,
+	) { }
+
+	renderTemplate(container: HTMLElement): IDiscoveryRowTemplate {
+		container.classList.add('customization-discovery-result-row');
+		const root = DOM.append(container, $('.customization-discovery-result-content'));
+		const icon = DOM.append(root, $('.customization-discovery-result-icon'));
+		const identity = DOM.append(root, $('.customization-discovery-result-identity'));
+		const heading = DOM.append(identity, $('.customization-discovery-result-heading'));
+		const name = DOM.append(heading, $('.customization-discovery-result-name'));
+		const detail = DOM.append(heading, $('.customization-discovery-result-detail'));
+		const description = DOM.append(identity, $('.customization-discovery-result-description'));
+		const actions = DOM.append(root, $('.customization-discovery-result-actions'));
+		return {
+			root,
+			icon,
+			identity,
+			name,
+			detail,
+			description,
+			actions,
+			elementDisposables: new DisposableStore(),
+			templateDisposables: new DisposableStore(),
+		};
+	}
+
+	renderElement(element: IInstalledDiscoveryItem | ICatalogDiscoveryItem, _index: number, templateData: IDiscoveryRowTemplate): void {
+		templateData.elementDisposables.clear();
+		DOM.clearNode(templateData.icon);
+		DOM.clearNode(templateData.actions);
+		const installed = element.kind === 'installed';
+		const name = installed ? element.name : element.resource.displayName;
+		const description = installed ? element.description : element.resource.description;
+		const type = installed ? element.type : getCatalogType(element.resource);
+		const detail = installed
+			? localize('customizationDiscovery.installedDetail', "{0} · {1}{2}", getTypeLabel(element.type), element.detail, element.disabled ? localize('customizationDiscovery.disabledSuffix', " · Disabled") : '')
+			: [
+				type ? getTypeLabel(type) : element.resource.mediaType,
+				element.resource.publisher,
+				element.resource.stars === undefined ? undefined : localize('customizationDiscovery.stars', "{0} stars", element.resource.stars.toLocaleString()),
+			].filter(Boolean).join(' · ');
+
+		const fallback = DOM.append(templateData.icon, $('.codicon'));
+		fallback.classList.add(...ThemeIcon.asClassNameArray(type === 'mcp' ? Codicon.server : type === 'plugin' ? Codicon.extensions : type === 'skill' ? Codicon.lightbulb : Codicon.file));
+		fallback.setAttribute('aria-hidden', 'true');
+		if (!installed && element.resource.icon) {
+			const image = DOM.append(templateData.icon, $('img')) as HTMLImageElement;
+			image.alt = '';
+			image.loading = 'lazy';
+			image.referrerPolicy = 'no-referrer';
+			image.src = element.resource.icon.toString(true);
+			templateData.elementDisposables.add(DOM.addDisposableListener(image, DOM.EventType.LOAD, () => fallback.hidden = true));
+			templateData.elementDisposables.add(DOM.addDisposableListener(image, DOM.EventType.ERROR, () => image.remove()));
+		}
+
+		templateData.name.textContent = name;
+		templateData.detail.textContent = detail;
+		templateData.description.textContent = description;
+		templateData.elementDisposables.add(this.hoverService.setupDelayedHover(templateData.name, { content: name }));
+		templateData.elementDisposables.add(this.hoverService.setupDelayedHover(templateData.description, { content: description }));
+
+		if (!installed) {
+			const state = this.getInstallState(element.resource);
+			const installError = this.getInstallError(element.resource);
+			const button = templateData.elementDisposables.add(new Button(templateData.actions, { ...defaultButtonStyles, secondary: true, small: true }));
+			button.label = state.kind === 'installed'
+				? localize('customizationDiscovery.installed', "Installed")
+				: state.kind === 'installing'
+					? localize('customizationDiscovery.installing', "Installing...")
+					: installError
+						? localize('customizationDiscovery.retryInstall', "Retry Install")
+						: localize('customizationDiscovery.install', "Install");
+			button.enabled = state.kind === 'available';
+			button.setAriaLabel(state.kind === 'unavailable'
+				? localize('customizationDiscovery.installUnavailable', "Install {0}. {1}", element.resource.displayName, state.message)
+				: localize('customizationDiscovery.installLabel', "{0} {1}", button.label, element.resource.displayName));
+			button.element.setAttribute('aria-busy', String(state.kind === 'installing'));
+			templateData.elementDisposables.add(DOM.addDisposableListener(button.element, DOM.EventType.CLICK, event => event.stopPropagation()));
+			templateData.elementDisposables.add(button.onDidClick(() => this.onInstall(element.resource)));
+			if (state.kind === 'unavailable' || installError) {
+				templateData.elementDisposables.add(this.hoverService.setupDelayedHover(button.element, { content: state.kind === 'unavailable' ? state.message : installError! }));
+			}
+		}
+	}
+
+	disposeTemplate(templateData: IDiscoveryRowTemplate): void {
+		templateData.elementDisposables.dispose();
+		templateData.templateDisposables.dispose();
+	}
+}
+
+export class AICustomizationDiscoveryPage extends Disposable implements IAICustomizationWelcomePageImplementation {
+	readonly container: HTMLElement;
+	private readonly header: HTMLElement;
+	private readonly migrationContainer: HTMLElement;
+	private readonly migrationLabel: HTMLElement;
+	private readonly titleDescription: HTMLElement;
+	private readonly searchWidget: SuggestEnabledInput;
+	private readonly quickFilters = new Map<'installed' | CustomizationDiscoveryType, Button>();
+	private readonly browseScrollable: DomScrollableElement;
+	private readonly browseContent: HTMLElement;
+	private readonly browseSections: HTMLElement;
+	private readonly browseStatus: HTMLElement;
+	private readonly resultListContainer: HTMLElement;
+	private readonly resultList: WorkbenchList<DiscoveryListEntry>;
+	private readonly resultStatus: HTMLElement;
+	private readonly loadMoreContainer: HTMLElement;
+	private readonly loadMoreButton: Button;
+	private readonly browseDisposables = this._register(new DisposableStore());
+	private readonly request = this._register(new MutableDisposable<CancellationTokenSource>());
+	private readonly searchScheduler = this._register(new RunOnceScheduler(() => void this.loadCatalog(false), searchDelay));
+	private readonly catalogPages = new Map<string, ICatalogPageState>();
+	private readonly installErrors = new Map<string, string>();
+	private readonly pendingInstalls = new Set<string>();
+	private query = CustomizationDiscoveryQuery.parse('');
+	private installedItems: readonly IInstalledDiscoveryItem[] = [];
+	private providerPlugins: readonly IInstalledDiscoveryItem[] = [];
+	private catalogItems: readonly ICustomizationMarketplaceResource[] = [];
+	private visibleSectionIds = new Set<AICustomizationManagementSection>();
+	private visible = false;
+	private loaded = false;
+	private loading = false;
+	private errorMessage: string | undefined;
+	private requestSequence = 0;
+	private providerPluginSequence = 0;
+	private lastDimension: DOM.Dimension | undefined;
+	private lastAnnouncement: string | undefined;
+
+	constructor(
+		parent: HTMLElement,
+		_welcomePageFeatures: IWelcomePageFeatures | undefined,
+		private readonly callbacks: IWelcomePageCallbacks,
+		private harnessLabel: string,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IContextMenuService private readonly contextMenuService: IContextMenuService,
+		@IHoverService private readonly hoverService: IHoverService,
+		@IOpenerService private readonly openerService: IOpenerService,
+		@INotificationService private readonly notificationService: INotificationService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IKeybindingService private readonly keybindingService: IKeybindingService,
+		@IChatEntitlementService private readonly entitlementService: IChatEntitlementService,
+		@ICustomizationMarketplaceService private readonly marketplaceService: ICustomizationMarketplaceService,
+		@ICustomizationMarketplaceInstallService private readonly installService: ICustomizationMarketplaceInstallService,
+		@IAICustomizationItemsModel private readonly itemsModel: IAICustomizationItemsModel,
+		@IAgentPluginService private readonly pluginService: IAgentPluginService,
+		@IMcpWorkbenchService private readonly mcpWorkbenchService: IMcpWorkbenchService,
+		@IAICustomizationWorkspaceService private readonly workspaceService: IAICustomizationWorkspaceService,
+		@IAccessibilitySignalService private readonly accessibilitySignalService: IAccessibilitySignalService,
+	) {
+		super();
+
+		this.container = DOM.append(parent, $('.customization-discovery'));
+		const content = DOM.append(this.container, $('.customization-discovery-content'));
+		const header = this.header = DOM.append(content, $('.customization-discovery-header'));
+		const titleRow = DOM.append(header, $('.customization-discovery-title-row'));
+		const title = DOM.append(titleRow, $('h2.customization-discovery-title'));
+		title.textContent = localize('customizationDiscovery.title', "Discover customizations");
+		this.createAddButton(titleRow);
+		this.titleDescription = DOM.append(header, $('p.customization-discovery-description'));
+		this.updateDescription();
+
+		this.migrationContainer = DOM.append(header, $('.customization-discovery-migration'));
+		this.migrationContainer.hidden = true;
+		const migrationIcon = DOM.append(this.migrationContainer, $('.codicon'));
+		migrationIcon.classList.add(...ThemeIcon.asClassNameArray(Codicon.warning));
+		migrationIcon.setAttribute('aria-hidden', 'true');
+		this.migrationLabel = DOM.append(this.migrationContainer, $('span.customization-discovery-migration-label'));
+		const reviewMigrationsButton = this._register(new Button(this.migrationContainer, { ...defaultButtonStyles, secondary: true, small: true }));
+		reviewMigrationsButton.label = localize('customizationDiscovery.reviewMigrations', "Review");
+		this._register(reviewMigrationsButton.onDidClick(() => this.callbacks.reviewMigrations()));
+
+		const searchContainer = DOM.append(header, $('.customization-discovery-search'));
+		const placeholder = localize('customizationDiscovery.searchPlaceholder', "Search customizations");
+		this.searchWidget = this._register(this.instantiationService.createInstance(
+			SuggestEnabledInput,
+			'aiCustomizationDiscovery.search',
+			searchContainer,
+			{
+				triggerCharacters: ['@', ':'],
+				provideResults: value => [...getCustomizationDiscoveryQuerySuggestions(value)],
+			},
+			localize('customizationDiscovery.searchLabel', "Search customizations"),
+			'aiCustomizationDiscovery:search',
+			{ placeholderText: placeholder },
+		));
+		this._register(this.searchWidget.onInputDidChange(() => this.onQueryChanged()));
+		this.updateSearchAriaLabel();
+		this._register(this.keybindingService.onDidUpdateKeybindings(() => this.updateSearchAriaLabel()));
+
+		const filterContainer = DOM.append(header, $('.customization-discovery-filters'));
+		this.createQuickFilter(filterContainer, 'installed', localize('customizationDiscovery.filterInstalled', "Installed"));
+		this.createQuickFilter(filterContainer, 'mcp', localize('customizationDiscovery.filterMcps', "MCPs"));
+		this.createQuickFilter(filterContainer, 'plugin', localize('customizationDiscovery.filterPlugins', "Plugins"));
+		this.createQuickFilter(filterContainer, 'skill', localize('customizationDiscovery.filterSkills', "Skills"));
+
+		this.browseContent = DOM.append(content, $('.customization-discovery-browse'));
+		this.browseStatus = DOM.append(this.browseContent, $('.customization-discovery-state'));
+		this.browseSections = DOM.append(this.browseContent, $('.customization-discovery-sections'));
+		this.browseScrollable = this._register(new DomScrollableElement(this.browseContent, {
+			horizontal: ScrollbarVisibility.Hidden,
+			vertical: ScrollbarVisibility.Auto,
+			useShadows: true,
+		}));
+		const browseScrollableNode = this.browseScrollable.getDomNode();
+		browseScrollableNode.classList.add('customization-discovery-browse-scrollable');
+		content.appendChild(browseScrollableNode);
+
+		this.resultListContainer = DOM.append(content, $('.customization-discovery-results'));
+		this.resultStatus = DOM.append(this.resultListContainer, $('.customization-discovery-state'));
+		const listContainer = DOM.append(this.resultListContainer, $('.customization-discovery-list'));
+		const renderer = new DiscoveryResultRenderer(
+			this.hoverService,
+			resource => this.getInstallState(resource),
+			resource => this.installErrors.get(getCustomizationMarketplaceResourceKey(resource)),
+			resource => void this.install(resource),
+		);
+		this.resultList = this._register(this.instantiationService.createInstance(
+			WorkbenchList<DiscoveryListEntry>,
+			'AICustomizationDiscoveryResults',
+			listContainer,
+			new DiscoveryListDelegate(),
+			[new DiscoveryHeaderRenderer(), renderer],
+			{
+				identityProvider: {
+					getId: entry => entry.id,
+					getGroupId: entry => entry.kind === 'header' ? NotSelectableGroupId : 0,
+				},
+				accessibilityProvider: {
+					getAriaLabel: entry => this.getEntryAriaLabel(entry),
+					getWidgetAriaLabel: () => localize('customizationDiscovery.resultsLabel', "Customization search results"),
+				},
+				keyboardNavigationLabelProvider: {
+					getKeyboardNavigationLabel: entry => entry.kind === 'header' ? entry.label : entry.kind === 'installed' ? entry.name : entry.resource.displayName,
+				},
+				multipleSelectionSupport: false,
+				openOnSingleClick: true,
+				horizontalScrolling: false,
+			},
+		));
+		this._register(this.resultList.onDidOpen(event => {
+			if (event.element?.kind === 'installed') {
+				this.callbacks.openInstalled?.(event.element.section, event.element.uri);
+			}
+		}));
+		this._register(this.searchWidget.onShouldFocusResults(() => this.resultList.domFocus()));
+		this.loadMoreContainer = DOM.append(this.resultListContainer, $('.customization-discovery-footer'));
+		this.loadMoreButton = this._register(new Button(this.loadMoreContainer, { ...defaultButtonStyles, secondary: true }));
+		this.loadMoreButton.label = localize('customizationDiscovery.loadMore', "Load More");
+		this._register(this.loadMoreButton.onDidClick(() => void this.loadCatalog(true)));
+
+		this._register(autorun(reader => {
+			for (const section of ITEMS_MODEL_SECTIONS) {
+				this.itemsModel.getItems(section).read(reader);
+			}
+			this.pluginService.plugins.read(reader);
+			this.refreshInstalledItems();
+		}));
+		this._register(this.mcpWorkbenchService.onChange(() => this.refreshInstalledItems()));
+		this._register(this.mcpWorkbenchService.onReset(() => this.refreshInstalledItems()));
+		void this.mcpWorkbenchService.whenInitialLocalMcpServersLoaded.then(() => {
+			if (!this._store.isDisposed) {
+				this.refreshInstalledItems();
+			}
+		});
+		this._register(this.installService.onDidChange(() => this.render()));
+		this._register(this.entitlementService.onDidChangeSentiment(() => this.handleAvailabilityChanged()));
+		this._register(this.configurationService.onDidChangeConfiguration(event => {
+			if (event.affectsConfiguration(ChatConfiguration.ChatCustomizationsUnifiedMarketplaceEnabled)) {
+				this.handleAvailabilityChanged();
+			}
+			if (event.affectsConfiguration(AccessibilityVerbositySettingId.CustomizationDiscovery)) {
+				this.updateSearchAriaLabel();
+			}
+		}));
+
+		this.updateQuickFilters();
+		this.render();
+	}
+
+	private createAddButton(parent: HTMLElement): void {
+		const addButton = this._register(new Button(parent, { ...defaultButtonStyles, secondary: true }));
+		addButton.label = localize('customizationDiscovery.add', "Add");
+		addButton.setAriaLabel(localize('customizationDiscovery.addLabel', "Add a customization"));
+		this._register(addButton.onDidClick(() => {
+			const disposables = new DisposableStore();
+			const actions: IAction[] = [];
+			if (this.visibleSectionIds.has(AICustomizationManagementSection.Agents)) {
+				actions.push(disposables.add(new Action('customizationDiscovery.newAgent', localize('customizationDiscovery.newAgent', "New Agent"), undefined, true, () => this.workspaceService.generateCustomization(PromptsType.agent))));
+			}
+			if (this.visibleSectionIds.has(AICustomizationManagementSection.Skills)) {
+				actions.push(disposables.add(new Action('customizationDiscovery.newSkill', localize('customizationDiscovery.newSkill', "New Skill"), undefined, true, () => this.workspaceService.generateCustomization(PromptsType.skill))));
+			}
+			if (this.visibleSectionIds.has(AICustomizationManagementSection.Instructions)) {
+				actions.push(disposables.add(new Action('customizationDiscovery.newInstructions', localize('customizationDiscovery.newInstructions', "New Instructions"), undefined, true, () => this.workspaceService.generateCustomization(PromptsType.instructions))));
+			}
+			if (this.visibleSectionIds.has(AICustomizationManagementSection.Prompts)) {
+				actions.push(disposables.add(new Action('customizationDiscovery.newPrompt', localize('customizationDiscovery.newPrompt', "New Prompt"), undefined, true, () => this.workspaceService.generateCustomization(PromptsType.prompt))));
+			}
+			if (this.visibleSectionIds.has(AICustomizationManagementSection.McpServers)) {
+				actions.push(disposables.add(new Action('customizationDiscovery.addMcp', localize('customizationDiscovery.addMcp', "Add MCP Server"), undefined, true, () => this.callbacks.selectSection(AICustomizationManagementSection.McpServers))));
+			}
+			if (this.visibleSectionIds.has(AICustomizationManagementSection.Plugins)) {
+				actions.push(disposables.add(new Action('customizationDiscovery.addPlugin', localize('customizationDiscovery.addPlugin', "Add Plugin"), undefined, true, () => this.callbacks.selectSectionWithMarketplace(AICustomizationManagementSection.Plugins))));
+			}
+			this.contextMenuService.showContextMenu({
+				getAnchor: () => addButton.element,
+				getActions: () => actions,
+				onHide: () => disposables.dispose(),
+			});
+		}));
+	}
+
+	private createQuickFilter(parent: HTMLElement, filter: 'installed' | CustomizationDiscoveryType, label: string): void {
+		const button = this._register(new Button(parent, { ...defaultButtonStyles, secondary: true, small: true }));
+		button.label = label;
+		button.element.classList.add('customization-discovery-filter');
+		button.element.setAttribute('aria-pressed', 'false');
+		this.quickFilters.set(filter, button);
+		this._register(button.onDidClick(() => {
+			const next = filter === 'installed'
+				? this.query.withInstalled(!this.query.installed)
+				: this.query.withType(filter, !this.query.types.has(filter));
+			this.setQuery(next);
+		}));
+	}
+
+	private updateDescription(): void {
+		this.titleDescription.textContent = localize('customizationDiscovery.description', "Find and manage customizations for {0}. Search installed items or explore skills, MCP servers, and plugins.", this.harnessLabel);
+	}
+
+	private onQueryChanged(): void {
+		const next = CustomizationDiscoveryQuery.parse(this.searchWidget.getValue());
+		if (this.query.equals(next)) {
+			return;
+		}
+		this.query = next;
+		this.catalogPages.clear();
+		this.catalogItems = [];
+		this.loaded = false;
+		this.errorMessage = undefined;
+		this.cancelCatalogRequest();
+		this.resultList.scrollTop = 0;
+		this.lastAnnouncement = undefined;
+		this.updateQuickFilters();
+		this.render();
+		this.searchScheduler.cancel();
+		if (this.shouldQueryCatalog()) {
+			this.searchScheduler.schedule();
+		}
+	}
+
+	private setQuery(query: CustomizationDiscoveryQuery): void {
+		this.query = query;
+		this.catalogPages.clear();
+		this.catalogItems = [];
+		this.loaded = false;
+		this.errorMessage = undefined;
+		this.cancelCatalogRequest();
+		this.searchScheduler.cancel();
+		this.resultList.scrollTop = 0;
+		this.lastAnnouncement = undefined;
+		this.searchWidget.setValue(query.toString());
+		this.updateQuickFilters();
+		this.render();
+		if (this.shouldQueryCatalog()) {
+			this.searchScheduler.schedule(0);
+		}
+		this.searchWidget.focus();
+	}
+
+	private updateQuickFilters(): void {
+		this.updateQuickFilter('installed', this.query.installed);
+		this.updateQuickFilter('skill', this.query.types.has('skill'));
+		this.updateQuickFilter('mcp', this.query.types.has('mcp'));
+		this.updateQuickFilter('plugin', this.query.types.has('plugin'));
+	}
+
+	private updateQuickFilter(filter: 'installed' | CustomizationDiscoveryType, pressed: boolean): void {
+		const button = this.quickFilters.get(filter);
+		if (button) {
+			button.secondary = !pressed;
+		}
+		button?.element.classList.toggle('checked', pressed);
+		button?.element.setAttribute('aria-pressed', String(pressed));
+	}
+
+	private handleAvailabilityChanged(): void {
+		if (!this.isCatalogEnabled()) {
+			this.cancelCatalogRequest();
+			this.catalogPages.clear();
+			this.catalogItems = [];
+			this.loaded = false;
+			this.errorMessage = undefined;
+			this.render();
+		} else if (this.visible) {
+			void this.loadCatalog(false);
+		}
+	}
+
+	private refreshInstalledItems(): void {
+		const items: IInstalledDiscoveryItem[] = [];
+		for (const section of ITEMS_MODEL_SECTIONS) {
+			if (!this.visibleSectionIds.has(section)) {
+				continue;
+			}
+			for (const item of this.itemsModel.getItems(section).get()) {
+				const type = getSectionType(section);
+				items.push({
+					kind: 'installed',
+					id: `installed:${section}:${item.id}`,
+					name: item.displayName ?? item.name,
+					description: item.description ?? item.filename,
+					detail: getSourceLabel(item),
+					type,
+					section,
+					uri: item.uri,
+					disabled: item.disabled,
+					catalogKeys: type === 'skill' ? [`skill:name:${normalizedName(item.displayName ?? item.name)}`] : [],
+				});
+			}
+		}
+
+		if (this.visibleSectionIds.has(AICustomizationManagementSection.Plugins)) {
+			for (const plugin of this.pluginService.plugins.get()) {
+				const name = plugin.label || basename(plugin.uri);
+				const source = plugin.fromMarketplace;
+				const keys = [`plugin:name:${normalizedName(name)}`];
+				const descriptor = source?.sourceDescriptor;
+				if (descriptor?.kind === 'github') {
+					keys.push(`plugin:source:${normalizedName(descriptor.repo)}:${normalizedName(descriptor.path ?? '')}`);
+				}
+				items.push({
+					kind: 'installed',
+					id: `installed:plugin:${plugin.uri.toString()}`,
+					name,
+					description: source?.description ?? localize('customizationDiscovery.installedPluginDescription', "Installed agent plugin"),
+					detail: source?.marketplace ?? localize('customizationDiscovery.pluginSource', "Plugin"),
+					type: 'plugin',
+					section: AICustomizationManagementSection.Plugins,
+					uri: plugin.uri,
+					catalogKeys: keys,
+				});
+			}
+		}
+
+		if (this.visibleSectionIds.has(AICustomizationManagementSection.McpServers)) {
+			for (const server of this.mcpWorkbenchService.local) {
+				if (server.installState !== McpServerInstallState.Installed || !server.local) {
+					continue;
+				}
+				items.push({
+					kind: 'installed',
+					id: `installed:mcp:${server.id}`,
+					name: server.label,
+					description: server.description,
+					detail: server.local.scope === 'workspace'
+						? localize('customizationDiscovery.workspace', "Workspace")
+						: localize('customizationDiscovery.user', "User"),
+					type: 'mcp',
+					section: AICustomizationManagementSection.McpServers,
+					catalogKeys: [`mcp:name:${normalizedName(server.name)}`, `mcp:name:${normalizedName(server.label)}`],
+				});
+			}
+		}
+
+		this.installedItems = items;
+		void this.refreshProviderPlugins();
+		this.render();
+	}
+
+	private async refreshProviderPlugins(): Promise<void> {
+		const sequence = ++this.providerPluginSequence;
+		if (!this.visibleSectionIds.has(AICustomizationManagementSection.Plugins)) {
+			this.providerPlugins = [];
+			return;
+		}
+		try {
+			const provided = await this.itemsModel.getActiveItemSource().fetchProviderItems();
+			if (sequence !== this.providerPluginSequence || this._store.isDisposed) {
+				return;
+			}
+			this.providerPlugins = provided.filter(isPluginCustomizationItem).map(item => ({
+				kind: 'installed',
+				id: `installed:provider-plugin:${item.uri.toString()}`,
+				name: item.name,
+				description: item.description ?? localize('customizationDiscovery.installedPluginDescription', "Installed agent plugin"),
+				detail: item.badge ?? localize('customizationDiscovery.pluginSource', "Plugin"),
+				type: 'plugin',
+				section: AICustomizationManagementSection.Plugins,
+				uri: item.uri,
+				disabled: item.enabled === false,
+				catalogKeys: [`plugin:name:${normalizedName(item.name)}`],
+			}));
+			this.render();
+		} catch (error) {
+			if (sequence === this.providerPluginSequence && !isCancellationError(error)) {
+				this.notificationService.error(localize('customizationDiscovery.providerPluginsError', "Could not load installed plugins. {0}", getErrorMessage(error)));
+			}
+		}
+	}
+
+	private getFilteredInstalledItems(): readonly IInstalledDiscoveryItem[] {
+		const text = normalizedName(this.query.text);
+		const items = [...this.installedItems, ...this.providerPlugins];
+		return items
+			.filter(item => this.matchesType(item.type))
+			.filter(item => !text || [item.name, item.description, item.detail, getTypeLabel(item.type)].some(value => normalizedName(value).includes(text)))
+			.filter((item, index, allItems) => {
+				if (item.catalogKeys.length === 0) {
+					return true;
+				}
+				return allItems.findIndex(candidate => candidate.catalogKeys.some(key => item.catalogKeys.includes(key))) === index;
+			})
+			.sort((a, b) => a.name.localeCompare(b.name));
+	}
+
+	private matchesType(type: DiscoveryItemType): boolean {
+		if (this.query.types.size === 0) {
+			return true;
+		}
+		return type === 'skill' && this.query.types.has('skill')
+			|| type === 'mcp' && this.query.types.has('mcp')
+			|| type === 'plugin' && this.query.types.has('plugin');
+	}
+
+	private shouldQueryCatalog(): boolean {
+		return this.visible && this.isCatalogEnabled() && !this.query.installed;
+	}
+
+	private isCatalogEnabled(): boolean {
+		return this.configurationService.getValue<boolean>(ChatConfiguration.ChatCustomizationsUnifiedMarketplaceEnabled) === true && !this.entitlementService.sentiment.hidden;
+	}
+
+	private cancelCatalogRequest(): void {
+		this.request.value?.cancel();
+		this.request.clear();
+		this.loading = false;
+	}
+
+	private async loadCatalog(append: boolean): Promise<void> {
+		if (!this.shouldQueryCatalog()) {
+			return;
+		}
+		const sequence = ++this.requestSequence;
+		const request = new CancellationTokenSource();
+		this.request.value = request;
+		this.loading = true;
+		this.errorMessage = undefined;
+		this.lastAnnouncement = undefined;
+		if (!append) {
+			this.catalogPages.clear();
+		}
+		this.render();
+
+		const mediaTypes = getCatalogMediaTypes(this.query.types);
+		try {
+			const pages = await Promise.all(mediaTypes.map(async mediaType => {
+				const key = getMediaTypeKey(mediaType);
+				const previous = this.catalogPages.get(key);
+				if (append && !previous?.nextCursor) {
+					return [key, previous] as const;
+				}
+				const page = await this.marketplaceService.query({
+					query: this.query.text || undefined,
+					mediaType,
+					pageSize: catalogPageSize,
+					cursor: append ? previous?.nextCursor : undefined,
+				}, request.token);
+				return [key, {
+					items: append ? [...(previous?.items ?? []), ...page.items] : page.items,
+					nextCursor: page.nextCursor,
+				}] as const;
+			}));
+			if (sequence !== this.requestSequence || request.token.isCancellationRequested) {
+				return;
+			}
+			for (const [key, page] of pages) {
+				if (page) {
+					this.catalogPages.set(key, page);
+				}
+			}
+			const seen = new Set<string>();
+			this.catalogItems = [...this.catalogPages.values()].flatMap(page => page.items).filter(item => {
+				const key = getCustomizationMarketplaceResourceKey(item);
+				if (seen.has(key)) {
+					return false;
+				}
+				seen.add(key);
+				return true;
+			});
+			this.loaded = true;
+			this.loading = false;
+			this.render();
+		} catch (error) {
+			if (sequence !== this.requestSequence || isCancellationError(error)) {
+				return;
+			}
+			this.loading = false;
+			this.loaded = true;
+			this.errorMessage = getErrorMessage(error);
+			this.render();
+		} finally {
+			if (this.request.value === request) {
+				this.request.clear();
+			}
+		}
+	}
+
+	private render(): void {
+		const searchMode = !this.query.isEmpty();
+		this.browseScrollable.getDomNode().hidden = searchMode;
+		this.resultListContainer.hidden = !searchMode;
+		if (searchMode) {
+			this.renderSearchResults();
+		} else {
+			this.renderBrowse();
+		}
+		this.layout(this.lastDimension);
+	}
+
+	private renderSearchResults(): void {
+		const installed = this.getFilteredInstalledItems();
+		const installedKeys = new Set(installed.flatMap(item => item.catalogKeys));
+		const installedCatalog: IInstalledDiscoveryItem[] = [];
+		const available: ICatalogDiscoveryItem[] = [];
+		for (const resource of this.catalogItems) {
+			const type = getCatalogType(resource);
+			if (!type || !this.matchesType(type)) {
+				continue;
+			}
+			const keys = getCatalogKeys(resource);
+			if (keys.some(key => installedKeys.has(key))) {
+				continue;
+			}
+			const state = this.getInstallState(resource);
+			if (state.kind === 'installed') {
+				installedCatalog.push({
+					kind: 'installed',
+					id: `installed:catalog:${getCustomizationMarketplaceResourceKey(resource)}`,
+					name: resource.displayName,
+					description: resource.description,
+					detail: resource.publisher ?? localize('customizationDiscovery.catalog', "Catalog"),
+					type,
+					section: getSectionForCatalogType(type),
+					catalogKeys: keys,
+					catalogResource: resource,
+				});
+				for (const key of keys) {
+					installedKeys.add(key);
+				}
+			} else {
+				available.push({ kind: 'available', id: `available:${getCustomizationMarketplaceResourceKey(resource)}`, resource });
+			}
+		}
+
+		const entries: DiscoveryListEntry[] = [];
+		const allInstalled = [...installed, ...installedCatalog];
+		if (allInstalled.length) {
+			entries.push({ kind: 'header', id: 'header:installed', label: localize('customizationDiscovery.installedGroup', "Installed"), count: allInstalled.length }, ...allInstalled);
+		}
+		if (!this.query.installed && available.length) {
+			entries.push({ kind: 'header', id: 'header:available', label: localize('customizationDiscovery.availableGroup', "Available"), count: available.length }, ...available);
+		}
+		this.resultList.splice(0, this.resultList.length, entries);
+
+		const installError = this.installErrors.values().next().value;
+		const catalogPending = this.loading || (!this.loaded && this.shouldQueryCatalog());
+		if (installError) {
+			this.resultStatus.textContent = installError;
+		} else if (catalogPending && entries.length === 0) {
+			this.resultStatus.textContent = localize('customizationDiscovery.loading', "Loading customizations...");
+		} else if (this.errorMessage) {
+			const message = localize('customizationDiscovery.error', "Could not load available customizations. {0}", this.errorMessage);
+			this.resultStatus.textContent = message;
+			this.announce(message);
+		} else if (entries.length === 0) {
+			this.resultStatus.textContent = localize('customizationDiscovery.noResults', "No customizations match this search.");
+		} else {
+			this.resultStatus.textContent = catalogPending
+				? localize('customizationDiscovery.loadingMore', "Loading more customizations...")
+				: '';
+		}
+		this.loadMoreContainer.hidden = catalogPending || this.query.installed || ![...this.catalogPages.values()].some(page => page.nextCursor);
+		if (!catalogPending && !this.errorMessage) {
+			this.announce(localize('customizationDiscovery.resultCount', "{0} installed and {1} available customizations found.", allInstalled.length, this.query.installed ? 0 : available.length));
+		}
+	}
+
+	private renderBrowse(): void {
+		this.browseDisposables.clear();
+		DOM.clearNode(this.browseSections);
+		if (!this.isCatalogEnabled()) {
+			this.browseStatus.textContent = localize('customizationDiscovery.catalogDisabled', "Search your installed customizations, or enable the customization marketplace to explore available items.");
+			return;
+		}
+		if (this.loading && this.catalogItems.length === 0) {
+			this.browseStatus.textContent = localize('customizationDiscovery.loading', "Loading customizations...");
+			return;
+		}
+		if (this.errorMessage && this.catalogItems.length === 0) {
+			const message = localize('customizationDiscovery.error', "Could not load available customizations. {0}", this.errorMessage);
+			this.browseStatus.textContent = message;
+			this.announce(message);
+			const retry = this.browseDisposables.add(new Button(this.browseStatus, { ...defaultButtonStyles, secondary: true, small: true }));
+			retry.label = localize('customizationDiscovery.retry', "Retry");
+			this.browseDisposables.add(retry.onDidClick(() => void this.loadCatalog(false)));
+			return;
+		}
+		this.browseStatus.textContent = '';
+		const leading = this.catalogItems.slice(0, leadingBrowseItemCount);
+		const leadingIds = new Set(leading.map(getCustomizationMarketplaceResourceKey));
+		if (leading.length) {
+			this.renderBrowseSection(
+				localize('customizationDiscovery.leadingSection', "Expand your agent's horizons"),
+				leading,
+				undefined,
+				true,
+			);
+		}
+		const groups: readonly { readonly type: CustomizationDiscoveryType; readonly label: string }[] = [
+			{ type: 'skill', label: localize('customizationDiscovery.skillsSection', "Skills") },
+			{ type: 'mcp', label: localize('customizationDiscovery.mcpsSection', "MCP servers") },
+			{ type: 'plugin', label: localize('customizationDiscovery.pluginsSection', "Plugins") },
+		];
+		for (const group of groups) {
+			const items = this.catalogItems.filter(item => getCatalogType(item) === group.type && !leadingIds.has(getCustomizationMarketplaceResourceKey(item))).slice(0, leadingBrowseItemCount);
+			if (items.length) {
+				this.renderBrowseSection(group.label, items, group.type, false);
+			}
+		}
+		if (!this.catalogItems.length && this.loaded) {
+			this.browseStatus.textContent = localize('customizationDiscovery.emptyCatalog', "No catalog customizations are available.");
+		} else {
+			this.browseStatus.textContent = this.installErrors.values().next().value ?? '';
+		}
+	}
+
+	private renderBrowseSection(label: string, items: readonly ICustomizationMarketplaceResource[], type: CustomizationDiscoveryType | undefined, elevated: boolean): void {
+		const section = DOM.append(this.browseSections, $('.customization-discovery-section'));
+		section.classList.toggle('featured', elevated);
+		DOM.append(section, $('h3.customization-discovery-section-title')).textContent = label;
+		const grid = DOM.append(section, $('.customization-discovery-grid'));
+		for (const item of items) {
+			this.renderBrowseCard(grid, item);
+		}
+		if (type) {
+			const showAll = DOM.append(section, $('button.customization-discovery-show-all')) as HTMLButtonElement;
+			showAll.type = 'button';
+			showAll.textContent = localize('customizationDiscovery.showAll', "Show All");
+			this.browseDisposables.add(DOM.addDisposableListener(showAll, DOM.EventType.CLICK, () => this.setQuery(this.query.withType(type, true))));
+		}
+	}
+
+	private renderBrowseCard(parent: HTMLElement, item: ICustomizationMarketplaceResource): void {
+		const card = DOM.append(parent, $('.customization-discovery-card'));
+		const icon = DOM.append(card, $('.customization-discovery-card-icon'));
+		const type = getCatalogType(item);
+		const fallback = DOM.append(icon, $('.codicon'));
+		fallback.classList.add(...ThemeIcon.asClassNameArray(type === 'mcp' ? Codicon.server : type === 'plugin' ? Codicon.extensions : Codicon.lightbulb));
+		fallback.setAttribute('aria-hidden', 'true');
+		if (item.icon) {
+			const image = DOM.append(icon, $('img')) as HTMLImageElement;
+			image.alt = '';
+			image.loading = 'lazy';
+			image.referrerPolicy = 'no-referrer';
+			image.src = item.icon.toString(true);
+			this.browseDisposables.add(DOM.addDisposableListener(image, DOM.EventType.LOAD, () => fallback.hidden = true));
+			this.browseDisposables.add(DOM.addDisposableListener(image, DOM.EventType.ERROR, () => image.remove()));
+		}
+		const body = DOM.append(card, $('.customization-discovery-card-body'));
+		const name = DOM.append(body, $('.customization-discovery-card-name'));
+		name.textContent = item.displayName;
+		const description = DOM.append(body, $('.customization-discovery-card-description'));
+		description.textContent = item.description;
+		const metadata = DOM.append(body, $('.customization-discovery-card-metadata'));
+		metadata.textContent = [
+			item.publisher,
+			type ? getTypeLabel(type) : undefined,
+			item.stars === undefined ? undefined : localize('customizationDiscovery.stars', "{0} stars", item.stars.toLocaleString()),
+		].filter(Boolean).join(' · ');
+		this.browseDisposables.add(this.hoverService.setupDelayedHover(name, { content: item.displayName }));
+		this.browseDisposables.add(this.hoverService.setupDelayedHover(description, { content: item.description }));
+		const actions = DOM.append(card, $('.customization-discovery-card-actions'));
+		const state = this.getInstallState(item);
+		const installError = this.installErrors.get(getCustomizationMarketplaceResourceKey(item));
+		const install = this.browseDisposables.add(new Button(actions, { ...defaultButtonStyles, secondary: true, small: true }));
+		install.label = state.kind === 'installed'
+			? localize('customizationDiscovery.installed', "Installed")
+			: state.kind === 'installing'
+				? localize('customizationDiscovery.installing', "Installing...")
+				: installError
+					? localize('customizationDiscovery.retryInstall', "Retry Install")
+					: localize('customizationDiscovery.install', "Install");
+		install.enabled = state.kind === 'available';
+		install.setAriaLabel(state.kind === 'unavailable'
+			? localize('customizationDiscovery.installUnavailable', "Install {0}. {1}", item.displayName, state.message)
+			: localize('customizationDiscovery.installLabel', "{0} {1}", install.label, item.displayName));
+		install.element.setAttribute('aria-busy', String(state.kind === 'installing'));
+		this.browseDisposables.add(install.onDidClick(() => void this.install(item)));
+		if (state.kind === 'unavailable' || installError) {
+			this.browseDisposables.add(this.hoverService.setupDelayedHover(install.element, { content: state.kind === 'unavailable' ? state.message : installError! }));
+		}
+		const resource = item.externalUrl ?? item.url;
+		if (resource) {
+			const link = DOM.append(actions, $('a.customization-discovery-card-link')) as HTMLAnchorElement;
+			link.textContent = localize('customizationDiscovery.openResource', "Open");
+			link.href = typeof resource === 'string' ? resource : resource.toString(true);
+			link.rel = 'noopener noreferrer';
+			this.browseDisposables.add(DOM.addDisposableListener(link, DOM.EventType.CLICK, event => {
+				event.preventDefault();
+				void this.openExternal(resource);
+			}));
+		}
+	}
+
+	private async install(resource: ICustomizationMarketplaceResource): Promise<void> {
+		const resourceKey = getCustomizationMarketplaceResourceKey(resource);
+		if (this.pendingInstalls.has(resourceKey) || this.installService.getInstallState(resource).kind !== 'available') {
+			return;
+		}
+		this.pendingInstalls.add(resourceKey);
+		this.installErrors.delete(resourceKey);
+		status(localize('customizationDiscovery.installStarted', "Installing {0}.", resource.displayName));
+		this.render();
+		try {
+			await this.installService.install(resource);
+			if (this.installService.getInstallState(resource).kind === 'installed') {
+				status(localize('customizationDiscovery.installComplete', "Installed {0}.", resource.displayName));
+			}
+		} catch (error) {
+			if (isCancellationError(error)) {
+				status(localize('customizationDiscovery.installCancelled', "Installation cancelled for {0}.", resource.displayName));
+			} else {
+				const message = localize('customizationDiscovery.installFailed', "Could not install {0}. {1}", resource.displayName, getErrorMessage(error));
+				this.installErrors.set(resourceKey, message);
+				if (this.visible) {
+					alert(message);
+					void this.accessibilitySignalService.playSignal(AccessibilitySignal.taskFailed, { modality: 'sound' }).catch(onUnexpectedError);
+				} else {
+					this.notificationService.error(message);
+				}
+			}
+		} finally {
+			this.pendingInstalls.delete(resourceKey);
+			this.refreshInstalledItems();
+			this.render();
+		}
+	}
+
+	private getInstallState(resource: ICustomizationMarketplaceResource): CustomizationMarketplaceInstallState {
+		const state = this.installService.getInstallState(resource);
+		return this.pendingInstalls.has(getCustomizationMarketplaceResourceKey(resource)) && state.kind === 'available' ? { kind: 'installing' } : state;
+	}
+
+	private async openExternal(resource: URI | string): Promise<void> {
+		try {
+			await this.openerService.open(resource, { openExternal: true, allowCommands: false, allowContributedOpeners: false });
+		} catch (error) {
+			this.notificationService.error(localize('customizationDiscovery.openError', "Could not open the customization resource. {0}", getErrorMessage(error)));
+		}
+	}
+
+	private updateSearchAriaLabel(): void {
+		const keybinding = this.keybindingService.lookupKeybinding('editor.action.accessibilityHelp')?.getAriaLabel();
+		const label = this.configurationService.getValue<boolean>(AccessibilityVerbositySettingId.CustomizationDiscovery) && keybinding
+			? localize('customizationDiscovery.searchWithHelp', "Search customizations. Use {0} for accessibility help.", keybinding)
+			: localize('customizationDiscovery.searchLabel', "Search customizations");
+		this.searchWidget.updateAriaLabel(label);
+	}
+
+	private announce(message: string): void {
+		if (this.visible && message !== this.lastAnnouncement) {
+			this.lastAnnouncement = message;
+			status(message);
+		}
+	}
+
+	private getEntryAriaLabel(entry: DiscoveryListEntry): string {
+		if (entry.kind === 'header') {
+			return localize('customizationDiscovery.groupAriaLabel', "{0}, {1} items", entry.label, entry.count);
+		}
+		if (entry.kind === 'installed') {
+			return localize('customizationDiscovery.installedAriaLabel', "{0}, {1}, {2}, installed{3}. {4}", entry.name, getTypeLabel(entry.type), entry.detail, entry.disabled ? localize('customizationDiscovery.disabledSuffix', " · Disabled") : '', entry.description);
+		}
+		const type = getCatalogType(entry.resource);
+		const state = this.getInstallState(entry.resource);
+		return localize('customizationDiscovery.availableAriaLabel', "{0}, {1}, {2}. {3}. {4}", entry.resource.displayName, type ? getTypeLabel(type) : entry.resource.mediaType, entry.resource.publisher ?? '', entry.resource.description, state.kind);
+	}
+
+	rebuildCards(visibleSectionIds: ReadonlySet<AICustomizationManagementSection>): void {
+		this.visibleSectionIds = new Set(visibleSectionIds);
+		this.refreshInstalledItems();
+	}
+
+	setHarnessLabel(label: string): void {
+		this.harnessLabel = label;
+		this.updateDescription();
+		this.refreshInstalledItems();
+	}
+
+	setMigrationCategories(categories: readonly ICustomizationMigrationCategorySummary[]): void {
+		const count = categories.reduce((sum, category) => sum + category.count, 0);
+		this.migrationContainer.hidden = count === 0;
+		this.migrationLabel.textContent = count === 1
+			? localize('customizationDiscovery.oneMigration', "1 customization needs migration.")
+			: localize('customizationDiscovery.migrations', "{0} customizations need migration.", count);
+		this.layout(this.lastDimension);
+	}
+
+	setVisible(visible: boolean): void {
+		if (this.visible === visible) {
+			return;
+		}
+		this.visible = visible;
+		if (!visible) {
+			this.cancelCatalogRequest();
+			return;
+		}
+		if (this.shouldQueryCatalog() && !this.loaded) {
+			void this.loadCatalog(false);
+		}
+		if (this.lastDimension) {
+			DOM.getWindow(this.container).requestAnimationFrame(() => this.layout(this.lastDimension));
+		}
+	}
+
+	focus(): void {
+		this.searchWidget.focus();
+	}
+
+	reset(): void {
+		this.focus();
+	}
+
+	setSearchQuery(value: string): void {
+		this.setQuery(CustomizationDiscoveryQuery.parse(value));
+	}
+
+	layout(dimension: DOM.Dimension | undefined): void {
+		if (dimension) {
+			this.lastDimension = dimension;
+		}
+		if (!this.lastDimension || this.container.offsetParent === null) {
+			return;
+		}
+		const width = this.container.clientWidth || this.lastDimension.width;
+		const height = this.container.clientHeight || this.lastDimension.height;
+		this.container.classList.toggle('narrow', width < 640);
+		const searchContainer = this.searchWidget.element;
+		this.searchWidget.layout(new DOM.Dimension(Math.max(0, searchContainer.clientWidth), 30));
+		const availableHeight = Math.max(0, height - this.header.offsetHeight);
+		this.resultListContainer.style.height = `${availableHeight}px`;
+		const statusHeight = this.resultStatus.offsetHeight;
+		const footerHeight = this.loadMoreContainer.hidden ? 0 : this.loadMoreContainer.offsetHeight;
+		this.resultList.layout(Math.max(0, availableHeight - statusHeight - footerHeight), width);
+		this.browseScrollable.scanDomNode();
+	}
+
+	getAccessibilityContent(): string {
+		const installed = this.getFilteredInstalledItems();
+		const available = this.catalogItems.filter(item => this.getInstallState(item).kind !== 'installed');
+		return [
+			localize('customizationDiscovery.title', "Discover customizations"),
+			this.query.isEmpty()
+				? localize('customizationDiscovery.accessibleBrowse', "Browse mode.")
+				: localize('customizationDiscovery.accessibleSearch', "Search: {0}", this.query.toString()),
+			this.loading ? localize('customizationDiscovery.loading', "Loading customizations...") : undefined,
+			this.errorMessage,
+			installed.length ? localize('customizationDiscovery.installedGroup', "Installed") : undefined,
+			...installed.map(item => `${item.name}\n${getTypeLabel(item.type)} · ${item.detail}\n${item.description}`),
+			available.length ? localize('customizationDiscovery.availableGroup', "Available") : undefined,
+			...available.map(item => `${item.displayName}\n${getTypeLabel(getCatalogType(item) ?? 'plugin')}${item.publisher ? ` · ${item.publisher}` : ''}\n${item.description}`),
+		].filter(Boolean).join('\n\n');
+	}
+
+	override dispose(): void {
+		this.cancelCatalogRequest();
+		super.dispose();
+	}
+}

@@ -8,7 +8,7 @@ The following test plan outlines the scenarios and specifications for the AI Cus
 
 ## SCENARIOS
 
-### Unified marketplace discovery
+### Customization discovery
 
 #### Preconditions
 
@@ -18,26 +18,25 @@ The following test plan outlines the scenarios and specifications for the AI Cus
 
 #### Actions and Expected Results
 
-1. Open another customization section. No marketplace requests are made until its tab is selected.
-2. Select **Marketplace**. Browse resources without signing in or starting a chat session. Navigation, headings, search labels, accessibility help, and errors use marketplace terminology rather than the backend's name.
-   While requests are pending, decorative shimmer cards indicate loading instead of visible loading text. Reduced motion and high contrast use static placeholders; screen readers still receive a loading announcement and Accessible View status.
-3. Check that cards show resource types, descriptions, publisher information when available, tags, and available version/star metadata. Repository owner images have a fallback icon when absent or unavailable.
-4. Search for a generic topic such as `postgres`, then change the resource type. Only the latest search is displayed, even if an earlier request finishes later.
+1. Open Discover. Browse available resources without signing in or starting a chat session.
+2. Check that the leading section and data-backed Skills, MCP servers, and Plugins sections show names, descriptions, publisher information, resource types, and available star metadata. Repository owner images have a fallback icon when absent or unavailable.
+3. Search for a generic topic such as `postgres`, then combine the Installed, MCPs, Plugins, and Skills quick filters. Typed `@installed` and `@type:` tokens must stay synchronized with the filters.
+4. Verify that search replaces browse cards with one virtualized list grouped into Installed and Available. Only the latest search is displayed, even if an earlier request finishes later.
 5. Choose **Load More**. Existing cards remain visible with placeholders for the next page, then results append without duplicates. Change the query or type and verify pagination resets.
 6. Interrupt a request, change tabs, or close the editor. Hidden/disposed sections cancel their requests. Returning to the tab can load again.
 7. Simulate offline, rate-limited, malformed, and oversized-metadata responses. An explicit error and **Retry** appear; failed pagination preserves previously loaded cards. Metadata lists must not exceed 32 entries or 512 characters per entry; scalar card text must not exceed 4,096 characters. URLs and pagination tokens retain their separate limits.
-8. Use Tab, Shift+Tab, arrow keys on cards, and Enter/Space on **Details**. Open Accessibility Help and Accessible View, verify that tags, capabilities, example queries, resource links, and repository links have distinct labels, then close the view and verify focus returns.
+8. Use Tab and Shift+Tab on controls, arrow keys in results, and Enter to open an installed item. Open Accessibility Help and Accessible View, verify that groups, install actions, resource links, and filters have distinct labels, then close the view and verify focus returns.
 9. Open a resource or repository. It opens externally; browsing alone never installs or enables anything. Switch harnesses and confirm the tab remains usable.
-10. Disable AI features. The marketplace content is hidden and does not make catalog or image requests. Unrelated setup or entitlement changes must preserve the search, loaded pages, and scroll position.
+10. Disable AI features. Discover is hidden and does not make catalog or image requests. Unrelated setup or entitlement changes must preserve the search, loaded pages, and scroll position.
 11. Check narrow editor widths, dark/light themes, and high-contrast focus/borders. Move the editor to an auxiliary window and verify layout responds to resizing there.
 12. Install a skill into a selected workspace or user location. Confirm the source, revision, and destination; verify that `SKILL.md` and supporting files are preserved, repository `.git` data is not copied, and an existing destination is never overwritten.
 13. Cancel the destination/source confirmation or progress notification, or change the active session during a skill import. No incomplete skill should appear in its destination.
 14. Install a Copilot or Claude plugin from a catalog subdirectory. The existing trust and managed-marketplace restrictions must apply, and only that plugin should be installed.
 15. Install an MCP server. It must be resolved against the configured registry and use the normal MCP installation flow, not executable configuration supplied by the catalog.
 16. Check that installation errors allow retry without losing search results, cancellations do not announce success, and unsupported formats such as Cursor plugins explain why installation is unavailable.
-17. With `chat.customizations.unifiedMarketplace.enabled` unset or false, verify there is no Marketplace sidebar or overview entry, no marketplace widget, and no catalog or installation work. A persisted or programmatic Marketplace selection must not bypass the gate. The former `chat.agentFinder.enabled` setting does not enable the marketplace.
-18. Enable the experiment and select Marketplace, then disable it during a query or skill import. The editor must return to the overview, requests/imports must be cancelled, and the widget must be disposed. Re-enabling must not revive a cancelled operation or reuse stale installed-skill state.
-19. With an additional test source, return overlapping identifiers, multiple versions, and different continuation tokens. All distinct source/identifier/version entries remain visible, each continuation goes only to its owning source, exhausted sources stop querying, and installation state/actions do not collide. No additional production source is enabled by this experiment.
+17. With `chat.customizations.unifiedMarketplace.enabled` unset or false, verify Discover still searches installed customizations but performs no catalog or installation work.
+18. Enable the experiment, start a query or skill import, then disable it. Catalog requests/imports must be cancelled while installed Discover results remain available. Re-enabling must not revive a cancelled operation or reuse stale installed-skill state.
+19. With an additional test source, return overlapping identifiers, multiple versions, and different continuation tokens. All distinct source/identifier/version entries remain visible, each continuation goes only to its owning source, exhausted sources stop querying, and installation state/actions do not collide.
 
 ### Scenario 1: Empty state — no session, no customizations
 
@@ -63,7 +62,7 @@ This tests the baseline empty state before any session or workspace is active. T
 #### Expected Results
 
 - All sidebar counts are hidden (no badges visible)
-- Installed-customization sections show an empty state with a "No X yet" message. Marketplace can browse its sources independently of the active workspace.
+- Installed-customization sections show an empty state with a "No X yet" message. Discover can browse the available catalog independently of the active workspace.
 - Create button for **user** customizations is visible but disabled until a workspace folder or repository is selected (Hooks should also show a disabled button, since there is no 'user' scoped hooks)
 
 #### Notes

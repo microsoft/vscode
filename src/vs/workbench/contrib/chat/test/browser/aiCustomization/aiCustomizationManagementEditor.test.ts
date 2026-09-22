@@ -410,6 +410,7 @@ suite('aiCustomizationManagementEditor', () => {
 			welcomePage: {
 				container: $('div'),
 				rebuildCards(ids: ReadonlySet<AICustomizationManagementSection>) { overview = [...ids]; },
+				setVisible() { },
 			},
 			showWelcomePage() { editor.selectedSection = undefined; },
 		});
