@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IObservable } from '../../../../../base/common/observable.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { stableStringify } from '../../../../../base/common/objects.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ChatPermissionLevel } from '../constants.js';
@@ -183,8 +184,8 @@ export interface IAutomationStore {
 	/** Deletes an automation and its retained run history; missing IDs are ignored. */
 	deleteAutomation(id: string, mutationGuard?: AutomationMutationGuard): Promise<void>;
 
-	/** Requests a manual run; only the host may claim, dispatch, or update its lifecycle. */
-	runAutomation(automationId: string): Promise<IAutomationRunRequestResult>;
+	/** Requests a manual run, forwarding supported cancellation after admission even while session creation is pending. */
+	runAutomation(automationId: string, token?: CancellationToken): Promise<IAutomationRunRequestResult>;
 
 	/** Most recent `pending`/`running` run for an automation, or `undefined`. */
 	getActiveRunFor(automationId: string): IAutomationRun | undefined;

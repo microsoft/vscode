@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { autorun, derived, disposableObservableValue, observableSignalFromEvent, observableValue, transaction, type IObservable } from '../../../../../base/common/observable.js';
 import { localize } from '../../../../../nls.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -142,8 +143,8 @@ export class ReconnectableAgentHostAutomationStore extends Disposable implements
 		return this.requireStore().deleteAutomation(id, mutationGuard);
 	}
 
-	runAutomation(automationId: string): Promise<IAutomationRunRequestResult> {
-		return this.requireStore().runAutomation(automationId);
+	runAutomation(automationId: string, token?: CancellationToken): Promise<IAutomationRunRequestResult> {
+		return this.requireStore().runAutomation(automationId, token);
 	}
 
 	getActiveRunFor(automationId: string): IAutomationRun | undefined {

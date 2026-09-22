@@ -5,6 +5,7 @@
 
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { isCancellationError } from '../../../../base/common/errors.js';
 import { localize } from '../../../../nls.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
@@ -50,7 +51,7 @@ export class AutomationRunner implements IAutomationRunner {
 			if (!this.automationService.canRunAutomation(automation.id)) {
 				throw new AutomationUnavailableError(localize('automationRunUnavailable', "The automation's Agent Host is not ready to run it."));
 			}
-			const result = await this.automationService.runAutomation(automation.id);
+			const result = await this.automationService.runAutomation(automation.id, token);
 			if (result.kind === 'alreadyRunning') {
 				await dispatched.complete({ kind: 'alreadyRunning', activeRun: result.run });
 				return;
@@ -71,6 +72,8 @@ export class AutomationRunner implements IAutomationRunner {
 			try {
 				if (result.run.sessionResource) {
 					await dispatched.complete({ kind: 'started', run: result.run, sessionResource: result.run.sessionResource });
+				} else if (token.isCancellationRequested) {
+					await dispatched.complete({ kind: 'notStarted', reason: 'cancelled', run: result.run });
 				} else {
 					this.notificationService.error(localize('automationDispatchFailed', "Automation '{0}' did not start a session: {1}", automation.name, result.run.errorMessage ?? localize('automationDispatchNoSession', "The Agent Host ended the run without a session.")));
 					await dispatched.complete({ kind: 'notStarted', reason: 'error', run: result.run });
@@ -83,6 +86,10 @@ export class AutomationRunner implements IAutomationRunner {
 				cancellationListener?.dispose();
 			}
 		} catch (error) {
+			if (token.isCancellationRequested && isCancellationError(error)) {
+				await dispatched.complete({ kind: 'notStarted', reason: 'cancelled' });
+				return;
+			}
 			this.logService.error(`[AutomationRunner] Host run request for ${automation.id} failed`, error);
 			this.notificationService.error(localize('automationRunFailed', "Automation '{0}' failed: {1}", automation.name, error instanceof Error ? error.message : String(error)));
 			await dispatched.complete({ kind: 'notStarted', reason: error instanceof AutomationUnavailableError ? 'targetUnavailable' : 'error' });

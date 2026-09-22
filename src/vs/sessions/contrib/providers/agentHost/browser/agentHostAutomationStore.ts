@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { disposableTimeout } from '../../../../../base/common/async.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../../base/common/errors.js';
 import { Event } from '../../../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore, toDisposable, type IReference } from '../../../../../base/common/lifecycle.js';
@@ -193,7 +194,10 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 		this._runsForCache.delete(id);
 	}
 
-	async runAutomation(automationId: string): Promise<IAutomationRunRequestResult> {
+	async runAutomation(automationId: string, token: CancellationToken = CancellationToken.None): Promise<IAutomationRunRequestResult> {
+		if (token.isCancellationRequested) {
+			throw new CancellationError();
+		}
 		const automation = this._requireOperation(automationId, AutomationOperation.Run);
 		const activeRun = this.getActiveRunFor(automationId);
 		if (activeRun) {
@@ -204,24 +208,40 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 			automation: automation.resource,
 			requestId: generateUuid(),
 		});
-		const catalog = await this._waitForCatalog(state => state.entries.some(automation => automation.runs.some(run =>
-			run.resource === result.resource && (run.primarySession !== undefined || isTerminalRun(run))
-		)));
-		const run = catalog.entries.flatMap(automation => automation.runs).find(candidate => candidate.resource === result.resource);
-		if (!run) {
-			throw new Error(`Automation run did not appear in the authoritative catalogue: ${result.resource}`);
+		let cancellationForwarded = false;
+		const cancel = this._connection.initializeResult.get()?.automations?.runCancellation ? () => {
+			if (cancellationForwarded) {
+				return;
+			}
+			cancellationForwarded = true;
+			this._connection.dispatch(result.resource, { type: ActionType.AutomationRunCancelRequested });
+		} : undefined;
+		const dispatchDisposables = new DisposableStore();
+		try {
+			if (cancel) {
+				dispatchDisposables.add(token.onCancellationRequested(cancel));
+				if (token.isCancellationRequested) {
+					cancel();
+				}
+			}
+			const catalog = await this._waitForCatalog(state => state.entries.some(automation => automation.runs.some(run =>
+				run.resource === result.resource && (run.primarySession !== undefined || isTerminalRun(run))
+			)));
+			const run = catalog.entries.flatMap(automation => automation.runs).find(candidate => candidate.resource === result.resource);
+			if (!run) {
+				throw new Error(`Automation run did not appear in the authoritative catalogue: ${result.resource}`);
+			}
+			return {
+				kind: 'dispatched',
+				run: this._projectRun(run),
+				whenCompleted: this._waitForCatalog(state => state.entries.some(automation => automation.runs.some(candidate =>
+					candidate.resource === result.resource && isTerminalRun(candidate)
+				)), undefined, null).then(() => undefined),
+				...(cancel ? { cancel } : {}),
+			};
+		} finally {
+			dispatchDisposables.dispose();
 		}
-		const projectedRun = this._projectRun(run);
-		return {
-			kind: 'dispatched',
-			run: projectedRun,
-			whenCompleted: this._waitForCatalog(state => state.entries.some(automation => automation.runs.some(candidate =>
-				candidate.resource === result.resource && isTerminalRun(candidate)
-			)), undefined, null).then(() => undefined),
-			...(this._connection.initializeResult.get()?.automations?.runCancellation ? {
-				cancel: () => this._connection.dispatch(result.resource, { type: ActionType.AutomationRunCancelRequested }),
-			} : {}),
-		};
 	}
 
 	// Projects an Agent Host session resource into the editor-facing provider scheme.

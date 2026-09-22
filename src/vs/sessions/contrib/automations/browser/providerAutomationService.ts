@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from '../../../../base/common/lifecycle.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { derived, IObservable, observableSignalFromEvent } from '../../../../base/common/observable.js';
 import { localize } from '../../../../nls.js';
 import { IAutomationDescriptor, IAutomationRun } from '../../../../workbench/contrib/chat/common/automations/automation.js';
@@ -121,8 +122,8 @@ export class ProviderAutomationService extends Disposable implements IAutomation
 		this.runsForCache.delete(id);
 	}
 
-	runAutomation(automationId: string): Promise<IAutomationRunRequestResult> {
-		return this.requireAutomationStore(automationId).runAutomation(automationId);
+	runAutomation(automationId: string, token?: CancellationToken): Promise<IAutomationRunRequestResult> {
+		return this.requireAutomationStore(automationId).runAutomation(automationId, token);
 	}
 
 	getActiveRunFor(automationId: string): IAutomationRun | undefined {

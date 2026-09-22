@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { DeferredPromise } from '../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../base/common/async.js';
 import { Event } from '../../../../base/common/event.js';
 import { constObservable } from '../../../../base/common/observable.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
@@ -888,6 +888,32 @@ suite('AgentHostAutomationService', () => {
 			createCalls: 0,
 			runs: [],
 		});
+	});
+
+	test('a cancelled pending run never executes when its provider later registers', async () => {
+		let available = false;
+		let createCalls = 0;
+		let startCalls = 0;
+		const service = createService({
+			isSessionTemplateAvailable: () => available,
+			createSession: async () => { createCalls++; return URI.parse('mock:/unexpected'); },
+			startSession: async () => { startCalls++; },
+		});
+		await enableAndCreate(service);
+		const run = await service.runAutomation({
+			channel: 'ahp-automations://',
+			automation: 'ahp-automation:/review-changes',
+			requestId: 'cancel-before-provider',
+		});
+		await service.handleCancel(run.resource, { type: ActionType.AutomationRunCancelRequested });
+		available = true;
+		service.handleAgentsChanged();
+		await timeout(0);
+		assert.deepStrictEqual({
+			createCalls,
+			startCalls,
+			status: stateManager.getAutomationRunState(run.resource)?.lifecycle.status,
+		}, { createCalls: 0, startCalls: 0, status: AutomationRunStatus.Cancelled });
 	});
 
 	test('pending execution waits for provider registration', async () => {

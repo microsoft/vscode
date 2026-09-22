@@ -5,11 +5,12 @@
 
 import assert from 'assert';
 import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
+import { CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { DisposableStore, type IReference } from '../../../../../../base/common/lifecycle.js';
 import { autorun, constObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import { upcastPartial } from '../../../../../../base/test/common/mock.js';
+import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
@@ -19,11 +20,12 @@ import { getAgentHostExtensionInitializeResultMeta } from '../../../../../../pla
 import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import type { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ActionType, type ActionEnvelope } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
-import { AutomationOperation, AutomationRunOriginKind, AutomationRunStatus, AutomationTriggerKind, MessageKind, type AutomationEntry, type AutomationState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { AutomationOperation, AutomationRunOriginKind, AutomationRunStatus, AutomationTriggerKind, MessageKind, type AutomationEntry, type AutomationRunSummary, type AutomationState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { AUTOMATION_CATALOG_URI, StateComponents } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import type { InitializeResult } from '../../../../../../platform/agentHost/common/state/protocol/common/commands.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
+import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
 import { InMemoryStorageService, IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 import { AgentHostAutomationStore } from '../../browser/agentHostAutomationStore.js';
 import { CHAT_AUTOMATIONS_ENABLED_SETTING } from '../../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
@@ -31,6 +33,7 @@ import { ReconnectableAgentHostAutomationStore } from '../../browser/reconnectab
 import { AutomationUnavailableError, type AutomationCatalogueState } from '../../../../../../workbench/contrib/chat/common/automations/automationService.js';
 import type { IAutomationDescriptor, IAutomationRun } from '../../../../../../workbench/contrib/chat/common/automations/automation.js';
 import { ProviderAutomationService } from '../../../../automations/browser/providerAutomationService.js';
+import { AutomationRunner } from '../../../../automations/browser/automationRunner.js';
 import { ISessionsProvidersService } from '../../../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsProvider } from '../../../../../services/sessions/common/sessionsProvider.js';
 
@@ -50,7 +53,9 @@ class TestAutomationConnection {
 	lastRunResource = '';
 	readonly dispatched: { readonly channel: string; readonly action: Parameters<IAgentConnection['dispatch']>[1] }[] = [];
 	subscribedChannel: string | undefined;
-	runPrimarySession = 'mock:/session';
+	runPrimarySession: string | undefined = 'mock:/session';
+	readonly runRequested = new DeferredPromise<void>();
+	runAdmissionBarrier: Promise<void> | undefined;
 	suppressCreatePublication = false;
 	updateError: Error | undefined;
 	readonly createRequested = new DeferredPromise<void>();
@@ -172,6 +177,18 @@ class TestAutomationConnection {
 				entries: this._catalog.entries.filter(automation => automation.resource !== action.resource),
 			};
 			this._onDidCatalogChange.fire(this._catalog);
+		} else if (action.type === ActionType.AutomationRunCancelRequested) {
+			this._catalog = {
+				...this._catalog,
+				entries: this._catalog.entries.map(automation => ({
+					...automation,
+					runs: automation.runs.map(run => run.resource === channel ? {
+						...run,
+						lifecycle: { status: AutomationRunStatus.Cancelled, createdAt: run.lifecycle.createdAt, completedAt: new Date().toISOString() },
+					} : run),
+				})),
+			};
+			this._onDidCatalogChange.fire(this._catalog);
 		}
 	}
 
@@ -181,25 +198,27 @@ class TestAutomationConnection {
 		if (!automation) {
 			throw new Error(`Missing Automation: ${params.automation}`);
 		}
-		const resource = `ahp-automation-run:/run-${this._serverSeq + 1}`;
+		const resource = `ahp-automation-run:/run-${++this._serverSeq}`;
 		this.lastRunResource = resource;
 		const timestamp = new Date().toISOString();
-		const updated = {
-			...automation,
-			runs: [{
-				resource,
-				automation: automation.resource,
-				origin: { kind: AutomationRunOriginKind.Manual as const },
-				lifecycle: { status: AutomationRunStatus.Running as const, createdAt: timestamp, startedAt: timestamp },
-				primarySession: this.runPrimarySession,
-				sessionCount: 1,
-			}, ...automation.runs],
+		const run: AutomationRunSummary = {
+			resource,
+			automation: automation.resource,
+			origin: { kind: AutomationRunOriginKind.Manual },
+			lifecycle: this.runPrimarySession === undefined
+				? { status: AutomationRunStatus.Pending, createdAt: timestamp }
+				: { status: AutomationRunStatus.Running, createdAt: timestamp, startedAt: timestamp },
+			primarySession: this.runPrimarySession,
+			sessionCount: this.runPrimarySession === undefined ? 0 : 1,
 		};
+		const updated = { ...automation, runs: [run, ...automation.runs] };
 		this._catalog = {
 			...this._catalog,
 			entries: this._catalog.entries.map(candidate => candidate.resource === updated.resource ? updated : candidate),
 		};
 		this._onDidCatalogChange.fire(this._catalog);
+		await this.runRequested.complete();
+		await this.runAdmissionBarrier;
 		return { resource };
 	}
 
@@ -1258,6 +1277,46 @@ suite('AgentHostAutomationStore', () => {
 			schedule: { interval: 'manual', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 },
 			target: { kind: 'quickChat', providerId: 'local-agent-host', sessionTypeId: 'mock' },
 		});
+
+		for (const pauseAdmission of [false, true]) {
+			test(`cancels a pending run ${pauseAdmission ? 'during admission' : 'while waiting for a session'} through the client stack`, async () => {
+				const { store } = reconnectable();
+				const connection = disposables.add(new TestAutomationConnection());
+				connection.runPrimarySession = undefined;
+				const barrier = new DeferredPromise<void>();
+				connection.runAdmissionBarrier = pauseAdmission ? barrier.p : undefined;
+				store.setConnection(connection);
+				const provider = upcastPartial<ISessionsProvider>({ id: 'host', label: 'Host', automations: store });
+				const registry = new class extends mock<ISessionsProvidersService>() {
+					override readonly onDidChangeProviders = Event.None;
+					override getProviders() { return [provider]; }
+					override getProvider<T extends ISessionsProvider>(id: string): T | undefined { return id === provider.id ? provider as T : undefined; }
+				}();
+				const service = disposables.add(new ProviderAutomationService(constObservable(true), registry));
+				const errors: string[] = [];
+				const runner = new AutomationRunner(service, registry, new NullLogService(), upcastPartial<INotificationService>({
+					error: message => errors.push(String(message)),
+				}));
+				const automation = await service.createAutomation(createOptions());
+				const cancellation = disposables.add(new CancellationTokenSource());
+				const operation = runner.runOnce(automation, cancellation.token);
+				await connection.runRequested.p;
+				if (!pauseAdmission) {
+					await timeout(0);
+				}
+				cancellation.cancel();
+				await barrier.complete();
+				const dispatch = await operation.whenDispatched;
+				await operation.whenCompleted;
+				assert.deepStrictEqual({
+					kind: dispatch.kind,
+					reason: dispatch.kind === 'notStarted' ? dispatch.reason : undefined,
+					cancellations: connection.dispatched.filter(({ action }) => action.type === ActionType.AutomationRunCancelRequested).length,
+					activeRun: store.getActiveRunFor(automation.id),
+					errors,
+				}, { kind: 'notStarted', reason: 'cancelled', cancellations: 1, activeRun: undefined, errors: [] });
+			});
+		}
 
 		const claim = await store.runAutomation(automation.id);
 		assert.strictEqual(claim.kind, 'dispatched');
