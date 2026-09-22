@@ -6550,7 +6550,7 @@ export class CodexAgent extends Disposable implements IAgent {
 
 	watchChatHistory(chat: URI): IDisposable {
 		const key = chat.toString();
-		const watch = new CodexChatHistory(() => this._chatHistoryReads.queue(() => this._refreshChatHistory(chat, watch)), this._logService);
+		const watch: CodexChatHistory = new CodexChatHistory(() => this._chatHistoryReads.queue(() => this._refreshChatHistory(chat, watch)), this._logService);
 		this._chatHistoryWatches.set(key, watch);
 		return toDisposable(() => {
 			if (this._chatHistoryWatches.get(key) === watch) {
