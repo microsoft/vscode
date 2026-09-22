@@ -7,7 +7,7 @@ import { Disposable, DisposableMap } from '../../../base/common/lifecycle.js';
 import * as nls from '../../../nls.js';
 import { extHostNamedCustomer, IExtHostContext } from '../../services/extensions/common/extHostCustomers.js';
 import { AuthenticationSession, AuthenticationSessionsChangeEvent, getDynamicAuthenticationProviderId, IAuthenticationProvider, IAuthenticationService, IAuthenticationExtensionsService, AuthenticationSessionAccount, IAuthenticationProviderSessionOptions, isAuthenticationWwwAuthenticateRequest, IAuthenticationConstraint, IAuthenticationWwwAuthenticateRequest } from '../../services/authentication/common/authentication.js';
-import { ExtHostAuthenticationShape, ExtHostContext, IRegisterAuthenticationProviderDetails, IRegisterDynamicAuthenticationProviderDetails, MainContext, MainThreadAuthenticationShape } from '../common/extHost.protocol.js';
+import { AuthenticationGetSessionOptions, AuthenticationInteractiveOptions, ExtHostAuthenticationShape, ExtHostContext, IRegisterAuthenticationProviderDetails, IRegisterDynamicAuthenticationProviderDetails, MainContext, MainThreadAuthenticationShape } from '../common/extHost.protocol.js';
 import { IDialogService, IPromptButton } from '../../../platform/dialogs/common/dialogs.js';
 import Severity from '../../../base/common/severity.js';
 import { INotificationService } from '../../../platform/notification/common/notification.js';
@@ -35,27 +35,31 @@ import { IProductService } from '../../../platform/product/common/productService
 import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
 import { IMcpEnterpriseManagedAuthIdpConfig, mcpEnterpriseManagedAuthIdpSection } from '../../contrib/mcp/common/mcpConfiguration.js';
 
-export interface AuthenticationInteractiveOptions {
-	detail?: string;
-	learnMore?: UriComponents;
-	sessionToRecreate?: AuthenticationSession;
-}
-
-export interface AuthenticationGetSessionOptions {
-	clearSessionPreference?: boolean;
-	createIfNone?: boolean | AuthenticationInteractiveOptions;
-	forceNewSession?: boolean | AuthenticationInteractiveOptions;
-	silent?: boolean;
-	account?: AuthenticationSessionAccount;
-	authorizationServer?: UriComponents;
-}
-
 /**
  * The account icon is a {@link URI} that does not survive being sent over the RPC boundary,
  * so it needs to be revived when sessions are received from the extension host.
  */
 export function reviveSessionAccountIcon(session: Dto<AuthenticationSession>): AuthenticationSession {
 	return { ...session, account: { ...session.account, icon: URI.revive(session.account.icon) } };
+}
+
+function prepareSessionRequest(options: AuthenticationGetSessionOptions) {
+	const { clearSessionPreference, createIfNone, forceNewSession, silent, ...requestOptions } = options;
+	if (forceNewSession && createIfNone) {
+		throw new Error('Invalid combination of options. Please remove one of the following: forceNewSession, createIfNone');
+	}
+	if (forceNewSession && silent) {
+		throw new Error('Invalid combination of options. Please remove one of the following: forceNewSession, silent');
+	}
+	if (createIfNone && silent) {
+		throw new Error('Invalid combination of options. Please remove one of the following: createIfNone, silent');
+	}
+	const providerOptions: IAuthenticationProviderSessionOptions = {
+		...requestOptions,
+		account: requestOptions.account && { ...requestOptions.account, icon: URI.revive(requestOptions.account.icon) },
+		authorizationServer: URI.revive(requestOptions.authorizationServer)
+	};
+	return { clearSessionPreference, createIfNone, forceNewSession, silent, providerOptions };
 }
 
 class MainThreadAuthenticationProvider extends Disposable implements IAuthenticationProvider {
@@ -439,22 +443,15 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 	}
 
 	private async doGetSession(providerId: string, scopeListOrRequest: ReadonlyArray<string> | IAuthenticationWwwAuthenticateRequest, extensionId: string, extensionName: string, options: AuthenticationGetSessionOptions): Promise<AuthenticationSession | undefined> {
-		const authorizationServer = URI.revive(options.authorizationServer);
-		const sessions = await this.authenticationService.getSessions(providerId, scopeListOrRequest, { account: options.account, authorizationServer }, true);
+		const { clearSessionPreference, createIfNone, forceNewSession, silent, providerOptions } = prepareSessionRequest(options);
+		const sessions = await this.authenticationService.getSessions(providerId, scopeListOrRequest, {
+			...providerOptions,
+			// The default request is passive too; only the interactive options permit provider UI.
+			silent: !createIfNone && !forceNewSession
+		}, true);
 		const provider = this.authenticationService.getProvider(providerId);
 
-		// Error cases
-		if (options.forceNewSession && options.createIfNone) {
-			throw new Error('Invalid combination of options. Please remove one of the following: forceNewSession, createIfNone');
-		}
-		if (options.forceNewSession && options.silent) {
-			throw new Error('Invalid combination of options. Please remove one of the following: forceNewSession, silent');
-		}
-		if (options.createIfNone && options.silent) {
-			throw new Error('Invalid combination of options. Please remove one of the following: createIfNone, silent');
-		}
-
-		if (options.clearSessionPreference) {
+		if (clearSessionPreference) {
 			// Clearing the session preference is usually paired with createIfNone, so just remove the preference and
 			// defer to the rest of the logic in this function to choose the session.
 			this.authenticationExtensionsService.removeAccountPreference(extensionId, providerId);
@@ -462,13 +459,13 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 
 		const matchingAccountPreferenceSession =
 			// If an account was passed in, that takes precedence over the account preference
-			options.account
+			providerOptions.account
 				// We only support one session per account per set of scopes so grab the first one here
 				? sessions[0]
 				: this._getAccountPreference(extensionId, providerId, sessions);
 
 		// Check if the sessions we have are valid
-		if (!options.forceNewSession && sessions.length) {
+		if (!forceNewSession && sessions.length) {
 			// If we have an existing session preference, use that. If not, we'll return any valid session at the end of this function.
 			if (matchingAccountPreferenceSession && this.authenticationAccessService.isAccessAllowed(providerId, matchingAccountPreferenceSession.account.label, extensionId)) {
 				return matchingAccountPreferenceSession;
@@ -481,37 +478,37 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 
 		// We may need to prompt because we don't have a valid session
 		// modal flows
-		if (options.createIfNone || options.forceNewSession) {
+		if (createIfNone || forceNewSession) {
 			let uiOptions: AuthenticationInteractiveOptions | undefined;
-			if (typeof options.forceNewSession === 'object') {
-				uiOptions = options.forceNewSession;
-			} else if (typeof options.createIfNone === 'object') {
-				uiOptions = options.createIfNone;
+			if (typeof forceNewSession === 'object') {
+				uiOptions = forceNewSession;
+			} else if (typeof createIfNone === 'object') {
+				uiOptions = createIfNone;
 			}
 
 			// We only want to show the "recreating session" prompt if we are using forceNewSession & there are sessions
 			// that we will be "forcing through".
-			const recreatingSession = !!(options.forceNewSession && sessions.length);
+			const recreatingSession = !!(forceNewSession && sessions.length);
 			const isAllowed = await this.loginPrompt(provider, extensionName, recreatingSession, uiOptions);
 			if (!isAllowed) {
 				throw new Error('User did not consent to login.');
 			}
 
 			let session: AuthenticationSession;
-			if (sessions?.length && !options.forceNewSession) {
-				session = provider.supportsMultipleAccounts && !options.account
-					? await this.authenticationExtensionsService.selectSession(providerId, extensionId, extensionName, scopeListOrRequest, sessions)
+			if (sessions?.length && !forceNewSession) {
+				session = provider.supportsMultipleAccounts && !providerOptions.account
+					? await this.authenticationExtensionsService.selectSession(providerId, extensionId, extensionName, scopeListOrRequest, sessions, providerOptions)
 					: sessions[0];
 			} else {
-				const accountToCreate: AuthenticationSessionAccount | undefined = options.account ?? matchingAccountPreferenceSession?.account;
+				const accountToCreate: AuthenticationSessionAccount | undefined = providerOptions.account ?? matchingAccountPreferenceSession?.account;
 				do {
 					session = await this.authenticationService.createSession(
 						providerId,
 						scopeListOrRequest,
 						{
+							...providerOptions,
 							activateImmediate: true,
-							account: accountToCreate,
-							authorizationServer
+							account: accountToCreate
 						});
 				} while (
 					accountToCreate
@@ -521,7 +518,9 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 			}
 
 			this.authenticationAccessService.updateAllowedExtensions(providerId, session.account.label, [{ id: extensionId, name: extensionName, allowed: true }]);
-			this.authenticationExtensionsService.updateNewSessionRequests(providerId, [session]);
+			// Rechecking other pending contexts must not delay a successful sign-in.
+			void this.authenticationExtensionsService.updateNewSessionRequests(providerId, [session])
+				.catch(error => this.logService.warn('Failed to update pending authentication requests.', error));
 			this.authenticationExtensionsService.updateAccountPreference(extensionId, providerId, session.account);
 			return session;
 		}
@@ -535,12 +534,12 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 		}
 
 		// passive flows (silent or default)
-		if (!options.silent) {
+		if (!silent) {
 			// If there is a potential session, but the extension doesn't have access to it, use the "grant access" flow,
 			// otherwise request a new one.
 			sessions.length
-				? this.authenticationExtensionsService.requestSessionAccess(providerId, extensionId, extensionName, scopeListOrRequest, sessions)
-				: await this.authenticationExtensionsService.requestNewSession(providerId, scopeListOrRequest, extensionId, extensionName);
+				? this.authenticationExtensionsService.requestSessionAccess(providerId, extensionId, extensionName, scopeListOrRequest, sessions, providerOptions)
+				: await this.authenticationExtensionsService.requestNewSession(providerId, scopeListOrRequest, extensionId, extensionName, providerOptions);
 		}
 		return undefined;
 	}

@@ -39,6 +39,7 @@ import { IParsedChatRequest } from '../requestParser/chatParserTypes.js';
 import { IChatParserContext } from '../requestParser/chatRequestParser.js';
 import { IPreparedToolInvocation, IToolConfirmationMessages, IToolResult, IToolResultInputOutputDetails, ToolDataSource } from '../tools/languageModelToolsService.js';
 import { ConfirmationOptionKind, type McpOAuthClient } from '../../../../../platform/agentHost/common/state/protocol/state.js';
+import { AgentFusionPhaseStatus } from '../../../../../platform/agentHost/common/meta/agentToolCallMeta.js';
 
 export interface IChatRequest {
 	message: string;
@@ -331,8 +332,8 @@ export interface IChatSystemNotificationPart {
 	collapsible?: boolean;
 	/** Render response timing beside the notification instead of using the response footer. */
 	renderInlineTiming?: boolean;
-	/** Use a quiet transcript boundary treatment instead of a progress row. */
-	presentation?: 'workspaceTransition';
+	/** Use a quiet transcript boundary or an always-visible workflow introduction instead of a progress row. */
+	presentation?: 'workspaceTransition' | 'workflow';
 	/** Workspace folder name emphasized by the transition presentation. */
 	workspaceName?: string;
 	/** Complete accessible description for non-visual presentation and announcements. */
@@ -1196,6 +1197,11 @@ export interface IChatPullRequestContent {
 
 export interface IChatSubagentToolInvocationData {
 	kind: 'subagent';
+	/** Reuse the compact pill for a phase summary without a child-chat navigation target. */
+	presentation?: 'phase';
+	phaseStatus?: AgentFusionPhaseStatus;
+	/** Content-free phase activity, not a tool name or a model-authored summary. */
+	activityDescription?: string;
 	/** Whether the child has reported a turn; false defers its entry, while undefined preserves legacy publication. */
 	hasStarted?: boolean;
 	isActive?: boolean;
@@ -1207,7 +1213,7 @@ export interface IChatSubagentToolInvocationData {
 	agentName?: string;
 	prompt?: string;
 	result?: string;
-	/** Chat-layer model identifier, independent of its provider-qualified display name. */
+	/** Chat-layer model identifier (raw provider id for phases), independent of its display name. */
 	modelId?: string;
 	modelName?: string;
 	credits?: number;
@@ -1225,6 +1231,11 @@ export interface IChatSubagentToolInvocationData {
 	 * `undefined` preserves legacy navigation behavior based on the resource and opener.
 	 */
 	isChatAvailable?: boolean;
+}
+
+/** Phase status is authoritative; ordinary subagents retain their independently observed activity. */
+export function getSubagentIsActive(data: Pick<IChatSubagentToolInvocationData, 'presentation' | 'phaseStatus' | 'isActive'>): boolean | undefined {
+	return data.presentation === 'phase' ? data.phaseStatus === 'running' : data.isActive;
 }
 
 /**
