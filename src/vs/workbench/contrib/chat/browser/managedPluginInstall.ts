@@ -7,6 +7,7 @@ import { RunOnceScheduler } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Event } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
+import { ResourceMap } from '../../../../base/common/map.js';
 import { autorun } from '../../../../base/common/observable.js';
 import { localize } from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -120,7 +121,9 @@ export class ManagedPluginInstall extends Disposable implements IWorkbenchContri
 			return;
 		}
 
-		const unavailablePluginIds = new Set(missingPluginIds);
+		const requiredPlugins: IMarketplacePlugin[] = [];
+		const pluginIdsByInstallUri = new ResourceMap<string>();
+		const conflictingPluginIds = new Set<string>();
 		for (const plugin of marketplacePlugins) {
 			if (this._store.isDisposed) {
 				return;
@@ -133,12 +136,38 @@ export class ManagedPluginInstall extends Disposable implements IWorkbenchContri
 				? plugin
 				: { ...plugin, marketplace: managedMarketplace.displayLabel, marketplaceReference: managedMarketplace };
 			const pluginId = getMarketplacePluginPolicyId(managedPlugin);
-			if (!unavailablePluginIds.has(pluginId)) {
+			if (!requiredPluginIds.has(pluginId)) {
 				continue;
 			}
 
-			if (this._pluginMarketplaceService.isPluginInstalled(managedPlugin)
-				|| await this._installRequiredPlugin(managedPlugin)) {
+			try {
+				const installUri = this._pluginInstallService.getPluginInstallUri(managedPlugin);
+				const existingPluginId = pluginIdsByInstallUri.get(installUri);
+				if (existingPluginId && existingPluginId !== pluginId) {
+					conflictingPluginIds.add(existingPluginId);
+					conflictingPluginIds.add(pluginId);
+					this._logService.warn(`[ManagedPluginInstall] Required plugins '${existingPluginId}' and '${pluginId}' share an install location and cannot both be installed.`);
+				} else {
+					pluginIdsByInstallUri.set(installUri, pluginId);
+				}
+				requiredPlugins.push(managedPlugin);
+			} catch (error) {
+				this._logService.error(`[ManagedPluginInstall] Failed to resolve the install location for required plugin '${pluginId}':`, error);
+			}
+		}
+
+		const unavailablePluginIds = new Set(missingPluginIds);
+		for (const plugin of requiredPlugins) {
+			if (this._store.isDisposed) {
+				return;
+			}
+			const pluginId = getMarketplacePluginPolicyId(plugin);
+			if (conflictingPluginIds.has(pluginId) || !unavailablePluginIds.has(pluginId)) {
+				continue;
+			}
+
+			if (this._pluginMarketplaceService.isPluginInstalled(plugin)
+				|| await this._installRequiredPlugin(plugin)) {
 				unavailablePluginIds.delete(pluginId);
 			}
 		}

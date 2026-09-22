@@ -7,6 +7,8 @@ import assert from 'assert';
 import { timeout } from '../../../../../../base/common/async.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { observableValue } from '../../../../../../base/common/observable.js';
+import { joinPath } from '../../../../../../base/common/resources.js';
+import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -50,6 +52,7 @@ suite('ManagedPluginInstall', () => {
 		readonly notifications: Map<string, IChatInputNotification>;
 		catalog: IMarketplacePlugin[];
 		fetchImplementation?: () => Promise<IMarketplacePlugin[]>;
+		getPluginInstallUri: (plugin: IMarketplacePlugin) => URI;
 		managedMarketplaces: Map<string, IMarketplacePlugin['marketplaceReference']>;
 		enabledPluginsPolicy: Record<string, boolean> | undefined;
 		pluginsEnabled: boolean;
@@ -69,6 +72,7 @@ suite('ManagedPluginInstall', () => {
 			notifications: new Map(),
 			catalog: [],
 			fetchImplementation: undefined,
+			getPluginInstallUri: plugin => joinPath(plugin.marketplaceReference.localRepositoryUri ?? URI.file('/marketplace'), plugin.source),
 			managedMarketplaces: new Map(),
 			enabledPluginsPolicy: undefined,
 			pluginsEnabled: true,
@@ -94,6 +98,7 @@ suite('ManagedPluginInstall', () => {
 			getManagedMarketplace: reference => state.managedMarketplaces.get(reference.canonicalId),
 		} as Partial<IPluginMarketplaceService> as IPluginMarketplaceService);
 		instantiationService.stub(IPluginInstallService, {
+			getPluginInstallUri: plugin => state.getPluginInstallUri(plugin),
 			installPlugin: async plugin => {
 				const pluginId = getMarketplacePluginPolicyId(plugin);
 				state.installCalls.push(pluginId);
@@ -139,6 +144,7 @@ suite('ManagedPluginInstall', () => {
 		const userSource = createPlugin('required', 'managed-marketplace', 'file:///user-marketplace');
 		const { state } = createContribution({
 			catalog: [required, blocked, unmanaged, userSource],
+			getPluginInstallUri: () => URI.file('/shared-plugin'),
 			managedMarketplaces: new Map([[required.marketplaceReference.canonicalId, managedReference(required)]]),
 			enabledPluginsPolicy: {
 				[getMarketplacePluginPolicyId(required)]: true,
@@ -184,6 +190,40 @@ suite('ManagedPluginInstall', () => {
 		markReady();
 		await waitFor(() => state.installCalls.length === 1);
 	});
+
+	for (const alreadyInstalled of [false, true]) {
+		test(`blocks required plugins sharing an install URI without ${alreadyInstalled ? 'replacing the installed identity' : 'starting a reinstall loop'}`, async () => {
+			const first = createPlugin('first', 'managed-marketplace', 'file:///managed-marketplace');
+			const second = createPlugin('second', 'managed-marketplace', 'file:///managed-marketplace');
+			const firstId = getMarketplacePluginPolicyId(first);
+			const secondId = getMarketplacePluginPolicyId(second);
+			const sharedUri = URI.file('/shared-plugin');
+			const initialEntries: readonly IMarketplaceInstalledPlugin[] = alreadyInstalled ? [{ pluginUri: sharedUri, plugin: first }] : [];
+			const initialIds = alreadyInstalled ? [firstId] : [];
+			const { state } = createContribution({
+				catalog: [first, second],
+				getPluginInstallUri: () => sharedUri,
+				installedPlugins: observableValue('test.installedPlugins', initialEntries),
+				installedPluginIds: new Set(initialIds),
+				managedMarketplaces: new Map([[first.marketplaceReference.canonicalId, managedReference(first)]]),
+				enabledPluginsPolicy: { [firstId]: true, [secondId]: true },
+			});
+
+			await waitFor(() => state.fetchCalls.length === 1);
+
+			assert.deepStrictEqual({
+				installCalls: state.installCalls,
+				installedPluginIds: [...state.installedPluginIds],
+				notification: blockingNotification(state)?.message,
+				description: blockingNotification(state)?.description,
+			}, {
+				installCalls: [],
+				installedPluginIds: initialIds,
+				notification: 'Required organization plugins are unavailable',
+				description: `Chat is unavailable because these required plugins could not be installed: ${alreadyInstalled ? secondId : `${firstId}, ${secondId}`}. Check your connection or contact your administrator.`,
+			});
+		});
+	}
 
 	test('blocks chat when a required plugin cannot be resolved', async () => {
 		const { state } = createContribution({
