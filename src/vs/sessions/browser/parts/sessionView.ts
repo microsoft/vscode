@@ -316,6 +316,14 @@ export class SessionView extends Disposable implements ISerializableView {
 		standaloneView ? standaloneView.focus() : this._groupsView.focus();
 	}
 
+	focusWorkspacePicker(): void {
+		this._visibleStandaloneView?.focusWorkspacePicker();
+	}
+
+	focusHarnessPicker(): void {
+		this._visibleStandaloneView?.focusHarnessPicker();
+	}
+
 	/**
 	 * Starts an inline rename of the session title in the header. Returns
 	 * `false` when the header cannot host it (e.g. this view is hidden or the

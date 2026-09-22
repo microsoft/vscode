@@ -805,6 +805,8 @@ export namespace ConfigKey {
 		export const ExecutionSubagentModel = defineSetting<string>('chat.executionSubagent.model', ConfigType.ExperimentBased, 'gemini-3-flash');
 		/** Maximum number of tool calls the execution subagent can make */
 		export const ExecutionSubagentToolCallLimit = defineSetting<number>('chat.executionSubagent.toolCallLimit', ConfigType.ExperimentBased, 10);
+		/** Show the execution subagent its remaining iterations on every turn */
+		export const ExecutionSubagentTurnWisePrompting = defineSetting<boolean>('chat.executionSubagent.turnWisePrompting', ConfigType.ExperimentBased, false);
 
 		/** When enabled, the main agent's manage_todo_list tool is disabled and a background copilot-utility-small model maintains the todo list instead. */
 		export const BackgroundTodoAgentEnabled = defineSetting<boolean>('chat.agent.backgroundTodoAgent.enabled', ConfigType.ExperimentBased, false);

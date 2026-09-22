@@ -1735,6 +1735,145 @@ per-word capitalization does not survive translation. */
 	min-height: 0;
 }
 
+.ai-customization-management-editor .mcp-detail-body {
+	flex: 1;
+	display: flex;
+	flex-direction: column;
+	gap: var(--vscode-spacing-size160);
+	min-height: 0;
+	padding: 0 var(--vscode-spacing-size160) var(--vscode-spacing-size160);
+	overflow: auto;
+	box-sizing: border-box;
+}
+
+.ai-customization-management-editor .mcp-detail-definition-section {
+	flex: 1 0 240px;
+	display: flex;
+	flex-direction: column;
+	min-height: 180px;
+}
+
+.ai-customization-management-editor .mcp-detail-section-title {
+	margin: 0 0 var(--vscode-spacing-size80);
+	font-size: var(--vscode-fontSize-heading3);
+	font-weight: var(--vscode-fontWeight-semiBold);
+	color: var(--vscode-foreground);
+}
+
+.ai-customization-management-editor .mcp-detail-definition-editor,
+.ai-customization-management-editor .mcp-detail-definition-empty {
+	flex: 1;
+	margin-top: 0;
+	min-height: 0;
+}
+
+.ai-customization-management-editor .mcp-detail-diagnostics {
+	flex: none;
+	display: flex;
+	flex-direction: column;
+	gap: var(--vscode-spacing-size120);
+}
+
+.ai-customization-management-editor .mcp-detail-diagnostic-section {
+	min-width: 0;
+}
+
+.ai-customization-management-editor .mcp-detail-diagnostics-empty {
+	margin: 0;
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-body2);
+}
+
+.ai-customization-management-editor .mcp-detail-diagnostic-card {
+	min-height: 72px;
+	padding: var(--vscode-spacing-size120);
+	border: var(--vscode-strokeThickness) solid var(--vscode-agentsPanel-border);
+	border-radius: var(--vscode-cornerRadius-medium);
+	background: color-mix(in srgb, var(--vscode-foreground) 6%, var(--vscode-agentsPanel-background));
+	color: var(--vscode-foreground);
+	box-sizing: border-box;
+}
+
+.ai-customization-management-editor .mcp-detail-diagnostic-card.warning {
+	background: color-mix(in srgb, var(--vscode-inputValidation-warningBackground) 45%, var(--vscode-agentsPanel-background));
+	border-color: color-mix(in srgb, var(--vscode-inputValidation-warningBorder) 70%, var(--vscode-agentsPanel-border));
+}
+
+.ai-customization-management-editor .mcp-detail-diagnostic-card.error {
+	background: color-mix(in srgb, var(--vscode-inputValidation-errorBackground) 45%, var(--vscode-agentsPanel-background));
+	border-color: color-mix(in srgb, var(--vscode-inputValidation-errorBorder) 70%, var(--vscode-agentsPanel-border));
+}
+
+.ai-customization-management-editor .mcp-detail-diagnostic-card.migration {
+	border-radius: var(--vscode-cornerRadius-large);
+	background: color-mix(in srgb, var(--vscode-inputValidation-warningBackground) 35%, var(--vscode-agentsPanel-background));
+	border-color: color-mix(in srgb, var(--vscode-inputValidation-warningBorder) 70%, var(--vscode-agentsPanel-border));
+}
+
+.vscode-high-contrast .ai-customization-management-editor .mcp-detail-diagnostic-card {
+	border-color: var(--vscode-contrastBorder);
+}
+
+.ai-customization-management-editor .mcp-detail-diagnostic-header {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size80);
+}
+
+.ai-customization-management-editor .mcp-detail-diagnostic-icon {
+	flex: none;
+	font-size: var(--vscode-codiconFontSize);
+	color: var(--vscode-icon-foreground);
+}
+
+.ai-customization-management-editor .mcp-detail-diagnostic-card.warning .mcp-detail-diagnostic-icon {
+	color: var(--vscode-list-warningForeground, var(--vscode-editorWarning-foreground));
+}
+
+.ai-customization-management-editor .mcp-detail-diagnostic-card.error .mcp-detail-diagnostic-icon {
+	color: var(--vscode-errorForeground);
+}
+
+.ai-customization-management-editor .mcp-detail-diagnostic-summary {
+	min-width: 0;
+	font-size: var(--vscode-fontSize-label1);
+	font-weight: var(--vscode-fontWeight-semiBold);
+}
+
+.ai-customization-management-editor .mcp-detail-diagnostic-details {
+	margin-top: var(--vscode-spacing-size80);
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-body2);
+	line-height: 1.45;
+}
+
+.ai-customization-management-editor .mcp-detail-diagnostic-message,
+.ai-customization-management-editor .mcp-detail-diagnostic-list {
+	margin: 0;
+	white-space: pre-wrap;
+	overflow-wrap: anywhere;
+}
+
+.ai-customization-management-editor .mcp-detail-diagnostic-list {
+	padding-left: var(--vscode-spacing-size200);
+}
+
+.ai-customization-management-editor .mcp-detail-migration-link {
+	display: inline-block;
+	margin-top: var(--vscode-spacing-size100);
+	color: var(--vscode-textLink-foreground);
+	font-weight: var(--vscode-fontWeight-semiBold);
+}
+
+.ai-customization-management-editor .mcp-detail-migration-description {
+	margin: 0;
+}
+
+.ai-customization-management-editor .mcp-detail-migration-link:hover,
+.ai-customization-management-editor .mcp-detail-migration-link:active {
+	color: var(--vscode-textLink-activeForeground);
+}
+
 /* Embedded plugin detail view */
 .ai-customization-management-editor .plugin-detail-container,
 .ai-customization-management-editor .tools-detail-container {
@@ -1833,7 +1972,7 @@ per-word capitalization does not survive translation. */
 }
 
 .ai-customization-management-editor .embedded-mcp-detail .mcp-detail-definition-empty {
-	margin: var(--vscode-spacing-size80) calc(var(--vscode-spacing-size160) - var(--vscode-spacing-size40)) var(--vscode-spacing-size160);
+	margin: 0;
 	padding-inline: var(--vscode-spacing-size40);
 	border-radius: var(--vscode-cornerRadius-small);
 }
@@ -1850,10 +1989,6 @@ per-word capitalization does not survive translation. */
 .ai-customization-management-editor .mcp-detail-container .editor-back-button {
 	width: var(--vscode-spacing-size280);
 	height: var(--vscode-spacing-size280);
-}
-
-.ai-customization-management-editor .mcp-detail-container .mcp-detail-definition-empty {
-	margin-inline-start: calc(var(--vscode-spacing-size160) + var(--vscode-spacing-size280) + var(--vscode-spacing-size80) - var(--vscode-spacing-size40));
 }
 
 /* The tools detail lists many short tool descriptions, so let it use the full editor width. */
@@ -2535,44 +2670,30 @@ per-word capitalization does not survive translation. */
 	line-height: 14px;
 }
 
-.mcp-server-item.has-error {
-	align-items: flex-start;
-	padding-top: var(--vscode-spacing-size120);
-	padding-bottom: var(--vscode-spacing-size120);
-}
-
-.mcp-server-item .mcp-server-description.error {
-	color: var(--vscode-errorForeground);
-	margin-top: var(--vscode-spacing-size80);
-	white-space: pre-wrap;
-	overflow-wrap: anywhere;
-	overflow: visible;
-	text-overflow: clip;
-}
-
-.mcp-server-item .mcp-server-description.error:not(.expanded) {
-	display: -webkit-box;
-	-webkit-box-orient: vertical;
-	-webkit-line-clamp: 3;
-	max-height: 3lh;
-	overflow: hidden;
-}
-
-.mcp-server-item .mcp-server-error-toggle.monaco-button {
-	align-self: flex-start;
-	width: auto;
-	min-width: 0;
-	padding: 0;
-	margin-top: var(--vscode-spacing-size40);
-	color: var(--vscode-textLink-foreground);
+.mcp-server-item .mcp-server-source-path {
+	font-family: var(--monaco-monospace-font);
 	font-size: var(--vscode-fontSize-body2);
-	border: 0;
-	background: transparent;
+	color: var(--vscode-descriptionForeground);
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	line-height: 14px;
 }
 
-.mcp-server-item .mcp-server-error-toggle.monaco-button:hover {
+.mcp-server-item .mcp-server-source-path.source-link {
+	color: var(--vscode-textLink-foreground);
+	cursor: pointer;
+	text-decoration: none;
+}
+
+.mcp-server-item .mcp-server-source-path.source-link:hover {
 	color: var(--vscode-textLink-activeForeground);
 	text-decoration: underline;
+}
+
+.mcp-server-item .mcp-server-source-path.source-link:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: -1px;
 }
 
 .mcp-server-item .mcp-server-actions {
@@ -2858,6 +2979,19 @@ per-word capitalization does not survive translation. */
 }
 
 .plugin-list-widget .mcp-runtime-status-badge.error {
+	background-color: color-mix(in srgb, var(--vscode-errorForeground) 18%, transparent);
+}
+
+.plugin-list-widget .mcp-compatibility-status-badge {
+	color: var(--vscode-foreground);
+}
+
+.plugin-list-widget .mcp-compatibility-status-badge.partially-supported,
+.plugin-list-widget .mcp-compatibility-status-badge.support-unknown {
+	background-color: color-mix(in srgb, var(--vscode-list-warningForeground, var(--vscode-editorWarning-foreground)) 18%, transparent);
+}
+
+.plugin-list-widget .mcp-compatibility-status-badge.unsupported {
 	background-color: color-mix(in srgb, var(--vscode-errorForeground) 18%, transparent);
 }
 
@@ -3553,6 +3687,22 @@ per-word capitalization does not survive translation. */
 	text-overflow: ellipsis;
 	white-space: nowrap;
 	font-family: var(--monaco-monospace-font);
+}
+
+.ai-customization-management-editor .embedded-mcp-detail .editor-item-path.source-link {
+	color: var(--vscode-textLink-foreground);
+	text-decoration: none;
+}
+
+.ai-customization-management-editor .embedded-mcp-detail .editor-item-path.source-link:hover,
+.ai-customization-management-editor .embedded-mcp-detail .editor-item-path.source-link:active {
+	color: var(--vscode-textLink-activeForeground);
+	text-decoration: underline;
+}
+
+.ai-customization-management-editor .embedded-mcp-detail .editor-item-path.source-link:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: var(--vscode-strokeThickness);
 }
 
 .ai-customization-management-editor .editor-save-indicator {

@@ -8,7 +8,7 @@ import { AH_META_DEV_CONTAINER_WORKTREE_DB_KEY, readAgentDevContainerWorktreeMet
 import { parseSessionArtifacts, readSessionArtifacts, SESSION_META_ARTIFACTS_KEY, stringifySessionArtifacts } from '../common/sessionArtifacts.js';
 import { META_CHANGES_SUMMARY } from '../common/agentHostChangesetService.js';
 import { META_GIT_STATE, META_GITHUB_STATE, META_SOURCE_CONTROL_STATE } from '../common/agentHostGitStateService.js';
-import { ChangesSummary, ChatOrigin, ChatOriginKind } from '../common/state/protocol/state.js';
+import { ChangesSummary, ChatInteractivity, ChatOrigin, ChatOriginKind } from '../common/state/protocol/state.js';
 import { AH_META_CREATED_BY_SESSION_DB_KEY, AH_META_EHCLI_ADOPTED_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_DONE_DB_KEY, AH_META_IS_READ_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, ISessionGitHubState, ISessionGitState, ISessionSourceControlState, parseSessionCreationReference, parseSessionFolderPickerDecision, parseSessionMultiRootMetadata, readSessionCreationReference, readSessionEhcliAdoptable, readSessionEhcliAdopted, readSessionFolderPickerDecision, readSessionGitHubState, readSessionGitState, readSessionMultiRootMetadata, readSessionSourceControlState, readSessionWorkspaceless, SESSION_META_CREATED_BY_SESSION_KEY, SESSION_META_EHCLI_ADOPTABLE_KEY, SESSION_META_EHCLI_ADOPTED_KEY, SESSION_META_FOLDER_PICKER_KEY, SESSION_META_GIT_KEY, SESSION_META_GITHUB_KEY, SESSION_META_MULTI_ROOT_KEY, SESSION_META_SOURCE_CONTROL_KEY, SESSION_META_WORKSPACELESS_KEY, SessionStatus, SessionSummary } from '../common/state/sessionState.js';
 import { AGENT_HOST_CATALOG_JSON_STRING_LENGTH_LIMIT, AGENT_HOST_CATALOG_TITLE_LENGTH_LIMIT, AgentHostCatalogData, AgentHostCatalogJsonValue, AgentHostCatalogMetadata, agentHostCatalogChangesValidator, agentHostCatalogGitValidator } from './agentHostCatalogProjection.js';
 import { IAgentHostCatalogSyncRequest } from './agentHostCatalogSyncService.js';
@@ -30,7 +30,9 @@ export interface ICatalogSourceState {
 		readonly kind: 'default' | 'peer';
 		readonly title?: string;
 		readonly origin?: ChatOrigin;
+		readonly interactivity?: ChatInteractivity;
 		readonly inheritedTurnId?: string;
+		readonly workingDirectories?: readonly string[];
 	}[];
 }
 
@@ -224,7 +226,9 @@ export class AgentHostCatalogSourceResolver {
 					summary: toCatalogSummary(summary),
 					titleSource: normalizeCatalogTitleSource(titleSource),
 					origin: toCatalogChatOrigin(chat.origin),
+					...(chat.interactivity !== undefined ? { interactivity: chat.interactivity } : {}),
 					...(chat.inheritedTurnId !== undefined ? { inheritedTurnId: chat.inheritedTurnId } : {}),
+					...(chat.workingDirectories !== undefined ? { workingDirectories: chat.workingDirectories } : {}),
 				};
 			}),
 		};

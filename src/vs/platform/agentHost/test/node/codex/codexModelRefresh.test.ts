@@ -383,7 +383,7 @@ suite('CodexAgent model refresh', () => {
 		await agent.startChatDiscovery();
 		const discoveriesBeforeActivation = requests.filter(method => method === 'thread/list').length;
 		agent['_activate']();
-		await agent['_codexChatDiscovery'];
+		await agent.startChatDiscovery();
 
 		assert.deepStrictEqual({
 			discoveriesBeforeActivation,
