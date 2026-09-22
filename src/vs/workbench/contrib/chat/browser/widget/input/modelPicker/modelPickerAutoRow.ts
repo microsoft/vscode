@@ -88,9 +88,10 @@ export class ModelPickerAutoRow extends DisposableStore {
 		this._toggle.checked = enabled;
 
 		const tier = getModelConfigProperty(this._options.autoModel, this._options.configurationAccess, MODEL_CONFIG_GROUP_EFFORT);
-		const values = tier?.schema.enum ?? [];
+		const internalDefault = tier?.value === 'fast';
+		const values = internalDefault ? [] : tier?.schema.enum ?? [];
 		const selectedIndex = Math.max(0, values.indexOf(tier?.value));
-		if (tier?.schema !== this._tierSchema) {
+		if (tier?.schema !== this._tierSchema || internalDefault) {
 			dom.clearNode(this._tierContainer);
 			this._renderDisposables.clear();
 			this._tierControl = undefined;
@@ -122,7 +123,7 @@ export class ModelPickerAutoRow extends DisposableStore {
 			}
 		}
 
-		const tierDescription = tier?.schema.enumDescriptions?.[selectedIndex];
+		const tierDescription = internalDefault ? undefined : tier?.schema.enumDescriptions?.[selectedIndex];
 		// Auto's own detail stays put; the tier description joins it rather than replacing it.
 		const detail = this._options.autoModel.metadata.detail;
 		const parts = [detail, tierDescription].filter(part => !!part);
