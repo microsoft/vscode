@@ -13,17 +13,18 @@ import type { IAgentPendingMessageSender } from '../../../common/agent.js';
 import { AgentHostClientType } from '../../../common/agentHostClientInfo.js';
 import { createUnknownAgentHostClientTelemetryContext } from '../../../common/agentHostTelemetry.js';
 import { IAgentHostChatContributions, createChatMementoKey, type IAgentHostChatContribution, type IAgentHostChatContributionContext, type IAgentHostChatContributionHost, type IAppliedClientAction, type IQueuedMessageSender, type ITurnEnd } from '../../../common/agentHostChatContributionsService.js';
-import { ActionType } from '../../../common/state/sessionActions.js';
+import { ActionType, type ChatPendingMessageSetAction } from '../../../common/state/sessionActions.js';
 import { getErrorResponsePart, isAhpChatChannel, parseRequiredSessionUriFromChatUri, PendingMessageKind, TurnState, type Message, type URI as ProtocolURI } from '../../../common/state/sessionState.js';
 import { AgentHostStateManager, IAgentHostStateManager } from '../../agentHostStateManager.js';
 import { IAgentHostProviderService } from '../../agentHostProviderService.js';
+import { AgentHostTurnTracker, IAgentHostTurnTracker } from '../../agentHostTurnTracker.js';
 import { startTurn } from '../../agentHostTurnStarter.js';
 import { ISessionWorkspaceConversionService } from '../sessionWorkspaceConversion/sessionWorkspaceConversionService.js';
 
 const QueuedSender = createChatMementoKey<IQueuedMessageSender | undefined, [messageId: string]>('queueDrain.sender', () => undefined);
 const SteeringSender = createChatMementoKey<{ readonly messageId: string; readonly sender: IAgentPendingMessageSender } | undefined>('queueDrain.steeringSender', () => undefined);
 
-/** Owns queued-message sender state and decides when a queued turn can be admitted. */
+/** Owns pending-message synchronization and decides when a queued turn can be admitted. */
 export class QueueDrainContribution extends Disposable implements IAgentHostChatContribution {
 
 	static readonly id = 'queueDrain';
@@ -35,6 +36,7 @@ export class QueueDrainContribution extends Disposable implements IAgentHostChat
 		@ILogService private readonly _logService: ILogService,
 		@IAgentHostStateManager private readonly _stateManager: AgentHostStateManager,
 		@IAgentHostProviderService private readonly _providerService: IAgentHostProviderService,
+		@IAgentHostTurnTracker private readonly _turnTracker: AgentHostTurnTracker,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ISessionWorkspaceConversionService private readonly _conversionService: ISessionWorkspaceConversionService,
 	) {
@@ -55,13 +57,16 @@ export class QueueDrainContribution extends Disposable implements IAgentHostChat
 		const action = observed.action;
 		switch (action.type) {
 			case ActionType.ChatPendingMessageSet: {
-				const state = this._stateManager.getChatState(observed.channel);
-				if (action.kind === PendingMessageKind.Queued && state?.queuedMessages?.some(message => message.id === action.id) === true) {
+				if (this._isAcceptedQueuedMessage(observed.channel, action)) {
 					this._context.memento(QueuedSender, observed.channel, action.id).set({
 						clientId: observed.clientId,
 						clientContext: observed.clientContext,
 					}, undefined);
-				} else if (action.kind === PendingMessageKind.Steering && state?.steeringMessage?.id === action.id) {
+				} else if (this._isAcceptedSteeringMessage(observed.channel, action)) {
+					const turnId = this._stateManager.getActiveTurnId(observed.channel);
+					if (turnId) {
+						this._turnTracker.markSteering(observed.channel, turnId, 'received');
+					}
 					this._context.memento(SteeringSender, observed.channel).set({
 						messageId: action.id,
 						sender: {
@@ -89,6 +94,16 @@ export class QueueDrainContribution extends Disposable implements IAgentHostChat
 				this._syncPendingMessages(observed.channel);
 				break;
 		}
+	}
+
+	private _isAcceptedQueuedMessage(channel: ProtocolURI, action: ChatPendingMessageSetAction): boolean {
+		return action.kind === PendingMessageKind.Queued
+			&& this._stateManager.getChatState(channel)?.queuedMessages?.some(message => message.id === action.id) === true;
+	}
+
+	private _isAcceptedSteeringMessage(channel: ProtocolURI, action: ChatPendingMessageSetAction): boolean {
+		return action.kind === PendingMessageKind.Steering
+			&& this._stateManager.getChatState(channel)?.steeringMessage?.id === action.id;
 	}
 
 	private _syncPendingMessages(channel: ProtocolURI): void {

@@ -90,6 +90,8 @@ interface ITurnTiming {
 	modelCallDispatchDurationMs: number;
 	timeToFirstEditMs: number | undefined;
 	timeToFirstEditClassifierVersion: number | undefined;
+	startedWithSteering: boolean;
+	receivedSteering: boolean;
 	firstProgressMs: number | undefined;
 	firstSubstantiveProgressMs: number | undefined;
 	currentStage: AgentHostTurnFailureStage;
@@ -232,6 +234,8 @@ export class AgentHostTurnTracker extends Disposable {
 			modelCallDispatchDurationMs: 0,
 			timeToFirstEditMs: undefined,
 			timeToFirstEditClassifierVersion: undefined,
+			startedWithSteering: false,
+			receivedSteering: false,
 			firstProgressMs: undefined,
 			firstSubstantiveProgressMs: undefined,
 			currentStage: 'validation',
@@ -523,6 +527,17 @@ export class AgentHostTurnTracker extends Disposable {
 		this._turnTimings.get(this._key(session, turnId))?.completedModelCallIds.add(modelCallId);
 	}
 
+	markSteering(session: string, turnId: string, kind: 'started' | 'received'): void {
+		const timing = this._turnTimings.get(this._key(session, turnId));
+		if (timing) {
+			if (kind === 'started') {
+				timing.startedWithSteering = true;
+			} else {
+				timing.receivedSteering = true;
+			}
+		}
+	}
+
 	modelCallFinished(session: string, turnId: string, modelCallId: string, dispatchDurationMs: number, outcome: AgentModelCallFinishedOutcome, containsBuiltInFileEditRequest: boolean | undefined, editClassifierVersion: number): void {
 		const timing = this._turnTimings.get(this._key(session, turnId));
 		if (!timing || timing.finishedModelCallIds.has(modelCallId)) {
@@ -611,6 +626,8 @@ export class AgentHostTurnTracker extends Disposable {
 			timeToFirstSubstantiveProgress: timing.firstSubstantiveProgressMs,
 			timeToFirstEditMs: timing.timeToFirstEditMs,
 			timeToFirstEditClassifierVersion: timing.timeToFirstEditClassifierVersion,
+			startedWithSteering: timing.startedWithSteering,
+			receivedSteering: timing.receivedSteering,
 			sendStageDurationsMs: timing.sendStageDurationsMs,
 			sendDispatchedMs: timing.sendDispatchedMs,
 			totalTime,

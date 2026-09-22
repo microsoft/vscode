@@ -48,10 +48,10 @@ import { Extensions, IExtensionFeaturesRegistry, IExtensionFeatureTableRenderer,
 import * as extensionsRegistry from '../../../../services/extensions/common/extensionsRegistry.js';
 import { IPathService } from '../../../../services/path/common/pathService.js';
 import { ChatConfiguration } from '../constants.js';
-import { ContributionEnablementState, EnablementModel, IEnablementModel } from '../enablement.js';
+import { EnablementModel, IEnablementModel } from '../enablement.js';
 import { AUTOMATION_BLUEPRINT_FILE_SUFFIX, parseAutomationBlueprint } from '../automations/automationBlueprint.js';
 import { HookType } from '../promptSyntax/hookTypes.js';
-import { AgentPluginCollisionEnablementModel, getAgentPluginPolicyId, getCanonicalAgentPluginCollisionGroups, getSortedAgentPlugins, IDiscoveredAgentPlugins, isAgentPluginBlockedByPolicy } from './agentPluginEnablement.js';
+import { AgentPluginCollisionEnablementModel, getAgentPluginPolicyEnablement, getAgentPluginPolicyId, getCanonicalAgentPluginCollisionGroups, getSortedAgentPlugins, IDiscoveredAgentPlugins, isAgentPluginBlockedByPolicy, isAgentPluginForceEnabledByPolicy } from './agentPluginEnablement.js';
 import { IAgentPluginRepositoryService } from './agentPluginRepositoryService.js';
 import { AgentPluginDiscoveryPriority, agentPluginDiscoveryRegistry, IAgentPlugin, IAgentPluginAutomation, IAgentPluginDiscovery, IAgentPluginHook, IAgentPluginInstruction, IAgentPluginService } from './agentPluginService.js';
 import { IMarketplacePlugin, IPluginMarketplaceService } from './pluginMarketplaceService.js';
@@ -121,6 +121,23 @@ export class AgentPluginService extends Disposable implements IAgentPluginServic
 			() => configurationService.inspect<Record<string, boolean>>(ChatConfiguration.EnabledPlugins).policyValue,
 		);
 
+		const policyEnablement = derived(reader => {
+			const discoveredPlugins = readDiscoveredAgentPlugins(discoveries, reader);
+			const policy = enabledPluginsPolicy.read(reader);
+			const result = new Map<string, boolean>();
+			if (discoveredPlugins && policy) {
+				for (const { plugins } of discoveredPlugins) {
+					for (const plugin of plugins) {
+						const policyValue = getAgentPluginPolicyEnablement(plugin, policy);
+						if (policyValue !== undefined) {
+							result.set(plugin.uri.toString(), policyValue);
+						}
+					}
+				}
+			}
+			return result;
+		});
+
 		const collisionGroups = derived(reader => {
 			if (!pluginsEnabled.read(reader)) {
 				return new Map<string, readonly string[]>();
@@ -130,10 +147,14 @@ export class AgentPluginService extends Disposable implements IAgentPluginServic
 				return new Map<string, readonly string[]>();
 			}
 			const policy = enabledPluginsPolicy.read(reader);
-			return getCanonicalAgentPluginCollisionGroups(discoveredPlugins, plugin => isAgentPluginBlockedByPolicy(plugin, policy));
+			return getCanonicalAgentPluginCollisionGroups(
+				discoveredPlugins,
+				plugin => isAgentPluginBlockedByPolicy(plugin, policy),
+				plugin => isAgentPluginForceEnabledByPolicy(plugin, policy),
+			);
 		});
 
-		this.enablementModel = new AgentPluginCollisionEnablementModel(baseEnablementModel, collisionGroups);
+		this.enablementModel = new AgentPluginCollisionEnablementModel(baseEnablementModel, collisionGroups, policyEnablement);
 
 		for (const { discovery } of discoveries) {
 			discovery.start(this.enablementModel);
@@ -150,17 +171,14 @@ export class AgentPluginService extends Disposable implements IAgentPluginServic
 			return getSortedAgentPlugins(discoveredPlugins);
 		});
 
-		// Mark policy-blocked plugins rather than hiding them: a blocked plugin
-		// stays visible (shown as disabled) but its `enablement` is forced to
-		// disabled (see `_toPlugin`), so it is inactive and cannot be re-enabled.
 		this._register(autorun(reader => {
 			const plugins = this.plugins.read(reader);
 			const policy = enabledPluginsPolicy.read(reader);
 			transaction(tx => {
 				for (const plugin of plugins) {
-					const blocked = isAgentPluginBlockedByPolicy(plugin, policy);
-					if (setPolicyBlocked(plugin, blocked, tx) && blocked) {
-						logService.debug(`[AgentPluginService] Plugin '${getAgentPluginPolicyId(plugin) ?? plugin.uri.toString()}' blocked — disabled by ChatEnabledPlugins policy`);
+					const policyValue = getAgentPluginPolicyEnablement(plugin, policy);
+					if (setPolicyEnablement(plugin, policyValue, tx) && policyValue !== undefined) {
+						logService.debug(`[AgentPluginService] Plugin '${getAgentPluginPolicyId(plugin) ?? plugin.uri.toString()}' ${policyValue ? 'enabled' : 'disabled'} by ChatEnabledPlugins policy`);
 					}
 				}
 			});
@@ -186,27 +204,23 @@ function readDiscoveredAgentPlugins(discoveries: readonly IAgentPluginDiscoveryW
 	return result;
 }
 
-/**
- * A discovered plugin. Extends the public {@link IAgentPlugin} with a settable
- * `policyBlocked` observable that the service writes to when enterprise policy
- * blocks the plugin.
- */
+/** A discovered plugin with the settable managed enablement observable owned by this service. */
 interface PluginEntry extends IAgentPlugin {
-	readonly policyBlocked: ISettableObservable<boolean>;
+	readonly policyEnablement: ISettableObservable<boolean | undefined>;
 }
 
 /**
- * Marks a plugin as blocked (or unblocked) by enterprise policy. Safe to call
+ * Sets a plugin's managed enablement decision. Safe to call
  * for any {@link IAgentPlugin}; entries without a settable observable (e.g. test
  * doubles) are ignored.
  */
-function setPolicyBlocked(plugin: IAgentPlugin, blocked: boolean, tx: ITransaction): boolean {
-	const obs = plugin.policyBlocked as ISettableObservable<boolean> | undefined;
+function setPolicyEnablement(plugin: IAgentPlugin, policyValue: boolean | undefined, tx: ITransaction): boolean {
+	const obs = plugin.policyEnablement as ISettableObservable<boolean | undefined> | undefined;
 	if (obs && typeof obs.set === 'function') {
-		if (obs.get() === blocked) {
+		if (obs.get() === policyValue) {
 			return false;
 		}
-		obs.set(blocked, tx);
+		obs.set(policyValue, tx);
 		return true;
 	}
 	return false;
@@ -339,12 +353,9 @@ export abstract class AbstractAgentPluginDiscovery extends Disposable implements
 		}
 
 		const store = new DisposableStore();
-		// Set by the service when enterprise policy blocks this plugin; when set,
-		// the plugin is forced disabled regardless of the user's enablement choice.
-		const policyBlocked = observableValue<boolean>('policyBlocked', false);
-		const enablement = derived(r => policyBlocked.read(r)
-			? ContributionEnablementState.DisabledProfile
-			: this._enablementModel.readEnabled(key, r));
+		const policyEnablement = observableValue<boolean | undefined>('policyEnablement', undefined);
+		const policyBlocked = derived(reader => policyEnablement.read(reader) === false);
+		const enablement = derived(r => this._enablementModel.readEnabled(key, r));
 
 		// Read the manifest up front so its `name` field can be used in the
 		// plugin label (for direct installs that have no marketplace metadata).
@@ -480,6 +491,7 @@ export abstract class AbstractAgentPluginDiscovery extends Disposable implements
 			label: fromMarketplace?.name ?? manifestName ?? basename(uri),
 			version: pluginVersion,
 			enablement,
+			policyEnablement,
 			policyBlocked,
 			remove: removeCallback,
 			hooks,
