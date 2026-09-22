@@ -256,6 +256,26 @@ suite('InboxNotificationsService', () => {
 		}]);
 	});
 
+	test('uses latest response preview for completed session notifications', () => {
+		const chatResource = URI.parse('test:///chat/completed-preview');
+		const chatService = new TestChatService();
+		chatService.setCompletedResponse(chatResource, {
+			requestId: 'request-completed-preview',
+			markdown: 'Implemented the fix for CI failures and updated the flaky test coverage.',
+		});
+		const fixture = createFixture([
+			createSession({ id: 'completed-preview', status: SessionStatus.Completed, updatedAt: 200, isRead: false, chatResource }),
+		], undefined, undefined, chatService);
+
+		assert.deepStrictEqual(fixture.service.notifications.get().map(item => ({
+			kind: item.kind,
+			description: item.description,
+		})), [{
+			kind: InboxNotificationKind.Completed,
+			description: 'Implemented the fix for CI failures and updated the flaky test coverage.',
+		}]);
+	});
+
 	test('includes pending question carousel data for needs-input notifications', () => {
 		const chatResource = URI.parse('test:///chat/pending-question');
 		const chatService = new TestChatService();
@@ -816,17 +836,33 @@ class TestChatService {
 		this._chatModelsObservable.set([...this._chatModels.values()], undefined);
 	}
 
-	private _createChatModel(options: { readonly requestId: string; readonly startedWaitingAt: number; readonly parts: IChatResponseModel['response']['value'] }): IChatModel {
+	setCompletedResponse(chatResource: URI, options: {
+		readonly requestId: string;
+		readonly markdown: string;
+	}): void {
+		this._chatModels.set(chatResource.toString(), this._createChatModel({
+			requestId: options.requestId,
+			parts: [{
+				kind: 'markdownContent',
+				content: { value: options.markdown },
+			}],
+			isComplete: true,
+		}));
+		this._chatModelsObservable.set([...this._chatModels.values()], undefined);
+	}
+
+	private _createChatModel(options: { readonly requestId: string; readonly parts: IChatResponseModel['response']['value']; readonly startedWaitingAt?: number; readonly isComplete?: boolean }): IChatModel {
 		const response = upcastPartial<IChatResponseModel>({
 			requestId: options.requestId,
 			isCanceled: false,
+			isComplete: options.isComplete ?? false,
 			response: {
 				value: options.parts,
 				getMarkdown: () => '',
 				getFinalResponse: () => '',
 				toString: () => '',
 			},
-			isPendingConfirmation: observableValue(`test.pendingConfirmation.${options.requestId}`, { startedWaitingAt: options.startedWaitingAt }),
+			isPendingConfirmation: observableValue(`test.pendingConfirmation.${options.requestId}`, options.startedWaitingAt === undefined ? undefined : { startedWaitingAt: options.startedWaitingAt }),
 		});
 		const request = upcastPartial<IChatRequestModel>({
 			id: `request.${options.requestId}`,

@@ -135,6 +135,10 @@
 	flex: 0 0 auto;
 }
 
+.inbox-notifications-item-header-actions .monaco-button-dropdown {
+	flex: 0 0 auto;
+}
+
 .inbox-notifications-item-badges {
 	display: flex;
 	flex-wrap: wrap;

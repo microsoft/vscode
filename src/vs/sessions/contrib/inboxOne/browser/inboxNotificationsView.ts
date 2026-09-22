@@ -4,11 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './media/inboxNotificationsView.css';
-import { $, addDisposableListener, clearNode, EventType, getActiveElement, isHTMLElement, trackFocus } from '../../../../base/browser/dom.js';
+import { $, addDisposableListener, clearNode, EventType, getActiveElement, isEditableElement, isHTMLElement, trackFocus } from '../../../../base/browser/dom.js';
 import { triggerConfettiAnimation } from '../../../../base/browser/ui/animations/animations.js';
-import { Button } from '../../../../base/browser/ui/button/button.js';
+import { Button, ButtonWithDropdown, IButton } from '../../../../base/browser/ui/button/button.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { DomScrollableElement } from '../../../../base/browser/ui/scrollbar/scrollableElement.js';
+import { toAction } from '../../../../base/common/actions.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { autorun, constObservable, IObservable, observableValue } from '../../../../base/common/observable.js';
 import { ScrollbarVisibility } from '../../../../base/common/scrollable.js';
@@ -18,6 +19,7 @@ import { IAccessibilityService } from '../../../../platform/accessibility/common
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
@@ -35,6 +37,11 @@ import { ISessionsService } from '../../../services/sessions/browser/sessionsSer
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { InboxCustomViewFocusContext } from '../../../common/contextkeys.js';
+import { markOnboardingTarget } from '../../../../workbench/contrib/onboarding/browser/spotlight/onboardingTarget.js';
+import { ISpotlightPayload, SPOTLIGHT_PRESENTATION_KIND } from '../../../../workbench/contrib/onboarding/browser/spotlight/spotlightTypes.js';
+import { onboardingScenarioRegistry } from '../../../../workbench/contrib/onboarding/common/onboardingRegistry.js';
+import { IOnboardingScenario } from '../../../../workbench/contrib/onboarding/common/onboardingScenario.js';
+import { IOnboardingScenarioService } from '../../../../workbench/contrib/onboarding/common/onboardingScenarioService.js';
 import {
 	IInboxNotificationAction,
 	IInboxNotificationItem,
@@ -46,9 +53,12 @@ import {
 	InboxNotificationPriority,
 	InboxNotificationsSortMode,
 } from '../common/inboxNotificationsService.js';
+import { InboxAgentMergeActionKind, InboxAgentMergeAlwaysOptInService, isInboxAgentMergeActionKind } from './inboxAgentMergeAlwaysOptInService.js';
 import { getInboxNotificationKindLabel, getInboxNotificationPriorityLabel } from './inboxNotificationsLabels.js';
 
 export class InboxNotificationsView extends AbstractCustomView {
+
+	private static activeInstance: InboxNotificationsView | undefined;
 
 	readonly title: IObservable<string> = constObservable(localize('inboxNotifications.title', "Inbox"));
 	override readonly description: IObservable<string | undefined>;
@@ -64,6 +74,13 @@ export class InboxNotificationsView extends AbstractCustomView {
 	}));
 	private readonly renderedListDisposables = this._register(new DisposableStore());
 	private renderedCards: HTMLElement[] = [];
+	private readonly agentMergeDropdownButtons = new Map<string, HTMLElement>();
+	private readonly agentMergeAlwaysOptInService: InboxAgentMergeAlwaysOptInService;
+	private isShowingAgentMergeAlwaysPrompt = false;
+
+	static getActiveInstance(): InboxNotificationsView | undefined {
+		return InboxNotificationsView.activeInstance;
+	}
 
 	constructor(
 		@IInboxNotificationsService private readonly inboxNotificationsService: IInboxNotificationsService,
@@ -72,7 +89,9 @@ export class InboxNotificationsView extends AbstractCustomView {
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 		@ISessionsProvidersService private readonly sessionsProvidersService: ISessionsProvidersService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IOnboardingScenarioService private readonly onboardingScenarioService: IOnboardingScenarioService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
@@ -80,6 +99,8 @@ export class InboxNotificationsView extends AbstractCustomView {
 		@IOpenerService private readonly openerService: IOpenerService,
 	) {
 		super();
+		InboxNotificationsView.activeInstance = this;
+		this.agentMergeAlwaysOptInService = this.instantiationService.createInstance(InboxAgentMergeAlwaysOptInService);
 		this.description = this.inboxNotificationsService.notifications.map(items => {
 			if (items.length === 0) {
 				return localize('inboxNotifications.description.empty', "No active notifications.");
@@ -88,6 +109,48 @@ export class InboxNotificationsView extends AbstractCustomView {
 				? localize('inboxNotifications.description.single', "1 notification prioritized for action")
 				: localize('inboxNotifications.description.plural', "{0} notifications prioritized for action", items.length);
 		});
+	}
+
+	override dispose(): void {
+		if (InboxNotificationsView.activeInstance === this) {
+			InboxNotificationsView.activeInstance = undefined;
+		}
+		super.dispose();
+	}
+
+	async debugShowAgentMergeAlwaysSpotlight(): Promise<boolean> {
+		if (this.isShowingAgentMergeAlwaysPrompt) {
+			return false;
+		}
+
+		const preferredActionKinds: readonly InboxAgentMergeActionKind[] = [
+			InboxNotificationActionKind.AgentMergeMergePullRequest,
+			InboxNotificationActionKind.AgentMergeFixCI,
+			InboxNotificationActionKind.AgentMergeAddressReviews,
+		];
+		const items = this.inboxNotificationsService.notifications.get();
+		for (const item of items) {
+			for (const actionKind of preferredActionKinds) {
+				if (!item.actions.some(action => action.kind === actionKind) || !this.canShowAgentMergeAlwaysDropdown(item, actionKind)) {
+					continue;
+				}
+
+				const target = this.agentMergeDropdownButtons.get(this.getAgentMergeDropdownButtonKey(item.id, actionKind));
+				if (!target) {
+					continue;
+				}
+
+				this.isShowingAgentMergeAlwaysPrompt = true;
+				try {
+					await this.showAgentMergeAlwaysSpotlight(item, actionKind, target, 10);
+					return true;
+				} finally {
+					this.isShowingAgentMergeAlwaysPrompt = false;
+				}
+			}
+		}
+
+		return false;
 	}
 
 	render(container: HTMLElement): void {
@@ -179,6 +242,7 @@ export class InboxNotificationsView extends AbstractCustomView {
 
 		const items = this.inboxNotificationsService.notifications.get();
 		this.renderedCards = [];
+		this.agentMergeDropdownButtons.clear();
 		if (items.length === 0) {
 			list.appendChild($('.inbox-notifications-empty', undefined, localize('inboxNotifications.empty', "You're all caught up.")));
 			return;
@@ -213,18 +277,10 @@ export class InboxNotificationsView extends AbstractCustomView {
 		if (item.actions.length) {
 			const headingActions = heading.appendChild($('.inbox-notifications-item-header-actions'));
 			for (const action of item.actions) {
-				const button = this.renderedListDisposables.add(new Button(headingActions, {
-					...defaultButtonStyles,
-					secondary: !action.primary,
-					small: true,
-					supportIcons: action.kind === InboxNotificationActionKind.MarkDone,
-					ariaLabel: localize('inboxNotifications.actionAriaLabel', "{0} for {1}", action.ariaLabel ?? action.label, item.title),
-				}));
+				const button = this.renderActionButton(headingActions, item, action);
 				if (action.kind === InboxNotificationActionKind.MarkDone) {
 					button.element.classList.add('inbox-notifications-item-action-done');
 				}
-				button.label = action.label;
-				this.renderedListDisposables.add(button.onDidClick(() => void this.runAction(item, action, button.element)));
 			}
 		}
 		let badges: HTMLElement | undefined;
@@ -486,7 +542,7 @@ export class InboxNotificationsView extends AbstractCustomView {
 	}
 
 	private isInlineFormInputElement(element: HTMLElement): boolean {
-		return DOM.isEditableElement(element) || element.tagName.toLowerCase() === 'select' || element.isContentEditable;
+		return isEditableElement(element) || element.tagName.toLowerCase() === 'select' || element.isContentEditable;
 	}
 
 	private applyCardTabStops(preferredNotificationId: string | undefined): void {
@@ -557,7 +613,7 @@ export class InboxNotificationsView extends AbstractCustomView {
 		);
 	}
 
-	private async runAction(item: IInboxNotificationItem, action: IInboxNotificationAction, sourceElement?: HTMLElement): Promise<void> {
+	private async runAction(item: IInboxNotificationItem, action: IInboxNotificationAction, sourceElement?: HTMLElement, enableAlways = false): Promise<void> {
 		try {
 			switch (action.kind) {
 				case InboxNotificationActionKind.OpenSession: {
@@ -568,13 +624,9 @@ export class InboxNotificationsView extends AbstractCustomView {
 					return;
 				}
 				case InboxNotificationActionKind.AgentMergeFixCI:
-					await this.runAgentMergeAction(item, { fixCI: true });
-					return;
 				case InboxNotificationActionKind.AgentMergeAddressReviews:
-					await this.runAgentMergeAction(item, { addressReviews: true });
-					return;
 				case InboxNotificationActionKind.AgentMergeMergePullRequest:
-					await this.runAgentMergeAction(item, { mergePullRequest: 'always' });
+					await this.runAgentMergeInboxAction(item, action.kind, enableAlways, sourceElement);
 					return;
 				case InboxNotificationActionKind.MarkDone: {
 					await this.markDone(item, sourceElement);
@@ -595,20 +647,171 @@ export class InboxNotificationsView extends AbstractCustomView {
 		}
 	}
 
-	private async runAgentMergeAction(item: IInboxNotificationItem, overrides: AgentMergeSessionOverrides): Promise<void> {
-		if (!item.sessionResource) {
+	private renderActionButton(container: HTMLElement, item: IInboxNotificationItem, action: IInboxNotificationAction): IButton {
+		const baseOptions = {
+			...defaultButtonStyles,
+			secondary: !action.primary,
+			small: true,
+			supportIcons: action.kind === InboxNotificationActionKind.MarkDone,
+			ariaLabel: localize('inboxNotifications.actionAriaLabel', "{0} for {1}", action.ariaLabel ?? action.label, item.title),
+		};
+		const canShowAlwaysDropdown = this.canShowAgentMergeAlwaysDropdown(item, action.kind);
+		const button = canShowAlwaysDropdown
+			? this.renderedListDisposables.add(new ButtonWithDropdown(container, {
+				...baseOptions,
+				contextMenuProvider: this.contextMenuService,
+				addPrimaryActionToDropdown: false,
+				actions: [toAction({
+					id: `${action.id}.always`,
+					label: localize('inboxNotifications.action.always', "Always {0}", action.label),
+					run: () => this.runAction(item, action, undefined, true),
+				})],
+			}))
+			: this.renderedListDisposables.add(new Button(container, baseOptions));
+		button.label = action.label;
+		if (button instanceof ButtonWithDropdown) {
+			button.dropdownButton.setAriaLabel(localize('inboxNotifications.action.moreActions', "More Actions for {0}", action.label));
+			if (isInboxAgentMergeActionKind(action.kind)) {
+				this.agentMergeDropdownButtons.set(this.getAgentMergeDropdownButtonKey(item.id, action.kind), button.dropdownButton.element);
+			}
+		}
+		this.renderedListDisposables.add(button.onDidClick(() => void this.runAction(item, action, button.element)));
+		return button;
+	}
+
+	private canShowAgentMergeAlwaysDropdown(item: IInboxNotificationItem, actionKind: InboxNotificationActionKind): actionKind is InboxAgentMergeActionKind {
+		if (!isInboxAgentMergeActionKind(actionKind)) {
+			return false;
+		}
+
+		return !this.agentMergeAlwaysOptInService.isAlwaysEnabled(actionKind);
+	}
+
+	private async runAgentMergeInboxAction(item: IInboxNotificationItem, actionKind: InboxAgentMergeActionKind, enableAlways: boolean, sourceElement: HTMLElement | undefined): Promise<void> {
+		if (enableAlways) {
+			await this.agentMergeAlwaysOptInService.enableAlways(actionKind);
 			return;
+		}
+
+		const promptDecision = this.agentMergeAlwaysOptInService.recordUsage(actionKind);
+		if (promptDecision.shouldPrompt && !this.isShowingAgentMergeAlwaysPrompt) {
+			const spotlightTarget = this.resolveAgentMergeAlwaysSpotlightTarget(item, actionKind, sourceElement);
+			if (spotlightTarget) {
+				this.isShowingAgentMergeAlwaysPrompt = true;
+				try {
+					await this.showAgentMergeAlwaysSpotlight(item, actionKind, spotlightTarget, promptDecision.usageCount);
+				} finally {
+					this.isShowingAgentMergeAlwaysPrompt = false;
+				}
+			}
+		}
+
+		const didApplyAction = await this.runAgentMergeAction(item, this.getAgentMergeActionOverrides(actionKind));
+		if (!didApplyAction) {
+			return;
+		}
+	}
+
+	private resolveAgentMergeAlwaysSpotlightTarget(item: IInboxNotificationItem, actionKind: InboxAgentMergeActionKind, sourceElement: HTMLElement | undefined): HTMLElement | undefined {
+		if (sourceElement?.classList.contains('monaco-dropdown-button')) {
+			return sourceElement;
+		}
+
+		return this.agentMergeDropdownButtons.get(this.getAgentMergeDropdownButtonKey(item.id, actionKind));
+	}
+
+	private getAgentMergeDropdownButtonKey(itemId: string, actionKind: InboxAgentMergeActionKind): string {
+		return `${itemId}:${actionKind}`;
+	}
+
+	private async showAgentMergeAlwaysSpotlight(
+		item: IInboxNotificationItem,
+		actionKind: InboxAgentMergeActionKind,
+		dropdownButton: HTMLElement,
+		usageCount: number,
+	): Promise<void> {
+		const spotlightTargetId = `sessions.inboxNotifications.agentMergeAlways.${actionKind}.${item.id}`;
+		const actionLabel = this.getAgentMergeActionLabel(actionKind);
+		const alwaysActionLabel = localize('inboxNotifications.action.always', "Always {0}", actionLabel);
+		const targetRegistration = markOnboardingTarget(dropdownButton, spotlightTargetId, {
+			open: async () => {
+				dropdownButton.click();
+			},
+		});
+
+		const scenarioId = `sessions.inboxNotifications.agentMergeAlways.${actionKind}.${Date.now()}`;
+		const scenario: IOnboardingScenario<ISpotlightPayload> = {
+			id: scenarioId,
+			trigger: { kind: 'command', commandId: scenarioId },
+			presentation: {
+				kind: SPOTLIGHT_PRESENTATION_KIND,
+				payload: {
+					steps: [{
+						id: 'agentMergeAlwaysSpotlight',
+						targetId: spotlightTargetId,
+						title: localize('inboxNotifications.agentMergeAlways.spotlight.title', "Always Let Agent Merge {0}", actionLabel),
+						description: localize(
+							'inboxNotifications.agentMergeAlways.spotlight.description',
+							"You've used \"{0}\" {1} times from Inbox. Open More Actions and choose \"{2}\". You can change this later in Agent Merge settings.",
+							actionLabel,
+							usageCount,
+							alwaysActionLabel,
+						),
+						nextButtonLabel: localize('inboxNotifications.agentMergeAlways.spotlight.notNow', "Not Now"),
+						openTarget: true,
+						allowTargetInteraction: true,
+						hideNext: false,
+						placement: 'below',
+						missingTarget: { kind: 'abort' },
+					}],
+				},
+			},
+		};
+		const registration = onboardingScenarioRegistry.register(scenario);
+		try {
+			await this.onboardingScenarioService.runScenario(scenario.id);
+		} finally {
+			registration.dispose();
+			targetRegistration.dispose();
+		}
+	}
+
+	private getAgentMergeActionLabel(actionKind: InboxAgentMergeActionKind): string {
+		switch (actionKind) {
+			case InboxNotificationActionKind.AgentMergeFixCI:
+				return localize('inboxNotifications.agentMergeAlways.fixCI', "Fix CI Failures");
+			case InboxNotificationActionKind.AgentMergeAddressReviews:
+				return localize('inboxNotifications.agentMergeAlways.addressReviews', "Address Reviews");
+			case InboxNotificationActionKind.AgentMergeMergePullRequest:
+				return localize('inboxNotifications.agentMergeAlways.mergePullRequest', "Merge Pull Request");
+		}
+	}
+
+	private getAgentMergeActionOverrides(actionKind: InboxAgentMergeActionKind): AgentMergeSessionOverrides {
+		switch (actionKind) {
+			case InboxNotificationActionKind.AgentMergeFixCI:
+				return { fixCI: true };
+			case InboxNotificationActionKind.AgentMergeAddressReviews:
+				return { addressReviews: true };
+			case InboxNotificationActionKind.AgentMergeMergePullRequest:
+				return { mergePullRequest: 'always' };
+		}
+	}
+
+	private async runAgentMergeAction(item: IInboxNotificationItem, overrides: AgentMergeSessionOverrides): Promise<boolean> {
+		if (!item.sessionResource) {
+			return false;
 		}
 
 		const session = this.sessionsManagementService.getSession(item.sessionResource);
 		if (!session) {
-			return;
+			return false;
 		}
 
 		const provider = this.sessionsProvidersService.getProvider(session.providerId);
 		if (!provider || !isAgentHostProvider(provider)) {
 			await this.sessionsService.openSession(item.sessionResource);
-			return;
+			return false;
 		}
 
 		await provider.setAgentMergeEnabled(session.sessionId, true);
@@ -617,6 +820,7 @@ export class InboxNotificationsView extends AbstractCustomView {
 			...currentOverrides,
 			...overrides,
 		});
+		return true;
 	}
 
 	private async markDone(item: IInboxNotificationItem, sourceElement: HTMLElement | undefined): Promise<void> {

@@ -67,7 +67,9 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 	private readonly _refreshedPullRequestReviewThreadModels = new WeakSet<object>();
 	private readonly _refreshedPullRequestCIModels = new WeakSet<object>();
 	private readonly _needsInputChatModelRefs = new Map<string, IChatModelReference>();
+	private readonly _completedPreviewChatModelRefs = new Map<string, IChatModelReference>();
 	private readonly _loadingNeedsInputChatModels = new Set<string>();
+	private readonly _loadingCompletedPreviewChatModels = new Set<string>();
 
 	readonly notifications: IObservable<readonly IInboxNotificationItem[]>;
 
@@ -103,52 +105,37 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 			for (const modelRef of this._needsInputChatModelRefs.values()) {
 				modelRef.dispose();
 			}
+			for (const modelRef of this._completedPreviewChatModelRefs.values()) {
+				modelRef.dispose();
+			}
 			this._needsInputChatModelRefs.clear();
+			this._completedPreviewChatModelRefs.clear();
 			this._loadingNeedsInputChatModels.clear();
+			this._loadingCompletedPreviewChatModels.clear();
 		}));
 		this._register(autorun(reader => {
 			sessionsChanged.read(reader);
 
 			const activeNeedsInputChatResources = new Set<string>();
+			const activeCompletedPreviewChatResources = new Set<string>();
 			for (const session of this.sessionsManagementService.getSessions()) {
-				if (session.isArchived.read(reader) || session.status.read(reader) !== SessionStatus.NeedsInput) {
+				if (session.isArchived.read(reader)) {
 					continue;
 				}
 
-				for (const chat of session.chats.read(reader)) {
-					const chatResourceKey = chat.resource.toString();
-					activeNeedsInputChatResources.add(chatResourceKey);
-					if (this.chatService.getSession(chat.resource)
-						|| this._needsInputChatModelRefs.has(chatResourceKey)
-						|| this._loadingNeedsInputChatModels.has(chatResourceKey)) {
-						continue;
+				if (session.status.read(reader) === SessionStatus.NeedsInput) {
+					for (const chat of session.chats.read(reader)) {
+						this.ensureChatModelLoaded(chat.resource, activeNeedsInputChatResources, this._needsInputChatModelRefs, this._loadingNeedsInputChatModels);
 					}
+				}
 
-					this._loadingNeedsInputChatModels.add(chatResourceKey);
-					void this.chatService.acquireOrLoadSession(chat.resource, ChatAgentLocation.Chat, CancellationToken.None, 'InboxNotificationsService')
-						.then(modelRef => {
-							if (!modelRef) {
-								return;
-							}
-							if (!activeNeedsInputChatResources.has(chatResourceKey)) {
-								modelRef.dispose();
-								return;
-							}
-							this._needsInputChatModelRefs.set(chatResourceKey, modelRef);
-						})
-						.catch(onUnexpectedError)
-						.finally(() => {
-							this._loadingNeedsInputChatModels.delete(chatResourceKey);
-						});
+				if (session.status.read(reader) === SessionStatus.Completed && !session.isRead.read(reader)) {
+					this.ensureChatModelLoaded(session.mainChat.read(reader).resource, activeCompletedPreviewChatResources, this._completedPreviewChatModelRefs, this._loadingCompletedPreviewChatModels);
 				}
 			}
 
-			for (const [chatResourceKey, modelRef] of this._needsInputChatModelRefs) {
-				if (!activeNeedsInputChatResources.has(chatResourceKey)) {
-					modelRef.dispose();
-					this._needsInputChatModelRefs.delete(chatResourceKey);
-				}
-			}
+			this.disposeInactiveChatModels(activeNeedsInputChatResources, this._needsInputChatModelRefs);
+			this.disposeInactiveChatModels(activeCompletedPreviewChatResources, this._completedPreviewChatModelRefs);
 		}));
 
 		this.notifications = derived(this, reader => {
@@ -263,7 +250,7 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 				kind: InboxNotificationKind.Completed,
 				priority: InboxNotificationPriority.Low,
 				title: localize('inboxNotifications.completed.title', "Completed: {0}", title),
-				description: localize('inboxNotifications.completed.description', "Review this completed session or mark it done."),
+				description: this.getCompletedSessionDescription(session, reader),
 				repositoryLabel,
 				timestamp: updatedAt,
 				sessionResource: session.resource,
@@ -727,6 +714,104 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 		}
 		const text = message ? renderAsPlaintext(message).trim() : '';
 		return text || localize('inboxNotifications.needsInput.descriptionFallback', "Input needed.");
+	}
+
+	private getCompletedSessionDescription(session: ISession, reader: IReader): string {
+		const preview = this.getCompletedSessionResponsePreview(session, reader);
+		if (preview) {
+			return preview;
+		}
+
+		const description = session.description.read(reader);
+		const descriptionText = description ? this.normalizeResponsePreviewText(renderAsPlaintext(description, { useLinkFormatter: true })) : undefined;
+		return descriptionText || localize('inboxNotifications.completed.description', "Review this completed session or mark it done.");
+	}
+
+	private getCompletedSessionResponsePreview(session: ISession, reader: IReader): string | undefined {
+		const chatResource = session.mainChat.read(reader).resource;
+		const chatModel = this.chatService.getSession(chatResource);
+		if (!chatModel) {
+			return undefined;
+		}
+
+		for (const request of chatModel.getRequests().toReversed()) {
+			const response = request.response;
+			if (!response
+				|| response.isCanceled
+				|| request.isHiddenFromTranscript
+				|| (request.shouldBeRemovedOnSend && !request.shouldBeRemovedOnSend.afterUndoStop)) {
+				continue;
+			}
+
+			for (const part of response.response.value) {
+				if (part.kind === 'markdownContent') {
+					const text = this.normalizeResponsePreviewText(renderAsPlaintext(part.content, { useLinkFormatter: true }));
+					if (text) {
+						return text;
+					}
+				}
+			}
+		}
+
+		return undefined;
+	}
+
+	private normalizeResponsePreviewText(text: string): string | undefined {
+		const normalized = text.replace(/\s+/g, ' ').trim();
+		if (!normalized) {
+			return undefined;
+		}
+
+		const maxLength = 160;
+		if (normalized.length <= maxLength) {
+			return normalized;
+		}
+
+		return `${normalized.slice(0, maxLength).trimEnd()}…`;
+	}
+
+	private ensureChatModelLoaded(
+		chatResource: URI,
+		activeChatResources: Set<string>,
+		chatModelRefs: Map<string, IChatModelReference>,
+		loadingChatResources: Set<string>,
+	): void {
+		const chatResourceKey = chatResource.toString();
+		activeChatResources.add(chatResourceKey);
+		if (this.chatService.getSession(chatResource)
+			|| chatModelRefs.has(chatResourceKey)
+			|| loadingChatResources.has(chatResourceKey)) {
+			return;
+		}
+
+		loadingChatResources.add(chatResourceKey);
+		void this.chatService.acquireOrLoadSession(chatResource, ChatAgentLocation.Chat, CancellationToken.None, 'InboxNotificationsService')
+			.then(modelRef => {
+				if (!modelRef) {
+					return;
+				}
+				if (!activeChatResources.has(chatResourceKey)) {
+					modelRef.dispose();
+					return;
+				}
+				chatModelRefs.set(chatResourceKey, modelRef);
+			})
+			.catch(onUnexpectedError)
+			.finally(() => {
+				loadingChatResources.delete(chatResourceKey);
+			});
+	}
+
+	private disposeInactiveChatModels(
+		activeChatResources: Set<string>,
+		chatModelRefs: Map<string, IChatModelReference>,
+	): void {
+		for (const [chatResourceKey, modelRef] of chatModelRefs) {
+			if (!activeChatResources.has(chatResourceKey)) {
+				modelRef.dispose();
+				chatModelRefs.delete(chatResourceKey);
+			}
+		}
 	}
 
 	private getSessionRepositoryLabel(session: ISession, reader: IReader): string | undefined {

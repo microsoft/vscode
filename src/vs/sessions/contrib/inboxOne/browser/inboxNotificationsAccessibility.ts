@@ -29,7 +29,7 @@ class InboxNotificationsAccessibilityHelp implements IAccessibleViewImplementati
 			localize('inboxNotifications.help.pullRequestStates', "Pull request notifications show state chips with pull request icons so you can quickly scan checks, comments, and merge readiness. Activate a pull request chip to open that pull request."),
 			localize('inboxNotifications.help.navigation', "Use Up Arrow and Down Arrow to move focus between notification cards. Tab moves through actions for the focused notification."),
 			localize('inboxNotifications.help.sorting', "Use the Priority and Recent buttons to switch sorting order. Priority is the default."),
-			localize('inboxNotifications.help.actions', "Cards show inline question carousels and confirmation controls when input is needed. Answer or confirm directly in the card, or open the session for full context. CI and review notifications may include actions such as Fix CI Failures, Address Reviews, and Merge Pull Request. Use Done to clear a notification."),
+			localize('inboxNotifications.help.actions', "Cards show inline question carousels and confirmation controls when input is needed. Answer or confirm directly in the card, or open the session for full context. CI and review notifications may include actions such as Fix CI Failures, Address Reviews, and Merge Pull Request. Some actions include a More Actions menu where you can set that action to run by default. Use Done to clear a notification."),
 			localize('inboxNotifications.help.done', "Done clears a notification and marks its session as read when available."),
 			localize('inboxNotifications.help.accessibleView', "Use Open Accessible View to read the full notification list as plain text."),
 		].join('\n');
