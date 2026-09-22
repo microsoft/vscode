@@ -59,8 +59,8 @@ suite('NativePluginGitCommandService', () => {
 		return error;
 	}
 
-	function createService(localGitService: ILocalGitService, accessToken?: string, fileService = createFileService()): NativePluginGitCommandService {
-		return new NativePluginGitCommandService(localGitService, createAuthenticationService(accessToken), fileService, new NullLogService());
+	function createService(localGitService: ILocalGitService, accessToken?: string, fileService = createFileService(), authenticationService = createAuthenticationService(accessToken)): NativePluginGitCommandService {
+		return new NativePluginGitCommandService(localGitService, authenticationService, fileService, new NullLogService());
 	}
 
 	test('cloneRepository delegates to ILocalGitService', async () => {
@@ -96,6 +96,32 @@ suite('NativePluginGitCommandService', () => {
 			authorizationHeader: 'Authorization: Basic eC1hY2Nlc3MtdG9rZW46Z2l0aHViLXRva2Vu',
 		}]);
 		assert.strictEqual(deleted, true);
+	});
+
+	test('cloneRepository retries session lookup after native authentication failure', async () => {
+		let authentication: IGitAuthentication | undefined;
+		let sessionLookups = 0;
+		const authenticationService = {
+			getSessions: async () => ++sessionLookups === 1
+				? []
+				: createAuthenticationService('github-token').getSessions('github', []),
+		} as Partial<IAuthenticationService> as IAuthenticationService;
+		const service = createService(createLocalGitStub({
+			clone: async (_operationId, _url, _path, _ref, options) => {
+				authentication = options?.authentication;
+				if (!authentication) {
+					throw createAuthenticationError();
+				}
+			},
+		}), undefined, createFileService(), authenticationService);
+
+		await service.cloneRepository('https://github.com/test/private.git', URI.file('/tmp/repo'));
+
+		assert.strictEqual(sessionLookups, 2);
+		assert.deepStrictEqual(authentication, {
+			urlPrefix: 'https://github.com/',
+			authorizationHeader: 'Authorization: Basic eC1hY2Nlc3MtdG9rZW46Z2l0aHViLXRva2Vu',
+		});
 	});
 
 	test('cloneRepository does not forward GitHub authentication to unsupported origins', async () => {

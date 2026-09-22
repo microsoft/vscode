@@ -124,13 +124,18 @@ export class NativePluginGitCommandService implements IPluginGitService {
 		beforeRetry?: () => Promise<void>,
 	): Promise<T> {
 		const canUseEditorAuthentication = remoteUrl !== undefined && isCanonicalGitHubCloneUrl(remoteUrl);
-		const authentication = canUseEditorAuthentication ? await this._getGitHubAuthentication(token) : undefined;
+		let authentication = canUseEditorAuthentication ? await this._getGitHubAuthentication(token) : undefined;
 		this._throwIfCancelled(token);
 
 		try {
 			return await runNative();
 		} catch (error) {
-			if (!authentication || !this._isAuthenticationFailure(error)) {
+			const isAuthenticationFailure = this._isAuthenticationFailure(error);
+			if (isAuthenticationFailure && !authentication && canUseEditorAuthentication) {
+				authentication = await this._getGitHubAuthentication(token);
+				this._throwIfCancelled(token);
+			}
+			if (!authentication || !isAuthenticationFailure) {
 				this._logGitError(operation, error);
 				throw error;
 			}
