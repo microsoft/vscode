@@ -535,10 +535,27 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	private contextUsageWidget?: ChatContextUsageWidget;
 	private contextUsageWidgetContainer!: HTMLElement;
+	private contextUsageWidgetHome!: HTMLElement;
+	private inputEditorTrailingSpace = 0;
 	private readonly _contextUsageDisposables = this._register(new MutableDisposable<DisposableStore>());
 
 	get inputContainerElement(): HTMLElement | undefined {
 		return this.inputContainer;
+	}
+
+	placeContextUsageWidget(container?: HTMLElement): void {
+		(container ?? this.contextUsageWidgetHome).append(this.contextUsageWidgetContainer);
+	}
+
+	/** Reserves horizontal space at the trailing edge of the input editor. */
+	setInputEditorTrailingSpace(width: number): void {
+		const trailingSpace = Math.max(0, width);
+		if (this.inputEditorTrailingSpace === trailingSpace) {
+			return;
+		}
+
+		this.inputEditorTrailingSpace = trailingSpace;
+		this.layoutForToolbarChange();
 	}
 
 	get inputRowHeight(): number {
@@ -3304,9 +3321,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.chatGoalBannerContainer = elements.chatGoalBannerContainer;
 		this.contextUsageWidgetContainer = elements.contextUsageWidgetContainer;
 		this.statusToolbarContainer = elements.statusToolbarContainer;
+		this.contextUsageWidgetHome = this.options.renderStyle === 'compact' ? toolbarsContainer : this.secondaryToolbarContainer;
 
 		if (this.options.renderStyle === 'compact') {
-			toolbarsContainer.prepend(this.contextUsageWidgetContainer);
+			this.contextUsageWidgetHome.prepend(this.contextUsageWidgetContainer);
 		}
 
 		// Context usage widget — will be positioned in the toolbar after toolbars are created
@@ -5144,7 +5162,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.followupsContainer.style.width = `${followupsWidth}px`;
 
 		const initialEditorScrollWidth = this._inputEditor.getScrollWidth();
-		const newEditorWidth = width - data.inputPartHorizontalPadding - data.editorBorder - data.inputPartHorizontalPaddingInside - data.toolbarsWidth - data.sideToolbarWidth;
+		const newEditorWidth = Math.max(0, width - data.inputPartHorizontalPadding - data.editorBorder - data.inputPartHorizontalPaddingInside - data.toolbarsWidth - data.sideToolbarWidth - this.inputEditorTrailingSpace);
 		const effectiveMaxHeight = this._effectiveInputEditorMaxHeight;
 		const contentHeight = preserveInputEditorHeight && this.previousInputEditorDimension
 			? this.previousInputEditorDimension.height

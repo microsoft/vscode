@@ -196,17 +196,17 @@ suite('ConfiguredAgentPluginDiscovery', () => {
 		);
 	});
 
-	test('resolves enterprise plugin IDs relative to a remote user home', async () => {
+	test('leaves Copilot CLI cache paths to authoritative CLI discovery', async () => {
 		const remoteUserHome = URI.from({ scheme: 'vscode-remote', authority: 'wsl+ubuntu', path: '/home/user' });
 		const discovery = createDiscovery({
 			workspaceUri: URI.from({ scheme: 'vscode-remote', authority: 'wsl+ubuntu', path: '/workspace' }),
 			userHome: remoteUserHome,
+			pluginLocations: {
+				'~/.copilot/installed-plugins/marketplace/plugin': true,
+			},
 			enabledPlugins: { 'plugin@marketplace': true },
 		});
 
-		assert.deepStrictEqual(
-			(await discovery.discoverPluginSources()).map(source => source.uri),
-			[URI.from({ scheme: 'vscode-remote', authority: 'wsl+ubuntu', path: '/home/user/.copilot/installed-plugins/marketplace/plugin' })],
-		);
+		assert.deepStrictEqual(await discovery.discoverPluginSources(), []);
 	});
 });

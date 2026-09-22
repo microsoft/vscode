@@ -35,7 +35,14 @@ import { fetchSessionWithChat, getActionEnvelope, isActionNotification } from '.
 import type { IAgentHostE2ETestContext } from './e2eTestContext.js';
 
 export function defineSubagentTests(context: IAgentHostE2ETestContext): void {
-	const { config, createdSessions, tempDirs, isWindows } = context;
+	const { config, createdSessions, tempDirs } = context;
+	// Copilot captures store one wire dialect, so keep nested model calls on the parent's Anthropic endpoint.
+	const stableSubagentModelInstruction = config.provider === 'copilotcli'
+		? 'Explicitly set the subagent model to `claude-sonnet-5`. '
+		: '';
+	const stableSubagentFileListingInstruction = config.provider === 'copilotcli'
+		? 'Then the subagent should call a single read-only file-listing tool (e.g. `Glob` or `view`) to list the files; do not run a shell command. '
+		: 'Then the subagent should list the files. ';
 
 	function createCustomAgentWorkspace(prefix: string, allTools = false): string {
 		const workspace = mkdtempSync(join(tmpdir(), prefix));
@@ -479,6 +486,7 @@ export function defineSubagentTests(context: IAgentHostE2ETestContext): void {
 
 		dispatchTurn(context.client, sessionUri, 'turn-sa',
 			`Use the \`${config.subagentToolNames[0]}\` tool to spawn a subagent to list the files in the current working directory. ` +
+			stableSubagentModelInstruction +
 			'The subagent should call a single read-only file-listing tool (e.g. `Glob` or `view`) to enumerate the directory; do not run a shell command. ' +
 			'Do not enumerate the directory yourself — delegate to the subagent.',
 			1);
@@ -538,8 +546,7 @@ export function defineSubagentTests(context: IAgentHostE2ETestContext): void {
 			`Parent tool calls: ${JSON.stringify(parentStarts.map(a => a.toolName))}`);
 	});
 
-	// Windows-skipped for providers with on-disk subagent replay (see `subagentReplayUnstableOnWindows`).
-	((isWindows && config.subagentReplayUnstableOnWindows) ? test.skip : (config.supportsSubagents ? test : test.skip))('reopening a session keeps sub-agent messages out of the parent transcript (replay path)', async function () {
+	(config.supportsSubagents ? test : test.skip)('reopening a session keeps sub-agent messages out of the parent transcript (replay path)', async function () {
 		this.timeout(180_000);
 
 		const tempDir = mkdtempSync(`${tmpdir()}/ahp-subagent-replay-`);
@@ -596,8 +603,9 @@ export function defineSubagentTests(context: IAgentHostE2ETestContext): void {
 
 		dispatchTurn(context.client, sessionUri, 'turn-sa-replay',
 			`Use the \`${config.subagentToolNames[0]}\` tool to spawn a subagent to list the files in the current working directory. ` +
+			stableSubagentModelInstruction +
 			`Instruct the subagent to begin its response with this sentence on its own line: ${sentinel}. ` +
-			'Then the subagent should list the files. ' +
+			stableSubagentFileListingInstruction +
 			`After the subagent completes, you, the main agent, must reply exactly "${parentResponse}" and must not repeat that sentence.`,
 			1);
 

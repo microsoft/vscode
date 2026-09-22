@@ -238,6 +238,15 @@ export type IResolvedCreateSessionArgs = {
 	readonly model?: IAgentModelInfo;
 };
 
+/** Selects how a repository is attached to a chat's aggregate session. */
+export type IAddSessionWorkingDirectoryOptions = {
+	readonly isolation: 'folder';
+} | {
+	readonly isolation: 'worktree';
+	readonly prompt: string;
+	readonly forceNewWorktree?: boolean;
+};
+
 /** AgentService-owned operations used by the session server-tool group. */
 export interface IAgentServiceSessionServerToolAccessor {
 	readonly isActiveAgentTitleGenerationEnabled: () => boolean;
@@ -250,7 +259,8 @@ export interface IAgentServiceSessionServerToolAccessor {
 	readonly getModels: () => readonly IAgentModelInfo[];
 	readonly getCreationDefaults: (source: URI) => ISessionCreationDefaults | undefined;
 	readonly startPrompt: (session: URI, chat: URI, prompt: string, delegation?: IAgentMessageDelegationMeta) => Promise<void>;
-	readonly createChat: (session: URI, chat: URI, options?: { title?: string; model?: ModelSelection }) => Promise<void>;
+	readonly createChat: (session: URI, chat: URI, options?: { title?: string; model?: ModelSelection; workingDirectories?: readonly URI[] }) => Promise<void>;
+	readonly addSessionWorkingDirectory: (session: URI, directory: URI, options: IAddSessionWorkingDirectoryOptions) => Promise<URI>;
 	readonly renameChat: (session: URI, chat: URI, title: string) => Promise<IRenameTitleResult>;
 	readonly reportToolError: (toolName: SessionServerToolName, error: unknown) => void;
 	readonly deleteSession: (session: URI) => Promise<void>;

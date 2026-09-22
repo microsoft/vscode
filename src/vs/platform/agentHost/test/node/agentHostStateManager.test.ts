@@ -11,7 +11,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { ActionType, NotificationType, type ActionEnvelope, type INotification } from '../../common/state/sessionActions.js';
-import { ChatInputQuestionKind, ChatInputResponseKind, MessageKind, SessionSummary, ResponsePartKind, ROOT_STATE_URI, SessionLifecycle, SessionStatus, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentSessionUri, buildSubagentSessionUriPrefix, createErrorResponsePart, isSubagentSession, mergeSessionWithDefaultChat, parseSubagentSessionUri, readHostBuildInfo, readSessionEhcliAdoptable, withSessionEhcliAdoptable, type ChatState, type MarkdownResponsePart, type SessionState, type Turn } from '../../common/state/sessionState.js';
+import { ChatInputQuestionKind, ChatInputResponseKind, ChatInteractivity, MessageKind, SessionSummary, ResponsePartKind, ROOT_STATE_URI, SessionLifecycle, SessionStatus, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentSessionUri, buildSubagentSessionUriPrefix, createErrorResponsePart, isSubagentSession, mergeSessionWithDefaultChat, parseSubagentSessionUri, readHostBuildInfo, readSessionEhcliAdoptable, withSessionEhcliAdoptable, type ChatState, type MarkdownResponsePart, type SessionState, type Turn } from '../../common/state/sessionState.js';
 import { type SessionSummaryChangedParams } from '../../common/state/protocol/notifications.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { buildChangesetUri, buildSessionChangesetUri } from '../../common/changesetUri.js';
@@ -1078,12 +1078,19 @@ suite('AgentHostStateManager', () => {
 				{
 					addedTitle: summary?.title,
 					chatResources: manager.getSessionState(sessionUri)?.chats.map(c => c.resource.toString()).sort(),
+					summaryChats: manager.getSessionSummary(sessionUri)?.chats,
+					defaultChat: manager.getSessionSummary(sessionUri)?.defaultChat,
 					peerTurns: manager.getChatState(peerChat)?.turns.length,
 					chatAddedEvents: envelopes.filter(e => e.action.type === ActionType.SessionChatAdded).length,
 				},
 				{
 					addedTitle: 'Peer',
 					chatResources: [buildDefaultChatUri(sessionUri), peerChat].sort(),
+					summaryChats: [
+						{ resource: buildDefaultChatUri(sessionUri), title: 'Test', origin: { kind: MessageKind.User } },
+						{ resource: peerChat, title: 'Peer', origin: { kind: MessageKind.User } },
+					],
+					defaultChat: buildDefaultChatUri(sessionUri),
 					peerTurns: 0,
 					chatAddedEvents: 1,
 				},
@@ -1175,6 +1182,38 @@ suite('AgentHostStateManager', () => {
 			}, {
 				beforeRestore: '',
 				afterRestore: 'Test',
+			});
+		});
+
+		test('restore preserves a listed peer catalog in the first live summary', () => {
+			const defaultChat = buildDefaultChatUri(sessionUri);
+			const summary: SessionSummary = {
+				...makeSessionSummary(),
+				chats: [
+					{ resource: defaultChat, title: '' },
+					{ resource: peerChat, title: 'Peer' },
+				],
+				defaultChat,
+			};
+			manager.prepareSessionSummariesForListing([summary]);
+			const publishedChatCatalogs: string[][] = [];
+			disposables.add(manager.onDidEmitNotification(notification => {
+				if (notification.type === NotificationType.SessionSummaryChanged && notification.changes.chats) {
+					publishedChatCatalogs.push(notification.changes.chats.map(chat => chat.resource));
+				}
+			}));
+
+			manager.restoreSession(summary, []);
+			const listed = manager.prepareSessionSummariesForListing([summary])[0];
+
+			assert.deepStrictEqual({
+				state: manager.getSessionState(sessionUri)?.chats.map(chat => chat.resource),
+				listed: listed.chats?.map(chat => chat.resource),
+				publishedChatCatalogs,
+			}, {
+				state: [defaultChat, peerChat],
+				listed: [defaultChat, peerChat],
+				publishedChatCatalogs: [[defaultChat, peerChat]],
 			});
 		});
 
@@ -1992,6 +2031,23 @@ suite('AgentHostStateManager', () => {
 					},
 				);
 			});
+		});
+
+		test('session summaries preserve chat interactivity', () => {
+			manager.createSession(makeSessionSummary());
+			manager.addChat(sessionUri, peerChat, {
+				title: 'Hidden peer',
+				interactivity: ChatInteractivity.Hidden,
+			});
+
+			assert.deepStrictEqual(manager.getSessionSummary(sessionUri)?.chats?.map(chat => ({
+				resource: chat.resource,
+				title: chat.title,
+				interactivity: chat.interactivity,
+			})), [
+				{ resource: sessionChatUri, title: 'Test', interactivity: undefined },
+				{ resource: peerChat, title: 'Hidden peer', interactivity: ChatInteractivity.Hidden },
+			]);
 		});
 
 		test('SessionSummaryNotifier provides the previous summary to internal observers', () => {
