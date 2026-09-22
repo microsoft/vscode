@@ -1738,6 +1738,7 @@ export class AgentSideEffects extends Disposable {
 		const { agent, sessionChannel, turnChannel, chat, message, turnId, senderClientId, clientContext, turnStopWatch } = options;
 
 		const chatUri = URI.parse(chat);
+		const turnTelemetryContext = this._turnTracker.getProviderTelemetryContext(turnChannel, turnId);
 
 		let failureStage: AgentHostTurnFailureStage = 'workingDirectory';
 		// Declared outside the `try` so a turn that fails before the provider is
@@ -1794,7 +1795,7 @@ export class AgentSideEffects extends Disposable {
 			const resolvedAttachments = await this._resolveChatAttachments(message.attachments);
 			this._turnTracker.markSendStage(turnChannel, turnId, 'contributions');
 			const contribution = await this._chatContributions.outgoingTurn({ session: sessionChannel, chat, message, turnId });
-			const sendContext = { ...clientOperationContext, ...(contribution.instructions?.length ? { hostInstructions: contribution.instructions } : {}) };
+			const sendContext = { ...clientOperationContext, ...(turnTelemetryContext ? { turnTelemetryContext } : {}), ...(contribution.instructions?.length ? { hostInstructions: contribution.instructions } : {}) };
 			if (this._cancelledTurnIds.get(turnChannel)?.has(turnId)) {
 				await this._discardPendingTurnStartCheckpoint(checkpointCapture, sessionChannel, chatUri, turnId);
 				return;
