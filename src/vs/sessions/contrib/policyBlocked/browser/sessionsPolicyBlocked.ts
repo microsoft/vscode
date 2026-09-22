@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './media/sessionsPolicyBlocked.css';
-import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { $, addDisposableGenericMouseDownListener, append, EventType, addDisposableListener, getActiveElement, getWindow, isHTMLElement } from '../../../../base/browser/dom.js';
+import { Disposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { $, addDisposableGenericMouseDownListener, append, EventType, addDisposableListener, getActiveElement, getWindow, isHTMLElement, scheduleAtNextAnimationFrame } from '../../../../base/browser/dom.js';
 import { localize } from '../../../../nls.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
 import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
@@ -83,10 +83,22 @@ export class SessionsPolicyBlockedOverlay extends Disposable {
 		const scrollable = options.reason === SessionsBlockedReason.UpdateRequired
 			? this._register(new DomScrollableElement(scrollContent, { horizontal: ScrollbarVisibility.Hidden, vertical: ScrollbarVisibility.Auto, useShadows: false }))
 			: undefined;
+		const revealFocusedAction = () => {
+			const focusedElement = getActiveElement();
+			if (isHTMLElement(focusedElement) && scrollContent.contains(focusedElement)) {
+				focusedElement.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+				scrollable?.scanDomNode();
+			}
+		};
 		if (scrollable) {
 			const scrollContainer = append(this.overlay, scrollable.getDomNode());
 			scrollContainer.classList.add('sessions-policy-blocked-scrollable');
 			this._register(addDisposableListener(scrollContent, EventType.SCROLL, () => scrollable.setScrollPosition({ scrollTop: scrollContent.scrollTop })));
+			const focusScroll = this._register(new MutableDisposable());
+			this._register(addDisposableListener(scrollContent, EventType.FOCUS_IN, () => {
+				// Reveal after the browser's native focus scrolling.
+				focusScroll.value = scheduleAtNextAnimationFrame(getWindow(scrollContent), revealFocusedAction);
+			}));
 		}
 		const card = append(scrollContent, $('.sessions-policy-blocked-card'));
 		if (options.reason === SessionsBlockedReason.UpdateRequired) {
@@ -107,11 +119,7 @@ export class SessionsPolicyBlockedOverlay extends Disposable {
 					}
 				}
 				scrollable?.scanDomNode();
-				const focusedElement = getActiveElement();
-				if (isHTMLElement(focusedElement) && scrollContent.contains(focusedElement)) {
-					focusedElement.scrollIntoView({ block: 'nearest', inline: 'nearest' });
-					scrollable?.scanDomNode();
-				}
+				revealFocusedAction();
 			};
 			layout();
 			this._register(layoutService.onDidLayoutMainContainer(layout));

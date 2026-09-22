@@ -243,7 +243,7 @@ suite('Sessions policy update explanation', () => {
 		}, { focused: true, fallbackFocusCalls: [{ sessionId: undefined, inert: false }] });
 	});
 
-	test('wraps long unbroken versions and keeps recovery actions reachable in a short viewport', () => {
+	test('wraps long unbroken versions and keeps recovery actions reachable in a short viewport', async () => {
 		const { root, updateInfo, layoutEvent } = setup(undefined);
 		root.style.width = '320px';
 		root.style.height = '220px';
@@ -257,6 +257,7 @@ suite('Sessions policy update explanation', () => {
 		const scrollContent = root.querySelector<HTMLElement>('.sessions-policy-blocked-scroll-content')!;
 		const button = overlay.querySelector<HTMLElement>('.monaco-button.secondary')!;
 		button.focus();
+		await new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => resolve()));
 		const viewport = scrollContent.getBoundingClientRect();
 		const buttonBounds = button.getBoundingClientRect();
 		root.style.height = '160px';
