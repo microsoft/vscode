@@ -290,9 +290,17 @@ export function getFloatingPaneCompositeHorizontalMargins(layoutService: IWorkbe
 		&& layoutService.isVisible(Parts.ACTIVITYBAR_PART);
 	const leading = meetsActivityBarRail ? FLOATING_PANEL_INNER_MARGIN : margin;
 
+	const panelMeetsRightActivityBar = partId === Parts.PANEL_PART
+		&& isHorizontal(layoutService.getPanelPosition())
+		&& layoutService.getSideBarPosition() === Position.RIGHT
+		&& layoutService.isVisible(Parts.ACTIVITYBAR_PART)
+		&& layoutService.isVisible(Parts.SIDEBAR_PART)
+		&& getFloatingSidebarSiblingToEditorStatus(layoutService).sideBar;
+	const trailing = panelMeetsRightActivityBar ? margin : FLOATING_PANEL_INNER_MARGIN;
+
 	return {
 		left: outerGutter.left ? outerMargin : leading,
-		right: outerGutter.right ? outerMargin : FLOATING_PANEL_INNER_MARGIN,
+		right: outerGutter.right ? outerMargin : trailing,
 	};
 }
 

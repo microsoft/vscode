@@ -5,7 +5,8 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { readToolCallMeta, toToolCallMeta } from '../../common/meta/agentToolCallMeta.js';
+import { type AgentFusionPhaseStatus, isPresentationOnlyToolCall, readToolCallMeta, toToolCallMeta } from '../../common/meta/agentToolCallMeta.js';
+import { AgentSystemNotificationKind, type AgentFusionProgressStatus, readAgentSystemNotificationMeta, toAgentSystemNotificationMeta } from '../../common/meta/agentSystemNotificationMeta.js';
 import { readEphemeralSessionMeta, withEphemeralSessionMeta } from '../../common/meta/agentEphemeralSessionMeta.js';
 import { createEditorInlineChatInstruction, createTerminalChatInstruction, readChatSurfaceMeta, withChatSurfaceMeta } from '../../common/meta/agentChatSurfaceMeta.js';
 import { readAgentCustomizationMeta, toAgentCustomizationMeta } from '../../common/meta/agentCustomizationMeta.js';
@@ -98,6 +99,39 @@ suite('Agent host _meta readers', () => {
 				wire: { progressMessage: 'Searching' },
 				read: { progressMessage: 'Searching' },
 				dropped: {},
+			});
+		});
+
+		test('validates Fusion phase metadata and presentation-only classification', () => {
+			const phase = { fusionId: 'fusion', phaseId: 'phase', model: 'model', startedAt: 123, duration: 10 };
+			const statuses: AgentFusionPhaseStatus[] = ['running', 'succeeded', 'failed', 'cancelled'];
+			const invalid: readonly unknown[] = [undefined, null, '', 'completed', 'future', 1, true, {}, []];
+			assert.deepStrictEqual({
+				valid: statuses.map(status => readToolCallMeta(toolCall(toToolCallMeta({ toolKind: 'fusionPhase', fusionPhase: { ...phase, status } })))),
+				invalid: invalid.map(status => readToolCallMeta(toolCall({ fusionPhase: { ...phase, status } })).fusionPhase),
+				presentation: ['fusionPhase', 'terminal', 'subagent', 'search', 'read', 'future', undefined, null, 1]
+					.map(toolKind => isPresentationOnlyToolCall(toolCall({ toolKind }))),
+				phaseWithoutKind: isPresentationOnlyToolCall(toolCall({ fusionPhase: { ...phase, status: 'running' } })),
+			}, {
+				valid: statuses.map(status => ({ toolKind: 'fusionPhase', fusionPhase: { ...phase, status } })),
+				invalid: invalid.map(() => undefined),
+				presentation: [true, false, false, false, false, false, false, false, false],
+				phaseWithoutKind: false,
+			});
+		});
+	});
+
+	suite('readAgentSystemNotificationMeta', () => {
+		test('round trips Fusion statuses and drops malformed values', () => {
+			const statuses: AgentFusionProgressStatus[] = ['selected', 'completed', 'failed', 'cancelled', 'degraded'];
+			const invalid: readonly unknown[] = [undefined, null, '', 'running', 'future', 1, true, {}, []];
+			const empty = { kind: undefined, severity: undefined, workspaceKind: undefined, workspaceName: undefined, fusionStatus: undefined };
+			assert.deepStrictEqual({
+				valid: statuses.map(fusionStatus => readAgentSystemNotificationMeta({ _meta: toAgentSystemNotificationMeta({ kind: AgentSystemNotificationKind.FusionProgress, fusionStatus }) })),
+				invalid: invalid.map(fusionStatus => readAgentSystemNotificationMeta({ _meta: { fusionStatus } })),
+			}, {
+				valid: statuses.map(fusionStatus => ({ ...empty, kind: AgentSystemNotificationKind.FusionProgress, fusionStatus })),
+				invalid: invalid.map(() => empty),
 			});
 		});
 	});
