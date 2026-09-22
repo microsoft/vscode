@@ -26,7 +26,8 @@ parameters:
 jobs:
   - job: Linux_${{ parameters.VSCODE_ARCH }}
     displayName: Linux (${{ upper(parameters.VSCODE_ARCH) }})
-    timeoutInMinutes: 90
+    # Allow the 120-minute ESRP signing session plus packaging and publication.
+    timeoutInMinutes: 180
     variables:
       DISPLAY: ":10"
       BUILDS_API_URL: $(System.CollectionUri)$(System.TeamProject)/_apis/build/builds/$(Build.BuildId)/

@@ -403,6 +403,37 @@ steps:
         echo "##vso[task.setvariable variable=RPM_PACKAGE_NAME]$(basename $(ls .build/linux/rpm/*.rpm))"
       displayName: Build rpm package
 
+    - task: UseDotNet@2
+      inputs:
+        version: 6.x
+
+    - task: EsrpCodeSigning@6
+      inputs:
+        UseMSIAuthentication: true
+        ConnectedServiceName: vscode-esrp
+        AppRegistrationClientId: $(ESRP_CLIENT_ID)
+        AppRegistrationTenantId: $(ESRP_TENANT_ID)
+        AuthAKVName: vscode-esrp
+        AuthSignCertName: esrp-sign
+        FolderPath: .
+        Pattern: noop
+      displayName: 'Install ESRP Tooling'
+
+    - pwsh: |
+        . build/azure-pipelines/win32/exec.ps1
+        $ErrorActionPreference = "Stop"
+        $EsrpCodeSigningTool = (gci -directory -filter EsrpCodeSigning_* $(Agent.RootDirectory)/_tasks | Select-Object -last 1).FullName
+        $Version = (gci -directory $EsrpCodeSigningTool | Select-Object -last 1).FullName
+        echo "##vso[task.setvariable variable=EsrpCliDllPath]$Version/net6.0/esrpcli.dll"
+      displayName: Find ESRP CLI
+
+    # Detached signing diagnostics are surfaced by the later attach step.
+    - script: npx deemon --detach --wait node build/azure-pipelines/linux/codesign.ts
+      env:
+        EsrpCliDllPath: $(EsrpCliDllPath)
+        SYSTEM_ACCESSTOKEN: $(System.AccessToken)
+      displayName: ✍️ Codesign deb & rpm
+
     - ${{ if eq(parameters.VSCODE_ARCH, 'x64') }}:
       - task: Docker@1
         inputs:
@@ -432,36 +463,6 @@ steps:
           env:
             VSCODE_ARCH: $(VSCODE_ARCH)
           displayName: Build snap package
-
-    - task: UseDotNet@2
-      inputs:
-        version: 6.x
-
-    - task: EsrpCodeSigning@6
-      inputs:
-        UseMSIAuthentication: true
-        ConnectedServiceName: vscode-esrp
-        AppRegistrationClientId: $(ESRP_CLIENT_ID)
-        AppRegistrationTenantId: $(ESRP_TENANT_ID)
-        AuthAKVName: vscode-esrp
-        AuthSignCertName: esrp-sign
-        FolderPath: .
-        Pattern: noop
-      displayName: 'Install ESRP Tooling'
-
-    - pwsh: |
-        . build/azure-pipelines/win32/exec.ps1
-        $ErrorActionPreference = "Stop"
-        $EsrpCodeSigningTool = (gci -directory -filter EsrpCodeSigning_* $(Agent.RootDirectory)/_tasks | Select-Object -last 1).FullName
-        $Version = (gci -directory $EsrpCodeSigningTool | Select-Object -last 1).FullName
-        echo "##vso[task.setvariable variable=EsrpCliDllPath]$Version/net6.0/esrpcli.dll"
-      displayName: Find ESRP CLI
-
-    - script: npx deemon --detach --wait node build/azure-pipelines/linux/codesign.ts
-      env:
-        EsrpCliDllPath: $(EsrpCliDllPath)
-        SYSTEM_ACCESSTOKEN: $(System.AccessToken)
-      displayName: ✍️ Codesign deb & rpm
 
   - ${{ if or(eq(parameters.VSCODE_RUN_ELECTRON_TESTS, true), eq(parameters.VSCODE_RUN_BROWSER_TESTS, true), eq(parameters.VSCODE_RUN_REMOTE_TESTS, true)) }}:
     - template: product-build-linux-test.yml@self
