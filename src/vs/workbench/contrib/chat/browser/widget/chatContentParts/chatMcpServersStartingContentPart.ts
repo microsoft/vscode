@@ -10,8 +10,7 @@ import { createMarkdownCommandLink, escapeMarkdownSyntaxTokens, MarkdownString }
 import { Disposable, IDisposable, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../../../base/common/observable.js';
 import { localize } from '../../../../../../nls.js';
-import { IMarkdownRendererService, openLinkFromMarkdown } from '../../../../../../platform/markdown/browser/markdownRenderer.js';
-import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
+import { IMarkdownRendererService } from '../../../../../../platform/markdown/browser/markdownRenderer.js';
 import { IChatMcpServersStartingSlow, IChatMcpStartingServer } from '../../../common/chatService/chatService.js';
 import { AICustomizationManagementCommands } from '../../../common/aiCustomizationWorkspaceService.js';
 import { ChatTreeItem } from '../../chat.js';
@@ -33,6 +32,7 @@ export class ChatMcpServersStartingContentPart extends Disposable implements ICh
 
 	private readonly rendered = this._register(new MutableDisposable<IRenderedMarkdown>());
 	private readonly spinner = this._register(new MutableDisposable<IPixelSpinner>());
+	private reviewLink: HTMLAnchorElement | undefined;
 	private hadStartingServers = false;
 	private didNotifyFinished = false;
 
@@ -44,7 +44,6 @@ export class ChatMcpServersStartingContentPart extends Disposable implements ICh
 			readonly onDidFinishStarting?: () => void;
 		} | undefined,
 		@IMarkdownRendererService private readonly markdownRendererService: IMarkdownRendererService,
-		@IOpenerService private readonly openerService: IOpenerService,
 	) {
 		super();
 		this.domNode = dom.$('.chat-mcp-servers-interaction');
@@ -54,6 +53,8 @@ export class ChatMcpServersStartingContentPart extends Disposable implements ICh
 	}
 
 	private render(servers: readonly IChatMcpStartingServer[], serversNeedingMigration: readonly IChatMcpStartingServer[]): void {
+		const restoreReviewLinkFocus = this.reviewLink?.ownerDocument.activeElement === this.reviewLink;
+		this.reviewLink = undefined;
 		dom.clearNode(this.domNode);
 		this.rendered.clear();
 		this.spinner.clear();
@@ -73,7 +74,7 @@ export class ChatMcpServersStartingContentPart extends Disposable implements ICh
 			.map(server => '`' + escapeMarkdownSyntaxTokens(server.name) + '`')
 			.join(', ');
 		if (!serversNeedingMigration.length) {
-			this._renderMessage(new MarkdownString(localize('mcp.starting.servers', 'Starting MCP servers {0}...', links)));
+			this._renderMessage(new MarkdownString(localize('mcp.starting.servers', 'Starting MCP servers {0}...', links)), restoreReviewLinkFocus);
 			return;
 		}
 
@@ -86,10 +87,10 @@ export class ChatMcpServersStartingContentPart extends Disposable implements ICh
 		const content = localize('mcp.starting.servers.migration', 'Starting MCP servers {0}... Some servers need migration. {1}', links, reviewLink);
 		this._renderMessage(new MarkdownString(content, {
 			isTrusted: { enabledCommands: [AICustomizationManagementCommands.OpenEditor] },
-		}));
+		}), restoreReviewLinkFocus);
 	}
 
-	private _renderMessage(content: MarkdownString): void {
+	private _renderMessage(content: MarkdownString, restoreReviewLinkFocus: boolean): void {
 		const container = dom.$('.chat-mcp-servers-interaction-hint');
 		const messageContainer = dom.$('.chat-mcp-servers-message');
 		if (this.options?.showSpinner !== false) {
@@ -98,12 +99,15 @@ export class ChatMcpServersStartingContentPart extends Disposable implements ICh
 			messageContainer.appendChild(iconElement);
 		}
 
-		const rendered = this.rendered.value = this.markdownRendererService.render(content, {
-			actionHandler: href => openLinkFromMarkdown(this.openerService, href, true),
-		});
+		const rendered = this.rendered.value = this.markdownRendererService.render(content);
+		// eslint-disable-next-line no-restricted-syntax
+		this.reviewLink = rendered.element.querySelector('a') ?? undefined;
 		messageContainer.appendChild(rendered.element);
 		container.appendChild(messageContainer);
 		this.domNode.appendChild(container);
+		if (restoreReviewLinkFocus) {
+			this.reviewLink?.focus();
+		}
 	}
 
 	hasSameContent(other: IChatRendererContent, _followingContent: IChatRendererContent[], _element: ChatTreeItem): boolean {

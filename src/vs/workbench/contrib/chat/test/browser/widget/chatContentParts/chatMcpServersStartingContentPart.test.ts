@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { DisposableStore } from '../../../../../../../base/common/lifecycle.js';
+import { DisposableStore, toDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
@@ -101,27 +101,34 @@ suite('ChatMcpServersStartingContentPart', () => {
 	});
 
 	test('shows servers needing migration with a review link', () => {
-		const { part, serversNeedingMigration$ } = createPart(
+		const { part, servers$ } = createPart(
 			[{ id: 'a', name: 'alpha' }, { id: 'b', name: 'beta' }],
 			true,
 			[{ id: 'a', name: 'alpha' }],
 		);
+		part.domNode.ownerDocument.body.appendChild(part.domNode);
+		disposables.add(toDisposable(() => part.domNode.remove()));
+		const initialReviewLink = part.domNode.querySelector<HTMLAnchorElement>('a');
+		initialReviewLink?.focus();
 		const initial = {
 			text: part.domNode.textContent,
-			reviewLink: part.domNode.querySelector<HTMLAnchorElement>('a')?.getAttribute('data-href'),
+			reviewLink: initialReviewLink?.getAttribute('data-href'),
 		};
 
-		serversNeedingMigration$.set([{ id: 'a', name: 'alpha' }, { id: 'b', name: 'beta' }], undefined);
+		servers$.set([{ id: 'a', name: 'alpha' }], undefined);
+		const updatedReviewLink = part.domNode.querySelector<HTMLAnchorElement>('a');
 
 		assert.deepStrictEqual({
 			initial,
 			updatedText: part.domNode.textContent,
+			reviewLinkFocused: updatedReviewLink?.ownerDocument.activeElement === updatedReviewLink,
 		}, {
 			initial: {
 				text: 'Starting MCP servers alpha, beta... Some servers need migration. Review migrations',
 				reviewLink: 'command:aiCustomization.openManagementEditor?%255B%257B%2522migration%2522%253Atrue%252C%2522migrationCategory%2522%253A%2522mcpServers%2522%257D%255D',
 			},
-			updatedText: 'Starting MCP servers alpha, beta... Some servers need migration. Review migrations',
+			updatedText: 'Starting MCP servers alpha... Some servers need migration. Review migrations',
+			reviewLinkFocused: true,
 		});
 	});
 
