@@ -173,12 +173,12 @@ suite('InboxNotificationsService', () => {
 			{
 				kind: InboxNotificationKind.NeedsInput,
 				priority: InboxNotificationPriority.High,
-				actionKinds: [InboxNotificationActionKind.OpenSession, InboxNotificationActionKind.Dismiss],
+				actionKinds: [InboxNotificationActionKind.OpenSession, InboxNotificationActionKind.MarkDone],
 			},
 			{
 				kind: InboxNotificationKind.Completed,
 				priority: InboxNotificationPriority.Low,
-				actionKinds: [InboxNotificationActionKind.OpenSession, InboxNotificationActionKind.MarkSessionRead, InboxNotificationActionKind.Dismiss],
+				actionKinds: [InboxNotificationActionKind.OpenSession, InboxNotificationActionKind.MarkSessionRead, InboxNotificationActionKind.MarkDone],
 			},
 		]);
 	});
@@ -208,7 +208,7 @@ suite('InboxNotificationsService', () => {
 			actions: item.actions.map(action => action.kind),
 		})), [{
 			kind: InboxNotificationKind.FailingCI,
-			actions: [InboxNotificationActionKind.OpenSession, InboxNotificationActionKind.AgentMergeFixCI, InboxNotificationActionKind.Dismiss],
+			actions: [InboxNotificationActionKind.OpenSession, InboxNotificationActionKind.AgentMergeFixCI, InboxNotificationActionKind.MarkDone],
 		}]);
 
 		gitHubService.setCIStatus('owner', 'repo', 42, 'sha42', GitHubCIOverallStatus.Success, [{
@@ -225,7 +225,7 @@ suite('InboxNotificationsService', () => {
 			actions: item.actions.map(action => action.kind),
 		})), [{
 			kind: InboxNotificationKind.PassingCI,
-			actions: [InboxNotificationActionKind.OpenSession, InboxNotificationActionKind.AgentMergeMergePullRequest, InboxNotificationActionKind.Dismiss],
+			actions: [InboxNotificationActionKind.OpenSession, InboxNotificationActionKind.AgentMergeMergePullRequest, InboxNotificationActionKind.MarkDone],
 		}]);
 	});
 
@@ -281,7 +281,7 @@ suite('InboxNotificationsService', () => {
 			actions: item.actions.map(action => action.kind),
 		})), [{
 			kind: InboxNotificationKind.ReviewComments,
-			actions: [InboxNotificationActionKind.OpenSession, InboxNotificationActionKind.AgentMergeAddressReviews, InboxNotificationActionKind.Dismiss],
+			actions: [InboxNotificationActionKind.OpenSession, InboxNotificationActionKind.AgentMergeAddressReviews, InboxNotificationActionKind.MarkDone],
 		}]);
 	});
 
@@ -309,11 +309,11 @@ suite('InboxNotificationsService', () => {
 		assert.deepStrictEqual(fixture.service.notifications.get().map(item => item.actions.map(action => action.kind)), [[
 			InboxNotificationActionKind.OpenSession,
 			InboxNotificationActionKind.AgentMergeMergePullRequest,
-			InboxNotificationActionKind.Dismiss,
+			InboxNotificationActionKind.MarkDone,
 		]]);
 	});
 
-	test('does not show merge action for non-agent-host sessions', () => {
+	test('shows merge action for non-agent-host sessions', () => {
 		const gitHubService = new TestGitHubService();
 		const fixture = createFixture([createSession({
 			id: 'non-agent-host',
@@ -337,7 +337,8 @@ suite('InboxNotificationsService', () => {
 
 		assert.deepStrictEqual(fixture.service.notifications.get().map(item => item.actions.map(action => action.kind)), [[
 			InboxNotificationActionKind.OpenSession,
-			InboxNotificationActionKind.Dismiss,
+			InboxNotificationActionKind.AgentMergeMergePullRequest,
+			InboxNotificationActionKind.MarkDone,
 		]]);
 	});
 
@@ -384,7 +385,7 @@ suite('InboxNotificationsService', () => {
 			kind: InboxNotificationKind.ReviewComments,
 			title: 'Updated',
 			priority: InboxNotificationPriority.Critical,
-			actionKinds: [InboxNotificationActionKind.Dismiss],
+			actionKinds: [InboxNotificationActionKind.MarkDone],
 		}]);
 	});
 

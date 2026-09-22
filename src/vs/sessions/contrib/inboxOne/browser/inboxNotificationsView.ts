@@ -291,6 +291,10 @@ export class InboxNotificationsView extends AbstractCustomView {
 				case InboxNotificationActionKind.AgentMergeMergePullRequest:
 					await this.runAgentMergeAction(item, { mergePullRequest: 'always' });
 					return;
+				case InboxNotificationActionKind.MarkDone: {
+					await this.markDone(item);
+					return;
+				}
 				case InboxNotificationActionKind.Dismiss:
 					this.inboxNotificationsService.dismissNotification(item.id);
 					return;
@@ -318,7 +322,7 @@ export class InboxNotificationsView extends AbstractCustomView {
 
 		const provider = this.sessionsProvidersService.getProvider(session.providerId);
 		if (!provider || !isAgentHostProvider(provider)) {
-			this.notificationService.warn(localize('inboxNotifications.agentMergeUnavailable', "These actions are available once the session provider finishes connecting."));
+			await this.sessionsService.openSession(item.sessionResource);
 			return;
 		}
 
@@ -328,6 +332,17 @@ export class InboxNotificationsView extends AbstractCustomView {
 			...currentOverrides,
 			...overrides,
 		});
+	}
+
+	private async markDone(item: IInboxNotificationItem): Promise<void> {
+		if (item.sessionResource) {
+			const session = this.sessionsManagementService.getSession(item.sessionResource);
+			if (session) {
+				await this.sessionsManagementService.markRead(session);
+			}
+		}
+
+		this.inboxNotificationsService.dismissNotification(item.id);
 	}
 
 	layout(_width: number, _height: number): void {

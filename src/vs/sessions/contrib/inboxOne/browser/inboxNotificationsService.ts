@@ -8,7 +8,6 @@ import { autorun, derived, IObservable, IReader, IReaderWithStore, ISettableObse
 import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { localize } from '../../../../nls.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
-import { isAgentHostProviderId } from '../../../common/agentHostSessionsProvider.js';
 import { IGitHubService } from '../../github/browser/githubService.js';
 import { GitHubCIOverallStatus, GitHubPullRequestState, IGitHubPRComment, IGitHubPullRequestReviewThread } from '../../github/common/types.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
@@ -312,11 +311,7 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 		}
 	}
 
-	private pullRequestActions(session: ISession, kind: InboxNotificationKind): readonly IInboxNotificationAction[] {
-		if (!isAgentHostProviderId(session.providerId)) {
-			return this.sessionActions(true, false);
-		}
-
+	private pullRequestActions(_session: ISession, kind: InboxNotificationKind): readonly IInboxNotificationAction[] {
 		const agentMergeAction = this.agentMergeActionForNotificationKind(kind);
 		return this.sessionActions(true, false, agentMergeAction ? [agentMergeAction] : undefined);
 	}
@@ -389,18 +384,18 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 			actions.push(...additionalActions);
 		}
 		actions.push({
-			id: 'dismiss',
-			label: localize('inboxNotifications.action.dismiss', "Dismiss"),
-			kind: InboxNotificationActionKind.Dismiss,
+			id: 'mark-done',
+			label: localize('inboxNotifications.action.markDone', "✓ Done"),
+			kind: InboxNotificationActionKind.MarkDone,
 		});
 		return actions;
 	}
 
 	private dismissActionOnly(): readonly IInboxNotificationAction[] {
 		return [{
-			id: 'dismiss',
-			label: localize('inboxNotifications.action.dismiss', "Dismiss"),
-			kind: InboxNotificationActionKind.Dismiss,
+			id: 'mark-done',
+			label: localize('inboxNotifications.action.markDone', "✓ Done"),
+			kind: InboxNotificationActionKind.MarkDone,
 		}];
 	}
 
