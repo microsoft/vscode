@@ -720,7 +720,7 @@ suite('MultiEditorTabsControl', () => {
 						fill: mainWindow.getComputedStyle(fill).backgroundColor,
 						actions: mainWindow.getComputedStyle(actions).backgroundColor,
 					});
-					expected.push({ activeIndex, theme, activeGroup, actionFocused: true, upperRow: activeIndex === 0, fill: 'rgb(18, 52, 86)', actions: 'rgb(18, 52, 86)' });
+					expected.push({ activeIndex, theme, activeGroup, actionFocused: true, upperRow: activeIndex === 0, fill: 'rgb(18, 52, 86)', actions: 'rgba(0, 0, 0, 0)' });
 				}
 				root.classList.remove(theme);
 			}

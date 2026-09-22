@@ -1943,13 +1943,13 @@ suite('ModernUIContribution', () => {
 		});
 
 		assert.deepStrictEqual(results, [
-			{ surface: ['rgb(255, 255, 255)', ...Array(4).fill('rgb(68, 85, 102)'), 'rgb(255, 255, 255)'], header: 'rgb(238, 238, 238)', strip: 'rgb(221, 238, 255)', editorSplitBorder: '#123456' },
-			{ surface: ['rgb(255, 255, 255)', ...Array(4).fill('rgb(68, 85, 102)'), 'rgb(255, 255, 255)'], header: 'rgb(238, 238, 238)', strip: 'rgb(221, 238, 255)', editorSplitBorder: '#123456' },
-			{ surface: ['rgb(255, 255, 255)', ...Array(4).fill('rgb(68, 85, 102)'), 'rgb(255, 255, 255)'], header: 'rgb(238, 238, 238)', strip: 'rgb(221, 238, 255)', editorSplitBorder: '#123456' },
+			{ surface: ['rgb(255, 255, 255)', ...Array(4).fill('rgb(68, 85, 102)'), 'rgba(0, 0, 0, 0)'], header: 'rgb(238, 238, 238)', strip: 'rgb(221, 238, 255)', editorSplitBorder: '#123456' },
+			{ surface: ['rgb(255, 255, 255)', ...Array(4).fill('rgb(68, 85, 102)'), 'rgba(0, 0, 0, 0)'], header: 'rgb(238, 238, 238)', strip: 'rgb(221, 238, 255)', editorSplitBorder: '#123456' },
+			{ surface: ['rgb(255, 255, 255)', ...Array(4).fill('rgb(68, 85, 102)'), 'rgba(0, 0, 0, 0)'], header: 'rgb(238, 238, 238)', strip: 'rgb(221, 238, 255)', editorSplitBorder: '#123456' },
 		]);
 	});
 
-	test('matches upper-row tab action backgrounds to the composited pill surface', () => {
+	test('keeps selected pill surfaces visible beneath transparent tab actions', () => {
 		const root = appendElement(document.body, 'monaco-workbench modern-ui modern-ui-tabs modern-ui-connected-editor-tabs');
 		store.add(toDisposable(() => root.remove()));
 		const style = document.createElement('style');
@@ -2002,7 +2002,7 @@ suite('ModernUIContribution', () => {
 							}, {
 								fill: active ? 'rgb(17, 34, 51)' : highContrast ? 'rgba(0, 0, 0, 0)' : stripColor,
 								hover: expected,
-								actions: active ? 'rgb(17, 34, 51)' : highContrast ? stripColor : expected,
+								actions: active ? 'rgba(0, 0, 0, 0)' : highContrast ? stripColor : expected,
 							}, `${themeId}, ${hover}, compact: ${compact}, focused group: ${focusedGroup}, actions left: ${actionsLeft}, active: ${active}`);
 						}
 					}

@@ -294,11 +294,11 @@
 }
 
 .modern-ui.modern-ui-connected-editor-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs .tabs-container > .tab.active > .tab-actions {
-	--modern-ui-connected-tab-action-background: var(--modern-ui-connected-tab-surface);
-	--modern-ui-editor-tab-action-active-background: var(--modern-ui-connected-tab-surface);
-	--modern-ui-editor-tab-action-unfocused-active-background: var(--modern-ui-connected-tab-surface);
-	--modern-ui-editor-tab-action-active-hover-background: var(--modern-ui-connected-tab-surface);
-	--modern-ui-editor-tab-action-unfocused-active-hover-background: var(--modern-ui-connected-tab-surface);
+	--modern-ui-connected-tab-action-background: transparent;
+	--modern-ui-editor-tab-action-active-background: transparent;
+	--modern-ui-editor-tab-action-unfocused-active-background: transparent;
+	--modern-ui-editor-tab-action-active-hover-background: transparent;
+	--modern-ui-editor-tab-action-unfocused-active-hover-background: transparent;
 	border-radius: 0 var(--modern-ui-connected-tab-radius) 0 0;
 }
 
