@@ -1103,7 +1103,8 @@ function isTerminalLifecycle(lifecycle: AutomationRunLifecycle): lifecycle is Ex
 }
 
 function withOperation(operations: readonly AutomationOperation[], operation: AutomationOperation): AutomationOperation[] {
-	return operations.includes(operation) ? [...operations] : [...operations, operation];
+	return [AutomationOperation.Update, AutomationOperation.Remove, AutomationOperation.Run]
+		.filter(candidate => candidate === operation || operations.includes(candidate));
 }
 
 function readScheduleCursors(meta: Record<string, unknown> | undefined): Readonly<Record<string, string>> {
