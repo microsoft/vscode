@@ -334,6 +334,49 @@ suite('SessionComparisonService', () => {
 		});
 	});
 
+	test('does not stall Judge launch when an attempt session is deleted', async () => {
+		const { service, sessionsManagementService } = createServices();
+		const firstStatus = observableValue('firstStatus', SessionStatus.InProgress);
+		const secondStatus = observableValue('secondStatus', SessionStatus.InProgress);
+		const thirdStatus = observableValue('thirdStatus', SessionStatus.InProgress);
+		sessionsManagementService.enqueue(stubSession('attempt-one', firstStatus));
+		sessionsManagementService.enqueue(stubSession('attempt-two', secondStatus));
+		sessionsManagementService.enqueue(stubSession('attempt-three', thirdStatus));
+		sessionsManagementService.enqueue(stubSession('judge'));
+
+		const base = startOptions();
+		const comparison = await service.startComparison({
+			...base,
+			attempts: [
+				...base.attempts,
+				{
+					id: 'attempt-three',
+					harness: { providerId: 'provider-three', sessionTypeId: 'type-three', label: 'Three', modelId: 'model-three' },
+				},
+			],
+		});
+		firstStatus.set(SessionStatus.Completed, undefined);
+		secondStatus.set(SessionStatus.Completed, undefined);
+		const deletedAttempt = sessionsManagementService.getSession(URI.parse('test:/attempt-three'));
+		assert.ok(deletedAttempt);
+		await sessionsManagementService.deleteSession(deletedAttempt);
+		sessionsManagementService.fireChange();
+		await timeout(0);
+
+		const current = service.getComparison(comparison.id);
+		const deletedParticipant = current?.participants.find(participant => participant.id === 'attempt-three');
+		const judge = current?.participants.find(participant => participant.role === SessionComparisonParticipantRole.Judge);
+		assert.deepStrictEqual({
+			createCalls: sessionsManagementService.createCalls.map(call => call.options.title),
+			deletedAttemptLaunchError: deletedParticipant?.launchError,
+			judgeResource: judge?.sessionResource?.toString(),
+		}, {
+			createCalls: ['One', 'Two', 'Three', `Judge: ${comparison.title}`],
+			deletedAttemptLaunchError: 'The attempt session is no longer available.',
+			judgeResource: 'test:/judge',
+		});
+	});
+
 	test('reports compared models and the Judge recommendation once', async () => {
 		const { service, sessionsManagementService, storageService, chatService, telemetryService } = createServices();
 		const firstStatus = observableValue('firstStatus', SessionStatus.InProgress);

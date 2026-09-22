@@ -469,6 +469,27 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 		if (comparison.cancelledAt !== undefined) {
 			return;
 		}
+		const attemptsWithMissingSessions = comparison.participants.some(participant =>
+			participant.role === SessionComparisonParticipantRole.Attempt
+			&& !participant.launchError
+			&& !!participant.sessionResource
+			&& !this.sessionsManagementService.getSession(participant.sessionResource));
+		if (attemptsWithMissingSessions) {
+			comparison = {
+				...comparison,
+				participants: comparison.participants.map(participant =>
+					participant.role === SessionComparisonParticipantRole.Attempt
+						&& !participant.launchError
+						&& participant.sessionResource
+						&& !this.sessionsManagementService.getSession(participant.sessionResource)
+						? {
+							...participant,
+							launchError: localize('sessionComparison.attemptMissing', "The attempt session is no longer available."),
+						}
+						: participant),
+			};
+			this._replaceComparison(comparison);
+		}
 		if (this._judgeStarting.has(comparison.id)
 			|| comparison.participants.some(participant => participant.role === SessionComparisonParticipantRole.Judge)) {
 			return;
@@ -478,15 +499,26 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 			return;
 		}
 		const attempts = comparison.participants.filter(participant => participant.role === SessionComparisonParticipantRole.Attempt);
-		const successful = attempts.filter(participant => participant.sessionResource);
-		if (successful.length < 2 || attempts.some(participant => {
-			if (participant.launchError) {
-				return false;
+		let successfulAttemptCount = 0;
+		for (const participant of attempts) {
+			if (participant.launchError || !participant.sessionResource) {
+				continue;
 			}
-			const session = participant.sessionResource ? this.sessionsManagementService.getSession(participant.sessionResource) : undefined;
-			const status = session?.status.get();
-			return status !== SessionStatus.Completed && status !== SessionStatus.Error;
-		})) {
+			const session = this.sessionsManagementService.getSession(participant.sessionResource);
+			if (!session) {
+				continue;
+			}
+			const status = session.status.get();
+			if (status === SessionStatus.Completed) {
+				successfulAttemptCount++;
+				continue;
+			}
+			if (status === SessionStatus.Error) {
+				continue;
+			}
+			return;
+		}
+		if (successfulAttemptCount < 2) {
 			return;
 		}
 		const judgeParticipantId = generateUuid();
