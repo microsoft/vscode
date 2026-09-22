@@ -174,10 +174,10 @@ suite('claudeReplayMapper', () => {
 			makeUserToolResult('u2', 'tu1', '<persisted-output>ignored prose</persisted-output>'),
 			makeAssistantText('a2', 'done'),
 		], session, logService, new Map([['tu1', {
-				preview: stdout.slice(0, 500),
-				persistedOutputPath: '/tmp/claude-full-output.txt',
-				persistedOutputSize: 352335,
-			}]]));
+			preview: stdout.slice(0, 500),
+			persistedOutputPath: '/tmp/claude-full-output.txt',
+			persistedOutputSize: 352335,
+		}]]));
 		const part = turns[0].responseParts.find(part => part.kind === ResponsePartKind.ToolCall);
 		assert.ok(part?.kind === ResponsePartKind.ToolCall && part.toolCall.status === ToolCallStatus.Completed);
 		assert.deepStrictEqual(part.toolCall.content?.[0], {
