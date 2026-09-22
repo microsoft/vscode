@@ -338,6 +338,10 @@ export class TabbedActionListWidget extends Disposable {
 					if (options.isBodyCollapsed?.() && dom.isAncestorOfActiveElement(body)) {
 						options.focusFooter?.();
 					}
+					if (body.inert !== !!options.isBodyCollapsed?.()) {
+						// Refreshing must not anchor a hover against the body's old position.
+						list.setHoverEnabled(false);
+					}
 					applyWidgetClassNames();
 					const sizing = sizingTab !== undefined
 						? options.createActionList(sizingTab, true)
@@ -422,12 +426,18 @@ export class TabbedActionListWidget extends Disposable {
 				layout();
 
 				const bodyAnimation = renderDisposables.add(new MutableDisposable<DisposableStore>());
+				const finishBodyAnimation = () => {
+					bodyAnimation.clear();
+					this._contextViewService.layout();
+					list.setHoverEnabled(!body.inert);
+				};
 				const updateBodyCollapsed = (fromHeight?: number) => {
 					const collapsed = !!options.isBodyCollapsed?.();
 					if (body.inert === collapsed) {
 						return;
 					}
 					bodyAnimation.clear();
+					list.setHoverEnabled(false);
 					body.inert = collapsed;
 					body.classList.toggle('collapsed', collapsed);
 
@@ -444,21 +454,20 @@ export class TabbedActionListWidget extends Disposable {
 							body.classList.remove('animating');
 						}));
 						animationDisposables.add(dom.animate(dom.getWindow(body), () => this._contextViewService.layout()));
-						animationDisposables.add(dom.addDisposableListener(animation, 'finish', () => {
-							bodyAnimation.clear();
-							this._contextViewService.layout();
-						}));
+						animationDisposables.add(dom.addDisposableListener(animation, 'finish', finishBodyAnimation));
 					}
 					if (fromHeight !== undefined) {
 						this._contextViewService.layout();
+					}
+					if (!bodyAnimation.value) {
+						list.setHoverEnabled(!collapsed);
 					}
 				};
 				updateBodyCollapsed();
 				if (options.isBodyCollapsed) {
 					renderDisposables.add(this._accessibilityService.onDidChangeReducedMotion(() => {
 						if (this._accessibilityService.isMotionReduced()) {
-							bodyAnimation.clear();
-							this._contextViewService.layout();
+							finishBodyAnimation();
 						}
 					}));
 				}

@@ -122,6 +122,8 @@ function createCollapsibleWidget(disposables: DisposableStore, motionReduced = t
 	disposables.add({ dispose: () => anchor.remove() });
 	const button = document.createElement('button');
 	button.textContent = 'Toggle';
+	const hover = document.createElement('div');
+	hover.style.height = '100px';
 	widget.show<ITestItem>({
 		user: 'test',
 		anchor,
@@ -130,8 +132,11 @@ function createCollapsibleWidget(disposables: DisposableStore, motionReduced = t
 		sizingTab: 'Local',
 		width: 300,
 		createActionList: () => ({
-			items: ['a', 'b', 'c', 'd'].map(action),
-			listOptions: { anchorPosition: AnchorPosition.ABOVE },
+			items: ['a', 'b', 'c', 'd'].map(id => ({
+				...action(id),
+				hover: collapsed ? undefined : { content: hover, alignToParent: true, preserveVerticalPosition: true },
+			})),
+			listOptions: { anchorPosition: AnchorPosition.ABOVE, persistentHover: true },
 		}),
 		isBodyCollapsed: () => collapsed,
 		renderFooter: container => {
@@ -142,6 +147,7 @@ function createCollapsibleWidget(disposables: DisposableStore, motionReduced = t
 		focusFooter: () => button.focus(),
 		delegate: { onSelect: () => { }, onHide: () => { } },
 	});
+	contextView.getContextViewElement().style.cssText = 'position: fixed; bottom: 32px; left: 20px;';
 	const popup = contextView.getContextViewElement().querySelector<HTMLElement>('.action-widget')!;
 	const body = popup.querySelector<HTMLElement>('.tabbed-action-list-body')!;
 	return {
@@ -582,7 +588,7 @@ suite('TabbedActionListWidget', () => {
 	});
 
 	for (const motionReduced of [false, true]) {
-		test(`collapsing and expanding preserves footer focus and list sizing with reduced motion ${motionReduced}`, async () => {
+		test(`collapsing and expanding preserves focus, sizing and hover placement with reduced motion ${motionReduced}`, async () => {
 			const { widget, popup, body, button, setCollapsed } = createCollapsibleWidget(disposables, motionReduced);
 			await settleLayout();
 			const initialHeight = popup.offsetHeight;
@@ -604,11 +610,18 @@ suite('TabbedActionListWidget', () => {
 
 			setCollapsed(false);
 			const expandAnimated = body.getAnimations().length > 0;
+			const panel = popup.querySelector<HTMLElement>('.action-list-submenu-panel')!;
+			const hoverDeferred = panel.style.display === 'none';
 			body.getAnimations().forEach(animation => animation.finish());
 			await settleLayout();
+			const panelBounds = panel.getBoundingClientRect();
+			const rowBounds = body.querySelector<HTMLElement>('.monaco-list-row[aria-expanded="true"]')!.getBoundingClientRect();
 			assert.deepStrictEqual({
 				collapseAnimated,
 				expandAnimated,
+				hoverDeferred,
+				hoverCentered: Math.abs(panelBounds.top + panelBounds.height / 2 - rowBounds.top - rowBounds.height / 2) < 1,
+				hoverAligned: Math.abs(panelBounds.left - popup.getBoundingClientRect().right) < 1,
 				collapsed,
 				expanded: {
 					height: popup.offsetHeight,
@@ -622,6 +635,9 @@ suite('TabbedActionListWidget', () => {
 			}, {
 				collapseAnimated: !motionReduced,
 				expandAnimated: !motionReduced,
+				hoverDeferred: !motionReduced,
+				hoverCentered: true,
+				hoverAligned: true,
 				collapsed: { height: initialHeight - bodyHeight, bodyHeight: 0, inert: true, focused: true, visibility: 'hidden' },
 				expanded: { height: initialHeight, bodyHeight, listHeight, inert: false, focused: true, visibility: 'visible', visible: true },
 			});
