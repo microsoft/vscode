@@ -65,14 +65,17 @@ suite('LocalGitService', () => {
 	test('clone passes scoped HTTP authentication through Git config environment variables', async () => {
 		const configuredCount = Number.parseInt(process.env.GIT_CONFIG_COUNT ?? '', 10);
 		const index = Number.isInteger(configuredCount) && configuredCount >= 0 ? configuredCount : 0;
-		const expectations: IExecFileExpectation[] = [{
-			args: ['clone', '--', 'https://github.com/test/private.git', '/tmp/private'],
-			environment: {
-				GIT_CONFIG_COUNT: String(index + 1),
-				[`GIT_CONFIG_KEY_${index}`]: 'http.https://github.com/.extraHeader',
-				[`GIT_CONFIG_VALUE_${index}`]: 'Authorization: Basic secret',
+		const expectations: IExecFileExpectation[] = [
+			{ args: ['--version'], stdout: 'git version 2.31.0\n' },
+			{
+				args: ['clone', '--', 'https://github.com/test/private.git', '/tmp/private'],
+				environment: {
+					GIT_CONFIG_COUNT: String(index + 1),
+					[`GIT_CONFIG_KEY_${index}`]: 'http.https://github.com/.extraHeader',
+					[`GIT_CONFIG_VALUE_${index}`]: 'Authorization: Basic secret',
+				},
 			},
-		}];
+		];
 		const service = new LocalGitService(new NullLogService(), createExecFile(expectations));
 
 		await service.clone('test-op', 'https://github.com/test/private.git', '/tmp/private', undefined, {
@@ -82,6 +85,24 @@ suite('LocalGitService', () => {
 			},
 		});
 
+		assert.strictEqual(expectations.length, 0);
+	});
+
+	test('clone rejects authenticated operations on Git versions before 2.31', async () => {
+		const expectations: IExecFileExpectation[] = [
+			{ args: ['--version'], stdout: 'git version 2.30.9\n' },
+		];
+		const service = new LocalGitService(new NullLogService(), createExecFile(expectations));
+
+		await assert.rejects(
+			() => service.clone('test-op', 'https://github.com/test/private.git', '/tmp/private', undefined, {
+				authentication: {
+					urlPrefix: 'https://github.com/',
+					authorizationHeader: 'Authorization: Basic secret',
+				},
+			}),
+			/Git 2\.30\.9.*Git 2\.31 or later/
+		);
 		assert.strictEqual(expectations.length, 0);
 	});
 

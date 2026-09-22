@@ -14,6 +14,7 @@ export class LocalGitService implements ILocalGitService {
 	declare readonly _serviceBrand: undefined;
 
 	private _runningProcesses = new Map<string, cp.ChildProcess>();
+	private _gitVersion: readonly [number, number, number] | undefined;
 
 	constructor(
 		@ILogService private readonly _logService: ILogService,
@@ -56,6 +57,7 @@ export class LocalGitService implements ILocalGitService {
 	}
 
 	async clone(operationId: string, cloneUrl: string, targetPath: string, ref?: string, options?: IGitNetworkOptions): Promise<void> {
+		await this._ensureAuthenticationSupported(operationId, options);
 		const args = ['clone'];
 		if (ref) {
 			args.push('--branch', ref);
@@ -65,6 +67,7 @@ export class LocalGitService implements ILocalGitService {
 	}
 
 	async pull(operationId: string, repoPath: string, options?: IGitPullOptions): Promise<boolean> {
+		await this._ensureAuthenticationSupported(operationId, options);
 		const before = (await this._exec(operationId, ['rev-parse', 'HEAD'], repoPath, options)).trim();
 
 		try {
@@ -176,7 +179,40 @@ export class LocalGitService implements ILocalGitService {
 	}
 
 	async fetch(operationId: string, repoPath: string, options?: IGitNetworkOptions): Promise<void> {
+		await this._ensureAuthenticationSupported(operationId, options);
 		await this._exec(operationId, ['fetch'], repoPath, options);
+	}
+
+	private async _ensureAuthenticationSupported(operationId: string, options: IGitNetworkOptions | undefined): Promise<void> {
+		if (!options?.authentication) {
+			return;
+		}
+
+		const version = this._gitVersion ?? await this._readGitVersion(operationId);
+		this._gitVersion = version;
+		if (version[0] < 2 || (version[0] === 2 && version[1] < 31)) {
+			throw new Error(localize(
+				'pluginsGitVersionTooOldForAuthentication',
+				"Git {0} cannot use VS Code authentication for private plugin marketplaces. Install Git 2.31 or later and try again.",
+				version.join('.')
+			));
+		}
+	}
+
+	private async _readGitVersion(operationId: string): Promise<readonly [number, number, number]> {
+		const output = (await this._exec(operationId, ['--version'])).trim();
+		const match = /\bgit version (?<major>\d+)\.(?<minor>\d+)(?:\.(?<patch>\d+))?/i.exec(output);
+		if (!match?.groups) {
+			throw new Error(localize(
+				'pluginsGitVersionUnknown',
+				"Unable to determine whether the installed Git supports VS Code authentication for private plugin marketplaces. Install Git 2.31 or later and try again."
+			));
+		}
+		return [
+			Number(match.groups.major),
+			Number(match.groups.minor),
+			Number(match.groups.patch ?? 0),
+		];
 	}
 
 	async revListCount(repoPath: string, fromRef: string, toRef: string): Promise<number> {
