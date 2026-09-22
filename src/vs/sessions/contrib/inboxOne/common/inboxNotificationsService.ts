@@ -5,8 +5,10 @@
 
 import { IObservable } from '../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
+import { IMarkdownString } from '../../../../base/common/htmlContent.js';
 import { URI } from '../../../../base/common/uri.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import { IChatQuestion } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
 
 export const IInboxNotificationsService = createDecorator<IInboxNotificationsService>('sessionsInboxNotificationsService');
 
@@ -60,6 +62,28 @@ export interface IInboxNotificationPullRequestState {
 	readonly statusLabel: string;
 }
 
+export interface IInboxNotificationConfirmationPart {
+	readonly kind: 'confirmation';
+	readonly chatResource: URI;
+	readonly requestId: string;
+	readonly title: string;
+	readonly message: string | IMarkdownString;
+	readonly data: unknown;
+	readonly buttons?: readonly string[];
+}
+
+export interface IInboxNotificationQuestionCarouselPart {
+	readonly kind: 'questionCarousel';
+	readonly chatResource: URI;
+	readonly requestId: string;
+	readonly resolveId?: string;
+	readonly allowSkip: boolean;
+	readonly message?: string | IMarkdownString;
+	readonly questions: readonly IChatQuestion[];
+}
+
+export type IInboxNotificationNeedsInputPart = IInboxNotificationConfirmationPart | IInboxNotificationQuestionCarouselPart;
+
 export interface IInboxNotificationItem {
 	readonly id: string;
 	readonly kind: InboxNotificationKind;
@@ -68,6 +92,7 @@ export interface IInboxNotificationItem {
 	readonly description: string;
 	readonly repositoryLabel?: string;
 	readonly pullRequestStates?: readonly IInboxNotificationPullRequestState[];
+	readonly needsInputPart?: IInboxNotificationNeedsInputPart;
 	readonly timestamp: number;
 	readonly sessionResource?: URI;
 	readonly actions: readonly IInboxNotificationAction[];

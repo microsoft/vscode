@@ -18,13 +18,15 @@ import { GitHubCIOverallStatus, GitHubCheckConclusion, GitHubCheckStatus, GitHub
 import { IAgentHostSessionsProvider, IAgentMergeClientState } from '../../../../common/agentHostSessionsProvider.js';
 import { ISessionsProvidersChangeEvent, ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
-import { SessionStatus, type IGitHubInfo, type ISession, type ISessionWorkspace } from '../../../../services/sessions/common/session.js';
+import { IChat, SessionStatus, type IGitHubInfo, type ISession, type ISessionWorkspace } from '../../../../services/sessions/common/session.js';
 import { ISessionsChangeEvent, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { InboxNotificationsService } from '../../browser/inboxNotificationsService.js';
 import { InboxNotificationActionKind, InboxNotificationKind, InboxNotificationPriority, InboxNotificationsSortMode } from '../../common/inboxNotificationsService.js';
 import { GitHubPullRequestModel } from '../../../github/browser/models/githubPullRequestModel.js';
 import { GitHubPullRequestCIModel } from '../../../github/browser/models/githubPullRequestCIModel.js';
 import { GitHubPullRequestReviewThreadsModel } from '../../../github/browser/models/githubPullRequestReviewThreadsModel.js';
+import { IChatQuestionCarousel, IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
+import { IChatModel, IChatRequestModel, IChatResponseModel } from '../../../../../workbench/contrib/chat/common/model/chatModel.js';
 
 suite('InboxNotificationsService', () => {
 	const dismissedStorageKey = 'sessions.inboxNotifications.dismissedIds';
@@ -54,8 +56,11 @@ suite('InboxNotificationsService', () => {
 			readonly repo: string;
 			readonly number: number;
 		}[];
+		readonly chatResource?: URI;
 	}): ISession {
 		const key = `inboxNotificationsService/${options.id}`;
+		const chatResource = options.chatResource ?? URI.parse(`test:///chat/${options.id}`);
+		const chat = upcastPartial<IChat>({ resource: chatResource });
 		const gitHubInfo: IGitHubInfo | undefined = options.pullRequests?.length ? {
 			owner: options.pullRequests[0].owner,
 			repo: options.pullRequests[0].repo,
@@ -105,6 +110,8 @@ suite('InboxNotificationsService', () => {
 			description: observableValue<IMarkdownString | undefined>(`${key}/description`, options.description ? { value: options.description } : undefined),
 			isRead: observableValue(`${key}/isRead`, options.isRead ?? true),
 			isArchived: observableValue(`${key}/isArchived`, options.isArchived ?? false),
+			chats: observableValue(`${key}/chats`, [chat]),
+			mainChat: observableValue(`${key}/mainChat`, chat),
 			workspace: observableValue<ISessionWorkspace | undefined>(`${key}/workspace`, workspace),
 		});
 	}
@@ -113,12 +120,14 @@ suite('InboxNotificationsService', () => {
 		initialSessions: readonly ISession[],
 		storageService?: InMemoryStorageService,
 		gitHubService?: TestGitHubService,
+		chatService?: TestChatService,
 		agentHostProvider?: TestAgentHostProvider,
 		withAgentHostProvider = true,
 	): {
 		readonly service: InboxNotificationsService;
 		readonly storageService: InMemoryStorageService;
 		readonly gitHubService: TestGitHubService;
+		readonly chatService: TestChatService;
 		readonly agentHostProvider: TestAgentHostProvider;
 		setSessions(sessions: readonly ISession[]): void;
 		setAgentHostProviderRegistered(registered: boolean): void;
@@ -133,6 +142,7 @@ suite('InboxNotificationsService', () => {
 		});
 		const effectiveStorageService = storageService ?? store.add(new InMemoryStorageService());
 		const effectiveGitHubService = gitHubService ?? new TestGitHubService();
+		const effectiveChatService = chatService ?? new TestChatService();
 		const effectiveAgentHostProvider = agentHostProvider ?? new TestAgentHostProvider();
 		const provider = upcastPartial<IAgentHostSessionsProvider>({
 			id: effectiveAgentHostProvider.id,
@@ -148,6 +158,7 @@ suite('InboxNotificationsService', () => {
 		const service = store.add(new InboxNotificationsService(
 			managementService,
 			sessionsProvidersService,
+			upcastPartial<IChatService>(effectiveChatService),
 			upcastPartial<IGitHubService>(effectiveGitHubService),
 			effectiveStorageService,
 		));
@@ -155,6 +166,7 @@ suite('InboxNotificationsService', () => {
 			service,
 			storageService: effectiveStorageService,
 			gitHubService: effectiveGitHubService,
+			chatService: effectiveChatService,
 			agentHostProvider: effectiveAgentHostProvider,
 			setSessions(nextSessions: readonly ISession[]) {
 				sessions = [...nextSessions];
@@ -241,6 +253,81 @@ suite('InboxNotificationsService', () => {
 		})), [{
 			kind: InboxNotificationKind.NeedsInput,
 			description: 'Input needed',
+		}]);
+	});
+
+	test('includes pending question carousel data for needs-input notifications', () => {
+		const chatResource = URI.parse('test:///chat/pending-question');
+		const chatService = new TestChatService();
+		const fixture = createFixture([
+			createSession({ id: 'pending-question', status: SessionStatus.NeedsInput, updatedAt: 200, chatResource }),
+		], undefined, undefined, chatService);
+		chatService.setPendingQuestionCarousel(chatResource, {
+			requestId: 'request-question',
+			resolveId: 'resolve-question',
+			allowSkip: true,
+			message: 'Please answer the following.',
+			questions: [{
+				id: 'q1',
+				type: 'text',
+				title: 'Question 1',
+				required: true,
+			}],
+		});
+
+		assert.deepStrictEqual(fixture.service.notifications.get().map(item => ({
+			kind: item.kind,
+			description: item.description,
+			needsInputPart: item.needsInputPart ? {
+				kind: item.needsInputPart.kind,
+				requestId: item.needsInputPart.requestId,
+				resolveId: item.needsInputPart.kind === 'questionCarousel' ? item.needsInputPart.resolveId : undefined,
+				questionCount: item.needsInputPart.kind === 'questionCarousel' ? item.needsInputPart.questions.length : 0,
+			} : undefined,
+		})), [{
+			kind: InboxNotificationKind.NeedsInput,
+			description: 'Answer the pending questions below.',
+			needsInputPart: {
+				kind: 'questionCarousel',
+				requestId: 'request-question',
+				resolveId: 'resolve-question',
+				questionCount: 1,
+			},
+		}]);
+	});
+
+	test('includes pending confirmation data for needs-input notifications', () => {
+		const chatResource = URI.parse('test:///chat/pending-confirmation');
+		const chatService = new TestChatService();
+		const fixture = createFixture([
+			createSession({ id: 'pending-confirmation', status: SessionStatus.NeedsInput, updatedAt: 200, chatResource }),
+		], undefined, undefined, chatService);
+		chatService.setPendingConfirmation(chatResource, {
+			requestId: 'request-confirmation',
+			title: 'Confirm deployment',
+			message: 'Proceed with deployment?',
+			data: { action: 'deploy' },
+			buttons: ['Approve', 'Cancel'],
+		});
+
+		assert.deepStrictEqual(fixture.service.notifications.get().map(item => ({
+			kind: item.kind,
+			description: item.description,
+			needsInputPart: item.needsInputPart ? {
+				kind: item.needsInputPart.kind,
+				requestId: item.needsInputPart.requestId,
+				title: item.needsInputPart.kind === 'confirmation' ? item.needsInputPart.title : undefined,
+				buttons: item.needsInputPart.kind === 'confirmation' ? item.needsInputPart.buttons : undefined,
+			} : undefined,
+		})), [{
+			kind: InboxNotificationKind.NeedsInput,
+			description: 'Review the confirmation request below.',
+			needsInputPart: {
+				kind: 'confirmation',
+				requestId: 'request-confirmation',
+				title: 'Confirm deployment',
+				buttons: ['Approve', 'Cancel'],
+			},
 		}]);
 	});
 
@@ -414,7 +501,7 @@ suite('InboxNotificationsService', () => {
 			updatedAt: 100,
 			isRead: true,
 			pullRequest: { owner: 'owner', repo: 'repo', number: 44 },
-		})], undefined, gitHubService, undefined, false);
+		})], undefined, gitHubService, undefined, undefined, false);
 
 		gitHubService.setPullRequest('owner', 'repo', 44, openPullRequest(44, 'sha44'));
 		gitHubService.setCIStatus('owner', 'repo', 44, 'sha44', GitHubCIOverallStatus.Success, [{
@@ -568,6 +655,79 @@ class TestAgentHostProvider {
 			this._agentMergeStates.set(sessionId, state);
 		}
 		return state;
+	}
+}
+
+class TestChatService {
+	private readonly _chatModels = new Map<string, IChatModel>();
+
+	getSession(chatResource: URI): IChatModel | undefined {
+		return this._chatModels.get(chatResource.toString());
+	}
+
+	setPendingQuestionCarousel(chatResource: URI, options: {
+		readonly requestId: string;
+		readonly resolveId: string;
+		readonly allowSkip: boolean;
+		readonly message: string;
+		readonly questions: IChatQuestionCarousel['questions'];
+	}): void {
+		this._chatModels.set(chatResource.toString(), this._createChatModel({
+			requestId: options.requestId,
+			startedWaitingAt: 10,
+			part: {
+				kind: 'questionCarousel',
+				resolveId: options.resolveId,
+				allowSkip: options.allowSkip,
+				message: options.message,
+				questions: options.questions,
+				isUsed: false,
+			},
+		}));
+	}
+
+	setPendingConfirmation(chatResource: URI, options: {
+		readonly requestId: string;
+		readonly title: string;
+		readonly message: string;
+		readonly data: unknown;
+		readonly buttons?: readonly string[];
+	}): void {
+		this._chatModels.set(chatResource.toString(), this._createChatModel({
+			requestId: options.requestId,
+			startedWaitingAt: 10,
+			part: {
+				kind: 'confirmation',
+				title: options.title,
+				message: options.message,
+				data: options.data,
+				buttons: options.buttons ? [...options.buttons] : undefined,
+				isUsed: false,
+			},
+		}));
+	}
+
+	private _createChatModel(options: { readonly requestId: string; readonly startedWaitingAt: number; readonly part: IChatResponseModel['response']['value'][number] }): IChatModel {
+		const response = upcastPartial<IChatResponseModel>({
+			requestId: options.requestId,
+			isCanceled: false,
+			response: {
+				value: [options.part],
+				getMarkdown: () => '',
+				getFinalResponse: () => '',
+				toString: () => '',
+			},
+			isPendingConfirmation: observableValue(`test.pendingConfirmation.${options.requestId}`, { startedWaitingAt: options.startedWaitingAt }),
+		});
+		const request = upcastPartial<IChatRequestModel>({
+			id: `request.${options.requestId}`,
+			response,
+			isHiddenFromTranscript: false,
+			shouldBeRemovedOnSend: undefined,
+		});
+		return upcastPartial<IChatModel>({
+			getRequests: () => [request],
+		});
 	}
 }
 

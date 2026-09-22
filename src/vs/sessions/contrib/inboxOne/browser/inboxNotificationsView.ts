@@ -5,10 +5,12 @@
 
 import './media/inboxNotificationsView.css';
 import { $, addDisposableListener, clearNode, EventType, getActiveElement, isHTMLElement, trackFocus } from '../../../../base/browser/dom.js';
+import { renderAsPlaintext } from '../../../../base/browser/markdownRenderer.js';
 import { triggerConfettiAnimation } from '../../../../base/browser/ui/animations/animations.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { DomScrollableElement } from '../../../../base/browser/ui/scrollbar/scrollableElement.js';
+import { IMarkdownString } from '../../../../base/common/htmlContent.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { autorun, constObservable, IObservable, observableValue } from '../../../../base/common/observable.js';
 import { ScrollbarVisibility } from '../../../../base/common/scrollable.js';
@@ -22,6 +24,8 @@ import { INotificationService } from '../../../../platform/notification/common/n
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { fromNowByDay } from '../../../../base/common/date.js';
+import { IChatQuestion, IChatQuestionAnswerValue, IChatQuestionAnswers, IChatSendRequestOptions, IChatService } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
+import { findQuestionValidationFailure, getDisplayedQuestionText, getOptionsWithDefaultsFirst } from '../../../../workbench/contrib/chat/common/chatService/chatQuestionCarouselHelpers.js';
 import { isAgentHostProvider } from '../../../common/agentHostSessionsProvider.js';
 import { AgentMergeSessionOverrides } from '../../../../platform/agentHost/common/agentMerge.js';
 import { SESSIONS_MARK_AS_DONE_CONFETTI_SETTING } from '../../../../platform/chat/common/sessionArchiveActions.js';
@@ -33,6 +37,8 @@ import { InboxCustomViewFocusContext } from '../../../common/contextkeys.js';
 import {
 	IInboxNotificationAction,
 	IInboxNotificationItem,
+	IInboxNotificationConfirmationPart,
+	IInboxNotificationQuestionCarouselPart,
 	IInboxNotificationsService,
 	InboxNotificationActionKind,
 	InboxNotificationPriority,
@@ -59,6 +65,7 @@ export class InboxNotificationsView extends AbstractCustomView {
 
 	constructor(
 		@IInboxNotificationsService private readonly inboxNotificationsService: IInboxNotificationsService,
+		@IChatService private readonly chatService: IChatService,
 		@ISessionsService private readonly sessionsService: ISessionsService,
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 		@ISessionsProvidersService private readonly sessionsProvidersService: ISessionsProvidersService,
@@ -206,18 +213,21 @@ export class InboxNotificationsView extends AbstractCustomView {
 		}
 		if (item.pullRequestStates?.length) {
 			const pullRequestStates = card.appendChild($('.inbox-notifications-item-pr-states'));
-			pullRequestStates.setAttribute('aria-hidden', 'true');
 			for (const pullRequestState of item.pullRequestStates) {
 				const pullRequestStateElement = pullRequestStates.appendChild($('.inbox-notifications-item-pr-state'));
 				const icon = pullRequestStateElement.appendChild(renderIcon(pullRequestState.icon));
 				icon.setAttribute('aria-hidden', 'true');
 				const pullRequestUri = pullRequestState.pullRequestUri;
 				if (pullRequestUri) {
-					const pullRequestLink = pullRequestStateElement.appendChild($('a.inbox-notifications-item-pr-state-link', {
-						href: pullRequestUri.toString(),
-					}, pullRequestState.label));
-					this.renderedListDisposables.add(addDisposableListener(pullRequestLink, EventType.CLICK, event => {
-						event.preventDefault();
+					const pullRequestButton = this.renderedListDisposables.add(new Button(pullRequestStateElement, {
+						...defaultButtonStyles,
+						secondary: true,
+						small: true,
+						ariaLabel: localize('inboxNotifications.pullRequestStateLink.ariaLabel', "Open pull request {0}", pullRequestState.label),
+					}));
+					pullRequestButton.element.classList.add('inbox-notifications-item-pr-state-link');
+					pullRequestButton.label = pullRequestState.label;
+					this.renderedListDisposables.add(pullRequestButton.onDidClick(() => {
 						void this.openerService.open(pullRequestUri).catch(onUnexpectedError);
 					}));
 				} else {
@@ -227,6 +237,7 @@ export class InboxNotificationsView extends AbstractCustomView {
 		}
 
 		card.appendChild($('.inbox-notifications-item-description', undefined, item.description));
+		this.renderNeedsInputPart(card, item);
 		card.appendChild($('.inbox-notifications-item-time', undefined, fromNowByDay(item.timestamp, true, true)));
 
 		const actions = card.appendChild($('.inbox-notifications-item-actions'));
@@ -248,9 +259,267 @@ export class InboxNotificationsView extends AbstractCustomView {
 		return card;
 	}
 
+	private renderNeedsInputPart(card: HTMLElement, item: IInboxNotificationItem): void {
+		const part = item.needsInputPart;
+		if (!part) {
+			return;
+		}
+
+		if (part.kind === 'confirmation') {
+			const container = card.appendChild($('.inbox-notifications-inline-input'));
+			container.appendChild($('.inbox-notifications-inline-input-title', undefined, part.title));
+			container.appendChild($('.inbox-notifications-inline-input-message', undefined, this.asPlainText(part.message)));
+			const buttons = container.appendChild($('.inbox-notifications-inline-input-actions'));
+			const buttonLabels = part.buttons?.length
+				? part.buttons
+				: [localize('inboxNotifications.confirmation.accept', "Accept"), localize('inboxNotifications.confirmation.dismiss', "Dismiss")];
+			for (const [index, buttonLabel] of buttonLabels.entries()) {
+				const button = this.renderedListDisposables.add(new Button(buttons, {
+					...defaultButtonStyles,
+					secondary: index !== 0,
+					small: true,
+					ariaLabel: localize('inboxNotifications.confirmation.buttonAria', "{0} for {1}", buttonLabel, item.title),
+				}));
+				button.label = buttonLabel;
+				this.renderedListDisposables.add(button.onDidClick(() => void this.submitConfirmationPart(part, buttonLabel, index)));
+			}
+			return;
+		}
+
+		const container = card.appendChild($('.inbox-notifications-inline-input'));
+		if (part.message) {
+			container.appendChild($('.inbox-notifications-inline-input-message', undefined, this.asPlainText(part.message)));
+		}
+
+		const errorElement = container.appendChild($('.inbox-notifications-inline-input-error'));
+		errorElement.setAttribute('role', 'status');
+		errorElement.style.display = 'none';
+
+		const answerReaders = new Map<string, () => IChatQuestionAnswerValue | undefined>();
+		for (const question of part.questions) {
+			this.renderQuestion(container, question, answerReaders);
+		}
+
+		const actions = container.appendChild($('.inbox-notifications-inline-input-actions'));
+		if (part.allowSkip) {
+			const skipButton = this.renderedListDisposables.add(new Button(actions, {
+				...defaultButtonStyles,
+				secondary: true,
+				small: true,
+				ariaLabel: localize('inboxNotifications.questionCarousel.skipAria', "Skip pending questions"),
+			}));
+			skipButton.label = localize('inboxNotifications.questionCarousel.skip', "Skip");
+			this.renderedListDisposables.add(skipButton.onDidClick(() => void this.submitQuestionCarouselPart(part, answerReaders, errorElement, true)));
+		}
+
+		const submitButton = this.renderedListDisposables.add(new Button(actions, {
+			...defaultButtonStyles,
+			secondary: false,
+			small: true,
+			ariaLabel: localize('inboxNotifications.questionCarousel.submitAria', "Submit answers"),
+		}));
+		submitButton.label = localize('inboxNotifications.questionCarousel.submit', "Submit");
+		this.renderedListDisposables.add(submitButton.onDidClick(() => void this.submitQuestionCarouselPart(part, answerReaders, errorElement, false)));
+	}
+
+	private renderQuestion(
+		container: HTMLElement,
+		question: IChatQuestion,
+		answerReaders: Map<string, () => IChatQuestionAnswerValue | undefined>,
+	): void {
+		const questionContainer = container.appendChild($('.inbox-notifications-inline-question'));
+		questionContainer.appendChild($('.inbox-notifications-inline-question-title', undefined, this.asPlainText(getDisplayedQuestionText(question))));
+		if (question.description) {
+			questionContainer.appendChild($('.inbox-notifications-inline-question-description', undefined, question.description));
+		}
+
+		switch (question.type) {
+			case 'text': {
+				const input = questionContainer.appendChild($('input.inbox-notifications-inline-question-input')) as HTMLInputElement;
+				input.type = 'text';
+				input.value = typeof question.defaultValue === 'string' ? question.defaultValue : '';
+				input.setAttribute('aria-label', this.asPlainText(getDisplayedQuestionText(question)));
+				answerReaders.set(question.id, () => {
+					const value = input.value.trim();
+					return value.length ? value : undefined;
+				});
+				return;
+			}
+			case 'singleSelect': {
+				const select = questionContainer.appendChild($('select.inbox-notifications-inline-question-select')) as HTMLSelectElement;
+				select.setAttribute('aria-label', this.asPlainText(getDisplayedQuestionText(question)));
+				const orderedOptions = getOptionsWithDefaultsFirst(question);
+				if (!question.required) {
+					const emptyOption = $('option', { value: '' }, localize('inboxNotifications.questionCarousel.none', "Select an option"));
+					select.appendChild(emptyOption);
+				}
+				for (const orderedOption of orderedOptions) {
+					const option = $('option', { value: orderedOption.option.value }, orderedOption.option.label);
+					select.appendChild(option);
+				}
+				const freeformInput = question.allowFreeformInput
+					? questionContainer.appendChild($('input.inbox-notifications-inline-question-input')) as HTMLInputElement
+					: undefined;
+				if (freeformInput) {
+					freeformInput.type = 'text';
+					freeformInput.placeholder = localize('inboxNotifications.questionCarousel.freeformPlaceholder', "Optional additional input");
+					freeformInput.setAttribute('aria-label', localize('inboxNotifications.questionCarousel.freeformAria', "Additional input for {0}", this.asPlainText(getDisplayedQuestionText(question))));
+				}
+				answerReaders.set(question.id, () => {
+					const selectedValue = select.value || undefined;
+					const freeformValue = freeformInput?.value.trim() || undefined;
+					if (!selectedValue && !freeformValue) {
+						return undefined;
+					}
+					return { selectedValue, freeformValue };
+				});
+				return;
+			}
+			case 'multiSelect': {
+				const orderedOptions = getOptionsWithDefaultsFirst(question);
+				const optionCheckboxes = orderedOptions.map(orderedOption => {
+					const label = questionContainer.appendChild($('label.inbox-notifications-inline-question-checkbox'));
+					const checkbox = label.appendChild($('input')) as HTMLInputElement;
+					checkbox.type = 'checkbox';
+					if (Array.isArray(question.defaultValue) && question.defaultValue.includes(orderedOption.option.id)) {
+						checkbox.checked = true;
+					}
+					label.appendChild(document.createTextNode(orderedOption.option.label));
+					return { checkbox, option: orderedOption.option };
+				});
+				const freeformInput = question.allowFreeformInput
+					? questionContainer.appendChild($('input.inbox-notifications-inline-question-input')) as HTMLInputElement
+					: undefined;
+				if (freeformInput) {
+					freeformInput.type = 'text';
+					freeformInput.placeholder = localize('inboxNotifications.questionCarousel.freeformPlaceholder', "Optional additional input");
+					freeformInput.setAttribute('aria-label', localize('inboxNotifications.questionCarousel.freeformAria', "Additional input for {0}", this.asPlainText(getDisplayedQuestionText(question))));
+				}
+				answerReaders.set(question.id, () => {
+					const selectedValues = optionCheckboxes
+						.filter(entry => entry.checkbox.checked)
+						.map(entry => entry.option.value);
+					const freeformValue = freeformInput?.value.trim() || undefined;
+					if (!selectedValues.length && !freeformValue) {
+						return undefined;
+					}
+					return { selectedValues, freeformValue };
+				});
+				return;
+			}
+		}
+	}
+
+	private async submitConfirmationPart(
+		part: IInboxNotificationConfirmationPart,
+		buttonLabel: string,
+		buttonIndex: number,
+	): Promise<void> {
+		const prompt = `${buttonLabel}: "${part.title}"`;
+		const options: IChatSendRequestOptions = buttonIndex === 0
+			? { acceptedConfirmationData: [part.data] }
+			: { rejectedConfirmationData: [part.data] };
+		await this.chatService.sendRequest(part.chatResource, prompt, options);
+	}
+
+	private async submitQuestionCarouselPart(
+		part: IInboxNotificationQuestionCarouselPart,
+		answerReaders: Map<string, () => IChatQuestionAnswerValue | undefined>,
+		errorElement: HTMLElement,
+		skip: boolean,
+	): Promise<void> {
+		const answersRecord = skip ? undefined : this.buildQuestionAnswers(part.questions, answerReaders, errorElement);
+		if (!skip && !answersRecord) {
+			return;
+		}
+		if (!part.resolveId) {
+			this.notificationService.error(localize('inboxNotifications.questionCarousel.resolveIdMissing', "Unable to submit this question yet. Open the session to continue."));
+			return;
+		}
+		this.chatService.notifyQuestionCarouselAnswer(part.requestId, part.resolveId, answersRecord);
+	}
+
+	private buildQuestionAnswers(
+		questions: readonly IChatQuestion[],
+		answerReaders: Map<string, () => IChatQuestionAnswerValue | undefined>,
+		errorElement: HTMLElement,
+	): IChatQuestionAnswers | undefined {
+		const answers = new Map<string, IChatQuestionAnswerValue>();
+		for (const question of questions) {
+			const readAnswer = answerReaders.get(question.id);
+			if (!readAnswer) {
+				continue;
+			}
+			const answer = readAnswer();
+			if (question.required && answer === undefined) {
+				this.showQuestionValidationError(errorElement, localize('inboxNotifications.questionCarousel.required', "This field is required."));
+				return undefined;
+			}
+
+			const valueToValidate = typeof answer === 'string'
+				? answer
+				: (answer && 'freeformValue' in answer ? answer.freeformValue : undefined);
+			if (question.validation && valueToValidate) {
+				const failure = findQuestionValidationFailure(valueToValidate, question.validation);
+				if (failure) {
+					const limit = 'limit' in failure ? failure.limit : undefined;
+					this.showQuestionValidationError(errorElement, this.getValidationErrorMessage(failure.kind, limit));
+					return undefined;
+				}
+			}
+
+			if (answer !== undefined) {
+				answers.set(question.id, answer);
+			}
+		}
+
+		errorElement.style.display = 'none';
+		errorElement.textContent = '';
+		return Object.fromEntries(answers.entries());
+	}
+
+	private showQuestionValidationError(errorElement: HTMLElement, message: string): void {
+		errorElement.textContent = message;
+		errorElement.style.display = '';
+	}
+
+	private getValidationErrorMessage(kind: 'minLength' | 'maxLength' | 'minimum' | 'maximum' | 'email' | 'uri' | 'date' | 'dateTime' | 'number' | 'integer', limit: number | undefined): string {
+		switch (kind) {
+			case 'minLength':
+				return localize('inboxNotifications.questionCarousel.validation.minLength', "Minimum length is {0}.", limit);
+			case 'maxLength':
+				return localize('inboxNotifications.questionCarousel.validation.maxLength', "Maximum length is {0}.", limit);
+			case 'email':
+				return localize('inboxNotifications.questionCarousel.validation.email', "Please enter a valid email address.");
+			case 'uri':
+				return localize('inboxNotifications.questionCarousel.validation.uri', "Please enter a valid URI.");
+			case 'date':
+				return localize('inboxNotifications.questionCarousel.validation.date', "Please enter a valid date (YYYY-MM-DD).");
+			case 'dateTime':
+				return localize('inboxNotifications.questionCarousel.validation.dateTime', "Please enter a valid date-time.");
+			case 'number':
+				return localize('inboxNotifications.questionCarousel.validation.number', "Please enter a valid number.");
+			case 'integer':
+				return localize('inboxNotifications.questionCarousel.validation.integer', "Please enter a valid integer.");
+			case 'minimum':
+				return localize('inboxNotifications.questionCarousel.validation.minimum', "Minimum value is {0}.", limit);
+			case 'maximum':
+				return localize('inboxNotifications.questionCarousel.validation.maximum', "Maximum value is {0}.", limit);
+			default:
+				return localize('inboxNotifications.questionCarousel.validation.invalid', "Please provide a valid answer.");
+		}
+	}
+
+	private asPlainText(value: string | IMarkdownString): string {
+		return typeof value === 'string' ? value : renderAsPlaintext(value).trim();
+	}
+
 	private onListFocusIn(event: FocusEvent): void {
 		const target = event.target;
 		if (!isHTMLElement(target)) {
+			return;
+		}
+		if (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || target instanceof HTMLSelectElement || target.isContentEditable) {
 			return;
 		}
 
@@ -334,6 +603,9 @@ export class InboxNotificationsView extends AbstractCustomView {
 		const pullRequestStatesAria = this.getPullRequestStatesAriaLabel(item);
 		if (pullRequestStatesAria) {
 			segments.push(pullRequestStatesAria);
+		}
+		if (item.needsInputPart) {
+			segments.push(localize('inboxNotifications.itemAriaLabel.inlineInput', "Contains inline input controls."));
 		}
 		segments.push(item.title, item.description);
 		return segments.join('. ');

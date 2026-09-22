@@ -9,8 +9,11 @@ import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { renderAsPlaintext } from '../../../../base/browser/markdownRenderer.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
+import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { IChatService, IChatToolInvocation } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
+import { IChatResponseModel } from '../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { IGitHubService } from '../../github/browser/githubService.js';
 import { computePullRequestIcon, GitHubCIOverallStatus, GitHubPullRequestState, IGitHubPRComment, IGitHubPullRequestReviewThread } from '../../github/common/types.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
@@ -21,8 +24,11 @@ import {
 	compareInboxNotifications,
 	IExternalInboxNotification,
 	IInboxNotificationAction,
+	IInboxNotificationConfirmationPart,
 	IInboxNotificationItem,
+	IInboxNotificationNeedsInputPart,
 	IInboxNotificationPullRequestState,
+	IInboxNotificationQuestionCarouselPart,
 	IInboxNotificationsService,
 	InboxNotificationActionKind,
 	InboxNotificationKind,
@@ -38,6 +44,11 @@ interface IPullRequestNotificationCandidate {
 	readonly identity: string;
 	readonly icon: ThemeIcon;
 	readonly statusLabel: string;
+}
+
+interface INeedsInputPartCandidate {
+	readonly startedWaitingAt: number;
+	readonly part: IInboxNotificationNeedsInputPart;
 }
 
 export class InboxNotificationsService extends Disposable implements IInboxNotificationsService {
@@ -56,6 +67,7 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 	constructor(
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 		@ISessionsProvidersService private readonly sessionsProvidersService: ISessionsProvidersService,
+		@IChatService private readonly chatService: IChatService,
 		@IGitHubService private readonly gitHubService: IGitHubService,
 		@IStorageService private readonly storageService: IStorageService,
 	) {
@@ -169,14 +181,16 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 		const repositoryLabel = this.getSessionRepositoryLabel(session, reader);
 
 		if (status === SessionStatus.NeedsInput) {
+			const needsInputPart = this.getNeedsInputPart(session, reader);
 			const id = `${session.sessionId}:${InboxNotificationKind.NeedsInput}:${updatedAt}`;
 			itemsById.set(id, {
 				id,
 				kind: InboxNotificationKind.NeedsInput,
 				priority: InboxNotificationPriority.High,
 				title: localize('inboxNotifications.needsInput.title', "Input Needed for {0}", title),
-				description: this.getNeedsInputDescription(session, reader),
+				description: needsInputPart ? this.getNeedsInputPartDescription(needsInputPart) : this.getNeedsInputDescription(session, reader),
 				repositoryLabel,
+				needsInputPart,
 				timestamp: updatedAt,
 				sessionResource: session.resource,
 				actions: this.sessionActions(true),
@@ -507,6 +521,95 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 			ariaLabel: localize('inboxNotifications.action.markDone', "Done"),
 			kind: InboxNotificationActionKind.MarkDone,
 		}];
+	}
+
+	private getNeedsInputPart(session: ISession, reader: IReaderWithStore): IInboxNotificationNeedsInputPart | undefined {
+		let bestCandidate: INeedsInputPartCandidate | undefined;
+		for (const chat of session.chats.read(reader)) {
+			const chatModel = this.chatService.getSession(chat.resource);
+			if (!chatModel) {
+				continue;
+			}
+
+			for (const request of chatModel.getRequests().toReversed()) {
+				const response = request.response;
+				if (!response
+					|| response.isCanceled
+					|| request.isHiddenFromTranscript
+					|| (request.shouldBeRemovedOnSend && !request.shouldBeRemovedOnSend.afterUndoStop)) {
+					continue;
+				}
+
+				const pendingConfirmation = response.isPendingConfirmation.read(reader);
+				if (!pendingConfirmation) {
+					continue;
+				}
+
+				const needsInputPart = this.getNeedsInputPartFromResponse(response, chat.resource);
+				if (!needsInputPart) {
+					continue;
+				}
+
+				const candidate: INeedsInputPartCandidate = {
+					startedWaitingAt: pendingConfirmation.startedWaitingAt,
+					part: needsInputPart,
+				};
+				if (!bestCandidate || candidate.startedWaitingAt < bestCandidate.startedWaitingAt) {
+					bestCandidate = candidate;
+				}
+				break;
+			}
+		}
+
+		return bestCandidate?.part;
+	}
+
+	private getNeedsInputPartFromResponse(response: IChatResponseModel, chatResource: URI): IInboxNotificationNeedsInputPart | undefined {
+		for (const part of response.response.value) {
+			if (part.kind === 'questionCarousel' && !part.isUsed) {
+				const questionPart: IInboxNotificationQuestionCarouselPart = {
+					kind: 'questionCarousel',
+					chatResource,
+					requestId: response.requestId,
+					resolveId: part.resolveId,
+					allowSkip: part.allowSkip,
+					message: part.message,
+					questions: part.questions,
+				};
+				return questionPart;
+			}
+
+			if (part.kind === 'confirmation' && !part.isUsed) {
+				const confirmationPart: IInboxNotificationConfirmationPart = {
+					kind: 'confirmation',
+					chatResource,
+					requestId: response.requestId,
+					title: part.title,
+					message: part.message,
+					buttons: part.buttons,
+					data: part.data,
+				};
+				return confirmationPart;
+			}
+
+			if (part.kind !== 'toolInvocation') {
+				continue;
+			}
+			const state = part.state.get();
+			if (state.type !== IChatToolInvocation.StateKind.WaitingForConfirmation
+				&& state.type !== IChatToolInvocation.StateKind.WaitingForPostApproval) {
+				continue;
+			}
+		}
+
+		return undefined;
+	}
+
+	private getNeedsInputPartDescription(part: IInboxNotificationNeedsInputPart): string {
+		if (part.kind === 'questionCarousel') {
+			return localize('inboxNotifications.needsInput.description.questionCarousel', "Answer the pending questions below.");
+		}
+		return localize('inboxNotifications.needsInput.description.confirmation', "Review the confirmation request below.");
 	}
 
 	private getNeedsInputDescription(session: ISession, reader: IReader): string {
