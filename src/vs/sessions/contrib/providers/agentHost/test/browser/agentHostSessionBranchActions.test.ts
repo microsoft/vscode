@@ -25,7 +25,7 @@ import '../../browser/agentSessionSettings.contribution.js';
 suite('Agent Host session link actions', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('contributes chat link copying in a separate menu group', () => {
+	test('contributes chat link copying in the final menu group', () => {
 		const item = MenuRegistry.getMenuItems(Menus.SessionChatItemContext)
 			.filter(isIMenuItem)
 			.find(item => item.command.id === COPY_AGENT_HOST_CHAT_LINK_COMMAND_ID);
@@ -37,7 +37,7 @@ suite('Agent Host session link actions', () => {
 			when: item.when?.serialize(),
 		}, {
 			title: 'Copy Link',
-			group: '2_copy',
+			group: '3_copy',
 			order: 1,
 			when: 'sessionProviderId =~ /^(local-agent-host|agenthost-)/',
 		});

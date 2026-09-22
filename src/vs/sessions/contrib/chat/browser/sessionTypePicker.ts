@@ -11,26 +11,29 @@ import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js'
 import { localize } from '../../../../nls.js';
 import { IActionWidgetService } from '../../../../platform/actionWidget/browser/actionWidget.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { ContextKeyExpression } from '../../../../platform/contextkey/common/contextkey.js';
+import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
+import { IHoverService } from '../../../../platform/hover/browser/hover.js';
+import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { ActionListItemKind, IActionListDelegate, IActionListItem } from '../../../../platform/actionWidget/browser/actionList.js';
 import { IProviderSessionType, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { autorun, IObservable, observableValue } from '../../../../base/common/observable.js';
-import { GITHUB_REMOTE_FILE_SCHEME, ISession, SessionStatus } from '../../../services/sessions/common/session.js';
+import { GITHUB_REMOTE_FILE_SCHEME, ISession, ISessionType, SessionStatus } from '../../../services/sessions/common/session.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
-import { IChatSessionsService, SessionType } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
+import { IChatSessionsService } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ILanguageModelsService } from '../../../../workbench/contrib/chat/common/languageModels.js';
 import { canInitializeSessionTypeOnSelection, getSessionTypeAvailability, getSessionTypePickerAvailability, getSessionTypeUnavailableDescription, getSessionTypeUnavailableHover, SessionTypeAvailability } from '../../../../workbench/contrib/chat/browser/agentSessions/sessionTypeAvailability.js';
-import { hasAgentSdkSetupForSessionType } from '../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostSdkSetupNotification.js';
 import { IChatEntitlementService } from '../../../../workbench/services/chat/common/chatEntitlementService.js';
-import { IAgentSdkSetupService } from '../../../../workbench/services/agentHost/browser/agentSdkSetupService.js';
-import { hasSignedInCodexChatGPTAccount, ICodexAccountService } from '../../../../workbench/services/agentHost/browser/codexAccountService.js';
 import { markOnboardingTarget } from '../../../../workbench/contrib/onboarding/browser/spotlight/onboardingTarget.js';
 import { reportNewChatPickerClosed } from './newChatPickerTelemetry.js';
 import { isAllowSignedOutWhenUsableEnabled } from '../../../browser/sessionsAuthGate.js';
+import { registerPickerKeybindingPresentation } from './newChatPickerKeybinding.js';
 
 const STORAGE_KEY_LAST_SESSION_TYPE = 'sessions.userSelectedSessionType';
 
@@ -89,6 +92,7 @@ export interface ISessionTypePickerOptions {
 	 * The picker is still interactive. Defaults to `true`.
 	 */
 	readonly showChevron?: boolean;
+	readonly focusCommand?: { readonly id: string; readonly label: string; readonly when: ContextKeyExpression; readonly enabled: IObservable<boolean> };
 	/**
 	 * Prepares the workspace for an explicit session-type selection. Returning
 	 * `false` cancels the selection without changing the current type.
@@ -171,8 +175,10 @@ export class SessionTypePicker extends Disposable {
 		@IChatEntitlementService protected readonly chatEntitlementService: IChatEntitlementService,
 		@ILanguageModelsService protected readonly languageModelsService: ILanguageModelsService,
 		@IConfigurationService protected readonly configurationService: IConfigurationService,
-		@IAgentSdkSetupService protected readonly agentSdkSetupService: IAgentSdkSetupService,
-		@ICodexAccountService protected readonly codexAccountService: ICodexAccountService,
+		@ICommandService private readonly commandService: ICommandService,
+		@IContextMenuService private readonly contextMenuService: IContextMenuService,
+		@IHoverService private readonly hoverService: IHoverService,
+		@IKeybindingService private readonly keybindingService: IKeybindingService,
 	) {
 		super();
 
@@ -394,15 +400,20 @@ export class SessionTypePicker extends Disposable {
 	}
 
 	/** Availability shared by the desktop popup and the mobile picker sheet. */
-	protected _getPickerAvailability(modelTarget: string): SessionTypeAvailability {
+	protected _getPickerAvailability(sessionType: ISessionType): SessionTypeAvailability {
+		const modelTarget = sessionType.chatSessionType ?? sessionType.id;
 		const allowSignedOutWhenUsable = isAllowSignedOutWhenUsableEnabled(this.configurationService);
-		const hasAgentSdkSetup = hasAgentSdkSetupForSessionType(this.agentSdkSetupService.setups, modelTarget);
-		const hasProviderAccount = modelTarget === SessionType.AgentHostCodex && hasSignedInCodexChatGPTAccount(this.codexAccountService.account);
+		const initialization = sessionType.initializationOnSelection;
 		return getSessionTypePickerAvailability(
 			modelTarget,
 			getSessionTypeAvailability(this.chatSessionsService, this.chatEntitlementService, this.languageModelsService, modelTarget, allowSignedOutWhenUsable),
 			allowSignedOutWhenUsable,
-			canInitializeSessionTypeOnSelection(this.chatEntitlementService.entitlement, allowSignedOutWhenUsable, hasAgentSdkSetup, hasProviderAccount),
+			canInitializeSessionTypeOnSelection(
+				this.chatEntitlementService.entitlement,
+				allowSignedOutWhenUsable,
+				initialization !== undefined,
+				initialization?.canInitializeWithoutGitHub,
+			),
 		);
 	}
 
@@ -441,6 +452,20 @@ export class SessionTypePicker extends Disposable {
 			open: () => this._showPicker(),
 		}));
 		this._updateTriggerLabel();
+		if (this._options?.focusCommand) {
+			registerPickerKeybindingPresentation(
+				this._renderDisposables,
+				trigger,
+				this._options.focusCommand.label,
+				this._options.focusCommand.id,
+				this._options.focusCommand.when,
+				this._options.focusCommand.enabled,
+				this.commandService,
+				this.contextMenuService,
+				this.hoverService,
+				this.keybindingService,
+			);
+		}
 
 		this._renderDisposables.add(Gesture.addTarget(trigger));
 		for (const eventType of [dom.EventType.CLICK, TouchEventType.Tap]) {
@@ -529,8 +554,7 @@ export class SessionTypePicker extends Disposable {
 			}
 			for (const { providerId, sessionType } of types) {
 				const isCurrent = this._picked?.providerId === providerId && this._picked?.sessionTypeId === sessionType.id;
-				const modelTarget = sessionType.chatSessionType ?? sessionType.id;
-				const availability = this._getPickerAvailability(modelTarget);
+				const availability = this._getPickerAvailability(sessionType);
 				const unavailable = availability !== SessionTypeAvailability.Available;
 				const item: ISessionTypePickerItem = {
 					providerId,

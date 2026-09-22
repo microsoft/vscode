@@ -551,8 +551,8 @@ export class ChatCompositeBar extends Disposable {
 					const provider = session && this._sessionsProvidersService.getProvider(session.providerId);
 					return Separator.join(
 						capabilities.canRename ? [renameAction] : [],
-						provider && isAgentHostProvider(provider) ? [copyLinkAction] : [],
 						capabilities.canDelete ? [deleteAction] : [],
+						provider && isAgentHostProvider(provider) ? [copyLinkAction] : [],
 					);
 				},
 				getKeyBinding: action => this._keybindingService.lookupKeybinding(action.id) ?? undefined,

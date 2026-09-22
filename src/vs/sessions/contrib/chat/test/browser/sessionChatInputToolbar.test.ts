@@ -8,12 +8,13 @@ import { isManagedHoverTooltipHTMLElement } from '../../../../../base/browser/ui
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Event } from '../../../../../base/common/event.js';
-import { ImmortalReference } from '../../../../../base/common/lifecycle.js';
+import { ImmortalReference, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { constObservable, derived, observableValue } from '../../../../../base/common/observable.js';
-import type { IAction } from '../../../../../base/common/actions.js';
+import { SubmenuAction, type IAction } from '../../../../../base/common/actions.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { IActionWidgetService } from '../../../../../platform/actionWidget/browser/actionWidget.js';
 import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
@@ -699,6 +700,116 @@ suite('SessionChatInputToolbar', () => {
 			fork: { pills: ['1 File'], visible: true },
 		});
 	});
+
+	for (const keyboard of [false, true]) {
+		for (const withChanges of [false, true]) {
+			test(`groups and restores filtered subagents from ${withChanges ? 'another pill' : 'the empty toolbar'} using ${keyboard ? 'the keyboard' : 'the mouse'}`, async () => {
+				const { instantiationService, visibility } = createServices();
+				visibility.toggle(SessionChatPillKind.Subagents);
+				let menuActions: readonly IAction[] = [];
+				instantiationService.stub(IContextMenuService, {
+					showContextMenu: delegate => {
+						assert.ok(delegate.getActions);
+						menuActions = delegate.getActions();
+					},
+				});
+				let dropdownLabels: readonly (string | undefined)[] = [];
+				let hideDropdown: (() => void) | undefined;
+				instantiationService.stub(IActionWidgetService, {
+					isVisible: false,
+					show: (_id, _preview, items, delegate) => {
+						dropdownLabels = items.map(item => item.label);
+						hideDropdown = () => delegate.onHide?.();
+					},
+					hide: () => hideDropdown?.(),
+				});
+				const chat = upcastPartial<IChat>({
+					resource: URI.parse('chat:main'),
+					title: constObservable('Main'),
+					status: constObservable(SessionStatus.InProgress),
+				});
+				const runningStatus = observableValue('runningStatus', SessionStatus.InProgress);
+				const waitingStatus = observableValue('waitingStatus', SessionStatus.NeedsInput);
+				const subagents = [
+					{ title: 'Running', status: runningStatus },
+					{ title: 'Waiting', status: waitingStatus },
+					{ title: 'Finished', status: constObservable(SessionStatus.Completed) },
+					{ title: 'Failed', status: constObservable(SessionStatus.Error) },
+				].map(({ title, status }) => upcastPartial<IChat>({
+					resource: URI.parse(`chat:${title}`),
+					title: constObservable(title),
+					status,
+					origin: { kind: ChatOriginKind.Tool, parentChat: chat.resource },
+				}));
+				const session = upcastPartial<IActiveSession>({
+					sessionId: 'provider:session',
+					capabilities: constObservable({ supportsMultipleChats: true }),
+					resource: URI.parse('session:1'),
+					chats: constObservable([chat, ...subagents]),
+					workspace: constObservable(upcastPartial<ISessionWorkspace>({ folders: [] })),
+					changesets: constObservable([]),
+					changes: constObservable(withChanges ? [{ modifiedUri: URI.file('/change.ts'), insertions: 1, deletions: 0 }] : []),
+				});
+				const toolbar = store.add(instantiationService.createInstance(SessionChatInputToolbar, false, undefined));
+				document.body.appendChild(toolbar.element);
+				store.add(toDisposable(() => toolbar.element.remove()));
+				toolbar.setSession(session, chat);
+				const labels = () => Array.from(toolbar.element.querySelectorAll('.chat-pill-label')).map(label => label.textContent);
+				const openMenu = (target: HTMLElement) => {
+					menuActions = [];
+					target.dispatchEvent(keyboard
+						? new KeyboardEvent('keydown', { key: 'F10', keyCode: 121, shiftKey: true, bubbles: true })
+						: new MouseEvent('contextmenu', { bubbles: true }));
+					return menuActions;
+				};
+				const subagentPill = toolbar.getChatPetPlatformElements().at(-1);
+				assert.ok(subagentPill);
+				subagentPill.click();
+				hideDropdown?.();
+				const ownMenu = openMenu(subagentPill);
+				const ownOptions = ownMenu.find(action => action instanceof SubmenuAction);
+				assert.ok(ownOptions instanceof SubmenuAction);
+				const before = ownOptions.actions.map(action => ({ label: action.label, checked: action.checked }));
+				await ownOptions.actions[1].run();
+				const filtered = labels();
+				runningStatus.set(SessionStatus.Completed, undefined);
+				waitingStatus.set(SessionStatus.Completed, undefined);
+				const afterCompletion = {
+					labels: labels(),
+					visible: toolbar.visible,
+					empty: toolbar.element.classList.contains('empty'),
+				};
+				const recoveryTarget = toolbar.getChatPetPlatformElements()[0] ?? toolbar.element.querySelector<HTMLElement>('.chat-pills-row-content');
+				assert.ok(recoveryTarget);
+				const recoveryOptions = openMenu(recoveryTarget).find(action => action instanceof SubmenuAction);
+				assert.ok(recoveryOptions instanceof SubmenuAction);
+				const after = recoveryOptions.actions.map(action => ({ label: action.label, checked: action.checked }));
+				await recoveryOptions.actions[0].run();
+
+				assert.deepStrictEqual({
+					dropdownLabels,
+					ownMenu: ownMenu.slice(0, 4).map(action => action.label),
+					before,
+					filtered,
+					afterCompletion,
+					recoveryOptions: recoveryOptions.label,
+					after,
+					restored: labels(),
+					emptyAfterRestore: toolbar.element.classList.contains('empty'),
+				}, {
+					dropdownLabels: ['Subagents: In Progress', 'Waiting', 'Running', '', 'Subagents: Completed', 'Failed', 'Finished'],
+					ownMenu: ['Hide Subagents', '', 'Subagent Options', ''],
+					before: [{ label: 'Show All', checked: true }, { label: 'Show In Progress', checked: false }],
+					filtered: [...(withChanges ? ['1 File'] : []), '2 Subagents'],
+					afterCompletion: { labels: withChanges ? ['1 File'] : [], visible: true, empty: !withChanges },
+					recoveryOptions: 'Subagent Options',
+					after: [{ label: 'Show All', checked: false }, { label: 'Show In Progress', checked: true }],
+					restored: [...(withChanges ? ['1 File'] : []), '4 Subagents'],
+					emptyAfterRestore: false,
+				});
+			});
+		}
+	}
 
 	test('exposes live and cached pull request states without treating a closed draft as open', () => {
 		const ref: IGitHubPullRequestRef = {

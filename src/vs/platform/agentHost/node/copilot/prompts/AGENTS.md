@@ -6,7 +6,7 @@ This directory customizes the system prompt for Copilot CLI **agent host** (ahp+
 
 - `promptRegistry.ts` — `AgentHostPromptRegistry`: resolves the final `SystemMessageConfig` for a session's model. Defines the `IAgentHostPrompt` contributor interface and the `IAgentHostPromptContext` read-time context.
 - `systemMessage.ts` — the default message (`COPILOT_AGENT_HOST_SYSTEM_MESSAGE`), shared identity text, the `fullSystemPrompt` / `sectionOverrides` builders, and `describeSystemMessageConfig` (the one-line log summary).
-- `toolInstructions.ts` — the model-agnostic `tool_instructions` layer: gated or unconditional nudges (`TOOL_INSTRUCTION_LINES`) composed into the SDK's `tool_instructions` section, including the setting-gated default-model guidance for subagents (`chat.copilot.subagentModelGuidance.enabled`).
+- `toolInstructions.ts` — the model-agnostic `tool_instructions` layer: gated or unconditional nudges (`TOOL_INSTRUCTION_LINES`) composed into the SDK's `tool_instructions` section, including the default-model guidance for subagents.
 - `anthropicPrompt.ts` — example per-model contributor (Claude Opus 4.8).
 - `allPrompts.ts` — side-effect import hub; importing it registers every contributor into the shared `agentHostPromptRegistry`.
 

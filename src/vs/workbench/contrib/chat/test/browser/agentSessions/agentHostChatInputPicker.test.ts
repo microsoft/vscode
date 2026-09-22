@@ -902,7 +902,6 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 			'chat.tools.terminal.ignoreDefaultAutoApproveRules',
 			'chat.tools.terminal.blockDetectedFileWrites',
 			'chat.agent.sandbox.*',
-			'chat.agentHost.sdkSandbox.*',
 		]);
 	});
 
