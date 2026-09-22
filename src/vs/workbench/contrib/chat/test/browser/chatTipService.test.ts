@@ -22,7 +22,7 @@ import { IStorageService, InMemoryStorageService, StorageScope, StorageTarget } 
 import { IWorkbenchAssignmentService } from '../../../../services/assignment/common/assignmentService.js';
 import { NullWorkbenchAssignmentService } from '../../../../services/assignment/test/common/nullAssignmentService.js';
 import { IChatWidget, IChatWidgetService } from '../../browser/chat.js';
-import { ChatTipService, CREATE_AGENT_INSTRUCTIONS_TRACKING_COMMAND, CREATE_AGENT_TRACKING_COMMAND, CREATE_PROMPT_TRACKING_COMMAND, CREATE_SKILL_TRACKING_COMMAND, FORK_CONVERSATION_TRACKING_COMMAND, IChatTip, ITipDefinition, TipEligibilityTracker } from '../../browser/chatTipService.js';
+import { ChatTipService, CREATE_AGENT_INSTRUCTIONS_TRACKING_COMMAND, CREATE_AGENT_TRACKING_COMMAND, CREATE_PROMPT_TRACKING_COMMAND, CREATE_SKILL_TRACKING_COMMAND, FORK_CONVERSATION_TRACKING_COMMAND, IChatTip, ITipDefinition, TipEligibilityTracker, TipTrackingCommands } from '../../browser/chatTipService.js';
 import { IChatMode, IChatModes } from '../../common/chatModes.js';
 import { AgentInstructionFileType, IPromptPath, IPromptsService, IAgentInstructionFile, PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -459,6 +459,22 @@ suite('ChatTipService', () => {
 
 		const executedCommands = JSON.parse(storageService.get('chat.tips.executedCommands', StorageScope.APPLICATION) ?? '[]') as string[];
 		assert.ok(executedCommands.includes(CREATE_AGENT_INSTRUCTIONS_TRACKING_COMMAND), 'Expected slash usage to be tracked in executed command exclusions');
+	});
+
+	test('removes btw tip from rotation after the slash command is used', () => {
+		const service = createService();
+		contextKeyService.createKey<boolean>(IsSessionsWindowContext.key, true);
+		contextKeyService.createKey<boolean>('sessionIsCreated', true);
+		contextKeyService.createKey<boolean>('sessionIsArchived', false);
+		contextKeyService.createKey<boolean>('sessionSupportsSideChat', true);
+
+		assert.ok(findTipById(service, 'tip.btw'));
+
+		service.recordSlashCommandUsage('btw');
+
+		assertTipNeverShown(service, 'tip.btw');
+		const executedCommands = JSON.parse(storageService.get('chat.tips.executedCommands', StorageScope.APPLICATION) ?? '[]') as string[];
+		assert.ok(executedCommands.includes(TipTrackingCommands.BtwUsed));
 	});
 
 	test('records fork tip usage for submitted /fork command', () => {

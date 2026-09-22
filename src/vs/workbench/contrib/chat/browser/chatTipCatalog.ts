@@ -333,6 +333,7 @@ export const TIP_CATALOG: readonly ITipDefinition[] = [
 			ContextKeyExpr.not('sessionIsArchived'),
 			ContextKeyExpr.has('sessionSupportsSideChat'),
 		),
+		excludeWhenCommandsExecuted: [TipTrackingCommands.BtwUsed],
 	},
 	{
 		id: 'tip.forkConversation',
