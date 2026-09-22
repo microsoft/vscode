@@ -1890,8 +1890,8 @@ export class ChatService extends Disposable implements IChatService {
 						});
 						const dismissLink = createMarkdownCommandLink({
 							id: AICustomizationManagementCommands.DismissMigrationHint,
-							text: localize('customizationMigrationHint.dismiss', "Hide for this workspace"),
-							tooltip: localize('customizationMigrationHint.dismiss.tooltip', "Stop Showing Migration Hints for This Harness"),
+							text: localize('customizationMigrationHint.dismiss', "Don't Show Again"),
+							tooltip: localize('customizationMigrationHint.dismiss.tooltip', "Do not show this migration hint again for this harness in this workspace"),
 							arguments: [{ target: hint.target }],
 						});
 						this.customizationMigrationTelemetryService.hintShown(hint.target);
