@@ -159,6 +159,8 @@ class MockCopilotSession {
 	readonly mcpDisableCalls: Array<{ serverName: string }> = [];
 	readonly mcpStartServerCalls: Array<{ serverName: string }> = [];
 	readonly mcpStopServerCalls: Array<{ serverName: string }> = [];
+	readonly mcpAuthenticationStateChangedCalls: Array<{ serverName?: string; refreshSessionToken?: boolean }> = [];
+	mcpAuthenticationStateChangedError: Error | undefined;
 	readonly samplingResponses: Parameters<CopilotSession['rpc']['ui']['handlePendingSampling']>[0][] = [];
 	readonly registeredEventInterests: string[] = [];
 	readonly releasedEventInterests: string[] = [];
@@ -490,10 +492,13 @@ class MockCopilotSession {
 		},
 		mcp: {
 			list: async () => {
+				this.mcpListCalls++;
 				if (this.mcpListError !== undefined) {
 					throw this.mcpListError;
 				}
-				return this.mcpListResult;
+				const result = this.mcpListResult;
+				await this.mcpListGates.shift();
+				return result;
 			},
 			enable: async (params: { serverName: string }) => {
 				this.mcpEnableCalls.push(params);
@@ -529,6 +534,14 @@ class MockCopilotSession {
 				this.mcpListResult = {
 					servers: this.mcpListResult.servers.map(server => server.name === params.serverName ? { ...server, status: 'not_configured' } : server),
 				};
+			},
+			oauth: {
+				authenticationStateChanged: async (params: { serverName?: string; refreshSessionToken?: boolean }) => {
+					this.mcpAuthenticationStateChangedCalls.push(params);
+					if (this.mcpAuthenticationStateChangedError) {
+						throw this.mcpAuthenticationStateChangedError;
+					}
+				},
 			},
 			executeSampling: async () => ({ status: 'completed' as const, result: undefined }),
 			cancelSamplingExecution: async () => { /* no-op */ },
@@ -589,7 +602,9 @@ class MockCopilotSession {
 	readonly sandboxConfigUpdates: unknown[] = [];
 	readonly shellInitScriptUpdates: unknown[] = [];
 
-	mcpListResult: { servers: ReadonlyArray<{ name: string; status: 'connected' | 'failed' | 'needs-auth' | 'pending' | 'disabled' | 'not_configured'; error?: string }> } = { servers: [] };
+	mcpListResult: Awaited<ReturnType<CopilotSession['rpc']['mcp']['list']>> = { servers: [] };
+	mcpListCalls = 0;
+	mcpListGates: Promise<void>[] = [];
 	mcpListError: unknown = undefined;
 	mcpEnableError: unknown = undefined;
 	mcpStartServerError: unknown = undefined;
@@ -15192,8 +15207,9 @@ Use the attached image as context.
 			desiredEnabled = false;
 			await session.send('disable Slack');
 			const afterDisable = session.topLevelMcpCustomizations();
-			mockSession.fire('session.mcp_servers_loaded', { servers: [{ name: serverName, status: 'pending' }] });
 			mockSession.mcpListResult = { servers: [{ name: serverName, status: 'pending' }] };
+			mockSession.fire('session.mcp_servers_loaded', { servers: [{ name: serverName, status: 'pending' }] });
+			await timeout(0);
 			const afterRuntimeUpdate = session.topLevelMcpCustomizations();
 			await session.send('keep Slack disabled');
 			const afterReconcile = session.topLevelMcpCustomizations();
@@ -15539,6 +15555,217 @@ Use the attached image as context.
 				enabledResult: { kind: 'token', accessToken: 'enabled-token' },
 				unknownResult: { kind: 'token', accessToken: 'unknown-token' },
 			});
+		});
+
+		test('MCP authentication only clears auth-required after all matching server challenges resolve', async () => {
+			const { session, runtime, signals, mockSession } = await createAgentSession(disposables);
+			const firstAuth = runtime.handleMcpAuthRequest({
+				requestId: 'auth-first',
+				serverName: 'workiq',
+				serverUrl: 'https://first.mcp.example.com',
+				reason: 'upscope',
+			}, { sessionId: 'test-session-1' });
+			const secondAuth = runtime.handleMcpAuthRequest({
+				requestId: 'auth-second',
+				serverName: 'workiq',
+				serverUrl: 'https://second.mcp.example.com',
+				reason: 'upscope',
+			}, { sessionId: 'test-session-1' });
+
+			assert.strictEqual(await session.resolveMcpAuthentication({
+				resource: 'https://first.mcp.example.com',
+				scopes: [],
+				token: 'first-token',
+			}), true);
+			assert.deepStrictEqual(
+				getActions(signals)
+					.filter(action => action.type === ActionType.SessionCustomizationUpdated)
+					.map(action => action.type === ActionType.SessionCustomizationUpdated && action.customization.type === CustomizationType.McpServer
+						? {
+							kind: action.customization.state.kind,
+							resource: action.customization.state.kind === McpServerStatus.AuthRequired ? action.customization.state.resource.resource : undefined,
+						}
+						: undefined),
+				[
+					{
+						kind: McpServerStatus.AuthRequired,
+						resource: 'https://first.mcp.example.com',
+					},
+					{
+						kind: McpServerStatus.AuthRequired,
+						resource: 'https://second.mcp.example.com',
+					},
+				],
+			);
+
+			assert.strictEqual(await session.resolveMcpAuthentication({
+				resource: 'https://second.mcp.example.com',
+				scopes: [],
+				token: 'second-token',
+			}), true);
+			assert.deepStrictEqual(
+				getActions(signals)
+					.filter(action => action.type === ActionType.SessionCustomizationUpdated)
+					.map(action => action.type === ActionType.SessionCustomizationUpdated && action.customization.type === CustomizationType.McpServer
+						? action.customization.state.kind
+						: undefined),
+				[McpServerStatus.AuthRequired, McpServerStatus.AuthRequired],
+			);
+			mockSession.fire('session.mcp_server_status_changed', {
+				serverName: 'workiq',
+				status: 'pending',
+			} as SessionEventPayload<'session.mcp_server_status_changed'>['data']);
+			await timeout(0);
+			assert.deepStrictEqual(
+				getActions(signals)
+					.filter(action => action.type === ActionType.SessionCustomizationUpdated)
+					.map(action => action.type === ActionType.SessionCustomizationUpdated && action.customization.type === CustomizationType.McpServer
+						? action.customization.state.kind
+						: undefined),
+				[McpServerStatus.AuthRequired, McpServerStatus.AuthRequired, McpServerStatus.Starting],
+			);
+			assert.deepStrictEqual(await Promise.all([firstAuth, secondAuth]), [
+				{ kind: 'token', accessToken: 'first-token' },
+				{ kind: 'token', accessToken: 'second-token' },
+			]);
+		});
+
+		test('rearms exhausted MCP authentication only from an explicit server start', async () => {
+			const { session, runtime, mockSession } = await createAgentSession(disposables, {
+				configureMockSession: mock => {
+					mock.mcpListResult = { servers: [{ name: 'workiq', status: 'needs-auth' }] };
+				},
+			});
+			const initialAuth = runtime.handleMcpAuthRequest({
+				requestId: 'auth-initial',
+				serverName: 'workiq',
+				serverUrl: 'https://mcp.example.com',
+				reason: 'initial',
+			}, { sessionId: 'test-session-1' });
+			await timeout(0);
+
+			assert.strictEqual(await session.resolveMcpAuthentication({
+				resource: 'https://mcp.example.com',
+				scopes: [],
+				token: 'rejected-token',
+			}), true);
+			assert.deepStrictEqual(await initialAuth, { kind: 'token', accessToken: 'rejected-token' });
+
+			mockSession.fire('session.mcp_server_status_changed', {
+				serverName: 'workiq',
+				status: 'pending',
+			} as SessionEventPayload<'session.mcp_server_status_changed'>['data']);
+			const refreshAuth = runtime.handleMcpAuthRequest({
+				requestId: 'auth-refresh',
+				serverName: 'workiq',
+				serverUrl: 'https://mcp.example.com',
+				reason: 'refresh',
+			}, { sessionId: 'test-session-1' });
+			mockSession.fire('session.mcp_server_status_changed', {
+				serverName: 'workiq',
+				status: 'needs-auth',
+			} as SessionEventPayload<'session.mcp_server_status_changed'>['data']);
+			assert.strictEqual(session.topLevelMcpCustomizations()[0]?.state.kind, McpServerStatus.AuthRequired);
+			assert.strictEqual(await session.resolveMcpAuthentication({
+				resource: 'https://mcp.example.com',
+				scopes: [],
+				token: 'rejected-refresh-token',
+			}), true);
+			assert.deepStrictEqual(await refreshAuth, { kind: 'token', accessToken: 'rejected-refresh-token' });
+			mockSession.fire('session.mcp_server_status_changed', {
+				serverName: 'workiq',
+				status: 'needs-auth',
+			} as SessionEventPayload<'session.mcp_server_status_changed'>['data']);
+			assert.strictEqual(session.topLevelMcpCustomizations()[0]?.state.kind, McpServerStatus.AuthRequired);
+
+			assert.strictEqual(await session.resolveMcpAuthentication({
+				resource: 'https://mcp.example.com',
+				scopes: [],
+				token: 'replacement-token',
+			}), false);
+			const id = session.topLevelMcpCustomizations()[0]?.id;
+			assert.ok(id);
+			mockSession.mcpAuthenticationStateChangedError = new Error('reset rejected');
+			await assert.rejects(session.startMcpServer(id), /reset rejected/);
+			assert.deepStrictEqual({
+				stateAfterRejectedReset: session.topLevelMcpCustomizations()[0]?.state.kind,
+				authenticationStateChangedCalls: mockSession.mcpAuthenticationStateChangedCalls,
+				startServerCalls: mockSession.mcpStartServerCalls,
+			}, {
+				stateAfterRejectedReset: McpServerStatus.AuthRequired,
+				authenticationStateChangedCalls: [{ serverName: 'workiq' }],
+				startServerCalls: [],
+			});
+
+			mockSession.fire('session.mcp_server_status_changed', {
+				serverName: 'workiq',
+				status: 'pending',
+			} as SessionEventPayload<'session.mcp_server_status_changed'>['data']);
+			assert.strictEqual(session.topLevelMcpCustomizations()[0]?.state.kind, McpServerStatus.Starting);
+
+			mockSession.fire('session.mcp_server_status_changed', {
+				serverName: 'workiq',
+				status: 'needs-auth',
+			} as SessionEventPayload<'session.mcp_server_status_changed'>['data']);
+			assert.strictEqual(session.topLevelMcpCustomizations()[0]?.state.kind, McpServerStatus.AuthRequired);
+			mockSession.fire('session.mcp_server_status_changed', {
+				serverName: 'workiq',
+				status: 'pending',
+			} as SessionEventPayload<'session.mcp_server_status_changed'>['data']);
+			assert.strictEqual(session.topLevelMcpCustomizations()[0]?.state.kind, McpServerStatus.Starting);
+
+			const replacementAuth = runtime.handleMcpAuthRequest({
+				requestId: 'auth-replacement',
+				serverName: 'workiq',
+				serverUrl: 'https://mcp.example.com',
+				reason: 'refresh',
+			}, { sessionId: 'test-session-1' });
+			assert.strictEqual(session.topLevelMcpCustomizations()[0]?.state.kind, McpServerStatus.AuthRequired);
+			assert.strictEqual(await session.resolveMcpAuthentication({
+				resource: 'https://mcp.example.com',
+				scopes: [],
+				token: 'accepted-token',
+			}), true);
+			mockSession.fire('session.mcp_server_status_changed', {
+				serverName: 'workiq',
+				status: 'connected',
+			} as SessionEventPayload<'session.mcp_server_status_changed'>['data']);
+			assert.deepStrictEqual({
+				replacementResult: await replacementAuth,
+				state: session.topLevelMcpCustomizations()[0]?.state.kind,
+			}, {
+				replacementResult: { kind: 'token', accessToken: 'accepted-token' },
+				state: McpServerStatus.Ready,
+			});
+		});
+
+		test('does not rearm a server while an MCP authentication callback is pending', async () => {
+			const { session, runtime, mockSession } = await createAgentSession(disposables);
+			const auth = runtime.handleMcpAuthRequest({
+				requestId: 'auth-pending',
+				serverName: 'workiq',
+				serverUrl: 'https://mcp.example.com',
+				reason: 'initial',
+			}, { sessionId: 'test-session-1' });
+			await timeout(0);
+
+			const id = session.topLevelMcpCustomizations()[0]?.id;
+			assert.ok(id);
+			await session.startMcpServer(id);
+			assert.deepStrictEqual({
+				authenticationStateChangedCalls: mockSession.mcpAuthenticationStateChangedCalls,
+				startServerCalls: mockSession.mcpStartServerCalls,
+			}, {
+				authenticationStateChangedCalls: [],
+				startServerCalls: [],
+			});
+
+			assert.strictEqual(await session.resolveMcpAuthentication({
+				resource: 'https://mcp.example.com',
+				scopes: [],
+				token: 'token',
+			}), true);
+			assert.deepStrictEqual(await auth, { kind: 'token', accessToken: 'token' });
 		});
 
 		test('reconciles a workspace-disabled plugin child when customizations are republished', async () => {
@@ -15913,7 +16140,7 @@ Use the attached image as context.
 			});
 		});
 
-		test('needs-auth status remains starting when no auth request details are available', async () => {
+		test('needs-auth status remains pending when no auth request details are available', async () => {
 			const { mockSession, waitForSignal } = await createAgentSession(disposables);
 
 			mockSession.fire('session.mcp_server_status_changed', {
@@ -15948,6 +16175,170 @@ Use the attached image as context.
 			assert.deepStrictEqual(names, ['alpha', 'beta']);
 		});
 
+		test('keeps a ready server ready across repeated loaded inventory invalidations', async () => {
+			const serverName = 'workiq';
+			const { session, mockSession, waitForSignal } = await createAgentSession(disposables, {
+				configureMockSession: m => {
+					m.mcpListResult = { servers: [{ name: serverName, status: 'connected' }] };
+				},
+			});
+			await waitForSignal(s => isAction(s, ActionType.SessionCustomizationUpdated));
+
+			mockSession.fire('session.mcp_servers_loaded', { servers: [{ name: serverName, status: 'pending' }] } as SessionEventPayload<'session.mcp_servers_loaded'>['data']);
+			mockSession.fire('session.mcp_servers_loaded', { servers: [{ name: serverName, status: 'pending' }] } as SessionEventPayload<'session.mcp_servers_loaded'>['data']);
+			await timeout(0);
+
+			assert.deepStrictEqual({
+				listCalls: mockSession.mcpListCalls,
+				state: session.topLevelMcpCustomizations()[0]?.state.kind,
+			}, {
+				listCalls: 3,
+				state: McpServerStatus.Ready,
+			});
+		});
+
+		test('reconciles added and removed servers from the RPC inventory after loaded', async () => {
+			const { session, mockSession, waitForSignal } = await createAgentSession(disposables, {
+				configureMockSession: m => {
+					m.mcpListResult = { servers: [{ name: 'old-server', status: 'connected' }] };
+				},
+			});
+			await waitForSignal(s => isAction(s, ActionType.SessionCustomizationUpdated));
+
+			mockSession.mcpListResult = { servers: [{ name: 'new-server', status: 'connected' }] };
+			mockSession.fire('session.mcp_servers_loaded', { servers: [{ name: 'old-server', status: 'pending' }] } as SessionEventPayload<'session.mcp_servers_loaded'>['data']);
+			await timeout(0);
+
+			assert.deepStrictEqual(session.topLevelMcpCustomizations().map(server => ({
+				name: server.name,
+				state: server.state.kind,
+			})), [{
+				name: 'new-server',
+				state: McpServerStatus.Ready,
+			}]);
+		});
+
+		test('applies a genuine reconnect status after loaded inventory invalidation', async () => {
+			const serverName = 'workiq';
+			const { session, mockSession, waitForSignal } = await createAgentSession(disposables, {
+				configureMockSession: m => {
+					m.mcpListResult = { servers: [{ name: serverName, status: 'connected' }] };
+				},
+			});
+			await waitForSignal(s => isAction(s, ActionType.SessionCustomizationUpdated));
+
+			mockSession.fire('session.mcp_servers_loaded', { servers: [{ name: serverName, status: 'pending' }] } as SessionEventPayload<'session.mcp_servers_loaded'>['data']);
+			await timeout(0);
+			mockSession.fire('session.mcp_server_status_changed', {
+				serverName,
+				status: 'pending',
+			} as SessionEventPayload<'session.mcp_server_status_changed'>['data']);
+
+			assert.strictEqual(session.topLevelMcpCustomizations()[0]?.state.kind, McpServerStatus.Starting);
+		});
+
+		test('retries a late inventory response after a newer MCP lifecycle update without losing new servers', async () => {
+			const serverName = 'workiq';
+			const { session, mockSession, waitForSignal } = await createAgentSession(disposables, {
+				configureMockSession: m => {
+					m.mcpListResult = { servers: [{ name: serverName, status: 'connected' }] };
+				},
+			});
+			await waitForSignal(s => isAction(s, ActionType.SessionCustomizationUpdated));
+
+			const refreshGate = new DeferredPromise<void>();
+			mockSession.mcpListResult = { servers: [{ name: serverName, status: 'pending' }] };
+			mockSession.mcpListGates.push(refreshGate.p);
+			mockSession.fire('session.mcp_servers_loaded', { servers: [{ name: serverName, status: 'pending' }] } as SessionEventPayload<'session.mcp_servers_loaded'>['data']);
+			mockSession.fire('session.mcp_server_status_changed', {
+				serverName,
+				status: 'failed',
+				error: 'connection refused',
+			} as SessionEventPayload<'session.mcp_server_status_changed'>['data']);
+			mockSession.mcpListResult = {
+				servers: [
+					{ name: serverName, status: 'failed', error: 'connection refused' },
+					{ name: 'new-server', status: 'connected' },
+				]
+			};
+			refreshGate.complete();
+			await timeout(0);
+
+			assert.deepStrictEqual(session.topLevelMcpCustomizations().map(server => ({
+				name: server.name,
+				state: server.state,
+			})), [{
+				name: serverName,
+				state: {
+					kind: McpServerStatus.Error,
+					error: { errorType: 'mcp-server-failed', message: 'connection refused' },
+				},
+			}, {
+				name: 'new-server',
+				state: { kind: McpServerStatus.Ready },
+			}]);
+		});
+
+		test('does not apply an older inventory response after a newer refresh completes', async () => {
+			const { session, mockSession, waitForSignal } = await createAgentSession(disposables, {
+				configureMockSession: m => {
+					m.mcpListResult = { servers: [{ name: 'workiq', status: 'connected' }] };
+				},
+			});
+			await waitForSignal(s => isAction(s, ActionType.SessionCustomizationUpdated));
+
+			const refreshGate = new DeferredPromise<void>();
+			mockSession.mcpListGates.push(refreshGate.p);
+			mockSession.fire('session.mcp_servers_loaded', { servers: [] });
+			mockSession.mcpListResult = { servers: [{ name: 'workiq', status: 'disabled' }] };
+			mockSession.fire('session.mcp_servers_loaded', { servers: [] });
+			await timeout(0);
+			refreshGate.complete();
+			await timeout(0);
+
+			assert.deepStrictEqual({
+				state: session.topLevelMcpCustomizations()[0]?.state.kind,
+				listCalls: mockSession.mcpListCalls,
+			}, {
+				state: McpServerStatus.Stopped,
+				listCalls: 3,
+			});
+		});
+
+		test('does not overwrite a new authentication challenge with an in-flight inventory response', async () => {
+			const { session, runtime, mockSession, waitForSignal } = await createAgentSession(disposables, {
+				configureMockSession: m => {
+					m.mcpListResult = { servers: [{ name: 'workiq', status: 'connected' }] };
+				},
+			});
+			await waitForSignal(s => isAction(s, ActionType.SessionCustomizationUpdated));
+
+			const refreshGate = new DeferredPromise<void>();
+			mockSession.mcpListGates.push(refreshGate.p);
+			mockSession.fire('session.mcp_servers_loaded', { servers: [] });
+			const auth = runtime.handleMcpAuthRequest({
+				requestId: 'auth-during-inventory',
+				serverName: 'workiq',
+				serverUrl: 'https://mcp.example.com',
+				reason: 'refresh',
+			}, { sessionId: 'test-session-1' });
+			mockSession.mcpListResult = { servers: [{ name: 'workiq', status: 'needs-auth' }] };
+			refreshGate.complete();
+			await timeout(0);
+			const state = session.topLevelMcpCustomizations()[0]?.state.kind;
+			await session.resolveMcpAuthentication({ resource: 'https://mcp.example.com', scopes: [], token: 'accepted-token' });
+
+			assert.deepStrictEqual({
+				state,
+				listCalls: mockSession.mcpListCalls,
+				authResult: await auth,
+			}, {
+				state: McpServerStatus.AuthRequired,
+				listCalls: 3,
+				authResult: { kind: 'token', accessToken: 'accepted-token' },
+			});
+		});
+
 		test('logs a warning and continues when rpc.mcp.list rejects', async () => {
 			const logService = new CapturingLogService();
 			const { mockSession, waitForSignal } = await createAgentSession(disposables, {
@@ -15963,9 +16354,11 @@ Use the attached image as context.
 				`expected seed-failure warning, got: ${JSON.stringify(logService.warnings)}`,
 			);
 
-			// Subsequent live events still flow through the normal pipeline.
+			// Subsequent loaded events refresh the authoritative RPC inventory.
+			mockSession.mcpListError = undefined;
+			mockSession.mcpListResult = { servers: [{ name: 'late', status: 'connected' }] };
 			mockSession.fire('session.mcp_servers_loaded', {
-				servers: [{ name: 'late', status: 'connected' }],
+				servers: [{ name: 'late', status: 'pending' }],
 			} as SessionEventPayload<'session.mcp_servers_loaded'>['data']);
 			await waitForSignal(s => isAction(s, ActionType.SessionCustomizationUpdated));
 		});
@@ -15995,10 +16388,13 @@ Use the attached image as context.
 			});
 		});
 
-		test('an MCP lifecycle change logs at info with the SDK-reported metadata', async () => {
+		test('an MCP inventory reconciliation logs RPC-reported metadata', async () => {
 			const logService = new CapturingLogService();
 			const { mockSession, waitForSignal } = await createAgentSession(disposables, { logService });
 
+			mockSession.mcpListResult = {
+				servers: [{ name: 'docs', status: 'connected', source: 'plugin', sourcePlugin: 'acme', sourcePluginVersion: '1.2.3' }],
+			};
 			mockSession.fire('session.mcp_servers_loaded', {
 				servers: [{ name: 'docs', status: 'connected', source: 'plugin', transport: 'stdio', pluginName: 'acme', pluginVersion: '1.2.3' }],
 			} as SessionEventPayload<'session.mcp_servers_loaded'>['data']);
@@ -16006,12 +16402,11 @@ Use the attached image as context.
 
 			const record = logService.infos.find(i => i.message.includes('MCP server \'docs\''));
 			assert.deepStrictEqual(record?.args[0] instanceof OtelData ? record.args[0].attributes : undefined, {
-				mcpEvent: 'loaded',
+				mcpEvent: 'inventory',
 				mcpServer: 'docs',
 				mcpStatus: 'connected',
 				mcpState: 'ready',
 				mcpSource: 'plugin',
-				mcpTransport: 'stdio',
 				mcpPlugin: 'acme',
 				mcpPluginVersion: '1.2.3',
 			});

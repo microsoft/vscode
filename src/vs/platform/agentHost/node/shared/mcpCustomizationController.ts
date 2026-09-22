@@ -27,6 +27,11 @@ export interface ISdkMcpServer {
 	readonly name: string;
 	/** Current lifecycle state. */
 	readonly state: McpServerState;
+	/**
+	 * Allows this exact starting update to replace an auth challenge. Absent by
+	 * default so other providers retain the sticky auth-required behavior.
+	 */
+	readonly allowAuthRequiredToStarting?: boolean;
 	/** Explicit runtime enablement when the SDK distinguishes disabled from stopped. */
 	readonly enabled?: boolean;
 }
@@ -137,7 +142,8 @@ export function buildMcpChannel(chatUri: URI, serverName: string): string {
  * after a richer {@link McpServerStatus.AuthRequired} state, the controller
  * preserves the auth-required state until a definitive
  * {@link McpServerStatus.Ready}, {@link McpServerStatus.Error}, or
- * {@link McpServerStatus.Stopped} update arrives.
+ * {@link McpServerStatus.Stopped} update arrives. A provider can opt a
+ * specific SDK starting update out of that preservation.
  */
 export class McpCustomizationController extends Disposable {
 
@@ -319,7 +325,7 @@ export class McpCustomizationController extends Disposable {
 
 	private _applyOne(server: ISdkMcpServer, tx: ITransaction, force = false): void {
 		const previous = this._live.get().get(server.name);
-		const state = this._stateForUpdate(previous?.state, server.state);
+		const state = this._stateForUpdate(previous?.state, server.state, server.allowAuthRequiredToStarting === true);
 		const enabled = server.enabled ?? previous?.enabled ?? true;
 		// Once promoted to a top-level entry, stay top-level for the
 		// session — flipping back to a child mid-stream would orphan the
@@ -420,8 +426,8 @@ export class McpCustomizationController extends Disposable {
 		this._live.set(next, tx);
 	}
 
-	private _stateForUpdate(previous: McpServerState | undefined, next: McpServerState): McpServerState {
-		if (previous?.kind === McpServerStatus.AuthRequired && next.kind === McpServerStatus.Starting) {
+	private _stateForUpdate(previous: McpServerState | undefined, next: McpServerState, allowAuthRequiredToStarting: boolean): McpServerState {
+		if (!allowAuthRequiredToStarting && previous?.kind === McpServerStatus.AuthRequired && next.kind === McpServerStatus.Starting) {
 			return previous;
 		}
 		return next;

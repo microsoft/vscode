@@ -69,7 +69,7 @@ function server(name: string, state: McpServerState): ISdkMcpServer {
 function ready(): McpServerState { return { kind: McpServerStatus.Ready }; }
 function starting(): McpServerState { return { kind: McpServerStatus.Starting }; }
 function stopped(): McpServerState { return { kind: McpServerStatus.Stopped }; }
-function authRequired(): McpServerState {
+function authRequired(): Extract<McpServerState, { kind: McpServerStatus.AuthRequired }> {
 	return {
 		kind: McpServerStatus.AuthRequired,
 		reason: McpAuthRequiredReason.Required,
@@ -397,7 +397,7 @@ suite('McpCustomizationController', () => {
 		]);
 	});
 
-	test('authRequired state is preserved across coarse starting updates', () => {
+	test('preserves authRequired across coarse starting updates by default', () => {
 		const { controller, actions } = harness(store, { customizations: PLUGIN_CUSTOMIZATIONS });
 		store.add(controller);
 
@@ -407,6 +407,45 @@ suite('McpCustomizationController', () => {
 		controller.applyOne(server('fs', ready()));
 
 		assert.deepStrictEqual(actions, [
+			{
+				type: ActionType.SessionMcpServerStateChanged,
+				id: 'mcp-child:demo:fs',
+				state: authState,
+				channel: undefined,
+			},
+			{
+				type: ActionType.SessionMcpServerStateChanged,
+				id: 'mcp-child:demo:fs',
+				state: { kind: McpServerStatus.Ready },
+				channel: MCP_FS_CHANNEL,
+			},
+		]);
+	});
+
+	test('applies only an opted-in starting update after auth-required', () => {
+		const { controller, actions } = harness(store, { customizations: PLUGIN_CUSTOMIZATIONS });
+		store.add(controller);
+
+		const authState = authRequired();
+		controller.applyOne(server('fs', authState));
+		controller.applyOne({ name: 'fs', state: starting(), allowAuthRequiredToStarting: true });
+		controller.applyOne(server('fs', authState));
+		controller.applyOne(server('fs', starting()));
+		controller.applyOne(server('fs', ready()));
+
+		assert.deepStrictEqual(actions, [
+			{
+				type: ActionType.SessionMcpServerStateChanged,
+				id: 'mcp-child:demo:fs',
+				state: authState,
+				channel: undefined,
+			},
+			{
+				type: ActionType.SessionMcpServerStateChanged,
+				id: 'mcp-child:demo:fs',
+				state: { kind: McpServerStatus.Starting },
+				channel: undefined,
+			},
 			{
 				type: ActionType.SessionMcpServerStateChanged,
 				id: 'mcp-child:demo:fs',
