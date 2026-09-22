@@ -9,6 +9,7 @@ import * as os from 'os';
 import * as path from 'path';
 import { suite, test } from 'node:test';
 import {
+	fetchDependencyLibraries,
 	getStandardArtifacts,
 	type IFoundryDependencyVersions,
 	normalizeOrtLibraryName,
@@ -46,6 +47,22 @@ suite('dictation runtime', () => {
 			fs.writeFileSync(path.join(directory, 'libonnxruntime.so'), 'runtime');
 			normalizeOrtLibraryName(directory, 'linux-x64', dependencies.onnxruntime.version);
 			assert.deepStrictEqual(fs.readdirSync(directory), ['libonnxruntime.so.1']);
+		} finally {
+			fs.rmSync(directory, { recursive: true, force: true });
+		}
+	});
+
+	test('skips downloads when normalized dependency libraries are present', async () => {
+		const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'dictation-runtime-test-'));
+		try {
+			for (const target of ['linux-x64', 'darwin-arm64']) {
+				const targetDirectory = path.join(directory, target);
+				fs.mkdirSync(targetDirectory);
+				for (const name of requiredDependencyLibraryNames(target, dependencies)) {
+					fs.writeFileSync(path.join(targetDirectory, name), 'runtime');
+				}
+				await fetchDependencyLibraries(target, getStandardArtifacts(dependencies), targetDirectory, { feeds: [], skipIfPresent: true });
+			}
 		} finally {
 			fs.rmSync(directory, { recursive: true, force: true });
 		}
