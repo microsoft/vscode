@@ -22,6 +22,8 @@ import { getTelemetryChatSessionId } from '../../common/agentTelemetryCorrelatio
 import { AgentSession, IAgent, type AgentModelCallFinishedOutcome, type IAgentTurnTokenUsage } from '../../common/agent.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportKind, type IAgentHostClientTelemetryContext } from '../../common/agentHostTelemetry.js';
+import { getCodexAccountTelemetryContext } from '../../node/codex/codexAccountTelemetry.js';
+import type { ICodexAccountState } from '../../node/codex/codexAccountState.js';
 import type { SessionMode } from '../../common/agentHostSchema.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { ActionType, type ChatAction, type ChatUsageAction } from '../../common/state/sessionActions.js';
@@ -300,6 +302,104 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 		sinon.restore();
 	});
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('keeps admission context independent across concurrent chats and sessions', async () => {
+		sinon.stub(agent, 'id').value('codex');
+		setupSession();
+		const peerChat = buildChatUri(sessionUri, 'peer');
+		stateManager.addChat(sessionKey, peerChat);
+		const secondSession = AgentSession.uri('codex', 'session-2');
+		const secondChat = buildDefaultChatUri(secondSession);
+		stateManager.createSession({ resource: secondSession.toString(), provider: 'codex', title: 'Test', status: SessionStatus.Idle, createdAt: '2025-01-01T00:00:00.000Z', modifiedAt: '2025-01-01T00:00:00.000Z' });
+		stateManager.dispatchServerAction(secondSession.toString(), { type: ActionType.SessionReady });
+		const account: ICodexAccountState = { usageSource: 'openai', status: 'signedIn', authType: 'chatgpt', planType: 'plus' };
+		const rateLimit = { usedPercent: 42.4, windowDurationMins: 10080 };
+		let currentAccount = account;
+		let captures = 0;
+		agent.captureTurnTelemetryContext = () => {
+			captures++;
+			return { codex: getCodexAccountTelemetryContext(currentAccount, rateLimit, Date.now()) };
+		};
+		const sends = sinon.spy(agent.chats, 'sendMessage');
+		startTurn('shared-turn');
+		currentAccount = { ...account, planType: 'free' };
+		rateLimit.usedPercent = 68;
+		startTurn('shared-turn', 'hello', undefined, peerChat);
+		currentAccount = { usageSource: 'openai', status: 'signedOut' };
+		startTurn('shared-turn', 'hello', undefined, secondChat);
+		currentAccount = { ...account, planType: 'pro' };
+		rateLimit.usedPercent = 100;
+		await timeout(0);
+		turnTracker.updateModel(defaultChatUri, 'shared-turn', 'changed-model', 'trusted');
+		for (const chat of [secondChat, defaultChatUri, peerChat]) {
+			fire({ type: ActionType.ChatTurnComplete, turnId: 'shared-turn', duration: 1 }, chat);
+		}
+		const expected = [
+			{ chatgptAccountState: 'signedIn', chatgptPlanTier: 'plus', chatgptWeeklyQuotaState: 'available', chatgptWeeklyUsedPercentBucket: 40 },
+			{ chatgptAccountState: 'signedIn', chatgptPlanTier: 'free', chatgptWeeklyQuotaState: 'available', chatgptWeeklyUsedPercentBucket: 60 },
+			{ chatgptAccountState: 'signedOut', chatgptWeeklyQuotaState: 'unavailable' },
+		];
+		const sent = [defaultChatUri, peerChat, secondChat].map(chat => {
+			const context = sends.getCalls().find(call => call.args[0].toString() === chat)?.args[7];
+			return context && !URI.isUri(context) ? context.turnTelemetryContext?.codex : undefined;
+		});
+		assert.deepStrictEqual({
+			captures, sent,
+			frozen: sent.map(context => Object.isFrozen(context)),
+			completed: completedEvents().map(event => Object.fromEntries(Object.entries(event.data as object).filter(([key]) => key.startsWith('chatgpt')))),
+			model: capturedModel(completedEvents()[1].data as Record<string, unknown>),
+			remaining: turnTracker.getProviderTelemetryContext(defaultChatUri, 'shared-turn'),
+		}, { captures: 3, sent: expected, frozen: [true, true, true], completed: [expected[2], expected[0], expected[1]], model: { trusted: true, value: 'changed-model' }, remaining: undefined });
+	});
+
+	test('snapshots provider values instead of retaining a mutable provider object', () => {
+		sinon.stub(agent, 'id').value('codex');
+		setupSession();
+		const codex = { ...getCodexAccountTelemetryContext({ usageSource: 'openai', status: 'signedIn', authType: 'chatgpt', planType: 'plus' }, undefined, undefined) };
+		agent.captureTurnTelemetryContext = () => ({ codex });
+		startTurn('turn');
+		codex.chatgptPlanTier = 'pro';
+		codex.chatgptWeeklyQuotaState = 'available';
+		codex.chatgptWeeklyUsedPercentBucket = 100;
+		fire({ type: ActionType.ChatTurnComplete, turnId: 'turn', duration: 1 });
+		assert.deepStrictEqual(completedEvents().map(event => Object.fromEntries(Object.entries(event.data as object).filter(([key]) => key.startsWith('chatgpt')))), [
+			{ chatgptAccountState: 'signedIn', chatgptPlanTier: 'plus', chatgptWeeklyQuotaState: 'missing' },
+		]);
+	});
+
+	test('keeps completion context off companion events', () => {
+		sinon.stub(agent, 'id').value('codex');
+		setupSession();
+		const snapshot = getCodexAccountTelemetryContext({ usageSource: 'openai', status: 'signedOut' }, undefined, undefined);
+		agent.captureTurnTelemetryContext = () => ({ codex: snapshot });
+		Object.assign(agent, { getTurnTokenUsage: (): IAgentTurnTokenUsage => ({ summaries: [] }) });
+		startTurn('turn');
+		fire({ type: ActionType.ChatError, turnId: 'turn', duration: 1, part: createErrorResponsePart({ errorType: 'test', message: 'Test failure' }) });
+		assert.deepStrictEqual(telemetry.events.map(event => ({
+			name: event.eventName,
+			context: Object.fromEntries(Object.entries(event.data as object).filter(([key]) => key.startsWith('chatgpt'))),
+		})), [
+			{ name: 'agentHost.userMessageSent', context: {} },
+			{ name: 'agentHost.turnCompleted', context: snapshot },
+			{ name: 'agentHost.turnFailed', context: {} },
+			{ name: 'agentHost.requestTokenUsage', context: {} },
+		]);
+	});
+
+	for (const provider of ['copilot', 'claude']) {
+		test(`does not capture or emit Codex context for ${provider}`, () => {
+			sinon.stub(agent, 'id').value(provider);
+			setupSession();
+			const capture = sinon.spy(() => ({ codex: getCodexAccountTelemetryContext(undefined, undefined, undefined) }));
+			agent.captureTurnTelemetryContext = capture;
+			startTurn('turn');
+			fire({ type: ActionType.ChatTurnComplete, turnId: 'turn', duration: 1 });
+			assert.deepStrictEqual({
+				captureCalls: capture.callCount,
+				fields: telemetry.events.flatMap(event => Object.keys(event.data as object).filter(key => key.startsWith('chatgpt'))),
+			}, { captureCalls: 0, fields: [] });
+		});
+	}
 
 	test('emits turnCompleted with timing and turn-start context on success', () => {
 		setupSession(true, undefined, true);
@@ -1766,6 +1866,30 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 		fire({ type: ActionType.ChatTurnComplete, turnId, duration: 1000 });
 
 		assert.strictEqual((completedEvents()[0].data as Record<string, unknown>).interactionMode, 'autopilot');
+	});
+
+	test('captures queued context when the queued turn is admitted', () => {
+		sinon.stub(agent, 'id').value('codex');
+		setupSession();
+		let account: ICodexAccountState = { usageSource: 'openai', status: 'signedOut' };
+		agent.captureTurnTelemetryContext = () => ({ codex: getCodexAccountTelemetryContext(account, undefined, undefined) });
+		startTurn('first');
+		const setAction: ChatAction = {
+			type: ActionType.ChatPendingMessageSet, kind: PendingMessageKind.Queued, id: 'queued',
+			message: { text: 'queued message', origin: { kind: MessageKind.User } },
+		};
+		stateManager.dispatchClientAction(defaultChatUri, setAction, { clientId: 'test', clientSeq: 2 });
+		sideEffects.handleAction(defaultChatUri, setAction);
+		account = { usageSource: 'openai', status: 'signedIn', authType: 'chatgpt', planType: 'plus' };
+		fire({ type: ActionType.ChatTurnComplete, turnId: 'first', duration: 1 });
+		const queuedTurnId = stateManager.getActiveTurnId(defaultChatUri);
+		assert.ok(queuedTurnId);
+		account = { usageSource: 'openai', status: 'error' };
+		fire({ type: ActionType.ChatTurnComplete, turnId: queuedTurnId, duration: 1 });
+		assert.deepStrictEqual(completedEvents().map(event => Object.fromEntries(Object.entries(event.data as object).filter(([key]) => key.startsWith('chatgpt')))), [
+			{ chatgptAccountState: 'signedOut', chatgptWeeklyQuotaState: 'unavailable' },
+			{ chatgptAccountState: 'signedIn', chatgptPlanTier: 'plus', chatgptWeeklyQuotaState: 'missing' },
+		]);
 	});
 
 	test('emits a single turnCompleted when both the client cancel and a follow-up agent signal arrive', () => {
