@@ -78,6 +78,7 @@ export function createChangesets(
 	options: IAgentHostAdapterOptions,
 	isActiveSessionObs: IObservable<boolean>,
 	changesets: readonly IAgentHostChangeset[] | undefined,
+	chatUri?: URI,
 ): readonly ISessionChangeset[] {
 	if (!changesets) {
 		return [];
@@ -106,7 +107,7 @@ export function createChangesets(
 			}));
 		} else if (changeset.changeKind === ChangesetKind.Turn) {
 			// Last Turn Changes
-			sessionChangesets.push(options.instantiationService.createInstance(AgentHostLastTurnChangeset, sessionUri, options, isActiveSessionObs, {
+			sessionChangesets.push(options.instantiationService.createInstance(AgentHostLastTurnChangeset, sessionUri, chatUri, options, isActiveSessionObs, {
 				...changeset, isDefault
 			}));
 		} else if (changeset.changeKind === AGENT_MERGE_CHANGESET_ID) {
@@ -117,6 +118,33 @@ export function createChangesets(
 	}
 
 	return sessionChangesets;
+}
+
+export function createChatChangesets(
+	chatUri: URI,
+	options: IAgentHostAdapterOptions,
+	isActiveSessionObs: IObservable<boolean>,
+): IObservable<readonly ISessionChangeset[] | undefined> {
+	const chatStateObs = createActiveSessionSubscriptionObs<ChatState>(
+		options,
+		isActiveSessionObs,
+		StateComponents.Chat,
+		constObservable(chatUri),
+	);
+	let lastCatalogue: readonly Changeset[] | undefined;
+	let lastChangesets: readonly ISessionChangeset[] | undefined;
+	return derived(reader => {
+		const state = chatStateObs.read(reader).read(reader);
+		if (!state || state instanceof Error) {
+			return undefined;
+		}
+		if (state.changesets === lastCatalogue && lastChangesets !== undefined) {
+			return lastChangesets;
+		}
+		lastCatalogue = state.changesets;
+		lastChangesets = createChangesets(chatUri, options, isActiveSessionObs, state.changesets, chatUri);
+		return lastChangesets;
+	});
 }
 
 export function createActiveSessionSubscriptionObs<T>(
@@ -518,6 +546,7 @@ class AgentHostLastTurnChangeset extends AbstractAgentHostChangeset {
 
 	constructor(
 		sessionUri: URI,
+		chatUri: URI | undefined,
 		options: IAgentHostAdapterOptions,
 		isActiveSessionObs: IObservable<boolean>,
 		changesetSummary: IAgentHostChangeset & { isDefault: boolean },
@@ -527,32 +556,21 @@ class AgentHostLastTurnChangeset extends AbstractAgentHostChangeset {
 
 		this.id = changesetSummary.changeKind;
 
-		// Turns moved off the session and onto a per-chat channel with the
-		// multi-chat protocol. Subscribe to the session to discover its
-		// chats, then track the chat that was modified most recently — its
-		// in-progress turn (or, when idle, its last completed turn) is the
-		// session's "last turn".
-		const sessionStateObs = createActiveSessionSubscriptionObs<SessionState>(
-			options,
-			isActiveSessionObs,
-			StateComponents.Session,
-			constObservable(sessionUri),
-		);
+		const sessionStateObs = chatUri
+			? undefined
+			: createActiveSessionSubscriptionObs<SessionState>(
+				options,
+				isActiveSessionObs,
+				StateComponents.Session,
+				constObservable(sessionUri),
+			);
 
-		// Reuse the session-state subscription above to expose the session's
-		// working directories for the primary-directory filter.
-		this._workingDirectoriesObs = derived(reader => {
-			const sessionState = sessionStateObs.read(reader).read(reader);
-			if (!sessionState || sessionState instanceof Error) {
-				return undefined;
-			}
-			return sessionState.workingDirectories;
-		});
-
-		const mostRecentChatUriObs = derivedOpts({ equalsFn: isEqual }, reader => {
-			const sessionState = sessionStateObs.read(reader).read(reader);
-			return selectMostRecentChatUri(sessionState, sessionUri);
-		});
+		const mostRecentChatUriObs = chatUri
+			? constObservable(chatUri)
+			: derivedOpts({ equalsFn: isEqual }, reader => {
+				const sessionState = sessionStateObs?.read(reader).read(reader);
+				return selectMostRecentChatUri(sessionState, sessionUri);
+			});
 
 		const chatStateObs = createActiveSessionSubscriptionObs<ChatState>(
 			options,
@@ -560,6 +578,16 @@ class AgentHostLastTurnChangeset extends AbstractAgentHostChangeset {
 			StateComponents.Chat,
 			mostRecentChatUriObs,
 		);
+
+		this._workingDirectoriesObs = derived(reader => {
+			const ownerState = chatUri
+				? chatStateObs.read(reader).read(reader)
+				: sessionStateObs?.read(reader).read(reader);
+			if (!ownerState || ownerState instanceof Error) {
+				return undefined;
+			}
+			return ownerState.workingDirectories;
+		});
 
 		const lastTurnIdObs = derived(reader => {
 			const chatState = chatStateObs.read(reader).read(reader);

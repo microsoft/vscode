@@ -12416,7 +12416,7 @@ suite('AgentService (node dispatcher)', () => {
 
 			const sessions = await localService.listSessions();
 			assert.strictEqual(sessions.length, 1);
-			assert.deepStrictEqual(calls, [workingDirectory.fsPath]);
+			assert.deepStrictEqual(calls, [workingDirectory.fsPath, workingDirectory.fsPath]);
 			assert.deepStrictEqual(
 				getStateManager(localService).getSessionState(session.toString())?._meta,
 				{ git: gitState },
@@ -22229,7 +22229,10 @@ suite('AgentService (node dispatcher)', () => {
 			}, {
 				beforeMaterialization: {
 					workingDirectory: sourceDir.toString(),
-					gitStateCalls: [{ resource: sourceDir.toString(), baseBranch: undefined }],
+					gitStateCalls: [
+						{ resource: sourceDir.toString(), baseBranch: undefined },
+						{ resource: sourceDir.toString(), baseBranch: undefined },
+					],
 					diffCalls: [sourceDir.toString()],
 					uncommittedFiles: [sourceFile],
 					uncommittedOperations: ['checkout', 'commit', 'discard-changes'],
@@ -22584,7 +22587,7 @@ suite('AgentService (node dispatcher)', () => {
 		}, {
 			lifecycle: SessionLifecycle.Creating,
 			changesets: ['uncommitted'],
-			gitCalls: [workingDirectory.toString()],
+			gitCalls: [workingDirectory.toString(), workingDirectory.toString()],
 			hasCommit: true,
 		});
 		localService.unsubscribe(URI.parse(uncommittedUri), 'client-1');

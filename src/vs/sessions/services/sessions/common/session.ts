@@ -678,6 +678,8 @@ export interface IChat {
 	readonly status: IObservable<SessionStatus>;
 	/** File changes produced by the chat. */
 	readonly changes: IObservable<readonly ISessionFileChange[]>;
+	/** Changesets produced by the chat. Providers may omit this when changesets are only session-scoped. */
+	readonly changesets?: IObservable<readonly ISessionChangeset[] | undefined>;
 	/**
 	 * File changes produced by the chat's **last turn** only (as opposed to the
 	 * cumulative chat {@link changes}). Derived from the chat's live output

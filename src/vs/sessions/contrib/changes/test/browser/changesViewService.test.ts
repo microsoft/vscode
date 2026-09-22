@@ -14,7 +14,7 @@ import { AGENT_HOST_CHECKOUT_CHANGESET_OPERATION_ID } from '../../../../../platf
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { TestStorageService } from '../../../../../workbench/test/common/workbenchTestServices.js';
 import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
-import { ISession, ISessionChangeset, ISessionChangesetOperation, ISessionFileChange, ISessionFolder, ISessionGitRepository, ISessionWorkspace, SessionChangesetOperationScope, SessionChangesetOperationStatus } from '../../../../services/sessions/common/session.js';
+import { IChat, ISession, ISessionChangeset, ISessionChangesetOperation, ISessionFileChange, ISessionFolder, ISessionGitRepository, ISessionWorkspace, SessionChangesetOperationScope, SessionChangesetOperationStatus } from '../../../../services/sessions/common/session.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { IAgentFeedbackService } from '../../../agentFeedback/browser/agentFeedbackService.js';
 import { ICodeReviewService, PRReviewStateKind } from '../../../codeReview/browser/codeReviewService.js';
@@ -25,7 +25,7 @@ suite('ChangesViewService', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createSession(id: string, options?: { readonly changesets?: readonly ISessionChangeset[]; readonly baseBranchProtected?: boolean; readonly pullRequestState?: 'open' | 'closed' | 'merged'; readonly livePullRequestState?: 'open' | 'closed' | 'merged'; readonly pullRequestIcon?: { readonly id: string } }): IActiveSession {
+	function createSession(id: string, options?: { readonly changesets?: readonly ISessionChangeset[]; readonly activeChat?: IObservable<IChat>; readonly baseBranchProtected?: boolean; readonly pullRequestState?: 'open' | 'closed' | 'merged'; readonly livePullRequestState?: 'open' | 'closed' | 'merged'; readonly pullRequestIcon?: { readonly id: string } }): IActiveSession {
 		const workspace = options?.baseBranchProtected === undefined && options?.pullRequestState === undefined && options?.livePullRequestState === undefined && options?.pullRequestIcon === undefined
 			? undefined
 			: upcastPartial<ISessionWorkspace>({
@@ -59,6 +59,12 @@ suite('ChangesViewService', () => {
 			changes: constObservable([]),
 			changesets: constObservable(options?.changesets ?? []),
 			workspace: constObservable(workspace),
+			activeChat: options?.activeChat ?? constObservable(upcastPartial<IChat>({
+				resource: URI.from({ scheme: 'test-chat', path: `/${id}` }),
+				changes: constObservable([]),
+				changesets: constObservable(options?.changesets ?? []),
+				workspace: constObservable(workspace),
+			})),
 		});
 	}
 
@@ -387,6 +393,37 @@ suite('ChangesViewService', () => {
 			{ additions: 11, deletions: 10, files: 2 },
 			undefined,
 		]);
+	});
+
+	test('follows the active chat changesets', () => {
+		const firstChangeset = { ...createChangeset([]), id: 'first' };
+		const secondChangeset = { ...createChangeset([]), id: 'second' };
+		const firstChat = upcastPartial<IChat>({
+			resource: URI.from({ scheme: 'test-chat', path: '/first' }),
+			workspace: constObservable(undefined),
+			changes: constObservable([]),
+			changesets: constObservable([firstChangeset]),
+		});
+		const secondChat = upcastPartial<IChat>({
+			resource: URI.from({ scheme: 'test-chat', path: '/second' }),
+			workspace: constObservable(undefined),
+			changes: constObservable([]),
+			changesets: constObservable([secondChangeset]),
+		});
+		const activeChat = observableValue<IChat>('test.activeChat', firstChat);
+		const { service } = createHarness(createSession('a', {
+			changesets: [firstChangeset, secondChangeset],
+			activeChat,
+		}));
+
+		const first = service.activeSessionChangesetsObs.get()?.map(changeset => changeset.id);
+		activeChat.set(secondChat, undefined);
+		const second = service.activeSessionChangesetsObs.get()?.map(changeset => changeset.id);
+
+		assert.deepStrictEqual({ first, second }, {
+			first: ['first'],
+			second: ['second'],
+		});
 	});
 
 	test('hides checkout from generic changeset operations', () => {

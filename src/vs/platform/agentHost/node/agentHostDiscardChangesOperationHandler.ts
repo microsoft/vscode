@@ -21,6 +21,7 @@ export class AgentHostDiscardChangesOperationHandler implements IChangesetOperat
 
 	constructor(
 		private readonly _getSessionState: (sessionKey: string) => SessionState | undefined,
+		private readonly _onDiscarded: (sessionKey: string) => Promise<void>,
 		@IAgentHostGitService private readonly _agentHostGitService: IAgentHostGitService,
 		@ILogService private readonly _logService: ILogService,
 	) { }
@@ -45,10 +46,10 @@ export class AgentHostDiscardChangesOperationHandler implements IChangesetOperat
 		}
 		this._throwIfCancelled(token);
 
-		const sessionUri = parsed.sessionUri;
-		const sessionState = this._getSessionState(sessionUri);
+		const ownerUri = parsed.ownerUri;
+		const sessionState = this._getSessionState(ownerUri);
 		if (!sessionState) {
-			throw new ProtocolError(AHP_SESSION_NOT_FOUND, `Session not found: ${sessionUri}`);
+			throw new ProtocolError(AHP_SESSION_NOT_FOUND, `Session not found: ${parsed.sessionUri}`);
 		}
 
 		if (params.target?.kind !== ChangesetOperationTargetKind.Resource) {
@@ -59,13 +60,13 @@ export class AgentHostDiscardChangesOperationHandler implements IChangesetOperat
 
 		const workingDirectoryStr = sessionState.workingDirectories?.[0];
 		if (!workingDirectoryStr) {
-			throw new ProtocolError(JsonRpcErrorCodes.InternalError, `Session has no working directory: ${sessionUri}`);
+			throw new ProtocolError(JsonRpcErrorCodes.InternalError, `Changeset owner has no working directory: ${ownerUri}`);
 		}
 
 		const workingDirectory = URI.parse(workingDirectoryStr);
 		const resource = URI.parse(params.target.resource);
 
-		this._logService.info(`[AgentHostDiscardChangesOperationHandler] Restoring '${resource.fsPath}' for session ${sessionUri}`);
+		this._logService.info(`[AgentHostDiscardChangesOperationHandler] Restoring '${resource.fsPath}' for ${ownerUri}`);
 
 		try {
 			await this._agentHostGitService.restore(workingDirectory, [resource.fsPath]);
@@ -74,6 +75,11 @@ export class AgentHostDiscardChangesOperationHandler implements IChangesetOperat
 			throw new ProtocolError(
 				JsonRpcErrorCodes.InternalError,
 				`Failed to discard changes: ${err instanceof Error ? err.message : String(err)}`);
+		}
+		try {
+			await this._onDiscarded(ownerUri);
+		} catch (err) {
+			this._logService.warn(`[AgentHostDiscardChangesOperationHandler] Post-discard refresh failed for ${ownerUri}: ${err instanceof Error ? err.message : String(err)}`);
 		}
 
 		return { message: { markdown: localize('agentHost.changeset.discardChanges.discarded', "Discarded changes to `{0}`.", basename(resource)) } };

@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { SequencerByKey } from '../../../base/common/async.js';
+import { StringSHA1 } from '../../../base/common/hash.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { relativePath } from '../../../base/common/resources.js';
 import { URI } from '../../../base/common/uri.js';
@@ -11,9 +12,10 @@ import { ILogService } from '../../log/common/log.js';
 import { AgentSession } from '../common/agent.js';
 import { ChangesetKind, parseChangesetUri } from '../common/changesetUri.js';
 import { EMPTY_TREE_OBJECT, IAgentHostGitService, META_DIFF_BASE_BRANCH, resolveDiffBaseBranchName } from '../common/agentHostGitService.js';
+import { IAgentHostGitStateService } from '../common/agentHostGitStateService.js';
 import { buildReviewedRefName, IAgentHostReviewService } from '../common/agentHostReviewService.js';
 import { ISessionDataService } from '../common/sessionDataService.js';
-import { readSessionGitState, type URI as ProtocolURI } from '../common/state/sessionState.js';
+import { isAhpChatChannel, parseChatUri, readSessionGitState, type URI as ProtocolURI } from '../common/state/sessionState.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
 
 /**
@@ -45,6 +47,7 @@ export class AgentHostReviewService extends Disposable implements IAgentHostRevi
 		@IAgentHostStateManager private readonly _stateManager: AgentHostStateManager,
 		@IAgentHostGitService private readonly _gitService: IAgentHostGitService,
 		@ISessionDataService private readonly _sessionDataService: ISessionDataService,
+		@IAgentHostGitStateService private readonly _gitStateService: IAgentHostGitStateService,
 		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
@@ -65,15 +68,15 @@ export class AgentHostReviewService extends Disposable implements IAgentHostRevi
 			throw new Error(`Not a branch changeset URI: ${channel}`);
 		}
 
-		const sessionState = this._stateManager.getSessionState(parsed.sessionUri);
+		const sessionState = this._stateManager.getSessionState(parsed.ownerUri);
 		if (!sessionState) {
-			throw new Error(`Session not found: ${parsed.sessionUri}`);
+			throw new Error(`Changeset owner not found: ${parsed.ownerUri}`);
 		}
 		if (!sessionState.workingDirectories?.[0]) {
-			throw new Error(`Session has no working directory: ${parsed.sessionUri}`);
+			throw new Error(`Changeset owner has no working directory: ${parsed.ownerUri}`);
 		}
 
-		const databaseRef = this._sessionDataService.openDatabase(URI.parse(parsed.sessionUri));
+		const databaseRef = this._sessionDataService.openDatabase(URI.parse(parsed.ownerUri));
 		let persistedBaseBranch: string | undefined;
 		try {
 			persistedBaseBranch = await databaseRef.object.getMetadata(META_DIFF_BASE_BRANCH);
@@ -82,10 +85,12 @@ export class AgentHostReviewService extends Disposable implements IAgentHostRevi
 		}
 
 		const workingDirectory = URI.parse(sessionState.workingDirectories?.[0]);
-		const baseBranch = resolveDiffBaseBranchName(persistedBaseBranch, readSessionGitState(sessionState._meta)?.baseBranchName);
-		await this._sequencer.queue(parsed.sessionUri, async () => {
+		const gitStateBaseBranch = this._gitStateService.getSessionGitState?.(parsed.ownerUri)?.baseBranchName
+			?? (isAhpChatChannel(parsed.ownerUri) ? undefined : readSessionGitState(sessionState._meta)?.baseBranchName);
+		const baseBranch = resolveDiffBaseBranchName(persistedBaseBranch, gitStateBaseBranch);
+		await this._sequencer.queue(parsed.ownerUri, async () => {
 			for (const resource of resources) {
-				await this._setReviewed(parsed.sessionUri, workingDirectory, baseBranch, URI.parse(resource), reviewed);
+				await this._setReviewed(parsed.ownerUri, workingDirectory, baseBranch, URI.parse(resource), reviewed);
 			}
 		});
 	}
@@ -112,13 +117,13 @@ export class AgentHostReviewService extends Disposable implements IAgentHostRevi
 			return;
 		}
 
-		const sourceRef = buildReviewedRefName(this._sanitizedSessionId(sourceSession));
+		const sourceRef = buildReviewedRefName(this._sanitizedOwnerId(sourceSession));
 		const sourceCommit = await this._gitService.revParse(repoRoot, sourceRef);
 		if (!sourceCommit) {
 			return;
 		}
 
-		const targetRef = buildReviewedRefName(this._sanitizedSessionId(targetSession));
+		const targetRef = buildReviewedRefName(this._sanitizedOwnerId(targetSession));
 		await this._gitService.updateRef(repoRoot, targetRef, sourceCommit);
 		this._logService.trace(`[AgentHostReview][_copyReviewedRef] Copied reviewed ref ${sourceRef} -> ${targetRef} for fork`);
 	}
@@ -221,7 +226,7 @@ export class AgentHostReviewService extends Disposable implements IAgentHostRevi
 			return undefined;
 		}
 
-		const reviewedRef = buildReviewedRefName(this._sanitizedSessionId(session));
+		const reviewedRef = buildReviewedRefName(this._sanitizedOwnerId(session));
 		const reviewedCommit = await this._gitService.revParse(repoRoot, reviewedRef);
 		const reviewedTree = reviewedCommit
 			? await this._gitService.revParse(repoRoot, `${reviewedCommit}^{tree}`) ?? baselineTree
@@ -239,8 +244,7 @@ export class AgentHostReviewService extends Disposable implements IAgentHostRevi
 			return;
 		}
 
-		const sanitizedSessionId = this._sanitizedSessionId(session);
-		const reviewedRef = buildReviewedRefName(sanitizedSessionId);
+		const reviewedRef = buildReviewedRefName(this._sanitizedOwnerId(session));
 
 		for (const workingDirectory of workingDirectories) {
 			try {
@@ -258,7 +262,15 @@ export class AgentHostReviewService extends Disposable implements IAgentHostRevi
 		}
 	}
 
-	private _sanitizedSessionId(session: ProtocolURI): string {
-		return AgentSession.id(session).replace(/[^a-zA-Z0-9_.-]/g, '-');
+	private _sanitizedOwnerId(owner: ProtocolURI): string {
+		const chat = parseChatUri(owner);
+		const sessionId = AgentSession.id(chat?.session ?? owner).replace(/[^a-zA-Z0-9_.-]/g, '-');
+		if (!chat) {
+			return sessionId;
+		}
+
+		const sha1 = new StringSHA1();
+		sha1.update(owner);
+		return `${sessionId}-chat-${sha1.digest()}`;
 	}
 }

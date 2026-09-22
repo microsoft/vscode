@@ -12,8 +12,8 @@ import { isMultiRootSession } from '../common/agentHostWorkingDirectories.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../common/state/protocol/channels-changeset/commands.js';
 import { AHP_SESSION_NOT_FOUND, JsonRpcErrorCodes, ProtocolError } from '../common/state/sessionProtocol.js';
 import { ActionType } from '../common/state/sessionActions.js';
-import { ChangesetOperationScope, ChangesetOperationStatus, ChangesetOperationTargetKind, ISessionGitHubState, readSessionGitHubState, readSessionGitState, type ChangesetOperation, type ErrorInfo, type ISessionGitState } from '../common/state/sessionState.js';
-import type { IChangesetOperationContribution, IAgentHostChangesetOperationService, IChangesetOperationContext, IChangesetOperationHandler, IChangesetOperationRegistry } from '../common/agentHostChangesetOperationService.js';
+import { ChangesetOperationScope, ChangesetOperationStatus, ChangesetOperationTargetKind, isAhpChatChannel, ISessionGitHubState, parseChatUri, readSessionGitHubState, readSessionGitState, type ChangesetOperation, type ErrorInfo, type ISessionGitState } from '../common/state/sessionState.js';
+import { AGENT_HOST_MERGE_CHANGESET_OPERATION_ID, AGENT_HOST_PULL_REQUEST_OPERATION_IDS, type IChangesetOperationContribution, type IAgentHostChangesetOperationService, type IChangesetOperationContext, type IChangesetOperationHandler, type IChangesetOperationRegistry } from '../common/agentHostChangesetOperationService.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
 import { IAgentHostChangesetSubscriptionService } from '../common/agentHostChangesetSubscriptionService.js';
 import { IAgentHostGitStateService } from '../common/agentHostGitStateService.js';
@@ -39,9 +39,17 @@ export class AgentHostChangesetOperationService extends Disposable implements IA
 
 		this._registry = {
 			registerChangesetOperationHandler: (operationId, handler) => this._registerChangesetOperationHandler(operationId, handler),
-			refreshSessionGitState: sessionKey => this._gitStateService.refreshSessionGitState(sessionKey),
+			refreshSessionGitState: sessionKey => this._refreshGitState(sessionKey),
 			onDidChangeOperations: sessionKey => this.updateOperations(sessionKey),
 		};
+	}
+
+	private async _refreshGitState(owner: string): Promise<void> {
+		await this._gitStateService.refreshSessionGitState(owner);
+		const session = parseChatUri(owner)?.session;
+		if (session) {
+			await this._gitStateService.refreshSessionGitState(session);
+		}
 	}
 
 	registerContribution(contribution: IChangesetOperationContribution): IDisposable {
@@ -78,8 +86,7 @@ export class AgentHostChangesetOperationService extends Disposable implements IA
 
 	getOperations(sessionKey: string, changeset: string, gitState?: ISessionGitState, gitHubState?: ISessionGitHubState): readonly ChangesetOperation[] {
 		if (!gitState) {
-			const sessionState = this._stateManager.getSessionState(sessionKey);
-			gitState = readSessionGitState(sessionState?._meta);
+			gitState = this._gitStateService.getSessionGitState?.(sessionKey) ?? readSessionGitState(this._stateManager.getSessionState(sessionKey)?._meta);
 			if (!gitState) {
 				return [];
 			}
@@ -134,17 +141,21 @@ export class AgentHostChangesetOperationService extends Disposable implements IA
 				operations.push(...contributed);
 			}
 		}
+		const scopedOperations = isAhpChatChannel(context.sessionKey)
+			? operations.filter(operation => operation.id !== AGENT_HOST_MERGE_CHANGESET_OPERATION_ID && operation.group !== 'pull-request' && !AGENT_HOST_PULL_REQUEST_OPERATION_IDS.has(operation.id))
+			: operations;
 
 		// Operations are disabled while a turn is active so the working tree /
 		// branch state can't be mutated mid-request.
-		if (this._stateManager.hasActiveTurn(context.sessionKey)) {
-			return operations.map(operation => ({
+		const sessionKey = parseChangesetUri(context.changesetUri)?.sessionUri ?? context.sessionKey;
+		if (this._stateManager.hasActiveTurn(sessionKey)) {
+			return scopedOperations.map(operation => ({
 				...operation,
 				status: ChangesetOperationStatus.Disabled
 			}));
 		}
 
-		return operations;
+		return scopedOperations;
 	}
 
 	updateOperations(sessionKey: string, changeset?: string, gitState?: ISessionGitState, gitHubState?: ISessionGitHubState): void {
@@ -177,8 +188,7 @@ export class AgentHostChangesetOperationService extends Disposable implements IA
 		}
 
 		if (!gitState) {
-			const sessionState = this._stateManager.getSessionState(sessionKey);
-			gitState = readSessionGitState(sessionState?._meta);
+			gitState = this._gitStateService.getSessionGitState?.(sessionKey) ?? readSessionGitState(this._stateManager.getSessionState(sessionKey)?._meta);
 		}
 
 		if (!gitHubState) {
@@ -232,7 +242,7 @@ export class AgentHostChangesetOperationService extends Disposable implements IA
 		// stale operation must not be invocable.
 		if (parsed
 			&& (parsed.kind === ChangesetKind.Turn || parsed.kind === ChangesetKind.Compare)
-			&& isMultiRootSession(this._configurationService.getEffectiveWorkingDirectories(parsed.sessionUri))) {
+			&& isMultiRootSession(this._configurationService.getEffectiveWorkingDirectories(parsed.ownerUri))) {
 			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, `Operation '${params.operationId}' is not available on a ${parsed.kind} changeset in a multi-root session: ${params.channel}`);
 		}
 

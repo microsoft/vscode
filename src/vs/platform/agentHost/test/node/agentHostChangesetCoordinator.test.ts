@@ -14,7 +14,7 @@ import { AgentSession } from '../../common/agent.js';
 import { buildBranchChangesetUri, buildDefaultChangesetCatalog, buildSessionChangesetUri, buildUncommittedChangesetUri, ChangesetKind, parseChangesetUri } from '../../common/changesetUri.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { ActionType } from '../../common/state/sessionActions.js';
-import { buildSubagentSessionUri, ChangesetOperationScope, ChangesetOperationStatus, SessionStatus, withSessionGitState, type ISessionFileDiff, type ISessionGitHubState, type ISessionGitState } from '../../common/state/sessionState.js';
+import { buildChatUri, buildDefaultChatUri, buildSubagentSessionUri, ChangesetOperationScope, ChangesetOperationStatus, SessionStatus, withSessionGitState, type ISessionFileDiff, type ISessionGitHubState, type ISessionGitState } from '../../common/state/sessionState.js';
 import { AgentConfigurationService, IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostChangesetCoordinator } from '../../node/agentHostChangesetCoordinator.js';
 import { resolveChangesetSubscriptions } from '../../node/agentHostChangesetSummary.js';
@@ -337,7 +337,7 @@ suite('ChangesetSessionCoordinator', () => {
 
 		// Editor Window adds a second root -> multi-root: operations must refresh.
 		environment.stateManager.dispatchServerAction(session, { type: ActionType.SessionWorkingDirectorySet, directory: 'file:///repoB' });
-		assert.deepStrictEqual(environment.updateOperationsCalls.slice(baseline), [session], 'adding a root refreshes the session operations');
+		assert.deepStrictEqual(environment.updateOperationsCalls.slice(baseline), [session, buildDefaultChatUri(session)], 'adding a root refreshes the session and inheriting chat operations');
 
 		// A no-op working-directory action (same root) must not refresh again.
 		const afterAdd = environment.updateOperationsCalls.length;
@@ -346,7 +346,27 @@ suite('ChangesetSessionCoordinator', () => {
 
 		// Removing the second root -> back to single-root: operations refresh again (restore).
 		environment.stateManager.dispatchServerAction(session, { type: ActionType.SessionWorkingDirectoryRemoved, directory: 'file:///repoB' });
-		assert.deepStrictEqual(environment.updateOperationsCalls.slice(afterAdd), [session], 'removing a root refreshes the session operations');
+		assert.deepStrictEqual(environment.updateOperationsCalls.slice(afterAdd), [session, buildDefaultChatUri(session)], 'removing a root refreshes the session and inheriting chat operations');
+	});
+
+	test('refreshes chat-owned changesets and Git state when a chat changes working directories', () => {
+		const session = AgentSession.uri('mock', 'chat-wd').toString();
+		const chat = buildChatUri(session, 'peer');
+		const environment = createEnvironment();
+		createSession(environment.stateManager, session, 'file:///session');
+		environment.stateManager.addChat(session, chat, { workingDirectories: ['file:///chat-a'] });
+		const operationBaseline = environment.updateOperationsCalls.length;
+		const gitBaseline = environment.gitStateService.refreshed.length;
+
+		environment.stateManager.dispatchServerAction(chat, { type: ActionType.ChatWorkingDirectorySet, directory: 'file:///chat-b' });
+
+		assert.deepStrictEqual({
+			operationRefreshes: environment.updateOperationsCalls.slice(operationBaseline),
+			gitRefreshes: environment.gitStateService.refreshed.slice(gitBaseline),
+		}, {
+			operationRefreshes: [chat],
+			gitRefreshes: [chat],
+		});
 	});
 
 	test('refreshes the changeset catalogue when Agent Merge enablement changes', () => {
@@ -396,8 +416,8 @@ suite('ChangesetSessionCoordinator', () => {
 
 		assert.deepStrictEqual(
 			[...environment.updateOperationsCalls.slice(baseline)].sort(),
-			[parentSession, subagentSession].sort(),
-			'a parent root change refreshes both the parent and its inheriting subagent',
+			[parentSession, buildDefaultChatUri(parentSession), subagentSession].sort(),
+			'a parent root change refreshes the parent, its inheriting chat, and its inheriting subagent',
 		);
 	});
 
@@ -672,6 +692,7 @@ suite('ChangesetSessionCoordinator', () => {
 		environment.coordinator.onFirstSubscriber(URI.parse(session));
 		await environment.monitor.waitForAcquisitions(2);
 		environment.changesets.clearRefreshes();
+		environment.gitStateService.clearRefreshes();
 
 		// Git state refreshes use the primary root even when the secondary root changed.
 		environment.monitor.fire(secondaryRoot);
@@ -772,6 +793,7 @@ suite('ChangesetSessionCoordinator', () => {
 		environment.coordinator.onFirstSubscriber(URI.parse(session));
 		await environment.monitor.waitForAcquisitions(1);
 		environment.changesets.clearRefreshes();
+		environment.gitStateService.clearRefreshes();
 		environment.monitor.fire(secondaryRoot);
 		await tick();
 
@@ -802,6 +824,7 @@ suite('ChangesetSessionCoordinator', () => {
 		await environment.gitService.waitForRootLookups(3);
 		await tick();
 		environment.changesets.clearRefreshes();
+		environment.gitStateService.clearRefreshes();
 
 		// While the turn runs, every root watcher is released; external edits to
 		// any root must not trigger a mid-turn refresh (turn edits are captured
@@ -1011,6 +1034,7 @@ suite('ChangesetSessionCoordinator', () => {
 		environment.coordinator.onFirstSubscriber(URI.parse(subagentSession));
 		await environment.monitor.waitForAcquisitions(2);
 		environment.changesets.clearRefreshes();
+		environment.gitStateService.clearRefreshes();
 
 		// An external edit in the parent's SECONDARY repo refreshes the subagent,
 		// sourcing git state from the parent's PRIMARY working directory.
@@ -1115,6 +1139,11 @@ class TestGitStateService extends Disposable implements IAgentHostGitStateServic
 	async setSessionGitHubState(_sessionKey: string, _state: ISessionGitHubState): Promise<void> { }
 	async recordSessionMerge(_sessionKey: string, _commit?: string): Promise<void> { }
 	async attachSessionGitHubPullRequest(_sessionKey: string): Promise<void> { }
+
+	clearRefreshes(): void {
+		this.refreshed.length = 0;
+		this.refreshedWith.length = 0;
+	}
 
 	fireGitHubStateChanged(sessionKey: string): void {
 		this._onDidChangeSessionGitHubState.fire(sessionKey);

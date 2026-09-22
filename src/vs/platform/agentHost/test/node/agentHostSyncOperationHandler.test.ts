@@ -10,6 +10,7 @@ import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { GitRefType, IAgentHostGitService, type IPullOptions, type IPushOptions } from '../../common/agentHostGitService.js';
+import { IAgentHostGitStateService } from '../../common/agentHostGitStateService.js';
 import { buildUncommittedChangesetUri } from '../../common/changesetUri.js';
 import { JsonRpcErrorCodes, ProtocolError } from '../../common/state/sessionProtocol.js';
 import { SessionStatus, withSessionGitState } from '../../common/state/sessionState.js';
@@ -39,6 +40,10 @@ suite('AgentHostSyncOperationHandler', () => {
 				sessionKey => stateManager.getSessionState(sessionKey),
 				async sessionKey => { refreshedSessions.push(sessionKey); },
 				gitService,
+				new class extends mock<IAgentHostGitStateService>() {
+					declare readonly _serviceBrand: undefined;
+					override readonly getSessionGitState = () => ({ branchName, baseBranchName: 'main' });
+				}(),
 				new NullLogService(),
 			),
 			refreshedSessions,

@@ -17,13 +17,14 @@ import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportK
 import { buildBranchChangesetUri, buildDefaultChangesetCatalog, buildSessionChangesetUri, buildTurnChangesetUri, buildUncommittedChangesetUri } from '../../common/changesetUri.js';
 import { toAgentWorkspaceContinuationMessageMeta } from '../../common/meta/agentWorkspaceContinuationMeta.js';
 import { ActionEnvelope, ActionType } from '../../common/state/sessionActions.js';
-import { ChangesetStatus, FileEditKind, MessageKind, SessionStatus, buildChatUri, buildDefaultChatUri, withMessageRequestHiddenFromTranscript, withSessionGitState, type Changeset, type ISessionFileDiff } from '../../common/state/sessionState.js';
+import { ChangesetStatus, FileEditKind, MessageKind, SessionStatus, buildChatUri, buildDefaultChatUri, withMessageRequestHiddenFromTranscript, withSessionGitState, type Changeset, type ISessionFileDiff, type ISessionGitState } from '../../common/state/sessionState.js';
 import { AgentHostChangesetService } from '../../node/agentHostChangesetService.js';
 import { NullAgentHostWorktreeIsolation } from '../../node/shared/worktreeIsolation.js';
 import { CHANGES_SUMMARY_METADATA_KEYS, META_CHANGES_SUMMARY, META_CHANGESET_BRANCH, META_CHANGESET_SESSION, META_LEGACY_DIFFS } from '../../common/agentHostChangesetService.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { IAgentHostChangesetSubscriptionService } from '../../common/agentHostChangesetSubscriptionService.js';
 import { IAgentHostChangesetOperationService } from '../../common/agentHostChangesetOperationService.js';
+import { IAgentHostGitStateService } from '../../common/agentHostGitStateService.js';
 import { NULL_CHECKPOINT_SERVICE, type IAgentHostCheckpointService } from '../../common/agentHostCheckpointService.js';
 import { IAgentHostReviewService, NULL_REVIEW_SERVICE } from '../../common/agentHostReviewService.js';
 import { IAgentHostGitService } from '../../common/agentHostGitService.js';
@@ -35,10 +36,25 @@ import { SessionDatabase } from '../../node/sessionDatabase.js';
 import { createNoopGitService, createNullSessionDataService, createSessionDataService, encodeString, TestDiffComputeService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
 
 type WithoutLast<T extends readonly unknown[]> = T extends [...infer Head, unknown] ? Head : never;
+type WithoutLastTwo<T extends readonly unknown[]> = WithoutLast<WithoutLast<T>>;
+
+const testGitStates = new Map<string, ISessionGitState>();
+const TEST_GIT_STATE_SERVICE: IAgentHostGitStateService = {
+	_serviceBrand: undefined,
+	onDidRefreshSessionGitState: Event.None,
+	onDidChangeSessionGitHubState: Event.None,
+	refreshSessionGitState: async () => { },
+	getSessionGitState: session => testGitStates.get(session),
+	getMaterializedWorktreeMeta: () => undefined,
+	resolveSessionBaseBranchName: async session => testGitStates.get(session)?.baseBranchName,
+	setSessionGitHubState: async () => { },
+	recordSessionMerge: async () => { },
+	attachSessionGitHubPullRequest: async () => { },
+};
 
 class TestAgentHostChangesetService extends AgentHostChangesetService {
-	constructor(...args: WithoutLast<ConstructorParameters<typeof AgentHostChangesetService>>) {
-		super(...args, new NullAgentHostWorktreeIsolation());
+	constructor(...args: WithoutLastTwo<ConstructorParameters<typeof AgentHostChangesetService>>) {
+		super(...args, TEST_GIT_STATE_SERVICE, new NullAgentHostWorktreeIsolation());
 	}
 }
 
@@ -141,6 +157,7 @@ suite.skip('AgentHostChangesetService', () => {
 
 	teardown(() => {
 		disposables.clear();
+		testGitStates.clear();
 	});
 	ensureNoDisposablesAreLeakedInTestSuite();
 
@@ -1415,6 +1432,7 @@ suite('AgentHostChangesetService - multi-root turn changeset', () => {
 
 	teardown(() => {
 		disposables.clear();
+		testGitStates.clear();
 	});
 	ensureNoDisposablesAreLeakedInTestSuite();
 
@@ -1452,7 +1470,7 @@ suite('AgentHostChangesetService - multi-root turn changeset', () => {
 		review?: IAgentHostReviewService;
 		subscriptions?: string[];
 		isolation?: 'folder' | 'worktree';
-		peer?: { resource: string; db: TestSessionDatabase; turnId: string; onDispose?: () => void; openError?: Error };
+		peer?: { resource: string; db: TestSessionDatabase; turnId: string; workingDirectories?: readonly string[]; onDispose?: () => void; openError?: Error };
 	}): { svc: AgentHostChangesetService; stateManager: AgentHostStateManager; log: RecordingLogService } {
 		const log = options.log ?? new RecordingLogService();
 		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
@@ -1514,7 +1532,7 @@ suite('AgentHostChangesetService - multi-root turn changeset', () => {
 			});
 		}
 		if (options.peer) {
-			stateManager.addChat(sessionStr, options.peer.resource);
+			stateManager.addChat(sessionStr, options.peer.resource, { workingDirectories: options.peer.workingDirectories });
 			stateManager.dispatchServerAction(options.peer.resource, {
 				type: ActionType.ChatTurnStarted,
 				turnId: options.peer.turnId,
@@ -1615,6 +1633,142 @@ suite('AgentHostChangesetService - multi-root turn changeset', () => {
 		}, {
 			files: [URI.file('/folderA/peer.txt').toString()],
 			lifecycle: ['read', 'dispose'],
+		});
+	});
+
+	test('chat-owned turn changesets use the chat workspace and containing session checkpoints', async () => {
+		const peerResource = buildChatUri(sessionStr, 'peer');
+		const roots: string[] = [];
+		const checkpointSessions: string[] = [];
+		const git = createNoopGitService();
+		git.getRepositoryRoot = async workingDirectory => workingDirectory;
+		git.computeFileDiffsBetweenRefs = async workingDirectory => {
+			roots.push(workingDirectory.path);
+			return [gitDiff(`${workingDirectory.path}/chat.ts`)];
+		};
+		const checkpoint: IAgentHostCheckpointService = {
+			...NULL_CHECKPOINT_SERVICE,
+			getTurnCheckpointPair: async (session, _turnId, workingDirectory) => {
+				checkpointSessions.push(session.toString());
+				return { parent: `${workingDirectory?.path}~p`, current: `${workingDirectory?.path}~c` };
+			},
+		};
+		const { svc, stateManager } = build({
+			workingDirectories: ['file:///session'],
+			git,
+			checkpoint,
+			peer: {
+				resource: peerResource,
+				db: new TestSessionDatabase(),
+				turnId: 'peer-turn',
+				workingDirectories: ['file:///chat'],
+			},
+		});
+
+		const turnUri = await svc.computeTurnChangeset(peerResource, 'peer-turn');
+
+		assert.deepStrictEqual({
+			turnUri,
+			roots,
+			checkpointSessions,
+			files: stateManager.getChangesetState(turnUri)?.files.map(file => file.id),
+		}, {
+			turnUri: buildTurnChangesetUri(peerResource, 'peer-turn'),
+			roots: ['/chat'],
+			checkpointSessions: [sessionStr],
+			files: [URI.file('/chat/chat.ts').toString()],
+		});
+	});
+
+	test('chat-owned branch changesets use the chat base branch for diffs and review', async () => {
+		const peerResource = buildChatUri(sessionStr, 'peer');
+		const branchUri = buildBranchChangesetUri(peerResource);
+		const diffBaseBranches: (string | undefined)[] = [];
+		const reviewBaseBranches: (string | undefined)[] = [];
+		const git = createNoopGitService();
+		git.getRepositoryRoot = async workingDirectory => workingDirectory;
+		git.computeSessionFileDiffs = async (_workingDirectory, options) => {
+			diffBaseBranches.push(options.baseBranch);
+			return [];
+		};
+		const review: IAgentHostReviewService = {
+			...NULL_REVIEW_SERVICE,
+			getReviewedPaths: async (_session, _workingDirectory, baseBranch) => {
+				reviewBaseBranches.push(baseBranch);
+				return new Set();
+			},
+		};
+		const { svc, stateManager } = build({
+			workingDirectories: ['file:///session'],
+			git,
+			checkpoint: NULL_CHECKPOINT_SERVICE,
+			review,
+			subscriptions: [branchUri],
+			peer: {
+				resource: peerResource,
+				db: new TestSessionDatabase(),
+				turnId: 'peer-turn',
+				workingDirectories: ['file:///chat'],
+			},
+		});
+		stateManager.setSessionMeta(sessionStr, withSessionGitState(undefined, {
+			branchName: 'session-feature',
+			baseBranchName: 'session-main',
+		}));
+		testGitStates.set(peerResource, {
+			branchName: 'chat-feature',
+			baseBranchName: 'chat-main',
+		});
+
+		svc.refreshBranchChangeset(peerResource);
+		await waitForChangesetReady(stateManager, branchUri);
+
+		assert.deepStrictEqual({
+			diffBaseBranches,
+			reviewBaseBranches,
+		}, {
+			diffBaseBranches: ['chat-main'],
+			reviewBaseBranches: ['chat-main'],
+		});
+	});
+
+	test('chat changeset catalogues use only the chat Git state', () => {
+		const peerResource = buildChatUri(sessionStr, 'peer');
+		const { svc, stateManager } = build({
+			workingDirectories: ['file:///session'],
+			git: createNoopGitService(),
+			checkpoint: NULL_CHECKPOINT_SERVICE,
+			peer: {
+				resource: peerResource,
+				db: new TestSessionDatabase(),
+				turnId: 'peer-turn',
+				workingDirectories: ['file:///chat'],
+			},
+		});
+		stateManager.setSessionMeta(sessionStr, withSessionGitState(undefined, {
+			branchName: 'session-feature',
+			baseBranchName: 'session-main',
+		}));
+		stateManager.dispatchServerAction(sessionStr, { type: ActionType.SessionReady });
+
+		svc.refreshChangesetCatalog(peerResource);
+		const withoutChatGit = stateManager.getChatState(peerResource)?.changesets;
+
+		testGitStates.set(peerResource, {
+			branchName: 'chat-feature',
+			baseBranchName: 'chat-main',
+		});
+		svc.refreshChangesetCatalog(peerResource);
+		const withChatGit = stateManager.getChatState(peerResource)?.changesets;
+
+		assert.deepStrictEqual({
+			withoutChatGit: withoutChatGit?.map(changeset => changeset.changeKind),
+			withChatGit: withChatGit?.map(changeset => changeset.changeKind),
+			branchDescription: withChatGit?.find(changeset => changeset.changeKind === 'branch')?.description,
+		}, {
+			withoutChatGit: ['session', 'turn'],
+			withChatGit: ['branch', 'uncommitted', 'session', 'turn', 'compare-turns'],
+			branchDescription: 'chat-feature → chat-main',
 		});
 	});
 

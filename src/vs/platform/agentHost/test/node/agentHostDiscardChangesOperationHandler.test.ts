@@ -68,8 +68,9 @@ class TestGitService implements IAgentHostGitService {
 	async getDiffPatchBetweenRefs(): Promise<undefined> { return undefined; }
 }
 
-function setup(disposables: Pick<DisposableStore, 'add'>, opts?: { readonly withWorkingDirectory?: boolean; readonly registerSession?: boolean }): { handler: AgentHostDiscardChangesOperationHandler; gitService: TestGitService; session: URI } {
+function setup(disposables: Pick<DisposableStore, 'add'>, opts?: { readonly withWorkingDirectory?: boolean; readonly registerSession?: boolean }): { handler: AgentHostDiscardChangesOperationHandler; gitService: TestGitService; refreshes: string[]; session: URI } {
 	const gitService = new TestGitService();
+	const refreshes: string[] = [];
 	const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
 	const session = URI.parse('agent:/session');
 	if (opts?.registerSession !== false) {
@@ -85,10 +86,11 @@ function setup(disposables: Pick<DisposableStore, 'add'>, opts?: { readonly with
 	}
 	const handler = new AgentHostDiscardChangesOperationHandler(
 		sessionKey => stateManager.getSessionState(sessionKey),
+		async sessionKey => { refreshes.push(sessionKey); },
 		gitService,
 		new NullLogService(),
 	);
-	return { handler, gitService, session };
+	return { handler, gitService, refreshes, session };
 }
 
 function makeResourceTarget(resource: URI): InvokeChangesetOperationParams['target'] {
@@ -101,7 +103,7 @@ suite('AgentHostDiscardChangesOperationHandler', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('restores the targeted file on success', async () => {
-		const { handler, gitService, session } = setup(disposables);
+		const { handler, gitService, refreshes, session } = setup(disposables);
 		const target = URI.file('/repo/src/file.ts');
 
 		const result = await handler.invoke({
@@ -112,9 +114,11 @@ suite('AgentHostDiscardChangesOperationHandler', () => {
 
 		assert.deepStrictEqual({
 			restoreCalls: gitService.restoreCalls,
+			refreshes,
 			message: result.message,
 		}, {
 			restoreCalls: [{ workingDirectory: URI.file('/repo').toString(), paths: [target.fsPath], options: undefined }],
+			refreshes: [session.toString()],
 			message: { markdown: 'Discarded changes to `file.ts`.' },
 		});
 	});

@@ -8,7 +8,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { toAgentMergeMessageMeta } from '../../common/meta/agentMergeMessageMeta.js';
 import { AgentSystemNotificationKind, toAgentSystemNotificationMeta } from '../../common/meta/agentSystemNotificationMeta.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
-import { MessageKind, ResponsePartKind, SessionLifecycle, SessionStatus, TurnState, type ISessionWithDefaultChat, type Turn } from '../../common/state/sessionState.js';
+import { buildChatUri, MessageKind, ResponsePartKind, SessionLifecycle, SessionStatus, TurnState, type ISessionWithDefaultChat, type Turn } from '../../common/state/sessionState.js';
 import {
 	AGENT_MERGE_CHANGESET_ID,
 	ChangesetKind,
@@ -92,15 +92,25 @@ suite('changesetUri', () => {
 
 	test('parseChangesetUri identifies the well-known kinds', () => {
 		assert.deepStrictEqual(parseChangesetUri(buildSessionChangesetUri(sessionUri)),
-			{ sessionUri, changesetId: 'session', kind: ChangesetKind.Session });
+			{ ownerUri: sessionUri, sessionUri, changesetId: 'session', kind: ChangesetKind.Session });
 		assert.deepStrictEqual(parseChangesetUri(buildUncommittedChangesetUri(sessionUri)),
-			{ sessionUri, changesetId: 'uncommitted', kind: ChangesetKind.Uncommitted });
+			{ ownerUri: sessionUri, sessionUri, changesetId: 'uncommitted', kind: ChangesetKind.Uncommitted });
 		assert.deepStrictEqual(parseChangesetUri(buildTurnChangesetUri(sessionUri, 't1')),
-			{ sessionUri, changesetId: 'turn/t1', kind: ChangesetKind.Turn, turnId: 't1' });
+			{ ownerUri: sessionUri, sessionUri, changesetId: 'turn/t1', kind: ChangesetKind.Turn, turnId: 't1' });
 		assert.deepStrictEqual(parseChangesetUri(buildCompareTurnsChangesetUri(sessionUri, 't1', 't2')),
-			{ sessionUri, changesetId: 'compare/t1/t2', kind: ChangesetKind.Compare, originalTurnId: 't1', modifiedTurnId: 't2' });
+			{ ownerUri: sessionUri, sessionUri, changesetId: 'compare/t1/t2', kind: ChangesetKind.Compare, originalTurnId: 't1', modifiedTurnId: 't2' });
 		assert.deepStrictEqual(parseChangesetUri(buildChangesetUri(sessionUri, 'staged')),
-			{ sessionUri, changesetId: 'staged', kind: ChangesetKind.Unknown });
+			{ ownerUri: sessionUri, sessionUri, changesetId: 'staged', kind: ChangesetKind.Unknown });
+	});
+
+	test('parseChangesetUri preserves chat ownership and resolves the containing session', () => {
+		const chatUri = buildChatUri(sessionUri, 'peer');
+		assert.deepStrictEqual(parseChangesetUri(buildSessionChangesetUri(chatUri)), {
+			ownerUri: chatUri,
+			sessionUri,
+			changesetId: 'session',
+			kind: ChangesetKind.Session,
+		});
 	});
 
 	test('parseChangesetUri returns undefined for non-changeset / malformed URIs', () => {

@@ -5699,6 +5699,7 @@ export class AgentService extends Disposable implements IAgentService {
 			}
 			if (!snapshot && isAhpChatChannel(resourceStr)) {
 				await this._stateManager.resolveChatState(resourceStr);
+				this._changesetCoordinator.onChatAvailable(resourceStr);
 				snapshot = this._stateManager.getSnapshot(resourceStr);
 			}
 			if (!snapshot) {
@@ -6262,7 +6263,7 @@ export class AgentService extends Disposable implements IAgentService {
 				if (!changeset) {
 					throw new Error(`Invalid changeset URI: ${channel}`);
 				}
-				this._changesets.refreshBranchChangeset(changeset.sessionUri);
+				this._changesets.refreshBranchChangeset(changeset.ownerUri);
 			}
 			this._dispatchActionNow(channel, sessionChannel, rewritten, clientId, clientSeq, clientContext);
 		}).catch(err => {

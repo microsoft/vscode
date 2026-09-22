@@ -10,13 +10,14 @@ import { Disposable, DisposableStore, type IDisposable } from '../../../../base/
 import { Event } from '../../../../base/common/event.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
-import type { IChangesetOperationContribution, IChangesetOperationContext, IChangesetOperationHandler, IChangesetOperationRegistry } from '../../common/agentHostChangesetOperationService.js';
+import { AGENT_HOST_MERGE_CHANGESET_OPERATION_ID, type IChangesetOperationContribution, type IChangesetOperationContext, type IChangesetOperationHandler, type IChangesetOperationRegistry } from '../../common/agentHostChangesetOperationService.js';
 import { buildBranchChangesetUri, buildCompareTurnsChangesetUri, buildSessionChangesetUri, buildTurnChangesetUri, buildUncommittedChangesetUri } from '../../common/changesetUri.js';
+import { PREPARE_PULL_REQUEST_OPERATION_ID } from '../../common/meta/agentPullRequestOperationMeta.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../../common/state/protocol/channels-changeset/commands.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import { JsonRpcErrorCodes } from '../../common/state/sessionProtocol.js';
-import { ChangesetOperationScope, ChangesetOperationStatus, ISessionGitHubState, ISessionGitState, MessageKind, SessionStatus, buildDefaultChatUri, type ChangesetOperation, type SessionSummary } from '../../common/state/sessionState.js';
+import { ChangesetOperationScope, ChangesetOperationStatus, ISessionGitHubState, ISessionGitState, MessageKind, SessionStatus, buildChatUri, buildDefaultChatUri, type ChangesetOperation, type SessionSummary } from '../../common/state/sessionState.js';
 import { AgentHostChangesetOperationService } from '../../node/agentHostChangesetOperationService.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import type { IAgentHostGitStateService } from '../../common/agentHostGitStateService.js';
@@ -89,8 +90,17 @@ class TestGitStateService implements IAgentHostGitStateService {
 
 	readonly onDidRefreshSessionGitState = Event.None;
 	readonly onDidChangeSessionGitHubState = Event.None;
+	readonly refreshes: string[] = [];
 
-	async refreshSessionGitState(_sessionKey: string, _workingDirectory?: URI): Promise<void> { }
+	constructor(private readonly _states = new Map<string, ISessionGitState>()) { }
+
+	getSessionGitState(sessionKey: string): ISessionGitState | undefined {
+		return this._states.get(sessionKey);
+	}
+
+	async refreshSessionGitState(sessionKey: string, _workingDirectory?: URI): Promise<void> {
+		this.refreshes.push(sessionKey);
+	}
 	getMaterializedWorktreeMeta(_sessionKey: string, _branchName: string): undefined { return undefined; }
 	async resolveSessionBaseBranchName(): Promise<string | undefined> { return undefined; }
 
@@ -177,6 +187,30 @@ class OperationsContribution implements IChangesetOperationContribution {
 	dispose(): void { }
 }
 
+class RecordingOperationsContribution extends OperationsContribution {
+	readonly contexts: IChangesetOperationContext[] = [];
+
+	override getOperations(context: IChangesetOperationContext): readonly ChangesetOperation[] | undefined {
+		this.contexts.push(context);
+		return super.getOperations(context);
+	}
+}
+
+class RegistryCaptureContribution implements IChangesetOperationContribution {
+	registry: IChangesetOperationRegistry | undefined;
+
+	registerHandlers(registry: IChangesetOperationRegistry): IDisposable {
+		this.registry = registry;
+		return Disposable.None;
+	}
+
+	getOperations(): undefined {
+		return undefined;
+	}
+
+	dispose(): void { }
+}
+
 const sampleGitState: ISessionGitState = { branchName: 'feature' };
 const sampleOperations: readonly ChangesetOperation[] = [
 	{ id: testOperationId, label: 'Commit', scopes: [ChangesetOperationScope.Changeset], status: ChangesetOperationStatus.Idle },
@@ -185,10 +219,10 @@ const sampleOperations: readonly ChangesetOperation[] = [
 suite('AgentHostChangesetOperationService', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createService(stateManager: AgentHostStateManager, configurationService: IAgentConfigurationService = new TestConfigurationService(undefined)): AgentHostChangesetOperationService {
+	function createService(stateManager: AgentHostStateManager, configurationService: IAgentConfigurationService = new TestConfigurationService(undefined), gitStateService: IAgentHostGitStateService = new TestGitStateService()): AgentHostChangesetOperationService {
 		return disposables.add(new AgentHostChangesetOperationService(
 			stateManager,
-			new TestGitStateService(),
+			gitStateService,
 			disposables.add(new AgentHostChangesetSubscriptionService()),
 			configurationService,
 		));
@@ -204,6 +238,20 @@ suite('AgentHostChangesetOperationService', () => {
 		assert.strictEqual(failingContribution.disposed, true);
 
 		disposables.add(service.registerContribution(new TestContribution(handler)));
+	});
+
+	test('refreshes both chat-owned and aggregate Git state after a chat operation', async () => {
+		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
+		const gitStateService = new TestGitStateService();
+		const service = createService(stateManager, undefined, gitStateService);
+		const contribution = new RegistryCaptureContribution();
+		disposables.add(service.registerContribution(contribution));
+		const sessionKey = 'agent:/session';
+		const chatKey = buildChatUri(sessionKey, 'peer');
+
+		await contribution.registry?.refreshSessionGitState(chatKey);
+
+		assert.deepStrictEqual(gitStateService.refreshes, [chatKey, sessionKey]);
 	});
 
 	test('multi-folder session advertises no operations for a turn changeset', () => {
@@ -305,6 +353,44 @@ suite('AgentHostChangesetOperationService', () => {
 		// Single-root advertises the contributed operations; combined with the
 		// multi-folder-empties tests above, this covers the enter/leave transition.
 		assert.deepStrictEqual(dispatched, [sampleOperations]);
+	});
+
+	test('chat-owned changesets use chat Git state and exclude session-owned operations', () => {
+		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
+		const sessionKey = 'agent:/session';
+		const chatKey = buildChatUri(sessionKey, 'peer');
+		stateManager.createSession({
+			resource: sessionKey, provider: 'agent', title: 'Test', status: SessionStatus.Idle,
+			createdAt: new Date(0).toISOString(), modifiedAt: new Date(0).toISOString(),
+		});
+		stateManager.addChat(sessionKey, chatKey);
+		const changesetUri = buildUncommittedChangesetUri(chatKey);
+		stateManager.registerChangeset(changesetUri);
+		const chatGitState: ISessionGitState = { branchName: 'chat-feature' };
+		const service = createService(
+			stateManager,
+			new TestConfigurationService(['file:///chat']),
+			new TestGitStateService(new Map([
+				[sessionKey, { branchName: 'session-feature' }],
+				[chatKey, chatGitState],
+			])),
+		);
+		const contribution = new RecordingOperationsContribution([
+			...sampleOperations,
+			{ id: PREPARE_PULL_REQUEST_OPERATION_ID, label: 'Create Pull Request', group: 'pull-request', scopes: [ChangesetOperationScope.Changeset], status: ChangesetOperationStatus.Idle },
+			{ id: AGENT_HOST_MERGE_CHANGESET_OPERATION_ID, label: 'Merge', scopes: [ChangesetOperationScope.Changeset], status: ChangesetOperationStatus.Idle },
+		]);
+		disposables.add(service.registerContribution(contribution));
+
+		service.updateOperations(chatKey, changesetUri);
+
+		assert.deepStrictEqual({
+			gitState: contribution.contexts[0]?.gitState,
+			operationIds: stateManager.getChangesetState(changesetUri)?.operations?.map(operation => operation.id),
+		}, {
+			gitState: chatGitState,
+			operationIds: [testOperationId],
+		});
 	});
 
 	for (const isolation of ['folder', 'worktree', undefined] as const) {

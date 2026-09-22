@@ -76,7 +76,7 @@ import { IPullRequestIconCache } from '../../../github/browser/pullRequestIconCa
 import { computePullRequestIcon, GitHubPullRequestState } from '../../../github/common/types.js';
 import { parseGitHubPullRequestUrl } from '../../../github/common/utils.js';
 import { mapProtocolStatus } from './agentHostDiffs.js';
-import { createActiveSessionSubscriptionObs, createChangesets, IAgentHostChangeset, selectMostRecentChatUri } from './agentHostSessionChangesets.js';
+import { createActiveSessionSubscriptionObs, createChangesets, createChatChangesets, IAgentHostChangeset, selectMostRecentChatUri } from './agentHostSessionChangesets.js';
 import { createSessionOutputObs, ISessionOutputObs } from './agentHostSessionFiles.js';
 
 const STORAGE_KEY_REMEMBERED_SESSION_CONFIG_VALUES = 'sessions.agentHost.sessionConfigPicker.selectedValues';
@@ -794,6 +794,15 @@ class SessionChatDetailsReferenceCollection extends ReferenceCollection<void> {
  * session-level state. The {@link IChat.resource} carries the chatId in its URI
  * fragment so the chat view opens a distinct widget per peer chat.
  */
+function createChangesObservable(changesets: IObservable<readonly ISessionChangeset[] | undefined>): IObservable<readonly ISessionFileChange[]> {
+	const defaultChangesetObs = derivedOpts<ISessionChangeset | undefined>({
+		equalsFn: (first, second) => first?.id === second?.id
+	}, reader => changesets.read(reader)?.find(changeset => changeset.isDefault.read(reader) === true));
+
+	return derivedOpts({ equalsFn: sessionFileChangesEqual },
+		reader => defaultChangesetObs.read(reader)?.changes.read(reader) ?? []);
+}
+
 class AdditionalChat extends Disposable {
 
 	readonly chat: IChat;
@@ -810,7 +819,7 @@ class AdditionalChat extends Disposable {
 	private readonly _interactivity: ISettableObservable<ChatInteractivity>;
 	private readonly _isNew: ISettableObservable<boolean>;
 
-	constructor(resource: URI, summary: ChatSummary, private readonly _acquireDetails: () => IDisposable, sessionWorkspace: IObservable<ISessionWorkspace | undefined>, mapWorkingDirectoryUri: AgentHostUriMapper, isNew: boolean = false, parentChat?: URI, sessionIsArchived: IObservable<boolean> = constObservable(false), output?: IChatOutputObs, sessionIsReadOnly: IObservable<boolean> = constObservable(false), connectionStatus?: IObservable<RemoteAgentHostConnectionStatus>) {
+	constructor(resource: URI, summary: ChatSummary, changesets: IObservable<readonly ISessionChangeset[] | undefined>, private readonly _acquireDetails: () => IDisposable, sessionWorkspace: IObservable<ISessionWorkspace | undefined>, mapWorkingDirectoryUri: AgentHostUriMapper, isNew: boolean = false, parentChat?: URI, sessionIsArchived: IObservable<boolean> = constObservable(false), output?: IChatOutputObs, sessionIsReadOnly: IObservable<boolean> = constObservable(false), connectionStatus?: IObservable<RemoteAgentHostConnectionStatus>) {
 		super();
 		const modifiedAt = summary.modifiedAt ? new Date(summary.modifiedAt) : new Date();
 		this._title = observableValue('chatTitle', summary.title || localize('newChatTab', "New Chat"));
@@ -839,7 +848,8 @@ class AdditionalChat extends Disposable {
 			title: this._withDetails(this._title),
 			updatedAt: this._withDetails(this._updatedAt),
 			status: this._withDetails(toPresentedSessionStatus(this, status, connectionStatus)),
-			changes: constObservable([]),
+			changes: createChangesObservable(changesets),
+			changesets,
 			lastTurnChanges: output?.lastTurnChanges,
 			customizations: output?.customizations,
 			checkpoints: observableValue(this, undefined),
@@ -1323,6 +1333,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 			this.workspace.read(reader),
 			this._defaultChatWorkingDirectories.read(reader)?.map(directory => this._options.mapWorkingDirectoryUri?.(URI.parse(directory)) ?? URI.parse(directory))
 		));
+		const defaultChatChangesets = createChatChangesets(URI.parse(buildDefaultChatUri(this.backendUri)), this._options, this.isActiveSessionObs);
 		const mainChat: IChat = {
 			resource: this.resource,
 			createdAt: this.createdAt,
@@ -1330,7 +1341,8 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 			title: derived(this, reader => this._defaultChatTitleOverride.read(reader) ?? this.title.read(reader)),
 			updatedAt: this.updatedAt,
 			status: toPresentedSessionStatus(this, defaultChatStatus, this._options.preserveStatusWhenDisconnected ? undefined : connectionStatus),
-			changes: this.changes,
+			changes: createChangesObservable(defaultChatChangesets),
+			changesets: defaultChatChangesets,
 			lastTurnChanges: sessionOutput.getLastTurnChanges(URI.parse(buildDefaultChatUri(this.backendUri))),
 			customizations: sessionOutput.getChatCustomizations(URI.parse(buildDefaultChatUri(this.backendUri))),
 			checkpoints: observableValue(this, undefined),
@@ -1578,6 +1590,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 		const chat = new AdditionalChat(
 			resource,
 			summary,
+			createChatChangesets(backendUri, this._options, this.isActiveSessionObs),
 			() => this._acquireChatDetails(this.sessionId),
 			this.workspace,
 			this._options.mapWorkingDirectoryUri ?? (uri => uri),

@@ -7,7 +7,7 @@ import { localize } from '../../../nls.js';
 import { readAgentMergeSessionState } from './agentMerge.js';
 import { isAgentMergeMessage } from './meta/agentMergeMessageMeta.js';
 import { AgentSystemNotificationKind, readAgentSystemNotificationMeta } from './meta/agentSystemNotificationMeta.js';
-import { MessageKind, readSessionGitState, readSessionWorkspaceless, ResponsePartKind, SessionLifecycle, type Changeset, type ISessionGitState, type ISessionWithDefaultChat, type URI } from './state/sessionState.js';
+import { MessageKind, parseChatUri, readSessionGitState, readSessionWorkspaceless, ResponsePartKind, SessionLifecycle, type Changeset, type ISessionGitState, type ISessionWithDefaultChat, type URI } from './state/sessionState.js';
 
 /**
  * Helpers for building / parsing the URI clients subscribe to in order to
@@ -230,10 +230,10 @@ export function buildChangesetUri(sessionUri: URI, changesetId: string): URI {
 }
 
 /**
- * Parses a changeset URI back into `(sessionUri, changesetId, kind)`,
+ * Parses a changeset URI back into its owner, containing session, id, and kind,
  * or returns `undefined` if `uri` is not a changeset URI we recognise.
  */
-export function parseChangesetUri(uri: URI): { sessionUri: URI; changesetId: string; kind: ChangesetKind; turnId?: string; originalTurnId?: string; modifiedTurnId?: string } | undefined {
+export function parseChangesetUri(uri: URI): { ownerUri: URI; sessionUri: URI; changesetId: string; kind: ChangesetKind; turnId?: string; originalTurnId?: string; modifiedTurnId?: string } | undefined {
 	const idx = uri.lastIndexOf(CHANGESET_PATH_SEGMENT);
 	if (idx < 0) {
 		return undefined;
@@ -242,15 +242,16 @@ export function parseChangesetUri(uri: URI): { sessionUri: URI; changesetId: str
 	if (!changesetId) {
 		return undefined;
 	}
-	const sessionUri = uri.slice(0, idx);
+	const ownerUri = uri.slice(0, idx);
+	const sessionUri = parseChatUri(ownerUri)?.session ?? ownerUri;
 	if (changesetId === BRANCH_CHANGESET_ID) {
-		return { sessionUri, changesetId, kind: ChangesetKind.Branch };
+		return { ownerUri, sessionUri, changesetId, kind: ChangesetKind.Branch };
 	}
 	if (changesetId === UNCOMMITTED_CHANGESET_ID) {
-		return { sessionUri, changesetId, kind: ChangesetKind.Uncommitted };
+		return { ownerUri, sessionUri, changesetId, kind: ChangesetKind.Uncommitted };
 	}
 	if (changesetId === SESSION_CHANGESET_ID) {
-		return { sessionUri, changesetId, kind: ChangesetKind.Session };
+		return { ownerUri, sessionUri, changesetId, kind: ChangesetKind.Session };
 	}
 	if (changesetId.startsWith(TURN_CHANGESET_PREFIX)) {
 		const turnId = changesetId.slice(TURN_CHANGESET_PREFIX.length);
@@ -258,7 +259,7 @@ export function parseChangesetUri(uri: URI): { sessionUri: URI; changesetId: str
 		if (!turnId || turnId.includes('/') || turnId === TURN_TEMPLATE_VARIABLE) {
 			return undefined;
 		}
-		return { sessionUri, changesetId, kind: ChangesetKind.Turn, turnId };
+		return { ownerUri, sessionUri, changesetId, kind: ChangesetKind.Turn, turnId };
 	}
 	if (changesetId.startsWith(COMPARE_CHANGESET_PREFIX)) {
 		const tail = changesetId.slice(COMPARE_CHANGESET_PREFIX.length);
@@ -274,12 +275,12 @@ export function parseChangesetUri(uri: URI): { sessionUri: URI; changesetId: str
 			|| modifiedTurnId === COMPARE_MODIFIED_TEMPLATE_VARIABLE) {
 			return undefined;
 		}
-		return { sessionUri, changesetId, kind: ChangesetKind.Compare, originalTurnId, modifiedTurnId };
+		return { ownerUri, sessionUri, changesetId, kind: ChangesetKind.Compare, originalTurnId, modifiedTurnId };
 	}
 	if (changesetId.includes('/')) {
 		return undefined;
 	}
-	return { sessionUri, changesetId, kind: ChangesetKind.Unknown };
+	return { ownerUri, sessionUri, changesetId, kind: ChangesetKind.Unknown };
 }
 
 /** Returns `true` iff `uri` looks like a changeset URI we recognise. */

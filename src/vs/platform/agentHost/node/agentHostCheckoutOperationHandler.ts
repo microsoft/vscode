@@ -33,15 +33,15 @@ export class AgentHostCheckoutOperationHandler implements IChangesetOperationHan
 		}
 		this._throwIfCancelled(token);
 
-		const sessionUri = parsed.sessionUri;
-		const sessionState = this._getSessionState(sessionUri);
+		const ownerUri = parsed.ownerUri;
+		const sessionState = this._getSessionState(ownerUri);
 		if (!sessionState) {
-			throw new ProtocolError(AHP_SESSION_NOT_FOUND, `Session not found: ${sessionUri}`);
+			throw new ProtocolError(AHP_SESSION_NOT_FOUND, `Session not found: ${parsed.sessionUri}`);
 		}
 
 		const workingDirectoryValue = sessionState.workingDirectories?.[0];
 		if (!workingDirectoryValue) {
-			throw new ProtocolError(JsonRpcErrorCodes.InternalError, `Session has no working directory: ${sessionUri}`);
+			throw new ProtocolError(JsonRpcErrorCodes.InternalError, `Changeset owner has no working directory: ${ownerUri}`);
 		}
 		const treeish = readCheckoutOperationTreeish(params);
 		if (!treeish) {
@@ -59,7 +59,7 @@ export class AgentHostCheckoutOperationHandler implements IChangesetOperationHan
 			this._throwIfCancelled(token);
 		}
 
-		this._logService.info(`[AgentHostCheckoutOperationHandler] Checking out ${treeish} for session ${sessionUri}`);
+		this._logService.info(`[AgentHostCheckoutOperationHandler] Checking out ${treeish} for ${ownerUri}`);
 		try {
 			await this._gitService.checkout(workingDirectory, treeish);
 		} catch (error) {
@@ -77,9 +77,9 @@ export class AgentHostCheckoutOperationHandler implements IChangesetOperationHan
 		}
 
 		try {
-			await this._onCheckedOut(sessionUri);
+			await this._onCheckedOut(ownerUri);
 		} catch (error) {
-			this._logService.warn(`[AgentHostCheckoutOperationHandler] Post-checkout refresh failed for session ${sessionUri}: ${error instanceof Error ? error.message : String(error)}`);
+			this._logService.warn(`[AgentHostCheckoutOperationHandler] Post-checkout refresh failed for ${ownerUri}: ${error instanceof Error ? error.message : String(error)}`);
 		}
 
 		return { message: { markdown: localize('agentHost.changeset.checkout.checkedOut', "Checked out branch `{0}`.", treeish) } };
