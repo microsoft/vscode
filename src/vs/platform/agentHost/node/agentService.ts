@@ -2633,7 +2633,11 @@ export class AgentService extends Disposable implements IAgentService {
 			}
 		}
 		this._deferredProviderMigrations.delete(provider.id);
+		const readableTransition = !this._readableProviderCatalogs.has(provider.id);
 		this._readableProviderCatalogs.add(provider.id);
+		if (readableTransition) {
+			this._queuePublishedSessionListRefresh(provider.id);
+		}
 		if (report.marked) {
 			this._initialProviderMigrationsNeedingRetry.delete(provider.id);
 		} else {
@@ -3646,6 +3650,31 @@ export class AgentService extends Disposable implements IAgentService {
 					this._queueSessionListReconciliation(undefined, trailingForceCatalogRefresh);
 				}
 			});
+	}
+
+	private _queuePublishedSessionListRefresh(provider: AgentProvider): void {
+		if (!this._stateManager.getExposedSessionKeys().some(session => AgentSession.provider(session) === provider && this._provisionalSessionKeys.has(session))) {
+			return;
+		}
+		this._invalidateSessionList();
+		this._sessionListReconciliation = this._sessionListReconciliation
+			.then(() => this._refreshPublishedSessionList(provider))
+			.catch(error => this._logService.warn(`[AgentService] Published session-list refresh failed for provider ${provider}`, error));
+	}
+
+	private async _refreshPublishedSessionList(provider: AgentProvider): Promise<void> {
+		const exposed = this._stateManager.getExposedSessionKeys().filter(session => AgentSession.provider(session) === provider && this._provisionalSessionKeys.has(session));
+		if (exposed.length === 0) {
+			return;
+		}
+		const visible = new Set((await this.listSessions())
+			.filter(metadata => AgentSession.provider(metadata.session) === provider)
+			.map(metadata => metadata.session.toString()));
+		for (const session of exposed) {
+			if (!visible.has(session)) {
+				this._stateManager.retractSurfacedSession(session);
+			}
+		}
 	}
 
 	private async _runSessionListReconciliation(previousMode: AgentHostExternalSessionsMode | undefined, forceCatalogRefresh: boolean): Promise<void> {
