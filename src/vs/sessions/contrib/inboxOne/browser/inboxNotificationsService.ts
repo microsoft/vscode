@@ -3,16 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, derived, IObservable, IReader, IReaderWithStore, ISettableObservable, observableSignalFromEvent, observableValue } from '../../../../base/common/observable.js';
 import { onUnexpectedError } from '../../../../base/common/errors.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { renderAsPlaintext } from '../../../../base/browser/markdownRenderer.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
-import { IChatService, IChatToolInvocation } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
+import { ChatAgentLocation } from '../../../../workbench/contrib/chat/common/constants.js';
+import { IChatModelReference, IChatService, IChatToolInvocation } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatResponseModel } from '../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { ConfirmationOptionKind } from '../../../../platform/agentHost/common/state/protocol/state.js';
 import { IGitHubService } from '../../github/browser/githubService.js';
@@ -64,6 +66,8 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 	private readonly _refreshedPullRequestModels = new WeakSet<object>();
 	private readonly _refreshedPullRequestReviewThreadModels = new WeakSet<object>();
 	private readonly _refreshedPullRequestCIModels = new WeakSet<object>();
+	private readonly _needsInputChatModelRefs = new Map<string, IChatModelReference>();
+	private readonly _loadingNeedsInputChatModels = new Set<string>();
 
 	readonly notifications: IObservable<readonly IInboxNotificationItem[]>;
 
@@ -95,10 +99,62 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 				this.ensureGitHubModels(session, reader as IReaderWithStore);
 			}
 		}));
+		this._register(toDisposable(() => {
+			for (const modelRef of this._needsInputChatModelRefs.values()) {
+				modelRef.dispose();
+			}
+			this._needsInputChatModelRefs.clear();
+			this._loadingNeedsInputChatModels.clear();
+		}));
+		this._register(autorun(reader => {
+			sessionsChanged.read(reader);
+
+			const activeNeedsInputChatResources = new Set<string>();
+			for (const session of this.sessionsManagementService.getSessions()) {
+				if (session.isArchived.read(reader) || session.status.read(reader) !== SessionStatus.NeedsInput) {
+					continue;
+				}
+
+				for (const chat of session.chats.read(reader)) {
+					const chatResourceKey = chat.resource.toString();
+					activeNeedsInputChatResources.add(chatResourceKey);
+					if (this.chatService.getSession(chat.resource)
+						|| this._needsInputChatModelRefs.has(chatResourceKey)
+						|| this._loadingNeedsInputChatModels.has(chatResourceKey)) {
+						continue;
+					}
+
+					this._loadingNeedsInputChatModels.add(chatResourceKey);
+					void this.chatService.acquireOrLoadSession(chat.resource, ChatAgentLocation.Chat, CancellationToken.None, 'InboxNotificationsService')
+						.then(modelRef => {
+							if (!modelRef) {
+								return;
+							}
+							if (!activeNeedsInputChatResources.has(chatResourceKey)) {
+								modelRef.dispose();
+								return;
+							}
+							this._needsInputChatModelRefs.set(chatResourceKey, modelRef);
+						})
+						.catch(onUnexpectedError)
+						.finally(() => {
+							this._loadingNeedsInputChatModels.delete(chatResourceKey);
+						});
+				}
+			}
+
+			for (const [chatResourceKey, modelRef] of this._needsInputChatModelRefs) {
+				if (!activeNeedsInputChatResources.has(chatResourceKey)) {
+					modelRef.dispose();
+					this._needsInputChatModelRefs.delete(chatResourceKey);
+				}
+			}
+		}));
 
 		this.notifications = derived(this, reader => {
 			sessionsChanged.read(reader);
 			providersChanged.read(reader);
+			this.chatService.chatModels.read(reader);
 
 			const dismissed = this._dismissedIds.read(reader);
 			const sortMode = this.sortMode.read(reader);

@@ -559,20 +559,7 @@ export class InboxNotificationsView extends AbstractCustomView {
 					if (!item.sessionResource) {
 						return;
 					}
-					const session = this.sessionsManagementService.getSession(item.sessionResource);
-					if (!session) {
-						await this.sessionsService.openSession(item.sessionResource, { source: 'notification' });
-						return;
-					}
-					const activeElement = getActiveElement();
-					const focusedCard = isHTMLElement(activeElement) ? activeElement.closest<HTMLElement>('.inbox-notifications-item') : undefined;
-					const sourceCard = sourceElement?.closest<HTMLElement>('.inbox-notifications-item');
-					const shouldOpenToSide = (sourceCard ?? focusedCard)?.dataset.notificationId === item.id;
-					if (shouldOpenToSide) {
-						await this.sessionsService.openSessionToSide(session, { source: 'notification' });
-					} else {
-						await this.sessionsService.openSession(item.sessionResource, { source: 'notification' });
-					}
+					await this.sessionsService.openSession(item.sessionResource, { source: 'notification' });
 					return;
 				}
 				case InboxNotificationActionKind.AgentMergeFixCI:

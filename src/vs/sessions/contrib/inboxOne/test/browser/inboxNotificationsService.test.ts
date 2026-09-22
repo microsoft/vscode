@@ -751,9 +751,16 @@ class TestAgentHostProvider {
 
 class TestChatService {
 	private readonly _chatModels = new Map<string, IChatModel>();
+	private readonly _chatModelsObservable = observableValue<readonly IChatModel[]>('test.chatModels', []);
+	readonly chatModels = this._chatModelsObservable;
 
 	getSession(chatResource: URI): IChatModel | undefined {
 		return this._chatModels.get(chatResource.toString());
+	}
+
+	async acquireOrLoadSession(chatResource: URI): Promise<{ object: IChatModel; dispose(): void } | undefined> {
+		const model = this.getSession(chatResource);
+		return model ? { object: model, dispose: () => { } } : undefined;
 	}
 
 	setPendingQuestionCarousel(chatResource: URI, options: {
@@ -775,6 +782,7 @@ class TestChatService {
 				isUsed: false,
 			}],
 		}));
+		this._chatModelsObservable.set([...this._chatModels.values()], undefined);
 	}
 
 	setPendingConfirmation(chatResource: URI, options: {
@@ -796,6 +804,7 @@ class TestChatService {
 				isUsed: false,
 			}],
 		}));
+		this._chatModelsObservable.set([...this._chatModels.values()], undefined);
 	}
 
 	setPendingParts(chatResource: URI, options: {
@@ -804,6 +813,7 @@ class TestChatService {
 		readonly parts: IChatResponseModel['response']['value'];
 	}): void {
 		this._chatModels.set(chatResource.toString(), this._createChatModel(options));
+		this._chatModelsObservable.set([...this._chatModels.values()], undefined);
 	}
 
 	private _createChatModel(options: { readonly requestId: string; readonly startedWaitingAt: number; readonly parts: IChatResponseModel['response']['value'] }): IChatModel {
