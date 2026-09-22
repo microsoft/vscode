@@ -22,9 +22,17 @@
 .inbox-notifications-sort-buttons {
 	display: flex;
 	gap: var(--vscode-spacing-size80);
+	flex: 0 0 auto;
+}
+
+.inbox-notifications-sort-buttons .monaco-button {
+	width: auto;
+	flex: 0 0 auto;
 }
 
 .inbox-notifications-toolbar > .monaco-button {
+	width: auto;
+	flex: 0 0 auto;
 	margin-left: auto;
 }
 
