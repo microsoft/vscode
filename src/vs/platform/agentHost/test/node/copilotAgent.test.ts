@@ -12903,6 +12903,67 @@ suite('CopilotAgent', () => {
 			}
 		});
 
+		for (const selectedTier of ['balance', 'efficiency'] as const) {
+			test(`explicit ${selectedTier} selected during Auto initialization wins after the captured send`, async () => {
+				const sessionDataService = disposables.add(new TestSessionDataService());
+				const client = new TestCopilotClient([], [{ id: 'auto', name: 'Auto' }]);
+				const launchStarted = new DeferredPromise<void>();
+				const launchGate = new DeferredPromise<void>();
+				let initialTier: SessionConfig['capi'];
+				const sentTiers: (string | null | undefined)[] = [];
+				const sdkSession = new class extends MockCopilotSession {
+					override async send(): Promise<string> {
+						sentTiers.push(this.setModelCalls.at(-1)?.[1]?.autoTier ?? initialTier?.autoTier);
+						return '';
+					}
+				}();
+				client.createSession = async config => {
+					initialTier = config.capi;
+					reportManagedSettings(config);
+					launchStarted.complete();
+					await launchGate.p;
+					return sdkSession as unknown as CopilotSession;
+				};
+				const { agent } = createTestAgentContext(disposables, { sessionDataService, copilotClient: client });
+				try {
+					await agent.authenticate('https://api.github.com', 'token');
+					await waitForState(agent.models, models => models.length > 0);
+					const session = AgentSession.uri('copilotcli', `auto-default-race-${selectedTier}`);
+					const chat = defaultChatUri(session);
+					const created = await provisionSession(agent, {
+						session, workingDirectories: [URI.file('/workspace')],
+						model: { id: 'auto', config: { tier: 'intelligence', tierSource: 'managed' } },
+					});
+					const context = exactChatContext(created.session, chat, created.session);
+					const firstSend = agent.chats.sendMessage(chat, 'first', undefined, undefined, undefined, undefined, context);
+					await launchStarted.p;
+					const explicit: ModelSelection = { id: 'auto', config: { tier: selectedTier, tierSource: 'explicit' } };
+					const selection = agent.chats.changeModel(chat, explicit, context);
+					await Promise.resolve();
+					const callsWhileInitializing = sdkSession.setModelCalls.length;
+					launchGate.complete();
+					await Promise.all([firstSend, selection]);
+					await agent.chats.sendMessage(chat, 'next', undefined, undefined, undefined, undefined, context);
+					const database = disposables.add(sessionDataService.openDatabase(session));
+					assert.deepStrictEqual({
+						callsWhileInitializing, initialTier, sentTiers,
+						modelCalls: sdkSession.setModelCalls,
+						stored: JSON.parse(await database.object.getMetadata('copilot.model') ?? 'null'),
+					}, {
+						callsWhileInitializing: 0, initialTier: { autoTier: 'intelligence' },
+						sentTiers: ['intelligence', selectedTier],
+						modelCalls: [['auto', { reasoningEffort: undefined, contextTier: undefined, autoTier: selectedTier }]],
+						stored: explicit,
+					});
+				} finally {
+					if (!launchGate.isSettled) {
+						launchGate.complete();
+					}
+					await disposeAgent(agent);
+				}
+			});
+		}
+
 		test('changeAgent resolves and applies the agent to the targeted chat, and clears it with undefined', async () => {
 			const agent = createTestAgent(disposables);
 			try {

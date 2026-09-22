@@ -167,6 +167,17 @@ suite('ModelPickerAutoRow', () => {
 			{ strip: true, description: true });
 	});
 
+	test('an internal Auto preset is not exposed as a selectable tier or mislabeled as Efficiency', () => {
+		const result = createRow(true, {
+			autoModel: createAutoModel(true),
+			configurationAccess: createConfigurationAccess({ tier: 'fast' }),
+		});
+		assert.deepStrictEqual({
+			tiers: result.tiers.map(element => element.textContent),
+			description: result.description.textContent,
+		}, { tiers: [], description: 'Automatic model selection' });
+	});
+
 	test('inactive tiers remain visible and interactive with the remembered tier and description', () => {
 		const { row, tiers, description, toggle, configurationAccess } = createRow(false, {
 			autoModel: createAutoModel(true),
