@@ -28,6 +28,7 @@ import { SideChatContribution } from './sideChat/sideChatContribution.js';
 import { TurnAdmissionContribution } from './turnAdmission/turnAdmissionContribution.js';
 import { TurnDelegationContribution } from './turnDelegation/turnDelegationContribution.js';
 import { WorktreeAnnouncementContribution } from './worktreeAnnouncement/worktreeAnnouncementContribution.js';
+import { WorkspaceContextContribution } from './workspaceContext/workspaceContextContribution.js';
 
 /** Registers all built-in chat contribution constructors. */
 export function registerBuiltInChatContributions(
@@ -51,6 +52,7 @@ export function registerBuiltInChatContributions(
 	registrations.add(contributions.registerContribution(MarkUnreadContribution));
 	registrations.add(contributions.registerContribution(ChatDraftContribution));
 	registrations.add(contributions.registerContribution(MarkdownPlanRichLinksContribution));
+	registrations.add(contributions.registerContribution(WorkspaceContextContribution));
 	registrations.add(contributions.registerContribution(ChatSurfaceContribution));
 	registrations.add(contributions.registerContribution(RemoteSessionOriginContribution));
 	registrations.add(contributions.registerContribution(SideChatContribution));
