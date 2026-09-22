@@ -97,13 +97,17 @@ suite('Copilot SDK client-selected Auto startup defaults', function () {
 	});
 
 	teardown(async () => {
-		await client?.forceStop();
-		server?.closeAllConnections();
-		if (server?.listening) {
-			await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
-		}
-		if (home) {
-			await rm(home, { recursive: true, force: true });
+		try {
+			// Unlike forceStop, stop waits for the runtime process to exit.
+			assert.deepStrictEqual(await client?.stop() ?? [], []);
+		} finally {
+			server?.closeAllConnections();
+			if (server?.listening) {
+				await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
+			}
+			if (home) {
+				await rm(home, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
+			}
 		}
 	});
 
