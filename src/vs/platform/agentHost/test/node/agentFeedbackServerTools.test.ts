@@ -360,6 +360,13 @@ suite('AgentFeedbackServerTools', () => {
 		});
 	});
 
+	test('defers every feedback tool behind tool search', () => {
+		assert.deepStrictEqual(
+			feedbackServerToolDefinitions.map(({ name, deferLoading }) => ({ name, deferLoading })),
+			feedbackServerToolDefinitions.map(({ name }) => ({ name, deferLoading: true })),
+		);
+	});
+
 	suite('AgentServerToolHost', () => {
 
 		let disposables: DisposableStore;
@@ -459,7 +466,8 @@ suite('AgentFeedbackServerTools', () => {
 			manager.createSession(makeSummary());
 			host.advertise(sessionResource);
 			const state = manager.getSessionState(sessionResource);
-			assert.deepStrictEqual(state?.serverTools, feedbackServerToolDefinitions);
+			// `deferLoading` is agent-host-local metadata and must not reach the wire.
+			assert.deepStrictEqual(state?.serverTools, feedbackServerToolDefinitions.map(({ deferLoading: _deferLoading, ...definition }) => definition));
 		});
 
 		test('advertise does not dispatch before the session is registered', () => {
