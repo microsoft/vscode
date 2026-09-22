@@ -23,7 +23,7 @@ import { CustomizationMigration, CustomizationMigrationHintTarget, Customization
 import { IPromptsService, PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
 import { IAgentHostActiveClientService } from '../agentSessions/agentHost/agentHostActiveClientService.js';
 import { IAgentHostCustomizationService } from '../agentSessions/agentHost/agentHostCustomizationService.js';
-import { AgentHostMcpServerApplicability, IAgentHostMcpServerSupportSnapshot } from '../agentSessions/agentHost/agentHostMcpServerSupport.js';
+import { AgentHostMcpServerApplicability, AgentHostMcpServerSourceKind, IAgentHostMcpServerSupportSnapshot } from '../agentSessions/agentHost/agentHostMcpServerSupport.js';
 import { IAgentHostMcpServerSupportScope } from '../agentSessions/agentHost/agentHostMcpServerSupportScope.js';
 import { isMcpServerMigrationDeliverable, McpServerCustomizationMigrator } from './mcpServerCustomizationMigration.js';
 
@@ -176,70 +176,32 @@ export class CustomizationMigrationService extends Disposable implements ICustom
 			return undefined;
 		}
 
+		const mcpMigrationEnabled = this.isMigrationEnabled(CustomizationMigrationType.McpServers);
 		const [userDataMigration, promptFilesMigration, configuredLocationsMigration, mcpServerMigration] = await Promise.all([
 			this.computeMigration(sessionResource, CustomizationMigrationType.UserData, token),
 			this.computeMigration(sessionResource, CustomizationMigrationType.PromptFiles, token),
 			this.computeMigration(sessionResource, CustomizationMigrationType.ConfiguredLocations, token),
-			this.computeMigration(sessionResource, CustomizationMigrationType.McpServers, token),
+			mcpMigrationEnabled ? this.computeMcpServerMigration(sessionResource, token) : Promise.resolve(this.emptyMcpServerMigration()),
 		]);
 		const fileCandidates = [userDataMigration, promptFilesMigration, configuredLocationsMigration]
 			.filter(migration => this.isMigrationEnabled(migration.type))
 			.flatMap(migration => migration.candidates);
-		const workspaceFileCount = fileCandidates.filter(candidate => candidate.storage === PromptsStorage.local).length;
-		const userFileCount = fileCandidates.filter(candidate => candidate.storage === PromptsStorage.user).length;
-		const migratableMcpServerCount = this.isMigrationEnabled(CustomizationMigrationType.McpServers) ? mcpServerMigration.candidates.length : 0;
-		const unsupportedMcpServerCount = mcpServerMigration.servers.filter(server => !server.supported).length;
-		const fileHint = this.formatFileMigrationHint(workspaceFileCount, userFileCount, harness.label);
-		const migratableMcpHint = migratableMcpServerCount === 0
-			? undefined
-			: migratableMcpServerCount === 1
-				? localize('customizationMigrationHintMigratableMcpSingle', "Found 1 workspace MCP server that can be migrated for {0}.", harness.label)
-				: localize('customizationMigrationHintMigratableMcpMultiple', "Found {0} workspace MCP servers that can be migrated for {1}.", migratableMcpServerCount, harness.label);
-		const unsupportedMcpHint = unsupportedMcpServerCount === 0
-			? undefined
-			: unsupportedMcpServerCount === 1
-				? localize('customizationMigrationHintMcpSingle', "Found 1 MCP server that is not fully supported by {0}.", harness.label)
-				: localize('customizationMigrationHintMcpMultiple', "Found {0} MCP servers that are not fully supported by {1}.", unsupportedMcpServerCount, harness.label);
-		let migrationHint: string | undefined;
-		if (fileHint && migratableMcpHint && unsupportedMcpHint) {
-			migrationHint = localize('customizationMigrationHintCombinedAll', "{0} {1} {2}", fileHint, migratableMcpHint, unsupportedMcpHint);
-		} else {
-			const firstHint = fileHint ?? migratableMcpHint;
-			const secondHint = firstHint === fileHint ? migratableMcpHint ?? unsupportedMcpHint : unsupportedMcpHint;
-			migrationHint = firstHint && secondHint
-				? localize('customizationMigrationHintCombined', "{0} {1}", firstHint, secondHint)
-				: firstHint ?? unsupportedMcpHint;
-		}
-		return migrationHint ? {
-			message: migrationHint,
-			target: fileHint || migratableMcpHint ? CustomizationMigrationHintTarget.FileMigrations : CustomizationMigrationHintTarget.McpServers,
+		const migratableMcpServerCount = mcpServerMigration.candidates.length;
+		const mcpServerStorage = new Map(mcpServerMigration.servers.map(server => [server.id, server.storage]));
+		const workspaceCount = fileCandidates.filter(candidate => candidate.storage === PromptsStorage.local).length
+			+ mcpServerMigration.candidates.filter(candidate => mcpServerStorage.get(candidate.id) === PromptsStorage.local).length;
+		const userCount = fileCandidates.filter(candidate => candidate.storage === PromptsStorage.user).length
+			+ mcpServerMigration.candidates.filter(candidate => mcpServerStorage.get(candidate.id) === PromptsStorage.user).length;
+		return workspaceCount + userCount > 0 ? {
+			message: localize('customizationMigrationHintCounts', "{0} workspace and {1} user customizations need an update to keep working.", workspaceCount, userCount),
+			target: CustomizationMigrationHintTarget.FileMigrations,
 			counts: [
 				{ type: CustomizationMigrationType.UserData, count: userDataMigration.files.length },
 				{ type: CustomizationMigrationType.PromptFiles, count: promptFilesMigration.files.length },
 				{ type: CustomizationMigrationType.ConfiguredLocations, count: configuredLocationsMigration.files.length },
-				{ type: CustomizationMigrationType.McpServers, count: migratableMcpServerCount + unsupportedMcpServerCount },
+				{ type: CustomizationMigrationType.McpServers, count: migratableMcpServerCount },
 			].filter(({ count }) => count > 0),
 		} : undefined;
-	}
-
-	private formatFileMigrationHint(workspaceCount: number, userCount: number, harnessLabel: string): string | undefined {
-		const fileCount = workspaceCount + userCount;
-		if (fileCount === 0) {
-			return undefined;
-		}
-
-		const workspaceCounts = workspaceCount === 1
-			? localize('customizationMigrationHintWorkspaceSingle', "1 workspace customization")
-			: localize('customizationMigrationHintWorkspaceMultiple', "{0} workspace customizations", workspaceCount);
-		const userCounts = userCount === 1
-			? localize('customizationMigrationHintUserSingle', "1 user customization")
-			: localize('customizationMigrationHintUserMultiple', "{0} user customizations", userCount);
-		const sourceCounts = workspaceCount > 0 && userCount > 0
-			? localize('customizationMigrationHintWorkspaceAndUser', "{0} and {1}", workspaceCounts, userCounts)
-			: workspaceCount > 0 ? workspaceCounts : userCounts;
-		return fileCount === 1
-			? localize('customizationMigrationHintSingle', "Found {0} that is present but not used by {1} and could be migrated.", sourceCounts, harnessLabel)
-			: localize('customizationMigrationHintMultiple', "Found {0} that are present but not used by {1} and could be migrated.", sourceCounts, harnessLabel);
 	}
 
 	private async createFileMigration(sessionResource: URI, type: FileCustomizationMigrationType, candidates: readonly MigratableConfiguration[], token: CancellationToken, excludeSupportedLocations = false): Promise<FileCustomizationMigration> {
@@ -291,6 +253,7 @@ export class CustomizationMigrationService extends Disposable implements ICustom
 					.map(server => ({
 						id: server.id,
 						name: server.name,
+						storage: this.getMcpServerStorage(server.source.kind),
 						supported: server.compatibility.kind === 'supported',
 					})),
 				candidates: this.isMigrationEnabled(CustomizationMigrationType.McpServers) ? candidates : [],
@@ -313,6 +276,28 @@ export class CustomizationMigrationService extends Disposable implements ICustom
 				restrictedByCustomizationPolicy: false,
 			},
 		};
+	}
+
+	private getMcpServerStorage(source: AgentHostMcpServerSourceKind): PromptsStorage | undefined {
+		switch (source) {
+			case AgentHostMcpServerSourceKind.VscodeWorkspaceFolder:
+			case AgentHostMcpServerSourceKind.WorkspaceConfiguration:
+			case AgentHostMcpServerSourceKind.WorkspaceDotMcp:
+			case AgentHostMcpServerSourceKind.CursorWorkspace:
+				return PromptsStorage.local;
+			case AgentHostMcpServerSourceKind.UserProfile:
+			case AgentHostMcpServerSourceKind.RemoteUser:
+			case AgentHostMcpServerSourceKind.ClaudeDesktop:
+			case AgentHostMcpServerSourceKind.Windsurf:
+			case AgentHostMcpServerSourceKind.CursorUser:
+				return PromptsStorage.user;
+			case AgentHostMcpServerSourceKind.Extension:
+				return PromptsStorage.extension;
+			case AgentHostMcpServerSourceKind.AgentPlugin:
+				return PromptsStorage.plugin;
+			case AgentHostMcpServerSourceKind.Unknown:
+				return undefined;
+		}
 	}
 
 	private isExecutionContextCurrent(sessionResource: URI, roots: readonly URI[], generation: number): boolean {

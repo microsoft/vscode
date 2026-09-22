@@ -69,6 +69,7 @@ export interface FileCustomizationMigration {
 export interface IMcpServerCustomizationMigrationItem {
 	readonly id: string;
 	readonly name: string;
+	readonly storage: PromptsStorage | undefined;
 	/** Whether Agent Host delivery fully supports this server's configuration. */
 	readonly supported: boolean;
 }

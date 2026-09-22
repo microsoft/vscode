@@ -2525,7 +2525,7 @@ suite('ChatService', () => {
 		const dismissedSessionHint = ((testService.getSession(dismissedSessionResource) as ChatModel).getRequests()[0].response?.response.value ?? [])
 			.filter(part => part.kind === 'systemNotification')
 			.map(part => part.content.value);
-		const expectedReviewLink = `[Review customizations](command:aiCustomization.openManagementEditor?%255B%257B%2522migration%2522%253Atrue%252C%2522migrationHintTarget%2522%253A%2522fileMigrations%2522%257D%255D "Open Chat Customizations")`;
+		const expectedReviewLink = `[Review Migrations](command:aiCustomization.openManagementEditor?%255B%257B%2522migration%2522%253Atrue%252C%2522migrationHintTarget%2522%253A%2522fileMigrations%2522%257D%255D "Open Chat Customizations")`;
 		const expectedDismissLink = `[Hide for this workspace](command:aiCustomization.dismissMigrationHint?%255B%257B%2522target%2522%253A%2522fileMigrations%2522%257D%255D "Stop Showing Migration Hints for This Harness")`;
 		const expectedHint = `*Found 3 customization files that could be migrated. ${expectedReviewLink} | ${expectedDismissLink}*`;
 		assert.deepStrictEqual({

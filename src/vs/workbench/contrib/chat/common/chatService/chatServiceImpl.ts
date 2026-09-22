@@ -1884,7 +1884,7 @@ export class ChatService extends Disposable implements IChatService {
 								: undefined;
 						const reviewLink = createMarkdownCommandLink({
 							id: AICustomizationManagementCommands.OpenEditor,
-							text: localize('customizationMigrationHint.review', "Review customizations"),
+							text: localize('customizationMigrationHint.review', "Review Migrations"),
 							tooltip: localize('customizationMigrationHint.review.tooltip', "Open Chat Customizations"),
 							arguments: reviewArguments,
 						});
