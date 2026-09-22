@@ -26,7 +26,7 @@ import { ChatInputPart, IChatInputPartOptions, IChatInputStyles } from '../../..
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IMarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
 import { IChatWidget, IChatWidgetService } from '../../../../contrib/chat/browser/chat.js';
-import { ChatMcpServersStarting, ElicitationState, IChatExternalEdit, IChatHookPart, IChatQuestion, IChatService, IChatSimpleToolInvocationData, IChatSystemNotificationPart, IChatToolInvocation, ToolConfirmKind } from '../../../../contrib/chat/common/chatService/chatService.js';
+import { ChatMcpServersStarting, ElicitationState, IChatExternalEdit, IChatQuestion, IChatService, IChatSimpleToolInvocationData, IChatSystemNotificationPart, IChatToolInvocation, ToolConfirmKind } from '../../../../contrib/chat/common/chatService/chatService.js';
 import { ChatElicitationRequestPart } from '../../../../contrib/chat/common/model/chatProgressTypes/chatElicitationRequestPart.js';
 import { ChatQuestionCarouselData } from '../../../../contrib/chat/common/model/chatProgressTypes/chatQuestionCarouselData.js';
 import { ChatPlanReviewData } from '../../../../contrib/chat/common/model/chatProgressTypes/chatPlanReviewData.js';
@@ -43,7 +43,6 @@ import { IProductService } from '../../../../../platform/product/common/productS
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID, ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatProgressAnimation, ThinkingDisplayMode } from '../../../../contrib/chat/common/constants.js';
 import { PROMPT_TIMELINE_STICKY_SCROLL_SETTING } from '../../../../contrib/chat/common/promptTimeline.js';
-import { HookType } from '../../../../contrib/chat/common/promptSyntax/hookTypes.js';
 import { SessionType } from '../../../../contrib/chat/common/chatSessionsService.js';
 import { IChatEditingService, IChatEditingSession, IEditSessionEntryDiff } from '../../../../contrib/chat/common/editing/chatEditingService.js';
 import { IChatResponseFileChangesService, IChatResponseFileEdit } from '../../../../contrib/chat/browser/chatResponseFileChangesService.js';
@@ -86,7 +85,6 @@ export interface IFixtureMessage {
 		| { kind: 'progress'; text: string }
 		| { kind: 'thinking'; text: string; id?: string }
 		| IChatExternalEdit
-		| IChatHookPart
 		| { kind: 'systemNotification'; notification: IChatSystemNotificationPart }
 		| { kind: 'tool'; toolId: string; displayName: string; invocationMessage: string; pastTenseMessage?: string; streaming?: boolean; complete?: boolean; source?: ToolDataSource; approval?: 'pre' | 'post'; toolSpecificData?: IChatSimpleToolInvocationData; resultDetails?: IToolResultInputOutputDetails }
 		| { kind: 'questionCarousel'; questions: IChatQuestion[]; message?: string; allowSkip?: boolean }
@@ -451,7 +449,7 @@ export async function renderChatWidget(context: ComponentFixtureContext, options
 				model.acceptResponseProgress(request, { kind: 'progressMessage', content: new MarkdownString(part.text) });
 			} else if (part.kind === 'thinking') {
 				model.acceptResponseProgress(request, { kind: 'thinking', id: part.id ?? generateUuid(), value: part.text });
-			} else if (part.kind === 'externalEdit' || part.kind === 'hook') {
+			} else if (part.kind === 'externalEdit') {
 				model.acceptResponseProgress(request, part);
 			} else if (part.kind === 'systemNotification') {
 				model.acceptResponseProgress(request, part.notification);
@@ -1135,7 +1133,6 @@ interface IPersistentProgressScenarioOptions {
 	readonly richSubagents?: boolean;
 	readonly expandTerminal?: boolean;
 	readonly expandToolDetails?: boolean;
-	readonly expandHooks?: boolean;
 	readonly height?: number;
 	readonly listHeight?: number;
 }
@@ -1279,17 +1276,6 @@ async function renderPersistentProgressScenario(context: ComponentFixtureContext
 		const buttons = response.querySelectorAll<HTMLElement>('.chat-tool-invocation-part > .chat-confirmation-widget-container > .chat-confirmation-widget-collapsible > .chat-confirmation-widget-title');
 		if (!buttons.length) {
 			throw new Error('Tool details have no expand button');
-		}
-		for (const button of buttons) {
-			if (button.ariaExpanded !== 'true') {
-				button.click();
-			}
-		}
-	}
-	if (options.expandHooks) {
-		const buttons = response.querySelectorAll<HTMLElement>(':is(.chat-hook-outcome-warning, .chat-hook-outcome-blocked) > .chat-used-context-label .monaco-button');
-		if (!buttons.length) {
-			throw new Error('Hooks have no expand button');
 		}
 		for (const button of buttons) {
 			if (button.ariaExpanded !== 'true') {
@@ -1542,14 +1528,6 @@ function defineToolChainScenarios(progressAnimation = ChatProgressAnimation.Weav
 		render: context => renderPersistentProgressScenario(context, messages, { progressAnimation, height: 820, listHeight: 600, ...options }),
 	});
 	const tools = (assistant: NonNullable<IFixtureMessage['assistant']>, responseComplete = false): IFixtureMessage[] => [{ user: 'Review the working progress implementation', assistant, responseComplete }];
-	const hookWarnings: NonNullable<IFixtureMessage['assistant']> = [
-		tool('read_file', 'Read the hook configuration', true),
-		{ kind: 'hook', hookType: HookType.PreToolUse, systemMessage: 'Check the command before running it.' },
-		{ kind: 'hook', hookType: HookType.PostToolUse, systemMessage: 'The command completed with a warning.' },
-		{ kind: 'hook', hookType: HookType.PreToolUse, toolDisplayName: 'Write configuration', stopReason: 'Changes to this configuration require approval.', systemMessage: 'Review the proposed changes before continuing.' },
-		{ kind: 'hook', hookType: HookType.PostToolUse, toolDisplayName: 'Search the workspace for configuration and validation scripts', systemMessage: 'Some workspace folders could not be searched.' },
-		tool('search_workspace', 'Checked the remaining hook settings', true),
-	];
 	const sharedItemSpacing = tools([
 		{ kind: 'markdown', text: 'I will check the current progress rendering first.\n\nThen I will compare the remaining tool and reasoning paths.' },
 		tool('search_workspace', 'Search the current working tree for all rendering, progress, thinking, and confirmation code paths.', true),
@@ -1584,11 +1562,6 @@ function defineToolChainScenarios(progressAnimation = ChatProgressAnimation.Weav
 		CompletedStandaloneToolDetails: scenario(tools(standaloneToolDetails, true)),
 		StandaloneSimpleToolDetails: scenario(tools([{ ...readTerminalDetails, resultDetails: undefined, toolSpecificData: { kind: 'simpleToolInvocation', input: '{"shellId":"verification"}', output: 'No matching instances were found.' } }])),
 		GroupedToolDetails: scenario(tools([...before, { ...readTerminalDetails, toolId: 'read_terminal', source: ToolDataSource.Internal }])),
-		HookWarnings: scenario(tools(hookWarnings)),
-		HookWarningsDraw: scenario(tools(hookWarnings), { progressAnimation: progressAnimation === ChatProgressAnimation.Off ? progressAnimation : ChatProgressAnimation.Draw }),
-		HookWarningsExpanded: scenario(tools(hookWarnings), { expandHooks: true, height: 1100, listHeight: 880 }),
-		HookWarningsNarrow: scenario(tools(hookWarnings), { width: 420 }),
-		CompletedHookWarnings: scenario(tools(hookWarnings, true)),
 		SharedItemSpacing: scenario(sharedItemSpacing, { activityRowSpacing: true }),
 		SharedItemSpacingNarrow: scenario(sharedItemSpacing, { activityRowSpacing: true, width: 420, height: 1000, listHeight: 780 }),
 		TerminalWithIntention: scenario(terminalSequence(), collapsibleTerminalOptions),
