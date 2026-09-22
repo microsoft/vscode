@@ -22,11 +22,17 @@ parameters:
 # node_modules. No npm registry auth is needed.
 #
 # Steps:
-#   1. AzureCLI@2 to fetch the SPN credentials for the CDN storage account —
+#   1. NuGetAuthenticate@1 for the target-specific ONNX downloads — skipped on
+#      non-publish runs because no payload is produced.
+#   2. AzureCLI@2 to fetch the SPN credentials for the CDN storage account —
 #      skipped on non-publish runs (no CDN write to auth for).
-#   2. Run `node build/dictation-runtime/produce.ts`. Always stamps; uploads
+#   3. Run `node build/dictation-runtime/produce.ts`. Always stamps; uploads
 #      only on publish.
 steps:
+  - task: NuGetAuthenticate@1
+    displayName: "Dictation runtime: authenticate NuGet"
+    condition: and(succeeded(), eq(lower(variables['VSCODE_PUBLISH']), 'true'))
+
   - task: AzureCLI@2
     displayName: "Dictation runtime: fetch CDN credentials"
     condition: and(succeeded(), eq(lower(variables['VSCODE_PUBLISH']), 'true'))
