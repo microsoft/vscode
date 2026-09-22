@@ -337,6 +337,7 @@ export function registerChatFixtureServices(reg: ServiceRegistration, options: I
 	reg.defineInstance(IChatModeService, new MockChatModeService());
 	reg.defineInstance(ILanguageModelsService, new class extends mock<ILanguageModelsService>() {
 		override onDidChangeLanguageModels = Event.None;
+		override onDidChangeLanguageModelVendors = Event.None;
 		override onDidChangeModelVisibility = Event.None;
 		override getLanguageModelIds() { return []; }
 		override getVendors() { return []; }

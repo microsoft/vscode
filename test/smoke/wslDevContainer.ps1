@@ -50,6 +50,69 @@ function Save-Download([string] $Url, [string] $Destination) {
 	}
 }
 
+function Write-DiagnosticSection([string] $Name, [scriptblock] $Action) {
+	Write-Host "--- $Name ---"
+	try {
+		$output = & $Action 2>&1 | Out-String -Width 4096
+		Write-Host ($output.TrimEnd())
+	} catch {
+		Write-Warning "Failed to collect ${Name}: $_"
+	}
+}
+
+function Write-WslDiagnostics {
+	Write-Host '=== WSL diagnostics after failed import ==='
+	Write-DiagnosticSection 'wsl --status' {
+		$output = & $wsl --status 2>&1
+		$exitCode = $LASTEXITCODE
+		$output | ForEach-Object { "$_" -replace "`0", '' }
+		"Exit code: $exitCode"
+	}
+	Write-DiagnosticSection 'wsl --list --verbose' {
+		$output = & $wsl --list --verbose 2>&1
+		$exitCode = $LASTEXITCODE
+		$output | ForEach-Object { "$_" -replace "`0", '' }
+		"Exit code: $exitCode"
+	}
+	Write-DiagnosticSection 'Virtualization' {
+		Get-CimInstance -ClassName Win32_ComputerSystem |
+			Select-Object Manufacturer, Model, HypervisorPresent
+	}
+	Write-DiagnosticSection 'Windows optional features' {
+		foreach ($featureName in @('Microsoft-Windows-Subsystem-Linux', 'VirtualMachinePlatform')) {
+			Get-WindowsOptionalFeature -Online -FeatureName $featureName |
+				Select-Object FeatureName, State
+		}
+	}
+	Write-DiagnosticSection 'WSL services' {
+		foreach ($serviceName in @('LxssManager', 'WslService', 'vmcompute', 'hns')) {
+			$service = Get-Service -Name $serviceName -ErrorAction SilentlyContinue
+			if ($service) {
+				$service | Select-Object Name, Status, StartType
+			} else {
+				[pscustomobject]@{ Name = $serviceName; Status = 'NotFound'; StartType = $null }
+			}
+		}
+	}
+	Write-DiagnosticSection 'Pending reboot indicators' {
+		$pendingFileRenames = (Get-ItemProperty 'HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager' -Name PendingFileRenameOperations -ErrorAction SilentlyContinue).PendingFileRenameOperations
+		[pscustomobject]@{
+			ComponentBasedServicing = Test-Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Component Based Servicing\RebootPending'
+			WindowsUpdate           = Test-Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\WindowsUpdate\Auto Update\RebootRequired'
+			PendingFileRenames      = $null -ne $pendingFileRenames
+		}
+	}
+
+	$eventStartTime = (Get-Date).AddMinutes(-10)
+	foreach ($eventLogName in @('Microsoft-Windows-Lxss/Operational', 'Microsoft-Windows-Hyper-V-Compute-Admin', 'Microsoft-Windows-Hyper-V-Worker-Admin')) {
+		$action = {
+			Get-WinEvent -FilterHashtable @{ LogName = $eventLogName; StartTime = $eventStartTime } -MaxEvents 10 -ErrorAction Stop |
+				Select-Object TimeCreated, Id, LevelDisplayName, Message
+		}.GetNewClosure()
+		Write-DiagnosticSection "Recent events: $eventLogName" $action
+	}
+}
+
 if ($Operation -eq 'Cleanup') {
 	if ($Distribution -notmatch '^vscode-wsl-smoke-\d+-\d+-[0-9a-f]{32}$') {
 		throw 'Refusing cleanup of an unexpected WSL distribution.'
@@ -109,8 +172,10 @@ if ((Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash -ne '1483cc5c1dc
 $install = Join-Path $Root 'distro'
 New-Item -ItemType Directory -Path $install | Out-Null
 & $wsl --import $Distribution $install $archive --version 2
-if ($LASTEXITCODE -ne 0) {
-	throw "Explicit WSL2 import failed with exit code $LASTEXITCODE. WSL1 is not supported by this test."
+$importExitCode = $LASTEXITCODE
+if ($importExitCode -ne 0) {
+	Write-WslDiagnostics
+	throw "Explicit WSL2 import failed with exit code $importExitCode. WSL1 is not supported by this test."
 }
 Invoke-Wsl 'uname -a; cat /etc/os-release'
 

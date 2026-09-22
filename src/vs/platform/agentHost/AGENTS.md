@@ -441,6 +441,14 @@ No `CopilotSessionEntry`, `AgentSessionEntry`, default-chat URI helper, or sibli
 
 ### Codex (`node/codex/codexAgent.ts`)
 
+Client-synced skills are advertised through `turn/start.additionalContext`, using the enabled plugins' skill names, descriptions, and file paths. Every turn receives the current catalog, including an explicit empty catalog after removal; older catalogs can remain in conversation history but no longer describe the current selection. Native skills discovery remains unchanged and separate from the session's client-plugin customization projection.
+
+The thread's permission profiles grant read-only access to its enabled skill directories, reapplied through the existing start/resume path when those directories or the selected profile change. While these grants are active, omit `turn/start.permissions`: the pinned SDK otherwise reloads the process-global profile and discards the thread's read grants. The filesystem override preserves the provider's existing restrictions and profile inheritance.
+
+On Linux, the inherited runtime profile also grants read access to the canonical Codex executable, which the sandbox helper must re-execute. Keep this grant outside the per-thread filesystem table so skill updates cannot replace it; do not widen access to the SDK directory or disable the sandbox.
+
+Do not rely on `selectedCapabilityRoots` for client skills: the pinned Codex launch does not advertise them, and `thread/resume` cannot update those roots. Never register those cache directories with the process-global `skills/extraRoots/set`: workspace-specific bundles and concurrently retained revisions would leak into unrelated sessions and be rediscovered as duplicate native user skills.
+
 Codex supports multiple chats per session. Each conversation — the session's default chat and every additional chat — is a distinct top-level Codex thread, explicitly bound to the concrete chat URI AH supplies:
 - `_sessions: Map<string, ICodexSession>` owns provider-native thread/runtime state. `_sessionIdByChatUri` maps exact chat URIs to those runtime keys and is never used to recover AH membership.
 - `_sessionIdByChatUri: Map<string, string>` is the exact chat-operation routing index; unbound chat URIs are rejected.
@@ -460,7 +468,7 @@ Portable SSE responses emit a synthetic heartbeat only when an upstream chunk ar
 
 `agentHost.codexProviderSwitch` counts a provider handoff only after `turn/start` accepts a turn on the same thread. It reports bounded OpenAI/Copilot directions and a desktop-origin flag through the existing usage-telemetry service, without prompts, model names, paths, or conversation identifiers. Picker changes, metadata reads, setup-only resumes, failed sends, and switches reverted before a send do not count. Activity exclusively in other clients is not observed.
 
-For the same signed-in ChatGPT account, that event may include `chatgptWeeklyUsedPercentBucket`: the cached weekly-limit percentage sampled before the turn and rounded down to a 10-point bucket (100 only when exhausted). Only an explicit seven-day window, observed within five minutes and not past a known reset, qualifies. Missing, invalid, expired, or stale quota data is omitted rather than reported as zero. The sample is cleared on account changes; no email, plan, reset timestamp, or exact percentage is sent. Telemetry never adds quota requests or waits for them, and the existing usage-telemetry consent gate applies. The field supports correlation with quota pressure, not an inference of the user's reason for switching.
+Codex captures bounded account context from cached state at turn admission, independently of the selected model provider. `agentHost.turnCompleted` and `agentHost.turnHung` use that immutable turn-local snapshot, and `agentHost.codexProviderSwitch` reuses it after acceptance. Shared normalization admits only fresh, valid weekly snapshots and records explicit availability otherwise. Telemetry adds no account requests or common properties, and the existing usage-telemetry consent gate applies.
 
 When a restored Agent Host conversation's intended model is missing from the picker, the widget must not put the displayed fallback model or its configuration on the next request. Omitting that override lets the host resolve the conversation's selection within its native provider; an explicit model choice replaces the intended selection and is forwarded normally.
 

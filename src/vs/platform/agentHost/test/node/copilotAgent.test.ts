@@ -7612,13 +7612,18 @@ suite('CopilotAgent', () => {
 			const [auto, concrete] = published.map(model => model.configSchema?.properties.tier);
 
 			assert.deepStrictEqual({
-				auto: { enum: auto?.enum, default: auto?.default, enumLabels: auto?.enumLabels },
+				auto: { enum: auto?.enum, default: auto?.default, enumLabels: auto?.enumLabels, enumDescriptions: auto?.enumDescriptions },
 				concrete,
 			}, {
 				auto: {
 					enum: ['efficiency', 'balance', 'intelligence'],
 					default: 'balance',
 					enumLabels: ['Efficiency', 'Balance', 'Intelligence'],
+					enumDescriptions: [
+						'Optimizes for cost and speed, using more capable models only when needed.',
+						'Balances cost/speed and capability based on task complexity.',
+						'Optimizes for capability, using faster models only when the task allows it.',
+					],
 				},
 				concrete: undefined,
 			});
