@@ -7,6 +7,7 @@ import { getWindow } from '../../../../../../base/browser/dom.js';
 import { toAction } from '../../../../../../base/common/actions.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
+import { getMediaMime } from '../../../../../../base/common/mime.js';
 import { constObservable, derived, derivedObservableWithCache, derivedOpts, observableFromEvent, observableSignal, observableSignalFromEvent } from '../../../../../../base/common/observable.js';
 import { basename, isEqual } from '../../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
@@ -512,10 +513,12 @@ export class AgentHostSessionInputPills extends Disposable {
 				? toAgentHostUri(artifactResource, resolution.connectionAuthority)
 				: artifactResource;
 			const label = artifact.type === SessionArtifactType.File ? basename(resource) : artifact.label;
+			const imageMimeType = artifact.type === SessionArtifactType.File && !artifact.isArtifact ? getMediaMime(resource.path) : undefined;
 			return {
 				id: artifact.id,
 				label,
 				...(artifact.type === SessionArtifactType.File ? { resource } : { icon: Codicon.link }),
+				...(imageMimeType?.startsWith('image/') ? { imagePreview: { resource, mimeType: imageMimeType } } : {}),
 				...getChatPillResourceLocation(resource, label),
 				open: () => this._openResource(resource),
 			};

@@ -282,12 +282,13 @@ export function buildSessionArtifactSections(artifacts: readonly ISessionArtifac
 		if (kind === SessionArtifactKind.File && images.length) {
 			sections.push({
 				title: localize('sessionArtifacts.images', "Images"),
-				entries: images.map(({ artifact, uri }, index) => {
+				entries: images.map(({ artifact, uri, mimeType }, index) => {
 					const label = basename(uri);
 					return withRemoveAction(artifact, {
 						id: artifact.id,
 						label,
 						resource: uri,
+						...(!artifact.isArtifact ? { imagePreview: { resource: uri, mimeType } } : {}),
 						...sessionArtifactLocation(sessionArtifactLocationText(uri, labelService), label),
 						...(imageCarouselEnabled
 							? {
