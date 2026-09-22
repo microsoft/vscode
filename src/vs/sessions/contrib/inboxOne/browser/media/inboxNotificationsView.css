@@ -98,7 +98,7 @@
 }
 
 .inbox-notifications-item-kind-label {
-	font-size: var(--vscode-fontSize-label2);
+	font-size: inherit;
 	font-weight: 600;
 }
 
@@ -120,6 +120,19 @@
 
 .inbox-notifications-item-title {
 	font-weight: 600;
+}
+
+.inbox-notifications-item-header-actions {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: var(--vscode-spacing-size100);
+	margin-inline-start: auto;
+}
+
+.inbox-notifications-item-header-actions .monaco-text-button {
+	width: auto;
+	flex: 0 0 auto;
 }
 
 .inbox-notifications-item-badges {
@@ -295,19 +308,7 @@
 	gap: var(--vscode-spacing-size60);
 }
 
-.inbox-notifications-item-actions {
-	display: flex;
-	flex-wrap: wrap;
-	align-items: center;
-	gap: var(--vscode-spacing-size100);
-}
-
-.inbox-notifications-item-actions .monaco-text-button {
-	width: auto;
-	flex: 0 0 auto;
-}
-
-.inbox-notifications-item-actions .inbox-notifications-item-action-done {
+.inbox-notifications-item-header-actions .inbox-notifications-item-action-done {
 	min-width: 0;
 	padding: 0 var(--vscode-spacing-size80);
 }

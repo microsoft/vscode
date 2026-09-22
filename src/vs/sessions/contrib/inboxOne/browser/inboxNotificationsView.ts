@@ -207,9 +207,26 @@ export class InboxNotificationsView extends AbstractCustomView {
 		card.setAttribute('aria-label', this.getCardAriaLabel(item));
 
 		const heading = card.appendChild($('.inbox-notifications-item-header'));
+		heading.appendChild($('.inbox-notifications-item-title', undefined, item.title));
 		const kindLabel = heading.appendChild($('.inbox-notifications-item-kind-label', undefined, this.kindLabel(item.kind)));
 		kindLabel.classList.add(`priority-${item.priority}`);
-		heading.appendChild($('.inbox-notifications-item-title', undefined, item.title));
+		if (item.actions.length) {
+			const headingActions = heading.appendChild($('.inbox-notifications-item-header-actions'));
+			for (const action of item.actions) {
+				const button = this.renderedListDisposables.add(new Button(headingActions, {
+					...defaultButtonStyles,
+					secondary: !action.primary,
+					small: true,
+					supportIcons: action.kind === InboxNotificationActionKind.MarkDone,
+					ariaLabel: localize('inboxNotifications.actionAriaLabel', "{0} for {1}", action.ariaLabel ?? action.label, item.title),
+				}));
+				if (action.kind === InboxNotificationActionKind.MarkDone) {
+					button.element.classList.add('inbox-notifications-item-action-done');
+				}
+				button.label = action.label;
+				this.renderedListDisposables.add(button.onDidClick(() => void this.runAction(item, action, button.element)));
+			}
+		}
 		let badges: HTMLElement | undefined;
 		if (item.repositoryLabel) {
 			badges = card.appendChild($('.inbox-notifications-item-badges'));
@@ -244,22 +261,6 @@ export class InboxNotificationsView extends AbstractCustomView {
 		card.appendChild($('.inbox-notifications-item-description', undefined, item.description));
 		this.renderNeedsInputPart(card, item);
 		card.appendChild($('.inbox-notifications-item-time', undefined, fromNowByDay(item.timestamp, true, true)));
-
-		const actions = card.appendChild($('.inbox-notifications-item-actions'));
-		for (const action of item.actions) {
-			const button = this.renderedListDisposables.add(new Button(actions, {
-				...defaultButtonStyles,
-				secondary: !action.primary,
-				small: true,
-				supportIcons: action.kind === InboxNotificationActionKind.MarkDone,
-				ariaLabel: localize('inboxNotifications.actionAriaLabel', "{0} for {1}", action.ariaLabel ?? action.label, item.title),
-			}));
-			if (action.kind === InboxNotificationActionKind.MarkDone) {
-				button.element.classList.add('inbox-notifications-item-action-done');
-			}
-			button.label = action.label;
-			this.renderedListDisposables.add(button.onDidClick(() => void this.runAction(item, action, button.element)));
-		}
 
 		return card;
 	}
@@ -355,7 +356,10 @@ export class InboxNotificationsView extends AbstractCustomView {
 		const sendResult = await this.chatService.sendRequest(part.chatResource, prompt, options);
 		if (ChatSendResult.isSent(sendResult)) {
 			await this.completeNeedsInputNotification(item);
+			return;
 		}
+
+		this.notificationService.error(localize('inboxNotifications.confirmation.sendFailed', "Unable to submit this confirmation. Open the session and try again."));
 	}
 
 	private async submitToolConfirmationPart(
