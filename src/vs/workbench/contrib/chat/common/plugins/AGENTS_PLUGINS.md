@@ -138,8 +138,9 @@ Agent Plugins use the shared plugin discovery pipeline and permissive component 
 Manages the catalog of available and installed plugins:
 
 - **Fetch** — reads `chat.plugins.marketplaces` config (GitHub shorthand, Git URLs, or file URIs), fetches `marketplace.json` from each, and returns parsed `IMarketplacePlugin` entries.
-- **Installed storage** — persists installed plugins in application-scoped storage (`chat.plugins.installed.v1`). Each entry tracks `{ pluginUri, plugin, enabled }`.
-- **Trust** — marketplace canonical IDs must be explicitly trusted before install proceeds (`chat.plugins.trustedMarketplaces.v1`).
+- **Installed storage** — persists installed plugin URIs, marketplace references, and names in `installed.json` under the agent-plugins directory.
+- **Trust** — user marketplaces must be explicitly trusted before install proceeds. Enterprise extra marketplaces are trusted by policy unless `strictKnownMarketplaces` blocks their source.
+- **Managed installation** — reconciles managed `enabledPlugins` entries set to `true` against enterprise extra marketplaces, acquiring absent plugins and restoring removed installed entries.
 - **Auto-update** — checks eligible installed marketplaces approximately every 24 hours and reports their canonical IDs through `marketplacesWithUpdates`. Managed `extraKnownMarketplaces.<name>.autoUpdate` values override `extensions.autoUpdate` for that marketplace; undefined entries inherit the global setting. Checks and updates are restricted to enabled marketplaces and still enforce `strictKnownMarketplaces`.
 - **GitHub caching** — caches raw GitHub API responses with an 8-hour TTL to avoid repeated fetches.
 
@@ -155,7 +156,7 @@ Checked in order per repository:
 
 Orchestrates install and update workflows:
 
-- `installPlugin()` — checks marketplace trust, delegates to the appropriate source strategy to ensure files are locally available, and registers the plugin in installed storage.
+- `installPlugin()` — checks marketplace trust or managed provenance, delegates to the appropriate source strategy to ensure files are locally available, and registers the plugin in installed storage.
 - `installPluginFromSource()` — installs from a source string: GitHub shorthand (`owner/repo`), a git clone URL, or a local folder path (`file://` URI, absolute path, or `~`-prefixed path). Local folders are inspected to decide whether they are a marketplace (registered under `chat.plugins.marketplaces`) or a standalone plugin (registered under `chat.pluginLocations`).
 - `updatePlugin()` / `updateAllPlugins()` — pulls latest changes for cloned repositories and re-runs package-manager installs where applicable.
 

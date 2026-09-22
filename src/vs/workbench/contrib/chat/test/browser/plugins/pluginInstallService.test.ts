@@ -56,6 +56,7 @@ suite('PluginInstallService', () => {
 		notifications: { severity: number; message: string }[];
 		addedPlugins: { uri: string; plugin: IMarketplacePlugin }[];
 		dialogConfirmResult: boolean;
+		dialogConfirmCalls: number;
 		fileExistsResult: boolean | ((uri: URI) => Promise<boolean>);
 		ensureRepositoryResult: URI;
 		ensurePluginSourceResult: URI;
@@ -71,6 +72,8 @@ suite('PluginInstallService', () => {
 		updatePluginSourceCalls: { plugin: IMarketplacePlugin; options?: IPullRepositoryOptions }[];
 		/** Whether the marketplace is already trusted */
 		marketplaceTrusted: boolean;
+		/** Whether the marketplace was supplied by enterprise policy */
+		marketplaceManaged: boolean;
 		/** Whether the strict-marketplace enterprise policy is active */
 		strictMarketplacePolicyActive?: boolean;
 		installedPlugins: IMarketplaceInstalledPlugin[];
@@ -109,6 +112,7 @@ suite('PluginInstallService', () => {
 			notifications: [],
 			addedPlugins: [],
 			dialogConfirmResult: true,
+			dialogConfirmCalls: 0,
 			fileExistsResult: true,
 			ensureRepositoryResult: URI.file('/cache/agentPlugins/github.com/microsoft/vscode'),
 			ensurePluginSourceResult: URI.file('/cache/agentPlugins/npm/my-package'),
@@ -119,6 +123,7 @@ suite('PluginInstallService', () => {
 			pullRepositoryCalls: [],
 			updatePluginSourceCalls: [],
 			marketplaceTrusted: true,
+			marketplaceManaged: false,
 			strictMarketplacePolicyActive: false,
 			installedPlugins: [],
 			fetchedMarketplacePlugins: [],
@@ -166,7 +171,10 @@ suite('PluginInstallService', () => {
 
 		// IDialogService
 		instantiationService.stub(IDialogService, {
-			confirm: async () => ({ confirmed: state.dialogConfirmResult }),
+			confirm: async () => {
+				state.dialogConfirmCalls++;
+				return { confirmed: state.dialogConfirmResult };
+			},
 		} as unknown as IDialogService);
 
 		// ITerminalService — the mock coordinates runCommand and onCommandFinished
@@ -303,6 +311,7 @@ suite('PluginInstallService', () => {
 				state.addedPlugins.push({ uri: uri.toString(), plugin });
 			},
 			isMarketplaceTrusted: () => state.marketplaceTrusted,
+			getManagedMarketplace: (ref: IMarketplaceReference) => state.marketplaceManaged ? ref : undefined,
 			isStrictMarketplacePolicyActive: () => state.strictMarketplacePolicyActive ?? false,
 			isMarketplaceAutoUpdateEnabled: (ref: IMarketplaceReference) => state.autoUpdateByMarketplace.get(ref.canonicalId) ?? true,
 			fetchMarketplacePlugins: async (_token: CancellationToken, marketplaceIds?: ReadonlySet<string>) => {
@@ -951,6 +960,54 @@ suite('PluginInstallService', () => {
 
 			assert.strictEqual(state.trustedMarketplaces.length, 1);
 			assert.strictEqual(state.addedPlugins.length, 1);
+		});
+
+		test('installs from an enterprise-managed marketplace without a trust prompt', async () => {
+			const { service, state } = createService({
+				marketplaceTrusted: false,
+				marketplaceManaged: true,
+				dialogConfirmResult: false,
+			});
+			const plugin = createPlugin({
+				source: 'plugins/myPlugin',
+				sourceDescriptor: { kind: PluginSourceKind.RelativePath, path: 'plugins/myPlugin' },
+			});
+
+			await service.installPlugin(plugin);
+
+			assert.deepStrictEqual({
+				addedPlugins: state.addedPlugins.length,
+				dialogConfirmCalls: state.dialogConfirmCalls,
+				trustedMarketplaces: state.trustedMarketplaces,
+			}, {
+				addedPlugins: 1,
+				dialogConfirmCalls: 0,
+				trustedMarketplaces: [],
+			});
+		});
+
+		test('strict marketplace policy still blocks a managed marketplace outside its allowlist', async () => {
+			const { service, state } = createService({
+				marketplaceTrusted: false,
+				marketplaceManaged: true,
+				strictMarketplacePolicyActive: true,
+			});
+			const plugin = createPlugin({
+				source: 'plugins/myPlugin',
+				sourceDescriptor: { kind: PluginSourceKind.RelativePath, path: 'plugins/myPlugin' },
+			});
+
+			await assert.rejects(() => service.installPlugin(plugin), (error: unknown) => isCancellationError(error as Error));
+
+			assert.deepStrictEqual({
+				addedPlugins: state.addedPlugins.length,
+				dialogConfirmCalls: state.dialogConfirmCalls,
+				notificationCount: state.notifications.length,
+			}, {
+				addedPlugins: 0,
+				dialogConfirmCalls: 0,
+				notificationCount: 1,
+			});
 		});
 
 		test('does not install when user declines trust', async () => {
