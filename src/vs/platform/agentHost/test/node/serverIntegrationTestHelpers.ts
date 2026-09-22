@@ -5,7 +5,7 @@
 
 import { ChildProcess, fork } from 'child_process';
 import { cp, lstat, mkdir, readFile, readdir, realpath, rename, rm, stat, writeFile } from 'fs/promises';
-import { Promises, raceTimeout } from '../../../../base/common/async.js';
+import { DeferredPromise, Promises, raceTimeout } from '../../../../base/common/async.js';
 import { getErrorCode } from '../../../../base/common/errors.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { createRequire } from 'module';
@@ -663,6 +663,7 @@ export interface IServerHandle {
 }
 
 const SERVER_SHUTDOWN_TIMEOUT_MS = isCI || isWindows || AGENT_HOST_E2E_COVERAGE ? 30_000 : 5_000;
+const SERVER_EXIT_TIMEOUT_MS = 5_000;
 
 async function getServerDescendants(pid: number): Promise<number[]> {
 	if (!isWindows) {
@@ -674,50 +675,36 @@ async function getServerDescendants(pid: number): Promise<number[]> {
 }
 
 /** Gracefully stop an Agent Host test server, killing it if shutdown stalls. */
-export async function stopServer(server: IServerHandle | undefined, getDescendants = getServerDescendants, timeoutMs = SERVER_SHUTDOWN_TIMEOUT_MS): Promise<void> {
+export async function stopServer(server: IServerHandle | undefined, getDescendants = getServerDescendants, timeoutMs = SERVER_SHUTDOWN_TIMEOUT_MS, killProcessTree = killTree): Promise<void> {
 	const serverProcess = server?.process;
 	if (!serverProcess || serverProcess.exitCode !== null || serverProcess.signalCode !== null) {
 		return;
 	}
 
 	const deadline = Date.now() + timeoutMs;
-	const serverExit = new Promise<void>(resolve => {
-		const onExit = () => resolve();
-		serverProcess.once('exit', onExit);
-		if (serverProcess.exitCode !== null || serverProcess.signalCode !== null) {
-			serverProcess.removeListener('exit', onExit);
-			resolve();
-		}
-	});
+	const serverExit = new DeferredPromise<void>();
+	const onExit = () => serverExit.complete();
+	serverProcess.once('exit', onExit);
 	let descendants: number[] = [];
 	let snapshotError: Error | undefined;
 	try {
-		if (serverProcess.pid !== undefined) {
-			const snapshot = await raceTimeout(getDescendants(serverProcess.pid), Math.max(0, deadline - Date.now()));
-			if (snapshot === undefined) {
-				throw new Error('Timed out capturing Agent Host test server descendants');
-			}
-			descendants = snapshot;
-		}
-	} catch (error) {
-		snapshotError = new Error('Failed to capture Agent Host test server descendants', { cause: error });
-	}
-	serverProcess.stdin?.end();
-	if (!await raceTimeout(serverExit.then(() => true), Math.max(0, deadline - Date.now()))) {
 		try {
-			if (serverProcess.exitCode === null && serverProcess.signalCode === null) {
-				const pid = serverProcess.pid;
-				if (pid === undefined) {
-					throw new Error('Agent Host test server has no process id');
+			if (serverProcess.pid !== undefined) {
+				const snapshot = await raceTimeout(getDescendants(serverProcess.pid), Math.max(0, deadline - Date.now()));
+				if (snapshot === undefined) {
+					throw new Error('Timed out capturing Agent Host test server descendants');
 				}
-				await killTree(pid, true);
+				descendants = snapshot;
 			}
 		} catch (error) {
-			if (serverProcess.exitCode === null && serverProcess.signalCode === null) {
-				throw error;
-			}
+			snapshotError = new Error('Failed to capture Agent Host test server descendants', { cause: error });
 		}
-		await serverExit;
+		serverProcess.stdin?.end();
+		if (!await raceTimeout(serverExit.p.then(() => true), Math.max(0, deadline - Date.now()))) {
+			await killServer(server, killProcessTree);
+		}
+	} finally {
+		serverProcess.removeListener('exit', onExit);
 	}
 	if (snapshotError) {
 		throw snapshotError;
@@ -725,7 +712,7 @@ export async function stopServer(server: IServerHandle | undefined, getDescendan
 
 	await Promises.settled(descendants.map(async pid => {
 		try {
-			await killTree(pid, true);
+			await killProcessTree(pid, true);
 		} catch (error) {
 			try {
 				process.kill(pid, 0);
@@ -742,7 +729,7 @@ export async function stopServer(server: IServerHandle | undefined, getDescendan
 }
 
 /** Forcefully kill an Agent Host test server and its child processes without graceful shutdown. */
-export async function killServer(server: IServerHandle | undefined): Promise<void> {
+export async function killServer(server: IServerHandle | undefined, killProcessTree = killTree): Promise<void> {
 	const serverProcess = server?.process;
 	if (!serverProcess || serverProcess.exitCode !== null || serverProcess.signalCode !== null) {
 		return;
@@ -752,22 +739,22 @@ export async function killServer(server: IServerHandle | undefined): Promise<voi
 		throw new Error('Agent Host test server has no process id');
 	}
 
-	const serverExit = new Promise<void>(resolve => {
-		const onExit = () => resolve();
-		serverProcess.once('exit', onExit);
-		if (serverProcess.exitCode !== null || serverProcess.signalCode !== null) {
-			serverProcess.removeListener('exit', onExit);
-			resolve();
-		}
-	});
+	const serverExit = new DeferredPromise<void>();
+	const onExit = () => serverExit.complete();
+	serverProcess.once('exit', onExit);
 	try {
-		await killTree(pid, true);
-	} catch (error) {
-		if (serverProcess.exitCode === null && serverProcess.signalCode === null) {
-			throw error;
+		try {
+			await killProcessTree(pid, true);
+		} catch (error) {
+			// taskkill can finish before Node delivers the owned process's exit event.
+			if (!await raceTimeout(serverExit.p.then(() => true), SERVER_EXIT_TIMEOUT_MS)) {
+				throw error;
+			}
 		}
+		await serverExit.p;
+	} finally {
+		serverProcess.removeListener('exit', onExit);
 	}
-	await serverExit;
 }
 
 interface IMockLlmServerHandle {
