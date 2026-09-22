@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { timeout } from '../../../../../../base/common/async.js';
+import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { IReference } from '../../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../../base/common/map.js';
@@ -28,6 +29,9 @@ import { assertCodexSkillItems, createCodexSkillCustomizations } from './agentHo
 
 class FakeTarget implements IAgentHostCustomizationTarget {
 	readonly enablementChanges: { readonly rawId: string; readonly enablement: readonly CustomizationEnablement[] }[] = [];
+	getPluginMarketplaceSnapshot?: IAgentHostCustomizationTarget['getPluginMarketplaceSnapshot'];
+	refreshPluginMarketplaces?: IAgentHostCustomizationTarget['refreshPluginMarketplaces'];
+	installPlugin?: IAgentHostCustomizationTarget['installPlugin'];
 
 	constructor(
 		readonly customizations: readonly Customization[],
@@ -152,6 +156,56 @@ suite('AbstractAgentHostCustomizationService', () => {
 		sut.setTarget(session, new FakeTarget([]));
 
 		assert.deepStrictEqual({ missingSessionRoots, emptyRoots: sut.getClientWorkingDirectoryUris(session) }, { missingSessionRoots: [], emptyRoots: [] });
+	});
+
+	test('uses local marketplace fallback when no live target operation is available', async () => {
+		const sut = createSut();
+		const session = URI.parse('vscode-agent-session:///session-1');
+		sut.setTarget(session, new FakeTarget([]));
+
+		assert.deepStrictEqual({
+			snapshot: await sut.getPluginMarketplaceSnapshot(session, CancellationToken.None),
+			refresh: await sut.refreshPluginMarketplaces(session, CancellationToken.None),
+		}, {
+			snapshot: undefined,
+			refresh: undefined,
+		});
+	});
+
+	test('forwards live session marketplace operations', async () => {
+		const sut = createSut();
+		const session = URI.parse('vscode-agent-session:///session-1');
+		const target = new FakeTarget([]);
+		const calls: string[] = [];
+		const snapshot = {
+			plugins: [{ name: 'plugin', marketplace: 'managed', source: 'plugin@managed', installed: false }],
+			failures: [],
+		};
+		target.getPluginMarketplaceSnapshot = async () => {
+			calls.push('snapshot');
+			return snapshot;
+		};
+		target.refreshPluginMarketplaces = async () => {
+			calls.push('refresh');
+			return snapshot;
+		};
+		target.installPlugin = async source => {
+			calls.push(`install:${source}`);
+			return {};
+		};
+		sut.setTarget(session, target);
+
+		assert.deepStrictEqual({
+			snapshot: await sut.getPluginMarketplaceSnapshot(session, CancellationToken.None),
+			refresh: await sut.refreshPluginMarketplaces(session, CancellationToken.None),
+			install: await sut.installPlugin(session, 'plugin@managed'),
+			calls,
+		}, {
+			snapshot,
+			refresh: snapshot,
+			install: {},
+			calls: ['snapshot', 'refresh', 'install:plugin@managed'],
+		});
 	});
 
 	test('dispatches complete enablement decisions', () => {

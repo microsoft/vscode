@@ -18,7 +18,7 @@ import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
 import { AgentHostClientState, AgentHostProtocolClient } from '../../browser/agentHostProtocolClient.js';
-import { DevContainerConnectExtensionMethod, DevContainerIsDockerAvailableExtensionMethod, DevContainerOutputNotification, DevContainerRelayMessageNotification, DevContainerRelaySendExtensionMethod, getAgentHostExtensionInitializeResultMeta, RequestAgentHostWorkspaceTrustExtensionMethod } from '../../common/agentHostExtensionProtocol.js';
+import { DevContainerConnectExtensionMethod, DevContainerIsDockerAvailableExtensionMethod, DevContainerOutputNotification, DevContainerRelayMessageNotification, DevContainerRelaySendExtensionMethod, getAgentHostExtensionInitializeResultMeta, GetSessionPluginMarketplaceSnapshotExtensionMethod, InstallSessionPluginExtensionMethod, RefreshSessionPluginMarketplacesExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod } from '../../common/agentHostExtensionProtocol.js';
 import { agentHostAuthority, toAgentHostUri } from '../../common/agentHostUri.js';
 import { AgentHostPermissionMode, AgentHostResourceIdentity, AgentHostResourcePermissionError, IAgentHostResourceService, LOCAL_AGENT_HOST_RESOURCE_IDENTITY } from '../../common/agentHostResourceService.js';
 import { buildAnnotationsUri } from '../../common/annotationsUri.js';
@@ -1873,6 +1873,49 @@ suite('AgentHostProtocolClient', () => {
 		const error = { code: JsonRpcErrorCodes.MethodNotFound, message: 'Method not found' };
 		transport.fireMessage({ jsonrpc: '2.0', id: 1, error });
 		await assertRemoteProtocolError(resultPromise, error);
+	});
+
+	test('session plugin marketplace methods send VS Code extension requests', async () => {
+		const { client, transport } = createClient();
+		const session = URI.parse('copilotcli:/session-1');
+		const snapshot = {
+			marketplaces: [{ name: 'company', source: 'GitHub: company/plugins', managed: true }],
+			plugins: [{ name: 'review', marketplace: 'company', installed: false, source: 'review@company' }],
+			failures: [],
+		};
+
+		const snapshotPromise = client.getSessionPluginMarketplaceSnapshot(session);
+		assert.deepStrictEqual(transport.sentMessages[0], {
+			jsonrpc: '2.0',
+			id: 1,
+			method: GetSessionPluginMarketplaceSnapshotExtensionMethod,
+			params: { session: session.toString() },
+		});
+		transport.fireMessage({ jsonrpc: '2.0', id: 1, result: snapshot });
+
+		const refreshPromise = client.refreshSessionPluginMarketplaces(session, 'company');
+		assert.deepStrictEqual(transport.sentMessages[1], {
+			jsonrpc: '2.0',
+			id: 2,
+			method: RefreshSessionPluginMarketplacesExtensionMethod,
+			params: { session: session.toString(), marketplace: 'company' },
+		});
+		transport.fireMessage({ jsonrpc: '2.0', id: 2, result: snapshot });
+
+		const installPromise = client.installSessionPlugin(session, 'review@company');
+		assert.deepStrictEqual(transport.sentMessages[2], {
+			jsonrpc: '2.0',
+			id: 3,
+			method: InstallSessionPluginExtensionMethod,
+			params: { session: session.toString(), source: 'review@company' },
+		});
+		transport.fireMessage({ jsonrpc: '2.0', id: 3, result: { postInstallMessage: 'Configure the review plugin.' } });
+
+		assert.deepStrictEqual(await Promise.all([snapshotPromise, refreshPromise, installPromise]), [
+			snapshot,
+			snapshot,
+			{ postInstallMessage: 'Configure the review plugin.' },
+		]);
 	});
 
 	test('getSessionStateFile maps the returned host resource', async () => {

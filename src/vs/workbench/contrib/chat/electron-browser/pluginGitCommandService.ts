@@ -163,7 +163,7 @@ export class NativePluginGitCommandService implements IPluginGitService {
 		if (candidate?.code !== undefined && candidate.code !== 128 && candidate.code !== '128') {
 			return false;
 		}
-		const details = `${candidate.stderr ?? ''}\n${candidate.message ?? ''}`;
+		const details = `${candidate?.stderr ?? ''}\n${candidate?.message ?? ''}`;
 		return /authentication failed|invalid username or token|(?:could not read|unable to get) (?:username|password)|terminal prompts disabled/i.test(details);
 	}
 

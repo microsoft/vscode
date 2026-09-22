@@ -17,9 +17,9 @@ import { localize } from '../../../nls.js';
 import { ILogService } from '../../log/common/log.js';
 import { FileSystemProviderErrorCode, toFileSystemProviderErrorCode } from '../../files/common/files.js';
 import { ConfigurationTarget, ConfigurationTargetToString, IConfigurationService } from '../../configuration/common/configuration.js';
-import { AgentSession, IAgentCreateChatRequestOptions, IAgentCreateSessionConfig, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult, IMcpNotification } from '../common/agent.js';
+import { AgentSession, IAgentCreateChatRequestOptions, IAgentCreateSessionConfig, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult, IMcpNotification, type IAgentPluginInstallResult, type IAgentPluginMarketplaceSnapshot } from '../common/agent.js';
 import { AGENT_HOST_DEBUG_LOGS_CHUNK_BYTES, AGENT_HOST_DEBUG_LOGS_MAX_ENTRIES, IAgentConnection, IAgentHostManagedSettingsDiagnostics, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult, type AgentHostDebugLogsArtifactKind, type IAgentHostDebugLogsArtifact, type IAgentHostDebugLogsChunk } from '../common/agentService.js';
-import { ClaimAgentHostDetachedWorktreeExtensionMethod, CollectAgentHostDebugLogsExtensionMethod, CreateAgentHostDetachedWorktreeExtensionMethod, DeleteAgentHostDetachedWorktreeExtensionMethod, GetAgentHostSessionStateFileExtensionMethod, ReadAgentHostDebugLogsChunkExtensionMethod, ReconcileAgentHostDetachedWorktreesExtensionMethod, RemoveSessionArtifactExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, SetAgentHostDetachedWorktreeArchivedExtensionMethod, supportsAgentHostChatStateFile, supportsAgentHostDevContainers, type IAgentHostExtensionCommandMap, type IAgentHostExtensionInitializeResult, type IAgentHostExtensionServerCommandMap } from '../common/agentHostExtensionProtocol.js';
+import { ClaimAgentHostDetachedWorktreeExtensionMethod, CollectAgentHostDebugLogsExtensionMethod, CreateAgentHostDetachedWorktreeExtensionMethod, DeleteAgentHostDetachedWorktreeExtensionMethod, GetAgentHostSessionStateFileExtensionMethod, GetSessionPluginMarketplaceSnapshotExtensionMethod, InstallSessionPluginExtensionMethod, ReadAgentHostDebugLogsChunkExtensionMethod, ReconcileAgentHostDetachedWorktreesExtensionMethod, RefreshSessionPluginMarketplacesExtensionMethod, RemoveSessionArtifactExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, SetAgentHostDetachedWorktreeArchivedExtensionMethod, supportsAgentHostChatStateFile, supportsAgentHostDevContainers, type IAgentHostExtensionCommandMap, type IAgentHostExtensionInitializeResult, type IAgentHostExtensionServerCommandMap } from '../common/agentHostExtensionProtocol.js';
 import { AMBIENT_AGENT_HOST_AUTHORITY } from '../common/agentHostConnectionsService.js';
 import { createRemoteWatchHandle, type IRemoteWatchHandle } from '../common/agentHostFileSystemProvider.js';
 import { AgentSubscriptionManager, type IActiveSubscriptionInfo, type IAgentSubscription } from '../common/state/agentSubscription.js';
@@ -1393,6 +1393,21 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 
 	async removeSessionArtifact(session: URI, artifactId: string): Promise<void> {
 		await this._sendExtensionRequest(RemoveSessionArtifactExtensionMethod, { session: session.toString(), artifactId });
+	}
+
+	getSessionPluginMarketplaceSnapshot(session: URI): Promise<IAgentPluginMarketplaceSnapshot> {
+		return this._sendExtensionRequest(GetSessionPluginMarketplaceSnapshotExtensionMethod, { session: session.toString() });
+	}
+
+	refreshSessionPluginMarketplaces(session: URI, marketplace?: string): Promise<IAgentPluginMarketplaceSnapshot> {
+		return this._sendExtensionRequest(RefreshSessionPluginMarketplacesExtensionMethod, {
+			session: session.toString(),
+			...(marketplace !== undefined ? { marketplace } : {}),
+		});
+	}
+
+	installSessionPlugin(session: URI, source: string): Promise<IAgentPluginInstallResult> {
+		return this._sendExtensionRequest(InstallSessionPluginExtensionMethod, { session: session.toString(), source });
 	}
 
 	async createDetachedWorktree(session: URI, prompt: string): Promise<{ handle: string; worktree: URI }> {

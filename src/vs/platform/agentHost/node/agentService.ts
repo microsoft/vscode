@@ -20,7 +20,7 @@ import { localize } from '../../../nls.js';
 import { FileChangeType, FileOperationResult, IFileChange, IFileService, toFileOperationResult, type FileChangesEvent } from '../../files/common/files.js';
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
 import { ILogService } from '../../log/common/log.js';
-import { AgentChatMigrationDeferred, AgentProvider, AgentSession, AgentSignal, IAgent, type IAgentAdoptedWorktree, IAgentChatContext, IAgentChatDataChange, IAgentChatMetadata, IAgentCreateChatOptions, IAgentCreateChatRequestOptions, IAgentCreateChatResult, IAgentCreateChatSideChatSelection, IAgentCreateChatSideChatSource, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentDiscoveredChat, IAgentLegacyChat, IAgentMaterializeChatEvent, IAgentModelInfo, IAgentResolveSessionConfigParams, IAgentChatAdoptionResult, type AgentChatAdoptionReason, IAgentSessionConfigCompletionsParams, type IAgentSessionChatMetadata, IAgentSessionMetadata, IAgentSpawnChatEvent, AuthenticateParams, AuthenticateResult, SubagentChatSignal, subagentChatTitle } from '../common/agent.js';
+import { AgentChatMigrationDeferred, AgentProvider, AgentSession, AgentSignal, IAgent, type IAgentAdoptedWorktree, IAgentChatContext, IAgentChatDataChange, IAgentChatMetadata, IAgentCreateChatOptions, IAgentCreateChatRequestOptions, IAgentCreateChatResult, IAgentCreateChatSideChatSelection, IAgentCreateChatSideChatSource, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentDiscoveredChat, IAgentLegacyChat, IAgentMaterializeChatEvent, IAgentModelInfo, type IAgentPluginInstallResult, type IAgentPluginMarketplaces, type IAgentPluginMarketplaceSnapshot, IAgentResolveSessionConfigParams, IAgentChatAdoptionResult, type AgentChatAdoptionReason, IAgentSessionConfigCompletionsParams, type IAgentSessionChatMetadata, IAgentSessionMetadata, IAgentSpawnChatEvent, AuthenticateParams, AuthenticateResult, SubagentChatSignal, subagentChatTitle } from '../common/agent.js';
 import { type AgentHostDebugLogsArtifactKind, type IAgentHostDebugLogsArtifact, type IAgentHostDebugLogsChunk, IAgentHostManagedSettingsDiagnostics, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult, IAgentService } from '../common/agentService.js';
 import { ISessionDatabase, ISessionDataService, ISessionStorageAccessCounts, SESSION_ATTACHMENTS_DIRNAME } from '../common/sessionDataService.js';
 import { IAgentEditAttributionService, ICancelEditAttributionFlushParams, ICommitEditAttributionFlushParams, IEditAttributionFlushResult, IPrepareEditAttributionFlushParams, IPreparedEditAttributionFlush, parseEditAttributionResource } from '../common/fileEditAttribution.js';
@@ -34,7 +34,7 @@ import type { CompletionsParams, CompletionsResult, CreateTerminalParams, Resolv
 import type { AutomationCapabilities } from '../common/state/protocol/common/commands.js';
 import type { FetchAutomationRunsParams, FetchAutomationRunsResult, ListAutomationTriggerDefinitionsParams, ListAutomationTriggerDefinitionsResult, RunAutomationParams, RunAutomationResult } from '../common/state/protocol/channels-automation/commands.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../common/state/protocol/channels-changeset/commands.js';
-import { AhpErrorCodes, AHP_SESSION_NOT_FOUND, ContentEncoding, JSON_RPC_INTERNAL_ERROR, ProtocolError, ResourceChangeType, ResourceType, ResourceWriteMode, type CreateResourceWatchParams, type CreateResourceWatchResult, type DirectoryEntry, type ResourceCopyParams, type ResourceCopyResult, type ResourceDeleteParams, type ResourceDeleteResult, type ResourceListResult, type ResourceMkdirParams, type ResourceMkdirResult, type ResourceMoveParams, type ResourceMoveResult, type ResourceReadResult, type ResourceResolveParams, type ResourceResolveResult, type ResourceWatchState, type ResourceWriteParams, type ResourceWriteResult, type IStateSnapshot } from '../common/state/sessionProtocol.js';
+import { AhpErrorCodes, AHP_PROVIDER_NOT_FOUND, AHP_SESSION_NOT_FOUND, ContentEncoding, JSON_RPC_INTERNAL_ERROR, JsonRpcErrorCodes, ProtocolError, ResourceChangeType, ResourceType, ResourceWriteMode, type CreateResourceWatchParams, type CreateResourceWatchResult, type DirectoryEntry, type ResourceCopyParams, type ResourceCopyResult, type ResourceDeleteParams, type ResourceDeleteResult, type ResourceListResult, type ResourceMkdirParams, type ResourceMkdirResult, type ResourceMoveParams, type ResourceMoveResult, type ResourceReadResult, type ResourceResolveParams, type ResourceResolveResult, type ResourceWatchState, type ResourceWriteParams, type ResourceWriteResult, type IStateSnapshot } from '../common/state/sessionProtocol.js';
 import { ChangesSummary, ChatInteractivity, ChatOriginKind, MessageAttachmentKind, type Annotation, type AnnotationEntry, type AnnotationOrigin, type AnnotationsState, type ChatOrigin, type Customization, type Message, type MessageAttachment, type MessageResourceAttachment, type TextRange } from '../common/state/protocol/state.js';
 import type { ChatPendingMessageSetAction, ChatTurnStartedAction, SessionConfigChangedAction } from '../common/state/protocol/actions.js';
 import { isAhpAutomationCatalogChannel, isAhpAutomationRunChannel, ISessionGitHubState, ISessionGitState, MessageKind, ResponsePartKind, SESSION_META_GITHUB_KEY, SESSION_META_GIT_KEY, SESSION_META_MULTI_ROOT_KEY, SESSION_META_SOURCE_CONTROL_KEY, AH_META_AUTO_ARCHIVED_AT_DB_KEY, AH_META_CREATED_BY_SESSION_DB_KEY, readSessionCreationReference, readSessionSpawnDepth, withSessionSpawnDepth, withSessionCreationReference, parseSessionCreationReference, SessionLifecycle, SessionStatus, ToolCallStatus, ToolResultContentType, TurnState, AH_META_HAS_WORKSPACE_TRANSITIONS_DB_KEY, AH_META_WORKSPACE_CONVERSION_QUARANTINED_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, AH_META_EHCLI_ADOPTED_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_DONE_DB_KEY, AH_META_IS_READ_DB_KEY, buildChatUri, buildDefaultChatUri, buildResourceWatchChannelUri, buildSubagentChatUri, buildSubagentSessionUriPrefix, chatStorageUri, getErrorResponsePart, getSessionRelatedPullRequestUrls, isAhpChatChannel, isChatReadOnly, isDefaultChatUri, isSessionStatusArchived, isSubagentChatUri, isSubagentSession, needsSessionGitStateRefresh, parseChatUri, parseDefaultChatUri, parseRequiredSessionUriFromChatUri, parseResourceWatchChannelUri, parseSessionMultiRootMetadata, parseSubagentSessionUri, readSessionExternal, readSessionGitHubState, readSessionGitState, readSessionMultiRootMetadata, readSessionSourceControlState, readSessionWorkspaceless, withMessageRequestHiddenFromTranscript, withSessionExternal, withSessionGitHubState, withSessionGitState, withSessionHasWorkspaceTransitions, withSessionMultiRootMetadata, withSessionSourceControlState, withSessionStatusFlag, withSessionWorkspaceless, withSessionEhcliAdopted, withSessionEhcliLastMigratedTurn, AH_META_EHCLI_LAST_TURN_DB_KEY, withSessionFolderPickerDecision, readSessionFolderPickerDecision, parseSessionFolderPickerDecision, SESSION_META_FOLDER_PICKER_KEY, readSessionEhcliAdoptable, type ISessionSourceControlState, type SessionConfigState, type SessionSummary, type ToolResultSubagentContent, type Turn } from '../common/state/sessionState.js';
@@ -1372,6 +1372,34 @@ export class AgentService extends Disposable implements IAgentService {
 	async removeSessionArtifact(session: URI, artifactId: string): Promise<void> {
 		await this.restoreSession(session);
 		await new SessionArtifacts(this._stateManager, session.toString(), this._createArtifactServerToolAccessor().persist).remove(artifactId);
+	}
+
+	async getSessionPluginMarketplaceSnapshot(session: URI): Promise<IAgentPluginMarketplaceSnapshot> {
+		const { pluginMarketplaces, chat, context } = await this._resolveSessionPluginMarketplaces(session);
+		return pluginMarketplaces.getSnapshot(chat, context);
+	}
+
+	async refreshSessionPluginMarketplaces(session: URI, marketplace?: string): Promise<IAgentPluginMarketplaceSnapshot> {
+		const { pluginMarketplaces, chat, context } = await this._resolveSessionPluginMarketplaces(session);
+		return pluginMarketplaces.refresh(chat, context, marketplace);
+	}
+
+	async installSessionPlugin(session: URI, source: string): Promise<IAgentPluginInstallResult> {
+		const { pluginMarketplaces, chat, context } = await this._resolveSessionPluginMarketplaces(session);
+		return pluginMarketplaces.install(chat, context, source);
+	}
+
+	private async _resolveSessionPluginMarketplaces(session: URI): Promise<{ pluginMarketplaces: IAgentPluginMarketplaces; chat: URI; context: IAgentChatContext }> {
+		await this.restoreSession(session);
+		const provider = this._providerService.getProviderForSession(session);
+		if (!provider) {
+			throw new ProtocolError(AHP_PROVIDER_NOT_FOUND, `Provider not found for session: ${session.toString()}`);
+		}
+		if (!provider.pluginMarketplaces) {
+			throw new ProtocolError(JsonRpcErrorCodes.MethodNotFound, `Provider '${provider.id}' does not support live-session plugin marketplaces`);
+		}
+		const chat = URI.parse(buildDefaultChatUri(session));
+		return { pluginMarketplaces: provider.pluginMarketplaces, chat, context: this._chatContext(session, chat) };
 	}
 
 	private _isArtifactToolsEnabled(): boolean {

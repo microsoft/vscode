@@ -96,6 +96,36 @@ export interface ICustomizationMcpServerMigrationProvider {
 	migrate(sessionResource: URI, candidates: readonly IMcpServerCustomizationMigrationCandidate[]): Promise<IMcpServerCustomizationMigrationResult>;
 }
 
+export interface ICustomizationPluginMarketplaceItem {
+	readonly name: string;
+	readonly description?: string;
+	readonly marketplace: string;
+	readonly source: string;
+	readonly installed: boolean;
+}
+
+export interface ICustomizationPluginMarketplaceFailure {
+	readonly marketplace: string;
+	readonly error: string;
+}
+
+export interface ICustomizationPluginMarketplaceSnapshot {
+	readonly plugins: readonly ICustomizationPluginMarketplaceItem[];
+	readonly failures: readonly ICustomizationPluginMarketplaceFailure[];
+}
+
+export interface ICustomizationPluginInstallResult {
+	readonly postInstallMessage?: string;
+	readonly deprecationWarning?: string;
+}
+
+export interface ICustomizationPluginMarketplaceProvider {
+	readonly onDidChange: Event<void>;
+	getSnapshot(sessionResource: URI, token: CancellationToken): Promise<ICustomizationPluginMarketplaceSnapshot | undefined>;
+	refresh(sessionResource: URI, token: CancellationToken): Promise<ICustomizationPluginMarketplaceSnapshot | undefined>;
+	install(sessionResource: URI, source: string): Promise<ICustomizationPluginInstallResult>;
+}
+
 /**
  * Describes a single harness option for the UI toggle.
  */
@@ -159,6 +189,11 @@ export interface IHarnessDescriptor {
 	 * a remote agent host). The create action remains a separate toolbar button.
 	 */
 	readonly pluginActions?: readonly ICustomizationItemAction[];
+	/**
+	 * Session-scoped plugin marketplace operations. Returning `undefined` from
+	 * `getSnapshot` or `refresh` keeps the ordinary local marketplace path.
+	 */
+	readonly pluginMarketplaceProvider?: ICustomizationPluginMarketplaceProvider;
 	/**
 	 * Local MCP collection identifiers that do not apply to this harness.
 	 * Host-published MCP servers remain visible even when their local counterpart

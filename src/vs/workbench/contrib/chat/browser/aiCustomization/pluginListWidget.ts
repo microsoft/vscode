@@ -21,7 +21,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { InputBox, MessageType } from '../../../../../base/browser/ui/inputbox/inputBox.js';
 import { IContextMenuService, IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
-import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Delayer } from '../../../../../base/common/async.js';
 import { Action, IAction, Separator } from '../../../../../base/common/actions.js';
 import { basename, dirname, isEqual } from '../../../../../base/common/resources.js';
@@ -32,11 +32,11 @@ import { ContributionEnablementState, IEnablementModel, isContributionEnabled } 
 import { getInstalledPluginContextMenuActions, getPluginPolicyEnablement } from '../agentPluginActions.js';
 import { IMarketplacePlugin, IPluginMarketplaceService } from '../../common/plugins/pluginMarketplaceService.js';
 import { IPluginInstallService } from '../../common/plugins/pluginInstallService.js';
-import { AgentPluginItemKind, IAgentPluginItem, IInstalledPluginItem, IMarketplacePluginItem } from '../agentPluginEditor/agentPluginItems.js';
+import { AgentPluginItemKind, IAgentPluginItem, IInstalledPluginItem, IMarketplacePluginItem as ILocalMarketplacePluginItem } from '../agentPluginEditor/agentPluginItems.js';
 import { formatDisplayName, truncateToFirstLine } from './aiCustomizationListWidget.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { CustomizationGroupHeaderRenderer, ICustomizationGroupHeaderEntry, CUSTOMIZATION_GROUP_HEADER_HEIGHT, CUSTOMIZATION_GROUP_HEADER_HEIGHT_WITH_SEPARATOR } from './customizationGroupHeaderRenderer.js';
-import { getCustomizationDisabledLabel, ICustomizationHarnessService, isPluginCustomizationItem, type ICustomizationItem, type ICustomizationItemAction } from '../../common/customizationHarnessService.js';
+import { getCustomizationDisabledLabel, ICustomizationHarnessService, isPluginCustomizationItem, type ICustomizationItem, type ICustomizationItemAction, type ICustomizationPluginMarketplaceItem } from '../../common/customizationHarnessService.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ChatConfiguration } from '../../common/constants.js';
 import { IAICustomizationItemsModel } from './aiCustomizationItemsModel.js';
@@ -57,6 +57,22 @@ const PLUGIN_ITEM_HEIGHT = 66;
 const PLUGIN_MARKETPLACE_ITEM_HEIGHT = 68;
 
 type PluginMarketplaceSnapshotState = 'uninitialized' | 'loading' | 'loaded' | 'failed';
+
+interface ISessionMarketplacePluginItem {
+	readonly kind: AgentPluginItemKind.Marketplace;
+	readonly sessionResource: URI;
+	readonly name: string;
+	readonly description: string;
+	readonly marketplace: string;
+	readonly source: string;
+	readonly installed: boolean;
+}
+
+type IMarketplacePluginItem = ILocalMarketplacePluginItem | ISessionMarketplacePluginItem;
+
+function isSessionMarketplacePluginItem(item: IMarketplacePluginItem): item is ISessionMarketplacePluginItem {
+	return 'sessionResource' in item;
+}
 
 export class PluginMarketplaceSnapshotModel {
 
@@ -468,10 +484,10 @@ class PluginMarketplaceItemRenderer implements IListRenderer<IPluginMarketplaceI
 	private _focusedIndex = -1;
 
 	constructor(
-		private readonly pluginInstallService: IPluginInstallService,
-		private readonly agentPluginService: IAgentPluginService,
 		private readonly pluginMarketplaceService: IPluginMarketplaceService,
 		private readonly notificationService: INotificationService,
+		private readonly isInstalled: (item: IMarketplacePluginItem) => boolean,
+		private readonly install: (item: IMarketplacePluginItem) => Promise<void>,
 		private readonly showRecommendedBadge = true,
 	) { }
 
@@ -510,19 +526,7 @@ class PluginMarketplaceItemRenderer implements IListRenderer<IPluginMarketplaceI
 		templateData.metadata.textContent = '';
 		templateData.metadata.style.display = 'none';
 
-		const installUri = this.pluginInstallService.getPluginInstallUri({
-			name: element.item.name,
-			description: element.item.description,
-			version: element.item.version ?? '',
-			sourceDescriptor: element.item.sourceDescriptor,
-			source: element.item.source,
-			marketplace: element.item.marketplace,
-			marketplaceReference: element.item.marketplaceReference,
-			marketplaceType: element.item.marketplaceType,
-		});
-		const isAlreadyInstalled = this.agentPluginService.plugins.get().some(p => isEqual(p.uri, installUri));
-
-		if (isAlreadyInstalled) {
+		if (this.isInstalled(element.item)) {
 			templateData.installButton.label = localize('installed', "Installed");
 			templateData.installButton.enabled = false;
 			this.updateInstallButtonTabbability(templateData);
@@ -538,17 +542,7 @@ class PluginMarketplaceItemRenderer implements IListRenderer<IPluginMarketplaceI
 			templateData.installButton.label = localize('installing', "Installing...");
 			templateData.installButton.enabled = false;
 			try {
-				await this.pluginInstallService.installPlugin({
-					name: element.item.name,
-					description: element.item.description,
-					version: element.item.version ?? '',
-					sourceDescriptor: element.item.sourceDescriptor,
-					source: element.item.source,
-					marketplace: element.item.marketplace,
-					marketplaceReference: element.item.marketplaceReference,
-					marketplaceType: element.item.marketplaceType,
-					readmeUri: element.item.readmeUri,
-				});
+				await this.install(element.item);
 				templateData.installButton.label = localize('installed', "Installed");
 				this.updateInstallButtonTabbability(templateData);
 			} catch (error) {
@@ -596,7 +590,7 @@ function installedPluginToItem(plugin: IAgentPlugin, labelService: ILabelService
 	return { kind: AgentPluginItemKind.Installed, name, description, marketplace, plugin };
 }
 
-function marketplacePluginToItem(plugin: IMarketplacePlugin): IMarketplacePluginItem {
+function marketplacePluginToItem(plugin: IMarketplacePlugin): ILocalMarketplacePluginItem {
 	return {
 		kind: AgentPluginItemKind.Marketplace,
 		name: plugin.name,
@@ -608,6 +602,18 @@ function marketplacePluginToItem(plugin: IMarketplacePlugin): IMarketplacePlugin
 		marketplaceReference: plugin.marketplaceReference,
 		marketplaceType: plugin.marketplaceType,
 		readmeUri: plugin.readmeUri,
+	};
+}
+
+function sessionMarketplacePluginToItem(sessionResource: URI, plugin: ICustomizationPluginMarketplaceItem): ISessionMarketplacePluginItem {
+	return {
+		kind: AgentPluginItemKind.Marketplace,
+		sessionResource,
+		name: plugin.name,
+		description: plugin.description ?? '',
+		marketplace: plugin.marketplace,
+		source: plugin.source,
+		installed: plugin.installed,
 	};
 }
 
@@ -983,7 +989,12 @@ export class PluginListWidget extends Disposable {
 		const searchHeaderRenderer = new PluginSearchHeaderRenderer();
 		const installedRenderer = new PluginInstalledItemRenderer(this.harnessService, (item, container, actions, disposables) => this.renderInstalledListActions(item, container, actions, disposables));
 		const remoteRenderer = new PluginRemoteItemRenderer((item, actions, disposables) => this.renderRemoteListActions(item, actions, disposables));
-		const marketplaceRenderer = new PluginMarketplaceItemRenderer(this.pluginInstallService, this.agentPluginService, this.pluginMarketplaceService, this.notificationService);
+		const marketplaceRenderer = new PluginMarketplaceItemRenderer(
+			this.pluginMarketplaceService,
+			this.notificationService,
+			item => this.isMarketplacePluginInstalled(item),
+			item => this.installMarketplacePluginItem(item),
+		);
 
 		this.list = this._register(this.instantiationService.createInstance(
 			WorkbenchList<IPluginListEntry>,
@@ -1047,7 +1058,9 @@ export class PluginListWidget extends Disposable {
 							return element.id;
 						}
 						if (element.type === 'marketplace-item') {
-							return `marketplace-${element.item.marketplaceReference.canonicalId}/${element.item.source}`;
+							return isSessionMarketplacePluginItem(element.item)
+								? `session-marketplace-${element.item.sessionResource.toString()}/${element.item.source}`
+								: `marketplace-${element.item.marketplaceReference.canonicalId}/${element.item.source}`;
 						}
 						if (element.type === 'remote-item') {
 							return element.item.itemKey ?? `remote-${element.item.groupKey ?? 'default'}-${element.item.uri.toString()}`;
@@ -1069,7 +1082,7 @@ export class PluginListWidget extends Disposable {
 				} else if (e.element.type === 'remote-item') {
 					// Keep row activation inert for remote-configured plugins. Management
 					// actions are surfaced via the context menu and toolbar.
-				} else if (e.element.type === 'marketplace-item') {
+				} else if (e.element.type === 'marketplace-item' && !isSessionMarketplacePluginItem(e.element.item)) {
 					this._onDidSelectPlugin.fire(e.element.item);
 				}
 			}
@@ -1107,6 +1120,10 @@ export class PluginListWidget extends Disposable {
 		// Re-render when the active harness changes (sync checkboxes may appear/disappear)
 		this._register(autorun(reader => {
 			this.harnessService.activeHarness.read(reader);
+			this.harnessService.activeSessionResource.read(reader);
+			this.marketplaceItems = [];
+			this.marketplaceSnapshotCts?.dispose(true);
+			this.marketplaceSnapshot.reset();
 			this.updateToolbarActions();
 			if (!this.browseMode) {
 				void this.refresh();
@@ -1115,6 +1132,7 @@ export class PluginListWidget extends Disposable {
 
 		// Re-render when the active harness's remote item provider reports changes
 		const itemProviderChangeDisposable = this._register(new MutableDisposable());
+		const marketplaceProviderChangeDisposable = this._register(new MutableDisposable());
 		this._register(autorun(reader => {
 			this.harnessService.activeHarness.read(reader);
 			const itemProvider = this.harnessService.getActiveDescriptor().itemProvider;
@@ -1126,6 +1144,17 @@ export class PluginListWidget extends Disposable {
 				});
 			} else {
 				itemProviderChangeDisposable.clear();
+			}
+			const marketplaceProvider = this.harnessService.getActiveDescriptor().pluginMarketplaceProvider;
+			if (marketplaceProvider) {
+				marketplaceProviderChangeDisposable.value = marketplaceProvider.onDidChange(() => {
+					this.marketplaceItems = [];
+					this.marketplaceSnapshotCts?.dispose(true);
+					this.marketplaceSnapshot.reset();
+					void this.refresh();
+				});
+			} else {
+				marketplaceProviderChangeDisposable.clear();
 			}
 		}));
 
@@ -1237,7 +1266,7 @@ export class PluginListWidget extends Disposable {
 	}
 
 	private isBrowseMarketplaceAvailable(): boolean {
-		return this.marketplaceBrowsingAvailable;
+		return this.marketplaceBrowsingAvailable || this.harnessService.getActiveDescriptor().pluginMarketplaceProvider !== undefined;
 	}
 
 	private buildAddActions(): readonly ICustomizationItemAction[] {
@@ -1378,7 +1407,13 @@ export class PluginListWidget extends Disposable {
 		container.removeAttribute('aria-label');
 		const installedRenderer = new PluginInstalledItemRenderer(this.harnessService, (item, row, actions, disposables) => this.renderInstalledListActions(item, row, actions, disposables), false);
 		const remoteRenderer = new PluginRemoteItemRenderer((item, actions, disposables) => this.renderRemoteListActions(item, actions, disposables));
-		const marketplaceRenderer = new PluginMarketplaceItemRenderer(this.pluginInstallService, this.agentPluginService, this.pluginMarketplaceService, this.notificationService, showRecommendedBadge);
+		const marketplaceRenderer = new PluginMarketplaceItemRenderer(
+			this.pluginMarketplaceService,
+			this.notificationService,
+			item => this.isMarketplacePluginInstalled(item),
+			item => this.installMarketplacePluginItem(item),
+			showRecommendedBadge,
+		);
 		const list = this.cardDisposables.add(this.instantiationService.createInstance(
 			WorkbenchList<IPluginListEntry>,
 			`PluginManagementList.${label}`,
@@ -1403,7 +1438,9 @@ export class PluginListWidget extends Disposable {
 		list.scrollTop = this.sectionScrollPositions.get(key) ?? 0;
 		this.cardDisposables.add(list.onDidOpen(event => {
 			const entry = event.element;
-			if (entry?.type === 'plugin-item' || entry?.type === 'marketplace-item') {
+			if (entry?.type === 'plugin-item') {
+				this._onDidSelectPlugin.fire(entry.item);
+			} else if (entry?.type === 'marketplace-item' && !isSessionMarketplacePluginItem(entry.item)) {
 				this._onDidSelectPlugin.fire(entry.item);
 			}
 		}));
@@ -1459,7 +1496,9 @@ export class PluginListWidget extends Disposable {
 			return element.id;
 		}
 		if (element.type === 'marketplace-item') {
-			return `marketplace-${element.item.marketplaceReference.canonicalId}/${element.item.source}`;
+			return isSessionMarketplacePluginItem(element.item)
+				? `session-marketplace-${element.item.sessionResource.toString()}/${element.item.source}`
+				: `marketplace-${element.item.marketplaceReference.canonicalId}/${element.item.source}`;
 		}
 		if (element.type === 'remote-item') {
 			return element.item.itemKey ?? `remote-${element.item.groupKey ?? 'default'}-${element.item.uri.toString()}`;
@@ -1815,7 +1854,11 @@ export class PluginListWidget extends Disposable {
 
 	protected appendMarketplacePluginRow(parent: HTMLElement, item: IMarketplacePluginItem): void {
 		const row = DOM.append(parent, $('.plugin-list-item.plugin-home-row.plugin-marketplace-home-row'));
-		const primaryAction = this.addSurfaceActivation(row, localize('marketplacePluginRowAriaLabel', "{0}. Available to install from {1}.", item.name, item.marketplace), () => this._onDidSelectPlugin.fire(item));
+		const primaryAction = this.addSurfaceActivation(row, localize('marketplacePluginRowAriaLabel', "{0}. Available to install from {1}.", item.name, item.marketplace), () => {
+			if (!isSessionMarketplacePluginItem(item)) {
+				this._onDidSelectPlugin.fire(item);
+			}
+		});
 
 		const details = DOM.append(primaryAction, $('.plugin-list-item-details'));
 		const nameRow = DOM.append(details, $('.plugin-list-item-name-row'));
@@ -1886,37 +1929,14 @@ export class PluginListWidget extends Disposable {
 	}
 
 	private getUninstalledMarketplaceItems(items: readonly IMarketplacePluginItem[] = this.marketplaceItems): IMarketplacePluginItem[] {
-		const installedUris = new Set(this.agentPluginService.plugins.get().map(p => p.uri.toString()));
-		return items.filter(item => {
-			const expectedUri = this.pluginInstallService.getPluginInstallUri({
-				name: item.name,
-				description: item.description,
-				version: item.version ?? '',
-				source: item.source,
-				sourceDescriptor: item.sourceDescriptor,
-				marketplace: item.marketplace,
-				marketplaceReference: item.marketplaceReference,
-				marketplaceType: item.marketplaceType,
-			});
-			return !installedUris.has(expectedUri.toString());
-		});
+		return items.filter(item => !this.isMarketplacePluginInstalled(item));
 	}
 
 	private async installMarketplacePlugin(item: IMarketplacePluginItem, button: Button): Promise<void> {
 		button.label = localize('installing', "Installing...");
 		button.enabled = false;
 		try {
-			await this.pluginInstallService.installPlugin({
-				name: item.name,
-				description: item.description,
-				version: item.version ?? '',
-				sourceDescriptor: item.sourceDescriptor,
-				source: item.source,
-				marketplace: item.marketplace,
-				marketplaceReference: item.marketplaceReference,
-				marketplaceType: item.marketplaceType,
-				readmeUri: item.readmeUri,
-			});
+			await this.installMarketplacePluginItem(item);
 			button.label = localize('installed', "Installed");
 			void this.refresh();
 		} catch (error) {
@@ -1926,6 +1946,61 @@ export class PluginListWidget extends Disposable {
 		}
 	}
 
+	private async fetchMarketplacePlugins(token: CancellationToken): Promise<readonly IMarketplacePluginItem[]> {
+		const provider = this.harnessService.getActiveDescriptor().pluginMarketplaceProvider;
+		if (provider) {
+			const sessionResource = this.harnessService.activeSessionResource.get();
+			const snapshot = await provider.getSnapshot(sessionResource, token);
+			if (snapshot) {
+				return snapshot.plugins.map(plugin => sessionMarketplacePluginToItem(sessionResource, plugin));
+			}
+		}
+		return (await this.pluginMarketplaceService.fetchMarketplacePlugins(token)).map(marketplacePluginToItem);
+	}
+
+	private isMarketplacePluginInstalled(item: IMarketplacePluginItem): boolean {
+		if (isSessionMarketplacePluginItem(item)) {
+			return item.installed;
+		}
+		const installUri = this.pluginInstallService.getPluginInstallUri({
+			name: item.name,
+			description: item.description,
+			version: item.version ?? '',
+			source: item.source,
+			sourceDescriptor: item.sourceDescriptor,
+			marketplace: item.marketplace,
+			marketplaceReference: item.marketplaceReference,
+			marketplaceType: item.marketplaceType,
+		});
+		return this.agentPluginService.plugins.get().some(plugin => isEqual(plugin.uri, installUri));
+	}
+
+	private async installMarketplacePluginItem(item: IMarketplacePluginItem): Promise<void> {
+		if (isSessionMarketplacePluginItem(item)) {
+			const provider = this.harnessService.getActiveDescriptor().pluginMarketplaceProvider;
+			if (!provider || !isEqual(this.harnessService.activeSessionResource.get(), item.sessionResource)) {
+				throw new Error(localize('pluginSessionMarketplaceUnavailable', "The active agent session changed. Refresh the plugin marketplace and try again."));
+			}
+			const result = await provider.install(item.sessionResource, item.source);
+			const message = result.postInstallMessage ?? result.deprecationWarning;
+			if (message) {
+				this.notificationService.info(message);
+			}
+			return;
+		}
+		await this.pluginInstallService.installPlugin({
+			name: item.name,
+			description: item.description,
+			version: item.version ?? '',
+			sourceDescriptor: item.sourceDescriptor,
+			source: item.source,
+			marketplace: item.marketplace,
+			marketplaceReference: item.marketplaceReference,
+			marketplaceType: item.marketplaceType,
+			readmeUri: item.readmeUri,
+		});
+	}
+
 	private async queryMarketplaceSnapshot(): Promise<void> {
 		if (!this.marketplaceSnapshot.beginLoading()) {
 			return;
@@ -1933,7 +2008,7 @@ export class PluginListWidget extends Disposable {
 		this.marketplaceSnapshotCts?.dispose(true);
 		const cts = this.marketplaceSnapshotCts = new CancellationTokenSource();
 		try {
-			const plugins = await this.pluginMarketplaceService.fetchMarketplacePlugins(cts.token);
+			const plugins = await this.fetchMarketplacePlugins(cts.token);
 			if (this.marketplaceSnapshotCts !== cts) {
 				return;
 			}
@@ -1941,7 +2016,7 @@ export class PluginListWidget extends Disposable {
 				this.marketplaceSnapshot.reset();
 				return;
 			}
-			this.marketplaceSnapshot.complete(plugins.map(marketplacePluginToItem));
+			this.marketplaceSnapshot.complete(plugins);
 			if (!this.browseMode && !this.searchQuery.trim()) {
 				this.renderPluginHome();
 			}
@@ -2015,7 +2090,7 @@ export class PluginListWidget extends Disposable {
 		this.emptySubtext.textContent = '';
 
 		try {
-			const plugins = await this.pluginMarketplaceService.fetchMarketplacePlugins(cts.token);
+			const plugins = await this.fetchMarketplacePlugins(cts.token);
 
 			if (!this.isCurrentMarketplaceRequest(cts, query, browseMode)) {
 				return;
@@ -2038,14 +2113,8 @@ export class PluginListWidget extends Disposable {
 				? plugins.filter(p => p.name.toLowerCase().includes(query) || p.description.toLowerCase().includes(query) || p.marketplace.toLowerCase().includes(query))
 				: plugins;
 
-			// Filter out already-installed plugins
-			const installedUris = new Set(this.agentPluginService.plugins.get().map(p => p.uri.toString()));
 			this.marketplaceItems = filtered
-				.filter(p => {
-					const expectedUri = this.pluginInstallService.getPluginInstallUri(p);
-					return !installedUris.has(expectedUri.toString());
-				})
-				.map(marketplacePluginToItem);
+				.filter(plugin => !this.isMarketplacePluginInstalled(plugin));
 
 			if (query) {
 				this.updateSearchResultsList();
@@ -2076,7 +2145,7 @@ export class PluginListWidget extends Disposable {
 		this.marketplaceCts?.dispose(true);
 		const cts = this.marketplaceCts = new CancellationTokenSource();
 		try {
-			const plugins = await this.pluginMarketplaceService.fetchMarketplacePlugins(cts.token);
+			const plugins = await this.fetchMarketplacePlugins(cts.token);
 			if (!this.isCurrentMarketplaceRequest(cts, query, false)) {
 				return;
 			}
@@ -2091,13 +2160,8 @@ export class PluginListWidget extends Disposable {
 			const filtered = query
 				? plugins.filter(p => p.name.toLowerCase().includes(query) || p.description.toLowerCase().includes(query) || p.marketplace.toLowerCase().includes(query))
 				: plugins;
-			const installedUris = new Set(this.agentPluginService.plugins.get().map(p => p.uri.toString()));
 			const marketplaceItems = filtered
-				.filter(p => {
-					const expectedUri = this.pluginInstallService.getPluginInstallUri(p);
-					return !installedUris.has(expectedUri.toString());
-				})
-				.map(marketplacePluginToItem);
+				.filter(plugin => !this.isMarketplacePluginInstalled(plugin));
 			if (!this.isCurrentMarketplaceRequest(cts, query, false)) {
 				return;
 			}

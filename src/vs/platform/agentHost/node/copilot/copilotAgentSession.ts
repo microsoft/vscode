@@ -43,7 +43,7 @@ import { getSessionSandboxOverrides } from '../sessionSandbox.js';
 import { AgentHostSandboxConfigKey, sandboxConfigSchema } from '../../common/sandboxConfigSchema.js';
 import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostAutoReplyAnswer, AgentHostAutoReplyEnabledConfigKey, AgentHostDisableRepoInfoTelemetryConfigKey, platformRootSchema, platformSessionSchema } from '../../common/agentHostSchema.js';
 import { createUnknownAgentHostClientTelemetryContext, type IAgentHostClientTelemetryContext } from '../../common/agentHostTelemetry.js';
-import { AgentSession, AgentSignal, AgentWorkingDirectoryChangedError, AuthenticateParams, IMcpNotification, type AgentSubagentTaskModelSource, type AgentTurnProviderCallState, type IAgentPendingMessageSender, type IAgentToolPendingConfirmationSignal, type IAgentTurnDiagnosticSnapshot, type IAgentTurnTokenUsage } from '../../common/agent.js';
+import { AgentSession, AgentSignal, AgentWorkingDirectoryChangedError, AuthenticateParams, IMcpNotification, type AgentSubagentTaskModelSource, type AgentTurnProviderCallState, type IAgentPendingMessageSender, type IAgentPluginInstallResult, type IAgentPluginMarketplaceSnapshot, type IAgentToolPendingConfirmationSignal, type IAgentTurnDiagnosticSnapshot, type IAgentTurnTokenUsage } from '../../common/agent.js';
 import { isReasoningEffortLevel } from '../../common/reasoningEffort.js';
 import { ObservedTokenUsage } from './observedTokenUsage.js';
 import { META_DIFF_BASE_BRANCH } from '../../common/agentHostGitService.js';
@@ -64,6 +64,7 @@ import { ActionType, isChatAction, type ChatAction, type SessionAction } from '.
 import { MessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ToolCallConfirmationReason, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ToolCallStatus, ToolResultContentType, buildSubagentSessionUri, createErrorResponsePart, isSubagentSession, parseRequiredSessionUriFromChatUri, type Customization, type Message, type PendingMessage, type ChatInputAnswer, type ChatInputOption, type ChatInputQuestion, type ChatInputRequest, type ToolCallResult, type ToolResultContent, type ToolResultTerminalContent, type Turn, type ITurnTokenTotal, type UsageInfo, type UsageInfoMeta, type IContextAttributionData, type ISessionPromptCacheState } from '../../common/state/sessionState.js';
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
 import { CopilotSessionWrapper, type ICopilotModelCallFinishedEvent } from './copilotSessionWrapper.js';
+import { getCopilotPluginMarketplaceSnapshot, installCopilotPlugin, refreshCopilotPluginMarketplaces } from './copilotPluginMarketplaces.js';
 import { getCopilotSdkToolResourceUri } from './copilotSdkMeta.js';
 import { isAutoModel } from './modelIdentifiers.js';
 import { applySandboxConfig, clientToolNamesFromSnapshot, isMcpServerExplicitlyProjected, type CopilotSessionLaunchPlan, type IActiveClientSnapshot, type ICopilotSessionLauncher, type ICopilotSessionRuntime } from './copilotSessionLauncher.js';
@@ -1068,6 +1069,18 @@ export class CopilotAgentSession extends Disposable {
 			await rm(result.path, { recursive: true, force: true });
 		}
 		return result.entries.length > 0;
+	}
+
+	async getPluginMarketplaceSnapshot(): Promise<IAgentPluginMarketplaceSnapshot> {
+		return getCopilotPluginMarketplaceSnapshot(this._wrapper.session.rpc.plugins);
+	}
+
+	async refreshPluginMarketplaces(marketplace?: string): Promise<IAgentPluginMarketplaceSnapshot> {
+		return refreshCopilotPluginMarketplaces(this._wrapper.session.rpc.plugins, marketplace);
+	}
+
+	async installPlugin(source: string): Promise<IAgentPluginInstallResult> {
+		return installCopilotPlugin(this._wrapper.session.rpc.plugins, source);
 	}
 
 	/**

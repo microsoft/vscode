@@ -417,7 +417,10 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 		itemProvider.setDraftCustomAgents(ambientScope.customAgents);
 		itemProvider.setDraftCustomizations(ambientScope.customizations);
 
-		const harnessDescriptor = createRemoteAgentHarnessDescriptor(sessionType, displayName, pluginController, itemProvider, syncProvider);
+		const pluginMarketplaceProvider = agent.provider === 'copilotcli'
+			? agentStore.add(this._instantiationService.createInstance(AgentHostPluginMarketplaceProvider))
+			: undefined;
+		const harnessDescriptor = createRemoteAgentHarnessDescriptor(sessionType, displayName, pluginController, itemProvider, syncProvider, pluginMarketplaceProvider);
 		agentStore.add(this._customizationHarnessService.registerExternalHarness(harnessDescriptor));
 
 		// Session handler (unified)
@@ -739,4 +742,5 @@ import './remoteAgentHostActions.js';
 import './manageRemoteAgentHosts.js';
 import '../../agentHost/browser/agentHostAgentPicker.js';
 import { AgentCustomizationItemProvider } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentCustomizationItemProvider.js';
+import { AgentHostPluginMarketplaceProvider } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostPluginMarketplaceProvider.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
