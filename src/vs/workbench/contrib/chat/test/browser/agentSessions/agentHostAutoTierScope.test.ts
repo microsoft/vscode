@@ -8,10 +8,12 @@ import { DeferredPromise, timeout } from '../../../../../../base/common/async.js
 import { IDefaultAccount } from '../../../../../../base/common/defaultAccount.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { observableValue, waitForState } from '../../../../../../base/common/observable.js';
+import { isStringArray } from '../../../../../../base/common/types.js';
 import { upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
 import { NullAgentHostService } from '../../../../../../platform/agentHost/browser/nullAgentHostService.js';
+import { ProtectedResourceMetadata } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
@@ -30,8 +32,9 @@ suite('AgentHostAutoTierScope', () => {
 		accessToken: 'test-only',
 	};
 
-	function setup(options: { native?: boolean; remoteAuthority?: string; pending?: boolean } = {}) {
+	function setup(options: { native?: boolean; remoteAuthority?: string; pending?: boolean; resources?: ProtectedResourceMetadata[] } = {}) {
 		const changed = store.add(new Emitter<void>());
+		const unregistered = store.add(new Emitter<{ id: string; label: string }>());
 		const accountChanged = store.add(new Emitter<IDefaultAccount | null>());
 		const pending = observableValue('test.authPending', options.pending ?? false);
 		let sessions: readonly AuthenticationSession[] = [session];
@@ -42,18 +45,25 @@ suite('AgentHostAutoTierScope', () => {
 			authenticationPending: pending,
 			rootState: upcastPartial<IAgentHostService['rootState']>({
 				onDidChange: Event.None,
-				value: { agents: [{
-					provider: 'copilotcli', displayName: 'Copilot', description: '', models: [],
-					protectedResources: [{ resource: 'https://api.github.com', authorization_servers: ['https://github.com'], scopes_supported: ['read'] }],
-				}] },
+				value: {
+					agents: [{
+						provider: 'copilotcli', displayName: 'Copilot', description: '', models: [],
+						protectedResources: options.resources ?? [{ resource: 'https://api.github.com', authorization_servers: ['https://github.com'], scopes_supported: ['read'] }],
+					}]
+				},
 			}),
 		});
 		const auth = upcastPartial<IAuthenticationService>({
 			onDidChangeSessions: Event.map(changed.event, () => ({ providerId: 'github', label: 'GitHub', event: { added: [], removed: [], changed: [] } })),
 			onDidRegisterAuthenticationProvider: Event.None,
-			onDidUnregisterAuthenticationProvider: Event.None,
+			onDidUnregisterAuthenticationProvider: unregistered.event,
 			getOrActivateProviderIdForServer: async () => selectedProvider,
-			getSessions: async provider => { reads++; return provider === 'github' ? sessions : [session]; },
+			getSessions: async (provider, scopes) => {
+				reads++;
+				assert.ok(scopes === undefined || isStringArray(scopes));
+				const candidates = provider === 'github' ? sessions : [session];
+				return scopes ? candidates.filter(session => scopes.every(scope => session.scopes.includes(scope))) : candidates;
+			},
 		});
 		const defaults = upcastPartial<IDefaultAccountService>({
 			onDidChangeDefaultAccount: accountChanged.event,
@@ -69,6 +79,10 @@ suite('AgentHostAutoTierScope', () => {
 			setSessions: (value: readonly AuthenticationSession[]) => { sessions = value; changed.fire(); },
 			setAccount: (value: () => Promise<IDefaultAccount | null>) => { getAccount = value; accountChanged.fire(null); },
 			setProvider: (value: string) => { selectedProvider = value; changed.fire(); },
+			unregisterProvider: () => {
+				sessions = [];
+				unregistered.fire({ id: 'github', label: 'GitHub' });
+			},
 			get reads() { return reads; },
 		};
 	}
@@ -86,6 +100,31 @@ suite('AgentHostAutoTierScope', () => {
 		fixture.setProvider('different-provider');
 		await timeout(0);
 		assert.deepStrictEqual({ ambiguous, otherProvider: fixture.scope.allowed.get() }, { ambiguous: false, otherProvider: false });
+	});
+
+	test('optional repository credentials do not block verified Copilot authentication', async () => {
+		const fixture = setup({
+			resources: [
+				{ resource: 'https://api.github.com', authorization_servers: ['https://github.com'], scopes_supported: ['read'], required: true },
+				{ resource: 'https://api.github.com/repos', authorization_servers: ['https://github.com'], scopes_supported: ['repo'], required: false },
+			],
+		});
+		await waitForState(fixture.scope.allowed, value => value);
+		assert.strictEqual(fixture.scope.allowed.get(), true);
+	});
+
+	test('only optional resources cannot establish the managed account scope', async () => {
+		const fixture = setup({ resources: [{ resource: 'https://api.github.com/repos', authorization_servers: ['https://github.com'], required: false }] });
+		await timeout(0);
+		assert.deepStrictEqual({ allowed: fixture.scope.allowed.get(), reads: fixture.reads }, { allowed: false, reads: 0 });
+	});
+
+	test('provider unregistration invalidates eligibility without a session-change event', async () => {
+		const fixture = setup();
+		await waitForState(fixture.scope.allowed, value => value);
+		fixture.unregisterProvider();
+		await timeout(0);
+		assert.strictEqual(fixture.scope.allowed.get(), false);
 	});
 
 	for (const options of [{ native: false }, { remoteAuthority: 'ssh-remote+test' }, { pending: true }]) {

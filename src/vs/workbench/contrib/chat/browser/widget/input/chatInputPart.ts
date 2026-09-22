@@ -1003,7 +1003,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this._modelConfigStore = this._register(new ChatModelConfigurationStore(
 			() => this.getModelConfigurationStorageKey(),
 			() => this._modelSelectionRuntime.isEmpty(),
-			this._register(this.instantiationService.createInstance(AgentHostAutoTierScope, !isWeb)).allowed,
+			!isWeb && !this.environmentService.remoteAuthority
+				? this._register(this.instantiationService.createInstance(AgentHostAutoTierScope, true)).allowed
+				: constObservable(false),
 			this.languageModelsService,
 			this.storageService,
 			managedSettingsService,

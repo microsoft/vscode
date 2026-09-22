@@ -213,11 +213,15 @@ suite('ModelPickerConfiguration', () => {
 			...model,
 			metadata: {
 				...model.metadata,
-				configurationSchema: { properties: { tier: {
-					type: 'string', title: 'Optimize for', group: 'navigation',
-					enum: ['efficiency', 'balance', 'intelligence'],
-					enumItemLabels: ['Efficiency', 'Balance', 'Intelligence'], default: 'balance',
-				} } },
+				configurationSchema: {
+					properties: {
+						tier: {
+							type: 'string', title: 'Optimize for', group: 'navigation',
+							enum: ['efficiency', 'balance', 'intelligence'],
+							enumItemLabels: ['Efficiency', 'Balance', 'Intelligence'], default: 'balance',
+						}
+					}
+				},
 			},
 		}, { tier: 'fast' });
 		assert.deepStrictEqual({

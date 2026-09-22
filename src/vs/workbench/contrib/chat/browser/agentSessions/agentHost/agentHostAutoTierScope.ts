@@ -69,7 +69,7 @@ export class AgentHostAutoTierScope extends Disposable {
 		const account = await this.defaultAccountService.getDefaultAccount();
 		const root = this.agentHostService.rootState.value;
 		const resources = root && !(root instanceof Error)
-			? root.agents.find(agent => agent.provider === 'copilotcli')?.protectedResources
+			? root.agents.find(agent => agent.provider === 'copilotcli')?.protectedResources?.filter(resource => resource.required !== false)
 			: undefined;
 		if (!account || !resources?.length) {
 			return false;

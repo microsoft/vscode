@@ -576,6 +576,20 @@ describe('AutomodeService', () => {
 	});
 
 	describe('routing tiers', () => {
+		for (const source of ['managed', 'managedFallback', 'session', 'explicit']) {
+			it(`keeps the configured override ahead of a ${source} picker tier`, async () => {
+				const endpoint = createEndpoint('gpt-4o', 'OpenAI');
+				mockAuto(autoResponse('gpt-4o'));
+				setTierOverride('efficiency');
+				automodeService = createService();
+				await automodeService.resolveAutoModeEndpoint({
+					location: ChatLocation.Panel, prompt: 'test prompt', sessionId: `override-${source}`,
+					modelConfiguration: { tier: 'intelligence', tierSource: source },
+				}, [mockChatEndpoint, endpoint]);
+				expect(autoRequestBodies()).toEqual([{ prompt: 'test prompt', tier: 'efficiency' }]);
+			});
+		}
+
 		for (const source of ['managed', 'explicit']) {
 			it(`preserves ${source} Balance on the actual inline Auto routing request`, async () => {
 				const endpoint = createEndpoint('gpt-4o', 'OpenAI');

@@ -346,12 +346,6 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 	 * The workbench materializes picker defaults, so only non-default selections override the inline-chat tier.
 	 */
 	private _resolveTier(chatRequest: IAutoModeRoutingRequest | undefined): AutoModeTier {
-		const source = chatRequest?.modelConfiguration?.tierSource;
-		const selected = normalizeAutoModeTier(chatRequest?.modelConfiguration?.[AUTO_MODE_TIER_PROPERTY]);
-		if (((source === 'managed' || source === 'session') && isAutoModeTier(selected))
-			|| (source === 'explicit' && isSelectableAutoModeTier(selected))) {
-			return selected;
-		}
 		const override = this._configurationService.getConfig(ConfigKey.Shared.AutoModeTierOverride);
 		if (override) {
 			const normalized = normalizeAutoModeTier(override);
@@ -361,7 +355,10 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 			}
 			this._logService.warn(`[AutomodeService] Ignoring auto tier override '${override}' — not one of [${autoModeTiers.join(', ')}].`);
 		}
-		if (source === 'managedFallback' && isAutoModeTier(selected)) {
+		const source = chatRequest?.modelConfiguration?.tierSource;
+		const selected = normalizeAutoModeTier(chatRequest?.modelConfiguration?.[AUTO_MODE_TIER_PROPERTY]);
+		if (((source === 'managed' || source === 'managedFallback' || source === 'session') && isAutoModeTier(selected))
+			|| (source === 'explicit' && isSelectableAutoModeTier(selected))) {
 			return selected;
 		}
 		const configured = normalizeAutoModeTier(chatRequest?.modelConfiguration?.[AUTO_MODE_TIER_PROPERTY]);

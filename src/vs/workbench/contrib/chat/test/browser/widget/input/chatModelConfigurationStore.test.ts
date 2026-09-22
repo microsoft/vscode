@@ -95,11 +95,15 @@ suite('ChatModelConfigurationStore', () => {
 			setSchema: value => { configurationSchema = value; },
 			setAutoModel: (vendor = 'copilot') => {
 				autoVendor = vendor;
-				configurationSchema = { properties: { tier: {
-					type: 'string', title: 'Optimize for', group: 'navigation',
-					enum: ['efficiency', 'balance', 'intelligence'],
-					enumItemLabels: ['Efficiency', 'Balance', 'Intelligence'], default: 'balance',
-				} } };
+				configurationSchema = {
+					properties: {
+						tier: {
+							type: 'string', title: 'Optimize for', group: 'navigation',
+							enum: ['efficiency', 'balance', 'intelligence'],
+							enumItemLabels: ['Efficiency', 'Balance', 'Intelligence'], default: 'balance',
+						}
+					}
+				};
 			},
 		};
 	}
@@ -443,6 +447,75 @@ suite('ChatModelConfigurationStore', () => {
 			stored: storage.get(KEY, StorageScope.APPLICATION),
 		}, { configuration: { tier: 'balance', tierSource: 'default' }, stored: undefined });
 	});
+
+	for (const tierSource of ['explicit', 'session', undefined]) {
+		test(`invalid restored ${tierSource ?? 'legacy'} tier does not suppress the managed default`, () => {
+			const storage = store.add(new InMemoryStorageService());
+			const control = createControllableService();
+			control.setAutoModel();
+			const managed: IManagedSettingsService = {
+				_serviceBrand: undefined, onDidChangeManagedSettings: Event.None, getManagedSettingValue: () => 'intelligence',
+			};
+			const editor = createStore(storage, control.service, () => true, managed);
+			editor.restoreModelConfiguration(MODEL, { tier: 'unsupported', ...(tierSource ? { tierSource } : {}) }, false);
+			assert.deepStrictEqual(editor.getModelConfiguration(MODEL), { tier: 'intelligence', tierSource: 'managed' });
+		});
+	}
+
+	for (const registered of [true, false]) {
+		test(`restoring a managed draft retains the real user preference when registered=${registered}`, () => {
+			const storage = store.add(new InMemoryStorageService());
+			const control = createControllableService();
+			control.setAutoModel();
+			control.setGlobal({ tier: 'efficiency' });
+			control.setRegistered(registered);
+			const changed = store.add(new Emitter<void>());
+			let value: string | undefined = 'intelligence';
+			const managed: IManagedSettingsService = {
+				_serviceBrand: undefined, onDidChangeManagedSettings: changed.event, getManagedSettingValue: () => value,
+			};
+			const editor = createStore(storage, control.service, () => true, managed);
+			editor.getModelConfiguration(MODEL);
+			editor.restoreModelConfiguration(MODEL, { tier: 'intelligence', tierSource: 'managed' });
+			control.setRegistered(true);
+			control.fireModelsChanged();
+			const active = editor.getModelConfiguration(MODEL);
+			value = undefined;
+			changed.fire();
+			assert.deepStrictEqual({ active, removed: editor.getModelConfiguration(MODEL), globalWrites: control.setConfigCalls }, {
+				active: { tier: 'intelligence', tierSource: 'managed' },
+				removed: { tier: 'efficiency', tierSource: 'preference' },
+				globalWrites: [],
+			});
+		});
+	}
+
+	for (const tierSource of ['managed', 'managedFallback', 'default']) {
+		test(`restored ${tierSource} tier before model registration never becomes a saved preference`, () => {
+			const storage = store.add(new InMemoryStorageService());
+			const control = createControllableService();
+			control.setAutoModel();
+			control.setRegistered(false);
+			const changed = store.add(new Emitter<void>());
+			let value: string | undefined = 'intelligence';
+			const managed: IManagedSettingsService = {
+				_serviceBrand: undefined, onDidChangeManagedSettings: changed.event, getManagedSettingValue: () => value,
+			};
+			const editor = createStore(storage, control.service, () => true, managed);
+			editor.restoreModelConfiguration(MODEL, { tier: 'intelligence', tierSource });
+			control.setRegistered(true);
+			control.fireModelsChanged();
+			const registered = editor.getModelConfiguration(MODEL);
+			value = undefined;
+			changed.fire();
+			assert.deepStrictEqual({
+				registered, removed: editor.getModelConfiguration(MODEL), stored: storage.get(KEY, StorageScope.APPLICATION),
+			}, {
+				registered: { tier: 'intelligence', tierSource: 'managed' },
+				removed: { tier: 'balance', tierSource: 'default' }, stored: undefined,
+			});
+		});
+	}
 
 	for (const [name, policy, expected, vendor] of ['copilot', 'agent-host-copilotcli'].flatMap(vendor => [
 		['scalar', 'intelligence', 'intelligence', vendor],

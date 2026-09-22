@@ -249,34 +249,36 @@ export class ChatModelConfigurationStore extends Disposable implements IModelCon
 	 */
 	restoreModelConfiguration(modelId: string, values: IStringDictionary<unknown>, persist = true): void {
 		const metadata = this.languageModelsService.lookupLanguageModel(modelId);
-		if (Object.hasOwn(values, 'tier')) {
-			if (values[AutoTierSourceConfigKey] === 'session' || (!this.isEmpty() && isInheritedAutoTier(values))) {
+		const filtered = metadata
+			? filterConfigurationToSchema(values, metadata.configurationSchema)
+			: { ...values };
+		const source = values[AutoTierSourceConfigKey];
+		const inherited = isInheritedAutoTier(values);
+		if (isAutoModeRoutingTier(filtered.tier)) {
+			if (source === 'session' || (!this.isEmpty() && inherited)) {
 				this._sessionAutoTiers.add(modelId);
 				this._explicitAutoTiers.delete(modelId);
 				persist = false;
-			} else if (this.isEmpty() && isInheritedAutoTier(values)) {
+			} else if (this.isEmpty() && inherited) {
 				this._explicitAutoTiers.delete(modelId);
+				this._sessionAutoTiers.delete(modelId);
 				persist = false;
 			} else {
 				this._explicitAutoTiers.add(modelId);
 				this._sessionAutoTiers.delete(modelId);
 			}
+		} else if (metadata?.id === 'auto' || inherited || source === 'explicit' || source === 'session') {
+			delete filtered.tier;
+			delete filtered[AutoTierSourceConfigKey];
 		}
-		const filtered = metadata
-			? filterConfigurationToSchema(values, metadata.configurationSchema)
-			: { ...values };
-		if (metadata?.id === 'auto' && this._sessionAutoTiers.has(modelId) && isAutoModeRoutingTier(values.tier)) {
-			filtered.tier = values.tier;
+		if (this._sessionAutoTiers.has(modelId) && isAutoModeRoutingTier(filtered.tier)) {
 			filtered[AutoTierSourceConfigKey] = 'session';
 		}
-		if (metadata?.id === 'auto' && this.isEmpty() && isInheritedAutoTier(values)) {
-			filtered[AutoTierSourceConfigKey] = values[AutoTierSourceConfigKey];
-			if (values[AutoTierSourceConfigKey] !== 'preference') {
+		if (this.isEmpty() && inherited) {
+			persist = false;
+			if (source !== 'preference') {
 				delete filtered.tier;
-				const preferences = this._preferences.get(modelId);
-				if (preferences) {
-					delete preferences.tier;
-				}
+				delete filtered[AutoTierSourceConfigKey];
 			}
 		}
 		// Restore only seeds this editor's scoped snapshot; unlike a user-made
