@@ -988,12 +988,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 					customizationMarketplaceQueryCount++;
 					assert(agentFinderPublicFeedEnabled, 'A disabled Marketplace fixture must not query the catalog.');
 					const pageSize = query.pageSize ?? 24;
-					const createCursor = (offset: number) => ({
-						query: query.query ?? '',
-						mediaType: query.mediaType,
-						pageSize,
-						sources: [{ id: 'testSource', cursor: String(offset) }],
-					});
+					const createCursor = (offset: number) => ({ token: String(offset) });
 					switch (options.customizationMarketplaceState) {
 						case 'loading': return new DeferredPromise<ICustomizationMarketplacePage>().p;
 						case 'loadingMore':
@@ -1007,7 +1002,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 					const resources = customizationMarketplaceResources.filter(resource =>
 						(!query.mediaType || resource.mediaType === query.mediaType)
 						&& (!text || `${resource.displayName} ${resource.description} ${resource.tags.join(' ')}`.toLowerCase().includes(text)));
-					const offset = Number(query.cursor?.sources[0].cursor ?? 0);
+					const offset = Number(query.cursor?.token ?? 0);
 					return {
 						items: resources.slice(offset, offset + pageSize),
 						total: resources.length,

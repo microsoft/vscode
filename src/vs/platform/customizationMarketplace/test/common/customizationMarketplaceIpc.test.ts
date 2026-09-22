@@ -15,13 +15,13 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { IConfigurationChangeEvent } from '../../../configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
 import { CUSTOMIZATION_MARKETPLACE_CHANNEL_NAME, CustomizationMarketplaceChannel, CustomizationMarketplaceChannelClient } from '../../common/customizationMarketplaceIpc.js';
-import { CustomizationMarketplaceInstallation, CustomizationMarketplaceMediaType, ICustomizationMarketplacePage, ICustomizationMarketplaceQuery, ICustomizationMarketplaceQueryService, ICustomizationMarketplaceRequest } from '../../common/customizationMarketplaceService.js';
+import { CustomizationMarketplaceInstallation, CustomizationMarketplaceMediaType, CustomizationMarketplaceService, ICustomizationMarketplacePage, ICustomizationMarketplaceQuery, ICustomizationMarketplaceQueryService, ICustomizationMarketplaceRequest, ICustomizationMarketplaceSourceInfo } from '../../common/customizationMarketplaceService.js';
 import { CustomizationMarketplaceConfiguration } from '../../common/customizationMarketplaceSources.js';
 
 suite('CustomizationMarketplaceIpc', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createClient(service: ICustomizationMarketplaceQueryService): CustomizationMarketplaceChannelClient {
+	function createClient(service: ICustomizationMarketplaceQueryService, sources: readonly ICustomizationMarketplaceSourceInfo[] = [{ id: 'agentFinder', enablementSetting: CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled }]): CustomizationMarketplaceChannelClient {
 		const server = new CustomizationMarketplaceChannel(() => service);
 		const channel: IChannel = {
 			async call<T>(command: string, options?: ICustomizationMarketplaceRequest, token?: CancellationToken): Promise<T> {
@@ -31,9 +31,11 @@ suite('CustomizationMarketplaceIpc', () => {
 				return server.listen('test', event);
 			},
 		};
-		const configuration = new TestConfigurationService({ [CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled]: true });
+		const configuration = new TestConfigurationService(Object.fromEntries(sources.map(source => [source.enablementSetting, true])));
 		disposables.add(configuration.onDidChangeConfigurationEmitter);
-		return new CustomizationMarketplaceChannelClient(channel, configuration);
+		return new class extends CustomizationMarketplaceChannelClient {
+			override readonly sources = sources;
+		}(channel, configuration);
 	}
 
 	test('does not construct the shared-process catalog service until an uncancelled query', async () => {
@@ -136,11 +138,11 @@ suite('CustomizationMarketplaceIpc', () => {
 		const queries: ICustomizationMarketplaceQuery[] = [
 			{
 				mediaType: CustomizationMarketplaceMediaType.McpServer, pageSize: 24,
-				cursor: { query: '', mediaType: CustomizationMarketplaceMediaType.McpServer, pageSize: 24, sources: [{ id: 'testSource', cursor: 'browse-page-2' }] },
+				cursor: { token: 'browse-page-2' },
 			},
 			{
 				query: 'postgres', mediaType: CustomizationMarketplaceMediaType.Skill, pageSize: 2,
-				cursor: { query: 'postgres', mediaType: CustomizationMarketplaceMediaType.Skill, pageSize: 2, sources: [{ id: 'testSource', cursor: 'opaque+/=&token' }] },
+				cursor: { token: 'opaque+/=&token' },
 			},
 		];
 		for (const query of queries) {
@@ -205,12 +207,10 @@ suite('CustomizationMarketplaceIpc', () => {
 				icon: URI.parse('https://github.com/Owner.png?size=64'),
 				publisher: 'Owner',
 				version: '1.0',
+				score: 95,
 			}],
 			total: 10,
-			nextCursor: {
-				query: 'postgres', pageSize: 30,
-				sources: [{ id: 'testSource', cursor: 'opaque+/=&token', total: 8 }, { id: 'otherSource', total: 2 }],
-			},
+			nextCursor: { token: 'opaque+/=&token' },
 		};
 		const client = createClient({ query: async () => page });
 		const result = await client.query({ query: 'postgres' }, CancellationToken.None);
@@ -238,11 +238,41 @@ suite('CustomizationMarketplaceIpc', () => {
 				capabilities: [],
 				representativeQueries: [],
 			}],
-			nextCursor: { query: '', pageSize: 30, sources: [{ id: 'testSource', cursor: 'next-page' }] },
+			nextCursor: { token: 'next-page' },
 		};
 		const client = createClient({ query: async () => page });
 
 		assert.deepStrictEqual(await client.query({}, CancellationToken.None), page);
+	});
+
+	test('continues a ranked merge across IPC without serializing buffered source entries', async () => {
+		let calls = 0;
+		const sources = ['agentFinder', 'other'].map((id, index) => ({
+			id,
+			query: async () => {
+				calls++;
+				return { items: (index ? [90, 80] : [100, 70]).map(score => ({
+					identifier: String(score), displayName: id, description: '', score,
+					mediaType: CustomizationMarketplaceMediaType.Skill,
+					tags: [], capabilities: [], representativeQueries: [],
+					repository: URI.parse('https://github.com/owner/repository'),
+				})), total: 2 };
+			},
+		}));
+		const client = createClient(new CustomizationMarketplaceService(sources), sources.map(source => ({
+			id: source.id, enablementSetting: `test.${source.id}.enabled`,
+		})));
+		const options = { query: 'review', pageSize: 2 };
+		const first = await client.query(options, CancellationToken.None);
+		const second = await client.query({ ...options, cursor: first.nextCursor }, CancellationToken.None);
+		assert.deepStrictEqual({
+			scores: [first, second].map(page => page.items.map(item => item.score)),
+			cursorFields: Object.keys(first.nextCursor!),
+			revived: second.items.every(item => item.repository instanceof URI),
+			calls, hasMore: !!second.nextCursor,
+		}, {
+			scores: [[100, 90], [80, 70]], cursorFields: ['token'], revived: true, calls: 2, hasMore: false,
+		});
 	});
 
 	test('preserves installation provenance, root paths and exact refs through IPC', async () => {

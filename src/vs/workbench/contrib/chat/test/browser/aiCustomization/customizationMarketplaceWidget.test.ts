@@ -91,7 +91,7 @@ function createResource(identifier: string, overrides: Partial<ICustomizationMar
 }
 
 function createCursor(cursor: string, query = ''): ICustomizationMarketplaceCursor {
-	return { query, pageSize: 24, sources: [{ id: 'testSource', cursor }] };
+	return { token: JSON.stringify([query, cursor]) };
 }
 
 function getElement<T extends HTMLElement = HTMLElement>(container: HTMLElement, selector: string): T {
@@ -760,12 +760,7 @@ suite('CustomizationMarketplaceWidget', () => {
 		const second = createResource('shared', { sourceId: 'otherTestSource', displayName: 'Second source', version: '1.0.0' });
 		const nextVersion = createResource('shared', { displayName: 'Next version', version: '2.0.0' });
 		const nextCursor: ICustomizationMarketplaceCursor = {
-			query: '',
-			pageSize: 24,
-			sources: [
-				{ id: 'testSource', cursor: 'opaque-page-token', total: 2 },
-				{ id: 'otherTestSource', total: 1 },
-			],
+			token: 'opaque-page-token',
 		};
 		widget.setVisible(true);
 		await service.requests[0].result.complete({ items: [first, first, second, second], total: 3, nextCursor });
