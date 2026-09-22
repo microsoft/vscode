@@ -79,6 +79,8 @@ const DEFAULT_TELEMETRY_SOURCE = 'NewChatSessionTypePicker';
 export interface ISessionTypePickerOptions {
 	/** When present, only session types from these providers are offered. */
 	readonly allowedProviders?: IObservable<readonly string[]>;
+	/** Retain a chosen provider/type if it becomes unavailable instead of selecting a replacement. */
+	readonly preserveUnavailableSelection?: boolean;
 	/**
 	 * When `false` (e.g. the automations dialog), an explicit pick is
 	 * never written to or cleared from the profile-wide
@@ -159,6 +161,7 @@ export class SessionTypePicker extends Disposable {
 	private readonly _quickChatSourceWatch = this._register(new MutableDisposable());
 	private _pendingInitialPick: IPreferredSessionType | undefined;
 	private _pendingExplicitPick: IPickedSessionType | undefined;
+	private _hasResolvedFolderPick = false;
 
 	private readonly _renderDisposables = this._register(new DisposableStore());
 	protected _triggerElement: HTMLElement | undefined;
@@ -214,6 +217,9 @@ export class SessionTypePicker extends Disposable {
 			if (concrete) {
 				this._picked = { providerId: concrete.providerId, sessionTypeId: concrete.sessionType.id };
 			}
+		}
+		if (this._folderSource && this._pickServedByFolder(this._picked)) {
+			this._hasResolvedFolderPick = true;
 		}
 		this._updateModelTargetChatSessionType();
 		this._updateTriggerLabel();
@@ -297,6 +303,9 @@ export class SessionTypePicker extends Disposable {
 			}
 			return this._pendingInitialPick;
 		}
+		if (this._options?.preserveUnavailableSelection && this._hasResolvedFolderPick) {
+			return this._picked;
+		}
 		const candidate = this._picked ?? this._readStoredPick();
 		if (this._pickServedByFolder(candidate)) {
 			return candidate;
@@ -338,6 +347,7 @@ export class SessionTypePicker extends Disposable {
 	/** Drive the picker from a folder instead of the active session, optionally seeding the initial pick. */
 	setFolderSource(source: IObservable<URI | undefined>, options?: { readonly initialPick?: IPreferredSessionType; readonly preserveUnavailableInitialPick?: boolean }): void {
 		this._folderSource = source;
+		this._hasResolvedFolderPick = false;
 		this._picked = options?.initialPick ?? this._readStoredPick();
 		this._pendingInitialPick = options?.preserveUnavailableInitialPick ? options.initialPick : undefined;
 		const initialFolder = source.get();
@@ -685,6 +695,9 @@ export class SessionTypePicker extends Disposable {
 		// profile-wide preference is gated so non-persisting callers (e.g. the
 		// automations dialog) can pick a type without changing the New Session default
 		this._picked = pick;
+		if (this._folderSource) {
+			this._hasResolvedFolderPick = true;
+		}
 		this._updateModelTargetChatSessionType();
 		if (this._options?.persistSelection !== false) {
 			if (isDefault) {

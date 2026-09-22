@@ -220,6 +220,48 @@ suite('SessionTypePicker', () => {
 	});
 
 	for (const quickChat of [false, true]) {
+		for (const initialSelection of [false, true]) {
+			test(`retains an unavailable Automation host for ${quickChat ? 'quick chat' : 'workspace'} ${initialSelection ? 'initial' : 'explicit'} selections`, () => {
+				const types = [
+					sessionType('local', 'copilotcli', 'Copilot'),
+					sessionType('remote', 'copilotcli', 'Copilot'),
+				];
+				management.setSessionTypes(types);
+				management.setQuickChatSessionTypes(types);
+				const allowedProviders = observableValue<readonly string[]>('availableHosts', ['local', 'remote']);
+				const remote = { providerId: 'remote', sessionTypeId: 'copilotcli' };
+				const local = { providerId: 'local', sessionTypeId: 'copilotcli' };
+				const picker = createPicker(disposables, session, management, storage, {
+					allowedProviders, persistSelection: false, preserveUnavailableSelection: true,
+				});
+				picker.setQuickChatSource(constObservable(quickChat));
+				picker.setFolderSource(constObservable(folder), {
+					initialPick: initialSelection ? remote : undefined,
+					preserveUnavailableInitialPick: true,
+				});
+				if (!initialSelection) {
+					picker.pick(remote);
+				}
+				const changes: (IPreferredSessionType | undefined)[] = [];
+				disposables.add(picker.onDidChangeSelectedPick(pick => changes.push(pick)));
+				allowedProviders.set(['local'], undefined);
+				const unavailable = { pick: picker.selectedPick, modelTarget: picker.modelTargetChatSessionType.get() };
+				allowedProviders.set(['local', 'remote'], undefined);
+				const recovered = { pick: picker.selectedPick, modelTarget: picker.modelTargetChatSessionType.get() };
+				allowedProviders.set(['local'], undefined);
+				picker.pick(local);
+				allowedProviders.set(['local', 'remote'], undefined);
+				assert.deepStrictEqual({ unavailable, recovered, selectedReplacement: picker.selectedPick, changes }, {
+					unavailable: { pick: remote, modelTarget: undefined },
+					recovered: { pick: remote, modelTarget: 'copilotcli' },
+					selectedReplacement: local,
+					changes: [local],
+				});
+			});
+		}
+	}
+
+	for (const quickChat of [false, true]) {
 		test(`desktop popup keeps the provider filter for ${quickChat ? 'quick-chat' : 'workspace'} targets and rejects stale choices`, async () => {
 			const types = [
 				sessionType('non-ahp', 'extension-session', 'Extension'),

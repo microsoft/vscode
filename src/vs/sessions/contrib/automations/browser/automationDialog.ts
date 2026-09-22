@@ -1107,6 +1107,7 @@ export function renderForm(
 	const workspaceControlsVisible = derived(reader => !isolationModel.isQuickChatObs.read(reader) && isolationModel.folderUriObs.read(reader) !== undefined);
 	const sessionTypePicker = disposables.add(instantiationService.createInstance(MobileSessionTypePicker, constObservable<ISession | undefined>(undefined), {
 		persistSelection: false,
+		preserveUnavailableSelection: true,
 		telemetrySource: 'AutomationSessionTypePicker',
 		allowedProviders,
 	}));
