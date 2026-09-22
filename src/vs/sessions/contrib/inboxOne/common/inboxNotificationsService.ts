@@ -52,6 +52,7 @@ export interface IInboxNotificationItem {
 	readonly priority: InboxNotificationPriority;
 	readonly title: string;
 	readonly description: string;
+	readonly repositoryLabel?: string;
 	readonly timestamp: number;
 	readonly sessionResource?: URI;
 	readonly actions: readonly IInboxNotificationAction[];
@@ -62,6 +63,7 @@ export interface IExternalInboxNotification {
 	readonly kind?: InboxNotificationKind;
 	readonly title: string;
 	readonly description: string;
+	readonly repositoryLabel?: string;
 	readonly priority?: InboxNotificationPriority;
 	readonly timestamp?: number;
 	readonly sessionResource?: URI;

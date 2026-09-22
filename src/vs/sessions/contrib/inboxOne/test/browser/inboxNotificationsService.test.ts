@@ -222,9 +222,11 @@ suite('InboxNotificationsService', () => {
 		}]);
 		assert.deepStrictEqual(fixture.service.notifications.get().map(item => ({
 			kind: item.kind,
+			repositoryLabel: item.repositoryLabel,
 			actions: item.actions.map(action => action.kind),
 		})), [{
 			kind: InboxNotificationKind.FailingCI,
+			repositoryLabel: 'owner/repo',
 			actions: [InboxNotificationActionKind.OpenSession, InboxNotificationActionKind.AgentMergeFixCI, InboxNotificationActionKind.MarkDone],
 		}]);
 
@@ -239,9 +241,11 @@ suite('InboxNotificationsService', () => {
 		}]);
 		assert.deepStrictEqual(fixture.service.notifications.get().map(item => ({
 			kind: item.kind,
+			repositoryLabel: item.repositoryLabel,
 			actions: item.actions.map(action => action.kind),
 		})), [{
 			kind: InboxNotificationKind.PassingCI,
+			repositoryLabel: 'owner/repo',
 			actions: [InboxNotificationActionKind.OpenSession, InboxNotificationActionKind.AgentMergeMergePullRequest, InboxNotificationActionKind.MarkDone],
 		}]);
 	});
@@ -295,9 +299,11 @@ suite('InboxNotificationsService', () => {
 
 		assert.deepStrictEqual(fixture.service.notifications.get().map(item => ({
 			kind: item.kind,
+			repositoryLabel: item.repositoryLabel,
 			actions: item.actions.map(action => action.kind),
 		})), [{
 			kind: InboxNotificationKind.ReviewComments,
+			repositoryLabel: 'owner/repo',
 			actions: [InboxNotificationActionKind.OpenSession, InboxNotificationActionKind.AgentMergeAddressReviews, InboxNotificationActionKind.MarkDone],
 		}]);
 	});

@@ -25,7 +25,8 @@ suite('InboxNotificationsAccessibility', () => {
 					kind: InboxNotificationKind.NeedsInput,
 					priority: InboxNotificationPriority.High,
 					title: 'Input Needed for Session A',
-					description: 'Open this session to answer.'
+					description: 'Open this session to answer.',
+					repositoryLabel: 'microsoft/vscode',
 				},
 				{
 					kind: InboxNotificationKind.Completed,
@@ -39,6 +40,7 @@ suite('InboxNotificationsAccessibility', () => {
 				'',
 				'1. Input Needed for Session A',
 				'   Priority: High. Type: Needs Input',
+				'   Repository: microsoft/vscode',
 				'   Open this session to answer.',
 				'2. Completed: Session B',
 				'   Priority: Low. Type: Completed',

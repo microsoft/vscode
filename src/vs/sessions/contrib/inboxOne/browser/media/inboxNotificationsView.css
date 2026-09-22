@@ -100,19 +100,10 @@
 	border: 1px solid var(--vscode-widget-border);
 }
 
-.inbox-notifications-item.priority-0 .inbox-notifications-item-badge.priority {
-	background-color: var(--vscode-inputValidation-errorBackground, var(--vscode-badge-background));
-	color: var(--vscode-inputValidation-errorForeground, var(--vscode-badge-foreground));
-}
-
-.inbox-notifications-item.priority-1 .inbox-notifications-item-badge.priority {
-	background-color: var(--vscode-inputValidation-warningBackground, var(--vscode-badge-background));
-	color: var(--vscode-inputValidation-warningForeground, var(--vscode-badge-foreground));
-}
-
-.inbox-notifications-item.priority-2 .inbox-notifications-item-badge.priority {
-	background-color: var(--vscode-inputValidation-infoBackground, var(--vscode-badge-background));
-	color: var(--vscode-inputValidation-infoForeground, var(--vscode-badge-foreground));
+.inbox-notifications-item-badge.repository {
+	background-color: var(--vscode-editorWidget-background);
+	color: var(--vscode-foreground);
+	border: 1px solid var(--vscode-widget-border);
 }
 
 .inbox-notifications-item-time {

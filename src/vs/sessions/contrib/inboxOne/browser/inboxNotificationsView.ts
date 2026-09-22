@@ -158,21 +158,33 @@ export class InboxNotificationsView extends AbstractCustomView {
 		card.classList.add(`priority-${item.priority}`);
 		card.setAttribute('role', 'listitem');
 		card.dataset.notificationId = item.id;
-		card.setAttribute('aria-label', localize(
-			'inboxNotifications.itemAriaLabel',
-			"Priority {0}. {1}. {2}. {3}",
-			this.priorityLabel(item.priority),
-			this.kindLabel(item.kind),
-			item.title,
-			item.description,
-		));
+		card.setAttribute('aria-label', item.repositoryLabel
+			? localize(
+				'inboxNotifications.itemAriaLabel.withRepository',
+				"Priority {0}. {1}. Repository {2}. {3}. {4}",
+				this.priorityLabel(item.priority),
+				this.kindLabel(item.kind),
+				item.repositoryLabel,
+				item.title,
+				item.description,
+			)
+			: localize(
+				'inboxNotifications.itemAriaLabel',
+				"Priority {0}. {1}. {2}. {3}",
+				this.priorityLabel(item.priority),
+				this.kindLabel(item.kind),
+				item.title,
+				item.description,
+			));
 
 		const heading = card.appendChild($('.inbox-notifications-item-header'));
 		heading.appendChild($('.inbox-notifications-item-title', undefined, item.title));
 
 		const badges = card.appendChild($('.inbox-notifications-item-badges'));
 		badges.appendChild($('.inbox-notifications-item-badge kind', undefined, this.kindLabel(item.kind)));
-		badges.appendChild($('.inbox-notifications-item-badge priority', undefined, this.priorityLabel(item.priority)));
+		if (item.repositoryLabel) {
+			badges.appendChild($('.inbox-notifications-item-badge repository', undefined, item.repositoryLabel));
+		}
 
 		card.appendChild($('.inbox-notifications-item-description', undefined, item.description));
 		card.appendChild($('.inbox-notifications-item-time', undefined, fromNowByDay(item.timestamp, true, true)));

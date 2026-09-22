@@ -94,6 +94,7 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 			priority: notification.priority ?? InboxNotificationPriority.Normal,
 			title: notification.title,
 			description: notification.description,
+			repositoryLabel: notification.repositoryLabel,
 			timestamp: notification.timestamp ?? Date.now(),
 			sessionResource: notification.sessionResource,
 			actions: notification.actions ?? this.dismissActionOnly(),
@@ -142,6 +143,7 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 		const status = session.status.read(reader);
 		const title = session.title.read(reader);
 		const updatedAt = session.updatedAt.read(reader).getTime();
+		const repositoryLabel = this.getSessionRepositoryLabel(session, reader);
 
 		if (status === SessionStatus.NeedsInput) {
 			const id = `${session.sessionId}:${InboxNotificationKind.NeedsInput}:${updatedAt}`;
@@ -151,6 +153,7 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 				priority: InboxNotificationPriority.High,
 				title: localize('inboxNotifications.needsInput.title', "Input Needed for {0}", title),
 				description: this.getNeedsInputDescription(session, reader),
+				repositoryLabel,
 				timestamp: updatedAt,
 				sessionResource: session.resource,
 				actions: this.sessionActions(true),
@@ -165,6 +168,7 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 				priority: InboxNotificationPriority.Low,
 				title: localize('inboxNotifications.completed.title', "Completed: {0}", title),
 				description: localize('inboxNotifications.completed.description', "Review this completed session or mark it done."),
+				repositoryLabel,
 				timestamp: updatedAt,
 				sessionResource: session.resource,
 				actions: this.sessionActions(true),
@@ -267,6 +271,7 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 						priority: InboxNotificationPriority.High,
 						title: localize('inboxNotifications.failingCi.title', "CI Failing on {0}", pullRequestLabel),
 						description: localize('inboxNotifications.failingCi.description', "Required checks are failing for {0}. Open {1} to investigate and fix the failures.", pullRequestLabel, sessionTitle),
+						repositoryLabel: `${pullRequestRef.owner}/${pullRequestRef.repo}`,
 						timestamp: ciTimestamp,
 						sessionResource: session.resource,
 						actions: this.pullRequestActions(session, InboxNotificationKind.FailingCI),
@@ -279,6 +284,7 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 						priority: InboxNotificationPriority.Normal,
 						title: localize('inboxNotifications.passingCi.title', "CI Passing on {0}", pullRequestLabel),
 						description: localize('inboxNotifications.passingCi.description', "All required checks are passing for {0}. Open {1} to review merge readiness.", pullRequestLabel, sessionTitle),
+						repositoryLabel: `${pullRequestRef.owner}/${pullRequestRef.repo}`,
 						timestamp: ciTimestamp,
 						sessionResource: session.resource,
 						actions: this.pullRequestActions(session, InboxNotificationKind.PassingCI),
@@ -305,6 +311,7 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 				priority: InboxNotificationPriority.High,
 				title: localize('inboxNotifications.reviewComments.title', "Copilot Comments on {0}", pullRequestLabel),
 				description: localize('inboxNotifications.reviewComments.description', "{0} has unresolved Copilot review comments. Open the session to address feedback.", pullRequestLabel),
+				repositoryLabel: `${pullRequestRef.owner}/${pullRequestRef.repo}`,
 				timestamp: reviewCommentsTimestamp,
 				sessionResource: session.resource,
 				actions: this.pullRequestActions(session, InboxNotificationKind.ReviewComments),
@@ -402,6 +409,32 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 		}
 		const text = message ? renderAsPlaintext(message).trim() : '';
 		return text || localize('inboxNotifications.needsInput.descriptionFallback', "Input needed.");
+	}
+
+	private getSessionRepositoryLabel(session: ISession, reader: IReader): string | undefined {
+		const labels = new Set<string>();
+		for (const pullRequestRef of this.getSessionPullRequestRefs(session, reader)) {
+			labels.add(`${pullRequestRef.owner}/${pullRequestRef.repo}`);
+		}
+
+		const workspace = session.workspace.read(reader);
+		if (labels.size === 0 && workspace) {
+			for (const folder of workspace.folders) {
+				const gitHubInfo = folder.gitRepository?.gitHubInfo.read(reader);
+				if (gitHubInfo?.owner && gitHubInfo.repo) {
+					labels.add(`${gitHubInfo.owner}/${gitHubInfo.repo}`);
+				}
+			}
+		}
+
+		if (labels.size === 0) {
+			return undefined;
+		}
+		const allLabels = [...labels];
+		if (allLabels.length === 1) {
+			return allLabels[0];
+		}
+		return localize('inboxNotifications.repository.multiple', "{0} +{1}", allLabels[0], allLabels.length - 1);
 	}
 
 	private loadDismissedIds(): ReadonlySet<string> {
