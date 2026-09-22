@@ -818,7 +818,7 @@ function createTurnDelegationContributions(disposables: ReturnType<typeof ensure
 	return { service, database, session, chat: buildDefaultChatUri(session) };
 }
 
-function createBuiltInContributions(disposables: ReturnType<typeof ensureNoDisposablesAreLeakedInTestSuite>, observed?: string[], enableSendInstructions = false, sessionStatus = SessionStatus.IsRead, useCompactArtifactPrompts = false): { readonly service: AgentHostChatContributions; readonly stateManager: AgentHostStateManager; readonly database: TestSessionDatabase; readonly session: string; readonly worktree: RecordingWorktreeIsolation; readonly additionalWorktreeLifecycle: IAdditionalWorktreeLifecycleService } {
+function createBuiltInContributions(disposables: ReturnType<typeof ensureNoDisposablesAreLeakedInTestSuite>, observed?: string[], enableSendInstructions = false, sessionStatus = SessionStatus.IsRead, useCompactArtifactPrompts = false): { readonly service: AgentHostChatContributions; readonly stateManager: AgentHostStateManager; readonly database: TestSessionDatabase; readonly launchedComparisonSessions: readonly { readonly config: IAgentCreateSessionConfig; readonly prompt: string }[]; readonly session: string; readonly worktree: RecordingWorktreeIsolation; readonly additionalWorktreeLifecycle: IAdditionalWorktreeLifecycleService } {
 	const logService = new NullLogService();
 	const stateManager = disposables.add(new AgentHostStateManager(logService));
 	stateManager.createSession({
@@ -880,12 +880,12 @@ function createBuiltInContributions(disposables: ReturnType<typeof ensureNoDispo
 	services.set(IAgentHostLocalTurns, new AgentHostLocalTurns(sessionDataService, logService));
 	const instantiationService = disposables.add(new InstantiationService(services, /*strict*/ true));
 	const service = disposables.add(new AgentHostChatContributions(logService, instantiationService));
-	const launchedComparisonJudges: { readonly config: IAgentCreateSessionConfig; readonly prompt: string }[] = [];
+	const launchedComparisonSessions: { readonly config: IAgentCreateSessionConfig; readonly prompt: string }[] = [];
 	services.set(IAgentHostChatContributions, service);
 	services.set(IAgentHostSessionPromptService, {
 		_serviceBrand: undefined,
 		startSessionPrompt: async (config, prompt) => {
-			launchedComparisonJudges.push({ config, prompt });
+			launchedComparisonSessions.push({ config, prompt });
 			return URI.parse('agent-host-session://comparison-judge');
 		},
 	});
@@ -901,7 +901,7 @@ function createBuiltInContributions(disposables: ReturnType<typeof ensureNoDispo
 	};
 	disposables.add(service.registerHost(host));
 	disposables.add(registerBuiltInChatContributions(service));
-	return { service, stateManager, database: usageDatabase, launchedComparisonJudges, session: 'agent-host-session://test', worktree, additionalWorktreeLifecycle };
+	return { service, stateManager, database: usageDatabase, launchedComparisonSessions, session: 'agent-host-session://test', worktree, additionalWorktreeLifecycle };
 }
 
 function createQueueDrainContributions(disposables: ReturnType<typeof ensureNoDisposablesAreLeakedInTestSuite>) {
@@ -1449,14 +1449,14 @@ suite('AgentHostChatContributions', () => {
 		contributions.stateManager.dispatchServerAction(attempt1, removeActiveClient);
 		contributions.service.didDispatchAction(dispatchedAction(attempt1, attempt1, removeActiveClient));
 		await Promise.resolve();
-		assert.strictEqual(contributions.launchedComparisonJudges.length, 0);
+		assert.strictEqual(contributions.launchedComparisonSessions.length, 0);
 
 		contributions.stateManager.dispatchServerAction(attempt2, removeActiveClient);
 		contributions.service.didDispatchAction(dispatchedAction(attempt2, attempt2, removeActiveClient));
 		await Promise.resolve();
 
-		assert.strictEqual(contributions.launchedComparisonJudges.length, 1);
-		assert.deepStrictEqual(contributions.launchedComparisonJudges[0]!.config, {
+		assert.strictEqual(contributions.launchedComparisonSessions.length, 1);
+		assert.deepStrictEqual(contributions.launchedComparisonSessions[0]!.config, {
 			provider: 'copilotcli',
 			workingDirectories: [URI.parse('file:///workspace')],
 			config: {
@@ -1470,7 +1470,100 @@ suite('AgentHostChatContributions', () => {
 				attemptCount: 2,
 			}),
 		});
-		assert.ok(contributions.launchedComparisonJudges[0]!.prompt.includes(comparisonId));
+		assert.ok(contributions.launchedComparisonSessions[0]!.prompt.includes(comparisonId));
+	});
+
+	test('launches configured comparison synthesis from host fallback after Judge completes and clients disconnect', async () => {
+		const contributions = createBuiltInContributions(disposables);
+		const comparisonId = 'comparison-with-synthesis';
+		const createdAt = '2025-01-01T00:00:00.000Z';
+		const modifiedAt = '2025-01-01T00:01:00.000Z';
+		const launch = {
+			workspace: 'file:///workspace',
+			judge: {
+				providerId: 'local-agent-host',
+				sessionTypeId: 'copilotcli',
+				permissionId: 'autoApprove',
+			},
+			synthesis: {
+				providerId: 'local-agent-host',
+				sessionTypeId: 'copilotcli',
+				permissionId: 'autoApprove',
+			},
+		} as const;
+		const attempt1 = 'agent-host-session://attempt-1';
+		const attempt2 = 'agent-host-session://attempt-2';
+		const judge = 'agent-host-session://judge';
+
+		contributions.stateManager.createSession({
+			resource: attempt1,
+			provider: 'copilotcli',
+			title: 'Attempt 1',
+			status: SessionStatus.Idle,
+			createdAt,
+			modifiedAt,
+			_meta: withSessionComparisonMetadata(undefined, { id: comparisonId, role: 'attempt', attemptIndex: 0, attemptCount: 2, launch }),
+		});
+		contributions.stateManager.createSession({
+			resource: attempt2,
+			provider: 'copilotcli',
+			title: 'Attempt 2',
+			status: SessionStatus.Idle,
+			createdAt,
+			modifiedAt,
+			_meta: withSessionComparisonMetadata(undefined, { id: comparisonId, role: 'attempt', attemptIndex: 1, attemptCount: 2, launch }),
+		});
+		contributions.stateManager.createSession({
+			resource: judge,
+			provider: 'copilotcli',
+			title: 'Judge',
+			status: SessionStatus.Idle,
+			createdAt,
+			modifiedAt,
+			_meta: withSessionComparisonMetadata(undefined, { id: comparisonId, role: 'judge', attemptCount: 2 }),
+		});
+		const setActiveClient = {
+			type: ActionType.SessionActiveClientSet,
+			activeClient: { clientId: 'client-a', tools: [] },
+		} as const;
+		contributions.stateManager.dispatchServerAction(attempt1, setActiveClient);
+		contributions.stateManager.dispatchServerAction(attempt2, setActiveClient);
+		contributions.stateManager.dispatchServerAction(judge, setActiveClient);
+
+		const removeActiveClient = {
+			type: ActionType.SessionActiveClientRemoved,
+			clientId: 'client-a',
+		} as const;
+		contributions.stateManager.dispatchServerAction(attempt1, removeActiveClient);
+		contributions.service.didDispatchAction(dispatchedAction(attempt1, attempt1, removeActiveClient));
+		await Promise.resolve();
+		assert.strictEqual(contributions.launchedComparisonSessions.length, 0);
+
+		contributions.stateManager.dispatchServerAction(attempt2, removeActiveClient);
+		contributions.service.didDispatchAction(dispatchedAction(attempt2, attempt2, removeActiveClient));
+		await Promise.resolve();
+		assert.strictEqual(contributions.launchedComparisonSessions.length, 0);
+
+		contributions.stateManager.dispatchServerAction(judge, removeActiveClient);
+		contributions.service.didDispatchAction(dispatchedAction(judge, judge, removeActiveClient));
+		await Promise.resolve();
+
+		assert.strictEqual(contributions.launchedComparisonSessions.length, 1);
+		assert.deepStrictEqual(contributions.launchedComparisonSessions[0]!.config, {
+			provider: 'copilotcli',
+			workingDirectories: [URI.parse('file:///workspace')],
+			config: {
+				isolation: 'worktree',
+				mode: 'interactive',
+				autoApprove: 'autoApprove',
+			},
+			_meta: withSessionComparisonMetadata(undefined, {
+				id: comparisonId,
+				role: 'synthesis',
+				attemptCount: 2,
+			}),
+		});
+		assert.ok(contributions.launchedComparisonSessions[0]!.prompt.includes(comparisonId));
 	});
 
 	test('reconciles GitHub references after every started turn outcome', () => {

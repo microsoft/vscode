@@ -7,9 +7,9 @@ import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { type IAgentCreateSessionConfig, CLAUDE_AGENT_PROVIDER_ID, CODEX_AGENT_PROVIDER_ID } from '../../../common/agent.js';
 import type { IAgentHostChatContribution, IAgentHostChatContributionContext, IDispatchedAction } from '../../../common/agentHostChatContributionsService.js';
-import { createSessionComparisonJudgePrompt } from '../../../common/sessionComparisonPrompts.js';
+import { createSessionComparisonJudgePrompt, createSessionComparisonSynthesisPrompt } from '../../../common/sessionComparisonPrompts.js';
 import { ActionType } from '../../../common/state/sessionActions.js';
-import { readSessionComparisonMetadata, SessionStatus, withSessionComparisonMetadata, type IAgentSessionComparisonLaunchMetadata } from '../../../common/state/sessionState.js';
+import { readSessionComparisonMetadata, SessionStatus, withSessionComparisonMetadata, type AgentSessionComparisonRole, type IAgentSessionComparisonHarnessMetadata, type IAgentSessionComparisonLaunchMetadata } from '../../../common/state/sessionState.js';
 import { ClaudeSessionConfigKey, narrowClaudePermissionMode } from '../../../common/claudeSessionConfigKeys.js';
 import { CodexSessionConfigKey, narrowCodexPermissionsPreset } from '../../../common/codexSessionConfigKeys.js';
 import { SessionConfigKey } from '../../../common/sessionConfigKeys.js';
@@ -27,15 +27,25 @@ interface IComparisonAttemptState {
 	readonly activeClientCount: number;
 }
 
-interface IComparisonJudgeLaunchState {
+interface IComparisonJudgeState {
+	readonly status: SessionStatus;
+	readonly createdAt: string;
+	readonly modifiedAt: string;
+	readonly activeClientCount: number;
+}
+
+interface IComparisonLaunchState {
 	readonly attemptCount: number;
 	readonly launch: IAgentSessionComparisonLaunchMetadata;
+	readonly attempts: readonly IComparisonAttemptState[];
+	readonly judge: IComparisonJudgeState | undefined;
+	readonly synthesisExists: boolean;
 }
 
 /**
- * Fallback orchestration path that lets Agent Host launch a comparison Judge
- * after attempt sessions finish when no client remains connected to continue
- * client-owned orchestration.
+ * Fallback orchestration path that lets Agent Host launch comparison Judge
+ * and Synthesizer sessions after disconnects so orchestration can continue
+ * without a connected client.
  */
 export class SessionComparisonJudgeLaunchContribution extends Disposable implements IAgentHostChatContribution {
 
@@ -67,13 +77,13 @@ export class SessionComparisonJudgeLaunchContribution extends Disposable impleme
 		}
 		const summary = this._stateManager.getSessionSummary(dispatched.session);
 		const comparison = readSessionComparisonMetadata(summary?._meta);
-		if (!comparison || comparison.role !== 'attempt' || !comparison.launch) {
+		if (!comparison) {
 			return;
 		}
-		void this._maybeLaunchJudge(comparison.id);
+		void this._maybeLaunchComparisonSession(comparison.id);
 	}
 
-	private async _maybeLaunchJudge(comparisonId: string): Promise<void> {
+	private async _maybeLaunchComparisonSession(comparisonId: string): Promise<void> {
 		if (this._startingComparisons.has(comparisonId)) {
 			return;
 		}
@@ -81,19 +91,63 @@ export class SessionComparisonJudgeLaunchContribution extends Disposable impleme
 		if (!launch) {
 			return;
 		}
+		const nextLaunch = this._resolveNextLaunch(comparisonId, launch);
+		if (!nextLaunch) {
+			return;
+		}
 		this._startingComparisons.add(comparisonId);
 		try {
-			const createConfig = this._buildJudgeSessionConfig(comparisonId, launch);
-			await this._sessionPromptService.startSessionPrompt(createConfig, createSessionComparisonJudgePrompt(comparisonId));
+			const createConfig = this._buildSessionConfig(comparisonId, launch.attemptCount, nextLaunch.role, nextLaunch.harness, launch.launch.branch, launch.launch.workspace);
+			await this._sessionPromptService.startSessionPrompt(createConfig, nextLaunch.prompt);
 		} catch (error) {
-			this._logService.warn(`[SessionComparisonJudgeLaunchContribution] Failed to launch Judge for comparison '${comparisonId}'.`, error);
+			this._logService.warn(`[SessionComparisonJudgeLaunchContribution] Failed to launch ${nextLaunch.role} for comparison '${comparisonId}'.`, error);
 		} finally {
 			this._startingComparisons.delete(comparisonId);
 		}
 	}
 
-	private _collectLaunchState(comparisonId: string): IComparisonJudgeLaunchState | undefined {
-		let judgeExists = false;
+	private _resolveNextLaunch(comparisonId: string, launchState: IComparisonLaunchState): { readonly role: 'judge' | 'synthesis'; readonly harness: IAgentSessionComparisonHarnessMetadata; readonly prompt: string } | undefined {
+		if (this._shouldLaunchJudge(launchState)) {
+			return {
+				role: 'judge',
+				harness: launchState.launch.judge,
+				prompt: createSessionComparisonJudgePrompt(comparisonId),
+			};
+		}
+		if (this._shouldLaunchSynthesis(launchState) && launchState.launch.synthesis) {
+			return {
+				role: 'synthesis',
+				harness: launchState.launch.synthesis,
+				prompt: createSessionComparisonSynthesisPrompt(comparisonId),
+			};
+		}
+		return undefined;
+	}
+
+	private _shouldLaunchJudge(launchState: IComparisonLaunchState): boolean {
+		if (launchState.judge || launchState.attempts.length < launchState.attemptCount) {
+			return false;
+		}
+		return this._countSuccessfulAttempts(launchState.attempts) >= 2;
+	}
+
+	private _shouldLaunchSynthesis(launchState: IComparisonLaunchState): boolean {
+		if (!launchState.launch.synthesis || launchState.synthesisExists || !launchState.judge) {
+			return false;
+		}
+		const judge = launchState.judge;
+		if ((judge.status & SessionStatus.InProgress) === SessionStatus.InProgress || (judge.status & SessionStatus.Error) === SessionStatus.Error) {
+			return false;
+		}
+		if (judge.modifiedAt === judge.createdAt) {
+			return false;
+		}
+		return this._countSuccessfulAttempts(launchState.attempts) >= 2;
+	}
+
+	private _collectLaunchState(comparisonId: string): IComparisonLaunchState | undefined {
+		let judge: IComparisonJudgeState | undefined;
+		let synthesisExists = false;
 		let launch: IAgentSessionComparisonLaunchMetadata | undefined;
 		let attemptCount: number | undefined;
 		const attempts: IComparisonAttemptState[] = [];
@@ -104,8 +158,21 @@ export class SessionComparisonJudgeLaunchContribution extends Disposable impleme
 				continue;
 			}
 			switch (comparison.role) {
-				case 'judge':
-					judgeExists = true;
+				case 'judge': {
+					const state = this._stateManager.getSessionState(session);
+					if (!state) {
+						return undefined;
+					}
+					judge = {
+						status: summary.status,
+						createdAt: summary.createdAt,
+						modifiedAt: summary.modifiedAt,
+						activeClientCount: state.activeClients.length,
+					};
+					break;
+				}
+				case 'synthesis':
+					synthesisExists = true;
 					break;
 				case 'attempt': {
 					attemptCount = attemptCount ?? comparison.attemptCount;
@@ -125,56 +192,57 @@ export class SessionComparisonJudgeLaunchContribution extends Disposable impleme
 				}
 			}
 		}
-		if (judgeExists || !launch || attemptCount === undefined || attempts.length < attemptCount) {
+		if (!launch || attemptCount === undefined || attempts.length < attemptCount) {
 			return undefined;
 		}
-		if (attempts.some(attempt => attempt.activeClientCount > 0)) {
+		const participantsHaveActiveClients = attempts.some(attempt => attempt.activeClientCount > 0) || (judge?.activeClientCount ?? 0) > 0;
+		if (participantsHaveActiveClients) {
 			return undefined;
 		}
+		if (attempts.some(attempt => (attempt.status & SessionStatus.InProgress) === SessionStatus.InProgress)) {
+			return undefined;
+		}
+		return { attemptCount, launch, attempts, judge, synthesisExists };
+	}
+
+	private _countSuccessfulAttempts(attempts: readonly IComparisonAttemptState[]): number {
 		let successfulAttempts = 0;
 		for (const attempt of attempts) {
-			if ((attempt.status & SessionStatus.InProgress) === SessionStatus.InProgress) {
-				return undefined;
-			}
 			if ((attempt.status & SessionStatus.Error) === SessionStatus.Error) {
 				continue;
 			}
 			if (attempt.modifiedAt === attempt.createdAt) {
-				return undefined;
+				continue;
 			}
 			successfulAttempts++;
 		}
-		if (successfulAttempts < 2) {
-			return undefined;
-		}
-		return { attemptCount, launch };
+		return successfulAttempts;
 	}
 
-	private _buildJudgeSessionConfig(comparisonId: string, launchState: IComparisonJudgeLaunchState): IAgentCreateSessionConfig {
-		const launch = launchState.launch;
-		const permissionConfig = resolvePermissionConfig(launch.judge.sessionTypeId, launch.judge.permissionId);
-		if (launch.judge.permissionId && !permissionConfig) {
-			this._logService.warn(`[SessionComparisonJudgeLaunchContribution] Ignoring unsupported permission '${launch.judge.permissionId}' for session type '${launch.judge.sessionTypeId}'.`);
+	private _buildSessionConfig(comparisonId: string, attemptCount: number, role: AgentSessionComparisonRole, harness: IAgentSessionComparisonHarnessMetadata, branch: string | undefined, workspace: string): IAgentCreateSessionConfig {
+		const permissionConfig = resolvePermissionConfig(harness.sessionTypeId, harness.permissionId);
+		if (harness.permissionId && !permissionConfig) {
+			this._logService.warn(`[SessionComparisonJudgeLaunchContribution] Ignoring unsupported permission '${harness.permissionId}' for session type '${harness.sessionTypeId}'.`);
 		}
 		const config: Record<string, unknown> = {
 			[SessionConfigKey.Isolation]: 'worktree',
-			...(launch.branch ? { [SessionConfigKey.Branch]: launch.branch } : {}),
+			...(branch ? { [SessionConfigKey.Branch]: branch } : {}),
 			...(permissionConfig ?? {}),
 		};
 		return {
-			provider: launch.judge.sessionTypeId,
-			workingDirectories: [URI.parse(launch.workspace)],
+			provider: harness.sessionTypeId,
+			workingDirectories: [URI.parse(workspace)],
 			config,
-			...(launch.judge.modelId ? {
+			...(harness.modelId ? {
 				model: {
-					id: launch.judge.modelId,
-					...(launch.judge.modelConfiguration ? { config: { ...launch.judge.modelConfiguration } } : {}),
+					id: harness.modelId,
+					...(harness.modelConfiguration ? { config: { ...harness.modelConfiguration } } : {}),
 				},
 			} : {}),
 			_meta: withSessionComparisonMetadata(undefined, {
 				id: comparisonId,
-				role: 'judge',
-				attemptCount: launchState.attemptCount,
+				role,
+				attemptCount,
 			}),
 		};
 	}
