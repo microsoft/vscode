@@ -160,7 +160,7 @@ export class NativePluginGitCommandService implements IPluginGitService {
 
 	private _isAuthenticationFailure(error: unknown): boolean {
 		const candidate = error as GitProcessError | undefined;
-		if (candidate?.code !== 128) {
+		if (candidate?.code !== undefined && candidate.code !== 128 && candidate.code !== '128') {
 			return false;
 		}
 		const details = `${candidate.stderr ?? ''}\n${candidate.message ?? ''}`;

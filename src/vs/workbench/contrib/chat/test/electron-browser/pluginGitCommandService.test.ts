@@ -59,6 +59,11 @@ suite('NativePluginGitCommandService', () => {
 		return error;
 	}
 
+	function createSerializedAuthenticationError(): Error {
+		return new Error(`Command failed: git clone -- https://github.com/test/private.git /tmp/repo
+fatal: could not read Username for 'https://github.com': terminal prompts disabled`);
+	}
+
 	function createService(localGitService: ILocalGitService, accessToken?: string, fileService = createFileService(), authenticationService = createAuthenticationService(accessToken)): NativePluginGitCommandService {
 		return new NativePluginGitCommandService(localGitService, authenticationService, fileService, new NullLogService());
 	}
@@ -81,7 +86,7 @@ suite('NativePluginGitCommandService', () => {
 			clone: async (_operationId, _url, _path, _ref, options) => {
 				authentications.push(options?.authentication);
 				if (!options?.authentication) {
-					throw createAuthenticationError();
+					throw createSerializedAuthenticationError();
 				}
 			},
 		}), 'github-token', createFileService({
