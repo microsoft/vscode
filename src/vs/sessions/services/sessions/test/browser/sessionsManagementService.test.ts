@@ -397,7 +397,7 @@ suite('SessionsManagementService', () => {
 			});
 		});
 
-		test('removes sessions even when the provider clears its cache before unregistering', () => {
+		test('refreshes the catalogue without deletions when a provider clears its cache and unregisters', () => {
 			const session = stubSession({ sessionId: 'cached', providerId: 'test' });
 			const sessions = [session];
 			let reads = 0;
@@ -422,7 +422,7 @@ suite('SessionsManagementService', () => {
 				listed: service.getSessions(),
 				readsAfterRemoval: reads - readsBeforeRemoval,
 			}, {
-				changes: [{ added: [], removed: [session], changed: [] }],
+				changes: [{ added: [], removed: [], changed: [] }],
 				listed: [],
 				readsAfterRemoval: 0,
 			});
@@ -491,7 +491,7 @@ suite('SessionsManagementService', () => {
 				changes: [
 					{ added: [migrated], removed: [], changed: [] },
 					{ added: [], removed: [], changed: [] },
-					{ added: [], removed: [migrated, added], changed: [] },
+					{ added: [], removed: [], changed: [] },
 				],
 				snapshots: [[migrated], [migrated, added], [legacy]],
 				sameLegacySession: true,
@@ -499,7 +499,7 @@ suite('SessionsManagementService', () => {
 			});
 		});
 
-		test('tracks session changes and replacements for removal without re-reading the provider', () => {
+		test('forwards real removals and replacements without treating provider loss as deletion', () => {
 			const removed = stubSession({ sessionId: 'removed', providerId: 'test' });
 			const original = stubSession({ sessionId: 'original', providerId: 'test' });
 			const changed = stubSession({ sessionId: 'original', providerId: 'test', title: constObservable('Changed') });
@@ -532,13 +532,13 @@ suite('SessionsManagementService', () => {
 				changes: [
 					change,
 					{ added: [], removed: [added], changed: [replacement] },
-					{ added: [], removed: [changed, replacement], changed: [] },
+					{ added: [], removed: [], changed: [] },
 				],
 				readsAfterChanges: 0,
 			});
 		});
 
-		test('removes visible sessions and pending drafts when their provider unregisters', async () => {
+		test('preserves visible sessions and pending drafts when their provider unregisters', async () => {
 			const active = stubSession({ sessionId: 'active', providerId: 'test' });
 			const draft = stubSession({ sessionId: 'draft', providerId: 'test' });
 			const automation = stubSession({ sessionId: 'automation', providerId: 'test' });
@@ -579,12 +579,12 @@ suite('SessionsManagementService', () => {
 				active: view.activeSession.get()?.sessionId,
 				deleted,
 			}, {
-				changes: [{ added: [], removed: [active, draft, automation], changed: [] }],
+				changes: [{ added: [], removed: [], changed: [] }],
 				listed: [fallback],
-				draft: undefined,
-				automation: undefined,
-				visible: ['fallback'],
-				active: 'fallback',
+				draft,
+				automation,
+				visible: ['fallback', 'active'],
+				active: 'active',
 				deleted: [],
 			});
 		});
@@ -620,7 +620,7 @@ suite('SessionsManagementService', () => {
 			currentRegistration.dispose();
 
 			assert.deepStrictEqual({ changes, replacements, typeChanges, listed }, {
-				changes: [{ added: [], removed: [current], changed: [] }],
+				changes: [{ added: [], removed: [], changed: [] }],
 				replacements: [],
 				typeChanges: 1,
 				listed: [current],

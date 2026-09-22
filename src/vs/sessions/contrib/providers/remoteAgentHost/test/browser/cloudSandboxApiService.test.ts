@@ -556,6 +556,60 @@ suite('CloudSandboxApiService incremental discovery', () => {
 		});
 	});
 
+	test('removes a previously discovered task when its environment binding disappears', async () => {
+		const tasks = [updatedTask('first')];
+		const { service } = createService(store, {
+			tasks, repositories: new Map(), discoveryDate: () => firstScanDate,
+		});
+		await service.listSessions(CancellationToken.None);
+		tasks[0] = { ...updatedTask('first', checkpoint), sessions: [] };
+
+		const removed = await service.listSessions(CancellationToken.None, { incremental: true });
+		const stillUnbound = await service.listSessions(CancellationToken.None, { incremental: true });
+		tasks[0] = updatedTask('first', checkpoint);
+		const rebound = await service.listSessions(CancellationToken.None, { incremental: true });
+
+		assert.deepStrictEqual({
+			removed,
+			stillUnbound,
+			rebound: rebound.kind === 'failed' ? [] : rebound.sessions.map(session => session.taskId),
+		}, {
+			removed: { kind: 'incremental', sessions: [], removedTaskIds: ['first'] },
+			stillUnbound: { kind: 'incremental', sessions: [], removedTaskIds: [] },
+			rebound: ['first'],
+		});
+	});
+
+	test('retains a failed task until retry confirms its binding disappeared, even outside the discovery window', async () => {
+		const tasks = [updatedTask('first')];
+		let failDetail = false;
+		let omitFromList = false;
+		const { service } = createService(store, {
+			tasks, repositories: new Map(), discoveryDate: () => firstScanDate,
+			onRequest: url => {
+				if (failDetail && url.pathname.endsWith('/tasks/first')) {
+					return jsonResponse({}, 500);
+				}
+				if (omitFromList && url.pathname.endsWith('/tasks')) {
+					return jsonResponse({ tasks: [] }, 200, { date: firstScanDate });
+				}
+				return undefined;
+			},
+		});
+		await service.listSessions(CancellationToken.None);
+		tasks[0] = { ...updatedTask('first', checkpoint), sessions: [] };
+		failDetail = true;
+		const failed = await service.listSessions(CancellationToken.None, { incremental: true });
+		failDetail = false;
+		omitFromList = true;
+		const retried = await service.listSessions(CancellationToken.None, { incremental: true });
+
+		assert.deepStrictEqual({ failed, retried }, {
+			failed: { kind: 'partial', sessions: [], removedTaskIds: [] },
+			retried: { kind: 'incremental', sessions: [], removedTaskIds: ['first'] },
+		});
+	});
+
 	test('does not advance the checkpoint past an unresolved task', async () => {
 		const tasks: ITestTask[] = [];
 		let failing = false;

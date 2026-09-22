@@ -13,6 +13,7 @@ import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js'
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/virtualScheduling/index.js';
 import { URI } from '../../../../../../base/common/uri.js';
+import { StorageValue } from '../../../../../../base/parts/storage/common/storage.js';
 import { AgentSession } from '../../../../../../platform/agentHost/common/agent.js';
 import { IAgentSessionMetadata } from '../../../../../../platform/agentHost/common/agentService.js';
 import { agentHostAuthority } from '../../../../../../platform/agentHost/common/agentHostUri.js';
@@ -33,7 +34,7 @@ import {
 	type ICloudSandboxEnvironment as ICloudSandboxEnvironmentRecord,
 } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { IRemoteAgentHostService, RemoteAgentHostConnectionStatus, RemoteAgentHostsEnabledSettingId } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
-import { IObservable, observableValue } from '../../../../../../base/common/observable.js';
+import { constObservable, IObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -63,21 +64,27 @@ class StubProvider extends mock<CloudSandboxSessionsProvider>() {
 	disposed = false;
 
 	override readonly id: string;
+	private _displayLabel: string;
+	override get label(): string { return this._displayLabel; }
 
 	constructor(readonly config: IRemoteAgentHostSessionsProviderConfig) {
 		super();
 		this.id = `agenthost-${config.address}`;
+		this._displayLabel = config.name;
 	}
 
-	/**
-	 * Records seeds, de-duplicating by session id. Unlike the real provider this does not model
-	 * the project backfill on an already-seeded session — that path is covered against the real
-	 * provider in `remoteAgentHostSessionsProvider.test.ts`.
-	 */
-	override seedSessions(metas: readonly IAgentSessionMetadata[]): void {
+	override setLabel(label: string): void {
+		this._displayLabel = label;
+	}
+
+	/** Records opt-in metadata updates; host-state merging is covered by the real provider's tests. */
+	override seedSessions(metas: readonly IAgentSessionMetadata[], options?: { readonly updateExisting?: boolean }): void {
 		for (const meta of metas) {
-			if (!this.seeded.some(seen => seen.session.toString() === meta.session.toString())) {
+			const index = this.seeded.findIndex(seen => seen.session.toString() === meta.session.toString());
+			if (index === -1) {
 				this.seeded.push(meta);
+			} else if (options?.updateExisting) {
+				this.seeded[index] = meta;
 			}
 		}
 	}
@@ -110,6 +117,7 @@ class StubProvider extends mock<CloudSandboxSessionsProvider>() {
 	private _toSession(meta: IAgentSessionMetadata): ISession {
 		return upcastPartial<ISession>({
 			resource: URI.from({ scheme: 'agent-host-copilot', path: `/${AgentSession.id(meta.session)}` }),
+			updatedAt: constObservable(new Date(meta.modifiedTime)),
 		});
 	}
 
@@ -655,6 +663,43 @@ suite('CloudSandboxAgentHostContribution startup inventory', () => {
 	const account = '["github","account-1"]';
 	const storageKey = `sessions.cloudSandbox.inventory.${account}`;
 
+	function entryKey(session: ICloudSandboxDiscoveredSession, accountKey = account): string {
+		return `sessions.cloudSandbox.inventory.${accountKey}.${JSON.stringify([session.environmentId, session.sessionId])}`;
+	}
+
+	function readInventory(storageService: IStorageService, accountKey = account): readonly ICloudSandboxDiscoveredSession[] {
+		return storageService.keys(StorageScope.PROFILE, StorageTarget.MACHINE)
+			.filter(key => key.startsWith(`sessions.cloudSandbox.inventory.${accountKey}.`))
+			.flatMap(key => {
+				const cached = storageService.getObject<{ sessions: ICloudSandboxDiscoveredSession[] }>(key, StorageScope.PROFILE);
+				assert.ok(cached);
+				return cached.sessions;
+			});
+	}
+
+	class IsolatedWindowStorageService extends InMemoryStorageService {
+		constructor(private readonly shared: IStorageService) {
+			super();
+			for (const key of shared.keys(StorageScope.PROFILE, StorageTarget.MACHINE)) {
+				super.store(key, shared.get(key, StorageScope.PROFILE), StorageScope.PROFILE, StorageTarget.MACHINE, true);
+			}
+		}
+
+		override store(key: string, value: StorageValue, scope: StorageScope, target: StorageTarget, external = false): void {
+			super.store(key, value, scope, target, external);
+			if (!external && value !== undefined && value !== null) {
+				this.shared.store(key, value, scope, target);
+			}
+		}
+
+		override remove(key: string, scope: StorageScope, external = false): void {
+			super.remove(key, scope, external);
+			if (!external) {
+				this.shared.remove(key, scope);
+			}
+		}
+	}
+
 	test('restores session rows and repository metadata before discovery finishes without connecting', async () => {
 		const storageService = store.add(new InMemoryStorageService());
 		const session = discoveredSession();
@@ -673,7 +718,7 @@ suite('CloudSandboxAgentHostContribution startup inventory', () => {
 		const provider = restored.contribution.stubProviders.get(cloudSandboxAddress(session.environmentId));
 
 		assert.deepStrictEqual({
-			cached: storageService.getObject(storageKey, StorageScope.PROFILE),
+			cached: readInventory(storageService),
 			machineKeys: storageService.keys(StorageScope.PROFILE, StorageTarget.MACHINE),
 			seeded: provider?.seeded.map(meta => ({
 				id: AgentSession.id(meta.session), title: meta.summary,
@@ -682,8 +727,8 @@ suite('CloudSandboxAgentHostContribution startup inventory', () => {
 			connected: restored.connectedTo,
 			history: restored.historyRequests,
 		}, {
-			cached: { version: 1, sessions: [session] },
-			machineKeys: [storageKey],
+			cached: [session],
+			machineKeys: [entryKey(session)],
 			seeded: [{ id: session.sessionId, title: session.name, modifiedTime: Date.parse(session.updatedAt!), repository: session.repoName }],
 			connected: [], history: [],
 		});
@@ -710,9 +755,9 @@ suite('CloudSandboxAgentHostContribution startup inventory', () => {
 
 		assert.deepStrictEqual({
 			retained, removed: provider.disposed,
-			cached: storageService.getObject(storageKey, StorageScope.PROFILE),
+			cached: readInventory(storageService),
 			reappeared: next.contribution.stubProviders.size,
-		}, { retained: true, removed: true, cached: { version: 1, sessions: [] }, reappeared: 0 });
+		}, { retained: true, removed: true, cached: [], reappeared: 0 });
 	});
 
 	test('merges partial discoveries into the saved inventory and persists explicit removals', async () => {
@@ -722,15 +767,51 @@ suite('CloudSandboxAgentHostContribution startup inventory', () => {
 		const other = discoveredSession({ environmentId: 'env-2', sessionId: 'sess-2', taskId: 'task-2' });
 		let result: ICloudSandboxDiscoveryResult = { kind: 'partial', sessions: [other] };
 		const restored = await createContribution(store, [], { storageService, listSessions: async () => result });
-		const merged = storageService.getObject(storageKey, StorageScope.PROFILE);
+		const merged = readInventory(storageService);
 		result = { kind: 'incremental', sessions: [], removedTaskIds: ['task-1'] };
 		await restored.runDiscovery();
 
 		assert.deepStrictEqual({
-			merged, afterRemoval: storageService.getObject(storageKey, StorageScope.PROFILE),
+			merged, afterRemoval: readInventory(storageService),
 		}, {
-			merged: { version: 1, sessions: [discoveredSession(), other] },
-			afterRemoval: { version: 1, sessions: [other] },
+			merged: [discoveredSession(), other],
+			afterRemoval: [other],
+		});
+	});
+
+	test('refreshes existing provider metadata and persists repository replacement and removal', async () => {
+		const storageService = store.add(new InMemoryStorageService());
+		let result: ICloudSandboxDiscoveryResult = { kind: 'complete', sessions: [discoveredSession()] };
+		const harness = await createContribution(store, [], { storageService, listSessions: async () => result });
+		const provider = harness.contribution.stubProviders.get(cloudSandboxAddress('env-1'))!;
+		const updated = discoveredSession({
+			name: 'Renamed task', repoName: 'owner/other', updatedAt: '2026-09-22T11:00:00Z',
+		});
+		result = { kind: 'incremental', sessions: [updated], removedTaskIds: [] };
+		await harness.runDiscovery();
+		const replacedRepository = provider.seeded[0].project?.displayName;
+		const withoutRepository = { ...updated, repoName: undefined };
+		result = { kind: 'incremental', sessions: [withoutRepository], removedTaskIds: [] };
+		await harness.runDiscovery();
+
+		assert.deepStrictEqual({
+			sameProvider: harness.contribution.stubProviders.get(cloudSandboxAddress('env-1')) === provider,
+			disposed: provider.disposed,
+			label: provider.label,
+			title: provider.seeded[0].summary,
+			modifiedTime: provider.seeded[0].modifiedTime,
+			replacedRepository,
+			project: provider.seeded[0].project,
+			cached: readInventory(storageService).map(session => ({ name: session.name, repoName: session.repoName, updatedAt: session.updatedAt })),
+		}, {
+			sameProvider: true,
+			disposed: false,
+			label: updated.name,
+			title: updated.name,
+			modifiedTime: Date.parse(updated.updatedAt!),
+			replacedRepository: 'owner/other',
+			project: undefined,
+			cached: [{ name: updated.name, repoName: undefined, updatedAt: updated.updatedAt }],
 		});
 	});
 
@@ -755,13 +836,29 @@ suite('CloudSandboxAgentHostContribution startup inventory', () => {
 			otherAccountRows, restoredImmediately, hiddenOnSignOut: ownCached.disposed,
 			signedOutRows: signedOut.contribution.stubProviders.size,
 			signedOutRequests: signedOut.discoveryModes,
-			saved: storageService.getObject(storageKey, StorageScope.PROFILE),
+			saved: readInventory(storageService),
 		}, {
 			otherAccountRows: 0, restoredImmediately: true, hiddenOnSignOut: true,
 			signedOutRows: 0, signedOutRequests: [],
-			saved: { version: 1, sessions: [discoveredSession()] },
+			saved: [discoveredSession()],
 		});
 	});
+
+	test('does not treat a refresh without a timestamp as new session activity', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const session = discoveredSession({ updatedAt: undefined });
+		const harness = await createContribution(store, [session]);
+		const provider = harness.contribution.stubProviders.get(cloudSandboxAddress(session.environmentId))!;
+		const modifiedTime = provider.seeded[0].modifiedTime;
+		await timeout(60_000);
+		harness.discovered = [{ ...session, name: 'Renamed without a timestamp' }];
+		await harness.runDiscovery();
+
+		assert.deepStrictEqual({
+			title: provider.seeded[0].summary,
+			modifiedTime: provider.seeded[0].modifiedTime,
+			elapsed: Date.now() - modifiedTime,
+		}, { title: 'Renamed without a timestamp', modifiedTime, elapsed: 60_000 });
+	}));
 
 	test('does not dispose providers when credentials change for the same account', async () => {
 		const harness = await createContribution(store, [discoveredSession()]);
@@ -807,12 +904,99 @@ suite('CloudSandboxAgentHostContribution startup inventory', () => {
 		assert.deepStrictEqual({
 			cancelled: oldToken?.isCancellationRequested,
 			visible: [...harness.contribution.stubProviders].filter(([, provider]) => !provider.disposed).map(([address]) => address),
-			previousAccount: storageService.getObject(storageKey, StorageScope.PROFILE),
-			currentAccount: storageService.getObject(`sessions.cloudSandbox.inventory.${otherAccount}`, StorageScope.PROFILE),
+			previousAccount: readInventory(storageService),
+			currentAccount: readInventory(storageService, otherAccount),
 		}, {
 			cancelled: true, visible: [cloudSandboxAddress('env-2')],
-			previousAccount: { version: 1, sessions: [discoveredSession()] },
-			currentAccount: { version: 1, sessions },
+			previousAccount: [discoveredSession()],
+			currentAccount: sessions,
+		});
+	});
+
+	test('an older scan cannot discard a session provisioned in another window before storage events arrive', async () => {
+		const shared = store.add(new InMemoryStorageService());
+		const firstStorage = store.add(new IsolatedWindowStorageService(shared));
+		const first = await createContribution(store, [discoveredSession()], { storageService: firstStorage });
+		const secondStorage = store.add(new IsolatedWindowStorageService(shared));
+		const pending = new DeferredPromise<ICloudSandboxDiscoveryResult>();
+		const started = new DeferredPromise<void>();
+		let block = false;
+		const second = await createContribution(store, [], {
+			storageService: secondStorage,
+			listSessions: async () => {
+				if (block) {
+					await started.complete();
+					return pending.p;
+				}
+				return { kind: 'complete', sessions: [discoveredSession()] };
+			},
+		});
+		block = true;
+		const olderScan = second.runDiscovery();
+		await started.p;
+		first.onConnect = async () => { throw new Error('offline'); };
+		await assert.rejects(first.contribution.provisionSession({ prompt: 'hello' }, CancellationToken.None), /offline/);
+		await pending.complete({ kind: 'complete', sessions: [discoveredSession()] });
+		await olderScan;
+		first.contribution.dispose();
+		second.contribution.dispose();
+		const restored = await createContribution(store, [], {
+			storageService: store.add(new IsolatedWindowStorageService(shared)),
+			listSessions: async () => ({ kind: 'failed', reason: 'offline' }),
+		});
+
+		assert.deepStrictEqual({
+			staleWindowInventory: readInventory(secondStorage).map(session => session.sessionId),
+			saved: readInventory(shared).map(session => session.sessionId).sort(),
+			restored: [...restored.contribution.stubProviders.keys()].sort(),
+			connected: restored.connectedTo,
+		}, {
+			staleWindowInventory: ['sess-1'],
+			saved: ['sess-1', 'sess-new'],
+			restored: [cloudSandboxAddress('env-1'), cloudSandboxAddress('env-new')],
+			connected: [],
+		});
+	});
+
+	test('does not replay unchanged inventory over another window metadata updates or removals', async () => {
+		const shared = store.add(new InMemoryStorageService());
+		const first = await createContribution(store, [discoveredSession()], {
+			storageService: store.add(new IsolatedWindowStorageService(shared)),
+		});
+		const second = await createContribution(store, [discoveredSession()], {
+			storageService: store.add(new IsolatedWindowStorageService(shared)),
+		});
+		const updated = discoveredSession({ name: 'Renamed in another window', updatedAt: '2026-09-22T11:00:00Z' });
+		first.discovered = [updated];
+		await first.runDiscovery();
+		await second.runDiscovery();
+		const afterUpdate = readInventory(shared);
+		first.discovered = [];
+		await first.runDiscovery();
+		await second.runDiscovery();
+
+		assert.deepStrictEqual({ afterUpdate, afterRemoval: readInventory(shared) }, {
+			afterUpdate: [updated],
+			afterRemoval: [],
+		});
+	});
+
+	test('migrates a legacy account snapshot before awaiting network discovery', async () => {
+		const storageService = store.add(new InMemoryStorageService());
+		const sessions = [discoveredSession(), discoveredSession({ environmentId: 'env-2', sessionId: 'sess-2', taskId: 'task-2' })];
+		storageService.store(storageKey, { version: 1, sessions }, StorageScope.PROFILE, StorageTarget.MACHINE);
+		const harness = await createContribution(store, [], {
+			storageService, listSessions: async () => ({ kind: 'failed', reason: 'offline' }),
+		});
+
+		assert.deepStrictEqual({
+			saved: readInventory(storageService),
+			legacy: storageService.get(storageKey, StorageScope.PROFILE),
+			rows: [...harness.contribution.stubProviders.keys()],
+		}, {
+			saved: sessions,
+			legacy: undefined,
+			rows: [cloudSandboxAddress('env-1'), cloudSandboxAddress('env-2')],
 		});
 	});
 

@@ -85,8 +85,6 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	readonly automationSession: IObservable<ISession | undefined> = this._automationSession;
 
 	private readonly _providerListeners = this._register(new DisposableMap<string, IDisposable>());
-	/** Retains sessions for removal even if a provider clears its cache before unregistering. */
-	private readonly _knownProviderSessions = new Map<string, Map<string, ISession>>();
 	private readonly _disposeCts = this._register(new CancellationTokenSource());
 	private readonly _unlistedNewSessions = new ResourceMap<ISession>();
 	private readonly _inFlightNewSessionRequests = new ResourceMap<{ readonly session: ISession; count: number }>();
@@ -148,58 +146,34 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	}
 
 	private _onProvidersChanged(e: ISessionsProvidersChangeEvent): void {
-		const removed = new Map<string, ISession>();
 		for (const provider of e.removed) {
-			for (const session of this._knownProviderSessions.get(provider.id)?.values() ?? []) {
-				removed.set(session.sessionId, session);
-			}
-			for (const session of [this._newSession.get(), this._automationSession.get()]) {
-				if (session?.providerId === provider.id && !removed.has(session.sessionId)) {
-					removed.set(session.sessionId, session);
-				}
-			}
 			this._providerListeners.deleteAndDispose(provider.id);
 		}
-		if (e.added.length) {
-			this._subscribeToProviders(e.added);
-		}
-		const added = e.added.flatMap(provider => Array.from(this._knownProviderSessions.get(provider.id)?.values() ?? []));
-		if (added.length || removed.size) {
-			this.onDidChangeSessionsFromSessionsProviders({ added, removed: Array.from(removed.values()), changed: [] });
-		}
+		const added = this._subscribeToProviders(e.added);
+		// Provider disappearance hides sessions; reporting removals would trigger deletion cleanup.
+		this._onDidChangeSessions.fire({ added, removed: [], changed: [] });
 	}
 
-	private _subscribeToProviders(providers: readonly ISessionsProvider[]): void {
+	private _subscribeToProviders(providers: readonly ISessionsProvider[]): ISession[] {
+		const added: ISession[] = [];
 		for (const provider of providers) {
 			// Reading can synchronously announce cache population, so seed before subscribing.
-			const sessions = new Map(provider.getSessions().map(session => [session.sessionId, session]));
+			const sessions = provider.getSessions();
 			if (this.sessionsProvidersService.getProvider(provider.id) !== provider) {
 				continue;
 			}
 			const disposables = new DisposableStore();
 			this._providerListeners.set(provider.id, disposables);
-			this._knownProviderSessions.set(provider.id, sessions);
-			disposables.add(provider.onDidChangeSessions(e => {
-				for (const session of e.removed) {
-					sessions.delete(session.sessionId);
-				}
-				for (const session of [...e.added, ...e.changed]) {
-					sessions.set(session.sessionId, session);
-				}
-				this.onDidChangeSessionsFromSessionsProviders(e);
-			}));
+			added.push(...sessions);
+			disposables.add(provider.onDidChangeSessions(e => this.onDidChangeSessionsFromSessionsProviders(e)));
 			if (provider.onDidReplaceSession) {
-				disposables.add(provider.onDidReplaceSession(e => {
-					sessions.delete(e.from.sessionId);
-					sessions.set(e.to.sessionId, e.to);
-					this._handleDidReplaceSession(e.from, e.to);
-				}));
+				disposables.add(provider.onDidReplaceSession(e => this._handleDidReplaceSession(e.from, e.to)));
 			}
 			if (provider.onDidChangeSessionTypes) {
 				disposables.add(provider.onDidChangeSessionTypes(() => this._updateSessionTypes()));
 			}
-			disposables.add(toDisposable(() => this._knownProviderSessions.delete(provider.id)));
 		}
+		return added;
 	}
 
 	private _handleDidReplaceSession(from: ISession, to: ISession): void {
@@ -290,12 +264,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	private _getMergedSessions(): ISession[] {
 		const sessions: ISession[] = [];
 		for (const provider of this.sessionsProvidersService.getProviders()) {
-			const knownSessions = this._knownProviderSessions.get(provider.id);
-			const providerSessions = provider.getSessions();
-			for (const session of providerSessions) {
-				knownSessions?.set(session.sessionId, session);
-			}
-			sessions.push(...providerSessions);
+			sessions.push(...provider.getSessions());
 		}
 		return sessions;
 	}

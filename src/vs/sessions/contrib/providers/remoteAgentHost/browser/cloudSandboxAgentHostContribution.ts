@@ -42,7 +42,7 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
-import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
+import { IStorageEntry, IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IWorkbenchContribution } from '../../../../../workbench/common/contributions.js';
 import { IHostService } from '../../../../../workbench/services/host/browser/host.js';
 import { ChatSessionsExtensions, IAsyncChatSessionActivationRegistry, IChatSessionsService } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
@@ -152,6 +152,7 @@ export class CloudSandboxAgentHostContribution extends Disposable implements IWo
 	/** Provider instances keyed by connection address (`cloudsandbox:<envId>`). */
 	private readonly _providerInstances = new Map<string, CloudSandboxSessionsProvider>();
 	private readonly _providerStores = this._register(new DisposableMap<string>());
+	private _persistedInventory = new Map<string, string>();
 	/** Environment metadata keyed by connection address, for on-demand reconnect. */
 	private readonly _environments = new Map<string, ICloudSandboxEnvironment>();
 	/** In-flight connects keyed by address, so concurrent opens share one attempt. */
@@ -387,16 +388,20 @@ export class CloudSandboxAgentHostContribution extends Disposable implements IWo
 
 	private _seedDiscoveredSession(session: ICloudSandboxDiscoveredSession): void {
 		this._ensureProvider(session);
+		const address = cloudSandboxAddress(session.environmentId);
+		this._environments.set(address, session);
+		const provider = this._providerInstances.get(address);
+		provider?.setLabel(session.name);
 		const parsed = session.updatedAt ? Date.parse(session.updatedAt) : Number.NaN;
-		const modifiedTime = Number.isNaN(parsed) ? Date.now() : parsed;
+		const modifiedTime = Number.isNaN(parsed) ? provider?.getCachedSession(session.sessionId)?.updatedAt.get().getTime() ?? Date.now() : parsed;
 		const project = discoveredSessionProject(session.repoName);
-		this._providerInstances.get(cloudSandboxAddress(session.environmentId))?.seedSessions([{
+		provider?.seedSessions([{
 			session: AgentSession.uri(CLOUD_SANDBOX_AGENT_PROVIDER, session.sessionId),
 			startTime: modifiedTime,
 			modifiedTime,
 			summary: session.name,
 			...(project ? { project } : {}),
-		}]);
+		}], { updateExisting: true });
 	}
 
 	private _restoreAccount(accountKey: string | undefined): boolean {
@@ -406,45 +411,84 @@ export class CloudSandboxAgentHostContribution extends Disposable implements IWo
 		this._teardownAll();
 		this._accountKey = accountKey;
 		if (accountKey) {
-			let cached: { readonly version?: number; readonly sessions?: unknown } | undefined;
-			try {
-				cached = this._storageService.getObject(INVENTORY_STORAGE_PREFIX + accountKey, StorageScope.PROFILE);
-			} catch (error) {
-				this._logService.warn(`${LOG_PREFIX} Reading cached sandbox inventory failed.`, error);
-				return true;
-			}
-			if (cached !== undefined) {
-				if (isObject(cached) && cached.version === 1 && Array.isArray(cached.sessions) && cached.sessions.every(isDiscoveredSandboxSession)) {
-					for (const session of cached.sessions) {
-						this._seedDiscoveredSession(session);
-					}
-					this._logService.info(`${LOG_PREFIX} Restored ${cached.sessions.length} cached sandbox environment(s).`);
-				} else {
-					this._logService.warn(`${LOG_PREFIX} Ignoring invalid cached sandbox inventory.`);
+			const storageKey = INVENTORY_STORAGE_PREFIX + accountKey;
+			const keys = this._storageService.keys(StorageScope.PROFILE, StorageTarget.MACHINE).filter(key => key.startsWith(`${storageKey}.`));
+			let restored = 0;
+			for (const key of keys) {
+				const sessions = this._readInventory(key);
+				this._persistedInventory.set(key, JSON.stringify({ version: 1, sessions }));
+				for (const session of sessions) {
+					this._seedDiscoveredSession(session);
+					restored++;
 				}
+			}
+			if (keys.length === 0 && this._storageService.get(storageKey, StorageScope.PROFILE) !== undefined) {
+				for (const session of this._readInventory(storageKey)) {
+					this._seedDiscoveredSession(session);
+					restored++;
+				}
+				this._persistInventory();
+			}
+			if (restored) {
+				this._logService.info(`${LOG_PREFIX} Restored ${restored} cached sandbox environment(s).`);
 			}
 		}
 		return true;
+	}
+
+	private _readInventory(storageKey: string): readonly ICloudSandboxDiscoveredSession[] {
+		let cached: { readonly version?: number; readonly sessions?: unknown } | undefined;
+		try {
+			cached = this._storageService.getObject(storageKey, StorageScope.PROFILE);
+		} catch (error) {
+			this._logService.warn(`${LOG_PREFIX} Reading cached sandbox inventory failed.`, error);
+			return [];
+		}
+		if (cached !== undefined) {
+			if (isObject(cached) && cached.version === 1 && Array.isArray(cached.sessions) && cached.sessions.every(isDiscoveredSandboxSession)) {
+				return cached.sessions;
+			}
+			this._logService.warn(`${LOG_PREFIX} Ignoring invalid cached sandbox inventory.`);
+		}
+		return [];
 	}
 
 	private _persistInventory(): void {
 		if (!this._accountKey) {
 			return;
 		}
-		const sessions: ICloudSandboxDiscoveredSession[] = [];
+		const storageKey = INVENTORY_STORAGE_PREFIX + this._accountKey;
+		const inventory = new Map<string, string>();
+		const entries: IStorageEntry[] = [];
 		for (const environment of this._environments.values()) {
 			if (environment.sessionId && environment.taskId) {
-				sessions.push({
+				const session: ICloudSandboxDiscoveredSession = {
 					environmentId: environment.environmentId,
 					sessionId: environment.sessionId,
 					taskId: environment.taskId,
 					name: environment.name,
 					repoName: environment.repoName,
 					updatedAt: environment.updatedAt,
-				});
+				};
+				const key = `${storageKey}.${JSON.stringify([session.environmentId, session.sessionId])}`;
+				const value = JSON.stringify({ version: 1, sessions: [session] });
+				inventory.set(key, value);
+				if (this._persistedInventory.get(key) !== value) {
+					entries.push({ key, value, scope: StorageScope.PROFILE, target: StorageTarget.MACHINE });
+				}
 			}
 		}
-		this._storageService.store(INVENTORY_STORAGE_PREFIX + this._accountKey, { version: 1, sessions }, StorageScope.PROFILE, StorageTarget.MACHINE);
+		// Only remove this window's known entries, never a concurrent window's newly stored sessions.
+		for (const key of this._persistedInventory.keys()) {
+			if (!inventory.has(key)) {
+				entries.push({ key, value: undefined, scope: StorageScope.PROFILE, target: StorageTarget.MACHINE });
+			}
+		}
+		if (this._storageService.get(storageKey, StorageScope.PROFILE) !== undefined) {
+			entries.push({ key: storageKey, value: undefined, scope: StorageScope.PROFILE, target: StorageTarget.MACHINE });
+		}
+		this._persistedInventory = inventory;
+		this._storageService.storeAll(entries, false);
 	}
 
 	/**
@@ -565,6 +609,7 @@ export class CloudSandboxAgentHostContribution extends Disposable implements IWo
 		this._lastFullDiscovery = undefined;
 		this._discoveryRetryInterval = DISCOVERY_STALE_AFTER_MS;
 		this._accountKey = undefined;
+		this._persistedInventory.clear();
 		for (const address of [...this._environments.keys()]) {
 			this._teardownEnvironment(address);
 		}

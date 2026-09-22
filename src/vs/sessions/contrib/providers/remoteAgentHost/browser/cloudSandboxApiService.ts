@@ -61,6 +61,7 @@ interface ICachedSandboxTask {
 	readonly summary: ITaskSummary;
 	readonly session?: ICloudSandboxDiscoveredSession;
 	readonly repositoryId?: number;
+	readonly needsRefresh?: boolean;
 }
 
 const LOG_PREFIX = '[CloudSandboxApi]';
@@ -306,7 +307,7 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 		const scannedTaskIds = new Set(tasks.keys());
 		if (since) {
 			for (const [id, cached] of cache) {
-				if (!tasks.has(id) && (!cached.session || (cached.repositoryId !== undefined && !cached.session.repoName))) {
+				if (!tasks.has(id) && (cached.needsRefresh || !cached.session || (cached.repositoryId !== undefined && !cached.session.repoName))) {
 					tasks.set(id, cached.summary);
 				}
 			}
@@ -333,7 +334,7 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 						throw new CancellationError();
 					}
 					let cached = cache.get(task.id);
-					if (!cached?.session || !task.updated_at || task.updated_at !== cached.summary.updated_at) {
+					if (cached?.needsRefresh || !cached?.session || !task.updated_at || task.updated_at !== cached.summary.updated_at) {
 						const context = await this._sendTask(`${this._tasksBaseUrl()}/tasks/${encodeURIComponent(task.id)}`, 'get', token);
 						const full = await this._readJson<ITaskDetail>(context);
 						if (!full) {
@@ -345,6 +346,9 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 							return undefined;
 						}
 						const binding = getTaskEnvironmentBinding(full);
+						if (!binding && cached?.session) {
+							removedTaskIds.push(task.id);
+						}
 						cached = {
 							summary: task,
 							repositoryId: full.repository?.id ?? task.repository?.id,
@@ -367,7 +371,7 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 						throw new CancellationError();
 					}
 					this._logService.warn(`${LOG_PREFIX} Discovery getTask ${task.id} failed: ${toErrorMessage(error)}`);
-					cache.set(task.id, { summary: task });
+					cache.set(task.id, { ...cache.get(task.id), summary: task, needsRefresh: true });
 					unresolved++;
 					return undefined;
 				}
