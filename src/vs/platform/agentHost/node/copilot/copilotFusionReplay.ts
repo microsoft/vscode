@@ -102,8 +102,9 @@ export class FusionReplayState {
 			this._pendingRequestId = owner;
 		}
 		this._eventTurns.set(key, this._turn);
+		const update = this._progress.accept(event);
 		if (!event.ephemeral) {
-			this._append(this._progress.accept(event));
+			this._append(update);
 		}
 	}
 

@@ -1382,14 +1382,24 @@ export class AgentSideEffects extends Disposable {
 			agent.respondToPermissionRequest(e.state.toolCallId, false);
 			return;
 		}
+		const clientShouldAutoApprove = autoApproval !== undefined
+			&& contributor?.kind === ToolCallContributorKind.Client
+			&& !!e.state.confirmationTitle;
+		if (!turnId) {
+			const approved = autoApproval !== undefined && !clientShouldAutoApprove;
+			if (!approved) {
+				this._logService.warn(`[AgentSideEffects] Rejecting permission without an active turn: toolCallId=${e.state.toolCallId}`);
+			}
+			this._toolCallAgents.delete(toolCallKey);
+			this._managedApprovalToolCalls.delete(toolCallKey);
+			agent.respondToPermissionRequest(e.state.toolCallId, approved);
+			return;
+		}
 		if (e.managedApprovalRequired) {
 			this._managedApprovalToolCalls.add(toolCallKey);
 		} else {
 			this._managedApprovalToolCalls.delete(toolCallKey);
 		}
-		const clientShouldAutoApprove = autoApproval !== undefined
-			&& contributor?.kind === ToolCallContributorKind.Client
-			&& !!e.state.confirmationTitle;
 		if (clientShouldAutoApprove) {
 			this._toolCallAgents.set(toolCallKey, agent.id);
 			effective = { ...e, state: { ...e.state, _meta: { ...toolCall?._meta, ...e.state._meta, ...toToolCallMeta({ autoApproveBySetting: true }) } } };

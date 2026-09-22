@@ -10479,6 +10479,10 @@ Use the attached image as context.
 			mockSession.fire('assistant.fusion_phase_completed', fusionTestData.phaseCompleted);
 			mockSession.fire('session.fusion_completed', fusionTestData.completed);
 			mockSession.fire('session.fusion_completed', fusionTestData.completed);
+			mockSession.fire('session.fusion_resolved', fusionTestData.resolved);
+			mockSession.fire('assistant.fusion_phase_started', fusionTestData.started);
+			mockSession.fire('assistant.fusion_phase_completed', fusionTestData.phaseCompleted);
+			mockSession.fire('assistant.fusion_phase_activity', fusionTestData.activity);
 			const parts = signals.flatMap(signal => signal.kind === 'action' && signal.action.type === ActionType.ChatResponsePart ? [signal.action.part] : []);
 			const activity = signals.flatMap(signal => signal.kind === 'action' && signal.action.type === ActionType.SessionActivityChanged ? [signal.action.activity] : []);
 			assert.deepStrictEqual({
@@ -10515,6 +10519,7 @@ Use the attached image as context.
 			mockSession.fire('assistant.fusion_phase_activity', { ...fusionTestData.activity, activity: 'tool_started' });
 			mockSession.fire('assistant.fusion_phase_started', { ...fusionTestData.started, model: 'actual-model' });
 			mockSession.fire('assistant.fusion_phase_started', { ...fusionTestData.started, model: 'actual-model' });
+			mockSession.fire('assistant.fusion_phase_activity', { ...fusionTestData.activity, phaseId: 'previous-phase', activity: 'tool_started' });
 			mockSession.fire('assistant.fusion_phase_completed', { ...fusionTestData.phaseCompleted, model: 'actual-model' });
 			mockSession.fire('assistant.fusion_phase_completed', { ...fusionTestData.phaseCompleted, model: 'actual-model' });
 
@@ -10706,7 +10711,7 @@ Use the attached image as context.
 			mockSession.fire('tool.execution_start', { toolCallId: 'provisional-tool', toolName: 'read_file', fusion }, { ephemeral: true });
 			mockSession.fire('tool.execution_complete', { toolCallId: 'provisional-tool', success: true, fusion }, { ephemeral: true });
 			assert.strictEqual(signals.length, 0);
-			mockSession.fire('assistant.message', { messageId: 'message-1', content: 'Selected final answer', fusion: { ...fusion, commitId: 'commit-1' } });
+			mockSession.fire('assistant.message', { messageId: 'message-1', content: 'Selected final answer', fusion: { ...fusion, commitId: 'commit-1' } }, { ephemeral: true });
 			const markdown = signals.flatMap(signal => signal.kind === 'action' && signal.action.type === ActionType.ChatResponsePart
 				&& signal.action.part.kind === ResponsePartKind.Markdown ? [signal.action.part.content] : []);
 			assert.deepStrictEqual(markdown, ['Selected final answer']);

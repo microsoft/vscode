@@ -4726,6 +4726,34 @@ suite('AgentSideEffects', () => {
 			});
 		}
 
+		for (const kind of ['manual', 'managed', 'client-auto'] as const) {
+			test(`rejects ${kind} approval without an active turn instead of leaving the provider waiting`, async () => {
+				setupSession();
+				if (kind !== 'manual') {
+					stateManager.setSessionConfig(sessionUri.toString(), {
+						schema: { type: 'object', properties: {} }, values: { autoApprove: 'autoApprove' },
+					});
+				}
+				disposables.add(sideEffects.registerProgressListener(agent));
+				const response = new DeferredPromise<boolean>();
+				agent.respondToPermissionRequest = (_requestId, approved) => { void response.complete(approved); };
+				const envelopes: ActionEnvelope[] = [];
+				disposables.add(stateManager.onDidEmitEnvelope(envelope => envelopes.push(envelope)));
+				agent.fireProgress({
+					kind: 'pending_confirmation', chat: URI.parse(defaultChatUri), managedApprovalRequired: kind === 'managed',
+					state: {
+						status: ToolCallStatus.PendingConfirmation, toolCallId: 'orphan-tool', toolName: 'shell', displayName: 'Shell',
+						invocationMessage: 'Run command', confirmationTitle: 'Allow command?',
+						contributor: kind === 'client-auto' ? { kind: ToolCallContributorKind.Client, clientId: 'test-client' } : undefined,
+					},
+					permissionKind: 'shell', permissionPath: undefined,
+				});
+				assert.deepStrictEqual({ approved: await response.p, actions: envelopes.map(envelope => envelope.action.type) }, {
+					approved: false, actions: [],
+				});
+			});
+		}
+
 		test('managed orphan approvals stay manual even when the session allows all', async () => {
 			setupSession();
 			stateManager.setSessionConfig(sessionUri.toString(), {
@@ -5135,7 +5163,7 @@ suite('AgentSideEffects', () => {
 			assert.strictEqual(parentInner, undefined, 'parent session must not contain the inner tool call');
 		});
 
-		test('pending_confirmation without an active turn still dispatches (does not hang)', async () => {
+		test('auto-approves eligible host permission without an active turn (does not hang)', async () => {
 			// Regression: when a hook-triggered continuation runs after
 			// the protocol turn has completed, the state manager has no
 			// active turn. Action signals go through a fallback path, but
@@ -5184,7 +5212,11 @@ suite('AgentSideEffects', () => {
 				},
 			});
 
-			// Now the pending_confirmation arrives — this must NOT be dropped
+			const response = new DeferredPromise<boolean>();
+			agent.respondToPermissionRequest = (requestId, approved) => {
+				agent.respondToPermissionCalls.push({ requestId, approved });
+				void response.complete(approved);
+			};
 			agent.fireProgress({
 				kind: 'pending_confirmation', chat: URI.parse(defaultChatUri),
 				state: {
@@ -5196,11 +5228,7 @@ suite('AgentSideEffects', () => {
 				permissionKind: 'read', permissionPath: '/workspace/file.ts',
 			});
 
-			// The respondToPermissionRequest should have been called
-			// (auto-approved because read is inside the working directory).
-			// _handleToolReady is async (awaits getAutoApproval -> realpath),
-			// so wait for the approval to settle deterministically.
-			await waitForState(stateManager, () => agent.respondToPermissionCalls.length > 0 || undefined);
+			await response.p;
 			assert.deepStrictEqual(agent.respondToPermissionCalls, [
 				{ requestId: 'tc-orphan', approved: true },
 			], 'pending_confirmation without active turn should still be processed and auto-approved');
