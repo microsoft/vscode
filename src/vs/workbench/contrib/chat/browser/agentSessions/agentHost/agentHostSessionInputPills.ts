@@ -6,9 +6,9 @@
 import { getWindow } from '../../../../../../base/browser/dom.js';
 import { toAction } from '../../../../../../base/common/actions.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
-import { Disposable, DisposableStore, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { getMediaMime } from '../../../../../../base/common/mime.js';
-import { constObservable, derived, derivedObservableWithCache, derivedOpts, observableFromEvent, observableSignal, observableSignalFromEvent } from '../../../../../../base/common/observable.js';
+import { autorun, constObservable, derived, derivedObservableWithCache, derivedOpts, IObservable, IReader, observableFromEvent, observableSignal, observableSignalFromEvent, observableValue } from '../../../../../../base/common/observable.js';
 import { basename, isEqual } from '../../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { isDefined } from '../../../../../../base/common/types.js';
@@ -22,7 +22,11 @@ import { observableFromSubscription } from '../../../../../../platform/agentHost
 import { Changeset, ChangesetState, ChangesetStatus, ChatOriginKind, DEFAULT_CHAT_ID, getSessionChatResource, getSessionRelatedPullRequestUrls, isSubagentChatUri, parseChatUri, readSessionGitHubState, SessionState, SessionSummaryMeta, StateComponents } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IClipboardService } from '../../../../../../platform/clipboard/common/clipboardService.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { GitHubIssue, GitHubIssueRef } from '../../../../../../platform/github/common/githubQueryService.js';
+import { PullRequestCheck, PullRequestCore, PullRequestRef, PullRequestSnapshot } from '../../../../../../platform/github/common/githubPullRequestService.js';
+import { IGitHubService } from '../../../../../../platform/github/common/githubService.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
+import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
 import { CHAT_INPUT_PILLS_ROW_HEIGHT, getChatPillEntries, getChatPillResourceLocation, IChatPillEntry, IChatPillSection, type ChatPillsCompactMode } from '../../../../../browser/chatPills.js';
 import { chatChangesStatsEqual, EMPTY_CHAT_CHANGES_STATS, IChatChangesStats } from '../../../../../browser/chatChangesPill.js';
@@ -41,6 +45,7 @@ import { ChatInputPills, StandardChatInputPillSources } from '../../chatInputPil
 import { createSessionPullRequestPillData } from '../../sessionPullRequestPill.js';
 import { agentHostChangesetFileToEntryDiff } from './agentHostResponseFileChanges.js';
 import { IAgentHostUntitledProvisionalSessionService } from './agentHostUntitledProvisionalSessionService.js';
+import { createIssueResourceHover, createPullRequestResourceHover, getIssueResourceStatus, getPullRequestChecksStatusLabel, getPullRequestResourceStatus, type GitHubChecksStatus, type IGitHubIssueHoverModel, type IGitHubPullRequestHoverModel } from '../../../../github/browser/githubResourceHover.js';
 
 const offeredPillKinds: readonly SessionChatPillKind[] = [
 	SessionChatPillKind.Changes,
@@ -250,11 +255,222 @@ function websiteKey(url: string): string | undefined {
 	return `${parsed.protocol}//${parsed.host}${path}${parsed.search}${parsed.hash}`;
 }
 
+interface IGitHubReferenceTarget {
+		readonly owner: string;
+		readonly repo: string;
+		readonly number: number;
+	}
+
+	interface IPullRequestHoverDetails {
+		readonly pullRequest: IGitHubPullRequestHoverModel;
+		readonly checksStatus: GitHubChecksStatus | undefined;
+	}
+
+	interface IGitHubReferenceEntry<T> {
+		readonly target: IGitHubReferenceTarget;
+		readonly value: ReturnType<typeof observableValue<T | undefined>>;
+		readonly subscription: MutableDisposable<DisposableStore>;
+		generation: number;
+	}
+
+	class AgentHostGitHubReferenceResolver extends Disposable {
+
+		private readonly _issues = new Map<string, IGitHubReferenceEntry<IGitHubIssueHoverModel>>();
+		private readonly _pullRequests = new Map<string, IGitHubReferenceEntry<IPullRequestHoverDetails>>();
+
+		constructor(
+			@IGitHubService private readonly _gitHubService: IGitHubService,
+			@ILogService private readonly _logService: ILogService,
+		) {
+			super();
+			this._register(this._gitHubService.credentials.onDidInvalidate(() => {
+				for (const entry of this._issues.values()) {
+					this._initializeIssue(entry);
+				}
+				for (const entry of this._pullRequests.values()) {
+					this._initializePullRequest(entry);
+				}
+			}));
+		}
+
+		getIssue(target: IGitHubReferenceTarget): IObservable<IGitHubIssueHoverModel | undefined> {
+			const key = githubTargetKey(target);
+			let entry = this._issues.get(key);
+			if (!entry) {
+				entry = this._createEntry<IGitHubIssueHoverModel>(target);
+				this._issues.set(key, entry);
+				this._initializeIssue(entry);
+			}
+			return entry.value;
+		}
+
+		getPullRequest(target: IGitHubReferenceTarget): IObservable<IPullRequestHoverDetails | undefined> {
+			const key = githubTargetKey(target);
+			let entry = this._pullRequests.get(key);
+			if (!entry) {
+				entry = this._createEntry<IPullRequestHoverDetails>(target);
+				this._pullRequests.set(key, entry);
+				this._initializePullRequest(entry);
+			}
+			return entry.value;
+		}
+
+		retain(issueTargets: readonly IGitHubReferenceTarget[], pullRequestTargets: readonly IGitHubReferenceTarget[]): void {
+			this._retainEntries(this._issues, new Set(issueTargets.map(githubTargetKey)));
+			this._retainEntries(this._pullRequests, new Set(pullRequestTargets.map(githubTargetKey)));
+		}
+
+		private _createEntry<T>(target: IGitHubReferenceTarget): IGitHubReferenceEntry<T> {
+			return {
+				target,
+				value: observableValue<T | undefined>(this, undefined),
+				subscription: this._register(new MutableDisposable<DisposableStore>()),
+				generation: 0,
+			};
+		}
+
+		private _retainEntries<T>(entries: Map<string, IGitHubReferenceEntry<T>>, retainedKeys: ReadonlySet<string>): void {
+			for (const [key, entry] of entries) {
+				if (!retainedKeys.has(key)) {
+					entry.subscription.dispose();
+					entries.delete(key);
+				}
+			}
+		}
+
+		private _initializeIssue(entry: IGitHubReferenceEntry<IGitHubIssueHoverModel>): void {
+			const generation = ++entry.generation;
+			const store = new DisposableStore();
+			entry.subscription.value = store;
+			const controller = new AbortController();
+			store.add(toDisposable(() => controller.abort()));
+			void this._gitHubService.credentials.getCredential(controller.signal).then(credential => {
+				if (controller.signal.aborted || generation !== entry.generation) {
+					return;
+				}
+				const ref: GitHubIssueRef = { ...credential.account, ...entry.target };
+				const subscription = store.add(this._gitHubService.query.subscribeIssue(ref, { priority: 'visible' }));
+				store.add(autorun(reader => {
+					const issue = subscription.resource.state.read(reader).value;
+					entry.value.set(issue ? toIssueHoverModel(issue) : undefined, undefined);
+				}));
+				void subscription.refresh().catch(error => this._logService.warn('[AgentHostSessionInputPills] Failed to refresh GitHub issue reference', error));
+			}, error => {
+				if (!controller.signal.aborted) {
+					this._logService.warn('[AgentHostSessionInputPills] Failed to resolve GitHub credentials for issue reference', error);
+				}
+			});
+		}
+
+		private _initializePullRequest(entry: IGitHubReferenceEntry<IPullRequestHoverDetails>): void {
+			const generation = ++entry.generation;
+			const store = new DisposableStore();
+			entry.subscription.value = store;
+			const controller = new AbortController();
+			store.add(toDisposable(() => controller.abort()));
+			void this._gitHubService.credentials.getCredential(controller.signal).then(credential => {
+				if (controller.signal.aborted || generation !== entry.generation) {
+					return;
+				}
+				const ref: PullRequestRef = { ...credential.account, ...entry.target };
+				const subscription = store.add(this._gitHubService.pullRequests.subscribePullRequest(ref, {
+					priority: 'visible',
+					core: true,
+					checks: { includeOptional: true },
+				}));
+				store.add(autorun(reader => {
+					const snapshot = subscription.resource.snapshot.read(reader);
+					const pullRequest = snapshot.core.value;
+					entry.value.set(pullRequest ? {
+						pullRequest: toPullRequestHoverModel(pullRequest),
+						checksStatus: getChecksStatus(snapshot),
+					} : undefined, undefined);
+				}));
+				void subscription.refresh('core').catch(error => this._logService.warn('[AgentHostSessionInputPills] Failed to refresh GitHub pull request reference', error));
+				void subscription.refresh('checks').catch(error => this._logService.warn('[AgentHostSessionInputPills] Failed to refresh GitHub pull request checks', error));
+			}, error => {
+				if (!controller.signal.aborted) {
+					this._logService.warn('[AgentHostSessionInputPills] Failed to resolve GitHub credentials for pull request reference', error);
+				}
+			});
+		}
+	}
+
+	function githubTargetKey(target: IGitHubReferenceTarget): string {
+		return `${target.owner.toLowerCase()}/${target.repo.toLowerCase()}#${target.number}`;
+	}
+
+	function parseGitHubReferenceTarget(resource: URI, kind: 'pullRequest' | 'issue'): IGitHubReferenceTarget | undefined {
+		const segments = resource.path.split('/').filter(Boolean);
+		const expectedKind = kind === 'pullRequest' ? 'pull' : 'issues';
+		const number = Number(segments[3]);
+		return resource.authority.toLowerCase() === 'github.com'
+			&& segments.length >= 4
+			&& segments[2] === expectedKind
+			&& Number.isInteger(number)
+			&& number > 0
+			? { owner: segments[0], repo: segments[1], number }
+			: undefined;
+	}
+
+	function toIssueHoverModel(issue: GitHubIssue): IGitHubIssueHoverModel {
+		return {
+			title: issue.title,
+			body: issue.body,
+			state: issue.state,
+			stateReason: issue.stateReason,
+			author: issue.author,
+			createdAt: issue.createdAt,
+		};
+	}
+
+	function toPullRequestHoverModel(pullRequest: PullRequestCore): IGitHubPullRequestHoverModel {
+		return {
+			title: pullRequest.title,
+			body: pullRequest.body ?? '',
+			state: pullRequest.state,
+			author: pullRequest.author ?? { login: 'unknown' },
+			headRef: pullRequest.headRef,
+			baseRef: pullRequest.baseRef,
+			isDraft: pullRequest.draft,
+			createdAt: pullRequest.createdAt,
+		};
+	}
+
+	function getChecksStatus(snapshot: PullRequestSnapshot): GitHubChecksStatus | undefined {
+		const checks = snapshot.checks.value?.checks;
+		if (!checks?.length) {
+			return undefined;
+		}
+		if (checks.some(isPendingCheck)) {
+			return 'pending';
+		}
+		return checks.some(isFailingCheck) ? 'failure' : 'success';
+	}
+
+	function isPendingCheck(check: PullRequestCheck): boolean {
+		return check.type === 'checkRun'
+			? check.status !== 'COMPLETED'
+			: check.status === 'PENDING' || check.status === 'EXPECTED';
+	}
+
+	function isFailingCheck(check: PullRequestCheck): boolean {
+		return check.type === 'checkRun'
+			? check.conclusion === 'FAILURE'
+				|| check.conclusion === 'TIMED_OUT'
+				|| check.conclusion === 'CANCELLED'
+				|| check.conclusion === 'ACTION_REQUIRED'
+				|| check.conclusion === 'STARTUP_FAILURE'
+			: check.status === 'FAILURE' || check.status === 'ERROR';
+}
+
 /** Adds Agent Host session metadata pills to a workbench chat input. */
 export class AgentHostSessionInputPills extends Disposable {
 
 	private readonly _browserChanged = observableSignal(this);
 	private readonly _browserListeners = this._register(new MutableDisposable<DisposableStore>());
+	private readonly _pullRequestHoverCache = new Map<string, { element: HTMLElement; tabbableElements: readonly HTMLElement[] }>();
+	private readonly _issueHoverCache = new Map<string, { element: HTMLElement; tabbableElements: readonly HTMLElement[] }>();
 
 	constructor(
 		private readonly _widget: ChatWidget,
@@ -270,6 +486,7 @@ export class AgentHostSessionInputPills extends Disposable {
 		@IAgentHostUntitledProvisionalSessionService provisionalSessions: IAgentHostUntitledProvisionalSessionService,
 	) {
 		super();
+		const gitHubReferenceResolver = this._register(instantiationService.createInstance(AgentHostGitHubReferenceResolver));
 
 		const sessionResource = observableFromEvent(this, this._widget.onDidChangeViewModel, () => this._widget.viewModel?.sessionResource);
 		const sessionResolutionChanged = observableSignalFromEvent(this, connectionsService.onDidChangeSessionResolution);
@@ -357,6 +574,13 @@ export class AgentHostSessionInputPills extends Disposable {
 		});
 		const metadata = derived(this, reader => getAgentHostSessionPillMetadata(sessionState.read(reader)?._meta));
 		const gitHubState = derived(this, reader => readSessionGitHubState(sessionState.read(reader)?._meta));
+		this._register(autorun(reader => {
+			const currentMetadata = metadata.read(reader);
+			gitHubReferenceResolver.retain(
+				currentMetadata.issueUrls.map(link => parseUri(link)).filter(isDefined).map(resource => parseGitHubReferenceTarget(resource, 'issue')).filter(isDefined),
+				currentMetadata.pullRequestUrls.map(link => parseUri(link)).filter(isDefined).map(resource => parseGitHubReferenceTarget(resource, 'pullRequest')).filter(isDefined),
+			);
+		}));
 
 		this._register(this._browserViewService.onDidChangeBrowserViews(() => this._refreshBrowserListeners()));
 		this._refreshBrowserListeners();
@@ -377,7 +601,7 @@ export class AgentHostSessionInputPills extends Disposable {
 
 		const pullRequestSections = derived(this, reader => {
 			const currentMetadata = metadata.read(reader);
-			return this._buildReferenceSections(currentMetadata.pullRequestUrls, 'pullRequest', gitHubState.read(reader), currentMetadata.pullRequestTitles);
+			return this._buildReferenceSections(currentMetadata.pullRequestUrls, 'pullRequest', reader, gitHubReferenceResolver, gitHubState.read(reader), currentMetadata.pullRequestTitles);
 		});
 		const pullRequestIcon = derived(this, reader => {
 			const icons = getChatPillEntries(pullRequestSections.read(reader)).map(entry => entry.icon);
@@ -385,7 +609,7 @@ export class AgentHostSessionInputPills extends Disposable {
 		});
 		const issueSections = derived(this, reader => {
 			const currentMetadata = metadata.read(reader);
-			return this._buildReferenceSections(currentMetadata.issueUrls, 'issue', undefined, currentMetadata.issueTitles);
+			return this._buildReferenceSections(currentMetadata.issueUrls, 'issue', reader, gitHubReferenceResolver, undefined, currentMetadata.issueTitles);
 		});
 		const artifactSections = derived(this, reader => {
 			const currentResolution = resolution.read(reader);
@@ -440,7 +664,7 @@ export class AgentHostSessionInputPills extends Disposable {
 		updateVisibility(inputPills.visible);
 	}
 
-	private _buildReferenceSections(links: readonly string[], kind: 'pullRequest' | 'issue', gitHubState?: ReturnType<typeof readSessionGitHubState>, titles?: ReadonlyMap<string, string>) {
+	private _buildReferenceSections(links: readonly string[], kind: 'pullRequest' | 'issue', reader: IReader, gitHubReferenceResolver: AgentHostGitHubReferenceResolver, gitHubState?: ReturnType<typeof readSessionGitHubState>, titles?: ReadonlyMap<string, string>) {
 		const entries = links.map(link => {
 			const resource = parseUri(link);
 			if (!resource) {
@@ -449,15 +673,76 @@ export class AgentHostSessionInputPills extends Disposable {
 			const number = githubReferenceNumber(resource, kind);
 			const title = titles?.get(linkKey(link));
 			const label = referenceLabel(link, kind, title);
-			const pullRequestState = kind === 'pullRequest'
+			const target = parseGitHubReferenceTarget(resource, kind);
+			const pullRequestDetails = kind === 'pullRequest' && target
+				? gitHubReferenceResolver.getPullRequest(target).read(reader)
+				: undefined;
+			const issue = kind === 'issue' && target
+				? gitHubReferenceResolver.getIssue(target).read(reader)
+				: undefined;
+			const liveTitle = pullRequestDetails?.pullRequest.title ?? issue?.title;
+			const resourceLabel = liveTitle ? referenceLabel(link, kind, liveTitle) : label;
+			const pullRequestState = pullRequestDetails
+				? getPullRequestResourceStatus(pullRequestDetails.pullRequest).kind
+				: kind === 'pullRequest'
 				&& gitHubState?.pullRequestState
 				&& gitHubState.pullRequestStateUrl
 				&& linkKey(gitHubState.pullRequestStateUrl) === linkKey(link)
 				? gitHubState.pullRequestState
 				: 'open';
+			let hoverTabbableElements: readonly HTMLElement[] = [];
+			const createHover = pullRequestDetails && target
+				? (density: 'default' | 'compact') => createPullRequestResourceHover({
+					...target,
+					repositoryHref: `https://github.com/${target.owner}/${target.repo}`,
+					referenceHref: resource.toString(true),
+					pullRequest: pullRequestDetails.pullRequest,
+					checksStatus: pullRequestDetails.checksStatus,
+					density,
+					onDidClickRepository: () => this._openExternal(URI.parse(`https://github.com/${target.owner}/${target.repo}`)),
+					onDidClickReference: () => this._openExternal(resource),
+					onDidClickBaseBranch: () => this._clipboardService.writeText(pullRequestDetails.pullRequest.baseRef),
+					onDidClickHeadBranch: () => this._clipboardService.writeText(pullRequestDetails.pullRequest.headRef),
+				})
+				: issue && target
+					? (density: 'default' | 'compact') => createIssueResourceHover({
+						...target,
+						repositoryHref: `https://github.com/${target.owner}/${target.repo}`,
+						referenceHref: resource.toString(true),
+						issue,
+						density,
+						onDidClickRepository: () => this._openExternal(URI.parse(`https://github.com/${target.owner}/${target.repo}`)),
+						onDidClickReference: () => this._openExternal(resource),
+					})
+					: undefined;
+			const createDropdownHover = createHover ? () => {
+				const cache = kind === 'pullRequest' ? this._pullRequestHoverCache : this._issueHoverCache;
+				const key = linkKey(link);
+				const hover = createHover('compact');
+				const cached = cache.get(key);
+				if (!cached) {
+					cache.set(key, hover);
+					hoverTabbableElements = hover.tabbableElements;
+					return hover.element;
+				}
+				cached.element.className = hover.element.className;
+				cached.element.replaceChildren(...hover.element.childNodes);
+				cached.tabbableElements = hover.tabbableElements;
+				hoverTabbableElements = cached.tabbableElements;
+				return cached.element;
+			} : undefined;
+			const stateDescription = pullRequestDetails
+				? getPullRequestResourceStatus(pullRequestDetails.pullRequest).label
+				: issue
+					? getIssueResourceStatus(issue).label
+					: undefined;
+			const checksDescription = pullRequestDetails
+				? getPullRequestChecksStatusLabel(pullRequestDetails.pullRequest, pullRequestDetails.checksStatus)
+				: undefined;
 			return {
 				id: linkKey(link),
-				label,
+				label: liveTitle ?? label,
+				...((pullRequestDetails || issue) && number ? { badge: `#${number}`, className: 'chat-pill-github-reference' } : {}),
 				...(kind === 'pullRequest' && number ? { pillLabel: `#${number}` } : {}),
 				icon: kind === 'pullRequest' ? computePullRequestIcon(pullRequestState) : Codicon.issues,
 				pullRequestState: kind === 'pullRequest' ? pullRequestState : undefined,
@@ -469,8 +754,17 @@ export class AgentHostSessionInputPills extends Disposable {
 					class: ThemeIcon.asClassName(Codicon.copy),
 					run: () => this._clipboardService.writeText(resource.toString(true)),
 				})],
-				...getChatPillResourceLocation(resource, label),
-				...(title ? { tooltip: `${label}\n${resource.toString(true)}` } : {}),
+				...getChatPillResourceLocation(resource, resourceLabel),
+				...(stateDescription ? {
+					ariaDescription: checksDescription
+						? localize('agentHostSessionPills.referenceDescriptionWithChecks', "{0}. {1}. {2}", stateDescription, checksDescription, resource.toString(true))
+						: localize('agentHostSessionPills.referenceDescription', "{0}. {1}", stateDescription, resource.toString(true)),
+				} : {}),
+				...(liveTitle || title ? { tooltip: `${resourceLabel}\n${resource.toString(true)}` } : {}),
+				...(createDropdownHover && createHover ? {
+					hover: { content: createDropdownHover, expandable: true, showIndicator: false, tabThroughPanel: true, getTabbableElements: () => hoverTabbableElements, contentOwnsPadding: true },
+					pillHover: { element: () => createHover('default').element, contentOwnsPadding: true },
+				} : {}),
 				open: () => this._openExternal(resource),
 			};
 		}).filter(isDefined);

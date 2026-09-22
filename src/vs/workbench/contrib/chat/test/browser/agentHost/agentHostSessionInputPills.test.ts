@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { timeout } from '../../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { Disposable, toDisposable, type IReference } from '../../../../../../base/common/lifecycle.js';
 import { constObservable } from '../../../../../../base/common/observable.js';
@@ -12,6 +13,7 @@ import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js'
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
+import { IActionListItem } from '../../../../../../platform/actionWidget/browser/actionList.js';
 import { IActionWidgetService } from '../../../../../../platform/actionWidget/browser/actionWidget.js';
 import { ChangesetKind } from '../../../../../../platform/agentHost/common/changesetUri.js';
 import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
@@ -19,6 +21,8 @@ import { ISessionArtifact, SessionArtifactType, withSessionArtifacts } from '../
 import { buildDefaultChatUri, buildSubagentChatUri, Changeset, ChangesetState, ChangesetStatus, ChatOriginKind, ComponentToState, SessionState, StateComponents, withSessionGitHubState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IClipboardService } from '../../../../../../platform/clipboard/common/clipboardService.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { IGitHubService } from '../../../../../../platform/github/common/githubService.js';
+import { PullRequestSnapshot } from '../../../../../../platform/github/common/githubPullRequestService.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { BrowserEditorInput } from '../../../../browserView/common/browserEditorInput.js';
@@ -87,9 +91,93 @@ suite('AgentHostSessionInputPills', () => {
 		onDidChange: Event.None,
 		get: () => undefined,
 	});
+	const createInstantiationService = () => {
+		const instantiationService = workbenchInstantiationService(undefined, store);
+		instantiationService.stub(IGitHubService, upcastPartial<IGitHubService>({
+			credentials: upcastPartial<IGitHubService['credentials']>({
+				onDidInvalidate: Event.None,
+				getCredential: () => new Promise(() => { }),
+			}),
+		}));
+		return instantiationService;
+	};
+	const createRichGitHubService = (disposed: string[]) => upcastPartial<IGitHubService>({
+		credentials: upcastPartial<IGitHubService['credentials']>({
+			onDidInvalidate: Event.None,
+			getCredential: async signal => ({
+				account: { host: 'github.com', accountId: 'test' },
+				token: 'token',
+				generation: 1,
+				signal,
+			}),
+		}),
+		query: upcastPartial<IGitHubService['query']>({
+			subscribeIssue: ref => upcastPartial({
+				resource: {
+					ref,
+					state: constObservable({
+						status: 'ready',
+						complete: true,
+						value: {
+							number: ref.number,
+							title: 'Live issue title',
+							body: 'Live issue body',
+							url: `https://github.com/${ref.owner}/${ref.repo}/issues/${ref.number}`,
+							state: 'closed',
+							stateReason: 'completed',
+							author: { login: 'issue-author' },
+							assignees: [],
+							labels: [],
+							createdAt: '2026-09-01T12:00:00Z',
+							updatedAt: '2026-09-02T00:00:00Z',
+						},
+					}),
+				},
+				update: () => { },
+				refresh: async () => { },
+				dispose: () => disposed.push(`issue:${ref.number}`),
+			}),
+		}),
+		pullRequests: upcastPartial<IGitHubService['pullRequests']>({
+			subscribePullRequest: (ref): ReturnType<IGitHubService['pullRequests']['subscribePullRequest']> => upcastPartial({
+				resource: upcastPartial({
+					ref,
+					snapshot: constObservable(upcastPartial<PullRequestSnapshot>({
+						core: {
+							status: 'ready',
+							complete: true,
+							value: {
+								repositoryNameWithOwner: `${ref.owner}/${ref.repo}`,
+								number: ref.number,
+								title: `Live pull request ${ref.number}`,
+								body: 'Live pull request body',
+								url: `https://github.com/${ref.owner}/${ref.repo}/pull/${ref.number}`,
+								state: ref.number === 335387 ? 'merged' : 'open',
+								draft: false,
+								headSha: 'head',
+								headRef: 'feature',
+								baseSha: 'base',
+								baseRef: 'main',
+								author: { login: 'pr-author' },
+								createdAt: '2026-09-01T12:00:00Z',
+							},
+						},
+						checks: {
+							status: 'ready',
+							complete: true,
+							value: { headSha: 'head', checks: [], requirednessComplete: true, expectedSuites: [], expectedSuitesComplete: true },
+						},
+					})),
+				}),
+				update: () => { },
+				refresh: async () => { },
+				dispose: () => disposed.push(`pullRequest:${ref.number}`),
+			}),
+		}),
+	});
 
 	test('Back to an untitled draft does not subscribe to its UI identity', () => {
-		const instantiationService = workbenchInstantiationService(undefined, store);
+		const instantiationService = createInstantiationService();
 		const connection = new StaticAgentConnection(new Map());
 		const connectionsService = upcastPartial<IAgentHostConnectionsService>({
 			onDidChangeSessionResolution: Event.None,
@@ -259,8 +347,10 @@ suite('AgentHostSessionInputPills', () => {
 		});
 	});
 
-	test('renders recorded GitHub titles in editor and panel pills', () => {
-		const instantiationService = workbenchInstantiationService(undefined, store);
+	test('renders rich GitHub metadata in editor session pills', async () => {
+		const instantiationService = createInstantiationService();
+		const disposedSubscriptions: string[] = [];
+		instantiationService.stub(IGitHubService, createRichGitHubService(disposedSubscriptions));
 		const sessionResource = URI.parse('agent-host-copilot:/session');
 		const backendSession = URI.parse('copilot:/session');
 		const issueUrl = 'https://github.com/microsoft/vscode/issues/335383';
@@ -322,11 +412,11 @@ suite('AgentHostSessionInputPills', () => {
 		});
 		const visibility = store.add(instantiationService.createInstance(SessionChatPillVisibility));
 		instantiationService.stub(ISessionChatPillVisibilityService, visibility);
-		let dropdownLabels: readonly string[] = [];
+		let dropdownItems: readonly IActionListItem<object>[] = [];
 		instantiationService.stub(IActionWidgetService, upcastPartial<IActionWidgetService>({
 			isVisible: false,
 			show: (_user, _supportsPreview, items) => {
-				dropdownLabels = items.map(item => item.label ?? '');
+				dropdownItems = items as readonly IActionListItem<object>[];
 			},
 			hide: () => { },
 			updateItems: () => { },
@@ -352,16 +442,22 @@ suite('AgentHostSessionInputPills', () => {
 			visibility,
 			noProvisionalSessions,
 		));
+		await timeout(0);
 
 		const buttons = [...persistentContent.querySelectorAll<HTMLElement>('.chat-dropdown-pill-button')];
 		const [pullRequestButton, issueButton] = buttons;
 		pullRequestButton?.click();
+		const pullRequestDropdownItems = dropdownItems;
+		const pullRequestHover = pullRequestDropdownItems.find(item => typeof item.hover?.content === 'function')?.hover?.content;
+		const pullRequestHoverElement = typeof pullRequestHover === 'function' ? pullRequestHover() : undefined;
 		issueButton?.click();
-		assert.deepStrictEqual({
+		const presentation = {
 			pullRequests: {
 				label: pullRequestButton?.querySelector('.chat-pill-label')?.textContent,
 				ariaLabel: pullRequestButton?.getAttribute('aria-label'),
-				dropdownLabels,
+				dropdownLabels: pullRequestDropdownItems.map(item => item.label ?? ''),
+				hoverClassName: pullRequestHoverElement instanceof HTMLElement ? pullRequestHoverElement.className : undefined,
+				hoverText: pullRequestHoverElement instanceof HTMLElement ? pullRequestHoverElement.textContent : undefined,
 			},
 			issue: {
 				label: issueButton?.querySelector('.chat-pill-label')?.textContent,
@@ -369,25 +465,36 @@ suite('AgentHostSessionInputPills', () => {
 				ariaDescription: issueButton?.getAttribute('aria-description'),
 			},
 			opened: openerService.opened.map(({ resource, options }) => ({ resource: resource.toString(true), options })),
-		}, {
+		};
+		connection.setState(StateComponents.Session, {
+			defaultChat: buildDefaultChatUri(backendSession),
+			chats: [],
+			_meta: withSessionArtifacts(undefined, []),
+		} as unknown as SessionState);
+		await timeout(0);
+
+		assert.deepStrictEqual({ ...presentation, disposedSubscriptions: disposedSubscriptions.sort() }, {
 			pullRequests: {
 				label: '2 Pull Requests',
 				ariaLabel: 'Show 2 pull requests',
 				dropdownLabels: [
 					'Pull Requests',
-					'Pull Request #332982: Chat: unify Agent Host status pills across chat surfaces',
-					'Pull Request #335387: sessions: preserve recorded issue titles in pills',
+					'Live pull request 332982',
+					'Live pull request 335387',
 				],
+				hoverClassName: 'sessions-pr-hover compact',
+				hoverText: 'microsoft/vscodeon Sep 1Live pull request 332982 #332982OpenLive pull request bodymain←feature@pr-author opened this pull request',
 			},
 			issue: {
-				label: 'Issue #335383: Agent Window issue pill discards the recorded issue title',
-				ariaLabel: 'Open Issue #335383: Agent Window issue pill discards the recorded issue title',
-				ariaDescription: issueUrl,
+				label: 'Live issue title',
+				ariaLabel: 'Open Issue #335383: Live issue title',
+				ariaDescription: `Closed. ${issueUrl}`,
 			},
 			opened: [{
 				resource: issueUrl,
 				options: { openExternal: true, allowContributedOpeners: true, fromUserGesture: true },
 			}],
+			disposedSubscriptions: ['issue:335383', 'pullRequest:332982', 'pullRequest:335387'],
 		});
 	});
 
@@ -465,7 +572,7 @@ suite('AgentHostSessionInputPills', () => {
 	});
 
 	test('does not render pills for a Local chat input', () => {
-		const instantiationService = workbenchInstantiationService(undefined, store);
+		const instantiationService = createInstantiationService();
 		const sessionResource = URI.parse('vscode-chat-session://local/session');
 		const persistentContent = document.createElement('div');
 		document.body.appendChild(persistentContent);
@@ -528,7 +635,7 @@ suite('AgentHostSessionInputPills', () => {
 	});
 
 	test('marks floating persistent content visible when Agent Host pills have data', () => {
-		const instantiationService = workbenchInstantiationService(undefined, store);
+		const instantiationService = createInstantiationService();
 		const sessionResource = URI.parse('agent-host-copilot:/session');
 		const backendSession = URI.parse('copilot:/session');
 		const connection = new StaticAgentConnection(new Map<StateComponents, SessionState | ChangesetState>([
@@ -691,7 +798,7 @@ suite('AgentHostSessionInputPills', () => {
 	});
 
 	test('matches the Agents Window pull request summary presentation', async () => {
-		const instantiationService = workbenchInstantiationService(undefined, store);
+		const instantiationService = createInstantiationService();
 		const sessionResource = URI.parse('agent-host-copilot:/session');
 		const backendSession = URI.parse('copilot:/session');
 		const connection = new StaticAgentConnection(new Map<StateComponents, SessionState | ChangesetState>([
@@ -821,7 +928,7 @@ suite('AgentHostSessionInputPills', () => {
 	});
 
 	test('keeps a matching website artifact visible while Browsers is hidden', () => {
-		const instantiationService = workbenchInstantiationService(undefined, store);
+		const instantiationService = createInstantiationService();
 		const sessionResource = URI.parse('agent-host-copilot:/session');
 		const backendSession = URI.parse('copilot:/session');
 		const website = URI.parse('https://example.com/preview');
@@ -904,7 +1011,7 @@ suite('AgentHostSessionInputPills', () => {
 	});
 
 	test('hides the session pills in a subagent chat', () => {
-		const instantiationService = workbenchInstantiationService(undefined, store);
+		const instantiationService = createInstantiationService();
 		const sessionResource = URI.parse('agent-host-copilot:/session');
 		const backendSession = URI.parse('copilot:/session');
 		const defaultChat = buildDefaultChatUri(backendSession);
