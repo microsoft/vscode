@@ -240,6 +240,37 @@ suite('ChatTipService', () => {
 		}
 	});
 
+	test('btw tip is limited to active side-chat sessions in the Agents window', () => {
+		const tip = TIP_CATALOG.find(tip => tip.id === 'tip.btw');
+		assert.ok(tip?.when);
+
+		const baseContext: Record<string, boolean> = {
+			[IsSessionsWindowContext.key]: true,
+			sessionIsCreated: true,
+			sessionIsArchived: false,
+			sessionSupportsSideChat: true,
+		};
+		const contexts = [
+			baseContext,
+			{ ...baseContext, [IsSessionsWindowContext.key]: false },
+			{ ...baseContext, sessionIsCreated: false },
+			{ ...baseContext, sessionIsArchived: true },
+			{ ...baseContext, sessionSupportsSideChat: false },
+		];
+
+		assert.deepStrictEqual(
+			contexts.map(context => tip.when!.evaluate({ getValue: key => context[key] })),
+			[true, false, false, false, false],
+		);
+		assert.strictEqual(
+			tip.buildMessage({
+				keybindingService: { lookupKeybinding: () => undefined } as Partial<IKeybindingService> as IKeybindingService,
+				experimentalTipMessages: new Map(),
+			}).value,
+			'Use `/btw <question>` to ask a side question without adding it to the current conversation.',
+		);
+	});
+
 	test('records # file reference usage for attach files tip eligibility', () => {
 		const submitRequestEmitter = testDisposables.add(new Emitter<{ readonly chatSessionResource: URI; readonly message?: IParsedChatRequest }>());
 		instantiationService.stub(IChatService, {
