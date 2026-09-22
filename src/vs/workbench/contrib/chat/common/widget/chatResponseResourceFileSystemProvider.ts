@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { decodeBase64, VSBuffer } from '../../../../../base/common/buffer.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Event } from '../../../../../base/common/event.js';
 import { createSingleCallFunction } from '../../../../../base/common/functional.js';
 import { Disposable, IDisposable } from '../../../../../base/common/lifecycle.js';
@@ -17,7 +18,8 @@ import { createFileSystemProviderError, FileSystemProviderCapabilities, FileSyst
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
 import { localize } from '../../../../../nls.js';
 import { migrateLegacyTerminalToolSpecificData } from '../chat.js';
-import { ChatResponseResource } from '../model/chatModel.js';
+import { ChatAgentLocation } from '../constants.js';
+import { ChatResponseResource, IChatModel } from '../model/chatModel.js';
 import { IChatService, IChatTerminalOutputReference, IChatToolInvocation, IChatToolInvocationSerialized } from '../chatService/chatService.js';
 import { isToolResultInputOutputDetails } from '../tools/languageModelToolsService.js';
 
@@ -186,7 +188,7 @@ export class ChatResponseResourceFileSystemProvider extends Disposable implement
 	}
 
 	async stat(resource: URI): Promise<IStat> {
-		const reference = this.lookupTerminalOutput(resource);
+		const reference = await this.lookupTerminalOutput(resource);
 		if (reference) {
 			return { type: FileType.File, ctime: 0, mtime: 0, size: reference.sizeHint ?? 0 };
 		}
@@ -223,12 +225,7 @@ export class ChatResponseResourceFileSystemProvider extends Disposable implement
 		throw createFileSystemProviderError('fs is readonly', FileSystemProviderErrorCode.NoPermissions);
 	}
 
-	private findMatchingInvocation(sessionResource: URI, toolCallId: string): IChatToolInvocation | IChatToolInvocationSerialized {
-		const session = this.chatService.getSession(sessionResource);
-		if (!session) {
-			throw createFileSystemProviderError(`File not found`, FileSystemProviderErrorCode.FileNotFound);
-		}
-
+	private findMatchingInvocationInSession(session: IChatModel, toolCallId: string): IChatToolInvocation | IChatToolInvocationSerialized {
 		const requests = session.getRequests();
 		for (let k = requests.length - 1; k >= 0; k--) {
 			const req = requests[k];
@@ -241,12 +238,34 @@ export class ChatResponseResourceFileSystemProvider extends Disposable implement
 		throw createFileSystemProviderError(`File not found`, FileSystemProviderErrorCode.FileNotFound);
 	}
 
-	private lookupTerminalOutput(uri: URI): IChatTerminalOutputReference | undefined {
+	private async findMatchingInvocation(sessionResource: URI, toolCallId: string): Promise<IChatToolInvocation | IChatToolInvocationSerialized> {
+		const existing = this.chatService.getSession(sessionResource);
+		if (existing) {
+			return this.findMatchingInvocationInSession(existing, toolCallId);
+		}
+
+		const modelRef = await this.chatService.acquireOrLoadSession(
+			sessionResource,
+			ChatAgentLocation.Chat,
+			CancellationToken.None,
+			'ChatResponseResourceFileSystemProvider#findMatchingInvocation',
+		);
+		if (!modelRef) {
+			throw createFileSystemProviderError(`File not found`, FileSystemProviderErrorCode.FileNotFound);
+		}
+		try {
+			return this.findMatchingInvocationInSession(modelRef.object, toolCallId);
+		} finally {
+			modelRef.dispose();
+		}
+	}
+
+	private async lookupTerminalOutput(uri: URI): Promise<IChatTerminalOutputReference | undefined> {
 		const parsed = ChatResponseResource.parseTerminalOutputUri(uri);
 		if (!parsed) {
 			return undefined;
 		}
-		const result = this.findMatchingInvocation(parsed.sessionResource, parsed.toolCallId);
+		const result = await this.findMatchingInvocation(parsed.sessionResource, parsed.toolCallId);
 		const data = result.toolSpecificData;
 		const reference = data?.kind === 'terminal' ? migrateLegacyTerminalToolSpecificData(data).terminalCommandOutput?.fullOutput : undefined;
 		if (!reference || !isEqual(uri, ChatResponseResource.createTerminalOutputUri(parsed.sessionResource, parsed.toolCallId, reference))) {
@@ -255,7 +274,7 @@ export class ChatResponseResourceFileSystemProvider extends Disposable implement
 		return reference;
 	}
 
-	private lookupURI(uri: URI): Uint8Array | Promise<Uint8Array> {
+	private async lookupURI(uri: URI): Promise<Uint8Array> {
 		const associated = this._associated.get(uri);
 		if (associated) {
 			if (associated.data instanceof Uint8Array) {
@@ -266,7 +285,7 @@ export class ChatResponseResourceFileSystemProvider extends Disposable implement
 			return decoded;
 		}
 
-		const reference = this.lookupTerminalOutput(uri);
+		const reference = await this.lookupTerminalOutput(uri);
 		if (reference) {
 			return this._fileService.readFile(URI.revive(reference.uri)).then(file => file.value.buffer);
 		}
@@ -276,7 +295,7 @@ export class ChatResponseResourceFileSystemProvider extends Disposable implement
 			throw createFileSystemProviderError(`File not found`, FileSystemProviderErrorCode.FileNotFound);
 		}
 		const { sessionResource, toolCallId, index } = parsed;
-		const result = this.findMatchingInvocation(sessionResource, toolCallId);
+		const result = await this.findMatchingInvocation(sessionResource, toolCallId);
 		const details = IChatToolInvocation.resultDetails(result);
 		if (!isToolResultInputOutputDetails(details)) {
 			throw createFileSystemProviderError(`Tool does not have I/O`, FileSystemProviderErrorCode.FileNotFound);

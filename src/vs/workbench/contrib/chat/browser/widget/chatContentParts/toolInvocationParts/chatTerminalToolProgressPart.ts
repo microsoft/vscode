@@ -6,6 +6,7 @@
 import { h } from '../../../../../../../base/browser/dom.js';
 import { createPixelSpinner } from '../../../../../../../base/browser/ui/pixelSpinner/pixelSpinner.js';
 import { isMarkdownString, MarkdownString } from '../../../../../../../base/common/htmlContent.js';
+import { hash } from '../../../../../../../base/common/hash.js';
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
 import { ChatConfiguration } from '../../../../common/constants.js';
@@ -32,6 +33,7 @@ import { timeout } from '../../../../../../../base/common/async.js';
 import { IAhpTerminalCommandSource, IChatTerminalOutputSource, IChatTerminalToolProgressPart, ITerminalChatService, ITerminalConfigurationService, ITerminalEditorService, ITerminalGroupService, ITerminalInstance, ITerminalService } from '../../../../../terminal/browser/terminal.js';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable, type IDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../../../../../base/common/event.js';
+import { onUnexpectedError } from '../../../../../../../base/common/errors.js';
 import { autorun } from '../../../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../../../base/common/themables.js';
 import { DecorationSelector, getTerminalCommandDecorationState, getTerminalCommandDecorationTooltip } from '../../../../../terminal/browser/xterm/decorationStyles.js';
@@ -57,13 +59,13 @@ import { Codicon } from '../../../../../../../base/common/codicons.js';
 import { TerminalContribCommandId } from '../../../../../terminal/terminalContribExports.js';
 import { ITelemetryService } from '../../../../../../../platform/telemetry/common/telemetry.js';
 import { isNumber } from '../../../../../../../base/common/types.js';
-import { removeAnsiEscapeCodes } from '../../../../../../../base/common/strings.js';
+import { removeAnsiEscapeCodes, truncateMiddle } from '../../../../../../../base/common/strings.js';
 import { PANEL_BACKGROUND } from '../../../../../../common/theme.js';
 import { editorBackground } from '../../../../../../../platform/theme/common/colorRegistry.js';
 import { asCssVariable } from '../../../../../../../platform/theme/common/colorUtils.js';
 import { CommandsRegistry } from '../../../../../../../platform/commands/common/commands.js';
 import { IEditorService } from '../../../../../../services/editor/common/editorService.js';
-import { ILabelService } from '../../../../../../../platform/label/common/label.js';
+import { ByteSize } from '../../../../../../../platform/files/common/files.js';
 
 /**
  * Minimum number of rows to display in the terminal output view.
@@ -96,6 +98,14 @@ const OUTPUT_POLL_DELAY_MS = 100;
 const MIN_DATA_EVENTS_FOR_REAL_OUTPUT = 2;
 
 const OPEN_TERMINAL_FULL_OUTPUT_ACTION_ID = 'workbench.action.chat.openTerminalFullOutput';
+const MAX_OUTPUT_CLICK_MOVEMENT = 5;
+
+function getTerminalFullOutputLabel(command: string): string {
+	const commandLabel = truncateMiddle(removeAnsiEscapeCodes(command).replace(/\s+/g, ' ').trim(), MAX_COMMAND_TITLE_LENGTH);
+	return commandLabel
+		? localize('chatTerminalFullOutputLabel', "Terminal Output: {0}", commandLabel)
+		: localize('chatTerminalFullOutputDefaultLabel', "Terminal Output");
+}
 
 /**
  * Remembers whether a tool invocation was last expanded so state survives virtualization re-renders.
@@ -413,12 +423,15 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 		const resource = fullOutputReference ? ChatResponseResource.createTerminalOutputUri(this._sessionResource, toolInvocation.toolCallId, fullOutputReference) : undefined;
 		if (resource) {
 			const editorService = this._editorService;
+			const label = getTerminalFullOutputLabel(command);
+			const runId = (hash(toolInvocation.toolCallId) >>> 0).toString(36).padStart(5, '0').slice(-5);
+			const description = localize('chatTerminalFullOutputDescription', "Read-only (run {0})", runId);
 			this.fullOutputAction = this._register(new Action(
 				OPEN_TERMINAL_FULL_OUTPUT_ACTION_ID,
-				localize('showTerminalFullOutput', "Show Full Output"),
+				localize('openTerminalFullOutputReadonly', "Open Full Output (Read-Only)"),
 				ThemeIcon.asClassName(Codicon.openInProduct),
 				true,
-				() => editorService.openEditor({ resource, options: { revealIfOpened: true } })
+				() => editorService.openEditor({ resource, label, description, options: { revealIfOpened: true } })
 			));
 		}
 
@@ -1358,6 +1371,7 @@ export class ChatTerminalToolOutputSection extends Disposable {
 	private readonly _terminalContainer: HTMLElement;
 	private readonly _emptyElement: HTMLElement;
 	private _lastRenderedLineCount: number | undefined;
+	private _previewClickGesture: { x: number; y: number; cancelled: boolean } | undefined;
 
 	private readonly _onDidFocusEmitter = this._register(new Emitter<void>());
 	public get onDidFocus() { return this._onDidFocusEmitter.event; }
@@ -1378,7 +1392,6 @@ export class ChatTerminalToolOutputSection extends Disposable {
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ITerminalConfigurationService private readonly _terminalConfigurationService: ITerminalConfigurationService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
-		@ILabelService private readonly _labelService: ILabelService,
 	) {
 		super();
 
@@ -1401,6 +1414,33 @@ export class ChatTerminalToolOutputSection extends Disposable {
 
 		this._register(dom.addDisposableListener(this.domNode, dom.EventType.FOCUS_IN, () => this._onDidFocusEmitter.fire()));
 		this._register(dom.addDisposableListener(this.domNode, dom.EventType.FOCUS_OUT, event => this._onDidBlurEmitter.fire(event)));
+
+		if (this._fullOutputAction) {
+			this._register(dom.addDisposableListener(this.domNode, dom.EventType.MOUSE_DOWN, event => {
+				this._previewClickGesture = {
+					x: event.clientX,
+					y: event.clientY,
+					cancelled: this._hasOutputSelection() || this._isInteractivePreviewTarget(event.target),
+				};
+			}, true));
+			this._register(dom.addDisposableListener(this.domNode, dom.EventType.MOUSE_MOVE, event => {
+				const gesture = this._previewClickGesture;
+				if (gesture && (event.buttons & 1) && Math.hypot(event.clientX - gesture.x, event.clientY - gesture.y) > MAX_OUTPUT_CLICK_MOVEMENT) {
+					gesture.cancelled = true;
+				}
+			}));
+			this._register(dom.addDisposableListener(this.domNode, dom.EventType.MOUSE_LEAVE, event => {
+				if (this._previewClickGesture && (event.buttons & 1)) {
+					this._previewClickGesture.cancelled = true;
+				}
+			}));
+			this._register(dom.addDisposableListener(this.domNode, dom.EventType.WHEEL, () => {
+				if (this._previewClickGesture) {
+					this._previewClickGesture.cancelled = true;
+				}
+			}, { capture: true, passive: true }));
+			this._register(dom.addDisposableListener(this.domNode, dom.EventType.CLICK, event => this._handlePreviewClick(event)));
+		}
 
 		const resizeObserver = this._register(new dom.DisposableResizeObserver('ChatTerminalToolProgressPart.handleResize', () => this._handleResize()));
 		this._register(resizeObserver.observe(this.domNode));
@@ -1452,6 +1492,41 @@ export class ChatTerminalToolOutputSection extends Disposable {
 		return !!element && this.domNode.contains(element);
 	}
 
+	private _canOpenFullOutputFromPreview(): boolean {
+		return !!this._fullOutputAction?.enabled && !!this._getTerminalCommandOutput()?.fullOutput && !this._isInvocationRunning();
+	}
+
+	private _hasOutputSelection(): boolean {
+		if (this._snapshotMirror?.hasSelection()) {
+			return true;
+		}
+		const selection = dom.getWindow(this.domNode).getSelection();
+		return !!selection && !selection.isCollapsed && (this.domNode.contains(selection.anchorNode) || this.domNode.contains(selection.focusNode));
+	}
+
+	private _isInteractivePreviewTarget(target: EventTarget | null): boolean {
+		// xterm links activate on mouseup, before the preview's click handler.
+		return !dom.isHTMLElement(target) || !!target.closest('a, button, input, textarea, select, [role="button"], [role="link"], [contenteditable="true"], .scrollbar, .slider, .xterm-scrollbar, .xterm-cursor-pointer');
+	}
+
+	private _handlePreviewClick(event: MouseEvent): void {
+		const gesture = this._previewClickGesture;
+		this._previewClickGesture = undefined;
+		if (!this._canOpenFullOutputFromPreview() || !this.isExpanded || event.defaultPrevented || event.button !== 0 || event.detail > 1 || event.ctrlKey || event.metaKey || event.altKey || event.shiftKey || gesture?.cancelled || this._hasOutputSelection() || this._isInteractivePreviewTarget(event.target)) {
+			return;
+		}
+		event.preventDefault();
+		event.stopPropagation();
+		this._openFullOutputFromPreview();
+	}
+
+	private _openFullOutputFromPreview(): void {
+		const action = this._fullOutputAction;
+		if (action && this._canOpenFullOutputFromPreview()) {
+			void Promise.resolve().then(() => action.run()).catch(onUnexpectedError);
+		}
+	}
+
 	public updateAriaLabel(): void {
 		if (!this._scrollableContainer) {
 			return;
@@ -1461,7 +1536,9 @@ export class ChatTerminalToolOutputSection extends Disposable {
 		if (!commandText) {
 			return;
 		}
-		const ariaLabel = localize('chatTerminalOutputAriaLabel', 'Terminal output for {0}', commandText);
+		const ariaLabel = this._canOpenFullOutputFromPreview()
+			? localize('chatTerminalFullOutputAriaLabel', "Terminal output for {0}. Press Enter to open the full output in a read-only editor.", commandText)
+			: localize('chatTerminalOutputAriaLabel', 'Terminal output for {0}', commandText);
 		const scrollableDomNode = this._scrollableContainer.getDomNode();
 		scrollableDomNode.setAttribute('role', 'region');
 		const accessibleViewHint = this._accessibleViewService.getOpenAriaHint(AccessibilityVerbositySettingId.TerminalChatOutput);
@@ -1481,7 +1558,7 @@ export class ChatTerminalToolOutputSection extends Disposable {
 		const fullOutputMessage = this._getFullOutputMessage();
 		const fullOutputAvailable = fullOutputMessage !== undefined;
 		const fullOutputAvailability = fullOutputAvailable
-			? `\n${fullOutputMessage}\n${localize('chatTerminalFullOutputAvailable', "Show Full Output opens a read-only editor if the captured output is still available.")}`
+			? `\n${fullOutputMessage}\n${localize('chatTerminalFullOutputAvailable', "Open Full Output (Read-Only) opens the captured output if it is still available.")}`
 			: '';
 		if (command) {
 			const rawOutput = command.getOutput();
@@ -1519,18 +1596,25 @@ export class ChatTerminalToolOutputSection extends Disposable {
 		if (!output?.fullOutput) {
 			return undefined;
 		}
-		const label = this._getFullOutputLabel();
+		const label = this._getFullOutputLinkLabel();
 		if (!label) {
 			return undefined;
 		}
-		return output.truncated
-			? localize('chatTerminalFullOutputTruncatedLocation', "Output truncated. Full output saved to: {0}", label)
-			: localize('chatTerminalFullOutputLocation', "Full output saved to: {0}", label);
+		const showingPreview = output.truncated === true && removeAnsiEscapeCodes(output.text).trim().length > 0;
+		const sizeHint = output.fullOutput.sizeHint;
+		if (sizeHint !== undefined && Number.isFinite(sizeHint) && sizeHint >= 0) {
+			const size = ByteSize.formatSize(sizeHint);
+			return showingPreview
+				? localize('chatTerminalFullOutputTruncatedSize', "Showing a preview. {0} (about {1}, read-only)", label, size)
+				: localize('chatTerminalFullOutputSize', "{0} (about {1}, read-only)", label, size);
+		}
+		return showingPreview
+			? localize('chatTerminalFullOutputPreview', "Showing a preview. {0} (read-only)", label)
+			: localize('chatTerminalFullOutputLinkMessage', "{0} (read-only)", label);
 	}
 
-	private _getFullOutputLabel(): string | undefined {
-		const fullOutput = this._getTerminalCommandOutput()?.fullOutput;
-		return fullOutput ? this._labelService.getUriLabel(URI.revive(fullOutput.uri)) : undefined;
+	private _getFullOutputLinkLabel(): string | undefined {
+		return this._getTerminalCommandOutput()?.fullOutput ? localize('chatTerminalFullOutputLink', "Click to open full output") : undefined;
 	}
 
 	private _setExpanded(expanded: boolean): void {
@@ -1548,6 +1632,13 @@ export class ChatTerminalToolOutputSection extends Disposable {
 		scrollableDomNode.tabIndex = 0;
 		this.domNode.appendChild(scrollableDomNode);
 		this.updateAriaLabel();
+		this._register(dom.addDisposableListener(scrollableDomNode, dom.EventType.KEY_DOWN, event => {
+			if (event.target === scrollableDomNode && new StandardKeyboardEvent(event).equals(KeyCode.Enter) && this._canOpenFullOutputFromPreview()) {
+				event.preventDefault();
+				event.stopPropagation();
+				this._openFullOutputFromPreview();
+			}
+		}));
 
 		// Show horizontal scrollbar on hover/focus, hide otherwise to prevent flickering during streaming
 		this._register(dom.addDisposableListener(this.domNode, dom.EventType.MOUSE_ENTER, () => {
@@ -1568,11 +1659,19 @@ export class ChatTerminalToolOutputSection extends Disposable {
 			if (this._isProgrammaticScroll) {
 				return;
 			}
+			if (this._previewClickGesture) {
+				this._previewClickGesture.cancelled = true;
+			}
 			this._isAtBottom = this._computeIsAtBottom();
 		}));
 	}
 
 	private async _updateTerminalContent(): Promise<void> {
+		const canOpenFullOutput = this._canOpenFullOutputFromPreview();
+		if (this.domNode.classList.contains('chat-terminal-output-clickable') !== canOpenFullOutput) {
+			this.domNode.classList.toggle('chat-terminal-output-clickable', canOpenFullOutput);
+			this.updateAriaLabel();
+		}
 		const storedOutput = this._getTerminalCommandOutput();
 		if (storedOutput?.fullOutput && this._fullOutputAction) {
 			this._disposeLiveMirror();
@@ -1699,7 +1798,7 @@ export class ChatTerminalToolOutputSection extends Disposable {
 
 	private async _renderSnapshotOutput(snapshot: NonNullable<IChatTerminalToolInvocationData['terminalCommandOutput']>): Promise<void> {
 		const message = this._getFullOutputMessage();
-		const linkText = this._getFullOutputLabel();
+		const linkText = this._getFullOutputLinkLabel();
 		const action = this._fullOutputAction;
 		const notice = action && message && linkText ? {
 			text: message,

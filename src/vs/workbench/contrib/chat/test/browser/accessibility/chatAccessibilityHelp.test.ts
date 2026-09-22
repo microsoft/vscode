@@ -152,7 +152,7 @@ suite('Chat Accessibility Help', () => {
 
 	test('documents full terminal output in chat surfaces that render terminal tools', () => {
 		const keybindingService = new MockKeybindingService();
-		const expectedText = 'Show Full Output action';
+		const expectedText = 'Open Full Output (Read-Only) action';
 
 		assert.deepStrictEqual({
 			panelChat: getAccessibilityHelpText('panelChat', keybindingService, true).includes(expectedText),
@@ -164,7 +164,11 @@ suite('Chat Accessibility Help', () => {
 			activation: getAccessibilityHelpText('agentView', keybindingService, true).includes('then press Enter or Space'),
 			readonly: getAccessibilityHelpText('agentView', keybindingService, true).includes('read-only editor'),
 			bestEffort: getAccessibilityHelpText('agentView', keybindingService, true).includes('if the captured output is still available'),
-			savedLocation: getAccessibilityHelpText('agentView', keybindingService, true).includes('shows where the full output was saved'),
+			fullOutputLink: getAccessibilityHelpText('agentView', keybindingService, true).includes('Click to open full output link'),
+			editorTitle: getAccessibilityHelpText('agentView', keybindingService, true).includes('editor title identifies the command'),
+			previewClick: getAccessibilityHelpText('agentView', keybindingService, true).includes('click anywhere in the output preview'),
+			outputEnter: getAccessibilityHelpText('agentView', keybindingService, true).includes('focus the output region and press Enter'),
+			approximateSize: getAccessibilityHelpText('agentView', keybindingService, true).includes('approximate full-output size'),
 			truncationNote: getAccessibilityHelpText('agentView', keybindingService, true).includes('whether the preview was truncated'),
 			inlineNote: getAccessibilityHelpText('agentView', keybindingService, true).includes('a message at the end of the inline terminal content'),
 			headerAction: getAccessibilityHelpText('agentView', keybindingService, true).includes('action in the command header'),
@@ -178,7 +182,11 @@ suite('Chat Accessibility Help', () => {
 			activation: true,
 			readonly: true,
 			bestEffort: true,
-			savedLocation: true,
+			fullOutputLink: true,
+			editorTitle: true,
+			previewClick: true,
+			outputEnter: true,
+			approximateSize: true,
 			truncationNote: true,
 			inlineNote: true,
 			headerAction: true,

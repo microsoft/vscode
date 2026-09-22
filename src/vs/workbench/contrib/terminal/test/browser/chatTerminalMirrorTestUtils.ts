@@ -39,6 +39,7 @@ export function createFakeDetachedTerminal(RawCtor: typeof Terminal, options: ID
 			}
 		},
 		onData: Event.None,
+		hasSelection: () => raw.hasSelection(),
 		attachToElement: () => { },
 		dispose: () => raw.dispose()
 	} as unknown as IDetachedTerminalInstance;

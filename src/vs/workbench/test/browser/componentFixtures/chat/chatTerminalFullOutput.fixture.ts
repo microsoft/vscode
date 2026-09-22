@@ -44,6 +44,7 @@ interface ITerminalFullOutputFixtureOptions {
 	readonly expanded: boolean;
 	readonly collapsible?: boolean;
 	readonly fullOutputPath?: string;
+	readonly sizeHint?: number;
 	readonly intention?: string;
 }
 
@@ -149,6 +150,8 @@ async function renderTerminalFullOutput(context: ComponentFixtureContext, option
 	const sessionResource = URI.parse('chat-session://fixture/terminal-full-output');
 	const fullOutput = options.hasFullOutput ? {
 		uri: toAgentHostContentUri(URI.file(options.fullOutputPath ?? '/tmp/terminal-output.txt'), 'local', { alwaysWrap: true }),
+		name: 'list-source-files-abc12.txt',
+		sizeHint: options.sizeHint,
 		nonce: 'fixture-version',
 	} : undefined;
 	const terminalData: IChatTerminalToolInvocationData = {
@@ -239,7 +242,7 @@ async function renderTerminalFullOutput(context: ComponentFixtureContext, option
 export default defineThemedFixtureGroup({ path: 'chat/terminalFullOutput/' }, {
 	'Expanded full output': defineComponentFixture({
 		additionalThemes: ['darkHighContrast'],
-		expectedVisualDescriptions: ['The nested executed-command block contains the preview and a plain Output truncated message with /tmp/terminal-output.txt. Its command header has the same square open-in-product icon used by local terminal cards, with the accessible label Show Full Output; no text button appears beside the outer Generate row.'],
+		expectedVisualDescriptions: ['The nested executed-command block contains the preview and the short notice Showing a preview. Click to open full output (read-only). The entire completed output area has a pointer cursor and opens the full output, while the explicit Click to open full output link remains. Its command header has the same square open-in-product icon used by local terminal cards, with the accessible label Open Full Output (Read-Only); no text button appears beside the outer Generate row.'],
 		render: context => renderTerminalFullOutput(context, { width: 560, preview: 'src/main.ts\nsrc/terminal.ts\n…', hasFullOutput: true, expanded: true }),
 	}),
 	'Expanded no full output': defineComponentFixture({
@@ -248,26 +251,31 @@ export default defineThemedFixtureGroup({ path: 'chat/terminalFullOutput/' }, {
 	}),
 	'Expanded empty preview': defineComponentFixture({
 		additionalThemes: ['darkHighContrast'],
-		expectedVisualDescriptions: ['With no preview text, the nested executed-command block contains a plain truncation and saved-location message for /tmp/terminal-output.txt. Its header shows the local-terminal open-in-product icon for Show Full Output; no text button, underline, footer, or cursor appears.'],
+		expectedVisualDescriptions: ['With no preview text, the nested executed-command block offers Click to open full output (read-only) without claiming a preview is shown. The completed output area is clickable. Its header shows the local-terminal open-in-product icon for Open Full Output (Read-Only); no text button, underline, footer, or input cursor appears.'],
 		render: context => renderTerminalFullOutput(context, { width: 560, preview: '', hasFullOutput: true, expanded: true }),
 	}),
 	'Narrow expanded full output': defineComponentFixture({
 		additionalThemes: ['darkHighContrast'],
-		expectedVisualDescriptions: ['In a narrow terminal card, the truncation message and saved path wrap as plain terminal text. The square open-in-product icon stays inside the nested executed-command header without overlapping its command label or appearing beside the outer row.'],
+		expectedVisualDescriptions: ['In a narrow terminal card, the short Showing a preview. Click to open full output (read-only) notice wraps as plain terminal text without repeating the command or exposing the backing path. The square open-in-product icon stays inside the nested executed-command header without overlapping its command label or appearing beside the outer row.'],
 		render: context => renderTerminalFullOutput(context, { width: 280, preview: 'src/main.ts\nsrc/terminal.ts\n…', hasFullOutput: true, expanded: true, collapsible: true, intention: 'List source files', fullOutputPath: '/var/tmp/agent-session-1234567890/1788891000000-copilot-tool-output-12345-11111111-1111-4111-8111-111111111111.txt' }),
 	}),
 	'Collapsed full output': defineComponentFixture({
 		expectedVisualDescriptions: ['The command output is collapsed while the bordered executed-command block remains visible. The same square open-in-product icon used by local terminal cards stays in that block’s command header.'],
 		render: context => renderTerminalFullOutput(context, { width: 560, preview: 'src/main.ts\nsrc/terminal.ts\n…', hasFullOutput: true, expanded: false }),
 	}),
+	'Known full output size': defineComponentFixture({
+		additionalThemes: ['darkHighContrast'],
+		expectedVisualDescriptions: ['The notice reads Showing a preview. Click to open full output (about 344.07KB, read-only). Only Click to open full output is linked; the approximate size and read-only qualifier are plain text. The command is not repeated.'],
+		render: context => renderTerminalFullOutput(context, { width: 560, preview: 'src/main.ts\nsrc/terminal.ts\n…', hasFullOutput: true, expanded: true, sizeHint: 352323 }),
+	}),
 	'Expanded collapsible full output': defineComponentFixture({
 		additionalThemes: ['darkHighContrast'],
-		expectedVisualDescriptions: ['The expanded collapsible terminal shows the square open-in-product icon inside the nested executed-command header. The outer row has no action; the terminal contains a plain truncation/saved-path message without a dotted underline or cursor.'],
+		expectedVisualDescriptions: ['The expanded collapsible terminal shows the square open-in-product icon inside the nested executed-command header. The outer row has no action; the terminal contains the short preview notice and Click to open full output link with a plain read-only qualifier and no dotted underline or cursor.'],
 		render: context => renderTerminalFullOutput(context, { width: 560, preview: 'src/main.ts\nsrc/terminal.ts\n…', hasFullOutput: true, expanded: true, collapsible: true }),
 	}),
 	'Long truncated preview': defineComponentFixture({
 		additionalThemes: ['darkHighContrast'],
-		expectedVisualDescriptions: ['A long run of x characters wraps in the nested executed-command block, followed by a plain truncation/saved-path message with no dotted underline or cursor. The local-terminal open-in-product icon appears in that same bordered block, not beside the outer row.'],
+		expectedVisualDescriptions: ['A long run of x characters wraps in the nested executed-command block, followed by the short preview notice and Click to open full output (read-only) link with no dotted underline or cursor. The local-terminal open-in-product icon appears in that same bordered block, not beside the outer row.'],
 		render: context => renderTerminalFullOutput(context, { width: 800, preview: `FULL_OUTPUT_BEGIN\n${'x'.repeat(501)}`, hasFullOutput: true, expanded: true, collapsible: true, intention: 'Generate large stdout for display test' }),
 	}),
 });

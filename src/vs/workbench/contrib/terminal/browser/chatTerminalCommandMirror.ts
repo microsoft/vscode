@@ -933,6 +933,10 @@ export class DetachedTerminalSnapshotMirror extends Disposable {
 		this._outputVersion++;
 	}
 
+	public hasSelection(): boolean {
+		return !this._store.isDisposed && (this._resolvedTerminal?.hasSelection() ?? false);
+	}
+
 	private _createNoticeLinkProvider(): ILinkProvider {
 		return {
 			provideLinks: (bufferLineNumber, callback) => {

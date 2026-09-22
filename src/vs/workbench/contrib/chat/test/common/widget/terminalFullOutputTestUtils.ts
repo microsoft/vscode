@@ -26,6 +26,7 @@ export function createTerminalOutputTestFixture(
 	invocation: IChatToolInvocation | IChatToolInvocationSerialized,
 	authority: string,
 	read: (uri: URI) => Promise<ResourceReadResult>,
+	options?: { readonly loadSessionOnDemand?: boolean },
 ) {
 	const data = invocation.toolSpecificData;
 	assert.ok(data?.kind === 'terminal' && hasKey(data, { commandLine: true }));
@@ -46,10 +47,27 @@ export function createTerminalOutputTestFixture(
 			return [request];
 		}
 	}(sessionResource));
+	let loaded = !options?.loadSessionOnDemand;
+	let acquisitions = 0;
+	let releases = 0;
 	const chatService = new class extends mock<IChatService>() {
 		override readonly onDidDisposeSession = Event.None;
 		override getSession(resource: URI) {
-			return !model.isDisposed && isEqual(resource, sessionResource) ? model : undefined;
+			return loaded && !model.isDisposed && isEqual(resource, sessionResource) ? model : undefined;
+		}
+		override async acquireOrLoadSession(resource: URI) {
+			if (model.isDisposed || !isEqual(resource, sessionResource)) {
+				return undefined;
+			}
+			acquisitions++;
+			loaded = true;
+			return {
+				object: model,
+				dispose: () => {
+					releases++;
+					loaded = false;
+				},
+			};
 		}
 	}();
 	const reads: URI[] = [];
@@ -65,5 +83,13 @@ export function createTerminalOutputTestFixture(
 	store.add(hostProvider.registerAuthority(authority, connection));
 	const provider = store.add(new ChatResponseResourceFileSystemProvider(chatService, fileService));
 	store.add(fileService.registerProvider(ChatResponseResource.scheme, provider));
-	return { resource, provider, fileService, model, reads };
+	return {
+		resource,
+		provider,
+		fileService,
+		model,
+		reads,
+		get acquisitions() { return acquisitions; },
+		get releases() { return releases; },
+	};
 }

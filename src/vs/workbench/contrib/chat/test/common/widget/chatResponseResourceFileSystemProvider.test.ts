@@ -107,6 +107,38 @@ suite('ChatResponseResourceFileSystemProvider', () => {
 			});
 		});
 
+		test('loads and releases the owning chat while restoring an output editor', async () => {
+			const reference = {
+				uri: toAgentHostContentUri(backingResource, 'local', { alwaysWrap: true }),
+				sizeHint: VSBuffer.fromString(completeOutput).byteLength,
+			};
+			const fixture = createTerminalOutputTestFixture(
+				store,
+				sessionResource,
+				createInvocation(reference),
+				'local',
+				async () => ({ encoding: ContentEncoding.Utf8, data: completeOutput }),
+				{ loadSessionOnDemand: true },
+			);
+
+			const stat = await fixture.provider.stat(fixture.resource);
+			const content = VSBuffer.wrap(await fixture.provider.readFile(fixture.resource)).toString();
+
+			assert.deepStrictEqual({
+				statSize: stat.size,
+				content,
+				acquisitions: fixture.acquisitions,
+				releases: fixture.releases,
+				reads: fixture.reads.length,
+			}, {
+				statSize: reference.sizeHint,
+				content: completeOutput,
+				acquisitions: 2,
+				releases: 2,
+				reads: 1,
+			});
+		});
+
 		for (const [code, result] of [
 			[AhpErrorCodes.NotFound, FileOperationResult.FILE_NOT_FOUND],
 			[AhpErrorCodes.PermissionDenied, FileOperationResult.FILE_PERMISSION_DENIED],

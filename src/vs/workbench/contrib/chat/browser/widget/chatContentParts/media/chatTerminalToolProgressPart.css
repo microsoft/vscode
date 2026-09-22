@@ -231,6 +231,13 @@
 .chat-terminal-output-container.expanded {
 	display: block;
 }
+.chat-terminal-output-container.chat-terminal-output-clickable,
+.chat-terminal-output-clickable .xterm:not(.column-select),
+.chat-terminal-output-clickable .xterm:not(.column-select) .xterm-screen,
+.chat-terminal-output-clickable .xterm:not(.column-select) .terminal-widget-container {
+	cursor: pointer;
+}
+
 .chat-terminal-output-container > .monaco-scrollable-element {
 	width: 100%;
 	background: inherit;
