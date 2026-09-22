@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { IContextMenuDelegate } from '../../../../../base/browser/contextmenu.js';
+import { mainWindow } from '../../../../../base/browser/window.js';
 import { IAction, SubmenuAction } from '../../../../../base/common/actions.js';
 import { Event } from '../../../../../base/common/event.js';
 import { isDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
@@ -56,7 +57,7 @@ suite('Sessions list context menus', () => {
 	const group: ISessionGroup = { id: 'group', name: 'Group', createdAt: 1 };
 	const targetGroup: ISessionGroup = { id: 'target', name: 'Target', createdAt: 2 };
 
-	function createList(grouped: boolean, includeExtensionAction: boolean, grouping = SessionsGrouping.Date, sessions = [createSession('Session').session], menuActionsOrComparison: readonly { id: string; run: () => void }[] | boolean = []) {
+	function createList(grouped: boolean, includeExtensionAction: boolean, grouping = SessionsGrouping.Date, sessions = [createSession('Session').session], menuActionsOrComparison: readonly { id: string; run: () => void }[] | boolean = [], showNavigationShortcuts = false) {
 		const contextMenuService = new TestContextMenuService();
 		let menuDisposed = false;
 		const isComparison = typeof menuActionsOrComparison === 'boolean' ? menuActionsOrComparison : false;
@@ -111,9 +112,16 @@ suite('Sessions list context menus', () => {
 			}
 		});
 		const container = harness.createContainer();
+		const sessionsHeaderContainer = mainWindow.document.createElement('div');
+		const sessionsHeader = mainWindow.document.createElement('div');
+		sessionsHeaderContainer.append(sessionsHeader);
+		container.prepend(sessionsHeaderContainer);
 		const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
 			grouping: () => grouping,
 			sorting: () => SessionsSorting.Created,
+			showNavigationShortcuts: () => showNavigationShortcuts,
+			sessionsHeader,
+			sessionsHeaderContainer,
 			onSessionOpen: () => { },
 		}));
 		list.layout(300, 400);
@@ -156,6 +164,20 @@ suite('Sessions list context menus', () => {
 				menuDisposed: true,
 			});
 		}
+	});
+
+	test('navigation shortcuts and Sessions header have no context menus', () => {
+		const { container, contextMenuService } = createList(false, false, SessionsGrouping.Date, [createSession('Session').session], [], true);
+		const customizationsRow = Array.from(container.querySelectorAll<HTMLElement>('.session-section-shortcut'))
+			.find(element => element.querySelector('.session-section-label')?.textContent === 'Customizations');
+		const sessionsHeader = container.querySelector<HTMLElement>('.sessions-list-header');
+		assert.ok(customizationsRow);
+		assert.ok(sessionsHeader);
+
+		dispatchContextMenu(customizationsRow);
+		dispatchContextMenu(sessionsHeader);
+
+		assert.strictEqual(contextMenuService.delegate, undefined);
 	});
 
 	test('session and chat rename context menu actions start inline editing', async () => {

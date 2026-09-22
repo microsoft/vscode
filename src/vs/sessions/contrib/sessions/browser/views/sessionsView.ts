@@ -8,7 +8,7 @@ import * as DOM from '../../../../../base/browser/dom.js';
 import { onUnexpectedError } from '../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { DisposableStore, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { autorun } from '../../../../../base/common/observable.js';
+import { autorun, observableSignalFromEvent } from '../../../../../base/common/observable.js';
 import { isWeb } from '../../../../../base/common/platform.js';
 import { Orientation } from '../../../../../base/browser/ui/sash/sash.js';
 import { IView, Sizing, SplitView } from '../../../../../base/browser/ui/splitview/splitview.js';
@@ -49,6 +49,9 @@ import { isPhoneLayout } from '../../../../browser/parts/mobile/mobileLayout.js'
 import { IsPhoneLayoutContext } from '../../../../common/contextkeys.js';
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
 import { logSessionsListCompactViewState } from '../../../../common/sessionsTelemetry.js';
+import { SessionsListRearrangeExperimentState } from '../sessionsListRearrangeExperiment.js';
+import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
+import { IChatEntitlementService } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
 
 const $ = DOM.$;
 export const SessionsViewId = 'sessions.workbench.view.sessionsView';
@@ -58,6 +61,14 @@ const COMPACT_STORAGE_KEY = 'sessionsViewPane.compact';
 const CUSTOMIZATIONS_MIN_HEIGHT = 129;
 const SESSIONS_SECTION_MIN_HEIGHT = 120;
 const SESSIONS_HEADER_ELLIPSIS_MIN_WIDTH = 8;
+export type CustomizationsPresentation = 'hidden' | 'control' | 'treatment';
+
+export function getCustomizationsPresentation(phoneLayout: boolean, aiEnabled: boolean, aiHidden: boolean, treatment: boolean): CustomizationsPresentation {
+	if (phoneLayout || !aiEnabled || aiHidden) {
+		return 'hidden';
+	}
+	return treatment ? 'treatment' : 'control';
+}
 
 export const SessionsViewFilterSubMenu = new MenuId('SessionsViewPaneFilterSubMenu');
 export const SessionsViewFilterOptionsSubMenu = new MenuId('SessionsViewPaneFilterOptionsSubMenu');
@@ -114,6 +125,8 @@ export class SessionsView extends ViewPane {
 	private isFindWidgetOpen = false;
 	sessionsControl: SessionsList | undefined;
 	private _customizationsWidget: AICustomizationShortcutsWidget | undefined;
+	private readonly sessionsListRearrangeExperimentState: SessionsListRearrangeExperimentState;
+	private customizationsPresentation: CustomizationsPresentation = 'hidden';
 	private currentGrouping: SessionsGrouping = SessionsGrouping.Workspace;
 	private currentSorting: SessionsSorting = SessionsSorting.Created;
 	private currentCompact = false;
@@ -144,8 +157,10 @@ export class SessionsView extends ViewPane {
 		@IAgentWorkbenchLayoutService private readonly layoutService: IAgentWorkbenchLayoutService,
 		@IStorageService private readonly storageService: IStorageService,
 		@ITelemetryService telemetryService: ITelemetryService,
+		@IChatEntitlementService private readonly chatEntitlementService: IChatEntitlementService,
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
+		this.sessionsListRearrangeExperimentState = this._register(instantiationService.createInstance(SessionsListRearrangeExperimentState));
 
 		// Restore persisted grouping
 		const storedGrouping = this.storageService.get(GROUPING_STORAGE_KEY, StorageScope.PROFILE);
@@ -220,7 +235,8 @@ export class SessionsView extends ViewPane {
 		// MobileTitlebarPart. We still create the row container because the find
 		// widget mounts inside it.
 		const phoneLayout = isPhoneLayout(this.layoutService);
-		const header = renderSessionsHeader(sessionsContent, phoneLayout, this.instantiationService, this.scopedContextKeyService, this._register(new DisposableStore()));
+		const sessionsHeaderContainer = DOM.append(sessionsContent, $('.agent-sessions-header-container'));
+		const header = renderSessionsHeader(sessionsHeaderContainer, phoneLayout, this.instantiationService, this.scopedContextKeyService, this._register(new DisposableStore()));
 		const headerRow = this.headerRow = header.row;
 		this.headerLabel = header.label;
 		this.headerActions = header.actions;
@@ -242,7 +258,11 @@ export class SessionsView extends ViewPane {
 			grouping: () => this.currentGrouping,
 			sorting: () => this.currentSorting,
 			compact: () => this.currentCompact,
+			showNavigationShortcuts: () => this.customizationsPresentation === 'treatment',
 			findWidgetContainer,
+			sessionsHeader: headerRow,
+			sessionsHeaderContainer,
+			layoutSessionsHeader: () => this.updateHeaderLayout(),
 			onSessionOpen: (resource, preserveFocus, sideBySide) => {
 				const session = this.sessionsManagementService.getSession(resource);
 				if (!session) {
@@ -353,7 +373,15 @@ export class SessionsView extends ViewPane {
 		};
 
 		this.sidebarSplitView.addView(sessionsPane, Sizing.Distribute, 0, true);
-		this.updateCustomizationsPane();
+		const aiVisibilityChanged = observableSignalFromEvent(this, this.scopedContextKeyService.onDidChangeContext);
+		this._register(autorun(reader => {
+			aiVisibilityChanged.read(reader);
+			const treatment = this.sessionsListRearrangeExperimentState.rearrangeList.read(reader);
+			const sentiment = this.chatEntitlementService.sentimentObs.read(reader);
+			const aiEnabled = this.scopedContextKeyService.contextMatchesRules(ChatContextKeys.enabled);
+			const presentation = getCustomizationsPresentation(isPhoneLayout(this.layoutService), aiEnabled, sentiment.hidden === true, treatment);
+			this.updateCustomizationsPresentation(presentation);
+		}));
 
 		const updateSplitViewStyles = () => {
 			const borderColor = this.themeService.getColorTheme().getColor(PANEL_SECTION_BORDER);
@@ -383,16 +411,61 @@ export class SessionsView extends ViewPane {
 		this._register(DOM.scheduleAtNextAnimationFrame(DOM.getWindow(parent), () => this.layoutSidebarSplitView()));
 	}
 
+	private updateCustomizationsPresentation(presentation: CustomizationsPresentation): void {
+		if (this.customizationsPresentation === presentation) {
+			return;
+		}
+
+		const customizationsFocused = this._customizationsWidget?.hasFocus() === true || this.sessionsControl?.isCustomizationsFocused() === true;
+		const automationsFocused = this.sessionsControl?.isAutomationsFocused() === true;
+		const wasTreatment = this.customizationsPresentation === 'treatment';
+		this.customizationsPresentation = presentation;
+
+		if (wasTreatment !== (presentation === 'treatment')) {
+			this.sessionsControl?.updateNavigationVisibility();
+		}
+
+		this.removeCustomizationsPane();
+
+		if (presentation === 'control') {
+			this.updateCustomizationsPane();
+		}
+
+		if (customizationsFocused) {
+			if (presentation === 'control') {
+				this._customizationsWidget?.focus();
+			} else if (presentation === 'treatment') {
+				this.sessionsControl?.focusCustomizations();
+			} else {
+				this.sessionsControl?.focus();
+			}
+		} else if (automationsFocused) {
+			if (presentation === 'treatment' || presentation === 'control') {
+				this.sessionsControl?.focusAutomations();
+			} else {
+				this.sessionsControl?.focus();
+			}
+		}
+
+		this.layoutSidebarSplitView();
+	}
+
+	private removeCustomizationsPane(): void {
+		if (!this.sidebarSplitView || !this._customizationsWidget) {
+			return;
+		}
+		this.sidebarSplitView.removeView(1, Sizing.Distribute);
+		this._customizationsWidget = undefined;
+		this.customizationsPaneDisposables.clear();
+		this.didInitializePaneSizes = false;
+	}
+
 	private updateCustomizationsPane(): void {
 		if (!this.sidebarSplitView || !this.sidebarSplitViewContainer) {
 			return;
 		}
-		if (isPhoneLayout(this.layoutService)) {
-			if (this._customizationsWidget) {
-				this.sidebarSplitView.removeView(1, Sizing.Distribute);
-				this._customizationsWidget = undefined;
-				this.customizationsPaneDisposables.clear();
-			}
+		if (this.customizationsPresentation !== 'control' || isPhoneLayout(this.layoutService)) {
+			this.removeCustomizationsPane();
 			return;
 		}
 		if (this._customizationsWidget) {
@@ -443,7 +516,11 @@ export class SessionsView extends ViewPane {
 
 	focusCustomizations(): void {
 		if (!isPhoneLayout(this.layoutService)) {
-			this._customizationsWidget?.focus();
+			if (this.customizationsPresentation === 'treatment') {
+				this.sessionsControl?.focusCustomizations();
+			} else {
+				this._customizationsWidget?.focus();
+			}
 		}
 	}
 
@@ -646,7 +723,12 @@ export class SessionsView extends ViewPane {
 		this.currentBodyHeight = height;
 		this.currentBodyWidth = width;
 		this.updateHeaderLayout();
-		this.updateCustomizationsPane();
+		this.updateCustomizationsPresentation(getCustomizationsPresentation(
+			isPhoneLayout(this.layoutService),
+			this.scopedContextKeyService.contextMatchesRules(ChatContextKeys.enabled),
+			this.chatEntitlementService.sentiment.hidden === true,
+			this.sessionsListRearrangeExperimentState.rearrangeList.get(),
+		));
 		this.layoutSidebarSplitView();
 
 		if (this.sidebarSplitView || !this.sessionsControl || !this.sessionsControlContainer) {
@@ -726,7 +808,7 @@ export class SessionsView extends ViewPane {
 
 		this.headerLabel.style.display = '';
 		this.headerActions.style.display = '';
-		if (this.headerLabel.clientWidth < SESSIONS_HEADER_ELLIPSIS_MIN_WIDTH) {
+		if (this.headerRow.clientWidth > 0 && this.headerLabel.clientWidth < SESSIONS_HEADER_ELLIPSIS_MIN_WIDTH) {
 			this.headerLabel.style.display = 'none';
 		}
 	}
