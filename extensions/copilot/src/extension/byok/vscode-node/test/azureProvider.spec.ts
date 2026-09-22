@@ -3,27 +3,108 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as vscode from 'vscode';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { BlockedExtensionService, IBlockedExtensionService } from '../../../../platform/chat/common/blockedExtensionService';
+import { IChatMLFetcher } from '../../../../platform/chat/common/chatMLFetcher';
+import { AzureAuthMode } from '../../../../platform/configuration/common/configurationService';
 import { ModelSupportedEndpoint } from '../../../../platform/endpoint/common/endpointProvider';
+import { ITestingServicesAccessor } from '../../../../platform/test/node/services';
 import { DisposableStore } from '../../../../util/vs/base/common/lifecycle';
 import { SyncDescriptor } from '../../../../util/vs/platform/instantiation/common/descriptors';
+import { IInstantiationService } from '../../../../util/vs/platform/instantiation/common/instantiation';
 import { createExtensionUnitTestingServices } from '../../../test/node/services';
-import { azureSupportedEndpointsForUrl, resolveAzureUrl } from '../azureProvider';
+import { ILanguageModelRequestMiddlewareRegistry } from '../../common/languageModelRequestMiddleware';
+import { AzureBYOKModelProvider, azureSupportedEndpointsForUrl, resolveAzureUrl } from '../azureProvider';
+import type { IBYOKStorageService } from '../byokStorageService';
+import { CapturingChatMLFetcher } from './capturingChatMLFetcher';
+
+function createStorageService(): IBYOKStorageService {
+	return {
+		getAPIKey: async () => undefined,
+		storeAPIKey: async () => undefined,
+		deleteAPIKey: async () => undefined,
+		getStoredModelConfigs: async () => ({}),
+		saveModelConfig: async () => undefined,
+		removeModelConfig: async () => undefined,
+	};
+}
 
 describe('AzureBYOKModelProvider', () => {
 	const disposables = new DisposableStore();
+	let accessor: ITestingServicesAccessor;
+	let instaService: IInstantiationService;
+	let chatMLFetcher: CapturingChatMLFetcher;
 
 	beforeEach(() => {
 		const testingServiceCollection = createExtensionUnitTestingServices();
 
 		// Add IBlockedExtensionService which is required by CopilotLanguageModelWrapper
 		testingServiceCollection.define(IBlockedExtensionService, new SyncDescriptor(BlockedExtensionService));
+		chatMLFetcher = new CapturingChatMLFetcher();
+		testingServiceCollection.set(IChatMLFetcher, chatMLFetcher);
+		accessor = disposables.add(testingServiceCollection.createTestingAccessor());
+		instaService = accessor.get(IInstantiationService);
 	});
 
 	afterEach(() => {
 		disposables.clear();
 		vi.restoreAllMocks();
+	});
+
+	describe('provideLanguageModelChatResponse with Entra ID', () => {
+		it('applies request middleware headers to the Entra-authenticated endpoint and keeps the Entra credential', async () => {
+			const getSession = vi.spyOn(vscode.authentication, 'getSession').mockResolvedValue({ id: 'session', accessToken: 'entra-token', account: { id: 'user', label: 'User' }, scopes: [AzureAuthMode.COGNITIVE_SERVICES_SCOPE] });
+			const registry = accessor.get(ILanguageModelRequestMiddlewareRegistry);
+			disposables.add(registry.register({
+				selector: { vendors: ['azure'] },
+				provideRequestHeaders: async () => ({ 'x-dynamic': 'value', 'x-shared': 'middleware', Authorization: 'Bearer middleware-token' }),
+			}));
+			const provider = instaService.createInstance(AzureBYOKModelProvider, createStorageService());
+			const tokenSource = disposables.add(new vscode.CancellationTokenSource());
+			// No apiKey in the configuration: the provider authenticates with Entra ID.
+			const [model] = await provider.provideLanguageModelChatInformation({
+				silent: true,
+				configuration: {
+					models: [{
+						id: 'gpt-4-deployment',
+						name: 'GPT-4',
+						url: 'https://my-resource.openai.azure.com',
+						maxInputTokens: 128000,
+						maxOutputTokens: 16000,
+						toolCalling: true,
+						vision: false,
+						requestHeaders: { 'x-static': 'value', 'x-shared': 'config' },
+					}],
+				}
+			}, tokenSource.token);
+
+			await provider.provideLanguageModelChatResponse(
+				model,
+				[new vscode.LanguageModelChatMessage(vscode.LanguageModelChatMessageRole.User, 'hello')],
+				{
+					requestInitiator: 'core',
+					tools: [],
+					toolMode: vscode.LanguageModelChatToolMode.Auto,
+				},
+				{ report: () => undefined },
+				tokenSource.token,
+			);
+
+			expect({
+				authProvider: getSession.mock.calls[0]?.[0],
+				headers: chatMLFetcher.requests[0]?.endpoint.getExtraHeaders?.(),
+			}).toEqual({
+				authProvider: AzureAuthMode.MICROSOFT_AUTH_PROVIDER,
+				headers: {
+					'Content-Type': 'application/json',
+					Authorization: 'Bearer entra-token',
+					'x-static': 'value',
+					'x-dynamic': 'value',
+					'x-shared': 'middleware',
+				},
+			});
+		});
 	});
 
 	describe('resolveAzureUrl', () => {

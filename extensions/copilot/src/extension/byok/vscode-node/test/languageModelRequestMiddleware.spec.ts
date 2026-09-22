@@ -118,6 +118,25 @@ describe('LanguageModelRequestMiddlewareRegistry', () => {
 		expect(await result).toEqual({ 'x-kept': 'value' });
 	});
 
+	it('discards the failure of a registration disposed while in flight, even when it requires strict error handling', async () => {
+		const registry = createRegistry();
+		let fail: () => void = () => { };
+		const gate = new Promise<never>((_, reject) => { fail = () => reject(new Error('provider failed')); });
+		const registration = registry.register({
+			errorBehavior: 'fail',
+			provideRequestHeaders: () => gate,
+		});
+		registry.register({
+			provideRequestHeaders: async () => ({ 'x-kept': 'value' }),
+		});
+
+		const result = registry.provideRequestHeaders(request);
+		registration.dispose();
+		fail();
+
+		expect(await result).toEqual({ 'x-kept': 'value' });
+	});
+
 	it('continues when a middleware provider fails by default', async () => {
 		const registry = createRegistry();
 		registry.register({

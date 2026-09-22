@@ -7,9 +7,8 @@ import { OpenAI, Raw } from '@vscode/prompt-tsx';
 import * as vscode from 'vscode';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { BlockedExtensionService, IBlockedExtensionService } from '../../../../platform/chat/common/blockedExtensionService';
-import { IChatMLFetcher, type IFetchMLOptions } from '../../../../platform/chat/common/chatMLFetcher';
-import { ChatLocation, type ChatResponse, type ChatResponses } from '../../../../platform/chat/common/commonTypes';
-import { MockChatMLFetcher } from '../../../../platform/chat/test/common/mockChatMLFetcher';
+import { IChatMLFetcher } from '../../../../platform/chat/common/chatMLFetcher';
+import { ChatLocation } from '../../../../platform/chat/common/commonTypes';
 import { ConfigKey, IConfigurationService } from '../../../../platform/configuration/common/configurationService';
 import { IChatModelInformation, ModelSupportedEndpoint } from '../../../../platform/endpoint/common/endpointProvider';
 import { CustomDataPartMimeTypes } from '../../../../platform/endpoint/common/endpointTypes';
@@ -17,7 +16,6 @@ import { ExtensionContributedChatEndpoint } from '../../../../platform/endpoint/
 import type { IChatEndpoint, IEndpointBody } from '../../../../platform/networking/common/networking';
 import { ITestingServicesAccessor } from '../../../../platform/test/node/services';
 import { TokenizerType } from '../../../../util/common/tokenizer';
-import { Event } from '../../../../util/vs/base/common/event';
 import { DisposableStore } from '../../../../util/vs/base/common/lifecycle';
 import { SyncDescriptor } from '../../../../util/vs/platform/instantiation/common/descriptors';
 import { IInstantiationService } from '../../../../util/vs/platform/instantiation/common/instantiation';
@@ -25,6 +23,7 @@ import { createExtensionUnitTestingServices } from '../../../test/node/services'
 import { ILanguageModelRequestMiddlewareRegistry } from '../../common/languageModelRequestMiddleware';
 import type { OpenAICompatibleLanguageModelChatInformation } from '../abstractLanguageModelChatProvider';
 import type { IBYOKStorageService } from '../byokStorageService';
+import { CapturingChatMLFetcher } from './capturingChatMLFetcher';
 import { CustomEndpointBYOKModelProvider, type CustomEndpointModelConfig, type CustomEndpointModelProviderConfig, CustomEndpointOAIEndpoint, hasExplicitApiPath, resolveCustomEndpointUrl } from '../customEndpointProvider';
 
 const customResponsesModelId = 'custom-responses-model';
@@ -33,23 +32,6 @@ const customResponsesMarker = 'resp_custom_previous';
 class TestCustomEndpointBYOKModelProvider extends CustomEndpointBYOKModelProvider {
 	public createEndpoint(model: OpenAICompatibleLanguageModelChatInformation<CustomEndpointModelProviderConfig>): Promise<IChatEndpoint> {
 		return this.createOpenAIEndPoint(model);
-	}
-}
-
-class CapturingChatMLFetcher implements IChatMLFetcher {
-	declare readonly _serviceBrand: undefined;
-	readonly onDidMakeChatMLRequest = Event.None;
-	readonly requests: IFetchMLOptions[] = [];
-
-	private readonly delegate = new MockChatMLFetcher();
-
-	fetchOne(options: IFetchMLOptions): Promise<ChatResponse> {
-		this.requests.push(options);
-		return this.delegate.fetchOne();
-	}
-
-	fetchMany(): Promise<ChatResponses> {
-		return this.delegate.fetchMany();
 	}
 }
 

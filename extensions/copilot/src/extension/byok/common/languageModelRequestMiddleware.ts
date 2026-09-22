@@ -56,8 +56,9 @@ export interface ILanguageModelRequestMiddlewareRegistry {
 	readonly _serviceBrand: undefined;
 
 	/**
-	 * Registers middleware. Disposing the result unregisters it; headers from an
-	 * invocation that is still in flight at that point are discarded.
+	 * Registers middleware. Disposing the result unregisters it; the outcome of
+	 * an invocation that is still in flight at that point, headers or error, is
+	 * discarded.
 	 */
 	register(middleware: LanguageModelRequestMiddleware): IDisposable;
 
@@ -122,14 +123,14 @@ export class LanguageModelRequestMiddlewareRegistry implements ILanguageModelReq
 		for (let i = 0; i < matching.length; i++) {
 			const registered = matching[i];
 			const result = results[i];
+			if (registered.disposed) {
+				continue;
+			}
 			if (result.status === 'rejected') {
 				if (isCancellationError(result.reason) || registered.middleware.errorBehavior === 'fail') {
 					throw result.reason;
 				}
 				this._logService.warn(`[LanguageModelRequestMiddleware] Middleware for ${describeSelector(registered.middleware.selector)} failed for ${context.vendor}/${context.modelId}; its headers are dropped: ${toErrorMessage(result.reason)}`);
-				continue;
-			}
-			if (registered.disposed) {
 				continue;
 			}
 			mergeRequestHeaders(headers, result.value);

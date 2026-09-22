@@ -205,7 +205,8 @@ export class OpenAIEndpoint extends ChatEndpoint {
 
 			const sanitizedValue = this._sanitizeHeaderValue(rawValue);
 			if (sanitizedValue === undefined) {
-				this.logService.warn(`[OpenAIEndpoint] ${source} has invalid value for header '${key}': '${rawValue}', skipping.`);
+				// The value is not logged: it may be a credential.
+				this.logService.warn(`[OpenAIEndpoint] ${source} has invalid value for header '${key}' (not a string, longer than ${OpenAIEndpoint._maxHeaderValueLength} characters, or containing control characters), skipping.`);
 				continue;
 			}
 
