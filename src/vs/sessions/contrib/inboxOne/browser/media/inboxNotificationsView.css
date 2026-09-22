@@ -61,7 +61,10 @@
 	border-inline-start: var(--vscode-spacing-size20) solid var(--vscode-notificationsWarningIcon-foreground);
 }
 
-.inbox-notifications-item.priority-2,
+.inbox-notifications-item.priority-2 {
+	border-inline-start: var(--vscode-spacing-size20) solid var(--vscode-notificationsInfoIcon-foreground);
+}
+
 .inbox-notifications-item.priority-3 {
 	border-inline-start: var(--vscode-spacing-size20) solid var(--vscode-descriptionForeground);
 }
