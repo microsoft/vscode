@@ -3695,6 +3695,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				CancellationToken.None,
 				requestOptions,
 			);
+			this.chatTipService.recordSlashCommandUsage(commandPart.slashCommand.command);
 		} finally {
 			clearChatMarks(viewModel.sessionResource);
 		}
@@ -3758,6 +3759,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			viewModel.sessionResource,
 			CancellationToken.None,
 		);
+		this.chatTipService.recordSlashCommandUsage(command);
 		return true;
 	}
 

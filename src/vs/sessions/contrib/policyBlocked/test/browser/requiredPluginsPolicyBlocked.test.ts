@@ -24,6 +24,7 @@ import { IManagedPluginAvailability, IManagedPluginAvailabilityService, ManagedP
 import { IWorkbenchLayoutService } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { AccountPolicyGateState, IAccountPolicyGateInfo, IAccountPolicyGateService } from '../../../../../workbench/services/policies/common/accountPolicyService.js';
 import { TestLayoutService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
+import { IManagedSettingsUpdateInfo, IManagedSettingsUpdateService } from '../../../../../workbench/services/policies/common/managedSettingsUpdate.js';
 import { SessionsPolicyBlockedContribution } from '../../browser/policyBlocked.contribution.js';
 import { ISessionsPartService } from '../../../../services/sessions/browser/sessionsPartService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
@@ -67,6 +68,8 @@ suite('Sessions required plugins explanation', () => {
 		const opened: string[] = [];
 		services.stub(IWorkbenchLayoutService, layout);
 		services.stub(IManagedPluginAvailabilityService, availability);
+		const updateInfo = observableValue<IManagedSettingsUpdateInfo | undefined>('updateInfo', undefined);
+		services.stub(IManagedSettingsUpdateService, { updateInfo });
 		services.stub(IConfigurationService, configuration);
 		services.stub(IAccountPolicyGateService, gate);
 		services.stub(ISessionsService, { activeSession });
@@ -85,7 +88,7 @@ suite('Sessions required plugins explanation', () => {
 			override async open(target: string | URI) { opened.push(target.toString()); return true; }
 		}());
 		const contribution = store.add(services.createInstance(SessionsPolicyBlockedContribution));
-		return { root, content, availability, opened, contribution, layout, layoutEvent, gateChange, activeSession, fallbackFocusTarget, fallbackFocusCalls };
+		return { root, content, availability, opened, contribution, layout, layoutEvent, gateChange, activeSession, fallbackFocusTarget, fallbackFocusCalls, updateInfo };
 	}
 
 	test('shows one blocking region with Retry and a fresh editor-window action', () => {
@@ -126,6 +129,32 @@ suite('Sessions required plugins explanation', () => {
 			display: mainWindow.getComputedStyle(overlay).display,
 			scrollContainers: overlay.querySelectorAll('.sessions-policy-blocked-scrollable').length,
 		}, { title: 'Agents Disabled', pluginStyles: false, display: 'flex', scrollContainers: 0 });
+	});
+
+	test('uses one overlay for minimum-version and plugin requirements without clearing either policy', () => {
+		const { root, availability, updateInfo } = setup(unavailable);
+		updateInfo.set({
+			title: 'Update required by your organization',
+			message: 'A newer version is required.',
+			detail: undefined,
+			action: { label: 'Check for Updates', href: 'command:update.checkForUpdate' },
+			updateStatus: undefined,
+		}, undefined);
+		const update = {
+			title: root.querySelector('h2')?.textContent,
+			count: root.querySelectorAll('.sessions-policy-blocked-overlay').length,
+			buttons: [...root.querySelectorAll('.monaco-button')].map(button => button.textContent),
+		};
+		updateInfo.set(undefined, undefined);
+		assert.deepStrictEqual({
+			update,
+			pluginTitle: root.querySelector('h2')?.textContent,
+			pluginState: availability.state.get(),
+		}, {
+			update: { title: 'Update required by your organization', count: 1, buttons: ['Check for Updates', 'Open Editor Window'] },
+			pluginTitle: 'Required plugins unavailable',
+			pluginState: unavailable,
+		});
 	});
 
 	test('deduplicates unchanged state, shows installation progress and clears after recovery', () => {

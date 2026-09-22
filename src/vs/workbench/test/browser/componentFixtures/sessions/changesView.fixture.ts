@@ -51,7 +51,7 @@ import { ISessionsService } from '../../../../../sessions/services/sessions/brow
 // eslint-disable-next-line local/code-import-patterns
 import { IActiveSession } from '../../../../../sessions/services/sessions/common/sessionsManagement.js';
 // eslint-disable-next-line local/code-import-patterns
-import { BRANCH_CHANGES_CHANGESET_ID, IChat, IGitHubInfo, ISessionCapabilities, ISessionChangeset, ISessionChangesetOperation, ISessionFileChange, ISessionGitRepository, ISessionWorkspace, SessionStatus } from '../../../../../sessions/services/sessions/common/session.js';
+import { BRANCH_CHANGES_CHANGESET_ID, IChat, IGitHubInfo, ISessionCapabilities, ISessionChangeset, ISessionChangesetOperation, ISessionChangesSummary, ISessionFileChange, ISessionGitRepository, ISessionWorkspace, SessionStatus } from '../../../../../sessions/services/sessions/common/session.js';
 
 interface IChangesViewFixtureOptions {
 	readonly viewMode: ChangesViewMode;
@@ -74,6 +74,7 @@ class FixtureChangesViewService extends Disposable implements IChangesViewServic
 	readonly activeSessionTypeObs: IObservable<string | undefined>;
 	readonly activeSessionIsVirtualWorkspaceObs: IObservable<boolean>;
 	readonly activeSessionChangesObs: IObservable<readonly ISessionFileChange[]>;
+	readonly activeSessionChangesSummaryObs: IObservable<ISessionChangesSummary | undefined>;
 	readonly activeSessionChangesetsObs: IObservable<readonly ISessionChangeset[] | undefined>;
 	readonly activeSessionChangesetsLoadingObs: IObservable<boolean>;
 	readonly activeSessionChangesetObs: IObservable<ISessionChangeset | undefined>;
@@ -97,6 +98,11 @@ class FixtureChangesViewService extends Disposable implements IChangesViewServic
 		this.activeSessionTypeObs = constObservable(session.sessionType);
 		this.activeSessionIsVirtualWorkspaceObs = constObservable(false);
 		this.activeSessionChangesObs = constObservable(options.changes);
+		this.activeSessionChangesSummaryObs = constObservable(options.changes.length === 0 ? undefined : {
+			additions: options.changes.reduce((total, change) => total + change.insertions, 0),
+			deletions: options.changes.reduce((total, change) => total + change.deletions, 0),
+			files: options.changes.length,
+		});
 		this.activeSessionChangesetsObs = constObservable([changeset]);
 		this.activeSessionChangesetsLoadingObs = constObservable(false);
 		this.activeSessionChangesetObs = constObservable(changeset);

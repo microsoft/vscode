@@ -32,8 +32,9 @@ import { IRawChatParticipantContribution } from '../common/participants/chatPart
 import { ChatAgentLocation, ChatModeKind } from '../common/constants.js';
 import { ChatViewId, ChatViewContainerId } from './chat.js';
 import { ChatViewPane } from './widgetHosts/viewPane/chatViewPane.js';
-import { ChatRequiredPluginsView } from './viewsWelcome/chatRequiredPluginsView.js';
+import { ChatPolicyBlockedView } from './viewsWelcome/chatPolicyBlockedView.js';
 import { MANAGED_PLUGINS_VIEW_ID, ManagedPluginsUnavailableContext } from '../common/plugins/managedPluginAvailability.js';
+import { MANAGED_SETTINGS_UPDATE_VIEW_ID, ManagedSettingsUpdateRequiredContext } from '../../../services/policies/common/managedSettingsUpdate.js';
 
 // --- Chat Container &  View Registration
 
@@ -92,11 +93,30 @@ Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry).registerViews([{
 	singleViewPaneContainerTitle: chatViewContainer.title.value,
 	canToggleVisibility: false,
 	canMoveView: false,
-	ctorDescriptor: new SyncDescriptor(ChatRequiredPluginsView),
-	when: ContextKeyExpr.and(ManagedPluginsUnavailableContext, ChatContextKeys.enabled, ChatContextKeys.accountPolicyGateActive.negate()),
+	ctorDescriptor: new SyncDescriptor(ChatPolicyBlockedView),
+	when: ContextKeyExpr.and(ManagedPluginsUnavailableContext, ManagedSettingsUpdateRequiredContext.negate(), ChatContextKeys.enabled, ChatContextKeys.accountPolicyGateActive.negate()),
 	openCommandActionDescriptor: {
 		id: 'workbench.action.chat.showRequiredPlugins',
 		title: localize2('chat.requiredPluginsView', "Chat Plugin Requirement"),
+		keybindings: {
+			primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyI,
+			mac: { primary: KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyCode.KeyI },
+		},
+	},
+}], chatViewContainer);
+
+Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry).registerViews([{
+	id: MANAGED_SETTINGS_UPDATE_VIEW_ID,
+	name: chatViewDescriptor.name,
+	containerIcon: chatViewIcon,
+	singleViewPaneContainerTitle: chatViewContainer.title.value,
+	canToggleVisibility: false,
+	canMoveView: false,
+	ctorDescriptor: new SyncDescriptor(ChatPolicyBlockedView),
+	when: ManagedSettingsUpdateRequiredContext,
+	openCommandActionDescriptor: {
+		id: 'workbench.action.chat.showUpdateRequired',
+		title: localize2('chat.updateRequiredView', "Chat Update Requirement"),
 		keybindings: {
 			primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyI,
 			mac: { primary: KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyCode.KeyI },

@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { equals } from '../../../../base/common/arrays.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { localize } from '../../../../nls.js';
 import { IActionWidgetService } from '../../../../platform/actionWidget/browser/actionWidget.js';
@@ -100,7 +101,17 @@ export class WebWorkspacePicker extends WorkspacePicker {
 		// When the scoped host changes, if the current selection no longer
 		// belongs to the selected host, reset it: prefer the most recent
 		// workspace for the new host, otherwise clear the selection.
-		this._register(this._agentHostFilterService.onDidChange(() => this._onScopedHostChanged()));
+		let scopedHost = this._agentHostFilterService.selectedHost;
+		this._register(this._agentHostFilterService.onDidChange(() => {
+			const nextHost = this._agentHostFilterService.selectedHost;
+			// Connection status updates must not reset the workspace and steal
+			// focus from an open host picker through onDidSelectWorkspace.
+			if (nextHost?.id === scopedHost?.id && equals(nextHost?.providerIds ?? [], scopedHost?.providerIds ?? [])) {
+				return;
+			}
+			scopedHost = nextHost;
+			this._onScopedHostChanged();
+		}));
 	}
 
 	protected override _showTabs(): boolean {

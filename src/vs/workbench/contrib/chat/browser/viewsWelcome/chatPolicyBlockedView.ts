@@ -6,9 +6,11 @@
 import '../widget/media/chatViewWelcome.css';
 import { $, append, clearNode } from '../../../../../base/browser/dom.js';
 import { DomScrollableElement } from '../../../../../base/browser/ui/scrollbar/scrollableElement.js';
+import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../../base/common/observable.js';
 import { ScrollbarVisibility } from '../../../../../base/common/scrollable.js';
+import { hasKey } from '../../../../../base/common/types.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
@@ -19,12 +21,13 @@ import { IOpenerService } from '../../../../../platform/opener/common/opener.js'
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
 import { IViewPaneOptions, ViewPane } from '../../../../browser/parts/views/viewPane.js';
 import { IViewDescriptorService } from '../../../../common/views.js';
+import { IManagedSettingsUpdateService } from '../../../../services/policies/common/managedSettingsUpdate.js';
 import { ChatAgentLocation } from '../../common/constants.js';
-import { getManagedPluginBlockInfo, IManagedPluginAvailabilityService } from '../../common/plugins/managedPluginAvailability.js';
 import { ChatViewWelcomePart } from './chatViewWelcomeController.js';
+import { getManagedPluginBlockInfo, IManagedPluginAvailabilityService } from '../../common/plugins/managedPluginAvailability.js';
 
-/** Explains required-plugin availability without creating a chat widget or session. */
-export class ChatRequiredPluginsView extends ViewPane {
+/** A read-only replacement for Chat. Never creates a chat widget or session. */
+export class ChatPolicyBlockedView extends ViewPane {
 	private content: HTMLElement | undefined;
 	private scrollable: DomScrollableElement | undefined;
 	private readonly welcome = this._register(new MutableDisposable<ChatViewWelcomePart>());
@@ -40,6 +43,7 @@ export class ChatRequiredPluginsView extends ViewPane {
 		@IOpenerService openerService: IOpenerService,
 		@IThemeService themeService: IThemeService,
 		@IHoverService hoverService: IHoverService,
+		@IManagedSettingsUpdateService private readonly updateService: IManagedSettingsUpdateService,
 		@IManagedPluginAvailabilityService private readonly availabilityService: IManagedPluginAvailabilityService,
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
@@ -56,17 +60,18 @@ export class ChatRequiredPluginsView extends ViewPane {
 			const hadFocus = content.contains(content.ownerDocument.activeElement);
 			this.welcome.clear();
 			clearNode(content);
-			const state = this.availabilityService.state.read(reader);
-			if (!state) {
+			const availability = this.availabilityService.state.read(reader);
+			const info = this.updateService.updateInfo.read(reader) ?? (availability ? getManagedPluginBlockInfo(availability) : undefined);
+			if (!info) {
 				content.removeAttribute('aria-label');
 				return;
 			}
-			const info = getManagedPluginBlockInfo(state);
 			content.setAttribute('aria-label', info.title);
 			const welcome = this.welcome.value = this.instantiationService.createInstance(ChatViewWelcomePart, {
 				title: info.title,
 				message: info.message,
 				additionalMessage: info.detail,
+				tips: hasKey(info, { updateStatus: true }) && info.updateStatus ? new MarkdownString(info.updateStatus) : undefined,
 				primaryAction: info.action,
 			}, { location: ChatAgentLocation.Chat });
 			content.appendChild(welcome.element);

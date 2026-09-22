@@ -13,23 +13,23 @@
 	background: var(--vscode-editor-background);
 }
 
-.sessions-policy-blocked-overlay.required-plugins {
+.sessions-policy-blocked-overlay:is(.update-required, .required-plugins) {
 	display: block;
 }
 
-.sessions-policy-blocked-overlay.required-plugins .sessions-policy-blocked-scrollable,
-.sessions-policy-blocked-overlay.required-plugins .sessions-policy-blocked-scroll-content {
+.sessions-policy-blocked-overlay:is(.update-required, .required-plugins) .sessions-policy-blocked-scrollable,
+.sessions-policy-blocked-overlay:is(.update-required, .required-plugins) .sessions-policy-blocked-scroll-content {
 	width: 100%;
 	height: 100%;
 }
 
-.sessions-policy-blocked-overlay.required-plugins .sessions-policy-blocked-scroll-content {
+.sessions-policy-blocked-overlay:is(.update-required, .required-plugins) .sessions-policy-blocked-scroll-content {
 	display: flex;
 	flex-direction: column;
 	align-items: center;
 }
 
-.sessions-policy-blocked-overlay.required-plugins .sessions-policy-blocked-card {
+.sessions-policy-blocked-overlay:is(.update-required, .required-plugins) .sessions-policy-blocked-card {
 	box-sizing: border-box;
 	flex-shrink: 0;
 	width: 100%;
@@ -38,11 +38,11 @@
 	overflow-wrap: anywhere;
 }
 
-.sessions-policy-blocked-overlay.required-plugins .sessions-policy-blocked-card > :is(h2, p, .monaco-button) {
+.sessions-policy-blocked-overlay:is(.update-required, .required-plugins) .sessions-policy-blocked-card > :is(h2, p, .monaco-button) {
 	max-width: 100%;
 }
 
-.sessions-policy-blocked-overlay.required-plugins .sessions-policy-blocked-card > .monaco-button {
+.sessions-policy-blocked-overlay:is(.update-required, .required-plugins) .sessions-policy-blocked-card > .monaco-button {
 	scroll-margin-block: var(--vscode-spacing-size80);
 }
 

@@ -30,6 +30,7 @@ import { MockKeybindingService } from '../../../../../platform/keybinding/test/c
 import { IMenu, IMenuService, MenuId, MenuItemAction } from '../../../../../platform/actions/common/actions.js';
 import { EditorMarkdownCodeBlockRenderer } from '../../../../../editor/browser/widget/markdownRenderer/browser/editorMarkdownCodeBlockRenderer.js';
 import { IMarkdownRendererService, MarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
+import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IAgentHostConnectionsService } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
@@ -245,6 +246,7 @@ interface IRenderOptions {
 	readonly phone?: boolean;
 	readonly revealHierarchyGuides?: boolean;
 	readonly showAutomations?: boolean;
+	readonly showCustomizationsNavigation?: boolean;
 	readonly automationRunStatus?: IAutomationRun['status'];
 	readonly automationBadgeStyle?: AutomationsNewBadgeStyle;
 	readonly newSessionButtonStyle?: NewSessionButtonStyle;
@@ -260,7 +262,7 @@ interface IRenderOptions {
 async function renderSessionsList(ctx: ComponentFixtureContext, options: IRenderOptions): Promise<void> {
 	const { container, disposableStore } = ctx;
 	const expectedNewSessionButtonStyle = options.newSessionButtonStyle ?? options.newSessionButtonTreatment;
-	const showHeader = options.showAutomations || expectedNewSessionButtonStyle !== undefined;
+	const showHeader = options.showAutomations || options.showCustomizationsNavigation || expectedNewSessionButtonStyle !== undefined;
 	const approvals = new Map<string, IAgentSessionApprovalInfo>();
 	const sessions = options.sessions.map(spec => createSession(spec, approvals));
 	const approvalModel = createApprovalModel(approvals);
@@ -285,6 +287,10 @@ async function renderSessionsList(ctx: ComponentFixtureContext, options: IRender
 		additionalServices: reg => {
 			registerWorkbenchServices(reg);
 			reg.defineInstance(IProductService, TestProductService);
+			reg.defineInstance(IEditorService, new class extends mock<IEditorService>() {
+				override readonly onDidActiveEditorChange = Event.None;
+				override readonly activeEditor = undefined;
+			}());
 			const reducedMotion = options.reducedMotion;
 			if (reducedMotion !== undefined) {
 				reg.defineInstance(IAccessibilityService, new class extends TestAccessibilityService {
@@ -472,7 +478,7 @@ async function renderSessionsList(ctx: ComponentFixtureContext, options: IRender
 	if (options.phone) {
 		IsPhoneLayoutContext.bindTo(instantiationService.get(IContextKeyService)).set(true);
 	}
-	if (options.showAutomations) {
+	if (options.showAutomations || options.showCustomizationsNavigation) {
 		ChatAutomationsEnabledContext.bindTo(instantiationService.get(IContextKeyService)).set(true);
 	}
 
@@ -489,11 +495,18 @@ async function renderSessionsList(ctx: ComponentFixtureContext, options: IRender
 	}
 
 	let listParent = container;
+	let sessionsHeader: HTMLElement | undefined;
+	let sessionsHeaderContainer: HTMLElement | undefined;
 	if (showHeader) {
-		container.classList.add('agent-sessions-viewpane', 'agent-sessions-section');
-		const content = DOM.append(container, DOM.$('.agent-sessions-content'));
+		container.classList.add('agent-sessions-viewpane');
+		container.classList.add('agent-sessions-section');
+		const sessionsSection = container;
+		const content = DOM.append(sessionsSection, DOM.$('.agent-sessions-content'));
+		sessionsHeaderContainer = DOM.append(content, DOM.$('.agent-sessions-header-container'));
 		disposableStore.add(instantiationService.createInstance(NewSessionActionViewItemContribution));
-		renderSessionsHeader(content, false, instantiationService, instantiationService.get(IContextKeyService), disposableStore).toolbar?.refresh();
+		const header = renderSessionsHeader(sessionsHeaderContainer, false, instantiationService, instantiationService.get(IContextKeyService), disposableStore);
+		header.toolbar?.refresh();
+		sessionsHeader = header.row;
 		listParent = content;
 	}
 	const listHost = DOM.append(listParent, DOM.$(showHeader ? '.agent-sessions-control-container' : 'div'));
@@ -501,10 +514,13 @@ async function renderSessionsList(ctx: ComponentFixtureContext, options: IRender
 		grouping: () => options.grouping ?? SessionsGrouping.Workspace,
 		sorting: () => SessionsSorting.Created,
 		compact: () => options.compact ?? false,
+		showNavigationShortcuts: () => options.showCustomizationsNavigation ?? false,
+		sessionsHeader,
+		sessionsHeaderContainer,
 		onSessionOpen: () => { },
 		approvalModel,
 	}));
-	list.layout(options.phone ? 260 : showHeader ? 180 : 220, width);
+	list.layout(options.phone ? 260 : showHeader && !options.showCustomizationsNavigation ? 180 : 220, width);
 	if (options.rename === 'session') {
 		const titleRow = listHost.querySelector<HTMLElement>('.session-title-row');
 		if (!titleRow) {
@@ -581,7 +597,6 @@ async function renderSessionsList(ctx: ComponentFixtureContext, options: IRender
 			status: options.automationRunStatus,
 			trigger: 'schedule',
 			startedAt: new Date().toISOString(),
-			leaderWindowId: 1,
 		}], undefined);
 	}
 	await Promise.resolve();
@@ -878,6 +893,16 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 		render: ctx => renderSessionsList(ctx, {
 			sessions: [],
 			showAutomations: true,
+		}),
+	}),
+	SessionsList_CustomizationsNavigationTreatment: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		additionalThemes: ['darkHighContrast'],
+		expectedVisualDescriptions: ['Automations and Customizations appear as two full-width navigation rows at the start of the scrollable Sessions tree. The Sessions header follows them and becomes sticky as they scroll away. Automations has a compact right-aligned NEW capsule, and the outlined New button remains in the Sessions header rather than becoming a list entry.'],
+		render: ctx => renderSessionsList(ctx, {
+			sessions: [{ id: 'treatment', title: 'Validate the customizations experiment', workspace: 'vscode', minutesAgo: 5 }],
+			showCustomizationsNavigation: true,
+			automationBadgeStyle: 'outline',
 		}),
 	}),
 	SessionsList_LightweightNewButton: defineComponentFixture({

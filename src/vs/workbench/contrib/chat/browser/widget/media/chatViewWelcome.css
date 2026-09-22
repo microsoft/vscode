@@ -56,7 +56,7 @@
 	justify-content: safe center;
 }
 
-.chat-policy-blocked-content .chat-welcome-view > :is(.chat-welcome-view-title, .chat-welcome-view-message, .chat-welcome-view-disclaimer) {
+.chat-policy-blocked-content .chat-welcome-view > :is(.chat-welcome-view-title, .chat-welcome-view-message, .chat-welcome-view-disclaimer, .chat-welcome-view-tips) {
 	box-sizing: border-box;
 	overflow-wrap: anywhere;
 }
@@ -72,6 +72,14 @@
 .chat-policy-blocked-content .chat-welcome-view > .chat-welcome-view-disclaimer {
 	max-width: min(100%, 280px);
 	margin-top: var(--vscode-spacing-size80);
+}
+
+.chat-policy-blocked-content .chat-welcome-view > .chat-welcome-view-tips {
+	max-width: min(100%, 280px);
+	margin: var(--vscode-spacing-size80) 0 0;
+	text-align: center;
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-label1);
 }
 
 .chat-policy-blocked-content .chat-welcome-view > .monaco-button {

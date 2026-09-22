@@ -7,6 +7,7 @@ import assert from 'assert';
 import { $, append } from '../../../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../../../base/browser/window.js';
 import { Event } from '../../../../../../base/common/event.js';
+import { observableValue } from '../../../../../../base/common/observable.js';
 import { toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
@@ -14,10 +15,11 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
 import { IViewDescriptorService, ViewContainerLocation } from '../../../../../common/views.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
-import { ChatRequiredPluginsView } from '../../../browser/viewsWelcome/chatRequiredPluginsView.js';
+import { ChatPolicyBlockedView } from '../../../browser/viewsWelcome/chatPolicyBlockedView.js';
+import { IManagedSettingsUpdateInfo, IManagedSettingsUpdateService } from '../../../../../services/policies/common/managedSettingsUpdate.js';
 import { getManagedPluginBlockInfo, IManagedPluginAvailability, IManagedPluginAvailabilityService, MANAGED_PLUGINS_VIEW_ID, ManagedPluginAvailabilityService, RETRY_MANAGED_PLUGINS_COMMAND_ID } from '../../../common/plugins/managedPluginAvailability.js';
 
-class TestRequiredPluginsView extends ChatRequiredPluginsView {
+class TestRequiredPluginsView extends ChatPolicyBlockedView {
 	renderForTest(container: HTMLElement): void { this.renderBody(container); }
 	layoutForTest(height: number, width: number): void { this.layoutBody(height, width); }
 }
@@ -35,6 +37,8 @@ suite('Chat required plugins view', () => {
 		const availability = new ManagedPluginAvailabilityService();
 		availability.setState(initial);
 		services.stub(IManagedPluginAvailabilityService, availability);
+		const updateInfo = observableValue<IManagedSettingsUpdateInfo | undefined>('updateInfo', undefined);
+		services.stub(IManagedSettingsUpdateService, { updateInfo });
 		const opened: string[] = [];
 		services.stub(IOpenerService, new class extends mock<IOpenerService>() {
 			override async open(target: string | URI) { opened.push(target.toString()); return true; }
@@ -46,7 +50,7 @@ suite('Chat required plugins view', () => {
 		const view = store.add(services.createInstance(TestRequiredPluginsView, { id: MANAGED_PLUGINS_VIEW_ID, title: 'Chat' }));
 		view.renderForTest(container);
 		view.layoutForTest(120, width);
-		return { view, container, availability, opened };
+		return { view, container, availability, opened, updateInfo };
 	}
 
 	test('shows required plugins and Retry without a composer or update action', () => {
@@ -94,6 +98,31 @@ suite('Chat required plugins view', () => {
 			detail: `Required: ${pluginId}`,
 			links: 0,
 			buttons: ['Retry'],
+		});
+	});
+
+	test('uses the same view for version restrictions and gives the update requirement precedence', () => {
+		const { container, updateInfo, availability } = setup();
+		updateInfo.set({
+			title: 'Update required by your organization',
+			message: 'A newer version is required.',
+			detail: 'Installed: 1.140.0',
+			action: { label: 'Check for Updates', href: 'command:update.checkForUpdate' },
+			updateStatus: undefined,
+		}, undefined);
+		const update = {
+			title: container.querySelector('.chat-welcome-view-title')?.textContent,
+			button: container.querySelector('.monaco-button')?.textContent,
+		};
+		updateInfo.set(undefined, undefined);
+		assert.deepStrictEqual({
+			update,
+			pluginTitle: container.querySelector('.chat-welcome-view-title')?.textContent,
+			pluginStateUnchanged: availability.state.get(),
+		}, {
+			update: { title: 'Update required by your organization', button: 'Check for Updates' },
+			pluginTitle: 'Required plugins unavailable',
+			pluginStateUnchanged: unavailable,
 		});
 	});
 
