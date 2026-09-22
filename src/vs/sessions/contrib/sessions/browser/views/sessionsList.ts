@@ -12,6 +12,7 @@ import { IListVirtualDelegate, ListDragOverEffectPosition, ListDragOverEffectTyp
 import { IListStyles } from '../../../../../base/browser/ui/list/listWidget.js';
 import { IObjectTreeElement, ITreeNode, ITreeRenderer, ITreeContextMenuEvent, ObjectTreeElementCollapseState, ITreeDragAndDrop, ITreeDragOverReaction } from '../../../../../base/browser/ui/tree/tree.js';
 import { RenderIndentGuides, TreeFindMode } from '../../../../../base/browser/ui/tree/abstractTree.js';
+import { RunOnceScheduler } from '../../../../../base/common/async.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { onUnexpectedError } from '../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
@@ -3447,21 +3448,22 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 		this._register(this.tree.onContextMenu(e => this.onContextMenu(e)));
 
+		let applyingFindPattern = false;
 		this._register(this.tree.onDidChangeCollapseState(e => {
 			const element = e.node.element;
 			if (element && isSessionGroupItem(element)) {
 				this._groupRenderer.updateCollapseState(element, e.node.collapsed);
-				if (!this.suspendCollapseStatePersistence) {
+				if (!this.suspendCollapseStatePersistence && !applyingFindPattern) {
 					this.saveSectionCollapseState(`group:${element.group.id}`, e.node.collapsed);
 				}
 			} else if (element && isSessionSection(element)) {
 				sectionRenderer.updateCollapseState(element, e.node.collapsed);
-				if (!this.suspendCollapseStatePersistence) {
+				if (!this.suspendCollapseStatePersistence && !applyingFindPattern) {
 					this.saveSectionCollapseState(element.id, e.node.collapsed);
 				}
 			} else if (element && isSessionItem(element)) {
 				this.syncCollapsedSessionIds();
-				if (!this.suspendCollapseStatePersistence) {
+				if (!this.suspendCollapseStatePersistence && !applyingFindPattern) {
 					this.saveSessionCollapseState(element, e.node.collapsed);
 				}
 			}
@@ -3470,6 +3472,9 @@ export class SessionsList extends Disposable implements ISessionsList {
 		let isFindOpen = false;
 		let findPattern = '';
 		const updateFindPatternState = () => {
+			if (this._store.isDisposed) {
+				return;
+			}
 			const hasFindPattern = isFindOpen && findPattern.length > 0;
 			if (hasFindPattern !== this.hasFindPattern) {
 				this.hasFindPattern = hasFindPattern;
@@ -3488,8 +3493,45 @@ export class SessionsList extends Disposable implements ISessionsList {
 		// and the find widget is open. Opening the empty find widget should not
 		// reorder the list, and closing find should restore the capped layout.
 		this._register(this.tree.onDidChangeFindPattern(pattern => {
+			// Native Find can synchronously reveal the focused row even when clearing its pattern.
+			if (!applyingFindPattern) {
+				applyingFindPattern = true;
+				queueMicrotask(() => applyingFindPattern = false);
+			}
 			findPattern = pattern;
 			updateFindPatternState();
+		}));
+
+		// Wait for native refiltering before revealing hidden matches and reconciling logical focus.
+		const findMatchRevealScheduler = this._register(new RunOnceScheduler(() => {
+			if (!this.hasFindPattern) {
+				return;
+			}
+			const ancestors = getCollapsedFindAncestors(this.tree.getNode());
+			if (ancestors.length === 0) {
+				return;
+			}
+			const previousSuspendCollapseStatePersistence = this.suspendCollapseStatePersistence;
+			this.suspendCollapseStatePersistence = true;
+			try {
+				for (const ancestor of ancestors) {
+					this.tree.expand(ancestor);
+				}
+				this.tree.focusNext(0, true, undefined, node => !FuzzyScore.isDefault(node.filterData));
+				const focused = this.tree.getFocus()[0];
+				if (focused && this.tree.getRelativeTop(focused) === null) {
+					this.tree.reveal(focused, 0.5);
+				}
+			} finally {
+				this.suspendCollapseStatePersistence = previousSuspendCollapseStatePersistence;
+			}
+		}, 0));
+		this._register(this.tree.onWillRefilter(() => {
+			if (this.hasFindPattern) {
+				findMatchRevealScheduler.schedule();
+			} else {
+				findMatchRevealScheduler.cancel();
+			}
 		}));
 
 		this._register(this._sessionsManagementService.onDidChangeSessions(e => {
@@ -5161,6 +5203,23 @@ function sessionMatchesFolder(session: ISession, folder: URI): boolean {
 //#endregion
 
 //#region Sorting & Grouping Helpers
+
+/** Collapsed nodes with a matching descendant, ordered from inner branches outward. */
+export function getCollapsedFindAncestors<T>(root: ITreeNode<T | null, FuzzyScore | undefined>): T[] {
+	const ancestors: T[] = [];
+	const visit = (node: ITreeNode<T | null, FuzzyScore | undefined>): boolean => {
+		let hasMatchingDescendant = false;
+		for (const child of node.children) {
+			hasMatchingDescendant = visit(child) || hasMatchingDescendant;
+		}
+		if (hasMatchingDescendant && node.collapsed && node.element !== null) {
+			ancestors.push(node.element);
+		}
+		return hasMatchingDescendant || !FuzzyScore.isDefault(node.filterData);
+	};
+	visit(root);
+	return ancestors;
+}
 
 export function sortSessions(sessions: ISession[], sorting: SessionsSorting, getSortKey?: (session: ISession, sorting: SessionsSorting) => number): ISession[] {
 	const key = getSortKey ?? defaultSortKey;
