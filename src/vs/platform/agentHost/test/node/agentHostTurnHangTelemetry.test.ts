@@ -383,6 +383,30 @@ suite('AgentSideEffects — turn hang telemetry', () => {
 		}]);
 	});
 
+	test('Fusion phase progress does not count as an in-flight tool for hang classification', async () => {
+		await runWithFakedTimers({}, async () => {
+			setupSession();
+			startTurn('turn-fusion');
+			fire({
+				type: ActionType.ChatToolCallStart, turnId: 'turn-fusion',
+				toolCallId: 'fusion:workflow:phase', toolName: 'hydrafusion_phase', displayName: 'Main pass',
+				_meta: { toolKind: 'fusionPhase' },
+			});
+			fire({
+				type: ActionType.ChatToolCallReady, turnId: 'turn-fusion', toolCallId: 'fusion:workflow:phase',
+				invocationMessage: 'Main pass', confirmed: ToolCallConfirmationReason.NotNeeded,
+				_meta: { toolKind: 'fusionPhase' },
+			});
+			await timeout(TURN_HANG_THRESHOLD_MS);
+		});
+
+		assert.deepStrictEqual(hangEvents().map(event => ({
+			hangReason: event.data.hangReason,
+			toolId: event.data.toolId,
+			inFlightToolCallCount: event.data.inFlightToolCallCount,
+		})), [{ hangReason: 'stalledAfterProgress', toolId: undefined, inFlightToolCallCount: 0 }]);
+	});
+
 	test('tags a silent long-running tool call as runningTool, then reports a real stall once it completes', async () => {
 		await runWithFakedTimers({}, async () => {
 			setupSession();
