@@ -70,6 +70,7 @@ export function getAccessibilityHelpText(type: 'panelChat' | 'inlineChat' | 'qui
 	const content = [];
 	if (isSessionsWindow) {
 		content.push(localize('chat.sessionPreparation', "While a session is being prepared, a progress message appears in the transcript. Use Tab or Shift+Tab to reach Show Log, when available, and press Enter or Space to open the output log. Use Stop to cancel preparation. The chat input and attachment controls are disabled until preparation finishes."));
+		content.push(localize('chat.testApp.help', "After app UI changes, Test App appears to the right of the status pills above the chat input. After a testing request starts in this chat, the button is named Retest App whenever it reappears, including after restarting VS Code in the same profile. This remembers that testing was requested, not that tests passed. Press Shift+Tab from the input to focus it, then Enter or Space to ask the agent to review the diffs, test the app UI, fix issues found, and retest. Existing tool permissions still apply."));
 	}
 	if (!isSessionsWindow && type !== 'inlineChat' && type !== 'quickChat') {
 		content.push(localize('chat.agentsParallelWork', "When another Agent Host session is running, a new Agent Host chat may show an invitation to run agents side by side. Only one chat input shows the invitation at a time. Use Tab to reach Open Agents Window, Ignore, or Dismiss notification. Open Agents Window copies the current prompt and attachments from that input without sending them or clearing it. An existing draft in the Agents Window is kept. Ignore turns off future invitations; Dismiss notification only hides the invitation for this chat until the window reloads."));
@@ -206,6 +207,9 @@ export function getAccessibilityHelpText(type: 'panelChat' | 'inlineChat' | 'qui
 	}
 	if (!isSessionsWindow && (type === 'panelChat' || type === 'editsView' || type === 'agentView')) {
 		content.push(localize('chat.renameSession', 'To rename the current chat session when supported, invoke the Rename command{0}. Agent Host sessions can be renamed after sending the first request.', `<keybinding:${AGENT_SESSION_RENAME_ACTION_ID}>`));
+	}
+	if (type !== 'inlineChat') {
+		content.push(localize('chat.linkContextMenu', "Focus a link in the chat transcript and press Shift+F10 to open its context menu. Use Copy Link to copy its target. File links with additional editor choices also provide Open With."));
 	}
 	content.push(localize('chat.attachments.pastedText', "Long pasted text, including single-line text, is stored as an attached text item and replaced in the input with a numbered inline reference."));
 	content.push(localize('chat.paste.asText', "To paste the clipboard as plain text, without converting it to Markdown or storing it as an attachment, invoke Paste as Text{0}.", '<keybinding:editor.action.pasteAsText>'));

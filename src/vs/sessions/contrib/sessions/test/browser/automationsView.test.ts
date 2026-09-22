@@ -39,11 +39,11 @@ import { IKeybindingService } from '../../../../../platform/keybinding/common/ke
 import { MockContextKeyService, MockKeybindingService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { InMemoryStorageService, IStorageService, StorageScope } from '../../../../../platform/storage/common/storage.js';
-import { IAutomationDescriptor, IAutomationRun, IAutomationSchedule, AutomationRunTrigger, AutomationTarget } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
+import { IAutomationDescriptor, IAutomationRun, IAutomationSchedule, AutomationTarget } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
 import { IAutomationDialogResult, IAutomationDialogService, IShowAutomationDialogOptions } from '../../../../../workbench/contrib/chat/common/automations/automationDialogService.js';
 import { ChatAutomationsEnabledContext } from '../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
 import { IAutomationRunDispatch, IAutomationRunner, IAutomationRunOperation } from '../../../../../workbench/contrib/chat/common/automations/automationRunner.js';
-import { AutomationCatalogueState, AutomationMutationGuard, IAutomationProviderDescriptor, IAutomationRunClaim, IAutomationService, ICreateAutomationOptions, IGuardedAutomationUpdateResult, IUpdateAutomationOptions, IUpdateAutomationRunOptions } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
+import { AutomationCatalogueState, AutomationMutationGuard, IAutomationProviderDescriptor, IAutomationService, ICreateAutomationOptions, IGuardedAutomationUpdateResult, IUpdateAutomationOptions } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { ContributionEnablementState } from '../../../../../workbench/contrib/chat/common/enablement.js';
 import { IAgentPlugin, IAgentPluginService } from '../../../../../workbench/contrib/chat/common/plugins/agentPluginService.js';
 import { ICustomViewDescriptor } from '../../../../services/customView/browser/customView.js';
@@ -110,7 +110,6 @@ function run(overrides: Partial<IAutomationRun> = {}): IAutomationRun {
 		status: 'completed',
 		trigger: 'manual',
 		startedAt: new Date().toISOString(),
-		leaderWindowId: 0,
 		sessionResource: SESSION_RESOURCE,
 		...overrides,
 	};
@@ -145,7 +144,6 @@ class FakeAutomationService extends mock<IAutomationService>() {
 	override readonly unavailableProviders: IObservable<readonly IAutomationProviderDescriptor[]> = this.unavailableProvidersValue;
 	updateResult: IGuardedAutomationUpdateResult | undefined;
 	updateCalls = 0;
-	deleteRunCalls = 0;
 	createError: Error | undefined;
 	deleteError: Error | undefined;
 	canDelete = true;
@@ -156,7 +154,6 @@ class FakeAutomationService extends mock<IAutomationService>() {
 	readonly createCalls: ICreateAutomationOptions[] = [];
 	readonly deleteCalls: string[] = [];
 	readonly guardedUpdateCalls: { id: string; patch: IUpdateAutomationOptions; expected: IAutomationDescriptor }[] = [];
-	readonly deleteRunCompleted = new DeferredPromise<void>();
 
 	setAutomations(value: readonly IAutomationDescriptor[]): void {
 		this.automationValue.set(value, undefined);
@@ -254,19 +251,7 @@ class FakeAutomationService extends mock<IAutomationService>() {
 		return this.canUpdate;
 	}
 
-	override async recordRunStart(): Promise<IAutomationRunClaim> {
-		return { claimed: true, run: run() };
-	}
-
-	override async updateRun(_runId: string, _patch: IUpdateAutomationRunOptions): Promise<IAutomationRun | undefined> {
-		return undefined;
-	}
-
-	override async deleteRun(runId: string): Promise<void> {
-		this.deleteRunCalls++;
-		this.setRuns(this.runValue.get().filter(run => run.id !== runId));
-		this.deleteRunCompleted.complete();
-	}
+	override canRunAutomation(): boolean { return true; }
 }
 
 class TestContextMenuService extends mock<IContextMenuService>() {
@@ -361,7 +346,7 @@ class FakeRunner extends mock<IAutomationRunner>() {
 	whenDispatched: Promise<IAutomationRunDispatch> = Promise.resolve({ kind: 'notStarted', reason: 'targetUnavailable' });
 	runCalls = 0;
 
-	override runOnce(_automation: IAutomationDescriptor, _trigger: AutomationRunTrigger, _leaderWindowId: number, _token?: CancellationToken): IAutomationRunOperation {
+	override runOnce(_automation: IAutomationDescriptor, _token?: CancellationToken): IAutomationRunOperation {
 		this.runCalls++;
 		return { whenDispatched: this.whenDispatched, whenCompleted: Promise.resolve() };
 	}
@@ -2842,6 +2827,15 @@ suite('AutomationsCardsWidget', () => {
 			unavailable: ['Automations', 'Automations from Remote build host are unavailable.'],
 			error: ['Automations', 'Unable to load automations.'],
 		});
+	});
+
+	test('accessible view explains incompatible host upgrade requirements', () => {
+		const reason = 'Update this Agent Host to support autonomous automations.';
+		const providers = [{ id: 'remote', label: 'Remote host', unavailableReason: reason }];
+		const content = buildAutomationsAccessibleContent([], [], 'unavailable', [], providers);
+		assert.deepStrictEqual(content.split('\n').slice(0, 2), [
+			'Automations', `Automations from Remote host are unavailable. ${reason}`,
+		]);
 	});
 
 	test('accessible view offers templates without claiming an incomplete catalogue is empty', () => {

@@ -2471,10 +2471,8 @@ suite('ChatService', () => {
 		testDisposables.add(chatAgentService.registerAgent(sessionType, { ...getAgentData(sessionType), isDefault: true }));
 		testDisposables.add(chatAgentService.registerAgentImplementation(sessionType, { async invoke() { return {}; } }));
 
+		instantiationService.stub(ICustomizationMigrationService, migrationService);
 		const testService = createChatService();
-		testDisposables.add(testService.registerCustomizationMigrationHintProvider(
-			(sessionResource, token) => migrationService.computeMigrationHint(sessionResource, token)
-		));
 		const ref = await testService.acquireOrLoadSession(sessionResource, ChatAgentLocation.Chat, CancellationToken.None);
 		assert.ok(ref);
 		testDisposables.add(ref);
@@ -2591,10 +2589,8 @@ suite('ChatService', () => {
 
 		const configurationService = instantiationService.get(IConfigurationService) as TestConfigurationService;
 		await configurationService.setUserConfiguration(ChatConfiguration.ChatCustomizationsMigrationHint, CustomizationMigrationHintMode.Once);
+		instantiationService.stub(ICustomizationMigrationService, migrationService);
 		const testService = createChatService();
-		testDisposables.add(testService.registerCustomizationMigrationHintProvider(
-			(sessionResource, token) => migrationService.computeMigrationHint(sessionResource, token)
-		));
 		const firstRef = await testService.acquireOrLoadSession(sessionResource, ChatAgentLocation.Chat, CancellationToken.None);
 		assert.ok(firstRef);
 		const firstResponse = await testService.sendRequest(sessionResource, 'first', { agentId: sessionType });
@@ -2622,10 +2618,8 @@ suite('ChatService', () => {
 
 	test('customization migration hint is not computed for local sessions', async () => {
 		const migrationService = mockObject<ICustomizationMigrationService>()({ _serviceBrand: undefined });
+		instantiationService.stub(ICustomizationMigrationService, migrationService);
 		const testService = createChatService();
-		testDisposables.add(testService.registerCustomizationMigrationHintProvider(
-			(sessionResource, token) => migrationService.computeMigrationHint(sessionResource, token)
-		));
 		const model = startSessionModel(testService).object;
 		const response = await testService.sendRequest(model.sessionResource, 'test');
 		ChatSendResult.assertSent(response);
@@ -2662,10 +2656,8 @@ suite('ChatService', () => {
 		testDisposables.add(chatAgentService.registerAgent(sessionType, { ...getAgentData(sessionType), isDefault: true }));
 		testDisposables.add(chatAgentService.registerAgentImplementation(sessionType, { async invoke() { return {}; } }));
 
+		instantiationService.stub(ICustomizationMigrationService, migrationService);
 		const testService = createChatService();
-		testDisposables.add(testService.registerCustomizationMigrationHintProvider(
-			(sessionResource, token) => migrationService.computeMigrationHint(sessionResource, token)
-		));
 		const ref = await testService.acquireOrLoadSession(sessionResource, ChatAgentLocation.Chat, CancellationToken.None);
 		assert.ok(ref);
 		testDisposables.add(ref);
@@ -3234,6 +3226,7 @@ suite('ChatService', () => {
 			readonly isReadOnly?: ISettableObservable<boolean>;
 			readonly interruptActiveResponseCallback?: () => Promise<boolean>;
 			readonly onDidStartServerRequest?: Event<IChatSessionServerRequest>;
+			readonly onDidChangeHistory?: Event<readonly IChatSessionHistoryItem[]>;
 			readonly history?: readonly IChatSessionHistoryItem[];
 		}
 
@@ -3254,6 +3247,7 @@ suite('ChatService', () => {
 				isReadOnly: opts.isReadOnly,
 				interruptActiveResponseCallback: opts.interruptActiveResponseCallback,
 				onDidStartServerRequest: opts.onDidStartServerRequest,
+				onDidChangeHistory: opts.onDidChangeHistory,
 				dispose: () => { },
 			};
 			testDisposables.add(mockSessionsService.registerChatSessionContentProvider(remoteScheme, {
@@ -3262,6 +3256,56 @@ suite('ChatService', () => {
 
 			return { resource, provided };
 		}
+
+		test('passive history updates append and replace external responses without replacing the draft or unchanged requests', async () => {
+			const changes = testDisposables.add(new Emitter<readonly IChatSessionHistoryItem[]>());
+			const first: IChatSessionHistoryItem[] = [
+				{ type: 'request', id: 'one', prompt: 'First message', participant: remoteScheme },
+				{ type: 'response', parts: [{ kind: 'markdownContent', content: new MarkdownString('First response') }], participant: remoteScheme },
+			];
+			const { resource } = setupRemoteProvider({ history: first, onDidChangeHistory: changes.event });
+			const service = createChatService();
+			const ref = await service.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
+			assert.ok(ref);
+			testDisposables.add(ref);
+			const firstRequest = ref.object.getRequests()[0];
+			ref.object.inputModel.setState({ inputText: 'Unsent local draft' });
+			changes.fire([...first,
+			{ type: 'request', id: 'two', prompt: 'Sent in ChatGPT', participant: remoteScheme },
+			{ type: 'response', parts: [{ kind: 'markdownContent', content: new MarkdownString('Partial') }], participant: remoteScheme },
+			]);
+			changes.fire([...first,
+			{ type: 'request', id: 'two', prompt: 'Sent in ChatGPT', participant: remoteScheme },
+			{ type: 'response', parts: [{ kind: 'markdownContent', content: new MarkdownString('Complete external response') }], participant: remoteScheme },
+			]);
+			assert.deepStrictEqual({
+				requests: ref.object.getRequests().map(request => [request.id, request.message.text, request.response?.response.toString()]),
+				unchangedRequest: ref.object.getRequests()[0] === firstRequest,
+				draft: ref.object.inputModel.state.get()?.inputText,
+			}, { requests: [['one', 'First message', 'First response'], ['two', 'Sent in ChatGPT', 'Complete external response']], unchangedRequest: true, draft: 'Unsent local draft' });
+		});
+
+		test('passive history waits for a local response and preserves locally added requests', async () => {
+			const changes = testDisposables.add(new Emitter<readonly IChatSessionHistoryItem[]>());
+			const first: IChatSessionHistoryItem[] = [
+				{ type: 'request', id: 'one', prompt: 'First', participant: remoteScheme },
+				{ type: 'response', parts: [], participant: remoteScheme },
+			];
+			const { resource } = setupRemoteProvider({ history: first, onDidChangeHistory: changes.event });
+			const service = createChatService();
+			const ref = await service.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
+			assert.ok(ref);
+			testDisposables.add(ref);
+			const model = ref.object as ChatModel;
+			const local = model.addRequest({ parts: [], text: 'Local request' }, { variables: [] }, 0);
+			changes.fire([...first, { type: 'request', id: 'external', prompt: 'External', participant: remoteScheme }, { type: 'response', parts: [], participant: remoteScheme }]);
+			const whileActive = model.getRequests().map(request => request.message.text);
+			local.response?.complete();
+			await new Promise<void>(resolve => queueMicrotask(resolve));
+			assert.deepStrictEqual({ whileActive, after: model.getRequests().map(request => request.message.text), preserved: model.getRequests().includes(local) }, {
+				whileActive: ['First', 'Local request'], after: ['First', 'Local request', 'External'], preserved: true,
+			});
+		});
 
 		test('request-only hidden session history keeps its response visible and persists', async () => {
 			const { resource } = setupRemoteProvider({

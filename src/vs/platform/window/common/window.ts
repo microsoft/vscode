@@ -5,6 +5,7 @@
 
 import { VSBuffer } from '../../../base/common/buffer.js';
 import { IStringDictionary } from '../../../base/common/collections.js';
+import { AGENTS_AUTHORITY } from '../../../base/common/network.js';
 import { PerformanceMark } from '../../../base/common/performance.js';
 import { isMacintosh, isNative, isWeb } from '../../../base/common/platform.js';
 import { URI, UriComponents, UriDto } from '../../../base/common/uri.js';
@@ -114,6 +115,35 @@ export interface IAgentsWindowDraft {
 export function isAgentsWindowDraft(value: unknown): value is IAgentsWindowDraft {
 	const draft = value as Partial<IAgentsWindowDraft> | undefined;
 	return !!draft && typeof draft.inputText === 'string' && typeof draft.attachments === 'string';
+}
+
+export interface IAgentsWindowNewSessionLink {
+	readonly workspaceUri: URI;
+	readonly draft: IAgentsWindowDraft;
+}
+
+export function parseExternalAgentsWindowNewSessionLinkUri(uri: URI | string, productUrlProtocol: string): IAgentsWindowNewSessionLink | undefined {
+	const parsed = typeof uri === 'string' ? URI.parse(uri) : uri;
+	if (parsed.scheme !== productUrlProtocol || parsed.authority !== AGENTS_AUTHORITY || parsed.path !== '/new') {
+		return undefined;
+	}
+
+	const params = new URLSearchParams(parsed.query);
+	const workspace = params.get('workspace');
+	const prompt = params.get('prompt');
+	if (!workspace || !prompt) {
+		return undefined;
+	}
+
+	try {
+		const workspaceUri = URI.parse(workspace, true);
+		return {
+			workspaceUri,
+			draft: { inputText: prompt, attachments: '[]' },
+		};
+	} catch {
+		return undefined;
+	}
 }
 
 export const enum AgentsWindowOpenSource {

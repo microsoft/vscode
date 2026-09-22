@@ -477,7 +477,7 @@ export class SessionChatInputToolbar extends Disposable {
 			},
 			customizations: { sections: this._customizationSections },
 			browsers: { sections: this._browsers.sections },
-			subagents: { sections: this._backgroundActivities.sections },
+			subagents: this._backgroundActivities,
 		}, SESSION_CHAT_PILL_KINDS));
 		const actionRunner = this._register(new SessionActivatingActionRunner(() => this._session.get(), this._sessionsService));
 		this._inputPills = this._register(instantiationService.createInstance(ChatInputPills, undefined, {
