@@ -160,13 +160,13 @@ suite('SessionComparisonDialogResizeController', () => {
 	});
 
 	suite('setup behavior', () => {
-		test('shows the actual comparison models without an Other Models reveal step', () => {
+		test('uses grouped model picker presentation options for comparison setup', () => {
 			assert.deepStrictEqual({
 				withAuto: getSessionComparisonModelPickerPresentationOptions(true),
 				withoutAuto: getSessionComparisonModelPickerPresentationOptions(false),
 			}, {
 				withAuto: {
-					useGroupedModelPicker: false,
+					useGroupedModelPicker: true,
 					showFeatured: false,
 					showUnavailableFeatured: false,
 					showManageModelsAction: false,
@@ -174,7 +174,7 @@ suite('SessionComparisonDialogResizeController', () => {
 					showModelIcon: false,
 				},
 				withoutAuto: {
-					useGroupedModelPicker: false,
+					useGroupedModelPicker: true,
 					showFeatured: false,
 					showUnavailableFeatured: false,
 					showManageModelsAction: false,

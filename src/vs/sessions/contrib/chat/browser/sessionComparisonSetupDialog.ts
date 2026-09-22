@@ -76,7 +76,7 @@ function harnessKey(providerId: string, sessionTypeId: string): string {
 
 export function getSessionComparisonModelPickerPresentationOptions(showAutoModel: boolean): IModelPickerPresentationOptions {
 	return {
-		useGroupedModelPicker: false,
+		useGroupedModelPicker: true,
 		showFeatured: false,
 		showUnavailableFeatured: false,
 		showManageModelsAction: false,
@@ -862,7 +862,7 @@ export class SessionComparisonSetupDialog extends Disposable {
 					ModelPickerActionItem,
 					{ id: `sessionComparison.modelPicker.${generateUuid()}`, label: '', enabled: true, class: undefined, tooltip: '', run: async () => { } },
 					modelPickerDelegate,
-					{ compact: constObservable(false), contextViewLayer: 1 },
+					{ compact: constObservable(false), contextViewLayer: 1, forceTabbedModelPicker: true },
 				));
 				modelPicker.render(dom.append(modelField, dom.$('.session-comparison-setup-model-picker')));
 

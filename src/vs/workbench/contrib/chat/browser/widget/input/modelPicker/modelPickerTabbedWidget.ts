@@ -6,6 +6,7 @@
 import { IStringDictionary } from '../../../../../../../base/common/collections.js';
 import { Codicon } from '../../../../../../../base/common/codicons.js';
 import { Emitter } from '../../../../../../../base/common/event.js';
+import { AnchorPosition } from '../../../../../../../base/common/layout.js';
 import { Disposable, DisposableMap, IDisposable, MutableDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../../../base/common/themables.js';
 import { localize } from '../../../../../../../nls.js';
@@ -193,36 +194,40 @@ export class TabbedModelPicker extends Disposable {
 				const items = searching
 					? currentDestinations.flatMap(candidate => this._buildSearchItems(candidate, candidate === destination ? sections : this._buildSections(candidate, current), current))
 					: this._buildItems(destination, sections, current);
+				const baseListOptions = withChatInputPickerMotion({
+					className: 'chat-model-picker-dropdown chat-model-picker-tabbed',
+					persistentHover: true,
+					showFilter: searching,
+					filterPlaceholder: localize('chat.modelPicker.search', "Search models"),
+					focusFilterOnOpen: searching,
+					initialFilterValue,
+					filterAsCombobox: true,
+					onType: text => {
+						this._searchVisible = true;
+						this._showCurrent(text);
+					},
+					headerText: current.cacheBreakHint?.text,
+					headerIcon: current.cacheBreakHint ? Codicon.info : undefined,
+					headerLink: current.cacheBreakHint?.link,
+					headerDismiss: current.cacheBreakHint?.dismiss,
+					// A tab with nothing promoted would open on an empty list, so leave it expanded.
+					collapsedByDefault: hasPromotedModels(sections) ? new Set([OTHER_MODELS_SECTION]) : undefined,
+					onDidToggleSection: (section, collapsed) => {
+						if (section === OTHER_MODELS_SECTION) {
+							current.onDidToggleOtherModels(collapsed);
+						}
+					},
+					linkHandler: uri => current.onUnavailableLinkClick(uri),
+					maxWidth: PICKER_WIDTH,
+					hideDefaultKeybindingTooltip: true,
+					reserveSubmenuSpace: false,
+				});
+				const listOptions = anchor.closest('.monaco-dialog-box')
+					? { ...baseListOptions, anchorPosition: AnchorPosition.BELOW }
+					: baseListOptions;
 				return {
 					items,
-					listOptions: withChatInputPickerMotion({
-						className: 'chat-model-picker-dropdown chat-model-picker-tabbed',
-						persistentHover: true,
-						showFilter: searching,
-						filterPlaceholder: localize('chat.modelPicker.search', "Search models"),
-						focusFilterOnOpen: searching,
-						initialFilterValue,
-						filterAsCombobox: true,
-						onType: text => {
-							this._searchVisible = true;
-							this._showCurrent(text);
-						},
-						headerText: current.cacheBreakHint?.text,
-						headerIcon: current.cacheBreakHint ? Codicon.info : undefined,
-						headerLink: current.cacheBreakHint?.link,
-						headerDismiss: current.cacheBreakHint?.dismiss,
-						// A tab with nothing promoted would open on an empty list, so leave it expanded.
-						collapsedByDefault: hasPromotedModels(sections) ? new Set([OTHER_MODELS_SECTION]) : undefined,
-						onDidToggleSection: (section, collapsed) => {
-							if (section === OTHER_MODELS_SECTION) {
-								current.onDidToggleOtherModels(collapsed);
-							}
-						},
-						linkHandler: uri => current.onUnavailableLinkClick(uri),
-						maxWidth: PICKER_WIDTH,
-						hideDefaultKeybindingTooltip: true,
-						reserveSubmenuSpace: false,
-					}),
+					listOptions,
 				};
 			},
 			renderEmpty: (container, activeTab) => {
