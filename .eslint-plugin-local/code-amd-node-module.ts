@@ -8,19 +8,25 @@ import type * as ESTree from 'estree';
 import { readFileSync } from 'fs';
 import { join } from 'path';
 
-// Move package.json reading and module list generation outside of the rule module (to the module scope)
-// to prevent unnecessary disk I/O and JSON.parse operations on every file traversal.
-const modules = new Set<string>();
+// Lazy initialization for module list generation to optimize performance on demand
+let cachedModules: Set<string> | undefined;
 
-try {
-	const packageJson = JSON.parse(readFileSync(join(import.meta.dirname, '../package.json'), 'utf-8'));
-	const { dependencies = {}, optionalDependencies = {} } = packageJson;
-	const all = Object.keys(dependencies).concat(Object.keys(optionalDependencies));
-	for (const key of all) {
-		modules.add(key);
+function getModules(): Set<string> {
+	if (!cachedModules) {
+		cachedModules = new Set<string>();
+		try {
+			const packageJson = JSON.parse(readFileSync(join(import.meta.dirname, '../package.json'), 'utf-8'));
+			const { dependencies = {}, optionalDependencies = {} } = packageJson;
+			const all = Object.keys(dependencies).concat(Object.keys(optionalDependencies));
+			for (const key of all) {
+				cachedModules.add(key);
+			}
+		} catch (e) {
+			console.error('Failed to load package.json for AmdModuleImportCheck rule:', e);
+			throw e; // Rethrow the error to prevent silencing it
+		}
 	}
-} catch (e) {
-	console.error('Failed to load package.json for AmdModuleImportCheck rule:', e);
+	return cachedModules;
 }
 
 export default new class ApiProviderNaming implements eslint.Rule.RuleModule {
@@ -44,6 +50,7 @@ export default new class ApiProviderNaming implements eslint.Rule.RuleModule {
 				return;
 			}
 
+			const modules = getModules();
 			if (!modules.has(node.value)) {
 				return;
 			}
