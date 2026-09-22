@@ -3652,25 +3652,40 @@ export class AgentService extends Disposable implements IAgentService {
 			});
 	}
 
+	/**
+	 * Recomputes and republishes a provider's list after its catalog becomes
+	 * readable, so a fail-open listing computed while it was unreadable stops
+	 * showing rows that suppression would now hide (#321269).
+	 *
+	 * The transition is one-shot, so the decision cannot depend on what happens
+	 * to be published at this instant: a fail-open listing may still be
+	 * computing (publication happens inside `prepareSessionSummariesForListing`)
+	 * and the marker mirror loads asynchronously. Either being unpopulated here
+	 * would drop the refresh and leave the stale row with nothing left to
+	 * retract it, so the marker load is awaited and the exposed set is snapshot
+	 * only after the fresh listing has published.
+	 */
 	private _queuePublishedSessionListRefresh(provider: AgentProvider): void {
-		if (!this._stateManager.getExposedSessionKeys().some(session => AgentSession.provider(session) === provider && this._provisionalSessionKeys.has(session))) {
-			return;
-		}
-		this._invalidateSessionList();
 		this._sessionListReconciliation = this._sessionListReconciliation
 			.then(() => this._refreshPublishedSessionList(provider))
 			.catch(error => this._logService.warn(`[AgentService] Published session-list refresh failed for provider ${provider}`, error));
 	}
 
 	private async _refreshPublishedSessionList(provider: AgentProvider): Promise<void> {
-		const exposed = this._stateManager.getExposedSessionKeys().filter(session => AgentSession.provider(session) === provider && this._provisionalSessionKeys.has(session));
+		await this._whenProvisionalSessionKeysLoaded();
+		const provisional = [...this._provisionalSessionKeys].filter(session => AgentSession.provider(session) === provider);
+		if (provisional.length === 0) {
+			return;
+		}
+		const exposed = this._stateManager.getExposedSessionKeys().filter(session => provisional.includes(session));
 		if (exposed.length === 0) {
 			return;
 		}
+		this._invalidateSessionList();
 		const visible = new Set((await this.listSessions())
 			.filter(metadata => AgentSession.provider(metadata.session) === provider)
 			.map(metadata => metadata.session.toString()));
-		for (const session of exposed) {
+		for (const session of this._stateManager.getExposedSessionKeys().filter(session => provisional.includes(session))) {
 			if (!visible.has(session)) {
 				this._stateManager.retractSurfacedSession(session);
 			}
