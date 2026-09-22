@@ -665,6 +665,10 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 		return this.floatingLayoutDimension ?? super.getRelayoutDimension();
 	}
 
+	protected getFloatingBorderWidth(): number {
+		return computeScreenAwareSize(getWindow(this.element), 1);
+	}
+
 	/**
 	 * Amount (in pixels) to subtract from each axis when the floating panels
 	 * experiment is enabled: a margin on each side plus a 1px border on each side
@@ -678,7 +682,7 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 			return { width: 0, height: 0, verticalMargin: 0 };
 		}
 
-		const borderTotal = computeScreenAwareSize(getWindow(this.element), 1) * 2;
+		const borderTotal = this.getFloatingBorderWidth() * 2;
 		const { top, bottom } = getFloatingPaneCompositeVerticalMargins(this.layoutService, this.partId, getWindow(this.element));
 		const { left, right } = getFloatingPaneCompositeHorizontalMargins(this.layoutService, this.partId);
 		return {

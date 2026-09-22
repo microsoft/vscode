@@ -1422,6 +1422,10 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 		this.centeredLayoutWidget.boundarySashes = sashes;
 	}
 
+	protected getFloatingBorderWidth(): number {
+		return computeScreenAwareSize(mainWindow, EDITOR_FRAME_BORDER_WIDTH);
+	}
+
 	override layout(width: number, height: number, top: number, left: number): void {
 		this.top = top;
 		this.left = left;
@@ -1448,7 +1452,7 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 			height = Math.max(0, height - top - bottom);
 
 			// Reserve space for the Modern UI editor border (modernUI/media/editorBorder.css) so content doesn't get clipped.
-			const borderTotal = computeScreenAwareSize(mainWindow, EDITOR_FRAME_BORDER_WIDTH) * 2;
+			const borderTotal = this.getFloatingBorderWidth() * 2;
 			width = Math.max(0, width - borderTotal);
 			height = Math.max(0, height - borderTotal);
 
