@@ -81,6 +81,8 @@ import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js
 import { CodexAppServerClient, JsonRpcError, transportFromChildProcess, type ICodexAppServerClient, type ServerRequestHandlerResult } from './codexAppServerClient.js';
 import { CODEX_PORTABLE_HISTORY_HEADER, ICodexProxyService, type ICodexProxyHandle } from './codexProxyService.js';
 import { GITHUB_MCP_SERVER_NAME, resolveGitHubMcpServerConfiguration } from '../shared/githubMcpServer.js';
+import { isAgentHostTelemetryService } from '../agentHostTelemetryService.js';
+import { captureCopilotTelemetryContext } from '../shared/copilotSkuTelemetry.js';
 import { AGENT_MERGE_GITHUB_TOOL_RESTRICTION, getAgentMergeGitHubToolRestriction, isGitHubMcpToolName } from '../shared/agentMergeToolRestrictions.js';
 import { createCodexSessionMapState, extractUserInputText, finalizeCodexTurnMapState, mapAgentMessageDelta, mapCommandExecutionOutputDelta, mapFileChangeOutputDelta, mapFileChangePatchUpdated, mapItemCompleted, mapItemStarted, mapMcpToolCallProgress, mapReasoningSummaryPartAdded, mapReasoningSummaryTextDelta, mapReasoningTextDelta, mapTokenUsageModelCallCompleted, mapTokenUsageUpdated, mapTurnCompleted, mapTurnStarted, type ICodexSessionMapState } from './codexMapAppServerEvents.js';
 import type { ThreadTokenUsageUpdatedNotification } from './protocol/generated/v2/ThreadTokenUsageUpdatedNotification.js';
@@ -1221,6 +1223,7 @@ export class CodexAgent extends Disposable implements IAgent {
 	private _githubToken: string | undefined;
 	private _gitHubMcpServerConfiguration: IMcpServerConfiguration | undefined;
 	private _githubAuthenticationGeneration = 0;
+	private _telemetryAuthenticationGeneration = 0;
 	private _githubMcpServerEnabled = true;
 	/**
 	 * Whether the user has explicitly entered a Codex flow in this host process.
@@ -1309,6 +1312,9 @@ export class CodexAgent extends Disposable implements IAgent {
 		this._metadataStore = this._instantiationService.createInstance(CodexSessionMetadataStore);
 		this._githubMcpServerEnabled = this._isGitHubMcpServerEnabled();
 		this._publishAccountInfo({ status: 'unknown' });
+		if (isAgentHostTelemetryService(this._telemetryService)) {
+			this._register(this._telemetryService.registerCopilotSkuProvider(this.id, () => this.getTelemetryContext().copilotSku));
+		}
 
 		// Session titles are host-owned; Codex only observes them to correlate a
 		// rename with its conversation in OTel. The seam already filters to this
@@ -1519,6 +1525,13 @@ export class CodexAgent extends Disposable implements IAgent {
 
 	// #region Auth
 
+	getTelemetryContext() {
+		const token = this._githubToken;
+		const generation = this._telemetryAuthenticationGeneration;
+		return captureCopilotTelemetryContext(this._copilotApiService, token,
+			() => generation === this._telemetryAuthenticationGeneration && this._githubToken === token && !this._store.isDisposed);
+	}
+
 	getProtectedResources(): ProtectedResourceMetadata[] {
 		// Always listed, always optional — matching Claude. Listing it is what lets
 		// the host forward a token to an already-signed-in user (matching ignores
@@ -1542,9 +1555,10 @@ export class CodexAgent extends Disposable implements IAgent {
 		const normalizedToken = token || undefined;
 		const generation = ++this._githubAuthenticationGeneration;
 		const changed = this._githubToken !== normalizedToken;
-		const gitHubMcpServerConfiguration = changed
-			? await this._resolveGitHubMcpServerConfiguration(normalizedToken)
-			: this._gitHubMcpServerConfiguration;
+		if (changed) {
+			this._telemetryAuthenticationGeneration++;
+		}
+		const gitHubMcpServerConfiguration = await this._resolveGitHubMcpServerConfiguration(normalizedToken);
 		if (generation !== this._githubAuthenticationGeneration) {
 			return true;
 		}
@@ -1587,6 +1601,7 @@ export class CodexAgent extends Disposable implements IAgent {
 
 	private _handleGitHubEndpointChange(): void {
 		this._githubAuthenticationGeneration++;
+		this._telemetryAuthenticationGeneration++;
 		this._modelCatalogGeneration++;
 		this._githubToken = undefined;
 		this._gitHubMcpServerConfiguration = undefined;

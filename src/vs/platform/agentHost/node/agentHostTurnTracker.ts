@@ -10,7 +10,7 @@ import { Disposable, DisposableMap, toDisposable } from '../../../base/common/li
 import { StopWatch } from '../../../base/common/stopwatch.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { URI } from '../../../base/common/uri.js';
-import type { AgentModelCallFinishedOutcome, AgentSubagentTaskModelSource, IAgent, IAgentTokenUsageSummary, IAgentTurnDiagnosticSnapshot, IAgentTurnTokenUsage } from '../common/agent.js';
+import type { AgentModelCallFinishedOutcome, AgentSubagentTaskModelSource, IAgent, IAgentTelemetryContext, IAgentTokenUsageSummary, IAgentTurnDiagnosticSnapshot, IAgentTurnTokenUsage } from '../common/agent.js';
 import type { SessionMode } from '../common/agentHostSchema.js';
 import { createUnknownAgentHostClientTelemetryContext, type IAgentHostClientTelemetryContext } from '../common/agentHostTelemetry.js';
 import { AgentHostClientType } from '../common/agentHostClientInfo.js';
@@ -83,6 +83,7 @@ interface ITurnTiming {
 	readonly messageOriginKind: AgentHostMessageOriginTelemetryKind | undefined;
 	readonly subagentTaskModelSource: AgentSubagentTaskModelSource | undefined;
 	readonly clientContext: IAgentHostClientTelemetryContext;
+	telemetryContext: IAgentTelemetryContext | undefined;
 	readonly initiatorClientId: string | undefined;
 	readonly completedModelCallIds: Set<string>;
 	readonly finishedModelCallIds: Set<string>;
@@ -224,6 +225,7 @@ export class AgentHostTurnTracker extends Disposable {
 			messageOriginKind,
 			subagentTaskModelSource,
 			clientContext,
+			telemetryContext: agent.getTelemetryContext?.(),
 			initiatorClientId,
 			completedModelCallIds: new Set(),
 			finishedModelCallIds: new Set(),
@@ -356,6 +358,7 @@ export class AgentHostTurnTracker extends Disposable {
 		}
 		this._closeSendStage(timing);
 		timing.sendDispatchedMs = timing.stopWatch.elapsed();
+		timing.telemetryContext = timing.agent.getTelemetryContext?.();
 	}
 
 	private _closeSendStage(timing: ITurnTiming): void {
@@ -546,6 +549,10 @@ export class AgentHostTurnTracker extends Disposable {
 		return this._turnTimings.get(this._key(session, turnId))?.clientContext;
 	}
 
+	getTelemetryContext(session: string, turnId: string): IAgentTelemetryContext | undefined {
+		return this._turnTimings.get(this._key(session, turnId))?.telemetryContext;
+	}
+
 	getMessageOriginKind(session: string, turnId: string): AgentHostMessageOriginTelemetryKind | undefined {
 		return this._turnTimings.get(this._key(session, turnId))?.messageOriginKind;
 	}
@@ -592,6 +599,7 @@ export class AgentHostTurnTracker extends Disposable {
 
 		this._reporter.turnCompleted({
 			clientContext: timing.clientContext,
+			telemetryContext: timing.telemetryContext,
 			provider: timing.agent.id,
 			session: timing.session,
 			turnId,
@@ -631,6 +639,7 @@ export class AgentHostTurnTracker extends Disposable {
 		if (timing.lastHangReason !== undefined) {
 			this._reporter.hungTurnCompleted({
 				clientContext: timing.clientContext,
+				telemetryContext: timing.telemetryContext,
 				provider: timing.agent.id,
 				session: timing.session,
 				turnId,
@@ -646,6 +655,7 @@ export class AgentHostTurnTracker extends Disposable {
 			try {
 				this._reporter.requestTokenUsage({
 					clientContext: timing.clientContext, provider: timing.agent.id,
+					telemetryContext: timing.telemetryContext,
 					session, requestId: turnId, parentTurnId: timing.parentTurnId, parentToolCallId: timing.parentToolCallId,
 					selectedModel: timing.selectedModel, selectedModelTelemetryKind: timing.selectedModelTelemetryKind,
 					modelTelemetryKind: summary.model ? getModelTelemetryContext(timing.agent, summary.model).modelTelemetryKind : undefined,
@@ -736,6 +746,7 @@ export class AgentHostTurnTracker extends Disposable {
 			const providerDiagnostics = this._getProviderDiagnostics(timing);
 			this._reporter.turnHung({
 				clientContext: timing.clientContext,
+				telemetryContext: timing.telemetryContext,
 				provider: timing.agent.id,
 				session: timing.session,
 				turnId: timing.turnId,

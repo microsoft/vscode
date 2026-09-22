@@ -8,7 +8,7 @@ import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { TelemetryTrustedValue } from '../../telemetry/common/telemetryUtils.js';
 import { hash } from '../../../base/common/hash.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
-import { AgentSession, type AgentSubagentTaskModelSource, type AgentTurnProviderCallState, type AgentTurnProviderSessionState, type IAgentTurnDiagnosticSnapshot, type IAgentTokenUsageSummary } from '../common/agent.js';
+import { AgentSession, type AgentSubagentTaskModelSource, type AgentTurnProviderCallState, type AgentTurnProviderSessionState, type IAgentTurnDiagnosticSnapshot, type IAgentTokenUsageSummary, type IAgentTelemetryContext } from '../common/agent.js';
 import { isReasoningEffortLevel } from '../common/reasoningEffort.js';
 import type { SessionMode } from '../common/agentHostSchema.js';
 import { getTelemetryChatSessionId } from '../common/agentTelemetryCorrelation.js';
@@ -22,6 +22,7 @@ import type { AutomaticTitleGenerationStrategy } from './agentHostSessionTitleCo
 import { multiplexProperties, type IAgentHostRestrictedTelemetry, type IAgentHostRestrictedTelemetryContext } from './agentHostRestrictedTelemetry.js';
 import { AgentHostClientType } from '../common/agentHostClientInfo.js';
 import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportKind, type AgentHostTurnFailureStage, type AgentHostTurnSendStage, type IAgentHostClientTelemetryContext } from '../common/agentHostTelemetry.js';
+import { isAgentHostTelemetryService } from './agentHostTelemetryService.js';
 
 export type AgentHostUserMessageSentSource = 'direct' | 'queued';
 
@@ -205,6 +206,7 @@ export type AgentHostInitiatorClientConnectionState = 'connected' | 'disconnecte
 export type AgentHostProviderDiagnosticState = 'available' | 'error' | 'missingChat' | 'missingTurn' | 'unavailable' | 'unsupported';
 
 interface IAgentHostTurnAttributedReport {
+	readonly telemetryContext?: IAgentTelemetryContext;
 	clientContext?: IAgentHostClientTelemetryContext;
 }
 
@@ -969,9 +971,15 @@ export class AgentHostTelemetryReporter {
 		return typeof ts.sendEnhancedGHTelemetryEvent === 'function' ? ts as IAgentHostRestrictedTelemetry : undefined;
 	}
 
+	private _copilotSku(provider: string): IAgentHostCopilotSkuTelemetry {
+		const copilotSku = isAgentHostTelemetryService(this._telemetryService) ? this._telemetryService.getCopilotSku(provider) : undefined;
+		return copilotSku === undefined ? {} : { copilotSku };
+	}
+
 	executionModeChanged(provider: string, session: string, previousMode: SessionMode, newMode: SessionMode, turnCount: number, clientContext?: IAgentHostClientTelemetryContext): void {
 		this._telemetryService.publicLog2<IAgentHostExecutionModeChangedEvent, IAgentHostExecutionModeChangedClassification>('agentHost.executionModeChanged', {
 			...toInitiatorTelemetry(clientContext),
+			...this._copilotSku(provider),
 			provider,
 			agentSessionId: AgentSession.id(session),
 			isSubagentSession: isSubagentSession(session),
@@ -982,10 +990,12 @@ export class AgentHostTelemetryReporter {
 	}
 
 	userMessageSent(provider: string, clientId: string | undefined, clientContext: IAgentHostClientTelemetryContext, session: string, turnId: string, sessionState: ISessionWithDefaultChat | undefined, source: AgentHostUserMessageSentSource, message: Message, isEphemeralSession: boolean): void {
+		const copilotSku = this._copilotSku(provider);
 		const attachmentCount = message.attachments?.length ?? 0;
 		const activeClients = sessionState?.activeClients ?? [];
 		const sessionUri = isAhpChatChannel(session) ? parseRequiredSessionUriFromChatUri(session) : session;
 		this._telemetryService.publicLog2<IAgentHostUserMessageSentEvent, IAgentHostUserMessageSentClassification>('agentHost.userMessageSent', {
+			...copilotSku,
 			provider,
 			hostLaunchKind: clientContext.hostLaunchKind,
 			initiatorClientId: clientId,
@@ -1007,6 +1017,7 @@ export class AgentHostTelemetryReporter {
 			attachmentCount,
 		});
 		this._restricted?.sendGHTelemetryEvent('agentHost.userMessageSent', {
+			...copilotSku,
 			provider,
 			initiatorClientType: clientContext.clientType,
 			conversationId: AgentSession.id(sessionUri),
@@ -1322,7 +1333,7 @@ export class AgentHostTelemetryReporter {
 		restricted.sendInternalMSFTTelemetryEventForContext(context, 'request.repoInfo', internalMultiplexedProperties, measurements);
 	}
 
-	requestTokenUsage(report: { clientContext: IAgentHostClientTelemetryContext; provider: string; session: string; requestId: string; parentTurnId?: string; parentToolCallId?: string; selectedModel?: string; selectedModelTelemetryKind?: AgentHostModelTelemetryKind; modelTelemetryKind?: AgentHostModelTelemetryKind; result: AgentHostTurnResult; summary: IAgentTokenUsageSummary }): void {
+	requestTokenUsage(report: { clientContext: IAgentHostClientTelemetryContext; telemetryContext?: IAgentTelemetryContext; provider: string; session: string; requestId: string; parentTurnId?: string; parentToolCallId?: string; selectedModel?: string; selectedModelTelemetryKind?: AgentHostModelTelemetryKind; modelTelemetryKind?: AgentHostModelTelemetryKind; result: AgentHostTurnResult; summary: IAgentTokenUsageSummary }): void {
 		const session = isAhpChatChannel(report.session) ? parseRequiredSessionUriFromChatUri(report.session) : report.session;
 		const { model: usageModel, reasoningEffort, ...summary } = report.summary;
 		const model = usageModel === 'auto' ? 'unknown' : toTelemetryModel(usageModel, report.modelTelemetryKind) ?? 'unknown';
@@ -1330,6 +1341,7 @@ export class AgentHostTelemetryReporter {
 		const effort = isReasoningEffortLevel(reasoningEffort) ? reasoningEffort : undefined;
 		this._telemetryService.publicLog2<IRequestTokenUsageEvent, RequestTokenUsageClassification>('agentHost.requestTokenUsage', {
 			...toInitiatorTelemetry(report.clientContext),
+			...report.telemetryContext,
 			...summary,
 			provider: report.provider,
 			agentSessionId: AgentSession.id(session),
@@ -1356,6 +1368,7 @@ export class AgentHostTelemetryReporter {
 		const model = toTelemetryModel(report.model, report.modelTelemetryKind);
 		this._telemetryService.publicLog2<IAgentHostTurnCompletedEvent, IAgentHostTurnCompletedClassification>('agentHost.turnCompleted', {
 			...toInitiatorTelemetry(report.clientContext),
+			...report.telemetryContext,
 			...(report.hostRootTurnOrdinal !== undefined ? { hostRootTurnOrdinal: report.hostRootTurnOrdinal } : {}),
 			...(report.hostProcessAgeMs !== undefined ? { hostProcessAgeMs: report.hostProcessAgeMs } : {}),
 			...(report.titleGenerationStrategy !== undefined ? { titleGenerationStrategy: report.titleGenerationStrategy } : {}),
@@ -1400,6 +1413,7 @@ export class AgentHostTelemetryReporter {
 			const { providerCallId, serviceRequestId } = readAgentErrorTelemetryMeta(report.failure.error);
 			this._telemetryService.publicLogError2<IAgentHostTurnFailedEvent, IAgentHostTurnFailedClassification>('agentHost.turnFailed', {
 				...toInitiatorTelemetry(report.clientContext),
+				...report.telemetryContext,
 				provider: report.provider,
 				agentSessionId: AgentSession.id(session),
 				chatSessionId,
@@ -1427,6 +1441,7 @@ export class AgentHostTelemetryReporter {
 		const session = isAhpChatChannel(report.session) ? parseRequiredSessionUriFromChatUri(report.session) : report.session;
 		this._telemetryService.publicLog2<IAgentHostTurnHungEvent, IAgentHostTurnHungClassification>('agentHost.turnHung', {
 			...toInitiatorTelemetry(report.clientContext),
+			...report.telemetryContext,
 			provider: report.provider,
 			agentSessionId: AgentSession.id(session),
 			chatSessionId: getTelemetryChatSessionId(report.session),
@@ -1462,6 +1477,7 @@ export class AgentHostTelemetryReporter {
 		const session = isAhpChatChannel(report.session) ? parseRequiredSessionUriFromChatUri(report.session) : report.session;
 		this._telemetryService.publicLog2<IAgentHostHungTurnCompletedEvent, IAgentHostHungTurnCompletedClassification>('agentHost.hungTurnCompleted', {
 			...toInitiatorTelemetry(report.clientContext),
+			...report.telemetryContext,
 			provider: report.provider,
 			agentSessionId: AgentSession.id(session),
 			chatSessionId: getTelemetryChatSessionId(report.session),
@@ -1483,6 +1499,7 @@ export class AgentHostTelemetryReporter {
 		const session = isAhpChatChannel(report.session) ? parseRequiredSessionUriFromChatUri(report.session) : report.session;
 		this._telemetryService.publicLog2<IAgentHostLanguageModelToolInvokedEvent, IAgentHostLanguageModelToolInvokedClassification>('languageModelToolInvoked', {
 			...toInitiatorTelemetry(report.clientContext),
+			...report.telemetryContext,
 			result: report.result,
 			chatSessionId: session,
 			toolId: report.toolId,
@@ -1497,6 +1514,7 @@ export class AgentHostTelemetryReporter {
 		});
 		const event: IAgentHostToolInvokedEvent = {
 			...toInitiatorTelemetry(report.clientContext),
+			...report.telemetryContext,
 			result: report.result,
 			agentSessionId: AgentSession.id(session),
 			chatSessionId: getTelemetryChatSessionId(report.session),
@@ -1538,6 +1556,7 @@ export class AgentHostTelemetryReporter {
 		const session = isAhpChatChannel(report.session) ? parseRequiredSessionUriFromChatUri(report.session) : report.session;
 		this._telemetryService.publicLog2<IAgentHostToolCallStalledEvent, IAgentHostToolCallStalledClassification>('agentHost.toolCallStalled', {
 			...toInitiatorTelemetry(report.clientContext),
+			...report.telemetryContext,
 			provider: report.provider,
 			agentSessionId: AgentSession.id(session),
 			isSubagentSession: isSubagentChatUri(report.session) || isSubagentSession(session),
@@ -1554,6 +1573,7 @@ export class AgentHostTelemetryReporter {
 		const session = isAhpChatChannel(report.session) ? parseRequiredSessionUriFromChatUri(report.session) : report.session;
 		this._telemetryService.publicLog2<IAgentHostStalledToolCallCompletedEvent, IAgentHostStalledToolCallCompletedClassification>('agentHost.stalledToolCallCompleted', {
 			...toInitiatorTelemetry(report.clientContext),
+			...report.telemetryContext,
 			provider: report.provider,
 			agentSessionId: AgentSession.id(session),
 			isSubagentSession: isSubagentChatUri(report.session) || isSubagentSession(session),

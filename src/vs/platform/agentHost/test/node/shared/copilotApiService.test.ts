@@ -83,10 +83,6 @@ function modelsResponse(models: object[]): Response {
 	});
 }
 
-function createService(fetchImpl: FetchFunction, enterpriseUri?: string): CopilotApiService {
-	return new CopilotApiService(fetchImpl, new NullLogService(), testProductService, createTestGitHubEndpointService(enterpriseUri));
-}
-
 type CapturedRequest = { url: string; init: RequestInit | undefined };
 
 function routingFetch(
@@ -113,16 +109,20 @@ const baseRequest = {
 	stream: false as const,
 };
 
-function streamService(chunks: Uint8Array[], tokenOverrides?: Record<string, unknown>): CopilotApiService {
-	const { fetch: fetchFn } = routingFetch(() => sseResponse(chunks), tokenOverrides);
-	return createService(fetchFn);
-}
-
 // #endregion
 
 suite('CopilotApiService', () => {
 
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	function createService(fetchImpl: FetchFunction, enterpriseUri?: string): CopilotApiService {
+		return disposables.add(new CopilotApiService(fetchImpl, new NullLogService(), testProductService, createTestGitHubEndpointService(enterpriseUri)));
+	}
+
+	function streamService(chunks: Uint8Array[], tokenOverrides?: Record<string, unknown>): CopilotApiService {
+		const { fetch: fetchFn } = routingFetch(() => sseResponse(chunks), tokenOverrides);
+		return createService(fetchFn);
+	}
 
 	test('derives restricted telemetry context from user discovery without minting a Copilot token', async () => {
 		const requests: string[] = [];
