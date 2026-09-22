@@ -602,7 +602,6 @@ async function renderSessionsList(ctx: ComponentFixtureContext, options: IRender
 			status: options.automationRunStatus,
 			trigger: 'schedule',
 			startedAt: new Date().toISOString(),
-			leaderWindowId: 1,
 		}], undefined);
 	}
 	await Promise.resolve();

@@ -4554,7 +4554,9 @@ export class SessionsList extends Disposable implements ISessionsList {
 		} finally {
 			this.suspendCollapseStatePersistence = previousSuspendCollapseStatePersistence;
 		}
-		this.tree.reveal(chatItem, 0.5);
+		if (this.tree.getRelativeTop(chatItem) === null) {
+			this.tree.reveal(chatItem, 0.5);
+		}
 		this.tree.setFocus([chatItem]);
 		this.tree.setSelection([chatItem]);
 	}

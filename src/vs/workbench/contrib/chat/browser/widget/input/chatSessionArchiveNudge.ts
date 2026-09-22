@@ -242,12 +242,12 @@ export class ChatSessionArchiveNudge extends Disposable {
 			return;
 		}
 
-		if (this.configurationService.getValue<boolean>(SESSIONS_MARK_AS_DONE_CONFETTI_SETTING) && !this.accessibilityService.isMotionReduced()) {
-			triggerConfettiAnimation(this.archiveButton.element);
-		}
 		this.setArchiving(true);
 		try {
 			await this.options.onArchive();
+			if (this.configurationService.getValue<boolean>(SESSIONS_MARK_AS_DONE_CONFETTI_SETTING) && !this.accessibilityService.isMotionReduced()) {
+				triggerConfettiAnimation(this.archiveButton.element);
+			}
 		} catch (error) {
 			this.notificationService.error(this.markAsDone
 				? localize('chat.sessionArchiveNudge.doneError', "Unable to mark the session as done: {0}", toErrorMessage(error))

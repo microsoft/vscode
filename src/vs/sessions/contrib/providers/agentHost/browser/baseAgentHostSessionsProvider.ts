@@ -34,7 +34,7 @@ import { parseGitHubIssueUrl } from '../../../../../platform/agentHost/common/gi
 import { buildOpenSessionLinkForChatResource } from '../../../../../platform/agentHost/common/openSessionLink.js';
 import { getEffectiveAgents } from '../../../../../platform/agentHost/common/customAgents.js';
 import { KNOWN_MODE_VALUES, omitAutomationSessionTemplateConfigValues, SessionConfigKey } from '../../../../../platform/agentHost/common/sessionConfigKeys.js';
-import { applyLegacyAutomationSessionConfig } from '../../../../../platform/agentHost/common/automationMigration.js';
+import { applyLegacyAutomationSessionConfig } from '../../../../../platform/agentHost/common/automationConfig.js';
 import { migrateLegacyAutopilotConfig } from '../../../../../platform/agentHost/common/agentHostSchema.js';
 import { readAgentDevContainerWorktreeMetadata, withAgentDevContainerWorktreeMetadata, type IAgentDevContainerWorktreeMetadata } from '../../../../../platform/agentHost/common/meta/agentDevContainerWorktreeMeta.js';
 import type { IAgentSubscription } from '../../../../../platform/agentHost/common/state/agentSubscription.js';
@@ -3253,6 +3253,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 
 	/** True while a {@link _refreshSessions} call is awaiting `listSessions()`. */
 	private _sessionRefreshInFlight = false;
+	private _sessionRefreshGeneration = 0;
 
 	private readonly _activeSessionScope = this._register(new MutableDisposable<IAgentCustomizationScope>());
 	private readonly _activeClientSyncCancellation = this._register(new MutableDisposable<ActiveClientSyncCancellationTokenSource>());
@@ -6458,8 +6459,12 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		// Cancel any pending retry; this attempt supersedes it.
 		this._sessionRefreshRetry.clear();
 		this._sessionRefreshInFlight = true;
+		const generation = ++this._sessionRefreshGeneration;
 		try {
 			const sessions = await connection.listSessions();
+			if (generation !== this._sessionRefreshGeneration || this._store.isDisposed) {
+				return;
+			}
 			// A successful return (even an empty list) means the cache is
 			// authoritative. Mark it initialized and reset the backoff.
 			this._cacheInitialized = true;
@@ -6537,6 +6542,9 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				(cached as AgentHostSessionAdapter).dispose();
 			}
 		} catch (err) {
+			if (generation !== this._sessionRefreshGeneration || this._store.isDisposed) {
+				return;
+			}
 			// The connection / agent may not be ready yet — e.g. the agent
 			// throws `AHP_AUTH_REQUIRED` until its token is effective
 			// server-side, or there's a transient offline/network error. We
@@ -6547,7 +6555,9 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			this._logService.trace(`[AgentHostSessionsProvider] listSessions failed; scheduling retry: ${err}`);
 			this._scheduleSessionRefreshRetry(announceExistingAsAdded);
 		} finally {
-			this._sessionRefreshInFlight = false;
+			if (generation === this._sessionRefreshGeneration) {
+				this._sessionRefreshInFlight = false;
+			}
 		}
 	}
 
@@ -6860,6 +6870,13 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			if (changes.title !== undefined && changes.title !== cached.title.get()) {
 				cached.title.set(changes.title, tx);
 				didChange = true;
+			}
+			if (changes.modifiedAt !== undefined) {
+				const modifiedTime = Date.parse(changes.modifiedAt);
+				if (Number.isFinite(modifiedTime) && cached.updatedAt.get().getTime() !== modifiedTime) {
+					cached.updatedAt.set(new Date(modifiedTime), tx);
+					didChange = true;
+				}
 			}
 
 			// `changes.changes` carries the chip aggregate. The catalogue

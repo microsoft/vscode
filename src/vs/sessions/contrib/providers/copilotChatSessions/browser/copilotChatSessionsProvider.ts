@@ -1555,7 +1555,6 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 	readonly label = localize('copilotChatSessionsProvider', "Copilot Chat");
 	readonly icon = Codicon.copilot;
 	readonly order = 0;
-	readonly supportsAutomationSessionConfiguration = true;
 
 	get sessionTypes(): readonly ISessionType[] {
 		const types: ISessionType[] = [];

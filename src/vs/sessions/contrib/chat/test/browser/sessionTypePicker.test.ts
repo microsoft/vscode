@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { Action } from '../../../../../base/common/actions.js';
+import { DeferredPromise } from '../../../../../base/common/async.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
@@ -196,6 +197,128 @@ suite('SessionTypePicker', () => {
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('filters Automation targets to available hosts without affecting ordinary session choices', () => {
+		management.setSessionTypes([
+			sessionType('non-ahp', 'extension-session', 'Extension'),
+			sessionType('local', 'copilot', 'Copilot'),
+			sessionType('remote', 'claude', 'Claude'),
+		]);
+		const allowedProviders = observableValue<readonly string[]>('availableHosts', ['local']);
+		const picker = createPicker(disposables, session, management, storage, { allowedProviders, persistSelection: false });
+		picker.setFolderSource(constObservable(folder));
+		const offered = [picker.offeredSessionTypeIds];
+		allowedProviders.set(['remote'], undefined);
+		offered.push(picker.offeredSessionTypeIds);
+		allowedProviders.set([], undefined);
+		offered.push(picker.offeredSessionTypeIds);
+		const ordinary = createPicker(disposables, session, management, storage);
+		ordinary.setFolderSource(constObservable(folder));
+		assert.deepStrictEqual({ offered, ordinary: ordinary.offeredSessionTypeIds }, {
+			offered: [['copilot'], ['claude'], []],
+			ordinary: ['extension-session', 'copilot', 'claude'],
+		});
+	});
+
+	for (const quickChat of [false, true]) {
+		for (const initialSelection of [false, true]) {
+			test(`retains an unavailable Automation host for ${quickChat ? 'quick chat' : 'workspace'} ${initialSelection ? 'initial' : 'explicit'} selections`, () => {
+				const types = [
+					sessionType('local', 'copilotcli', 'Copilot'),
+					sessionType('remote', 'copilotcli', 'Copilot'),
+				];
+				management.setSessionTypes(types);
+				management.setQuickChatSessionTypes(types);
+				const allowedProviders = observableValue<readonly string[]>('availableHosts', ['local', 'remote']);
+				const remote = { providerId: 'remote', sessionTypeId: 'copilotcli' };
+				const local = { providerId: 'local', sessionTypeId: 'copilotcli' };
+				const picker = createPicker(disposables, session, management, storage, {
+					allowedProviders, persistSelection: false, preserveUnavailableSelection: true,
+				});
+				picker.setQuickChatSource(constObservable(quickChat));
+				picker.setFolderSource(constObservable(folder), {
+					initialPick: initialSelection ? remote : undefined,
+					preserveUnavailableInitialPick: true,
+				});
+				if (!initialSelection) {
+					picker.pick(remote);
+				}
+				const changes: (IPreferredSessionType | undefined)[] = [];
+				disposables.add(picker.onDidChangeSelectedPick(pick => changes.push(pick)));
+				allowedProviders.set(['local'], undefined);
+				const unavailable = { pick: picker.selectedPick, modelTarget: picker.modelTargetChatSessionType.get() };
+				allowedProviders.set(['local', 'remote'], undefined);
+				const recovered = { pick: picker.selectedPick, modelTarget: picker.modelTargetChatSessionType.get() };
+				allowedProviders.set(['local'], undefined);
+				picker.pick(local);
+				allowedProviders.set(['local', 'remote'], undefined);
+				assert.deepStrictEqual({ unavailable, recovered, selectedReplacement: picker.selectedPick, changes }, {
+					unavailable: { pick: remote, modelTarget: undefined },
+					recovered: { pick: remote, modelTarget: 'copilotcli' },
+					selectedReplacement: local,
+					changes: [local],
+				});
+			});
+		}
+	}
+
+	for (const quickChat of [false, true]) {
+		test(`desktop popup keeps the provider filter for ${quickChat ? 'quick-chat' : 'workspace'} targets and rejects stale choices`, async () => {
+			const types = [
+				sessionType('non-ahp', 'extension-session', 'Extension'),
+				sessionType('local', 'copilot', 'Copilot'),
+				sessionType('remote', 'claude', 'Claude'),
+			];
+			management.setSessionTypes(types);
+			management.setQuickChatSessionTypes(types);
+			const allowedProviders = observableValue<readonly string[]>('availableHosts', ['local', 'remote']);
+			let labels: readonly (string | undefined)[] = [];
+			let selectRemote: (() => void) | undefined;
+			const actionWidget = new class extends mock<IActionWidgetService>() {
+				override readonly isVisible = false;
+				override hide(): void { }
+				override show<T>(_user: string, _supportsPreview: boolean, items: readonly IActionListItem<T>[], delegate: IActionListDelegate<T>): void {
+					labels = items.map(item => item.label);
+					const remote = items.find(item => item.label === 'Claude')?.item;
+					if (remote !== undefined) {
+						selectRemote = () => delegate.onSelect(remote);
+					}
+				}
+			}();
+			const picker = createPicker(disposables, session, management, storage, { allowedProviders, persistSelection: false }, actionWidget);
+			picker.setQuickChatSource(constObservable(quickChat));
+			picker.setFolderSource(constObservable(folder));
+			picker.render(document.createElement('div'));
+			const selections: (IPickedSessionType | undefined)[] = [];
+			disposables.add(picker.onDidSelectSessionType(pick => selections.push(pick)));
+			picker.showPicker();
+			assert.ok(selectRemote);
+			allowedProviders.set(['local'], undefined);
+			selectRemote();
+			await Promise.resolve();
+			assert.deepStrictEqual({ labels, selections, selected: picker.selectedPick }, {
+				labels: ['Copilot', 'Claude'], selections: [], selected: { providerId: 'local', sessionTypeId: 'copilot' },
+			});
+		});
+	}
+
+	test('rechecks allowed providers after asynchronous selection preparation', async () => {
+		management.setSessionTypes([
+			sessionType('local', 'copilot', 'Copilot'),
+			sessionType('remote', 'claude', 'Claude'),
+		]);
+		const allowedProviders = observableValue<readonly string[]>('availableHosts', ['local', 'remote']);
+		const preparation = new DeferredPromise<boolean>();
+		const picker = createPicker(disposables, session, management, storage, {
+			allowedProviders, prepareSessionTypeSelection: () => preparation.p,
+		});
+		picker.setFolderSource(constObservable(folder));
+		const selection = picker.prepareAndPick({ providerId: 'remote', sessionTypeId: 'claude' });
+		allowedProviders.set(['local'], undefined);
+		await preparation.complete(true);
+		await selection;
+		assert.deepStrictEqual(picker.selectedPick, { providerId: 'local', sessionTypeId: 'copilot' });
+	});
 
 	test('reports harness visibility only after rendering an interactive picker and resets on disposal', () => {
 		const types = [

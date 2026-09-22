@@ -14,7 +14,7 @@ import { extUriBiasedIgnorePathCase } from '../../../../../base/common/resources
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
-import { mock } from '../../../../../base/test/common/mock.js';
+import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -3756,6 +3756,10 @@ suite('SessionsManagementService', () => {
 		const provider = new class extends TestSessionsProvider {
 			override readonly supportsQuickChats = true;
 			override readonly supportsAutomationSessionConfiguration = true;
+			override readonly automations = upcastPartial<NonNullable<ISessionsProvider['automations']>>({
+				catalogueState: constObservable('ready'),
+				canCreateAutomation: constObservable(false),
+			});
 			override resolveWorkspace(folderUri: URI): ISessionWorkspace {
 				return {
 					uri: folderUri,
@@ -3806,6 +3810,25 @@ suite('SessionsManagementService', () => {
 			],
 			deleted: ['automation-workspace', 'automation-quick-chat', 'automation-replacement'],
 		});
+	});
+
+	test('unavailable Automation authorities cannot create drafts but ordinary sessions still work', () => {
+		const session = stubSession({ sessionId: 'draft', providerId: 'test' });
+		let created = 0;
+		const provider = new class extends TestSessionsProvider {
+			override readonly supportsQuickChats = true;
+			override resolveWorkspace(folderUri: URI): ISessionWorkspace {
+				return { uri: folderUri, label: 'Workspace', icon: Codicon.folder, folders: [], requiresWorkspaceTrust: false, isVirtualWorkspace: false };
+			}
+			override createNewSession(): ISession { created++; return session; }
+			override createQuickChat(): ISession { created++; return session; }
+		}(session);
+		const { service } = createSessionsManagementService(session, disposables, provider);
+		const folder = URI.parse('test:///folder');
+		assert.throws(() => service.createAutomationSession(folder), /does not currently provide Automation configuration/);
+		assert.throws(() => service.createAutomationQuickChat(), /does not currently provide Automation configuration/);
+		service.createNewSession(folder);
+		assert.deepStrictEqual({ created, automation: service.automationSession.get(), ordinary: service.newSession.get() }, { created: 1, automation: undefined, ordinary: session });
 	});
 
 	test('sendNewChatRequest clears the draft without firing onDidDiscardNewSession', async () => {

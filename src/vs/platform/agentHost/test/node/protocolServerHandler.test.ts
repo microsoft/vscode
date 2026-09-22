@@ -476,6 +476,7 @@ suite('ProtocolServerHandler', () => {
 			serverSeq: stateManager.serverSeq,
 			meta: {
 				'vscode.detachedWorktrees': true,
+				'vscode.autonomousAutomations': true,
 				'vscode.getAgentHostSessionStateFile.chat': true,
 				'vscode.removeSessionArtifact': true,
 				'vscode.devContainers': true,
