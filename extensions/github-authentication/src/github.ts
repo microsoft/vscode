@@ -178,7 +178,7 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 	private readonly _renewals = new Map<string, Promise<vscode.AuthenticationSession | undefined>>();
 	/** Restores in flight, by {@link restoreKey}, so concurrent callers share one exchange. */
 	private readonly _restores = new Map<string, Promise<vscode.AuthenticationSession | undefined>>();
-	/** Serializes restored-session publication with local sign-out mutations. */
+	/** Serializes persisted sign-in and restored-session publication with local sign-out mutations. */
 	private readonly _sessionMutations = new Sequencer();
 	/**
 	 * The restores that have been tried and could not be done, by {@link restoreKey}.
@@ -786,23 +786,25 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 				return session;
 			}
 
-			const sessions = await this._persistedSessionsPromise;
 			const scopeString = sortedScopes.join(' ');
 			const token = await this._githubServer.login(scopeString, signInProvider, options?.extraAuthorizeParameters, loginWith);
 			const session = await this.tokenToSession(token, scopes);
 			this.afterSessionLoad(session);
 
-			const sessionIndex = sessions.findIndex(s => s.account.id === session.account.id && arrayEquals([...s.scopes].sort(), sortedScopes));
-			const removed = new Array<vscode.AuthenticationSession>();
-			if (sessionIndex > -1) {
-				removed.push(...sessions.splice(sessionIndex, 1, session));
-			} else {
-				sessions.push(session);
-			}
-			await this.storeSessions(sessions);
+			await this._sessionMutations.queue(async () => {
+				const sessions = await this._persistedSessionsPromise;
+				const sessionIndex = sessions.findIndex(s => s.account.id === session.account.id && arrayEquals([...s.scopes].sort(), sortedScopes));
+				const removed = new Array<vscode.AuthenticationSession>();
+				if (sessionIndex > -1) {
+					removed.push(...sessions.splice(sessionIndex, 1, session));
+				} else {
+					sessions.push(session);
+				}
+				await this.storeSessions(sessions);
 
-			this.logSessionChange('interactive-login', 1, removed.length, 0);
-			this._sessionChangeEmitter.fire({ added: [session], removed, changed: [] });
+				this.logSessionChange('interactive-login', 1, removed.length, 0);
+				this._sessionChangeEmitter.fire({ added: [session], removed, changed: [] });
+			});
 
 			this._logger.info('Login success!');
 
