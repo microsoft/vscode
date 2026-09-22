@@ -8,7 +8,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import { Application, Chat, Logger } from '../../../../automation';
-import { dumpFailureDiagnostics, getCopilotSmokeTestEnv, getMockLlmServerPath, installAllHandlers, MockLlmServer, preseedChatExtensionEnablement } from '../../utils';
+import { dumpFailureDiagnostics, getCopilotSmokeTestEnv, getMockLlmServerPath, installAllHandlers, latestUserInputCarriesTag, MockLlmServer, preseedChatExtensionEnablement } from '../../utils';
 
 const WARMUP_SCENARIO_ID = 'smoke-chat-sandbox-warmup';
 const WARMUP_REPLY = 'MOCKED_CHAT_SANDBOX_WARMUP';
@@ -91,15 +91,18 @@ async function warmUpChat(chat: Chat, mockServer: MockLlmServer, logger: Logger)
 
 	while (Date.now() < deadline) {
 		attempt++;
+		const scenarioId = `${WARMUP_SCENARIO_ID}-${attempt}`;
+		const scenarioTag = `[scenario:${scenarioId}]`;
 		const reply = `${WARMUP_REPLY}_${attempt}`;
-		registerScenario(WARMUP_SCENARIO_ID, new ScenarioBuilder().emit(reply).build());
+		registerScenario(scenarioId, new ScenarioBuilder().emit(reply).build());
 		try {
 			const requestsBefore = mockServer.getRequests().length;
-			await chat.sendMessage(`warm up [scenario:${WARMUP_SCENARIO_ID}]`);
+			await chat.sendMessage(`warm up ${scenarioTag}`);
 			await chat.waitForResponseText(reply, 25_000);
 			// Warm-up text can arrive before terminal tools finish registering.
 			assert.ok(
-				mockServer.getRequests().slice(requestsBefore).some(request => hasTerminalTool(request.body)),
+				mockServer.getRequests().slice(requestsBefore).some(request =>
+					latestUserInputCarriesTag(request.body, scenarioTag) && hasTerminalTool(request.body)),
 				'expected the terminal tool to be available in the warm-up model request'
 			);
 			logger.log(`[Chat Sandbox] warm-up succeeded on attempt ${attempt}`);
