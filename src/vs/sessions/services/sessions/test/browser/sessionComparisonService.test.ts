@@ -20,7 +20,7 @@ import { NullTelemetryServiceShape } from '../../../../../platform/telemetry/com
 import { IChatService, IChatUsage } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatModel, IChatRequestModel, IChatResponseModel } from '../../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { hashSessionIdForTelemetry } from '../../../../common/sessionsTelemetry.js';
-import { ChatInteractivity, ISession, SessionStatus } from '../../common/session.js';
+import { ChatInteractivity, IChat, ISession, SessionStatus } from '../../common/session.js';
 import { ISessionComparisonSynthesisPlan, ISessionComparisonVerdict, SessionComparisonDecisionAssessment, SessionComparisonParticipantRole, SessionComparisonValidationSource, SessionComparisonValidationState } from '../../common/sessionComparison.js';
 import { ICreateNewSessionOptions, ISendRequestOptions, ISessionsManagementService, NewSessionRequestOptions } from '../../common/sessionsManagement.js';
 import { ISessionChangeEvent } from '../../common/sessionsProvider.js';
@@ -1092,6 +1092,7 @@ function stubSession(sessionId: string, status = observableValue(`${sessionId}St
 	const chat = {
 		resource: URI.parse(`test-chat:/${sessionId}`),
 		createdAt: timing?.createdAt ?? new Date(),
+		workspace: constObservable(undefined),
 		title: constObservable(sessionId),
 		updatedAt: constObservable(timing?.updatedAt ?? new Date()),
 		status,
@@ -1105,7 +1106,7 @@ function stubSession(sessionId: string, status = observableValue(`${sessionId}St
 		interactivity: constObservable(ChatInteractivity.Full),
 		description: constObservable(undefined),
 		lastTurnEnd: constObservable(undefined),
-	};
+	} satisfies IChat;
 	return {
 		sessionId,
 		resource: URI.parse(`test:/${sessionId}`),
