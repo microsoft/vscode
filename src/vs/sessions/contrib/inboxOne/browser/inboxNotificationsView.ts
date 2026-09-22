@@ -57,6 +57,10 @@ import {
 import { InboxAgentMergeActionKind, InboxAgentMergeAlwaysOptInService, isInboxAgentMergeActionKind } from './inboxAgentMergeAlwaysOptInService.js';
 import { getInboxNotificationKindLabel, getInboxNotificationPriorityLabel } from './inboxNotificationsLabels.js';
 
+function isDismissibleQuestionCarousel(carousel: IChatQuestionCarousel): carousel is IChatQuestionCarousel & { dismiss(answers: Record<string, IChatQuestionAnswerValue> | undefined): void } {
+	return typeof (carousel as { dismiss?: unknown }).dismiss === 'function';
+}
+
 export class InboxNotificationsView extends AbstractCustomView {
 
 	private static activeInstance: InboxNotificationsView | undefined;
@@ -426,6 +430,8 @@ export class InboxNotificationsView extends AbstractCustomView {
 		options.confirmation = buttonLabel;
 		options.modeInfo = requestContext.request.modeInfo;
 		options.locationData = requestContext.request.locationData;
+		options.userSelectedModelId = requestContext.request.modelId;
+		options.userSelectedModelConfiguration = requestContext.request.modelConfiguration;
 		const sendResult = await this.chatService.sendRequest(part.chatResource, prompt, options);
 		if (ChatSendResult.isSent(sendResult)) {
 			confirmationPart.isUsed = true;
@@ -497,8 +503,12 @@ export class InboxNotificationsView extends AbstractCustomView {
 		}
 
 		const answersRecord = answers ? Object.fromEntries(answers.entries()) : undefined;
-		carouselPart.data = answersRecord ?? {};
-		carouselPart.isUsed = true;
+		if (isDismissibleQuestionCarousel(carouselPart)) {
+			carouselPart.dismiss(answersRecord);
+		} else {
+			carouselPart.data = answersRecord ?? {};
+			carouselPart.isUsed = true;
+		}
 		this.chatService.notifyQuestionCarouselAnswer(part.requestId, part.resolveId, answersRecord);
 		await this.completeNeedsInputNotification(item);
 	}
