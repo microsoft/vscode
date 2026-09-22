@@ -7,11 +7,13 @@ import type { CopilotClient, CopilotClientOptions, CopilotSession, GitHubTelemet
 import type Anthropic from '@anthropic-ai/sdk';
 import type { CCAModel } from '@vscode/copilot-api';
 import assert from 'assert';
+import { spy } from 'sinon';
 import { isCustomizationEnabled } from '../../common/customizationEnablement.js';
 import * as fs from 'fs/promises';
 import * as os from 'os';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { DeferredPromise, raceTimeout, timeout } from '../../../../base/common/async.js';
+import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { isCancellationError } from '../../../../base/common/errors.js';
 import { Disposable, toDisposable, type DisposableStore, type IDisposable, type IReference } from '../../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
@@ -803,6 +805,12 @@ interface ICredentialUpdateSession {
 }
 
 class MockCopilotSession {
+	readonly mcpStartCalls: string[] = [];
+	readonly mcpStopCalls: string[] = [];
+	mcpStartGate: Promise<void> | undefined;
+	mcpStopGate: Promise<void> | undefined;
+	sendCalls = 0;
+	disconnectCalls = 0;
 	readonly setModelCalls: Parameters<CopilotSession['setModel']>[] = [];
 	setModelError: Error | undefined;
 	readonly workingDirectoryCalls: string[] = [];
@@ -810,6 +818,21 @@ class MockCopilotSession {
 	readonly workingDirectoryResults: string[] = [];
 	readonly gitHubCredentialUpdates: Array<{ credentials: { type: 'token'; host: string; token: string } }> = [];
 	readonly rpc = {
+		mcp: {
+			list: async () => ({ servers: [] }),
+			enable: async () => ({ success: true }),
+			disable: async () => ({ success: true }),
+			startServer: async ({ serverName }: { serverName: string }) => {
+				this.mcpStartCalls.push(serverName);
+				await this.mcpStartGate;
+				return { success: true };
+			},
+			stopServer: async ({ serverName }: { serverName: string }) => {
+				this.mcpStopCalls.push(serverName);
+				await this.mcpStopGate;
+				return { success: true };
+			},
+		},
 		eventLog: {
 			registerInterest: async () => ({ handle: 'sampling-interest' }),
 			releaseInterest: async () => ({ success: true }),
@@ -873,7 +896,7 @@ class MockCopilotSession {
 		}
 	}
 
-	async send(): Promise<string> { return ''; }
+	async send(): Promise<string> { this.sendCalls++; return ''; }
 	async abort(): Promise<void> { }
 	async setModel(...args: Parameters<CopilotSession['setModel']>): Promise<void> {
 		this.setModelCalls.push(args);
@@ -882,7 +905,7 @@ class MockCopilotSession {
 		}
 	}
 	async getEvents(): Promise<SessionEventPayload<SessionEventType>[]> { return []; }
-	async disconnect(): Promise<void> { }
+	async disconnect(): Promise<void> { this.disconnectCalls++; }
 }
 
 class TestSdkError extends Error {
@@ -10773,6 +10796,247 @@ suite('CopilotAgent', () => {
 				await agent.chats.sendMessage(defaultChatUri(result.session), 'hello', undefined, undefined, undefined, undefined, exactChatContext(result.session, defaultChatUri(result.session), result.session));
 
 				assert.deepStrictEqual(capturedConfig?.tools?.map(tool => tool.name), []);
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+	});
+
+	suite('MCP configuration preparation', () => {
+		async function createHarness(options: { cold?: boolean; failSync?: boolean; syncGate?: Promise<void> } = {}) {
+			const fileService = disposables.add(new FileService(new NullLogService()));
+			disposables.add(fileService.registerProvider(Schemas.file, disposables.add(new InMemoryFileSystemProvider())));
+			const pluginDirectory = URI.file('/late-plugin');
+			const healthyDirectory = URI.file('/healthy-plugin');
+			await fileService.writeFile(URI.joinPath(pluginDirectory, '.mcp.json'), VSBuffer.fromString('{"mcpServers":{"late-server":{"command":"late-server"},"other-server":{"command":"other-server"}}}'));
+			await fileService.writeFile(URI.joinPath(healthyDirectory, '.mcp.json'), VSBuffer.fromString('{"mcpServers":{}}'));
+			const syncStarted = new DeferredPromise<void>();
+			const syncCalls: string[][] = [];
+			class PluginManager extends TestAgentPluginManager {
+				override async syncCustomizations(_clientId: string, customizations: ClientPluginCustomization[]): Promise<ISyncedCustomization[]> {
+					syncCalls.push(customizations.map(item => item.uri));
+					syncStarted.complete();
+					await options.syncGate;
+					return customizations.map(customization => options.failSync && syncCalls.length === 1 && customization.uri === pluginDirectory.toString()
+						? { customization: { ...customization, load: { kind: CustomizationLoadStatus.Error, message: 'sync failed' } } }
+						: { customization: { ...customization, load: { kind: CustomizationLoadStatus.Loaded } }, pluginDir: URI.parse(customization.uri) });
+				}
+			}
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			const sdkSessionId = 'restored-sdk-session';
+			const client = new TestCopilotClient([sdkSession(sdkSessionId, '/workspace')]);
+			const oldRuntime = new MockCopilotSession(sdkSessionId);
+			const newRuntime = new MockCopilotSession(sdkSessionId);
+			const resumeConfigs: Parameters<ITestCopilotClient['resumeSession']>[1][] = [];
+			const resumedIds: string[] = [];
+			let resumeGate: Promise<void> | undefined;
+			const refreshStarted = new DeferredPromise<void>();
+			client.resumeSession = async (id, config) => {
+				resumedIds.push(id);
+				resumeConfigs.push(config);
+				if (resumedIds.length === 1) {
+					return oldRuntime as unknown as CopilotSession;
+				}
+				assert.strictEqual(oldRuntime.disconnectCalls, 1);
+				refreshStarted.complete();
+				await resumeGate;
+				return newRuntime as unknown as CopilotSession;
+			};
+			let createConfig: Parameters<ITestCopilotClient['createSession']>[0] | undefined;
+			client.createSession = async config => {
+				createConfig = config;
+				return newRuntime as unknown as CopilotSession;
+			};
+			const { agent, stateManager } = createTestAgentContext(disposables, {
+				copilotClient: client, useRealResumePath: true, sessionDataService, fileService, pluginManager: new PluginManager(),
+			});
+			disposables.add(toDisposable(() => agent.dispose()));
+			await agent.authenticate('https://api.github.com', 'token');
+			const session = AgentSession.uri('copilotcli', 'mcp-refresh-session');
+			const chat = defaultChatUri(session);
+			const context = exactChatContext(session, chat, session);
+			const now = new Date().toISOString();
+			stateManager.createSession({ resource: session.toString(), provider: 'copilotcli', title: 'Test', status: SessionStatus.Idle, createdAt: now, modifiedAt: now });
+			disposables.add(agent.onDidChatProgress(signal => {
+				if (signal.kind === 'action' && (signal.action.type === ActionType.SessionCustomizationsChanged || signal.action.type === ActionType.SessionCustomizationUpdated)) {
+					stateManager.dispatchServerAction(session.toString(), signal.action);
+				}
+			}));
+			if (options.cold) {
+				await provisionSession(agent, { session, workingDirectories: [URI.file('/workspace')] });
+			} else {
+				const database = sessionDataService.openDatabase(session);
+				try {
+					await database.object.setMetadata('copilot.workingDirectory', URI.file('/workspace').toString());
+					await database.object.setMetadata('copilot.workingDirectories', JSON.stringify([URI.file('/workspace').toString()]));
+				} finally {
+					database.dispose();
+				}
+				await agent.materializeChat(chat, context, JSON.stringify({ sdkSessionId }));
+				await agent.chats.getMessages(chat, context);
+			}
+			agent.getOrCreateActiveClient(chat, session, { clientId: 'late-client' }).customizations = [pluginDirectory, healthyDirectory].map(uri => ({
+				type: CustomizationType.Plugin, id: customizationId(uri.toString()), uri: uri.toString(), name: uri.path,
+			}));
+			await syncStarted.p;
+			return {
+				agent, session, chat, context, oldRuntime, newRuntime, resumeConfigs, resumedIds, syncCalls, pluginDirectory, healthyDirectory, refreshStarted,
+				serverId: `${URI.joinPath(pluginDirectory, '.mcp.json')}#mcp=late-server`,
+				otherId: `${URI.joinPath(pluginDirectory, '.mcp.json')}#mcp=other-server`,
+				live: () => chatEntriesBySdkId(agent).get(sdkSessionId)!.chatSession,
+				blockResume: (gate: Promise<void>) => { resumeGate = gate; },
+				createConfig: () => createConfig,
+			};
+		}
+
+		test('waits for plugin sync and refreshes the same SDK session before name-only Start', async () => {
+			const gate = new DeferredPromise<void>();
+			const h = await createHarness({ syncGate: gate.p });
+			try {
+				const start = h.agent.startMcpServer(h.session, h.serverId);
+				await timeout(0);
+				assert.strictEqual(h.resumeConfigs.length, 1);
+				gate.complete();
+				await start;
+				await h.agent.startMcpServer(h.session, h.serverId);
+				assert.deepStrictEqual({
+					ids: h.resumedIds, initial: h.resumeConfigs[0]?.pluginDirectories,
+					plugins: h.resumeConfigs[1]?.pluginDirectories, explicit: Object.keys(h.resumeConfigs[1]?.mcpServers ?? {}),
+					oldStarts: h.oldRuntime.mcpStartCalls, starts: h.newRuntime.mcpStartCalls,
+					turns: h.oldRuntime.sendCalls + h.newRuntime.sendCalls,
+				}, {
+					ids: ['restored-sdk-session', 'restored-sdk-session'], initial: [],
+					plugins: [h.pluginDirectory.fsPath, h.healthyDirectory.fsPath], explicit: [],
+					oldStarts: [], starts: ['late-server', 'late-server'], turns: 0,
+				});
+			} finally {
+				gate.complete();
+				await disposeAgent(h.agent);
+			}
+		});
+
+		for (const ending of ['idle', 'stop', 'dispose'] as const) {
+			test(`defers refresh during an active turn and handles ${ending}`, async () => {
+				const h = await createHarness({ failSync: true });
+				try {
+					const live = h.live();
+					live.resetTurnState('active-turn');
+					const waiting = spy(live, 'waitForIdle');
+					disposables.add(toDisposable(() => waiting.restore()));
+					const source = disposables.add(new CancellationTokenSource());
+					const start = h.agent.startMcpServer(h.session, h.serverId, source.token);
+					const outcome = start.then(() => undefined, error => error);
+					await timeout(0);
+					assert.ok(waiting.calledOnce, 'Start must wait outside the chat queue');
+					assert.strictEqual(h.oldRuntime.disconnectCalls, 0);
+					await h.agent.chats.getMessages(h.chat, h.context);
+					if (ending === 'stop') {
+						source.cancel();
+						assert.ok(isCancellationError(await outcome), 'Cancellation must settle without waiting for the turn to end');
+						await h.agent.stopMcpServer(h.session, h.serverId);
+					}
+					if (ending === 'dispose') {
+						live.dispose();
+						assert.match(String(await outcome), /runtime is no longer available/);
+					} else {
+						h.oldRuntime.emit({ type: 'session.idle', data: {} } as SessionEventPayload<'session.idle'>);
+						if (ending === 'idle') {
+							assert.strictEqual(await outcome, undefined);
+						}
+					}
+					assert.deepStrictEqual({
+						resumes: h.resumedIds.length, starts: h.newRuntime.mcpStartCalls, retries: h.syncCalls,
+					}, {
+						resumes: ending === 'idle' ? 2 : 1,
+						starts: ending === 'idle' ? ['late-server'] : [],
+						retries: [0, 1].map(() => [h.pluginDirectory.toString(), h.healthyDirectory.toString()]),
+					});
+				} finally {
+					await disposeAgent(h.agent);
+				}
+			});
+		}
+
+		test('Stop during refresh reaches the replacement runtime', async () => {
+			const h = await createHarness();
+			const gate = new DeferredPromise<void>();
+			try {
+				h.blockResume(gate.p);
+				const source = disposables.add(new CancellationTokenSource());
+				const start = h.agent.startMcpServer(h.session, h.serverId, source.token);
+				const outcome = start.then(() => undefined, error => error);
+				await h.refreshStarted.p;
+				source.cancel();
+				assert.ok(isCancellationError(await outcome));
+				const stop = h.agent.stopMcpServer(h.session, h.serverId);
+				gate.complete();
+				await stop;
+				assert.deepStrictEqual({ starts: h.newRuntime.mcpStartCalls, stops: h.newRuntime.mcpStopCalls }, { starts: [], stops: ['late-server'] });
+			} finally {
+				gate.complete();
+				await disposeAgent(h.agent);
+			}
+		});
+
+		for (const operation of ['start', 'stop'] as const) {
+			test(`a blocked ${operation} RPC does not block other MCP servers or queued chat work`, async () => {
+				const h = await createHarness();
+				const gate = new DeferredPromise<void>();
+				try {
+					await h.agent.startMcpServer(h.session, h.serverId);
+					if (operation === 'start') {
+						h.newRuntime.mcpStartGate = gate.p;
+					} else {
+						h.newRuntime.mcpStopGate = gate.p;
+					}
+					const blocked = operation === 'start'
+						? h.agent.startMcpServer(h.session, h.serverId)
+						: h.agent.stopMcpServer(h.session, h.serverId);
+					await timeout(0);
+					if (operation === 'start') {
+						await h.agent.stopMcpServer(h.session, h.otherId);
+					} else {
+						await h.agent.startMcpServer(h.session, h.otherId);
+					}
+					await h.agent.chats.getMessages(h.chat, h.context);
+					assert.deepStrictEqual({
+						starts: h.newRuntime.mcpStartCalls, stops: h.newRuntime.mcpStopCalls,
+					}, operation === 'start'
+						? { starts: ['late-server', 'late-server'], stops: ['other-server'] }
+						: { starts: ['late-server', 'other-server'], stops: ['late-server'] });
+					gate.complete();
+					await blocked;
+				} finally {
+					gate.complete();
+					await disposeAgent(h.agent);
+				}
+			});
+		}
+
+		for (const cold of [true, false]) {
+			test(`Send retries failed sync without dropping healthy plugins (${cold ? 'cold' : 'live'})`, async () => {
+				const h = await createHarness({ cold, failSync: true });
+				try {
+					await h.agent.chats.sendMessage(h.chat, 'hello', undefined, undefined, undefined, undefined, h.context);
+					assert.deepStrictEqual({
+						syncs: h.syncCalls,
+						plugins: (cold ? h.createConfig() : h.resumeConfigs[1])?.pluginDirectories,
+						turns: h.newRuntime.sendCalls,
+					}, {
+						syncs: [0, 1].map(() => [h.pluginDirectory.toString(), h.healthyDirectory.toString()]),
+						plugins: [h.pluginDirectory.fsPath, h.healthyDirectory.fsPath],
+						turns: 1,
+					});
+				} finally {
+					await disposeAgent(h.agent);
+				}
+			});
+		}
+
+		test('Start rejects before the session runtime exists', async () => {
+			const agent = createTestAgent(disposables);
+			try {
+				await assert.rejects(agent.startMcpServer(AgentSession.uri('copilotcli', 'missing'), 'server'), /before the session runtime has been created/);
 			} finally {
 				await disposeAgent(agent);
 			}
