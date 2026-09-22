@@ -2062,7 +2062,9 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 		}
 
 		template.label.textContent = element.label;
-		if (element.id !== INBOX_NOTIFICATIONS_SECTION_ID && (this.hideSectionCount || shortcut)) {
+		if (element.id === INBOX_NOTIFICATIONS_SECTION_ID) {
+			// Inbox count is handled reactively from notification state above.
+		} else if (this.hideSectionCount || shortcut) {
 			template.count.textContent = '';
 			template.count.style.display = 'none';
 		} else {

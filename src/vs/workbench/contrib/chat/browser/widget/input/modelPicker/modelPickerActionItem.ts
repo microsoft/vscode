@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { getActiveWindow } from '../../../../../../../base/browser/dom.js';
+import { getWindow } from '../../../../../../../base/browser/dom.js';
 import { IManagedHoverContent } from '../../../../../../../base/browser/ui/hover/hover.js';
 import { getBaseLayerHoverDelegate } from '../../../../../../../base/browser/ui/hover/hoverDelegate2.js';
 import { getDefaultHoverDelegate } from '../../../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
@@ -120,10 +120,15 @@ export class ModelPickerActionItem extends BaseActionViewItem {
 	}
 
 	private _getAnchorElement(): HTMLElement {
-		if (this.element && getActiveWindow().document.contains(this.element)) {
-			return this.element;
+		const element = this.element;
+		if (element && getWindow(element).document.contains(element)) {
+			return element;
 		}
-		return this.pickerOptions.getOverflowAnchor?.() ?? this.element!;
+		const overflowAnchor = this.pickerOptions.getOverflowAnchor?.();
+		if (overflowAnchor && getWindow(overflowAnchor).document.contains(overflowAnchor)) {
+			return overflowAnchor;
+		}
+		return element ?? overflowAnchor ?? this._pickerWidget.domNode;
 	}
 
 	public openModelPicker(): void {

@@ -486,7 +486,7 @@ export class InboxNotificationsView extends AbstractCustomView {
 	}
 
 	private isInlineFormInputElement(element: HTMLElement): boolean {
-		return element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement || element instanceof HTMLSelectElement || element.isContentEditable;
+		return DOM.isEditableElement(element) || element.tagName.toLowerCase() === 'select' || element.isContentEditable;
 	}
 
 	private applyCardTabStops(preferredNotificationId: string | undefined): void {
