@@ -10,6 +10,7 @@ import type { SchemaValues } from '../../common/agentHostSchema.js';
 import type { ModelSelection } from '../../common/state/protocol/state.js';
 import { AgentHostPromptRegistry, agentHostPromptRegistry, type IAgentHostPromptContext } from '../../node/copilot/prompts/promptRegistry.js';
 import { COPILOT_AGENT_HOST_SYSTEM_MESSAGE } from '../../node/copilot/prompts/systemMessage.js';
+import { CLAUDE_CHAT_PARITY_IMPLEMENTATION_DISCIPLINE, CLAUDE_CHAT_PARITY_LAST_INSTRUCTIONS, CLAUDE_CHAT_PARITY_TOOL_INSTRUCTIONS, dropFoundationBullets, mergeSectionOverrides } from '../../node/copilot/prompts/anthropicPrompt.js';
 import { AGENT_HOST_FILE_LINK_INSTRUCTIONS } from '../../node/shared/fileLinkInstructions.js';
 import { AGENT_HOST_WORKSPACELESS_INSTRUCTIONS } from '../../node/shared/workspacelessInstructions.js';
 import { COPILOT_AGENT_HOST_LARGE_OUTPUT_TOOL_INSTRUCTION, COPILOT_AGENT_HOST_SUBAGENT_TOOL_INSTRUCTIONS } from '../../node/copilot/prompts/toolInstructions.js';
@@ -197,6 +198,148 @@ suite('AgentHostPromptRegistry', () => {
 			assert.deepStrictEqual(resolveOpus(undefined), withUniversalAgentHostInstructions(COPILOT_AGENT_HOST_SYSTEM_MESSAGE));
 			assert.deepStrictEqual(resolveOpus(false), withUniversalAgentHostInstructions(COPILOT_AGENT_HOST_SYSTEM_MESSAGE));
 			assert.strictEqual(resolveOpus(true).mode, 'customize');
+		});
+	});
+
+	suite('Claude Chat-parity contributor (registered via allPrompts)', () => {
+		const parityOn = { [CopilotCliConfigKey.ClaudeChatParityPrompt]: true };
+
+		// Representative slices of the SDK foundation sections the transforms run over
+		// (captured from a real agent-host session; wording owned by the CLI/SDK).
+		const FOUNDATION_CODE_CHANGE_RULES = [
+			'<code_change_instructions>',
+			'<rules_for_code_changes>',
+			'* Make precise, complete, surgical changes that fully address the request; prefer completeness over a minimal but incomplete fix, and avoid unrelated changes.',
+			'* Don\'t fix unrelated pre-existing issues, but do fix bugs caused by or tightly coupled to your changes.',
+			'* Update directly related documentation.',
+			'* Validate that your changes preserve existing behavior</rules_for_code_changes>',
+			'<linting_building_testing>',
+			'* Use existing linters, builds, and tests; add tooling only when the task requires it.',
+			'</linting_building_testing>',
+			'</code_change_instructions>',
+		].join('\n');
+		const FOUNDATION_GUIDELINES = [
+			'<tips_and_tricks>',
+			'* Reflect on command output before proceeding to next step',
+			'* Clean up temporary files at end of task',
+			'* Use view/edit for existing files (not create - avoid data loss)',
+			'* Ask for guidance if uncertain; use the ask_user tool to ask clarifying questions',
+			'* Do not create markdown files for planning, notes, or tracking unless explicitly requested; session artifacts may go in the session workspace.',
+			'</tips_and_tricks>',
+		].join('\n');
+
+		function resolve(id: string, settings: SchemaValues<typeof copilotCliConfigSchema.definition> = parityOn) {
+			return agentHostPromptRegistry.resolveSystemMessageConfig({ id }, context(settings));
+		}
+
+		/** The `customize` sections of a resolved config, asserting the mode. */
+		function sectionsOf(id: string, settings: SchemaValues<typeof copilotCliConfigSchema.definition> = parityOn): Partial<Record<SystemMessageSection, SectionOverride>> {
+			const config = resolve(id, settings);
+			assert.strictEqual(config.mode, 'customize', id);
+			return config.mode === 'customize' ? config.sections ?? {} : {};
+		}
+
+		async function runTransform(override: SectionOverride | undefined, content: string): Promise<string> {
+			assert.ok(override && typeof override.action === 'function', 'expected a transform override');
+			return override.action(content);
+		}
+
+		test('is off by default and gated on its setting', () => {
+			for (const id of ['claude-opus-5', 'claude-sonnet-4.6', 'claude-haiku-4.5']) {
+				assert.deepStrictEqual(resolve(id, {}), withUniversalAgentHostInstructions(COPILOT_AGENT_HOST_SYSTEM_MESSAGE), id);
+				assert.deepStrictEqual(resolve(id, { [CopilotCliConfigKey.ClaudeChatParityPrompt]: false }), withUniversalAgentHostInstructions(COPILOT_AGENT_HOST_SYSTEM_MESSAGE), id);
+			}
+		});
+
+		test('applies to every Claude model, not to other families', () => {
+			for (const id of ['claude-opus-5', 'claude-opus-4-8', 'claude-sonnet-4.6', 'claude-haiku-4.5']) {
+				assert.deepStrictEqual(Object.keys(sectionsOf(id)).sort(), ['code_change_rules', 'guidelines', 'identity', 'last_instructions', 'tool_instructions'], id);
+			}
+			assert.deepStrictEqual(resolve('gpt-5.6'), withUniversalAgentHostInstructions(COPILOT_AGENT_HOST_SYSTEM_MESSAGE));
+		});
+
+		test('replaces the closing verification mandate and appends tool-use rules under the universal lines', () => {
+			const sections = sectionsOf('claude-opus-5');
+			assert.deepStrictEqual(sections.last_instructions, { action: 'replace', content: CLAUDE_CHAT_PARITY_LAST_INSTRUCTIONS });
+			assert.doesNotMatch(CLAUDE_CHAT_PARITY_LAST_INSTRUCTIONS, /verif|thorough/i);
+			assert.deepStrictEqual(sections.tool_instructions, {
+				action: 'append',
+				content: `\n${CLAUDE_CHAT_PARITY_TOOL_INSTRUCTIONS}\n${UNCONDITIONAL_TOOL_INSTRUCTIONS}`,
+			});
+		});
+
+		test('code_change_rules drops the preserve-behavior mandate, keeps its closing tag and adds implementation discipline', async () => {
+			const result = await runTransform(sectionsOf('claude-opus-5').code_change_rules, FOUNDATION_CODE_CHANGE_RULES);
+			assert.doesNotMatch(result, /Validate that your changes preserve existing behavior/);
+			assert.match(result, /Update directly related documentation\.\n<\/rules_for_code_changes>/);
+			assert.match(result, /Use existing linters, builds, and tests/);
+			assert.ok(result.endsWith(`\n${CLAUDE_CHAT_PARITY_IMPLEMENTATION_DISCIPLINE}`));
+		});
+
+		test('guidelines drops the verification tips, keeps the rest and appends the Copilot Chat guidance', async () => {
+			const result = await runTransform(sectionsOf('claude-opus-5').guidelines, FOUNDATION_GUIDELINES);
+			assert.doesNotMatch(result, /Reflect on command output|Clean up temporary files|Ask for guidance/);
+			assert.match(result, /Use view\/edit for existing files/);
+			assert.match(result, /Do not create markdown files for planning/);
+			assert.match(result, /<instructions>\n[\s\S]*do not over-explore[\s\S]*<\/instructions>/);
+			assert.match(result, /<operational_safety>/);
+			assert.match(result, /<communication_style>\nBe brief\./);
+			assert.doesNotMatch(result, /You are a highly sophisticated/);
+		});
+
+		test('Sonnet gets the Sonnet exploration wording, other Claude models the Opus wording', async () => {
+			const sonnet = await runTransform(sectionsOf('claude-sonnet-4.6').guidelines, '');
+			const opus = await runTransform(sectionsOf('claude-opus-5').guidelines, '');
+			const haiku = await runTransform(sectionsOf('claude-haiku-4.5').guidelines, '');
+			assert.match(sonnet, /Step back and consider a different strategy after two failed attempts/);
+			assert.match(sonnet, /batch the reads you've already decided you need/);
+			assert.doesNotMatch(opus, /two failed attempts/);
+			assert.match(opus, /Avoid redundant searches for information already found/);
+			assert.strictEqual(haiku, opus);
+		});
+
+		test('a foundation rewording leaves the section untouched apart from the appended guidance', async () => {
+			const reworded = '<tips_and_tricks>\n* Think about command output first\n</tips_and_tricks>';
+			const result = await runTransform(sectionsOf('claude-opus-5').guidelines, reworded);
+			assert.ok(result.startsWith(`${reworded}\n<instructions>`));
+		});
+
+		test('composes with the Opus 4.8 tuning when both settings are on', async () => {
+			const both = { ...parityOn, [CopilotCliConfigKey.Opus48Prompt]: true };
+			const sections = sectionsOf('claude-opus-4-8', both);
+			// Opus 4.8 tone tweak survives alongside the parity sections.
+			assert.strictEqual(sections.tone?.action, 'append');
+			// Opus 4.8 guidelines append is folded after the parity transform.
+			const guidelines = await runTransform(sections.guidelines, FOUNDATION_GUIDELINES);
+			assert.match(guidelines, /<communication_style>[\s\S]*Do not spawn a subagent for work you can complete directly/);
+			// The 4.8 tuning alone is unaffected by the new setting being off.
+			assert.deepStrictEqual(Object.keys(sectionsOf('claude-opus-4-8', { [CopilotCliConfigKey.Opus48Prompt]: true })).sort(), ['guidelines', 'identity', 'tone', 'tool_instructions']);
+			// And parity alone on Opus 4.8 does not pull in the 4.8 tuning.
+			assert.strictEqual(sectionsOf('claude-opus-4-8').tone, undefined);
+		});
+	});
+
+	suite('dropFoundationBullets / mergeSectionOverrides', () => {
+		test('drops whole-line bullets and bullets sharing a line with a closing tag', () => {
+			const content = 'a\n* drop me\nb\n* drop me too</tag>';
+			assert.strictEqual(dropFoundationBullets(content, [String.raw`\* drop me`, String.raw`\* drop me too`]), 'a\nb\n</tag>');
+		});
+
+		test('is a no-op when a bullet is absent', () => {
+			assert.strictEqual(dropFoundationBullets('a\nb', [String.raw`\* missing`]), 'a\nb');
+		});
+
+		test('merges appends, folds an append after a transform, otherwise lets the second win', async () => {
+			const transform = (content: string) => `${content}!`;
+			const merged = mergeSectionOverrides(
+				{ tone: { action: 'append', content: 'A' }, guidelines: { action: transform }, safety: { action: 'replace', content: 'X' } },
+				{ tone: { action: 'append', content: 'B' }, guidelines: { action: 'append', content: 'C' }, safety: { action: 'remove' }, preamble: { action: 'append', content: 'P' } },
+			);
+			assert.deepStrictEqual(merged.tone, { action: 'append', content: 'AB' });
+			assert.deepStrictEqual(merged.safety, { action: 'remove' });
+			assert.deepStrictEqual(merged.preamble, { action: 'append', content: 'P' });
+			assert.ok(typeof merged.guidelines?.action === 'function');
+			assert.strictEqual(await merged.guidelines.action('x'), 'x!C');
 		});
 	});
 

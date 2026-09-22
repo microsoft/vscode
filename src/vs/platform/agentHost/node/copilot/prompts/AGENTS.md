@@ -7,7 +7,7 @@ This directory customizes the system prompt for Copilot CLI **agent host** (ahp+
 - `promptRegistry.ts` — `AgentHostPromptRegistry`: resolves the final `SystemMessageConfig` for a session's model. Defines the `IAgentHostPrompt` contributor interface and the `IAgentHostPromptContext` read-time context.
 - `systemMessage.ts` — the default message (`COPILOT_AGENT_HOST_SYSTEM_MESSAGE`), shared identity text, the `fullSystemPrompt` / `sectionOverrides` builders, and `describeSystemMessageConfig` (the one-line log summary).
 - `toolInstructions.ts` — the model-agnostic `tool_instructions` layer: gated or unconditional nudges (`TOOL_INSTRUCTION_LINES`) composed into the SDK's `tool_instructions` section, including the default-model guidance for subagents.
-- `anthropicPrompt.ts` — example per-model contributor (Claude Opus 4.8).
+- `anthropicPrompt.ts` — the Claude-family contributor. Layers two independently gated overrides: the **Copilot Chat parity port** (`chat.agentHost.claudeChatParityPrompt.enabled`, every Claude model) and the **Opus 4.8 tuning** (`chat.agentHost.opus48Prompt.enabled`, Opus 4.8 only). One contributor because the registry resolves exactly one per model and does not fall through when a contributor opts out.
 - `allPrompts.ts` — side-effect import hub; importing it registers every contributor into the shared `agentHostPromptRegistry`.
 
 ## How the system message is built
@@ -78,6 +78,23 @@ agentHostPromptRegistry.registerPrompt(MyModelPrompt);   // then add `import './
 ```
 
 Matching: a contributor matches a model by `static matchesModel(model)` (takes precedence) or by `familyPrefixes` (model-id `startsWith`). The registry resolves **exactly one** contributor per model (first match wins) — base + version layering is a known follow-up.
+
+## Claude Chat-parity port (`anthropicPrompt.ts`)
+
+`claudeChatParitySectionOverrides` ports the Copilot Chat Claude agent prompt (`extensions/copilot/src/extension/prompts/node/agent/anthropicPrompts.tsx`, `Claude46OpusPrompt` / `Claude46SonnetPrompt`) onto the SDK foundation in `customize` mode. Motivation: on matched clippy-bench tasks Claude under the SDK prompt spent ~2.5x the verification turns and ~2.3x the output tokens of the same model under Copilot Chat, at equal resolution — the SDK prompt mandates "verify before done" in six places with no restraint guidance; Copilot Chat's has no verification mandate and five restraint instructions.
+
+| Section | Action | What changes |
+|---|---|---|
+| `code_change_rules` | transform | drops the "Validate that your changes preserve existing behavior" bullet; appends Copilot Chat `implementationDiscipline` |
+| `guidelines` | transform | drops the "Reflect on command output", "Clean up temporary files" and "Ask for guidance" tips; appends Copilot Chat `<instructions>` (exploration restraint, Opus or Sonnet wording), `operationalSafety`, `parallelizationStrategy`, `communicationStyle` |
+| `tool_instructions` | append | Copilot Chat `toolUseInstructions` with SDK tool names (`view`/`edit`/`create`/`bash`); `append` so the universal host lines still compose |
+| `last_instructions` | replace | drops "Your goal is to deliver complete, working solutions … Verify your changes actually work …", `<task_completion>` and "be thorough"; keeps the parallel-tool-call and dependency-install lines |
+
+Transforms (not `replace`) are used for `code_change_rules` and `guidelines` so dynamic foundation content in those sections (e.g. rubber-duck guidance) survives, and a foundation rewording degrades to "append only" rather than clobbering. `tone` is left alone because the host's `identity` group replacement already removes the foundation tone sub-section. When both Claude settings are on, `mergeSectionOverrides` folds the Opus 4.8 `guidelines` append after the parity transform and keeps its `tone` append.
+
+Known residual: the `bash` tool's own "Prefer short inspect → act → verify loops" sentence sits inside the `tool_instructions` group and is kept — a transform there would drop the host's universal tool lines (`composeToolInstructions` preserves transforms untouched), so the port only appends to that section.
+
+Not part of the port: Copilot Chat lines that reference extension-only tools (`semantic_search`, explore/execution subagents, `manage_todo_list`), its identity sentences (the host replaces identity) and `securityRequirements` (covered by the SDK `safety` section). The per-turn `<system_reminder>` (chat title / artifact registration) is injected by the session-title controller, not this registry, and is unaffected by this setting.
 
 ## Related — per-model experimentation knobs (`copilotCliConfig.ts`)
 
