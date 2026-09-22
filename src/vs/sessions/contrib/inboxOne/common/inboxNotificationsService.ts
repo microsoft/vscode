@@ -29,6 +29,7 @@ export const enum InboxNotificationKind {
 export const enum InboxNotificationActionKind {
 	OpenSession = 'openSession',
 	MarkSessionRead = 'markSessionRead',
+	EnableAgentMerge = 'enableAgentMerge',
 	Dismiss = 'dismiss',
 	Command = 'command',
 }

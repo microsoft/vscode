@@ -7,7 +7,7 @@ import assert from 'assert';
 import { Emitter } from '../../../../../base/common/event.js';
 import { type IMarkdownString } from '../../../../../base/common/htmlContent.js';
 import { DisposableStore, IReference, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { observableValue } from '../../../../../base/common/observable.js';
+import { IObservable, observableValue } from '../../../../../base/common/observable.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
@@ -15,6 +15,9 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IGitHubService } from '../../../github/browser/githubService.js';
 import { GitHubCIOverallStatus, GitHubCheckConclusion, GitHubCheckStatus, GitHubPullRequestState, IGitHubCICheck, IGitHubPullRequest, IGitHubPullRequestReviewThread } from '../../../github/common/types.js';
+import { IAgentHostSessionsProvider, IAgentMergeClientState } from '../../../../common/agentHostSessionsProvider.js';
+import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
+import { ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
 import { SessionStatus, type IGitHubInfo, type ISession, type ISessionWorkspace } from '../../../../services/sessions/common/session.js';
 import { ISessionsChangeEvent, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { InboxNotificationsService } from '../../browser/inboxNotificationsService.js';
@@ -34,6 +37,7 @@ suite('InboxNotificationsService', () => {
 
 	function createSession(options: {
 		readonly id: string;
+		readonly providerId?: string;
 		readonly status: SessionStatus;
 		readonly updatedAt: number;
 		readonly title?: string;
@@ -76,6 +80,7 @@ suite('InboxNotificationsService', () => {
 			isVirtualWorkspace: false,
 		} : undefined;
 		return upcastPartial<ISession>({
+			providerId: options.providerId ?? 'local-agent-host',
 			sessionId: options.id,
 			resource: URI.parse(`test:///session/${options.id}`),
 			status: observableValue(`${key}/status`, options.status),
@@ -92,10 +97,12 @@ suite('InboxNotificationsService', () => {
 		initialSessions: readonly ISession[],
 		storageService?: InMemoryStorageService,
 		gitHubService?: TestGitHubService,
+		agentHostProvider?: TestAgentHostProvider,
 	): {
 		readonly service: InboxNotificationsService;
 		readonly storageService: InMemoryStorageService;
 		readonly gitHubService: TestGitHubService;
+		readonly agentHostProvider: TestAgentHostProvider;
 		setSessions(sessions: readonly ISession[]): void;
 	} {
 		const store = disposables.add(new DisposableStore());
@@ -107,11 +114,28 @@ suite('InboxNotificationsService', () => {
 		});
 		const effectiveStorageService = storageService ?? store.add(new InMemoryStorageService());
 		const effectiveGitHubService = gitHubService ?? new TestGitHubService();
-		const service = store.add(new InboxNotificationsService(managementService, upcastPartial<IGitHubService>(effectiveGitHubService), effectiveStorageService));
+		const effectiveAgentHostProvider = agentHostProvider ?? new TestAgentHostProvider();
+		const provider = upcastPartial<IAgentHostSessionsProvider>({
+			id: effectiveAgentHostProvider.id,
+			getAgentMergeClientStateObservable: (sessionId: string) => effectiveAgentHostProvider.getAgentMergeClientStateObservable(sessionId),
+		});
+		const providerMap = new Map<string, ISessionsProvider>([[provider.id, provider]]);
+		const sessionsProvidersService = upcastPartial<ISessionsProvidersService>({
+			getProvider<T extends ISessionsProvider>(providerId: string): T | undefined {
+				return providerMap.get(providerId) as T | undefined;
+			},
+		});
+		const service = store.add(new InboxNotificationsService(
+			managementService,
+			sessionsProvidersService,
+			upcastPartial<IGitHubService>(effectiveGitHubService),
+			effectiveStorageService,
+		));
 		return {
 			service,
 			storageService: effectiveStorageService,
 			gitHubService: effectiveGitHubService,
+			agentHostProvider: effectiveAgentHostProvider,
 			setSessions(nextSessions: readonly ISession[]) {
 				sessions = [...nextSessions];
 				sessionsChangeEmitter.fire({ added: [], removed: [], changed: sessions });
@@ -147,13 +171,14 @@ suite('InboxNotificationsService', () => {
 
 	test('surfaces failing and passing CI notifications for session pull requests', () => {
 		const gitHubService = new TestGitHubService();
+		const agentHostProvider = new TestAgentHostProvider();
 		const fixture = createFixture([createSession({
 			id: 'ci',
 			status: SessionStatus.Completed,
 			updatedAt: 100,
 			isRead: true,
 			pullRequest: { owner: 'owner', repo: 'repo', number: 42 },
-		})], undefined, gitHubService);
+		})], undefined, gitHubService, agentHostProvider);
 
 		gitHubService.setPullRequest('owner', 'repo', 42, openPullRequest(42, 'sha42'));
 		gitHubService.setCIStatus('owner', 'repo', 42, 'sha42', GitHubCIOverallStatus.Failure, [{
@@ -165,7 +190,13 @@ suite('InboxNotificationsService', () => {
 			completedAt: '2026-09-21T16:01:00Z',
 			detailsUrl: undefined,
 		}]);
-		assert.deepStrictEqual(fixture.service.notifications.get().map(item => item.kind), [InboxNotificationKind.FailingCI]);
+		assert.deepStrictEqual(fixture.service.notifications.get().map(item => ({
+			kind: item.kind,
+			actions: item.actions.map(action => action.kind),
+		})), [{
+			kind: InboxNotificationKind.FailingCI,
+			actions: [InboxNotificationActionKind.OpenSession, InboxNotificationActionKind.EnableAgentMerge, InboxNotificationActionKind.Dismiss],
+		}]);
 
 		gitHubService.setCIStatus('owner', 'repo', 42, 'sha42', GitHubCIOverallStatus.Success, [{
 			id: 2,
@@ -176,7 +207,19 @@ suite('InboxNotificationsService', () => {
 			completedAt: '2026-09-21T16:03:00Z',
 			detailsUrl: undefined,
 		}]);
-		assert.deepStrictEqual(fixture.service.notifications.get().map(item => item.kind), [InboxNotificationKind.PassingCI]);
+		assert.deepStrictEqual(fixture.service.notifications.get().map(item => ({
+			kind: item.kind,
+			actions: item.actions.map(action => action.kind),
+		})), [{
+			kind: InboxNotificationKind.PassingCI,
+			actions: [InboxNotificationActionKind.OpenSession, InboxNotificationActionKind.EnableAgentMerge, InboxNotificationActionKind.Dismiss],
+		}]);
+
+		agentHostProvider.setEnabled('ci', true);
+		assert.deepStrictEqual(fixture.service.notifications.get().map(item => item.actions.map(action => action.kind)), [[
+			InboxNotificationActionKind.OpenSession,
+			InboxNotificationActionKind.Dismiss,
+		]]);
 	});
 
 	test('surfaces unresolved Copilot review comments only', () => {
@@ -317,6 +360,28 @@ function openPullRequest(number: number, headSha: string): IGitHubPullRequest {
 		isDraft: false,
 		state: GitHubPullRequestState.Open,
 	});
+}
+
+class TestAgentHostProvider {
+	readonly id = 'local-agent-host';
+	private readonly _agentMergeStates = new Map<string, ReturnType<typeof observableValue<IAgentMergeClientState | undefined>>>();
+
+	getAgentMergeClientStateObservable(sessionId: string): IObservable<IAgentMergeClientState | undefined> {
+		return this._stateForSession(sessionId);
+	}
+
+	setEnabled(sessionId: string, enabled: boolean): void {
+		this._stateForSession(sessionId).set({ enabled }, undefined);
+	}
+
+	private _stateForSession(sessionId: string) {
+		let state = this._agentMergeStates.get(sessionId);
+		if (!state) {
+			state = observableValue<IAgentMergeClientState | undefined>(`test.agentMerge.${sessionId}`, { enabled: false });
+			this._agentMergeStates.set(sessionId, state);
+		}
+		return state;
+	}
 }
 
 class TestGitHubService {

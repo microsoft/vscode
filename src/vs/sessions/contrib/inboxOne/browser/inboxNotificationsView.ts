@@ -17,8 +17,10 @@ import { IContextKeyService } from '../../../../platform/contextkey/common/conte
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { fromNowByDay } from '../../../../base/common/date.js';
+import { isAgentHostProvider } from '../../../common/agentHostSessionsProvider.js';
 import { AbstractCustomView } from '../../../services/customView/browser/customView.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
+import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { InboxCustomViewFocusContext } from '../../../common/contextkeys.js';
 import {
@@ -50,6 +52,7 @@ export class InboxNotificationsView extends AbstractCustomView {
 		@IInboxNotificationsService private readonly inboxNotificationsService: IInboxNotificationsService,
 		@ISessionsService private readonly sessionsService: ISessionsService,
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
+		@ISessionsProvidersService private readonly sessionsProvidersService: ISessionsProvidersService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@ICommandService private readonly commandService: ICommandService,
@@ -272,6 +275,24 @@ export class InboxNotificationsView extends AbstractCustomView {
 						return;
 					}
 					await this.sessionsManagementService.markRead(session);
+					return;
+				}
+				case InboxNotificationActionKind.EnableAgentMerge: {
+					if (!item.sessionResource) {
+						return;
+					}
+
+					const session = this.sessionsManagementService.getSession(item.sessionResource);
+					if (!session) {
+						return;
+					}
+
+					const provider = this.sessionsProvidersService.getProvider(session.providerId);
+					if (!provider || !isAgentHostProvider(provider)) {
+						return;
+					}
+
+					await provider.setAgentMergeEnabled(session.sessionId, true);
 					return;
 				}
 				case InboxNotificationActionKind.Dismiss:
