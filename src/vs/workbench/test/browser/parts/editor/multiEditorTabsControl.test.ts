@@ -687,6 +687,47 @@ suite('MultiEditorTabsControl', () => {
 		});
 	});
 
+	test('fit-sized connected row markers stay consistent at wrapping boundaries', async () => {
+		const group = connectedGroup();
+		const oldOptions = partOptions;
+		partOptions = { ...partOptions, wrapTabs: true, tabSizing: 'fit', editorActionsLocation: 'hidden' };
+		control.updateOptions(oldOptions, partOptions);
+		for (let index = 2; index < 4; index++) {
+			const editor = disposables.add(new TestFileEditorInput(URI.file(`/path/file${index}.txt`), 'testEditorInput'));
+			model.openEditor(editor, { pinned: true, active: false });
+		}
+		control.openEditors(model.getEditors(EditorsOrder.SEQUENTIAL));
+		await layoutConnectedGroup(group, 300);
+		const tabs = Array.from(container.querySelectorAll<HTMLElement>('.tabs-container > .tab'));
+		const boundary = tabs[0].offsetWidth + tabs[1].offsetWidth;
+		const widths = Array.from({ length: 21 }, (_, index) => boundary - 10 + index);
+		const mismatches = [];
+		for (const width of [...widths, ...widths.reverse()]) {
+			for (const activeIndex of [0, 1, 3]) {
+				model.openEditor(model.getEditorByIndex(activeIndex)!, { active: true });
+				control.openEditors(model.getEditors(EditorsOrder.SEQUENTIAL));
+				await layoutConnectedGroup(group, width);
+				const wrapping = container.querySelector('.tabs-and-actions-container')!.classList.contains('wrapping');
+				for (const [index, tab] of tabs.entries()) {
+					const expected = {
+						top: tab.offsetTop === tabs[0].offsetTop,
+						upper: tab.offsetTop !== tabs.at(-1)!.offsetTop,
+						last: wrapping && (index === tabs.length - 1 || tab.offsetTop !== tabs[index + 1].offsetTop),
+					};
+					const actual = {
+						top: tab.classList.contains('connected-tab-top-row'),
+						upper: tab.classList.contains('connected-tab-upper-row'),
+						last: tab.classList.contains('last-in-row'),
+					};
+					if (actual.top !== expected.top || actual.upper !== expected.upper || actual.last !== expected.last) {
+						mismatches.push({ width, activeIndex, index, expected, actual });
+					}
+				}
+			}
+		}
+		assert.deepStrictEqual(mismatches, []);
+	});
+
 	test('selected wrapped tabs and focused actions use the document surface on every row', async () => {
 		const group = connectedGroup();
 		const root = group.closest('.monaco-workbench')!;
