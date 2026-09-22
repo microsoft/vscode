@@ -24,6 +24,8 @@ import { hasSendableNewChatContent, NewChatInputWidget } from '../../browser/new
 import { ChatPasteAttachmentMetadata, IChatRequestVariableEntry, toPasteVariableEntry } from '../../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { NewChatContextAttachments } from '../../browser/newChatContextAttachments.js';
 import { getAdditionalFolderContextId, getAdditionalRepositoryContextId } from '../../common/newChatContextIds.js';
+import { NewChatModelPickerService } from '../../browser/newChatModelPicker.js';
+import { INewSessionComposerPicker } from '../../browser/newSessionComposerService.js';
 
 interface IInputModelReferenceHarness {
 	readonly _store: DisposableStore;
@@ -182,6 +184,37 @@ class InputModelReferenceHarness implements IInputModelReferenceHarness, IDispos
 
 suite('NewChatInputWidget', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('exposes the scoped model control', () => {
+		const modelPickers = new NewChatModelPickerService();
+		const modelNode = document.createElement('button');
+		const opened: string[] = [];
+		const harness = {
+			_newChatModelPickerService: modelPickers,
+		};
+		const getPicker = () => Reflect.get(NewChatInputWidget.prototype, 'modelPicker', harness) as INewSessionComposerPicker | undefined;
+		const beforeRegistration = getPicker();
+		const registration = disposables.add(modelPickers.registerModelPicker({
+			getDomNode: () => modelNode,
+			open: () => opened.push('model'),
+			switchToModel: () => false,
+		}));
+		const model = getPicker();
+		model?.open();
+		registration.dispose();
+
+		assert.deepStrictEqual({
+			beforeRegistration,
+			modelNode: model?.getDomNode() === modelNode,
+			opened,
+			afterDisposal: getPicker(),
+		}, {
+			beforeRegistration: undefined,
+			modelNode: true,
+			opened: ['model'],
+			afterDisposal: undefined,
+		});
+	});
 
 	test('only keeps the input frame focused while editor text has focus', () => {
 		const stack = document.createElement('div');

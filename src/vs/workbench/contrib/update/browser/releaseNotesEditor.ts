@@ -14,12 +14,14 @@ import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { Event } from '../../../../base/common/event.js';
 import { escapeMarkdownSyntaxTokens } from '../../../../base/common/htmlContent.js';
 import { KeybindingParser } from '../../../../base/common/keybindingParser.js';
+import * as marked from '../../../../base/common/marked/marked.js';
 import { escape } from '../../../../base/common/strings.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { TokenizationRegistry } from '../../../../editor/common/languages.js';
 import { generateTokensCSSForColorMap } from '../../../../editor/common/languages/supports/tokenization.js';
 import { ILanguageService } from '../../../../editor/common/languages/language.js';
+import { tokenizeToString } from '../../../../editor/common/languages/textToHtmlTokenizer.js';
 import * as nls from '../../../../nls.js';
 import { IEnvironmentService } from '../../../../platform/environment/common/environment.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
@@ -48,6 +50,17 @@ import { AccessibilityCommandId } from '../../accessibility/common/accessibility
 import { RUN_ONBOARDING_TRYOUT_COMMAND_ID } from '../../onboarding/common/onboardingTryout.js';
 import { ReleaseNotesTryouts } from './releaseNotesTryouts.js';
 
+interface IReleaseNotesCodeBlock {
+	readonly id: string;
+	readonly text: string;
+	readonly language: string | undefined;
+}
+
+interface IReleaseNotesTokenization {
+	readonly value: string;
+	readonly codeBlocks: readonly { readonly id: string; readonly html: string }[];
+}
+
 export class ReleaseNotesManager extends Disposable {
 	private readonly _simpleSettingRenderer: SimpleSettingRenderer;
 	private readonly _releaseNotesCache = new Map<string, Promise<string>>();
@@ -57,6 +70,8 @@ export class ReleaseNotesManager extends Disposable {
 	private readonly _pendingDocument = this._register(new MutableDisposable<ReleaseNotesTryouts>());
 	private readonly _webviewDisposables = this._register(new MutableDisposable<DisposableStore>());
 	private _showRequest = 0;
+	private _tokenizationRequest = 0;
+	private _codeBlocks: readonly IReleaseNotesCodeBlock[] = [];
 
 	constructor(
 		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
@@ -77,7 +92,7 @@ export class ReleaseNotesManager extends Disposable {
 		super();
 
 		this._register(TokenizationRegistry.onDidChange(() => {
-			this.updateTokenization();
+			this.updateTokenization().catch(onUnexpectedError);
 		}));
 
 		this._register(_configurationService.onDidChangeConfiguration((e) => this.onDidChangeConfiguration(e)));
@@ -85,12 +100,29 @@ export class ReleaseNotesManager extends Disposable {
 		this._simpleSettingRenderer = this._instantiationService.createInstance(SimpleSettingRenderer);
 	}
 
-	private updateTokenization(): void {
+	private async updateTokenization(): Promise<void> {
+		const input = this._currentReleaseNotes;
+		const document = this._currentDocument.value;
+		if (!input || !document) {
+			return;
+		}
+		const request = ++this._tokenizationRequest;
+		const codeBlocks = await Promise.all(this._codeBlocks.map(async block => {
+			const languageId = block.language
+				? this._languageService.getLanguageIdByLanguageName(block.language) ?? this._languageService.getLanguageIdByLanguageName(block.language.split(/\s+|:|,|(?!^)\{|\?]/, 1)[0])
+				: null;
+			const html = block.language === undefined ? escape(block.text) : await tokenizeToString(this._languageService, block.text, languageId);
+			return { id: block.id, html: html.replace(/\n$/, '') + '\n' };
+		}));
+		if (request !== this._tokenizationRequest || this._currentDocument.value !== document || this._store.isDisposed) {
+			return;
+		}
 		const colorMap = TokenizationRegistry.getColorMap();
-		void this._currentReleaseNotes?.webview.postMessage({
+		await input.webview.postMessage({
 			type: 'releaseNotesTokenization',
-			documentId: this._currentDocument.value?.documentId,
+			documentId: document.documentId,
 			value: colorMap ? generateTokensCSSForColorMap(colorMap) : '',
+			codeBlocks,
 		});
 	}
 
@@ -114,9 +146,10 @@ export class ReleaseNotesManager extends Disposable {
 		}
 		const tryouts = this._instantiationService.createInstance(ReleaseNotesTryouts);
 		this._pendingDocument.value = tryouts;
+		const codeBlocks: IReleaseNotesCodeBlock[] = [];
 		let html: string;
 		try {
-			html = await this.renderBody({ text: releaseNoteText, base }, tryouts);
+			html = await this.renderBody({ text: releaseNoteText, base }, tryouts, codeBlocks);
 		} catch (error) {
 			if (this._pendingDocument.value === tryouts) {
 				this._pendingDocument.clear();
@@ -163,6 +196,7 @@ export class ReleaseNotesManager extends Disposable {
 				if (this._currentReleaseNotes === input) {
 					this._showRequest++;
 					this._currentReleaseNotes = undefined;
+					this._codeBlocks = [];
 					this._currentDocument.clear();
 					this._pendingDocument.clear();
 					this._webviewDisposables.clear();
@@ -179,7 +213,7 @@ export class ReleaseNotesManager extends Disposable {
 				}
 				if (e.message.type === 'releaseNotesTryoutsReady') {
 					this.updateCheckboxWebview();
-					this.updateTokenization();
+					this.updateTokenization().catch(onUnexpectedError);
 				} else if (e.message.type === 'showReleaseNotes') {
 					this._configurationService.updateValue('update.showReleaseNotes', e.message.value);
 				} else if (e.message.type === 'clickSetting') {
@@ -207,6 +241,7 @@ export class ReleaseNotesManager extends Disposable {
 
 		const input = this._currentReleaseNotes;
 		this._currentDocument.value = this._pendingDocument.clearAndLeak();
+		this._codeBlocks = codeBlocks;
 		tryouts.attach(input.webview, () => this._currentReleaseNotes === input
 			&& this._editorService.activeEditor === input && getWindow(input.webview.container).document.hasFocus());
 		input.webview.setHtml(html);
@@ -333,10 +368,10 @@ export class ReleaseNotesManager extends Disposable {
 		return uri;
 	}
 
-	private async renderBody(fileContent: { text: string; base: URI }, tryouts: ReleaseNotesTryouts) {
+	private async renderBody(fileContent: { text: string; base: URI }, tryouts: ReleaseNotesTryouts, codeBlocks: IReleaseNotesCodeBlock[]) {
 		const nonce = generateUuid();
 
-		const processedContent = await renderReleaseNotesMarkdown(fileContent.text, this._extensionService, this._languageService, this._simpleSettingRenderer, this._productService.quality, tryouts);
+		const processedContent = await renderReleaseNotesMarkdown(fileContent.text, this._extensionService, this._languageService, this._simpleSettingRenderer, this._productService.quality, tryouts, codeBlocks);
 
 		const colorMap = TokenizationRegistry.getColorMap();
 		const css = colorMap ? generateTokensCSSForColorMap(colorMap) : '';
@@ -669,7 +704,7 @@ export class ReleaseNotesManager extends Disposable {
 						if (event.data.type === 'showReleaseNotes') {
 							input.checked = event.data.value;
 						} else if (event.data.type === 'releaseNotesTokenization') {
-							document.getElementById('release-notes-tokenization').textContent = event.data.value;
+							(${applyReleaseNotesTokenization.toString()})(document, event.data);
 						}
 					});
 
@@ -762,6 +797,7 @@ export async function renderReleaseNotesMarkdown(
 	simpleSettingRenderer: SimpleSettingRenderer,
 	quality?: string,
 	tryouts?: ReleaseNotesTryouts,
+	codeBlocks?: IReleaseNotesCodeBlock[],
 ): Promise<TrustedHTML> {
 	// Remove HTML comment markers around table of contents navigation
 	text = text
@@ -789,16 +825,26 @@ export async function renderReleaseNotesMarkdown(
 		allowedTags: { augment: ['nav', 'svg', 'path'] },
 		allowedAttributes: { augment: ['aria-role', 'viewBox', 'fill', 'xmlns', 'd'] }
 	};
+	const codeBlockIds = new WeakMap<marked.Token, string>();
+	const renderer = new marked.Renderer();
 	const content = await renderMarkdownDocument(text, extensionService, languageService, {
 		sanitizerConfig,
 		markedExtensions: [{
+			walkTokens: token => {
+				if (codeBlocks && token.type === 'code') {
+					const id = `release-notes-code-${generateUuid()}`;
+					codeBlockIds.set(token, id);
+					codeBlocks.push({ id, text: token.text, language: token.lang });
+				}
+			},
 			renderer: {
 				html: simpleSettingRenderer.getHtmlRenderer(),
 				codespan: simpleSettingRenderer.getCodeSpanRenderer(),
+				code: token => codeBlocks ? renderer.code(token).replace('<code', `<code id="${codeBlockIds.get(token)}"`) : false,
 			}
 		}]
 	});
-	if (!tryouts) {
+	if (!tryouts || !tryouts.needsRender(content)) {
 		return content;
 	}
 	const tryoutSanitizerConfig = {
@@ -814,3 +860,23 @@ export async function renderReleaseNotesMarkdown(
 	tryouts.render(container);
 	return sanitizeHtml(container.innerHTML, tryoutSanitizerConfig);
 }
+
+/* eslint-disable no-restricted-syntax -- This serialized function accesses IDs owned by the isolated release notes webview. */
+export function applyReleaseNotesTokenization(targetDocument: Document, update: IReleaseNotesTokenization): void {
+	const scrollingElement = targetDocument.scrollingElement;
+	const scrollTop = scrollingElement?.scrollTop ?? 0;
+	const scrollLeft = scrollingElement?.scrollLeft ?? 0;
+	for (const block of update.codeBlocks) {
+		const code = targetDocument.getElementById(block.id);
+		if (code) {
+			// The host generates this markup with tokenizeToString, which escapes all source text.
+			code.innerHTML = block.html;
+		}
+	}
+	targetDocument.getElementById('release-notes-tokenization')!.textContent = update.value;
+	if (scrollingElement) {
+		scrollingElement.scrollTop = scrollTop;
+		scrollingElement.scrollLeft = scrollLeft;
+	}
+}
+/* eslint-enable no-restricted-syntax */

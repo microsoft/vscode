@@ -6,15 +6,22 @@
 import assert from 'assert';
 import { SinonStub, stub } from 'sinon';
 import { $ } from '../../../../../base/browser/dom.js';
+import { safeSetInnerHtml } from '../../../../../base/browser/domSanitize.js';
+import { mainWindow } from '../../../../../base/browser/window.js';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
+import { toDisposable } from '../../../../../base/common/lifecycle.js';
+import { Schemas } from '../../../../../base/common/network.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ICodeEditor } from '../../../../../editor/browser/editorBrowser.js';
 import { ICodeEditorService } from '../../../../../editor/browser/services/codeEditorService.js';
 import { ILanguageService } from '../../../../../editor/common/languages/language.js';
+import { EncodedTokenizationResult, TokenizationRegistry } from '../../../../../editor/common/languages.js';
+import { NullState } from '../../../../../editor/common/languages/nullTokenize.js';
+import { TokenTheme } from '../../../../../editor/common/languages/supports/tokenization.js';
 import { ITextModel } from '../../../../../editor/common/model.js';
 import { LanguageService } from '../../../../../editor/common/services/languageService.js';
 import { AccessibleViewProviderId } from '../../../../../platform/accessibility/browser/accessibleView.js';
@@ -43,7 +50,7 @@ import { IOverlayWebview, WebviewMessageReceivedEvent } from '../../../webview/b
 import { WebviewInput } from '../../../webviewPanel/browser/webviewEditorInput.js';
 import { IWebviewWorkbenchService } from '../../../webviewPanel/browser/webviewWorkbenchService.js';
 import { ReleaseNotesAccessibilityHelp } from '../../browser/releaseNotesAccessibilityHelp.js';
-import { ReleaseNotesManager } from '../../browser/releaseNotesEditor.js';
+import { applyReleaseNotesTokenization, ReleaseNotesManager } from '../../browser/releaseNotesEditor.js';
 
 suite('Release notes editor Try This integration', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -169,6 +176,97 @@ suite('Release notes editor Try This integration', () => {
 				states: [{ id: 'sample', kind: 'hidden', label: '', ariaLabel: '', href: '', message: '', setupLabel: '', setupAriaLabel: '' }],
 			}],
 		});
+	});
+
+	test('retokenizes code metadata on a theme change without replacing the document or cancelling a tryout', async () => {
+		const languageService = instantiationService.get(ILanguageService);
+		const language = 'release-notes-theme-test';
+		store.add(languageService.registerLanguage({ id: language }));
+		const languageId = languageService.languageIdCodec.encodeLanguageId(language);
+		let theme = TokenTheme.createFromRawTokenTheme([
+			{ token: '', foreground: 'cccccc', background: '000000' },
+			{ token: 'keyword', foreground: 'ff0000' },
+		], []);
+		const originalColorMap = TokenizationRegistry.getColorMap();
+		store.add(toDisposable(() => TokenizationRegistry.setColorMap(originalColorMap!)));
+		TokenizationRegistry.setColorMap(theme.getColorMap());
+		store.add(TokenizationRegistry.register(language, {
+			getInitialState: () => NullState,
+			tokenize: () => { throw new Error('Only encoded tokenization is used'); },
+			tokenizeEncoded: () => new EncodedTokenizationResult(new Uint32Array([0, theme.match(languageId, 'keyword')]), [], NullState),
+		}));
+		markdown += `\n\`\`\`${language}\nconst value = "<script>untrusted()</script>";\n\`\`\``;
+		await manager.show('1.100.0', true);
+		const originalDocumentId = documentId();
+		const container = $('div');
+		container.style.height = '100px';
+		container.style.overflow = 'auto';
+		safeSetInnerHtml(container, html[0], {
+			allowedLinkProtocols: { override: [Schemas.command] },
+			allowedTags: { augment: ['button'] },
+			allowedAttributes: { augment: ['class', 'id', 'hidden'] },
+		});
+		container.appendChild($('style', { id: 'release-notes-tokenization' }));
+		const spacer = container.appendChild($('div'));
+		spacer.style.height = '2000px';
+		mainWindow.document.body.appendChild(container);
+		store.add(toDisposable(() => container.remove()));
+		const targetDocument = new class extends mock<Document>() {
+			override readonly scrollingElement = container;
+			override getElementById(id: string) { return container.querySelector<HTMLElement>(`#${id}`); }
+		};
+		const code = container.querySelector('pre code')!;
+		const initialClass = code.querySelector('span')?.className;
+		const link = container.querySelector<HTMLAnchorElement>('.release-notes-tryout-link')!;
+		link.focus();
+		container.scrollTop = 75;
+		const scrollTop = container.scrollTop;
+		const pending = new DeferredPromise<OnboardingTryoutResult>();
+		let token: CancellationToken | undefined;
+		run = async (_id, sourceToken) => {
+			token = sourceToken;
+			return pending.p;
+		};
+		onMessage.fire({ message: { type: 'releaseNotesTryout', documentId: originalDocumentId, id: 'sample', index: 0, action: 'run' } });
+		messages.length = 0;
+
+		theme = TokenTheme.createFromRawTokenTheme([
+			{ token: '', foreground: '000000', background: 'ffffff' },
+			{ token: 'comment', foreground: '00aa00' },
+			{ token: 'keyword', foreground: '0000ff', fontStyle: 'bold' },
+		], []);
+		TokenizationRegistry.setColorMap(theme.getColorMap());
+		await timeout(0);
+		const update = messages.find((message): message is Parameters<typeof applyReleaseNotesTokenization>[1] & { type: string; documentId: string } => 'type' in message && message.type === 'releaseNotesTokenization')!;
+		applyReleaseNotesTokenization(targetDocument, update);
+
+		assert.deepStrictEqual({
+			initialClass,
+			updatedClass: code.querySelector('span')?.className,
+			updatedColor: update.value.includes('.mtk4 { color: #0000ff; }'),
+			codeText: code.textContent?.trim(),
+			activeMarkup: code.querySelectorAll('script').length,
+			htmlWrites: html.length,
+			sameDocument: update.documentId === originalDocumentId,
+			sameLink: container.querySelector('a') === link,
+			focused: mainWindow.document.activeElement === link,
+			scrollTop: container.scrollTop,
+			cancelled: token?.isCancellationRequested,
+		}, {
+			initialClass: 'mtk3',
+			updatedClass: 'mtk4 mtkb',
+			updatedColor: true,
+			codeText: 'const value = "<script>untrusted()</script>";',
+			activeMarkup: 0,
+			htmlWrites: 1,
+			sameDocument: true,
+			sameLink: true,
+			focused: true,
+			scrollTop,
+			cancelled: false,
+		});
+		await pending.complete({ kind: 'opened' });
+		await timeout(0);
 	});
 
 	test('reusing the webview cancels the old document and ignores its late result', async () => {

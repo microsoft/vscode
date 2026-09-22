@@ -4,6 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 export { GUIDED_TRYOUT_PRESENTATION_KIND } from './guidedTryoutPresentation.js';
-export { markOnboardingTarget } from './spotlight/onboardingTarget.js';
+export { markOnboardingTarget, registerOnboardingTargetProvider, type IOnboardingTarget } from './spotlight/onboardingTarget.js';
 export { createOnboardingClickStep, createOnboardingContextStep, type IOnboardingClickStepOptions, type IOnboardingContextStepOptions } from './spotlight/spotlightStep.js';
 export { SPOTLIGHT_PRESENTATION_KIND } from './spotlight/spotlightTypes.js';

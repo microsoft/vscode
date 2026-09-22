@@ -44,8 +44,8 @@ import { getGitHubRemoteInfo } from '../../../git/common/utils.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 
-export const OPEN_GITHUB_ISSUE_COMMAND = 'github.copilot.chat.cloudSessions.openIssue';
-export const OPEN_GITHUB_PULL_REQUEST_COMMAND = 'github.copilot.chat.cloudSessions.openPullRequest';
+const OPEN_GITHUB_ISSUE_COMMAND = 'github.copilot.chat.cloudSessions.openIssue';
+const OPEN_GITHUB_PULL_REQUEST_COMMAND = 'github.copilot.chat.cloudSessions.openPullRequest';
 
 interface IGitHubContextSelection {
 	readonly repoId: string;
@@ -118,7 +118,7 @@ export class GitHubContextValuePick implements IChatContextValueItem {
 	readonly icon: ThemeIcon;
 	readonly ordinal = -450;
 
-	readonly commandId: string;
+	private readonly _commandId: string;
 
 	constructor(
 		kind: 'issue' | 'pullRequest',
@@ -130,11 +130,11 @@ export class GitHubContextValuePick implements IChatContextValueItem {
 		if (kind === 'issue') {
 			this.label = localize('chatContext.githubIssue', "Issue...");
 			this.icon = Codicon.issues;
-			this.commandId = OPEN_GITHUB_ISSUE_COMMAND;
+			this._commandId = OPEN_GITHUB_ISSUE_COMMAND;
 		} else {
 			this.label = localize('chatContext.githubPullRequest', "Pull Request...");
 			this.icon = Codicon.gitPullRequest;
-			this.commandId = OPEN_GITHUB_PULL_REQUEST_COMMAND;
+			this._commandId = OPEN_GITHUB_PULL_REQUEST_COMMAND;
 		}
 	}
 
@@ -142,29 +142,23 @@ export class GitHubContextValuePick implements IChatContextValueItem {
 		return true;
 	}
 
-	async asAttachment(_widget?: IChatWidget, token = CancellationToken.None): Promise<IChatRequestVariableEntry | undefined> {
-		if (token.isCancellationRequested) {
-			return undefined;
-		}
+	async asAttachment(): Promise<IChatRequestVariableEntry | undefined> {
 		const repositories = await this.getRepositoryPicks();
-		if (token.isCancellationRequested) {
-			return undefined;
-		}
 		let repository: IGitHubRepositoryPick | undefined;
 
 		if (repositories.length === 1) {
 			repository = repositories[0];
 		} else if (repositories.length > 1) {
-			repository = await this.pickRepository(repositories, token);
+			repository = await this.pickRepository(repositories);
 		}
 
-		if (token.isCancellationRequested || repositories.length > 1 && !repository) {
+		if (repositories.length > 1 && !repository) {
 			return undefined;
 		}
 
 		const repositoryArgument = repository?.repoId ?? this.getRepositoryId(repository?.folderUri) ?? repository?.folderUri;
-		const selection = await this.commandService.executeCommand<IGitHubContextSelection | undefined>(this.commandId, repositoryArgument);
-		if (token.isCancellationRequested || !selection) {
+		const selection = await this.commandService.executeCommand<IGitHubContextSelection | undefined>(this._commandId, repositoryArgument);
+		if (!selection) {
 			return undefined;
 		}
 
@@ -180,14 +174,13 @@ export class GitHubContextValuePick implements IChatContextValueItem {
 		};
 	}
 
-	protected async pickRepository(repositories: readonly IGitHubRepositoryPick[], token = CancellationToken.None): Promise<IGitHubRepositoryPick | undefined> {
+	protected async pickRepository(repositories: readonly IGitHubRepositoryPick[]): Promise<IGitHubRepositoryPick | undefined> {
 		return this.quickInputService.pick<IGitHubRepositoryPick>(
 			[...repositories],
 			{
 				canPickMany: false,
 				placeHolder: localize('chatContext.githubRepository.placeholder', "Select a repository"),
-			},
-			token,
+			}
 		);
 	}
 

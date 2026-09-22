@@ -4,7 +4,7 @@
 
 Open this file, then run **Developer: Open Current File as Release Notes**.
 
-This page demonstrates several useful levels of interaction. A release-note feature does not need to reproduce its complete behavior to provide value.
+This page demonstrates the model-picker and diff-editor examples.
 
 ## Try it: Smart diff layout
 
@@ -16,22 +16,6 @@ The comparison uses bundled sample text, not workspace files. In the diff editor
 [Try Smart Diff Layout](command:workbench.action.onboarding.tryFeature?%5B%22editor.smart-diff%22%5D)
 %ENDIF % -->
 
-## Help me get ready: Create an automation
-
-Use this pattern when the user should perform prerequisite or navigation actions in the real product.
-
-The action opens the Agents window and asks you to:
-
-1. Select **Automations** in the sidebar.
-2. Review the **Built-in Templates** section.
-3. Select **Create Automation**.
-
-The tour advances after your real sidebar selection. Nothing is saved until you choose **Create** in the configuration dialog. When account or feature prerequisites are missing, the action explains what is needed instead of enabling them automatically.
-
-<!-- %IF TRYOUTS %
-[Try Creating an Automation](command:workbench.action.onboarding.tryFeature?%5B%22automations.create%22%5D)
-%ENDIF % -->
-
 ## Guide me: Model and provider selection
 
 Use this pattern for a control whose choices have important capability, speed, provider, or billing implications.
@@ -40,46 +24,6 @@ The action opens a new unsent composer in the Agents window, highlights the mode
 
 <!-- %IF TRYOUTS %
 [Explore Models and Providers](command:workbench.action.onboarding.tryFeature?%5B%22chat.model-provider-selection%22%5D)
-%ENDIF % -->
-
-## Guide me: Unified workspace and repository picker
-
-Use this pattern when users primarily need to know where a feature lives.
-
-The action opens a new unsent composer in the Agents window, highlights **Workspace**, and opens the unified list of local folders, GitHub repositories, Cloud repositories, and remote targets. It does not select a workspace or send a prompt. If the experimental setting is disabled, the action offers to open the setting without changing it.
-
-<!-- %IF TRYOUTS %
-[Explore the Unified Workspace Picker](command:workbench.action.onboarding.tryFeature?%5B%22chat.unified-workspace-picker%22%5D)
-%ENDIF % -->
-
-## Try it: Built-in Codicons chat background
-
-Use this pattern when a reversible appearance preference is the feature.
-
-The action replaces the Agents chat background for the current color theme with the built-in, theme-aware **Codicons** pattern. It does not change a session, workspace, model, or prompt. Use **Chat: Set Background...** to change or remove it later. Chat backgrounds remain unavailable in high contrast themes.
-
-<!-- %IF TRYOUTS %
-[Try the Codicons Chat Background](command:workbench.action.onboarding.tryFeature?%5B%22chat.codicons-background%22%5D)
-%ENDIF % -->
-
-## Guide me: Share an Integrated Browser page
-
-Use this pattern when a privacy-sensitive control should remain an explicit user action.
-
-The action opens the Visual Studio Code website in the Integrated Browser and highlights **Share with Agent**. The page remains private unless you select the control and confirm sharing.
-
-<!-- %IF TRYOUTS %
-[Explore Share with Agent](command:workbench.action.onboarding.tryFeature?%5B%22browser.share-with-agent%22%5D)
-%ENDIF % -->
-
-## Explain safely: unavailable example
-
-Use this fallback when the installed product does not register the referenced experience.
-
-This deliberately unknown identifier must render as unavailable and must not execute a command.
-
-<!-- %IF TRYOUTS %
-[Unavailable Example](command:workbench.action.onboarding.tryFeature?%5B%22validation.not-registered%22%5D)
 %ENDIF % -->
 
 ## Compatibility: existing release-note behavior

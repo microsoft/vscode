@@ -869,7 +869,6 @@ export class NewChatWidget extends Disposable {
 			icon: Codicon.project,
 			reflectsWorkspace: true,
 			attachesContext: false,
-			onboardingTargetScope: () => this._session.get()?.sessionId,
 		};
 		const row = this._workspacePicker.renderCategoryTriggers(container, [
 			workspaceTrigger,

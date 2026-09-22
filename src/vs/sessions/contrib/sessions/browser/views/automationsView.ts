@@ -61,12 +61,9 @@ import { SessionsFlatList, SessionItemStatusContext } from './sessionsList.js';
 import { AUTOMATIONS_CUSTOM_VIEW_ID } from '../automationsConstants.js';
 import { ARCHIVE_SESSION_COMMAND_ID, MARK_SESSION_READ_COMMAND_ID, MARK_SESSION_UNREAD_COMMAND_ID, RENAME_SESSION_COMMAND_ID, UNARCHIVE_SESSION_COMMAND_ID } from '../../../../common/sessionCommands.js';
 import { IAutomationTemplate, readAutomationTemplates } from './automationTemplates.js';
-import { AutomationOnboardingTarget } from '../../../../../workbench/contrib/chat/common/automations/automationOnboarding.js';
-import { markOnboardingTarget } from '../../../../../workbench/contrib/onboarding/browser/onboarding.js';
 
 const $ = DOM.$;
 const STOP_AUTOMATION_RUN_SESSION_COMMAND_ID = 'sessions.automations.stopRunSession';
-const NEW_AUTOMATION_COMMAND_ID = 'sessionsView.newAutomation';
 export const SEEN_PLUGIN_AUTOMATION_TEMPLATES_STORAGE_KEY = 'sessions.automations.seenPluginTemplateIds';
 const AutomationCardCanDeleteContext = new RawContextKey<boolean>('sessionsAutomationCardCanDelete', false);
 const AutomationCardCanUpdateContext = new RawContextKey<boolean>('sessionsAutomationCardCanUpdate', false);
@@ -728,7 +725,6 @@ class AutomationCardsSection extends Disposable {
 		this.emptyCreateButton = createButton;
 		createButton.label = localize('createAutomation', "Create Automation");
 		createButton.element.classList.add('automations-cards-create-button');
-		this.emptyStateDisposables.add(markOnboardingTarget(createButton.element, AutomationOnboardingTarget.Create));
 		this.emptyStateDisposables.add(createButton.onDidClick(() => this.openCreateDialog()));
 	}
 
@@ -755,13 +751,6 @@ class AutomationCardsSection extends Disposable {
 				}
 			},
 		}).section;
-		this.templateDisposables.add(markOnboardingTarget(this.builtInTemplatesSection, AutomationOnboardingTarget.BuiltInTemplates, {
-			open: () => {
-				if (this.builtInTemplatesSection) {
-					this.builtInTemplatesSection.open = true;
-				}
-			},
-		}));
 
 		if (pluginTemplates.length > 0) {
 			const rendered = this.renderTemplateSection({
@@ -906,7 +895,6 @@ class AutomationCardsSection extends Disposable {
 		}));
 		createButton.label = localize('createAutomation', "Create Automation");
 		createButton.element.classList.add('automations-cards-state-create-button');
-		this.stateDisposables.add(markOnboardingTarget(createButton.element, AutomationOnboardingTarget.Create));
 		this.stateDisposables.add(createButton.onDidClick(() => this.openCreateDialog()));
 		return createButton;
 	}
@@ -1856,7 +1844,7 @@ export class AutomationsCustomViewContribution extends Disposable {
 		}));
 
 		// Header actions share one control treatment while preserving primary/secondary hierarchy.
-		this._register(actionViewItemService.register(Menus.CustomViewAutomations, NEW_AUTOMATION_COMMAND_ID, (action, options, instantiationService) => {
+		this._register(actionViewItemService.register(Menus.CustomViewAutomations, 'sessionsView.newAutomation', (action, options, instantiationService) => {
 			if (!(action instanceof MenuItemAction)) {
 				return undefined;
 			}
@@ -1948,9 +1936,6 @@ class AutomationHeaderButtonActionViewItem extends BaseActionViewItem {
 		container.classList.add('chat-pill-item');
 		const button = this.button = this._register(new Button(container, { secondary: this.secondary, ...defaultButtonStyles }));
 		button.element.classList.add('monaco-text-button', 'chat-pill-button');
-		if (this.action.id === NEW_AUTOMATION_COMMAND_ID) {
-			this._register(markOnboardingTarget(button.element, AutomationOnboardingTarget.Create));
-		}
 		this._register(button.onDidClick(() => {
 			if (this._action.enabled) {
 				this.actionRunner.run(this._action, this._context);
@@ -1979,7 +1964,7 @@ class AutomationHeaderButtonActionViewItem extends BaseActionViewItem {
 registerAction2(class NewAutomationAction extends Action2 {
 	constructor() {
 		super({
-			id: NEW_AUTOMATION_COMMAND_ID,
+			id: 'sessionsView.newAutomation',
 			title: localize2('newAutomation', "New Automation"),
 			precondition: ChatAutomationsEnabledContext,
 			menu: [{ id: Menus.CustomViewAutomations, group: 'navigation', order: 1, when: ContextKeyExpr.and(ChatAutomationsEnabledContext, AutomationsHasItemsContext) }],

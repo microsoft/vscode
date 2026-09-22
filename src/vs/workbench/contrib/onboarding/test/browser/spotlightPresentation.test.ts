@@ -9,13 +9,14 @@ import { mainWindow } from '../../../../../base/browser/window.js';
 import { disposableTimeout } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
+import { hasKey } from '../../../../../base/common/types.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
 import { TestHostService, TestLayoutService } from '../../../../test/browser/workbenchTestServices.js';
 import { SpotlightPresentation } from '../../browser/spotlight/spotlightPresentation.js';
-import { IOnboardingTargetOptions, markOnboardingTarget } from '../../browser/spotlight/onboardingTarget.js';
+import { IOnboardingTargetOptions, markOnboardingTarget, ONBOARDING_TARGET_ATTR, registerOnboardingTargetProvider } from '../../browser/spotlight/onboardingTarget.js';
 import { ISpotlightPayload, ISpotlightStep, SPOTLIGHT_PRESENTATION_KIND } from '../../browser/spotlight/spotlightTypes.js';
 import { IOnboardingScenario, OnboardingDismissReason, OnboardingOutcome } from '../../common/onboardingScenario.js';
 
@@ -102,6 +103,57 @@ suite('SpotlightPresentation', () => {
 			},
 		});
 	});
+
+	for (const runAsSequenceStep of [false, true]) {
+		test(`waits for an owner-provided control and invokes its opener (runAsSequenceStep: ${runAsSequenceStep})`, async () => {
+			const container = createContainer();
+			const contextKeyService = disposables.add(new ContextKeyService(new TestConfigurationService()));
+			const presentation = disposables.add(new SpotlightPresentation(new SpotlightTestLayoutService(container), new TestHostService(), contextKeyService));
+			const target = $('button');
+			target.style.cssText = 'position: fixed; left: 100px; top: 100px; width: 100px; height: 30px;';
+			container.appendChild(target);
+			let ready = false;
+			let opened = 0;
+			disposables.add(registerOnboardingTargetProvider('test.provided', scope => ready && scope === 'prepared' ? {
+				element: target,
+				open: () => {
+					opened++;
+					target.click();
+				},
+			} : undefined));
+			const step: ISpotlightStep = {
+				id: 'provided',
+				targetId: 'test.provided',
+				title: 'Provided control',
+				description: 'Use the control exposed by its owner.',
+				openTarget: true,
+				advanceOnTargetClick: true,
+				missingTarget: { kind: 'wait', timeoutMs: 500 },
+				onBeforeShow: () => {
+					disposables.add(disposableTimeout(() => ready = true, 100));
+				},
+			};
+			const context = { targetWindow: mainWindow, targetScope: 'prepared', onAbort: Event.None };
+			const result = runAsSequenceStep
+				? await presentation.runStep({ id: step.id, kind: SPOTLIGHT_PRESENTATION_KIND, payload: step }, {
+					...context,
+					cancellationToken: CancellationToken.None,
+					stepIndex: 0,
+					visualStepIndex: 0,
+					visualStepCount: 1,
+					canGoBack: false,
+					isLastVisualStep: true,
+				})
+				: await presentation.run(createScenario('test.provided', step), context);
+
+			assert.deepStrictEqual({
+				shown: result.shown,
+				completed: hasKey(result, { action: true }) ? result.action === 'next' : result.outcome === OnboardingOutcome.Completed,
+				opened,
+				marked: target.hasAttribute(ONBOARDING_TARGET_ATTR),
+			}, { shown: true, completed: true, opened: 1, marked: false });
+		});
+	}
 
 	test('waits for a late target and skips a missing target immediately', async () => {
 		const container = createContainer();

@@ -2,7 +2,7 @@
 
 # Feature tryouts
 
-Feature tryouts connect release-note links to trusted product interactions. A tryout can open a view or editor, prepare an isolated sample, create an unsent Chat draft, or guide the user through existing controls with onboarding spotlights.
+Feature tryouts connect release-note links to trusted product interactions. A tryout can open a view or editor, prepare an isolated sample, or guide the user through existing controls with onboarding spotlights.
 
 Tryouts reuse the onboarding scenario and sequence primitives, but have a separate presentation registry and runtime lifecycle. They do not participate in automatic scheduling, experiment assignment, or shown-state persistence.
 
@@ -50,6 +50,12 @@ this._register(registerOnboardingTryout<ICommandTryoutPayload>({
 ```
 
 The contribution must be imported by every workbench entry point where the tryout is available. Shared routing metadata must live in a layer loaded by both the source and destination windows; implementation stays with the owning feature.
+
+### Keep feature implementations independent
+
+Put tryout policy, target IDs, scopes, and guidance in a feature-owned integration adapter, not in the reusable feature implementation. Feature components should work without loading the tryout contribution and expose only their normal control APIs, such as their element and open or focus operations. Do not thread onboarding-specific identifiers through feature constructors, toolbar factories, or domain interfaces, or change normal feature commands to carry tryout state.
+
+The adapter registers target providers backed by those owner-provided APIs. A provider can serve an existing automatic tour through the feature's active owner and a tryout through its captured run scope. Keep registration lightweight and resolve services lazily when a target or preparation is requested. See [newSessionPickerTryout.ts](../../../sessions/contrib/chat/browser/newSessionPickerTryout.ts), which adapts composer picker capabilities without requiring an existing session or adding onboarding state to the composer.
 
 ## Availability and setup
 
@@ -136,19 +142,11 @@ Open bundled, read-only sample content without reading or modifying workspace fi
 
 Text samples use `type: 'text'` with a `text` property. Keep samples small and deterministic.
 
-### Chat draft
+## Feature-owned launch presentations
 
-Use the Chat-owned draft presentation when the example requires an exact Chat widget, mode, model, attachment picker, or prepared prompt.
+Use a feature-owned presentation when a launch needs the owning feature's normal APIs and a run-scoped target. The model-picker adapter opens the normal Agents composer and captures its model-picker control, including when no session exists yet. It does not select a model or provider or submit input.
 
-The presentation:
-
-- creates or targets an isolated draft;
-- binds later actions to that exact widget;
-- does not call `acceptInput`;
-- rechecks provider, model, policy, and session identity after asynchronous preparation;
-- disposes models, modes, attachments, and listeners with the run.
-
-See [chatDraftTryoutPresentation.ts](../chat/browser/onboarding/chatDraftTryoutPresentation.ts) and [chatDraftTryout.test.ts](../chat/test/browser/onboarding/chatDraftTryout.test.ts) for the canonical implementation and contract tests.
+See [newSessionPickerTryout.ts](../../../sessions/contrib/chat/browser/newSessionPickerTryout.ts) and its [contract tests](../../../sessions/contrib/chat/test/browser/newSessionPickerTryout.test.ts).
 
 ## Guided tryouts
 
@@ -191,38 +189,56 @@ Spotlights are keyboard operable, dismissible with Escape, and keep interactive 
 
 ## Own and scope spotlight targets
 
-Components mark their own controls:
+Feature-owned adapters can register target providers that resolve controls through their owner's API:
 
 ```ts
-this._register(markOnboardingTarget(element, MY_FEATURE_ONBOARDING_TARGET, {
-	open: () => this.openControl(),
+this._register(registerOnboardingTargetProvider(MY_FEATURE_ONBOARDING_TARGET, scope => {
+	const owner = scope === undefined ? featureService.activeOwner : ownersByScope.get(scope);
+	const control = owner?.control;
+	const element = control?.getDomNode();
+	return control && element ? { element, open: () => control.open() } : undefined;
 }));
 ```
 
-Do not query another component's classes or DOM structure.
+The shared resolver validates the element's document and visibility. A registered provider is authoritative: returning `undefined` does not fall back to marked DOM elements. In particular, an unknown or expired scope must not fall back to the feature's active owner.
+
+Spotlight retries provider resolution according to the step's `missingTarget` policy, so controls may render after the run is prepared. Adapters do not need to poll or mark DOM nodes while waiting. Do not query another component's classes or DOM structure.
+
+Existing owner-marked targets remain supported through `markOnboardingTarget`. It can also be used by an adapter when the control is already materialized and its lifetime is straightforward:
+
+```ts
+const element = control.getDomNode();
+if (element) {
+	context.store.add(markOnboardingTarget(element, MY_FEATURE_ONBOARDING_TARGET, {
+		scope: targetScope,
+		open: () => control.open(),
+	}));
+}
+```
+
+Marked targets are used only when no provider is registered for the ID. Keep marker registration with the owner or adapter's lifetime rather than adding onboarding-specific state to reusable feature APIs.
 
 ### Unique targets
 
-An unscoped target ID is valid only when at most one matching control can be visible in the target window. Views and singleton sidebar controls commonly meet this requirement.
+An unscoped target must identify one intended control. Singleton views can use a plain mark; an existing automatic tour can use a provider that explicitly chooses the feature's active owner. Do not select the first of several unrelated visible controls.
 
 ### Multi-instance targets
 
-Editors, Chat widgets, split panes, and repeated list controls require a run-scoped target:
+Editors, Chat widgets, split panes, and repeated list controls require a run-scoped target. Capture the exact owner after preparing the UI and generate the scope in the adapter rather than adding onboarding state to the feature:
 
 ```ts
-this._register(markOnboardingTarget(element, MY_FEATURE_ONBOARDING_TARGET, {
-	scope: () => this.model.id,
-	open: () => this.openControl(),
-}));
+const targetScope = generateUuid();
+ownersByScope.set(targetScope, preparedOwner);
+context.store.add(toDisposable(() => ownersByScope.delete(targetScope)));
 ```
 
-The launch command returns the same opaque scope:
+The provider resolves scoped requests only from this binding, even if another owner becomes active. Disposing the run removes the binding. The launch presentation returns the same opaque scope:
 
 ```ts
-return { targetScope: model.id };
+return { kind: 'prepared', targetScope };
 ```
 
-The guided command payload opts into capturing it:
+When using a dedicated tryout command as the adapter instead, its result supplies `{ targetScope }` and the guided command payload opts into capturing it:
 
 ```ts
 {
@@ -278,9 +294,7 @@ A spotlight alone can be valuable. A tryout does not need to reproduce the featu
 ## Canonical examples
 
 - [diffEditorTryout.contribution.ts](../codeEditor/browser/diffEditorTryout.contribution.ts): isolated editor sample.
-- [automationTryout.contribution.ts](../chat/browser/automations/automationTryout.contribution.ts): Agents-window prerequisite sequence.
 - [modelPickerTryout.contribution.ts](../chat/browser/onboarding/modelPickerTryout.contribution.ts): scoped multi-instance target.
-- [workspacePickerTryout.contribution.ts](../chat/browser/onboarding/workspacePickerTryout.contribution.ts): setting-gated, scoped control discovery.
 - [releaseNotesTryouts.md](test/browser/fixtures/releaseNotesTryouts.md): manual showcase document.
 
 ## Validation
@@ -296,5 +310,6 @@ At minimum:
 7. For cross-window examples, test cancellation, supersession, destination validation, and one-shot delivery.
 8. For native browser targets, verify the real `WebContentsView` is hidden behind overlays.
 9. Run the smallest relevant unit suites, layer validation for import changes, and `npm run build-fast` when broad product validation is appropriate.
+10. Test that the feature's normal controls and commands work without registering its tryout adapter.
 
 Use [onboardingTryoutService.test.ts](test/browser/onboardingTryoutService.test.ts), [guidedTryoutPresentation.test.ts](test/browser/guidedTryoutPresentation.test.ts), [spotlightPresentation.test.ts](test/browser/spotlightPresentation.test.ts), and [onboardingTryoutWindow.test.ts](test/electron-browser/onboardingTryoutWindow.test.ts) as framework references.

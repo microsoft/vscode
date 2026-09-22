@@ -163,4 +163,58 @@ suite('openAgentsWindow - tryouts', () => {
 			result: 'accepted',
 		});
 	});
+
+	test('a delayed older open from another source cannot supersede a newer accepted request', async () => {
+		const window = new TestCodeWindow();
+		const firstWindow = new DeferredPromise<ICodeWindow[]>();
+		const service = upcastPartial<IWindowsMainService>({
+			openAgentsWindow: async config => config.contextWindowId === 42 ? firstWindow.p : [window],
+		});
+		const newerRequest = { requestId: '11234567-89ab-4cde-8fab-0123456789ab', tryoutId: 'test.newerExample' };
+		const older = openAgentsWindow(service, { context: OpenContext.API, contextWindowId: 42, cli: { _: [] } }, { tryoutRequest: request });
+		const newer = openAgentsWindow(service, { context: OpenContext.API, contextWindowId: 43, cli: { _: [] } }, { tryoutRequest: newerRequest });
+		await timeout(0);
+		completeOnboardingTryout(window.id, newerRequest.requestId, 'accepted');
+		const newerResult = await newer;
+		await firstWindow.complete([window]);
+
+		assert.deepStrictEqual({
+			newerResult,
+			olderResult: await older,
+			delivered: window.requests.map(({ args }) => args),
+			focusCount: window.focusCount,
+		}, {
+			newerResult: 'accepted',
+			olderResult: 'superseded',
+			delivered: [[newerRequest]],
+			focusCount: 1,
+		});
+	});
+
+	test('a newer source request cancels delivery queued until the destination is ready', async () => {
+		const window = new TestCodeWindow();
+		const service = upcastPartial<IWindowsMainService>({
+			openAgentsWindow: async () => [window],
+		});
+		const newerRequest = { requestId: '11234567-89ab-4cde-8fab-0123456789ab', tryoutId: 'test.newerExample' };
+		const older = openAgentsWindow(service, { context: OpenContext.API, contextWindowId: 42, cli: { _: [] } }, { tryoutRequest: request });
+		await timeout(0);
+		const newer = openAgentsWindow(service, { context: OpenContext.API, contextWindowId: 43, cli: { _: [] } }, { tryoutRequest: newerRequest });
+		await timeout(0);
+		completeOnboardingTryout(window.id, newerRequest.requestId, 'accepted');
+
+		assert.deepStrictEqual({
+			olderResult: await older,
+			newerResult: await newer,
+			requests: window.requests.map(({ channel, token, args }) => ({ channel, cancelled: token.isCancellationRequested, args })),
+		}, {
+			olderResult: 'superseded',
+			newerResult: 'accepted',
+			requests: [
+				{ channel: 'vscode:runOnboardingTryout', cancelled: true, args: [request] },
+				{ channel: 'vscode:cancelOnboardingTryout', cancelled: false, args: [request.requestId] },
+				{ channel: 'vscode:runOnboardingTryout', cancelled: false, args: [newerRequest] },
+			],
+		});
+	});
 });

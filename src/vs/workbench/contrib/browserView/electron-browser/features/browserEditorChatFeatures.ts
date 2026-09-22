@@ -49,8 +49,6 @@ import { AccessibleViewRegistry, IAccessibleViewImplementation } from '../../../
 import { AccessibilityVerbositySettingId } from '../../../accessibility/browser/accessibilityConfiguration.js';
 import { ChatPetAchievementIds, shouldUnlockChatPetIntegratedBrowserShare } from '../../../chat/browser/chatPetAchievements.js';
 import { IChatPetService } from '../../../chat/browser/chatPetService.js';
-import { markOnboardingTarget } from '../../../onboarding/browser/onboarding.js';
-import { BROWSER_SHARE_WITH_AGENT_ONBOARDING_TARGET_ID } from '../../common/browserShareTryout.js';
 
 // Register tools
 import '../tools/browserTools.contribution.js';
@@ -208,9 +206,6 @@ export class BrowserEditorChatIntegration extends BrowserEditorContribution {
 		}));
 		this._shareButton.element.classList.add('browser-share-toggle');
 		this._shareButton.label = '$(share-window)';
-		this._register(markOnboardingTarget(this._shareButton.element, BROWSER_SHARE_WITH_AGENT_ONBOARDING_TARGET_ID, {
-			scope: () => this.editor.model?.id,
-		}));
 
 		this._register(this._shareButton.onDidClick(() => {
 			void this._toggleShareWithAgent();

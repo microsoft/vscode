@@ -60,7 +60,13 @@ export interface INewSessionPromptOptionsController {
 	onDidClose(): void;
 }
 
+export interface INewSessionComposerPicker {
+	getDomNode(): HTMLElement | undefined;
+	open(): void;
+}
+
 export interface INewSessionComposer {
+	readonly modelPicker?: INewSessionComposerPicker;
 	readonly workspacePreselectionSource?: NewSessionWorkspacePreselectionSource;
 	readonly workspaceSelection?: IWorkspaceSelectionSnapshot;
 	readonly onDidChangeWorkspaceSelection?: Event<void>;

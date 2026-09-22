@@ -43,13 +43,12 @@ import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { HoverPosition } from '../../../../../base/browser/ui/hover/hoverWidget.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IPreferencesService } from '../../../../services/preferences/common/preferences.js';
-import { disposableTimeout, raceTimeout } from '../../../../../base/common/async.js';
+import { disposableTimeout } from '../../../../../base/common/async.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { IsSessionsWindowContext, ResourceContextKey } from '../../../../common/contextkeys.js';
 import { Schemas } from '../../../../../base/common/network.js';
 
 const CONTEXT_BROWSER_EDITOR_OPEN = new RawContextKey<boolean>('browserEditorOpen', false, localize('browser.editorOpen', "Whether any browser editor is currently open"));
-const OPEN_BROWSER_LOAD_TIMEOUT_MS = 30_000;
 
 interface IBrowserQuickPickItem extends IQuickPickItem {
 	groupId: GroupIdentifier;
@@ -262,8 +261,6 @@ class QuickOpenBrowserAction extends Action2 {
 interface IOpenBrowserOptions {
 	url?: string;
 	openToSide?: boolean;
-	openInMainWindow?: boolean;
-	waitForPageLoad?: boolean;
 
 	/**
 	 * If set, the first existing tab with a URL matching this glob pattern will be reused / focused instead of opening a new tab.
@@ -271,10 +268,6 @@ interface IOpenBrowserOptions {
 	 * This is used by Live Preview extension to reuse tabs, especially after reload / restart.
 	 */
 	reuseUrlFilter?: string;
-}
-
-interface IOpenBrowserResult {
-	readonly targetScope: string;
 }
 
 class OpenIntegratedBrowserAction extends Action2 {
@@ -288,18 +281,15 @@ class OpenIntegratedBrowserAction extends Action2 {
 		});
 	}
 
-	async run(accessor: ServicesAccessor, urlOrOptions?: string | IOpenBrowserOptions): Promise<IOpenBrowserResult | undefined> {
+	async run(accessor: ServicesAccessor, urlOrOptions?: string | IOpenBrowserOptions): Promise<void> {
 		const editorService = accessor.get(IEditorService);
 		const telemetryService = accessor.get(ITelemetryService);
 		const browserViewService = accessor.get(IBrowserViewWorkbenchService);
 
 		// Parse arguments
 		const options = typeof urlOrOptions === 'string' ? { url: urlOrOptions } : (urlOrOptions ?? {});
-		const browserId = generateUuid();
-		const resource = BrowserViewUri.forId(browserId);
-		const group = options.openInMainWindow
-			? accessor.get(IEditorGroupsService).mainPart.activeGroup
-			: await browserViewService.getPreferredGroup(options.openToSide ? SIDE_GROUP : undefined);
+		const resource = BrowserViewUri.forId(generateUuid());
+		const group = await browserViewService.getPreferredGroup(options.openToSide ? SIDE_GROUP : undefined);
 
 		if (options.reuseUrlFilter) {
 			const filterUri = URI.parse(options.reuseUrlFilter);
@@ -333,36 +323,18 @@ class OpenIntegratedBrowserAction extends Action2 {
 				// relocating it into the docked group (which would move a tab out of a
 				// modal group when `workbench.editor.useModal: 'all'`).
 				await editorService.openEditor(matchingEditor);
-				return { targetScope: matchingEditor.id };
+				return;
 			}
 		}
 
 		logBrowserOpen(telemetryService, options.url ? 'commandWithUrl' : 'commandWithoutUrl');
 
-		const editorPane = await editorService.openEditor({
-			resource,
-			options: { viewState: { url: options.waitForPageLoad ? undefined : options.url } }
-		}, group);
+		const editorPane = await editorService.openEditor({ resource, options: { viewState: { url: options.url } } }, group);
 
 		// Lock the group when opening to the side
 		if (options.openToSide && editorPane?.group) {
 			editorPane.group.lock(true);
 		}
-		if (options.waitForPageLoad && options.url) {
-			const url = options.url;
-			const model = editorPane instanceof BrowserEditor ? editorPane.model : undefined;
-			if (model?.id !== browserId) {
-				return undefined;
-			}
-			const didLoad = await raceTimeout((async () => {
-				await model.loadURL(url);
-				return true;
-			})(), OPEN_BROWSER_LOAD_TIMEOUT_MS);
-			if (!didLoad) {
-				return undefined;
-			}
-		}
-		return editorPane ? { targetScope: browserId } : undefined;
 	}
 }
 

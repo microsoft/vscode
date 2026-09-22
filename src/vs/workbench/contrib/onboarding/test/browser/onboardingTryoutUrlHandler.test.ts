@@ -37,6 +37,7 @@ suite('Onboarding tryout URL handler', () => {
 		readonly scenarios?: readonly IOnboardingTryoutScenario[];
 		readonly confirm?: (confirmation: IConfirmation) => Promise<IConfirmationResult>;
 		readonly getAvailability?: (id: string) => OnboardingTryoutAvailability;
+		readonly executeCommand?: (id: string, ...args: unknown[]) => Promise<void>;
 	} = {}) {
 		const scenarios = new Map((options.scenarios ?? [createScenario('test.tryout')]).map(scenario => [scenario.id, scenario]));
 		const confirmations: IConfirmation[] = [];
@@ -80,6 +81,7 @@ suite('Onboarding tryout URL handler', () => {
 		const commandService = upcastPartial<ICommandService>({
 			executeCommand: async (id: string, ...args: unknown[]) => {
 				commands.push({ id, args });
+				await options.executeCommand?.(id, ...args);
 				return undefined;
 			},
 		});
@@ -243,6 +245,55 @@ suite('Onboarding tryout URL handler', () => {
 			focusCount: 1,
 			confirmationCount: 1,
 			commands: [],
+		});
+	});
+
+	test('allows a new confirmation during an active tryout without clearing its guard when the first run ends', async () => {
+		const firstCommandStarted = new DeferredPromise<void>();
+		const finishFirstCommand = new DeferredPromise<void>();
+		const secondConfirmationStarted = new DeferredPromise<void>();
+		const secondConfirmationResult = new DeferredPromise<IConfirmationResult>();
+		let confirmationCount = 0;
+		const harness = createHandler({
+			scenarios: [createScenario('test.first'), createScenario('test.second'), createScenario('test.third')],
+			confirm: async () => {
+				if (++confirmationCount === 1) {
+					return { confirmed: true };
+				}
+				secondConfirmationStarted.complete();
+				return secondConfirmationResult.p;
+			},
+			executeCommand: async (_id, ...args) => {
+				if (args[0] === 'test.first') {
+					firstCommandStarted.complete();
+					await finishFirstCommand.p;
+				}
+			},
+		});
+
+		const first = harness.handler.handleURL(URI.parse('vscode://tryout/test.first'));
+		await firstCommandStarted.p;
+		const second = harness.handler.handleURL(URI.parse('vscode://tryout/test.second'));
+		await secondConfirmationStarted.p;
+		finishFirstCommand.complete();
+		const firstHandled = await first;
+		const thirdHandled = await harness.handler.handleURL(URI.parse('vscode://tryout/test.third'));
+		secondConfirmationResult.complete({ confirmed: true });
+		const secondHandled = await second;
+
+		assert.deepStrictEqual({
+			handled: [firstHandled, secondHandled, thirdHandled],
+			focusCount: harness.focusCount,
+			confirmationCount,
+			commands: harness.commands,
+		}, {
+			handled: [true, true, true],
+			focusCount: 2,
+			confirmationCount: 2,
+			commands: [
+				{ id: RUN_ONBOARDING_TRYOUT_COMMAND_ID, args: ['test.first'] },
+				{ id: RUN_ONBOARDING_TRYOUT_COMMAND_ID, args: ['test.second'] },
+			],
 		});
 	});
 

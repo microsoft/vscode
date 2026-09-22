@@ -25,10 +25,8 @@ import { ISessionsManagementService, inheritableSessionTarget } from '../../../s
 import { BranchChatSessionAction } from './branchChatSessionAction.js';
 import { RunScriptContribution } from './runScriptAction.js';
 import './nullInlineChatSessionService.js';
-import './chatBackgroundTryout.js';
 import './modelPicker.js';
-import './modelPickerTryout.js';
-import './workspacePickerTryout.js';
+import './newSessionPickerTryout.js';
 import './agentHostDelegation.js';
 import './newSessionFolderQuickPickAction.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';

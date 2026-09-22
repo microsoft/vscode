@@ -72,6 +72,23 @@ export class ReleaseNotesTryouts extends Disposable {
 		this._register(this._tryoutService.onDidChange(() => this.update()));
 	}
 
+	needsRender(content: TrustedHTML): boolean {
+		const html = content.toString();
+		if (/\bdata-release-notes-tryout-(?:id|index)\s*=/i.test(html)) {
+			return true;
+		}
+		for (const match of html.matchAll(/\bhref="(?<href>[^"]*)"/gi)) {
+			try {
+				if (parseTryoutLink(URI.parse(match.groups!.href)) !== undefined) {
+					return true;
+				}
+			} catch {
+				return true;
+			}
+		}
+		return false;
+	}
+
 	render(container: HTMLElement): void {
 		// eslint-disable-next-line no-restricted-syntax -- Fetched HTML does not have workbench element references.
 		for (const element of container.querySelectorAll('[data-release-notes-tryout-id], [data-release-notes-tryout-index]')) {

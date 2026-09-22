@@ -47,7 +47,7 @@ Prefer feature-owned contributions and commands. Shared onboarding code should p
 | Run an existing product command with installed-code arguments | `command` |
 | Open a contributed view or view container | `openView` |
 | Show deterministic, read-only text or a comparison | `editorSample` |
-| Prepare an exact Chat widget, prompt, mode, model, or attachment | Chat draft presentation |
+| Prepare an exact feature-owned UI instance | Feature-owned launch presentation |
 | Launch a surface and guide one or more controls | Guided presentation |
 
 Add a feature-owned presentation only when the built-in types cannot express the required lifecycle safely.
@@ -55,9 +55,7 @@ Add a feature-owned presentation only when the built-in types cannot express the
 Canonical implementations:
 
 - [diffEditorTryout.contribution.ts](../../../src/vs/workbench/contrib/codeEditor/browser/diffEditorTryout.contribution.ts) — isolated editor sample.
-- [automationTryout.contribution.ts](../../../src/vs/workbench/contrib/chat/browser/automations/automationTryout.contribution.ts) — Agents-window prerequisite sequence.
 - [modelPickerTryout.contribution.ts](../../../src/vs/workbench/contrib/chat/browser/onboarding/modelPickerTryout.contribution.ts) — scoped multi-instance target.
-- [workspacePickerTryout.contribution.ts](../../../src/vs/workbench/contrib/chat/browser/onboarding/workspacePickerTryout.contribution.ts) — setting-gated, scoped control discovery.
 
 ## 4. Preserve the trust boundary
 
@@ -87,7 +85,7 @@ Use stable, namespaced IDs. Do not repurpose an existing ID because old release 
 
 ## 5. Own and scope spotlight targets
 
-The component that renders a control owns its target registration through `markOnboardingTarget`. Never query another component's classes or DOM structure.
+Use a feature-owned adapter to resolve controls through their owner's normal APIs, following the contributor guide. Existing owner-marked targets through `markOnboardingTarget` remain supported. Never query another component's classes or DOM structure.
 
 ### Unique targets
 
@@ -97,9 +95,9 @@ Use an unscoped target only when at most one matching control can be visible in 
 
 Editors, Chat widgets, split panes, and repeated controls require a run scope:
 
-1. The target owner registers `scope`, usually from its model, editor, session, or widget identity.
-2. The launch command returns `{ targetScope }`.
-3. The command payload sets `captureTargetScope: true`.
+1. The adapter captures the exact UI owner through its feature API and binds it to a run scope.
+2. The launch presentation returns `{ kind: 'prepared', targetScope }`.
+3. A dedicated adapter command can instead return `{ targetScope }` when its command payload sets `captureTargetScope: true`.
 4. The sequence resolves targets only within that scope.
 5. Missing or stale scope fails closed instead of falling back to another visible instance.
 

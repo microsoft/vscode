@@ -41,7 +41,6 @@ import { ILogService, NullLogService } from '../../../../../platform/log/common/
 import { InMemoryStorageService, IStorageService, StorageScope } from '../../../../../platform/storage/common/storage.js';
 import { IAutomationDescriptor, IAutomationRun, IAutomationSchedule, AutomationRunTrigger, AutomationTarget } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
 import { IAutomationDialogResult, IAutomationDialogService, IShowAutomationDialogOptions } from '../../../../../workbench/contrib/chat/common/automations/automationDialogService.js';
-import { AutomationOnboardingTarget } from '../../../../../workbench/contrib/chat/common/automations/automationOnboarding.js';
 import { ChatAutomationsEnabledContext } from '../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
 import { IAutomationRunDispatch, IAutomationRunner, IAutomationRunOperation } from '../../../../../workbench/contrib/chat/common/automations/automationRunner.js';
 import { AutomationCatalogueState, AutomationMutationGuard, IAutomationRunClaim, IAutomationService, ICreateAutomationOptions, IGuardedAutomationUpdateResult, IUpdateAutomationOptions, IUpdateAutomationRunOptions } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
@@ -697,30 +696,6 @@ suite('AutomationsCardsWidget', () => {
 			schedule: `Daily at ${scheduleTime.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit', timeZone: 'UTC' })}`,
 			sessionTitle: 'Daily review',
 			fallbackRows: 0,
-		});
-	});
-
-	test('marks built-in templates and every state-specific Create action as onboarding targets', async () => {
-		const { automationService, widget } = setup();
-		automationService.setCatalogueState('ready');
-		await timeout(0);
-
-		const targets = Array.from(widget.element.querySelectorAll<HTMLElement>('[data-onboarding-id]'));
-		assert.deepStrictEqual({
-			targets: targets.map(element => element.dataset.onboardingId),
-			visibleCreateTargets: targets.filter(element =>
-				element.dataset.onboardingId === AutomationOnboardingTarget.Create
-				&& element.closest<HTMLElement>('.automations-cards-state, .automations-cards-empty')?.style.display !== 'none'
-			).length,
-		}, {
-			targets: [
-				AutomationOnboardingTarget.Create,
-				AutomationOnboardingTarget.Create,
-				AutomationOnboardingTarget.Create,
-				AutomationOnboardingTarget.Create,
-				AutomationOnboardingTarget.BuiltInTemplates,
-			],
-			visibleCreateTargets: 1,
 		});
 	});
 

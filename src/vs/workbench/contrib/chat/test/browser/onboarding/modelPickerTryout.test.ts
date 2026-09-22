@@ -7,7 +7,8 @@ import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { GUIDED_TRYOUT_PRESENTATION_KIND, SPOTLIGHT_PRESENTATION_KIND } from '../../../../onboarding/browser/onboarding.js';
 import { createModelPickerTryout } from '../../../browser/onboarding/modelPickerTryout.contribution.js';
-import { ChatOnboardingTarget, MODEL_PICKER_TRYOUT_ID, PREPARE_MODEL_PICKER_TRYOUT_COMMAND_ID } from '../../../common/onboarding/modelPickerTryout.js';
+import { ChatOnboardingTarget, MODEL_PICKER_TRYOUT_ID } from '../../../common/onboarding/modelPickerTryout.js';
+import { NEW_SESSION_PICKER_TRYOUT_PRESENTATION_KIND } from '../../../common/onboarding/newSessionPickerTryout.js';
 
 suite('Model picker tryout', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -30,11 +31,8 @@ suite('Model picker tryout', () => {
 				kind: GUIDED_TRYOUT_PRESENTATION_KIND,
 				payload: {
 					launch: {
-						kind: 'command',
-						payload: {
-							commandId: PREPARE_MODEL_PICKER_TRYOUT_COMMAND_ID,
-							captureTargetScope: true,
-						},
+						kind: NEW_SESSION_PICKER_TRYOUT_PRESENTATION_KIND,
+						payload: 'model',
 					},
 					steps: [{
 						id: 'modelPicker',
@@ -43,7 +41,7 @@ suite('Model picker tryout', () => {
 							id: 'modelPicker',
 							targetId: ChatOnboardingTarget.ModelPicker,
 							title: 'Choose a Model and Provider',
-							description: 'Models can come from different providers and vary in capability, speed, and billing or premium request usage. Review the details for your provider and plan before choosing; this example never selects a model or sends a prompt for you.',
+							description: 'Models can come from different providers and vary in capability, speed, and billing or premium request usage. Review the details for your provider and plan before choosing.',
 							placement: 'below',
 							openTarget: true,
 							allowTargetInteraction: true,

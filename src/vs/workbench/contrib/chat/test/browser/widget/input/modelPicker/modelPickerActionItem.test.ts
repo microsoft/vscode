@@ -11,17 +11,16 @@ import { constObservable } from '../../../../../../../../base/common/observable.
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../../base/test/common/utils.js';
 import { MockContextKeyService, MockKeybindingService } from '../../../../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { TestInstantiationService } from '../../../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
-import { openOnboardingTarget, ONBOARDING_TARGET_ATTR } from '../../../../../../onboarding/browser/spotlight/onboardingTarget.js';
 import { ModelPickerActionItem, IModelPickerDelegate } from '../../../../../browser/widget/input/modelPicker/modelPickerActionItem.js';
 import { ModelPickerWidget } from '../../../../../browser/widget/input/modelPicker/modelPickerWidget.js';
-import { ChatOnboardingTarget } from '../../../../../common/onboarding/modelPickerTryout.js';
 
-suite('ModelPickerActionItem onboarding', () => {
+suite('ModelPickerActionItem', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('owns the target across rendering, opening, and disposal', async () => {
+	test('renders and opens the owned widget and disposes it with the action item', () => {
 		const widgetElement = $('button');
-		let opens = 0;
+		const anchors: (HTMLElement | undefined)[] = [];
+		let disposed = 0;
 		const instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stubInstance(ModelPickerWidget, {
 			onDidChangeSelection: Event.None,
@@ -32,8 +31,8 @@ suite('ModelPickerActionItem onboarding', () => {
 			setSelectedModel: () => { },
 			setCompact: () => { },
 			render: container => container.appendChild(widgetElement),
-			show: () => opens++,
-			dispose: () => { },
+			show: anchor => anchors.push(anchor),
+			dispose: () => disposed++,
 		});
 		const action: IAction = { id: 'test.modelPicker', label: '', tooltip: '', class: undefined, enabled: true, run: async () => { } };
 		const delegate: IModelPickerDelegate = {
@@ -49,38 +48,34 @@ suite('ModelPickerActionItem onboarding', () => {
 				showModelIcon: true,
 			}),
 		};
-		const item = new ModelPickerActionItem(
+		const item = disposables.add(new ModelPickerActionItem(
 			action,
 			delegate,
 			{ compact: constObservable(false) },
-			{ id: ChatOnboardingTarget.ModelPicker, scope: () => 'session-1' },
 			instantiationService,
 			new MockContextKeyService(),
 			new MockKeybindingService(),
-		);
+		));
 		const first = $('div');
 		const second = $('div');
 
 		item.render(first);
 		item.render(second);
-		await openOnboardingTarget(second);
-		const beforeDispose = {
-			first: first.getAttribute(ONBOARDING_TARGET_ATTR),
-			second: second.getAttribute(ONBOARDING_TARGET_ATTR),
-			opens,
-		};
+		item.openModelPicker();
+		item.show(second);
+		const rendered = { first: first.childElementCount, second: second.contains(widgetElement) };
 		item.dispose();
 
 		assert.deepStrictEqual({
-			beforeDispose,
-			afterDispose: second.getAttribute(ONBOARDING_TARGET_ATTR),
+			rendered,
+			defaultAnchor: anchors[0] === widgetElement,
+			explicitAnchor: anchors[1] === second,
+			disposed,
 		}, {
-			beforeDispose: {
-				first: null,
-				second: ChatOnboardingTarget.ModelPicker,
-				opens: 1,
-			},
-			afterDispose: null,
+			rendered: { first: 0, second: true },
+			defaultAnchor: true,
+			explicitAnchor: true,
+			disposed: 1,
 		});
 	});
 });

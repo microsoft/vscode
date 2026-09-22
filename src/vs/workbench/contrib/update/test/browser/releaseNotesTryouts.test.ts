@@ -17,6 +17,7 @@ import { Schemas } from '../../../../../base/common/network.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ILanguageService } from '../../../../../editor/common/languages/language.js';
+import { LanguageService } from '../../../../../editor/common/services/languageService.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ContextMenuService } from '../../../../../platform/contextview/browser/contextMenuService.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
@@ -62,6 +63,8 @@ suite('Release notes Try This', () => {
 	setup(() => {
 		instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(IContextMenuService, store.add(instantiationService.createInstance(ContextMenuService)));
+		instantiationService.stub(IExtensionService, { whenInstalledExtensionsRegistered: async () => true });
+		instantiationService.stub(ILanguageService, store.add(new LanguageService()));
 		availability = new Map();
 		scenarios = new Map();
 		register('sample');
@@ -267,6 +270,45 @@ suite('Release notes Try This', () => {
 		const integrated = await render(markdown);
 		assert.deepStrictEqual(integrated.innerHTML, legacy.innerHTML);
 	});
+
+	test('skips tryout DOM processing when sanitized notes contain no tryout links', async () => {
+		const renderTryouts = stub(tryouts, 'render').callThrough();
+		store.add(toDisposable(() => renderTryouts.restore()));
+		const markdown = '# Ordinary notes\n[Settings](command:workbench.action.openSettings)\n<script>untrusted()</script><img src="https://example.com/image.png" onerror="untrusted()">\n```text\ncommand:workbench.action.onboarding.tryFeature\n```';
+		const legacy = await render(markdown, false);
+		const integrated = await render(markdown);
+
+		assert.deepStrictEqual({
+			renderCalls: renderTryouts.callCount,
+			sameContent: integrated.innerHTML === legacy.innerHTML,
+			activeMarkup: integrated.querySelectorAll('script, [onerror]').length,
+			settingsLink: integrated.querySelector('a')?.getAttribute('href'),
+		}, {
+			renderCalls: 0,
+			sameContent: true,
+			activeMarkup: 0,
+			settingsLink: 'command:workbench.action.openSettings',
+		});
+	});
+
+	test('still removes forged tryout attributes when there are no tryout links', async () => {
+		const container = await render('<span data-release-notes-tryout-id="sample" data-release-notes-tryout-index="0"><a href="command:workbench.action.openSettings">Settings</a></span>');
+		assert.deepStrictEqual({
+			forgedTargets: container.querySelectorAll('[data-release-notes-tryout-id], [data-release-notes-tryout-index]').length,
+			href: container.querySelector('a')?.getAttribute('href'),
+			runs,
+		}, { forgedTargets: 0, href: 'command:workbench.action.openSettings', runs: [] });
+	});
+
+	for (const encodedCommand of ['%77orkbench', '&#119;orkbench']) {
+		test(`recognizes a tryout link with ${encodedCommand} in its encoded command ID`, async () => {
+			const container = await render(`<a href="${sampleUri.toString().replace('workbench', encodedCommand)}">Fetched label</a>`);
+			assert.deepStrictEqual({
+				id: container.querySelector<HTMLElement>('[data-release-notes-tryout-id]')?.dataset.releaseNotesTryoutId,
+				label: container.querySelector('a')?.textContent,
+			}, { id: 'sample', label: 'Try This: Local Example' });
+		});
+	}
 
 	test('posts only changed IDs and no compiled commands on availability changes', async () => {
 		await render(`[Try](${sampleUri}) [Other](${createOnboardingTryoutUri('other')}) [Again](${sampleUri})`);

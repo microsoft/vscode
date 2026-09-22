@@ -39,14 +39,14 @@ export async function openAgentsWindow(windowsMainService: IWindowsMainService, 
 		if (!Array.isArray(windows)) {
 			return windows;
 		}
+		if (pending?.completion.isSettled) {
+			return pending.completion.p;
+		}
 		if (windows.length > 0) {
 			windows[0].focus();
 		}
 		if (!request || !pending) {
 			return undefined;
-		}
-		if (pending.completion.isSettled) {
-			return pending.completion.p;
 		}
 		if (windows.length !== 1) {
 			throw new Error(localize('onboardingTryout.noAgentsWindow', "The feature example could not be sent to an Agents window."));
@@ -87,9 +87,13 @@ export function cancelOnboardingTryout(sourceWindowId: number | undefined, reque
 	if (!pending || pending.sourceWindowId !== sourceWindowId) {
 		return;
 	}
+	cancelPendingRequest(requestId, pending, 'cancelled');
+}
+
+function cancelPendingRequest(requestId: string, pending: IPendingOnboardingTryout, result: 'cancelled' | 'superseded'): void {
 	pending.cancellation.cancel();
 	pending.destinationWindow?.sendWhenReady('vscode:cancelOnboardingTryout', CancellationToken.None, requestId);
-	void pending.completion.complete('cancelled');
+	void pending.completion.complete(result);
 }
 
 export function completeOnboardingTryout(destinationWindowId: number | undefined, requestId: string, result: OnboardingTryoutWindowRequestResult): void {
@@ -103,6 +107,11 @@ export function completeOnboardingTryout(destinationWindowId: number | undefined
 function createPendingRequest(sourceWindowId: number | undefined, requestId: string): IPendingOnboardingTryout {
 	if (typeof sourceWindowId !== 'number' || typeof requestId !== 'string' || !requestId || pendingOnboardingTryouts.has(requestId)) {
 		throw new Error(localize('onboardingTryout.invalidRequest', "The feature example request is invalid."));
+	}
+	for (const [previousId, previous] of pendingOnboardingTryouts) {
+		if (!previous.completion.isSettled) {
+			cancelPendingRequest(previousId, previous, 'superseded');
+		}
 	}
 	const pending: IPendingOnboardingTryout = {
 		sourceWindowId,

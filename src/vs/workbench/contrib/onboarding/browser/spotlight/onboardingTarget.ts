@@ -24,12 +24,56 @@ export interface IOnboardingTargetOptions {
 	readonly scope?: string | (() => string | undefined);
 }
 
+export interface IOnboardingTarget {
+	readonly element: HTMLElement;
+	readonly open?: () => Promise<void> | void;
+}
+
 interface IOnboardingTargetRegistration {
 	readonly id: string;
 	readonly options: IOnboardingTargetOptions;
 }
 
 const onboardingTargetRegistrations = new WeakMap<HTMLElement, IOnboardingTargetRegistration>();
+const onboardingTargetProviders = new Map<string, { readonly resolve: (scope: string | undefined) => IOnboardingTarget | undefined }>();
+
+/** Registers an adapter that resolves a control through its owning feature's API. */
+export function registerOnboardingTargetProvider(id: string, provider: (scope: string | undefined) => IOnboardingTarget | undefined): IDisposable {
+	if (onboardingTargetProviders.has(id)) {
+		throw new Error(`An onboarding target provider for '${id}' is already registered.`);
+	}
+	const registration = { resolve: provider };
+	onboardingTargetProviders.set(id, registration);
+	return toDisposable(() => {
+		if (onboardingTargetProviders.get(id) === registration) {
+			onboardingTargetProviders.delete(id);
+		}
+	});
+}
+
+export function resolveOnboardingTarget(targetWindow: Window, id: string, scope?: string): IOnboardingTarget | undefined {
+	const provider = onboardingTargetProviders.get(id);
+	if (provider) {
+		const target = provider.resolve(scope);
+		if (!target || !isVisibleOnboardingTarget(targetWindow, target.element)) {
+			return undefined;
+		}
+		return {
+			element: target.element,
+			open: () => {
+				if (onboardingTargetProviders.get(id) === provider) {
+					const current = provider.resolve(scope);
+					if (current?.element === target.element && isVisibleOnboardingTarget(targetWindow, current.element)) {
+						return current.open?.();
+					}
+				}
+				return undefined;
+			},
+		};
+	}
+	const element = findOnboardingTarget(targetWindow, id, scope);
+	return element ? { element, open: () => openOnboardingTarget(element) } : undefined;
+}
 
 /**
  * Marks `element` as the onboarding target identified by `id`.
@@ -87,7 +131,7 @@ function matchesScope(target: HTMLElement, scope: string | undefined): boolean {
 }
 
 function isVisibleOnboardingTarget(targetWindow: Window, target: HTMLElement): boolean {
-	if (!target.isConnected) {
+	if (!target.isConnected || target.ownerDocument !== targetWindow.document) {
 		return false;
 	}
 	const style = targetWindow.getComputedStyle(target);

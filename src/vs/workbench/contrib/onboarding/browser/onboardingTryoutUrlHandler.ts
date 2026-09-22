@@ -18,7 +18,7 @@ import { IOnboardingTryoutService, parseExternalOnboardingTryoutUri, RUN_ONBOARD
 export class OnboardingTryoutUrlHandler extends Disposable implements IWorkbenchContribution, IURLHandler {
 	static readonly ID = 'workbench.contrib.onboardingTryoutUrlHandler';
 
-	private activeRequest: Promise<void> | undefined;
+	private pendingConfirmation: Promise<boolean> | undefined;
 
 	constructor(
 		@IURLService urlService: IURLService,
@@ -37,23 +37,27 @@ export class OnboardingTryoutUrlHandler extends Disposable implements IWorkbench
 		if (!id) {
 			return false;
 		}
-		if (this.activeRequest) {
+		if (this.pendingConfirmation) {
 			return true;
 		}
 
-		const request = this.handleExternalTryout(id);
-		this.activeRequest = request;
+		const confirmation = this.confirmExternalTryout(id);
+		this.pendingConfirmation = confirmation;
+		let confirmed: boolean;
 		try {
-			await request;
+			confirmed = await confirmation;
 		} finally {
-			if (this.activeRequest === request) {
-				this.activeRequest = undefined;
+			if (this.pendingConfirmation === confirmation) {
+				this.pendingConfirmation = undefined;
 			}
+		}
+		if (confirmed) {
+			await this.commandService.executeCommand(RUN_ONBOARDING_TRYOUT_COMMAND_ID, id);
 		}
 		return true;
 	}
 
-	private async handleExternalTryout(id: string): Promise<void> {
+	private async confirmExternalTryout(id: string): Promise<boolean> {
 		await this.hostService.focus(mainWindow);
 
 		const scenario = this.tryoutService.getTryout(id);
@@ -62,7 +66,7 @@ export class OnboardingTryoutUrlHandler extends Disposable implements IWorkbench
 				localize('onboarding.tryout.external.unavailable.title', "Feature example unavailable"),
 				localize('onboarding.tryout.external.unavailable.detail', "This external link does not identify a feature example available in this version of {0}.", this.productService.nameLong),
 			);
-			return;
+			return false;
 		}
 
 		const { confirmed } = await this.dialogService.confirm({
@@ -71,11 +75,7 @@ export class OnboardingTryoutUrlHandler extends Disposable implements IWorkbench
 			detail: localize('onboarding.tryout.external.confirm.detail', "An external link requested this feature example in {0}.\n\n{1}\n\nOnly continue if you initiated this request.", this.productService.nameLong, scenario.tryout.description),
 			primaryButton: localize({ key: 'onboarding.tryout.external.confirm.open', comment: ['&& denotes a mnemonic'] }, "&&Open Example"),
 		});
-		if (!confirmed) {
-			return;
-		}
-
-		await this.commandService.executeCommand(RUN_ONBOARDING_TRYOUT_COMMAND_ID, id);
+		return confirmed;
 	}
 }
 

@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import * as sinon from 'sinon';
+import { DeferredPromise } from '../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Event } from '../../../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
@@ -24,11 +25,14 @@ import { ContextKeyService } from '../../../../../platform/contextkey/browser/co
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IEditorPane, IResourceDiffEditorInput } from '../../../../common/editor.js';
 import { IView, IViewDescriptor, IViewDescriptorService } from '../../../../common/views.js';
+import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
+import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { EditorSampleTryoutPresentation } from '../../browser/onboardingSamplePresentation.js';
 import { CommandTryoutPresentation, ViewTryoutPresentation } from '../../browser/onboardingTryoutActions.js';
-import { IOnboardingTryoutRunContext, IOnboardingTryoutService } from '../../common/onboardingTryout.js';
+import { OnboardingTryoutService } from '../../browser/onboardingTryoutService.js';
+import { IOnboardingTryoutRunContext, IOnboardingTryoutService, registerOnboardingTryout, registerOnboardingTryoutPresentation } from '../../common/onboardingTryout.js';
 import { EditorSampleTryoutPayload } from '../../common/onboardingTryoutActions.js';
 
 suite('Onboarding tryout presentations', () => {
@@ -164,7 +168,7 @@ suite('Onboarding tryout presentations', () => {
 		});
 	});
 
-	function createSamplePresentation(payload: EditorSampleTryoutPayload, cancelAfterReference?: CancellationTokenSource) {
+	function createSamplePresentation(payload: EditorSampleTryoutPayload, onReference?: (resource: URI) => Promise<void> | void) {
 		const models = new Map<string, ITextModel>();
 		const references: string[] = [];
 		let released = 0;
@@ -185,7 +189,7 @@ suite('Onboarding tryout presentations', () => {
 					throw new Error('Expected a sample model.');
 				}
 				references.push(resource.path);
-				cancelAfterReference?.cancel();
+				await onReference?.(resource);
 				return {
 					object: upcastPartial<IResolvedTextEditorModel>({ textEditorModel: model }),
 					dispose: () => released++,
@@ -260,7 +264,7 @@ suite('Onboarding tryout presentations', () => {
 	test('cancelled sample preparation never opens an editor', async () => {
 		const cancellation = store.add(new CancellationTokenSource());
 		const payload: EditorSampleTryoutPayload = { type: 'diff', title: 'Sample comparison', original: 'before', modified: 'after' };
-		const sample = createSamplePresentation(payload, cancellation);
+		const sample = createSamplePresentation(payload, () => cancellation.cancel());
 		const context = createContext(cancellation.token);
 		const prepared = await sample.presentation.prepare(payload, context);
 		context.store.dispose();
@@ -271,6 +275,53 @@ suite('Onboarding tryout presentations', () => {
 			released: 1,
 		});
 	});
+
+	for (const part of ['original', 'modified']) {
+		test(`cancelling a run releases a late ${part} sample reference`, async () => {
+			const cancellation = store.add(new CancellationTokenSource());
+			const referenceStarted = new DeferredPromise<void>();
+			const finishReference = new DeferredPromise<void>();
+			const payload: EditorSampleTryoutPayload = { type: 'diff', title: 'Sample comparison', original: 'before', modified: 'after' };
+			const sample = createSamplePresentation(payload, resource => {
+				if (resource.path.endsWith(`/${part}`)) {
+					referenceStarted.complete();
+					return finishReference.p;
+				}
+				return undefined;
+			});
+			const prepare = sinon.spy(sample.presentation, 'prepare');
+			const service = store.add(new OnboardingTryoutService(
+				createContextKeys(),
+				upcastPartial<IChatEntitlementService>({
+					onDidChangeSentiment: Event.None,
+					onDidChangeEntitlement: Event.None,
+					onDidChangeAnonymous: Event.None,
+				}),
+				upcastPartial<IWorkbenchEnvironmentService>({ isSessionsWindow: true }),
+			));
+			store.add(registerOnboardingTryoutPresentation(sample.presentation));
+			store.add(registerOnboardingTryout({
+				id: 'test.sample',
+				title: 'Sample',
+				description: 'Sample description',
+				presentation: { kind: 'editorSample', payload },
+			}));
+
+			const pending = service.run('test.sample', cancellation.token);
+			await referenceStarted.p;
+			cancellation.cancel();
+			const result = await pending;
+			finishReference.complete();
+			const prepared = await prepare.firstCall.returnValue;
+
+			assert.deepStrictEqual({ result, prepared, opened: sample.openEditor.callCount, released: sample.released }, {
+				result: { kind: 'cancelled' },
+				prepared: { kind: 'cancelled' },
+				opened: 0,
+				released: part === 'original' ? 1 : 2,
+			});
+		});
+	}
 
 	test('sample content can only be resolved from registered example data', async () => {
 		const sample = createSamplePresentation({ type: 'text', title: 'Sample', text: 'Known example' });

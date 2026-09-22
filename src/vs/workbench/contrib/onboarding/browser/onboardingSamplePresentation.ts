@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, thenRegisterOrDispose } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ILanguageService } from '../../../../editor/common/languages/language.js';
@@ -43,14 +43,14 @@ export class EditorSampleTryoutPresentation extends Disposable implements IOnboa
 			? URI.from({ scheme: Schemas.vscodeOnboardingSample, path: `/${context.id}/modified` })
 			: undefined;
 
-		context.store.add(await this.textModelService.createModelReference(original));
-		if (context.token.isCancellationRequested) {
+		await thenRegisterOrDispose(this.textModelService.createModelReference(original), context.store);
+		if (context.token.isCancellationRequested || context.store.isDisposed) {
 			return { kind: 'cancelled' };
 		}
 		if (modified) {
-			context.store.add(await this.textModelService.createModelReference(modified));
+			await thenRegisterOrDispose(this.textModelService.createModelReference(modified), context.store);
 		}
-		if (context.token.isCancellationRequested) {
+		if (context.token.isCancellationRequested || context.store.isDisposed) {
 			return { kind: 'cancelled' };
 		}
 

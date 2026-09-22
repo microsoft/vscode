@@ -11,7 +11,8 @@ import { IOnboardingTryout, registerOnboardingTryout } from '../../../onboarding
 import { IGuidedTryoutPayload } from '../../../onboarding/common/onboardingTryoutActions.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { CHAT_SETUP_ACTION_ID } from '../actions/chatActions.js';
-import { ChatOnboardingTarget, MODEL_PICKER_TRYOUT_ID, PREPARE_MODEL_PICKER_TRYOUT_COMMAND_ID } from '../../common/onboarding/modelPickerTryout.js';
+import { ChatOnboardingTarget, MODEL_PICKER_TRYOUT_ID } from '../../common/onboarding/modelPickerTryout.js';
+import { NEW_SESSION_PICKER_TRYOUT_PRESENTATION_KIND } from '../../common/onboarding/newSessionPickerTryout.js';
 
 export function createModelPickerTryout(): IOnboardingTryout<IGuidedTryoutPayload> {
 	return {
@@ -30,11 +31,8 @@ export function createModelPickerTryout(): IOnboardingTryout<IGuidedTryoutPayloa
 			kind: GUIDED_TRYOUT_PRESENTATION_KIND,
 			payload: {
 				launch: {
-					kind: 'command',
-					payload: {
-						commandId: PREPARE_MODEL_PICKER_TRYOUT_COMMAND_ID,
-						captureTargetScope: true,
-					},
+					kind: NEW_SESSION_PICKER_TRYOUT_PRESENTATION_KIND,
+					payload: 'model',
 				},
 				steps: [{
 					id: 'modelPicker',

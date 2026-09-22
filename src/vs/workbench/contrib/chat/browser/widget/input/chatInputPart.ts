@@ -3598,7 +3598,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 					}
 
 					const itemDelegate: IModelPickerDelegate = this._createModelPickerDelegate();
-					const createPicker = () => this.instantiationService.createInstance(ModelPickerActionItem, action, itemDelegate, getInputPickerOptions(action.id), undefined);
+					const createPicker = () => this.instantiationService.createInstance(ModelPickerActionItem, action, itemDelegate, getInputPickerOptions(action.id));
 					inputOverflowPickerHandlers.set(action.id, anchor => showOverflowPicker(createPicker, anchor));
 					return this.modelWidget = createPicker();
 				} else if (action.id === OpenModePickerAction.ID && action instanceof MenuItemAction) {

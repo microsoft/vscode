@@ -369,10 +369,10 @@ suite('OnboardingTryoutService', () => {
 
 	test('round trips standard command links and accepts the existing encoded Markdown shape', () => {
 		assert.deepStrictEqual([
-			parseOnboardingTryoutUri(URI.parse(createOnboardingTryoutUri('automations.create').toString())),
-			parseOnboardingTryoutUri(URI.parse(`command:${RUN_ONBOARDING_TRYOUT_COMMAND_ID}?%5B%22automations.create%22%5D`)),
+			parseOnboardingTryoutUri(URI.parse(createOnboardingTryoutUri('test.tryout').toString())),
+			parseOnboardingTryoutUri(URI.parse(`command:${RUN_ONBOARDING_TRYOUT_COMMAND_ID}?%5B%22test.tryout%22%5D`)),
 			parseOnboardingTryoutUri(URI.parse('https://code.visualstudio.com/updates')),
-		], ['automations.create', 'automations.create', undefined]);
+		], ['test.tryout', 'test.tryout', undefined]);
 	});
 
 	test('only accepts one bounded ID, not payloads or extra arguments', () => {

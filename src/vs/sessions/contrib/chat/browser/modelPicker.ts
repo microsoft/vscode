@@ -17,7 +17,6 @@ import { IModelPickerDelegate, ModelPickerActionItem } from '../../../../workben
 import { ChatPetAchievementIds, didExplicitlySwitchChatPetModel } from '../../../../workbench/contrib/chat/browser/chatPetAchievements.js';
 import { IChatPetService } from '../../../../workbench/contrib/chat/browser/chatPetService.js';
 import { IChatEntitlementService } from '../../../../workbench/services/chat/common/chatEntitlementService.js';
-import { ChatOnboardingTarget } from '../../../../workbench/contrib/chat/common/onboarding/modelPickerTryout.js';
 import { Menus } from '../../../browser/menus.js';
 import { IsPhoneLayoutContext, SessionUsesCombinedConfigPickerContext } from '../../../common/contextkeys.js';
 import { ISessionContext } from '../../../services/sessions/browser/sessionContext.js';
@@ -92,11 +91,9 @@ export class ModelPicker extends Disposable {
 			compact,
 		};
 		const action = { id: 'sessions.modelPicker', label: '', enabled: true, class: undefined, tooltip: '', run: () => { } };
-		this._modelPicker = this._register(instantiationService.createInstance(ModelPickerActionItem, action, this._delegate, pickerOptions, {
-			id: ChatOnboardingTarget.ModelPicker,
-			scope: () => this._sessionContext.session.get()?.sessionId,
-		}));
+		this._modelPicker = this._register(instantiationService.createInstance(ModelPickerActionItem, action, this._delegate, pickerOptions));
 		this._register(this._newChatModelPickerService.registerModelPicker({
+			getDomNode: () => this._container,
 			open: () => this._modelPicker.openModelPicker(),
 			switchToModel: modelIdentifier => this.switchToModel(modelIdentifier),
 		}));
