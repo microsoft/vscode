@@ -75,10 +75,6 @@ jobs:
         condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
         displayName: Setup PyPI Authentication
 
-      - task: NuGetAuthenticate@1
-        condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
-        displayName: Setup NuGet Authentication
-
       - script: |
           set -e
           c++ --version
@@ -98,8 +94,7 @@ jobs:
           ELECTRON_SKIP_BINARY_DOWNLOAD: 1
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
           GITHUB_TOKEN: "$(github-token-code-oss)"
-          FOUNDRY_LOCAL_NUGET_MODE: dotnet
-          FOUNDRY_LOCAL_NUGET_FEEDS: "https://pkgs.dev.azure.com/monacotools/Monaco/_packaging/vscode/nuget/v3/index.json"
+          FOUNDRY_LOCAL_SKIP_INSTALL: "1"
           # Avoid using dlopen to load Kerberos on macOS which can cause missing libraries
           # https://github.com/mongodb-js/kerberos/commit/04044d2814ad1d01e77f1ce87f26b03d86692cf2
           # flipped the default to support legacy linux distros which shouldn't happen
