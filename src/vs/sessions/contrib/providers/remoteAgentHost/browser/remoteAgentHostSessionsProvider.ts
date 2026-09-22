@@ -45,8 +45,6 @@ import { IGitHubService } from '../../../github/browser/githubService.js';
 import { DevContainerAgentHostSessionsProvider } from '../../agentHost/browser/devContainerAgentHostSessionsProvider.js';
 import { ReconnectableAgentHostAutomationStore } from '../../agentHost/browser/reconnectableAgentHostAutomationStore.js';
 import type { ISessionsProviderAutomations, SessionResourceResolveReason } from '../../../../services/sessions/common/sessionsProvider.js';
-import { AutomationStore } from '../../../automations/browser/automationService.js';
-import { providerAutomationStorageKey } from '../../../automations/common/automationStorageService.js';
 import { remoteAgentHostSessionTypeAuthorityPrefix, remoteAgentHostSessionTypeId } from '../../../../../platform/agentHost/common/agentHostSessionType.js';
 import { readAgentDevContainerWorktreeMetadata } from '../../../../../platform/agentHost/common/meta/agentDevContainerWorktreeMeta.js';
 
@@ -279,8 +277,7 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 		this.remoteLocationPreferenceKey = config.preferenceKey ?? config.address;
 		this.hostGroup = config.hostGroup;
 		this._storageKey = `${CACHED_SESSIONS_STORAGE_PREFIX}${this._connectionAuthority}`;
-		const legacyAutomations = this._register(instantiationService.createInstance(AutomationStore, providerAutomationStorageKey(this.id)));
-		this._automationStore = this._register(instantiationService.createInstance(ReconnectableAgentHostAutomationStore, this.id, legacyAutomations, {
+		this._automationStore = this._register(instantiationService.createInstance(ReconnectableAgentHostAutomationStore, this.id, {
 			toHost: resource => fromAgentHostUri(resource),
 			fromHost: resource => toAgentHostUri(resource, this._connectionAuthority),
 			resourceSchemeForProvider: provider => this.resourceSchemeForProvider(provider),

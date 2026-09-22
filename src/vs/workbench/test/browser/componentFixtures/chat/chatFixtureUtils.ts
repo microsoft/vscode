@@ -318,6 +318,7 @@ export function registerChatFixtureServices(reg: ServiceRegistration, options: I
 		override supportsDelegationForSessionType() { return false; }
 		override getSessionOption() { return undefined; }
 		override getCapabilitiesForSessionType() { return undefined; }
+		override async getChatInputCompletionTriggerCharacters() { return []; }
 		override resolveChatResponseUri(_sessionResource: URI, href: string) { return href; }
 	}());
 	reg.defineInstance(IChatEntitlementService, new class extends mock<IChatEntitlementService>() {
@@ -331,6 +332,7 @@ export function registerChatFixtureServices(reg: ServiceRegistration, options: I
 		// Sign In state) in fixtures.
 		override readonly entitlement = ChatEntitlement.Pro;
 		override readonly sentiment = { completed: true, installed: true };
+		override readonly sentimentObs = constObservable(this.sentiment);
 		override readonly anonymous = false;
 		override readonly hasByokModels = false;
 	}());
