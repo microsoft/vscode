@@ -236,6 +236,33 @@ suite('CloudSandboxApiService repository resolution', () => {
 		});
 	});
 
+	test('retains activity in cached task details and refreshes it when an incremental scan changes the task', async () => {
+		const current = {
+			...task('activity-cache', 'Question', undefined, 'original-session', 'original-environment'),
+			updated_at: '2026-07-01T00:01:00.000Z',
+			state: 'in_progress',
+			sessions: [{ id: 'original-session', environment_id: 'original-environment', state: 'waiting_for_user' }],
+		};
+		const h = createService(store, {
+			tasks: [current],
+			repositories: new Map(),
+			discoveryDate: () => '2026-07-01T00:01:00.000Z',
+		});
+		const initial = await h.service.listSessions(CancellationToken.None);
+		const cached = await h.service.listSessions(CancellationToken.None, { incremental: true });
+		current.updated_at = '2026-07-01T00:02:00.000Z';
+		current.sessions[0].state = 'completed';
+		const refreshed = await h.service.listSessions(CancellationToken.None, { incremental: true });
+
+		assert.deepStrictEqual({
+			statuses: [initial, cached, refreshed].map(result => result.kind === 'failed' ? result.reason : result.sessions.map(session => session.status)),
+			detailReads: h.requestedUrls.filter(url => url.endsWith('/tasks/activity-cache')).length,
+		}, {
+			statuses: [[SessionStatus.InputNeeded], [SessionStatus.InputNeeded], [SessionStatus.Idle]],
+			detailReads: 2,
+		});
+	});
+
 	test('propagates task-list cancellation without error logging', async () => {
 		const logService = new TestLogService();
 		const { service } = createService(store, {

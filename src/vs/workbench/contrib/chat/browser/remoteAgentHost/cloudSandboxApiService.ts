@@ -296,7 +296,7 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 					if (!Array.isArray(response?.tasks)) {
 						throw new Error('listTasks returned no tasks array');
 					}
-					const date = context.res.headers?.['date'];
+					const date = context.res.headers?.date;
 					const serverTime = typeof date === 'string' ? Date.parse(date) : Number.NaN;
 					if (!Number.isNaN(serverTime)) {
 						checkpoint = Math.min(checkpoint ?? serverTime, serverTime);
@@ -308,7 +308,7 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 							latestUpdate = Math.max(latestUpdate ?? updatedAt, updatedAt);
 						}
 					}
-					if (!hasNextLink(context.res.headers?.['link'])) {
+					if (!hasNextLink(context.res.headers?.link)) {
 						break;
 					}
 					if (page === DISCOVERY_TASK_PAGE_LIMIT) {

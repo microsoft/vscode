@@ -37,7 +37,7 @@ Never use the logical session type where host-specific routing is required. Reso
 
 In the Editor Window, a chat session contribution's `sessionListGroup` selects its provider filter without changing its controller, resource scheme, or content-provider routing. Disconnected discovery supplies activity, not authoritative read/archive flags or proof that the host is available.
 
-Both sandbox adapters let fresh discovery update disk-cached activity while preserving cached workspace information and user flags. A host snapshot takes precedence over discovery for the rest of that adapter's lifetime, including after disconnection; older discovery responses cannot replace a newer discovery result. Missing activity does not clear a previously reported status. Sandbox connection availability and read-only interactivity remain separate from conversation activity, so disconnection does not turn a reported input request into a conversation error.
+Both sandbox adapters let fresh discovery update disk-cached activity while preserving host-owned workspace information and user flags. Host-reported activity takes precedence over discovery for the rest of that adapter's lifetime, including after disconnection; older discovery responses cannot replace a newer discovery result. The Agents Window's persisted discovery baselines let title, timestamp, and project fields continue to refresh until the host changes them. Missing activity does not clear a previously reported status. Sandbox connection availability and read-only interactivity remain separate from conversation activity, so disconnection does not turn a reported input request into a conversation error.
 
 ## Host groups
 

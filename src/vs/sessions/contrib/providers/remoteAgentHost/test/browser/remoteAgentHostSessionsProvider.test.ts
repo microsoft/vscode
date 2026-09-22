@@ -2486,6 +2486,26 @@ suite('CloudSandboxSessionsProvider discovery metadata', () => {
 		});
 	});
 
+	test('refreshes cached activity alongside discovery-owned fields without accepting an older result', async () => {
+		const storageService = disposables.add(new InMemoryStorageService());
+		const first = createSandboxProvider(storageService);
+		seed(first, { status: ProtocolSessionStatus.InputNeeded });
+		await storageService.flush();
+		first.dispose();
+
+		const restored = createSandboxProvider(storageService);
+		const session = restored.getSessions()[0];
+		seed(restored, { summary: 'Updated task', modifiedTime: 4000, project: replacementProject, status: ProtocolSessionStatus.InputNeeded });
+		const afterRestoration = { ...snapshot(session), status: session.status.get() };
+		seed(restored, { summary: 'Finished task', modifiedTime: 5000, project: undefined, status: ProtocolSessionStatus.Idle });
+		seed(restored, { summary: 'Older task', modifiedTime: 3000, status: ProtocolSessionStatus.InputNeeded });
+
+		assert.deepStrictEqual({ afterRestoration, afterCompletion: { ...snapshot(session), status: session.status.get() } }, {
+			afterRestoration: { title: 'Updated task', modifiedTime: 4000, project: 'owner/replacement', status: SessionStatus.NeedsInput },
+			afterCompletion: { title: 'Finished task', modifiedTime: 5000, project: undefined, status: SessionStatus.Completed },
+		});
+	});
+
 	for (const discoveredFirst of [false, true]) {
 		test(`discovery preserves host metadata ${discoveredFirst ? 'after a seeded session connects' : 'when the host was discovered first'}`, () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 			const storageService = disposables.add(new InMemoryStorageService());
