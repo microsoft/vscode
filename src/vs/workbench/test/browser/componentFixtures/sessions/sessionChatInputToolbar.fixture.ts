@@ -199,18 +199,22 @@ function registerSessionChatPillFixtureServices(registration: ServiceRegistratio
 // ============================================================================
 
 function createImageReferenceContent(resource: URI): IFileContent {
+	const portrait = resource.path.includes('settings-flow');
+	const square = resource.path.includes('empty-state');
+	const width = portrait ? 240 : square ? 420 : 720;
+	const height = portrait ? 480 : square ? 420 : 240;
 	const value = VSBuffer.fromString(`
-		<svg xmlns="http://www.w3.org/2000/svg" width="640" height="360" viewBox="0 0 640 360">
+		<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
 			<defs>
 				<linearGradient id="background" x1="0" y1="0" x2="1" y2="1">
 					<stop offset="0" stop-color="#7456d7"/>
 					<stop offset="1" stop-color="#19a7a0"/>
 				</linearGradient>
 			</defs>
-			<rect width="640" height="360" rx="24" fill="url(#background)"/>
-			<circle cx="500" cy="105" r="48" fill="#f8dc75"/>
-			<path d="M0 300 160 155l110 100 90-70 280 175H0Z" fill="#15202b" opacity=".78"/>
-			<text x="36" y="58" fill="#fff" font-family="sans-serif" font-size="28" font-weight="600">Referenced image</text>
+			<rect width="${width}" height="${height}" rx="24" fill="url(#background)"/>
+			<circle cx="${Math.round(width * 0.8)}" cy="${Math.round(height * 0.25)}" r="${Math.round(Math.min(width, height) * 0.12)}" fill="#f8dc75"/>
+			<path d="M0 ${height} ${Math.round(width * 0.25)} ${Math.round(height * 0.45)} ${Math.round(width * 0.46)} ${Math.round(height * 0.75)} ${Math.round(width * 0.65)} ${Math.round(height * 0.55)} ${width} ${height}Z" fill="#15202b" opacity=".78"/>
+			<text x="24" y="42" fill="#fff" font-family="sans-serif" font-size="20" font-weight="600">${portrait ? 'Portrait' : square ? 'Square' : 'Wide'} reference</text>
 		</svg>
 	`);
 	return {

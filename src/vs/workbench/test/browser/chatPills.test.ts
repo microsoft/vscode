@@ -21,6 +21,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/comm
 import { IActionListDelegate, IActionListItem } from '../../../platform/actionWidget/browser/actionList.js';
 import { IActionWidgetService } from '../../../platform/actionWidget/browser/actionWidget.js';
 import { ChatDropdownPillActionViewItem, ChatPillSingleEntry, createChatSectionPill } from '../../browser/chatDropdownPill.js';
+import { createChatImageHoverContent } from '../../browser/chatImagePreview.js';
 import { ChatPillsRow, ChatPillsWidget, type IChatPill, type IChatPillEntry, type IChatPillSection } from '../../browser/chatPills.js';
 import { DEFAULT_LABELS_CONTAINER, ResourceLabels } from '../../browser/labels.js';
 import { workbenchInstantiationService } from './workbenchTestServices.js';
@@ -97,6 +98,31 @@ suite('ChatPills', () => {
 		disposables.dispose();
 	});
 
+	test('shared image previews preserve intrinsic aspect ratio without a fixed-height surface', () => {
+		const preview = createChatImageHoverContent(undefined, '', new Uint8Array(), 'test-preview', undefined, undefined, undefined, 'Preview');
+		store.add(preview.disposable);
+		mainWindow.document.body.appendChild(preview.element);
+		store.add(toDisposable(() => preview.element.remove()));
+		const imageContainer = preview.element.querySelector<HTMLElement>('.chat-image-hover-image-container')!;
+		const image = preview.element.querySelector<HTMLImageElement>('.chat-image-hover-image')!;
+		const containerStyle = mainWindow.getComputedStyle(imageContainer);
+		const imageStyle = mainWindow.getComputedStyle(image);
+
+		assert.deepStrictEqual({
+			contentDrivenHeight: containerStyle.height === imageStyle.height,
+			fixedHeightRemoved: containerStyle.height !== '240px',
+			imageMaxHeight: imageStyle.maxHeight,
+			imageMinHeight: imageStyle.minHeight,
+			imageObjectFit: imageStyle.objectFit,
+		}, {
+			contentDrivenHeight: true,
+			fixedHeightRemoved: true,
+			imageMaxHeight: '350px',
+			imageMinHeight: '0px',
+			imageObjectFit: 'contain',
+		});
+	});
+
 	test('maps image previews to rich row and inline hover content', () => {
 		const disposables = store.add(new DisposableStore());
 		const instantiationService = workbenchInstantiationService(undefined, disposables);
@@ -131,6 +157,7 @@ suite('ChatPills', () => {
 			contentOwnsPadding: mappedEntry.hover?.contentOwnsPadding,
 			hasDisposable: !!mappedEntry.hover?.disposable,
 			alignToAnchorTop: mappedEntry.hover?.alignToAnchorTop,
+			preserveVerticalPosition: mappedEntry.hover?.preserveVerticalPosition,
 		}, {
 			sameHover: true,
 			sameContent: true,
@@ -138,6 +165,7 @@ suite('ChatPills', () => {
 			contentOwnsPadding: true,
 			hasDisposable: true,
 			alignToAnchorTop: true,
+			preserveVerticalPosition: true,
 		});
 		mappedEntry.hover?.disposable?.dispose();
 

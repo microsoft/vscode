@@ -369,6 +369,7 @@ export class ChatDropdownPillActionViewItem extends ChatPillActionViewItem {
 				},
 				contentOwnsPadding: true,
 				alignToAnchorTop: true,
+				preserveVerticalPosition: true,
 			};
 			this._imageDropdownHovers.set(entry, hover);
 		}

@@ -19,7 +19,7 @@ import { Emitter, Event } from '../../base/common/event.js';
 import { MarkdownString } from '../../base/common/htmlContent.js';
 import { KeyCode } from '../../base/common/keyCodes.js';
 import { isMacintosh } from '../../base/common/platform.js';
-import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../base/common/lifecycle.js';
 import { autorun, derived, IObservable } from '../../base/common/observable.js';
 import { ScrollbarVisibility } from '../../base/common/scrollable.js';
 import { ThemeIcon } from '../../base/common/themables.js';
@@ -30,6 +30,7 @@ import { IContextMenuService } from '../../platform/contextview/browser/contextV
 import { IFileService } from '../../platform/files/common/files.js';
 import { asCssVariable, asCssVariableWithDefault, buttonSecondaryBackground } from '../../platform/theme/common/colorRegistry.js';
 import { defaultButtonStyles } from '../../platform/theme/browser/defaultStyles.js';
+import { createChatImageHoverContent } from './chatImagePreview.js';
 import './media/chatPills.css';
 
 /**
@@ -97,44 +98,43 @@ const MAX_CHAT_PILL_IMAGE_PREVIEW_FILE_SIZE = 20 * 1024 * 1024;
 export function createChatPillImagePreview(entry: IChatPillEntry & { readonly imagePreview: NonNullable<IChatPillEntry['imagePreview']> }, fileService: IFileService, token = CancellationToken.None): IChatPillImagePreview {
 	const preview = entry.imagePreview;
 	const container = $('.chat-pill-image-preview', { 'aria-busy': 'true' });
-	const imageContainer = $('.chat-pill-image-preview-image-container');
-	const image = $<HTMLImageElement>('img.chat-pill-image-preview-image', {
-		alt: localize('chatPills.imagePreviewAlt', "Preview of {0}", entry.label),
-	});
-	imageContainer.appendChild(image);
-	const location = $('.chat-pill-image-preview-location', undefined, entry.ariaDescription ?? entry.tooltip ?? preview.resource.toString(true));
-	container.append(imageContainer, location);
-
 	const disposables = new DisposableStore();
-	const previewImageUrl = disposables.add(new MutableDisposable<IDisposable>());
 	disposables.add(token.onCancellationRequested(() => disposables.dispose()));
 	const showUnavailable = () => {
 		if (disposables.isDisposed) {
 			return;
 		}
 		container.setAttribute('aria-busy', 'false');
-		imageContainer.replaceChildren($('.chat-pill-image-preview-unavailable', undefined, localize('chatPills.imagePreviewUnavailable', "Image preview unavailable.")));
+		container.replaceChildren(
+			$('.chat-pill-image-preview-unavailable', undefined, localize('chatPills.imagePreviewUnavailable', "Image preview unavailable.")),
+			$('.chat-image-hover-location', undefined, entry.ariaDescription ?? entry.tooltip ?? preview.resource.toString(true)),
+		);
 	};
 
 	void fileService.readFile(preview.resource, { limits: { size: MAX_CHAT_PILL_IMAGE_PREVIEW_FILE_SIZE } }, token).then(content => {
 		if (disposables.isDisposed) {
 			return;
 		}
-		const url = URL.createObjectURL(new Blob([content.value.buffer as Uint8Array<ArrayBuffer>], { type: preview.mimeType }));
-		previewImageUrl.value = toDisposable(() => URL.revokeObjectURL(url));
-		disposables.add(addDisposableListener(image, EventType.LOAD, () => {
-			previewImageUrl.clear();
-			if (disposables.isDisposed) {
-				return;
-			}
-			container.setAttribute('aria-busy', 'false');
-			container.classList.add('loaded');
-		}));
-		disposables.add(addDisposableListener(image, EventType.ERROR, () => {
-			previewImageUrl.clear();
-			showUnavailable();
-		}));
-		image.src = url;
+		const imageHover = createChatImageHoverContent(
+			preview.resource,
+			entry.ariaDescription ?? entry.tooltip ?? preview.resource.toString(true),
+			content.value.buffer,
+			`${preview.resource.toString()}:${content.etag}`,
+			() => {
+				if (disposables.isDisposed) {
+					return;
+				}
+				container.setAttribute('aria-busy', 'false');
+				container.classList.add('loaded');
+			},
+			undefined,
+			undefined,
+			localize('chatPills.imagePreviewAlt', "Preview of {0}", entry.label),
+			true,
+			showUnavailable,
+		);
+		disposables.add(imageHover.disposable);
+		container.replaceChildren(imageHover.element);
 	}, () => {
 		showUnavailable();
 	});

@@ -194,36 +194,9 @@
 	color: var(--vscode-foreground);
 }
 
-.chat-pill-image-preview-image-container {
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	height: 240px;
-	padding: var(--vscode-spacing-size80);
-	box-sizing: border-box;
-	background: var(--vscode-editor-background);
-}
-
-.chat-pill-image-preview-image {
-	display: block;
-	max-width: 100%;
-	max-height: 240px;
-	object-fit: contain;
-	visibility: hidden;
-}
-
-.chat-pill-image-preview.loaded .chat-pill-image-preview-image {
-	visibility: visible;
-}
-
-.chat-pill-image-preview-location,
 .chat-pill-image-preview-unavailable {
 	padding: var(--vscode-spacing-size80);
 	overflow-wrap: anywhere;
-}
-
-.chat-pill-image-preview-location {
-	border-top: var(--vscode-strokeThickness) solid var(--vscode-editorWidget-border);
 }
 
 .chat-pill-image-preview-unavailable {
