@@ -1190,6 +1190,8 @@ export class CopilotAgentSession extends Disposable {
 	 */
 	private readonly _pendingMcpSamplings = new Set<string>();
 
+	/** Maps SDK root-agent turn ids to their owning host protocol turn ids for Fusion event routing. */
+	private readonly _hostTurnIdsBySdkTurnId = new Map<string, string>();
 	private readonly _fusionProgress = new CopilotFusionProgress();
 	/** Retains workflow ownership across turn resets because steering can reassign an SDK turn id. */
 	private readonly _fusionEventTurnIds = new Map<string, string>();
@@ -5207,7 +5209,7 @@ export class CopilotAgentSession extends Disposable {
 					this._recordHostSdkTurn(e.data.turnId, this._turnId);
 				}
 				if (e.data.interactionId) {
-					this._hostTurnIdsByInteractionId.set(e.data.interactionId, this._turnId);
+					this._currentTurn.value?.interactionIds.add(e.data.interactionId);
 				}
 				this._databaseRef.object.setTurnEventId(this._turnId, e.id);
 				this._currentTurn.value?.completeEventId(e.id);
