@@ -26,7 +26,7 @@ In `product-quality-checks.yml`:
 
 1. Component Detection runs with `ComponentGovernanceComponentDetection@0`.
 2. `notice@0` writes `$(Build.SourcesDirectory)/ThirdPartyNotices.generated.txt` and is `continueOnError: true`.
-3. The cache fallback checks whether the CG file exists and is larger than 1 KB. If not, it downloads the latest `notice_output` artifact for the current branch, then `main`, and copies the cached `ThirdPartyNotices.generated.txt` into place.
+3. The cache fallback checks whether the CG file exists and is larger than 1 KB. If not, `DownloadBuildArtifacts@1` uses `latestFromBranch` with the `cg-notice-baseline` build tag to select the latest successful or partially successful eligible build for the current branch, then `main`. Scanner-only CI builds remain untagged and cannot hide a usable baseline. The apply step still validates the downloaded CG file and preserves its provenance.
 4. TypeScript compiles the OSS scripts into `.oss-build-out`:
    - `apply-overrides.ts`
    - `scan-licenses.ts`
@@ -35,6 +35,16 @@ In `product-quality-checks.yml`:
 5. `scan-licenses.js` runs with `--repo`, `--cg`, and `--output`.
 6. `merge-notices.js` runs with `--cg`, `--extensions`, `--cglicenses`, and `--output`.
 7. The generated CG file, scanner file, final merged file, and optional cache metadata are uploaded under `notice_output`.
+
+### Cache eligibility and rollout
+
+The CG publisher first removes any existing `cg-notice-baseline` tag from the current build, then stages the base and provenance with fail-fast error handling. Invalidation uses a 30-second-bounded request that removes only this tag; a failure prevents publication from replacing a previously tagged baseline. This handles job retries without leaving stale eligibility attached to a failed replacement.
+
+A separate, one-minute-bounded native download reads those two published files back into a clean temporary directory after the merged NOTICE and sourcemap upload steps, so verification does not delay those outputs. `common/tagNoticeBaseline.ts` emits the tag only when the CG base is larger than 1 KB, the provenance is nonempty, and both files are byte-identical to the staged copies. This verification is necessary because artifact upload logging commands are asynchronous and `continueOnError` permits later steps even after an upload failure.
+
+Both fresh and carried-forward baselines can qualify; carry-forward retains the original provenance. Scanner-only output remains available for diagnostics but is not a cache baseline. Publication, readback, or verification failures remain visible, and the existing scanner/merge continues under the existing `continueOnError` policy. Eligibility is not a certification of freshness or complete license coverage; no maximum cache age is enforced.
+
+The first deployment needs a successful tagged producer before automatic fallback can use the new tag. Alternatively, a release owner can explicitly approve tagging a historical build after verifying its CG base and provenance. Untagged historical builds are deliberately not selected, and there is no fallback to the old unfiltered lookup. Until a baseline is seeded, a failed generation reports the cache miss and follows the existing no-cache path.
 
 ## Applying the NOTICE (cutover)
 

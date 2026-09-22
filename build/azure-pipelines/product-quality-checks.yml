@@ -182,10 +182,10 @@ jobs:
       #   1. Most recent run on the CURRENT branch
       #   2. Most recent run on `main`
       #
-      # Carry-forward: the cache download reads only the SINGLE latest build, so a
-      # sustained CG outage (>1 build) breaks the chain unless every build keeps a
-      # copy. The "Upload CG NOTICE artifact" step below runs on the fallback path
-      # too, handing the last-good NOTICE forward. Ref: builds 450982->451029.
+      # Only builds tagged cg-notice-baseline are cache sources. CI builds also
+      # publish notice_output, but without a CG base. The tag is added only
+      # after reading back and verifying the published CG base and provenance.
+      # Carry-forward publishes and verifies cached bases in the same way.
       #
       # TODO: consider enforcing a max-age check (~30 days) on cached NOTICEs.
       # Today the only signal is the warning emitted below.
@@ -224,6 +224,7 @@ jobs:
           definition: $(System.DefinitionId)
           buildVersionToDownload: latestFromBranch
           branchName: $(Build.SourceBranch)
+          tags: cg-notice-baseline
           allowPartiallySucceededBuilds: true
           artifactName: notice_output
           # NB: one glob per line. DownloadBuildArtifacts@1 runs minimatch with
@@ -247,6 +248,7 @@ jobs:
           definition: $(System.DefinitionId)
           buildVersionToDownload: latestFromBranch
           branchName: refs/heads/main
+          tags: cg-notice-baseline
           allowPartiallySucceededBuilds: true
           artifactName: notice_output
           # See note on the same-branch download above: brace patterns match 0
@@ -313,19 +315,22 @@ jobs:
         condition: and(succeeded(), eq(lower(variables['VSCODE_CIBUILD']), 'false'), ne(variables.CG_NOTICE_OK, 'true'))
 
       - script: |
-          set -u
+          set -eu
+          echo "##vso[task.setvariable variable=CG_NOTICE_STAGED]false"
           GEN="$(Build.SourcesDirectory)/ThirdPartyNotices.generated.txt"
           echo "=== CG NOTICE artifact ==="
 
-          # Publish on both paths: fresh CG success AND carry-forward (re-publishing
-          # a cached NOTICE so the chain survives a multi-build outage; see above).
+          # GEN contains fresh output OR the cached base copied by the fallback.
+          # The step condition skips publication when neither is available;
+          # continueOnError keeps an unexpected loss nonfatal but visible.
           if [ ! -f "$GEN" ] || [ "$(wc -c < "$GEN")" -le 1024 ]; then
-            echo "No usable ThirdPartyNotices.generated.txt to publish; skipping (no CG output and no cached fallback)."
-            exit 0
+            echo "##[error]The validated fresh or cached CG NOTICE is missing or too small; not publishing a cache baseline."
+            exit 1
           fi
 
           SIZE=$(wc -c < "$GEN")
           echo "Generated file size: $SIZE bytes (source: CG_NOTICE_OK=${CG_NOTICE_OK:-unset}, NOTICE_FROM_CACHE=${NOTICE_FROM_CACHE:-unset})"
+          node build/azure-pipelines/common/tagNoticeBaseline.ts --clear
           cp "$GEN" "$(Build.ArtifactStagingDirectory)/ThirdPartyNotices.generated.txt"
           echo "##vso[artifact.upload containerfolder=notice_output;artifactname=notice_output]$(Build.ArtifactStagingDirectory)/ThirdPartyNotices.generated.txt"
 
@@ -360,7 +365,10 @@ jobs:
             } >> "$META_OUT"
           fi
           echo "##vso[artifact.upload containerfolder=notice_output;artifactname=notice_output]$META_OUT"
+          echo "##vso[task.setvariable variable=CG_NOTICE_STAGED]true"
         displayName: "Upload CG NOTICE artifact (fresh or carried-forward)"
+        env:
+          SYSTEM_ACCESSTOKEN: $(System.AccessToken)
         condition: and(succeeded(), eq(lower(variables['VSCODE_CIBUILD']), 'false'), or(eq(variables.CG_NOTICE_OK, 'true'), in(variables.NOTICE_FROM_CACHE, 'branch', 'main')))
         continueOnError: true
 
@@ -407,3 +415,26 @@ jobs:
             node build/azure-pipelines/upload-sourcemaps.ts
         displayName: Upload sourcemaps to Azure
         condition: and(succeeded(), eq(lower(variables['VSCODE_PUBLISH']), 'true'))
+
+      # Upload logging commands are asynchronous, and continueOnError allows
+      # later steps after a failed upload. Verify bytes before adding the tag,
+      # but do not delay the merged NOTICE or sourcemap uploads for this check.
+      - task: DownloadBuildArtifacts@1
+        displayName: "Verify published CG NOTICE baseline"
+        inputs:
+          buildType: current
+          artifactName: notice_output
+          itemPattern: |
+            **/ThirdPartyNotices.generated.txt
+            **/notice-meta.txt
+          downloadPath: $(Agent.TempDirectory)/cg-notice-baseline
+          cleanDestinationFolder: true
+          checkDownloadedFiles: true
+        timeoutInMinutes: 1
+        continueOnError: true
+        condition: and(succeeded(), eq(lower(variables['VSCODE_CIBUILD']), 'false'), eq(variables.CG_NOTICE_STAGED, 'true'))
+
+      - script: node build/azure-pipelines/common/tagNoticeBaseline.ts "$(Build.ArtifactStagingDirectory)" "$(Agent.TempDirectory)/cg-notice-baseline/notice_output"
+        displayName: "Tag verified CG NOTICE baseline"
+        continueOnError: true
+        condition: and(succeeded(), eq(lower(variables['VSCODE_CIBUILD']), 'false'), eq(variables.CG_NOTICE_STAGED, 'true'))
