@@ -20,6 +20,8 @@ import { WorkspaceContextContribution } from '../../node/chatContributions/works
 
 suite('WorkspaceContextContribution', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+	const workspaceHeading = JSON.stringify(URI.file('/workspace').fsPath).slice(1, -1);
+	const otherHeading = JSON.stringify(URI.file('/other').fsPath).slice(1, -1);
 	teardown(() => sinon.restore());
 
 	function setupContext(options: { files?: readonly string[]; roots?: readonly string[]; provider?: string; truncated?: boolean } = {}) {
@@ -63,7 +65,7 @@ suite('WorkspaceContextContribution', () => {
 		});
 		assert.deepStrictEqual(await context.send(), {
 			message: { text: 'Bump the version to 2', origin: { kind: MessageKind.User } },
-			instructions: ['<workspace_info>\nInitial workspace structure (file names only):\n```text\n/workspace\nmeta.json\nsrc/\n\tmain.ts\ntests/\n\tmain.test.ts\n```\nThis snapshot may be truncated or stale. Use tools to inspect file contents and collect more context as needed.\n</workspace_info>'],
+			instructions: ['<workspace_info>\nInitial workspace structure (file names only):\n```text\n' + workspaceHeading + '\nmeta.json\nsrc/\n\tmain.ts\ntests/\n\tmain.test.ts\n```\nThis snapshot may be truncated or stale. Use tools to inspect file contents and collect more context as needed.\n</workspace_info>'],
 		});
 	});
 
@@ -94,7 +96,7 @@ suite('WorkspaceContextContribution', () => {
 		assert.deepStrictEqual({
 			roots: context.enumerate.getCalls().map(call => call.args[0].path),
 			structure: result.instructions?.[0].split('```text\n')[1].split('\n```')[0],
-		}, { roots: ['/workspace', '/other'], structure: '/workspace\npackage.json\nsrc/\n\tmain.ts\n\n/other\nmeta.json' });
+		}, { roots: ['/workspace', '/other'], structure: workspaceHeading + '\npackage.json\nsrc/\n\tmain.ts\n\n' + otherHeading + '\nmeta.json' });
 	});
 
 	test('uses a peer chat\'s restricted working directories', async () => {
@@ -111,7 +113,7 @@ suite('WorkspaceContextContribution', () => {
 		assert.deepStrictEqual({
 			roots: context.enumerate.getCalls().map(call => call.args[0].path),
 			structure: result.instructions?.[0].split('```text\n')[1].split('\n```')[0],
-		}, { roots: ['/other'], structure: '/other\nmeta.json' });
+		}, { roots: ['/other'], structure: otherHeading + '\nmeta.json' });
 	});
 
 	test('bounds the snapshot and keeps root-level orientation ahead of deep files', async () => {
