@@ -256,212 +256,212 @@ function websiteKey(url: string): string | undefined {
 }
 
 interface IGitHubReferenceTarget {
-		readonly owner: string;
-		readonly repo: string;
-		readonly number: number;
-	}
+	readonly owner: string;
+	readonly repo: string;
+	readonly number: number;
+}
 
-	interface IPullRequestHoverDetails {
-		readonly pullRequest: IGitHubPullRequestHoverModel;
-		readonly checksStatus: GitHubChecksStatus | undefined;
-	}
+interface IPullRequestHoverDetails {
+	readonly pullRequest: IGitHubPullRequestHoverModel;
+	readonly checksStatus: GitHubChecksStatus | undefined;
+}
 
-	interface IGitHubReferenceEntry<T> {
-		readonly target: IGitHubReferenceTarget;
-		readonly value: ReturnType<typeof observableValue<T | undefined>>;
-		readonly subscription: MutableDisposable<DisposableStore>;
-		generation: number;
-	}
+interface IGitHubReferenceEntry<T> {
+	readonly target: IGitHubReferenceTarget;
+	readonly value: ReturnType<typeof observableValue<T | undefined>>;
+	readonly subscription: MutableDisposable<DisposableStore>;
+	generation: number;
+}
 
-	class AgentHostGitHubReferenceResolver extends Disposable {
+class AgentHostGitHubReferenceResolver extends Disposable {
 
-		private readonly _issues = new Map<string, IGitHubReferenceEntry<IGitHubIssueHoverModel>>();
-		private readonly _pullRequests = new Map<string, IGitHubReferenceEntry<IPullRequestHoverDetails>>();
+	private readonly _issues = new Map<string, IGitHubReferenceEntry<IGitHubIssueHoverModel>>();
+	private readonly _pullRequests = new Map<string, IGitHubReferenceEntry<IPullRequestHoverDetails>>();
 
-		constructor(
-			@IGitHubService private readonly _gitHubService: IGitHubService,
-			@ILogService private readonly _logService: ILogService,
-		) {
-			super();
-			this._register(this._gitHubService.credentials.onDidInvalidate(() => {
-				for (const entry of this._issues.values()) {
-					this._initializeIssue(entry);
-				}
-				for (const entry of this._pullRequests.values()) {
-					this._initializePullRequest(entry);
-				}
-			}));
-		}
-
-		getIssue(target: IGitHubReferenceTarget): IObservable<IGitHubIssueHoverModel | undefined> {
-			const key = githubTargetKey(target);
-			let entry = this._issues.get(key);
-			if (!entry) {
-				entry = this._createEntry<IGitHubIssueHoverModel>(target);
-				this._issues.set(key, entry);
+	constructor(
+		@IGitHubService private readonly _gitHubService: IGitHubService,
+		@ILogService private readonly _logService: ILogService,
+	) {
+		super();
+		this._register(this._gitHubService.credentials.onDidInvalidate(() => {
+			for (const entry of this._issues.values()) {
 				this._initializeIssue(entry);
 			}
-			return entry.value;
-		}
-
-		getPullRequest(target: IGitHubReferenceTarget): IObservable<IPullRequestHoverDetails | undefined> {
-			const key = githubTargetKey(target);
-			let entry = this._pullRequests.get(key);
-			if (!entry) {
-				entry = this._createEntry<IPullRequestHoverDetails>(target);
-				this._pullRequests.set(key, entry);
+			for (const entry of this._pullRequests.values()) {
 				this._initializePullRequest(entry);
 			}
-			return entry.value;
-		}
+		}));
+	}
 
-		retain(issueTargets: readonly IGitHubReferenceTarget[], pullRequestTargets: readonly IGitHubReferenceTarget[]): void {
-			this._retainEntries(this._issues, new Set(issueTargets.map(githubTargetKey)));
-			this._retainEntries(this._pullRequests, new Set(pullRequestTargets.map(githubTargetKey)));
+	getIssue(target: IGitHubReferenceTarget): IObservable<IGitHubIssueHoverModel | undefined> {
+		const key = githubTargetKey(target);
+		let entry = this._issues.get(key);
+		if (!entry) {
+			entry = this._createEntry<IGitHubIssueHoverModel>(target);
+			this._issues.set(key, entry);
+			this._initializeIssue(entry);
 		}
+		return entry.value;
+	}
 
-		private _createEntry<T>(target: IGitHubReferenceTarget): IGitHubReferenceEntry<T> {
-			return {
-				target,
-				value: observableValue<T | undefined>(this, undefined),
-				subscription: this._register(new MutableDisposable<DisposableStore>()),
-				generation: 0,
-			};
+	getPullRequest(target: IGitHubReferenceTarget): IObservable<IPullRequestHoverDetails | undefined> {
+		const key = githubTargetKey(target);
+		let entry = this._pullRequests.get(key);
+		if (!entry) {
+			entry = this._createEntry<IPullRequestHoverDetails>(target);
+			this._pullRequests.set(key, entry);
+			this._initializePullRequest(entry);
 		}
+		return entry.value;
+	}
 
-		private _retainEntries<T>(entries: Map<string, IGitHubReferenceEntry<T>>, retainedKeys: ReadonlySet<string>): void {
-			for (const [key, entry] of entries) {
-				if (!retainedKeys.has(key)) {
-					entry.subscription.dispose();
-					entries.delete(key);
-				}
+	retain(issueTargets: readonly IGitHubReferenceTarget[], pullRequestTargets: readonly IGitHubReferenceTarget[]): void {
+		this._retainEntries(this._issues, new Set(issueTargets.map(githubTargetKey)));
+		this._retainEntries(this._pullRequests, new Set(pullRequestTargets.map(githubTargetKey)));
+	}
+
+	private _createEntry<T>(target: IGitHubReferenceTarget): IGitHubReferenceEntry<T> {
+		return {
+			target,
+			value: observableValue<T | undefined>(this, undefined),
+			subscription: this._register(new MutableDisposable<DisposableStore>()),
+			generation: 0,
+		};
+	}
+
+	private _retainEntries<T>(entries: Map<string, IGitHubReferenceEntry<T>>, retainedKeys: ReadonlySet<string>): void {
+		for (const [key, entry] of entries) {
+			if (!retainedKeys.has(key)) {
+				entry.subscription.dispose();
+				entries.delete(key);
 			}
 		}
-
-		private _initializeIssue(entry: IGitHubReferenceEntry<IGitHubIssueHoverModel>): void {
-			const generation = ++entry.generation;
-			const store = new DisposableStore();
-			entry.subscription.value = store;
-			const controller = new AbortController();
-			store.add(toDisposable(() => controller.abort()));
-			void this._gitHubService.credentials.getCredential(controller.signal).then(credential => {
-				if (controller.signal.aborted || generation !== entry.generation) {
-					return;
-				}
-				const ref: GitHubIssueRef = { ...credential.account, ...entry.target };
-				const subscription = store.add(this._gitHubService.query.subscribeIssue(ref, { priority: 'visible' }));
-				store.add(autorun(reader => {
-					const issue = subscription.resource.state.read(reader).value;
-					entry.value.set(issue ? toIssueHoverModel(issue) : undefined, undefined);
-				}));
-				void subscription.refresh().catch(error => this._logService.warn('[AgentHostSessionInputPills] Failed to refresh GitHub issue reference', error));
-			}, error => {
-				if (!controller.signal.aborted) {
-					this._logService.warn('[AgentHostSessionInputPills] Failed to resolve GitHub credentials for issue reference', error);
-				}
-			});
-		}
-
-		private _initializePullRequest(entry: IGitHubReferenceEntry<IPullRequestHoverDetails>): void {
-			const generation = ++entry.generation;
-			const store = new DisposableStore();
-			entry.subscription.value = store;
-			const controller = new AbortController();
-			store.add(toDisposable(() => controller.abort()));
-			void this._gitHubService.credentials.getCredential(controller.signal).then(credential => {
-				if (controller.signal.aborted || generation !== entry.generation) {
-					return;
-				}
-				const ref: PullRequestRef = { ...credential.account, ...entry.target };
-				const subscription = store.add(this._gitHubService.pullRequests.subscribePullRequest(ref, {
-					priority: 'visible',
-					core: true,
-					checks: { includeOptional: true },
-				}));
-				store.add(autorun(reader => {
-					const snapshot = subscription.resource.snapshot.read(reader);
-					const pullRequest = snapshot.core.value;
-					entry.value.set(pullRequest ? {
-						pullRequest: toPullRequestHoverModel(pullRequest),
-						checksStatus: getChecksStatus(snapshot),
-					} : undefined, undefined);
-				}));
-				void subscription.refresh('core').catch(error => this._logService.warn('[AgentHostSessionInputPills] Failed to refresh GitHub pull request reference', error));
-				void subscription.refresh('checks').catch(error => this._logService.warn('[AgentHostSessionInputPills] Failed to refresh GitHub pull request checks', error));
-			}, error => {
-				if (!controller.signal.aborted) {
-					this._logService.warn('[AgentHostSessionInputPills] Failed to resolve GitHub credentials for pull request reference', error);
-				}
-			});
-		}
 	}
 
-	function githubTargetKey(target: IGitHubReferenceTarget): string {
-		return `${target.owner.toLowerCase()}/${target.repo.toLowerCase()}#${target.number}`;
+	private _initializeIssue(entry: IGitHubReferenceEntry<IGitHubIssueHoverModel>): void {
+		const generation = ++entry.generation;
+		const store = new DisposableStore();
+		entry.subscription.value = store;
+		const controller = new AbortController();
+		store.add(toDisposable(() => controller.abort()));
+		void this._gitHubService.credentials.getCredential(controller.signal).then(credential => {
+			if (controller.signal.aborted || generation !== entry.generation) {
+				return;
+			}
+			const ref: GitHubIssueRef = { ...credential.account, ...entry.target };
+			const subscription = store.add(this._gitHubService.query.subscribeIssue(ref, { priority: 'visible' }));
+			store.add(autorun(reader => {
+				const issue = subscription.resource.state.read(reader).value;
+				entry.value.set(issue ? toIssueHoverModel(issue) : undefined, undefined);
+			}));
+			void subscription.refresh().catch(error => this._logService.warn('[AgentHostSessionInputPills] Failed to refresh GitHub issue reference', error));
+		}, error => {
+			if (!controller.signal.aborted) {
+				this._logService.warn('[AgentHostSessionInputPills] Failed to resolve GitHub credentials for issue reference', error);
+			}
+		});
 	}
 
-	function parseGitHubReferenceTarget(resource: URI, kind: 'pullRequest' | 'issue'): IGitHubReferenceTarget | undefined {
-		const segments = resource.path.split('/').filter(Boolean);
-		const expectedKind = kind === 'pullRequest' ? 'pull' : 'issues';
-		const number = Number(segments[3]);
-		return resource.authority.toLowerCase() === 'github.com'
-			&& segments.length >= 4
-			&& segments[2] === expectedKind
-			&& Number.isInteger(number)
-			&& number > 0
-			? { owner: segments[0], repo: segments[1], number }
-			: undefined;
+	private _initializePullRequest(entry: IGitHubReferenceEntry<IPullRequestHoverDetails>): void {
+		const generation = ++entry.generation;
+		const store = new DisposableStore();
+		entry.subscription.value = store;
+		const controller = new AbortController();
+		store.add(toDisposable(() => controller.abort()));
+		void this._gitHubService.credentials.getCredential(controller.signal).then(credential => {
+			if (controller.signal.aborted || generation !== entry.generation) {
+				return;
+			}
+			const ref: PullRequestRef = { ...credential.account, ...entry.target };
+			const subscription = store.add(this._gitHubService.pullRequests.subscribePullRequest(ref, {
+				priority: 'visible',
+				core: true,
+				checks: { includeOptional: true },
+			}));
+			store.add(autorun(reader => {
+				const snapshot = subscription.resource.snapshot.read(reader);
+				const pullRequest = snapshot.core.value;
+				entry.value.set(pullRequest ? {
+					pullRequest: toPullRequestHoverModel(pullRequest),
+					checksStatus: getChecksStatus(snapshot),
+				} : undefined, undefined);
+			}));
+			void subscription.refresh('core').catch(error => this._logService.warn('[AgentHostSessionInputPills] Failed to refresh GitHub pull request reference', error));
+			void subscription.refresh('checks').catch(error => this._logService.warn('[AgentHostSessionInputPills] Failed to refresh GitHub pull request checks', error));
+		}, error => {
+			if (!controller.signal.aborted) {
+				this._logService.warn('[AgentHostSessionInputPills] Failed to resolve GitHub credentials for pull request reference', error);
+			}
+		});
 	}
+}
 
-	function toIssueHoverModel(issue: GitHubIssue): IGitHubIssueHoverModel {
-		return {
-			title: issue.title,
-			body: issue.body,
-			state: issue.state,
-			stateReason: issue.stateReason,
-			author: issue.author,
-			createdAt: issue.createdAt,
-		};
+function githubTargetKey(target: IGitHubReferenceTarget): string {
+	return `${target.owner.toLowerCase()}/${target.repo.toLowerCase()}#${target.number}`;
+}
+
+function parseGitHubReferenceTarget(resource: URI, kind: 'pullRequest' | 'issue'): IGitHubReferenceTarget | undefined {
+	const segments = resource.path.split('/').filter(Boolean);
+	const expectedKind = kind === 'pullRequest' ? 'pull' : 'issues';
+	const number = Number(segments[3]);
+	return resource.authority.toLowerCase() === 'github.com'
+		&& segments.length >= 4
+		&& segments[2] === expectedKind
+		&& Number.isInteger(number)
+		&& number > 0
+		? { owner: segments[0], repo: segments[1], number }
+		: undefined;
+}
+
+function toIssueHoverModel(issue: GitHubIssue): IGitHubIssueHoverModel {
+	return {
+		title: issue.title,
+		body: issue.body,
+		state: issue.state,
+		stateReason: issue.stateReason,
+		author: issue.author,
+		createdAt: issue.createdAt,
+	};
+}
+
+function toPullRequestHoverModel(pullRequest: PullRequestCore): IGitHubPullRequestHoverModel {
+	return {
+		title: pullRequest.title,
+		body: pullRequest.body ?? '',
+		state: pullRequest.state,
+		author: pullRequest.author ?? { login: 'unknown' },
+		headRef: pullRequest.headRef,
+		baseRef: pullRequest.baseRef,
+		isDraft: pullRequest.draft,
+		createdAt: pullRequest.createdAt,
+	};
+}
+
+function getChecksStatus(snapshot: PullRequestSnapshot): GitHubChecksStatus | undefined {
+	const checks = snapshot.checks.value?.checks;
+	if (!checks?.length) {
+		return undefined;
 	}
-
-	function toPullRequestHoverModel(pullRequest: PullRequestCore): IGitHubPullRequestHoverModel {
-		return {
-			title: pullRequest.title,
-			body: pullRequest.body ?? '',
-			state: pullRequest.state,
-			author: pullRequest.author ?? { login: 'unknown' },
-			headRef: pullRequest.headRef,
-			baseRef: pullRequest.baseRef,
-			isDraft: pullRequest.draft,
-			createdAt: pullRequest.createdAt,
-		};
+	if (checks.some(isPendingCheck)) {
+		return 'pending';
 	}
+	return checks.some(isFailingCheck) ? 'failure' : 'success';
+}
 
-	function getChecksStatus(snapshot: PullRequestSnapshot): GitHubChecksStatus | undefined {
-		const checks = snapshot.checks.value?.checks;
-		if (!checks?.length) {
-			return undefined;
-		}
-		if (checks.some(isPendingCheck)) {
-			return 'pending';
-		}
-		return checks.some(isFailingCheck) ? 'failure' : 'success';
-	}
+function isPendingCheck(check: PullRequestCheck): boolean {
+	return check.type === 'checkRun'
+		? check.status !== 'COMPLETED'
+		: check.status === 'PENDING' || check.status === 'EXPECTED';
+}
 
-	function isPendingCheck(check: PullRequestCheck): boolean {
-		return check.type === 'checkRun'
-			? check.status !== 'COMPLETED'
-			: check.status === 'PENDING' || check.status === 'EXPECTED';
-	}
-
-	function isFailingCheck(check: PullRequestCheck): boolean {
-		return check.type === 'checkRun'
-			? check.conclusion === 'FAILURE'
-				|| check.conclusion === 'TIMED_OUT'
-				|| check.conclusion === 'CANCELLED'
-				|| check.conclusion === 'ACTION_REQUIRED'
-				|| check.conclusion === 'STARTUP_FAILURE'
-			: check.status === 'FAILURE' || check.status === 'ERROR';
+function isFailingCheck(check: PullRequestCheck): boolean {
+	return check.type === 'checkRun'
+		? check.conclusion === 'FAILURE'
+		|| check.conclusion === 'TIMED_OUT'
+		|| check.conclusion === 'CANCELLED'
+		|| check.conclusion === 'ACTION_REQUIRED'
+		|| check.conclusion === 'STARTUP_FAILURE'
+		: check.status === 'FAILURE' || check.status === 'ERROR';
 }
 
 /** Adds Agent Host session metadata pills to a workbench chat input. */
@@ -685,11 +685,11 @@ export class AgentHostSessionInputPills extends Disposable {
 			const pullRequestState = pullRequestDetails
 				? getPullRequestResourceStatus(pullRequestDetails.pullRequest).kind
 				: kind === 'pullRequest'
-				&& gitHubState?.pullRequestState
-				&& gitHubState.pullRequestStateUrl
-				&& linkKey(gitHubState.pullRequestStateUrl) === linkKey(link)
-				? gitHubState.pullRequestState
-				: 'open';
+					&& gitHubState?.pullRequestState
+					&& gitHubState.pullRequestStateUrl
+					&& linkKey(gitHubState.pullRequestStateUrl) === linkKey(link)
+					? gitHubState.pullRequestState
+					: 'open';
 			let hoverTabbableElements: readonly HTMLElement[] = [];
 			const createHover = pullRequestDetails && target
 				? (density: 'default' | 'compact') => createPullRequestResourceHover({
