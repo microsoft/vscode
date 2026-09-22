@@ -9,7 +9,7 @@ import { alert, status } from '../../../../../base/browser/ui/aria/aria.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { IListRenderer, IListVirtualDelegate, NotSelectableGroupId } from '../../../../../base/browser/ui/list/list.js';
 import { DomScrollableElement } from '../../../../../base/browser/ui/scrollbar/scrollableElement.js';
-import { Action, IAction } from '../../../../../base/common/actions.js';
+import { Action, IAction, Separator, SubmenuAction } from '../../../../../base/common/actions.js';
 import { RunOnceScheduler } from '../../../../../base/common/async.js';
 import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
@@ -31,7 +31,10 @@ import { IKeybindingService } from '../../../../../platform/keybinding/common/ke
 import { WorkbenchList } from '../../../../../platform/list/browser/listService.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
+import { WorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
 import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
+import { activeContrastBorder, asCssVariable } from '../../../../../platform/theme/common/colorRegistry.js';
+import { MODERN_TAB_ACTIVE_BACKGROUND, MODERN_TAB_ACTIVE_FOREGROUND, MODERN_TAB_HOVER_BACKGROUND, PANEL_INACTIVE_TITLE_FOREGROUND } from '../../../../common/theme.js';
 import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 import { AccessibilityVerbositySettingId } from '../../../accessibility/browser/accessibilityConfiguration.js';
 import { SuggestEnabledInput } from '../../../codeEditor/browser/suggestEnabledInput/suggestEnabledInput.js';
@@ -53,6 +56,18 @@ const catalogPageSize = 30;
 const leadingBrowseItemCount = 4;
 const resultRowHeight = 72;
 const groupHeaderHeight = 36;
+const searchInputHeight = 20;
+
+const quickFilterButtonStyles = {
+	buttonBackground: asCssVariable(MODERN_TAB_ACTIVE_BACKGROUND),
+	buttonHoverBackground: asCssVariable(MODERN_TAB_ACTIVE_BACKGROUND),
+	buttonForeground: asCssVariable(MODERN_TAB_ACTIVE_FOREGROUND),
+	buttonBorder: asCssVariable(activeContrastBorder),
+	buttonSecondaryBackground: undefined,
+	buttonSecondaryHoverBackground: asCssVariable(MODERN_TAB_HOVER_BACKGROUND),
+	buttonSecondaryForeground: asCssVariable(PANEL_INACTIVE_TITLE_FOREGROUND),
+	buttonSecondaryBorder: asCssVariable(activeContrastBorder),
+};
 
 type DiscoveryItemType = 'agent' | 'skill' | 'instructions' | 'prompt' | 'hook' | 'mcp' | 'plugin';
 
@@ -336,6 +351,8 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 	private readonly migrationLabel: HTMLElement;
 	private readonly titleDescription: HTMLElement;
 	private readonly searchWidget: SuggestEnabledInput;
+	private readonly searchActionsContainer: HTMLElement;
+	private readonly searchToolbar: WorkbenchToolBar;
 	private readonly quickFilters = new Map<'installed' | CustomizationDiscoveryType, Button>();
 	private readonly browseScrollable: DomScrollableElement;
 	private readonly browseContent: HTMLElement;
@@ -347,6 +364,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 	private readonly loadMoreContainer: HTMLElement;
 	private readonly loadMoreButton: Button;
 	private readonly browseDisposables = this._register(new DisposableStore());
+	private readonly searchActionDisposables = this._register(new DisposableStore());
 	private readonly request = this._register(new MutableDisposable<CancellationTokenSource>());
 	private readonly searchScheduler = this._register(new RunOnceScheduler(() => void this.loadCatalog(false), searchDelay));
 	private readonly catalogPages = new Map<string, ICatalogPageState>();
@@ -417,12 +435,19 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 			searchContainer,
 			{
 				triggerCharacters: ['@', ':'],
+				sortKey: item => item.startsWith('@installed') ? 'a' : 'b',
 				provideResults: value => [...getCustomizationDiscoveryQuerySuggestions(value)],
 			},
 			localize('customizationDiscovery.searchLabel', "Search customizations"),
 			'aiCustomizationDiscovery:search',
 			{ placeholderText: placeholder },
 		));
+		this.searchActionsContainer = DOM.append(searchContainer, $('.customization-discovery-search-actions'));
+		this.searchToolbar = this._register(this.instantiationService.createInstance(WorkbenchToolBar, this.searchActionsContainer, {
+			ariaLabel: localize('customizationDiscovery.searchActions', "Customization Search Actions"),
+			highlightToggledItems: true,
+			telemetrySource: 'customizationDiscoverySearch',
+		}));
 		this._register(this.searchWidget.onInputDidChange(() => this.onQueryChanged()));
 		this.updateSearchAriaLabel();
 		this._register(this.keybindingService.onDidUpdateKeybindings(() => this.updateSearchAriaLabel()));
@@ -551,7 +576,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 	}
 
 	private createQuickFilter(parent: HTMLElement, filter: 'installed' | CustomizationDiscoveryType, label: string): void {
-		const button = this._register(new Button(parent, { ...defaultButtonStyles, secondary: true, small: true }));
+		const button = this._register(new Button(parent, { ...quickFilterButtonStyles, secondary: true, small: true }));
 		button.label = label;
 		button.element.classList.add('customization-discovery-filter');
 		button.element.setAttribute('aria-pressed', 'false');
@@ -613,6 +638,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 		this.updateQuickFilter('skill', this.query.types.has('skill'));
 		this.updateQuickFilter('mcp', this.query.types.has('mcp'));
 		this.updateQuickFilter('plugin', this.query.types.has('plugin'));
+		this.updateSearchActions();
 	}
 
 	private updateQuickFilter(filter: 'installed' | CustomizationDiscoveryType, pressed: boolean): void {
@@ -622,6 +648,64 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 		}
 		button?.element.classList.toggle('checked', pressed);
 		button?.element.setAttribute('aria-pressed', String(pressed));
+	}
+
+	private updateSearchActions(): void {
+		this.searchActionDisposables.clear();
+		const actions: IAction[] = [];
+		if (!this.query.isEmpty()) {
+			actions.push(this.searchActionDisposables.add(new Action(
+				'customizationDiscovery.clearSearch',
+				localize('customizationDiscovery.clearSearch', "Clear Customization Search Results"),
+				ThemeIcon.asClassName(Codicon.clearAll),
+				true,
+				() => this.setQuery(CustomizationDiscoveryQuery.parse('')),
+			)));
+		}
+
+		const installed = this.searchActionDisposables.add(new Action(
+			'customizationDiscovery.filter.installed',
+			localize('customizationDiscovery.filterInstalled', "Installed"),
+			undefined,
+			true,
+			() => this.setQuery(this.query.withInstalled(!this.query.installed)),
+		));
+		installed.checked = this.query.installed;
+
+		const mcp = this.searchActionDisposables.add(new Action(
+			'customizationDiscovery.filter.mcp',
+			localize('customizationDiscovery.filterMcpServers', "MCP Servers"),
+			undefined,
+			true,
+			() => this.setQuery(this.query.withType('mcp', !this.query.types.has('mcp'))),
+		));
+		mcp.checked = this.query.types.has('mcp');
+
+		const plugins = this.searchActionDisposables.add(new Action(
+			'customizationDiscovery.filter.plugin',
+			localize('customizationDiscovery.filterPlugins', "Plugins"),
+			undefined,
+			true,
+			() => this.setQuery(this.query.withType('plugin', !this.query.types.has('plugin'))),
+		));
+		plugins.checked = this.query.types.has('plugin');
+
+		const skills = this.searchActionDisposables.add(new Action(
+			'customizationDiscovery.filter.skill',
+			localize('customizationDiscovery.filterSkills', "Skills"),
+			undefined,
+			true,
+			() => this.setQuery(this.query.withType('skill', !this.query.types.has('skill'))),
+		));
+		skills.checked = this.query.types.has('skill');
+
+		actions.push(new SubmenuAction(
+			'customizationDiscovery.filter',
+			localize('customizationDiscovery.filter', "Filter Customizations..."),
+			[installed, new Separator(), mcp, plugins, skills],
+			ThemeIcon.asClassName(Codicon.filter),
+		));
+		this.searchToolbar.setActions(actions);
 	}
 
 	private handleAvailabilityChanged(): void {
@@ -1187,7 +1271,8 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 		const height = this.container.clientHeight || this.lastDimension.height;
 		this.container.classList.toggle('narrow', width < 640);
 		const searchContainer = this.searchWidget.element;
-		this.searchWidget.layout(new DOM.Dimension(Math.max(0, searchContainer.clientWidth), 30));
+		const searchActionsWidth = this.searchActionsContainer.offsetWidth;
+		this.searchWidget.layout(new DOM.Dimension(Math.max(0, searchContainer.clientWidth - searchActionsWidth - 4), searchInputHeight));
 		const availableHeight = Math.max(0, height - this.header.offsetHeight);
 		this.resultListContainer.style.height = `${availableHeight}px`;
 		const statusHeight = this.resultStatus.offsetHeight;

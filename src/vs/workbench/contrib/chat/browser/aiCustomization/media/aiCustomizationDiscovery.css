@@ -8,7 +8,7 @@
 	min-width: 0;
 	min-height: 0;
 	color: var(--vscode-foreground);
-	background: var(--vscode-editor-background);
+	background: transparent;
 }
 
 .customization-discovery-content {
@@ -84,12 +84,22 @@
 
 .customization-discovery-search {
 	position: relative;
-	height: 30px;
+	height: var(--vscode-spacing-size240);
 }
 
 .customization-discovery-search .suggest-input-container {
-	height: 30px;
+	box-sizing: border-box;
+	height: var(--vscode-spacing-size240);
 	border-radius: var(--vscode-cornerRadius-small);
+}
+
+.customization-discovery-search-actions {
+	position: absolute;
+	top: 0;
+	right: 0;
+	display: flex;
+	align-items: center;
+	height: 100%;
 }
 
 .customization-discovery-filters {
@@ -101,7 +111,11 @@
 
 .customization-discovery-filters > .monaco-button.customization-discovery-filter {
 	width: auto;
-	border-radius: var(--vscode-cornerRadius-circle);
+	min-height: var(--vscode-spacing-size240);
+	padding: var(--vscode-spacing-size20) var(--vscode-spacing-size100);
+	border-radius: var(--vscode-cornerRadius-small);
+	font-size: var(--vscode-fontSize-body1);
+	line-height: 16px;
 }
 
 .customization-discovery-browse-scrollable {
@@ -280,7 +294,7 @@
 }
 
 .customization-discovery-list .monaco-list-row {
-	padding: 0 max(var(--vscode-spacing-size240), calc((100% - 960px) / 2));
+	padding: 0 max(var(--vscode-spacing-size400), calc((100% - 960px) / 2));
 	box-sizing: border-box;
 }
 
@@ -301,7 +315,7 @@
 	gap: var(--vscode-spacing-size120);
 	height: 100%;
 	min-width: 0;
-	padding: var(--vscode-spacing-size80) var(--vscode-spacing-size100);
+	padding: var(--vscode-spacing-size80) 0;
 	box-sizing: border-box;
 	border-radius: var(--vscode-cornerRadius-small);
 	line-height: normal;
@@ -387,7 +401,7 @@
 }
 
 .customization-discovery.narrow .customization-discovery-list .monaco-list-row {
-	padding: 0 var(--vscode-spacing-size120);
+	padding: 0 var(--vscode-spacing-size240);
 }
 
 .customization-discovery.narrow .customization-discovery-result-heading {
