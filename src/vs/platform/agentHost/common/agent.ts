@@ -1398,7 +1398,7 @@ export interface IAgent {
 	/** Optional host wiring for providers that advertise Agent Host server tools. */
 	setServerToolHost?(host: IAgentServerToolHost): void;
 
-	/** Starts a controllable MCP server; the token signals a superseded or stopped start request. */
+	/** Starts a controllable MCP server; providers may cooperatively honor cancellation, but in-flight SDK operations may not be cancellable. */
 	startMcpServer?(session: URI, id: string, token: CancellationToken): Promise<void>;
 
 	/** Optional lifecycle operation paired with {@link startMcpServer}. */

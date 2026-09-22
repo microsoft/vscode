@@ -1705,7 +1705,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 						this._resolveSendChatContext(controlChat.chat),
 						current,
 						undefined,
-						{ operation: 'startMcpServer', allowRestart: 'whenIdle' },
+						{ operation: 'startMcpServer', allowRestart: 'whenIdle', token },
 					);
 				}), token);
 				if (token.isCancellationRequested) {
@@ -1728,14 +1728,12 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	async stopMcpServer(session: URI, id: string): Promise<void> {
-		if (!this._findSessionChat(session)) {
-			const controlChat = this._resolveMcpServerControlChat(session);
-			if (!controlChat) {
-				return;
-			}
-			// A refresh removes the live runtime until its replacement has resumed.
-			await this._queueChat(AgentSession.id(session), controlChat.sdkSessionId, 'prepareStopMcpServer', async () => { });
+		const controlChat = this._resolveMcpServerControlChat(session);
+		if (!controlChat) {
+			return;
 		}
+		// A refresh can still expose the old runtime while its disconnect is pending.
+		await this._queueChat(AgentSession.id(session), controlChat.sdkSessionId, 'prepareStopMcpServer', async () => { });
 		await this._findSessionChat(session)?.stopMcpServer(id);
 	}
 
@@ -4313,7 +4311,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		context: IResolvedCopilotChatContext,
 		entry: CopilotAgentSession,
 		workingDirectories: readonly URI[] | undefined,
-		options: { readonly operation: 'sendMessage' | 'startMcpServer'; readonly allowRestart: 'whenIdle' | 'always'; readonly turnId?: string },
+		options: { readonly operation: 'sendMessage' | 'startMcpServer'; readonly allowRestart: 'whenIdle' | 'always'; readonly turnId?: string; readonly token?: CancellationToken },
 	): Promise<CopilotAgentSession> {
 		const activeClient = this._activeClients.get(context.configurationResource);
 		await activeClient?.pluginController.retryFailedClientSyncIfNeeded();
@@ -4336,6 +4334,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 			?? (entry.requiresControlPlaneResync ? 'controlPlaneResync' : undefined);
 		if (!refreshReason) {
 			return entry;
+		}
+		if (options.token?.isCancellationRequested) {
+			throw new CancellationError();
 		}
 		if (allowRestart === 'whenIdle' && entry.hasActiveTurn) {
 			throw new CopilotSessionConfigurationBusyError(entry);

@@ -809,6 +809,7 @@ class MockCopilotSession {
 	readonly mcpStopCalls: string[] = [];
 	mcpStartGate: Promise<void> | undefined;
 	mcpStopGate: Promise<void> | undefined;
+	disconnectGate: Promise<void> | undefined;
 	sendCalls = 0;
 	disconnectCalls = 0;
 	readonly setModelCalls: Parameters<CopilotSession['setModel']>[] = [];
@@ -905,7 +906,7 @@ class MockCopilotSession {
 		}
 	}
 	async getEvents(): Promise<SessionEventPayload<SessionEventType>[]> { return []; }
-	async disconnect(): Promise<void> { this.disconnectCalls++; }
+	async disconnect(): Promise<void> { this.disconnectCalls++; await this.disconnectGate; }
 }
 
 class TestSdkError extends Error {
@@ -10957,26 +10958,65 @@ suite('CopilotAgent', () => {
 			});
 		}
 
-		test('Stop during refresh reaches the replacement runtime', async () => {
-			const h = await createHarness();
+		test('Stop during plugin sync cancels refresh before disconnect', async () => {
 			const gate = new DeferredPromise<void>();
+			const h = await createHarness({ syncGate: gate.p });
 			try {
-				h.blockResume(gate.p);
 				const source = disposables.add(new CancellationTokenSource());
 				const start = h.agent.startMcpServer(h.session, h.serverId, source.token);
 				const outcome = start.then(() => undefined, error => error);
-				await h.refreshStarted.p;
+				await timeout(0);
 				source.cancel();
 				assert.ok(isCancellationError(await outcome));
 				const stop = h.agent.stopMcpServer(h.session, h.serverId);
 				gate.complete();
 				await stop;
-				assert.deepStrictEqual({ starts: h.newRuntime.mcpStartCalls, stops: h.newRuntime.mcpStopCalls }, { starts: [], stops: ['late-server'] });
+				assert.deepStrictEqual({
+					resumes: h.resumedIds, disconnects: h.oldRuntime.disconnectCalls,
+					starts: [...h.oldRuntime.mcpStartCalls, ...h.newRuntime.mcpStartCalls],
+					stops: h.oldRuntime.mcpStopCalls,
+				}, {
+					resumes: ['restored-sdk-session'], disconnects: 0, starts: [], stops: ['late-server'],
+				});
 			} finally {
 				gate.complete();
 				await disposeAgent(h.agent);
 			}
 		});
+
+		for (const phase of ['disconnect', 'resume'] as const) {
+			test(`Stop during refresh ${phase} reaches the replacement runtime`, async () => {
+				const h = await createHarness();
+				const gate = new DeferredPromise<void>();
+				try {
+					if (phase === 'disconnect') {
+						h.oldRuntime.disconnectGate = gate.p;
+					} else {
+						h.blockResume(gate.p);
+					}
+					const source = disposables.add(new CancellationTokenSource());
+					const start = h.agent.startMcpServer(h.session, h.serverId, source.token);
+					const outcome = start.then(() => undefined, error => error);
+					if (phase === 'disconnect') {
+						await timeout(0);
+						assert.strictEqual(h.oldRuntime.disconnectCalls, 1);
+					} else {
+						await h.refreshStarted.p;
+					}
+					source.cancel();
+					assert.ok(isCancellationError(await outcome));
+					const stop = h.agent.stopMcpServer(h.session, h.serverId);
+					gate.complete();
+					await stop;
+					assert.deepStrictEqual({
+						starts: h.newRuntime.mcpStartCalls, oldStops: h.oldRuntime.mcpStopCalls, stops: h.newRuntime.mcpStopCalls,
+					}, { starts: [], oldStops: [], stops: ['late-server'] });
+				} finally {
+					gate.complete();
+					await disposeAgent(h.agent);
+				}
+			});
+		}
 
 		for (const operation of ['start', 'stop'] as const) {
 			test(`a blocked ${operation} RPC does not block other MCP servers or queued chat work`, async () => {
