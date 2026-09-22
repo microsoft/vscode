@@ -53,6 +53,7 @@ import { resolveSessionRepositories } from './agentHostSessionRepositories.js';
 import { findDeepestContainingWorkingDirectory, isMultiRootSession } from '../common/agentHostWorkingDirectories.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
 import { IAgentHostSessionTitleController } from './agentHostSessionTitleController.js';
+import { IAdditionalWorktreeLifecycleService } from './chatContributions/additionalWorktreeLifecycle/additionalWorktreeLifecycleService.js';
 import { AgentHostAutomationService } from './agentHostAutomationService.js';
 import { createAgentChatContext } from './agentChatContext.js';
 import { AgentHostDebugLogsCollector, type IAgentHostDebugLogsEnvironment } from './agentHostDebugLogs.js';
@@ -410,7 +411,6 @@ export interface IAgentServiceCallbacks {
 	readonly postAgentMergeNotice: IAgentMergeControllerOptions['postNotice'];
 	readonly resolveWorkingDirectoryBeforeSend: NonNullable<IAgentSideEffectsOptions['resolveWorkingDirectoryBeforeSend']>;
 	readonly resolveChatAttachmentTurns: NonNullable<IAgentSideEffectsOptions['resolveChatAttachmentTurns']>;
-	readonly setAdditionalWorktreesArchived: NonNullable<IAgentSideEffectsOptions['setAdditionalWorktreesArchived']>;
 	readonly sessionServerToolAccessor: IAgentServiceSessionServerToolAccessor;
 	readonly artifactServerToolAccessor: IArtifactServerToolAccessor;
 	/** Writes list-visible session metadata through the `sessions_v2` catalog and awaits the sync receipt. */
@@ -648,6 +648,7 @@ export class AgentService extends Disposable implements IAgentService {
 		@IAgentHostProviderService private readonly _providerService: IAgentHostProviderService,
 		@IAgentHostTurnService private readonly _turnService: IAgentHostTurnService,
 		@IAgentHostSessionTitleController private readonly _titleController: IAgentHostSessionTitleController,
+		@IAdditionalWorktreeLifecycleService private readonly _additionalWorktreeLifecycleService: IAdditionalWorktreeLifecycleService,
 	) {
 		super();
 		this._authService = core.authenticationService;
@@ -734,7 +735,6 @@ export class AgentService extends Disposable implements IAgentService {
 			postAgentMergeNotice: (session, kind, content) => this._postAgentMergeNotice(session, kind, content),
 			resolveWorkingDirectoryBeforeSend: params => this._resolveWorkingDirectoryBeforeSend(params),
 			resolveChatAttachmentTurns: resource => this._resolveChatAttachmentTurns(resource),
-			setAdditionalWorktreesArchived: (session, archived, strictCleanup) => this._setAdditionalWorktreesArchived(session, archived, strictCleanup),
 			sessionServerToolAccessor: this._createSessionServerToolAccessor(),
 			artifactServerToolAccessor: this._createArtifactServerToolAccessor(),
 			persistListVisibleSessionState: (session, values) => this._persistListVisibleSessionState(URI.parse(session), values),
@@ -5350,7 +5350,7 @@ export class AgentService extends Disposable implements IAgentService {
 			type: ActionType.SessionIsArchivedChanged,
 			isArchived: true,
 		} as const;
-		this._stateManager.dispatchServerAction(channel, action);
+		this._additionalWorktreeLifecycleService.runWithAutomaticArchive(session, () => this._stateManager.dispatchServerAction(channel, action));
 		this._sideEffects.handleAction(channel, action, undefined, AgentHostClientType.Unknown, undefined, true);
 		this._queueCatalogSync(session, { [AH_META_IS_ARCHIVED_DB_KEY]: 'true' });
 	}
@@ -5358,13 +5358,8 @@ export class AgentService extends Disposable implements IAgentService {
 	async cleanupWorktree(session: URI, sessionId: string): Promise<void> {
 		await Promise.all([
 			this._worktree.cleanupWorktree(session, sessionId),
-			this._setAdditionalWorktreesArchived(session, true, true),
+			this._additionalWorktreeLifecycleService.synchronizeArchiveState(session, true, true),
 		]);
-	}
-
-	private async _setAdditionalWorktreesArchived(session: URI, archived: boolean, strictCleanup: boolean): Promise<void> {
-		const worktrees = await readSessionAdditionalWorktrees(this._sessionDataService, session);
-		await Promise.all(worktrees.map(worktree => this._worktree.setDetachedWorktreeArchived(worktree.handle, archived, strictCleanup)));
 	}
 
 	private async _doDisposeSession(session: URI): Promise<void> {

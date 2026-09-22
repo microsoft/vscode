@@ -138,7 +138,6 @@ export function createAgentServiceComposition(
 				hostLaunchKind: options.hostLaunchKind ?? AgentHostLaunchKind.Unknown,
 				resolveWorkingDirectoryBeforeSend: params => callbackAdapter.value.resolveWorkingDirectoryBeforeSend(params),
 				resolveChatAttachmentTurns: resource => callbackAdapter.value.resolveChatAttachmentTurns(resource),
-				setAdditionalWorktreesArchived: (session, archived, strictCleanup) => callbackAdapter.value.setAdditionalWorktreesArchived(session, archived, strictCleanup),
 			},
 		));
 		const agentMergeTools = owned.add(instantiationService.createInstance(

@@ -5157,6 +5157,50 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
+		test('uses persisted repository roots when additional checkouts are missing from live state', async () => {
+			let cleanupWorkingDirectories: readonly string[] | undefined;
+			const database = new TestSessionDatabase();
+			const sessionDataService: ISessionDataService = {
+				...createSessionDataService(database),
+				deleteSessionData: async (_session, workingDirectories) => {
+					if (workingDirectories) {
+						cleanupWorkingDirectories = workingDirectories;
+					}
+				},
+			};
+			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			registerTestAgentProvider(svc, copilotAgent);
+			const primary = URI.file('/primary');
+			const session = await svc.createSession({
+				provider: 'copilot',
+				workingDirectories: [primary],
+			});
+			const additionalWorktree = URI.file('/missing-additional-worktree');
+			const additionalRepository = URI.file('/additional-repository');
+			const additionalWorktreeHandle = generateUuid();
+			await writeSessionAdditionalWorktrees(sessionDataService, session, [{
+				handle: additionalWorktreeHandle,
+				workingDirectory: additionalWorktree.toString(),
+				repositoryRoot: additionalRepository.toString(),
+			}]);
+			const deletedHandles: string[] = [];
+			setTestAgentHostWorktreeIsolation(svc, createTestAgentHostWorktreeIsolation({
+				deleteDetachedWorktree: async handle => {
+					deletedHandles.push(handle);
+				},
+			}));
+
+			await svc.disposeSession(session);
+
+			assert.deepStrictEqual({
+				cleanupWorkingDirectories,
+				deletedHandles,
+			}, {
+				cleanupWorkingDirectories: [primary.toString(), additionalRepository.toString()],
+				deletedHandles: [additionalWorktreeHandle],
+			});
+		});
+
 		test('preserves session data when worktree metadata cannot be read', async () => {
 			let deletedSessionData = false;
 			const sessionDataService: ISessionDataService = {
