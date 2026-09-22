@@ -153,7 +153,7 @@ import { ChatDynamicVariableModel } from '../../attachments/chatDynamicVariables
 import { ChatDragAndDrop } from '../chatDragAndDrop.js';
 import { getChatPetPillPlatformTop, getChatPetStackPlatformTop } from '../chatPetWidget.js';
 import { ChatFollowups } from './chatFollowups.js';
-import { IChatInputNotificationContext, IChatInputNotificationService } from './chatInputNotificationService.js';
+import { IChatInputNotificationContext, IChatInputNotificationService, isChatInputSubmissionBlocked } from './chatInputNotificationService.js';
 import { ChatGoalBannerWidget } from './chatGoalBannerWidget.js';
 import { ChatInputNotificationWidget } from './chatInputNotificationWidget.js';
 import { ChatInputNoticeHost, ChatInputNoticeLane } from './chatInputNoticeHost.js';
@@ -541,6 +541,14 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	get inputContainerElement(): HTMLElement | undefined {
 		return this.inputContainer;
+	}
+
+	get isSubmissionBlocked(): boolean {
+		return isChatInputSubmissionBlocked(
+			this.chatInputNotificationService,
+			this.getNotificationContext(),
+			error => this.logService.error('[ChatInputPart] Failed to evaluate blocking notification', error),
+		);
 	}
 
 	placeContextUsageWidget(container?: HTMLElement): void {
@@ -1116,6 +1124,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		this.inputEditorHasText = ChatContextKeys.inputHasText.bindTo(contextKeyService);
 		this.inputEditorHasSendableContent = ChatContextKeys.inputHasSendableContent.bindTo(contextKeyService);
+		this._register(this.chatInputNotificationService.onDidChange(() => this._updateInputContentContextKeys()));
 		this.chatCursorAtTop = ChatContextKeys.inputCursorAtTop.bindTo(contextKeyService);
 		this.inputEditorHasFocus = ChatContextKeys.inputHasFocus.bindTo(contextKeyService);
 		this._hasQuestionCarouselContextKey = ChatContextKeys.Editing.hasQuestionCarousel.bindTo(contextKeyService);
@@ -2496,7 +2505,12 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		const hasSendableContent = inputHasText || this._attachmentModel.attachments.some(isExplicitFileOrImageVariableEntry);
 		// Block sending when the session type has no usable model (and can't
 		// fall back to Auto): there is nothing to send the request with.
-		this.inputEditorHasSendableContent.set(hasSendableContent && !this.hasNoAvailableModel() && !this.hasPendingProgrammaticModelSelection);
+		this.inputEditorHasSendableContent.set(
+			hasSendableContent
+			&& !this.hasNoAvailableModel()
+			&& !this.hasPendingProgrammaticModelSelection
+			&& !this.isSubmissionBlocked
+		);
 	}
 
 	private getOrCreateOptionEmitter(optionGroupId: string): Emitter<IChatSessionProviderOptionItem> {

@@ -13,6 +13,7 @@ import { TestInstantiationService } from '../../../../../../platform/instantiati
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { ManagedPluginInstall } from '../../../browser/managedPluginInstall.js';
+import { IChatInputNotification, IChatInputNotificationService } from '../../../browser/widget/input/chatInputNotificationService.js';
 import { ChatConfiguration } from '../../../common/constants.js';
 import { getMarketplacePluginPolicyId } from '../../../common/plugins/agentPluginEnablement.js';
 import { IPluginInstallService } from '../../../common/plugins/pluginInstallService.js';
@@ -46,6 +47,7 @@ suite('ManagedPluginInstall', () => {
 		readonly installedPluginIds: Set<string>;
 		readonly installCalls: string[];
 		readonly fetchCalls: number[];
+		readonly notifications: Map<string, IChatInputNotification>;
 		catalog: IMarketplacePlugin[];
 		fetchImplementation?: () => Promise<IMarketplacePlugin[]>;
 		managedMarketplaces: Map<string, IMarketplacePlugin['marketplaceReference']>;
@@ -64,6 +66,7 @@ suite('ManagedPluginInstall', () => {
 			installedPluginIds: new Set(),
 			installCalls: [],
 			fetchCalls: [],
+			notifications: new Map(),
 			catalog: [],
 			fetchImplementation: undefined,
 			managedMarketplaces: new Map(),
@@ -103,6 +106,10 @@ suite('ManagedPluginInstall', () => {
 			},
 			sentimentObs: state.sentiment,
 		} as Partial<IChatEntitlementService> as IChatEntitlementService);
+		instantiationService.stub(IChatInputNotificationService, {
+			setNotification: notification => state.notifications.set(notification.id, notification),
+			deleteNotification: id => state.notifications.delete(id),
+		} as Partial<IChatInputNotificationService> as IChatInputNotificationService);
 		instantiationService.stub(ILogService, new NullLogService());
 
 		return {
@@ -121,6 +128,10 @@ suite('ManagedPluginInstall', () => {
 		assert.fail('Timed out waiting for managed plugin reconciliation.');
 	}
 
+	function blockingNotification(state: MockState): IChatInputNotification | undefined {
+		return [...state.notifications.values()].find(notification => notification.blocksSubmission);
+	}
+
 	test('installs only managed plugins explicitly required by policy', async () => {
 		const required = createPlugin('required', 'managed-marketplace', 'file:///managed-marketplace');
 		const blocked = createPlugin('blocked', 'managed-marketplace', 'file:///managed-marketplace');
@@ -137,7 +148,13 @@ suite('ManagedPluginInstall', () => {
 
 		await waitFor(() => state.fetchCalls.length === 1);
 
-		assert.deepStrictEqual(state.installCalls, ['required@managed-marketplace']);
+		assert.deepStrictEqual({
+			installCalls: state.installCalls,
+			blockingNotification: blockingNotification(state),
+		}, {
+			installCalls: ['required@managed-marketplace'],
+			blockingNotification: undefined,
+		});
 	});
 
 	test('waits for the installed-plugin manifest before reconciling', async () => {
@@ -154,10 +171,39 @@ suite('ManagedPluginInstall', () => {
 		});
 
 		await timeout(0);
-		assert.deepStrictEqual({ fetchCalls: state.fetchCalls, installCalls: state.installCalls }, { fetchCalls: [], installCalls: [] });
+		assert.deepStrictEqual({
+			fetchCalls: state.fetchCalls,
+			installCalls: state.installCalls,
+			blockingNotification: blockingNotification(state)?.message,
+		}, {
+			fetchCalls: [],
+			installCalls: [],
+			blockingNotification: 'Installing required organization plugins',
+		});
 
 		markReady();
 		await waitFor(() => state.installCalls.length === 1);
+	});
+
+	test('blocks chat when a required plugin cannot be resolved', async () => {
+		const { state } = createContribution({
+			enabledPluginsPolicy: { 'missing@managed-marketplace': true },
+		});
+
+		await waitFor(() => state.fetchCalls.length === 1);
+
+		const notification = blockingNotification(state);
+		assert.deepStrictEqual({
+			message: notification?.message,
+			description: notification?.description,
+			dismissible: notification?.dismissible,
+			blocksSubmission: notification?.blocksSubmission,
+		}, {
+			message: 'Required organization plugins are unavailable',
+			description: 'Chat is unavailable because these required plugins could not be installed: missing@managed-marketplace. Check your connection or contact your administrator.',
+			dismissible: false,
+			blocksSubmission: true,
+		});
 	});
 
 	test('restores a required plugin after its installed entry is removed', async () => {
@@ -173,8 +219,16 @@ suite('ManagedPluginInstall', () => {
 			enabledPluginsPolicy: { [pluginId]: true },
 		});
 
-		await waitFor(() => state.fetchCalls.length === 1);
-		assert.deepStrictEqual(state.installCalls, []);
+		await timeout(0);
+		assert.deepStrictEqual({
+			fetchCalls: state.fetchCalls,
+			installCalls: state.installCalls,
+			blockingNotification: blockingNotification(state),
+		}, {
+			fetchCalls: [],
+			installCalls: [],
+			blockingNotification: undefined,
+		});
 
 		state.installedPluginIds.delete(pluginId);
 		state.installedPlugins.set([], undefined);
@@ -212,11 +266,20 @@ suite('ManagedPluginInstall', () => {
 
 		await waitFor(() => state.fetchCalls.length === 1);
 		contribution.dispose();
+		const blockingNotificationAfterDispose = blockingNotification(state);
 		resolveFetch([required]);
 		await fetch;
 		await timeout(0);
 
-		assert.deepStrictEqual(state.installCalls, []);
+		assert.deepStrictEqual({
+			installCalls: state.installCalls,
+			blockingNotificationAfterDispose,
+			blockingNotificationAfterFetch: blockingNotification(state),
+		}, {
+			installCalls: [],
+			blockingNotificationAfterDispose: undefined,
+			blockingNotificationAfterFetch: undefined,
+		});
 	});
 
 	test('uses the managed marketplace name for a duplicate user marketplace source', async () => {

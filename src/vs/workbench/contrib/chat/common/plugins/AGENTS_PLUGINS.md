@@ -141,6 +141,7 @@ Manages the catalog of available and installed plugins:
 - **Installed storage** — persists installed plugin URIs, marketplace references, and names in `installed.json` under the agent-plugins directory.
 - **Trust** — user marketplaces must be explicitly trusted before install proceeds. Enterprise extra marketplaces are trusted by policy unless `strictKnownMarketplaces` blocks their source.
 - **Managed installation** — reconciles managed `enabledPlugins` entries set to `true` against enterprise extra marketplaces, acquiring absent plugins and restoring removed installed entries.
+- **Managed availability** — while a policy-required plugin is missing, unresolved, or fails installation, chat inputs show a non-dismissible organization-policy notice and reject submission. The gate clears when every required plugin is installed or the requirement is removed.
 - **Auto-update** — checks eligible installed marketplaces approximately every 24 hours and reports their canonical IDs through `marketplacesWithUpdates`. Managed `extraKnownMarketplaces.<name>.autoUpdate` values override `extensions.autoUpdate` for that marketplace; undefined entries inherit the global setting. Checks and updates are restricted to enabled marketplaces and still enforce `strictKnownMarketplaces`.
 - **GitHub caching** — caches raw GitHub API responses with an 8-hour TTL to avoid repeated fetches.
 

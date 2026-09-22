@@ -20,7 +20,7 @@ import { ILogService, NullLogService } from '../../../../../../../platform/log/c
 import { ITelemetryService } from '../../../../../../../platform/telemetry/common/telemetry.js';
 import { NullTelemetryService, NullTelemetryServiceShape } from '../../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { workbenchInstantiationService } from '../../../../../../test/browser/workbenchTestServices.js';
-import { ChatInputNotificationActionKind, ChatInputNotificationSeverity, IChatInputNotification, IChatInputNotificationBody, IChatInputNotificationContext, IChatInputNotificationModelState, IChatInputNotificationService, matchesModelIdentifier } from '../../../../browser/widget/input/chatInputNotificationService.js';
+import { ChatInputNotificationActionKind, ChatInputNotificationSeverity, IChatInputNotification, IChatInputNotificationBody, IChatInputNotificationContext, IChatInputNotificationModelState, IChatInputNotificationService, isChatInputSubmissionBlocked, matchesModelIdentifier } from '../../../../browser/widget/input/chatInputNotificationService.js';
 import { ChatInputPart } from '../../../../browser/widget/input/chatInputPart.js';
 import { ChatInputNotificationWidget, IChatInputNotificationDelegate, IChatInputNotificationModelSelection } from '../../../../browser/widget/input/chatInputNotificationWidget.js';
 import { isByokModel } from '../../../../common/chatSelectedModel.js';
@@ -118,6 +118,38 @@ suite('ChatInputNotificationWidget', () => {
 		store.add(notificationService as IChatInputNotificationService & IDisposable);
 		return notificationService;
 	}
+
+	test('blocking notifications prevent submission only where they apply', () => {
+		const notificationService = createNotificationService();
+		notificationService.setNotification({
+			id: 'required-plugins',
+			severity: ChatInputNotificationSeverity.Error,
+			blocksSubmission: true,
+			message: 'Required plugins are unavailable',
+			description: undefined,
+			actions: [],
+			dismissible: false,
+			autoDismissOnMessage: false,
+			sessionTypes: [localChatSessionType],
+		});
+
+		const errors: unknown[] = [];
+		const blockedLocal = isChatInputSubmissionBlocked(notificationService, context({ sessionType: localChatSessionType }), error => errors.push(error));
+		const blockedAgentHost = isChatInputSubmissionBlocked(notificationService, context({ sessionType: SessionType.AgentHostCopilot }), error => errors.push(error));
+		notificationService.deleteNotification('required-plugins');
+
+		assert.deepStrictEqual({
+			blockedLocal,
+			blockedAgentHost,
+			blockedAfterDelete: isChatInputSubmissionBlocked(notificationService, context({ sessionType: localChatSessionType }), error => errors.push(error)),
+			errors,
+		}, {
+			blockedLocal: true,
+			blockedAgentHost: false,
+			blockedAfterDelete: false,
+			errors: [],
+		});
+	});
 
 	test('reactively applies session type filter when pending delegation target changes', () => {
 		const currentSessionType = observableValue<string | undefined>('currentSessionType', localChatSessionType);
