@@ -1278,46 +1278,6 @@ suite('AgentHostAutomationStore', () => {
 			target: { kind: 'quickChat', providerId: 'local-agent-host', sessionTypeId: 'mock' },
 		});
 
-		for (const pauseAdmission of [false, true]) {
-			test(`cancels a pending run ${pauseAdmission ? 'during admission' : 'while waiting for a session'} through the client stack`, async () => {
-				const { store } = reconnectable();
-				const connection = disposables.add(new TestAutomationConnection());
-				connection.runPrimarySession = undefined;
-				const barrier = new DeferredPromise<void>();
-				connection.runAdmissionBarrier = pauseAdmission ? barrier.p : undefined;
-				store.setConnection(connection);
-				const provider = upcastPartial<ISessionsProvider>({ id: 'host', label: 'Host', automations: store });
-				const registry = new class extends mock<ISessionsProvidersService>() {
-					override readonly onDidChangeProviders = Event.None;
-					override getProviders() { return [provider]; }
-					override getProvider<T extends ISessionsProvider>(id: string): T | undefined { return id === provider.id ? provider as T : undefined; }
-				}();
-				const service = disposables.add(new ProviderAutomationService(constObservable(true), registry));
-				const errors: string[] = [];
-				const runner = new AutomationRunner(service, registry, new NullLogService(), upcastPartial<INotificationService>({
-					error: message => errors.push(String(message)),
-				}));
-				const automation = await service.createAutomation(createOptions());
-				const cancellation = disposables.add(new CancellationTokenSource());
-				const operation = runner.runOnce(automation, cancellation.token);
-				await connection.runRequested.p;
-				if (!pauseAdmission) {
-					await timeout(0);
-				}
-				cancellation.cancel();
-				await barrier.complete();
-				const dispatch = await operation.whenDispatched;
-				await operation.whenCompleted;
-				assert.deepStrictEqual({
-					kind: dispatch.kind,
-					reason: dispatch.kind === 'notStarted' ? dispatch.reason : undefined,
-					cancellations: connection.dispatched.filter(({ action }) => action.type === ActionType.AutomationRunCancelRequested).length,
-					activeRun: store.getActiveRunFor(automation.id),
-					errors,
-				}, { kind: 'notStarted', reason: 'cancelled', cancellations: 1, activeRun: undefined, errors: [] });
-			});
-		}
-
 		const claim = await store.runAutomation(automation.id);
 		assert.strictEqual(claim.kind, 'dispatched');
 		claim.cancel?.();
@@ -1329,6 +1289,46 @@ suite('AgentHostAutomationStore', () => {
 			action: { type: ActionType.AutomationRunCancelRequested },
 		});
 	});
+
+	for (const pauseAdmission of [false, true]) {
+		test(`cancels a pending run ${pauseAdmission ? 'during admission' : 'while waiting for a session'} through the client stack`, async () => {
+			const { store } = reconnectable();
+			const connection = disposables.add(new TestAutomationConnection());
+			connection.runPrimarySession = undefined;
+			const barrier = new DeferredPromise<void>();
+			connection.runAdmissionBarrier = pauseAdmission ? barrier.p : undefined;
+			store.setConnection(connection);
+			const provider = upcastPartial<ISessionsProvider>({ id: 'host', label: 'Host', automations: store });
+			const registry = new class extends mock<ISessionsProvidersService>() {
+				override readonly onDidChangeProviders = Event.None;
+				override getProviders() { return [provider]; }
+				override getProvider<T extends ISessionsProvider>(id: string): T | undefined { return id === provider.id ? provider as T : undefined; }
+			}();
+			const service = disposables.add(new ProviderAutomationService(constObservable(true), registry));
+			const errors: string[] = [];
+			const runner = new AutomationRunner(service, registry, new NullLogService(), upcastPartial<INotificationService>({
+				error: message => errors.push(String(message)),
+			}));
+			const automation = await service.createAutomation(createOptions());
+			const cancellation = disposables.add(new CancellationTokenSource());
+			const operation = runner.runOnce(automation, cancellation.token);
+			await connection.runRequested.p;
+			if (!pauseAdmission) {
+				await timeout(0);
+			}
+			cancellation.cancel();
+			await barrier.complete();
+			const dispatch = await operation.whenDispatched;
+			await operation.whenCompleted;
+			assert.deepStrictEqual({
+				kind: dispatch.kind,
+				reason: dispatch.kind === 'notStarted' ? dispatch.reason : undefined,
+				cancellations: connection.dispatched.filter(({ action }) => action.type === ActionType.AutomationRunCancelRequested).length,
+				activeRun: store.getActiveRunFor(automation.id),
+				errors,
+			}, { kind: 'notStarted', reason: 'cancelled', cancellations: 1, activeRun: undefined, errors: [] });
+		});
+	}
 
 	test('does not time out an authority-dispatched run after 30 seconds', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const connection = new TestAutomationConnection();
