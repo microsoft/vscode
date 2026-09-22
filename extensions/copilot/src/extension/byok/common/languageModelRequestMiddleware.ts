@@ -69,7 +69,8 @@ export interface ILanguageModelRequestMiddlewareRegistry {
 
 	/**
 	 * Invokes every middleware whose selector matches `context`, concurrently,
-	 * and merges the results in registration order. Later registrations win
+	 * each with its own frozen copy of `context` so that no middleware can alter
+	 * what another one sees, and merges the results in registration order. Later registrations win
 	 * for headers with the same name (compared case-insensitively). Header
 	 * names are not filtered here: the endpoint sanitises them with the same
 	 * rules it applies to `requestHeaders` from the model configuration.
@@ -162,8 +163,11 @@ export class LanguageModelRequestMiddlewareRegistry implements ILanguageModelReq
 			const cancellation = new Promise<never>((_, reject) => {
 				cancellationListener = context.cancellationToken.onCancellationRequested(() => reject(new CancellationError()));
 			});
+			// Each middleware gets its own frozen copy: a shared object would let one
+			// registration change the URL another one validates before returning a credential.
+			const ownContext = Object.freeze({ ...context });
 			// Promise.resolve guards against providers that throw synchronously.
-			return await Promise.race([Promise.resolve().then(() => middleware.provideRequestHeaders(context)), timeout, cancellation]);
+			return await Promise.race([Promise.resolve().then(() => middleware.provideRequestHeaders(ownContext)), timeout, cancellation]);
 		} finally {
 			if (timeoutHandle !== undefined) {
 				clearTimeout(timeoutHandle);

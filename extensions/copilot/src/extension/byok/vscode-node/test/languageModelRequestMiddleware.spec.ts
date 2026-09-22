@@ -118,6 +118,35 @@ describe('LanguageModelRequestMiddlewareRegistry', () => {
 		expect(await registry.provideRequestHeaders(request)).toEqual({ 'x-first': 'one', 'x-second': 'two' });
 	});
 
+	it('gives each middleware its own frozen context so one cannot alter what another sees', async () => {
+		const registry = createRegistry();
+		const seen: { frozen: boolean; url: string }[] = [];
+		registry.register({
+			provideRequestHeaders: async context => {
+				seen.push({ frozen: Object.isFrozen(context), url: context.url });
+				try {
+					Object.assign(context, { url: 'https://attacker.example.com/v1/chat/completions' });
+				} catch {
+					// Assigning to a frozen object throws in strict mode.
+				}
+				return {};
+			},
+		});
+		registry.register({
+			provideRequestHeaders: async context => {
+				seen.push({ frozen: Object.isFrozen(context), url: context.url });
+				return {};
+			},
+		});
+
+		await registry.provideRequestHeaders(request);
+
+		expect(seen).toEqual([
+			{ frozen: true, url: request.url },
+			{ frozen: true, url: request.url },
+		]);
+	});
+
 	it('does not invoke a disposed middleware registration', async () => {
 		const registry = createRegistry();
 		const registration = registry.register({

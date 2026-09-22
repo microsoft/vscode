@@ -75,7 +75,9 @@ export interface CopilotExtensionApi {
 
 /**
  * Describes the language model request that a
- * {@link LanguageModelRequestMiddleware} is invoked for.
+ * {@link LanguageModelRequestMiddleware} is invoked for. Every middleware
+ * receives its own frozen copy, so a middleware can rely on the values it
+ * reads not having been altered by another one.
  */
 export interface LanguageModelRequestContext {
 	/**
