@@ -77,6 +77,8 @@ const DEFAULT_TELEMETRY_SOURCE = 'NewChatSessionTypePicker';
  * new-chat telemetry would be incorrect side effects.
  */
 export interface ISessionTypePickerOptions {
+	/** When present, only session types from these providers are offered. */
+	readonly allowedProviders?: IObservable<readonly string[]>;
 	/**
 	 * When `false` (e.g. the automations dialog), an explicit pick is
 	 * never written to or cleared from the profile-wide
@@ -189,6 +191,7 @@ export class SessionTypePicker extends Disposable {
 
 		this._register(autorun(reader => {
 			this._session.read(reader);
+			this._options?.allowedProviders?.read(reader);
 			this._recompute();
 		}));
 		// Re-read when a provider advertises/removes session types at runtime
@@ -224,6 +227,15 @@ export class SessionTypePicker extends Disposable {
 	 * is set (see {@link setFolderSource}), otherwise from the active session.
 	 */
 	protected _resolveFolderSessionTypes(): IProviderSessionType[] {
+		return this._resolveUnfilteredSessionTypes().filter(type => this._isProviderAllowed(type.providerId));
+	}
+
+	private _isProviderAllowed(providerId: string): boolean {
+		const allowedProviders = this._options?.allowedProviders?.get();
+		return allowedProviders === undefined || allowedProviders.includes(providerId);
+	}
+
+	private _resolveUnfilteredSessionTypes(): IProviderSessionType[] {
 		if (this._folderSource) {
 			if (this._quickChatSource?.get()) {
 				return this.sessionsManagementService.getQuickChatSessionTypes();
@@ -610,12 +622,18 @@ export class SessionTypePicker extends Disposable {
 	}
 
 	protected async _selectSessionType(pick: IPickedSessionType): Promise<void> {
+		if (!this._isProviderAllowed(pick.providerId)) {
+			this._recompute();
+			return;
+		}
 		const visiblePickChanged = pick.providerId !== this._picked?.providerId || pick.sessionTypeId !== this._picked?.sessionTypeId;
 		if (this._options?.prepareSessionTypeSelection) {
 			if (!await this._options.prepareSessionTypeSelection(pick)) {
 				return;
 			}
-			this._pendingExplicitPick = pick;
+			if (this._isProviderAllowed(pick.providerId)) {
+				this._pendingExplicitPick = pick;
+			}
 		}
 		this._handleSelectedSessionType(pick, visiblePickChanged);
 	}
@@ -635,6 +653,10 @@ export class SessionTypePicker extends Disposable {
 		pick: IPickedSessionType,
 		visiblePickChanged = pick.providerId !== this._picked?.providerId || pick.sessionTypeId !== this._picked?.sessionTypeId,
 	): void {
+		if (!this._isProviderAllowed(pick.providerId)) {
+			this._recompute();
+			return;
+		}
 		this._pendingInitialPick = undefined;
 		const stored = this._readStoredPick();
 		const beforeId = stored?.sessionTypeId ?? this._picked?.sessionTypeId;

@@ -24,12 +24,12 @@ import { defaultButtonStyles, defaultDialogStyles } from '../../../../platform/t
 import { createWorkbenchDialogOptions } from '../../../../workbench/browser/parts/dialogs/dialog.js';
 import { AutomationTarget, IAutomationSchedule } from '../../../../workbench/contrib/chat/common/automations/automation.js';
 import { IAutomationDialogResult, IAutomationDialogService, IShowAutomationDialogOptions } from '../../../../workbench/contrib/chat/common/automations/automationDialogService.js';
-import { ICreateAutomationOptions, IUpdateAutomationOptions } from '../../../../workbench/contrib/chat/common/automations/automationService.js';
+import { IAutomationService, ICreateAutomationOptions, IUpdateAutomationOptions } from '../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { IHostService } from '../../../../workbench/services/host/browser/host.js';
 import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { IAutomationSessionConfiguration } from '../../../services/sessions/common/sessionsProvider.js';
-import { AutomationSessionConfigurationCapture, IFormState, IValidationState, isAutomationDialogPopupTarget, registerAutomationDialogKeyboardNavigation, renderForm, shouldPassThroughAutomationDialogCommand, updateSaveButtonState } from './automationDialog.js';
+import { AutomationSessionConfigurationCapture, getAutomationDialogProviders, IFormState, IValidationState, isAutomationDialogPopupTarget, registerAutomationDialogKeyboardNavigation, renderForm, shouldPassThroughAutomationDialogCommand, updateSaveButtonState } from './automationDialog.js';
 
 const $ = DOM.$;
 
@@ -78,12 +78,14 @@ export class AutomationDialogService implements IAutomationDialogService {
 		@IHostService private readonly hostService: IHostService,
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 		@IWorkspaceTrustRequestService private readonly workspaceTrustRequestService: IWorkspaceTrustRequestService,
+		@IAutomationService private readonly automationService: IAutomationService,
 	) { }
 
 	async showAutomationDialog(options: IShowAutomationDialogOptions): Promise<IAutomationDialogResult | undefined> {
 		const disposables = new DisposableStore();
 
 		const existing = options.existing;
+		const allowedProviders = getAutomationDialogProviders(this.automationService, existing);
 		const initial = existing ?? options.initialValues;
 		const isEdit = !!existing;
 		const initialTarget = initial?.target;
@@ -224,6 +226,10 @@ export class AutomationDialogService implements IAutomationDialogService {
 					shouldFocusError = true;
 					return;
 				}
+				revalidate();
+				if (validation.sessionTypeError) {
+					return;
+				}
 				const result = buildResult(sessionConfigurationCapture);
 				if (result) {
 					shouldClose = true;
@@ -301,7 +307,7 @@ export class AutomationDialogService implements IAutomationDialogService {
 
 					const formPane = DOM.append(container, $('.automation-form-pane'));
 					const form = DOM.append(formPane, $('.automation-form'));
-					const handle = renderForm(form, state, disposables, validation, () => revalidate(), this.instantiationService, this.contextKeyService, this.contextViewService, this.configurationService, this.layoutService, this.logService, this.sessionsManagementService, this.workspaceTrustRequestService, initial?.prompt ?? '', initialTarget, initialSessionConfiguration);
+					const handle = renderForm(form, state, disposables, validation, () => revalidate(), this.instantiationService, this.contextKeyService, this.contextViewService, this.configurationService, this.layoutService, this.logService, this.sessionsManagementService, this.workspaceTrustRequestService, initial?.prompt ?? '', initialTarget, initialSessionConfiguration, allowedProviders);
 					getPrompt = handle.getPrompt;
 					getSessionConfiguration = handle.getSessionConfiguration;
 					getBranch = handle.getBranch;
@@ -323,7 +329,9 @@ export class AutomationDialogService implements IAutomationDialogService {
 					));
 					focusFirst = keyboardNavigation.focusFirst;
 					revalidate = () => {
-						updateSaveButtonState(saveButton, state, validation, form, getPrompt, getBranch);
+						const targetAvailable = state.providerId !== undefined && allowedProviders.get().includes(state.providerId);
+						updateSaveButtonState(saveButton, state, validation, form, getPrompt, getBranch, targetAvailable, existing?.target.providerId);
+						handle.showTargetValidationError(validation.sessionTypeError);
 						if (saveInProgress && saveButton) {
 							saveButton.enabled = false;
 						}

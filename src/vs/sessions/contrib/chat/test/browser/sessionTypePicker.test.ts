@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { DeferredPromise } from '../../../../../base/common/async.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
@@ -12,7 +13,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IActionWidgetService } from '../../../../../platform/actionWidget/browser/actionWidget.js';
-import { IActionListItem } from '../../../../../platform/actionWidget/browser/actionList.js';
+import { IActionListDelegate, IActionListItem } from '../../../../../platform/actionWidget/browser/actionList.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -195,6 +196,86 @@ suite('SessionTypePicker', () => {
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('filters Automation targets to available hosts without affecting ordinary session choices', () => {
+		management.setSessionTypes([
+			sessionType('non-ahp', 'extension-session', 'Extension'),
+			sessionType('local', 'copilot', 'Copilot'),
+			sessionType('remote', 'claude', 'Claude'),
+		]);
+		const allowedProviders = observableValue<readonly string[]>('availableHosts', ['local']);
+		const picker = createPicker(disposables, session, management, storage, { allowedProviders, persistSelection: false });
+		picker.setFolderSource(constObservable(folder));
+		const offered = [picker.offeredSessionTypeIds];
+		allowedProviders.set(['remote'], undefined);
+		offered.push(picker.offeredSessionTypeIds);
+		allowedProviders.set([], undefined);
+		offered.push(picker.offeredSessionTypeIds);
+		const ordinary = createPicker(disposables, session, management, storage);
+		ordinary.setFolderSource(constObservable(folder));
+		assert.deepStrictEqual({ offered, ordinary: ordinary.offeredSessionTypeIds }, {
+			offered: [['copilot'], ['claude'], []],
+			ordinary: ['extension-session', 'copilot', 'claude'],
+		});
+	});
+
+	for (const quickChat of [false, true]) {
+		test(`desktop popup keeps the provider filter for ${quickChat ? 'quick-chat' : 'workspace'} targets and rejects stale choices`, async () => {
+			const types = [
+				sessionType('non-ahp', 'extension-session', 'Extension'),
+				sessionType('local', 'copilot', 'Copilot'),
+				sessionType('remote', 'claude', 'Claude'),
+			];
+			management.setSessionTypes(types);
+			management.setQuickChatSessionTypes(types);
+			const allowedProviders = observableValue<readonly string[]>('availableHosts', ['local', 'remote']);
+			let labels: readonly (string | undefined)[] = [];
+			let selectRemote: (() => void) | undefined;
+			const actionWidget = new class extends mock<IActionWidgetService>() {
+				override readonly isVisible = false;
+				override hide(): void { }
+				override show<T>(_user: string, _supportsPreview: boolean, items: readonly IActionListItem<T>[], delegate: IActionListDelegate<T>): void {
+					labels = items.map(item => item.label);
+					const remote = items.find(item => item.label === 'Claude')?.item;
+					if (remote !== undefined) {
+						selectRemote = () => delegate.onSelect(remote);
+					}
+				}
+			}();
+			const picker = createPicker(disposables, session, management, storage, { allowedProviders, persistSelection: false }, actionWidget);
+			picker.setQuickChatSource(constObservable(quickChat));
+			picker.setFolderSource(constObservable(folder));
+			picker.render(document.createElement('div'));
+			const selections: (IPickedSessionType | undefined)[] = [];
+			disposables.add(picker.onDidSelectSessionType(pick => selections.push(pick)));
+			picker.showPicker();
+			assert.ok(selectRemote);
+			allowedProviders.set(['local'], undefined);
+			selectRemote();
+			await Promise.resolve();
+			assert.deepStrictEqual({ labels, selections, selected: picker.selectedPick }, {
+				labels: ['Copilot', 'Claude'], selections: [], selected: { providerId: 'local', sessionTypeId: 'copilot' },
+			});
+		});
+	}
+
+	test('rechecks allowed providers after asynchronous selection preparation', async () => {
+		management.setSessionTypes([
+			sessionType('local', 'copilot', 'Copilot'),
+			sessionType('remote', 'claude', 'Claude'),
+		]);
+		const allowedProviders = observableValue<readonly string[]>('availableHosts', ['local', 'remote']);
+		const preparation = new DeferredPromise<boolean>();
+		const picker = createPicker(disposables, session, management, storage, {
+			allowedProviders, prepareSessionTypeSelection: () => preparation.p,
+		});
+		picker.setFolderSource(constObservable(folder));
+		const selection = picker.prepareAndPick({ providerId: 'remote', sessionTypeId: 'claude' });
+		allowedProviders.set(['local'], undefined);
+		await preparation.complete(true);
+		await selection;
+		assert.deepStrictEqual(picker.selectedPick, { providerId: 'local', sessionTypeId: 'copilot' });
+	});
 
 	test('reports harness visibility only after rendering an interactive picker and resets on disposal', () => {
 		const types = [

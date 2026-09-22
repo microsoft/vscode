@@ -17,7 +17,7 @@ import { IWorkbenchContribution } from '../../../../workbench/common/contributio
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { AutomationInterval, AutomationTarget, AutomationWorkspaceIsolation, IAutomationDescriptor, IAutomationRun, IAutomationSchedule, IAutomationSessionTemplate, isAutomationModelConfiguration } from '../../../../workbench/contrib/chat/common/automations/automation.js';
 import { IAutomationRunDispatch, IAutomationRunner } from '../../../../workbench/contrib/chat/common/automations/automationRunner.js';
-import { type AutomationMutationGuard, AutomationSessionTemplateAuthorityError, ConfigureAutomationToolReferenceName, IAutomationService, ICreateAutomationOptions, IUpdateAutomationOptions, serializeAutomationEditableState } from '../../../../workbench/contrib/chat/common/automations/automationService.js';
+import { type AutomationMutationGuard, AutomationSessionTemplateAuthorityError, AutomationUnavailableError, ConfigureAutomationToolReferenceName, IAutomationService, ICreateAutomationOptions, IUpdateAutomationOptions, serializeAutomationEditableState } from '../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { ChatAutomationsEnabledContext, CHAT_AUTOMATIONS_ENABLED_SETTING } from '../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
 import { IChatAutomationConfiguredData } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { ChatPermissionLevel } from '../../../../workbench/contrib/chat/common/constants.js';
@@ -32,7 +32,6 @@ export const DeleteAutomationToolId = 'vscode_deleteAutomation';
 
 const automationToolWhen = ContextKeyExpr.and(ChatContextKeys.enabled, ChatAutomationsEnabledContext);
 const deleteAutomationConfirmationId = 'delete';
-const manualRunLeaderWindowId = 0;
 const automationIntervals: readonly AutomationInterval[] = ['manual', 'hourly', 'daily', 'weekly'];
 const automationIsolationKinds: readonly AutomationWorkspaceIsolation['kind'][] = ['default', 'folder', 'worktree'];
 const chatPermissionLevels: readonly ChatPermissionLevel[] = [ChatPermissionLevel.Default, ChatPermissionLevel.Assisted, ChatPermissionLevel.AutoApprove, ChatPermissionLevel.Autopilot];
@@ -222,7 +221,7 @@ export class RunAutomationTool implements IToolImpl {
 		}
 
 		const dispatchCancellation = new CancellationTokenSource(token);
-		const operation = this.automationRunner.runOnce(automation, 'manual', manualRunLeaderWindowId, dispatchCancellation.token);
+		const operation = this.automationRunner.runOnce(automation, dispatchCancellation.token);
 		let dispatch: IAutomationRunDispatch;
 		try {
 			dispatch = await operation.whenDispatched;
@@ -336,6 +335,9 @@ export class DeleteAutomationTool implements IToolImpl {
 			if (error instanceof AutomationToolMutationBlockedError) {
 				return error.result;
 			}
+			if (error instanceof AutomationUnavailableError) {
+				return automationToolError(error.message);
+			}
 			throw error;
 		}
 		const result = automationToolResult(JSON.stringify({
@@ -379,7 +381,7 @@ export class ConfigureAutomationTool implements IToolImpl {
 
 Create a new automation only when the user explicitly asks for an automation, or for a prompt to run on a recurring schedule. Do not infer that intent from requests merely to monitor, watch, follow, or keep something (such as a pull request) green.
 
-Omit "automationId" to create an automation; "name", "prompt", and "schedule.interval" are then required. If "target" is omitted, the automation targets the current Agents window session. Include "automationId" to update an existing automation, and only provide fields that should change. Call listAutomations first to obtain the stable ID and current values.
+Omit "automationId" to create an automation; "name", "prompt", and "schedule.interval" are then required. If "target" is omitted, the automation targets the current Agents window session. The target must be a connected Agent Host that supports automations; there is no local execution fallback. Include "automationId" to update an existing automation, and only provide fields that should change. Call listAutomations first to obtain the stable ID and current values. An existing automation cannot move between hosts; create a separate definition on the new host and explicitly disable the original if it should stop scheduling.
 
 Use "sessionTemplate" for provider-owned Model, Agent, Mode, Approvals, and other configuration returned by listAutomations. Omit it on unrelated partial updates, or set it to null to reset provider configuration. Do not combine it with the legacy "modelId", "mode", or "permissionLevel" aliases.
 
@@ -600,7 +602,7 @@ The change uses the current tool-approval policy. When approval is required, the
 			if (error instanceof AutomationToolMutationBlockedError) {
 				return error.result;
 			}
-			if (error instanceof AutomationToolInputError) {
+			if (error instanceof AutomationToolInputError || error instanceof AutomationUnavailableError) {
 				return automationToolError(error.message);
 			}
 			if (error instanceof AutomationSessionTemplateAuthorityError) {
@@ -614,6 +616,9 @@ The change uses the current tool-approval policy. When approval is required, the
 		const blocked = this.getMutationBlockedResult(token);
 		if (blocked) {
 			return blocked;
+		}
+		if (!this.automationService.canCreateAutomation(options.target.providerId)) {
+			return automationToolError('The selected provider is unavailable or does not support automations. Connect to an Agent Host that supports automations.');
 		}
 		const created = await this.automationService.createAutomation(options, this.createMutationGuard(token));
 		const result = automationToolResult(JSON.stringify({ status: 'created', automation: toAutomationToolOutput(created) }, undefined, 2));
@@ -664,7 +669,7 @@ The change uses the current tool-approval policy. When approval is required, the
 		const candidates = target.kind === 'quickChat'
 			? this.sessionsManagementService.getQuickChatSessionTypes()
 			: this.sessionsManagementService.getSessionTypesForFolder(target.folderUri);
-		const candidate = findSessionType(candidates, target.providerId, target.sessionTypeId);
+		const candidate = findSessionType(candidates.filter(candidate => this.automationService.canCreateAutomation(candidate.providerId)), target.providerId, target.sessionTypeId);
 		if (!candidate) {
 			throw new AutomationToolInputError(target.kind === 'quickChat'
 				? `The quick-chat target "${target.providerId}/${target.sessionTypeId}" is not available.`
