@@ -7,6 +7,7 @@ import { IChatMLFetcher } from '../../../platform/chat/common/chatMLFetcher';
 import { IConfigurationService } from '../../../platform/configuration/common/configurationService';
 import { IDomainService } from '../../../platform/endpoint/common/domainService';
 import { EndpointEditToolName, IChatModelInformation, IChatModelRequestOptions, ModelSupportedEndpoint } from '../../../platform/endpoint/common/endpointProvider';
+import { IEnvService } from '../../../platform/env/common/envService';
 import { ILogService } from '../../../platform/log/common/logService';
 import { IFetcherService } from '../../../platform/networking/common/fetcherService';
 import { ICreateEndpointBodyOptions, IEndpointBody } from '../../../platform/networking/common/networking';
@@ -130,8 +131,9 @@ export class CustomEndpointBYOKModelProvider extends AbstractOpenAICompatibleLMP
 		@IConfigurationService configurationService: IConfigurationService,
 		@IExperimentationService expService: IExperimentationService,
 		@ILanguageModelRequestMiddlewareRegistry requestMiddlewareRegistry: ILanguageModelRequestMiddlewareRegistry,
+		@IEnvService envService: IEnvService,
 	) {
-		super(CustomEndpointBYOKModelProvider.providerId, CustomEndpointBYOKModelProvider.providerName, undefined, _byokStorageService, fetcherService, logService, instantiationService, configurationService, expService, requestMiddlewareRegistry);
+		super(CustomEndpointBYOKModelProvider.providerId, CustomEndpointBYOKModelProvider.providerName, undefined, _byokStorageService, fetcherService, logService, instantiationService, configurationService, expService, requestMiddlewareRegistry, envService);
 	}
 
 	protected override async configureDefaultGroupWithApiKeyOnly(): Promise<string | undefined> {

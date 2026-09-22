@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 import { IConfigurationService } from '../../../platform/configuration/common/configurationService';
 import { IChatModelInformation, ModelSupportedEndpoint } from '../../../platform/endpoint/common/endpointProvider';
+import { IEnvService } from '../../../platform/env/common/envService';
 import { ILogService } from '../../../platform/log/common/logService';
 import { IFetcherService } from '../../../platform/networking/common/fetcherService';
 import { IExperimentationService } from '../../../platform/telemetry/common/nullExperimentationService';
@@ -39,6 +40,7 @@ export class OAIBYOKLMProvider extends AbstractOpenAICompatibleLMProvider<OpenAI
 		@IConfigurationService configurationService: IConfigurationService,
 		@IExperimentationService expService: IExperimentationService,
 		@ILanguageModelRequestMiddlewareRegistry requestMiddlewareRegistry: ILanguageModelRequestMiddlewareRegistry,
+		@IEnvService envService: IEnvService,
 	) {
 		super(
 			OAIBYOKLMProvider.providerId,
@@ -51,6 +53,7 @@ export class OAIBYOKLMProvider extends AbstractOpenAICompatibleLMProvider<OpenAI
 			configurationService,
 			expService,
 			requestMiddlewareRegistry,
+			envService,
 		);
 	}
 

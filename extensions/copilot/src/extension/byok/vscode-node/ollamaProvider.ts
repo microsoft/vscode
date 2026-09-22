@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 import { ConfigKey, IConfigurationService } from '../../../platform/configuration/common/configurationService';
 import { IChatModelInformation } from '../../../platform/endpoint/common/endpointProvider';
+import { IEnvService } from '../../../platform/env/common/envService';
 import { ILogService } from '../../../platform/log/common/logService';
 import { IFetcherService } from '../../../platform/networking/common/fetcherService';
 import { IExperimentationService } from '../../../platform/telemetry/common/nullExperimentationService';
@@ -54,6 +55,7 @@ export class OllamaLMProvider extends AbstractOpenAICompatibleLMProvider<OllamaC
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IExperimentationService expService: IExperimentationService,
 		@ILanguageModelRequestMiddlewareRegistry requestMiddlewareRegistry: ILanguageModelRequestMiddlewareRegistry,
+		@IEnvService envService: IEnvService,
 	) {
 		super(
 			OllamaLMProvider.providerId,
@@ -66,6 +68,7 @@ export class OllamaLMProvider extends AbstractOpenAICompatibleLMProvider<OllamaC
 			configurationService,
 			expService,
 			requestMiddlewareRegistry,
+			envService,
 		);
 
 		this.migrateConfig();

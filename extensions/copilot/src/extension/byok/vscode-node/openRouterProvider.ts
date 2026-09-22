@@ -5,6 +5,7 @@
 import { IChatMLFetcher } from '../../../platform/chat/common/chatMLFetcher';
 import { IConfigurationService } from '../../../platform/configuration/common/configurationService';
 import { IDomainService } from '../../../platform/endpoint/common/domainService';
+import { IEnvService } from '../../../platform/env/common/envService';
 import { IChatModelInformation, ModelSupportedEndpoint } from '../../../platform/endpoint/common/endpointProvider';
 import { ILogService } from '../../../platform/log/common/logService';
 import { IFetcherService } from '../../../platform/networking/common/fetcherService';
@@ -61,6 +62,7 @@ export class OpenRouterLMProvider extends AbstractOpenAICompatibleLMProvider {
 		@IConfigurationService configurationService: IConfigurationService,
 		@IExperimentationService expService: IExperimentationService,
 		@ILanguageModelRequestMiddlewareRegistry requestMiddlewareRegistry: ILanguageModelRequestMiddlewareRegistry,
+		@IEnvService envService: IEnvService,
 	) {
 		super(
 			OpenRouterLMProvider.providerId,
@@ -73,6 +75,7 @@ export class OpenRouterLMProvider extends AbstractOpenAICompatibleLMProvider {
 			configurationService,
 			expService,
 			requestMiddlewareRegistry,
+			envService,
 		);
 	}
 

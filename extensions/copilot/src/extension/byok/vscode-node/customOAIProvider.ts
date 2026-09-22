@@ -5,6 +5,7 @@
 
 import { Config, ConfigKey, IConfigurationService } from '../../../platform/configuration/common/configurationService';
 import { EndpointEditToolName, ModelSupportedEndpoint } from '../../../platform/endpoint/common/endpointProvider';
+import { IEnvService } from '../../../platform/env/common/envService';
 import { IVSCodeExtensionContext } from '../../../platform/extContext/common/extensionContext';
 import { ILogService } from '../../../platform/log/common/logService';
 import { IFetcherService } from '../../../platform/networking/common/fetcherService';
@@ -87,8 +88,9 @@ export abstract class AbstractCustomOAIBYOKModelProvider extends AbstractOpenAIC
 		@IExperimentationService expService: IExperimentationService,
 		@IVSCodeExtensionContext private readonly _extensionContext: IVSCodeExtensionContext,
 		@ILanguageModelRequestMiddlewareRegistry requestMiddlewareRegistry: ILanguageModelRequestMiddlewareRegistry,
+		@IEnvService envService: IEnvService,
 	) {
-		super(id, name, undefined, byokStorageService, fetcherService, logService, instantiationService, configurationService, expService, requestMiddlewareRegistry);
+		super(id, name, undefined, byokStorageService, fetcherService, logService, instantiationService, configurationService, expService, requestMiddlewareRegistry, envService);
 	}
 
 	protected async migrateConfig(configKey: Config<IStringDictionary<_CustomOAIModelConfig>>, providerName: string, providerGroupName: string): Promise<void> {
@@ -186,8 +188,9 @@ export class CustomOAIBYOKModelProvider extends AbstractCustomOAIBYOKModelProvid
 		@IExperimentationService expService: IExperimentationService,
 		@IVSCodeExtensionContext extensionContext: IVSCodeExtensionContext,
 		@ILanguageModelRequestMiddlewareRegistry requestMiddlewareRegistry: ILanguageModelRequestMiddlewareRegistry,
+		@IEnvService envService: IEnvService,
 	) {
-		super(CustomOAIBYOKModelProvider.providerId, CustomOAIBYOKModelProvider.providerName, _byokStorageService, logService, fetcherService, instantiationService, configurationService, expService, extensionContext, requestMiddlewareRegistry);
+		super(CustomOAIBYOKModelProvider.providerId, CustomOAIBYOKModelProvider.providerName, _byokStorageService, logService, fetcherService, instantiationService, configurationService, expService, extensionContext, requestMiddlewareRegistry, envService);
 		this.migrateExistingConfigs();
 	}
 

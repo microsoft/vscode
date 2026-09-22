@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import { IConfigurationService } from '../../../platform/configuration/common/configurationService';
+import { IEnvService } from '../../../platform/env/common/envService';
 import { ILogService } from '../../../platform/log/common/logService';
 import { IFetcherService } from '../../../platform/networking/common/fetcherService';
 import { IExperimentationService } from '../../../platform/telemetry/common/nullExperimentationService';
@@ -44,6 +45,7 @@ export class XAIBYOKLMProvider extends AbstractOpenAICompatibleLMProvider {
 		@IConfigurationService configurationService: IConfigurationService,
 		@IExperimentationService expService: IExperimentationService,
 		@ILanguageModelRequestMiddlewareRegistry requestMiddlewareRegistry: ILanguageModelRequestMiddlewareRegistry,
+		@IEnvService envService: IEnvService,
 	) {
 		super(
 			XAIBYOKLMProvider.providerId,
@@ -56,6 +58,7 @@ export class XAIBYOKLMProvider extends AbstractOpenAICompatibleLMProvider {
 			configurationService,
 			expService,
 			requestMiddlewareRegistry,
+			envService,
 		);
 	}
 

@@ -7,6 +7,7 @@ import { CancellationToken, commands, LanguageModelChatInformation, LanguageMode
 import { IConfigurationService } from '../../../platform/configuration/common/configurationService';
 import { IChatModelInformation, ModelSupportedEndpoint } from '../../../platform/endpoint/common/endpointProvider';
 import type { ExtensionLanguageModelRequestOptions } from '../../../platform/endpoint/vscode-node/extChatEndpoint';
+import { IEnvService } from '../../../platform/env/common/envService';
 import { ILogService } from '../../../platform/log/common/logService';
 import { IFetcherService } from '../../../platform/networking/common/fetcherService';
 import { IExperimentationService } from '../../../platform/telemetry/common/nullExperimentationService';
@@ -101,6 +102,7 @@ export abstract class AbstractOpenAICompatibleLMProvider<T extends LanguageModel
 		@IConfigurationService protected readonly _configurationService: IConfigurationService,
 		@IExperimentationService protected readonly _expService: IExperimentationService,
 		@ILanguageModelRequestMiddlewareRegistry private readonly _requestMiddlewareRegistry: ILanguageModelRequestMiddlewareRegistry,
+		@IEnvService private readonly _envService: IEnvService,
 	) {
 		super(id, name, knownModels, byokStorageService, logService);
 		this._lmWrapper = this._instantiationService.createInstance(CopilotLanguageModelWrapper);
@@ -118,19 +120,30 @@ export abstract class AbstractOpenAICompatibleLMProvider<T extends LanguageModel
 	 * endpoint for a request must call this before making the request.
 	 */
 	protected async applyRequestMiddleware(endpoint: OpenAIEndpoint, model: OpenAICompatibleLanguageModelChatInformation<T>, options: ProvideLanguageModelChatResponseOptions, token: CancellationToken): Promise<void> {
-		// Requests from the Copilot chat participant go through `vscode.lm` and carry the
-		// conversation id in the model options instead of the request options.
-		const internalModelOptions = options.modelOptions as ExtensionLanguageModelRequestOptions | undefined;
 		const requestHeaders = await this._requestMiddlewareRegistry.provideRequestHeaders({
 			vendor: this._id,
 			modelId: model.id,
 			url: endpoint.urlOrRequestMetadata,
 			providerGroup: model.providerGroup,
 			requestInitiator: options.requestInitiator,
-			sessionId: options.sessionId ?? internalModelOptions?._conversationId,
+			sessionId: options.sessionId ?? this.getParticipantSessionId(options),
 			cancellationToken: token,
 		});
 		endpoint.applyRequestHeaders(requestHeaders);
+	}
+
+	/**
+	 * Requests from this extension's own chat participant go through `vscode.lm`
+	 * and carry the conversation id in the model options instead of the request
+	 * options. `modelOptions` is caller-controlled on `vscode.lm` requests, so the
+	 * value is only trusted when the request was initiated by this extension.
+	 */
+	private getParticipantSessionId(options: ProvideLanguageModelChatResponseOptions): string | undefined {
+		if (options.requestInitiator !== this._envService.extensionId) {
+			return undefined;
+		}
+		const conversationId = (options.modelOptions as ExtensionLanguageModelRequestOptions | undefined)?._conversationId;
+		return typeof conversationId === 'string' ? conversationId : undefined;
 	}
 
 	async provideTokenCount(model: OpenAICompatibleLanguageModelChatInformation<T>, text: string | LanguageModelChatMessage | LanguageModelChatMessage2, token: CancellationToken): Promise<number> {

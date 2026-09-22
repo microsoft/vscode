@@ -126,3 +126,7 @@ export const l10n = {
 export const authentication = {
 	getSession: vscode.authentication.getSession,
 };
+
+export const extensions = {
+	getExtension: vscode.extensions.getExtension,
+};

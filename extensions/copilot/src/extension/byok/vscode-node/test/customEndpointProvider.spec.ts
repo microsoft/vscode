@@ -5,7 +5,7 @@
 
 import { OpenAI, Raw } from '@vscode/prompt-tsx';
 import * as vscode from 'vscode';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { BlockedExtensionService, IBlockedExtensionService } from '../../../../platform/chat/common/blockedExtensionService';
 import { IChatMLFetcher } from '../../../../platform/chat/common/chatMLFetcher';
 import { ChatLocation } from '../../../../platform/chat/common/commonTypes';
@@ -13,6 +13,7 @@ import { ConfigKey, IConfigurationService } from '../../../../platform/configura
 import { IChatModelInformation, ModelSupportedEndpoint } from '../../../../platform/endpoint/common/endpointProvider';
 import { CustomDataPartMimeTypes } from '../../../../platform/endpoint/common/endpointTypes';
 import { ExtensionContributedChatEndpoint } from '../../../../platform/endpoint/vscode-node/extChatEndpoint';
+import { IEnvService } from '../../../../platform/env/common/envService';
 import type { IChatEndpoint, IEndpointBody } from '../../../../platform/networking/common/networking';
 import { ITestingServicesAccessor } from '../../../../platform/test/node/services';
 import { TokenizerType } from '../../../../util/common/tokenizer';
@@ -97,6 +98,7 @@ describe('CustomEndpointBYOKModelProvider', () => {
 
 	afterEach(() => {
 		disposables.clear();
+		vi.restoreAllMocks();
 	});
 
 	describe('resolveCustomEndpointUrl', () => {
@@ -227,8 +229,17 @@ describe('CustomEndpointBYOKModelProvider', () => {
 			expect(endpoint?.cloneWithTokenOverride(1000).getExtraHeaders?.()).toEqual(endpoint?.getExtraHeaders?.());
 		});
 
-		it('falls back to the conversation id in the model options as the session id for requests from the chat participant', async () => {
+		it('only takes the conversation id from the model options as the session id for requests from this extension', async () => {
 			const registry = accessor.get(ILanguageModelRequestMiddlewareRegistry);
+			const ownExtensionId = accessor.get(IEnvService).extensionId;
+			// The language model wrapper looks up the calling extension for requests that are not initiated by core.
+			vi.spyOn(vscode.extensions, 'getExtension').mockImplementation(() => ({ packageJSON: { version: '1.0.0' } } as vscode.Extension<unknown>));
+			// Requests from this extension do not get the built-in system message, so they need their own.
+			// The wrapper only renders text parts, not plain string content.
+			const messages = [
+				new vscode.LanguageModelChatMessage(vscode.LanguageModelChatMessageRole.System, [new vscode.LanguageModelTextPart('You are a test.')]),
+				new vscode.LanguageModelChatMessage(vscode.LanguageModelChatMessageRole.User, [new vscode.LanguageModelTextPart('hello')]),
+			];
 			const sessionIds: (string | undefined)[] = [];
 			disposables.add(registry.register({
 				selector: { vendors: ['customendpoint'] },
@@ -256,15 +267,17 @@ describe('CustomEndpointBYOKModelProvider', () => {
 			}, tokenSource.token);
 
 			for (const options of [
-				{ sessionId: 'session-1', modelOptions: { _conversationId: 'conversation-1' } },
-				{ modelOptions: { _conversationId: 'conversation-1' } },
-				{},
+				{ requestInitiator: 'core', sessionId: 'session-1', modelOptions: { _conversationId: 'conversation-1' } },
+				{ requestInitiator: ownExtensionId, modelOptions: { _conversationId: 'conversation-1' } },
+				// `modelOptions` is caller-controlled on `vscode.lm` requests: other callers cannot spoof a session.
+				{ requestInitiator: 'other.extension', modelOptions: { _conversationId: 'conversation-1' } },
+				{ requestInitiator: ownExtensionId, modelOptions: { _conversationId: 42 } },
+				{ requestInitiator: 'core' },
 			]) {
 				await provider.provideLanguageModelChatResponse(
 					model,
-					[new vscode.LanguageModelChatMessage(vscode.LanguageModelChatMessageRole.User, 'hello')],
+					messages,
 					{
-						requestInitiator: 'core',
 						tools: [],
 						toolMode: vscode.LanguageModelChatToolMode.Auto,
 						...options,
@@ -274,7 +287,7 @@ describe('CustomEndpointBYOKModelProvider', () => {
 				);
 			}
 
-			expect(sessionIds).toEqual(['session-1', 'conversation-1', undefined]);
+			expect(sessionIds).toEqual(['session-1', 'conversation-1', undefined, undefined, undefined]);
 		});
 
 		it('keeps a credential scoped to its provider group when two groups share a URL', async () => {
