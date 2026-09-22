@@ -109,6 +109,25 @@ suite('copilotToolDisplay — friendly tool names', () => {
 	test('falls back to the raw tool name for unknown tools', () => {
 		assert.strictEqual(getToolDisplayName('some_new_tool'), 'some_new_tool');
 	});
+
+	test('prefers canonical tool titles and falls back to original MCP tool names', () => {
+		const toolName = 'io-github-github-github-mcp-server-issue_read';
+		assert.deepStrictEqual({
+			title: getToolDisplayName(toolName, { toolTitle: 'Read issue', mcpToolName: 'issue_read' }),
+			shortName: getToolDisplayName(toolName, { mcpToolName: 'issue_read' }),
+			blankTitle: getToolDisplayName(toolName, { toolTitle: '  ', mcpToolName: 'issue_read' }),
+			trimmedTitle: getToolDisplayName(toolName, { toolTitle: ' Read issue ' }),
+			blankMetadata: getToolDisplayName(toolName, { toolTitle: '', mcpToolName: '  ' }),
+			builtIn: getToolDisplayName('bash', { toolTitle: 'SDK shell title' }),
+		}, {
+			title: 'Read issue',
+			shortName: 'issue_read',
+			blankTitle: 'issue_read',
+			trimmedTitle: 'Read issue',
+			blankMetadata: toolName,
+			builtIn: 'Run Shell Command',
+		});
+	});
 });
 
 suite('copilotToolDisplay — edit tool classification', () => {
@@ -229,6 +248,37 @@ suite('getPermissionDisplay — server tool confirmation', () => {
 				permissionPath: undefined,
 			},
 		);
+	});
+});
+
+suite('getPermissionDisplay — MCP tool confirmation', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('uses the canonical tool title without changing the permission request', () => {
+		const request: PermissionRequest = {
+			kind: 'mcp',
+			serverName: 'GitHub',
+			toolName: 'issue_read',
+			toolTitle: 'Read issue',
+			readOnly: true,
+			args: { issue_number: 123 },
+		};
+		assert.deepStrictEqual({
+			display: getPermissionDisplay(request),
+			fallback: getPermissionDisplay({ ...request, toolTitle: '' }).invocationMessage,
+			toolName: request.toolName,
+		}, {
+			display: {
+				confirmationTitle: 'Allow tool from GitHub?',
+				invocationMessage: 'GitHub: Read issue',
+				toolInput: '{"serverName":"GitHub","toolName":"issue_read"}',
+				permissionKind: 'mcp',
+				permissionPath: undefined,
+			},
+			fallback: 'GitHub: issue_read',
+			toolName: 'issue_read',
+		});
 	});
 });
 

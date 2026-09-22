@@ -241,7 +241,7 @@ function readMcpUiResourceUri(source: unknown): string | undefined {
 	return readStringProperty(ui, 'resourceUri');
 }
 
-function makeToolStartInfo(toolName: string, rawArguments: unknown, parentToolCallId: string | undefined, workingDirectory: URI | undefined, source: unknown, resolveAgentName: ToolAgentNameResolver): IToolStartInfo | undefined {
+function makeToolStartInfo(toolName: string, rawArguments: unknown, parentToolCallId: string | undefined, workingDirectory: URI | undefined, source: unknown, resolveAgentName: ToolAgentNameResolver, toolTitle?: string): IToolStartInfo | undefined {
 	if (isHiddenTool(toolName)) {
 		return undefined;
 	}
@@ -257,7 +257,8 @@ function makeToolStartInfo(toolName: string, rawArguments: unknown, parentToolCa
 	const toolArgs = cleaned ?? rawArgs;
 	const toolKind = getToolKind(toolName, parameters);
 	const subagentMeta = toolKind === 'subagent' ? getSubagentMetadata(parameters) : undefined;
-	const displayName = getToolDisplayName(toolName);
+	const mcpToolName = readStringProperty(source, 'mcpToolName');
+	const displayName = getToolDisplayName(toolName, { mcpToolName, toolTitle: toolTitle ?? readStringProperty(source, 'toolTitle') });
 	return {
 		toolName,
 		displayName,
@@ -271,7 +272,7 @@ function makeToolStartInfo(toolName: string, rawArguments: unknown, parentToolCa
 		parameters,
 		parentToolCallId,
 		mcpServerName: readStringProperty(source, 'mcpServerName'),
-		mcpToolName: readStringProperty(source, 'mcpToolName'),
+		mcpToolName,
 		mcpUiResourceUri: readMcpUiResourceUri(source),
 	};
 }
@@ -346,10 +347,17 @@ export async function mapSessionEvents(
 	// Names are collected up front because a `read_agent` execution can be persisted before the
 	// `subagent.started` event that names its target, and the main pass labels tools as it visits them.
 	const agentDisplayNamesById = new Map<string, string>();
+	const toolTitlesByCallId = new Map<string, string>();
 	const resolveAgentName: ToolAgentNameResolver = agentId => agentDisplayNamesById.get(agentId);
 	for (const event of events) {
 		if (event.type === 'subagent.started' && event.agentId) {
 			agentDisplayNamesById.set(event.agentId, event.data.agentDisplayName);
+		} else if (event.type === 'assistant.message') {
+			for (const request of event.data.toolRequests ?? []) {
+				if (request.toolTitle) {
+					toolTitlesByCallId.set(request.toolCallId, request.toolTitle);
+				}
+			}
 		}
 	}
 
@@ -370,7 +378,7 @@ export async function mapSessionEvents(
 		if (e.type === 'tool.execution_start') {
 			const d = e.data;
 			const parentToolCallId = resolveParentToolCallId(e.agentId, d.parentToolCallId);
-			const info = makeToolStartInfo(d.toolName, d.arguments, parentToolCallId, workingDirectory, d, resolveAgentName);
+			const info = makeToolStartInfo(d.toolName, d.arguments, parentToolCallId, workingDirectory, d, resolveAgentName, toolTitlesByCallId.get(d.toolCallId));
 			if (!info) {
 				continue;
 			}
