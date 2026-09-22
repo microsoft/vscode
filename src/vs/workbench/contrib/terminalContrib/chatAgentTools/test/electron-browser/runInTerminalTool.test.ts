@@ -1266,6 +1266,8 @@ suite('RunInTerminalTool', () => {
 			'git diff --output changes.diff HEAD',
 			'git diff --stat --output=changes.diff HEAD',
 			'git --no-pager -C repo diff --output changes.diff HEAD',
+			'git diff --out\\put=changes.diff HEAD',
+			'git diff --out"put"=changes.diff HEAD',
 
 			// git show file output
 			'git show --format=%B --output=message.txt HEAD',
