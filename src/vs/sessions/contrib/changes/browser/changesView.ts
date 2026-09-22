@@ -2091,11 +2091,11 @@ export class ChangesPickerActionItem extends ActionWidgetDropdownActionViewItem 
 
 		this._labelObs = derivedObservableWithCache<string | undefined>(this, (reader, lastValue) => {
 			const changeset = changesViewService.activeSessionChangesetObs.read(reader);
-			if (!changeset) {
+			if (!changeset && changesViewService.activeSessionLoadingObs.read(reader)) {
 				return lastValue;
 			}
 
-			return changeset.label;
+			return changeset?.label;
 		});
 
 		this._summaryObs = this._showSummary
