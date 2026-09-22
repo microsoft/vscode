@@ -445,7 +445,7 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 		}
 		const catalog = this._catalog;
 		this._executionAvailabilityWatcher.value = autorun(reader => {
-			const available = catalog.entries.filter(automation => this._execution.isSessionTemplateAvailable(automation.definition.session, reader));
+			const available = catalog.entries.filter(automation => this._execution.isSessionTemplateAvailable(getExecutionSessionTemplate(automation.definition), reader));
 			this._scheduleTimer.clear();
 			if (!this._isAutomationsEnabled()) {
 				return;
@@ -493,7 +493,7 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 			if (this._activeRunFor(current.resource)) {
 				continue;
 			}
-			if (!this._execution.isSessionTemplateAvailable(current.definition.session)) {
+			if (!this._execution.isSessionTemplateAvailable(getExecutionSessionTemplate(current.definition))) {
 				continue;
 			}
 			const cursors = { ...readScheduleCursors(current._meta) };
@@ -646,7 +646,8 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 
 	private async _startRun(initialRun: AutomationRunState, definition: AutomationDefinition): Promise<void> {
 		try {
-			if (!this._execution.isSessionTemplateAvailable(definition.session)) {
+			const template = getExecutionSessionTemplate(definition);
+			if (!this._execution.isSessionTemplateAvailable(template)) {
 				this._logService.info(`[AgentHostAutomationService] Deferring Automation run until its provider is available: run=${initialRun.resource}.`);
 				return;
 			}
@@ -656,15 +657,15 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 			}
 			this._armRunTimeout(running.resource);
 			const configuration = this._configurationTelemetry(definition.session);
-			const session = await this._execution.createSession(definition.session, running);
+			const session = await this._execution.createSession(template, running);
 			const shouldStart = await this._enqueueMutation(() => this._linkRunSession(running.resource, session.toString(), configuration));
 			if (!shouldStart) {
 				await this._execution.cancelSession(session);
 				return;
 			}
 			// Clients restore the last turn's model configuration, not the SDK's creation defaults.
-			const message: Message = definition.message.model === undefined && definition.session.model !== undefined
-				? { ...definition.message, model: definition.session.model }
+			const message: Message = definition.message.model === undefined && template.model !== undefined
+				? { ...definition.message, model: template.model }
 				: definition.message;
 			await this._execution.startSession(session, message);
 		} catch (error) {
@@ -971,6 +972,12 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 	}
 
 	private readonly _log = (message: string) => this._logService.warn(`[AgentHostAutomationService] ${message}`);
+}
+
+function getExecutionSessionTemplate(definition: AutomationDefinition): AutomationSessionTemplate {
+	return definition.message.model === undefined
+		? definition.session
+		: { ...definition.session, model: definition.message.model };
 }
 
 function isStoredAutomationCatalog(value: unknown): value is IStoredAutomationCatalog {

@@ -693,12 +693,17 @@ suite('AgentHostAutomationService', () => {
 			const messageModel = hasMessageModel ? { id: 'other-model', config: { thinkingLevel: 'high' } } : undefined;
 			const completed = new DeferredPromise<void>();
 			let createdModel: AutomationDefinition['session']['model'];
+			const readinessModels: AutomationDefinition['session']['model'][] = [];
 			disposables.add(stateManager.onDidEmitEnvelope(envelope => {
 				if (envelope.action.type === ActionType.AutomationRunLifecycleChanged && envelope.action.lifecycle.status === AutomationRunStatus.Completed) {
 					void completed.complete();
 				}
 			}));
 			const service = createService({
+				isSessionTemplateAvailable: template => {
+					readinessModels.push(template.model);
+					return true;
+				},
 				createSession: async template => {
 					createdModel = template.model;
 					stateManager.createSession({
@@ -741,14 +746,55 @@ suite('AgentHostAutomationService', () => {
 
 			assert.deepStrictEqual({
 				createdModel,
+				readinessModelsMatch: readinessModels.length > 0 && readinessModels.every(checkedModel => checkedModel === (messageModel ?? model)),
 				recordedModel: stateManager.getChatState(buildDefaultChatUri(session))?.turns[0]?.message.model,
 				savedModel: stateManager.getAutomationCatalogState()?.entries[0].definition.session.model,
 			}, {
-				createdModel: model,
+				createdModel: messageModel ?? model,
+				readinessModelsMatch: true,
 				recordedModel: messageModel ?? model,
 				savedModel: model,
 			});
 		});
+	}
+
+	for (const scheduled of [false, true]) {
+		test(`uses a message-only model for ${scheduled ? 'scheduled' : 'manual'} execution readiness`, () => runWithFakedTimers({ useFakeTimers: true, maxTaskCount: 100 }, async () => {
+			const model = { id: 'byok-model', config: { thinkingLevel: 'high' } };
+			const started = new DeferredPromise<void>();
+			let createdModel: AutomationDefinition['session']['model'];
+			let sentModel: AutomationDefinition['message']['model'];
+			const service = createService({
+				isSessionTemplateAvailable: template => template.model?.id === model.id,
+				createSession: async template => {
+					createdModel = template.model;
+					return URI.parse('mock:/byok-automation');
+				},
+				startSession: async (_session, message) => {
+					sentModel = message.model;
+					await started.complete();
+				},
+			});
+			const automation = definition();
+			automation.message.model = model;
+			if (scheduled) {
+				automation.triggers = [{ id: 'schedule', kind: AutomationTriggerKind.Schedule, schedule: { expression: '* * * * *', timeZone: 'UTC' } }];
+			}
+			await service.handleCreate({ ...createAction(), definition: automation });
+			if (!scheduled) {
+				await service.runAutomation({
+					channel: 'ahp-automations://',
+					automation: 'ahp-automation:/review-changes',
+					requestId: 'message-model-request',
+				});
+			}
+			await started.p;
+			assert.deepStrictEqual({
+				createdModel,
+				sentModel,
+				savedSessionModel: stateManager.getAutomationCatalogState()?.entries[0].definition.session.model,
+			}, { createdModel: model, sentModel: model, savedSessionModel: undefined });
+		}));
 	}
 
 	test('logs the saved run configuration despite an edit while the session is being created', async () => {
