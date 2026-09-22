@@ -139,25 +139,50 @@ function createTestPeer(): ITestPeer {
 	};
 }
 
+/** Reads one NDJSON frame without dropping requests between reads; the test runner owns the deadline. */
 function readNextRequest(stream: PassThrough): Promise<ITestWireRequest> {
 	return new Promise((resolve, reject) => {
-		const timeout = setTimeout(() => {
-			cleanup();
-			reject(new Error('Timed out waiting for Codex request'));
-		}, 1_000);
-		const onData = (chunk: Buffer | string) => {
-			cleanup();
-			try {
-				resolve(JSON.parse(typeof chunk === 'string' ? chunk : chunk.toString('utf8')));
-			} catch (err) {
-				reject(err);
+		let buffered = Buffer.alloc(0);
+		const onReadable = () => {
+			let chunk: Buffer | string | null;
+			while ((chunk = stream.read()) !== null) {
+				buffered = Buffer.concat([buffered, typeof chunk === 'string' ? Buffer.from(chunk, 'utf8') : chunk]);
+				const newline = buffered.indexOf('\n');
+				if (newline === -1) {
+					continue;
+				}
+				cleanup();
+				if (newline + 1 < buffered.length) {
+					stream.unshift(buffered.subarray(newline + 1));
+				}
+				try {
+					resolve(JSON.parse(buffered.subarray(0, newline).toString('utf8')));
+				} catch (error) {
+					reject(error);
+				}
+				return;
 			}
 		};
-		const cleanup = () => {
-			clearTimeout(timeout);
-			stream.off('data', onData);
+		const onError = (error: Error) => {
+			cleanup();
+			reject(error);
 		};
-		stream.once('data', onData);
+		const onClose = () => onError(new Error('Codex request stream closed before a complete request'));
+		const cleanup = () => {
+			stream.off('readable', onReadable);
+			stream.off('error', onError);
+			stream.off('end', onClose);
+			stream.off('close', onClose);
+		};
+		if (stream.destroyed || stream.readableEnded) {
+			onClose();
+			return;
+		}
+		stream.on('readable', onReadable);
+		stream.once('error', onError);
+		stream.once('end', onClose);
+		stream.once('close', onClose);
+		onReadable();
 	});
 }
 
@@ -2863,32 +2888,36 @@ suite('CodexAgent prewarm eviction', () => {
 		}]);
 
 		const send = agent.chats.sendMessage(URI.parse(buildDefaultChatUri(session)), 'hello', [repo], undefined, 'turn-1');
-		const start = await readNextRequest(peer.outbound);
-		const agents = start.params.config?.['agents'] as Record<string, { description: string; config_file: string }>;
-		const roleFile = await fs.promises.readFile(agents.Reviewer.config_file, 'utf8');
-		peer.push({ id: start.id, result: { thread: { id: 'thread-custom' } } });
-		const turn = await readNextRequest(peer.outbound);
-		peer.push({ id: turn.id, result: {} });
-		await send;
+		try {
+			const start = await readNextRequest(peer.outbound);
+			const agents = start.params.config?.['agents'] as Record<string, { description: string; config_file: string }>;
+			const roleFile = await fs.promises.readFile(agents.Reviewer.config_file, 'utf8');
+			peer.push({ id: start.id, result: { thread: { id: 'thread-custom' } } });
+			const turn = await readNextRequest(peer.outbound);
+			peer.push({ id: turn.id, result: {} });
+			await send;
 
-		assert.deepStrictEqual({
-			mcp: start.params.config?.['mcp_servers'],
-			agentDescription: agents.Reviewer.description,
-			developerInstructions: start.params.developerInstructions,
-			turnDeveloperInstructions: turn.params.collaborationMode?.settings.developer_instructions,
-			capabilityPaths: start.params.selectedCapabilityRoots?.map(root => root.location.path),
-			roleFile,
-			roleFileUsesHostGeneratedRoot: agents.Reviewer.config_file.startsWith(join(os.tmpdir(), 'vscode-agent-codex-customizations-')),
-		}, {
-			mcp: { local: { command: 'node', args: ['server.js'] } },
-			agentDescription: 'Reviews changes',
-			developerInstructions: `Run focused tests.\n\nReview carefully.\n\n${CODEX_FILE_LINK_INSTRUCTIONS}`,
-			turnDeveloperInstructions: `Run focused tests.\n\nReview carefully.\n\n${CODEX_FILE_LINK_INSTRUCTIONS}`,
-			capabilityPaths: [URI.file('/plugin/skills').fsPath],
-			roleFile: 'name = "Reviewer"\ndescription = "Reviews changes"\ndeveloper_instructions = "Review carefully."\n',
-			roleFileUsesHostGeneratedRoot: true,
-		});
-		peer.exit();
+			assert.deepStrictEqual({
+				mcp: start.params.config?.['mcp_servers'],
+				agentDescription: agents.Reviewer.description,
+				developerInstructions: start.params.developerInstructions,
+				turnDeveloperInstructions: turn.params.collaborationMode?.settings.developer_instructions,
+				capabilityPaths: start.params.selectedCapabilityRoots?.map(root => root.location.path),
+				roleFile,
+				roleFileUsesHostGeneratedRoot: agents.Reviewer.config_file.startsWith(join(os.tmpdir(), 'vscode-agent-codex-customizations-')),
+			}, {
+				mcp: { local: { command: 'node', args: ['server.js'] } },
+				agentDescription: 'Reviews changes',
+				developerInstructions: `Run focused tests.\n\nReview carefully.\n\n${CODEX_FILE_LINK_INSTRUCTIONS}`,
+				turnDeveloperInstructions: `Run focused tests.\n\nReview carefully.\n\n${CODEX_FILE_LINK_INSTRUCTIONS}`,
+				capabilityPaths: [URI.file('/plugin/skills').fsPath],
+				roleFile: 'name = "Reviewer"\ndescription = "Reviews changes"\ndeveloper_instructions = "Review carefully."\n',
+				roleFileUsesHostGeneratedRoot: true,
+			});
+		} finally {
+			peer.exit();
+			await send;
+		}
 	});
 
 	test('resumes an established thread when the selected workspace agent changes', async () => {
@@ -2915,44 +2944,50 @@ suite('CodexAgent prewarm eviction', () => {
 		const chat = URI.parse(buildDefaultChatUri(session));
 
 		const firstSend = agent.chats.sendMessage(chat, 'first', [repo], undefined, 'turn-1');
-		const start = await readNextRequest(peer.outbound);
-		peer.push({ id: start.id, result: { thread: { id: 'thread-workspace-agent' } } });
-		const firstTurn = await readNextRequest(peer.outbound);
-		peer.push({ id: firstTurn.id, result: {} });
-		await firstSend;
+		let secondSend: Promise<void> | undefined;
+		try {
+			const start = await readNextRequest(peer.outbound);
+			peer.push({ id: start.id, result: { thread: { id: 'thread-workspace-agent' } } });
+			const firstTurn = await readNextRequest(peer.outbound);
+			peer.push({ id: firstTurn.id, result: {} });
+			await firstSend;
 
-		await agent['_fileService'].writeFile(agentUri, VSBuffer.fromString('---\nname: Reviewer\ndescription: Reviews changes\n---\nUse the updated instructions.'));
-		const secondSend = agent.chats.sendMessage(chat, 'second', [repo], undefined, 'turn-2');
-		const unsubscribe = await readNextRequest(peer.outbound);
-		peer.push({ id: unsubscribe.id, result: {} });
-		const resume = await readNextRequest(peer.outbound);
-		const resumedAgents = resume.params.config?.['agents'] as Record<string, { description: string; config_file: string }>;
-		const resumedRoleFile = await fs.promises.readFile(resumedAgents.Reviewer.config_file, 'utf8');
-		peer.push({ id: resume.id, result: { thread: { id: 'thread-workspace-agent', cwd: repo.fsPath }, cwd: repo.fsPath } });
-		const inventory = await readNextRequest(peer.outbound);
-		peer.push({ id: inventory.id, result: { data: [], nextCursor: null } });
-		const secondTurn = await readNextRequest(peer.outbound);
-		peer.push({ id: secondTurn.id, result: {} });
-		await secondSend;
+			await agent['_fileService'].writeFile(agentUri, VSBuffer.fromString('---\nname: Reviewer\ndescription: Reviews changes\n---\nUse the updated instructions.'));
+			secondSend = agent.chats.sendMessage(chat, 'second', [repo], undefined, 'turn-2');
+			const unsubscribe = await readNextRequest(peer.outbound);
+			peer.push({ id: unsubscribe.id, result: {} });
+			const resume = await readNextRequest(peer.outbound);
+			const resumedAgents = resume.params.config?.['agents'] as Record<string, { description: string; config_file: string }>;
+			const resumedRoleFile = await fs.promises.readFile(resumedAgents.Reviewer.config_file, 'utf8');
+			peer.push({ id: resume.id, result: { thread: { id: 'thread-workspace-agent', cwd: repo.fsPath }, cwd: repo.fsPath } });
+			const inventory = await readNextRequest(peer.outbound);
+			peer.push({ id: inventory.id, result: { data: [], nextCursor: null } });
+			const secondTurn = await readNextRequest(peer.outbound);
+			peer.push({ id: secondTurn.id, result: {} });
+			await secondSend;
 
-		assert.deepStrictEqual({
-			start: { method: start.method, developerInstructions: start.params.developerInstructions },
-			firstTurn: { method: firstTurn.method, developerInstructions: firstTurn.params.collaborationMode?.settings.developer_instructions },
-			unsubscribe: { method: unsubscribe.method, threadId: unsubscribe.params.threadId },
-			resume: { method: resume.method, developerInstructions: resume.params.developerInstructions },
-			secondTurn: { method: secondTurn.method, developerInstructions: secondTurn.params.collaborationMode?.settings.developer_instructions },
-			resumedRoleFile,
-			needsResume: agent['_sessions'].get(AgentSession.id(session))?.needsResume,
-		}, {
-			start: { method: 'thread/start', developerInstructions: `Use the original instructions.\n\n${CODEX_FILE_LINK_INSTRUCTIONS}` },
-			firstTurn: { method: 'turn/start', developerInstructions: `Use the original instructions.\n\n${CODEX_FILE_LINK_INSTRUCTIONS}` },
-			unsubscribe: { method: 'thread/unsubscribe', threadId: 'thread-workspace-agent' },
-			resume: { method: 'thread/resume', developerInstructions: `Use the updated instructions.\n\n${CODEX_FILE_LINK_INSTRUCTIONS}` },
-			secondTurn: { method: 'turn/start', developerInstructions: `Use the updated instructions.\n\n${CODEX_FILE_LINK_INSTRUCTIONS}` },
-			resumedRoleFile: 'name = "Reviewer"\ndescription = "Reviews changes"\ndeveloper_instructions = "Use the updated instructions."\n',
-			needsResume: false,
-		});
-		peer.exit();
+			assert.deepStrictEqual({
+				start: { method: start.method, developerInstructions: start.params.developerInstructions },
+				firstTurn: { method: firstTurn.method, developerInstructions: firstTurn.params.collaborationMode?.settings.developer_instructions },
+				unsubscribe: { method: unsubscribe.method, threadId: unsubscribe.params.threadId },
+				resume: { method: resume.method, developerInstructions: resume.params.developerInstructions },
+				secondTurn: { method: secondTurn.method, developerInstructions: secondTurn.params.collaborationMode?.settings.developer_instructions },
+				resumedRoleFile,
+				needsResume: agent['_sessions'].get(AgentSession.id(session))?.needsResume,
+			}, {
+				start: { method: 'thread/start', developerInstructions: `Use the original instructions.\n\n${CODEX_FILE_LINK_INSTRUCTIONS}` },
+				firstTurn: { method: 'turn/start', developerInstructions: `Use the original instructions.\n\n${CODEX_FILE_LINK_INSTRUCTIONS}` },
+				unsubscribe: { method: 'thread/unsubscribe', threadId: 'thread-workspace-agent' },
+				resume: { method: 'thread/resume', developerInstructions: `Use the updated instructions.\n\n${CODEX_FILE_LINK_INSTRUCTIONS}` },
+				secondTurn: { method: 'turn/start', developerInstructions: `Use the updated instructions.\n\n${CODEX_FILE_LINK_INSTRUCTIONS}` },
+				resumedRoleFile: 'name = "Reviewer"\ndescription = "Reviews changes"\ndeveloper_instructions = "Use the updated instructions."\n',
+				needsResume: false,
+			});
+		} finally {
+			peer.exit();
+			await firstSend;
+			await secondSend;
+		}
 	});
 
 	test('fresh multi-root start selects only existing secondary skill directories', async () => {
