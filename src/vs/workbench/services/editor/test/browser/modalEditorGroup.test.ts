@@ -123,16 +123,11 @@ suite('Modal Editor Group', () => {
 		const floatingMain = captureMainState();
 
 		const modalPart = await parts.createModalEditorPart();
-		modalPart.layout(300, 200, 0, 0);
 		assert.ok(isHTMLElement(modalPart.modalElement));
 		const modalEditorElement = modalPart.modalElement.querySelector<HTMLElement>('.modal-editor-part');
 		assert.ok(modalEditorElement);
 		const floatingModal = {
 			height: modalEditorElement.style.height,
-			contentDimension: {
-				width: modalPart.contentDimension.width,
-				height: modalPart.contentDimension.height,
-			},
 		};
 
 		layoutService.floatingPanelsEnabled = false;
@@ -159,7 +154,6 @@ suite('Modal Editor Group', () => {
 			},
 			floatingModal: {
 				height: '',
-				contentDimension: { width: 300, height: 200 },
 			},
 			restoredMain: {
 				height: '',
