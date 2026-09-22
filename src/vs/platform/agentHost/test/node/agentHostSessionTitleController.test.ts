@@ -12,7 +12,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
-import { AgentHostSessionTitleController } from '../../node/agentHostSessionTitleController.js';
+import { AgentHostSessionTitleController, type AutomaticTitleGenerationStrategy } from '../../node/agentHostSessionTitleController.js';
 import { withEphemeralSessionMeta } from '../../common/meta/agentEphemeralSessionMeta.js';
 import { ActionType, NotificationType } from '../../common/state/sessionActions.js';
 import { buildChatUri, buildDefaultChatUri, MessageKind, ResponsePartKind, SessionStatus, ToolCallConfirmationReason, ToolCallStatus, TurnState, type ResponsePart, type SessionSummary, type ToolCallCompletedState, type Turn } from '../../common/state/sessionState.js';
@@ -138,9 +138,8 @@ suite('AgentHostSessionTitleController', () => {
 		getGitHubToken = () => 'github-token',
 		gitHubContextRequestTimeout?: number,
 		getGitHubHost = () => 'github.com',
-		activeAgentTitleGeneration = false,
+		initialTitleGenerationStrategy: AutomaticTitleGenerationStrategy = 'utility',
 		isEphemeral = false,
-		deferredTitleGeneration = false,
 	): {
 		controller: AgentHostSessionTitleController;
 		stateManager: AgentHostStateManager;
@@ -171,8 +170,7 @@ suite('AgentHostSessionTitleController', () => {
 			gitHubContextRequestTimeout,
 			octoKitService,
 			copilotApiService,
-			isActiveAgentTitleGenerationEnabled: () => activeAgentTitleGeneration,
-			isDeferredTitleGenerationEnabled: () => deferredTitleGeneration,
+			getInitialTitleGenerationStrategy: () => initialTitleGenerationStrategy,
 		}, new NullLogService()));
 		return { controller, stateManager, session, db, titleActions, catalogSyncs, copilotApiService, octoKitService };
 	}
@@ -201,7 +199,7 @@ suite('AgentHostSessionTitleController', () => {
 	});
 
 	function setupDeferred(getToken = () => 'gh-token', isEphemeral = false) {
-		return setup(undefined, '', getToken, undefined, undefined, undefined, undefined, true, isEphemeral, true);
+		return setup(undefined, '', getToken, undefined, undefined, undefined, undefined, 'deferred', isEphemeral);
 	}
 
 	test('deferred mode persists its seed without utility requests or foreground naming instructions', async () => {
@@ -268,7 +266,7 @@ suite('AgentHostSessionTitleController', () => {
 					openDatabase: resource => (resource.toString() === session.toString() ? sessionData : chatData).openDatabase(resource),
 					tryOpenDatabase: resource => (resource.toString() === session.toString() ? sessionData : chatData).tryOpenDatabase(resource),
 				},
-				isDeferredTitleGenerationEnabled: () => true,
+				getInitialTitleGenerationStrategy: () => 'deferred',
 				copilotApiService,
 				getGitHubCopilotToken: () => 'gh-token',
 			}, new NullLogService()));
@@ -312,17 +310,14 @@ suite('AgentHostSessionTitleController', () => {
 			const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
 			const db = new TestSessionDatabase();
 			const session = URI.parse('agenthost-session://copilot/creating');
-			let activeAgent = initial === 'activeAgent';
-			let deferred = initial === 'deferred';
+			let strategy: AutomaticTitleGenerationStrategy = initial;
 			const controller = disposables.add(new AgentHostSessionTitleController(stateManager, {
 				sessionDataService: createSessionDataService(db),
-				isActiveAgentTitleGenerationEnabled: () => activeAgent,
-				isDeferredTitleGenerationEnabled: () => deferred,
+				getInitialTitleGenerationStrategy: () => strategy,
 			}, new NullLogService()));
 			const first = controller.getAutomaticTitleGenerationStrategy(session.toString());
 			const beforeRegistration = await db.getMetadata('titleGenerationStrategy');
-			activeAgent = !activeAgent;
-			deferred = !deferred;
+			strategy = initial === 'utility' ? 'deferred' : 'utility';
 			const duringCreation = controller.getAutomaticTitleGenerationStrategy(session.toString());
 			stateManager.createSession(createSummary(session));
 			const registered = controller.getAutomaticTitleGenerationStrategy(session.toString());
@@ -336,14 +331,14 @@ suite('AgentHostSessionTitleController', () => {
 	test('clears an unregistered strategy snapshot after failed creation', () => {
 		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
 		const session = URI.parse('agenthost-session://copilot/creating');
-		let deferred = true;
+		let strategy: AutomaticTitleGenerationStrategy = 'deferred';
 		const controller = disposables.add(new AgentHostSessionTitleController(stateManager, {
 			sessionDataService: createSessionDataService(),
-			isDeferredTitleGenerationEnabled: () => deferred,
+			getInitialTitleGenerationStrategy: () => strategy,
 		}, new NullLogService()));
 		const first = controller.getAutomaticTitleGenerationStrategy(session.toString());
 		controller.clearSession(session.toString(), []);
-		deferred = false;
+		strategy = 'utility';
 		assert.deepStrictEqual({ first, retry: controller.getAutomaticTitleGenerationStrategy(session.toString()) }, { first: 'deferred', retry: 'utility' });
 	});
 
@@ -464,8 +459,7 @@ suite('AgentHostSessionTitleController', () => {
 		controller.seedTitleFromFirstMessage(session.toString(), 'Add dark mode');
 		const restored = disposables.add(new AgentHostSessionTitleController(stateManager, {
 			sessionDataService: createSessionDataService(db),
-			isDeferredTitleGenerationEnabled: () => false,
-			isActiveAgentTitleGenerationEnabled: () => false,
+			getInitialTitleGenerationStrategy: () => 'utility',
 			copilotApiService,
 			getGitHubCopilotToken: () => 'gh-token',
 		}, new NullLogService()));

@@ -548,10 +548,6 @@ const agentHostProxyConfigDefinition = {
 };
 export const agentHostProxyConfigSchema = createSchema(agentHostProxyConfigDefinition);
 
-/** Root config key forwarded from the renderer for active-agent title generation. */
-export const AgentHostActiveAgentTitleGenerationConfigKey = 'activeAgentTitleGeneration';
-export const AgentHostDeferredTitleGenerationConfigKey = 'deferredTitleGeneration';
-
 /** Root config key controlling rich-link guidance for Markdown plan documents. */
 export const AgentHostMarkdownPlanRichLinksEnabledConfigKey = 'markdownPlanRichLinksEnabled';
 
@@ -875,18 +871,6 @@ export const platformRootSchema = createSchema({
 		title: localize('agentHost.config.githubMcpServerEnabled.title', "GitHub MCP Server"),
 		description: localize('agentHost.config.githubMcpServerEnabled.description', "Whether agent sessions include a GitHub MCP server by default."),
 		default: true,
-	}),
-	[AgentHostActiveAgentTitleGenerationConfigKey]: schemaProperty<boolean>({
-		type: 'boolean',
-		title: localize('agentHost.config.activeAgentTitleGeneration.title', "Active Agent Title Generation"),
-		description: localize('agentHost.config.activeAgentTitleGeneration.description', "Whether the active agent names sessions and chats with rename tools instead of immediate utility-model title generation. Deferred title generation takes precedence. Changes apply to new sessions."),
-		default: false,
-	}),
-	[AgentHostDeferredTitleGenerationConfigKey]: schemaProperty<boolean>({
-		type: 'boolean',
-		title: localize('agentHost.config.deferredTitleGeneration.title', "Deferred Title Generation"),
-		description: localize('agentHost.config.deferredTitleGeneration.description', "Seed titles immediately and refine them in the background if the first response turn completes successfully, without asking the active agent to name chats. Explicit rename tools remain available. Overrides active agent title generation for new sessions; existing sessions and their chats retain their strategy."),
-		default: false,
 	}),
 	[AgentHostMarkdownPlanRichLinksEnabledConfigKey]: schemaProperty<boolean>({
 		type: 'boolean',

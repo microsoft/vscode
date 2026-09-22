@@ -14,8 +14,6 @@ import {
 	AgentHostAutoAttachPullRequestsSettingId,
 	AgentHostByokModelsEnabledSettingId,
 	AgentHostGitHubMcpServerEnabledSettingId,
-	AgentHostActiveAgentTitleGenerationSettingId,
-	AgentHostDeferredTitleGenerationSettingId,
 	AgentHostClaudeAgentEnabledSettingId,
 	AgentHostClaudeMultiRootEnabledSettingId,
 	AgentHostCodexAgentBinaryArgsSettingId,
@@ -38,8 +36,6 @@ import {
 } from './agentService.js';
 import {
 	AgentHostClaudeMultiRootEnabledConfigKey,
-	AgentHostActiveAgentTitleGenerationConfigKey,
-	AgentHostDeferredTitleGenerationConfigKey,
 	AgentHostAutoAttachPullRequestsConfigKey,
 	AgentHostByokModelsEnabledConfigKey,
 	AgentHostGitHubMcpServerEnabledConfigKey,
@@ -183,23 +179,6 @@ configurationRegistry.registerConfiguration({
 			scope: ConfigurationScope.APPLICATION,
 			tags: ['experimental', AGENT_MERGE_SETTING_TAG],
 			agentHost: { key: AgentMergeConfigKey.ReplyAttribution },
-		},
-		[AgentHostActiveAgentTitleGenerationSettingId]: {
-			type: 'boolean',
-			description: nls.localize('chat.agentHost.experimental.activeAgentTitleGeneration', "When enabled, the active agent names new sessions and chats using rename tools. When disabled, a utility model generates titles immediately. Deferred title generation takes precedence. Changes apply to new sessions; existing sessions and their chats retain their strategy."),
-			default: product.quality !== 'stable',
-			scope: ConfigurationScope.APPLICATION,
-			tags: ['experimental', 'advanced'],
-			experiment: { mode: 'auto' },
-			agentHost: { key: AgentHostActiveAgentTitleGenerationConfigKey },
-		},
-		[AgentHostDeferredTitleGenerationSettingId]: {
-			type: 'boolean',
-			description: nls.localize('chat.agentHost.experimental.deferredTitleGeneration', "Seed titles immediately and refine them in the background if the first response turn completes successfully, without asking the active agent to name chats. Explicit rename tools remain available. Overrides active agent title generation for new sessions; existing sessions and their chats retain their strategy."),
-			default: false,
-			scope: ConfigurationScope.APPLICATION,
-			tags: ['experimental', 'advanced'],
-			agentHost: { key: AgentHostDeferredTitleGenerationConfigKey },
 		},
 		...artifactToolsConfigurationProperties,
 		[AgentHostAutoAttachPullRequestsSettingId]: {
