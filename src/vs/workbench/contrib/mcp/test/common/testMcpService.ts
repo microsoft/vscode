@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { observableValue } from '../../../../../base/common/observable.js';
+import { IReader, observableValue } from '../../../../../base/common/observable.js';
 import { ContributionEnablementState, IEnablementModel } from '../../../chat/common/enablement.js';
 import { IAutostartResult, IMcpServer, IMcpService, LazyCollectionState } from '../../common/mcpTypes.js';
 
@@ -22,6 +22,10 @@ export class TestMcpService implements IMcpService {
 	declare readonly _serviceBrand: undefined;
 	public servers = observableValue<readonly IMcpServer[]>(this, []);
 	public readonly enablementModel: IEnablementModel = new TestEnablementModel();
+	readConfiguredEnablement(serverId: string, reader?: IReader): ContributionEnablementState {
+		return this.enablementModel.readEnabled(serverId, reader);
+	}
+
 	resetCaches(): void {
 
 	}

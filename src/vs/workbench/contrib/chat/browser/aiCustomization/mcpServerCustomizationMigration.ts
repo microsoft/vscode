@@ -53,14 +53,18 @@ interface IMcpServerCustomizationMigrationExecutionOptions {
 }
 
 /**
- * Whether the Agent Host would still forward this server's exact configuration from the client.
+ * Returns the configuration eligible to migrate, independently of whether the server is currently forwarded.
  */
-export function isMcpServerMigrationDeliverable(server: IAgentHostMcpServerSupport): server is IAgentHostMcpServerSupport & { readonly projectedConfiguration: IMcpServerConfiguration } {
-	return server.enablement.enabled
-		&& server.applicability === AgentHostMcpServerApplicability.Applicable
-		&& server.delivery === AgentHostMcpServerDelivery.ClientForwarded
-		&& server.compatibility.kind === 'supported'
-		&& server.projectedConfiguration !== undefined;
+export function getMcpServerMigrationConfiguration(server: IAgentHostMcpServerSupport): IMcpServerConfiguration | undefined {
+	if (server.applicability !== AgentHostMcpServerApplicability.Applicable || server.compatibility.kind !== 'supported') {
+		return undefined;
+	}
+	if (server.migrationConfiguration) {
+		return server.migrationConfiguration;
+	}
+	return server.enablement.enabled && server.delivery === AgentHostMcpServerDelivery.ClientForwarded
+		? server.projectedConfiguration
+		: undefined;
 }
 
 /**
@@ -101,7 +105,8 @@ export class McpServerCustomizationMigrator {
 					error,
 				});
 			};
-			if (!isMcpServerMigrationDeliverable(server)) {
+			const migrationConfiguration = getMcpServerMigrationConfiguration(server);
+			if (!migrationConfiguration) {
 				excluded(McpServerCustomizationMigrationFailureReason.NoLongerEligible);
 				continue;
 			}
@@ -136,15 +141,15 @@ export class McpServerCustomizationMigrator {
 			}
 			const rawConfiguration = servers[server.name];
 			const sourceConfiguration = await resolveSourceConfiguration(rawConfiguration, root, this.configurationResolverService);
-			const projectedConfiguration = canonicalizeConfiguration(server.projectedConfiguration);
+			const projectedConfiguration = canonicalizeConfiguration(migrationConfiguration);
 			if (!sourceConfiguration) {
 				excluded(normalizeMcpServerConfiguration(rawConfiguration)
 					? McpServerCustomizationMigrationFailureReason.UnrepresentableConfiguration
 					: McpServerCustomizationMigrationFailureReason.InvalidSource);
 				continue;
 			}
-			if (!isConfigurationRepresentable(server.projectedConfiguration)
-				|| !Iterable.isEmpty(ConfigurationResolverExpression.parse(server.projectedConfiguration).unresolved())
+			if (!isConfigurationRepresentable(migrationConfiguration)
+				|| !Iterable.isEmpty(ConfigurationResolverExpression.parse(migrationConfiguration).unresolved())
 				|| !equals(sourceConfiguration, projectedConfiguration)) {
 				excluded(McpServerCustomizationMigrationFailureReason.UnrepresentableConfiguration);
 				continue;
@@ -155,7 +160,7 @@ export class McpServerCustomizationMigrator {
 				name: server.name,
 				sourceUri,
 				targetUri,
-				projectedConfiguration: server.projectedConfiguration,
+				projectedConfiguration: migrationConfiguration,
 			});
 		}
 

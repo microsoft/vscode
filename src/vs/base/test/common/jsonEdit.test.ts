@@ -121,6 +121,24 @@ suite('JSON - edits', () => {
 		assertEdit(content, edits, '{\n  "x": "y"\n}');
 	});
 
+	test('remove the only property with a trailing comma', () => {
+		const content = '{\n  "x": "y",\n}';
+		const edits = removeProperty(content, ['x'], formatterOptions);
+		assertEdit(content, edits, '{\n}');
+	});
+
+	test('remove the only property with a comment before its trailing comma', () => {
+		const content = '{\n  "x": "y" /* removed property */, // retained\n}';
+		const edits = removeProperty(content, ['x'], formatterOptions);
+		assertEdit(content, edits, '{ // retained\n}');
+	});
+
+	test('remove the only nested property without changing sibling properties', () => {
+		const content = '{\n  "servers": {\n    "server": { "command": "node" },\n  },\n  "inputs": []\n}';
+		const edits = removeProperty(content, ['servers', 'server'], formatterOptions);
+		assertEdit(content, edits, '{\n  "servers": {\n  },\n  "inputs": []\n}');
+	});
+
 	test('insert item at 0', () => {
 		const content = '[\n  2,\n  3\n]';
 		const edits = setProperty(content, [0], 1, formatterOptions);

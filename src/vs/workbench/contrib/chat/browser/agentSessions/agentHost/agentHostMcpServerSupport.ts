@@ -12,7 +12,7 @@ import { ExtensionIdentifier } from '../../../../../../platform/extensions/commo
 import { IMcpSandboxConfiguration, IMcpServerConfiguration, McpServerType } from '../../../../../../platform/mcp/common/mcpPlatformTypes.js';
 import { IWorkspaceFolderData } from '../../../../../../platform/workspace/common/workspace.js';
 import { AICustomizationSource, AICustomizationSources } from '../../../common/aiCustomizationWorkspaceService.js';
-import { ContributionEnablementState } from '../../../common/enablement.js';
+import { ContributionEnablementState, isContributionEnabled } from '../../../common/enablement.js';
 import { IAgentHostMcpServerSupportCoverage } from '../../../common/promptSyntax/service/customizationMigrationService.js';
 import { ExternalDiscoverySource } from '../../../../mcp/common/mcpConfiguration.js';
 import { CURSOR_WORKSPACE_MCP_COLLECTION_ID_PREFIX, extensionMcpCollectionPrefix, extensionPrefixedIdentifier, getMcpCollectionProvenance, IMcpConfigPath, IMcpServer, LazyCollectionState, MCP_CONFIGURATION_COLLECTION_ID_PREFIX, MCP_PLUGIN_COLLECTION_ID_PREFIX, McpCollectionDefinition, McpCollectionProvenance, McpServerDefinition, McpServerEnablementState, McpServerLaunch, McpServerTransportType, WORKSPACE_DOT_MCP_COLLECTION_ID_PREFIX } from '../../../../mcp/common/mcpTypes.js';
@@ -118,6 +118,8 @@ export interface IAgentHostMcpServerSupport {
 	readonly compatibility: AgentHostMcpServerCompatibility;
 	/** The exact configuration projected through the current Agent Host delivery path. */
 	readonly projectedConfiguration?: IMcpServerConfiguration;
+	/** A configured workspace server eligible for migration independently of runtime registration and name collisions. */
+	readonly migrationConfiguration?: IMcpServerConfiguration;
 }
 
 export interface IAgentHostMcpServerSupportAssessment {
@@ -149,6 +151,8 @@ export interface IAgentHostInstalledMcpServer {
 	readonly configPath: IMcpConfigPath | undefined;
 	readonly sandbox: IMcpSandboxConfiguration | undefined;
 	readonly runtimeState: McpServerEnablementState | undefined;
+	/** The configured profile/workspace decision, excluding collision-derived disablement. */
+	readonly enablement: ContributionEnablementState;
 }
 
 export function agentHostProviderHasBuiltInGitHubMcpServer(provider: string): boolean {
@@ -194,21 +198,22 @@ export async function mergeInstalledMcpServersIntoAgentHostSupportAssessment(
 		const installed = installedById.get(server.id);
 		const runtimeState = installed?.runtimeState;
 		const enablement = getInstalledMcpServerEnablementOverride(runtimeState);
-		return enablement ? {
+		const assessedServer = enablement ? {
 			...server,
 			enablement,
 			delivery: runtimeState === McpServerEnablementState.DisabledByAccess
 				? AgentHostMcpServerDelivery.NotDelivered
 				: server.delivery,
 		} : server;
+		return installed ? withInstalledMcpServerMigrationConfiguration(assessedServer, installed, server.projectedConfiguration) : assessedServer;
 	});
 	const assessedIds = new Set(servers.map(server => server.id));
-	const missingDisabledServers = await Promise.all(installedServers
+	const missingServers = await Promise.all(installedServers
 		.filter(server => !assessedIds.has(server.id) && server.runtimeState !== McpServerEnablementState.Enabled)
-		.map(server => assessDisabledInstalledMcpServer(server, configurationResolverService, workingDirectories)));
+		.map(server => assessInstalledMcpServer(server, configurationResolverService, workingDirectories)));
 	return {
 		...assessment,
-		servers: [...servers, ...missingDisabledServers],
+		servers: [...servers, ...missingServers],
 	};
 }
 
@@ -492,18 +497,23 @@ function getInstalledMcpServerEnablementOverride(runtimeState: McpServerEnableme
 	}
 }
 
-async function assessDisabledInstalledMcpServer(
+async function assessInstalledMcpServer(
 	server: IAgentHostInstalledMcpServer,
 	configurationResolverService: IConfigurationResolverService,
 	workingDirectories: readonly URI[] | undefined,
 ): Promise<IAgentHostMcpServerSupport> {
 	const sourceKind = getMcpCollectionSourceKind(server.configPath?.provenance ?? getMcpCollectionProvenance(server.configPath?.target), undefined)
 		?? AgentHostMcpServerSourceKind.Unknown;
-	const compatibility = await getInstalledMcpServerCompatibility(server, sourceKind, configurationResolverService);
+	const { compatibility, projectedConfiguration } = await resolveInstalledMcpServerConfiguration(server, sourceKind, configurationResolverService);
 	const collectionId = server.configPath?.collectionId ?? (server.configPath
 		? `${MCP_CONFIGURATION_COLLECTION_ID_PREFIX}${server.configPath.id}`
 		: getCollectionIdFromInstalledServer(server));
-	return {
+	const applicability = getMcpConfigurationApplicability(server.configPath?.target, server.configPath?.uri, sourceKind, workingDirectories);
+	const enablement = getInstalledMcpServerEnablementOverride(server.runtimeState) ?? {
+		enabled: false,
+		state: AgentHostMcpServerEnablementState.DisabledNotRegistered,
+	};
+	return withInstalledMcpServerMigrationConfiguration({
 		id: server.id,
 		name: server.name,
 		collectionId,
@@ -517,14 +527,25 @@ async function assessDisabledInstalledMcpServer(
 			extensionId: undefined,
 			pluginUri: undefined,
 		},
-		enablement: getInstalledMcpServerEnablementOverride(server.runtimeState) ?? {
-			enabled: false,
-			state: AgentHostMcpServerEnablementState.DisabledNotRegistered,
-		},
-		applicability: getMcpConfigurationApplicability(server.configPath?.target, server.configPath?.uri, sourceKind, workingDirectories),
+		enablement,
+		applicability,
 		delivery: AgentHostMcpServerDelivery.NotDelivered,
 		compatibility,
-	};
+	}, server, projectedConfiguration);
+}
+
+function withInstalledMcpServerMigrationConfiguration(
+	server: IAgentHostMcpServerSupport,
+	installed: IAgentHostInstalledMcpServer,
+	configuration: IMcpServerConfiguration | undefined,
+): IAgentHostMcpServerSupport {
+	const eligible = server.source.kind === AgentHostMcpServerSourceKind.VscodeWorkspaceFolder
+		&& server.applicability === AgentHostMcpServerApplicability.Applicable
+		&& server.compatibility.kind === 'supported'
+		&& isContributionEnabled(installed.enablement)
+		&& installed.runtimeState !== McpServerEnablementState.DisabledByAccess
+		&& installed.runtimeState !== McpServerEnablementState.DisabledWorkspace;
+	return eligible && configuration ? { ...server, migrationConfiguration: configuration } : server;
 }
 
 function getCollectionIdFromInstalledServer(server: IAgentHostInstalledMcpServer): string {
@@ -534,21 +555,21 @@ function getCollectionIdFromInstalledServer(server: IAgentHostInstalledMcpServer
 		: `${MCP_CONFIGURATION_COLLECTION_ID_PREFIX}unknown`;
 }
 
-async function getInstalledMcpServerCompatibility(
+async function resolveInstalledMcpServerConfiguration(
 	server: IAgentHostInstalledMcpServer,
 	sourceKind: AgentHostMcpServerSourceKind,
 	configurationResolverService: IConfigurationResolverService,
-): Promise<AgentHostMcpServerCompatibility> {
+): Promise<{ readonly compatibility: AgentHostMcpServerCompatibility; readonly projectedConfiguration?: IMcpServerConfiguration }> {
 	if (sourceKind === AgentHostMcpServerSourceKind.WorkspaceConfiguration) {
-		return unsupported([AgentHostMcpSupportReason.UnsupportedSourceLocation]);
+		return { compatibility: unsupported([AgentHostMcpSupportReason.UnsupportedSourceLocation]) };
 	}
 	const launch = McpServerLaunch.fromServerConfiguration(server.configuration, server.sandbox);
 	if (!launch) {
-		return unsupported([AgentHostMcpSupportReason.LaunchNotRepresentable]);
+		return { compatibility: unsupported([AgentHostMcpSupportReason.LaunchNotRepresentable]) };
 	}
-	const projectedConfiguration = projectMcpServerConfiguration(launch);
+	let projectedConfiguration = projectMcpServerConfiguration(launch);
 	if (!projectedConfiguration) {
-		return unsupported([AgentHostMcpSupportReason.LaunchNotRepresentable]);
+		return { compatibility: unsupported([AgentHostMcpSupportReason.LaunchNotRepresentable]) };
 	}
 
 	const unsupportedReasons: AgentHostMcpSupportReason[] = [];
@@ -556,6 +577,8 @@ async function getInstalledMcpServerCompatibility(
 		const resolved = await resolveMcpConfigurationForSync(configurationResolverService, server.configPath.workspaceFolder, projectedConfiguration);
 		if (resolved.kind === 'error') {
 			unsupportedReasons.push(resolved.reason);
+		} else {
+			projectedConfiguration = resolved.configuration;
 		}
 	} else {
 		const unresolvedReason = getUnresolvedConfigurationReason(projectedConfiguration);
@@ -570,7 +593,10 @@ async function getInstalledMcpServerCompatibility(
 		server.configuration.dev,
 	);
 	const unknownReasons = sourceKind === AgentHostMcpServerSourceKind.Unknown ? [AgentHostMcpSupportReason.SourceUnknown] : [];
-	return getCompatibility(unsupportedReasons, partialReasons, unknownReasons);
+	return {
+		compatibility: getCompatibility(unsupportedReasons, partialReasons, unknownReasons),
+		projectedConfiguration,
+	};
 }
 
 function isPluginCollection(server: IMcpServer, collection: McpCollectionDefinition | undefined): boolean {

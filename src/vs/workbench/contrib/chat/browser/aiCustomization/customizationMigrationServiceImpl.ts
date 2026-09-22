@@ -25,7 +25,7 @@ import { IAgentHostActiveClientService } from '../agentSessions/agentHost/agentH
 import { IAgentHostCustomizationService } from '../agentSessions/agentHost/agentHostCustomizationService.js';
 import { AgentHostMcpServerApplicability, IAgentHostMcpServerSupportSnapshot } from '../agentSessions/agentHost/agentHostMcpServerSupport.js';
 import { IAgentHostMcpServerSupportScope } from '../agentSessions/agentHost/agentHostMcpServerSupportScope.js';
-import { isMcpServerMigrationDeliverable, McpServerCustomizationMigrator } from './mcpServerCustomizationMigration.js';
+import { getMcpServerMigrationConfiguration, McpServerCustomizationMigrator } from './mcpServerCustomizationMigration.js';
 
 export class CustomizationMigrationService extends Disposable implements ICustomizationMigrationService {
 	declare readonly _serviceBrand: undefined;
@@ -346,8 +346,7 @@ export class CustomizationMigrationService extends Disposable implements ICustom
 		return candidates.every(candidate => {
 			const server = currentServers.get(candidate.id);
 			return server !== undefined
-				&& isMcpServerMigrationDeliverable(server)
-				&& equals(server.projectedConfiguration, candidate.projectedConfiguration);
+				&& equals(getMcpServerMigrationConfiguration(server), candidate.projectedConfiguration);
 		});
 	}
 

@@ -8,7 +8,7 @@ import { DeferredPromise, Delayer } from '../../../../../../base/common/async.js
 import { onUnexpectedError } from '../../../../../../base/common/errors.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../../../../base/common/lifecycle.js';
-import { autorun, IObservable, observableFromEventOpts, observableValue, transaction } from '../../../../../../base/common/observable.js';
+import { autorun, IObservable, observableFromEventOpts, observableSignalFromEvent, observableValue, transaction } from '../../../../../../base/common/observable.js';
 import { isEqual } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { localize } from '../../../../../../nls.js';
@@ -171,6 +171,7 @@ export class AgentHostMcpServerSupportScope extends Disposable {
 						configPath: this._mcpWorkbenchService.getMcpConfigPath(local),
 						sandbox: local.rootSandbox,
 						runtimeState: server.runtimeStatus?.state,
+						enablement: this._mcpService.readConfiguredEnablement(local.id),
 					} satisfies IAgentHostInstalledMcpServer] : [];
 				});
 				const assessment = await mergeInstalledMcpServersIntoAgentHostSupportAssessment(
@@ -206,15 +207,22 @@ export class AgentHostMcpServerSupportScope extends Disposable {
 			this._updateDelayer.trigger(() => update(sequence)).catch(() => { /* scope disposed */ });
 		};
 
+		const installedServersChanged = observableSignalFromEvent(this, this._mcpWorkbenchService.onChange);
 		this._register(autorun(reader => {
+			installedServersChanged.read(reader);
+			// Invalidate the snapshot even if reading an inventory dependency fails.
+			scheduleUpdate();
+			for (const server of this._mcpWorkbenchService.local) {
+				if (server.local) {
+					this._mcpService.readConfiguredEnablement(server.local.id, reader);
+				}
+			}
 			for (const server of this._mcpService.servers.read(reader)) {
 				server.readDefinitions().read(reader);
 				server.enablement.read(reader);
 			}
 			this._mcpService.lazyCollectionState.read(reader);
-			scheduleUpdate();
 		}));
-		this._register(this._mcpWorkbenchService.onChange(scheduleUpdate));
 		this._register(this._configurationService.onDidChangeConfiguration(event => {
 			if (event.affectsConfiguration(mcpAccessConfig) || event.affectsConfiguration(COPILOT_STRICT_PLUGIN_ONLY_CUSTOMIZATION_CONFIG)) {
 				scheduleUpdate();

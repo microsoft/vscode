@@ -30,6 +30,7 @@ import { ConfigurationResolverExpression } from '../../../../services/configurat
 import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
 import { IExtensionService } from '../../../../services/extensions/common/extensions.js';
 import { TestContextService, TestLoggerService, TestProductService, TestStorageService } from '../../../../test/common/workbenchTestServices.js';
+import { ContributionEnablementState } from '../../../chat/common/enablement.js';
 import { IMcpRegistry } from '../../common/mcpRegistryTypes.js';
 import { McpServerConnection } from '../../common/mcpServerConnection.js';
 import { McpService } from '../../common/mcpService.js';
@@ -69,6 +70,37 @@ suite('Workbench - MCP - McpService', () => {
 			serverDefinitions: observableValue('serverDefinitions', [definition])
 		}], undefined);
 	};
+
+	test('reads configured enablement independently of runtime name collisions', () => {
+		const { mcpService, registry } = createMcpService();
+		const collection = registry.collections.get()[0];
+		const definition = collection.serverDefinitions.get()[0];
+		registry.collections.set(['first', 'second'].map((id, order) => ({
+			...collection,
+			id,
+			order,
+			serverDefinitions: observableValue('serverDefinitions', [{ ...definition, id, label: 'Shared Server' }]),
+		})), undefined);
+		mcpService.updateCollectedServers();
+		const runtime = mcpService.servers.get().map(server => ({ id: server.definition.id, enablement: server.enablement.get() }));
+		const configured: ContributionEnablementState[] = [];
+		store.add(autorun(reader => configured.push(mcpService.readConfiguredEnablement('second', reader))));
+
+		mcpService.enablementModel.setEnabled('second', ContributionEnablementState.DisabledProfile);
+		mcpService.enablementModel.setEnabled('second', ContributionEnablementState.EnabledWorkspace);
+
+		assert.deepStrictEqual({ runtime, configured }, {
+			runtime: [
+				{ id: 'first', enablement: ContributionEnablementState.EnabledProfile },
+				{ id: 'second', enablement: ContributionEnablementState.DisabledProfile },
+			],
+			configured: [
+				ContributionEnablementState.EnabledProfile,
+				ContributionEnablementState.DisabledProfile,
+				ContributionEnablementState.EnabledWorkspace,
+			],
+		});
+	});
 
 	suite('URL policy resolution', () => {
 		const createPolicyServer = (definitionUrl: string, resolvedUrl = definitionUrl, requiresActivation = false) => {
