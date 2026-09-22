@@ -286,6 +286,7 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 	// ---- Session-state subscriptions ---------------------------------------
 
 	private readonly _sessionStateEmitters = new Map<string, Emitter<SubscriptionState>>();
+	private readonly _sessionStateErrorEmitters = new Map<string, Emitter<Error>>();
 	private readonly _sessionStateValues = new Map<string, SubscriptionState>();
 	public sessionSubscribeCounts = new Map<string, number>();
 	public sessionUnsubscribeCounts = new Map<string, number>();
@@ -306,11 +307,17 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 			emitter = new Emitter<SubscriptionState>();
 			this._sessionStateEmitters.set(key, emitter);
 		}
+		let errorEmitter = this._sessionStateErrorEmitters.get(key);
+		if (!errorEmitter) {
+			errorEmitter = new Emitter<Error>();
+			this._sessionStateErrorEmitters.set(key, errorEmitter);
+		}
 		const self = this;
 		const sub: IAgentSubscription<T> = {
 			get value() { return self._sessionStateValues.get(key) as unknown as T | undefined; },
 			get verifiedValue() { return self._sessionStateValues.get(key) as unknown as T | undefined; },
 			onDidChange: emitter.event as unknown as Event<T>,
+			onDidError: errorEmitter.event,
 			onWillApplyAction: Event.None,
 			onDidApplyAction: Event.None,
 		};
@@ -332,6 +339,10 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 		const key = resource.toString();
 		this._sessionStateValues.set(key, state);
 		this._sessionStateEmitters.get(key)?.fire(state);
+	}
+
+	fireSessionStateError(resource: URI, error: Error): void {
+		this._sessionStateErrorEmitters.get(resource.toString())?.fire(error);
 	}
 
 	setChangesetState(changesetUri: string, state: ChangesetState): void {
@@ -432,12 +443,16 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 			emitter.dispose();
 		}
 		this._sessionStateEmitters.clear();
+		for (const emitter of this._sessionStateErrorEmitters.values()) {
+			emitter.dispose();
+		}
+		this._sessionStateErrorEmitters.clear();
 	}
 }
 
 // ---- Test helpers -----------------------------------------------------------
 
-function createSession(id: string, opts?: { provider?: string; summary?: string; status?: ProtocolSessionStatus; activity?: string; project?: { uri: URI; displayName: string }; workingDirectory?: URI; workingDirectories?: readonly URI[]; startTime?: number; modifiedTime?: number; quickChat?: boolean; multiRoot?: { workspaceFile: string }; adoptable?: boolean; _meta?: IAgentSessionMetadata['_meta'] }): IAgentSessionMetadata {
+function createSession(id: string, opts?: { provider?: string; summary?: string; status?: ProtocolSessionStatus; activity?: string; project?: { uri: URI; displayName: string }; workingDirectory?: URI; workingDirectories?: readonly URI[]; startTime?: number; modifiedTime?: number; quickChat?: boolean; multiRoot?: { workspaceFile: string }; adoptable?: boolean; chats?: IAgentSessionMetadata['chats']; _meta?: IAgentSessionMetadata['_meta'] }): IAgentSessionMetadata {
 	let _meta = opts?._meta;
 	_meta = opts?.quickChat ? withSessionWorkspaceless(_meta, true) : _meta;
 	_meta = withSessionMultiRootMetadata(_meta, opts?.multiRoot);
@@ -453,6 +468,7 @@ function createSession(id: string, opts?: { provider?: string; summary?: string;
 		activity: opts?.activity,
 		project: opts?.project,
 		workingDirectories: opts?.workingDirectories ? [...opts.workingDirectories] : (opts?.workingDirectory ? [opts.workingDirectory] : undefined),
+		chats: opts?.chats,
 		_meta,
 	};
 }
@@ -6027,6 +6043,130 @@ suite('LocalAgentHostSessionsProvider', () => {
 			return session!;
 		}
 
+		test('list metadata surfaces peer titles without subscribing and loads stable chat details while observed', async () => {
+			agentHost.setAgents([{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [], capabilities: {} } as AgentInfo]);
+			const rawId = 'multi-catalog-list';
+			const sessionUri = AgentSession.uri('copilotcli', rawId);
+			const defaultChat = URI.parse(buildDefaultChatUri(sessionUri));
+			const peerChat = URI.parse(buildChatUri(sessionUri, 'peer-1'));
+			agentHost.addSession(createSession(rawId, {
+				summary: 'Session',
+				chats: [
+					{ chat: defaultChat, kind: 'default', summary: 'Default' },
+					{ chat: peerChat, kind: 'peer', summary: 'Catalog Peer', interactivity: ProtocolChatInteractivity.Hidden },
+				],
+			}));
+			const provider = createProvider(disposables, agentHost);
+
+			provider.getSessions();
+			await timeout(0);
+			const session = provider.getSessions().find(candidate => AgentSession.id(candidate.resource) === rawId);
+			assert.ok(session);
+			const initialPeer = session.chats.get()[1];
+			let observedInteractivity: ChatInteractivity | undefined;
+			disposables.add(autorun(reader => {
+				observedInteractivity = initialPeer.interactivity.read(reader);
+			}));
+			assert.deepStrictEqual({
+				titles: session.chats.get().map(chat => chat.title.get()),
+				interactivity: session.chats.get().map(chat => chat.interactivity.get()),
+				observedInteractivity,
+				sessionSubscriptions: agentHost.sessionSubscribeCounts.get(sessionUri.toString()) ?? 0,
+			}, {
+				titles: ['Default', 'Catalog Peer'],
+				interactivity: [ChatInteractivity.Full, ChatInteractivity.Hidden],
+				observedInteractivity: ChatInteractivity.Hidden,
+				sessionSubscriptions: 0,
+			});
+
+			disposables.add(autorun(reader => {
+				initialPeer.title.read(reader);
+				initialPeer.status.read(reader);
+			}));
+			agentHost.setSessionState(rawId, 'copilotcli', makeState([
+				makeChatSummary(defaultChat.toString(), 'Default'),
+				makeChatSummary(peerChat.toString(), 'Hydrated Peer', ProtocolSessionStatus.InProgress),
+			], { defaultChat: defaultChat.toString() }));
+
+			assert.deepStrictEqual({
+				sessionSubscriptions: agentHost.sessionSubscribeCounts.get(sessionUri.toString()),
+				peerIdentityPreserved: session.chats.get()[1] === initialPeer,
+				peerTitle: session.chats.get()[1].title.get(),
+				peerStatus: session.chats.get()[1].status.get(),
+				supportsMultipleChats: session.capabilities.get().supportsMultipleChats,
+			}, {
+				sessionSubscriptions: 1,
+				peerIdentityPreserved: true,
+				peerTitle: 'Hydrated Peer',
+				peerStatus: SessionStatus.InProgress,
+				supportsMultipleChats: false,
+			});
+		});
+
+		test('observed peer details resubscribe after subscription failure and host restart', async () => {
+			const rawId = 'multi-catalog-reconnect';
+			const sessionUri = AgentSession.uri('copilotcli', rawId);
+			const defaultChat = URI.parse(buildDefaultChatUri(sessionUri));
+			const peerChat = URI.parse(buildChatUri(sessionUri, 'peer-1'));
+			agentHost.addSession(createSession(rawId, {
+				summary: 'Session',
+				chats: [
+					{ chat: defaultChat, kind: 'default', summary: 'Default' },
+					{ chat: peerChat, kind: 'peer', summary: 'Catalog Peer' },
+				],
+			}));
+			const provider = createProvider(disposables, agentHost);
+
+			provider.getSessions();
+			await timeout(0);
+			const session = provider.getSessions().find(candidate => AgentSession.id(candidate.resource) === rawId);
+			assert.ok(session);
+			const peer = session.chats.get()[1];
+			disposables.add(autorun(reader => peer.title.read(reader)));
+			const subscriptionsBeforeFailure = agentHost.sessionSubscribeCounts.get(sessionUri.toString()) ?? 0;
+
+			agentHost.fireSessionStateError(sessionUri, new Error('subscription failed'));
+			await timeout(0);
+			agentHost.setSessionState(rawId, 'copilotcli', makeState([
+				makeChatSummary(defaultChat.toString(), 'Default'),
+				makeChatSummary(peerChat.toString(), 'After failure'),
+			], { defaultChat: defaultChat.toString() }));
+			const afterFailure = {
+				title: peer.title.get(),
+				subscriptions: agentHost.sessionSubscribeCounts.get(sessionUri.toString()) ?? 0,
+				unsubscriptions: agentHost.sessionUnsubscribeCounts.get(sessionUri.toString()) ?? 0,
+			};
+
+			agentHost.fireAgentHostStart();
+			await timeout(0);
+			agentHost.setSessionState(rawId, 'copilotcli', makeState([
+				makeChatSummary(defaultChat.toString(), 'Default'),
+				makeChatSummary(peerChat.toString(), 'After restart'),
+			], { defaultChat: defaultChat.toString() }));
+
+			assert.deepStrictEqual({
+				subscriptionsBeforeFailure,
+				afterFailure,
+				afterRestart: {
+					title: peer.title.get(),
+					subscriptions: agentHost.sessionSubscribeCounts.get(sessionUri.toString()) ?? 0,
+					unsubscriptions: agentHost.sessionUnsubscribeCounts.get(sessionUri.toString()) ?? 0,
+				},
+			}, {
+				subscriptionsBeforeFailure: 1,
+				afterFailure: {
+					title: 'After failure',
+					subscriptions: 2,
+					unsubscriptions: 1,
+				},
+				afterRestart: {
+					title: 'After restart',
+					subscriptions: 3,
+					unsubscriptions: 2,
+				},
+			});
+		});
+
 		test('default + peer catalog surfaces both chats with the default as mainChat', () => {
 			const provider = createProvider(disposables, agentHost);
 			const session = setupMultiChatSession(provider, 'multi-1');
@@ -6180,6 +6320,33 @@ suite('LocalAgentHostSessionsProvider', () => {
 				subagentOrigin: ChatOriginKind.Tool,
 				subagentParentIsMain: true,
 				subagentCapabilities: { canRename: false, canDelete: false },
+			});
+		});
+
+		test('lightweight catalog updates preserve hydrated tool chats omitted from session lists', () => {
+			const provider = createProvider(disposables, agentHost);
+			const session = setupMultiChatSession(provider, 'multi-sub-catalog');
+			const sessionUri = AgentSession.uri('copilotcli', 'multi-sub-catalog').toString();
+			const defaultChat = buildDefaultChatUri(sessionUri);
+			const subagentChat = buildSubagentChatUri(sessionUri, 'tc-1');
+
+			agentHost.setSessionState('multi-sub-catalog', 'copilotcli', makeState([
+				makeChatSummary(defaultChat, ''),
+				{ ...makeChatSummary(subagentChat, 'Code Reviewer'), origin: { kind: ProtocolChatOriginKind.Tool, chat: defaultChat, toolCallId: 'tc-1' } },
+			], { defaultChat }));
+			const subagent = session.chats.get()[1];
+
+			fireSessionSummaryChanged(agentHost, 'multi-sub-catalog', {
+				chats: [{ resource: defaultChat, title: '' }],
+				defaultChat,
+			});
+
+			assert.deepStrictEqual({
+				chatCount: session.chats.get().length,
+				subagentIdentityPreserved: session.chats.get()[1] === subagent,
+			}, {
+				chatCount: 2,
+				subagentIdentityPreserved: true,
 			});
 		});
 
@@ -6342,6 +6509,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 				'copilotcli',
 				options,
 				constObservable(false),
+				() => toDisposable(() => { }),
 			)));
 			const sessionUri = AgentSession.uri('copilotcli', 'lazy-capabilities-0').toString();
 			const defaultChat = buildDefaultChatUri(sessionUri);
@@ -8065,6 +8233,39 @@ suite('LocalAgentHostSessionsProvider', () => {
 		// Re-access after release re-subscribes.
 		provider.getSessionConfig(session!.sessionId);
 		assert.strictEqual(agentHost.sessionSubscribeCounts.get(sessionUriStr), 2, 'fresh subscribe after release');
+	}));
+
+	test('session chat details lease holds the state subscription until released', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const rawId = 'chat-details-lease';
+		const sessionUri = AgentSession.uri('copilotcli', rawId);
+		const defaultChat = URI.parse(buildDefaultChatUri(sessionUri));
+		const peerChat = URI.parse(buildChatUri(sessionUri, 'peer-1'));
+		agentHost.addSession(createSession(rawId, {
+			summary: 'Session',
+			chats: [
+				{ chat: defaultChat, kind: 'default', summary: 'Default' },
+				{ chat: peerChat, kind: 'peer', summary: 'Peer' },
+			],
+		}));
+		const provider = createProvider(disposables, agentHost);
+		provider.getSessions();
+		await timeout(0);
+		const session = provider.getSessions().find(s => s.title.get() === 'Session');
+		assert.ok(session);
+
+		const detailsObserver = disposables.add(autorun(reader => session.chats.read(reader)[1]?.status.read(reader)));
+		await timeout(31_000);
+		assert.deepStrictEqual({
+			subscriptions: agentHost.sessionSubscribeCounts.get(sessionUri.toString()),
+			unsubscriptions: agentHost.sessionUnsubscribeCounts.get(sessionUri.toString()) ?? 0,
+		}, {
+			subscriptions: 1,
+			unsubscriptions: 0,
+		});
+
+		detailsObserver.dispose();
+		await timeout(31_000);
+		assert.strictEqual(agentHost.sessionUnsubscribeCounts.get(sessionUri.toString()), 1);
 	}));
 
 	// ---- gitHubInfo / PR icon -------

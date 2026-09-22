@@ -60,7 +60,7 @@ suite('SessionsChatAccessibilityHelp', () => {
 		});
 	});
 
-	test('describes restoring filtered pull requests from another pill context menu', () => {
+	test('describes subagent groups and restoring filtered pills from another context menu', () => {
 		const instantiationService = store.add(new TestInstantiationService());
 		const configuration = new TestConfigurationService();
 		store.add(configuration.onDidChangeConfigurationEmitter);
@@ -70,12 +70,18 @@ suite('SessionsChatAccessibilityHelp', () => {
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() { }());
 		instantiationService.stub(IWorkbenchLayoutService, { mainContainer: mainWindow.document.createElement('div') });
 		const provider = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiationService));
-		const pillHelp = provider.provideContent().split('\n').find(line => line.includes('Pull Requests Options'));
+		const content = provider.provideContent();
+		const pillHelp = content.split('\n').find(line => line.includes('Pull Requests Options'));
 
 		assert.deepStrictEqual({
 			keyboard: pillHelp?.includes('<keybinding:editor.action.showContextMenu>'),
 			filterRecovery: pillHelp?.includes('any other pill\'s context menu or the toolbar context menu'),
-		}, { keyboard: true, filterRecovery: true });
+			subagentOptions: pillHelp?.includes('Subagent Options offers Show All and Show In Progress'),
+			persistence: pillHelp?.includes('remembered across sessions'),
+			groups: content.includes('Subagents: In Progress and Subagents: Completed'),
+			waiting: content.includes('In Progress includes subagents waiting for input'),
+			failed: content.includes('Completed includes failed subagents'),
+		}, { keyboard: true, filterRecovery: true, subagentOptions: true, persistence: true, groups: true, waiting: true, failed: true });
 	});
 
 	test('describes removing recorded artifacts and references after persistence', () => {

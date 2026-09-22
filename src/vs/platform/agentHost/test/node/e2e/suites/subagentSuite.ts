@@ -35,7 +35,7 @@ import { fetchSessionWithChat, getActionEnvelope, isActionNotification } from '.
 import type { IAgentHostE2ETestContext } from './e2eTestContext.js';
 
 export function defineSubagentTests(context: IAgentHostE2ETestContext): void {
-	const { config, createdSessions, tempDirs, isWindows } = context;
+	const { config, createdSessions, tempDirs } = context;
 	// Copilot captures store one wire dialect, so keep nested model calls on the parent's Anthropic endpoint.
 	const stableSubagentModelInstruction = config.provider === 'copilotcli'
 		? 'Explicitly set the subagent model to `claude-sonnet-5`. '
@@ -546,8 +546,7 @@ export function defineSubagentTests(context: IAgentHostE2ETestContext): void {
 			`Parent tool calls: ${JSON.stringify(parentStarts.map(a => a.toolName))}`);
 	});
 
-	// Windows-skipped for providers with on-disk subagent replay (see `subagentReplayUnstableOnWindows`).
-	((isWindows && config.subagentReplayUnstableOnWindows) ? test.skip : (config.supportsSubagents ? test : test.skip))('reopening a session keeps sub-agent messages out of the parent transcript (replay path)', async function () {
+	(config.supportsSubagents ? test : test.skip)('reopening a session keeps sub-agent messages out of the parent transcript (replay path)', async function () {
 		this.timeout(180_000);
 
 		const tempDir = mkdtempSync(`${tmpdir()}/ahp-subagent-replay-`);

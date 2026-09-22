@@ -59,7 +59,8 @@ export interface IAgentHostWorktreeIsolation extends IAgentHostWorktreePendingSt
 	resolveOnFirstSend(request: IResolveWorkingDirectoryRequest): Promise<URI | undefined>;
 	createDetachedWorktree(request: Omit<IResolveWorkingDirectoryRequest, 'sessionUri' | 'sessionId'>): Promise<{ handle: string; worktree: URI }>;
 	claimDetachedWorktree(handle: string): Promise<void>;
-	setDetachedWorktreeArchived(handle: string, archived: boolean): Promise<void>;
+	setDetachedWorktreeArchived(handle: string, archived: boolean, strictCleanup?: boolean): Promise<void>;
+	canAutomaticallyDeleteDetachedWorktree(handle: string): Promise<boolean>;
 	deleteDetachedWorktree(handle: string): Promise<void>;
 	reconcileDetachedWorktrees(scope: string, activeHandles: readonly string[]): Promise<void>;
 	resolveIsolationConfig(request: IResolveIsolationConfigRequest): Promise<IIsolationConfigContribution | undefined>;
@@ -581,7 +582,7 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 		}
 	}
 
-	async setDetachedWorktreeArchived(handle: string, archived: boolean): Promise<void> {
+	async setDetachedWorktreeArchived(handle: string, archived: boolean, strictCleanup?: boolean): Promise<void> {
 		const record = detachedWorktreeRecordUri(handle);
 		const ref = await this._sessionDataService.tryOpenDatabase(record);
 		if (!ref) {
@@ -594,10 +595,18 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 			ref.dispose();
 		}
 		if (archived) {
-			await this.cleanupWorktreeOnArchive(record, handle);
+			if (strictCleanup) {
+				await this.cleanupWorktree(record, handle);
+			} else {
+				await this.cleanupWorktreeOnArchive(record, handle);
+			}
 		} else {
 			await this.recreateWorktreeOnUnarchive(record, handle);
 		}
+	}
+
+	canAutomaticallyDeleteDetachedWorktree(handle: string): Promise<boolean> {
+		return this.canAutomaticallyDeleteArchivedSession(detachedWorktreeRecordUri(handle));
 	}
 
 	async deleteDetachedWorktree(handle: string): Promise<void> {
@@ -1576,7 +1585,8 @@ export class NullAgentHostWorktreeIsolation implements IAgentHostWorktreeIsolati
 	async resolveOnFirstSend(_request: IResolveWorkingDirectoryRequest): Promise<URI | undefined> { return undefined; }
 	async createDetachedWorktree(_request: Omit<IResolveWorkingDirectoryRequest, 'sessionUri' | 'sessionId'>): Promise<{ handle: string; worktree: URI }> { throw new Error('Worktree isolation is not supported.'); }
 	async claimDetachedWorktree(_handle: string): Promise<void> { }
-	async setDetachedWorktreeArchived(_handle: string, _archived: boolean): Promise<void> { }
+	async setDetachedWorktreeArchived(_handle: string, _archived: boolean, _strictCleanup?: boolean): Promise<void> { }
+	async canAutomaticallyDeleteDetachedWorktree(_handle: string): Promise<boolean> { return true; }
 	async deleteDetachedWorktree(_handle: string): Promise<void> { }
 	async reconcileDetachedWorktrees(_scope: string, _activeHandles: readonly string[]): Promise<void> { }
 	async resolveIsolationConfig(_request: IResolveIsolationConfigRequest): Promise<IIsolationConfigContribution | undefined> { return undefined; }
