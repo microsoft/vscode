@@ -1206,7 +1206,10 @@ export function renderForm(
 		updateAutomationSessionTarget();
 		revalidate();
 	}));
-	disposables.add(sessionsManagementService.onDidChangeSessionTypes(() => updateAutomationSessionTarget()));
+	disposables.add(sessionsManagementService.onDidChangeSessionTypes(() => {
+		updateAutomationSessionTarget();
+		revalidate();
+	}));
 	disposables.add(autorun(reader => {
 		allowedProviders.read(reader);
 		updateAutomationSessionTarget();
@@ -1589,7 +1592,8 @@ export function updateSaveButtonState(
 	form: HTMLElement,
 	getPrompt: () => string,
 	getBranch: () => string | undefined,
-	targetAvailable = true,
+	sessionsManagementService: ISessionsManagementService,
+	providerAvailable = true,
 	originalProviderId?: string,
 ): void {
 	validation.nameError = state.name.trim() === ''
@@ -1602,13 +1606,22 @@ export function updateSaveButtonState(
 		&& !state.isQuickChat
 		? localize('automation.form.folderRequired', "Workspace folder is required.")
 		: undefined;
-	validation.sessionTypeError = originalProviderId && state.providerId !== originalProviderId
-		? localize('automation.form.hostChanged', "To use another Agent Host, duplicate this automation. The original keeps its schedule until you disable it.")
-		: !targetAvailable
-			? localize('automation.form.hostUnavailable', "Choose an available Agent Host that supports automations.")
-			: !state.sessionTypeId || !state.providerId
-				? localize('automation.form.sessionTypeRequired', "Session type is required.")
-				: undefined;
+	if (originalProviderId !== undefined && state.providerId !== originalProviderId) {
+		validation.sessionTypeError = localize('automation.form.hostChanged', "To use another Agent Host, duplicate this automation. The original keeps its schedule until you disable it.");
+	} else if (!providerAvailable) {
+		validation.sessionTypeError = localize('automation.form.hostUnavailable', "Choose an available Agent Host that supports automations.");
+	} else if (!state.sessionTypeId || !state.providerId) {
+		validation.sessionTypeError = localize('automation.form.sessionTypeRequired', "Session type is required.");
+	} else {
+		const target = { providerId: state.providerId, sessionTypeId: state.sessionTypeId };
+		if (state.isQuickChat && !sessionsManagementService.isQuickChatTargetAvailable(target)) {
+			validation.sessionTypeError = localize('automation.form.quickChatUnavailable', "The selected Agent Host and session type cannot run without a workspace. Choose a workspace or another session type.");
+		} else if (!state.isQuickChat && state.folderUri !== undefined && !sessionsManagementService.isNewSessionTargetAvailable(state.folderUri, target)) {
+			validation.sessionTypeError = localize('automation.form.workspaceTargetUnavailable', "The selected Agent Host and session type cannot use this workspace. Choose another workspace or session type.");
+		} else {
+			validation.sessionTypeError = undefined;
+		}
+	}
 	validation.branchError = !state.isQuickChat && state.isolationMode === 'worktree' && !getBranch()
 		? localize('automation.form.branchRequired', "A branch is required for Worktree isolation.")
 		: undefined;

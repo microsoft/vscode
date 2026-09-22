@@ -6,6 +6,7 @@
 import assert from 'assert';
 import * as DOM from '../../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../../base/browser/keyboardEvent.js';
+import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { Dialog } from '../../../../../base/browser/ui/dialog/dialog.js';
 import { SelectBox } from '../../../../../base/browser/ui/selectBox/selectBox.js';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
@@ -16,6 +17,7 @@ import { Emitter, Event } from '../../../../../base/common/event.js';
 import { getErrorMessage } from '../../../../../base/common/errors.js';
 import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, constObservable, observableValue } from '../../../../../base/common/observable.js';
+import { isEqual } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -77,11 +79,14 @@ suite('Automation dialog layout', () => {
 		instantiationService.stub(IMenuService, disposables.add(instantiationService.createInstance(MenuService)));
 		instantiationService.stub(IActionWidgetService, new RecordingActionWidgetService());
 		instantiationService.stub(IGitService, upcastPartial<IGitService>({ openRepository: async () => undefined }));
+		const sessionTypesChanged = disposables.add(new Emitter<void>());
 		const sessionsManagementService = instantiationService.stub(ISessionsManagementService, upcastPartial<ISessionsManagementService>({
 			automationSession: constObservable(undefined),
-			onDidChangeSessionTypes: Event.None,
+			onDidChangeSessionTypes: sessionTypesChanged.event,
 			getSessionTypesForFolder: () => [],
 			getQuickChatSessionTypes: () => [],
+			isNewSessionTargetAvailable: () => true,
+			isQuickChatTargetAvailable: () => true,
 		}));
 		ChatContextKeys.enabled.bindTo(contextKeyService).set(true);
 
@@ -127,8 +132,9 @@ suite('Automation dialog layout', () => {
 		const formDisposables = disposables.add(new DisposableStore());
 		const state: IFormState = { ...createFormState(), folderUri: undefined, providerId: undefined, sessionTypeId: undefined };
 		const validation: IValidationState = { nameError: undefined, promptError: undefined, folderError: undefined, sessionTypeError: undefined, branchError: undefined };
+		let validationCalls = 0;
 		const handle = renderForm(
-			form, state, formDisposables, validation, () => { }, instantiationService, contextKeyService,
+			form, state, formDisposables, validation, () => validationCalls++, instantiationService, contextKeyService,
 			instantiationService.get(IContextViewService), configurationService, instantiationService.get(IWorkbenchLayoutService),
 			new NullLogService(), sessionsManagementService, instantiationService.get(IWorkspaceTrustRequestService),
 			'Review the workspace', undefined, undefined,
@@ -174,15 +180,15 @@ suite('Automation dialog layout', () => {
 			role: targetError.getAttribute('role'),
 			live: targetError.getAttribute('aria-live'),
 		});
-		updateSaveButtonState(undefined, state, validation, form, handle.getPrompt, handle.getBranch, false);
+		updateSaveButtonState(undefined, state, validation, form, handle.getPrompt, handle.getBranch, sessionsManagementService, false);
 		handle.showTargetValidationError(validation.sessionTypeError);
 		const unavailable = validationPresentation();
 		state.providerId = 'remote';
 		state.sessionTypeId = 'copilotcli';
-		updateSaveButtonState(undefined, state, validation, form, handle.getPrompt, handle.getBranch, true, 'local');
+		updateSaveButtonState(undefined, state, validation, form, handle.getPrompt, handle.getBranch, sessionsManagementService, true, 'local');
 		handle.showTargetValidationError(validation.sessionTypeError);
 		const crossHost = validationPresentation();
-		updateSaveButtonState(undefined, state, validation, form, handle.getPrompt, handle.getBranch, true, 'remote');
+		updateSaveButtonState(undefined, state, validation, form, handle.getPrompt, handle.getBranch, sessionsManagementService, true, 'remote');
 		handle.showTargetValidationError(validation.sessionTypeError);
 		assert.deepStrictEqual({ unavailable, crossHost, resolved: validationPresentation() }, {
 			unavailable: {
@@ -195,6 +201,9 @@ suite('Automation dialog layout', () => {
 			},
 			resolved: { text: '', visible: false, description: null, invalid: null, role: 'status', live: 'polite' },
 		});
+		const previousValidationCalls = validationCalls;
+		sessionTypesChanged.fire();
+		assert.ok(validationCalls > previousValidationCalls, 'session capabilities must revalidate even when the selected host is unchanged');
 	});
 
 	test('editing honors Update without create capability and reacts when update authority is lost', () => {
@@ -223,11 +232,12 @@ suite('Automation dialog layout', () => {
 		const state = createFormState({ providerId: 'host', isQuickChat: true, folderUri: undefined, isolationMode: undefined });
 		const validation: IValidationState = { nameError: undefined, promptError: undefined, folderError: undefined, sessionTypeError: undefined, branchError: undefined };
 		const form = document.createElement('form');
-		updateSaveButtonState(undefined, state, validation, form, () => 'Renamed review prompt', () => undefined, editing.get().includes('host'), 'host');
+		const { service: sessionsManagementService } = createAutomationDraftService();
+		updateSaveButtonState(undefined, state, validation, form, () => 'Renamed review prompt', () => undefined, sessionsManagementService, editing.get().includes('host'), 'host');
 		const editableError = validation.sessionTypeError;
 		canUpdate = false;
 		automations.set([{ ...existing }], undefined);
-		updateSaveButtonState(undefined, state, validation, form, () => 'Renamed review prompt', () => undefined, editing.get().includes('host'), 'host');
+		updateSaveButtonState(undefined, state, validation, form, () => 'Renamed review prompt', () => undefined, sessionsManagementService, editing.get().includes('host'), 'host');
 		assert.deepStrictEqual({ states, creationProviders: creating.get(), editableError, restrictedError: validation.sessionTypeError }, {
 			states: [['host'], []],
 			creationProviders: [],
@@ -902,8 +912,59 @@ suite('Automation workspace trust', () => {
 	}
 });
 
+suite('Automation dialog target validation', () => {
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	for (const editing of [false, true]) {
+		test(`validates the retained host, workspace, and session type before ${editing ? 'saving' : 'creating'}`, () => {
+			const remoteFolder = URI.parse('vscode-remote://ssh-remote+host/workspace');
+			const sessionsManagementService = upcastPartial<ISessionsManagementService>({
+				isNewSessionTargetAvailable: (folder, options) => isEqual(folder, remoteFolder) && options?.providerId === 'remote' && options.sessionTypeId === 'copilotcli',
+				isQuickChatTargetAvailable: options => options?.providerId === 'remote' && options.sessionTypeId === 'copilotcli',
+			});
+			const state = createFormState({ providerId: 'remote', isQuickChat: true, folderUri: undefined, isolationMode: undefined });
+			const validation: IValidationState = { nameError: undefined, promptError: undefined, folderError: undefined, sessionTypeError: undefined, branchError: undefined };
+			const form = document.createElement('form');
+			const saveButton = disposables.add(new Button(form, defaultButtonStyles));
+			const validate = () => {
+				updateSaveButtonState(saveButton, state, validation, form, () => 'prompt', () => undefined, sessionsManagementService, true, editing ? 'remote' : undefined);
+				return { enabled: saveButton.enabled, error: validation.sessionTypeError };
+			};
+
+			const quickChat = validate();
+			state.isQuickChat = false;
+			state.folderUri = FOLDER;
+			const localWorkspace = validate();
+			state.folderUri = remoteFolder;
+			const remoteWorkspace = validate();
+			state.sessionTypeId = 'unavailable';
+			const unavailableWorkspaceType = validate();
+			state.isQuickChat = true;
+			state.folderUri = undefined;
+			const unavailableQuickChatType = validate();
+			state.sessionTypeId = 'copilotcli';
+
+			const workspaceError = 'The selected Agent Host and session type cannot use this workspace. Choose another workspace or session type.';
+			assert.deepStrictEqual({
+				quickChat, localWorkspace, remoteWorkspace, unavailableWorkspaceType, unavailableQuickChatType,
+				restoredQuickChat: validate(),
+				selectedHost: state.providerId,
+			}, {
+				quickChat: { enabled: true, error: undefined },
+				localWorkspace: { enabled: false, error: workspaceError },
+				remoteWorkspace: { enabled: true, error: undefined },
+				unavailableWorkspaceType: { enabled: false, error: workspaceError },
+				unavailableQuickChatType: { enabled: false, error: 'The selected Agent Host and session type cannot run without a workspace. Choose a workspace or another session type.' },
+				restoredQuickChat: { enabled: true, error: undefined },
+				selectedHost: 'remote',
+			});
+		});
+	}
+});
+
 suite('Automation branch picker', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+	const { service: sessionsManagementService } = createAutomationDraftService();
 
 	function createItem(options?: {
 		readonly state?: IFormState;
@@ -1276,10 +1337,10 @@ suite('Automation branch picker', () => {
 		};
 		const form = document.createElement('form');
 
-		updateSaveButtonState(undefined, state, validation, form, () => 'prompt', () => undefined);
+		updateSaveButtonState(undefined, state, validation, form, () => 'prompt', () => undefined, sessionsManagementService);
 		assert.strictEqual(validation.branchError, 'A branch is required for Worktree isolation.');
 
-		updateSaveButtonState(undefined, state, validation, form, () => 'prompt', () => 'main');
+		updateSaveButtonState(undefined, state, validation, form, () => 'prompt', () => 'main', sessionsManagementService);
 		assert.strictEqual(validation.branchError, undefined);
 	});
 
@@ -1287,11 +1348,11 @@ suite('Automation branch picker', () => {
 		const state = createFormState({ providerId: 'remote', isolationMode: undefined });
 		const validation: IValidationState = { nameError: undefined, promptError: undefined, folderError: undefined, sessionTypeError: undefined, branchError: undefined };
 		const form = document.createElement('form');
-		updateSaveButtonState(undefined, state, validation, form, () => 'prompt', () => undefined, false);
+		updateSaveButtonState(undefined, state, validation, form, () => 'prompt', () => undefined, sessionsManagementService, false);
 		const unavailable = validation.sessionTypeError;
-		updateSaveButtonState(undefined, state, validation, form, () => 'prompt', () => undefined, true, 'local');
+		updateSaveButtonState(undefined, state, validation, form, () => 'prompt', () => undefined, sessionsManagementService, true, 'local');
 		const differentHost = validation.sessionTypeError;
-		updateSaveButtonState(undefined, state, validation, form, () => 'prompt', () => undefined, true, 'remote');
+		updateSaveButtonState(undefined, state, validation, form, () => 'prompt', () => undefined, sessionsManagementService, true, 'remote');
 		assert.deepStrictEqual({ unavailable, differentHost, sameHost: validation.sessionTypeError }, {
 			unavailable: 'Choose an available Agent Host that supports automations.',
 			differentHost: 'To use another Agent Host, duplicate this automation. The original keeps its schedule until you disable it.',
@@ -1310,11 +1371,11 @@ suite('Automation branch picker', () => {
 		};
 		const form = document.createElement('form');
 
-		updateSaveButtonState(undefined, state, validation, form, () => 'prompt', () => undefined);
+		updateSaveButtonState(undefined, state, validation, form, () => 'prompt', () => undefined, sessionsManagementService);
 		const validTarget = { ...validation };
 		state.providerId = undefined;
 		state.sessionTypeId = undefined;
-		updateSaveButtonState(undefined, state, validation, form, () => 'prompt', () => undefined);
+		updateSaveButtonState(undefined, state, validation, form, () => 'prompt', () => undefined, sessionsManagementService);
 
 		assert.deepStrictEqual({
 			validTarget,
@@ -1347,7 +1408,7 @@ suite('Automation branch picker', () => {
 			branchError: undefined,
 		};
 
-		updateSaveButtonState(undefined, state, validation, document.createElement('form'), () => 'prompt', () => undefined);
+		updateSaveButtonState(undefined, state, validation, document.createElement('form'), () => 'prompt', () => undefined, sessionsManagementService);
 
 		assert.deepStrictEqual(validation, {
 			nameError: undefined,

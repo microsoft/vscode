@@ -329,8 +329,8 @@ export class AutomationDialogService implements IAutomationDialogService {
 					));
 					focusFirst = keyboardNavigation.focusFirst;
 					revalidate = () => {
-						const targetAvailable = state.providerId !== undefined && allowedProviders.get().includes(state.providerId);
-						updateSaveButtonState(saveButton, state, validation, form, getPrompt, getBranch, targetAvailable, existing?.target.providerId);
+						const providerAvailable = state.providerId !== undefined && allowedProviders.get().includes(state.providerId);
+						updateSaveButtonState(saveButton, state, validation, form, getPrompt, getBranch, this.sessionsManagementService, providerAvailable, existing?.target.providerId);
 						handle.showTargetValidationError(validation.sessionTypeError);
 						if (saveInProgress && saveButton) {
 							saveButton.enabled = false;
