@@ -59,6 +59,7 @@ import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
 import { packErrorForTelemetry } from '../../../../../../platform/telemetry/common/errorTelemetry.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
+import { IAgentSdkSetupService } from '../../../../../services/agentHost/browser/agentSdkSetupService.js';
 import { IWorkbenchAssignmentService } from '../../../../../services/assignment/common/assignmentService.js';
 import { IPathService } from '../../../../../services/path/common/pathService.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
@@ -892,8 +893,6 @@ export interface IAgentHostSessionHandlerConfig {
 	readonly isNewSession?: (sessionResource: URI) => boolean;
 	/** Called after a locally-created session has been accepted by the backend. */
 	readonly onSessionMaterialized?: (sessionResource: URI) => void;
-	/** Starts a missing local SDK download while the turn resolves its other prerequisites. */
-	readonly startSdkDownloadOnUse?: () => void;
 	/**
 	 * Optional callback invoked when the server rejects an operation because
 	 * authentication is required. Should trigger interactive authentication
@@ -1196,6 +1195,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		@ILanguageModelsService private readonly _languageModelsService: ILanguageModelsService,
 		@IOpenerService private readonly _openerService: IOpenerService,
 		@IAgentHostActiveClientService private readonly _activeClientService: IAgentHostActiveClientService,
+		@IAgentSdkSetupService private readonly _agentSdkSetupService: IAgentSdkSetupService,
 		@IChatEntitlementService private readonly _chatEntitlementService: IChatEntitlementService,
 		@IWorkspaceTrustRequestService private readonly _workspaceTrustRequestService: IWorkspaceTrustRequestService,
 		@IWorkspaceTrustManagementService private readonly _workspaceTrustManagementService: IWorkspaceTrustManagementService,
@@ -1859,7 +1859,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				return {};
 			}
 
-			this._config.startSdkDownloadOnUse?.();
+			this._agentSdkSetupService.requestDownload(this._config.provider, this._config.connection, { source: 'turn' });
 
 			failureStage = 'provisionalSession';
 			// The chat-input picker may have pre-created a provisional session

@@ -4,10 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
+import { localize } from '../../../../nls.js';
+import { IAgentHostConnectionInfo, IAgentHostConnectionsService } from '../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { AGENT_SDK_SETUP_DOWNLOAD_REQUEST_KEY, AGENT_SDK_SETUP_RELOAD_REQUEST_KEY, IAgentSdkSetupInfo, readAgentSdkSetupInfos } from '../../../../platform/agentHost/common/agentSdkSetup.js';
-import { IAgentHostService } from '../../../../platform/agentHost/common/agentService.js';
+import { IAgentConnection, IAgentHostService } from '../../../../platform/agentHost/common/agentService.js';
 import { ActionType } from '../../../../platform/agentHost/common/state/sessionActions.js';
 import { ROOT_STATE_URI } from '../../../../platform/agentHost/common/state/sessionState.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
@@ -54,39 +56,44 @@ type AgentSdkSetupFunnelClassification = {
 	comment: 'Tracks how far a signed-out user gets through setting up their own Claude or Codex account.';
 };
 
+export interface IAgentSdkSetup extends IAgentSdkSetupInfo {
+	/** Opaque host-scoped identity, safe to use in notification telemetry. */
+	readonly id: string;
+	readonly displayName: string;
+	readonly host: IAgentHostConnectionInfo & { readonly connection: IAgentConnection };
+}
+
+interface IAgentSdkDownloadOptions {
+	readonly source: 'setup' | 'turn';
+}
+
 export interface IAgentSdkSetupService {
 	readonly _serviceBrand: undefined;
 
-	/** Every agent that has published a setup status, newest state. */
-	readonly setups: readonly IAgentSdkSetupInfo[];
-	readonly onDidChangeSetups: Event<readonly IAgentSdkSetupInfo[]>;
+	/** Named agents with SDK setup information and a live host connection. */
+	readonly setups: readonly IAgentSdkSetup[];
+	readonly onDidChangeSetups: Event<readonly IAgentSdkSetup[]>;
 
-	/** Ask `agent` to fetch its SDK and remember that choice on the Agent Host. */
-	requestDownload(agent: string): void;
-
-	/** Start a missing SDK download while a turn's other prerequisites resolve. */
-	requestDownloadOnUse(agent: string): void;
+	/** Download on the supplied connection. Setup actions record a click; turns skip SDKs that are already available. */
+	requestDownload(agent: string, connection: IAgentConnection, options: IAgentSdkDownloadOptions): void;
 
 	/** Open the setup instructions `agent` published, if it published any. */
-	openSetupDocs(agent: string): void;
+	openSetupDocs(agent: string, connection: IAgentConnection): void;
 
 	/**
 	 * Ask `agent` to look again at a setup the user completed outside the app —
 	 * the only signal there is that a `claude login` in a terminal finished.
 	 */
-	requestReload(agent: string): void;
+	requestReload(agent: string, connection: IAgentConnection): void;
 
 	/** Start GitHub sign-in, which reaches every agent's models through our proxy. */
 	signInToGitHub(agent: string): void;
 
 	/** Start `agent`'s own sign-in flow, if it declared one. */
-	signIn(agent: string): void;
+	signIn(agent: string, connection: IAgentConnection): void;
 
-	/**
-	 * Whether `agent` has been asked to fetch its SDK and the host has not
-	 * answered yet — already downloading, as far as this window can tell.
-	 */
-	isDownloadPending(agent: string): boolean;
+	/** Whether this host has an unacknowledged SDK download request for `agent`. */
+	isDownloadPending(agent: string, connection: IAgentConnection): boolean;
 
 	/**
 	 * Record that the user reached `state`. Public because the banner is
@@ -96,28 +103,45 @@ export interface IAgentSdkSetupService {
 	reportSetupState(agent: string, state: AgentSdkSetupState): void;
 }
 
-/** Coordinates renderer-side agent SDK setup state and actions. */
-export class AgentSdkSetupService extends Disposable implements IAgentSdkSetupService {
+class AgentSdkSetupConnectionState extends DisposableStore {
+	readonly id = generateUuid();
+	readonly pendingRequests = new Set<string>();
+}
+
+class AgentSdkSetupService extends Disposable implements IAgentSdkSetupService {
 	declare readonly _serviceBrand: undefined;
 
-	private readonly _onDidChangeSetups = this._register(new Emitter<readonly IAgentSdkSetupInfo[]>());
+	private readonly _onDidChangeSetups = this._register(new Emitter<readonly IAgentSdkSetup[]>());
 	readonly onDidChangeSetups = this._onDidChangeSetups.event;
 
-	private _setups: readonly IAgentSdkSetupInfo[] = [];
+	private readonly _connections = this._register(new DisposableMap<IAgentConnection, AgentSdkSetupConnectionState>());
 
-	/**
-	 * Agents we have asked to fetch and the host has not answered yet. Cleared on
-	 * that answer rather than on success, so a failed download — which republishes
-	 * `notDownloaded` after the `downloading` we cleared on — re-offers the button.
-	 */
-	private readonly _pendingRequests = new Set<string>();
-
-	get setups(): readonly IAgentSdkSetupInfo[] {
-		return this._setups;
+	get setups(): readonly IAgentSdkSetup[] {
+		return this._hostConnectionsService.connections.flatMap(host => {
+			const connection = host.connection;
+			const connectionState = connection && this._connections.get(connection);
+			if (!connection || !connectionState) {
+				return [];
+			}
+			const state = connection.rootState.value;
+			if (!state || state instanceof Error) {
+				return [];
+			}
+			return readAgentSdkSetupInfos(state).flatMap(setup => {
+				const displayName = state.agents.find(agent => agent.provider === setup.agent)?.displayName;
+				return displayName ? [{
+					...setup,
+					id: host.isAmbient ? setup.agent : `${connectionState.id}.${setup.agent}`,
+					displayName,
+					host: { ...host, connection },
+				}] : [];
+			});
+		});
 	}
 
 	constructor(
 		@IAgentHostService private readonly _agentHostService: IAgentHostService,
+		@IAgentHostConnectionsService private readonly _hostConnectionsService: IAgentHostConnectionsService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@ILogService private readonly _logService: ILogService,
 		@IOpenerService private readonly _openerService: IOpenerService,
@@ -125,38 +149,90 @@ export class AgentSdkSetupService extends Disposable implements IAgentSdkSetupSe
 		@ICodexAccountService private readonly _codexAccountService: ICodexAccountService,
 	) {
 		super();
-		// `rootState` is a getter over a protocol client the host replaces on every
-		// restart and reconnect, so one subscription taken here would go quietly
-		// stale — re-bind, as the banner and the Copilot notification both do.
-		const rootStateListeners = this._register(new DisposableStore());
-		const bindRootState = () => {
-			rootStateListeners.clear();
-			rootStateListeners.add(this._agentHostService.rootState.onDidChange(state => this._updateSetups(readAgentSdkSetupInfos(state))));
-			// A request the previous host never answered never will be; dropping it
-			// re-offers the button rather than suppressing the offer for good.
-			this._pendingRequests.clear();
-			const state = this._agentHostService.rootState.value;
-			this._updateSetups(readAgentSdkSetupInfos(state instanceof Error ? undefined : state));
-		};
-		bindRootState();
-		this._register(this._agentHostService.onAgentHostStart(bindRootState));
+		// The ambient connection replaces its root subscription on restart.
+		this._trackConnection(this._agentHostService);
+		this._register(this._agentHostService.onAgentHostStart(() => this._trackConnection(this._agentHostService)));
+		this._register(this._agentHostService.onAgentHostExit(() => {
+			this._connections.deleteAndDispose(this._agentHostService);
+			this._updateSetups(this._agentHostService, []);
+		}));
+		this._register(this._hostConnectionsService.onDidChangeConnections(() => this._syncRemoteConnections()));
+		this._syncRemoteConnections();
 	}
 
-	requestDownload(agent: string): void {
-		this._reportStep(agent, 'downloadClicked');
-		this._dispatchDownloadRequest(agent);
+	private _syncRemoteConnections(): void {
+		const connected = new Set<IAgentConnection>();
+		for (const host of this._hostConnectionsService.connections) {
+			if (host.isAmbient) {
+				continue;
+			}
+			const connection = host.connection;
+			if (connection) {
+				connected.add(connection);
+				if (!this._connections.has(connection)) {
+					this._trackConnection(connection);
+				}
+			}
+		}
+		for (const connection of this._connections.keys()) {
+			if (connection !== this._agentHostService && !connected.has(connection)) {
+				this._connections.deleteAndDispose(connection);
+			}
+		}
+		this._onDidChangeSetups.fire(this.setups);
 	}
 
-	requestDownloadOnUse(agent: string): void {
-		const download = this._getSetup(agent)?.download;
-		if (download !== 'notDownloaded' && download !== 'downloadOnUse') {
+	private _trackConnection(connection: IAgentConnection): void {
+		const connectionState = new AgentSdkSetupConnectionState();
+		this._connections.set(connection, connectionState);
+
+		const rootState = connection.rootState;
+		connectionState.add(rootState.onDidChange(state => this._updateSetups(connection, readAgentSdkSetupInfos(state))));
+		if (rootState.onDidError) {
+			connectionState.add(rootState.onDidError(() => {
+				connectionState.pendingRequests.clear();
+				this._updateSetups(connection, []);
+			}));
+		}
+		const state = rootState.value;
+		this._updateSetups(connection, readAgentSdkSetupInfos(state instanceof Error ? undefined : state));
+	}
+
+	requestDownload(agent: string, connection: IAgentConnection, options: IAgentSdkDownloadOptions): void {
+		if (options.source === 'setup') {
+			this._reportStep(agent, 'downloadClicked');
+		}
+		const pendingRequests = this._connections.get(connection)?.pendingRequests;
+		if (!pendingRequests) {
+			if (options.source === 'setup') {
+				throw new Error(localize('agentSdkSetup.disconnected', "The selected agent host is disconnected. Reconnect and try again."));
+			}
+			this._logService.trace(`[AgentSdkSetup] ${agent}: skipping download request for an unavailable connection`);
 			return;
 		}
-		this._dispatchDownloadRequest(agent);
+		if (options.source === 'turn') {
+			const state = connection.rootState.value;
+			const download = readAgentSdkSetupInfos(state instanceof Error ? undefined : state).find(setup => setup.agent === agent)?.download;
+			if (download !== 'notDownloaded' && download !== 'downloadOnUse') {
+				return;
+			}
+		}
+		if (pendingRequests.has(agent)) {
+			return;
+		}
+		pendingRequests.add(agent);
+		try {
+			this._dispatchRequest(AGENT_SDK_SETUP_DOWNLOAD_REQUEST_KEY, agent, connection);
+		} catch (error) {
+			pendingRequests.delete(agent);
+			throw error;
+		}
+		// Hide this host's download offer before the request is acknowledged.
+		this._onDidChangeSetups.fire(this.setups);
 	}
 
-	openSetupDocs(agent: string): void {
-		const url = this._getSetup(agent)?.setupDocsUrl;
+	openSetupDocs(agent: string, connection: IAgentConnection): void {
+		const url = this.setups.find(setup => setup.agent === agent && setup.host.connection === connection)?.setupDocsUrl;
 		if (!url) {
 			return;
 		}
@@ -166,11 +242,11 @@ export class AgentSdkSetupService extends Disposable implements IAgentSdkSetupSe
 		void this._openerService.open(url, { openExternal: true });
 	}
 
-	requestReload(agent: string): void {
+	requestReload(agent: string, connection: IAgentConnection): void {
 		this._reportStep(agent, 'reloadClicked');
 		// Deliberately not a pending request: that set gates the download offer, and
 		// a reload happens in a state where there is nothing to offer.
-		this._dispatchRequest(AGENT_SDK_SETUP_RELOAD_REQUEST_KEY, agent);
+		this._dispatchRequest(AGENT_SDK_SETUP_RELOAD_REQUEST_KEY, agent, connection);
 	}
 
 	signInToGitHub(agent: string): void {
@@ -180,7 +256,7 @@ export class AgentSdkSetupService extends Disposable implements IAgentSdkSetupSe
 		void this._commandService.executeCommand(CHAT_SETUP_COMMAND_ID);
 	}
 
-	signIn(agent: string): void {
+	signIn(agent: string, connection: IAgentConnection): void {
 		// Codex is the only agent with an in-app sign-in today, and comparing against
 		// the service's own `agent` rather than a literal keeps `'codex'` out of the
 		// workbench. A second such agent turns this comparison into a lookup.
@@ -188,15 +264,15 @@ export class AgentSdkSetupService extends Disposable implements IAgentSdkSetupSe
 			return;
 		}
 		this._reportStep(agent, 'signInClicked');
-		this._codexAccountService.signIn();
+		this._codexAccountService.signIn(connection);
 	}
 
 	reportSetupState(agent: string, state: AgentSdkSetupState): void {
 		this._reportStep(agent, state);
 	}
 
-	isDownloadPending(agent: string): boolean {
-		return this._pendingRequests.has(agent);
+	isDownloadPending(agent: string, connection: IAgentConnection): boolean {
+		return this._connections.get(connection)?.pendingRequests.has(agent) ?? false;
 	}
 
 	private _reportStep(agent: string, step: AgentSdkSetupFunnelStep): void {
@@ -206,40 +282,26 @@ export class AgentSdkSetupService extends Disposable implements IAgentSdkSetupSe
 		this._logService.trace(`[AgentSdkSetup] ${agent}: ${step}`);
 	}
 
-	private _getSetup(agent: string): IAgentSdkSetupInfo | undefined {
-		return this._setups.find(setup => setup.agent === agent);
-	}
-
-	private _dispatchDownloadRequest(agent: string): void {
-		if (this._pendingRequests.has(agent)) {
-			return;
+	private _dispatchRequest(key: string, agent: string, connection: IAgentConnection): void {
+		if (!this._connections.has(connection)) {
+			throw new Error(localize('agentSdkSetup.disconnected', "The selected agent host is disconnected. Reconnect and try again."));
 		}
-		this._pendingRequests.add(agent);
-		this._dispatchRequest(AGENT_SDK_SETUP_DOWNLOAD_REQUEST_KEY, agent);
-		// The statuses are unchanged but {@link isDownloadPending} is not, and
-		// without this the offer stays up until the host answers — the flicker the
-		// pending set exists to prevent.
-		this._onDidChangeSetups.fire(this._setups);
-	}
-
-	private _dispatchRequest(key: string, agent: string): void {
 		// A fresh nonce every time so pressing the same thing twice is two
 		// requests; the agent clears the key as it consumes it.
-		this._agentHostService.dispatch(ROOT_STATE_URI, {
+		connection.dispatch(ROOT_STATE_URI, {
 			type: ActionType.RootConfigChanged,
 			config: { [key]: { agent, request: generateUuid() } },
 		});
 	}
 
-	private _updateSetups(setups: readonly IAgentSdkSetupInfo[]): void {
-		this._setups = setups;
+	private _updateSetups(connection: IAgentConnection, setups: readonly IAgentSdkSetupInfo[]): void {
+		const pendingRequests = this._connections.get(connection)?.pendingRequests;
 		for (const setup of setups) {
-			// Any status but `notDownloaded` is the host answering our request.
-			if (setup.download !== 'notDownloaded') {
-				this._pendingRequests.delete(setup.agent);
+			if (setup.download === 'downloading' || setup.download === 'ready') {
+				pendingRequests?.delete(setup.agent);
 			}
 		}
-		this._onDidChangeSetups.fire(setups);
+		this._onDidChangeSetups.fire(this.setups);
 	}
 }
 

@@ -29,7 +29,7 @@ import { createTextModel } from '../../../../../../editor/test/common/testTextMo
 import { reviveChatDraft, serializeChatDraft } from '../../../common/attachments/chatDraft.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
-import { IAgentCreateSessionConfig, IAgentHostService, IAgentSessionMetadata, AgentSession } from '../../../../../../platform/agentHost/common/agentService.js';
+import { IAgentConnection, IAgentCreateSessionConfig, IAgentHostService, IAgentSessionMetadata, AgentSession } from '../../../../../../platform/agentHost/common/agentService.js';
 import type { ChatInputRequestWithPlanReview } from '../../../../../../platform/agentHost/common/agentHostPlanReview.js';
 import { agentHostAuthority, createAgentHostResourceUriMapper, fromAgentHostUri, identityAgentHostResourceUriMapper, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { AgentFeedbackAttachmentDisplayKind, AgentFeedbackAttachmentMetadataKey } from '../../../../../../platform/agentHost/common/meta/agentFeedbackAttachments.js';
@@ -737,17 +737,7 @@ function createTestServices(disposables: DisposableStore, workingDirectoryResolv
 
 	instantiationService.stub(IAgentHostService, agentHostService);
 	instantiationService.stub(IAgentSdkSetupService, {
-		_serviceBrand: undefined,
-		setups: [],
-		onDidChangeSetups: Event.None,
 		requestDownload: () => { },
-		requestDownloadOnUse: () => { },
-		openSetupDocs: () => { },
-		requestReload: () => { },
-		signInToGitHub: () => { },
-		signIn: () => { },
-		isDownloadPending: () => false,
-		reportSetupState: () => { },
 	});
 	instantiationService.stub(ILogService, new NullLogService());
 	instantiationService.stub(IProductService, { quality: 'insider' });
@@ -11611,85 +11601,97 @@ suite('AgentHostChatContribution', () => {
 			assert.deepStrictEqual((configChanged!.action as { config: Record<string, unknown> }).config, config);
 		}));
 
-		test('handler starts the selected SDK download while authentication resolves, then sends once', async () => {
-			const authenticationRequests: ProtectedResourceMetadata[][] = [];
-			const setupSteps: string[] = [];
-			const authentication = new DeferredPromise<boolean>();
-			const { instantiationService, agentHostService, chatAgentService } = createTestServices(disposables);
-			const sessionHandler = disposables.add(instantiationService.createInstance(AgentHostSessionHandler, {
-				provider: 'claude',
-				agentId: 'eager-auth-agent',
-				sessionType: 'agent-host-claude',
-				fullName: 'Claude',
-				description: 'test',
-				connection: agentHostService,
-				connectionAuthority: 'local',
-				startSdkDownloadOnUse: () => setupSteps.push('download:claude'),
-				resolveAuthentication: async protectedResources => {
-					setupSteps.push('signIn');
-					authenticationRequests.push(protectedResources);
-					return authentication.p;
-				},
-			}));
-			const protectedResource: ProtectedResourceMetadata = {
-				resource: 'https://api.github.com',
-				resource_name: 'GitHub',
-				authorization_servers: ['https://github.com/login/oauth'],
-				scopes_supported: ['read:user'],
-				required: true,
-			};
-			agentHostService.setRootState({
-				agents: [{
+		for (const connectionAuthority of ['local', 'remote-host']) {
+			test(`handler starts the selected SDK download on ${connectionAuthority} while authentication resolves, then sends once`, async () => {
+				const authenticationRequests: ProtectedResourceMetadata[][] = [];
+				const setupSteps: string[] = [];
+				const authentication = new DeferredPromise<boolean>();
+				const { instantiationService, agentHostService, chatAgentService } = createTestServices(disposables);
+				const connection = connectionAuthority === 'local' ? agentHostService : disposables.add(new MockAgentHostService());
+				let downloadConnection: IAgentConnection | undefined;
+				instantiationService.stub(IAgentSdkSetupService, {
+					requestDownload: (agent, target, options) => {
+						assert.strictEqual(options.source, 'turn');
+						setupSteps.push(`download:${agent}`);
+						downloadConnection = target;
+					},
+				});
+				const sessionHandler = disposables.add(instantiationService.createInstance(AgentHostSessionHandler, {
 					provider: 'claude',
-					displayName: 'Claude',
+					agentId: 'eager-auth-agent',
+					sessionType: 'agent-host-claude',
+					fullName: 'Claude',
 					description: 'test',
-					models: [],
-					protectedResources: [protectedResource],
-				}],
-				activeSessions: 0,
+					connection,
+					connectionAuthority,
+					resolveAuthentication: async protectedResources => {
+						setupSteps.push('signIn');
+						authenticationRequests.push(protectedResources);
+						return authentication.p;
+					},
+				}));
+				const protectedResource: ProtectedResourceMetadata = {
+					resource: 'https://api.github.com',
+					resource_name: 'GitHub',
+					authorization_servers: ['https://github.com/login/oauth'],
+					scopes_supported: ['read:user'],
+					required: true,
+				};
+				connection.setRootState({
+					agents: [{
+						provider: 'claude',
+						displayName: 'Claude',
+						description: 'test',
+						models: [],
+						protectedResources: [protectedResource],
+					}],
+					activeSessions: 0,
+				});
+
+				const sessionUri = AgentSession.uri('claude', 'eager-auth');
+				connection.sessionStates.set(sessionUri.toString(), {
+					...createSessionState({ resource: sessionUri.toString(), provider: 'claude', title: 'Test', status: SessionStatus.Idle, createdAt: new Date().toISOString(), modifiedAt: new Date().toISOString() }),
+					lifecycle: SessionLifecycle.Ready,
+					turns: [],
+				});
+
+				const sessionResource = URI.from({ scheme: 'agent-host-claude', path: '/eager-auth' });
+				const chatSession = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
+				disposables.add(toDisposable(() => chatSession.dispose()));
+
+				const registered = chatAgentService.registeredAgents.get('eager-auth-agent')!;
+				const turnPromise = registered.impl.invoke(makeRequest({ agentId: 'eager-auth-agent', message: 'Send after sign out', sessionResource }), () => { }, [], CancellationToken.None);
+				await timeout(0);
+				assert.deepStrictEqual({
+					setupSteps,
+					usesSessionConnection: downloadConnection === connection,
+					turnActionCount: connection.turnActions.length,
+				}, {
+					setupSteps: ['download:claude', 'signIn'],
+					usesSessionConnection: true,
+					turnActionCount: 0,
+				});
+
+				await authentication.complete(true);
+				await timeout(10);
+				const turnDispatch = connection.turnActions[0];
+				assert.ok(turnDispatch);
+				const turnAction = turnDispatch.action as ITurnStartedAction;
+				connection.fireAction({ channel: turnDispatch.channel.toString(), action: turnDispatch.action, serverSeq: 1, origin: { clientId: connection.clientId, clientSeq: turnDispatch.clientSeq } });
+				connection.fireAction({ channel: turnDispatch.channel.toString(), action: { type: 'chat/turnComplete', turnId: turnAction.turnId, endedAt: '2025-01-01T00:00:00.000Z' } as ChatAction, serverSeq: 2, origin: undefined });
+				await turnPromise;
+
+				assert.deepStrictEqual({
+					authenticationRequests,
+					setupSteps,
+					turnActionCount: connection.turnActions.length,
+				}, {
+					authenticationRequests: [[protectedResource]],
+					setupSteps: ['download:claude', 'signIn'],
+					turnActionCount: 1,
+				});
 			});
-
-			const sessionUri = AgentSession.uri('claude', 'eager-auth');
-			agentHostService.sessionStates.set(sessionUri.toString(), {
-				...createSessionState({ resource: sessionUri.toString(), provider: 'claude', title: 'Test', status: SessionStatus.Idle, createdAt: new Date().toISOString(), modifiedAt: new Date().toISOString() }),
-				lifecycle: SessionLifecycle.Ready,
-				turns: [],
-			});
-
-			const sessionResource = URI.from({ scheme: 'agent-host-claude', path: '/eager-auth' });
-			const chatSession = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
-			disposables.add(toDisposable(() => chatSession.dispose()));
-
-			const registered = chatAgentService.registeredAgents.get('eager-auth-agent')!;
-			const turnPromise = registered.impl.invoke(makeRequest({ agentId: 'eager-auth-agent', message: 'Send after sign out', sessionResource }), () => { }, [], CancellationToken.None);
-			await timeout(0);
-			assert.deepStrictEqual({
-				setupSteps,
-				turnActionCount: agentHostService.turnActions.length,
-			}, {
-				setupSteps: ['download:claude', 'signIn'],
-				turnActionCount: 0,
-			});
-
-			await authentication.complete(true);
-			await timeout(10);
-			const turnDispatch = agentHostService.turnActions[0];
-			assert.ok(turnDispatch);
-			const turnAction = turnDispatch.action as ITurnStartedAction;
-			agentHostService.fireAction({ channel: turnDispatch.channel.toString(), action: turnDispatch.action, serverSeq: 1, origin: { clientId: agentHostService.clientId, clientSeq: turnDispatch.clientSeq } });
-			agentHostService.fireAction({ channel: turnDispatch.channel.toString(), action: { type: 'chat/turnComplete', turnId: turnAction.turnId, endedAt: '2025-01-01T00:00:00.000Z' } as ChatAction, serverSeq: 2, origin: undefined });
-			await turnPromise;
-
-			assert.deepStrictEqual({
-				authenticationRequests,
-				setupSteps,
-				turnActionCount: agentHostService.turnActions.length,
-			}, {
-				authenticationRequests: [[protectedResource]],
-				setupSteps: ['download:claude', 'signIn'],
-				turnActionCount: 1,
-			});
-		});
+		}
 
 		test('handler does not clobber picker-set session config on eager-create path', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			// Repro for the VS Code chat-input picker bug: the user picks

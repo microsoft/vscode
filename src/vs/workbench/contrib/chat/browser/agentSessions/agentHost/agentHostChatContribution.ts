@@ -24,7 +24,6 @@ import { IInstantiationService, ServicesAccessor } from '../../../../../../platf
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { Registry } from '../../../../../../platform/registry/common/platform.js';
 import { IWorkbenchContribution } from '../../../../../common/contributions.js';
-import { IAgentSdkSetupService } from '../../../../../services/agentHost/browser/agentSdkSetupService.js';
 import { IAgentHostFileSystemService } from '../../../../../services/agentHost/common/agentHostFileSystemService.js';
 import { AuthenticationSession, IAuthenticationService } from '../../../../../services/authentication/common/authentication.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
@@ -147,7 +146,6 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 		@IAgentHostCustomizationService private readonly _agentHostCustomizationService: IAgentHostCustomizationService,
 		@IAgentHostProtectedResourcesService private readonly _protectedResourcesService: IAgentHostProtectedResourcesService,
 		@IAgentHostEnablementService private readonly _agentHostEnablementService: IAgentHostEnablementService,
-		@IAgentSdkSetupService private readonly _agentSdkSetupService: IAgentSdkSetupService,
 	) {
 		super();
 		this._authRecovery = this._instantiationService.createInstance(AgentHostAuthenticationRecovery);
@@ -361,7 +359,6 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 			connection: this._agentHostService,
 			connectionAuthority: LOCAL_AGENT_HOST_AUTHORITY,
 			onSessionMaterialized: resource => this._chatSessionsService.notifySessionMaterialized?.(resource),
-			startSdkDownloadOnUse: () => this._agentSdkSetupService.requestDownloadOnUse(agent.provider),
 			resolveAuthentication: (resources) => this._resolveAuthenticationInteractively(resources),
 			promptCacheNotification: this._promptCacheNotification,
 		}));

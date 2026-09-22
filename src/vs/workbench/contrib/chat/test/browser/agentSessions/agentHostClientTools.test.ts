@@ -48,6 +48,7 @@ import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { TestFileService } from '../../../../../test/common/workbenchTestServices.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { MockLabelService } from '../../../../../services/label/test/common/mockLabelService.js';
+import { IAgentSdkSetupService } from '../../../../../services/agentHost/browser/agentSdkSetupService.js';
 import { IAgentHostFileSystemService } from '../../../../../services/agentHost/common/agentHostFileSystemService.js';
 import { IAgentHostImportConversationStore } from '../../../browser/agentSessions/agentHost/agentHostImportConversationStore.js';
 import { IStorageService, InMemoryStorageService } from '../../../../../../platform/storage/common/storage.js';
@@ -823,6 +824,9 @@ suite('AgentHostClientTools', () => {
 			instantiationService.stub(IAgentHostFileSystemService, {
 				registerAuthority: () => toDisposable(() => { }),
 				ensureSyncedCustomizationProvider: () => { },
+			});
+			instantiationService.stub(IAgentSdkSetupService, {
+				requestDownload: () => { },
 			});
 			instantiationService.stub(IAgentHostCustomizationService, new NullAgentHostCustomizationService());
 			instantiationService.stub(IStorageService, disposables.add(new InMemoryStorageService()));

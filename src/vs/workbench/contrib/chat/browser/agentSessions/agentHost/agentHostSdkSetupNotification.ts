@@ -3,20 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, DisposableStore } from '../../../../../../base/common/lifecycle.js';
+import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { createCommandUri, escapeMarkdownSyntaxTokens, IMarkdownString, MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { localize } from '../../../../../../nls.js';
-import { AgentHostAllowSignedOutWhenUsableSettingId, IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
-import { LOCAL_AGENT_HOST_SCHEME_PREFIX } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
+import { AgentHostAllowSignedOutWhenUsableSettingId, type IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
+import { AMBIENT_AGENT_HOST_AUTHORITY, IAgentHostConnectionsService, LOCAL_AGENT_HOST_SCHEME_PREFIX } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
+import { remoteAgentHostSessionTypeId } from '../../../../../../platform/agentHost/common/agentHostSessionType.js';
 import type { AgentSdkDownloadStatus, IAgentSdkSetupInfo } from '../../../../../../platform/agentHost/common/agentSdkSetup.js';
-import type { RootState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { CommandsRegistry } from '../../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { ServicesAccessor } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IWorkbenchContribution } from '../../../../../common/contributions.js';
-import { IAgentSdkSetupService, type AgentSdkSetupState } from '../../../../../services/agentHost/browser/agentSdkSetupService.js';
+import { IAgentSdkSetupService, type AgentSdkSetupState, type IAgentSdkSetup } from '../../../../../services/agentHost/browser/agentSdkSetupService.js';
 import { ChatEntitlement, IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { hasAnyModelTargetingSessionType } from '../sessionTypeAvailability.js';
 import { ChatInputNotificationActionKind, ChatInputNotificationSeverity, IChatInputNotification, IChatInputNotificationAction, IChatInputNotificationService } from '../../widget/input/chatInputNotificationService.js';
@@ -99,17 +99,14 @@ function setupMarkdown(value: string): MarkdownString {
  * them and led by the unconditional GitHub clause: reaching models through our
  * Copilot proxy is workbench knowledge, not something an agent declares.
  */
-function noAccountDescription(setup: IAgentSdkSetupInfo, displayName: string): IMarkdownString {
+function noAccountDescription(setup: IAgentSdkSetupInfo, displayName: string, authority: string): IMarkdownString {
 	// Both nouns are the host's, and this string is trusted for two commands, so
 	// they are escaped rather than interpolated raw: `[]()` in a name would
 	// otherwise synthesize a link to either one.
 	const name = escapeMarkdownSyntaxTokens(displayName);
 	const provider = setup.signInProviderName && escapeMarkdownSyntaxTokens(setup.signInProviderName);
-	// `command:` hrefs, so a link in the copy takes the same route a button would —
-	// funnel step and URL validation included. Both carry the agent id and nothing
-	// else: the docs command resolves the URL from the agent's own declaration.
-	const reload = createCommandUri(AGENT_SDK_SETUP_RELOAD_COMMAND_ID, setup.agent).toString();
-	const docs = setup.setupDocsUrl ? createCommandUri(AGENT_SDK_SETUP_OPEN_DOCS_COMMAND_ID, setup.agent).toString() : undefined;
+	const reload = createCommandUri(AGENT_SDK_SETUP_RELOAD_COMMAND_ID, setup.agent, authority).toString();
+	const docs = setup.setupDocsUrl ? createCommandUri(AGENT_SDK_SETUP_OPEN_DOCS_COMMAND_ID, setup.agent, authority).toString() : undefined;
 	if (provider && docs) {
 		return setupMarkdown(localize('agentHost.sdkSetup.noAccountDescription.all', "Sign in to GitHub to use GitHub Copilot models, sign in to {2} to use your {2} subscription, or [reload the configuration]({1}) if you have set up {0} elsewhere. For other ways to set up {0}, [learn more]({3}) on their docs.", name, reload, provider, docs));
 	}
@@ -122,41 +119,16 @@ function noAccountDescription(setup: IAgentSdkSetupInfo, displayName: string): I
 	return setupMarkdown(localize('agentHost.sdkSetup.noAccountDescription', "Sign in to GitHub to use GitHub Copilot models or [reload the configuration]({1}) if you have set up {0} elsewhere.", name, reload));
 }
 
-/**
- * The session type an agent's sessions run under, derived the same way
- * `AgentHostChatContribution` derives it — so agent #3 needs no edit here.
- * Scoped to the window's ambient host, which is itself the remote in a remote
- * window; the Sessions app's additional `remote-<authority>-<agent>`
- * connections are outside this banner, as they are the Copilot one.
- */
-export function agentSdkSetupSessionType(agent: string): string {
-	return `${LOCAL_AGENT_HOST_SCHEME_PREFIX}${agent}`;
-}
-
-/**
- * Each agent's own display name, keyed by provider id. Taken from root state
- * rather than the setup channel: the host describes every agent there already,
- * and a second wire source for one string would be free to disagree. Templating
- * is also what keeps user-facing text out of the host — what crosses the wire is
- * a proper noun the workbench cannot invent.
- */
-export function getAgentDisplayNames(state: RootState | Error | undefined): ReadonlyMap<string, string> {
-	const names = new Map<string, string>();
-	if (!state || state instanceof Error) {
-		return names;
-	}
-	for (const agent of state.agents ?? []) {
-		if (agent.displayName) {
-			names.set(agent.provider, agent.displayName);
-		}
-	}
-	return names;
+export function agentSdkSetupSessionType(agent: string, authority: string): string {
+	return authority === AMBIENT_AGENT_HOST_AUTHORITY
+		? `${LOCAL_AGENT_HOST_SCHEME_PREFIX}${agent}`
+		: remoteAgentHostSessionTypeId(authority, agent);
 }
 
 const AGENT_SDK_SETUP_NOTIFICATION_ID_PREFIX = 'agentHost.sdkSetup.';
 
-export function agentSdkSetupNotificationId(agent: string): string {
-	return `${AGENT_SDK_SETUP_NOTIFICATION_ID_PREFIX}${agent}`;
+export function agentSdkSetupNotificationId(setupId: string): string {
+	return `${AGENT_SDK_SETUP_NOTIFICATION_ID_PREFIX}${setupId}`;
 }
 
 /**
@@ -165,8 +137,8 @@ export function agentSdkSetupNotificationId(agent: string): string {
  * an already-authenticated account has no banner, but still needs selection to
  * activate the agent and enumerate its models.
  */
-export function hasAgentSdkSetupForSessionType(setups: readonly IAgentSdkSetupInfo[], sessionType: string): boolean {
-	return setups.some(setup => agentSdkSetupSessionType(setup.agent) === sessionType);
+export function hasAgentSdkSetupForSessionType(setups: readonly IAgentSdkSetup[], sessionType: string): boolean {
+	return setups.some(setup => agentSdkSetupSessionType(setup.agent, setup.host.authority) === sessionType);
 }
 
 /**
@@ -178,34 +150,36 @@ export function hasAgentSdkSetupForSessionType(setups: readonly IAgentSdkSetupIn
  * never tie the SDK to an account: it is the same SDK behind the Copilot proxy,
  * a subscription or a BYO key.
  */
-export function createAgentSdkSetupNotification(setup: IAgentSdkSetupInfo, displayName: string, state: AgentSdkSetupState | undefined, hasModels = false): IChatInputNotification | undefined {
-	// Nothing to ask of a user who is already set up. An empty `displayName` means
-	// the host has not described this agent yet, and "Download the  Agent" is worse
-	// than none; the next root-state change is moments away.
-	if (!displayName || state === undefined || state === 'resolved') {
+export function createAgentSdkSetupNotification(setup: IAgentSdkSetup, state: AgentSdkSetupState | undefined, hasModels = false): IChatInputNotification | undefined {
+	if (state === undefined || state === 'resolved') {
 		return undefined;
 	}
+	const { host, displayName } = setup;
 	const base = {
-		id: agentSdkSetupNotificationId(setup.agent),
+		id: agentSdkSetupNotificationId(setup.id),
 		severity: ChatInputNotificationSeverity.Info,
 		dismissible: false,
 		autoDismissOnMessage: false,
-		sessionTypes: [agentSdkSetupSessionType(setup.agent)],
+		sessionTypes: [agentSdkSetupSessionType(setup.agent, host.authority)],
 	} as const;
 	const action = (label: string, commandId: string): IChatInputNotificationAction => ({
 		kind: ChatInputNotificationActionKind.Command,
 		label,
 		commandId,
-		commandArgs: [setup.agent],
+		commandArgs: [setup.agent, host.authority],
 		keepOpen: true,
 	});
 	if (state === 'downloadOffered') {
 		return {
 			...base,
 			message: localize('agentHost.sdkSetup.download', "Download the {0} Agent", displayName),
-			description: hasModels
-				? localize('agentHost.sdkSetup.downloadDescription.withModels', "Click Download or send a message to download the {0} Agent SDK.", displayName)
-				: localize('agentHost.sdkSetup.downloadDescription', "To use the {0} Agent, we need to download the {0} Agent SDK.", displayName),
+			description: host.isAmbient
+				? hasModels
+					? localize('agentHost.sdkSetup.downloadDescription.withModels', "Click Download or send a message to download the {0} Agent SDK.", displayName)
+					: localize('agentHost.sdkSetup.downloadDescription', "To use the {0} Agent, we need to download the {0} Agent SDK.", displayName)
+				: hasModels
+					? localize('agentHost.sdkSetup.remoteDownloadDescription.withModels', "Click Download or send a message to download the {0} Agent SDK on {1}.", displayName, host.name)
+					: localize('agentHost.sdkSetup.remoteDownloadDescription', "To use the {0} Agent on {1}, we need to download the {0} Agent SDK to that host.", displayName, host.name),
 			actions: [action(localize('agentHost.sdkSetup.downloadAction', "Download"), AGENT_SDK_SETUP_DOWNLOAD_COMMAND_ID)],
 		};
 	}
@@ -218,8 +192,10 @@ export function createAgentSdkSetupNotification(setup: IAgentSdkSetupInfo, displ
 	actions.push(action(localize('agentHost.sdkSetup.gitHubSignInAction', "Sign in to GitHub"), AGENT_SDK_SETUP_GITHUB_SIGN_IN_COMMAND_ID));
 	return {
 		...base,
-		message: localize('agentHost.sdkSetup.noAccount', "Choose how you want to use {0}.", displayName),
-		description: noAccountDescription(setup, displayName),
+		message: host.isAmbient
+			? localize('agentHost.sdkSetup.noAccount', "Choose how you want to use {0}.", displayName)
+			: localize('agentHost.sdkSetup.remoteNoAccount', "Choose how you want to use {0} on {1}.", displayName, host.name),
+		description: noAccountDescription(setup, displayName, host.authority),
 		actions,
 	};
 }
@@ -234,25 +210,24 @@ export const AGENT_SDK_SETUP_RELOAD_COMMAND_ID = 'workbench.action.chat.agentHos
 export const AGENT_SDK_SETUP_GITHUB_SIGN_IN_COMMAND_ID = 'workbench.action.chat.agentHost.signInToGitHubForAgent';
 export const AGENT_SDK_SETUP_SIGN_IN_COMMAND_ID = 'workbench.action.chat.agentHost.signInToAgent';
 
-/**
- * The banner's buttons. Commands rather than inline handlers because
- * {@link IChatInputNotification} actions address commands by id, and each takes
- * the agent id and nothing else — what a route needs beyond that is resolved by
- * the service from the agent's own declaration, not from the banner's copy.
- */
-function registerAgentSdkSetupCommand(id: string, run: (setupService: IAgentSdkSetupService, agent: string) => void): void {
-	CommandsRegistry.registerCommand(id, (accessor: ServicesAccessor, agent: unknown) => {
-		if (typeof agent === 'string') {
-			run(accessor.get(IAgentSdkSetupService), agent);
+function registerAgentSdkSetupCommand(id: string, run: (setupService: IAgentSdkSetupService, agent: string, connection: IAgentConnection) => void): void {
+	CommandsRegistry.registerCommand(id, (accessor: ServicesAccessor, agent: unknown, authority: unknown) => {
+		if (typeof agent !== 'string' || typeof authority !== 'string') {
+			throw new Error(localize('agentHost.sdkSetup.invalidTarget', "An agent and agent host are required for this setup action."));
 		}
+		const connection = accessor.get(IAgentHostConnectionsService).getConnectionByAuthority(authority);
+		if (!connection) {
+			throw new Error(localize('agentHost.sdkSetup.disconnected', "The selected agent host is disconnected. Reconnect and try again."));
+		}
+		run(accessor.get(IAgentSdkSetupService), agent, connection);
 	});
 }
 
-registerAgentSdkSetupCommand(AGENT_SDK_SETUP_DOWNLOAD_COMMAND_ID, (setupService, agent) => setupService.requestDownload(agent));
-registerAgentSdkSetupCommand(AGENT_SDK_SETUP_OPEN_DOCS_COMMAND_ID, (setupService, agent) => setupService.openSetupDocs(agent));
-registerAgentSdkSetupCommand(AGENT_SDK_SETUP_RELOAD_COMMAND_ID, (setupService, agent) => setupService.requestReload(agent));
+registerAgentSdkSetupCommand(AGENT_SDK_SETUP_DOWNLOAD_COMMAND_ID, (setupService, agent, connection) => setupService.requestDownload(agent, connection, { source: 'setup' }));
+registerAgentSdkSetupCommand(AGENT_SDK_SETUP_OPEN_DOCS_COMMAND_ID, (setupService, agent, connection) => setupService.openSetupDocs(agent, connection));
+registerAgentSdkSetupCommand(AGENT_SDK_SETUP_RELOAD_COMMAND_ID, (setupService, agent, connection) => setupService.requestReload(agent, connection));
 registerAgentSdkSetupCommand(AGENT_SDK_SETUP_GITHUB_SIGN_IN_COMMAND_ID, (setupService, agent) => setupService.signInToGitHub(agent));
-registerAgentSdkSetupCommand(AGENT_SDK_SETUP_SIGN_IN_COMMAND_ID, (setupService, agent) => setupService.signIn(agent));
+registerAgentSdkSetupCommand(AGENT_SDK_SETUP_SIGN_IN_COMMAND_ID, (setupService, agent, connection) => setupService.signIn(agent, connection));
 
 // #endregion
 
@@ -281,26 +256,17 @@ export class AgentHostSdkSetupNotificationContribution extends Disposable implem
 		@ILanguageModelsService private readonly _languageModelsService: ILanguageModelsService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IChatEntitlementService private readonly _chatEntitlementService: IChatEntitlementService,
-		@IAgentHostService private readonly _agentHostService: IAgentHostService,
 	) {
 		super();
 		this._register(Event.any(
 			this._agentSdkSetupService.onDidChangeSetups,
 			this._chatEntitlementService.onDidChangeEntitlement,
+			this._chatEntitlementService.onDidChangeSentiment,
 			this._defaultAccountService.onDidChangeDefaultAccount,
 			this._languageModelsService.onDidChangeLanguageModels,
 			Event.filter(this._configurationService.onDidChangeConfiguration, event => event.affectsConfiguration(AgentHostAllowSignedOutWhenUsableSettingId)),
 		)(() => this._update()));
-		// The host restarts (and a remote reconnects) behind a fresh root state, so
-		// re-bind rather than holding one subscription for the window's lifetime.
-		const rootStateListeners = this._register(new DisposableStore());
-		const bindRootState = () => {
-			rootStateListeners.clear();
-			rootStateListeners.add(this._agentHostService.rootState.onDidChange(() => this._update()));
-			this._update();
-		};
-		bindRootState();
-		this._register(this._agentHostService.onAgentHostStart(bindRootState));
+		this._update();
 	}
 
 	private _update(): void {
@@ -309,33 +275,31 @@ export class AgentHostSdkSetupNotificationContribution extends Disposable implem
 		const entitlementResolved = entitlement !== ChatEntitlement.Unresolved;
 		const signedIn = this._defaultAccountService.currentDefaultAccount !== null
 			|| (entitlementResolved && entitlement !== ChatEntitlement.Unknown);
-		const displayNames = getAgentDisplayNames(this._agentHostService.rootState.value);
 		const stale = new Set(this._shown.keys());
-		for (const setup of this._agentSdkSetupService.setups) {
-			// An agent can publish its setup status before root state lists it, so a
-			// missing name here means "not yet", not "never" — and every root-state
-			// change re-runs this.
-			const displayName = displayNames.get(setup.agent);
-			if (!displayName) {
-				continue;
-			}
-			const hasModels = hasAnyModelTargetingSessionType(this._languageModelsService, agentSdkSetupSessionType(setup.agent));
+		const liveIds = new Set<string>();
+		const setups = this._chatEntitlementService.sentiment.hidden ? [] : this._agentSdkSetupService.setups;
+		for (const setup of setups) {
+			const connection = setup.host.connection;
+			const notificationId = agentSdkSetupNotificationId(setup.id);
+			liveIds.add(notificationId);
+			const sessionType = agentSdkSetupSessionType(setup.agent, setup.host.authority);
+			const hasModels = hasAnyModelTargetingSessionType(this._languageModelsService, sessionType);
 			const state = getAgentSdkSetupState({
 				allowSignedOutWhenUsable,
 				signedIn,
 				entitlementResolved,
 				download: setup.download,
-				downloadRequested: this._agentSdkSetupService.isDownloadPending(setup.agent),
+				downloadRequested: this._agentSdkSetupService.isDownloadPending(setup.agent, connection),
 				hasModels,
 			});
 			// Before the render decision below, because `resolved` — the step the
 			// funnel exists to count — is exactly the state that renders nothing.
-			const toReport = getAgentSdkSetupStateToReport(this._lastReported.get(setup.agent), state);
+			const toReport = getAgentSdkSetupStateToReport(this._lastReported.get(notificationId), state);
 			if (toReport) {
-				this._lastReported.set(setup.agent, toReport);
+				this._lastReported.set(notificationId, toReport);
 				this._agentSdkSetupService.reportSetupState(setup.agent, toReport);
 			}
-			const notification = createAgentSdkSetupNotification(setup, displayName, state, hasModels);
+			const notification = createAgentSdkSetupNotification(setup, state, hasModels);
 			if (!notification) {
 				continue;
 			}
@@ -350,6 +314,11 @@ export class AgentHostSdkSetupNotificationContribution extends Disposable implem
 		for (const id of stale) {
 			this._shown.delete(id);
 			this._chatInputNotificationService.deleteNotification(id);
+		}
+		for (const id of this._lastReported.keys()) {
+			if (!liveIds.has(id)) {
+				this._lastReported.delete(id);
+			}
 		}
 	}
 }

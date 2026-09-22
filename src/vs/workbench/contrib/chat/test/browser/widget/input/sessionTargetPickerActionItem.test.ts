@@ -9,7 +9,8 @@ import { Codicon } from '../../../../../../../base/common/codicons.js';
 import { IMarkdownString } from '../../../../../../../base/common/htmlContent.js';
 import { mock } from '../../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
-import { AgentHostAllowSignedOutWhenUsableSettingId } from '../../../../../../../platform/agentHost/common/agentService.js';
+import { AgentHostAllowSignedOutWhenUsableSettingId, IAgentConnection } from '../../../../../../../platform/agentHost/common/agentService.js';
+import { AMBIENT_AGENT_HOST_AUTHORITY } from '../../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { TestConfigurationService } from '../../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IAgentSdkSetupService } from '../../../../../../services/agentHost/browser/agentSdkSetupService.js';
 import { ICodexAccountService } from '../../../../../../services/agentHost/browser/codexAccountService.js';
@@ -89,7 +90,19 @@ function getAvailability({ type, allowSignedOutWhenUsable, requiresCopilotSignIn
 		}
 	}();
 	const agentSdkSetupService = new class extends mock<IAgentSdkSetupService>() {
-		override readonly setups = setupAgents.map(agent => ({ agent, download: 'ready' as const }));
+		override readonly setups = setupAgents.map(agent => ({
+			id: agent,
+			agent,
+			displayName: agent,
+			download: 'ready' as const,
+			host: {
+				authority: AMBIENT_AGENT_HOST_AUTHORITY,
+				address: undefined,
+				name: 'Local',
+				isAmbient: true,
+				connection: new class extends mock<IAgentConnection>() { }(),
+			},
+		}));
 	}();
 	const codexAccountService = new class extends mock<ICodexAccountService>() {
 		override readonly account = { status: codexAccountStatus };
