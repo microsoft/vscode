@@ -731,6 +731,7 @@ suite('MultiEditorTabsControl', () => {
 	test('selected wrapped tabs and focused actions use the document surface on every row', async () => {
 		const group = connectedGroup();
 		const root = group.closest('.monaco-workbench')!;
+		group.style.setProperty('--vscode-focusBorder', '#ffaa00');
 		group.style.setProperty('--modern-ui-connected-tab-surface', '#123456');
 		group.style.setProperty('--vscode-editorGroupHeader-tabsBackground', '#654321');
 		group.style.setProperty('--modern-ui-editor-tab-active-background', '#654321');
@@ -754,14 +755,18 @@ suite('MultiEditorTabsControl', () => {
 				for (const activeGroup of [true, false]) {
 					group.classList.toggle('active', activeGroup);
 					action.focus();
+					const focusStyle = mainWindow.getComputedStyle(action);
+					const windowFocused = mainWindow.document.hasFocus();
 					measurements.push({
 						activeIndex, theme, activeGroup,
 						actionFocused: mainWindow.document.activeElement === action,
+						cssFocused: action.matches(':focus'),
 						upperRow: tab.classList.contains('connected-tab-upper-row'),
 						fill: mainWindow.getComputedStyle(fill).backgroundColor,
 						actions: mainWindow.getComputedStyle(actions).backgroundColor,
+						focusOutline: theme.startsWith('hc-') && windowFocused ? [focusStyle.outlineWidth, focusStyle.outlineStyle, focusStyle.outlineColor] : undefined,
 					});
-					expected.push({ activeIndex, theme, activeGroup, actionFocused: true, upperRow: activeIndex === 0, fill: 'rgb(18, 52, 86)', actions: 'rgba(0, 0, 0, 0)' });
+					expected.push({ activeIndex, theme, activeGroup, actionFocused: true, cssFocused: windowFocused, upperRow: activeIndex === 0, fill: 'rgb(18, 52, 86)', actions: 'rgba(0, 0, 0, 0)', focusOutline: theme.startsWith('hc-') && windowFocused ? ['1px', 'solid', 'rgb(255, 170, 0)'] : undefined });
 				}
 				root.classList.remove(theme);
 			}
