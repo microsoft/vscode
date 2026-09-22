@@ -14620,6 +14620,27 @@ Use the attached image as context.
 			);
 		});
 
+		test('rename is deferred when tool search is active', async () => {
+			const renameSnapshot: IActiveClientSnapshot = {
+				tools: [{
+					name: 'rename',
+					description: 'Rename a symbol',
+					inputSchema: { type: 'object', properties: {} },
+				}],
+				plugins: [],
+				mcpServers: {},
+			};
+			const { runtime } = await createAgentSession(disposables, { clientSnapshot: renameSnapshot });
+
+			assert.deepStrictEqual(runtime.createClientSdkTools(true).map(tool => ({
+				name: tool.name,
+				defer: tool.defer,
+			})), [{
+				name: 'rename',
+				defer: 'auto',
+			}]);
+		});
+
 		test('semantic search becomes ready without an SDK permission callback', async () => {
 			const semanticSearchSnapshot: IActiveClientSnapshot = {
 				tools: [{
