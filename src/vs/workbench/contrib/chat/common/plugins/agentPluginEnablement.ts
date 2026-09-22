@@ -24,8 +24,7 @@ interface IAgentPluginCandidate {
 }
 
 /**
- * Path fragment that identifies a Copilot-CLI-installed plugin. Mirrored by
- * `ConfiguredAgentPluginDiscovery._resolveEnterprisePluginId`.
+ * Path fragment that identifies a Copilot-CLI-installed plugin.
  */
 const COPILOT_CLI_INSTALL_PATH_FRAGMENT = '/.copilot/installed-plugins/';
 

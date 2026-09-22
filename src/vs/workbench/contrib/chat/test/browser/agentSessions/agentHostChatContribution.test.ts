@@ -9,6 +9,7 @@ import { setARIAContainer } from '../../../../../../base/browser/ui/aria/aria.js
 import { encodeBase64, VSBuffer } from '../../../../../../base/common/buffer.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
+import { isCancellationError } from '../../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { DisposableStore, IDisposable, IReference, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../../base/common/network.js';
@@ -13790,6 +13791,143 @@ suite('AgentHostChatContribution', () => {
 				agentHostService.createSessionCalls.at(-1)?.workingDirectories?.map(d => d.toString()),
 				[URI.file('/workspaces/vscode').toString()],
 			);
+		});
+
+		test('prepares the working directory after authentication and rebinds its customization scope before creation', async () => {
+			const { instantiationService, agentHostService, chatAgentService, seedActiveClient } = createTestServices(disposables);
+			const requested = URI.parse('https://github.com/microsoft/vscode');
+			const prepared = toAgentHostUri(URI.file('/workspaces/vscode'), 'remote-test');
+			let directory = requested;
+			const order: string[] = [];
+			agentHostService.resourceUris = createAgentHostResourceUriMapper('remote-test');
+			agentHostService.setInitializeResult({ defaultDirectory: 'file:///workspaces' });
+			agentHostService.setRootState({
+				agents: [{
+					provider: 'copilot', displayName: 'Copilot', description: 'test', models: [],
+					protectedResources: [{ resource: 'https://api.github.com', required: true }],
+				}],
+			});
+			disposables.add(seedActiveClient('agent-host-copilot', {
+				customizations: constObservable<readonly ClientPluginCustomization[]>([
+					{ type: CustomizationType.Plugin, id: 'file:///repo-plugin', uri: 'file:///repo-plugin', name: 'Repository Plugin' },
+				]),
+			}, [prepared]));
+			const sessionHandler = disposables.add(instantiationService.createInstance(AgentHostSessionHandler, {
+				provider: 'copilot',
+				backendSessionScheme: 'ahp-session',
+				agentId: 'agent-host-copilot',
+				sessionType: 'agent-host-copilot',
+				fullName: 'Agent Host - Copilot',
+				description: 'test',
+				connection: agentHostService,
+				connectionAuthority: 'remote-test',
+				resolveWorkingDirectory: () => directory,
+				isNewSession: () => true,
+				resolveAuthentication: async () => {
+					order.push('authenticate');
+					return true;
+				},
+				prepareSession: async () => {
+					order.push('prepare');
+					directory = prepared;
+				},
+			}));
+			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
+			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
+			await turnPromise;
+			assert.deepStrictEqual({
+				order,
+				created: agentHostService.createSessionCalls.map(call => ({
+					session: call.session?.toString(),
+					directories: call.workingDirectories?.map(directory => directory.toString()),
+					customizations: call.activeClient?.customizations?.map(customization => customization.uri),
+				})),
+			}, {
+				order: ['authenticate', 'prepare'],
+				created: [{
+					session: 'ahp-session:/new-turntest',
+					directories: [prepared.toString()],
+					customizations: ['file:///repo-plugin'],
+				}],
+			});
+		});
+
+		test('failed working-directory preparation prevents session creation and turns', async () => {
+			const { instantiationService, agentHostService, chatAgentService } = createTestServices(disposables);
+			const sessionHandler = disposables.add(instantiationService.createInstance(AgentHostSessionHandler, {
+				provider: 'copilot',
+				agentId: 'agent-host-copilot',
+				sessionType: 'agent-host-copilot',
+				fullName: 'Agent Host - Copilot',
+				description: 'test',
+				connection: agentHostService,
+				connectionAuthority: 'local',
+				prepareSession: async () => { throw new Error('Repository clone denied'); },
+			}));
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/new-failed-preparation' });
+			const chatSession = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
+			disposables.add(toDisposable(() => chatSession.dispose()));
+			const registered = chatAgentService.registeredAgents.get('agent-host-copilot')!;
+			await assert.rejects(registered.impl.invoke(makeRequest({ sessionResource }), () => { }, [], CancellationToken.None), /Repository clone denied/);
+			assert.deepStrictEqual({
+				created: agentHostService.createSessionCalls.length,
+				turns: agentHostService.turnActions.length,
+			}, {
+				created: 0,
+				turns: 0,
+			});
+		});
+
+		test('cancelling working-directory preparation prevents session creation', async () => {
+			const { instantiationService, agentHostService, chatAgentService } = createTestServices(disposables);
+			const cancellation = disposables.add(new CancellationTokenSource());
+			const pending = new DeferredPromise<void>();
+			const sessionHandler = disposables.add(instantiationService.createInstance(AgentHostSessionHandler, {
+				provider: 'copilot',
+				agentId: 'agent-host-copilot',
+				sessionType: 'agent-host-copilot',
+				fullName: 'Agent Host - Copilot',
+				description: 'test',
+				connection: agentHostService,
+				connectionAuthority: 'local',
+				prepareSession: () => pending.p,
+			}));
+			const { turnPromise } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, { cancellationToken: cancellation.token });
+			const rejected = assert.rejects(turnPromise, isCancellationError);
+			cancellation.cancel();
+			await rejected;
+			await pending.complete();
+			assert.deepStrictEqual({ created: agentHostService.createSessionCalls.length, turns: agentHostService.turnActions.length }, { created: 0, turns: 0 });
+		});
+
+		test('existing sessions do not prepare another working directory', async () => {
+			const { instantiationService, agentHostService, chatAgentService } = createTestServices(disposables);
+			const backendSession = AgentSession.uri('copilot', 'existing-repository');
+			agentHostService.sessionStates.set(backendSession.toString(), {
+				...createSessionState({
+					resource: backendSession.toString(), provider: 'copilot', title: 'Existing',
+					status: SessionStatus.Idle, createdAt: new Date().toISOString(), modifiedAt: new Date().toISOString(),
+					workingDirectories: ['file:///existing'],
+				}),
+				lifecycle: SessionLifecycle.Ready,
+			});
+			let preparationCalls = 0;
+			const sessionHandler = disposables.add(instantiationService.createInstance(AgentHostSessionHandler, {
+				provider: 'copilot',
+				agentId: 'agent-host-copilot',
+				sessionType: 'agent-host-copilot',
+				fullName: 'Agent Host - Copilot',
+				description: 'test',
+				connection: agentHostService,
+				connectionAuthority: 'local',
+				prepareSession: async () => { preparationCalls++; },
+			}));
+			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, {
+				sessionResource: URI.from({ scheme: 'agent-host-copilot', path: '/existing-repository' }),
+			});
+			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
+			await turnPromise;
+			assert.deepStrictEqual({ preparationCalls, created: agentHostService.createSessionCalls.length }, { preparationCalls: 0, created: 0 });
 		});
 
 		test('waits for initial scope resolution before creating a session', async () => {
