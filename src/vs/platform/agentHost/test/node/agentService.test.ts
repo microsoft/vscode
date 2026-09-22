@@ -18613,22 +18613,28 @@ suite('AgentService (node dispatcher)', () => {
 		});
 
 		test('a session rename retitles the sole default chat in the live session and across restore', async () => {
-			const db = new TestSessionDatabase();
-			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			// Separate databases per channel, matching production: the chat-local title
+			// writes must be observable independently of the session's own metadata.
+			const perSession = createPerSessionDataService();
+			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, perSession.service, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			const agent = disposables.add(new MockAgent('copilot'));
 			registerTestAgentProvider(localService, agent);
 			const session = await localService.createSession({ provider: 'copilot' });
 			const sessionUri = session.toString();
 			const defaultChat = buildDefaultChatUri(session);
+			const sessionDb = perSession.database(session);
+			const chatDb = perSession.database(URI.parse(defaultChat));
 
 			// The agent titles the sole default chat, which mirrors onto the session.
 			localService.dispatchAction(defaultChat, { type: ActionType.SessionTitleChanged, title: 'Agent title' }, 'test-client', 1, AgentHostClientType.EditorWindow);
-			await waitForMetadata(db, `customChatTitle:${defaultChat}`, 'Agent title');
-			await waitForMetadata(db, 'customTitle', 'Agent title');
+			await waitForMetadata(chatDb, 'customTitle', 'Agent title');
+			await waitForMetadata(sessionDb, `customChatTitle:${defaultChat}`, 'Agent title');
+			await waitForMetadata(sessionDb, 'customTitle', 'Agent title');
 
 			// Renaming the session from the sessions list must carry the header with it.
 			localService.dispatchAction(sessionUri, { type: ActionType.SessionTitleChanged, title: 'User title' }, 'test-client', 2, AgentHostClientType.EditorWindow);
-			await waitForMetadata(db, 'customTitle', 'User title');
+			await waitForMetadata(sessionDb, 'customTitle', 'User title');
+			await waitForMetadata(chatDb, 'customTitle', 'User title');
 			const live = getStateManager(localService).getSessionState(sessionUri);
 			const liveTitles = {
 				sessionTitle: live?.title,
@@ -18644,8 +18650,11 @@ suite('AgentService (node dispatcher)', () => {
 				liveTitles,
 				restoredSessionTitle: restored?.title,
 				restoredDefaultChatTitle: restored?.chats.find(chat => chat.resource === defaultChat)?.title,
-				persistedSessionTitle: await db.getMetadata('customTitle'),
-				persistedDefaultChatTitle: await db.getMetadata(`customChatTitle:${defaultChat}`),
+				persistedChatLocalTitle: await chatDb.getMetadata('customTitle'),
+				persistedChatLocalTitleSource: await chatDb.getMetadata('customTitleSource'),
+				persistedSessionTitle: await sessionDb.getMetadata('customTitle'),
+				persistedSessionScopedChatTitle: await sessionDb.getMetadata(`customChatTitle:${defaultChat}`),
+				persistedSessionScopedChatTitleSource: await sessionDb.getMetadata(`customChatTitleSource:${defaultChat}`),
 			}, {
 				liveTitles: {
 					sessionTitle: 'User title',
@@ -18654,8 +18663,11 @@ suite('AgentService (node dispatcher)', () => {
 				},
 				restoredSessionTitle: 'User title',
 				restoredDefaultChatTitle: 'User title',
+				persistedChatLocalTitle: 'User title',
+				persistedChatLocalTitleSource: 'user',
 				persistedSessionTitle: 'User title',
-				persistedDefaultChatTitle: 'User title',
+				persistedSessionScopedChatTitle: 'User title',
+				persistedSessionScopedChatTitleSource: 'user',
 			});
 		});
 
