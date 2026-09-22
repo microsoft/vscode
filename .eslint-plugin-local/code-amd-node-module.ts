@@ -8,8 +8,8 @@ import type * as ESTree from 'estree';
 import { readFileSync } from 'fs';
 import { join } from 'path';
 
-// `package.json` okumasını ve modül listesinin oluşturulmasını kural modülünün dışına (module scope)
-// alarak her dosya taramasında gereksiz disk I/O ve JSON.parse işlemlerinin önüne geçilmiş olundu.
+// Move package.json reading and module list generation outside of the rule module (to the module scope)
+// to prevent unnecessary disk I/O and JSON.parse operations on every file traversal.
 const modules = new Set<string>();
 
 try {
