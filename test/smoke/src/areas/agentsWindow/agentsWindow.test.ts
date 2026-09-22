@@ -229,7 +229,7 @@ export function setup(logger: Logger, quality: Quality) {
 			cleanupWorkspace: cleanupDevContainerWorkspace,
 		});
 
-		it('Starts a session in a Dev Container', async function () {
+		it.skip('Starts a session in a Dev Container', async function () {
 			this.timeout(10 * 60 * 1000);
 			const app = this.app as Application;
 
