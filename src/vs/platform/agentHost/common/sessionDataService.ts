@@ -188,6 +188,12 @@ export interface ISessionDatabase extends IDisposable {
 	getFirstTurnEventId(): Promise<string | undefined>;
 
 	/**
+	 * Returns whether the session database contains any persisted conversation
+	 * turn, including host-injected local turns.
+	 */
+	hasConversationTurns(): Promise<boolean>;
+
+	/**
 	 * Persists the JSON-serialized {@link UsageInfo} reported for a turn.
 	 * Idempotent — last writer wins per turn.
 	 *

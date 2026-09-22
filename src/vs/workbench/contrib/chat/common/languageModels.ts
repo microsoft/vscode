@@ -270,6 +270,8 @@ export interface ILanguageModelChatMetadata {
 	readonly family: string;
 	readonly maxInputTokens: number;
 	readonly maxOutputTokens: number;
+	/** The total context window, independent of the input and output token limits. */
+	readonly maxContextWindowTokens?: number;
 
 	readonly isDefaultForLocation: { [K in ChatAgentLocation]?: boolean };
 	readonly isUserSelectable?: boolean;
@@ -347,6 +349,18 @@ export interface ILanguageModelChatMetadata {
 		readonly message: string;
 		readonly showBanner?: boolean;
 	};
+}
+
+/**
+ * Uses the declared context window, falling back to input/output budgets for legacy providers.
+ * A configured input limit can reduce the effective window, but never exceed the declared maximum.
+ */
+export function getModelContextWindowTotal(metadata: ILanguageModelChatMetadata, inputTokenLimit?: number): number {
+	const tokenBudget = (inputTokenLimit ?? metadata.maxInputTokens ?? 0) + (metadata.maxOutputTokens ?? 0);
+	if (metadata.maxContextWindowTokens === undefined) {
+		return tokenBudget;
+	}
+	return inputTokenLimit === undefined ? metadata.maxContextWindowTokens : Math.min(metadata.maxContextWindowTokens, tokenBudget);
 }
 
 export namespace ILanguageModelChatMetadata {
@@ -548,6 +562,8 @@ export interface ILanguageModelsGroup {
 /** Read/write access to model-specific configuration, globally or within one conversation. */
 export interface IModelConfigurationAccess {
 	getModelConfiguration(modelId: string): IStringDictionary<unknown> | undefined;
+	/** Effective schema for this scope, including provider or managed startup defaults. */
+	getModelConfigurationSchema?(modelId: string): ILanguageModelConfigurationSchema | undefined;
 	setModelConfiguration(modelId: string, values: IStringDictionary<unknown>): Promise<void>;
 	getModelConfigurationActions(modelId: string): IAction[];
 	/** Configuration changes within this scope; global access uses `onDidChangeLanguageModels`. */
@@ -598,10 +614,9 @@ export interface ILanguageModelsService {
 
 	/**
 	 * Returns the resolved per-model configuration for the given model identifier.
-	 * Includes schema defaults with user overrides applied on top.
-	 * Returns undefined if the model has no configuration schema and no user config.
+	 * Includes schema defaults unless `includeDefaults` is false.
 	 */
-	getModelConfiguration(modelId: string): IStringDictionary<unknown> | undefined;
+	getModelConfiguration(modelId: string, includeDefaults?: boolean): IStringDictionary<unknown> | undefined;
 
 	/**
 	 * Updates the per-model configuration for the given model.
@@ -1553,7 +1568,11 @@ export class LanguageModelsService implements ILanguageModelsService {
 		return provider.provideTokenCount(modelId, message, token);
 	}
 
-	getModelConfiguration(modelId: string): IStringDictionary<unknown> | undefined {
+	getModelConfiguration(modelId: string, includeDefaults = true): IStringDictionary<unknown> | undefined {
+		if (!includeDefaults) {
+			const configuration = this._modelConfigurations.get(modelId);
+			return configuration ? { ...configuration } : undefined;
+		}
 		const metadata = this._modelCache.get(modelId);
 		return this._resolveModelConfigurationWithDefaults(modelId, metadata);
 	}

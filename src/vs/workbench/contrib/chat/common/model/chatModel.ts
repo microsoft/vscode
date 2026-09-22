@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { asArray } from '../../../../../base/common/arrays.js';
+import { asArray, equals as arraysEqual } from '../../../../../base/common/arrays.js';
 import { softAssertNever } from '../../../../../base/common/assert.js';
 import { VSBuffer, decodeHex, encodeHex } from '../../../../../base/common/buffer.js';
 import { IStringDictionary } from '../../../../../base/common/collections.js';
@@ -15,7 +15,7 @@ import { ResourceMap } from '../../../../../base/common/map.js';
 import { revive } from '../../../../../base/common/marshalling.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { equals } from '../../../../../base/common/objects.js';
-import { IObservable, autorun, constObservable, derived, observableFromEvent, observableSignal, observableSignalFromEvent, observableValue, observableValueOpts } from '../../../../../base/common/observable.js';
+import { IObservable, IReader, autorun, constObservable, derived, derivedOpts, observableFromEvent, observableSignal, observableSignalFromEvent, observableValue, observableValueOpts, registerAutorunSelfDisposable } from '../../../../../base/common/observable.js';
 import { basename, isEqual } from '../../../../../base/common/resources.js';
 import { hasKey, WithDefinedProps } from '../../../../../base/common/types.js';
 import { URI, UriDto } from '../../../../../base/common/uri.js';
@@ -328,6 +328,8 @@ export interface IChatResponseModel {
 	readonly isComplete: boolean;
 	readonly isCanceled: boolean;
 	readonly isPendingConfirmation: IObservable<{ startedWaitingAt: number; detail?: string } | undefined>;
+	/** Tool invocations awaiting user input in the visible response, in response order. */
+	readonly pendingToolInvocations: IObservable<readonly IChatToolInvocation[]>;
 	readonly isInProgress: IObservable<boolean>;
 	/**
 	 * True whenever this response has not reached a terminal state yet.
@@ -846,9 +848,20 @@ class ResponseView extends AbstractResponse {
 	}
 }
 
+type ChatResponseConfirmationPart = IChatToolInvocation | IChatConfirmation | IChatQuestionCarousel | IChatPlanReview | IChatElicitationRequest;
+
+function isChatResponseConfirmationPart(part: IChatProgressResponseContent): part is ChatResponseConfirmationPart {
+	return part.kind === 'toolInvocation'
+		|| part.kind === 'confirmation'
+		|| part.kind === 'questionCarousel'
+		|| part.kind === 'planReview'
+		|| part.kind === 'elicitation2';
+}
+
 export class Response extends AbstractResponse implements IDisposable {
 	private readonly _store = new DisposableStore();
 	private readonly _toolInvocationDisposables = this._store.add(new DisposableStore());
+	private readonly _pendingConfirmationCandidates = new Set<ChatResponseConfirmationPart>();
 	private _onDidChangeValue = this._store.add(new Emitter<void>());
 	private _activeReasoning: { part: IChatThinkingPart; startedAt: number } | undefined;
 	public get onDidChangeValue() {
@@ -864,16 +877,49 @@ export class Response extends AbstractResponse implements IDisposable {
 				isMarkdownString(v) ? { content: v, kind: 'markdownContent' } satisfies IChatMarkdownContent :
 					{ kind: 'treeData', treeData: v }
 		)));
+		for (const part of this._responseParts) {
+			if (isChatResponseConfirmationPart(part)) {
+				this._pendingConfirmationCandidates.add(part);
+			}
+		}
 	}
 
 	dispose(): void {
 		this._store.dispose();
 	}
 
+	/** Revisit only unsettled confirmation-capable parts, not the streamed response history. */
+	getPendingConfirmations(reader: IReader): readonly ChatResponseConfirmationPart[] {
+		const pending: ChatResponseConfirmationPart[] = [];
+		for (const part of this._pendingConfirmationCandidates) {
+			if (part.kind === 'toolInvocation') {
+				const state = part.state.read(reader);
+				if (state.type === IChatToolInvocation.StateKind.Completed || state.type === IChatToolInvocation.StateKind.Cancelled) {
+					this._pendingConfirmationCandidates.delete(part);
+				} else if (state.type === IChatToolInvocation.StateKind.WaitingForConfirmation
+					|| state.type === IChatToolInvocation.StateKind.WaitingForPostApproval
+					|| state.type === IChatToolInvocation.StateKind.WaitingForAuthentication) {
+					pending.push(part);
+				}
+			} else if (part.kind === 'elicitation2') {
+				if (part.state.read(reader) === ElicitationState.Pending) {
+					pending.push(part);
+				} else {
+					this._pendingConfirmationCandidates.delete(part);
+				}
+			} else if (part.isUsed) {
+				this._pendingConfirmationCandidates.delete(part);
+			} else {
+				pending.push(part);
+			}
+		}
+		return pending;
+	}
 
 	clear(): void {
 		this.finalizeReasoningDuration();
 		this._toolInvocationDisposables.clear();
+		this._pendingConfirmationCandidates.clear();
 		this._responseParts = [];
 		this._contentChanged(true);
 	}
@@ -889,6 +935,12 @@ export class Response extends AbstractResponse implements IDisposable {
 				break;
 			}
 		}
+		for (let i = lastToolInvocationIndex + 1; i < this._responseParts.length; i++) {
+			const part = this._responseParts[i];
+			if (isChatResponseConfirmationPart(part)) {
+				this._pendingConfirmationCandidates.delete(part);
+			}
+		}
 		if (lastToolInvocationIndex !== -1) {
 			this._responseParts = this._responseParts.slice(0, lastToolInvocationIndex + 1);
 		} else {
@@ -901,7 +953,9 @@ export class Response extends AbstractResponse implements IDisposable {
 	}
 
 	updateContent(progress: IChatProgressResponseContent | IChatTextEdit | IChatNotebookEdit | IChatTask | IChatExternalToolInvocationUpdate, quiet?: boolean): void {
-		if (progress.kind !== 'thinking') {
+		// Nested subagent progress renders inside its parent card, so it neither ends the parent's
+		// reasoning section nor its reasoning timer.
+		if (progress.kind !== 'thinking' && !isNestedSubagentResponsePart(progress)) {
 			this.finalizeReasoningDuration();
 		}
 
@@ -941,8 +995,9 @@ export class Response extends AbstractResponse implements IDisposable {
 		} else if (progress.kind === 'thinking') {
 
 			// tries to split thinking chunks if it is an array. only while certain models give us array chunks.
+			// Nested subagent parts render inside their parent card and must not split parent reasoning.
 			const lastResponsePart = this._responseParts
-				.filter(p => p.kind !== 'textEditGroup')
+				.filter(p => p.kind !== 'textEditGroup' && !isNestedSubagentResponsePart(p))
 				.at(-1);
 
 			const lastText = lastResponsePart && lastResponsePart.kind === 'thinking'
@@ -1023,7 +1078,19 @@ export class Response extends AbstractResponse implements IDisposable {
 				this._contentChanged(false);
 			}));
 			this._responseParts.push(progress);
+			this._pendingConfirmationCandidates.add(progress);
 			this._contentChanged(quiet);
+		} else if (progress.kind === 'mcpAuthenticationRequired') {
+			this._responseParts.push(progress);
+			let initialUpdate = true;
+			registerAutorunSelfDisposable(this._store, reader => {
+				progress.servers.read(reader);
+				this._contentChanged(initialUpdate ? quiet : false);
+				initialUpdate = false;
+				if (progress.isUsed) {
+					reader.dispose();
+				}
+			});
 		} else if (progress.kind === 'externalToolInvocationUpdate') {
 			this._handleExternalToolInvocationUpdate(progress);
 			this._contentChanged(quiet);
@@ -1047,6 +1114,9 @@ export class Response extends AbstractResponse implements IDisposable {
 			this._contentChanged(quiet);
 		} else {
 			this._responseParts.push(progress);
+			if (isChatResponseConfirmationPart(progress)) {
+				this._pendingConfirmationCandidates.add(progress);
+			}
 			this._contentChanged(quiet);
 		}
 	}
@@ -1166,6 +1236,7 @@ export class Response extends AbstractResponse implements IDisposable {
 		}
 
 		this._responseParts.push(invocation);
+		this._pendingConfirmationCandidates.add(invocation);
 	}
 
 	protected override computeRepr(): string {
@@ -1400,6 +1471,8 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 
 	readonly isPendingConfirmation: IObservable<{ startedWaitingAt: number; detail?: string } | undefined>;
 
+	readonly pendingToolInvocations: IObservable<readonly IChatToolInvocation[]>;
+
 	readonly isInProgress: IObservable<boolean>;
 
 	/**
@@ -1460,11 +1533,30 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 
 		const signal = observableSignalFromEvent(this, this.onDidChange);
 
-		const _pendingInfo = signal.map((_value, r): string | undefined => {
-			signal.read(r);
+		const pendingConfirmations = derivedOpts({ owner: this, equalsFn: arraysEqual<ChatResponseConfirmationPart> }, reader => {
+			signal.read(reader);
+			return this._response.getPendingConfirmations(reader);
+		});
+		const visibleParts = new WeakMap<IResponse, ReadonlySet<IChatProgressResponseContent>>();
+		this.pendingToolInvocations = derivedOpts({ owner: this, equalsFn: arraysEqual<IChatToolInvocation> }, reader => {
+			signal.read(reader);
+			const pending = pendingConfirmations.read(reader);
+			const response = this.response;
+			let includedParts: ReadonlySet<IChatProgressResponseContent> | undefined;
+			if (response !== this._response && pending.length) {
+				includedParts = visibleParts.get(response);
+				if (!includedParts) {
+					includedParts = new Set(response.value);
+					visibleParts.set(response, includedParts);
+				}
+			}
+			return pending.filter((part): part is IChatToolInvocation => part.kind === 'toolInvocation' && (!includedParts || includedParts.has(part)));
+		});
 
-			for (const part of this._response.value) {
-				if (part.kind === 'toolInvocation') {
+		const _pendingInfo = signal.map((_value, r): string | undefined => {
+			const part = pendingConfirmations.read(r).at(0);
+			switch (part?.kind) {
+				case 'toolInvocation': {
 					const state = part.state.read(r);
 					if (state.type === IChatToolInvocation.StateKind.WaitingForConfirmation) {
 						const title = state.confirmationMessages?.title;
@@ -1476,22 +1568,19 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 					if (state.type === IChatToolInvocation.StateKind.WaitingForAuthentication) {
 						return localize('waitingForToolAuthentication', "Authenticate {0} to continue...", state.server.name);
 					}
+					return undefined;
 				}
-				if (part.kind === 'confirmation' && !part.isUsed) {
+				case 'confirmation':
 					return part.title;
-				}
-				if (part.kind === 'questionCarousel' && !part.isUsed) {
+				case 'questionCarousel':
 					return localize('waitingAnswer', "Answer questions to continue...");
-				}
-				if (part.kind === 'planReview' && !part.isUsed) {
+				case 'planReview':
 					return localize('waitingPlanReview', "Review the plan to continue...");
-				}
-				if (part.kind === 'elicitation2' && part.state.read(r) === ElicitationState.Pending) {
+				case 'elicitation2': {
 					const title = part.title;
 					return isMarkdownString(title) ? title.value : title;
 				}
 			}
-
 			return undefined;
 		});
 
@@ -3482,7 +3571,7 @@ export function canMergeMarkdownStrings(md1: IMarkdownString, md2: IMarkdownStri
 		md1.supportThemeIcons === md2.supportThemeIcons;
 }
 
-function isNestedSubagentResponsePart(part: IChatProgressResponseContent): boolean {
+function isNestedSubagentResponsePart(part: object): boolean {
 	return 'subAgentInvocationId' in part && !!part.subAgentInvocationId;
 }
 

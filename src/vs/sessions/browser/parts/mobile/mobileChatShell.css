@@ -567,7 +567,7 @@
  * specificity 0,7,0 (action-bar path) / 0,6,0 (slot path), which beats
  * the desktop floor at 0,5,0 / 0,4,0 — no `!important` required. */
 .agent-sessions-workbench.phone-layout .new-chat-widget-container .new-chat-bottom-container .sessions-chat-picker-slot .action-label,
-.agent-sessions-workbench.phone-layout .new-chat-widget-container .new-chat-bottom-container .monaco-action-bar .action-item .action-label {
+.agent-sessions-workbench.phone-layout .new-chat-widget-container .new-chat-bottom-container .monaco-action-bar .action-item .action-label:not(.separator) {
 	box-sizing: content-box;
 	display: inline-flex;
 	align-items: center;
@@ -591,7 +591,7 @@
 }
 
 .agent-sessions-workbench.phone-layout .new-chat-widget-container .new-chat-bottom-container .sessions-chat-picker-slot .action-label:active,
-.agent-sessions-workbench.phone-layout .new-chat-widget-container .new-chat-bottom-container .monaco-action-bar .action-item .action-label:active {
+.agent-sessions-workbench.phone-layout .new-chat-widget-container .new-chat-bottom-container .monaco-action-bar .action-item .action-label:not(.separator):active {
 	background-color: var(--vscode-toolbar-activeBackground, var(--vscode-toolbar-hoverBackground, transparent));
 }
 

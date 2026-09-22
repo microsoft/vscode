@@ -1169,6 +1169,85 @@ suite('ModernUIContribution', () => {
 		});
 	});
 
+	test('rounds activity bar corners exposed by horizontal panels', () => {
+		const root = document.createElement('div');
+		root.style.setProperty('--vscode-cornerRadius-large', '8px');
+		document.body.appendChild(root);
+		store.add(toDisposable(() => root.remove()));
+
+		const leftActivityBar = appendElement(root, 'part activitybar left');
+		const rightActivityBar = appendElement(root, 'part activitybar right');
+		const targetWindow = getWindow(root);
+		const corners = (layoutClasses: string) => {
+			root.className = `monaco-workbench modern-ui floating-panels ${layoutClasses}`;
+			const leftStyle = targetWindow.getComputedStyle(leftActivityBar);
+			const rightStyle = targetWindow.getComputedStyle(rightActivityBar);
+			return {
+				left: [leftStyle.borderTopLeftRadius, leftStyle.borderTopRightRadius, leftStyle.borderBottomRightRadius, leftStyle.borderBottomLeftRadius],
+				right: [rightStyle.borderTopLeftRadius, rightStyle.borderTopRightRadius, rightStyle.borderBottomRightRadius, rightStyle.borderBottomLeftRadius],
+			};
+		};
+
+		assert.deepStrictEqual({
+			bottomLeft: corners('panel-position-bottom panel-alignment-left'),
+			bottomRight: corners('panel-position-bottom panel-alignment-right'),
+			bottomJustify: corners('panel-position-bottom panel-alignment-justify'),
+			bottomCenter: corners('panel-position-bottom panel-alignment-center'),
+			topLeft: corners('panel-position-top panel-alignment-left'),
+			topRight: corners('panel-position-top panel-alignment-right'),
+			topJustify: corners('panel-position-top panel-alignment-justify'),
+			hiddenPanel: corners('panel-position-bottom panel-alignment-justify nopanel'),
+			compact: corners('modern-ui-compact panel-position-bottom panel-alignment-justify'),
+		}, {
+			bottomLeft: { left: ['8px', '0px', '8px', '8px'], right: ['0px', '8px', '8px', '0px'] },
+			bottomRight: { left: ['8px', '0px', '0px', '8px'], right: ['0px', '8px', '8px', '8px'] },
+			bottomJustify: { left: ['8px', '0px', '8px', '8px'], right: ['0px', '8px', '8px', '8px'] },
+			bottomCenter: { left: ['8px', '0px', '0px', '8px'], right: ['0px', '8px', '8px', '0px'] },
+			topLeft: { left: ['8px', '8px', '0px', '8px'], right: ['0px', '8px', '8px', '0px'] },
+			topRight: { left: ['8px', '0px', '0px', '8px'], right: ['8px', '8px', '8px', '0px'] },
+			topJustify: { left: ['8px', '8px', '0px', '8px'], right: ['8px', '8px', '8px', '0px'] },
+			hiddenPanel: { left: ['8px', '0px', '0px', '8px'], right: ['0px', '8px', '8px', '0px'] },
+			compact: { left: ['8px', '0px', '0px', '8px'], right: ['0px', '8px', '8px', '0px'] },
+		});
+	});
+
+	test('keeps a gutter between horizontal panels and the right activity bar', () => {
+		const root = document.createElement('div');
+		root.style.display = 'inline-flex';
+		root.style.setProperty('--activity-bar-width', '36px');
+		root.style.setProperty('--vscode-spacing-size40', '4px');
+		root.style.setProperty('--vscode-spacing-size80', '8px');
+		root.style.setProperty('--vscode-spacing-sizeNone', '0px');
+		document.body.appendChild(root);
+		store.add(toDisposable(() => root.remove()));
+
+		const panel = appendElement(root, 'part panel bottom');
+		panel.style.width = '100px';
+		const activityBar = appendElement(root, 'part activitybar right');
+		const gap = (layoutClasses: string) => {
+			root.className = `monaco-workbench modern-ui floating-panels panel-position-bottom ${layoutClasses}`;
+			const panelStyle = getWindow(panel).getComputedStyle(panel);
+			const activityBarStyle = getWindow(activityBar).getComputedStyle(activityBar);
+			return {
+				gap: activityBar.getBoundingClientRect().left - panel.getBoundingClientRect().right,
+				panelMarginRight: panelStyle.marginRight,
+				activityBarMarginLeft: activityBarStyle.marginLeft,
+			};
+		};
+
+		assert.deepStrictEqual({
+			justified: gap('panel-alignment-justify'),
+			rightAligned: gap('panel-alignment-right'),
+			sideBarHidden: gap('panel-alignment-justify nosidebar'),
+			compact: gap('panel-alignment-justify modern-ui-compact'),
+		}, {
+			justified: { gap: 4, panelMarginRight: '4px', activityBarMarginLeft: '0px' },
+			rightAligned: { gap: 4, panelMarginRight: '4px', activityBarMarginLeft: '0px' },
+			sideBarHidden: { gap: 4, panelMarginRight: '0px', activityBarMarginLeft: '4px' },
+			compact: { gap: 0, panelMarginRight: '0px', activityBarMarginLeft: '0px' },
+		});
+	});
+
 	test('centers status bar items within the floating bottom rail', () => {
 		const measure = (className: string, statusbarHeight: number, railGap: number) => {
 			const root = document.createElement('div');
@@ -2273,7 +2352,7 @@ suite('ModernUIContribution', () => {
 		}
 	});
 
-	test('paints connected tab strokes outside the fill without moving tab content', () => {
+	test('reserves the connected terminal shoulder without moving tab content', () => {
 		const root = document.createElement('div');
 		root.style.setProperty('--vscode-spacing-size20', '2px');
 		root.style.setProperty('--vscode-spacing-size40', '4px');
@@ -2313,6 +2392,8 @@ suite('ModernUIContribution', () => {
 						tab.classList.add('active');
 						const activeFillBounds = fill.getBoundingClientRect();
 						const activeFillStyle = targetWindow.getComputedStyle(fill);
+						const shoulderWidth = targetWindow.getComputedStyle(fill, '::after').width;
+						const activeTabStyle = targetWindow.getComputedStyle(tab);
 
 						assert.deepStrictEqual({
 							tabBounds: tab.getBoundingClientRect().toJSON(),
@@ -2322,11 +2403,13 @@ suite('ModernUIContribution', () => {
 								fillBounds.left - activeFillBounds.left,
 								activeFillBounds.right - fillBounds.right,
 							],
+							marginRight: activeTabStyle.marginRight,
 							topRadius: activeFillStyle.borderTopLeftRadius,
 						}, {
 							tabBounds: tabBounds.toJSON(),
 							labelBounds: labelBounds.toJSON(),
-							fillExpansion: [0, 0, connected ? -5 : 0],
+							fillExpansion: [0, 0, 0],
+							marginRight: connected ? shoulderWidth : '0px',
 							topRadius: connected ? '5px' : '4px',
 						}, JSON.stringify({ classes, theme, activeGroup, compact }));
 					}

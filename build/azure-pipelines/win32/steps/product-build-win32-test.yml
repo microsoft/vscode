@@ -47,6 +47,7 @@ steps:
         compile-extension:html-language-features-server `
         compile-extension:ipynb `
         compile-extension:notebook-renderers `
+        compile-extension:json-language-features-client `
         compile-extension:json-language-features-server `
         compile-extension:markdown-language-features `
         compile-extension-media `
@@ -200,4 +201,4 @@ steps:
         }
     displayName: Kill lingering test processes
     continueOnError: true
-    condition: succeededOrFailed()
+    condition: always()

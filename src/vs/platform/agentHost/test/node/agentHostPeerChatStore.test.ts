@@ -150,6 +150,41 @@ suite('AgentHostPeerChatStore', () => {
 		});
 	});
 
+	test('initialization returns current membership instead of stale migration entries', async () => {
+		const database = new TestSessionDatabase();
+		const store = createStore(database);
+		await store.upsert(session, first, 'current-backing', origin);
+
+		const initialized = await store.initialize(session, [{ uri: second.toString(), providerData: 'stale-backing' }]);
+
+		assert.deepStrictEqual({
+			initialized,
+			legacy: await store.tryReadLegacy(session),
+		}, {
+			initialized: [{ uri: first.toString(), providerData: 'current-backing', origin }],
+			legacy: [{ uri: first.toString(), providerData: 'current-backing', origin }],
+		});
+	});
+
+	test('initialization does not resurrect a peer deleted during legacy enumeration', async () => {
+		const database = new TestSessionDatabase();
+		const store = createStore(database);
+		await store.upsert(session, first, 'backing');
+		await store.remove(session, first);
+
+		const initialized = await store.initialize(session, [{ uri: first.toString(), providerData: 'backing' }]);
+
+		assert.deepStrictEqual({
+			initialized,
+			central: await store.tryRead(session),
+			legacy: await store.tryReadLegacy(session),
+		}, {
+			initialized: [],
+			central: [],
+			legacy: [],
+		});
+	});
+
 	test('merges an older-build delta against migration-only membership before mirroring', async () => {
 		const unavailable = {
 			...createSessionDataService(),
@@ -425,15 +460,15 @@ suite('AgentHostPeerChatStore', () => {
 		);
 	});
 
-	test('refreshes provider data without dropping persisted origin or inherited turn', async () => {
+	test('refreshes provider data without dropping persisted origin, inherited turn, or working directories', async () => {
 		const database = new TestSessionDatabase();
 		const store = createStore(database);
-		await store.upsert(session, first, 'old', origin, 'inherited-turn');
+		await store.upsert(session, first, 'old', origin, 'inherited-turn', ['file:///workspace/first']);
 
 		await store.upsert(session, first, 'refreshed');
 
 		assert.deepStrictEqual(await store.tryRead(session), [
-			{ uri: first.toString(), providerData: 'refreshed', origin, inheritedTurnId: 'inherited-turn' },
+			{ uri: first.toString(), providerData: 'refreshed', origin, inheritedTurnId: 'inherited-turn', workingDirectories: ['file:///workspace/first'] },
 		]);
 	});
 

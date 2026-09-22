@@ -167,6 +167,7 @@ export class ExecutionSubagentToolCallingLoop extends ToolCallingLoop<IExecution
 	protected async buildPrompt(buildpromptContext: IBuildPromptContext, progress: Progress<ChatResponseReferencePart | ChatResponseProgressPart>, token: CancellationToken): Promise<IBuildPromptResult> {
 		const endpoint = await this.getEndpoint();
 		const maxExecutionTurns = this._configurationService.getExperimentBasedConfig(ConfigKey.Advanced.ExecutionSubagentToolCallLimit, this._experimentationService);
+		const turnWisePrompting = this._configurationService.getExperimentBasedConfig(ConfigKey.Advanced.ExecutionSubagentTurnWisePrompting, this._experimentationService);
 
 		const render = (hasBackgroundCommand: boolean) => PromptRenderer.create(
 			this.instantiationService,
@@ -175,6 +176,7 @@ export class ExecutionSubagentToolCallingLoop extends ToolCallingLoop<IExecution
 			{
 				promptContext: buildpromptContext,
 				maxExecutionTurns,
+				turnWisePrompting,
 				hasBackgroundCommand,
 			}
 		).render(progress, token);

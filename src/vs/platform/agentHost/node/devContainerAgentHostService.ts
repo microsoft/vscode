@@ -737,8 +737,15 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 	): ChildProcessWithoutNullStreams {
 		return spawn(process.execPath, [getDevContainerCliPath(), ...args], {
 			stdio: ['pipe', 'pipe', 'pipe'],
-			env: { ...environment, ELECTRON_RUN_AS_NODE: '1' },
+			env: this._getDevContainerSpawnEnvironment(environment),
 		});
+	}
+
+	protected _getDevContainerSpawnEnvironment(environment: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
+		const spawnEnvironment: NodeJS.ProcessEnv = { ...environment, ELECTRON_RUN_AS_NODE: '1' };
+		delete spawnEnvironment.NODE_OPTIONS;
+		delete spawnEnvironment.VSCODE_INSPECTOR_OPTIONS;
+		return spawnEnvironment;
 	}
 
 	async relaySend(connectionId: string, message: string): Promise<void> {

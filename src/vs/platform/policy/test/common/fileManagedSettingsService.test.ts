@@ -15,7 +15,7 @@ import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesy
 import { NullLogService } from '../../../log/common/log.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
-import { COPILOT_ALLOW_MANAGED_HOOKS_ONLY_KEY, COPILOT_ALLOW_MANAGED_MCP_SERVERS_ONLY_KEY, COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY, COPILOT_ENABLED_PLUGINS_KEY, COPILOT_EXTRA_MARKETPLACES_KEY, COPILOT_MODEL_KEY, COPILOT_STRICT_PLUGIN_ONLY_CUSTOMIZATION_KEY, COPILOT_TOP_LEVEL_MODEL_KEY, managedModelValue, normalizeManagedSettings, RawManagedSettingsData } from '../../common/copilotManagedSettings.js';
+import { COPILOT_ALLOW_MANAGED_HOOKS_ONLY_KEY, COPILOT_ALLOW_MANAGED_MCP_SERVERS_ONLY_KEY, COPILOT_AUTO_TIER_KEY, COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY, COPILOT_ENABLED_PLUGINS_KEY, COPILOT_EXTRA_MARKETPLACES_KEY, COPILOT_MODEL_KEY, COPILOT_STRICT_PLUGIN_ONLY_CUSTOMIZATION_KEY, COPILOT_TOP_LEVEL_MODEL_KEY, managedModelValue, normalizeManagedSettings, pickManagedSettings, RawManagedSettingsData } from '../../common/copilotManagedSettings.js';
 import { FileManagedSettingsService } from '../../common/fileManagedSettingsService.js';
 import { FileManagedSettingsChannelClient } from '../../common/fileManagedSettingsIpc.js';
 
@@ -31,6 +31,21 @@ suite('normalizeManagedSettings', () => {
 		});
 		assert.deepStrictEqual(result, {
 			'permissions.disableBypassPermissionsMode': 'disable'
+		});
+	});
+
+	test('Auto tier variants resolve atomically without mixing managed sources', () => {
+		const native = normalizeManagedSettings({ autoTier: { overridable: 'efficiency' } });
+		const server = normalizeManagedSettings({ autoTier: 'intelligence' });
+		const file = normalizeManagedSettings({ autoTier: { overridable: 'balance' } });
+		assert.deepStrictEqual({
+			native,
+			effective: pickManagedSettings(native, server, file).values,
+			removed: pickManagedSettings(undefined, server, file).values,
+		}, {
+			native: { [COPILOT_AUTO_TIER_KEY]: '{"overridable":"efficiency"}' },
+			effective: { [COPILOT_AUTO_TIER_KEY]: '{"overridable":"efficiency"}' },
+			removed: { [COPILOT_AUTO_TIER_KEY]: '"intelligence"' },
 		});
 	});
 

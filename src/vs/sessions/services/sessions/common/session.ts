@@ -41,6 +41,14 @@ export interface ISessionType {
 	 * credentials come and go).
 	 */
 	readonly authRequirement: SessionTypeAuthRequirement;
+	/**
+	 * Selection-time initialization advertised by the provider while this type
+	 * is not usable yet. Absent when selecting the type cannot make progress.
+	 */
+	readonly initializationOnSelection?: {
+		/** Whether the provider already has non-GitHub authentication for initialization. */
+		readonly canInitializeWithoutGitHub: boolean;
+	};
 }
 
 /**
@@ -115,6 +123,13 @@ export function getSessionStatusMessage(status: SessionStatus, description: IMar
 		default:
 			return undefined;
 	}
+}
+
+/** Provider-owned progress while preparing a draft for its first request. */
+export interface ISessionPreparationProgress {
+	readonly message: string;
+	readonly showLog?: () => void;
+	cancel(): void;
 }
 
 /**
@@ -367,9 +382,11 @@ export interface IGitHubPullRequestRef {
 	 * discovered from git state, which carry no title until they are fetched live.
 	 */
 	readonly title?: string;
+	/** Stable ID of the recorded session artifact or reference represented by this entry, when recorded via `add_artifact_or_reference`. Absent for git-/session-discovered associations. */
+	readonly recordedReferenceId?: string;
 	/**
-	 * Whether this pull request originated in or was explicitly associated with the session, as opposed to being
-	 * inherited from the checkout it started from or merely referenced by the agent.
+	 * Whether this pull request originated in or was explicitly recorded as the session's own artifact, as opposed to being
+	 * inherited from the checkout it started from or merely recorded as a reference by the agent.
 	 */
 	readonly createdByThisSession?: boolean;
 }
@@ -413,6 +430,8 @@ export interface IGitHubIssueRef {
 	readonly uri: URI;
 	/** Issue title recorded by the session, when known. */
 	readonly title?: string;
+	/** Stable ID of the recorded session artifact or reference represented by this entry, when recorded via `add_artifact_or_reference`. Absent for git-/session-discovered associations. */
+	readonly recordedReferenceId?: string;
 }
 
 export interface ISessionChangesSummary {
@@ -649,6 +668,8 @@ export interface IChat {
 
 	// Reactive properties
 
+	/** The effective workspace available to this chat. */
+	readonly workspace: IObservable<ISessionWorkspace | undefined>;
 	/** Chat display title (changes when auto-titled or renamed). */
 	readonly title: IObservable<string>;
 	/** When the chat was last updated. */
@@ -712,6 +733,13 @@ export interface IChat {
 	 * {@link getChatCapabilities}.
 	 */
 	readonly capabilities?: IObservable<IChatCapabilities>;
+}
+
+/** Whether the chat is a side chat spawned by the given parent chat. */
+export function isSideChatOf(chat: IChat, parentChat: URI): boolean {
+	return chat.origin?.kind === ChatOriginKind.SideChat
+		&& !!chat.origin.parentChat
+		&& isEqual(chat.origin.parentChat, parentChat);
 }
 
 /**
@@ -796,6 +824,7 @@ export interface ISession {
 	readonly loading: IObservable<boolean>;
 	/** Whether the first request lifecycle is in progress. Used to present a still-untitled draft as active during preparation. Absent means `false`. */
 	readonly isNewSessionRequestInProgress?: IObservable<boolean>;
+	readonly preparationProgress?: IObservable<ISessionPreparationProgress | undefined>;
 	/** Whether the session is archived. */
 	readonly isArchived: IObservable<boolean>;
 	/** Whether the session has been read. */
@@ -1052,6 +1081,7 @@ export function gitHubInfoEqual(a: IGitHubInfo | undefined, b: IGitHubInfo | und
 			x.state === y.state &&
 			x.liveState === y.liveState &&
 			x.title === y.title &&
+			x.recordedReferenceId === y.recordedReferenceId &&
 			x.createdByThisSession === y.createdByThisSession &&
 			(x.icon === y.icon || (!!x.icon && !!y.icon && ThemeIcon.isEqual(x.icon, y.icon)))) &&
 		a.pullRequest?.number === b.pullRequest?.number &&
@@ -1067,7 +1097,8 @@ export function gitHubInfoEqual(a: IGitHubInfo | undefined, b: IGitHubInfo | und
 			x.repo === y.repo &&
 			x.number === y.number &&
 			isEqual(x.uri, y.uri) &&
-			x.title === y.title);
+			x.title === y.title &&
+			x.recordedReferenceId === y.recordedReferenceId);
 }
 
 /**

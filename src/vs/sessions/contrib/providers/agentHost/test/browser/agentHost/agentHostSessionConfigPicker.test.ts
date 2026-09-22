@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { IListAccessibilityProvider } from '../../../../../../../base/browser/ui/list/listWidget.js';
 import { DeferredPromise } from '../../../../../../../base/common/async.js';
 import { Codicon } from '../../../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../../../base/common/event.js';
@@ -21,7 +22,7 @@ import { checkoutOperationDirtyWorkingTreeErrorData } from '../../../../../../..
 import { SessionConfigKey } from '../../../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { JsonRpcErrorCodes, ProtocolError } from '../../../../../../../platform/agentHost/common/state/sessionProtocol.js';
 import { ResolveSessionConfigResult, SessionConfigPropertySchema, SessionConfigValueItem } from '../../../../../../../platform/agentHost/common/state/protocol/commands.js';
-import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
+import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IContextKeyService } from '../../../../../../../platform/contextkey/common/contextkey.js';
 import { IDialogService, type IPrompt, type IPromptResult } from '../../../../../../../platform/dialogs/common/dialogs.js';
@@ -31,6 +32,8 @@ import { IStorageService } from '../../../../../../../platform/storage/common/st
 import { ITelemetryService } from '../../../../../../../platform/telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { IView } from '../../../../../../../workbench/common/views.js';
+import { IsSessionsWindowContext } from '../../../../../../../workbench/common/contextkeys.js';
+import { ChatContextKeys } from '../../../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { IViewsService } from '../../../../../../../workbench/services/views/common/viewsService.js';
 import { IWorkbenchLayoutService } from '../../../../../../../workbench/services/layout/browser/layoutService.js';
 import { IAgentWorkbenchLayoutService } from '../../../../../../browser/workbench.js';
@@ -45,6 +48,9 @@ import { IActiveSession } from '../../../../../../services/sessions/common/sessi
 import { ISessionChangeset, ISessionChangesetOperationTarget, ISessionWorkspace, SessionChangesetOperationScope, SessionChangesetOperationStatus, UNCOMMITTED_CHANGES_CHANGESET_ID } from '../../../../../../services/sessions/common/session.js';
 import { ISessionsProvider } from '../../../../../../services/sessions/common/sessionsProvider.js';
 import { AgentHostSessionConfigPicker, AgentHostSessionConfigPickerContribution, IConfigPickerItem, PickerActionViewItem } from '../../../browser/agentHostSessionConfigPicker.js';
+import { getWindow } from '../../../../../../../base/browser/dom.js';
+import { EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, UNIFIED_WORKSPACE_PICKER_SETTING } from '../../../../../../contrib/chat/common/constants.js';
+import { IsPhoneLayoutContext } from '../../../../../../common/contextkeys.js';
 
 const SESSION_ID = 'local-agent-host:s1';
 const SESSION_RESOURCE = URI.parse('agent-session:/s1');
@@ -221,6 +227,7 @@ function branchState(container: HTMLElement): { icon: string | undefined; ariaLa
 class CapturingActionWidgetHolder {
 	delegate: IActionListDelegate<IConfigPickerItem> | undefined;
 	items: readonly IActionListItem<IConfigPickerItem>[] = [];
+	accessibilityProvider: Partial<IListAccessibilityProvider<IActionListItem<IConfigPickerItem>>> | undefined;
 	readonly events: string[] = [];
 }
 
@@ -242,16 +249,19 @@ function setupServices(
 	instantiationService.stub(IActionWidgetService, {
 		isVisible: false,
 		hide: () => actionWidget.events.push('hide'),
-		show: (_user, _supportsPreview, items: readonly IActionListItem<IConfigPickerItem>[], delegate: IActionListDelegate<IConfigPickerItem>) => {
+		show: (_user, _supportsPreview, items: readonly IActionListItem<IConfigPickerItem>[], delegate: IActionListDelegate<IConfigPickerItem>, _anchor, _container, _actionBarActions, accessibilityProvider: Partial<IListAccessibilityProvider<IActionListItem<IConfigPickerItem>>> | undefined) => {
 			actionWidget.items = items;
 			actionWidget.delegate = delegate;
+			actionWidget.accessibilityProvider = accessibilityProvider;
 		},
 	} as Partial<IActionWidgetService> as IActionWidgetService);
 	instantiationService.stub(IHoverService, { setupDelayedHover: () => ({ dispose: () => { } }) } as Partial<IHoverService> as IHoverService);
 	instantiationService.stub(ITelemetryService, NullTelemetryService);
-	instantiationService.stub(IConfigurationService, new TestConfigurationService({
+	const configurationService = new TestConfigurationService({
 		[DevContainerWorktreeEnabledSettingId]: false,
-	}));
+	});
+	store.add(configurationService.onDidChangeConfigurationEmitter);
+	instantiationService.stub(IConfigurationService, configurationService);
 	const checkoutDialogs: { message: string; buttons: readonly string[]; cancelButton: boolean; alignment: string | undefined }[] = [];
 	instantiationService.stub(IDialogService, {
 		prompt: async <T,>(prompt: IPrompt<T>): Promise<IPromptResult<T>> => {
@@ -329,7 +339,7 @@ function setupServices(
 		override readonly changesets = changesetsObs;
 	}();
 	const sessionObs = observableValue<IActiveSession | undefined>('activeSession', activeSession);
-	return { instantiationService, provider, activeSession, sessionObs, workspaceObs, changesetsObs, uncommittedChangeset, actionWidget, checkoutInvocations, branchSelectionEvents, checkoutDialogs };
+	return { instantiationService, provider, activeSession, sessionObs, workspaceObs, changesetsObs, uncommittedChangeset, actionWidget, checkoutInvocations, branchSelectionEvents, checkoutDialogs, configurationService };
 }
 
 /** Create and render a fresh picker instance, as the toolbar does on a rebuild. */
@@ -381,7 +391,7 @@ suite('Agent Host Session Config Picker', () => {
 		});
 	});
 
-	test('contributes one repository toolbar action per renderable property', () => {
+	test('contributes repository toolbar actions in the configured layout order', async () => {
 		const services = setupServices(store);
 		services.instantiationService.stub(IActionViewItemService, new class extends mock<IActionViewItemService>() {
 			override readonly onDidChange = Event.None;
@@ -395,24 +405,30 @@ suite('Agent Host Session Config Picker', () => {
 		}());
 		store.add(services.instantiationService.createInstance(AgentHostSessionConfigPickerContribution));
 
-		const entries = MenuRegistry.getMenuItems(Menus.NewSessionRepositoryConfig)
+		const getEntries = () => MenuRegistry.getMenuItems(Menus.NewSessionRepositoryConfig)
 			.filter(isIMenuItem)
 			.filter(item => item.command.id.startsWith('sessions.agentHost.sessionConfigPicker.'))
-			.map(item => ({
-				id: item.command.id,
-				title: typeof item.command.title === 'string' ? item.command.title : item.command.title.value,
-				order: item.order,
-			}));
+			.map(item => typeof item.command.title === 'string' ? item.command.title : item.command.title.value);
+		const orders = [getEntries()];
+		const setSetting = async (setting: string, value: boolean) => {
+			await services.configurationService.setUserConfiguration(setting, value);
+			services.configurationService.onDidChangeConfigurationEmitter.fire(new class extends mock<IConfigurationChangeEvent>() {
+				override affectsConfiguration(section: string): boolean {
+					return section === setting;
+				}
+			}());
+			orders.push(getEntries());
+		};
+		await setSetting(EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, true);
+		await setSetting(UNIFIED_WORKSPACE_PICKER_SETTING, true);
+		await setSetting(EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, false);
 
-		assert.deepStrictEqual(entries, [{
-			id: `sessions.agentHost.sessionConfigPicker.${SessionConfigKey.Isolation}`,
-			title: 'Isolation',
-			order: 1,
-		}, {
-			id: `sessions.agentHost.sessionConfigPicker.${SessionConfigKey.Branch}`,
-			title: 'Base Branch',
-			order: 2,
-		}]);
+		assert.deepStrictEqual(orders, [
+			['Isolation', 'Base Branch'],
+			['Isolation', 'Base Branch'],
+			['Base Branch', 'Isolation'],
+			['Isolation', 'Base Branch'],
+		]);
 	});
 
 	test('restores pointer and keyboard focus without leaving pointer focus visible', async () => {
@@ -442,7 +458,55 @@ suite('Agent Host Session Config Picker', () => {
 		});
 	});
 
-	test('places mode immediately before approvals in secondary toolbars', () => {
+	test('keeps the repository action bar active only while the branch picker is open', async () => {
+		const services = setupServices(store);
+		services.provider.config = makeRepoConfig('main');
+		services.provider.config.schema.properties.other = {
+			title: 'Other', description: '', type: 'string',
+			enum: ['one', 'two'],
+		};
+		services.provider.config.values.other = 'one';
+		const { container } = renderPicker(store, services);
+		const repositoryConfigContainer = document.createElement('div');
+		repositoryConfigContainer.classList.add('new-chat-repo-config-container');
+		repositoryConfigContainer.appendChild(container);
+		const trigger = branchSlot(container)!.querySelector<HTMLElement>('a.action-label')!;
+		const otherTrigger = Array.from(container.querySelectorAll<HTMLElement>('.sessions-chat-picker-slot'))
+			.at(-1)!
+			.querySelector<HTMLElement>('a.action-label')!;
+
+		const beforeOpen = {
+			expanded: trigger.getAttribute('aria-expanded'),
+			repositoryPickerOpen: repositoryConfigContainer.getAttribute('data-picker-open'),
+		};
+		otherTrigger.click();
+		await new Promise(resolve => setTimeout(resolve));
+		const otherPickerOpen = {
+			expanded: otherTrigger.getAttribute('aria-expanded'),
+			repositoryPickerOpen: repositoryConfigContainer.getAttribute('data-picker-open'),
+		};
+		services.actionWidget.delegate!.onHide();
+		trigger.click();
+		await new Promise(resolve => setTimeout(resolve));
+		const whileOpen = {
+			expanded: trigger.getAttribute('aria-expanded'),
+			repositoryPickerOpen: repositoryConfigContainer.getAttribute('data-picker-open'),
+		};
+		services.actionWidget.delegate!.onHide();
+		const afterClose = {
+			expanded: trigger.getAttribute('aria-expanded'),
+			repositoryPickerOpen: repositoryConfigContainer.getAttribute('data-picker-open'),
+		};
+
+		assert.deepStrictEqual({ beforeOpen, otherPickerOpen, whileOpen, afterClose }, {
+			beforeOpen: { expanded: 'false', repositoryPickerOpen: null },
+			otherPickerOpen: { expanded: 'true', repositoryPickerOpen: null },
+			whileOpen: { expanded: 'true', repositoryPickerOpen: 'true' },
+			afterClose: { expanded: 'false', repositoryPickerOpen: null },
+		});
+	});
+
+	test('places mode immediately before approvals in new and running session toolbars', () => {
 		const summarize = (menu: MenuId, ids: readonly string[]) => MenuRegistry.getMenuItems(menu)
 			.filter(isIMenuItem)
 			.filter(item => ids.includes(item.command.id))
@@ -472,12 +536,53 @@ suite('Agent Host Session Config Picker', () => {
 				{ id: 'sessions.agentHost.newSessionApprovePicker', order: 1 },
 				{ id: 'sessions.agentHost.newSessionPermissionModePicker', order: 2 },
 			],
-			runningSessionPrimary: [],
+			runningSessionPrimary: [
+				{ id: 'sessions.agentHost.runningSessionModePicker', order: 0.1 },
+				{ id: 'sessions.agentHost.runningSessionConfigPicker', order: 0.2 },
+				{ id: 'sessions.agentHost.runningSessionPermissionModePicker', order: 0.3 },
+			],
 			runningSessionSecondary: [
 				{ id: 'sessions.agentHost.runningSessionModePicker', order: 9 },
 				{ id: 'sessions.agentHost.runningSessionConfigPicker', order: 10 },
 				{ id: 'sessions.agentHost.runningSessionPermissionModePicker', order: 11 },
 			],
+		});
+	});
+
+	test('moves running-session controls only in the desktop Agents Window experiment', () => {
+		const findModePicker = (menu: MenuId) => {
+			const item = MenuRegistry.getMenuItems(menu)
+				.find(item => isIMenuItem(item) && item.command.id === 'sessions.agentHost.runningSessionModePicker');
+			assert.ok(item && isIMenuItem(item));
+			return item;
+		};
+		const primary = findModePicker(MenuId.ChatInput);
+		const secondary = findModePicker(MenuId.ChatInputSecondary);
+		const visible = (item: typeof primary, values: Record<string, boolean>) => item.when?.evaluate({
+			getValue<T>(key: string): T | undefined {
+				return values[key] as T | undefined;
+			},
+		}) ?? true;
+		const agentHost = { [ChatContextKeys.chatIsAgentHostSession.key]: true };
+		const experiment = {
+			[`config.${EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING}`]: true,
+			[`config.${UNIFIED_WORKSPACE_PICKER_SETTING}`]: true,
+		};
+		const evaluate = (values: Record<string, boolean>) => ({
+			primary: visible(primary, { ...agentHost, ...values }),
+			secondary: visible(secondary, { ...agentHost, ...values }),
+		});
+
+		assert.deepStrictEqual({
+			agentsWindow: evaluate({ ...experiment, [IsSessionsWindowContext.key]: true, [IsPhoneLayoutContext.key]: false }),
+			experimentOff: evaluate({ ...experiment, [`config.${EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING}`]: false, [IsSessionsWindowContext.key]: true, [IsPhoneLayoutContext.key]: false }),
+			editorWindow: evaluate({ ...experiment, [IsSessionsWindowContext.key]: false, [IsPhoneLayoutContext.key]: false }),
+			phone: evaluate({ ...experiment, [IsSessionsWindowContext.key]: true, [IsPhoneLayoutContext.key]: true }),
+		}, {
+			agentsWindow: { primary: true, secondary: false },
+			experimentOff: { primary: false, secondary: true },
+			editorWindow: { primary: false, secondary: true },
+			phone: { primary: false, secondary: true },
 		});
 	});
 
@@ -626,6 +731,47 @@ suite('Agent Host Session Config Picker', () => {
 		}, {
 			ariaLabel: 'Approval Mode: Assisted, Read-Only',
 			warning: true,
+		});
+	});
+
+	test('generic approval choices announce their badges without losing accessible descriptions', async () => {
+		const services = setupServices(store);
+		services.provider.config = {
+			schema: {
+				type: 'object',
+				properties: {
+					autoApprove: {
+						title: 'Approvals',
+						type: 'string',
+						enum: ['default', 'assisted', 'custom'],
+						enumLabels: ['Manual permissions', 'Assisted permissions', 'Custom permissions'],
+					},
+				},
+			},
+			values: { autoApprove: 'default' },
+		};
+		const picker = store.add(services.instantiationService.createInstance(AlwaysRenderConfigPicker, services.sessionObs, SessionConfigKey.AutoApprove));
+		const container = document.createElement('div');
+		picker.render(container);
+		container.querySelector<HTMLElement>('.action-label')!.click();
+		await new Promise(resolve => setTimeout(resolve));
+
+		const getAriaLabel = services.actionWidget.accessibilityProvider?.getAriaLabel;
+		assert.ok(getAriaLabel);
+		const assisted = services.actionWidget.items.find(item => item.item?.value === 'assisted');
+		assert.ok(assisted);
+		assert.deepStrictEqual({
+			choices: services.actionWidget.items.map(item => ({ label: getAriaLabel(item), badge: item.badge })),
+			withDescription: getAriaLabel({ ...assisted, ariaDescription: 'Evaluates risk before running tools' }),
+			descriptionOnly: getAriaLabel({ ...assisted, badge: undefined, ariaDescription: 'Evaluates risk before running tools' }),
+		}, {
+			choices: [
+				{ label: 'Manual permissions', badge: undefined },
+				{ label: 'Assisted permissions, Experimental', badge: 'Experimental' },
+				{ label: 'Custom permissions', badge: undefined },
+			],
+			withDescription: 'Assisted permissions, Experimental, Evaluates risk before running tools',
+			descriptionOnly: 'Assisted permissions, Evaluates risk before running tools',
 		});
 	});
 
@@ -1237,6 +1383,8 @@ suite('Agent Host Session Config Picker', () => {
 		checkbox.focus();
 		provider.set(makeRepoConfig('main', 'folder'), true);
 		const resolvingCheckbox = isolationSlot(container)!.querySelector<HTMLElement>('.monaco-checkbox')!;
+		const resolvingActionLabel = isolationSlot(container)!.querySelector<HTMLElement>('.action-label')!;
+		resolvingActionLabel.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
 		const resolvingState = {
 			sameNode: resolvingCheckbox === checkbox,
 			focused: document.activeElement === checkbox,
@@ -1245,6 +1393,8 @@ suite('Agent Host Session Config Picker', () => {
 			disabledPalette: resolvingCheckbox.classList.contains('disabled'),
 			resolving: isolationSlot(container)!.classList.contains('resolving'),
 			dimmed: isolationSlot(container)!.classList.contains('disabled'),
+			pointerEvents: getWindow(container).getComputedStyle(resolvingActionLabel).pointerEvents,
+			setSessionConfigValueCalls: provider.setSessionConfigValueCalls,
 		};
 
 		provider.set(makeRepoConfig('main', 'folder'), false);
@@ -1268,6 +1418,8 @@ suite('Agent Host Session Config Picker', () => {
 				disabledPalette: false,
 				resolving: true,
 				dimmed: false,
+				pointerEvents: 'auto',
+				setSessionConfigValueCalls: 0,
 			},
 			resolved: {
 				sameNode: true,

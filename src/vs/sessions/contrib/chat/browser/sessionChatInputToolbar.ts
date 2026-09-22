@@ -31,7 +31,7 @@ import { IGitHubService } from '../../github/browser/githubService.js';
 import { IResolvedSessionPullRequest, SessionPullRequestPresentationModel } from '../../github/browser/pullRequestIconStatus.js';
 import { ISessionChatPillVisibilityService, SESSION_CHAT_PILL_KINDS, SessionChatPillKind } from '../../../../workbench/contrib/chat/common/sessionChatPills.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
-import { BRANCH_CHANGES_CHANGESET_ID, ChatOriginKind, getGitHubPullRequestRefs, IChat, SESSION_CHANGES_CHANGESET_ID, SessionArtifactKind, type ISessionArtifact, type IGitHubIssueRef, type IGitHubPullRequestRef } from '../../../services/sessions/common/session.js';
+import { BRANCH_CHANGES_CHANGESET_ID, ChatOriginKind, getGitHubPullRequestRefs, IChat, SESSION_CHANGES_CHANGESET_ID, type IGitHubIssueRef, type IGitHubPullRequestRef } from '../../../services/sessions/common/session.js';
 import { IActiveSession, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { SessionBackgroundActivitiesControl } from './sessionBackgroundActivitiesControl.js';
@@ -45,7 +45,6 @@ import { IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
 import { getSessionAgentMergeConfigurationObservable } from '../../../browser/sessionAgentMerge.js';
 import { createIssueHover, getIssueStatus } from '../../github/browser/issueHover.js';
 import { createPullRequestHover, getPullRequestChecksStatusLabel } from '../../github/browser/pullRequestHover.js';
-import { linkKey } from '../../../common/sessionLinks.js';
 
 /** Fake artifacts for the pill debug overlay. */
 function buildDebugArtifactSections(debugData: ISessionChatPillsDebugData): readonly IChatPillSection[] {
@@ -100,11 +99,15 @@ function createCachedHover<T extends IGitHubPullRequestRef | IGitHubIssueRef>(ca
 	return { element: cachedHover.element, tabbableElements: hover.tabbableElements };
 }
 
+interface IRecordedReferenceActions {
+	remove(id: string, label: string): Promise<void>;
+}
+
 /** Builds Agents Window pull request pill entries, enriching them when live details are available. */
-export function buildSessionPullRequestSections(pullRequests: readonly IResolvedSessionPullRequest[], session: IActiveSession | undefined, commandService: ICommandService, clipboardService: IClipboardService, openerService: IOpenerService, sessionsService: ISessionsService, artifactActions?: { readonly artifacts: readonly ISessionArtifact[]; remove(artifactIds: readonly string[]): Promise<void> }, dropdownHoverCache?: WeakMap<IGitHubPullRequestRef, ICachedHover>): readonly IChatPullRequestPillSection[] {
+export function buildSessionPullRequestSections(pullRequests: readonly IResolvedSessionPullRequest[], session: IActiveSession | undefined, commandService: ICommandService, clipboardService: IClipboardService, openerService: IOpenerService, sessionsService: ISessionsService, referenceActions?: IRecordedReferenceActions, dropdownHoverCache?: WeakMap<IGitHubPullRequestRef, ICachedHover>): readonly IChatPullRequestPillSection[] {
 	const entries = pullRequests.map(({ ref, pullRequest, icon, status, ciStatus }) => {
-		const artifacts = artifactActions?.artifacts.filter(artifact => artifact.isArtifact && artifact.kind === SessionArtifactKind.PullRequest && artifact.link && linkKey(artifact.link.toString(true)) === linkKey(ref.uri.toString(true)));
 		const title = pullRequest?.title ?? ref.title;
+		const recordedReferenceId = ref.recordedReferenceId;
 		let hoverTabbableElements: readonly HTMLElement[] = [];
 		const createHover = pullRequest ? (density: 'default' | 'compact') => createPullRequestHover({
 			owner: ref.owner,
@@ -145,17 +148,17 @@ export function buildSessionPullRequestSections(pullRequests: readonly IResolved
 			? getPullRequestChecksStatusLabel(pullRequest, ciStatus)
 			: undefined;
 		return {
-			id: ref.uri.toString(),
+			id: recordedReferenceId ?? ref.uri.toString(),
 			label,
 			...(title ? { badge: `#${ref.number}`, className: 'chat-pill-github-reference' } : {}),
 			pillLabel: `#${ref.number}`,
 			icon: resolvedIcon,
 			pullRequestState: state,
-			removeAction: artifacts?.length && artifactActions ? toAction({
-				id: `sessionChatPills.removePullRequest.${ref.owner}.${ref.repo}.${ref.number}`,
-				label: localize('sessionChatPills.removePullRequest', "Remove Pull Request Artifact from Session"),
+			promotedAction: recordedReferenceId && referenceActions ? toAction({
+				id: `sessionChatPills.removePullRequest.${recordedReferenceId}`,
+				label: localize('sessionChatPills.removePullRequest', "Remove Pull Request Reference from Session"),
 				class: ThemeIcon.asClassName(Codicon.close),
-				run: () => artifactActions.remove(artifacts.map(artifact => artifact.id)),
+				run: () => referenceActions.remove(recordedReferenceId, resourceLabel),
 			}) : undefined,
 			toolbarActions: [toAction({
 				id: `sessionChatPills.copyPullRequest.${ref.owner}.${ref.repo}.${ref.number}`,
@@ -189,9 +192,10 @@ interface IResolvedSessionIssue {
 }
 
 /** Builds Agents Window issue pill entries, enriching them when live details are available. */
-export function buildSessionIssueSections(issues: readonly IResolvedSessionIssue[], session: IActiveSession | undefined, commandService: ICommandService, clipboardService: IClipboardService, openerService: IOpenerService, sessionsService: ISessionsService, dropdownHoverCache?: WeakMap<IGitHubIssueRef, ICachedHover>): readonly IChatPillSection[] {
+export function buildSessionIssueSections(issues: readonly IResolvedSessionIssue[], session: IActiveSession | undefined, commandService: ICommandService, clipboardService: IClipboardService, openerService: IOpenerService, sessionsService: ISessionsService, referenceActions?: IRecordedReferenceActions, dropdownHoverCache?: WeakMap<IGitHubIssueRef, ICachedHover>): readonly IChatPillSection[] {
 	const entries = issues.map(({ ref, issue }) => {
 		const title = issue?.title ?? ref.title;
+		const recordedReferenceId = ref.recordedReferenceId;
 		let hoverTabbableElements: readonly HTMLElement[] = [];
 		const createHover = issue ? (density: 'default' | 'compact') => createIssueHover({
 			owner: ref.owner,
@@ -211,11 +215,17 @@ export function buildSessionIssueSections(issues: readonly IResolvedSessionIssue
 			: localize('sessionChatPills.issue', "Issue #{0}", ref.number);
 		const label = title ?? resourceLabel;
 		return {
-			id: ref.uri.toString(),
+			id: recordedReferenceId ?? ref.uri.toString(),
 			label,
 			...(title ? { badge: `#${ref.number}`, className: 'chat-pill-github-reference' } : {}),
 			pillLabel: `#${ref.number}`,
 			icon: issue ? computeIssueIcon(issue.state, issue.stateReason) : computeIssueIcon(GitHubIssueState.Open, undefined),
+			promotedAction: recordedReferenceId && referenceActions ? toAction({
+				id: `sessionChatPills.removeIssue.${recordedReferenceId}`,
+				label: localize('sessionChatPills.removeIssue', "Remove Issue Reference from Session"),
+				class: ThemeIcon.asClassName(Codicon.close),
+				run: () => referenceActions.remove(recordedReferenceId, resourceLabel),
+			}) : undefined,
 			toolbarActions: [toAction({
 				id: `sessionChatPills.copyIssue.${ref.owner}.${ref.repo}.${ref.number}`,
 				label: localize('sessionChatPills.copyIssue', "Copy Issue URL"),
@@ -363,22 +373,19 @@ export class SessionChatInputToolbar extends Disposable {
 			return session ? getSessionAgentMergeConfigurationObservable(session, sessionsProvidersService, this._configurationService).read(reader) : undefined;
 		});
 		const pullRequestPresentation = this._register(new SessionPullRequestPresentationModel(pullRequestRefs, agentMergeConfiguration, gitHubService));
+		const referenceActions = (session: IActiveSession, reader: IReader): IRecordedReferenceActions | undefined => session.capabilities.read(reader).supportsRemoveArtifacts ? {
+			remove: async (id, label) => {
+				try {
+					await sessionsManagementService.removeSessionArtifact(session, id);
+					status(localize('sessionChatPills.referenceRemoved', "{0} removed from session.", label));
+				} catch (error) {
+					notificationService.error(localize('sessionChatPills.removeReferenceFailed', "Could not remove {0} from this session: {1}", label, toErrorMessage(error)));
+				}
+			},
+		} : undefined;
 		const pullRequestSections = derived(this, reader => {
 			const session = this._session.read(reader);
-			const artifactActions = session?.capabilities.read(reader).supportsRemoveArtifacts ? {
-				artifacts: session.artifacts?.read(reader) ?? [],
-				remove: async (artifactIds: readonly string[]) => {
-					try {
-						for (const artifactId of artifactIds) {
-							await sessionsManagementService.removeSessionArtifact(session, artifactId);
-						}
-						status(localize('sessionChatPills.pullRequestRemoved', "Pull request artifact removed from session."));
-					} catch (error) {
-						notificationService.error(localize('sessionChatPills.removePullRequestFailed', "Could not remove pull request artifact: {0}", toErrorMessage(error)));
-					}
-				},
-			} : undefined;
-			return buildSessionPullRequestSections(pullRequestPresentation.pullRequests.read(reader), session, commandService, clipboardService, openerService, this._sessionsService, artifactActions, this._pullRequestDropdownHoverCache);
+			return buildSessionPullRequestSections(pullRequestPresentation.pullRequests.read(reader), session, commandService, clipboardService, openerService, this._sessionsService, session ? referenceActions(session, reader) : undefined, this._pullRequestDropdownHoverCache);
 		});
 		const issueRefs = derived(this, reader => gitHubInfo.read(reader)?.issues ?? []);
 		const issues = derived(this, reader => issueRefs.read(reader).map(ref => {
@@ -402,7 +409,10 @@ export class SessionChatInputToolbar extends Disposable {
 				}));
 			}
 		}));
-		const issueSections = derived(this, reader => buildSessionIssueSections(issues.read(reader), this._session.read(reader), commandService, clipboardService, openerService, this._sessionsService, this._issueDropdownHoverCache));
+		const issueSections = derived(this, reader => {
+			const session = this._session.read(reader);
+			return buildSessionIssueSections(issues.read(reader), session, commandService, clipboardService, openerService, this._sessionsService, session ? referenceActions(session, reader) : undefined, this._issueDropdownHoverCache);
+		});
 		const issueIcon = derived(this, reader => {
 			const resolved = issues.read(reader);
 			if (resolved.length === 1) {
@@ -440,12 +450,34 @@ export class SessionChatInputToolbar extends Disposable {
 				},
 			},
 			pullRequests: createSessionPullRequestPillData(pullRequestSections, visibility.pullRequests, pullRequestPresentation.icon),
-			issues: { sections: issueSections, icon: issueIcon },
-			artifacts: { sections: this._artifactSections },
-			references: { sections: this._referenceSections },
+			issues: {
+				sections: issueSections,
+				icon: issueIcon,
+				getContextMenuPrimaryActions: () => {
+					const entries = issueSections.get().flatMap(section => section.entries);
+					const promotedAction = entries.length === 1 ? entries[0].promotedAction : undefined;
+					return promotedAction ? [promotedAction] : [];
+				},
+			},
+			artifacts: {
+				sections: this._artifactSections,
+				getContextMenuPrimaryActions: () => {
+					const entries = this._artifactSections.get().flatMap(section => section.entries);
+					const promotedAction = entries.length === 1 ? entries[0].promotedAction : undefined;
+					return promotedAction ? [promotedAction] : [];
+				},
+			},
+			references: {
+				sections: this._referenceSections,
+				getContextMenuPrimaryActions: () => {
+					const entries = this._referenceSections.get().flatMap(section => section.entries);
+					const promotedAction = entries.length === 1 ? entries[0].promotedAction : undefined;
+					return promotedAction ? [promotedAction] : [];
+				},
+			},
 			customizations: { sections: this._customizationSections },
 			browsers: { sections: this._browsers.sections },
-			subagents: { sections: this._backgroundActivities.sections },
+			subagents: this._backgroundActivities,
 		}, SESSION_CHAT_PILL_KINDS));
 		const actionRunner = this._register(new SessionActivatingActionRunner(() => this._session.get(), this._sessionsService));
 		this._inputPills = this._register(instantiationService.createInstance(ChatInputPills, undefined, {

@@ -375,7 +375,7 @@ Distinct from individually disabled tests: whole areas where a platform or contr
 
 ### What is still Windows-scoped
 
-The blanket `!isWindows` shell exclusion is gone: `portableShellToolReplayEnabled` now only reflects the provider's shell-tool replay stability on Linux. Permission approval, file operations, renames, deletes, directory creation, git status, and git-backed config completions all run on Windows.
+The blanket `!isWindows` shell exclusion is gone. Permission approval, file operations, renames, deletes, directory creation, git status, and git-backed config completions all run on Windows.
 
 The following tests remain scoped at their call sites:
 
@@ -747,46 +747,6 @@ Copilot's ordinary provider shell also omits `ToolResultTerminalContent.result.p
 
 Use the affected provider command with `--grep "<exact test title>"` and temporarily remove the platform gate to reevaluate a row.
 
-### Codex shell-tool replay on Linux
-
-- Scope: Codex on Linux in deterministic replay.
-- Expected: recorded `exec_command` turns emit their tool lifecycle and complete.
-- Observed: packaged Linux completes the recorded turn without command-execution notifications.
-- Gate: `shellToolReplayUnstableOnLinux: true`. Recording and other platforms remain enabled.
-- Tests directly affected by this gate:
-  - `worktree session uses the resolved worktree as working directory`
-  - `reads an existing text file`
-  - `reads a file from a nested directory`
-  - `lists workspace entries`
-  - `reads a value from JSON`
-  - `counts lines in a file`
-  - `handles a missing file without a session error`
-  - `creates a new text file`
-  - `edits an existing text file`
-  - `creates a file in a new nested directory`
-  - `renames a workspace file`
-  - `deletes a workspace file`
-  - `runs a deterministic shell command`
-  - `reads a filename containing spaces`
-  - `secondary workspace skill reaches the Codex model request`
-  - `peer chat reads a file from the parent workspace`
-  - `peer chat reads a file from a nested directory`
-  - `peer chat creates a file in the parent workspace`
-  - `peer chat edits an existing workspace file`
-  - `peer chat creates a file in a nested directory`
-  - `peer chat handles a missing workspace file without an error`
-  - `peer chat reads a filename containing spaces`
-  - `two peer chats write distinct workspace files`
-  - `session changeset aggregates provider edits from default and peer chats`
-- Reproduce:
-
-  ```bash
-  ./scripts/test-integration.sh --run \
-    src/vs/platform/agentHost/test/node/e2e/providers/codexAgentHostE2E.integrationTest.ts
-  ```
-
-  Temporarily clear `shellToolReplayUnstableOnLinux`.
-
 ### Codex successful shell result text
 
 - Tests:
@@ -820,15 +780,37 @@ Use the affected provider command with `--grep "<exact test title>"` and tempora
 
   Temporarily clear `shellToolResultTextUnreliable`.
 
-### Claude subagent replay on Windows
+### Claude file deletion replay on Windows
 
-- Test: `reopening a session keeps sub-agent messages out of the parent transcript (replay path)`.
-- Scope: Claude on Windows.
-- Expected: the reopened parent transcript excludes subagent-only messages.
-- Observed: Claude reconstructs the subagent transcript from `subagents/agent-*.jsonl`, which is not reliably visible immediately on Windows.
-- Gate: `subagentReplayUnstableOnWindows: true`.
-- Related investigation: [#325284](https://github.com/microsoft/vscode/pull/325284).
-- Reproduce: temporarily clear the gate and run the exact title with `scripts\test-integration.bat`.
+A user can ask Claude to delete a file from the workspace through its shell tool. On Windows, the bundled Claude runtime can exit during this turn instead of reporting the tool result, which interrupts the session even though the same portable Node.js command succeeds in adjacent file-operation scenarios.
+
+- Test: `deletes a workspace file`.
+- Scope: Claude deterministic replay on Windows.
+- Expected: Claude runs the recorded `node` deletion command, reports a successful tool call, and completes the turn.
+- Observed: the Agent Host receives `Claude Code process exited with code 1` while driving the delete turn. The adjacent rename and deterministic-shell scenarios complete on the same worker.
+- Gate: `fileDeleteReplayUnstableOnWindows: true`. Recording and other platforms remain enabled.
+- Failing run: [PR #334648](https://github.com/microsoft/vscode/actions/runs/33930389356/job/101207609438?pr=334648).
+- Reproduce: temporarily clear the gate and run:
+
+  ```bat
+  scripts\test-integration.bat --run src\vs\platform\agentHost\test\node\e2e\providers\claudeAgentHostE2E.integrationTest.ts --grep "deletes a workspace file"
+  ```
+
+### Codex file creation replay on Windows
+
+A user can ask Codex to create a file in the workspace by running a command through its shell tool. On Windows, the turn finishes and the assistant reports the command as run, but the new file is not in the workspace afterwards, so a user who asked for a file would find nothing there.
+
+- Test: `creates a new text file`.
+- Scope: Codex deterministic replay on Windows.
+- Expected: Codex runs the recorded `node` creation command and `result.txt` contains `CREATED_VALUE` when the turn completes.
+- Observed: `ENOENT: no such file or directory, open '…\ahp-coverage-create-…\result.txt'` right after the turn completes. The adjacent edit, nested-create, rename, and delete scenarios run the same kind of command and pass on the same worker, and the scenario passes on macOS.
+- Gate: `fileCreateReplayUnstableOnWindows: true`. Recording and other platforms remain enabled.
+- Failing run: [PR #335918](https://github.com/microsoft/vscode/actions/runs/35553772031/job/106193302484?pr=335918).
+- Reproduce: temporarily clear the gate and run:
+
+  ```bat
+  scripts\test-integration.bat --run src\vs\platform\agentHost\test\node\e2e\providers\codexAgentHostE2E.integrationTest.ts --grep "creates a new text file"
+  ```
 
 ### Mid-turn abort is record-only
 

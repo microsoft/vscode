@@ -27,7 +27,7 @@ import { AgentSandboxEnabledSettingValue, isAgentSandboxEnabledValue } from '../
 import { maybeConfirmElevatedPermissionLevel } from '../../../../../workbench/contrib/chat/common/chatPermissionWarnings.js';
 import { IChatSessionsService } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ChatConfiguration, ChatPermissionLevel, isChatPermissionLevel } from '../../../../../workbench/contrib/chat/common/constants.js';
-import { IModePickerPermissions } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostModePickerPresentation.js';
+import { getPermissionLevelBadge, IModePickerPermissions } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostModePickerPresentation.js';
 import { reportNewChatPickerClosed } from '../../../chat/browser/newChatPickerTelemetry.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
@@ -64,8 +64,8 @@ export interface IPermissionPickerDelegate {
 	/**
 	 * The ordered set of permission levels the picker should offer. When
 	 * omitted, the picker offers the default Copilot set
-	 * (`Default` / `Bypass` / `Autopilot`). Agent-host sessions override this
-	 * to offer `Default` / `Bypass`.
+	 * (`Default` / `Bypass` / `Autopilot`). Agent-host sessions offer the
+	 * supported subset of `Default` / `Assisted` / `Bypass`.
 	 */
 	readonly availableLevels?: readonly ChatPermissionLevel[];
 
@@ -310,11 +310,12 @@ export class PermissionPicker extends Disposable {
 			// Default is never policy-restricted; elevated levels are disabled
 			// when enterprise policy turns off global auto-approval.
 			const disabled = level !== ChatPermissionLevel.Default && policyRestricted;
-			const hover = this._delegate.getPermissionLevelHover
-				? (disabled ? localize('permissions.policyDescription', "Disabled by enterprise policy") : this._getPermissionLevelHover(level, meta))
-				: meta.hover;
+			const hover = disabled
+				? localize('permissions.policyDescription', "Disabled by enterprise policy")
+				: this._getPermissionLevelHover(level, meta);
 			return {
 				kind: ActionListItemKind.Action,
+				...getPermissionLevelBadge(level),
 				group: { kind: ActionListItemKind.Header, title: '', icon: meta.icon },
 				item: {
 					level,
@@ -401,7 +402,7 @@ export class PermissionPicker extends Disposable {
 			},
 		};
 
-		const listOptions: IActionListOptions = { minWidth: 255 };
+		const listOptions: IActionListOptions = { minWidth: items.some(item => item.badge) ? 300 : 255 };
 		this.actionWidgetService.show<IPermissionItem>(
 			'permissionPicker',
 			false,
@@ -466,7 +467,8 @@ export class PermissionPicker extends Disposable {
 			defaultSettingKey: this._delegate.defaultSettingKey,
 			levelLabel: this._getPermissionLevelMeta(level).label,
 		});
-		if (!confirmed || isCurrentContext?.() === false) {
+		const policyRestricted = this.configurationService.inspect<boolean>(ChatConfiguration.GlobalAutoApprove).policyValue === false;
+		if (!confirmed || isCurrentContext?.() === false || (policyRestricted && level !== ChatPermissionLevel.Default)) {
 			reportNewChatPickerClosed(this.telemetryService, {
 				id: 'NewChatPermissionPicker',
 				name: 'NewChatPermissionPicker',

@@ -87,6 +87,7 @@ import { INotificationService } from '../../../../platform/notification/common/n
 import { TestNotificationService } from '../../../../platform/notification/test/common/testNotificationService.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { NullOpenerService } from '../../../../platform/opener/test/common/nullOpenerService.js';
+import { IManagedSettingsService, NullManagedSettingsService } from '../../../../platform/policy/common/copilotManagedSettings.js';
 import { IApplicationSharedStorageValueChangeEvent, IApplicationStorageValueChangeEvent, IProfileStorageValueChangeEvent, IStorageEntry, IStorageService, IStorageTargetChangeEvent, IStorageValueChangeEvent, IWillSaveStateEvent, IWorkspaceStorageValueChangeEvent, StorageScope, StorageTarget, WillSaveStateReason } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { NullTelemetryServiceShape } from '../../../../platform/telemetry/common/telemetryUtils.js';
@@ -101,6 +102,7 @@ import { TestContextService } from '../../common/workbenchTestServices.js';
 import { TestMenuService } from '../workbenchTestServices.js';
 import { IAccessibilitySignalService } from '../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 import { IResolvedTextEditorModel, ITextModelService } from '../../../../editor/common/services/resolverService.js';
+import { InMemoryTextModelService } from '../../../../editor/common/services/inMemoryTextModelService.js';
 // eslint-disable-next-line local/code-import-patterns
 import { AGENT_FEEDBACK_NEW_SESSION_RESOURCE, IAgentFeedbackService } from '../../../../sessions/contrib/agentFeedback/browser/agentFeedbackService.js';
 import { IChatEditingService } from '../../../contrib/chat/common/editing/chatEditingService.js';
@@ -607,9 +609,9 @@ export class FixtureModelService extends ModelService {
  * are automatically resolvable. URIs without a backing model fail loudly so
  * that callers don't silently receive a null `textEditorModel`.
  */
-export class FixtureTextModelService extends mock<ITextModelService>() {
+export class FixtureTextModelService extends InMemoryTextModelService {
 	constructor(@IModelService private readonly _modelService: IModelService) {
-		super();
+		super(_modelService);
 	}
 
 	override async createModelReference(resource: URI): Promise<IReference<IResolvedTextEditorModel>> {
@@ -617,19 +619,7 @@ export class FixtureTextModelService extends mock<ITextModelService>() {
 		if (!model) {
 			throw new Error(`FixtureTextModelService: no model registered for ${resource.toString()}`);
 		}
-		return {
-			// eslint-disable-next-line local/code-no-dangerous-type-assertions
-			object: { textEditorModel: model } as IResolvedTextEditorModel,
-			dispose() { },
-		};
-	}
-
-	override registerTextModelContentProvider(): IDisposable {
-		return { dispose() { } };
-	}
-
-	override canHandleResource(): boolean {
-		return false;
+		return super.createModelReference(resource);
 	}
 }
 
@@ -883,6 +873,7 @@ export function createEditorServices(disposables: DisposableStore, options?: Cre
  * Use with createEditorServices additionalServices option.
  */
 export function registerWorkbenchServices(registration: ServiceRegistration): void {
+	registration.defineInstance(IManagedSettingsService, new NullManagedSettingsService());
 	registration.defineInstance(IContextMenuService, {
 		showContextMenu: () => { },
 		onDidShowContextMenu: () => ({ dispose: () => { } }),

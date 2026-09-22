@@ -2858,7 +2858,7 @@ suite('ChatThinkingContentPart', () => {
 				'edit-part-1',
 				undefined,
 				undefined,
-				diffEmitter.event
+				{ onDidChangeDiff: diffEmitter.event, diffData: undefined }
 			);
 
 			part.finalizeTitleIfDefault();
@@ -2915,7 +2915,7 @@ suite('ChatThinkingContentPart', () => {
 				'edit-part-1',
 				undefined,
 				undefined,
-				diffEmitter1.event
+				{ onDidChangeDiff: diffEmitter1.event, diffData: undefined }
 			);
 
 			part.appendItem(
@@ -2923,7 +2923,7 @@ suite('ChatThinkingContentPart', () => {
 				'edit-part-2',
 				undefined,
 				undefined,
-				diffEmitter2.event
+				{ onDidChangeDiff: diffEmitter2.event, diffData: undefined }
 			);
 
 			part.finalizeTitleIfDefault();
@@ -2959,7 +2959,7 @@ suite('ChatThinkingContentPart', () => {
 				'edit-part-1',
 				undefined,
 				undefined,
-				diffEmitter.event
+				{ onDidChangeDiff: diffEmitter.event, diffData: undefined }
 			);
 
 			part.finalizeTitleIfDefault();
@@ -2993,7 +2993,7 @@ suite('ChatThinkingContentPart', () => {
 				'edit-part-1',
 				undefined,
 				undefined,
-				diffEmitter.event
+				{ onDidChangeDiff: diffEmitter.event, diffData: undefined }
 			);
 
 			part.finalizeTitleIfDefault();
@@ -3025,7 +3025,7 @@ suite('ChatThinkingContentPart', () => {
 			assert.strictEqual(diffContainer, null, 'Should not render diff container when no diffs exist');
 		});
 
-		test('opens each file from its first original to its last modified snapshot', () => {
+		test('opens consecutive edits of a file as one interval and unrelated edits separately', () => {
 			let opened: unknown;
 			instantiationService.stub(IEditorService, new class extends mock<IEditorService>() {
 				override async openEditor(...args: unknown[]): Promise<undefined> {
@@ -3047,14 +3047,19 @@ suite('ChatThinkingContentPart', () => {
 			const firstAppEdit = store.add(new Emitter<IChatContentPartDiffData>());
 			const utilEdit = store.add(new Emitter<IChatContentPartDiffData>());
 			const lastAppEdit = store.add(new Emitter<IChatContentPartDiffData>());
-			part.appendItem(() => ({ domNode: $('div') }), 'app-edit-1', undefined, undefined, firstAppEdit.event);
-			part.appendItem(() => ({ domNode: $('div') }), 'util-edit', undefined, undefined, utilEdit.event);
-			part.appendItem(() => ({ domNode: $('div') }), 'app-edit-2', undefined, undefined, lastAppEdit.event);
+			part.appendItem(() => ({ domNode: $('div') }), 'app-edit-1', undefined, undefined, { onDidChangeDiff: firstAppEdit.event, diffData: undefined });
+			part.appendItem(() => ({ domNode: $('div') }), 'util-edit', undefined, undefined, { onDidChangeDiff: utilEdit.event, diffData: undefined });
+			part.appendItem(() => ({ domNode: $('div') }), 'app-edit-2', undefined, undefined, { onDidChangeDiff: lastAppEdit.event, diffData: undefined });
 			part.finalizeTitleIfDefault();
 
-			lastAppEdit.fire(createDiffData(4, 1, 'app.ts', 'last'));
+			// The later app.ts edit starts from the snapshot the earlier one produced, so they chain even
+			// though they arrive out of order; util.ts has a single interval.
+			const chained = (added: number, removed: number, before: string, after: string): IChatContentPartDiffData => ({
+				added, removed, resources: [{ resource: URI.file('/workspace/app.ts'), originalURI: URI.file(`/snapshots/${before}/app.ts`), modifiedURI: URI.file(`/snapshots/${after}/app.ts`) }],
+			});
+			lastAppEdit.fire(chained(4, 1, 'b', 'c'));
 			utilEdit.fire(createDiffData(2, 3, 'util.ts', 'only'));
-			firstAppEdit.fire(createDiffData(5, 0, 'app.ts', 'first'));
+			firstAppEdit.fire(chained(5, 0, 'a', 'b'));
 
 			part.domNode.querySelector<HTMLElement>('.chat-thinking-title-diff')?.click();
 
@@ -3069,8 +3074,8 @@ suite('ChatThinkingContentPart', () => {
 			}, {
 				label: 'Section File Changes',
 				resources: [{
-					original: 'file:///snapshots/first/before/app.ts',
-					modified: 'file:///snapshots/last/after/app.ts',
+					original: 'file:///snapshots/a/app.ts',
+					modified: 'file:///snapshots/c/app.ts',
 					goToFileResource: 'file:///workspace/app.ts',
 				}, {
 					original: 'file:///snapshots/only/before/util.ts',
@@ -3104,14 +3109,14 @@ suite('ChatThinkingContentPart', () => {
 				'edit-part-1',
 				undefined,
 				undefined,
-				diffEmitter1.event
+				{ onDidChangeDiff: diffEmitter1.event, diffData: undefined }
 			);
 			part.appendItem(
 				() => ({ domNode: $('div.test-edit-pill-2') }),
 				'edit-part-2',
 				undefined,
 				undefined,
-				diffEmitter2.event
+				{ onDidChangeDiff: diffEmitter2.event, diffData: undefined }
 			);
 
 			part.finalizeTitleIfDefault();

@@ -36,7 +36,7 @@ export type SessionDiscoveredCustomization = DirectoryCustomization | (PluginCus
  * Re-declared on the platform side so this module has no dependency on the
  * workbench-side `PromptsType` enum.
  */
-export const enum DiscoveredType {
+const enum DiscoveredType {
 	Agent = 'agent',
 	Skill = 'skill',
 	Instruction = 'instruction',
@@ -44,7 +44,7 @@ export const enum DiscoveredType {
 	AgentInstruction = 'agentInstruction',
 }
 
-export interface IDiscoveredDirectory {
+interface IDiscoveredDirectory {
 	readonly uri: URI;
 	readonly type: DiscoveredType;
 	readonly name: string;
@@ -52,25 +52,9 @@ export interface IDiscoveredDirectory {
 	readonly files: readonly IDiscoveredFile[];
 }
 
-export interface IDiscoveredFile {
+interface IDiscoveredFile {
 	readonly uri: URI;
 	readonly etag: string;
-}
-
-export function areDiscoveredDirectoriesEqual(a: readonly IDiscoveredDirectory[], b: readonly IDiscoveredDirectory[]): boolean {
-	if (a.length !== b.length) {
-		return false;
-	}
-
-	for (let i = 0; i < a.length; i++) {
-		const left = a[i];
-		const right = b[i];
-		if (left.type !== right.type || left.uri.toString() !== right.uri.toString() || !areDiscoveredFilesEqual(left.files, right.files)) {
-			return false;
-		}
-	}
-
-	return true;
 }
 
 function compareDiscoveredDirectory(a: IDiscoveredDirectory, b: IDiscoveredDirectory): number {
@@ -79,22 +63,6 @@ function compareDiscoveredDirectory(a: IDiscoveredDirectory, b: IDiscoveredDirec
 		return byType;
 	}
 	return compareStrings(a.uri.toString(), b.uri.toString());
-}
-
-function areDiscoveredFilesEqual(a: readonly IDiscoveredFile[], b: readonly IDiscoveredFile[]): boolean {
-	if (a.length !== b.length) {
-		return false;
-	}
-
-	for (let i = 0; i < a.length; i++) {
-		const left = a[i];
-		const right = b[i];
-		if (left.uri.toString() !== right.uri.toString() || left.etag !== right.etag) {
-			return false;
-		}
-	}
-
-	return true;
 }
 
 function compareDiscoveredFile(a: IDiscoveredFile, b: IDiscoveredFile): number {
@@ -109,18 +77,9 @@ function compareDirectoryCustomization(a: DirectoryCustomization, b: DirectoryCu
 	return compareStrings(a.contents, b.contents);
 }
 
-/**
- * Maximum recursion depth when traversing subdirectories for instruction files.
- */
-const MAX_INSTRUCTIONS_RECURSION_DEPTH = 5;
 const MAX_HOOKS_RECURSION_DEPTH = 8;
 
-const AGENT_FILE_SUFFIX = '.agent.md';
-const MARKDOWN_SUFFIX = '.md';
-const INSTRUCTION_FILE_SUFFIX = '.instructions.md';
 const HOOK_FILE_SUFFIX = '.json';
-const SKILL_FILENAME = 'SKILL.md';
-const README_FILENAME = 'README.md';
 const CUSTOMIZATION_DISCOVERY_DEBUG_LOG_PATH = undefined; //'/tmp/copilot-customization-discovery-debug.log';
 const AGENT_INSTRUCTION_FILENAMES = new Set(['agents.md', 'claude.md', 'gemini.md', 'copilot-instructions.md']);
 
@@ -139,53 +98,22 @@ interface IFixedDiscoveryFile {
 
 type PathToUri = (path: string) => URI;
 
-/**
- * Builds the list of search roots for a given working directory and user home.
- * Skills require a depth-2 scan (`<skillDir>/SKILL.md`), agents are scanned at
- * a single directory depth, and instructions/hooks are recursively scanned.
- */
 const searchRoots: { workspace: ISearchRoot[]; user: ISearchRoot[] } = {
 	workspace: [
-		{ path: ['.github', 'agents'], type: DiscoveredType.Agent, name: '.github' },
-		{ path: ['.claude', 'agents'], type: DiscoveredType.Agent, name: '.claude' },
-		{ path: ['.github', 'skills'], recursive: true, type: DiscoveredType.Skill, name: '.github' },
-		{ path: ['.agents', 'skills'], recursive: true, type: DiscoveredType.Skill, name: '.agents' },
-		{ path: ['.claude', 'skills'], recursive: true, type: DiscoveredType.Skill, name: '.claude' },
-		{ path: ['.github', 'instructions'], recursive: true, type: DiscoveredType.Instruction, name: '.github' },
 		{ path: ['.github', 'hooks'], recursive: true, type: DiscoveredType.Hook, name: '.github' },
-
 	],
 	user: [
-		{ path: ['.copilot', 'agents'], type: DiscoveredType.Agent, name: '~/.copilot' },
-		{ path: ['.agents', 'skills'], recursive: true, type: DiscoveredType.Skill, name: '~/.agents' },
-		{ path: ['.copilot', 'skills'], recursive: true, type: DiscoveredType.Skill, name: '~/.copilot' },
-		{ path: ['.copilot', 'instructions'], recursive: true, type: DiscoveredType.Instruction, name: '~/.copilot' },
 		{ path: ['.copilot', 'hooks'], recursive: true, type: DiscoveredType.Hook, name: '~/.copilot' },
 	],
 };
 
-
-/**
- * Builds the list of instruction file candidates used by the Copilot CLI.
- *
- * Returns paths with filenames for workspace and user-home
- * locations
- */
 const fixedDiscoveryFiles: { workspace: IFixedDiscoveryFile[]; user: IFixedDiscoveryFile[] } = {
 	workspace: [
-		{ path: ['.github'], filenames: ['copilot-instructions.md'], type: DiscoveredType.AgentInstruction },
-		{ path: [], filenames: ['AGENTS.md', 'CLAUDE.md', 'GEMINI.md'], type: DiscoveredType.AgentInstruction },
-		{ path: ['.claude'], filenames: ['CLAUDE.md'], type: DiscoveredType.AgentInstruction },
 		{ path: ['.github', 'copilot'], filenames: ['settings.json', 'settings.local.json'], type: DiscoveredType.Hook },
 		{ path: ['.claude'], filenames: ['settings.json', 'settings.local.json'], type: DiscoveredType.Hook },
 	],
-	user: [
-		{ path: ['.copilot'], filenames: ['copilot-instructions.md'], type: DiscoveredType.AgentInstruction },
-	],
+	user: [],
 };
-
-// Back-compat alias for tests and callers that referenced the old symbol name.
-const agentInstructions = fixedDiscoveryFiles;
 
 function throwIfCancelled(token: CancellationToken): void {
 	if (token.isCancellationRequested) {
@@ -614,7 +542,8 @@ export class SessionCustomizationDiscovery extends Disposable {
 			if (err instanceof CancellationError) {
 				throw err;
 			}
-			this._logService.error(`[SessionCustomizationDiscovery] Error during discovery: ${err instanceof Error ? err.message : String(err)}`);
+
+			this._logService.error(`[SessionCustomizationDiscovery] Error during discovery: ${err instanceof Error ? err.message : String(err)}, projectPaths: ${(p.projectPaths ?? []).join(', ')}`);
 			return [];
 		}
 	}
@@ -864,7 +793,7 @@ export class SessionCustomizationDiscovery extends Disposable {
 		} catch {
 			// Root does not exist (or is unreadable) — still discover as an empty source folder.
 		}
-		await this._scanForHooks(root, rootUri, stat, seen, result, token);
+		await this._discoverHooksInRoot(root, rootUri, stat, seen, result, token);
 	}
 
 	private async _discoverFixedHookFiles(base: URI, roots: readonly IFixedDiscoveryFile[], seen: ResourceSet, result: IDiscoveredDirectory[], token: CancellationToken): Promise<void> {
@@ -1022,88 +951,6 @@ export class SessionCustomizationDiscovery extends Disposable {
 	}
 
 
-	/**
-	 * Returns the list of discovered customization directories and files in a sorted way.
-	 * Also sets up watchers for all discovered root directories (recursively if specified by the root or if already watching recursively).
-	 * Each call performs a fresh scan scoped to the provided cancellation token.
-	 */
-	public async scan(token: CancellationToken): Promise<readonly IDiscoveredDirectory[]> {
-		await this.writeCustomizationDiscoveryDebugLog({
-			method: 'scan',
-			workingDirectories: this._workingDirectories.map(d => d.toString()),
-			userHome: this._userHome.toString(),
-		});
-		throwIfCancelled(token);
-
-		const nextWatchRootUris = new ResourceMap<IWatchSpec>();
-		const seen = new ResourceSet();
-		const result: IDiscoveredDirectory[] = [];
-
-		// Workspace first so it wins on URI conflicts. Hooks are discovered from the
-		// PRIMARY working directory only (Copilot limitation — see _hookWorkingDirectories);
-		// every other type is discovered across all roots.
-		const workspaceFixedHook = fixedDiscoveryFiles.workspace.filter(root => root.type === DiscoveredType.Hook);
-		const workspaceFixedNonHook = fixedDiscoveryFiles.workspace.filter(root => root.type !== DiscoveredType.Hook);
-		await Promise.all([
-			...searchRoots.workspace.flatMap(root =>
-				(root.type === DiscoveredType.Hook ? this._hookWorkingDirectories : this._workingDirectories)
-					.map(workingDirectory => this._scanRoot(workingDirectory, root, seen, result, nextWatchRootUris, token))),
-			...searchRoots.user.map(root => this._scanRoot(this._userHome, root, seen, result, nextWatchRootUris, token)),
-			...this._workingDirectories.map(workingDirectory =>
-				this._scanFixedDiscoveryFiles(workingDirectory, workspaceFixedNonHook, seen, result, nextWatchRootUris, token)),
-			...this._hookWorkingDirectories.map(workingDirectory =>
-				this._scanFixedDiscoveryFiles(workingDirectory, workspaceFixedHook, seen, result, nextWatchRootUris, token)),
-			this._scanFixedDiscoveryFiles(this._userHome, fixedDiscoveryFiles.user, seen, result, nextWatchRootUris, token)
-		]);
-
-		throwIfCancelled(token);
-
-		this._reconcileWatchers(nextWatchRootUris);
-		const sortedResult = result.sort(compareDiscoveredDirectory);
-		await this.writeCustomizationDiscoveryDebugLog({
-			method: 'scan',
-			result: sortedResult.map(directory => ({
-				type: directory.type,
-				uri: directory.uri.toString(),
-				files: directory.files.map(file => file.uri.toString()),
-			})),
-		});
-		return sortedResult;
-	}
-
-	/**
-	 * Walk the ancestor chain of `path` from `base`. For every ancestor
-	 * directory that exists, register a non-recursive watcher whose trigger
-	 * URI is the next path segment, so the handler fires when an intermediate
-	 * directory (e.g. `.github`, `.github/agents`, `.copilot`) is created and
-	 * a re-scan is needed to pick up newly-discoverable content.
-	 *
-	 * Returns true when every ancestor exists as a directory (i.e. the leaf
-	 * may exist). Returns false when an ancestor is missing or not a directory,
-	 * in which case the caller can short-circuit.
-	 */
-	private async _watchAncestors(base: URI, path: readonly string[], watchRootUris: ResourceMap<IWatchSpec>, token: CancellationToken): Promise<boolean> {
-		let current = base;
-		for (const segment of path) {
-			const parent = current;
-			const child = joinPath(parent, segment);
-			if (!watchRootUris.has(parent)) {
-				throwIfCancelled(token);
-				try {
-					const stat = await this._fileService.resolve(parent);
-					if (!stat.isDirectory) {
-						return false;
-					}
-				} catch {
-					return false;
-				}
-			}
-			addWatch(watchRootUris, parent, false, child);
-			current = child;
-		}
-		return true;
-	}
-
 	private _reconcileWatchers(nextWatchRootUris: ResourceMap<IWatchSpec>): void {
 		// Dispose watchers that are gone or whose recursive flag changed.
 		for (const [rootUri, watcher] of this._watchers.entries()) {
@@ -1140,152 +987,7 @@ export class SessionCustomizationDiscovery extends Disposable {
 		this._watchers.clear();
 	}
 
-	/**
-	 * For fixed discovery files (e.g. AGENTS.md, copilot-instructions.md,
-	 * settings.json), create one discovered directory per type at the base.
-	 */
-	private async _scanFixedDiscoveryFiles(base: URI, roots: IFixedDiscoveryFile[], seen: ResourceSet, result: IDiscoveredDirectory[], watchRootUris: ResourceMap<IWatchSpec>, token: CancellationToken): Promise<void> {
-		const filesByType = new Map<DiscoveredType, IDiscoveredFile[]>();
-		await Promise.all(roots.map(async root => {
-			throwIfCancelled(token);
-
-			if (!await this._watchAncestors(base, root.path, watchRootUris, token)) {
-				return;
-			}
-
-			const rootUri = joinPath(base, ...root.path);
-			let stat: IFileStatWithMetadata;
-			try {
-				stat = await this._fileService.resolve(rootUri, { resolveMetadata: true });
-			} catch {
-				// Root does not exist (or is unreadable) — nothing to discover or watch.
-				return;
-			}
-			if (!stat.isDirectory || !stat.children) {
-				return;
-			}
-
-			// Trigger refresh only for the specific filenames this root cares about
-			// (e.g. AGENTS.md at the workspace root) — not for every direct child.
-			for (const filename of root.filenames) {
-				addWatch(watchRootUris, rootUri, false, joinPath(rootUri, filename));
-			}
-			for (const entry of stat.children) {
-				throwIfCancelled(token);
-
-				if (entry.isFile && root.filenames.includes(entry.name)) {
-					const uri = joinPath(rootUri, entry.name);
-					if (!seen.has(uri)) {
-						seen.add(uri);
-						const files = filesByType.get(root.type) ?? [];
-						files.push({ uri, etag: entry.etag });
-						filesByType.set(root.type, files);
-					}
-				}
-			}
-		}));
-
-		for (const [type, files] of filesByType.entries()) {
-			if (files.length > 0) {
-				result.push({ uri: base, type, files: files.sort(compareDiscoveredFile), name: '', writable: false });
-			}
-		}
-	}
-
-	private async _scanRoot(base: URI, root: ISearchRoot, seen: ResourceSet, result: IDiscoveredDirectory[], watchRootUris: ResourceMap<IWatchSpec>, token: CancellationToken): Promise<void> {
-		throwIfCancelled(token);
-
-		const rootUri = joinPath(base, ...root.path);
-		let stat: IFileStatWithMetadata | undefined = undefined;
-		let children: IFileStatWithMetadata[] = [];
-		try {
-			stat = await this._fileService.resolve(rootUri, { resolveMetadata: true });
-			children = stat.children ?? [];
-		} catch {
-			// Root does not exist (or is unreadable) — still discover it as a possible source folder.
-		}
-
-		// Filenames are dynamic for these roots, so we watch the whole directory.
-		// `addWatch` upgrades to recursive if any root requests it.
-		await this._watchAncestors(base, root.path, watchRootUris, token);
-		addWatch(watchRootUris, rootUri, root.recursive ?? false, rootUri);
-
-		if (root.type === DiscoveredType.Skill) {
-			const files: IDiscoveredFile[] = [];
-			await Promise.all(children.map(async child => {
-				throwIfCancelled(token);
-
-				if (child.isDirectory) {
-					const skillFile = joinPath(child.resource, SKILL_FILENAME);
-					try {
-						const skillStat = await this._fileService.resolve(skillFile, { resolveMetadata: true });
-						if (skillStat.isFile && !seen.has(skillFile)) {
-							seen.add(skillFile);
-							files.push({ uri: skillFile, etag: skillStat.etag });
-						}
-					} catch {
-						// SKILL.md missing — skip this skill directory.
-					}
-				}
-			}));
-			result.push({ uri: rootUri, type: root.type, files: files.sort(compareDiscoveredFile), name: root.name, writable: true });
-		} else if (root.type === DiscoveredType.Agent) {
-			const files: IDiscoveredFile[] = [];
-			// agents are markdown files directly under the root (no subdirectory scanning),
-			// excluding only exact-case README.md.
-			for (const child of children) {
-				throwIfCancelled(token);
-
-				if (child.isFile) {
-					const filename = child.name;
-					if (filename.endsWith(MARKDOWN_SUFFIX) && filename !== README_FILENAME && !seen.has(child.resource)) {
-						seen.add(child.resource);
-						files.push({ uri: child.resource, etag: child.etag });
-					}
-				}
-			}
-			result.push({ uri: rootUri, type: root.type, files: files.sort(compareDiscoveredFile), name: root.name, writable: true });
-
-		} else if (root.type === DiscoveredType.Instruction) {
-			const files: IDiscoveredFile[] = [];
-			// instructions are all .instructions.md files directly under the root or in a subdirectory
-			const findInstructions = async (stat: IFileStatWithMetadata, recursionLevel: number): Promise<void> => {
-				throwIfCancelled(token);
-
-				for (const child of stat.children ?? []) {
-					throwIfCancelled(token);
-
-					if (child.isFile) {
-						const name = child.name.toLowerCase();
-						if (name.endsWith(INSTRUCTION_FILE_SUFFIX) && !seen.has(child.resource)) {
-							seen.add(child.resource);
-							files.push({ uri: child.resource, etag: child.etag });
-						}
-					} else if (child.isDirectory && recursionLevel < MAX_INSTRUCTIONS_RECURSION_DEPTH) {
-						let childStat: IFileStatWithMetadata | undefined = undefined;
-						try {
-							childStat = await this._fileService.resolve(child.resource, { resolveMetadata: true });
-						} catch {
-							// Ignore unreadable subdirectories.
-						}
-						if (childStat) {
-							await findInstructions(childStat, recursionLevel + 1);
-						}
-					}
-				}
-			};
-			if (stat) {
-				await findInstructions(stat, 0);
-			}
-			result.push({ uri: rootUri, type: root.type, files: files.sort(compareDiscoveredFile), name: root.name, writable: true });
-		} else if (root.type === DiscoveredType.Hook) {
-			await this._scanForHooks(root, rootUri, stat, seen, result, token);
-		} else {
-			this._logService.warn(`[SessionCustomizationDiscovery] Unrecognized root type '${root.type}' for root '${rootUri.toString()}'`);
-		}
-	}
-
-	private async _scanForHooks(root: ISearchRoot, rootUri: URI, stat: IFileStatWithMetadata | undefined, seen: ResourceSet, result: IDiscoveredDirectory[], token: CancellationToken): Promise<void> {
+	private async _discoverHooksInRoot(root: ISearchRoot, rootUri: URI, stat: IFileStatWithMetadata | undefined, seen: ResourceSet, result: IDiscoveredDirectory[], token: CancellationToken): Promise<void> {
 		const files: IDiscoveredFile[] = [];
 		// hooks are recursively discovered as `*.json` under the root.
 		const findHooks = async (directoryStat: IFileStatWithMetadata, recursionLevel: number): Promise<void> => {
@@ -1331,10 +1033,10 @@ export async function workspaceDirectoryHasHooks(fileService: IFileService, work
 	// Linked to the caller's token so external cancellation aborts the scan, and
 	// cancelled internally the moment a hook is found so the remaining parallel
 	// branches stop launching further reads.
-	const scanCts = new CancellationTokenSource(token);
+	const discoveryCts = new CancellationTokenSource(token);
 	let found = false;
 	const containsHook = async (directory: URI, depth: number): Promise<void> => {
-		if (scanCts.token.isCancellationRequested) {
+		if (discoveryCts.token.isCancellationRequested) {
 			return;
 		}
 		let stat: IFileStat;
@@ -1344,7 +1046,7 @@ export async function workspaceDirectoryHasHooks(fileService: IFileService, work
 			// Ignore failures once we're winding down (a sibling already found a
 			// hook, or the caller cancelled). Otherwise treat a missing directory
 			// as "no hooks" and surface every other error so the caller fails open.
-			if (!scanCts.token.isCancellationRequested && toFileOperationResult(err as Error) !== FileOperationResult.FILE_NOT_FOUND) {
+			if (!discoveryCts.token.isCancellationRequested && toFileOperationResult(err as Error) !== FileOperationResult.FILE_NOT_FOUND) {
 				throw err;
 			}
 			return;
@@ -1352,7 +1054,7 @@ export async function workspaceDirectoryHasHooks(fileService: IFileService, work
 		const children = stat.children ?? [];
 		if (children.some(child => child.isFile && child.name.toLowerCase().endsWith(HOOK_FILE_SUFFIX))) {
 			found = true;
-			scanCts.cancel();
+			discoveryCts.cancel();
 			return;
 		}
 		if (depth >= MAX_HOOKS_RECURSION_DEPTH) {
@@ -1368,7 +1070,7 @@ export async function workspaceDirectoryHasHooks(fileService: IFileService, work
 		// Cancel (not merely dispose) so that if a branch threw, sibling scans
 		// still in flight wind down instead of leaking outstanding recursive IO
 		// on the fail-open error path.
-		scanCts.dispose(true);
+		discoveryCts.dispose(true);
 	}
 	// A caller-cancelled scan has an unreliable result; signal it rather than
 	// reporting a (possibly premature) `false`.
@@ -1377,13 +1079,3 @@ export async function workspaceDirectoryHasHooks(fileService: IFileService, work
 	}
 	return found;
 }
-
-// Test-only helpers — exported as `_internal` to discourage production use.
-export const _internal = {
-	AGENT_FILE_SUFFIX,
-	INSTRUCTION_FILE_SUFFIX,
-	SKILL_FILENAME,
-	searchRoots,
-	fixedDiscoveryFiles,
-	agentInstructions,
-};

@@ -4,52 +4,26 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
-import { raceCancellation } from '../../../../../base/common/async.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
-import { autorun } from '../../../../../base/common/observable.js';
-import { equals } from '../../../../../base/common/objects.js';
-import { extUriBiasedIgnorePathCase, getComparisonKey, isEqual } from '../../../../../base/common/resources.js';
+import { extUriBiasedIgnorePathCase } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { IFileService } from '../../../../../platform/files/common/files.js';
-import { ILogService } from '../../../../../platform/log/common/log.js';
 import { isAgentHostSessionResource } from '../../common/chatSessionsService.js';
 import { ICustomizationHarnessService, ICustomizationSourceFolder } from '../../common/customizationHarnessService.js';
 import { getChatSessionType } from '../../common/model/chatUri.js';
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
-import { CustomizationMigration, CustomizationMigrationHintTarget, CustomizationMigrationType, FileCustomizationMigration, FileCustomizationMigrationType, getCustomizationMigrationEnablementSetting, getCustomizationMigrationTargetType, getMcpServerCustomizationMigrationCandidateKey, ICustomizationMigrationHint, ICustomizationMigrationService, IMcpServerCustomizationMigrationCandidate, IMcpServerCustomizationMigrationFailure, IMcpServerCustomizationMigrationResult, isConfiguredLocationMigrationCandidate, isPromptFileMigrationCandidate, isUserDataMigrationCandidate, McpServerCustomizationMigration, McpServerCustomizationMigrationFailureReason, MigratableConfiguration } from '../../common/promptSyntax/service/customizationMigrationService.js';
+import { CustomizationMigration, CustomizationMigrationHintTarget, CustomizationMigrationType, FileCustomizationMigration, FileCustomizationMigrationType, getCustomizationMigrationEnablementSetting, getCustomizationMigrationTargetType, ICustomizationMigrationHint, ICustomizationMigrationService, IMcpServerCustomizationMigrationCandidate, IMcpServerCustomizationMigrationResult, isConfiguredLocationMigrationCandidate, isPromptFileMigrationCandidate, isUserDataMigrationCandidate, McpServerCustomizationMigration, McpServerCustomizationMigrationFailureReason, MigratableConfiguration } from '../../common/promptSyntax/service/customizationMigrationService.js';
 import { IPromptsService, PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
-import { IAgentHostActiveClientService } from '../agentSessions/agentHost/agentHostActiveClientService.js';
-import { IAgentHostCustomizationService } from '../agentSessions/agentHost/agentHostCustomizationService.js';
-import { AgentHostMcpServerApplicability, IAgentHostMcpServerSupportSnapshot } from '../agentSessions/agentHost/agentHostMcpServerSupport.js';
-import { IAgentHostMcpServerSupportScope } from '../agentSessions/agentHost/agentHostMcpServerSupportScope.js';
-import { isMcpServerMigrationDeliverable, McpServerCustomizationMigrator } from './mcpServerCustomizationMigration.js';
 
 export class CustomizationMigrationService extends Disposable implements ICustomizationMigrationService {
 	declare readonly _serviceBrand: undefined;
-	private readonly mcpServerMigration: McpServerCustomizationMigrator;
-	private activeContextKey = '';
-	private activeContextGeneration = 0;
-
 	constructor(
 		@IPromptsService private readonly promptsService: IPromptsService,
 		@ICustomizationHarnessService private readonly customizationHarnessService: ICustomizationHarnessService,
-		@IAgentHostActiveClientService private readonly activeClientService: IAgentHostActiveClientService,
-		@IAgentHostCustomizationService private readonly agentHostCustomizationService: IAgentHostCustomizationService,
-		@IFileService fileService: IFileService,
-		@ILogService private readonly logService: ILogService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		super();
-		this.mcpServerMigration = new McpServerCustomizationMigrator(fileService, logService);
-		this._register(autorun(reader => {
-			const sessionResource = this.customizationHarnessService.activeSessionResource.read(reader);
-			this.updateActiveContext(sessionResource);
-		}));
-		this._register(this.agentHostCustomizationService.onDidChangeCustomizations(() => {
-			this.updateActiveContext(this.customizationHarnessService.activeSessionResource.get());
-		}));
 	}
 
 	computeMigration(sessionResource: URI, type: FileCustomizationMigrationType, token?: CancellationToken): Promise<FileCustomizationMigration>;
@@ -60,8 +34,10 @@ export class CustomizationMigrationService extends Disposable implements ICustom
 				? this.emptyMcpServerMigration()
 				: { type, files: [], candidates: [] };
 		}
-		if (type !== CustomizationMigrationType.McpServers && !this.isMigrationEnabled(type)) {
-			return { type, files: [], candidates: [] };
+		if (!this.isMigrationEnabled(type)) {
+			return type === CustomizationMigrationType.McpServers
+				? this.emptyMcpServerMigration()
+				: { type, files: [], candidates: [] };
 		}
 
 		switch (type) {
@@ -84,8 +60,10 @@ export class CustomizationMigrationService extends Disposable implements ICustom
 				])).flat();
 				return this.createFileMigration(sessionResource, type, customizations.filter(isConfiguredLocationMigrationCandidate), token, true);
 			}
-			case CustomizationMigrationType.McpServers:
-				return this.computeMcpServerMigration(sessionResource, token);
+			case CustomizationMigrationType.McpServers: {
+				const provider = this.customizationHarnessService.findHarnessById(getChatSessionType(sessionResource))?.mcpServerMigrationProvider;
+				return provider?.computeMigration(sessionResource, token) ?? this.emptyMcpServerMigration();
+			}
 		}
 	}
 
@@ -102,70 +80,17 @@ export class CustomizationMigrationService extends Disposable implements ICustom
 		if (requestedCandidates.length === 0) {
 			return { migratedCount: 0, failures: [] };
 		}
-
-		const roots = this.agentHostCustomizationService.getClientWorkingDirectoryUris(sessionResource);
-		const contextGeneration = this.activeContextGeneration;
-		if (!this.isExecutionContextCurrent(sessionResource, roots, contextGeneration)) {
-			return { migratedCount: 0, failures: requestedCandidates.map(candidate => this.noLongerEligible(candidate)) };
-		}
-
-		const scope = this.activeClientService.acquireMcpServerSupportScope(getChatSessionType(sessionResource), roots);
-		if (!scope) {
-			return { migratedCount: 0, failures: requestedCandidates.map(candidate => this.noLongerEligible(candidate)) };
-		}
-
-		try {
-			if (!await this.waitForMcpServerSupport(scope)) {
-				return { migratedCount: 0, failures: requestedCandidates.map(candidate => this.noLongerEligible(candidate)) };
-			}
-			if (!this.isExecutionContextCurrent(sessionResource, roots, contextGeneration)) {
-				return { migratedCount: 0, failures: requestedCandidates.map(candidate => this.noLongerEligible(candidate)) };
-			}
-
-			const supportSnapshot = scope.support.get();
-			const plan = await this.mcpServerMigration.createPlan(supportSnapshot, roots);
-			const isExecutionCurrent = async (candidates: readonly IMcpServerCustomizationMigrationCandidate[]): Promise<boolean> => {
-				if (!await this.waitForMcpServerSupport(scope)) {
-					return false;
-				}
-				return this.isExecutionContextCurrent(sessionResource, roots, contextGeneration)
-					&& scope.isResolved.get()
-					&& this.isMcpSupportContextCurrent(scope.support.get(), supportSnapshot, candidates);
-			};
-			if (!await isExecutionCurrent(plan.candidates)) {
-				return { migratedCount: 0, failures: requestedCandidates.map(candidate => this.noLongerEligible(candidate)) };
-			}
-
-			const currentCandidates = new Map(plan.candidates.map(candidate => [getMcpServerCustomizationMigrationCandidateKey(candidate), candidate]));
-			const eligibleCandidates: IMcpServerCustomizationMigrationCandidate[] = [];
-			const failures: IMcpServerCustomizationMigrationFailure[] = [];
-			for (const requested of requestedCandidates) {
-				const current = currentCandidates.get(getMcpServerCustomizationMigrationCandidateKey(requested));
-				if (!current || !equals(current.projectedConfiguration, requested.projectedConfiguration)) {
-					failures.push(this.noLongerEligible(requested));
-				} else {
-					eligibleCandidates.push(current);
-				}
-			}
-
-			this.logService.info(`[MCP Customization Migration] Starting: selected=${requestedCandidates.length}, eligible=${eligibleCandidates.length}, stale=${failures.length}`);
-			const result = await this.mcpServerMigration.migrate(eligibleCandidates, {
-				isContextCurrent: isExecutionCurrent,
-				roots,
-			});
-			const combined = { migratedCount: result.migratedCount, failures: [...failures, ...result.failures] };
-			for (const failure of combined.failures) {
-				if (failure.error) {
-					this.logService.error(`[MCP Customization Migration] Failed: reason=${failure.reason}, server=${failure.name}`, failure.error);
-				} else {
-					this.logService.warn(`[MCP Customization Migration] Failed: reason=${failure.reason}, server=${failure.name}`);
-				}
-			}
-			this.logService.info(`[MCP Customization Migration] Finished: migrated=${combined.migratedCount}, failed=${combined.failures.length}`);
-			return combined;
-		} finally {
-			scope.dispose();
-		}
+		const provider = this.customizationHarnessService.findHarnessById(getChatSessionType(sessionResource))?.mcpServerMigrationProvider;
+		return provider?.migrate(sessionResource, requestedCandidates) ?? {
+			migratedCount: 0,
+			failures: requestedCandidates.map(candidate => ({
+				id: candidate.id,
+				name: candidate.name,
+				sourceUri: candidate.sourceUri,
+				targetUri: candidate.targetUri,
+				reason: McpServerCustomizationMigrationFailureReason.NoLongerEligible,
+			})),
+		};
 	}
 
 	async computeMigrationHint(sessionResource: URI, token = CancellationToken.None): Promise<ICustomizationMigrationHint | undefined> {
@@ -186,7 +111,9 @@ export class CustomizationMigrationService extends Disposable implements ICustom
 		const workspaceFileCount = fileCandidates.filter(candidate => candidate.storage === PromptsStorage.local).length;
 		const userFileCount = fileCandidates.filter(candidate => candidate.storage === PromptsStorage.user).length;
 		const migratableMcpServerCount = this.isMigrationEnabled(CustomizationMigrationType.McpServers) ? mcpServerMigration.candidates.length : 0;
-		const unsupportedMcpServerCount = mcpServerMigration.servers.filter(server => !server.supported).length;
+		const unsupportedMcpServerCount = this.isMigrationEnabled(CustomizationMigrationType.McpServers)
+			? mcpServerMigration.servers.filter(server => !server.supported).length
+			: 0;
 		const fileHint = this.formatFileMigrationHint(workspaceFileCount, userFileCount, harness.label);
 		const migratableMcpHint = migratableMcpServerCount === 0
 			? undefined
@@ -261,50 +188,12 @@ export class CustomizationMigrationService extends Disposable implements ICustom
 		return { type, files: filteredCandidates.map(customization => customization.uri), candidates: filteredCandidates };
 	}
 
-	private async computeMcpServerMigration(sessionResource: URI, token = CancellationToken.None): Promise<McpServerCustomizationMigration> {
-		const roots = this.agentHostCustomizationService.getClientWorkingDirectoryUris(sessionResource);
-		const scope = this.activeClientService.acquireMcpServerSupportScope(getChatSessionType(sessionResource), roots);
-		if (!scope) {
-			return this.emptyMcpServerMigration();
-		}
-
-		try {
-			if (!await this.waitForMcpServerSupport(scope, token) || !this.areRootsEqual(roots, this.agentHostCustomizationService.getClientWorkingDirectoryUris(sessionResource))) {
-				return this.emptyMcpServerMigration();
-			}
-			const snapshot = scope.support.get();
-			const candidates = this.isMigrationEnabled(CustomizationMigrationType.McpServers)
-				? (await this.mcpServerMigration.createPlan(snapshot, roots, token)).candidates
-				: [];
-			if (!await this.waitForMcpServerSupport(scope, token)
-				|| !this.areRootsEqual(roots, this.agentHostCustomizationService.getClientWorkingDirectoryUris(sessionResource))
-				|| !this.isMcpSupportContextCurrent(scope.support.get(), snapshot, candidates)) {
-				return this.emptyMcpServerMigration();
-			}
-			const settledSnapshot = scope.support.get();
-			return {
-				type: CustomizationMigrationType.McpServers,
-				servers: settledSnapshot.servers
-					.filter(server => server.applicability !== AgentHostMcpServerApplicability.OutsideCurrentScope)
-					.map(server => ({
-						id: server.id,
-						name: server.name,
-						supported: server.compatibility.kind === 'supported',
-					})),
-				candidates: this.isMigrationEnabled(CustomizationMigrationType.McpServers) ? candidates : [],
-				discoveryComplete: settledSnapshot.discoveryComplete,
-				coverage: settledSnapshot.coverage,
-			};
-		} finally {
-			scope.dispose();
-		}
-	}
-
 	private emptyMcpServerMigration(): McpServerCustomizationMigration {
 		return {
 			type: CustomizationMigrationType.McpServers,
 			servers: [],
 			candidates: [],
+			exclusions: [],
 			discoveryComplete: true,
 			coverage: {
 				restrictedByMcpAccess: false,
@@ -313,62 +202,7 @@ export class CustomizationMigrationService extends Disposable implements ICustom
 		};
 	}
 
-	private isExecutionContextCurrent(sessionResource: URI, roots: readonly URI[], generation: number): boolean {
-		return this.isMigrationEnabled(CustomizationMigrationType.McpServers)
-			&& isEqual(sessionResource, this.customizationHarnessService.activeSessionResource.get())
-			&& generation === this.activeContextGeneration
-			&& this.areRootsEqual(roots, this.agentHostCustomizationService.getClientWorkingDirectoryUris(sessionResource));
-	}
-
 	private isMigrationEnabled(type: CustomizationMigrationType): boolean {
 		return this.configurationService.getValue<boolean>(getCustomizationMigrationEnablementSetting(type)) === true;
-	}
-
-	private async waitForMcpServerSupport(scope: IAgentHostMcpServerSupportScope, token = CancellationToken.None): Promise<boolean> {
-		await raceCancellation(scope.whenResolved(), token);
-		return !token.isCancellationRequested && scope.isResolved.get();
-	}
-
-	/**
-	 * Compares only what policy and enablement control, because migrating republishes the snapshot itself.
-	 */
-	private isMcpSupportContextCurrent(
-		current: IAgentHostMcpServerSupportSnapshot,
-		planned: IAgentHostMcpServerSupportSnapshot,
-		candidates: readonly IMcpServerCustomizationMigrationCandidate[],
-	): boolean {
-		if (!equals(current.coverage, planned.coverage)) {
-			return false;
-		}
-		const currentServers = new Map(current.servers.map(server => [server.id, server]));
-		return candidates.every(candidate => {
-			const server = currentServers.get(candidate.id);
-			return server !== undefined
-				&& isMcpServerMigrationDeliverable(server)
-				&& equals(server.projectedConfiguration, candidate.projectedConfiguration);
-		});
-	}
-
-	private areRootsEqual(first: readonly URI[], second: readonly URI[]): boolean {
-		return first.length === second.length && first.every((root, index) => isEqual(root, second[index]));
-	}
-
-	private noLongerEligible(candidate: IMcpServerCustomizationMigrationCandidate): IMcpServerCustomizationMigrationFailure {
-		return {
-			id: candidate.id,
-			name: candidate.name,
-			sourceUri: candidate.sourceUri,
-			targetUri: candidate.targetUri,
-			reason: McpServerCustomizationMigrationFailureReason.NoLongerEligible,
-		};
-	}
-
-	private updateActiveContext(sessionResource: URI): void {
-		const roots = this.agentHostCustomizationService.getClientWorkingDirectoryUris(sessionResource);
-		const key = JSON.stringify([getComparisonKey(sessionResource), ...roots.map(root => getComparisonKey(root))]);
-		if (key !== this.activeContextKey) {
-			this.activeContextKey = key;
-			this.activeContextGeneration++;
-		}
 	}
 }

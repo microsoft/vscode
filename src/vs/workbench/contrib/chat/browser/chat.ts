@@ -233,6 +233,20 @@ export interface IChatFileTreeInfo {
 
 export type ChatTreeItem = IChatRequestViewModel | IChatResponseViewModel | IChatPendingDividerViewModel;
 
+export interface IChatContextMenuActionContext {
+	readonly $chatContextMenu: true;
+	readonly item: ChatTreeItem | null;
+	readonly linkTarget?: string;
+}
+
+export function isChatContextMenuActionContext(context: unknown): context is IChatContextMenuActionContext {
+	return typeof context === 'object' && context !== null && '$chatContextMenu' in context && context.$chatContextMenu === true;
+}
+
+export function unwrapChatContextMenuActionContext(context: unknown): unknown {
+	return isChatContextMenuActionContext(context) ? context.item : context;
+}
+
 export interface IChatListItemRendererOptions {
 	readonly renderStyle?: 'compact' | 'minimal';
 	readonly noHeader?: boolean;
@@ -386,6 +400,8 @@ export interface IChatAcceptInputOptions {
 	preserveFocus?: boolean;
 	/** Keeps the input box contents and attachments after submitting a programmatic query, and omits them from it. The query itself is sent as-is: prompt slash commands in it are not resolved. */
 	preserveInput?: boolean;
+	/** Rejects if this existing session's writable model is no longer bound to the widget during submission preparation. Omit for submissions that may create or replace the session. */
+	expectedSessionResource?: URI;
 	/**
 	 * Called once the request has been handed over to the chat service, i.e. it was either sent
 	 * right away or queued because another request is in progress. Callers that must not wait for
@@ -412,6 +428,10 @@ export interface IChatWidgetViewState {
 export const CHAT_WIDGET_VIEW_STATE_CACHE_LIMIT = 100;
 
 export interface IChatWidget {
+	/** Whether cancellable transcript preparation is blocking new submissions. */
+	readonly isTranscriptProgressActive?: boolean;
+	/** Cancels transcript preparation and returns whether it handled cancellation. */
+	cancelTranscriptProgress?(): boolean;
 	readonly domNode: HTMLElement;
 	/** DOM node of the scrollable transcript area, excluding the input part. */
 	readonly transcriptDomNode: HTMLElement;

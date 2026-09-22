@@ -7,6 +7,7 @@ import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { AgentSession } from '../../common/agent.js';
 import { readSessionArtifacts, SESSION_META_ARTIFACTS_KEY } from '../../common/sessionArtifacts.js';
+import { ChatInteractivity } from '../../common/state/protocol/state.js';
 import { isSessionStatusArchived, isSessionStatusRead, readSessionCreationReference, readSessionEhcliAdoptable, readSessionExternal, readSessionFolderPickerDecision, readSessionGitHubState, readSessionGitState, readSessionMultiRootMetadata, readSessionSourceControlState, readSessionWorkspaceless, SESSION_META_CREATED_BY_SESSION_KEY, SESSION_META_EHCLI_ADOPTABLE_KEY, SESSION_META_FOLDER_PICKER_KEY, SESSION_META_GIT_KEY, SESSION_META_GITHUB_KEY, SESSION_META_MULTI_ROOT_KEY, SESSION_META_SOURCE_CONTROL_KEY, SESSION_META_WORKSPACELESS_KEY } from '../../common/state/sessionState.js';
 import { AgentHostCatalogListReader } from '../../node/agentHostCatalogListReader.js';
 import { AGENT_HOST_CATALOG_PAYLOAD_VERSION, encodeAgentHostCatalogPayload, type AgentHostCatalogData } from '../../node/agentHostCatalogProjection.js';
@@ -78,7 +79,7 @@ suite('AgentHostCatalogListReader', () => {
 		},
 		chats: [
 			{ uri: `${session.toString()}/chat/default`, order: 0, kind: 'default', summary: 'Catalog title', titleSource: 'user' },
-			{ uri: `${session.toString()}/chat/peer`, order: 1, kind: 'peer', summary: 'Peer title', titleSource: 'agent', origin: { kind: 'fork', chat: `${session.toString()}/chat/default`, turnId: 'turn-1' } },
+			{ uri: `${session.toString()}/chat/peer`, order: 1, kind: 'peer', summary: 'Peer title', titleSource: 'agent', origin: { kind: 'fork', chat: `${session.toString()}/chat/default`, turnId: 'turn-1' }, interactivity: ChatInteractivity.Hidden },
 		],
 	};
 
@@ -139,7 +140,8 @@ suite('AgentHostCatalogListReader', () => {
 			sourceControl: readSessionSourceControlState(result.metadata._meta),
 			artifacts: readSessionArtifacts(result.metadata._meta),
 			creationReference: readSessionCreationReference(result.metadata._meta),
-			chats: result.data.chats.map(chat => ({ ...chat, uri: chat.uri.toString() })),
+			metadataChats: result.metadata.chats?.map(chat => ({ ...chat, chat: chat.chat.toString() })),
+			catalogChats: result.data.chats.map(chat => ({ ...chat, uri: chat.uri.toString() })),
 		}, {
 			session: session.toString(),
 			startTime: 100,
@@ -160,7 +162,14 @@ suite('AgentHostCatalogListReader', () => {
 			sourceControl: data._meta?.[SESSION_META_SOURCE_CONTROL_KEY],
 			artifacts: data._meta?.[SESSION_META_ARTIFACTS_KEY],
 			creationReference: data._meta?.[SESSION_META_CREATED_BY_SESSION_KEY],
-			chats: data.chats,
+			metadataChats: data.chats.map(chat => ({
+				chat: chat.uri,
+				summary: chat.summary,
+				kind: chat.kind,
+				origin: chat.origin,
+				...(chat.interactivity !== undefined ? { interactivity: chat.interactivity } : {}),
+			})),
+			catalogChats: data.chats,
 		});
 	});
 

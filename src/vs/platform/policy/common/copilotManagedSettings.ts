@@ -72,6 +72,9 @@ export const COPILOT_SANDBOX_ENABLED_KEY = 'sandbox.enabled';
 /** Managed-settings key that permits explicitly bypassing the sandbox. */
 export const COPILOT_SANDBOX_ALLOW_BYPASS_KEY = 'sandbox.allowBypass';
 
+/** Auto startup default, read as one atomic value across managed delivery channels. */
+export const COPILOT_AUTO_TIER_KEY = 'autoTier';
+
 /**
  * Managed-settings controls consumed by the delivery pipeline itself rather than by a
  * configuration policy. Native MDM must watch these even though no setting declares them.
@@ -80,6 +83,7 @@ export const MANAGED_SETTINGS_CONTROL_DEFINITIONS: IManagedSettingsPolicyDefinit
 	[COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY]: { type: 'boolean' },
 	[COPILOT_SANDBOX_ENABLED_KEY]: { type: 'boolean' },
 	[COPILOT_SANDBOX_ALLOW_BYPASS_KEY]: { type: 'boolean' },
+	[COPILOT_AUTO_TIER_KEY]: { type: 'string' },
 	// Observe these only for whole-block source selection; Local does not implement their capture semantics.
 	'telemetry.capture.prompts': { type: 'boolean' },
 	'telemetry.capture.responses': { type: 'boolean' },
@@ -581,6 +585,10 @@ function encodeExtraMarketplaces(value: unknown, onWarn?: (msg: string) => void)
 }
 
 const STRUCTURED_MANAGED_SETTINGS: readonly IStructuredManagedSetting[] = [
+	{
+		key: COPILOT_AUTO_TIER_KEY,
+		encode: value => value,
+	},
 	{
 		key: COPILOT_ENABLED_PLUGINS_KEY,
 		encode: encodeObject,

@@ -212,6 +212,7 @@ function buildChatFromSession(chat: Omit<ICopilotChatSession, 'mainChat'>): ICha
 	return {
 		resource: chat.resource,
 		createdAt: chat.createdAt,
+		workspace: chat.workspace,
 		title: chat.title,
 		updatedAt: chat.updatedAt,
 		status: chat.status,
@@ -1542,7 +1543,6 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 	readonly label = localize('copilotChatSessionsProvider', "Copilot Chat");
 	readonly icon = Codicon.copilot;
 	readonly order = 0;
-	readonly supportsAutomationSessionConfiguration = true;
 
 	get sessionTypes(): readonly ISessionType[] {
 		const types: ISessionType[] = [];
@@ -2019,6 +2019,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 				promo: modelMetadata?.promo,
 				maxInputTokens: modelMetadata?.maxInputTokens ?? 0,
 				maxOutputTokens: modelMetadata?.maxOutputTokens ?? 0,
+				maxContextWindowTokens: modelMetadata?.maxContextWindowTokens,
 				capabilities: modelMetadata?.capabilities ? {
 					vision: modelMetadata.capabilities.vision,
 					toolCalling: modelMetadata.capabilities.toolCalling,
@@ -3818,6 +3819,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		return {
 			resource: resource ?? chat.resource,
 			createdAt: chat.createdAt,
+			workspace: chat.workspace,
 			title: chat.title,
 			updatedAt: chat.updatedAt,
 			status: chat.status,

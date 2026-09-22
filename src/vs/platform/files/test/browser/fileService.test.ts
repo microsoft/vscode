@@ -15,8 +15,15 @@ import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { createFileSystemProviderError, FileChangesEvent, FileChangeType, FileSystemProviderCapabilities, FileSystemProviderErrorCode, FileType, IFileAtomicDeleteOptions, IFileAtomicOptions, IFileAtomicReadOptions, IFileAtomicWriteOptions, IFileChange, IFileOpenOptions, IFileReadStreamOptions, IFileSystemProviderCapabilitiesChangeEvent, IFileSystemProviderRegistrationEvent, IFileSystemProviderWithFileAtomicDeleteCapability, IFileSystemProviderWithFileAtomicReadCapability, IFileSystemProviderWithFileAtomicWriteCapability, IStat, isFileSystemWatcher } from '../../common/files.js';
 import { FileService } from '../../common/fileService.js';
+import { InMemoryFileSystemProvider } from '../../common/inMemoryFilesystemProvider.js';
 import { NullFileSystemProvider } from '../common/nullFileSystemProvider.js';
 import { NullLogService } from '../../../log/common/log.js';
+
+class BufferedWriteFileSystemProvider extends InMemoryFileSystemProvider {
+	override get capabilities(): FileSystemProviderCapabilities {
+		return super.capabilities & ~FileSystemProviderCapabilities.FileReadWrite;
+	}
+}
 
 suite('File Service', () => {
 
@@ -452,6 +459,292 @@ suite('File Service', () => {
 		assert.strictEqual(atomicReadCounter, 2);
 		assert.strictEqual(atomicWriteCounter, 3);
 		assert.strictEqual(atomicDeleteCounter, 1);
+	});
+
+	for (const [writeFails, streamFails] of [[false, false], [true, false], [false, true], [true, true]]) {
+		test(`buffered stream waits for pending writes before closing (write error: ${writeFails}, stream error: ${streamFails})`, async () => {
+			const service = disposables.add(new FileService(new NullLogService()));
+			const writeStarted = new DeferredPromise<void>();
+			const finishWrite = new DeferredPromise<void>();
+			const writeFinished = new DeferredPromise<void>();
+			const events: string[] = [];
+			const provider = new class extends NullFileSystemProvider {
+				override async stat(): Promise<IStat> {
+					return { type: FileType.File, ctime: 0, mtime: 0, size: 0 };
+				}
+
+				override async open(): Promise<number> {
+					return 1;
+				}
+
+				override async write(_fd: number, _pos: number, _data: Uint8Array, _offset: number, length: number): Promise<number> {
+					events.push('write started');
+					writeStarted.complete();
+					await finishWrite.p;
+					events.push('write finished');
+					writeFinished.complete();
+					if (writeFails) {
+						throw new Error('write failed');
+					}
+					return length;
+				}
+
+				override async close(): Promise<void> {
+					events.push('close');
+				}
+			};
+			provider.setCapabilities(FileSystemProviderCapabilities.FileOpenReadWriteClose);
+			disposables.add(service.registerProvider('test', provider));
+
+			const stream = newWriteableStream<VSBuffer>(chunks => VSBuffer.concat(chunks));
+			disposables.add(toDisposable(() => stream.destroy()));
+			stream.write(VSBuffer.fromString('content'));
+			if (streamFails) {
+				stream.error(new Error('stream failed'));
+			}
+			stream.end();
+
+			const result = service.writeFile(URI.parse('test:///file'), stream).then(
+				() => 'success',
+				(error: Error) => error.message
+			);
+			await writeStarted.p;
+			await timeout(0);
+			finishWrite.complete();
+			const outcome = await result;
+			await writeFinished.p;
+
+			const expectedError = streamFails ? 'stream failed' : writeFails ? 'write failed' : undefined;
+			assert.deepStrictEqual({
+				events,
+				outcome: expectedError ? outcome.includes(expectedError) : outcome
+			}, {
+				events: ['write started', 'write finished', 'close'],
+				outcome: expectedError ? true : 'success'
+			});
+		});
+	}
+
+	test('buffered stream serializes buffered chunks and completes partial writes', async () => {
+		const service = disposables.add(new FileService(new NullLogService()));
+		const writes: { pos: number; offset: number; length: number }[] = [];
+		let activeWrites = 0;
+		let maxActiveWrites = 0;
+		const provider = disposables.add(new class extends BufferedWriteFileSystemProvider {
+			override async write(fd: number, pos: number, data: Uint8Array, offset: number, length: number): Promise<number> {
+				writes.push({ pos, offset, length });
+				maxActiveWrites = Math.max(maxActiveWrites, ++activeWrites);
+				try {
+					await timeout(0);
+					return await super.write(fd, pos, data, offset, Math.min(2, length));
+				} finally {
+					activeWrites--;
+				}
+			}
+		}());
+		disposables.add(service.registerProvider('test', provider));
+
+		const stream = newWriteableStream<VSBuffer>(null);
+		disposables.add(toDisposable(() => stream.destroy()));
+		stream.write(VSBuffer.fromString('abc'));
+		stream.write(VSBuffer.fromString('defg'));
+		stream.end();
+
+		const resource = URI.parse('test:///file');
+		const stat = await service.writeFile(resource, stream);
+
+		assert.deepStrictEqual({
+			writes,
+			maxActiveWrites,
+			size: stat.size,
+			content: VSBuffer.wrap(await provider.readFile(resource)).toString()
+		}, {
+			writes: [
+				{ pos: 0, offset: 0, length: 3 },
+				{ pos: 2, offset: 2, length: 1 },
+				{ pos: 3, offset: 0, length: 4 },
+				{ pos: 5, offset: 2, length: 2 }
+			],
+			maxActiveWrites: 1,
+			size: 7,
+			content: 'abcdefg'
+		});
+	});
+
+	test('buffered stream resumes a producer waiting on backpressure across multiple chunks', async () => {
+		const service = disposables.add(new FileService(new NullLogService()));
+		const writes: { pos: number; content: string }[] = [];
+		const provider = disposables.add(new class extends BufferedWriteFileSystemProvider {
+			override async write(fd: number, pos: number, data: Uint8Array, offset: number, length: number): Promise<number> {
+				writes.push({ pos, content: VSBuffer.wrap(data.subarray(offset, offset + length)).toString() });
+				await timeout(0);
+				return super.write(fd, pos, data, offset, length);
+			}
+		}());
+		disposables.add(service.registerProvider('test', provider));
+
+		const stream = newWriteableStream<VSBuffer>(chunks => VSBuffer.concat(chunks), { highWaterMark: 0 });
+		disposables.add(toDisposable(() => stream.destroy()));
+		const resource = URI.parse('test:///file');
+		const result = service.writeFile(resource, stream);
+		let backpressureCount = 0;
+		const producer = (async () => {
+			for (const chunk of ['one', 'two', 'three']) {
+				const pending = stream.write(VSBuffer.fromString(chunk));
+				if (pending) {
+					backpressureCount++;
+				}
+				await pending;
+			}
+			stream.end();
+		})();
+		await Promise.all([result, producer]);
+
+		assert.deepStrictEqual({
+			writes,
+			backpressureCount,
+			content: VSBuffer.wrap(await provider.readFile(resource)).toString()
+		}, {
+			writes: [
+				{ pos: 0, content: 'one' },
+				{ pos: 3, content: 'two' },
+				{ pos: 6, content: 'three' }
+			],
+			backpressureCount: 3,
+			content: 'onetwothree'
+		});
+	});
+
+	test('buffered stream writes the peeked prefix before resuming the remaining chunks', async () => {
+		const service = disposables.add(new FileService(new NullLogService()));
+		const writes: { pos: number; content: string }[] = [];
+		const provider = disposables.add(new class extends InMemoryFileSystemProvider {
+			override async write(fd: number, pos: number, data: Uint8Array, offset: number, length: number): Promise<number> {
+				writes.push({ pos, content: VSBuffer.wrap(data.subarray(offset, offset + length)).toString() });
+				await timeout(0);
+				return super.write(fd, pos, data, offset, length);
+			}
+		}());
+		disposables.add(service.registerProvider('test', provider));
+
+		const stream = newWriteableStream<VSBuffer>(chunks => VSBuffer.concat(chunks), { highWaterMark: 0 });
+		disposables.add(toDisposable(() => stream.destroy()));
+		const resource = URI.parse('test:///file');
+		const result = service.writeFile(resource, stream);
+		const producer = (async () => {
+			for (const chunk of ['a', 'b', 'c', 'd', 'ef', 'gh']) {
+				await stream.write(VSBuffer.fromString(chunk));
+			}
+			stream.end();
+		})();
+		await Promise.all([result, producer]);
+
+		assert.deepStrictEqual({
+			writes,
+			content: VSBuffer.wrap(await provider.readFile(resource)).toString()
+		}, {
+			writes: [
+				{ pos: 0, content: 'abcd' },
+				{ pos: 4, content: 'ef' },
+				{ pos: 6, content: 'gh' }
+			],
+			content: 'abcdefgh'
+		});
+	});
+
+	for (const failure of ['write', 'stream']) {
+		test(`buffered stream releases the write queue after a ${failure} failure`, async () => {
+			const service = disposables.add(new FileService(new NullLogService()));
+			const writeStarted = new DeferredPromise<void>();
+			const finishWrite = new DeferredPromise<void>();
+			const events: string[] = [];
+			const provider = disposables.add(new class extends BufferedWriteFileSystemProvider {
+				override async open(resource: URI, options: IFileOpenOptions): Promise<number> {
+					const fd = await super.open(resource, options);
+					events.push(`open ${fd}`);
+					return fd;
+				}
+
+				override async write(fd: number, pos: number, data: Uint8Array, offset: number, length: number): Promise<number> {
+					events.push(`write ${fd}`);
+					if (fd === 0) {
+						writeStarted.complete();
+						await finishWrite.p;
+						if (failure === 'write') {
+							throw new Error('write failed');
+						}
+					}
+					return super.write(fd, pos, data, offset, length);
+				}
+
+				override async close(fd: number): Promise<void> {
+					await super.close(fd);
+					events.push(`close ${fd}`);
+				}
+			}());
+			disposables.add(service.registerProvider('test', provider));
+
+			const stream = newWriteableStream<VSBuffer>(chunks => VSBuffer.concat(chunks));
+			disposables.add(toDisposable(() => stream.destroy()));
+			stream.write(VSBuffer.fromString('first'));
+			if (failure === 'stream') {
+				stream.error(new Error('stream failed'));
+			}
+			stream.end();
+
+			const resource = URI.parse('test:///file');
+			const firstResult = assert.rejects(service.writeFile(resource, stream), new RegExp(`${failure} failed`));
+			await writeStarted.p;
+			const nextStream = bufferToStream(VSBuffer.fromString('recovery'));
+			disposables.add(toDisposable(() => nextStream.destroy()));
+			const nextResult = service.writeFile(resource, nextStream);
+			await timeout(0);
+			const eventsBeforeRelease = events.slice();
+			finishWrite.complete();
+			await Promise.all([firstResult, nextResult]);
+
+			assert.deepStrictEqual({
+				eventsBeforeRelease,
+				events,
+				content: VSBuffer.wrap(await provider.readFile(resource)).toString()
+			}, {
+				eventsBeforeRelease: ['open 0', 'write 0'],
+				events: ['open 0', 'write 0', 'close 0', 'open 1', 'write 1', 'close 1'],
+				content: 'recovery'
+			});
+		});
+	}
+
+	test('buffered stream closes an empty stream without writing', async () => {
+		const service = disposables.add(new FileService(new NullLogService()));
+		const events: string[] = [];
+		const provider = disposables.add(new class extends BufferedWriteFileSystemProvider {
+			override async write(fd: number, pos: number, data: Uint8Array, offset: number, length: number): Promise<number> {
+				events.push('write');
+				return super.write(fd, pos, data, offset, length);
+			}
+
+			override async close(fd: number): Promise<void> {
+				await super.close(fd);
+				events.push('close');
+			}
+		}());
+		disposables.add(service.registerProvider('test', provider));
+
+		const stream = bufferToStream(VSBuffer.alloc(0));
+		disposables.add(toDisposable(() => stream.destroy()));
+		const resource = URI.parse('test:///file');
+		const stat = await service.writeFile(resource, stream);
+
+		assert.deepStrictEqual({
+			events,
+			size: stat.size,
+			content: VSBuffer.wrap(await provider.readFile(resource)).toString()
+		}, {
+			events: ['close'],
+			size: 0,
+			content: ''
+		});
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();
