@@ -12,6 +12,7 @@ import { observableValue } from '../../../../base/common/observable.js';
 import { StopWatch } from '../../../../base/common/stopwatch.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
 import { InstantiationService } from '../../../instantiation/common/instantiationService.js';
 import { ServiceCollection } from '../../../instantiation/common/serviceCollection.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
@@ -20,6 +21,7 @@ import { TelemetryTrustedValue } from '../../../telemetry/common/telemetryUtils.
 import { createAgentModelByokMeta } from '../../common/agentModelByokMeta.js';
 import { getTelemetryChatSessionId } from '../../common/agentTelemetryCorrelation.js';
 import { AgentSession, IAgent, type AgentModelCallFinishedOutcome, type IAgentTurnTokenUsage } from '../../common/agent.js';
+import type { ICodexAccountTelemetry } from '../../common/codexAccountTelemetry.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportKind, type IAgentHostClientTelemetryContext } from '../../common/agentHostTelemetry.js';
 import type { SessionMode } from '../../common/agentHostSchema.js';
@@ -43,7 +45,7 @@ import { AgentHostSessionTitleController, IAgentHostSessionTitleController } fro
 import { AgentHostTelemetryReporter, IAgentHostTelemetryReporter } from '../../node/agentHostTelemetryReporter.js';
 import { AgentHostTelemetryService } from '../../node/agentHostTelemetryService.js';
 import { AgentHostToolCallTracker, IAgentHostToolCallTracker } from '../../node/agentHostToolCallTracker.js';
-import { AgentHostTurnTracker, IAgentHostTurnTracker } from '../../node/agentHostTurnTracker.js';
+import { AgentHostTurnTracker, IAgentHostTurnTracker, TURN_HANG_THRESHOLD_MS } from '../../node/agentHostTurnTracker.js';
 import { AgentHostTurnService, IAgentHostTurnService } from '../../node/agentHostTurnService.js';
 import { AgentHostClientConnectionService, IAgentHostClientConnectionService } from '../../node/agentHostClientConnectionService.js';
 import { AgentConfigurationService, IAgentConfigurationService } from '../../node/agentConfigurationService.js';
@@ -58,6 +60,9 @@ import { createNoopWorktreeIsolation } from './worktreeTestHelpers.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { MockAgent } from './mockAgent.js';
 import { TestAgentHostTerminalManager } from './testAgentHostTerminalManager.js';
+import type { ICodexAccountState } from '../../node/codex/codexAccountState.js';
+import { getCodexAccountTelemetryContext } from '../../node/codex/codexAccountTelemetry.js';
+import { toCodexModelSelectionId } from '../../node/codex/codexAgent.js';
 
 class FakeChangesetService implements IAgentHostChangesetService {
 	declare readonly _serviceBrand: undefined;
@@ -224,6 +229,10 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 		return telemetry.events.filter(e => e.eventName === 'agentHost.turnFailed');
 	}
 
+	function accountFields(data: unknown): Record<string, unknown> {
+		return Object.fromEntries(Object.entries(data as Record<string, unknown>).filter(([key]) => key.startsWith('chatgpt')));
+	}
+
 	setup(() => {
 		agent = new MockAgent();
 		disposables.add(toDisposable(() => agent.dispose()));
@@ -331,6 +340,165 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 		assert.strictEqual(data.isMultiRoot, false);
 		assert.strictEqual(data.folderCount, 0);
 		assert.strictEqual((telemetry.events.find(event => event.eventName === 'agentHost.userMessageSent')?.data as Record<string, unknown>).messageOriginKind, 'inline');
+	});
+
+	test('retains admitted Codex context through preparation, hangs, and completion', async () => {
+		await runWithFakedTimers({ useFakeTimers: true, startTime: 1_000_000 }, async () => {
+			setupSession();
+			sinon.stub(agent, 'id').value('codex');
+			const model = toCodexModelSelectionId('vscode-proxy', 'gpt-test');
+			agent.setModels([{ provider: 'codex', id: model, name: 'Test', supportsVision: false }]);
+			let account: ICodexAccountState = { usageSource: 'openai', status: 'signedIn', authType: 'chatgpt', planType: 'plus' };
+			let rateLimit = { usedPercent: 42.4, windowDurationMins: 7 * 24 * 60, resetsAt: Date.now() / 1000 + 1 };
+			const capture = sinon.spy(() => ({
+				codexAccount: getCodexAccountTelemetryContext(account, { rateLimit, observedAt: Date.now() }),
+			}));
+			const provider: IAgent = agent;
+			provider.getTurnTelemetryContext = capture;
+			const sent = Event.toPromise(agent.onDidSendMessage);
+			startTurn('turn-context', 'hello', model);
+			account = { ...account, status: 'signedOut', planType: 'business' };
+			rateLimit = { ...rateLimit, usedPercent: 100 };
+			await sent;
+			await timeout(TURN_HANG_THRESHOLD_MS + 1);
+			fire({ type: ActionType.ChatTurnComplete, turnId: 'turn-context', duration: TURN_HANG_THRESHOLD_MS + 1 });
+
+			const expectedAccount = {
+				chatgptAccountState: 'signedIn', chatgptPlanTier: 'plus',
+				chatgptWeeklyQuotaState: 'available', chatgptWeeklyUsedPercentBucket: 40,
+			};
+			const sendContext = agent.chatContexts.find(entry => entry.boundary === 'sendMessage')?.context;
+			const forwardedContext = sendContext && !URI.isUri(sendContext) ? sendContext.turnTelemetryContext : undefined;
+			const completed = completedEvents()[0].data as Record<string, unknown>;
+			assert.deepStrictEqual({
+				captures: capture.callCount,
+				forwardedContext,
+				frozen: Object.isFrozen(forwardedContext) && Object.isFrozen(forwardedContext?.codexAccount),
+				provider: completed.provider,
+				model: capturedModel(completed),
+				contextEvents: telemetry.events.filter(event => Object.keys(accountFields(event.data)).length).map(event => ({
+					eventName: event.eventName, account: accountFields(event.data),
+				})),
+				retainedAfterCompletion: turnTracker.getTurnTelemetryContext(defaultChatUri, 'turn-context'),
+			}, {
+				captures: 1,
+				forwardedContext: { codexAccount: expectedAccount },
+				frozen: true,
+				provider: 'codex',
+				model: { trusted: true, value: model },
+				contextEvents: [
+					{ eventName: 'agentHost.turnHung', account: expectedAccount },
+					{ eventName: 'agentHost.turnCompleted', account: expectedAccount },
+				],
+				retainedAfterCompletion: undefined,
+			});
+		});
+	});
+
+	test('isolates admitted Codex context across concurrent sessions with the same turn id', async () => {
+		setupSession();
+		sinon.stub(agent, 'id').value('codex');
+		const secondSession = AgentSession.uri('mock', 'session-2');
+		const secondChat = buildDefaultChatUri(secondSession);
+		stateManager.createSession({
+			resource: secondSession.toString(), provider: 'mock', title: 'Second',
+			status: SessionStatus.Idle, createdAt: new Date().toISOString(), modifiedAt: new Date().toISOString(),
+		});
+		stateManager.dispatchServerAction(secondSession.toString(), { type: ActionType.SessionReady });
+		let account: ICodexAccountState = { usageSource: 'openai', status: 'signedIn', authType: 'chatgpt', planType: 'plus' };
+		let usedPercent = 42.4;
+		const capture = sinon.spy(() => ({
+			codexAccount: getCodexAccountTelemetryContext(account, {
+				rateLimit: { usedPercent, windowDurationMins: 7 * 24 * 60 }, observedAt: Date.now(),
+			}),
+		}));
+		const provider: IAgent = agent;
+		provider.getTurnTelemetryContext = capture;
+		const sent = Event.toPromise(Event.filter(agent.onDidSendMessage, call => call.chat?.toString() === secondChat));
+		startTurn('shared-turn');
+		account = { ...account, planType: 'business' };
+		usedPercent = 12;
+		startTurn('shared-turn', 'hello', undefined, secondChat);
+		account = { ...account, status: 'signedOut' };
+		await sent;
+		fire({ type: ActionType.ChatTurnComplete, turnId: 'shared-turn', duration: 1 }, secondChat);
+		fire({ type: ActionType.ChatTurnComplete, turnId: 'shared-turn', duration: 1 });
+
+		assert.deepStrictEqual({
+			captures: capture.callCount,
+			completions: completedEvents().map(event => ({
+				session: (event.data as Record<string, unknown>).agentSessionId,
+				account: accountFields(event.data),
+			})),
+		}, {
+			captures: 2,
+			completions: [{
+				session: 'session-2',
+				account: { chatgptAccountState: 'signedIn', chatgptPlanTier: 'business', chatgptWeeklyQuotaState: 'available', chatgptWeeklyUsedPercentBucket: 10 },
+			}, {
+				session: 'session-1',
+				account: { chatgptAccountState: 'signedIn', chatgptPlanTier: 'plus', chatgptWeeklyQuotaState: 'available', chatgptWeeklyUsedPercentBucket: 40 },
+			}],
+		});
+	});
+
+	test('copies bounded provider context without retaining mutable objects or extra fields', () => {
+		const account = {
+			...getCodexAccountTelemetryContext({ usageSource: 'openai', status: 'signedIn', authType: 'chatgpt', planType: 'plus' }),
+			extra: 'not-telemetry',
+		};
+		const provider = disposables.add(Object.assign(new MockAgent('codex'), { getTurnTelemetryContext: () => ({ codexAccount: account }) }));
+		turnTracker.turnStarted(provider, defaultChatUri, 'copied-context', undefined, undefined, 'default', undefined, undefined);
+		account.chatgptAccountState = 'notSignedIn';
+		account.chatgptPlanTier = 'business';
+		turnTracker.turnCompleted(defaultChatUri, 'copied-context', 'success');
+		assert.deepStrictEqual({
+			account: accountFields(completedEvents()[0].data),
+			extra: (completedEvents()[0].data as Record<string, unknown>).extra,
+			providerObjectFrozen: Object.isFrozen(account),
+		}, {
+			account: { chatgptAccountState: 'signedIn', chatgptPlanTier: 'plus', chatgptWeeklyQuotaState: 'missing' },
+			extra: undefined,
+			providerObjectFrozen: false,
+		});
+	});
+
+	test('uses unknown Codex context when the provider cannot supply a snapshot', () => {
+		for (const throws of [false, true]) {
+			const provider: IAgent = disposables.add(new MockAgent('codex'));
+			if (throws) {
+				provider.getTurnTelemetryContext = () => { throw new Error('Context unavailable'); };
+			}
+			const turnId = `context-${throws}`;
+			turnTracker.turnStarted(provider, defaultChatUri, turnId, undefined, undefined, 'default', undefined, undefined);
+			turnTracker.turnCompleted(defaultChatUri, turnId, 'error', { stage: 'provider', error: { errorType: 'testError', message: 'Test error' } });
+		}
+		assert.deepStrictEqual({
+			completed: completedEvents().map(event => accountFields(event.data)),
+			failed: failedEvents().map(event => accountFields(event.data)),
+		}, {
+			completed: [false, true].map(() => ({ chatgptAccountState: 'unknown', chatgptWeeklyQuotaState: 'unavailable' })),
+			failed: [{}, {}],
+		});
+	});
+
+	test('omits Codex context and does not sample it for other providers', async () => {
+		const account: ICodexAccountTelemetry = { chatgptAccountState: 'signedIn', chatgptPlanTier: 'plus', chatgptWeeklyQuotaState: 'missing' };
+		const capture = sinon.spy(() => ({ codexAccount: account }));
+		await runWithFakedTimers({ useFakeTimers: true }, async () => {
+			for (const id of ['copilot', 'claude', 'mock']) {
+				const provider = disposables.add(Object.assign(new MockAgent(id), { getTurnTelemetryContext: capture }));
+				turnTracker.turnStarted(provider, defaultChatUri, id, undefined, undefined, 'default', undefined, undefined);
+			}
+			await timeout(TURN_HANG_THRESHOLD_MS);
+			for (const id of ['copilot', 'claude', 'mock']) {
+				turnTracker.turnCompleted(defaultChatUri, id, 'cancelled');
+			}
+		});
+		assert.deepStrictEqual({
+			captures: capture.callCount,
+			contextEvents: telemetry.events.filter(event => Object.keys(accountFields(event.data)).length),
+		}, { captures: 0, contextEvents: [] });
 	});
 
 	test('logs and reports root-turn ordinals and process age captured at start, not completion', async () => {

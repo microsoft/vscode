@@ -1489,10 +1489,12 @@ suite('CodexAgent model refresh', () => {
 
 		assert.deepStrictEqual({
 			rateLimit: agent['_openAIAccountRateLimit'],
+			telemetryRateLimit: agent['_openAIAccountRateLimitForTelemetry'],
 			hasObservationTime: Number.isFinite(latestObservedAt),
 			observedAt: agent['_openAIAccountRateLimitUpdatedAt'],
 		}, {
 			rateLimit: { usedPercent: 20, windowDurationMins: 300, resetsAt: 200 },
+			telemetryRateLimit: { usedPercent: 20, windowDurationMins: 300, resetsAt: 200 },
 			hasObservationTime: true,
 			observedAt: latestObservedAt,
 		});
@@ -1507,16 +1509,60 @@ suite('CodexAgent model refresh', () => {
 			const agent = createAgent(disposables, async () => []);
 			agent['_setOpenAIAccountState']({ usageSource: 'openai', status: 'signedIn', authType: 'chatgpt', email: 'person@example.com' });
 			agent['_openAIAccountRateLimit'] = { usedPercent: 90, windowDurationMins: 7 * 24 * 60 };
+			agent['_openAIAccountRateLimitForTelemetry'] = agent['_openAIAccountRateLimit'];
 			agent['_openAIAccountRateLimitUpdatedAt'] = Date.now();
 
 			agent['_setOpenAIAccountState'](state);
 
-			assert.deepStrictEqual({ rateLimit: agent['_openAIAccountRateLimit'], observedAt: agent['_openAIAccountRateLimitUpdatedAt'] }, {
+			assert.deepStrictEqual({ rateLimit: agent['_openAIAccountRateLimit'], telemetryRateLimit: agent['_openAIAccountRateLimitForTelemetry'], observedAt: agent['_openAIAccountRateLimitUpdatedAt'] }, {
 				rateLimit: undefined,
+				telemetryRateLimit: undefined,
 				observedAt: undefined,
 			});
 		});
 	}
+
+	test('keeps invalid source values out of turn context without changing display normalization', async () => {
+		const agent = createAgent(disposables, async () => []);
+		let usedPercent = 0;
+		let reads = 0;
+		const client = {
+			request: async (): Promise<GetAccountRateLimitsResponse> => {
+				reads++;
+				return {
+					rateLimits: {
+						limitId: null, limitName: null, planType: null, credits: null,
+						individualLimit: null, spendControlReached: null, rateLimitReachedType: null,
+						primary: null,
+						secondary: { usedPercent, windowDurationMins: 7 * 24 * 60, resetsAt: null },
+					},
+					rateLimitsByLimitId: null, rateLimitResetCredits: null, accountId: null, rateLimitUpsell: null,
+				};
+			},
+		} as never;
+		agent['_connection'] = { kind: 'ready', client, child: { kill: () => true } } as never;
+		agent['_setOpenAIAccountState']({ usageSource: 'openai', status: 'signedIn', authType: 'chatgpt', planType: 'plus' });
+
+		const samples = [-1, 101, Number.NaN, Number.POSITIVE_INFINITY];
+		const results = [];
+		for (const value of samples) {
+			usedPercent = value;
+			await agent['_refreshAccountRateLimits'](client);
+			results.push({
+				context: agent.getTurnTelemetryContext(),
+				displayUsedPercent: agent['_openAIAccountRateLimit']?.usedPercent,
+			});
+		}
+		assert.deepStrictEqual({ reads, results }, {
+			reads: samples.length,
+			results: [0, 100, undefined, undefined].map(displayUsedPercent => ({
+				displayUsedPercent,
+				context: {
+					codexAccount: { chatgptAccountState: 'signedIn', chatgptPlanTier: 'plus', chatgptWeeklyQuotaState: 'invalid' },
+				},
+			})),
+		});
+	});
 
 	test('surfaces current ChatGPT subscription models in the ChatGPT group', async () => {
 		const agent = createAgent(disposables, async () => []);

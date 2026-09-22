@@ -5,6 +5,7 @@
 
 import { TelemetryConfiguration, TelemetryLevel } from '../../telemetry/common/telemetry.js';
 import type { AgentHostClientType } from './agentHostClientInfo.js';
+import type { ICodexAccountTelemetry } from './codexAccountTelemetry.js';
 
 export const enum AgentHostLaunchKind {
 	VSCodeMainProcess = 'vscode_main_process',
@@ -73,6 +74,11 @@ export interface IAgentHostClientTelemetryContext {
 	readonly hostLaunchKind: AgentHostLaunchKind;
 	readonly machineId?: string;
 	readonly devDeviceId?: string;
+}
+
+/** Immutable provider context retained for one admitted turn, never a telemetry common property. */
+export interface IAgentTurnTelemetryContext {
+	readonly codexAccount?: ICodexAccountTelemetry;
 }
 
 export function createUnknownAgentHostClientTelemetryContext(clientType: AgentHostClientType): IAgentHostClientTelemetryContext {

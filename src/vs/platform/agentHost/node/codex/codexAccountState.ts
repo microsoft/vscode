@@ -32,6 +32,19 @@ export function codexAccountStateFromResponse(response: GetAccountResponse): ICo
 }
 
 export function codexAccountRateLimitFromResponse(response: GetAccountRateLimitsResponse): ICodexAccountRateLimitInfo | undefined {
+	const snapshot = codexAccountRateLimitSnapshotFromResponse(response);
+	if (!snapshot || !Number.isFinite(snapshot.usedPercent)) {
+		return undefined;
+	}
+	return {
+		usedPercent: Math.min(100, Math.max(0, snapshot.usedPercent)),
+		windowDurationMins: snapshot.windowDurationMins !== undefined && snapshot.windowDurationMins > 0 ? snapshot.windowDurationMins : undefined,
+		resetsAt: snapshot.resetsAt !== undefined && snapshot.resetsAt > 0 ? snapshot.resetsAt : undefined,
+	};
+}
+
+/** Preserves invalid window values so telemetry can reject them instead of treating display normalization as data. */
+export function codexAccountRateLimitSnapshotFromResponse(response: GetAccountRateLimitsResponse): ICodexAccountRateLimitInfo | undefined {
 	const codexSnapshot = response.rateLimitsByLimitId?.codex;
 	const snapshot = codexSnapshot?.primary || codexSnapshot?.secondary ? codexSnapshot : response.rateLimits;
 	const windows = [snapshot.primary, snapshot.secondary].filter((window): window is RateLimitWindow => !!window);
@@ -48,12 +61,9 @@ export function codexAccountRateLimitFromResponse(response: GetAccountRateLimits
 		}
 		return Math.abs(candidate.windowDurationMins - weeklyWindowMins) < Math.abs(best.windowDurationMins - weeklyWindowMins) ? candidate : best;
 	});
-	if (!Number.isFinite(window.usedPercent)) {
-		return undefined;
-	}
 	return {
-		usedPercent: Math.min(100, Math.max(0, window.usedPercent)),
-		windowDurationMins: window.windowDurationMins !== null && window.windowDurationMins > 0 ? window.windowDurationMins : undefined,
-		resetsAt: window.resetsAt !== null && window.resetsAt > 0 ? window.resetsAt : undefined,
+		usedPercent: window.usedPercent,
+		windowDurationMins: window.windowDurationMins ?? undefined,
+		resetsAt: window.resetsAt ?? undefined,
 	};
 }

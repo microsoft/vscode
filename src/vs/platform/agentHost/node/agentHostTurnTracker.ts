@@ -12,12 +12,12 @@ import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { URI } from '../../../base/common/uri.js';
 import type { AgentModelCallFinishedOutcome, AgentSubagentTaskModelSource, IAgent, IAgentTokenUsageSummary, IAgentTurnDiagnosticSnapshot, IAgentTurnTokenUsage } from '../common/agent.js';
 import type { SessionMode } from '../common/agentHostSchema.js';
-import { createUnknownAgentHostClientTelemetryContext, type IAgentHostClientTelemetryContext } from '../common/agentHostTelemetry.js';
+import { createUnknownAgentHostClientTelemetryContext, type IAgentHostClientTelemetryContext, type IAgentTurnTelemetryContext } from '../common/agentHostTelemetry.js';
 import { AgentHostClientType } from '../common/agentHostClientInfo.js';
 import { IAgentHostClientConnectionService } from './agentHostClientConnectionService.js';
 import { ILogService } from '../../log/common/log.js';
 import type { AutomaticTitleGenerationStrategy } from './agentHostSessionTitleController.js';
-import { getModelTelemetryContext } from './agentHostTurnTelemetryContext.js';
+import { captureTurnTelemetryContext, getModelTelemetryContext } from './agentHostTurnTelemetryContext.js';
 import { canRefineContributor, toolSourceKindFromContributor } from './shared/toolCallContributor.js';
 import { SessionInputRequestKind } from '../common/state/protocol/state.js';
 import { isSubagentChatUri, isSubagentSession, parseChatUri, type ITurnTokenTotal, type ToolCallContributor } from '../common/state/sessionState.js';
@@ -83,6 +83,7 @@ interface ITurnTiming {
 	readonly messageOriginKind: AgentHostMessageOriginTelemetryKind | undefined;
 	readonly subagentTaskModelSource: AgentSubagentTaskModelSource | undefined;
 	readonly clientContext: IAgentHostClientTelemetryContext;
+	readonly telemetryContext: IAgentTurnTelemetryContext | undefined;
 	readonly initiatorClientId: string | undefined;
 	readonly completedModelCallIds: Set<string>;
 	readonly finishedModelCallIds: Set<string>;
@@ -224,6 +225,7 @@ export class AgentHostTurnTracker extends Disposable {
 			messageOriginKind,
 			subagentTaskModelSource,
 			clientContext,
+			telemetryContext: captureTurnTelemetryContext(agent),
 			initiatorClientId,
 			completedModelCallIds: new Set(),
 			finishedModelCallIds: new Set(),
@@ -546,6 +548,10 @@ export class AgentHostTurnTracker extends Disposable {
 		return this._turnTimings.get(this._key(session, turnId))?.clientContext;
 	}
 
+	getTurnTelemetryContext(session: string, turnId: string): IAgentTurnTelemetryContext | undefined {
+		return this._turnTimings.get(this._key(session, turnId))?.telemetryContext;
+	}
+
 	getMessageOriginKind(session: string, turnId: string): AgentHostMessageOriginTelemetryKind | undefined {
 		return this._turnTimings.get(this._key(session, turnId))?.messageOriginKind;
 	}
@@ -592,6 +598,7 @@ export class AgentHostTurnTracker extends Disposable {
 
 		this._reporter.turnCompleted({
 			clientContext: timing.clientContext,
+			codexAccount: timing.telemetryContext?.codexAccount,
 			provider: timing.agent.id,
 			session: timing.session,
 			turnId,
@@ -736,6 +743,7 @@ export class AgentHostTurnTracker extends Disposable {
 			const providerDiagnostics = this._getProviderDiagnostics(timing);
 			this._reporter.turnHung({
 				clientContext: timing.clientContext,
+				codexAccount: timing.telemetryContext?.codexAccount,
 				provider: timing.agent.id,
 				session: timing.session,
 				turnId: timing.turnId,
