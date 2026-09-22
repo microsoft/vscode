@@ -2983,7 +2983,9 @@ suite('CopilotAgent', () => {
 			copilotClient: new TestCopilotClient([]), copilotApiService, telemetryService, gitHubEndpointService: endpoints,
 		});
 		const childServices = new ServiceCollection();
-		childServices.set(IAgentSdkDownloader, new RecordingAgentSdkDownloader(false));
+		const sdkDownloader = new RecordingAgentSdkDownloader();
+		sdkDownloader.resolvableWithoutDownload = false;
+		childServices.set(IAgentSdkDownloader, sdkDownloader);
 		childServices.set(IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE);
 		childServices.set(ICodexProxyService, disposables.add(new CodexProxyService(undefined, new NullLogService(), copilotApiService)));
 		const child = disposables.add(instantiationService.createChild(childServices));

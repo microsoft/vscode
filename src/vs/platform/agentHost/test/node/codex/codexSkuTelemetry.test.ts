@@ -76,7 +76,9 @@ function createHarness(disposables: Pick<DisposableStore, 'add'>, fetch: FetchFu
 	instantiationService.stub(IAgentHostWorktreeIsolation, new NullAgentHostWorktreeIsolation());
 	instantiationService.stub(IAgentHostCustomizationEnablementService, createNoopCustomizationEnablementService());
 	instantiationService.stub(IAgentHostProxyResolver, createTestAgentHostProxyResolver());
-	instantiationService.stub(IAgentSdkDownloader, new RecordingAgentSdkDownloader(false));
+	const sdkDownloader = new RecordingAgentSdkDownloader();
+	sdkDownloader.resolvableWithoutDownload = false;
+	instantiationService.stub(IAgentSdkDownloader, sdkDownloader);
 	instantiationService.stub(IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE);
 	instantiationService.stub(IAgentHostOTelService, { _serviceBrand: undefined, getNativeSdkTelemetryConfig: async () => undefined });
 	instantiationService.stub(IAgentHostSessionTitleSignal, { _serviceBrand: undefined, onDidChangeSessionTitle: Event.None });
