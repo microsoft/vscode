@@ -105,19 +105,28 @@ export function getStandardArtifacts(dependencies: IFoundryDependencyVersions): 
 }
 
 export function requiredDependencyLibraryNames(target: string, dependencies: IFoundryDependencyVersions): readonly string[] {
+	return [
+		onnxRuntimeLibraryName(target, dependencies.onnxruntime.version),
+		onnxRuntimeGenAiLibraryName(target),
+	];
+}
+
+function onnxRuntimeLibraryName(target: string, version: string): string {
 	const isWin = target.startsWith('win32-');
 	const isDarwin = target.startsWith('darwin-');
-	const ext = isWin ? '.dll' : isDarwin ? '.dylib' : '.so';
-	const prefix = isWin ? '' : 'lib';
-	const onnxRuntime = isWin
+	return isWin
 		? 'onnxruntime.dll'
 		: isDarwin
-			? `libonnxruntime.${dependencies.onnxruntime.version.split('.')[0]}.dylib`
+			? `libonnxruntime.${version.split('.')[0]}.dylib`
 			: 'libonnxruntime.so.1';
-	return [
-		onnxRuntime,
-		`${prefix}onnxruntime-genai${ext}`,
-	];
+}
+
+function onnxRuntimeGenAiLibraryName(target: string): string {
+	return target.startsWith('win32-')
+		? 'onnxruntime-genai.dll'
+		: target.startsWith('darwin-')
+			? 'libonnxruntime-genai.dylib'
+			: 'libonnxruntime-genai.so';
 }
 
 export function normalizeOrtLibraryName(binDir: string, target: string, version: string): void {
@@ -180,7 +189,7 @@ async function installPackage(
 	skipIfPresent: boolean,
 ): Promise<void> {
 	if (skipIfPresent) {
-		const expectedFile = expectedDependencyLibraryName(target, artifact.name);
+		const expectedFile = expectedDependencyLibraryName(target, artifact);
 		if (expectedFile && fs.existsSync(path.join(binDir, expectedFile))) {
 			console.log(`[${SCRIPT}]   ${artifact.name}: already present, skipping download.`);
 			return;
@@ -223,14 +232,12 @@ async function installPackage(
 	throw new Error(`[${SCRIPT}] Failed to download ${artifact.name} ${artifact.version} from any feed (${feedHosts}): ${lastError instanceof Error ? lastError.message : lastError}`);
 }
 
-function expectedDependencyLibraryName(target: string, packageName: string): string | undefined {
-	const isWin = target.startsWith('win32-');
-	const isDarwin = target.startsWith('darwin-');
-	if (packageName.includes('OnnxRuntimeGenAI')) {
-		return `${isWin ? '' : 'lib'}onnxruntime-genai${isWin ? '.dll' : isDarwin ? '.dylib' : '.so'}`;
+function expectedDependencyLibraryName(target: string, artifact: INugetArtifact): string | undefined {
+	if (artifact.name.includes('OnnxRuntimeGenAI')) {
+		return onnxRuntimeGenAiLibraryName(target);
 	}
-	if (packageName.includes('OnnxRuntime')) {
-		return isWin ? 'onnxruntime.dll' : isDarwin ? 'libonnxruntime.dylib' : 'libonnxruntime.so';
+	if (artifact.name.includes('OnnxRuntime')) {
+		return onnxRuntimeLibraryName(target, artifact.version);
 	}
 	return undefined;
 }
