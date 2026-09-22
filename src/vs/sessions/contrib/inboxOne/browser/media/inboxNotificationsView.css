@@ -122,6 +122,7 @@
 
 .inbox-notifications-item-description {
 	color: var(--vscode-editor-foreground);
+	white-space: pre-wrap;
 }
 
 .inbox-notifications-item-actions {

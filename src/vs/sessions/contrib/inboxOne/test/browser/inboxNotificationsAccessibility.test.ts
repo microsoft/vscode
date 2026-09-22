@@ -31,7 +31,7 @@ suite('InboxNotificationsAccessibility', () => {
 					kind: InboxNotificationKind.Completed,
 					priority: InboxNotificationPriority.Low,
 					title: 'Completed: Session B',
-					description: 'Review and mark as read.'
+					description: 'Review and mark done.'
 				},
 			]),
 			[
@@ -42,7 +42,7 @@ suite('InboxNotificationsAccessibility', () => {
 				'   Open this session to answer.',
 				'2. Completed: Session B',
 				'   Priority: Low. Type: Completed',
-				'   Review and mark as read.',
+				'   Review and mark done.',
 			].join('\n'),
 		);
 	});

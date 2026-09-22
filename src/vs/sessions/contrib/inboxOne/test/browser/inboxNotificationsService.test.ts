@@ -168,19 +168,36 @@ suite('InboxNotificationsService', () => {
 		assert.deepStrictEqual(fixture.service.notifications.get().map(item => ({
 			kind: item.kind,
 			priority: item.priority,
+			description: item.description,
 			actionKinds: item.actions.map(action => action.kind),
 		})), [
 			{
 				kind: InboxNotificationKind.NeedsInput,
 				priority: InboxNotificationPriority.High,
+				description: 'waiting for user answer',
 				actionKinds: [InboxNotificationActionKind.OpenSession, InboxNotificationActionKind.MarkDone],
 			},
 			{
 				kind: InboxNotificationKind.Completed,
 				priority: InboxNotificationPriority.Low,
+				description: 'Review this completed session or mark it done.',
 				actionKinds: [InboxNotificationActionKind.OpenSession, InboxNotificationActionKind.MarkDone],
 			},
 		]);
+	});
+
+	test('uses fallback text for needs-input notifications when no session detail is available', () => {
+		const fixture = createFixture([
+			createSession({ id: 'input', status: SessionStatus.NeedsInput, updatedAt: 200 }),
+		]);
+
+		assert.deepStrictEqual(fixture.service.notifications.get().map(item => ({
+			kind: item.kind,
+			description: item.description,
+		})), [{
+			kind: InboxNotificationKind.NeedsInput,
+			description: 'Input needed',
+		}]);
 	});
 
 	test('surfaces failing and passing CI notifications for session pull requests', () => {

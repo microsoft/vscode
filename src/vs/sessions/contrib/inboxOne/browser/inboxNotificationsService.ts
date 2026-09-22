@@ -6,13 +6,14 @@
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { autorun, derived, IObservable, IReader, IReaderWithStore, ISettableObservable, observableSignalFromEvent, observableValue } from '../../../../base/common/observable.js';
 import { onUnexpectedError } from '../../../../base/common/errors.js';
+import { renderAsPlaintext } from '../../../../base/browser/markdownRenderer.js';
 import { localize } from '../../../../nls.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IGitHubService } from '../../github/browser/githubService.js';
 import { GitHubCIOverallStatus, GitHubPullRequestState, IGitHubPRComment, IGitHubPullRequestReviewThread } from '../../github/common/types.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
-import { getSessionOwnedGitHubPullRequestRefs, IGitHubPullRequestRef, SessionStatus, type ISession } from '../../../services/sessions/common/session.js';
+import { getSessionOwnedGitHubPullRequestRefs, getSessionStatusMessage, IGitHubPullRequestRef, SessionStatus, type ISession } from '../../../services/sessions/common/session.js';
 import {
 	compareInboxNotifications,
 	IExternalInboxNotification,
@@ -149,7 +150,7 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 				kind: InboxNotificationKind.NeedsInput,
 				priority: InboxNotificationPriority.High,
 				title: localize('inboxNotifications.needsInput.title', "Input Needed for {0}", title),
-				description: localize('inboxNotifications.needsInput.description', "Open this session to answer the pending question and continue."),
+				description: this.getNeedsInputDescription(session, reader),
 				timestamp: updatedAt,
 				sessionResource: session.resource,
 				actions: this.sessionActions(true),
@@ -392,6 +393,15 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 			ariaLabel: localize('inboxNotifications.action.markDone', "Done"),
 			kind: InboxNotificationActionKind.MarkDone,
 		}];
+	}
+
+	private getNeedsInputDescription(session: ISession, reader: IReader): string {
+		const message = getSessionStatusMessage(SessionStatus.NeedsInput, session.description.read(reader));
+		if (typeof message === 'string') {
+			return message;
+		}
+		const text = message ? renderAsPlaintext(message).trim() : '';
+		return text || localize('inboxNotifications.needsInput.descriptionFallback', "Input needed.");
 	}
 
 	private loadDismissedIds(): ReadonlySet<string> {
