@@ -310,7 +310,7 @@
 
 .inbox-notifications-item-header-actions .inbox-notifications-item-action-done {
 	min-width: 0;
-	padding: 0 var(--vscode-spacing-size80);
+	padding-inline: var(--vscode-spacing-size80);
 }
 
 .inbox-notifications-empty {
