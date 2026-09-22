@@ -28,7 +28,7 @@ import { basename, dirname, isEqual } from '../../../../../base/common/resources
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { isWeb } from '../../../../../base/common/platform.js';
 import { IAgentPlugin, IAgentPluginService } from '../../common/plugins/agentPluginService.js';
-import { ContributionEnablementState, isContributionEnabled } from '../../common/enablement.js';
+import { ContributionEnablementState, IEnablementModel, isContributionEnabled } from '../../common/enablement.js';
 import { getInstalledPluginContextMenuActions, getPluginPolicyEnablement } from '../agentPluginActions.js';
 import { IMarketplacePlugin, IPluginMarketplaceService } from '../../common/plugins/pluginMarketplaceService.js';
 import { IPluginInstallService } from '../../common/plugins/pluginInstallService.js';
@@ -692,6 +692,11 @@ export function getToggledPluginEnablementState(state: ContributionEnablementSta
 		case ContributionEnablementState.DisabledProfile:
 			return ContributionEnablementState.EnabledProfile;
 	}
+}
+
+export function setPluginEnablementAndReadEffective(model: IEnablementModel, key: string, state: ContributionEnablementState): ContributionEnablementState {
+	model.setEnabled(key, state);
+	return model.readEnabled(key);
 }
 
 //#endregion
@@ -1491,8 +1496,8 @@ export class PluginListWidget extends Disposable {
 				return;
 			}
 			const nextState = getToggledPluginEnablementState(renderedState);
-			update(nextState, undefined);
-			this.agentPluginService.enablementModel.setEnabled(item.plugin.uri.toString(), nextState);
+			const effectiveState = setPluginEnablementAndReadEffective(this.agentPluginService.enablementModel, item.plugin.uri.toString(), nextState);
+			update(effectiveState, getPluginPolicyEnablement(item.plugin));
 			status(localize('pluginInclusionChanged', "{0}. {1}.", item.name, getPluginInclusionLabel(item.plugin)));
 		}));
 
@@ -1756,8 +1761,8 @@ export class PluginListWidget extends Disposable {
 				return;
 			}
 			const nextState = getToggledPluginEnablementState(renderedState);
-			update(nextState, undefined);
-			this.agentPluginService.enablementModel.setEnabled(item.plugin.uri.toString(), nextState);
+			const effectiveState = setPluginEnablementAndReadEffective(this.agentPluginService.enablementModel, item.plugin.uri.toString(), nextState);
+			update(effectiveState, getPluginPolicyEnablement(item.plugin));
 			status(localize('pluginInclusionChanged', "{0}. {1}.", item.name, getPluginInclusionLabel(item.plugin)));
 		}));
 		return switchElement;
