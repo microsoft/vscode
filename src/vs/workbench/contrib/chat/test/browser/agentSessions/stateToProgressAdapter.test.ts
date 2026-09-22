@@ -3212,9 +3212,9 @@ suite('stateToProgressAdapter', () => {
 
 		for (const authority of ['local', 'remote-host']) {
 			for (const preview of [undefined, '', 'preview only\n']) {
-				test(`preserves reference-backed terminal output through live and history mapping on ${authority} with ${JSON.stringify(preview)} preview`, () => {
+				test(`preserves retained terminal identity through live and history mapping on ${authority} with ${JSON.stringify(preview)} preview`, () => {
 					const sessionResource = URI.file('/');
-					const fullOutput = { uri: 'shell-output:/artifact-a', sizeHint: 4096 };
+					const terminalResource = 'agenthost-terminal:/terminal';
 					const running = createToolCallState({
 						toolName: 'bash',
 						toolInput: 'npm test',
@@ -3223,10 +3223,10 @@ suite('stateToProgressAdapter', () => {
 							{ type: ToolResultContentType.Text, text: 'Saved to: /tmp/artifact-b.txt' },
 							{
 								type: ToolResultContentType.Terminal,
-								resource: 'agenthost-terminal:/terminal',
+								resource: terminalResource,
 								title: 'Bash',
 								isPty: false,
-								result: { exitCode: 0, preview, truncated: true, fullOutput },
+								result: { exitCode: 0, preview, truncated: true },
 							},
 						],
 					});
@@ -3241,58 +3241,30 @@ suite('stateToProgressAdapter', () => {
 					const response = history.find(item => item.type === 'response');
 					const serialized = response?.parts.find(part => part.kind === 'toolInvocationSerialized');
 					assert.ok(serialized?.kind === 'toolInvocationSerialized');
-					const name = liveOutput?.fullOutput?.name;
-					assert.match(name ?? '', /^terminal-output-[a-z0-9]{5}\.txt$/);
 					const expected = {
 						text: preview?.replace(/\r?\n/g, '\r\n') ?? '',
 						truncated: true,
-						fullOutput: { ...fullOutput, uri: toAgentHostContentUri(URI.parse(fullOutput.uri), authority, { alwaysWrap: true }), name },
 					};
 					assert.deepStrictEqual({
 						live: liveOutput,
 						completed: completedOutput,
 						history: getSerializedTerminalData(serialized).terminalCommandOutput,
-					}, { live: expected, completed: expected, history: expected });
+						liveUri: URI.revive(invocation.toolSpecificData?.kind === 'terminal' ? invocation.toolSpecificData.terminalCommandUri : undefined)?.toString(),
+						historyUri: URI.revive(getSerializedTerminalData(serialized).terminalCommandUri)?.toString(),
+						historyAuthority: getSerializedTerminalData(serialized).terminalConnectionAuthority,
+					}, {
+						live: expected,
+						completed: expected,
+						history: expected,
+						liveUri: terminalResource,
+						historyUri: terminalResource,
+						historyAuthority: authority,
+					});
 				});
 			}
 		}
 
-		test('uses concise, stable names that distinguish repeated large outputs', () => {
-			const make = (toolCallId: string) => getSerializedTerminalData(toolCallStateToInvocation(createToolCallState({
-				toolCallId,
-				toolName: 'bash',
-				toolInput: 'node -e "process.stdout.write(data)"',
-				intention: 'Generate oversized stdout for display test',
-				_meta: { toolKind: 'terminal' },
-				content: [{
-					type: ToolResultContentType.Terminal,
-					resource: `agenthost-terminal:/${toolCallId}`,
-					title: 'Bash',
-					isPty: false,
-					result: { truncated: true, fullOutput: { uri: `shell-output:/${toolCallId}` } },
-				}],
-			})).toJSON()).terminalCommandOutput?.fullOutput?.name;
-			const first = make('tool-call-one');
-			const repeated = make('tool-call-one');
-			const second = make('tool-call-two');
-			assert.deepStrictEqual({
-				first,
-				repeated,
-				second,
-				unique: first !== second,
-				readable: [first, second].every(name => /^terminal-output-[a-z0-9]{5}\.txt$/.test(name ?? '')),
-				maxLength: Math.max(first?.length ?? 0, second?.length ?? 0),
-			}, {
-				first,
-				repeated: first,
-				second,
-				unique: true,
-				readable: true,
-				maxLength: 25,
-			});
-		});
-
-		test('retains completion prose for old truncated SDK shell output without a reference', () => {
+		test('prefers a structured retained-output preview over completion prose', () => {
 			const tc = createCompletedToolCall({
 				_meta: { toolKind: 'terminal' },
 				toolInput: 'cat large-output.txt',
@@ -3318,7 +3290,7 @@ suite('stateToProgressAdapter', () => {
 				state: termData.terminalCommandState,
 			}, {
 				output: {
-					text: 'Output too large to read at once (25 KB). Saved to: /tmp/output.txt\r\nUse view with view_range to examine portions of the output.',
+					text: 'preview only\r\n',
 					truncated: true,
 				},
 				state: { exitCode: 0 },
@@ -3848,10 +3820,7 @@ suite('stateToProgressAdapter', () => {
 			assert.strictEqual(termData.terminalCommandOutput?.text, 'hi\r\n');
 		});
 
-		test('notifies for full-output URI and size changes without changing preview text', () => {
-			const reference = { uri: 'shell-output:/artifact-a', sizeHint: 4096 };
-			const changedUri = { ...reference, uri: 'shell-output:/artifact-b' };
-			const changedSize = { ...changedUri, sizeHint: 8192 };
+		test('notifies for terminal preview and truncation changes only', () => {
 			const initialResult = { preview: 'preview', truncated: true };
 			const tc = createToolCallState({
 				toolName: 'bash',
@@ -3862,10 +3831,9 @@ suite('stateToProgressAdapter', () => {
 			const invocation = toolCallStateToInvocation(tc);
 			invocation.toolSpecificData = { ...getSerializedTerminalData(invocation.toJSON()), terminalCommandId: 'late-command-id' };
 			const results = [
-				{ ...initialResult, fullOutput: reference },
-				{ ...initialResult, fullOutput: changedUri },
-				{ ...initialResult, fullOutput: changedSize },
 				initialResult,
+				{ ...initialResult, preview: 'updated preview' },
+				{ ...initialResult, preview: 'updated preview' },
 				{ ...initialResult, truncated: false },
 				{ ...initialResult, truncated: false },
 			];
@@ -3880,7 +3848,7 @@ suite('stateToProgressAdapter', () => {
 			});
 			const terminal = getSerializedTerminalData(invocation.toJSON());
 			assert.deepStrictEqual({ changes, output: terminal.terminalCommandOutput, commandId: terminal.terminalCommandId }, {
-				changes: [true, true, true, true, true, false].map(changed => ({ changed, notified: changed })),
+				changes: [false, true, false, true, false].map(changed => ({ changed, notified: changed })),
 				output: { text: 'preview', truncated: false },
 				commandId: 'late-command-id',
 			});

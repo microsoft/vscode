@@ -21,6 +21,7 @@ import { AgentHostConfigKey, agentHostCustomizationConfigSchema } from '../commo
 import { ActionType } from '../common/state/protocol/actions.js';
 import type { CreateTerminalParams } from '../common/state/protocol/commands.js';
 import { TerminalClaim, TerminalContentPart, TerminalInfo, TerminalState, TerminalClaimKind, TerminalLifecycleStatus } from '../common/state/protocol/state.js';
+import { AhpErrorCodes, ProtocolError } from '../common/state/sessionProtocol.js';
 import { isTerminalAction } from '../common/state/sessionActions.js';
 import { ROOT_STATE_URI } from '../common/state/sessionState.js';
 import { IAgentConfigurationService } from './agentConfigurationService.js';
@@ -81,6 +82,16 @@ export interface IFormatTerminalTextOptions {
 	forceBracketedPasteMode?: boolean;
 }
 
+export interface IRetainedTerminalState {
+	readonly title: string;
+	readonly claim: TerminalClaim;
+	readonly exitCode?: number;
+	readonly artifact?: URI;
+	readonly content?: readonly TerminalContentPart[];
+	readonly isPty?: boolean;
+	readonly supportsCommandDetection?: boolean;
+}
+
 // Return immediately when no partial query is buffered and this chunk contains no escape character.
 export function removeTerminalQueriesSuppressedFromClient(data: string, state: ITerminalQueryFilterState): string {
 	if (!state.pendingData && !data.includes('\x1b')) {
@@ -134,6 +145,9 @@ export interface IAgentHostTerminalManager {
 	disposeTerminal(uri: string): void;
 	getTerminalInfos(): TerminalInfo[];
 	getTerminalState(uri: string): TerminalState | undefined;
+	resolveRetainedTerminalState(uri: string): Promise<TerminalState | undefined>;
+	retainTerminalState(uri: string, state: IRetainedTerminalState): void;
+	removeRetainedTerminalsForOwner(owner: URI): void;
 	getDefaultShell(): Promise<string>;
 	createOutputTerminal(uri: string, options: { title: string; claim: TerminalClaim }): void;
 	appendOutputTerminalData(uri: string, data: string): void;
@@ -196,6 +210,16 @@ interface IOutputTerminal {
 	lifecycle: TerminalState['lifecycle'];
 }
 
+interface IRetainedTerminal {
+	readonly title: string;
+	readonly claim: TerminalClaim;
+	readonly lifecycle: TerminalState['lifecycle'];
+	readonly artifact?: URI;
+	readonly content?: readonly TerminalContentPart[];
+	readonly isPty: boolean;
+	readonly supportsCommandDetection?: boolean;
+}
+
 /**
  * Manages terminal processes for the agent host. Each terminal is backed by
  * a node-pty instance and identified by a protocol URI.
@@ -209,6 +233,7 @@ export class AgentHostTerminalManager extends Disposable implements IAgentHostTe
 
 	private readonly _terminals = new Map<string, IManagedTerminal>();
 	private readonly _outputTerminals = new Map<string, IOutputTerminal>();
+	private readonly _retainedTerminals = new Map<string, IRetainedTerminal>();
 
 	constructor(
 		@IAgentHostStateManager private readonly _stateManager: AgentHostStateManager,
@@ -282,6 +307,61 @@ export class AgentHostTerminalManager extends Disposable implements IAgentHostTe
 			supportsCommandDetection: terminal.commandTracker?.detectionAvailableEmitted,
 			isPty: true,
 		};
+	}
+
+	async resolveRetainedTerminalState(uri: string): Promise<TerminalState | undefined> {
+		const retained = this._retainedTerminals.get(uri);
+		if (!retained) {
+			return undefined;
+		}
+		let content = retained.content?.map(part => ({ ...part }));
+		if (!content && retained.artifact) {
+			let output: string;
+			try {
+				output = await fs.promises.readFile(retained.artifact.fsPath, 'utf8');
+			} catch (error) {
+				if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+					throw new ProtocolError(AhpErrorCodes.NotFound, `Retained terminal output not found: ${uri}`);
+				}
+				throw error;
+			}
+			content = [{ type: 'unclassified', value: output }];
+		}
+		return {
+			title: retained.title,
+			content: content ?? [],
+			lifecycle: { ...retained.lifecycle },
+			claim: { ...retained.claim },
+			isPty: retained.isPty,
+			...(retained.supportsCommandDetection !== undefined ? { supportsCommandDetection: retained.supportsCommandDetection } : {}),
+		};
+	}
+
+	retainTerminalState(uri: string, state: IRetainedTerminalState): void {
+		if (!state.artifact && !state.content) {
+			throw new Error(`Retained terminal ${uri} requires an artifact or content`);
+		}
+		this._retainedTerminals.set(uri, {
+			title: state.title,
+			claim: { ...state.claim },
+			lifecycle: state.exitCode === undefined
+				? { status: TerminalLifecycleStatus.Exited }
+				: { status: TerminalLifecycleStatus.Exited, exitCode: state.exitCode },
+			...(state.artifact ? { artifact: state.artifact } : {}),
+			...(state.content ? { content: state.content.map(part => ({ ...part })) } : {}),
+			isPty: state.isPty ?? false,
+			...(state.supportsCommandDetection !== undefined ? { supportsCommandDetection: state.supportsCommandDetection } : {}),
+		});
+		this._outputTerminals.delete(uri);
+	}
+
+	removeRetainedTerminalsForOwner(owner: URI): void {
+		const key = owner.toString();
+		for (const [uri, terminal] of this._retainedTerminals) {
+			if (terminal.claim.kind === TerminalClaimKind.Session && (terminal.claim.session === key || terminal.claim.chat === key)) {
+				this._retainedTerminals.delete(uri);
+			}
+		}
 	}
 
 	/**
@@ -891,6 +971,7 @@ export class AgentHostTerminalManager extends Disposable implements IAgentHostTe
 
 	/** Dispose a terminal: kill the process and remove it. */
 	disposeTerminal(uri: string): void {
+		this._retainedTerminals.delete(uri);
 		if (this._outputTerminals.delete(uri)) {
 			return;
 		}

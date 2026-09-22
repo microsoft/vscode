@@ -12,6 +12,9 @@ import { ILogService } from '../../../log/common/log.js';
 import { AgentSignal } from '../../common/agent.js';
 import type { IAgentHostClientTelemetryContext } from '../../common/agentHostTelemetry.js';
 import { ISessionDatabase } from '../../common/sessionDataService.js';
+import { parseRequiredSessionUriFromChatUri } from '../../common/state/sessionState.js';
+import { IAgentHostTerminalManager } from '../agentHostTerminalManager.js';
+import { buildNonPtyShellTerminalClaim, buildNonPtyShellTerminalUri } from '../shared/nonPtyShellTerminal.js';
 import { ClaudeFileEditObserver } from './claudeFileEditObserver.js';
 import { ClaudeMapperState, mapSDKMessageToAgentSignals } from './claudeMapSessionEvents.js';
 import type { SubagentRegistry } from './claudeSubagentRegistry.js';
@@ -54,6 +57,7 @@ export class ClaudeSdkMessageRouter extends Disposable {
 		clientToolOwner: ((toolName: string) => string | undefined) | undefined = undefined,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ILogService private readonly _logService: ILogService,
+		@IAgentHostTerminalManager private readonly _terminalManager: IAgentHostTerminalManager,
 	) {
 		super();
 		this._clientToolOwner = clientToolOwner;
@@ -78,6 +82,18 @@ export class ClaudeSdkMessageRouter extends Disposable {
 					await persistClaudeTerminalOutput(this._dbRef.object, toolCallId, terminalOutput);
 				} catch (err) {
 					this._logService.warn(`[ClaudeSdkMessageRouter] failed to persist terminal output metadata for ${toolCallId}: ${err}`);
+				}
+				try {
+					const info = this._mapperState.toolCalls.lookup(toolCallId)?.info;
+					const title = typeof info?.parsedInput?.command === 'string' ? info.parsedInput.command : info?.displayName ?? 'Shell output';
+					const session = URI.parse(parseRequiredSessionUriFromChatUri(this._chatChannelUri.toString()));
+					this._terminalManager.retainTerminalState(buildNonPtyShellTerminalUri(this._chatChannelUri, toolCallId), {
+						title,
+						claim: buildNonPtyShellTerminalClaim(session, this._chatChannelUri, toolCallId),
+						artifact: URI.file(terminalOutput.persistedOutputPath),
+					});
+				} catch (err) {
+					this._logService.warn(`[ClaudeSdkMessageRouter] failed to retain terminal output for ${toolCallId}: ${err}`);
 				}
 			}
 		}

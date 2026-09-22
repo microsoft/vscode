@@ -75,6 +75,8 @@ import { extractForwardedErrorInfo } from '../shared/proxyChatError.js';
 import { IAgentHostWorktreeIsolation, type IAgentHostWorktreePendingState } from '../shared/worktreeIsolation.js';
 import { getServerToolDisplay } from '../shared/serverToolGroups.js';
 import { persistTerminalOutput, shouldPersistTerminalOutput } from '../shared/terminalOutputArtifacts.js';
+import { IAgentHostTerminalManager } from '../agentHostTerminalManager.js';
+import { buildNonPtyShellTerminalClaim, buildNonPtyShellTerminalUri } from '../shared/nonPtyShellTerminal.js';
 import { IAgentSdkDownloader, IAgentSdkPackage } from '../agentSdkDownloader.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { PendingRequestRegistry } from '../../common/pendingRequestRegistry.js';
@@ -1297,6 +1299,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		@IProductService private readonly _productService: IProductService,
 		@IAgentPluginManager private readonly _pluginManager: IAgentPluginManager,
 		@IFileService private readonly _fileService: IFileService,
+		@IAgentHostTerminalManager private readonly _terminalManager: IAgentHostTerminalManager,
 		@INativeEnvironmentService private readonly _environmentService: INativeEnvironmentService,
 		@IAgentHostProxyResolver private readonly _proxyResolver: IAgentHostProxyResolver,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
@@ -3546,7 +3549,8 @@ export class CodexAgent extends Disposable implements IAgent {
 		const subagent = this._subagentsByThreadId.get(params.threadId);
 		if (subagent) {
 			const streamedOutput = subagent.session.mapState.itemToToolCall.get(params.item.id)?.output;
-			const terminalOutput = await this._codexTerminalOutput(subagent.session.sessionUri, params.item, streamedOutput);
+			const chat = subagent.session.chatChannel ?? URI.parse(buildDefaultChatUri(subagent.session.sessionUri));
+			const terminalOutput = await this._codexTerminalOutput(subagent.session.sessionUri, chat, params.item, streamedOutput);
 			const actions = mapItemCompleted(subagent.session.mapState, this._withHostTurnId(subagent.session, params), terminalOutput);
 			for (const action of actions) {
 				this._fireSubagent(subagent, action);
@@ -3565,14 +3569,15 @@ export class CodexAgent extends Disposable implements IAgent {
 		// attach the child-conversation block to the still-open parent tool call.
 		this._maybeRegisterSubagents(session, params);
 		const streamedOutput = session.mapState.itemToToolCall.get(params.item.id)?.output;
-		const terminalOutput = await this._codexTerminalOutput(session.sessionUri, params.item, streamedOutput);
+		const chat = session.chatChannel ?? URI.parse(buildDefaultChatUri(session.sessionUri));
+		const terminalOutput = await this._codexTerminalOutput(session.sessionUri, chat, params.item, streamedOutput);
 		const actions = mapItemCompleted(session.mapState, this._withHostTurnId(session, params), terminalOutput);
 		for (const action of actions) {
 			this._fire(session.sessionUri, action);
 		}
 	}
 
-	private async _codexTerminalOutput(session: URI, item: ItemCompletedNotification['item'], streamedOutput = ''): Promise<{ readonly session: URI; readonly result: TerminalCommandResult } | undefined> {
+	private async _codexTerminalOutput(session: URI, chat: URI, item: ItemCompletedNotification['item'], streamedOutput = ''): Promise<{ readonly session: URI; readonly result: TerminalCommandResult } | undefined> {
 		if (item.type !== 'commandExecution') {
 			return undefined;
 		}
@@ -3581,24 +3586,31 @@ export class CodexAgent extends Disposable implements IAgent {
 			return undefined;
 		}
 		try {
-			const result = await persistTerminalOutput({
-				session,
+			const retained = await persistTerminalOutput({
+				owner: chat,
 				toolCallId: item.id,
 				output,
 				...(item.exitCode !== null ? { exitCode: item.exitCode } : {}),
 			}, this._sessionDataService, this._fileService);
-			return { session, result };
+			const command = unwrapShellInvocation(item.command ?? '');
+			this._terminalManager.retainTerminalState(buildNonPtyShellTerminalUri(session, item.id), {
+				title: command,
+				claim: buildNonPtyShellTerminalClaim(session, chat, item.id),
+				...(item.exitCode !== null ? { exitCode: item.exitCode } : {}),
+				artifact: retained.artifact,
+			});
+			return { session, result: retained.result };
 		} catch (error) {
 			this._logService.error(`[Codex] Failed to persist terminal output for ${item.id}; falling back to inline output`, error);
 			return undefined;
 		}
 	}
 
-	private async _codexTerminalOutputs(session: URI, thread: Thread): Promise<ReadonlyMap<string, TerminalCommandResult>> {
+	private async _codexTerminalOutputs(session: URI, chat: URI, thread: Thread): Promise<ReadonlyMap<string, TerminalCommandResult>> {
 		const outputs = new Map<string, TerminalCommandResult>();
 		for (const turn of thread.turns ?? []) {
 			for (const item of turn.items ?? []) {
-				const output = await this._codexTerminalOutput(session, item);
+				const output = await this._codexTerminalOutput(session, chat, item);
 				if (output) {
 					outputs.set(item.id, output.result);
 				}
@@ -6565,7 +6577,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		if (!read) {
 			return [];
 		}
-		const terminalOutputs = await this._codexTerminalOutputs(sessionUri, read.thread);
+		const terminalOutputs = await this._codexTerminalOutputs(sessionUri, chat, read.thread);
 		return replayThreadToTurns(
 			read.thread,
 			toRolloutTurnModels(read.rolloutMetadata),

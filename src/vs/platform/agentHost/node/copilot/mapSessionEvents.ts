@@ -95,6 +95,7 @@ function stripPromptScaffolding(text: string): string {
 export interface ISdkShellExit {
 	readonly shellId: string;
 	readonly result: TerminalCommandResult;
+	readonly outputFilePath?: string;
 }
 
 type SdkToolExecutionCompleteContent = Exclude<ToolExecutionCompleteContent, ToolExecutionCompleteContentShellExit> | (Omit<ToolExecutionCompleteContentShellExit, 'outputPreview'> & {
@@ -117,9 +118,12 @@ export function appendSdkToolResultContent(content: ToolResultContent[], sdkCont
 					exitCode: sdkContent.exitCode,
 					...(typeof sdkContent.outputPreview === 'string' ? { preview: sdkContent.outputPreview } : {}),
 					...(sdkContent.outputTruncated !== undefined ? { truncated: sdkContent.outputTruncated } : {}),
-					...(sdkContent.outputFilePath ? { fullOutput: { uri: URI.file(sdkContent.outputFilePath).toString() } } : {}),
 				};
-				shellExit = { shellId: sdkContent.shellId, result };
+				shellExit = {
+					shellId: sdkContent.shellId,
+					result,
+					...(sdkContent.outputFilePath ? { outputFilePath: sdkContent.outputFilePath } : {}),
+				};
 				const terminalIndex = content.findIndex(c => c.type === ToolResultContentType.Terminal);
 				if (terminalIndex !== -1) {
 					const terminalBlock = content[terminalIndex] as ToolResultTerminalContent;

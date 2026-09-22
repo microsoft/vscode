@@ -33,7 +33,7 @@ import { ensureWorkspacelessScratchDir } from '../workspacelessScratchDir.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../common/state/protocol/commands.js';
 import { AHP_AUTH_REQUIRED, ProtocolError } from '../../common/state/sessionProtocol.js';
-import { PolicyState, ProtectedResourceMetadata, type AgentSelection, type ModelSelection, type ToolDefinition } from '../../common/state/protocol/state.js';
+import { PolicyState, ProtectedResourceMetadata, ResponsePartKind, ToolCallStatus, ToolResultContentType, type AgentSelection, type ModelSelection, type ToolDefinition, type ToolResultTerminalContent } from '../../common/state/protocol/state.js';
 import { buildDefaultChatUri, ChatInputResponseKind, isDefaultChatUri, parseRequiredSessionUriFromChatUri, type ClientPluginCustomization, type Customization, type ISessionFolderPickerDecision, type MessageAttachment, type PendingMessage, type ChatInputAnswer, type ToolCallResult, type Turn } from '../../common/state/sessionState.js';
 import { IFileService } from '../../../files/common/files.js';
 import { computeFolderPickerDecisionForRoots } from '../shared/folderPickerDecision.js';
@@ -65,6 +65,8 @@ import { ClaudeSessionMetadataStore, IClaudeSessionOverlay } from './claudeSessi
 import { IAgentHostSessionTitleSignal } from '../agentHostSessionTitleSignal.js';
 import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import type { IClaudeTerminalOutputRecord } from './claudeTerminalOutput.js';
+import { IAgentHostTerminalManager } from '../agentHostTerminalManager.js';
+import { buildNonPtyShellTerminalClaim } from '../shared/nonPtyShellTerminal.js';
 
 const USER_AGENT_PREFIX = 'vscode_claude_code';
 
@@ -630,6 +632,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		@IProductService private readonly _productService: IProductService,
 		@INativeEnvironmentService private readonly _environmentService: INativeEnvironmentService,
 		@IFileService private readonly _fileService: IFileService,
+		@IAgentHostTerminalManager private readonly _terminalManager: IAgentHostTerminalManager,
 	) {
 		super();
 		this._metadataStore = _instantiationService.createInstance(ClaudeSessionMetadataStore);
@@ -2013,15 +2016,20 @@ export class ClaudeAgent extends Disposable implements IAgent {
 			this._logService.warn(`[Claude] getSessionMessages SDK fetch failed for ${sdkSessionId}`, err);
 			return [];
 		}
+		const terminalOutputs = await this._readTerminalOutputs(metadataResource);
 		let turns: readonly Turn[];
 		try {
-			const terminalOutputs = await this._readTerminalOutputs(metadataResource);
 			turns = mapSessionMessagesToTurns(messages, routingUri, this._logService, terminalOutputs);
 		} catch (err) {
 			// Defensive boundary: a single malformed SDK message must not
 			// blow up the entire transcript read.
 			this._logService.warn(`[Claude] replay mapper threw for ${sdkSessionId}`, err);
 			return [];
+		}
+		try {
+			this._retainClaudeTerminalOutputs(routingUri, turns, terminalOutputs);
+		} catch (err) {
+			this._logService.warn(`[Claude] failed to retain historical terminal output for ${sdkSessionId}`, err);
 		}
 		// Always a bug: the SDK handed back a transcript but replay produced
 		// nothing, which surfaces to the user as a chat that opens completely
@@ -2037,6 +2045,30 @@ export class ClaudeAgent extends Disposable implements IAgent {
 			this._logService.warn(`[Claude] primeFromTranscript threw for ${sdkSessionId}`, err);
 		}
 		return turns;
+	}
+
+	private _retainClaudeTerminalOutputs(chat: URI, turns: readonly Turn[], outputs: ReadonlyMap<string, IClaudeTerminalOutputRecord>): void {
+		if (outputs.size === 0) {
+			return;
+		}
+		const session = URI.parse(parseRequiredSessionUriFromChatUri(chat.toString()));
+		for (const turn of turns) {
+			for (const part of turn.responseParts) {
+				if (part.kind !== ResponsePartKind.ToolCall || part.toolCall.status !== ToolCallStatus.Completed) {
+					continue;
+				}
+				const output = outputs.get(part.toolCall.toolCallId);
+				const terminal = part.toolCall.content?.find((content): content is ToolResultTerminalContent => content.type === ToolResultContentType.Terminal);
+				if (!output || !terminal) {
+					continue;
+				}
+				this._terminalManager.retainTerminalState(terminal.resource, {
+					title: terminal.title,
+					claim: buildNonPtyShellTerminalClaim(session, chat, part.toolCall.toolCallId),
+					artifact: URI.file(output.persistedOutputPath),
+				});
+			}
+		}
 	}
 
 	private async _readTerminalOutputs(session: URI): Promise<ReadonlyMap<string, IClaudeTerminalOutputRecord>> {

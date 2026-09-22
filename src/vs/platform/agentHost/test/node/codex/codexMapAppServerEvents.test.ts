@@ -666,7 +666,6 @@ suite('codexMapAppServerEvents', () => {
 					exitCode: 0,
 					preview: 'FULL-OUTPUT-START',
 					truncated: true,
-					fullOutput: { uri: 'file:///tmp/full-output.txt', sizeHint: 1024 },
 				},
 			});
 			assert.deepStrictEqual(actions, [{
@@ -685,7 +684,6 @@ suite('codexMapAppServerEvents', () => {
 							exitCode: 0,
 							preview: 'FULL-OUTPUT-START',
 							truncated: true,
-							fullOutput: { uri: 'file:///tmp/full-output.txt', sizeHint: 1024 },
 						},
 					}],
 					error: undefined,

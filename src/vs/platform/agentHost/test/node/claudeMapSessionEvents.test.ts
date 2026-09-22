@@ -677,10 +677,6 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 			result: {
 				preview: stdout.slice(0, 500),
 				truncated: true,
-				fullOutput: {
-					uri: URI.file('/tmp/claude-full-output.txt').toString(),
-					sizeHint: 352335,
-				},
 			},
 		});
 		assert.strictEqual(JSON.stringify(terminal).includes('do not parse me'), false);

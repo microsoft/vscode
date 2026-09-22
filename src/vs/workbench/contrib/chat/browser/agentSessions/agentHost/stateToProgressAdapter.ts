@@ -7,7 +7,6 @@ import { decodeBase64 } from '../../../../../../base/common/buffer.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { escapeMarkdownLinkLabel, IMarkdownString, MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { escapeIcons } from '../../../../../../base/common/iconLabels.js';
-import { hash } from '../../../../../../base/common/hash.js';
 import { type Tokens } from '../../../../../../base/common/marked/marked.js';
 import { rewriteMarkdownLinks as rewriteMarkdownSource } from '../../../../../../base/common/markdownLinks.js';
 import { Mimes } from '../../../../../../base/common/mime.js';
@@ -1494,48 +1493,33 @@ function getTerminalOutput(tc: ToolCallState, connectionAuthority: string) {
 
 	const terminalContent = getTerminalContent(tc.content);
 	const terminalResult = getTerminalCommandResult(tc);
-	const fullOutput = terminalResult?.fullOutput;
 	const fallbackText = tc.content?.find(isToolResultTextContent)?.text;
 
 	// Older results only expose the saved location in their completion text.
-	let text = !fullOutput && terminalResult?.truncated === true && fallbackText !== undefined
-		? stripLegacyTerminalExitMarkers(fallbackText)
-		: terminalResult?.preview;
-	if (text === undefined && fullOutput) {
+	let text = terminalResult?.preview;
+	const hasRetainedNonPtyOutput = terminalContent?.isPty === false && terminalResult?.truncated === true;
+	if (text === undefined && hasRetainedNonPtyOutput) {
 		text = '';
+	} else if (text === undefined && terminalResult?.truncated === true && fallbackText !== undefined) {
+		text = stripLegacyTerminalExitMarkers(fallbackText);
 	}
 	const hasRetainedNonPtySnapshot = terminalContent?.isPty === false && text !== undefined;
 	if (text === undefined && terminalContent?.isPty !== false) {
 		text = fallbackText === undefined ? undefined : stripLegacyTerminalExitMarkers(fallbackText);
 	}
-	if (text === undefined || (!text && !fullOutput && !hasRetainedNonPtySnapshot && terminalResult?.truncated !== true)) {
+	if (text === undefined || (!text && !hasRetainedNonPtySnapshot && terminalResult?.truncated !== true)) {
 		return undefined;
 	}
 
 	return {
 		text: text.replace(/\r?\n/g, '\r\n'),
 		...(terminalResult?.truncated !== undefined ? { truncated: terminalResult.truncated } : {}),
-		...(fullOutput ? {
-			fullOutput: {
-				...fullOutput,
-				uri: toAgentHostContentUri(URI.parse(fullOutput.uri), connectionAuthority, { alwaysWrap: true }),
-				name: createTerminalOutputName(tc),
-			}
-		} : {}),
 	};
-}
-
-function createTerminalOutputName(tc: ToolCallState): string {
-	const suffix = (hash(tc.toolCallId) >>> 0).toString(36).padStart(5, '0').slice(-5);
-	return `terminal-output-${suffix}.txt`;
 }
 
 function terminalOutputsEqual(a: IChatTerminalToolInvocationData['terminalCommandOutput'], b: IChatTerminalToolInvocationData['terminalCommandOutput']): boolean {
 	return a?.text === b?.text
-		&& a?.truncated === b?.truncated
-		&& isEqual(URI.revive(a?.fullOutput?.uri), URI.revive(b?.fullOutput?.uri))
-		&& a?.fullOutput?.name === b?.fullOutput?.name
-		&& a?.fullOutput?.sizeHint === b?.fullOutput?.sizeHint;
+		&& a?.truncated === b?.truncated;
 }
 
 function stripLegacyTerminalExitMarkers(text: string): string {
@@ -1680,6 +1664,7 @@ function buildTerminalToolSpecificData(
 			? makeAhpTerminalToolSessionId(terminalContentUri, sessionResource)
 			: existing?.terminalToolSessionId,
 		terminalCommandUri: terminalContentUri ? URI.parse(terminalContentUri) : existing?.terminalCommandUri,
+		terminalConnectionAuthority: terminalContentUri ? connectionAuthority : existing?.terminalConnectionAuthority,
 		isPty: terminalContent?.isPty ?? existing?.isPty,
 		terminalCommandOutput: nextOutput ?? existing?.terminalCommandOutput,
 	};

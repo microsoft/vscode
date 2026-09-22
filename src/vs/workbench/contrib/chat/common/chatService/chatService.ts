@@ -660,12 +660,6 @@ export interface IChatVoiceProgressPart {
 	readonly value: string;
 }
 
-export interface IChatTerminalOutputReference {
-	readonly uri: UriComponents;
-	readonly name?: string;
-	readonly sizeHint?: number;
-}
-
 export interface IChatTerminalToolInvocationData {
 	kind: 'terminal';
 	commandLine: {
@@ -742,12 +736,13 @@ export interface IChatTerminalToolInvocationData {
 	requestAllowNetworkReason?: string;
 	/** Serialized URI for the command that was executed in the terminal */
 	terminalCommandUri?: UriComponents;
+	/** Agent Host connection that owns {@link terminalCommandUri}. */
+	terminalConnectionAuthority?: string;
 	/** Serialized output of the executed command */
 	terminalCommandOutput?: {
 		text: string;
 		truncated?: boolean;
 		lineCount?: number;
-		fullOutput?: IChatTerminalOutputReference;
 	};
 	/** Stored theme colors at execution time to style detached output */
 	terminalTheme?: {

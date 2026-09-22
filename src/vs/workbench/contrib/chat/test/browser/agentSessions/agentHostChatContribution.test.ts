@@ -8785,7 +8785,7 @@ suite('AgentHostChatContribution', () => {
 			await turnPromise;
 		});
 
-		test('output-only terminal without a static preview stays attached until the turn ends', async () => {
+		test('completed output-only terminal without a static preview retires its live attachment', async () => {
 			let attachmentDisposed = false;
 			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables, {
 				agentHostTerminalServiceOverride: {
@@ -8803,6 +8803,7 @@ suite('AgentHostChatContribution', () => {
 				toolCallId: 'tc-no-preview',
 				content: [{ type: ToolResultContentType.Terminal, resource: 'agenthost-terminal://shell/no-preview', title: 'Terminal', isPty: false }],
 			} as ChatAction);
+			assert.strictEqual(attachmentDisposed, false);
 			fire({
 				type: 'chat/toolCallComplete',
 				session,
@@ -8821,7 +8822,7 @@ suite('AgentHostChatContribution', () => {
 				},
 			} as ChatAction);
 
-			assert.strictEqual(attachmentDisposed, false);
+			assert.strictEqual(attachmentDisposed, true);
 			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
 			await turnPromise;
 			assert.strictEqual(attachmentDisposed, true);

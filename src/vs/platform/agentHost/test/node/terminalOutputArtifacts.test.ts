@@ -17,39 +17,42 @@ import { persistTerminalOutput, shouldPersistTerminalOutput, TERMINAL_OUTPUT_ART
 suite('TerminalOutputArtifacts', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('persists complete output under session data and returns a bounded content reference', async () => {
+	test('persists complete output under session data and returns a bounded terminal result', async () => {
 		const fileService = disposables.add(new FileService(new NullLogService()));
 		disposables.add(fileService.registerProvider(Schemas.inMemory, disposables.add(new InMemoryFileSystemProvider())));
+		let dataOwner: URI | undefined;
 		const sessionDataService = new class extends mock<ISessionDataService>() {
-			override getSessionDataDir(): URI {
+			override getSessionDataDir(owner: URI): URI {
+				dataOwner = owner;
 				return URI.from({ scheme: Schemas.inMemory, path: '/agentSessionData/session-1' });
 			}
 		}();
 		const output = `FULL-OUTPUT-START\n${'x'.repeat(TERMINAL_OUTPUT_ARTIFACT_THRESHOLD_BYTES)}\nFULL-OUTPUT-END`;
-		const result = await persistTerminalOutput({
-			session: URI.parse('codex:/session-1'),
+		const owner = URI.parse('ahp-chat://codex/session-1/default');
+		const retained = await persistTerminalOutput({
+			owner,
 			toolCallId: 'tool-call-1',
 			output,
 			exitCode: 0,
 		}, sessionDataService, fileService);
-		assert.ok(result.fullOutput);
-		const content = await fileService.readFile(URI.parse(result.fullOutput.uri));
+		const content = await fileService.readFile(retained.artifact);
+		assert.match(retained.artifact.path, /^\/agentSessionData\/session-1\/terminal-output\/[a-z0-9]+\.txt$/);
 		assert.deepStrictEqual({
 			shouldPersistBelow: shouldPersistTerminalOutput('x'.repeat(TERMINAL_OUTPUT_ARTIFACT_THRESHOLD_BYTES)),
 			shouldPersistAbove: shouldPersistTerminalOutput('x'.repeat(TERMINAL_OUTPUT_ARTIFACT_THRESHOLD_BYTES + 1)),
-			preview: result.preview,
-			truncated: result.truncated,
-			exitCode: result.exitCode,
-			sizeHint: result.fullOutput.sizeHint,
+			preview: retained.result.preview,
+			truncated: retained.result.truncated,
+			exitCode: retained.result.exitCode,
 			content: content.value.toString(),
+			dataOwner: dataOwner?.toString(),
 		}, {
 			shouldPersistBelow: false,
 			shouldPersistAbove: true,
 			preview: output.slice(0, 500),
 			truncated: true,
 			exitCode: 0,
-			sizeHint: Buffer.byteLength(output),
 			content: output,
+			dataOwner: owner.toString(),
 		});
 	});
 });

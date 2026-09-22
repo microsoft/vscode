@@ -8,7 +8,7 @@ import { hash } from '../../../../base/common/hash.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IFileService } from '../../../files/common/files.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
-import { ToolResultContentType, type TerminalCommandResult, type TerminalOutputRef, type ToolResultTerminalContent } from '../../common/state/protocol/state.js';
+import { ToolResultContentType, type TerminalCommandResult, type ToolResultTerminalContent } from '../../common/state/protocol/state.js';
 import { buildNonPtyShellTerminalUri } from './nonPtyShellTerminal.js';
 
 export const TERMINAL_OUTPUT_PREVIEW_CHARACTER_LIMIT = 500;
@@ -33,43 +33,44 @@ export function terminalOutputContent(session: URI | string, toolCallId: string,
 	};
 }
 
-export function existingTerminalOutputResult(options: {
+export interface IRetainedTerminalOutput {
+	readonly result: TerminalCommandResult;
+	readonly artifact: URI;
+}
+
+export function existingTerminalOutput(options: {
 	readonly path: string;
-	readonly sizeHint?: number;
 	readonly preview?: string;
 	readonly exitCode?: number;
-}): TerminalCommandResult {
+}): IRetainedTerminalOutput {
 	return {
-		...(options.exitCode !== undefined ? { exitCode: options.exitCode } : {}),
-		...(options.preview !== undefined ? { preview: options.preview } : {}),
-		truncated: true,
-		fullOutput: {
-			uri: URI.file(options.path).toString(),
-			...(options.sizeHint !== undefined ? { sizeHint: options.sizeHint } : {}),
+		result: {
+			...(options.exitCode !== undefined ? { exitCode: options.exitCode } : {}),
+			...(options.preview !== undefined ? { preview: options.preview } : {}),
+			truncated: true,
 		},
+		artifact: URI.file(options.path),
 	};
 }
 
 export async function persistTerminalOutput(options: {
-	readonly session: URI;
+	readonly owner: URI;
 	readonly toolCallId: string;
 	readonly output: string;
 	readonly exitCode?: number;
-}, sessionDataService: ISessionDataService, fileService: IFileService): Promise<TerminalCommandResult> {
-	const directory = URI.joinPath(sessionDataService.getSessionDataDir(options.session), 'terminal-output');
+}, sessionDataService: ISessionDataService, fileService: IFileService): Promise<IRetainedTerminalOutput> {
+	const directory = URI.joinPath(sessionDataService.getSessionDataDir(options.owner), 'terminal-output');
 	const name = `${(hash(options.toolCallId) >>> 0).toString(36)}.txt`;
 	const resource = URI.joinPath(directory, name);
 	await fileService.createFolder(directory);
 	const bytes = VSBuffer.fromString(options.output);
 	await fileService.writeFile(resource, bytes);
-	const fullOutput: TerminalOutputRef = {
-		uri: resource.toString(),
-		sizeHint: bytes.byteLength,
-	};
 	return {
-		...(options.exitCode !== undefined ? { exitCode: options.exitCode } : {}),
-		preview: terminalOutputPreview(options.output),
-		truncated: true,
-		fullOutput,
+		result: {
+			...(options.exitCode !== undefined ? { exitCode: options.exitCode } : {}),
+			preview: terminalOutputPreview(options.output),
+			truncated: true,
+		},
+		artifact: resource,
 	};
 }

@@ -291,10 +291,10 @@ suite('ChatModel', () => {
 		});
 	});
 
-	test('terminal full-output references survive chat serialization and restoration', () => {
+	test('retained terminal identity survives chat serialization and restoration', () => {
 		const model = testDisposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
 		const request = model.addRequest({ text: 'run', parts: [] }, { variables: [] }, 0);
-		const fullOutput = { uri: URI.parse('vscode-agent-host://remote-host/output'), name: 'terminal-output-abc12.txt', sizeHint: 8192 };
+		const terminal = URI.parse('agenthost-terminal://shell/session/tool');
 		model.acceptResponseProgress(request, {
 			kind: 'externalToolInvocationUpdate',
 			toolCallId: 'terminal-full-output',
@@ -306,7 +306,9 @@ suite('ChatModel', () => {
 				kind: 'terminal',
 				language: 'shellscript',
 				commandLine: { original: 'build' },
-				terminalCommandOutput: { text: 'preview', truncated: true, fullOutput },
+				terminalCommandUri: terminal,
+				terminalConnectionAuthority: 'remote-host',
+				terminalCommandOutput: { text: 'preview', truncated: true },
 			},
 		});
 		const serialized: ISerializableChatData3 = JSON.parse(JSON.stringify(model.toJSON()));
@@ -321,11 +323,13 @@ suite('ChatModel', () => {
 		assert.deepStrictEqual({
 			text: output?.text,
 			truncated: output?.truncated,
-			fullOutput: { ...output?.fullOutput, uri: URI.revive(output?.fullOutput?.uri)?.toString() },
+			terminal: URI.revive(invocation.toolSpecificData.terminalCommandUri)?.toString(),
+			authority: invocation.toolSpecificData.terminalConnectionAuthority,
 		}, {
 			text: 'preview',
 			truncated: true,
-			fullOutput: { ...fullOutput, uri: fullOutput.uri.toString() },
+			terminal: terminal.toString(),
+			authority: 'remote-host',
 		});
 	});
 
@@ -2607,28 +2611,30 @@ suite('serializeSendOptions', () => {
 suite('ChatResponseResource', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('terminal output URI round-trips reserved tool IDs and distinguishes artifact identities', () => {
+	test('terminal output URI round-trips reserved tool IDs and distinguishes terminal identities', () => {
 		const session = URI.parse('vscode-chat-session://local/session1');
-		const reference = { uri: URI.file('/tmp/full output #1.txt'), name: 'terminal-output-abc12.txt' };
-		const resource = ChatResponseResource.createTerminalOutputUri(session, 'call/1?#', reference);
+		const terminal = URI.parse('agenthost-terminal://shell/session/call-1');
+		const resource = ChatResponseResource.createTerminalOutputUri(session, 'call/1?#', terminal, 'terminal-output-abc12.txt');
 		const parsed = ChatResponseResource.parseTerminalOutputUri(URI.parse(resource.toString()));
 		const variants = [
 			resource,
-			ChatResponseResource.createTerminalOutputUri(session.with({ path: '/session2' }), 'call/1?#', reference),
-			ChatResponseResource.createTerminalOutputUri(session, 'call-2', reference),
-			ChatResponseResource.createTerminalOutputUri(session, 'call/1?#', { ...reference, uri: URI.file('/tmp/other.txt') }),
-			ChatResponseResource.createTerminalOutputUri(session, 'call/1?#', { ...reference, name: 'terminal-output-def34.txt' }),
+			ChatResponseResource.createTerminalOutputUri(session.with({ path: '/session2' }), 'call/1?#', terminal, 'terminal-output-abc12.txt'),
+			ChatResponseResource.createTerminalOutputUri(session, 'call-2', terminal, 'terminal-output-abc12.txt'),
+			ChatResponseResource.createTerminalOutputUri(session, 'call/1?#', URI.parse('agenthost-terminal://shell/session/other'), 'terminal-output-abc12.txt'),
+			ChatResponseResource.createTerminalOutputUri(session, 'call/1?#', terminal, 'terminal-output-def34.txt'),
 		];
 		assert.deepStrictEqual({
 			session: parsed?.sessionResource.toString(),
 			toolCallId: parsed?.toolCallId,
 			legacyParser: ChatResponseResource.parseUri(resource),
-			identical: ChatResponseResource.createTerminalOutputUri(session, 'call/1?#', reference).toString(),
+			terminal: parsed?.terminal.toString(),
+			identical: ChatResponseResource.createTerminalOutputUri(session, 'call/1?#', terminal, 'terminal-output-abc12.txt').toString(),
 			name: resource.path.split('/').at(-1),
 			identities: new Set(variants.map(uri => uri.toString())).size,
 		}, {
 			session: session.toString(),
 			toolCallId: 'call/1?#',
+			terminal: terminal.toString(),
 			legacyParser: undefined,
 			identical: resource.toString(),
 			name: 'terminal-output-abc12.txt',
@@ -2637,7 +2643,7 @@ suite('ChatResponseResource', () => {
 	});
 
 	test('terminal output parser rejects malformed or unrelated resources', () => {
-		const base = ChatResponseResource.createTerminalOutputUri(URI.parse('vscode-chat-session://local/session1'), 'call-1', { uri: URI.file('/tmp/output') });
+		const base = ChatResponseResource.createTerminalOutputUri(URI.parse('vscode-chat-session://local/session1'), 'call-1', URI.parse('agenthost-terminal:/output'));
 		assert.deepStrictEqual([
 			base.with({ scheme: 'invalid' }),
 			base.with({ path: '/terminal//full-output.txt' }),
@@ -2651,7 +2657,8 @@ suite('ChatResponseResource', () => {
 		const resource = ChatResponseResource.createTerminalOutputUri(
 			URI.parse('vscode-chat-session://local/session1'),
 			'call-1',
-			{ uri: URI.file('/tmp/output'), name: `../../My unsafe output ${'x'.repeat(100)}.txt` },
+			URI.parse('agenthost-terminal:/output'),
+			`../../My unsafe output ${'x'.repeat(100)}.txt`,
 		);
 		const name = resource.path.split('/').at(-1);
 		assert.deepStrictEqual({

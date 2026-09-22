@@ -76,6 +76,8 @@ import { buildCopilotSystemNotification } from './copilotSystemNotification.js';
 import { parseLeadingSlashCommand } from '../../common/agentHostSlashCommand.js';
 import type { IUnsandboxedCommandConfirmationRequest, ShellManager } from './copilotShellTools.js';
 import { NonPtyShellTerminalStreams } from './copilotNonPtyShellTerminals.js';
+import { IAgentHostTerminalManager } from '../agentHostTerminalManager.js';
+import { buildNonPtyShellTerminalClaim } from '../shared/nonPtyShellTerminal.js';
 import { buildSandboxConfigForSdk, type SandboxConfig } from './sandboxConfigForSdk.js';
 import type { IAgentServerToolHost } from '../../common/agentServerTools.js';
 import { AGENT_MERGE_GITHUB_TOOL_RESTRICTION, getAgentMergeGitHubToolRestriction, isCopilotMcpToolName } from '../shared/agentMergeToolRestrictions.js';
@@ -1228,6 +1230,7 @@ export class CopilotAgentSession extends Disposable {
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@ICopilotApiService private readonly _copilotApiService: ICopilotApiService,
 		@IAgentHostOTelService private readonly _otelService: IAgentHostOTelService,
+		@IAgentHostTerminalManager private readonly _terminalManager: IAgentHostTerminalManager,
 	) {
 		super();
 		this._register(toDisposable(() => {
@@ -3541,8 +3544,54 @@ export class CopilotAgentSession extends Disposable {
 				},
 			} : {}),
 		});
+		this._retainMappedShellOutputs(events, result);
 		this._logService.trace(`[Copilot:${this.sessionId}] Reconstructed ${result.turns.length} turn(s) from ${events.length} event(s)`);
 		return result;
+	}
+
+	private _retainMappedShellOutputs(events: readonly SessionEvent[], mapped: IMappedSessionEvents): void {
+		const artifacts = new Map<string, string>();
+		for (const event of events) {
+			if (event.type !== 'tool.execution_complete') {
+				continue;
+			}
+			const shellExit = event.data.result?.contents?.find(content => content.type === 'shell_exit' && !!content.outputFilePath);
+			if (shellExit?.type === 'shell_exit' && shellExit.outputFilePath) {
+				artifacts.set(event.data.toolCallId, shellExit.outputFilePath);
+			}
+		}
+		const turns = [
+			...mapped.turns,
+			...Array.from(mapped.subagentTurnsByToolCallId.values()).flat(),
+		];
+		for (const turn of turns) {
+			for (const part of turn.responseParts) {
+				if (part.kind !== ResponsePartKind.ToolCall || part.toolCall.status !== ToolCallStatus.Completed) {
+					continue;
+				}
+				const path = artifacts.get(part.toolCall.toolCallId);
+				const terminal = part.toolCall.content?.find((content): content is ToolResultTerminalContent => content.type === ToolResultContentType.Terminal);
+				if (!terminal) {
+					continue;
+				}
+				const retained = {
+					title: terminal.title,
+					claim: buildNonPtyShellTerminalClaim(this._ownerSessionUri, this._chatChannelUri, part.toolCall.toolCallId),
+					exitCode: terminal.result?.exitCode,
+				};
+				if (path) {
+					this._terminalManager.retainTerminalState(terminal.resource, {
+						...retained,
+						artifact: URI.file(path),
+					});
+				} else if (terminal.isPty === false && terminal.result?.preview !== undefined) {
+					this._terminalManager.retainTerminalState(terminal.resource, {
+						...retained,
+						content: [{ type: 'unclassified', value: terminal.result.preview }],
+					});
+				}
+			}
+		}
 	}
 
 	private _seedSubagentDisplayNames(events: readonly SessionEvent[]): void {

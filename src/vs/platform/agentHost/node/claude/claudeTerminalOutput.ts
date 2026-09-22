@@ -4,14 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from '../../../../base/common/uri.js';
-import { terminalOutputContent, terminalOutputPreview, existingTerminalOutputResult } from '../shared/terminalOutputArtifacts.js';
+import { terminalOutputContent, terminalOutputPreview, existingTerminalOutput } from '../shared/terminalOutputArtifacts.js';
 import type { ToolResultTerminalContent } from '../../common/state/protocol/state.js';
 import type { ISessionDatabase } from '../../common/sessionDataService.js';
 
 export interface IClaudeTerminalOutputRecord {
 	readonly preview?: string;
 	readonly persistedOutputPath: string;
-	readonly persistedOutputSize?: number;
 }
 
 const CLAUDE_TERMINAL_OUTPUTS_METADATA_KEY = 'claude.terminalOutputs';
@@ -20,7 +19,6 @@ interface IClaudeBashOutput {
 	readonly stdout: string;
 	readonly stderr: string;
 	readonly persistedOutputPath: string;
-	readonly persistedOutputSize?: number;
 }
 
 function asClaudeBashOutput(value: unknown): IClaudeBashOutput | undefined {
@@ -29,9 +27,6 @@ function asClaudeBashOutput(value: unknown): IClaudeBashOutput | undefined {
 	}
 	const candidate = value as Partial<IClaudeBashOutput>;
 	if (typeof candidate.stdout !== 'string' || typeof candidate.stderr !== 'string' || typeof candidate.persistedOutputPath !== 'string') {
-		return undefined;
-	}
-	if (candidate.persistedOutputSize !== undefined && (typeof candidate.persistedOutputSize !== 'number' || !Number.isFinite(candidate.persistedOutputSize) || candidate.persistedOutputSize < 0)) {
 		return undefined;
 	}
 	return candidate as IClaudeBashOutput;
@@ -43,9 +38,6 @@ function asClaudeTerminalOutputRecord(value: unknown): IClaudeTerminalOutputReco
 	}
 	const candidate = value as Partial<IClaudeTerminalOutputRecord>;
 	if ((candidate.preview !== undefined && typeof candidate.preview !== 'string') || typeof candidate.persistedOutputPath !== 'string') {
-		return undefined;
-	}
-	if (candidate.persistedOutputSize !== undefined && (typeof candidate.persistedOutputSize !== 'number' || !Number.isFinite(candidate.persistedOutputSize) || candidate.persistedOutputSize < 0)) {
 		return undefined;
 	}
 	return candidate as IClaudeTerminalOutputRecord;
@@ -64,7 +56,6 @@ export function getClaudeTerminalOutputRecord(message: unknown): IClaudeTerminal
 	return output ? {
 		preview: terminalOutputPreview(output.stdout, output.stderr),
 		persistedOutputPath: output.persistedOutputPath,
-		persistedOutputSize: output.persistedOutputSize,
 	} : undefined;
 }
 
@@ -116,7 +107,7 @@ export async function readClaudeTerminalOutputRecords(db: ISessionDatabase): Pro
 	return outputs;
 }
 
-export function createClaudeFullTerminalOutput(options: {
+export function createClaudeTerminalOutput(options: {
 	readonly message?: unknown;
 	readonly persistedOutput?: IClaudeTerminalOutputRecord;
 	readonly toolName: string;
@@ -131,10 +122,9 @@ export function createClaudeFullTerminalOutput(options: {
 	if (!output) {
 		return undefined;
 	}
-	const result = existingTerminalOutputResult({
+	const retained = existingTerminalOutput({
 		path: output.persistedOutputPath,
-		sizeHint: output.persistedOutputSize,
 		preview: output.preview,
 	});
-	return terminalOutputContent(options.session, options.toolCallId, options.title, result);
+	return terminalOutputContent(options.session, options.toolCallId, options.title, retained.result);
 }

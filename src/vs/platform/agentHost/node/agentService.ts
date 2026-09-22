@@ -672,6 +672,9 @@ export class AgentService extends Disposable implements IAgentService {
 		this._changesetCoordinator = collaborators.changesetCoordinator;
 		this._completions = collaborators.completions;
 		this._terminalManager = collaborators.terminalManager;
+		this._register(this._sessionDataService.onWillDeleteSessionData(event => {
+			this._terminalManager.removeRetainedTerminalsForOwner(event.session);
+		}));
 		this._localTurns = collaborators.localTurns;
 		this._sideEffects = collaborators.sideEffects;
 		this._serverToolHost = collaborators.serverToolHost;
@@ -5578,6 +5581,10 @@ export class AgentService extends Disposable implements IAgentService {
 			if (terminalState) {
 				telemetry.setServedFromMemory(true);
 				return { resource: resourceStr, state: terminalState, fromSeq: this._stateManager.serverSeq };
+			}
+			const retainedTerminalState = await this._terminalManager.resolveRetainedTerminalState(resourceStr);
+			if (retainedTerminalState) {
+				return { resource: resourceStr, state: retainedTerminalState, fromSeq: this._stateManager.serverSeq };
 			}
 
 			let snapshot = this._stateManager.getSnapshot(resourceStr);

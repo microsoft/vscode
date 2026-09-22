@@ -4,15 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { Event } from '../../../../../../base/common/event.js';
-import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
+import { Emitter, Event } from '../../../../../../base/common/event.js';
+import { Disposable, DisposableStore, type IReference } from '../../../../../../base/common/lifecycle.js';
 import { isEqual } from '../../../../../../base/common/resources.js';
 import { hasKey } from '../../../../../../base/common/types.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
-import { AgentHostFileSystemProvider, IRemoteFilesystemConnection } from '../../../../../../platform/agentHost/common/agentHostFileSystemProvider.js';
-import { AGENT_HOST_SCHEME } from '../../../../../../platform/agentHost/common/agentHostUri.js';
-import { ResourceReadResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
+import { IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
+import type { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
+import type { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
+import { StateComponents, type ComponentToState, type TerminalState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { FileService } from '../../../../../../platform/files/common/fileService.js';
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
 import { IChatService, IChatToolInvocation, IChatToolInvocationSerialized } from '../../../common/chatService/chatService.js';
@@ -25,14 +26,14 @@ export function createTerminalOutputTestFixture(
 	sessionResource: URI,
 	invocation: IChatToolInvocation | IChatToolInvocationSerialized,
 	authority: string,
-	read: (uri: URI) => Promise<ResourceReadResult>,
+	read: (uri: URI) => Promise<TerminalState>,
 	options?: { readonly loadSessionOnDemand?: boolean },
 ) {
 	const data = invocation.toolSpecificData;
 	assert.ok(data?.kind === 'terminal' && hasKey(data, { commandLine: true }));
-	const reference = data.terminalCommandOutput?.fullOutput;
-	assert.ok(reference);
-	const resource = ChatResponseResource.createTerminalOutputUri(sessionResource, invocation.toolCallId, reference);
+	const terminal = URI.revive(data.terminalCommandUri);
+	assert.ok(terminal);
+	const resource = ChatResponseResource.createTerminalOutputUri(sessionResource, invocation.toolCallId, terminal, `terminal-output-${invocation.toolCallId}.txt`);
 	const response = store.add(new Response(invocation.kind === 'toolInvocationSerialized' ? [invocation] : []));
 	if (invocation.kind === 'toolInvocation') {
 		response.updateContent(invocation);
@@ -70,25 +71,66 @@ export function createTerminalOutputTestFixture(
 			};
 		}
 	}();
-	const reads: URI[] = [];
-	const connection = new class extends mock<IRemoteFilesystemConnection>() {
-		override async resourceRead(uri: URI): Promise<ResourceReadResult> {
-			reads.push(uri);
-			return read(uri);
+	const subscriptions: URI[] = [];
+	let subscriptionReleases = 0;
+	class TestTerminalSubscription extends Disposable implements IAgentSubscription<TerminalState> {
+		private readonly _onDidChange = this._register(new Emitter<TerminalState>());
+		readonly onDidChange = this._onDidChange.event;
+		private readonly _onDidError = this._register(new Emitter<Error>());
+		readonly onDidError = this._onDidError.event;
+		readonly onWillApplyAction = Event.None;
+		readonly onDidApplyAction = Event.None;
+		value: TerminalState | Error | undefined;
+		get verifiedValue(): TerminalState | undefined { return this.value instanceof Error ? undefined : this.value; }
+		constructor(uri: URI) {
+			super();
+			queueMicrotask(() => {
+				void read(uri).then(state => {
+					this.value = state;
+					this._onDidChange.fire(state);
+				}, error => {
+					const value = error instanceof Error ? error : new Error(String(error));
+					this.value = value;
+					this._onDidError.fire(value);
+				});
+			});
+		}
+		receiveEnvelope(): void { }
+	}
+	const connection = new class extends mock<IAgentConnection>() {
+		override getSubscription<T extends StateComponents>(kind: T, uri: URI): IReference<IAgentSubscription<ComponentToState[T]>> {
+			assert.strictEqual(kind, StateComponents.Terminal);
+			subscriptions.push(uri);
+			const terminalSubscription = new TestTerminalSubscription(uri);
+			const available: { [K in StateComponents]?: IAgentSubscription<ComponentToState[K]> } = {
+				[StateComponents.Terminal]: terminalSubscription,
+			};
+			const subscription = available[kind];
+			assert.ok(subscription);
+			return {
+				object: subscription,
+				dispose: () => {
+					subscriptionReleases++;
+					terminalSubscription.dispose();
+				},
+			};
+		}
+	}();
+	const connectionsService = new class extends mock<IAgentHostConnectionsService>() {
+		override resolveSessionResource(resource: URI) {
+			return isEqual(resource, sessionResource) ? { connectionAuthority: authority, backendSession: sessionResource, connection } : undefined;
 		}
 	}();
 	const fileService = store.add(new FileService(new NullLogService()));
-	const hostProvider = store.add(new AgentHostFileSystemProvider());
-	store.add(fileService.registerProvider(AGENT_HOST_SCHEME, hostProvider));
-	store.add(hostProvider.registerAuthority(authority, connection));
-	const provider = store.add(new ChatResponseResourceFileSystemProvider(chatService, fileService));
+	const provider = store.add(new ChatResponseResourceFileSystemProvider(chatService, fileService, connectionsService));
 	store.add(fileService.registerProvider(ChatResponseResource.scheme, provider));
 	return {
 		resource,
 		provider,
 		fileService,
 		model,
-		reads,
+		subscriptions,
+		get subscriptionReleases() { return subscriptionReleases; },
 		get acquisitions() { return acquisitions; },
 		get releases() { return releases; },
 	};

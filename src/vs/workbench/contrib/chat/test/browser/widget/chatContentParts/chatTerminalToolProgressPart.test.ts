@@ -15,14 +15,12 @@ import { DeferredPromise, timeout } from '../../../../../../../base/common/async
 import { Emitter, Event } from '../../../../../../../base/common/event.js';
 import { hash } from '../../../../../../../base/common/hash.js';
 import { observableValue } from '../../../../../../../base/common/observable.js';
-import { isEqual } from '../../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { DisposableStore, toDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { mock } from '../../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../../../../base/test/common/timeTravelScheduler.js';
-import { toAgentHostContentUri } from '../../../../../../../platform/agentHost/common/agentHostUri.js';
-import { ContentEncoding } from '../../../../../../../platform/agentHost/common/state/protocol/commands.js';
+import { TerminalClaimKind, TerminalLifecycleStatus } from '../../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import type { IResourceEditorInput } from '../../../../../../../platform/editor/common/editor.js';
@@ -64,6 +62,11 @@ function listenerCount<T>(emitter: Emitter<T>): number {
 function terminalOutputLabel(toolCallId: string): string {
 	const runId = (hash(toolCallId) >>> 0).toString(36).padStart(5, '0').slice(-5);
 	return `Terminal Output · ${runId}`;
+}
+
+function terminalOutputName(toolCallId: string): string {
+	const runId = (hash(toolCallId) >>> 0).toString(36).padStart(5, '0').slice(-5);
+	return `terminal-output-${runId}.txt`;
 }
 
 class TestTerminalChatService extends mock<ITerminalChatService>() {
@@ -252,11 +255,9 @@ interface ITerminalFullOutputPartOptions {
 	readonly mode: TerminalFullOutputRenderingMode;
 	readonly sessionResource?: URI;
 	readonly toolCallId?: string;
-	readonly referenceUri?: URI;
-	readonly outputName?: string;
+	readonly terminalUri?: URI;
 	readonly command?: string;
 	readonly intention?: string;
-	readonly sizeHint?: number;
 	readonly preview?: string;
 	readonly hasReference?: boolean;
 	readonly truncated?: boolean;
@@ -351,7 +352,7 @@ async function createTerminalFullOutputHarness(store: Pick<DisposableStore, 'add
 		readonly mode: TerminalFullOutputRenderingMode;
 		readonly sessionResource: URI;
 		readonly toolCallId: string;
-		readonly reference: { readonly uri: URI; readonly name?: string; readonly sizeHint?: number } | undefined;
+		readonly terminal: URI | undefined;
 		readonly invocation: IChatToolInvocationSerialized;
 	} {
 		testConfigurationService.setUserConfiguration(ChatConfiguration.TerminalToolsInThinking, options.mode === 'thinking');
@@ -359,20 +360,17 @@ async function createTerminalFullOutputHarness(store: Pick<DisposableStore, 'add
 
 		const sessionResource = options.sessionResource ?? URI.parse('chat-session://test/full-output');
 		const toolCallId = options.toolCallId ?? 'terminal-tool-call';
-		const reference = options.hasReference === false ? undefined : {
-			uri: options.referenceUri ?? URI.parse('ahp-content://session/full-output'),
-			name: options.outputName,
-			sizeHint: options.sizeHint,
-		};
+		const terminal = options.hasReference === false ? undefined : options.terminalUri ?? URI.parse('agenthost-terminal://shell/session/full-output');
 		const data: IChatTerminalToolInvocationData = {
 			kind: 'terminal',
 			commandLine: { original: options.command ?? 'printf output' },
 			intention: options.intention,
 			language: 'shellscript',
+			terminalCommandUri: terminal,
+			terminalConnectionAuthority: terminal ? 'local' : undefined,
 			terminalCommandOutput: {
 				text: options.preview ?? 'preview output',
-				truncated: options.truncated ?? !!reference,
-				fullOutput: reference,
+				truncated: options.truncated ?? !!terminal,
 			},
 		};
 		const invocation: IChatToolInvocationSerialized = {
@@ -420,7 +418,7 @@ async function createTerminalFullOutputHarness(store: Pick<DisposableStore, 'add
 			0,
 		));
 		host.appendChild(part.domNode);
-		return { part, mode: options.mode, sessionResource, toolCallId, reference, invocation };
+		return { part, mode: options.mode, sessionResource, toolCallId, terminal, invocation };
 	}
 
 	async function expand(part: ChatTerminalToolProgressPart, mode: TerminalFullOutputRenderingMode): Promise<void> {
@@ -518,8 +516,8 @@ suite('ChatTerminalToolProgressPart full output', () => {
 			const harness = await createTerminalFullOutputHarness(store);
 			const entry = harness.createPart({ mode });
 			await harness.expand(entry.part, mode);
-			const reference = entry.reference;
-			assert.ok(reference);
+			const terminal = entry.terminal;
+			assert.ok(terminal);
 			const selectors = [
 				'.chat-terminal-output-container',
 				'.chat-terminal-output-body',
@@ -551,7 +549,7 @@ suite('ChatTerminalToolProgressPart full output', () => {
 				cursors: [output, xterm, screen, widgetContainer].map(element => mainWindow.getComputedStyle(element).cursor),
 				terminalActivations: harness.terminalActivationCount,
 			}, {
-				resources: selectors.map(() => ChatResponseResource.createTerminalOutputUri(entry.sessionResource, entry.toolCallId, reference).toString()),
+				resources: selectors.map(() => ChatResponseResource.createTerminalOutputUri(entry.sessionResource, entry.toolCallId, terminal, terminalOutputName(entry.toolCallId)).toString()),
 				clickable: true,
 				cursors: ['pointer', 'pointer', 'pointer', 'pointer'],
 				terminalActivations: 0,
@@ -747,13 +745,13 @@ suite('ChatTerminalToolProgressPart full output', () => {
 		const harness = await createTerminalFullOutputHarness(store);
 
 		for (const mode of ['thinking', 'simple', 'plain'] as const) {
-			const { part } = harness.createPart({ mode, toolCallId: `reference-${mode}`, truncated: false });
+			const { part } = harness.createPart({ mode, toolCallId: `reference-${mode}`, truncated: true });
 			await harness.expand(part, mode);
 			const showFullOutput = showFullOutputElement(part);
 			assert.strictEqual(showFullOutput.getAttribute('aria-label'), 'Open Full Output (Read-Only)');
 			assert.strictEqual(part.domNode.querySelector('.chat-terminal-thinking-collapsible > .chat-used-context-label .chat-terminal-show-link'), null);
 			const text = snapshotText(harness.raw(part));
-			assert.strictEqual(text, 'preview output\n\nClick to open full output (read-only)');
+			assert.strictEqual(text, 'preview output\n\nShowing a preview. Click to open full output (read-only)');
 			assert.strictEqual(part.domNode.querySelector('.chat-terminal-full-output-footer'), null);
 
 			await harness.collapse(part, mode);
@@ -775,7 +773,7 @@ suite('ChatTerminalToolProgressPart full output', () => {
 
 	test('keeps an empty preview actionable without claiming the command produced no output', async () => {
 		const harness = await createTerminalFullOutputHarness(store);
-		const { part } = harness.createPart({ mode: 'plain', preview: '', referenceUri: URI.file('/tmp/full-output.txt') });
+		const { part } = harness.createPart({ mode: 'plain', preview: '', terminalUri: URI.parse('agenthost-terminal://shell/empty-preview/output') });
 		await harness.expand(part, 'plain');
 
 		const emptyMessage = part.domNode.querySelector<HTMLElement>('.chat-terminal-output-empty')?.textContent;
@@ -793,44 +791,35 @@ suite('ChatTerminalToolProgressPart full output', () => {
 		});
 	});
 
-	for (const truncated of [true, false]) {
-		for (const { name, uri, authority } of [
-			{ name: 'local file', uri: URI.file('/tmp/full output #1.txt'), authority: 'local' },
-			{ name: 'remote POSIX file', uri: URI.file('/var/tmp/full-output.txt'), authority: 'remote-linux' },
-			{ name: 'remote Windows file', uri: URI.from({ scheme: 'file', path: '/c:/Temp/full-output.txt' }), authority: 'remote-windows' },
-			{ name: 'opaque reference', uri: URI.parse('shell-output:/artifact?version=1#output'), authority: 'remote-host' },
-			{ name: 'literal text', uri: URI.file('/tmp/<img src=x onerror=alert(1)>.txt'), authority: 'remote-linux' },
-		]) {
-			test(`offers ${truncated ? 'truncated' : 'untruncated'} output from a ${name} without exposing its location`, async () => {
-				const harness = await createTerminalFullOutputHarness(store);
-				const referenceUri = toAgentHostContentUri(uri, authority, { alwaysWrap: true });
-				const { part } = harness.createPart({ mode: 'plain', truncated, referenceUri });
-				await harness.expand(part, 'plain');
-				const message = `${truncated ? 'Showing a preview. ' : ''}Click to open full output (read-only)`;
-				const accessible = part.getCommandAndOutputAsText();
-				assert.deepStrictEqual({
-					rendered: snapshotText(harness.raw(part)),
-					cursor: harness.raw(part).modes.showCursor,
-					accessible,
-					opens: harness.openedEditors.length,
-				}, {
-					rendered: `preview output\n\n${message}`,
-					cursor: false,
-					accessible: `Command: printf output\npreview output\n${message}\nOpen Full Output (Read-Only) opens the captured output if it is still available.`,
-					opens: 0,
-				});
+	for (const { name, uri } of [
+		{ name: 'standard URI', uri: URI.parse('agenthost-terminal://shell/session/output') },
+		{ name: 'URI with reserved characters', uri: URI.parse('agenthost-terminal://shell/session/output%20one?version=1#result') },
+	]) {
+		test(`offers retained output from a ${name} without exposing its location`, async () => {
+			const harness = await createTerminalFullOutputHarness(store);
+			const { part } = harness.createPart({ mode: 'plain', truncated: true, terminalUri: uri });
+			await harness.expand(part, 'plain');
+			const message = 'Showing a preview. Click to open full output (read-only)';
+			assert.deepStrictEqual({
+				rendered: snapshotText(harness.raw(part)),
+				cursor: harness.raw(part).modes.showCursor,
+				accessible: part.getCommandAndOutputAsText(),
+				opens: harness.openedEditors.length,
+			}, {
+				rendered: `preview output\n\n${message}`,
+				cursor: false,
+				accessible: `Command: printf output\npreview output\n${message}\nOpen Full Output (Read-Only) opens the captured output if it is still available.`,
+				opens: 0,
 			});
-		}
+		});
 	}
 
 	test('uses a concise run-specific editor title instead of repeating the command in every rendering mode', async () => {
 		const harness = await createTerminalFullOutputHarness(store);
-		const outputName = 'printf-output-abc12.txt';
-		const referenceUri = toAgentHostContentUri(URI.file('/tmp/1788905997116-copilot-tool-output-random.txt'), 'remote-host', { alwaysWrap: true });
 		const message = 'Showing a preview. Click to open full output (read-only)';
 
 		for (const mode of ['thinking', 'simple', 'plain'] as const) {
-			const { part } = harness.createPart({ mode, outputName, referenceUri, command: 'node large-output.cjs', intention: `Different model description for ${mode}` });
+			const { part } = harness.createPart({ mode, command: 'node large-output.cjs', intention: `Different model description for ${mode}` });
 			await harness.expand(part, mode);
 			showFullOutputElement(part).click();
 
@@ -870,34 +859,6 @@ suite('ChatTerminalToolProgressPart full output', () => {
 		});
 	}
 
-	for (const truncated of [true, false]) {
-		for (const { sizeHint, sizeLabel } of [
-			{ sizeHint: undefined, sizeLabel: '' },
-			{ sizeHint: 0, sizeLabel: 'about 0B, ' },
-			{ sizeHint: 4096, sizeLabel: 'about 4.00KB, ' },
-			{ sizeHint: 352323, sizeLabel: 'about 344.07KB, ' },
-			{ sizeHint: -1, sizeLabel: '' },
-			{ sizeHint: Number.NaN, sizeLabel: '' },
-			{ sizeHint: Number.POSITIVE_INFINITY, sizeLabel: '' },
-		]) {
-			test(`describes ${truncated ? 'truncated' : 'untruncated'} output with size hint ${sizeHint}`, async () => {
-				const harness = await createTerminalFullOutputHarness(store);
-				const { part } = harness.createPart({ mode: 'plain', truncated, sizeHint });
-				await harness.expand(part, 'plain');
-				const message = `${truncated ? 'Showing a preview. ' : ''}Click to open full output (${sizeLabel}read-only)`;
-				assert.deepStrictEqual({
-					notice: snapshotText(harness.raw(part)),
-					accessible: part.getCommandAndOutputAsText(),
-					openedEditors: harness.openedEditors.length,
-				}, {
-					notice: `preview output\n\n${message}`,
-					accessible: `Command: printf output\npreview output\n${message}\nOpen Full Output (Read-Only) opens the captured output if it is still available.`,
-					openedEditors: 0,
-				});
-			});
-		}
-	}
-
 	test('Open Full Output opens the originating editor by mouse or keyboard without activating terminal chrome', async () => {
 		const harness = await createTerminalFullOutputHarness(store);
 		const entries = [
@@ -905,19 +866,19 @@ suite('ChatTerminalToolProgressPart full output', () => {
 				mode: 'simple',
 				sessionResource: URI.parse('chat-session://test/session-one'),
 				toolCallId: 'tool-one',
-				referenceUri: URI.parse('ahp-content://one/output'),
+				terminalUri: URI.parse('agenthost-terminal://shell/session-one/output'),
 			}),
 			harness.createPart({
 				mode: 'thinking',
 				sessionResource: URI.parse('chat-session://test/session-two'),
 				toolCallId: 'tool-two',
-				referenceUri: URI.parse('ahp-content://two/output'),
+				terminalUri: URI.parse('agenthost-terminal://shell/session-two/output'),
 			}),
 			harness.createPart({
 				mode: 'plain',
 				sessionResource: URI.parse('chat-session://test/session-three'),
 				toolCallId: 'tool-three',
-				referenceUri: URI.parse('ahp-content://three/output'),
+				terminalUri: URI.parse('agenthost-terminal://shell/session-three/output'),
 			}),
 		];
 		for (const entry of entries) {
@@ -961,9 +922,9 @@ suite('ChatTerminalToolProgressPart full output', () => {
 		await timeout(0);
 
 		const expectedResources = entries.map(entry => {
-			const reference = entry.reference;
-			assert.ok(reference);
-			return ChatResponseResource.createTerminalOutputUri(entry.sessionResource, entry.toolCallId, reference).toString();
+			const terminal = entry.terminal;
+			assert.ok(terminal);
+			return ChatResponseResource.createTerminalOutputUri(entry.sessionResource, entry.toolCallId, terminal, terminalOutputName(entry.toolCallId)).toString();
 		});
 		assert.deepStrictEqual({
 			resources: harness.openedEditors.map(input => input.resource.toString()),
@@ -988,23 +949,26 @@ suite('ChatTerminalToolProgressPart full output', () => {
 
 	test('the explicit full-output link keeps its exact range and unchanged readonly resource and bytes', async () => {
 		const harness = await createTerminalFullOutputHarness(store);
-		const authority = 'ui-full-output';
-		const backingResource = URI.file('/tmp/1788905997116-copilot-tool-output-random.txt');
-		const outputName = 'printf-output-abc12.txt';
+		const authority = 'local';
+		const terminalResource = URI.parse('agenthost-terminal://shell/provider-backed/output');
 		const sessionResource = URI.parse('chat-session://test/provider-backed-output');
 		const entry = harness.createPart({
 			mode: 'plain',
 			sessionResource,
 			toolCallId: 'provider-backed-tool',
-			referenceUri: toAgentHostContentUri(backingResource, authority, { alwaysWrap: true }),
-			outputName,
-			sizeHint: 8192,
+			terminalUri: terminalResource,
 			preview: 'preview only',
 		});
 		const completeOutput = `complete output\n${'x'.repeat(4096)}\nend`;
 		const fixture = createTerminalOutputTestFixture(store, sessionResource, entry.invocation, authority, async resource => {
-			assert.ok(isEqual(resource, backingResource));
-			return { encoding: ContentEncoding.Utf8, data: completeOutput };
+			assert.strictEqual(resource.toString(), terminalResource.toString());
+			return {
+				title: 'printf output',
+				content: [{ type: 'unclassified', value: completeOutput }],
+				lifecycle: { status: TerminalLifecycleStatus.Exited, exitCode: 0 },
+				claim: { kind: TerminalClaimKind.Session, session: sessionResource.toString(), chat: sessionResource.toString(), toolCallId: 'provider-backed-tool' },
+				isPty: false,
+			};
 		});
 		let openedText: string | undefined;
 		harness.addEditorOpenHandler(async input => {
@@ -1013,10 +977,10 @@ suite('ChatTerminalToolProgressPart full output', () => {
 		});
 		await harness.expand(entry.part, entry.mode);
 		assert.deepStrictEqual({
-			readsBeforeActivation: fixture.reads.length,
+			subscriptionsBeforeActivation: fixture.subscriptions.length,
 			openedEditorsBeforeActivation: harness.openedEditors.length,
 		}, {
-			readsBeforeActivation: 0,
+			subscriptionsBeforeActivation: 0,
 			openedEditorsBeforeActivation: 0,
 		});
 
@@ -1051,23 +1015,24 @@ suite('ChatTerminalToolProgressPart full output', () => {
 		const linkOpenOperation = harness.editorOpenOperations[1];
 		assert.ok(linkOpenOperation);
 		await linkOpenOperation;
+		const expectedResource = ChatResponseResource.createTerminalOutputUri(sessionResource, 'provider-backed-tool', terminalResource, terminalOutputName('provider-backed-tool'));
 
 		assert.deepStrictEqual({
 			openedResources: harness.openedEditors.map(input => input.resource.toString()),
-			expectedResource: fixture.resource.toString(),
+			expectedResource: expectedResource.toString(),
 			openedText,
-			editorName: fixture.resource.path.split('/').at(-1),
+			editorName: harness.openedEditors[0].resource.path.split('/').at(-1),
 			editorLabels: harness.openedEditors.map(input => input.label),
 			preview: entry.invocation.toolSpecificData?.kind === 'terminal' ? entry.invocation.toolSpecificData.terminalCommandOutput?.text : undefined,
-			reads: fixture.reads.map(resource => resource.toString()),
+			subscriptions: fixture.subscriptions.map(resource => resource.toString()),
 		}, {
-			openedResources: [fixture.resource.toString(), fixture.resource.toString()],
-			expectedResource: fixture.resource.toString(),
+			openedResources: [expectedResource.toString(), expectedResource.toString()],
+			expectedResource: expectedResource.toString(),
 			openedText: completeOutput,
-			editorName: outputName,
+			editorName: terminalOutputName('provider-backed-tool'),
 			editorLabels: [terminalOutputLabel('provider-backed-tool'), terminalOutputLabel('provider-backed-tool')],
 			preview: 'preview only',
-			reads: [backingResource.toString(), backingResource.toString()],
+			subscriptions: [terminalResource.toString(), terminalResource.toString()],
 		});
 	});
 });
@@ -1351,7 +1316,7 @@ suite('ChatTerminalToolOutputSection layout', () => {
 		let running = true;
 		let opens = 0;
 		const action = toAction({ id: 'test.openFullOutput', label: 'Open Full Output', run: () => { opens++; } });
-		const section = createSection({ text: 'preview', fullOutput: { uri: URI.file('/tmp/output') } }, action, { isRunning: () => running });
+		const section = createSection({ text: 'preview', truncated: true }, action, { isRunning: () => running });
 		await section.toggle(true);
 		section.domNode.click();
 		await timeout(0);
@@ -1385,12 +1350,15 @@ suite('ChatTerminalToolOutputSection layout', () => {
 						return rawOutput;
 					}
 				}();
+				const action = hasReference ? toAction({ id: 'test.openFullOutput', label: 'Open Full Output', run: () => { } }) : undefined;
 				const section = createSection({
 					text: 'stored preview',
-					fullOutput: hasReference ? { uri: URI.file('/tmp/output') } : undefined,
-				}, undefined, { command });
+					truncated: hasReference,
+				}, action, { command });
 				const outputText = rawOutput || (hasReference ? 'A preview is not available.' : 'No output was produced by the command.');
-				const hint = hasReference ? '\nClick to open full output (read-only)\nOpen Full Output (Read-Only) opens the captured output if it is still available.' : '';
+				const hint = hasReference
+					? `\n${rawOutput ? 'Showing a preview. Click' : 'Click'} to open full output (read-only)\nOpen Full Output (Read-Only) opens the captured output if it is still available.`
+					: '';
 				assert.strictEqual(section.getCommandAndOutputAsText(), `Command: echo test\n${outputText}${hint}`);
 			});
 		}
@@ -1400,8 +1368,7 @@ suite('ChatTerminalToolOutputSection layout', () => {
 		const section = createSection({
 			text: 'line one\nline two\n',
 			truncated: true,
-			fullOutput: { uri: URI.file('/tmp/output') },
-		});
+		}, toAction({ id: 'test.openFullOutput', label: 'Open Full Output', run: () => { } }));
 		assert.strictEqual(section.getCommandAndOutputAsText(), 'Command: echo test\nline one\nline two\nShowing a preview. Click to open full output (read-only)\nOpen Full Output (Read-Only) opens the captured output if it is still available.');
 	});
 
@@ -1413,14 +1380,18 @@ suite('ChatTerminalToolOutputSection layout', () => {
 				hasExited: true,
 				exitCode: 0,
 			};
-			const section = createSection({ text: '', fullOutput: { uri: URI.file('/tmp/output') } }, undefined, { source });
+			const section = createSection(
+				{ text: '', truncated: true },
+				toAction({ id: 'test.openFullOutput', label: 'Open Full Output', run: () => { } }),
+				{ source },
+			);
 			await section.toggle(true);
 			assert.deepStrictEqual({
 				accessible: section.getCommandAndOutputAsText(),
 				emptyMessage: text ? undefined : section.domNode.querySelector('.chat-terminal-output-empty')?.textContent,
 			}, {
-				accessible: `Command: echo test\n${text || 'A preview is not available.'}\nClick to open full output (read-only)\nOpen Full Output (Read-Only) opens the captured output if it is still available.`,
-				emptyMessage: text ? undefined : 'A preview is not available. Open the full output to view it.',
+				accessible: `Command: echo test\n${text || 'A preview is not available.'}\n${text ? 'Showing a preview. Click' : 'Click'} to open full output (read-only)\nOpen Full Output (Read-Only) opens the captured output if it is still available.`,
+				emptyMessage: text ? undefined : '',
 			});
 		});
 	}
@@ -1483,12 +1454,10 @@ suite('ChatTerminalToolOutputSection layout', () => {
 
 	test('wraps the inline terminal notice inside the existing scrollable output box', async () => {
 		container.style.width = '280px';
-		const outputUri = URI.file(`/tmp/${'long-directory-name/'.repeat(8)}full-output.txt`);
 		const section = createSection(
 			{
 				text: Array.from({ length: 20 }, (_, index) => `line ${index}`).join('\r\n'),
 				truncated: true,
-				fullOutput: { uri: outputUri },
 			},
 			toAction({ id: 'test.openFullOutput', label: 'Open Full Output', run: () => { } }),
 		);

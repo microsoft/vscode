@@ -14,7 +14,6 @@ import { observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { IAccessibleViewService } from '../../../../../platform/accessibility/browser/accessibleView.js';
-import { toAgentHostContentUri } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IMarkdownRenderer, IMarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
@@ -43,8 +42,6 @@ interface ITerminalFullOutputFixtureOptions {
 	readonly hasFullOutput: boolean;
 	readonly expanded: boolean;
 	readonly collapsible?: boolean;
-	readonly fullOutputPath?: string;
-	readonly sizeHint?: number;
 	readonly intention?: string;
 }
 
@@ -148,22 +145,17 @@ async function renderTerminalFullOutput(context: ComponentFixtureContext, option
 	const itemContainer = dom.append(context.container, dom.$('.interactive-item-container'));
 
 	const sessionResource = URI.parse('chat-session://fixture/terminal-full-output');
-	const fullOutput = options.hasFullOutput ? {
-		uri: toAgentHostContentUri(URI.file(options.fullOutputPath ?? '/tmp/terminal-output.txt'), 'local', { alwaysWrap: true }),
-		name: 'terminal-output-abc12.txt',
-		sizeHint: options.sizeHint,
-	} : undefined;
 	const terminalData: IChatTerminalToolInvocationData = {
 		kind: 'terminal',
 		commandLine: { original: 'find src -name "*.ts" | sort' },
 		language: 'shellscript',
 		intention: options.intention,
 		isPty: false,
+		terminalCommandUri: options.hasFullOutput ? URI.parse('agenthost-terminal://shell/fixture/terminal-full-output') : undefined,
 		terminalCommandState: { exitCode: 0 },
 		terminalCommandOutput: {
 			text: options.preview.replace(/\r?\n/g, '\r\n'),
 			truncated: options.hasFullOutput,
-			fullOutput,
 		},
 	};
 	const invocation: IChatToolInvocationSerialized = {
@@ -256,16 +248,11 @@ export default defineThemedFixtureGroup({ path: 'chat/terminalFullOutput/' }, {
 	'Narrow expanded full output': defineComponentFixture({
 		additionalThemes: ['darkHighContrast'],
 		expectedVisualDescriptions: ['In a narrow terminal card, the short Showing a preview. Click to open full output (read-only) notice wraps as plain terminal text without repeating the command or exposing the backing path. The square open-in-product icon stays inside the nested executed-command header without overlapping its command label or appearing beside the outer row.'],
-		render: context => renderTerminalFullOutput(context, { width: 280, preview: 'src/main.ts\nsrc/terminal.ts\n…', hasFullOutput: true, expanded: true, collapsible: true, intention: 'List source files', fullOutputPath: '/var/tmp/agent-session-1234567890/1788891000000-copilot-tool-output-12345-11111111-1111-4111-8111-111111111111.txt' }),
+		render: context => renderTerminalFullOutput(context, { width: 280, preview: 'src/main.ts\nsrc/terminal.ts\n…', hasFullOutput: true, expanded: true, collapsible: true, intention: 'List source files' }),
 	}),
 	'Collapsed full output': defineComponentFixture({
 		expectedVisualDescriptions: ['The command output is collapsed while the bordered executed-command block remains visible. The same square open-in-product icon used by local terminal cards stays in that block’s command header.'],
 		render: context => renderTerminalFullOutput(context, { width: 560, preview: 'src/main.ts\nsrc/terminal.ts\n…', hasFullOutput: true, expanded: false }),
-	}),
-	'Known full output size': defineComponentFixture({
-		additionalThemes: ['darkHighContrast'],
-		expectedVisualDescriptions: ['The notice reads Showing a preview. Click to open full output (about 344.07KB, read-only). Only Click to open full output is linked; the approximate size and read-only qualifier are plain text. The command is not repeated.'],
-		render: context => renderTerminalFullOutput(context, { width: 560, preview: 'src/main.ts\nsrc/terminal.ts\n…', hasFullOutput: true, expanded: true, sizeHint: 352323 }),
 	}),
 	'Expanded collapsible full output': defineComponentFixture({
 		additionalThemes: ['darkHighContrast'],

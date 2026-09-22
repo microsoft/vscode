@@ -694,7 +694,6 @@ suite('codexReplayMapper', () => {
 					exitCode: 0,
 					preview: 'FULL-OUTPUT-START',
 					truncated: true,
-					fullOutput: { uri: 'file:///tmp/full-output.txt', sizeHint: 1024 },
 				}]]),
 				URI.parse('codex:/session-1'),
 			);
@@ -710,7 +709,6 @@ suite('codexReplayMapper', () => {
 					exitCode: 0,
 					preview: 'FULL-OUTPUT-START',
 					truncated: true,
-					fullOutput: { uri: 'file:///tmp/full-output.txt', sizeHint: 1024 },
 				},
 			});
 		});

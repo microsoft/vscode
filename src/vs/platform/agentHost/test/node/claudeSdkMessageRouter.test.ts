@@ -25,9 +25,12 @@ import { buildChatUri, buildDefaultChatUri, resolveChatUri } from '../../common/
 import { ClaudeSdkMessageRouter } from '../../node/claude/claudeSdkMessageRouter.js';
 import { SubagentRegistry } from '../../node/claude/claudeSubagentRegistry.js';
 import { readClaudeTerminalOutputRecords } from '../../node/claude/claudeTerminalOutput.js';
+import { IAgentHostTerminalManager } from '../../node/agentHostTerminalManager.js';
+import { buildNonPtyShellTerminalUri } from '../../node/shared/nonPtyShellTerminal.js';
 import { IEditArcReporterService, NullEditArcReporterService } from '../../node/shared/editArcReporter.js';
 import { IEditSurvivalReporterFactory, NullEditSurvivalReporterFactory } from '../../node/shared/editSurvivalReporter.js';
 import { createZeroDiffComputeService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
+import { TestAgentHostTerminalManager } from './testAgentHostTerminalManager.js';
 import {
 	makeContentBlockStartText,
 	makeContentBlockStop,
@@ -42,6 +45,7 @@ interface IRouterHarness {
 	readonly signals: AgentSignal[];
 	readonly fileService: FileService;
 	readonly db: TestSessionDatabase;
+	readonly terminalManager: TestAgentHostTerminalManager;
 }
 
 class RecordingAgentEditAttributionService extends NullAgentEditAttributionService {
@@ -62,13 +66,15 @@ function createRouter(
 	disposables: Pick<DisposableStore, 'add'>,
 	chatChannelUri = URI.parse(buildDefaultChatUri('claude:/sess-1')),
 	attributionService = new NullAgentEditAttributionService(),
+	database = new TestSessionDatabase(),
 ): IRouterHarness {
 	const fileService = disposables.add(new FileService(new NullLogService()));
 	const fs = disposables.add(new InMemoryFileSystemProvider());
 	disposables.add(fileService.registerProvider('file', fs));
 
-	const db = new TestSessionDatabase();
+	const db = database;
 	const dbRef: IReference<ISessionDatabase> = { object: db, dispose: () => { } };
+	const terminalManager = disposables.add(new TestAgentHostTerminalManager());
 
 	const services = new ServiceCollection(
 		[ILogService, new NullLogService()],
@@ -77,6 +83,7 @@ function createRouter(
 		[IAgentEditAttributionService, attributionService],
 		[IEditSurvivalReporterFactory, new NullEditSurvivalReporterFactory()],
 		[IEditArcReporterService, new NullEditArcReporterService()],
+		[IAgentHostTerminalManager, terminalManager],
 	);
 	const inst: IInstantiationService = disposables.add(new InstantiationService(services));
 	const subagents = disposables.add(new SubagentRegistry());
@@ -90,7 +97,7 @@ function createRouter(
 	));
 	const signals: AgentSignal[] = [];
 	disposables.add(router.onDidProduceSignal(s => signals.push(s)));
-	return { router, signals, fileService, db };
+	return { router, signals, fileService, db, terminalManager };
 }
 
 function assistantMessage(content: unknown): Extract<SDKMessage, { type: 'assistant' }> {
@@ -138,7 +145,7 @@ suite('ClaudeSdkMessageRouter', () => {
 	});
 
 	test('persists structured Bash output metadata before SDK replay strips it', async () => {
-		const { router, db } = createRouter(disposables);
+		const { router, db, terminalManager } = createRouter(disposables);
 		const stdout = `FULL-OUTPUT-START\n${'x'.repeat(1000)}`;
 		await router.handle({
 			type: 'user',
@@ -160,8 +167,39 @@ suite('ClaudeSdkMessageRouter', () => {
 		assert.deepStrictEqual(await readClaudeTerminalOutputRecords(db), new Map([['bash-1', {
 			preview: stdout.slice(0, 500),
 			persistedOutputPath: '/tmp/claude-full-output.txt',
-			persistedOutputSize: 352335,
 		}]]));
+		const terminalUri = buildNonPtyShellTerminalUri(URI.parse(buildDefaultChatUri('claude:/sess-1')), 'bash-1');
+		assert.strictEqual(
+			terminalManager.retainedTerminalStates.get(terminalUri)?.artifact?.toString(),
+			URI.file('/tmp/claude-full-output.txt').toString(),
+		);
+	});
+
+	test('retains live Bash output when replay metadata persistence fails', async () => {
+		const database = new class extends TestSessionDatabase {
+			override async setMetadata(): Promise<void> {
+				throw new Error('metadata unavailable');
+			}
+		}();
+		const chat = URI.parse(buildDefaultChatUri('claude:/sess-1'));
+		const { router, terminalManager } = createRouter(disposables, chat, new NullAgentEditAttributionService(), database);
+		await router.handle({
+			type: 'user',
+			message: {
+				content: [{ type: 'tool_result', tool_use_id: 'bash-fallback', content: 'saved output' }],
+			},
+			tool_use_result: {
+				stdout: 'preview',
+				stderr: '',
+				persistedOutputPath: '/tmp/claude-live-output.txt',
+			},
+		} as unknown as SDKMessage, 'turn-1');
+
+		const terminalUri = buildNonPtyShellTerminalUri(chat, 'bash-fallback');
+		assert.strictEqual(
+			terminalManager.retainedTerminalStates.get(terminalUri)?.artifact?.toString(),
+			URI.file('/tmp/claude-live-output.txt').toString(),
+		);
 	});
 
 	test('tracks and flushes peer chat edits by their chat channel URI', async () => {

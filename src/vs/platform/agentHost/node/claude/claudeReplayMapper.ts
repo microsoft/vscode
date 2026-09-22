@@ -27,7 +27,7 @@ import { readToolCallMeta } from '../../common/meta/agentToolCallMeta.js';
 import { formatGenericToolInput } from '../../common/streamingToolCallDisplay.js';
 import { buildClaudeToolMeta, getClaudeInvocationMessage, getClaudePastTenseMessage, getClaudeToolDisplayName, getClaudeToolInputString } from './claudeToolDisplay.js';
 import { hasClientToolNamePrefix, stripClientToolNamePrefix } from './clientTools/claudeClientToolMcpServer.js';
-import { createClaudeFullTerminalOutput, type IClaudeTerminalOutputRecord } from './claudeTerminalOutput.js';
+import { createClaudeTerminalOutput, type IClaudeTerminalOutputRecord } from './claudeTerminalOutput.js';
 
 /**
  * Phase 13 — replay mapper. Reduces a flat `SessionMessage[]` (the SDK's
@@ -442,7 +442,7 @@ class ReplayBuilder {
 			.filter((c): c is { type: ToolResultContentType.Text; text: string } => c.type === ToolResultContentType.Text)
 			.map(c => c.text)
 			.join('\n');
-		const terminalOutput = createClaudeFullTerminalOutput({
+		const terminalOutput = createClaudeTerminalOutput({
 			persistedOutput: this._terminalOutputs.get(block.tool_use_id),
 			toolName: previousState.toolName,
 			session: this._session,

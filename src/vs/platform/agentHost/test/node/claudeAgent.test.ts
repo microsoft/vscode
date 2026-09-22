@@ -63,11 +63,13 @@ import { IAgentServerToolHost } from '../../common/agentServerTools.js';
 import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { AgentConfigurationService, IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostStateManager, IAgentHostStateManager } from '../../node/agentHostStateManager.js';
+import { IAgentHostTerminalManager } from '../../node/agentHostTerminalManager.js';
 import { IAgentHostCustomizationEnablementService, type IAgentHostCustomizationEnablementService as ICustomizationEnablementService } from '../../node/agentHostCustomizationEnablementService.js';
 import { AgentHostSessionTitleSignal, IAgentHostSessionTitleSignal } from '../../node/agentHostSessionTitleSignal.js';
 import { IAgentHostGitHubEndpointService } from '../../node/agentHostGitHubEndpointService.js';
 import { IAgentHostAuthenticationService, type IAgentHostAuthTokenChangeEvent } from '../../node/agentHostAuthenticationService.js';
 import { createTestGitHubEndpointService } from './testGitHubEndpointService.js';
+import { TestAgentHostTerminalManager } from './testAgentHostTerminalManager.js';
 import { createTestAgentService, getTestAgentStateManager, registerTestAgentProvider } from './agentServiceTestUtils.js';
 import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { makeMcpServerCustomization } from '../../../agentPlugins/common/pluginParsers.js';
@@ -1091,6 +1093,7 @@ interface ITestContext {
 	readonly instantiationService: IInstantiationService;
 	readonly fileService: IFileService;
 	readonly sdkDownloader: RecordingAgentSdkDownloader;
+	readonly terminalManager: TestAgentHostTerminalManager;
 }
 
 /**
@@ -1136,6 +1139,7 @@ function createTestContext(
 	const stateManager = disposables.add(new AgentHostStateManager(logService));
 	const configService = disposables.add(new AgentConfigurationService(stateManager, logService));
 	const authenticationService = disposables.add(new FakeAgentHostAuthenticationService());
+	const terminalManager = disposables.add(new TestAgentHostTerminalManager());
 
 	// In-memory file service the session's customization scan / agent-name
 	// resolution runs against; exposed so tests can seed `.claude/**` files.
@@ -1158,6 +1162,7 @@ function createTestContext(
 		[IAgentHostCheckpointService, overrides?.checkpointService ?? NULL_CHECKPOINT_SERVICE],
 		[IAgentConfigurationService, configService],
 		[IAgentHostStateManager, stateManager],
+		[IAgentHostTerminalManager, terminalManager],
 		[IAgentHostCustomizationEnablementService, reducerBackedEnablementService(stateManager)],
 		[IAgentHostSessionTitleSignal, disposables.add(new AgentHostSessionTitleSignal(stateManager))],
 		[IAgentHostOTelService, otelService],
@@ -1206,7 +1211,7 @@ function createTestContext(
 	chats.changeAgent = (chat, nextAgent, context) => changeAgent(chat, nextAgent, toChatContext(chat, context));
 	const getMessages = chats.getMessages.bind(agent.chats);
 	chats.getMessages = (chat, context) => getMessages(chat, toChatContext(chat, context));
-	return { agent, proxy, api, sdk, sessionData, stateManager, configService, otelService, instantiationService, fileService, sdkDownloader };
+	return { agent, proxy, api, sdk, sessionData, stateManager, configService, otelService, instantiationService, fileService, sdkDownloader, terminalManager };
 }
 
 /** Drains the microtask queue so awaited refresh writes settle. */
@@ -8301,9 +8306,8 @@ suite('ClaudeAgent (Phase 13 — transcript reconstruction)', () => {
 		await writeClaudeTerminalOutputRecords(database, new Map([['tu1', {
 			preview: stdout.slice(0, 500),
 			persistedOutputPath: '/tmp/claude-full-output.txt',
-			persistedOutputSize: 352335,
 		}]]));
-		const { agent, sdk } = createTestContext(disposables, { database });
+		const { agent, sdk, terminalManager } = createTestContext(disposables, { database });
 		const sessionId = 'phase13-terminal-output';
 		sdk.sessionMessagesById.set(sessionId, [
 			makeUserSessionMessage('u1', 'run it'),
@@ -8347,12 +8351,13 @@ suite('ClaudeAgent (Phase 13 — transcript reconstruction)', () => {
 			result: {
 				preview: stdout.slice(0, 500),
 				truncated: true,
-				fullOutput: {
-					uri: URI.file('/tmp/claude-full-output.txt').toString(),
-					sizeHint: 352335,
-				},
 			},
 		});
+		const terminalUri = buildNonPtyShellTerminalUri(defaultChatUri(sessionUri), 'tu1');
+		assert.strictEqual(
+			terminalManager.retainedTerminalStates.get(terminalUri)?.artifact?.toString(),
+			URI.file('/tmp/claude-full-output.txt').toString(),
+		);
 	});
 
 	test('getMessages resolves a released peer-chat subagent through the exact source backing', async () => {
@@ -8506,6 +8511,7 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 		const stateManager = disposables.add(new AgentHostStateManager(logService));
 		const configService = disposables.add(new AgentConfigurationService(stateManager, logService));
 		const authenticationService = disposables.add(new FakeAgentHostAuthenticationService());
+		const terminalManager = disposables.add(new TestAgentHostTerminalManager());
 		const resolveReducerEnablement = (session: string, target: { readonly id: string }) => {
 			const findCustomization = (customizations: readonly (Customization | ChildCustomization)[]): PluginCustomization | McpServerCustomization | undefined => {
 				for (const customization of customizations) {
@@ -8550,6 +8556,7 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 			[IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE],
 			[IAgentConfigurationService, configService],
 			[IAgentHostStateManager, stateManager],
+			[IAgentHostTerminalManager, terminalManager],
 			[IAgentHostSessionTitleSignal, disposables.add(new AgentHostSessionTitleSignal(stateManager))],
 			[IAgentHostOTelService, otelService],
 			[IAgentHostCustomizationEnablementService, {
@@ -8590,7 +8597,7 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 				?? (chat.scheme === 'ahp-chat' ? URI.parse(parseRequiredSessionUriFromChatUri(chat.toString())) : chat);
 			return sendMessage(chat, prompt, workingDirectoriesOrDirectory, attachments, turnId, senderClientId, clientType, { ...createAgentChatContext(stateManager, session, chat), ...explicit });
 		};
-		return { agent, proxy, api, sdk, sessionData, stateManager, configService, otelService, instantiationService, fileService, sdkDownloader };
+		return { agent, proxy, api, sdk, sessionData, stateManager, configService, otelService, instantiationService, fileService, sdkDownloader, terminalManager };
 	}
 
 	function publishReducerCustomizations(stateManager: AgentHostStateManager, session: URI, customizations: readonly Customization[]): void {

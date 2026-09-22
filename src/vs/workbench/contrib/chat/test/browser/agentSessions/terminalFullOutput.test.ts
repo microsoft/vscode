@@ -8,9 +8,9 @@ import { VSBuffer } from '../../../../../../base/common/buffer.js';
 import { hasKey } from '../../../../../../base/common/types.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { ContentEncoding } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { AhpErrorCodes } from '../../../../../../platform/agentHost/common/state/protocol/errors.js';
 import { ProtocolError } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
+import { TerminalClaimKind, TerminalLifecycleStatus, type TerminalState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, ToolCallCompletedState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { FileOperationResult, FileSystemProviderCapabilities, toFileOperationResult } from '../../../../../../platform/files/common/files.js';
 import { completedToolCallToSerialized, finalizeToolInvocation, toolCallStateToInvocation } from '../../../browser/agentSessions/agentHost/stateToProgressAdapter.js';
@@ -20,13 +20,13 @@ import { createTerminalOutputTestFixture } from '../../common/widget/terminalFul
 suite('Terminal full output - adapter to resource', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	const sessionResource = URI.parse('copilot:/full-output-session');
-	const artifactA = URI.file('/shared/artifact-a.txt');
 	const artifactB = URI.file('/shared/artifact-b.txt');
+	const terminalResource = URI.parse('agenthost-terminal:/command-a');
 	const fullText = `BEGIN\n${'x'.repeat(4096)}\nMIDDLE\n${'y'.repeat(4096)}\nEND`;
 
 	for (const authority of ['local', 'remote-host']) {
 		for (const restored of [false, true]) {
-			test(`${authority} ${restored ? 'restored' : 'live'} output reads metadata artifact A, never prose artifact B`, async () => {
+			test(`${authority} ${restored ? 'restored' : 'live'} output subscribes to the terminal URI, never prose artifact B`, async () => {
 				const completed: ToolCallCompletedState = {
 					status: ToolCallStatus.Completed,
 					toolCallId: 'command-a',
@@ -41,14 +41,13 @@ suite('Terminal full output - adapter to resource', () => {
 						{ type: ToolResultContentType.Text, text: `Saved to: ${artifactB.path}` },
 						{
 							type: ToolResultContentType.Terminal,
-							resource: 'agenthost-terminal:/command-a',
+							resource: terminalResource.toString(),
 							title: 'Bash',
 							isPty: false,
 							result: {
 								exitCode: 0,
 								preview: 'BEGIN\n',
 								truncated: true,
-								fullOutput: { uri: artifactA.toString(), sizeHint: fullText.length },
 							},
 						},
 					],
@@ -62,11 +61,17 @@ suite('Terminal full output - adapter to resource', () => {
 					if (unavailable) {
 						throw new ProtocolError(AhpErrorCodes.NotFound, 'Artifact no longer exists');
 					}
-					return { encoding: ContentEncoding.Utf8, data: fullText };
+					return {
+						title: 'Bash',
+						content: [{ type: 'unclassified', value: fullText }],
+						lifecycle: { status: TerminalLifecycleStatus.Exited, exitCode: 0 },
+						claim: { kind: TerminalClaimKind.Session, session: sessionResource.toString(), chat: sessionResource.toString(), toolCallId: 'command-a' },
+						isPty: false,
+					} satisfies TerminalState;
 				});
 				const data = invocation.toolSpecificData;
 				assert.ok(data?.kind === 'terminal' && hasKey(data, { commandLine: true }));
-				const beforeOpen = fixture.reads.length;
+				const beforeOpen = fixture.subscriptions.length;
 				const text = VSBuffer.wrap(await fixture.provider.readFile(fixture.resource)).toString();
 				unavailable = true;
 				await assert.rejects(() => fixture.provider.readFile(fixture.resource), error => error instanceof Error && toFileOperationResult(error) === FileOperationResult.FILE_NOT_FOUND);
@@ -76,16 +81,16 @@ suite('Terminal full output - adapter to resource', () => {
 					beforeOpen,
 					text,
 					readonly: fixture.fileService.hasCapability(fixture.resource, FileSystemProviderCapabilities.Readonly),
-					reads: fixture.reads.map(uri => uri.toString()),
+					subscriptions: fixture.subscriptions.map(uri => uri.toString()),
 				}, {
 					preview: 'BEGIN\r\n',
-					resourceName: data.terminalCommandOutput?.fullOutput?.name,
+					resourceName: fixture.resource.path.split('/').at(-1),
 					beforeOpen: 0,
 					text: fullText,
 					readonly: true,
-					reads: [artifactA.toString(), artifactA.toString()],
+					subscriptions: [terminalResource.toString(), terminalResource.toString()],
 				});
-				assert.match(data.terminalCommandOutput?.fullOutput?.name ?? '', /^terminal-output-[a-z0-9]{5}\.txt$/);
+				assert.match(fixture.resource.path.split('/').at(-1) ?? '', /^terminal-output-command-a\.txt$/);
 			});
 		}
 	}

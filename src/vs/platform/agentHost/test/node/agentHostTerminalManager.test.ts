@@ -4,15 +4,20 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { mkdtempSync, rmSync, writeFileSync } from 'fs';
 import type { IPty, IPtyForkOptions, IWindowsPtyForkOptions } from 'node-pty';
+import { tmpdir } from 'os';
 import { DeferredPromise, timeout } from '../../../../base/common/async.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { join } from '../../../../base/common/path.js';
+import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { ActionType, StateAction } from '../../common/state/protocol/actions.js';
 import { TerminalClaimKind, TerminalContentPart, TerminalLifecycleStatus, type TerminalClaim } from '../../common/state/protocol/state.js';
+import { AhpErrorCodes, ProtocolError } from '../../common/state/sessionProtocol.js';
 import { buildDefaultChatUri } from '../../common/state/sessionState.js';
 import { AgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
@@ -953,5 +958,142 @@ suite('AgentHostTerminalManager – output-only terminals', () => {
 			lifecycle: { status: TerminalLifecycleStatus.Exited },
 			dispatched: [{ type: ActionType.TerminalExited }],
 		});
+	});
+
+	test('resolves complete artifact output lazily as exited terminal state', async () => {
+		const { manager } = createManager();
+		const directory = mkdtempSync(join(tmpdir(), 'agent-host-retained-terminal-'));
+		try {
+			const artifact = URI.file(join(directory, 'output.txt'));
+			const uri = 'agenthost-terminal://shell/copilot/session/tool-call';
+			const claim: TerminalClaim = {
+				kind: TerminalClaimKind.Session,
+				session: 'agent-session://copilot/session',
+				chat: buildDefaultChatUri('agent-session://copilot/session'),
+				toolCallId: 'tool-call',
+			};
+			writeFileSync(artifact.fsPath, 'stale output');
+			manager.retainTerminalState(uri, { title: 'Run Shell Command', claim, exitCode: 17, artifact });
+
+			const completeOutput = `FULL-OUTPUT-START\n${'x'.repeat(150_000)}\nFULL-OUTPUT-END\n`;
+			writeFileSync(artifact.fsPath, completeOutput);
+			assert.strictEqual(manager.getTerminalState(uri), undefined);
+
+			const first = await manager.resolveRetainedTerminalState(uri);
+			const second = await manager.resolveRetainedTerminalState(uri);
+			assert.deepStrictEqual({
+				first,
+				second,
+				completeLength: first?.content[0].type === 'unclassified' ? first.content[0].value.length : 0,
+			}, {
+				first: {
+					title: 'Run Shell Command',
+					content: [{ type: 'unclassified', value: completeOutput }],
+					lifecycle: { status: TerminalLifecycleStatus.Exited, exitCode: 17 },
+					claim,
+					isPty: false,
+				},
+				second: {
+					title: 'Run Shell Command',
+					content: [{ type: 'unclassified', value: completeOutput }],
+					lifecycle: { status: TerminalLifecycleStatus.Exited, exitCode: 17 },
+					claim,
+					isPty: false,
+				},
+				completeLength: completeOutput.length,
+			});
+		} finally {
+			rmSync(directory, { recursive: true, force: true });
+		}
+	});
+
+	test('preserves rich retained parts without sharing mutable content', async () => {
+		const { manager } = createManager();
+		const uri = 'agenthost-terminal://shell/copilot/session/rich-tool-call';
+		const claim: TerminalClaim = { kind: TerminalClaimKind.Client, clientId: 'test-client' };
+		const content: TerminalContentPart[] = [{
+			type: 'command',
+			commandId: 'command-1',
+			commandLine: 'npm test',
+			output: 'passing output',
+			timestamp: 123,
+			isComplete: true,
+			exitCode: 0,
+			durationMs: 45,
+		}];
+		manager.retainTerminalState(uri, {
+			title: 'Rich terminal',
+			claim,
+			exitCode: 0,
+			content,
+			isPty: true,
+			supportsCommandDetection: true,
+		});
+		content[0] = { type: 'unclassified', value: 'mutated source' };
+
+		const first = await manager.resolveRetainedTerminalState(uri);
+		assert.ok(first?.content[0].type === 'command');
+		first.content[0].output = 'mutated result';
+		const second = await manager.resolveRetainedTerminalState(uri);
+
+		assert.deepStrictEqual(second, {
+			title: 'Rich terminal',
+			content: [{
+				type: 'command',
+				commandId: 'command-1',
+				commandLine: 'npm test',
+				output: 'passing output',
+				timestamp: 123,
+				isComplete: true,
+				exitCode: 0,
+				durationMs: 45,
+			}],
+			lifecycle: { status: TerminalLifecycleStatus.Exited, exitCode: 0 },
+			claim,
+			isPty: true,
+			supportsCommandDetection: true,
+		});
+	});
+
+	test('removes retained terminals with their owning chat or session', async () => {
+		const { manager } = createManager();
+		const session = URI.parse('agent-session://copilot/session');
+		const chat = URI.parse(buildDefaultChatUri(session));
+		const sessionTerminal = 'agenthost-terminal://shell/copilot/session/tool-call';
+		const clientTerminal = 'agenthost-terminal://shell/client/tool-call';
+		manager.retainTerminalState(sessionTerminal, {
+			title: 'Session terminal',
+			claim: { kind: TerminalClaimKind.Session, session: session.toString(), chat: chat.toString(), toolCallId: 'tool-call' },
+			content: [{ type: 'unclassified', value: 'session output' }],
+		});
+		manager.retainTerminalState(clientTerminal, {
+			title: 'Client terminal',
+			claim: { kind: TerminalClaimKind.Client, clientId: 'test-client' },
+			content: [{ type: 'unclassified', value: 'client output' }],
+		});
+
+		manager.removeRetainedTerminalsForOwner(chat);
+		assert.strictEqual(await manager.resolveRetainedTerminalState(sessionTerminal), undefined);
+		assert.ok(await manager.resolveRetainedTerminalState(clientTerminal));
+	});
+
+	test('reports a missing retained artifact as NotFound', async () => {
+		const { manager } = createManager();
+		const uri = 'agenthost-terminal://shell/copilot/session/missing-tool-call';
+		const directory = mkdtempSync(join(tmpdir(), 'agent-host-missing-terminal-'));
+		try {
+			manager.retainTerminalState(uri, {
+				title: 'Missing output',
+				claim: { kind: TerminalClaimKind.Client, clientId: 'test-client' },
+				artifact: URI.file(join(directory, 'missing.txt')),
+			});
+
+			await assert.rejects(
+				() => manager.resolveRetainedTerminalState(uri),
+				(error: unknown) => error instanceof ProtocolError && error.code === AhpErrorCodes.NotFound,
+			);
+		} finally {
+			rmSync(directory, { recursive: true, force: true });
+		}
 	});
 });

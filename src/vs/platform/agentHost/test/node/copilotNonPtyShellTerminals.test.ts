@@ -48,9 +48,13 @@ suite('NonPtyShellTerminalStreams', () => {
 			});
 
 			ok(completion);
+			strictEqual(completion.shouldRetire, true);
 			deepStrictEqual(manager.outputTerminalResets, []);
 			strictEqual(channelContent(), 'line 1\r\nline 2\r\nline 3\r\nline 4\r\nline 5\r\n');
 			deepStrictEqual(manager.outputTerminalsFinalized, [{ uri: completion.uri, exitCode: 0 }]);
+			deepStrictEqual(manager.retainedTerminalStates.get(completion.uri)?.content, [
+				{ type: 'unclassified', value: 'line 1\r\nline 2\r\nline 3\r\nline 4\r\nline 5\r\n' },
+			]);
 		});
 
 		test('preserves the transcript across truncation marker rewrites and disjoint rolling tails', () => {

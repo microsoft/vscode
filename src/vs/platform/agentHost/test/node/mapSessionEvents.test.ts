@@ -689,7 +689,7 @@ suite('mapSessionEvents — history replay', () => {
 				resource: 'agenthost-terminal://shell/test-session/tc-1',
 				title: 'Run Shell Command',
 				isPty: false,
-				result: { exitCode: 0, preview: 'hi\n', truncated: true, fullOutput: { uri: URI.file('/tmp/artifact-a.txt').toString() } },
+				result: { exitCode: 0, preview: 'hi\n', truncated: true },
 			},
 		]);
 	});
@@ -1519,10 +1519,9 @@ suite('appendSdkToolResultContent', () => {
 				const expectedResult = {
 					exitCode: 2,
 					...(typeof outputPreview === 'string' ? { preview: outputPreview } : {}),
-					fullOutput: { uri: URI.file('/tmp/full output #1.txt').toString() },
 				};
 				assert.deepStrictEqual({ result, content }, {
-					result: { shellId: '0', result: expectedResult },
+					result: { shellId: '0', result: expectedResult, outputFilePath: '/tmp/full output #1.txt' },
 					content: [{
 						...(existingTerminal ? terminal : {
 							type: ToolResultContentType.Terminal,

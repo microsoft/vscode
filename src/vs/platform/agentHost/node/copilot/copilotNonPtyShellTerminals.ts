@@ -5,9 +5,9 @@
 
 import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
-import { TerminalClaimKind, type TerminalCommandResult, type TerminalSessionClaim } from '../../common/state/protocol/state.js';
+import { type TerminalCommandResult } from '../../common/state/protocol/state.js';
 import { IAgentHostTerminalManager } from '../agentHostTerminalManager.js';
-import { buildNonPtyShellTerminalUri } from '../shared/nonPtyShellTerminal.js';
+import { buildNonPtyShellTerminalClaim, buildNonPtyShellTerminalUri } from '../shared/nonPtyShellTerminal.js';
 
 export { buildNonPtyShellTerminalUri } from '../shared/nonPtyShellTerminal.js';
 
@@ -18,6 +18,7 @@ interface INonPtyShellStream {
 	lastSnapshot: string;
 	sourceTruncated: boolean;
 	finalized: boolean;
+	retained: boolean;
 }
 
 /**
@@ -96,7 +97,7 @@ export class NonPtyShellTerminalStreams extends Disposable {
 
 		this._register(toDisposable(() => {
 			for (const stream of this._streams.values()) {
-				if (stream.created) {
+				if (stream.created && !stream.retained) {
 					this._terminalManager.disposeTerminal(stream.uri);
 				}
 			}
@@ -118,6 +119,7 @@ export class NonPtyShellTerminalStreams extends Disposable {
 				lastSnapshot: '',
 				sourceTruncated: false,
 				finalized: false,
+				retained: false,
 				created: false,
 			});
 		}
@@ -172,7 +174,7 @@ export class NonPtyShellTerminalStreams extends Disposable {
 	 * Records the process lifecycle information carried by tool completion.
 	 * A structured shell exit settles the channel.
 	 */
-	completeToolCall(toolCallId: string, toolOutput: string | undefined, shellExit: { shellId: string; result: TerminalCommandResult } | undefined): INonPtyShellToolCompletion | undefined {
+	completeToolCall(toolCallId: string, toolOutput: string | undefined, shellExit: { shellId: string; result: TerminalCommandResult; outputFilePath?: string } | undefined): INonPtyShellToolCompletion | undefined {
 		const stream = this._streams.get(toolCallId);
 		if (!stream) {
 			return undefined;
@@ -202,10 +204,41 @@ export class NonPtyShellTerminalStreams extends Disposable {
 			}
 		}
 		this._finalize(stream, result.exitCode);
+		const claim = buildNonPtyShellTerminalClaim(this._sessionUri, this._chatUri, toolCallId);
+		if (shellExit?.outputFilePath) {
+			this._terminalManager.retainTerminalState(stream.uri, {
+				title: stream.title,
+				claim,
+				exitCode: result.exitCode,
+				artifact: URI.file(shellExit.outputFilePath),
+			});
+			stream.retained = true;
+		} else if (result.preview !== undefined && result.truncated !== true) {
+			this._terminalManager.retainTerminalState(stream.uri, {
+				title: stream.title,
+				claim,
+				exitCode: result.exitCode,
+				content: [{ type: 'unclassified', value: result.preview }],
+			});
+			stream.retained = true;
+		} else if (result.truncated === true) {
+			const state = this._terminalManager.getTerminalState(stream.uri);
+			if (state) {
+				this._terminalManager.retainTerminalState(stream.uri, {
+					title: stream.title,
+					claim,
+					exitCode: result.exitCode,
+					content: state.content,
+					isPty: state.isPty,
+					supportsCommandDetection: state.supportsCommandDetection,
+				});
+				stream.retained = true;
+			}
+		}
 		return {
 			uri: stream.uri,
 			result,
-			shouldRetire: stream.finalized && result.preview !== undefined,
+			shouldRetire: stream.finalized && result.preview !== undefined && stream.retained,
 		};
 	}
 
@@ -219,7 +252,7 @@ export class NonPtyShellTerminalStreams extends Disposable {
 			return;
 		}
 		this._streams.delete(toolCallId);
-		if (stream.created) {
+		if (stream.created && !stream.retained) {
 			this._terminalManager.disposeTerminal(stream.uri);
 		}
 	}
@@ -242,12 +275,7 @@ export class NonPtyShellTerminalStreams extends Disposable {
 	}
 
 	private _createTerminal(toolCallId: string, stream: INonPtyShellStream): void {
-		const claim: TerminalSessionClaim = {
-			kind: TerminalClaimKind.Session,
-			session: this._sessionUri.toString(),
-			chat: this._chatUri.toString(),
-			toolCallId,
-		};
+		const claim = buildNonPtyShellTerminalClaim(this._sessionUri, this._chatUri, toolCallId);
 		this._terminalManager.createOutputTerminal(stream.uri, { title: stream.title, claim });
 		stream.created = true;
 	}

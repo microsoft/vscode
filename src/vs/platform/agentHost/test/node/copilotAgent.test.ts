@@ -355,6 +355,9 @@ class TestAgentHostTerminalManager implements IAgentHostTerminalManager {
 	disposeTerminal(): void { }
 	getTerminalInfos(): [] { return []; }
 	getTerminalState(): undefined { return undefined; }
+	async resolveRetainedTerminalState(): Promise<undefined> { return undefined; }
+	retainTerminalState(): void { }
+	removeRetainedTerminalsForOwner(): void { }
 	async getDefaultShell(): Promise<string> { return '/bin/bash'; }
 	createOutputTerminal(): void { }
 	appendOutputTerminalData(): void { }

@@ -176,7 +176,6 @@ suite('claudeReplayMapper', () => {
 		], session, logService, new Map([['tu1', {
 			preview: stdout.slice(0, 500),
 			persistedOutputPath: '/tmp/claude-full-output.txt',
-			persistedOutputSize: 352335,
 		}]]));
 		const part = turns[0].responseParts.find(part => part.kind === ResponsePartKind.ToolCall);
 		assert.ok(part?.kind === ResponsePartKind.ToolCall && part.toolCall.status === ToolCallStatus.Completed);
@@ -188,10 +187,6 @@ suite('claudeReplayMapper', () => {
 			result: {
 				preview: stdout.slice(0, 500),
 				truncated: true,
-				fullOutput: {
-					uri: URI.file('/tmp/claude-full-output.txt').toString(),
-					sizeHint: 352335,
-				},
 			},
 		});
 	});
