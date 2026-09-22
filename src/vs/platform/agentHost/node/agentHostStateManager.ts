@@ -1020,7 +1020,7 @@ export class AgentHostStateManager extends Disposable {
 	/** Returns external sessions exposed through either listing or global add notification. */
 	getExposedExternalSessionKeys(): string[] {
 		const result: string[] = [];
-		for (const session of this._publishedSessionSummaries) {
+		for (const session of this.getExposedSessionKeys()) {
 			const entry = this._sessionStates.get(session);
 			const summary = entry ? this._toSummary(session, entry) : this._summaryNotifier.getAnnounced(session);
 			if (readSessionExternal(summary?._meta)) {
@@ -1028,6 +1028,11 @@ export class AgentHostStateManager extends Disposable {
 			}
 		}
 		return result;
+	}
+
+	/** Returns sessions exposed through either listing or global add notification. */
+	getExposedSessionKeys(): string[] {
+		return [...this._publishedSessionSummaries];
 	}
 
 	/**
