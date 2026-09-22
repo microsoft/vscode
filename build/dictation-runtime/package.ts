@@ -123,7 +123,8 @@ async function stageDependencyLibraries(stagingDir: string, target: string): Pro
 }
 
 function requiredSdkNativeFileNames(target: string): readonly string[] {
-	const foundryLocalLibrary = target.startsWith('win32-')
+	const isWindows = target.startsWith('win32-');
+	const foundryLocalLibrary = isWindows
 		? 'foundry_local.dll'
 		: target.startsWith('darwin-')
 			? 'libfoundry_local.dylib'
@@ -132,6 +133,7 @@ function requiredSdkNativeFileNames(target: string): readonly string[] {
 		'foundry_local_node.node',
 		'foundry_local_preload.node',
 		foundryLocalLibrary,
+		...(isWindows ? ['Microsoft.Windows.AI.MachineLearning.dll'] : []),
 	];
 }
 

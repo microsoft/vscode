@@ -26,7 +26,7 @@ import { CancellationError } from '../../../base/common/errors.js';
  *
  * The tarball's internal layout mirrors the SDK's own package layout:
  *
- *   <cacheRoot>/<version>/prebuilds/<target>/<shared libraries>
+ *   <cacheRoot>/<version>/prebuilds/<target>/<native files>
  *
  * The SDK loader is patched at install time so
  * `configureNativeLoader`/`FoundryLocalConfig.libraryPath` loads both addons and
@@ -85,7 +85,7 @@ const PUBLISH_LOCK_RETRY_MS = 100;
 const INVALID_PUBLISH_LOCK_STALE_MS = 30_000;
 
 /**
- * Ensure the Foundry Local shared libraries are present in `<cacheRoot>`,
+ * Ensure the Foundry Local native files are present in `<cacheRoot>`,
  * downloading the per-target CDN tarball if necessary. Returns the concrete
  * cached `prebuilds/<target>` directory to use as the SDK's `libraryPath`
  * before constructing a manager.
@@ -378,6 +378,7 @@ export function requiredRuntimeFileNames(platformKey: string): string[] {
 		'foundry_local_node.node',
 		'foundry_local_preload.node',
 		`${prefix}foundry_local${ext}`,
+		...(isWin ? ['Microsoft.Windows.AI.MachineLearning.dll'] : []),
 		isWin ? 'onnxruntime.dll' : isDarwin ? 'libonnxruntime.1.dylib' : 'libonnxruntime.so.1',
 		`${prefix}onnxruntime-genai${ext}`,
 	];
