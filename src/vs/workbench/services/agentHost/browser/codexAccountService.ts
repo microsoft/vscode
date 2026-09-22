@@ -184,7 +184,10 @@ export class CodexAccountService extends Disposable implements ICodexAccountServ
 		this._pendingSignInRequests.set(connection, listeners);
 		listeners.add(connection.rootState.onDidChange(state => {
 			const account = readCodexAccountInfo(state);
-			if (account.authUrlNonce === request && account.authUrl) {
+			if (account.authUrlNonce !== request) {
+				return;
+			}
+			if (account.authUrl) {
 				this._pendingSignInRequests.deleteAndDispose(connection);
 				void openCodexAuthUrl(this._openerService, account.authUrl).catch(onUnexpectedError);
 			} else if (account.status === 'signedIn' || account.status === 'error') {

@@ -41,6 +41,7 @@ export interface ICodexAccountInfo {
 	readonly requiresOpenaiAuth?: boolean;
 	readonly rateLimit?: ICodexAccountRateLimitInfo;
 	readonly authUrl?: string;
+	/** Sign-in request nonce, including terminal responses that have no authorization URL. */
 	readonly authUrlNonce?: string;
 }
 

@@ -703,7 +703,7 @@ suite('AgentSdkSetupService', () => {
 		const error = new Error('Dispatch failed');
 		fixture.failNextDispatch(error);
 
-		assert.throws(() => fixture.service.requestDownload('claude', fixture.connection, { source: 'turn' }), error);
+		assert.throws(() => fixture.service.requestDownload('claude', fixture.connection, { source: 'turn' }), /Dispatch failed/);
 		fixture.service.requestDownload('claude', fixture.connection, { source: 'turn' });
 
 		assert.deepStrictEqual(fixture.requestedAgents(), ['claude']);

@@ -250,6 +250,75 @@ suite('CodexAccountService', () => {
 		});
 	}
 
+	test('retrying an existing account error keeps the matching authorization response listener', () => {
+		const host = createAccountHost();
+		const staleAccount: ICodexAccountInfo = { status: 'error', authUrlNonce: 'previous-request' };
+		host.setAccount(staleAccount);
+		const connectionsService = new class extends mock<IAgentHostConnectionsService>() {
+			override readonly onDidChangeConnections = Event.None;
+			override readonly connections = [{ connection: host.connection, authority: 'local', name: 'Local', address: undefined, isAmbient: true }];
+		}();
+		const opened: string[] = [];
+		const accountService = disposables.add(new CodexAccountService(host.connection, connectionsService, {
+			...NullOpenerService,
+			async open(resource) {
+				opened.push(resource.toString());
+				return true;
+			},
+		}));
+
+		accountService.signIn();
+		const request = host.nonce();
+		host.setAccount(staleAccount);
+		accountService.signIn();
+		host.setAccount({ status: 'signedOut', authUrl: 'https://auth.openai.com/retry', authUrlNonce: request });
+
+		assert.deepStrictEqual({
+			requestCount: host.requests.length,
+			opened,
+		}, {
+			requestCount: 1,
+			opened: ['https://auth.openai.com/retry'],
+		});
+	});
+
+	for (const status of ['error', 'signedIn'] as const) {
+		test(`only a matching ${status} response completes its pending sign-in request`, () => {
+			const host = createAccountHost();
+			const connectionsService = new class extends mock<IAgentHostConnectionsService>() {
+				override readonly onDidChangeConnections = Event.None;
+				override readonly connections = [{ connection: host.connection, authority: 'local', name: 'Local', address: undefined, isAmbient: true }];
+			}();
+			const opened: string[] = [];
+			const accountService = disposables.add(new CodexAccountService(host.connection, connectionsService, {
+				...NullOpenerService,
+				async open(resource) {
+					opened.push(resource.toString());
+					return true;
+				},
+			}));
+
+			accountService.signIn();
+			const firstRequest = host.nonce();
+			host.setAccount({ status, authUrlNonce: firstRequest });
+			accountService.signIn();
+			const retryRequest = host.nonce();
+			host.setAccount({ status, authUrlNonce: firstRequest });
+			accountService.signIn();
+			host.setAccount({ status: 'signedOut', authUrl: 'https://auth.openai.com/retry', authUrlNonce: retryRequest });
+
+			assert.deepStrictEqual({
+				requestCount: host.requests.length,
+				distinctRequests: firstRequest !== retryRequest,
+				opened,
+			}, {
+				requestCount: 2,
+				distinctRequests: true,
+				opened: ['https://auth.openai.com/retry'],
+			});
+		});
+	}
+
 	test('opens expected authentication URLs without validation prompts', async () => {
 		let call: { resource: string; options: OpenOptions | undefined } | undefined;
 		await openCodexAuthUrl({

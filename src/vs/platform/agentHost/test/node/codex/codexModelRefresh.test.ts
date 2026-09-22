@@ -771,8 +771,46 @@ suite('CodexAgent model refresh', () => {
 				requiresOpenaiAuth: true,
 				rateLimit: undefined,
 				authUrl: undefined,
-				authUrlNonce: undefined,
+				authUrlNonce: 'request-early',
 			},
+		});
+	});
+
+	test('a failed ChatGPT sign-in publishes the originating request nonce', async () => {
+		const ctx = createAgentContext(disposables, async () => []);
+		ctx.agent['_isSdkResolvableWithoutDownload'] = async () => true;
+		ctx.agent['_startRawConnection'] = async () => { throw new Error('Sign-in connection failed'); };
+
+		await ctx.agent['_signInToChatGPT']('request-failed');
+
+		const account = readCodexAccountInfo(ctx.stateManager.rootState);
+		assert.deepStrictEqual({
+			status: account.status,
+			authUrl: account.authUrl,
+			authUrlNonce: account.authUrlNonce,
+		}, {
+			status: 'error',
+			authUrl: undefined,
+			authUrlNonce: 'request-failed',
+		});
+	});
+
+	test('an already signed-in ChatGPT account acknowledges the sign-in request nonce', async () => {
+		const ctx = createAgentContext(disposables, async () => []);
+		ctx.agent['_isSdkResolvableWithoutDownload'] = async () => true;
+		ctx.agent['_connection'] = createChatGPTConnection() as never;
+
+		await ctx.agent['_signInToChatGPT']('request-existing-account');
+
+		const account = readCodexAccountInfo(ctx.stateManager.rootState);
+		assert.deepStrictEqual({
+			status: account.status,
+			authUrl: account.authUrl,
+			authUrlNonce: account.authUrlNonce,
+		}, {
+			status: 'signedIn',
+			authUrl: undefined,
+			authUrlNonce: 'request-existing-account',
 		});
 	});
 
