@@ -15,6 +15,7 @@ import { ISessionsProvidersService } from '../../../services/sessions/browser/se
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { getSessionOwnedGitHubPullRequestRefs, getSessionStatusMessage, IGitHubPullRequestRef, SessionStatus, type ISession } from '../../../services/sessions/common/session.js';
 import {
+	compareInboxNotificationsByRecency,
 	compareInboxNotifications,
 	IExternalInboxNotification,
 	IInboxNotificationAction,
@@ -23,6 +24,7 @@ import {
 	InboxNotificationActionKind,
 	InboxNotificationKind,
 	InboxNotificationPriority,
+	InboxNotificationsSortMode,
 } from '../common/inboxNotificationsService.js';
 
 const DISMISSED_NOTIFICATION_IDS_STORAGE_KEY = 'sessions.inboxNotifications.dismissedIds';
@@ -33,6 +35,7 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 
 	private readonly _dismissedIds: ISettableObservable<ReadonlySet<string>>;
 	private readonly _externalItems: ISettableObservable<readonly IInboxNotificationItem[]>;
+	readonly sortMode: ISettableObservable<InboxNotificationsSortMode>;
 	private readonly _refreshedPullRequestModels = new WeakSet<object>();
 	private readonly _refreshedPullRequestReviewThreadModels = new WeakSet<object>();
 	private readonly _refreshedPullRequestCIModels = new WeakSet<object>();
@@ -49,6 +52,7 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 
 		this._dismissedIds = observableValue('sessionsInboxNotificationsDismissed', this.loadDismissedIds());
 		this._externalItems = observableValue('sessionsInboxNotificationsExternal', []);
+		this.sortMode = observableValue('sessionsInboxNotificationsSortMode', InboxNotificationsSortMode.Priority);
 
 		const sessionsChanged = observableSignalFromEvent(this, this.sessionsManagementService.onDidChangeSessions);
 		const providersChanged = observableSignalFromEvent(this, this.sessionsProvidersService.onDidChangeProviders);
@@ -71,6 +75,7 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 			providersChanged.read(reader);
 
 			const dismissed = this._dismissedIds.read(reader);
+			const sortMode = this.sortMode.read(reader);
 			const itemsById = new Map<string, IInboxNotificationItem>();
 
 			for (const session of this.sessionsManagementService.getSessions()) {
@@ -83,8 +88,15 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 
 			return [...itemsById.values()]
 				.filter(item => !dismissed.has(item.id))
-				.sort(compareInboxNotifications);
+				.sort(sortMode === InboxNotificationsSortMode.Priority ? compareInboxNotifications : compareInboxNotificationsByRecency);
 		});
+	}
+
+	setSortMode(sortMode: InboxNotificationsSortMode): void {
+		if (this.sortMode.get() === sortMode) {
+			return;
+		}
+		this.sortMode.set(sortMode, undefined);
 	}
 
 	publishExternalNotification(notification: IExternalInboxNotification): void {

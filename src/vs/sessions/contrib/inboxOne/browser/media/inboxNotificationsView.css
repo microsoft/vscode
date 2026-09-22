@@ -15,7 +15,22 @@
 
 .inbox-notifications-toolbar {
 	display: flex;
-	justify-content: flex-end;
+	align-items: center;
+	gap: var(--vscode-spacing-size100);
+}
+
+.inbox-notifications-sort-buttons {
+	display: flex;
+	gap: var(--vscode-spacing-size80);
+}
+
+.inbox-notifications-toolbar > .monaco-button {
+	margin-left: auto;
+}
+
+.inbox-notifications-sort-buttons .monaco-button.active {
+	background-color: var(--vscode-button-background);
+	color: var(--vscode-button-foreground);
 }
 
 .inbox-notifications-scrollable {

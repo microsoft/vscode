@@ -21,7 +21,7 @@ import { ISessionsProvider } from '../../../../services/sessions/common/sessions
 import { SessionStatus, type IGitHubInfo, type ISession, type ISessionWorkspace } from '../../../../services/sessions/common/session.js';
 import { ISessionsChangeEvent, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { InboxNotificationsService } from '../../browser/inboxNotificationsService.js';
-import { InboxNotificationActionKind, InboxNotificationKind, InboxNotificationPriority } from '../../common/inboxNotificationsService.js';
+import { InboxNotificationActionKind, InboxNotificationKind, InboxNotificationPriority, InboxNotificationsSortMode } from '../../common/inboxNotificationsService.js';
 import { GitHubPullRequestModel } from '../../../github/browser/models/githubPullRequestModel.js';
 import { GitHubPullRequestCIModel } from '../../../github/browser/models/githubPullRequestCIModel.js';
 import { GitHubPullRequestReviewThreadsModel } from '../../../github/browser/models/githubPullRequestReviewThreadsModel.js';
@@ -184,6 +184,34 @@ suite('InboxNotificationsService', () => {
 				actionKinds: [InboxNotificationActionKind.OpenSession, InboxNotificationActionKind.MarkDone],
 			},
 		]);
+	});
+
+	test('switches between priority and recency sorting', () => {
+		const fixture = createFixture([
+			createSession({ id: 'high-old', status: SessionStatus.NeedsInput, updatedAt: 100 }),
+			createSession({ id: 'low-new', status: SessionStatus.Completed, updatedAt: 300, isRead: false }),
+		]);
+
+		const priorityOrder = fixture.service.notifications.get().map(item => item.title);
+		fixture.service.setSortMode(InboxNotificationsSortMode.Recency);
+		const recencyOrder = fixture.service.notifications.get().map(item => item.title);
+		fixture.service.setSortMode(InboxNotificationsSortMode.Priority);
+		const restoredOrder = fixture.service.notifications.get().map(item => item.title);
+
+		assert.deepStrictEqual({ priorityOrder, recencyOrder, restoredOrder }, {
+			priorityOrder: [
+				'Input Needed for high-old',
+				'Completed: low-new',
+			],
+			recencyOrder: [
+				'Completed: low-new',
+				'Input Needed for high-old',
+			],
+			restoredOrder: [
+				'Input Needed for high-old',
+				'Completed: low-new',
+			],
+		});
 	});
 
 	test('uses fallback text for needs-input notifications when no session detail is available', () => {

@@ -26,6 +26,11 @@ export const enum InboxNotificationKind {
 	External = 'external',
 }
 
+export const enum InboxNotificationsSortMode {
+	Priority = 'priority',
+	Recency = 'recency',
+}
+
 export const enum InboxNotificationActionKind {
 	OpenSession = 'openSession',
 	MarkDone = 'markDone',
@@ -74,11 +79,13 @@ export interface IInboxNotificationsService {
 	readonly _serviceBrand: undefined;
 
 	readonly notifications: IObservable<readonly IInboxNotificationItem[]>;
+	readonly sortMode: IObservable<InboxNotificationsSortMode>;
 
 	publishExternalNotification(notification: IExternalInboxNotification): void;
 	removeExternalNotification(id: string): void;
 	dismissNotification(id: string): void;
 	clearDismissedNotifications(): void;
+	setSortMode(sortMode: InboxNotificationsSortMode): void;
 }
 
 export function compareInboxNotifications(a: IInboxNotificationItem, b: IInboxNotificationItem): number {
@@ -86,4 +93,11 @@ export function compareInboxNotifications(a: IInboxNotificationItem, b: IInboxNo
 		return a.priority - b.priority;
 	}
 	return b.timestamp - a.timestamp;
+}
+
+export function compareInboxNotificationsByRecency(a: IInboxNotificationItem, b: IInboxNotificationItem): number {
+	if (a.timestamp !== b.timestamp) {
+		return b.timestamp - a.timestamp;
+	}
+	return a.priority - b.priority;
 }

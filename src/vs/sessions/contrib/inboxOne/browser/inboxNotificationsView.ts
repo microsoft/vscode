@@ -34,6 +34,7 @@ import {
 	IInboxNotificationsService,
 	InboxNotificationActionKind,
 	InboxNotificationPriority,
+	InboxNotificationsSortMode,
 } from '../common/inboxNotificationsService.js';
 import { getInboxNotificationKindLabel, getInboxNotificationPriorityLabel } from './inboxNotificationsLabels.js';
 
@@ -92,6 +93,38 @@ export class InboxNotificationsView extends AbstractCustomView {
 		});
 
 		const toolbar = container.appendChild($('.inbox-notifications-toolbar'));
+		const sortButtons = toolbar.appendChild($('.inbox-notifications-sort-buttons'));
+		const sortByPriorityButton = this._register(new Button(sortButtons, {
+			...defaultButtonStyles,
+			secondary: true,
+			small: true,
+			ariaLabel: localize('inboxNotifications.sort.priorityAria', "Sort notifications by priority"),
+		}));
+		sortByPriorityButton.label = localize('inboxNotifications.sort.priority', "Priority");
+		this._register(sortByPriorityButton.onDidClick(() => {
+			this.inboxNotificationsService.setSortMode(InboxNotificationsSortMode.Priority);
+		}));
+
+		const sortByRecencyButton = this._register(new Button(sortButtons, {
+			...defaultButtonStyles,
+			secondary: true,
+			small: true,
+			ariaLabel: localize('inboxNotifications.sort.recencyAria', "Sort notifications by recency"),
+		}));
+		sortByRecencyButton.label = localize('inboxNotifications.sort.recency', "Recent");
+		this._register(sortByRecencyButton.onDidClick(() => {
+			this.inboxNotificationsService.setSortMode(InboxNotificationsSortMode.Recency);
+		}));
+
+		this._register(autorun(reader => {
+			const sortMode = this.inboxNotificationsService.sortMode.read(reader);
+			const prioritySelected = sortMode === InboxNotificationsSortMode.Priority;
+			sortByPriorityButton.enabled = !prioritySelected;
+			sortByRecencyButton.enabled = prioritySelected;
+			sortByPriorityButton.element.classList.toggle('active', prioritySelected);
+			sortByRecencyButton.element.classList.toggle('active', !prioritySelected);
+		}));
+
 		const clearDismissedButton = this._register(new Button(toolbar, {
 			...defaultButtonStyles,
 			secondary: true,
