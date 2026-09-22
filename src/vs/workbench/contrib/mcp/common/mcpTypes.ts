@@ -725,6 +725,7 @@ export interface McpServerTransportHTTP {
 	readonly type: McpServerTransportType.HTTP;
 	readonly transport?: 'sse' | 'streamable-http';
 	readonly uri: URI;
+	/** Additional headers are restricted to the configured URI's origin. */
 	readonly headers: [string, string][];
 	readonly oauth?: McpServerTransportHTTPOAuth;
 	/**
