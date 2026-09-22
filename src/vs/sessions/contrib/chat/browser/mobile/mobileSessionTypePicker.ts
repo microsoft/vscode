@@ -21,6 +21,10 @@ import { SessionTypePicker, ISessionTypePickerOptions } from '../sessionTypePick
 import { isPhoneLayout } from '../../../../browser/parts/mobile/mobileLayout.js';
 import { IMobilePickerSheetItem, showMobilePickerSheet } from '../../../../browser/parts/mobile/mobilePickerSheet.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
+import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
+import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 
 /**
  * Phone variant of {@link SessionTypePicker} that renders the picker as
@@ -47,9 +51,13 @@ export class MobileSessionTypePicker extends SessionTypePicker {
 		@IChatEntitlementService chatEntitlementService: IChatEntitlementService,
 		@ILanguageModelsService languageModelsService: ILanguageModelsService,
 		@IConfigurationService configurationService: IConfigurationService,
+		@ICommandService commandService: ICommandService,
+		@IContextMenuService contextMenuService: IContextMenuService,
+		@IHoverService hoverService: IHoverService,
+		@IKeybindingService keybindingService: IKeybindingService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 	) {
-		super(session, options, actionWidgetService, sessionsManagementService, _sessionsProvidersService, storageService, telemetryService, chatSessionsService, chatEntitlementService, languageModelsService, configurationService);
+		super(session, options, actionWidgetService, sessionsManagementService, _sessionsProvidersService, storageService, telemetryService, chatSessionsService, chatEntitlementService, languageModelsService, configurationService, commandService, contextMenuService, hoverService, keybindingService);
 	}
 
 	override render(container: HTMLElement, options?: { className?: string }): void {
