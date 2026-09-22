@@ -317,7 +317,8 @@ suite('WorktreeIsolation', () => {
 		const isolation = createIsolation(disposables);
 		const config = { [SessionConfigKey.Isolation]: 'worktree', [SessionConfigKey.Branch]: 'main' };
 
-		const first = await isolation.resolveWorkingDirectory({ sessionUri, sessionId, workingDirectory: repoRoot, config, prompt: 'do a thing' });
+		isolation.notePending(sessionId);
+		const first = await isolation.resolveOnFirstSend({ sessionUri, sessionId, workingDirectory: repoRoot, config, prompt: 'do a thing' });
 		const meta = await isolation.readWorktreeMetadata(sessionUri);
 		const announcement = isolation.takePendingAnnouncement(sessionId);
 		const second = await isolation.resolveWorkingDirectory({ sessionUri, sessionId, workingDirectory: repoRoot, config, prompt: 'do a thing' });
@@ -334,6 +335,8 @@ suite('WorktreeIsolation', () => {
 			secondTakeAnnouncement: isolation.takePendingAnnouncement(sessionId),
 			idempotentReturn: second!.toString(),
 			resolvedWorktree: isolation.getResolvedWorktree(sessionId)?.toString(),
+			pending: isolation.isWorkingDirectoryPending(sessionId),
+			creationError: isolation.getCreationError(sessionId),
 		}, {
 			returnedWorktree: expectedWorktree.toString(),
 			addWorktreeCallCount: 1,
@@ -345,6 +348,96 @@ suite('WorktreeIsolation', () => {
 			secondTakeAnnouncement: undefined,
 			idempotentReturn: expectedWorktree.toString(),
 			resolvedWorktree: expectedWorktree.toString(),
+			pending: false,
+			creationError: undefined,
+		});
+	});
+
+	test('resolveOnFirstSend serializes and latches concurrent creation failures', async () => {
+		const gitService = createGitService();
+		gitService.addWorktree = async (_root, options) => {
+			addWorktreeCalls.push(options);
+			throw new Error('git-lfs: command not found');
+		};
+		const isolation = createIsolation(disposables, { gitService });
+		const request = { sessionUri, sessionId, workingDirectory: repoRoot, config: { [SessionConfigKey.Isolation]: 'worktree', [SessionConfigKey.Branch]: 'main' } };
+		isolation.notePending(sessionId);
+		let firstError: Error | undefined;
+		let secondError: Error | undefined;
+
+		await Promise.all([
+			assert.rejects(isolation.resolveOnFirstSend(request), (error: Error) => {
+				firstError = error;
+				return /git-lfs: command not found/.test(error.message);
+			}),
+			assert.rejects(isolation.resolveOnFirstSend(request), (error: Error) => {
+				secondError = error;
+				return /git-lfs: command not found/.test(error.message);
+			}),
+		]);
+
+		assert.deepStrictEqual({
+			addWorktreeCalls: addWorktreeCalls.length,
+			sameError: firstError === secondError,
+			latchedError: isolation.getCreationError(sessionId) === firstError,
+			pending: isolation.isWorkingDirectoryPending(sessionId),
+			message: firstError?.message,
+		}, {
+			addWorktreeCalls: 1,
+			sameError: true,
+			latchedError: true,
+			pending: true,
+			message: 'Couldn\'t create the isolated worktree. This session cannot continue. Start a new session to try again.\n\ngit-lfs: command not found',
+		});
+	});
+
+	test('session deletion clears a latched worktree creation failure', async () => {
+		const gitService = createGitService();
+		gitService.addWorktree = async () => { throw new Error('creation failed'); };
+		const isolation = createIsolation(disposables, { gitService });
+		const request = { sessionUri, sessionId, workingDirectory: repoRoot, config: { [SessionConfigKey.Isolation]: 'worktree', [SessionConfigKey.Branch]: 'main' } };
+		isolation.notePending(sessionId);
+
+		await assert.rejects(isolation.resolveOnFirstSend(request), /creation failed/);
+		const errorBeforeDeletion = isolation.getCreationError(sessionId);
+		await isolation.removeSessionWorktree(sessionId, undefined);
+
+		assert.deepStrictEqual({
+			errorBeforeDeletion: errorBeforeDeletion?.message,
+			errorAfterDeletion: isolation.getCreationError(sessionId),
+			pending: isolation.isWorkingDirectoryPending(sessionId),
+		}, {
+			errorBeforeDeletion: 'Couldn\'t create the isolated worktree. This session cannot continue. Start a new session to try again.\n\ncreation failed',
+			errorAfterDeletion: undefined,
+			pending: false,
+		});
+	});
+
+	test('resolveForWorkspaceConversion does not latch creation failures', async () => {
+		const gitService = createGitService();
+		gitService.addWorktree = async (_root, options) => {
+			addWorktreeCalls.push(options);
+			if (addWorktreeCalls.length === 1) {
+				throw new Error('transient git failure');
+			}
+		};
+		const isolation = createIsolation(disposables, { gitService });
+		const request = { sessionUri, sessionId, workingDirectory: repoRoot, config: { [SessionConfigKey.Isolation]: 'worktree', [SessionConfigKey.Branch]: 'main' } };
+
+		await assert.rejects(isolation.resolveForWorkspaceConversion(request), /transient git failure/);
+		const errorAfterFailure = isolation.getCreationError(sessionId);
+		const resolved = await isolation.resolveForWorkspaceConversion(request);
+
+		assert.deepStrictEqual({
+			addWorktreeCalls: addWorktreeCalls.length,
+			errorAfterFailure,
+			resolved: resolved?.toString(),
+			creationError: isolation.getCreationError(sessionId),
+		}, {
+			addWorktreeCalls: 2,
+			errorAfterFailure: undefined,
+			resolved: URI.joinPath(worktreesRoot, getWorktreeName(branchName)).toString(),
+			creationError: undefined,
 		});
 	});
 
