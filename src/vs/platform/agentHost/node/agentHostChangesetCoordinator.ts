@@ -16,7 +16,9 @@ import { IAgentHostGitStateService } from '../common/agentHostGitStateService.js
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
 import { readAgentMergeSessionState } from '../common/agentMerge.js';
 import { buildDefaultChatUri, isAhpChatChannel, parseChatUri, parseSubagentSessionUri, type SessionConfigState } from '../common/state/sessionState.js';
+import { ActionType } from '../common/state/sessionActions.js';
 import { getSummaryChangesetKind } from './agentHostChangesetSummary.js';
+import { resolveBranchChangesetScopeForOwner, resolveBranchChangesetScopeForSource } from './agentHostBranchChangesetScope.js';
 
 /**
  * Raw metadata blob values for the session DB, batch-read by the caller.
@@ -61,6 +63,11 @@ export class AgentHostChangesetCoordinator extends Disposable {
 		this._register(this._gitStateService.onDidChangeSessionGitHubState(sessionStr => this._changesetOperationService.updateOperations(sessionStr)));
 		this._register(this._stateManager.onDidChangeSessionWorkingDirectories(({ session }) => this.onDidChangeSessionWorkingDirectories(session)));
 		this._register(this._stateManager.onDidChangeSessionConfig(event => this.onDidChangeSessionConfig(event.session, event.previous, event.current)));
+		this._register(this._stateManager.onDidEmitEnvelope(envelope => {
+			if (envelope.action.type === ActionType.SessionChatRemoved) {
+				this._onChatRemoved(envelope.channel, envelope.action.chat);
+			}
+		}));
 	}
 
 	// ---- Lifecycle hooks ----------------------------------------------------
@@ -87,7 +94,7 @@ export class AgentHostChangesetCoordinator extends Disposable {
 		if (session
 			&& this._changesetSubscriptions.getSessionSubscriptions(session).has(session)
 			&& getSummaryChangesetKind(this._stateManager.getSessionState(session)?.config?.values) === ChangesetKind.Branch) {
-			this._ensureBranchSummarySubscription(chat);
+			this._reconcileBranchSummaryResources(session);
 		}
 	}
 
@@ -136,10 +143,15 @@ export class AgentHostChangesetCoordinator extends Disposable {
 	}
 
 	onSessionDisposed(sessionStr: string): void {
-		this._clearBranchSummaryResources(sessionStr);
+		this._changesets.onChangesetOwnerRemoved?.(sessionStr);
+		for (const owner of this._branchSummaryResources.get(sessionStr)?.values() ?? []) {
+			this._changesets.onChangesetOwnerRemoved?.(owner);
+		}
+		this._clearBranchSummaryResources(sessionStr, false);
 		this._changesetFileMonitor.onSessionDisposed(sessionStr);
 		this._changesetSubscriptions.clearSessionSubscriptions(sessionStr);
 		for (const chat of this._stateManager.getSessionState(sessionStr)?.chats ?? []) {
+			this._changesets.onChangesetOwnerRemoved?.(chat.resource);
 			this._changesetFileMonitor.onSessionDisposed(chat.resource);
 			this._changesetSubscriptions.clearSessionSubscriptions(chat.resource);
 		}
@@ -177,15 +189,12 @@ export class AgentHostChangesetCoordinator extends Disposable {
 	private _refreshSummarySource(session: string, previous: SessionConfigState | undefined): void {
 		const kind = getSummaryChangesetKind(this._stateManager.getSessionState(session)?.config?.values);
 		if (kind !== getSummaryChangesetKind(previous?.values)) {
-			this._changesetOperationService.updateOperations(session, buildBranchChangesetUri(session));
+			for (const resource of this._branchSummaryResources.get(session)?.keys() ?? []) {
+				this._changesetOperationService.updateOperations(session, resource);
+			}
 			this._changesetOperationService.updateOperations(session, buildSessionChangesetUri(session));
 			if (kind === ChangesetKind.Branch) {
-				for (const owner of [
-					session,
-					...this._stateManager.getSessionState(session)?.chats.map(chat => chat.resource) ?? [],
-				]) {
-					this._ensureBranchSummarySubscription(owner);
-				}
+				this._reconcileBranchSummaryResources(session);
 			} else {
 				this._clearBranchSummaryResources(session);
 				this._changesets.recomputeSubscribedChangesets(session);
@@ -223,7 +232,10 @@ export class AgentHostChangesetCoordinator extends Disposable {
 		if (parsed?.kind === ChangesetKind.Branch) {
 			this._addSubscription(parsed.ownerUri, resourceStr);
 			this._changesets.refreshBranchChangeset(parsed.ownerUri);
-			this._changesetFileMonitor.trackSessionChanges(resourceStr, parsed.ownerUri);
+			const source = resolveBranchChangesetScopeForOwner(this._stateManager, parsed.ownerUri)?.sourceUri;
+			if (source) {
+				this._changesetFileMonitor.trackSessionChanges(resourceStr, parsed.ownerUri, source);
+			}
 			return;
 		}
 
@@ -264,27 +276,22 @@ export class AgentHostChangesetCoordinator extends Disposable {
 		this._addSubscription(session, session);
 		const kind = getSummaryChangesetKind(this._stateManager.getSessionState(session)?.config?.values);
 		if (kind === ChangesetKind.Branch) {
-			for (const owner of [
-				session,
-				...this._stateManager.getSessionState(session)?.chats.map(chat => chat.resource) ?? [],
-			]) {
-				this._ensureBranchSummarySubscription(owner);
-			}
+			this._reconcileBranchSummaryResources(session);
 		} else {
 			this._changesets.refreshSessionChangeset(session);
 			this._changesetFileMonitor.trackSessionChanges(session, session);
 		}
 	}
 
-	private _ensureBranchSummarySubscription(owner: string): void {
+	private _ensureBranchSummarySubscription(owner: string): string | undefined {
 		const changesets = isAhpChatChannel(owner)
 			? this._stateManager.getChatState(owner)?.changesets
 			: this._stateManager.getSessionState(owner)?.changesets;
 		const entry = changesets?.find(candidate => parseChangesetUri(candidate.uriTemplate)?.kind === ChangesetKind.Branch);
-		const resource = entry?.uriTemplate ?? (!isAhpChatChannel(owner) ? buildBranchChangesetUri(owner) : undefined);
+		const resource = entry?.uriTemplate ?? buildBranchChangesetUri(resolveBranchChangesetScopeForSource(this._stateManager, owner).ownerUri);
 		const parsed = resource ? parseChangesetUri(resource) : undefined;
 		if (!resource || !parsed) {
-			return;
+			return undefined;
 		}
 
 		const session = parseChatUri(owner)?.session ?? owner;
@@ -294,11 +301,60 @@ export class AgentHostChangesetCoordinator extends Disposable {
 			this._branchSummaryResources.set(session, resources);
 		}
 		resources.set(resource, parsed.ownerUri);
+		this._changesetOperationService.updateOperations(session, resource);
 		this._changesets.refreshBranchChangeset(parsed.ownerUri);
-		this._changesetFileMonitor.trackSessionChanges(resource, parsed.ownerUri);
+		const source = resolveBranchChangesetScopeForOwner(this._stateManager, parsed.ownerUri)?.sourceUri;
+		if (source) {
+			this._changesetFileMonitor.trackSessionChanges(resource, parsed.ownerUri, source);
+		}
+		return resource;
 	}
 
-	private _clearBranchSummaryResources(session: string): void {
+	private _reconcileBranchSummaryResources(session: string): void {
+		const defaultChat = buildDefaultChatUri(session);
+		const desiredResources = new Set<string>();
+		for (const source of [
+			defaultChat,
+			...this._stateManager.getSessionState(session)?.chats
+				.map(chat => chat.resource)
+				.filter(candidate => candidate !== defaultChat) ?? [],
+		]) {
+			const resource = this._ensureBranchSummarySubscription(source);
+			if (resource) {
+				desiredResources.add(resource);
+			}
+		}
+
+		const resources = this._branchSummaryResources.get(session);
+		if (!resources) {
+			return;
+		}
+		for (const [resource, owner] of [...resources]) {
+			if (desiredResources.has(resource)) {
+				continue;
+			}
+			resources.delete(resource);
+			if (!this._changesetSubscriptions.getSessionSubscriptions(owner).has(resource)) {
+				this._changesets.onChangesetOwnerRemoved?.(owner);
+				this._changesetFileMonitor.untrackSessionChanges(resource);
+			}
+		}
+		if (resources.size === 0) {
+			this._branchSummaryResources.delete(session);
+		}
+	}
+
+	private _onChatRemoved(session: string, chat: string): void {
+		this._changesetFileMonitor.onSessionDisposed(chat);
+		this._changesetSubscriptions.clearSessionSubscriptions(chat);
+		this._changesets.onChangesetOwnerRemoved?.(chat);
+		if (this._changesetSubscriptions.getSessionSubscriptions(session).has(session)
+			&& getSummaryChangesetKind(this._stateManager.getSessionState(session)?.config?.values) === ChangesetKind.Branch) {
+			this._reconcileBranchSummaryResources(session);
+		}
+	}
+
+	private _clearBranchSummaryResources(session: string, cancelPending = true): void {
 		const resources = this._branchSummaryResources.get(session);
 		if (!resources) {
 			return;
@@ -306,6 +362,9 @@ export class AgentHostChangesetCoordinator extends Disposable {
 		this._branchSummaryResources.delete(session);
 		for (const [resource, owner] of resources) {
 			if (!this._changesetSubscriptions.getSessionSubscriptions(owner).has(resource)) {
+				if (cancelPending) {
+					this._changesets.onChangesetOwnerRemoved?.(owner);
+				}
 				this._changesetFileMonitor.untrackSessionChanges(resource);
 			}
 		}
@@ -454,26 +513,36 @@ export class AgentHostChangesetCoordinator extends Disposable {
 	 * Called when a session's Git state is refreshed.
 	 */
 	private onDidRunSessionGitStateRefresh(sessionStr: string): void {
+		const branchOwners = new Set<string>();
 		// Session Git refreshes can complete after SessionReady, so refresh the
 		// chat catalogues that own the selectable changesets.
 		if (isAhpChatChannel(sessionStr)) {
 			this._changesets.refreshChangesetCatalog(sessionStr);
+			const branchResource = this._stateManager.getChatState(sessionStr)?.changesets
+				?.find(changeset => parseChangesetUri(changeset.uriTemplate)?.kind === ChangesetKind.Branch)?.uriTemplate;
+			branchOwners.add(parseChangesetUri(branchResource ?? '')?.ownerUri ?? resolveBranchChangesetScopeForSource(this._stateManager, sessionStr).ownerUri);
 			const session = parseChatUri(sessionStr)?.session;
 			if (session
 				&& this._changesetSubscriptions.getSessionSubscriptions(session).has(session)
 				&& getSummaryChangesetKind(this._stateManager.getSessionState(session)?.config?.values) === ChangesetKind.Branch) {
-				this._ensureBranchSummarySubscription(sessionStr);
+				this._reconcileBranchSummaryResources(session);
 			}
 		} else {
 			this._refreshChangesetCatalogs(sessionStr);
+			for (const source of [
+				buildDefaultChatUri(sessionStr),
+				...this._stateManager.getSessionState(sessionStr)?.chats.map(chat => chat.resource) ?? [],
+			]) {
+				branchOwners.add(resolveBranchChangesetScopeForSource(this._stateManager, source).ownerUri);
+			}
 			if (this._changesetSubscriptions.getSessionSubscriptions(sessionStr).has(sessionStr)
 				&& getSummaryChangesetKind(this._stateManager.getSessionState(sessionStr)?.config?.values) === ChangesetKind.Branch) {
-				for (const owner of [
-					sessionStr,
-					...this._stateManager.getSessionState(sessionStr)?.chats.map(chat => chat.resource) ?? [],
-				]) {
-					this._ensureBranchSummarySubscription(owner);
-				}
+				this._reconcileBranchSummaryResources(sessionStr);
+			}
+		}
+		for (const owner of branchOwners) {
+			if (this._changesetSubscriptions.getSessionSubscriptions(owner).size > 0) {
+				this._changesets.recomputeSubscribedChangesets(owner);
 			}
 		}
 
@@ -514,7 +583,7 @@ export class AgentHostChangesetCoordinator extends Disposable {
 			const session = parseChatUri(sessionStr)?.session;
 			if (session && this._changesetSubscriptions.getSessionSubscriptions(session).has(session)) {
 				if (getSummaryChangesetKind(this._stateManager.getSessionState(session)?.config?.values) === ChangesetKind.Branch) {
-					this._ensureBranchSummarySubscription(sessionStr);
+					this._reconcileBranchSummaryResources(session);
 				} else {
 					this._changesets.refreshSessionChangeset(session);
 				}
@@ -523,12 +592,7 @@ export class AgentHostChangesetCoordinator extends Disposable {
 		}
 		if (this._changesetSubscriptions.getSessionSubscriptions(sessionStr).has(sessionStr)
 			&& getSummaryChangesetKind(this._stateManager.getSessionState(sessionStr)?.config?.values) === ChangesetKind.Branch) {
-			for (const owner of [
-				sessionStr,
-				...this._stateManager.getSessionState(sessionStr)?.chats.map(chat => chat.resource) ?? [],
-			]) {
-				this._ensureBranchSummarySubscription(owner);
-			}
+			this._reconcileBranchSummaryResources(sessionStr);
 		} else {
 			this._changesets.recomputeSubscribedChangesets(sessionStr);
 		}

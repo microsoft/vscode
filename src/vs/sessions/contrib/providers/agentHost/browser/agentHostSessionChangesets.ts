@@ -508,6 +508,7 @@ abstract class AbstractAgentHostChangeset implements ISessionChangeset {
 
 class AgentHostChangeset extends AbstractAgentHostChangeset {
 	readonly id: string;
+	readonly resource: URI;
 
 	private _label: string;
 	get label(): string { return this._label; }
@@ -529,7 +530,8 @@ class AgentHostChangeset extends AbstractAgentHostChangeset {
 	) {
 		super(changesetSummary, options, dialogService);
 
-		this.channelUriObs = constObservable(URI.parse(changesetSummary.uriTemplate));
+		this.resource = URI.parse(changesetSummary.uriTemplate);
+		this.channelUriObs = constObservable(this.resource);
 
 		this.changesetStateObs = createActiveSessionSubscriptionObs<ChangesetState>(
 			options,

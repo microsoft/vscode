@@ -100,6 +100,27 @@ suite('SessionChatInputToolbar', () => {
 		});
 	});
 
+	test('uses cached session stats while chat changes are unresolved', () => {
+		const chat = upcastPartial<IChat>({
+			workspace: constObservable(upcastPartial<ISessionWorkspace>({ folders: [] })),
+			changesets: constObservable(undefined),
+			changes: constObservable([]),
+		});
+		const session = upcastPartial<IActiveSession>({
+			sessionId: 'provider:session',
+			activeChat: constObservable(chat),
+			mainChat: constObservable(chat),
+		});
+		const changesStatsCache = upcastPartial<ISessionChangesStatsCache>({
+			get: () => ({ files: 3, insertions: 12, deletions: 5 }),
+		});
+
+		assert.deepStrictEqual(
+			derived(reader => computeSessionInputPillStats(session, chat, reader, changesStatsCache)).get(),
+			{ files: 3, insertions: 12, deletions: 5 },
+		);
+	});
+
 	for (const worktree of [false, true]) {
 		for (const activation of ['click', 'Enter', 'Space'] as const) {
 			test(`opens ${worktree ? 'Branch' : 'Session'} Changes from the pill with ${activation} and follows workspace updates`, () => {

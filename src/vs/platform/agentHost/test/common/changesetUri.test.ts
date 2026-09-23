@@ -21,12 +21,14 @@ import {
 	buildTurnChangesetUri,
 	buildTurnChangesetUriTemplate,
 	buildUncommittedChangesetUri,
+	buildFolderChangesetOwnerUri,
 	isChangesetUri,
 	isSessionChangesetUri,
 	isUncommittedChangesetUri,
 	parseChangesetUri,
 	parseCompareTurnsChangesetUri,
 	parseTurnChangesetUri,
+	parseFolderChangesetOwnerUri,
 	resolveChangesetUriTemplate,
 	selectDefaultChangeset,
 } from '../../common/changesetUri.js';
@@ -78,6 +80,10 @@ suite('changesetUri', () => {
 		assert.strictEqual(buildCompareTurnsChangesetUri(sessionUri, 't1', 't2'), 'copilot:/abc-123/changeset/compare/t1/t2');
 		assert.strictEqual(buildCompareTurnsChangesetUriTemplate(sessionUri), 'copilot:/abc-123/changeset/compare/{originalTurnId}/{modifiedTurnId}');
 		assert.strictEqual(buildChangesetUri(sessionUri, 'session'), `${sessionUri}/changeset/session`);
+		const folderOwner = buildFolderChangesetOwnerUri(sessionUri, 'folder-id');
+		assert.ok(folderOwner.startsWith('ahp-folder-changeset://scope/'));
+		assert.strictEqual(buildBranchChangesetUri(folderOwner), `${folderOwner}/changeset/branch`);
+		assert.deepStrictEqual(parseFolderChangesetOwnerUri(folderOwner), { sessionUri, scopeId: 'folder-id' });
 	});
 
 	test('builders reject malformed ids', () => {
@@ -89,6 +95,8 @@ suite('changesetUri', () => {
 		assert.throws(() => buildCompareTurnsChangesetUri(sessionUri, 't1', ''));
 		assert.throws(() => buildCompareTurnsChangesetUri(sessionUri, 'a/b', 't2'));
 		assert.throws(() => buildCompareTurnsChangesetUri(sessionUri, 't1', 'a/b'));
+		assert.throws(() => buildFolderChangesetOwnerUri(sessionUri, ''));
+		assert.throws(() => buildFolderChangesetOwnerUri(sessionUri, 'a/b'));
 	});
 
 	test('parseChangesetUri identifies the well-known kinds', () => {
@@ -111,6 +119,16 @@ suite('changesetUri', () => {
 			sessionUri,
 			changesetId: 'session',
 			kind: ChangesetKind.Session,
+		});
+	});
+
+	test('parseChangesetUri preserves folder ownership and resolves the containing session', () => {
+		const folderOwner = buildFolderChangesetOwnerUri(sessionUri, 'folder-id');
+		assert.deepStrictEqual(parseChangesetUri(buildBranchChangesetUri(folderOwner)), {
+			ownerUri: folderOwner,
+			sessionUri,
+			changesetId: 'branch',
+			kind: ChangesetKind.Branch,
 		});
 	});
 

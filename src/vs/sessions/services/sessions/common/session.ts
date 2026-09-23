@@ -484,6 +484,8 @@ export const TURN_CHANGES_CHANGESET_ID = 'turn';
 export interface ISessionChangeset {
 	/** Unique identifier for the changeset. */
 	readonly id: string;
+	/** Stable backing resource shared by equivalent changeset projections, when available. */
+	readonly resource?: URI;
 	/** Display label for the changeset. */
 	readonly label: string;
 	/** Optional description for the changeset. */

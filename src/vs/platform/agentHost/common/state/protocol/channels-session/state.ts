@@ -199,8 +199,11 @@ export interface SessionState extends SessionMetadata {
 	 */
 	customizations?: Customization[];
 	/**
-	 * Authoritative ordered catalogue of session-wide selectable changesets.
-	 * Chat-owned entries are published separately on their chat channels.
+	 * Catalogue of changesets the server can produce for this session. Each
+	 * entry advertises a subscribable view of file changes (uncommitted,
+	 * session-wide, per-turn, etc.) and the URI template the client expands
+	 * before subscribing. See {@link Changeset} for the full shape and
+	 * {@link /guide/changesets | Changesets} for an overview of the model.
 	 */
 	changesets?: Changeset[];
 	/**

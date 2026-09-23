@@ -14,7 +14,7 @@ import { AGENT_HOST_CHECKOUT_CHANGESET_OPERATION_ID } from '../../../../../platf
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { TestStorageService } from '../../../../../workbench/test/common/workbenchTestServices.js';
 import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
-import { CHAT_CHANGES_CHANGESET_ID, IChat, ISession, ISessionChangeset, ISessionChangesetOperation, ISessionFileChange, ISessionFolder, ISessionGitRepository, ISessionWorkspace, SESSION_CHANGES_CHANGESET_ID, SessionChangesetOperationScope, SessionChangesetOperationStatus, TURN_CHANGES_CHANGESET_ID } from '../../../../services/sessions/common/session.js';
+import { BRANCH_CHANGES_CHANGESET_ID, CHAT_CHANGES_CHANGESET_ID, IChat, ISession, ISessionChangeset, ISessionChangesetOperation, ISessionFileChange, ISessionFolder, ISessionGitRepository, ISessionWorkspace, SESSION_CHANGES_CHANGESET_ID, SessionChangesetOperationScope, SessionChangesetOperationStatus, TURN_CHANGES_CHANGESET_ID, UNCOMMITTED_CHANGES_CHANGESET_ID } from '../../../../services/sessions/common/session.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { IAgentFeedbackService } from '../../../agentFeedback/browser/agentFeedbackService.js';
 import { ICodeReviewService, PRReviewStateKind } from '../../../codeReview/browser/codeReviewService.js';
@@ -25,8 +25,8 @@ suite('ChangesViewService', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createSession(id: string, options?: { readonly changesets?: readonly ISessionChangeset[]; readonly sessionChangesets?: readonly ISessionChangeset[]; readonly activeChat?: IObservable<IChat>; readonly mainChat?: IObservable<IChat>; readonly chats?: IObservable<readonly IChat[]>; readonly baseBranchProtected?: boolean; readonly pullRequestState?: 'open' | 'closed' | 'merged'; readonly livePullRequestState?: 'open' | 'closed' | 'merged'; readonly pullRequestIcon?: { readonly id: string } }): IActiveSession {
-		const workspace = options?.baseBranchProtected === undefined && options?.pullRequestState === undefined && options?.livePullRequestState === undefined && options?.pullRequestIcon === undefined
+	function createSession(id: string, options?: { readonly workspace?: ISessionWorkspace; readonly changesets?: readonly ISessionChangeset[]; readonly sessionChangesets?: readonly ISessionChangeset[]; readonly activeChat?: IObservable<IChat>; readonly mainChat?: IObservable<IChat>; readonly chats?: IObservable<readonly IChat[]>; readonly baseBranchProtected?: boolean; readonly pullRequestState?: 'open' | 'closed' | 'merged'; readonly livePullRequestState?: 'open' | 'closed' | 'merged'; readonly pullRequestIcon?: { readonly id: string } }): IActiveSession {
+		const workspace = options?.workspace ?? (options?.baseBranchProtected === undefined && options?.pullRequestState === undefined && options?.livePullRequestState === undefined && options?.pullRequestIcon === undefined
 			? undefined
 			: upcastPartial<ISessionWorkspace>({
 				folders: [upcastPartial<ISessionFolder>({
@@ -50,7 +50,7 @@ suite('ChangesViewService', () => {
 						} : undefined),
 					}),
 				})],
-			});
+			}));
 		const defaultChat = upcastPartial<IChat>({
 			resource: URI.from({ scheme: 'test-chat', path: `/${id}` }),
 			changes: constObservable([]),
@@ -70,12 +70,32 @@ suite('ChangesViewService', () => {
 		});
 	}
 
+	function createWorkspace(root: string): ISessionWorkspace {
+		const uri = URI.file(root);
+		return upcastPartial<ISessionWorkspace>({
+			uri,
+			label: root,
+			folders: [upcastPartial<ISessionFolder>({
+				root: uri,
+				workingDirectory: uri,
+				name: root,
+				gitRepository: upcastPartial<ISessionGitRepository>({
+					uri,
+					branchName: 'feature',
+					baseBranchName: 'main',
+				}),
+			})],
+		});
+	}
+
 	function createChangeset(operations: readonly ISessionChangesetOperation[], options?: {
 		readonly isLoadingChanges?: IObservable<boolean>;
 		readonly changes?: IObservable<readonly ISessionFileChange[]>;
+		readonly resource?: URI;
 	}): ISessionChangeset {
 		return upcastPartial<ISessionChangeset>({
 			id: 'branch',
+			resource: options?.resource,
 			label: 'Branch Changes',
 			isDefault: constObservable(true),
 			isEnabled: constObservable(true),
@@ -101,6 +121,7 @@ suite('ChangesViewService', () => {
 		const activeSession = observableValue<IActiveSession | undefined>('test.activeSession', initialSession);
 		const onDidReplaceSession = disposables.add(new Emitter<{ readonly from: ISession; readonly to: ISession }>());
 		const onDidDeleteSession = disposables.add(new Emitter<ISession>());
+		const onDidDeleteChat = disposables.add(new Emitter<ISession>());
 		const onDidDiscardNewSession = disposables.add(new Emitter<ISession>());
 		const onDidReplaceNewDraftSession = disposables.add(new Emitter<{ readonly from: ISession; readonly to: ISession }>());
 		const sessionsService = new class extends mock<ISessionsService>() {
@@ -109,6 +130,7 @@ suite('ChangesViewService', () => {
 		const sessionsManagementService = new class extends mock<ISessionsManagementService>() {
 			override readonly onDidReplaceSession = onDidReplaceSession.event;
 			override readonly onDidDeleteSession = onDidDeleteSession.event;
+			override readonly onDidDeleteChat = onDidDeleteChat.event;
 			override readonly onDidDiscardNewSession = onDidDiscardNewSession.event;
 			override readonly onDidReplaceNewDraftSession = onDidReplaceNewDraftSession.event;
 		}();
@@ -131,7 +153,7 @@ suite('ChangesViewService', () => {
 			sessionsManagementService,
 		));
 
-		return { activeSession, onDidDeleteSession, onDidDiscardNewSession, onDidReplaceNewDraftSession, onDidReplaceSession, service, storageService };
+		return { activeSession, onDidDeleteChat, onDidDeleteSession, onDidDiscardNewSession, onDidReplaceNewDraftSession, onDidReplaceSession, service, storageService };
 	}
 
 	test('restores section collapse state independently per session', () => {
@@ -311,8 +333,13 @@ suite('ChangesViewService', () => {
 			changesets: service.activeSessionChangesetsObs.get()?.map(changeset => changeset.id),
 			selected: service.activeSessionChangesetObs.get()?.id,
 		};
+		activeSession.set(sessionA, undefined);
+		const afterSwitchingBack = {
+			changesets: service.activeSessionChangesetsObs.get()?.map(changeset => changeset.id),
+			selected: service.activeSessionChangesetObs.get()?.id,
+		};
 
-		assert.deepStrictEqual({ transientSelection, providerSelection, afterSessionSwitch }, {
+		assert.deepStrictEqual({ transientSelection, providerSelection, afterSessionSwitch, afterSwitchingBack }, {
 			transientSelection: {
 				changesets: ['branch', 'turn:request'],
 				selected: 'turn:request',
@@ -324,6 +351,10 @@ suite('ChangesViewService', () => {
 			afterSessionSwitch: {
 				changesets: ['branch'],
 				selected: 'branch',
+			},
+			afterSwitchingBack: {
+				changesets: ['branch', 'turn:request'],
+				selected: 'turn:request',
 			},
 		});
 	});
@@ -397,7 +428,7 @@ suite('ChangesViewService', () => {
 		]);
 	});
 
-	test('shows session changes only on the main chat', () => {
+	test('shows only active chat changesets', () => {
 		const branchChangeset = { ...createChangeset([]), id: 'branch' };
 		const mainChangeset = { ...createChangeset([]), id: CHAT_CHANGES_CHANGESET_ID };
 		const peerChangeset = { ...createChangeset([]), id: CHAT_CHANGES_CHANGESET_ID };
@@ -428,12 +459,317 @@ suite('ChangesViewService', () => {
 		const second = service.activeSessionChangesetsObs.get()?.map(changeset => changeset.id);
 
 		assert.deepStrictEqual({ first, second }, {
-			first: ['branch', SESSION_CHANGES_CHANGESET_ID, CHAT_CHANGES_CHANGESET_ID, TURN_CHANGES_CHANGESET_ID],
+			first: ['branch', CHAT_CHANGES_CHANGESET_ID, TURN_CHANGES_CHANGESET_ID],
 			second: [CHAT_CHANGES_CHANGESET_ID, TURN_CHANGES_CHANGESET_ID],
 		});
 	});
 
-	test('hides chat changes when the main chat is the only chat', () => {
+	test('retains changeset preferences independently per chat', () => {
+		const branchChangeset = { ...createChangeset([]), id: 'branch' };
+		const mainChatChangeset = { ...createChangeset([]), id: CHAT_CHANGES_CHANGESET_ID, isDefault: constObservable(false) };
+		const peerChatChangeset = { ...createChangeset([]), id: CHAT_CHANGES_CHANGESET_ID };
+		const lastTurnChangeset = { ...createChangeset([]), id: TURN_CHANGES_CHANGESET_ID, isDefault: constObservable(false) };
+		const mainChat = upcastPartial<IChat>({
+			resource: URI.from({ scheme: 'test-chat', path: '/main' }),
+			workspace: constObservable(undefined),
+			changes: constObservable([]),
+			changesets: constObservable([branchChangeset, mainChatChangeset, lastTurnChangeset]),
+		});
+		const peerChat = upcastPartial<IChat>({
+			resource: URI.from({ scheme: 'test-chat', path: '/peer' }),
+			workspace: constObservable(undefined),
+			changes: constObservable([]),
+			changesets: constObservable([peerChatChangeset, lastTurnChangeset]),
+		});
+		const unvisitedChat = upcastPartial<IChat>({
+			resource: URI.from({ scheme: 'test-chat', path: '/unvisited' }),
+			workspace: constObservable(undefined),
+			changes: constObservable([]),
+			changesets: constObservable([peerChatChangeset, lastTurnChangeset]),
+		});
+		const activeChat = observableValue<IChat>('test.activeChat', mainChat);
+		const { activeSession, service } = createHarness(createSession('a', {
+			activeChat,
+			mainChat: constObservable(mainChat),
+			chats: constObservable([mainChat, peerChat, unvisitedChat]),
+		}));
+
+		service.setChangesetId('branch');
+		const mainSelection = service.activeSessionChangesetObs.get()?.id;
+		activeChat.set(peerChat, undefined);
+		const peerFallback = service.activeSessionChangesetObs.get()?.id;
+		service.setChangesetId(TURN_CHANGES_CHANGESET_ID);
+		const peerSelection = service.activeSessionChangesetObs.get()?.id;
+		activeChat.set(mainChat, undefined);
+		const restoredMainSelection = service.activeSessionChangesetObs.get()?.id;
+		activeChat.set(peerChat, undefined);
+		const restoredPeerSelection = service.activeSessionChangesetObs.get()?.id;
+		activeChat.set(unvisitedChat, undefined);
+		const inheritedSelection = service.activeSessionChangesetObs.get()?.id;
+		activeSession.set(createSession('b', {
+			changesets: [branchChangeset, lastTurnChangeset],
+		}), undefined);
+		const unrelatedSessionSelection = service.activeSessionChangesetObs.get()?.id;
+
+		assert.deepStrictEqual({
+			mainSelection,
+			peerFallback,
+			peerSelection,
+			restoredMainSelection,
+			restoredPeerSelection,
+			inheritedSelection,
+			unrelatedSessionSelection,
+		}, {
+			mainSelection: 'branch',
+			peerFallback: CHAT_CHANGES_CHANGESET_ID,
+			peerSelection: TURN_CHANGES_CHANGESET_ID,
+			restoredMainSelection: 'branch',
+			restoredPeerSelection: TURN_CHANGES_CHANGESET_ID,
+			inheritedSelection: TURN_CHANGES_CHANGESET_ID,
+			unrelatedSessionSelection: 'branch',
+		});
+	});
+
+	test('preserves resolved changes while equivalent chat projections hand off', () => {
+		const sharedResource = URI.parse('changeset:/shared-branch');
+		const cachedChange = upcastPartial<ISessionFileChange>({
+			modifiedUri: URI.file('/repo/cached.ts'),
+			insertions: 1,
+			deletions: 0,
+		});
+		const firstChangeset = createChangeset([], {
+			resource: sharedResource,
+			changes: constObservable([cachedChange]),
+		});
+		const sharedLoadingChangeset = createChangeset([], {
+			resource: sharedResource,
+			isLoadingChanges: constObservable(true),
+			changes: constObservable([]),
+		});
+		const differentLoadingChangeset = createChangeset([], {
+			resource: URI.parse('changeset:/different-branch'),
+			isLoadingChanges: constObservable(true),
+			changes: constObservable([]),
+		});
+		const firstChat = upcastPartial<IChat>({
+			resource: URI.from({ scheme: 'test-chat', path: '/first' }),
+			workspace: constObservable(undefined),
+			changes: constObservable([]),
+			changesets: constObservable([firstChangeset]),
+		});
+		const sharedChat = upcastPartial<IChat>({
+			resource: URI.from({ scheme: 'test-chat', path: '/shared' }),
+			workspace: constObservable(undefined),
+			changes: constObservable([]),
+			changesets: constObservable([sharedLoadingChangeset]),
+		});
+		const differentChat = upcastPartial<IChat>({
+			resource: URI.from({ scheme: 'test-chat', path: '/different' }),
+			workspace: constObservable(undefined),
+			changes: constObservable([]),
+			changesets: constObservable([differentLoadingChangeset]),
+		});
+		const activeChat = observableValue<IChat>('test.activeChat', firstChat);
+		const { service } = createHarness(createSession('a', {
+			activeChat,
+			mainChat: constObservable(firstChat),
+			chats: constObservable([firstChat, sharedChat, differentChat]),
+		}));
+		const snapshot = () => ({
+			loading: service.activeSessionChangesetLoadingObs.get(),
+			changes: service.activeSessionChangesObs.get().map(change => change.modifiedUri?.toString()),
+		});
+
+		const beforeSwitch = snapshot();
+		activeChat.set(sharedChat, undefined);
+		const sharedSwitch = snapshot();
+		activeChat.set(differentChat, undefined);
+		const differentSwitch = snapshot();
+
+		assert.deepStrictEqual({ beforeSwitch, sharedSwitch, differentSwitch }, {
+			beforeSwitch: { loading: false, changes: ['file:///repo/cached.ts'] },
+			sharedSwitch: { loading: false, changes: ['file:///repo/cached.ts'] },
+			differentSwitch: { loading: true, changes: [] },
+		});
+	});
+
+	test('preserves branch changes while a same-scope chat catalogue loads', () => {
+		const workspace = createWorkspace('/repo');
+		const sharedResource = URI.parse('changeset:/shared-branch');
+		const cachedChange = upcastPartial<ISessionFileChange>({
+			modifiedUri: URI.file('/repo/cached.ts'),
+			insertions: 1,
+			deletions: 0,
+		});
+		const resolvedChange = upcastPartial<ISessionFileChange>({
+			modifiedUri: URI.file('/repo/resolved.ts'),
+			insertions: 1,
+			deletions: 0,
+		});
+		const incomingLoading = observableValue('test.incomingLoading', true);
+		const incomingChanges = observableValue<readonly ISessionFileChange[]>('test.incomingChanges', []);
+		const mainChangeset = createChangeset([], {
+			resource: sharedResource,
+			changes: constObservable([cachedChange]),
+		});
+		const peerChangeset = createChangeset([], {
+			resource: sharedResource,
+			isLoadingChanges: incomingLoading,
+			changes: incomingChanges,
+		});
+		const peerChangesets = observableValue<readonly ISessionChangeset[] | undefined>('test.peerChangesets', undefined);
+		const mainChat = upcastPartial<IChat>({
+			resource: URI.from({ scheme: 'test-chat', path: '/main' }),
+			workspace: constObservable(workspace),
+			changes: constObservable([]),
+			changesets: constObservable([mainChangeset]),
+		});
+		const peerChat = upcastPartial<IChat>({
+			resource: URI.from({ scheme: 'test-chat', path: '/peer' }),
+			workspace: constObservable(workspace),
+			changes: constObservable([]),
+			changesets: peerChangesets,
+		});
+		const activeChat = observableValue<IChat>('test.activeChat', mainChat);
+		const { service } = createHarness(createSession('a', {
+			workspace,
+			activeChat,
+			mainChat: constObservable(mainChat),
+			chats: constObservable([mainChat, peerChat]),
+		}));
+		const snapshot = () => ({
+			changeset: service.activeSessionChangesetObs.get()?.id,
+			catalogueLoading: service.activeSessionChangesetsLoadingObs.get(),
+			sessionLoading: service.activeSessionLoadingObs.get(),
+			changes: service.activeSessionChangesObs.get().map(change => change.modifiedUri?.toString()),
+		});
+
+		const beforeSwitch = snapshot();
+		activeChat.set(peerChat, undefined);
+		const pendingCatalogue = snapshot();
+		peerChangesets.set([peerChangeset], undefined);
+		const subscribed = snapshot();
+		incomingChanges.set([resolvedChange], undefined);
+		incomingLoading.set(false, undefined);
+		const resolved = snapshot();
+
+		assert.deepStrictEqual({ beforeSwitch, pendingCatalogue, subscribed, resolved }, {
+			beforeSwitch: {
+				changeset: BRANCH_CHANGES_CHANGESET_ID,
+				catalogueLoading: false,
+				sessionLoading: false,
+				changes: ['file:///repo/cached.ts'],
+			},
+			pendingCatalogue: {
+				changeset: BRANCH_CHANGES_CHANGESET_ID,
+				catalogueLoading: true,
+				sessionLoading: false,
+				changes: ['file:///repo/cached.ts'],
+			},
+			subscribed: {
+				changeset: BRANCH_CHANGES_CHANGESET_ID,
+				catalogueLoading: false,
+				sessionLoading: false,
+				changes: ['file:///repo/cached.ts'],
+			},
+			resolved: {
+				changeset: BRANCH_CHANGES_CHANGESET_ID,
+				catalogueLoading: false,
+				sessionLoading: false,
+				changes: ['file:///repo/resolved.ts'],
+			},
+		});
+	});
+
+	test('does not preserve changes without a shared folder changeset scope', () => {
+		const mainWorkspace = createWorkspace('/repo');
+		const otherWorkspace = createWorkspace('/other');
+		const cachedChange = upcastPartial<ISessionFileChange>({
+			modifiedUri: URI.file('/repo/cached.ts'),
+			insertions: 1,
+			deletions: 0,
+		});
+		const branchChangeset = createChangeset([], {
+			resource: URI.parse('changeset:/shared-branch'),
+			changes: constObservable([cachedChange]),
+		});
+		const chatChangeset = {
+			...createChangeset([], {
+				resource: URI.parse('changeset:/main-chat'),
+				changes: constObservable([cachedChange]),
+			}),
+			id: CHAT_CHANGES_CHANGESET_ID,
+		};
+		const uncommittedChangeset = {
+			...createChangeset([], {
+				resource: URI.parse('changeset:/main-uncommitted'),
+				changes: constObservable([cachedChange]),
+			}),
+			id: UNCOMMITTED_CHANGES_CHANGESET_ID,
+		};
+		const mainChat = upcastPartial<IChat>({
+			resource: URI.from({ scheme: 'test-chat', path: '/main' }),
+			workspace: constObservable(mainWorkspace),
+			changes: constObservable([]),
+			changesets: constObservable([branchChangeset, uncommittedChangeset, chatChangeset]),
+		});
+		const sameScopePeer = upcastPartial<IChat>({
+			resource: URI.from({ scheme: 'test-chat', path: '/same-scope-peer' }),
+			workspace: constObservable(mainWorkspace),
+			changes: constObservable([]),
+			changesets: constObservable(undefined),
+		});
+		const otherScopePeer = upcastPartial<IChat>({
+			resource: URI.from({ scheme: 'test-chat', path: '/other-scope-peer' }),
+			workspace: constObservable(otherWorkspace),
+			changes: constObservable([]),
+			changesets: constObservable(undefined),
+		});
+		const activeChat = observableValue<IChat>('test.activeChat', mainChat);
+		const { service } = createHarness(createSession('a', {
+			workspace: mainWorkspace,
+			activeChat,
+			mainChat: constObservable(mainChat),
+			chats: constObservable([mainChat, sameScopePeer, otherScopePeer]),
+		}));
+		const snapshot = () => ({
+			changeset: service.activeSessionChangesetObs.get()?.id,
+			loading: service.activeSessionLoadingObs.get(),
+			changes: service.activeSessionChangesObs.get().map(change => change.modifiedUri?.toString()),
+		});
+
+		service.setChangesetId(CHAT_CHANGES_CHANGESET_ID);
+		activeChat.set(sameScopePeer, undefined);
+		const chatOwnedChanges = snapshot();
+		activeChat.set(mainChat, undefined);
+		service.setChangesetId(UNCOMMITTED_CHANGES_CHANGESET_ID);
+		activeChat.set(sameScopePeer, undefined);
+		const uncommittedChanges = snapshot();
+		activeChat.set(mainChat, undefined);
+		service.setChangesetId(BRANCH_CHANGES_CHANGESET_ID);
+		activeChat.set(otherScopePeer, undefined);
+		const differentWorkspace = snapshot();
+
+		assert.deepStrictEqual({ chatOwnedChanges, uncommittedChanges, differentWorkspace }, {
+			chatOwnedChanges: {
+				changeset: undefined,
+				loading: true,
+				changes: [],
+			},
+			uncommittedChanges: {
+				changeset: undefined,
+				loading: true,
+				changes: [],
+			},
+			differentWorkspace: {
+				changeset: undefined,
+				loading: true,
+				changes: [],
+			},
+		});
+	});
+
+	test('shows chat changes and ignores session changes when the main chat is the only chat', () => {
 		const branchChangeset = { ...createChangeset([]), id: 'branch' };
 		const chatChangeset = { ...createChangeset([]), id: CHAT_CHANGES_CHANGESET_ID };
 		const lastTurnChangeset = { ...createChangeset([]), id: TURN_CHANGES_CHANGESET_ID };
@@ -445,7 +781,7 @@ suite('ChangesViewService', () => {
 
 		assert.deepStrictEqual(
 			service.activeSessionChangesetsObs.get()?.map(changeset => changeset.id),
-			['branch', SESSION_CHANGES_CHANGESET_ID, TURN_CHANGES_CHANGESET_ID],
+			['branch', CHAT_CHANGES_CHANGESET_ID, TURN_CHANGES_CHANGESET_ID],
 		);
 	});
 

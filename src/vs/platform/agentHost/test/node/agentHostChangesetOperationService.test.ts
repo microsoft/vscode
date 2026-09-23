@@ -11,7 +11,8 @@ import { Event } from '../../../../base/common/event.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { AGENT_HOST_MERGE_CHANGESET_OPERATION_ID, type IChangesetOperationContribution, type IChangesetOperationContext, type IChangesetOperationHandler, type IChangesetOperationRegistry } from '../../common/agentHostChangesetOperationService.js';
-import { buildBranchChangesetUri, buildCompareTurnsChangesetUri, buildSessionChangesetUri, buildTurnChangesetUri, buildUncommittedChangesetUri } from '../../common/changesetUri.js';
+import { getWorkingDirectoryScopeId } from '../../common/agentHostWorkingDirectories.js';
+import { buildBranchChangesetUri, buildCompareTurnsChangesetUri, buildFolderChangesetOwnerUri, buildSessionChangesetUri, buildTurnChangesetUri, buildUncommittedChangesetUri } from '../../common/changesetUri.js';
 import { PREPARE_PULL_REQUEST_OPERATION_ID } from '../../common/meta/agentPullRequestOperationMeta.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../../common/state/protocol/channels-changeset/commands.js';
@@ -573,6 +574,41 @@ suite('AgentHostChangesetOperationService', () => {
 
 		assert.deepStrictEqual(branchOperations, sampleOperations);
 		assert.deepStrictEqual(uncommittedOperations, sampleOperations);
+	});
+
+	test('keeps session workflow operations only on the default-chat folder branch', () => {
+		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
+		const sessionKey = 'agent:/session';
+		const defaultFolder = 'file:///default';
+		const peerFolder = 'file:///peer';
+		stateManager.createSession({
+			resource: sessionKey,
+			provider: 'copilot',
+			title: 'Session',
+			status: SessionStatus.Idle,
+			createdAt: new Date(0).toISOString(),
+			modifiedAt: new Date(0).toISOString(),
+			workingDirectories: [defaultFolder],
+		});
+		const peer = buildChatUri(sessionKey, 'peer');
+		stateManager.addChat(sessionKey, peer, { workingDirectories: [peerFolder] });
+		const operations: readonly ChangesetOperation[] = [
+			{ id: testOperationId, label: 'Commit', scopes: [ChangesetOperationScope.Changeset], status: ChangesetOperationStatus.Idle },
+			{ id: PREPARE_PULL_REQUEST_OPERATION_ID, label: 'Create Pull Request', group: 'pull-request', scopes: [ChangesetOperationScope.Changeset], status: ChangesetOperationStatus.Idle },
+			{ id: AGENT_HOST_MERGE_CHANGESET_OPERATION_ID, label: 'Merge Changes', scopes: [ChangesetOperationScope.Changeset], status: ChangesetOperationStatus.Idle },
+		];
+		const service = createService(stateManager);
+		disposables.add(service.registerContribution(new OperationsContribution(operations)));
+		const defaultBranch = buildBranchChangesetUri(buildFolderChangesetOwnerUri(sessionKey, getWorkingDirectoryScopeId([defaultFolder])));
+		const peerBranch = buildBranchChangesetUri(buildFolderChangesetOwnerUri(sessionKey, getWorkingDirectoryScopeId([peerFolder])));
+
+		assert.deepStrictEqual({
+			defaultChat: service.getOperations(sessionKey, defaultBranch, sampleGitState).map(operation => operation.id),
+			peerChat: service.getOperations(sessionKey, peerBranch, sampleGitState).map(operation => operation.id),
+		}, {
+			defaultChat: [testOperationId, PREPARE_PULL_REQUEST_OPERATION_ID, AGENT_HOST_MERGE_CHANGESET_OPERATION_ID],
+			peerChat: [testOperationId],
+		});
 	});
 
 	test('joins duplicate in-flight invocations for the same changeset operation', async () => {

@@ -193,7 +193,7 @@ export interface IAgentHostChangesetService {
 
 	/**
 	 * Lazy refresh of the branch changeset, kicked off when a client
-	 * first subscribes to `<session>/changeset/branch`. Skips computation while
+	 * first subscribes to a folder-scoped Branch Changes resource. Skips computation while
 	 * the working directory is unavailable; {@link onWorkingDirectoryAvailable}
 	 * recomputes the current subscriptions after materialization or restore.
 	 */
@@ -283,5 +283,8 @@ export interface IAgentHostChangesetService {
 	 * `changedTurnId`, no incremental reuse).
 	 */
 	onSessionTruncated(session: ProtocolURI): void;
+
+	/** Cancels pending changeset work after a chat or folder owner is removed. */
+	onChangesetOwnerRemoved?(owner: ProtocolURI): void;
 
 }

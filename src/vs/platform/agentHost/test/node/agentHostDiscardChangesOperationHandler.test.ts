@@ -12,7 +12,7 @@ import { NullLogService } from '../../../log/common/log.js';
 import { buildSessionChangesetUri, buildUncommittedChangesetUri } from '../../common/changesetUri.js';
 import { ChangesetOperationTargetKind, type InvokeChangesetOperationParams } from '../../common/state/protocol/channels-changeset/commands.js';
 import { AHP_SESSION_NOT_FOUND, JsonRpcErrorCodes, ProtocolError } from '../../common/state/sessionProtocol.js';
-import { buildDefaultChatUri, SessionStatus, type ISessionFileDiff } from '../../common/state/sessionState.js';
+import { buildChatUri, buildDefaultChatUri, SessionStatus, type ISessionFileDiff } from '../../common/state/sessionState.js';
 import { AgentHostDiscardChangesOperationHandler } from '../../node/agentHostDiscardChangesOperationHandler.js';
 import type { IAgentHostGitService, IBranch, IDefaultBranch } from '../../common/agentHostGitService.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
@@ -68,7 +68,7 @@ class TestGitService implements IAgentHostGitService {
 	async getDiffPatchBetweenRefs(): Promise<undefined> { return undefined; }
 }
 
-function setup(disposables: Pick<DisposableStore, 'add'>, opts?: { readonly withWorkingDirectory?: boolean; readonly registerSession?: boolean }): { handler: AgentHostDiscardChangesOperationHandler; gitService: TestGitService; refreshes: string[]; session: URI } {
+function setup(disposables: Pick<DisposableStore, 'add'>, opts?: { readonly withWorkingDirectory?: boolean; readonly registerSession?: boolean }): { handler: AgentHostDiscardChangesOperationHandler; gitService: TestGitService; stateManager: AgentHostStateManager; refreshes: string[]; session: URI } {
 	const gitService = new TestGitService();
 	const refreshes: string[] = [];
 	const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
@@ -89,8 +89,9 @@ function setup(disposables: Pick<DisposableStore, 'add'>, opts?: { readonly with
 		async sessionKey => { refreshes.push(sessionKey); },
 		gitService,
 		new NullLogService(),
+		stateManager,
 	);
-	return { handler, gitService, refreshes, session };
+	return { handler, gitService, stateManager, refreshes, session };
 }
 
 function makeResourceTarget(resource: URI): InvokeChangesetOperationParams['target'] {
@@ -118,8 +119,30 @@ suite('AgentHostDiscardChangesOperationHandler', () => {
 			message: result.message,
 		}, {
 			restoreCalls: [{ workingDirectory: URI.file('/repo').toString(), paths: [target.fsPath], options: undefined }],
-			refreshes: [session.toString()],
+			refreshes: [buildDefaultChatUri(session.toString())],
 			message: { markdown: 'Discarded changes to `file.ts`.' },
+		});
+	});
+
+	test('restores and refreshes a peer chat in its working directory', async () => {
+		const { handler, gitService, stateManager, refreshes, session } = setup(disposables);
+		const peer = buildChatUri(session.toString(), 'peer');
+		const peerRoot = URI.file('/peer-repo');
+		stateManager.addChat(session.toString(), peer, { workingDirectories: [peerRoot.toString()] });
+		const target = URI.file('/peer-repo/src/file.ts');
+
+		await handler.invoke({
+			channel: buildUncommittedChangesetUri(peer),
+			operationId: AgentHostDiscardChangesOperationHandler.OPERATION_DISCARD_CHANGES,
+			target: makeResourceTarget(target),
+		}, CancellationToken.None);
+
+		assert.deepStrictEqual({
+			restoreCalls: gitService.restoreCalls,
+			refreshes,
+		}, {
+			restoreCalls: [{ workingDirectory: peerRoot.toString(), paths: [target.fsPath], options: undefined }],
+			refreshes: [peer],
 		});
 	});
 

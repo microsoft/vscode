@@ -275,6 +275,38 @@ suite('setSessionContextKeys - changes', () => {
 			withChatChanges: true,
 		});
 	});
+
+	test('reports cached changes while active chat changes are unresolved', () => {
+		const contextKeyService = disposables.add(new MockContextKeyService());
+		const cache = disposables.add(new SessionChangesStatsCache(disposables.add(new TestStorageService())));
+		cache.set('a', { files: 2, insertions: 5, deletions: 1 });
+		const changesets = observableValue<readonly ISessionChangeset[] | undefined>('changesets', undefined);
+		const activeChat = upcastPartial<IChat>({
+			...stubChat,
+			changesets,
+		});
+		const session = upcastPartial<IActiveSession>({
+			...stubSession({ sessionId: 'a', mainChat: constObservable(activeChat) }),
+			isCreated: constObservable(true),
+			sticky: constObservable(false),
+			activeChat: constObservable(activeChat),
+			chats: constObservable([activeChat]),
+			visibleChatTabs: constObservable([activeChat]),
+			shouldShowChatTabs: constObservable(false),
+		});
+
+		disposables.add(autorun(reader => setActiveSessionContextKeys(session, contextKeyService, reader, cache)));
+		const beforeReported = SessionHasCachedChangesContext.getValue(contextKeyService);
+		changesets.set([], undefined);
+
+		assert.deepStrictEqual({
+			beforeReported,
+			afterReportedNoChanges: SessionHasCachedChangesContext.getValue(contextKeyService),
+		}, {
+			beforeReported: true,
+			afterReportedNoChanges: false,
+		});
+	});
 });
 
 suite('setSessionContextKeys - side chat', () => {

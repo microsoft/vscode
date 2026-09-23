@@ -63,7 +63,8 @@ import { mapSessionEventsToHistoryRecords } from './historyRecordFixtures.js';
 import { type ISessionEvent } from './copilotTestEvents.js';
 import { createNoopGitService, createNullSessionDataService, createSessionDataService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
 import { buildGitBlobUri } from '../../node/gitDiffContent.js';
-import { AGENT_MERGE_CHANGESET_ID, buildBranchChangesetUri, buildSessionChangesetUri, buildTurnChangesetUri, buildUncommittedChangesetUri } from '../../common/changesetUri.js';
+import { getWorkingDirectoryScopeId } from '../../common/agentHostWorkingDirectories.js';
+import { AGENT_MERGE_CHANGESET_ID, buildBranchChangesetUri, buildSessionChangesetUri, buildTurnChangesetUri, buildUncommittedChangesetUri, buildFolderChangesetOwnerUri } from '../../common/changesetUri.js';
 import { type ICopilotApiService, type ICopilotApiServiceRequestOptions, type ICopilotUtilityChatCompletionRequest } from '../../node/shared/copilotApiService.js';
 import { getWorktreesRoot, WorktreeIsolation, WORKTREE_META_REPOSITORY_ROOT } from '../../node/shared/worktreeIsolation.js';
 import { readSessionAdditionalWorktrees, writeSessionAdditionalWorktrees } from '../../node/shared/sessionAdditionalWorktrees.js';
@@ -2838,6 +2839,61 @@ suite('AgentService (node dispatcher)', () => {
 			assert.strictEqual(result.data, 'blob:src/app.ts');
 		});
 
+		test('git-blob owned by a peer chat resolves against the peer working directory', async () => {
+			const sessionRoot = URI.file('/workspace/session');
+			const peerRoot = URI.file('/workspace/peer');
+			const showBlobCalls: Array<{ workingDirectory: string; ref: string; repoRelativePath: string }> = [];
+			const gitService = createBlobGitService(new Map([[sessionRoot.toString(), sessionRoot], [peerRoot.toString(), peerRoot]]), showBlobCalls);
+			const { service: localService, session } = await createBlobSession(gitService, [sessionRoot]);
+			const peer = buildChatUri(session.toString(), 'peer');
+			getStateManager(localService).addChat(session.toString(), peer, { workingDirectories: [peerRoot.toString()] });
+
+			const result = await localService.resourceRead(URI.parse(buildGitBlobUri(peer, 'baseSha', 'src/app.ts', '/workspace/peer/src/app.ts')));
+
+			assert.deepStrictEqual({
+				showBlobCalls,
+				data: result.data,
+			}, {
+				showBlobCalls: [{ workingDirectory: peerRoot.toString(), ref: 'baseSha', repoRelativePath: 'src/app.ts' }],
+				data: 'blob:src/app.ts',
+			});
+		});
+
+		test('git-blob owned by a folder changeset resolves against that folder scope', async () => {
+			const sessionRoot = URI.file('/workspace/session');
+			const peerRoot = URI.file('/workspace/peer');
+			const showBlobCalls: Array<{ workingDirectory: string; ref: string; repoRelativePath: string }> = [];
+			const gitService = createBlobGitService(new Map([[sessionRoot.toString(), sessionRoot], [peerRoot.toString(), peerRoot]]), showBlobCalls);
+			const { service: localService, session } = await createBlobSession(gitService, [sessionRoot]);
+			const peer = buildChatUri(session.toString(), 'peer');
+			getStateManager(localService).addChat(session.toString(), peer, { workingDirectories: [peerRoot.toString()] });
+			const owner = buildFolderChangesetOwnerUri(session.toString(), getWorkingDirectoryScopeId([peerRoot.toString()]));
+
+			const result = await localService.resourceRead(URI.parse(buildGitBlobUri(owner, 'baseSha', 'src/app.ts', '/workspace/peer/src/app.ts')));
+
+			assert.deepStrictEqual({
+				showBlobCalls,
+				data: result.data,
+			}, {
+				showBlobCalls: [{ workingDirectory: peerRoot.toString(), ref: 'baseSha', repoRelativePath: 'src/app.ts' }],
+				data: 'blob:src/app.ts',
+			});
+		});
+
+		test('git-blob owned by a stale folder scope does not fall back to the session directory', async () => {
+			const sessionRoot = URI.file('/workspace/session');
+			const showBlobCalls: Array<{ workingDirectory: string; ref: string; repoRelativePath: string }> = [];
+			const gitService = createBlobGitService(new Map([[sessionRoot.toString(), sessionRoot]]), showBlobCalls);
+			const { service: localService, session } = await createBlobSession(gitService, [sessionRoot]);
+			const owner = buildFolderChangesetOwnerUri(session.toString(), 'stale-scope');
+
+			await assert.rejects(
+				() => localService.resourceRead(URI.parse(buildGitBlobUri(owner, 'baseSha', 'src/app.ts', '/workspace/session/src/app.ts'))),
+				(error: unknown) => error instanceof ProtocolError && error.code === AhpErrorCodes.NotFound,
+			);
+			assert.deepStrictEqual(showBlobCalls, []);
+		});
+
 		test('git-blob restores the session before resolving its working directory', async () => {
 			const repoA = URI.file('/workspace/repoA');
 			const showBlobCalls: Array<{ workingDirectory: string; ref: string; repoRelativePath: string }> = [];
@@ -3316,6 +3372,36 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
+		test('routes review updates for a workspace-owned branch changeset through its session', async () => {
+			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(new TestSessionDatabase()), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = new MockAgent('copilot');
+			disposables.add(toDisposable(() => agent.dispose()));
+			registerTestAgentProvider(svc, agent);
+			const session = await svc.createSession({ provider: agent.id, workingDirectories: [URI.file('/workspace')] });
+			const changeset = buildBranchChangesetUri(buildFolderChangesetOwnerUri(session.toString(), getWorkingDirectoryScopeId([URI.file('/workspace').toString()])));
+			getStateManager(svc).registerChangeset(changeset);
+			const envelopePromise = Event.toPromise(Event.filter(svc.onDidAction, envelope => envelope.origin?.clientSeq === 1));
+
+			svc.dispatchAction(changeset, {
+				type: ActionType.ChangesetFilesReviewChanged,
+				files: [URI.file('/workspace/file.txt').toString()],
+				reviewed: true,
+			}, 'test-client', 1);
+
+			const envelope = await envelopePromise;
+			assert.deepStrictEqual({
+				rejectionReason: envelope.rejectionReason,
+				action: envelope.action,
+			}, {
+				rejectionReason: undefined,
+				action: {
+					type: ActionType.ChangesetFilesReviewChanged,
+					files: [URI.file('/workspace/file.txt').toString()],
+					reviewed: true,
+				},
+			});
+		});
+
 		test('rejects a failed review update and clears the client dispatch queue', async () => {
 			const db = new TestSessionDatabase();
 			db.getMetadata = async () => { throw new Error('metadata unavailable'); };
@@ -3324,7 +3410,7 @@ suite('AgentService (node dispatcher)', () => {
 			disposables.add(toDisposable(() => agent.dispose()));
 			registerTestAgentProvider(svc, agent);
 			const session = await svc.createSession({ provider: agent.id, workingDirectories: [URI.file('/workspace')] });
-			const changeset = buildBranchChangesetUri(session.toString());
+			const changeset = buildBranchChangesetUri(buildFolderChangesetOwnerUri(session.toString(), getWorkingDirectoryScopeId([URI.file('/workspace').toString()])));
 			getStateManager(svc).registerChangeset(changeset);
 			const rejectionPromise = Event.toPromise(Event.filter(svc.onDidAction, envelope => envelope.origin?.clientSeq === 1));
 
@@ -22163,9 +22249,7 @@ suite('AgentService (node dispatcher)', () => {
 					[SessionConfigKey.WorktreeCreateNewBranch]: false,
 				},
 			});
-			const branchChangeset = buildBranchChangesetUri(session.toString());
 			const uncommittedChangeset = buildUncommittedChangesetUri(session.toString());
-			localService.addSubscriber(URI.parse(branchChangeset), 'client-1');
 			localService.addSubscriber(URI.parse(uncommittedChangeset), 'client-1');
 			for (let i = 0; i < 100; i++) {
 				const uncommittedState = getStateManager(localService).getChangesetState(uncommittedChangeset);
@@ -22189,6 +22273,8 @@ suite('AgentService (node dispatcher)', () => {
 
 			isolation.clearPending(AgentSession.id(session));
 			agent.materialize(session, worktreeDir);
+			const branchChangeset = buildBranchChangesetUri(buildFolderChangesetOwnerUri(session.toString(), getWorkingDirectoryScopeId([worktreeDir.toString()])));
+			localService.addSubscriber(URI.parse(branchChangeset), 'client-1');
 			const worktreeFile = URI.joinPath(worktreeDir, 'dirty.ts').toString();
 			for (let i = 0; i < 20 && !getStateManager(localService).getChangesetState(uncommittedChangeset)?.files.some(file => file.id === worktreeFile); i++) {
 				await timeout(0);

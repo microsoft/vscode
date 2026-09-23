@@ -42,6 +42,18 @@ function getChangeResource(change: ISessionFileChange): URI {
 	return isIChatSessionFileChange2(change) ? change.uri : change.modifiedUri;
 }
 
+function changesetsEqual(a: ISessionChangeset | undefined, b: ISessionChangeset | undefined): boolean {
+	if (a === b) {
+		return true;
+	}
+	if (!a || !b || a.id !== b.id) {
+		return false;
+	}
+	return a.resource && b.resource
+		? isEqual(a.resource, b.resource)
+		: a.resource === b.resource;
+}
+
 export class ChangesMultiDiffSourceResolver extends Disposable implements IMultiDiffSourceResolver {
 
 	constructor(
@@ -73,7 +85,7 @@ export class ChangesMultiDiffSourceResolver extends Disposable implements IMulti
 
 			const changeset = this.changesViewService.activeSessionChangesetObs.read(reader);
 			if (this.changesViewService.activeSessionLoadingObs.read(reader)) {
-				return lastValue && lastValue.changeset === changeset
+				return lastValue && changesetsEqual(lastValue.changeset, changeset)
 					? lastValue
 					: { changeset, changes: [] };
 			}

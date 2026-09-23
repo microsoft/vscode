@@ -20,6 +20,7 @@ import {
 	parseChangesetUri,
 	ChangesetKind,
 	buildDefaultChangesetCatalog,
+	parseFolderChangesetOwnerUri,
 } from '../common/changesetUri.js';
 import { IDiffComputeService } from '../common/diffComputeService.js';
 import { ISessionDatabase, ISessionDataService } from '../common/sessionDataService.js';
@@ -32,6 +33,7 @@ import {
 	type ISessionFileDiff,
 	type SessionConfigState,
 	type URI as ProtocolURI,
+	buildDefaultChatUri,
 	readSessionGitState,
 	isAhpChatChannel,
 	isDefaultChatUri,
@@ -63,6 +65,7 @@ import { AgentSession } from '../common/agent.js';
 import { IAgentHostWorktreeIsolation, type IAgentHostWorktreePendingState } from './shared/worktreeIsolation.js';
 import { getSummaryChangesetKind, resolveChangesetSubscriptions } from './agentHostChangesetSummary.js';
 import { SessionConfigKey } from '../common/sessionConfigKeys.js';
+import { resolveBranchChangesetScopeForOwner, resolveBranchChangesetScopeForSource } from './agentHostBranchChangesetScope.js';
 
 /**
  * Maximum number of per-repository git diffs a multi-folder fan-out runs at
@@ -74,10 +77,10 @@ import { SessionConfigKey } from '../common/sessionConfigKeys.js';
  */
 const MAX_DIFF_REPOSITORY_CONCURRENCY = 5;
 
-function staticChangesetUri(session: ProtocolURI, kind: StaticChangesetKind): ProtocolURI {
+function staticChangesetUri(owner: ProtocolURI, kind: StaticChangesetKind): ProtocolURI {
 	return kind === 'branch'
-		? buildBranchChangesetUri(session)
-		: buildSessionChangesetUri(session);
+		? buildBranchChangesetUri(owner)
+		: buildSessionChangesetUri(owner);
 }
 
 function persistKeyFor(kind: StaticChangesetKind): string {
@@ -87,15 +90,7 @@ function persistKeyFor(kind: StaticChangesetKind): string {
 }
 
 function containingSessionUri(owner: ProtocolURI): ProtocolURI {
-	return parseChatUri(owner)?.session ?? owner;
-}
-
-function trackedDatabaseUri(owner: ProtocolURI): ProtocolURI {
-	return isDefaultChatUri(owner) ? containingSessionUri(owner) : owner;
-}
-
-function workingDirectoryScopeKey(workingDirectories: readonly ProtocolURI[]): string {
-	return JSON.stringify([...new Set(workingDirectories.map(directory => extUriBiasedIgnorePathCase.getComparisonKey(URI.parse(directory))))].sort());
+	return parseFolderChangesetOwnerUri(owner)?.sessionUri ?? parseChatUri(owner)?.session ?? owner;
 }
 
 /**
@@ -175,7 +170,9 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	private readonly _debouncedBranchDiffTimers = this._register(new DisposableMap<string>());
 	/** Per-`(session, turnId)` debounce timers for mid-turn per-turn changeset recomputation. */
 	private readonly _perTurnDebouncedDiffTimers = this._register(new DisposableMap<string>());
+	private readonly _perTurnDebouncedDiffTimerKeys = new Set<string>();
 	private readonly _activeStaticComputes = new Set<ProtocolURI>();
+	private readonly _branchChangesetOwners = new Map<ProtocolURI, ProtocolURI>();
 	private static readonly _DIFF_DEBOUNCE_MS = 5000;
 
 	private readonly _worktree: IAgentHostWorktreePendingState;
@@ -214,18 +211,19 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 
 	private _hasWorkingDirectory(session: ProtocolURI): boolean {
 		return !this._worktree.isWorkingDirectoryPending(AgentSession.id(containingSessionUri(session)))
-			&& !!this._configurationService.getEffectiveWorkingDirectories(session)?.[0];
+			&& !!this._getEffectiveWorkingDirectories(session)?.[0];
 	}
 
 	registerStaticChangesets(session: ProtocolURI): void {
-		this._stateManager.registerChangeset(buildBranchChangesetUri(session));
+		this._stateManager.registerChangeset(buildBranchChangesetUri(this._getBranchChangesetOwner(session)));
 		this._stateManager.registerChangeset(buildUncommittedChangesetUri(session));
 		this._stateManager.registerChangeset(buildSessionChangesetUri(session));
 	}
 
 	restoreStaticChangeset(session: ProtocolURI, kind: StaticChangesetKind, diffs: readonly ISessionFileDiff[]): void {
-		const changesetUri = this._stateManager.registerChangeset(staticChangesetUri(session, kind));
-		this._publishChangesetDiffs(session, changesetUri, diffs);
+		const owner = kind === 'branch' ? this._getBranchChangesetOwner(session) : session;
+		const changesetUri = this._stateManager.registerChangeset(staticChangesetUri(owner, kind));
+		this._publishChangesetDiffs(owner, changesetUri, diffs);
 	}
 
 	parsePersistedStaticChangesets(sessionUri: ProtocolURI, metadata: IPersistedChangesetMetadata): IRestoredChangesetDiffs {
@@ -267,7 +265,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		}
 		// Prefer persisted counts until the session is opened and recomputed.
 		// Cold isolation is only available after the metadata read, so require both possible sources.
-		if ([buildSessionChangesetUri(sessionUri), buildBranchChangesetUri(sessionUri)].every(uri => this._stateManager.getChangesetState(uri)?.status === ChangesetStatus.Ready)) {
+		if ([buildSessionChangesetUri(sessionUri), buildBranchChangesetUri(this._getBranchChangesetOwner(sessionUri))].every(uri => this._stateManager.getChangesetState(uri)?.status === ChangesetStatus.Ready)) {
 			return CHANGES_SUMMARY_METADATA_KEYS;
 		}
 		// Cold session: nothing live to lean on, so read the full set (summary
@@ -296,7 +294,8 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		}
 
 		const kind = this._getPersistedSummaryKind(sessionUri, metadata.configValues);
-		const liveChanges = computeChangesSummaryFromLiveState(this._stateManager.getChangesetState(staticChangesetUri(sessionUri, kind)));
+		const changesetOwner = kind === ChangesetKind.Branch ? this._getBranchChangesetOwner(sessionUri) : sessionUri;
+		const liveChanges = computeChangesSummaryFromLiveState(this._stateManager.getChangesetState(staticChangesetUri(changesetOwner, kind)));
 		if (liveChanges) {
 			// Migrate the changes summary to the new storage mechanism.
 			this.persistChangesSummary(sessionUri, liveChanges);
@@ -352,11 +351,12 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		if (!diffs) {
 			return;
 		}
-		const existing = this._stateManager.getChangesetState(staticChangesetUri(session, kind));
+		const owner = kind === 'branch' ? this._getBranchChangesetOwner(session) : session;
+		const existing = this._stateManager.getChangesetState(staticChangesetUri(owner, kind));
 		if (existing && existing.files.length > 0) {
 			return;
 		}
-		this.restoreStaticChangeset(session, kind, diffs);
+		this.restoreStaticChangeset(owner, kind, diffs);
 	}
 
 	refreshChangesetCatalog(session: ProtocolURI): void {
@@ -366,47 +366,39 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		}
 
 		const chatOwned = isAhpChatChannel(session);
-		const branchChangesetOwner = chatOwned ? this._getBranchChangesetOwner(session) : session;
+		const branchChangesetOwner = this._getBranchChangesetOwner(session);
+		const gitState = this._gitStateService.getSessionGitState?.(session)
+			?? (isDefaultChatUri(session) ? readSessionGitState(state._meta) : undefined);
 		const catalogState = chatOwned
 			? {
 				...state,
-				_meta: withSessionGitState(state._meta, this._gitStateService.getSessionGitState?.(session)),
+				_meta: withSessionGitState(state._meta, gitState),
 				changesets: this._stateManager.getChatState(session)?.changesets,
 			}
 			: state;
 		this._stateManager.setChangesets(session, buildDefaultChangesetCatalog(session, catalogState, branchChangesetOwner));
 	}
 
-	private _getBranchChangesetOwner(chat: ProtocolURI): ProtocolURI {
-		const session = containingSessionUri(chat);
-		const chatWorkingDirectories = this._configurationService.getEffectiveWorkingDirectories(chat);
-		if (!chatWorkingDirectories) {
-			return chat;
+	private _getBranchChangesetOwner(owner: ProtocolURI): ProtocolURI {
+		const sessionUri = containingSessionUri(owner);
+		if (!this._stateManager.getSessionState(sessionUri)) {
+			return this._branchChangesetOwners.get(sessionUri) ?? resolveBranchChangesetScopeForSource(this._stateManager, owner).ownerUri;
 		}
-
-		const candidates = [
-			session,
-			...this._stateManager.getSessionState(session)?.chats.map(candidate => candidate.resource) ?? [],
-		];
-		const chatBaseBranch = this._getBranchBaseBranch(chat);
-		for (const candidate of candidates) {
-			if (candidate === chat) {
-				return chat;
-			}
-			const candidateWorkingDirectories = this._configurationService.getEffectiveWorkingDirectories(candidate);
-			if (candidateWorkingDirectories
-				&& workingDirectoryScopeKey(chatWorkingDirectories) === workingDirectoryScopeKey(candidateWorkingDirectories)
-				&& chatBaseBranch === this._getBranchBaseBranch(candidate)) {
-				return candidate;
-			}
+		const folderOwner = resolveBranchChangesetScopeForSource(this._stateManager, owner).ownerUri;
+		if (owner === sessionUri || isDefaultChatUri(owner)) {
+			this._branchChangesetOwners.set(sessionUri, folderOwner);
 		}
-
-		return chat;
+		return folderOwner;
 	}
 
-	private _getBranchBaseBranch(session: ProtocolURI): string | undefined {
-		return this._gitStateService.getSessionGitState?.(session)?.baseBranchName
-			?? (!isAhpChatChannel(session) ? readSessionGitState(this._stateManager.getSessionState(session)?._meta)?.baseBranchName : undefined);
+	private _getEffectiveWorkingDirectories(owner: ProtocolURI): readonly ProtocolURI[] | undefined {
+		return resolveBranchChangesetScopeForOwner(this._stateManager, owner)?.workingDirectories
+			?? this._configurationService.getEffectiveWorkingDirectories(owner);
+	}
+
+	private _getTrackedDatabaseUri(owner: ProtocolURI): ProtocolURI {
+		const source = resolveBranchChangesetScopeForOwner(this._stateManager, owner)?.sourceUri ?? owner;
+		return isDefaultChatUri(source) ? containingSessionUri(source) : source;
 	}
 
 	private _getSessionSummaryWorkingDirectories(session: ProtocolURI): readonly ProtocolURI[] | undefined {
@@ -436,20 +428,17 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		}
 
 		const owners: ProtocolURI[] = [];
-		const seenWorkingDirectories = new Set<string>();
-		for (const candidate of [session, ...state.chats.map(chat => chat.resource)]) {
-			const workingDirectories = this._configurationService.getEffectiveWorkingDirectories(candidate);
-			if (!workingDirectories?.length) {
+		const defaultChat = buildDefaultChatUri(session);
+		for (const candidate of [
+			defaultChat,
+			...state.chats.map(chat => chat.resource).filter(candidate => candidate !== defaultChat),
+		]) {
+			const scope = resolveBranchChangesetScopeForSource(this._stateManager, candidate);
+			if (!scope.workingDirectories.length) {
 				continue;
 			}
-			const key = workingDirectoryScopeKey(workingDirectories);
-			if (seenWorkingDirectories.has(key)) {
-				continue;
-			}
-			seenWorkingDirectories.add(key);
-			const owner = isAhpChatChannel(candidate) ? this._getBranchChangesetOwner(candidate) : candidate;
-			if (!owners.includes(owner)) {
-				owners.push(owner);
+			if (!owners.includes(scope.ownerUri)) {
+				owners.push(scope.ownerUri);
 			}
 		}
 
@@ -466,6 +455,9 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		for (const owner of owners) {
 			const changeset = this._stateManager.getChangesetState(buildBranchChangesetUri(owner));
 			if (changeset?.status !== ChangesetStatus.Ready) {
+				if (!this._activeStaticComputes.has(buildBranchChangesetUri(owner))) {
+					this.refreshBranchChangeset(owner);
+				}
 				return;
 			}
 			diffLists.push(changeset.files.map(file => file.edit));
@@ -480,7 +472,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	}
 
 	refreshBranchChangeset(session: ProtocolURI): void {
-		const branchChangesetOwner = isAhpChatChannel(session) ? this._getBranchChangesetOwner(session) : session;
+		const branchChangesetOwner = this._getBranchChangesetOwner(session);
 		if (!this._hasWorkingDirectory(branchChangesetOwner)) {
 			return;
 		}
@@ -508,7 +500,9 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	 * recomputes skip while the working directory is still unknown.
 	 */
 	recomputeSubscribedChangesets(session: ProtocolURI): void {
-		const subscriptions = resolveChangesetSubscriptions(session, this._changesetSubscriptions.getSessionSubscriptions(session), this._stateManager.getSessionState(session)?.config?.values);
+		const containingSession = containingSessionUri(session);
+		const branchSummaryUri = buildBranchChangesetUri(this._getBranchChangesetOwner(session));
+		const subscriptions = resolveChangesetSubscriptions(session, this._changesetSubscriptions.getSessionSubscriptions(session), this._stateManager.getSessionState(containingSession)?.config?.values, branchSummaryUri);
 		if (subscriptions.size === 0) {
 			return;
 		}
@@ -516,7 +510,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 			const parsed = parseChangesetUri(changeset);
 			switch (parsed?.kind) {
 				case ChangesetKind.Branch:
-					this.refreshBranchChangeset(session);
+					this.refreshBranchChangeset(parsed.ownerUri);
 					break;
 				case ChangesetKind.Session:
 					this.refreshSessionChangeset(session);
@@ -553,7 +547,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		try {
 			let ref: ReturnType<ISessionDataService['openDatabase']>;
 			try {
-				ref = this._sessionDataService.openDatabase(URI.parse(trackedDatabaseUri(session)));
+				ref = this._sessionDataService.openDatabase(URI.parse(this._getTrackedDatabaseUri(session)));
 			} catch (err) {
 				this._logService.warn(`[AgentHostChangesetService] Failed to open session database for turn diff: ${session}`, err);
 				this._stateManager.dispatchServerAction(turnUri, {
@@ -605,7 +599,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		const compareUri = this._stateManager.registerChangeset(buildCompareTurnsChangesetUri(session, originalTurnId, modifiedTurnId));
 		let ref: ReturnType<ISessionDataService['openDatabase']>;
 		try {
-			ref = this._sessionDataService.openDatabase(URI.parse(trackedDatabaseUri(session)));
+			ref = this._sessionDataService.openDatabase(URI.parse(this._getTrackedDatabaseUri(session)));
 		} catch (err) {
 			this._logService.warn(`[AgentHostChangesetService] Failed to open session database for compare-turns diff: ${session}`, err);
 			this._stateManager.dispatchServerAction(compareUri, {
@@ -833,7 +827,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 
 	private _openTrackedTurnSource(session: ProtocolURI, defaultDatabase: ISessionDatabase, turnId: string): { readonly sessionUri: ProtocolURI | undefined; readonly db: ISessionDatabase; dispose(): void } {
 		if (isAhpChatChannel(session)) {
-			return { sessionUri: trackedDatabaseUri(session), db: defaultDatabase, dispose: () => { } };
+			return { sessionUri: this._getTrackedDatabaseUri(session), db: defaultDatabase, dispose: () => { } };
 		}
 		const sessionState = this._stateManager.getSessionState(session);
 		if (!sessionState) {
@@ -1020,10 +1014,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	private async _computeMultiFolderSessionDiffs(session: ProtocolURI, db: ISessionDatabase, workingDirectories: readonly string[]): Promise<{ readonly diffs: readonly ISessionFileDiff[]; readonly usedFallback: boolean }> {
 		const { gitRepositories, nonGitDirectories } = await resolveSessionRepositories(workingDirectories.map(directory => URI.parse(directory)), this._gitService);
 		const latestTurnId = this._latestTurnIdAcrossChats(session);
-		const limiter = new Limiter<readonly ISessionFileDiff[] | undefined>(MAX_DIFF_REPOSITORY_CONCURRENCY);
-		const perRepoDiffs = await Promises.settled(gitRepositories.map(repoRoot =>
-			limiter.queue(() => this._computeSessionCheckpointDiffs(session, repoRoot, latestTurnId))
-		)).finally(() => limiter.dispose());
+		const perRepoDiffs = await this._computeRepositoryCheckpointDiffs(session, gitRepositories, latestTurnId);
 		const trackedRoots = [...nonGitDirectories, ...gitRepositories.filter((_, index) => perRepoDiffs[index] === undefined)];
 		let trackedDiffs: readonly ISessionFileDiff[] = [];
 		if (trackedRoots.length > 0) {
@@ -1050,6 +1041,41 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		return { diffs: dedupeSessionFileDiffs([...gitDiffs, trackedDiffs]), usedFallback: trackedRoots.length > 0 };
 	}
 
+	private async _computeChatCheckpointDiffs(session: ProtocolURI, workingDirectories: readonly string[] | undefined): Promise<readonly ISessionFileDiff[] | undefined> {
+		const latestTurnId = this._latestTurnIdAcrossChats(session);
+		if (!latestTurnId) {
+			return [];
+		}
+		if (!workingDirectories?.length) {
+			return undefined;
+		}
+
+		const workingDirectoryUris = this._parseWorkingDirectoryUris(session, workingDirectories);
+		if (workingDirectoryUris.length !== workingDirectories.length) {
+			return undefined;
+		}
+		if (workingDirectoryUris.length === 1) {
+			return this._computeSessionCheckpointDiffs(session, workingDirectoryUris[0], latestTurnId);
+		}
+
+		const { gitRepositories, nonGitDirectories } = await resolveSessionRepositories(workingDirectoryUris, this._gitService);
+		if (nonGitDirectories.length > 0 || gitRepositories.length === 0) {
+			return undefined;
+		}
+		const perRepoDiffs = await this._computeRepositoryCheckpointDiffs(session, gitRepositories, latestTurnId);
+		if (perRepoDiffs.some(diffs => diffs === undefined)) {
+			return undefined;
+		}
+		return dedupeSessionFileDiffs(perRepoDiffs.filter((diffs): diffs is readonly ISessionFileDiff[] => diffs !== undefined));
+	}
+
+	private async _computeRepositoryCheckpointDiffs(session: ProtocolURI, gitRepositories: readonly URI[], latestTurnId: string | undefined): Promise<readonly (readonly ISessionFileDiff[] | undefined)[]> {
+		const limiter = new Limiter<readonly ISessionFileDiff[] | undefined>(MAX_DIFF_REPOSITORY_CONCURRENCY);
+		return Promises.settled(gitRepositories.map(repoRoot =>
+			limiter.queue(() => this._computeSessionCheckpointDiffs(session, repoRoot, latestTurnId))
+		)).finally(() => limiter.dispose());
+	}
+
 	private async _computeMultiFolderBranchDiffs(session: ProtocolURI, db: ISessionDatabase, workingDirectories: readonly string[]): Promise<readonly ISessionFileDiff[] | undefined> {
 		const { gitRepositories } = await resolveSessionRepositories(workingDirectories.map(directory => URI.parse(directory)), this._gitService);
 		if (!gitRepositories.length) {
@@ -1073,7 +1099,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		return dedupeSessionFileDiffs(perRepoDiffs.filter((diffs): diffs is readonly ISessionFileDiff[] => diffs !== undefined));
 	}
 
-	/** Missing checkpoints permit tracked-edit fallback; failed Git computations must not publish partial results. */
+	/** Missing checkpoints return undefined; failed Git computations must not publish partial results. */
 	private async _computeSessionCheckpointDiffs(session: ProtocolURI, workingDirectory: URI, latestTurnId: string | undefined): Promise<readonly ISessionFileDiff[] | undefined> {
 		if (!latestTurnId) {
 			return undefined;
@@ -1136,7 +1162,9 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 			this._scheduleUncommittedRecompute(session, turnId, true, clientContext);
 		}
 
-		this._scheduleBranchRecompute(session, turnId, true, clientContext);
+		if (this._shouldScheduleBranchRecompute(session)) {
+			this._scheduleBranchRecompute(session, turnId, true, clientContext);
+		}
 		this._scheduleStaticRecompute(session, 'session', turnId, undefined, true, clientContext);
 	}
 
@@ -1146,15 +1174,29 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		this._scheduleStaticRecompute(session, 'session', undefined, undefined, true);
 	}
 
+	onChangesetOwnerRemoved(owner: ProtocolURI): void {
+		this._debouncedBranchDiffTimers.deleteAndDispose(owner);
+		this._debouncedSessionDiffTimers.deleteAndDispose(owner);
+		const prefix = `${owner}\u0000`;
+		for (const key of this._perTurnDebouncedDiffTimerKeys) {
+			if (key.startsWith(prefix)) {
+				this._perTurnDebouncedDiffTimers.deleteAndDispose(key);
+				this._perTurnDebouncedDiffTimerKeys.delete(key);
+			}
+		}
+	}
+
 	// ---- Internal compute pipeline -----------------------------------------
 
 	/** Debounces Branch Changes by canonical owner and Session Changes by chat owner. */
 	private _scheduleDebouncedDiffComputation(session: ProtocolURI, turnId: string, clientContext?: IAgentHostClientTelemetryContext): void {
-		const branchChangesetOwner = isAhpChatChannel(session) ? this._getBranchChangesetOwner(session) : session;
-		this._debouncedBranchDiffTimers.set(branchChangesetOwner, disposableTimeout(() => {
-			this._debouncedBranchDiffTimers.deleteAndDispose(branchChangesetOwner);
-			this._scheduleStaticRecompute(branchChangesetOwner, 'branch', turnId, undefined, false, clientContext);
-		}, AgentHostChangesetService._DIFF_DEBOUNCE_MS));
+		if (this._shouldScheduleBranchRecompute(session)) {
+			const branchChangesetOwner = this._getBranchChangesetOwner(session);
+			this._debouncedBranchDiffTimers.set(branchChangesetOwner, disposableTimeout(() => {
+				this._debouncedBranchDiffTimers.deleteAndDispose(branchChangesetOwner);
+				this._scheduleStaticRecompute(branchChangesetOwner, 'branch', turnId, undefined, false, clientContext);
+			}, AgentHostChangesetService._DIFF_DEBOUNCE_MS));
+		}
 		this._debouncedSessionDiffTimers.set(session, disposableTimeout(() => {
 			this._debouncedSessionDiffTimers.deleteAndDispose(session);
 			this._scheduleStaticRecompute(session, 'session', turnId, undefined, false, clientContext);
@@ -1166,9 +1208,15 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	 * Called at turn end before the final (non-debounced) computation.
 	 */
 	private _cancelDebouncedDiffComputation(session: ProtocolURI): void {
-		const branchChangesetOwner = isAhpChatChannel(session) ? this._getBranchChangesetOwner(session) : session;
-		this._debouncedBranchDiffTimers.deleteAndDispose(branchChangesetOwner);
+		if (this._shouldScheduleBranchRecompute(session)) {
+			const branchChangesetOwner = this._getBranchChangesetOwner(session);
+			this._debouncedBranchDiffTimers.deleteAndDispose(branchChangesetOwner);
+		}
 		this._debouncedSessionDiffTimers.deleteAndDispose(session);
+	}
+
+	private _shouldScheduleBranchRecompute(session: ProtocolURI): boolean {
+		return isAhpChatChannel(session) || (this._stateManager.getSessionState(session)?.chats.length ?? 0) === 0;
 	}
 
 	/**
@@ -1179,8 +1227,10 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	 */
 	private _scheduleDebouncedTurnDiffComputation(session: ProtocolURI, turnId: string, clientContext?: IAgentHostClientTelemetryContext): void {
 		const key = `${session}\u0000${turnId}`;
+		this._perTurnDebouncedDiffTimerKeys.add(key);
 		this._perTurnDebouncedDiffTimers.set(key, disposableTimeout(() => {
 			this._perTurnDebouncedDiffTimers.deleteAndDispose(key);
+			this._perTurnDebouncedDiffTimerKeys.delete(key);
 			this._scheduleTurnRecompute(session, turnId, false, clientContext);
 		}, AgentHostChangesetService._DIFF_DEBOUNCE_MS));
 	}
@@ -1191,7 +1241,9 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	 * (non-debounced) per-turn computation.
 	 */
 	private _cancelDebouncedTurnDiffComputation(session: ProtocolURI, turnId: string): void {
-		this._perTurnDebouncedDiffTimers.deleteAndDispose(`${session}\u0000${turnId}`);
+		const key = `${session}\u0000${turnId}`;
+		this._perTurnDebouncedDiffTimers.deleteAndDispose(key);
+		this._perTurnDebouncedDiffTimerKeys.delete(key);
 	}
 
 	/**
@@ -1224,7 +1276,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	}
 
 	private _scheduleBranchRecompute(session: ProtocolURI, changedTurnId: string | undefined, reportTelemetry: boolean, clientContext?: IAgentHostClientTelemetryContext): void {
-		const branchChangesetOwner = isAhpChatChannel(session) ? this._getBranchChangesetOwner(session) : session;
+		const branchChangesetOwner = this._getBranchChangesetOwner(session);
 		this._scheduleStaticRecompute(branchChangesetOwner, 'branch', changedTurnId, undefined, reportTelemetry, clientContext);
 	}
 
@@ -1248,7 +1300,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		const summaryKind = getSummaryChangesetKind(this._stateManager.getSessionState(summarySession)?.config?.values);
 		const workingDirectories = kind === 'session' && !isAhpChatChannel(session) && summaryKind === ChangesetKind.Session
 			? this._getSessionSummaryWorkingDirectories(session)
-			: this._configurationService.getEffectiveWorkingDirectories(session);
+			: this._getEffectiveWorkingDirectories(session);
 		let outcome: StaticChangesetOutcome = 'error';
 		let fileCount = 0;
 		let incrementalUsed = false;
@@ -1272,7 +1324,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		const statusBeforeCompute = statusBeforeRefresh ?? this._stateManager.getChangesetState(changesetUri)?.status;
 		let ref: ReturnType<ISessionDataService['openDatabase']>;
 		try {
-			ref = this._sessionDataService.openDatabase(URI.parse(trackedDatabaseUri(session)));
+			ref = this._sessionDataService.openDatabase(URI.parse(this._getTrackedDatabaseUri(session)));
 		} catch (err) {
 			this._logService.warn(`[AgentHostChangesetService] Failed to open session database for ${kind} diff computation: ${session}`, err);
 			this._restoreStaticChangesetStatus(changesetUri, statusBeforeCompute);
@@ -1296,7 +1348,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		computeDisposables.add(this._stateManager.onDidChangeSessionWorkingDirectories(() => {
 			const currentWorkingDirectories = kind === 'session' && !isAhpChatChannel(session) && summaryKind === ChangesetKind.Session
 				? this._getSessionSummaryWorkingDirectories(session)
-				: this._configurationService.getEffectiveWorkingDirectories(session);
+				: this._getEffectiveWorkingDirectories(session);
 			if (!equals(workingDirectories, currentWorkingDirectories)) {
 				workingDirectoriesInvalidated = true;
 			}
@@ -1306,19 +1358,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		try {
 			let diffs: readonly ISessionFileDiff[] | undefined;
 			if (kind === 'session' && isAhpChatChannel(session)) {
-				// Chat Changes is an attribution view, not a working-tree range:
-				// use only edits recorded by this chat so changes made by sibling
-				// chats or manually in a shared worktree cannot leak into it.
-				usedEditTrackerFallback = true;
-				let incremental: IIncrementalDiffOptions | undefined;
-				if (changedTurnId) {
-					const previousDiffs = this._readPreviousChangesetDiffs(changesetUri);
-					if (previousDiffs) {
-						incremental = { changedTurnId, previousDiffs: [...previousDiffs] };
-						incrementalUsed = true;
-					}
-				}
-				diffs = await computeSessionDiffs(trackedDatabaseUri(session), ref.object, this._diffComputeService, incremental);
+				diffs = await this._computeChatCheckpointDiffs(session, workingDirectories);
 			} else if (kind === 'session' && isMultiRootSession(workingDirectories)) {
 				const result = await this._computeMultiFolderSessionDiffs(session, ref.object, workingDirectories!);
 				diffs = result.diffs;
@@ -1329,6 +1369,20 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 				diffs = await this._tryComputeGitDiffs(session, ref.object, kind);
 			}
 			if (!diffs) {
+				if (kind === 'session' && isAhpChatChannel(session)) {
+					if (statusBeforeCompute === ChangesetStatus.Ready) {
+						this._restoreStaticChangesetStatus(changesetUri, statusBeforeCompute);
+						outcome = 'preserved';
+						return;
+					}
+					this._stateManager.dispatchServerAction(changesetUri, {
+						type: ActionType.ChangesetStatusChanged,
+						status: ChangesetStatus.Error,
+						error: { errorType: 'computeFailed', message: 'Chat Changes requires an available Git checkpoint.' },
+					});
+					outcome = 'gitUnavailable';
+					return;
+				}
 				if (kind === 'branch') {
 					// Tracked edits cannot substitute for a branch diff; preserve the cached changeset.
 					this._logService.debug(`[AgentHostChangesetService] Branch git diff unavailable for ${session}; preserving cached changeset. previousStatus=${statusBeforeCompute ?? 'unknown'} cachedFiles=${this._stateManager.getChangesetState(changesetUri)?.files.length ?? 0}`);
@@ -1383,7 +1437,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 				: undefined;
 			const currentWorkingDirectories = kind === 'session' && !isAhpChatChannel(session) && summaryKind === ChangesetKind.Session
 				? this._getSessionSummaryWorkingDirectories(session)
-				: this._configurationService.getEffectiveWorkingDirectories(session);
+				: this._getEffectiveWorkingDirectories(session);
 			if (workingDirectoriesInvalidated || !equals(workingDirectories, currentWorkingDirectories)) {
 				this._restoreStaticChangesetStatus(changesetUri, statusBeforeCompute);
 				outcome = 'preserved';
@@ -1397,13 +1451,14 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 			// Persist the file list so a subsequent `listSessions` /
 			// `restoreSession` can reseed the changeset before the first
 			// post-restart compute completes.
-			if (!isAhpChatChannel(session)) {
-				this._persistSessionFlag(session, persistKeyFor(kind), JSON.stringify(diffs));
+			const persistenceOwner = kind === ChangesetKind.Branch ? this._getTrackedDatabaseUri(session) : session;
+			if (!isAhpChatChannel(persistenceOwner)) {
+				this._persistSessionFlag(persistenceOwner, persistKeyFor(kind), JSON.stringify(diffs));
 				if (kind === ChangesetKind.Branch) {
 					// Migration: also overwrite the legacy `'diffs'` key with the
 					// session-changeset payload so older readers stay correct
 					// during the rollout window.
-					this._persistSessionFlag(session, META_LEGACY_DIFFS, JSON.stringify(diffs));
+					this._persistSessionFlag(persistenceOwner, META_LEGACY_DIFFS, JSON.stringify(diffs));
 				}
 			}
 
@@ -1594,7 +1649,9 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	 * branch git falls back to `HEAD`.
 	 */
 	private async _tryComputeGitDiffs(session: ProtocolURI, db: ISessionDatabase, kind: StaticChangesetKind): Promise<readonly ISessionFileDiff[] | undefined> {
-		const workingDirectory = this._stateManager.getSessionState(session)?.workingDirectories?.[0];
+		const workingDirectory = kind === ChangesetKind.Branch
+			? this._getEffectiveWorkingDirectories(session)?.[0]
+			: this._stateManager.getSessionState(session)?.workingDirectories?.[0];
 		if (!workingDirectory) {
 			return undefined;
 		}
@@ -1655,8 +1712,11 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	 */
 	private async _resolveBranchBaseBranch(session: ProtocolURI, db: ISessionDatabase): Promise<string | undefined> {
 		const persistedBaseBranch = await db.getMetadata(META_DIFF_BASE_BRANCH);
-		const gitStateBaseBranch = this._gitStateService.getSessionGitState?.(session)?.baseBranchName
-			?? (isAhpChatChannel(session) ? undefined : readSessionGitState(this._stateManager.getSessionState(session)?._meta)?.baseBranchName);
+		const source = resolveBranchChangesetScopeForOwner(this._stateManager, session)?.sourceUri ?? session;
+		const gitStateBaseBranch = this._gitStateService.getSessionGitState?.(source)?.baseBranchName
+			?? (!isAhpChatChannel(source) || isDefaultChatUri(source)
+				? readSessionGitState(this._stateManager.getSessionState(containingSessionUri(source))?._meta)?.baseBranchName
+				: undefined);
 		if (!persistedBaseBranch && gitStateBaseBranch) {
 			this._logService.debug(`[AgentHostChangesetService] Using _meta.git base branch fallback for Branch Changes in ${session}: ${gitStateBaseBranch}`);
 		}
@@ -1670,7 +1730,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	 * no git working directory (review status is then simply omitted).
 	 */
 	private async _computeReviewedInfo(session: ProtocolURI, db: ISessionDatabase): Promise<{ readonly repoRoot: URI; readonly paths: ReadonlySet<string> } | undefined> {
-		const workingDirectory = this._stateManager.getSessionState(session)?.workingDirectories?.[0];
+		const workingDirectory = this._getEffectiveWorkingDirectories(session)?.[0];
 		if (!workingDirectory) {
 			return undefined;
 		}

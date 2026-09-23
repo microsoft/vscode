@@ -373,14 +373,18 @@ suite('AgentHostSessionChangesets', () => {
 		assert.deepStrictEqual({
 			absentCatalogue,
 			initial: initial?.map(changeset => changeset.id),
+			initialResource: initial?.map(changeset => changeset.resource?.toString()),
 			preservedIdentity: initial === afterUnrelatedUpdate,
 			updated: updated?.map(changeset => changeset.id),
+			updatedResource: updated?.map(changeset => changeset.resource?.toString()),
 			emptyCatalogue: current,
 		}, {
 			absentCatalogue: undefined,
 			initial: ['chat'],
+			initialResource: [`${chatUri}/changeset/session`],
 			preservedIdentity: true,
 			updated: ['branch'],
+			updatedResource: [`${chatUri}/changeset/branch`],
 			emptyCatalogue: [],
 		});
 	});

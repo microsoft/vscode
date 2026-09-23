@@ -14,6 +14,8 @@ import { CheckoutOperationPreAction, checkoutOperationDirtyWorkingTreeErrorData,
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../common/state/protocol/channels-changeset/commands.js';
 import { AHP_SESSION_NOT_FOUND, JsonRpcErrorCodes, ProtocolError } from '../common/state/sessionProtocol.js';
 import type { SessionState } from '../common/state/sessionState.js';
+import { resolveChangesetOwnerScope } from './agentHostBranchChangesetScope.js';
+import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
 
 export class AgentHostCheckoutOperationHandler implements IChangesetOperationHandler {
 
@@ -24,6 +26,7 @@ export class AgentHostCheckoutOperationHandler implements IChangesetOperationHan
 		private readonly _onCheckedOut: (sessionKey: string) => void,
 		@IAgentHostGitService private readonly _gitService: IAgentHostGitService,
 		@ILogService private readonly _logService: ILogService,
+		@IAgentHostStateManager private readonly _stateManager: AgentHostStateManager,
 	) { }
 
 	async invoke(params: InvokeChangesetOperationParams, token: CancellationToken): Promise<InvokeChangesetOperationResult> {
@@ -33,15 +36,16 @@ export class AgentHostCheckoutOperationHandler implements IChangesetOperationHan
 		}
 		this._throwIfCancelled(token);
 
-		const sessionUri = parsed.sessionUri;
-		const sessionState = this._getSessionState(sessionUri);
+		const scope = resolveChangesetOwnerScope(this._stateManager, parsed.ownerUri);
+		const sessionUri = scope.sessionUri;
+		const sessionState = this._getSessionState(scope.sourceUri);
 		if (!sessionState) {
 			throw new ProtocolError(AHP_SESSION_NOT_FOUND, `Session not found: ${sessionUri}`);
 		}
 
-		const workingDirectoryValue = sessionState.workingDirectories?.[0];
+		const workingDirectoryValue = scope.workingDirectories[0];
 		if (!workingDirectoryValue) {
-			throw new ProtocolError(JsonRpcErrorCodes.InternalError, `Changeset owner has no working directory: ${sessionUri}`);
+			throw new ProtocolError(JsonRpcErrorCodes.InternalError, `Changeset owner has no working directory: ${parsed.ownerUri}`);
 		}
 		const treeish = readCheckoutOperationTreeish(params);
 		if (!treeish) {
@@ -59,7 +63,7 @@ export class AgentHostCheckoutOperationHandler implements IChangesetOperationHan
 			this._throwIfCancelled(token);
 		}
 
-		this._logService.info(`[AgentHostCheckoutOperationHandler] Checking out ${treeish} for ${sessionUri}`);
+		this._logService.info(`[AgentHostCheckoutOperationHandler] Checking out ${treeish} for ${parsed.ownerUri}`);
 		try {
 			await this._gitService.checkout(workingDirectory, treeish);
 		} catch (error) {
@@ -77,9 +81,9 @@ export class AgentHostCheckoutOperationHandler implements IChangesetOperationHan
 		}
 
 		try {
-			await this._onCheckedOut(sessionUri);
+			await this._onCheckedOut(parsed.ownerUri);
 		} catch (error) {
-			this._logService.warn(`[AgentHostCheckoutOperationHandler] Post-checkout refresh failed for ${sessionUri}: ${error instanceof Error ? error.message : String(error)}`);
+			this._logService.warn(`[AgentHostCheckoutOperationHandler] Post-checkout refresh failed for ${parsed.ownerUri}: ${error instanceof Error ? error.message : String(error)}`);
 		}
 
 		return { message: { markdown: localize('agentHost.changeset.checkout.checkedOut', "Checked out branch `{0}`.", treeish) } };

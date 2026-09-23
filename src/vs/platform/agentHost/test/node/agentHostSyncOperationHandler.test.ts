@@ -13,7 +13,7 @@ import { GitRefType, IAgentHostGitService, type IPullOptions, type IPushOptions 
 import { IAgentHostGitStateService } from '../../common/agentHostGitStateService.js';
 import { buildUncommittedChangesetUri } from '../../common/changesetUri.js';
 import { JsonRpcErrorCodes, ProtocolError } from '../../common/state/sessionProtocol.js';
-import { buildDefaultChatUri, SessionStatus, withSessionGitState } from '../../common/state/sessionState.js';
+import { buildChatUri, buildDefaultChatUri, SessionStatus, withSessionGitState } from '../../common/state/sessionState.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { AgentHostSyncOperationHandler } from '../../node/agentHostSyncOperationHandler.js';
 
@@ -45,7 +45,9 @@ suite('AgentHostSyncOperationHandler', () => {
 					override readonly getSessionGitState = () => ({ branchName, baseBranchName: 'main' });
 				}(),
 				new NullLogService(),
+				stateManager,
 			),
+			stateManager,
 			refreshedSessions,
 		};
 	}
@@ -100,8 +102,48 @@ suite('AgentHostSyncOperationHandler', () => {
 				{ operation: 'pull', options: { remote: 'origin', ref: 'remote-name' } },
 				{ operation: 'push', options: { remote: 'origin', ref: 'refs/heads/local-name:refs/heads/remote-name' } },
 			],
-			refreshedSessions: [session.toString()],
+			refreshedSessions: [buildDefaultChatUri(session.toString())],
 			message: { markdown: 'Synced changes.' },
+		});
+	});
+
+	test('syncs and refreshes a peer chat in its working directory', async () => {
+		const workingDirectories: string[] = [];
+		const gitService = new class extends mock<IAgentHostGitService>() {
+			declare readonly _serviceBrand: undefined;
+			override async getCurrentBranchName(workingDirectory: URI): Promise<string> {
+				workingDirectories.push(workingDirectory.toString());
+				return 'feature';
+			}
+			override async getBranch() {
+				return {
+					ref: 'refs/heads/feature',
+					name: 'feature',
+					kind: GitRefType.Head,
+					upstream: { remote: 'origin', ref: 'refs/remotes/origin/feature', name: 'feature' },
+				} as const;
+			}
+			override async pull(): Promise<void> {
+			}
+			override async push(workingDirectory: URI): Promise<void> {
+				workingDirectories.push(workingDirectory.toString());
+			}
+		}();
+		const { handler, stateManager, refreshedSessions } = createHandler(gitService, 'feature');
+		const peer = buildChatUri(session.toString(), 'peer');
+		stateManager.addChat(session.toString(), peer, { workingDirectories: [URI.file('/peer-repo').toString()] });
+
+		await handler.invoke({
+			channel: buildUncommittedChangesetUri(peer),
+			operationId: AgentHostSyncOperationHandler.OPERATION_SYNC,
+		}, CancellationToken.None);
+
+		assert.deepStrictEqual({
+			workingDirectories,
+			refreshedSessions,
+		}, {
+			workingDirectories: ['file:///peer-repo', 'file:///peer-repo'],
+			refreshedSessions: [peer],
 		});
 	});
 

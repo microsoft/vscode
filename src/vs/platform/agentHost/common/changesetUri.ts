@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from '../../../nls.js';
+import { decodeBase64, encodeBase64, VSBuffer } from '../../../base/common/buffer.js';
+import { URI as ResourceURI } from '../../../base/common/uri.js';
 import { readAgentMergeSessionState } from './agentMerge.js';
 import { isAgentMergeMessage } from './meta/agentMergeMessageMeta.js';
 import { AgentSystemNotificationKind, readAgentSystemNotificationMeta } from './meta/agentSystemNotificationMeta.js';
@@ -149,6 +151,9 @@ export function selectDefaultChangeset<T extends Pick<Changeset, 'changeKind'>>(
 /** RFC 3986 scheme prefix, e.g. the `ahp-session:` in `ahp-session:/abc`. */
 const URI_SCHEME_PREFIX = /^[a-zA-Z][a-zA-Z0-9+.\-]*:/;
 
+const AHP_FOLDER_CHANGESET_SCHEME = 'ahp-folder-changeset';
+const AHP_FOLDER_CHANGESET_AUTHORITY = 'scope';
+
 /**
  * Resolve a {@link Changeset.uriTemplate} from a session's catalogue into a
  * subscribable URI template.
@@ -166,6 +171,37 @@ export function resolveChangesetUriTemplate(sessionUri: URI, uriTemplate: string
 
 export function buildBranchChangesetUri(sessionUri: URI): URI {
 	return `${sessionUri}${CHANGESET_PATH_SEGMENT}${BRANCH_CHANGESET_ID}`;
+}
+
+/** Builds the session-scoped owner URI for one effective folder/worktree scope. */
+export function buildFolderChangesetOwnerUri(sessionUri: URI, scopeId: string): URI {
+	if (!scopeId || scopeId.includes('/')) {
+		throw new Error(`buildFolderChangesetOwnerUri: scopeId must be non-empty and not contain '/' (got ${JSON.stringify(scopeId)})`);
+	}
+	const encodedSession = encodeBase64(VSBuffer.fromString(sessionUri), false, true);
+	return `${AHP_FOLDER_CHANGESET_SCHEME}://${AHP_FOLDER_CHANGESET_AUTHORITY}/${encodedSession}/${scopeId}`;
+}
+
+/** Parses a folder changeset owner URI into its containing session and opaque scope id. */
+export function parseFolderChangesetOwnerUri(ownerUri: URI): { sessionUri: URI; scopeId: string } | undefined {
+	let parsed: ResourceURI;
+	try {
+		parsed = ResourceURI.parse(ownerUri);
+	} catch {
+		return undefined;
+	}
+	if (parsed.scheme !== AHP_FOLDER_CHANGESET_SCHEME || parsed.authority !== AHP_FOLDER_CHANGESET_AUTHORITY) {
+		return undefined;
+	}
+	const [encodedSession, scopeId, ...extra] = parsed.path.replace(/^\//, '').split('/');
+	if (!encodedSession || !scopeId || extra.length > 0) {
+		return undefined;
+	}
+	try {
+		return { sessionUri: decodeBase64(encodedSession).toString(), scopeId };
+	} catch {
+		return undefined;
+	}
 }
 
 /** Returns the subscribable URI for the session-wide changeset. */
@@ -249,7 +285,7 @@ export function parseChangesetUri(uri: URI): { ownerUri: URI; sessionUri: URI; c
 		return undefined;
 	}
 	const ownerUri = uri.slice(0, idx);
-	const sessionUri = parseChatUri(ownerUri)?.session ?? ownerUri;
+	const sessionUri = parseFolderChangesetOwnerUri(ownerUri)?.sessionUri ?? parseChatUri(ownerUri)?.session ?? ownerUri;
 	if (changesetId === BRANCH_CHANGESET_ID) {
 		return { ownerUri, sessionUri, changesetId, kind: ChangesetKind.Branch };
 	}

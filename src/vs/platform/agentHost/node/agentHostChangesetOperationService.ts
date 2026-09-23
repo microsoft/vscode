@@ -7,12 +7,13 @@ import { CancellationToken } from '../../../base/common/cancellation.js';
 import { toErrorMessage } from '../../../base/common/errorMessage.js';
 import { Disposable, DisposableMap, DisposableStore, toDisposable, type IDisposable } from '../../../base/common/lifecycle.js';
 import { stableStringify } from '../../../base/common/objects.js';
-import { ChangesetKind, parseChangesetUri } from '../common/changesetUri.js';
+import { buildBranchChangesetUri, ChangesetKind, parseChangesetUri, parseFolderChangesetOwnerUri } from '../common/changesetUri.js';
 import { isMultiRootSession } from '../common/agentHostWorkingDirectories.js';
+import { resolveBranchChangesetScopeForOwner, resolveBranchChangesetScopeForSource, resolveChangesetOwnerScope } from './agentHostBranchChangesetScope.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../common/state/protocol/channels-changeset/commands.js';
 import { AHP_SESSION_NOT_FOUND, JsonRpcErrorCodes, ProtocolError } from '../common/state/sessionProtocol.js';
 import { ActionType } from '../common/state/sessionActions.js';
-import { ChangesetOperationScope, ChangesetOperationStatus, ChangesetOperationTargetKind, isAhpChatChannel, ISessionGitHubState, parseChatUri, readSessionGitHubState, readSessionGitState, type ChangesetOperation, type ErrorInfo, type ISessionGitState } from '../common/state/sessionState.js';
+import { ChangesetOperationScope, ChangesetOperationStatus, ChangesetOperationTargetKind, isAhpChatChannel, isDefaultChatUri, ISessionGitHubState, parseChatUri, readSessionGitHubState, readSessionGitState, type ChangesetOperation, type ErrorInfo, type ISessionGitState } from '../common/state/sessionState.js';
 import { AGENT_HOST_MERGE_CHANGESET_OPERATION_ID, AGENT_HOST_PULL_REQUEST_OPERATION_IDS, type IChangesetOperationContribution, type IAgentHostChangesetOperationService, type IChangesetOperationContext, type IChangesetOperationHandler, type IChangesetOperationRegistry } from '../common/agentHostChangesetOperationService.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
 import { IAgentHostChangesetSubscriptionService } from '../common/agentHostChangesetSubscriptionService.js';
@@ -45,10 +46,12 @@ export class AgentHostChangesetOperationService extends Disposable implements IA
 	}
 
 	private async _refreshGitState(owner: string): Promise<void> {
-		const session = parseChatUri(owner)?.session;
+		const scope = resolveBranchChangesetScopeForOwner(this._stateManager, owner);
+		const source = scope?.sourceUri ?? owner;
+		const session = scope?.sessionUri ?? parseChatUri(owner)?.session;
 		await Promise.all([
-			this._gitStateService.refreshSessionGitState(owner),
-			...(session ? [this._gitStateService.refreshSessionGitState(session)] : []),
+			this._gitStateService.refreshSessionGitState(source),
+			...(session && session !== source ? [this._gitStateService.refreshSessionGitState(session)] : []),
 		]);
 	}
 
@@ -91,10 +94,11 @@ export class AgentHostChangesetOperationService extends Disposable implements IA
 		}
 		const ownerKey = parsed.ownerUri;
 		sessionKey = parsed.sessionUri;
+		const sourceKey = resolveChangesetOwnerScope(this._stateManager, ownerKey).sourceUri;
 
 		if (!gitState) {
-			gitState = this._gitStateService.getSessionGitState?.(ownerKey)
-				?? (isAhpChatChannel(ownerKey) ? undefined : readSessionGitState(this._stateManager.getSessionState(sessionKey)?._meta));
+			gitState = this._gitStateService.getSessionGitState?.(sourceKey)
+				?? (isAhpChatChannel(sourceKey) && !isDefaultChatUri(sourceKey) ? undefined : readSessionGitState(this._stateManager.getSessionState(sessionKey)?._meta));
 			if (!gitState) {
 				return [];
 			}
@@ -111,12 +115,14 @@ export class AgentHostChangesetOperationService extends Disposable implements IA
 		// rule can't be undone by a later recompute on active-turn / git-state
 		// flips. Single-folder sessions and all other changeset kinds are
 		// unaffected.
-		if (this._shouldSuppressOperations(sessionKey, parsed.kind)) {
+		if (this._shouldSuppressOperations(sourceKey, parsed.kind)) {
 			return [];
 		}
 
 		return this._getOperations({
 			sessionKey,
+			ownerKey,
+			sourceKey,
 			changesetUri: changeset,
 			changesetKind: parsed.kind,
 			gitState,
@@ -131,9 +137,9 @@ export class AgentHostChangesetOperationService extends Disposable implements IA
 	 * sessions are unaffected. Uses the effective working directories so the rule
 	 * is provider-agnostic and tracks dynamic root changes.
 	 */
-	private _shouldSuppressOperations(sessionKey: string, kind: ChangesetKind): boolean {
+	private _shouldSuppressOperations(sourceKey: string, kind: ChangesetKind): boolean {
 		return (kind === ChangesetKind.Turn || kind === ChangesetKind.Compare)
-			&& isMultiRootSession(this._configurationService.getEffectiveWorkingDirectories(sessionKey));
+			&& isMultiRootSession(this._configurationService.getEffectiveWorkingDirectories(sourceKey));
 	}
 
 	private _getOperations(context: IChangesetOperationContext): readonly ChangesetOperation[] {
@@ -144,8 +150,12 @@ export class AgentHostChangesetOperationService extends Disposable implements IA
 				operations.push(...contributed);
 			}
 		}
-		const ownerKey = parseChangesetUri(context.changesetUri)?.ownerUri ?? context.sessionKey;
-		const scopedOperations = isAhpChatChannel(ownerKey)
+		const parsed = parseChangesetUri(context.changesetUri);
+		const ownerKey = context.ownerKey ?? parsed?.ownerUri ?? context.sessionKey;
+		const sourceKey = context.sourceKey ?? resolveChangesetOwnerScope(this._stateManager, ownerKey).sourceUri;
+		const scopedOwner = isAhpChatChannel(ownerKey) || !!parseFolderChangesetOwnerUri(ownerKey);
+		const allowsSessionWorkflowOperations = context.changesetKind === ChangesetKind.Branch && isDefaultChatUri(sourceKey);
+		const scopedOperations = scopedOwner && !allowsSessionWorkflowOperations
 			? operations.filter(operation => operation.id !== AGENT_HOST_MERGE_CHANGESET_OPERATION_ID && operation.group !== 'pull-request' && !AGENT_HOST_PULL_REQUEST_OPERATION_IDS.has(operation.id))
 			: operations;
 
@@ -171,7 +181,12 @@ export class AgentHostChangesetOperationService extends Disposable implements IA
 			: parseChatUri(sessionKey)?.session ?? sessionKey;
 		const changesets = changeset
 			? [changeset]
-			: resolveChangesetSubscriptions(ownerKey, this._changesetSubscriptions.getSessionSubscriptions(ownerKey), this._stateManager.getSessionState(containingSessionKey)?.config?.values);
+			: resolveChangesetSubscriptions(
+				ownerKey,
+				this._changesetSubscriptions.getSessionSubscriptions(ownerKey),
+				this._stateManager.getSessionState(containingSessionKey)?.config?.values,
+				buildBranchChangesetUri(resolveBranchChangesetScopeForSource(this._stateManager, ownerKey).ownerUri),
+			);
 
 		// Clear the suppressed per-turn / compare-turns changesets FIRST, before
 		// the git-state gate below. A root transition (e.g. the Editor Window
@@ -183,7 +198,7 @@ export class AgentHostChangesetOperationService extends Disposable implements IA
 		const unsuppressed: string[] = [];
 		for (const changeset of changesets) {
 			const parsed = parseChangesetUri(changeset);
-			if (parsed && this._shouldSuppressOperations(containingSessionKey, parsed.kind)) {
+			if (parsed && this._shouldSuppressOperations(resolveChangesetOwnerScope(this._stateManager, parsed.ownerUri).sourceUri, parsed.kind)) {
 				this._stateManager.dispatchServerAction(changeset, {
 					type: ActionType.ChangesetOperationsChanged,
 					operations: [],
@@ -198,8 +213,11 @@ export class AgentHostChangesetOperationService extends Disposable implements IA
 		}
 
 		if (!gitState) {
-			gitState = this._gitStateService.getSessionGitState?.(ownerKey)
-				?? (isAhpChatChannel(ownerKey) ? undefined : readSessionGitState(this._stateManager.getSessionState(containingSessionKey)?._meta));
+			const sourceKey = resolveBranchChangesetScopeForOwner(this._stateManager, ownerKey)?.sourceUri ?? ownerKey;
+			gitState = this._gitStateService.getSessionGitState?.(sourceKey)
+				?? (!isAhpChatChannel(sourceKey) || isDefaultChatUri(sourceKey)
+					? readSessionGitState(this._stateManager.getSessionState(containingSessionKey)?._meta)
+					: undefined);
 		}
 
 		if (!gitHubState) {
@@ -253,7 +271,7 @@ export class AgentHostChangesetOperationService extends Disposable implements IA
 		// stale operation must not be invocable.
 		if (parsed
 			&& (parsed.kind === ChangesetKind.Turn || parsed.kind === ChangesetKind.Compare)
-			&& isMultiRootSession(this._configurationService.getEffectiveWorkingDirectories(parsed.sessionUri))) {
+			&& isMultiRootSession(this._configurationService.getEffectiveWorkingDirectories(resolveChangesetOwnerScope(this._stateManager, parsed.ownerUri).sourceUri))) {
 			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, `Operation '${params.operationId}' is not available on a ${parsed.kind} changeset in a multi-root session: ${params.channel}`);
 		}
 

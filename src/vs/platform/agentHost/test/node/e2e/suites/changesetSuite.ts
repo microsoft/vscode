@@ -32,6 +32,7 @@ import { join } from '../../../../../../base/common/path.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { AgentMergeConfigKey } from '../../../../common/agentMerge.js';
+import { getWorkingDirectoryScopeId } from '../../../../common/agentHostWorkingDirectories.js';
 import type { ListSessionsResult, ResourceReadResult, SubscribeResult } from '../../../../common/state/protocol/commands.js';
 import { ContentEncoding } from '../../../../common/state/protocol/common/commands.js';
 import { PROTOCOL_VERSION } from '../../../../common/state/protocol/version/registry.js';
@@ -40,11 +41,12 @@ import { ActionType } from '../../../../common/state/sessionActions.js';
 import { buildChatUri, buildDefaultChatUri, readSessionGitState, ROOT_STATE_URI, type ChatState, type SessionState } from '../../../../common/state/sessionState.js';
 import {
 	ChangesetKind,
-	buildBranchChangesetUri,
+	buildBranchChangesetUri as buildOwnerBranchChangesetUri,
 	buildCompareTurnsChangesetUri,
 	buildSessionChangesetUri,
 	buildTurnChangesetUri,
 	buildUncommittedChangesetUri,
+	buildFolderChangesetOwnerUri,
 } from '../../../../common/changesetUri.js';
 import { createRealSession, dispatchTurn, driveChatTurnToCompletion, driveTurnToCompletion, initTestGitRepo, resolveGitHubToken } from '../harness/agentHostE2ETestHarness.js';
 import { getActionEnvelope, getAgentHostE2ETestTimeout, isActionNotification } from '../../serverIntegrationTestHelpers.js';
@@ -93,6 +95,7 @@ const CHANGESET_OPERATION_TIMEOUT_MS = 60_000;
 
 export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 	const { config, createdSessions, tempDirs } = context;
+	const sessionWorkingDirectories = new Map<string, readonly string[]>();
 
 	function parityTest(title: string, run: Mocha.AsyncFunc): void {
 		if (context.tier === 'parity') {
@@ -152,7 +155,10 @@ export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 	}
 
 	async function createSessionIn(workspace: string, prefix: string): Promise<string> {
-		return createRealSession(context.client, config, `${prefix}-${config.provider}`, createdSessions, URI.file(workspace));
+		const workingDirectory = URI.file(workspace);
+		const sessionUri = await createRealSession(context.client, config, `${prefix}-${config.provider}`, createdSessions, workingDirectory);
+		sessionWorkingDirectories.set(sessionUri, [workingDirectory.toString()]);
+		return sessionUri;
 	}
 
 	async function setRootConfig(values: Readonly<Record<string, unknown>>): Promise<void> {
@@ -184,6 +190,7 @@ export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 			config: { isolation: 'worktree', branch },
 		}, 30_000);
 		createdSessions.push(sessionUri);
+		sessionWorkingDirectories.set(sessionUri, [URI.file(workspace).toString()]);
 		await context.client.call<SubscribeResult>('subscribe', { channel: sessionUri });
 		await context.client.call<SubscribeResult>('subscribe', { channel: buildDefaultChatUri(sessionUri) });
 		context.client.clearReceived();
@@ -355,6 +362,20 @@ export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 		await waitForTurnComplete(sessionUri, turnId);
 	}
 
+	async function getBranchChangesetUri(context: IAgentHostE2ETestContext, sessionUri: string): Promise<string> {
+		const chatUri = buildDefaultChatUri(sessionUri);
+		context.client.notify('unsubscribe', { channel: chatUri });
+		const chat = await context.client.call<SubscribeResult>('subscribe', { channel: chatUri });
+		const advertised = (chat.snapshot?.state as ChatState).changesets?.find(changeset => changeset.changeKind === ChangesetKind.Branch)?.uriTemplate;
+		if (advertised) {
+			return advertised;
+		}
+
+		const workingDirectories = sessionWorkingDirectories.get(sessionUri);
+		assert.ok(workingDirectories, `working directories tracked for ${sessionUri}`);
+		return buildOwnerBranchChangesetUri(buildFolderChangesetOwnerUri(sessionUri, getWorkingDirectoryScopeId(workingDirectories)));
+	}
+
 	async function waitForIdleResourceOnlyOperation(
 		channel: string,
 		operationId: string,
@@ -463,7 +484,7 @@ export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 	conformanceTest(context, 'subscribing to a changeset reaches ready status', async function () {
 		const workspace = createGitWorkspace('ahp-changeset-status-');
 		const sessionUri = await createSessionIn(workspace, 'changeset-status');
-		const branchUri = buildBranchChangesetUri(sessionUri);
+		const branchUri = await getBranchChangesetUri(context, sessionUri);
 
 		const subscribed = await context.client.call<SubscribeResult>('subscribe', { channel: branchUri });
 
@@ -490,7 +511,7 @@ export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 	conformanceTest(context, 'a file written during a turn appears in the branch changeset', async function () {
 		const workspace = createGitWorkspace('ahp-changeset-add-');
 		const sessionUri = await createSessionIn(workspace, 'changeset-add');
-		const branchUri = buildBranchChangesetUri(sessionUri);
+		const branchUri = await getBranchChangesetUri(context, sessionUri);
 		await context.client.call<SubscribeResult>('subscribe', { channel: branchUri });
 
 		context.client.clearReceived();
@@ -519,7 +540,7 @@ export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 	conformanceTest(context, 'editing a committed file reports both sides of the change', async function () {
 		const workspace = createGitWorkspace('ahp-changeset-edit-');
 		const sessionUri = await createSessionIn(workspace, 'changeset-edit');
-		const branchUri = buildBranchChangesetUri(sessionUri);
+		const branchUri = await getBranchChangesetUri(context, sessionUri);
 		await context.client.call<SubscribeResult>('subscribe', { channel: branchUri });
 
 		context.client.clearReceived();
@@ -543,7 +564,7 @@ export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 	conformanceTest(context, 'committed changeset content can be read through its git blob reference', async function () {
 		const workspace = createGitWorkspace('ahp-changeset-git-blob-');
 		const sessionUri = await createSessionIn(workspace, 'changeset-git-blob');
-		const branchUri = buildBranchChangesetUri(sessionUri);
+		const branchUri = await getBranchChangesetUri(context, sessionUri);
 		await context.client.call<SubscribeResult>('subscribe', { channel: branchUri });
 		await runBangTurn(sessionUri, 'turn-changeset-git-blob', writeFileCommand('seed.txt', 'edited'), 1);
 		const [file] = await waitForChangesetFiles(branchUri, ['seed.txt']);
@@ -561,7 +582,7 @@ export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 	conformanceTest(context, 'deleting a committed file reports only the before side', async function () {
 		const workspace = createGitWorkspace('ahp-changeset-delete-');
 		const sessionUri = await createSessionIn(workspace, 'changeset-delete');
-		const branchUri = buildBranchChangesetUri(sessionUri);
+		const branchUri = await getBranchChangesetUri(context, sessionUri);
 		await context.client.call<SubscribeResult>('subscribe', { channel: branchUri });
 
 		await runBangTurn(sessionUri, 'turn-changeset-delete', deleteFileCommand('seed.txt'), 1);
@@ -581,7 +602,7 @@ export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 	conformanceTest(context, 'renaming a committed file reports the destination change', async function () {
 		const workspace = createGitWorkspace('ahp-changeset-rename-');
 		const sessionUri = await createSessionIn(workspace, 'changeset-rename');
-		const branchUri = buildBranchChangesetUri(sessionUri);
+		const branchUri = await getBranchChangesetUri(context, sessionUri);
 		await context.client.call<SubscribeResult>('subscribe', { channel: branchUri });
 
 		await runBangTurn(sessionUri, 'turn-changeset-rename', renameFileCommand('seed.txt', 'renamed.txt'), 1);
@@ -604,7 +625,7 @@ export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 		execSync('git add .', { cwd: workspace });
 		execSync('git commit -q -m "second seed"', { cwd: workspace });
 		const sessionUri = await createSessionIn(workspace, 'changeset-mixed');
-		const branchUri = buildBranchChangesetUri(sessionUri);
+		const branchUri = await getBranchChangesetUri(context, sessionUri);
 		await context.client.call<SubscribeResult>('subscribe', { channel: branchUri });
 
 		await runBangTurn(
@@ -632,7 +653,7 @@ export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 		execSync('git add .gitignore', { cwd: workspace });
 		execSync('git commit -q -m "ignore generated log"', { cwd: workspace });
 		const sessionUri = await createSessionIn(workspace, 'changeset-ignored');
-		const branchUri = buildBranchChangesetUri(sessionUri);
+		const branchUri = await getBranchChangesetUri(context, sessionUri);
 
 		await runBangTurn(sessionUri, 'turn-changeset-ignored', writeFileCommand('ignored.log', 'ignored'), 1);
 		const changed = waitForEmptyChangeset(branchUri);
@@ -646,7 +667,7 @@ export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 	conformanceTest(context, 'a file created and deleted in one turn leaves no branch change', async function () {
 		const workspace = createGitWorkspace('ahp-changeset-create-delete-');
 		const sessionUri = await createSessionIn(workspace, 'changeset-create-delete');
-		const branchUri = buildBranchChangesetUri(sessionUri);
+		const branchUri = await getBranchChangesetUri(context, sessionUri);
 
 		await runBangTurn(sessionUri, 'turn-changeset-create-delete', '!node -e "const fs=require(\'fs\');fs.writeFileSync(\'temporary.txt\',\'temporary\');fs.unlinkSync(\'temporary.txt\')"', 1);
 		const changed = waitForEmptyChangeset(branchUri);
@@ -660,7 +681,7 @@ export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 	conformanceTest(context, 'an edit restored in the same turn leaves no branch change', async function () {
 		const workspace = createGitWorkspace('ahp-changeset-edit-restore-');
 		const sessionUri = await createSessionIn(workspace, 'changeset-edit-restore');
-		const branchUri = buildBranchChangesetUri(sessionUri);
+		const branchUri = await getBranchChangesetUri(context, sessionUri);
 
 		await runBangTurn(sessionUri, 'turn-changeset-edit-restore', writeFileTwiceBase64Command('seed.txt', 'changed', 'seed\n'), 1);
 		const changed = waitForEmptyChangeset(branchUri);
@@ -674,7 +695,7 @@ export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 	conformanceTest(context, 'an added multiline file reports every added line', async function () {
 		const workspace = createGitWorkspace('ahp-changeset-multiline-add-');
 		const sessionUri = await createSessionIn(workspace, 'changeset-multiline-add');
-		const branchUri = buildBranchChangesetUri(sessionUri);
+		const branchUri = await getBranchChangesetUri(context, sessionUri);
 		await context.client.call<SubscribeResult>('subscribe', { channel: branchUri });
 
 		await runBangTurn(sessionUri, 'turn-changeset-multiline-add', writeFileBase64Command('lines.txt', 'one\ntwo\nthree\n'), 1);
@@ -689,7 +710,7 @@ export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 		execSync('git add lines.txt', { cwd: workspace });
 		execSync('git commit -q -m "add multiline file"', { cwd: workspace });
 		const sessionUri = await createSessionIn(workspace, 'changeset-multiline-delete');
-		const branchUri = buildBranchChangesetUri(sessionUri);
+		const branchUri = await getBranchChangesetUri(context, sessionUri);
 		await context.client.call<SubscribeResult>('subscribe', { channel: branchUri });
 
 		await runBangTurn(sessionUri, 'turn-changeset-multiline-delete', deleteFileCommand('lines.txt'), 1);
@@ -701,7 +722,7 @@ export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 	conformanceTest(context, 'a changed filename containing spaces remains addressable', async function () {
 		const workspace = createGitWorkspace('ahp-changeset-spaced-file-');
 		const sessionUri = await createSessionIn(workspace, 'changeset-spaced-file');
-		const branchUri = buildBranchChangesetUri(sessionUri);
+		const branchUri = await getBranchChangesetUri(context, sessionUri);
 		await context.client.call<SubscribeResult>('subscribe', { channel: branchUri });
 
 		await runBangTurn(sessionUri, 'turn-changeset-spaced-file', writeFileBase64Command('spaced file.txt', 'content\n'), 1);
@@ -723,7 +744,7 @@ export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 		tempDirs.push(workspace);
 		initTestGitRepo(workspace);
 		const sessionUri = await createSessionIn(workspace, 'changeset-empty-repo');
-		const branchUri = buildBranchChangesetUri(sessionUri);
+		const branchUri = await getBranchChangesetUri(context, sessionUri);
 		await context.client.call<SubscribeResult>('subscribe', { channel: branchUri });
 
 		await runBangTurn(sessionUri, 'turn-changeset-empty-repo', writeFileCommand('first.txt', 'first'), 1);
@@ -743,7 +764,7 @@ export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 	conformanceTest(context, 'a client can mark a changeset file reviewed', async function () {
 		const workspace = createGitWorkspace('ahp-changeset-review-');
 		const sessionUri = await createSessionIn(workspace, 'changeset-review');
-		const branchUri = buildBranchChangesetUri(sessionUri);
+		const branchUri = await getBranchChangesetUri(context, sessionUri);
 		await context.client.call<SubscribeResult>('subscribe', { channel: branchUri });
 
 		context.client.clearReceived();
@@ -866,7 +887,7 @@ export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 	conformanceTest(context, 'a folder session advertises commit on its branch changeset', async function () {
 		const workspace = createGitWorkspace('ahp-changeset-branch-commit-');
 		const sessionUri = await createSessionIn(workspace, 'changeset-branch-commit');
-		const branchUri = buildBranchChangesetUri(sessionUri);
+		const branchUri = await getBranchChangesetUri(context, sessionUri);
 		await context.client.call<SubscribeResult>('subscribe', { channel: branchUri });
 		await runBangTurn(sessionUri, 'turn-changeset-branch-commit', writeFileCommand('branch-commit.txt', 'COMMIT'), 1);
 
@@ -1123,7 +1144,7 @@ export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 	conformanceTest(context, 'review state can be applied to multiple changed files', async function () {
 		const workspace = createGitWorkspace('ahp-changeset-review-multiple-');
 		const sessionUri = await createSessionIn(workspace, 'changeset-review-multiple');
-		const changeset = buildBranchChangesetUri(sessionUri);
+		const changeset = await getBranchChangesetUri(context, sessionUri);
 		await context.client.call<SubscribeResult>('subscribe', { channel: changeset });
 		await runBangTurn(
 			sessionUri,
@@ -1155,7 +1176,7 @@ export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 	conformanceTest(context, 'a client can clear review state from a changed file', async function () {
 		const workspace = createGitWorkspace('ahp-changeset-review-unset-');
 		const sessionUri = await createSessionIn(workspace, 'changeset-review-unset');
-		const changeset = buildBranchChangesetUri(sessionUri);
+		const changeset = await getBranchChangesetUri(context, sessionUri);
 		await context.client.call<SubscribeResult>('subscribe', { channel: changeset });
 		await runBangTurn(sessionUri, 'turn-changeset-review-unset', writeFileCommand('seed.txt', 'edited'), 1);
 		const [file] = await waitForChangesetFiles(changeset, ['seed.txt']);
@@ -1186,7 +1207,7 @@ export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 	conformanceTest(context, 'a second edit updates one changeset entry in place', async function () {
 		const workspace = createGitWorkspace('ahp-changeset-second-edit-');
 		const sessionUri = await createSessionIn(workspace, 'changeset-second-edit');
-		const changeset = buildBranchChangesetUri(sessionUri);
+		const changeset = await getBranchChangesetUri(context, sessionUri);
 		await context.client.call<SubscribeResult>('subscribe', { channel: changeset });
 		await runBangTurn(
 			sessionUri,
@@ -1224,7 +1245,7 @@ export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 	conformanceTest(context, 'a nested untracked file retains its workspace-relative identity', async function () {
 		const workspace = createGitWorkspace('ahp-changeset-nested-');
 		const sessionUri = await createSessionIn(workspace, 'changeset-nested');
-		const changeset = buildBranchChangesetUri(sessionUri);
+		const changeset = await getBranchChangesetUri(context, sessionUri);
 		await context.client.call<SubscribeResult>('subscribe', { channel: changeset });
 		await runBangTurn(
 			sessionUri,
@@ -1249,7 +1270,7 @@ export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 	conformanceTest(context, 'discarding the last tracked change clears changeset and list summaries', async function () {
 		const workspace = createGitWorkspace('ahp-changeset-discard-last-');
 		const sessionUri = await createSessionIn(workspace, 'changeset-discard-last');
-		const branchChangeset = buildBranchChangesetUri(sessionUri);
+		const branchChangeset = await getBranchChangesetUri(context, sessionUri);
 		const uncommittedChangeset = buildUncommittedChangesetUri(sessionUri);
 		await context.client.call<SubscribeResult>('subscribe', { channel: branchChangeset });
 		const subscribed = await context.client.call<SubscribeResult>('subscribe', { channel: uncommittedChangeset });
@@ -1279,7 +1300,7 @@ export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 	conformanceTest(context, 'listSessions reports the aggregate file change summary', async function () {
 		const workspace = createGitWorkspace('ahp-changeset-list-summary-');
 		const sessionUri = await createSessionIn(workspace, 'changeset-list-summary');
-		const branchUri = buildBranchChangesetUri(sessionUri);
+		const branchUri = await getBranchChangesetUri(context, sessionUri);
 		await context.client.call<SubscribeResult>('subscribe', { channel: branchUri });
 		await runBangTurn(
 			sessionUri,
