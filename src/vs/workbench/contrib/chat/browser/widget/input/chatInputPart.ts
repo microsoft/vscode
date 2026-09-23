@@ -543,6 +543,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		return this.inputContainer;
 	}
 
+	get inputToolbarElement(): HTMLElement {
+		return this.inputActionsToolbar.getElement();
+	}
+
 	placeContextUsageWidget(container?: HTMLElement): void {
 		(container ?? this.contextUsageWidgetHome).append(this.contextUsageWidgetContainer);
 	}

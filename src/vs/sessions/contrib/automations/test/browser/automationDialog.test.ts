@@ -54,7 +54,6 @@ import { IWorkbenchLayoutService } from '../../../../../workbench/services/layou
 import { workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
 import { Menus } from '../../../../browser/menus.js';
 import { MobileSessionTypePicker } from '../../../chat/browser/mobile/mobileSessionTypePicker.js';
-import { ModelPicker } from '../../../chat/browser/modelPicker.js';
 import { SessionModelSelection } from '../../../chat/browser/sessionModelSelection.js';
 import { ISession, ISessionWorkspace, SessionTypeAuthRequirement } from '../../../../services/sessions/common/session.js';
 import { IAutomationSessionConfiguration } from '../../../../services/sessions/common/sessionsProvider.js';
@@ -109,15 +108,17 @@ suite('Automation dialog layout', () => {
 			dispose: () => { },
 		});
 		instantiationService.stubInstance(SessionModelSelection, { dispose: () => { } });
-		instantiationService.stubInstance(ModelPicker, { render: () => { }, dispose: () => { } });
 		instantiationService.stubInstance(AutomationInputCompletions, { dispose: () => { } });
 		const promptInput = document.createElement('textarea');
 		promptInput.setAttribute('aria-label', 'Prompt');
+		const inputToolbar = DOM.$('.chat-input-toolbar');
 		instantiationService.stubInstance(ChatInputPart, {
 			render: (container, value) => {
 				promptInput.value = value ?? '';
-				container.appendChild(promptInput);
+				const inputContainer = DOM.append(container, DOM.$('.chat-input-container'));
+				inputContainer.append(promptInput, inputToolbar);
 			},
+			inputToolbarElement: inputToolbar,
 			inputEditor: upcastPartial<ChatInputPart['inputEditor']>({
 				updateOptions: () => { },
 				onDidChangeModelContent: Event.None,
@@ -146,6 +147,8 @@ suite('Automation dialog layout', () => {
 
 		const targetRow = form.querySelector('.automation-target-row')!;
 		const promptSection = form.querySelector('.automation-prompt-section')!;
+		const inputContainer = form.querySelector('.chat-input-container')!;
+		const sessionControls = form.querySelector('.automation-session-configuration')!;
 		assert.deepStrictEqual({
 			targetLabel: targetRow.querySelector('.automation-form-label')?.textContent,
 			targetContainsWorkspace: targetRow.contains(workspaceButton),
@@ -155,6 +158,14 @@ suite('Automation dialog layout', () => {
 			promptFocused: document.activeElement === promptInput,
 			prompt: handle.getPrompt(),
 			targetUnselected: !state.isQuickChat && state.folderUri === undefined && state.sessionTypeId === undefined,
+			configurationInsideInput: inputContainer.contains(inputToolbar),
+			controlsInsideInput: inputContainer.contains(sessionControls),
+			controlsAfterInput: !!(inputContainer.compareDocumentPosition(sessionControls) & Node.DOCUMENT_POSITION_FOLLOWING),
+			configurationHeader: form.querySelector('#automation-session-configuration-label'),
+			inputToolbarRole: inputToolbar.getAttribute('role'),
+			inputToolbarLabel: inputToolbar.getAttribute('aria-label'),
+			controlsLabel: sessionControls.getAttribute('aria-label'),
+			inputToolbarHidden: inputToolbar.style.display === 'none',
 		}, {
 			targetLabel: 'Target',
 			targetContainsWorkspace: true,
@@ -164,11 +175,33 @@ suite('Automation dialog layout', () => {
 			promptFocused: true,
 			prompt: 'Review the workspace',
 			targetUnselected: true,
+			configurationInsideInput: true,
+			controlsInsideInput: false,
+			controlsAfterInput: true,
+			configurationHeader: null,
+			inputToolbarRole: 'group',
+			inputToolbarLabel: 'Session configuration options',
+			controlsLabel: 'Session controls',
+			inputToolbarHidden: true,
 		});
 
 		assert.ok(targetModel);
 		targetModel.setQuickChat(true);
-		assert.strictEqual(form.querySelector('.automation-session-configuration-unavailable')?.textContent, 'Session configuration unavailable');
+		assert.deepStrictEqual({
+			status: form.querySelector('.automation-session-configuration-unavailable')?.textContent,
+			inputToolbarVisible: inputToolbar.style.display !== 'none',
+			inputToolbarInert: inputToolbar.inert,
+			inputToolbarAriaHidden: inputToolbar.getAttribute('aria-hidden'),
+			promptInert: promptInput.inert || !!promptInput.closest('[inert]'),
+			controlsInert: form.querySelector('.automation-session-controls')?.hasAttribute('inert'),
+		}, {
+			status: 'Session configuration unavailable',
+			inputToolbarVisible: true,
+			inputToolbarInert: true,
+			inputToolbarAriaHidden: 'true',
+			promptInert: false,
+			controlsInert: true,
+		});
 
 		const targetGroup = form.querySelector('.automation-target-toolbar')!;
 		const targetError = form.querySelector<HTMLElement>('.automation-target-error')!;
@@ -248,7 +281,10 @@ suite('Automation dialog layout', () => {
 
 	test('keeps target actions out of the prompt toolbar', () => {
 		const targetActions = MenuRegistry.getMenuItems(Menus.AutomationsDialogTargetToolbar).filter(isIMenuItem);
-		const promptActions = MenuRegistry.getMenuItems(MenuId.ChatInputSecondary).filter(isIMenuItem);
+		const promptActions = [
+			...MenuRegistry.getMenuItems(Menus.AutomationsDialogInputToolbar),
+			...MenuRegistry.getMenuItems(MenuId.ChatInputSecondary),
+		].filter(isIMenuItem);
 		assert.deepStrictEqual({
 			target: targetActions.sort((a, b) => (a.order ?? 0) - (b.order ?? 0)).map(item => item.command.id),
 			duplicatedInPrompt: promptActions.some(item => targetActions.some(target => target.command.id === item.command.id)),

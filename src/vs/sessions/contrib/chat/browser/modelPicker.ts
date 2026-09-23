@@ -4,14 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
-import { autorun, derived, IObservable } from '../../../../base/common/observable.js';
+import { autorun, derived, IObservable, ISettableObservable, observableValue } from '../../../../base/common/observable.js';
 import { localize2 } from '../../../../nls.js';
 import { BaseActionViewItem } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
+import { IActionViewItemService } from '../../../../platform/actions/browser/actionViewItemService.js';
 import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IWorkspaceTrustManagementService } from '../../../../platform/workspace/common/workspaceTrust.js';
+import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
+import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { IChatInputPickerOptions } from '../../../../workbench/contrib/chat/browser/widget/input/chatInputPickerActionItem.js';
 import { IModelPickerDelegate, ModelPickerActionItem } from '../../../../workbench/contrib/chat/browser/widget/input/modelPicker/modelPickerActionItem.js';
 import { ChatPetAchievementIds, didExplicitlySwitchChatPetModel } from '../../../../workbench/contrib/chat/browser/chatPetAchievements.js';
@@ -138,6 +141,10 @@ export class ModelPicker extends Disposable {
 		return this._selectionModel.selectModel(modelIdentifier);
 	}
 
+	show(anchor?: HTMLElement): void {
+		this._modelPicker.show(anchor);
+	}
+
 	/**
 	 * Whether the model picker should be shown for the given session. Visible
 	 * when the session has models, when its Auto model is unavailable (so the
@@ -185,6 +192,15 @@ registerAction2(class extends Action2 {
 				// Hidden on phone when the active provider supplies a combined
 				// mode + model picker instead (see MobileChatInputConfigPicker).
 				when: ContextKeyExpr.or(IsPhoneLayoutContext.negate(), SessionUsesCombinedConfigPickerContext.negate()),
+			}, {
+				id: Menus.AutomationsDialogInputToolbar,
+				group: 'navigation',
+				order: 1,
+				when: ContextKeyExpr.and(
+					ChatContextKeys.enabled,
+					ChatContextKeys.inAutomationsDialog,
+					ContextKeyExpr.or(IsPhoneLayoutContext.negate(), SessionUsesCombinedConfigPickerContext.negate()),
+				),
 			}],
 		});
 	}
@@ -194,7 +210,7 @@ registerAction2(class extends Action2 {
 // -- Action View Item --
 
 export class ModelPickerActionViewItem extends BaseActionViewItem {
-	constructor(private readonly picker: ModelPicker) {
+	constructor(private readonly picker: ModelPicker, private readonly compact?: ISettableObservable<boolean>) {
 		super(undefined, { id: '', label: '', enabled: true, class: undefined, tooltip: '', run: () => { } });
 	}
 
@@ -202,8 +218,37 @@ export class ModelPickerActionViewItem extends BaseActionViewItem {
 		this.picker.render(container);
 	}
 
+	isCompact(): boolean {
+		return this.compact?.get() ?? false;
+	}
+
+	setCompact(compact: boolean): void {
+		this.compact?.set(compact, undefined);
+	}
+
+	show(anchor?: HTMLElement): void {
+		this.picker.show(anchor);
+	}
+
 	override dispose(): void {
 		this.picker.dispose();
 		super.dispose();
 	}
 }
+
+class AutomationModelPickerContribution extends Disposable implements IWorkbenchContribution {
+	static readonly ID = 'sessions.contrib.automationModelPicker';
+
+	constructor(
+		@IActionViewItemService actionViewItemService: IActionViewItemService,
+	) {
+		super();
+		this._register(actionViewItemService.register(Menus.AutomationsDialogInputToolbar, 'sessions.modelPicker', (_action, _options, instantiationService) => {
+			const compact = observableValue(this, false);
+			const picker = instantiationService.createInstance(ModelPicker, compact);
+			return new ModelPickerActionViewItem(picker, compact);
+		}));
+	}
+}
+
+registerWorkbenchContribution2(AutomationModelPickerContribution.ID, AutomationModelPickerContribution, WorkbenchPhase.AfterRestored);
