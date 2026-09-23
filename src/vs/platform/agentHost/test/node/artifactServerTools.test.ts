@@ -133,7 +133,7 @@ suite('Artifact Server Tools', () => {
 			toolMentions: artifactServerToolDefinitions.map(tool => ARTIFACT_TOOLS_INSTRUCTION.split(`\`${tool.name}\``).length - 1),
 			discovery: ARTIFACT_TOOLS_INSTRUCTION.includes('discover if needed'),
 			optional: ARTIFACT_TOOLS_INSTRUCTION.includes('default to no registration'),
-			batch: ARTIFACT_TOOLS_INSTRUCTION.includes('batch related entries'),
+			batch: ARTIFACT_TOOLS_INSTRUCTION.includes('Batch related entries'),
 			endOnly: ARTIFACT_TOOLS_INSTRUCTION.includes('at the end'),
 		}, {
 			inputType: 'boolean',
