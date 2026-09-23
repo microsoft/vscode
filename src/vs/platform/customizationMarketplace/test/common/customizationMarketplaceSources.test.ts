@@ -87,6 +87,16 @@ suite('CustomizationMarketplaceSources', () => {
 		});
 	}
 
+	test('does not query a disabled source explicitly selected by the caller', async () => {
+		const configuration = createConfiguration(['first']);
+		const calls: ICustomizationMarketplaceRequest[] = [];
+		await assert.rejects(queryEnabledCustomizationMarketplaceSources(configuration, sources, { sourceIds: ['second'] }, CancellationToken.None, async request => {
+			calls.push(request);
+			return { items: [] };
+		}), isCancellationError);
+		assert.deepStrictEqual({ calls, listening: configuration.onDidChangeConfigurationEmitter.hasListeners() }, { calls: [], listening: false });
+	});
+
 	test('does not call a source for an already cancelled request', async () => {
 		const configuration = createConfiguration(['first']);
 		let calls = 0;
