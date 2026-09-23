@@ -26,6 +26,7 @@ export class ChatMcpAuthenticationContentPart extends Disposable implements ICha
 	public readonly domNode: HTMLElement;
 
 	private readonly rendered = this._register(new MutableDisposable<IRenderedMarkdown>());
+	private authenticateAction: HTMLAnchorElement | undefined;
 
 	/**
 	 * Whether this part was ever shown. Used to distinguish the initial empty
@@ -47,7 +48,7 @@ export class ChatMcpAuthenticationContentPart extends Disposable implements ICha
 
 	constructor(
 		private readonly data: IChatMcpAuthenticationRequired,
-		private readonly options: { onDidAuthenticate?: () => void } = {},
+		private readonly options: { onDidAuthenticate?: () => void; onDidRemoveFocusedAction?: () => void } = {},
 		@IMarkdownRendererService private readonly markdownRendererService: IMarkdownRendererService,
 		@IAgentHostCustomizationService private readonly agentHostCustomizationService: IAgentHostCustomizationService,
 	) {
@@ -84,11 +85,13 @@ export class ChatMcpAuthenticationContentPart extends Disposable implements ICha
 		const sessionResource = URI.revive(this.data.sessionResource);
 		const dataServerIds = new Set(dataServers.map(server => server.id));
 		return this.agentHostCustomizationService.getMcpServers(sessionResource)
-			.filter(server => dataServerIds.has(server.id) && server.status === McpServerStatus.AuthRequired)
+			.filter(server => dataServerIds.has(server.id) && server.enabled && server.status === McpServerStatus.AuthRequired)
 			.map(server => ({ id: server.id, name: server.name }));
 	}
 
 	private render(servers: readonly Pick<IChatMcpAuthenticationRequiredServer, 'id' | 'name'>[], authenticating: IChatMcpAuthenticationRequiredServer | undefined): void {
+		const actionHadFocus = !!this.authenticateAction && dom.isActiveElement(this.authenticateAction);
+		this.authenticateAction = undefined;
 		dom.clearNode(this.domNode);
 		this.rendered.clear();
 
@@ -97,10 +100,16 @@ export class ChatMcpAuthenticationContentPart extends Disposable implements ICha
 				ThemeIcon.modify(Codicon.loading, 'spin'),
 				localize('mcp.auth.authenticating', 'Authenticating {0}...', '`' + escapeMarkdownSyntaxTokens(authenticating.name) + '`'),
 			);
+			if (actionHadFocus) {
+				this.options.onDidRemoveFocusedAction?.();
+			}
 			return;
 		}
 
 		if (!servers.length) {
+			if (actionHadFocus) {
+				this.options.onDidRemoveFocusedAction?.();
+			}
 			return;
 		}
 
@@ -110,10 +119,13 @@ export class ChatMcpAuthenticationContentPart extends Disposable implements ICha
 		const content = servers.length === 1
 			? localize('mcp.auth.single', 'The MCP server {0} requires authentication. [Authenticate](#authenticate)?', links)
 			: localize('mcp.auth.multiple', 'The MCP servers {0} require authentication. [Authenticate](#authenticate)?', links);
-		this._renderMessage(Codicon.mcp, content, { href: '#authenticate', run: () => void this.authenticate() });
+		this.authenticateAction = this._renderMessage(Codicon.mcp, content, { href: '#authenticate', run: () => void this.authenticate() });
+		if (actionHadFocus) {
+			this.authenticateAction?.focus();
+		}
 	}
 
-	private _renderMessage(icon: ThemeIcon, content: string, action?: { href: string; run: () => void }): void {
+	private _renderMessage(icon: ThemeIcon, content: string, action?: { href: string; run: () => void }): HTMLAnchorElement | undefined {
 		const container = dom.$('.chat-mcp-servers-interaction-hint');
 		const messageContainer = dom.$('.chat-mcp-servers-message');
 		const iconElement = dom.$('.chat-mcp-servers-icon');
@@ -144,8 +156,10 @@ export class ChatMcpAuthenticationContentPart extends Disposable implements ICha
 			if (actionLink) {
 				actionLink.setAttribute('role', 'button');
 				actionLink.href = '';
+				return actionLink;
 			}
 		}
+		return undefined;
 	}
 
 	private async authenticate(): Promise<void> {
