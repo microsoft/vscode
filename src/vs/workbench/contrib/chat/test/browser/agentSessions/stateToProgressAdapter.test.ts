@@ -3386,9 +3386,13 @@ suite('stateToProgressAdapter', () => {
 					const response = history.find(item => item.type === 'response');
 					const serialized = response?.parts.find(part => part.kind === 'toolInvocationSerialized');
 					assert.ok(serialized?.kind === 'toolInvocationSerialized');
-					const expected = {
-						text: preview?.replace(/\r?\n/g, '\r\n') ?? '',
+					const liveExpected = {
+						text: 'Saved to: /tmp/artifact-b.txt',
 						truncated: true,
+					};
+					const completedExpected = {
+						...liveExpected,
+						...(preview === undefined ? {} : { fullOutputPreview: preview.replace(/\r?\n/g, '\r\n') }),
 					};
 					assert.deepStrictEqual({
 						live: liveOutput,
@@ -3397,9 +3401,9 @@ suite('stateToProgressAdapter', () => {
 						liveUri: URI.revive(invocation.toolSpecificData?.kind === 'terminal' ? invocation.toolSpecificData.terminalCommandUri : undefined)?.toString(),
 						historyUri: URI.revive(getSerializedTerminalData(serialized).terminalCommandUri)?.toString(),
 					}, {
-						live: expected,
-						completed: expected,
-						history: expected,
+						live: liveExpected,
+						completed: completedExpected,
+						history: completedExpected,
 						liveUri: terminalResource,
 						historyUri: terminalResource,
 					});
@@ -3407,7 +3411,7 @@ suite('stateToProgressAdapter', () => {
 			}
 		}
 
-		test('prefers a structured retained-output preview over completion prose', () => {
+		test('retains completion prose alongside a structured retained-output preview', () => {
 			const tc = createCompletedToolCall({
 				_meta: { toolKind: 'terminal' },
 				toolInput: 'cat large-output.txt',
@@ -3433,8 +3437,9 @@ suite('stateToProgressAdapter', () => {
 				state: termData.terminalCommandState,
 			}, {
 				output: {
-					text: 'preview only\r\n',
+					text: 'Output too large to read at once (25 KB). Saved to: /tmp/output.txt\r\nUse view with view_range to examine portions of the output.',
 					truncated: true,
+					fullOutputPreview: 'preview only\r\n',
 				},
 				state: { exitCode: 0 },
 			});

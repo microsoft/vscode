@@ -5,6 +5,7 @@
 
 import { decodeBase64, VSBuffer } from '../../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { canceled } from '../../../../../base/common/errors.js';
 import { Event } from '../../../../../base/common/event.js';
 import { createSingleCallFunction } from '../../../../../base/common/functional.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
@@ -14,13 +15,13 @@ import { newWriteableStream, ReadableStreamEvents } from '../../../../../base/co
 import { URI } from '../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
-import { createFileSystemProviderError, FileSystemProviderCapabilities, FileSystemProviderErrorCode, FileType, IFileService, IFileSystemProvider, IFileSystemProviderWithFileAtomicReadCapability, IFileSystemProviderWithFileReadStreamCapability, IFileSystemProviderWithFileReadWriteCapability, IStat } from '../../../../../platform/files/common/files.js';
+import { createFileSystemProviderError, FileSystemProviderCapabilities, FileSystemProviderErrorCode, FileType, IFileReadStreamOptions, IFileService, IFileSystemProvider, IFileSystemProviderWithFileAtomicReadCapability, IFileSystemProviderWithFileReadStreamCapability, IFileSystemProviderWithFileReadWriteCapability, IStat } from '../../../../../platform/files/common/files.js';
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
 import { localize } from '../../../../../nls.js';
 import { IAgentHostConnectionsService } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import type { IAgentConnection } from '../../../../../platform/agentHost/common/agentService.js';
-import { StateComponents, type TerminalState } from '../../../../../platform/agentHost/common/state/sessionState.js';
-import type { IAgentSubscription } from '../../../../../platform/agentHost/common/state/agentSubscription.js';
+import { ROOT_STATE_URI } from '../../../../../platform/agentHost/common/state/sessionState.js';
+import { ContentEncoding, ResourceType } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { AhpErrorCodes } from '../../../../../platform/agentHost/common/state/protocol/errors.js';
 import { ProtocolError } from '../../../../../platform/agentHost/common/state/sessionProtocol.js';
 import { migrateLegacyTerminalToolSpecificData } from '../chat.js';
@@ -185,18 +186,65 @@ export class ChatResponseResourceFileSystemProvider extends Disposable implement
 		return Promise.resolve(this.lookupURI(resource));
 	}
 
-	readFileStream(resource: URI): ReadableStreamEvents<Uint8Array> {
+	readFileStream(resource: URI, options: IFileReadStreamOptions = {}, token: CancellationToken = CancellationToken.None): ReadableStreamEvents<Uint8Array> {
 		const stream = newWriteableStream<Uint8Array>(data => VSBuffer.concat(data.map(data => VSBuffer.wrap(data))).buffer);
-		Promise.resolve().then(() => this.lookupURI(resource)).then(value => stream.end(value), error => {
-			stream.error(error);
-			stream.end();
+		const disposables = new DisposableStore();
+		const finish = createSingleCallFunction((value: Uint8Array | undefined, error: Error | undefined) => {
+			disposables.dispose();
+			if (error) {
+				stream.error(error);
+			}
+			stream.end(value);
 		});
+		if (token.isCancellationRequested) {
+			finish(undefined, canceled());
+			return stream;
+		}
+		disposables.add(token.onCancellationRequested(() => finish(undefined, canceled())));
+		Promise.resolve().then(() => {
+			if (token.isCancellationRequested) {
+				throw canceled();
+			}
+			return this.lookupURI(resource);
+		}).then(value => {
+			if (token.isCancellationRequested) {
+				finish(undefined, canceled());
+				return;
+			}
+			if (typeof options.limits?.size === 'number' && value.byteLength > options.limits.size) {
+				finish(undefined, createFileSystemProviderError(localize('chat.terminalFullOutputTooLarge', "Terminal output is too large to open."), FileSystemProviderErrorCode.FileTooLarge));
+				return;
+			}
+			const start = Math.max(0, options.position ?? 0);
+			const end = typeof options.length === 'number' ? start + Math.max(0, options.length) : value.byteLength;
+			finish(value.subarray(start, end), undefined);
+		}, error => finish(undefined, error instanceof Error ? error : new Error(String(error))));
 		return stream;
 	}
 
 	async stat(resource: URI): Promise<IStat> {
-		if (await this.resolveTerminalOutput(resource)) {
-			return { type: FileType.File, ctime: 0, mtime: 0, size: 0 };
+		const terminalOutput = await this.resolveTerminalOutput(resource);
+		if (terminalOutput) {
+			try {
+				const result = await terminalOutput.connection.resourceResolve({ channel: ROOT_STATE_URI, uri: terminalOutput.terminal.toString() });
+				const resolvedUri = typeof result.uri === 'string' ? URI.parse(result.uri) : URI.revive(result.uri);
+				if (result.type !== ResourceType.File
+					|| !resolvedUri
+					|| !isEqual(resolvedUri, terminalOutput.terminal)
+					|| typeof result.size !== 'number'
+					|| !Number.isFinite(result.size)
+					|| result.size < 0) {
+					throw createFileSystemProviderError(localize('chat.terminalFullOutputUnavailable', "Full terminal output is not available."), FileSystemProviderErrorCode.FileNotFound);
+				}
+				return {
+					type: FileType.File,
+					ctime: result.ctime ? Date.parse(result.ctime) : 0,
+					mtime: result.mtime ? Date.parse(result.mtime) : 0,
+					size: result.size,
+				};
+			} catch (error) {
+				throw this.mapTerminalResourceError(error);
+			}
 		}
 		const r = await this.lookupURI(resource);
 		return {
@@ -272,21 +320,13 @@ export class ChatResponseResourceFileSystemProvider extends Disposable implement
 		if (!resolved) {
 			return undefined;
 		}
-		const ref = resolved.connection.getSubscription(StateComponents.Terminal, resolved.terminal, 'ChatResponseResourceFileSystemProvider');
 		try {
-			const state = await this._resolveTerminalSubscription(ref.object);
-			const output = state.content.map(part => part.type === 'command' ? part.output : part.value).join('');
-			return VSBuffer.fromString(output).buffer;
+			const result = await resolved.connection.resourceRead(resolved.terminal, ContentEncoding.Utf8);
+			return result.encoding === ContentEncoding.Base64
+				? decodeBase64(result.data).buffer
+				: VSBuffer.fromString(result.data).buffer;
 		} catch (error) {
-			if (error instanceof ProtocolError && error.code === AhpErrorCodes.PermissionDenied) {
-				throw createFileSystemProviderError(error.message, FileSystemProviderErrorCode.NoPermissions);
-			}
-			if (error instanceof ProtocolError && error.code === AhpErrorCodes.NotFound) {
-				throw createFileSystemProviderError(error.message, FileSystemProviderErrorCode.FileNotFound);
-			}
-			throw error;
-		} finally {
-			ref.dispose();
+			throw this.mapTerminalResourceError(error);
 		}
 	}
 
@@ -300,7 +340,12 @@ export class ChatResponseResourceFileSystemProvider extends Disposable implement
 		const terminalData = data?.kind === 'terminal' ? migrateLegacyTerminalToolSpecificData(data) : undefined;
 		const terminal = URI.revive(terminalData?.terminalCommandUri);
 		const name = uri.path.split('/').at(-1);
-		if (!terminal || !isEqual(terminal, parsed.terminal) || !isEqual(uri, ChatResponseResource.createTerminalOutputUri(parsed.sessionResource, parsed.toolCallId, terminal, name))) {
+		if (terminalData?.isPty !== false
+			|| terminalData.terminalCommandOutput?.truncated !== true
+			|| !IChatToolInvocation.isComplete(result)
+			|| !terminal
+			|| !isEqual(terminal, parsed.terminal)
+			|| !isEqual(uri, ChatResponseResource.createTerminalOutputUri(parsed.sessionResource, parsed.toolCallId, terminal, name))) {
 			throw createFileSystemProviderError(localize('chat.terminalFullOutputUnavailable', "Full terminal output is not available."), FileSystemProviderErrorCode.FileNotFound);
 		}
 		const resolved = this._agentHostConnectionsService.resolveSessionResource(parsed.sessionResource);
@@ -310,35 +355,14 @@ export class ChatResponseResourceFileSystemProvider extends Disposable implement
 		return { connection: resolved.connection, terminal };
 	}
 
-	private async _resolveTerminalSubscription(subscription: IAgentSubscription<TerminalState>): Promise<TerminalState> {
-		const current = subscription.value;
-		if (current instanceof Error) {
-			throw current;
+	private mapTerminalResourceError(error: unknown): unknown {
+		if (error instanceof ProtocolError && error.code === AhpErrorCodes.PermissionDenied) {
+			return createFileSystemProviderError(error.message, FileSystemProviderErrorCode.NoPermissions);
 		}
-		if (current) {
-			return current;
+		if (error instanceof ProtocolError && error.code === AhpErrorCodes.NotFound) {
+			return createFileSystemProviderError(error.message, FileSystemProviderErrorCode.FileNotFound);
 		}
-		return new Promise<TerminalState>((resolve, reject) => {
-			const store = new DisposableStore();
-			store.add(subscription.onDidChange(state => {
-				store.dispose();
-				resolve(state);
-			}));
-			if (subscription.onDidError) {
-				store.add(subscription.onDidError(error => {
-					store.dispose();
-					reject(error);
-				}));
-			}
-			const value = subscription.value;
-			if (value instanceof Error) {
-				store.dispose();
-				reject(value);
-			} else if (value) {
-				store.dispose();
-				resolve(value);
-			}
-		});
+		return error;
 	}
 
 	private async lookupURI(uri: URI): Promise<Uint8Array> {

@@ -4,7 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { DeferredPromise } from '../../../../../../base/common/async.js';
 import { VSBuffer } from '../../../../../../base/common/buffer.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { Emitter } from '../../../../../../base/common/event.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { consumeStream } from '../../../../../../base/common/stream.js';
@@ -13,7 +15,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { FileOperationResult, FileSystemProviderCapabilities, FileSystemProviderErrorCode, IFileService, toFileOperationResult } from '../../../../../../platform/files/common/files.js';
 import { AhpErrorCodes } from '../../../../../../platform/agentHost/common/state/protocol/errors.js';
 import { ProtocolError } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
-import { TerminalClaimKind, TerminalLifecycleStatus, type TerminalState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { ContentEncoding, ResourceType } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { IChatService, IChatToolInvocationSerialized } from '../../../common/chatService/chatService.js';
 import { ChatResponseResource } from '../../../common/model/chatModel.js';
@@ -45,21 +47,6 @@ suite('ChatResponseResourceFileSystemProvider', () => {
 		const terminalResource = URI.parse('agenthost-terminal://shell/session/command-a');
 		const completeOutput = `BEGIN\r\n${'x'.repeat(4096)}\nMIDDLE \u03bb\n${'y'.repeat(4096)}\r\nEND`;
 
-		function terminalState(output = completeOutput): TerminalState {
-			return {
-				title: 'build',
-				content: [{ type: 'unclassified', value: output }],
-				lifecycle: { status: TerminalLifecycleStatus.Exited, exitCode: 0 },
-				claim: {
-					kind: TerminalClaimKind.Session,
-					session: 'copilotcli:/session',
-					chat: sessionResource.toString(),
-					toolCallId: 'command-a',
-				},
-				isPty: false,
-			};
-		}
-
 		function createInvocation(terminal = terminalResource): IChatToolInvocationSerialized {
 			return {
 				kind: 'toolInvocationSerialized',
@@ -76,6 +63,7 @@ suite('ChatResponseResourceFileSystemProvider', () => {
 					kind: 'terminal',
 					language: 'shellscript',
 					commandLine: { original: 'build' },
+					isPty: false,
 					terminalCommandUri: terminal,
 					terminalCommandOutput: { text: 'preview', truncated: true },
 				},
@@ -83,61 +71,64 @@ suite('ChatResponseResourceFileSystemProvider', () => {
 		}
 
 		for (const authority of ['local', 'remote-host']) {
-			test(`reads complete exited terminal output lazily through ${authority}`, async () => {
-				const fixture = createTerminalOutputTestFixture(store, sessionResource, createInvocation(), authority, async () => terminalState());
+			test(`resolves metadata and reads authoritative output through ${authority}`, async () => {
+				const fixture = createTerminalOutputTestFixture(store, sessionResource, createInvocation(), authority, async () => completeOutput, {
+					size: VSBuffer.fromString(completeOutput).byteLength,
+				});
 				const stat = await fixture.provider.stat(fixture.resource);
-				const subscriptionsBeforeOpen = fixture.subscriptions.length;
+				const readsBeforeOpen = fixture.reads.length;
 				const actual = VSBuffer.wrap(await fixture.provider.readFile(fixture.resource)).toString();
 				assert.deepStrictEqual({
 					statSize: stat.size,
-					subscriptionsBeforeOpen,
+					readsBeforeOpen,
 					actual,
-					subscriptions: fixture.subscriptions.map(uri => uri.toString()),
-					subscriptionReleases: fixture.subscriptionReleases,
+					resolves: fixture.resolves.map(uri => uri.toString()),
+					reads: fixture.reads.map(uri => uri.toString()),
 					readonly: fixture.fileService.hasCapability(fixture.resource, FileSystemProviderCapabilities.Readonly),
 				}, {
-					statSize: 0,
-					subscriptionsBeforeOpen: 0,
+					statSize: VSBuffer.fromString(completeOutput).byteLength,
+					readsBeforeOpen: 0,
 					actual: completeOutput,
-					subscriptions: [terminalResource.toString()],
-					subscriptionReleases: 1,
+					resolves: [terminalResource.toString()],
+					reads: [terminalResource.toString()],
 					readonly: true,
 				});
 			});
 		}
 
-		test('streams full output and does not subscribe during stat', async () => {
-			const fixture = createTerminalOutputTestFixture(store, sessionResource, createInvocation(), 'local', async () => terminalState());
+		test('stat is a metadata-only availability probe', async () => {
+			const fixture = createTerminalOutputTestFixture(store, sessionResource, createInvocation(), 'local', async () => {
+				throw new Error('stat must not read content');
+			}, { size: 123 });
 			const stat = await fixture.provider.stat(fixture.resource);
-			const subscriptionsBeforeOpen = fixture.subscriptions.length;
-			const content = await consumeStream(fixture.provider.readFileStream(fixture.resource), chunks => VSBuffer.concat(chunks.map(chunk => VSBuffer.wrap(chunk))).toString());
-			assert.deepStrictEqual({ size: stat.size, subscriptionsBeforeOpen, content, subscriptions: fixture.subscriptions.length }, {
-				size: 0, subscriptionsBeforeOpen: 0, content: completeOutput, subscriptions: 1,
-			});
+			assert.deepStrictEqual({ size: stat.size, resolves: fixture.resolves.length, reads: fixture.reads.length }, { size: 123, resolves: 1, reads: 0 });
 		});
 
-		test('preserves the ordered text of rich terminal content parts', async () => {
-			const fixture = createTerminalOutputTestFixture(store, sessionResource, createInvocation(), 'local', async () => ({
-				...terminalState(),
-				content: [
-					{ type: 'unclassified', value: 'before\n' },
-					{ type: 'command', commandId: 'command-1', commandLine: 'npm test', output: 'test output\n', timestamp: 1, isComplete: true, exitCode: 0 },
-					{ type: 'unclassified', value: 'after\n' },
-				],
-				isPty: true,
-				supportsCommandDetection: true,
-			}));
+		test('stat rejects missing and invalid artifact byte sizes', async () => {
+			for (const size of [undefined, -1, Number.NaN, Number.POSITIVE_INFINITY]) {
+				const fixture = createTerminalOutputTestFixture(store, sessionResource, createInvocation(), 'local', async () => {
+					throw new Error('stat must not read content');
+				}, {
+					resolve: async uri => ({
+						uri: uri.toString(),
+						type: ResourceType.File,
+						...(size === undefined ? {} : { size }),
+					}),
+				});
+				await assert.rejects(
+					() => fixture.provider.stat(fixture.resource),
+					error => error instanceof Error && toFileOperationResult(error) === FileOperationResult.FILE_NOT_FOUND,
+				);
+				assert.strictEqual(fixture.reads.length, 0);
+			}
+		});
 
-			const content = VSBuffer.wrap(await fixture.provider.readFile(fixture.resource)).toString();
-			assert.deepStrictEqual({
-				content,
-				subscriptions: fixture.subscriptions.map(uri => uri.toString()),
-				releases: fixture.subscriptionReleases,
-			}, {
-				content: 'before\ntest output\nafter\n',
-				subscriptions: [terminalResource.toString()],
-				releases: 1,
+		test('decodes a base64 resourceRead fallback', async () => {
+			const fixture = createTerminalOutputTestFixture(store, sessionResource, createInvocation(), 'local', async () => completeOutput, {
+				encoding: ContentEncoding.Base64,
 			});
+			const content = VSBuffer.wrap(await fixture.provider.readFile(fixture.resource)).toString();
+			assert.deepStrictEqual({ content, reads: fixture.reads.length }, { content: completeOutput, reads: 1 });
 		});
 
 		test('loads and releases the owning chat while restoring an output editor', async () => {
@@ -146,8 +137,8 @@ suite('ChatResponseResourceFileSystemProvider', () => {
 				sessionResource,
 				createInvocation(),
 				'local',
-				async () => terminalState(),
-				{ loadSessionOnDemand: true },
+				async () => completeOutput,
+				{ loadSessionOnDemand: true, size: VSBuffer.fromString(completeOutput).byteLength },
 			);
 
 			const stat = await fixture.provider.stat(fixture.resource);
@@ -158,15 +149,15 @@ suite('ChatResponseResourceFileSystemProvider', () => {
 				content,
 				acquisitions: fixture.acquisitions,
 				releases: fixture.releases,
-				subscriptions: fixture.subscriptions.length,
-				subscriptionReleases: fixture.subscriptionReleases,
+				resolves: fixture.resolves.length,
+				reads: fixture.reads.length,
 			}, {
-				statSize: 0,
+				statSize: VSBuffer.fromString(completeOutput).byteLength,
 				content: completeOutput,
 				acquisitions: 2,
 				releases: 2,
-				subscriptions: 1,
-				subscriptionReleases: 1,
+				resolves: 1,
+				reads: 1,
 			});
 		});
 
@@ -175,28 +166,90 @@ suite('ChatResponseResourceFileSystemProvider', () => {
 			[AhpErrorCodes.PermissionDenied, FileOperationResult.FILE_PERMISSION_DENIED],
 		] as const) {
 			for (const stream of [false, true]) {
-				test(`propagates ${code} from a ${stream ? 'streamed' : 'buffered'} subscription and allows retry`, async () => {
+				test(`propagates ${code} from a ${stream ? 'streamed' : 'buffered'} resource read and allows retry`, async () => {
 					let fail = true;
 					const fixture = createTerminalOutputTestFixture(store, sessionResource, createInvocation(), 'remote-host', async () => {
 						if (fail) {
 							throw new ProtocolError(code, 'Output cannot be read');
 						}
-						return terminalState();
+						return completeOutput;
 					});
 					const read = () => stream
-						? consumeStream(fixture.provider.readFileStream(fixture.resource), chunks => VSBuffer.concat(chunks.map(chunk => VSBuffer.wrap(chunk))).toString())
+						? consumeStream(fixture.provider.readFileStream(fixture.resource, {}, CancellationToken.None), chunks => VSBuffer.concat(chunks.map(chunk => VSBuffer.wrap(chunk))).toString())
 						: fixture.provider.readFile(fixture.resource);
 					await assert.rejects(read, error => error instanceof Error && toFileOperationResult(error) === result);
 					fail = false;
 					const content = VSBuffer.wrap(await fixture.provider.readFile(fixture.resource)).toString();
-					assert.deepStrictEqual({ content, subscriptions: fixture.subscriptions.length, releases: fixture.subscriptionReleases }, { content: completeOutput, subscriptions: 2, releases: 2 });
+					assert.deepStrictEqual({ content, reads: fixture.reads.length }, { content: completeOutput, reads: 2 });
 				});
 			}
 		}
 
-		test('rejects mutations without subscribing to the terminal', async () => {
+		test('maps typed resolve errors without reading artifact content', async () => {
+			for (const [code, result] of [
+				[AhpErrorCodes.NotFound, FileOperationResult.FILE_NOT_FOUND],
+				[AhpErrorCodes.PermissionDenied, FileOperationResult.FILE_PERMISSION_DENIED],
+			] as const) {
+				const fixture = createTerminalOutputTestFixture(store, sessionResource, createInvocation(), 'remote-host', async () => {
+					throw new Error('stat must not read content');
+				}, {
+					resolve: async () => { throw new ProtocolError(code, 'Output cannot be resolved'); },
+				});
+				await assert.rejects(() => fixture.provider.stat(fixture.resource), error => error instanceof Error && toFileOperationResult(error) === result);
+				assert.strictEqual(fixture.reads.length, 0);
+			}
+		});
+
+		test('does not suppress unexpected resolve or read errors', async () => {
+			const resolveError = new Error('unexpected resolve failure');
+			const resolveFixture = createTerminalOutputTestFixture(store, sessionResource, createInvocation(), 'local', async () => completeOutput, {
+				resolve: async () => { throw resolveError; },
+			});
+			await assert.rejects(() => resolveFixture.provider.stat(resolveFixture.resource), resolveError);
+
+			const readError = new Error('unexpected read failure');
+			const readFixture = createTerminalOutputTestFixture(store, sessionResource, createInvocation(), 'local', async () => { throw readError; });
+			await assert.rejects(() => readFixture.provider.readFile(readFixture.resource), readError);
+		});
+
+		test('honors stream byte limits, byte ranges, and cancellation', async () => {
+			const fixture = createTerminalOutputTestFixture(store, sessionResource, createInvocation(), 'local', async () => 'éx');
+			await assert.rejects(
+				() => consumeStream(fixture.provider.readFileStream(fixture.resource, { limits: { size: 1 } }, CancellationToken.None), chunks => chunks),
+				error => error instanceof Error && toFileOperationResult(error) === FileOperationResult.FILE_TOO_LARGE,
+			);
+			const ranged = await consumeStream(
+				fixture.provider.readFileStream(fixture.resource, { position: 2, length: 1 }, CancellationToken.None),
+				chunks => VSBuffer.concat(chunks.map(chunk => VSBuffer.wrap(chunk))).toString(),
+			);
+			const pending = new DeferredPromise<string>();
+			const pendingFixture = createTerminalOutputTestFixture(store, sessionResource, createInvocation(), 'local', async () => pending.p);
+			const cancellation = testDisposables.add(new CancellationTokenSource());
+			const cancelledRead = consumeStream(
+				pendingFixture.provider.readFileStream(pendingFixture.resource, {}, cancellation.token),
+				chunks => chunks,
+			);
+			cancellation.cancel();
+			await assert.rejects(cancelledRead);
+			assert.strictEqual(pendingFixture.reads.length, 0);
+			pending.complete('unused');
+
+			const alreadyCancelledFixture = createTerminalOutputTestFixture(store, sessionResource, createInvocation(), 'local', async () => {
+				throw new Error('cancelled stream must not read content');
+			});
+			const alreadyCancelled = testDisposables.add(new CancellationTokenSource());
+			alreadyCancelled.cancel();
+			await assert.rejects(() => consumeStream(
+				alreadyCancelledFixture.provider.readFileStream(alreadyCancelledFixture.resource, {}, alreadyCancelled.token),
+				chunks => chunks,
+			));
+			assert.strictEqual(alreadyCancelledFixture.reads.length, 0);
+			assert.strictEqual(ranged, 'x');
+		});
+
+		test('rejects mutations without reading or resolving the terminal', async () => {
 			const fixture = createTerminalOutputTestFixture(store, sessionResource, createInvocation(), 'local', async () => {
-				throw new Error('Must not subscribe');
+				throw new Error('Must not read');
 			});
 			for (const mutate of [
 				() => fixture.provider.writeFile(),
@@ -206,12 +259,12 @@ suite('ChatResponseResourceFileSystemProvider', () => {
 			]) {
 				await assert.rejects(async () => mutate(), { code: FileSystemProviderErrorCode.NoPermissions });
 			}
-			assert.deepStrictEqual(fixture.subscriptions, []);
+			assert.deepStrictEqual({ resolves: fixture.resolves, reads: fixture.reads }, { resolves: [], reads: [] });
 		});
 
 		test('rejects stale URI identity instead of reopening cached or unrelated output', async () => {
 			const invocation = createInvocation();
-			const fixture = createTerminalOutputTestFixture(store, sessionResource, invocation, 'local', async () => terminalState());
+			const fixture = createTerminalOutputTestFixture(store, sessionResource, invocation, 'local', async () => completeOutput);
 			const updated = URI.parse('agenthost-terminal://shell/session/replacement');
 			invocation.toolSpecificData = createInvocation(updated).toolSpecificData;
 			await assert.rejects(() => fixture.provider.readFile(fixture.resource), { code: FileSystemProviderErrorCode.FileNotFound });
@@ -219,13 +272,13 @@ suite('ChatResponseResourceFileSystemProvider', () => {
 			const content = VSBuffer.wrap(await fixture.provider.readFile(resource)).toString();
 			const forged = ChatResponseResource.createTerminalOutputUri(sessionResource, invocation.toolCallId, URI.parse('agenthost-terminal://shell/session/unrelated'), 'unrelated.txt');
 			await assert.rejects(() => fixture.provider.readFile(forged), { code: FileSystemProviderErrorCode.FileNotFound });
-			assert.deepStrictEqual({ content, subscriptions: fixture.subscriptions.map(uri => uri.toString()) }, { content: completeOutput, subscriptions: [updated.toString()] });
+			assert.deepStrictEqual({ content, reads: fixture.reads.map(uri => uri.toString()) }, { content: completeOutput, reads: [updated.toString()] });
 		});
 
 		test('rejects a terminal resource after its terminal identity is removed', async () => {
 			const invocation = createInvocation();
 			const fixture = createTerminalOutputTestFixture(store, sessionResource, invocation, 'local', async () => {
-				throw new Error('Must not subscribe');
+				throw new Error('Must not read');
 			});
 			invocation.toolSpecificData = {
 				kind: 'terminal',
@@ -236,7 +289,21 @@ suite('ChatResponseResourceFileSystemProvider', () => {
 			await assert.rejects(() => fixture.provider.readFile(fixture.resource), { code: FileSystemProviderErrorCode.FileNotFound });
 			invocation.toolSpecificData = undefined;
 			await assert.rejects(() => fixture.provider.stat(fixture.resource), { code: FileSystemProviderErrorCode.FileNotFound });
-			assert.deepStrictEqual(fixture.subscriptions, []);
+			assert.deepStrictEqual({ resolves: fixture.resolves, reads: fixture.reads }, { resolves: [], reads: [] });
+		});
+
+		test('rejects PTY and non-truncated terminal resources before host access', async () => {
+			for (const terminalCommandOutput of [{ text: 'preview', truncated: false }, { text: 'preview', truncated: true }]) {
+				const invocation = createInvocation();
+				assert.ok(invocation.toolSpecificData?.kind === 'terminal');
+				invocation.toolSpecificData.isPty = terminalCommandOutput.truncated ? true : false;
+				invocation.toolSpecificData.terminalCommandOutput = terminalCommandOutput;
+				const fixture = createTerminalOutputTestFixture(store, sessionResource, invocation, 'local', async () => {
+					throw new Error('Must not read');
+				});
+				await assert.rejects(() => fixture.provider.readFile(fixture.resource), { code: FileSystemProviderErrorCode.FileNotFound });
+				assert.deepStrictEqual({ resolves: fixture.resolves, reads: fixture.reads }, { resolves: [], reads: [] });
+			}
 		});
 
 		test('existing indexed tool output remains separate from full terminal output', async () => {
@@ -245,20 +312,20 @@ suite('ChatResponseResourceFileSystemProvider', () => {
 				input: 'build',
 				output: [{ type: 'embed', value: 'legacy tool output', isText: true, mimeType: 'text/plain' }],
 			};
-			const fixture = createTerminalOutputTestFixture(store, sessionResource, invocation, 'local', async () => terminalState());
+			const fixture = createTerminalOutputTestFixture(store, sessionResource, invocation, 'local', async () => completeOutput);
 			const legacyResource = ChatResponseResource.createUri(sessionResource, invocation.toolCallId, 0, 'output.txt');
 			const legacy = VSBuffer.wrap(await fixture.provider.readFile(legacyResource)).toString();
 			const complete = VSBuffer.wrap(await fixture.provider.readFile(fixture.resource)).toString();
-			assert.deepStrictEqual({ legacy, complete, subscriptions: fixture.subscriptions.length }, { legacy: 'legacy tool output', complete: completeOutput, subscriptions: 1 });
+			assert.deepStrictEqual({ legacy, complete, reads: fixture.reads.length }, { legacy: 'legacy tool output', complete: completeOutput, reads: 1 });
 		});
 
 		test('missing session lookup terminates a stream instead of hanging', async () => {
 			const fixture = createTerminalOutputTestFixture(store, sessionResource, createInvocation(), 'local', async () => {
-				throw new Error('Must not subscribe after session disposal');
+				throw new Error('Must not read after session disposal');
 			});
 			fixture.model.dispose();
-			await assert.rejects(() => consumeStream(fixture.provider.readFileStream(fixture.resource), chunks => chunks), { code: FileSystemProviderErrorCode.FileNotFound });
-			assert.deepStrictEqual(fixture.subscriptions, []);
+			await assert.rejects(() => consumeStream(fixture.provider.readFileStream(fixture.resource, {}, CancellationToken.None), chunks => chunks), { code: FileSystemProviderErrorCode.FileNotFound });
+			assert.deepStrictEqual({ resolves: fixture.resolves, reads: fixture.reads }, { resolves: [], reads: [] });
 		});
 	});
 

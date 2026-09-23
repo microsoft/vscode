@@ -4,16 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { Emitter, Event } from '../../../../../../base/common/event.js';
-import { Disposable, DisposableStore, type IReference } from '../../../../../../base/common/lifecycle.js';
+import { encodeBase64, VSBuffer } from '../../../../../../base/common/buffer.js';
+import { Event } from '../../../../../../base/common/event.js';
+import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { isEqual } from '../../../../../../base/common/resources.js';
 import { hasKey } from '../../../../../../base/common/types.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import type { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
-import type { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
-import { StateComponents, type ComponentToState, type TerminalState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { ContentEncoding, ResourceType, type ResourceResolveParams, type ResourceResolveResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { FileService } from '../../../../../../platform/files/common/fileService.js';
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
 import { IChatService, IChatToolInvocation, IChatToolInvocationSerialized } from '../../../common/chatService/chatService.js';
@@ -26,8 +26,13 @@ export function createTerminalOutputTestFixture(
 	sessionResource: URI,
 	invocation: IChatToolInvocation | IChatToolInvocationSerialized,
 	authority: string,
-	read: (uri: URI) => Promise<TerminalState>,
-	options?: { readonly loadSessionOnDemand?: boolean },
+	read: (uri: URI) => Promise<string>,
+	options?: {
+		readonly loadSessionOnDemand?: boolean;
+		readonly size?: number;
+		readonly resolve?: (uri: URI) => Promise<ResourceResolveResult>;
+		readonly encoding?: ContentEncoding;
+	},
 ) {
 	const data = invocation.toolSpecificData;
 	assert.ok(data?.kind === 'terminal' && hasKey(data, { commandLine: true }));
@@ -71,48 +76,26 @@ export function createTerminalOutputTestFixture(
 			};
 		}
 	}();
-	const subscriptions: URI[] = [];
-	let subscriptionReleases = 0;
-	class TestTerminalSubscription extends Disposable implements IAgentSubscription<TerminalState> {
-		private readonly _onDidChange = this._register(new Emitter<TerminalState>());
-		readonly onDidChange = this._onDidChange.event;
-		private readonly _onDidError = this._register(new Emitter<Error>());
-		readonly onDidError = this._onDidError.event;
-		readonly onWillApplyAction = Event.None;
-		readonly onDidApplyAction = Event.None;
-		value: TerminalState | Error | undefined;
-		get verifiedValue(): TerminalState | undefined { return this.value instanceof Error ? undefined : this.value; }
-		constructor(uri: URI) {
-			super();
-			queueMicrotask(() => {
-				void read(uri).then(state => {
-					this.value = state;
-					this._onDidChange.fire(state);
-				}, error => {
-					const value = error instanceof Error ? error : new Error(String(error));
-					this.value = value;
-					this._onDidError.fire(value);
-				});
-			});
-		}
-		receiveEnvelope(): void { }
-	}
+	const resolves: URI[] = [];
+	const reads: URI[] = [];
 	const connection = new class extends mock<IAgentConnection>() {
-		override getSubscription<T extends StateComponents>(kind: T, uri: URI): IReference<IAgentSubscription<ComponentToState[T]>> {
-			assert.strictEqual(kind, StateComponents.Terminal);
-			subscriptions.push(uri);
-			const terminalSubscription = new TestTerminalSubscription(uri);
-			const available: { [K in StateComponents]?: IAgentSubscription<ComponentToState[K]> } = {
-				[StateComponents.Terminal]: terminalSubscription,
+		override async resourceResolve(params: ResourceResolveParams): Promise<ResourceResolveResult> {
+			const uri = URI.parse(params.uri.toString());
+			resolves.push(uri);
+			return options?.resolve?.(uri) ?? {
+				uri: params.uri,
+				type: ResourceType.File,
+				size: options?.size ?? 0,
 			};
-			const subscription = available[kind];
-			assert.ok(subscription);
+		}
+		override async resourceRead(uri: URI) {
+			reads.push(uri);
+			const data = await read(uri);
+			const encoding = options?.encoding ?? ContentEncoding.Utf8;
 			return {
-				object: subscription,
-				dispose: () => {
-					subscriptionReleases++;
-					terminalSubscription.dispose();
-				},
+				data: encoding === ContentEncoding.Base64 ? encodeBase64(VSBuffer.fromString(data)) : data,
+				encoding,
+				contentType: 'text/plain',
 			};
 		}
 	}();
@@ -129,8 +112,8 @@ export function createTerminalOutputTestFixture(
 		provider,
 		fileService,
 		model,
-		subscriptions,
-		get subscriptionReleases() { return subscriptionReleases; },
+		resolves,
+		reads,
 		get acquisitions() { return acquisitions; },
 		get releases() { return releases; },
 	};

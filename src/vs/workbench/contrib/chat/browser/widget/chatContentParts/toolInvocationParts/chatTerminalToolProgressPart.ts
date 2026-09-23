@@ -29,11 +29,12 @@ import '../media/chatTerminalToolProgressPart.css';
 import type { ICodeBlockRenderOptions } from '../codeBlockPart.js';
 import { Action, IAction } from '../../../../../../../base/common/actions.js';
 import { ActionBar } from '../../../../../../../base/browser/ui/actionbar/actionbar.js';
-import { disposableTimeout, timeout } from '../../../../../../../base/common/async.js';
+import { timeout } from '../../../../../../../base/common/async.js';
 import { IAhpTerminalCommandSource, IChatTerminalOutputSource, IChatTerminalToolProgressPart, ITerminalChatService, ITerminalConfigurationService, ITerminalEditorService, ITerminalGroupService, ITerminalInstance, ITerminalService } from '../../../../../terminal/browser/terminal.js';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable, type IDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../../../../../base/common/event.js';
 import { onUnexpectedError } from '../../../../../../../base/common/errors.js';
+import { isEqual } from '../../../../../../../base/common/resources.js';
 import { autorun } from '../../../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../../../base/common/themables.js';
 import { DecorationSelector, getTerminalCommandDecorationState, getTerminalCommandDecorationTooltip } from '../../../../../terminal/browser/xterm/decorationStyles.js';
@@ -65,6 +66,7 @@ import { editorBackground } from '../../../../../../../platform/theme/common/col
 import { asCssVariable } from '../../../../../../../platform/theme/common/colorUtils.js';
 import { CommandsRegistry } from '../../../../../../../platform/commands/common/commands.js';
 import { IEditorService } from '../../../../../../services/editor/common/editorService.js';
+import { FileOperationResult, IFileService, toFileOperationResult } from '../../../../../../../platform/files/common/files.js';
 
 /**
  * Minimum number of rows to display in the terminal output view.
@@ -97,8 +99,6 @@ const OUTPUT_POLL_DELAY_MS = 100;
 const MIN_DATA_EVENTS_FOR_REAL_OUTPUT = 2;
 
 const OPEN_TERMINAL_FULL_OUTPUT_ACTION_ID = 'workbench.action.chat.openTerminalFullOutput';
-const MAX_OUTPUT_CLICK_MOVEMENT = 5;
-const FULL_OUTPUT_SINGLE_CLICK_DELAY = 300;
 
 function getTerminalFullOutputLabel(runId: string): string {
 	return localize('chatTerminalFullOutputLabel', "Terminal Output · {0}", runId);
@@ -296,7 +296,7 @@ class TerminalCommandDecoration extends Disposable {
  */
 export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart implements IChatTerminalToolProgressPart {
 	public readonly domNode: HTMLElement;
-	public readonly fullOutputAction: IAction | undefined;
+	public fullOutputAction: IAction | undefined;
 
 	private readonly _titleElement: HTMLElement;
 	private readonly _outputView: ChatTerminalToolOutputSection;
@@ -365,6 +365,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 		@ITerminalGroupService private readonly _terminalGroupService: ITerminalGroupService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IEditorService private readonly _editorService: IEditorService,
+		@IFileService private readonly _fileService: IFileService,
 	) {
 		super(toolInvocation);
 
@@ -417,33 +418,24 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 		}));
 
 		const terminalUri = URI.revive(this._terminalData.terminalCommandUri);
-		const hasRetainedOutput = terminalUri && this._terminalData.terminalCommandOutput?.truncated === true && IChatToolInvocation.isComplete(toolInvocation);
+		const hasRetainedOutputCandidate = terminalUri
+			&& this._terminalData.isPty === false
+			&& this._terminalData.terminalCommandOutput?.truncated === true
+			&& IChatToolInvocation.isComplete(toolInvocation);
 		const runId = (hash(toolInvocation.toolCallId) >>> 0).toString(36).padStart(5, '0').slice(-5);
 		const outputName = `terminal-output-${runId}.txt`;
-		const resource = hasRetainedOutput ? ChatResponseResource.createTerminalOutputUri(this._sessionResource, toolInvocation.toolCallId, terminalUri, outputName) : undefined;
-		if (resource) {
-			const editorService = this._editorService;
-			const label = getTerminalFullOutputLabel(runId);
-			const description = localize('chatTerminalFullOutputDescription', "Read-only");
-			this.fullOutputAction = this._register(new Action(
-				OPEN_TERMINAL_FULL_OUTPUT_ACTION_ID,
-				localize('openTerminalFullOutputReadonly', "Open Full Output (Read-Only)"),
-				ThemeIcon.asClassName(Codicon.openInProduct),
-				true,
-				() => editorService.openEditor({ resource, label, description, options: { revealIfOpened: true } })
-			));
-		}
+		const resource = hasRetainedOutputCandidate ? ChatResponseResource.createTerminalOutputUri(this._sessionResource, toolInvocation.toolCallId, terminalUri, outputName) : undefined;
 
 		this._outputView = this._register(this._instantiationService.createInstance(
 			ChatTerminalToolOutputSection,
 			() => this._ensureTerminalInstance(),
 			() => this._getResolvedCommand(),
 			() => this._outputSource,
-			() => this._terminalData.terminalCommandOutput,
+			() => this._getTerminalCommandOutput(),
 			() => this._commandText,
 			() => this._terminalData.terminalTheme,
 			() => this._isInvocationRunning(),
-			this.fullOutputAction,
+			() => this.fullOutputAction,
 			!!this._terminalData.terminalToolSessionId,
 		));
 		// Only append the output section if there's a terminal session or stored output;
@@ -547,6 +539,9 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 			void this._toggleOutput(true);
 		}
 		this._register(this._terminalChatService.registerProgressPart(this));
+		if (resource && terminalUri) {
+			void this._probeFullOutput(resource, terminalUri, runId);
+		}
 	}
 
 	/**
@@ -815,6 +810,52 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 		if (this.fullOutputAction) {
 			this._actionBar.push(this.fullOutputAction, { icon: true, label: false });
 		}
+	}
+
+	private _getTerminalCommandOutput(): IChatTerminalToolInvocationData['terminalCommandOutput'] {
+		const output = this._terminalData.terminalCommandOutput;
+		if (!this.fullOutputAction || output?.fullOutputPreview === undefined) {
+			return output;
+		}
+		return { ...output, text: output.fullOutputPreview };
+	}
+
+	private async _probeFullOutput(resource: URI, terminalUri: URI, runId: string): Promise<void> {
+		try {
+			await this._fileService.stat(resource);
+		} catch (error) {
+			const result = toFileOperationResult(error);
+			if (result !== FileOperationResult.FILE_NOT_FOUND && result !== FileOperationResult.FILE_PERMISSION_DENIED) {
+				onUnexpectedError(error);
+			}
+			return;
+		}
+		if (this._store.isDisposed) {
+			return;
+		}
+		const currentData = this.toolInvocation.toolSpecificData?.kind === 'terminal'
+			? migrateLegacyTerminalToolSpecificData(this.toolInvocation.toolSpecificData)
+			: undefined;
+		const currentTerminalUri = URI.revive(currentData?.terminalCommandUri);
+		if (currentData?.isPty !== false || currentData.terminalCommandOutput?.truncated !== true || !currentTerminalUri || !isEqual(currentTerminalUri, terminalUri)) {
+			return;
+		}
+		const editorService = this._editorService;
+		const action = this._register(new Action(
+			OPEN_TERMINAL_FULL_OUTPUT_ACTION_ID,
+			localize('openTerminalFullOutputReadonly', "Open Full Output (Read-Only)"),
+			ThemeIcon.asClassName(Codicon.openInProduct),
+			true,
+			() => editorService.openEditor({
+				resource,
+				label: getTerminalFullOutputLabel(runId),
+				description: localize('chatTerminalFullOutputDescription', "Read-only"),
+				options: { revealIfOpened: true }
+			})
+		));
+		this.fullOutputAction = action;
+		this._updateToolbarActions();
+		void this._outputView.refresh().catch(onUnexpectedError);
 	}
 
 	private _getResolvedCommand(instance?: ITerminalInstance): ITerminalCommand | undefined {
@@ -1369,9 +1410,8 @@ export class ChatTerminalToolOutputSection extends Disposable {
 	private readonly _contentContainer: HTMLElement;
 	private readonly _terminalContainer: HTMLElement;
 	private readonly _emptyElement: HTMLElement;
+	private readonly _truncationElement: HTMLElement;
 	private _lastRenderedLineCount: number | undefined;
-	private _previewClickGesture: { x: number; y: number; cancelled: boolean } | undefined;
-	private readonly _pendingPreviewActivation = this._register(new MutableDisposable<IDisposable>());
 	private readonly _outputRelayout = this._register(new MutableDisposable());
 
 	private readonly _onDidFocusEmitter = this._register(new Emitter<void>());
@@ -1387,7 +1427,7 @@ export class ChatTerminalToolOutputSection extends Disposable {
 		private readonly _getCommandText: () => string,
 		private readonly _getStoredTheme: () => IChatTerminalToolInvocationData['terminalTheme'] | undefined,
 		private readonly _isInvocationRunning: () => boolean,
-		private readonly _fullOutputAction: IAction | undefined,
+		private readonly _getFullOutputAction: () => IAction | undefined,
 		private readonly _hasTerminalSession: boolean,
 		@IAccessibleViewService private readonly _accessibleViewService: IAccessibleViewService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
@@ -1400,6 +1440,7 @@ export class ChatTerminalToolOutputSection extends Disposable {
 			h('.chat-terminal-output-body@body', [
 				h('.chat-terminal-output-content@content', [
 					h('.chat-terminal-output-terminal@terminal'),
+					h('.chat-terminal-output-truncation@truncation'),
 					h('.chat-terminal-output-empty@empty')
 				])
 			])
@@ -1411,38 +1452,11 @@ export class ChatTerminalToolOutputSection extends Disposable {
 		this._terminalContainer = containerElements.terminal;
 
 		this._emptyElement = containerElements.empty;
+		this._truncationElement = containerElements.truncation;
 		this._contentContainer.appendChild(this._emptyElement);
 
 		this._register(dom.addDisposableListener(this.domNode, dom.EventType.FOCUS_IN, () => this._onDidFocusEmitter.fire()));
 		this._register(dom.addDisposableListener(this.domNode, dom.EventType.FOCUS_OUT, event => this._onDidBlurEmitter.fire(event)));
-
-		if (this._fullOutputAction) {
-			this._register(dom.addDisposableListener(this.domNode, dom.EventType.MOUSE_DOWN, event => {
-				this._previewClickGesture = {
-					x: event.clientX,
-					y: event.clientY,
-					cancelled: this._hasOutputSelection() || this._isInteractivePreviewTarget(event.target),
-				};
-			}, true));
-			this._register(dom.addDisposableListener(this.domNode, dom.EventType.MOUSE_MOVE, event => {
-				const gesture = this._previewClickGesture;
-				if (gesture && (event.buttons & 1) && Math.hypot(event.clientX - gesture.x, event.clientY - gesture.y) > MAX_OUTPUT_CLICK_MOVEMENT) {
-					gesture.cancelled = true;
-				}
-			}));
-			this._register(dom.addDisposableListener(this.domNode, dom.EventType.MOUSE_LEAVE, event => {
-				if (this._previewClickGesture && (event.buttons & 1)) {
-					this._previewClickGesture.cancelled = true;
-				}
-			}));
-			this._register(dom.addDisposableListener(this.domNode, dom.EventType.WHEEL, () => {
-				if (this._previewClickGesture) {
-					this._previewClickGesture.cancelled = true;
-				}
-			}, { capture: true, passive: true }));
-			this._register(dom.addDisposableListener(this.domNode, dom.EventType.CLICK, event => this._handlePreviewClick(event)));
-			this._register(dom.addDisposableListener(this.domNode, dom.EventType.DBLCLICK, () => this._pendingPreviewActivation.clear()));
-		}
 
 		const resizeObserver = this._register(new dom.DisposableResizeObserver('ChatTerminalToolProgressPart.handleResize', () => this._handleResize()));
 		this._register(resizeObserver.observe(this.domNode));
@@ -1481,6 +1495,7 @@ export class ChatTerminalToolOutputSection extends Disposable {
 	}
 
 	public async refresh(): Promise<void> {
+		this.updateAriaLabel();
 		if (this.isExpanded) {
 			await this._updateTerminalContent();
 		}
@@ -1494,46 +1509,15 @@ export class ChatTerminalToolOutputSection extends Disposable {
 		return !!element && this.domNode.contains(element);
 	}
 
-	private _canOpenFullOutputFromPreview(): boolean {
-		return !!this._fullOutputAction?.enabled
+	private _canOpenFullOutput(): boolean {
+		return !!this._getFullOutputAction()?.enabled
 			&& !!this._getTerminalCommandOutput()?.truncated
 			&& !this._isInvocationRunning();
 	}
 
-	private _hasOutputSelection(): boolean {
-		if (this._snapshotMirror?.hasSelection()) {
-			return true;
-		}
-		const selection = dom.getWindow(this.domNode).getSelection();
-		return !!selection && !selection.isCollapsed && (this.domNode.contains(selection.anchorNode) || this.domNode.contains(selection.focusNode));
-	}
-
-	private _isInteractivePreviewTarget(target: EventTarget | null): boolean {
-		// xterm links activate on mouseup, before the preview's click handler.
-		return !dom.isHTMLElement(target) || !!target.closest('a, button, input, textarea, select, [role="button"], [role="link"], [contenteditable="true"], .scrollbar, .slider, .xterm-scrollbar, .xterm-cursor-pointer');
-	}
-
-	private _handlePreviewClick(event: MouseEvent): void {
-		const gesture = this._previewClickGesture;
-		this._previewClickGesture = undefined;
-		if (event.detail > 1) {
-			this._pendingPreviewActivation.clear();
-			return;
-		}
-		if (!this._canOpenFullOutputFromPreview() || !this.isExpanded || event.defaultPrevented || event.button !== 0 || event.ctrlKey || event.metaKey || event.altKey || event.shiftKey || gesture?.cancelled || this._hasOutputSelection() || this._isInteractivePreviewTarget(event.target)) {
-			return;
-		}
-		event.preventDefault();
-		event.stopPropagation();
-		this._pendingPreviewActivation.value = disposableTimeout(() => {
-			this._pendingPreviewActivation.clear();
-			this._openFullOutputFromPreview();
-		}, FULL_OUTPUT_SINGLE_CLICK_DELAY);
-	}
-
-	private _openFullOutputFromPreview(): void {
-		const action = this._fullOutputAction;
-		if (action && this._canOpenFullOutputFromPreview()) {
+	private _openFullOutput(): void {
+		const action = this._getFullOutputAction();
+		if (action && this._canOpenFullOutput()) {
 			void Promise.resolve().then(() => action.run()).catch(onUnexpectedError);
 		}
 	}
@@ -1547,7 +1531,7 @@ export class ChatTerminalToolOutputSection extends Disposable {
 		if (!commandText) {
 			return;
 		}
-		const ariaLabel = this._canOpenFullOutputFromPreview()
+		const ariaLabel = this._canOpenFullOutput()
 			? localize('chatTerminalFullOutputAriaLabel', "Terminal output for {0}. Press Enter to open the full output in a read-only editor.", commandText)
 			: localize('chatTerminalOutputAriaLabel', 'Terminal output for {0}', commandText);
 		const scrollableDomNode = this._scrollableContainer.getDomNode();
@@ -1569,7 +1553,7 @@ export class ChatTerminalToolOutputSection extends Disposable {
 		const fullOutputMessage = this._getFullOutputMessage();
 		const fullOutputAvailable = fullOutputMessage !== undefined;
 		const fullOutputAvailability = fullOutputAvailable
-			? `\n${fullOutputMessage}\n${localize('chatTerminalFullOutputAvailable', "Open Full Output (Read-Only) opens the captured output if it is still available.")}`
+			? `\n${fullOutputMessage}`
 			: '';
 		if (command) {
 			const rawOutput = command.getOutput();
@@ -1604,24 +1588,16 @@ export class ChatTerminalToolOutputSection extends Disposable {
 
 	private _getFullOutputMessage(): string | undefined {
 		const output = this._getTerminalCommandOutput();
-		if (!output?.truncated || !this._fullOutputAction) {
-			return undefined;
-		}
-		const label = this._getFullOutputLinkLabel();
-		if (!label) {
+		if (!output?.truncated || !this._getFullOutputAction()) {
 			return undefined;
 		}
 		const command = this._resolveCommand();
 		const source = this._getOutputSource();
 		const displayedOutput = command ? command.getOutput() : source ? source.output : output.text;
-		const showingPreview = output.truncated === true && removeAnsiEscapeCodes(displayedOutput ?? '').trim().length > 0;
+		const showingPreview = output.fullOutputPreview !== undefined && removeAnsiEscapeCodes(displayedOutput ?? '').trim().length > 0;
 		return showingPreview
-			? localize('chatTerminalFullOutputPreview', "Showing a preview. {0} (read-only)", label)
-			: localize('chatTerminalFullOutputLinkMessage', "{0} (read-only)", label);
-	}
-
-	private _getFullOutputLinkLabel(): string | undefined {
-		return this._getTerminalCommandOutput()?.truncated && this._fullOutputAction ? localize('chatTerminalFullOutputLink', "Click to open full output") : undefined;
+			? localize('chatTerminalFullOutputPreview', "Showing a preview. Use Open Full Output (Read-Only) to view the captured output.")
+			: localize('chatTerminalFullOutputAvailable', "Use Open Full Output (Read-Only) to view the captured output.");
 	}
 
 	private _setExpanded(expanded: boolean): void {
@@ -1640,10 +1616,10 @@ export class ChatTerminalToolOutputSection extends Disposable {
 		this.domNode.appendChild(scrollableDomNode);
 		this.updateAriaLabel();
 		this._register(dom.addDisposableListener(scrollableDomNode, dom.EventType.KEY_DOWN, event => {
-			if (event.target === scrollableDomNode && new StandardKeyboardEvent(event).equals(KeyCode.Enter) && this._canOpenFullOutputFromPreview()) {
+			if (event.target === scrollableDomNode && new StandardKeyboardEvent(event).equals(KeyCode.Enter) && this._canOpenFullOutput()) {
 				event.preventDefault();
 				event.stopPropagation();
-				this._openFullOutputFromPreview();
+				this._openFullOutput();
 			}
 		}));
 
@@ -1666,19 +1642,13 @@ export class ChatTerminalToolOutputSection extends Disposable {
 			if (this._isProgrammaticScroll) {
 				return;
 			}
-			if (this._previewClickGesture) {
-				this._previewClickGesture.cancelled = true;
-			}
 			this._isAtBottom = this._computeIsAtBottom();
 		}));
 	}
 
 	private async _updateTerminalContent(): Promise<void> {
-		const canOpenFullOutput = this._canOpenFullOutputFromPreview();
-		if (this.domNode.classList.contains('chat-terminal-output-clickable') !== canOpenFullOutput) {
-			this.domNode.classList.toggle('chat-terminal-output-clickable', canOpenFullOutput);
-			this.updateAriaLabel();
-		}
+		this.updateAriaLabel();
+		this._setTruncationMessage(false);
 		const outputSource = this._getOutputSource();
 		if (outputSource) {
 			this._disposeLiveMirror();
@@ -1798,17 +1768,9 @@ export class ChatTerminalToolOutputSection extends Disposable {
 	}
 
 	private async _renderSnapshotOutput(snapshot: NonNullable<IChatTerminalToolInvocationData['terminalCommandOutput']>): Promise<void> {
-		const message = this._getFullOutputMessage();
-		const linkText = this._getFullOutputLinkLabel();
-		const action = this._fullOutputAction;
-		const notice = action && message && linkText ? {
-			text: message,
-			linkText,
-			activate: async () => { await Promise.resolve(action.run()); },
-		} : undefined;
+		this._setTruncationMessage(snapshot.truncated === true);
 		if (this._snapshotMirror) {
 			this._snapshotMirror.setOutput(snapshot);
-			this._snapshotMirror.setNotice(notice);
 			await this._layoutMirrorWidth(this._snapshotMirror);
 			const result = await this._snapshotMirror.render();
 			this._layoutOutput(result?.lineCount ?? snapshot.lineCount ?? this._lastRenderedLineCount ?? 0);
@@ -1819,20 +1781,25 @@ export class ChatTerminalToolOutputSection extends Disposable {
 		}
 		dom.clearNode(this._terminalContainer);
 		this._snapshotMirror = this._register(this._instantiationService.createInstance(DetachedTerminalSnapshotMirror, snapshot, this._getStoredTheme));
-		this._snapshotMirror.setNotice(notice);
 		this._register(this._snapshotMirror.onDidChangeRowHeight(() => this._handleMirrorRowHeightChange()));
 		await this._snapshotMirror.attach(this._terminalContainer);
 		this._snapshotMirror.setOutput(snapshot);
 		await this._layoutMirrorWidth(this._snapshotMirror);
 		const result = await this._snapshotMirror.render();
-		const hasText = !!notice || (!!snapshot.text && snapshot.text.length > 0);
+		const hasText = !!snapshot.text && snapshot.text.length > 0;
 		if (hasText) {
 			this._hideEmptyMessage();
 		} else {
-			this._showEmptyMessage(localize('chat.terminalOutputEmpty', 'No output was produced by the command.'));
+			this._showEmptyMessage(snapshot.truncated
+				? localize('chatTerminalOutputPreviewUnavailable', 'A preview is not available.')
+				: localize('chat.terminalOutputEmpty', 'No output was produced by the command.'));
 		}
 		const lineCount = result?.lineCount ?? snapshot.lineCount ?? 0;
 		this._layoutOutput(lineCount);
+	}
+
+	private _setTruncationMessage(visible: boolean): void {
+		this._truncationElement.textContent = visible ? localize('chatTerminalOutputTruncated', 'Output truncated.') : '';
 	}
 
 	private _renderUnavailableMessage(liveTerminalInstance: ITerminalInstance | undefined): void {

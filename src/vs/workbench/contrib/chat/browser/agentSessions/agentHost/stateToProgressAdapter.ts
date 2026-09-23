@@ -1546,12 +1546,14 @@ function getTerminalOutput(tc: ToolCallState) {
 	const terminalResult = getTerminalCommandResult(tc);
 	const fallbackText = tc.content?.find(isToolResultTextContent)?.text;
 
-	// Older results only expose the saved location in their completion text.
+	const retainedOutputCandidate = tc.status === ToolCallStatus.Completed
+		&& terminalContent?.isPty === false
+		&& terminalResult?.truncated === true;
+	const completionText = fallbackText === undefined ? undefined : stripLegacyTerminalExitMarkers(fallbackText);
 	let text = terminalResult?.preview;
-	const hasRetainedNonPtyOutput = terminalContent?.isPty === false && terminalResult?.truncated === true;
-	if (text === undefined && hasRetainedNonPtyOutput) {
-		text = '';
-	} else if (text === undefined && terminalResult?.truncated === true && fallbackText !== undefined) {
+	if (retainedOutputCandidate) {
+		text = completionText ?? terminalResult.preview ?? '';
+	} else if (terminalResult?.truncated === true && fallbackText !== undefined) {
 		text = stripLegacyTerminalExitMarkers(fallbackText);
 	}
 	const hasRetainedNonPtySnapshot = terminalContent?.isPty === false && text !== undefined;
@@ -1565,12 +1567,14 @@ function getTerminalOutput(tc: ToolCallState) {
 	return {
 		text: text.replace(/\r?\n/g, '\r\n'),
 		...(terminalResult?.truncated !== undefined ? { truncated: terminalResult.truncated } : {}),
+		...(retainedOutputCandidate && terminalResult.preview !== undefined ? { fullOutputPreview: terminalResult.preview.replace(/\r?\n/g, '\r\n') } : {}),
 	};
 }
 
 function terminalOutputsEqual(a: IChatTerminalToolInvocationData['terminalCommandOutput'], b: IChatTerminalToolInvocationData['terminalCommandOutput']): boolean {
 	return a?.text === b?.text
-		&& a?.truncated === b?.truncated;
+		&& a?.truncated === b?.truncated
+		&& a?.fullOutputPreview === b?.fullOutputPreview;
 }
 
 function stripLegacyTerminalExitMarkers(text: string): string {

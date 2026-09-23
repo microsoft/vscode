@@ -741,6 +741,8 @@ export interface IChatTerminalToolInvocationData {
 		text: string;
 		truncated?: boolean;
 		lineCount?: number;
+		/** Preview to show after retained full output availability is confirmed. */
+		fullOutputPreview?: string;
 	};
 	/** Stored theme colors at execution time to style detached output */
 	terminalTheme?: {

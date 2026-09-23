@@ -307,7 +307,7 @@ suite('ChatModel', () => {
 				language: 'shellscript',
 				commandLine: { original: 'build' },
 				terminalCommandUri: terminal,
-				terminalCommandOutput: { text: 'preview', truncated: true },
+				terminalCommandOutput: { text: 'Saved to: /artifact/output.txt', truncated: true, fullOutputPreview: 'preview' },
 			},
 		});
 		const serialized: ISerializableChatData3 = JSON.parse(JSON.stringify(model.toJSON()));
@@ -322,10 +322,12 @@ suite('ChatModel', () => {
 		assert.deepStrictEqual({
 			text: output?.text,
 			truncated: output?.truncated,
+			fullOutputPreview: output?.fullOutputPreview,
 			terminal: URI.revive(invocation.toolSpecificData.terminalCommandUri)?.toString(),
 		}, {
-			text: 'preview',
+			text: 'Saved to: /artifact/output.txt',
 			truncated: true,
+			fullOutputPreview: 'preview',
 			terminal: terminal.toString(),
 		});
 	});
