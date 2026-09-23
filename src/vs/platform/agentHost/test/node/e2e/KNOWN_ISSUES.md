@@ -562,21 +562,6 @@ A client can request arbitrary file bytes from the Agent Host in base64 so binar
     --grep "chat action is broadcast|unsubscribed client|terminal output is streamed|root session summaries"
   ```
 
-### Discard changes fails for an untracked file
-
-- Test: `discarding an untracked file removes it from disk`.
-- Scope: conformance reference provider, uncommitted changeset with one untracked file.
-- Expected: the advertised resource-scoped `discard-changes` operation removes the untracked file and returns to idle.
-- Observed: the operation fails because `git restore` reports that the untracked path does not match a file known to Git.
-- Gate: the affected `conformanceTest` is disabled at its declaration in `changesetSuite.ts`.
-- Reproduce:
-
-  ```bash
-  ./scripts/test-integration.sh --run \
-    src/vs/platform/agentHost/test/node/e2e/conformance/agentHostConformance.integrationTest.ts \
-    --grep "discarding an untracked file"
-  ```
-
 ### Checkpoint-backed per-turn changesets omit host-local filesystem edits
 
 - Tests:
