@@ -133,10 +133,14 @@ suite('Sessions - Editor Contribution', () => {
 		assert.strictEqual(css.includes('--modern-ui-editor-tab-active-background: #123456;'), true);
 	});
 
-	test('retains the containing HC frame while details are docked beside the connected editor well', () => {
+	test('uses one HC group frame with or without docked details', () => {
 		const workbench = appendElement(mainWindow.document.body, 'monaco-workbench modern-ui-tabs modern-ui-connected-editor-tabs agent-sessions-workbench dock-detail-panel');
 		workbench.style.setProperty('--vscode-agentsPanel-border', '#888888');
+		workbench.style.setProperty('--vscode-strokeThickness', '1px');
+		workbench.style.setProperty('--vscode-focusBorder', '#00ff00');
+		workbench.style.setProperty('--vscode-contrastBorder', '#888888');
 		const editor = appendElement(workbench, 'part editor editor-tabs-multiple');
+		const group = appendElement(appendElement(editor, 'content'), 'editor-group-container active');
 		try {
 			const borders = [];
 			for (const theme of ['vs-dark', 'vs', 'hc-black', 'hc-light']) {
@@ -144,14 +148,14 @@ suite('Sessions - Editor Contribution', () => {
 				workbench.classList.remove('noauxiliarybar');
 				const docked = mainWindow.getComputedStyle(editor).borderTopColor;
 				workbench.classList.add('noauxiliarybar');
-				borders.push({ theme, docked, editorOnly: mainWindow.getComputedStyle(editor).borderTopColor });
+				borders.push({ theme, docked, editorOnly: mainWindow.getComputedStyle(editor).borderTopColor, groupFrame: mainWindow.getComputedStyle(group, '::after').borderLeftWidth });
 				workbench.classList.remove(theme);
 			}
 			assert.deepStrictEqual(borders, [
-				{ theme: 'vs-dark', docked: 'rgb(136, 136, 136)', editorOnly: 'rgb(136, 136, 136)' },
-				{ theme: 'vs', docked: 'rgb(136, 136, 136)', editorOnly: 'rgb(136, 136, 136)' },
-				{ theme: 'hc-black', docked: 'rgb(136, 136, 136)', editorOnly: 'rgba(0, 0, 0, 0)' },
-				{ theme: 'hc-light', docked: 'rgb(136, 136, 136)', editorOnly: 'rgba(0, 0, 0, 0)' },
+				{ theme: 'vs-dark', docked: 'rgb(136, 136, 136)', editorOnly: 'rgb(136, 136, 136)', groupFrame: '0px' },
+				{ theme: 'vs', docked: 'rgb(136, 136, 136)', editorOnly: 'rgb(136, 136, 136)', groupFrame: '0px' },
+				{ theme: 'hc-black', docked: 'rgba(0, 0, 0, 0)', editorOnly: 'rgba(0, 0, 0, 0)', groupFrame: '1px' },
+				{ theme: 'hc-light', docked: 'rgba(0, 0, 0, 0)', editorOnly: 'rgba(0, 0, 0, 0)', groupFrame: '1px' },
 			]);
 		} finally {
 			workbench.remove();

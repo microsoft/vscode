@@ -35,7 +35,7 @@ import { INotificationService } from '../../../../platform/notification/common/n
 import { MergeGroupMode, IMergeGroupOptions } from '../../../services/editor/common/editorGroupsService.js';
 import { addDisposableListener, EventType, EventHelper, Dimension, scheduleAtNextAnimationFrame, findParentWithClass, clearNode, DragAndDropObserver, isMouseEvent, getWindow, ModifierKeyEmitter, $, isHTMLElement } from '../../../../base/browser/dom.js';
 import { localize } from '../../../../nls.js';
-import { IEditorGroupMenuIds, IEditorGroupsView, EditorServiceImpl, IEditorGroupView, IInternalEditorOpenOptions, IEditorPartsView, prepareMoveCopyEditors } from './editor.js';
+import { CONNECTED_EDITOR_TABS_SELECTOR, IEditorGroupMenuIds, IEditorGroupsView, EditorServiceImpl, IEditorGroupView, IInternalEditorOpenOptions, IEditorPartsView, prepareMoveCopyEditors } from './editor.js';
 import { CloseEditorTabAction, CloseOtherEditorTabsInGroupAction, UnpinEditorAction } from './editorActions.js';
 import { assertReturnsAllDefined, assertReturnsDefined } from '../../../../base/common/types.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
@@ -854,7 +854,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 	}
 
 	private invalidateConnectedTabLayout(): void {
-		if (this.connectedTabBounds || this.parent.closest('.modern-ui-tabs.modern-ui-connected-editor-tabs')) {
+		if (this.connectedTabBounds || this.parent.closest(CONNECTED_EDITOR_TABS_SELECTOR)) {
 			this.clearConnectedTabClipping();
 			this.layout(this.dimensions);
 		}
@@ -1829,7 +1829,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		// Label
 		const resource = EditorResourceAccessor.getOriginalUri(editor, { supportSideBySide: SideBySideEditor.PRIMARY });
 		let suffix: string | undefined;
-		if (name && resource && name === basename(resource) && this.parent.closest('.modern-ui-tabs.modern-ui-connected-editor-tabs') && !(options.pinnedTabSizing === 'compact' && this.tabsModel.isSticky(tabIndex))) {
+		if (name && resource && name === basename(resource) && this.parent.closest(CONNECTED_EDITOR_TABS_SELECTOR) && !(options.pinnedTabSizing === 'compact' && this.tabsModel.isSticky(tabIndex))) {
 			const extension = extname(resource);
 			if (extension.length > 1) {
 				suffix = extension;
@@ -2066,7 +2066,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 	}
 
 	private doLayoutTabs(dimensions: IEditorTitleControlDimensions, options?: IMultiEditorTabsControlLayoutOptions): void {
-		const connected = Boolean(this.parent.closest('.modern-ui-tabs.modern-ui-connected-editor-tabs'));
+		const connected = Boolean(this.parent.closest(CONNECTED_EDITOR_TABS_SELECTOR));
 		this.parent.classList.toggle('connected-tabs-labels', connected);
 		if (connected !== this.connectedTabLabels) {
 			this.connectedTabLabels = connected;
@@ -2080,10 +2080,13 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		// if wrapping is enabled in settings, there are cases where
 		// wrapping is disabled (e.g. due to space constraints)
 		const tabsWrapMultiLine = this.doLayoutTabsWrapping(dimensions);
+		const top = this.getTabAtIndex(0)?.offsetTop;
 		const bottom = this.getLastTab()?.offsetTop;
-		const upperTabBar = this.parent.classList.contains('two-tab-bars') && this.parent.firstElementChild === this.tabsAndActionsContainer;
+		const topTabBar = this.parent.firstElementChild === this.tabsAndActionsContainer;
+		const upperTabBar = this.parent.classList.contains('two-tab-bars') && topTabBar;
 		this.forEachTab((_editor, _index, tab) => {
 			tab.classList.toggle('connected-tab-upper-row', connected && (upperTabBar || tab.offsetTop !== bottom));
+			tab.classList.toggle('connected-tab-top-row', connected && topTabBar && tab.offsetTop === top);
 		});
 		if (!tabsWrapMultiLine) {
 			this.doLayoutTabsNonWrapping(options);
@@ -2359,14 +2362,13 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		this.clearConnectedTabClipping();
 		const activeTabFill = activeTab?.firstElementChild;
 		const overflowEdge = this.connectedTabOverflowEdge;
-		if (activeTab && !activeTab.classList.contains('connected-tab-upper-row') && isHTMLElement(activeTabFill) && overflowEdge && !activeTabPositionStatic && this.parent.closest('.modern-ui-tabs.modern-ui-connected-editor-tabs')) {
+		if (activeTab && !activeTab.classList.contains('connected-tab-upper-row') && isHTMLElement(activeTabFill) && overflowEdge && !activeTabPositionStatic && this.parent.closest(CONNECTED_EDITOR_TABS_SELECTOR)) {
 			// DOM bounds reflect native scroll clamping before the custom scrollbar dimensions update.
 			const scrollLeft = tabsContainer.scrollLeft;
 			const tabsBounds = tabsContainer.getBoundingClientRect();
 			const fillBounds = activeTabFill.getBoundingClientRect();
 			const scrollableBounds = tabsScrollbar.getDomNode().getBoundingClientRect();
 			const targetWindow = getWindow(activeTabFill);
-			const fillStyle = targetWindow.getComputedStyle(activeTabFill);
 			const fillLeft = fillBounds.left - tabsBounds.left + scrollLeft;
 			const viewportRight = visibleTabsWidth - (this.addTabContainer?.offsetWidth ?? 0);
 			overflowEdge.style.top = `${fillBounds.top - scrollableBounds.top}px`;
@@ -2380,7 +2382,6 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 				fillRight: fillBounds.right - tabsBounds.left + scrollLeft,
 				viewportLeft: stickyTabsWidth,
 				viewportRight,
-				clippingEdgeExtent: Number.parseFloat(fillStyle.borderTopLeftRadius),
 				shoulderExtent: Number.parseFloat(targetWindow.getComputedStyle(activeTabFill, '::after').width),
 			};
 		}

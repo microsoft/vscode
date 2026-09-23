@@ -45,7 +45,7 @@ import { IDiffComputeService } from '../../common/diffComputeService.js';
 import { ISessionDataService, type ISessionDatabase } from '../../common/sessionDataService.js';
 import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { ActionType, isChatAction, type ChatDeltaAction, type ChatErrorAction, type ChatInputRequestedAction, type ChatResponsePartAction, type ChatToolCallCompleteAction, type ChatToolCallDeltaAction, type ChatToolCallReadyAction, type ChatToolCallStartAction, type ChatTurnCompleteAction, type ChatUsageAction, type SessionAction, type StateAction } from '../../common/state/sessionActions.js';
-import { MessageAttachmentKind, MessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ToolCallConfirmationReason, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, buildChatUri, buildDefaultChatUri, createChatState, createSessionState, getInlineToolInput, mergeSessionWithDefaultChat, readSessionPromptCacheState, readUsageInfoMeta, SessionStatus, withSessionPromptCacheState, type ToolResultContent, type ToolResultFileEditContent, type ToolResultTerminalContent, type UsageInfoMeta } from '../../common/state/sessionState.js';
+import { MessageAttachmentKind, MessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ToolCallConfirmationReason, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, buildChatUri, buildDefaultChatUri, createChatState, createSessionState, getInlineToolInput, mergeSessionWithDefaultChat, readSessionPromptCacheState, readUsageInfoMeta, SessionStatus, withSessionPromptCacheState, type ToolResultContent, type ToolResultFileEditContent, type ToolResultTerminalContent, type Turn, type UsageInfoMeta } from '../../common/state/sessionState.js';
 import { chatReducer, sessionReducer } from '../../common/state/sessionReducers.js';
 import { TerminalClaimKind } from '../../common/state/protocol/state.js';
 import { toHostSnapshotAttachmentMeta } from '../../common/meta/agentSnapshotAttachmentMeta.js';
@@ -109,6 +109,8 @@ const noOpWorkingDirectoryChangeTransaction: ICopilotWorkingDirectoryChangeTrans
  */
 class MockCopilotSession {
 	readonly sessionId = 'test-session-1';
+	readonly eventLogReadRequests: Parameters<CopilotSession['rpc']['eventLog']['read']>[0][] = [];
+	eventLogReadGate: Promise<void> | undefined;
 	readonly sendRequests: unknown[] = [];
 	readonly sendMessagesRequests: unknown[] = [];
 	sendMessagesError: Error | undefined;
@@ -337,7 +339,6 @@ class MockCopilotSession {
 		this.setModelCalls.push(args);
 		await this.modelGate;
 	}
-	async getEvents(): Promise<SessionEvent[]> { return this.messages; }
 	async disconnect() {
 		this.disconnectCalls++;
 		this.disconnectHook?.();
@@ -402,6 +403,18 @@ class MockCopilotSession {
 			},
 		},
 		eventLog: {
+			read: async (params: Parameters<CopilotSession['rpc']['eventLog']['read']>[0]): Promise<Awaited<ReturnType<CopilotSession['rpc']['eventLog']['read']>>> => {
+				this.eventLogReadRequests.push(params);
+				await this.eventLogReadGate;
+				const messages = params.agentScope === 'primary' ? this.messages.filter(event => {
+					const parentToolCallId = event.type === 'assistant.message' || event.type === 'tool.execution_start' || event.type === 'tool.execution_complete'
+						? event.data.parentToolCallId : undefined;
+					return event.type.startsWith('subagent.') || (!event.agentId && parentToolCallId === undefined);
+				}) : this.messages;
+				const end = params.cursor === undefined ? messages.length : Number(params.cursor);
+				const start = Math.max(0, end - (params.max ?? 200));
+				return { events: messages.slice(start, end), cursor: String(start), hasMore: start > 0, cursorStatus: 'ok' };
+			},
 			registerInterest: async ({ eventType }: { eventType: string }) => {
 				this.registeredEventInterests.push(eventType);
 				await this.registerEventInterestGate;
@@ -2469,32 +2482,170 @@ suite('CopilotAgentSession', () => {
 		}]);
 	});
 
-	test('memoizes the event reconstruction across getMessages/getSubagentMessages and invalidates on log changes', async () => {
+	test('memoizes primary and child history separately and invalidates both on log changes', async () => {
 		const { session, mockSession } = await createAgentSession(disposables);
-		let getEventsCalls = 0;
-		mockSession.getEvents = async () => { getEventsCalls++; return mockSession.messages; };
 
-		// A single resume wave reads + reconstructs the event log once, shared
-		// by the parent turns and every subagent lookup.
 		await session.getMessages();
 		await session.getSubagentMessages('tc-x');
+		await session.getSubagentMessages('tc-y');
 		await session.getMessages();
-		assert.strictEqual(getEventsCalls, 1, 'event log should be read once for the whole resume wave');
+		const firstWave = mockSession.eventLogReadRequests.map(request => request.agentScope);
 
-		// A log-mutating event drops the memo so a later read rebuilds from
-		// fresh events instead of serving stale turns.
 		mockSession.fire('assistant.turn_end', { turnId: 'sdk-0' } as SessionEventPayload<'assistant.turn_end'>['data']);
 		await session.getMessages();
-		assert.strictEqual(getEventsCalls, 2, 'memo should be invalidated after the event log changes');
 
 		session.resetTurnState('turn-error');
 		mockSession.fire('session.error', {
 			errorType: 'TestError',
 			message: 'something went wrong',
 		} as SessionEventPayload<'session.error'>['data']);
+		await session.getSubagentMessages('tc-x');
 		await session.getMessages();
-		assert.strictEqual(getEventsCalls, 3, 'memo should be invalidated after a session error');
+		assert.deepStrictEqual({
+			firstWave,
+			allReads: mockSession.eventLogReadRequests.map(request => request.agentScope),
+		}, {
+			firstWave: ['primary', 'all'],
+			allReads: ['primary', 'all', 'primary', 'all', 'primary'],
+		});
 	});
+
+	test('reconstructs paged history in order without changing SDK message payloads', async () => {
+		const { session, mockSession } = await createAgentSession(disposables);
+		const events = toSessionEvents([
+			{ type: 'user.message', id: 'request', data: { content: 'Question' } },
+			{ type: 'assistant.message', data: { messageId: 'first', content: 'First', reasoningText: 'Thinking', encryptedContent: 'encrypted', reasoningOpaque: 'opaque' } },
+			{ type: 'assistant.message', data: { messageId: 'last', content: 'Last' } },
+		]);
+		events.forEach(event => Object.freeze(event.data));
+		const pages = [[events[2]], [], events.slice(0, 2)];
+		mockSession.rpc.eventLog.read = async params => {
+			mockSession.eventLogReadRequests.push(params);
+			const page = pages.shift();
+			assert.ok(page, 'unexpected extra history read');
+			return { events: page, cursor: String(pages.length), hasMore: pages.length > 0, cursorStatus: 'ok' };
+		};
+		const turns = await session.getMessages();
+		assert.deepStrictEqual({
+			requests: mockSession.eventLogReadRequests,
+			turns: turns.map(turn => ({ id: turn.id, text: turn.message.text, parts: turn.responseParts.map(part => part.kind === ResponsePartKind.Markdown || part.kind === ResponsePartKind.Reasoning ? part.content : part.kind) })),
+			opaque: events[1].type === 'assistant.message' ? events[1].data.reasoningOpaque : undefined,
+		}, {
+			requests: [undefined, '2', '1'].map(cursor => ({ cursor, max: 1000, direction: 'backward', agentScope: 'primary', includeEphemeral: false })),
+			turns: [{ id: 'request', text: 'Question', parts: ['Thinking', 'First', 'Last'] }],
+			opaque: 'opaque',
+		});
+	});
+
+	for (const failure of ['expired', 'repeated', 'cyclic', 'empty', 'rpc'] as const) {
+		test(`rejects ${failure} history pages and allows a fresh read`, async () => {
+			const { session, mockSession } = await createAgentSession(disposables);
+			const readPage = mockSession.rpc.eventLog.read;
+			let reads = 0;
+			mockSession.rpc.eventLog.read = async () => {
+				assert.ok(++reads <= 3, 'reader did not stop on an invalid cursor');
+				if (failure === 'rpc') {
+					throw new Error('history read failed');
+				}
+				return {
+					events: [], hasMore: true, cursorStatus: failure === 'expired' ? 'expired' : 'ok',
+					cursor: failure === 'empty' ? '' : failure === 'cyclic' ? String(reads % 2) : 'same',
+				};
+			};
+			await assert.rejects(session.getMessages(), /history/);
+			mockSession.rpc.eventLog.read = readPage;
+			assert.deepStrictEqual(await session.getMessages(), []);
+		});
+	}
+
+	test('restores and sends in the parent without waiting for child history', async () => {
+		const { session, mockSession } = await createAgentSession(disposables);
+		mockSession.messages = toSessionEvents([
+			{ type: 'user.message', id: 'root-request', data: { content: 'Delegate work' } },
+			{ type: 'tool.execution_start', data: { toolCallId: 'task', toolName: 'task', arguments: { description: 'Explore', agent_type: 'explore' } } },
+			{ type: 'subagent.started', agentId: 'child', data: { toolCallId: 'task', agentName: 'explore', agentDisplayName: 'Explorer', agentDescription: 'Explore' } },
+			{ type: 'user.message', agentId: 'child', data: { content: 'Explore the code' } },
+			{ type: 'assistant.message', agentId: 'child', data: { messageId: 'child-first', content: 'First child result' } },
+			{ type: 'tool.execution_complete', data: { toolCallId: 'task', success: true } },
+			{ type: 'assistant.message', agentId: 'child', data: { messageId: 'child-followup', content: 'Child follow-up' } },
+			{ type: 'tool.execution_start', agentId: 'child', data: { toolCallId: 'nested-task', toolName: 'task', arguments: { description: 'Nested work' } } },
+			{ type: 'subagent.started', agentId: 'nested', data: { toolCallId: 'nested-task', agentName: 'explore', agentDisplayName: 'Nested explorer', agentDescription: 'Nested work' } },
+			{ type: 'assistant.message', agentId: 'nested', data: { messageId: 'nested-result', content: 'Nested result' } },
+			{ type: 'assistant.message', data: { messageId: 'legacy-result', content: 'Legacy result', parentToolCallId: 'legacy-task' } },
+			{ type: 'assistant.message', data: { messageId: 'parent-result', content: 'Parent result' } },
+		]);
+		const parent = await session.getMessages();
+		const gate = new DeferredPromise<void>();
+		mockSession.eventLogReadGate = gate.p;
+		try {
+			const child = session.getSubagentMessages('task');
+			await session.send('Continue the parent');
+			gate.complete();
+			const [childTurns, nestedTurns, legacyTurns] = await Promise.all([
+				child,
+				session.getSubagentMessages('nested-task'),
+				session.getSubagentMessages('legacy-task'),
+			]);
+			const markdown = (turns: readonly Turn[]) => turns.flatMap(turn => turn.responseParts)
+				.flatMap(part => part.kind === ResponsePartKind.Markdown ? [part.content] : []);
+			assert.deepStrictEqual({
+				scopes: mockSession.eventLogReadRequests.map(request => request.agentScope),
+				sends: mockSession.sendRequests,
+				parent: markdown(parent),
+				child: markdown(childTurns),
+				childTurnCount: childTurns.length,
+				nested: markdown(nestedTurns),
+				legacy: markdown(legacyTurns),
+			}, {
+				scopes: ['primary', 'all'],
+				sends: [{ prompt: 'Continue the parent', attachments: undefined }],
+				parent: ['Parent result'],
+				child: ['First child result', 'Child follow-up'],
+				childTurnCount: 2,
+				nested: ['Nested result'],
+				legacy: ['Legacy result'],
+			});
+		} finally {
+			gate.complete();
+		}
+	});
+
+	test('times out stalled history pages and retries the reconstruction', async () => {
+		const { session, mockSession } = await createAgentSession(disposables, { controlPlaneRpcTimeoutMs: 1 });
+		await session.getMessages();
+		const gate = new DeferredPromise<void>();
+		mockSession.eventLogReadGate = gate.p;
+		try {
+			await assert.rejects(session.getSubagentMessages('task'), /rpc\.eventLog\.read timed out after 1ms/);
+			mockSession.eventLogReadGate = undefined;
+			await session.getMessages();
+			assert.deepStrictEqual(await session.getSubagentMessages('task'), []);
+			assert.deepStrictEqual(mockSession.eventLogReadRequests.map(request => request.agentScope), ['primary', 'all', 'all']);
+		} finally {
+			gate.complete();
+		}
+	});
+
+	for (const duringRead of [false, true]) {
+		test(`invalidates both history caches on disposal (duringRead=${duringRead})`, async () => {
+			const { session, mockSession } = await createAgentSession(disposables);
+			await session.getSubagentMessages('task');
+			if (duringRead) {
+				const readPage = mockSession.rpc.eventLog.read;
+				mockSession.rpc.eventLog.read = async params => {
+					const page = await readPage(params);
+					session.dispose();
+					return page;
+				};
+			} else {
+				await session.getMessages();
+				session.dispose();
+			}
+			await assert.rejects(session.getMessages(), isCancellationError);
+			await assert.rejects(session.getSubagentMessages('task'), isCancellationError);
+			assert.strictEqual(mockSession.eventLogReadRequests.length, 2);
+		});
+	}
 
 	test('describes an interrupted restored request without exposing Agent Host terminology', async () => {
 		const { session } = await createAgentSession(disposables, {
@@ -2521,17 +2672,11 @@ suite('CopilotAgentSession', () => {
 	});
 
 	test('shares the resume warm-up reconstruction with the first history read', async () => {
-		let getEventsCalls = 0;
-		const { session } = await createAgentSession(disposables, {
-			resume: true,
-			configureMockSession: mock => {
-				mock.getEvents = async () => { getEventsCalls++; return mock.messages; };
-			},
-		});
+		const { session, mockSession } = await createAgentSession(disposables, { resume: true });
 		await session.getMessages();
-		await session.getSubagentMessages('tc-x');
+		await session.getMessages();
 
-		assert.strictEqual(getEventsCalls, 1);
+		assert.deepStrictEqual(mockSession.eventLogReadRequests.map(request => request.agentScope), ['primary']);
 	});
 
 	test('falls back to file reference when reading a symbol Resource attachment fails', async () => {
@@ -11935,7 +12080,7 @@ Use the attached image as context.
 
 		test('history replay renders assistant tool requests when lifecycle events are missing', async () => {
 			const { session, mockSession } = await createAgentSession(disposables);
-			mockSession.getEvents = async () => [
+			mockSession.messages = [
 				{
 					type: 'user.message',
 					data: { messageId: 'turn-1', content: 'inspect the workspace' },
@@ -12020,7 +12165,7 @@ Use the attached image as context.
 
 		test('history replay does not duplicate assistant tool requests with lifecycle events', async () => {
 			const { session, mockSession } = await createAgentSession(disposables);
-			mockSession.getEvents = async () => [
+			mockSession.messages = [
 				{
 					type: 'user.message',
 					data: { messageId: 'turn-1', content: 'run tests' },
@@ -12498,7 +12643,7 @@ Use the attached image as context.
 			// the restored turn id to be the SDK envelope id so that
 			// lookup succeeds without translation.
 			const { session, mockSession } = await createAgentSession(disposables);
-			mockSession.getEvents = async () => [
+			mockSession.messages = [
 				{
 					type: 'user.message',
 					id: 'sdk-evt-user-1',

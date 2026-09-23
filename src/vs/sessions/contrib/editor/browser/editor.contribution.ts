@@ -37,7 +37,7 @@ import { resolveCommandsContext } from '../../../../workbench/browser/parts/edit
 import { MultiDiffEditorInput } from '../../../../workbench/contrib/multiDiffEditor/browser/multiDiffEditorInput.js';
 import { CHANGES_VIEW_ID } from '../../changes/common/changes.js';
 import { ChangesViewPane } from '../../changes/browser/changesView.js';
-import { prepareMoveCopyEditors } from '../../../../workbench/browser/parts/editor/editor.js';
+import { CONNECTED_EDITOR_TABS_CLASS, prepareMoveCopyEditors } from '../../../../workbench/browser/parts/editor/editor.js';
 import { IWorkbenchLayoutService, LayoutSettings, ModernUIEditorTabStyle, Parts } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { IAuxiliaryWindowService } from '../../../../workbench/services/auxiliaryWindow/browser/auxiliaryWindowService.js';
 import { MOVE_MODAL_EDITOR_TO_MAIN_COMMAND_ID } from '../../../../workbench/browser/parts/editor/editorCommands.js';
@@ -80,12 +80,12 @@ export class SessionsTabStyleContribution extends Disposable implements IWorkben
 	}
 
 	private applyTo(container: HTMLElement): void {
-		container.classList.toggle('modern-ui-connected-editor-tabs', this.configurationService.getValue<ModernUIEditorTabStyle>(LayoutSettings.MODERN_UI_EDITOR_TAB_STYLE) === ModernUIEditorTabStyle.Connected);
+		container.classList.toggle(CONNECTED_EDITOR_TABS_CLASS, this.configurationService.getValue<ModernUIEditorTabStyle>(LayoutSettings.MODERN_UI_EDITOR_TAB_STYLE) === ModernUIEditorTabStyle.Connected);
 	}
 
 	override dispose(): void {
 		for (const container of this.layoutService.containers) {
-			container.classList.remove('modern-ui-connected-editor-tabs');
+			container.classList.remove(CONNECTED_EDITOR_TABS_CLASS);
 		}
 		super.dispose();
 	}

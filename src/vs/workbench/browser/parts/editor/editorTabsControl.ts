@@ -23,7 +23,7 @@ import { IQuickInputService } from '../../../../platform/quickinput/common/quick
 import { IThemeService, Themable } from '../../../../platform/theme/common/themeService.js';
 import { DraggedEditorGroupIdentifier, DraggedEditorIdentifier, fillEditorsDragData, isWindowDraggedOver } from '../../dnd.js';
 import { EditorPane } from './editorPane.js';
-import { IEditorGroupMenuIds, IEditorGroupsView, IEditorGroupView, IEditorPartsView, IInternalEditorOpenOptions } from './editor.js';
+import { CONNECTED_EDITOR_TABS_SELECTOR, IEditorGroupMenuIds, IEditorGroupsView, IEditorGroupView, IEditorPartsView, IInternalEditorOpenOptions } from './editor.js';
 import { IEditorCommandsContext, EditorResourceAccessor, IEditorPartOptions, SideBySideEditor, EditorsOrder, EditorInputCapabilities, IToolbarActions, GroupIdentifier, Verbosity } from '../../../common/editor.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
 import { ResourceContextKey, ActiveEditorPinnedContext, ActiveEditorStickyContext, ActiveEditorDirtyContext, ActiveEditorGroupLockedContext, ActiveEditorCanSplitInGroupContext, SideBySideEditorActiveContext, ActiveEditorFirstInGroupContext, ActiveEditorAvailableEditorIdsContext, applyAvailableEditorIds, ActiveEditorLastInGroupContext, ActiveEditorCannotCloseContext } from '../../../common/contextkeys.js';
@@ -631,7 +631,7 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 		if (usesModernMultiTabHeight || this.useModernUITabs) {
 			const height = isCompact ? EditorTabsControl.EDITOR_TAB_HEIGHT.modernUICompact : EditorTabsControl.EDITOR_TAB_HEIGHT.modernUI;
 			// Connected tabs reserve one extra pixel for the separator below the gutter.
-			return height + (usesModernMultiTabHeight && this.parent.closest('.modern-ui-tabs.modern-ui-connected-editor-tabs') ? 1 : 0);
+			return height + (usesModernMultiTabHeight && this.parent.closest(CONNECTED_EDITOR_TABS_SELECTOR) ? 1 : 0);
 		}
 		return isCompact ? EditorTabsControl.EDITOR_TAB_HEIGHT.compact : EditorTabsControl.EDITOR_TAB_HEIGHT.normal;
 	}

@@ -60,16 +60,18 @@ suite('Edit Telemetry', () => {
 		};
 
 		aiEditTelemetryService.createSuggestionId({ ...baseData, isAgentHostSession: true });
-		aiEditTelemetryService.handleCodeAccepted({ ...baseData, acceptanceMethod: 'accept', isAgentHostSession: true });
+		aiEditTelemetryService.handleCodeAccepted({ ...baseData, acceptanceMethod: 'copyButton', presentation: 'codeBlock', feature: 'sideBarChat', isAgentHostSession: true, sourceRequestId: 'request-origin', chatSessionId: 'agent-host-copilotcli:/session#chat' });
 		aiEditTelemetryService.handleCodeRejected({ ...baseData, rejectionMethod: 'reject', isAgentHostSession: false });
 
 		assert.deepStrictEqual(sentTelemetry.map(event => ({
 			eventName: event.eventName,
 			isAgentHostSession: event.data?.isAgentHostSession,
+			sourceRequestId: event.data?.sourceRequestId,
+			chatSessionId: event.data?.chatSessionId,
 		})), [
-			{ eventName: 'editTelemetry.codeSuggested', isAgentHostSession: true },
-			{ eventName: 'editTelemetry.codeAccepted', isAgentHostSession: true },
-			{ eventName: 'editTelemetry.codeRejected', isAgentHostSession: false },
+			{ eventName: 'editTelemetry.codeSuggested', isAgentHostSession: true, sourceRequestId: undefined, chatSessionId: undefined },
+			{ eventName: 'editTelemetry.codeAccepted', isAgentHostSession: true, sourceRequestId: 'request-origin', chatSessionId: 'agent-host-copilotcli:/session#chat' },
+			{ eventName: 'editTelemetry.codeRejected', isAgentHostSession: false, sourceRequestId: undefined, chatSessionId: undefined },
 		]);
 	});
 

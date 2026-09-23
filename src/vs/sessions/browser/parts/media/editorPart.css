@@ -39,11 +39,6 @@
 	inset-inline: 0;
 }
 
-/* The docked details sit outside the editor well, so their containing card still needs its HC frame. */
-.agent-sessions-workbench.modern-ui-connected-editor-tabs.dock-detail-panel:not(.noauxiliarybar):is(.hc-black, .hc-light) .part.editor.editor-tabs-multiple:not(.modal-editor-part) {
-	border-color: var(--vscode-agentsPanel-border);
-}
-
 .agent-sessions-workbench.dock-detail-panel .part.editor .browser-root > .browser-navbar {
 	box-sizing: border-box;
 	height: var(--vscode-spacing-size320);

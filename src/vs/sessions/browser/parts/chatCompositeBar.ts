@@ -42,6 +42,7 @@ import { getSessionConversationStatusAriaLabel } from '../sessionConversationGro
 import { IEditorGroupsService } from '../../../workbench/services/editor/common/editorGroupsService.js';
 import { IKeybindingService } from '../../../platform/keybinding/common/keybinding.js';
 import { clearConnectedTabClipping, updateConnectedTabClipping } from '../../../workbench/browser/parts/editor/connectedTabClipping.js';
+import { CONNECTED_EDITOR_TABS_SELECTOR } from '../../../workbench/browser/parts/editor/editor.js';
 
 interface IChatTab {
 	readonly chat: IChat;
@@ -305,7 +306,7 @@ export class ChatCompositeBar extends Disposable {
 	private _updateConnectedTabClipping(): void {
 		clearConnectedTabClipping(this._connectedTab?.element, this._connectedTabOverflowEdge);
 		this._connectedTab = undefined;
-		if (!this._container.closest('.modern-ui-tabs.modern-ui-connected-editor-tabs')) {
+		if (!this._container.closest(CONNECTED_EDITOR_TABS_SELECTOR)) {
 			return;
 		}
 		const activeTab = this._tabs.find(tab => tab.element.classList.contains('active'));
@@ -329,7 +330,6 @@ export class ChatCompositeBar extends Disposable {
 			fillRight: fillBounds.right - tabsBounds.left + scrollLeft,
 			viewportLeft: 0,
 			viewportRight: this._tabsContainer.clientWidth,
-			clippingEdgeExtent: parseFloat(targetWindow.getComputedStyle(activeTab.fill).borderTopLeftRadius),
 			shoulderExtent: parseFloat(targetWindow.getComputedStyle(activeTab.fill, '::after').width),
 		}, scrollLeft);
 	}

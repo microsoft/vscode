@@ -10,7 +10,6 @@ export interface IConnectedTabBounds {
 	readonly fillRight: number;
 	readonly viewportLeft: number;
 	readonly viewportRight: number;
-	readonly clippingEdgeExtent: number;
 	readonly shoulderExtent: number;
 }
 
@@ -26,7 +25,7 @@ export function clearConnectedTabClipping(tab: HTMLElement | undefined, overflow
 }
 
 export function updateConnectedTabClipping(bounds: IConnectedTabBounds, scrollLeft: number): void {
-	const { tab, overflowEdge, fillLeft, fillRight, viewportLeft, viewportRight, clippingEdgeExtent, shoulderExtent } = bounds;
+	const { tab, overflowEdge, fillLeft, fillRight, viewportLeft, viewportRight, shoulderExtent } = bounds;
 	const visibleLeft = scrollLeft + viewportLeft;
 	const visibleRight = scrollLeft + viewportRight;
 	const visibleFillLeft = Math.max(fillLeft, visibleLeft);
@@ -35,7 +34,7 @@ export function updateConnectedTabClipping(bounds: IConnectedTabBounds, scrollLe
 	const rightClipped = fillRight > visibleRight;
 	const leftEdge = fillLeft - shoulderExtent < visibleLeft;
 	const rightEdge = fillRight + shoulderExtent > visibleRight;
-	const hidden = visibleFillLeft + clippingEdgeExtent >= visibleFillRight;
+	const hidden = visibleFillLeft + shoulderExtent >= visibleFillRight;
 	tab.classList.toggle('connected-tab-left-edge', leftEdge);
 	tab.classList.toggle('connected-tab-right-edge', rightEdge);
 	tab.classList.toggle('connected-tab-left-clipped', leftClipped);

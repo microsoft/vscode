@@ -216,7 +216,6 @@ export interface IAddWorktreeOptions {
 	readonly commitish: string;
 	readonly newBranchName?: string;
 	readonly track: boolean;
-	readonly preferRemoteBranch?: boolean;
 	readonly onProgress?: (progress: IWorktreeFileProgress) => void;
 }
 
