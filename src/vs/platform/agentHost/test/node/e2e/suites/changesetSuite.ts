@@ -279,10 +279,8 @@ export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 
 	async function changesetState(channel: string): Promise<IObservedChangesetState> {
 		const isPending = (status: string) => status === 'computing' || status === 'recomputing';
-		const result = await context.client.call<SubscribeResult>('subscribe', { channel });
-		const snapshot = result.snapshot!;
-		let state = snapshot.state as IObservedChangesetState;
-		if (isPending(state.status)) {
+		let snapshot = (await context.client.call<SubscribeResult>('subscribe', { channel })).snapshot!;
+		while (isPending((snapshot.state as IObservedChangesetState).status)) {
 			await context.client.waitForNotification(n =>
 				isActionNotification(n, 'changeset/statusChanged')
 				&& getActionEnvelope(n).channel === channel
@@ -290,9 +288,9 @@ export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 				&& !isPending((getActionEnvelope(n).action as { readonly status: string }).status),
 				60_000,
 			);
-			state = (await context.client.call<SubscribeResult>('subscribe', { channel })).snapshot!.state as typeof state;
+			snapshot = (await context.client.call<SubscribeResult>('subscribe', { channel })).snapshot!;
 		}
-		return state;
+		return snapshot.state as IObservedChangesetState;
 	}
 
 	// Re-reading git state is slow on a contended CI agent.
