@@ -162,16 +162,28 @@ export function trimFoundationToolInstructions(content: string): string {
 }
 
 /**
- * Replaces the SDK's `last_instructions` ("Your goal is to deliver complete,
- * working solutions … Verify your changes actually work before considering the
- * task done", `<task_completion>`, "be thorough in your work"). Copilot Chat has
- * no closing verification mandate, so only the two operational lines that are
- * not about verification are kept.
+ * Trims the SDK's `last_instructions` of its closing verification and
+ * thoroughness mandates, which Copilot Chat does not have:
+ *  - the "Your goal is to deliver complete, working solutions … Verify your
+ *    changes actually work before considering the task done." paragraph;
+ *  - the `<task_completion>` block, except its dependency-install bullet, which
+ *    is operational rather than about verification and is kept as a plain line;
+ *  - "Respond concisely to the user, but be thorough in your work."
+ * Anything else in the section (today, `<tool_calling>` background-agent
+ * guidance) is left in place. Whole-paragraph/whole-block regexes, so an SDK
+ * rewording leaves the text alone rather than mangling it.
  */
-export const CLAUDE_CHAT_PARITY_LAST_INSTRUCTIONS = [
-	'If you intend to call multiple tools and there are no dependencies between the calls, make all of the independent calls in the same response.',
-	'Install or restore dependencies only after changing dependency manifests or when a validation command fails because packages or tools are missing.',
-].join('\n');
+export function trimFoundationLastInstructions(content: string): string {
+	return content
+		.replace(/\n?Your goal is to deliver complete, working solutions\.[^\n]*Verify your changes actually work before considering the task done\.\n?/, '\n')
+		.replace(/\n?<task_completion>\n([\s\S]*?)<\/task_completion>\n?/, (_match, body: string) => {
+			const kept = body.split('\n').filter(line => /^\* Install or restore dependencies only after/.test(line)).map(line => line.replace(/^\* /, ''));
+			return kept.length > 0 ? `\n${kept.join('\n')}\n` : '\n';
+		})
+		.replace(/\n?Respond concisely to the user, but be thorough in your work\.\s*$/, '')
+		.replace(/\n{3,}/g, '\n\n')
+		.trim();
+}
 
 /**
  * `customize`-mode section overrides that port the Copilot Chat Claude agent
@@ -197,8 +209,10 @@ export const CLAUDE_CHAT_PARITY_LAST_INSTRUCTIONS = [
  *   `<ask_user>` walkthrough (see {@link trimFoundationToolInstructions}); add
  *   Copilot Chat's tool-use rules with SDK tool names. The registry appends the
  *   host's universal tool lines after the transform.
- * - `last_instructions` (replace): drop the closing verification/thoroughness
- *   mandate and `<task_completion>`.
+ * - `last_instructions` (transform): drop the closing verification/thoroughness
+ *   paragraph, `<task_completion>` (keeping its dependency-install bullet) and
+ *   "be thorough" (see {@link trimFoundationLastInstructions}); `<tool_calling>`
+ *   and any future foundation content survive.
  *
  * `tone` is intentionally not touched: the host's `identity` group replacement
  * already removes the foundation tone sub-section, so the communication style
@@ -218,8 +232,7 @@ export function claudeChatParitySectionOverrides(model: ModelSelection): Section
 			action: content => `${trimFoundationToolInstructions(content)}\n${CLAUDE_CHAT_PARITY_TOOL_INSTRUCTIONS}`,
 		},
 		last_instructions: {
-			action: 'replace',
-			content: CLAUDE_CHAT_PARITY_LAST_INSTRUCTIONS,
+			action: trimFoundationLastInstructions,
 		},
 	};
 }

@@ -10,7 +10,7 @@ import type { SchemaValues } from '../../common/agentHostSchema.js';
 import type { ModelSelection } from '../../common/state/protocol/state.js';
 import { AgentHostPromptRegistry, agentHostPromptRegistry, type IAgentHostPromptContext } from '../../node/copilot/prompts/promptRegistry.js';
 import { COPILOT_AGENT_HOST_SYSTEM_MESSAGE } from '../../node/copilot/prompts/systemMessage.js';
-import { CLAUDE_CHAT_PARITY_IMPLEMENTATION_DISCIPLINE, CLAUDE_CHAT_PARITY_LAST_INSTRUCTIONS, CLAUDE_CHAT_PARITY_TOOL_INSTRUCTIONS, dropFoundationBullets, mergeSectionOverrides, trimFoundationToolInstructions } from '../../node/copilot/prompts/anthropicPrompt.js';
+import { CLAUDE_CHAT_PARITY_IMPLEMENTATION_DISCIPLINE, CLAUDE_CHAT_PARITY_TOOL_INSTRUCTIONS, dropFoundationBullets, mergeSectionOverrides, trimFoundationLastInstructions, trimFoundationToolInstructions } from '../../node/copilot/prompts/anthropicPrompt.js';
 import { AGENT_HOST_FILE_LINK_INSTRUCTIONS } from '../../node/shared/fileLinkInstructions.js';
 import { AGENT_HOST_WORKSPACELESS_INSTRUCTIONS } from '../../node/shared/workspacelessInstructions.js';
 import { COPILOT_AGENT_HOST_LARGE_OUTPUT_TOOL_INSTRUCTION, COPILOT_AGENT_HOST_SUBAGENT_TOOL_INSTRUCTIONS } from '../../node/copilot/prompts/toolInstructions.js';
@@ -258,10 +258,39 @@ suite('AgentHostPromptRegistry', () => {
 			assert.deepStrictEqual(resolve('gpt-5.6'), withUniversalAgentHostInstructions(COPILOT_AGENT_HOST_SYSTEM_MESSAGE));
 		});
 
-		test('replaces the closing verification mandate', () => {
-			const sections = sectionsOf('claude-opus-5');
-			assert.deepStrictEqual(sections.last_instructions, { action: 'replace', content: CLAUDE_CHAT_PARITY_LAST_INSTRUCTIONS });
-			assert.doesNotMatch(CLAUDE_CHAT_PARITY_LAST_INSTRUCTIONS, /verif|thorough/i);
+		// The SDK foundation `last_instructions` section, verbatim from a captured
+		// agent-host session (wording owned by the CLI/SDK).
+		const FOUNDATION_LAST_INSTRUCTIONS = [
+			'<tool_calling>',
+			'When you launch a background task agent, treat it as a parallelism opportunity: immediately continue with your own independent tool calls (for example, search, view, edit, and shell tools) rather than polling with read_agent. The background agent runs autonomously — use the time to make progress on other parts of the task.',
+			'</tool_calling>',
+			'Your goal is to deliver complete, working solutions. If your first approach doesn\'t fully solve the problem, iterate with alternative approaches. Don\'t settle for partial fixes. Verify your changes actually work before considering the task done.',
+			'',
+			'<task_completion>',
+			'* A task is not complete until the expected outcome is verified and persistent',
+			'* Install or restore dependencies only after changing dependency manifests or when the chosen validation command fails because packages/tools are missing.',
+			'* After starting a background process, verify it is running and responsive (e.g., test with `curl`, check process status)',
+			'* If an initial approach fails, try alternative tools or methods before concluding the task is impossible',
+			'</task_completion>',
+			'Respond concisely to the user, but be thorough in your work.',
+		].join('\n');
+
+		test('last_instructions drops the verification mandates but keeps tool_calling and the dependency rule', async () => {
+			const result = await runTransform(sectionsOf('claude-opus-5').last_instructions, FOUNDATION_LAST_INSTRUCTIONS);
+			assert.strictEqual(result, [
+				'<tool_calling>',
+				'When you launch a background task agent, treat it as a parallelism opportunity: immediately continue with your own independent tool calls (for example, search, view, edit, and shell tools) rather than polling with read_agent. The background agent runs autonomously — use the time to make progress on other parts of the task.',
+				'</tool_calling>',
+				'',
+				'Install or restore dependencies only after changing dependency manifests or when the chosen validation command fails because packages/tools are missing.',
+			].join('\n'));
+			assert.doesNotMatch(result, /verif|thorough|task_completion|Don't settle|curl|impossible/i);
+		});
+
+		test('last_instructions leaves unrecognised foundation text in place', async () => {
+			const result = await runTransform(sectionsOf('claude-opus-5').last_instructions, 'Some new SDK closing guidance.\nRespond concisely to the user, but be thorough in your work.');
+			assert.strictEqual(result, 'Some new SDK closing guidance.');
+			assert.strictEqual(trimFoundationLastInstructions('Unrelated.'), 'Unrelated.');
 		});
 
 		// Representative slice of the SDK foundation `tool_instructions` group
