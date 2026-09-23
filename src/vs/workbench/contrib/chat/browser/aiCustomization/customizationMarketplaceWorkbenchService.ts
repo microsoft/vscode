@@ -10,6 +10,7 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { createLazyCustomizationMarketplaceProvider, CustomizationMarketplaceService, ICustomizationMarketplacePage, ICustomizationMarketplaceQuery, ICustomizationMarketplaceService } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
 import { CustomizationMarketplaceSources, queryEnabledCustomizationMarketplaceSources } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { McpGalleryMarketplaceProvider } from '../../../../../platform/customizationMarketplace/common/mcpGalleryMarketplaceProvider.js';
 
 export class CustomizationMarketplaceWorkbenchService implements ICustomizationMarketplaceService {
 	declare readonly _serviceBrand: undefined;
@@ -22,6 +23,7 @@ export class CustomizationMarketplaceWorkbenchService implements ICustomizationM
 	) {
 		this.service = new Lazy(() => new CustomizationMarketplaceService([
 			createLazyCustomizationMarketplaceProvider(CustomizationMarketplaceSources.AgentFinderPublicFeed.id, () => instantiationService.createInstance(AgentFinderRestProvider)),
+			createLazyCustomizationMarketplaceProvider(CustomizationMarketplaceSources.McpGallery.id, () => instantiationService.createInstance(McpGalleryMarketplaceProvider)),
 		]));
 	}
 

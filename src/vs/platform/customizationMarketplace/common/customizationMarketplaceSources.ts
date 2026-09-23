@@ -14,6 +14,7 @@ import { ICustomizationMarketplacePage, ICustomizationMarketplaceQuery, ICustomi
 
 export const enum CustomizationMarketplaceConfiguration {
 	AgentFinderPublicFeedEnabled = 'chat.customizations.marketplace.sources.publicFeed.enabled',
+	McpGalleryEnabled = 'chat.customizations.marketplace.sources.mcpGallery.enabled',
 }
 
 export const CustomizationMarketplaceSources = {
@@ -21,6 +22,11 @@ export const CustomizationMarketplaceSources = {
 		id: 'agentFinder',
 		displayName: localize('customizationMarketplace.githubFeed', "GitHub Feed"),
 		enablementSetting: CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled,
+	},
+	McpGallery: {
+		id: 'mcpGallery',
+		displayName: localize('customizationMarketplace.mcpGallery', "MCP Gallery"),
+		enablementSetting: CustomizationMarketplaceConfiguration.McpGalleryEnabled,
 	},
 } as const satisfies Record<string, ICustomizationMarketplaceSourceInfo>;
 

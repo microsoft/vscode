@@ -183,6 +183,18 @@ export interface IQueryOptions {
 	sortOrder?: SortOrder;
 }
 
+export interface IMcpGalleryQueryPageOptions {
+	readonly text?: string;
+	readonly cursor?: string;
+	readonly pageSize: number;
+}
+
+export interface IMcpGalleryQueryPage {
+	readonly items: readonly IGalleryMcpServer[];
+	readonly total?: number;
+	readonly nextCursor?: string;
+}
+
 export const enum McpGalleryResolveStatus {
 	/** The server was found in the active registry. */
 	Found,
@@ -202,6 +214,7 @@ export interface IMcpGalleryService {
 	readonly _serviceBrand: undefined;
 	isEnabled(): boolean;
 	query(options?: IQueryOptions, token?: CancellationToken): Promise<IIterativePager<IGalleryMcpServer>>;
+	queryPage(options: IMcpGalleryQueryPageOptions, token: CancellationToken): Promise<IMcpGalleryQueryPage>;
 	getMcpServersFromGallery(infos: { name: string; id?: string }[]): Promise<IGalleryMcpServer[]>;
 	/**
 	 * Resolves the given servers against the active registry, distinguishing a

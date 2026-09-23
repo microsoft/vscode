@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { VSBuffer, bufferToStream } from '../../../../base/common/buffer.js';
 import { Event } from '../../../../base/common/event.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
@@ -132,6 +133,48 @@ const manifest: IMcpGalleryManifest = {
 		{ id: NAMED_TEMPLATE, type: McpGalleryResourceType.McpServerNamedResourceUri }
 	]
 };
+
+suite('McpGalleryService - marketplace pages', () => {
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('uses the gallery cursor and bounded page size without replaying the search text', async () => {
+		const requests = new StatusRequestService(200, JSON.stringify({
+			servers: [serverDocumentData('io.github.owner/server', ['npm'])],
+			metadata: { count: 2, nextCursor: 'opaque+/=' },
+		}));
+		const service = disposables.add(new McpGalleryService(requests, {} as IFileService, new NullLogService(), createManifestService(manifest)));
+		const first = await service.queryPage({ text: 'server', pageSize: 2 }, CancellationToken.None);
+		const next = await service.queryPage({ text: 'server', cursor: first.nextCursor, pageSize: 2 }, CancellationToken.None);
+		assert.deepStrictEqual({
+			urls: requests.requests.map(request => request.url),
+			first: { names: first.items.map(item => item.name), total: first.total, cursor: first.nextCursor },
+			next: { names: next.items.map(item => item.name), cursor: next.nextCursor },
+		}, {
+			urls: [`${SERVERS_URL}?limit=2&version=latest&search=server`, `${SERVERS_URL}?limit=2&version=latest&cursor=opaque%2B%2F%3D`],
+			first: { names: ['io.github.owner/server'], total: 2, cursor: 'opaque+/=' },
+			next: { names: ['io.github.owner/server'], cursor: 'opaque+/=' },
+		});
+	});
+
+	test('reports registry failures to the marketplace without changing the legacy query fallback', async () => {
+		const requests = new StatusRequestService(503);
+		const service = disposables.add(new McpGalleryService(requests, {} as IFileService, new NullLogService(), createManifestService(manifest)));
+		await assert.rejects(service.queryPage({ pageSize: 30 }, CancellationToken.None), /HTTP 503/);
+		const legacy = await service.query(undefined, CancellationToken.None);
+		assert.deepStrictEqual(legacy.firstPage, { items: [], hasMore: false });
+	});
+
+	test('does not invent a zero total when older registry responses omit count', async () => {
+		const requests = new StatusRequestService(200, JSON.stringify({
+			servers: [serverDocumentData('io.github.owner/server', ['npm'])], metadata: {},
+		}));
+		const service = disposables.add(new McpGalleryService(requests, {} as IFileService, new NullLogService(), createManifestService(manifest)));
+		const page = await service.queryPage({ pageSize: 2 }, CancellationToken.None);
+		assert.deepStrictEqual({ names: page.items.map(item => item.name), total: page.total }, {
+			names: ['io.github.owner/server'], total: undefined,
+		});
+	});
+});
 
 suite('McpGalleryService - resolveMcpServersFromGallery', () => {
 

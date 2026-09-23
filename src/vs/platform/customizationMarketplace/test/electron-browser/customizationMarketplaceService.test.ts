@@ -1,0 +1,100 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+import assert from 'assert';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { Event } from '../../../../base/common/event.js';
+import { IChannel } from '../../../../base/parts/ipc/common/ipc.js';
+import { mock } from '../../../../base/test/common/mock.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { IConfigurationService } from '../../../configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
+import { ISharedProcessService } from '../../../ipc/electron-browser/services.js';
+import { TestInstantiationService } from '../../../instantiation/test/common/instantiationServiceMock.js';
+import { GalleryMcpServerStatus, IMcpGalleryService } from '../../../mcp/common/mcpManagement.js';
+import { CustomizationMarketplaceMediaType, ICustomizationMarketplacePage, ICustomizationMarketplaceRequest } from '../../common/customizationMarketplaceService.js';
+import { CustomizationMarketplaceConfiguration } from '../../common/customizationMarketplaceSources.js';
+import { NativeCustomizationMarketplaceService } from '../../electron-browser/customizationMarketplaceService.js';
+
+suite('NativeCustomizationMarketplaceService', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('merges public IPC and renderer-local MCP pages without sending MCP queries through IPC', async () => {
+		const configuration = new TestConfigurationService({
+			[CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled]: true,
+			[CustomizationMarketplaceConfiguration.McpGalleryEnabled]: true,
+		});
+		store.add(configuration.onDidChangeConfigurationEmitter);
+		const ipcRequests: ICustomizationMarketplaceRequest[] = [];
+		const galleryRequests: string[] = [];
+		const channel: IChannel = {
+			listen: () => Event.None,
+			async call<T>(_command: string, request?: ICustomizationMarketplaceRequest): Promise<T> {
+				ipcRequests.push(request!);
+				return {
+					items: [{
+						sourceId: 'agentFinder', identifier: 'public', displayName: 'Public', description: '',
+						mediaType: CustomizationMarketplaceMediaType.McpServer, tags: [], capabilities: [], representativeQueries: [], score: 75,
+					}],
+					total: 1,
+				} satisfies ICustomizationMarketplacePage as T;
+			},
+		};
+		const services = store.add(new TestInstantiationService());
+		services.stub(IConfigurationService, configuration);
+		services.stub(ISharedProcessService, new class extends mock<ISharedProcessService>() {
+			override getChannel() { return channel; }
+		}());
+		services.stub(IMcpGalleryService, new class extends mock<IMcpGalleryService>() {
+			override async queryPage(options: { readonly cursor?: string }) {
+				galleryRequests.push(options.cursor ?? 'first');
+				return {
+					items: [{
+						name: 'io.github.owner/server', displayName: 'Server', description: '', version: '1.0',
+						isLatest: true, status: GalleryMcpServerStatus.Active, publisher: 'Owner', configuration: {},
+					}],
+					total: 1,
+				};
+			}
+		}());
+		const service = services.createInstance(NativeCustomizationMarketplaceService);
+		const page = await service.query({ query: 'server', pageSize: 1 }, CancellationToken.None);
+		const last = await service.query({ query: 'server', pageSize: 1, cursor: page.nextCursor }, CancellationToken.None);
+		await configuration.setUserConfiguration(CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled, false);
+		const mcpOnly = await service.query({ pageSize: 1 }, CancellationToken.None);
+		assert.deepStrictEqual({
+			ids: [page, last, mcpOnly].map(result => result.items.map(item => [item.sourceId, item.identifier])),
+			ipcRequests,
+			galleryRequests,
+		}, {
+			ids: [[['agentFinder', 'public']], [['mcpGallery', 'io.github.owner/server']], [['mcpGallery', 'io.github.owner/server']]],
+			ipcRequests: [{ query: 'server', mediaType: undefined, pageSize: 1, cursor: undefined, sourceIds: ['agentFinder'] }],
+			galleryRequests: ['first', 'first'],
+		});
+
+		test('isolates gallery failures and never opens a public IPC channel for MCP-only discovery', async () => {
+			const configuration = new TestConfigurationService({
+				[CustomizationMarketplaceConfiguration.McpGalleryEnabled]: true,
+			});
+			store.add(configuration.onDidChangeConfigurationEmitter);
+			const services = store.add(new TestInstantiationService());
+			services.stub(IConfigurationService, configuration);
+			services.stub(ISharedProcessService, new class extends mock<ISharedProcessService>() {
+				override getChannel(): IChannel { throw new Error('Public IPC must remain unused'); }
+			}());
+			services.stub(IMcpGalleryService, new class extends mock<IMcpGalleryService>() {
+				override async queryPage(): Promise<never> { throw new Error('MCP registry unavailable'); }
+			}());
+			const service = services.createInstance(NativeCustomizationMarketplaceService);
+			const page = await service.query({}, CancellationToken.None);
+			assert.deepStrictEqual(page, {
+				items: [],
+				total: undefined,
+				nextCursor: undefined,
+				sourceErrors: [{ sourceId: 'mcpGallery', message: 'MCP registry unavailable' }],
+			});
+		});
+	});
+});

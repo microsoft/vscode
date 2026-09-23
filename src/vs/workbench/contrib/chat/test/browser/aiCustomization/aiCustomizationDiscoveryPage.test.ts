@@ -35,7 +35,7 @@ import { PromptsType } from '../../../common/promptSyntax/promptTypes.js';
 
 suite('AICustomizationDiscoveryPage', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
-	const secondSource = { id: 'other', displayName: 'Other Feed', enablementSetting: 'test.marketplace.other.enabled' };
+	const secondSource = CustomizationMarketplaceSources.McpGallery;
 	const sources = [CustomizationMarketplaceSources.AgentFinderPublicFeed, secondSource];
 
 	function resource(identifier: string, overrides: Partial<ICustomizationMarketplaceResource> = {}): ICustomizationMarketplaceResource {
@@ -46,7 +46,7 @@ suite('AICustomizationDiscoveryPage', () => {
 		};
 	}
 
-	function createPage(enabledSources: readonly string[] = ['agentFinder', 'other']) {
+	function createPage(enabledSources: readonly string[] = ['agentFinder', 'mcpGallery']) {
 		const container = DOM.append(mainWindow.document.body, DOM.$('.customization-discovery-test'));
 		container.style.width = '900px';
 		container.style.height = '600px';
@@ -150,10 +150,10 @@ suite('AICustomizationDiscoveryPage', () => {
 		assert.ok(list instanceof WorkbenchList);
 		list.scrollTop = 0;
 		list.scrollTop = list.scrollHeight;
-		await fixture.requests[1].result.complete({ items: [resource('mail-24', { sourceId: 'other', mediaType: CustomizationMarketplaceMediaType.ClaudePlugin })] });
+		await fixture.requests[1].result.complete({ items: [resource('mail-24', { sourceId: 'mcpGallery', mediaType: CustomizationMarketplaceMediaType.ClaudePlugin })] });
 		await timeout(0);
-		await fixture.selectSource('other');
-		await fixture.requests[2].result.complete({ items: [resource('other-mail', { sourceId: 'other' })] });
+		await fixture.selectSource('mcpGallery');
+		await fixture.requests[2].result.complete({ items: [resource('other-mail', { sourceId: 'mcpGallery' })] });
 		await timeout(0);
 		assert.deepStrictEqual({
 			requests: fixture.requests.map(request => request.options),
@@ -163,10 +163,10 @@ suite('AICustomizationDiscoveryPage', () => {
 			requests: [
 				{ query: 'mail', mediaType: undefined, sourceIds: undefined, pageSize: 24, cursor: undefined },
 				{ query: 'mail', mediaType: undefined, sourceIds: undefined, pageSize: 24, cursor },
-				{ query: 'mail', mediaType: undefined, sourceIds: ['other'], pageSize: 24, cursor: undefined },
+				{ query: 'mail', mediaType: undefined, sourceIds: ['mcpGallery'], pageSize: 24, cursor: undefined },
 			],
 			visible: ['other-mail'],
-			selected: 'Other Feed',
+			selected: 'MCP Gallery',
 		});
 	});
 
@@ -183,13 +183,27 @@ suite('AICustomizationDiscoveryPage', () => {
 		}, { queries: 1, available: false, installed: true });
 	});
 
+	test('queries MCP gallery when it is the only enabled source', async () => {
+		const fixture = createPage(['mcpGallery']);
+		fixture.page.setSearchQuery('@type:mcp');
+		fixture.page.setVisible(true);
+		await fixture.requests[0].result.complete({ items: [resource('gallery-server', { sourceId: 'mcpGallery' })] });
+		assert.deepStrictEqual({
+			request: fixture.requests[0].options,
+			content: fixture.page.getAccessibilityContent().includes('gallery-server'),
+		}, {
+			request: { query: undefined, mediaType: CustomizationMarketplaceMediaType.McpServer, sourceIds: undefined, pageSize: 24, cursor: undefined },
+			content: true,
+		});
+	});
+
 	for (const query of ['', '@type:mcp mail']) {
 		test(`source warnings in ${query ? 'search' : 'browse'} preserve healthy results and restart from page one`, async () => {
 			const fixture = createPage();
 			let failing = true;
 			const marketplace = new CustomizationMarketplaceService([
 				{ id: 'agentFinder', query: async () => ({ items: [resource('public-mail', { score: 50 })], total: 1 }) },
-				{ id: 'other', query: async () => {
+				{ id: 'mcpGallery', query: async () => {
 					if (failing) {
 						throw new Error('Other Feed unavailable');
 					}
@@ -202,7 +216,7 @@ suite('AICustomizationDiscoveryPage', () => {
 			fixture.page.setVisible(true);
 			const complete = async (index: number) => {
 				const request = fixture.requests[index];
-				await request.result.complete(await marketplace.query({ ...request.options, sourceIds: ['agentFinder', 'other'] }, request.token));
+				await request.result.complete(await marketplace.query({ ...request.options, sourceIds: ['agentFinder', 'mcpGallery'] }, request.token));
 				await timeout(0);
 			};
 			await complete(0);
@@ -222,7 +236,7 @@ suite('AICustomizationDiscoveryPage', () => {
 				visible: fixture.page.getAccessibilityContent().match(/^(?:public|other)-mail$/gm),
 				warnings: fixture.container.querySelectorAll('.customization-marketplace-source-warning').length,
 			}, {
-				initial: { healthy: true, warning: 'Other Feed: Other Feed unavailableRetry', accessible: true },
+				initial: { healthy: true, warning: 'MCP Gallery: Other Feed unavailableRetry', accessible: true },
 				cursors: [undefined, undefined],
 				visible: query ? ['other-mail', 'public-mail'] : ['public-mail', 'other-mail'],
 				warnings: 0,

@@ -2531,6 +2531,13 @@ configurationRegistry.registerConfiguration({
 			default: false,
 			experiment: { mode: 'auto' },
 		},
+		[ChatConfiguration.McpGalleryEnabled]: {
+			type: 'boolean',
+			tags: ['experimental'],
+			description: nls.localize('chat.customizations.marketplace.sources.mcpGallery.enabled', "Enables the configured MCP gallery as an independent source in Discover customizations. When enabled, MCP server discovery moves from the MCP management page to Discover."),
+			default: false,
+			experiment: { mode: 'auto' },
+		},
 		[ChatConfiguration.ChatCustomizationsPromptMigrationEnabled]: {
 			type: 'boolean',
 			tags: ['experimental'],

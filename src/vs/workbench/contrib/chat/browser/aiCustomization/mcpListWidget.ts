@@ -19,6 +19,7 @@ import { Switch } from '../../../../../base/browser/ui/toggle/switch.js';
 import { defaultButtonStyles, defaultInputBoxStyles, getButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { CustomizationMarketplaceConfiguration } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { mcpAccessConfig, McpAccessValue } from '../../../../../platform/mcp/common/mcpManagement.js';
 import { IMcpGalleryManifestService } from '../../../../../platform/mcp/common/mcpGalleryManifest.js';
 import { IMcpWorkbenchService, IWorkbenchMcpServer, McpConnectionState, McpServerDefinition, McpServerInstallState, IMcpService, IMcpServer, McpServerTransportType } from '../../../../contrib/mcp/common/mcpTypes.js';
@@ -1456,6 +1457,9 @@ export class McpListWidget extends Disposable {
 		this._register(resizeObserver.observe(this.element));
 		this.updateAccessState();
 		this._register(mcpGalleryManifestService.onDidChangeMcpGalleryManifest(() => {
+			if (this.isGalleryDiscoveryEnabled()) {
+				return;
+			}
 			this.galleryCts?.dispose(true);
 			this.galleryCts = undefined;
 			this.gallerySnapshotServers = [];
@@ -1468,9 +1472,22 @@ export class McpListWidget extends Disposable {
 				void this.refresh();
 			}
 		}));
-		void mcpGalleryManifestService.getMcpGalleryManifest();
+		if (!this.isGalleryDiscoveryEnabled()) {
+			void mcpGalleryManifestService.getMcpGalleryManifest();
+		}
 		void this.refresh();
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(CustomizationMarketplaceConfiguration.McpGalleryEnabled)) {
+				this.galleryCts?.dispose(true);
+				this.galleryCts = undefined;
+				this.delayedGallerySearch.cancel();
+				this.gallerySnapshotServers = [];
+				this.galleryServers = [];
+				this.gallerySnapshotFailed = false;
+				this.gallerySnapshotLoading = false;
+				this.gallerySearchLoading = false;
+				void this.refresh();
+			}
 			if (e.affectsConfiguration(mcpAccessConfig)) {
 				this.updateAccessState();
 			}
@@ -1551,7 +1568,7 @@ export class McpListWidget extends Disposable {
 				? this.gallerySnapshotServers.filter(server => this.matchesGalleryServerQuery(server, query))
 				: [...this.gallerySnapshotServers];
 			this.delayedFilter.trigger(() => this.filterServers());
-			if (!this.mcpAccessEnabled) {
+			if (!this.mcpAccessEnabled || this.isGalleryDiscoveryEnabled()) {
 				this.gallerySearchLoading = false;
 				this.delayedGallerySearch.cancel();
 				return;
@@ -1631,9 +1648,13 @@ export class McpListWidget extends Disposable {
 
 	private async refresh(): Promise<void> {
 		this.filterServers();
-		if (shouldLoadMcpGallerySnapshot(this.visible, this.searchQuery, this.gallerySnapshotServers.length, this.gallerySnapshotFailed, this.gallerySnapshotLoading, this.mcpAccessEnabled)) {
+		if (!this.isGalleryDiscoveryEnabled() && shouldLoadMcpGallerySnapshot(this.visible, this.searchQuery, this.gallerySnapshotServers.length, this.gallerySnapshotFailed, this.gallerySnapshotLoading, this.mcpAccessEnabled)) {
 			await this.queryGallerySnapshot();
 		}
+	}
+
+	private isGalleryDiscoveryEnabled(): boolean {
+		return this.configurationService.getValue<boolean>(CustomizationMarketplaceConfiguration.McpGalleryEnabled) === true;
 	}
 
 	setVisible(visible: boolean): void {
@@ -1714,7 +1735,7 @@ export class McpListWidget extends Disposable {
 				});
 			}
 		} else if (accessChanged && this.visible) {
-			if (this.searchQuery.trim()) {
+			if (this.searchQuery.trim() && !this.isGalleryDiscoveryEnabled()) {
 				void this.queryMcpSearch();
 			} else {
 				void this.refresh();
@@ -1723,6 +1744,9 @@ export class McpListWidget extends Disposable {
 	}
 
 	public showBrowseMarketplace(): void {
+		if (this.isGalleryDiscoveryEnabled()) {
+			return;
+		}
 		if (!this.mcpAccessEnabled) {
 			return;
 		}
@@ -1732,7 +1756,7 @@ export class McpListWidget extends Disposable {
 	}
 
 	private async queryGallerySnapshot(revealMarketplace = false): Promise<void> {
-		if (!this.mcpAccessEnabled) {
+		if (!this.mcpAccessEnabled || this.isGalleryDiscoveryEnabled()) {
 			return;
 		}
 		this.galleryCts?.dispose(true);
@@ -1773,7 +1797,7 @@ export class McpListWidget extends Disposable {
 
 	private async queryMcpSearch(): Promise<void> {
 		const query = this.searchQuery.trim();
-		if (!query || !this.mcpAccessEnabled) {
+		if (!query || !this.mcpAccessEnabled || this.isGalleryDiscoveryEnabled()) {
 			return;
 		}
 
@@ -2133,7 +2157,9 @@ export class McpListWidget extends Disposable {
 			this.createMcpSectionList(installedList, localize('installedMcpServersSection', "Installed"), this.installedEntries.map(presentation => presentation.entry));
 		}
 
-		this.renderAvailableServers(content, this.getAvailableGalleryServers(), true);
+		if (!this.isGalleryDiscoveryEnabled()) {
+			this.renderAvailableServers(content, this.getAvailableGalleryServers(), true);
+		}
 		this.scheduleMcpSectionLayout();
 	}
 
@@ -2443,7 +2469,7 @@ export class McpListWidget extends Disposable {
 			installedList.classList.add('plugin-inventory-list');
 			this.createMcpSectionList(installedList, localize('installedSearchHeader', "Installed"), this.installedEntries.map(presentation => presentation.entry));
 		}
-		if (available.length > 0) {
+		if (available.length > 0 && !this.isGalleryDiscoveryEnabled()) {
 			this.renderAvailableServers(content, available, false);
 		}
 		this.scheduleMcpSectionLayout();
