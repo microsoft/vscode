@@ -143,6 +143,7 @@ export class NativePluginGitCommandService implements IPluginGitService {
 			this._throwIfCancelled(token);
 			this._logService.warn(`[NativePluginGitCommandService] Native Git authentication failed for '${operation}'. Retrying with VS Code authentication.`);
 			await beforeRetry?.();
+			this._throwIfCancelled(token);
 			return runWithAuthentication(authentication);
 		}
 	}

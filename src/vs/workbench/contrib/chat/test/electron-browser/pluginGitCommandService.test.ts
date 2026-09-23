@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
+import { isCancellationError } from '../../../../../base/common/errors.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
@@ -320,6 +321,36 @@ fatal: could not read Username for 'https://github.com': terminal prompts disabl
 		const result = await service.revListCount(URI.file('/tmp/repo'), 'HEAD', '@{u}');
 		assert.strictEqual(result, 5);
 	});
+
+	for (const cleanupStep of ['exists', 'delete']) {
+		test(`cancellation during clone cleanup ${cleanupStep} prevents the authenticated retry`, async () => {
+			const cts = store.add(new CancellationTokenSource());
+			let cloneCalls = 0;
+			let cancellationCalls = 0;
+			const service = createService(createLocalGitStub({
+				clone: async () => {
+					cloneCalls++;
+					throw createAuthenticationError();
+				},
+				cancel: async () => { cancellationCalls++; },
+			}), 'github-token', createFileService({
+				exists: async () => {
+					if (cleanupStep === 'exists') {
+						cts.cancel();
+					}
+					return true;
+				},
+				del: async () => {
+					if (cleanupStep === 'delete') {
+						cts.cancel();
+					}
+				},
+			}));
+
+			await assert.rejects(service.cloneRepository('https://github.com/test/private.git', URI.file('/tmp/repo'), undefined, cts.token), isCancellationError);
+			assert.deepStrictEqual({ cloneCalls, cancellationCalls }, { cloneCalls: 1, cancellationCalls: 1 });
+		});
+	}
 
 	test('cancellation token triggers cancel on local git service', async () => {
 		const cts = store.add(new CancellationTokenSource());
