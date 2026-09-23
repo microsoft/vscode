@@ -4886,8 +4886,13 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		const terminalCommandUri = URI.parse(terminalUri);
 		const isPty = terminalContent.isPty !== false;
 		const terminalInstance = isPty ? this._ensureTerminalInstance(terminalUri, sessionId) : undefined;
-		const isCompletedNonPty = tc.status === ToolCallStatus.Completed && !isPty;
-		if (isCompletedNonPty) {
+		const terminalResult = terminalContent.result;
+		// Background hand-offs complete without a renderable result and keep streaming until the turn ends.
+		const hasStaticNonPtyResult = tc.status === ToolCallStatus.Completed
+			&& !isPty
+			&& terminalResult?.exitCode !== undefined
+			&& (terminalResult.preview !== undefined || terminalResult.truncated === true);
+		if (hasStaticNonPtyResult) {
 			outputTerminalAttachment.disposable.clear();
 			outputTerminalAttachment.sessionId = undefined;
 		} else if (!isPty && outputTerminalAttachment.sessionId !== sessionId) {

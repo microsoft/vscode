@@ -3648,7 +3648,8 @@ export class CopilotAgentSession extends Disposable {
 						...retained,
 						artifact: URI.file(path),
 					});
-				} else if (terminal.isPty === false && terminal.result?.preview !== undefined) {
+				} else if (terminal.isPty === false && terminal.result?.preview !== undefined && terminal.result.truncated !== true) {
+					// A truncated preview is not the full output, and the live transcript does not survive a restart.
 					this._terminalManager.retainTerminalState(terminal.resource, {
 						...retained,
 						content: [{ type: 'unclassified', value: terminal.result.preview }],

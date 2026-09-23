@@ -2479,44 +2479,46 @@ suite('CopilotAgentSession', () => {
 		assert.strictEqual(getEventsCalls, 3, 'memo should be invalidated after a session error');
 	});
 
-	test('replay restores a retained terminal resource from its saved preview', async () => {
-		const { session, terminalManager } = await createAgentSession(disposables, {
-			resume: true,
-			configureMockSession: mock => {
-				mock.messages = [
-					{ type: 'user.message', data: { interactionId: 'message-1', content: 'run it' } },
-					{ type: 'assistant.message', data: { messageId: 'message-2', content: '', toolRequests: [{ toolCallId: 'tc-replay-output', name: 'bash' }] } },
-					{ type: 'tool.execution_start', data: { toolCallId: 'tc-replay-output', toolName: 'bash', arguments: { command: 'large command' } } },
-					{
-						type: 'tool.execution_complete',
-						data: {
-							toolCallId: 'tc-replay-output',
-							success: true,
-							result: {
-								content: 'preview only\n',
-								contents: [{ type: 'shell_exit', shellId: '0', exitCode: 0, outputPreview: 'preview only\n', outputTruncated: true }],
+	for (const outputTruncated of [false, true]) {
+		test(`replay ${outputTruncated ? 'does not retain a truncated preview as full output' : 'restores a retained terminal resource from its complete preview'}`, async () => {
+			const { session, terminalManager } = await createAgentSession(disposables, {
+				resume: true,
+				configureMockSession: mock => {
+					mock.messages = [
+						{ type: 'user.message', data: { interactionId: 'message-1', content: 'run it' } },
+						{ type: 'assistant.message', data: { messageId: 'message-2', content: '', toolRequests: [{ toolCallId: 'tc-replay-output', name: 'bash' }] } },
+						{ type: 'tool.execution_start', data: { toolCallId: 'tc-replay-output', toolName: 'bash', arguments: { command: 'large command' } } },
+						{
+							type: 'tool.execution_complete',
+							data: {
+								toolCallId: 'tc-replay-output',
+								success: true,
+								result: {
+									content: 'preview only\n',
+									contents: [{ type: 'shell_exit', shellId: '0', exitCode: 0, outputPreview: 'preview only\n', outputTruncated }],
+								},
 							},
 						},
-					},
-				] as SessionEvent[];
-			},
-		});
+					] as SessionEvent[];
+				},
+			});
 
-		await session.getMessages();
+			await session.getMessages();
 
-		const terminalUri = 'agenthost-terminal://shell/test-session-1/tc-replay-output';
-		assert.deepStrictEqual(terminalManager.retainedTerminalStates.get(terminalUri), {
-			title: 'Run Shell Command',
-			claim: {
-				kind: TerminalClaimKind.Session,
-				session: AgentSession.uri('copilot', 'test-session-1').toString(),
-				chat: buildDefaultChatUri(AgentSession.uri('copilot', 'test-session-1')),
-				toolCallId: 'tc-replay-output',
-			},
-			exitCode: 0,
-			content: [{ type: 'unclassified', value: 'preview only\n' }],
+			const terminalUri = 'agenthost-terminal://shell/test-session-1/tc-replay-output';
+			assert.deepStrictEqual(terminalManager.retainedTerminalStates.get(terminalUri), outputTruncated ? undefined : {
+				title: 'Run Shell Command',
+				claim: {
+					kind: TerminalClaimKind.Session,
+					session: AgentSession.uri('copilot', 'test-session-1').toString(),
+					chat: buildDefaultChatUri(AgentSession.uri('copilot', 'test-session-1')),
+					toolCallId: 'tc-replay-output',
+				},
+				exitCode: 0,
+				content: [{ type: 'unclassified', value: 'preview only\n' }],
+			});
 		});
-	});
+	}
 
 	test('describes an interrupted restored request without exposing Agent Host terminology', async () => {
 		const { session } = await createAgentSession(disposables, {

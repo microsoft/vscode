@@ -8893,7 +8893,7 @@ suite('AgentHostChatContribution', () => {
 			await turnPromise;
 		});
 
-		test('completed output-only terminal without a static preview retires its live attachment', async () => {
+		test('output-only terminal without a static preview stays attached until the turn ends', async () => {
 			let attachmentDisposed = false;
 			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables, {
 				agentHostTerminalServiceOverride: {
@@ -8911,7 +8911,6 @@ suite('AgentHostChatContribution', () => {
 				toolCallId: 'tc-no-preview',
 				content: [{ type: ToolResultContentType.Terminal, resource: 'agenthost-terminal://shell/no-preview', title: 'Terminal', isPty: false }],
 			} as ChatAction);
-			assert.strictEqual(attachmentDisposed, false);
 			fire({
 				type: 'chat/toolCallComplete',
 				session,
@@ -8930,10 +8929,52 @@ suite('AgentHostChatContribution', () => {
 				},
 			} as ChatAction);
 
-			assert.strictEqual(attachmentDisposed, true);
+			assert.strictEqual(attachmentDisposed, false);
 			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
 			await turnPromise;
 			assert.strictEqual(attachmentDisposed, true);
+		});
+
+		test('completed truncated output-only terminal without a preview retires its live attachment', async () => {
+			let attachmentDisposed = false;
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables, {
+				agentHostTerminalServiceOverride: {
+					attachOutputTerminal: () => toDisposable(() => attachmentDisposed = true),
+				},
+			});
+			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
+
+			fire({ type: 'chat/toolCallStart', session, turnId, toolCallId: 'tc-retained', toolName: 'bash', displayName: 'Bash', _meta: { toolKind: 'terminal', language: 'shellscript' } } as ChatAction);
+			fire({ type: 'chat/toolCallReady', session, turnId, toolCallId: 'tc-retained', invocationMessage: 'Running command', toolInput: 'large-output-command', confirmed: 'not-needed' } as ChatAction);
+			fire({
+				type: 'chat/toolCallContentChanged',
+				session,
+				turnId,
+				toolCallId: 'tc-retained',
+				content: [{ type: ToolResultContentType.Terminal, resource: 'agenthost-terminal://shell/retained', title: 'Terminal', isPty: false }],
+			} as ChatAction);
+			assert.strictEqual(attachmentDisposed, false);
+			fire({
+				type: 'chat/toolCallComplete',
+				session,
+				turnId,
+				toolCallId: 'tc-retained',
+				result: {
+					success: true,
+					pastTenseMessage: 'Ran command',
+					content: [{
+						type: ToolResultContentType.Terminal,
+						resource: 'agenthost-terminal://shell/retained',
+						title: 'Terminal',
+						isPty: false,
+						result: { exitCode: 0, truncated: true },
+					}],
+				},
+			} as ChatAction);
+
+			assert.strictEqual(attachmentDisposed, true);
+			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
+			await turnPromise;
 		});
 
 		test('bash tool renders as terminal command block with output', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
