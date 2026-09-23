@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { DeferredPromise, timeout } from '../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
-import { isCancellationError } from '../../../../base/common/errors.js';
+import { CancellationError, isCancellationError } from '../../../../base/common/errors.js';
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { createLazyCustomizationMarketplaceSource, CustomizationMarketplaceMediaType, CustomizationMarketplaceService, getCustomizationMarketplaceResourceKey, ICustomizationMarketplaceCursor, ICustomizationMarketplaceEntry, ICustomizationMarketplacePage, ICustomizationMarketplaceQuery, ICustomizationMarketplaceSource, ICustomizationMarketplaceSourcePage, ICustomizationMarketplaceSourceQuery } from '../../common/customizationMarketplaceService.js';
@@ -315,11 +315,17 @@ suite('CustomizationMarketplaceService', () => {
 		]);
 		const options = { sourceIds: ['first', 'second'], query: 'mail', pageSize: 1 };
 		const first = await service.query(options, CancellationToken.None);
-		await assert.rejects(service.query({ ...options, cursor: first.nextCursor }, CancellationToken.None), /temporary failure/);
+		const partial = await service.query({ ...options, cursor: first.nextCursor }, CancellationToken.None);
 		const second = await service.query({ ...options, cursor: first.nextCursor }, CancellationToken.None);
 		const replay = await service.query({ ...options, cursor: first.nextCursor }, CancellationToken.None);
 		const third = await service.query({ ...options, cursor: second.nextCursor }, CancellationToken.None);
-		assert.deepStrictEqual([first, second, replay, third].map(page => page.items.map(item => item.score)), [[100], [90], [90], [80]]);
+		assert.deepStrictEqual({
+			scores: [first, partial, second, replay, third].map(page => page.items.map(item => item.score)),
+			errors: partial.sourceErrors,
+		}, {
+			scores: [[100], [90], [90], [90], [80]],
+			errors: [{ sourceId: 'first', message: 'temporary failure' }],
+		});
 	});
 
 	test('cancelling a continuation preserves buffered results even if the source finishes late', async () => {
@@ -432,7 +438,7 @@ suite('CustomizationMarketplaceService', () => {
 		assert.deepStrictEqual(tokens.map(token => token.isCancellationRequested), [true, true]);
 	});
 
-	test('a source failure rejects the page and cancels siblings instead of returning partial success', async () => {
+	test('a source failure waits for healthy siblings and reports an explicit partial result', async () => {
 		const error = new Error('The second catalog is unavailable');
 		const pending = new DeferredPromise<ICustomizationMarketplaceSourcePage>();
 		const calls: string[] = [];
@@ -447,9 +453,21 @@ suite('CustomizationMarketplaceService', () => {
 				return pending.p;
 			},
 		}));
-		await assert.rejects(new CustomizationMarketplaceService(sources).query({ sourceIds: ['first', 'second'] }, CancellationToken.None), actual => actual === error);
+		const query = new CustomizationMarketplaceService(sources).query({ sourceIds: ['first', 'second'] }, CancellationToken.None);
+		await timeout(0);
+		const cancelledWhileWaiting = tokens.map(token => token.isCancellationRequested);
 		await pending.complete({ items: [entry] });
-		assert.deepStrictEqual({ calls, cancelled: tokens.map(token => token.isCancellationRequested) }, { calls: ['first', 'second'], cancelled: [true, true] });
+		const page = await query;
+		assert.deepStrictEqual({ calls, cancelledWhileWaiting, page }, {
+			calls: ['first', 'second'],
+			cancelledWhileWaiting: [false, false],
+			page: {
+				items: [{ ...entry, sourceId: 'first' }],
+				total: undefined,
+				nextCursor: undefined,
+				sourceErrors: [{ sourceId: 'second', message: error.message }],
+			},
+		});
 	});
 
 	test('only constructs and queries sources selected by the calling window', async () => {
@@ -474,6 +492,131 @@ suite('CustomizationMarketplaceService', () => {
 		assert.deepStrictEqual({ beforeQuery, afterSecond, creations, calls, page: second }, {
 			beforeQuery: [], afterSecond: ['second'], creations: ['second', 'first'], calls: ['second', 'first', 'second'],
 			page: { items: [{ ...entry, sourceId: 'second' }], total: 1, nextCursor: undefined },
+		});
+
+		test('isolates an unavailable source while paginating healthy results with explicit warnings and unknown totals', async () => {
+			let failedCalls = 0;
+			const service = new CustomizationMarketplaceService([
+				{ id: 'healthy', query: async options => ({
+					items: [{ ...entry, identifier: options.cursor ? 'second' : 'first', score: options.cursor ? 40 : 50 }],
+					total: 2,
+					nextCursor: options.cursor ? undefined : 'next',
+				}) },
+				{ id: 'failed', query: async () => {
+					failedCalls++;
+					throw new Error('Catalog unavailable');
+				} },
+			]);
+			const options = { sourceIds: ['healthy', 'failed'], query: 'mail', pageSize: 1 };
+			const first = await service.query(options, CancellationToken.None);
+			const second = await service.query({ ...options, cursor: first.nextCursor }, CancellationToken.None);
+			assert.deepStrictEqual({ ...second, firstIds: first.items.map(item => item.identifier), failedCalls }, {
+				items: [{ ...entry, identifier: 'second', score: 40, sourceId: 'healthy' }],
+				total: undefined,
+				nextCursor: undefined,
+				sourceErrors: [{ sourceId: 'failed', message: 'Catalog unavailable' }],
+				firstIds: ['first'],
+				failedCalls: 1,
+			});
+		});
+
+		for (const query of ['', 'mail']) {
+			test(`isolated ${query ? 'search' : 'browse'} failures preserve the global cap and never resume a source mid-continuation`, async () => {
+				const catalog = Array.from({ length: 50 }, (_, index) => ({ ...entry, identifier: `healthy-${index}`, score: 90 - index }));
+				let failures = 0;
+				let failing = true;
+				const service = new CustomizationMarketplaceService([
+					{ id: 'healthy', query: async options => {
+						const offset = Number(options.cursor ?? 0);
+						const items = catalog.slice(offset, offset + Math.min(5, options.pageSize!));
+						return { items, total: catalog.length, nextCursor: offset + items.length < catalog.length ? String(offset + items.length) : undefined };
+					} },
+					{ id: 'recovering', query: async () => {
+						if (failing) {
+							failures++;
+							throw new Error('Temporarily unavailable');
+						}
+						return { items: [{ ...entry, identifier: 'recovered', score: 100 }], total: 1 };
+					} },
+				]);
+				const options = { sourceIds: ['healthy', 'recovering'], query, pageSize: 24 };
+				const first = await service.query(options, CancellationToken.None);
+				failing = false;
+				const second = await service.query({ ...options, cursor: first.nextCursor }, CancellationToken.None);
+				const last = await service.query({ ...options, cursor: second.nextCursor }, CancellationToken.None);
+				const fresh = await service.query(options, CancellationToken.None);
+				assert.deepStrictEqual({
+					lengths: [first, second, last].map(page => page.items.length),
+					ids: [first, second, last].flatMap(page => page.items.map(item => item.identifier)),
+					errors: [first, second, last].map(page => page.sourceErrors),
+					totals: [first, second, last].map(page => page.total),
+					lastCursor: last.nextCursor,
+					failures,
+					freshIds: fresh.items.slice(0, 2).map(item => item.identifier),
+					freshErrors: fresh.sourceErrors,
+					freshTotal: fresh.total,
+				}, {
+					lengths: [24, 24, 2],
+					ids: catalog.map(item => item.identifier),
+					errors: Array.from({ length: 3 }, () => [{ sourceId: 'recovering', message: 'Temporarily unavailable' }]),
+					totals: [undefined, undefined, undefined],
+					lastCursor: undefined,
+					failures: 1,
+					freshIds: query ? ['recovered', 'healthy-0'] : ['healthy-0', 'recovered'],
+					freshErrors: undefined,
+					freshTotal: 51,
+				});
+			});
+		}
+
+		test('all source failures are explicit, incomplete, and exhausted', async () => {
+			const sources = ['first', 'second'].map(id => ({ id, query: async () => { throw new Error(`${id} unavailable`); } }));
+			const page = await new CustomizationMarketplaceService(sources).query({ sourceIds: sources.map(source => source.id) }, CancellationToken.None);
+			assert.deepStrictEqual(page, {
+				items: [],
+				total: undefined,
+				nextCursor: undefined,
+				sourceErrors: sources.map(source => ({ sourceId: source.id, message: `${source.id} unavailable` })),
+			});
+		});
+
+		test('partial native pages preserve fetched items and their warning while stopping the source', async () => {
+			let calls = 0;
+			const service = new CustomizationMarketplaceService([
+				{ id: 'partial', query: async () => {
+					calls++;
+					return { items: [{ ...entry, score: 80 }, { ...entry, score: 70 }], error: 'Later native page failed' };
+				} },
+				{ id: 'healthy', query: async () => ({ items: [{ ...entry, score: 100 }, { ...entry, score: 90 }], total: 2 }) },
+			]);
+			const options = { sourceIds: ['partial', 'healthy'], query: 'mail', pageSize: 2 };
+			const first = await service.query(options, CancellationToken.None);
+			const second = await service.query({ ...options, cursor: first.nextCursor }, CancellationToken.None);
+			assert.deepStrictEqual({
+				scores: [first, second].map(page => page.items.map(item => item.score)),
+				errors: [first, second].map(page => page.sourceErrors),
+				totals: [first.total, second.total],
+				next: second.nextCursor,
+				calls,
+			}, {
+				scores: [[100, 90], [80, 70]],
+				errors: Array.from({ length: 2 }, () => [{ sourceId: 'partial', message: 'Later native page failed' }]),
+				totals: [undefined, undefined],
+				next: undefined,
+				calls: 1,
+			});
+		});
+
+		test('source cancellation is never converted into an unavailable-source warning', async () => {
+			const pending = new DeferredPromise<ICustomizationMarketplaceSourcePage>();
+			let siblingToken = CancellationToken.None;
+			const service = new CustomizationMarketplaceService([
+				{ id: 'cancelled', query: async () => { throw new CancellationError(); } },
+				{ id: 'healthy', query: async (_options, token) => { siblingToken = token; return pending.p; } },
+			]);
+			await assert.rejects(service.query({ sourceIds: ['cancelled', 'healthy'] }, CancellationToken.None), isCancellationError);
+			await pending.complete({ items: [entry] });
+			assert.strictEqual(siblingToken.isCancellationRequested, true);
 		});
 	});
 });

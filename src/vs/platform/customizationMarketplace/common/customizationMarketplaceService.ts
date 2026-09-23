@@ -5,7 +5,7 @@
 
 import { raceCancellationError } from '../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
-import { CancellationError } from '../../../base/common/errors.js';
+import { CancellationError, getErrorMessage, isCancellationError } from '../../../base/common/errors.js';
 import { Lazy } from '../../../base/common/lazy.js';
 import { DisposableStore } from '../../../base/common/lifecycle.js';
 import { LRUCache } from '../../../base/common/map.js';
@@ -81,6 +81,13 @@ export interface ICustomizationMarketplacePage {
 	readonly items: readonly ICustomizationMarketplaceResource[];
 	readonly total?: number;
 	readonly nextCursor?: ICustomizationMarketplaceCursor;
+	/** Failed sources remain suspended throughout this continuation. Retry starts a new combined query. */
+	readonly sourceErrors?: readonly ICustomizationMarketplaceSourceError[];
+}
+
+export interface ICustomizationMarketplaceSourceError {
+	readonly sourceId: string;
+	readonly message: string;
 }
 
 export interface ICustomizationMarketplaceSourceQuery extends Omit<ICustomizationMarketplaceQuery, 'cursor'> {
@@ -94,6 +101,8 @@ export interface ICustomizationMarketplaceSourcePage {
 	readonly items: readonly ICustomizationMarketplaceEntry[];
 	readonly total?: number;
 	readonly nextCursor?: string;
+	/** A failure after fetching these items. Preserve them, but do not continue this source until a new query. */
+	readonly error?: string;
 }
 
 /** Owns transport, response validation, and normalization, including any installation provenance. */
@@ -107,7 +116,13 @@ export interface ICustomizationMarketplaceSource extends ICustomizationMarketpla
 
 export interface ICustomizationMarketplaceSourceInfo {
 	readonly id: string;
+	readonly displayName?: string;
 	readonly enablementSetting: string;
+}
+
+export interface ICustomizationMarketplaceSourceRecoveryAction {
+	readonly label: string;
+	run(token: CancellationToken): Promise<void>;
 }
 
 export function createLazyCustomizationMarketplaceSource(id: string, createProvider: () => ICustomizationMarketplaceProvider): ICustomizationMarketplaceSource {
@@ -129,6 +144,8 @@ export interface ICustomizationMarketplaceService {
 	readonly _serviceBrand: undefined;
 	readonly sources: readonly ICustomizationMarketplaceSourceInfo[];
 	query(options: ICustomizationMarketplaceQuery, token: CancellationToken): Promise<ICustomizationMarketplacePage>;
+	/** Optional renderer-owned recovery; not part of the catalog transport. */
+	getSourceRecoveryAction?(sourceId: string): ICustomizationMarketplaceSourceRecoveryAction | undefined;
 }
 
 export interface ICustomizationMarketplaceQueryService {
@@ -139,6 +156,7 @@ interface IMarketplaceSourceState {
 	cursor?: string;
 	total?: number;
 	items: ICustomizationMarketplaceEntry[];
+	error?: string;
 	exhausted: boolean;
 	lastScore: number;
 }
@@ -198,7 +216,17 @@ export class CustomizationMarketplaceService implements ICustomizationMarketplac
 					if (state.items.length || state.exhausted) {
 						return;
 					}
-					const page = await sources[index].query({ query, mediaType: options.mediaType, pageSize, cursor: state.cursor }, cancellation.token);
+					let page: ICustomizationMarketplaceSourcePage;
+					try {
+						page = await sources[index].query({ query, mediaType: options.mediaType, pageSize, cursor: state.cursor }, cancellation.token);
+					} catch (error) {
+						if (isCancellationError(error) || cancellation.token.isCancellationRequested) {
+							throw new CancellationError();
+						}
+						state.error = getErrorMessage(error);
+						state.exhausted = true;
+						return;
+					}
 					if (page.items.length > pageSize ||
 						(page.total !== undefined && (!Number.isSafeInteger(page.total) || page.total < page.items.length)) ||
 						(page.nextCursor !== undefined && (!page.nextCursor || page.nextCursor === state.cursor || !page.items.length))) {
@@ -215,7 +243,8 @@ export class CustomizationMarketplaceService implements ICustomizationMarketplac
 					state.items = [...page.items];
 					state.cursor = page.nextCursor;
 					state.total = page.total;
-					state.exhausted = page.nextCursor === undefined;
+					state.error = page.error;
+					state.exhausted = page.error !== undefined || page.nextCursor === undefined;
 					state.lastScore = lastScore;
 				})), cancellation.token);
 
@@ -241,10 +270,12 @@ export class CustomizationMarketplaceService implements ICustomizationMarketplac
 					states, nextSourceIndex, expiresAt: Date.now() + 30 * 60_000,
 				});
 			}
+			const sourceErrors = states.flatMap((state, index) => state.error === undefined ? [] : [{ sourceId: sources[index].id, message: state.error }]);
 			return {
 				items,
-				total: states.every(state => state.total !== undefined) ? states.reduce((total, state) => total + state.total!, 0) : undefined,
+				total: !sourceErrors.length && states.every(state => state.total !== undefined) ? states.reduce((total, state) => total + state.total!, 0) : undefined,
 				nextCursor,
+				...(sourceErrors.length ? { sourceErrors } : {}),
 			};
 		} finally {
 			cancellation.cancel();

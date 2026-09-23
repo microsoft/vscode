@@ -25,6 +25,7 @@ import { localize } from '../../../../../nls.js';
 import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 import { CustomizationMarketplaceMediaType, getCustomizationMarketplaceResourceKey, ICustomizationMarketplacePage, ICustomizationMarketplaceResource, ICustomizationMarketplaceService } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
 import { getEnabledCustomizationMarketplaceSources } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
+import { CustomizationMarketplaceSourceWarnings } from './customizationMarketplaceSourceWarnings.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
@@ -73,6 +74,7 @@ export class CustomizationMarketplaceWidget extends Disposable {
 	private readonly retryButton: Button;
 	private readonly statusElement: HTMLElement;
 	private readonly errorElement: HTMLElement;
+	private readonly sourceWarnings: CustomizationMarketplaceSourceWarnings;
 	private readonly resultsElement: HTMLElement;
 	private readonly loadingElement: HTMLElement;
 	private readonly emptyElement: HTMLElement;
@@ -88,8 +90,10 @@ export class CustomizationMarketplaceWidget extends Disposable {
 	private mediaType: CustomizationMarketplaceMediaType | undefined;
 	private visible = false;
 	private loading = false;
+	private loadingMore = false;
 	private loaded = false;
 	private errorMessage: string | undefined;
+	private retryAppend = false;
 	private aiHidden: boolean;
 
 	constructor(
@@ -129,6 +133,10 @@ export class CustomizationMarketplaceWidget extends Disposable {
 		this.refreshButton = this._register(new Button(controls, { ...defaultButtonStyles, secondary: true }));
 		this.refreshButton.label = localize('customizationMarketplace.refresh', "Refresh");
 		this.statusElement = DOM.append(header, DOM.$('.customization-marketplace-status'));
+		this.sourceWarnings = this._register(new CustomizationMarketplaceSourceWarnings(header, this.customizationMarketplaceService.sources, () => {
+			this.focus();
+			void this.loadPage();
+		}, sourceId => this.customizationMarketplaceService.getSourceRecoveryAction?.(sourceId), this.notificationService));
 
 		const content = DOM.$('.customization-marketplace-scroll-content');
 		this.resultsElement = DOM.append(content, DOM.$('ul.customization-marketplace-results'));
@@ -174,7 +182,7 @@ export class CustomizationMarketplaceWidget extends Disposable {
 			this.resetSearch(false);
 		}));
 		this._register(this.refreshButton.onDidClick(() => this.resetSearch(false)));
-		this._register(this.retryButton.onDidClick(() => void this.loadPage(this.items.length > 0)));
+		this._register(this.retryButton.onDidClick(() => void this.loadPage(this.retryAppend)));
 		this._register(this.loadMoreButton.onDidClick(() => void this.loadPage(true)));
 		this._register(DOM.addDisposableListener(this.resultsElement, DOM.EventType.KEY_DOWN, event => this.navigateCards(event)));
 		this._register(this.chatEntitlementService.onDidChangeSentiment(() => {
@@ -237,6 +245,7 @@ export class CustomizationMarketplaceWidget extends Disposable {
 		this.nextCursor = undefined;
 		this.total = undefined;
 		this.errorMessage = undefined;
+		this.sourceWarnings.update([], false);
 		this.cardDisposables.clear();
 		DOM.clearNode(this.resultsElement);
 		this.scrollable.setScrollPosition({ scrollTop: 0 });
@@ -258,6 +267,7 @@ export class CustomizationMarketplaceWidget extends Disposable {
 		const token = cancelOnDispose(this.requestDisposables);
 		const focusedAction = [this.loadMoreButton, this.retryButton].find(button => button.element.contains(DOM.getActiveElement()));
 		this.loading = true;
+		this.loadingMore = append;
 		this.renderStatus();
 		status(this.getLoadingLabel());
 		try {
@@ -270,7 +280,7 @@ export class CustomizationMarketplaceWidget extends Disposable {
 			if (token.isCancellationRequested) {
 				return;
 			}
-			const resourceKeys = new Set(this.items.map(getCustomizationMarketplaceResourceKey));
+			const resourceKeys = new Set((append ? this.items : []).map(getCustomizationMarketplaceResourceKey));
 			const newItems = page.items.filter(item => {
 				const key = getCustomizationMarketplaceResourceKey(item);
 				if (resourceKeys.has(key)) {
@@ -279,11 +289,17 @@ export class CustomizationMarketplaceWidget extends Disposable {
 				resourceKeys.add(key);
 				return true;
 			});
-			this.items = [...this.items, ...newItems];
+			if (!append) {
+				this.cardDisposables.clear();
+				DOM.clearNode(this.resultsElement);
+				this.scrollable.setScrollPosition({ scrollTop: 0 });
+			}
+			this.items = append ? [...this.items, ...newItems] : newItems;
 			this.nextCursor = page.nextCursor;
 			this.total = page.total;
 			this.loaded = true;
 			this.errorMessage = undefined;
+			this.sourceWarnings.update(page.sourceErrors ?? [], this.loading);
 			let firstCard: HTMLElement | undefined;
 			for (const item of newItems) {
 				const card = this.renderCard(item);
@@ -297,9 +313,10 @@ export class CustomizationMarketplaceWidget extends Disposable {
 					this.searchInput.focus();
 				}
 			}
-			status(this.getResultsLabel());
+			status([this.getResultsLabel(), this.sourceWarnings.getAccessibilityContent()].filter(Boolean).join('\n'));
 		} catch (error) {
 			if (!token.isCancellationRequested && !isCancellationError(error)) {
+				this.retryAppend = append;
 				this.errorMessage = localize('customizationMarketplace.loadError', "Could not load the marketplace. {0}", getErrorMessage(error));
 				alert(this.errorMessage);
 				void this.accessibilitySignalService.playSignal(AccessibilitySignal.taskFailed, { modality: 'sound' }).catch(onUnexpectedError);
@@ -342,24 +359,31 @@ export class CustomizationMarketplaceWidget extends Disposable {
 		this.refreshButton.enabled = !this.loading;
 		this.loadMoreButton.enabled = !this.loading;
 		this.retryButton.enabled = !this.loading;
+		this.sourceWarnings.setLoading(this.loading);
 		this.loadMoreButton.element.style.display = this.nextCursor && !this.errorMessage ? '' : 'none';
 		this.errorElement.textContent = this.errorMessage ?? '';
 		this.errorElement.style.display = this.errorMessage ? '' : 'none';
 		this.retryButton.element.style.display = this.errorMessage ? '' : 'none';
-		this.emptyElement.style.display = this.loaded && !this.items.length && !this.loading && !this.errorMessage ? '' : 'none';
+		this.emptyElement.style.display = this.loaded && !this.items.length && !this.loading && !this.errorMessage && !this.sourceWarnings.hasErrors ? '' : 'none';
 		this.emptyElement.textContent = localize('customizationMarketplace.noResults', "No resources found. Try a different search or resource type.");
 		this.layout();
 	}
 
 	private getResultsLabel(): string {
+		if (this.sourceWarnings.hasErrors) {
+			return this.items.length
+				? localize('customizationMarketplace.partialResults', "{0} resources loaded. Some sources are unavailable.", this.items.length.toLocaleString())
+				: localize('customizationMarketplace.sourcesUnavailable', "Resources could not be loaded. Some sources are unavailable.");
+		}
 		return this.total !== undefined
 			? localize('customizationMarketplace.resultCount', "Showing {0} of {1} resources", this.items.length.toLocaleString(), this.total.toLocaleString())
 			: localize('customizationMarketplace.resultsLoaded', "{0} resources loaded", this.items.length.toLocaleString());
 	}
 
 	private getLoadingLabel(): string {
-		return this.items.length
+		return this.loadingMore
 			? localize('customizationMarketplace.loadingMore', "Loading more resources...")
+			: this.items.length ? localize('customizationMarketplace.reloading', "Reloading resources...")
 			: localize('customizationMarketplace.loading', "Loading resources...");
 	}
 
@@ -598,6 +622,7 @@ export class CustomizationMarketplaceWidget extends Disposable {
 			this.loading ? this.getLoadingLabel() : undefined,
 			this.statusElement.textContent,
 			this.errorMessage,
+			this.sourceWarnings.getAccessibilityContent(),
 			...this.items.map(item => [
 				item.displayName,
 				getResourceTypeLabel(item.mediaType),
@@ -612,7 +637,7 @@ export class CustomizationMarketplaceWidget extends Disposable {
 				item.externalUrl || item.url ? localize('customizationMarketplace.accessibleResource', "Resource: {0}", item.externalUrl ?? item.url?.toString(true)) : undefined,
 				item.repository ? localize('customizationMarketplace.accessibleRepository', "Repository: {0}", item.repository.toString(true)) : undefined,
 			].filter(Boolean).join('\n')),
-			this.loaded && !this.items.length ? this.emptyElement.textContent : undefined,
+			this.loaded && !this.items.length && !this.errorMessage && !this.sourceWarnings.hasErrors ? this.emptyElement.textContent : undefined,
 		].filter(Boolean).join('\n\n');
 	}
 

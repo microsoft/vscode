@@ -18,7 +18,8 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/virtualScheduling/index.js';
-import { CustomizationMarketplaceMediaType, getCustomizationMarketplaceResourceKey, ICustomizationMarketplaceCursor, ICustomizationMarketplacePage, ICustomizationMarketplaceQuery, ICustomizationMarketplaceResource, ICustomizationMarketplaceService, ICustomizationMarketplaceSourceInfo } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
+import { CustomizationMarketplaceMediaType, CustomizationMarketplaceService, getCustomizationMarketplaceResourceKey, ICustomizationMarketplaceCursor, ICustomizationMarketplacePage, ICustomizationMarketplaceQuery, ICustomizationMarketplaceResource, ICustomizationMarketplaceService, ICustomizationMarketplaceSourceInfo, ICustomizationMarketplaceSourceRecoveryAction } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
+import { CustomizationMarketplaceSources } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 import { IConfigurationChangeEvent } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -43,6 +44,11 @@ interface IRecordedQuery {
 class TestCustomizationMarketplaceService extends mock<ICustomizationMarketplaceService>() {
 	override readonly sources: ICustomizationMarketplaceSourceInfo[] = [{ id: 'testSource', enablementSetting: ChatConfiguration.AgentFinderPublicFeedEnabled }];
 	readonly requests: IRecordedQuery[] = [];
+	readonly recoveryActions = new Map<string, ICustomizationMarketplaceSourceRecoveryAction>();
+
+	override getSourceRecoveryAction(sourceId: string): ICustomizationMarketplaceSourceRecoveryAction | undefined {
+		return this.recoveryActions.get(sourceId);
+	}
 
 	override query(options: ICustomizationMarketplaceQuery, token: CancellationToken): Promise<ICustomizationMarketplacePage> {
 		const result = new DeferredPromise<ICustomizationMarketplacePage>();
@@ -1534,6 +1540,201 @@ suite('CustomizationMarketplaceWidget', () => {
 			searchFocusedAfterFailure: true,
 			firstCardFocusedAfterRetry: true,
 			names: ['First', 'Second'],
+		});
+	});
+
+	test('source recovery waits for an explicit action and consent before restarting', async () => {
+		const { container, widget, service } = createWidget(false, document.body, CustomizationMarketplaceWidget, {
+			sourceEnabled: true,
+			additionalSources: [{ id: 'other', displayName: 'Other Feed', enablementSetting: ChatConfiguration.AgentFinderPublicFeedEnabled }],
+		});
+		const recovered = new DeferredPromise<void>();
+		let authorizations = 0;
+		service.recoveryActions.set('other', { label: 'Authorize Source', run: async () => { authorizations++; await recovered.p; } });
+		widget.setVisible(true);
+		await service.requests[0].result.complete({
+			items: [createResource('Healthy')],
+			sourceErrors: [{ sourceId: 'other', message: 'Permission required' }],
+		});
+		const action = getButton(container, 'Authorize Source');
+		const initial = { authorizations, accessible: widget.getAccessibilityContent().includes('Choose Authorize Source') };
+		pressKey(action, 'Enter', 13);
+		action.click();
+		const pending = { authorizations, names: getCardNames(container), disabled: action.getAttribute('aria-disabled'), requests: service.requests.length };
+		await recovered.complete();
+		await timeout(0);
+		await service.requests[1].result.complete({ items: [createResource('Healthy'), createResource('Recovered', { sourceId: 'other' })] });
+		assert.deepStrictEqual({
+			initial, pending, cursors: service.requests.map(request => request.options.cursor),
+			warnings: container.querySelectorAll('.customization-marketplace-source-warning').length,
+		}, {
+			initial: { authorizations: 0, accessible: true },
+			pending: { authorizations: 1, names: ['Healthy'], disabled: 'true', requests: 1 },
+			cursors: [undefined, undefined],
+			warnings: 0,
+		});
+	});
+
+	for (const query of ['', 'mail']) {
+		test(`source warnings retain healthy ${query ? 'search' : 'browse'} results and retry from the first page`, async () => {
+			const failedSource = CustomizationMarketplaceSources.AgentFinderPublicFeed;
+			const { container, widget, service } = createWidget(false, document.body, CustomizationMarketplaceWidget, {
+				sourceEnabled: true,
+				additionalSources: [failedSource],
+			});
+			let failing = true;
+			const aggregate = new CustomizationMarketplaceService([
+				{ id: 'testSource', query: async () => ({ items: [createResource('Healthy', { score: 50 })], total: 1 }) },
+				{ id: failedSource.id, query: async () => {
+					if (failing) {
+						throw new Error('Feed unavailable');
+					}
+					return { items: [createResource('Recovered', { score: 100 })], total: 1 };
+				} },
+			]);
+			const complete = async (index: number) => {
+				const request = service.requests[index];
+				await request.result.complete(await aggregate.query({ ...request.options, sourceIds: ['testSource', failedSource.id] }, request.token));
+			};
+			if (query) {
+				pressKey(setSearch(container, query), 'Enter', 13);
+			}
+			widget.setVisible(true);
+			await complete(0);
+			const retry = getElement(container, '.customization-marketplace-source-warning .monaco-button');
+			const initial = {
+				names: getCardNames(container),
+				status: getElement(container, '.customization-marketplace-status').textContent,
+				warning: getElement(container, '.customization-marketplace-source-warning').textContent,
+				accessibleWarning: widget.getAccessibilityContent().includes('Public Feed: Feed unavailable'),
+				retryLabel: retry.getAttribute('aria-label'),
+			};
+			failing = false;
+			retry.focus();
+			pressKey(retry, 'Enter', 13);
+			const pending = {
+				names: getCardNames(container),
+				disabled: retry.getAttribute('aria-disabled'),
+				reloading: widget.getAccessibilityContent().includes('Reloading resources...'),
+			};
+			await complete(1);
+			assert.deepStrictEqual({
+				initial,
+				pending,
+				cursors: service.requests.map(request => request.options.cursor),
+				names: getCardNames(container),
+				warnings: container.querySelectorAll('.customization-marketplace-source-warning').length,
+				searchFocused: DOM.getActiveElement() === getElement(container, '.customization-marketplace-search input'),
+			}, {
+				initial: {
+					names: ['Healthy'],
+					status: '1 resources loaded. Some sources are unavailable.',
+					warning: 'Public Feed: Feed unavailableRetry',
+					accessibleWarning: true,
+					retryLabel: 'Retry Public Feed. Reload all sources from the first page.',
+				},
+				pending: { names: ['Healthy'], disabled: 'true', reloading: true },
+				cursors: [undefined, undefined],
+				names: query ? ['Recovered', 'Healthy'] : ['Healthy', 'Recovered'],
+				warnings: 0,
+				searchFocused: true,
+			});
+		});
+	}
+
+	test('all failed sources have warnings and retry instead of a successful empty result', async () => {
+		const { container, widget, service } = createWidget();
+		const aggregate = new CustomizationMarketplaceService([{ id: 'testSource', query: async () => { throw new Error('Feed unavailable'); } }]);
+		widget.setVisible(true);
+		await service.requests[0].result.complete(await aggregate.query({ sourceIds: ['testSource'] }, CancellationToken.None));
+		assert.deepStrictEqual({
+			status: getElement(container, '.customization-marketplace-status').textContent,
+			emptyHidden: getElement(container, '.customization-marketplace-empty').style.display,
+			retryEnabled: getElement(container, '.customization-marketplace-source-warning .monaco-button').getAttribute('aria-disabled'),
+			accessibleWarning: widget.getAccessibilityContent().includes('Feed unavailable'),
+			accessibleEmpty: widget.getAccessibilityContent().includes('No resources found'),
+		}, {
+			status: 'Resources could not be loaded. Some sources are unavailable.',
+			emptyHidden: 'none',
+			retryEnabled: 'false',
+			accessibleWarning: true,
+			accessibleEmpty: false,
+		});
+	});
+
+	test('a later source failure preserves healthy pagination and warnings across cancellation', async () => {
+		const { container, widget, service } = createWidget(false, document.body, CustomizationMarketplaceWidget, {
+			sourceEnabled: true,
+			additionalSources: [{ id: 'other', enablementSetting: ChatConfiguration.AgentFinderPublicFeedEnabled }],
+		});
+		const healthy = Array.from({ length: 30 }, (_, index) => createResource(`healthy-${index}`, { score: 40 - index }));
+		const other = Array.from({ length: 24 }, (_, index) => createResource(`other-${index}`, { score: 100 - index }));
+		const aggregate = new CustomizationMarketplaceService([
+			{ id: 'testSource', query: async options => {
+				const offset = Number(options.cursor ?? 0);
+				return { items: healthy.slice(offset, offset + 24), total: 30, nextCursor: offset === 0 ? '24' : undefined };
+			} },
+			{ id: 'other', query: async options => {
+				if (options.cursor) {
+					throw new Error('Later page unavailable');
+				}
+				return { items: other, total: 30, nextCursor: '24' };
+			} },
+		]);
+		const complete = async (index: number) => {
+			const request = service.requests[index];
+			await request.result.complete(await aggregate.query({ ...request.options, sourceIds: ['testSource', 'other'] }, request.token));
+		};
+		pressKey(setSearch(container, 'mail'), 'Enter', 13);
+		widget.setVisible(true);
+		await complete(0);
+		getButton(container, 'Load More').click();
+		await complete(1);
+		const partial = {
+			count: getCardNames(container).length,
+			warning: widget.getAccessibilityContent().includes('Later page unavailable'),
+		};
+		getButton(container, 'Load More').click();
+		widget.setVisible(false);
+		await service.requests[2].result.complete({
+			items: [createResource('cancelled-result')],
+			sourceErrors: [{ sourceId: 'testSource', message: 'cancelled-warning' }],
+		});
+		widget.setVisible(true);
+		getButton(container, 'Load More').click();
+		await complete(3);
+		assert.deepStrictEqual({
+			partial,
+			cancelled: service.requests[2].token.isCancellationRequested,
+			retriedCursor: service.requests[2].options.cursor?.token === service.requests[3].options.cursor?.token,
+			names: getCardNames(container),
+			lateContent: widget.getAccessibilityContent().includes('cancelled-'),
+			warnings: container.querySelectorAll('.customization-marketplace-source-warning').length,
+		}, {
+			partial: { count: 48, warning: true },
+			cancelled: true,
+			retriedCursor: true,
+			names: [...other, ...healthy].map(item => item.displayName),
+			lateContent: false,
+			warnings: 1,
+		});
+	});
+
+	test('source retry remains a restart when a subsequent transport failure is retried', async () => {
+		const { container, widget, service } = createWidget();
+		widget.setVisible(true);
+		await service.requests[0].result.complete({
+			items: [createResource('Old')],
+			nextCursor: createCursor('old-page'),
+			sourceErrors: [{ sourceId: 'testSource', message: 'Unavailable' }],
+		});
+		getElement(container, '.customization-marketplace-source-warning .monaco-button').click();
+		await service.requests[1].result.error(new Error('Transport unavailable'));
+		getElement(container, '.customization-marketplace-footer .monaco-button').click();
+		await service.requests[2].result.complete({ items: [createResource('Recovered', { score: 100 })] });
+		assert.deepStrictEqual({ cursors: service.requests.map(request => request.options.cursor), names: getCardNames(container) }, {
+			cursors: [undefined, undefined, undefined],
+			names: ['Recovered'],
 		});
 	});
 

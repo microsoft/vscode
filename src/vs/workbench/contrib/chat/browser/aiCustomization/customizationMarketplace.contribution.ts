@@ -72,6 +72,8 @@ class CustomizationMarketplaceAccessibleView implements IAccessibleViewImplement
 				localize('customizationMarketplace.help.installRetry', "Installing becomes Installed only when the installation service confirms success. Cancelling restores the action without an error. Failed installations show an error and Retry Install without clearing the results. Installation can continue after leaving the marketplace."),
 				localize('customizationMarketplace.help.links', "Open Resource and View Repository open external websites so you can review their contents before installing."),
 				localize('customizationMarketplace.help.paging', "Load More adds the next page of results. Retry repeats a failed request without removing previously loaded results. Refresh reloads the current search from the first page."),
+				localize('customizationMarketplace.help.sourceFailures', "Unavailable sources show a warning and Retry button above the results. The Accessible View includes the warnings and retry instructions. Load More continues healthy sources. Retrying a source reloads all sources from the first page to restore relevance order."),
+				localize('customizationMarketplace.help.sourceRecovery', "If a source needs authorization or another recovery step, its warning offers an explicit action. Completing recovery reloads all sources from the first page. Cancelling keeps the other results available."),
 				localize('customizationMarketplace.help.view', "Use {0} to read all loaded results, including their descriptions and metadata, in the Accessible View.", '<keybinding:editor.action.accessibleView>'),
 			].join('\n\n') : widget.getAccessibilityContent(),
 			() => DOM.isHTMLElement(focused) && focused.isConnected ? focused.focus() : widget.focus(),
