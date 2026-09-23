@@ -3175,6 +3175,7 @@ suite('Sessions - SessionsList', () => {
 				title: constObservable(title),
 				updatedAt: constObservable(new Date()),
 				status: constObservable(status),
+				isArchived: constObservable(false),
 				changes: constObservable([]),
 				changesets: constObservable([]),
 				interactivity: constObservable(interactivity),
@@ -3809,6 +3810,45 @@ suite('Sessions - SessionsList', () => {
 			});
 		});
 
+		test('shows archived nested chats when archived items are included', () => {
+			const main = createChat('Main chat');
+			const isArchived = observableValue('peer-is-archived', false);
+			const peer: IChat = { ...createChat('Peer chat', ChatOriginKind.User), isArchived };
+			const base = createTestSession('Session').session;
+			const session: ISession = {
+				...base,
+				chats: constObservable([main, peer]),
+				mainChat: constObservable(main),
+				capabilities: constObservable({ supportsMultipleChats: true }),
+			};
+			const { container, list } = renderSessionChatsList(session);
+			const before = chatRowTitles(container);
+
+			isArchived.set(true, undefined);
+			const hidden = chatRowTitles(container);
+			list.setExcludeArchived(false);
+			const archivedRow = container.querySelector<HTMLElement>('.session-chat-item');
+			const shown = {
+				titles: chatRowTitles(container),
+				archivedClass: archivedRow?.classList.contains('archived'),
+				archivedIcon: !!archivedRow?.querySelector('.codicon-pass-filled'),
+				ariaLabel: archivedRow?.closest('.monaco-list-row')?.getAttribute('aria-label'),
+			};
+			isArchived.set(false, undefined);
+
+			assert.deepStrictEqual({ before, hidden, shown, restored: chatRowTitles(container) }, {
+				before: ['Peer chat'],
+				hidden: [],
+				shown: {
+					titles: ['Peer chat'],
+					archivedClass: true,
+					archivedIcon: true,
+					ariaLabel: 'Peer chat, chat, updated now, State: Completed, archived',
+				},
+				restored: ['Peer chat'],
+			});
+		});
+
 		test('hides the main chat even when its title matches the session title', () => {
 			const main = createChat('Session');
 			const peer = createChat('Peer chat', ChatOriginKind.User);
@@ -3867,6 +3907,7 @@ suite('Sessions - SessionsList', () => {
 				title: constObservable('Main chat'),
 				updatedAt: constObservable(new Date()),
 				status: mainStatus,
+				isArchived: constObservable(false),
 				changes: constObservable([]),
 				changesets: constObservable([]),
 				interactivity: constObservable(ChatInteractivity.Full),
@@ -4086,6 +4127,7 @@ suite('Sessions - SessionsList', () => {
 				title: constObservable('Main chat'),
 				updatedAt: constObservable(new Date()),
 				status: mainStatus,
+				isArchived: constObservable(false),
 				changes: constObservable([]),
 				changesets: constObservable([]),
 				interactivity: constObservable(ChatInteractivity.Full),
@@ -5288,6 +5330,7 @@ suite('Sessions - SessionsList', () => {
 				title: constObservable(id),
 				updatedAt: constObservable(new Date()),
 				status: constObservable(SessionStatus.Completed),
+				isArchived: constObservable(false),
 				changes: constObservable([]),
 				changesets: constObservable([]),
 				interactivity: constObservable(ChatInteractivity.Full),

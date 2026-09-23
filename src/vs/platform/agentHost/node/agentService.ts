@@ -525,6 +525,7 @@ export interface IAgentServiceCore {
 	readonly disposables: DisposableStore;
 	readonly authenticationService: AgentHostAuthenticationService;
 	readonly orchestratorDatabase: IAgentHostDatabase;
+	readonly peerChatStore: AgentHostPeerChatStore;
 	readonly debugLogsCollector: AgentHostDebugLogsCollector | undefined;
 	readonly sessionRegistry: AgentSessionRegistry;
 	readonly stateManager: AgentHostStateManager;
@@ -793,7 +794,7 @@ export class AgentService extends Disposable implements IAgentService {
 			isUnpersistedChatBacking: session => this._unpersistedChatBackings.has(session.toString()),
 			worktreeProjectFromRepositoryRoot,
 		});
-		this._peerChatStore = new AgentHostPeerChatStore(this._orchestratorDatabase, this._sessionDataService, this._logService);
+		this._peerChatStore = core.peerChatStore;
 		this._sessionsV2MigrationService = new AgentHostSessionsV2MigrationService(
 			this._orchestratorDatabase,
 			this._sessionDataService,
@@ -6953,6 +6954,11 @@ export class AgentService extends Disposable implements IAgentService {
 
 	private _dispatchActionNow(channel: string, sessionChannel: string, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | IRootConfigChangedAction, clientId: string, clientSeq: number, clientContext: IAgentHostClientTelemetryContext): void {
 		const origin = { clientId, clientSeq };
+		if (action.type === ActionType.ChatIsArchivedChanged
+			&& (isDefaultChatUri(channel) || !this._stateManager.getChatState(channel))) {
+			this._stateManager.rejectClientAction(channel, action, origin, 'Only a known non-default chat can be archived independently.');
+			return;
+		}
 		if (action.type === ActionType.SessionIsArchivedChanged && !action.isArchived && this._sessionResidency.isBeingDisposed(sessionChannel)) {
 			this._stateManager.rejectClientAction(channel, action, origin, 'Cannot unarchive a session while it is being deleted.');
 			return;
@@ -8249,13 +8255,14 @@ export class AgentService extends Disposable implements IAgentService {
 				interactivity: cachedChat?.interactivity,
 				inheritedTurnId: entry.inheritedTurnId,
 				workingDirectories: entry.workingDirectories ?? cachedChat?.workingDirectories,
+				archived: entry.archived,
 			};
 		}));
 		for (const item of restored) {
 			if (!item) {
 				continue;
 			}
-			const { chatUri, title, draft, providerData, origin, interactivity, inheritedTurnId, workingDirectories } = item;
+			const { chatUri, title, draft, providerData, origin, interactivity, inheritedTurnId, workingDirectories, archived } = item;
 			if (this._stateManager.getChatState(chatUri.toString())) {
 				continue;
 			}
@@ -8267,6 +8274,7 @@ export class AgentService extends Disposable implements IAgentService {
 				interactivity,
 				inheritedTurnId,
 				workingDirectories,
+				archived,
 				resolver: currentProviderData => this._materializeRestoredPeerChat(session, chatUri, currentProviderData),
 			});
 		}

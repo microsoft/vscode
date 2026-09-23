@@ -43,6 +43,7 @@ import { IAgentHostTurnTracker } from './agentHostTurnTracker.js';
 import { AgentHostSessionLifecycle } from './agentHostSessionLifecycle.js';
 import { persistSessionMetadataValues } from './shared/persistSessionMetadata.js';
 import { IAgentHostPullRequestStatusService } from './agentHostPullRequestStatusService.js';
+import { AgentHostPeerChatStore, IAgentHostPeerChatPersistenceService } from './agentHostPeerChatStore.js';
 
 export interface IAgentServiceComposition {
 	readonly agentService: AgentService;
@@ -87,6 +88,8 @@ export function createAgentServiceComposition(
 			owned.add(options.orchestratorDatabase);
 		}
 		const orchestratorDatabase = accessor.get(IAgentHostDatabase);
+		const peerChatStore = new AgentHostPeerChatStore(orchestratorDatabase, sessionDataService, logService);
+		services.set(IAgentHostPeerChatPersistenceService, peerChatStore);
 		const debugLogsCollector = options.debugLogsEnvironment
 			? owned.add(new AgentHostDebugLogsCollector(options.debugLogsEnvironment, logService))
 			: undefined;
@@ -97,6 +100,7 @@ export function createAgentServiceComposition(
 			disposables: owned,
 			authenticationService,
 			orchestratorDatabase,
+			peerChatStore,
 			debugLogsCollector,
 			sessionRegistry,
 			stateManager,

@@ -1422,6 +1422,33 @@ suite('AgentHostStateManager', () => {
 			);
 		});
 
+		test('chat archive action changes only the peer and emits chatUpdated', () => {
+			manager.createSession(makeSessionSummary());
+			manager.addChat(sessionUri, peerChat, { title: 'Peer' });
+			const envelopes: ActionEnvelope[] = [];
+			disposables.add(manager.onDidEmitEnvelope(e => envelopes.push(e)));
+
+			manager.dispatchClientAction(peerChat, { type: ActionType.ChatIsArchivedChanged, isArchived: true }, { clientId: 'client', clientSeq: 1 });
+			const peerSummary = manager.getSessionState(sessionUri)?.chats.find(chat => chat.resource === peerChat);
+			const chatUpdated = envelopes.find(envelope => envelope.action.type === ActionType.SessionChatUpdated);
+
+			assert.deepStrictEqual({
+				peerArchived: !!peerSummary && (peerSummary.status & SessionStatus.IsArchived) !== 0,
+				peerStateArchived: ((manager.getChatState(peerChat)?.status ?? 0) & SessionStatus.IsArchived) !== 0,
+				sessionArchived: ((manager.getSessionSummary(sessionUri)?.status ?? 0) & SessionStatus.IsArchived) !== 0,
+				action: chatUpdated?.action,
+			}, {
+				peerArchived: true,
+				peerStateArchived: true,
+				sessionArchived: false,
+				action: {
+					type: ActionType.SessionChatUpdated,
+					chat: peerChat,
+					changes: { status: SessionStatus.Idle | SessionStatus.IsArchived, activity: undefined },
+				},
+			});
+		});
+
 		test('removeChat of an unknown chat is a no-op', () => {
 			manager.createSession(makeSessionSummary());
 

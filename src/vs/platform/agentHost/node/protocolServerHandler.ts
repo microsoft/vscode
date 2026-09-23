@@ -1982,7 +1982,6 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		if (method === RemoveSessionArtifactExtensionMethod) {
 			return this._handleRemoveSessionArtifactRequest(params);
 		}
-
 		if (this._config.allowExtensionMethods === false) {
 			return undefined;
 		}

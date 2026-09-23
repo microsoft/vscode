@@ -27,9 +27,10 @@ import type { IAgentSubscription } from '../../../../../../platform/agentHost/co
 import type { InitializeResult } from '../../../../../../platform/agentHost/common/state/protocol/common/commands.js';
 import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { AutomationRunOriginKind, AutomationRunStatus, ChatInteractivity as ProtocolChatInteractivity, ChatOriginKind as ProtocolChatOriginKind, CustomizationEnablementKind, CustomizationLoadStatus, CustomizationType, McpServerStatus, MessageKind, SessionLifecycle, type AgentCustomization, type AgentInfo, type AutomationState, type ChangesSummary, type Customization, type RootState, type SessionActiveClient, type SessionConfigState, type SessionState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
-import { AUTOMATION_CATALOG_URI, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, ChangesetStatus, isAhpAutomationCatalogChannel, ResponsePartKind, SessionSourceControlOutcome, SessionStatus as ProtocolSessionStatus, StateComponents, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, withMostRecentRelatedSessionPullRequest, withSessionCreationReference, withSessionExternal, withSessionEhcliAdoptable, withSessionGitHubState, withSessionGitState, withSessionMultiRootMetadata, withSessionSourceControlState, withSessionWorkspaceless, withWorkingDirectoryKey, withWorkingDirectoryScopeId, type ChangesetState, type ChatState, type ChatSummary } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { AUTOMATION_CATALOG_URI, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, ChangesetStatus, isAhpAutomationCatalogChannel, parseRequiredSessionUriFromChatUri, ResponsePartKind, SessionSourceControlOutcome, SessionStatus as ProtocolSessionStatus, StateComponents, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, withMostRecentRelatedSessionPullRequest, withSessionCreationReference, withSessionExternal, withSessionEhcliAdoptable, withSessionGitHubState, withSessionGitState, withSessionMultiRootMetadata, withSessionSourceControlState, withSessionWorkspaceless, withWorkingDirectoryKey, withWorkingDirectoryScopeId, type ChangesetState, type ChatState, type ChatSummary } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { SessionArtifactType, withSessionArtifacts } from '../../../../../../platform/agentHost/common/sessionArtifacts.js';
 import { ActionType, NotificationType, type ActionEnvelope, type IRootConfigChangedAction, type ChatAction, type SessionAction, type TerminalAction, type INotification, type ClientAnnotationsAction, type SessionSummaryChangedParams } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
+import { PROTOCOL_VERSION } from '../../../../../../platform/agentHost/common/state/protocol/version/registry.js';
 import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { toRemoteSessionMessageMetadata, withRemoteSessionOrigin } from '../../../../../../platform/agentHost/common/meta/agentRemoteSessionMeta.js';
 import { USE_WORKTREE_SETTING } from '../../../../../common/sessionConfig.js';
@@ -102,7 +103,7 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 	private readonly _onAgentHostExit = new Emitter<number>();
 	override readonly onAgentHostExit = this._onAgentHostExit.event;
 	override readonly initializeResult = observableValue<InitializeResult>(this, {
-		protocolVersion: '1',
+		protocolVersion: PROTOCOL_VERSION,
 		serverSeq: 0,
 		snapshots: [],
 		_meta: { 'vscode.detachedWorktrees': true, [AgentHostAutonomousAutomationsCapabilityMetaKey]: true },
@@ -281,6 +282,23 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 
 	override dispatch(channel: string, action: SessionAction | ChatAction | TerminalAction | ClientAnnotationsAction | IRootConfigChangedAction): void {
 		this.dispatchedActions.push({ channel, action, clientId: this.clientId, clientSeq: this._nextSeq++ });
+		if (action.type === ActionType.ChatIsArchivedChanged) {
+			const session = URI.parse(parseRequiredSessionUriFromChatUri(channel));
+			const existing = this._sessionStateValues.get(session.toString()) as SessionState | undefined;
+			if (existing) {
+				this.setSessionState(AgentSession.id(session), AgentSession.provider(session)!, {
+					...existing,
+					chats: existing.chats.map(summary => summary.resource === channel
+						? {
+							...summary,
+							status: action.isArchived
+								? summary.status | ProtocolSessionStatus.IsArchived
+								: summary.status & ~ProtocolSessionStatus.IsArchived,
+						}
+						: summary),
+				});
+			}
+		}
 	}
 
 	// Test helpers
@@ -7213,7 +7231,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 				interactivity: [ChatInteractivity.Full, ChatInteractivity.ReadOnly],
 				subagentOrigin: ChatOriginKind.Tool,
 				subagentParentIsMain: true,
-				subagentCapabilities: { canRename: false, canDelete: false },
+				subagentCapabilities: { canRename: false, canArchive: false, canDelete: false },
 			});
 		});
 
@@ -7245,6 +7263,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		});
 
 		test('the main chat is renameable but never deletable via capabilities', () => {
+			agentHost.initializeResult.set({ ...agentHost.initializeResult.get(), protocolVersion: '0.8.0' }, undefined);
 			const provider = createProvider(disposables, agentHost);
 			const session = setupMultiChatSession(provider, 'main-caps');
 			const sessionUri = AgentSession.uri('copilotcli', 'main-caps').toString();
@@ -7263,8 +7282,53 @@ suite('LocalAgentHostSessionsProvider', () => {
 				// A regular user peer chat: fully manageable.
 				peer: getChatCapabilities(chats[1], session, undefined),
 			}, {
-				main: { canRename: true, canDelete: false },
-				peer: { canRename: true, canDelete: true },
+				main: { canRename: true, canArchive: false, canDelete: false },
+				peer: { canRename: true, canArchive: false, canDelete: true },
+			});
+		});
+
+		test('peer chat archive state is independent and protocol-version gated', async () => {
+			const provider = createProvider(disposables, agentHost);
+			const session = setupMultiChatSession(provider, 'chat-archive');
+			const sessionUri = AgentSession.uri('copilotcli', 'chat-archive').toString();
+			const defaultChat = buildDefaultChatUri(sessionUri);
+			const peerChat = buildChatUri(sessionUri, 'peer-1');
+			agentHost.setSessionState('chat-archive', 'copilotcli', makeState([
+				makeChatSummary(defaultChat, ''),
+				{ ...makeChatSummary(peerChat, 'Peer'), origin: { kind: ProtocolChatOriginKind.User } },
+			], { defaultChat }));
+
+			const [main, peer] = session.chats.get();
+			await provider.archiveChat(session.sessionId, peer.resource);
+			const archived = {
+				main: main.isArchived.get(),
+				peer: peer.isArchived.get(),
+				interactivity: peer.interactivity.get(),
+				capabilities: getChatCapabilities(peer, session, undefined),
+			};
+			await provider.unarchiveChat(session.sessionId, peer.resource);
+
+			assert.deepStrictEqual({
+				archived,
+				restored: peer.isArchived.get(),
+				actions: agentHost.dispatchedActions
+					.filter(dispatch => dispatch.action.type === ActionType.ChatIsArchivedChanged)
+					.map(dispatch => ({
+						channel: dispatch.channel,
+						isArchived: dispatch.action.type === ActionType.ChatIsArchivedChanged ? dispatch.action.isArchived : undefined,
+					})),
+			}, {
+				archived: {
+					main: false,
+					peer: true,
+					interactivity: ChatInteractivity.ReadOnly,
+					capabilities: { canRename: true, canArchive: true, canDelete: true },
+				},
+				restored: false,
+				actions: [
+					{ channel: peerChat, isArchived: true },
+					{ channel: peerChat, isArchived: false },
+				],
 			});
 		});
 

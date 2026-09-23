@@ -1512,6 +1512,33 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		}
 	}
 
+	async archiveChat(sessionId: string, chatResource: URI): Promise<void> {
+		this._setChatArchived(sessionId, chatResource, true);
+	}
+
+	async unarchiveChat(sessionId: string, chatResource: URI): Promise<void> {
+		this._setChatArchived(sessionId, chatResource, false);
+	}
+
+	private _setChatArchived(sessionId: string, chatResource: URI, archived: boolean): void {
+		const session = this._findSession(sessionId);
+		if (!session?.capabilities.get().supportsMultipleChats || this.uriIdentityService.extUri.isEqual(session.mainChat.get().resource, chatResource)) {
+			throw new Error(localize('chatArchiveUnsupported', "Archiving individual chats is not supported for this chat."));
+		}
+		for (const chatId of this._getChatIdsInGroup(sessionId)) {
+			const chat = this._sessionCache.get(this._localIdFromchatId(chatId));
+			if (chat && this.uriIdentityService.extUri.isEqual(chat.resource, chatResource)) {
+				const agentSession = this.agentSessionsService.getSession(chat.resource);
+				if (!agentSession) {
+					throw new Error(localize('chatSessionNotFound', "The chat session could not be found."));
+				}
+				agentSession.setArchived(archived);
+				return;
+			}
+		}
+		throw new Error(localize('chatNotFound', "The chat could not be found."));
+	}
+
 	async setSessionReadState(sessionId: string, isRead: boolean): Promise<void> {
 		const agentSession = this._findAgentSession(sessionId);
 		if (agentSession && agentSession.isRead() !== isRead) {

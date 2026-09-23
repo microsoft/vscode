@@ -221,6 +221,7 @@ suite('Sessions list context menus', () => {
 			resource: URI.parse('test-chat:/main'),
 			status: constObservable(SessionStatus.Completed),
 			interactivity: constObservable(ChatInteractivity.Full),
+			isArchived: constObservable(false),
 			changes: constObservable([]),
 			changesets: constObservable([]),
 		});
@@ -231,7 +232,8 @@ suite('Sessions list context menus', () => {
 			updatedAt: constObservable(new Date()),
 			status: constObservable(SessionStatus.Completed),
 			interactivity: constObservable(ChatInteractivity.Full),
-			capabilities: constObservable({ canRename: true, canDelete: true }),
+			isArchived: constObservable(false),
+			capabilities: constObservable({ canRename: true, canArchive: true, canDelete: true }),
 			changes: constObservable([]),
 			changesets: constObservable([]),
 		});
@@ -419,7 +421,8 @@ suite('Sessions list context menus', () => {
 			updatedAt: constObservable(new Date()),
 			status: constObservable(SessionStatus.Completed),
 			interactivity: constObservable(ChatInteractivity.Full),
-			capabilities: constObservable({ canRename, canDelete }),
+			isArchived: constObservable(false),
+			capabilities: constObservable({ canRename, canArchive: true, canDelete }),
 			changes: constObservable([]),
 			changesets: constObservable([]),
 		});

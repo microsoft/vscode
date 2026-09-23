@@ -190,7 +190,7 @@ function createChat(sessionId: string, spec: IChatSpec, updatedAt: Date, approva
 		override readonly updatedAt: IObservable<Date> = constObservable(updatedAt);
 		override readonly status: IObservable<SessionStatus> = constObservable(spec.status ?? SessionStatus.Completed);
 		override readonly interactivity: IObservable<ChatInteractivity> = constObservable(ChatInteractivity.Full);
-		override readonly capabilities = constObservable({ canRename: true, canDelete: true });
+		override readonly capabilities = constObservable({ canRename: true, canArchive: true, canDelete: true });
 	}();
 }
 
