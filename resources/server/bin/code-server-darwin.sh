@@ -19,5 +19,4 @@ realdir() {
 
 ROOT="$(dirname "$(realdir "$0")")"
 
-"$ROOT/node" ${INSPECT:-} "$ROOT/out/server-main.js" "$@"
-
+exec "$ROOT/node" ${INSPECT:-} "$ROOT/out/server-main.js" "$@"
