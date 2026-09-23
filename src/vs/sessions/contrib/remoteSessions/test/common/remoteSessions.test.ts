@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { escapeRegExpCharacters } from '../../../../../base/common/strings.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { toAgentHostUri } from '../../../../../platform/agentHost/common/agentHostUri.js';
@@ -179,7 +180,7 @@ suite('RemoteSessions', () => {
 			{ input: { prompt: 'Test', workspace: { uri: 'file:///repo', isolation: 'folder', branch: 'main' } }, message: 'workspace.branch requires worktree isolation; an existing checkout is never switched to another branch.' },
 		];
 		for (const { input, message } of cases) {
-			assert.throws(() => parseCreateRemoteSessionOptions(input), { message });
+			assert.throws(() => parseCreateRemoteSessionOptions(input), new RegExp(`^Error: ${escapeRegExpCharacters(message)}$`));
 		}
 	});
 });

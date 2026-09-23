@@ -143,7 +143,7 @@ suite('RemoteSessionTools', () => {
 		const { create, calls } = setup();
 		const error = { message: 'Remote session creation requires an originating session.' };
 		await assert.rejects(create.prepareToolInvocation({
-			toolCallId: 'prepare-id', parameters: { prompt: 'Test' },
+			toolCallId: 'prepare-id', parameters: { prompt: 'Test' }, chatSessionResource: undefined,
 		}, CancellationToken.None), error);
 		await assert.rejects(create.invoke({
 			callId: 'call-id', toolId: create.getToolData().id, parameters: { prompt: 'Test' }, context: undefined,
