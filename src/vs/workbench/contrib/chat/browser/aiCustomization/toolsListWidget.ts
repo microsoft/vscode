@@ -531,6 +531,9 @@ export class ToolsListWidget extends Disposable {
 	private readonly _onDidRequestShowPlugin = this._register(new Emitter<IAgentPluginItem>());
 	readonly onDidRequestShowPlugin = this._onDidRequestShowPlugin.event;
 
+	private readonly _onDidRequestBrowseMarketplace = this._register(new Emitter<void>());
+	readonly onDidRequestBrowseMarketplace = this._onDidRequestBrowseMarketplace.event;
+
 	private readonly _searchQuery = observableValue<string>('toolsSearchQuery', '');
 	private readonly _expanded = observableValue<ReadonlySet<string>>('toolsExpanded', new Set());
 	private readonly _delayedSearch = this._register(new Delayer<void>(200));
@@ -1144,9 +1147,7 @@ export class ToolsListWidget extends Disposable {
 			ariaLabel: browseLabel,
 		}));
 		browseButton.label = `$(${Codicon.library.id}) ${browseLabel}`;
-		disposables.add(browseButton.onDidClick(() => {
-			void this._extensionsWorkbenchService.openSearch('@tag:language-model-tools');
-		}));
+		disposables.add(browseButton.onDidClick(() => this._onDidRequestBrowseMarketplace.fire()));
 	}
 
 	private _showTreeEmptyState(text: string, subtext: string): void {

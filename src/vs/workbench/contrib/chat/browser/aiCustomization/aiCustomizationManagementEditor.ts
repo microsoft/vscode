@@ -110,6 +110,7 @@ import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/ho
 import { ScrollbarVisibility } from '../../../../../base/common/scrollable.js';
 import { AgentPluginItemKind, IAgentPluginItem } from '../agentPluginEditor/agentPluginItems.js';
 import { IAgentPluginService } from '../../common/plugins/agentPluginService.js';
+import { IExtensionsWorkbenchService } from '../../../extensions/common/extensions.js';
 import { createWorkbenchMcpServerDetailInput, EmbeddedMcpServerDetail, IMcpServerDetailInput } from './embeddedMcpServerDetail.js';
 import { EmbeddedAgentPluginDetail } from './embeddedAgentPluginDetail.js';
 import { EmbeddedConnectorDetail } from './embeddedConnectorDetail.js';
@@ -542,6 +543,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 		@IEditorGroupsService private readonly editorGroupsService: IEditorGroupsService,
+		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
 	) {
 		super(AICustomizationManagementEditor.ID, group, telemetryService, themeService, storageService);
 
@@ -1241,6 +1243,9 @@ export class AICustomizationManagementEditor extends EditorPane {
 			}));
 			this.editorDisposables.add(this.toolsListWidget.onDidRequestShowPlugin(item => {
 				this.showPluginDetail(item);
+			}));
+			this.editorDisposables.add(this.toolsListWidget.onDidRequestBrowseMarketplace(() => {
+				void this.browseToolExtensions().catch(error => this.notificationService.error(error));
 			}));
 		}
 
@@ -3364,6 +3369,13 @@ export class AICustomizationManagementEditor extends EditorPane {
 		return this.isCustomizationDiscoveryDetailVisible()
 			? this.embeddedMarketplaceDetail?.getAccessibilityContent() ?? ''
 			: this.welcomePage?.getAccessibilityContent() ?? '';
+	}
+
+	private async browseToolExtensions(): Promise<void> {
+		if (this.input && !await this.group.closeEditor(this.input)) {
+			return;
+		}
+		await this.extensionsWorkbenchService.openSearch('@tag:language-model-tools');
 	}
 
 	/**
