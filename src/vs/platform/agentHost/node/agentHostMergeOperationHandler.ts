@@ -141,7 +141,8 @@ export class AgentHostMergeOperationHandler implements IChangesetOperationHandle
 	}
 
 	private _throwIfPullRequestExists(sessionUri: string, branchName: string): void {
-		const gitHubState = readSessionGitHubState(this._getSessionState(sessionUri)?._meta);
+		const sessionState = this._getSessionState(sessionUri);
+		const gitHubState = readSessionGitHubState(sessionState?._meta, sessionState?.workingDirectories?.[0]);
 		if (hasSessionPullRequestForBranch(gitHubState, branchName)) {
 			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, localize('agentHost.changeset.merge.pullRequestExists', "Merge Changes is no longer available because a pull request exists for branch '{0}'.", branchName));
 		}

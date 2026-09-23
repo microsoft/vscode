@@ -145,9 +145,12 @@ export function resolveChatChangesetCatalogue(chatUri: URI, chatChangesets: read
 		if (legacyChangesets.length === 0) {
 			return undefined;
 		}
+		// Older hosts compute per-turn changes from session-keyed checkpoints, so
+		// peer chats share the session's Turn and Compare entries; its Branch and
+		// Uncommitted entries describe the session folder only.
 		const changesets = isDefaultChatUri(chatUri)
 			? sessionChangesets
-			: sessionChangeset ? [sessionChangeset] : [];
+			: sessionChangesets.filter(changeset => changeset.changeKind === ChangesetKind.Session || changeset.changeKind === ChangesetKind.Turn || changeset.changeKind === ChangesetKind.Compare);
 		return changesets.map(changeset => ({ changeset, owner: 'session' as const }));
 	}
 

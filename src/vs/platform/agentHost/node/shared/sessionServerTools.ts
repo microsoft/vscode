@@ -13,7 +13,7 @@ import { AgentSession, type AgentProvider, type IAgentCreateSessionConfig, type 
 import { SessionStatus } from '../../common/state/protocol/channels-session/state.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import type { IAgentServerToolDefinition } from '../../common/agentServerTools.js';
-import { buildChatUri, buildDefaultChatUri, getInlineToolInput, getSessionRelatedPullRequestUrls, isDefaultChatUri, isSessionStatusArchived, isSessionStatusRead, MessageKind, parseChatUri, PendingMessageKind, readSessionGitState, readSessionGitHubState, ResponsePartKind, ToolCallStatus, TurnState, withSessionCreationReference, type Message, type ModelSelection, type ResponsePart, type ToolCallState, type ToolDefinition, type Turn, type URI as ProtocolURI } from '../../common/state/sessionState.js';
+import { buildChatUri, buildDefaultChatUri, getInlineToolInput, getSessionRelatedPullRequestUrls, isDefaultChatUri, isSessionStatusArchived, isSessionStatusRead, MessageKind, parseChatUri, PendingMessageKind, readSessionGitState, readSessionGitHubState, getAllSessionRelatedPullRequestUrls, ResponsePartKind, ToolCallStatus, TurnState, withSessionCreationReference, type Message, type ModelSelection, type ResponsePart, type ToolCallState, type ToolDefinition, type Turn, type URI as ProtocolURI } from '../../common/state/sessionState.js';
 import { buildOpenSessionLinkUri, parseOpenSessionLinkChatId, parseOpenSessionLinkUri } from '../../common/openSessionLink.js';
 import { SessionServerToolName } from '../../common/serverToolNames.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
@@ -723,7 +723,7 @@ export function filterSessions(sessions: readonly IAgentSessionMetadata[], args:
 		if (args.unread && !sessionIsUnread(session)) {
 			return false;
 		}
-		if (args.withPullRequest && getSessionRelatedPullRequestUrls(readSessionGitHubState(session._meta)).length === 0) {
+		if (args.withPullRequest && getAllSessionRelatedPullRequestUrls(session._meta).length === 0) {
 			return false;
 		}
 		// Archived sessions are hidden unless explicitly requested, either via
@@ -757,7 +757,7 @@ function serializeGitState(session: IAgentSessionMetadata): ISerializedGitState 
 }
 
 function serializeGitHubState(session: IAgentSessionMetadata): ISerializedGitHubState | undefined {
-	const github = readSessionGitHubState(session._meta);
+	const github = readSessionGitHubState(session._meta, session.workingDirectories?.[0]?.toString());
 	if (!github) {
 		return undefined;
 	}
