@@ -271,6 +271,8 @@ export function isSSHStrictHostKeyChecking(value: string): value is SSHStrictHos
  */
 export interface ISSHResolvedConfig {
 	readonly hostname: string;
+	/** Host identity used for host-key lookup and storage instead of {@link hostname}. */
+	readonly hostKeyAlias?: string;
 	readonly user: string | undefined;
 	readonly port: number;
 	readonly identityFile: string[];
@@ -424,8 +426,10 @@ export interface ISSHHostKeyVerificationRequest {
 	readonly connectionKey: string;
 	/** Display-friendly host (e.g. SSH config alias or `user@host`). */
 	readonly displayHost: string;
-	/** Resolved hostname the key was presented for. */
+	/** Effective host-key identity: `HostKeyAlias` when configured, otherwise the resolved hostname. */
 	readonly host: string;
+	/** Resolved connection hostname, used to consult trust stored before `HostKeyAlias` was supported. */
+	readonly resolvedHost: string;
 	readonly port: number;
 	/** Host key algorithm, e.g. `ssh-ed25519`. */
 	readonly keyType: string;

@@ -22,6 +22,7 @@ function makeRequest(overrides: {
 		connectionKey: 'ssh:testhost',
 		displayHost: 'testhost',
 		host: 'test.example.com',
+		resolvedHost: 'test.example.com',
 		port: 22,
 		keyType: 'ssh-ed25519',
 		fingerprint: FINGERPRINT,
@@ -79,7 +80,7 @@ suite('sshHostKeyPolicy', () => {
 				mismatch: 'deny(mismatch)',
 				revoked: 'deny(revoked)',
 				caOnly: 'prompt(ca-only)',
-				otherKeyType: 'prompt(unknown)',
+				otherKeyType: 'deny(mismatch)',
 				unknown: 'prompt(unknown)',
 			});
 	});
@@ -123,6 +124,8 @@ suite('sshHostKeyPolicy', () => {
 				yesUnknown: decide('yes'),
 				no: decide('no'),
 				off: decide('off'),
+				noOtherKeyType: decide('no', 'other-key-type'),
+				offOtherKeyType: decide('off', 'other-key-type'),
 				acceptNewCaOnly: decide('accept-new', 'ca-only'),
 				acceptNewOtherKeyType: decide('accept-new', 'other-key-type'),
 				// The opt-out covers *unknown* keys only. Verified against
@@ -152,6 +155,8 @@ suite('sshHostKeyPolicy', () => {
 				yesUnknown: 'deny(strict-yes)',
 				no: 'trust(strict-disabled)',
 				off: 'trust(strict-disabled)',
+				noOtherKeyType: 'deny(mismatch)',
+				offOtherKeyType: 'deny(mismatch)',
 				acceptNewCaOnly: 'prompt(ca-only)',
 				acceptNewOtherKeyType: 'deny(mismatch)',
 				noWithMismatch: 'deny(mismatch)',
