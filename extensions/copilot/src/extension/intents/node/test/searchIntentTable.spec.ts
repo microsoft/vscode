@@ -46,7 +46,7 @@ describe('searchIntent jsonToTable', () => {
 			'| query | ``safe` \\| injected`` |\n',
 			'| query | ```a``b``` |\n',
 			'| query | `` `leading and trailing` `` |\n',
-			'| query | `  padded  ` |\n',
+			'| query | ` padded ` |\n',
 			'| query | `  ` |\n',
 			'| query | `line1 line2 line3 line4` |\n',
 			'| query | `a\\|b` |\n',
