@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { coalesce } from '../../../../../base/common/arrays.js';
-import { Throttler } from '../../../../../base/common/async.js';
-import { CancellationToken, CancellationTokenPool } from '../../../../../base/common/cancellation.js';
+import { raceCancellation, Throttler } from '../../../../../base/common/async.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { onUnexpectedError } from '../../../../../base/common/errors.js';
 import { Emitter } from '../../../../../base/common/event.js';
@@ -36,11 +36,7 @@ export class LocalAgentsSessionsController extends Disposable implements IChatSe
 
 	private readonly _modelListeners = this._register(new DisposableResourceMap<DisposableStore>());
 	private readonly _refreshThrottler = this._register(new Throttler());
-	private readonly _refreshTokenPool = this._register(new MutableDisposable<CancellationTokenPool>());
-	private _pendingRefreshTokens: CancellationToken[] = [];
-	private _refreshVersion = 0;
-
-	private _isDisposed = false;
+	private readonly _refreshCancellation = this._register(new MutableDisposable<CancellationTokenSource>());
 
 	constructor(
 		@IChatService private readonly chatService: IChatService,
@@ -53,43 +49,29 @@ export class LocalAgentsSessionsController extends Disposable implements IChatSe
 		this.registerListeners();
 	}
 
-	override dispose(): void {
-		this._isDisposed = true;
-		this._pendingRefreshTokens = [];
-		super.dispose();
-	}
-
 	private _items = new ResourceMap<LocalChatSessionItem>();
 	get items(): readonly IChatSessionItem[] {
 		return Array.from(this._items.values());
 	}
 
+	/** Caller cancellation stops waiting without cancelling the shared refresh. */
 	refresh(token: CancellationToken): Promise<void> {
-		this._pendingRefreshTokens.push(token);
-		return this._refreshThrottler.queue(async () => {
-			const tokens = this._pendingRefreshTokens.filter(token => !token.isCancellationRequested);
-			this._pendingRefreshTokens = [];
-			if (tokens.length === 0) {
-				return;
-			}
+		if (token.isCancellationRequested) {
+			return Promise.resolve();
+		}
 
-			// Coalesced work is cancelled only when every interested caller cancels.
-			const tokenPool = this._refreshTokenPool.value = new CancellationTokenPool();
-			try {
-				for (const token of tokens) {
-					tokenPool.add(token);
-				}
-				await this.doRefresh(tokenPool.token);
-			} finally {
-				this._refreshTokenPool.clear();
-			}
-		});
+		return raceCancellation(this._refreshThrottler.queue(lifetimeToken => this.doRefresh(lifetimeToken)), token);
 	}
 
 	private async doRefresh(token: CancellationToken): Promise<void> {
-		const refreshVersion = this._refreshVersion;
-		const newItems = await this.provideChatSessionItems(token);
-		if (token.isCancellationRequested || this._isDisposed || refreshVersion !== this._refreshVersion) {
+		const cancellation = this._refreshCancellation.value = new CancellationTokenSource(token);
+		let newItems: LocalChatSessionItem[];
+		try {
+			newItems = await this.provideChatSessionItems(cancellation.token);
+		} finally {
+			this._refreshCancellation.clear();
+		}
+		if (cancellation.token.isCancellationRequested) {
 			return;
 		}
 
@@ -160,7 +142,7 @@ export class LocalAgentsSessionsController extends Disposable implements IChatSe
 			}
 
 			// Invalidate snapshots captured before the model was unloaded or its history was deleted.
-			this._refreshVersion++;
+			this._refreshCancellation.value?.cancel();
 			if (e.reason === 'cleared') {
 				for (const resource of localSessionResources) {
 					this._items.delete(resource);

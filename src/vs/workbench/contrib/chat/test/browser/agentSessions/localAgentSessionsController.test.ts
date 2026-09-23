@@ -640,7 +640,7 @@ suite('LocalAgentsSessionsController', () => {
 
 		for (const cancelAll of [false, true]) {
 			for (const timing of ['before starting', 'while reading history']) {
-				test(`${cancelAll ? 'cancels' : 'preserves'} a coalesced refresh when ${cancelAll ? 'all callers cancel' : 'only the latest caller cancels'} ${timing}`, async () => {
+				test(`continues a shared refresh when ${cancelAll ? 'all callers cancel' : 'only the latest caller cancels'} ${timing}`, async () => {
 					const controller = createController();
 					await controller.refresh(CancellationToken.None);
 					const item = createHistoryItem('coalesced-cancellation');
@@ -648,6 +648,8 @@ suite('LocalAgentsSessionsController', () => {
 					const started = new DeferredPromise<void>();
 					const queuedHistory = new DeferredPromise<IChatDetail[]>();
 					const queuedStarted = new DeferredPromise<void>();
+					const refreshed = new DeferredPromise<void>();
+					disposables.add(controller.onDidChangeChatSessionItems(() => refreshed.complete()));
 					let reads = 0;
 					mockChatService.getHistorySessionItems = () => {
 						if (++reads === 1) {
@@ -676,14 +678,14 @@ suite('LocalAgentsSessionsController', () => {
 						history.complete([]);
 					}
 					queuedHistory.complete([item]);
-					await Promise.all([active, first, latest]);
+					await Promise.all([active, first, latest, refreshed.p]);
 
 					assert.deepStrictEqual({
 						reads,
 						items: controller.items.map(item => item.resource),
 					}, {
-						reads: cancelAll && timing === 'before starting' ? 1 : 2,
-						items: cancelAll ? [] : [item.sessionResource],
+						reads: 2,
+						items: [item.sessionResource],
 					});
 				});
 			}
@@ -737,7 +739,13 @@ suite('LocalAgentsSessionsController', () => {
 				return [];
 			};
 			const removed: URI[] = [];
-			disposables.add(controller.onDidChangeChatSessionItems(delta => removed.push(...delta.removed ?? [])));
+			const removal = new DeferredPromise<void>();
+			disposables.add(controller.onDidChangeChatSessionItems(delta => {
+				removed.push(...delta.removed ?? []);
+				if (removed.length > 0) {
+					removal.complete();
+				}
+			}));
 
 			const active = controller.refresh(CancellationToken.None);
 			await started.p;
@@ -747,8 +755,9 @@ suite('LocalAgentsSessionsController', () => {
 			const cts = disposables.add(new CancellationTokenSource());
 			const cancelled = controller.refresh(cts.token);
 			cts.cancel();
+			await cancelled;
 			history.complete([]);
-			await Promise.all([active, cancelled]);
+			await Promise.all([active, removal.p]);
 
 			assert.deepStrictEqual({
 				reads,
@@ -800,26 +809,49 @@ suite('LocalAgentsSessionsController', () => {
 			]);
 		});
 
-		test('does not apply a refresh cancelled while reading history', async () => {
+		test('skips refresh requests that are already cancelled', async () => {
 			const controller = createController();
-			const item = createHistoryItem('cancelled-refresh');
-			mockChatService.setHistorySessionItems([item]);
 			await controller.refresh(CancellationToken.None);
-
-			const history = new DeferredPromise<IChatDetail[]>();
-			const started = new DeferredPromise<void>();
-			mockChatService.getHistorySessionItems = () => {
-				started.complete();
-				return history.p;
+			let reads = 0;
+			mockChatService.getHistorySessionItems = async () => {
+				reads++;
+				return [createHistoryItem('cancelled-refresh')];
 			};
-			const cts = disposables.add(new CancellationTokenSource());
-			const refresh = controller.refresh(cts.token);
-			await started.p;
-			cts.cancel();
-			history.complete([]);
-			await refresh;
 
-			assert.deepStrictEqual(controller.items.map(item => item.resource), [item.sessionResource]);
+			await controller.refresh(CancellationToken.Cancelled);
+
+			assert.deepStrictEqual({ reads, items: controller.items }, { reads: 0, items: [] });
+		});
+
+		test('lets a cancelled caller stop waiting while the shared refresh completes', async () => {
+			return runWithFakedTimers({}, async () => {
+				const controller = createController();
+				const item = createHistoryItem('cancelled-refresh');
+				mockChatService.setHistorySessionItems([item]);
+				await controller.refresh(CancellationToken.None);
+
+				const history = new DeferredPromise<IChatDetail[]>();
+				const started = new DeferredPromise<void>();
+				mockChatService.getHistorySessionItems = () => {
+					started.complete();
+					return history.p;
+				};
+				const cts = disposables.add(new CancellationTokenSource());
+				let finishedWaiting = false;
+				const refresh = controller.refresh(cts.token).then(() => { finishedWaiting = true; });
+				await started.p;
+				cts.cancel();
+				await timeout(0);
+				const stoppedWaitingWhileReading = finishedWaiting;
+				history.complete([]);
+				await refresh;
+				await timeout(0);
+
+				assert.deepStrictEqual({
+					stoppedWaitingWhileReading,
+					items: controller.items,
+				}, { stoppedWaitingWhileReading: true, items: [] });
+			});
 		});
 
 		test('does not start a queued refresh after the controller is disposed', async () => {
