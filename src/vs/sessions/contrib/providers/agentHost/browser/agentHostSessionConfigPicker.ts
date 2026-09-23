@@ -42,8 +42,10 @@ import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
 import { getNewSessionRepositoryConfigGroup, Menus } from '../../../../browser/menus.js';
 import { DevContainerWorktreeEnabledSettingId } from '../../../../common/devContainerAgentHostService.js';
 import { SessionIdContext, SessionProviderIdContext, IsPhoneLayoutContext, IsQuickChatSessionContext } from '../../../../common/contextkeys.js';
+import { IsSessionsWindowContext } from '../../../../../workbench/common/contextkeys.js';
 import { IWorkbenchLayoutService } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { reportNewChatPickerClosed } from '../../../chat/browser/newChatPickerTelemetry.js';
+import { EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, UNIFIED_WORKSPACE_PICKER_SETTING } from '../../../chat/common/constants.js';
 import { ISessionChangesService } from '../../../changes/browser/sessionChangesService.js';
 import { CHANGES_VIEW_ID } from '../../../changes/common/changes.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
@@ -73,6 +75,12 @@ import { CodexSessionConfigKey } from '../../../../../platform/agentHost/common/
 import { type ISessionChangeset, UNCOMMITTED_CHANGES_CHANGESET_ID } from '../../../../services/sessions/common/session.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 
+const ExperimentalSessionComposerLayout = ContextKeyExpr.and(
+	IsSessionsWindowContext,
+	ContextKeyExpr.equals(`config.${EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING}`, true),
+	ContextKeyExpr.equals(`config.${UNIFIED_WORKSPACE_PICKER_SETTING}`, true),
+	IsPhoneLayoutContext.negate(),
+)!;
 const IsActiveSessionRemoteAgentHost = ContextKeyExpr.regex(SessionProviderIdContext.key, REMOTE_AGENT_HOST_PROVIDER_RE);
 const IsActiveSessionLocalAgentHost = ContextKeyExpr.equals(SessionProviderIdContext.key, LOCAL_AGENT_HOST_PROVIDER_ID);
 const AGENT_HOST_SESSION_CONFIG_PICKER_ID_PREFIX = 'sessions.agentHost.sessionConfigPicker';
@@ -92,6 +100,7 @@ function showActiveSessionModePicker(accessor: ServicesAccessor): void {
 }
 
 export interface IConfigPickerItem {
+	readonly id?: string;
 	readonly value: string;
 	readonly label: string;
 	readonly description?: string;
@@ -139,12 +148,21 @@ function getBranchUncommittedChanges(branchName: string, repositoryBranchName: s
 		: undefined;
 }
 
-function toActionItems(property: string, items: readonly IConfigPickerItem[], currentValue: unknown | undefined, policyRestricted?: boolean, repositoryBranchName?: string, repositoryUncommittedChanges?: number, onShowChanges?: () => Promise<void>): IActionListItem<IConfigPickerItem>[] {
+interface IBranchPickerContext {
+	readonly branchName?: string;
+	readonly upstreamBranchName?: string;
+	readonly uncommittedChanges?: number;
+	readonly isWorktree: boolean;
+	readonly query?: string;
+	readonly onShowChanges?: () => Promise<void>;
+}
+
+function toActionItems(property: string, items: readonly IConfigPickerItem[], currentValue: unknown | undefined, policyRestricted?: boolean, branchContext?: IBranchPickerContext): IActionListItem<IConfigPickerItem>[] {
 	const actionItems: IActionListItem<IConfigPickerItem>[] = items.map(item => {
 		const disabled = property === SessionConfigKey.AutoApprove && isAutoApproveValuePolicyRestricted(item.value, policyRestricted === true);
 		const checked = isSelectedValue(currentValue, item.value);
 		const uncommittedChanges = property === SessionConfigKey.Branch
-			? getBranchUncommittedChanges(item.value, repositoryBranchName, repositoryUncommittedChanges)
+			? getBranchUncommittedChanges(item.value, branchContext?.branchName, branchContext?.uncommittedChanges)
 			: undefined;
 		const uncommittedChangesDescription = uncommittedChanges !== undefined
 			? formatUncommittedChanges(uncommittedChanges)
@@ -160,26 +178,59 @@ function toActionItems(property: string, items: readonly IConfigPickerItem[], cu
 			group: { title: '', icon: getConfigIcon(property, item.value, uncommittedChanges !== undefined) },
 			ariaDescription: uncommittedChangesDescription,
 			disabled,
-			item: { ...item, checked },
-			toolbarActions: property === SessionConfigKey.Branch && item.value === repositoryBranchName && onShowChanges
+			item: { ...item, checked: property === SessionConfigKey.Branch ? undefined : checked, ...(property === SessionConfigKey.Branch ? { id: item.value } : {}) },
+			toolbarActions: property === SessionConfigKey.Branch && item.value === branchContext?.branchName && branchContext.onShowChanges
 				? [toAction({
 					id: 'sessions.agentHost.showBranchChanges',
 					label: localize('agentHostSessionConfig.branchItemShowChanges', "Show Changes"),
 					class: ThemeIcon.asClassName(Codicon.diffMultiple),
-					run: onShowChanges,
+					run: branchContext.onShowChanges,
 				})]
 				: undefined,
 		};
 	});
 
 	if (property === SessionConfigKey.Branch) {
-		const currentIndex = actionItems.findIndex(item => item.item?.checked);
+		const query = branchContext?.query?.toLowerCase();
+		const upstreamBranchName = branchContext?.isWorktree
+			&& (currentValue === branchContext.branchName || currentValue === branchContext.upstreamBranchName)
+			? branchContext.upstreamBranchName
+			: undefined;
+		let priorityCount = 0;
+		const currentIndex = actionItems.findIndex(item => item.item?.value === currentValue);
 		if (currentIndex >= 0) {
 			const [current] = actionItems.splice(currentIndex, 1);
 			actionItems.unshift(current);
-			if (actionItems.length > 1) {
-				actionItems.splice(1, 0, { kind: ActionListItemKind.Separator, label: '' });
+			priorityCount++;
+		}
+
+		if (upstreamBranchName && currentValue === upstreamBranchName && (!query || branchContext?.branchName?.toLowerCase().includes(query))) {
+			const localIndex = actionItems.findIndex(item => item.item?.value === branchContext?.branchName);
+			if (localIndex >= 0) {
+				const [local] = actionItems.splice(localIndex, 1);
+				actionItems.unshift(local);
+				priorityCount++;
 			}
+		}
+
+		if (upstreamBranchName && (!query || upstreamBranchName.toLowerCase().includes(query))) {
+			const upstreamIndex = actionItems.findIndex(item => item.item?.value === upstreamBranchName);
+			const upstream = upstreamIndex >= 0
+				? actionItems.splice(upstreamIndex, 1)[0]
+				: {
+					kind: ActionListItemKind.Action,
+					label: upstreamBranchName,
+					group: { title: '', icon: Codicon.gitBranch },
+					item: { id: upstreamBranchName, value: upstreamBranchName, label: upstreamBranchName },
+				};
+			if (upstreamIndex >= 0 && upstreamIndex < priorityCount) {
+				priorityCount--;
+			}
+			actionItems.unshift(upstream);
+			priorityCount++;
+		}
+		if (priorityCount > 0 && actionItems.length > priorityCount) {
+			actionItems.splice(priorityCount, 0, { kind: ActionListItemKind.Separator, label: '' });
 		}
 	}
 
@@ -894,12 +945,9 @@ export class AgentHostSessionConfigPicker extends Disposable {
 
 		const rawItems = await this._getItems(provider, sessionId, property, schema);
 		const { items, policyRestricted } = applyAutoApproveFiltering(rawItems, property, this._configurationService);
-		if (items.length === 0) {
-			return;
-		}
-
 		const isAutoApproveProperty = property === SessionConfigKey.AutoApprove;
-		const currentValue = provider.getSessionConfig(sessionId)?.values[property] ?? schema.default;
+		const config = provider.getSessionConfig(sessionId);
+		const currentValue = config?.values[property] ?? schema.default;
 		const currentItem = items.find(i => isSelectedValue(currentValue, i.value));
 		const isBranchPicker = property === SessionConfigKey.Branch;
 		const repositoryConfigContainer = isBranchPicker
@@ -911,7 +959,14 @@ export class AgentHostSessionConfigPicker extends Disposable {
 		const onShowChanges = isBranchPicker
 			? () => this._showChanges()
 			: undefined;
-		const actionItems = toActionItems(property, items, currentValue, policyRestricted, repositoryState?.branchName, repositoryState?.uncommittedChanges, onShowChanges);
+		const actionItems = toActionItems(property, items, currentValue, policyRestricted, {
+			...repositoryState,
+			isWorktree: config?.values[SessionConfigKey.Isolation] === 'worktree',
+			onShowChanges,
+		});
+		if (actionItems.length === 0) {
+			return;
+		}
 
 		const delegate: IActionListDelegate<IConfigPickerItem> = {
 			onSelect: async item => {
@@ -942,7 +997,13 @@ export class AgentHostSessionConfigPicker extends Disposable {
 					const filteredRawItems = await this._getItems(provider, sessionId, property, schema, query);
 					const { items: filteredItems, policyRestricted: filteredPolicyRestricted } = applyAutoApproveFiltering(filteredRawItems, property, this._configurationService);
 					const filteredRepositoryState = this._getRepositoryBranchState(sessionId);
-					return toActionItems(property, filteredItems, provider.getSessionConfig(sessionId)?.values[property] ?? schema.default, filteredPolicyRestricted, filteredRepositoryState.branchName, filteredRepositoryState.uncommittedChanges, onShowChanges);
+					const filteredConfig = provider.getSessionConfig(sessionId);
+					return toActionItems(property, filteredItems, filteredConfig?.values[property] ?? schema.default, filteredPolicyRestricted, {
+						...filteredRepositoryState,
+						isWorktree: filteredConfig?.values[SessionConfigKey.Isolation] === 'worktree',
+						query,
+						onShowChanges,
+					});
 				})
 				: undefined,
 			onHide: () => {
@@ -977,6 +1038,10 @@ export class AgentHostSessionConfigPicker extends Disposable {
 				? { showFilter: true, filterPlaceholder: localize('agentHostSessionConfig.filter', "Filter options..."), minWidth: 255 }
 				: { minWidth: 255 },
 		);
+		const upstreamBranchName = repositoryState?.upstreamBranchName;
+		if (isBranchPicker && config?.values[SessionConfigKey.Isolation] === 'worktree' && upstreamBranchName && actionItems[0]?.item?.value === upstreamBranchName) {
+			this._actionWidgetService.focusItemById(upstreamBranchName);
+		}
 	}
 
 	private async _showChanges(): Promise<void> {
@@ -996,13 +1061,15 @@ export class AgentHostSessionConfigPicker extends Disposable {
 		await this._viewsService.openView(CHANGES_VIEW_ID, true);
 	}
 
-	protected _getRepositoryBranchState(sessionId: string): { branchName: string | undefined; uncommittedChanges: number | undefined } {
+	protected _getRepositoryBranchState(sessionId: string): { branchName: string | undefined; upstreamBranchName: string | undefined; uncommittedChanges: number | undefined } {
 		const session = this._session.get();
 		const repository = session?.sessionId === sessionId
 			? session.workspace.get()?.folders[0]?.gitRepository
 			: undefined;
+
 		return {
 			branchName: repository?.branchName,
+			upstreamBranchName: repository?.upstreamBranchName,
 			uncommittedChanges: repository?.uncommittedChanges,
 		};
 	}
@@ -1458,6 +1525,7 @@ export class AgentHostSessionConfigPickerContribution extends Disposable impleme
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@ISessionsProvidersService private readonly _sessionsProvidersService: ISessionsProvidersService,
 		@ISessionsService private readonly _sessionsService: ISessionsService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) {
 		super();
 		// The mode-picker factories below pick the mobile subclass at
@@ -1488,6 +1556,12 @@ export class AgentHostSessionConfigPickerContribution extends Disposable impleme
 				this._refreshRepositoryMenuItems(actionViewItemService);
 			}
 		}));
+		this._register(this._configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING)
+				|| e.affectsConfiguration(UNIFIED_WORKSPACE_PICKER_SETTING)) {
+				this._refreshRepositoryMenuItems(actionViewItemService);
+			}
+		}));
 		this._register(actionViewItemService.register(
 			Menus.NewSessionControl,
 			NEW_SESSION_MODE_PICKER_ID,
@@ -1499,8 +1573,11 @@ export class AgentHostSessionConfigPickerContribution extends Disposable impleme
 				));
 			},
 		));
-		this._register(actionViewItemService.register(
-			MenuId.ChatInputSecondary,
+		const registerRunningSessionPicker = (actionId: string, factory: IActionViewItemFactory) => {
+			this._register(actionViewItemService.register(MenuId.ChatInput, actionId, factory));
+			this._register(actionViewItemService.register(MenuId.ChatInputSecondary, actionId, factory));
+		};
+		registerRunningSessionPicker(
 			RUNNING_SESSION_MODE_PICKER_ID,
 			(_action, _options, scopedInstantiationService) => {
 				const { session } = scopedInstantiationService.invokeFunction(accessor => accessor.get(ISessionContext));
@@ -1509,7 +1586,7 @@ export class AgentHostSessionConfigPickerContribution extends Disposable impleme
 					session,
 				));
 			},
-		));
+		);
 		this._register(actionViewItemService.register(
 			Menus.NewSessionControl,
 			NEW_SESSION_APPROVE_PICKER_ID,
@@ -1531,27 +1608,24 @@ export class AgentHostSessionConfigPickerContribution extends Disposable impleme
 				return new PickerActionViewItem(scopedInstantiationService.createInstance(AgentHostCodexApprovalsPicker, session));
 			},
 		));
-		this._register(actionViewItemService.register(
-			MenuId.ChatInputSecondary,
+		registerRunningSessionPicker(
 			RUNNING_SESSION_CONFIG_PICKER_ID,
 			this._createRunningSessionPermissionPickerFactory(),
-		));
-		this._register(actionViewItemService.register(
-			MenuId.ChatInputSecondary,
+		);
+		registerRunningSessionPicker(
 			RUNNING_SESSION_PERMISSION_MODE_PICKER_ID,
 			(_action, _options, scopedInstantiationService) => {
 				const { session } = scopedInstantiationService.invokeFunction(accessor => accessor.get(ISessionContext));
 				return new PickerActionViewItem(scopedInstantiationService.createInstance(AgentHostClaudePermissionModePicker, session));
 			},
-		));
-		this._register(actionViewItemService.register(
-			MenuId.ChatInputSecondary,
+		);
+		registerRunningSessionPicker(
 			RUNNING_SESSION_CODEX_APPROVALS_PICKER_ID,
 			(_action, _options, scopedInstantiationService) => {
 				const { session } = scopedInstantiationService.invokeFunction(accessor => accessor.get(ISessionContext));
 				return new PickerActionViewItem(scopedInstantiationService.createInstance(AgentHostCodexApprovalsPicker, session));
 			},
-		));
+		);
 	}
 
 	private _watchProviders(providers: readonly ISessionsProvider[], actionViewItemService: IActionViewItemService): void {
@@ -1585,6 +1659,14 @@ export class AgentHostSessionConfigPickerContribution extends Disposable impleme
 				isRenderableSessionConfigProperty(property, schema) &&
 				(isNewSession || schema.sessionMutable || property === SessionConfigKey.Isolation || property === SessionConfigKey.Branch)
 			);
+			const branchIndex = properties.findIndex(([property]) => property === SessionConfigKey.Branch);
+			const isolationIndex = properties.findIndex(([property]) => property === SessionConfigKey.Isolation);
+			const useExperimentalOrder = !isPhoneLayout(this._layoutService)
+				&& this._configurationService.getValue<boolean>(EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING)
+				&& this._configurationService.getValue<boolean>(UNIFIED_WORKSPACE_PICKER_SETTING);
+			if (useExperimentalOrder && branchIndex > isolationIndex && isolationIndex >= 0) {
+				[properties[branchIndex], properties[isolationIndex]] = [properties[isolationIndex], properties[branchIndex]];
+			}
 
 			properties.forEach(([property, schema], index) => {
 				const commandId = this._registerRepositoryProperty(property, actionViewItemService);
@@ -1643,10 +1725,9 @@ export class AgentHostSessionConfigPickerContribution extends Disposable impleme
 	}
 
 	/**
-	 * Inside a running chat widget (`ChatInputSecondary`), use the workbench
-	 * {@link PermissionPickerActionItem} so it matches the rest of the
-	 * chat-input secondary toolbar (which is what the extension-host CLI
-	 * already uses).
+	 * Inside a running chat widget, use the workbench
+	 * {@link PermissionPickerActionItem} so it matches the standard chat-input
+	 * picker presentation in either toolbar.
 	 */
 	private _createRunningSessionPermissionPickerFactory(): IActionViewItemFactory {
 		return (action, _options, instantiationService) => {
@@ -1765,7 +1846,7 @@ registerAction2(class extends Action2 {
 });
 
 
-// ---- Running session config picker (ChatInputSecondary) ----
+// ---- Running session config picker ----
 
 const RUNNING_SESSION_CONFIG_PICKER_ID = 'sessions.agentHost.runningSessionConfigPicker';
 
@@ -1776,10 +1857,15 @@ registerAction2(class extends Action2 {
 			title: localize2('agentHostRunningSessionConfigPicker', "Session Approvals"),
 			f1: false,
 			menu: [{
+				id: MenuId.ChatInput,
+				group: 'navigation',
+				order: 0.2,
+				when: ContextKeyExpr.and(ChatContextKeyExprs.isAgentHostSession, ExperimentalSessionComposerLayout),
+			}, {
 				id: MenuId.ChatInputSecondary,
 				group: 'navigation',
 				order: 10,
-				when: ChatContextKeyExprs.isAgentHostSession,
+				when: ContextKeyExpr.and(ChatContextKeyExprs.isAgentHostSession, ExperimentalSessionComposerLayout.negate()),
 			}],
 		});
 	}
@@ -1796,10 +1882,15 @@ registerAction2(class extends Action2 {
 			title: localize2('agentHostRunningSessionPermissionModePicker', "Approvals"),
 			f1: false,
 			menu: [{
+				id: MenuId.ChatInput,
+				group: 'navigation',
+				order: 0.3,
+				when: ContextKeyExpr.and(ChatContextKeyExprs.isAgentHostSession, ExperimentalSessionComposerLayout),
+			}, {
 				id: MenuId.ChatInputSecondary,
 				group: 'navigation',
 				order: 11,
-				when: ChatContextKeyExprs.isAgentHostSession,
+				when: ContextKeyExpr.and(ChatContextKeyExprs.isAgentHostSession, ExperimentalSessionComposerLayout.negate()),
 			}],
 		});
 	}
@@ -1807,7 +1898,7 @@ registerAction2(class extends Action2 {
 	override async run(): Promise<void> { }
 });
 
-// ---- Running session Codex approvals picker (ChatInputSecondary) ----
+// ---- Running session Codex approvals picker ----
 // Codex-specific "Approvals" chip for a running session. Mutually exclusive
 // with the Claude permission-mode picker (order 11) — each hides when its
 // backing property is absent from the active session's schema.
@@ -1821,10 +1912,15 @@ registerAction2(class extends Action2 {
 			title: localize2('agentHostRunningSessionCodexApprovalsPicker', "Approvals"),
 			f1: false,
 			menu: [{
+				id: MenuId.ChatInput,
+				group: 'navigation',
+				order: 0.4,
+				when: ContextKeyExpr.and(ChatContextKeyExprs.isAgentHostSession, ExperimentalSessionComposerLayout),
+			}, {
 				id: MenuId.ChatInputSecondary,
 				group: 'navigation',
 				order: 12,
-				when: ChatContextKeyExprs.isAgentHostSession,
+				when: ContextKeyExpr.and(ChatContextKeyExprs.isAgentHostSession, ExperimentalSessionComposerLayout.negate()),
 			}],
 		});
 	}
@@ -1833,7 +1929,7 @@ registerAction2(class extends Action2 {
 });
 
 
-// ---- Running session mode picker (ChatInputSecondary, before approvals) ----
+// ---- Running session mode picker (before approvals) ----
 
 const RUNNING_SESSION_MODE_PICKER_ID = 'sessions.agentHost.runningSessionModePicker';
 
@@ -1844,11 +1940,24 @@ registerAction2(class extends Action2 {
 			title: localize2('agentHostRunningSessionModePicker', "Agent Mode"),
 			f1: false,
 			menu: [{
+				id: MenuId.ChatInput,
+				group: 'navigation',
+				order: 0.1,
+				when: ContextKeyExpr.and(
+					ChatContextKeyExprs.isAgentHostSession,
+					ChatContextKeys.hasPendingDelegationTarget.negate(),
+					ExperimentalSessionComposerLayout,
+				),
+			}, {
 				id: MenuId.ChatInputSecondary,
 				group: 'navigation',
 				order: 9,
 				// Hide the agent mode picker while a delegation (continue in) target is pending.
-				when: ContextKeyExpr.and(ChatContextKeyExprs.isAgentHostSession, ChatContextKeys.hasPendingDelegationTarget.negate()),
+				when: ContextKeyExpr.and(
+					ChatContextKeyExprs.isAgentHostSession,
+					ChatContextKeys.hasPendingDelegationTarget.negate(),
+					ExperimentalSessionComposerLayout.negate(),
+				),
 			}],
 		});
 	}

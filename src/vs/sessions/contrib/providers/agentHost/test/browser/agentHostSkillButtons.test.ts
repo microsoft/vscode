@@ -29,6 +29,7 @@ function makeActiveSession(providerId: string): IActiveSession {
 	const chat = {
 		resource: URI.parse('file:///session'),
 		createdAt: new Date(),
+		workspace: constObservable(undefined),
 		title: observableValue('t', 'Test'),
 		updatedAt: observableValue('u', new Date()),
 		status: observableValue('s', 0),

@@ -1627,12 +1627,17 @@ suite('CopilotSessionLauncher resume config', () => {
 				await toolSearchOf({ toolSearchEnabled: false }, { id: 'claude-opus-4.8' }),
 				// unsupported model → disabled even with the flag on
 				await toolSearchOf({ toolSearchEnabled: true }, { id: 'preview-model-x' }),
+				// supported future Claude and GPT-6 families enable tool search directly
+				await toolSearchOf({ toolSearchEnabled: true }, { id: 'claude-opus-5.5' }),
+				await toolSearchOf({ toolSearchEnabled: true }, { id: 'gpt-6-luna' }),
 				// a family alias makes an unsupported preview model tool-search-capable
 				await toolSearchOf({ toolSearchEnabled: true, modelCapabilityOverrides: { 'preview-model-x': { family: 'claude-opus-4.8' } } }, { id: 'preview-model-x' }),
 			],
 			[
 				{ enabled: false },
 				{ enabled: false },
+				{ enabled: true, deferThreshold: 1 },
+				{ enabled: true, deferThreshold: 1 },
 				{ enabled: true, deferThreshold: 1 },
 			]
 		);
@@ -1680,7 +1685,9 @@ suite('CopilotSessionLauncher auto tier', () => {
 			sessionId: 'session-1',
 			on: () => () => { },
 			disconnect: async () => { },
-			rpc: { options: { update: async () => ({ success: true }) } },
+			rpc: {
+				options: { update: async () => ({ success: true }) },
+			},
 		} as unknown as CopilotSession;
 		const client: Pick<CopilotClient, 'createSession' | 'resumeSession'> = {
 			createSession: async config => {
@@ -1756,4 +1763,19 @@ suite('CopilotSessionLauncher auto tier', () => {
 			]
 		);
 	});
+
+	for (const [tier, tierSource] of [['intelligence', 'managed'], ['balance', 'explicit'], ['efficiency', 'explicit']] as const) {
+		test(`passes the advertised ${tierSource} ${tier} at creation without post-create policy mutation`, async () => {
+			const model: ModelSelection = JSON.parse(JSON.stringify({ id: 'auto', config: { tier, tierSource } }));
+			assert.deepStrictEqual({
+				created: await capiOptionsFor('create', model),
+				resumed: await capiOptionsFor('resume', model),
+				emptyFallback: await capiOptionsFor('fallback', model),
+			}, {
+				created: [{ autoTier: tier }],
+				resumed: [undefined],
+				emptyFallback: [undefined, { autoTier: tier }],
+			});
+		});
+	}
 });

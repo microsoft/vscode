@@ -162,6 +162,9 @@ class TestSessionsService extends mock<ISessionsService>() {
 	override readonly activeSession = observableValue<IActiveSession | undefined>(this, undefined);
 	openChatGate: Promise<void> | undefined;
 	openChatError: Error | undefined;
+	readonly closedSessions: string[] = [];
+	readonly closedChats: string[] = [];
+	onDidCloseSession: ((session: ISession) => void) | undefined;
 
 	override async openChat(session: ISession, chatUri: URI): Promise<void> {
 		await this.openChatGate;
@@ -182,6 +185,16 @@ class TestSessionsService extends mock<ISessionsService>() {
 		this.activeSession.set(session, undefined);
 	}
 
+	override async closeChat(_session: IActiveSession, chat: IChat): Promise<void> {
+		this.closedChats.push(chat.resource.toString());
+	}
+
+	override closeSession(session: ISession | undefined): void {
+		if (session) {
+			this.closedSessions.push(session.sessionId);
+			this.onDidCloseSession?.(session);
+		}
+	}
 }
 
 class TestSessionsProvidersService extends mock<ISessionsProvidersService>() {
@@ -453,7 +466,7 @@ suite('Sessions - ChatGroupsView', () => {
 		});
 	});
 
-	test('closes the main chat group while retaining the main chat in the remaining group', async () => {
+	test('closes the main chat group while keeping the main chat reopenable', async () => {
 		const { configurationService, view } = createHarness(disposables);
 		const main = createChat('main');
 		const secondary = createChat('secondary');
@@ -480,11 +493,96 @@ suite('Sessions - ChatGroupsView', () => {
 		}, {
 			closed: true,
 			groupCount: 1,
-			groupChats: [secondary.resource.toString(), main.resource.toString()],
+			groupChats: [secondary.resource.toString()],
 			groupActiveChat: secondary.resource.toString(),
 			sessionActiveChat: secondary.resource.toString(),
 			visibleChats: [main.resource.toString(), secondary.resource.toString()],
 		});
+	});
+
+	test('single mode replaces the current peer instead of stacking it behind the opened peer', async () => {
+		const { configurationService, sessionsService, view } = createHarness(disposables);
+		const main = createChat('main');
+		const peer = createChat('peer');
+		const session = new TestActiveSession([main, peer], [main]);
+		view.setSession(session, options);
+		await configurationService.setUserConfiguration(SESSIONS_CHAT_TABS_SETTING, SessionsChatTabsMode.Single);
+		configurationService.onDidChangeConfigurationEmitter.fire({
+			source: ConfigurationTarget.USER,
+			affectedKeys: new Set([SESSIONS_CHAT_TABS_SETTING]),
+			change: { keys: [SESSIONS_CHAT_TABS_SETTING], overrides: [] },
+			affectsConfiguration: key => key === SESSIONS_CHAT_TABS_SETTING,
+		});
+
+		await sessionsService.openChat(session, peer.resource);
+
+		assert.deepStrictEqual(view['_groups'].map(group => ({
+			chats: group.resourceIds.get(),
+			active: group.activeResourceId.get(),
+		})), [{
+			chats: [peer.resource.toString()],
+			active: peer.resource.toString(),
+		}]);
+	});
+
+	test('closing the sole peer pane does not reveal the main chat', async () => {
+		const { configurationService, sessionsService, view } = createHarness(disposables);
+		const main = createChat('main');
+		const peer = createChat('peer');
+		const session = new TestActiveSession([main, peer], [main]);
+		view.setSession(session, options);
+		await configurationService.setUserConfiguration(SESSIONS_CHAT_TABS_SETTING, SessionsChatTabsMode.Single);
+		configurationService.onDidChangeConfigurationEmitter.fire({
+			source: ConfigurationTarget.USER,
+			affectedKeys: new Set([SESSIONS_CHAT_TABS_SETTING]),
+			change: { keys: [SESSIONS_CHAT_TABS_SETTING], overrides: [] },
+			affectsConfiguration: key => key === SESSIONS_CHAT_TABS_SETTING,
+		});
+		await sessionsService.openChat(session, peer.resource);
+		sessionsService.onDidCloseSession = () => view.setSession(undefined, options);
+
+		const closed = await view.closeChatGroup(peer.resource);
+		await sessionsService.closeChat(session, peer);
+
+		assert.deepStrictEqual({
+			closed,
+			closedSessions: sessionsService.closedSessions,
+			closedChats: sessionsService.closedChats,
+			renderedChat: view.getActiveChat()?.resource.toString(),
+		}, {
+			closed: true,
+			closedSessions: [session.sessionId],
+			closedChats: [peer.resource.toString()],
+			renderedChat: undefined,
+		});
+	});
+
+	test('single mode opens a peer to the side without replacing the reference chat', async () => {
+		const { configurationService, view } = createHarness(disposables);
+		const main = createChat('main');
+		const peer = createChat('peer');
+		const session = new TestActiveSession([main, peer], [main]);
+		view.setSession(session, options);
+		await configurationService.setUserConfiguration(SESSIONS_CHAT_TABS_SETTING, SessionsChatTabsMode.Single);
+		configurationService.onDidChangeConfigurationEmitter.fire({
+			source: ConfigurationTarget.USER,
+			affectedKeys: new Set([SESSIONS_CHAT_TABS_SETTING]),
+			change: { keys: [SESSIONS_CHAT_TABS_SETTING], overrides: [] },
+			affectsConfiguration: key => key === SESSIONS_CHAT_TABS_SETTING,
+		});
+
+		await view.openChatInNewGroup(peer.resource, main.resource);
+
+		assert.deepStrictEqual(view['_groups'].map(group => ({
+			chats: group.resourceIds.get(),
+			active: group.activeResourceId.get(),
+		})), [{
+			chats: [main.resource.toString()],
+			active: main.resource.toString(),
+		}, {
+			chats: [peer.resource.toString()],
+			active: peer.resource.toString(),
+		}]);
 	});
 
 	test('keeps a pinned chat visible while reusing an unpinned group', async () => {

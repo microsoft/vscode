@@ -4890,6 +4890,16 @@
               "onExp"
             ]
           },
+          "github.copilot.chat.executionSubagent.turnWisePrompting": {
+            "type": "boolean",
+            "default": false,
+            "markdownDescription": "%github.copilot.config.executionSubagent.turnWisePrompting%",
+            "tags": [
+              "advanced",
+              "experimental",
+              "onExp"
+            ]
+          },
           "github.copilot.chat.summarizeAgentConversationHistoryThreshold": {
             "type": [
               "number",
@@ -5373,6 +5383,21 @@
               "advanced"
             ]
           },
+          "github.copilot.chat.otel.captureIdentity": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "default": null,
+            "scope": "application",
+            "policyReference": {
+              "name": "CopilotOtelCaptureIdentity"
+            },
+            "markdownDescription": "Capture the authenticated Copilot account name, operating system username, and machine hostname in OpenTelemetry. **Contains personally identifying data.** Independent of content capture. `null` means no personal preference (off by default). `COPILOT_OTEL_CAPTURE_IDENTITY` overrides personal settings; explicit enterprise policy overrides both. Enabling requires window reload; an effective denial applies immediately to subsequent exports.",
+            "tags": [
+              "advanced"
+            ]
+          },
           "github.copilot.chat.otel.serviceName": {
             "type": "string",
             "default": "",
@@ -5395,7 +5420,7 @@
             "policyReference": {
               "name": "CopilotOtelResourceAttributes"
             },
-            "markdownDescription": "Additional OTel resource attributes for Copilot Chat OTel data, as a `{ \"key\": \"value\" }` map. When enterprise OTel settings apply, personal OTel settings are ignored. Merged per-key with env var `OTEL_RESOURCE_ATTRIBUTES` (env values take precedence, including over enterprise-managed values). Requires window reload.",
+            "markdownDescription": "Additional OTel resource attributes for Copilot Chat OTel data, as a `{ \"key\": \"value\" }` map. When enterprise OTel settings apply, personal OTel settings are ignored. Merged per-key with env var `OTEL_RESOURCE_ATTRIBUTES`: enterprise-managed values take precedence over environment values, which take precedence over personal settings. Requires window reload.",
             "tags": [
               "advanced"
             ]

@@ -34,6 +34,7 @@ export interface ICustomizationMigrationDashboardCategory {
 	readonly count: number;
 	readonly countLabel: string;
 	readonly highRisk?: boolean;
+	readonly hasDetails?: boolean;
 }
 
 export interface ICustomizationMigrationDashboardScope {
@@ -56,6 +57,7 @@ export interface ICustomizationMigrationDashboardActivity {
 		readonly sourceLabel: string;
 		readonly targetLabel: string;
 		readonly operation: 'converted' | 'moved' | 'copied' | 'server';
+		readonly migrationKey?: string;
 	}[];
 }
 
@@ -240,7 +242,7 @@ export class CustomizationMigrationDashboard extends Disposable {
 			destinations.element.setAttribute('aria-haspopup', 'listbox');
 		}
 
-		const categories = scope.categories.filter(category => category.count > 0).slice().sort((a, b) => Number(!!b.highRisk) - Number(!!a.highRisk));
+		const categories = scope.categories.filter(category => category.count > 0 || category.hasDetails).slice().sort((a, b) => Number(!!b.highRisk) - Number(!!a.highRisk));
 		if (!scope.skipped && categories.length) {
 			const categoryList = DOM.append(item, $('.migration-categories'));
 			for (const category of categories) {

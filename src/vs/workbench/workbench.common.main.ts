@@ -205,6 +205,7 @@ import './services/accounts/browser/defaultAccount.js';
 
 // Account Policy Gate
 import './services/policies/browser/accountPolicyGate.contribution.js';
+import './services/policies/browser/managedSettingsUpdate.contribution.js';
 
 // Policy Telemetry
 import './services/policies/browser/policyTelemetry.contribution.js';
@@ -230,6 +231,7 @@ import './contrib/speech/browser/speech.contribution.js';
 import './contrib/chat/browser/chat.shared.contribution.js';
 import './contrib/chat/browser/chat.contribution.js';
 import './contrib/chat/browser/agentSessions/agentHost/agentHost.contribution.js';
+import './contrib/chat/browser/remoteAgentHost/remoteAgentHost.contribution.js';
 import './contrib/chat/browser/chat.view.contribution.js';
 import './contrib/inlineChat/browser/inlineChat.contribution.js';
 

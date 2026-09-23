@@ -375,7 +375,7 @@ Distinct from individually disabled tests: whole areas where a platform or contr
 
 ### What is still Windows-scoped
 
-The blanket `!isWindows` shell exclusion is gone: `portableShellToolReplayEnabled` now only reflects the provider's shell-tool replay stability on Linux. Permission approval, file operations, renames, deletes, directory creation, git status, and git-backed config completions all run on Windows.
+The blanket `!isWindows` shell exclusion is gone. Permission approval, file operations, renames, deletes, directory creation, git status, and git-backed config completions all run on Windows.
 
 The following tests remain scoped at their call sites:
 
@@ -562,21 +562,6 @@ A client can request arbitrary file bytes from the Agent Host in base64 so binar
     --grep "chat action is broadcast|unsubscribed client|terminal output is streamed|root session summaries"
   ```
 
-### Discard changes fails for an untracked file
-
-- Test: `discarding an untracked file removes it from disk`.
-- Scope: conformance reference provider, uncommitted changeset with one untracked file.
-- Expected: the advertised resource-scoped `discard-changes` operation removes the untracked file and returns to idle.
-- Observed: the operation fails because `git restore` reports that the untracked path does not match a file known to Git.
-- Gate: the affected `conformanceTest` is disabled at its declaration in `changesetSuite.ts`.
-- Reproduce:
-
-  ```bash
-  ./scripts/test-integration.sh --run \
-    src/vs/platform/agentHost/test/node/e2e/conformance/agentHostConformance.integrationTest.ts \
-    --grep "discarding an untracked file"
-  ```
-
 ### Checkpoint-backed per-turn changesets omit host-local filesystem edits
 
 - Tests:
@@ -747,46 +732,6 @@ Copilot's ordinary provider shell also omits `ToolResultTerminalContent.result.p
 
 Use the affected provider command with `--grep "<exact test title>"` and temporarily remove the platform gate to reevaluate a row.
 
-### Codex shell-tool replay on Linux
-
-- Scope: Codex on Linux in deterministic replay.
-- Expected: recorded `exec_command` turns emit their tool lifecycle and complete.
-- Observed: packaged Linux completes the recorded turn without command-execution notifications.
-- Gate: `shellToolReplayUnstableOnLinux: true`. Recording and other platforms remain enabled.
-- Tests directly affected by this gate:
-  - `worktree session uses the resolved worktree as working directory`
-  - `reads an existing text file`
-  - `reads a file from a nested directory`
-  - `lists workspace entries`
-  - `reads a value from JSON`
-  - `counts lines in a file`
-  - `handles a missing file without a session error`
-  - `creates a new text file`
-  - `edits an existing text file`
-  - `creates a file in a new nested directory`
-  - `renames a workspace file`
-  - `deletes a workspace file`
-  - `runs a deterministic shell command`
-  - `reads a filename containing spaces`
-  - `secondary workspace skill reaches the Codex model request`
-  - `peer chat reads a file from the parent workspace`
-  - `peer chat reads a file from a nested directory`
-  - `peer chat creates a file in the parent workspace`
-  - `peer chat edits an existing workspace file`
-  - `peer chat creates a file in a nested directory`
-  - `peer chat handles a missing workspace file without an error`
-  - `peer chat reads a filename containing spaces`
-  - `two peer chats write distinct workspace files`
-  - `session changeset aggregates provider edits from default and peer chats`
-- Reproduce:
-
-  ```bash
-  ./scripts/test-integration.sh --run \
-    src/vs/platform/agentHost/test/node/e2e/providers/codexAgentHostE2E.integrationTest.ts
-  ```
-
-  Temporarily clear `shellToolReplayUnstableOnLinux`.
-
 ### Codex successful shell result text
 
 - Tests:
@@ -819,16 +764,6 @@ Use the affected provider command with `--grep "<exact test title>"` and tempora
   ```
 
   Temporarily clear `shellToolResultTextUnreliable`.
-
-### Claude subagent replay on Windows
-
-- Test: `reopening a session keeps sub-agent messages out of the parent transcript (replay path)`.
-- Scope: Claude on Windows.
-- Expected: the reopened parent transcript excludes subagent-only messages.
-- Observed: Claude reconstructs the subagent transcript from `subagents/agent-*.jsonl`, which is not reliably visible immediately on Windows.
-- Gate: `subagentReplayUnstableOnWindows: true`.
-- Related investigation: [#325284](https://github.com/microsoft/vscode/pull/325284).
-- Reproduce: temporarily clear the gate and run the exact title with `scripts\test-integration.bat`.
 
 ### Claude file deletion replay on Windows
 
