@@ -16,6 +16,7 @@ import { ITextModelService, type ITextModelContentProvider } from '../../../../.
 import type { ITextModel } from '../../../../../../editor/common/model.js';
 import { IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import type { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
+import { ActionType, type StateAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { StateComponents } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import type { TerminalState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { createDecorator } from '../../../../../../platform/instantiation/common/instantiation.js';
@@ -62,11 +63,16 @@ export interface IChatTerminalOutputTextModelService extends ITextModelContentPr
 	canResolve(resource: URI): Promise<boolean>;
 }
 
+function getTerminalPartText(part: TerminalState['content'][number]): string {
+	return part.type === 'command' ? part.output : part.value;
+}
+
+function normalizeTerminalText(value: string): string {
+	return value.replace(/\r\n?|\n/g, '\n');
+}
+
 function getTerminalText(state: TerminalState): string {
-	return state.content
-		.map(part => part.type === 'command' ? part.output : part.value)
-		.join('')
-		.replace(/\r\n?|\n/g, '\n');
+	return normalizeTerminalText(state.content.map(getTerminalPartText).join(''));
 }
 
 function updateModel(model: ITextModel, value: string): void {
@@ -91,6 +97,102 @@ function updateModel(model: ITextModel, value: string): void {
 		range: Range.fromPositions(model.getPositionAt(prefixLength), model.getPositionAt(currentSuffixStart)),
 		text: value.slice(prefixLength, valueSuffixStart),
 	}]);
+}
+
+class TerminalTextModelSynchronizer {
+	private _lastPartIndex = -1;
+	private _lastPartContentLength = 0;
+	private _pendingAction: StateAction | undefined;
+	private _requiresReconcile = false;
+
+	constructor(
+		private readonly _model: ITextModel,
+		state: TerminalState,
+	) {
+		this._updateCursor(state);
+	}
+
+	beginAction(action: StateAction): void {
+		this._pendingAction = action;
+	}
+
+	acceptState(state: TerminalState): void {
+		const action = this._pendingAction;
+		if (this._requiresReconcile || !action) {
+			this.reconcile(state);
+			return;
+		}
+		switch (action.type) {
+			case ActionType.TerminalData:
+				if (!this._appendData(state, action.data)) {
+					this.reconcile(state);
+				}
+				return;
+			case ActionType.TerminalCleared:
+				updateModel(this._model, '');
+				this._updateCursor(state);
+				return;
+			case ActionType.TerminalInput:
+			case ActionType.TerminalResized:
+			case ActionType.TerminalClaimed:
+			case ActionType.TerminalTitleChanged:
+			case ActionType.TerminalCwdChanged:
+			case ActionType.TerminalExited:
+			case ActionType.TerminalCommandDetectionAvailable:
+			case ActionType.TerminalCommandExecuted:
+			case ActionType.TerminalCommandFinished:
+				this._updateCursor(state);
+				return;
+			default:
+				this.reconcile(state);
+		}
+	}
+
+	endAction(): void {
+		this._pendingAction = undefined;
+	}
+
+	reconcile(state: TerminalState): void {
+		updateModel(this._model, getTerminalText(state));
+		this._updateCursor(state);
+		this._requiresReconcile = false;
+	}
+
+	showError(error: Error): void {
+		if (this._model.getValueLength() === 0) {
+			updateModel(this._model, localize('chatTerminalOutputUnavailable', "Terminal output is unavailable: {0}", error.message));
+			this._requiresReconcile = true;
+		}
+	}
+
+	private _appendData(state: TerminalState, data: string): boolean {
+		const lastPartIndex = state.content.length - 1;
+		if (lastPartIndex < 0) {
+			return false;
+		}
+		const lastPartContentLength = getTerminalPartText(state.content[lastPartIndex]).length;
+		const extendsLastPart = lastPartIndex === this._lastPartIndex
+			&& lastPartContentLength === this._lastPartContentLength + data.length;
+		const startsNewPart = lastPartIndex === this._lastPartIndex + 1
+			&& lastPartContentLength === data.length;
+		if (!extendsLastPart && !startsNewPart) {
+			return false;
+		}
+		const text = normalizeTerminalText(data);
+		if (text) {
+			const end = this._model.getPositionAt(this._model.getValueLength());
+			this._model.applyEdits([{ range: Range.fromPositions(end), text }]);
+		}
+		this._updateCursor(state);
+		return true;
+	}
+
+	private _updateCursor(state: TerminalState): void {
+		this._lastPartIndex = state.content.length - 1;
+		this._lastPartContentLength = this._lastPartIndex === -1
+			? 0
+			: getTerminalPartText(state.content[this._lastPartIndex]).length;
+	}
 }
 
 export class ChatTerminalOutputTextModelService extends Disposable implements IChatTerminalOutputTextModelService {
@@ -134,20 +236,21 @@ export class ChatTerminalOutputTextModelService extends Disposable implements IC
 				return null;
 			}
 			const model = this._modelService.createModel(getTerminalText(state), this._languageService.createById('plaintext'), resource);
+			const synchronizer = new TerminalTextModelSynchronizer(model, state);
 			const store = new DisposableStore();
 			store.add(subscription);
-			store.add(subscription.object.onDidChange(next => updateModel(model, getTerminalText(next))));
+			store.add(subscription.object.onWillApplyAction(envelope => synchronizer.beginAction(envelope.action)));
+			store.add(subscription.object.onDidChange(next => synchronizer.acceptState(next)));
+			store.add(subscription.object.onDidApplyAction(() => synchronizer.endAction()));
 			if (subscription.object.onDidError) {
 				store.add(subscription.object.onDidError(error => {
 					this._logService.error(`[ChatTerminalOutputTextModelService] Terminal subscription failed: ${error.message}`);
-					if (model.getValueLength() === 0) {
-						updateModel(model, localize('chatTerminalOutputUnavailable', "Terminal output is unavailable: {0}", error.message));
-					}
+					synchronizer.showError(error);
 				}));
 			}
 			const latest = subscription.object.value;
 			if (latest && !(latest instanceof Error)) {
-				updateModel(model, getTerminalText(latest));
+				synchronizer.reconcile(latest);
 			}
 			store.add(Event.once(model.onWillDispose)(() => this._modelStores.deleteAndDispose(model)));
 			this._modelStores.set(model, store);

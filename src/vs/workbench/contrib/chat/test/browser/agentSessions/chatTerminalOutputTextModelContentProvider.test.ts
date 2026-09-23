@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { Emitter, Event } from '../../../../../../base/common/event.js';
+import * as sinon from 'sinon';
+import { Emitter } from '../../../../../../base/common/event.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
@@ -13,6 +14,7 @@ import { createTestCodeEditor } from '../../../../../../editor/test/browser/test
 import { IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import type { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import type { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
+import { ActionType, type ActionEnvelope, type StateAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { StateComponents, type ComponentToState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { TerminalClaimKind, TerminalLifecycleStatus, type TerminalState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { IChatService } from '../../../common/chatService/chatService.js';
@@ -22,10 +24,13 @@ import { ChatTerminalOutputResource, ChatTerminalOutputTextModelService } from '
 class TestTerminalSubscription extends Disposable implements IAgentSubscription<TerminalState> {
 	private readonly _onDidChange = this._register(new Emitter<TerminalState>());
 	private readonly _onDidError = this._register(new Emitter<Error>());
+	private readonly _onWillApplyAction = this._register(new Emitter<ActionEnvelope>());
+	private readonly _onDidApplyAction = this._register(new Emitter<ActionEnvelope>());
 	readonly onDidChange = this._onDidChange.event;
 	readonly onDidError = this._onDidError.event;
-	readonly onWillApplyAction = Event.None;
-	readonly onDidApplyAction = Event.None;
+	readonly onWillApplyAction = this._onWillApplyAction.event;
+	readonly onDidApplyAction = this._onDidApplyAction.event;
+	private _serverSeq = 0;
 
 	constructor(private _value: TerminalState | Error | undefined) {
 		super();
@@ -47,6 +52,19 @@ class TestTerminalSubscription extends Disposable implements IAgentSubscription<
 	setError(error: Error): void {
 		this._value = error;
 		this._onDidError.fire(error);
+	}
+
+	applyAction(action: StateAction, state: TerminalState): void {
+		const envelope: ActionEnvelope = {
+			channel: 'agenthost-terminal://shell/session/tool',
+			action,
+			serverSeq: ++this._serverSeq,
+			origin: undefined,
+		};
+		this._onWillApplyAction.fire(envelope);
+		this._value = state;
+		this._onDidChange.fire(state);
+		this._onDidApplyAction.fire(envelope);
 	}
 }
 
@@ -154,6 +172,110 @@ suite('ChatTerminalOutputTextModelService', () => {
 		});
 		model.dispose();
 		assert.strictEqual(fixture.releases, 2);
+	});
+
+	test('appends only unseen terminal data across existing and new content parts', async () => {
+		const fixture = createService({
+			title: 'Bash',
+			content: [{ type: 'unclassified', value: 'line one\r\n' }],
+			lifecycle: { status: TerminalLifecycleStatus.Running },
+			claim,
+			isPty: false,
+		});
+		const model = await fixture.service.provideTextContent(modelResource);
+		assert.ok(model);
+		store.add(model);
+		const applyEdits = sinon.spy(model, 'applyEdits');
+		const editor = store.add(createTestCodeEditor(model));
+		editor.setPosition({ lineNumber: 1, column: 3 });
+
+		fixture.subscription.applyAction({ type: ActionType.TerminalData, data: 'line two\r\n' }, {
+			title: 'Bash',
+			content: [{ type: 'unclassified', value: 'line one\r\nline two\r\n' }],
+			lifecycle: { status: TerminalLifecycleStatus.Running },
+			claim,
+			isPty: false,
+		});
+		fixture.subscription.applyAction({
+			type: ActionType.TerminalCommandExecuted,
+			commandId: 'command-1',
+			commandLine: 'build',
+			timestamp: 1,
+		}, {
+			title: 'Bash',
+			content: [
+				{ type: 'unclassified', value: 'line one\r\nline two\r\n' },
+				{ type: 'command', commandId: 'command-1', commandLine: 'build', output: '', timestamp: 1, isComplete: false },
+			],
+			lifecycle: { status: TerminalLifecycleStatus.Running },
+			claim,
+			isPty: false,
+		});
+		fixture.subscription.applyAction({ type: ActionType.TerminalData, data: 'command output\r\n' }, {
+			title: 'Bash',
+			content: [
+				{ type: 'unclassified', value: 'line one\r\nline two\r\n' },
+				{ type: 'command', commandId: 'command-1', commandLine: 'build', output: 'command output\r\n', timestamp: 1, isComplete: false },
+			],
+			lifecycle: { status: TerminalLifecycleStatus.Running },
+			claim,
+			isPty: false,
+		});
+		const position = editor.getPosition();
+
+		assert.deepStrictEqual({
+			value: model.getValue(),
+			insertedText: applyEdits.getCalls().map(call => call.args[0][0].text),
+			position: position && { lineNumber: position.lineNumber, column: position.column },
+		}, {
+			value: 'line one\nline two\ncommand output\n',
+			insertedText: ['line two\n', 'command output\n'],
+			position: { lineNumber: 1, column: 3 },
+		});
+	});
+
+	test('reconciles clears and snapshot replacements', async () => {
+		const fixture = createService({
+			title: 'Bash',
+			content: [{ type: 'unclassified', value: 'partial output' }],
+			lifecycle: { status: TerminalLifecycleStatus.Running },
+			claim,
+			isPty: false,
+		});
+		const model = await fixture.service.provideTextContent(modelResource);
+		assert.ok(model);
+		store.add(model);
+
+		fixture.subscription.applyAction({ type: ActionType.TerminalCleared }, {
+			title: 'Bash',
+			content: [],
+			lifecycle: { status: TerminalLifecycleStatus.Running },
+			claim,
+			isPty: false,
+		});
+		fixture.subscription.applyAction({ type: ActionType.TerminalData, data: 'authoritative\r\n' }, {
+			title: 'Bash',
+			content: [{ type: 'unclassified', value: 'authoritative\r\n' }],
+			lifecycle: { status: TerminalLifecycleStatus.Running },
+			claim,
+			isPty: false,
+		});
+		const afterAuthoritativeOutput = model.getValue();
+		fixture.subscription.setState({
+			title: 'Bash',
+			content: [{ type: 'unclassified', value: 'restored snapshot' }],
+			lifecycle: { status: TerminalLifecycleStatus.Exited, exitCode: 0 },
+			claim,
+			isPty: false,
+		});
+
+		assert.deepStrictEqual({
+			afterAuthoritativeOutput,
+			afterSnapshot: model.getValue(),
+		}, {
+			afterAuthoritativeOutput: 'authoritative\n',
+			afterSnapshot: 'restored snapshot',
+		});
 	});
 
 	test('reports unavailable subscriptions without creating a model', async () => {
