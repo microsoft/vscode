@@ -591,8 +591,6 @@ export class InboxNotificationsView extends AbstractCustomView {
 
 		const heading = card.appendChild($('.inbox-notifications-item-header'));
 		heading.appendChild($('.inbox-notifications-item-title', undefined, item.title));
-		const kindLabel = heading.appendChild($('.inbox-notifications-item-kind-label', undefined, this.kindLabel(item.kind)));
-		kindLabel.classList.add(`priority-${item.priority}`);
 		if (item.actions.length) {
 			const headingActions = heading.appendChild($('.inbox-notifications-item-header-actions'));
 			for (const action of item.actions) {
@@ -602,9 +600,11 @@ export class InboxNotificationsView extends AbstractCustomView {
 				}
 			}
 		}
-		let badges: HTMLElement | undefined;
+
+		const badges = card.appendChild($('.inbox-notifications-item-badges'));
+		const kindLabel = badges.appendChild($('.inbox-notifications-item-kind-label', undefined, this.kindLabel(item.kind)));
+		kindLabel.classList.add(`priority-${item.priority}`);
 		if (item.repositoryLabel) {
-			badges = card.appendChild($('.inbox-notifications-item-badges'));
 			badges.appendChild($('.inbox-notifications-item-badge.repository', undefined, item.repositoryLabel));
 		}
 		if (item.pullRequestStates?.length) {

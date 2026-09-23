@@ -239,15 +239,15 @@ suite('InboxNotificationsService', () => {
 		assert.deepStrictEqual({ priorityOrder, recencyOrder, restoredOrder }, {
 			priorityOrder: [
 				'high-old',
-				'Completed: low-new',
+				'low-new',
 			],
 			recencyOrder: [
-				'Completed: low-new',
+				'low-new',
 				'high-old',
 			],
 			restoredOrder: [
 				'high-old',
-				'Completed: low-new',
+				'low-new',
 			],
 		});
 	});

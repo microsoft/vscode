@@ -551,7 +551,7 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 				id,
 				kind: InboxNotificationKind.Completed,
 				priority: InboxNotificationPriority.Low,
-				title: localize('inboxNotifications.completed.title', "Completed: {0}", title),
+				title,
 				description: this.getCompletedSessionDescription(session, reader),
 				repositoryLabel,
 				timestamp: updatedAt,

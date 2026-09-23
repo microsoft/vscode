@@ -341,13 +341,14 @@
 
 .inbox-notifications-item-header {
 	display: flex;
-	align-items: center;
+	align-items: flex-start;
 	gap: var(--vscode-spacing-size100);
 }
 
 .inbox-notifications-item-kind-label {
 	font-size: inherit;
 	font-weight: 600;
+	white-space: nowrap;
 }
 
 .inbox-notifications-item-kind-label.priority-0 {
@@ -363,17 +364,22 @@
 }
 
 .inbox-notifications-item-title {
+	flex: 1 1 auto;
+	min-width: 0;
 	font-weight: 600;
+	overflow-wrap: anywhere;
 }
 
 .inbox-notifications-item-header-actions {
 	display: flex;
-	flex-wrap: wrap;
+	flex-wrap: nowrap;
 	align-items: center;
-	gap: var(--vscode-spacing-size100);
+	gap: var(--vscode-spacing-size80);
 	margin-inline-start: auto;
+	flex: 0 0 auto;
 }
 
+.inbox-notifications-item-header-actions .monaco-button,
 .inbox-notifications-item-header-actions .monaco-text-button {
 	width: auto;
 	flex: 0 0 auto;
