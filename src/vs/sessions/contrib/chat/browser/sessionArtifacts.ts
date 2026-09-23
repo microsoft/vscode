@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Codicon } from '../../../../base/common/codicons.js';
-import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { cancelOnDispose } from '../../../../base/common/cancellation.js';
 import { Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { getMediaMime } from '../../../../base/common/mime.js';
@@ -387,7 +387,7 @@ export function buildSessionArtifactSections(artifacts: readonly ISessionArtifac
 interface ISessionGitHubCommitEntry {
 	readonly target: IGitHubCommitTarget;
 	readonly value: ReturnType<typeof observableValue<GitHubCommit | undefined>>;
-	readonly store: DisposableStore;
+	store: DisposableStore | undefined;
 }
 
 class SessionGitHubCommitResolver extends Disposable {
@@ -405,21 +405,28 @@ class SessionGitHubCommitResolver extends Disposable {
 		const key = this._key(target);
 		let entry = this._entries.get(key);
 		if (!entry) {
-			const store = new DisposableStore();
 			entry = {
 				target,
 				value: observableValue<GitHubCommit | undefined>(this, undefined),
-				store,
+				store: undefined,
 			};
 			this._entries.set(key, entry);
-			const cancellation = store.add(new CancellationTokenSource());
-			void this._gitHubService.getCommit(target.owner, target.repo, target.sha, cancellation.token).then(commit => {
+		}
+		if (!entry.store) {
+			const currentEntry = entry;
+			const store = entry.store = new DisposableStore();
+			const token = cancelOnDispose(store);
+			void this._gitHubService.getCommit(target.owner, target.repo, target.sha, token).then(commit => {
 				if (!store.isDisposed) {
-					entry?.value.set(commit, undefined);
+					currentEntry.value.set(commit, undefined);
 				}
 			}, error => {
-				if (!cancellation.token.isCancellationRequested) {
+				if (!token.isCancellationRequested) {
 					this._logService.warn('[SessionGitHubCommitResolver] Failed to resolve GitHub commit', error);
+					store.dispose();
+					if (currentEntry.store === store) {
+						currentEntry.store = undefined;
+					}
 				}
 			});
 		}
@@ -430,7 +437,7 @@ class SessionGitHubCommitResolver extends Disposable {
 		const retained = new Set(targets.map(target => this._key(target)));
 		for (const [key, entry] of this._entries) {
 			if (!retained.has(key)) {
-				entry.store.dispose();
+				entry.store?.dispose();
 				this._entries.delete(key);
 			}
 		}
@@ -438,7 +445,7 @@ class SessionGitHubCommitResolver extends Disposable {
 
 	override dispose(): void {
 		for (const entry of this._entries.values()) {
-			entry.store.dispose();
+			entry.store?.dispose();
 		}
 		this._entries.clear();
 		super.dispose();

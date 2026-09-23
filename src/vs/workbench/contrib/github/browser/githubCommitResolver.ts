@@ -71,7 +71,7 @@ export class GitHubCommitResolver extends Disposable {
 		const retainedKeys = new Set(targets.map(commitTargetKey));
 		for (const [key, entry] of this._entries) {
 			if (!retainedKeys.has(key)) {
-				entry.subscription.dispose();
+				this._store.delete(entry.subscription);
 				this._entries.delete(key);
 			}
 		}

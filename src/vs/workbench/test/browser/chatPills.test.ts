@@ -12,23 +12,27 @@ import type { IManagedHoverContent, IManagedHoverOptions } from '../../../base/b
 import { IListAccessibilityProvider } from '../../../base/browser/ui/list/listWidget.js';
 import { timeout } from '../../../base/common/async.js';
 import { Action, IAction } from '../../../base/common/actions.js';
+import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
 import { Codicon } from '../../../base/common/codicons.js';
 import { DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
 import { constObservable, derived, observableValue } from '../../../base/common/observable.js';
 import { URI } from '../../../base/common/uri.js';
-import { mock } from '../../../base/test/common/mock.js';
+import { mock, upcastPartial } from '../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
 import { IActionListDelegate, IActionListItem } from '../../../platform/actionWidget/browser/actionList.js';
 import { IActionWidgetService } from '../../../platform/actionWidget/browser/actionWidget.js';
+import { IFileService } from '../../../platform/files/common/files.js';
 import { ChatDropdownPillActionViewItem, ChatPillSingleEntry, createChatSectionPill } from '../../browser/chatDropdownPill.js';
+import { ChatResourcePillActionViewItem } from '../../browser/chatResourcePill.js';
 import { createChatImageHoverContent } from '../../browser/chatImagePreview.js';
-import { ChatPillsRow, ChatPillsWidget, type IChatPill, type IChatPillEntry, type IChatPillSection, withChatPillHoverLabel } from '../../browser/chatPills.js';
+import { ChatPillsRow, ChatPillsWidget, createChatPillImagePreview, type IChatPill, type IChatPillEntry, type IChatPillSection, withChatPillHoverLabel } from '../../browser/chatPills.js';
 import { DEFAULT_LABELS_CONTAINER, ResourceLabels } from '../../browser/labels.js';
 import { workbenchInstantiationService } from './workbenchTestServices.js';
 
 const getDropdownPillHoverContents = Reflect.get(ChatDropdownPillActionViewItem.prototype, 'getHoverContents') as (this: ChatDropdownPillActionViewItem) => IManagedHoverContent;
 const getDropdownPillHoverOptions = Reflect.get(ChatDropdownPillActionViewItem.prototype, 'getHoverOptions') as (this: ChatDropdownPillActionViewItem) => IManagedHoverOptions | undefined;
 const getDropdownPillItems = Reflect.get(ChatDropdownPillActionViewItem.prototype, '_getDropdownItems') as (this: ChatDropdownPillActionViewItem) => IActionListItem<IChatPillEntry>[];
+const getResourcePillHoverOptions = Reflect.get(ChatResourcePillActionViewItem.prototype, 'getHoverOptions') as (this: ChatResourcePillActionViewItem) => IManagedHoverOptions | undefined;
 
 suite('ChatPills', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -180,6 +184,64 @@ suite('ChatPills', () => {
 		mappedEntry.hover?.disposable?.dispose();
 
 		disposables.dispose();
+	});
+
+	test('single resource pills retain hover-only actions and concise footer labels', () => {
+		const instantiationService = workbenchInstantiationService(undefined, store);
+		const resourceLabels = store.add(instantiationService.createInstance(ResourceLabels, DEFAULT_LABELS_CONTAINER));
+		const runs: string[] = [];
+		const copy = store.add(new Action('copy', 'Copy path', undefined, true, async () => { runs.push('copy'); }));
+		const relative = store.add(new Action('relative', 'Copy relative path', undefined, true, async () => { runs.push('relative'); }));
+		const remove = withChatPillHoverLabel(store.add(new Action('remove', 'Remove design.png from Session', undefined, true, async () => { runs.push('remove'); })), 'Remove reference');
+		const entry: IChatPillEntry = {
+			id: 'design',
+			label: 'design.png',
+			resource: URI.file('/repo/design.png'),
+			toolbarActions: [copy],
+			hoverActions: [relative],
+			promotedAction: remove,
+			open: () => { },
+		};
+		const action = store.add(new Action('references', 'References'));
+		const viewItem = store.add(instantiationService.createInstance(ChatResourcePillActionViewItem, action, {}, constObservable(entry), resourceLabels));
+		const options = getResourcePillHoverOptions.call(viewItem);
+		for (const action of options?.actions ?? []) {
+			action.run(mainWindow.document.body);
+		}
+
+		assert.deepStrictEqual({
+			labels: options?.actions?.map(action => action.label),
+			trapFocus: options?.trapFocus,
+			runs,
+		}, {
+			labels: ['Copy path', 'Copy relative path', 'Remove reference'],
+			trapFocus: true,
+			runs: ['copy', 'relative', 'remove'],
+		});
+	});
+
+	test('cancels image reads when their hover closes or is cancelled', () => {
+		const tokens: (CancellationToken | undefined)[] = [];
+		const fileService = upcastPartial<IFileService>({
+			readFile: (_resource, _options, token) => {
+				tokens.push(token);
+				return new Promise(() => { });
+			},
+		});
+		const entry = {
+			id: 'design',
+			label: 'design.png',
+			imagePreview: { resource: URI.file('/repo/design.png'), mimeType: 'image/png' },
+			open: () => { },
+		};
+		const preview = createChatPillImagePreview(entry, fileService);
+		store.add(preview.disposable).dispose();
+		const cancellation = store.add(new CancellationTokenSource());
+		store.add(createChatPillImagePreview(entry, fileService, cancellation.token).disposable);
+		cancellation.cancel();
+		store.add(createChatPillImagePreview(entry, fileService, CancellationToken.Cancelled).disposable);
+
+		assert.deepStrictEqual(tokens.map(token => token?.isCancellationRequested), [true, true]);
 	});
 
 	test('uses the main DOM realm and target auxiliary window', () => {

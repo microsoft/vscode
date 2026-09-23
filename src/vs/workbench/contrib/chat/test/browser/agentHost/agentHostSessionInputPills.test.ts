@@ -471,7 +471,7 @@ suite('AgentHostSessionInputPills', () => {
 		] as const);
 		const openerService = new TestOpenerService();
 
-		store.add(new AgentHostSessionInputPills(
+		const pills = store.add(new AgentHostSessionInputPills(
 			widget,
 			false,
 			connectionsService,
@@ -494,6 +494,8 @@ suite('AgentHostSessionInputPills', () => {
 		const pullRequestDropdownItems = dropdownItems;
 		const pullRequestHover = pullRequestDropdownItems.find(item => typeof item.hover?.content === 'function')?.hover?.content;
 		const pullRequestHoverElement = typeof pullRequestHover === 'function' ? pullRequestHover() : undefined;
+		const pullRequestHoverCache = Reflect.get(pills, '_pullRequestHoverCache') as ReadonlyMap<string, object>;
+		const cachedHoverCount = pullRequestHoverCache.size;
 		issueButton?.click();
 		const removePullRequest = pullRequestDropdownItems.flatMap(item => item.toolbarActions ?? []).find(action => action.label.startsWith('Remove '));
 		await removePullRequest?.run();
@@ -521,7 +523,12 @@ suite('AgentHostSessionInputPills', () => {
 		} as unknown as SessionState);
 		await timeout(0);
 
-		assert.deepStrictEqual({ ...presentation, disposedSubscriptions: disposedSubscriptions.sort() }, {
+		assert.deepStrictEqual({
+			...presentation,
+			disposedSubscriptions: disposedSubscriptions.sort(),
+			cachedHoverCount,
+			retainedHoverCount: pullRequestHoverCache.size,
+		}, {
 			pullRequests: {
 				label: '2 Pull Requests',
 				ariaLabel: 'Show 2 pull requests',
@@ -550,6 +557,8 @@ suite('AgentHostSessionInputPills', () => {
 			}],
 			removed: [{ session: backendSession.toString(), artifactId: 'second-pr' }],
 			disposedSubscriptions: ['issue:335383', 'pullRequest:332982', 'pullRequest:335387'],
+			cachedHoverCount: 1,
+			retainedHoverCount: 0,
 		});
 	});
 
@@ -1134,7 +1143,7 @@ suite('AgentHostSessionInputPills', () => {
 			copied: [
 				'https://github.com/microsoft/vscode/commit/abc123',
 				website.toString(true),
-				'/repo/README.md',
+				URI.parse('file:///repo/README.md').fsPath,
 				'vscode://settings/chat',
 			],
 			removeCalls: [{ session: backendSession.toString(), artifactId: 'preview' }],

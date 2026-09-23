@@ -344,7 +344,7 @@ class AgentHostGitHubReferenceResolver extends Disposable {
 	private _retainEntries<T>(entries: Map<string, IGitHubReferenceEntry<T>>, retainedKeys: ReadonlySet<string>): void {
 		for (const [key, entry] of entries) {
 			if (!retainedKeys.has(key)) {
-				entry.subscription.dispose();
+				this._store.delete(entry.subscription);
 				entries.delete(key);
 			}
 		}
@@ -591,6 +591,17 @@ export class AgentHostSessionInputPills extends Disposable {
 		const gitHubState = derived(this, reader => readSessionGitHubState(sessionState.read(reader)?._meta));
 		this._register(autorun(reader => {
 			const currentMetadata = metadata.read(reader);
+			for (const [cache, links] of [
+				[this._issueHoverCache, currentMetadata.issueUrls],
+				[this._pullRequestHoverCache, currentMetadata.pullRequestUrls],
+			] as const) {
+				const retained = new Set(links.map(linkKey));
+				for (const key of cache.keys()) {
+					if (!retained.has(key)) {
+						cache.delete(key);
+					}
+				}
+			}
 			gitHubReferenceResolver.retain(
 				currentMetadata.issueUrls.map(link => parseUri(link)).filter(isDefined).map(resource => parseGitHubReferenceTarget(resource, 'issue')).filter(isDefined),
 				currentMetadata.pullRequestUrls.map(link => parseUri(link)).filter(isDefined).map(resource => parseGitHubReferenceTarget(resource, 'pullRequest')).filter(isDefined),

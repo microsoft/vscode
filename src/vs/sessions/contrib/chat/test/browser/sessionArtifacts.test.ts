@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { timeout } from '../../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Event } from '../../../../../base/common/event.js';
 import { autorun, constObservable, derived, observableValue, type IReader } from '../../../../../base/common/observable.js';
@@ -44,7 +45,7 @@ suite('Session Artifacts', () => {
 		},
 	};
 
-	function createPresentation(entries: readonly ISessionArtifact[], info?: IGitHubInfo, commit?: GitHubCommit) {
+	function createPresentation(entries: readonly ISessionArtifact[], info?: IGitHubInfo, commit?: GitHubCommit, getCommit?: ISessionsGitHubService['getCommit']) {
 		const artifacts = observableValue('artifacts', entries);
 		const removed: string[] = [];
 		const errors: string[] = [];
@@ -99,7 +100,7 @@ suite('Session Artifacts', () => {
 			new class extends mock<IWorkspaceContextService>() {
 				override readonly onDidChangeWorkspaceFolders = Event.None;
 			}(),
-			upcastPartial<ISessionsGitHubService>({ getCommit: () => commit ? Promise.resolve(commit) : new Promise(() => { }) }),
+			upcastPartial<ISessionsGitHubService>({ getCommit: getCommit ?? (() => commit ? Promise.resolve(commit) : new Promise(() => { })) }),
 			new NullLogService(),
 		));
 		return { presentation, session, artifacts, workspace, gitHubInfo, removed, errors, setRemovalError: (error: Error | undefined) => { removalError = error; } };
@@ -444,6 +445,124 @@ suite('Session Artifacts', () => {
 			hoverActions: ['Copy commit hash'],
 			hoverClassName: 'sessions-commit-hover compact',
 			hoverText: 'microsoft/vscodeon Sep 22Resolved commit subject @abc123Resolved commit body@octocat committed this change',
+		});
+	});
+
+	test('retries GitHub commit metadata after a transient lookup failure', async () => {
+		const link = URI.parse('https://github.com/microsoft/vscode/commit/abc123');
+		const artifact: ISessionArtifact = { id: 'commit', kind: SessionArtifactKind.Commit, label: 'Recorded commit', isArtifact: false, link, commitHash: 'abc123' };
+		const commit: GitHubCommit = {
+			sha: 'abc123',
+			message: 'Resolved after retry',
+			url: link.toString(true),
+			author: { login: 'octocat' },
+			committedAt: '2026-09-22T12:00:00Z',
+		};
+		let attempts = 0;
+		const { presentation, artifacts } = createPresentation([artifact], undefined, undefined, async () => {
+			attempts++;
+			if (attempts === 1) {
+				throw new Error('offline');
+			}
+			return commit;
+		});
+		let label: string | undefined;
+		disposables.add(autorun(reader => {
+			label = presentation.referenceSections.read(reader).flatMap(section => section.entries)[0]?.label;
+		}));
+
+		await timeout(0);
+		artifacts.set([artifact], undefined);
+		await timeout(0);
+
+		assert.deepStrictEqual({ attempts, label }, { attempts: 2, label: 'Resolved after retry' });
+	});
+
+	for (const outcome of ['resolve', 'reject'] as const) {
+		test(`cancels removed and disposed commit lookups when stale requests ${outcome}`, async () => {
+			const link = URI.parse('https://github.com/microsoft/vscode/commit/abc123');
+			const artifact: ISessionArtifact = {
+				id: 'commit',
+				kind: SessionArtifactKind.Commit,
+				label: 'Recorded commit',
+				isArtifact: false,
+				link,
+			};
+			const requests: { token: CancellationToken; result: DeferredPromise<GitHubCommit> }[] = [];
+			const { presentation, artifacts } = createPresentation([artifact], undefined, undefined, (_owner, _repo, _sha, token) => {
+				const result = new DeferredPromise<GitHubCommit>();
+				requests.push({ token, result });
+				return result.p;
+			});
+			presentation.referenceSections.get();
+			artifacts.set([], undefined);
+			artifacts.set([artifact], undefined);
+			presentation.referenceSections.get();
+			if (outcome === 'resolve') {
+				await requests[0].result.complete({
+					sha: 'abc123',
+					message: 'Stale commit',
+					url: link.toString(true),
+					author: { login: 'octocat' },
+					committedAt: '2026-09-22T12:00:00Z',
+				});
+			} else {
+				await requests[0].result.error(new Error('Cancelled request completed late'));
+			}
+			await timeout(0);
+			const label = presentation.referenceSections.get().flatMap(section => section.entries)[0]?.label;
+			const beforeDispose = requests.map(request => request.token.isCancellationRequested);
+			presentation.dispose();
+
+			assert.deepStrictEqual({
+				label,
+				beforeDispose,
+				afterDispose: requests.map(request => request.token.isCancellationRequested),
+			}, {
+				label: 'Recorded commit',
+				beforeDispose: [true, false],
+				afterDispose: [true, true],
+			});
+			await requests[1].result.error(new Error('Disposed'));
+		});
+	}
+
+	test('retries a failed commit lookup without orphaning existing observers', async () => {
+		const link = URI.parse('https://github.com/microsoft/vscode/commit/abc123');
+		const requests: DeferredPromise<GitHubCommit>[] = [];
+		const { presentation } = createPresentation([
+			{ id: 'reference', kind: SessionArtifactKind.Commit, label: 'Recorded reference', isArtifact: false, link },
+			{ id: 'artifact', kind: SessionArtifactKind.Commit, label: 'Recorded artifact', isArtifact: true, link },
+		], undefined, undefined, () => {
+			const result = new DeferredPromise<GitHubCommit>();
+			requests.push(result);
+			return result.p;
+		});
+		let referenceLabel: string | undefined;
+		disposables.add(autorun(reader => {
+			referenceLabel = presentation.referenceSections.read(reader).flatMap(section => section.entries)[0]?.label;
+		}));
+		await requests[0].error(new Error('offline'));
+		await timeout(0);
+
+		presentation.sections.get();
+		await requests[1].complete({
+			sha: 'abc123',
+			message: 'Resolved after retry',
+			url: link.toString(true),
+			author: { login: 'octocat' },
+			committedAt: '2026-09-22T12:00:00Z',
+		});
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			requestCount: requests.length,
+			referenceLabel,
+			artifactLabel: presentation.sections.get().flatMap(section => section.entries)[0]?.label,
+		}, {
+			requestCount: 2,
+			referenceLabel: 'Resolved after retry',
+			artifactLabel: 'Resolved after retry',
 		});
 	});
 

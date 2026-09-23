@@ -14,7 +14,7 @@ import { DomScrollableElement } from '../../base/browser/ui/scrollbar/scrollable
 import { ToolBar } from '../../base/browser/ui/toolbar/toolbar.js';
 import { IAction, IActionRunner } from '../../base/common/actions.js';
 import { disposableTimeout } from '../../base/common/async.js';
-import { CancellationToken } from '../../base/common/cancellation.js';
+import { CancellationToken, cancelOnDispose } from '../../base/common/cancellation.js';
 import { Emitter, Event } from '../../base/common/event.js';
 import { KeyCode } from '../../base/common/keyCodes.js';
 import { isMacintosh } from '../../base/common/platform.js';
@@ -120,7 +120,12 @@ export function createChatPillImagePreview(entry: IChatPillEntry & { readonly im
 	const preview = entry.imagePreview;
 	const container = $('.chat-pill-image-preview', { 'aria-busy': 'true' });
 	const disposables = new DisposableStore();
+	const readToken = cancelOnDispose(disposables);
 	disposables.add(token.onCancellationRequested(() => disposables.dispose()));
+	if (token.isCancellationRequested) {
+		disposables.dispose();
+		return { element: container, disposable: disposables };
+	}
 	const showUnavailable = () => {
 		if (disposables.isDisposed) {
 			return;
@@ -132,7 +137,7 @@ export function createChatPillImagePreview(entry: IChatPillEntry & { readonly im
 		);
 	};
 
-	void fileService.readFile(preview.resource, { limits: { size: MAX_CHAT_PILL_IMAGE_PREVIEW_FILE_SIZE } }, token).then(content => {
+	void fileService.readFile(preview.resource, { limits: { size: MAX_CHAT_PILL_IMAGE_PREVIEW_FILE_SIZE } }, readToken).then(content => {
 		if (disposables.isDisposed) {
 			return;
 		}
