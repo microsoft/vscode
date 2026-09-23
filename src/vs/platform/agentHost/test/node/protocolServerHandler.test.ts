@@ -1639,7 +1639,7 @@ suite('ProtocolServerHandler', () => {
 		assert.strictEqual(findNotifications(transportB.sent, 'action').length, 0);
 	});
 
-	test('changeset actions are scoped to subscribed changeset URIs', () => {
+	test('changeset actions are scoped to subscribed changeset URIs', async () => {
 		const changesetUri = `${sessionUri}/changeset/session`;
 		stateManager.createSession(makeSessionSummary());
 		stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionReady, });
@@ -1648,6 +1648,7 @@ suite('ProtocolServerHandler', () => {
 		const transportA = connectClient('client-a-cs', [changesetUri]);
 		// Session-only subscriber: must NOT receive changeset envelopes.
 		const transportB = connectClient('client-b-cs', [sessionUri]);
+		await waitForResponse(transportA, 1);
 
 		transportA.sent.length = 0;
 		transportB.sent.length = 0;
@@ -1675,13 +1676,14 @@ suite('ProtocolServerHandler', () => {
 		);
 	});
 
-	test('changeset/cleared reaches changeset subscribers', () => {
+	test('changeset/cleared reaches changeset subscribers', async () => {
 		const changesetUri = `${sessionUri}/changeset/session`;
 		stateManager.createSession(makeSessionSummary());
 		stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionReady, });
 		stateManager.registerChangeset(changesetUri);
 
 		const transport = connectClient('client-clear', [changesetUri]);
+		await waitForResponse(transport, 1);
 		transport.sent.length = 0;
 
 		stateManager.dispatchServerAction(changesetUri, {
@@ -3066,7 +3068,7 @@ suite('ProtocolServerHandler', () => {
 		stateManager.registerChangeset(changesetUri);
 
 		const transport1 = connectClient('client-rc', [changesetUri]);
-		const resp = findResponse(transport1.sent, 1);
+		const resp = await waitForResponse(transport1, 1);
 		const initSeq = (resp as { result: InitializeResult }).result.serverSeq;
 		transport1.simulateClose();
 

@@ -717,7 +717,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 
 	private async _computeUncommittedChangeset(session: ProtocolURI, turnId: string | undefined, reportTelemetry: boolean, clientContext?: IAgentHostClientTelemetryContext, statusBeforeRefresh?: ChangesetState): Promise<ProtocolURI> {
 		const uncommittedUri = this._stateManager.registerChangeset(buildUncommittedChangesetUri(session));
-		if (!this._hasSubscription(session, uncommittedUri) || !this._hasWorkingDirectory(session)) {
+		if (!this._hasSubscription(session, uncommittedUri) || !this._getEffectiveWorkingDirectories(session)?.[0]) {
 			this._restoreStaticChangesetStatus(uncommittedUri, statusBeforeRefresh);
 			return uncommittedUri;
 		}
@@ -1318,7 +1318,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	private _queueUncommittedChangeset(session: ProtocolURI, turnId: string | undefined, reportTelemetry: boolean, clientContext?: IAgentHostClientTelemetryContext): Promise<ProtocolURI> {
 		const changesetUri = buildUncommittedChangesetUri(session);
 		let statusBeforeRefresh: ChangesetState | undefined;
-		if (this._hasSubscription(session, changesetUri) && this._hasWorkingDirectory(session)) {
+		if (this._hasSubscription(session, changesetUri) && this._getEffectiveWorkingDirectories(session)?.[0]) {
 			statusBeforeRefresh = this._markChangesetComputing(changesetUri);
 		}
 		return this._diffComputationSequencer.queue(`${session}\u0000uncommitted`, () => this._computeUncommittedChangeset(session, turnId, reportTelemetry, clientContext, statusBeforeRefresh));
