@@ -6528,6 +6528,12 @@ export class AgentService extends Disposable implements IAgentService {
 			return;
 		}
 		if (action.type === ActionType.ChatTurnCancelled) {
+			// Match the turn before reduction so stale no-ops cannot trigger a chat-wide abort.
+			if (this._stateManager.getChatState(channel)?.activeTurn?.id !== action.turnId) {
+				this._logService.trace(`[AgentService] Ignoring cancellation of an inactive turn: channel=${channel}, turnId=${action.turnId}`);
+				this._stateManager.dispatchClientAction(channel, action, origin, clientContext);
+				return;
+			}
 			const resumedDuration = this._sideEffects.getResumedTurnDuration(channel, action.turnId);
 			if (resumedDuration !== undefined) {
 				action = { ...action, duration: resumedDuration };

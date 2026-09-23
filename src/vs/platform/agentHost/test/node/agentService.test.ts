@@ -3057,6 +3057,64 @@ suite('AgentService (node dispatcher)', () => {
 
 	suite('dispatchAction', () => {
 
+		test('stale and duplicate Stop requests do not abort another turn', async () => {
+			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(new TestSessionDatabase()), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = disposables.add(new MockAgent('copilot'));
+			registerTestAgentProvider(svc, agent);
+			const session = await svc.createSession({ provider: 'copilot' });
+			const chat = buildDefaultChatUri(session);
+			const stateManager = getStateManager(svc);
+			const cancellations: { turnId: string; rejected: boolean }[] = [];
+			disposables.add(svc.onDidAction(envelope => {
+				if (envelope.action.type === ActionType.ChatTurnCancelled && envelope.origin) {
+					cancellations.push({ turnId: envelope.action.turnId, rejected: !!envelope.rejectionReason });
+				}
+			}));
+			for (const turnId of ['turn-1', 'turn-2']) {
+				stateManager.dispatchServerAction(chat, {
+					type: ActionType.ChatTurnStarted,
+					turnId,
+					startedAt: '2025-01-01T00:00:00.000Z',
+					message: { text: turnId, origin: { kind: MessageKind.User } },
+				});
+				if (turnId === 'turn-1') {
+					svc.dispatchAction(chat, { type: ActionType.ChatTurnCancelled, turnId, duration: 0 }, 'client-a', 1);
+				}
+			}
+			stateManager.dispatchServerAction(chat, {
+				type: ActionType.ChatInputRequested,
+				request: { id: 'request-2', message: 'Continue?' },
+			});
+
+			svc.dispatchAction(chat, { type: ActionType.ChatTurnCancelled, turnId: 'turn-1', duration: 0 }, 'client-b', 1);
+			svc.dispatchAction(chat, { type: ActionType.ChatTurnCancelled, turnId: 'missing-turn', duration: 0 }, 'client-b', 2);
+			const activeTurnAfterStaleStop = stateManager.getChatState(chat)?.activeTurn?.id;
+			const abortsAfterStaleStop = agent.abortSessionCalls.length;
+			const inputNeededAfterStaleStop = stateManager.getSessionState(session.toString())?.inputNeeded?.map(request => request.chat);
+			svc.dispatchAction(chat, { type: ActionType.ChatTurnCancelled, turnId: 'turn-2', duration: 0 }, 'client-b', 3);
+			svc.dispatchAction(chat, { type: ActionType.ChatTurnCancelled, turnId: 'turn-2', duration: 0 }, 'client-b', 4);
+
+			assert.deepStrictEqual({
+				activeTurnAfterStaleStop,
+				abortsAfterStaleStop,
+				inputNeededAfterStaleStop,
+				inputNeededAfterStop: stateManager.getSessionState(session.toString())?.inputNeeded ?? [],
+				abortCount: agent.abortSessionCalls.length,
+				activeTurn: stateManager.getChatState(chat)?.activeTurn,
+				turns: stateManager.getChatState(chat)?.turns.map(turn => ({ id: turn.id, state: turn.state })),
+				cancellations,
+			}, {
+				activeTurnAfterStaleStop: 'turn-2',
+				abortsAfterStaleStop: 1,
+				inputNeededAfterStaleStop: [chat],
+				inputNeededAfterStop: [],
+				abortCount: 2,
+				activeTurn: undefined,
+				turns: [{ id: 'turn-1', state: TurnState.Cancelled }, { id: 'turn-2', state: TurnState.Cancelled }],
+				cancellations: ['turn-1', 'turn-1', 'missing-turn', 'turn-2', 'turn-2'].map(turnId => ({ turnId, rejected: false })),
+			});
+		});
+
 		async function waitForCondition(predicate: () => boolean | Promise<boolean>, message: string): Promise<void> {
 			for (let i = 0; i < 20; i++) {
 				if (await predicate()) {
