@@ -1137,7 +1137,7 @@ function createByokLanguageModelTestData(groupName?: string): { languageModels: 
 	};
 }
 
-function makeRequest(overrides: Partial<{ message: string; sessionResource: URI; variables: IChatAgentRequest['variables']; userSelectedModelId: string; modelConfiguration: Record<string, unknown>; agentHostSessionConfig: Record<string, string>; agentId: string; requestId: string; acceptedConfirmationData: unknown[]; metadata: Record<string, unknown> }> = {}): IChatAgentRequest {
+function makeRequest(overrides: Partial<{ message: string; sessionResource: URI; variables: IChatAgentRequest['variables']; userSelectedModelId: string; modelConfiguration: Record<string, unknown>; agentHostSessionConfig: Record<string, string>; agentId: string; requestId: string; acceptedConfirmationData: unknown[]; metadata: Record<string, unknown>; isSystemInitiated: boolean; agentHostMessageOrigin: IChatAgentRequest['agentHostMessageOrigin'] }> = {}): IChatAgentRequest {
 	return upcastPartial<IChatAgentRequest>({
 		sessionResource: overrides.sessionResource ?? URI.from({ scheme: 'untitled', path: '/chat-1' }),
 		requestId: overrides.requestId ?? 'req-1',
@@ -1150,6 +1150,8 @@ function makeRequest(overrides: Partial<{ message: string; sessionResource: URI;
 		agentHostSessionConfig: overrides.agentHostSessionConfig,
 		acceptedConfirmationData: overrides.acceptedConfirmationData,
 		metadata: overrides.metadata,
+		isSystemInitiated: overrides.isSystemInitiated,
+		agentHostMessageOrigin: overrides.agentHostMessageOrigin,
 	});
 }
 
@@ -1190,6 +1192,8 @@ async function startTurn(
 		agentHostSessionConfig: Record<string, string>;
 		cancellationToken: CancellationToken;
 		metadata: Record<string, unknown>;
+		isSystemInitiated: boolean;
+		agentHostMessageOrigin: IChatAgentRequest['agentHostMessageOrigin'];
 		agentId: string;
 		beforeInvoke: () => void;
 	}>,
@@ -1220,6 +1224,8 @@ async function startTurn(
 			agentHostSessionConfig: overrides?.agentHostSessionConfig,
 			agentId,
 			metadata: overrides?.metadata,
+			isSystemInitiated: overrides?.isSystemInitiated,
+			agentHostMessageOrigin: overrides?.agentHostMessageOrigin,
 		}),
 		(parts) => collected.push(parts),
 		[],
@@ -4202,6 +4208,23 @@ suite('AgentHostChatContribution', () => {
 
 	suite('session ID resolution', () => {
 
+		for (const isSystemInitiated of [true, false, undefined]) {
+			test(`preserves request origin for isSystemInitiated=${isSystemInitiated}`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+				const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
+				const metadata = { 'vscode.chat.systemInitiatedLabel': 'Background task completed', 'test.request': { enabled: true } };
+				const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, { message: 'Hello', isSystemInitiated, metadata });
+				fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
+				await turnPromise;
+				const action = agentHostService.turnActions[0].action;
+				assert.ok(action.type === ActionType.ChatTurnStarted);
+				assert.deepStrictEqual(action.message, {
+					text: 'Hello',
+					origin: { kind: isSystemInitiated ? MessageKind.SystemNotification : MessageKind.User },
+					_meta: metadata,
+				});
+			}));
+		}
+
 		test('carries request metadata on the host turn instead of applying session configuration early', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
 			const metadata = { 'test.request': { enabled: true } };
@@ -4221,7 +4244,9 @@ suite('AgentHostChatContribution', () => {
 			const metadata = toRemoteSessionMessageMetadata({
 				session: 'remote-original-copilot:/source', chat: 'remote-original-copilot:/source#original-chat',
 			}, 'source-turn');
-			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, { message: 'Delegated task', metadata });
+			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, {
+				message: 'Delegated task', agentHostMessageOrigin: { kind: MessageKind.Agent }, metadata,
+			});
 			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
 			await turnPromise;
 			const action = agentHostService.turnActions[0].action;
@@ -4231,6 +4256,27 @@ suite('AgentHostChatContribution', () => {
 				configWrites: agentHostService.dispatchedActions.filter(dispatch => dispatch.action.type === ActionType.SessionConfigChanged),
 			}, { message: { text: 'Delegated task', origin: { kind: MessageKind.Agent }, _meta: metadata }, configWrites: [] });
 		}));
+
+		for (const actor of Object.values(MessageKind)) {
+			for (const isSystemInitiated of [true, false]) {
+				test(`preserves resent ${actor} origin with isSystemInitiated=${isSystemInitiated}`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+					const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
+					const metadata = { 'vscode.chat.systemInitiatedLabel': 'Background task completed' };
+					const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, {
+						message: 'Resent message', agentHostMessageOrigin: { kind: actor }, isSystemInitiated, metadata,
+					});
+					fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
+					await turnPromise;
+					const action = agentHostService.turnActions[0].action;
+					assert.ok(action.type === ActionType.ChatTurnStarted);
+					assert.deepStrictEqual(action.message, {
+						text: 'Resent message',
+						origin: { kind: actor === MessageKind.User && isSystemInitiated ? MessageKind.SystemNotification : actor },
+						_meta: metadata,
+					});
+				}));
+			}
+		}
 
 		test('requests backend session for provider-owned new resource', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
@@ -12930,91 +12976,96 @@ suite('AgentHostChatContribution', () => {
 			});
 		});
 
-		test('syncs queued messages added to restored active sessions idempotently', async () => {
-			const { sessionHandler, agentHostService, chatService } = createContribution(disposables);
+		for (const kind of [ChatRequestQueueKind.Queued, ChatRequestQueueKind.Steering]) {
+			for (const isSystemInitiated of [true, false, undefined]) {
+				test(`syncs ${kind} messages added to restored active sessions idempotently with isSystemInitiated=${isSystemInitiated}`, async () => {
+					const { sessionHandler, agentHostService, chatService } = createContribution(disposables);
 
-			const backendSession = AgentSession.uri('copilot', 'restored-pending-sync');
-			agentHostService.sessionStates.set(backendSession.toString(), {
-				...createSessionState({
-					resource: backendSession.toString(),
-					provider: 'copilot',
-					title: 'Test',
-					status: SessionStatus.InProgress,
-					createdAt: new Date().toISOString(),
-					modifiedAt: new Date().toISOString(),
-				}),
-				lifecycle: SessionLifecycle.Ready,
-				activeTurn: createActiveTurn('active-turn-1', { text: 'Working', origin: { kind: MessageKind.User } }, '2025-01-01T00:00:00.000Z'),
-			});
+					const backendSession = AgentSession.uri('copilot', 'restored-pending-sync');
+					agentHostService.sessionStates.set(backendSession.toString(), {
+						...createSessionState({
+							resource: backendSession.toString(),
+							provider: 'copilot',
+							title: 'Test',
+							status: SessionStatus.InProgress,
+							createdAt: new Date().toISOString(),
+							modifiedAt: new Date().toISOString(),
+						}),
+						lifecycle: SessionLifecycle.Ready,
+						activeTurn: createActiveTurn('active-turn-1', { text: 'Working', origin: { kind: MessageKind.User } }, '2025-01-01T00:00:00.000Z'),
+					});
 
-			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/restored-pending-sync' });
-			const chatSession = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
-			disposables.add(toDisposable(() => chatSession.dispose()));
+					const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/restored-pending-sync' });
+					const chatSession = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
+					disposables.add(toDisposable(() => chatSession.dispose()));
 
-			const pendingRequests: IChatPendingRequest[] = [];
-			const chatModel = createPendingChatModel(sessionResource, pendingRequests);
-			chatService.setSession(sessionResource, chatModel.model);
+					const pendingRequests: IChatPendingRequest[] = [];
+					const chatModel = createPendingChatModel(sessionResource, pendingRequests);
+					chatService.setSession(sessionResource, chatModel.model);
 
-			agentHostService.dispatchedActions.length = 0;
-			const text = 'Run the queued follow-up';
-			const elementValue = 'Element: button#submit';
-			const request = upcastPartial<IChatRequestModel>({
-				id: 'queued-request-1',
-				message: { text, parts: [] },
-				variableData: {
-					variables: [{
-						kind: 'element',
-						id: 'element-submit',
-						name: 'button#submit',
-						value: elementValue,
-					}],
-				},
-			});
-			const metadata = { 'test.request': { enabled: true } };
-			const modelConfiguration = { reasoningEffort: 'xhigh', contextSize: 200_000 };
-			pendingRequests.push({
-				request,
-				kind: ChatRequestQueueKind.Queued,
-				sendOptions: { metadata, userSelectedModelId: 'agent-host-copilot:claude-opus-4.8', userSelectedModelConfiguration: modelConfiguration },
-			});
-			chatModel.firePendingRequestsChanged();
+					agentHostService.dispatchedActions.length = 0;
+					const text = 'Run the queued follow-up';
+					const elementValue = 'Element: button#submit';
+					const request = upcastPartial<IChatRequestModel>({
+						id: 'queued-request-1',
+						isSystemInitiated,
+						message: { text, parts: [] },
+						variableData: {
+							variables: [{
+								kind: 'element',
+								id: 'element-submit',
+								name: 'button#submit',
+								value: elementValue,
+							}],
+						},
+					});
+					const metadata = { 'test.request': { enabled: true } };
+					const modelConfiguration = { reasoningEffort: 'xhigh', contextSize: 200_000 };
+					pendingRequests.push({
+						request,
+						kind,
+						sendOptions: { metadata, userSelectedModelId: 'agent-host-copilot:claude-opus-4.8', userSelectedModelConfiguration: modelConfiguration },
+					});
+					chatModel.firePendingRequestsChanged();
 
-			const dispatch = agentHostService.dispatchedActions.find(dispatched => dispatched.action.type === ActionType.ChatPendingMessageSet);
-			assert.ok(dispatch, 'queued message should be dispatched to the agent host');
-			const action = dispatch.action as Extract<SessionAction, { type: ActionType.ChatPendingMessageSet }>;
-			agentHostService.fireAction({
-				channel: dispatch.channel,
-				action,
-				serverSeq: 1,
-				origin: { clientId: dispatch.clientId, clientSeq: dispatch.clientSeq },
-			});
-			agentHostService.dispatchedActions.length = 0;
-			chatModel.firePendingRequestsChanged();
-			assert.deepStrictEqual({
-				action,
-				repeatedActions: agentHostService.dispatchedActions,
-			}, {
-				action: {
-					type: ActionType.ChatPendingMessageSet,
-					kind: 'queued',
-					id: 'queued-request-1',
-					message: {
-						text,
-						origin: { kind: MessageKind.User },
-						_meta: metadata,
-						model: { id: 'claude-opus-4.8', config: modelConfiguration },
-						attachments: [{
-							type: MessageAttachmentKind.Simple,
-							label: 'button#submit',
-							modelRepresentation: elementValue,
-							displayKind: 'element',
-							_meta: toElementAttachmentMeta('element-submit'),
-						}],
-					},
-				},
-				repeatedActions: [],
-			});
-		});
+					const dispatch = agentHostService.dispatchedActions.find(dispatched => dispatched.action.type === ActionType.ChatPendingMessageSet);
+					assert.ok(dispatch, 'pending message should be dispatched to the agent host');
+					const action = dispatch.action as Extract<SessionAction, { type: ActionType.ChatPendingMessageSet }>;
+					agentHostService.fireAction({
+						channel: dispatch.channel,
+						action,
+						serverSeq: 1,
+						origin: { clientId: dispatch.clientId, clientSeq: dispatch.clientSeq },
+					});
+					agentHostService.dispatchedActions.length = 0;
+					chatModel.firePendingRequestsChanged();
+					assert.deepStrictEqual({
+						action,
+						repeatedActions: agentHostService.dispatchedActions,
+					}, {
+						action: {
+							type: ActionType.ChatPendingMessageSet,
+							kind,
+							id: 'queued-request-1',
+							message: {
+								text,
+								origin: { kind: isSystemInitiated ? MessageKind.SystemNotification : MessageKind.User },
+								_meta: metadata,
+								model: { id: 'claude-opus-4.8', config: modelConfiguration },
+								attachments: [{
+									type: MessageAttachmentKind.Simple,
+									label: 'button#submit',
+									modelRepresentation: elementValue,
+									displayKind: 'element',
+									_meta: toElementAttachmentMeta('element-submit'),
+								}],
+							},
+						},
+						repeatedActions: [],
+					});
+				});
+			}
+		}
 
 		test('projects pending messages queued by another client without republishing element attachments', async () => {
 			const { sessionHandler, agentHostService, chatService } = createContribution(disposables);
@@ -13063,7 +13114,8 @@ suite('AgentHostChatContribution', () => {
 					id: 'remote-queued-1',
 					message: {
 						text: 'queued elsewhere',
-						origin: { kind: MessageKind.User },
+						origin: { kind: MessageKind.Automation },
+						_meta: { source: 'automation' },
 						model: { id: 'auto' },
 						attachments: [{
 							type: MessageAttachmentKind.Simple,
@@ -13083,7 +13135,12 @@ suite('AgentHostChatContribution', () => {
 					type: ActionType.ChatPendingMessageSet,
 					kind: PendingMessageKind.Steering,
 					id: 'remote-steering-1',
-					message: { text: 'steered elsewhere', origin: { kind: MessageKind.User }, model: { id: 'claude-opus-4.8', config: { reasoningEffort: 'xhigh' } } },
+					message: {
+						text: 'steered elsewhere',
+						origin: { kind: MessageKind.SystemNotification },
+						_meta: { 'vscode.chat.systemInitiatedLabel': 'Background task completed' },
+						model: { id: 'claude-opus-4.8', config: { reasoningEffort: 'xhigh' } },
+					},
 				} as ChatAction,
 				serverSeq: 2,
 				origin: undefined,
@@ -13095,6 +13152,7 @@ suite('AgentHostChatContribution', () => {
 				model: pendingRequests.map(p => ({ id: p.request.id, kind: p.kind, message: p.request.message.text })),
 				protocol: last?.requests.map(r => ({ id: r.id, kind: r.kind, message: r.message })),
 				selections: last?.requests.map(r => ({ modelId: r.modelId, modelConfiguration: r.modelConfiguration })),
+				provenance: last?.requests.map(r => ({ origin: r.agentHostMessageOrigin, metadata: r.metadata, isSystemInitiated: r.isSystemInitiated, label: r.systemInitiatedLabel })),
 				elementCorrelationId: elementVariable ? getElementAttachmentCorrelationId(elementVariable) : undefined,
 				echoedActions: agentHostService.dispatchedActions.filter(d =>
 					d.action.type === ActionType.ChatPendingMessageSet
@@ -13113,6 +13171,10 @@ suite('AgentHostChatContribution', () => {
 				selections: [
 					{ modelId: 'agent-host-copilot:claude-opus-4.8', modelConfiguration: { reasoningEffort: 'xhigh' } },
 					{ modelId: 'agent-host-copilot:auto', modelConfiguration: undefined },
+				],
+				provenance: [
+					{ origin: { kind: MessageKind.SystemNotification }, metadata: { 'vscode.chat.systemInitiatedLabel': 'Background task completed' }, isSystemInitiated: true, label: 'Background task completed' },
+					{ origin: { kind: MessageKind.Automation }, metadata: { source: 'automation' }, isSystemInitiated: false, label: undefined },
 				],
 				elementCorrelationId: 'remote-element',
 				echoedActions: [],
@@ -13141,7 +13203,7 @@ suite('AgentHostChatContribution', () => {
 					pendingRequests.push({
 						request: upcastPartial<IChatRequestModel>({ id: remote.id, message: { text: remote.message, parts: [] }, variableData: remote.variableData }),
 						kind: remote.kind,
-						sendOptions: { metadata: remote.metadata },
+						sendOptions: { agentHostMessageOrigin: remote.agentHostMessageOrigin, metadata: remote.metadata },
 					});
 				}
 				chatModel.firePendingRequestsChanged();
@@ -13163,10 +13225,15 @@ suite('AgentHostChatContribution', () => {
 			});
 			chatModel.firePendingRequestsChanged();
 			assert.deepStrictEqual({
+				projectedOrigin: chatService.syncPendingRequestsFromRemoteCalls.at(-1)?.requests[0].agentHostMessageOrigin,
 				projected: chatService.syncPendingRequestsFromRemoteCalls.at(-1)?.requests[0].metadata,
+				storedOrigin: pendingRequests[0].sendOptions.agentHostMessageOrigin,
 				stored: pendingRequests[0].sendOptions.metadata,
 				rewrites: agentHostService.dispatchedActions.filter(dispatch => dispatch.action.type === ActionType.ChatPendingMessageSet),
-			}, { projected: metadata, stored: metadata, rewrites: [] });
+			}, {
+				projectedOrigin: { kind: MessageKind.Agent }, projected: metadata,
+				storedOrigin: { kind: MessageKind.Agent }, stored: metadata, rewrites: [],
+			});
 		});
 
 		test('hydrates queued messages from the protocol instead of clearing them when attaching', async () => {
@@ -13217,46 +13284,56 @@ suite('AgentHostChatContribution', () => {
 			);
 		});
 
-		test('syncs text updates for existing queued pending messages', async () => {
-			const { sessionHandler, agentHostService, chatService } = createContribution(disposables);
+		for (const kind of [ChatRequestQueueKind.Queued, ChatRequestQueueKind.Steering]) {
+			for (const { origin, isSystemInitiated, restored } of [
+				...Object.values(MessageKind).map(origin => ({ origin, isSystemInitiated: undefined, restored: false })),
+				{ origin: MessageKind.User, isSystemInitiated: true, restored: false },
+				...Object.values(MessageKind).map(origin => ({ origin, isSystemInitiated: undefined, restored: true })),
+			]) {
+				test(`syncs ${restored ? 'restored' : 'existing'} ${kind} pending messages with ${origin} origin and isSystemInitiated=${isSystemInitiated}`, async () => {
+					const { sessionHandler, agentHostService, chatService } = createContribution(disposables);
 
-			const backendSession = AgentSession.uri('copilot', 'pending-text-update');
-			agentHostService.sessionStates.set(backendSession.toString(), {
-				...createSessionState({
-					resource: backendSession.toString(),
-					provider: 'copilot',
-					title: 'Test',
-					status: SessionStatus.Idle,
-					createdAt: new Date().toISOString(),
-					modifiedAt: new Date().toISOString(),
-				}),
-				lifecycle: SessionLifecycle.Ready,
-				queuedMessages: [{ id: 'queued-request-1', message: { text: 'old queued text', origin: { kind: MessageKind.User } } }],
-			});
+					const backendSession = AgentSession.uri('copilot', 'pending-text-update');
+					const metadata = { 'vscode.chat.systemInitiatedLabel': 'Background task completed', 'test.request': { enabled: true } };
+					const pendingMessage = { id: 'queued-request-1', message: { text: 'old queued text', origin: { kind: origin }, _meta: metadata } };
+					agentHostService.sessionStates.set(backendSession.toString(), {
+						...createSessionState({
+							resource: backendSession.toString(),
+							provider: 'copilot',
+							title: 'Test',
+							status: SessionStatus.Idle,
+							createdAt: new Date().toISOString(),
+							modifiedAt: new Date().toISOString(),
+						}),
+						lifecycle: SessionLifecycle.Ready,
+						...(!restored ? (kind === ChatRequestQueueKind.Queued ? { queuedMessages: [pendingMessage] } : { steeringMessage: pendingMessage }) : {}),
+					});
 
-			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/pending-text-update' });
-			const chatSession = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
-			disposables.add(toDisposable(() => chatSession.dispose()));
+					const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/pending-text-update' });
+					const chatSession = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
+					disposables.add(toDisposable(() => chatSession.dispose()));
 
-			agentHostService.dispatchedActions.length = 0;
-			const text = 'new queued text';
-			const pendingRequests: IChatPendingRequest[] = [{
-				request: upcastPartial<IChatRequestModel>({ id: 'queued-request-1', message: { text, parts: [] } }),
-				kind: ChatRequestQueueKind.Queued,
-				sendOptions: {},
-			}];
-			const chatModel = createPendingChatModel(sessionResource, pendingRequests);
-			chatService.setSession(sessionResource, chatModel.model);
+					agentHostService.dispatchedActions.length = 0;
+					const text = 'new queued text';
+					const pendingRequests: IChatPendingRequest[] = [{
+						request: upcastPartial<IChatRequestModel>({ id: 'queued-request-1', message: { text, parts: [] }, isSystemInitiated }),
+						kind,
+						sendOptions: restored ? { agentHostMessageOrigin: { kind: origin }, metadata } : {},
+					}];
+					const chatModel = createPendingChatModel(sessionResource, pendingRequests);
+					chatService.setSession(sessionResource, chatModel.model);
 
-			const action = agentHostService.dispatchedActions.map(d => d.action).find((action): action is Extract<SessionAction, { type: ActionType.ChatPendingMessageSet }> => action.type === ActionType.ChatPendingMessageSet);
-			assert.ok(action, 'queued message text update should be dispatched to the agent host');
-			assert.deepStrictEqual(action, {
-				type: ActionType.ChatPendingMessageSet,
-				kind: 'queued',
-				id: 'queued-request-1',
-				message: { text, origin: { kind: MessageKind.User } },
-			});
-		});
+					const action = agentHostService.dispatchedActions.map(d => d.action).find((action): action is Extract<SessionAction, { type: ActionType.ChatPendingMessageSet }> => action.type === ActionType.ChatPendingMessageSet);
+					assert.ok(action, 'pending message text update should be dispatched to the agent host');
+					assert.deepStrictEqual(action, {
+						type: ActionType.ChatPendingMessageSet,
+						kind,
+						id: 'queued-request-1',
+						message: { text, origin: { kind: isSystemInitiated ? MessageKind.SystemNotification : origin }, _meta: metadata },
+					});
+				});
+			}
+		}
 
 		test('forwards a hidden workspace-continuation request to the live transcript adapter', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);

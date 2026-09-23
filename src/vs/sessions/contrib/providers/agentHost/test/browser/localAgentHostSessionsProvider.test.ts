@@ -31,7 +31,7 @@ import { AUTOMATION_CATALOG_URI, buildChatUri, buildDefaultChatUri, buildSubagen
 import { SessionArtifactType, withSessionArtifacts } from '../../../../../../platform/agentHost/common/sessionArtifacts.js';
 import { ActionType, NotificationType, type ActionEnvelope, type IRootConfigChangedAction, type ChatAction, type SessionAction, type TerminalAction, type INotification, type ClientAnnotationsAction, type SessionSummaryChangedParams } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
-import { withRemoteSessionOrigin } from '../../../../../../platform/agentHost/common/meta/agentRemoteSessionMeta.js';
+import { toRemoteSessionMessageMetadata, withRemoteSessionOrigin } from '../../../../../../platform/agentHost/common/meta/agentRemoteSessionMeta.js';
 import { USE_WORKTREE_SETTING } from '../../../../../common/sessionConfig.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -8193,60 +8193,71 @@ suite('LocalAgentHostSessionsProvider', () => {
 		);
 	});
 
-	test('sendRequest forwards resolved session config to chat service', async () => {
-		const sendOptions: IChatSendRequestOptions[] = [];
-		const metadata = { 'test.request': { enabled: true } };
-		const provider = createProvider(disposables, agentHost, undefined, {
-			openSession: true,
-			sendRequest: async (_resource, _message, options): Promise<ChatSendResult> => {
-				if (options) {
-					sendOptions.push(options);
-				}
-				agentHost.addSession(createSession('created-from-send', { summary: 'Created From Send' }));
-				return { kind: 'sent' as const, data: {} as ChatSendResult extends { kind: 'sent'; data: infer D } ? D : never };
-			},
+	for (const delegated of [false, true]) {
+		const metadata = delegated
+			? toRemoteSessionMessageMetadata({ session: 'remote-original-copilot:/source', chat: 'remote-original-copilot:/source#original-chat' })
+			: { 'test.request': { enabled: true } };
+		const agentHostMessageOrigin = delegated ? { kind: MessageKind.Agent } : undefined;
+
+		test(`sendRequest forwards resolved session config to chat service (delegated: ${delegated})`, async () => {
+			const sendOptions: IChatSendRequestOptions[] = [];
+			const provider = createProvider(disposables, agentHost, undefined, {
+				openSession: true,
+				sendRequest: async (_resource, _message, options): Promise<ChatSendResult> => {
+					if (options) {
+						sendOptions.push(options);
+					}
+					agentHost.addSession(createSession('created-from-send', { summary: 'Created From Send' }));
+					return { kind: 'sent' as const, data: {} as ChatSendResult extends { kind: 'sent'; data: infer D } ? D : never };
+				},
+			});
+			const session = provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
+			await waitForSessionConfig(provider, session.sessionId, config => config?.values.isolation === 'worktree');
+
+			const chat = await provider.createNewChat(session.sessionId);
+			const committed = await provider.sendRequest(session.sessionId, chat.resource, { query: 'hello', title: 'Pull Request', hideFromTranscript: true, metadata });
+
+			assert.deepStrictEqual({
+				sendOptions: sendOptions.map(options => ({
+					agentHostSessionConfig: options.agentHostSessionConfig,
+					hideFromTranscript: options.hideFromTranscript,
+					agentHostMessageOrigin: options.agentHostMessageOrigin,
+					metadata: options.metadata,
+				})),
+				title: committed.title.get(),
+			}, {
+				sendOptions: [{ agentHostSessionConfig: { isolation: 'worktree' }, hideFromTranscript: true, agentHostMessageOrigin, metadata }],
+				title: 'Pull Request',
+			});
 		});
-		const session = provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
-		await waitForSessionConfig(provider, session.sessionId, config => config?.values.isolation === 'worktree');
 
-		const chat = await provider.createNewChat(session.sessionId);
-		const committed = await provider.sendRequest(session.sessionId, chat.resource, { query: 'hello', title: 'Pull Request', hideFromTranscript: true, metadata });
-
-		assert.deepStrictEqual({
-			sendOptions: sendOptions.map(options => ({
-				agentHostSessionConfig: options.agentHostSessionConfig,
-				hideFromTranscript: options.hideFromTranscript,
+		test(`sendRequest preserves provider metadata for a committed session (delegated: ${delegated})`, async () => {
+			const forwarded: IChatSendRequestOptions[] = [];
+			const provider = createProvider(disposables, agentHost, undefined, {
+				acquireOrLoadSession: async () => new ImmortalReference(new class extends mock<IChatModel>() {
+					override readonly inputModel = new class extends mock<IInputModel>() {
+						override readonly state = constObservable<IChatModelInputState | undefined>(undefined);
+						override setState(): void { }
+						override clearState(): void { }
+					}();
+				}()),
+				sendRequest: async (_resource, _message, options) => {
+					if (options) {
+						forwarded.push(options);
+					}
+					return { kind: 'sent', data: upcastPartial<IChatSendRequestData>({}) };
+				},
+			});
+			fireSessionAdded(agentHost, 'send-metadata', { title: 'Send Metadata' });
+			const session = provider.getSessions().find(session => session.title.get() === 'Send Metadata');
+			assert.ok(session);
+			await provider.sendRequest(session.sessionId, session.resource, { query: 'hello', metadata });
+			assert.deepStrictEqual(forwarded.map(options => ({
+				agentHostMessageOrigin: options.agentHostMessageOrigin,
 				metadata: options.metadata,
-			})),
-			title: committed.title.get(),
-		}, {
-			sendOptions: [{ agentHostSessionConfig: { isolation: 'worktree' }, hideFromTranscript: true, metadata }],
-			title: 'Pull Request',
+			})), [{ agentHostMessageOrigin, metadata }]);
 		});
-	});
-
-	test('sendRequest preserves provider metadata for a committed session', async () => {
-		const forwarded: (Record<string, unknown> | undefined)[] = [];
-		const provider = createProvider(disposables, agentHost, undefined, {
-			acquireOrLoadSession: async () => new ImmortalReference(new class extends mock<IChatModel>() {
-				override readonly inputModel = new class extends mock<IInputModel>() {
-					override readonly state = constObservable<IChatModelInputState | undefined>(undefined);
-					override setState(): void { }
-					override clearState(): void { }
-				}();
-			}()),
-			sendRequest: async (_resource, _message, options) => {
-				forwarded.push(options?.metadata);
-				return { kind: 'sent', data: upcastPartial<IChatSendRequestData>({}) };
-			},
-		});
-		fireSessionAdded(agentHost, 'send-metadata', { title: 'Send Metadata' });
-		const session = provider.getSessions().find(session => session.title.get() === 'Send Metadata');
-		assert.ok(session);
-		const metadata = { 'test.request': { enabled: true } };
-		await provider.sendRequest(session.sessionId, session.resource, { query: 'hello', metadata });
-		assert.deepStrictEqual(forwarded, [metadata]);
-	});
+	}
 
 	test('sendRequest clears chat input draft while preserving selected model and agent', async () => {
 		const inputStates: Partial<IChatModelInputState>[] = [];
