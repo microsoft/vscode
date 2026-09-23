@@ -528,6 +528,9 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		if (provider.automations?.catalogueState.get() !== 'ready') {
 			throw new Error(localize('automationProviderUnavailable', "The selected provider does not currently provide Automation configuration."));
 		}
+		if (provider.automations.configuration !== undefined && !provider.automations.configuration.sessionTypes.includes(sessionTypeId)) {
+			throw new Error(localize('automationSessionTypeUnsupported', "The selected session type does not support automations."));
+		}
 		const previousAutomationSession = this._automationSession.get();
 		const session = provider.createNewSession(folderUri, sessionTypeId, this._providerCreateSessionOptions(provider, options));
 		if (previousAutomationSession && previousAutomationSession.sessionId !== session.sessionId) {
@@ -640,13 +643,15 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 
 	async getAutomationSessionConfiguration(session: ISession) {
 		const provider = this._getProvider(session);
-		return provider?.supportsAutomationSessionConfiguration === true && provider.getAutomationSessionConfiguration
+		return this.supportsAutomationSessionConfiguration(session) && provider?.getAutomationSessionConfiguration
 			? provider.getAutomationSessionConfiguration(session.sessionId)
 			: null;
 	}
 
 	supportsAutomationSessionConfiguration(session: ISession): boolean {
-		return this._getProvider(session)?.supportsAutomationSessionConfiguration === true;
+		const provider = this._getProvider(session);
+		return provider?.supportsAutomationSessionConfiguration === true
+			&& (provider.automations?.configuration?.sessionTypes.includes(session.sessionType) ?? true);
 	}
 
 	usesCombinedNewSessionConfigPicker(session: ISession): boolean {

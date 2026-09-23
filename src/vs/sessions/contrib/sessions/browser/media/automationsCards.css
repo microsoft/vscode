@@ -622,3 +622,55 @@
 .hc-light .automations-template-card {
 	border-color: var(--vscode-contrastBorder);
 }
+.automations-history-scope {
+	font-size: var(--vscode-fontSize-body2);
+	color: var(--vscode-descriptionForeground);
+	font-weight: var(--vscode-fontWeight-regular);
+}
+
+.automations-history-header.cloud-history {
+	flex-wrap: wrap;
+	row-gap: var(--vscode-spacing-size80);
+}
+
+.cloud-history .automations-history-scope {
+	order: 1;
+	flex-basis: 100%;
+}
+
+.cloud-automation .automations-card-meta {
+	flex-direction: column;
+	align-items: flex-start;
+	gap: var(--vscode-spacing-size40);
+}
+
+.cloud-automation .automations-card-meta-item {
+	max-width: 100%;
+}
+
+.cloud-automation .automations-card-meta-item + .automations-card-meta-item::before {
+	content: none;
+}
+
+.automations-temporary-run.cloud-automation-run {
+	height: auto;
+	min-height: 54px;
+	flex-wrap: wrap;
+	gap: var(--vscode-spacing-size80);
+}
+
+.cloud-automation-run .session-main {
+	min-width: 120px;
+}
+
+.automations-run-actions {
+	display: flex;
+	flex: 0 0 auto;
+	margin-left: auto;
+	gap: var(--vscode-spacing-size80);
+}
+
+.automations-run-actions .monaco-button {
+	width: auto;
+	white-space: nowrap;
+}

@@ -78,7 +78,7 @@ registerAction2(class extends Action2 {
 				id: Menus.NewSessionRepositoryConfig,
 				group: getNewSessionRepositoryConfigGroup(3, 'sessions.defaultCopilot.sandboxPicker'),
 				order: 3,
-				when: ContextKeyExpr.and(IsNewChatSessionContext, IsActiveSessionCopilotChatCloud, ChatContextKeys.enabled),
+				when: ContextKeyExpr.and(IsNewChatSessionContext, IsActiveSessionCopilotChatCloud, ChatContextKeys.enabled, ChatContextKeys.inAutomationsDialog.negate()),
 			}],
 		});
 	}

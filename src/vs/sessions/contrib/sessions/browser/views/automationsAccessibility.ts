@@ -9,9 +9,9 @@ import { AccessibleContentProvider, AccessibleViewProviderId, AccessibleViewType
 import { AccessibleViewRegistry, IAccessibleViewImplementation } from '../../../../../platform/accessibility/browser/accessibleViewRegistry.js';
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { AccessibilityVerbositySettingId } from '../../../../../workbench/contrib/accessibility/browser/accessibilityConfiguration.js';
-import { IAutomationDescriptor, IAutomationRun, IAutomationSchedule } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
+import { IAutomationDescriptor, IAutomationRun } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
 import { AutomationCatalogueState, type IAutomationProviderDescriptor, IAutomationService } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
-import { DAYS_OF_WEEK } from '../../../../../workbench/contrib/chat/common/automations/schedule.js';
+import { formatAutomationSchedule as formatSchedule } from '../../../../../workbench/contrib/chat/common/automations/schedule.js';
 import { IAgentPluginService } from '../../../../../workbench/contrib/chat/common/plugins/agentPluginService.js';
 import { Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
@@ -37,6 +37,7 @@ class AutomationsCustomViewAccessibilityHelp implements IAccessibleViewImplement
 		const pluginTemplatesVisible = templates.some(template => !!template.source);
 		const content = [
 			localize('automationsCustomView.help.overview', "You are in the Automations view. It contains available automation cards followed by run history. Loading, unavailable, and error messages indicate that the catalogue may be incomplete."),
+			localize('automationsCustomView.help.cloud', "Cloud automations run on GitHub and require a private repository. Their schedule times are UTC. Disabling the cloud-management setting or closing VS Code does not stop existing cloud schedules. Run Now may report that GitHub accepted the request before a run appears in history. Refresh Automations reloads cloud definitions. Cloud history includes recent runs and offers Open Session and Open on GitHub before the session loads. Once the session is available, Open on GitHub remains in the row toolbar and context menu."),
 			localize('automationsCustomView.help.authority', "Automations run on their selected Agent Host, not in this window. Creation and changes require a connected Agent Host that supports automations. Run now requests execution from that host; a disconnected or unsupported host never falls back to local execution. To use another host, duplicate the automation. The original history stays with its host, and an enabled original keeps scheduling until you disable it."),
 			...(builtInTemplatesVisible ? [
 				hasSavedAutomations
@@ -82,6 +83,7 @@ class AutomationsCustomViewAccessibleView implements IAccessibleViewImplementati
 				automationService.runs.get().filter(run =>
 					run.status === 'pending'
 					|| run.status === 'running'
+					|| run.externalResource !== undefined
 					|| (!!run.sessionResource && !!sessionsManagementService.getSession(run.sessionResource))
 				),
 				automationService.catalogueState.get(),
@@ -180,30 +182,10 @@ export function buildAutomationsAccessibleContent(automations: readonly IAutomat
 	return lines.join('\n');
 }
 
-function formatSchedule(schedule: IAutomationSchedule): string {
-	switch (schedule.interval) {
-		case 'manual':
-			return localize('automationsAccessibleView.manual', "Manual");
-		case 'hourly':
-			return localize('automationsAccessibleView.hourly', "Hourly");
-		case 'daily':
-			return localize('automationsAccessibleView.daily', "Daily at {0}", formatTime(schedule.scheduleHour, schedule.scheduleMinute));
-		case 'weekly':
-			return localize(
-				'automationsAccessibleView.weekly',
-				"{0} at {1}",
-				DAYS_OF_WEEK[((schedule.scheduleDay % 7) + 7) % 7],
-				formatTime(schedule.scheduleHour, schedule.scheduleMinute),
-			);
-	}
-}
-
-function formatTime(hour: number, minute: number): string {
-	const date = new Date(Date.UTC(2000, 0, 1, Math.max(0, Math.min(23, hour | 0)), Math.max(0, Math.min(59, minute | 0))));
-	return date.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit', timeZone: 'UTC' });
-}
-
 function formatRunStatus(run: IAutomationRun): string {
+	if (run.statusDescription !== undefined) {
+		return run.statusDescription;
+	}
 	switch (run.status) {
 		case 'pending':
 			return localize('automationsAccessibleView.pending', "Pending");

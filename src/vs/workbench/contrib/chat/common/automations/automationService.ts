@@ -39,10 +39,17 @@ export type AutomationMutationGuard = () => void;
 /** The selected Automation authority cannot currently accept the operation. */
 export class AutomationUnavailableError extends Error { }
 
+/** A remote mutation may have succeeded, so repeating it without reconciliation is unsafe. */
+export class AutomationMutationUncertainError extends Error {
+	constructor(cause: unknown) {
+		super(localize('automationMutationUncertain', "The provider may have accepted the request, but its result could not be confirmed. Refresh the catalogue before submitting again."), { cause });
+	}
+}
+
 /** Rejects ownership changes because AHP has no history-preserving cross-host transfer operation. */
 export function assertAutomationTargetAuthority(current: IAutomationDescriptor, target: AutomationTarget | undefined): void {
 	if (target !== undefined && target.providerId !== current.target.providerId) {
-		throw new AutomationUnavailableError(localize('automationHostChangeUnsupported', "An automation cannot move between Agent Hosts. Duplicate it on the new host to keep the original run history. The original continues scheduling until you disable it."));
+		throw new AutomationUnavailableError(localize('automationHostChangeUnsupported', "An automation cannot move between providers. Duplicate it on the new provider to keep the original run history. The original continues scheduling until you disable it."));
 	}
 }
 
@@ -137,6 +144,7 @@ export function serializeAutomationEditableState(automation: IAutomationDescript
 			scheduleHour: automation.schedule.scheduleHour,
 			scheduleMinute: automation.schedule.scheduleMinute,
 			scheduleDay: automation.schedule.scheduleDay,
+			timeZone: automation.schedule.timeZone,
 		},
 		target,
 		sessionTemplate: automation.sessionTemplate,
@@ -149,6 +157,8 @@ export function serializeAutomationEditableState(automation: IAutomationDescript
 
 /** Result of requesting a manual run from its host, never a claim authorizing client-side execution. */
 export type IAutomationRunRequestResult =
+	/** The remote service accepted dispatch without returning a correlated run identifier. */
+	| { readonly kind: 'accepted' }
 	/** An existing run already occupies this Automation's active-run slot. */
 	| { readonly kind: 'alreadyRunning'; readonly run: IAutomationRun }
 	| {
@@ -166,13 +176,15 @@ export type IAutomationRunRequestResult =
  * Reads projected state and requests host mutations; it does not grant browser persistence or execution authority.
  */
 export interface IAutomationStore {
+	/** Refreshes remotely owned catalogue state when supported. */
+	refresh?(): Promise<void>;
 	/** Completeness of the Automation catalogue, independent of individual providers' operation availability. */
 	readonly catalogueState: IObservable<AutomationCatalogueState>;
 
 	/** All defined automations, newest first. */
 	readonly automations: IObservable<readonly IAutomationDescriptor[]>;
 
-	/** All recorded runs across all automations, newest first. */
+	/** The retained run-history window across automations, newest first. */
 	readonly runs: IObservable<readonly IAutomationRun[]>;
 
 	/** Snapshot accessor (no observable dependency). */
@@ -185,11 +197,11 @@ export interface IAutomationStore {
 	/** Applies a patch to the latest automation state; throws when `id` does not exist. */
 	updateAutomation(id: string, patch: IUpdateAutomationOptions): Promise<IAutomationDescriptor>;
 	/**
-	 * Applies `patch` only when the current editable fields still match `expected`.
-	 * Runtime timestamps may change without conflicting, so reviewed edits preserve scheduler progress.
+	 * Checks the latest editable state against `expected` before applying the patch.
+	 * Atomic enforcement depends on the authority; cloud REST uses a preflight read, not server-side CAS.
 	 */
 	updateAutomationIfUnchanged(id: string, patch: IUpdateAutomationOptions, expected: IAutomationDescriptor, mutationGuard?: AutomationMutationGuard): Promise<IGuardedAutomationUpdateResult>;
-	/** Deletes an automation and its retained run history; missing IDs are ignored. */
+	/** Deletes the definition through its authority; history retention is authority-owned. */
 	deleteAutomation(id: string, mutationGuard?: AutomationMutationGuard): Promise<void>;
 
 	/** Requests a manual run, forwarding supported cancellation after admission even while session creation is pending. */
@@ -215,6 +227,16 @@ export interface IAutomationService extends IAutomationStore {
 	readonly availableProviders: IObservable<readonly IAutomationProviderDescriptor[]>;
 	/** Whether the specified provider currently accepts new definitions. */
 	canCreateAutomation(providerId: string | undefined): boolean;
+	getProviderConfiguration(providerId: string | undefined): IAutomationProviderConfiguration | undefined;
+}
+
+export interface IAutomationProviderConfiguration {
+	readonly sessionTypes: readonly string[];
+	readonly label: string;
+	readonly description: string;
+	readonly timeZone: 'UTC';
+	readonly defaultEnabled: boolean;
+	readonly tools: readonly { readonly id: string; readonly label: string }[];
 }
 
 /** Identity and optional unavailability explanation of a concrete Automation provider. */

@@ -11,7 +11,7 @@ import { DefaultsOnlyConfigurationService } from '../../../../platform/configura
 import { InMemoryConfigurationService } from '../../../../platform/configuration/test/common/inMemoryConfigurationService';
 import { IAuthenticationService } from '../../../../platform/authentication/common/authentication';
 import { ICAPIClientService } from '../../../../platform/endpoint/common/capiClient';
-import { IDomainService } from '../../../../platform/endpoint/common/domainService';
+import { IDomainChangeEvent, IDomainService } from '../../../../platform/endpoint/common/domainService';
 import { IVSCodeExtensionContext } from '../../../../platform/extContext/common/extensionContext';
 import { IFileSystemService } from '../../../../platform/filesystem/common/fileSystemService';
 import { IGitExtensionService } from '../../../../platform/git/common/gitExtensionService';
@@ -27,7 +27,8 @@ import { mock } from '../../../../util/common/test/simpleMock';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../util/common/test/testUtils';
 import { DeferredPromise } from '../../../../util/vs/base/common/async';
 import { CancellationToken } from '../../../../util/vs/base/common/cancellation';
-import { Event } from '../../../../util/vs/base/common/event';
+import { Emitter, Event } from '../../../../util/vs/base/common/event';
+import { CancellationError } from '../../../../util/vs/base/common/errors';
 import { DisposableStore } from '../../../../util/vs/base/common/lifecycle';
 import { IInstantiationService } from '../../../../util/vs/platform/instantiation/common/instantiation';
 import { ChatRequestTurn2, ChatResponseMarkdownPart, ChatResponseTurn2, ChatToolInvocationPart } from '../../../../vscodeTypes';
@@ -326,7 +327,7 @@ describe('cloud session visibility', () => {
 			vi.restoreAllMocks();
 		});
 
-		function createProvider(octoKitService: IOctoKitService = new MockOctoKitService(), extensionContext: IVSCodeExtensionContext = new class extends mock<IVSCodeExtensionContext>() { }()): CopilotCloudSessionsProvider {
+		function createProvider(octoKitService: IOctoKitService = new MockOctoKitService(), extensionContext: IVSCodeExtensionContext = new class extends mock<IVSCodeExtensionContext>() { }(), authenticationChanged: Event<void> = Event.None, domainsChanged: Event<IDomainChangeEvent> = Event.None): CopilotCloudSessionsProvider {
 			return store.add(new CopilotCloudSessionsProvider(
 				octoKitService,
 				new TestGitService(),
@@ -337,7 +338,7 @@ describe('cloud session visibility', () => {
 					override getComparisonChangedFiles = getComparisonChangedFiles;
 				}(),
 				new class extends mock<IAuthenticationService>() {
-					override readonly onDidAuthenticationChange = Event.None;
+					override readonly onDidAuthenticationChange = authenticationChanged;
 				}(),
 				extensionContext,
 				new class extends mock<IInstantiationService>() { }(),
@@ -345,7 +346,7 @@ describe('cloud session visibility', () => {
 				new class extends mock<IChatDelegationSummaryService>() { }(),
 				new class extends mock<IExperimentationService>() { }(),
 				new class extends mock<IDomainService>() {
-					override readonly onDidChangeDomains = Event.None;
+					override readonly onDidChangeDomains = domainsChanged;
 				}(),
 				new class extends mock<IOTelService>() { }(),
 				new class extends mock<IFileSystemService>() { }(),
@@ -353,6 +354,78 @@ describe('cloud session visibility', () => {
 				configurationService,
 			));
 		}
+
+		it('resolves an exact task missing from cached discovery and retains it through refresh', async () => {
+			fetchSessionList.mockResolvedValue([session('listed')]);
+			const fetchSession = vi.spyOn(TaskApiBackend.prototype, 'fetchSession').mockResolvedValue(session('unlisted', now - 120 * day));
+			const provider = createProvider();
+			await provider.provideChatSessionItems(CancellationToken.None);
+			const registration = vi.mocked(vscode.commands.registerCommand).mock.calls.find(([id]) => id === 'github.copilot.chat.cloudSessions.resolveTask');
+			expect(registration).toBeDefined();
+
+			await registration![1](vscode.Uri.parse('copilot-cloud-agent:/task/unlisted'));
+			const resolved = await provider.provideChatSessionItems(CancellationToken.None);
+			provider.refresh();
+			const refreshed = await provider.provideChatSessionItems(CancellationToken.None);
+			fetchSessionList.mockResolvedValue([session('listed'), { ...session('unlisted'), title: 'Updated task' }]);
+			provider.refresh();
+			const discovered = await provider.provideChatSessionItems(CancellationToken.None);
+			fetchSessionList.mockResolvedValue([session('listed')]);
+			provider.refresh();
+			const retained = await provider.provideChatSessionItems(CancellationToken.None);
+
+			expect({
+				exactRequests: fetchSession.mock.calls,
+				resolved: resolved.map(item => item.resource.path),
+				refreshed: refreshed.map(item => item.resource.path),
+				discovered: discovered.map(item => item.resource.path),
+				retained: retained.map(item => ({ path: item.resource.path, label: item.label })),
+			}).toEqual({
+				exactRequests: [['unlisted']],
+				resolved: ['/task/listed', '/task/unlisted'],
+				refreshed: ['/task/listed', '/task/unlisted'],
+				discovered: ['/task/listed', '/task/unlisted'],
+				retained: [{ path: '/task/listed', label: 'listed' }, { path: '/task/unlisted', label: 'Updated task' }],
+			});
+		});
+
+		it.each(['account', 'domain'] as const)('does not publish a resolved task after its %s changes', async source => {
+			const authenticationChanged = store.add(new Emitter<void>());
+			const domainsChanged = store.add(new Emitter<IDomainChangeEvent>());
+			const pending = new DeferredPromise<CloudSessionData>();
+			vi.spyOn(TaskApiBackend.prototype, 'fetchSession').mockReturnValue(pending.p);
+			const provider = createProvider(new MockOctoKitService(), new class extends mock<IVSCodeExtensionContext>() { }(), authenticationChanged.event, domainsChanged.event);
+			const registration = vi.mocked(vscode.commands.registerCommand).mock.calls.find(([id]) => id === 'github.copilot.chat.cloudSessions.resolveTask');
+			expect(registration).toBeDefined();
+			const resolving = registration![1](vscode.Uri.parse('copilot-cloud-agent:/task/stale'));
+			const rejected = expect(resolving).rejects.toBeInstanceOf(CancellationError);
+			if (source === 'account') {
+				authenticationChanged.fire();
+			} else {
+				domainsChanged.fire({ capiUrlChanged: true, telemetryUrlChanged: false, dotcomUrlChanged: false, proxyUrlChanged: false });
+			}
+			await pending.complete(session('stale'));
+			await rejected;
+			expect(await provider.provideChatSessionItems(CancellationToken.None)).toEqual([]);
+		});
+
+		it.each(['account', 'domain'] as const)('clears explicitly resolved tasks when their %s changes', async source => {
+			const authenticationChanged = store.add(new Emitter<void>());
+			const domainsChanged = store.add(new Emitter<IDomainChangeEvent>());
+			vi.spyOn(TaskApiBackend.prototype, 'fetchSession').mockResolvedValue(session('private'));
+			const provider = createProvider(new MockOctoKitService(), new class extends mock<IVSCodeExtensionContext>() { }(), authenticationChanged.event, domainsChanged.event);
+			const registration = vi.mocked(vscode.commands.registerCommand).mock.calls.find(([id]) => id === 'github.copilot.chat.cloudSessions.resolveTask');
+			expect(registration).toBeDefined();
+			await registration![1](vscode.Uri.parse('copilot-cloud-agent:/task/private'));
+			const before = await provider.provideChatSessionItems(CancellationToken.None);
+			if (source === 'account') {
+				authenticationChanged.fire();
+			} else {
+				domainsChanged.fire({ capiUrlChanged: true, telemetryUrlChanged: false, dotcomUrlChanged: false, proxyUrlChanged: false });
+			}
+			const after = await provider.provideChatSessionItems(CancellationToken.None);
+			expect({ before: before.map(item => item.resource.path), after }).toEqual({ before: ['/task/private'], after: [] });
+		});
 
 		it('uses the shared workbench repository picker and preserves repository, clone, and cancellation results', async () => {
 			createProvider();
@@ -977,6 +1050,33 @@ class FakeTaskApiClient implements ITaskApiClient {
 }
 
 describe('TaskApiBackend', () => {
+	it('resolves a task directly when it is not in the global discovery page', async () => {
+		const task = {
+			...makeTask([], 'completed'),
+			id: 'exact-task',
+			html_url: 'https://github.com/example/private/tasks/exact-task',
+			agent_collaborators: [{ slug: 'copilot-developer' }],
+		};
+		const client = new FakeTaskApiClient();
+		const getTask = vi.spyOn(client, 'getTask').mockResolvedValue(task);
+		const backend = new TaskApiBackend(client, new TestLogService(), new MockOctoKitService(), NullCloudBackendInstrumentation);
+		const resolved = await backend.fetchSession(task.id);
+		expect({ taskId: resolved.taskId, repo: resolved.repo, requests: getTask.mock.calls, lists: client.listCalls }).toEqual({
+			taskId: 'exact-task', repo: { owner: 'example', name: 'private', host: 'github.com' },
+			requests: [['exact-task']], lists: [],
+		});
+	});
+
+	it('rejects mismatched or non-cloud task identities during explicit resolution', async () => {
+		const client = new FakeTaskApiClient();
+		const getTask = vi.spyOn(client, 'getTask');
+		const backend = new TaskApiBackend(client, new TestLogService(), new MockOctoKitService(), NullCloudBackendInstrumentation);
+		getTask.mockResolvedValue({ ...makeTask([]), id: 'different', agent_collaborators: [{ slug: 'copilot-developer' }] });
+		await expect(backend.fetchSession('requested')).rejects.toThrow('not a Copilot cloud session');
+		getTask.mockResolvedValue({ ...makeTask([]), id: 'requested', agent_collaborators: [{ slug: 'copilot-developer-cli' }] });
+		await expect(backend.fetchSession('requested')).rejects.toThrow('not a Copilot cloud session');
+	});
+
 	it('preserves most recent activity for every task lifecycle state', async () => {
 		const states: AgentTaskState[] = ['queued', 'in_progress', 'idle', 'waiting_for_user', 'completed', 'failed', 'cancelled', 'timed_out'];
 		const tasks = states.map(state => ({

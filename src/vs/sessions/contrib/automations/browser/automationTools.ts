@@ -68,6 +68,7 @@ interface IAutomationToolOutput {
 	readonly updatedAt: string;
 	readonly lastRunAt: string | null;
 	readonly nextRunAt: string | null;
+	readonly readOnlyReason?: string;
 }
 
 type IAutomationProposal =
@@ -107,7 +108,7 @@ export class ListAutomationsTool implements IToolImpl {
 			icon: Codicon.calendar,
 			displayName: localize('automation.tool.list.displayName', "List Automations"),
 			userDescription: localize('automation.tool.list.userDescription', "List scheduled agent automations"),
-			modelDescription: 'List all currently available scheduled automations and their stable IDs, editable fields, targets, and timing metadata. The result includes catalogueState; only "ready" means the list is complete, so never interpret an empty non-ready result as no configured automations. Use this before configureAutomation, runAutomation, or deleteAutomation when acting on an existing automation. This tool never changes automation state.',
+			modelDescription: 'List currently available automations, their stable IDs, editable fields, and creation-capable providers. Provider configuration identifies supported cloud session types, time basis, and default tools. The result includes catalogueState; only "ready" means the list is complete within the discovered provider/repository scope, so never interpret an empty non-ready result as no configured automations. Use this before configureAutomation, runAutomation, or deleteAutomation. This tool never changes automation state.',
 			source: ToolDataSource.Internal,
 			when: automationToolWhen,
 			runsInWorkspace: false,
@@ -133,7 +134,11 @@ export class ListAutomationsTool implements IToolImpl {
 
 		const catalogueState = this.automationService.catalogueState.get();
 		const automations = this.automationService.automations.get().map(toAutomationToolOutput);
-		const result = automationToolResult(JSON.stringify({ catalogueState, automations }, undefined, 2));
+		const providers = this.automationService.availableProviders.get().map(provider => ({
+			...provider,
+			configuration: this.automationService.getProviderConfiguration(provider.id),
+		}));
+		const result = automationToolResult(JSON.stringify({ catalogueState, automations, providers }, undefined, 2));
 		result.toolResultMessage = catalogueState !== 'ready'
 			? localize('automation.tool.list.result.incomplete', "Listed {0} available automations; catalogue is incomplete", automations.length)
 			: automations.length === 1
@@ -159,7 +164,7 @@ export class RunAutomationTool implements IToolImpl {
 			icon: Codicon.play,
 			displayName: localize('automation.tool.run.displayName', "Run Automation"),
 			userDescription: localize('automation.tool.run.userDescription', "Run a configured agent automation now"),
-			modelDescription: 'Run a configured automation immediately by stable ID. Call listAutomations first to obtain the current ID. This starts a fresh agent session in the background using the saved prompt, target, and provider session configuration, even when scheduled runs are disabled. The tool returns after session dispatch commits; do not run it again unless the user asks.',
+			modelDescription: 'Request a run of an existing automation by stable ID. Call listAutomations first. The owning provider starts work using the saved prompt and permissions; cloud execution may consume credits. Disabled cloud automations must be enabled before running. A cloud response may only confirm acceptance, with no run ID yet. Do not repeat an accepted or uncertain request unless the user asks.',
 			source: ToolDataSource.Internal,
 			when: automationToolWhen,
 			runsInWorkspace: false,
@@ -236,6 +241,16 @@ export class RunAutomationTool implements IToolImpl {
 		}
 		if (dispatch.kind === 'notStarted') {
 			return automationNotStarted(automation, dispatch);
+		}
+		if (dispatch.kind === 'accepted') {
+			const result = automationToolResult(JSON.stringify({ status: 'accepted', automation: { id: automation.id, name: automation.name } }));
+			result.toolResultMessage = localize('automation.tool.run.accepted', "GitHub accepted the run request for {0}. Run history will update when it is available.", automation.name);
+			return result;
+		}
+		if (dispatch.kind === 'uncertain') {
+			const result = automationToolResult(JSON.stringify({ status: 'unknown', automation: { id: automation.id, name: automation.name }, message: dispatch.message }));
+			result.toolResultMessage = localize('automation.tool.run.uncertain', "The run request outcome for {0} is unknown. Refresh before requesting another run.", automation.name);
+			return result;
 		}
 
 		const result = automationToolResult(JSON.stringify({
@@ -384,7 +399,7 @@ export class ConfigureAutomationTool implements IToolImpl {
 
 Create a new automation only when the user explicitly asks for an automation, or for a prompt to run on a recurring schedule. Do not infer that intent from requests merely to monitor, watch, follow, or keep something (such as a pull request) green.
 
-Omit "automationId" to create an automation; "name", "prompt", and "schedule.interval" are then required. If "target" is omitted, the automation targets the current Agents window session. The target must be a connected Agent Host that supports automations; there is no local execution fallback. Include "automationId" to update an existing automation, and only provide fields that should change. Call listAutomations first to obtain the stable ID and current values. An existing automation cannot move between hosts; create a separate definition on the new host and explicitly disable the original if it should stop scheduling.
+Omit "automationId" to create an automation; "name", "prompt", and "schedule.interval" are then required. If "target" is omitted, the automation targets the current Agents window session. The target must be an available automation provider; there is no local execution fallback. Call listAutomations first to discover providers and existing IDs. Cloud targets require a private GitHub repository, use UTC for daily/weekly schedules, and start disabled unless "enabled" is explicitly true. Enabled cloud schedules run without VS Code and may consume credits. Include "automationId" to update an existing automation, and only provide fields that should change. An existing automation cannot move between providers; create a separate definition and explicitly disable the original if it should stop scheduling.
 
 Use "sessionTemplate" for provider-owned Model, Agent, Mode, Approvals, and other configuration returned by listAutomations. Omit it on unrelated partial updates, or set it to null to reset provider configuration. Do not combine it with the legacy "modelId", "mode", or "permissionLevel" aliases.
 
@@ -422,19 +437,24 @@ The change uses the current tool-approval policy. When approval is required, the
 								type: 'integer',
 								minimum: 0,
 								maximum: 23,
-								description: 'Local hour, used for daily and weekly schedules.',
+								description: 'Hour used for daily and weekly schedules. UTC for cloud; the owning host time zone otherwise.',
 							},
 							scheduleMinute: {
 								type: 'integer',
 								minimum: 0,
 								maximum: 59,
-								description: 'Local minute, used for daily and weekly schedules.',
+								description: 'Minute used for daily and weekly schedules. Cloud schedules require 0, 15, 30, or 45.',
 							},
 							scheduleDay: {
 								type: 'integer',
 								minimum: 0,
 								maximum: 6,
 								description: 'Day of week for weekly schedules: 0 is Sunday and 6 is Saturday.',
+							},
+							timeZone: {
+								type: 'string',
+								enum: ['UTC'],
+								description: 'Required for daily/weekly cloud schedules. Omit for Agent Host schedules to preserve their time-zone semantics.',
 							},
 						},
 					},
@@ -515,7 +535,7 @@ The change uses the current tool-approval policy. When approval is required, the
 					},
 					enabled: {
 						type: 'boolean',
-						description: 'Whether scheduled runs are enabled. Defaults to true when creating.',
+						description: 'Whether scheduled runs are enabled. Cloud creates default to false; Agent Host creates retain their enabled default.',
 					},
 				},
 			},
@@ -690,9 +710,15 @@ The change uses the current tool-approval policy. When approval is required, the
 		const candidates = target.kind === 'quickChat'
 			? this.sessionsManagementService.getQuickChatSessionTypes()
 			: this.sessionsManagementService.getSessionTypesForFolder(target.folderUri);
-		const eligible = candidates.filter(candidate => existing === undefined
-			? this.automationService.canCreateAutomation(candidate.providerId)
-			: candidate.providerId === existing.target.providerId && this.automationService.canUpdateAutomation(existing.id));
+		const eligible = candidates.filter(candidate => {
+			const configuration = this.automationService.getProviderConfiguration(candidate.providerId);
+			if (configuration !== undefined && !configuration.sessionTypes.includes(candidate.sessionType.id)) {
+				return false;
+			}
+			return existing === undefined
+				? this.automationService.canCreateAutomation(candidate.providerId)
+				: candidate.providerId === existing.target.providerId && this.automationService.canUpdateAutomation(existing.id);
+		});
 		const candidate = findSessionType(eligible, target.providerId, target.sessionTypeId);
 		if (!candidate) {
 			throw new AutomationToolInputError(target.kind === 'quickChat'
@@ -858,7 +884,7 @@ function parseSchedule(input: Record<string, unknown>, existing: IAutomationSche
 		return undefined;
 	}
 
-	assertKnownProperties(value, ['interval', 'scheduleHour', 'scheduleMinute', 'scheduleDay'], '"schedule"');
+	assertKnownProperties(value, ['interval', 'scheduleHour', 'scheduleMinute', 'scheduleDay', 'timeZone'], '"schedule"');
 	const interval = readOptionalEnum(value, 'interval', automationIntervals) ?? existing?.interval;
 	if (!interval) {
 		throw new AutomationToolInputError('"schedule.interval" is required when creating an automation.');
@@ -867,7 +893,8 @@ function parseSchedule(input: Record<string, unknown>, existing: IAutomationSche
 	const scheduleMinute = readOptionalInteger(value, 'scheduleMinute', 0, 59) ?? existing?.scheduleMinute ?? 0;
 	const scheduleDay = readOptionalInteger(value, 'scheduleDay', 0, 6) ?? existing?.scheduleDay ?? 1;
 
-	return { interval, scheduleHour, scheduleMinute, scheduleDay };
+	const timeZone = readOptionalEnum(value, 'timeZone', ['UTC'] as const) ?? existing?.timeZone;
+	return { interval, scheduleHour, scheduleMinute, scheduleDay, ...(timeZone !== undefined ? { timeZone } : {}) };
 }
 
 function parseTarget(input: Record<string, unknown>, existing: IAutomationDescriptor | undefined, currentTarget: AutomationTarget | undefined): AutomationTarget | undefined {
@@ -1061,6 +1088,7 @@ function toAutomationToolOutput(automation: IAutomationDescriptor): IAutomationT
 		updatedAt: automation.updatedAt,
 		lastRunAt: automation.lastRunAt ?? null,
 		nextRunAt: automation.nextRunAt ?? null,
+		...(automation.readOnlyReason !== undefined ? { readOnlyReason: automation.readOnlyReason } : {}),
 	};
 }
 

@@ -192,11 +192,11 @@ suite('Automation dialog layout', () => {
 		handle.showTargetValidationError(validation.sessionTypeError);
 		assert.deepStrictEqual({ unavailable, crossHost, resolved: validationPresentation() }, {
 			unavailable: {
-				text: 'Choose an available Agent Host that supports automations.',
+				text: 'Choose an available provider that supports automations.',
 				visible: true, description: targetError.id, invalid: 'true', role: 'status', live: 'polite',
 			},
 			crossHost: {
-				text: 'To use another Agent Host, duplicate this automation. The original keeps its schedule until you disable it.',
+				text: 'To use another provider, duplicate this automation. The original keeps its schedule until you disable it.',
 				visible: true, description: targetError.id, invalid: 'true', role: 'status', live: 'polite',
 			},
 			resolved: { text: '', visible: false, description: null, invalid: null, role: 'status', live: 'polite' },
@@ -242,7 +242,7 @@ suite('Automation dialog layout', () => {
 			states: [['host'], []],
 			creationProviders: [],
 			editableError: undefined,
-			restrictedError: 'Choose an available Agent Host that supports automations.',
+			restrictedError: 'Choose an available provider that supports automations.',
 		});
 	});
 
@@ -1354,8 +1354,8 @@ suite('Automation branch picker', () => {
 		const differentHost = validation.sessionTypeError;
 		updateSaveButtonState(undefined, state, validation, form, () => 'prompt', () => undefined, sessionsManagementService, true, 'remote');
 		assert.deepStrictEqual({ unavailable, differentHost, sameHost: validation.sessionTypeError }, {
-			unavailable: 'Choose an available Agent Host that supports automations.',
-			differentHost: 'To use another Agent Host, duplicate this automation. The original keeps its schedule until you disable it.',
+			unavailable: 'Choose an available provider that supports automations.',
+			differentHost: 'To use another provider, duplicate this automation. The original keeps its schedule until you disable it.',
 			sameHost: undefined,
 		});
 	});

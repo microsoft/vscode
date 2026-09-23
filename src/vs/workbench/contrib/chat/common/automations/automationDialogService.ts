@@ -9,9 +9,13 @@ import { ICreateAutomationOptions, IUpdateAutomationOptions } from './automation
 
 export type AutomationDialogCreateInitialValues = Omit<ICreateAutomationOptions, 'target'> & { readonly target?: AutomationTarget };
 
-export type IShowAutomationDialogOptions =
+export type IShowAutomationDialogOptions = (
 	| { readonly existing: IAutomationDescriptor; readonly initialValues?: never }
-	| { readonly existing?: never; readonly initialValues?: AutomationDialogCreateInitialValues };
+	| { readonly existing?: never; readonly initialValues?: AutomationDialogCreateInitialValues }
+) & {
+	/** Saves while the form is still open; rejection preserves the draft for correction. */
+	readonly onSubmit?: (result: IAutomationDialogResult) => Promise<void>;
+};
 
 export type IAutomationDialogResult =
 	| { readonly kind: 'create'; readonly value: ICreateAutomationOptions }

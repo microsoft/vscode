@@ -13,7 +13,7 @@ import { IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/co
 import { ILanguageModelChatMetadataAndIdentifier, type IModelConfigurationAccess } from '../../../../workbench/contrib/chat/common/languageModels.js';
 import { ModelIdentifierResolution } from '../../../../workbench/contrib/chat/common/modelSelection.js';
 import { IAutomationSessionTemplate } from '../../../../workbench/contrib/chat/common/automations/automation.js';
-import { IAutomationStore } from '../../../../workbench/contrib/chat/common/automations/automationService.js';
+import { IAutomationProviderConfiguration, IAutomationStore } from '../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { ChatModelSource, IChat, ISession, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction, ISideChatSelection } from './session.js';
 
 /**
@@ -120,10 +120,13 @@ export interface ISessionModelsSnapshot {
  * Unlike the aggregate IAutomationService, creation eligibility needs no provider ID because ownership is implicit.
  */
 export interface ISessionsProviderAutomations extends IAutomationStore {
+	/** Whether an optional automation integration participates in the catalogue; absent means enabled. */
+	readonly enabled?: IObservable<boolean>;
 	/** Whether this provider accepts new definitions; existing definitions may independently allow updates. */
 	readonly canCreateAutomation: IObservable<boolean>;
 	/** Explanation and recovery guidance for provider unavailability, when present. */
 	readonly unavailableReason?: IObservable<string | undefined>;
+	readonly configuration?: IAutomationProviderConfiguration;
 }
 
 /**

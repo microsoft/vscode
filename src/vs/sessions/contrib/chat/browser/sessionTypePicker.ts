@@ -79,6 +79,7 @@ const DEFAULT_TELEMETRY_SOURCE = 'NewChatSessionTypePicker';
 export interface ISessionTypePickerOptions {
 	/** When present, only session types from these providers are offered. */
 	readonly allowedProviders?: IObservable<readonly string[]>;
+	readonly isSessionTypeAllowed?: (providerId: string, sessionTypeId: string) => boolean;
 	/** Retain a chosen provider/type if it becomes unavailable instead of selecting a replacement. */
 	readonly preserveUnavailableSelection?: boolean;
 	/**
@@ -236,12 +237,13 @@ export class SessionTypePicker extends Disposable {
 	 * is set (see {@link setFolderSource}), otherwise from the active session.
 	 */
 	protected _resolveFolderSessionTypes(): IProviderSessionType[] {
-		return this._resolveUnfilteredSessionTypes().filter(type => this._isProviderAllowed(type.providerId));
+		return this._resolveUnfilteredSessionTypes().filter(type => this._isProviderAllowed(type.providerId, type.sessionType.id));
 	}
 
-	private _isProviderAllowed(providerId: string): boolean {
+	private _isProviderAllowed(providerId: string, sessionTypeId: string): boolean {
 		const allowedProviders = this._options?.allowedProviders?.get();
-		return allowedProviders === undefined || allowedProviders.includes(providerId);
+		return (allowedProviders === undefined || allowedProviders.includes(providerId))
+			&& (this._options?.isSessionTypeAllowed?.(providerId, sessionTypeId) ?? true);
 	}
 
 	private _resolveUnfilteredSessionTypes(): IProviderSessionType[] {
@@ -645,7 +647,7 @@ export class SessionTypePicker extends Disposable {
 	}
 
 	protected async _selectSessionType(pick: IPickedSessionType): Promise<void> {
-		if (!this._isProviderAllowed(pick.providerId)) {
+		if (!this._isProviderAllowed(pick.providerId, pick.sessionTypeId)) {
 			this._recompute();
 			return;
 		}
@@ -654,7 +656,7 @@ export class SessionTypePicker extends Disposable {
 			if (!await this._options.prepareSessionTypeSelection(pick)) {
 				return;
 			}
-			if (this._isProviderAllowed(pick.providerId)) {
+			if (this._isProviderAllowed(pick.providerId, pick.sessionTypeId)) {
 				this._pendingExplicitPick = pick;
 			}
 		}
@@ -676,7 +678,7 @@ export class SessionTypePicker extends Disposable {
 		pick: IPickedSessionType,
 		visiblePickChanged = pick.providerId !== this._picked?.providerId || pick.sessionTypeId !== this._picked?.sessionTypeId,
 	): void {
-		if (!this._isProviderAllowed(pick.providerId)) {
+		if (!this._isProviderAllowed(pick.providerId, pick.sessionTypeId)) {
 			this._recompute();
 			return;
 		}

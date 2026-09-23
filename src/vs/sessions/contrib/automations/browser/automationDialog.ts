@@ -44,10 +44,11 @@ import { IWorkspacePickerItem, WorkspacePicker } from '../../chat/browser/sessio
 import { BranchPicker, IBranchPickerBranch } from '../../chat/browser/branchPicker.js';
 import { MobileSessionTypePicker } from '../../chat/browser/mobile/mobileSessionTypePicker.js';
 import { isMobilePickerSheetTarget } from '../../../browser/parts/mobile/mobilePickerSheet.js';
-import { ISession, ISessionWorkspaceBrowseAction, SESSION_WORKSPACE_GROUP_LOCAL } from '../../../services/sessions/common/session.js';
+import { ISession, ISessionWorkspaceBrowseAction, SESSION_WORKSPACE_GROUP_GITHUB, SESSION_WORKSPACE_GROUP_LOCAL } from '../../../services/sessions/common/session.js';
 import { IGitRepository, IGitService } from '../../../../workbench/contrib/git/common/gitService.js';
 import { AutomationInterval, AutomationTarget, IAutomationDescriptor } from '../../../../workbench/contrib/chat/common/automations/automation.js';
-import { IAutomationService } from '../../../../workbench/contrib/chat/common/automations/automationService.js';
+import { IAutomationProviderConfiguration, IAutomationService } from '../../../../workbench/contrib/chat/common/automations/automationService.js';
+import { isStringArray } from '../../../../base/common/types.js';
 import { DAYS_OF_WEEK } from '../../../../workbench/contrib/chat/common/automations/schedule.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { ChatAgentLocation } from '../../../../workbench/contrib/chat/common/constants.js';
@@ -214,6 +215,7 @@ export interface IFormState {
 	isolationMode: string | undefined;
 	branch: string | undefined;
 	enabled: boolean;
+	timeZone?: 'UTC';
 }
 
 export interface IValidationState {
@@ -1020,6 +1022,7 @@ export function renderForm(
 	initialTarget: AutomationTarget | undefined,
 	initialSessionConfiguration: IAutomationSessionConfiguration | undefined,
 	allowedProviders: IObservable<readonly string[]>,
+	getProviderConfiguration: (providerId: string | undefined) => IAutomationProviderConfiguration | undefined = () => undefined,
 ): IRenderFormHandle {
 	const formContent = DOM.append(form, $('.automation-form-content'));
 	const nameRow = DOM.append(formContent, $('.automation-form-row'));
@@ -1054,7 +1057,7 @@ export function renderForm(
 	intervalSelect.render(intervalSelectContainer);
 
 	const timeGroup = DOM.append(scheduleRow, $('.automation-form-schedule-group.automation-form-time-group'));
-	DOM.append(timeGroup, $('span.automation-form-label', undefined, localize('automation.form.time', "Time")));
+	const timeLabel = DOM.append(timeGroup, $('span.automation-form-label', undefined, localize('automation.form.time', "Time")));
 	const timeOptions = buildTimeOptions();
 	const initialTimeIndex = nearestTimeOptionIndex(state.hour, state.minute);
 	state.hour = timeOptions[initialTimeIndex].hour;
@@ -1100,16 +1103,19 @@ export function renderForm(
 	disposables.add(intervalSelect.onDidSelect(e => {
 		state.interval = INTERVALS[e.index].value;
 		applyIntervalVisibility();
+		revalidate();
 	}));
 
 	// The picker is authoritative for the session type
+	const providerConfiguration = observableValue<IAutomationProviderConfiguration | undefined>(form, getProviderConfiguration(state.providerId));
 	const isolationModel = new AutomationIsolationModel(state);
-	const workspaceControlsVisible = derived(reader => !isolationModel.isQuickChatObs.read(reader) && isolationModel.folderUriObs.read(reader) !== undefined);
+	const workspaceControlsVisible = derived(reader => providerConfiguration.read(reader) === undefined && !isolationModel.isQuickChatObs.read(reader) && isolationModel.folderUriObs.read(reader) !== undefined);
 	const sessionTypePicker = disposables.add(instantiationService.createInstance(MobileSessionTypePicker, constObservable<ISession | undefined>(undefined), {
 		persistSelection: false,
 		preserveUnavailableSelection: true,
 		telemetrySource: 'AutomationSessionTypePicker',
 		allowedProviders,
+		isSessionTypeAllowed: (providerId, sessionTypeId) => getProviderConfiguration(providerId)?.sessionTypes.includes(sessionTypeId) ?? true,
 	}));
 	sessionTypePicker.setQuickChatSource(isolationModel.isQuickChatObs);
 	sessionTypePicker.setFolderSource(isolationModel.folderUriObs, {
@@ -1129,6 +1135,13 @@ export function renderForm(
 		const pick = sessionTypePicker.selectedPick;
 		state.providerId = pick?.providerId;
 		state.sessionTypeId = pick?.sessionTypeId;
+		const configuration = getProviderConfiguration(state.providerId);
+		providerConfiguration.set(configuration, undefined);
+		state.timeZone = configuration?.timeZone;
+		if (configuration !== undefined) {
+			state.isolationMode = undefined;
+			state.branch = undefined;
+		}
 		onDidChangeSessionTarget.fire();
 	};
 	disposables.add(autorun(reader => {
@@ -1151,6 +1164,7 @@ export function renderForm(
 	}));
 	workspacePicker.setTargetModel(isolationModel);
 	workspacePicker.setLayoutService(layoutService);
+	workspacePicker.canBrowseGitHub = () => allowedProviders.get().some(id => getProviderConfiguration(id) !== undefined);
 
 	const automationSessionDraftSynchronizer = disposables.add(new AutomationSessionDraftSynchronizer(
 		sessionsManagementService,
@@ -1174,6 +1188,10 @@ export function renderForm(
 		return initialSessionConfiguration;
 	};
 	const updateAutomationSessionTarget = () => {
+		if (providerConfiguration.get() !== undefined) {
+			state.isolationMode = undefined;
+			state.branch = undefined;
+		}
 		const folderUri = isolationModel.folderUriObs.get();
 		const pick = sessionTypePicker.selectedPick;
 		const isQuickChat = isolationModel.isQuickChatObs.get();
@@ -1475,9 +1493,70 @@ export function renderForm(
 	};
 	disposables.add(enabledCheckbox.onChange(() => {
 		state.enabled = enabledCheckbox.checked;
+		revalidate();
 	}));
 	disposables.add(DOM.addStandardDisposableListener(enabledLabel, 'click', () => {
 		setEnabled(!enabledCheckbox.checked);
+		revalidate();
+	}));
+	const providerDetails = DOM.append(formContent, $('.automation-provider-details'));
+	const providerDescription = DOM.append(providerDetails, $('p'));
+	const toolsContainer = DOM.append(providerDetails, $('.automation-provider-tools', { role: 'group', 'aria-label': localize('automation.tools', "Cloud Tools") }));
+	const toolDisposables = disposables.add(new DisposableStore());
+	const toolsByProvider = new Map<string, string[] | undefined>();
+	let selectedTools: string[] | undefined;
+	let previousProvider = initialTarget?.providerId;
+	disposables.add(autorun(reader => {
+		const configuration = providerConfiguration.read(reader);
+		toolDisposables.clear();
+		DOM.clearNode(toolsContainer);
+		setAutomationControlVisible(providerDetails, configuration !== undefined);
+		timeLabel.textContent = configuration?.timeZone === 'UTC' ? localize('automation.form.timeUtc', "Time (UTC)") : localize('automation.form.time', "Time");
+		if (configuration === undefined || state.providerId === undefined) {
+			selectedTools = undefined;
+			previousProvider = state.providerId;
+			return;
+		}
+		const providerId = state.providerId;
+		providerDescription.textContent = configuration.description;
+		if (previousProvider !== state.providerId || initialTarget === undefined) {
+			setEnabled(configuration.defaultEnabled);
+		}
+		const storedTools = initialTarget?.providerId === state.providerId ? initialSessionConfiguration?.sessionTemplate?.config?.tools : undefined;
+		selectedTools = toolsByProvider.has(providerId) ? toolsByProvider.get(providerId)
+			: isStringArray(storedTools) ? [...storedTools] : initialTarget?.providerId === providerId ? undefined : configuration.tools.map(tool => tool.id);
+		toolsByProvider.set(providerId, selectedTools);
+		const tools = [...configuration.tools];
+		for (const id of selectedTools ?? []) {
+			if (!tools.some(tool => tool.id === id)) {
+				tools.push({ id, label: id });
+			}
+		}
+		for (const tool of tools) {
+			const row = DOM.append(toolsContainer, $('.automation-form-checkbox-row'));
+			const checkbox = toolDisposables.add(new Checkbox(tool.label, selectedTools?.includes(tool.id) === true, defaultCheckboxStyles));
+			row.appendChild(checkbox.domNode);
+			const label = DOM.append(row, $('span', undefined, tool.label));
+			const update = () => {
+				const tools = new Set(selectedTools ?? []);
+				if (checkbox.checked) {
+					tools.add(tool.id);
+				} else {
+					tools.delete(tool.id);
+				}
+				selectedTools = [...tools];
+				toolsByProvider.set(providerId, selectedTools);
+			};
+			toolDisposables.add(checkbox.onChange(update));
+			toolDisposables.add(DOM.addDisposableListener(label, 'click', () => {
+				checkbox.checked = !checkbox.checked;
+				update();
+			}));
+		}
+		DOM.append(toolsContainer, $('p', undefined, selectedTools === undefined
+			? localize('automation.toolsNotReported', "GitHub did not report the saved tool selection. Unchanged permissions will be preserved. Select tools to replace it explicitly.")
+			: localize('automation.toolsReview', "These tools can read or change repository content and run commands. GitHub enforces the effective permissions.")));
+		previousProvider = state.providerId;
 	}));
 	const saveStatus = DOM.append(form, $('span.automation-form-save-status', {
 		role: 'status',
@@ -1487,7 +1566,22 @@ export function renderForm(
 
 	return {
 		getPrompt: () => chatInput.inputEditor.getValue(),
-		getSessionConfiguration: token => automationSessionDraftSynchronizer.getSessionConfiguration(token),
+		getSessionConfiguration: async token => {
+			const captured = await automationSessionDraftSynchronizer.getSessionConfiguration(token);
+			if (captured.kind === 'failed' || providerConfiguration.get() === undefined || selectedTools === undefined) {
+				return captured;
+			}
+			return {
+				kind: 'captured',
+				configuration: {
+					...captured.configuration,
+					sessionTemplate: {
+						...captured.configuration?.sessionTemplate,
+						config: { ...captured.configuration?.sessionTemplate?.config, tools: selectedTools },
+					},
+				},
+			};
+		},
 		getBranch: () => isolationModel.persistedBranch,
 		showTargetValidationError: message => {
 			const text = message ?? '';
@@ -1607,9 +1701,9 @@ export function updateSaveButtonState(
 		? localize('automation.form.folderRequired', "Workspace folder is required.")
 		: undefined;
 	if (originalProviderId !== undefined && state.providerId !== originalProviderId) {
-		validation.sessionTypeError = localize('automation.form.hostChanged', "To use another Agent Host, duplicate this automation. The original keeps its schedule until you disable it.");
+		validation.sessionTypeError = localize('automation.form.hostChanged', "To use another provider, duplicate this automation. The original keeps its schedule until you disable it.");
 	} else if (!providerAvailable) {
-		validation.sessionTypeError = localize('automation.form.hostUnavailable', "Choose an available Agent Host that supports automations.");
+		validation.sessionTypeError = localize('automation.form.hostUnavailable', "Choose an available provider that supports automations.");
 	} else if (!state.sessionTypeId || !state.providerId) {
 		validation.sessionTypeError = localize('automation.form.sessionTypeRequired', "Session type is required.");
 	} else {
@@ -1633,10 +1727,10 @@ export function updateSaveButtonState(
 	form.classList.toggle('automation-form-invalid', !valid);
 }
 
-// Local-only workspace picker: hides category tabs and non-local browse actions.
 export class AutomationsWorkspacePicker extends WorkspacePicker {
 	private readonly targetModelWatch = this._register(new MutableDisposable<IDisposable>());
 	private targetModel: AutomationIsolationModel | undefined;
+	canBrowseGitHub: () => boolean = () => false;
 
 	setTargetModel(model: AutomationIsolationModel): void {
 		this.targetModel = model;
@@ -1706,7 +1800,7 @@ export class AutomationsWorkspacePicker extends WorkspacePicker {
 	}
 
 	protected override _getAllBrowseActions(): ISessionWorkspaceBrowseAction[] {
-		return super._getAllBrowseActions().filter(a => a.group === SESSION_WORKSPACE_GROUP_LOCAL);
+		return super._getAllBrowseActions().filter(a => a.group === SESSION_WORKSPACE_GROUP_LOCAL || (a.group === SESSION_WORKSPACE_GROUP_GITHUB && this.canBrowseGitHub()));
 	}
 }
 

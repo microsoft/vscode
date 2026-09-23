@@ -32,6 +32,7 @@ function automation(providerId: string): IAutomationDescriptor {
 }
 
 class TestAuthority extends mock<ISessionsProviderAutomations>() {
+	override readonly enabled = observableValue(this, true);
 	override readonly catalogueState = observableValue<AutomationCatalogueState>(this, 'ready');
 	override readonly canCreateAutomation = this.catalogueState.map(state => state === 'ready');
 	override readonly unavailableReason = observableValue<string | undefined>(this, undefined);
@@ -153,6 +154,20 @@ suite('ProviderAutomationService', () => {
 		addProvider(provider(store));
 		store.catalogueState.set('unavailable', undefined);
 		assert.deepStrictEqual(available, [[], ['local'], []]);
+	});
+
+	test('disabled optional integrations do not turn a provider-less catalogue into empty-ready', () => {
+		const authority = new TestAuthority('optional-cloud');
+		authority.enabled.set(false, undefined);
+		const { service } = setup([provider(authority)]);
+		const states: AutomationCatalogueState[] = [];
+		disposables.add(autorun(reader => states.push(service.catalogueState.read(reader))));
+		assert.throws(() => service.createAutomation(automation('optional-cloud')), AutomationUnavailableError);
+		authority.enabled.set(true, undefined);
+		authority.enabled.set(false, undefined);
+		assert.deepStrictEqual({ states, definitions: service.automations.get(), canCreate: service.canCreateAutomation('optional-cloud') }, {
+			states: ['unavailable', 'ready', 'unavailable'], definitions: [], canCreate: false,
+		});
 	});
 
 	test('preserves incompatible host upgrade guidance in the unavailable catalogue', () => {
