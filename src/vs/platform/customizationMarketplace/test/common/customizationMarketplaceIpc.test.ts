@@ -25,7 +25,7 @@ suite('CustomizationMarketplaceIpc', () => {
 		assert.deepStrictEqual(CustomizationMarketplaceSources.AgentFinderPublicFeed, {
 			id: 'agentFinder',
 			displayName: 'Public GitHub Feed',
-			enablementSetting: 'chat.customizations.marketplace.sources.publicGitHubFeed.enabled',
+			enablementSetting: 'chat.customizations.marketplace.sources.publicFeed.enabled',
 		});
 	});
 
@@ -82,6 +82,7 @@ suite('CustomizationMarketplaceIpc', () => {
 				'chat.agentFinder.enabled': true,
 				'chat.customizations.unifiedMarketplace.enabled': true,
 				'chat.customizations.marketplace.sources.agentFinderPublicFeed.enabled': true,
+				'chat.customizations.marketplace.sources.publicGitHubFeed.enabled': true,
 			});
 			disposables.add(configuration.onDidChangeConfigurationEmitter);
 			const client = new CustomizationMarketplaceChannelClient(channel, configuration);

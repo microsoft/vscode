@@ -24,7 +24,7 @@ In the treatment, Automations and Customizations are the first rows in the Sessi
 #### Preconditions
 
 - AI features are enabled.
-- Enable `chat.customizations.marketplace.sources.publicGitHubFeed.enabled` for public resources and/or `chat.customizations.copilotConnectors.enabled` for authenticated connectors. Both sources are experimental and disabled by default; Marketplace itself has no feature flag.
+- Enable `chat.customizations.marketplace.sources.publicFeed.enabled` for public resources and/or `chat.customizations.copilotConnectors.enabled` for authenticated connectors. Both sources are experimental and disabled by default; Marketplace itself has no feature flag.
 - Open Agent Customizations in either the editor workbench or Agents Window.
 
 #### Actions and Expected Results
@@ -59,7 +59,7 @@ In the treatment, Automations and Customizations are the first rows in the Sessi
 #### Preconditions
 
 - Enable `chat.customizations.copilotConnectors.enabled`.
-- Optionally enable `chat.customizations.marketplace.sources.publicGitHubFeed.enabled` to include public resources.
+- Optionally enable `chat.customizations.marketplace.sources.publicFeed.enabled` to include public resources.
 - Use a GitHub.com account that has Copilot connector access. Begin signed out for the sign-in checks.
 
 #### Actions and Expected Results
