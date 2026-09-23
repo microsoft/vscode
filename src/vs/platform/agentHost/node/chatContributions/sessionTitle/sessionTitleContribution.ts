@@ -9,7 +9,7 @@ import { ILogService } from '../../../../log/common/log.js';
 import { type IAgentHostChatContribution, type IAgentHostChatContributionContext, type IHydrationContext, type IAppliedClientAction, type IOutgoingTurn, type IRestoredChat, type ISendContribution, type ITurnEnd } from '../../../common/agentHostChatContributionsService.js';
 import { ISessionDataService } from '../../../common/sessionDataService.js';
 import { ActionType } from '../../../common/state/sessionActions.js';
-import { isAhpChatChannel, isDefaultChatUri } from '../../../common/state/sessionState.js';
+import { buildDefaultChatUri, isAhpChatChannel, isDefaultChatUri } from '../../../common/state/sessionState.js';
 import { AgentHostStateManager, IAgentHostStateManager } from '../../agentHostStateManager.js';
 import { IAgentHostSessionTitleController } from '../../agentHostSessionTitleController.js';
 import { AgentHostTurnTracker, IAgentHostTurnTracker } from '../../agentHostTurnTracker.js';
@@ -70,6 +70,25 @@ export class SessionTitleContribution extends Disposable implements IAgentHostCh
 		this._persistSessionMetadata(observed.channel, SESSION_CUSTOM_TITLE_KEY, observed.action.title);
 		this._persistSessionMetadata(observed.channel, SESSION_CUSTOM_TITLE_SOURCE_KEY, AGENT_HOST_TITLE_SOURCE_USER);
 		this._titleController.markTitleRenamed(observed.channel);
+		this._retitleSoleDefaultChat(observed.channel, observed.action.title);
+	}
+
+	/**
+	 * Carries a session rename down onto the default chat of a single-chat session, whose
+	 * own title metadata would otherwise keep a stale value and be restored over the rename.
+	 * Sessions with peer chats are skipped: their default chat is independently titled.
+	 */
+	private _retitleSoleDefaultChat(session: string, title: string): void {
+		const state = this._stateManager.getSessionState(session);
+		if (!state || state.chats.length > 1) {
+			return;
+		}
+		const defaultChat = state.defaultChat ?? buildDefaultChatUri(session);
+		this._stateManager.updateChatTitle(session, defaultChat, title);
+		this._persistSessionMetadata(defaultChat, SESSION_CUSTOM_TITLE_KEY, title);
+		this._persistSessionMetadata(defaultChat, SESSION_CUSTOM_TITLE_SOURCE_KEY, AGENT_HOST_TITLE_SOURCE_USER);
+		this._persistSessionMetadata(session, customChatTitleMetadataKey(defaultChat), title);
+		this._persistSessionMetadata(session, customChatTitleSourceMetadataKey(defaultChat), AGENT_HOST_TITLE_SOURCE_USER);
 	}
 
 	/**

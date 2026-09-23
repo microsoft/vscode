@@ -43,6 +43,10 @@ export const COPY_AGENT_HOST_CHAT_LINK_COMMAND_ID = 'sessions.copyAgentHostChatL
 /** Focuses the active session. Registered in `sessionsActions.ts`. */
 export const FOCUS_ACTIVE_SESSION_COMMAND_ID = 'sessions.focusActiveSession';
 
+export const FOCUS_NEW_SESSION_WORKSPACE_PICKER_COMMAND_ID = 'sessions.focusNewSessionWorkspacePicker';
+
+export const FOCUS_NEW_SESSION_HARNESS_PICKER_COMMAND_ID = 'sessions.focusNewSessionHarnessPicker';
+
 export const FOCUS_PREVIOUS_CHAT_GROUP_COMMAND_ID = 'sessions.focusPreviousChatGroup';
 
 export const FOCUS_NEXT_CHAT_GROUP_COMMAND_ID = 'sessions.focusNextChatGroup';

@@ -23,6 +23,7 @@ import { IViewsService } from '../../../../../workbench/services/views/common/vi
 import { IWorkbenchLayoutService } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { ARCHIVE_SESSION_COMMAND_ID, RENAME_CHAT_COMMAND_ID, RENAME_SESSION_COMMAND_ID } from '../../../../common/sessionCommands.js';
 import { SessionView } from '../../../../browser/parts/sessionView.js';
+import { IAgentHostFilterService } from '../../../../services/agentHostFilter/common/agentHostFilter.js';
 import { ISessionsPartService } from '../../../../services/sessions/browser/sessionsPartService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
@@ -837,6 +838,7 @@ suite('Sessions rename', () => {
 			instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
 				override readonly activeSession = constObservable<IActiveSession | undefined>(activeSession);
 			});
+			instantiationService.stub(IAgentHostFilterService, { selectedHost: undefined });
 			const configurationService = new TestConfigurationService();
 			instantiationService.stub(IConfigurationService, configurationService);
 			instantiationService.stub(IContextKeyService, disposables.add(new ContextKeyService(configurationService)));
@@ -881,7 +883,7 @@ suite('Sessions rename', () => {
 				hasDevContainerExecution: content.includes('Dev Container Agent Host sessions are enabled'),
 				hasNoBackgroundOption: content.includes('choose no background'),
 				hasPetAchievements: content.includes('View Achievements'),
-				hasSidebarCustomizations: content.includes('Chat Customizations section at the bottom of the left sidebar'),
+				hasSidebarCustomizations: content.includes('Focus Chat Customizations in the left sidebar'),
 				activeElement: mainWindow.document.activeElement,
 				fallbackFocusCount: fallbackFocusCount(),
 			}, {
@@ -913,7 +915,7 @@ suite('Sessions rename', () => {
 		test('omits the desktop customization focus command on phones', () => {
 			const origin = mainWindow.document.createElement('button');
 			const { provider } = createHelpProvider(origin, false, true);
-			assert.strictEqual(provider.provideContent().includes('Chat Customizations section at the bottom of the left sidebar'), false);
+			assert.strictEqual(provider.provideContent().includes('Focus Chat Customizations in the left sidebar'), false);
 		});
 
 		test('falls back to the active session when the originating element is gone', () => {

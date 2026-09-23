@@ -369,7 +369,10 @@ suite('AuthenticationService', () => {
 				},
 			});
 			authenticationService.registerAuthenticationProvider(provider.id, provider);
-			assert.rejects(() => authenticationService.getSessions(provider.id, [], { authorizationServer: URI.parse('https://example.com') }));
+			await assert.rejects(
+				() => authenticationService.getSessions(provider.id, [], { authorizationServer: URI.parse('https://example.com') }),
+				/does not support the authorization server/
+			);
 			assert.ok(!isCalled);
 		});
 
