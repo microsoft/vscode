@@ -596,7 +596,7 @@ export function interpolateHookCommandPluginRoot(hook: Record<string, unknown>, 
 function interpolateHookCommandRoot(hook: Record<string, unknown>, pluginUri: URI, root: IPluginRootInterpolation): Record<string, unknown> {
 	const fsPath = pluginUri.fsPath;
 	const result = cloneAndChange(hook, value => typeof value === 'string' ? value.replaceAll(root.token, fsPath) : undefined) as Record<string, unknown>;
-	for (const field of ['command', 'windows', 'linux', 'osx'] as const) {
+	for (const field of ['command', 'windows', 'linux', 'osx', 'bash', 'powershell'] as const) {
 		if (typeof hook[field] === 'string') {
 			result[field] = shellQuotePluginRootInCommand(hook[field], fsPath, root.token);
 		}
