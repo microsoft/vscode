@@ -9,7 +9,7 @@ import { DisposableStore, IDisposable } from '../../../base/common/lifecycle.js'
 import { IChannelClient } from '../../../base/parts/ipc/common/ipc.js';
 import { truncate } from '../../../base/common/strings.js';
 import { IAuthorizationProtectedResourceMetadata } from '../../../base/common/oauth.js';
-import type { IObservable } from '../../../base/common/observable.js';
+import type { IObservable, IReader } from '../../../base/common/observable.js';
 import { isEqual } from '../../../base/common/resources.js';
 import { URI } from '../../../base/common/uri.js';
 import type { IAgentServerToolHost } from './agentServerTools.js';
@@ -1375,6 +1375,9 @@ export interface IAgent {
 	/** Optional current authentication requirement for providers that can require re-authentication after startup. */
 	readonly authenticationRequired?: IObservable<Omit<AuthRequiredParams, 'channel'> | undefined>;
 
+	/** Whether model-dependent prerequisites for unattended execution are ready; absent means no additional readiness gate. */
+	isReadyForAutomation?(model: ModelSelection | undefined, reader?: IReader): boolean;
+
 	/** Optional endpoint list when the provider owns probeable network traffic. */
 	getNetworkDiagnosticsEndpoints?(): Promise<readonly IAgentHostNetworkEndpoint[]>;
 
@@ -1395,8 +1398,8 @@ export interface IAgent {
 	/** Optional host wiring for providers that advertise Agent Host server tools. */
 	setServerToolHost?(host: IAgentServerToolHost): void;
 
-	/** Optional lifecycle operation for providers exposing controllable MCP servers. */
-	startMcpServer?(session: URI, id: string): Promise<void>;
+	/** Starts a controllable MCP server; providers may cooperatively honor cancellation, but in-flight SDK operations may not be cancellable. */
+	startMcpServer?(session: URI, id: string, token: CancellationToken): Promise<void>;
 
 	/** Optional lifecycle operation paired with {@link startMcpServer}. */
 	stopMcpServer?(session: URI, id: string): Promise<void>;

@@ -68,7 +68,9 @@ export class CloudSandboxSessionsProvider extends RemoteAgentHostSessionsProvide
 		if (this._sessionCache.has(rawId)) {
 			return;
 		}
-		this._sessionCache.set(rawId, this.createAdapter(meta));
+		const adapter = this.createAdapter(meta);
+		adapter.updateDiscoveryMetadata(meta);
+		this._sessionCache.set(rawId, adapter);
 		this._withheldSessions.add(rawId);
 		// No deadline yet: the clock starts when the host first omits it.
 		this._provisionalSessions.set(rawId, undefined);

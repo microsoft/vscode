@@ -14,6 +14,10 @@ Kind-specific contributions create and register one provider for each remote hos
 
 Agent discovery is dynamic. Changes to a host's advertised agents update the provider's session types without recreating the provider.
 
+Sandbox session discovery is window-owned and does not establish host connections. A full refresh reconciles absent disconnected environments; incremental refreshes retain absent entries and reconcile only explicitly removed or replaced tasks. Both preserve connected and provisioning environments. Failed or cancelled scans must not advance incremental discovery progress.
+
+The sandbox contribution saves a minimal discovery inventory in machine-local profile storage, separately for each authentication provider and account. Once the current account is known, it restores providers and cached rows before awaiting network discovery, without waking environments. Failed or partial discovery retains unconfirmed entries. Account changes remove the previous account's providers; credential refreshes for the same account preserve them. No credentials are stored in the inventory.
+
 ## Identity
 
 Remote sessions use separate logical and routing identities:

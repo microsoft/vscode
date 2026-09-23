@@ -1555,7 +1555,6 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 	get label(): string { return this.providerMode === 'sandbox' ? localize('sandboxCreationProvider', "GitHub Sandboxes") : localize('copilotChatSessionsProvider', "Copilot Chat"); }
 	readonly icon = Codicon.copilot;
 	readonly order = 0;
-	get supportsAutomationSessionConfiguration(): boolean { return this.providerMode !== 'sandbox'; }
 
 	get sessionTypes(): readonly ISessionType[] {
 		if (this.providerMode === 'sandbox') {

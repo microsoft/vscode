@@ -64,6 +64,7 @@ import { EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, UNIFIED_WORKSPACE_PIC
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IAgentsWindowDraft } from '../../../../platform/window/common/window.js';
 import { reviveChatDraft } from '../../../../workbench/contrib/chat/common/attachments/chatDraft.js';
+import { NewChatMigrationNotice } from './newChatMigrationNotice.js';
 import { FOCUS_NEW_SESSION_HARNESS_PICKER_WHEN, FOCUS_NEW_SESSION_WORKSPACE_PICKER_WHEN } from './newChatPickerKeybinding.js';
 
 // #region --- New Chat Widget ---
@@ -536,6 +537,7 @@ export class NewChatWidget extends Disposable {
 					: undefined
 			);
 		}));
+		this._register(this.instantiationService.createInstance(NewChatMigrationNotice, chatWidgetContent, this._session, () => this.focusInput()));
 
 		// The tip lives in the input's notice slot, so the presenter is created
 		// after the input has rendered it.

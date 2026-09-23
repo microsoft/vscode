@@ -13,6 +13,7 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { CancellationError, isCancellationError } from '../../../../../base/common/errors.js';
 import { Event } from '../../../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { isObject } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { isWeb } from '../../../../../base/common/platform.js';
 import { localize } from '../../../../../nls.js';
@@ -21,6 +22,7 @@ import {
 	CLOUD_SANDBOX_AGENT_PROVIDER,
 	CLOUD_SANDBOX_SESSION_SCHEME,
 	CloudSandboxEnabledSettingId,
+	CloudSandboxAuthenticationRequiredError,
 	cloudSandboxAddress,
 	ICloudSandboxAgentHostService,
 	ICloudSandboxApiService,
@@ -29,6 +31,7 @@ import {
 	type ICloudSandboxCreateSessionRequest,
 	type ICloudSandboxCreatedSession,
 	type ICloudSandboxDiscoveryResult,
+	type ICloudSandboxDiscoveredSession,
 } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { AgentSession, type IAgentSessionMetadata } from '../../../../../platform/agentHost/common/agent.js';
 import { ChangesetKind } from '../../../../../platform/agentHost/common/changesetUri.js';
@@ -37,12 +40,13 @@ import { agentHostAuthority } from '../../../../../platform/agentHost/common/age
 import { findRemoteAgentHostSessionTypeAuthority, remoteAgentHostSessionTypeId } from '../../../../../platform/agentHost/common/agentHostSessionType.js';
 import { IRemoteAgentHostService, RemoteAgentHostConnectionStatus, RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { IAuthenticationService } from '../../../../../workbench/services/authentication/common/authentication.js';
 import { IChatEntitlementService } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
+import { IStorageEntry, IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IWorkbenchContribution } from '../../../../../workbench/common/contributions.js';
+import { IHostService } from '../../../../../workbench/services/host/browser/host.js';
 import { ChatSessionsExtensions, IAsyncChatSessionActivationRegistry, IChatSessionsService } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { CloudSandboxReadOnlySessionHandler } from './cloudSandboxReadOnlySessionHandler.js';
 import { IAgentHostFilterService } from '../../../../services/agentHostFilter/common/agentHostFilter.js';
@@ -58,6 +62,10 @@ import { watchForIncompatibleNotifications } from './remoteHostOptions.js';
 import { ChatAIDisabledSettingId } from '../../../../../platform/chat/common/chatSettings.js';
 
 const LOG_PREFIX = '[CloudSandboxAgentHost]';
+const DISCOVERY_STALE_AFTER_MS = 60_000;
+const FULL_DISCOVERY_INTERVAL_MS = 15 * 60_000;
+const MAX_DISCOVERY_RETRY_INTERVAL_MS = 5 * 60_000;
+const INVENTORY_STORAGE_PREFIX = 'sessions.cloudSandbox.inventory.';
 
 export const CLOUD_SANDBOX_CREATION_PROVIDER_ID = 'cloud-sandbox-creation';
 
@@ -106,6 +114,19 @@ interface ICloudSandboxEnvironment {
 	 */
 	readonly taskId?: string;
 	readonly name: string;
+	readonly repoName?: string;
+	readonly updatedAt?: string;
+}
+
+function isDiscoveredSandboxSession(value: unknown): value is ICloudSandboxDiscoveredSession {
+	const candidate = value as Partial<ICloudSandboxDiscoveredSession> | undefined;
+	return isObject(candidate)
+		&& typeof candidate.environmentId === 'string' && candidate.environmentId.length > 0
+		&& typeof candidate.sessionId === 'string' && candidate.sessionId.length > 0
+		&& typeof candidate.taskId === 'string' && candidate.taskId.length > 0
+		&& typeof candidate.name === 'string'
+		&& (candidate.repoName === undefined || typeof candidate.repoName === 'string')
+		&& (candidate.updatedAt === undefined || typeof candidate.updatedAt === 'string');
 }
 
 /**
@@ -137,6 +158,7 @@ export class CloudSandboxAgentHostContribution extends Disposable implements IWo
 	/** Provider instances keyed by connection address (`cloudsandbox:<envId>`). */
 	private readonly _providerInstances = new Map<string, CloudSandboxSessionsProvider>();
 	private readonly _providerStores = this._register(new DisposableMap<string>());
+	private _persistedInventory = new Map<string, string>();
 	/** Environment metadata keyed by connection address, for on-demand reconnect. */
 	private readonly _environments = new Map<string, ICloudSandboxEnvironment>();
 	/** In-flight connects keyed by address, so concurrent opens share one attempt. */
@@ -160,8 +182,12 @@ export class CloudSandboxAgentHostContribution extends Disposable implements IWo
 	/** Serializes discovery so overlapping triggers can't interleave reconciliation. */
 	private _discoveryInFlight: Promise<void> | undefined;
 	private _discoveryQueued: Promise<void> | undefined;
-	/** Whether discovery has completed at least once, used to stop the auth-driven retry. */
-	private _hasDiscovered = false;
+	private _discoveryToken: CancellationToken | undefined;
+	private _discoveryIncremental = false;
+	private _lastDiscoveryAttempt: number | undefined;
+	private _lastFullDiscovery: number | undefined;
+	private _discoveryRetryInterval = DISCOVERY_STALE_AFTER_MS;
+	private _accountKey: string | undefined;
 	/**
 	 * Keeps the "GitHub Sandboxes" filter entry present for as long as the feature is on, so the
 	 * place is visible and selectable before the user has any sandbox session to put in it.
@@ -176,12 +202,13 @@ export class CloudSandboxAgentHostContribution extends Disposable implements IWo
 		@ISessionsProvidersService private readonly _sessionsProvidersService: ISessionsProvidersService,
 		@IAgentHostFilterService private readonly _agentHostFilterService: IAgentHostFilterService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@IAuthenticationService private readonly _authenticationService: IAuthenticationService,
 		@IChatEntitlementService private readonly _chatEntitlementService: IChatEntitlementService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@INotificationService private readonly _notificationService: INotificationService,
 		@IChatSessionsService private readonly _chatSessionsService: IChatSessionsService,
 		@ILogService private readonly _logService: ILogService,
+		@IHostService private readonly _hostService: IHostService,
+		@IStorageService private readonly _storageService: IStorageService,
 	) {
 		super();
 
@@ -228,19 +255,24 @@ export class CloudSandboxAgentHostContribution extends Disposable implements IWo
 		this._register(this._agentHostFilterService.registerDiscoveryHandler(() => this._discoverAndSeed()));
 		void this._discoverAndSeed();
 
-		// Discovery needs a GitHub session, and the auth provider is contributed by an extension that
-		// may not be registered yet at startup. Retry as sessions become available, until the first
-		// success; from then on the discovery handler above drives refreshes.
-		const retryUntilFirstSuccess = this._register(new DisposableStore());
-		const retry = () => {
-			if (this._hasDiscovered) {
-				retryUntilFirstSuccess.clear();
+		this._register(this._hostService.onDidChangeFocus(focused => {
+			if (focused) {
+				void this._refreshIfStale();
+			}
+		}));
+		this._register(this._agentHostFilterService.onDidChange(() => {
+			if (this._agentHostFilterService.selectedHostId === CLOUD_SANDBOX_HOST_GROUP.id) {
+				void this._refreshIfStale();
+			}
+		}));
+
+		this._register(this._apiService.onDidChangeAccount(accountKey => {
+			if (!this._isEnabled()) {
 				return;
 			}
-			void this._discoverAndSeed();
-		};
-		retryUntilFirstSuccess.add(this._authenticationService.onDidChangeSessions(retry));
-		retryUntilFirstSuccess.add(this._authenticationService.onDidRegisterAuthenticationProvider(retry));
+			this._restoreAccount(accountKey);
+			void this._discoverAndSeed(false, true);
+		}));
 
 		// Connect-on-open: resolves a seeded session by establishing the relay and waiting for the
 		// host to advertise its agent. Scoped to our authorities so it never intercepts other
@@ -257,96 +289,214 @@ export class CloudSandboxAgentHostContribution extends Disposable implements IWo
 		}));
 	}
 
-	/**
-	 * Discover environment-bound sandbox sessions and seed them into per-environment providers so
-	 * they appear in the sessions list **without** connecting. Reconciles against the result:
-	 * environments that have vanished from discovery (e.g. their task was archived) and are not
-	 * currently connected are torn down, so stale providers/sessions don't linger. Best-effort:
-	 * a failed discovery is logged and leaves existing state untouched.
-	 *
-	 * Runs are serialized, with at most one follow-up queued, so overlapping triggers can't
-	 * interleave their reconciliation passes.
-	 */
-	private _discoverAndSeed(): Promise<void> {
+	protected async _refreshIfStale(): Promise<void> {
 		if (this._discoveryInFlight) {
+			await (this._discoveryQueued ?? this._discoveryInFlight);
+			return;
+		}
+		if (!this._hostService.hasFocus || (this._lastDiscoveryAttempt !== undefined && Date.now() - this._lastDiscoveryAttempt < this._discoveryRetryInterval)) {
+			return;
+		}
+		await this._discoverAndSeed(true);
+	}
+
+	/** Share overlapping scans, queuing at most one full scan when a stronger refresh is needed. */
+	private _discoverAndSeed(incremental = false, retry = false): Promise<void> {
+		if (!this._isEnabled() || this._store.isDisposed) {
+			return Promise.resolve();
+		}
+		if (this._discoveryInFlight) {
+			if (!retry && this._discoveryToken === this._enabledCts.token && (incremental || !this._discoveryIncremental)) {
+				return this._discoveryQueued ?? this._discoveryInFlight;
+			}
 			this._discoveryQueued ??= this._discoveryInFlight.then(() => {
 				this._discoveryQueued = undefined;
 				return this._discoverAndSeed();
 			});
 			return this._discoveryQueued;
 		}
-		this._discoveryInFlight = this._doDiscoverAndSeed().finally(() => {
+		this._lastDiscoveryAttempt = Date.now();
+		this._discoveryIncremental = incremental && this._lastFullDiscovery !== undefined
+			&& this._lastDiscoveryAttempt - this._lastFullDiscovery < FULL_DISCOVERY_INTERVAL_MS;
+		this._discoveryToken = this._enabledCts.token;
+		this._discoveryInFlight = this._doDiscoverAndSeed(this._discoveryToken, this._discoveryIncremental).finally(() => {
 			this._discoveryInFlight = undefined;
+			this._discoveryToken = undefined;
 		});
 		return this._discoveryInFlight;
 	}
 
-	private async _doDiscoverAndSeed(): Promise<void> {
-		if (!this._isEnabled()) {
-			return;
-		}
-		const token = this._enabledCts.token;
+	private async _doDiscoverAndSeed(token: CancellationToken, incremental: boolean): Promise<void> {
 		let result: ICloudSandboxDiscoveryResult;
 		try {
-			result = await this._apiService.listSessions(token);
+			const accountKey = await this._apiService.getAccountKey();
+			if (token.isCancellationRequested || !this._isEnabled()) {
+				return;
+			}
+			if (this._restoreAccount(accountKey)) {
+				token = this._enabledCts.token;
+				this._discoveryToken = token;
+				this._discoveryIncremental = incremental = false;
+				this._lastDiscoveryAttempt = Date.now();
+			}
+			if (!accountKey) {
+				throw new CloudSandboxAuthenticationRequiredError();
+			}
+			result = await this._apiService.listSessions(token, { incremental });
 		} catch (error) {
 			if (token.isCancellationRequested || isCancellationError(error) || !this._isEnabled()) {
 				return;
 			}
 			result = { kind: 'failed', reason: error instanceof Error ? error.message : String(error) };
 		}
-		if (result.kind === 'failed') {
-			// Not "no sessions" — leave existing state alone, and stay eligible for the auth retry.
-			this._logService.warn(`${LOG_PREFIX} Discovery failed: ${result.reason}`);
-			return;
-		}
-		// The feature may have been disabled while the scan was in flight.
 		if (token.isCancellationRequested || !this._isEnabled()) {
 			return;
 		}
-		this._hasDiscovered = true;
+		this._discoveryRetryInterval = result.kind === 'failed' || result.kind === 'partial'
+			? Math.min(this._discoveryRetryInterval * 2, MAX_DISCOVERY_RETRY_INTERVAL_MS)
+			: DISCOVERY_STALE_AFTER_MS;
+		if (result.kind === 'failed') {
+			this._logService.warn(`${LOG_PREFIX} Discovery failed: ${result.reason}`);
+			return;
+		}
+		if (result.kind === 'complete') {
+			this._lastFullDiscovery = Date.now();
+		}
 
 		const present = new Set<string>();
+		const updatedTasks = new Set<string>();
 		for (const session of result.sessions) {
 			if (!session.environmentId || !session.sessionId) {
 				continue;
 			}
 			const address = cloudSandboxAddress(session.environmentId);
 			present.add(address);
-			this._ensureProvider({ environmentId: session.environmentId, sessionId: session.sessionId, taskId: session.taskId, name: session.name });
-			const provider = this._providerInstances.get(address);
-			const parsed = session.updatedAt ? Date.parse(session.updatedAt) : Number.NaN;
-			const modifiedTime = Number.isNaN(parsed) ? Date.now() : parsed;
-			const project = discoveredSessionProject(session.repoName);
-			const meta: IAgentSessionMetadata = {
-				// Seed under the agent-provider (UI) scheme, preserving the session id: the host
-				// lists the same id back, so this reconciles with `listSessions()` on connect.
-				session: AgentSession.uri(CLOUD_SANDBOX_AGENT_PROVIDER, session.sessionId),
-				startTime: modifiedTime,
-				modifiedTime,
-				summary: session.name,
-				...(project ? { project } : {}),
-			};
-			provider?.seedSessions([meta]);
+			updatedTasks.add(session.taskId);
+			this._seedDiscoveredSession(session);
 		}
 
-		// Negative reconciliation: drop environments that are no longer discoverable and aren't
-		// currently connected (an open/connected session is kept so active use isn't disrupted).
-		// Only a complete scan is authoritative — a partial one is missing entries that still exist.
-		if (result.kind === 'complete') {
-			for (const address of [...this._environments.keys()]) {
-				if (present.has(address) || this._provisioning.has(address)) {
-					continue;
-				}
-				const connected = this._remoteAgentHostService.connections.some(
-					c => c.address === address && RemoteAgentHostConnectionStatus.isConnected(c.status));
-				if (!connected) {
-					this._teardownEnvironment(address);
-				}
+		const removedTasks = new Set(result.kind === 'complete' ? [] : result.removedTaskIds);
+		for (const [address, environment] of this._environments) {
+			if (present.has(address) || this._provisioning.has(address)) {
+				continue;
+			}
+			if (result.kind !== 'complete' && (!environment.taskId || (!removedTasks.has(environment.taskId) && !updatedTasks.has(environment.taskId)))) {
+				continue;
+			}
+			const connected = this._remoteAgentHostService.connections.some(
+				c => c.address === address && RemoteAgentHostConnectionStatus.isConnected(c.status));
+			if (!connected) {
+				this._teardownEnvironment(address);
 			}
 		}
 
+		this._persistInventory();
 		this._logService.info(`${LOG_PREFIX} Seeded ${present.size} discovered sandbox environment(s)${result.kind === 'partial' ? ' (partial scan; kept existing entries)' : ''}.`);
+	}
+
+	private _seedDiscoveredSession(session: ICloudSandboxDiscoveredSession): void {
+		this._ensureProvider(session);
+		const address = cloudSandboxAddress(session.environmentId);
+		this._environments.set(address, session);
+		const provider = this._providerInstances.get(address);
+		provider?.setLabel(session.name);
+		const parsed = session.updatedAt ? Date.parse(session.updatedAt) : Number.NaN;
+		const modifiedTime = Number.isNaN(parsed) ? provider?.getCachedSession(session.sessionId)?.updatedAt.get().getTime() ?? Date.now() : parsed;
+		const project = discoveredSessionProject(session.repoName);
+		provider?.seedSessions([{
+			session: AgentSession.uri(CLOUD_SANDBOX_AGENT_PROVIDER, session.sessionId),
+			startTime: modifiedTime,
+			modifiedTime,
+			summary: session.name,
+			...(project ? { project } : {}),
+		}], { updateExisting: true });
+	}
+
+	private _restoreAccount(accountKey: string | undefined): boolean {
+		if (accountKey === this._accountKey) {
+			return false;
+		}
+		this._teardownAll();
+		this._accountKey = accountKey;
+		if (accountKey) {
+			const storageKey = INVENTORY_STORAGE_PREFIX + accountKey;
+			const keys = this._storageService.keys(StorageScope.PROFILE, StorageTarget.MACHINE).filter(key => key.startsWith(`${storageKey}.`));
+			let restored = 0;
+			for (const key of keys) {
+				const sessions = this._readInventory(key);
+				this._persistedInventory.set(key, JSON.stringify({ version: 1, sessions }));
+				for (const session of sessions) {
+					this._seedDiscoveredSession(session);
+					restored++;
+				}
+			}
+			if (keys.length === 0 && this._storageService.get(storageKey, StorageScope.PROFILE) !== undefined) {
+				for (const session of this._readInventory(storageKey)) {
+					this._seedDiscoveredSession(session);
+					restored++;
+				}
+				this._persistInventory();
+			}
+			if (restored) {
+				this._logService.info(`${LOG_PREFIX} Restored ${restored} cached sandbox environment(s).`);
+			}
+		}
+		return true;
+	}
+
+	private _readInventory(storageKey: string): readonly ICloudSandboxDiscoveredSession[] {
+		let cached: { readonly version?: number; readonly sessions?: unknown } | undefined;
+		try {
+			cached = this._storageService.getObject(storageKey, StorageScope.PROFILE);
+		} catch (error) {
+			this._logService.warn(`${LOG_PREFIX} Reading cached sandbox inventory failed.`, error);
+			return [];
+		}
+		if (cached !== undefined) {
+			if (isObject(cached) && cached.version === 1 && Array.isArray(cached.sessions) && cached.sessions.every(isDiscoveredSandboxSession)) {
+				return cached.sessions;
+			}
+			this._logService.warn(`${LOG_PREFIX} Ignoring invalid cached sandbox inventory.`);
+		}
+		return [];
+	}
+
+	private _persistInventory(): void {
+		if (!this._accountKey) {
+			return;
+		}
+		const storageKey = INVENTORY_STORAGE_PREFIX + this._accountKey;
+		const inventory = new Map<string, string>();
+		const entries: IStorageEntry[] = [];
+		for (const environment of this._environments.values()) {
+			if (environment.sessionId && environment.taskId) {
+				const session: ICloudSandboxDiscoveredSession = {
+					environmentId: environment.environmentId,
+					sessionId: environment.sessionId,
+					taskId: environment.taskId,
+					name: environment.name,
+					repoName: environment.repoName,
+					updatedAt: environment.updatedAt,
+				};
+				const key = `${storageKey}.${JSON.stringify([session.environmentId, session.sessionId])}`;
+				const value = JSON.stringify({ version: 1, sessions: [session] });
+				inventory.set(key, value);
+				if (this._persistedInventory.get(key) !== value) {
+					entries.push({ key, value, scope: StorageScope.PROFILE, target: StorageTarget.MACHINE });
+				}
+			}
+		}
+		// Only remove this window's known entries, never a concurrent window's newly stored sessions.
+		for (const key of this._persistedInventory.keys()) {
+			if (!inventory.has(key)) {
+				entries.push({ key, value: undefined, scope: StorageScope.PROFILE, target: StorageTarget.MACHINE });
+			}
+		}
+		if (this._storageService.get(storageKey, StorageScope.PROFILE) !== undefined) {
+			entries.push({ key: storageKey, value: undefined, scope: StorageScope.PROFILE, target: StorageTarget.MACHINE });
+		}
+		this._persistedInventory = inventory;
+		this._storageService.storeAll(entries, false);
 	}
 
 	/**
@@ -374,24 +524,33 @@ export class CloudSandboxAgentHostContribution extends Disposable implements IWo
 		if (!this._isEnabled()) {
 			throw new Error('Copilot cloud sandbox connections are not enabled.');
 		}
+		const accountKey = await this._apiService.getAccountKey();
+		if (!this._isEnabled() || token.isCancellationRequested) {
+			throw new CancellationError();
+		}
+		if (!accountKey) {
+			throw new CloudSandboxAuthenticationRequiredError();
+		}
+		this._restoreAccount(accountKey);
+		const enabledToken = this._enabledCts.token;
 		const created = await this._apiService.createSession(request, token);
 		const name = request.repoNwo ?? created.taskId;
 		const address = cloudSandboxAddress(created.environmentId);
 		// `_teardownAll` has already snapshotted the environments it knows about, so registering a
 		// provider now would leave one behind that nothing reconciles.
-		if (!this._isEnabled() || token.isCancellationRequested) {
+		if (!this._isEnabled() || token.isCancellationRequested || enabledToken.isCancellationRequested) {
 			throw new CancellationError();
 		}
 		this._provisioning.add(address);
 		let seededProvider: CloudSandboxSessionsProvider | undefined;
 		try {
-			this._ensureProvider({ environmentId: created.environmentId, sessionId: created.sessionId, taskId: created.taskId, name });
+			const now = Date.now();
+			this._ensureProvider({ ...created, name, repoName: request.repoNwo, updatedAt: new Date(now).toISOString() });
 
 			const provider = this._providerInstances.get(address);
 			if (!provider) {
 				throw new Error(`No sessions provider was registered for sandbox environment ${created.environmentId}`);
 			}
-			const now = Date.now();
 			const project = discoveredSessionProject(request.repoNwo);
 			provider.seedProvisionalSession({
 				// Same identity discovery seeds under: Mission Control issues the session as
@@ -403,6 +562,7 @@ export class CloudSandboxAgentHostContribution extends Disposable implements IWo
 				...(project ? { project } : {}),
 			});
 			seededProvider = provider;
+			this._persistInventory();
 
 			await this.connect({ environmentId: created.environmentId, sessionId: created.sessionId, name });
 
@@ -453,6 +613,11 @@ export class CloudSandboxAgentHostContribution extends Disposable implements IWo
 		this._enabledCts.cancel();
 		this._enabledCts.dispose();
 		this._enabledCts = new CancellationTokenSource();
+		this._lastDiscoveryAttempt = undefined;
+		this._lastFullDiscovery = undefined;
+		this._discoveryRetryInterval = DISCOVERY_STALE_AFTER_MS;
+		this._accountKey = undefined;
+		this._persistedInventory.clear();
 		for (const address of [...this._environments.keys()]) {
 			this._teardownEnvironment(address);
 		}
@@ -697,7 +862,12 @@ export class CloudSandboxAgentHostContribution extends Disposable implements IWo
 		// `connect()` reaches here with only the fields its caller had, so preserve anything
 		// discovery already resolved — notably the task id that makes history readable offline.
 		const known = this._environments.get(address);
-		this._environments.set(address, { ...known, ...env, taskId: env.taskId ?? known?.taskId });
+		this._environments.set(address, {
+			...known, ...env,
+			taskId: env.taskId ?? known?.taskId,
+			repoName: env.repoName ?? known?.repoName,
+			updatedAt: env.updatedAt ?? known?.updatedAt,
+		});
 		if (this._providerStores.has(address)) {
 			return;
 		}

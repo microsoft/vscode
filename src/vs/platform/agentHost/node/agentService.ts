@@ -27,7 +27,6 @@ import { IAgentEditAttributionService, ICancelEditAttributionFlushParams, ICommi
 import { omitTransientSessionConfigValues, SessionConfigKey } from '../common/sessionConfigKeys.js';
 import type { IAgentCustomizationSettingsRegistration } from '../common/agentCustomizationSettings.js';
 import { buildAnnotationsUri, parseAnnotationsUri } from '../common/annotationsUri.js';
-import { AGENT_HOST_AUTOMATION_MIGRATION_CONFIG_KEY, isAgentHostAutomationMigrationCompletion } from '../common/automationMigration.js';
 import { parseChangesetUri } from '../common/changesetUri.js';
 import { ActionType, ActionEnvelope, AuthRequiredReason, INotification, isAnnotationsAction, isPassiveSessionMetadataAction, isSessionAction, type ChatAction, type ClientAutomationAction, type ClientAutomationRunAction, type IIsArchivedChangedAction, type IIsReadChangedAction, type IRootConfigChangedAction, type SessionAction, type SessionWorkingDirectoryAction, type TerminalAction, type ClientAnnotationsAction, type ClientChangesetAction } from '../common/state/sessionActions.js';
 import { resolveSessionWorkingDirectoryAction } from '../common/state/sessionWorkingDirectories.js';
@@ -693,7 +692,10 @@ export class AgentService extends Disposable implements IAgentService {
 		);
 		this._catalogListReader = new AgentHostCatalogListReader(this._orchestratorDatabase);
 		this._automationService = this._register(instantiationService.createInstance(AgentHostAutomationService, {
-			isSessionTemplateAvailable: template => this._providerService.resolveProvider(template.provider) !== undefined,
+			isSessionTemplateAvailable: (template, reader) => {
+				const provider = this._providerService.resolveProvider(template.provider);
+				return provider !== undefined && provider.isReadyForAutomation?.(template.model, reader) !== false;
+			},
 			createSession: (template, run) => this.createSession({
 				provider: template.provider,
 				model: template.model,
@@ -6153,20 +6155,6 @@ export class AgentService extends Disposable implements IAgentService {
 			? createUnknownAgentHostClientTelemetryContext(clientContextOrType)
 			: clientContextOrType;
 		this._logService.trace(`[AgentService] dispatchAction: type=${action.type}, clientId=${clientId}, clientSeq=${clientSeq}`, action);
-		if (action.type === ActionType.RootConfigChanged && Object.hasOwn(action.config, AGENT_HOST_AUTOMATION_MIGRATION_CONFIG_KEY)) {
-			const migration = action.config[AGENT_HOST_AUTOMATION_MIGRATION_CONFIG_KEY];
-			const origin = { clientId, clientSeq };
-			if (!isAgentHostAutomationMigrationCompletion(migration)) {
-				this._stateManager.rejectClientAction(channel, action, origin, 'Invalid automation migration completion payload.');
-				return;
-			}
-			if (Object.keys(action.config).length !== 1 || action.replace) {
-				this._stateManager.rejectClientAction(channel, action, origin, 'Automation migration completion must be dispatched as an isolated root-config patch.');
-				return;
-			}
-			this._dispatchAutomationMigrationAction(channel, action, clientId, clientSeq, clientContext);
-			return;
-		}
 		if (this._isAutomationAction(action)) {
 			const origin = { clientId, clientSeq };
 			if (!isAhpAutomationCatalogChannel(channel)) {
@@ -6286,27 +6274,6 @@ export class AgentService extends Disposable implements IAgentService {
 			}
 		});
 
-		this._clientDispatchQueues.set(clientId, next);
-	}
-
-	private _dispatchAutomationMigrationAction(channel: string, action: IRootConfigChangedAction, clientId: string, clientSeq: number, clientContext: IAgentHostClientTelemetryContext): void {
-		const pending = this._clientDispatchQueues.get(clientId);
-		const next = (pending ?? Promise.resolve()).then(async () => {
-			const migration = action.config[AGENT_HOST_AUTOMATION_MIGRATION_CONFIG_KEY];
-			if (!isAgentHostAutomationMigrationCompletion(migration)) {
-				throw new Error('Invalid automation migration completion payload.');
-			}
-			await this._automationService.completeMigration(migration.resources);
-			this._dispatchActionNow(channel, channel, action, clientId, clientSeq, clientContext);
-		}).catch(error => {
-			const message = toErrorMessage(error);
-			this._logService.error(`[AgentService] Failed to complete automation migration: ${message}`);
-			this._stateManager.rejectClientAction(channel, action, { clientId, clientSeq }, message);
-		}).finally(() => {
-			if (this._clientDispatchQueues.get(clientId) === next) {
-				this._clientDispatchQueues.delete(clientId);
-			}
-		});
 		this._clientDispatchQueues.set(clientId, next);
 	}
 
@@ -6622,13 +6589,6 @@ export class AgentService extends Disposable implements IAgentService {
 				this._stateManager.rejectClientAction(channel, action, origin, toErrorMessage(error));
 				return;
 			}
-		}
-		const automationMigration = action.type === ActionType.RootConfigChanged
-			? action.config[AGENT_HOST_AUTOMATION_MIGRATION_CONFIG_KEY]
-			: undefined;
-		if (automationMigration !== undefined && !isAgentHostAutomationMigrationCompletion(automationMigration)) {
-			this._stateManager.rejectClientAction(channel, action, origin, 'Invalid automation migration completion payload.');
-			return;
 		}
 		this._stateManager.dispatchClientAction(channel, action, origin, clientContext);
 		if (action.type === ActionType.RootConfigChanged) {
