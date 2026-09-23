@@ -2512,7 +2512,7 @@ configurationRegistry.registerConfiguration({
 		[ChatConfiguration.AgentFinderPublicFeedEnabled]: {
 			type: 'boolean',
 			tags: ['experimental'],
-			description: nls.localize('chat.customizations.marketplace.sources.publicFeed.enabled', "Enables the Public GitHub Feed as a source of skills, MCP servers, and plugins in the customization marketplace. When disabled, this source is not initialized or queried."),
+			description: nls.localize('chat.customizations.marketplace.sources.publicFeed.enabled', "Enables the GitHub Feed as a source of skills, MCP servers, and plugins in the customization marketplace. When disabled, this source is not initialized or queried."),
 			default: false,
 			experiment: { mode: 'auto' },
 		},

@@ -24,7 +24,7 @@ suite('CustomizationMarketplaceIpc', () => {
 	test('identifies the public source without exposing the backend name', () => {
 		assert.deepStrictEqual(CustomizationMarketplaceSources.AgentFinderPublicFeed, {
 			id: 'agentFinder',
-			displayName: 'Public GitHub Feed',
+			displayName: 'GitHub Feed',
 			enablementSetting: 'chat.customizations.marketplace.sources.publicFeed.enabled',
 		});
 	});

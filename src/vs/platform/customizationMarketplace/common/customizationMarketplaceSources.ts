@@ -20,7 +20,7 @@ export const enum CustomizationMarketplaceConfiguration {
 export const CustomizationMarketplaceSources = {
 	AgentFinderPublicFeed: {
 		id: 'agentFinder',
-		displayName: localize('customizationMarketplace.publicGitHubFeed', "Public GitHub Feed"),
+		displayName: localize('customizationMarketplace.githubFeed', "GitHub Feed"),
 		enablementSetting: CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled,
 	},
 	CopilotConnectors: {
