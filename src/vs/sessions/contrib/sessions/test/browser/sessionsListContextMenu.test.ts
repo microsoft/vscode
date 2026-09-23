@@ -28,7 +28,7 @@ import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/ac
 import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
 import { ARCHIVE_SESSION_COMMAND_ID, RENAME_CHAT_COMMAND_ID, RENAME_SESSION_COMMAND_ID } from '../../../../common/sessionCommands.js';
 import { SessionsListPromoteNewChatActionContext } from '../../../../common/contextkeys.js';
-import { ISessionGroup, ISessionGroupsService } from '../../../../services/sessions/browser/sessionGroupsService.js';
+import { ISessionGroup } from '../../../../services/sessions/browser/sessionGroupsService.js';
 import { ISessionsPartService } from '../../../../services/sessions/browser/sessionsPartService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { ChatInteractivity, IChat, ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
