@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { NullTelemetryServiceShape } from '../../../../../../../platform/telemetry/common/telemetryUtils.js';
-import { CustomizationMigrationHintTarget, CustomizationMigrationType, FileCustomizationMigrationFailureReason } from '../../../../common/promptSyntax/service/customizationMigrationService.js';
+import { CustomizationMigrationType, FileCustomizationMigrationFailureReason } from '../../../../common/promptSyntax/service/customizationMigrationService.js';
 import { CustomizationMigrationTelemetryService } from '../../../../common/promptSyntax/service/customizationMigrationTelemetryService.js';
 
 class TestTelemetryService extends NullTelemetryServiceShape {
@@ -25,11 +25,16 @@ suite('CustomizationMigrationTelemetryService', () => {
 	test('reports migration impressions, actions, and outcomes', () => {
 		const telemetryService = new TestTelemetryService();
 		const service = new CustomizationMigrationTelemetryService(telemetryService);
+		const hint = {
+			hintId: 'hint-id',
+			message: 'Migration hint',
+			counts: [{ type: CustomizationMigrationType.PromptFiles, count: 3 }],
+		};
 
-		service.hintComputed([{ type: CustomizationMigrationType.PromptFiles, count: 3 }]);
-		service.hintShown(CustomizationMigrationHintTarget.FileMigrations);
-		service.hintClicked(CustomizationMigrationHintTarget.FileMigrations, 'review');
-		service.hintClicked(CustomizationMigrationHintTarget.FileMigrations, 'dismiss');
+		service.hintComputed(hint);
+		service.hintShown(hint);
+		service.hintClicked(hint, 'review');
+		service.hintClicked(hint, 'dismiss');
 		service.pageShown();
 		service.pageShown(CustomizationMigrationType.PromptFiles);
 		service.actionClicked('migrationCategoryClicked', CustomizationMigrationType.PromptFiles);
@@ -41,10 +46,10 @@ suite('CustomizationMigrationTelemetryService', () => {
 		]);
 
 		assert.deepStrictEqual(telemetryService.events, [
-			{ name: 'chat.customizationMigrationAssessment', data: { category: 'promptFiles', count: 3 } },
-			{ name: 'chat.customizationMigration', data: { action: 'hintShown', target: 'fileMigrations' } },
-			{ name: 'chat.customizationMigration', data: { action: 'hintReviewClicked', target: 'fileMigrations' } },
-			{ name: 'chat.customizationMigration', data: { action: 'hintDismissClicked', target: 'fileMigrations' } },
+			{ name: 'chat.customizationMigrationAssessment', data: { hintId: 'hint-id', category: 'promptFiles', count: 3 } },
+			{ name: 'chat.customizationMigration', data: { action: 'hintShown', hintId: 'hint-id', count: 3 } },
+			{ name: 'chat.customizationMigration', data: { action: 'hintReviewClicked', hintId: 'hint-id', count: 3 } },
+			{ name: 'chat.customizationMigration', data: { action: 'hintDismissClicked', hintId: 'hint-id', count: 3 } },
 			{ name: 'chat.customizationMigration', data: { action: 'migrationOverviewShown', category: undefined } },
 			{ name: 'chat.customizationMigration', data: { action: 'migrationCategoryShown', category: 'promptFiles' } },
 			{ name: 'chat.customizationMigration', data: { action: 'migrationCategoryClicked', category: 'promptFiles' } },
