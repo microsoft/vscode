@@ -26,7 +26,7 @@ export function agentHostModelSupportsToolSearch(modelId: string | undefined): b
 	}
 	const id = modelId.toLowerCase();
 	const normalizedId = id.replace(/\./g, '-');
-	if (normalizedId === 'gpt-5-4' || normalizedId === 'gpt-5-5' || isGpt56Model(id)) {
+	if (normalizedId === 'gpt-5-4' || normalizedId === 'gpt-5-5' || isGpt56Model(id) || normalizedId.startsWith('gpt-6')) {
 		return true;
 	}
 	if (!normalizedId.startsWith('claude')) {

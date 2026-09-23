@@ -86,8 +86,8 @@ export interface ISessionSummaryHoverData {
 		readonly onOpen: () => void;
 	};
 	/**
-	 * Set when the session was created in another application. The row names
-	 * that origin and, when activated, leads to whatever controls whether such
+	 * Set while the session is treated as external. The row names
+	 * that status and, when activated, leads to whatever controls whether such
 	 * sessions are shown here.
 	 */
 	readonly externalSession?: {
@@ -161,11 +161,13 @@ export class SessionSummaryHoverWidget {
 		}
 		this._createdBy.classList.toggle('hidden', !this._createdBy.hasChildNodes());
 
-		// Where the session came from rather than what it is doing, so it closes
-		// the hover below everything the session itself has to say.
+		this.updateExternalSession(data.externalSession);
+	}
+
+	updateExternalSession(externalSession: ISessionSummaryHoverData['externalSession']): void {
 		dom.clearNode(this._externalSession);
-		if (data.externalSession) {
-			this._appendButtonRow(this._externalSession, Codicon.multipleWindows, data.externalSession.onOpen, localize('sessionSummaryHover.externalSession', "External Session"));
+		if (externalSession) {
+			this._appendButtonRow(this._externalSession, Codicon.multipleWindows, externalSession.onOpen, localize('sessionSummaryHover.externalSession', "External Session"));
 		}
 		this._externalSession.classList.toggle('hidden', !this._externalSession.hasChildNodes());
 	}

@@ -10,6 +10,8 @@ import { EventType as TouchEventType } from '../../../base/browser/touch.js';
 import { ActionBar } from '../../../base/browser/ui/actionbar/actionbar.js';
 import { getAnchorRect, IAnchor } from '../../../base/browser/ui/contextview/contextview.js';
 import { KeybindingLabel } from '../../../base/browser/ui/keybindingLabel/keybindingLabel.js';
+import { IHoverAction } from '../../../base/browser/ui/hover/hover.js';
+import { HoverAction } from '../../../base/browser/ui/hover/hoverWidget.js';
 import { DomScrollableElement } from '../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { Switch } from '../../../base/browser/ui/toggle/switch.js';
 import { IListEvent, IListMouseEvent, IListRenderer, IListVirtualDelegate } from '../../../base/browser/ui/list/list.js';
@@ -63,6 +65,8 @@ export interface IActionListItemHover {
 	 * time the panel opens, for content that is expensive to construct.
 	 */
 	readonly content?: string | IMarkdownString | HTMLElement | (() => HTMLElement);
+	/** Actions rendered in the standard hover footer below the content. */
+	readonly actions?: readonly IHoverAction[];
 	/**
 	 * Optional disposable associated with the hover content (e.g. from rendered markdown).
 	 */
@@ -808,6 +812,7 @@ export class ActionListWidget<T> extends Disposable {
 	private _submenuShowTimeout: ReturnType<typeof setTimeout> | undefined;
 	private _currentSubmenuWidget: ActionListWidget<IAction> | undefined;
 	private _currentSubmenuElement: IActionListItem<T> | undefined;
+	private _submenuHoverActionElements: HTMLElement[] = [];
 	private _submenuPanelClassName: string | undefined;
 	private _layoutSubmenu: (() => void) | undefined;
 	private readonly _itemMoveAnimation = this._register(new MutableDisposable());
@@ -2300,7 +2305,10 @@ export class ActionListWidget<T> extends Disposable {
 		}
 		return {
 			toolbar: this._itemToolbars.get(element),
-			panelControls: element.hover?.getTabbableElements?.() ?? [],
+			panelControls: [
+				...element.hover?.getTabbableElements?.() ?? [],
+				...this._submenuHoverActionElements,
+			],
 		};
 	}
 
@@ -2517,6 +2525,22 @@ export class ActionListWidget<T> extends Disposable {
 				hoverHeader.classList.add('has-submenu');
 			}
 			content.appendChild(hoverHeader);
+		}
+
+		if (element.hover?.actions?.length) {
+			const statusBarElement = dom.$('.hover-row.status-bar');
+			const actionsElement = dom.append(statusBarElement, dom.$('.actions'));
+			for (const action of element.hover.actions) {
+				const keybinding = this._keybindingService.lookupKeybinding(action.commandId);
+				const hoverAction = this._submenuDisposables.add(HoverAction.render(actionsElement, {
+					label: action.label,
+					commandId: action.commandId,
+					run: target => action.run(target),
+					iconClass: action.iconClass,
+				}, keybinding?.getLabel() ?? null));
+				this._submenuHoverActionElements.push(hoverAction.actionContainer);
+			}
+			this._submenuContainer.appendChild(statusBarElement);
 		}
 
 		// Show container before creating widget so List can measure during construction
@@ -2860,6 +2884,7 @@ export class ActionListWidget<T> extends Disposable {
 		}
 		this._submenuDisposables.clear();
 		this._currentSubmenuWidget = undefined;
+		this._submenuHoverActionElements = [];
 		if (this._submenuPanelClassName) {
 			this._submenuContainer.classList.remove(this._submenuPanelClassName);
 			this._submenuPanelClassName = undefined;

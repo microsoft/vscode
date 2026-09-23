@@ -166,6 +166,7 @@ suite('Agent Merge server tools', () => {
 		const chat = buildDefaultChatUri(sessionUri);
 		stateManager.setSessionMeta(sessionUri, withSessionGitHubState(
 			withSessionGitState(undefined, { branchName: 'main', baseBranchName: 'main' }),
+			workingDirectory.toString(),
 			{ pullRequestBranchName: 'main', pullRequestUrls: ['https://github.com/octo/repo/pull/1'] },
 		));
 		stateManager.dispatchServerAction(chat, {
@@ -317,13 +318,27 @@ suite('Agent Merge server tools', () => {
 	test('returns a known pull request only when it belongs to the captured branch', async () => {
 		const { stateManager, host } = createHarness(true);
 		const pullRequestUrl = 'https://github.com/octo/repo/pull/1';
-		stateManager.setSessionMeta(sessionUri, withSessionGitHubState(undefined, { pullRequestUrls: [pullRequestUrl], pullRequestBranchName: 'feature' }));
+		stateManager.setSessionMeta(sessionUri, withSessionGitHubState(undefined, workingDirectory.toString(), { pullRequestUrls: [pullRequestUrl], pullRequestBranchName: 'feature' }));
 
 		assert.deepStrictEqual(JSON.parse(await host.executeTool(buildDefaultChatUri(sessionUri), setAgentMergeEnabledToolName, { enabled: true })), {
 			enabled: true,
 			configuration: defaultAgentMergeConfiguration,
 			monitoring: 'bound',
 			target: { branchName: 'feature', pullRequestUrl },
+		});
+	});
+
+	test('does not report a pull request from another folder with the same branch name', async () => {
+		const { stateManager, host } = createHarness(true);
+		stateManager.setSessionMeta(sessionUri, withSessionGitHubState(undefined, URI.file('/another-workspace').toString(), {
+			pullRequestUrls: ['https://github.com/octo/another-repo/pull/1'], pullRequestBranchName: 'feature',
+		}));
+
+		assert.deepStrictEqual(JSON.parse(await host.executeTool(buildDefaultChatUri(sessionUri), setAgentMergeEnabledToolName, { enabled: true })), {
+			enabled: true,
+			configuration: defaultAgentMergeConfiguration,
+			monitoring: 'waitingForPullRequest',
+			target: { branchName: 'feature' },
 		});
 	});
 

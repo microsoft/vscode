@@ -75,6 +75,23 @@ suite('CreatePullRequestChatRequest', () => {
 		workingDirectory: 'file:///repo', repository: 'microsoft/vscode', branchName: 'feature/test', baseBranchName: 'main',
 	};
 
+	test('sends to the chat whose changes the pull request is created from', async () => {
+		const fixture = setup();
+		const peerChat = upcastPartial<IChat>({
+			resource: URI.parse('agent-host-copilotcli:/original-session#peer'),
+			isArchived: constObservable(false),
+			interactivity: constObservable(ChatInteractivity.Full),
+		});
+
+		await fixture.request.send(fixture.session, options, fixture.creation);
+		await fixture.request.send(fixture.session, options, fixture.creation, peerChat);
+
+		assert.deepStrictEqual(fixture.requests.map(request => request.chat.resource.toString()), [
+			fixture.chat.resource.toString(),
+			peerChat.resource.toString(),
+		]);
+	});
+
 	test('validates prepared identity before sending and carries the branch constraints in the message', async () => {
 		const fixture = setup();
 		await fixture.request.send(fixture.session, { ...options, expectedContext }, fixture.creation);

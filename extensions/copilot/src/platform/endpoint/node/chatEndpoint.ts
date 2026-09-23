@@ -485,18 +485,6 @@ export class ChatEndpoint implements IChatEndpoint {
 			}
 		}
 
-		// Force low reasoning effort for Gemini 3 models when the experiment is
-		// enabled, unless the user has already selected an explicit effort above.
-		if (body.reasoning_effort === undefined && this.family.toLowerCase().includes('gemini-3')) {
-			const lowReasoningEnabled = this._configurationService.getExperimentBasedConfig(
-				ConfigKey.EnableGemini3LowReasoningEffort,
-				this._expService
-			);
-			if (lowReasoningEnabled) {
-				body.reasoning_effort = 'low';
-			}
-		}
-
 		// Force temperature and top_p for Kimi models regardless of what the client would otherwise send (per Moonshot recommendations). Temperature 0 strongly increases chances of looping.
 		if (isKimiFamily(this)) {
 			if (body.messages) {

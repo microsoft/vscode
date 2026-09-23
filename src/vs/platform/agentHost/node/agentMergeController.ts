@@ -26,7 +26,7 @@ import { deriveGitHubEndpoints } from '../common/githubEndpoints.js';
 import { SessionConfigKey } from '../common/sessionConfigKeys.js';
 import { ActionType } from '../common/state/protocol/common/actions.js';
 import { AuthRequiredReason } from '../common/state/sessionActions.js';
-import { getSessionRelatedPullRequestUrls, ISessionWithDefaultChat, isAhpChatChannel, isSessionStatusArchived, needsSessionGitStateRefresh, parseRequiredSessionUriFromChatUri, readSessionGitHubState, readSessionGitState, SessionLifecycle, TurnState } from '../common/state/sessionState.js';
+import { getSessionRelatedPullRequestUrls, ISessionWithDefaultChat, isAhpChatChannel, isSessionStatusArchived, needsSessionGitStateRefresh, parseRequiredSessionUriFromChatUri, readSessionFolderGitHubState, readSessionGitState, SessionLifecycle, TurnState } from '../common/state/sessionState.js';
 import { IAgentConfigurationService } from './agentConfigurationService.js';
 import { IAgentHostGitHubEndpointService } from './agentHostGitHubEndpointService.js';
 import { IAgentHostProviderService } from './agentHostProviderService.js';
@@ -530,7 +530,7 @@ export class AgentMergeController extends Disposable {
 				: agentMergeDisableReasons.branchUnavailable(target.branchName));
 			return;
 		}
-		const gitHubState = readSessionGitHubState(refreshedState?._meta);
+		const gitHubState = readSessionFolderGitHubState(refreshedState);
 		const pullRequestUrl = getSessionRelatedPullRequestUrls(gitHubState)[0];
 		if (!target.pullRequestUrl) {
 			if (!pullRequestUrl) {
@@ -802,7 +802,7 @@ export class AgentMergeController extends Disposable {
 
 	private _createTarget(session: string, branchName: string): AgentMergeTarget {
 		const now = new Date().toISOString();
-		const gitHubState = readSessionGitHubState(this._stateManager.getSessionState(session)?._meta);
+		const gitHubState = readSessionFolderGitHubState(this._stateManager.getSessionState(session));
 		const pullRequestUrl = gitHubState?.pullRequestBranchName === branchName
 			? getSessionRelatedPullRequestUrls(gitHubState)[0]
 			: undefined;
@@ -967,7 +967,7 @@ export class AgentMergeController extends Disposable {
 		if (!target.pullRequestUrl) {
 			return true;
 		}
-		const pullRequestUrl = getSessionRelatedPullRequestUrls(readSessionGitHubState(state?._meta))[0];
+		const pullRequestUrl = getSessionRelatedPullRequestUrls(readSessionFolderGitHubState(state))[0];
 		return !pullRequestUrl || pullRequestUrl.toLowerCase() === target.pullRequestUrl.toLowerCase();
 	}
 

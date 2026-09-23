@@ -4155,16 +4155,7 @@
               "onExp"
             ]
           },
-          "github.copilot.chat.gemini3LowReasoningEffort.enabled": {
-            "type": "boolean",
-            "default": false,
-            "markdownDescription": "%github.copilot.config.gemini3LowReasoningEffort.enabled%",
-            "tags": [
-              "experimental",
-              "onExp"
-            ]
-          },
-          "github.copilot.chat.claudeOpusDefaultReasoningEffort": {
+          "github.copilot.chat.claudeDefaultReasoningEffort": {
             "type": "string",
             "default": "",
             "enum": [
@@ -4174,7 +4165,7 @@
               "high",
               "max"
             ],
-            "markdownDescription": "%github.copilot.config.claudeOpusDefaultReasoningEffort%",
+            "markdownDescription": "%github.copilot.config.claudeDefaultReasoningEffort%",
             "tags": [
               "experimental",
               "onExp"
@@ -4665,23 +4656,6 @@
             "tags": [
               "advanced",
               "experimental"
-            ]
-          },
-          "github.copilot.chat.inlineChat.reasoningEffort": {
-            "type": "string",
-            "default": "low",
-            "enum": [
-              "none",
-              "minimal",
-              "low",
-              "medium",
-              "high"
-            ],
-            "markdownDescription": "%github.copilot.config.inlineChat.reasoningEffort%",
-            "tags": [
-              "advanced",
-              "experimental",
-              "onExp"
             ]
           },
           "github.copilot.chat.inlineChat.enableThinking": {
@@ -5175,14 +5149,6 @@
               "default": false,
               "readOnly": true
             }
-          },
-          "github.copilot.chat.cli.thinkingEffort.enabled": {
-            "type": "boolean",
-            "default": true,
-            "markdownDescription": "%github.copilot.config.cli.thinkingEffort.enabled%",
-            "tags": [
-              "advanced"
-            ]
           },
           "github.copilot.chat.cli.sessionControllerForSessionsApp.enabled": {
             "type": "boolean",

@@ -9,6 +9,7 @@ import { CancellationToken } from '../../../../../../base/common/cancellation.js
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
+import { Schemas } from '../../../../../../base/common/network.js';
 import { constObservable, ISettableObservable, observableValue, transaction } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mockObject } from '../../../../../../base/test/common/mock.js';
@@ -16,12 +17,15 @@ import { assertSnapshot } from '../../../../../../base/test/common/snapshot.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
 import { Range } from '../../../../../../editor/common/core/range.js';
+import { MessageKind } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IEnvironmentService } from '../../../../../../platform/environment/common/environment.js';
 import { ExtensionIdentifier } from '../../../../../../platform/extensions/common/extensions.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
+import { FileService } from '../../../../../../platform/files/common/fileService.js';
+import { InMemoryFileSystemProvider } from '../../../../../../platform/files/common/inMemoryFilesystemProvider.js';
 import { ServiceCollection } from '../../../../../../platform/instantiation/common/serviceCollection.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { MockContextKeyService } from '../../../../../../platform/keybinding/test/common/mockKeybindingService.js';
@@ -59,7 +63,7 @@ import { ChatModel, IChatModel, ISerializableChatData, ISerializableChatModelInp
 import { ChatSessionOperationLog } from '../../../common/model/chatSessionOperationLog.js';
 import { LocalChatSessionUri } from '../../../common/model/chatUri.js';
 import { ChatViewModel, isPendingDividerVM, isRequestVM, isResponseVM } from '../../../common/model/chatViewModel.js';
-import { ChatAgentService, IChatAgent, IChatAgentData, IChatAgentImplementation, IChatAgentService } from '../../../common/participants/chatAgents.js';
+import { ChatAgentService, IChatAgent, IChatAgentData, IChatAgentImplementation, IChatAgentRequest, IChatAgentService } from '../../../common/participants/chatAgents.js';
 import { ChatSlashCommandService, IChatSlashCommandService } from '../../../common/participants/chatSlashCommands.js';
 import { IConfiguredHooksInfo, IPromptsService } from '../../../common/promptSyntax/service/promptsService.js';
 import { CustomizationMigrationType, ICustomizationMigrationService } from '../../../common/promptSyntax/service/customizationMigrationService.js';
@@ -970,18 +974,18 @@ suite('ChatService', () => {
 		const modelRef = testService.startNewLocalSession(ChatAgentLocation.Chat);
 		const model = modelRef.object;
 
-		let disposed = false;
+		let reason: string | undefined;
 		testDisposables.add(testService.onDidDisposeSession(e => {
 			for (const resource of e.sessionResources) {
 				if (resource.toString() === model.sessionResource.toString()) {
-					disposed = true;
+					reason = e.reason;
 				}
 			}
 		}));
 
 		modelRef.dispose();
 		await testService.waitForModelDisposals();
-		assert.strictEqual(disposed, true);
+		assert.strictEqual(reason, 'disposed');
 	});
 
 	test('disposing a session cancels pending followups', async () => {
@@ -1703,6 +1707,141 @@ suite('ChatService', () => {
 		assert.deepStrictEqual(actual, {
 			invokedMessages: [],
 			pendingMessages: ['queued message'],
+		});
+	});
+
+	for (const kind of [ChatRequestQueueKind.Queued, ChatRequestQueueKind.Steering]) {
+		for (const { actor, reject } of [
+			...Object.values(MessageKind).map(actor => ({ actor, reject: false })),
+			{ actor: MessageKind.SystemNotification, reject: true },
+			{ actor: MessageKind.Automation, reject: true },
+		]) {
+			test(`remote ${kind} ${actor} routing and provenance survive ${reject ? 'requeue after rejected resend' : 'immediate resend'}`, async () => {
+				const sessionType = 'agent-host-copilot';
+				const sessionResource = URI.from({ scheme: sessionType, path: '/remote-send-immediately' });
+				const mockSessionsService = new MockChatSessionsService();
+				mockSessionsService.setContributions([{
+					type: sessionType, name: 'Agent Host', displayName: 'Agent Host', description: 'Agent Host', agentHostProviderId: 'copilot',
+				}]);
+				testDisposables.add(mockSessionsService.registerChatSessionContentProvider(sessionType, {
+					provideChatSessionContent: resource => Promise.resolve({
+						sessionResource: resource, history: [], onWillDispose: Event.None, dispose: () => { },
+					}),
+				}));
+				instantiationService.stub(IChatSessionsService, mockSessionsService);
+				const invoked = new DeferredPromise<IChatAgentRequest>();
+				const implementation: IChatAgentImplementation = {
+					async invoke(request) {
+						invoked.complete(request);
+						return {};
+					},
+				};
+				testDisposables.add(chatAgentService.registerAgent('fallbackAgent', { ...getAgentData('fallbackAgent'), isDefault: true }));
+				testDisposables.add(chatAgentService.registerAgentImplementation('fallbackAgent', implementation));
+				testDisposables.add(chatAgentService.registerAgent(sessionType, getAgentData(sessionType)));
+				testDisposables.add(chatAgentService.registerAgentImplementation(sessionType, implementation));
+				const service = createChatService();
+				const ref = await service.acquireOrLoadSession(sessionResource, ChatAgentLocation.Chat, CancellationToken.None);
+				assert.ok(ref);
+				testDisposables.add(ref);
+				const metadata = { 'vscode.chat.systemInitiatedLabel': 'Background task completed', 'test.request': { enabled: true } };
+				const isSystemInitiated = actor === MessageKind.SystemNotification;
+				service.syncPendingRequestsFromRemote(sessionResource, [{
+					id: 'remote-1', kind, message: 'remote message',
+					agentHostMessageOrigin: { kind: actor }, metadata, isSystemInitiated, systemInitiatedLabel: 'Background task completed',
+				}]);
+				const pending = ref.object.getPendingRequests()[0];
+				const pendingPresentation = { isSystemInitiated: pending.request.isSystemInitiated, label: pending.request.systemInitiatedLabel };
+
+				if (reject) {
+					instantiationService.stub(IChatAgentService, 'getDefaultAgent', () => undefined);
+				}
+				await service.sendPendingRequestImmediately(sessionResource, pending.request.id);
+				if (reject) {
+					const requeued = ref.object.getPendingRequests()[0];
+					assert.deepStrictEqual({
+						kind: requeued.kind,
+						agentIdSilent: requeued.sendOptions.agentIdSilent,
+						origin: requeued.sendOptions.agentHostMessageOrigin,
+						metadata: requeued.sendOptions.metadata,
+						isSystemInitiated: requeued.request.isSystemInitiated,
+						label: requeued.request.systemInitiatedLabel,
+					}, {
+						kind, agentIdSilent: sessionType, origin: { kind: actor }, metadata, isSystemInitiated, label: 'Background task completed',
+					});
+					return;
+				}
+				const request = await invoked.p;
+
+				assert.deepStrictEqual({
+					pendingPresentation,
+					agentId: request.agentId,
+					message: request.message,
+					origin: request.agentHostMessageOrigin,
+					metadata: request.metadata,
+					isSystemInitiated: request.isSystemInitiated,
+					pendingCount: ref.object.getPendingRequests().length,
+				}, {
+					pendingPresentation: { isSystemInitiated, label: 'Background task completed' },
+					agentId: sessionType,
+					message: 'remote message',
+					origin: { kind: actor },
+					metadata,
+					isSystemInitiated,
+					pendingCount: 0,
+				});
+			});
+		}
+	}
+
+	test('remote pending requests reconcile provenance-only changes and clear removed metadata', () => {
+		const service = createChatService();
+		const model = testDisposables.add(startSessionModel(service)).object;
+		const remote = { id: 'remote-1', kind: ChatRequestQueueKind.Queued, message: 'same text' };
+		const metadata = { 'vscode.chat.systemInitiatedLabel': 'Background task completed' };
+		let changes = 0;
+		testDisposables.add(model.onDidChangePendingRequests(() => changes++));
+		service.syncPendingRequestsFromRemote(model.sessionResource, [remote]);
+		const system = { ...remote, agentHostMessageOrigin: { kind: MessageKind.SystemNotification }, metadata, isSystemInitiated: true, systemInitiatedLabel: 'Background task completed' };
+		service.syncPendingRequestsFromRemote(model.sessionResource, [system]);
+		const systemRequest = model.getPendingRequests()[0];
+		service.syncPendingRequestsFromRemote(model.sessionResource, [{ ...system, metadata: { ...metadata } }]);
+		const unchanged = model.getPendingRequests()[0] === systemRequest;
+		service.syncPendingRequestsFromRemote(model.sessionResource, [{ ...remote, message: 'legacy text update' }]);
+		const legacyUpdate = model.getPendingRequests()[0];
+		service.syncPendingRequestsFromRemote(model.sessionResource, [{
+			...remote, agentHostMessageOrigin: { kind: MessageKind.User }, isSystemInitiated: false,
+		}]);
+		const userRequest = model.getPendingRequests()[0];
+		const automated = { ...remote, agentHostMessageOrigin: { kind: MessageKind.Automation }, isSystemInitiated: false };
+		service.syncPendingRequestsFromRemote(model.sessionResource, [automated]);
+		service.syncPendingRequestsFromRemote(model.sessionResource, [{ ...automated, metadata }]);
+		const metadataUpdate = model.getPendingRequests()[0];
+
+		assert.deepStrictEqual({
+			changes,
+			unchanged,
+			legacyOrigin: legacyUpdate.sendOptions.agentHostMessageOrigin,
+			legacyMetadata: legacyUpdate.sendOptions.metadata,
+			legacySystem: legacyUpdate.request.isSystemInitiated,
+			origin: userRequest.sendOptions.agentHostMessageOrigin,
+			metadata: userRequest.sendOptions.metadata,
+			label: userRequest.request.systemInitiatedLabel,
+			isSystemInitiated: userRequest.request.isSystemInitiated,
+			updatedOrigin: metadataUpdate.sendOptions.agentHostMessageOrigin,
+			updatedMetadata: metadataUpdate.sendOptions.metadata,
+		}, {
+			changes: 6,
+			unchanged: true,
+			legacyOrigin: { kind: MessageKind.SystemNotification },
+			legacyMetadata: metadata,
+			legacySystem: true,
+			origin: { kind: MessageKind.User },
+			metadata: undefined,
+			label: undefined,
+			isSystemInitiated: false,
+			updatedOrigin: { kind: MessageKind.Automation },
+			updatedMetadata: metadata,
 		});
 	});
 
@@ -2433,7 +2572,7 @@ suite('ChatService', () => {
 		const sessionResource = URI.from({ scheme: sessionType, path: '/session' });
 		const migrationService = mockObject<ICustomizationMigrationService>()({ _serviceBrand: undefined });
 		const migrationHint = {
-			hintId: 'hint-id',
+			migrationFlowId: 'migration-flow-id',
 			message: 'Found 3 customization files that could be migrated.',
 			counts: [{ type: CustomizationMigrationType.PromptFiles, count: 3 }],
 		};
@@ -2442,9 +2581,9 @@ suite('ChatService', () => {
 		instantiationService.stub(ICustomizationMigrationTelemetryService, {
 			_serviceBrand: undefined,
 			hintComputed(hint): void {
-				migrationTelemetry.push(...hint.counts.map(({ type, count }) => ({ action: 'assessment', hintId: hint.hintId, category: type, count })));
+				migrationTelemetry.push(...hint.counts.map(({ type, count }) => ({ action: 'assessment', migrationFlowId: hint.migrationFlowId, category: type, count })));
 			},
-			hintShown(hint): void { migrationTelemetry.push({ action: 'hintShown', hintId: hint.hintId, count: hint.counts.reduce((total, value) => total + value.count, 0) }); },
+			hintShown(hint): void { migrationTelemetry.push({ action: 'hintShown', migrationFlowId: hint.migrationFlowId, count: hint.counts.reduce((total, value) => total + value.count, 0) }); },
 			hintClicked(): void { },
 			pageShown(): void { },
 			actionClicked(): void { },
@@ -2523,8 +2662,8 @@ suite('ChatService', () => {
 		const dismissedSessionHint = ((testService.getSession(dismissedSessionResource) as ChatModel).getRequests()[0].response?.response.value ?? [])
 			.filter(part => part.kind === 'systemNotification')
 			.map(part => part.content.value);
-		const expectedReviewLink = `[Review Migrations](command:aiCustomization.openManagementEditor?%255B%257B%2522migration%2522%253Atrue%252C%2522migrationHint%2522%253A%257B%2522hintId%2522%253A%2522hint-id%2522%252C%2522message%2522%253A%2522Found%25203%2520customization%2520files%2520that%2520could%2520be%2520migrated.%2522%252C%2522counts%2522%253A%255B%257B%2522type%2522%253A%2522promptFiles%2522%252C%2522count%2522%253A3%257D%255D%257D%257D%255D "Open Chat Customizations")`;
-		const expectedDismissLink = `[Don't Show Again](command:aiCustomization.dismissMigrationHint?%255B%257B%2522hint%2522%253A%257B%2522hintId%2522%253A%2522hint-id%2522%252C%2522message%2522%253A%2522Found%25203%2520customization%2520files%2520that%2520could%2520be%2520migrated.%2522%252C%2522counts%2522%253A%255B%257B%2522type%2522%253A%2522promptFiles%2522%252C%2522count%2522%253A3%257D%255D%257D%257D%255D "Do not show this migration hint again for this harness in this workspace")`;
+		const expectedReviewLink = `[Review Migrations](command:aiCustomization.openManagementEditor?%255B%257B%2522migration%2522%253Atrue%252C%2522migrationHint%2522%253A%257B%2522migrationFlowId%2522%253A%2522migration-flow-id%2522%252C%2522message%2522%253A%2522Found%25203%2520customization%2520files%2520that%2520could%2520be%2520migrated.%2522%252C%2522counts%2522%253A%255B%257B%2522type%2522%253A%2522promptFiles%2522%252C%2522count%2522%253A3%257D%255D%257D%257D%255D "Open Chat Customizations")`;
+		const expectedDismissLink = `[Don't Show Again](command:aiCustomization.dismissMigrationHint?%255B%257B%2522hint%2522%253A%257B%2522migrationFlowId%2522%253A%2522migration-flow-id%2522%252C%2522message%2522%253A%2522Found%25203%2520customization%2520files%2520that%2520could%2520be%2520migrated.%2522%252C%2522counts%2522%253A%255B%257B%2522type%2522%253A%2522promptFiles%2522%252C%2522count%2522%253A3%257D%255D%257D%257D%255D "Do not show this migration hint again for this harness in this workspace")`;
 		const expectedHint = `*Found 3 customization files that could be migrated. ${expectedReviewLink} | ${expectedDismissLink}*`;
 		assert.deepStrictEqual({
 			computeCalls: migrationService.computeMigrationHint.callCount,
@@ -2541,12 +2680,12 @@ suite('ChatService', () => {
 			computeCalls: 3,
 			computedFor: sessionResource.toString(),
 			migrationTelemetry: [
-				{ action: 'assessment', hintId: 'hint-id', category: 'promptFiles', count: 3 },
-				{ action: 'hintShown', hintId: 'hint-id', count: 3 },
-				{ action: 'assessment', hintId: 'hint-id', category: 'promptFiles', count: 3 },
-				{ action: 'hintShown', hintId: 'hint-id', count: 3 },
-				{ action: 'assessment', hintId: 'hint-id', category: 'promptFiles', count: 3 },
-				{ action: 'hintShown', hintId: 'hint-id', count: 3 },
+				{ action: 'assessment', migrationFlowId: 'migration-flow-id', category: 'promptFiles', count: 3 },
+				{ action: 'hintShown', migrationFlowId: 'migration-flow-id', count: 3 },
+				{ action: 'assessment', migrationFlowId: 'migration-flow-id', category: 'promptFiles', count: 3 },
+				{ action: 'hintShown', migrationFlowId: 'migration-flow-id', count: 3 },
+				{ action: 'assessment', migrationFlowId: 'migration-flow-id', category: 'promptFiles', count: 3 },
+				{ action: 'hintShown', migrationFlowId: 'migration-flow-id', count: 3 },
 			],
 			neverHint: [],
 			firstHint: [expectedHint],
@@ -2563,7 +2702,7 @@ suite('ChatService', () => {
 		const sessionResource = URI.from({ scheme: sessionType, path: '/restored-session' });
 		const migrationService = mockObject<ICustomizationMigrationService>()({ _serviceBrand: undefined });
 		migrationService.computeMigrationHint.resolves({
-			hintId: 'hint-id',
+			migrationFlowId: 'migration-flow-id',
 			message: 'Found customization files that could be migrated.',
 			counts: [{ type: CustomizationMigrationType.PromptFiles, count: 1 }],
 		});
@@ -4052,6 +4191,52 @@ suite('ChatService', () => {
 
 		// Clean up
 		ref.dispose();
+	});
+
+	test('moving an autosaved empty session with a handoff reference preserves its transcript after restart', async () => {
+		const fileService = testDisposables.add(new FileService(new NullLogService()));
+		testDisposables.add(fileService.registerProvider(Schemas.file, testDisposables.add(new InMemoryFileSystemProvider())));
+		instantiationService.stub(IFileService, fileService);
+		const testService = createChatService();
+		instantiationService.stub(IChatService, testService);
+		const sidebarRef = startSessionModel(testService);
+		const resource = sidebarRef.object.sessionResource;
+		const storageService = instantiationService.get(IStorageService) as TestStorageService;
+		storageService.testEmitWillSaveState(WillSaveStateReason.NONE);
+		await testService.getHistorySessionItems();
+
+		const handoffRef = testService.acquireExistingSession(resource, 'test#move');
+		assert.ok(handoffRef);
+		testDisposables.add(handoffRef);
+		sidebarRef.dispose();
+		await testService.waitForModelDisposals();
+		const editorRef = await testService.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
+		assert.ok(editorRef);
+		testDisposables.add(editorRef);
+		handoffRef.dispose();
+
+		const response = await testService.sendRequest(resource, 'message in detached window');
+		ChatSendResult.assertSent(response);
+		await response.data.responseCompletePromise;
+		editorRef.dispose();
+		await testService.waitForModelDisposals();
+
+		const restartedService = createChatService();
+		instantiationService.stub(IChatService, restartedService);
+		const history = await restartedService.getHistorySessionItems();
+		const restoredModel = await getOrRestoreModel(restartedService, resource);
+		const localSessionId = LocalChatSessionUri.parseLocalSessionId(resource);
+		const log = await fileService.readFile(URI.joinPath(testService.getChatStorageFolder(), `${localSessionId}.jsonl`));
+		const firstLogEntry = JSON.parse(log.value.toString().split('\n')[0]) as { kind: number };
+		assert.deepStrictEqual({
+			firstLogEntryKind: firstLogEntry.kind,
+			history: history.map(item => item.sessionResource),
+			requests: restoredModel?.getRequests().map(request => request.message.text),
+		}, {
+			firstLogEntryKind: 0,
+			history: [resource],
+			requests: ['message in detached window'],
+		});
 	});
 
 	test('removeHistoryEntry marks model as deleted and excludes from getLiveSessionItems', async () => {
