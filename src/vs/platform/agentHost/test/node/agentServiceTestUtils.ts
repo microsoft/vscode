@@ -19,6 +19,7 @@ import { IAgentHostGitService } from '../../common/agentHostGitService.js';
 import { IAgentEditAttributionService, NullAgentEditAttributionService } from '../../common/fileEditAttribution.js';
 import { AgentHostLaunchKind } from '../../common/agentHostTelemetry.js';
 import { IAgentService } from '../../common/agentService.js';
+import { IAgentHostOTelService, NullAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { IAgentHostDatabase } from '../../node/agentHostDatabase.js';
 import { AgentHostFileMonitorService, IAgentHostFileMonitorService } from '../../node/agentHostFileMonitorService.js';
@@ -193,6 +194,7 @@ export function createTestAgentService(
 	});
 	services.set(IAgentHostFileMonitorService, effectiveFileMonitorService);
 	services.set(IAgentEditAttributionService, new NullAgentEditAttributionService());
+	services.set(IAgentHostOTelService, NullAgentHostOTelService);
 	services.set(IAgentHostWorktreeIsolation, worktreeIsolation.service);
 	const instantiationService = new InstantiationService(services, /*strict*/ true);
 	const octoKitService = instantiationService.invokeFunction(accessor => accessor.get(IAgentHostOctoKitService));

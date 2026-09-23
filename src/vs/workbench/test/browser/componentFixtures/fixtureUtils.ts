@@ -778,6 +778,7 @@ export function createEditorServices(disposables: DisposableStore, options?: Cre
 		getVisibleResolvedFeedbackIds: () => new Set(),
 		hasLoadedFeedback: () => true,
 		getSessionForFile: () => undefined,
+		getChatChanges: () => [],
 		getFeedbackSessionResource: () => undefined,
 		registerFeedbackResourceScope: () => toDisposable(() => { }),
 		getMostRecentSessionForResource: () => undefined,

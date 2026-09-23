@@ -337,12 +337,6 @@ interface ISerializedSession {
 	/** ISO-8601 timestamp of the session's last activity. */
 	readonly modifiedAt?: string;
 	readonly changes?: IAgentSessionMetadata['changes'];
-	readonly changesets?: readonly {
-		readonly label: string;
-		readonly changeKind: string;
-		readonly uriTemplate: string;
-		readonly description?: string;
-	}[];
 	readonly git?: ISerializedGitState;
 	readonly github?: ISerializedGitHubState;
 }
@@ -795,14 +789,6 @@ function serializeSession(session: IAgentSessionMetadata): ISerializedSession {
 		...(session.startTime > 0 ? { createdAt: new Date(session.startTime).toISOString() } : {}),
 		...(session.modifiedTime > 0 ? { modifiedAt: new Date(session.modifiedTime).toISOString() } : {}),
 		...(session.changes !== undefined ? { changes: session.changes } : {}),
-		...(session.changesets !== undefined ? {
-			changesets: session.changesets.map(changeset => ({
-				label: changeset.label,
-				changeKind: changeset.changeKind,
-				uriTemplate: changeset.uriTemplate,
-				...(changeset.description !== undefined ? { description: changeset.description } : {}),
-			})),
-		} : {}),
 		...(git !== undefined ? { git } : {}),
 		...(github !== undefined ? { github } : {}),
 	};

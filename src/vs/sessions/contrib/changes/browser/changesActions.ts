@@ -440,7 +440,7 @@ export class NewSessionUncommittedChangesetOperationsActionContribution extends 
 				return;
 			}
 
-			const changeset = activeSession.changesets.read(reader)
+			const changeset = (activeSession.activeChat.read(reader) ?? activeSession.mainChat.read(reader)).changesets.read(reader)
 				?.find(candidate => candidate.id === UNCOMMITTED_CHANGES_CHANGESET_ID && candidate.isEnabled.read(reader));
 			const operations = changeset?.operations.read(reader)
 				.filter(operation => operation.id !== AGENT_HOST_SYNC_CHANGESET_OPERATION_ID)

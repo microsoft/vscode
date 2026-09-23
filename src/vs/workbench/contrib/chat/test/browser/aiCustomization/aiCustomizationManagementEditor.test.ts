@@ -960,6 +960,65 @@ suite('aiCustomizationManagementEditor', () => {
 		}
 	});
 
+	test('places the MCP migration action with migratable servers before unavailable servers', () => {
+		const editor = createTestEditor(undefined, createConfigurationServiceStub({
+			[ChatConfiguration.ChatCustomizationsMcpServerMigrationEnabled]: true,
+		}));
+		const candidate: IMcpServerCustomizationMigrationCandidate = {
+			type: CustomizationMigrationType.McpServers,
+			id: 'migratable',
+			name: 'Migratable server',
+			sourceUri: URI.file('/workspace/.vscode/mcp.json'),
+			targetUri: URI.file('/workspace/.mcp.json'),
+			projectedConfiguration: { type: McpServerType.LOCAL, command: 'node' },
+		};
+		editor.activeMigrationCategoryId = CustomizationMigrationCategoryId.McpServers;
+		editor.activeMigrationStorage = PromptsStorage.local;
+		editor.setCustomizationsToMigrate(
+			new Map([[CustomizationMigrationCategoryId.McpServers, [candidate]]]),
+			new Map(),
+			[{
+				id: 'unsupported',
+				name: 'Unsupported server',
+				sourceUri: URI.file('/workspace/.vscode/mcp.json'),
+				targetUri: URI.file('/workspace/.mcp.json'),
+				reason: McpServerCustomizationMigrationFailureReason.UnrepresentableConfiguration,
+				details: ['The server configuration cannot be moved without changing its behavior.'],
+			}],
+		);
+		editor.migrationListContainer = document.createElement('div');
+		Object.defineProperty(editor.migrationListContainer, 'clientHeight', { configurable: true, value: 500 });
+		editor.migrationTitleElement = document.createElement('h2');
+		editor.migrationMigrateButton = { enabled: false, label: '' };
+		editor.migrationSelectedCountElement = document.createElement('span');
+		const migrationFooter = editor.migrationFooter = document.createElement('div');
+		migrationFooter.classList.add('prompt-migration-footer');
+		const host = document.createElement('div');
+		host.append(editor.migrationTitleElement, editor.migrationListContainer, migrationFooter);
+		document.body.appendChild(host);
+
+		try {
+			editor.renderCustomizationMigrationPage();
+
+			const groups = [...editor.migrationListContainer.querySelectorAll<HTMLElement>('.prompt-migration-group')];
+			assert.deepStrictEqual({
+				groupTitles: groups.map(group => group.querySelector('.prompt-migration-group-title')?.textContent),
+				footerParentGroup: migrationFooter.closest('.prompt-migration-group')?.querySelector('.prompt-migration-group-title')?.textContent,
+				footerIsBeforeUnavailableGroup: Boolean(migrationFooter.compareDocumentPosition(groups[1]) & Node.DOCUMENT_POSITION_FOLLOWING),
+				footerDisplay: migrationFooter.style.display,
+			}, {
+				groupTitles: ['Workspace', 'Not migratable'],
+				footerParentGroup: 'Workspace',
+				footerIsBeforeUnavailableGroup: true,
+				footerDisplay: '',
+			});
+		} finally {
+			host.remove();
+			editor.migrationPageDisposables.dispose();
+			editor.editorPreviewDisposables.dispose();
+		}
+	});
+
 	test('dashboard file review includes enabled file migration categories', () => {
 		const editor = createTestEditor(undefined, createConfigurationServiceStub({
 			[ChatConfiguration.ChatCustomizationsUserDataMigrationEnabled]: true,

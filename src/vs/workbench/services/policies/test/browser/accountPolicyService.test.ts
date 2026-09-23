@@ -16,7 +16,7 @@ import { TestConfigurationService } from '../../../../../platform/configuration/
 import { IDefaultAccountProvider, IDefaultAccountService, MANAGED_SETTINGS_FRESHNESS_NOT_REQUIRED } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
-import { COPILOT_AUTO_TIER_KEY, COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY, COPILOT_ENABLED_PLUGINS_KEY, COPILOT_SANDBOX_ENABLED_KEY, INativeManagedSettingsService, IFileManagedSettingsService, RawManagedSettingsData, managedSettingsDisabledValue } from '../../../../../platform/policy/common/copilotManagedSettings.js';
+import { COPILOT_AUTO_TIER_KEY, COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY, COPILOT_ENABLED_PLUGINS_KEY, COPILOT_OTEL_CAPTURE_IDENTITY_KEY, COPILOT_SANDBOX_ENABLED_KEY, INativeManagedSettingsService, IFileManagedSettingsService, RawManagedSettingsData, managedSettingsDisabledValue, managedSettingValue, normalizeManagedSettings } from '../../../../../platform/policy/common/copilotManagedSettings.js';
 import { IManagedSettingsFreshness, ManagedSettingsFreshnessFailure, ManagedSettingsFreshnessState } from '../../../../../platform/policy/common/managedSettingsFreshness.js';
 import { AbstractPolicyService, IPolicyService, PolicyDefinition, PolicyValue, PolicyValueSource } from '../../../../../platform/policy/common/policy.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
@@ -438,6 +438,31 @@ suite('AccountPolicyService', () => {
 			policy: false,
 			source: PolicyValueSource.NativeMdm,
 			sandbox: true,
+		});
+	});
+
+	test('managed telemetry block replacement removes lower-source identity policy and withdrawal restores it', async () => {
+		const key = COPILOT_OTEL_CAPTURE_IDENTITY_KEY;
+		const file = disposables.add(new FakeFileManagedSettingsService(normalizeManagedSettings({ telemetry: { capture: { identity: true } } })));
+		const native = disposables.add(new FakeNativeManagedSettingsService({}));
+		policyService = disposables.add(new AccountPolicyService(logService, defaultAccountService, undefined, native, file));
+		await policyService.updatePolicyDefinitions({
+			TelemetryIdentity: { type: 'boolean', value: managedSettingValue(key), managedSettings: { [key]: { type: 'boolean' } } },
+		});
+		const initial = policyService.getPolicyValue('TelemetryIdentity');
+		const replaced = Event.toPromise(policyService.onDidChange);
+		native.setManagedSettings(normalizeManagedSettings({ telemetry: {} }));
+		await replaced;
+		const empty = policyService.getPolicyValue('TelemetryIdentity');
+		const denied = Event.toPromise(policyService.onDidChange);
+		native.setManagedSettings(normalizeManagedSettings({ telemetry: { capture: { identity: false } } }));
+		await denied;
+		const explicitFalse = policyService.getPolicyValue('TelemetryIdentity');
+		const withdrawn = Event.toPromise(policyService.onDidChange);
+		native.setManagedSettings({});
+		await withdrawn;
+		assert.deepStrictEqual({ initial, empty, explicitFalse, withdrawn: policyService.getPolicyValue('TelemetryIdentity') }, {
+			initial: true, empty: undefined, explicitFalse: false, withdrawn: true,
 		});
 	});
 

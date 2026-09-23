@@ -15,10 +15,10 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { localize } from '../../../../../../nls.js';
 import { IAgentHostConnectionsService, IAgentHostSessionResolution } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
-import { resolveChangesetUriTemplate, selectDefaultChangeset, type DefaultChangesetKind } from '../../../../../../platform/agentHost/common/changesetUri.js';
+import { resolveChangesetUriTemplate, resolveChatChangesetCatalogue, selectDefaultChangeset, type DefaultChangesetKind } from '../../../../../../platform/agentHost/common/changesetUri.js';
 import { ISessionArtifact, isGitHubArtifactLink, readSessionArtifactsNewestFirst, SessionArtifactType } from '../../../../../../platform/agentHost/common/sessionArtifacts.js';
 import { observableFromSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
-import { Changeset, ChangesetState, ChangesetStatus, ChatOriginKind, DEFAULT_CHAT_ID, getSessionChatResource, getSessionRelatedPullRequestUrls, isSubagentChatUri, parseChatUri, readSessionGitHubState, SessionState, SessionSummaryMeta, StateComponents } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { Changeset, ChangesetState, ChangesetStatus, ChatOriginKind, ChatState, DEFAULT_CHAT_ID, getSessionChatResource, getSessionRelatedPullRequestUrls, isSubagentChatUri, parseChatUri, readSessionGitHubState, SessionState, SessionSummaryMeta, StateComponents } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IClipboardService } from '../../../../../../platform/clipboard/common/clipboardService.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
@@ -134,15 +134,15 @@ export function getAgentHostSessionPillMetadata(meta: SessionSummaryMeta | undef
 	};
 }
 
-/** Resolves the session-wide changeset represented by the workbench Changes pill. */
-export function resolveAgentHostSessionChangeset(
-	backendSession: URI,
+/** Resolves the changeset represented by the workbench Changes pill. */
+export function resolveAgentHostChangeset(
+	ownerResource: URI,
 	changesets: readonly Changeset[] | undefined,
 	defaultKind?: DefaultChangesetKind,
 ): { readonly changeset: Changeset; readonly resource: URI } | undefined {
 	const staticChangesets = changesets?.filter(changeset => !changeset.uriTemplate.includes('{')) ?? [];
 	const changeset = selectDefaultChangeset(staticChangesets, defaultKind);
-	const resource = changeset ? parseUri(resolveChangesetUriTemplate(backendSession.toString(), changeset.uriTemplate)) : undefined;
+	const resource = changeset ? parseUri(resolveChangesetUriTemplate(ownerResource.toString(), changeset.uriTemplate)) : undefined;
 	return changeset && resource ? { changeset, resource } : undefined;
 }
 
@@ -296,19 +296,41 @@ export class AgentHostSessionInputPills extends Disposable {
 			return observableFromSubscription(this, subscription.object);
 		});
 		const sessionState = derived(this, reader => sessionStateSource.read(reader).read(reader));
-		// A subagent (worker) chat inherits the session-wide pills, where they read
-		// as the subagent's own work, so the row stays hidden there.
-		const subagentChat = derived(this, reader => {
+		const chatResource = derivedOpts<URI | undefined>({ owner: this, equalsFn: isEqual }, reader => {
 			const resource = sessionResource.read(reader);
-			const chatResource = resource ? getAgentHostSessionChatResource(resource, sessionState.read(reader)) : undefined;
-			return !!chatResource && isSubagentChatUri(chatResource);
+			return resource ? getAgentHostSessionChatResource(resource, sessionState.read(reader)) : undefined;
+		});
+		const chatStateSource = derived(this, reader => {
+			const current = resolution.read(reader);
+			const resource = chatResource.read(reader);
+			if (!current || !resource) {
+				return constObservable<ChatState | undefined>(undefined);
+			}
+			const subscription = reader.store.add(current.connection.getSubscription(StateComponents.Chat, resource, 'AgentHostSessionInputPills'));
+			return observableFromSubscription(this, subscription.object);
+		});
+		const chatState = derived(this, reader => chatStateSource.read(reader).read(reader));
+		// Session-wide metadata pills still belong to the parent session.
+		const subagentChat = derived(this, reader => {
+			const resource = chatResource.read(reader);
+			return !!resource && isSubagentChatUri(resource);
 		});
 		const pillsVisible = derived(this, reader => !subagentChat.read(reader));
 		const changesetTarget = derivedOpts({ owner: this, equalsFn: changesetTargetEquals }, reader => {
 			const currentResolution = resolution.read(reader);
-			return currentResolution
-				? resolveAgentHostSessionChangeset(currentResolution.backendSession, sessionState.read(reader)?.changesets, currentResolution.defaultChangesetKind)
-				: undefined;
+			const chat = chatResource.read(reader);
+			if (!currentResolution || !chat) {
+				return undefined;
+			}
+			const resolvedCatalogue = resolveChatChangesetCatalogue(chat.toString(), chatState.read(reader)?.changesets, sessionState.read(reader)?.changesets);
+			const selectableEntries = resolvedCatalogue?.filter(({ changeset }) => !changeset.uriTemplate.includes('{'));
+			const selectedChangeset = selectDefaultChangeset(selectableEntries?.map(({ changeset }) => changeset), currentResolution.defaultChangesetKind);
+			const selectedEntry = selectableEntries?.find(({ changeset }) => changeset === selectedChangeset);
+			return resolveAgentHostChangeset(
+				selectedEntry?.owner === 'session' ? currentResolution.backendSession : chat,
+				selectedChangeset ? [selectedChangeset] : undefined,
+				currentResolution.defaultChangesetKind,
+			);
 		});
 		const changesetStateSource = derived(this, reader => {
 			const currentResolution = resolution.read(reader);

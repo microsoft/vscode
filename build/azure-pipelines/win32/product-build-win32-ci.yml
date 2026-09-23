@@ -9,7 +9,10 @@ parameters:
 jobs:
   - job: Windows${{ parameters.VSCODE_TEST_SUITE }}
     displayName: ${{ parameters.VSCODE_TEST_SUITE }} Tests
-    timeoutInMinutes: 50
+    ${{ if eq(parameters.VSCODE_TEST_SUITE, 'Electron') }}:
+      timeoutInMinutes: 70
+    ${{ else }}:
+      timeoutInMinutes: 50
     cancelTimeoutInMinutes: 10
     variables:
       VSCODE_ARCH: x64
