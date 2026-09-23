@@ -106,6 +106,11 @@ interface ITurnDiffResult {
 	readonly multiRoot?: IMultiRootTurnDiffMetrics;
 }
 
+type BranchDiffResult =
+	| { readonly kind: 'ready'; readonly diffs: readonly ISessionFileDiff[] }
+	| { readonly kind: 'nonGit' }
+	| { readonly kind: 'failed' };
+
 /**
  * Sums the per-file diff counts into the {@link ChangesSummary} shape
  * that lives on `summary.changes`. Returns `undefined` for an undefined
@@ -182,6 +187,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		};
 	}>();
 	private readonly _unavailableBranchOwners = new Set<ProtocolURI>();
+	private readonly _failedBranchOwners = new Set<ProtocolURI>();
 	private readonly _branchChangesetOwners = new Map<ProtocolURI, ProtocolURI>();
 	private static readonly _DIFF_DEBOUNCE_MS = 5000;
 
@@ -466,6 +472,9 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 
 		const diffLists: ISessionFileDiff[][] = [];
 		for (const owner of owners) {
+			if (this._failedBranchOwners.has(owner)) {
+				return;
+			}
 			if (this._unavailableBranchOwners.has(owner)) {
 				continue;
 			}
@@ -496,6 +505,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 			return;
 		}
 		this._unavailableBranchOwners.delete(branchChangesetOwner);
+		this._failedBranchOwners.delete(branchChangesetOwner);
 		this._scheduleStaticRecompute(branchChangesetOwner, 'branch', undefined, this._markStaticChangesetComputing(branchChangesetOwner, 'branch'));
 	}
 
@@ -1121,13 +1131,58 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		)).finally(() => limiter.dispose());
 	}
 
-	private async _computeMultiFolderBranchDiffs(session: ProtocolURI, db: ISessionDatabase, workingDirectories: readonly string[]): Promise<readonly ISessionFileDiff[] | undefined> {
-		const { gitRepositories } = await resolveSessionRepositories(workingDirectories.map(directory => URI.parse(directory)), this._gitService);
-		if (!gitRepositories.length) {
-			return undefined;
+	private async _computeBranchDiffs(session: ProtocolURI, db: ISessionDatabase, workingDirectory: string | undefined): Promise<BranchDiffResult> {
+		if (!workingDirectory) {
+			return { kind: 'nonGit' };
 		}
 
-		const baseBranch = await this._resolveBranchBaseBranch(session, db);
+		let workingDirectoryUri: URI;
+		try {
+			workingDirectoryUri = URI.parse(workingDirectory);
+		} catch (err) {
+			this._logService.warn(`[AgentHostChangesetService] Failed to parse branch changeset working directory for ${session}`, err);
+			return { kind: 'failed' };
+		}
+
+		try {
+			const baseBranch = await this._resolveBranchBaseBranch(session, db);
+			const diffs = await this._gitService.computeSessionFileDiffs(workingDirectoryUri, { sessionUri: session, baseBranch });
+			if (diffs) {
+				return { kind: 'ready', diffs };
+			}
+		} catch (err) {
+			this._logService.warn(`[AgentHostChangesetService] Branch git diff computation failed for ${session} in ${workingDirectory}`, err);
+		}
+
+		try {
+			return await this._gitService.getRepositoryRoot(workingDirectoryUri)
+				? { kind: 'failed' }
+				: { kind: 'nonGit' };
+		} catch (err) {
+			this._logService.warn(`[AgentHostChangesetService] Failed to resolve the repository for branch changeset ${session} in ${workingDirectory}`, err);
+			return { kind: 'failed' };
+		}
+	}
+
+	private async _computeMultiFolderBranchDiffs(session: ProtocolURI, db: ISessionDatabase, workingDirectories: readonly string[]): Promise<BranchDiffResult> {
+		let gitRepositories: URI[];
+		try {
+			({ gitRepositories } = await resolveSessionRepositories(workingDirectories.map(directory => URI.parse(directory)), this._gitService));
+		} catch (err) {
+			this._logService.warn(`[AgentHostChangesetService] Failed to resolve repositories for branch changeset ${session}`, err);
+			return { kind: 'failed' };
+		}
+		if (!gitRepositories.length) {
+			return { kind: 'nonGit' };
+		}
+
+		let baseBranch: string | undefined;
+		try {
+			baseBranch = await this._resolveBranchBaseBranch(session, db);
+		} catch (err) {
+			this._logService.warn(`[AgentHostChangesetService] Failed to resolve the base branch for branch changeset ${session}`, err);
+			return { kind: 'failed' };
+		}
 		const limiter = new Limiter<readonly ISessionFileDiff[] | undefined>(MAX_DIFF_REPOSITORY_CONCURRENCY);
 		const perRepoDiffs = await Promises.settled(gitRepositories.map(repoRoot => limiter.queue(async () => {
 			try {
@@ -1138,10 +1193,13 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 			}
 		}))).finally(() => limiter.dispose());
 		if (perRepoDiffs.some(diffs => diffs === undefined)) {
-			return undefined;
+			return { kind: 'failed' };
 		}
 
-		return dedupeSessionFileDiffs(perRepoDiffs.filter((diffs): diffs is readonly ISessionFileDiff[] => diffs !== undefined));
+		return {
+			kind: 'ready',
+			diffs: dedupeSessionFileDiffs(perRepoDiffs.filter((diffs): diffs is readonly ISessionFileDiff[] => diffs !== undefined)),
+		};
 	}
 
 	/** Missing checkpoints return undefined; failed Git computations must not publish partial results. */
@@ -1223,6 +1281,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		this._debouncedBranchDiffTimers.deleteAndDispose(owner);
 		this._debouncedSessionDiffTimers.deleteAndDispose(owner);
 		this._unavailableBranchOwners.delete(owner);
+		this._failedBranchOwners.delete(owner);
 		for (const [key, scheduled] of this._scheduledStaticRecomputes) {
 			if (key.startsWith(`${owner}\u0000`)) {
 				scheduled.dirty = false;
@@ -1329,7 +1388,9 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		if (existing) {
 			existing.dirty = true;
 			existing.request = {
-				changedTurnId: changedTurnId ?? existing.request.changedTurnId,
+				changedTurnId: changedTurnId !== undefined && changedTurnId === existing.request.changedTurnId
+					? changedTurnId
+					: undefined,
 				statusBeforeRefresh: existing.request.statusBeforeRefresh ?? statusBeforeRefresh,
 				reportTelemetry: reportTelemetry || existing.request.reportTelemetry,
 				clientContext: clientContext ?? existing.request.clientContext,
@@ -1438,6 +1499,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		this._stateManager.registerChangeset(changesetUri);
 
 		try {
+			let branchResult: BranchDiffResult | undefined;
 			let diffs: readonly ISessionFileDiff[] | undefined;
 			if (kind === 'session' && isAhpChatChannel(session)) {
 				const result = await this._computeChatChangesDiffs(session, ref.object, workingDirectories);
@@ -1448,7 +1510,11 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 				diffs = result.diffs;
 				usedEditTrackerFallback = result.usedFallback;
 			} else if (kind === 'branch' && isMultiRootSession(workingDirectories)) {
-				diffs = await this._computeMultiFolderBranchDiffs(session, ref.object, workingDirectories!);
+				branchResult = await this._computeMultiFolderBranchDiffs(session, ref.object, workingDirectories!);
+				diffs = branchResult.kind === 'ready' ? branchResult.diffs : undefined;
+			} else if (kind === 'branch') {
+				branchResult = await this._computeBranchDiffs(session, ref.object, workingDirectories?.[0]);
+				diffs = branchResult.kind === 'ready' ? branchResult.diffs : undefined;
 			} else {
 				diffs = await this._tryComputeGitDiffs(session, ref.object, kind);
 			}
@@ -1470,9 +1536,15 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 				if (kind === 'branch') {
 					// Tracked edits cannot substitute for a branch diff; preserve the cached changeset.
 					this._logService.debug(`[AgentHostChangesetService] Branch git diff unavailable for ${session}; preserving cached changeset. previousStatus=${statusBeforeCompute ?? 'unknown'} cachedFiles=${this._stateManager.getChangesetState(changesetUri)?.files.length ?? 0}`);
-					this._unavailableBranchOwners.add(session);
+					if (branchResult?.kind === 'nonGit') {
+						this._unavailableBranchOwners.add(session);
+						this._failedBranchOwners.delete(session);
+					} else {
+						this._unavailableBranchOwners.delete(session);
+						this._failedBranchOwners.add(session);
+					}
 					this._restoreStaticChangesetStatus(changesetUri, statusBeforeCompute);
-					if (summaryKind === ChangesetKind.Branch) {
+					if (branchResult?.kind === 'nonGit' && summaryKind === ChangesetKind.Branch) {
 						this._updateBranchSummary(summarySession);
 					}
 					outcome = 'preserved';
@@ -1535,6 +1607,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 			this._publishChangesetDiffs(session, changesetUri, diffs, reviewed);
 			if (kind === 'branch') {
 				this._unavailableBranchOwners.delete(session);
+				this._failedBranchOwners.delete(session);
 			}
 			fileCount = diffs.length;
 			outcome = 'computed';

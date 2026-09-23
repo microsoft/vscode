@@ -2919,6 +2919,7 @@ suite('AgentHostChangesetService - multi-root turn changeset', () => {
 		test('an unavailable peer worktree does not block or repeatedly retrigger the summary', async () => {
 			const calls: string[] = [];
 			const git = createNoopGitService();
+			git.getRepositoryRoot = async workingDirectory => workingDirectory.path === '/repoA' ? workingDirectory : undefined;
 			git.computeSessionFileDiffs = async workingDirectory => {
 				calls.push(workingDirectory.toString());
 				return workingDirectory.path === '/repoA' ? [gitDiff('/repoA/branch.ts', 3, 1)] : undefined;
@@ -2954,6 +2955,56 @@ suite('AgentHostChangesetService - multi-root turn changeset', () => {
 			});
 		});
 
+		test('a transient peer worktree failure preserves the last complete summary', async () => {
+			const db = new TestSessionDatabase();
+			await db.setMetadata(META_CHANGES_SUMMARY, JSON.stringify(oldSummary));
+			const git = createNoopGitService();
+			git.getRepositoryRoot = async workingDirectory => workingDirectory;
+			let computeCalls = 0;
+			git.computeSessionFileDiffs = async workingDirectory => {
+				computeCalls++;
+				if (workingDirectory.path === '/repoB') {
+					throw new Error('temporary git lock');
+				}
+				return [gitDiff('/repoA/branch.ts', 3, 1)];
+			};
+			const peer = buildChatUri(sessionStr, 'peer');
+			const { svc, stateManager } = build({
+				workingDirectories: ['file:///repoA'],
+				isolation: 'worktree',
+				git,
+				checkpoint: NULL_CHECKPOINT_SERVICE,
+				db,
+				peer: {
+					resource: peer,
+					db: new TestSessionDatabase(),
+					turnId: 'peer-turn',
+					workingDirectories: ['file:///repoB'],
+				},
+			});
+			stateManager.setSessionSummaryChanges(sessionStr, oldSummary);
+			svc.restoreStaticChangeset(sessionStr, 'branch', [gitDiff('/repoA/old.ts', 4, 2)]);
+			svc.restoreStaticChangeset(peer, 'branch', [gitDiff('/repoB/old.ts', 5, 3)]);
+
+			svc.refreshBranchChangeset(sessionStr);
+			svc.refreshBranchChangeset(peer);
+			for (let i = 0; i < 500 && computeCalls < 2; i++) {
+				await timeout(1);
+			}
+			await waitForChangesetReady(stateManager, branchChangeset(stateManager));
+			await waitForChangesetReady(stateManager, branchChangeset(stateManager, peer));
+
+			assert.deepStrictEqual({
+				live: stateManager.getSessionSummary(sessionStr)?.changes,
+				persisted: JSON.parse((await db.getMetadata(META_CHANGES_SUMMARY))!),
+				peerFiles: stateManager.getChangesetState(branchChangeset(stateManager, peer))?.files.map(file => file.id),
+			}, {
+				live: oldSummary,
+				persisted: oldSummary,
+				peerFiles: [URI.file('/repoB/old.ts').toString()],
+			});
+		});
+
 		test('duplicate branch refreshes queued in the same turn compute once', async () => {
 			let calls = 0;
 			const git = createNoopGitService();
@@ -2973,6 +3024,54 @@ suite('AgentHostChangesetService - multi-root turn changeset', () => {
 			await waitForChangesetReady(stateManager, branchChangeset(stateManager));
 
 			assert.strictEqual(calls, 1);
+		});
+
+		test('a full recompute supersedes an in-flight incremental session recompute', async () => {
+			class GatedSessionDatabase extends TestSessionDatabase {
+				readonly incrementalStarted = new DeferredPromise<void>();
+				readonly releaseIncremental = new DeferredPromise<void>();
+
+				override async getFileEditsByTurn(turnId: string) {
+					this.incrementalStarted.complete();
+					await this.releaseIncremental.p;
+					return super.getFileEditsByTurn(turnId);
+				}
+			}
+
+			const db = new GatedSessionDatabase();
+			db.addEdit({
+				turnId: 'turn-1', toolCallId: 'current-tool', filePath: '/repo/current.txt', kind: FileEditKind.Edit,
+				addedLines: undefined, removedLines: undefined, beforeContent: encodeString('a'), afterContent: encodeString('a\nb'),
+			});
+			const { svc, stateManager } = build({
+				workingDirectories: ['file:///repo'],
+				isolation: 'folder',
+				git: createNoopGitService(),
+				checkpoint: NULL_CHECKPOINT_SERVICE,
+				db,
+			});
+			svc.restoreStaticChangeset(sessionStr, 'session', [gitDiff('/repo/removed.txt')]);
+
+			svc.onTurnComplete(sessionStr, 'turn-1');
+			await db.incrementalStarted.p;
+			svc.onSessionTruncated(sessionStr);
+			db.releaseIncremental.complete();
+			for (let i = 0; i < 500 && db.getAllFileEditsCalls === 0; i++) {
+				await timeout(1);
+			}
+			for (let i = 0; i < 500 && stateManager.getChangesetState(sessionChangeset)?.files.some(file => file.id === URI.file('/repo/removed.txt').toString()); i++) {
+				await timeout(1);
+			}
+
+			assert.deepStrictEqual({
+				incrementalReads: db.getFileEditsByTurnCalls,
+				fullReads: db.getAllFileEditsCalls,
+				files: stateManager.getChangesetState(sessionChangeset)?.files.map(file => file.id),
+			}, {
+				incrementalReads: 1,
+				fullReads: 1,
+				files: [URI.file('/repo/current.txt').toString()],
+			});
 		});
 
 		for (const isolation of ['folder', 'worktree', undefined] as const) {
