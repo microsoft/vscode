@@ -61,6 +61,7 @@ import {
 	AICustomizationManagementSyntheticItemMenuId,
 	AICustomizationManagementSection,
 	AICustomizationSource,
+	DELETE_AI_CUSTOMIZATION_ID,
 	resolveAICustomizationManagementOpenEditorTarget,
 } from './aiCustomizationManagement.js';
 import { AICustomizationManagementEditor } from './aiCustomizationManagementEditor.js';
@@ -290,7 +291,6 @@ registerAction2(class extends Action2 {
 });
 
 // Delete action
-const DELETE_AI_CUSTOMIZATION_ID = 'aiCustomizationManagement.delete';
 registerAction2(class extends Action2 {
 	constructor() {
 		super({

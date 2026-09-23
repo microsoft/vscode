@@ -145,22 +145,6 @@
 	text-overflow: ellipsis;
 }
 
-.customization-discovery-filters {
-	display: flex;
-	flex-wrap: wrap;
-	gap: var(--vscode-spacing-size60);
-	margin-top: var(--vscode-spacing-size80);
-}
-
-.customization-discovery-filters > .monaco-button.customization-discovery-filter {
-	width: auto;
-	min-height: var(--vscode-spacing-size240);
-	padding: var(--vscode-spacing-size20) var(--vscode-spacing-size100);
-	border-radius: var(--vscode-cornerRadius-small);
-	font-size: var(--vscode-fontSize-body1);
-	line-height: 16px;
-}
-
 .customization-discovery-browse-scrollable {
 	position: relative;
 	flex: 1;
@@ -179,7 +163,7 @@
 .customization-discovery-sections {
 	display: flex;
 	flex-direction: column;
-	gap: var(--vscode-spacing-size280);
+	gap: var(--vscode-spacing-size200);
 }
 
 .customization-discovery-section {
@@ -189,7 +173,7 @@
 }
 
 .customization-discovery-section.featured {
-	padding: var(--vscode-spacing-size160);
+	padding: var(--vscode-spacing-size120);
 	border-radius: var(--vscode-cornerRadius-medium);
 	background: color-mix(in srgb, var(--vscode-foreground) 4%, transparent);
 }
@@ -203,7 +187,7 @@
 .customization-discovery-grid {
 	display: grid;
 	grid-template-columns: repeat(2, minmax(0, 1fr));
-	gap: var(--vscode-spacing-size80) var(--vscode-spacing-size160);
+	gap: var(--vscode-spacing-size40) var(--vscode-spacing-size120);
 }
 
 .customization-discovery.narrow .customization-discovery-grid {
@@ -212,12 +196,12 @@
 
 .customization-discovery-card {
 	display: grid;
-	grid-template-columns: 76px minmax(0, 1fr) auto;
+	grid-template-columns: 48px minmax(0, 1fr) auto;
 	align-items: center;
-	gap: var(--vscode-spacing-size120);
+	gap: var(--vscode-spacing-size80);
 	min-width: 0;
-	min-height: 76px;
-	padding: var(--vscode-spacing-size80);
+	min-height: 48px;
+	padding: var(--vscode-spacing-size40);
 	border-radius: var(--vscode-cornerRadius-small);
 	background: transparent;
 }
@@ -233,8 +217,8 @@
 	align-items: center;
 	justify-content: center;
 	box-sizing: border-box;
-	width: 76px;
-	height: 76px;
+	width: 48px;
+	height: 48px;
 	flex-shrink: 0;
 	overflow: hidden;
 	border-radius: var(--vscode-cornerRadius-small);
@@ -285,7 +269,7 @@
 	font-size: var(--vscode-fontSize-body2);
 	line-height: 1.4;
 	-webkit-box-orient: vertical;
-	-webkit-line-clamp: 2;
+	-webkit-line-clamp: 1;
 }
 
 .customization-discovery-card-metadata,
@@ -358,32 +342,13 @@
 	border-radius: var(--vscode-cornerRadius-small);
 }
 
-.customization-discovery-group-header {
-	display: flex;
-	align-items: end;
-	padding-bottom: var(--vscode-spacing-size60);
-	pointer-events: none;
-}
-
-.customization-discovery .customization-discovery-content .customization-discovery-list .monaco-list:not(.drop-target):not(.dragging) .monaco-list-row.customization-discovery-group-header:hover:not(.selected):not(.focused),
-.customization-discovery .customization-discovery-content .customization-discovery-list .monaco-list .monaco-list-row.customization-discovery-group-header.focused,
-.customization-discovery .customization-discovery-content .customization-discovery-list .monaco-list .monaco-list-row.customization-discovery-group-header.selected {
-	color: inherit;
-	background: transparent;
-}
-
-.customization-discovery-group-label {
-	font-size: var(--vscode-fontSize-heading3);
-	font-weight: var(--vscode-fontWeight-semiBold);
-}
-
 .customization-discovery-result-content {
 	display: flex;
 	align-items: center;
-	gap: var(--vscode-spacing-size120);
+	gap: var(--vscode-spacing-size80);
 	height: 100%;
 	min-width: 0;
-	padding: var(--vscode-spacing-size80) var(--vscode-spacing-size100);
+	padding: var(--vscode-spacing-size40) var(--vscode-spacing-size80);
 	box-sizing: border-box;
 	border-radius: var(--vscode-cornerRadius-small);
 	line-height: normal;
@@ -395,8 +360,8 @@
 	align-items: center;
 	justify-content: center;
 	box-sizing: border-box;
-	width: 64px;
-	height: 64px;
+	width: 48px;
+	height: 48px;
 	flex-shrink: 0;
 	overflow: hidden;
 	border-radius: var(--vscode-cornerRadius-small);
@@ -435,10 +400,9 @@
 
 .customization-discovery-result-aside {
 	display: flex;
-	flex-direction: column;
-	align-items: flex-end;
-	align-self: stretch;
-	justify-content: space-between;
+	align-items: center;
+	justify-content: flex-end;
+	gap: var(--vscode-spacing-size80);
 	flex-shrink: 0;
 	min-width: 72px;
 }
@@ -483,22 +447,6 @@
 .customization-discovery-state > .monaco-button {
 	width: auto;
 	margin-top: var(--vscode-spacing-size80);
-}
-
-.customization-discovery-footer {
-	display: flex;
-	justify-content: center;
-	box-sizing: border-box;
-	min-height: 40px;
-	padding: var(--vscode-spacing-size60) var(--vscode-spacing-size240);
-}
-
-.customization-discovery-footer[hidden] {
-	display: none;
-}
-
-.customization-discovery-footer > .monaco-button {
-	width: auto;
 }
 
 .customization-discovery.narrow .customization-discovery-header,
