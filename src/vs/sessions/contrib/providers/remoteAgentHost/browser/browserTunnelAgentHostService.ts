@@ -13,8 +13,8 @@ import { AgentHostClientConnectionKind } from '../../../../../platform/agentHost
 import { IRemoteAgentHostLocationPreferenceService } from '../../../../../platform/agentHost/common/remoteAgentHostLocationPreference.js';
 import { IRemoteAgentHostService, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId, getEntryAddress, type IRemoteAgentHostConnectOptions, type IRemoteAgentHostConnectionFactory, type IRemoteAgentHostCreatedConnection, type IRemoteAgentHostEntry } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { ReconnectingTransport, type IEstablishedTransport } from '../../../../../platform/agentHost/common/reconnectingTransport.js';
-import type { AhpServerNotification, JsonRpcResponse, ProtocolMessage } from '../../../../../platform/agentHost/common/state/sessionProtocol.js';
-import { NonReconnectableTransportError, type IProtocolTransport } from '../../../../../platform/agentHost/common/state/sessionTransport.js';
+import { RelayTransport } from '../../../../../platform/agentHost/common/relayTransport.js';
+import { NonReconnectableTransportError } from '../../../../../platform/agentHost/common/state/sessionTransport.js';
 import {
 	TunnelAgentHostConnector,
 	parseTunnelInfo,
@@ -51,7 +51,6 @@ import { IAuthenticationService } from '../../../../../workbench/services/authen
 import { resolveGatewaySelection, selectGatewayFallbackAfterRejection } from '../../../../../platform/agentHost/common/tunnelGatewaySelection.js';
 import { type IDevTunnelsWeb, type IDevTunnelsWebManagementClient, type IDevTunnelsWebRelayClient, type IDevTunnelsWebTunnel, loadDevTunnelsWeb } from './devTunnelsWebLoader.js';
 import { TunnelAgentHostStorage } from './tunnelAgentHostStorage.js';
-import { MALFORMED_FRAMES_FORCE_CLOSE_THRESHOLD, MALFORMED_FRAMES_LOG_CAP } from '../../../../../platform/agentHost/common/transportConstants.js';
 
 const LOG_PREFIX = '[BrowserTunnelAgentHost]';
 
@@ -602,51 +601,17 @@ export function filterBrowserTunnelInfos(
 		.filter((tunnel): tunnel is ITunnelInfo => !!tunnel && tunnel.protocolVersion >= TUNNEL_MIN_PROTOCOL_VERSION);
 }
 
-class BrowserTunnelConnectionTransport extends Disposable implements IProtocolTransport {
-	readonly clientConnectionKind = AgentHostClientConnectionKind.DevTunnel;
-
-	private readonly _onMessage = this._register(new Emitter<ProtocolMessage>());
-	readonly onMessage = this._onMessage.event;
-
-	private readonly _onClose = this._register(new Emitter<void>());
-	readonly onClose = this._onClose.event;
-	private _malformedFrames = 0;
-
+class BrowserTunnelConnectionTransport extends RelayTransport {
 	constructor(
-		private readonly _connectionId: string,
+		private readonly _relayConnectionId: string,
 		private readonly _connector: ITunnelAgentHostConnector,
-		private readonly _logService: ILogService,
+		logService: ILogService,
 	) {
-		super();
-		this._register(this._connector.onDidRelayMessage(message => {
-			if (message.connectionId === this._connectionId) {
-				try {
-					this._onMessage.fire(JSON.parse(message.data) as ProtocolMessage);
-				} catch (error) {
-					this._malformedFrames++;
-					if (this._malformedFrames <= MALFORMED_FRAMES_LOG_CAP) {
-						const preview = message.data.length > 80 ? `${message.data.slice(0, 80)}…` : message.data;
-						this._logService.warn(`${LOG_PREFIX} Malformed relay frame #${this._malformedFrames} (len=${message.data.length}): ${preview}`, error);
-					}
-					if (this._malformedFrames > MALFORMED_FRAMES_FORCE_CLOSE_THRESHOLD) {
-						void this._connector.disconnect(this._connectionId);
-					}
-				}
-			}
-		}));
-		this._register(this._connector.onDidRelayClose(connectionId => {
-			if (connectionId === this._connectionId) {
-				this._onClose.fire();
-			}
-		}));
-	}
-
-	send(message: ProtocolMessage | AhpServerNotification | JsonRpcResponse): void {
-		void this._connector.relaySend(this._connectionId, JSON.stringify(message));
+		super(_relayConnectionId, _connector, undefined, logService, LOG_PREFIX, AgentHostClientConnectionKind.DevTunnel);
 	}
 
 	override dispose(): void {
-		void this._connector.disconnect(this._connectionId);
+		void this._connector.disconnect(this._relayConnectionId);
 		super.dispose();
 	}
 }

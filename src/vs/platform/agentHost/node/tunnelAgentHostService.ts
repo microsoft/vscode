@@ -121,10 +121,13 @@ class NodeTunnelMessageSocket extends Disposable implements ITunnelMessageSocket
 		}));
 	}
 
-	send(data: string): void {
-		if (this._socket.readyState === this._socket.OPEN) {
-			this._socket.send(data);
+	async send(data: string): Promise<void> {
+		if (this._socket.readyState !== this._socket.OPEN) {
+			throw new Error(`WebSocket is not open (readyState ${this._socket.readyState})`);
 		}
+		await new Promise<void>((resolve, reject) => {
+			this._socket.send(data, error => error ? reject(error) : resolve());
+		});
 	}
 
 	close(): void {

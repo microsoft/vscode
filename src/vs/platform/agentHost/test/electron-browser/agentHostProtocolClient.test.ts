@@ -4007,6 +4007,227 @@ suite('AgentHostProtocolClient', () => {
 			});
 		});
 
+		test('reconnect watchdog retries when the reconnect RPC receives no response', async function () {
+			this.timeout(10_000);
+			return runWithFakedTimers({ useFakeTimers: true, maxTaskCount: 10_000 }, async () => {
+				const { client, transports } = createFactoryClient();
+				const connectPromise = client.connect();
+				await completeHandshake(transports[0], connectPromise);
+
+				transports[0].fireClose();
+				await waitForReconnecting(client);
+				const attempt1 = await waitForTransport(transports, 1);
+				attempt1.connectDeferred.complete();
+				await waitForRequest(attempt1, 'reconnect');
+
+				await timeout(25_001);
+				const attempt2 = await waitForTransport(transports, 2);
+				attempt2.connectDeferred.complete();
+				const reconnect2 = await waitForRequest(attempt2, 'reconnect');
+				attempt2.fireMessage({
+					jsonrpc: '2.0', id: reconnect2.id,
+					result: { type: ReconnectResultType.Replay, actions: [], missing: [] },
+				});
+				await flushMicrotasks();
+
+				assert.strictEqual(client.connectionState, AgentHostClientState.Connected);
+				client.dispose();
+			});
+		});
+
+		test('inbound traffic resets the reconnect watchdog window', async function () {
+			this.timeout(10_000);
+			return runWithFakedTimers({ useFakeTimers: true, maxTaskCount: 10_000 }, async () => {
+				const { client, transports } = createFactoryClient();
+				const connectPromise = client.connect();
+				await completeHandshake(transports[0], connectPromise);
+
+				transports[0].fireClose();
+				await waitForReconnecting(client);
+				const reconnectTransport = await waitForTransport(transports, 1);
+				reconnectTransport.connectDeferred.complete();
+				const reconnect = await waitForRequest(reconnectTransport, 'reconnect');
+
+				await timeout(24_999);
+				reconnectTransport.fireMessage({ jsonrpc: '2.0', id: 999_999, result: {} });
+				await timeout(24_999);
+
+				assert.deepStrictEqual({
+					state: client.connectionState,
+					transportCount: transports.length,
+				}, {
+					state: AgentHostClientState.Reconnecting,
+					transportCount: 2,
+				});
+
+				reconnectTransport.fireMessage({
+					jsonrpc: '2.0', id: reconnect.id,
+					result: { type: ReconnectResultType.Replay, actions: [], missing: [] },
+				});
+				await flushMicrotasks();
+				client.dispose();
+			});
+		});
+
+		test('late reconnect response from a timed-out transport is ignored', async function () {
+			this.timeout(10_000);
+			return runWithFakedTimers({ useFakeTimers: true, maxTaskCount: 10_000 }, async () => {
+				const { client, transports } = createFactoryClient();
+				const connectPromise = client.connect();
+				await completeHandshake(transports[0], connectPromise);
+
+				transports[0].fireClose();
+				await waitForReconnecting(client);
+				const attempt1 = await waitForTransport(transports, 1);
+				attempt1.connectDeferred.complete();
+				const reconnect1 = await waitForRequest(attempt1, 'reconnect');
+				await timeout(25_001);
+
+				const attempt2 = await waitForTransport(transports, 2);
+				attempt1.fireMessage({
+					jsonrpc: '2.0', id: reconnect1.id,
+					result: { type: ReconnectResultType.Replay, actions: [], missing: [] },
+				});
+				await flushMicrotasks();
+				assert.strictEqual(client.connectionState, AgentHostClientState.Reconnecting);
+
+				attempt2.connectDeferred.complete();
+				const reconnect2 = await waitForRequest(attempt2, 'reconnect');
+				attempt2.fireMessage({
+					jsonrpc: '2.0', id: reconnect2.id,
+					result: { type: ReconnectResultType.Replay, actions: [], missing: [] },
+				});
+				await flushMicrotasks();
+				assert.strictEqual(client.connectionState, AgentHostClientState.Connected);
+				client.dispose();
+			});
+		});
+
+		test('reconnect watchdog grants a fresh window after high load clears', async function () {
+			this.timeout(10_000);
+			return runWithFakedTimers({ useFakeTimers: true, maxTaskCount: 10_000 }, async () => {
+				let highLoad = true;
+				const { client, transports } = createFactoryClient(
+					createPermissionService(),
+					undefined,
+					NullTelemetryService,
+					undefined,
+					{ hasHighLoad: () => highLoad },
+				);
+				const connectPromise = client.connect();
+				await completeHandshake(transports[0], connectPromise);
+
+				transports[0].fireClose();
+				await waitForReconnecting(client);
+				const attempt1 = await waitForTransport(transports, 1);
+				attempt1.connectDeferred.complete();
+				await waitForRequest(attempt1, 'reconnect');
+				await timeout(25_001);
+				highLoad = false;
+				await timeout(24_999);
+
+				assert.strictEqual(transports.length, 2);
+				await timeout(2);
+				const attempt2 = await waitForTransport(transports, 2);
+				attempt2.connectDeferred.complete();
+				const reconnect2 = await waitForRequest(attempt2, 'reconnect');
+				attempt2.fireMessage({
+					jsonrpc: '2.0', id: reconnect2.id,
+					result: { type: ReconnectResultType.Replay, actions: [], missing: [] },
+				});
+				await flushMicrotasks();
+				client.dispose();
+			});
+		});
+
+		test('disposing during a stalled reconnect cancels the reconnect watchdog', async function () {
+			this.timeout(10_000);
+			return runWithFakedTimers({ useFakeTimers: true, maxTaskCount: 10_000 }, async () => {
+				const { client, transports } = createFactoryClient();
+				const connectPromise = client.connect();
+				await completeHandshake(transports[0], connectPromise);
+
+				transports[0].fireClose();
+				await waitForReconnecting(client);
+				const reconnectTransport = await waitForTransport(transports, 1);
+				reconnectTransport.connectDeferred.complete();
+				await waitForRequest(reconnectTransport, 'reconnect');
+				await timeout(24_999);
+				client.dispose();
+				await timeout(2);
+
+				assert.deepStrictEqual({
+					state: client.connectionState,
+					transportCount: transports.length,
+				}, {
+					state: AgentHostClientState.Closed,
+					transportCount: 2,
+				});
+			});
+		});
+
+		test('stalled reconnect attempts stop at the retry limit', async function () {
+			this.timeout(10_000);
+			return runWithFakedTimers({ useFakeTimers: true, maxTaskCount: 10_000 }, async () => {
+				const reconnectPolicy: IRemoteAgentHostReconnectPolicy = {
+					autoRestore: true,
+					initialDelayMs: 1,
+					maxDelayMs: 1,
+					maxAttempts: 2,
+				};
+				const { client, transports } = createFactoryClient(createPermissionService(), undefined, NullTelemetryService, reconnectPolicy);
+				const connectPromise = client.connect();
+				await completeHandshake(transports[0], connectPromise);
+				const fatalClose = Event.toPromise(client.onDidFatalClose);
+
+				transports[0].fireClose();
+				await waitForReconnecting(client);
+				const attempt1 = await waitForTransport(transports, 1);
+				attempt1.connectDeferred.complete();
+				await waitForRequest(attempt1, 'reconnect');
+				await timeout(25_001);
+
+				const attempt2 = await waitForTransport(transports, 2);
+				attempt2.connectDeferred.complete();
+				await waitForRequest(attempt2, 'reconnect');
+				await timeout(25_001);
+
+				assert.deepStrictEqual({
+					error: (await fatalClose).message,
+					state: client.connectionState,
+					transportCount: transports.length,
+				}, {
+					error: 'Automatic reconnect gave up after 2 attempts.',
+					state: AgentHostClientState.Closed,
+					transportCount: 3,
+				});
+			});
+		});
+
+		test('successful reconnect restarts the connected liveness watchdog', async function () {
+			this.timeout(10_000);
+			return runWithFakedTimers({ useFakeTimers: true, maxTaskCount: 10_000 }, async () => {
+				const { client, transports } = createFactoryClient();
+				const connectPromise = client.connect();
+				await completeHandshake(transports[0], connectPromise);
+
+				transports[0].fireClose();
+				await waitForReconnecting(client);
+				const reconnectTransport = await waitForTransport(transports, 1);
+				reconnectTransport.connectDeferred.complete();
+				const reconnect = await waitForRequest(reconnectTransport, 'reconnect');
+				reconnectTransport.fireMessage({
+					jsonrpc: '2.0', id: reconnect.id,
+					result: { type: ReconnectResultType.Replay, actions: [], missing: [] },
+				});
+				await flushMicrotasks();
+				await timeout(5_001);
+
+				assert.ok(findRequest(reconnectTransport, 'ping'));
+				client.dispose();
+			});
+		});
+
 		test('non-session dispatch issued during reconnect rides retries until success', async function () {
 			this.timeout(10_000);
 			return runWithFakedTimers({ useFakeTimers: true, maxTaskCount: 10_000 }, async () => {

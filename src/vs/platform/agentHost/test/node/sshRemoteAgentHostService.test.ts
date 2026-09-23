@@ -278,14 +278,14 @@ class TestableSSHRemoteAgentHostMainService extends SSHRemoteAgentHostMainServic
 	startCalled = 0;
 
 	/** What _createWebSocketRelay will resolve with. Set to an Error to reject. */
-	relayResult: { send: (data: string) => void; close: () => void } | Error = {
-		send: () => { },
+	relayResult: { send: (data: string) => Promise<void>; close: () => void } | Error = {
+		send: async () => { },
 		close: () => { },
 	};
 	relayCalled = 0;
 
 	/** Override to intercept relay creation in specific tests. */
-	relayHook: ((call: number) => { send: (data: string) => void; close: () => void } | Error | undefined) | undefined;
+	relayHook: ((call: number) => { send: (data: string) => Promise<void>; close: () => void } | Error | undefined) | undefined;
 
 	/**
 	 * If set to a positive number, the Nth `_createWebSocketRelay` call will
@@ -302,7 +302,7 @@ class TestableSSHRemoteAgentHostMainService extends SSHRemoteAgentHostMainServic
 	/** Stored onClose callbacks from relays, most recent last. */
 	private readonly _relayCloseCallbacks: Array<() => void> = [];
 	/** Stored relay result objects, most recent last (for makePreviousRelaySyncClose). */
-	private readonly _relayResults: Array<{ send: (data: string) => void; close: () => void }> = [];
+	private readonly _relayResults: Array<{ send: (data: string) => Promise<void>; close: () => void }> = [];
 
 	protected override async _connectSSH(
 		_config: ISSHAgentHostConfig,
@@ -336,7 +336,7 @@ class TestableSSHRemoteAgentHostMainService extends SSHRemoteAgentHostMainServic
 			// Simulate forwardOut hanging — never resolve. The wrapper in
 			// `connect()` should still surface a timeout error instead of
 			// hanging the whole connect() call.
-			return new Promise<{ send: (data: string) => void; close: () => void }>(() => { /* never */ });
+			return new Promise<{ send: (data: string) => Promise<void>; close: () => void }>(() => { /* never */ });
 		}
 		const hookResult = this.relayHook?.(this.relayCalled);
 		if (hookResult !== undefined) {
@@ -1093,7 +1093,7 @@ suite('SSHRemoteAgentHostMainService - connect flow', () => {
 	test('relaySend delivers data to the correct connection', async () => {
 		const sentData: string[] = [];
 		service.relayResult = {
-			send: (data: string) => sentData.push(data),
+			send: async (data: string) => { sentData.push(data); },
 			close: () => { },
 		};
 
@@ -1107,11 +1107,13 @@ suite('SSHRemoteAgentHostMainService - connect flow', () => {
 		assert.deepStrictEqual(sentData, ['hello', 'world']);
 	});
 
-	test('relaySend to unknown connectionId is a no-op', async () => {
+	test('relaySend to unknown connectionId rejects', async () => {
 		await service.connect(makeConfig({ remoteAgentHostCommand: '/agent' }));
 
-		// Should not throw
-		await service.relaySend('nonexistent', 'data');
+		await assert.rejects(
+			() => service.relaySend('nonexistent', 'data'),
+			/connection 'nonexistent' is not available/,
+		);
 	});
 
 	// --- Multiple independent connections ---

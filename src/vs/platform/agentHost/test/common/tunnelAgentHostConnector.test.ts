@@ -92,12 +92,16 @@ class FakeSocket implements ITunnelMessageSocket {
 	readonly onDidClose = this._onDidClose.event;
 	closeCalls = 0;
 	disposeCalls = 0;
+	sendError: Error | undefined;
 
 	constructor(messages: string[] = [], private readonly _replaySynchronously = false) {
 		this._queuedMessages = messages;
 	}
 
-	send(_data: string): void {
+	async send(_data: string): Promise<void> {
+		if (this.sendError) {
+			throw this.sendError;
+		}
 	}
 
 	close(): void {
@@ -347,6 +351,46 @@ suite('TunnelAgentHostConnector', () => {
 				info: [`[TunnelAgentHost] WebSocket relay closed for connection ${connectionId}; code=1000, reason=done`],
 				warn: [],
 			});
+		} finally {
+			connector.dispose();
+		}
+	});
+
+	test('rejects sends after the relay socket closes', async () => {
+		const socket = new FakeSocket();
+		const { connector } = createConnector(
+			{ tunnelId: 'closed', clusterId: 'cluster', labels: ['protocolv5'] },
+			new FakeRelayClient(),
+			new FakeSocketFactory(socket),
+		);
+		try {
+			const { connectionId } = await connector.connect('token', 'github', 'closed', 'cluster');
+			socket.fireClose({ code: 1006 });
+
+			await assert.rejects(
+				() => connector.relaySend(connectionId, 'message'),
+				/connection .* is not available/,
+			);
+		} finally {
+			connector.dispose();
+		}
+	});
+
+	test('rejects sends when the relay socket cannot deliver a message', async () => {
+		const socket = new FakeSocket();
+		const { connector } = createConnector(
+			{ tunnelId: 'failed-send', clusterId: 'cluster', labels: ['protocolv5'] },
+			new FakeRelayClient(),
+			new FakeSocketFactory(socket),
+		);
+		try {
+			const { connectionId } = await connector.connect('token', 'github', 'failed-send', 'cluster');
+			socket.sendError = new Error('socket is closing');
+
+			await assert.rejects(
+				() => connector.relaySend(connectionId, 'message'),
+				/socket is closing/,
+			);
 		} finally {
 			connector.dispose();
 		}

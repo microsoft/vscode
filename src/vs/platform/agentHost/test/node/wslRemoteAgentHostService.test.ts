@@ -39,8 +39,19 @@ class MockWSLChild extends EventEmitter {
 }
 
 class MockWebSocket {
+	readonly OPEN = 1;
+	readonly CLOSING = 2;
+	readyState = this.OPEN;
+
+	constructor(private readonly _sendError?: Error) {
+	}
+
 	on(_event: string, _listener: (...args: never[]) => void): this {
 		return this;
+	}
+
+	send(_data: string, callback: (error?: Error) => void): void {
+		queueMicrotask(() => callback(this._sendError));
 	}
 
 	close(): void {
@@ -53,6 +64,8 @@ class MockWebSocket {
  */
 class TestableWSLRemoteAgentHostMainService extends WSLRemoteAgentHostMainService {
 	readonly children: MockWSLChild[] = [];
+	readonly webSockets: MockWebSocket[] = [];
+	sendError: Error | undefined;
 
 	private readonly _platform = new DeferredPromise<{ os: string; arch: string }>();
 
@@ -71,7 +84,9 @@ class TestableWSLRemoteAgentHostMainService extends WSLRemoteAgentHostMainServic
 	}
 
 	protected override async _openWebSocket(_url: string): Promise<WebSocket> {
-		return new MockWebSocket() as never;
+		const webSocket = new MockWebSocket(this.sendError);
+		this.webSockets.push(webSocket);
+		return webSocket as never;
 	}
 }
 
@@ -91,6 +106,45 @@ function createService(): TestableWSLRemoteAgentHostMainService {
 
 suite('WSL Remote Agent Host Service', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('relaySend to unknown connectionId rejects', async () => {
+		const service = disposables.add(createService());
+
+		await assert.rejects(
+			() => service.relaySend('nonexistent', 'data'),
+			/connection 'nonexistent' is not available/,
+		);
+	});
+
+	test('relaySend propagates WebSocket send failures', async () => {
+		const service = disposables.add(createService());
+		service.sendError = new Error('send failed');
+		const connect = service.connect({ distro: 'Ubuntu', name: 'Ubuntu' });
+		service.resolvePlatform();
+		await Promise.resolve();
+		service.children[0].emitStdout('ws://127.0.0.1:3000?tkn=token\n');
+		const result = await connect;
+
+		await assert.rejects(
+			() => service.relaySend(result.connectionId, 'data'),
+			/send failed/,
+		);
+	});
+
+	test('relaySend rejects while the WebSocket is closing', async () => {
+		const service = disposables.add(createService());
+		const connect = service.connect({ distro: 'Ubuntu', name: 'Ubuntu' });
+		service.resolvePlatform();
+		await Promise.resolve();
+		service.children[0].emitStdout('ws://127.0.0.1:3000?tkn=token\n');
+		const result = await connect;
+		service.webSockets[0].readyState = service.webSockets[0].CLOSING;
+
+		await assert.rejects(
+			() => service.relaySend(result.connectionId, 'data'),
+			/WebSocket is not open/,
+		);
+	});
 
 	test('deduplicates simultaneous connects to one distro', async () => {
 		const service = disposables.add(createService());

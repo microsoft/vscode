@@ -354,6 +354,9 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 	 */
 	private readonly _pingTimer = this._register(new TimeoutTimer());
 	private readonly _closeTimer = this._register(new TimeoutTimer());
+	/** Bounds inbound silence after a replacement transport connects. */
+	private readonly _reconnectLivenessTimer = this._register(new TimeoutTimer());
+	private _reconnectLivenessActive = false;
 
 	/**
 	 * Used to suppress watchdog-triggered closes when our own JS event loop
@@ -818,6 +821,8 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 			if (this._state.kind !== AgentHostClientState.Reconnecting) {
 				return;
 			}
+			this._lastReadTime = Date.now();
+			this._armReconnectLivenessTimer();
 
 			const subscriptions = this._subscriptionManager.currentSubscriptionUris().map(u => u.toString());
 			// Always include the always-live root state alongside getSubscription-managed entries.
@@ -869,12 +874,14 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 			const { gate } = reconnect;
 			this._drainAfterReconnect(reconnect.outbox);
 
+			this._cancelReconnectLivenessTimer();
+			this._transitionTo({ kind: AgentHostClientState.Connected });
 			this._lastReadTime = Date.now();
 			this._resetLivenessTimers();
-			this._transitionTo({ kind: AgentHostClientState.Connected });
 			gate.complete();
 			this._logService.info(`[RemoteAgentHostProtocol] Reconnected to ${this._address}.`);
 		} catch (err) {
+			this._cancelReconnectLivenessTimer();
 			this._logService.warn(`[RemoteAgentHostProtocol] Reconnect attempt failed for ${this._address}: ${err instanceof Error ? err.message : String(err)}`);
 			transport?.dispose();
 			if (this._state.kind !== AgentHostClientState.Reconnecting) {
@@ -1827,7 +1834,11 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		// dispatch so they're consistent even if a handler synchronously
 		// schedules work.
 		this._lastReadTime = Date.now();
-		this._resetLivenessTimers();
+		if (this._state.kind === AgentHostClientState.Reconnecting) {
+			this._resetReconnectLivenessTimer();
+		} else {
+			this._resetLivenessTimers();
+		}
 
 		if (isJsonRpcRequest(msg)) {
 			this._handleReverseRequest(msg.id, msg.method, msg.params);
@@ -2341,8 +2352,42 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 	private _cancelLivenessTimers(): void {
 		this._pingTimer.cancel();
 		this._closeTimer.cancel();
+		this._cancelReconnectLivenessTimer();
 		this._livenessDeferred = false;
 		this._livenessDeferredSince = undefined;
+	}
+
+	private _armReconnectLivenessTimer(): void {
+		this._reconnectLivenessActive = true;
+		this._reconnectLivenessTimer.cancelAndSet(() => this._onReconnectLivenessTimer(), PING_INTERVAL_MS + LIVENESS_TIMEOUT_MS);
+	}
+
+	private _resetReconnectLivenessTimer(): void {
+		if (this._reconnectLivenessActive) {
+			this._reconnectLivenessTimer.cancelAndSet(() => this._onReconnectLivenessTimer(), PING_INTERVAL_MS + LIVENESS_TIMEOUT_MS);
+		}
+	}
+
+	private _cancelReconnectLivenessTimer(): void {
+		this._reconnectLivenessActive = false;
+		this._reconnectLivenessTimer.cancel();
+	}
+
+	private _onReconnectLivenessTimer(): void {
+		if (this._state.kind !== AgentHostClientState.Reconnecting || !this._reconnectLivenessActive) {
+			return;
+		}
+		const pendingReverseRequests = this._pendingReverseRequests.get(this._transport) ?? 0;
+		if (pendingReverseRequests > 0 || this._loadEstimator.hasHighLoad()) {
+			this._resetReconnectLivenessTimer();
+			return;
+		}
+		const silence = Date.now() - this._lastReadTime;
+		this._logService.info(
+			`[RemoteAgentHostProtocol] Reconnect received no message from ${this._address} for ${silence}ms; retrying with a fresh transport.`,
+		);
+		this._transportListeners.clear();
+		this._handleTransportClose();
 	}
 
 	private _onPingTimer(): void {

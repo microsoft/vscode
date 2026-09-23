@@ -526,7 +526,7 @@ function createWebSocketOverChannel(
 	logService: ILogService,
 	onMessage: (data: string) => void,
 	onClose: () => void,
-): Promise<{ send: (data: string) => void; close: () => void }> {
+): Promise<{ send: (data: string) => Promise<void>; close: () => void }> {
 	return new Promise((resolve, reject) => {
 		const WS = nativeRequire('ws') as typeof WebSocket;
 		let url = `ws://${urlHost}:${urlPort}`;
@@ -542,10 +542,13 @@ function createWebSocketOverChannel(
 		ws.on('open', () => {
 			logService.info(`${LOG_PREFIX} WebSocket relay connected to remote agent host`);
 			resolve({
-				send: (data: string) => {
-					if (ws.readyState === ws.OPEN) {
-						ws.send(data);
+				send: async (data: string) => {
+					if (ws.readyState !== ws.OPEN) {
+						throw new Error(`WebSocket is not open (readyState ${ws.readyState})`);
 					}
+					await new Promise<void>((resolve, reject) => {
+						ws.send(data, error => error ? reject(error) : resolve());
+					});
 				},
 				close: () => ws.close(),
 			});
@@ -589,7 +592,7 @@ async function createWebSocketRelayForEndpoint(
 	logService: ILogService,
 	onMessage: (data: string) => void,
 	onClose: () => void,
-): Promise<{ send: (data: string) => void; close: () => void }> {
+): Promise<{ send: (data: string) => Promise<void>; close: () => void }> {
 	let channel: SSHChannel;
 	let urlHost: string;
 	let urlPort: number;
@@ -659,7 +662,7 @@ class SSHConnection extends Disposable {
 		/** Remote user-data path the endpoint registry was resolved against; empty for the `remoteAgentHostCommand` override path (not applicable). */
 		readonly userDataPath: string,
 		readonly sshClient: SSHClient,
-		private readonly _relay: { send: (data: string) => void; close: () => void },
+		private readonly _relay: { send: (data: string) => Promise<void>; close: () => void },
 		private readonly _remoteStream: SSHChannel | undefined,
 		private readonly _logService: ILogService,
 	) {
@@ -699,8 +702,8 @@ class SSHConnection extends Disposable {
 		this.sshClient.removeListener('error', this._sshErrorListener);
 	}
 
-	relaySend(data: string): void {
-		this._relay.send(data);
+	relaySend(data: string): Promise<void> {
+		return this._relay.send(data);
 	}
 }
 
@@ -1097,7 +1100,7 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 			reportProgress(localize('sshProgressForwarding', "Connecting to remote agent host..."));
 			const connectionId = connectionKey;
 			let conn: SSHConnection | undefined; // eslint-disable-line prefer-const
-			let relay: { send: (data: string) => void; close: () => void };
+			let relay: { send: (data: string) => Promise<void>; close: () => void };
 			try {
 				relay = await this._createWebSocketRelay(
 					sshClient, endpoint, cliBin, cliDataDir, instanceId, userDataPath, connectionToken,
@@ -1192,10 +1195,11 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 	async relaySend(connectionId: string, message: string): Promise<void> {
 		for (const conn of this._connections.values()) {
 			if (conn.connectionId === connectionId) {
-				conn.relaySend(message);
+				await conn.relaySend(message);
 				return;
 			}
 		}
+		throw new Error(`${LOG_PREFIX} connection '${connectionId}' is not available`);
 	}
 
 	async reconnect(sshConfigHost: string, name: string, remoteAgentHostCommand?: string, agentForward?: boolean, userInitiated?: boolean, preferredAgentLocation?: RemoteAgentHostLocationPreference): Promise<ISSHConnectResult> {
@@ -2141,7 +2145,7 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 		relayUserDataPath: string,
 		connectionToken: string | undefined,
 		onMessage: (data: string) => void, onClose: () => void,
-	): Promise<{ send: (data: string) => void; close: () => void }> {
+	): Promise<{ send: (data: string) => Promise<void>; close: () => void }> {
 		const nativeRequire = await this._getNativeRequire();
 		return createWebSocketRelayForEndpoint(nativeRequire, client, endpoint, relayCliBin, relayCliDataDir, relayInstanceId, relayUserDataPath, connectionToken, this._logService, onMessage, onClose);
 	}
