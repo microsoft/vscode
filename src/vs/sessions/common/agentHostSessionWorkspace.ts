@@ -5,7 +5,7 @@
 
 import { Codicon } from '../../base/common/codicons.js';
 import { match as matchGlob } from '../../base/common/glob.js';
-import { constObservable, IObservable } from '../../base/common/observable.js';
+import { constObservable, derived, IObservable } from '../../base/common/observable.js';
 import { extUri, basename } from '../../base/common/resources.js';
 import { ThemeIcon } from '../../base/common/themables.js';
 import { URI } from '../../base/common/uri.js';
@@ -97,22 +97,29 @@ export function agentHostSessionWorkspaceKey(workspace: ISessionWorkspace | unde
 	return [workspace.label, ...folderKeys].join('\n');
 }
 
+/** Resolves the GitHub info a session folder reports, by working directory. */
+export type IFolderGitHubInfoResolver = (workingDirectory: URI) => IObservable<IGitHubInfo | undefined> | undefined;
+
 /**
  * Projects a chat's working-directory scope onto its owning session workspace.
  * Returns no workspace rather than exposing a partial scope when a required folder is unavailable.
+ *
+ * Pass `getFolderGitHubInfo` to have each folder report its own repository and
+ * pull request information instead of what the session workspace carries.
  */
-export function buildAgentHostChatWorkspace(sessionWorkspace: ISessionWorkspace | undefined, workingDirectories: readonly URI[] | undefined): ISessionWorkspace | undefined {
-	if (!sessionWorkspace || workingDirectories === undefined) {
+export function buildAgentHostChatWorkspace(sessionWorkspace: ISessionWorkspace | undefined, workingDirectories: readonly URI[] | undefined, getFolderGitHubInfo?: IFolderGitHubInfoResolver): ISessionWorkspace | undefined {
+	if (!sessionWorkspace || (workingDirectories === undefined && !getFolderGitHubInfo)) {
 		return sessionWorkspace;
 	}
 
 	const folders: ISessionFolder[] = [];
-	for (const workingDirectory of workingDirectories) {
+	for (const workingDirectory of workingDirectories ?? sessionWorkspace.folders.map(folder => folder.workingDirectory)) {
 		const folder = sessionWorkspace.folders.find(candidate => extUri.isEqual(candidate.workingDirectory, workingDirectory));
 		if (!folder) {
 			return undefined;
 		}
-		folders.push(folder);
+		const gitHubInfo = getFolderGitHubInfo?.(folder.workingDirectory);
+		folders.push(gitHubInfo && folder.gitRepository?.gitHubInfo !== gitHubInfo ? withFolderGitHubInfo(folder, gitHubInfo) : folder);
 	}
 
 	if (folders.length === 0) {
@@ -123,12 +130,22 @@ export function buildAgentHostChatWorkspace(sessionWorkspace: ISessionWorkspace 
 	}
 
 	const primaryFolder = folders[0];
-	const usesSessionPrimary = primaryFolder === sessionWorkspace.folders[0];
+	const usesSessionPrimary = extUri.isEqual(primaryFolder.workingDirectory, sessionWorkspace.folders[0].workingDirectory);
 	return {
 		...sessionWorkspace,
 		uri: usesSessionPrimary ? sessionWorkspace.uri : primaryFolder.root,
 		label: usesSessionPrimary ? sessionWorkspace.label : primaryFolder.name,
 		folders,
+	};
+}
+
+/** A folder reporting `gitHubInfo`; a folder without a repository gains one once the GitHub state resolves. */
+function withFolderGitHubInfo(folder: ISessionFolder, gitHubInfo: IObservable<IGitHubInfo | undefined>): ISessionFolder {
+	return {
+		...folder,
+		gitRepository: folder.gitRepository
+			? { ...folder.gitRepository, gitHubInfo }
+			: { uri: folder.root, workTreeUri: undefined, baseBranchName: undefined, isRepository: derived(reader => gitHubInfo.read(reader) !== undefined), gitHubInfo },
 	};
 }
 

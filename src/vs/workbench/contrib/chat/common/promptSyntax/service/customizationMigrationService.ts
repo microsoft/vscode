@@ -102,6 +102,7 @@ export interface McpServerCustomizationMigration {
 	readonly type: CustomizationMigrationType.McpServers;
 	readonly servers: readonly IMcpServerCustomizationMigrationItem[];
 	readonly candidates: readonly IMcpServerCustomizationMigrationCandidate[];
+	readonly exclusions: readonly IMcpServerCustomizationMigrationExclusion[];
 	/** Whether all lazy MCP collections known to the client have loaded; when false, servers may be missing. */
 	readonly discoveryComplete: boolean;
 	/** Snapshot-wide restrictions that may limit inventory or delivery, independent of per-server support. */
@@ -145,10 +146,31 @@ export interface IMcpServerCustomizationMigrationFailure {
 	readonly error?: Error;
 }
 
+export interface IMcpServerCustomizationMigrationExclusion extends IMcpServerCustomizationMigrationFailure {
+	readonly details: readonly string[];
+}
+
 export interface IMcpServerCustomizationMigrationResult {
 	readonly migratedCount: number;
 	readonly failures: readonly IMcpServerCustomizationMigrationFailure[];
 }
+
+export const enum FileCustomizationMigrationFailureReason {
+	/** The source customization file could not be read. */
+	SourceReadFailed = 'sourceReadFailed',
+	/** A destination folder or available destination name could not be resolved. */
+	TargetResolutionFailed = 'targetResolutionFailed',
+	/** A prompt file could not be converted to a skill. */
+	ConversionFailed = 'conversionFailed',
+	/** The migrated customization could not be written to its destination. */
+	TargetWriteFailed = 'targetWriteFailed',
+	/** The original customization could not be deleted after writing its replacement. */
+	SourceDeleteFailed = 'sourceDeleteFailed',
+	/** One or more partially written migration targets could not be removed. */
+	RollbackFailed = 'rollbackFailed',
+}
+
+export type CustomizationMigrationFailureReason = FileCustomizationMigrationFailureReason | McpServerCustomizationMigrationFailureReason;
 
 export type CustomizationMigrationCandidate = MigratableConfiguration | IMcpServerCustomizationMigrationCandidate;
 
@@ -158,14 +180,9 @@ export function isMcpServerCustomizationMigrationCandidate(candidate: Customizat
 
 export type CustomizationMigration = FileCustomizationMigration | McpServerCustomizationMigration;
 
-export const enum CustomizationMigrationHintTarget {
-	FileMigrations = 'fileMigrations',
-	McpServers = 'mcpServers',
-}
-
 export interface ICustomizationMigrationHint {
+	readonly migrationFlowId: string;
 	readonly message: string;
-	readonly target: CustomizationMigrationHintTarget;
 	readonly counts: readonly ICustomizationMigrationCount[];
 }
 

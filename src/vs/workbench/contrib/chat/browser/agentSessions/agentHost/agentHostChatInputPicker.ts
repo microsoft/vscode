@@ -57,6 +57,7 @@ import { IAgentHostSessionWorkingDirectoryResolver } from './agentHostSessionWor
 import { IAgentHostNewSessionFolderService } from './agentHostNewSessionFolderService.js';
 import { IAgentHostUntitledProvisionalSessionService } from './agentHostUntitledProvisionalSessionService.js';
 import { resolveAgentHostChatSession, toAgentHostBackendSessionUri } from './agentHostSessionUri.js';
+import { isCopilotCliSessionType } from './agentHostToolSetEnablementService.js';
 import { retrySessionConfigSubscriptionOnCreation } from './agentHostSessionConfigSubscription.js';
 import { getCompactCodicon } from '../../chatIcons.js';
 import { IChatPhoneInputPresenter } from '../../widget/input/chatPhoneInputPresenter.js';
@@ -163,7 +164,7 @@ function toActionItems(property: string, items: readonly IConfigPickerItem[], cu
 }
 
 export function getAgentHostSandboxSettingId(sessionType: string | undefined, windows?: boolean): AgentHostCopilotSandboxSettingId | undefined {
-	if (sessionType !== SessionType.AgentHostCopilot) {
+	if (!sessionType || !isCopilotCliSessionType(sessionType)) {
 		return undefined;
 	}
 	return getAgentHostCopilotSandboxSettingId(windows);
@@ -392,6 +393,7 @@ export class AgentHostChatInputPicker extends Disposable {
 	private _sessionGeneration = 0;
 	private _hostOperatingSystem: OperatingSystem | undefined;
 	private _hostOperatingSystemRequest: Promise<void> | undefined;
+	private _hostOperatingSystemConnection: IAgentConnection | undefined;
 
 	constructor(
 		private readonly _widget: IChatWidget,
@@ -432,6 +434,9 @@ export class AgentHostChatInputPicker extends Disposable {
 			}
 		}));
 		this._register(this._agentHostService.onAgentHostStart(async () => {
+			if (this._hostOperatingSystemConnection !== this._agentHostService) {
+				return;
+			}
 			const request = this._hostOperatingSystemRequest;
 			// Recovery can be reported before an interrupted diagnostics request settles.
 			await request;
@@ -947,17 +952,26 @@ export class AgentHostChatInputPicker extends Disposable {
 	private _getSandboxSettingId(): ReturnType<typeof getAgentHostSandboxSettingId> {
 		const sessionResource = this._widget.viewModel?.sessionResource;
 		const sessionType = sessionResource ? getChatSessionType(sessionResource) : undefined;
-		if (sessionType !== SessionType.AgentHostCopilot || this._store.isDisposed) {
+		if (!sessionResource || !sessionType || !isCopilotCliSessionType(sessionType) || this._store.isDisposed) {
 			return undefined;
 		}
-		this._hostOperatingSystemRequest ??= this._resolveHostOperatingSystem();
+		const connection = this._connectionsService.resolveSessionResource(sessionResource)?.connection;
+		if (!connection) {
+			return undefined;
+		}
+		if (this._hostOperatingSystemConnection !== connection) {
+			this._hostOperatingSystemConnection = connection;
+			this._hostOperatingSystem = undefined;
+			this._hostOperatingSystemRequest = undefined;
+		}
+		this._hostOperatingSystemRequest ??= this._resolveHostOperatingSystem(connection);
 		return getAgentHostSandboxSettingId(sessionType, this._hostOperatingSystem === OperatingSystem.Windows);
 	}
 
-	private async _resolveHostOperatingSystem(): Promise<void> {
+	private async _resolveHostOperatingSystem(connection: IAgentConnection): Promise<void> {
 		try {
-			const os = await getAgentHostOperatingSystem(this._agentHostService);
-			if (this._store.isDisposed) {
+			const os = await getAgentHostOperatingSystem(connection);
+			if (this._store.isDisposed || this._hostOperatingSystemConnection !== connection) {
 				return;
 			}
 			this._hostOperatingSystem = os;

@@ -61,6 +61,7 @@ import { getChatSessionType, LocalChatSessionUri } from '../../../../contrib/cha
 import { ICustomizationMigrationService } from '../../../../contrib/chat/common/promptSyntax/service/customizationMigrationService.js';
 import { ICustomizationMigrationTelemetryService } from '../../../../contrib/chat/common/promptSyntax/service/customizationMigrationTelemetryService.js';
 import { CustomizationMigrationService } from '../../../../contrib/chat/browser/aiCustomization/customizationMigrationServiceImpl.js';
+import { AgentHostMcpServerMigrationProvider } from '../../../../contrib/chat/browser/agentSessions/agentHost/agentHostMcpServerMigrationProvider.js';
 import { IPromptsService, AgentInstructionFileType, PromptsStorage, IAgentSkill, IChatPromptSlashCommand, IAgentInstructionFile } from '../../../../contrib/chat/common/promptSyntax/service/promptsService.js';
 import { IResolvedPromptSourceFolder } from '../../../../contrib/chat/common/promptSyntax/config/promptFileLocations.js';
 import { ParsedPromptFile, PromptFileParser } from '../../../../contrib/chat/common/promptSyntax/promptFileParser.js';
@@ -1122,51 +1123,68 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 				override migrationCompleted() { }
 			}());
 			const agentHostCustomizationService = createMockAgentHostCustomizationService(options.activeSessionMcpServers);
-			reg.defineInstance(ICustomizationMigrationService, new CustomizationMigrationService(
-				promptsService,
-				harnessService,
-				new class extends mock<IAgentHostActiveClientService>() {
-					override acquireMcpServerSupportScope() {
-						if (options.migrationCategory !== CustomizationMigrationCategoryId.McpServers && !options.migrationDashboard) {
-							return undefined;
-						}
-						const support: IAgentHostMcpServerSupportSnapshot = {
-							servers: [{
-								id: 'mcp.config.ws0.remote-browser',
-								name: 'Remote Browser',
-								collectionId: 'mcp.config.ws0',
-								source: {
-									group: undefined,
-									kind: AgentHostMcpServerSourceKind.VscodeWorkspaceFolder,
-									label: 'Workspace',
-									collectionUri: URI.file('/workspace/.vscode/mcp.json'),
-									definitionLocation: undefined,
-									remoteAuthority: null,
-									extensionId: undefined,
-									pluginUri: undefined,
-								},
-								enablement: { enabled: true, state: AgentHostMcpServerEnablementState.EnabledWorkspace },
-								applicability: AgentHostMcpServerApplicability.Applicable,
-								delivery: AgentHostMcpServerDelivery.ClientForwarded,
-								compatibility: { kind: 'supported' },
-								projectedConfiguration: { type: McpServerType.REMOTE, url: 'https://mcp.example.com' },
-							}],
-							discoveryComplete: true,
-							coverage: { restrictedByMcpAccess: false, restrictedByCustomizationPolicy: false },
-						};
-						return {
-							support: constObservable(support),
-							isResolved: constObservable(true),
-							whenResolved: () => Promise.resolve(),
-							dispose: () => { },
-						};
+			const activeClientService = new class extends mock<IAgentHostActiveClientService>() {
+				override acquireMcpServerSupportScope() {
+					if (options.migrationCategory !== CustomizationMigrationCategoryId.McpServers && !options.migrationDashboard) {
+						return undefined;
 					}
-				}(),
+					const support: IAgentHostMcpServerSupportSnapshot = {
+						servers: [{
+							id: 'mcp.config.ws0.remote-browser',
+							name: 'Remote Browser',
+							collectionId: 'mcp.config.ws0',
+							source: {
+								group: undefined,
+								kind: AgentHostMcpServerSourceKind.VscodeWorkspaceFolder,
+								label: 'Workspace',
+								collectionUri: URI.file('/workspace/.vscode/mcp.json'),
+								definitionLocation: undefined,
+								remoteAuthority: null,
+								extensionId: undefined,
+								pluginUri: undefined,
+							},
+							enablement: { enabled: true, state: AgentHostMcpServerEnablementState.EnabledWorkspace },
+							applicability: AgentHostMcpServerApplicability.Applicable,
+							delivery: AgentHostMcpServerDelivery.ClientForwarded,
+							compatibility: { kind: 'supported' },
+							projectedConfiguration: { type: McpServerType.REMOTE, url: 'https://mcp.example.com' },
+						}],
+						discoveryComplete: true,
+						coverage: { restrictedByMcpAccess: false, restrictedByCustomizationPolicy: false },
+					};
+					return {
+						support: constObservable(support),
+						isResolved: constObservable(true),
+						whenResolved: () => Promise.resolve(),
+						dispose: () => { },
+					};
+				}
+			}();
+			const mcpServerMigrationProvider = ctx.disposableStore.add(new AgentHostMcpServerMigrationProvider(
+				harnessService,
+				activeClientService,
 				agentHostCustomizationService,
 				migrationFileService,
 				new NullLogService(),
 				configurationService,
 				new FixtureConfigurationResolverService(),
+				new class extends mock<IMcpService>() {
+					override readonly enablementModel = {
+						readEnabled: () => ContributionEnablementState.EnabledProfile,
+						readProfileEnabled: () => true,
+						setEnabled: () => { },
+						remove: () => { },
+					};
+				}(),
+			));
+			const activeDescriptor = harnessService.findHarnessById(getChatSessionType(options.sessionResource));
+			if (activeDescriptor) {
+				Object.assign(activeDescriptor, { mcpServerMigrationProvider });
+			}
+			reg.defineInstance(ICustomizationMigrationService, new CustomizationMigrationService(
+				promptsService,
+				harnessService,
+				configurationService,
 			));
 			reg.defineInstance(IAICustomizationWorkspaceService, new class extends mock<IAICustomizationWorkspaceService>() {
 				override readonly isSessionsWindow = isSessionsWindow;

@@ -84,6 +84,28 @@ export function logSessionsInteraction(telemetryService: ITelemetryService, butt
 	telemetryService.publicLog2<SessionsInteractionEvent, SessionsInteractionClassification>('vscodeAgents.interaction', source ? { button, source } : { button });
 }
 
+/** Presentation shown for a response-text selection in the Agents window. */
+export type ResponseSelectionWidgetVariant = 'askQuestionInput' | 'actionMenu';
+
+/** User interaction with the response-selection widget. */
+export type ResponseSelectionWidgetAction = 'shown' | 'askQuestionOpened' | 'askQuestionSubmitted' | 'quote' | 'copy';
+
+type ResponseSelectionWidgetEvent = {
+	variant: ResponseSelectionWidgetVariant;
+	action: ResponseSelectionWidgetAction;
+};
+
+type ResponseSelectionWidgetClassification = {
+	owner: 'ulugbekna';
+	comment: 'Measures exposure to and use of the response-text selection widget in the Agents window.';
+	variant: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The widget presentation shown: the existing ask-question input or the experimental action menu.' };
+	action: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The widget exposure or action: shown, question opened or submitted, quote, or copy.' };
+};
+
+export function logResponseSelectionWidgetAction(telemetryService: ITelemetryService, variant: ResponseSelectionWidgetVariant, action: ResponseSelectionWidgetAction): void {
+	telemetryService.publicLog2<ResponseSelectionWidgetEvent, ResponseSelectionWidgetClassification>('vscodeAgents.responseSelectionWidget/action', { variant, action });
+}
+
 // --- Changes panel interactions ---
 
 type SidePanelToggleEvent = {
@@ -436,22 +458,4 @@ type VisibilityResumedClassification = {
 
 export function logVisibilityResumed(telemetryService: ITelemetryService, data: { hiddenDurationMs: number; socketAlive: boolean; forceClosed: boolean }): void {
 	telemetryService.publicLog2<VisibilityResumedEvent, VisibilityResumedClassification>('vscodeAgents.socket/visibilityResumed', data);
-}
-
-// --- Terminal recovery telemetry ---
-
-type TerminalRecoveryEvent = {
-	recoveredCount: number;
-	totalCount: number;
-};
-
-type TerminalRecoveryClassification = {
-	owner: 'osortega';
-	comment: 'Tracks terminal reconnection outcomes after agent host disconnect.';
-	recoveredCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Number of terminals successfully reconnected.' };
-	totalCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Total number of active terminals at reconnect time.' };
-};
-
-export function logTerminalRecovery(telemetryService: ITelemetryService, data: { recoveredCount: number; totalCount: number }): void {
-	telemetryService.publicLog2<TerminalRecoveryEvent, TerminalRecoveryClassification>('vscodeAgents.terminal/recovery', data);
 }

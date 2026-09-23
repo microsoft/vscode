@@ -67,7 +67,7 @@ suite('agentHostMcpServerSupport', () => {
 		} satisfies Omit<IAgentHostMcpServerSupport, 'id' | 'name' | 'applicability' | 'compatibility'>;
 		const snapshot: IAgentHostMcpServerSupportSnapshot = {
 			servers: [
-				{ ...base, id: 'partial', name: 'Partial', applicability: AgentHostMcpServerApplicability.Applicable, compatibility: { kind: 'partiallySupported', reasons: [AgentHostMcpSupportReason.EnvironmentFileIgnored] } },
+				{ ...base, id: 'partial', name: 'Partial', applicability: AgentHostMcpServerApplicability.Applicable, compatibility: { kind: 'partiallySupported', reasons: [AgentHostMcpSupportReason.EnvironmentFileIgnored, AgentHostMcpSupportReason.WorkingDirectoryNotPortable] } },
 				{ ...base, id: 'unsupported', name: 'Unsupported', applicability: AgentHostMcpServerApplicability.Unknown, compatibility: { kind: 'unsupported', reasons: [AgentHostMcpSupportReason.UnsupportedSourceLocation] } },
 				{ ...base, id: 'outside', name: 'Outside', applicability: AgentHostMcpServerApplicability.OutsideCurrentScope, compatibility: { kind: 'unknown', reasons: [AgentHostMcpSupportReason.SourceUnknown] } },
 			],
@@ -88,8 +88,15 @@ suite('agentHostMcpServerSupport', () => {
 
 		assert.deepStrictEqual({ servers, isResolved, disposed }, {
 			servers: [
-				{ id: 'partial', kind: 'partiallySupported', details: ['Environment files are not supported by the Copilot harness.\nMove required variables from the environment file into the server env configuration.'] },
-				{ id: 'unsupported', kind: 'unsupported', details: ['The current configuration location for this server is not supported by the Copilot harness.\nMove the server configuration to the workspace root .mcp.json file.'] },
+				{
+					id: 'partial',
+					kind: 'partiallySupported',
+					details: [
+						'Environment files are not supported by the Copilot harness.\nTo migrate this server, move required variables from the environment file into the server env configuration.',
+						'Working directory settings cannot be migrated to the workspace root .mcp.json file.\nTo migrate this server, remove the cwd property.',
+					],
+				},
+				{ id: 'unsupported', kind: 'unsupported', details: ['The current configuration location for this server is not supported by the Copilot harness.\nTo migrate this server, move its configuration to the workspace root .mcp.json file.'] },
 			],
 			isResolved: true,
 			disposed: true,
@@ -179,7 +186,7 @@ suite('agentHostMcpServerSupport', () => {
 			afterSessionSnapshot: [{
 				id: serverOptions.id,
 				kind: 'partiallySupported',
-				details: ['Environment files are not supported by the Copilot harness.\nMove required variables from the environment file into the server env configuration.'],
+				details: ['Environment files are not supported by the Copilot harness.\nTo migrate this server, move required variables from the environment file into the server env configuration.'],
 			}],
 			scopesAfterUnchangedRoots: 2,
 			afterSupportChange: [{ id: serverOptions.id, kind: 'supported', details: undefined }],
@@ -392,6 +399,61 @@ suite('agentHostMcpServerSupport', () => {
 				AgentHostMcpSupportReason.DevelopmentModeIgnored,
 			],
 		});
+	});
+
+	test('reports an explicit working directory as partially supported', async () => {
+		const server = makeMcpServer({
+			id: 'mcp.config.ws0.cwd',
+			collectionId: 'mcp.config.ws0',
+			provenance: McpCollectionProvenance.WorkspaceFolderConfiguration,
+			launch: {
+				...stdioLaunch(),
+				cwd: '/workspace',
+			},
+			collectionOrigin: URI.file('/workspace/.vscode/mcp.json'),
+		});
+
+		const result = await assess([server], [URI.file('/workspace')]);
+
+		assert.deepStrictEqual(result.servers[0].compatibility, {
+			kind: 'partiallySupported',
+			reasons: [AgentHostMcpSupportReason.WorkingDirectoryNotPortable],
+		});
+	});
+
+	test('reports SSE transport and version metadata as partially supported', async () => {
+		const result = await assess([
+			makeMcpServer({
+				id: 'mcp.config.ws0.sse',
+				collectionId: 'mcp.config.ws0',
+				provenance: McpCollectionProvenance.WorkspaceFolderConfiguration,
+				launch: {
+					type: McpServerTransportType.HTTP,
+					transport: 'sse',
+					uri: URI.parse('https://example.com/mcp'),
+					headers: [],
+				},
+				collectionOrigin: URI.file('/workspace/.vscode/mcp.json'),
+			}),
+			makeMcpServer({
+				id: 'mcp.config.ws0.version',
+				collectionId: 'mcp.config.ws0',
+				provenance: McpCollectionProvenance.WorkspaceFolderConfiguration,
+				version: '1.0.0',
+				collectionOrigin: URI.file('/workspace/.vscode/mcp.json'),
+			}),
+		], [URI.file('/workspace')]);
+
+		assert.deepStrictEqual(result.servers.map(server => server.compatibility), [
+			{
+				kind: 'partiallySupported',
+				reasons: [AgentHostMcpSupportReason.SseTransportNotPortable],
+			},
+			{
+				kind: 'partiallySupported',
+				reasons: [AgentHostMcpSupportReason.ServerVersionNotPortable],
+			},
+		]);
 	});
 
 	test('reports runtime server enablement separately from compatibility', async () => {
@@ -973,6 +1035,7 @@ function makeMcpServer(options: {
 	readonly launch?: McpServerLaunch;
 	readonly sandboxEnabled?: boolean;
 	readonly devMode?: McpServerDefinition['devMode'];
+	readonly version?: string;
 	readonly enablement?: ContributionEnablementState;
 	readonly enablementObservable?: ISettableObservable<ContributionEnablementState>;
 }): IMcpServer {
@@ -987,6 +1050,7 @@ function makeMcpServer(options: {
 		launch = stdioLaunch(),
 		sandboxEnabled,
 		devMode,
+		version,
 		enablement = ContributionEnablementState.EnabledProfile,
 		enablementObservable,
 	} = options;
@@ -1011,6 +1075,7 @@ function makeMcpServer(options: {
 		cacheNonce: id,
 		sandboxEnabled,
 		devMode,
+		version,
 	};
 	const definitions = observableValue('definitions', { server: definition, collection });
 	return {
