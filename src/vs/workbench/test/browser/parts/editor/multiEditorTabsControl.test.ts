@@ -135,7 +135,7 @@ suite('MultiEditorTabsControl', () => {
 		root.style.cssText = '--vscode-spacing-size20: 2px; --vscode-spacing-size40: 4px; --vscode-spacing-size60: 6px; --vscode-spacing-size80: 8px; --vscode-spacing-size160: 16px; --vscode-spacing-size200: 20px; --vscode-spacing-size280: 28px; --vscode-strokeThickness: 1px; --vscode-cornerRadius-small: 4px; --vscode-fontSize-body1: 13px; --vscode-fontWeight-regular: 400;';
 		mainWindow.document.body.appendChild(root);
 		disposables.add(toDisposable(() => root.remove()));
-		const editor = $('.part.editor');
+		const editor = $('.part.editor.editor-tabs-multiple');
 		const content = $('.content');
 		const group = $('.editor-group-container.active');
 		root.appendChild(editor);
@@ -606,7 +606,8 @@ suite('MultiEditorTabsControl', () => {
 				hidden: activeTab.classList.contains('connected-tab-hidden'),
 				fillDisplay: fillStyle.display,
 				outlineDisplay: mainWindow.getComputedStyle(edge).display,
-				outlineColor: fillStyle.borderTopColor,
+				outlineColor: fillStyle.borderRightColor,
+				frameColor: mainWindow.getComputedStyle(group, '::after').borderTopColor,
 			});
 		}
 		assert.deepStrictEqual(results, [4, 3, 2].map(count => ({
@@ -618,6 +619,7 @@ suite('MultiEditorTabsControl', () => {
 			fillDisplay: 'block',
 			outlineDisplay: 'block',
 			outlineColor: 'rgb(255, 170, 0)',
+			frameColor: 'rgb(255, 170, 0)',
 		})));
 	});
 

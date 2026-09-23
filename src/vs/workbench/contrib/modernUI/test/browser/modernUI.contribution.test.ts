@@ -2028,6 +2028,38 @@ suite('ModernUIContribution', () => {
 		]);
 	});
 
+	test('keeps the shared connected strip on the standard header background outside Modern UI', () => {
+		const root = appendElement(document.body, 'monaco-workbench modern-ui-tabs modern-ui-connected-editor-tabs');
+		store.add(toDisposable(() => root.remove()));
+		const style = document.createElement('style');
+		root.appendChild(style);
+		const stripProbe = appendElement(root, 'strip-color-probe');
+		stripProbe.style.backgroundColor = 'var(--modern-ui-connected-tab-strip-background)';
+		const hoverProbe = appendElement(root, 'hover-color-probe');
+		hoverProbe.style.backgroundColor = 'var(--modern-ui-connected-tab-upper-hover-background)';
+		const theme = ColorThemeData.createUnloadedTheme('vs', {
+			[editorBackground]: '#ffffff',
+			[EDITOR_GROUP_HEADER_TABS_BACKGROUND]: '#f8f8f8',
+			[EDITOR_GROUP_HEADER_CONNECTED_TABS_BACKGROUND]: '#e5e5e5',
+			[MODERN_EDITOR_TAB_HOVER_BACKGROUND]: '#00000080',
+		});
+		style.textContent = generateColorThemeCSS(theme, '.monaco-workbench', themingRegistry.getThemingParticipants(), TestEnvironmentService).code;
+		const targetWindow = getWindow(root);
+		const colors = () => ({
+			strip: targetWindow.getComputedStyle(stripProbe).backgroundColor,
+			hover: targetWindow.getComputedStyle(hoverProbe).backgroundColor,
+		});
+
+		const shared = colors();
+		root.classList.add('modern-ui');
+		const editor = colors();
+
+		assert.deepStrictEqual({ shared, editor }, {
+			shared: { strip: 'rgb(248, 248, 248)', hover: 'rgb(123, 123, 123)' },
+			editor: { strip: 'rgb(229, 229, 229)', hover: 'rgb(114, 114, 114)' },
+		});
+	});
+
 	test('keeps selected pill surfaces visible beneath transparent tab actions', () => {
 		const root = appendElement(document.body, 'monaco-workbench modern-ui modern-ui-tabs modern-ui-connected-editor-tabs');
 		store.add(toDisposable(() => root.remove()));
@@ -2140,7 +2172,7 @@ suite('ModernUIContribution', () => {
 	test('retains the empty root connected editor frame in high contrast', () => {
 		const root = appendElement(document.body, 'monaco-workbench modern-ui modern-ui-tabs modern-ui-connected-editor-tabs');
 		store.add(toDisposable(() => root.remove()));
-		root.style.cssText = '--vscode-strokeThickness: 1px; --vscode-focusBorder: #ffaa00; --vscode-contrastBorder: #00aaff;';
+		root.style.cssText = '--vscode-strokeThickness: 1px; --vscode-cornerRadius-large: 8px; --vscode-focusBorder: #ffaa00; --vscode-contrastBorder: #00aaff;';
 		const editor = appendElement(root, 'part editor editor-tabs-multiple');
 		const content = appendElement(editor, 'content empty');
 		const group = appendElement(content, 'editor-group-container empty active');
@@ -2155,14 +2187,14 @@ suite('ModernUIContribution', () => {
 					content.classList.toggle('empty', empty);
 					group.classList.toggle('empty', empty);
 					const frame = targetWindow.getComputedStyle(group, '::after');
-					const hasFrame = empty && theme.startsWith('hc-');
+					const hasFrame = theme.startsWith('hc-');
 					assert.deepStrictEqual({
 						frame: frame.content,
-						border: hasFrame ? [frame.borderTopWidth, frame.borderTopColor, frame.pointerEvents] : undefined,
+						border: hasFrame ? [frame.borderTopWidth, frame.borderTopColor, frame.borderRadius, frame.pointerEvents] : undefined,
 						hiddenHosts: empty ? [title, body].map(element => targetWindow.getComputedStyle(element).display) : undefined,
 					}, {
 						frame: hasFrame ? '""' : 'none',
-						border: hasFrame ? ['1px', 'rgb(255, 170, 0)', 'none'] : undefined,
+						border: hasFrame ? ['1px', 'rgb(255, 170, 0)', '8px', 'none'] : undefined,
 						hiddenHosts: empty ? ['none', 'none'] : undefined,
 					}, `${theme}, floating: ${floating}, empty: ${empty}`);
 				}
@@ -2254,7 +2286,7 @@ suite('ModernUIContribution', () => {
 		const content = appendElement(editor, 'content');
 		const group = appendElement(content, 'editor-group-container active');
 		const title = appendElement(group, 'title');
-		const body = appendElement(group, 'editor-container');
+		appendElement(group, 'editor-container');
 		const geometry = () => [editor, content].map(element => {
 			const bounds = element.getBoundingClientRect();
 			return [bounds.x, bounds.y, bounds.width, bounds.height];
@@ -2273,19 +2305,19 @@ suite('ModernUIContribution', () => {
 							editor.classList.toggle('editor-tabs-multiple', showTabs === 'multiple');
 							title.classList.toggle('tabs', showTabs === 'multiple');
 							const style = getWindow(editor).getComputedStyle(editor);
-							const wellFrame = getWindow(body).getComputedStyle(body, '::after');
+							const groupFrame = getWindow(group).getComputedStyle(group, '::after');
 							const connectedFrame = connected && showTabs === 'multiple';
 							const singleFrame = connectedFrame && theme.startsWith('hc-');
 							assert.deepStrictEqual({
 								geometry: geometry(),
 								border: [style.borderTopWidth, style.borderLeftWidth, style.borderColor],
 								compactStroke: floating && compact ? style.getPropertyValue('--modern-ui-floating-card-stroke-color').trim() : undefined,
-								wellFrame: [wellFrame.content, wellFrame.borderLeftWidth, singleFrame ? wellFrame.borderLeftColor : undefined],
+								groupFrame: [groupFrame.content, groupFrame.borderLeftWidth, groupFrame.borderTopWidth, groupFrame.borderRadius, singleFrame ? groupFrame.borderLeftColor : undefined],
 							}, {
 								geometry: baseline,
 								border: ['1px', '1px', singleFrame || (floating && compact) ? 'rgba(0, 0, 0, 0)' : 'rgb(18, 52, 86)'],
 								compactStroke: floating && compact ? (singleFrame ? 'transparent' : '#123456') : undefined,
-								wellFrame: [connectedFrame ? '""' : 'none', connectedFrame ? '1px' : '0px', singleFrame ? 'rgb(255, 170, 0)' : undefined],
+								groupFrame: singleFrame ? ['""', '1px', '1px', '8px', 'rgb(255, 170, 0)'] : ['none', '0px', '0px', '0px', undefined],
 							}, `${theme}, floating: ${floating}, connected: ${connected}, compact: ${compact}, showTabs: ${showTabs}`);
 						}
 					}
@@ -2297,17 +2329,17 @@ suite('ModernUIContribution', () => {
 	test('connects HC group borders without moving content when themes or active groups change', () => {
 		const root = appendElement(document.body, 'monaco-workbench modern-ui modern-ui-tabs modern-ui-connected-editor-tabs');
 		store.add(toDisposable(() => root.remove()));
-		root.style.cssText = 'width: 500px; --vscode-spacing-size20: 2px; --vscode-spacing-size40: 4px; --vscode-cornerRadius-small: 4px; --vscode-strokeThickness: 1px;';
+		root.style.cssText = 'width: 500px; --vscode-spacing-size20: 2px; --vscode-spacing-size40: 4px; --vscode-cornerRadius-small: 4px; --vscode-cornerRadius-large: 8px; --vscode-strokeThickness: 1px;';
 		const themeStyle = document.createElement('style');
 		root.appendChild(themeStyle);
-		const editor = appendElement(root, 'part editor');
+		const editor = appendElement(root, 'part editor editor-tabs-multiple');
 		const content = appendElement(editor, 'content');
 		const group = appendElement(content, 'editor-group-container active');
 		const title = appendElement(group, 'title tabs');
 		const row = appendElement(title, 'tabs-and-actions-container');
 		const tabs = appendElement(row, 'tabs-container');
 		appendElement(appendElement(tabs, 'tab'), 'tab-fill');
-		const tab = appendElement(tabs, 'tab active');
+		const tab = appendElement(tabs, 'tab active connected-tab-top-row');
 		tab.style.width = '120px';
 		const fill = appendElement(tab, 'tab-fill');
 		const { label, name } = createEditorTabLabel(tab);
@@ -2337,22 +2369,19 @@ suite('ModernUIContribution', () => {
 				group.classList.toggle('active', active);
 				const highContrast = themeType.startsWith('hc-');
 				const border = highContrast ? (active ? 'rgb(255, 170, 0)' : 'rgb(136, 136, 136)') : 'rgb(37, 37, 38)';
-				const frame = targetWindow.getComputedStyle(body, '::after');
-				const breadcrumbFrame = targetWindow.getComputedStyle(breadcrumbs, '::after');
+				const frame = targetWindow.getComputedStyle(group, '::after');
 				assert.deepStrictEqual({
 					geometry: geometry(),
 					cap: [targetWindow.getComputedStyle(fill).borderTopColor, targetWindow.getComputedStyle(fill).borderLeftColor],
 					shoulder: targetWindow.getComputedStyle(fill, '::after').borderLeftColor,
 					separator: targetWindow.getComputedStyle(row, '::after').backgroundColor,
-					frame: [frame.borderLeftWidth, frame.borderBottomWidth, frame.borderTopWidth, frame.borderLeftColor, frame.pointerEvents],
-					breadcrumbs: [breadcrumbFrame.borderLeftWidth, breadcrumbFrame.borderBottomWidth, breadcrumbFrame.borderLeftColor],
+					frame: [frame.content, frame.borderLeftWidth, frame.borderBottomWidth, frame.borderTopWidth, frame.borderLeftColor, frame.borderRadius, frame.pointerEvents],
 				}, {
 					geometry: baseline,
-					cap: [border, border],
+					cap: ['rgba(0, 0, 0, 0)', border],
 					shoulder: border,
 					separator: border,
-					frame: ['1px', '1px', '0px', highContrast ? border : 'rgba(0, 0, 0, 0)', 'none'],
-					breadcrumbs: ['1px', '0px', highContrast ? border : 'rgba(0, 0, 0, 0)'],
+					frame: highContrast ? ['""', '1px', '1px', '1px', border, '8px', 'none'] : ['none', '0px', '0px', '0px', 'rgb(0, 0, 0)', '0px', 'auto'],
 				}, `${themeType}, active group: ${active}`);
 			}
 		}
@@ -2414,9 +2443,9 @@ suite('ModernUIContribution', () => {
 						}, {
 							tabBounds: tabBounds.toJSON(),
 							labelBounds: labelBounds.toJSON(),
-							fillExpansion: connected && theme.startsWith('hc-') ? [0, 1, 0] : [0, 0, 0],
+							fillExpansion: [0, 0, 0],
 							marginRight: connected ? shoulderWidth : '0px',
-							topRadius: connected ? (theme.startsWith('hc-') ? '5px' : '0px') : '4px',
+							topRadius: connected ? '0px' : '4px',
 						}, JSON.stringify({ classes, theme, activeGroup, compact }));
 					}
 				}
@@ -2498,6 +2527,7 @@ suite('ModernUIContribution', () => {
 			middleTab: {
 				shoulders: getShoulders(middleFill),
 				capRadii: [targetWindow.getComputedStyle(middleFill).borderTopLeftRadius, targetWindow.getComputedStyle(middleFill).borderTopRightRadius],
+				backgroundClip: targetWindow.getComputedStyle(middleFill).backgroundClip,
 				radii: [leftShoulderStyle.borderBottomRightRadius, rightShoulderStyle.borderBottomLeftRadius],
 				sizes: [
 					[leftShoulderStyle.width, leftShoulderStyle.height],
@@ -2509,6 +2539,7 @@ suite('ModernUIContribution', () => {
 			middleTab: {
 				shoulders: ['""', '""'],
 				capRadii: ['5px', '5px'],
+				backgroundClip: 'padding-box',
 				radii: ['5px', '5px'],
 				sizes: [['5px', '5px'], ['5px', '5px']],
 			},
@@ -2565,7 +2596,7 @@ suite('ModernUIContribution', () => {
 		});
 	});
 
-	test('retains high contrast outlines when the outermost tab owns the frame', () => {
+	test('shares the high contrast outer frame while retaining upper-row outlines', () => {
 		const root = document.createElement('div');
 		root.className = 'monaco-workbench modern-ui modern-ui-tabs modern-ui-connected-editor-tabs';
 		root.style.cssText = '--vscode-strokeThickness: 1px; --vscode-cornerRadius-small: 4px; --vscode-spacing-size20: 2px; --vscode-focusBorder: #ffaa00;';
@@ -2593,9 +2624,9 @@ suite('ModernUIContribution', () => {
 			root.classList.remove(theme);
 		}
 		assert.deepStrictEqual(outlines, [
-			{ theme: 'hc-black', upperRow: false, top: 'rgb(255, 170, 0)', left: 'rgb(255, 170, 0)' },
+			{ theme: 'hc-black', upperRow: false, top: 'rgba(0, 0, 0, 0)', left: 'rgba(0, 0, 0, 0)' },
 			{ theme: 'hc-black', upperRow: true, top: 'rgb(255, 170, 0)', left: 'rgb(255, 170, 0)' },
-			{ theme: 'hc-light', upperRow: false, top: 'rgb(255, 170, 0)', left: 'rgb(255, 170, 0)' },
+			{ theme: 'hc-light', upperRow: false, top: 'rgba(0, 0, 0, 0)', left: 'rgba(0, 0, 0, 0)' },
 			{ theme: 'hc-light', upperRow: true, top: 'rgb(255, 170, 0)', left: 'rgb(255, 170, 0)' },
 		]);
 	});

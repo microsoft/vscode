@@ -7,7 +7,7 @@
  * The stylesheet is always bundled, but connected-tab geometry must remain inert without that root marker. */
 
 /* The connected tab setting is scoped to Modern UI; other modern tabs retain their pills. */
-/* In HC the connected well owns the frame; retain the outer card's layout space, not its stroke. */
+/* In HC the editor group owns one continuous frame; retain the outer card's layout space, not its stroke. */
 .modern-ui.modern-ui-connected-editor-tabs.monaco-workbench:is(.hc-black, .hc-light) .part.editor.editor-tabs-multiple:not(.modal-editor-part) {
 	border-color: transparent;
 	--modern-ui-editor-border-color: transparent;
@@ -28,40 +28,19 @@
 	--modern-ui-connected-tab-border: var(--vscode-focusBorder);
 }
 
-.modern-ui.modern-ui-connected-editor-tabs.monaco-workbench:is(.hc-black, .hc-light) .part.editor.editor-tabs-multiple:not(.modal-editor-part) > .content.empty .editor-group-container.empty {
+.modern-ui.modern-ui-connected-editor-tabs.monaco-workbench:is(.hc-black, .hc-light) .part.editor.editor-tabs-multiple:not(.modal-editor-part) > .content .editor-group-container {
 	position: relative;
 }
 
-.modern-ui.modern-ui-connected-editor-tabs.monaco-workbench:is(.hc-black, .hc-light) .part.editor.editor-tabs-multiple:not(.modal-editor-part) > .content.empty .editor-group-container.empty::after {
+.modern-ui.modern-ui-connected-editor-tabs.monaco-workbench:is(.hc-black, .hc-light) .part.editor.editor-tabs-multiple:not(.modal-editor-part) > .content .editor-group-container::after {
 	content: '';
 	position: absolute;
 	inset: 0;
 	border: var(--vscode-strokeThickness) solid var(--modern-ui-connected-well-border);
+	border-radius: var(--vscode-cornerRadius-large);
 	box-sizing: border-box;
 	pointer-events: none;
 	z-index: 10;
-}
-
-/* Reserve the same inside stroke in every theme without changing the editor's layout box. */
-.modern-ui.modern-ui-connected-editor-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs ~ .editor-container,
-.modern-ui.modern-ui-connected-editor-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs > .breadcrumbs-below-tabs {
-	position: relative;
-}
-
-.modern-ui.modern-ui-connected-editor-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs ~ .editor-container::after,
-.modern-ui.modern-ui-connected-editor-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs > .breadcrumbs-below-tabs::after {
-	content: '';
-	position: absolute;
-	inset: 0;
-	box-sizing: border-box;
-	border: var(--vscode-strokeThickness) solid var(--modern-ui-connected-well-border);
-	border-top: 0;
-	pointer-events: none;
-	z-index: 10;
-}
-
-.modern-ui.modern-ui-connected-editor-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs > .breadcrumbs-below-tabs::after {
-	border-bottom: 0;
 }
 
 .modern-ui.modern-ui-connected-editor-tabs.monaco-workbench:is(.hc-black, .hc-light) .part.editor > .content .editor-group-container > .title.tabs .tabs-container > .tab.active.multi-selected:not(:focus) > .tab-fill {
@@ -172,15 +151,11 @@
 	bottom: calc(-2 * var(--vscode-strokeThickness));
 	z-index: 1;
 	background-color: var(--modern-ui-connected-tab-surface);
+	background-clip: padding-box;
 	border: var(--vscode-strokeThickness) solid var(--modern-ui-connected-tab-border);
 	border-bottom-color: transparent;
 	border-radius: var(--modern-ui-connected-tab-cap-radius) var(--modern-ui-connected-tab-cap-radius) 0 0;
 	box-shadow: none;
-}
-
-.modern-ui.modern-ui-connected-editor-tabs.monaco-workbench:is(.hc-black, .hc-light) .part.editor > .content .editor-group-container > .title.tabs .tabs-container > .tab.active:first-child:not(.connected-tab-upper-row) > .tab-fill,
-.modern-ui.modern-ui-connected-editor-tabs.monaco-workbench:is(.hc-black, .hc-light) .part.editor > .content .editor-group-container > .title.tabs .tabs-container > .tab.last-in-row + .tab.active:not(.connected-tab-upper-row) > .tab-fill {
-	inset-inline-start: calc(-1 * var(--vscode-strokeThickness));
 }
 
 /* The foreground mask below removes the cap's side stroke where each shoulder curves out. */
@@ -508,13 +483,13 @@
 	inset-inline: 0;
 }
 
-.modern-ui.modern-ui-connected-editor-tabs.monaco-workbench:not(:is(.hc-black, .hc-light)) .part.editor > .content .editor-group-container > .title.tabs .tabs-container > .tab.active.connected-tab-top-row:not(.connected-tab-upper-row) > .tab-fill {
+.modern-ui.modern-ui-connected-editor-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs .tabs-container > .tab.active.connected-tab-top-row:not(.connected-tab-upper-row) > .tab-fill {
 	border-top-color: transparent;
 }
 
-.modern-ui.modern-ui-connected-editor-tabs.monaco-workbench:not(:is(.hc-black, .hc-light)) .part.editor > .content .editor-group-container > .title.tabs .tabs-container > .tab:first-child:not(.connected-tab-upper-row) > .tab-fill,
-.modern-ui.modern-ui-connected-editor-tabs.monaco-workbench:not(:is(.hc-black, .hc-light)) .part.editor > .content .editor-group-container > .title.tabs > .tabs-and-actions-container.wrapping .tabs-container > .tab:first-child > .tab-fill,
-.modern-ui.modern-ui-connected-editor-tabs.monaco-workbench:not(:is(.hc-black, .hc-light)) .part.editor > .content .editor-group-container > .title.tabs .tabs-container > .tab.last-in-row + .tab > .tab-fill {
+.modern-ui.modern-ui-connected-editor-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs .tabs-container > .tab:first-child:not(.connected-tab-upper-row) > .tab-fill,
+.modern-ui.modern-ui-connected-editor-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs > .tabs-and-actions-container.wrapping .tabs-container > .tab:first-child > .tab-fill,
+.modern-ui.modern-ui-connected-editor-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs .tabs-container > .tab.last-in-row + .tab > .tab-fill {
 	left: 0;
 	border-top-left-radius: 0;
 	border-bottom-left-radius: 0;
