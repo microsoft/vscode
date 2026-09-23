@@ -74,7 +74,7 @@ const createSessionInputSchema: ToolDefinition['inputSchema'] = {
 		relationship: {
 			type: 'string',
 			enum: [...createSessionRelationshipValues],
-			description: 'Set to `independent` only when the user explicitly asks for a sibling session or a top-level session. Otherwise omit it: the work is created as a new chat in the current session (`currentSession`), including when the user asks for a "new session" or a "new chat".',
+			description: 'Whether the work belongs to the current session or is independently managed. Base this choice only on whether the work is related to the current session. Defaults to `currentSession`.',
 		},
 		prompt: { type: 'string', description: 'Initial prompt to send to the new chat or session.' },
 		workspace: { type: 'string', description: 'Workspace for the delegated work: a unique project name, project/workspace URI, absolute folder path, or working directory from an existing session. Omit if the work does not need a workspace. For `currentSession`, also omit it when the work is in the current session\'s workspace.' },

@@ -781,7 +781,7 @@
               "currentSession",
               "independent"
             ],
-            "description": "Set to `independent` only when the user explicitly asks for a sibling session or a top-level session. Otherwise omit it: the work is created as a new chat in the current session (`currentSession`), including when the user asks for a \"new session\" or a \"new chat\"."
+            "description": "Whether the work belongs to the current session or is independently managed. Base this choice only on whether the work is related to the current session. Defaults to `currentSession`."
           },
           "prompt": {
             "type": "string",
