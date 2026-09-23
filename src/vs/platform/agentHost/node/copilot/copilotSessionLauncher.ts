@@ -994,6 +994,8 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			onPermissionRequest: request => runtime.handlePermissionRequest(request),
 			onUserInputRequest: (request, invocation) => runtime.handleUserInputRequest(request, invocation),
 			onElicitationRequest: context => runtime.handleElicitationRequest(context),
+			// VS Code owns durable MCP credentials; the runtime must not consult its keychain store.
+			mcpOAuthTokenStorage: 'in-memory',
 			onMcpAuthRequest: (request, context) => runtime.handleMcpAuthRequest(request, context),
 			hooks: toSdkHooks(plugins.flatMap(p => p.hooks), {
 				onPreToolUse: input => runtime.handlePreToolUse(input),

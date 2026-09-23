@@ -487,7 +487,7 @@ export class AgentHostSessionConfigPicker extends Disposable {
 
 		this._register(autorun(reader => {
 			const session = this._session.read(reader);
-			for (const changeset of session?.changesets?.read(reader) ?? []) {
+			for (const changeset of session?.activeChat.read(reader).changesets.read(reader) ?? []) {
 				changeset.operations?.read(reader);
 			}
 			this._renderConfigPickers();
@@ -778,7 +778,7 @@ export class AgentHostSessionConfigPicker extends Disposable {
 			return undefined;
 		}
 
-		return session.changesets.get()?.find(changeset =>
+		return session.activeChat.get().changesets.get()?.find(changeset =>
 			changeset.id === UNCOMMITTED_CHANGES_CHANGESET_ID
 			&& changeset.operations.get().some(operation => operation.id === AGENT_HOST_CHECKOUT_CHANGESET_OPERATION_ID)
 		);
