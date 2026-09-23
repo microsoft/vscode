@@ -1037,12 +1037,10 @@ export class AICustomizationManagementEditor extends EditorPane {
 	private createSidebarHeader(sidebarContent: HTMLElement): void {
 		const headerRow = this.sidebarHeaderContainer = DOM.append(sidebarContent, $('.sidebar-header-row'));
 
-		// Discover button
+		// Home/overview button
 		const homeButton = this.homeButton = DOM.append(headerRow, $('button.sidebar-home-button'));
 		homeButton.classList.add('sidebar-harness-home-button');
-		const homeButtonTooltip = localize('homeButtonTooltip', "Back to Customizations");
-		homeButton.title = homeButtonTooltip;
-		this.editorDisposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), homeButton, homeButtonTooltip));
+		this.editorDisposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), homeButton, () => this.getHomeButtonTooltip()));
 		const homeIcon = this.homeButtonIcon = DOM.append(homeButton, $('span.sidebar-home-icon'));
 		homeIcon.classList.add(...ThemeIcon.asClassNameArray(Codicon.home));
 		homeIcon.setAttribute('aria-hidden', 'true');
@@ -1077,6 +1075,13 @@ export class AICustomizationManagementEditor extends EditorPane {
 			: localize('overviewButtonLabel', "Overview");
 		this.homeButton.setAttribute('aria-label', label);
 		this.homeButtonLabel.textContent = label;
+		this.homeButton.title = this.getHomeButtonTooltip();
+	}
+
+	private getHomeButtonTooltip(): string {
+		return this.welcomePage?.isDiscover
+			? localize('discoverButtonTooltip', "Back to Customizations")
+			: localize('homeButtonTooltip', "Back to overview");
 	}
 
 	private createSidebarMigrationShortcut(sidebarContent: HTMLElement): void {

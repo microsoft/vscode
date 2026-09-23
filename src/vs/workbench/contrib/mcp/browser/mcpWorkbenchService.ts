@@ -980,12 +980,15 @@ export class McpWorkbenchService extends Disposable implements IMcpWorkbenchServ
 
 	private async handleMcpServerByName(name: string): Promise<boolean> {
 		try {
-			const server = await this.getMcpServerFromGallery(name);
-			if (!server) {
+			const registryGeneration = this.registryGeneration;
+			const [gallery] = await this.mcpGalleryService.getMcpServersFromGallery([{ name }]);
+			if (!gallery) {
 				this.logService.info(`MCP server '${name}' not found`);
 				return true;
 			}
-			this.open(server);
+			this.rememberGallerySource(gallery, registryGeneration);
+			const local = this.getInstalledGalleryServer(gallery.name) ?? this.instantiationService.createInstance(McpWorkbenchServer, e => this.getInstallState(e), e => this.getRuntimeStatus(e), undefined, gallery, undefined);
+			this.open(local);
 		} catch (e) {
 			// ignore
 			this.logService.error(e);

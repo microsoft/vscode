@@ -1482,6 +1482,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 		editor.selectSectionById(options.selectedSection);
 	}
 	editor.setVisible(true);
+	assert(ctx.container.querySelector<HTMLButtonElement>('.sidebar-home-button')?.title === (marketplaceEnabled ? 'Back to Customizations' : 'Back to overview'), 'Home tooltip must describe the active surface.');
 	if (!marketplaceEnabled) {
 		await Promise.resolve();
 		const overview = ctx.container.querySelector<HTMLElement>('.welcome-page-host');
@@ -1532,6 +1533,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 		assert(Boolean(discover) === !agentFinderPublicFeedEnabled, 'Switching the source setting must replace the home surface.');
 		assert(Boolean(home?.querySelector('.welcome-prompts-content-container')) === agentFinderPublicFeedEnabled, 'Overview must be visible only with no enabled feeds.');
 		assert(ctx.container.querySelector('.sidebar-home-button')?.textContent?.includes(agentFinderPublicFeedEnabled ? 'Overview' : 'Discover') === true, 'Home navigation must match the selected surface.');
+		assert(ctx.container.querySelector<HTMLButtonElement>('.sidebar-home-button')?.title === (agentFinderPublicFeedEnabled ? 'Back to overview' : 'Back to Customizations'), 'Home tooltip must update when the feed changes.');
 		assert(customizationMarketplaceQueryCount === 1, 'Toggling the marketplace must query its catalog only while a feed is enabled.');
 		assert(!home?.textContent?.includes('Could not load available customizations.'), 'Changing the feed must not show a catalog error.');
 	}

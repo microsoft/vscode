@@ -1100,6 +1100,27 @@ suite('McpWorkbenchService', () => {
 		});
 	});
 
+	test('by-name link resolves while the gallery manifest is initializing', async () => {
+		const { service, galleryService, openedEditors } = await createFixture([]);
+		const initialized = new DeferredPromise<void>();
+		const enabled = sinon.stub(galleryService, 'isEnabled').returns(false);
+		const lookup = sinon.stub(galleryService, 'getMcpServersFromGallery').callsFake(async () => {
+			await initialized.p;
+			enabled.returns(true);
+			return [createGallery('startup')];
+		});
+		const opening = service.handleURL(URI.parse('vscode:mcp/by-name/startup'));
+		await initialized.complete();
+		await opening;
+		assert.deepStrictEqual({
+			lookups: lookup.callCount,
+			opened: openedEditors.map(editor => editor.mcpServer.gallery?.name),
+		}, {
+			lookups: 1,
+			opened: ['startup'],
+		});
+	});
+
 	for (const source of ['name', 'url', 'manifest']) {
 		test(`gallery ${source} link can install alongside a same-name root server`, async () => {
 			const legacy = { ...createLocal('same', LocalMcpServerScope.Workspace), id: 'mcp.config.ws0.same', mcpResource: URI.file('/workspace/.vscode/mcp.json') };
