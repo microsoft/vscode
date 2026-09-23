@@ -9,7 +9,6 @@ import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, IObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { localize } from '../../../../../nls.js';
 import { AgentSession, IAgentConnection, IAgentSessionMetadata } from '../../../../../platform/agentHost/common/agentService.js';
 import { agentHostAuthority, fromAgentHostUri } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import { remoteAgentHostSessionTypeId } from '../../../../../platform/agentHost/common/agentHostSessionType.js';
@@ -55,7 +54,7 @@ export class CloudSandboxSessionListController extends Disposable implements ICl
 		}));
 		this._controller = this._register(instantiationService.createInstance(AgentHostSessionListController,
 			this.sessionType, CLOUD_SANDBOX_AGENT_PROVIDER, this._sessionListStore,
-			localize('cloudSandbox.sessionDescription', "GitHub Sandbox"), authority));
+			'', authority));
 		this.onDidChangeChatSessionItems = Event.map(this._controller.onDidChangeChatSessionItems,
 			delta => ({ ...delta, addedOrUpdated: delta.addedOrUpdated?.map(item => this._listItem(item)) }), this._store);
 		this._register(autorun(reader => {
