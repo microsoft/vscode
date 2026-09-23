@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { DeferredPromise, disposableTimeout } from '../../../base/common/async.js';
-import { Emitter, Event } from '../../../base/common/event.js';
+import { Emitter, Event, Relay } from '../../../base/common/event.js';
 import { Disposable, DisposableStore, IReference, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { constObservable, IObservable, ISettableObservable, observableValue } from '../../../base/common/observable.js';
 import { mark } from '../../../base/common/performance.js';
@@ -31,6 +31,7 @@ import { LOCAL_AGENT_HOST_RESOURCE_IDENTITY } from '../common/agentHostResourceS
 import { identityAgentHostResourceUriMapper } from '../common/agentHostUri.js';
 import { AgentHostStartupTelemetry } from '../common/agentHostStartupTelemetry.js';
 import { AgentHostClientConnectionKind } from '../common/agentHostTelemetry.js';
+import type { IAgentHostFirstResponseDiagnostic } from '../common/otel/agentHostTiming.js';
 import {
 	AgentHostAhpJsonlLoggingSettingId,
 	type AgentHostDebugLogsArtifactKind,
@@ -163,6 +164,14 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 	private readonly _onAgentHostStart = this._register(new Emitter<void>());
 	readonly onAgentHostStart = this._onAgentHostStart.event;
 
+	// Consumers can subscribe before prewarming creates the protocol client.
+	private readonly _onDidAction = this._register(new Relay<ActionEnvelope>());
+	readonly onDidAction = this._onDidAction.event;
+	private readonly _onDidNotification = this._register(new Relay<INotification>());
+	readonly onDidNotification = this._onDidNotification.event;
+	private readonly _onMcpNotification = this._register(new Relay<IMcpNotification>());
+	readonly onMcpNotification = this._onMcpNotification.event;
+
 	private readonly _authenticationPending: ISettableObservable<boolean> = observableValue('authenticationPending', true);
 	readonly authenticationPending: IObservable<boolean> = this._authenticationPending;
 	private _authenticationSettled = false;
@@ -186,6 +195,7 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 		this._ahpLogger = this._configurationService.getValue<boolean>(AgentHostAhpJsonlLoggingSettingId)
 			? this._register(this._instantiationService.createInstance(AhpJsonlLogger, {
 				logsHome: environmentService.logsHome,
+				logId: this.clientId,
 				connectionId: this.clientId,
 				transport: 'local',
 			}))
@@ -219,6 +229,9 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 				() => this._createTransport(),
 				{ clientId: this.clientId, clientInfo: this._clientInfo },
 			));
+			this._onDidAction.input = this._protocolClient.onDidAction;
+			this._onDidNotification.input = this._protocolClient.onDidNotification;
+			this._onMcpNotification.input = this._protocolClient.onMcpNotification;
 			this._register(this._protocolClient.onDidChangeConnectionState(state => this._handleConnectionState(state)));
 			this._register(this._protocolClient.onDidFatalClose(() => {
 				if (!this._didConnectInitially) {
@@ -349,18 +362,6 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 		return this._protocolClient?.rootState ?? this._noopRootState;
 	}
 
-	get onDidAction(): Event<ActionEnvelope> {
-		return this._protocolClient?.onDidAction ?? Event.None;
-	}
-
-	get onDidNotification(): Event<INotification> {
-		return this._protocolClient?.onDidNotification ?? Event.None;
-	}
-
-	get onMcpNotification(): Event<IMcpNotification> {
-		return this._protocolClient?.onMcpNotification ?? Event.None;
-	}
-
 	getSubscription<T extends StateComponents>(kind: T, resource: URI, owner: string): IReference<IAgentSubscription<ComponentToState[T]>> {
 		return this._requireClient().getSubscription<ComponentToState[T]>(kind, resource, owner);
 	}
@@ -422,6 +423,10 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 
 	createDetachedWorktree(session: URI, prompt: string): Promise<{ handle: string; worktree: URI }> {
 		return this._getManagementService().createDetachedWorktree(session, prompt);
+	}
+
+	async reportFirstResponse(diagnostic: IAgentHostFirstResponseDiagnostic): Promise<void> {
+		await this._protocolClient?.reportFirstResponse(diagnostic);
 	}
 
 	removeSessionArtifact(session: URI, artifactId: string): Promise<void> {

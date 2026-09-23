@@ -8,7 +8,7 @@
 
 import type { Changeset } from '../channels-changeset/state.js';
 import type { AnnotationsSummary } from '../channels-annotations/state.js';
-import type { ChatSummary, ChatInputRequest, ToolCallConfirmationState, ToolCallRunningState, ToolCallAuthRequiredState } from '../channels-chat/state.js';
+import type { ChatInteractivity, ChatOrigin, ChatSummary, ChatInputRequest, ToolCallConfirmationState, ToolCallRunningState, ToolCallAuthRequiredState } from '../channels-chat/state.js';
 import type { AutomationRunState } from '../channels-automation-run/state.js';
 import type { AutomationEntry } from '../channels-automation/state.js';
 import type { ConfigPropertySchema, ErrorInfo, Icon, ProtectedResourceMetadata, TextRange, URI } from '../common/state.js';
@@ -495,6 +495,39 @@ export interface SessionSummary extends SessionMetadata {
 	 * and session notifications.
 	 */
 	_meta?: Record<string, unknown>;
+	/**
+	 * Lightweight ordered chat catalog for session-list presentation.
+	 *
+	 * This intentionally omits volatile chat state such as status and activity,
+	 * while retaining interactivity so generic clients can hide chats or present
+	 * them as read-only without subscribing to the session channel.
+	 */
+	chats?: SessionChatSummary[];
+	/** Chat that receives input when no specific chat is selected. */
+	defaultChat?: URI;
+}
+
+/**
+ * Lightweight chat information suitable for listing a session without
+ * subscribing to its session channel.
+ *
+ * @category Session State
+ */
+export interface SessionChatSummary {
+	/** Canonical chat URI */
+	resource: URI;
+	/** Human-readable chat title */
+	title: string;
+	/** How this chat was created, when known */
+	origin?: ChatOrigin;
+	/**
+	 * How the user can interact with this chat.
+	 *
+	 * Generic clients use this to omit hidden chats and disable input for
+	 * read-only chats. Absence defaults to {@link ChatInteractivity.Full} for
+	 * backward compatibility.
+	 */
+	interactivity?: ChatInteractivity;
 }
 
 /**

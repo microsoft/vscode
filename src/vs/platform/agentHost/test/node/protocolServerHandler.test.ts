@@ -4,6 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { NullAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
+import { supportsAgentHostTiming } from '../../common/meta/agentHostTimingMeta.js';
+import { type IAgentHostFirstResponseDiagnostic } from '../../common/otel/agentHostTiming.js';
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
@@ -17,14 +20,14 @@ import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.j
 import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
 import { type IAgentCreateChatRequestOptions, type IAgentCreateSessionConfig, type IAgentResolveSessionConfigParams, type IAgentSessionConfigCompletionsParams, type IAgentSessionMetadata, type AuthenticateParams, type AuthenticateResult } from '../../common/agent.js';
 import { type IAgentHostManagedSettingsDiagnostics, type IAgentHostNetworkDiagnosticsInfo, type IAgentHostNetworkFetchResult, type IAgentService } from '../../common/agentService.js';
-import { RemoveSessionArtifactExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, supportsAgentHostArtifactRemoval } from '../../common/agentHostExtensionProtocol.js';
+import { DevContainerConnectExtensionMethod, DevContainerDisconnectExtensionMethod, DevContainerIsDockerAvailableExtensionMethod, DevContainerOutputNotification, RemoveSessionArtifactExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, supportsAgentHostArtifactRemoval, supportsAgentHostDevContainers } from '../../common/agentHostExtensionProtocol.js';
 import { ChatSourceKind, CompletionsParams, CompletionsResult, ContentEncoding, ListSessionsResult, ResourceReadResult, ResolveSessionConfigResult, SessionConfigCompletionsResult, ResourceMkdirParams, ResourceMkdirResult, ResourceResolveParams, ResourceResolveResult, ResourceCopyParams, ResourceCopyResult } from '../../common/state/protocol/commands.js';
 import type { AutomationCapabilities, Implementation } from '../../common/state/protocol/common/commands.js';
 import type { FetchAutomationRunsParams, FetchAutomationRunsResult, ListAutomationTriggerDefinitionsParams, ListAutomationTriggerDefinitionsResult, RunAutomationParams, RunAutomationResult } from '../../common/state/protocol/channels-automation/commands.js';
 import { ActionType, type ActionEnvelope, type ChatAction, type ClientAnnotationsAction, type ClientAutomationAction, type ClientAutomationRunAction, type ClientChangesetAction, type IRootConfigChangedAction, type ProgressParams, type SessionAction, type TerminalAction } from '../../common/state/sessionActions.js';
 import { PROTOCOL_VERSION } from '../../common/state/protocol/version/registry.js';
 import { isJsonRpcNotification, isJsonRpcRequest, isJsonRpcResponse, JSON_RPC_INTERNAL_ERROR, JsonRpcErrorCodes, ProtocolError, AhpErrorCodes, AHP_UNSUPPORTED_PROTOCOL_VERSION, AHP_SESSION_NOT_FOUND, type AhpNotification, type InitializeResult, type ProtocolMessage, type ReconnectResult, type ResourceListResult, type ResourceWriteParams, type ResourceWriteResult, type IStateSnapshot, type SubscribeResult } from '../../common/state/sessionProtocol.js';
-import { AUTOMATION_CATALOG_URI, MessageKind, ResponsePartKind, SessionStatus, ChangesetStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, buildChatUri, buildDefaultChatUri, readSessionExternal, readSessionWorkspaceless, withSessionExternal, withSessionWorkspaceless, type SessionSummary } from '../../common/state/sessionState.js';
+import { AUTOMATION_CATALOG_URI, ChatInteractivity, ChatOriginKind, MessageKind, ResponsePartKind, SessionStatus, ChangesetStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, buildChatUri, buildDefaultChatUri, readSessionExternal, readSessionWorkspaceless, withSessionExternal, withSessionWorkspaceless, type SessionSummary } from '../../common/state/sessionState.js';
 import { SessionInputRequestKind } from '../../common/state/protocol/state.js';
 import type { SessionAddedParams, SessionSummaryChangedParams } from '../../common/state/protocol/notifications.js';
 import type { IProtocolServer, IProtocolTransport } from '../../common/state/sessionTransport.js';
@@ -40,6 +43,7 @@ import { AGENT_HOST_CLIENT_CONNECTION_HISTORY_RETENTION, AgentHostClientConnecti
 import { AgentHostManagedSettingsService } from '../../node/agentHostManagedSettingsService.js';
 import { AgentHostTelemetryService } from '../../node/agentHostTelemetryService.js';
 import { buildAnnotationsUri } from '../../common/annotationsUri.js';
+import { MockDevContainerService } from '../common/mockDevContainerService.js';
 
 // ---- Mock helpers -----------------------------------------------------------
 
@@ -394,6 +398,7 @@ suite('ProtocolServerHandler', () => {
 	let telemetryService: TestTelemetryService;
 	let agentHostTelemetryService: AgentHostTelemetryService;
 	let clientConnections: AgentHostClientConnectionService;
+	let devContainerService: MockDevContainerService;
 
 	const sessionUri = URI.from({ scheme: 'copilot', path: '/test-session' }).toString();
 	const defaultChatUri = buildDefaultChatUri(sessionUri);
@@ -448,6 +453,8 @@ suite('ProtocolServerHandler', () => {
 			agentHostTelemetryService,
 			managedSettingsService,
 			clientConnections,
+			devContainerService = disposables.add(new MockDevContainerService()),
+			NullAgentHostOTelService,
 		));
 	});
 
@@ -474,10 +481,45 @@ suite('ProtocolServerHandler', () => {
 			serverSeq: stateManager.serverSeq,
 			meta: {
 				'vscode.detachedWorktrees': true,
+				'vscode.autonomousAutomations': true,
 				'vscode.getAgentHostSessionStateFile.chat': true,
 				'vscode.removeSessionArtifact': true,
+				'vscode.devContainers': true,
 			},
 		});
+	});
+
+	test('Dev Containers enforce initiating transport trust, ownership, and disconnect cleanup', async () => {
+		const first = connectClient('client-1');
+		const second = connectClient('client-1');
+		first.simulateMessage(request(2, DevContainerConnectExtensionMethod, { connectionId: 'container', workspaceFolder: '/repo', name: 'Project' }));
+		const trust = findRequest(first.sent, RequestAgentHostWorkspaceTrustExtensionMethod);
+		assert.ok(trust);
+		assert.strictEqual(findRequest(second.sent, RequestAgentHostWorkspaceTrustExtensionMethod), undefined);
+		assert.strictEqual(devContainerService.connects.length, 0);
+		first.simulateMessage({ jsonrpc: '2.0', id: trust.id, result: { trusted: true } });
+		await handler.whenIdle();
+		const connectionId = devContainerService.connects[0].connectionId;
+		devContainerService.output.fire({ connectionId, data: 'output' });
+		assert.deepStrictEqual(first.sent.at(-1), { jsonrpc: '2.0', method: DevContainerOutputNotification, params: { connectionId: 'container', data: 'output' } });
+		second.simulateMessage(request(3, DevContainerDisconnectExtensionMethod, { connectionId: 'container' }));
+		await handler.whenIdle();
+		const rejected = findResponse(second.sent, 3);
+		assert.ok(rejected && hasKey(rejected, { error: true }) && rejected.error?.code === AhpErrorCodes.NotFound);
+		first.simulateClose();
+		assert.deepStrictEqual(devContainerService.disconnects, [connectionId]);
+	});
+
+	test('Dev Containers reject denied trust before running the launcher', async () => {
+		const transport = connectClient('client-1');
+		transport.simulateMessage(request(2, DevContainerConnectExtensionMethod, { connectionId: 'container', workspaceFolder: '/repo', name: 'Project' }));
+		const trust = findRequest(transport.sent, RequestAgentHostWorkspaceTrustExtensionMethod);
+		assert.ok(trust);
+		transport.simulateMessage({ jsonrpc: '2.0', id: trust.id, result: { trusted: false } });
+		await handler.whenIdle();
+		const response = findResponse(transport.sent, 2);
+		assert.ok(response && hasKey(response, { error: true }) && response.error?.code === AhpErrorCodes.PermissionDenied);
+		assert.deepStrictEqual(devContainerService.connects, []);
 	});
 
 	test('routes a workspace trust request to the initiating client', async () => {
@@ -937,6 +979,46 @@ suite('ProtocolServerHandler', () => {
 		});
 	});
 
+	test('first-response diagnostics are opt-in, validated and content-free on the extension bridge', async () => {
+		const calls: IAgentHostFirstResponseDiagnostic[] = [];
+		const localServer = disposables.add(new MockProtocolServer());
+		disposables.add(new ProtocolServerHandler(
+			agentService, stateManager, localServer, { allowExtensionMethods: false },
+			disposables.add(new AgentHostFileSystemProvider()), logService, NullTelemetryService,
+			managedSettingsService, clientConnections, devContainerService,
+			{ ...NullAgentHostOTelService, diagnosticsEnabled: true, emitFirstResponse: diagnostic => calls.push(diagnostic) },
+		));
+		const transport = new MockProtocolTransport();
+		localServer.simulateConnection(transport);
+		transport.simulateMessage(request(1, 'initialize', { protocolVersions: [PROTOCOL_VERSION], clientId: 'timing-client' }));
+		const initialize = findResponse(transport.sent, 1);
+		assert.ok(initialize && hasKey(initialize, { result: true }));
+		assert.strictEqual(supportsAgentHostTiming(initialize.result as InitializeResult), true);
+		assert.strictEqual(supportsAgentHostTiming(undefined), false);
+		assert.strictEqual(supportsAgentHostTiming({ ...(initialize.result as InitializeResult), _meta: { 'vscode.agentHostTiming': 'true' } }), false);
+		const diagnostic: IAgentHostFirstResponseDiagnostic = {
+			requestId: 'request-1', provider: 'copilot', outcome: 'notDispatched',
+			sessionTurnKind: 'unknown', invocationKind: 'unknown', trustInteractionRequired: true,
+			totalElapsedMs: 0, hasResponseText: false,
+		};
+		const response = waitForResponse(transport, 2);
+		transport.simulateMessage(request(2, 'vscode/reportAgentHostFirstResponse', { ...diagnostic, prompt: 'private', path: 'private' }));
+		await response;
+		const invalid = waitForResponse(transport, 3);
+		transport.simulateMessage(request(3, 'vscode/reportAgentHostFirstResponse', { ...diagnostic, totalElapsedMs: 'not numeric' }));
+		assert.ok(hasKey(await invalid, { error: true }));
+		assert.deepStrictEqual(calls, [diagnostic]);
+
+		const disabled = connectClient('timing-disabled');
+		const disabledInitialize = findResponse(disabled.sent, 1);
+		assert.ok(disabledInitialize && hasKey(disabledInitialize, { result: true }));
+		assert.strictEqual(supportsAgentHostTiming(disabledInitialize.result as InitializeResult), false);
+		const ignored = waitForResponse(disabled, 2);
+		disabled.simulateMessage(request(2, 'vscode/reportAgentHostFirstResponse', diagnostic));
+		await ignored;
+		assert.deepStrictEqual(calls, [diagnostic]);
+	});
+
 	test('advertises and routes artifact removal through the extension request', async () => {
 		const transport = connectClient('client-remove-artifact');
 		const initializeResponse = findResponse(transport.sent, 1);
@@ -1207,7 +1289,7 @@ suite('ProtocolServerHandler', () => {
 		});
 	});
 
-	test('extension methods can be disabled without blocking managed settings contributions', () => {
+	test('extension methods can be disabled without blocking session-data methods or managed settings contributions', async () => {
 		const localDisposables = disposables.add(new DisposableStore());
 		const localServer = localDisposables.add(new MockProtocolServer());
 		localDisposables.add(new ProtocolServerHandler(
@@ -1223,6 +1305,8 @@ suite('ProtocolServerHandler', () => {
 			NullTelemetryService,
 			managedSettingsService,
 			clientConnections,
+			localDisposables.add(new MockDevContainerService()),
+			NullAgentHostOTelService,
 		));
 		const transport = new MockProtocolTransport();
 		localServer.simulateConnection(transport);
@@ -1232,9 +1316,18 @@ suite('ProtocolServerHandler', () => {
 		}));
 		const initializeResponse = findResponse(transport.sent, 1);
 		assert.ok(initializeResponse && hasKey(initializeResponse, { result: true }));
-		assert.strictEqual(supportsAgentHostArtifactRemoval(initializeResponse.result as InitializeResult), false);
+		assert.strictEqual(supportsAgentHostArtifactRemoval(initializeResponse.result as InitializeResult), true);
+		assert.strictEqual(supportsAgentHostDevContainers(initializeResponse.result as InitializeResult), false);
 		transport.sent.length = 0;
 		transport.simulateMessage(request(2, 'shutdown', {}));
+		transport.simulateMessage(request(3, DevContainerIsDockerAvailableExtensionMethod, undefined));
+		const containerResponse = findResponse(transport.sent, 3);
+		assert.ok(containerResponse && hasKey(containerResponse, { error: true }) && containerResponse.error?.code === JsonRpcErrorCodes.MethodNotFound);
+		const removeResponsePromise = waitForResponse(transport, 4);
+		transport.simulateMessage(request(4, RemoveSessionArtifactExtensionMethod, {
+			session: 'copilotcli:/session-1',
+			artifactId: 'artifact-1',
+		}));
 		transport.simulateMessage(notification('setClientManagedSettingsPermissions', {
 			permissions: { disableBypassPermissionsMode: 'disable', ask: ['Shell'] },
 		}));
@@ -1242,10 +1335,14 @@ suite('ProtocolServerHandler', () => {
 		assert.deepStrictEqual({
 			response: findResponse(transport.sent, 2),
 			shutdownCalls: agentService.shutdownCalls,
+			removeResponse: await removeResponsePromise,
+			removeSessionArtifactCalls: agentService.removeSessionArtifactCalls,
 			managedSettingsPermissions: managedSettingsService.permissions,
 		}, {
 			response: { jsonrpc: '2.0', id: 2, error: { code: JsonRpcErrorCodes.MethodNotFound, message: 'Method not found: shutdown' } },
 			shutdownCalls: 0,
+			removeResponse: { jsonrpc: '2.0', id: 4, result: null },
+			removeSessionArtifactCalls: [{ session: 'copilotcli:/session-1', artifactId: 'artifact-1' }],
 			managedSettingsPermissions: { disableBypassPermissionsMode: 'disable', ask: ['Shell'] },
 		});
 	});
@@ -1913,6 +2010,39 @@ suite('ProtocolServerHandler', () => {
 		assert.deepStrictEqual(result.items.map(item => readSessionExternal(item._meta)), [true]);
 	});
 
+	test('listSessions carries ordered lightweight chats and default chat identity', async () => {
+		const defaultChat = URI.parse(`${sessionUri}/chat/default`);
+		const peerChat = URI.parse(`${sessionUri}/chat/peer`);
+		agentService.listedSessions.push({
+			session: URI.parse(sessionUri),
+			startTime: 1000,
+			modifiedTime: 2000,
+			summary: 'Session Summary',
+			chats: [
+				{ chat: defaultChat, kind: 'default', summary: 'Default Chat' },
+				{ chat: peerChat, kind: 'peer', summary: 'Peer Chat', origin: { kind: ChatOriginKind.Fork, chat: defaultChat.toString(), turnId: 'turn-1' }, interactivity: ChatInteractivity.Hidden },
+			],
+		});
+
+		const transport = connectClient('client-list-chats');
+		transport.sent.length = 0;
+		const responsePromise = waitForResponse(transport, 2);
+		transport.simulateMessage(request(2, 'listSessions'));
+		const response = await responsePromise;
+
+		const result = (response as unknown as { result: ListSessionsResult }).result;
+		assert.deepStrictEqual({
+			chats: result.items[0].chats,
+			defaultChat: result.items[0].defaultChat,
+		}, {
+			chats: [
+				{ resource: defaultChat.toString(), title: 'Default Chat', origin: undefined },
+				{ resource: peerChat.toString(), title: 'Peer Chat', origin: { kind: ChatOriginKind.Fork, chat: defaultChat.toString(), turnId: 'turn-1' }, interactivity: ChatInteractivity.Hidden },
+			],
+			defaultChat: defaultChat.toString(),
+		});
+	});
+
 	test('listSessions omits _meta when the agent provides none', async () => {
 		// The wire item is built field by field and `satisfies SessionSummary`
 		// cannot catch a dropped optional, so pin the absent case too: a
@@ -2063,13 +2193,17 @@ suite('ProtocolServerHandler', () => {
 			});
 		});
 
-		test('createChat for an additional chat forwards to the agent service and grows the catalog', async () => {
+		test('createChat for an additional chat forwards working directories and grows the catalog', async () => {
 			stateManager.createSession(makeSessionSummary());
 			const transport = connectClient('client-cc');
 			transport.sent.length = 0;
 			const responsePromise = waitForResponse(transport, 2);
 
-			transport.simulateMessage(request(2, 'createChat', { channel: sessionUri, chat: peerChat }));
+			transport.simulateMessage(request(2, 'createChat', {
+				channel: sessionUri,
+				chat: peerChat,
+				workingDirectories: [URI.file('/workspace').toString()],
+			}));
 			const resp = await responsePromise;
 
 			assert.deepStrictEqual({
@@ -2078,12 +2212,16 @@ suite('ProtocolServerHandler', () => {
 				inCatalog: stateManager.getSessionState(sessionUri)?.chats.some(c => c.resource === peerChat),
 			}, {
 				result: null,
-				created: [{ session: sessionUri, chat: peerChat }],
+				created: [{
+					session: sessionUri,
+					chat: peerChat,
+					options: { workingDirectories: [URI.file('/workspace')] },
+				}],
 				inCatalog: true,
 			});
 		});
 
-		test('createChat forwards a fork source to the agent service', async () => {
+		test('createChat forwards a fork source and ignores its working directories', async () => {
 			stateManager.createSession(makeSessionSummary());
 			const transport = connectClient('client-cc');
 			transport.sent.length = 0;
@@ -2093,6 +2231,7 @@ suite('ProtocolServerHandler', () => {
 				channel: sessionUri,
 				chat: peerChat,
 				source: { kind: ChatSourceKind.Fork, chat: buildDefaultChatUri(sessionUri), turnId: 'turn-1' },
+				workingDirectories: [URI.file('/workspace').toString()],
 			}));
 			const resp = await responsePromise;
 
@@ -2138,7 +2277,7 @@ suite('ProtocolServerHandler', () => {
 			});
 		});
 
-		test('createChat forwards a side chat source to the agent service', async () => {
+		test('createChat forwards a side chat source and working directories to the agent service', async () => {
 			stateManager.createSession(makeSessionSummary());
 			const transport = connectClient('client-cc');
 			transport.sent.length = 0;
@@ -2153,6 +2292,7 @@ suite('ProtocolServerHandler', () => {
 					turnId: 'turn-active',
 					selection: { text: '  selected text  ', responsePartId: 'response-part-1' },
 				},
+				workingDirectories: [URI.file('/workspace').toString()],
 			}));
 			const resp = await responsePromise;
 
@@ -2165,6 +2305,7 @@ suite('ProtocolServerHandler', () => {
 					session: sessionUri,
 					chat: peerChat,
 					options: {
+						workingDirectories: [URI.file('/workspace')],
 						sideChat: { source: URI.parse(buildDefaultChatUri(sessionUri)), turnId: 'turn-active', selection: { text: '  selected text  ', responsePartId: 'response-part-1' } },
 					},
 				}],
@@ -2635,6 +2776,8 @@ suite('ProtocolServerHandler', () => {
 				telemetryService,
 				managedSettingsService,
 				tracker,
+				localDisposables.add(new MockDevContainerService()),
+				NullAgentHostOTelService,
 			)));
 		}
 
@@ -2680,6 +2823,8 @@ suite('ProtocolServerHandler', () => {
 				telemetryService,
 				managedSettingsService,
 				tracker,
+				localDisposables.add(new MockDevContainerService()),
+				NullAgentHostOTelService,
 			));
 			const transport = new MockProtocolTransport();
 			listener.simulateConnection(transport);
@@ -2728,6 +2873,8 @@ suite('ProtocolServerHandler', () => {
 			localTelemetry,
 			managedSettingsService,
 			clientConnections,
+			localDisposables.add(new MockDevContainerService()),
+			NullAgentHostOTelService,
 		));
 		const counts: number[] = [];
 		localDisposables.add(localHandler.onDidChangeConnectionCount(count => counts.push(count)));
@@ -2777,6 +2924,8 @@ suite('ProtocolServerHandler', () => {
 			localTelemetry,
 			managedSettingsService,
 			clientConnections,
+			localDisposables.add(new MockDevContainerService()),
+			NullAgentHostOTelService,
 		));
 		const countEvents: number[] = [];
 		localDisposables.add(localHandler.onDidChangeConnectionCount(count => countEvents.push(count)));
@@ -2818,6 +2967,8 @@ suite('ProtocolServerHandler', () => {
 			localTelemetry,
 			managedSettingsService,
 			clientConnections,
+			localDisposables.add(new MockDevContainerService()),
+			NullAgentHostOTelService,
 		));
 		const countEvents: number[] = [];
 		localDisposables.add(localHandler.onDidChangeConnectionCount(count => countEvents.push(count)));
@@ -2867,6 +3018,8 @@ suite('ProtocolServerHandler', () => {
 			localTelemetry,
 			managedSettingsService,
 			clientConnections,
+			localDisposables.add(new MockDevContainerService()),
+			NullAgentHostOTelService,
 		));
 		const counts: number[] = [];
 		localDisposables.add(localHandler.onDidChangeConnectionCount(count => counts.push(count)));
@@ -3210,7 +3363,7 @@ suite('ProtocolServerHandler', () => {
 		assert.deepStrictEqual(result, [['after-reconnect.txt', FileType.File]]);
 	});
 
-	test('overlapping reconnect keeps earlier reverse-RPC requests alive until that transport closes', async () => {
+	test('overlapping reconnect retries a filesystem read while the earlier reverse-RPC request remains valid', async () => {
 		const transport1 = connectClient('client-fs-overlap');
 		const reverseRequestPromise = Event.toPromise(Event.filter(transport1.onDidSend, msg => isJsonRpcRequest(msg) && msg.method === 'resourceList'));
 		const readPromise = fileSystemProvider.readdir(agentHostUri('client-fs-overlap', '/workspace'));
@@ -3219,6 +3372,7 @@ suite('ProtocolServerHandler', () => {
 
 		const transport2 = new MockProtocolTransport();
 		server.simulateConnection(transport2);
+		const replacementRequestPromise = Event.toPromise(Event.filter(transport2.onDidSend, msg => isJsonRpcRequest(msg) && msg.method === 'resourceList'));
 		const reconnectRespPromise = waitForResponse(transport2, 1);
 		transport2.simulateMessage(request(1, 'reconnect', {
 			clientId: 'client-fs-overlap',
@@ -3226,18 +3380,25 @@ suite('ProtocolServerHandler', () => {
 			subscriptions: [],
 		}));
 		await reconnectRespPromise;
+		const replacementRequest = await replacementRequestPromise;
+		assert.ok(isJsonRpcRequest(replacementRequest));
 
 		transport1.simulateMessage({
 			jsonrpc: '2.0',
 			id: reverseRequest.id,
 			result: { entries: [{ name: 'from-original-transport.txt', type: 'file' as const }] },
 		});
+		transport2.simulateMessage({
+			jsonrpc: '2.0',
+			id: replacementRequest.id,
+			result: { entries: [{ name: 'from-replacement-transport.txt', type: 'file' as const }] },
+		});
 
 		const result = await readPromise;
-		assert.deepStrictEqual(result, [['from-original-transport.txt', FileType.File]]);
+		assert.deepStrictEqual(result, [['from-replacement-transport.txt', FileType.File]]);
 	});
 
-	test('closing an older overlapping transport rejects its pending reverse-RPC requests', async () => {
+	test('closing an older overlapping transport does not fail the retried filesystem read', async () => {
 		const transport1 = connectClient('client-fs-overlap-close');
 		const reverseRequestPromise = Event.toPromise(Event.filter(transport1.onDidSend, msg => isJsonRpcRequest(msg) && msg.method === 'resourceList'));
 		const readPromise = fileSystemProvider.readdir(agentHostUri('client-fs-overlap-close', '/workspace'));
@@ -3245,6 +3406,7 @@ suite('ProtocolServerHandler', () => {
 
 		const transport2 = new MockProtocolTransport();
 		server.simulateConnection(transport2);
+		const replacementRequestPromise = Event.toPromise(Event.filter(transport2.onDidSend, msg => isJsonRpcRequest(msg) && msg.method === 'resourceList'));
 		const reconnectRespPromise = waitForResponse(transport2, 1);
 		transport2.simulateMessage(request(1, 'reconnect', {
 			clientId: 'client-fs-overlap-close',
@@ -3252,10 +3414,17 @@ suite('ProtocolServerHandler', () => {
 			subscriptions: [],
 		}));
 		await reconnectRespPromise;
+		const replacementRequest = await replacementRequestPromise;
+		assert.ok(isJsonRpcRequest(replacementRequest));
 
 		transport1.simulateClose();
+		transport2.simulateMessage({
+			jsonrpc: '2.0',
+			id: replacementRequest.id,
+			result: { entries: [{ name: 'from-replacement-transport.txt', type: 'file' as const }] },
+		});
 
-		await assert.rejects(readPromise, /Client client-fs-overlap-close disconnected/);
+		assert.deepStrictEqual(await readPromise, [['from-replacement-transport.txt', FileType.File]]);
 	});
 
 	test('client disconnect cleans up', () => {
@@ -4118,6 +4287,8 @@ suite('ProtocolServerHandler', () => {
 			NullTelemetryService,
 			managedSettingsService,
 			clientConnections,
+			localDisposables.add(new MockDevContainerService()),
+			NullAgentHostOTelService,
 		));
 		const secondTransport = new MockProtocolTransport();
 		secondServer.simulateConnection(secondTransport);
@@ -4223,6 +4394,8 @@ suite('ProtocolServerHandler', () => {
 			NullTelemetryService,
 			managedSettingsService,
 			clientConnections,
+			localDisposables.add(new MockDevContainerService()),
+			NullAgentHostOTelService,
 		));
 		const counts: number[] = [];
 		localDisposables.add(combinedHandler.onDidChangeConnectionCount(count => counts.push(count)));
@@ -4362,6 +4535,8 @@ suite('ProtocolServerHandler', () => {
 				NullTelemetryService,
 				managedSettingsService,
 				clientConnections,
+				localDisposables.add(new MockDevContainerService()),
+				NullAgentHostOTelService,
 			));
 		});
 
@@ -4534,6 +4709,8 @@ suite('ProtocolServerHandler', () => {
 				NullTelemetryService,
 				managedSettingsService,
 				clientConnections,
+				localDisposables.add(new MockDevContainerService()),
+				NullAgentHostOTelService,
 			));
 		});
 

@@ -6,6 +6,7 @@
 import * as assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { codexAccountRateLimitFromResponse, codexAccountStateFromResponse } from '../../../node/codex/codexAccountState.js';
+import type { RateLimitWindow } from '../../../node/codex/protocol/generated/v2/RateLimitWindow.js';
 
 suite('CodexAccountState', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -79,12 +80,12 @@ suite('CodexAccountState', () => {
 		});
 	});
 
-	test('falls back to available rate-limit data and clamps percentages', () => {
+	test('falls back to available rate-limit data', () => {
 		assert.deepStrictEqual(codexAccountRateLimitFromResponse({
 			rateLimits: {
 				limitId: null,
 				limitName: null,
-				primary: { usedPercent: 125, windowDurationMins: null, resetsAt: null },
+				primary: { usedPercent: 42.4, windowDurationMins: null, resetsAt: null },
 				secondary: null,
 				credits: null,
 				individualLimit: null,
@@ -96,7 +97,23 @@ suite('CodexAccountState', () => {
 			rateLimitResetCredits: null,
 			accountId: null,
 			rateLimitUpsell: null,
-		}), { usedPercent: 100, windowDurationMins: undefined, resetsAt: undefined });
+		}), { usedPercent: 42.4, windowDurationMins: undefined, resetsAt: undefined });
+	});
+
+	test('rejects invalid rate-limit samples before caching', () => {
+		const window: RateLimitWindow = { usedPercent: 42.4, windowDurationMins: 10080, resetsAt: 400 };
+		const invalidWindows = [
+			...[-1, 101, NaN, Infinity].map(usedPercent => ({ ...window, usedPercent })),
+			...[-1, 0, NaN, Infinity].map(windowDurationMins => ({ ...window, windowDurationMins })),
+			...[-1, 0, NaN, Infinity].map(resetsAt => ({ ...window, resetsAt })),
+		];
+		assert.deepStrictEqual(invalidWindows.map(primary => codexAccountRateLimitFromResponse({
+			rateLimits: {
+				limitId: null, limitName: null, primary, secondary: null, credits: null,
+				individualLimit: null, spendControlReached: null, planType: null, rateLimitReachedType: null,
+			},
+			rateLimitsByLimitId: null, rateLimitResetCredits: null, accountId: null, rateLimitUpsell: null,
+		})), invalidWindows.map(() => undefined));
 	});
 
 	test('falls back when the Codex bucket has no windows', () => {

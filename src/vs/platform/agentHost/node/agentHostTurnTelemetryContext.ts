@@ -5,11 +5,13 @@
 
 import type { IAgent, IAgentChatContext } from '../common/agent.js';
 import type { SessionMode } from '../common/agentHostSchema.js';
+import type { IAgentProviderTurnTelemetryContext } from '../common/agentHostTelemetry.js';
 import { readAgentModelByokIdentifier } from '../common/agentModelByokMeta.js';
 import { SessionConfigKey } from '../common/sessionConfigKeys.js';
 import type { SessionState, URI as ProtocolURI } from '../common/state/sessionState.js';
 import { URI } from '../../../base/common/uri.js';
 import type { AgentHostModelTelemetryKind } from './agentHostTelemetryReporter.js';
+import { getCodexAccountTelemetryData } from './codex/codexAccountTelemetry.js';
 
 export interface IAgentHostTurnTelemetryContext {
 	readonly model: string | undefined;
@@ -17,6 +19,11 @@ export interface IAgentHostTurnTelemetryContext {
 	readonly modelSelectionKind: 'default' | 'auto' | 'explicit';
 	readonly permissionLevel: string | undefined;
 	readonly interactionMode: SessionMode | undefined;
+}
+
+export function captureProviderTurnTelemetryContext(agent: IAgent): IAgentProviderTurnTelemetryContext | undefined {
+	const codex = agent.id === 'codex' ? getCodexAccountTelemetryData(agent.captureTurnTelemetryContext?.().codex) : undefined;
+	return codex ? Object.freeze({ codex: Object.freeze(codex) }) : undefined;
 }
 
 export function getConfiguredSessionMode(config: SessionState['config'] | undefined): SessionMode | undefined {

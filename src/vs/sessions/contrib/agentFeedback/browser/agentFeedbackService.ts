@@ -229,6 +229,9 @@ export interface IAgentFeedbackService {
 	 */
 	getSessionForFile(resourceUri: URI): ISession | undefined;
 
+	/** File changes for the focused chat in the given session. */
+	getChatChanges(sessionResource: URI): readonly ISessionFileChange[];
+
 	/**
 	 * Resolve the feedback scope shown for a file in the current session view, or
 	 * `undefined` when the file is out of scope.
@@ -567,6 +570,14 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 		return session;
 	}
 
+	getChatChanges(sessionResource: URI): readonly ISessionFileChange[] {
+		const activeSession = this._sessionsService.activeSession.get();
+		if (activeSession && isEqual(activeSession.resource, sessionResource)) {
+			return activeSession.activeChat.get().changes.get();
+		}
+		return this._resolveSession(sessionResource)?.mainChat.get().changes.get() ?? [];
+	}
+
 	getFeedbackSessionResource(resourceUri: URI): URI | undefined {
 		const explicitScope = this._explicitResourceScopes.get(resourceUri);
 		if (explicitScope) {
@@ -805,7 +816,7 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 			return false;
 		}
 
-		const changes = session.changes.get();
+		const changes = this.getChatChanges(sessionResource);
 		if (changes.some(change => changeMatchesResource(change, resourceUri))) {
 			return true;
 		}
@@ -825,8 +836,7 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 
 	async revealSessionComment(sessionResource: URI, commentId: string, resourceUri: URI, range: IRange): Promise<void> {
 		const selection = { startLineNumber: range.startLineNumber, startColumn: range.startColumn };
-		const sessionData = this._sessionsManagementService.getSession(sessionResource);
-		const sessionChange = this._getSessionChange(resourceUri, sessionData?.changes.get());
+		const sessionChange = this._getSessionChange(resourceUri, this.getChatChanges(sessionResource));
 
 		if (sessionChange?.isDeletion && sessionChange.originalUri) {
 			await this._editorService.openEditor({

@@ -53,7 +53,13 @@ export const enum LayoutSettings {
 	SHADOWS = 'workbench.shadows',
 	MODERN_UI = 'workbench.experimental.modernUI',
 	MODERN_UI_DENSITY = 'window.density.layout',
+	MODERN_UI_EDITOR_TAB_STYLE = 'workbench.experimental.modernUIEditorTabStyle',
 	MODERN_UI_UPPERCASE_VIEW_HEADERS = 'workbench.experimental.modernUIUppercaseViewHeaders'
+}
+
+export const enum ModernUIEditorTabStyle {
+	Connected = 'connected',
+	Pill = 'pill'
 }
 
 export const enum ModernUIDensity {
@@ -284,9 +290,17 @@ export function getFloatingPaneCompositeHorizontalMargins(layoutService: IWorkbe
 		&& layoutService.isVisible(Parts.ACTIVITYBAR_PART);
 	const leading = meetsActivityBarRail ? FLOATING_PANEL_INNER_MARGIN : margin;
 
+	const panelMeetsRightActivityBar = partId === Parts.PANEL_PART
+		&& isHorizontal(layoutService.getPanelPosition())
+		&& layoutService.getSideBarPosition() === Position.RIGHT
+		&& layoutService.isVisible(Parts.ACTIVITYBAR_PART)
+		&& layoutService.isVisible(Parts.SIDEBAR_PART)
+		&& getFloatingSidebarSiblingToEditorStatus(layoutService).sideBar;
+	const trailing = panelMeetsRightActivityBar ? margin : FLOATING_PANEL_INNER_MARGIN;
+
 	return {
 		left: outerGutter.left ? outerMargin : leading,
-		right: outerGutter.right ? outerMargin : FLOATING_PANEL_INNER_MARGIN,
+		right: outerGutter.right ? outerMargin : trailing,
 	};
 }
 

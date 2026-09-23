@@ -63,7 +63,7 @@ import { IWorkspaceTrustManagementService } from '../../../../platform/workspace
 import { IViewDescriptorService, ViewContainerLocation } from '../../../common/views.js';
 import { toErrorMessage } from '../../../../base/common/errorMessage.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { canShowAgentsBanner, createAgentsBanner } from '../../chat/browser/agentSessions/agentSessionsBanner.js';
+import { createAgentsBanner } from '../../chat/browser/agentSessions/agentSessionsBanner.js';
 
 const configurationKey = 'workbench.startupEditor';
 const MAX_SESSIONS = 6;
@@ -569,6 +569,7 @@ export class AgentSessionsWelcomePage extends EditorPane {
 			createNewChat: () => this.commandService.executeCommand(ACTION_ID_NEW_CHAT, this.chatWidget?.viewModel ? {
 				$mid: MarshalledId.ChatViewContext,
 				sessionResource: this.chatWidget.viewModel.sessionResource,
+				inputUri: this.chatWidget.inputPart.inputUri,
 			} satisfies IChatViewTitleActionContext : undefined),
 			getHoverPosition: () => HoverPosition.BELOW,
 			trackActiveEditorSession: () => false,
@@ -605,20 +606,20 @@ export class AgentSessionsWelcomePage extends EditorPane {
 		}));
 
 		// "Try out the new Agents app" banner
-		if (canShowAgentsBanner(this.chatEntitlementService)) {
-			const agentsBanner = createAgentsBanner(
-				{
-					cssClass: 'agentSessionsWelcome-agentsBanner',
-					source: 'agentSessionsWelcome',
-					label: localize('viewAllSessions', "View All Sessions"),
-					onButtonClick: () => { this._closedBy = 'viewAllSessions'; },
-				},
-				this.commandService,
-				this.telemetryService,
-			);
-			this.sessionsControlDisposables.add(agentsBanner.disposables);
-			append(container, agentsBanner.element);
-		}
+		const agentsBanner = createAgentsBanner(
+			{
+				cssClass: 'agentSessionsWelcome-agentsBanner',
+				source: 'agentSessionsWelcome',
+				label: localize('viewAllSessions', "View All Sessions"),
+				onButtonClick: () => { this._closedBy = 'viewAllSessions'; },
+			},
+			this.commandService,
+			this.telemetryService,
+			this.configurationService,
+			this.chatEntitlementService,
+		);
+		this.sessionsControlDisposables.add(agentsBanner.disposables);
+		append(container, agentsBanner.element);
 	}
 
 	private buildWalkthroughs(container: HTMLElement): void {

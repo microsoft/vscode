@@ -36,7 +36,7 @@ import {
 } from '../common/state/sessionState.js';
 import { getEffectiveWorkingDirectories, IAgentConfigurationService } from './agentConfigurationService.js';
 import { AgentHostStateManager } from './agentHostStateManager.js';
-import { CommandAutoApprover } from './commandAutoApprover.js';
+import { CommandAutoApprover, type CommandApprovalResult } from './commandAutoApprover.js';
 import { resolveAgentHostSession } from '../common/agentHostSubscriptionService.js';
 
 /**
@@ -338,11 +338,7 @@ export class SessionPermissionManager extends Disposable {
 			if (this._configService.getRootValue(platformRootSchema, AgentHostTerminalAutoApproveEnabledConfigKey) === false) {
 				return undefined;
 			}
-			const result = this._commandAutoApprover.shouldAutoApprove(e.toolInput, {
-				autoApproveRules: this._configService.getRootValue(platformRootSchema, AgentHostTerminalAutoApproveRulesConfigKey),
-				isWriteDestApproved: dest => this._isShellWriteDestApproved(dest, workingDirectories),
-				language: e.shellLanguage,
-			});
+			const result = await this._evaluateShellAutoApproval(e.toolInput, e.shellLanguage, workingDirectories);
 			if (result === 'approved') {
 				this._logService.trace('[SessionPermissionManager] Auto-approving shell command');
 				return ToolCallConfirmationReason.NotNeeded;
@@ -409,11 +405,8 @@ export class SessionPermissionManager extends Disposable {
 		if (this._configService.getRootValue(platformRootSchema, AgentHostTerminalAutoApproveEnabledConfigKey) === false) {
 			return false;
 		}
-		const workDirs = getEffectiveWorkingDirectories(this._stateManager, sessionKey);
-		const workingDirectories = workDirs?.map(d => URI.parse(d));
 		return this._commandAutoApprover.evaluate(e.toolInput, {
 			autoApproveRules: this._configService.getRootValue(platformRootSchema, AgentHostTerminalAutoApproveRulesConfigKey),
-			isWriteDestApproved: dest => this._isShellWriteDestApproved(dest, workingDirectories),
 			language: e.shellLanguage,
 		}).autoApproveRuleResolvable;
 	}
@@ -562,18 +555,31 @@ export class SessionPermissionManager extends Disposable {
 	 * rules that govern write tool calls: the destination must resolve to a
 	 * path inside the working directory and must not match a denied glob.
 	 */
-	private _isShellWriteDestApproved(dest: string, workingDirectories: readonly URI[] | undefined): boolean {
+	private async _evaluateShellAutoApproval(toolInput: string, shellLanguage: NonNullable<IToolApprovalEvent['shellLanguage']>, workingDirectories: readonly URI[] | undefined): Promise<CommandApprovalResult> {
+		const writeDestinations: string[] = [];
+		const result = this._commandAutoApprover.shouldAutoApprove(toolInput, {
+			autoApproveRules: this._configService.getRootValue(platformRootSchema, AgentHostTerminalAutoApproveRulesConfigKey),
+			isWriteDestApproved: dest => {
+				writeDestinations.push(dest);
+				return true;
+			},
+			language: shellLanguage,
+		});
+		if (result !== 'approved' || writeDestinations.length === 0) {
+			return result;
+		}
+		const approvals = await Promise.all(writeDestinations.map(dest => this._isShellWriteDestApproved(dest, workingDirectories)));
+		return approvals.every(approved => approved) ? 'approved' : 'noMatch';
+	}
+
+	private async _isShellWriteDestApproved(dest: string, workingDirectories: readonly URI[] | undefined): Promise<boolean> {
 		// A shell command runs in exactly one process cwd = the primary root
 		// (index 0), so a *relative* redirect can only resolve against that cwd.
 		const resource = this._resolveShellRedirectResource(dest, workingDirectories?.[0]);
 		if (!resource) {
 			return false;
 		}
-		// The resolved (absolute) destination auto-approves when contained by
-		// any root — the same "any root" rule as read/write. Unlike read/write,
-		// this path is synchronous and does not resolve symlinks on the
-		// destination (pre-existing behaviour, unchanged here).
-		return (workingDirectories ?? []).some(workingDirectory => this._checkWriteResource(resource, workingDirectory));
+		return this._isEditAutoApproved(resource, workingDirectories);
 	}
 
 	/**

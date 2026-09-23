@@ -19,7 +19,7 @@ import { IFileService } from '../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { IGalleryMcpServer, IMcpGalleryService, IQueryOptions, IInstallableMcpServer, IGalleryMcpServerConfiguration, mcpAccessConfig, McpAccessValue, IAllowedMcpServersService, IMcpGalleryServerResolveResult, McpGalleryResolveStatus } from '../../../../platform/mcp/common/mcpManagement.js';
+import { IGalleryMcpServer, IMcpGalleryService, IQueryOptions, IInstallableMcpServer, IGalleryMcpServerConfiguration, mcpAccessConfig, McpAccessValue, IAllowedMcpServersService, IMcpGalleryServerResolveResult, McpGalleryResolveStatus, replaceMcpServerVariableReferences } from '../../../../platform/mcp/common/mcpManagement.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IMcpDevModeConfig, IMcpRemoteServerConfiguration, IMcpServerConfiguration, IMcpServerVariable, IMcpStdioServerConfiguration, McpServerType } from '../../../../platform/mcp/common/mcpPlatformTypes.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
@@ -43,7 +43,7 @@ import { McpServerEditorInput } from './mcpServerEditorInput.js';
 import { IMcpGalleryManifestService } from '../../../../platform/mcp/common/mcpGalleryManifest.js';
 import { IIterativePager, IIterativePage } from '../../../../base/common/paging.js';
 import { IExtensionsWorkbenchService } from '../../extensions/common/extensions.js';
-import { autorun, runOnChange } from '../../../../base/common/observable.js';
+import { autorun } from '../../../../base/common/observable.js';
 import Severity from '../../../../base/common/severity.js';
 import { ThrottledDelayer } from '../../../../base/common/async.js';
 
@@ -372,16 +372,11 @@ export class McpWorkbenchService extends Disposable implements IMcpWorkbenchServ
 			this._local = this.sort(this._local);
 			this._onChange.fire(undefined);
 		}));
-		this._register(runOnChange(mcpService.servers, () => {
-			this._local = this.sort(this._local);
-			this._onChange.fire(undefined);
-		}));
-
-		// React to enablement changes on individual servers
 		this._register(autorun(reader => {
 			for (const server of mcpService.servers.read(reader)) {
 				server.enablement.read(reader);
 			}
+			this._local = this.sort(this._local);
 			this._onChange.fire(undefined);
 		}));
 	}
@@ -631,7 +626,8 @@ export class McpWorkbenchService extends Disposable implements IMcpWorkbenchServ
 		const userRemote: IWorkbenchLocalMcpServer[] = [];
 		const workspace: IWorkbenchLocalMcpServer[] = [];
 
-		for (const server of this.local) {
+		// Discovery precedence must not depend on runtime-dependent display ordering.
+		for (const server of this.local.toSorted((a, b) => a.name.localeCompare(b.name) || a.id.localeCompare(b.id))) {
 			// Root servers are published independently; exclude them before resolving installed-name precedence.
 			if (server.local?.format === McpResourceFormat.WorkspaceRoot) {
 				continue;
@@ -1068,9 +1064,9 @@ export class McpWorkbenchService extends Disposable implements IMcpWorkbenchServ
 				};
 			}
 
-			// Registry membership is name-based for local configurations; remote URLs must match exactly.
+			// Registry membership is name-based for local configurations; remote URLs must match the raw or converted template.
 			const remoteUrl = mcpServer.local.config.type === McpServerType.REMOTE && mcpServer.local.config.url;
-			if (remoteUrl && !mcpServer.gallery.configuration.remotes?.some(remote => remote.url === remoteUrl)) {
+			if (remoteUrl && !mcpServer.gallery.configuration.remotes?.some(remote => remote.url === remoteUrl || replaceMcpServerVariableReferences(remote.url, remote.variables) === remoteUrl)) {
 				return {
 					state: McpServerEnablementState.DisabledByAccess,
 					message: {

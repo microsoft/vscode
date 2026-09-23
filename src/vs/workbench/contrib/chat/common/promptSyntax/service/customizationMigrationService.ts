@@ -102,6 +102,7 @@ export interface McpServerCustomizationMigration {
 	readonly type: CustomizationMigrationType.McpServers;
 	readonly servers: readonly IMcpServerCustomizationMigrationItem[];
 	readonly candidates: readonly IMcpServerCustomizationMigrationCandidate[];
+	readonly exclusions: readonly IMcpServerCustomizationMigrationExclusion[];
 	/** Whether all lazy MCP collections known to the client have loaded; when false, servers may be missing. */
 	readonly discoveryComplete: boolean;
 	/** Snapshot-wide restrictions that may limit inventory or delivery, independent of per-server support. */
@@ -145,6 +146,10 @@ export interface IMcpServerCustomizationMigrationFailure {
 	readonly error?: Error;
 }
 
+export interface IMcpServerCustomizationMigrationExclusion extends IMcpServerCustomizationMigrationFailure {
+	readonly details: readonly string[];
+}
+
 export interface IMcpServerCustomizationMigrationResult {
 	readonly migratedCount: number;
 	readonly failures: readonly IMcpServerCustomizationMigrationFailure[];
@@ -158,14 +163,9 @@ export function isMcpServerCustomizationMigrationCandidate(candidate: Customizat
 
 export type CustomizationMigration = FileCustomizationMigration | McpServerCustomizationMigration;
 
-export const enum CustomizationMigrationHintTarget {
-	FileMigrations = 'fileMigrations',
-	McpServers = 'mcpServers',
-}
-
 export interface ICustomizationMigrationHint {
+	readonly hintId: string;
 	readonly message: string;
-	readonly target: CustomizationMigrationHintTarget;
 	readonly counts: readonly ICustomizationMigrationCount[];
 }
 

@@ -11,7 +11,7 @@ import { KeyCode, KeyMod } from '../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../base/common/lifecycle.js';
 import './actionWidget.css';
 import { localize, localize2 } from '../../../nls.js';
-import { acceptSelectedActionCommand, ActionList, IActionListDelegate, IActionListItem, IActionListOptions, previewSelectedActionCommand } from './actionList.js';
+import { acceptSelectedActionCommand, ActionList, IActionListDelegate, IActionListItem, IActionListOptions, IActionListUpdateOptions, previewSelectedActionCommand } from './actionList.js';
 import { Action2, registerAction2 } from '../../actions/common/actions.js';
 import { ContextKeyExpr, IContextKeyService, RawContextKey } from '../../contextkey/common/contextkey.js';
 import { IContextViewService } from '../../contextview/browser/contextView.js';
@@ -48,7 +48,12 @@ export interface IActionWidgetService {
 	 * or repositioning it. Preserves the current filter. When `focusItemId` is
 	 * provided, focuses that item; otherwise preserves the focused item.
 	 */
-	updateItems<T>(items: readonly IActionListItem<T>[], focusItemId?: string): void;
+	updateItems<T>(items: readonly IActionListItem<T>[], focusItemId?: string, options?: IActionListUpdateOptions): void;
+
+	/**
+	 * The item currently focused in the shown widget, if any.
+	 */
+	getFocusedElement<T>(): IActionListItem<T> | undefined;
 
 	/**
 	 * Focuses the item with the given id in the currently shown widget, without
@@ -103,8 +108,12 @@ export class ActionWidgetService extends Disposable implements IActionWidgetServ
 		this._list.value?.acceptSelected(preview);
 	}
 
-	updateItems<T>(items: readonly IActionListItem<T>[], focusItemId?: string): void {
-		(this._list.value as ActionList<T> | undefined)?.updateItems(items, focusItemId);
+	updateItems<T>(items: readonly IActionListItem<T>[], focusItemId?: string, options?: IActionListUpdateOptions): void {
+		(this._list.value as ActionList<T> | undefined)?.updateItems(items, focusItemId, options);
+	}
+
+	getFocusedElement<T>(): IActionListItem<T> | undefined {
+		return (this._list.value as ActionList<T> | undefined)?.getFocusedElement();
 	}
 
 	focusItemById(itemId: string): void {
@@ -212,6 +221,10 @@ export class ActionWidgetService extends Disposable implements IActionWidgetServ
 		if (headerContainer) {
 			renderDisposables.add(dom.addDisposableGenericMouseDownListener(headerContainer, e => e.preventDefault()));
 		}
+		let suppressBlurHideUntil = 0;
+		renderDisposables.add(dom.addDisposableGenericMouseDownListener(widget, () => {
+			suppressBlurHideUntil = Date.now() + 1000;
+		}));
 
 		// Invisible div to block mouse interaction in the rest of the UI
 		const menuBlock = document.createElement('div');
@@ -243,13 +256,23 @@ export class ActionWidgetService extends Disposable implements IActionWidgetServ
 		}
 
 		const focusTracker = renderDisposables.add(dom.trackFocus(element));
+		const pendingBlurHide = renderDisposables.add(new MutableDisposable<IDisposable>());
+		renderDisposables.add(focusTracker.onDidFocus(() => pendingBlurHide.clear()));
 		renderDisposables.add(focusTracker.onDidBlur(() => {
-			// Don't hide if focus moved to a hover or submenu that belongs to this action widget
-			const activeElement = dom.getActiveElement();
-			if (activeElement?.closest('.action-widget-hover') || activeElement?.closest('.action-list-submenu-panel')) {
-				return;
-			}
-			this.hide(true);
+			const runBlurHide = () => {
+				const remainingSuppression = suppressBlurHideUntil - Date.now();
+				if (remainingSuppression > 0) {
+					pendingBlurHide.value = disposableTimeout(runBlurHide, remainingSuppression);
+					return;
+				}
+				// Don't hide if focus moved to a hover or submenu that belongs to this action widget
+				const activeElement = dom.getActiveElement();
+				if (activeElement && (element.contains(activeElement) || activeElement.closest('.action-widget-hover') || activeElement.closest('.action-list-submenu-panel'))) {
+					return;
+				}
+				this.hide(true);
+			};
+			pendingBlurHide.value = disposableTimeout(runBlurHide, 75);
 		}));
 
 		return renderDisposables;
