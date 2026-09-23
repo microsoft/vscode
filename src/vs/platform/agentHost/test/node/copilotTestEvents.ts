@@ -70,7 +70,7 @@ export interface ISessionEventMessage {
 		messageId?: string;
 		interactionId?: string;
 		content?: string;
-		toolRequests?: readonly { toolCallId: string; name: string; arguments?: unknown; type?: 'function' | 'custom'; mcpServerName?: string; mcpToolName?: string; toolDescription?: unknown }[];
+		toolRequests?: readonly { toolCallId: string; name: string; arguments?: unknown; type?: 'function' | 'custom'; mcpServerName?: string; mcpToolName?: string; toolTitle?: string; toolDescription?: unknown }[];
 		reasoningOpaque?: string;
 		reasoningText?: string;
 		encryptedContent?: string;

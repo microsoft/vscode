@@ -36,7 +36,9 @@ export function spawnTsgo(projectPath: string, config: { taskName: string; noEmi
 
 	const args = [ts7TscPath, '--project', projectPath, '--pretty', 'false', '--incremental'];
 	if (config.noEmit) {
-		args.push('--noEmit');
+		// Emitting builds delete their build info before compiling, so concurrent type checks need a separate cache.
+		const tsBuildInfoFile = path.join(path.dirname(projectPath), `${path.basename(projectPath, '.json')}.typecheck.tsbuildinfo`);
+		args.push('--noEmit', '--tsBuildInfoFile', tsBuildInfoFile);
 	} else {
 		args.push('--sourceMap', '--inlineSources');
 	}

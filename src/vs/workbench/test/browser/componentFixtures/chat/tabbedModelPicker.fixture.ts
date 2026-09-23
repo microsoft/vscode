@@ -516,7 +516,17 @@ export default defineThemedFixtureGroup({ path: 'chat/input/tabbedModelPicker' }
 		}),
 	}),
 	PickerAnchoredAutoSelected: defineComponentFixture({
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
 		render: context => renderPicker(context, { anchored: true, selectedModelId: AUTO_MODEL.identifier }),
+	}),
+	PickerAutoCollapse: defineComponentFixture({
+		render: context => renderPicker(context, { anchored: true, motionReduced: false }),
+	}),
+	PickerAutoCollapseReducedMotion: defineComponentFixture({
+		render: context => {
+			context.container.classList.add('monaco-reduce-motion');
+			return renderPicker(context, { anchored: true, motionReduced: true });
+		},
 	}),
 	Picker: defineComponentFixture({ render: context => renderPicker(context, { models: COPILOT_ONLY_MODELS }) }),
 	PickerWithAddedModels: defineComponentFixture({ render: context => renderPicker(context) }),

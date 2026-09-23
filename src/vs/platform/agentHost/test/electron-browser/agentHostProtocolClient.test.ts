@@ -25,6 +25,7 @@ import { buildAnnotationsUri } from '../../common/annotationsUri.js';
 import { ConfigurationTarget, type IConfigurationValue } from '../../../configuration/common/configuration.js';
 import { ContentEncoding, ReconnectResultType } from '../../common/state/protocol/commands.js';
 import { ChatSourceKind } from '../../common/state/protocol/channels-chat/commands.js';
+import { ChatInteractivity } from '../../common/state/protocol/state.js';
 import { AhpErrorCodes, JsonRpcErrorCodes } from '../../common/state/protocol/errors.js';
 import { PROTOCOL_VERSION, SUPPORTED_PROTOCOL_VERSIONS } from '../../common/state/protocol/version/registry.js';
 import { ActionType, type ChatTurnCompleteAction, type ChatTurnStartedAction, type SessionActiveClientSetAction, type SessionActiveClientRemovedAction, type SessionTitleChangedAction } from '../../common/state/sessionActions.js';
@@ -686,6 +687,11 @@ suite('AgentHostProtocolClient', () => {
 					createdAt: new Date(1000).toISOString(),
 					modifiedAt: new Date(2000).toISOString(),
 					workingDirectories: [URI.file('/home/user/.copilot/chats/quick-1').toString()],
+					chats: [
+						{ resource: 'agent-chat://copilotcli/quick-1/default', title: 'Quick Chat' },
+						{ resource: 'agent-chat://copilotcli/quick-1/peer', title: 'Peer Chat', interactivity: ChatInteractivity.Hidden },
+					],
+					defaultChat: 'agent-chat://copilotcli/quick-1/default',
 					_meta: withSessionWorkspaceless(undefined, true),
 				}],
 			},
@@ -696,10 +702,15 @@ suite('AgentHostProtocolClient', () => {
 			workspaceless: readSessionWorkspaceless(s._meta),
 			workingDirectory: s.workingDirectory,
 			workingDirectories: s.workingDirectories,
+			chats: s.chats?.map(chat => ({ ...chat, chat: chat.chat.toString() })),
 		})), [{
 			workspaceless: true,
 			workingDirectory: toAgentHostUri(URI.file('/home/user/.copilot/chats/quick-1'), agentHostAuthority('test.example:1234')),
 			workingDirectories: [toAgentHostUri(URI.file('/home/user/.copilot/chats/quick-1'), agentHostAuthority('test.example:1234'))],
+			chats: [
+				{ chat: 'agent-chat://copilotcli/quick-1/default', summary: 'Quick Chat', kind: 'default', origin: undefined },
+				{ chat: 'agent-chat://copilotcli/quick-1/peer', summary: 'Peer Chat', kind: 'peer', origin: undefined, interactivity: ChatInteractivity.Hidden },
+			],
 		}]);
 	});
 

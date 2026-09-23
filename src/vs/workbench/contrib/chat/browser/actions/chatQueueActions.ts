@@ -18,7 +18,7 @@ import { ChatRequestQueueKind, IChatService } from '../../common/chatService/cha
 import { IChatSideChatService } from '../../common/chatSideChatService.js';
 import { ChatConfiguration } from '../../common/constants.js';
 import { isRequestVM } from '../../common/model/chatViewModel.js';
-import { IChatWidgetService } from '../chat.js';
+import { IChatWidgetService, unwrapChatContextMenuActionContext } from '../chat.js';
 import { captureSideChatSelection } from '../chatSideChat.js';
 import { CHAT_CATEGORY } from './chatActions.js';
 
@@ -357,7 +357,7 @@ export class ChatRemoveAllPendingRequestsAction extends Action2 {
 	override run(accessor: ServicesAccessor, ...args: unknown[]): void {
 		const chatService = accessor.get(IChatService);
 		const widgetService = accessor.get(IChatWidgetService);
-		const [context] = args;
+		const context = unwrapChatContextMenuActionContext(args[0]);
 
 		const widget = (isRequestVM(context) && widgetService.getWidgetBySessionResource(context.sessionResource)) || widgetService.lastFocusedWidget;
 		const model = widget?.viewModel?.model;

@@ -10,9 +10,15 @@ Shared Agent Host adaptation is specified in [AGENT_HOST_SESSIONS_PROVIDER.md](.
 
 ## Registration
 
-Kind-specific contributions create and register one provider for each remote host they own, disposing it when that host is removed. `RemoteAgentHostContribution` observes connections for shared filesystem, agent-discovery, model, terminal, and authentication wiring.
+Kind-specific contributions create and register one provider for each remote host they own, disposing it when that host is removed. The workbench-owned [RemoteAgentHostContribution](../../../../workbench/contrib/chat/browser/remoteAgentHost/remoteAgentHostChatContribution.ts) observes connections for shared filesystem, agent-discovery, model, terminal, and authentication wiring. The Agents Window owns host management and its native provider adapters; the Editor Window uses this shared integration for cloud sandboxes.
 
 Agent discovery is dynamic. Changes to a host's advertised agents update the provider's session types without recreating the provider.
+
+Both windows use [CloudSandboxSessionContribution](../../../../workbench/contrib/chat/browser/remoteAgentHost/cloudSandboxSessionContribution.ts) for sandbox discovery, connection-on-open, and offline history. Each supplies its own session-list adapter. The Editor adapter lists existing authorized sessions independently of the local workspace and groups their filters under Cloud; opening one preserves its host and session identity and does not provision a replacement. Sandbox creation remains an Agents Window operation.
+
+Sandbox session discovery is window-owned and does not establish host connections. A full refresh reconciles absent disconnected environments; incremental refreshes retain absent entries and reconcile only explicitly removed or replaced tasks. Both preserve connected and provisioning environments. Failed or cancelled scans must not advance incremental discovery progress.
+
+The sandbox contribution saves a minimal discovery inventory in machine-local profile storage, separately for each authentication provider and account. Once the current account is known, it restores providers and cached rows before awaiting network discovery, without waking environments. Failed or partial discovery retains unconfirmed entries. Account changes remove the previous account's providers; credential refreshes for the same account preserve them. No credentials are stored in the inventory.
 
 ## Identity
 
@@ -28,6 +34,10 @@ Remote sessions use separate logical and routing identities:
 Copilot agents may share a logical session type with local and cloud Copilot providers while retaining a connection-specific resource scheme. Other agents use a connection-specific logical type.
 
 Never use the logical session type where host-specific routing is required. Resource schemes and provider IDs are created through the shared Agent Host identifier helpers rather than hand-built strings.
+
+In the Editor Window, a chat session contribution's `sessionListGroup` selects its provider filter without changing its controller, resource scheme, or content-provider routing. Disconnected discovery supplies activity, not authoritative read/archive flags or proof that the host is available.
+
+Both sandbox adapters let fresh discovery update disk-cached activity while preserving host-owned workspace information and user flags. Host-reported activity takes precedence over discovery for the rest of that adapter's lifetime, including after disconnection; older discovery responses cannot replace a newer discovery result. The Agents Window's persisted discovery baselines let title, timestamp, and project fields continue to refresh until the host changes them. Missing activity does not clear a previously reported status. Sandbox connection availability and read-only interactivity remain separate from conversation activity, so disconnection does not turn a reported input request into a conversation error.
 
 ## Host groups
 
@@ -48,7 +58,7 @@ Grouping changes these behaviors:
 
 The remote Agent Host service owns protocol connection construction, handshake classification, status, retry, and disposal.
 
-`RemoteAgentHostContribution` owns the workbench integration for a live connection: remote filesystem browsing, agent and model discovery, terminals, authentication, and connection-scoped listener disposal.
+`RemoteAgentHostContribution` owns the workbench integration for a live connection: remote filesystem browsing, agent and model discovery, terminals, authentication, and connection-scoped listener disposal. Authentication readiness is shared by address independently of either window's provider objects; session-list adapters observe it before loading host data.
 
 Transport-specific callers own discovery, on-demand staging, credentials, and connection leases. They stage
 their context by address, request an explicit reconnect, and wait for the service to report the connection.
