@@ -3339,13 +3339,25 @@ suite('AgentService (node dispatcher)', () => {
 			const agent = new MockAgent('copilot');
 			disposables.add(toDisposable(() => agent.dispose()));
 			registerTestAgentProvider(svc, agent);
-			const session = await svc.createSession({ provider: 'copilot', config: { [SessionConfigKey.AgentMergeFolders]: { 'file:///repo': { enabled: true } } } });
+			const other = URI.file('/Other').toString();
+			const session = await svc.createSession({
+				provider: 'copilot',
+				workingDirectories: [URI.file('/repo')],
+				config: { [SessionConfigKey.AgentMergeFolders]: { 'file:///repo': { enabled: true } } },
+			});
+			getStateManager(svc).addChat(session.toString(), buildChatUri(session, 'peer'), { workingDirectories: [other] });
 			const envelopePromise = Event.toPromise(Event.filter(svc.onDidAction, envelope => envelope.origin?.clientSeq === 1));
 
-			// A client sends only the folder it changes, by working directory; a chat of another session is dropped.
+			// A client sends only the folders it changes, by working directory. A chat
+			// of another session, and a folder that is not the session's, are dropped.
 			svc.dispatchAction(session.toString(), {
 				type: ActionType.SessionConfigChanged,
-				config: { [SessionConfigKey.AgentMergeFolders]: { 'file:///Other': { enabled: true, chat: 'copilot:/another-session#chat' } } },
+				config: {
+					[SessionConfigKey.AgentMergeFolders]: {
+						[other]: { enabled: true, chat: 'copilot:/another-session#chat' },
+						[URI.file('/unrelated').toString()]: { enabled: true },
+					},
+				},
 			}, 'agents-window-client', 1, AgentHostClientType.AgentsWindow);
 			const envelope = await envelopePromise;
 
@@ -3356,7 +3368,7 @@ suite('AgentService (node dispatcher)', () => {
 				rejectionReason: undefined,
 				folders: {
 					'file:///repo': { enabled: true },
-					[getWorkingDirectoryKey('file:///Other')]: { enabled: true },
+					[getWorkingDirectoryKey(other)]: { enabled: true },
 				},
 			});
 		});

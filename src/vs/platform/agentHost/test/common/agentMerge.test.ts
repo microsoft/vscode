@@ -367,7 +367,7 @@ suite('Agent Merge gate', () => {
 		});
 	});
 
-	test('merges a client write into the other folders, keying it on the host and dropping a foreign chat', () => {
+	test('merges a client write into the other folders, keying it on the host and dropping foreign folders and chats', () => {
 		const values = {
 			[SessionConfigKey.AgentMergeFolders]: {
 				'file:///repo': { enabled: false, overrides: { fixCI: false } },
@@ -378,7 +378,8 @@ suite('Agent Merge gate', () => {
 			'file:///other': { enabled: false, chat: 'copilot:/session#peer' },
 			'file:///third': { enabled: true, chat: 'copilot:/another-session#chat' },
 			'file:///invalid': { enabled: 'yes' },
-		}, chat => chat === 'copilot:/session#peer');
+			'file:///unrelated': { enabled: true },
+		}, folderKey => folderKey !== 'file:///unrelated', chat => chat === 'copilot:/session#peer');
 
 		assert.deepStrictEqual(merged, {
 			'file:///repo': { enabled: false, overrides: { fixCI: false } },

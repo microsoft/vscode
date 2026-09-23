@@ -6713,7 +6713,13 @@ export class AgentService extends Disposable implements IAgentService {
 	private _withMergedClientAgentMergeFolders(session: string, action: SessionConfigChangedAction): SessionConfigChangedAction {
 		const state = this._stateManager.getSessionState(session);
 		const defaultChat = buildDefaultChatUri(session);
+		// The session's folders and each chat's, as a chat may work in a folder the session was not created with.
+		const sessionFolders = new Set([
+			...this._stateManager.getSessionSummary(session)?.workingDirectories ?? [],
+			...state?.chats.flatMap(chat => chat.workingDirectories ?? []) ?? [],
+		].map(getWorkingDirectoryKey));
 		const folders = mergeClientAgentMergeFolders(state?.config?.values, action.config[SessionConfigKey.AgentMergeFolders],
+			folderKey => sessionFolders.has(folderKey),
 			chat => chat === defaultChat || state?.chats.some(candidate => candidate.resource === chat) === true);
 		return { ...action, config: { ...action.config, [SessionConfigKey.AgentMergeFolders]: folders } };
 	}

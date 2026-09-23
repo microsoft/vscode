@@ -317,6 +317,10 @@ export const agentMergeDisableReasons = {
 		log: 'the pull request was already merged',
 		notice: localize('agentMerge.disabled.pullRequestAlreadyMerged', "Pull request [#{0}]({1}) was merged. Agent Merge is now disabled.", pullRequestNumber, pullRequestUrl),
 	}),
+	folderWithoutChat: (): AgentMergeDisableReason => ({
+		log: 'no chat of the session works in the folder any more',
+		notice: localize('agentMerge.disabled.folderWithoutChat', "Agent Merge was disabled for a folder because no chat in this session works in it any more."),
+	}),
 	repairBudgetExhausted: (): AgentMergeDisableReason => ({
 		log: 'the same pull request blockers remained after repeated repair attempts',
 		notice: localize('agentMerge.disabled.repairBudgetExhausted', "Agent Merge was disabled because the same pull request blockers remained after repeated repair attempts."),
@@ -630,18 +634,20 @@ export function withAgentMergeFolderControllerState(values: Record<string, unkno
  * ones, entry by entry. A client sends only the folders it changes, so the
  * other folders' settings, including changes the host made meanwhile, stay as
  * they are. A client sends each folder's working directory, as it cannot
- * derive the host's keys, so keys are derived here. A `chat` that is not one
- * of the session's chats is dropped.
+ * derive the host's keys, so keys are derived here. An entry for a folder
+ * that is not one of the session's is dropped, and so is a `chat` that is not
+ * one of the session's chats.
  */
-export function mergeClientAgentMergeFolders(values: Record<string, unknown> | undefined, clientFolders: unknown, isSessionChat: (chat: ProtocolURI) => boolean): Record<string, unknown> {
+export function mergeClientAgentMergeFolders(values: Record<string, unknown> | undefined, clientFolders: unknown, isSessionFolder: (folderKey: string) => boolean, isSessionChat: (chat: ProtocolURI) => boolean): Record<string, unknown> {
 	const merged = new Map<string, unknown>(readRecordMap(values?.[SessionConfigKey.AgentMergeFolders]));
 	for (const [workingDirectory, entry] of readRecordMap(clientFolders)) {
 		const state = readFolderClientState(entry);
-		if (!state) {
+		const folderKey = getWorkingDirectoryKey(workingDirectory);
+		if (!state || !isSessionFolder(folderKey)) {
 			continue;
 		}
 		const { chat, ...settings } = state;
-		merged.set(getWorkingDirectoryKey(workingDirectory), { ...settings, ...(chat && isSessionChat(chat) ? { chat } : {}) });
+		merged.set(folderKey, { ...settings, ...(chat && isSessionChat(chat) ? { chat } : {}) });
 	}
 	return Object.fromEntries(merged);
 }

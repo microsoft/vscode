@@ -520,8 +520,12 @@ export class AgentMergeController extends Disposable {
 		const agentMerge = readAgentMergeFolderState(state?.config?.values, runtime?.folderKey, this._sessionFolderKey(state));
 		const chat = runtime ? this._resolveOwningChat(session, runtime.folderKey, agentMerge) : undefined;
 		if (runtime && agentMerge?.enabled && !chat) {
-			// Waits for a chat to work in the folder again rather than repairing from another checkout.
-			this._logService.trace(`[AgentMergeController] Waiting for a chat working in the folder: session=${session}, folder=${runtime.folderKey}`);
+			// Never repairs from another folder's checkout.
+			if (this._isFolderWithoutChats(session, runtime.folderKey)) {
+				this._disable(session, runtime.folderKey, agentMerge, agentMergeDisableReasons.folderWithoutChat());
+				return;
+			}
+			this._logService.trace(`[AgentMergeController] Waiting for the folder's chat to load: session=${session}, folder=${runtime.folderKey}`);
 			runtime.backstopScheduler.schedule();
 			return;
 		}
@@ -1346,6 +1350,22 @@ export class AgentMergeController extends Disposable {
 			}
 		}
 		return undefined;
+	}
+
+	/**
+	 * Whether no chat of the session works in a folder, by the chats' summaries,
+	 * which are known even before a chat's own state has loaded. The default
+	 * chat always works in the session folder.
+	 */
+	private _isFolderWithoutChats(session: string, folderKey: string): boolean {
+		const state = this._stateManager.getSessionState(session.toString());
+		if (!state || folderKey === this._sessionFolderKey(state)) {
+			return false;
+		}
+		return !state.chats.some(chat => {
+			const workingDirectory = chat.workingDirectories?.[0];
+			return workingDirectory !== undefined && getWorkingDirectoryKey(workingDirectory) === folderKey;
+		});
 	}
 
 	private _chatWorksInFolder(chat: string, folderKey: string): boolean {

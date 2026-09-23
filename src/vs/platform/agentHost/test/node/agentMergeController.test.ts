@@ -438,6 +438,19 @@ suite('AgentMergeController', () => {
 		});
 	});
 
+	test('turns Agent Merge off for a folder no chat works in any more', async () => {
+		const { stateManager, configurationService, session, peerChat, otherKey, startTurns } = createPeerRepairHarness(disposables);
+		configurationService.updateSessionConfig(session, {
+			[SessionConfigKey.AgentMergeFolders]: { [otherKey]: { enabled: true, chat: peerChat } },
+		});
+		stateManager.removeChat(session, peerChat);
+		const disabled = Event.toPromise(Event.filter(stateManager.onDidChangeSessionConfig, event => readAgentMergeFolderState(event.current?.values, otherKey, undefined)?.enabled === false));
+		stateManager.dispatchServerAction(session, { type: ActionType.SessionReady });
+		await disabled;
+
+		assert.deepStrictEqual(startTurns, []);
+	});
+
 	test('keeps a setting the user changes while Agent Merge runs', () => {
 		const { stateManager, configurationService, session } = createControllerHarness(disposables);
 		configurationService.updateSessionConfig(session, {
