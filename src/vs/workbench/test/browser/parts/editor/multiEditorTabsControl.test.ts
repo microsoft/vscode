@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { $, Dimension, EventType, ModifierKeyEmitter, scheduleAtNextAnimationFrame } from '../../../../../base/browser/dom.js';
+import { $, Dimension, EventType, ModifierKeyEmitter, reset, scheduleAtNextAnimationFrame } from '../../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { Event } from '../../../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
@@ -13,14 +13,15 @@ import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { TreeViewsDnDService } from '../../../../../editor/common/services/treeViewsDnd.js';
 import { ITreeViewsDnDService } from '../../../../../editor/common/services/treeViewsDndService.js';
-import { DEFAULT_EDITOR_PART_OPTIONS, IEditorGroupsView, IEditorGroupView, IEditorPartsView } from '../../../../browser/parts/editor/editor.js';
+import { IMenu, IMenuService, MenuId, MenuItemAction } from '../../../../../platform/actions/common/actions.js';
+import { DEFAULT_EDITOR_PART_OPTIONS, IEditorGroupMenuIds, IEditorGroupsView, IEditorGroupView, IEditorPartsView } from '../../../../browser/parts/editor/editor.js';
 import { MultiEditorTabsControl } from '../../../../browser/parts/editor/multiEditorTabsControl.js';
 import { EditorInputCapabilities, EditorsOrder, IEditorPartOptions } from '../../../../common/editor.js';
 import { EditorGroupModel } from '../../../../common/editor/editorGroupModel.js';
 import { EditorInput } from '../../../../common/editor/editorInput.js';
 import { IHostService } from '../../../../services/host/browser/host.js';
 import { INotebookDocumentService, NotebookDocumentWorkbenchService } from '../../../../services/notebook/common/notebookDocumentService.js';
-import { TestFileEditorInput, TestHostService, workbenchInstantiationService } from '../../workbenchTestServices.js';
+import { TestFileEditorInput, TestHostService, TestMenuService, workbenchInstantiationService } from '../../workbenchTestServices.js';
 import '../../../../contrib/modernUI/browser/media/tabs.css';
 import '../../../../contrib/modernUI/browser/connectedEditorTabs.js';
 
@@ -33,6 +34,7 @@ suite('MultiEditorTabsControl', () => {
 	let control: MultiEditorTabsControl;
 	let partOptions: IEditorPartOptions;
 	let model: EditorGroupModel;
+	let createControl: (menuIds?: IEditorGroupMenuIds) => MultiEditorTabsControl;
 
 	setup(() => {
 		disposables = new DisposableStore();
@@ -94,8 +96,25 @@ suite('MultiEditorTabsControl', () => {
 		container = $('.title.tabs');
 		mainWindow.document.body.appendChild(container);
 
-		control = disposables.add(instantiationService.createInstance(MultiEditorTabsControl, container, editorPartsView, groupsView, groupView, model, undefined, false, false));
-		control.openEditors(model.getEditors(EditorsOrder.SEQUENTIAL));
+		createControl = menuIds => {
+			if (menuIds?.tabsBarAddTab) {
+				instantiationService.stub(IMenuService, new class extends TestMenuService {
+					override createMenu(id: MenuId): IMenu {
+						return {
+							onDidChange: Event.None,
+							dispose: () => { },
+							getActions: options => id === menuIds.tabsBarAddTab ? [['navigation', [
+								instantiationService.createInstance(MenuItemAction, { id: 'test.connectedTabs.newEditor', title: 'New Editor' }, undefined, options, undefined, undefined),
+							]]] : [],
+						};
+					}
+				}());
+			}
+			const control = disposables.add(instantiationService.createInstance(MultiEditorTabsControl, container, editorPartsView, groupsView, groupView, model, menuIds, false, false));
+			control.openEditors(model.getEditors(EditorsOrder.SEQUENTIAL));
+			return control;
+		};
+		control = createControl();
 	});
 
 	teardown(() => {
@@ -150,6 +169,62 @@ suite('MultiEditorTabsControl', () => {
 		control.layout({ container: new Dimension(width, 33), available: new Dimension(width, 300) });
 		await new Promise<void>(resolve => disposables.add(scheduleAtNextAnimationFrame(mainWindow, () => resolve())));
 	}
+
+	test('keeps connected layout current when an Add Tab toolbar follows the editor tabs', async () => {
+		const group = connectedGroup();
+		group.closest('.monaco-workbench')!.classList.remove('modern-ui');
+		const editors = model.getEditors(EditorsOrder.SEQUENTIAL);
+		for (const editor of editors) {
+			model.closeEditor(editor);
+		}
+		control.dispose();
+		reset(container);
+		const menuId = MenuId.for('test.connectedTabs.addTab');
+		control = createControl({ tabsBarAddTab: menuId });
+		await layoutConnectedGroup(group, 600);
+		const emptyHeight = control.getHeight();
+		for (const [index, editor] of editors.entries()) {
+			model.openEditor(editor, { pinned: true, active: index === 0 });
+		}
+		control.openEditors(editors);
+
+		const results = [];
+		for (const tabHeight of ['default', 'compact'] as const) {
+			const oldOptions = partOptions;
+			partOptions = { ...partOptions, tabHeight };
+			control.updateOptions(oldOptions, partOptions);
+			for (const width of [600, 220, 600]) {
+				await layoutConnectedGroup(group, width);
+				const row = container.querySelector<HTMLElement>('.tabs-and-actions-container')!;
+				const addTab = container.querySelector<HTMLElement>('.tabs-bar-add-tab')!;
+				const tabs = Array.from(container.querySelectorAll<HTMLElement>('.tabs-container > .tab'));
+				results.push({
+					tabHeight,
+					width,
+					cachedHeight: control.getHeight(),
+					renderedHeight: row.offsetHeight,
+					measuredEditors: tabs.every(tab => parseFloat(tab.style.getPropertyValue('--connected-tab-min-width')) > 0),
+					addTab: {
+						visible: !addTab.classList.contains('hidden'),
+						isLast: addTab === addTab.parentElement!.lastElementChild,
+						measuredWidth: addTab.style.getPropertyValue('--connected-tab-min-width'),
+						upperRow: addTab.classList.contains('connected-tab-upper-row'),
+					},
+				});
+			}
+		}
+		assert.deepStrictEqual({ emptyHeight, results }, {
+			emptyHeight: 0,
+			results: ['default', 'compact'].flatMap(tabHeight => [600, 220, 600].map(width => ({
+				tabHeight,
+				width,
+				cachedHeight: tabHeight === 'compact' ? 29 : 33,
+				renderedHeight: tabHeight === 'compact' ? 29 : 33,
+				measuredEditors: true,
+				addTab: { visible: true, isLast: true, measuredWidth: '', upperRow: false },
+			}))),
+		});
+	});
 
 	test('connected minimum width preserves basename ellipsis extension badge and action', async () => {
 		const group = connectedGroup();

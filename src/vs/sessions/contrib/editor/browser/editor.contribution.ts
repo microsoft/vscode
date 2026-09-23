@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import '../../../../workbench/contrib/modernUI/browser/media/tabs.css';
+import '../../../../workbench/contrib/modernUI/browser/connectedEditorTabs.js';
 import './media/editorBreadcrumbs.css';
 import './media/editorHeader.css';
 import '../../../../workbench/services/themes/browser/modernTabColorCustomizations.js';
@@ -13,6 +14,7 @@ import { localize2 } from '../../../../nls.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { getWindow } from '../../../../base/browser/dom.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ServicesAccessor } from '../../../../editor/browser/editorExtensions.js';
@@ -36,7 +38,8 @@ import { MultiDiffEditorInput } from '../../../../workbench/contrib/multiDiffEdi
 import { CHANGES_VIEW_ID } from '../../changes/common/changes.js';
 import { ChangesViewPane } from '../../changes/browser/changesView.js';
 import { prepareMoveCopyEditors } from '../../../../workbench/browser/parts/editor/editor.js';
-import { Parts } from '../../../../workbench/services/layout/browser/layoutService.js';
+import { IWorkbenchLayoutService, LayoutSettings, ModernUIEditorTabStyle, Parts } from '../../../../workbench/services/layout/browser/layoutService.js';
+import { IAuxiliaryWindowService } from '../../../../workbench/services/auxiliaryWindow/browser/auxiliaryWindowService.js';
 import { MOVE_MODAL_EDITOR_TO_MAIN_COMMAND_ID } from '../../../../workbench/browser/parts/editor/editorCommands.js';
 import { TERMINAL_VIEW_ID } from '../../../../workbench/contrib/terminal/common/terminal.js';
 import { TEXT_FILE_EDITOR_ID } from '../../../../workbench/contrib/files/common/files.js';
@@ -46,6 +49,49 @@ import { SessionsCategories } from '../../../common/categories.js';
 import { IChangesViewService } from '../../changes/common/changesViewService.js';
 
 const terminalPanelHiddenForMaximizedEditor = new WeakSet<IAgentWorkbenchLayoutService>();
+
+export class SessionsTabStyleContribution extends Disposable implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.sessions.tabStyle';
+
+	constructor(
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
+		@IAuxiliaryWindowService private readonly auxiliaryWindowService: IAuxiliaryWindowService,
+	) {
+		super();
+		for (const container of this.layoutService.containers) {
+			this.applyTo(container);
+		}
+		this._register(this.layoutService.onDidAddContainer(({ container }) => this.applyTo(container)));
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(LayoutSettings.MODERN_UI_EDITOR_TAB_STYLE)) {
+				for (const container of this.layoutService.containers) {
+					this.applyTo(container);
+				}
+				this.layoutService.layout();
+				for (const container of this.layoutService.containers) {
+					if (container !== this.layoutService.mainContainer) {
+						this.auxiliaryWindowService.getWindow(getWindow(container).vscodeWindowId)?.layout();
+					}
+				}
+			}
+		}));
+	}
+
+	private applyTo(container: HTMLElement): void {
+		container.classList.toggle('modern-ui-connected-editor-tabs', this.configurationService.getValue<ModernUIEditorTabStyle>(LayoutSettings.MODERN_UI_EDITOR_TAB_STYLE) === ModernUIEditorTabStyle.Connected);
+	}
+
+	override dispose(): void {
+		for (const container of this.layoutService.containers) {
+			container.classList.remove('modern-ui-connected-editor-tabs');
+		}
+		super.dispose();
+	}
+}
+
+registerWorkbenchContribution2(SessionsTabStyleContribution.ID, SessionsTabStyleContribution, WorkbenchPhase.BlockStartup);
 
 // The pop-out-to-modal and close-editor-area buttons do not apply to the single-pane
 // redesign, so they are hidden when single-pane is enabled (original layout keeps them).

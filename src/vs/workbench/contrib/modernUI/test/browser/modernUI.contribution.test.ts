@@ -2309,10 +2309,12 @@ suite('ModernUIContribution', () => {
 		name.textContent = 'main.ts';
 		const breadcrumbs = appendElement(title, 'breadcrumbs-below-tabs');
 		breadcrumbs.style.height = '22px';
+		const header = appendElement(title, 'editor-group-header');
+		header.style.height = '32px';
 		const body = appendElement(group, 'editor-container');
 		body.style.height = '240px';
 		const targetWindow = getWindow(root);
-		const geometry = () => [row, tab, fill, label, breadcrumbs, body].map(element => {
+		const geometry = () => [row, tab, fill, label, breadcrumbs, header, body].map(element => {
 			const bounds = element.getBoundingClientRect();
 			return [bounds.x, bounds.y, bounds.width, bounds.height];
 		});
@@ -2333,6 +2335,7 @@ suite('ModernUIContribution', () => {
 				const border = highContrast ? (active ? 'rgb(255, 170, 0)' : 'rgb(136, 136, 136)') : 'rgb(51, 51, 51)';
 				const frame = targetWindow.getComputedStyle(body, '::after');
 				const breadcrumbFrame = targetWindow.getComputedStyle(breadcrumbs, '::after');
+				const headerFrame = targetWindow.getComputedStyle(header, '::after');
 				assert.deepStrictEqual({
 					geometry: geometry(),
 					cap: [targetWindow.getComputedStyle(fill).borderTopColor, targetWindow.getComputedStyle(fill).borderLeftColor],
@@ -2340,6 +2343,7 @@ suite('ModernUIContribution', () => {
 					separator: targetWindow.getComputedStyle(row, '::after').backgroundColor,
 					frame: [frame.borderLeftWidth, frame.borderBottomWidth, frame.borderTopWidth, frame.borderLeftColor, frame.pointerEvents],
 					breadcrumbs: [breadcrumbFrame.borderLeftWidth, breadcrumbFrame.borderBottomWidth, breadcrumbFrame.borderLeftColor],
+					header: [headerFrame.borderLeftWidth, headerFrame.borderBottomWidth, headerFrame.borderLeftColor, targetWindow.getComputedStyle(header).backgroundColor],
 				}, {
 					geometry: baseline,
 					cap: [border, border],
@@ -2347,6 +2351,7 @@ suite('ModernUIContribution', () => {
 					separator: border,
 					frame: ['1px', '1px', '0px', highContrast ? border : 'rgba(0, 0, 0, 0)', 'none'],
 					breadcrumbs: ['1px', '0px', highContrast ? border : 'rgba(0, 0, 0, 0)'],
+					header: ['1px', '0px', highContrast ? border : 'rgba(0, 0, 0, 0)', 'rgb(51, 51, 51)'],
 				}, `${themeType}, active group: ${active}`);
 			}
 		}
@@ -2380,7 +2385,7 @@ suite('ModernUIContribution', () => {
 		for (const classes of ['', 'modern-ui', 'modern-ui modern-ui-connected-editor-tabs', 'modern-ui-connected-editor-tabs']) {
 			for (const theme of ['vs-dark', 'vs', 'hc-black', 'hc-light']) {
 				root.className = `monaco-workbench modern-ui-tabs ${classes} ${theme}`;
-				const connected = classes === 'modern-ui modern-ui-connected-editor-tabs';
+				const connected = classes.includes('modern-ui-connected-editor-tabs');
 				for (const activeGroup of [true, false]) {
 					group.classList.toggle('active', activeGroup);
 					for (const compact of [true, false]) {
