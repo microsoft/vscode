@@ -6,7 +6,6 @@
 import { mock } from '../../../../../base/test/common/mock.js';
 import { Event } from '../../../../../base/common/event.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
-import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { constObservable, IObservable } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { computePullRequestIcon } from '../../../../common/chatPullRequest.js';
@@ -21,8 +20,6 @@ import { SESSION_CHAT_INPUT_TOOLBAR_HEIGHT, SessionChatInputToolbar } from '../.
 import { ISessionChatPillsDebugData } from '../../../../../sessions/contrib/chat/browser/sessionChatInputToolbarDebug.js';
 // eslint-disable-next-line local/code-import-patterns
 import { IGitHubService } from '../../../../../sessions/contrib/github/browser/githubService.js';
-// eslint-disable-next-line local/code-import-patterns
-import { GitHubPullRequestModel } from '../../../../../sessions/contrib/github/browser/models/githubPullRequestModel.js';
 // eslint-disable-next-line local/code-import-patterns
 import { SessionInputBanners } from '../../../../../sessions/contrib/sessionInputBanners/browser/sessionInputBanners.js';
 // eslint-disable-next-line local/code-import-patterns
@@ -40,6 +37,7 @@ import { ISessionsProvidersService } from '../../../../../sessions/services/sess
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, type ServiceRegistration } from '../fixtureUtils.js';
 import { registerChatFixtureServices } from '../chat/chatFixtureUtils.js';
 import { IFixtureMessage, renderChatWidget } from '../chat/chatWidget.fixture.js';
+import { createFixtureGitHubService } from './githubFixtureUtils.js';
 
 // ============================================================================
 // Mock helpers
@@ -170,22 +168,7 @@ function registerSessionChatPillFixtureServices(registration: ServiceRegistratio
 	registration.defineInstance(ISessionChangesService, new class extends mock<ISessionChangesService>() {
 		override async openChangesEditor(): Promise<undefined> { return undefined; }
 	}());
-	registration.defineInstance(IGitHubService, new class extends mock<IGitHubService>() {
-		override readonly activeSessionPullRequestObs = constObservable(undefined);
-		override readonly activeSessionPullRequestCIObs = constObservable(undefined);
-		override readonly activeSessionPullRequestReviewThreadsObs = constObservable(undefined);
-		override createPullRequestModelReference(owner: string, repo: string, prNumber: number) {
-			const model = new class extends mock<GitHubPullRequestModel>() {
-				override readonly pullRequest = constObservable(undefined);
-				override readonly owner = owner;
-				override readonly repo = repo;
-				override readonly prNumber = prNumber;
-				override refresh(): Promise<void> { return Promise.resolve(); }
-				override startPolling() { return Disposable.None; }
-			}();
-			return { object: model, dispose: () => { } };
-		}
-	}());
+	registration.defineInstance(IGitHubService, createFixtureGitHubService([]));
 }
 
 // ============================================================================
