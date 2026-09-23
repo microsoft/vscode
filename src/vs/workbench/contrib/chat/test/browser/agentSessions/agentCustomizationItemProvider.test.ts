@@ -8,6 +8,7 @@ import { VSBuffer } from '../../../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { ResourceSet } from '../../../../../../base/common/map.js';
+import { Schemas } from '../../../../../../base/common/network.js';
 import { observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../../base/test/common/mock.js';
@@ -142,6 +143,103 @@ suite('AgentCustomizationItemProvider', () => {
 			uri: agentUri,
 			source: AICustomizationSources.local,
 			enabled: true,
+		}]);
+	});
+
+	test('preserves remote source folder URIs transformed by the transport', async () => {
+		const workspace = URI.from({ scheme: Schemas.vscodeRemote, authority: 'wsl+ubuntu', path: '/workspace' });
+		const instructionsDirectory = URI.joinPath(workspace, '.github', 'instructions');
+		const customizations: Customization[] = [{
+			type: CustomizationType.Directory,
+			id: 'workspace-instructions',
+			uri: instructionsDirectory.toString(),
+			name: 'Workspace Instructions',
+			enabled: true,
+			contents: CustomizationType.Rule,
+			writable: true,
+			children: [],
+		}];
+
+		class TestCustomizationService extends NullAgentHostCustomizationService {
+			override getWorkingDirectories(): readonly string[] {
+				return [workspace.toString()];
+			}
+			override getCustomizations(): readonly Customization[] {
+				return customizations;
+			}
+		}
+
+		const provider = disposables.add(new AgentCustomizationItemProvider(
+			'local',
+			undefined,
+			undefined,
+			upcastPartial<IFileService>({}),
+			new NullLogService(),
+			new TestCustomizationService(),
+			makePromptsService(),
+		));
+
+		const folders = await provider.provideSourceFolders(URI.parse('agent-host-copilotcli:///session'), PromptsType.instructions, CancellationToken.None);
+
+		assert.deepStrictEqual(folders.map(folder => ({
+			uri: folder.uri.toString(),
+			source: folder.source,
+		})), [{
+			uri: instructionsDirectory.toString(),
+			source: AICustomizationSources.local,
+		}]);
+	});
+
+	test('classifies a directory child by its real file URI when its container is synthetic', async () => {
+		const skillUri = 'file:///workspace/.agents/skills/launch/SKILL.md';
+		const customizations: Customization[] = [{
+			type: CustomizationType.Directory,
+			id: 'codex-repository-skills',
+			uri: 'codex-skills:/repo',
+			name: 'Repository',
+			enabled: true,
+			contents: CustomizationType.Skill,
+			writable: false,
+			children: [{
+				type: CustomizationType.Skill,
+				id: skillUri,
+				uri: skillUri,
+				name: 'launch',
+				description: 'Launch Code OSS.',
+			}],
+		}];
+
+		class TestCustomizationService extends NullAgentHostCustomizationService {
+			override getWorkingDirectories(): readonly string[] {
+				return ['file:///workspace'];
+			}
+			override getCustomizations(): readonly Customization[] {
+				return customizations;
+			}
+		}
+
+		const provider = disposables.add(new AgentCustomizationItemProvider(
+			'local',
+			undefined,
+			undefined,
+			upcastPartial<IFileService>({}),
+			new NullLogService(),
+			new TestCustomizationService(),
+			makePromptsService(),
+		));
+
+		const items = await provider.provideChatSessionCustomizations(URI.parse('agent-host-codex:///session'), CancellationToken.None);
+
+		assert.deepStrictEqual(items.map(item => ({
+			type: item.type,
+			name: item.name,
+			uri: item.uri.toString(),
+			source: item.source,
+		})), [{
+			type: PromptsType.skill,
+			name: 'launch',
+			uri: skillUri,
+			source: AICustomizationSources.local,
 		}]);
 	});
 

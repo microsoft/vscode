@@ -19,11 +19,13 @@ import { defineFileOperationsTests } from './fileOperationsSuite.js';
 import { defineHostFeaturesTests } from './hostFeaturesSuite.js';
 import { defineMultiChatTests } from './multiChatSuite.js';
 import { defineMcpPluginTests } from './mcpPluginSuite.js';
+import { defineCopilotRuntimeMcpTests } from './copilotRuntimeMcpSuite.js';
 import { defineStateOperationsTests } from './stateOperationsSuite.js';
 import { defineSubagentTests } from './subagentSuite.js';
 import { defineTurnLifecycleTests } from './turnLifecycleSuite.js';
 import { defineWorkspaceTests } from './workspaceSuite.js';
 import { defineCopilotCoverageTests } from './copilotCoverageSuite.js';
+import { defineCopilotRuntimeToolsTests } from './copilotRuntimeToolsSuite.js';
 import { defineManagementExtensionTests } from './managementExtensionsSuite.js';
 import { defineAutomationsTests } from './automationsSuite.js';
 import { defineDetachedWorktreeTests } from './detachedWorktreeSuite.js';
@@ -66,6 +68,12 @@ function defineSuite(config: IAgentHostE2EProviderConfig, options: IDefineOption
 			runHostOnlyKnownIssueTests: RUN_HOST_ONLY_KNOWN_ISSUE_TESTS,
 			registerNoModelTrafficTest: title => noModelTrafficTestTitles.add(title),
 			get observedModelRequestBodies() { return lease?.observedModelRequestBodies ?? []; },
+			setRecordingModelResponse: (response, path) => {
+				if (!lease) {
+					throw new Error('[agent-host-e2e] no server lease');
+				}
+				lease.setRecordingModelResponse(response, path);
+			},
 			restartServer: async () => {
 				if (!lease) {
 					throw new Error('[agent-host-e2e] no server lease');
@@ -126,7 +134,7 @@ function defineSuite(config: IAgentHostE2EProviderConfig, options: IDefineOption
 			// into the next, unrelated test.
 			const failed = this.currentTest?.state === 'failed';
 			if (failed) {
-				// Surface the Copilot runtime's own logs for a hang/timeout before
+				// Surface host/provider diagnostics for a hang or crash before
 				// the server is restarted and its temp home is eventually removed.
 				lease.dumpRuntimeLogsOnFailure(this.currentTest?.title ?? 'unknown');
 			}
@@ -146,9 +154,10 @@ function defineSuite(config: IAgentHostE2EProviderConfig, options: IDefineOption
 			}
 		});
 
+		defineAutomationsTests(context);
+
 		// Suites that contain only conformance-tier scenarios.
 		if (options.tier === 'conformance') {
-			defineAutomationsTests(context);
 			defineHostFeaturesTests(context);
 			defineStateOperationsTests(context);
 			defineClientFilesystemTests(context);
@@ -161,8 +170,10 @@ function defineSuite(config: IAgentHostE2EProviderConfig, options: IDefineOption
 		// Suites that contain only parity-tier scenarios.
 		if (options.tier === 'parity') {
 			defineCoreTests(context);
+			defineCopilotRuntimeMcpTests(context);
 			defineHostFeaturesTests(context);
 			defineCopilotCoverageTests(context);
+			defineCopilotRuntimeToolsTests(context);
 			defineFileOperationsTests(context);
 			defineTurnLifecycleTests(context);
 			defineWorkspaceTests(context);

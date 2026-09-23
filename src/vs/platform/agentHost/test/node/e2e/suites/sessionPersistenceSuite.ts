@@ -6,19 +6,20 @@
 import assert from 'assert';
 import * as fs from 'fs';
 import { tmpdir } from 'os';
-import { retry, timeout } from '../../../../../../base/common/async.js';
+import { retry } from '../../../../../../base/common/async.js';
 import { join } from '../../../../../../base/common/path.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { SessionConfigKey } from '../../../../common/sessionConfigKeys.js';
+import { parseSessionDbUri } from '../../../../common/sessionDbUri.js';
 import type { ListSessionsResult, ResourceReadResult, SubscribeResult } from '../../../../common/state/protocol/commands.js';
 import { ContentEncoding } from '../../../../common/state/protocol/common/commands.js';
 import type { SessionSummaryChangedParams } from '../../../../common/state/protocol/channels-root/notifications.js';
 import { ActionType, type ChatToolCallCompleteAction } from '../../../../common/state/sessionActions.js';
-import { buildChatUri, buildDefaultChatUri, MessageKind, ROOT_STATE_URI, SessionStatus, ToolResultContentType, type ChatState, type SessionState, type ToolResultFileEditContent } from '../../../../common/state/sessionState.js';
+import { buildChatUri, buildDefaultChatUri, MessageAttachmentKind, MessageKind, ROOT_STATE_URI, SessionStatus, ToolResultContentType, type ChatState, type SessionState, type ToolResultFileEditContent } from '../../../../common/state/sessionState.js';
 import { PROTOCOL_VERSION } from '../../../../common/state/protocol/version/registry.js';
-import { createRealSession, driveTurnToCompletion, resolveGitHubToken } from '../harness/agentHostE2ETestHarness.js';
-import { fetchSessionWithChat, getActionEnvelope, isActionNotification } from '../../serverIntegrationTestHelpers.js';
+import { createRealSession, driveTurnToCompletion, driveTurnWithAttachmentsToCompletion, resolveGitHubToken } from '../harness/agentHostE2ETestHarness.js';
+import { fetchSessionWithChat, getActionEnvelope, getAgentHostE2ETestTimeout, isActionNotification } from '../../serverIntegrationTestHelpers.js';
 import type { IAgentHostE2ETestContext } from './e2eTestContext.js';
 import { GITHUB_COPILOT_PROTECTED_RESOURCE } from '../../../../common/agent.js';
 
@@ -71,29 +72,37 @@ export function defineSessionPersistenceTests(context: IAgentHostE2ETestContext)
 		}));
 	}
 
+	function unsubscribeSessionAndChats(sessionUri: string, additionalChats: readonly string[]): void {
+		for (const chat of additionalChats) {
+			context.client.notify('unsubscribe', { channel: chat });
+		}
+		context.client.notify('unsubscribe', { channel: buildDefaultChatUri(sessionUri) });
+		context.client.notify('unsubscribe', { channel: sessionUri });
+	}
+
 	async function releaseAndRestoreSession(sessionUri: string, additionalChats: readonly string[] = []): Promise<void> {
 		const before = await fetchSessionWithChat(context.client, sessionUri);
 		const beforeResponsePartIds = responsePartIds(before.turns);
 		const beforeTurns = durableTurnContent(before.turns);
 		assert.ok(beforeResponsePartIds.length > 0);
-		const chatUri = buildDefaultChatUri(sessionUri);
-		for (const chat of additionalChats) {
-			context.client.notify('unsubscribe', { channel: chat });
-		}
-		context.client.notify('unsubscribe', { channel: chatUri });
-		context.client.notify('unsubscribe', { channel: sessionUri });
-		await timeout(50);
+		unsubscribeSessionAndChats(sessionUri, additionalChats);
 
 		await retry(async () => {
-			const restored = await fetchSessionWithChat(context.client, sessionUri);
-			const restoredResponsePartIds = responsePartIds(restored.turns);
-			const restoredTurns = durableTurnContent(restored.turns);
-			assert.deepStrictEqual(restoredTurns, beforeTurns);
-			assert.strictEqual(restoredResponsePartIds.length, beforeResponsePartIds.length);
-			if (restoredResponsePartIds.every((id, index) => id === beforeResponsePartIds[index])) {
-				context.client.notify('unsubscribe', { channel: chatUri });
-				context.client.notify('unsubscribe', { channel: sessionUri });
-				throw new Error('Session has not been reconstructed with complete durable provider state');
+			try {
+				const restored = await fetchSessionWithChat(context.client, sessionUri);
+				const restoredResponsePartIds = responsePartIds(restored.turns);
+				const restoredTurns = durableTurnContent(restored.turns);
+				assert.deepStrictEqual(restoredTurns, beforeTurns);
+				assert.strictEqual(restoredResponsePartIds.length, beforeResponsePartIds.length);
+				if (restoredResponsePartIds.every((id, index) => id === beforeResponsePartIds[index])) {
+					throw new Error('Session has not been reconstructed with complete durable provider state');
+				}
+				for (const chat of additionalChats) {
+					await context.client.call<SubscribeResult>('subscribe', { channel: chat });
+				}
+			} catch (error) {
+				unsubscribeSessionAndChats(sessionUri, additionalChats);
+				throw error;
 			}
 		}, 50, 20);
 	}
@@ -136,6 +145,47 @@ export function defineSessionPersistenceTests(context: IAgentHostE2ETestContext)
 		});
 	});
 
+	if (config.provider === 'codex') {
+		test('Codex image attachments remain readable after a host restart', async function () {
+			this.timeout(240_000);
+			const workspace = fs.realpathSync(fs.mkdtempSync(join(tmpdir(), 'ahp-codex-image-restore-')));
+			tempDirs.push(workspace);
+			const imageData = 'iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAIAAACQkWg2AAAAF0lEQVR4nGP4z8BAEiJN9aiGUQ1DSgMAkPn/Afnh+ngAAAAASUVORK5CYII=';
+			const sessionUri = await createRealSession(context.client, config, 'codex-image-restore', createdSessions, URI.file(workspace));
+			const prompt = 'An image is attached. Reply exactly "IMAGE_READY".';
+			await driveTurnWithAttachmentsToCompletion(context.client, sessionUri, 'turn-image-restore', prompt, [{
+				type: MessageAttachmentKind.EmbeddedResource,
+				data: imageData,
+				contentType: 'image/png',
+				label: 'test-image.png',
+			}], 1);
+
+			await restartAndInitialize('codex-image-restored', workspace);
+			const restored = await fetchSessionWithChat(context.client, sessionUri);
+			const attachments = restored.turns[0]?.message.attachments ?? [];
+			assert.strictEqual(attachments.length, 1, 'The restored turn must retain its image attachment');
+			const attachment = attachments[0];
+			assert.ok(attachment.type === MessageAttachmentKind.Resource, 'The restored image must be a readable resource');
+			const image = await context.client.call<ResourceReadResult>('resourceRead', {
+				channel: ROOT_STATE_URI,
+				uri: attachment.uri,
+				encoding: ContentEncoding.Base64,
+			});
+			const followup = await driveTurnToCompletion(context.client, sessionUri, 'turn-image-followup', 'Reply exactly "FOLLOWUP_DONE".', 2);
+			assert.deepStrictEqual({
+				text: restored.turns[0].message.text,
+				displayKind: attachment.displayKind,
+				data: image.data,
+				followup: followup.responseText.trim(),
+			}, {
+				text: prompt,
+				displayKind: 'image',
+				data: imageData,
+				followup: 'FOLLOWUP_DONE',
+			});
+		});
+	}
+
 	if (config.provider === 'copilotcli') {
 		(RUN_KNOWN_ISSUES ? test : test.skip)('file edit metadata survives a host restart', async function () {
 			this.timeout(240_000);
@@ -176,7 +226,13 @@ export function defineSessionPersistenceTests(context: IAgentHostE2ETestContext)
 				&& getActionEnvelope(n).channel === buildDefaultChatUri(sessionUri)
 				&& (getActionEnvelope(n).action as ChatToolCallCompleteAction).turnId === turnId,
 			).flatMap(n => (getActionEnvelope(n).action as ChatToolCallCompleteAction).result.content ?? [])
-				.find((content): content is ToolResultFileEditContent => content.type === ToolResultContentType.FileEdit);
+				.find((content): content is ToolResultFileEditContent =>
+					content.type === ToolResultContentType.FileEdit
+					&& !!content.before?.content.uri
+					&& !!content.after?.content.uri
+					&& !!parseSessionDbUri(content.before.content.uri)
+					&& !!parseSessionDbUri(content.after.content.uri)
+				);
 			assert.ok(edit?.before?.content.uri);
 			assert.ok(edit.after?.content.uri);
 
@@ -208,7 +264,9 @@ export function defineSessionPersistenceTests(context: IAgentHostE2ETestContext)
 		await restartAndInitialize(`archive-unrestored-reconnect-${config.provider}`, workspace);
 		await context.client.call<SubscribeResult>('subscribe', { channel: ROOT_STATE_URI });
 		const before = await context.client.call<ListSessionsResult>('listSessions', { channel: ROOT_STATE_URI });
-		assert.strictEqual(before.items.some(item => item.resource === sessionUri), true);
+		const beforeSession = before.items.find(item => item.resource === sessionUri);
+		assert.ok(beforeSession);
+		const isRead = (beforeSession.status & SessionStatus.IsRead) === 0;
 		context.client.clearReceived();
 		context.client.dispatch({
 			channel: sessionUri,
@@ -220,6 +278,18 @@ export function defineSessionPersistenceTests(context: IAgentHostE2ETestContext)
 			&& (notification.params as SessionSummaryChangedParams).session === sessionUri
 			&& (((notification.params as SessionSummaryChangedParams).changes.status ?? 0) & SessionStatus.IsArchived) !== 0,
 		);
+		context.client.clearReceived();
+		context.client.dispatch({
+			channel: sessionUri,
+			clientSeq: 2,
+			action: { type: ActionType.SessionIsReadChanged, isRead },
+		});
+		await context.client.waitForNotification(notification =>
+			notification.method === 'root/sessionSummaryChanged'
+			&& (notification.params as SessionSummaryChangedParams).session === sessionUri
+			&& (notification.params as SessionSummaryChangedParams).changes.status !== undefined
+			&& ((((notification.params as SessionSummaryChangedParams).changes.status ?? 0) & SessionStatus.IsRead) !== 0) === isRead,
+		);
 
 		await restartAndInitialize(`archive-unrestored-verify-${config.provider}`, workspace);
 		const after = await context.client.call<ListSessionsResult>('listSessions', { channel: ROOT_STATE_URI, includeArchived: true });
@@ -228,10 +298,18 @@ export function defineSessionPersistenceTests(context: IAgentHostE2ETestContext)
 		assert.deepStrictEqual({
 			restored: restored !== undefined,
 			isArchived: restored !== undefined && (restored.status & SessionStatus.IsArchived) !== 0,
+			isRead: restored !== undefined && (restored.status & SessionStatus.IsRead) !== 0,
 		}, {
 			restored: true,
 			isArchived: true,
+			isRead,
 		});
+
+		await context.client.call('disposeSession', { channel: sessionUri }, getAgentHostE2ETestTimeout(30_000, 90_000));
+		const trackedIndex = createdSessions.indexOf(sessionUri);
+		if (trackedIndex >= 0) {
+			createdSessions.splice(trackedIndex, 1);
+		}
 	});
 
 	const peerChatPersistenceEnabled = config.supportsMultipleChats

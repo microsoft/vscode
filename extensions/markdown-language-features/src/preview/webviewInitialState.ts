@@ -6,6 +6,8 @@
 export interface MarkdownEditorInitialState {
 	readonly content: string;
 	readonly documentVersion: number;
+	/** Identifies the authoritative text baseline shared by the host and webview. */
+	readonly editEpoch: number;
 	readonly readonly: boolean;
 	readonly richLinksEnabled: boolean;
 	readonly linkPresentationRules: readonly { id: string; source: string; flags: string; kind: string }[];

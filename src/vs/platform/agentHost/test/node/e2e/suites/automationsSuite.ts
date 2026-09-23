@@ -4,20 +4,27 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { mkdtemp } from 'fs/promises';
+import { tmpdir } from 'os';
+import { retry } from '../../../../../../base/common/async.js';
 import { equals } from '../../../../../../base/common/objects.js';
+import { join } from '../../../../../../base/common/path.js';
+import { URI } from '../../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
-import { AGENT_HOST_AUTOMATIONS_ENABLED_CONFIG_KEY, AGENT_HOST_AUTOMATION_MIGRATION_CONFIG_KEY } from '../../../../common/automationMigration.js';
-import type { FetchAutomationRunsResult, InitializeResult, ListAutomationTriggerDefinitionsResult, SubscribeResult } from '../../../../common/state/protocol/commands.js';
+import { GITHUB_COPILOT_PROTECTED_RESOURCE } from '../../../../common/agent.js';
+import { AGENT_HOST_AUTOMATIONS_ENABLED_CONFIG_KEY } from '../../../../common/automationConfig.js';
+import { supportsAgentHostAutonomousAutomations } from '../../../../common/meta/agentHostAutomationsMeta.js';
+import { SessionConfigKey } from '../../../../common/sessionConfigKeys.js';
+import type { FetchAutomationRunsResult, InitializeResult, ListAutomationTriggerDefinitionsResult, RunAutomationResult, SubscribeResult } from '../../../../common/state/protocol/commands.js';
 import { AutomationOperation, type AutomationDefinition, type AutomationEntry } from '../../../../common/state/protocol/state.js';
 import { PROTOCOL_VERSION } from '../../../../common/state/protocol/version/registry.js';
-import { ActionType, type AutomationRemovedAction, type AutomationSetAction } from '../../../../common/state/sessionActions.js';
+import { ActionType, type AutomationRemovedAction, type AutomationRunPrimarySessionChangedAction, type AutomationSetAction } from '../../../../common/state/sessionActions.js';
 import type { AhpNotification } from '../../../../common/state/sessionProtocol.js';
-import { AUTOMATION_CATALOG_URI, MessageKind, ROOT_STATE_URI, type AutomationState, type RootState } from '../../../../common/state/sessionState.js';
-import { getActionEnvelope, isActionNotification } from '../../serverIntegrationTestHelpers.js';
+import { AUTOMATION_CATALOG_URI, MessageKind, ROOT_STATE_URI, type AutomationRunState, type AutomationState, type RootState } from '../../../../common/state/sessionState.js';
+import { resolveGitHubToken } from '../harness/agentHostE2ETestHarness.js';
+import { fetchSessionWithChat, getActionEnvelope, isActionNotification } from '../../serverIntegrationTestHelpers.js';
 import { conformanceTest, type IAgentHostE2ETestContext } from './e2eTestContext.js';
 
-/** The migration gate's message, checked before the enablement gate's. */
-const MIGRATION_REQUIRED_MESSAGE = 'Automation migration must complete before automations can be accessed or run.';
 const AUTOMATIONS_DISABLED_MESSAGE = 'Automations are disabled.';
 /** Mirrors the host's advertised `runHistoryLimit`. */
 const RUN_HISTORY_LIMIT = 50;
@@ -58,9 +65,7 @@ export function defineAutomationsTests(context: IAgentHostE2ETestContext): void 
 	/**
 	 * Replaces one root-config value, skipping the dispatch when the host already
 	 * holds it. An unchanged patch is a deliberate no-op in the state manager: it
-	 * emits no action at all, so waiting for the echo would hang. Both automation
-	 * gates are durable for the life of the shared host, so tests re-open them
-	 * defensively and hit that no-op constantly.
+	 * emits no action at all, so waiting for the echo would hang.
 	 */
 	async function setRootConfigValue(key: string, value: unknown): Promise<void> {
 		if (equals((await rootConfigValues())[key], value)) {
@@ -83,19 +88,9 @@ export function defineAutomationsTests(context: IAgentHostE2ETestContext): void 
 		return setRootConfigValue(AGENT_HOST_AUTOMATIONS_ENABLED_CONFIG_KEY, enabled);
 	}
 
-	/**
-	 * Completes automation migration. The host requires this as an isolated
-	 * root-config patch and refuses it while automations are disabled, so it is
-	 * always dispatched on its own and after {@link setAutomationsEnabled}.
-	 */
-	function completeAutomationMigration(): Promise<void> {
-		return setRootConfigValue(AGENT_HOST_AUTOMATION_MIGRATION_CONFIG_KEY, { version: 1, status: 'complete', resources: [] });
-	}
-
-	/** Opens both gates. Idempotent, so each test can stand on its own. */
+	/** Enables Automations so each test can stand on its own. */
 	async function openAutomationGates(): Promise<void> {
 		await setAutomationsEnabled(true);
-		await completeAutomationMigration();
 	}
 
 	async function subscribeCatalog(): Promise<AutomationState> {
@@ -174,55 +169,44 @@ export function defineAutomationsTests(context: IAgentHostE2ETestContext): void 
 
 		const catalog = await subscribeCatalog();
 
-		// The catalogue and its commands are advertised before either gate opens:
+		// The catalogue and its commands are advertised before enablement:
 		// a client can always render the (empty) catalogue and author into it.
 		assert.deepStrictEqual({
 			automations: initialized.automations,
+			autonomous: supportsAgentHostAutonomousAutomations(initialized),
 			entries: catalog.entries,
 		}, {
 			automations: { create: {}, schedules: {}, runCancellation: {}, runHistoryLimit: RUN_HISTORY_LIMIT },
+			autonomous: true,
 			entries: [],
 		});
 	});
 
-	// Migration completion is durable for the life of the host — including across
-	// restarts, since it is stored alongside the catalogue — so this is the only
-	// test that can observe the pre-migration gate. It must stay registered ahead
-	// of every test that calls `openAutomationGates`.
-	conformanceTest(context, 'automation commands are rejected until automations are enabled and migration completes', async function () {
+	conformanceTest(context, 'automation commands require enablement but no browser migration handshake', async function () {
 		await initializeRoot('automations-gates');
 
+		await setAutomationsEnabled(false);
 		const beforeAnyGate = await rejectionMessage(listTriggerDefinitions());
 		await setAutomationsEnabled(true);
-		const afterEnabling = await rejectionMessage(listTriggerDefinitions());
-		await completeAutomationMigration();
-		const afterMigration = await listTriggerDefinitions();
+		const afterEnabling = await listTriggerDefinitions();
 		await setAutomationsEnabled(false);
 		const afterDisabling = await rejectionMessage(listTriggerDefinitions());
 		// Leave the host enabled so a later test does not depend on this one's tail.
 		await setAutomationsEnabled(true);
 
-		// The migration gate is checked first, so enabling alone changes nothing.
-		// Once both are open the host answers, and the answer is deliberately
-		// empty: it defines no event triggers today.
 		assert.deepStrictEqual({
-			beforeAnyGate: beforeAnyGate.includes(MIGRATION_REQUIRED_MESSAGE),
-			afterEnabling: afterEnabling.includes(MIGRATION_REQUIRED_MESSAGE),
-			afterMigration,
+			beforeAnyGate: beforeAnyGate.includes(AUTOMATIONS_DISABLED_MESSAGE),
+			afterEnabling,
 			afterDisabling: afterDisabling.includes(AUTOMATIONS_DISABLED_MESSAGE),
 		}, {
 			beforeAnyGate: true,
-			afterEnabling: true,
-			afterMigration: { items: [] },
+			afterEnabling: { items: [] },
 			afterDisabling: true,
 		});
 	});
 
 	conformanceTest(context, 'an automation created while automations are disabled gains its run operation when they are enabled', async function () {
 		await initializeRoot('automations-run-grant');
-		// Granting `run` needs the enablement flag *and* completed migration.
-		// Migration cannot be undone on a host that has already migrated, so the
-		// enablement flag is the half of the gate a test can reproduce.
 		await openAutomationGates();
 		await subscribeCatalog();
 		await setAutomationsEnabled(false);
@@ -382,4 +366,70 @@ export function defineAutomationsTests(context: IAgentHostE2ETestContext): void 
 			restored: { title: 'Survives restart', operations: GATED_OPERATIONS },
 		});
 	});
+
+	if (context.tier === 'parity' && config.provider === 'copilotcli') {
+		test('an automation run restores Mode and Approvals after host restart', async function () {
+			this.timeout(240_000);
+			const workspace = await mkdtemp(join(tmpdir(), 'ahp-automation-session-config-'));
+			context.tempDirs.push(workspace);
+			await initializeRoot('automations-session-config');
+			await openAutomationGates();
+			await subscribeCatalog();
+			const resource = automationResource('session-config');
+			const requestedConfig = {
+				[SessionConfigKey.Mode]: 'autopilot',
+				[SessionConfigKey.AutoApprove]: 'assisted',
+			};
+			await createAutomation(resource, {
+				...buildDefinition('Configured run'),
+				session: {
+					provider: config.provider,
+					workingDirectories: [URI.file(workspace).toString()],
+					config: requestedConfig,
+				},
+			});
+
+			await context.restartServer();
+			await initializeRoot('automations-session-config-verify');
+			await context.client.call('authenticate', {
+				channel: ROOT_STATE_URI,
+				resource: GITHUB_COPILOT_PROTECTED_RESOURCE.resource,
+				token: config.githubToken ?? resolveGitHubToken(),
+			}, 30_000);
+			await openAutomationGates();
+			const restored = entryFor(await subscribeCatalog(), resource);
+			const run = await context.client.call<RunAutomationResult>('runAutomation', {
+				channel: AUTOMATION_CATALOG_URI,
+				automation: resource,
+				requestId: `request-${generateUuid()}`,
+			}, 30_000);
+			const runSnapshot = await context.client.call<SubscribeResult>('subscribe', { channel: run.resource });
+			let primarySession = (runSnapshot.snapshot?.state as AutomationRunState | undefined)?.primarySession;
+			if (!primarySession) {
+				const notification = await context.client.waitForNotification(candidate =>
+					isActionNotification(candidate, ActionType.AutomationRunPrimarySessionChanged)
+					&& getActionEnvelope(candidate).channel === run.resource,
+				);
+				primarySession = (getActionEnvelope(notification).action as AutomationRunPrimarySessionChangedAction).primarySession;
+			}
+			assert.ok(primarySession);
+			context.createdSessions.push(primarySession);
+			let createdSession = await fetchSessionWithChat(context.client, primarySession);
+			await retry(async () => {
+				createdSession = await fetchSessionWithChat(context.client, primarySession);
+				assert.strictEqual(createdSession.turns.at(-1)?.state, 'complete');
+			}, 100, 300);
+
+			assert.deepStrictEqual({
+				restoredConfig: restored?.definition.session.config,
+				sessionConfig: {
+					mode: createdSession.config?.values[SessionConfigKey.Mode],
+					autoApprove: createdSession.config?.values[SessionConfigKey.AutoApprove],
+				},
+			}, {
+				restoredConfig: requestedConfig,
+				sessionConfig: requestedConfig,
+			});
+		});
+	}
 }

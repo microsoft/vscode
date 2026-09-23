@@ -69,8 +69,8 @@ const coverage = require('../coverage');
 const { pathToFileURL } = require('url');
 
 // Disabled custom inspect. See #38847
-if (util.inspect && util.inspect['defaultOptions']) {
-	util.inspect['defaultOptions'].customInspect = false;
+if (util.inspect && util.inspect.defaultOptions) {
+	util.inspect.defaultOptions.customInspect = false;
 }
 
 // VSCODE_GLOBALS: package/product.json

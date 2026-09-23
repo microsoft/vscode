@@ -291,7 +291,7 @@
 	position: relative;
 }
 
-.agent-sessions-workbench.dock-detail-panel .part.editor:not(.modal-editor-part) .editor-group-container > .title::after {
+.agent-sessions-workbench.dock-detail-panel .part.editor:not(.modal-editor-part) .editor-group-container > .title:not(.tabs)::after {
 	content: '';
 	position: absolute;
 	right: var(--vscode-spacing-size100);
@@ -306,6 +306,14 @@
 .agent-sessions-workbench.dock-detail-panel .part.auxiliarybar .monaco-list,
 .agent-sessions-workbench.dock-detail-panel .part.auxiliarybar .monaco-list-rows {
 	background-color: var(--vscode-editor-background);
+}
+
+.agent-sessions-workbench .explorer-folders-view .monaco-list-row,
+.agent-sessions-workbench .changes-file-list .monaco-list-row {
+	left: var(--vscode-spacing-size40);
+	right: var(--vscode-spacing-size40);
+	width: auto;
+	border-radius: var(--vscode-cornerRadius-small);
 }
 
 .agent-sessions-workbench.dock-detail-panel .part.auxiliarybar.docked-auxiliarybar {

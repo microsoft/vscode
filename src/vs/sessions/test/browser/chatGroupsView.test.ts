@@ -10,18 +10,29 @@ import { errorHandler, setUnexpectedErrorHandler } from '../../../base/common/er
 import { Emitter, Event } from '../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
 import { constObservable, derived, IObservable, ISettableObservable, observableValue, transaction } from '../../../base/common/observable.js';
+import { ThemeIcon } from '../../../base/common/themables.js';
 import { URI } from '../../../base/common/uri.js';
 import { mock } from '../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../base/test/common/timeTravelScheduler.js';
+import { ConfigurationTarget, IConfigurationService } from '../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../platform/configuration/test/common/testConfigurationService.js';
+import { ContextKeyService } from '../../../platform/contextkey/browser/contextKeyService.js';
+import { IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
+import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
 import { TestInstantiationService } from '../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { DEFAULT_EDITOR_PART_OPTIONS } from '../../../workbench/browser/parts/editor/editor.js';
+import { IEditorGroupsService } from '../../../workbench/services/editor/common/editorGroupsService.js';
 import { workbenchInstantiationService } from '../../../workbench/test/browser/workbenchTestServices.js';
-import { AbstractChatView, ChatViewKind } from '../../browser/parts/chatView.js';
+import { AbstractChatView, ChatViewKind, IChatViewOptions } from '../../browser/parts/chatView.js';
 import { ChatGroupsView } from '../../browser/parts/chatGroupsView.js';
-import { type IAgentHostAutoConnect, type IAgentHostConnectProgress, IAgentHostSessionsProvider } from '../../common/agentHostSessionsProvider.js';
+import { SessionActiveChatHasSideChatsContext, SessionActiveChatIsClosableContext, SessionActiveChatResourceContext, SessionFocusedChatIsRenameTargetContext, SessionHeaderActiveChatIsPinnedContext, SessionHeaderShowsChatContext } from '../../common/contextkeys.js';
+import { SESSIONS_CHAT_TABS_SETTING, SessionsChatTabsMode } from '../../common/sessionConfig.js';
+import { type IAgentHostAutoConnect, type IAgentHostConnectProgress, type IAgentHostConnectionLabels, IAgentHostSessionsProvider } from '../../common/agentHostSessionsProvider.js';
 import { IChatViewFactory } from '../../services/chatView/browser/chatViewFactory.js';
 import { ISessionsProvidersService } from '../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsPartService } from '../../services/sessions/browser/sessionsPartService.js';
+import { ISessionsListModelService } from '../../services/sessions/browser/sessionsListModelService.js';
 import { ISessionsService } from '../../services/sessions/browser/sessionsService.js';
 import { ChatInteractivity, ChatOriginKind, IChat, ISession, ISessionCapabilities, SessionRemoteConnectionFailureReason, SessionRemoteConnectionStatus, SessionStatus } from '../../services/sessions/common/session.js';
 import { IActiveSession, ISessionsManagementService } from '../../services/sessions/common/sessionsManagement.js';
@@ -30,10 +41,16 @@ import { ISessionsProvider } from '../../services/sessions/common/sessionsProvid
 class TestChatView extends AbstractChatView {
 	private readonly _focusTarget = mainWindow.document.createElement('button');
 	override readonly hasVisibleTranscriptContent = observableValue(this, false);
+	override readonly isLoadingTranscript = observableValue(this, false);
 	layoutCount = 0;
+	primary = false;
 
-	constructor(readonly kind: ChatViewKind) {
+	constructor(
+		readonly kind: ChatViewKind,
+		@IContextKeyService contextKeyService: IContextKeyService,
+	) {
 		super();
+		this._register(contextKeyService.createScoped(this.element));
 		this.element.dataset.kind = kind;
 		this.element.appendChild(this._focusTarget);
 	}
@@ -49,21 +66,26 @@ class TestChatView extends AbstractChatView {
 	focus(): void {
 		this._focusTarget.focus();
 	}
+
+	override setPrimary(primary: boolean): void {
+		this.primary = primary;
+	}
 }
 
 class TestChatViewFactory extends mock<IChatViewFactory>() {
 	readonly views: TestChatView[] = [];
 
-	override createNewChatView(isNewChatInSession: boolean): AbstractChatView {
-		return this._createView(isNewChatInSession ? 'newChatInSession' : 'newSession');
+	override createNewChatView(isNewChatInSession: boolean, _options: IChatViewOptions, instantiationService?: IInstantiationService): AbstractChatView {
+		return this._createView(isNewChatInSession ? 'newChatInSession' : 'newSession', instantiationService);
 	}
 
-	override createChatView(): AbstractChatView {
-		return this._createView('chat');
+	override createChatView(instantiationService?: IInstantiationService): AbstractChatView {
+		return this._createView('chat', instantiationService);
 	}
 
-	private _createView(kind: ChatViewKind): TestChatView {
-		const view = new TestChatView(kind);
+	private _createView(kind: ChatViewKind, instantiationService?: IInstantiationService): TestChatView {
+		assert.ok(instantiationService);
+		const view = instantiationService.createInstance(TestChatView, kind);
 		this.views.push(view);
 		return view;
 	}
@@ -77,18 +99,18 @@ class TestChat extends mock<IChat>() {
 	override readonly isRead: IObservable<boolean> = constObservable(true);
 	override readonly interactivity: ISettableObservable<ChatInteractivity>;
 
-	constructor(id: string, status = SessionStatus.Completed, parentChat?: URI) {
+	constructor(id: string, status = SessionStatus.Completed, parentChat?: URI, originKind = ChatOriginKind.Tool) {
 		super();
 		this.resource = URI.parse(`test-chat://${id}`);
-		this.origin = parentChat ? { kind: ChatOriginKind.Tool, parentChat } : undefined;
+		this.origin = parentChat ? { kind: originKind, parentChat } : undefined;
 		this.title = constObservable(id);
 		this.status = observableValue(this, status);
 		this.interactivity = observableValue(this, ChatInteractivity.Full);
 	}
 }
 
-function createChat(id: string, status: SessionStatus = SessionStatus.Completed, parentChat?: URI): TestChat {
-	return new TestChat(id, status, parentChat);
+function createChat(id: string, status: SessionStatus = SessionStatus.Completed, parentChat?: URI, originKind?: ChatOriginKind): TestChat {
+	return new TestChat(id, status, parentChat, originKind);
 }
 
 class TestActiveSession extends mock<IActiveSession>() {
@@ -106,11 +128,13 @@ class TestActiveSession extends mock<IActiveSession>() {
 	override readonly mainChat: IObservable<IChat>;
 	override readonly capabilities: IObservable<ISessionCapabilities> = constObservable({ supportsMultipleChats: true });
 	override readonly isCreated: IObservable<boolean>;
+	override readonly status = constObservable(SessionStatus.Completed);
+	override readonly isRead = constObservable(true);
 	override readonly isNewSessionRequestInProgress = observableValue(this, false);
 	override readonly isArchived = observableValue(this, false);
-	override readonly loading: IObservable<boolean> = constObservable(false);
+	override readonly loading: ISettableObservable<boolean>;
 
-	constructor(chats: readonly IChat[], visibleChats: readonly IChat[] = chats, isCreated = true, providerId = 'test', remoteConnectionStatus?: SessionRemoteConnectionStatus) {
+	constructor(chats: readonly IChat[], visibleChats: readonly IChat[] = chats, isCreated = true, providerId = 'test', remoteConnectionStatus?: SessionRemoteConnectionStatus, loading = false) {
 		super();
 		this.providerId = providerId;
 		this.remoteConnectionStatus = remoteConnectionStatus && observableValue(this, remoteConnectionStatus);
@@ -130,6 +154,7 @@ class TestActiveSession extends mock<IActiveSession>() {
 		this.shouldShowChatTabs = derived(reader => this.visibleChatTabs.read(reader).length > 1);
 		this.mainChat = constObservable(mainChat);
 		this.isCreated = constObservable(isCreated);
+		this.loading = observableValue(this, loading);
 	}
 }
 
@@ -137,6 +162,9 @@ class TestSessionsService extends mock<ISessionsService>() {
 	override readonly activeSession = observableValue<IActiveSession | undefined>(this, undefined);
 	openChatGate: Promise<void> | undefined;
 	openChatError: Error | undefined;
+	readonly closedSessions: string[] = [];
+	readonly closedChats: string[] = [];
+	onDidCloseSession: ((session: ISession) => void) | undefined;
 
 	override async openChat(session: ISession, chatUri: URI): Promise<void> {
 		await this.openChatGate;
@@ -157,6 +185,16 @@ class TestSessionsService extends mock<ISessionsService>() {
 		this.activeSession.set(session, undefined);
 	}
 
+	override async closeChat(_session: IActiveSession, chat: IChat): Promise<void> {
+		this.closedChats.push(chat.resource.toString());
+	}
+
+	override closeSession(session: ISession | undefined): void {
+		if (session) {
+			this.closedSessions.push(session.sessionId);
+			this.onDidCloseSession?.(session);
+		}
+	}
 }
 
 class TestSessionsProvidersService extends mock<ISessionsProvidersService>() {
@@ -183,6 +221,8 @@ class TestAgentHostProvider extends mock<IAgentHostSessionsProvider>() {
 	connectCalls = 0;
 	reconnectNowCalls = 0;
 	connectGate: Promise<void> | undefined;
+	override connectionLabels: IAgentHostConnectionLabels | undefined;
+	override showConnectionLog: (() => Promise<void>) | undefined;
 
 	override async connect(): Promise<void> {
 		this.connectCalls++;
@@ -207,6 +247,7 @@ interface IChatGroupsHarness {
 	readonly sessionsService: TestSessionsService;
 	readonly sessionsProvidersService: TestSessionsProvidersService;
 	readonly chatViewFactory: TestChatViewFactory;
+	readonly configurationService: TestConfigurationService;
 	readonly view: ChatGroupsView;
 }
 
@@ -215,11 +256,21 @@ function createHarness(disposables: Pick<DisposableStore, 'add'>, tabsReplaceHea
 	const instantiationService = workbenchInstantiationService(undefined, store);
 	const sessionsService = new TestSessionsService();
 	const chatViewFactory = new TestChatViewFactory();
+	const configurationService = new TestConfigurationService({ [SESSIONS_CHAT_TABS_SETTING]: SessionsChatTabsMode.Multiple });
+	instantiationService.stub(IConfigurationService, configurationService);
+	instantiationService.stub(IContextKeyService, store.add(new ContextKeyService(configurationService)));
 	const sessionsProvidersService = new TestSessionsProvidersService();
 	instantiationService.stub(IChatViewFactory, chatViewFactory);
+	instantiationService.stub(IEditorGroupsService, new class extends mock<IEditorGroupsService>() {
+		override readonly onDidChangeEditorPartOptions = Event.None;
+		override readonly partOptions = DEFAULT_EDITOR_PART_OPTIONS;
+	}());
 	instantiationService.stub(ISessionsService, sessionsService);
 	instantiationService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
 		override readonly onDidChangeSessions = Event.None;
+	}());
+	instantiationService.stub(ISessionsListModelService, new class extends mock<ISessionsListModelService>() {
+		override getStatusIcon(): ThemeIcon { return ThemeIcon.fromId('circle'); }
 	}());
 	instantiationService.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() { });
 	instantiationService.stub(ISessionsProvidersService, sessionsProvidersService);
@@ -228,7 +279,7 @@ function createHarness(disposables: Pick<DisposableStore, 'add'>, tabsReplaceHea
 	view.setSingleGroupTabsReplaceHeader(tabsReplaceHeader);
 	mainWindow.document.body.appendChild(view.element);
 	store.add(toDisposable(() => view.element.remove()));
-	return { instantiationService, sessionsService, sessionsProvidersService, chatViewFactory, view };
+	return { instantiationService, sessionsService, sessionsProvidersService, chatViewFactory, configurationService, view };
 }
 
 function readBanner(view: ChatGroupsView): { readonly visible: boolean; readonly message: string | undefined; readonly action: string | undefined } {
@@ -249,7 +300,7 @@ function readRemoteHostUnavailableState(view: ChatGroupsView): { readonly visibl
 	return {
 		visible: !state?.classList.contains('hidden'),
 		title: state?.querySelector('.remote-host-unavailable-empty-state-title')?.textContent ?? undefined,
-		description: state?.querySelector('.remote-host-unavailable-empty-state-description')?.textContent ?? undefined,
+		description: state?.querySelector('.remote-host-unavailable-empty-state-description:not(.hidden)')?.textContent ?? undefined,
 		progress: state?.querySelector('.remote-host-unavailable-empty-state-progress:not(.hidden)')?.textContent ?? undefined,
 		action: action && !action.classList.contains('hidden') ? action.textContent ?? undefined : undefined,
 		actionHidden: action?.classList.contains('hidden') ?? true,
@@ -293,6 +344,343 @@ suite('Sessions - ChatGroupsView', () => {
 			focusedKind: 'chat',
 			activeTab: child.resource.toString(),
 			tabs: [main.resource.toString(), child.resource.toString()],
+		});
+	});
+
+	test('updates chat tab presentation from configuration without changing visible tabs', async () => {
+		const { view, configurationService } = createHarness(disposables);
+		const main = createChat('main');
+		const child = createChat('child', SessionStatus.Completed, main.resource);
+		const session = new TestActiveSession([main, child]);
+		session.activeChat.set(child, undefined);
+		view.setSession(session, options);
+
+		const tabBar = view.element.querySelector<HTMLElement>('.session-chat-tabs-bar')!;
+		const initialTabs = session.visibleChatTabs.get();
+		const getState = () => ({
+			tabBarDisplay: tabBar.style.display,
+			activeTab: view.element.querySelector<HTMLElement>('.chat-composite-bar-tab.active')?.dataset.chatResource,
+			renderedKind: view.element.querySelector<HTMLElement>('.chat-view')?.dataset.kind,
+			visibleTabs: session.visibleChatTabs.get().map(chat => chat.resource.toString()),
+			visibleTabsIdentityPreserved: session.visibleChatTabs.get() === initialTabs,
+		});
+		const setChatTabsMode = async (mode: SessionsChatTabsMode) => {
+			await configurationService.setUserConfiguration(SESSIONS_CHAT_TABS_SETTING, mode);
+			configurationService.onDidChangeConfigurationEmitter.fire({
+				source: ConfigurationTarget.USER,
+				affectedKeys: new Set([SESSIONS_CHAT_TABS_SETTING]),
+				change: { keys: [SESSIONS_CHAT_TABS_SETTING], overrides: [] },
+				affectsConfiguration: key => key === SESSIONS_CHAT_TABS_SETTING,
+			});
+		};
+
+		const tabPresentation = getState();
+		await setChatTabsMode(SessionsChatTabsMode.Single);
+		const sessionViewPresentation = getState();
+		await setChatTabsMode(SessionsChatTabsMode.Multiple);
+
+		assert.deepStrictEqual({
+			tabPresentation,
+			sessionViewPresentation,
+			restoredTabPresentation: getState(),
+		}, {
+			tabPresentation: {
+				tabBarDisplay: '',
+				activeTab: child.resource.toString(),
+				renderedKind: 'chat',
+				visibleTabs: [main.resource.toString(), child.resource.toString()],
+				visibleTabsIdentityPreserved: true,
+			},
+			sessionViewPresentation: {
+				tabBarDisplay: 'none',
+				activeTab: child.resource.toString(),
+				renderedKind: 'chat',
+				visibleTabs: [main.resource.toString(), child.resource.toString()],
+				visibleTabsIdentityPreserved: true,
+			},
+			restoredTabPresentation: {
+				tabBarDisplay: '',
+				activeTab: child.resource.toString(),
+				renderedKind: 'chat',
+				visibleTabs: [main.resource.toString(), child.resource.toString()],
+				visibleTabsIdentityPreserved: true,
+			},
+		});
+	});
+
+	test('shows each side-by-side chat as a session view in single mode', async () => {
+		const { instantiationService, view, configurationService } = createHarness(disposables);
+		const main = createChat('main');
+		const secondary = createChat('secondary');
+		const sideChat = createChat('side', SessionStatus.Completed, main.resource, ChatOriginKind.SideChat);
+		const session = new TestActiveSession([main, secondary, sideChat], [main, secondary]);
+		view.setSession(session, options);
+		view.splitChatToSide(secondary.resource);
+
+		const readGroups = () => Array.from(view.element.querySelectorAll<HTMLElement>('.chat-group-view')).map(group => ({
+			headerDisplay: group.querySelector<HTMLElement>('.session-header-bar')?.style.display,
+			headerTitle: group.querySelector<HTMLElement>('.chat-composite-bar-session-title-text')?.textContent,
+			tabBarDisplay: group.querySelector<HTMLElement>('.session-chat-tabs-bar')?.style.display,
+		}));
+		await configurationService.setUserConfiguration(SESSIONS_CHAT_TABS_SETTING, SessionsChatTabsMode.Single);
+		configurationService.onDidChangeConfigurationEmitter.fire({
+			source: ConfigurationTarget.USER,
+			affectedKeys: new Set([SESSIONS_CHAT_TABS_SETTING]),
+			change: { keys: [SESSIONS_CHAT_TABS_SETTING], overrides: [] },
+			affectsConfiguration: key => key === SESSIONS_CHAT_TABS_SETTING,
+		});
+		const groups = Array.from(view.element.querySelectorAll<HTMLElement>('.chat-group-view'));
+		const contextKeyService = instantiationService.get(IContextKeyService);
+		const closeActionContexts = groups.map(group =>
+			contextKeyService.getContext(group).getValue<boolean>(SessionActiveChatIsClosableContext.key));
+		const headerShowsChatContexts = groups.map(group =>
+			contextKeyService.getContext(group).getValue<boolean>(SessionHeaderShowsChatContext.key));
+		const activeChatResources = groups.map(group =>
+			contextKeyService.getContext(group).getValue<string>(SessionActiveChatResourceContext.key));
+		const activeChatHasSideChats = groups.map(group =>
+			contextKeyService.getContext(group).getValue<boolean>(SessionActiveChatHasSideChatsContext.key));
+
+		assert.deepStrictEqual({
+			groups: readGroups(),
+			closeActionContexts,
+			headerShowsChatContexts,
+			activeChatResources,
+			activeChatHasSideChats,
+		}, {
+			groups: [
+				{
+					headerDisplay: '',
+					headerTitle: 'main',
+					tabBarDisplay: 'none',
+				},
+				{
+					headerDisplay: '',
+					headerTitle: 'secondary',
+					tabBarDisplay: 'none',
+				},
+			],
+			closeActionContexts: [true, true],
+			headerShowsChatContexts: [true, true],
+			activeChatResources: [main.resource.toString(), secondary.resource.toString()],
+			activeChatHasSideChats: [true, false],
+		});
+	});
+
+	test('closes the main chat group while keeping the main chat reopenable', async () => {
+		const { configurationService, view } = createHarness(disposables);
+		const main = createChat('main');
+		const secondary = createChat('secondary');
+		const session = new TestActiveSession([main, secondary]);
+		view.setSession(session, options);
+		view.splitChatToSide(secondary.resource);
+		await configurationService.setUserConfiguration(SESSIONS_CHAT_TABS_SETTING, SessionsChatTabsMode.Single);
+		configurationService.onDidChangeConfigurationEmitter.fire({
+			source: ConfigurationTarget.USER,
+			affectedKeys: new Set([SESSIONS_CHAT_TABS_SETTING]),
+			change: { keys: [SESSIONS_CHAT_TABS_SETTING], overrides: [] },
+			affectsConfiguration: key => key === SESSIONS_CHAT_TABS_SETTING,
+		});
+
+		const closed = await view.closeChatGroup(main.resource);
+
+		assert.deepStrictEqual({
+			closed,
+			groupCount: view.groupCount.get(),
+			groupChats: view['_groups'][0].resourceIds.get(),
+			groupActiveChat: view['_groups'][0].activeResourceId.get(),
+			sessionActiveChat: session.activeChat.get().resource.toString(),
+			visibleChats: session.visibleChatTabs.get().map(chat => chat.resource.toString()),
+		}, {
+			closed: true,
+			groupCount: 1,
+			groupChats: [secondary.resource.toString()],
+			groupActiveChat: secondary.resource.toString(),
+			sessionActiveChat: secondary.resource.toString(),
+			visibleChats: [main.resource.toString(), secondary.resource.toString()],
+		});
+	});
+
+	test('single mode replaces the current peer instead of stacking it behind the opened peer', async () => {
+		const { configurationService, sessionsService, view } = createHarness(disposables);
+		const main = createChat('main');
+		const peer = createChat('peer');
+		const session = new TestActiveSession([main, peer], [main]);
+		view.setSession(session, options);
+		await configurationService.setUserConfiguration(SESSIONS_CHAT_TABS_SETTING, SessionsChatTabsMode.Single);
+		configurationService.onDidChangeConfigurationEmitter.fire({
+			source: ConfigurationTarget.USER,
+			affectedKeys: new Set([SESSIONS_CHAT_TABS_SETTING]),
+			change: { keys: [SESSIONS_CHAT_TABS_SETTING], overrides: [] },
+			affectsConfiguration: key => key === SESSIONS_CHAT_TABS_SETTING,
+		});
+
+		await sessionsService.openChat(session, peer.resource);
+
+		assert.deepStrictEqual(view['_groups'].map(group => ({
+			chats: group.resourceIds.get(),
+			active: group.activeResourceId.get(),
+		})), [{
+			chats: [peer.resource.toString()],
+			active: peer.resource.toString(),
+		}]);
+	});
+
+	test('closing the sole peer pane does not reveal the main chat', async () => {
+		const { configurationService, sessionsService, view } = createHarness(disposables);
+		const main = createChat('main');
+		const peer = createChat('peer');
+		const session = new TestActiveSession([main, peer], [main]);
+		view.setSession(session, options);
+		await configurationService.setUserConfiguration(SESSIONS_CHAT_TABS_SETTING, SessionsChatTabsMode.Single);
+		configurationService.onDidChangeConfigurationEmitter.fire({
+			source: ConfigurationTarget.USER,
+			affectedKeys: new Set([SESSIONS_CHAT_TABS_SETTING]),
+			change: { keys: [SESSIONS_CHAT_TABS_SETTING], overrides: [] },
+			affectsConfiguration: key => key === SESSIONS_CHAT_TABS_SETTING,
+		});
+		await sessionsService.openChat(session, peer.resource);
+		sessionsService.onDidCloseSession = () => view.setSession(undefined, options);
+
+		const closed = await view.closeChatGroup(peer.resource);
+		await sessionsService.closeChat(session, peer);
+
+		assert.deepStrictEqual({
+			closed,
+			closedSessions: sessionsService.closedSessions,
+			closedChats: sessionsService.closedChats,
+			renderedChat: view.getActiveChat()?.resource.toString(),
+		}, {
+			closed: true,
+			closedSessions: [session.sessionId],
+			closedChats: [peer.resource.toString()],
+			renderedChat: undefined,
+		});
+	});
+
+	test('single mode opens a peer to the side without replacing the reference chat', async () => {
+		const { configurationService, view } = createHarness(disposables);
+		const main = createChat('main');
+		const peer = createChat('peer');
+		const session = new TestActiveSession([main, peer], [main]);
+		view.setSession(session, options);
+		await configurationService.setUserConfiguration(SESSIONS_CHAT_TABS_SETTING, SessionsChatTabsMode.Single);
+		configurationService.onDidChangeConfigurationEmitter.fire({
+			source: ConfigurationTarget.USER,
+			affectedKeys: new Set([SESSIONS_CHAT_TABS_SETTING]),
+			change: { keys: [SESSIONS_CHAT_TABS_SETTING], overrides: [] },
+			affectsConfiguration: key => key === SESSIONS_CHAT_TABS_SETTING,
+		});
+
+		await view.openChatInNewGroup(peer.resource, main.resource);
+
+		assert.deepStrictEqual(view['_groups'].map(group => ({
+			chats: group.resourceIds.get(),
+			active: group.activeResourceId.get(),
+		})), [{
+			chats: [main.resource.toString()],
+			active: main.resource.toString(),
+		}, {
+			chats: [peer.resource.toString()],
+			active: peer.resource.toString(),
+		}]);
+	});
+
+	test('keeps a pinned chat visible while reusing an unpinned group', async () => {
+		const { sessionsService, view } = createHarness(disposables);
+		const main = createChat('main');
+		const secondary = createChat('secondary');
+		const next = createChat('next');
+		const session = new TestActiveSession([main, secondary, next], [main, secondary]);
+		view.setSession(session, options);
+		view.splitChatToSide(secondary.resource);
+		view['_toggleActiveChatPin'](view['_groups'][0]);
+
+		await sessionsService.openChat(session, next.resource);
+
+		assert.deepStrictEqual(view['_groups'].map(group => ({
+			chats: group.resourceIds.get(),
+			active: group.activeResourceId.get(),
+			pinned: group.pinnedResourceId.get(),
+		})), [{
+			chats: [main.resource.toString()],
+			active: main.resource.toString(),
+			pinned: main.resource.toString(),
+		}, {
+			chats: [secondary.resource.toString(), next.resource.toString()],
+			active: next.resource.toString(),
+			pinned: undefined,
+		}]);
+	});
+
+	test('opens a new group when every visible chat group is pinned', async () => {
+		const { sessionsService, view } = createHarness(disposables);
+		const main = createChat('main');
+		const secondary = createChat('secondary');
+		const next = createChat('next');
+		const session = new TestActiveSession([main, secondary, next], [main, secondary]);
+		view.setSession(session, options);
+		view.splitChatToSide(secondary.resource);
+		for (const group of view['_groups']) {
+			view['_toggleActiveChatPin'](group);
+		}
+
+		await sessionsService.openChat(session, next.resource);
+
+		assert.deepStrictEqual(view['_groups'].map(group => ({
+			active: group.activeResourceId.get(),
+			pinned: group.pinnedResourceId.get(),
+		})), [{
+			active: main.resource.toString(),
+			pinned: main.resource.toString(),
+		}, {
+			active: secondary.resource.toString(),
+			pinned: secondary.resource.toString(),
+		}, {
+			active: next.resource.toString(),
+			pinned: undefined,
+		}]);
+	});
+
+	test('restores chat-group pins with the persisted layout', async () => {
+		const { instantiationService, sessionsService, view, configurationService } = createHarness(disposables);
+		const main = createChat('main');
+		const secondary = createChat('secondary');
+		const next = createChat('next');
+		const session = new TestActiveSession([main, secondary, next], [main, secondary]);
+		view.setSession(session, options);
+		view.splitChatToSide(secondary.resource);
+		view['_toggleActiveChatPin'](view['_groups'][0]);
+		view.setSession(undefined, options);
+
+		const restored = new TestActiveSession([main, secondary, next], [main, secondary]);
+		view.setSession(restored, options);
+		await configurationService.setUserConfiguration(SESSIONS_CHAT_TABS_SETTING, SessionsChatTabsMode.Single);
+		configurationService.onDidChangeConfigurationEmitter.fire({
+			source: ConfigurationTarget.USER,
+			affectedKeys: new Set([SESSIONS_CHAT_TABS_SETTING]),
+			change: { keys: [SESSIONS_CHAT_TABS_SETTING], overrides: [] },
+			affectsConfiguration: key => key === SESSIONS_CHAT_TABS_SETTING,
+		});
+		const contextKeyService = instantiationService.get(IContextKeyService);
+		const restoredPinContexts = Array.from(view.element.querySelectorAll<HTMLElement>('.chat-group-view'))
+			.map(group => contextKeyService.getContext(group).getValue<boolean>(SessionHeaderActiveChatIsPinnedContext.key));
+		await sessionsService.openChat(restored, next.resource);
+
+		assert.deepStrictEqual({
+			restoredPinContexts,
+			groupsAfterOpen: view['_groups'].map(group => ({
+				active: group.activeResourceId.get(),
+				pinned: group.pinnedResourceId.get(),
+			})),
+		}, {
+			restoredPinContexts: [true, false],
+			groupsAfterOpen: [{
+				active: main.resource.toString(),
+				pinned: main.resource.toString(),
+			}, {
+				active: next.resource.toString(),
+				pinned: undefined,
+			}],
 		});
 	});
 
@@ -340,6 +728,69 @@ suite('Sessions - ChatGroupsView', () => {
 		});
 	});
 
+	test('focused group publishes its rename target before the session active chat updates', async () => {
+		const { instantiationService, sessionsService, view } = createHarness(disposables);
+		const main = createChat('main');
+		const secondary = createChat('secondary');
+		const session = new TestActiveSession([main, secondary]);
+		sessionsService.activeSession.set(session, undefined);
+		view.setSession(session, options);
+		view.splitChatToSide(secondary.resource);
+		view.focusAdjacentGroup('previous');
+
+		const gate = new DeferredPromise<void>();
+		sessionsService.openChatGate = gate.p;
+		view.focusAdjacentGroup('next');
+
+		const contextKeyService = instantiationService.get(IContextKeyService);
+		const focusedContext = contextKeyService.getContext(mainWindow.document.activeElement);
+		const beforeOpenSettles = {
+			sessionActiveChat: session.activeChat.get().resource.toString(),
+			focusedChat: view.getFocusedChat()?.resource.toString(),
+			focusedChatClaimsRename: focusedContext.getValue<boolean>(SessionFocusedChatIsRenameTargetContext.key),
+		};
+		gate.complete();
+		await gate.p;
+		await Promise.resolve();
+
+		assert.deepStrictEqual({
+			beforeOpenSettles,
+			sessionActiveChatAfterOpen: session.activeChat.get().resource.toString(),
+		}, {
+			beforeOpenSettles: {
+				sessionActiveChat: main.resource.toString(),
+				focusedChat: secondary.resource.toString(),
+				focusedChatClaimsRename: true,
+			},
+			sessionActiveChatAfterOpen: secondary.resource.toString(),
+		});
+	});
+
+	test('focused DOM group remains the rename target when session reconciliation promotes another group', async () => {
+		const { instantiationService, sessionsService, view } = createHarness(disposables);
+		const main = createChat('main');
+		const secondary = createChat('secondary');
+		const session = new TestActiveSession([main, secondary]);
+		sessionsService.activeSession.set(session, undefined);
+		view.setSession(session, options);
+		view.splitChatToSide(secondary.resource);
+		view.focusAdjacentGroup('previous');
+
+		await sessionsService.openChat(session, secondary.resource);
+
+		const contextKeyService = instantiationService.get(IContextKeyService);
+		const focusedContext = contextKeyService.getContext(mainWindow.document.activeElement);
+		assert.deepStrictEqual({
+			sessionActiveChat: session.activeChat.get().resource.toString(),
+			focusedChat: view.getFocusedChat()?.resource.toString(),
+			focusedChatClaimsRename: focusedContext.getValue<boolean>(SessionFocusedChatIsRenameTargetContext.key),
+		}, {
+			sessionActiveChat: secondary.resource.toString(),
+			focusedChat: main.resource.toString(),
+			focusedChatClaimsRename: false,
+		});
+	});
+
 	test('restoration settles when an already-loaded catalog no longer contains a saved chat', () => {
 		const { view } = createHarness(disposables);
 		const main = createChat('main');
@@ -358,6 +809,105 @@ suite('Sessions - ChatGroupsView', () => {
 		}, {
 			groupCount: 1,
 			groups: 1,
+		});
+
+		test('forgets removed chat models after catalog and visible tabs converge', () => {
+			const { view } = createHarness(disposables);
+			const main = createChat('main');
+			const visibleFirst = createChat('visible-first');
+			const catalogFirst = createChat('catalog-first');
+			const session = new TestActiveSession([main, visibleFirst, catalogFirst]);
+			view.setSession(session, options);
+			const knownChats = Reflect.get(view, '_knownChatsByResource') as Map<string, IChat>;
+
+			session.visibleChatTabs.set([main, catalogFirst], undefined);
+			const afterVisibleRemoval = [...knownChats.keys()];
+			session.allChats.set([main, catalogFirst], undefined);
+			const afterVisibleAndCatalogRemoval = [...knownChats.keys()];
+			session.allChats.set([main], undefined);
+			const afterCatalogRemoval = [...knownChats.keys()];
+			session.visibleChatTabs.set([main], undefined);
+
+			assert.deepStrictEqual({
+				afterVisibleRemoval,
+				afterVisibleAndCatalogRemoval,
+				afterCatalogRemoval,
+				afterCatalogAndVisibleRemoval: [...knownChats.keys()],
+			}, {
+				afterVisibleRemoval: [main.resource.toString(), visibleFirst.resource.toString(), catalogFirst.resource.toString()],
+				afterVisibleAndCatalogRemoval: [main.resource.toString(), catalogFirst.resource.toString()],
+				afterCatalogRemoval: [main.resource.toString(), catalogFirst.resource.toString()],
+				afterCatalogAndVisibleRemoval: [main.resource.toString()],
+			});
+		});
+	});
+
+	test('restores subagent groups, tab order, and active chat', async () => {
+		const { view } = createHarness(disposables);
+		const main = createChat('main');
+		const peer = createChat('peer');
+		const firstSubagent = createChat('subagent-1', SessionStatus.Completed, main.resource);
+		const secondSubagent = createChat('subagent-2', SessionStatus.Completed, main.resource);
+		const session = new TestActiveSession([main, peer, firstSubagent, secondSubagent]);
+		view.setSession(session, options);
+		view.splitChatToSide(peer.resource);
+		await view.openChatInNewGroup(firstSubagent.resource);
+		await view.openChatInNewGroup(secondSubagent.resource);
+		view['_openChat'](view['_groups'][2], firstSubagent.resource);
+		const beforeReload = Array.from(view.element.querySelectorAll('.chat-group-view')).map(group =>
+			Array.from(group.querySelectorAll<HTMLElement>('.chat-composite-bar-tab')).map(tab => tab.dataset.chatResource));
+		view.setSession(undefined, options);
+
+		const restored = new TestActiveSession([main, peer, firstSubagent, secondSubagent]);
+		restored.activeChat.set(firstSubagent, undefined);
+		view.setSession(restored, options);
+
+		const groups = Array.from(view.element.querySelectorAll('.chat-group-view'));
+		assert.deepStrictEqual({
+			beforeReload,
+			groupTabs: groups.map(group => Array.from(group.querySelectorAll<HTMLElement>('.chat-composite-bar-tab')).map(tab => tab.dataset.chatResource)),
+			activeGroupTab: view.element.querySelector<HTMLElement>('.chat-group-view.active-group .chat-composite-bar-tab.active')?.dataset.chatResource,
+		}, {
+			beforeReload: [
+				[main.resource.toString()],
+				[secondSubagent.resource.toString()],
+				[firstSubagent.resource.toString()],
+				[peer.resource.toString()],
+			],
+			groupTabs: beforeReload,
+			activeGroupTab: firstSubagent.resource.toString(),
+		});
+	});
+
+	test('keeps saved subagent groups until delayed chat discovery completes', async () => {
+		const { view } = createHarness(disposables);
+		const main = createChat('main');
+		const subagent = createChat('subagent', SessionStatus.Completed, main.resource);
+		const session = new TestActiveSession([main, subagent]);
+		view.setSession(session, options);
+		await view.openChatInNewGroup(subagent.resource);
+		view.setSession(undefined, options);
+
+		const restored = new TestActiveSession([main], [main], true, 'test', undefined, true);
+		view.setSession(restored, options);
+		const beforeDiscovery = view.groupCount.get();
+
+		transaction(tx => {
+			restored.allChats.set([main, subagent], tx);
+			restored.visibleChatTabs.set([main, subagent], tx);
+			restored.activeChat.set(subagent, tx);
+			restored.loading.set(false, tx);
+		});
+
+		assert.deepStrictEqual({
+			beforeDiscovery,
+			groupTabs: Array.from(view.element.querySelectorAll('.chat-group-view')).map(group =>
+				Array.from(group.querySelectorAll<HTMLElement>('.chat-composite-bar-tab')).map(tab => tab.dataset.chatResource)),
+			activeChat: restored.activeChat.get().resource.toString(),
+		}, {
+			beforeDiscovery: 2,
+			groupTabs: [[main.resource.toString()], [subagent.resource.toString()]],
+			activeChat: subagent.resource.toString(),
 		});
 	});
 
@@ -464,6 +1014,149 @@ suite('Sessions - ChatGroupsView', () => {
 		await assert.rejects(view.openChatInNewGroup(secondary.resource), /open failed/);
 	});
 
+	for (const alreadyVisible of [false, true]) {
+		test(`opens a ${alreadyVisible ? 'visible' : 'hidden'} fork beside its source rather than the active group`, async () => {
+			const { sessionsService, view } = createHarness(disposables);
+			const main = createChat('main');
+			const source = createChat('source');
+			const neighbor = createChat('neighbor');
+			const fork = createChat('fork');
+			const session = new TestActiveSession([main, source, neighbor, fork], [main, source, neighbor]);
+			view.setSession(session, options);
+			view.layout(1200, 600, 0, 0);
+			await sessionsService.openChat(session, source.resource);
+			await view.openChatInNewGroup(neighbor.resource);
+			if (alreadyVisible) {
+				session.visibleChatTabs.set([...session.visibleChatTabs.get(), fork], undefined);
+			}
+
+			await view.openChatInNewGroup(fork.resource, source.resource);
+			const readGroups = () => view['_groups'].map(group => ({
+				chats: group.resourceIds.get(),
+				active: group.activeResourceId.get(),
+			}));
+			const afterOpen = readGroups();
+			const focusedAfterOpen = view.getFocusedChat()?.resource.toString();
+			await view.openChatInNewGroup(fork.resource, source.resource);
+			const afterRepeatedOpen = readGroups();
+			view.setSession(undefined, options);
+			view.setSession(session, options);
+
+			const expected = [
+				{ chats: [main.resource.toString(), source.resource.toString()], active: source.resource.toString() },
+				{ chats: [fork.resource.toString()], active: fork.resource.toString() },
+				{ chats: [neighbor.resource.toString()], active: neighbor.resource.toString() },
+			];
+			assert.deepStrictEqual({
+				afterOpen,
+				focusedAfterOpen,
+				afterRepeatedOpen,
+				afterRestore: readGroups(),
+				activeChat: session.activeChat.get().resource.toString(),
+			}, {
+				afterOpen: expected,
+				focusedAfterOpen: fork.resource.toString(),
+				afterRepeatedOpen: expected,
+				afterRestore: expected,
+				activeChat: fork.resource.toString(),
+			});
+		});
+	}
+
+	test('keeps the source peer visible when a fork was activated before being split', async () => {
+		const { sessionsService, view } = createHarness(disposables);
+		const main = createChat('main');
+		const source = createChat('source');
+		const fork = createChat('fork');
+		const session = new TestActiveSession([main, source, fork]);
+		view.setSession(session, options);
+		await sessionsService.openChat(session, fork.resource);
+
+		await view.openChatInNewGroup(fork.resource, source.resource);
+
+		assert.deepStrictEqual(view['_groups'].map(group => ({
+			chats: group.resourceIds.get(),
+			active: group.activeResourceId.get(),
+		})), [
+			{ chats: [main.resource.toString(), source.resource.toString()], active: source.resource.toString() },
+			{ chats: [fork.resource.toString()], active: fork.resource.toString() },
+		]);
+	});
+
+	for (const closeSource of [false, true]) {
+		test(`handles ${closeSource ? 'closing' : 'leaving'} the source group while opening a fork`, async () => {
+			const { sessionsService, view } = createHarness(disposables);
+			const main = createChat('main');
+			const source = createChat('source');
+			const fork = createChat('fork');
+			const session = new TestActiveSession([main, source, fork], [main, source]);
+			view.setSession(session, options);
+			await view.openChatInNewGroup(source.resource);
+			const gate = new DeferredPromise<void>();
+			sessionsService.openChatGate = gate.p;
+			const opening = view.openChatInNewGroup(fork.resource, source.resource);
+			transaction(tx => {
+				session.activeChat.set(main, tx);
+				if (closeSource) {
+					session.visibleChatTabs.set([main], tx);
+				}
+			});
+			gate.complete();
+			await opening;
+
+			assert.deepStrictEqual({
+				groups: view['_groups'].map(group => group.activeResourceId.get()),
+				active: session.activeChat.get().resource.toString(),
+				focused: view.getFocusedChat()?.resource.toString(),
+			}, {
+				groups: closeSource ? [main.resource.toString(), fork.resource.toString()] : [main.resource.toString(), source.resource.toString(), fork.resource.toString()],
+				active: fork.resource.toString(),
+				focused: fork.resource.toString(),
+			});
+		});
+	}
+
+	test('does not create a group when opening a hidden fork fails', async () => {
+		const { sessionsService, view } = createHarness(disposables);
+		const source = createChat('source');
+		const fork = createChat('fork');
+		const session = new TestActiveSession([source, fork], [source]);
+		view.setSession(session, options);
+		sessionsService.openChatError = new Error('open failed');
+
+		await assert.rejects(view.openChatInNewGroup(fork.resource, source.resource), /open failed/);
+		assert.deepStrictEqual(view['_groups'].map(group => ({
+			chats: group.resourceIds.get(),
+			active: group.activeResourceId.get(),
+		})), [{ chats: [source.resource.toString()], active: source.resource.toString() }]);
+	});
+
+	test('falls back to the active group when the source tab closes but its group remains', async () => {
+		const { sessionsService, view } = createHarness(disposables);
+		const main = createChat('main');
+		const source = createChat('source');
+		const neighbor = createChat('neighbor');
+		const fork = createChat('fork');
+		const session = new TestActiveSession([main, source, neighbor, fork], [main, source, neighbor]);
+		view.setSession(session, options);
+		await view.openChatInNewGroup(neighbor.resource);
+		const gate = new DeferredPromise<void>();
+		sessionsService.openChatGate = gate.p;
+		const opening = view.openChatInNewGroup(fork.resource, source.resource);
+		session.visibleChatTabs.set([main, neighbor], undefined);
+		gate.complete();
+		await opening;
+
+		assert.deepStrictEqual(view['_groups'].map(group => ({
+			chats: group.resourceIds.get(),
+			active: group.activeResourceId.get(),
+		})), [
+			{ chats: [main.resource.toString()], active: main.resource.toString() },
+			{ chats: [neighbor.resource.toString()], active: neighbor.resource.toString() },
+			{ chats: [fork.resource.toString()], active: fork.resource.toString() },
+		]);
+	});
+
 	test('dropping a hidden subagent on an edge opens it in a new group', async () => {
 		const { view } = createHarness(disposables);
 		const main = createChat('main');
@@ -508,6 +1201,78 @@ suite('Sessions - ChatGroupsView', () => {
 		});
 	});
 
+	for (const originKind of [ChatOriginKind.SideChat, ChatOriginKind.Tool]) {
+		test(`restores the owning chat after closing a same-group ${originKind}`, async () => {
+			const { sessionsService, view } = createHarness(disposables);
+			const main = createChat('main');
+			const child = createChat('child', SessionStatus.Completed, main.resource, originKind);
+			const separate = createChat('separate');
+			const session = new TestActiveSession([main, child, separate]);
+			view.setSession(session, options);
+			view.splitChatToSide(separate.resource);
+			await sessionsService.openChat(session, child.resource);
+
+			transaction(tx => {
+				session.visibleChatTabs.set([main, separate], tx);
+				session.activeChat.set(separate, tx);
+			});
+			await timeout(0);
+
+			assert.deepStrictEqual({
+				sessionActiveChat: session.activeChat.get().resource.toString(),
+				groupActiveChat: view['_activeGroup']?.activeResourceId.get(),
+			}, {
+				sessionActiveChat: main.resource.toString(),
+				groupActiveChat: main.resource.toString(),
+			});
+		});
+
+		test(`does not restore the owning chat after closing a separately grouped ${originKind}`, async () => {
+			const { sessionsService, view } = createHarness(disposables);
+			const main = createChat('main');
+			const child = createChat('child', SessionStatus.Completed, main.resource, originKind);
+			const separate = createChat('separate');
+			const session = new TestActiveSession([main, child, separate]);
+			view.setSession(session, options);
+			view.splitChatToSide(separate.resource);
+			await sessionsService.openChat(session, child.resource);
+			await view.openChatInNewGroup(child.resource);
+
+			transaction(tx => {
+				session.visibleChatTabs.set([main, separate], tx);
+				session.activeChat.set(separate, tx);
+			});
+			await timeout(0);
+
+			assert.deepStrictEqual({
+				sessionActiveChat: session.activeChat.get().resource.toString(),
+				groupActiveChat: view['_activeGroup']?.activeResourceId.get(),
+			}, {
+				sessionActiveChat: separate.resource.toString(),
+				groupActiveChat: separate.resource.toString(),
+			});
+		});
+
+		test(`opens the main chat when it is selected while a same-group ${originKind} is active`, async () => {
+			const { sessionsService, view } = createHarness(disposables);
+			const main = createChat('main');
+			const child = createChat('child', SessionStatus.Completed, main.resource, originKind);
+			const session = new TestActiveSession([main, child]);
+			view.setSession(session, options);
+			await sessionsService.openChat(session, child.resource);
+
+			await sessionsService.openChat(session, main.resource);
+
+			assert.deepStrictEqual({
+				sessionActiveChat: session.activeChat.get().resource.toString(),
+				groupActiveChat: view['_groups'][0].activeResourceId.get(),
+			}, {
+				sessionActiveChat: main.resource.toString(),
+				groupActiveChat: main.resource.toString(),
+			});
+		});
+	}
+
 	test('reopening a manually moved subagent preserves its group', async () => {
 		const { sessionsService, view } = createHarness(disposables);
 		const main = createChat('main');
@@ -530,7 +1295,7 @@ suite('Sessions - ChatGroupsView', () => {
 	});
 
 	test('left split updates logical and accessible group order', async () => {
-		const { view } = createHarness(disposables);
+		const { view, chatViewFactory } = createHarness(disposables);
 		const main = createChat('main');
 		const secondary = createChat('secondary');
 		const session = new TestActiveSession([main, secondary]);
@@ -541,11 +1306,14 @@ suite('Sessions - ChatGroupsView', () => {
 		const groups = Array.from(view.element.querySelectorAll<HTMLElement>('.chat-group-view'));
 		const labelByChat = Object.fromEntries(groups.map(group => [
 			group.querySelector<HTMLElement>('.chat-composite-bar-tab')?.dataset.chatResource,
-			group.getAttribute('aria-label'),
+			{
+				label: group.getAttribute('aria-label'),
+				primary: chatViewFactory.views.find(candidate => candidate.element.parentElement === group.querySelector('.chat-group-view-content'))?.primary,
+			},
 		]));
 		assert.deepStrictEqual(labelByChat, {
-			[secondary.resource.toString()]: 'Chat Group 1 of 2',
-			[main.resource.toString()]: 'Chat Group 2 of 2',
+			[secondary.resource.toString()]: { label: 'Chat Group 1 of 2', primary: true },
+			[main.resource.toString()]: { label: 'Chat Group 2 of 2', primary: false },
 		});
 	});
 
@@ -619,7 +1387,7 @@ suite('Sessions - ChatGroupsView', () => {
 	});
 
 	test('shows session actions in a single tab row and hides them for split groups', () => {
-		const { view } = createHarness(disposables);
+		const { instantiationService, view } = createHarness(disposables);
 		const main = createChat('main');
 		const secondary = createChat('secondary');
 		const session = new TestActiveSession([main, secondary]);
@@ -627,15 +1395,24 @@ suite('Sessions - ChatGroupsView', () => {
 
 		const singleGroupActions = view.element.querySelector<HTMLElement>('.session-chat-tabs-actions');
 		const singleGroupHidden = singleGroupActions?.classList.contains('hidden');
+		const contextKeyService = instantiationService.get(IContextKeyService);
+		const singleGroup = view.element.querySelector<HTMLElement>('.chat-group-view')!;
+		const singleGroupHeaderShowsChat = contextKeyService.getContext(singleGroup).getValue<boolean>(SessionHeaderShowsChatContext.key);
 		view.splitChatToSide(secondary.resource);
 		const splitGroupActions = Array.from(view.element.querySelectorAll<HTMLElement>('.session-chat-tabs-actions'));
+		const splitGroupHeaderShowsChat = Array.from(view.element.querySelectorAll<HTMLElement>('.chat-group-view'))
+			.map(group => contextKeyService.getContext(group).getValue<boolean>(SessionHeaderShowsChatContext.key));
 
 		assert.deepStrictEqual({
 			singleGroupHidden,
+			singleGroupHeaderShowsChat,
 			splitGroupsHidden: splitGroupActions.map(actions => actions.classList.contains('hidden')),
+			splitGroupHeaderShowsChat,
 		}, {
 			singleGroupHidden: false,
+			singleGroupHeaderShowsChat: false,
 			splitGroupsHidden: [true, true],
+			splitGroupHeaderShowsChat: [false, false],
 		});
 	});
 
@@ -765,6 +1542,226 @@ suite('Sessions - ChatGroupsView', () => {
 				},
 			},
 			connectCalls: 1,
+		});
+	});
+
+	test('offers a plain connect before the first attempt and a retry once one has failed', async () => {
+		const { sessionsProvidersService, view } = createHarness(disposables);
+		const provider = new TestAgentHostProvider();
+		const connect = new DeferredPromise<void>();
+		provider.connectGate = connect.p;
+		sessionsProvidersService.provider = provider;
+		// A host that reports no specific reason has not been established as stoppable, which is
+		// the shape a cloud sandbox arrives in: dormant, and resumable only by asking.
+		const session = new TestActiveSession([createChat('main')], undefined, true, provider.id, { kind: 'disconnected', reason: SessionRemoteConnectionFailureReason.Unknown });
+		const status = session.remoteConnectionStatus;
+		assert.ok(status);
+		view.setSession(session, options);
+		const beforeAnyAttempt = readRemoteHostUnavailableState(view).action;
+
+		view.element.querySelector<HTMLElement>('.remote-host-unavailable-empty-state-action .monaco-button')?.click();
+		const whileConnecting = readRemoteHostUnavailableState(view);
+
+		const originalErrorHandler = errorHandler.getUnexpectedErrorHandler();
+		setUnexpectedErrorHandler(() => { });
+		try {
+			connect.error(new Error('Expected sandbox resume failure'));
+			await Promise.resolve();
+			await Promise.resolve();
+		} finally {
+			setUnexpectedErrorHandler(originalErrorHandler);
+		}
+
+		assert.deepStrictEqual({
+			beforeAnyAttempt,
+			whileConnecting: { visible: whileConnecting.visible, title: whileConnecting.title, progress: whileConnecting.progress },
+			afterFailure: readRemoteHostUnavailableState(view).action,
+			connectCalls: provider.connectCalls,
+		}, {
+			beforeAnyAttempt: 'Connect',
+			whileConnecting: { visible: true, title: 'Connecting to WSL: Ubuntu', progress: 'Waiting for agent host connection...' },
+			afterFailure: 'Retry',
+			connectCalls: 1,
+		});
+	});
+
+	test('shows the connecting state for a connection the view did not start itself', () => {
+		const { chatViewFactory, sessionsProvidersService, view } = createHarness(disposables);
+		const provider = new TestAgentHostProvider();
+		sessionsProvidersService.provider = provider;
+		// Nothing in this view asked for the connect, so there is no attempt to hang progress on.
+		// The wait is real either way and must not present as a blank chat.
+		const session = new TestActiveSession([createChat('main')], undefined, true, provider.id, { kind: 'connecting' });
+		const status = session.remoteConnectionStatus;
+		assert.ok(status);
+		view.setSession(session, options);
+		const emptyTranscript = readRemoteHostUnavailableState(view);
+		const detailHidden = view.element.querySelector<HTMLElement>('.remote-host-unavailable-empty-state-detail')?.hidden;
+
+		const withTranscript = new TestActiveSession([createChat('existing')], undefined, true, provider.id, { kind: 'connecting' });
+		view.setSession(withTranscript, options);
+		chatViewFactory.views[chatViewFactory.views.length - 1].hasVisibleTranscriptContent.set(true, undefined);
+
+		assert.deepStrictEqual({
+			emptyTranscript: { visible: emptyTranscript.visible, title: emptyTranscript.title, progress: emptyTranscript.progress, action: emptyTranscript.action },
+			withTranscript: readBanner(view),
+			connectCalls: provider.connectCalls,
+			detailHidden,
+		}, {
+			emptyTranscript: { visible: true, title: 'Connecting to WSL: Ubuntu', progress: 'Waiting for agent host connection...', action: undefined },
+			withTranscript: { visible: true, message: 'Waiting for agent host connection...', action: undefined },
+			connectCalls: 0,
+			detailHidden: true,
+		});
+	});
+
+	test('offers the provider connection log while connecting and preserves its keyboard focus', () => {
+		const { sessionsProvidersService, view } = createHarness(disposables);
+		const provider = new TestAgentHostProvider();
+		let showLogCalls = 0;
+		provider.showConnectionLog = async () => { showLogCalls++; };
+		sessionsProvidersService.provider = provider;
+		const session = new TestActiveSession([createChat('main')], undefined, true, provider.id, { kind: 'connecting' });
+		const status = session.remoteConnectionStatus;
+		assert.ok(status);
+		view.setSession(session, options);
+		const detail = view.element.querySelector<HTMLElement>('.remote-host-unavailable-empty-state-detail');
+		const link = detail?.querySelector<HTMLAnchorElement>('a');
+		assert.ok(detail && link);
+		link.focus();
+		link.click();
+		link.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true }));
+		const connecting = { hidden: detail.hidden, label: link.textContent, role: link.getAttribute('role'), tabIndex: link.tabIndex };
+
+		status.set({ kind: 'connecting' }, undefined);
+		const retainedFocus = mainWindow.document.activeElement === link;
+		status.set({ kind: 'disconnected', reason: SessionRemoteConnectionFailureReason.Unknown }, undefined);
+		link.click();
+
+		assert.deepStrictEqual({
+			connecting,
+			retainedFocus,
+			hiddenAfterDisconnect: detail.hidden,
+			showLogCalls,
+		}, {
+			connecting: { hidden: false, label: 'Show Log', role: 'button', tabIndex: 0 },
+			retainedFocus: true,
+			hiddenAfterDisconnect: true,
+			showLogCalls: 2,
+		});
+	});
+
+	test('explains a read-only chat by its connection state rather than the generic notice', () => {
+		const { chatViewFactory, sessionsProvidersService, view } = createHarness(disposables);
+		const provider = new TestAgentHostProvider();
+		sessionsProvidersService.provider = provider;
+		// A host that cannot queue work offline reports its sessions read-only *because* it is
+		// disconnected, so the connection banner is what explains the missing composer.
+		const chat = createChat('main');
+		chat.interactivity.set(ChatInteractivity.ReadOnly, undefined);
+		const session = new TestActiveSession([chat], undefined, true, provider.id, { kind: 'disconnected', reason: SessionRemoteConnectionFailureReason.Unknown });
+		view.setSession(session, options);
+		chatViewFactory.views[chatViewFactory.views.length - 1].hasVisibleTranscriptContent.set(true, undefined);
+		const disconnected = readBanner(view);
+
+		// Archiving is a deliberate act on the session, so it keeps explaining itself.
+		session.isArchived.set(true, undefined);
+
+		assert.deepStrictEqual({ disconnected, archived: readBanner(view).message }, {
+			disconnected: { visible: true, message: 'Cannot reach WSL: Ubuntu.', action: 'Connect' },
+			archived: 'Archived sessions are read-only.',
+		});
+	});
+
+	test('prefers the banner over the centered state while the transcript is still loading', () => {
+		const { chatViewFactory, sessionsProvidersService, view } = createHarness(disposables);
+		const provider = new TestAgentHostProvider();
+		sessionsProvidersService.provider = provider;
+		// A session whose history is still in flight reports no transcript yet, which is not the
+		// same as having none. Committing to the full-pane state here would flash it and then
+		// collapse to the banner the moment the history lands.
+		const session = new TestActiveSession([createChat('main')], undefined, true, provider.id, { kind: 'disconnected', reason: SessionRemoteConnectionFailureReason.Unknown });
+		view.setSession(session, options);
+		const currentView = () => chatViewFactory.views[chatViewFactory.views.length - 1];
+		currentView().isLoadingTranscript.set(true, undefined);
+		const whileLoading = { state: readRemoteHostUnavailableState(view).visible, banner: readBanner(view) };
+
+		// History arrived: the transcript owns the pane and the banner keeps explaining the host.
+		transaction(tx => {
+			currentView().isLoadingTranscript.set(false, tx);
+			currentView().hasVisibleTranscriptContent.set(true, tx);
+		});
+		const withTranscript = { state: readRemoteHostUnavailableState(view).visible, banner: readBanner(view).visible };
+
+		// A genuinely empty session settles the other way, so the centered state is not lost.
+		currentView().hasVisibleTranscriptContent.set(false, undefined);
+
+		assert.deepStrictEqual({ whileLoading, withTranscript, settledEmpty: readRemoteHostUnavailableState(view).visible }, {
+			whileLoading: { state: false, banner: { visible: true, message: 'Cannot reach WSL: Ubuntu.', action: 'Connect' } },
+			withTranscript: { state: false, banner: true },
+			settledEmpty: true,
+		});
+	});
+
+	test('uses provider connection labels for recovery states and banners', () => {
+		const { chatViewFactory, sessionsProvidersService, view } = createHarness(disposables);
+		const provider = new TestAgentHostProvider();
+		provider.connectionLabels = {
+			unavailableTitle: 'Environment Offline',
+			unavailable: 'Environment offline.',
+			connectingTitle: 'Connecting to the Environment',
+			connecting: 'Connecting...',
+			reconnecting: 'Reconnecting...',
+			reconnectingIn: seconds => `Reconnecting in ${seconds}s`,
+			incompatibleTitle: 'Cannot Connect to the Environment',
+			incompatible: 'This environment is incompatible with this version of Visual Studio Code.',
+		};
+		sessionsProvidersService.provider = provider;
+		const session = new TestActiveSession([createChat('main')], undefined, true, provider.id, { kind: 'disconnected', reason: SessionRemoteConnectionFailureReason.Unknown });
+		const status = session.remoteConnectionStatus;
+		assert.ok(status);
+		view.setSession(session, options);
+		const offlineState = readRemoteHostUnavailableState(view);
+
+		status.set({ kind: 'connecting' }, undefined);
+		const connectingState = readRemoteHostUnavailableState(view);
+
+		// With a transcript on screen the banner carries the same wording.
+		chatViewFactory.views[chatViewFactory.views.length - 1].hasVisibleTranscriptContent.set(true, undefined);
+		const connectingBanner = readBanner(view).message;
+		status.set({ kind: 'disconnected', reason: SessionRemoteConnectionFailureReason.Unknown }, undefined);
+		const offlineBanner = readBanner(view);
+
+		status.set({ kind: 'incompatible' }, undefined);
+		const incompatibleBanner = readBanner(view);
+		chatViewFactory.views[chatViewFactory.views.length - 1].hasVisibleTranscriptContent.set(false, undefined);
+		const incompatibleState = readRemoteHostUnavailableState(view);
+		status.set({ kind: 'connected' }, undefined);
+
+		assert.deepStrictEqual({
+			offline: { title: offlineState.title, description: offlineState.description, action: offlineState.action },
+			connecting: { title: connectingState.title, description: connectingState.description, progress: connectingState.progress },
+			connectingBanner,
+			offlineBanner,
+			incompatible: { title: incompatibleState.title, description: incompatibleState.description, action: incompatibleState.action },
+			incompatibleBanner,
+			connected: { recoveryVisible: readRemoteHostUnavailableState(view).visible, bannerVisible: readBanner(view).visible },
+		}, {
+			offline: { title: 'Environment Offline', description: undefined, action: 'Connect' },
+			connecting: { title: 'Connecting to the Environment', description: undefined, progress: 'Connecting...' },
+			connectingBanner: 'Connecting...',
+			offlineBanner: { visible: true, message: 'Environment offline.', action: 'Connect' },
+			incompatible: {
+				title: 'Cannot Connect to the Environment',
+				description: 'This environment is incompatible with this version of Visual Studio Code.',
+				action: undefined,
+			},
+			incompatibleBanner: {
+				visible: true,
+				message: 'This environment is incompatible with this version of Visual Studio Code.',
+				action: undefined,
+			},
+			connected: { recoveryVisible: false, bannerVisible: false },
 		});
 	});
 
@@ -1073,7 +2070,9 @@ suite('Sessions - ChatGroupsView', () => {
 
 			remoteConnectionStatus.set({ kind: 'reconnecting' }, undefined);
 			remoteConnectionStatus.set({ kind: 'connected' }, undefined);
-			await timeout(1_000);
+			// Past the delay, so this proves the settled connection suppresses the
+			// banner rather than the threshold simply not having elapsed.
+			await timeout(6_000);
 
 			assert.deepStrictEqual(readBanner(view), { visible: false, message: 'This chat is read-only', action: undefined });
 		});
@@ -1088,9 +2087,9 @@ suite('Sessions - ChatGroupsView', () => {
 			const session = new TestActiveSession([chat], undefined, true, provider.id, { kind: 'reconnecting' });
 			view.setSession(session, options);
 
-			await timeout(500);
+			await timeout(3_000);
 			chat.status.set(SessionStatus.Error, undefined);
-			await timeout(500);
+			await timeout(3_000);
 
 			assert.deepStrictEqual(readBanner(view), {
 				visible: true,
@@ -1105,16 +2104,16 @@ suite('Sessions - ChatGroupsView', () => {
 			const { chatViewFactory, sessionsProvidersService, view } = createHarness(disposables);
 			const provider = new TestAgentHostProvider();
 			sessionsProvidersService.provider = provider;
-			const session = new TestActiveSession([createChat('main')], undefined, true, provider.id, { kind: 'reconnecting', nextAttemptAt: Date.now() + 6_000 });
+			const session = new TestActiveSession([createChat('main')], undefined, true, provider.id, { kind: 'reconnecting', nextAttemptAt: Date.now() + 12_000 });
 			view.setSession(session, options);
 			chatViewFactory.views[chatViewFactory.views.length - 1].hasVisibleTranscriptContent.set(true, undefined);
 
-			await timeout(1_000);
+			await timeout(5_500);
 			const banner = readBanner(view);
 			view.element.querySelector<HTMLElement>('.session-readonly-banner-action-link')?.click();
 
 			assert.deepStrictEqual({ banner, reconnectNowCalls: provider.reconnectNowCalls }, {
-				banner: { visible: true, message: 'Reconnecting to WSL: Ubuntu in 5s', action: 'Try Now' },
+				banner: { visible: true, message: 'Reconnecting to WSL: Ubuntu in 7s', action: 'Try Now' },
 				reconnectNowCalls: 1,
 			});
 		});
@@ -1125,18 +2124,44 @@ suite('Sessions - ChatGroupsView', () => {
 			const { chatViewFactory, sessionsProvidersService, view } = createHarness(disposables);
 			const provider = new TestAgentHostProvider();
 			sessionsProvidersService.provider = provider;
-			const session = new TestActiveSession([createChat('main')], undefined, true, provider.id, { kind: 'reconnecting', nextAttemptAt: Date.now() + 7_000 });
+			const session = new TestActiveSession([createChat('main')], undefined, true, provider.id, { kind: 'reconnecting', nextAttemptAt: Date.now() + 13_000 });
 			view.setSession(session, options);
 			chatViewFactory.views[chatViewFactory.views.length - 1].hasVisibleTranscriptContent.set(true, undefined);
 
-			await timeout(1_000);
+			await timeout(5_500);
 			const beforeTick = readBanner(view);
 			await timeout(1_000);
 
 			assert.deepStrictEqual({ beforeTick, afterTick: readBanner(view) }, {
-				beforeTick: { visible: true, message: 'Reconnecting to WSL: Ubuntu in 6s', action: 'Try Now' },
-				afterTick: { visible: true, message: 'Reconnecting to WSL: Ubuntu in 5s', action: 'Try Now' },
+				beforeTick: { visible: true, message: 'Reconnecting to WSL: Ubuntu in 8s', action: 'Try Now' },
+				afterTick: { visible: true, message: 'Reconnecting to WSL: Ubuntu in 7s', action: 'Try Now' },
 			});
+		});
+	});
+
+	test('stays quiet while a flapping transport keeps healing itself', async () => {
+		await runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { chatViewFactory, sessionsProvidersService, view } = createHarness(disposables);
+			const provider = new TestAgentHostProvider();
+			sessionsProvidersService.provider = provider;
+			const session = new TestActiveSession([createChat('main')], undefined, true, provider.id, { kind: 'connected' });
+			const remoteConnectionStatus = session.remoteConnectionStatus;
+			assert.ok(remoteConnectionStatus);
+			view.setSession(session, options);
+			chatViewFactory.views[chatViewFactory.views.length - 1].hasVisibleTranscriptContent.set(true, undefined);
+
+			// Every outage heals well inside the delay, so none is worth a banner.
+			const banners: boolean[] = [];
+			for (let i = 0; i < 5; i++) {
+				remoteConnectionStatus.set({ kind: 'reconnecting' }, undefined);
+				await timeout(2_100);
+				banners.push(readBanner(view).visible);
+				remoteConnectionStatus.set({ kind: 'connected' }, undefined);
+				await timeout(3_700);
+				banners.push(readBanner(view).visible);
+			}
+
+			assert.deepStrictEqual(banners, [false, false, false, false, false, false, false, false, false, false]);
 		});
 	});
 
@@ -1149,7 +2174,7 @@ suite('Sessions - ChatGroupsView', () => {
 			view.setSession(session, options);
 			chatViewFactory.views[chatViewFactory.views.length - 1].hasVisibleTranscriptContent.set(true, undefined);
 
-			await timeout(1_000);
+			await timeout(6_000);
 
 			assert.deepStrictEqual(readBanner(view), {
 				visible: true,
@@ -1182,7 +2207,7 @@ suite('Sessions - ChatGroupsView', () => {
 			}
 
 			remoteConnectionStatus.set({ kind: 'reconnecting' }, undefined);
-			await timeout(1_000);
+			await timeout(6_000);
 
 			assert.deepStrictEqual({ connectCalls: provider.connectCalls, banner: readBanner(view) }, {
 				connectCalls: 1,

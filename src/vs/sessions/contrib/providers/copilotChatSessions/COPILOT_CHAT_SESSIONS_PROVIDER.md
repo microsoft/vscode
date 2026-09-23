@@ -8,7 +8,7 @@
 
 ## Registration and identity
 
-`DefaultSessionsProviderContribution` registers one provider after workbench restoration.
+`DefaultSessionsProviderContribution` registers the default provider after workbench restoration.
 
 | Property | Contract |
 |----------|----------|
@@ -17,7 +17,9 @@
 | Cloud session type | Always advertised when available |
 | Local CLI session type | Advertised only when Agent Host does not own it |
 
-The provider may expose local-folder and remote-repository browse actions. Workspace URI schemes select the applicable draft implementation.
+The provider may expose local-folder and remote-repository browse actions. Repository selection UI is owned by the shared workbench picker, used by both the extension's repository command and browser session creation; each caller supplies repository data and owns any session-option updates. Workspace resolution is shared by the default and sandbox creation modes. Workspace URI schemes select the applicable draft implementation.
+
+On web, the contribution also registers a sandbox-only instance (`cloud-sandbox-creation`) while cloud sandboxes and remote agent hosts are enabled and AI features are visible. This instance owns repository-backed drafts, not existing Cloud or CLI history. It advertises the Copilot sandbox creation type.
 
 ## Drafts
 
@@ -36,6 +38,8 @@ The provider cache is keyed by resource identity. Refreshing the backing agent s
 
 Provider metadata translation, including repository and pull-request metadata, remains inside the adapter. Shared Sessions code consumes provider-neutral workspace, changes, status, and GitHub information.
 
+The cloud provider reports verified PR-closing issues through `linkedIssues` metadata containing their URLs and titles. The adapter exposes these as session artifacts and, for public GitHub URLs, issue references for the existing issue pill. Enterprise-hosted issues remain openable artifacts without public GitHub polling.
+
 ## Request lifecycle
 
 The provider separates chat creation from request sending:
@@ -53,6 +57,8 @@ sendRequest
 The provider never opens chat UI directly. Presentation and focus remain owned by `ISessionsService`.
 
 Committed sessions send against their existing chat resources. Multi-chat creation is capability-gated and follows the shared management lifecycle.
+
+Sandbox creation reuses the remote draft and optimistic replacement lifecycle. Repository selection creates only a draft. The first send provisions through `CloudSandboxAgentHostContribution`, sends the prompt once into the provisioned session's existing main chat, and transfers ownership to that environment's provider. Until that handoff, the creation provider owns an extension-independent, read-only transcript. The creation provider does not supply the regular Cloud model catalog; the connected host owns model selection. Explicit sandbox drafts fail when sandbox creation is disabled rather than falling back to the server-run Cloud agent. If the first send fails after provisioning, the environment's session is published so it remains recoverable.
 
 ## Picker contributions
 

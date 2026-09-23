@@ -8,6 +8,7 @@ import { autorun, constObservable, IObservable, observableValue, transaction } f
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { AUTHORITATIVE_EMPTY_CHAT_RESPONSE_FILE_CHANGES } from '../../../../../workbench/contrib/chat/browser/chatResponseFileChangesService.js';
 import { isIChatSessionFileChange2 } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
@@ -402,6 +403,52 @@ suite('SessionTurnChanges', () => {
 		service.openChangesForRequest(URI.parse('test:session'), 'request', { isLastTurn: false });
 
 		assert.strictEqual(openCount, 1);
+	});
+
+	test('keeps an Agent Merge notice empty instead of using the previous turn changeset stats', () => {
+		const chatResource = URI.parse('chat:session');
+		const chat = upcastPartial<IChat>({
+			resource: chatResource,
+			updatedAt: constObservable(new Date('2026-08-13T10:00:00Z')),
+		});
+		const session = upcastPartial<IActiveSession>({
+			resource: URI.parse('agent-host:session'),
+			chats: constObservable([chat]),
+			mainChat: constObservable(chat),
+		});
+		const changeset = upcastPartial<ISessionChangeset>({
+			id: TURN_CHANGES_CHANGESET_ID,
+			isEnabled: constObservable(true),
+			isLoadingChanges: constObservable(false),
+			changes: constObservable(Array.from({ length: 10 }, (_, index) => ({
+				uri: URI.file(`/workspace/file-${index}.ts`),
+				modifiedUri: URI.file(`/workspace/file-${index}.ts`),
+				insertions: 1,
+				deletions: 0,
+			}))),
+		});
+		const service = disposables.add(new SessionsChatResponseFileChangesService(
+			new class extends mock<IEditorService>() { }(),
+			new class extends mock<ISessionsManagementService>() {
+				override getSessionForChatResource() {
+					return { session, chat };
+				}
+			}(),
+			new class extends mock<ISessionsService>() { }(),
+			new class extends mock<ISessionChangesService>() { }(),
+			new class extends mock<IAgentWorkbenchLayoutService>() { }(),
+			new class extends mock<IChangesViewService>() {
+				override readonly activeSessionResourceObs = constObservable<URI | undefined>(session.resource);
+				override readonly activeSessionChangesetsObs = constObservable<readonly ISessionChangeset[] | undefined>([changeset]);
+			}(),
+		));
+		disposables.add(service.registerProvider('chat', {
+			getChangesForRequest: () => constObservable(AUTHORITATIVE_EMPTY_CHAT_RESPONSE_FILE_CHANGES),
+		}));
+
+		const stats = service.getChangeStatsForRequest(chatResource, 'agent-merge-notice', { isLastTurn: true });
+
+		assert.deepStrictEqual(stats?.get(), { files: 0, insertions: 0, deletions: 0 });
 	});
 
 	test('reads current-turn stats from the Changes view service', () => {

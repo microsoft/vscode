@@ -292,8 +292,12 @@ export const agentMergeDisableReasons = {
 		notice: localize('agentMerge.disabled.indeterminate', "Agent Merge was disabled because its pull request state could not be evaluated for {0} minutes.", minutes),
 	}),
 	pullRequestClosed: (): AgentMergeDisableReason => ({
-		log: 'the pull request is closed or merged',
-		notice: localize('agentMerge.disabled.pullRequestClosed', "Agent Merge was disabled because its pull request is closed or merged."),
+		log: 'the pull request was closed without merging',
+		notice: localize('agentMerge.disabled.pullRequestClosed', "Agent Merge was disabled because its pull request was closed without merging."),
+	}),
+	pullRequestAlreadyMerged: (pullRequestNumber: number, pullRequestUrl: string): AgentMergeDisableReason => ({
+		log: 'the pull request was already merged',
+		notice: localize('agentMerge.disabled.pullRequestAlreadyMerged', "Pull request [#{0}]({1}) was merged. Agent Merge is now disabled.", pullRequestNumber, pullRequestUrl),
 	}),
 	repairBudgetExhausted: (): AgentMergeDisableReason => ({
 		log: 'the same pull request blockers remained after repeated repair attempts',
@@ -341,8 +345,18 @@ export function agentMergeEnabledNotice(target: Pick<AgentMergeTarget, 'branchNa
 	return [lines[0], '', ...lines.slice(1).map(line => `- ${line}`)].join('\n');
 }
 
-/** The transcript notice shown when effective Agent Merge behavior changes. */
-export function agentMergeConfigurationChangedNotice(previous: AgentMergeConfiguration, current: AgentMergeConfiguration): string | undefined {
+/**
+ * Whether a configuration change was made for one session alone, or to the
+ * defaults every session follows.
+ */
+export type AgentMergeConfigurationChangeScope = 'session' | 'global';
+
+/**
+ * The transcript notice shown when effective Agent Merge behavior changes. The
+ * scope is named up front because the same change reads very differently
+ * depending on whether it was made for this session or for all of them.
+ */
+export function agentMergeConfigurationChangedNotice(previous: AgentMergeConfiguration, current: AgentMergeConfiguration, scope: AgentMergeConfigurationChangeScope): string | undefined {
 	const changes: string[] = [];
 	if (previous.addressReviews !== current.addressReviews) {
 		changes.push(current.addressReviews
@@ -372,8 +386,17 @@ export function agentMergeConfigurationChangedNotice(previous: AgentMergeConfigu
 			: localize('agentMerge.notice.configuration.replyAttribution.disabled', "Replies it posts will no longer identify Agent Merge as the source."));
 	}
 	return changes.length > 0
-		? [localize('agentMerge.notice.configuration.changed', "Agent Merge settings changed."), '', ...changes.map(change => `- ${change}`)].join('\n')
+		? [agentMergeConfigurationChangedHeading(scope), '', ...changes.map(change => `- ${change}`)].join('\n')
 		: undefined;
+}
+
+function agentMergeConfigurationChangedHeading(scope: AgentMergeConfigurationChangeScope): string {
+	switch (scope) {
+		case 'session':
+			return localize('agentMerge.notice.configuration.changed.session', "Agent Merge settings changed for this session.");
+		case 'global':
+			return localize('agentMerge.notice.configuration.changed.global', "Agent Merge default settings changed for all sessions.");
+	}
 }
 
 function agentMergeMergeBehaviorNotice(mergePullRequest: AgentMergeMergePullRequest): string {
@@ -610,7 +633,7 @@ class FeedbackBudget {
 	}
 }
 
-export function evaluateAgentMerge(snapshot: PullRequestSnapshot, configuration: AgentMergeConfiguration, commentWatermark: string): AgentMergeGateResult {
+export function evaluateAgentMerge(snapshot: PullRequestSnapshot, configuration: AgentMergeConfiguration, commentWatermark: string, deferredCheckIds?: ReadonlySet<string>): AgentMergeGateResult {
 	const core = snapshot.core;
 	if (core.status !== 'ready' || !core.complete || !core.value) {
 		return { kind: 'indeterminate', reason: 'Pull request core state is incomplete', cause: 'core:incomplete' };
@@ -632,11 +655,12 @@ export function evaluateAgentMerge(snapshot: PullRequestSnapshot, configuration:
 	const mergeability = snapshot.mergeability.value!;
 	const behind = mergeability.mergeStateStatus?.toUpperCase() === 'BEHIND';
 	const conflicting = mergeability.mergeable === 'CONFLICTING';
+	const actionableFailedChecks = checks.failed.filter(check => !deferredCheckIds?.has(check.id));
 	const actions: AgentMergeRepairAction[] = [];
 	if (configuration.addressReviews && (reviewThreads.length > 0 || changesRequested.length > 0 || newComments.length > 0)) {
 		actions.push('addressReviews');
 	}
-	if (configuration.fixCI && checks.failed.length > 0) {
+	if (configuration.fixCI && actionableFailedChecks.length > 0) {
 		actions.push('fixCI');
 	}
 	if (configuration.resolveConflicts && (behind || conflicting)) {
@@ -665,12 +689,16 @@ export function evaluateAgentMerge(snapshot: PullRequestSnapshot, configuration:
 		newComments: newComments
 			.slice(-maximumNewComments)
 			.map(comment => budget.take(comment.author?.login, comment.body)),
-		failedChecks: checks.failed.slice(0, maximumFailedChecks).map(check => check.name),
+		failedChecks: actionableFailedChecks.slice(0, maximumFailedChecks).map(check => check.name),
 		behind,
 		conflicting,
 		commentWatermark: newComments.reduce((latest, comment) => comment.createdAt && comment.createdAt > latest ? comment.createdAt : latest, commentWatermark),
 	};
-	const fingerprint = JSON.stringify({ actions, context });
+	const fingerprint = JSON.stringify({
+		actions,
+		context,
+		...(actionableFailedChecks.length > 0 ? { failedCheckIds: actionableFailedChecks.map(check => check.id) } : {}),
+	});
 	if (actions.length > 0) {
 		return { kind: 'prompt', actions, fingerprint, context };
 	}
@@ -688,7 +716,7 @@ export function evaluateAgentMerge(snapshot: PullRequestSnapshot, configuration:
 	if (configuration.mergePullRequest !== 'never' && mergeReady) {
 		return { kind: 'merge', fingerprint };
 	}
-	return { kind: 'noWork', waitingOnChecks: checks.pending, fingerprint };
+	return { kind: 'noWork', waitingOnChecks: checks.pending || checks.failed.length > actionableFailedChecks.length, fingerprint };
 }
 
 function isCompleteFragment(snapshot: PullRequestSnapshot, fragment: 'topLevelComments' | 'submittedReviews' | 'reviewThreads'): boolean {

@@ -3,8 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ComponentFixtureContext, defineComponentFixture, defineThemedFixtureGroup } from '../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
+import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup } from '../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
 import { type IRemoteHostUnavailableEmptyStateContent, RemoteHostUnavailableEmptyState } from '../../browser/parts/remoteHostUnavailableEmptyState.js';
+import { AGENTS_CENTERED_CONTENT_MAX_WIDTH } from '../../common/layoutConstants.js';
 
 export default defineThemedFixtureGroup({ path: 'sessions/remoteHostUnavailable/' }, {
 	HostNotRunning: defineComponentFixture({
@@ -43,15 +44,44 @@ export default defineThemedFixtureGroup({ path: 'sessions/remoteHostUnavailable/
 			progress: 'Downloading server (80%)',
 		}),
 	}),
+
+	DevContainerConnecting: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: context => renderUnavailableState(context, {
+			title: 'Connecting to project Dev Container',
+			description: 'Starting project Dev Container.',
+			progress: 'Waiting for agent host connection...',
+			detail: { label: 'Show Log', run: () => { } },
+		}),
+	}),
+
+	// A host that supplies its own wording, and whose heading needs no description under it.
+	EnvironmentOffline: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: context => renderUnavailableState(context, {
+			title: 'Environment Offline',
+			action: { label: 'Connect', run: () => { } },
+		}),
+	}),
+
+	EnvironmentConnecting: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: context => renderUnavailableState(context, {
+			title: 'Connecting to the Environment',
+			progress: 'Connecting...',
+		}),
+	}),
 });
 
-function renderUnavailableState({ container, disposableStore }: ComponentFixtureContext, content: IRemoteHostUnavailableEmptyStateContent): void {
+function renderUnavailableState({ container, disposableStore, theme }: ComponentFixtureContext, content: IRemoteHostUnavailableEmptyStateContent): void {
 	container.style.position = 'relative';
-	container.style.width = 'var(--session-view-centered-content-max-width)';
+	container.style.width = `${AGENTS_CENTERED_CONTENT_MAX_WIDTH}px`;
+	container.style.setProperty('--session-view-centered-content-max-width', container.style.width);
 	container.style.height = 'calc(var(--vscode-spacing-size400) * 6)';
 	container.style.backgroundColor = 'var(--vscode-editorWidget-background)';
 
-	const state = disposableStore.add(new RemoteHostUnavailableEmptyState());
+	const instantiationService = createEditorServices(disposableStore, { colorTheme: theme });
+	const state = disposableStore.add(instantiationService.createInstance(RemoteHostUnavailableEmptyState));
 	state.setContent(content);
 	container.appendChild(state.domNode);
 }

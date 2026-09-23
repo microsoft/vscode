@@ -13,25 +13,18 @@ import { isDefined } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { isMultiRootSession } from '../../../../../platform/agentHost/common/agentHostWorkingDirectories.js';
-import { AGENT_MERGE_CHANGESET_ID, resolveChangesetUriTemplate } from '../../../../../platform/agentHost/common/changesetUri.js';
+import { AGENT_MERGE_CHANGESET_ID, ChangesetKind, resolveChangesetUriTemplate, selectDefaultChangeset } from '../../../../../platform/agentHost/common/changesetUri.js';
 import { isAgentMergeMessage } from '../../../../../platform/agentHost/common/meta/agentMergeMessageMeta.js';
-import { ChangesetOperationTargetKind } from '../../../../../platform/agentHost/common/state/protocol/channels-changeset/commands.js';
+import { ChangesetOperationTargetKind, InvokeChangesetOperationResult } from '../../../../../platform/agentHost/common/state/protocol/channels-changeset/commands.js';
 import { ChangesetOperation, ChangesetOperationScope, type ChangesetFile, ChangesetOperationStatus } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ActionType } from '../../../../../platform/agentHost/common/state/sessionActions.js';
-import { buildDefaultChatUri, ChangesetStatus, Changeset, MessageKind, StateComponents, TurnState, type ChangesetState, type ChatState, type ChatSummary, type SessionState } from '../../../../../platform/agentHost/common/state/sessionState.js';
+import { buildDefaultChatUri, ChangesetStatus, Changeset, isHostNoticeTurn, lastAttributableTurnId, MessageKind, StateComponents, TurnState, type ChangesetState, type ChatState, type ChatSummary, type SessionState } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { ISessionChangeset, ISessionChangesetCapabilities, ISessionChangesetOperation, ISessionChangesetOperationTarget, ISessionFileChange, SessionChangesetOperationScope, SessionChangesetOperationStatus, sessionFileChangesEqual } from '../../../../services/sessions/common/session.js';
 import { isIChatSessionFileChange2 } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { changesetFileToChange } from './agentHostDiffs.js';
+import { AgentHostPullRequestCreation } from './agentHostPullRequestCreation.js';
 import { IAgentHostAdapterOptions } from './baseAgentHostSessionsProvider.js';
-
-const enum ChangesetKind {
-	Branch = 'branch',
-	Uncommitted = 'uncommitted',
-	Session = 'session',
-	Turn = 'turn',
-	Compare = 'compare-turns',
-}
 
 export interface IAgentHostChangeset extends Changeset {
 	/**
@@ -92,8 +85,7 @@ export function createChangesets(
 
 	const sessionChangesets: ISessionChangeset[] = [];
 
-	const defaultKind = options.defaultChangesetKind ?? ChangesetKind.Branch;
-	const defaultChangeset = changesets.find(c => c.changeKind === defaultKind) ?? changesets[0];
+	const defaultChangeset = selectDefaultChangeset(changesets, options.defaultChangesetKind);
 
 	for (const catalogueEntry of changesets) {
 		const isDefault = catalogueEntry === defaultChangeset;
@@ -344,11 +336,17 @@ abstract class AbstractAgentHostChangeset implements ISessionChangeset {
 			return changesetState.operations?.map(toSessionChangesetOperation) ?? [];
 		});
 
+		const pullRequestCreation = new AgentHostPullRequestCreation(
+			() => this._options.getConnection(),
+			() => this.channelUriObs.get(),
+			(operationId, metadata) => this._invokeOperation(operationId, undefined, metadata),
+		);
 		this.operations = derivedOpts({ equalsFn: arrayEqualsC(structuralEquals) }, reader => {
 			const locallyRunningOperationCounts = this._locallyRunningOperationCounts.read(reader);
-			return operationsObs.read(reader).map(operation => locallyRunningOperationCounts.has(operation.id) && operation.status !== SessionChangesetOperationStatus.Running
-				? { ...operation, status: SessionChangesetOperationStatus.Running }
-				: operation);
+			return pullRequestCreation.mapOperations(operationsObs.read(reader))
+				.map(operation => locallyRunningOperationCounts.has(operation.id) && operation.status !== SessionChangesetOperationStatus.Running
+					? { ...operation, status: SessionChangesetOperationStatus.Running }
+					: operation);
 		});
 	}
 
@@ -363,15 +361,19 @@ abstract class AbstractAgentHostChangeset implements ISessionChangeset {
 		return changes;
 	}
 
-	async invokeOperation(operationId: string, target?: ISessionChangesetOperationTarget): Promise<void> {
+	async invokeOperation(operationId: string, target?: ISessionChangesetOperationTarget, _meta?: Record<string, unknown>): Promise<void> {
+		await this._invokeOperation(operationId, target, _meta);
+	}
+
+	private async _invokeOperation(operationId: string, target?: ISessionChangesetOperationTarget, _meta?: Record<string, unknown>): Promise<InvokeChangesetOperationResult | undefined> {
 		const connection = this._options.getConnection();
 		if (!connection) {
-			return;
+			throw new Error(`Cannot invoke changeset operation '${operationId}' because the agent host connection is unavailable.`);
 		}
 
 		const channel = this.channelUriObs.get();
 		if (!channel) {
-			return;
+			throw new Error(`Cannot invoke changeset operation '${operationId}' because the changeset channel is unavailable.`);
 		}
 
 		const operation = this.operations.get().find(o => o.id === operationId);
@@ -393,7 +395,7 @@ abstract class AbstractAgentHostChangeset implements ISessionChangeset {
 
 		this._setOperationLocallyRunning(operationId, true);
 		try {
-			await connection.invokeChangesetOperation({
+			return await connection.invokeChangesetOperation({
 				operationId,
 				channel: channel.toString(),
 				target: target?.kind === 'resource'
@@ -402,6 +404,7 @@ abstract class AbstractAgentHostChangeset implements ISessionChangeset {
 						resource: target.resource.toString()
 					}
 					: undefined,
+				_meta
 			});
 		} finally {
 			this._setOperationLocallyRunning(operationId, false);
@@ -566,7 +569,10 @@ class AgentHostLastTurnChangeset extends AbstractAgentHostChangeset {
 			// Prefer the in-progress turn so the "last turn" reflects streaming
 			// edits live; once it completes it moves into `turns` under the same
 			// id, so the tracked changeset transitions seamlessly.
-			return chatState.activeTurn?.id ?? chatState.turns?.at(-1)?.id;
+			if (chatState.activeTurn && !isHostNoticeTurn(chatState.activeTurn)) {
+				return chatState.activeTurn.id;
+			}
+			return lastAttributableTurnId(chatState.turns);
 		});
 
 		// Last turn changes

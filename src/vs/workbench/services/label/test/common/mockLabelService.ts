@@ -6,22 +6,23 @@
 import { Emitter } from '../../../../../base/common/event.js';
 import { IDisposable } from '../../../../../base/common/lifecycle.js';
 import { basename, normalize } from '../../../../../base/common/path.js';
-import { isEqualOrParent } from '../../../../../base/common/resources.js';
+import { extUri, IExtUri } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IFormatterChangeEvent, ILabelService, ResourceLabelFormatter, ResourceLabelFormatting, ResourceLabelTemplateFormatter, Verbosity } from '../../../../../platform/label/common/label.js';
 import { IWorkspace, IWorkspaceIdentifier } from '../../../../../platform/workspace/common/workspace.js';
+import { ResourceLabelTemplate } from '../../common/resourceLabelTemplate.js';
 
 function isTemplateFormatter(formatter: ResourceLabelFormatter | ResourceLabelTemplateFormatter): formatter is ResourceLabelTemplateFormatter {
 	return URI.isUri(formatter.home);
 }
-
-const homeTemplateParameterRegex = /^\$\{(?<name>[a-zA-Z_][\w]*)\}$/;
 
 export class MockLabelService implements ILabelService {
 	_serviceBrand: undefined;
 	private formatters: (ResourceLabelFormatter | ResourceLabelTemplateFormatter)[] = [];
 	private readonly _onDidChangeFormatters = new Emitter<IFormatterChangeEvent>();
 	readonly onDidChangeFormatters = this._onDidChangeFormatters.event;
+
+	constructor(private readonly uriExt: IExtUri = extUri) { }
 
 	registerCachedFormatter(formatter: ResourceLabelFormatter): IDisposable {
 		return this.registerFormatter(formatter);
@@ -53,12 +54,18 @@ export class MockLabelService implements ILabelService {
 		this.formatters.push(formatter);
 		const scheme = isTemplateFormatter(formatter) ? formatter.home.scheme : formatter.scheme;
 		this._onDidChangeFormatters.fire({ scheme });
+		const changeListener = isTemplateFormatter(formatter) ? formatter.onDidChangeFormatting(() => this._onDidChangeFormatters.fire({ scheme })) : undefined;
 		return {
 			dispose: () => {
+				changeListener?.dispose();
 				this.formatters = this.formatters.filter(candidate => candidate !== formatter);
 				this._onDidChangeFormatters.fire({ scheme });
 			}
 		};
+	}
+
+	get formatterCount(): number {
+		return this.formatters.length;
 	}
 
 	getUriHome(resource: URI): URI | undefined {
@@ -74,51 +81,16 @@ export class MockLabelService implements ILabelService {
 			}
 			let candidate: { readonly home: URI; readonly formatting: ResourceLabelFormatting } | undefined;
 			if (isTemplateFormatter(formatter)) {
-				if (formatter.home.scheme !== resource.scheme ||
-					(formatter.home.authority && formatter.home.authority.toLowerCase() !== resource.authority.toLowerCase())) {
+				const templateMatch = new ResourceLabelTemplate(formatter.home).match(resource, this.uriExt);
+				if (!templateMatch) {
 					continue;
 				}
-				const templateSegments = formatter.home.path.split('/');
-				const resourceSegments = resource.path.split('/');
-				if (!templateSegments.some(segment => homeTemplateParameterRegex.test(segment))) {
-					if (!isEqualOrParent(resource, resource.with({ path: formatter.home.path }))) {
-						continue;
-					}
-					const home = resource.with({ path: formatter.home.path, query: null, fragment: null });
-					const formatting = formatter.formatting({ resource, home, parameters: new Map() });
-					if (formatting) {
-						candidate = { home, formatting };
-					}
-				} else {
-					if (resourceSegments.length < templateSegments.length) {
-						continue;
-					}
-					const parameters = new Map<string, string>();
-					let matches = true;
-					for (let index = 0; index < templateSegments.length; index++) {
-						const parameter = homeTemplateParameterRegex.exec(templateSegments[index]);
-						if (parameter?.groups?.name) {
-							if (resourceSegments[index] === '.' || resourceSegments[index] === '..') {
-								matches = false;
-								break;
-							}
-							parameters.set(parameter.groups.name, resourceSegments[index]);
-						} else if (templateSegments[index] !== resourceSegments[index]) {
-							matches = false;
-							break;
-						}
-					}
-					if (!matches) {
-						continue;
-					}
-					const home = formatter.home.with({ path: resourceSegments.slice(0, templateSegments.length).join('/'), query: null, fragment: null });
-					const formatting = formatter.formatting({ resource, home, parameters });
-					if (formatting) {
-						candidate = { home, formatting };
-					}
+				const formatting = formatter.formatting({ resource, home: templateMatch.home, parameters: templateMatch.parameters });
+				if (formatting) {
+					candidate = { home: templateMatch.home, formatting };
 				}
 			} else if (formatter.scheme === resource.scheme && (!formatter.authority || formatter.authority === resource.authority) &&
-				isEqualOrParent(resource, resource.with({ path: formatter.home }))) {
+				this.uriExt.isEqualOrParent(resource, resource.with({ path: formatter.home }))) {
 				candidate = {
 					home: resource.with({ path: formatter.home, query: null, fragment: null }),
 					formatting: formatter.formatting,

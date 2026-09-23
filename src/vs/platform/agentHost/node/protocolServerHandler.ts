@@ -19,8 +19,11 @@ import { getAgentHostClientType } from '../common/agentHostClientInfo.js';
 import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportKind, readClientConnectionKind, readClientDevDeviceId, readClientMachineId, readClientTelemetryLevel, type IAgentHostClientTelemetryContext } from '../common/agentHostTelemetry.js';
 import { AgentSession, type IAgentCreateChatRequestOptions, type IMcpNotification } from '../common/agent.js';
 import { isManagedSettingsPermissions } from '../common/agentHostManagedSettings.js';
+import { isAnnotationsUri } from '../common/annotationsUri.js';
 import { type IAgentService } from '../common/agentService.js';
-import { ClaimAgentHostDetachedWorktreeExtensionMethod, collectAgentHostDebugLogsParamsValidator, CollectAgentHostDebugLogsExtensionMethod, CreateAgentHostDetachedWorktreeExtensionMethod, DeleteAgentHostDetachedWorktreeExtensionMethod, getAgentHostExtensionInitializeResultMeta, GetAgentHostSessionStateFileExtensionMethod, ReadAgentHostDebugLogsChunkExtensionMethod, ReconcileAgentHostDetachedWorktreesExtensionMethod, SetAgentHostDetachedWorktreeArchivedExtensionMethod, type IAgentHostExtensionInitializeResult } from '../common/agentHostExtensionProtocol.js';
+import { ClaimAgentHostDetachedWorktreeExtensionMethod, collectAgentHostDebugLogsParamsValidator, CollectAgentHostDebugLogsExtensionMethod, CreateAgentHostDetachedWorktreeExtensionMethod, DeleteAgentHostDetachedWorktreeExtensionMethod, getAgentHostExtensionInitializeResultMeta, GetAgentHostSessionStateFileExtensionMethod, ReadAgentHostDebugLogsChunkExtensionMethod, ReconcileAgentHostDetachedWorktreesExtensionMethod, RemoveSessionArtifactExtensionMethod, removeSessionArtifactParamsValidator, ReportAgentHostFirstResponseExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, SetAgentHostDetachedWorktreeArchivedExtensionMethod, type IAgentHostExtensionInitializeResult, type IAgentHostExtensionServerCommandMap, type IAgentHostWorkspaceTrustRequest } from '../common/agentHostExtensionProtocol.js';
+import { IAgentHostOTelService } from '../common/otel/agentHostOTelService.js';
+import { agentHostFirstResponseValidator } from '../common/otel/agentHostTiming.js';
 import { isAgentDevContainerWorktreeHandle } from '../common/meta/agentDevContainerWorktreeMeta.js';
 import { isActionEnvelopeRelevantToSubscriptionUris } from '../common/state/agentSubscription.js';
 import { ChatSourceKind } from '../common/state/protocol/channels-chat/commands.js';
@@ -70,6 +73,8 @@ import type { Implementation } from '../common/state/protocol/common/commands.js
 import { AGENT_HOST_CLIENT_CONNECTION_HISTORY_RETENTION, IAgentHostClientConnectionService, type IAgentHostClientConnectionSource } from './agentHostClientConnectionService.js';
 import { AgentHostTelemetryReporter } from './agentHostTelemetryReporter.js';
 import { isAgentHostTelemetryService } from './agentHostTelemetryService.js';
+import { IDevContainerAgentHostMainService } from '../common/devContainerAgentHost.js';
+import { DevContainerAgentHostProtocol } from './devContainerAgentHostProtocol.js';
 
 /** Default capacity of the server-side action replay buffer. */
 const REPLAY_BUFFER_CAPACITY = 1000;
@@ -203,6 +208,7 @@ type ChannelSubscription =
  * Represents a connected protocol client with its subscription state.
  */
 interface IConnectedClient {
+	devContainers?: DevContainerAgentHostProtocol;
 	readonly clientId: string;
 	readonly clientInfo: Implementation | undefined;
 	readonly telemetryContext: IAgentHostClientTelemetryContext;
@@ -315,8 +321,9 @@ export interface IProtocolServerConfig {
 	/** Default directory returned to clients during the initialize handshake. */
 	readonly defaultDirectory?: string;
 	/**
-	 * Whether to expose VS Code extension methods outside the Agent Host Protocol.
-	 * Defaults to `true` for existing remote listeners.
+	 * Whether to expose VS Code host-control methods outside the Agent Host
+	 * Protocol. Defaults to `true` for existing remote listeners. Session-data
+	 * methods such as `vscode/removeSessionArtifact` are always available.
 	 */
 	readonly allowExtensionMethods?: boolean;
 	/**
@@ -356,6 +363,19 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 	 * {@link IClientRecord}.
 	 */
 	private readonly _clients = new Map<string, IClientRecord>();
+	/**
+	 * State channels a client is subscribed to but has never been given a
+	 * baseline snapshot for by THIS server process, keyed by clientId.
+	 *
+	 * `initialize` registers a state channel even when its snapshot has not
+	 * materialized yet (see {@link _addInitialSubscription}), so a client can
+	 * hold a live subscription with no state behind it. Replaying deltas onto
+	 * that void silently strands the channel on whatever the client last saw —
+	 * across a host restart that is pre-restart state, which is how an
+	 * already-finished turn can render as perpetually running. Reconnect
+	 * consults this to force a snapshot response for such channels.
+	 */
+	private readonly _baselineDebt = new Map<string, Set<string>>();
 	private readonly _replayBuffer: ActionEnvelope[] = [];
 	private readonly _telemetryReporter: AgentHostTelemetryReporter;
 	private readonly _managedSettingsOwnerId = generateUuid();
@@ -376,6 +396,8 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IAgentHostManagedSettingsService private readonly _managedSettingsService: IAgentHostManagedSettingsService,
 		@IAgentHostClientConnectionService private readonly _clientConnections: IAgentHostClientConnectionService,
+		@IDevContainerAgentHostMainService private readonly _devContainerService: IDevContainerAgentHostMainService,
+		@IAgentHostOTelService private readonly _otelService: IAgentHostOTelService,
 	) {
 		super();
 		this._telemetryReporter = new AgentHostTelemetryReporter(this._telemetryService);
@@ -444,7 +466,14 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 					try {
 						const result = this._handleInitialize(msg.params, transport, disposables);
 						client = result.client;
-						transport.send(jsonRpcSuccess(msg.id, result.response));
+						if (result.response instanceof Promise) {
+							this._trackRequest(result.response).then(
+								response => transport.send(jsonRpcSuccess(msg.id, response)),
+								err => transport.send(jsonRpcErrorFrom(msg.id, err)),
+							);
+						} else {
+							transport.send(jsonRpcSuccess(msg.id, result.response));
+						}
 					} catch (err) {
 						transport.send(jsonRpcErrorFrom(msg.id, err));
 					}
@@ -576,7 +605,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		params: InitializeParams,
 		transport: IProtocolTransport,
 		disposables: DisposableStore,
-	): { client: IConnectedClient; response: IAgentHostExtensionInitializeResult } {
+	): { client: IConnectedClient; response: IAgentHostExtensionInitializeResult | Promise<IAgentHostExtensionInitializeResult> } {
 		const offered = Array.isArray(params.protocolVersions) ? params.protocolVersions : [];
 		this._logService.info(`[ProtocolServer] Initialize: clientId=${params.clientId}, protocolVersions=[${offered.join(', ')}]`);
 
@@ -619,13 +648,21 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		};
 		this._attachConnection(params.clientId, client);
 		try {
+			this._initializeDevContainers(client);
 			this._registerClientFileSystemAuthority(params.clientId, initializationDisposables);
 
 			const snapshots: IStateSnapshot[] = [];
+			const pendingSnapshots: Promise<void>[] = [];
 			if (params.initialSubscriptions) {
 				for (const uri of params.initialSubscriptions) {
 					const snapshot = this._addInitialSubscription(client, uri.toString());
-					if (snapshot) {
+					if (snapshot instanceof Promise) {
+						pendingSnapshots.push(snapshot.then(value => {
+							if (value) {
+								snapshots.push(value);
+							}
+						}));
+					} else if (snapshot) {
 						snapshots.push(snapshot);
 					}
 				}
@@ -648,19 +685,27 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			}
 			this._onDidChangeConnectionCount.fire(this._connectedClientCount);
 
+			const response: IAgentHostExtensionInitializeResult = {
+				protocolVersion: negotiated,
+				serverSeq: this._stateManager.serverSeq,
+				_meta: getAgentHostExtensionInitializeResultMeta(!!this._agentService.removeSessionArtifact, !!client.devContainers, this._otelService?.diagnosticsEnabled),
+				snapshots,
+				defaultDirectory: this._config.defaultDirectory,
+				completionTriggerCharacters: this._config.completionTriggerCharacters ? [...this._config.completionTriggerCharacters] : undefined,
+				terminalCommandPrefix: this._config.terminalCommandPrefix,
+				telemetry: this._config.otlpLogEmitter ? { logs: OTLP_LOGS_CHANNEL_TEMPLATE } : undefined,
+				automations: this._agentService.automationCapabilities,
+			};
 			return {
 				client,
-				response: {
-					protocolVersion: negotiated,
+				response: pendingSnapshots.length === 0 ? response : Promise.all(pendingSnapshots).then(() => ({
+					...response,
 					serverSeq: this._stateManager.serverSeq,
-					_meta: getAgentHostExtensionInitializeResultMeta(),
-					snapshots,
-					defaultDirectory: this._config.defaultDirectory,
-					completionTriggerCharacters: this._config.completionTriggerCharacters ? [...this._config.completionTriggerCharacters] : undefined,
-					terminalCommandPrefix: this._config.terminalCommandPrefix,
-					telemetry: this._config.otlpLogEmitter ? { logs: OTLP_LOGS_CHANNEL_TEMPLATE } : undefined,
-					automations: this._agentService.automationCapabilities,
-				},
+					snapshots: snapshots.map(snapshot => this._stateManager.getSnapshot(snapshot.resource) ?? snapshot),
+				})).catch(error => {
+					this._rollbackFailedInitialization(client, previousRecord);
+					throw error;
+				}),
 			};
 		} catch (error) {
 			this._rollbackFailedInitialization(client, previousRecord);
@@ -684,7 +729,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 	 * with no recognised level) are silently dropped. Valid state channels
 	 * remain subscribed even when their snapshot has not materialized yet.
 	 */
-	private _addInitialSubscription(client: IConnectedClient, channel: string): IStateSnapshot | undefined {
+	private _addInitialSubscription(client: IConnectedClient, channel: string): IStateSnapshot | undefined | Promise<IStateSnapshot | undefined> {
 		const sub = classifyChannel(channel);
 		if (!sub) {
 			return undefined;
@@ -697,11 +742,56 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			client.subscriptions.set(sub.uri, sub);
 			return undefined;
 		}
+		// An annotation snapshot is synthetic until its persisted data has been loaded and ownership validated.
+		if (isAnnotationsUri(channel)) {
+			return this._requestHandlers.subscribe(client, { channel }).then(result => result.snapshot).catch(error => {
+				this._logService.info(`[ProtocolServer] Initialize: failed to restore subscription ${channel}: ${error instanceof Error ? error.message : String(error)}`);
+				return undefined;
+			});
+		}
 		const snapshot = this._stateManager.getSnapshot(channel);
 		client.subscriptions.set(sub.uri, sub);
 		this._agentService.addSubscriber(URI.parse(sub.uri), client.clientId);
 		this._clearClientToolCallDisconnectTimeout(client.clientId, sub.uri);
+		if (snapshot) {
+			this._clearBaselineDebt(client.clientId, sub.uri);
+		} else {
+			this._recordBaselineDebt(client.clientId, sub.uri);
+		}
 		return snapshot;
+	}
+
+	/**
+	 * Note that `clientId` holds a subscription to `uri` with no baseline from
+	 * this process. See {@link _baselineDebt}.
+	 */
+	private _recordBaselineDebt(clientId: string, uri: string): void {
+		let debt = this._baselineDebt.get(clientId);
+		if (!debt) {
+			debt = new Set();
+			this._baselineDebt.set(clientId, debt);
+		}
+		debt.add(uri);
+	}
+
+	/** Record that `clientId` has now been given a baseline for `uri`. */
+	private _clearBaselineDebt(clientId: string, uri: string): void {
+		const debt = this._baselineDebt.get(clientId);
+		if (debt?.delete(uri) && debt.size === 0) {
+			this._baselineDebt.delete(clientId);
+		}
+	}
+
+	/** Whether any of `subscriptions` still owes `clientId` a baseline. */
+	private _hasBaselineDebt(clientId: string, subscriptions: readonly string[]): boolean {
+		const debt = this._baselineDebt.get(clientId);
+		if (!debt || debt.size === 0) {
+			return false;
+		}
+		return subscriptions.some(subscription => {
+			const classified = classifyChannel(subscription.toString());
+			return classified !== undefined && debt.has(classified.uri);
+		});
 	}
 
 	private async _subscribeStateChannel(channel: string, clientId: string, isActive?: () => boolean): Promise<IStateSnapshot> {
@@ -786,6 +876,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		};
 		this._attachConnection(params.clientId, client);
 		try {
+			this._initializeDevContainers(client);
 			// Re-establish the reverse-RPC filesystem authority for this client.
 			// The prior transport's `onClose` disposed the previous registration,
 			// so without this step any subsequent `resourceRead` / `resourceWrite`
@@ -794,7 +885,12 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			this._registerClientFileSystemAuthority(params.clientId, initializationDisposables);
 
 			const oldestBuffered = this._replayBuffer.length > 0 ? this._replayBuffer[0].serverSeq : this._stateManager.serverSeq;
-			const canReplay = params.lastSeenServerSeq >= oldestBuffered;
+			// A global cursor only proves the client saw every ACTION; it says
+			// nothing about whether a given channel ever received state from this
+			// process to apply them to. Force snapshots while any requested
+			// channel still owes a baseline.
+			const canReplay = params.lastSeenServerSeq >= oldestBuffered
+				&& !this._hasBaselineDebt(params.clientId, params.subscriptions);
 			const responsePromise = this._restoreReconnectSubscriptions(client, params, canReplay);
 
 			client.telemetryConnectionActive = true;
@@ -883,6 +979,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 				if (!descriptor) {
 					this._logService.info(`[ProtocolServer] Reconnect: resource watch ${key} no longer parses`);
 					missing.push(sub);
+					this._clearBaselineDebt(client.clientId, classified.uri);
 					return undefined;
 				}
 				if (canReplay) {
@@ -918,6 +1015,11 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 				}
 				this._logService.info(`[ProtocolServer] Reconnect: failed to restore subscription ${key}: ${err instanceof Error ? err.message : String(err)}`);
 				missing.push(sub);
+				// Reported as missing, so it can never be baselined. Leaving the
+				// debt would deny `canReplay` for this client's healthy channels
+				// on every future reconnect, since `missing` is not repeated on
+				// the snapshot branch and nothing else would ever clear it.
+				this._clearBaselineDebt(client.clientId, classified.uri);
 				return undefined;
 			}
 		}));
@@ -947,9 +1049,16 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 				return undefined;
 			}
 			const subscription = client.subscriptions.get(snapshot.resource.toString());
-			return subscription?.kind === ChannelKind.State
-				? this._stateManager.getSnapshot(subscription.uri)
-				: snapshot;
+			if (subscription?.kind !== ChannelKind.State) {
+				return snapshot;
+			}
+			const refreshed = this._stateManager.getSnapshot(subscription.uri);
+			if (refreshed) {
+				// Key off the subscription, not the snapshot's echoed resource,
+				// so the debt entry recorded under the same key is really cleared.
+				this._clearBaselineDebt(client.clientId, subscription.uri);
+			}
+			return refreshed;
 		});
 		return { type: 'snapshot', snapshots: refreshedSnapshots.filter((s): s is IStateSnapshot => s !== undefined) };
 	}
@@ -1164,6 +1273,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 					this._clients.set(client.clientId, previousRecord);
 				} else {
 					this._clients.delete(client.clientId);
+					this._baselineDebt.delete(client.clientId);
 				}
 			}
 		}
@@ -1262,6 +1372,15 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		return result;
 	}
 
+	async requestWorkspaceTrust(clientId: string, request: IAgentHostWorkspaceTrustRequest): Promise<boolean> {
+		const result = await this._sendReverseRequest<IAgentHostExtensionServerCommandMap[typeof RequestAgentHostWorkspaceTrustExtensionMethod]['result']>(
+			clientId,
+			RequestAgentHostWorkspaceTrustExtensionMethod,
+			request,
+		);
+		return result.trusted === true;
+	}
+
 	/** Number of clients that currently have a live connection. */
 	private get _connectedClientCount(): number {
 		let count = 0;
@@ -1331,6 +1450,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 				&& record.lastSeenAt < cutoff) {
 				record.disconnectTimeouts.dispose();
 				this._clients.delete(clientId);
+				this._baselineDebt.delete(clientId);
 			}
 		}
 	}
@@ -1429,6 +1549,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 				}
 				client.subscriptions.set(classified.uri, classified);
 				this._clearClientToolCallDisconnectTimeout(client.clientId, classified.uri);
+				this._clearBaselineDebt(client.clientId, classified.uri);
 				// `IStateSnapshot` is widened with `ChatState` (see sessionProtocol.ts);
 				// the generated wire `Snapshot` union does not list it yet. The value
 				// is JSON over the wire, so narrowing at this boundary is safe.
@@ -1488,7 +1609,9 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 				return null;
 			}
 			const source = params.source;
-			let options: IAgentCreateChatRequestOptions | undefined;
+			let options: IAgentCreateChatRequestOptions | undefined = params.workingDirectories !== undefined
+				? { workingDirectories: params.workingDirectories.map(directory => URI.parse(directory)) }
+				: undefined;
 			if (source) {
 				switch (source.kind) {
 					case ChatSourceKind.Fork:
@@ -1496,6 +1619,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 						break;
 					case ChatSourceKind.SideChat:
 						options = {
+							...options,
 							sideChat: {
 								source: URI.parse(source.chat),
 								turnId: source.turnId,
@@ -1544,6 +1668,13 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 					...(s.project ? { project: { uri: s.project.uri.toString(), displayName: s.project.displayName } } : {}),
 					workingDirectories: s.workingDirectories?.map(d => d.toString()),
 					changes: s.changes,
+					chats: s.chats?.map(chat => ({
+						resource: chat.chat.toString(),
+						title: chat.summary ?? '',
+						origin: chat.origin,
+						...(chat.interactivity !== undefined ? { interactivity: chat.interactivity } : {}),
+					})),
+					defaultChat: s.chats?.find(chat => chat.kind === 'default')?.chat.toString(),
 					// `_meta` carries durable host provenance, including session kind
 					// and provider-native discovery provenance.
 					...(s._meta !== undefined ? { _meta: s._meta } : {}),
@@ -1660,6 +1791,10 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		if (!client) {
 			return Promise.reject(new Error(`Client ${clientId} is not connected`));
 		}
+		return this._sendReverseRequestToConnection(client, method, params);
+	}
+
+	private _sendReverseRequestToConnection<T>(client: IConnectedClient, method: string, params: unknown): Promise<T> {
 		const id = ++this._reverseRequestId;
 		return new Promise<T>((resolve, reject) => {
 			this._pendingReverseRequests.set(id, { client, resolve: resolve as (value: unknown) => void, reject });
@@ -1697,7 +1832,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		}
 
 		// VS Code extension methods (not in the typed protocol maps yet)
-		const extensionResult = this._handleExtensionRequest(method, params);
+		const extensionResult = client.devContainers?.handleRequest(method, params) ?? this._handleExtensionRequest(method, params);
 		if (extensionResult) {
 			this._trackRequest(extensionResult).then(result => {
 				client.transport.send(jsonRpcSuccess(id, result ?? null));
@@ -1746,11 +1881,58 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 	}
 
 	/**
+	 * Handle the `vscode/removeSessionArtifact` session-data method. Returns a
+	 * Promise when the underlying service supports removal, undefined otherwise.
+	 */
+	private _handleRemoveSessionArtifactRequest(params: unknown): Promise<unknown> | undefined {
+		if (!this._agentService.removeSessionArtifact) {
+			return undefined;
+		}
+		const validated = removeSessionArtifactParamsValidator.validate(params);
+		if (validated.error) {
+			return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, validated.error.message));
+		}
+		const { session: sessionParam, artifactId } = validated.content;
+		if (!artifactId.trim()) {
+			return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'artifactId must be a non-empty string'));
+		}
+		let session: URI;
+		try {
+			session = URI.parse(sessionParam, true);
+		} catch {
+			return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'session must be a valid URI string'));
+		}
+		if (!AgentSession.provider(session) || !session.path.startsWith('/') || session.path.length < 2
+			|| session.authority || session.query || session.fragment || parseChatUri(session)) {
+			return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'session must be an Agent Session URI'));
+		}
+		return this._agentService.removeSessionArtifact(session, artifactId);
+	}
+
+	/**
 	 * Handle VS Code extension methods that are not yet part of the typed
 	 * protocol. Returns a Promise if the method was recognized, undefined
 	 * otherwise.
 	 */
 	private _handleExtensionRequest(method: string, params: unknown): Promise<unknown> | undefined {
+		if (method === ReportAgentHostFirstResponseExtensionMethod) {
+			if (!this._otelService?.diagnosticsEnabled) {
+				return Promise.resolve();
+			}
+			const validated = agentHostFirstResponseValidator.validate(params);
+			if (validated.error) {
+				return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'Invalid first-response diagnostic'));
+			}
+			this._otelService.emitFirstResponse(validated.content);
+			return Promise.resolve();
+		}
+		// Session-data methods operate on state the client already drives through
+		// the data plane, so they are available to every connected client. Only
+		// host-control methods below are gated by `allowExtensionMethods`.
+		if (method === RemoveSessionArtifactExtensionMethod) {
+			return this._handleRemoveSessionArtifactRequest(params);
+		}
+
 		if (this._config.allowExtensionMethods === false) {
 			return undefined;
 		}
@@ -1963,6 +2145,24 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		}
 	}
 
+	private _initializeDevContainers(client: IConnectedClient): void {
+		if (this._config.allowExtensionMethods !== false && this._devContainerService) {
+			client.devContainers = client.initializationDisposables.add(new DevContainerAgentHostProtocol(
+				async workspace => {
+					const result = await this._sendReverseRequestToConnection<IAgentHostExtensionServerCommandMap[typeof RequestAgentHostWorkspaceTrustExtensionMethod]['result']>(
+						client,
+						RequestAgentHostWorkspaceTrustExtensionMethod,
+						{ workspace: URI.file(workspace).toString() },
+					);
+					return result?.trusted === true;
+				},
+				(method, params) => client.transport.send({ jsonrpc: '2.0', method, params }),
+				this._devContainerService,
+				this._logService,
+			));
+		}
+	}
+
 	// ---- Broadcasting -------------------------------------------------------
 
 	private _broadcastAction(envelope: ActionEnvelope): void {
@@ -2027,6 +2227,9 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			return;
 		}
 		client.subscriptions.delete(classified.uri);
+		// An unsubscribed channel owes this client nothing; a later subscribe
+		// records its own debt if it again lands without a baseline.
+		this._clearBaselineDebt(client.clientId, classified.uri);
 		if (sub.kind === ChannelKind.State) {
 			const record = this._clients.get(client.clientId);
 			if (record && this._hasSubscriptionInOtherConnection(record, client, sub.uri)) {

@@ -262,8 +262,12 @@ export type IChatRequestTelemetryProperties = {
 	associatedRequestId?: string;
 	retryAfterError?: string;
 	retryAfterErrorGitHubRequestId?: string;
+	/** CAPI service request id (X-Copilot-Service-Request-Id) of the attempt that failed and triggered this retry. */
+	retryAfterErrorCopilotServiceRequestId?: string;
 	connectivityTestError?: string;
 	connectivityTestErrorGitHubRequestId?: string;
+	/** CAPI service request id (X-Copilot-Service-Request-Id) of the connectivity test request. */
+	connectivityTestErrorCopilotServiceRequestId?: string;
 	retryAfterFilterCategory?: string;
 	/** A subtype for categorizing the request with a messageSource- eg subagent */
 	subType?: string;
@@ -326,6 +330,8 @@ export const PENDING_DEPRECATION_CODE = 'model_pending_deprecation';
 
 export interface IChatEndpoint extends IEndpoint {
 	readonly maxOutputTokens: number;
+	/** The declared context window, independent of the prompt and output token limits. */
+	readonly maxContextWindowTokens?: number;
 	/** The model ID- this may change and will be `copilot-utility` for the utility (fallback) model. Use `family` to switch behavior based on model type. */
 	readonly model: string;
 	readonly modelProvider: string;

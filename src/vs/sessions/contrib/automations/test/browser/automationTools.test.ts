@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { DeferredPromise } from '../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -12,20 +11,15 @@ import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ConfirmationOptionKind } from '../../../../../platform/agentHost/common/state/protocol/channels-chat/state.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
-import { NullLogService } from '../../../../../platform/log/common/log.js';
-import { InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
-import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
-import { AutomationRunTrigger, AutomationTarget, IAutomationDescriptor, IAutomationRun, IAutomationSchedule } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
+import { AutomationTarget, IAutomationDescriptor, IAutomationRun, IAutomationSchedule } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
 import { IAutomationRunDispatch, IAutomationRunner, IAutomationRunOperation } from '../../../../../workbench/contrib/chat/common/automations/automationRunner.js';
-import { IAutomationService, ICreateAutomationOptions, IGuardedAutomationUpdateResult, IUpdateAutomationOptions } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
+import { type AutomationCatalogueState, AutomationSessionTemplateAuthorityError, AutomationUnavailableError, IAutomationService, ICreateAutomationOptions, IGuardedAutomationUpdateResult, IUpdateAutomationOptions } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { ChatAutomationsEnabledContext, CHAT_AUTOMATIONS_ENABLED_SETTING } from '../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
 import { IToolImpl, IToolInvocation, IToolResult, ToolProgress } from '../../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
 import { IChat, ISession, ISessionType, ISessionWorkspace } from '../../../../services/sessions/common/session.js';
 import { IProviderSessionType, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
-import { AutomationService } from '../../browser/automationService.js';
 import { ConfigureAutomationTool, ConfigureAutomationToolId, DeleteAutomationTool, DeleteAutomationToolId, ListAutomationsTool, ListAutomationsToolId, RunAutomationTool, RunAutomationToolId } from '../../browser/automationTools.js';
-import { AUTOMATION_STORAGE_KEY, IAutomationStorageCompareAndSwapResult, IAutomationStorageService } from '../../common/automationStorageService.js';
 
 const FOLDER = URI.parse('file:///workspace');
 const SESSION_RESOURCE = URI.parse('agent-session://local/session');
@@ -58,11 +52,20 @@ function createAutomation(overrides?: Partial<IAutomationDescriptor>): IAutomati
 }
 
 class FakeAutomationService extends mock<IAutomationService>() {
+	override readonly catalogueState = observableValue<AutomationCatalogueState>(this, 'ready');
 	override readonly automations = observableValue<readonly IAutomationDescriptor[]>(this, []);
 	override readonly runs = observableValue<readonly IAutomationRun[]>(this, []);
 	readonly created: ICreateAutomationOptions[] = [];
 	readonly updated: Array<{ readonly id: string; readonly patch: IUpdateAutomationOptions }> = [];
 	readonly deleted: string[] = [];
+	available = true;
+	creationAllowed = true;
+	updatesAllowed = true;
+
+	override canCreateAutomation(): boolean { return this.available && this.creationAllowed; }
+	override canRunAutomation(): boolean { return this.available; }
+	override canUpdateAutomation(): boolean { return this.available && this.updatesAllowed; }
+	override canDeleteAutomation(): boolean { return this.available; }
 
 	constructor(automations: readonly IAutomationDescriptor[] = []) {
 		super();
@@ -106,6 +109,7 @@ class FakeAutomationService extends mock<IAutomationService>() {
 			prompt: patch.prompt ?? existing.prompt,
 			schedule: patch.schedule ?? existing.schedule,
 			target: patch.target ?? existing.target,
+			sessionTemplate: patch.sessionTemplate === null ? undefined : patch.sessionTemplate ?? existing.sessionTemplate,
 			modelId: patch.modelId === null ? undefined : patch.modelId ?? existing.modelId,
 			mode: patch.mode === null ? undefined : patch.mode ?? existing.mode,
 			permissionLevel: patch.permissionLevel === null ? undefined : patch.permissionLevel ?? existing.permissionLevel,
@@ -131,8 +135,6 @@ class FakeAutomationService extends mock<IAutomationService>() {
 class RecordingAutomationRunner extends mock<IAutomationRunner>() {
 	readonly calls: Array<{
 		readonly automationId: string;
-		readonly trigger: AutomationRunTrigger;
-		readonly leaderWindowId: number;
 		readonly cancelled: boolean;
 	}> = [];
 	readonly tokens: CancellationToken[] = [];
@@ -146,11 +148,9 @@ class RecordingAutomationRunner extends mock<IAutomationRunner>() {
 		super();
 	}
 
-	override runOnce(automation: IAutomationDescriptor, trigger: AutomationRunTrigger, leaderWindowId: number, token: CancellationToken = CancellationToken.None): IAutomationRunOperation {
+	override runOnce(automation: IAutomationDescriptor, token: CancellationToken = CancellationToken.None): IAutomationRunOperation {
 		this.calls.push({
 			automationId: automation.id,
-			trigger,
-			leaderWindowId,
 			cancelled: token.isCancellationRequested,
 		});
 		this.tokens.push(token);
@@ -168,10 +168,9 @@ class RecordingAutomationRunner extends mock<IAutomationRunner>() {
 				id: 'run-1',
 				automationId: automation.id,
 				status: this.runStatus,
-				trigger,
+				trigger: 'manual',
 				sessionResource,
 				startedAt: NOW,
-				leaderWindowId,
 			};
 			this.automationService.addRun(run);
 			return { kind: 'started', run, sessionResource };
@@ -183,45 +182,6 @@ class RecordingAutomationRunner extends mock<IAutomationRunner>() {
 	}
 }
 
-class ControllableAutomationStorageService implements IAutomationStorageService {
-
-	declare readonly _serviceBrand: undefined;
-
-	readonly readStarted = new DeferredPromise<void>();
-	readBarrier: DeferredPromise<void> | undefined;
-	beforeCompareAndSwap: (() => void) | undefined;
-	nextConflictValue: string | undefined;
-	compareAndSwapCalls = 0;
-
-	constructor(private currentValue: string | undefined) { }
-
-	get value(): string | undefined {
-		return this.currentValue;
-	}
-
-	async read(_key: string): Promise<string | undefined> {
-		await this.readStarted.complete();
-		await this.readBarrier?.p;
-		return this.currentValue;
-	}
-
-	async compareAndSwap(_key: string, expectedValue: string | undefined, newValue: string): Promise<IAutomationStorageCompareAndSwapResult> {
-		this.compareAndSwapCalls++;
-		this.beforeCompareAndSwap?.();
-		if (this.nextConflictValue !== undefined) {
-			const currentValue = this.nextConflictValue;
-			this.nextConflictValue = undefined;
-			this.currentValue = currentValue;
-			return { swapped: false, currentValue };
-		}
-		if (this.currentValue !== expectedValue) {
-			return { swapped: false, currentValue: this.currentValue };
-		}
-		this.currentValue = newValue;
-		return { swapped: true, currentValue: newValue };
-	}
-}
-
 function editableAutomationKey(automation: IAutomationDescriptor): string {
 	return JSON.stringify({
 		name: automation.name,
@@ -230,24 +190,11 @@ function editableAutomationKey(automation: IAutomationDescriptor): string {
 		target: automation.target.kind === 'workspace'
 			? { ...automation.target, folderUri: automation.target.folderUri.toString() }
 			: automation.target,
+		sessionTemplate: automation.sessionTemplate,
 		modelId: automation.modelId,
 		mode: automation.mode,
 		permissionLevel: automation.permissionLevel,
 		enabled: automation.enabled,
-	});
-}
-
-function serializeAutomationLedger(automations: readonly IAutomationDescriptor[], revision = 1): string {
-	return JSON.stringify({
-		schemaVersion: 3,
-		revision,
-		automations: automations.map(automation => ({
-			...automation,
-			target: automation.target.kind === 'workspace'
-				? { ...automation.target, folderUri: automation.target.folderUri.toJSON() }
-				: automation.target,
-		})),
-		runs: [],
 	});
 }
 
@@ -329,15 +276,7 @@ function getText(result: IToolResult): string {
 }
 
 suite('AutomationTools', () => {
-	const teardown = ensureNoDisposablesAreLeakedInTestSuite();
-
-	function createStorageBackedService(raw: string | undefined, automationStorageService: IAutomationStorageService): AutomationService {
-		const storageService = teardown.add(new InMemoryStorageService());
-		if (raw !== undefined) {
-			storageService.store(AUTOMATION_STORAGE_KEY, raw, StorageScope.APPLICATION, StorageTarget.MACHINE);
-		}
-		return teardown.add(new AutomationService(storageService, new NullLogService(), NullTelemetryService, automationStorageService));
-	}
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('tool data is gated by AI and Automations context keys', () => {
 		const automationService = new FakeAutomationService();
@@ -405,20 +344,34 @@ suite('AutomationTools', () => {
 			requiresExplicitAutomationIntent: modelDescription.includes('only when the user explicitly asks for an automation'),
 			allowsRecurringScheduleIntent: modelDescription.includes('or for a prompt to run on a recurring schedule'),
 			excludesMonitoringRequests: modelDescription.includes('Do not infer that intent from requests merely to monitor, watch, follow, or keep something'),
+			usesProviderTemplate: modelDescription.includes('Use "sessionTemplate" for provider-owned Model, Agent, Mode, Approvals'),
+			rejectsMixedAliases: modelDescription.includes('Do not combine it with the legacy "modelId", "mode", or "permissionLevel" aliases'),
 		}, {
 			requiresExplicitAutomationIntent: true,
 			allowsRecurringScheduleIntent: true,
 			excludesMonitoringRequests: true,
+			usesProviderTemplate: true,
+			rejectsMixedAliases: true,
 		});
 	});
 
 	test('listAutomations returns stable IDs and editable fields', async () => {
-		const automation = createAutomation();
+		const sessionTemplate = {
+			modelId: 'gpt-test',
+			agent: { uri: 'file:///agents/reviewer.agent.md' },
+			config: {
+				mode: 'agent',
+				autoApprove: 'default',
+				providerOption: { enabled: true },
+			},
+		};
+		const automation = createAutomation({ sessionTemplate });
 		const tool = new ListAutomationsTool(new FakeAutomationService([automation]), createConfigurationService());
 
 		const result = await invoke(tool, {});
 
 		assert.deepStrictEqual(JSON.parse(getText(result)), {
+			catalogueState: 'ready',
 			automations: [{
 				id: 'automation-1',
 				name: 'Daily review',
@@ -431,15 +384,72 @@ suite('AutomationTools', () => {
 					sessionTypeId: 'copilot',
 					isolation: { kind: 'default' },
 				},
-				modelId: 'gpt-test',
-				mode: 'agent',
-				permissionLevel: 'default',
+				sessionTemplate,
 				enabled: true,
 				createdAt: NOW,
 				updatedAt: NOW,
 				lastRunAt: null,
 				nextRunAt: '2026-01-02T09:00:00.000Z',
 			}],
+		});
+	});
+
+	test('listAutomations describes when its catalogue is complete', () => {
+		const description = new ListAutomationsTool(new FakeAutomationService(), createConfigurationService()).getToolData().modelDescription ?? '';
+
+		assert.deepStrictEqual({
+			reportsState: description.includes('catalogueState'),
+			definesComplete: description.includes('only "ready" means the list is complete'),
+			warnsAboutFalseEmpty: description.includes('never interpret an empty non-ready result as no configured automations'),
+		}, { reportsState: true, definesComplete: true, warnsAboutFalseEmpty: true });
+	});
+
+	for (const catalogueState of ['loading', 'unavailable', 'error'] as const) {
+		test(`listAutomations preserves available rows in an incomplete ${catalogueState} catalogue`, async () => {
+			const automationService = new FakeAutomationService();
+			automationService.catalogueState.set(catalogueState, undefined);
+			const tool = new ListAutomationsTool(automationService, createConfigurationService());
+			const empty = await invoke(tool, {});
+			const sessionTemplate = { modelId: 'provider-model', config: { providerOption: true } };
+			automationService.automations.set([createAutomation({ sessionTemplate })], undefined);
+			const populated = await invoke(tool, {});
+			const populatedContent = JSON.parse(getText(populated));
+
+			assert.deepStrictEqual({
+				empty: JSON.parse(getText(empty)),
+				emptyMessage: empty.toolResultMessage,
+				populated: {
+					state: populatedContent.catalogueState,
+					ids: populatedContent.automations.map((automation: { id: string }) => automation.id),
+					sessionTemplate: populatedContent.automations[0].sessionTemplate,
+				},
+				populatedMessage: populated.toolResultMessage,
+			}, {
+				empty: { catalogueState, automations: [] },
+				emptyMessage: 'Listed 0 available automations; catalogue is incomplete',
+				populated: { state: catalogueState, ids: ['automation-1'], sessionTemplate },
+				populatedMessage: 'Listed 1 available automations; catalogue is incomplete',
+			});
+		});
+	}
+
+	test('listAutomations emits flat aliases only for legacy rows', async () => {
+		const automation = createAutomation();
+		const tool = new ListAutomationsTool(new FakeAutomationService([automation]), createConfigurationService());
+
+		const result = await invoke(tool, {});
+		const listed = JSON.parse(getText(result)).automations[0];
+
+		assert.deepStrictEqual({
+			sessionTemplate: listed.sessionTemplate,
+			modelId: listed.modelId,
+			mode: listed.mode,
+			permissionLevel: listed.permissionLevel,
+		}, {
+			sessionTemplate: undefined,
+			modelId: 'gpt-test',
+			mode: 'agent',
+			permissionLevel: 'default',
 		});
 	});
 
@@ -473,8 +483,6 @@ suite('AutomationTools', () => {
 			confirmationMessage: 'Run **Daily review** (`automation-1`) now? This starts a new agent session using the automation\'s configured prompt and permissions.',
 			calls: [{
 				automationId: 'automation-1',
-				trigger: 'manual',
-				leaderWindowId: 0,
 				cancelled: false,
 			}],
 			runTokenCancelledAfterDispatch: false,
@@ -500,7 +508,6 @@ suite('AutomationTools', () => {
 			trigger: 'manual',
 			sessionResource: SESSION_RESOURCE,
 			startedAt: NOW,
-			leaderWindowId: 0,
 		});
 		const runner = new RecordingAutomationRunner(automationService);
 		const tool = new RunAutomationTool(automationService, runner, createConfigurationService());
@@ -781,6 +788,28 @@ suite('AutomationTools', () => {
 		});
 	});
 
+	test('configureAutomation rejects a current session without an available Automation authority', async () => {
+		const automationService = new FakeAutomationService();
+		automationService.available = false;
+		const tool = new ConfigureAutomationTool(automationService, new FakeSessionsManagementService(createSession({ quickChat: true })), createConfigurationService());
+		const result = await invoke(tool, { name: 'Review', prompt: 'Review changes', schedule: { interval: 'manual' } });
+		assert.match(getText(result), /does not support automations/);
+		assert.deepStrictEqual(automationService.created, []);
+	});
+
+	test('configureAutomation reports rejected cross-host edits without a success result', async () => {
+		const automation = createAutomation();
+		const automationService = new class extends FakeAutomationService {
+			override async updateAutomationIfUnchanged(): Promise<IGuardedAutomationUpdateResult> {
+				throw new AutomationUnavailableError('Duplicate the automation on the new host. The original continues scheduling until you disable it.');
+			}
+		}([automation]);
+		const tool = new ConfigureAutomationTool(automationService, new FakeSessionsManagementService(undefined, false, [providerSessionType('another-host', 'copilot')]), createConfigurationService());
+		const result = await invoke(tool, { automationId: automation.id, target: { kind: 'workspace', folderUri: FOLDER.toString(), providerId: 'another-host', sessionTypeId: 'copilot' } });
+		assert.match(getText(result), /original continues scheduling/);
+		assert.deepStrictEqual({ created: automationService.created, updated: automationService.updated, original: automationService.getAutomation(automation.id) }, { created: [], updated: [], original: automation });
+	});
+
 	test('configureAutomation applies a partial guarded update and returns clickable result data', async () => {
 		const existing = createAutomation();
 		const automationService = new FakeAutomationService([existing]);
@@ -828,6 +857,162 @@ suite('AutomationTools', () => {
 				operation: 'updated',
 			},
 		});
+	});
+
+	test('configureAutomation accepts a provider mode returned by listAutomations', async () => {
+		const existing = createAutomation({ mode: 'autopilot' });
+		const automationService = new FakeAutomationService([existing]);
+		const tool = new ConfigureAutomationTool(
+			automationService,
+			new FakeSessionsManagementService(undefined),
+			createConfigurationService(),
+		);
+		const parameters = {
+			automationId: existing.id,
+			mode: 'autopilot',
+		};
+		const prepared = await tool.prepareToolInvocation!({
+			parameters,
+			toolCallId: 'update-call',
+			chatSessionResource: SESSION_RESOURCE,
+		}, CancellationToken.None);
+
+		await invoke(tool, parameters, SESSION_RESOURCE, CancellationToken.None, undefined, prepared.toolSpecificData);
+
+		assert.deepStrictEqual(automationService.updated, [{
+			id: existing.id,
+			patch: { mode: 'autopilot' },
+		}]);
+	});
+
+	test('configureAutomation updates the complete provider session template', async () => {
+		const existing = createAutomation({
+			sessionTemplate: {
+				modelId: 'old-model',
+				config: { mode: 'interactive', providerOption: false },
+			},
+		});
+		const automationService = new FakeAutomationService([existing]);
+		const tool = new ConfigureAutomationTool(
+			automationService,
+			new FakeSessionsManagementService(undefined),
+			createConfigurationService(),
+		);
+		const sessionTemplate = {
+			modelId: 'new-model',
+			modelConfiguration: { thinkingLevel: 'low', contextSize: 200_000, futureOption: null },
+			agent: { uri: 'file:///agents/reviewer.agent.md' },
+			config: {
+				mode: 'plan',
+				autoApprove: 'assisted',
+				providerOption: { enabled: true },
+			},
+		};
+
+		await invoke(tool, {
+			automationId: existing.id,
+			sessionTemplate,
+		});
+
+		assert.deepStrictEqual(automationService.updated, [{
+			id: existing.id,
+			patch: { sessionTemplate },
+		}]);
+	});
+
+	test('listAutomations preserves model options for a configureAutomation round-trip', async () => {
+		const sessionTemplate = { modelId: 'model', modelConfiguration: { thinkingLevel: 'low', futureOption: true } };
+		const existing = createAutomation({ sessionTemplate });
+		const automationService = new FakeAutomationService([existing]);
+		const configurationService = createConfigurationService();
+		const listed = await invoke(new ListAutomationsTool(automationService, configurationService), {});
+		const returnedTemplate = JSON.parse(getText(listed)).automations[0].sessionTemplate;
+		const tool = new ConfigureAutomationTool(automationService, new FakeSessionsManagementService(undefined), configurationService);
+		await invoke(tool, { automationId: existing.id, sessionTemplate: returnedTemplate });
+
+		assert.deepStrictEqual(automationService.updated, [{ id: existing.id, patch: { sessionTemplate } }]);
+	});
+
+	test('configureAutomation validates and bounds model-specific configuration', async () => {
+		const automationService = new FakeAutomationService();
+		const tool = new ConfigureAutomationTool(automationService, new FakeSessionsManagementService(undefined), createConfigurationService());
+		const errors: IToolResult['toolResultError'][] = [];
+		for (const sessionTemplate of [
+			{ modelConfiguration: { thinkingLevel: 'low' } },
+			{ modelId: 'model', modelConfiguration: { nested: { value: true } } },
+			{ modelId: 'model', modelConfiguration: { value: Number.POSITIVE_INFINITY } },
+			{ modelId: 'model', modelConfiguration: { value: 'x'.repeat(70_000) } },
+			{ modelId: 'model', modelConfiguration: Object.fromEntries(Array.from({ length: 10_001 }, (_, index) => [index, null])) },
+		]) {
+			const result = await invoke(tool, {
+				name: 'Invalid model configuration',
+				prompt: 'Do not save',
+				schedule: { interval: 'manual' },
+				target: { kind: 'workspace', folderUri: FOLDER.toString() },
+				sessionTemplate,
+			});
+			errors.push(result.toolResultError);
+		}
+
+		assert.deepStrictEqual({ errors, created: automationService.created }, {
+			errors: [
+				'"sessionTemplate.modelConfiguration" requires "sessionTemplate.modelId".',
+				'"sessionTemplate.modelConfiguration" must contain only JSON primitive values.',
+				'"sessionTemplate.modelConfiguration.value" must be JSON-safe.',
+				'"sessionTemplate.modelConfiguration" must not exceed 65536 characters.',
+				'"sessionTemplate.modelConfiguration" must not contain more than 10000 values.',
+			],
+			created: [],
+		});
+	});
+
+	test('configureAutomation reports legacy alias updates to a canonical template as input errors', async () => {
+		const existing = createAutomation({
+			sessionTemplate: {
+				modelId: 'model',
+				config: { mode: 'interactive', autoApprove: 'default' },
+			},
+		});
+		const automationService = new FakeAutomationService([existing]);
+		const tool = new ConfigureAutomationTool(
+			automationService,
+			new FakeSessionsManagementService(undefined),
+			createConfigurationService(),
+		);
+
+		const result = await invoke(tool, {
+			automationId: existing.id,
+			permissionLevel: 'autoApprove',
+		});
+
+		assert.deepStrictEqual({
+			error: result.toolResultError,
+			updates: automationService.updated,
+		}, {
+			error: 'Legacy "modelId", "mode", and "permissionLevel" aliases cannot update an automation with a canonical session template. Pass the complete updated "sessionTemplate" returned by listAutomations.',
+			updates: [],
+		});
+	});
+
+	test('configureAutomation surfaces authority changes detected during the guarded update', async () => {
+		const existing = createAutomation();
+		const automationService = new class extends FakeAutomationService {
+			override async updateAutomationIfUnchanged(): Promise<IGuardedAutomationUpdateResult> {
+				throw new AutomationSessionTemplateAuthorityError();
+			}
+		}([existing]);
+		const tool = new ConfigureAutomationTool(
+			automationService,
+			new FakeSessionsManagementService(undefined),
+			createConfigurationService(),
+		);
+
+		const result = await invoke(tool, {
+			automationId: existing.id,
+			permissionLevel: 'autoApprove',
+		});
+
+		assert.strictEqual(result.toolResultError, 'A canonical Automation session template cannot be updated through legacy configuration aliases.');
 	});
 
 	test('configureAutomation rejects editable changes made while awaiting approval', async () => {
@@ -889,6 +1074,73 @@ suite('AutomationTools', () => {
 			status: 'updated',
 			updated: [{ id: existing.id, patch: { name: 'Proposed name' } }],
 		});
+	});
+
+	for (const target of [
+		{ kind: 'workspace', folderUri: 'file:///another-workspace', providerId: 'local-agent-host', sessionTypeId: 'copilot', isolation: 'folder' },
+		{ kind: 'workspace', folderUri: FOLDER.toString(), providerId: 'local-agent-host', sessionTypeId: 'claude', isolation: 'worktree', branch: 'main' },
+		{ kind: 'quickChat', providerId: 'local-agent-host', sessionTypeId: 'claude' },
+	]) {
+		test(`configureAutomation updates ${target.kind}/${target.sessionTypeId} on an update-only host`, async () => {
+			const existing = createAutomation();
+			const automationService = new FakeAutomationService([existing]);
+			automationService.creationAllowed = false;
+			const candidates = [providerSessionType('local-agent-host', 'copilot', true), providerSessionType('local-agent-host', 'claude', true)];
+			const tool = new ConfigureAutomationTool(
+				automationService, new FakeSessionsManagementService(undefined, false, candidates, candidates), createConfigurationService(),
+			);
+			const result = await invoke(tool, { automationId: existing.id, target });
+			const [update] = automationService.updated;
+			assert.deepStrictEqual({
+				error: result.toolResultError,
+				status: JSON.parse(getText(result)).status,
+				updates: automationService.updated.length,
+				creates: automationService.created.length,
+				owner: update?.patch.target?.providerId,
+				agent: update?.patch.target?.sessionTypeId,
+				targetKind: update?.patch.target?.kind,
+			}, {
+				error: undefined, status: 'updated', updates: 1, creates: 0,
+				owner: 'local-agent-host', agent: target.sessionTypeId, targetKind: target.kind,
+			});
+		});
+	}
+
+	test('configureAutomation rejects new definitions and unsupported edits on an update-only host', async () => {
+		const existing = createAutomation();
+		const automationService = new FakeAutomationService([existing]);
+		automationService.creationAllowed = false;
+		const tool = new ConfigureAutomationTool(
+			automationService,
+			new FakeSessionsManagementService(createSession({ quickChat: true }), false, [], [providerSessionType('local-agent-host', 'copilot')]),
+			createConfigurationService(),
+		);
+		const created = await invoke(tool, { name: 'New', prompt: 'Review', schedule: { interval: 'manual' } });
+		automationService.updatesAllowed = false;
+		const updated = await invoke(tool, { automationId: existing.id, target: { kind: 'quickChat', providerId: 'local-agent-host', sessionTypeId: 'copilot' } });
+		assert.deepStrictEqual({
+			creationRejected: created.toolResultError !== undefined,
+			updateRejected: updated.toolResultError !== undefined,
+			created: automationService.created, updated: automationService.updated,
+		}, { creationRejected: true, updateRejected: true, created: [], updated: [] });
+	});
+
+	test('configureAutomation reports stale approval before target authority or availability failures', async () => {
+		const existing = createAutomation();
+		const automationService = new FakeAutomationService([existing]);
+		automationService.creationAllowed = false;
+		const tool = new ConfigureAutomationTool(automationService, new FakeSessionsManagementService(undefined), createConfigurationService());
+		const parameters = {
+			automationId: existing.id,
+			target: { kind: 'quickChat', providerId: 'another-host', sessionTypeId: 'copilot' },
+		};
+		const prepared = await tool.prepareToolInvocation({
+			parameters, toolCallId: 'update-call', chatSessionResource: SESSION_RESOURCE,
+		}, CancellationToken.None);
+		automationService.automations.set([{ ...existing, name: 'Changed elsewhere' }], undefined);
+		const result = await invoke(tool, parameters, SESSION_RESOURCE, CancellationToken.None, undefined, prepared.toolSpecificData);
+		assert.match(getText(result), /changed before the update was applied/);
+		assert.deepStrictEqual(automationService.updated, []);
 	});
 
 	test('configureAutomation validates explicit targets before writing', async () => {
@@ -988,132 +1240,6 @@ suite('AutomationTools', () => {
 		});
 	});
 
-	test('configureAutomation cancellation during an authoritative read makes no changes', async () => {
-		const automationStorageService = new ControllableAutomationStorageService(undefined);
-		const readBarrier = new DeferredPromise<void>();
-		automationStorageService.readBarrier = readBarrier;
-		const automationService = createStorageBackedService(undefined, automationStorageService);
-		const tokenSource = teardown.add(new CancellationTokenSource());
-		const tool = new ConfigureAutomationTool(
-			automationService,
-			new FakeSessionsManagementService(createSession({ workspace: FOLDER })),
-			createConfigurationService(),
-		);
-
-		const resultPromise = invoke(tool, {
-			name: 'Cancelled',
-			prompt: 'Do not save',
-			schedule: { interval: 'manual' },
-		}, SESSION_RESOURCE, tokenSource.token);
-		await automationStorageService.readStarted.p;
-		tokenSource.cancel();
-		await readBarrier.complete();
-		const result = await resultPromise;
-
-		assert.deepStrictEqual({
-			result: JSON.parse(getText(result)),
-			compareAndSwapCalls: automationStorageService.compareAndSwapCalls,
-			automations: automationService.automations.get(),
-		}, {
-			result: {
-				status: 'cancelled',
-				message: 'The automation change was cancelled. No changes were made.',
-			},
-			compareAndSwapCalls: 0,
-			automations: [],
-		});
-	});
-
-	test('deleteAutomation cancellation during an authoritative read makes no changes', async () => {
-		const automation = createAutomation();
-		const raw = serializeAutomationLedger([automation]);
-		const automationStorageService = new ControllableAutomationStorageService(raw);
-		const readBarrier = new DeferredPromise<void>();
-		automationStorageService.readBarrier = readBarrier;
-		const automationService = createStorageBackedService(raw, automationStorageService);
-		const tokenSource = teardown.add(new CancellationTokenSource());
-		const tool = new DeleteAutomationTool(automationService, createConfigurationService());
-
-		const resultPromise = invoke(tool, { automationId: automation.id }, SESSION_RESOURCE, tokenSource.token, 'delete');
-		await automationStorageService.readStarted.p;
-		tokenSource.cancel();
-		await readBarrier.complete();
-		const result = await resultPromise;
-
-		assert.deepStrictEqual({
-			result: JSON.parse(getText(result)),
-			compareAndSwapCalls: automationStorageService.compareAndSwapCalls,
-			automationIds: automationService.automations.get().map(candidate => candidate.id),
-		}, {
-			result: {
-				status: 'cancelled',
-				message: 'The automation was not deleted.',
-			},
-			compareAndSwapCalls: 0,
-			automationIds: [automation.id],
-		});
-	});
-
-	test('configureAutomation disablement during a CAS conflict stops before retrying', async () => {
-		const automation = createAutomation();
-		const raw = serializeAutomationLedger([automation]);
-		const automationStorageService = new ControllableAutomationStorageService(raw);
-		automationStorageService.nextConflictValue = serializeAutomationLedger([automation], 2);
-		const configurationService = createConfigurationService();
-		automationStorageService.beforeCompareAndSwap = () => configurationService.setUserConfiguration(CHAT_AUTOMATIONS_ENABLED_SETTING, false);
-		const automationService = createStorageBackedService(raw, automationStorageService);
-		const tool = new ConfigureAutomationTool(
-			automationService,
-			new FakeSessionsManagementService(undefined),
-			configurationService,
-		);
-
-		const result = await invoke(tool, { automationId: automation.id, name: 'Must not commit' });
-
-		assert.deepStrictEqual({
-			error: result.toolResultError,
-			compareAndSwapCalls: automationStorageService.compareAndSwapCalls,
-			automationName: automationService.getAutomation(automation.id)?.name,
-		}, {
-			error: 'Automations are disabled.',
-			compareAndSwapCalls: 1,
-			automationName: automation.name,
-		});
-	});
-
-	test('configureAutomation reports success when cancellation crosses a committed CAS boundary', async () => {
-		const automationStorageService = new ControllableAutomationStorageService(undefined);
-		const tokenSource = teardown.add(new CancellationTokenSource());
-		automationStorageService.beforeCompareAndSwap = () => tokenSource.cancel();
-		const automationService = createStorageBackedService(undefined, automationStorageService);
-		const tool = new ConfigureAutomationTool(
-			automationService,
-			new FakeSessionsManagementService(createSession({ workspace: FOLDER })),
-			createConfigurationService(),
-		);
-
-		const result = await invoke(tool, {
-			name: 'Committed',
-			prompt: 'Save once CAS starts',
-			schedule: { interval: 'manual' },
-		}, SESSION_RESOURCE, tokenSource.token);
-		const persisted = JSON.parse(automationStorageService.value!);
-
-		assert.deepStrictEqual({
-			status: JSON.parse(getText(result)).status,
-			cancelled: tokenSource.token.isCancellationRequested,
-			compareAndSwapCalls: automationStorageService.compareAndSwapCalls,
-			inMemoryNames: automationService.automations.get().map(automation => automation.name),
-			persistedNames: persisted.automations.map((automation: { name: string }) => automation.name),
-		}, {
-			status: 'created',
-			cancelled: true,
-			compareAndSwapCalls: 1,
-			inMemoryNames: ['Committed'],
-			persistedNames: ['Committed'],
-		});
-	});
-
 	test('configureAutomation rejects stale IDs and malformed targets', async () => {
 		const tool = new ConfigureAutomationTool(
 			new FakeAutomationService(),
@@ -1133,13 +1259,76 @@ suite('AutomationTools', () => {
 				branch: 'main',
 			},
 		});
+		const mixedConfigurationResult = await invoke(tool, {
+			name: 'Mixed configuration',
+			prompt: 'Do not save',
+			schedule: { interval: 'manual' },
+			target: { kind: 'workspace', folderUri: FOLDER.toString() },
+			mode: 'agent',
+			sessionTemplate: { config: { mode: 'plan' } },
+		});
+		const unsafeConfigurationResult = await invoke(tool, {
+			name: 'Unsafe configuration',
+			prompt: 'Do not save',
+			schedule: { interval: 'manual' },
+			target: { kind: 'workspace', folderUri: FOLDER.toString() },
+			sessionTemplate: { config: { value: new Date(0) } },
+		});
 
 		assert.deepStrictEqual({
 			staleError: staleResult.toolResultError,
 			targetError: malformedTargetResult.toolResultError,
+			mixedConfigurationError: mixedConfigurationResult.toolResultError,
+			unsafeConfigurationError: unsafeConfigurationResult.toolResultError,
 		}, {
 			staleError: 'Automation "missing" does not exist. Call listAutomations to refresh the available IDs.',
 			targetError: '"target.folderUri" must be a valid absolute URI.',
+			mixedConfigurationError: '"sessionTemplate" cannot be combined with legacy "modelId", "mode", or "permissionLevel" aliases.',
+			unsafeConfigurationError: '"sessionTemplate.config.value" must contain only JSON values.',
+		});
+	});
+
+	test('configureAutomation bounds opaque provider configuration', async () => {
+		const tool = new ConfigureAutomationTool(
+			new FakeAutomationService(),
+			new FakeSessionsManagementService(undefined),
+			createConfigurationService(),
+		);
+		let deeplyNested: Record<string, unknown> = {};
+		for (let depth = 0; depth < 40; depth++) {
+			deeplyNested = { nested: deeplyNested };
+		}
+		const target = { kind: 'workspace', folderUri: FOLDER.toString() };
+		const deeplyNestedResult = await invoke(tool, {
+			name: 'Deep configuration',
+			prompt: 'Do not save',
+			schedule: { interval: 'manual' },
+			target,
+			sessionTemplate: { config: deeplyNested },
+		});
+		const oversizedResult = await invoke(tool, {
+			name: 'Large configuration',
+			prompt: 'Do not save',
+			schedule: { interval: 'manual' },
+			target,
+			sessionTemplate: { config: { value: 'x'.repeat(70_000) } },
+		});
+		const tooManyValuesResult = await invoke(tool, {
+			name: 'Wide configuration',
+			prompt: 'Do not save',
+			schedule: { interval: 'manual' },
+			target,
+			sessionTemplate: { config: { values: Array.from({ length: 10_001 }, () => null) } },
+		});
+
+		assert.deepStrictEqual({
+			depthBounded: typeof deeplyNestedResult.toolResultError === 'string' && deeplyNestedResult.toolResultError.includes('exceeds the maximum nesting depth of 32'),
+			sizeBounded: oversizedResult.toolResultError,
+			nodeCountBounded: tooManyValuesResult.toolResultError,
+		}, {
+			depthBounded: true,
+			sizeBounded: '"sessionTemplate.config" must not exceed 65536 characters.',
+			nodeCountBounded: '"sessionTemplate.config" must not contain more than 10000 values.',
 		});
 	});
 

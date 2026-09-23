@@ -140,7 +140,7 @@
                 }
             },
             "type": "boolean",
-            "default": false,
+            "default": true,
             "included": true
         },
         {
@@ -217,6 +217,21 @@
                 }
             },
             "type": "boolean",
+            "default": true,
+            "included": true
+        },
+        {
+            "key": "chat.agentHost.customTerminalTool.enabled",
+            "name": "ChatAgentHostCustomTerminalTool",
+            "category": "InteractiveSession",
+            "minimumVersion": "1.137",
+            "localization": {
+                "description": {
+                    "key": "chat.agentHost.customTerminalTool.enabled.policy",
+                    "value": "Enable the Agent Host custom terminal tool override for Copilot SDK sessions."
+                }
+            },
+            "type": "boolean",
             "default": false,
             "included": true
         },
@@ -236,6 +251,24 @@
             "included": true,
             "referencedSettings": [
                 "github.copilot.chat.otel.captureContent"
+            ]
+        },
+        {
+            "key": "chat.agentHost.otel.captureIdentity",
+            "name": "CopilotOtelCaptureIdentity",
+            "category": "InteractiveSession",
+            "minimumVersion": "1.140",
+            "localization": {
+                "description": {
+                    "key": "chat.agentHost.otel.captureIdentity.policy",
+                    "value": "Controls whether Copilot OpenTelemetry captures the authenticated account name, operating system username, and machine hostname. Independent of content capture."
+                }
+            },
+            "type": "boolean",
+            "default": false,
+            "included": false,
+            "referencedSettings": [
+                "github.copilot.chat.otel.captureIdentity"
             ]
         },
         {
@@ -851,6 +884,35 @@
             "type": "number",
             "default": 12,
             "included": true
+        },
+        {
+            "key": "extensions.gallery.authProvider",
+            "name": "ExtensionGalleryAuthProvider",
+            "category": "Extensions",
+            "minimumVersion": "1.137",
+            "localization": {
+                "description": {
+                    "key": "extensions.gallery.authProvider",
+                    "value": "Configure the authentication provider for the Extensions Marketplace"
+                },
+                "enumDescriptions": [
+                    {
+                        "key": "extensions.gallery.authProvider.github",
+                        "value": "Authenticate to the Extensions Marketplace using GitHub."
+                    },
+                    {
+                        "key": "extensions.gallery.authProvider.microsoft",
+                        "value": "Authenticate to the Extensions Marketplace using a Microsoft (Entra ID) account."
+                    }
+                ]
+            },
+            "type": "string",
+            "default": "github",
+            "enum": [
+                "github",
+                "microsoft"
+            ],
+            "included": false
         },
         {
             "key": "extensions.gallery.serviceUrl",

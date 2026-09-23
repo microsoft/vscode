@@ -7,25 +7,28 @@
  * Default auto-approval rules for safe Git subcommands.
  *
  * These patterns support `-C <path>` and `--no-pager` immediately after `git`.
+ * Git's uppercase `-C` changes directory, while lowercase `-c` injects configuration.
  */
 export const gitAutoApproveRules: Readonly<Record<string, boolean>> = {
-	'/^git(\\s+(-C\\s+\\S+|--no-pager))*\\s+status\\b/': true,
-	'/^git(\\s+(-C\\s+\\S+|--no-pager))*\\s+log\\b/': true,
-	'/^git(\\s+(-C\\s+\\S+|--no-pager))*\\s+log\\b.*\\s--output(=|\\s|$)/': false,
-	'/^git(\\s+(-C\\s+\\S+|--no-pager))*\\s+show\\b/': true,
-	'/^git(\\s+(-C\\s+\\S+|--no-pager))*\\s+show\\b.*\\s--output(=|\\s|$)/': false,
-	'/^git(\\s+(-C\\s+\\S+|--no-pager))*\\s+diff\\b/': true,
-	'/^git(\\s+(-C\\s+\\S+|--no-pager))*\\s+ls-files\\b/': true,
+	'/^git(\\s+(-(?-i:C)\\s+\\S+|--no-pager))*\\s+status\\b/': true,
+	'/^git(\\s+(-(?-i:C)\\s+\\S+|--no-pager))*\\s+log\\b/': true,
+	'/^git(\\s+(-(?-i:C)\\s+\\S+|--no-pager))*\\s+log\\b.*\\s--output(=|\\s|$)/': false,
+	'/^git(\\s+(-(?-i:C)\\s+\\S+|--no-pager))*\\s+show\\b/': true,
+	'/^git(\\s+(-(?-i:C)\\s+\\S+|--no-pager))*\\s+show\\b.*\\s--output(=|\\s|$)/': false,
+	'/^git(\\s+(-(?-i:C)\\s+\\S+|--no-pager))*\\s+diff\\b/': true,
+	'/^git(\\s+(-(?-i:C)\\s+\\S+|--no-pager))*\\s+diff\\b.*\\s--[^\\w\\s]*o[^\\w\\s]*u[^\\w\\s]*t[^\\w\\s]*p[^\\w\\s]*u[^\\w\\s]*t[^\\w\\s]*(=|\\s|$)/': false,
+	'/^git(\\s+(-(?-i:C)\\s+\\S+|--no-pager))*\\s+ls-files\\b/': true,
 
 	// git grep
-	// - `--open-files-in-pager`: This is the configured pager, so no risk of code execution
-	// - See notes on `grep` in the terminal auto-approval configuration.
-	'/^git(\\s+(-C\\s+\\S+|--no-pager))*\\s+grep\\b/': true,
+	// - `-O`, `--open-files-in-pager`: May execute an external pager
+	'/^git(\\s+(-(?-i:C)\\s+\\S+|--no-pager))*\\s+grep\\b/': true,
+	'/^git(\\s+(-(?-i:C)\\s+\\S+|--no-pager))*\\s+grep\\b.*\\s(?-i:-[aIivwhHEGPFnlLqzco]*[^\\w\\s]*O\\S*)(\\s|$)/': false,
+	'/^git(\\s+(-(?-i:C)\\s+\\S+|--no-pager))*\\s+grep\\b.*\\s(?-i:--[^\\w\\s]*o[^\\w\\s]*p\\S*)(\\s|$)/': false,
 
 	// git branch
 	// - `-d`, `-D`, `--delete`: Prevent branch deletion
 	// - `-m`, `-M`: Prevent branch renaming
 	// - `--force`: Generally dangerous
-	'/^git(\\s+(-C\\s+\\S+|--no-pager))*\\s+branch\\b/': true,
-	'/^git(\\s+(-C\\s+\\S+|--no-pager))*\\s+branch\\b.*\\s-(d|D|m|M|-delete|-force)\\b/': false,
+	'/^git(\\s+(-(?-i:C)\\s+\\S+|--no-pager))*\\s+branch\\b/': true,
+	'/^git(\\s+(-(?-i:C)\\s+\\S+|--no-pager))*\\s+branch\\b.*\\s-(d|D|m|M|-delete|-force)\\b/': false,
 };
