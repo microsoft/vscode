@@ -44,7 +44,7 @@ class TestChatView extends AbstractChatView {
 	override readonly isLoadingTranscript = observableValue(this, false);
 	layoutCount = 0;
 	primary = false;
-	groupCount = 1;
+	split = false;
 
 	constructor(
 		readonly kind: ChatViewKind,
@@ -68,9 +68,9 @@ class TestChatView extends AbstractChatView {
 		this._focusTarget.focus();
 	}
 
-	override setPrimary(primary: boolean, groupCount = 1): void {
+	override setPrimary(primary: boolean, split = false): void {
 		this.primary = primary;
-		this.groupCount = groupCount;
+		this.split = split;
 	}
 }
 
@@ -1344,12 +1344,12 @@ suite('Sessions - ChatGroupsView', () => {
 			{
 				label: group.getAttribute('aria-label'),
 				primary: chatViewFactory.views.find(candidate => candidate.element.parentElement === group.querySelector('.chat-group-view-content'))?.primary,
-				groupCount: chatViewFactory.views.find(candidate => candidate.element.parentElement === group.querySelector('.chat-group-view-content'))?.groupCount,
+				split: chatViewFactory.views.find(candidate => candidate.element.parentElement === group.querySelector('.chat-group-view-content'))?.split,
 			},
 		]));
 		assert.deepStrictEqual(labelByChat, {
-			[secondary.resource.toString()]: { label: 'Chat Group 1 of 2', primary: true, groupCount: 2 },
-			[main.resource.toString()]: { label: 'Chat Group 2 of 2', primary: false, groupCount: 2 },
+			[secondary.resource.toString()]: { label: 'Chat Group 1 of 2', primary: true, split: true },
+			[main.resource.toString()]: { label: 'Chat Group 2 of 2', primary: false, split: true },
 		});
 	});
 

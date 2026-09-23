@@ -155,16 +155,16 @@ suite('Sessions - Chat View', () => {
 		let layouts = 0;
 		const view = Object.assign(Object.create(ChatView.prototype), {
 			_isPrimaryObs: observableValue(disposables, true),
-			_groupCount: 1,
+			_isSplit: false,
 			_currentSessionObs: observableValue<ISession | undefined>(disposables, session),
 			_externalSessionBanner: { setSession: (value: ISession | undefined) => bannerSessions.push(value) },
 			_widget: { setMaximumWidth: (value: number) => maximumWidths.push(value) },
 			_layoutChatWidget: () => layouts++,
 		}) as ChatView;
 
-		view.setPrimary(false, 2);
-		view.setPrimary(true, 2);
-		view.setPrimary(true, 1);
+		view.setPrimary(false, true);
+		view.setPrimary(true, true);
+		view.setPrimary(true, false);
 
 		assert.deepStrictEqual({ bannerSessions, maximumWidths, layouts }, {
 			bannerSessions: [undefined, session],

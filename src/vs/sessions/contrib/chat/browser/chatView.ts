@@ -242,7 +242,7 @@ export class ChatView extends AbstractChatView {
 	private _isActive = true;
 	/** Whether this view occupies the first group in the session's chat grid. */
 	private readonly _isPrimaryObs = observableValue(this, false);
-	private _groupCount = 1;
+	private _isSplit = false;
 	/** Observable mirror of {@link _isActive} so the voice overlay can react. */
 	private readonly _isActiveObs = observableValue<boolean>(this, true);
 
@@ -321,6 +321,7 @@ export class ChatView extends AbstractChatView {
 			},
 			this._buildStyles(this._isActive)
 		));
+		this._widget.setMaximumWidth(AGENTS_CENTERED_CONTENT_MAX_WIDTH);
 		this._widget.render(this._widgetContainer, undefined, this._isActiveObs);
 		const updateExperimentalComposerLayout = () => {
 			const enabled = isExperimentalRunningSessionComposerLayoutEnabled(this.configurationService, this.layoutService);
@@ -826,10 +827,10 @@ export class ChatView extends AbstractChatView {
 		}
 	}
 
-	override setPrimary(primary: boolean, groupCount = 1): void {
-		if (this._groupCount !== groupCount) {
-			this._groupCount = groupCount;
-			this._widget.setMaximumWidth(groupCount > 1 ? Number.POSITIVE_INFINITY : AGENTS_CENTERED_CONTENT_MAX_WIDTH);
+	override setPrimary(primary: boolean, split = false): void {
+		if (this._isSplit !== split) {
+			this._isSplit = split;
+			this._widget.setMaximumWidth(split ? Number.POSITIVE_INFINITY : AGENTS_CENTERED_CONTENT_MAX_WIDTH);
 			this._layoutChatWidget();
 		}
 		if (this._isPrimaryObs.get() === primary) {
