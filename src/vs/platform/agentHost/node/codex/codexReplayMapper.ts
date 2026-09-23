@@ -134,11 +134,11 @@ function replayTurnToTurn(
 		if (item.type === 'commandExecution') {
 			const command = unwrapShellInvocation(item.command ?? '');
 			if (pendingPreflight && pendingPreflight.command === command) {
-				// Escalated re-run of the deferred pre-flight: render only this
-				// item (it carries the real output/approval), dropping the
-				// output-less pre-flight box.
+				// Match live coalescing: keep the pre-flight's tool-call identity
+				// while taking the real output/approval from the re-run.
+				const toolCallId = pendingPreflight.item.id;
 				pendingPreflight = undefined;
-				parts.push(shellToolCallPart(item, command, terminalOutputs?.get(item.id), sessionResource));
+				parts.push(shellToolCallPart(item, command, terminalOutputs?.get(item.id), sessionResource, toolCallId));
 				continue;
 			}
 			flushPreflight();
@@ -325,7 +325,7 @@ function textContent(output: string): ToolResultContent[] | undefined {
 	return output ? [{ type: ToolResultContentType.Text, text: output }] : undefined;
 }
 
-function shellToolCallPart(item: CommandExecutionItem, command: string, terminalOutput: TerminalCommandResult | undefined, sessionResource: URI | undefined): ToolCallResponsePart {
+function shellToolCallPart(item: CommandExecutionItem, command: string, terminalOutput: TerminalCommandResult | undefined, sessionResource: URI | undefined, toolCallId = item.id): ToolCallResponsePart {
 	const success = item.status === 'completed' && (item.exitCode === 0 || item.exitCode === null);
 	const output = item.aggregatedOutput ?? '';
 	const exit = item.exitCode;
@@ -338,7 +338,7 @@ function shellToolCallPart(item: CommandExecutionItem, command: string, terminal
 		kind: ResponsePartKind.ToolCall,
 		toolCall: {
 			status: ToolCallStatus.Completed,
-			toolCallId: item.id,
+			toolCallId,
 			toolName: 'shell',
 			displayName: 'Run shell command',
 			_meta: toToolCallMeta({ toolKind: 'terminal' }),

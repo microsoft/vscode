@@ -12,7 +12,7 @@ import { ActionType, type SessionAction, type ChatAction } from '../../common/st
 import { createErrorResponsePart, MessageKind, ResponsePartKind, ToolCallConfirmationReason, ToolCallContributorKind, ToolResultContentType, TurnState, type ErrorInfo, type TerminalCommandResult } from '../../common/state/sessionState.js';
 import { extractForwardedErrorInfo } from '../shared/proxyChatError.js';
 import { getServerToolDisplay } from '../shared/serverToolGroups.js';
-import { terminalOutputContent, terminalOutputPreview } from '../shared/terminalOutputArtifacts.js';
+import { terminalOutputContent } from '../shared/terminalOutputArtifacts.js';
 import { ActiveClientToolSet } from '../activeClientState.js';
 import { toAgentMessageDelegationMeta } from '../../common/meta/agentMessageDelegationMeta.js';
 import { parseCodexDelegation } from './codexDelegation.js';
@@ -932,7 +932,7 @@ export function mapCommandExecutionOutputDelta(
 		type: ActionType.ChatToolCallContentChanged,
 		turnId: entry.turnId,
 		toolCallId: entry.toolCallId,
-		content: [{ type: ToolResultContentType.Text, text: terminalOutputPreview(entry.output) ?? '' }],
+		content: [{ type: ToolResultContentType.Text, text: entry.output }],
 	}];
 }
 
