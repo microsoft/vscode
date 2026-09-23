@@ -441,13 +441,14 @@ suite('PluginMarketplaceService - GitHub marketplace refs', () => {
 			}));
 			instantiationService.stub(IEnvironmentService, { cacheHome: URI.file('/cache') } as Partial<IEnvironmentService> as IEnvironmentService);
 			instantiationService.stub(IFileService, {
-				readFile: async () => {
+				readFile: async (resource: URI) => {
 					if (outcome === 'clone-read-failure') {
 						throw new Error('Cannot read definition');
 					}
-					return { value: VSBuffer.fromString(JSON.stringify({
+					const value = VSBuffer.fromString(JSON.stringify({
 						plugins: outcome === 'clone-plugins' ? [{ name: 'recovered', source: 'plugins/recovered' }] : [],
-					})) };
+					}));
+					return { resource, name: 'marketplace.json', value, size: value.byteLength, mtime: 0, ctime: 0, etag: 'test', readonly: false, locked: false, executable: false };
 				},
 			} as Partial<IFileService> as IFileService);
 			instantiationService.stub(IAgentPluginRepositoryService, {
