@@ -94,9 +94,8 @@ export interface IAgentHostChangesetService {
 
 	/**
 	 * Registers static repository changesets for any owner and the cumulative
-	 * Session Changes resource for session owners.
-	 *
-	 * Idempotent; safe to call on every create and restore path.
+	 * Session Changes resource for session owners, initially in `Computing`.
+	 * Idempotent; does not modify catalogue entries.
 	 */
 	registerStaticChangesets(session: ProtocolURI): void;
 
@@ -224,6 +223,8 @@ export interface IAgentHostChangesetService {
 
 	/**
 	 * Computes and publishes the per-turn changeset for `turnId` on `session`.
+	 * A subscription starts this computation without waiting for the result;
+	 * the snapshot has `Computing` or `Recomputing` status until publication.
 	 * Per-turn changesets are not persisted.
 	 */
 	computeTurnChangeset(session: ProtocolURI, turnId: string): Promise<ProtocolURI>;

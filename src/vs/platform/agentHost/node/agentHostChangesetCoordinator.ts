@@ -256,12 +256,10 @@ export class AgentHostChangesetCoordinator extends Disposable {
 		}
 
 		if (parsed?.kind === ChangesetKind.Turn && parsed.turnId !== undefined) {
-			// Track the new subscriber so the service's per-turn recompute
-			// gating starts including this turn. The initial snapshot is
-			// already produced by `tryHandleSubscribe → computeTurnChangeset`;
-			// subsequent deltas flow from `onToolCallEditsApplied` /
-			// `onTurnComplete` once we've added this turn id here.
 			this._addSubscription(parsed.ownerUri, resourceStr);
+			if (this._stateManager.getSessionState(parsed.sessionUri)) {
+				void this._changesets.computeTurnChangeset(parsed.ownerUri, parsed.turnId);
+			}
 			return;
 		}
 	}
@@ -460,7 +458,9 @@ export class AgentHostChangesetCoordinator extends Disposable {
 		}
 		await this.restoreSessionIfChangesetSubscription(resource, restoreSession);
 		if (parsed.kind === ChangesetKind.Turn && parsed.turnId) {
-			await this._changesets.computeTurnChangeset(parsed.ownerUri, parsed.turnId);
+			if (!this._stateManager.getChangesetState(resourceStr)) {
+				void this._changesets.computeTurnChangeset(parsed.ownerUri, parsed.turnId);
+			}
 		} else if (parsed.kind === ChangesetKind.Compare && parsed.originalTurnId && parsed.modifiedTurnId) {
 			// Compare-turns is computed once on subscribe. Both turns are
 			// typically historical so the snapshot doesn't need to track
