@@ -772,6 +772,32 @@ suite('ChatWidget', () => {
 		]);
 	});
 
+	test('host can lift the default chat width cap', () => {
+		const inputWidths: number[] = [];
+		const layoutWidths: number[] = [];
+		const widget: ChatWidget = Object.assign(Object.create(ChatWidget.prototype), {
+			maximumWidth: 950,
+			viewOptions: {},
+			_location: { location: ChatAgentLocation.Chat },
+			chatSuggestNextWidget: { height: 0 },
+			inputPartDisposable: { value: {
+				setMaxHeight: () => { },
+				layout: (width: number) => inputWidths.push(width),
+			} },
+			_layoutListForInputHeight: () => { },
+			_onDidLayout: { fire: ({ width }: { width: number }) => layoutWidths.push(width) },
+		});
+
+		widget.layout(600, 1400);
+		widget.setMaximumWidth(Number.POSITIVE_INFINITY);
+		widget.layout(600, 1400);
+
+		assert.deepStrictEqual({ inputWidths, layoutWidths }, {
+			inputWidths: [950, 1400],
+			layoutWidths: [950, 1400],
+		});
+	});
+
 	test('passes read-only transitions to the renderer independently of request editing', () => {
 		const rendererOptions: IChatListItemRendererOptions[] = [];
 		let rerenders = 0;

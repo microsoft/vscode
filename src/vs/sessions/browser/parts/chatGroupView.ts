@@ -133,6 +133,8 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 	private _sessionVisible = true;
 	/** Whether this is the first group in the chat grid's logical order. */
 	private _primary = false;
+	/** Number of groups in the chat grid. */
+	private _groupCount = 1;
 	/** Index of this group within the persisted layout, written into {@link toJSON}. */
 	private _serializationIndex = 0;
 
@@ -194,7 +196,8 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 
 	setGroupPosition(index: number, count: number): void {
 		this._primary = index === 0;
-		this._currentView.value?.setPrimary(this._primary);
+		this._groupCount = count;
+		this._currentView.value?.setPrimary(this._primary, count);
 
 		if (count <= 1) {
 			this.element.removeAttribute('role');
@@ -347,7 +350,7 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 				this._contentContainer.replaceChildren(view.element, this._remoteHostUnavailableEmptyState.domNode);
 				this._currentView.value = view;
 				currentView.set(view, undefined);
-				view.setPrimary(this._primary);
+				view.setPrimary(this._primary, this._groupCount);
 				view.setActive(this._sessionActive);
 				view.setVisible(this._sessionVisible);
 				this._layoutChildren();

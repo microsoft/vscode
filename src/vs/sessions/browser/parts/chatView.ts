@@ -175,10 +175,10 @@ export abstract class AbstractChatView extends Disposable implements ISerializab
 	}
 
 	/**
-	 * Notifies the view whether it occupies the first group in the chat grid.
-	 * Session-scoped UI can use this to avoid repeating across split groups.
+	 * Notifies the view of its position and the total number of groups in the chat grid.
+	 * Session-scoped UI can use this to avoid repeating across split groups and adapt its layout.
 	 */
-	setPrimary(_primary: boolean): void {
+	setPrimary(_primary: boolean, _groupCount = 1): void {
 		// no-op by default
 	}
 
