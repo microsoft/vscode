@@ -179,7 +179,7 @@ variables:
   - name: VSCODE_PUBLISH
     value: ${{ and(eq(parameters.VSCODE_PUBLISH, true), eq(variables.VSCODE_CIBUILD, false)) }}
   - name: VSCODE_USE_PUBLISHING_POOLS
-    value: ${{ and(eq(variables.VSCODE_PUBLISH, true), or(eq(variables['Build.SourceBranch'], 'refs/heads/main'), startsWith(variables['Build.SourceBranch'], 'refs/heads/release/'))) }}
+    value: ${{ eq(variables.VSCODE_PUBLISH, true) }} # ${{ and(eq(variables.VSCODE_PUBLISH, true), or(eq(variables['Build.SourceBranch'], 'refs/heads/main'), startsWith(variables['Build.SourceBranch'], 'refs/heads/release/'))) }}
   - name: VSCODE_WINDOWS_POOL
     ${{ if eq(variables.VSCODE_USE_PUBLISHING_POOLS, true) }}:
       value: 1es-windows-2022-x64-publishing
