@@ -1684,9 +1684,12 @@ configurationRegistry.registerConfiguration({
 		},
 		[AgentHostClaudeChatParityPromptEnabledSettingId]: {
 			type: 'boolean',
-			description: nls.localize('chat.agentHost.claudeChatParityPrompt.enabled', "When enabled, Copilot SDK sessions running a Claude model apply system-prompt section overrides ported from the Copilot Chat Claude agent prompt, replacing the SDK's verification and thoroughness mandates with Copilot Chat's scope and exploration restraint guidance."),
+			description: nls.localize('chat.agentHost.claudeChatParityPrompt.enabled', "When enabled, Copilot SDK sessions running a Claude model apply system-prompt section overrides ported from the Copilot Chat Claude agent prompt, replacing the SDK's verification and thoroughness mandates with Copilot Chat's scope and exploration restraint guidance. Applies to sessions launched after the change."),
 			default: false,
 			tags: ['experimental', 'advanced'],
+			// Rolled out via experiment; the forwarded root-config key re-resolves the
+			// prompt on the next session launch, so `auto` needs no restart.
+			experiment: { mode: 'auto' },
 		},
 		[AgentHostToolSearchEnabledSettingId]: {
 			type: 'boolean',
