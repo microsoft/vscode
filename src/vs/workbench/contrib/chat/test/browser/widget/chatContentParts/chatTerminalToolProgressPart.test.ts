@@ -67,6 +67,8 @@ function terminalOutputName(toolCallId: string): string {
 	return `terminal-output-${runId}.txt`;
 }
 
+const fullOutputClickWait = 550;
+
 class TestTerminalChatService extends mock<ITerminalChatService>() {
 	override readonly onDidRegisterTerminalInstanceWithToolSession = Event.None;
 	override readonly onDidContinueInBackground: Event<string>;
@@ -556,17 +558,71 @@ suite('ChatTerminalToolProgressPart full output', () => {
 			});
 		});
 
-		test(`does not open full output from broad preview clicks in ${mode} mode`, async () => {
+		test(`opens full output from a whole-preview click in ${mode} mode`, async () => {
 			const harness = await createTerminalFullOutputHarness(store);
 			const entry = harness.createPart({ mode });
 			await harness.expand(entry.part, mode);
 			const output = entry.part.domNode.querySelector<HTMLElement>('.chat-terminal-output-container');
 			assert.ok(output);
 			output.click();
-			await timeout(0);
-			assert.deepStrictEqual({ opens: harness.openedEditors.length, cursor: mainWindow.getComputedStyle(output).cursor }, { opens: 0, cursor: 'auto' });
+			await timeout(fullOutputClickWait);
+			assert.deepStrictEqual({ opens: harness.openedEditors.length, cursor: mainWindow.getComputedStyle(output).cursor }, { opens: 1, cursor: 'pointer' });
 		});
 	}
+
+	test('preserves selection, drag, scrolling, nested controls, and modified clicks', async () => {
+		const harness = await createTerminalFullOutputHarness(store);
+		const { part } = harness.createPart({ mode: 'plain' });
+		await harness.expand(part, 'plain');
+		const output = part.domNode.querySelector<HTMLElement>('.chat-terminal-output-container');
+		const body = part.domNode.querySelector<HTMLElement>('.chat-terminal-output-body');
+		const terminal = part.domNode.querySelector<HTMLElement>('.chat-terminal-output-terminal');
+		assert.ok(output);
+		assert.ok(body);
+		assert.ok(terminal);
+		const raw = harness.raw(part);
+		raw.open(terminal);
+
+		raw.select(0, 0, 4);
+		terminal.dispatchEvent(new mainWindow.MouseEvent('mousedown', { bubbles: true, buttons: 1 }));
+		raw.clearSelection();
+		terminal.dispatchEvent(new mainWindow.MouseEvent('click', { bubbles: true }));
+
+		body.dispatchEvent(new mainWindow.MouseEvent('mousedown', { bubbles: true, buttons: 1, clientX: 10, clientY: 10 }));
+		body.dispatchEvent(new mainWindow.MouseEvent('mousemove', { bubbles: true, buttons: 1, clientX: 80, clientY: 10 }));
+		body.dispatchEvent(new mainWindow.MouseEvent('click', { bubbles: true, detail: 1 }));
+
+		body.dispatchEvent(new mainWindow.MouseEvent('mousedown', { bubbles: true, buttons: 1 }));
+		body.dispatchEvent(new mainWindow.WheelEvent('wheel', { bubbles: true, deltaY: 20 }));
+		body.dispatchEvent(new mainWindow.MouseEvent('click', { bubbles: true, detail: 1 }));
+
+		const button = mainWindow.document.createElement('button');
+		body.appendChild(button);
+		button.click();
+		body.dispatchEvent(new mainWindow.MouseEvent('click', { bubbles: true, metaKey: true, detail: 1 }));
+		await timeout(fullOutputClickWait);
+		assert.strictEqual(harness.openedEditors.length, 0);
+
+		body.click();
+		await timeout(fullOutputClickWait);
+		assert.strictEqual(harness.openedEditors.length, 1);
+	});
+
+	test('does not open for a recognized slow double-click sequence', async () => {
+		const harness = await createTerminalFullOutputHarness(store);
+		const { part } = harness.createPart({ mode: 'plain' });
+		await harness.expand(part, 'plain');
+		const body = part.domNode.querySelector<HTMLElement>('.chat-terminal-output-body');
+		assert.ok(body);
+
+		body.dispatchEvent(new mainWindow.MouseEvent('click', { bubbles: true, cancelable: true, detail: 1 }));
+		await timeout(350);
+		body.dispatchEvent(new mainWindow.MouseEvent('click', { bubbles: true, cancelable: true, detail: 2 }));
+		body.dispatchEvent(new mainWindow.MouseEvent('dblclick', { bubbles: true, cancelable: true, detail: 2 }));
+		await timeout(200);
+
+		assert.strictEqual(harness.openedEditors.length, 0);
+	});
 
 	test('keeps completion text and hides actions when metadata says the artifact is unavailable', async () => {
 		const harness = await createTerminalFullOutputHarness(store);

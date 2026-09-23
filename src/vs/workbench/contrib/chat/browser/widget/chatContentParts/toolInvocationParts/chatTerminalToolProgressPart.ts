@@ -28,7 +28,7 @@ import '../media/chatTerminalToolProgressPart.css';
 import type { ICodeBlockRenderOptions } from '../codeBlockPart.js';
 import { Action, IAction } from '../../../../../../../base/common/actions.js';
 import { ActionBar } from '../../../../../../../base/browser/ui/actionbar/actionbar.js';
-import { timeout } from '../../../../../../../base/common/async.js';
+import { disposableTimeout, timeout } from '../../../../../../../base/common/async.js';
 import { IAhpTerminalCommandSource, IChatTerminalOutputSource, IChatTerminalToolProgressPart, ITerminalChatService, ITerminalConfigurationService, ITerminalEditorService, ITerminalGroupService, ITerminalInstance, ITerminalService } from '../../../../../terminal/browser/terminal.js';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable, type IDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../../../../../base/common/event.js';
@@ -99,6 +99,8 @@ const OUTPUT_POLL_DELAY_MS = 100;
 const MIN_DATA_EVENTS_FOR_REAL_OUTPUT = 2;
 
 const OPEN_TERMINAL_FULL_OUTPUT_ACTION_ID = 'workbench.action.chat.openTerminalFullOutput';
+const MAX_OUTPUT_CLICK_MOVEMENT = 5;
+const FULL_OUTPUT_SINGLE_CLICK_DELAY = 500;
 
 function getTerminalFullOutputLabel(runId: string): string {
 	return localize('chatTerminalFullOutputLabel', "Terminal Output · {0}", runId);
@@ -1408,6 +1410,8 @@ export class ChatTerminalToolOutputSection extends Disposable {
 	private readonly _truncationElement: HTMLElement;
 	private readonly _fullOutputLink = this._register(new MutableDisposable<Link>());
 	private _lastRenderedLineCount: number | undefined;
+	private _previewClickGesture: { x: number; y: number; cancelled: boolean } | undefined;
+	private readonly _pendingPreviewActivation = this._register(new MutableDisposable<IDisposable>());
 	private readonly _outputRelayout = this._register(new MutableDisposable());
 
 	private readonly _onDidFocusEmitter = this._register(new Emitter<void>());
@@ -1453,6 +1457,31 @@ export class ChatTerminalToolOutputSection extends Disposable {
 
 		this._register(dom.addDisposableListener(this.domNode, dom.EventType.FOCUS_IN, () => this._onDidFocusEmitter.fire()));
 		this._register(dom.addDisposableListener(this.domNode, dom.EventType.FOCUS_OUT, event => this._onDidBlurEmitter.fire(event)));
+		this._register(dom.addDisposableListener(this.domNode, dom.EventType.MOUSE_DOWN, event => {
+			this._previewClickGesture = {
+				x: event.clientX,
+				y: event.clientY,
+				cancelled: this._hasOutputSelection() || this._isInteractivePreviewTarget(event.target),
+			};
+		}, true));
+		this._register(dom.addDisposableListener(this.domNode, dom.EventType.MOUSE_MOVE, event => {
+			const gesture = this._previewClickGesture;
+			if (gesture && (event.buttons & 1) && Math.hypot(event.clientX - gesture.x, event.clientY - gesture.y) > MAX_OUTPUT_CLICK_MOVEMENT) {
+				gesture.cancelled = true;
+			}
+		}));
+		this._register(dom.addDisposableListener(this.domNode, dom.EventType.MOUSE_LEAVE, event => {
+			if (this._previewClickGesture && (event.buttons & 1)) {
+				this._previewClickGesture.cancelled = true;
+			}
+		}));
+		this._register(dom.addDisposableListener(this.domNode, dom.EventType.WHEEL, () => {
+			if (this._previewClickGesture) {
+				this._previewClickGesture.cancelled = true;
+			}
+		}, { capture: true, passive: true }));
+		this._register(dom.addDisposableListener(this.domNode, dom.EventType.CLICK, event => this._handlePreviewClick(event)));
+		this._register(dom.addDisposableListener(this.domNode, dom.EventType.DBLCLICK, () => this._pendingPreviewActivation.clear()));
 
 		const resizeObserver = this._register(new dom.DisposableResizeObserver('ChatTerminalToolProgressPart.handleResize', () => this._handleResize()));
 		this._register(resizeObserver.observe(this.domNode));
@@ -1516,6 +1545,36 @@ export class ChatTerminalToolOutputSection extends Disposable {
 		if (action && this._canOpenFullOutput()) {
 			void Promise.resolve().then(() => action.run()).catch(onUnexpectedError);
 		}
+	}
+
+	private _hasOutputSelection(): boolean {
+		if (this._snapshotMirror?.hasSelection()) {
+			return true;
+		}
+		const selection = dom.getWindow(this.domNode).getSelection();
+		return !!selection && !selection.isCollapsed && (this.domNode.contains(selection.anchorNode) || this.domNode.contains(selection.focusNode));
+	}
+
+	private _isInteractivePreviewTarget(target: EventTarget | null): boolean {
+		return !dom.isHTMLElement(target) || !!target.closest('a, button, input, textarea, select, [role="button"], [role="link"], [contenteditable="true"], .scrollbar, .slider, .xterm-scrollbar, .xterm-cursor-pointer');
+	}
+
+	private _handlePreviewClick(event: MouseEvent): void {
+		const gesture = this._previewClickGesture;
+		this._previewClickGesture = undefined;
+		if (event.detail > 1) {
+			this._pendingPreviewActivation.clear();
+			return;
+		}
+		if (!this._canOpenFullOutput() || !this.isExpanded || event.defaultPrevented || event.button !== 0 || event.ctrlKey || event.metaKey || event.altKey || event.shiftKey || gesture?.cancelled || this._hasOutputSelection() || this._isInteractivePreviewTarget(event.target)) {
+			return;
+		}
+		event.preventDefault();
+		event.stopPropagation();
+		this._pendingPreviewActivation.value = disposableTimeout(() => {
+			this._pendingPreviewActivation.clear();
+			this._openFullOutput();
+		}, FULL_OUTPUT_SINGLE_CLICK_DELAY);
 	}
 
 	public updateAriaLabel(): void {
@@ -1800,6 +1859,7 @@ export class ChatTerminalToolOutputSection extends Disposable {
 	}
 
 	private _setTruncationMessage(visible: boolean): void {
+		this.domNode.classList.toggle('chat-terminal-output-clickable', visible && this._canOpenFullOutput());
 		if (visible && this._canOpenFullOutput()) {
 			if (!this._fullOutputLink.value) {
 				this._truncationElement.textContent = localize('chatTerminalOutputTruncated', 'Output truncated.');
