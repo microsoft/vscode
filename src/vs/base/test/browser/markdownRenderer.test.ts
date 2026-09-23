@@ -711,6 +711,23 @@ suite('MarkdownRenderer', () => {
 			assert.strictEqual(result.innerHTML, `<p>a&lt;b&gt;b&lt;/b&gt;c</p>`);
 		});
 
+		for (const supportHtml of [false, true]) {
+			test(`appendText preserves literal HTML-like text with supportHtml=${supportHtml} #316998`, () => {
+				const inputs = ['<div>text</div>', '<span>text</span>', '<div', '\\<span>text</span>'];
+				const results = inputs.map(input => {
+					const markdown = new MarkdownString('', { supportHtml }).appendText(input);
+					return store.add(renderMarkdown(markdown)).element.innerHTML;
+				});
+
+				assert.deepStrictEqual(results, [
+					'<p>&lt;div&gt;text&lt;/div&gt;</p>',
+					'<p>&lt;span&gt;text&lt;/span&gt;</p>',
+					'<p>&lt;div</p>',
+					'<p>\\&lt;span&gt;text&lt;/span&gt;</p>',
+				]);
+			});
+		}
+
 		test('Should render html images', () => {
 			if (isWeb) {
 				return;
