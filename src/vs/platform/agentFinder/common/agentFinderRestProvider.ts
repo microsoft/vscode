@@ -19,11 +19,20 @@ import { IRequestService } from '../../request/common/request.js';
 const endpoint = 'https://agentfinder.github.com/api/v1';
 const requestTimeout = 30_000;
 const maxResponseBytes = 5 * 1024 * 1024;
+const defaultPageSize = 30;
+const maxPageSize = 100;
+const maxQueryLength = 4096;
 const maxUriLength = 8192;
 const maxPageTokenLength = 8192;
+// JSON escaping can expand each token character to six characters; allow room for the cursor envelope.
+const maxCursorLength = maxPageTokenLength * 6 + 64;
 const maxResourceTextLength = 4096;
 const maxMetadataEntries = 32;
 const maxMetadataTextLength = 512;
+const maxMcpServerNameLength = 512;
+const maxMcpVersionLength = 128;
+const maxSourcePathLength = 4096;
+const maxGitRefLength = 1024;
 
 class AgentFinderError extends Error { }
 
@@ -38,12 +47,12 @@ export class AgentFinderRestProvider implements ICustomizationMarketplaceProvide
 		}
 
 		const query = options.query?.trim() ?? '';
-		const requestedPageSize = options.pageSize ?? 30;
-		if (query.length > 4096 || !isNonNegativeInteger(requestedPageSize) || requestedPageSize === 0 ||
+		const requestedPageSize = options.pageSize ?? defaultPageSize;
+		if (query.length > maxQueryLength || !isNonNegativeInteger(requestedPageSize) || requestedPageSize === 0 ||
 			(options.mediaType !== undefined && !Object.values(CustomizationMarketplaceMediaType).includes(options.mediaType))) {
 			throw new AgentFinderError(localize('agentFinder.invalidQuery', "The customization catalog query is invalid."));
 		}
-		const pageSize = Math.min(requestedPageSize, 100);
+		const pageSize = Math.min(requestedPageSize, maxPageSize);
 		const cursor = options.cursor === undefined ? undefined : parseCursor(options.cursor, !!query);
 		const offset = cursor?.kind === 'browse' ? cursor.offset : 0;
 		const pageToken = cursor?.kind === 'search' ? cursor.pageToken : undefined;
@@ -152,7 +161,7 @@ function isPageToken(value: unknown): value is string {
 
 function parseCursor(value: string, search: boolean): { kind: 'browse'; offset: number } | { kind: 'search'; pageToken: string } {
 	const invalidCursor = () => new AgentFinderError(localize('agentFinder.invalidCursor', "The customization catalog page is invalid. Start a new search."));
-	if (typeof value !== 'string' || value.length > maxPageTokenLength * 6 + 64) {
+	if (typeof value !== 'string' || value.length > maxCursorLength) {
 		throw invalidCursor();
 	}
 	let cursor: unknown;
@@ -260,12 +269,12 @@ function parseInstallation(mediaType: string, metadata: Record<string, unknown> 
 	}
 	if (mediaType === CustomizationMarketplaceMediaType.McpServer) {
 		const name = metadata.serverName;
-		if (typeof name !== 'string' || name.length > 512 || !/^[a-z0-9][a-z0-9._-]*\/[a-z0-9][a-z0-9._-]*$/i.test(name) || !isSafeSourcePath(name)) {
+		if (typeof name !== 'string' || name.length > maxMcpServerNameLength || !/^[a-z0-9][a-z0-9._-]*\/[a-z0-9][a-z0-9._-]*$/i.test(name) || !isSafeSourcePath(name)) {
 			return undefined;
 		}
 		const prefix = `https://api.mcp.github.com/oss/v0.1/servers/${encodeURIComponent(name)}/versions/`;
 		const version = metadata.version;
-		if (externalUrl === `${prefix}latest` || (typeof version === 'string' && version.length <= 128 &&
+		if (externalUrl === `${prefix}latest` || (typeof version === 'string' && version.length <= maxMcpVersionLength &&
 			!version.includes('/') && isSafeSourcePath(version) && externalUrl === `${prefix}${encodeURIComponent(version)}`)) {
 			return { kind: 'mcp', name };
 		}
@@ -309,12 +318,12 @@ function refBeforePath(refAndPath: string, path: string): string | undefined {
 }
 
 function isSafeSourcePath(path: string): boolean {
-	return path.length > 0 && path.length <= 4096 && /^[a-z0-9._+-]+(?:\/[a-z0-9._+-]+)*$/i.test(path) &&
+	return path.length > 0 && path.length <= maxSourcePathLength && /^[a-z0-9._+-]+(?:\/[a-z0-9._+-]+)*$/i.test(path) &&
 		path.split('/').every(part => part !== '.' && part !== '..' && part.toLowerCase() !== '.git' && !part.startsWith('-') && !part.endsWith('.'));
 }
 
 function isSafeGitRef(ref: string): boolean {
-	return ref.length <= 1024 && isSafeSourcePath(ref) && !ref.includes('..') &&
+	return ref.length <= maxGitRefLength && isSafeSourcePath(ref) && !ref.includes('..') &&
 		ref.split('/').every(part => !part.startsWith('.') && !part.toLowerCase().endsWith('.lock'));
 }
 
