@@ -75,12 +75,23 @@ export async function getCopilotPluginMarketplaceSnapshot(rpc: ICopilotPluginMar
 }
 
 export async function refreshCopilotPluginMarketplaces(rpc: ICopilotPluginMarketplaceRpc, marketplace?: string): Promise<IAgentPluginMarketplaceSnapshot> {
+	let result: Awaited<ReturnType<ICopilotPluginMarketplaceRpc['marketplaces']['refresh']>>;
 	try {
-		await rpc.marketplaces.refresh(marketplace === undefined ? undefined : { name: marketplace });
+		result = await rpc.marketplaces.refresh(marketplace === undefined ? undefined : { name: marketplace });
 	} catch (error) {
 		throw safePluginMarketplaceError('Failed to refresh plugin marketplaces', error);
 	}
-	return getCopilotPluginMarketplaceSnapshot(rpc);
+	const snapshot = await getCopilotPluginMarketplaceSnapshot(rpc);
+	const failures = new Map(snapshot.failures.map(failure => [failure.marketplace, failure]));
+	for (const entry of result.results) {
+		if (!entry.success) {
+			failures.set(entry.name, {
+				marketplace: entry.name,
+				error: sanitizeConnectionDiagnosticText(entry.error ?? '') || 'Marketplace refresh failed.',
+			});
+		}
+	}
+	return { ...snapshot, failures: [...failures.values()] };
 }
 
 export async function installCopilotPlugin(rpc: ICopilotPluginMarketplaceRpc, source: string): Promise<IAgentPluginInstallResult> {

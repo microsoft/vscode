@@ -10,6 +10,40 @@ import { getCopilotPluginMarketplaceSnapshot, installCopilotPlugin, refreshCopil
 suite('CopilotPluginMarketplaces', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('preserves unsuccessful refresh results even when cached browsing succeeds', async () => {
+		const rpc: ICopilotPluginMarketplaceRpc = {
+			list: async () => ({ plugins: [] }),
+			install: async () => { throw new Error('Unexpected install'); },
+			reload: async () => { },
+			marketplaces: {
+				list: async () => ({ marketplaces: [
+					{ name: 'alpha', source: 'GitHub: company/alpha' },
+					{ name: 'beta', source: 'GitHub: company/beta' },
+				] }),
+				browse: async ({ name }) => {
+					if (name === 'beta') {
+						throw new Error('Browse failed');
+					}
+					return { plugins: [{ name: 'cached' }] };
+				},
+				refresh: async () => ({ results: [
+					{ name: 'alpha', success: false, error: 'token=secret-value refresh failed' },
+					{ name: 'beta', success: false },
+				] }),
+			},
+		};
+
+		const result = await refreshCopilotPluginMarketplaces(rpc);
+
+		assert.deepStrictEqual({ plugins: result.plugins, failures: result.failures }, {
+			plugins: [{ name: 'cached', marketplace: 'alpha', source: 'cached@alpha', installed: false }],
+			failures: [
+				{ marketplace: 'beta', error: 'Marketplace refresh failed.' },
+				{ marketplace: 'alpha', error: 'token=[redacted] refresh failed' },
+			],
+		});
+	});
+
 	test('lists, refreshes, and installs through session-scoped RPCs', async () => {
 		const calls: { method: string; value?: string }[] = [];
 		const rpc: ICopilotPluginMarketplaceRpc = {
