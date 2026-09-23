@@ -9,7 +9,7 @@ import { URI } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
 import { IAgentHostAuthenticationService } from './agentHostAuthenticationService.js';
 import { IAgentHostGitHubEndpointService } from './agentHostGitHubEndpointService.js';
-import { parseChangesetUri } from '../common/changesetUri.js';
+import { parseChangesetUri, parseFolderChangesetOwnerUri } from '../common/changesetUri.js';
 import { AHP_AUTH_REQUIRED, AHP_SESSION_NOT_FOUND, JsonRpcErrorCodes, ProtocolError } from '../common/state/sessionProtocol.js';
 import { readSessionGitHubState, readSessionGitState, type ChangesetOperationFollowUp, type ISessionFileDiff, type ISessionWithDefaultChat } from '../common/state/sessionState.js';
 import { ILogService } from '../../log/common/log.js';
@@ -25,6 +25,8 @@ import { AgentMergeConfigKey, agentMergeRootConfigSchema, readAgentMergeSessionS
 import { IAgentConfigurationService } from './agentConfigurationService.js';
 import { createPullRequestDetailsResult, readPullRequestOperationMeta, readPullRequestValidationMeta, type IPullRequestContext, type IPullRequestCreateOptions } from '../common/meta/agentPullRequestOperationMeta.js';
 import { getAgentMergeConfiguration } from './agentMergeConfiguration.js';
+import { resolveChangesetOwnerScope } from './agentHostBranchChangesetScope.js';
+import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
 
 /**
  * Soft upper bound, in characters, for the conversation context fed to the
@@ -45,6 +47,8 @@ type PullRequestCreationConfiguration = Pick<IPullRequestCreateOptions, 'draft' 
 export interface PullRequestCreatedEvent {
 	readonly sessionKey: string;
 	readonly pullRequestUrl: string;
+	readonly pullRequestNumber: number;
+	readonly pullRequestTitle?: string;
 	/** The head branch the pull request was created (or found) for. */
 	readonly branchName: string;
 }
@@ -67,7 +71,8 @@ export interface PullRequestCreatedEvent {
  *    / {@link ISessionGitState.githubRepo} (populated by the git probe).
  * 6. Reuse an existing PR for the branch, or POST `/repos/{owner}/{repo}/pulls`
  *    via {@link IAgentHostOctoKitService}.
- * 7. Return the PR URL as an {@link InvokeChangesetOperationResult.followUp}.
+ * 7. Record the PR as a session artifact and associate it with the branch.
+ * 8. Return the PR URL as an {@link InvokeChangesetOperationResult.followUp}.
  */
 export class AgentHostPullRequestOperationHandler implements IChangesetOperationHandler {
 
@@ -85,7 +90,7 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 		private readonly _enableAgentMerge: boolean,
 		private readonly _getSessionState: (sessionKey: string) => ISessionWithDefaultChat | undefined,
 		private readonly _resolveBaseBranchName: (sessionKey: string) => Promise<string | undefined>,
-		private readonly _onPullRequestCreated: (event: PullRequestCreatedEvent) => void,
+		private readonly _onPullRequestCreated: (event: PullRequestCreatedEvent) => Promise<void>,
 		@IAgentHostAuthenticationService private readonly _authenticationService: IAgentHostAuthenticationService,
 		@IAgentHostGitService private readonly _gitService: IAgentHostGitService,
 		@IAgentHostOctoKitService private readonly _octoKitService: IAgentHostOctoKitService,
@@ -94,6 +99,7 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 		@IAgentBranchNameGenerator private readonly _branchNameGenerator: IAgentBranchNameGenerator,
 		@IAgentConfigurationService private readonly _configurationService: IAgentConfigurationService,
 		@ILogService private readonly _logService: ILogService,
+		@IAgentHostStateManager private readonly _stateManager: AgentHostStateManager,
 	) { }
 
 	async invoke(params: InvokeChangesetOperationParams, token: CancellationToken): Promise<InvokeChangesetOperationResult> {
@@ -103,7 +109,7 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 	async prepare(params: InvokeChangesetOperationParams, token: CancellationToken): Promise<InvokeChangesetOperationResult> {
 		return this._withAbortSignal(token, async signal => {
 			const expectedContext = readPullRequestValidationMeta(params);
-			const { sessionUri, sessionState, workingDirectory, gitHubState, branchName, baseBranchName, authToken, preparationContext } = await this._resolveContext(params, token, expectedContext);
+			const { sessionUri, sourceUri, sessionState, workingDirectory, gitHubState, branchName, baseBranchName, authToken, preparationContext } = await this._resolveContext(params, token, expectedContext);
 			if (expectedContext) {
 				return {};
 			}
@@ -116,7 +122,7 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 				capabilities = { autoMergeAllowed: false, mergeMethods: [] };
 			}
 			this._throwIfCancelled(token);
-			const branchChanges = await this._getBranchChanges(workingDirectory, sessionUri, baseBranchName, token);
+			const branchChanges = await this._getBranchChanges(workingDirectory, sourceUri, baseBranchName, token);
 			let title = '';
 			let description = '';
 			let generationError: string | undefined;
@@ -173,15 +179,18 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 		}
 		this._throwIfCancelled(token);
 
-		const sessionUri = parsed.sessionUri;
-		const sessionState = this._getSessionState(sessionUri);
+		const scope = resolveChangesetOwnerScope(this._stateManager, parsed.ownerUri);
+		const sessionUri = scope.sessionUri;
+		const sessionState = this._getSessionState(scope.sourceUri);
 		if (!sessionState) {
 			throw new ProtocolError(AHP_SESSION_NOT_FOUND, `Session not found: ${sessionUri}`);
 		}
 
-		const workingDirectoryStr = sessionState.workingDirectories?.[0];
+		const workingDirectoryStr = parseFolderChangesetOwnerUri(parsed.ownerUri)
+			? scope.workingDirectories[0]
+			: sessionState.workingDirectories?.[0] ?? scope.workingDirectories[0];
 		if (!workingDirectoryStr) {
-			throw new ProtocolError(JsonRpcErrorCodes.InternalError, `Session has no working directory: ${sessionUri}`);
+			throw new ProtocolError(JsonRpcErrorCodes.InternalError, `Changeset owner has no working directory: ${parsed.ownerUri}`);
 		}
 
 		const gitHubState = readSessionGitHubState(sessionState._meta);
@@ -194,7 +203,7 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 
 		const workingDirectory = URI.parse(workingDirectoryStr);
 		const storedGitState = readSessionGitState(sessionState._meta);
-		const effectiveBaseBranch = await this._resolveBaseBranchName(sessionUri);
+		const effectiveBaseBranch = await this._resolveBaseBranchName(scope.sourceUri);
 
 		const currentGitState = await this._gitService.getSessionGitState(workingDirectory, effectiveBaseBranch);
 		if (expectedContext && (!currentGitState?.branchName || currentGitState.isDetachedHead || currentGitState.hasGitHubRemote === false)) {
@@ -243,7 +252,7 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 		this._throwIfCancelled(token);
 
 		return {
-			sessionUri, sessionState, workingDirectory, effectiveBaseBranch, gitState, branchName, baseBranchName, authToken,
+			sessionUri, sourceUri: scope.sourceUri, sessionState, workingDirectory, effectiveBaseBranch, gitState, branchName, baseBranchName, authToken,
 			gitHubState: repository, preparationContext,
 		};
 	}
@@ -262,7 +271,7 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 		};
 		this._validateAgentMergeAvailable(options);
 		const context = await this._resolveContext(params, token, submitted?.expectedContext);
-		const { sessionUri, sessionState, workingDirectory, gitHubState, effectiveBaseBranch, baseBranchName, authToken } = context;
+		const { sessionUri, sourceUri, sessionState, workingDirectory, gitHubState, effectiveBaseBranch, baseBranchName, authToken } = context;
 		let { gitState, branchName } = context;
 
 		if (submitted?.autoMergeMethod) {
@@ -321,7 +330,7 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 		}
 		this._throwIfCancelled(token);
 
-		const branchChanges = await this._getBranchChanges(workingDirectory, sessionUri, baseBranchName, token);
+		const branchChanges = await this._getBranchChanges(workingDirectory, sourceUri, baseBranchName, token);
 
 		const githubHeadOwner = gitState?.githubHeadOwner;
 		const upstreamBranch = githubHeadOwner ? parseUpstreamBranchName(gitState?.upstreamBranchName) : undefined;
@@ -448,7 +457,7 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 		options: PullRequestCreationConfiguration,
 	): Promise<InvokeChangesetOperationResult> {
 		if (!options.autoMergeMethod) {
-			this._completePullRequestOperation(sessionUri, pr.url, branchName, options);
+			await this._completePullRequestOperation(sessionUri, pr, branchName, options);
 			return this._createResult(pr, this._buildMessage(pr, isExisting, 'none', undefined, options));
 		}
 
@@ -471,12 +480,18 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 			this._logService.warn(`[AgentHostPullRequestOperationHandler] Cannot enable auto-merge for ${owner}/${repo}#${pr.number}: missing pull request node id`);
 		}
 
-		this._completePullRequestOperation(sessionUri, pr.url, branchName, options);
+		await this._completePullRequestOperation(sessionUri, pr, branchName, options);
 		return this._createResult(pr, this._buildMessage(pr, isExisting, autoMergeOutcome, autoMergeError, options));
 	}
 
-	private _completePullRequestOperation(sessionUri: string, pullRequestUrl: string, branchName: string, options: PullRequestCreationConfiguration): void {
-		this._onPullRequestCreated({ sessionKey: sessionUri, pullRequestUrl, branchName });
+	private async _completePullRequestOperation(sessionUri: string, pullRequest: CreatedPullRequest, branchName: string, options: PullRequestCreationConfiguration): Promise<void> {
+		await this._onPullRequestCreated({
+			sessionKey: sessionUri,
+			pullRequestUrl: pullRequest.url,
+			pullRequestNumber: pullRequest.number,
+			...(pullRequest.title ? { pullRequestTitle: pullRequest.title } : {}),
+			branchName,
+		});
 		if (!options.agentMerge) {
 			return;
 		}

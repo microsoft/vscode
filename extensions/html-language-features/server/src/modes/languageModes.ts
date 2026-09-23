@@ -123,13 +123,13 @@ export function getLanguageModes(supportedLanguages: { [languageId: string]: boo
 	modelCaches.push(documentRegions);
 
 	let modes = Object.create(null);
-	modes['html'] = getHTMLMode(htmlLanguageService, workspace);
-	if (supportedLanguages['css']) {
-		modes['css'] = getCSSMode(cssLanguageService, documentRegions, workspace);
+	modes.html = getHTMLMode(htmlLanguageService, workspace);
+	if (supportedLanguages.css) {
+		modes.css = getCSSMode(cssLanguageService, documentRegions, workspace);
 	}
-	if (supportedLanguages['javascript']) {
-		modes['javascript'] = getJavaScriptMode(documentRegions, 'javascript', workspace);
-		modes['typescript'] = getJavaScriptMode(documentRegions, 'typescript', workspace);
+	if (supportedLanguages.javascript) {
+		modes.javascript = getJavaScriptMode(documentRegions, 'javascript', workspace);
+		modes.typescript = getJavaScriptMode(documentRegions, 'typescript', workspace);
 	}
 	return {
 		async updateDataProviders(dataProviders: IHTMLDataProvider[]): Promise<void> {

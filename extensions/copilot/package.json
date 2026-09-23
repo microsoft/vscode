@@ -2,7 +2,7 @@
   "name": "copilot-chat",
   "displayName": "GitHub Copilot",
   "description": "AI chat features powered by Copilot",
-  "version": "0.67.0",
+  "version": "0.68.0",
   "build": "1",
   "completionsCoreVersion": "1.378.1799",
   "internalLargeStorageAriaKey": "ec712b3202c5462fb6877acae7f1f9d7-c19ad55e-3e3c-4f99-984b-827f6d95bd9e-6917",
@@ -22,7 +22,7 @@
   "icon": "assets/copilot.png",
   "pricing": "Trial",
   "engines": {
-    "vscode": "^1.139.0",
+    "vscode": "^1.140.0",
     "npm": ">=9.0.0",
     "node": ">=22.14.0"
   },
@@ -3208,6 +3208,25 @@
             "default": true,
             "markdownDescription": "%github.copilot.config.cloudAgent.enabled%"
           },
+          "github.copilot.chat.cloudAgent.sessionVisibility": {
+            "type": "string",
+            "enum": [
+              "24hours",
+              "7days",
+              "30days",
+              "90days",
+              "all"
+            ],
+            "default": "30days",
+            "markdownDescription": "%github.copilot.config.cloudAgent.sessionVisibility%",
+            "enumDescriptions": [
+              "%github.copilot.config.cloudAgent.sessionVisibility.24hours%",
+              "%github.copilot.config.cloudAgent.sessionVisibility.7days%",
+              "%github.copilot.config.cloudAgent.sessionVisibility.30days%",
+              "%github.copilot.config.cloudAgent.sessionVisibility.90days%",
+              "%github.copilot.config.cloudAgent.sessionVisibility.all%"
+            ]
+          },
           "github.copilot.chat.localIndex.enabled": {
             "type": "boolean",
             "default": true,
@@ -4075,7 +4094,7 @@
           },
           "github.copilot.chat.responsesApi.promptCacheBreakpoint.enabled": {
             "type": "boolean",
-            "default": false,
+            "default": true,
             "markdownDescription": "%github.copilot.config.responsesApi.promptCacheBreakpoint.enabled%",
             "tags": [
               "experimental",
@@ -4871,6 +4890,16 @@
               "onExp"
             ]
           },
+          "github.copilot.chat.executionSubagent.turnWisePrompting": {
+            "type": "boolean",
+            "default": false,
+            "markdownDescription": "%github.copilot.config.executionSubagent.turnWisePrompting%",
+            "tags": [
+              "advanced",
+              "experimental",
+              "onExp"
+            ]
+          },
           "github.copilot.chat.summarizeAgentConversationHistoryThreshold": {
             "type": [
               "number",
@@ -5289,7 +5318,7 @@
             "policyReference": {
               "name": "CopilotOtelEnabled"
             },
-            "markdownDescription": "Enable OpenTelemetry trace/metric/log emission for Copilot Chat operations. Precedence: enterprise policy > env var `COPILOT_OTEL_ENABLED` > user setting. Requires window reload.",
+            "markdownDescription": "Enable OpenTelemetry trace/metric/log emission for Copilot Chat operations. Recognized enterprise OTel settings replace personal OTel settings, but env var `COPILOT_OTEL_ENABLED` can still override enablement. Requires window reload.",
             "tags": [
               "advanced"
             ]
@@ -5307,7 +5336,7 @@
             "policyReference": {
               "name": "CopilotOtelProtocol"
             },
-            "markdownDescription": "OTel exporter type for Copilot Chat telemetry. Configurable in user settings or managed by enterprise policy (policy takes precedence). Requires window reload.",
+            "markdownDescription": "OTel exporter type for Copilot Chat telemetry. Enterprise-managed OTel settings replace personal OTel settings. A configured output file, including env var `COPILOT_OTEL_FILE_EXPORTER_PATH`, can still select file export. Requires window reload.",
             "tags": [
               "advanced"
             ]
@@ -5325,7 +5354,7 @@
             "policyReference": {
               "name": "CopilotOtelOtlpProtocol"
             },
-            "markdownDescription": "OTLP wire protocol for Copilot Chat OTel data, mirroring `OTEL_EXPORTER_OTLP_PROTOCOL`. `http/protobuf` selects the protobuf-over-HTTP exporter; the default (empty) uses `http/json`. Precedence: enterprise policy > env var > user setting. Requires window reload.",
+            "markdownDescription": "OTLP wire protocol for Copilot Chat OTel data, mirroring `OTEL_EXPORTER_OTLP_PROTOCOL`. `http/protobuf` selects the protobuf-over-HTTP exporter; the default (empty) uses `http/json`. Env vars `OTEL_EXPORTER_OTLP_PROTOCOL`, then `COPILOT_OTEL_PROTOCOL`, take precedence over enterprise-managed or personal settings. Requires window reload.",
             "tags": [
               "advanced"
             ]
@@ -5337,7 +5366,7 @@
             "policyReference": {
               "name": "CopilotOtelEndpoint"
             },
-            "markdownDescription": "OTLP collector endpoint URL for Copilot Chat OTel data. Precedence: enterprise policy > env var `OTEL_EXPORTER_OTLP_ENDPOINT` > user setting. Requires window reload.",
+            "markdownDescription": "OTLP collector endpoint URL for Copilot Chat OTel data. Env vars `COPILOT_OTEL_ENDPOINT`, then `OTEL_EXPORTER_OTLP_ENDPOINT`, take precedence over enterprise-managed or personal settings. Requires window reload.",
             "tags": [
               "advanced"
             ]
@@ -5349,7 +5378,22 @@
             "policyReference": {
               "name": "CopilotOtelCaptureContent"
             },
-            "markdownDescription": "Capture input/output messages, system instructions, and tool definitions in OTel telemetry. **Contains potentially sensitive data.** Precedence: enterprise policy > env var `COPILOT_OTEL_CAPTURE_CONTENT` > user setting. Requires window reload.",
+            "markdownDescription": "Capture input/output messages, system instructions, and tool definitions in OTel telemetry. **Contains potentially sensitive data.** Env var `COPILOT_OTEL_CAPTURE_CONTENT` takes precedence over enterprise-managed or personal settings. Requires window reload.",
+            "tags": [
+              "advanced"
+            ]
+          },
+          "github.copilot.chat.otel.captureIdentity": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "default": null,
+            "scope": "application",
+            "policyReference": {
+              "name": "CopilotOtelCaptureIdentity"
+            },
+            "markdownDescription": "Capture the authenticated Copilot account name, operating system username, and machine hostname in OpenTelemetry. **Contains personally identifying data.** Independent of content capture. `null` means no personal preference (off by default). `COPILOT_OTEL_CAPTURE_IDENTITY` overrides personal settings; explicit enterprise policy overrides both. Enabling requires window reload; an effective denial applies immediately to subsequent exports.",
             "tags": [
               "advanced"
             ]
@@ -5361,7 +5405,7 @@
             "policyReference": {
               "name": "CopilotOtelServiceName"
             },
-            "markdownDescription": "OTel `service.name` resource attribute for Copilot Chat OTel data. Configurable in user settings only. Env var `OTEL_SERVICE_NAME` takes precedence over the setting; enterprise policy takes precedence over both. Requires window reload.",
+            "markdownDescription": "OTel `service.name` resource attribute for Copilot Chat OTel data. Env var `OTEL_SERVICE_NAME` takes precedence over enterprise-managed or personal settings. Requires window reload.",
             "tags": [
               "advanced"
             ]
@@ -5376,7 +5420,7 @@
             "policyReference": {
               "name": "CopilotOtelResourceAttributes"
             },
-            "markdownDescription": "Additional OTel resource attributes for Copilot Chat OTel data, as a `{ \"key\": \"value\" }` map. Configurable in user settings only. Merged per-key with `OTEL_RESOURCE_ATTRIBUTES` env (env wins over the setting); enterprise policy wins over both. Requires window reload.",
+            "markdownDescription": "Additional OTel resource attributes for Copilot Chat OTel data, as a `{ \"key\": \"value\" }` map. When enterprise OTel settings apply, personal OTel settings are ignored. Merged per-key with env var `OTEL_RESOURCE_ATTRIBUTES`: enterprise-managed values take precedence over environment values, which take precedence over personal settings. Requires window reload.",
             "tags": [
               "advanced"
             ]
@@ -5391,7 +5435,7 @@
             "policyReference": {
               "name": "CopilotOtelHeaders"
             },
-            "markdownDescription": "Extra OTLP exporter headers (e.g. auth tokens) for Copilot Chat OTel data, as a `{ \"key\": \"value\" }` map. Applied directly to the OTLP exporter, not via environment variables. Configurable in user settings only. Merged per-key with `OTEL_EXPORTER_OTLP_HEADERS` env (env wins over the setting); enterprise policy wins over both. **Contains potentially sensitive credentials.** Requires window reload.",
+            "markdownDescription": "Extra OTLP exporter headers (e.g. auth tokens) for Copilot Chat OTel data, as a `{ \"key\": \"value\" }` map. Applied directly to the OTLP exporter, not via environment variables. When enterprise OTel settings apply, personal OTel settings are ignored. Merged per-key with env var `OTEL_EXPORTER_OTLP_HEADERS` (env values take precedence, including over enterprise-managed values). **Contains potentially sensitive credentials.** Requires window reload.",
             "tags": [
               "advanced"
             ]
@@ -5413,7 +5457,7 @@
             "policyReference": {
               "name": "CopilotOtelOutfile"
             },
-            "markdownDescription": "File path for file-based OTel exporter output (JSON-lines). When set, overrides exporter type to `file`. Configurable in user settings or managed by enterprise policy (policy takes precedence). Requires window reload.",
+            "markdownDescription": "File path for file-based OTel exporter output (JSON-lines). When set, overrides exporter type to `file`. Enterprise-managed OTel settings replace personal OTel settings, but env var `COPILOT_OTEL_FILE_EXPORTER_PATH` can still override the output path. Requires window reload.",
             "tags": [
               "advanced"
             ]

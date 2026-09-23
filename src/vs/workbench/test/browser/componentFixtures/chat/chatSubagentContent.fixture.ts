@@ -5,24 +5,25 @@
 
 import * as dom from '../../../../../base/browser/dom.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
-import { Event } from '../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { OffsetRange } from '../../../../../editor/common/core/ranges/offsetRange.js';
 import { Range } from '../../../../../editor/common/core/range.js';
-import { IActionViewItemFactory, IActionViewItemService } from '../../../../../platform/actions/browser/actionViewItemService.js';
 import { IMenuService, MenuId, MenuItemAction } from '../../../../../platform/actions/common/actions.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
+import { IMarkerService } from '../../../../../platform/markers/common/markers.js';
+import { MarkerService } from '../../../../../platform/markers/common/markerService.js';
 import { AgentHostSubagentProgress } from '../../../../contrib/chat/browser/agentSessions/agentHost/agentHostSubagentProgress.js';
-import { ISessionSummaryHoverService, SessionSummaryHoverService } from '../../../../contrib/chat/browser/agentSessions/sessionSummaryHoverService.js';
+import { systemNotificationToChatPart, toolCallStateToInvocation } from '../../../../contrib/chat/browser/agentSessions/agentHost/stateToProgressAdapter.js';
+import { AgentSystemNotificationKind } from '../../../../../platform/agentHost/common/meta/agentSystemNotificationMeta.js';
+import { ToolCallConfirmationReason, ToolCallStatus } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { IChatWidgetService } from '../../../../contrib/chat/browser/chat.js';
 import { ChatContentMarkdownRenderer } from '../../../../contrib/chat/browser/widget/chatContentMarkdownRenderer.js';
 import { ChatListItemRenderer } from '../../../../contrib/chat/browser/widget/chatListRenderer.js';
 import { ChatEditorOptions } from '../../../../contrib/chat/browser/widget/chatOptions.js';
-import { OpenSubagentChatActionViewItem } from '../../../../contrib/chat/browser/widget/chatContentParts/chatSubagentOpenChat.js';
 import { ChatSystemNotificationContentPart } from '../../../../contrib/chat/browser/widget/chatContentParts/chatSystemNotificationContentPart.js';
 import { IChatSubagentToolInvocationData } from '../../../../contrib/chat/common/chatService/chatService.js';
 import { CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID, ChatAgentLocation, ChatConfiguration, ChatModeKind, CollapsedToolsDisplayMode, ThinkingDisplayMode } from '../../../../contrib/chat/common/constants.js';
@@ -30,31 +31,26 @@ import { ChatModel } from '../../../../contrib/chat/common/model/chatModel.js';
 import { ChatToolInvocation } from '../../../../contrib/chat/common/model/chatProgressTypes/chatToolInvocation.js';
 import { ChatViewModel, isResponseVM } from '../../../../contrib/chat/common/model/chatViewModel.js';
 import { ChatRequestTextPart } from '../../../../contrib/chat/common/requestParser/chatParserTypes.js';
-import { ToolDataSource } from '../../../../contrib/chat/common/tools/languageModelToolsService.js';
-import { IExtensionsWorkbenchService } from '../../../../contrib/extensions/common/extensions.js';
+import { ILanguageModelToolsService, ToolDataSource } from '../../../../contrib/chat/common/tools/languageModelToolsService.js';
+import { ILanguageModelToolsConfirmationService } from '../../../../contrib/chat/common/tools/languageModelToolsConfirmationService.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup } from '../fixtureUtils.js';
-import { registerChatFixtureServices } from './chatFixtureUtils.js';
+import { registerChatFixtureServices, registerSubagentFixtureServices } from './chatFixtureUtils.js';
 
 import '../../../../contrib/chat/browser/widget/media/chat.css';
 
-async function renderSubagent(context: ComponentFixtureContext, state: 'pending' | 'initializing' | 'running' | 'thinking' | 'parent-complete', readOnly = false, thinkingStyle = ThinkingDisplayMode.FixedScrolling): Promise<void> {
+type FusionFixtureState = 'fusion-routing' | 'fusion-single' | 'fusion-cascade' | 'fusion-critique' | 'fusion-failed' | 'fusion-cancelled' | 'fusion-permission';
+
+async function renderSubagent(context: ComponentFixtureContext, state: 'pending' | 'initializing' | 'running' | 'thinking' | 'parent-complete' | FusionFixtureState, readOnly = false, thinkingStyle = ThinkingDisplayMode.FixedScrolling): Promise<void> {
 	const { container, disposableStore } = context;
 	const width = 620;
 	const instantiationService = createEditorServices(disposableStore, {
 		colorTheme: context.theme,
 		additionalServices: reg => {
 			registerChatFixtureServices(reg);
-			reg.define(ISessionSummaryHoverService, SessionSummaryHoverService);
-			reg.defineInstance(IExtensionsWorkbenchService, new class extends mock<IExtensionsWorkbenchService>() {
-				override async getExtensions() { return []; }
-			}());
-			reg.defineInstance(IActionViewItemService, new class extends mock<IActionViewItemService>() {
-				override readonly onDidChange = Event.None;
-				override lookUp(menu: MenuId, commandId: string | MenuId): IActionViewItemFactory | undefined {
-					return menu === MenuId.ChatSubagentContent && commandId === CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID
-						? (action, options, service) => service.createInstance(OpenSubagentChatActionViewItem, undefined, action, options, true)
-						: undefined;
-				}
+			registerSubagentFixtureServices(reg);
+			reg.define(IMarkerService, MarkerService);
+			reg.defineInstance(ILanguageModelToolsConfirmationService, new class extends mock<ILanguageModelToolsConfirmationService>() {
+				override getPreConfirmActions() { return []; }
 			}());
 			reg.defineInstance(IChatWidgetService, new class extends mock<IChatWidgetService>() {
 				override getWidgetBySessionResource() { return undefined; }
@@ -65,6 +61,7 @@ async function renderSubagent(context: ComponentFixtureContext, state: 'pending'
 			}());
 		},
 	});
+	instantiationService.stub(ILanguageModelToolsService, instantiationService.get(ILanguageModelToolsService), 'getTool', () => undefined);
 	const configurationService = instantiationService.get(IConfigurationService) as TestConfigurationService;
 	configurationService.setUserConfiguration(ChatConfiguration.SubagentsUseRichRendering, true);
 	configurationService.setUserConfiguration(ChatConfiguration.ThinkingGenerateTitles, false);
@@ -135,6 +132,51 @@ async function renderSubagent(context: ComponentFixtureContext, state: 'pending'
 		renderer.disposeElement(node, 0, template);
 		renderer.renderElement(node, 0, template);
 	}));
+	if (state.startsWith('fusion-')) {
+		if (state === 'fusion-routing') {
+			publisher.publish([{ kind: 'progressMessage', content: new MarkdownString('Choosing a HydraFusion workflow...') }]);
+			return;
+		}
+		const pattern = state === 'fusion-cascade' ? 'Cascade' : state === 'fusion-critique' ? 'Critique' : 'Single';
+		const description = pattern === 'Cascade'
+			? 'Using Cascade: a solver will work on your request, then another model will review and fix up the result if needed.'
+			: pattern === 'Critique'
+				? 'Using Critique: a solver will draft a result, another model will critique it, and the original solver will revise it if needed.'
+				: 'Using Single: one solver will work on your request.';
+		const introduction = systemNotificationToChatPart(`Selected ${pattern} workflow\n\n${description}`, 'local', {
+			kind: AgentSystemNotificationKind.FusionProgress, fusionStatus: 'selected',
+		});
+		if (introduction) {
+			publisher.publish([introduction]);
+		}
+		const phases = pattern === 'Cascade' ? ['Main pass', 'Review pass', 'Fix-up pass']
+			: pattern === 'Critique' ? ['First pass', 'Critique pass', 'Revision pass'] : ['Main pass'];
+		for (const [index, label] of phases.entries()) {
+			const status = state === 'fusion-failed' ? 'failed' : state === 'fusion-cancelled' ? 'cancelled'
+				: index === phases.length - 1 ? 'running' : 'succeeded';
+			const phaseModel = index === 1 || pattern === 'Cascade' && index === 2 ? 'Claude Sonnet 4.6' : 'GPT-5.6 Sol';
+			const base = {
+				toolCallId: `fusion:fixture:${index}`, toolName: 'hydrafusion_phase', displayName: label, invocationMessage: label,
+				confirmed: ToolCallConfirmationReason.NotNeeded,
+				_meta: {
+					toolKind: 'fusionPhase', subagentDescription: label, progressMessage: `${label} running`,
+					fusionPhase: { fusionId: 'fixture', phaseId: String(index), model: phaseModel, status, startedAt: Date.now(), duration: status === 'running' ? undefined : 2000 },
+				},
+			};
+			publisher.publish([toolCallStateToInvocation(status === 'running'
+				? { ...base, status: ToolCallStatus.Running }
+				: { ...base, status: ToolCallStatus.Completed, success: status === 'succeeded', pastTenseMessage: label, content: [] },
+				undefined, URI.parse('agent-host-copilotcli:/session'), 'local')]);
+		}
+		if (state === 'fusion-permission') {
+			publisher.publish([toolCallStateToInvocation({
+				status: ToolCallStatus.PendingConfirmation,
+				toolCallId: 'actual-permission-tool', toolName: 'runTests', displayName: 'Run tests',
+				invocationMessage: 'Run unit tests', toolInput: '{"files":["test/example.test.ts"],"mode":"run"}', confirmationTitle: 'Allow running unit tests?',
+			}, undefined, URI.parse('agent-host-copilotcli:/session'), 'local')]);
+		}
+		return;
+	}
 	if (state === 'thinking') {
 		publisher.publish([{ kind: 'systemNotification', content: new MarkdownString('Background agent `Factorial 1` is complete') }]);
 		publisher.publish([{ kind: 'thinking', id: 'before', value: '**Processing agent notifications**\nReview the first result.' }]);
@@ -244,6 +286,13 @@ function renderCompletionNotices(context: ComponentFixtureContext): void {
 }
 
 export default defineThemedFixtureGroup({ path: 'chat/' }, {
+	FusionRouting: defineComponentFixture({ labels: { kind: 'screenshot' }, render: context => renderSubagent(context, 'fusion-routing') }),
+	FusionSingle: defineComponentFixture({ labels: { kind: 'screenshot' }, render: context => renderSubagent(context, 'fusion-single') }),
+	FusionCascade: defineComponentFixture({ labels: { kind: 'screenshot' }, render: context => renderSubagent(context, 'fusion-cascade') }),
+	FusionCritique: defineComponentFixture({ labels: { kind: 'screenshot' }, render: context => renderSubagent(context, 'fusion-critique') }),
+	FusionFailed: defineComponentFixture({ labels: { kind: 'screenshot' }, render: context => renderSubagent(context, 'fusion-failed') }),
+	FusionCancelled: defineComponentFixture({ labels: { kind: 'screenshot' }, render: context => renderSubagent(context, 'fusion-cancelled') }),
+	FusionPermission: defineComponentFixture({ labels: { kind: 'screenshot' }, render: context => renderSubagent(context, 'fusion-permission') }),
 	Pending: defineComponentFixture({ labels: { kind: 'screenshot' }, render: context => renderSubagent(context, 'pending') }),
 	Initializing: defineComponentFixture({ labels: { kind: 'screenshot' }, render: context => renderSubagent(context, 'initializing') }),
 	Running: defineComponentFixture({ labels: { kind: 'screenshot' }, render: context => renderSubagent(context, 'running') }),

@@ -23,13 +23,14 @@ import { IContextKeyService } from '../../../../../platform/contextkey/common/co
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
-import { ChatSessionArchiveActionWording, getChatSessionArchiveActionPresentation } from '../../../../../platform/chat/common/sessionArchiveActions.js';
+import { ChatSessionArchiveActionWording, getChatSessionArchiveActionPresentation, SESSIONS_MARK_AS_DONE_CONFETTI_SETTING } from '../../../../../platform/chat/common/sessionArchiveActions.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { createUSLayoutResolvedKeybinding } from '../../../../../platform/keybinding/test/common/keybindingsTestUtils.js';
 import { MockKeybindingService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { IMenu, IMenuService, MenuId, MenuItemAction } from '../../../../../platform/actions/common/actions.js';
 import { EditorMarkdownCodeBlockRenderer } from '../../../../../editor/browser/widget/markdownRenderer/browser/editorMarkdownCodeBlockRenderer.js';
 import { IMarkdownRendererService, MarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
+import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IAgentHostConnectionsService } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
@@ -56,7 +57,7 @@ import { IChat, ISession, ISessionChangeset, ISessionChangesSummary, ISessionFol
 // eslint-disable-next-line local/code-import-patterns
 import { IActiveSession, ISessionsManagementService } from '../../../../../sessions/services/sessions/common/sessionsManagement.js';
 // eslint-disable-next-line local/code-import-patterns
-import { SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING, SessionItemToolbarMenuId, SessionsGrouping, SessionsList, SessionsSorting } from '../../../../../sessions/contrib/sessions/browser/views/sessionsList.js';
+import { SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING, SessionsGrouping, SessionsList, SessionsSorting } from '../../../../../sessions/contrib/sessions/browser/views/sessionsList.js';
 // eslint-disable-next-line local/code-import-patterns
 import { BlockedSessionReason, BlockedSessions } from '../../../../../sessions/contrib/blockedSessions/browser/blockedSessions.js';
 // eslint-disable-next-line local/code-import-patterns
@@ -130,6 +131,8 @@ interface ISessionSpec {
 	readonly id: string;
 	readonly title: string;
 	readonly workspace?: string;
+	readonly pinned?: boolean;
+	readonly sticky?: boolean;
 	readonly status?: SessionStatus;
 	readonly mainChatStatus?: SessionStatus;
 	readonly description?: string;
@@ -175,6 +178,7 @@ function createChat(sessionId: string, spec: IChatSpec, updatedAt: Date, approva
 		override readonly updatedAt: IObservable<Date> = constObservable(updatedAt);
 		override readonly status: IObservable<SessionStatus> = constObservable(spec.status ?? SessionStatus.Completed);
 		override readonly interactivity: IObservable<ChatInteractivity> = constObservable(ChatInteractivity.Full);
+		override readonly capabilities = constObservable({ canRename: true, canDelete: true });
 	}();
 }
 
@@ -196,6 +200,8 @@ function createSession(spec: ISessionSpec, approvals: Map<string, IAgentSessionA
 		override readonly resource = mainChatResource;
 		override readonly status: IObservable<SessionStatus> = constObservable(spec.mainChatStatus ?? spec.status ?? SessionStatus.Completed);
 		override readonly interactivity: IObservable<ChatInteractivity> = constObservable(ChatInteractivity.Full);
+		override readonly changes: IObservable<readonly never[]> = constObservable([]);
+		override readonly changesets: IObservable<readonly ISessionChangeset[]> = constObservable([]);
 	}();
 	const nestedChats = (spec.chats ?? []).map(chatSpec => createChat(spec.id, chatSpec, updatedAt, approvals));
 	const chats: readonly IChat[] = [mainChat, ...nestedChats];
@@ -213,13 +219,11 @@ function createSession(spec: ISessionSpec, approvals: Map<string, IAgentSessionA
 		override readonly isQuickChat: IObservable<boolean> = constObservable(!spec.workspace);
 		override readonly isArchived: IObservable<boolean> = constObservable(false);
 		override readonly isRead: IObservable<boolean> = constObservable(spec.isRead ?? true);
-		override readonly changes: IObservable<readonly never[]> = constObservable([]);
-		override readonly changesets: IObservable<readonly ISessionChangeset[]> = constObservable([]);
 		override readonly changesSummary: IObservable<ISessionChangesSummary | undefined> = constObservable(spec.changesSummary);
 		override readonly description: IObservable<IMarkdownString | undefined> = constObservable(description);
 		override readonly chats: IObservable<readonly IChat[]> = constObservable(chats);
 		override readonly mainChat: IObservable<IChat> = constObservable(mainChat);
-		override readonly capabilities = constObservable({ supportsMultipleChats: nestedChats.length > 0 });
+		override readonly capabilities = constObservable({ supportsMultipleChats: nestedChats.length > 0, supportsRename: true });
 	}();
 }
 
@@ -235,6 +239,8 @@ interface IRenderOptions {
 	readonly sessions: readonly ISessionSpec[];
 	readonly groups?: readonly ISessionGroup[];
 	readonly grouping?: SessionsGrouping;
+	readonly compact?: boolean;
+	readonly rename?: 'session' | 'chat';
 	readonly collapsed?: boolean;
 	readonly showUnreadInCollapsedSections?: boolean;
 	readonly reducedMotion?: boolean;
@@ -242,21 +248,32 @@ interface IRenderOptions {
 	readonly phone?: boolean;
 	readonly revealHierarchyGuides?: boolean;
 	readonly showAutomations?: boolean;
+	readonly showCustomizationsNavigation?: boolean;
 	readonly automationRunStatus?: IAutomationRun['status'];
 	readonly automationBadgeStyle?: AutomationsNewBadgeStyle;
 	readonly newSessionButtonStyle?: NewSessionButtonStyle;
 	readonly newSessionButtonTreatment?: NewSessionButtonStyle;
 	readonly showFocusedToolbar?: boolean;
 	readonly focusSelectedSession?: boolean;
+	readonly revealFirstSession?: boolean;
+	readonly showFirstSessionTwistie?: boolean;
 	readonly archiveOnboarding?: ChatSessionArchiveActionWording;
+	readonly showConfetti?: boolean;
 }
 
 async function renderSessionsList(ctx: ComponentFixtureContext, options: IRenderOptions): Promise<void> {
 	const { container, disposableStore } = ctx;
 	const expectedNewSessionButtonStyle = options.newSessionButtonStyle ?? options.newSessionButtonTreatment;
-	const showHeader = options.showAutomations || expectedNewSessionButtonStyle !== undefined;
+	const showHeader = options.showAutomations || options.showCustomizationsNavigation || expectedNewSessionButtonStyle !== undefined;
 	const approvals = new Map<string, IAgentSessionApprovalInfo>();
 	const sessions = options.sessions.map(spec => createSession(spec, approvals));
+	const pinnedSessionIds = new Set(options.sessions.filter(spec => spec.pinned).map(spec => spec.id));
+	const visibleSessions = options.sessions.flatMap(spec => spec.sticky ? [
+		new class extends mock<IActiveSession>() {
+			override readonly sessionId = spec.id;
+			override readonly sticky: IObservable<boolean> = constObservable(true);
+		}()
+	] : []);
 	const approvalModel = createApprovalModel(approvals);
 	const groups = options.groups ?? [];
 	const automationRuns = observableValue<readonly IAutomationRun[]>(disposableStore, []);
@@ -279,6 +296,10 @@ async function renderSessionsList(ctx: ComponentFixtureContext, options: IRender
 		additionalServices: reg => {
 			registerWorkbenchServices(reg);
 			reg.defineInstance(IProductService, TestProductService);
+			reg.defineInstance(IEditorService, new class extends mock<IEditorService>() {
+				override readonly onDidActiveEditorChange = Event.None;
+				override readonly activeEditor = undefined;
+			}());
 			const reducedMotion = options.reducedMotion;
 			if (reducedMotion !== undefined) {
 				reg.defineInstance(IAccessibilityService, new class extends TestAccessibilityService {
@@ -334,12 +355,12 @@ async function renderSessionsList(ctx: ComponentFixtureContext, options: IRender
 				override markRead(): Promise<void> { return Promise.resolve(); }
 			}());
 			reg.defineInstance(ISessionsService, new class extends mock<ISessionsService>() {
-				override readonly visibleSessions: IObservable<readonly (IActiveSession | undefined)[]> = constObservable([]);
+				override readonly visibleSessions: IObservable<readonly (IActiveSession | undefined)[]> = constObservable(visibleSessions);
 				override readonly activeSession: IObservable<IActiveSession | undefined> = constObservable(undefined);
 			}());
 			reg.defineInstance(ISessionsListModelService, new class extends mock<ISessionsListModelService>() {
 				override readonly onDidChange = Event.None;
-				override isSessionPinned(): boolean { return false; }
+				override isSessionPinned(session: ISession): boolean { return pinnedSessionIds.has(session.sessionId); }
 				override migrateLegacyReadState(): void { }
 				override getSortKey(session: ISession): number { return session.createdAt.getTime(); }
 				override getStatusIcon = SessionsListModelService.prototype.getStatusIcon;
@@ -401,8 +422,8 @@ async function renderSessionsList(ctx: ComponentFixtureContext, options: IRender
 			}());
 		},
 	});
-	if (options.archiveOnboarding) {
-		const presentation = getChatSessionArchiveActionPresentation(options.archiveOnboarding).archive;
+	if (options.archiveOnboarding || options.showConfetti) {
+		const presentation = getChatSessionArchiveActionPresentation(options.archiveOnboarding ?? ChatSessionArchiveActionWording.MarkAsDone).archive;
 		const archiveAction = instantiationService.createInstance(MenuItemAction, {
 			id: ARCHIVE_SESSION_COMMAND_ID, title: presentation.title, icon: presentation.icon,
 		}, undefined, undefined, undefined, undefined);
@@ -410,7 +431,7 @@ async function renderSessionsList(ctx: ComponentFixtureContext, options: IRender
 			override createMenu(id: MenuId): IMenu {
 				return {
 					onDidChange: Event.None,
-					getActions: () => id === SessionItemToolbarMenuId ? [['navigation', [archiveAction]]] : [],
+					getActions: () => id === Menus.SessionItemToolbar ? [['navigation', [archiveAction]]] : [],
 					dispose: () => { },
 				};
 			}
@@ -455,6 +476,9 @@ async function renderSessionsList(ctx: ComponentFixtureContext, options: IRender
 	if (options.showUnreadInCollapsedSections !== undefined) {
 		await (instantiationService.get(IConfigurationService) as TestConfigurationService).setUserConfiguration(SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING, options.showUnreadInCollapsedSections);
 	}
+	if (options.showConfetti) {
+		await (instantiationService.get(IConfigurationService) as TestConfigurationService).setUserConfiguration(SESSIONS_MARK_AS_DONE_CONFETTI_SETTING, true);
+	}
 	instantiationService.get(IMarkdownRendererService).setDefaultCodeBlockRenderer(instantiationService.createInstance(EditorMarkdownCodeBlockRenderer));
 
 	// Phone layout is driven by both a CSS class (visual) and a context key (row
@@ -463,14 +487,15 @@ async function renderSessionsList(ctx: ComponentFixtureContext, options: IRender
 	if (options.phone) {
 		IsPhoneLayoutContext.bindTo(instantiationService.get(IContextKeyService)).set(true);
 	}
-	if (options.showAutomations) {
+	if (options.showAutomations || options.showCustomizationsNavigation) {
 		ChatAutomationsEnabledContext.bindTo(instantiationService.get(IContextKeyService)).set(true);
 	}
 
 	const width = options.width ?? 340;
-	container.style.width = `${options.archiveOnboarding ? width + 420 : width}px`;
-	container.style.height = options.archiveOnboarding ? '420px' : options.phone ? '260px' : '220px';
-	if (options.archiveOnboarding) {
+	const hasPreviewSpace = !!(options.archiveOnboarding || options.showConfetti);
+	container.style.width = `${hasPreviewSpace ? width + 420 : width}px`;
+	container.style.height = hasPreviewSpace ? '420px' : options.phone ? '260px' : '220px';
+	if (hasPreviewSpace) {
 		container.style.position = 'relative';
 	}
 	container.style.backgroundColor = 'var(--vscode-sideBar-background, var(--vscode-editor-background))';
@@ -479,23 +504,65 @@ async function renderSessionsList(ctx: ComponentFixtureContext, options: IRender
 	}
 
 	let listParent = container;
+	let sessionsHeader: HTMLElement | undefined;
+	let sessionsHeaderContainer: HTMLElement | undefined;
 	if (showHeader) {
-		container.classList.add('agent-sessions-viewpane', 'agent-sessions-section');
-		const content = DOM.append(container, DOM.$('.agent-sessions-content'));
+		container.classList.add('agent-sessions-viewpane');
+		container.classList.add('agent-sessions-section');
+		const sessionsSection = container;
+		const content = DOM.append(sessionsSection, DOM.$('.agent-sessions-content'));
+		sessionsHeaderContainer = DOM.append(content, DOM.$('.agent-sessions-header-container'));
 		disposableStore.add(instantiationService.createInstance(NewSessionActionViewItemContribution));
-		renderSessionsHeader(content, false, instantiationService, instantiationService.get(IContextKeyService), disposableStore).toolbar?.refresh();
+		const header = renderSessionsHeader(sessionsHeaderContainer, false, instantiationService, instantiationService.get(IContextKeyService), disposableStore);
+		header.toolbar?.refresh();
+		sessionsHeader = header.row;
 		listParent = content;
 	}
 	const listHost = DOM.append(listParent, DOM.$(showHeader ? '.agent-sessions-control-container' : 'div'));
+	const sessionsHeaderOptions = sessionsHeader && sessionsHeaderContainer
+		? { sessionsHeader, sessionsHeaderContainer }
+		: { sessionsHeader: undefined, sessionsHeaderContainer: undefined };
 	const list = disposableStore.add(instantiationService.createInstance(SessionsList, listHost, {
 		grouping: () => options.grouping ?? SessionsGrouping.Workspace,
 		sorting: () => SessionsSorting.Created,
+		compact: () => options.compact ?? false,
+		showNavigationShortcuts: () => options.showCustomizationsNavigation ?? false,
+		...sessionsHeaderOptions,
 		onSessionOpen: () => { },
 		approvalModel,
 	}));
-	list.layout(options.phone ? 260 : showHeader ? 180 : 220, width);
+	list.layout(options.phone ? 260 : showHeader && !options.showCustomizationsNavigation ? 180 : 220, width);
+	if (options.rename === 'session') {
+		const titleRow = listHost.querySelector<HTMLElement>('.session-title-row');
+		if (!titleRow) {
+			throw new Error('Expected a session title row to support inline rename.');
+		}
+		titleRow.dispatchEvent(new MouseEvent('dblclick', { bubbles: true, cancelable: true, button: 0 }));
+	} else if (options.rename === 'chat') {
+		const chatTitle = listHost.querySelector<HTMLElement>('.session-chat-title');
+		if (!chatTitle) {
+			throw new Error('Expected a nested chat title to support inline rename.');
+		}
+		chatTitle.dispatchEvent(new MouseEvent('dblclick', { bubbles: true, cancelable: true, button: 0 }));
+	}
+	if (options.rename && !listHost.querySelector('.session-inline-rename-input input')) {
+		throw new Error('Expected the title-area double-click to start inline rename.');
+	}
 	if (options.collapsed) {
 		list.collapseAllSections();
+	}
+	if (options.revealFirstSession && sessions[0] && !list.reveal(sessions[0].resource)) {
+		throw new Error('Expected the first session to be revealed.');
+	}
+	if (options.showFirstSessionTwistie) {
+		const sessionRow = listHost.querySelector<HTMLElement>('.session-item')?.closest('.monaco-list-row');
+		const twistie = sessionRow?.querySelector<HTMLElement>('.session-chat-twistie.collapsible');
+		const statusIcon = sessionRow?.querySelector<HTMLElement>('.session-icon');
+		if (!twistie || !statusIcon) {
+			throw new Error('Expected the first session to have a nested-chat twistie.');
+		}
+		twistie.style.opacity = '1';
+		statusIcon.style.visibility = 'hidden';
 	}
 	if (options.archiveOnboarding) {
 		listHost.style.width = `${width}px`;
@@ -526,6 +593,10 @@ async function renderSessionsList(ctx: ComponentFixtureContext, options: IRender
 			hideNext: step.hideNext,
 		});
 	}
+	if (options.showConfetti) {
+		listHost.style.width = `${width}px`;
+		disposableStore.add(list.revealArchiveAction(sessions[0]));
+	}
 
 	if (options.showAutomations) {
 		await list.resetAutomationsNewBadge();
@@ -537,7 +608,6 @@ async function renderSessionsList(ctx: ComponentFixtureContext, options: IRender
 			status: options.automationRunStatus,
 			trigger: 'schedule',
 			startedAt: new Date().toISOString(),
-			leaderWindowId: 1,
 		}], undefined);
 	}
 	await Promise.resolve();
@@ -586,6 +656,12 @@ async function renderSessionsList(ctx: ComponentFixtureContext, options: IRender
 	}
 
 	if (options.revealHierarchyGuides) {
+		const pinnedSection = listHost.querySelector<HTMLElement>('.monaco-list-row[aria-expanded="false"] .session-section-icon.codicon-pinned')?.parentElement;
+		if (pinnedSection) {
+			pinnedSection.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+			await Promise.resolve();
+		}
+
 		const sessionItem = listHost.querySelector<HTMLElement>('.session-item');
 		if (!sessionItem) {
 			throw new Error('Expected a session row to reveal its hierarchy guides.');
@@ -594,6 +670,16 @@ async function renderSessionsList(ctx: ComponentFixtureContext, options: IRender
 	}
 }
 
+const NESTED_CHAT_SESSION: ISessionSpec = {
+	id: 'a',
+	title: 'HTTP Client Retry Plan',
+	workspace: 'vscode-tools',
+	minutesAgo: 2,
+	chats: [
+		{ id: 'task-a', title: 'Task A' },
+		{ id: 'task-b', title: 'Task B' },
+	],
+};
 const GROUP: ISessionGroup = { id: 'group-1', name: 'Release work', createdAt: Date.now() };
 const GROUPED_SESSIONS: readonly ISessionSpec[] = [
 	{ id: 'a', title: 'Fix authentication redirect loop', workspace: 'vscode', minutesAgo: 12, group: GROUP.id, changesSummary: { files: 4, additions: 132, deletions: 18 } },
@@ -615,8 +701,58 @@ const COLLAPSED_CI_FAILURE_SESSIONS: readonly ISessionSpec[] = [
 	{ id: 'grouped-failing-ci', title: 'CI failure in the group only', workspace: 'vscode', minutesAgo: 48, group: GROUP.id, hasFailingCI: true },
 	{ id: 'workspace-failing-ci', title: 'CI failure in the workspace', workspace: 'vscode-docs', minutesAgo: 60, hasFailingCI: true },
 ];
+const COMPACT_RENAME_SESSIONS: readonly ISessionSpec[] = [
+	{
+		id: 'terminal-confirmation',
+		title: 'Terminal confirmation UX ideas',
+		workspace: 'vscode',
+		minutesAgo: 2,
+		chats: [{ id: 'peer', title: 'hi' }],
+	},
+	{
+		id: 'folder-worktree',
+		title: 'Folder vs Worktree sessions',
+		workspace: 'vscode',
+		minutesAgo: 8,
+	},
+];
+const UNREAD_STATUS_ICON_SESSIONS: readonly ISessionSpec[] = [
+	{ id: 'workspace-less', title: 'Fix worktree workspace mapping', minutesAgo: 1, isRead: false },
+	{ id: 'workspace', title: 'Fix VS Code #331780', workspace: 'vscode', minutesAgo: 2, isRead: false },
+];
+const COMPACT_NEEDS_INPUT_SESSIONS: readonly ISessionSpec[] = [
+	{
+		id: 'question',
+		title: 'Choose the authentication migration',
+		workspace: 'vscode',
+		minutesAgo: 2,
+		status: SessionStatus.NeedsInput,
+		description: 'Which compatibility strategy should I use for existing authentication extensions and older remote clients?',
+	},
+	{
+		id: 'approval',
+		title: 'Publish the release branch',
+		workspace: 'vscode',
+		minutesAgo: 5,
+		status: SessionStatus.NeedsInput,
+		mainApprovalCommand: 'git push origin release/1.139',
+	},
+	{
+		id: 'completed',
+		title: 'Update onboarding copy',
+		workspace: 'vscode',
+		minutesAgo: 12,
+	},
+];
 
 export default defineThemedFixtureGroup({ path: 'sessions/' }, {
+	SessionsList_Confetti: defineComponentFixture({
+		render: ctx => renderSessionsList(ctx, {
+			sessions: [{ id: 'confetti', title: 'Finish confetti animation fixture', workspace: 'vscode', minutesAgo: 1 }],
+			showConfetti: true,
+			reducedMotion: false,
+		}),
+	}),
 	SessionsList_ArchiveOnboarding: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		additionalThemes: ['darkHighContrast'],
@@ -628,6 +764,50 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 	}),
 	SessionsList_CustomGroup: defineComponentFixture({
 		render: ctx => renderSessionsList(ctx, { sessions: GROUPED_SESSIONS, groups: [GROUP] }),
+	}),
+	SessionsList_Compact: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['A compact vscode workspace section shows a session with one nested chat and a second session. Session titles, status icons, and nested-chat titles are vertically centered in their rows.'],
+		render: ctx => renderSessionsList(ctx, { sessions: COMPACT_RENAME_SESSIONS, compact: true, width: 340 }),
+	}),
+	SessionsList_CompactTwistie: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['A compact vscode workspace section shows an expanded session with its nested-chat twistie visible in place of the status icon. The twistie is vertically centered with the session title.'],
+		render: ctx => renderSessionsList(ctx, { sessions: COMPACT_RENAME_SESSIONS, compact: true, showFirstSessionTwistie: true, width: 340 }),
+	}),
+	SessionsList_UnreadStatusIcons: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: true },
+		expectedVisualDescriptions: ['The unread blue-dot status icons for the workspace-less chat and workspace session are the same size.'],
+		render: ctx => renderSessionsList(ctx, {
+			sessions: UNREAD_STATUS_ICON_SESSIONS,
+			revealFirstSession: true,
+			width: 400,
+		}),
+	}),
+	SessionsList_CompactUnreadStatusIcons: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: true },
+		expectedVisualDescriptions: ['In compact mode, the unread blue-dot status icons for the workspace-less chat and workspace session are the same size.'],
+		render: ctx => renderSessionsList(ctx, {
+			sessions: UNREAD_STATUS_ICON_SESSIONS,
+			compact: true,
+			revealFirstSession: true,
+			width: 400,
+		}),
+	}),
+	SessionsList_CompactNeedsInput: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: true },
+		expectedVisualDescriptions: ['A compact vscode workspace section shows three sessions. The first session expands with a truncated input-needed callout but no button. The second expands with a terminal-command approval callout and an Allow button. The completed third session remains a single compact title row.'],
+		render: ctx => renderSessionsList(ctx, { sessions: COMPACT_NEEDS_INPUT_SESSIONS, compact: true, width: 380 }),
+	}),
+	SessionsList_CompactSessionRename: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: true },
+		expectedVisualDescriptions: ['The first compact session row is being renamed inline. The input text and border are vertically centered with the status icon and row actions, without shifting the row height.'],
+		render: ctx => renderSessionsList(ctx, { sessions: COMPACT_RENAME_SESSIONS, compact: true, rename: 'session', showFocusedToolbar: true, width: 340 }),
+	}),
+	SessionsList_CompactChatRename: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: true },
+		expectedVisualDescriptions: ['The nested chat row is being renamed inline. Its input text and border are vertically centered with the compact chat status icon, without shifting the row height.'],
+		render: ctx => renderSessionsList(ctx, { sessions: COMPACT_RENAME_SESSIONS, compact: true, rename: 'chat', width: 340 }),
 	}),
 	SessionsList_CollapsedUnreadSections: defineComponentFixture({
 		labels: { kind: 'screenshot' },
@@ -742,6 +922,16 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 			showAutomations: true,
 		}),
 	}),
+	SessionsList_CustomizationsNavigationTreatment: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		additionalThemes: ['darkHighContrast'],
+		expectedVisualDescriptions: ['Automations and Customizations appear as two full-width navigation rows at the start of the scrollable Sessions tree. The Sessions header follows them and becomes sticky as they scroll away. Automations has a compact right-aligned NEW capsule, and the outlined New button remains in the Sessions header rather than becoming a list entry.'],
+		render: ctx => renderSessionsList(ctx, {
+			sessions: [{ id: 'treatment', title: 'Validate the customizations experiment', workspace: 'vscode', minutesAgo: 5 }],
+			showCustomizationsNavigation: true,
+			automationBadgeStyle: 'outline',
+		}),
+	}),
 	SessionsList_LightweightNewButton: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: true },
 		additionalThemes: ['darkHighContrast'],
@@ -836,22 +1026,29 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 			width: 340,
 		}),
 	}),
+	SessionsList_NestedChats: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['An expanded session in its workspace section has two nested chat rows. Rounded hierarchy connectors run continuously from the parent and stop before each child status icon.'],
+		render: ctx => renderSessionsList(ctx, {
+			sessions: [NESTED_CHAT_SESSION],
+			revealHierarchyGuides: true,
+			width: 340,
+		}),
+	}),
+	SessionsList_NestedChats_PinnedView: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['An expanded session with its view pinned remains in its workspace section rather than the Pinned sidebar section. Its sticky marker does not shift the parent icon or hierarchy connectors, and both nested chat rows remain visible.'],
+		render: ctx => renderSessionsList(ctx, {
+			sessions: [{ ...NESTED_CHAT_SESSION, sticky: true }],
+			revealHierarchyGuides: true,
+			width: 340,
+		}),
+	}),
 	SessionsList_NestedChatHierarchyGuides: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: true },
-		expectedVisualDescriptions: ['An expanded session has two nested chat rows. A single vertical hierarchy guide runs continuously from below the parent session icon through the first child and ends in an L-shaped connector at the final child, with no gaps between rows.'],
+		expectedVisualDescriptions: ['An expanded pinned and sticky session has two nested chat rows. Its compact blue sticky marker does not shift the session icon away from the hierarchy guide. A single high-contrast guide color runs continuously from the parent into rounded branches that stop short of each child status icon, without gaps or visible shade changes.'],
 		render: ctx => renderSessionsList(ctx, {
-			sessions: [
-				{
-					id: 'a',
-					title: 'HTTP Client Retry Plan',
-					workspace: 'vscode-tools',
-					minutesAgo: 2,
-					chats: [
-						{ id: 'task-a', title: 'Task A' },
-						{ id: 'task-b', title: 'Task B' },
-					],
-				},
-			],
+			sessions: [{ ...NESTED_CHAT_SESSION, pinned: true, sticky: true }],
 			revealHierarchyGuides: true,
 			width: 340,
 		}),

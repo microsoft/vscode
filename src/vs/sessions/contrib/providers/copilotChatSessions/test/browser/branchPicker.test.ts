@@ -22,6 +22,7 @@ import { ISessionsProvider } from '../../../../../services/sessions/common/sessi
 import { IActiveSession } from '../../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsProvidersService } from '../../../../../services/sessions/browser/sessionsProvidersService.js';
 import { BranchPicker } from '../../browser/branchPicker.js';
+import { ISessionInputPickerVisibility, SessionInputPickerVisibility } from '../../../../../services/sessions/common/sessionPickerVisibility.js';
 import { CopilotChatSessionsProvider, ICopilotChatSession, IsolationMode } from '../../browser/copilotChatSessionsProvider.js';
 
 class RecordingActionWidgetService extends mock<IActionWidgetService>() {
@@ -84,11 +85,13 @@ suite('Copilot BranchPicker', () => {
 		isolationMode?: IsolationMode;
 		gitRepository?: IGitRepository | undefined;
 		setModeCalls?: IsolationMode[];
+		render?: boolean;
 	} = {}) {
 		const branch = observableValue<string | undefined>('branch', options.branch ?? 'main');
 		const branches = observableValue<readonly string[]>('branches', options.branches ?? ['main']);
 		const isolationMode = observableValue<IsolationMode | undefined>('isolationMode', options.isolationMode ?? 'worktree');
 		const setModeCalls = options.setModeCalls ?? [];
+		const loading = observableValue('loading', false);
 		const gitState = observableValue('gitState', {
 			HEAD: { type: GitRefType.Head, name: 'main', commit: 'abc123' },
 			remotes: [],
@@ -98,7 +101,7 @@ suite('Copilot BranchPicker', () => {
 			untrackedChanges: [],
 		});
 		const providerSession = upcastPartial<ICopilotChatSession>({
-			loading: observableValue('loading', false),
+			loading,
 			branch,
 			branches,
 			isolationMode,
@@ -114,6 +117,8 @@ suite('Copilot BranchPicker', () => {
 		});
 		const actionWidgetService = new RecordingActionWidgetService();
 		const instantiationService = disposables.add(new TestInstantiationService());
+		const pickerVisibility = disposables.add(new SessionInputPickerVisibility());
+		instantiationService.stub(ISessionInputPickerVisibility, pickerVisibility);
 		instantiationService.stub(IActionWidgetService, actionWidgetService);
 		instantiationService.stub(IConfigurationService, new TestConfigurationService());
 		instantiationService.stub(IContextKeyService, new MockContextKeyService());
@@ -122,13 +127,30 @@ suite('Copilot BranchPicker', () => {
 		const activeSession = observableValue<IActiveSession | undefined>('activeSession', upcastPartial<IActiveSession>({
 			providerId: 'default-copilot',
 			sessionId: 'session',
-			loading: observableValue('loading', false),
+			loading,
 		}));
 		const picker = disposables.add(instantiationService.createInstance(BranchPicker, activeSession));
 		const container = document.createElement('div');
-		picker.render(container);
-		return { picker, container, actionWidgetService, branch, isolationMode, setModeCalls };
+		if (options.render !== false) {
+			picker.render(container);
+		}
+		return { picker, container, actionWidgetService, branch, isolationMode, setModeCalls, pickerVisibility, loading };
 	}
+
+	test('reports isolation visibility after rendering and follows readiness and disposal', () => {
+		const { picker, container, pickerVisibility, loading } = createPicker({ render: false });
+		const visibility = [pickerVisibility.visibility.get().isolation];
+		picker.render(container);
+		visibility.push(pickerVisibility.visibility.get().isolation);
+		loading.set(true, undefined);
+		visibility.push(pickerVisibility.visibility.get().isolation);
+		loading.set(false, undefined);
+		visibility.push(pickerVisibility.visibility.get().isolation);
+		picker.dispose();
+		visibility.push(pickerVisibility.visibility.get().isolation);
+
+		assert.deepStrictEqual(visibility, [false, true, false, true, false]);
+	});
 
 	test('adapts the active Copilot session to the shared branch picker', () => {
 		const { container, actionWidgetService, branch } = createPicker({

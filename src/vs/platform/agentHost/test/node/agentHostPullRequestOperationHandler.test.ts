@@ -11,7 +11,8 @@ import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
 import { GITHUB_COPILOT_PROTECTED_RESOURCE, GITHUB_REPO_PROTECTED_RESOURCE } from '../../common/agent.js';
-import { buildSessionChangesetUri } from '../../common/changesetUri.js';
+import { getWorkingDirectoryScopeId } from '../../common/agentHostWorkingDirectories.js';
+import { buildBranchChangesetUri, buildFolderChangesetOwnerUri, buildSessionChangesetUri } from '../../common/changesetUri.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { withSessionGitHubState, withSessionGitState, type ISessionFileDiff, type ISessionGitState, MessageKind, ResponsePartKind, SessionStatus, TurnState, type Turn } from '../../common/state/sessionState.js';
 import type { IAgentHostGitService, IBranch, IDefaultBranch, IPushOptions } from '../../common/agentHostGitService.js';
@@ -75,6 +76,7 @@ class TestGitService implements IAgentHostGitService {
 
 	readonly calls: string[] = [];
 	readonly requestedBaseBranches: Array<string | undefined> = [];
+	readonly workingDirectories: string[] = [];
 	readonly pushOptions: IPushOptions[] = [];
 	uncommitted = false;
 	upstream = false;
@@ -127,7 +129,8 @@ class TestGitService implements IAgentHostGitService {
 		this.calls.push(`push:${options.ref}:${options.setUpstream}`);
 		this.pushOptions.push(options);
 	}
-	async getSessionGitState(_workingDirectory: URI, baseBranchName?: string): Promise<ISessionGitState | undefined> {
+	async getSessionGitState(workingDirectory: URI, baseBranchName?: string): Promise<ISessionGitState | undefined> {
+		this.workingDirectories.push(workingDirectory.toString());
 		this.requestedBaseBranches.push(baseBranchName);
 		return this.createdBranch ? this.gitStateAfterBranchCreation : this.gitState;
 	}
@@ -313,11 +316,11 @@ function setup(disposables: Pick<DisposableStore, 'add'>, gitService: TestGitSer
 				return state;
 			},
 			async () => options?.baseBranch ?? 'main',
-			event => {
+			async event => {
 				createdEvents.push(`${event.sessionKey}:${event.pullRequestUrl}`);
 				createdBranches.push(event.branchName);
 			},
-			createAuthenticationService(options?.withCopilotToken), gitService, octoKitService, createTestGitHubEndpointService(), copilotApiService, branchNameGenerator, configurationService, options?.logService ?? new NullLogService()),
+			createAuthenticationService(options?.withCopilotToken), gitService, octoKitService, createTestGitHubEndpointService(), copilotApiService, branchNameGenerator, configurationService, options?.logService ?? new NullLogService(), stateManager),
 		session,
 		createdEvents,
 		createdBranches,
@@ -400,6 +403,21 @@ suite('AgentHostPullRequestOperationHandler', () => {
 		await handler.invoke({ channel, operationId: 'create-pr', _meta: createPullRequestOperationMeta({ ...submittedOptions, expectedContext: prepared.context }) }, CancellationToken.None);
 		assert.deepStrictEqual({ branch: gitService.createdBranch, generatedBranches: branchNameGenerator.requests.length, created: createdEvents.length },
 			{ branch: 'agents/add-retry-logic', generatedBranches: 1, created: 1 });
+	});
+
+	test('prepares a pull request from the default-chat folder branch', async () => {
+		const gitService = new TestGitService();
+		gitService.gitState = { branchName: 'feature/test', githubOwner: 'microsoft', githubRepo: 'vscode' };
+		const { handler, session } = setup(disposables, gitService, new TestOctoKitService(), { withCopilotToken: true });
+		const workingDirectory = URI.file('/repo').toString();
+		const owner = buildFolderChangesetOwnerUri(session.toString(), getWorkingDirectoryScopeId([workingDirectory]));
+
+		await handler.prepare({
+			channel: buildBranchChangesetUri(owner),
+			operationId: PREPARE_PULL_REQUEST_OPERATION_ID,
+		}, CancellationToken.None);
+
+		assert.deepStrictEqual(gitService.workingDirectories, [workingDirectory]);
 	});
 
 	for (const agentMergeAvailable of [false, true]) {

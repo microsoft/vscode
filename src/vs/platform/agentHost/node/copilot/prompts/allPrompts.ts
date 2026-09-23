@@ -11,6 +11,6 @@
 // Add per-model modules here as they are ported over, e.g.:
 //
 //   import './geminiPrompt.js';
-//   import './openaiPrompt.js';
 
 import './anthropicPrompt.js';
+import './openaiPrompt.js';

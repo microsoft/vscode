@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { filepaths } from '../helpers/filepaths';
 import { testPaths, type ISuiteSpec } from './helpers';
 const expectedCompletions = [{ label: 'foo', description: 'Foo' }];
 export const figGenericTestSuites: ISuiteSpec[] = [
@@ -75,6 +76,30 @@ export const figGenericTestSuites: ISuiteSpec[] = [
 		availableCommands: 'foo',
 		testSpecs: [
 			{ input: 'foo |', expectedCompletions: [], expectedResourceRequests: { type: 'both', cwd: testPaths.cwd } },
+		]
+	},
+	{
+		name: 'Fig top-level args exact file names',
+		completionSpecs: [
+			{
+				name: 'foo',
+				description: 'Foo',
+				args: {
+					generators: filepaths({ equals: ['Cargo.toml', 'deny.toml'] }),
+				}
+			}
+		],
+		availableCommands: 'foo',
+		testSpecs: [
+			{
+				input: 'foo |',
+				expectedCompletions: [],
+				expectedResourceRequests: {
+					type: 'both',
+					cwd: testPaths.cwd,
+					fileNames: ['Cargo.toml', 'deny.toml'],
+				}
+			},
 		]
 	},
 	{
@@ -234,5 +259,4 @@ export const figGenericTestSuites: ISuiteSpec[] = [
 		]
 	}
 ];
-
 

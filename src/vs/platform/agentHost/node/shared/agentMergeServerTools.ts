@@ -9,11 +9,25 @@ import type { IAgentServerToolDefinition } from '../../common/agentServerTools.j
 import type { AgentHostStateManager } from '../agentHostStateManager.js';
 import type { IServerToolDisplay, IServerToolDisplayResult, IServerToolGroup } from './agentServerToolHost.js';
 
+export const setAgentMergeEnabledToolName = 'setAgentMergeEnabled';
 export const readAgentMergeCIToolName = 'readAgentMergeCI';
 export const replyToAgentMergeReviewThreadToolName = 'replyToAgentMergeReviewThread';
 export const rerunAgentMergeWorkflowToolName = 'rerunAgentMergeWorkflow';
 
 const definitions: readonly IAgentServerToolDefinition[] = [
+	{
+		name: setAgentMergeEnabledToolName,
+		title: 'Set Agent Merge Enabled',
+		description: 'Enable or disable Agent Merge for the current session when the user asks to start or stop Agent Merge monitoring. This does not change the global Agent Merge setting or GitHub auto-merge. Enablement persists for this session and allows autonomous pull request repairs and merging according to its existing Agent Merge options. Monitoring starts after the current turn ends. The current tool-approval policy applies.',
+		inputSchema: {
+			type: 'object',
+			properties: {
+				enabled: { type: 'boolean', description: 'Whether Agent Merge should monitor and act on the pull request for this session using its existing options.' },
+			},
+			required: ['enabled'],
+		},
+		annotations: { readOnlyHint: false },
+	},
 	{
 		name: readAgentMergeCIToolName,
 		title: 'Read Agent Merge CI',
@@ -68,6 +82,7 @@ const definitions: readonly IAgentServerToolDefinition[] = [
 
 export interface IAgentMergeToolAccessor {
 	isEnabled(): boolean;
+	setEnabled(session: string, enabled: boolean): string;
 	readFailedCI(session: string, request?: AgentMergeCIRequest): Promise<string>;
 	replyToReviewThread(session: string, threadId: string, body: string, resolve: boolean): Promise<string>;
 	rerunFailedWorkflow(session: string, runId: string, failedJobsOnly: boolean): Promise<string>;
@@ -134,11 +149,19 @@ export function createAgentMergeServerToolGroup(accessor?: IAgentMergeToolAccess
 		definitions,
 		isEnabled: toolName => accessor?.isEnabled() === true && definitions.some(definition => definition.name === toolName),
 		isEnabledForSession: () => true,
+		canRequireConfirmation: toolName => toolName === setAgentMergeEnabledToolName,
 		execute: (_stateManager: AgentHostStateManager, context, toolName: string, rawArgs: unknown) => {
 			if (!accessor) {
 				throw new Error('Agent Merge tools are not available without an Agent Merge controller.');
 			}
 			switch (toolName) {
+				case setAgentMergeEnabledToolName: {
+					const args = asRecord(rawArgs, toolName);
+					if (Object.keys(args).some(key => key !== 'enabled')) {
+						throw new Error(`Invalid ${toolName} input: only enabled is supported.`);
+					}
+					return accessor.setEnabled(context.sessionUri, requiredBoolean(args.enabled, 'enabled', toolName));
+				}
 				case readAgentMergeCIToolName:
 					return accessor.readFailedCI(context.sessionUri, parseAgentMergeCIRequest(rawArgs));
 				case replyToAgentMergeReviewThreadToolName: {
@@ -162,12 +185,37 @@ export function createAgentMergeServerToolGroup(accessor?: IAgentMergeToolAccess
 					throw new Error(`Unknown Agent Merge server tool: ${toolName}`);
 			}
 		},
-		getDisplay: (toolName, _args, result) => getDisplay(toolName, result),
+		getDisplay,
 	};
 }
 
-function getDisplay(toolName: string, result: IServerToolDisplayResult | undefined): IServerToolDisplay | undefined {
+function getDisplay(toolName: string, args: unknown, result?: IServerToolDisplayResult): IServerToolDisplay | undefined {
 	switch (toolName) {
+		case setAgentMergeEnabledToolName: {
+			const enabled = isRecord(args) ? args.enabled : undefined;
+			if (typeof enabled !== 'boolean') {
+				return undefined;
+			}
+			return {
+				displayName: enabled
+					? localize('agentMerge.tool.enable', "Enable Agent Merge")
+					: localize('agentMerge.tool.disable', "Disable Agent Merge"),
+				invocationMessage: enabled
+					? localize('agentMerge.tool.enable.running', "Enabling Agent Merge")
+					: localize('agentMerge.tool.disable.running', "Disabling Agent Merge"),
+				pastTenseMessage: result?.success === false
+					? localize('agentMerge.tool.setEnabled.failed', "Failed to update Agent Merge")
+					: enabled
+						? localize('agentMerge.tool.enable.complete', "Enabled Agent Merge")
+						: localize('agentMerge.tool.disable.complete', "Disabled Agent Merge"),
+				confirmationTitle: enabled
+					? localize('agentMerge.tool.enable.confirmationTitle', "Enable Agent Merge?")
+					: localize('agentMerge.tool.disable.confirmationTitle', "Disable Agent Merge?"),
+				confirmationMessage: enabled
+					? localize('agentMerge.tool.enable.confirmationMessage', "Allow Agent Merge to monitor this session's pull request and work autonomously using its existing options, including merging if configured?")
+					: localize('agentMerge.tool.disable.confirmationMessage', "Stop Agent Merge monitoring and autonomous work for this session?"),
+			};
+		}
 		case readAgentMergeCIToolName:
 			return {
 				displayName: localize('agentMerge.tool.readCI', "Read Agent Merge CI"),
@@ -210,11 +258,15 @@ function getWorkflowRerunMessage(result: IServerToolDisplayResult | undefined): 
 	}
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+	return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
 function asRecord(value: unknown, toolName: string): Record<string, unknown> {
-	if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+	if (!isRecord(value)) {
 		throw new Error(`Invalid ${toolName} input: expected an object.`);
 	}
-	return value as Record<string, unknown>;
+	return value;
 }
 
 function requiredString(value: unknown, field: string, toolName: string): string {
@@ -224,12 +276,13 @@ function requiredString(value: unknown, field: string, toolName: string): string
 	return value;
 }
 
-function optionalBoolean(value: unknown, field: string, toolName: string): boolean | undefined {
-	if (value === undefined) {
-		return undefined;
-	}
+function requiredBoolean(value: unknown, field: string, toolName: string): boolean {
 	if (typeof value !== 'boolean') {
 		throw new Error(`Invalid ${toolName} input: ${field} must be a boolean.`);
 	}
 	return value;
+}
+
+function optionalBoolean(value: unknown, field: string, toolName: string): boolean | undefined {
+	return value === undefined ? undefined : requiredBoolean(value, field, toolName);
 }

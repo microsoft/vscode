@@ -58,6 +58,7 @@ import { AgentHostTelemetryReporter, IAgentHostTelemetryReporter } from './agent
 import { AgentHostToolCallTracker, IAgentHostToolCallTracker } from './agentHostToolCallTracker.js';
 import { AgentHostTurnTracker, IAgentHostTurnTracker } from './agentHostTurnTracker.js';
 import { AgentHostProviderService, IAgentHostProviderService } from './agentHostProviderService.js';
+import { AdditionalWorktreeLifecycleService, IAdditionalWorktreeLifecycleService } from './chatContributions/additionalWorktreeLifecycle/additionalWorktreeLifecycleService.js';
 import { AgentEditAttributionService } from './shared/agentEditAttributionService.js';
 import { AgentHostOctoKitService, IAgentHostOctoKitService } from './shared/agentHostOctoKitService.js';
 import { EditArcReporterService, IEditArcReporterService } from './shared/editArcReporter.js';
@@ -65,6 +66,8 @@ import { EditSurvivalReporterFactory, IEditSurvivalReporterFactory } from './sha
 import { IAgentHostWorktreeIsolation, WorktreeIsolation } from './shared/worktreeIsolation.js';
 import { AgentBranchNameGenerator, IAgentBranchNameGenerator } from './shared/agentBranchNameGenerator.js';
 import { AgentHostTurnService, IAgentHostTurnService } from './agentHostTurnService.js';
+import { IDevContainerAgentHostMainService } from '../common/devContainerAgentHost.js';
+import { RemoteDevContainerAgentHostService } from './devContainerAgentHostService.js';
 
 export interface IAgentHostCoreServiceInputs {
 	readonly storageResource: URI | undefined;
@@ -107,6 +110,7 @@ export function registerAgentHostCoreServices(services: ServiceCollection, input
 	services.set(IAgentHostProviderService, new SyncDescriptor(AgentHostProviderService));
 	services.set(IAgentBranchNameGenerator, new SyncDescriptor(AgentBranchNameGenerator));
 	services.set(IAgentHostWorktreeIsolation, new SyncDescriptor(WorktreeIsolation));
+	services.set(IAdditionalWorktreeLifecycleService, new SyncDescriptor(AdditionalWorktreeLifecycleService));
 }
 
 export interface IAgentHostHostServiceInputs {
@@ -116,6 +120,7 @@ export interface IAgentHostHostServiceInputs {
 }
 
 export function registerAgentHostHostServices(services: ServiceCollection, inputs: IAgentHostHostServiceInputs): void {
+	services.set(IDevContainerAgentHostMainService, new SyncDescriptor(RemoteDevContainerAgentHostService));
 	services.set(IWindowsMxcTerminalSandboxRuntime, new SyncDescriptor(WindowsMxcTerminalSandboxRuntime));
 	services.set(ISandboxHelperService, new SyncDescriptor(SandboxHelperService));
 	services.set(IAgentHostGitService, new SyncDescriptor(AgentHostGitService));

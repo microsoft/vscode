@@ -26,6 +26,7 @@ function renderArchiveNudge(context: ComponentFixtureContext, options: {
 	readonly title?: string;
 	readonly icon?: string;
 	readonly expanded?: boolean;
+	readonly compact?: boolean;
 	readonly wording?: ChatSessionArchiveActionWording;
 }): Promise<void> {
 	return renderChatWidget(context, {
@@ -74,6 +75,7 @@ function renderArchiveNudge(context: ComponentFixtureContext, options: {
 			inputPart.setSessionArchiveNudge({
 				hasWorktree: options.hasWorktree,
 				pullRequestCount: options.pullRequestCount ?? 1,
+				compact: options.compact,
 				onArchive: async () => inputPart.setSessionArchiveNudge(undefined),
 				onDismiss: () => { },
 				onOpenCleanupSettings: async () => { },
@@ -109,6 +111,15 @@ export default defineThemedFixtureGroup({ path: 'chat/' }, {
 	}),
 	MarkAsDoneExpanded: defineComponentFixture({
 		render: context => renderArchiveNudge(context, { hasWorktree: true, width: 360, expanded: true, wording: ChatSessionArchiveActionWording.MarkAsDone }),
+	}),
+	MarkAsDoneCompact: defineComponentFixture({
+		render: context => renderArchiveNudge(context, { hasWorktree: true, compact: true, wording: ChatSessionArchiveActionWording.MarkAsDone }),
+	}),
+	MarkAsDoneCompactNarrow: defineComponentFixture({
+		render: context => renderArchiveNudge(context, { hasWorktree: true, compact: true, pullRequestCount: 2, width: 360, wording: ChatSessionArchiveActionWording.MarkAsDone }),
+	}),
+	Compact: defineComponentFixture({
+		render: context => renderArchiveNudge(context, { hasWorktree: false, compact: true }),
 	}),
 	WithSessionPills: defineComponentFixture({
 		render: context => renderArchiveNudge(context, { hasWorktree: false, withPills: true }),

@@ -68,17 +68,34 @@ export function makeSession(resource: URI, opts?: {
 	isCreated?: boolean;
 	changes?: readonly ISessionFileChange[];
 	workspace?: ISessionWorkspace;
+	chatWorkspace?: ISessionWorkspace;
 	isQuickChat?: boolean;
 }): IActiveSession {
 	const status = observableValue('status', opts?.status ?? SessionStatus.Completed);
+	const workspace = opts?.workspace ?? {
+		uri: URI.file('/repo'),
+		label: 'test',
+		icon: Codicon.repo,
+		folders: [{
+			root: URI.file('/repo'),
+			workingDirectory: URI.file('/repo'),
+			name: 'repo',
+			description: undefined,
+			gitRepository: undefined,
+		}],
+		requiresWorkspaceTrust: false,
+		isVirtualWorkspace: false,
+	};
 	const chat: IChat = {
 		resource,
 		createdAt: new Date(),
+		workspace: constObservable(opts?.chatWorkspace ?? workspace),
 		title: observableValue('title', 'Test'),
 		updatedAt: observableValue('updatedAt', new Date()),
 		status,
 		checkpoints: observableValue('checkpoints', undefined),
 		changes: observableValue('changes', opts?.changes ?? []),
+		changesets: constObservable([]),
 		modelId: observableValue('modelId', undefined),
 		modelSource: observableValue('modelSource', undefined),
 		mode: observableValue('mode', undefined),
@@ -96,25 +113,10 @@ export function makeSession(resource: URI, opts?: {
 		sessionType: 'local',
 		icon: Codicon.copilot,
 		createdAt: chat.createdAt,
-		workspace: observableValue('workspace', opts?.workspace ?? {
-			uri: URI.file('/repo'),
-			label: 'test',
-			icon: Codicon.repo,
-			folders: [{
-				root: URI.file('/repo'),
-				workingDirectory: URI.file('/repo'),
-				name: 'repo',
-				description: undefined,
-				gitRepository: undefined,
-			}],
-			requiresWorkspaceTrust: false,
-			isVirtualWorkspace: false,
-		}),
+		workspace: observableValue('workspace', workspace),
 		title: chat.title,
 		updatedAt: chat.updatedAt,
 		status: chat.status,
-		changesets: constObservable([]),
-		changes: chat.changes,
 		modelId: chat.modelId,
 		mode: chat.mode,
 		loading: observableValue('loading', false),

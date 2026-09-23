@@ -36,11 +36,6 @@ export function getCreditsPerMillionTokensLabel(): string {
 	return localize('models.creditsPerMillionTokens', "Credits per 1M tokens");
 }
 
-/** The context window a model offers, or 0 when it reports none. */
-export function getModelContextWindowTotal(metadata: ILanguageModelChatMetadata): number {
-	return (metadata.maxInputTokens ?? 0) + (metadata.maxOutputTokens ?? 0);
-}
-
 export function getMaxContextLabel(): string {
 	return localize('models.contextSize', "Max context");
 }
