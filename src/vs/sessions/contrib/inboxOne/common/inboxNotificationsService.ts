@@ -14,9 +14,8 @@ export const IInboxNotificationsService = createDecorator<IInboxNotificationsSer
 
 export const enum InboxNotificationPriority {
 	Critical = 0,
-	High = 1,
-	Normal = 2,
-	Low = 3,
+	Moderate = 1,
+	Low = 2,
 }
 
 export const enum InboxNotificationKind {
@@ -113,6 +112,14 @@ export interface IInboxNotificationItem {
 	readonly timestamp: number;
 	readonly sessionResource?: URI;
 	readonly actions: readonly IInboxNotificationAction[];
+	/**
+	 * Signature under which a model-generated preview for this item is cached and
+	 * looked up in {@link IInboxNotificationsService.previews}. Changes whenever the
+	 * underlying content (and therefore the desired preview) changes.
+	 */
+	readonly previewSignature?: string;
+	/** The text fed to the utility model to generate this item's preview. */
+	readonly previewInputText?: string;
 }
 
 export interface IExternalInboxNotification {
@@ -131,13 +138,72 @@ export interface IInboxNotificationsService {
 	readonly _serviceBrand: undefined;
 
 	readonly notifications: IObservable<readonly IInboxNotificationItem[]>;
+	readonly dismissedNotifications: IObservable<readonly IInboxNotificationItem[]>;
 	readonly sortMode: IObservable<InboxNotificationsSortMode>;
+
+	/**
+	 * Map from {@link IInboxNotificationItem.previewSignature} to a short, model-generated
+	 * one-line preview describing the item's latest state. Populated asynchronously as
+	 * items land; an entry is absent until its preview has been generated.
+	 */
+	readonly previews: IObservable<ReadonlyMap<string, string>>;
+
+	/**
+	 * Map from a completed item's id to its structured, model-generated evidence pack.
+	 * Generation is focus-triggered via {@link requestDetailSummary}; an entry is absent
+	 * until it has been generated.
+	 */
+	readonly detailSummaries: IObservable<ReadonlyMap<string, IInboxDetailSummary>>;
+
+	/** A request to reveal and focus a notification card in the view, or `undefined`. */
+	readonly revealRequest: IObservable<IInboxNotificationRevealRequest | undefined>;
 
 	publishExternalNotification(notification: IExternalInboxNotification): void;
 	removeExternalNotification(id: string): void;
 	dismissNotification(id: string): void;
 	clearDismissedNotifications(): void;
 	setSortMode(sortMode: InboxNotificationsSortMode): void;
+
+	/** Ask the inbox view to reveal and focus the notification with the given id. */
+	requestReveal(id: string): void;
+
+	/**
+	 * Trigger (once, then cached) generation of the one-line preview for an item. Called by the
+	 * view as cards become visible so hidden items don't fan out utility-model traffic.
+	 */
+	requestPreview(item: IInboxNotificationItem): void;
+
+	/**
+	 * Trigger (once, then cached) generation of the structured evidence pack for a completed
+	 * item. No-op for non-completed items. Results land in {@link detailSummaries}.
+	 */
+	requestDetailSummary(item: IInboxNotificationItem): void;
+}
+
+export interface IInboxNotificationRevealRequest {
+	readonly id: string;
+	/** Increments on every request so repeated reveals of the same id retrigger. */
+	readonly token: number;
+}
+
+/** A concrete, session-produced artifact an evidence claim is grounded in and links to. */
+export interface IInboxEvidenceArtifact {
+	readonly kind: 'file' | 'session';
+	readonly label: string;
+	readonly uri?: URI;
+}
+
+/** A single grounded claim in a detail evidence pack. Every claim links to a real artifact. */
+export interface IInboxDetailEvidence {
+	readonly text: string;
+	readonly artifact: IInboxEvidenceArtifact;
+}
+
+/** A structured, model-generated evidence pack shown in the detail pane for a completed session. */
+export interface IInboxDetailSummary {
+	readonly status: string;
+	readonly decisions: readonly string[];
+	readonly evidence: readonly IInboxDetailEvidence[];
 }
 
 export function compareInboxNotifications(a: IInboxNotificationItem, b: IInboxNotificationItem): number {

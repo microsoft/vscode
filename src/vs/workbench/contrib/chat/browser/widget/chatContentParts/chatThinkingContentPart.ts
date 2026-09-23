@@ -348,6 +348,14 @@ export function maybePickFunWorkingMessage(configurationService: IConfigurationS
 }
 
 /**
+ * Returns a random easter-egg working message. Unlike {@link maybePickFunWorkingMessage}
+ * this always returns a whimsical label, for loading states that want one every time.
+ */
+export function pickFunWorkingMessage(random = Math.random): string {
+	return funWorkingMessages[Math.floor(random() * funWorkingMessages.length)];
+}
+
+/**
  * Builds a phrase pool from defaults and user-configured custom phrases.
  * In 'replace' mode, only custom phrases are used; in 'append' mode (default),
  * custom phrases are added to the defaults.

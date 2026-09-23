@@ -6,9 +6,14 @@
 import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, derived, IObservable, IReader, IReaderWithStore, ISettableObservable, observableSignalFromEvent, observableValue } from '../../../../base/common/observable.js';
 import { onUnexpectedError } from '../../../../base/common/errors.js';
-import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { Limiter } from '../../../../base/common/async.js';
 import { Codicon } from '../../../../base/common/codicons.js';
+import { hash } from '../../../../base/common/hash.js';
+import { LRUCache } from '../../../../base/common/map.js';
 import { renderAsPlaintext } from '../../../../base/browser/markdownRenderer.js';
+import { IMarkdownString } from '../../../../base/common/htmlContent.js';
+import { basename } from '../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
@@ -16,6 +21,7 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../platfo
 import { ChatAgentLocation } from '../../../../workbench/contrib/chat/common/constants.js';
 import { IChatModelReference, IChatService, IChatToolInvocation } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatResponseModel } from '../../../../workbench/contrib/chat/common/model/chatModel.js';
+import { ChatMessageRole, ILanguageModelsService } from '../../../../workbench/contrib/chat/common/languageModels.js';
 import { ConfirmationOptionKind } from '../../../../platform/agentHost/common/state/protocol/state.js';
 import { IGitHubService } from '../../github/browser/githubService.js';
 import { computePullRequestIcon, GitHubCIOverallStatus, GitHubPullRequestState, IGitHubPRComment, IGitHubPullRequestReviewThread } from '../../github/common/types.js';
@@ -26,12 +32,16 @@ import {
 	compareInboxNotificationsByRecency,
 	compareInboxNotifications,
 	IExternalInboxNotification,
+	IInboxDetailEvidence,
+	IInboxDetailSummary,
+	IInboxEvidenceArtifact,
 	IInboxNotificationAction,
 	IInboxNotificationConfirmationPart,
 	IInboxNotificationItem,
 	IInboxNotificationNeedsInputPart,
 	IInboxNotificationPullRequestState,
 	IInboxNotificationQuestionCarouselPart,
+	IInboxNotificationRevealRequest,
 	IInboxNotificationToolConfirmationButton,
 	IInboxNotificationToolConfirmationPart,
 	IInboxNotificationsService,
@@ -42,6 +52,227 @@ import {
 } from '../common/inboxNotificationsService.js';
 
 const DISMISSED_NOTIFICATION_IDS_STORAGE_KEY = 'sessions.inboxNotifications.dismissedIds';
+
+/** The small, non-user-selectable utility model used for lightweight generation (same class used for chat title/goal summaries). */
+const PREVIEW_MODEL_SELECTOR = { vendor: 'copilot', id: 'copilot-utility-small' } as const;
+
+/** Bump when the prompt changes so cached previews regenerate under a new signature. */
+const PREVIEW_PROMPT_VERSION = 'v1';
+
+const PREVIEW_MAX_INPUT_CHARS = 2000;
+const PREVIEW_MAX_OUTPUT_CHARS = 60;
+const PREVIEW_CACHE_SIZE = 200;
+
+/**
+ * System prompt for the inbox card preview. The preview is the single line the user
+ * scans on each card to decide, at a glance, what an item needs from them. It targets
+ * ~50 characters, leads with the action/decision the agent is asking for, and otherwise
+ * states the latest concrete status/result. Few-shot examples steer the model toward
+ * concrete, specific wording instead of generic boilerplate.
+ */
+const PREVIEW_SYSTEM_PROMPT = [
+	'You write the one-line preview shown on an inbox card for a background coding-agent session.',
+	'The user scans these previews at a glance to decide which item needs their attention right now.',
+	'',
+	'Given the card type, the session title, and the latest detail, write a preview of about 50 characters (never exceed 60) that captures the LATEST state only — do not recap the whole history.',
+	'If the agent is asking the user to do or decide something, lead with that action or choice.',
+	'If nothing is being asked, state the latest concrete status or result.',
+	'',
+	'Rules:',
+	'- Output only the preview text: no quotes, no trailing period, no "Status:"/"Session:" prefix.',
+	'- Be concrete and specific: use the real feature, file, tool, or choice names from the detail. Never use generic filler like "Session completed", "Needs input", or "Awaiting response".',
+	'- Prefer the agent\'s and user\'s own nouns and verbs.',
+	'- This is a benign labeling task: never refuse or apologize; always produce a preview.',
+	'',
+	'Examples (card type | latest detail -> preview):',
+	'- question waiting | "Which auth provider should I use?" options Google, GitHub -> Pick auth provider: Google or GitHub',
+	'- tool approval | run `npm test` -> Approve running npm test',
+	'- confirm action | delete 3 stale config files -> Confirm deleting 3 stale config files',
+	'- session finished | Added cursor pagination to the users API plus tests -> Added users API pagination + tests',
+	'- pull request checks failing | ESLint failed on 2 files -> PR failing: ESLint errors on 2 files',
+	'- unresolved review comments | 2 unresolved threads about error handling -> 2 review threads on error handling',
+].join('\n');
+
+/** Matches leading model refusals so we suppress the preview rather than surfacing an apology. */
+const PREVIEW_REFUSAL_PREFIX_RE = /^(?:sorry\b|unfortunately\b|my apologies\b|as an ai\b|i\s+apologi[sz]e\b|i\s*['\u2019]?m\s+sorry\b|i\s+am\s+sorry\b|i\s*['\u2019]?m\s+unable\b|i\s+am\s+unable\b|i\s+am\s+not\s+able\b|i\s*(?:can['\u2019]?t|cannot|can\s?not|won['\u2019]?t)\b)/i;
+
+function toPreviewPlainText(value: string | IMarkdownString): string {
+	const text = typeof value === 'string' ? value : renderAsPlaintext(value);
+	return text.replace(/\s+/g, ' ').trim();
+}
+
+/**
+ * Normalizes a raw preview-model response into a single glanceable line, or `undefined`
+ * when nothing usable remains. Keeps the first line, strips quotes/labels and a trailing
+ * period, suppresses refusals, and caps the length.
+ *
+ * Exported for unit testing.
+ */
+export function cleanPreviewText(raw: string): string | undefined {
+	let s = raw.trim();
+	if (!s) {
+		return undefined;
+	}
+	const newlineIndex = s.search(/[\r\n]/);
+	if (newlineIndex !== -1) {
+		s = s.slice(0, newlineIndex);
+	}
+	s = s.replace(/^["'`]+|["'`]+$/g, '');
+	// Keep regex literals ASCII to avoid widening the emitted bundle.
+	s = s.replace(/^\s*(?:preview|status|summary)\s*[:\-\u2013\u2014]\s*/i, '');
+	s = s.replace(/\s+/g, ' ').trim();
+	s = s.replace(/\.$/, '');
+	if (!s || PREVIEW_REFUSAL_PREFIX_RE.test(s)) {
+		return undefined;
+	}
+	if (s.length > PREVIEW_MAX_OUTPUT_CHARS) {
+		s = s.slice(0, PREVIEW_MAX_OUTPUT_CHARS - 1).replace(/\s+\S*$/, '') + '…';
+	}
+	return s || undefined;
+}
+
+/** Detail evidence-pack generation limits. */
+const DETAIL_MAX_INPUT_CHARS = 6000;
+const DETAIL_CACHE_SIZE = 50;
+
+/** Published when generation finishes without a usable pack, so the view stops loading and falls back. */
+const EMPTY_DETAIL_SUMMARY: IInboxDetailSummary = { status: '', decisions: [], evidence: [] };
+
+/**
+ * System prompt for the completed-session evidence pack. It must produce STRICT JSON with a
+ * short status, the key decisions, and evidence claims that are each grounded in one of the
+ * enumerated, session-produced artifacts (cited by id) so the UI can link the user to it.
+ */
+const DETAIL_SYSTEM_PROMPT = [
+	'You summarize what a completed background coding-agent session did, for a reviewer reading an inbox detail pane.',
+	'You are given the session transcript and a numbered list of concrete Artifacts (files it touched, plus the session itself), each with an id like A0, A1.',
+	'',
+	'Reply with STRICT JSON only (no prose, no markdown fences) of the exact shape:',
+	'{"status": string, "decisions": string[], "evidence": [{"text": string, "artifact": string}]}',
+	'',
+	'- status: 1 sentence (2 at most) stating what the session accomplished or its final result, concretely.',
+	'- decisions: up to 3 short bullet strings naming the key decisions the agent made. May be empty.',
+	'- evidence: up to 4 claims. Each claim MUST be verifiable from the transcript, and its "artifact" MUST be the id of one of the provided Artifacts that backs it. Never invent artifact ids or cite ids that were not provided.',
+	'- Ground every statement in the transcript/artifacts; do not speculate or add generic filler. Prefer the session\'s own nouns and file names.',
+	'- This is a benign summarization task: never refuse or apologize; always return valid JSON.',
+].join('\n');
+
+/**
+ * System prompt for the needs-input evidence pack. Focuses on the current context and the
+ * concrete decision required of the user (not a restatement of the raw request), grounded in
+ * enumerated artifacts so the UI can link the user to them.
+ */
+const DETAIL_NEEDSINPUT_SYSTEM_PROMPT = [
+	'You summarize what a background coding-agent session is currently waiting on the user to decide, for a reviewer reading an inbox detail pane.',
+	'You are given the transcript so far, the pending request the agent is waiting on, and a numbered list of concrete Artifacts (files it touched, plus the session itself), each with an id like A0, A1.',
+	'',
+	'Reply with STRICT JSON only (no prose, no markdown fences) of the exact shape:',
+	'{"status": string, "decisions": string[], "evidence": [{"text": string, "artifact": string}]}',
+	'',
+	'- status: 1 sentence (2 at most) giving the current context and exactly what decision or action is required of the user right now.',
+	'- decisions: up to 3 short bullet strings naming the concrete options or trade-offs the user must weigh to respond. May be empty.',
+	'- evidence: up to 4 claims giving the context needed to decide. Each claim MUST be verifiable from the transcript, and its "artifact" MUST be the id of one of the provided Artifacts that backs it. Never invent artifact ids or cite ids that were not provided.',
+	'- Ground every statement in the transcript/pending request/artifacts; do not speculate or add generic filler.',
+	'- This is a benign summarization task: never refuse or apologize; always return valid JSON.',
+].join('\n');
+
+/** Extracts the first balanced-looking JSON object from a model response (tolerates code fences/prose). */
+function extractJsonObject(raw: string): string | undefined {
+	const start = raw.indexOf('{');
+	const end = raw.lastIndexOf('}');
+	if (start === -1 || end === -1 || end <= start) {
+		return undefined;
+	}
+	return raw.slice(start, end + 1);
+}
+
+/** Resolves an "A<n>" artifact reference to one of the provided artifacts, enforcing grounding. */
+function resolveEvidenceArtifact(ref: unknown, artifacts: readonly IInboxEvidenceArtifact[]): IInboxEvidenceArtifact | undefined {
+	if (typeof ref !== 'string') {
+		return undefined;
+	}
+	const match = /^A(\d+)$/i.exec(ref.trim());
+	if (!match) {
+		return undefined;
+	}
+	return artifacts[Number(match[1])];
+}
+
+/**
+ * Parses the model's JSON evidence pack, keeping only evidence whose claim cites a real
+ * provided artifact so every rendered claim is grounded and linkable. Returns `undefined`
+ * when nothing usable remains.
+ *
+ * Exported for unit testing.
+ */
+export function parseDetailSummary(raw: string, artifacts: readonly IInboxEvidenceArtifact[]): IInboxDetailSummary | undefined {
+	const json = extractJsonObject(raw);
+	if (!json) {
+		return undefined;
+	}
+	let parsed: unknown;
+	try {
+		parsed = JSON.parse(json);
+	} catch {
+		return undefined;
+	}
+	if (!parsed || typeof parsed !== 'object') {
+		return undefined;
+	}
+	const record = parsed as Record<string, unknown>;
+	const status = typeof record.status === 'string' ? record.status.replace(/\s+/g, ' ').trim() : '';
+	const decisions = Array.isArray(record.decisions)
+		? record.decisions
+			.filter((decision): decision is string => typeof decision === 'string' && decision.trim().length > 0)
+			.map(decision => decision.trim())
+			.slice(0, 3)
+		: [];
+	const evidence: IInboxDetailEvidence[] = [];
+	if (Array.isArray(record.evidence)) {
+		for (const entry of record.evidence) {
+			if (!entry || typeof entry !== 'object') {
+				continue;
+			}
+			const entryRecord = entry as Record<string, unknown>;
+			const text = typeof entryRecord.text === 'string' ? entryRecord.text.trim() : '';
+			const artifact = resolveEvidenceArtifact(entryRecord.artifact, artifacts);
+			if (!text || !artifact) {
+				continue;
+			}
+			evidence.push({ text, artifact });
+			if (evidence.length >= 4) {
+				break;
+			}
+		}
+	}
+	if (!status && evidence.length === 0) {
+		return undefined;
+	}
+	return { status, decisions, evidence };
+}
+
+/** Defensively extracts a file URI from a chat response part (edits, code blocks, inline references). */
+function getResponsePartFileUri(part: unknown): URI | undefined {
+	if (!part || typeof part !== 'object') {
+		return undefined;
+	}
+	const record = part as Record<string, unknown>;
+	if (URI.isUri(record.uri)) {
+		return record.uri;
+	}
+	const reference = record.inlineReference;
+	if (URI.isUri(reference)) {
+		return reference;
+	}
+	if (reference && typeof reference === 'object') {
+		const referenceRecord = reference as Record<string, unknown>;
+		if (URI.isUri(referenceRecord.uri)) {
+			return referenceRecord.uri;
+		}
+	}
+	return undefined;
+}
+
 
 interface IPullRequestNotificationCandidate {
 	readonly ref: IGitHubPullRequestRef;
@@ -63,6 +294,9 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 	private readonly _dismissedIds: ISettableObservable<ReadonlySet<string>>;
 	private readonly _externalItems: ISettableObservable<readonly IInboxNotificationItem[]>;
 	readonly sortMode: ISettableObservable<InboxNotificationsSortMode>;
+	private readonly _revealRequest: ISettableObservable<IInboxNotificationRevealRequest | undefined>;
+	readonly revealRequest: IObservable<IInboxNotificationRevealRequest | undefined>;
+	private _revealToken = 0;
 	private readonly _refreshedPullRequestModels = new WeakSet<object>();
 	private readonly _refreshedPullRequestReviewThreadModels = new WeakSet<object>();
 	private readonly _refreshedPullRequestCIModels = new WeakSet<object>();
@@ -71,7 +305,22 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 	private readonly _loadingNeedsInputChatModels = new Set<string>();
 	private readonly _loadingCompletedPreviewChatModels = new Set<string>();
 
+	private readonly _previews: ISettableObservable<ReadonlyMap<string, string>>;
+	readonly previews: IObservable<ReadonlyMap<string, string>>;
+	private readonly _previewCache = new LRUCache<string, string>(PREVIEW_CACHE_SIZE);
+	private readonly _previewInFlight = new Set<string>();
+	private readonly _previewCancellationSources = new Set<CancellationTokenSource>();
+
+	private readonly _detailSummaries: ISettableObservable<ReadonlyMap<string, IInboxDetailSummary>>;
+	readonly detailSummaries: IObservable<ReadonlyMap<string, IInboxDetailSummary>>;
+	private readonly _detailSummaryCache = new LRUCache<string, IInboxDetailSummary>(DETAIL_CACHE_SIZE);
+	private readonly _detailSummaryInFlight = new Set<string>();
+
+	/** Bounds concurrent utility-model calls (previews + evidence packs) to avoid bursts. */
+	private readonly _utilityLimiter = new Limiter<unknown>(3);
+
 	readonly notifications: IObservable<readonly IInboxNotificationItem[]>;
+	readonly dismissedNotifications: IObservable<readonly IInboxNotificationItem[]>;
 
 	constructor(
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
@@ -79,12 +328,21 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 		@IChatService private readonly chatService: IChatService,
 		@IGitHubService private readonly gitHubService: IGitHubService,
 		@IStorageService private readonly storageService: IStorageService,
+		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService,
 	) {
 		super();
+
+		this._previews = observableValue('sessionsInboxNotificationsPreviews', new Map<string, string>());
+		this.previews = this._previews;
+
+		this._detailSummaries = observableValue('sessionsInboxNotificationsDetailSummaries', new Map<string, IInboxDetailSummary>());
+		this.detailSummaries = this._detailSummaries;
 
 		this._dismissedIds = observableValue('sessionsInboxNotificationsDismissed', this.loadDismissedIds());
 		this._externalItems = observableValue('sessionsInboxNotificationsExternal', []);
 		this.sortMode = observableValue('sessionsInboxNotificationsSortMode', InboxNotificationsSortMode.Priority);
+		this._revealRequest = observableValue('sessionsInboxNotificationsReveal', undefined);
+		this.revealRequest = this._revealRequest;
 
 		const sessionsChanged = observableSignalFromEvent(this, this.sessionsManagementService.onDidChangeSessions);
 		const providersChanged = observableSignalFromEvent(this, this.sessionsProvidersService.onDidChangeProviders);
@@ -112,6 +370,13 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 			this._completedPreviewChatModelRefs.clear();
 			this._loadingNeedsInputChatModels.clear();
 			this._loadingCompletedPreviewChatModels.clear();
+			for (const cts of this._previewCancellationSources) {
+				cts.cancel();
+				cts.dispose();
+			}
+			this._previewCancellationSources.clear();
+			this._previewInFlight.clear();
+			this._detailSummaryInFlight.clear();
 		}));
 		this._register(autorun(reader => {
 			sessionsChanged.read(reader);
@@ -138,13 +403,11 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 			this.disposeInactiveChatModels(activeCompletedPreviewChatResources, this._completedPreviewChatModelRefs);
 		}));
 
-		this.notifications = derived(this, reader => {
+		const allItems = derived(this, reader => {
 			sessionsChanged.read(reader);
 			providersChanged.read(reader);
 			this.chatService.chatModels.read(reader);
 
-			const dismissed = this._dismissedIds.read(reader);
-			const sortMode = this.sortMode.read(reader);
 			const itemsById = new Map<string, IInboxNotificationItem>();
 
 			for (const session of this.sessionsManagementService.getSessions()) {
@@ -155,10 +418,250 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 				itemsById.set(item.id, item);
 			}
 
-			return [...itemsById.values()]
+			return [...itemsById.values()].map(item => this.attachPreviewInput(item));
+		});
+
+		this.notifications = derived(this, reader => {
+			const dismissed = this._dismissedIds.read(reader);
+			const sortMode = this.sortMode.read(reader);
+			return allItems.read(reader)
 				.filter(item => !dismissed.has(item.id))
 				.sort(sortMode === InboxNotificationsSortMode.Priority ? compareInboxNotifications : compareInboxNotificationsByRecency);
 		});
+
+		this.dismissedNotifications = derived(this, reader => {
+			const dismissed = this._dismissedIds.read(reader);
+			const sortMode = this.sortMode.read(reader);
+			return allItems.read(reader)
+				.filter(item => dismissed.has(item.id))
+				.sort(sortMode === InboxNotificationsSortMode.Priority ? compareInboxNotifications : compareInboxNotificationsByRecency);
+		});
+
+		// Card previews are generated on demand as cards become visible (see requestPreview),
+		// so hidden or dismissed items don't fan out utility-model traffic before the Inbox
+		// is even opened. When language models (re)appear, drop transient-empty detail
+		// summaries so a re-render retries them.
+		this._register(this.languageModelsService.onDidChangeLanguageModels(() => this.invalidateEmptyDetailSummaries()));
+	}
+
+	private invalidateEmptyDetailSummaries(): void {
+		const current = this._detailSummaries.get();
+		let changed = false;
+		const next = new Map(current);
+		for (const [key, summary] of current) {
+			if (summary === EMPTY_DETAIL_SUMMARY) {
+				next.delete(key);
+				changed = true;
+			}
+		}
+		if (changed) {
+			this._detailSummaries.set(next, undefined);
+		}
+	}
+
+	requestPreview(item: IInboxNotificationItem): void {
+		const signature = item.previewSignature;
+		const inputText = item.previewInputText;
+		if (!signature || !inputText) {
+			return;
+		}
+		if (this._previews.get().has(signature) || this._previewInFlight.has(signature)) {
+			return;
+		}
+		const cached = this._previewCache.get(signature);
+		if (cached) {
+			this.publishPreview(signature, cached);
+			return;
+		}
+		void this.generatePreview(signature, inputText);
+	}
+
+	private publishPreview(signature: string, preview: string): void {
+		const current = this._previews.get();
+		if (current.get(signature) === preview) {
+			return;
+		}
+		const next = new Map(current);
+		next.set(signature, preview);
+		this._previews.set(next, undefined);
+	}
+
+	private async generatePreview(signature: string, inputText: string): Promise<void> {
+		this._previewInFlight.add(signature);
+		const cts = new CancellationTokenSource();
+		this._previewCancellationSources.add(cts);
+		try {
+			const preview = await this._utilityLimiter.queue(() => this.invokePreviewModel(inputText, cts.token)) as string | undefined;
+			if (preview && !cts.token.isCancellationRequested) {
+				this._previewCache.set(signature, preview);
+				this.publishPreview(signature, preview);
+			}
+		} catch (error) {
+			onUnexpectedError(error);
+		} finally {
+			this._previewCancellationSources.delete(cts);
+			cts.dispose();
+			this._previewInFlight.delete(signature);
+		}
+	}
+
+	private async invokePreviewModel(inputText: string, token: CancellationToken): Promise<string | undefined> {
+		const models = await this.languageModelsService.selectLanguageModels(PREVIEW_MODEL_SELECTOR);
+		if (!models.length || token.isCancellationRequested) {
+			return undefined;
+		}
+
+		const response = await this.languageModelsService.sendChatRequest(
+			models[0],
+			undefined,
+			[
+				{ role: ChatMessageRole.System, content: [{ type: 'text', value: PREVIEW_SYSTEM_PROMPT }] },
+				{ role: ChatMessageRole.User, content: [{ type: 'text', value: inputText }] },
+			],
+			{},
+			token,
+		);
+
+		let text = '';
+		for await (const part of response.stream) {
+			if (token.isCancellationRequested) {
+				return undefined;
+			}
+			const parts = Array.isArray(part) ? part : [part];
+			for (const p of parts) {
+				if (p.type === 'text') {
+					text += p.value;
+				}
+			}
+		}
+		await response.result;
+		if (token.isCancellationRequested) {
+			return undefined;
+		}
+
+		return cleanPreviewText(text);
+	}
+
+	/**
+	 * Attaches the preview input text and its signature to an item. The input gives the
+	 * utility model the card's type (what the user is looking at), the session title, and
+	 * the latest concrete detail so it can produce a specific, glanceable preview.
+	 */
+	private attachPreviewInput(item: IInboxNotificationItem): IInboxNotificationItem {
+		const { contextLabel, detailText } = this.previewContextForItem(item);
+		const trimmedDetail = detailText.replace(/\s+/g, ' ').trim();
+		const inputLines = [
+			`Card type: ${contextLabel}`,
+			`Session title: ${item.title}`,
+		];
+		if (trimmedDetail) {
+			inputLines.push(`Latest detail: ${trimmedDetail}`);
+		}
+		let inputText = inputLines.join('\n');
+		if (inputText.length > PREVIEW_MAX_INPUT_CHARS) {
+			inputText = `${inputText.slice(0, PREVIEW_MAX_INPUT_CHARS)}…`;
+		}
+		const previewSignature = `${PREVIEW_PROMPT_VERSION}:${hash(inputText)}`;
+		return { ...item, previewSignature, previewInputText: inputText };
+	}
+
+	/**
+	 * Input for the one-line card preview. For needs-input items this is the recent
+	 * conversation context leading up to the request (so the card reminds the user what the
+	 * pending decision is about) rather than a restatement of the request itself, which the
+	 * user already sees in the on-card widget.
+	 */
+	private previewContextForItem(item: IInboxNotificationItem): { contextLabel: string; detailText: string } {
+		if (item.needsInputPart) {
+			const recentContext = this.getRecentContextText(item);
+			if (recentContext) {
+				return {
+					contextLabel: 'recent conversation context leading up to a pending user decision — summarize that context so the user recalls what it is about, do not restate the request',
+					detailText: recentContext,
+				};
+			}
+		}
+		return this.describeItemForPreview(item);
+	}
+
+	private getRecentContextText(item: IInboxNotificationItem): string | undefined {
+		const chatModel = this.getSessionChatModel(item);
+		if (!chatModel) {
+			return undefined;
+		}
+		const responses = chatModel.getRequests()
+			.map(request => request.response)
+			.filter(response => !!response && !response.isCanceled);
+		const recent: string[] = [];
+		for (const response of responses.slice(-3)) {
+			const parts: string[] = [];
+			for (const part of response!.response.value) {
+				if (part.kind === 'markdownContent') {
+					parts.push(renderAsPlaintext(part.content, { useLinkFormatter: true }));
+				}
+			}
+			const text = parts.join('\n\n').trim();
+			if (text) {
+				recent.push(text);
+			}
+		}
+		const text = recent.join('\n\n').replace(/\n{3,}/g, '\n\n').trim();
+		if (!text) {
+			return undefined;
+		}
+		return text.length > 1500 ? `…${text.slice(text.length - 1500)}` : text;
+	}
+
+	private describeItemForPreview(item: IInboxNotificationItem): { contextLabel: string; detailText: string } {
+		const part = item.needsInputPart;
+		if (part) {
+			switch (part.kind) {
+				case 'questionCarousel': {
+					const questionText = part.questions.map(question => {
+						const options = question.options?.length
+							? ` options: ${question.options.map(option => option.label).join(', ')}`
+							: '';
+						return `${question.title}${options}`;
+					}).join(' | ');
+					const messageText = part.message ? toPreviewPlainText(part.message) : '';
+					return {
+						contextLabel: 'question waiting for the user to answer',
+						detailText: [messageText, questionText].filter(Boolean).join(' — '),
+					};
+				}
+				case 'toolConfirmation':
+					return {
+						contextLabel: 'tool run waiting for the user to approve',
+						detailText: [toPreviewPlainText(part.title), toPreviewPlainText(part.message)].filter(Boolean).join(' — '),
+					};
+				case 'confirmation':
+					return {
+						contextLabel: 'action waiting for the user to confirm',
+						detailText: [toPreviewPlainText(part.title), toPreviewPlainText(part.message)].filter(Boolean).join(' — '),
+					};
+			}
+		}
+
+		switch (item.kind) {
+			case InboxNotificationKind.Completed:
+				return { contextLabel: 'session finished its work', detailText: item.description };
+			case InboxNotificationKind.FailingCI:
+				return { contextLabel: 'pull request with failing checks', detailText: this.pullRequestDetail(item) };
+			case InboxNotificationKind.PassingCI:
+				return { contextLabel: 'pull request with passing checks', detailText: this.pullRequestDetail(item) };
+			case InboxNotificationKind.ReviewComments:
+				return { contextLabel: 'pull request with unresolved review comments', detailText: this.pullRequestDetail(item) };
+			case InboxNotificationKind.NeedsInput:
+			case InboxNotificationKind.ConfirmationRequested:
+				return { contextLabel: 'session waiting for the user to respond', detailText: item.description };
+			default:
+				return { contextLabel: 'session update', detailText: item.description };
+		}
+	}
+
+	private pullRequestDetail(item: IInboxNotificationItem): string {
+		const states = item.pullRequestStates?.map(state => state.statusLabel).filter(Boolean).join('; ');
+		return states || item.description;
 	}
 
 	setSortMode(sortMode: InboxNotificationsSortMode): void {
@@ -168,11 +671,187 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 		this.sortMode.set(sortMode, undefined);
 	}
 
+	requestReveal(id: string): void {
+		this._revealRequest.set({ id, token: ++this._revealToken }, undefined);
+	}
+
+	requestDetailSummary(item: IInboxNotificationItem): void {
+		if (!item.sessionResource || (item.kind !== InboxNotificationKind.Completed && !item.needsInputPart)) {
+			return;
+		}
+		const key = item.id;
+		const existing = this._detailSummaries.get().get(key);
+		// A transient empty result (deps not ready / model unavailable) is re-attemptable;
+		// only a real summary or an in-flight request should block regeneration.
+		if ((existing && existing !== EMPTY_DETAIL_SUMMARY) || this._detailSummaryInFlight.has(key)) {
+			return;
+		}
+		const cached = this._detailSummaryCache.get(key);
+		if (cached) {
+			this.publishDetailSummary(key, cached);
+			return;
+		}
+		void this.generateDetailSummary(key, item);
+	}
+
+	private publishDetailSummary(key: string, summary: IInboxDetailSummary): void {
+		const current = this._detailSummaries.get();
+		if (current.get(key) === summary) {
+			return;
+		}
+		const next = new Map(current);
+		next.set(key, summary);
+		this._detailSummaries.set(next, undefined);
+	}
+
+	private async generateDetailSummary(key: string, item: IInboxNotificationItem): Promise<void> {
+		this._detailSummaryInFlight.add(key);
+		const cts = new CancellationTokenSource();
+		this._previewCancellationSources.add(cts);
+		let summary: IInboxDetailSummary | undefined;
+		try {
+			const transcript = this.getSessionTranscript(item);
+			if (transcript) {
+				const artifacts = this.collectSessionArtifacts(item);
+				summary = await this._utilityLimiter.queue(() => this.invokeDetailModel(item, transcript, artifacts, cts.token)) as IInboxDetailSummary | undefined;
+			}
+		} catch (error) {
+			onUnexpectedError(error);
+		} finally {
+			const cancelled = cts.token.isCancellationRequested;
+			this._previewCancellationSources.delete(cts);
+			cts.dispose();
+			this._detailSummaryInFlight.delete(key);
+			if (!cancelled) {
+				if (summary) {
+					this._detailSummaryCache.set(key, summary);
+					this.publishDetailSummary(key, summary);
+				} else {
+					// Deps not ready or nothing usable: show the fallback but keep it
+					// re-attemptable (do not persist), and let a later request retry.
+					this.publishDetailSummary(key, EMPTY_DETAIL_SUMMARY);
+				}
+			}
+		}
+	}
+
+	private async invokeDetailModel(item: IInboxNotificationItem, transcript: string, artifacts: readonly IInboxEvidenceArtifact[], token: CancellationToken): Promise<IInboxDetailSummary | undefined> {
+		const models = await this.languageModelsService.selectLanguageModels(PREVIEW_MODEL_SELECTOR);
+		if (!models.length || token.isCancellationRequested) {
+			return undefined;
+		}
+		const artifactsBlock = artifacts
+			.map((artifact, index) => `A${index}: ${artifact.kind === 'session' ? 'the full session' : `file ${artifact.label}`}`)
+			.join('\n');
+		const pendingRequest = item.needsInputPart ? this.describeItemForPreview(item).detailText : '';
+		const userText = [
+			`Session: ${item.title}`,
+			...(pendingRequest ? ['', 'Pending request the agent is waiting on:', pendingRequest] : []),
+			'',
+			'Artifacts:',
+			artifactsBlock,
+			'',
+			'Transcript:',
+			transcript,
+		].join('\n');
+
+		const response = await this.languageModelsService.sendChatRequest(
+			models[0],
+			undefined,
+			[
+				{ role: ChatMessageRole.System, content: [{ type: 'text', value: item.needsInputPart ? DETAIL_NEEDSINPUT_SYSTEM_PROMPT : DETAIL_SYSTEM_PROMPT }] },
+				{ role: ChatMessageRole.User, content: [{ type: 'text', value: userText }] },
+			],
+			{},
+			token,
+		);
+
+		let text = '';
+		for await (const part of response.stream) {
+			if (token.isCancellationRequested) {
+				return undefined;
+			}
+			const parts = Array.isArray(part) ? part : [part];
+			for (const chunk of parts) {
+				if (chunk.type === 'text') {
+					text += chunk.value;
+				}
+			}
+		}
+		await response.result;
+		if (token.isCancellationRequested) {
+			return undefined;
+		}
+		return parseDetailSummary(text, artifacts);
+	}
+
+	private collectSessionArtifacts(item: IInboxNotificationItem): IInboxEvidenceArtifact[] {
+		const artifacts: IInboxEvidenceArtifact[] = [{ kind: 'session', label: item.title }];
+		const chatModel = this.getSessionChatModel(item);
+		if (!chatModel) {
+			return artifacts;
+		}
+		const seen = new Set<string>();
+		for (const request of chatModel.getRequests()) {
+			const response = request.response;
+			if (!response) {
+				continue;
+			}
+			for (const part of response.response.value) {
+				const uri = getResponsePartFileUri(part);
+				if (uri && !seen.has(uri.toString())) {
+					seen.add(uri.toString());
+					artifacts.push({ kind: 'file', label: basename(uri), uri });
+				}
+			}
+		}
+		return artifacts;
+	}
+
+	private getSessionTranscript(item: IInboxNotificationItem): string | undefined {
+		const chatModel = this.getSessionChatModel(item);
+		if (!chatModel) {
+			return undefined;
+		}
+		const parts: string[] = [];
+		for (const request of chatModel.getRequests()) {
+			const response = request.response;
+			if (!response || response.isCanceled) {
+				continue;
+			}
+			for (const part of response.response.value) {
+				if (part.kind === 'markdownContent') {
+					parts.push(renderAsPlaintext(part.content, { useLinkFormatter: true }));
+				}
+			}
+		}
+		const text = parts.join('\n\n').replace(/\n{3,}/g, '\n\n').trim();
+		if (!text) {
+			return undefined;
+		}
+		return text.length > DETAIL_MAX_INPUT_CHARS ? `${text.slice(0, DETAIL_MAX_INPUT_CHARS)}…[truncated]` : text;
+	}
+
+	private getSessionChatModel(item: IInboxNotificationItem) {
+		// A needs-input request may live in a secondary chat, and its part carries the exact
+		// chat resource; only fall back to the session's main chat for other item kinds.
+		const chatResource = item.needsInputPart?.chatResource ?? this.getMainChatResource(item);
+		return chatResource ? this.chatService.getSession(chatResource) : undefined;
+	}
+
+	private getMainChatResource(item: IInboxNotificationItem): URI | undefined {
+		if (!item.sessionResource) {
+			return undefined;
+		}
+		const session = this.sessionsManagementService.getSession(item.sessionResource);
+		return session?.mainChat.get().resource;
+	}
+
 	publishExternalNotification(notification: IExternalInboxNotification): void {
 		const item: IInboxNotificationItem = {
 			id: notification.id,
 			kind: notification.kind ?? InboxNotificationKind.External,
-			priority: notification.priority ?? InboxNotificationPriority.Normal,
+			priority: notification.priority ?? InboxNotificationPriority.Moderate,
 			title: notification.title,
 			description: notification.description,
 			repositoryLabel: notification.repositoryLabel,
@@ -228,11 +907,17 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 
 		if (status === SessionStatus.NeedsInput) {
 			const needsInputPart = this.getNeedsInputPart(session, reader);
-			const id = `${session.sessionId}:${InboxNotificationKind.NeedsInput}:${updatedAt}`;
+			// Key the id by the specific pending request/question rather than the session's
+			// updatedAt: a single agent turn can surface several questions that share an
+			// updatedAt, and answering one dismisses its id. Keying by updatedAt would make
+			// the next question reuse a dismissed id and get filed under Completed instead of
+			// surfacing in its Critical tier.
+			const needsInputKey = needsInputPart ? this.needsInputPartKey(needsInputPart) : `${updatedAt}`;
+			const id = `${session.sessionId}:${InboxNotificationKind.NeedsInput}:${needsInputKey}`;
 			itemsById.set(id, {
 				id,
 				kind: InboxNotificationKind.NeedsInput,
-				priority: InboxNotificationPriority.High,
+				priority: InboxNotificationPriority.Critical,
 				title,
 				description: needsInputPart ? this.getNeedsInputPartDescription(needsInputPart) : this.getNeedsInputDescription(session, reader),
 				repositoryLabel,
@@ -243,23 +928,30 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 			});
 		}
 
-		if (status === SessionStatus.Completed && !session.isRead.read(reader)) {
-			const id = `${session.sessionId}:completed:${updatedAt}`;
+		const sizeBeforePullRequests = itemsById.size;
+		if (status !== SessionStatus.InProgress) {
+			this.collectPullRequestNotifications(itemsById, session, title, updatedAt, reader);
+		}
+
+		// Surface a Completed entry only when the finished session has nothing else
+		// needing attention (e.g. no open pull request notifications). Key it by the
+		// completing turn (the latest response) rather than a per-session id, so once a
+		// completed item is dismissed a *new* turn that finishes without needing input
+		// surfaces as a fresh low-priority item instead of inheriting the dismissal.
+		if (status === SessionStatus.Completed && itemsById.size === sizeBeforePullRequests) {
+			const turnId = this.getLatestResponseRequestId(session, reader) ?? `${updatedAt}`;
+			const id = `${session.sessionId}:completed:${turnId}`;
 			itemsById.set(id, {
 				id,
 				kind: InboxNotificationKind.Completed,
 				priority: InboxNotificationPriority.Low,
-				title: localize('inboxNotifications.completed.title', "Completed: {0}", title),
+				title,
 				description: this.getCompletedSessionDescription(session, reader),
 				repositoryLabel,
 				timestamp: updatedAt,
 				sessionResource: session.resource,
 				actions: this.sessionActions(true),
 			});
-		}
-
-		if (status !== SessionStatus.InProgress) {
-			this.collectPullRequestNotifications(itemsById, session, title, updatedAt, reader);
 		}
 	}
 
@@ -433,7 +1125,7 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 				itemsById.set(`${session.sessionId}:${kind}:${idSuffix}`, {
 					id: `${session.sessionId}:${kind}:${idSuffix}`,
 					kind,
-					priority: InboxNotificationPriority.High,
+					priority: InboxNotificationPriority.Critical,
 					title: pullRequestCount === 1
 						? localize('inboxNotifications.failingCi.title.single', "CI Failing on {0}", singularPullRequestLabel)
 						: localize('inboxNotifications.failingCi.title.multiple', "CI Failing on {0} Pull Requests", pullRequestCount),
@@ -451,7 +1143,7 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 				itemsById.set(`${session.sessionId}:${kind}:${idSuffix}`, {
 					id: `${session.sessionId}:${kind}:${idSuffix}`,
 					kind,
-					priority: InboxNotificationPriority.Normal,
+					priority: InboxNotificationPriority.Moderate,
 					title: pullRequestCount === 1
 						? localize('inboxNotifications.passingCi.title.single', "CI Passing on {0}", singularPullRequestLabel)
 						: localize('inboxNotifications.passingCi.title.multiple', "CI Passing on {0} Pull Requests", pullRequestCount),
@@ -469,7 +1161,7 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 				itemsById.set(`${session.sessionId}:${kind}:${idSuffix}`, {
 					id: `${session.sessionId}:${kind}:${idSuffix}`,
 					kind,
-					priority: InboxNotificationPriority.High,
+					priority: InboxNotificationPriority.Critical,
 					title: pullRequestCount === 1
 						? localize('inboxNotifications.reviewComments.title.single', "Copilot Comments on {0}", singularPullRequestLabel)
 						: localize('inboxNotifications.reviewComments.title.multiple', "Copilot Comments on {0} Pull Requests", pullRequestCount),
@@ -610,6 +1302,28 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 		return bestCandidate?.part;
 	}
 
+	/**
+	 * A stable key identifying the specific pending request behind a needs-input item, so
+	 * each distinct question/confirmation/tool request gets its own inbox id. This keeps
+	 * repeated requests from the same session in their own cards (and their Critical tier)
+	 * instead of colliding on a shared updatedAt and inheriting a prior request's dismissal.
+	 */
+	private needsInputPartKey(part: IInboxNotificationNeedsInputPart): string {
+		switch (part.kind) {
+			case 'questionCarousel': {
+				if (part.resolveId) {
+					return `qc:${part.requestId}:${part.resolveId}`;
+				}
+				const questionsKey = part.questions.map(question => question.id || question.title).join('|');
+				return `qc:${part.requestId}:${hash(questionsKey)}`;
+			}
+			case 'toolConfirmation':
+				return `tc:${part.requestId}:${part.toolCallId}`;
+			case 'confirmation':
+				return `cf:${part.requestId}:${hash(toPreviewPlainText(part.title))}`;
+		}
+	}
+
 	private getNeedsInputPartFromResponse(response: IChatResponseModel, chatResource: URI): IInboxNotificationNeedsInputPart | undefined {
 		for (const part of response.response.value) {
 			if (part.kind === 'confirmation' && !part.isUsed) {
@@ -725,6 +1439,21 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 		const description = session.description.read(reader);
 		const descriptionText = description ? this.normalizeResponsePreviewText(renderAsPlaintext(description, { useLinkFormatter: true })) : undefined;
 		return descriptionText || localize('inboxNotifications.completed.description', "Review this completed session or mark it done.");
+	}
+
+	private getLatestResponseRequestId(session: ISession, reader: IReader): string | undefined {
+		const chatResource = session.mainChat.read(reader).resource;
+		const chatModel = this.chatService.getSession(chatResource);
+		if (!chatModel) {
+			return undefined;
+		}
+		for (const request of chatModel.getRequests().toReversed()) {
+			const requestId = request.response?.requestId;
+			if (requestId) {
+				return requestId;
+			}
+		}
+		return undefined;
 	}
 
 	private getCompletedSessionResponsePreview(session: ISession, reader: IReader): string | undefined {

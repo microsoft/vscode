@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { Emitter } from '../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
 import { type IMarkdownString } from '../../../../../base/common/htmlContent.js';
 import { DisposableStore, IReference, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { IObservable, observableValue } from '../../../../../base/common/observable.js';
@@ -20,12 +20,13 @@ import { ISessionsProvidersChangeEvent, ISessionsProvidersService } from '../../
 import { ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
 import { IChat, SessionStatus, type IGitHubInfo, type ISession, type ISessionWorkspace } from '../../../../services/sessions/common/session.js';
 import { ISessionsChangeEvent, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
-import { InboxNotificationsService } from '../../browser/inboxNotificationsService.js';
+import { cleanPreviewText, InboxNotificationsService, parseDetailSummary } from '../../browser/inboxNotificationsService.js';
 import { InboxNotificationActionKind, InboxNotificationKind, InboxNotificationPriority, InboxNotificationsSortMode } from '../../common/inboxNotificationsService.js';
 import { GitHubPullRequestModel } from '../../../github/browser/models/githubPullRequestModel.js';
 import { GitHubPullRequestCIModel } from '../../../github/browser/models/githubPullRequestCIModel.js';
 import { GitHubPullRequestReviewThreadsModel } from '../../../github/browser/models/githubPullRequestReviewThreadsModel.js';
 import { IChatQuestionCarousel, IChatService, IChatToolInvocation } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
+import { ILanguageModelsService } from '../../../../../workbench/contrib/chat/common/languageModels.js';
 import { IChatModel, IChatRequestModel, IChatResponseModel } from '../../../../../workbench/contrib/chat/common/model/chatModel.js';
 
 suite('InboxNotificationsService', () => {
@@ -139,6 +140,7 @@ suite('InboxNotificationsService', () => {
 		const managementService = upcastPartial<ISessionsManagementService>({
 			onDidChangeSessions: sessionsChangeEmitter.event,
 			getSessions: () => sessions,
+			getSession: (resource: URI) => sessions.find(candidate => candidate.resource.toString() === resource.toString()),
 		});
 		const effectiveStorageService = storageService ?? store.add(new InMemoryStorageService());
 		const effectiveGitHubService = gitHubService ?? new TestGitHubService();
@@ -161,6 +163,10 @@ suite('InboxNotificationsService', () => {
 			upcastPartial<IChatService>(effectiveChatService),
 			upcastPartial<IGitHubService>(effectiveGitHubService),
 			effectiveStorageService,
+			upcastPartial<ILanguageModelsService>({
+				selectLanguageModels: async () => [],
+				onDidChangeLanguageModels: Event.None,
+			}),
 		));
 		return {
 			service,
@@ -189,7 +195,7 @@ suite('InboxNotificationsService', () => {
 		const fixture = createFixture([
 			createSession({ id: 'input', status: SessionStatus.NeedsInput, updatedAt: 200, description: 'waiting for user answer' }),
 			createSession({ id: 'completed', status: SessionStatus.Completed, updatedAt: 300, isRead: false }),
-			createSession({ id: 'ignored', status: SessionStatus.Completed, updatedAt: 400, isRead: true }),
+			createSession({ id: 'completed-read', status: SessionStatus.Completed, updatedAt: 400, isRead: true }),
 			createSession({ id: 'archived', status: SessionStatus.NeedsInput, updatedAt: 500, isArchived: true }),
 		]);
 
@@ -201,8 +207,14 @@ suite('InboxNotificationsService', () => {
 		})), [
 			{
 				kind: InboxNotificationKind.NeedsInput,
-				priority: InboxNotificationPriority.High,
+				priority: InboxNotificationPriority.Critical,
 				description: 'waiting for user answer',
+				actionKinds: [InboxNotificationActionKind.OpenSession, InboxNotificationActionKind.MarkDone],
+			},
+			{
+				kind: InboxNotificationKind.Completed,
+				priority: InboxNotificationPriority.Low,
+				description: 'Review this completed session or mark it done.',
 				actionKinds: [InboxNotificationActionKind.OpenSession, InboxNotificationActionKind.MarkDone],
 			},
 			{
@@ -229,15 +241,15 @@ suite('InboxNotificationsService', () => {
 		assert.deepStrictEqual({ priorityOrder, recencyOrder, restoredOrder }, {
 			priorityOrder: [
 				'high-old',
-				'Completed: low-new',
+				'low-new',
 			],
 			recencyOrder: [
-				'Completed: low-new',
+				'low-new',
 				'high-old',
 			],
 			restoredOrder: [
 				'high-old',
-				'Completed: low-new',
+				'low-new',
 			],
 		});
 	});
@@ -274,6 +286,29 @@ suite('InboxNotificationsService', () => {
 			kind: InboxNotificationKind.Completed,
 			description: 'Implemented the fix for CI failures and updated the flaky test coverage.',
 		}]);
+	});
+
+	test('a re-completed session after dismissal surfaces as a fresh low-priority item', () => {
+		const chatResource = URI.parse('test:///chat/recompleted');
+		const chatService = new TestChatService();
+		chatService.setCompletedResponse(chatResource, { requestId: 'turn-1', markdown: 'First result.' });
+		const fixture = createFixture([
+			createSession({ id: 'recompleted', status: SessionStatus.Completed, updatedAt: 200, isRead: false, chatResource }),
+		], undefined, undefined, chatService);
+
+		const firstId = fixture.service.notifications.get()[0].id;
+		assert.strictEqual(fixture.service.notifications.get()[0].kind, InboxNotificationKind.Completed);
+		fixture.service.dismissNotification(firstId);
+		assert.deepStrictEqual(fixture.service.notifications.get(), []);
+
+		// The session is messaged again and finishes another turn without needing input.
+		chatService.setCompletedResponse(chatResource, { requestId: 'turn-2', markdown: 'Second result.' });
+
+		const active = fixture.service.notifications.get();
+		assert.strictEqual(active.length, 1);
+		assert.strictEqual(active[0].kind, InboxNotificationKind.Completed);
+		assert.strictEqual(active[0].priority, InboxNotificationPriority.Low);
+		assert.notStrictEqual(active[0].id, firstId);
 	});
 
 	test('includes pending question carousel data for needs-input notifications', () => {
@@ -314,6 +349,40 @@ suite('InboxNotificationsService', () => {
 				questionCount: 1,
 			},
 		}]);
+	});
+
+	test('keeps a new question from the same session active after dismissing a prior one', () => {
+		const chatResource = URI.parse('test:///chat/repeat-question');
+		const chatService = new TestChatService();
+		const fixture = createFixture([
+			createSession({ id: 'repeat-question', status: SessionStatus.NeedsInput, updatedAt: 200, chatResource }),
+		], undefined, undefined, chatService);
+		chatService.setPendingQuestionCarousel(chatResource, {
+			requestId: 'req-1',
+			resolveId: 'resolve-1',
+			allowSkip: true,
+			message: 'First question',
+			questions: [{ id: 'q1', type: 'text', title: 'Question 1', required: true }],
+		});
+
+		const firstId = fixture.service.notifications.get()[0].id;
+		fixture.service.dismissNotification(firstId);
+		assert.deepStrictEqual(fixture.service.notifications.get(), []);
+
+		// The agent asks a different question within the same turn (same updatedAt). It must
+		// surface as an active Critical item, not inherit the prior question's dismissal.
+		chatService.setPendingQuestionCarousel(chatResource, {
+			requestId: 'req-2',
+			resolveId: 'resolve-2',
+			allowSkip: true,
+			message: 'Second question',
+			questions: [{ id: 'q2', type: 'text', title: 'Question 2', required: true }],
+		});
+
+		const active = fixture.service.notifications.get();
+		assert.strictEqual(active.length, 1);
+		assert.strictEqual(active[0].kind, InboxNotificationKind.NeedsInput);
+		assert.notStrictEqual(active[0].id, firstId);
 	});
 
 	test('includes pending confirmation data for needs-input notifications', () => {
@@ -739,6 +808,83 @@ suite('InboxNotificationsService', () => {
 		storageService.remove(dismissedStorageKey, StorageScope.APPLICATION);
 		storageService.emitExternalApplicationChange(dismissedStorageKey);
 		assert.deepStrictEqual(fixture.service.notifications.get().map(item => item.kind), [InboxNotificationKind.Completed]);
+	});
+
+	suite('cleanPreviewText', () => {
+		test('strips quotes, labels and a trailing period', () => {
+			assert.strictEqual(cleanPreviewText('"Approve running npm test."'), 'Approve running npm test');
+			assert.strictEqual(cleanPreviewText('Preview: Pick auth provider'), 'Pick auth provider');
+		});
+
+		test('keeps only the first line and collapses whitespace', () => {
+			assert.strictEqual(cleanPreviewText('Added users API pagination\nextra commentary'), 'Added users API pagination');
+			assert.strictEqual(cleanPreviewText('  Fix   the login   bug  '), 'Fix the login bug');
+		});
+
+		test('suppresses refusals and empty output', () => {
+			assert.strictEqual(cleanPreviewText('Sorry, I can\'t help with that.'), undefined);
+			assert.strictEqual(cleanPreviewText('   '), undefined);
+		});
+
+		test('caps overly long output with an ellipsis', () => {
+			const result = cleanPreviewText('a'.repeat(200));
+			assert.ok(result);
+			assert.ok(result!.length <= 60);
+			assert.ok(result!.endsWith('…'));
+		});
+	});
+
+	suite('parseDetailSummary', () => {
+		const artifacts = [
+			{ kind: 'session' as const, label: 'My session' },
+			{ kind: 'file' as const, label: 'foo.ts', uri: URI.parse('file:///repo/foo.ts') },
+		];
+
+		test('parses status, decisions and grounded evidence', () => {
+			const raw = JSON.stringify({
+				status: 'Added pagination to the users API.',
+				decisions: ['Used cursor pagination', 'Kept the old offset param'],
+				evidence: [
+					{ text: 'Edited the users controller', artifact: 'A1' },
+					{ text: 'See the full run', artifact: 'A0' },
+				],
+			});
+			const result = parseDetailSummary(raw, artifacts);
+			assert.ok(result);
+			assert.strictEqual(result!.status, 'Added pagination to the users API.');
+			assert.deepStrictEqual(result!.decisions, ['Used cursor pagination', 'Kept the old offset param']);
+			assert.strictEqual(result!.evidence.length, 2);
+			assert.strictEqual(result!.evidence[0].artifact.label, 'foo.ts');
+			assert.strictEqual(result!.evidence[1].artifact.kind, 'session');
+		});
+
+		test('drops evidence that cites an unknown or missing artifact', () => {
+			const raw = JSON.stringify({
+				status: 'Did the thing.',
+				decisions: [],
+				evidence: [
+					{ text: 'grounded', artifact: 'A1' },
+					{ text: 'ungrounded', artifact: 'A9' },
+					{ text: 'no ref' },
+				],
+			});
+			const result = parseDetailSummary(raw, artifacts);
+			assert.ok(result);
+			assert.strictEqual(result!.evidence.length, 1);
+			assert.strictEqual(result!.evidence[0].text, 'grounded');
+		});
+
+		test('extracts JSON embedded in prose or code fences', () => {
+			const raw = 'Sure! ```json\n{"status":"Done.","decisions":[],"evidence":[]}\n``` hope that helps';
+			const result = parseDetailSummary(raw, artifacts);
+			assert.ok(result);
+			assert.strictEqual(result!.status, 'Done.');
+		});
+
+		test('returns undefined for malformed or empty output', () => {
+			assert.strictEqual(parseDetailSummary('not json at all', artifacts), undefined);
+			assert.strictEqual(parseDetailSummary(JSON.stringify({ status: '', decisions: [], evidence: [] }), artifacts), undefined);
+		});
 	});
 });
 

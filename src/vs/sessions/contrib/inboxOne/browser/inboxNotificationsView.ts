@@ -5,13 +5,16 @@
 
 import './media/inboxNotificationsView.css';
 import { status } from '../../../../base/browser/ui/aria/aria.js';
-import { $, addDisposableListener, clearNode, EventType, getActiveElement, isEditableElement, isHTMLElement, trackFocus } from '../../../../base/browser/dom.js';
+import { $, addDisposableListener, clearNode, EventType, getActiveElement, getWindow, isEditableElement, isHTMLElement, trackFocus } from '../../../../base/browser/dom.js';
 import { triggerConfettiAnimation } from '../../../../base/browser/ui/animations/animations.js';
 import { Button, ButtonWithDropdown, IButton } from '../../../../base/browser/ui/button/button.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { DomScrollableElement } from '../../../../base/browser/ui/scrollbar/scrollableElement.js';
+import { Orientation, Sash, SashState, ISashEvent } from '../../../../base/browser/ui/sash/sash.js';
+import { renderAsPlaintext } from '../../../../base/browser/markdownRenderer.js';
 import { toAction } from '../../../../base/common/actions.js';
-import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { clamp } from '../../../../base/common/numbers.js';
+import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, constObservable, IObservable, observableValue } from '../../../../base/common/observable.js';
 import { ScrollbarVisibility } from '../../../../base/common/scrollable.js';
 import { onUnexpectedError } from '../../../../base/common/errors.js';
@@ -24,6 +27,7 @@ import { IContextMenuService } from '../../../../platform/contextview/browser/co
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { URI } from '../../../../base/common/uri.js';
 import { fromNowByDay } from '../../../../base/common/date.js';
@@ -46,6 +50,8 @@ import { onboardingScenarioRegistry } from '../../../../workbench/contrib/onboar
 import { IOnboardingScenario } from '../../../../workbench/contrib/onboarding/common/onboardingScenario.js';
 import { IOnboardingScenarioService } from '../../../../workbench/contrib/onboarding/common/onboardingScenarioService.js';
 import {
+	IInboxDetailSummary,
+	IInboxEvidenceArtifact,
 	IInboxNotificationAction,
 	IInboxNotificationItem,
 	IInboxNotificationConfirmationPart,
@@ -53,15 +59,38 @@ import {
 	IInboxNotificationToolConfirmationPart,
 	IInboxNotificationsService,
 	InboxNotificationActionKind,
+	InboxNotificationKind,
 	InboxNotificationPriority,
 	InboxNotificationsSortMode,
 } from '../common/inboxNotificationsService.js';
 import { InboxAgentMergeActionKind, InboxAgentMergeAlwaysOptInService, isInboxAgentMergeActionKind } from './inboxAgentMergeAlwaysOptInService.js';
 import { getInboxNotificationKindLabel, getInboxNotificationPriorityLabel } from './inboxNotificationsLabels.js';
+import { pickFunWorkingMessage } from '../../../../workbench/contrib/chat/browser/widget/chatContentParts/chatThinkingContentPart.js';
 
 function isDismissibleQuestionCarousel(carousel: IChatQuestionCarousel): carousel is IChatQuestionCarousel & { dismiss(answers: Record<string, IChatQuestionAnswerValue> | undefined): void } {
 	return typeof (carousel as { dismiss?: unknown }).dismiss === 'function';
 }
+
+const COLLAPSED_SECTIONS_STORAGE_KEY = 'sessions.inboxNotifications.collapsedSections';
+const COMPLETED_SECTION_KEY = 'completed';
+const LIST_PANE_WIDTH_STORAGE_KEY = 'sessions.inboxNotifications.listPaneWidth';
+const DEFAULT_LIST_PANE_WIDTH = 400;
+const MIN_LIST_PANE_WIDTH = 280;
+const MIN_DETAIL_PANE_WIDTH = 320;
+/** Below this the two panes can't both honor their minimums, so they stack vertically instead. */
+const NARROW_STACK_THRESHOLD = MIN_LIST_PANE_WIDTH + MIN_DETAIL_PANE_WIDTH;
+
+interface IInboxTierSpec {
+	readonly key: string;
+	readonly priority: InboxNotificationPriority;
+}
+
+/** Importance tiers in display order. Empty tiers are hidden at render time. */
+const TIER_SECTIONS: readonly IInboxTierSpec[] = [
+	{ key: 'critical', priority: InboxNotificationPriority.Critical },
+	{ key: 'moderate', priority: InboxNotificationPriority.Moderate },
+	{ key: 'low', priority: InboxNotificationPriority.Low },
+];
 
 export class InboxNotificationsView extends AbstractCustomView {
 
@@ -82,6 +111,11 @@ export class InboxNotificationsView extends AbstractCustomView {
 	private readonly renderedListDisposables = this._register(new DisposableStore());
 	private renderedCards: HTMLElement[] = [];
 	private renderedItems: readonly IInboxNotificationItem[] = [];
+	private readonly collapsedSections = new Set<string>();
+	private collapsedSectionsLoaded = false;
+	private pendingRevealId: string | undefined;
+	private lastRevealToken = -1;
+	private readonly showCompleted = observableValue<boolean>('inboxNotificationsShowCompleted', false);
 	private deferredItems: readonly IInboxNotificationItem[] | undefined;
 	private deferredNewNotificationsCount = 0;
 	private announcedDeferredNewNotificationsCount = 0;
@@ -90,6 +124,24 @@ export class InboxNotificationsView extends AbstractCustomView {
 	private isShowingAgentMergeAlwaysPrompt = false;
 	private readonly deferredUpdatesBanner = $('div.inbox-notifications-deferred-updates.hidden');
 	private readonly deferredUpdatesBannerLabel = $('span.inbox-notifications-deferred-updates-label');
+
+	private readonly contentElement = $('div.inbox-notifications-content.no-detail');
+	private readonly listPaneElement = $('div.inbox-notifications-list-pane');
+	private readonly detailPaneElement = $('div.inbox-notifications-detail-pane');
+	private readonly detailContentElement = $('div.inbox-notifications-detail-content');
+	private readonly detailScrollableElement = this._register(new DomScrollableElement(this.detailContentElement, {
+		horizontal: ScrollbarVisibility.Hidden,
+		vertical: ScrollbarVisibility.Auto,
+		consumeMouseWheelIfScrollbarIsNeeded: true,
+		className: 'inbox-notifications-detail-scrollable',
+	}));
+	private readonly detailDisposables = this._register(new DisposableStore());
+	private readonly selectedItemId = observableValue<string | undefined>('inboxNotificationsSelected', undefined);
+	private detailSash: Sash | undefined;
+	private listPaneWidth = DEFAULT_LIST_PANE_WIDTH;
+	private layoutWidth = 0;
+	private hasSplit = false;
+	private lastDetailSignature: string | undefined;
 
 	static getActiveInstance(): InboxNotificationsView | undefined {
 		return InboxNotificationsView.activeInstance;
@@ -110,6 +162,7 @@ export class InboxNotificationsView extends AbstractCustomView {
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
 		@IOpenerService private readonly openerService: IOpenerService,
+		@IStorageService private readonly storageService: IStorageService,
 	) {
 		super();
 		InboxNotificationsView.activeInstance = this;
@@ -181,7 +234,14 @@ export class InboxNotificationsView extends AbstractCustomView {
 			dispose: () => focusContext.reset(),
 		});
 
-		const toolbar = container.appendChild($('.inbox-notifications-toolbar'));
+		this.contentElement.appendChild(this.listPaneElement);
+		this.contentElement.appendChild(this.detailPaneElement);
+		this.detailPaneElement.appendChild(this.detailScrollableElement.getDomNode());
+		container.appendChild(this.contentElement);
+		this.loadListPaneWidth();
+		this.createDetailSash();
+
+		const toolbar = this.listPaneElement.appendChild($('.inbox-notifications-toolbar'));
 		const sortButtons = toolbar.appendChild($('.inbox-notifications-sort-buttons'));
 		const sortByPriorityButton = this._register(new Button(sortButtons, {
 			...defaultButtonStyles,
@@ -208,20 +268,29 @@ export class InboxNotificationsView extends AbstractCustomView {
 		this._register(autorun(reader => {
 			const sortMode = this.inboxNotificationsService.sortMode.read(reader);
 			const prioritySelected = sortMode === InboxNotificationsSortMode.Priority;
-			sortByPriorityButton.enabled = !prioritySelected;
-			sortByRecencyButton.enabled = prioritySelected;
 			sortByPriorityButton.element.classList.toggle('active', prioritySelected);
+			sortByPriorityButton.element.setAttribute('aria-pressed', String(prioritySelected));
 			sortByRecencyButton.element.classList.toggle('active', !prioritySelected);
+			sortByRecencyButton.element.setAttribute('aria-pressed', String(!prioritySelected));
 		}));
 
-		const clearDismissedButton = this._register(new Button(toolbar, {
+		const toggleCompletedButton = this._register(new Button(toolbar, {
 			...defaultButtonStyles,
 			secondary: true,
-			ariaLabel: localize('inboxNotifications.clearDismissedAria', "Show dismissed notifications"),
 		}));
-		clearDismissedButton.label = localize('inboxNotifications.clearDismissed', "Show Dismissed");
-		this._register(clearDismissedButton.onDidClick(() => {
-			this.inboxNotificationsService.clearDismissedNotifications();
+		this._register(toggleCompletedButton.onDidClick(() => {
+			this.showCompleted.set(!this.showCompleted.get(), undefined);
+		}));
+		this._register(autorun(reader => {
+			const showing = this.showCompleted.read(reader);
+			toggleCompletedButton.label = showing
+				? localize('inboxNotifications.hideCompleted', "Hide Completed")
+				: localize('inboxNotifications.showCompleted', "Show Completed");
+			toggleCompletedButton.element.setAttribute('aria-label', showing
+				? localize('inboxNotifications.hideCompletedAria', "Hide completed notifications")
+				: localize('inboxNotifications.showCompletedAria', "Show completed notifications"));
+			toggleCompletedButton.element.setAttribute('aria-pressed', String(showing));
+			toggleCompletedButton.element.classList.toggle('active', showing);
 		}));
 
 		this.deferredUpdatesBanner.appendChild(this.deferredUpdatesBannerLabel);
@@ -233,11 +302,11 @@ export class InboxNotificationsView extends AbstractCustomView {
 		}));
 		showNewNotificationsButton.label = localize('inboxNotifications.showNewNotifications', "Show New Notifications");
 		this._register(showNewNotificationsButton.onDidClick(() => this.applyDeferredUpdates(true)));
-		container.appendChild(this.deferredUpdatesBanner);
+		this.listPaneElement.appendChild(this.deferredUpdatesBanner);
 
-		container.appendChild(this.scrollableElement.getDomNode());
+		this.listPaneElement.appendChild(this.scrollableElement.getDomNode());
 		const list = this.listElement;
-		list.setAttribute('role', 'list');
+		list.setAttribute('role', 'group');
 		list.setAttribute('aria-label', localize('inboxNotifications.listAriaLabel', "Prioritized notifications"));
 		this.listContainer.set(list, undefined);
 		this._register(addDisposableListener(list, EventType.FOCUS_IN, event => this.onListFocusIn(event)));
@@ -246,9 +315,34 @@ export class InboxNotificationsView extends AbstractCustomView {
 		}));
 		this._register(addDisposableListener(list, EventType.KEY_DOWN, event => this.onListKeyDown(event)));
 
+		this.ensureCollapsedSectionsLoaded();
+
 		this._register(autorun(reader => {
 			const items = this.inboxNotificationsService.notifications.read(reader);
 			this.handleNotificationListUpdate(items);
+		}));
+
+		this._register(autorun(reader => {
+			const showing = this.showCompleted.read(reader);
+			if (showing) {
+				this.inboxNotificationsService.dismissedNotifications.read(reader);
+			}
+			this.renderList(this.renderedItems);
+		}));
+
+		this._register(autorun(reader => {
+			const request = this.inboxNotificationsService.revealRequest.read(reader);
+			if (request && request.token !== this.lastRevealToken) {
+				this.lastRevealToken = request.token;
+				this.revealNotification(request.id);
+			}
+		}));
+
+		this._register(autorun(reader => {
+			this.selectedItemId.read(reader);
+			this.inboxNotificationsService.notifications.read(reader);
+			this.inboxNotificationsService.dismissedNotifications.read(reader);
+			this.renderDetailIfChanged();
 		}));
 	}
 
@@ -342,24 +436,157 @@ export class InboxNotificationsView extends AbstractCustomView {
 
 		this.renderedCards = [];
 		this.agentMergeDropdownButtons.clear();
-		if (items.length === 0) {
+
+		const completedItems = this.showCompleted.get() ? this.inboxNotificationsService.dismissedNotifications.get() : [];
+		this.updateSplit(items.length > 0 || completedItems.length > 0);
+		if (items.length === 0 && completedItems.length === 0) {
+			this.pendingRevealId = undefined;
 			list.appendChild($('.inbox-notifications-empty', undefined, localize('inboxNotifications.empty', "You're all caught up.")));
+			this.scrollableElement.scanDomNode();
 			return;
 		}
 
-		for (const item of items) {
-			const card = this.renderItem(item);
-			this.renderedCards.push(card);
-			list.appendChild(card);
+		if (this.inboxNotificationsService.sortMode.get() === InboxNotificationsSortMode.Priority) {
+			for (const tier of TIER_SECTIONS) {
+				const tierItems = items.filter(item => item.priority === tier.priority);
+				if (tierItems.length === 0) {
+					continue;
+				}
+				this.renderSection(list, tier.key, getInboxNotificationPriorityLabel(tier.priority), tierItems, tier.priority);
+			}
+		} else {
+			const cards = list.appendChild($('.inbox-notifications-section-cards'));
+			cards.setAttribute('role', 'list');
+			cards.setAttribute('aria-label', localize('inboxNotifications.listAriaLabel', "Prioritized notifications"));
+			for (const item of items) {
+				this.appendCard(cards, item);
+			}
 		}
 
-		this.applyCardTabStops(focusedNotificationId);
-		if (hadFocusWithinList) {
+		if (completedItems.length) {
+			this.renderSection(list, COMPLETED_SECTION_KEY, localize('inboxNotifications.section.completed', "Completed"), completedItems, undefined);
+		}
+
+		const revealTarget = this.pendingRevealId
+			? this.renderedCards.find(card => card.dataset.notificationId === this.pendingRevealId)
+			: undefined;
+		this.pendingRevealId = undefined;
+
+		this.applyCardTabStops(revealTarget?.dataset.notificationId ?? focusedNotificationId);
+		if (revealTarget) {
+			revealTarget.focus();
+			revealTarget.scrollIntoView({ block: 'nearest' });
+		} else if (hadFocusWithinList) {
 			const target = this.getNotificationCards().find(card => card.tabIndex === 0);
 			target?.focus();
 		}
 
 		this.scrollableElement.scanDomNode();
+	}
+
+	private renderSection(list: HTMLElement, key: string, label: string, items: readonly IInboxNotificationItem[], accentPriority: InboxNotificationPriority | undefined): void {
+		const collapsed = this.collapsedSections.has(key);
+		const group = list.appendChild($('.inbox-notifications-section'));
+		group.setAttribute('role', 'group');
+		const header = group.appendChild($('button.inbox-notifications-section-header'));
+		header.id = `inbox-notifications-section-${key}`;
+		group.setAttribute('aria-labelledby', header.id);
+		header.setAttribute('type', 'button');
+		header.classList.toggle('collapsed', collapsed);
+		header.classList.add(accentPriority !== undefined ? `priority-${accentPriority}` : 'neutral');
+		header.setAttribute('aria-expanded', String(!collapsed));
+		header.setAttribute('aria-label', localize('inboxNotifications.section.ariaLabel', "{0}, {1} notifications", label, items.length));
+		const caret = header.appendChild($('span.inbox-notifications-section-caret'));
+		caret.classList.add('codicon', collapsed ? 'codicon-chevron-right' : 'codicon-chevron-down');
+		caret.setAttribute('aria-hidden', 'true');
+		header.appendChild($('span.inbox-notifications-section-label', undefined, label));
+		header.appendChild($('span.inbox-notifications-section-count', undefined, String(items.length)));
+		this.renderedListDisposables.add(addDisposableListener(header, EventType.CLICK, () => this.toggleSection(key)));
+		if (collapsed) {
+			return;
+		}
+		const cards = group.appendChild($('.inbox-notifications-section-cards'));
+		cards.setAttribute('role', 'list');
+		for (const item of items) {
+			this.appendCard(cards, item);
+		}
+	}
+
+	private appendCard(list: HTMLElement, item: IInboxNotificationItem): void {
+		const card = this.renderItem(item);
+		this.renderedCards.push(card);
+		list.appendChild(card);
+	}
+
+	private toggleSection(key: string): void {
+		if (this.collapsedSections.has(key)) {
+			this.collapsedSections.delete(key);
+		} else {
+			this.collapsedSections.add(key);
+		}
+		this.persistCollapsedSections();
+		this.renderList(this.renderedItems);
+	}
+
+	private ensureCollapsedSectionsLoaded(): void {
+		if (this.collapsedSectionsLoaded) {
+			return;
+		}
+		this.collapsedSectionsLoaded = true;
+
+		const raw = this.storageService.get(COLLAPSED_SECTIONS_STORAGE_KEY, StorageScope.APPLICATION);
+		if (raw === undefined) {
+			return;
+		}
+		try {
+			const parsed = JSON.parse(raw);
+			if (Array.isArray(parsed)) {
+				for (const key of parsed) {
+					if (typeof key === 'string') {
+						this.collapsedSections.add(key);
+					}
+				}
+			}
+		} catch (error) {
+			onUnexpectedError(error);
+		}
+	}
+
+	private persistCollapsedSections(): void {
+		this.storageService.store(
+			COLLAPSED_SECTIONS_STORAGE_KEY,
+			JSON.stringify([...this.collapsedSections]),
+			StorageScope.APPLICATION,
+			StorageTarget.USER,
+		);
+	}
+
+	private revealNotification(id: string): void {
+		const completed = this.inboxNotificationsService.dismissedNotifications.get();
+		const item = this.inboxNotificationsService.notifications.get().find(candidate => candidate.id === id)
+			?? completed.find(candidate => candidate.id === id);
+		if (!item) {
+			return;
+		}
+		const isCompleted = completed.some(candidate => candidate.id === id);
+		const sectionKey = isCompleted ? COMPLETED_SECTION_KEY : this.sectionKeyForItem(item);
+		if (sectionKey && this.collapsedSections.has(sectionKey)) {
+			this.collapsedSections.delete(sectionKey);
+			this.persistCollapsedSections();
+		}
+		this.pendingRevealId = id;
+		if (isCompleted && !this.showCompleted.get()) {
+			this.showCompleted.set(true, undefined);
+		} else {
+			this.renderList(this.renderedItems);
+		}
+	}
+
+	private sectionKeyForItem(item: IInboxNotificationItem): string | undefined {
+		if (this.inboxNotificationsService.sortMode.get() !== InboxNotificationsSortMode.Priority) {
+			return undefined;
+		}
+		return TIER_SECTIONS.find(tier => tier.priority === item.priority)?.key;
 	}
 
 	private renderItem(item: IInboxNotificationItem): HTMLElement {
@@ -368,11 +595,19 @@ export class InboxNotificationsView extends AbstractCustomView {
 		card.setAttribute('role', 'listitem');
 		card.dataset.notificationId = item.id;
 		card.setAttribute('aria-label', this.getCardAriaLabel(item));
+		if (this.selectedItemId.get() === item.id) {
+			card.classList.add('selected');
+		}
+		this.renderedListDisposables.add(addDisposableListener(card, EventType.CLICK, () => this.selectItem(item.id)));
+		this.renderedListDisposables.add(addDisposableListener(card, EventType.KEY_DOWN, (event: KeyboardEvent) => {
+			if ((event.key === 'Enter' || event.key === ' ') && !isEditableElement(event.target as HTMLElement) && event.target === card) {
+				event.preventDefault();
+				this.selectItem(item.id);
+			}
+		}));
 
 		const heading = card.appendChild($('.inbox-notifications-item-header'));
 		heading.appendChild($('.inbox-notifications-item-title', undefined, item.title));
-		const kindLabel = heading.appendChild($('.inbox-notifications-item-kind-label', undefined, this.kindLabel(item.kind)));
-		kindLabel.classList.add(`priority-${item.priority}`);
 		if (item.actions.length) {
 			const headingActions = heading.appendChild($('.inbox-notifications-item-header-actions'));
 			for (const action of item.actions) {
@@ -382,9 +617,11 @@ export class InboxNotificationsView extends AbstractCustomView {
 				}
 			}
 		}
-		let badges: HTMLElement | undefined;
+
+		const badges = card.appendChild($('.inbox-notifications-item-badges'));
+		const kindLabel = badges.appendChild($('.inbox-notifications-item-kind-label', undefined, this.kindLabel(item.kind)));
+		kindLabel.classList.add(`priority-${item.priority}`);
 		if (item.repositoryLabel) {
-			badges = card.appendChild($('.inbox-notifications-item-badges'));
 			badges.appendChild($('.inbox-notifications-item-badge.repository', undefined, item.repositoryLabel));
 		}
 		if (item.pullRequestStates?.length) {
@@ -413,14 +650,23 @@ export class InboxNotificationsView extends AbstractCustomView {
 			}
 		}
 
-		card.appendChild($('.inbox-notifications-item-description', undefined, item.description));
-		this.renderNeedsInputPart(card, item);
+		const descriptionEl = card.appendChild($('.inbox-notifications-item-description', undefined, item.description));
+		if (item.previewSignature) {
+			this.inboxNotificationsService.requestPreview(item);
+			const signature = item.previewSignature;
+			this.renderedListDisposables.add(autorun(reader => {
+				const preview = this.inboxNotificationsService.previews.read(reader).get(signature);
+				descriptionEl.textContent = preview ?? item.description;
+				descriptionEl.classList.toggle('inbox-notifications-item-description-pending', !preview);
+			}));
+		}
+		this.renderNeedsInputPart(card, item, this.renderedListDisposables);
 		card.appendChild($('.inbox-notifications-item-time', undefined, fromNowByDay(item.timestamp, true, true)));
 
 		return card;
 	}
 
-	private renderNeedsInputPart(card: HTMLElement, item: IInboxNotificationItem): void {
+	private renderNeedsInputPart(container: HTMLElement, item: IInboxNotificationItem, store: DisposableStore): void {
 		const part = item.needsInputPart;
 		if (!part) {
 			return;
@@ -430,7 +676,7 @@ export class InboxNotificationsView extends AbstractCustomView {
 			const buttonLabels = part.buttons?.length
 				? part.buttons
 				: [localize('inboxNotifications.confirmation.accept', "Accept"), localize('inboxNotifications.confirmation.dismiss', "Dismiss")];
-			const confirmationWidget = this.renderedListDisposables.add(this.instantiationService.createInstance(
+			const confirmationWidget = store.add(this.instantiationService.createInstance(
 				SimpleChatConfirmationWidget<{ buttonLabel: string; buttonIndex: number }>,
 				this.createChatContentPartRenderContext(),
 				{
@@ -443,16 +689,16 @@ export class InboxNotificationsView extends AbstractCustomView {
 					})),
 				},
 			));
-			const host = card.appendChild($('.inbox-notifications-chat-part-host'));
+			const host = container.appendChild($('.inbox-notifications-chat-part-host'));
 			host.appendChild(confirmationWidget.domNode);
-			this.renderedListDisposables.add(confirmationWidget.onDidClick(({ button }) => {
+			store.add(confirmationWidget.onDidClick(({ button }) => {
 				void this.submitConfirmationPart(item, part, button.data.buttonLabel, button.data.buttonIndex);
 			}));
 			return;
 		}
 
 		if (part.kind === 'toolConfirmation') {
-			const toolConfirmationWidget = this.renderedListDisposables.add(this.instantiationService.createInstance(
+			const toolConfirmationWidget = store.add(this.instantiationService.createInstance(
 				SimpleChatConfirmationWidget<{ buttonIndex: number }>,
 				this.createChatContentPartRenderContext(),
 				{
@@ -465,9 +711,9 @@ export class InboxNotificationsView extends AbstractCustomView {
 					})),
 				},
 			));
-			const host = card.appendChild($('.inbox-notifications-chat-part-host'));
+			const host = container.appendChild($('.inbox-notifications-chat-part-host'));
 			host.appendChild(toolConfirmationWidget.domNode);
-			this.renderedListDisposables.add(toolConfirmationWidget.onDidClick(({ button }) => {
+			store.add(toolConfirmationWidget.onDidClick(({ button }) => {
 				void this.submitToolConfirmationPart(item, part, button.data.buttonIndex);
 			}));
 			return;
@@ -480,7 +726,7 @@ export class InboxNotificationsView extends AbstractCustomView {
 			message: part.message,
 			questions: [...part.questions],
 		};
-		const carouselWidget = this.renderedListDisposables.add(this.instantiationService.createInstance(
+		const carouselWidget = store.add(this.instantiationService.createInstance(
 			ChatQuestionCarouselPart,
 			carousel,
 			this.createChatContentPartRenderContext(),
@@ -491,11 +737,11 @@ export class InboxNotificationsView extends AbstractCustomView {
 				},
 			},
 		));
-		const host = card.appendChild($('.inbox-notifications-chat-part-host.interactive-session'));
+		const host = container.appendChild($('.inbox-notifications-chat-part-host.interactive-session'));
 		const inputPartHost = host.appendChild($('.interactive-input-part'));
 		const widgetContainer = inputPartHost.appendChild($('.chat-question-carousel-widget-container'));
 		widgetContainer.appendChild(carouselWidget.domNode);
-		this.renderedListDisposables.add(carouselWidget.onDidChangeHeight(() => this.scrollableElement.scanDomNode()));
+		store.add(carouselWidget.onDidChangeHeight(() => this.scrollableElement.scanDomNode()));
 	}
 
 	private async submitConfirmationPart(
@@ -1007,7 +1253,337 @@ export class InboxNotificationsView extends AbstractCustomView {
 		this.inboxNotificationsService.dismissNotification(item.id);
 	}
 
-	layout(_width: number, _height: number): void {
+	private createDetailSash(): void {
+		const sash = this.detailSash = this._register(new Sash(this.contentElement, {
+			getVerticalSashLeft: () => this.listPaneWidth,
+		}, { orientation: Orientation.VERTICAL }));
+		sash.state = SashState.Disabled;
+
+		let startWidth = this.listPaneWidth;
+		this._register(sash.onDidStart(() => { startWidth = this.listPaneWidth; }));
+		this._register(sash.onDidChange((event: ISashEvent) => {
+			this.listPaneWidth = this.clampListPaneWidth(startWidth + (event.currentX - event.startX));
+			this.layoutPanes();
+		}));
+		this._register(sash.onDidEnd(() => this.persistListPaneWidth()));
+		this._register(sash.onDidReset(() => {
+			this.listPaneWidth = DEFAULT_LIST_PANE_WIDTH;
+			this.layoutPanes();
+			this.persistListPaneWidth();
+		}));
+	}
+
+	private clampListPaneWidth(width: number): number {
+		const max = this.layoutWidth > 0
+			? Math.max(MIN_LIST_PANE_WIDTH, this.layoutWidth - MIN_DETAIL_PANE_WIDTH)
+			: Math.max(MIN_LIST_PANE_WIDTH, width);
+		return clamp(Math.round(width), MIN_LIST_PANE_WIDTH, max);
+	}
+
+	private updateSplit(hasItems: boolean): void {
+		this.hasSplit = hasItems;
+		this.contentElement.classList.toggle('no-detail', !hasItems);
+		if (!hasItems && this.selectedItemId.get() !== undefined) {
+			this.selectedItemId.set(undefined, undefined);
+		}
+		this.layoutPanes();
+	}
+
+	private layoutPanes(): void {
+		// When the container is too narrow to fit both minimum widths, stack the panes
+		// vertically instead of letting the detail surface collapse to an unusable width.
+		const narrow = this.hasSplit && this.layoutWidth > 0 && this.layoutWidth < NARROW_STACK_THRESHOLD;
+		this.contentElement.classList.toggle('narrow', narrow);
+		const sideBySide = this.hasSplit && !narrow;
+		if (this.detailSash) {
+			this.detailSash.state = sideBySide ? SashState.Enabled : SashState.Disabled;
+		}
+		this.listPaneElement.style.width = sideBySide ? `${this.clampListPaneWidth(this.listPaneWidth)}px` : '';
+		this.detailSash?.layout();
 		this.scrollableElement.scanDomNode();
+		this.detailScrollableElement.scanDomNode();
+	}
+
+	private loadListPaneWidth(): void {
+		const stored = this.storageService.getNumber(LIST_PANE_WIDTH_STORAGE_KEY, StorageScope.APPLICATION);
+		if (typeof stored === 'number' && stored > 0) {
+			this.listPaneWidth = stored;
+		}
+	}
+
+	private persistListPaneWidth(): void {
+		this.storageService.store(LIST_PANE_WIDTH_STORAGE_KEY, Math.round(this.listPaneWidth), StorageScope.APPLICATION, StorageTarget.USER);
+	}
+
+	private selectItem(id: string): void {
+		if (this.selectedItemId.get() === id) {
+			return;
+		}
+		this.selectedItemId.set(id, undefined);
+		for (const card of this.renderedCards) {
+			card.classList.toggle('selected', card.dataset.notificationId === id);
+		}
+	}
+
+	private selectedItem(): IInboxNotificationItem | undefined {
+		const id = this.selectedItemId.get();
+		if (!id) {
+			return undefined;
+		}
+		return this.inboxNotificationsService.notifications.get().find(candidate => candidate.id === id)
+			?? this.inboxNotificationsService.dismissedNotifications.get().find(candidate => candidate.id === id);
+	}
+
+	private renderDetailIfChanged(): void {
+		const item = this.selectedItem();
+		const signature = item ? this.detailSignature(item) : 'none';
+		if (signature === this.lastDetailSignature) {
+			return;
+		}
+		this.lastDetailSignature = signature;
+		this.renderDetail(item);
+	}
+
+	/**
+	 * Identity + content that affects the rendered artifact. Re-rendering only when this
+	 * changes keeps unrelated inbox churn (and preview/summary arrivals) from tearing down
+	 * and rebuilding the detail content while the user is reading or scrolling it.
+	 */
+	private detailSignature(item: IInboxNotificationItem): string {
+		const part = item.needsInputPart;
+		const partKey = part
+			? `${part.kind}:${part.requestId}:${part.kind === 'questionCarousel' ? part.resolveId ?? '' : part.kind === 'toolConfirmation' ? part.toolCallId : ''}`
+			: '';
+		return `${item.id}|${item.kind}|${item.priority}|${item.description}|${partKey}`;
+	}
+
+	private renderDetail(item: IInboxNotificationItem | undefined): void {
+		this.detailDisposables.clear();
+		clearNode(this.detailContentElement);
+
+		if (!item) {
+			this.detailContentElement.appendChild($('.inbox-notifications-detail-placeholder', undefined,
+				localize('inboxNotifications.detail.placeholder', "Select a notification to see its details.")));
+			this.detailScrollableElement.scanDomNode();
+			return;
+		}
+
+		const header = this.detailContentElement.appendChild($('.inbox-notifications-detail-header'));
+		const kindLabel = header.appendChild($('.inbox-notifications-detail-kind', undefined, this.kindLabel(item.kind)));
+		kindLabel.classList.add(`priority-${item.priority}`);
+		header.appendChild($('h2.inbox-notifications-detail-title', undefined, item.title));
+
+		const meta = header.appendChild($('.inbox-notifications-detail-meta'));
+		if (item.repositoryLabel) {
+			meta.appendChild($('span.inbox-notifications-detail-repo', undefined, item.repositoryLabel));
+		}
+		meta.appendChild($('span.inbox-notifications-detail-time', undefined,
+			localize('inboxNotifications.detail.updated', "Updated {0}", fromNowByDay(item.timestamp, true, true))));
+		if (item.sessionResource) {
+			const sessionResource = item.sessionResource;
+			const openButton = this.detailDisposables.add(new Button(meta, { ...defaultButtonStyles, secondary: true, small: true }));
+			openButton.label = localize('inboxNotifications.detail.openSession', "Open full session");
+			this.detailDisposables.add(openButton.onDidClick(() => {
+				void this.sessionsService.openSession(sessionResource, { source: 'notification' }).catch(onUnexpectedError);
+			}));
+		}
+
+		const body = this.detailContentElement.appendChild($('.inbox-notifications-detail-body'));
+		if (item.needsInputPart || item.kind === InboxNotificationKind.Completed) {
+			this.renderDetailSummary(body, item);
+		} else {
+			const summaryEl = body.appendChild($('.inbox-notifications-detail-summary', undefined, item.description));
+			if (item.previewSignature) {
+				const signature = item.previewSignature;
+				this.detailDisposables.add(autorun(reader => {
+					const preview = this.inboxNotificationsService.previews.read(reader).get(signature);
+					summaryEl.textContent = preview ?? item.description;
+				}));
+			}
+			const transcript = this.getLatestResponseText(item);
+			if (transcript) {
+				body.appendChild($('.inbox-notifications-detail-section-label', undefined, localize('inboxNotifications.detail.latestResponse', "Latest response")));
+				body.appendChild($('.inbox-notifications-detail-transcript', undefined, transcript));
+			}
+		}
+
+		if (item.pullRequestStates?.length) {
+			const prSection = body.appendChild($('.inbox-notifications-detail-pr'));
+			for (const state of item.pullRequestStates) {
+				const row = prSection.appendChild($('.inbox-notifications-detail-pr-row'));
+				const icon = row.appendChild(renderIcon(state.icon));
+				icon.setAttribute('aria-hidden', 'true');
+				if (state.pullRequestUri) {
+					const uri = state.pullRequestUri;
+					const link = this.detailDisposables.add(new Button(row, { ...defaultButtonStyles, secondary: true, small: true }));
+					link.label = state.label;
+					this.detailDisposables.add(link.onDidClick(() => {
+						void this.openerService.open(uri).catch(onUnexpectedError);
+					}));
+				} else {
+					row.appendChild($('span.inbox-notifications-detail-pr-label', undefined, state.label));
+				}
+				row.appendChild($('span.inbox-notifications-detail-pr-status', undefined, state.statusLabel));
+			}
+		}
+
+		this.detailScrollableElement.scanDomNode();
+	}
+
+	private renderDetailSummary(body: HTMLElement, item: IInboxNotificationItem): void {
+		this.inboxNotificationsService.requestDetailSummary(item);
+		const container = body.appendChild($('.inbox-notifications-detail-evidence'));
+		const runStore = this.detailDisposables.add(new DisposableStore());
+		this.detailDisposables.add(autorun(reader => {
+			const summary = this.inboxNotificationsService.detailSummaries.read(reader).get(item.id);
+			runStore.clear();
+			clearNode(container);
+			if (!summary) {
+				this.renderEvidenceLoading(container, runStore);
+			} else if (!summary.status && summary.evidence.length === 0) {
+				this.renderEvidenceFallback(container, item);
+			} else {
+				this.renderEvidencePack(container, item, summary, runStore);
+			}
+			this.detailScrollableElement.scanDomNode();
+		}));
+	}
+
+	private renderEvidenceLoading(container: HTMLElement, store: DisposableStore): void {
+		const loading = container.appendChild($('.inbox-notifications-detail-loading'));
+		const spinner = loading.appendChild($('span.codicon.codicon-loading.codicon-modifier-spin'));
+		spinner.setAttribute('aria-hidden', 'true');
+		const label = loading.appendChild($('span.inbox-notifications-detail-loading-label', undefined, `${pickFunWorkingMessage()}…`));
+		const win = getWindow(container);
+		const handle = win.setInterval(() => { label.textContent = `${pickFunWorkingMessage()}…`; }, 2200);
+		store.add(toDisposable(() => win.clearInterval(handle)));
+	}
+
+	private renderEvidenceFallback(container: HTMLElement, item: IInboxNotificationItem): void {
+		if (item.needsInputPart) {
+			this.renderConversationThread(container, item);
+			return;
+		}
+		const preview = (item.previewSignature ? this.inboxNotificationsService.previews.get().get(item.previewSignature) : undefined) ?? item.description;
+		container.appendChild($('.inbox-notifications-detail-summary', undefined, preview));
+		const transcript = this.getLatestResponseText(item);
+		if (transcript) {
+			container.appendChild($('.inbox-notifications-detail-section-label', undefined, localize('inboxNotifications.detail.latestResponse', "Latest response")));
+			container.appendChild($('.inbox-notifications-detail-transcript', undefined, transcript));
+		}
+	}
+
+	private renderEvidencePack(container: HTMLElement, item: IInboxNotificationItem, summary: IInboxDetailSummary, store: DisposableStore): void {
+		if (summary.status) {
+			container.appendChild($('.inbox-notifications-detail-summary', undefined, summary.status));
+		}
+		if (summary.decisions.length) {
+			container.appendChild($('.inbox-notifications-detail-section-label', undefined, localize('inboxNotifications.detail.decisions', "Decisions")));
+			const list = container.appendChild($('ul.inbox-notifications-detail-list'));
+			for (const decision of summary.decisions) {
+				list.appendChild($('li', undefined, decision));
+			}
+		}
+		if (summary.evidence.length) {
+			container.appendChild($('.inbox-notifications-detail-section-label', undefined, localize('inboxNotifications.detail.evidence', "Evidence")));
+			const list = container.appendChild($('ul.inbox-notifications-detail-list'));
+			for (const evidence of summary.evidence) {
+				const entry = list.appendChild($('li.inbox-notifications-detail-evidence-item'));
+				entry.appendChild($('span.inbox-notifications-detail-evidence-text', undefined, evidence.text));
+				const link = entry.appendChild($('a.inbox-notifications-detail-evidence-link', undefined, evidence.artifact.label));
+				link.setAttribute('role', 'button');
+				link.setAttribute('tabindex', '0');
+				link.setAttribute('title', localize('inboxNotifications.detail.evidence.open', "Open {0}", evidence.artifact.label));
+				const open = () => this.openEvidenceArtifact(item, evidence.artifact);
+				store.add(addDisposableListener(link, EventType.CLICK, event => { event.stopPropagation(); open(); }));
+				store.add(addDisposableListener(link, EventType.KEY_DOWN, (event: KeyboardEvent) => {
+					if (event.key === 'Enter' || event.key === ' ') {
+						event.preventDefault();
+						event.stopPropagation();
+						open();
+					}
+				}));
+			}
+		}
+	}
+
+	private openEvidenceArtifact(item: IInboxNotificationItem, artifact: IInboxEvidenceArtifact): void {
+		if (artifact.kind === 'file' && artifact.uri) {
+			void this.openerService.open(artifact.uri).catch(onUnexpectedError);
+			return;
+		}
+		if (item.sessionResource) {
+			void this.sessionsService.openSession(item.sessionResource, { source: 'notification' }).catch(onUnexpectedError);
+		}
+	}
+
+	private renderConversationThread(body: HTMLElement, item: IInboxNotificationItem): void {
+		const chatModel = this.getSessionChatModel(item);
+		const thread = body.appendChild($('.inbox-notifications-detail-thread'));
+		let rendered = 0;
+		for (const request of chatModel?.getRequests() ?? []) {
+			const userText = request.message.text.trim();
+			if (userText) {
+				const turn = thread.appendChild($('.inbox-notifications-detail-turn.user'));
+				turn.appendChild($('.inbox-notifications-detail-turn-role', undefined, localize('inboxNotifications.detail.thread.you', "You")));
+				turn.appendChild($('.inbox-notifications-detail-turn-text', undefined, userText));
+				rendered++;
+			}
+			const response = request.response;
+			const agentText = response && !response.isCanceled ? this.getResponseText(response) : undefined;
+			if (agentText) {
+				const turn = thread.appendChild($('.inbox-notifications-detail-turn.agent'));
+				turn.appendChild($('.inbox-notifications-detail-turn-role', undefined, localize('inboxNotifications.detail.thread.agent', "Agent")));
+				turn.appendChild($('.inbox-notifications-detail-turn-text', undefined, agentText));
+				rendered++;
+			}
+		}
+		if (rendered === 0) {
+			thread.appendChild($('.inbox-notifications-detail-placeholder', undefined, localize('inboxNotifications.detail.thread.empty', "No conversation yet.")));
+		}
+	}
+
+	private getSessionChatModel(item: IInboxNotificationItem) {
+		if (!item.sessionResource) {
+			return undefined;
+		}
+		const session = this.sessionsManagementService.getSession(item.sessionResource);
+		const chatResource = session?.mainChat.get().resource;
+		return chatResource ? this.chatService.getSession(chatResource) : undefined;
+	}
+
+	private getResponseText(response: IChatResponseModel): string | undefined {
+		const parts: string[] = [];
+		for (const part of response.response.value) {
+			if (part.kind === 'markdownContent') {
+				parts.push(renderAsPlaintext(part.content, { useLinkFormatter: true }));
+			}
+		}
+		const text = parts.join('\n\n').replace(/\n{3,}/g, '\n\n').trim();
+		return text || undefined;
+	}
+
+	private getLatestResponseText(item: IInboxNotificationItem): string | undefined {
+		const chatModel = this.getSessionChatModel(item);
+		if (!chatModel) {
+			return undefined;
+		}
+		for (const request of chatModel.getRequests().toReversed()) {
+			const response = request.response;
+			if (!response || response.isCanceled) {
+				continue;
+			}
+			const text = this.getResponseText(response);
+			if (text) {
+				return text.length > 4000 ? `${text.slice(0, 4000).trimEnd()}…` : text;
+			}
+		}
+		return undefined;
+	}
+
+	layout(width: number, _height: number): void {
+		this.layoutWidth = width;
+		this.listPaneWidth = this.clampListPaneWidth(this.listPaneWidth);
+		this.layoutPanes();
 	}
 }
