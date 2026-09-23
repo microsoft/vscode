@@ -19,6 +19,7 @@ const uncommittedChangesetUri = buildUncommittedChangesetUri(sessionKey);
 const gitStateWithOutgoingChanges: ISessionGitState = {
 	branchName: 'feature/test',
 	upstreamBranchName: 'origin/feature/test',
+	upstreamRemote: 'origin',
 	outgoingChanges: 2,
 };
 
@@ -129,6 +130,35 @@ suite('AgentHostSyncOperationContribution', () => {
 		});
 
 		assert.strictEqual(operations, undefined);
+	});
+
+	test('does not advertise sync without a remote-tracking upstream', () => {
+		const provider = createContribution();
+		// Local upstreams (`main`, `feature/base`, remote `.`) and a state whose remote is unknown.
+		const operations = [
+			{ upstreamBranchName: 'main', upstreamRemote: '.' },
+			{ upstreamBranchName: 'feature/base', upstreamRemote: '.' },
+			{ upstreamBranchName: 'origin/feature/test', upstreamRemote: undefined },
+		].map(upstream => provider.getOperations({
+			sessionKey,
+			changesetUri: uncommittedChangesetUri,
+			changesetKind: ChangesetKind.Uncommitted,
+			gitState: { ...gitStateWithIncomingChanges, ...upstream },
+		}));
+
+		assert.deepStrictEqual(operations, [undefined, undefined, undefined]);
+	});
+
+	test('advertises sync for a remote whose name contains a slash', () => {
+		const provider = createContribution();
+		const operations = provider.getOperations({
+			sessionKey,
+			changesetUri: uncommittedChangesetUri,
+			changesetKind: ChangesetKind.Uncommitted,
+			gitState: { ...gitStateWithIncomingChanges, upstreamBranchName: 'my/fork/feature/test', upstreamRemote: 'my/fork' },
+		});
+
+		assert.deepStrictEqual(operations?.map(operation => operation.id), ['sync']);
 	});
 
 	test('does not advertise incoming sync on a draft with uncommitted changes', () => {

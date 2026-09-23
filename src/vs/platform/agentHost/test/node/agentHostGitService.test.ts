@@ -5,10 +5,10 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { formatGitError, getRemoteTrackingRef, GitCheckoutProgressParser, isRetryableWorktreeRemovalError, parseChangedPaths, parseDefaultBranchRef, parseFetchRemoteUrls, parseGitDiffRawNumstat, parseGitHubRepoFromRemote, parseGitStatusV2, parseHasGitHubRemote, parseSingleLsTreeEntry, parseUntrackedPaths, summarizeStderrForError } from '../../node/agentHostGitService.js';
+import { formatGitError, getRemoteTrackingRef, GitCheckoutProgressParser, isRetryableWorktreeRemovalError, parseChangedPaths, parseDefaultBranchRef, parseFetchRemoteUrls, parseGitDiffRawNumstat, parseGitHubRepoFromRemote, parseGitRefs, parseGitStatusV2, parseHasGitHubRemote, parseSingleLsTreeEntry, parseUntrackedPaths, parseUpstreamRef, resolveUpstreamRemote, summarizeStderrForError } from '../../node/agentHostGitService.js';
 import { buildGitBlobUri } from '../../node/gitDiffContent.js';
 import { URI } from '../../../../base/common/uri.js';
-import { EMPTY_TREE_OBJECT, getBranchCompletions, resolveDiffBaseBranchName } from '../../common/agentHostGitService.js';
+import { EMPTY_TREE_OBJECT, getBranchCompletions, GitRefType, resolveDiffBaseBranchName } from '../../common/agentHostGitService.js';
 import { needsSessionGitStateRefresh } from '../../common/state/sessionState.js';
 
 suite('AgentHostGitService', () => {
@@ -162,12 +162,78 @@ suite('AgentHostGitService', () => {
 				probeFailureRemnant: needsSessionGitStateRefresh({ baseBranchName: 'main' }),
 				detachedHead: needsSessionGitStateRefresh({ isDetachedHead: true, baseBranchName: 'main' }),
 				onABranch: needsSessionGitStateRefresh({ branchName: 'feature', baseBranchName: 'main' }),
+				// Persisted before upstreamRemote existed: the remote is needed to offer Sync Changes.
+				upstreamWithoutRemote: needsSessionGitStateRefresh({ branchName: 'feature', upstreamBranchName: 'origin/feature' }),
+				remoteUpstream: needsSessionGitStateRefresh({ branchName: 'feature', upstreamBranchName: 'origin/feature', upstreamRemote: 'origin' }),
+				localUpstream: needsSessionGitStateRefresh({ branchName: 'feature', upstreamBranchName: 'main', upstreamRemote: '.' }),
 			}, {
 				neverComputed: true,
 				probeFailureRemnant: true,
 				detachedHead: false,
 				onABranch: false,
+				upstreamWithoutRemote: true,
+				remoteUpstream: false,
+				localUpstream: false,
 			});
+		});
+	});
+
+	suite('parseUpstreamRef', () => {
+		test('takes the remote name from git instead of splitting the ref', () => {
+			assert.deepStrictEqual({
+				origin: parseUpstreamRef('refs/remotes/origin/feature', 'origin'),
+				slashRemote: parseUpstreamRef('refs/remotes/my/fork/feature', 'my/fork'),
+				local: parseUpstreamRef('refs/heads/main', '.'),
+				mismatch: parseUpstreamRef('refs/remotes/origin/feature', 'other'),
+				legacy: parseUpstreamRef('refs/remotes/origin/feature', undefined),
+				empty: parseUpstreamRef('refs/remotes/origin/feature', ''),
+			}, {
+				origin: { ref: 'refs/remotes/origin/feature', name: 'origin/feature', remote: 'origin' },
+				slashRemote: { ref: 'refs/remotes/my/fork/feature', name: 'my/fork/feature', remote: 'my/fork' },
+				local: undefined,
+				mismatch: undefined,
+				legacy: { ref: 'refs/remotes/origin/feature', name: 'origin/feature', remote: 'origin' },
+				empty: { ref: 'refs/remotes/origin/feature', name: 'origin/feature', remote: 'origin' },
+			});
+		});
+	});
+
+	suite('resolveUpstreamRemote', () => {
+		test('keeps the remote only when the sync handler can use the upstream', () => {
+			assert.deepStrictEqual({
+				noUpstream: resolveUpstreamRemote('\0'),
+				probeFailed: resolveUpstreamRemote(undefined),
+				origin: resolveUpstreamRemote('refs/remotes/origin/feature\0origin'),
+				slashRemote: resolveUpstreamRemote('refs/remotes/my/fork/feature\0my/fork'),
+				local: resolveUpstreamRemote('refs/heads/main\0.'),
+				customRefspec: resolveUpstreamRemote('refs/custom/origin/feature\0origin'),
+			}, {
+				noUpstream: undefined,
+				probeFailed: undefined,
+				origin: 'origin',
+				slashRemote: 'my/fork',
+				local: '.',
+				customRefspec: '.',
+			});
+		});
+	});
+
+	suite('parseGitRefs', () => {
+		test('reads the upstream remote column', () => {
+			const out = [
+				'refs/heads/main\0\0',
+				'refs/heads/topic\0refs/heads/main\0.',
+				'refs/heads/feature\0refs/remotes/my/fork/feature\0my/fork',
+				'refs/remotes/my/fork/feature\0\0',
+				'refs/heads/legacy\0refs/remotes/origin/legacy',
+			].join('\n');
+			assert.deepStrictEqual(parseGitRefs(out).map(ref => ref.kind === GitRefType.Head ? { name: ref.name, upstream: ref.upstream } : { name: ref.name, kind: ref.kind }), [
+				{ name: 'main', upstream: undefined },
+				{ name: 'topic', upstream: undefined },
+				{ name: 'feature', upstream: { ref: 'refs/remotes/my/fork/feature', name: 'my/fork/feature', remote: 'my/fork' } },
+				{ name: 'my/fork/feature', kind: GitRefType.RemoteHead },
+				{ name: 'legacy', upstream: { ref: 'refs/remotes/origin/legacy', name: 'origin/legacy', remote: 'origin' } },
+			]);
 		});
 	});
 

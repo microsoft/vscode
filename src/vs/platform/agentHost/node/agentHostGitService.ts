@@ -87,7 +87,7 @@ export class AgentHostGitService implements IAgentHostGitService {
 	}
 
 	async getRefs(workingDirectory: URI, query?: IRefQuery): Promise<GitRef[]> {
-		const args = ['for-each-ref', '--format=%(refname)%00%(upstream)'];
+		const args = ['for-each-ref', '--format=%(refname)%00%(upstream)%00%(upstream:remotename)'];
 
 		if (query?.sort && query.sort !== 'alphabetically') {
 			args.push('--sort', `-${query.sort}`);
@@ -1017,20 +1017,28 @@ export class AgentHostGitService implements IAgentHostGitService {
 		const hasGitHubRemote = parseHasGitHubRemote(remotesOutput);
 		const baseBranchName = configuredBaseBranch ?? parseDefaultBranchRef(defaultBranchRef);
 		const githubRepo = parseGitHubRepoFromRemote(remotesOutput);
-		const upstreamRemote = status.upstreamBranchName?.split('/')[0];
+		// Guessed from the name; only feeds the GitHub head-owner lookup below.
+		const upstreamRemoteGuess = status.upstreamBranchName?.split('/')[0];
 		// `gh pr checkout` can create a local branch whose head lives on a fork but
 		// has no upstream tracking ref; Git still reports the branch's push remote,
 		// which can be a remote name or the literal fork URL.
-		const [pushRemote, baseBranchDivergence] = await Promise.all([
-			!upstreamRemote && status.branchName
+		// The persisted remote is asked from git and only kept when the sync handler can use it.
+		const [pushRemote, baseBranchDivergence, upstreamTrackingRemote] = await Promise.all([
+			!upstreamRemoteGuess && status.branchName
 				? this._getPushRemote(repositoryRoot, status.branchName)
 				: undefined,
 			baseBranchName && status.branchName && status.branchName !== baseBranchName
 				? this._computeBaseBranchDivergence(repositoryRoot, baseBranchName, status.outgoingChanges === undefined)
 				: undefined,
+			status.upstreamBranchName && status.branchName
+				? this._getUpstreamRemote(repositoryRoot, status.branchName)
+				: undefined,
 		]);
-		const githubHeadRepo = upstreamRemote
-			? parseGitHubRepoFromRemote(remotesOutput, upstreamRemote)
+		if (status.upstreamBranchName && !upstreamTrackingRemote) {
+			this._logService.warn(`[agentHostGitService] Could not resolve the upstream remote of ${status.branchName}; the state will be recomputed on the next refresh: ${repositoryRoot.fsPath}`);
+		}
+		const githubHeadRepo = upstreamRemoteGuess
+			? parseGitHubRepoFromRemote(remotesOutput, upstreamRemoteGuess)
 			: parseGitHubHeadRepoFromRemoteSelection(remotesOutput, pushRemote);
 
 		// `git status -b --porcelain=v2` only emits ahead/behind counts when the
@@ -1051,6 +1059,7 @@ export class AgentHostGitService implements IAgentHostGitService {
 			isDetachedHead: status.isDetachedHead,
 			baseBranchName,
 			upstreamBranchName: status.upstreamBranchName,
+			upstreamRemote: upstreamTrackingRemote,
 			incomingChanges: status.incomingChanges,
 			outgoingChanges,
 			uncommittedChanges: status.uncommittedChanges,
@@ -1062,6 +1071,10 @@ export class AgentHostGitService implements IAgentHostGitService {
 		// Strip undefined fields so the resulting object is the same regardless
 		// of which probes succeeded — easier to compare in tests.
 		return stripUndefined(result);
+	}
+
+	private async _getUpstreamRemote(repositoryRoot: URI, branchName: string): Promise<string | undefined> {
+		return resolveUpstreamRemote(await this._runGit(repositoryRoot, ['for-each-ref', '--format=%(upstream)%00%(upstream:remotename)', `refs/heads/${branchName}`]));
 	}
 
 	private async _getPushRemote(repositoryRoot: URI, branchName: string): Promise<string | undefined> {
@@ -1742,6 +1755,35 @@ export function parseRemoteBranchRef(ref: string): { ref: string; name: string; 
 	return { ref, name, remote };
 }
 
+/**
+ * Resolves a branch's upstream from `%(upstream)` and `%(upstream:remotename)`. The remote
+ * name comes from git, so a remote containing `/` (`my/fork`) is not split at the first
+ * segment; a local upstream (remote `.`) has no remote-tracking ref and yields `undefined`.
+ * Without the remote name (older callers), falls back to splitting the ref.
+ */
+export function parseUpstreamRef(upstream: string, upstreamRemote: string | undefined): { ref: string; name: string; remote: string } | undefined {
+	if (!upstreamRemote) {
+		return parseRemoteBranchRef(upstream);
+	}
+	if (upstreamRemote === '.' || !upstream.startsWith(`refs/remotes/${upstreamRemote}/`)) {
+		return undefined;
+	}
+	return { ref: upstream, name: upstream.substring('refs/remotes/'.length), remote: upstreamRemote };
+}
+
+/**
+ * The {@link ISessionGitState.upstreamRemote} value for a `%(upstream)%00%(upstream:remotename)`
+ * line: the remote when {@link parseUpstreamRef} accepts the upstream, which is exactly what
+ * the sync handler needs; `.` for an upstream it cannot sync; `undefined` without an upstream.
+ */
+export function resolveUpstreamRemote(output: string | undefined): string | undefined {
+	const [upstream, remote] = (output ?? '').trim().split(/\r?\n/)[0].split('\0');
+	if (!remote) {
+		return undefined;
+	}
+	return parseUpstreamRef(upstream, remote) ? remote : '.';
+}
+
 export function parseGitRefs(output: string | undefined): GitRef[] {
 	if (!output) {
 		return [];
@@ -1749,14 +1791,14 @@ export function parseGitRefs(output: string | undefined): GitRef[] {
 
 	const refs: GitRef[] = [];
 	for (const line of output.split(/\r?\n/g)) {
-		const [ref, upstream] = line.trim().split('\0');
+		const [ref, upstream, upstreamRemote] = line.trim().split('\0');
 
 		if (ref.startsWith('refs/heads/')) {
 			refs.push({
 				ref,
 				name: ref.substring(11),
 				upstream: upstream
-					? parseRemoteBranchRef(upstream)
+					? parseUpstreamRef(upstream, upstreamRemote)
 					: undefined,
 				kind: GitRefType.Head
 			} satisfies IBranch);
