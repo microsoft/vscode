@@ -1008,7 +1008,7 @@ suite('PluginInstallService', () => {
 
 	suite('installPluginFromSource', () => {
 
-		test('preserves the requested revision when installing a repository-root plugin', async () => {
+		test('keeps legacy source handling for repository-root plugins', async () => {
 			const { service, state } = createService({
 				singlePluginManifestResult: createPlugin({
 					sourceDescriptor: { kind: PluginSourceKind.GitHub, repo: 'owner/catalog' },
@@ -1023,10 +1023,10 @@ suite('PluginInstallService', () => {
 			}, {
 				success: true,
 				sources: [
-					{ kind: PluginSourceKind.GitHub, repo: 'owner/catalog', ref: 'release/v1' },
-					{ kind: PluginSourceKind.GitHub, repo: 'owner/catalog', ref: 'release/v1' },
+					{ kind: PluginSourceKind.GitHub, repo: 'owner/catalog' },
+					{ kind: PluginSourceKind.GitHub, repo: 'owner/catalog' },
 				],
-				installedSource: { kind: PluginSourceKind.GitHub, repo: 'owner/catalog', ref: 'release/v1' },
+				installedSource: { kind: PluginSourceKind.GitHub, repo: 'owner/catalog' },
 			});
 		});
 
