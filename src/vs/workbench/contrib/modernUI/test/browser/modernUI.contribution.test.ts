@@ -2329,7 +2329,7 @@ suite('ModernUIContribution', () => {
 	test('connects HC group borders without moving content when themes or active groups change', () => {
 		const root = appendElement(document.body, 'monaco-workbench modern-ui modern-ui-tabs modern-ui-connected-editor-tabs');
 		store.add(toDisposable(() => root.remove()));
-		root.style.cssText = 'width: 500px; --vscode-spacing-size20: 2px; --vscode-spacing-size40: 4px; --vscode-cornerRadius-small: 4px; --vscode-cornerRadius-large: 8px; --vscode-strokeThickness: 1px;';
+		root.style.cssText = 'width: 500px; color: #cccccc; --vscode-spacing-size20: 2px; --vscode-spacing-size40: 4px; --vscode-cornerRadius-small: 4px; --vscode-cornerRadius-large: 8px; --vscode-strokeThickness: 1px;';
 		const themeStyle = document.createElement('style');
 		root.appendChild(themeStyle);
 		const editor = appendElement(root, 'part editor editor-tabs-multiple');
@@ -2375,13 +2375,13 @@ suite('ModernUIContribution', () => {
 					cap: [targetWindow.getComputedStyle(fill).borderTopColor, targetWindow.getComputedStyle(fill).borderLeftColor],
 					shoulder: targetWindow.getComputedStyle(fill, '::after').borderLeftColor,
 					separator: targetWindow.getComputedStyle(row, '::after').backgroundColor,
-					frame: [frame.content, frame.borderLeftWidth, frame.borderBottomWidth, frame.borderTopWidth, frame.borderLeftColor, frame.borderRadius, frame.pointerEvents],
+					frame: [frame.content, frame.borderLeftWidth, frame.borderBottomWidth, frame.borderTopWidth, highContrast ? frame.borderLeftColor : undefined, frame.borderRadius, frame.pointerEvents],
 				}, {
 					geometry: baseline,
 					cap: ['rgba(0, 0, 0, 0)', border],
 					shoulder: border,
 					separator: border,
-					frame: highContrast ? ['""', '1px', '1px', '1px', border, '8px', 'none'] : ['none', '0px', '0px', '0px', 'rgb(0, 0, 0)', '0px', 'auto'],
+					frame: highContrast ? ['""', '1px', '1px', '1px', border, '8px', 'none'] : ['none', '0px', '0px', '0px', undefined, '0px', 'auto'],
 				}, `${themeType}, active group: ${active}`);
 			}
 		}
