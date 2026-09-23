@@ -10,6 +10,7 @@ import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { EndOfLinePreference } from '../../../../../../editor/common/model.js';
 import { createTestCodeEditor } from '../../../../../../editor/test/browser/testCodeEditor.js';
 import { IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import type { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
@@ -260,7 +261,7 @@ suite('ChatTerminalOutputTextModelService', () => {
 			claim,
 			isPty: false,
 		});
-		const afterAuthoritativeOutput = model.getValue();
+		const afterAuthoritativeOutput = model.getValue(EndOfLinePreference.LF);
 		fixture.subscription.setState({
 			title: 'Bash',
 			content: [{ type: 'unclassified', value: 'restored snapshot' }],
