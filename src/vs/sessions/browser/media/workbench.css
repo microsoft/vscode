@@ -137,6 +137,10 @@
 	box-sizing: border-box;
 }
 
+.agent-sessions-workbench.nosidebar:not(.phone-layout) .agents-part-card {
+	margin-left: var(--vscode-agents-layout-floatingPanelGap);
+}
+
 .agent-sessions-workbench.noeditorpane .agents-part-card {
 	margin-right: 0;
 }
