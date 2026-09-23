@@ -16,20 +16,24 @@ suite('CopilotPluginMarketplaces', () => {
 			install: async () => { throw new Error('Unexpected install'); },
 			reload: async () => { },
 			marketplaces: {
-				list: async () => ({ marketplaces: [
-					{ name: 'alpha', source: 'GitHub: company/alpha' },
-					{ name: 'beta', source: 'GitHub: company/beta' },
-				] }),
+				list: async () => ({
+					marketplaces: [
+						{ name: 'alpha', source: 'GitHub: company/alpha' },
+						{ name: 'beta', source: 'GitHub: company/beta' },
+					]
+				}),
 				browse: async ({ name }) => {
 					if (name === 'beta') {
 						throw new Error('Browse failed');
 					}
 					return { plugins: [{ name: 'cached' }] };
 				},
-				refresh: async () => ({ results: [
-					{ name: 'alpha', success: false, error: 'token=secret-value refresh failed' },
-					{ name: 'beta', success: false },
-				] }),
+				refresh: async () => ({
+					results: [
+						{ name: 'alpha', success: false, error: 'token=secret-value refresh failed' },
+						{ name: 'beta', success: false },
+					]
+				}),
 			},
 		};
 
