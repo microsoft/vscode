@@ -13,6 +13,8 @@ import { type IChangesetOperationHandler } from '../common/agentHostChangesetOpe
 import { ChangesetOperationTargetKind, type InvokeChangesetOperationParams, type InvokeChangesetOperationResult } from '../common/state/protocol/channels-changeset/commands.js';
 import { AHP_SESSION_NOT_FOUND, JsonRpcErrorCodes, ProtocolError } from '../common/state/sessionProtocol.js';
 import { type SessionState } from '../common/state/sessionState.js';
+import { resolveChangesetOwnerScope } from './agentHostBranchChangesetScope.js';
+import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
 import { ILogService } from '../../log/common/log.js';
 import { IAgentHostGitService } from '../common/agentHostGitService.js';
 
@@ -22,9 +24,11 @@ export class AgentHostDiscardChangesOperationHandler implements IChangesetOperat
 
 	constructor(
 		private readonly _getSessionState: (sessionKey: string) => SessionState | undefined,
+		private readonly _onDiscarded: (sessionKey: string) => Promise<void>,
 		@IAgentHostGitService private readonly _agentHostGitService: IAgentHostGitService,
 		@IFileService private readonly _fileService: IFileService,
 		@ILogService private readonly _logService: ILogService,
+		@IAgentHostStateManager private readonly _stateManager: AgentHostStateManager,
 	) { }
 
 	async invoke(params: InvokeChangesetOperationParams, token: CancellationToken): Promise<InvokeChangesetOperationResult> {
@@ -47,8 +51,9 @@ export class AgentHostDiscardChangesOperationHandler implements IChangesetOperat
 		}
 		this._throwIfCancelled(token);
 
-		const sessionUri = parsed.sessionUri;
-		const sessionState = this._getSessionState(sessionUri);
+		const scope = resolveChangesetOwnerScope(this._stateManager, parsed.ownerUri);
+		const sessionUri = scope.sessionUri;
+		const sessionState = this._getSessionState(scope.sourceUri);
 		if (!sessionState) {
 			throw new ProtocolError(AHP_SESSION_NOT_FOUND, `Session not found: ${sessionUri}`);
 		}
@@ -59,9 +64,9 @@ export class AgentHostDiscardChangesOperationHandler implements IChangesetOperat
 				`Operation '${AgentHostDiscardChangesOperationHandler.OPERATION_DISCARD_CHANGES}' requires a resource target.`);
 		}
 
-		const workingDirectoryStr = sessionState.workingDirectories?.[0];
+		const workingDirectoryStr = scope.workingDirectories[0];
 		if (!workingDirectoryStr) {
-			throw new ProtocolError(JsonRpcErrorCodes.InternalError, `Session has no working directory: ${sessionUri}`);
+			throw new ProtocolError(JsonRpcErrorCodes.InternalError, `Changeset owner has no working directory: ${parsed.ownerUri}`);
 		}
 
 		const workingDirectory = URI.parse(workingDirectoryStr);
@@ -91,6 +96,11 @@ export class AgentHostDiscardChangesOperationHandler implements IChangesetOperat
 			throw new ProtocolError(
 				JsonRpcErrorCodes.InternalError,
 				`Failed to discard changes: ${err instanceof Error ? err.message : String(err)}`);
+		}
+		try {
+			await this._onDiscarded(parsed.ownerUri);
+		} catch (err) {
+			this._logService.warn(`[AgentHostDiscardChangesOperationHandler] Post-discard refresh failed for ${parsed.ownerUri}: ${err instanceof Error ? err.message : String(err)}`);
 		}
 
 		return { message: { markdown: localize('agentHost.changeset.discardChanges.discarded', "Discarded changes to `{0}`.", basename(resource)) } };

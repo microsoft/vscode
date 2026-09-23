@@ -10,9 +10,9 @@ import { ChangesetStatus, type ChangesetState, type URI } from '../common/state/
  * Default number of expanded changeset states kept hot in memory.
  *
  * This cache only stores the subscribable `ChangesetState` payloads. The
- * lightweight catalogue on `SessionSummary.changesets` remains on the session
- * summary, and static changesets can be rehydrated from persisted metadata or
- * recomputed on demand. The limit is intentionally a soft cap: subscribed or
+ * lightweight catalogue remains on its session or chat owner, and static
+ * changesets can be rehydrated from persisted metadata or recomputed on demand.
+ * The limit is intentionally a soft cap: subscribed or
  * actively-computing changesets may pin the cache above this value until they
  * become evictable.
  */
