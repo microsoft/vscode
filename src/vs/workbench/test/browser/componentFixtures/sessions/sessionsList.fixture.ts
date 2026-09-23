@@ -200,6 +200,8 @@ function createSession(spec: ISessionSpec, approvals: Map<string, IAgentSessionA
 		override readonly resource = mainChatResource;
 		override readonly status: IObservable<SessionStatus> = constObservable(spec.mainChatStatus ?? spec.status ?? SessionStatus.Completed);
 		override readonly interactivity: IObservable<ChatInteractivity> = constObservable(ChatInteractivity.Full);
+		override readonly changes: IObservable<readonly never[]> = constObservable([]);
+		override readonly changesets: IObservable<readonly ISessionChangeset[]> = constObservable([]);
 	}();
 	const nestedChats = (spec.chats ?? []).map(chatSpec => createChat(spec.id, chatSpec, updatedAt, approvals));
 	const chats: readonly IChat[] = [mainChat, ...nestedChats];
@@ -217,8 +219,6 @@ function createSession(spec: ISessionSpec, approvals: Map<string, IAgentSessionA
 		override readonly isQuickChat: IObservable<boolean> = constObservable(!spec.workspace);
 		override readonly isArchived: IObservable<boolean> = constObservable(false);
 		override readonly isRead: IObservable<boolean> = constObservable(spec.isRead ?? true);
-		override readonly changes: IObservable<readonly never[]> = constObservable([]);
-		override readonly changesets: IObservable<readonly ISessionChangeset[]> = constObservable([]);
 		override readonly changesSummary: IObservable<ISessionChangesSummary | undefined> = constObservable(spec.changesSummary);
 		override readonly description: IObservable<IMarkdownString | undefined> = constObservable(description);
 		override readonly chats: IObservable<readonly IChat[]> = constObservable(chats);

@@ -1308,6 +1308,20 @@ suite('CopilotChatSessionsProvider', () => {
 		assert.strictEqual(sessions.length, 2);
 	});
 
+	test('publishes changesets on each chat', () => {
+		const resource = URI.from({ scheme: AgentSessionProviders.Background, path: '/session' });
+		model.addSession(createMockAgentSession(resource));
+
+		const chat = createProvider(disposables, model).getSessions()[0].mainChat.get();
+
+		assert.deepStrictEqual(chat.changesets.get()?.map(changeset => changeset.id), [
+			'branch',
+			'uncommittedChanges',
+			'allChanges',
+			'lastTurnChanges',
+		]);
+	});
+
 	test('adapts and atomically refreshes aggregate change metadata without synthetic file changes', () => {
 		const resource = URI.from({ scheme: AgentSessionProviders.Background, path: '/session' });
 		model.addSession(createMockAgentSession(resource, {
@@ -1319,7 +1333,7 @@ suite('CopilotChatSessionsProvider', () => {
 		const observed: { readonly changes: readonly ISessionFileChange[]; readonly changesSummary: ISessionChangesSummary | undefined }[] = [];
 		disposables.add(autorun(reader => {
 			observed.push({
-				changes: session.changes.read(reader),
+				changes: session.mainChat.read(reader).changes.read(reader),
 				changesSummary: session.changesSummary?.read(reader),
 			});
 		}));

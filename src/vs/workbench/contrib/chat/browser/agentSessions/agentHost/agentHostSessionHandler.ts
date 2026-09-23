@@ -1302,8 +1302,8 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				config.connectionAuthority,
 				sessionResource => this._resolveSessionUri(sessionResource),
 				sessionResource => {
-					const chatURI = this._chatURIsBySessionResource.get(sessionResource);
-					return chatURI ? URI.parse(chatURI) : undefined;
+					const backendSession = this._resolveSessionUri(sessionResource);
+					return backendSession ? URI.parse(this._getChatURIOrDefault(sessionResource, backendSession)) : undefined;
 				},
 				this._logService,
 			)),
