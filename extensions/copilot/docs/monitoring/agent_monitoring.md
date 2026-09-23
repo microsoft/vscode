@@ -608,6 +608,10 @@ Content attributes are not truncated by default. Set `github.copilot.chat.otel.m
 }
 ```
 
+The file contains newline-delimited JSON records for spans, logs, and metrics; it is not an OTLP JSON payload. Span records contain public span data, including trace and span IDs, parent context, attributes, events, links, resource attributes, instrumentation scope, status, and dropped-data counts. Trace state is serialized as a string. Span `startTime`, `endTime`, and `duration` use `[seconds, nanoseconds]` pairs, preserving nanosecond precision.
+
+The exporter preserves attributes already captured by instrumentation; see [Content Capture](#content-capture) for what those attributes can contain. Logs and metrics retain their existing SDK JSON representation. Serialization failures are reported as failed exports rather than written as `{}` placeholders, and a batch that cannot be serialized is not partially written.
+
 **Console output (quick debugging):**
 
 ```json
