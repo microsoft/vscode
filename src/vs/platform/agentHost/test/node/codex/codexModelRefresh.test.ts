@@ -42,6 +42,7 @@ import { createTestAgentHostProxyResolver } from '../agentServiceTestUtils.js';
 import { readCodexAccountInfo } from '../../../common/codexAccount.js';
 import type { GetAccountResponse } from '../../../node/codex/protocol/generated/v2/GetAccountResponse.js';
 import type { GetAccountRateLimitsResponse } from '../../../node/codex/protocol/generated/v2/GetAccountRateLimitsResponse.js';
+import { createNullSessionDataService } from '../../common/sessionTestHelpers.js';
 
 interface ITestAgentContext {
 	readonly agent: CodexAgent;
@@ -63,7 +64,7 @@ function createAgentContext(disposables: Pick<DisposableStore, 'add'>, models: (
 	const stateManager = disposables.add(new AgentHostStateManager(logService));
 	const configurationService = disposables.add(new AgentConfigurationService(stateManager, logService));
 	configurationService.updateRootConfig(rootConfig);
-	instantiationService.stub(ISessionDataService, { _serviceBrand: undefined });
+	instantiationService.stub(ISessionDataService, createNullSessionDataService());
 	instantiationService.stub(ICopilotApiService, { _serviceBrand: undefined, models });
 	instantiationService.stub(ICodexProxyService, { _serviceBrand: undefined });
 	instantiationService.stub(IAgentConfigurationService, configurationService);

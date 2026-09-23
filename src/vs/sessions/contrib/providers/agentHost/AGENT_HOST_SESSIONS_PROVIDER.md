@@ -107,6 +107,8 @@ Peer-chat tool discovery omits the tool. Copilot SDK-native workers can still in
 
 The host blocks new turns and peer-chat creation after the request, lets all active chats finish, and then applies one worktree to the whole session. Existing chat identities and histories are preserved, and future chats inherit the isolated directory. The main chat automatically continues the original task after conversion; queued peer messages resume once the transition finishes.
 
+Copilot and Codex implement the session-wide working-directory operation. Codex preserves each backing thread and confirms live directory changes through the app-server settings update; restored and not-yet-started chats must use the same destination on their next turn. A provider reports uncertain partial application as unsafe so the host retains the worktree and quarantines the session rather than allowing chats to run in different directories.
+
 Host state updates rebind the existing session facade, workspace, configuration, and Git state. The original folder is not modified; file inclusion follows ordinary worktree creation. Failures retain the folder session or quarantine an unsafe partial mutation.
 
 ## Persistence and discovery

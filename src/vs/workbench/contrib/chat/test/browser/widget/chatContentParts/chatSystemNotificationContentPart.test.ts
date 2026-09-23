@@ -280,11 +280,31 @@ suite('ChatSystemNotificationContentPart', () => {
 			iconHidden: 'true',
 			iconFontSize: '12px',
 			iconVerticalAlign: 'text-bottom',
-			labelParts: ['Now working in ', 'chat-workspace-transition-icon codicon codicon-worktree-compact', 'working'],
+			labelParts: ['chat-workspace-transition-icon codicon codicon-worktree-compact', 'Now working in working'],
 			hoverTargetsLabel: true,
 			hoverContent: 'Now working in working',
 			sameContent: true,
 			differentPresentation: false,
 		});
+	});
+
+	test('renders session isolation with a leading worktree icon and no repeated project name', () => {
+		const disposables = store.add(new DisposableStore());
+		const instantiationService = workbenchInstantiationService(undefined, disposables);
+		const renderer: IMarkdownRenderer = { render: markdown => renderMarkdown(markdown) };
+		const part = disposables.add(instantiationService.createInstance(ChatSystemNotificationContentPart, {
+			kind: 'systemNotification',
+			content: new MarkdownString('Session isolated'),
+			icon: Codicon.worktreeCompact,
+			presentation: 'workspaceTransition',
+			workspaceName: 'vscode',
+		}, renderer));
+		const label = part.domNode.querySelector('.chat-workspace-transition-label')!;
+		assert.deepStrictEqual({
+			text: part.domNode.textContent,
+			iconFirst: label.firstChild === label.querySelector('.codicon-worktree-compact'),
+			iconHidden: label.firstElementChild?.getAttribute('aria-hidden'),
+			accessibleLabel: part.domNode.getAttribute('aria-label'),
+		}, { text: 'Session isolated', iconFirst: true, iconHidden: 'true', accessibleLabel: 'Session isolated' });
 	});
 });

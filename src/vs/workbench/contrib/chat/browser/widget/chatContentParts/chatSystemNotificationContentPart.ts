@@ -79,13 +79,10 @@ export class ChatSystemNotificationContentPart extends Disposable implements ICh
 		dom.append(owner, dom.$('span.chat-workspace-transition-line')).setAttribute('aria-hidden', 'true');
 		const label = dom.append(owner, dom.$('span.chat-workspace-transition-label'));
 		this._register(this.hoverService.setupDelayedHover(label, { content: renderAsPlaintext(notification.content) }));
-		const workspaceNameIndex = notification.workspaceName ? notification.content.value.lastIndexOf(notification.workspaceName) : -1;
-		const iconIndex = workspaceNameIndex >= 0 ? workspaceNameIndex : 0;
-		label.append(notification.content.value.slice(0, iconIndex));
 		const icon = dom.append(label, dom.$('span.chat-workspace-transition-icon'));
 		icon.classList.add(...ThemeIcon.asClassNameArray(notification.icon ?? Codicon.folderCompact));
 		icon.setAttribute('aria-hidden', 'true');
-		label.append(notification.content.value.slice(iconIndex));
+		label.append(notification.content.value);
 		dom.append(owner, dom.$('span.chat-workspace-transition-line')).setAttribute('aria-hidden', 'true');
 		return owner;
 	}

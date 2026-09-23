@@ -51,6 +51,7 @@ interface IResolvedWorkspace {
 	readonly isolationConfig: IIsolationConfigContribution | undefined;
 	readonly isolated: boolean;
 	readonly project: IAgentSessionProjectInfo | undefined;
+	readonly branchName?: string;
 }
 
 class UnsafeProviderWorkingDirectoryError extends Error {
@@ -398,9 +399,12 @@ export class SessionWorkspaceConversionService extends Disposable implements ISe
 				displayName: resolvedWorkspace.project.displayName,
 			});
 		}
+		const workspaceMeta = worktreeApplied && resolvedWorkspace.branchName
+			? this._gitStateService.getMaterializedWorktreeMeta(session.toString(), resolvedWorkspace.branchName)
+			: finalState._meta;
 		this._stateManager.setSessionMeta(
 			session.toString(),
-			withSessionHasWorkspaceTransitions(withSessionWorkspaceless(finalState._meta, false), persistTransition),
+			withSessionHasWorkspaceTransitions(withSessionWorkspaceless(workspaceMeta, false), persistTransition),
 		);
 		this._stateManager.dispatchServerAction(session.toString(), {
 			type: ActionType.SessionWorkingDirectoryReplaced,
@@ -536,7 +540,7 @@ export class SessionWorkspaceConversionService extends Disposable implements ISe
 				? `The isolated worktree project could not be resolved, and cleanup failed: ${toErrorMessage(cleanupError)}`
 				: 'The isolated worktree project could not be resolved.');
 		}
-		return { workingDirectory, configValues, isolationConfig, isolated: true, project: worktreeInfo.project };
+		return { workingDirectory, configValues, isolationConfig, isolated: true, project: worktreeInfo.project, branchName: worktreeInfo.branchName };
 	}
 
 	private async _removeWorktree(session: URI): Promise<unknown | undefined> {
@@ -658,7 +662,7 @@ export class SessionWorkspaceConversionService extends Disposable implements ISe
 		const workspaceName = basename(pending.workspaceFolder) || pending.workspaceFolder.path;
 		return {
 			content: pending.convertFolder
-				? localize('agentHost.isolationTransitionLabel', "Session isolated in {0}", workspaceName)
+				? localize('agentHost.isolationTransitionLabel', "Session isolated")
 				: localize('agentHost.workspaceTransitionLabel', "Now working in {0}", workspaceName),
 			workspaceKind: pending.isolation ? AgentSystemNotificationWorkspaceKind.Worktree : AgentSystemNotificationWorkspaceKind.Folder,
 			workspaceName,

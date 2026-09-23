@@ -60,6 +60,25 @@ suite('CodexSessionMetadataStore', () => {
 		assert.strictEqual((await store.read(session)).agent, undefined);
 	});
 
+	test('persists a session-wide root independently of a backing cwd', async () => {
+		const store = new CodexSessionMetadataStore(createSessionDataService(), new NullLogService());
+		const session = URI.parse('codex:/session');
+		const root = URI.file('/worktree');
+		await store.write(session, { cwd: URI.file('/source'), sessionWorkingDirectory: root }, true);
+		await store.write(session, { modelId: 'model' });
+		const overlay = await store.read(session, true);
+		assert.deepStrictEqual({ cwd: overlay.cwd?.fsPath, root: overlay.sessionWorkingDirectory?.fsPath }, { cwd: URI.file('/source').fsPath, root: root.fsPath });
+	});
+
+	test('strict metadata writes propagate failures instead of silently succeeding', async () => {
+		const database = new TestSessionDatabase();
+		database.setMetadata = async () => { throw new Error('write failed'); };
+		const store = new CodexSessionMetadataStore(createSessionDataService(database), new NullLogService());
+		const session = URI.parse('codex:/session');
+		await store.write(session, { cwd: URI.file('/source') });
+		await assert.rejects(store.write(session, { sessionWorkingDirectory: URI.file('/worktree') }, true), /write failed/);
+	});
+
 	test('ignores malformed working directory metadata', async () => {
 		const database = new TestSessionDatabase();
 		await database.setMetadata('codex.cwd', '{"cwd":');

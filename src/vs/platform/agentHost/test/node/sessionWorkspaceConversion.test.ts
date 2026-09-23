@@ -22,7 +22,7 @@ import { isAgentWorkspaceContinuationMessage } from '../../common/meta/agentWork
 import type { ISessionDatabase } from '../../common/sessionDataService.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { ActionType } from '../../common/state/sessionActions.js';
-import { AH_META_HAS_WORKSPACE_TRANSITIONS_DB_KEY, AH_META_WORKSPACE_CONVERSION_QUARANTINED_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, buildChatUri, buildDefaultChatUri, buildSubagentSessionUri, createErrorResponsePart, customizationId, CustomizationLoadStatus, CustomizationType, isHostNoticeTurn, isMessageHiddenFromTranscript, isMessageRequestHiddenFromTranscript, MessageKind, readMessageSystemInitiatedLabel, readSessionHasWorkspaceTransitions, readSessionWorkspaceless, ResponsePartKind, SessionStatus, TurnState, withSessionWorkspaceless, type ErrorInfo, type Message, type Turn } from '../../common/state/sessionState.js';
+import { AH_META_HAS_WORKSPACE_TRANSITIONS_DB_KEY, AH_META_WORKSPACE_CONVERSION_QUARANTINED_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, buildChatUri, buildDefaultChatUri, buildSubagentSessionUri, createErrorResponsePart, customizationId, CustomizationLoadStatus, CustomizationType, isHostNoticeTurn, isMessageHiddenFromTranscript, isMessageRequestHiddenFromTranscript, MessageKind, readMessageSystemInitiatedLabel, readSessionGitState, readSessionHasWorkspaceTransitions, readSessionWorkspaceless, ResponsePartKind, SessionStatus, TurnState, withSessionGitState, withSessionWorkspaceless, type ErrorInfo, type Message, type Turn } from '../../common/state/sessionState.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import type { IAgentHostClientConnectionService } from '../../node/agentHostClientConnectionService.js';
 import type { IAgentHostTurnService, IDeferredAgentHostTurn } from '../../node/agentHostTurnService.js';
@@ -30,7 +30,9 @@ import { AgentConfigurationService } from '../../node/agentConfigurationService.
 import { SessionDatabase } from '../../node/sessionDatabase.js';
 import { SessionWorkspaceConversionContribution } from '../../node/chatContributions/sessionWorkspaceConversion/sessionWorkspaceConversionContribution.js';
 import { SessionWorkspaceConversionService, type ISessionWorkspaceConversionService } from '../../node/chatContributions/sessionWorkspaceConversion/sessionWorkspaceConversionService.js';
-import type { IAgentHostServerToolService } from '../../node/shared/agentServerToolHost.js';
+import { AgentServerToolHost, type IAgentHostServerToolService } from '../../node/shared/agentServerToolHost.js';
+import { createSessionIsolationToolGroup } from '../../node/shared/sessionIsolationTools.js';
+import { SessionServerToolName } from '../../common/serverToolNames.js';
 import { NullAgentHostWorktreeIsolation, type IIsolationConfigContribution, type IResolveIsolationConfigRequest, type IResolveWorkingDirectoryRequest, type ISessionWorktree } from '../../node/shared/worktreeIsolation.js';
 import { createSessionDataService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
 import { MockAgent } from './mockAgent.js';
@@ -129,12 +131,13 @@ suite('SessionWorkspaceConversionService', () => {
 		worktreeIsolation = new NullAgentHostWorktreeIsolation(),
 		requestWorkspaceTrust: IAgentHostClientConnectionService['requestWorkspaceTrust'] = async () => true,
 		database: ISessionDatabase = new TestSessionDatabase(),
+		providerId = 'copilot',
 	) {
 		const logService = new NullLogService();
 		const stateManager = disposables.add(new AgentHostStateManager(logService));
 		const configurationService = disposables.add(new AgentConfigurationService(stateManager, logService));
 		const sessionDataService = createSessionDataService(database);
-		const agent = new MockAgent('copilot', { multipleChats: { fork: true } }, { workspaceConversion: true });
+		const agent = new MockAgent(providerId, { multipleChats: { fork: true } }, { workspaceConversion: true });
 		disposables.add({ dispose: () => agent.dispose() });
 		const providerService = createTestAgentHostProviderService(() => agent);
 		const trustRequests: { clientId: string; workspace: string; trustedParent?: string }[] = [];
@@ -196,17 +199,20 @@ suite('SessionWorkspaceConversionService', () => {
 		}();
 		const gitRefreshes: string[] = [];
 		const gitStateService = new class extends mock<IAgentHostGitStateService>() {
+			override getMaterializedWorktreeMeta(session: string, branchName: string) {
+				return withSessionGitState(stateManager.getSessionState(session)?._meta, { branchName });
+			}
 			override async refreshSessionGitState(_session: string, directory?: URI): Promise<void> {
 				gitRefreshes.push(directory!.toString());
 			}
 		}();
 		const service = disposables.add(new SessionWorkspaceConversionService(stateManager, providerService, sessionDataService, worktreeIsolation, configurationService, clientConnections, turnService, serverToolHost, logService, gitStateService));
-		const session = URI.parse('copilot:/workspace-less');
+		const session = URI.from({ scheme: providerId, path: '/workspace-less' });
 		const chat = URI.parse(buildDefaultChatUri(session));
 		const scratch = URI.file('/tmp/copilot-scratch/workspace-less');
 		stateManager.createSession({
 			resource: session.toString(),
-			provider: 'copilot',
+			provider: providerId,
 			title: 'Workspace-less Session',
 			status: SessionStatus.Idle,
 			createdAt: new Date(0).toISOString(),
@@ -295,6 +301,8 @@ suite('SessionWorkspaceConversionService', () => {
 			mainTurnIds: harness.stateManager.getChatState(harness.chat.toString())!.turns.map(turn => turn.id),
 			peerTurnIds: harness.stateManager.getChatState(peer.toString())!.turns.map(turn => turn.id),
 			continuations: harness.continuations.map(entry => entry.chat),
+			transition: harness.stateManager.getChatState(harness.chat.toString())?.activeTurn?.responseParts
+				.filter(part => part.kind === ResponsePartKind.SystemNotification).map(part => part.content),
 			providerCalls,
 			gitRefreshes: harness.gitRefreshes,
 			worktreeConfig: isolation.requests[0]?.config,
@@ -309,12 +317,75 @@ suite('SessionWorkspaceConversionService', () => {
 			mainTurnIds: ['turn-0', 'turn-1'],
 			peerTurnIds: ['peer-turn'],
 			continuations: [harness.chat.toString()],
+			transition: ['Session isolated'],
 			providerCalls: [worktree.toString()],
 			gitRefreshes: [worktree.toString()],
 			worktreeConfig: {
 				isolation: 'worktree', autoApprove: 'default', worktreeIncludeFiles: ['.env'], branch: 'main',
 			},
 			pending: false,
+		});
+	});
+
+	test('Codex isolation tool waits for peers and continues the same main chat', async () => {
+		const isolation = new TestWorktreeIsolation(URI.file('/worktree'));
+		const harness = createHarness(isolation, async () => true, new TestSessionDatabase(), 'codex');
+		makeFolderSession(harness);
+		const host = new AgentServerToolHost(harness.stateManager, [createSessionIsolationToolGroup({
+			canIsolateSession: session => harness.service.canIsolateSession(session),
+			requestSessionIsolation: (chat, turnId) => harness.service.requestSessionIsolation(chat, turnId, 'client-1'),
+		})]);
+		const session = harness.session.toString();
+		const main = harness.chat.toString();
+		const peer = buildChatUri(session, 'peer');
+		harness.stateManager.addChat(session, peer);
+		host.advertise(session);
+		assert.deepStrictEqual({
+			mainTools: host.getDefinitionsForSession(session, main).map(tool => tool.name),
+			peerTools: host.getDefinitionsForSession(session, peer).map(tool => tool.name),
+		}, { mainTools: [SessionServerToolName.IsolateSession], peerTools: [] });
+		const calls: string[] = [];
+		const provider: IAgent = harness.agent;
+		provider.setSessionWorkingDirectory = async resource => { calls.push(resource.toString()); };
+		startTurn(harness.stateManager, harness.chat);
+		startTurn(harness.stateManager, URI.parse(peer), 'peer-turn');
+		host.executeTool(main, SessionServerToolName.IsolateSession, {});
+		completeTurn(harness.stateManager, harness.chat);
+		await updateSessionWorkspace(harness);
+		assert.strictEqual(calls.length, 0);
+		completeTurn(harness.stateManager, URI.parse(peer), 'peer-turn');
+		await harness.service.updateSessionWorkspace(peer, 'peer-turn');
+		assert.deepStrictEqual({
+			calls,
+			directories: harness.stateManager.getSessionState(session)?.workingDirectories,
+			continuations: harness.continuations.map(entry => entry.chat),
+			toolsAfter: host.getDefinitionsForSession(session, main),
+		}, { calls: [session], directories: ['file:///worktree'], continuations: [main], toolsAfter: [] });
+	});
+
+	test('publishes the generated worktree branch before exposing its working directory', async () => {
+		const worktree = URI.file('/workspace/project.worktrees/feature');
+		const harness = createHarness(new TestWorktreeIsolation(worktree));
+		makeFolderSession(harness);
+		harness.stateManager.setSessionMeta(harness.session.toString(), withSessionGitState(
+			harness.stateManager.getSessionState(harness.session.toString())?._meta,
+			{ branchName: 'main', baseBranchName: 'main' },
+		));
+		const observed: { directory: string | undefined; branch: string | undefined }[] = [];
+		disposables.add(harness.stateManager.onDidChangeSessionWorkingDirectories(({ session }) => {
+			const state = harness.stateManager.getSessionState(session);
+			observed.push({ directory: state?.workingDirectories?.[0], branch: readSessionGitState(state?._meta)?.branchName });
+		}));
+		startTurn(harness.stateManager, harness.chat);
+		harness.service.requestSessionIsolation(harness.chat, 'turn-1', 'client-1');
+		completeTurn(harness.stateManager, harness.chat);
+		await updateSessionWorkspace(harness);
+		assert.deepStrictEqual({
+			observed,
+			baseBranch: harness.stateManager.getSessionState(harness.session.toString())?.config?.values[SessionConfigKey.Branch],
+		}, {
+			observed: [{ directory: worktree.toString(), branch: 'feature' }],
+			baseBranch: 'main',
 		});
 	});
 
