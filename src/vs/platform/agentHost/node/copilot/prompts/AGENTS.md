@@ -7,7 +7,7 @@ This directory customizes the system prompt for Copilot CLI **agent host** (ahp+
 - `promptRegistry.ts` — `AgentHostPromptRegistry`: resolves the final `SystemMessageConfig` for a session's model. Defines the `IAgentHostPrompt` contributor interface and the `IAgentHostPromptContext` read-time context.
 - `systemMessage.ts` — the default message (`COPILOT_AGENT_HOST_SYSTEM_MESSAGE`), shared identity text, the `fullSystemPrompt` / `sectionOverrides` builders, and `describeSystemMessageConfig` (the one-line log summary).
 - `toolInstructions.ts` — the model-agnostic `tool_instructions` layer: gated or unconditional nudges (`TOOL_INSTRUCTION_LINES`) composed into the SDK's `tool_instructions` section, including the default-model guidance for subagents.
-- `anthropicPrompt.ts` — the Claude-family contributor. Layers two independently gated overrides: the **Copilot Chat prompt port** (`chat.claudeAltPrompt.enabled`, every Claude model) and the **Opus 4.8 tuning** (`chat.agentHost.opus48Prompt.enabled`, Opus 4.8 only). One contributor because the registry resolves exactly one per model and does not fall through when a contributor opts out.
+- `anthropicPrompt.ts` — the Claude-family contributor. Layers two independently gated overrides: the **Opus alternate prompt** (`chat.opusAltPrompt.enabled`, Claude Opus models; Sonnet/Haiku keep the SDK foundation prompt) and the **Opus 4.8 tuning** (`chat.agentHost.opus48Prompt.enabled`, Opus 4.8 only). One contributor because the registry resolves exactly one per model and does not fall through when a contributor opts out.
 - `allPrompts.ts` — side-effect import hub; importing it registers every contributor into the shared `agentHostPromptRegistry`.
 
 ## How the system message is built
@@ -79,14 +79,14 @@ agentHostPromptRegistry.registerPrompt(MyModelPrompt);   // then add `import './
 
 Matching: a contributor matches a model by `static matchesModel(model)` (takes precedence) or by `familyPrefixes` (model-id `startsWith`). The registry resolves **exactly one** contributor per model (first match wins) — base + version layering is a known follow-up.
 
-## Claude alternate prompt (Copilot Chat port) (`anthropicPrompt.ts`)
+## Opus alternate prompt (`anthropicPrompt.ts`)
 
-`claudeAltPromptSectionOverrides` ports the Copilot Chat Claude agent prompt (`extensions/copilot/src/extension/prompts/node/agent/anthropicPrompts.tsx`, `Claude46OpusPrompt` / `Claude46SonnetPrompt`) onto the SDK foundation in `customize` mode. Motivation: on matched clippy-bench tasks Claude under the SDK prompt spent ~2.5x the verification turns and ~2.3x the output tokens of the same model under Copilot Chat, at equal resolution — the SDK prompt mandates "verify before done" in six places with no restraint guidance; Copilot Chat's has no verification mandate and five restraint instructions.
+`opusAltPromptSectionOverrides` ports the Copilot Chat Opus agent prompt (`extensions/copilot/src/extension/prompts/node/agent/anthropicPrompts.tsx`, `Claude46OpusPrompt`) onto the SDK foundation in `customize` mode, for **Claude Opus models only** (`model.id.startsWith('claude-opus')`). Sonnet and Haiku are intentionally excluded: evaluated on terminalbench2-1 the same override left Sonnet 5 at 1.8× Copilot Chat's input (it persisted longer on hard tasks) and Haiku's cost is dominated by unrelated factors, so they keep the SDK foundation prompt until tuned separately. Motivation: on matched clippy-bench tasks Claude under the SDK prompt spent ~2.5x the verification turns and ~2.3x the output tokens of the same model under Copilot Chat, at equal resolution — the SDK prompt mandates "verify before done" in six places with no restraint guidance; Copilot Chat's has no verification mandate and five restraint instructions.
 
 | Section | Action | What changes |
 |---|---|---|
 | `code_change_rules` | transform | drops the "Validate that your changes preserve existing behavior" bullet; appends Copilot Chat `implementationDiscipline` |
-| `guidelines` | transform | drops the "Reflect on command output", "Clean up temporary files" and "Ask for guidance" tips; appends Copilot Chat `<instructions>` (exploration restraint, Opus or Sonnet wording), `operationalSafety`, `parallelizationStrategy`, `communicationStyle` |
+| `guidelines` | transform | drops the "Reflect on command output", "Clean up temporary files" and "Ask for guidance" tips; appends Copilot Chat `<instructions>` (exploration restraint), `operationalSafety`, `parallelizationStrategy`, `communicationStyle` |
 | `tool_instructions` | transform | drops the foundation's `<example>` blocks and the `<ask_user>` walkthrough (~940 tokens; `trimFoundationToolInstructions`), keeps `<bash>` mode/`read_bash` guidance, `<task>` delegation policy and the `<sql>` todo contract; appends Copilot Chat `toolUseInstructions` with SDK tool names (`view`/`edit`/`create`/`bash`). The registry appends the universal host lines after the transform |
 | `last_instructions` | transform | drops "Your goal is to deliver complete, working solutions … Verify your changes actually work …", the `<task_completion>` block (keeping its dependency-install bullet as a plain line) and "be thorough" (`trimFoundationLastInstructions`); `<tool_calling>` and any other foundation text survive |
 
@@ -96,7 +96,7 @@ Known residual: the `bash` tool's own "Prefer short inspect → act → verify l
 
 Known residual: the `<task>` section's security-review contract still says "use the ask_user tool (if available)" after the `<ask_user>` walkthrough is trimmed. The tool remains available and its schema describes it; the reference is left rather than editing inside `<task>`.
 
-Not part of the port: Copilot Chat lines that reference extension-only tools (`semantic_search`, explore/execution subagents, `manage_todo_list`), its identity sentences (the host replaces identity) and `securityRequirements` (covered by the SDK `safety` section). The per-turn `<system_reminder>` (chat title / artifact registration) is injected by the session-title controller, not this registry, and is unaffected by this setting.
+Not part of the port: Copilot Chat lines that reference extension-only tools (`semantic_search`, explore/execution subagents, `manage_todo_list`), its identity sentences (the host replaces identity), `securityRequirements` (covered by the SDK `safety` section), and its Sonnet-specific wording (out of scope). The per-turn `<system_reminder>` (chat title / artifact registration) is injected by the session-title controller, not this registry, and is unaffected by this setting.
 
 ## Related — per-model experimentation knobs (`copilotCliConfig.ts`)
 

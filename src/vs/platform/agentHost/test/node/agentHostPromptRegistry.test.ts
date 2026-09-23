@@ -10,7 +10,7 @@ import type { SchemaValues } from '../../common/agentHostSchema.js';
 import type { ModelSelection } from '../../common/state/protocol/state.js';
 import { AgentHostPromptRegistry, agentHostPromptRegistry, type IAgentHostPromptContext } from '../../node/copilot/prompts/promptRegistry.js';
 import { COPILOT_AGENT_HOST_SYSTEM_MESSAGE } from '../../node/copilot/prompts/systemMessage.js';
-import { CLAUDE_ALT_PROMPT_IMPLEMENTATION_DISCIPLINE, CLAUDE_ALT_PROMPT_TOOL_INSTRUCTIONS, dropFoundationBullets, mergeSectionOverrides, trimFoundationLastInstructions, trimFoundationToolInstructions } from '../../node/copilot/prompts/anthropicPrompt.js';
+import { OPUS_ALT_PROMPT_IMPLEMENTATION_DISCIPLINE, OPUS_ALT_PROMPT_TOOL_INSTRUCTIONS, dropFoundationBullets, mergeSectionOverrides, trimFoundationLastInstructions, trimFoundationToolInstructions } from '../../node/copilot/prompts/anthropicPrompt.js';
 import { AGENT_HOST_FILE_LINK_INSTRUCTIONS } from '../../node/shared/fileLinkInstructions.js';
 import { AGENT_HOST_WORKSPACELESS_INSTRUCTIONS } from '../../node/shared/workspacelessInstructions.js';
 import { COPILOT_AGENT_HOST_LARGE_OUTPUT_TOOL_INSTRUCTION, COPILOT_AGENT_HOST_SUBAGENT_TOOL_INSTRUCTIONS } from '../../node/copilot/prompts/toolInstructions.js';
@@ -201,8 +201,8 @@ suite('AgentHostPromptRegistry', () => {
 		});
 	});
 
-	suite('Claude alternate-prompt contributor (registered via allPrompts)', () => {
-		const altOn = { [CopilotCliConfigKey.ClaudeAltPrompt]: true };
+	suite('Opus alternate-prompt contributor (registered via allPrompts)', () => {
+		const altOn = { [CopilotCliConfigKey.OpusAltPrompt]: true };
 
 		// Representative slices of the SDK foundation sections the transforms run over
 		// (captured from a real agent-host session; wording owned by the CLI/SDK).
@@ -247,15 +247,17 @@ suite('AgentHostPromptRegistry', () => {
 		test('is off by default and gated on its setting', () => {
 			for (const id of ['claude-opus-5', 'claude-sonnet-4.6', 'claude-haiku-4.5']) {
 				assert.deepStrictEqual(resolve(id, {}), withUniversalAgentHostInstructions(COPILOT_AGENT_HOST_SYSTEM_MESSAGE), id);
-				assert.deepStrictEqual(resolve(id, { [CopilotCliConfigKey.ClaudeAltPrompt]: false }), withUniversalAgentHostInstructions(COPILOT_AGENT_HOST_SYSTEM_MESSAGE), id);
+				assert.deepStrictEqual(resolve(id, { [CopilotCliConfigKey.OpusAltPrompt]: false }), withUniversalAgentHostInstructions(COPILOT_AGENT_HOST_SYSTEM_MESSAGE), id);
 			}
 		});
 
-		test('applies to every Claude model, not to other families', () => {
-			for (const id of ['claude-opus-5', 'claude-opus-4-8', 'claude-sonnet-4.6', 'claude-haiku-4.5']) {
+		test('applies to Claude Opus models only; Sonnet, Haiku and other families keep the default prompt', () => {
+			for (const id of ['claude-opus-5', 'claude-opus-4-8', 'claude-opus-4.8', 'claude-opus-4.5']) {
 				assert.deepStrictEqual(Object.keys(sectionsOf(id)).sort(), ['code_change_rules', 'guidelines', 'identity', 'last_instructions', 'tool_instructions'], id);
 			}
-			assert.deepStrictEqual(resolve('gpt-5.6'), withUniversalAgentHostInstructions(COPILOT_AGENT_HOST_SYSTEM_MESSAGE));
+			for (const id of ['claude-sonnet-4.6', 'claude-sonnet-5', 'claude-haiku-4.5', 'gpt-5.6']) {
+				assert.deepStrictEqual(resolve(id), withUniversalAgentHostInstructions(COPILOT_AGENT_HOST_SYSTEM_MESSAGE), id);
+			}
 		});
 
 		// The SDK foundation `last_instructions` section, verbatim from a captured
@@ -331,7 +333,7 @@ suite('AgentHostPromptRegistry', () => {
 			assert.match(result, /batch edits to the same file/);
 			assert.match(result, /<sql>[\s\S]*todo_deps[\s\S]*<\/sql>/);
 			assert.match(result, /<task>[\s\S]*Delegate only[\s\S]*<\/task>/);
-			assert.ok(result.endsWith(`</tools>\n${CLAUDE_ALT_PROMPT_TOOL_INSTRUCTIONS}\n${UNCONDITIONAL_TOOL_INSTRUCTIONS}`), 'alternate-prompt rules then universal lines must follow the trimmed foundation');
+			assert.ok(result.endsWith(`</tools>\n${OPUS_ALT_PROMPT_TOOL_INSTRUCTIONS}\n${UNCONDITIONAL_TOOL_INSTRUCTIONS}`), 'alternate-prompt rules then universal lines must follow the trimmed foundation');
 		});
 
 		test('trimFoundationToolInstructions is a no-op on text without the targeted blocks', () => {
@@ -343,7 +345,7 @@ suite('AgentHostPromptRegistry', () => {
 			assert.doesNotMatch(result, /Validate that your changes preserve existing behavior/);
 			assert.match(result, /Update directly related documentation\.\n<\/rules_for_code_changes>/);
 			assert.match(result, /Use existing linters, builds, and tests/);
-			assert.ok(result.endsWith(`\n${CLAUDE_ALT_PROMPT_IMPLEMENTATION_DISCIPLINE}`));
+			assert.ok(result.endsWith(`\n${OPUS_ALT_PROMPT_IMPLEMENTATION_DISCIPLINE}`));
 		});
 
 		test('guidelines drops the verification tips, keeps the rest and appends the Copilot Chat guidance', async () => {
@@ -357,15 +359,11 @@ suite('AgentHostPromptRegistry', () => {
 			assert.doesNotMatch(result, /You are a highly sophisticated/);
 		});
 
-		test('Sonnet gets the Sonnet exploration wording, other Claude models the Opus wording', async () => {
-			const sonnet = await runTransform(sectionsOf('claude-sonnet-4.6').guidelines, '');
+		test('uses the Copilot Chat Opus exploration wording', async () => {
 			const opus = await runTransform(sectionsOf('claude-opus-5').guidelines, '');
-			const haiku = await runTransform(sectionsOf('claude-haiku-4.5').guidelines, '');
-			assert.match(sonnet, /Step back and consider a different strategy after two failed attempts/);
-			assert.match(sonnet, /batch the reads you've already decided you need/);
-			assert.doesNotMatch(opus, /two failed attempts/);
 			assert.match(opus, /Avoid redundant searches for information already found/);
-			assert.strictEqual(haiku, opus);
+			assert.match(opus, /do not over-explore/);
+			assert.doesNotMatch(opus, /two failed attempts/);
 		});
 
 		test('a foundation rewording leaves the section untouched apart from the appended guidance', async () => {

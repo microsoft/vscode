@@ -16,7 +16,7 @@ type SectionOverrides = Partial<Record<SystemMessageSection, SectionOverride>>;
  * Bullets the SDK foundation prompt contributes that the Copilot Chat Claude
  * prompt deliberately does not: verification and thoroughness mandates that
  * measurably drive extra verification turns on Claude (see the
- * `chat.claudeAltPrompt.enabled` setting description). Each
+ * `chat.opusAltPrompt.enabled` setting description). Each
  * is a regex source matched as a whole bullet, so a foundation rewording simply
  * leaves the line in place rather than mangling its neighbours.
  */
@@ -46,7 +46,7 @@ export function dropFoundationBullets(content: string, bullets: readonly string[
 }
 
 /** Copilot Chat `implementationDiscipline` (Claude46OpusPrompt), verbatim. */
-export const CLAUDE_ALT_PROMPT_IMPLEMENTATION_DISCIPLINE = [
+export const OPUS_ALT_PROMPT_IMPLEMENTATION_DISCIPLINE = [
 	'<implementation_discipline>',
 	'Avoid over-engineering. Only make changes that are directly requested or clearly necessary.',
 	'- Don\'t add features, refactor code, or make "improvements" beyond what was asked',
@@ -56,44 +56,26 @@ export const CLAUDE_ALT_PROMPT_IMPLEMENTATION_DISCIPLINE = [
 	'</implementation_discipline>',
 ].join('\n');
 
-/**
- * Copilot Chat `<instructions>` exploration guidance. The Opus variant
- * (Claude46OpusPrompt) is the default for every Claude model, matching Copilot
- * Chat's own fallback; Sonnet gets its Claude46SonnetPrompt wording. Haiku
- * receives the Opus wording here although Copilot Chat routes it to its Claude
- * 4.5 prompt — evaluated as acceptable (terminalbench2-1 +11 resolved, 1.14× input).
- */
-function explorationGuidance(model: ModelSelection): string {
-	if (isSonnet(model)) {
-		return [
-			'Gather enough context to proceed confidently, then move to implementation. Persist through genuine blockers and continue working until the request is resolved, but do not over-explore when you already have sufficient information to act. If multiple searches return overlapping results, you have enough context.',
-			'When a tool call fails or an approach is not working, try an alternative rather than retrying the same thing. Step back and consider a different strategy after two failed attempts.',
-		].join('\n');
-	}
-	return [
-		'Gather sufficient context to act confidently, then proceed to implementation. Avoid redundant searches for information already found. Once you have identified the relevant files and understand the code structure, proceed to implementation. Do not continue searching after you have enough to act. If multiple queries return overlapping results, you have sufficient context.',
-		'Persist through genuine blockers, but do not over-explore when you already have enough information to proceed. When you encounter an error, diagnose and fix rather than retrying the same approach.',
-	].join('\n');
-}
+/** Copilot Chat `<instructions>` exploration guidance (Claude46OpusPrompt). */
+const EXPLORATION_GUIDANCE = [
+	'Gather sufficient context to act confidently, then proceed to implementation. Avoid redundant searches for information already found. Once you have identified the relevant files and understand the code structure, proceed to implementation. Do not continue searching after you have enough to act. If multiple queries return overlapping results, you have sufficient context.',
+	'Persist through genuine blockers, but do not over-explore when you already have enough information to proceed. When you encounter an error, diagnose and fix rather than retrying the same approach.',
+].join('\n');
 
-function parallelizationStrategy(model: ModelSelection): string {
-	return isSonnet(model)
-		? 'You may parallelize independent read-only operations when appropriate. For context gathering, batch the reads you\'ve already decided you need rather than searching speculatively. Get enough context to act, then proceed with implementation.'
-		: 'You may parallelize independent read-only operations when appropriate.';
-}
+const PARALLELIZATION_STRATEGY = 'You may parallelize independent read-only operations when appropriate.';
 
 /**
  * Copilot Chat `<instructions>`, `<operationalSafety>`, `<parallelizationStrategy>`
- * and `<communicationStyle>` (Claude46OpusPrompt / Claude46SonnetPrompt),
+ * and `<communicationStyle>` (Claude46OpusPrompt),
  * appended to the SDK `guidelines` section. The identity sentences and
  * `securityRequirements` are omitted: the host already replaces identity, and
  * the SDK `safety` section covers the same ground.
  */
-export function claudeAltPromptGuidelines(model: ModelSelection): string {
+export function opusAltPromptGuidelines(): string {
 	return [
 		'<instructions>',
 		'By default, implement changes rather than only suggesting them. If the user\'s intent is unclear, infer the most useful likely action and proceed with using tools to discover missing details instead of guessing.',
-		explorationGuidance(model),
+		EXPLORATION_GUIDANCE,
 		'If your approach is blocked, do not attempt to brute force your way to the outcome. Consider alternative approaches or other ways you might unblock yourself.',
 		'Avoid giving time estimates.',
 		'</instructions>',
@@ -103,7 +85,7 @@ export function claudeAltPromptGuidelines(model: ModelSelection): string {
 		'Do not use destructive actions as shortcuts. Do not bypass safety checks (e.g. --no-verify) or discard unfamiliar files that may be in-progress work.',
 		'</operational_safety>',
 		'<parallelization_strategy>',
-		parallelizationStrategy(model),
+		PARALLELIZATION_STRATEGY,
 		'</parallelization_strategy>',
 		'<communication_style>',
 		'Be brief. Target 1-3 sentences for simple answers. Expand only for complex work or when requested.',
@@ -130,7 +112,7 @@ export function claudeAltPromptGuidelines(model: ModelSelection): string {
  * (`semantic_search`, the explore/execution subagents, `manage_todo_list`) are
  * left out rather than pointed at tools the SDK session does not have.
  */
-export const CLAUDE_ALT_PROMPT_TOOL_INSTRUCTIONS = [
+export const OPUS_ALT_PROMPT_TOOL_INSTRUCTIONS = [
 	'Read files before modifying them. Understand existing code before suggesting changes.',
 	'Do not create files unless absolutely necessary. Prefer editing existing files.',
 	'NEVER say the name of a tool to a user. Say "I\'ll run the command in a terminal" instead of "I\'ll use bash".',
@@ -189,8 +171,8 @@ export function trimFoundationLastInstructions(content: string): string {
 
 /**
  * `customize`-mode section overrides that port the Copilot Chat Claude agent
- * prompt (extensions/copilot/.../anthropicPrompts.tsx, Claude46OpusPrompt /
- * Claude46SonnetPrompt) onto the SDK foundation prompt.
+ * prompt (extensions/copilot/.../anthropicPrompts.tsx, Claude46OpusPrompt) onto
+ * the SDK foundation prompt, for Claude Opus models.
  *
  * Motivation: on matched clippy-bench tasks, Claude under the SDK prompt spent
  * ~2.5x the verification turns and ~2.3x the output tokens of the same model
@@ -220,18 +202,18 @@ export function trimFoundationLastInstructions(content: string): string {
  * already removes the foundation tone sub-section, so the communication style
  * lives in `guidelines` instead.
  */
-export function claudeAltPromptSectionOverrides(model: ModelSelection): SectionOverrides {
+export function opusAltPromptSectionOverrides(): SectionOverrides {
 	return {
 		code_change_rules: {
-			action: content => `${dropFoundationBullets(content, CODE_CHANGE_RULE_BULLETS_TO_DROP)}\n${CLAUDE_ALT_PROMPT_IMPLEMENTATION_DISCIPLINE}`,
+			action: content => `${dropFoundationBullets(content, CODE_CHANGE_RULE_BULLETS_TO_DROP)}\n${OPUS_ALT_PROMPT_IMPLEMENTATION_DISCIPLINE}`,
 		},
 		guidelines: {
-			action: content => `${dropFoundationBullets(content, GUIDELINE_BULLETS_TO_DROP)}\n${claudeAltPromptGuidelines(model)}`,
+			action: content => `${dropFoundationBullets(content, GUIDELINE_BULLETS_TO_DROP)}\n${opusAltPromptGuidelines()}`,
 		},
 		tool_instructions: {
 			// Trim the foundation prose, then add Copilot Chat's tool-use rules. The
 			// registry appends the host's universal lines after this transform.
-			action: content => `${trimFoundationToolInstructions(content)}\n${CLAUDE_ALT_PROMPT_TOOL_INSTRUCTIONS}`,
+			action: content => `${trimFoundationToolInstructions(content)}\n${OPUS_ALT_PROMPT_TOOL_INSTRUCTIONS}`,
 		},
 		last_instructions: {
 			action: trimFoundationLastInstructions,
@@ -283,13 +265,14 @@ function isOpus48(model: ModelSelection): boolean {
 	return model.id.startsWith('claude-opus-4-8') || model.id.startsWith('claude-opus-4.8');
 }
 
-function isSonnet(model: ModelSelection): boolean {
-	return model.id.startsWith('claude-sonnet');
-}
-
 /** Whether `model` is any Claude model (SDK dashed ids and CAPI dotted ids both start with `claude`). */
 function isClaude(model: ModelSelection): boolean {
 	return model.id.startsWith('claude');
+}
+
+/** Whether `model` is a Claude Opus model (any version; SDK dashed ids and CAPI dotted ids both start with `claude-opus`). */
+function isOpus(model: ModelSelection): boolean {
+	return model.id.startsWith('claude-opus');
 }
 
 /**
@@ -323,8 +306,9 @@ export function mergeSectionOverrides(first: SectionOverrides, second: SectionOv
 
 /**
  * Claude-family agent prompt. Layers, each behind its own opt-in setting:
- *  1. the Copilot Chat prompt port ({@link claudeAltPromptSectionOverrides}),
- *     for every Claude model, via {@link CopilotCliConfigKey.ClaudeAltPrompt};
+ *  1. the Copilot Chat prompt port ({@link opusAltPromptSectionOverrides}),
+ *     for Claude Opus models only, via {@link CopilotCliConfigKey.OpusAltPrompt}
+ *     (Sonnet/Haiku keep the SDK foundation prompt);
  *  2. the Opus 4.8 tuning ({@link opus48SectionOverrides}), for Opus 4.8 only,
  *     via {@link CopilotCliConfigKey.Opus48Prompt}.
  * Both off → falls back to the default system message. A single contributor
@@ -340,8 +324,8 @@ class ClaudePromptResolver implements IAgentHostPrompt {
 
 	resolveSectionOverrides(model: ModelSelection, context: IAgentHostPromptContext): SectionOverrides | undefined {
 		let overrides: SectionOverrides = {};
-		if (context.getSetting(CopilotCliConfigKey.ClaudeAltPrompt) === true) {
-			overrides = claudeAltPromptSectionOverrides(model);
+		if (isOpus(model) && context.getSetting(CopilotCliConfigKey.OpusAltPrompt) === true) {
+			overrides = opusAltPromptSectionOverrides();
 		}
 		if (isOpus48(model) && context.getSetting(CopilotCliConfigKey.Opus48Prompt) === true) {
 			overrides = mergeSectionOverrides(overrides, opus48SectionOverrides());
