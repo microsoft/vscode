@@ -18,6 +18,7 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { CHAT_WIDGET_VIEW_STATE_CACHE_LIMIT } from '../../../../../workbench/contrib/chat/browser/chat.js';
+import { getCompactCodicon } from '../../../../../workbench/contrib/chat/browser/chatIcons.js';
 import { IChatRequestTranscriptContextVariableEntry } from '../../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { ChatInputNoticeHost, ChatInputNoticeLane } from '../../../../../workbench/contrib/chat/browser/widget/input/chatInputNoticeHost.js';
 import { isChatInputStackSlotShowing } from '../../../../../workbench/contrib/chat/browser/widget/input/chatInputStack.js';
@@ -35,6 +36,7 @@ import { SessionsChatViewStateService } from '../../browser/chatViewStateService
 import { NewChatInSessionWidget } from '../../browser/newChatInSessionWidget.js';
 import { NewChatInputWidget } from '../../browser/newChatInput.js';
 import { NewChatWidget } from '../../browser/newChatWidget.js';
+import '../../../../../workbench/browser/media/style.css';
 import '../../../../../workbench/contrib/chat/browser/widget/chatContentParts/media/chatAgentMergeContent.css';
 import '../../../../../workbench/contrib/chat/browser/widget/chatContentParts/media/chatRequestOrigin.css';
 import { ISelectWorkspaceOptions } from '../../../../browser/parts/chatView.js';
@@ -77,11 +79,14 @@ suite('Sessions - Chat View', () => {
 		_updateChatBackground(): void;
 	}
 
-	function createBackgroundReplicaHost(background: ISessionsChatBackground) {
+	function createBackgroundReplicaHost(background: ISessionsChatBackground, interactive = false) {
 		const store = disposables.add(new DisposableStore());
 		const workbench = dom.$('.monaco-workbench.vs-dark.agent-sessions-workbench');
 		workbench.style.setProperty('--session-view-background', '#202020');
 		workbench.style.setProperty('--vscode-foreground', '#ffffff');
+		workbench.style.setProperty('--vscode-icon-foreground', '#ffffff');
+		workbench.style.setProperty('--vscode-codiconFontSize', '16px');
+		workbench.style.setProperty('--vscode-codiconFontSize-compact', '12px');
 		const part = dom.append(workbench, dom.$('.part.sessionspart'));
 		part.style.position = 'relative';
 		part.style.width = '600px';
@@ -100,7 +105,7 @@ suite('Sessions - Chat View', () => {
 		dom.getWindow(workbench).document.body.appendChild(workbench);
 		store.add(toDisposable(() => workbench.remove()));
 
-		const sourceRenderer = store.add(new SessionsChatBackgroundRenderer(part));
+		const sourceRenderer = store.add(new SessionsChatBackgroundRenderer(part, interactive, () => 0.5));
 		sourceRenderer.setBackground(background);
 		const source = part.querySelector<HTMLElement>(':scope > .sessions-chat-background');
 		if (!source) {
@@ -114,6 +119,11 @@ suite('Sessions - Chat View', () => {
 		const viewport = stickyContainer.querySelector<HTMLElement>(':scope > .sessions-chat-background-replica-viewport');
 		const replica = viewport?.querySelector<HTMLElement>(':scope > .sessions-chat-background-replica');
 		return { viewport, replica };
+	}
+
+	function getCodiconTranslations(element: HTMLElement): string[] {
+		const targetWindow = dom.getWindow(element);
+		return [...element.querySelectorAll<HTMLElement>('.sessions-chat-codicon-depth')].map(layer => targetWindow.getComputedStyle(layer).translate);
 	}
 
 	test('retries an unresolved chat when its content provider is registered', () => {
@@ -931,10 +941,166 @@ suite('Sessions - Chat View', () => {
 			reusedFirstIconWhenExpanded: true,
 			reusedFirstIconWhenShrunk: true,
 			firstIconPositions: [
-				{ left: '125.6px', top: '46.4px' },
-				{ left: '125.6px', top: '46.4px' },
-				{ left: '125.6px', top: '46.4px' },
+				{ left: '272px', top: '15.2px' },
+				{ left: '272px', top: '15.2px' },
+				{ left: '272px', top: '15.2px' },
 			],
+		});
+	});
+
+	for (const interactive of [false, true]) {
+		test(`only writes Codicon opacity when it changes (${interactive ? 'interactive' : 'decorative'})`, async () => {
+			const codicons = { kind: 'codicons' } as const;
+			const { part, source, sourceRenderer } = createBackgroundReplicaHost(codicons, interactive);
+			const icons = [...source.querySelectorAll<HTMLElement>('.codicon')];
+			let opacityWrites = 0;
+			for (const icon of icons) {
+				const style = new Proxy(icon.style, {
+					get(target, property) {
+						return Reflect.get(target, property, target);
+					},
+					set(target, property, value: string) {
+						if (property === 'opacity') {
+							opacityWrites++;
+						}
+						return Reflect.set(target, property, value);
+					},
+				});
+				sinon.stub(icon, 'style').get(() => style);
+			}
+
+			sourceRenderer.setBackground(codicons);
+			const unchangedRefreshWrites = opacityWrites;
+			opacityWrites = 0;
+			part.dispatchEvent(new Event('scroll'));
+			await timeout(40);
+			const unchangedScrollWrites = opacityWrites;
+			const initialOpacities = icons.map(icon => icon.style.opacity);
+
+			opacityWrites = 0;
+			part.style.width = '601px';
+			sourceRenderer.setBackground(codicons);
+			const resizeWrites = opacityWrites;
+			const resizedOpacities = icons.map(icon => icon.style.opacity);
+			opacityWrites = 0;
+			sourceRenderer.setBackground(codicons);
+
+			assert.deepStrictEqual({
+				unchangedRefreshWrites,
+				unchangedScrollWrites,
+				updatedOpacityOnResize: resizeWrites > 0 && resizedOpacities.some((opacity, index) => opacity !== initialOpacities[index]),
+				reusedIcons: [...source.querySelectorAll('.codicon')].every((icon, index) => icon === icons[index]),
+				repeatedResizeWrites: opacityWrites,
+			}, {
+				unchangedRefreshWrites: 0,
+				unchangedScrollWrites: 0,
+				updatedOpacityOnResize: true,
+				reusedIcons: true,
+				repeatedResizeWrites: 0,
+			});
+		});
+	}
+
+	test('keeps static depth layers aligned with sticky replicas and the confetti button', () => {
+		const codicons = { kind: 'codicons' } as const;
+		const { store, part, source, stickyContainer, sourceRenderer } = createBackgroundReplicaHost(codicons, true);
+		part.style.setProperty('--vscode-spacing-size240', '24px');
+		const replica = store.add(new SessionsChatBackgroundReplica(source, stickyContainer));
+		replica.setBackground(codicons);
+		const replicaElement = getBackgroundReplicaElements(stickyContainer).replica!;
+		const sourceLayers = [...source.querySelectorAll<HTMLElement>('.sessions-chat-codicon-depth')];
+		const replicaLayers = [...replicaElement.querySelectorAll<HTMLElement>('.sessions-chat-codicon-depth')];
+		const targetWindow = dom.getWindow(part);
+		const getPattern = (layers: readonly HTMLElement[]) => layers.map(layer => [...layer.querySelectorAll<HTMLElement>('.codicon')].map(icon => ({
+			icon: icon.className,
+			opacity: icon.style.opacity,
+		})));
+		const sourcePattern = getPattern(sourceLayers);
+		const replicaPattern = getPattern(replicaLayers);
+		const activeCell = source.querySelector<HTMLElement>('.sessions-chat-codicon-button-active')!;
+		const button = part.querySelector<HTMLElement>(':scope > .sessions-chat-codicon-hit-target')!;
+		const cellBounds = activeCell.getBoundingClientRect();
+		const buttonBounds = button.getBoundingClientRect();
+		const farIconIds = [...sourceLayers[0].querySelectorAll('.codicon')].map(icon => [...icon.classList].find(className => className.startsWith('codicon-'))!.substring('codicon-'.length));
+		const staticState = {
+			fontSizes: sourceLayers.map(layer => [...new Set([...layer.querySelectorAll('.codicon')].map(icon => targetWindow.getComputedStyle(icon).fontSize))]),
+			compactFarGlyphs: farIconIds.some(id => id.endsWith('-compact')) && farIconIds.every(id => getCompactCodicon({ id }).id === id),
+			unscaledGlyphs: [...source.querySelectorAll('.codicon')].every(icon => {
+				const matrix = new DOMMatrix(targetWindow.getComputedStyle(icon).transform);
+				return Math.abs(Math.hypot(matrix.a, matrix.b) - 1) < 0.00001 && Math.abs(Math.hypot(matrix.c, matrix.d) - 1) < 0.00001;
+			}),
+			filters: sourceLayers.map(layer => targetWindow.getComputedStyle(layer).filter),
+			sourceTranslations: getCodiconTranslations(source),
+			replicaTranslations: getCodiconTranslations(replicaElement),
+			buttonTranslation: targetWindow.getComputedStyle(button).translate,
+			animationCount: part.getAnimations({ subtree: true }).length,
+			depthColorsMatch: sourceLayers.every(layer => targetWindow.getComputedStyle(layer.querySelector('.codicon')!).color === targetWindow.getComputedStyle(layer).color),
+			depthColorCount: new Set(sourceLayers.map(layer => targetWindow.getComputedStyle(layer).color)).size,
+			buttonAligned: Math.abs(cellBounds.left - buttonBounds.left) < 0.1 && Math.abs(cellBounds.top - buttonBounds.top) < 0.1,
+		};
+		sourceRenderer.setBackground(undefined);
+		replica.setBackground(undefined);
+
+		assert.deepStrictEqual({
+			replicaPattern,
+			staticState,
+			clearedIconCounts: [source.querySelectorAll('.codicon').length, replicaElement.querySelectorAll('.codicon').length],
+			clearedAnimationCount: part.getAnimations({ subtree: true }).length,
+		}, {
+			replicaPattern: sourcePattern,
+			staticState: {
+				fontSizes: [['12px'], ['16px'], ['16px']],
+				compactFarGlyphs: true,
+				unscaledGlyphs: true,
+				filters: ['blur(0.6px)', 'none', 'none'],
+				sourceTranslations: ['none', 'none', 'none'],
+				replicaTranslations: ['none', 'none', 'none'],
+				buttonTranslation: 'none',
+				animationCount: 0,
+				depthColorsMatch: true,
+				depthColorCount: 3,
+				buttonAligned: true,
+			},
+			clearedIconCounts: [0, 0],
+			clearedAnimationCount: 0,
+		});
+	});
+
+	test('keeps the layered background still at rest, during scrolling, and on pointer input', async () => {
+		const { part, chatView, source } = createBackgroundReplicaHost({ kind: 'codicons' }, true);
+		chatView.style.height = '100px';
+		chatView.style.overflow = 'auto';
+		dom.append(chatView, dom.$('div')).style.height = '1000px';
+		const getIconPositions = () => [...source.querySelectorAll('.codicon')].map(icon => {
+			const bounds = icon.getBoundingClientRect();
+			return { x: bounds.x, y: bounds.y };
+		});
+		const initialPositions = getIconPositions();
+		await timeout(40);
+		const idlePositions = getIconPositions();
+		for (const pointerType of ['mouse', 'touch']) {
+			part.dispatchEvent(new PointerEvent('pointermove', { pointerType, clientX: 0, clientY: 0 }));
+		}
+		part.dispatchEvent(new WheelEvent('wheel', { deltaY: 100 }));
+		await timeout(40);
+		const inputPositions = getIconPositions();
+		chatView.scrollTop = 250;
+		await timeout(40);
+
+		assert.deepStrictEqual({
+			idlePositions,
+			inputPositions,
+			scrolledPositions: getIconPositions(),
+			scrollTop: chatView.scrollTop,
+			translations: getCodiconTranslations(source),
+			animationCount: part.getAnimations({ subtree: true }).length,
+		}, {
+			idlePositions: initialPositions,
+			inputPositions: initialPositions,
+			scrolledPositions: initialPositions,
+			scrollTop: 250,
+			translations: ['none', 'none', 'none'],
+			animationCount: 0,
 		});
 	});
 

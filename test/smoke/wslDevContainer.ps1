@@ -51,17 +51,26 @@ function Save-Download([string] $Url, [string] $Destination) {
 }
 
 function Write-DiagnosticSection([string] $Name, [scriptblock] $Action) {
-	Write-Host "--- $Name ---"
+	"--- $Name ---"
 	try {
 		$output = & $Action 2>&1 | Out-String -Width 4096
-		Write-Host ($output.TrimEnd())
+		$output.TrimEnd()
 	} catch {
-		Write-Warning "Failed to collect ${Name}: $_"
+		"WARNING: Failed to collect ${Name}: $_"
 	}
 }
 
-function Write-WslDiagnostics {
-	Write-Host '=== WSL diagnostics after failed import ==='
+function Write-WslDiagnostics([datetime] $ImportStartTime, [string] $InstallPath) {
+	'=== WSL diagnostics after failed import ==='
+	"Import started (UTC): $($ImportStartTime.ToUniversalTime().ToString('o'))"
+	Write-DiagnosticSection 'Windows and WSL versions' {
+		Get-CimInstance -ClassName Win32_OperatingSystem | Select-Object Caption, Version, BuildNumber
+		"wsl.exe file version: $((Get-Item -LiteralPath $wsl).VersionInfo.FileVersion)"
+		$output = & $wsl --version 2>&1
+		$exitCode = $LASTEXITCODE
+		$output | Select-Object -First 20 | ForEach-Object { "$_" -replace "`0", '' }
+		"wsl --version exit code: $exitCode"
+	}
 	Write-DiagnosticSection 'wsl --status' {
 		$output = & $wsl --status 2>&1
 		$exitCode = $LASTEXITCODE
@@ -73,6 +82,14 @@ function Write-WslDiagnostics {
 		$exitCode = $LASTEXITCODE
 		$output | ForEach-Object { "$_" -replace "`0", '' }
 		"Exit code: $exitCode"
+	}
+	Write-DiagnosticSection 'Partial import files' {
+		$files = @(Get-ChildItem -LiteralPath $InstallPath -Force)
+		if ($files.Count) {
+			$files | Select-Object Name, Length, LastWriteTimeUtc | Format-List
+		} else {
+			'No files created.'
+		}
 	}
 	Write-DiagnosticSection 'Virtualization' {
 		Get-CimInstance -ClassName Win32_ComputerSystem |
@@ -103,11 +120,21 @@ function Write-WslDiagnostics {
 		}
 	}
 
-	$eventStartTime = (Get-Date).AddMinutes(-10)
-	foreach ($eventLogName in @('Microsoft-Windows-Lxss/Operational', 'Microsoft-Windows-Hyper-V-Compute-Admin', 'Microsoft-Windows-Hyper-V-Worker-Admin')) {
+	$eventStartTime = $ImportStartTime.AddMinutes(-1)
+	$eventEndTime = Get-Date
+	$wslEventLogs = @()
+	try {
+		$wslEventLogs = @(Get-WinEvent -ListLog '*Lxss*' -ErrorAction Stop | Select-Object -ExpandProperty LogName)
+	} catch {
+		"WARNING: Failed to discover WSL event logs: $_"
+	}
+	Write-DiagnosticSection 'Available WSL event logs' {
+		if ($wslEventLogs.Count) { $wslEventLogs } else { 'No Lxss event logs available.' }
+	}
+	foreach ($eventLogName in @($wslEventLogs + @('Microsoft-Windows-Host-Compute-Service-Admin', 'Microsoft-Windows-Hyper-V-Compute-Admin', 'Microsoft-Windows-Hyper-V-Worker-Admin', 'Microsoft-Windows-Hyper-V-VMMS-Admin') | Select-Object -Unique)) {
 		$action = {
-			Get-WinEvent -FilterHashtable @{ LogName = $eventLogName; StartTime = $eventStartTime } -MaxEvents 10 -ErrorAction Stop |
-				Select-Object TimeCreated, Id, LevelDisplayName, Message
+			Get-WinEvent -FilterHashtable @{ LogName = $eventLogName; StartTime = $eventStartTime; EndTime = $eventEndTime } -MaxEvents 20 -ErrorAction Stop |
+				Select-Object TimeCreated, Id, LevelDisplayName, Message | Format-List
 		}.GetNewClosure()
 		Write-DiagnosticSection "Recent events: $eventLogName" $action
 	}
@@ -160,6 +187,7 @@ if ($signature.Status -ne 'Valid' -or $signature.SignerCertificate.Subject -notm
 	throw 'The WSL2 kernel package does not have a valid Microsoft signature.'
 }
 $installer = Start-Process msiexec.exe -ArgumentList @('/i', "`"$kernelPackage`"", '/qn', '/norestart') -Wait -PassThru
+Write-Host "WSL2 kernel installer exit code: $($installer.ExitCode)"
 if ($installer.ExitCode -ne 0) {
 	throw "WSL2 kernel installation failed or requires a reboot (exit code $($installer.ExitCode)). No reboot will be attempted."
 }
@@ -171,12 +199,19 @@ if ((Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash -ne '1483cc5c1dc
 }
 $install = Join-Path $Root 'distro'
 New-Item -ItemType Directory -Path $install | Out-Null
-& $wsl --import $Distribution $install $archive --version 2
+$importStartTime = Get-Date
+$importOutput = & $wsl --import $Distribution $install $archive --version 2 2>&1
 $importExitCode = $LASTEXITCODE
 if ($importExitCode -ne 0) {
-	Write-WslDiagnostics
+	$logDirectory = Join-Path $workspace '.build\logs\wsl-dev-container'
+	New-Item -ItemType Directory -Force -Path $logDirectory | Out-Null
+	$diagnosticsPath = Join-Path $logDirectory "import-$Distribution.log"
+	@("WSL2 kernel installer exit code: $($installer.ExitCode)", "Import exit code: $importExitCode", 'Import output:') + @($importOutput | ForEach-Object { "$_" -replace "`0", '' }) |
+		Tee-Object -FilePath $diagnosticsPath
+	Write-WslDiagnostics $importStartTime $install | Tee-Object -FilePath $diagnosticsPath -Append
 	throw "Explicit WSL2 import failed with exit code $importExitCode. WSL1 is not supported by this test."
 }
+$importOutput | ForEach-Object { Write-Host ("$_" -replace "`0", '') }
 Invoke-Wsl 'uname -a; cat /etc/os-release'
 
 # The frontend is built from this PR; the unchanged backend uses a pinned published server.

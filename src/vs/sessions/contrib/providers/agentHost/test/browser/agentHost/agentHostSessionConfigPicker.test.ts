@@ -6,6 +6,7 @@
 import assert from 'assert';
 import { IListAccessibilityProvider } from '../../../../../../../base/browser/ui/list/listWidget.js';
 import { DeferredPromise } from '../../../../../../../base/common/async.js';
+import { CancellationToken } from '../../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../../../base/common/event.js';
 import { toDisposable } from '../../../../../../../base/common/lifecycle.js';
@@ -55,7 +56,7 @@ import { IsPhoneLayoutContext } from '../../../../../../common/contextkeys.js';
 const SESSION_ID = 'local-agent-host:s1';
 const SESSION_RESOURCE = URI.parse('agent-session:/s1');
 
-function makeWorkspace(uncommittedChanges: number | undefined, branchName = 'main'): ISessionWorkspace {
+function makeWorkspace(uncommittedChanges: number | undefined, branchName = 'main', upstreamBranchName?: string): ISessionWorkspace {
 	const root = URI.file('/repo');
 	return {
 		uri: root,
@@ -71,6 +72,7 @@ function makeWorkspace(uncommittedChanges: number | undefined, branchName = 'mai
 				workTreeUri: undefined,
 				branchName,
 				baseBranchName: undefined,
+				upstreamBranchName,
 				uncommittedChanges,
 				gitHubInfo: constObservable(undefined),
 			},
@@ -176,7 +178,9 @@ class FakeProvider implements Pick<IAgentHostSessionsProvider, 'id' | 'onDidChan
 		this._emitter.fire(sessionId);
 	}
 	trackSessionConfigOperation(_sessionId: string, _operation: Promise<void>): void { }
-	async getSessionConfigCompletions(): Promise<readonly SessionConfigValueItem[]> { return this.completions; }
+	async getSessionConfigCompletions(_sessionId: string, _property: string, query?: string): Promise<readonly SessionConfigValueItem[]> {
+		return query ? this.completions.filter(item => item.value.toLowerCase().includes(query.toLowerCase())) : this.completions;
+	}
 	isDevContainerEnabled(): boolean { return this.devContainerEnabled; }
 
 	/** Swap the config + resolving flag and pulse, as the real provider does. */
@@ -227,6 +231,7 @@ function branchState(container: HTMLElement): { icon: string | undefined; ariaLa
 class CapturingActionWidgetHolder {
 	delegate: IActionListDelegate<IConfigPickerItem> | undefined;
 	items: readonly IActionListItem<IConfigPickerItem>[] = [];
+	focusedItem: IActionListItem<IConfigPickerItem> | undefined;
 	accessibilityProvider: Partial<IListAccessibilityProvider<IActionListItem<IConfigPickerItem>>> | undefined;
 	readonly events: string[] = [];
 }
@@ -251,8 +256,12 @@ function setupServices(
 		hide: () => actionWidget.events.push('hide'),
 		show: (_user, _supportsPreview, items: readonly IActionListItem<IConfigPickerItem>[], delegate: IActionListDelegate<IConfigPickerItem>, _anchor, _container, _actionBarActions, accessibilityProvider: Partial<IListAccessibilityProvider<IActionListItem<IConfigPickerItem>>> | undefined) => {
 			actionWidget.items = items;
+			actionWidget.focusedItem = undefined;
 			actionWidget.delegate = delegate;
 			actionWidget.accessibilityProvider = accessibilityProvider;
+		},
+		focusItemById: (id: string) => {
+			actionWidget.focusedItem = actionWidget.items.find(item => item.item?.id === id);
 		},
 	} as Partial<IActionWidgetService> as IActionWidgetService);
 	instantiationService.stub(IHoverService, { setupDelayedHover: () => ({ dispose: () => { } }) } as Partial<IHoverService> as IHoverService);
@@ -862,7 +871,7 @@ suite('Agent Host Session Config Picker', () => {
 					kind: ActionListItemKind.Action,
 					label: 'main',
 					icon: Codicon.gitBranch.id,
-					checked: true,
+					checked: undefined,
 					detail: undefined,
 					ariaDescription: undefined,
 					toolbarActions: undefined,
@@ -880,7 +889,7 @@ suite('Agent Host Session Config Picker', () => {
 					kind: ActionListItemKind.Action,
 					label: 'dev',
 					icon: Codicon.gitBranchChanges.id,
-					checked: false,
+					checked: undefined,
 					detail: '2 uncommitted files',
 					ariaDescription: '2 uncommitted files',
 					toolbarActions: [{
@@ -898,6 +907,141 @@ suite('Agent Host Session Config Picker', () => {
 				label: 'Show Changes',
 			}],
 			singleResultKinds: [ActionListItemKind.Action],
+		});
+	});
+
+	test('worktree branch picker groups the tracked upstream with the current branch and selects it', async () => {
+		const services = setupServices(store);
+		services.provider.config = makeDynamicBranchConfig('feature', 'worktree');
+		services.provider.completions = [
+			{ value: 'dev', label: 'dev' },
+			{ value: 'feature', label: 'feature' },
+			{ value: 'main', label: 'main' },
+		];
+		services.workspaceObs.set(makeWorkspace(undefined, 'feature', 'origin/feature'), undefined);
+		const { container } = renderPicker(store, services);
+
+		branchSlot(container)!.querySelector<HTMLElement>('a.action-label')!.click();
+		await new Promise(resolve => setTimeout(resolve));
+		const items = services.actionWidget.items.map(item => ({
+			kind: item.kind,
+			label: item.label,
+			value: item.item?.value,
+			checked: item.item?.checked,
+			icon: item.group?.icon?.id,
+			accessibleChecked: services.actionWidget.accessibilityProvider?.isChecked?.(item),
+		}));
+		services.actionWidget.delegate?.onSelect({ value: 'origin/feature', label: 'origin/feature' });
+		await new Promise(resolve => setTimeout(resolve));
+
+		assert.deepStrictEqual({
+			items,
+			focusedBranch: services.actionWidget.focusedItem?.item?.value,
+			configUpdates: services.provider.setSessionConfigValueArguments,
+			checkoutInvocations: services.checkoutInvocations,
+		}, {
+			items: [
+				{ kind: ActionListItemKind.Action, label: 'origin/feature', value: 'origin/feature', checked: undefined, icon: Codicon.gitBranch.id, accessibleChecked: undefined },
+				{ kind: ActionListItemKind.Action, label: 'feature', value: 'feature', checked: undefined, icon: Codicon.gitBranch.id, accessibleChecked: undefined },
+				{ kind: ActionListItemKind.Separator, label: '', value: undefined, checked: undefined, icon: undefined, accessibleChecked: undefined },
+				{ kind: ActionListItemKind.Action, label: 'dev', value: 'dev', checked: undefined, icon: Codicon.gitBranch.id, accessibleChecked: undefined },
+				{ kind: ActionListItemKind.Action, label: 'main', value: 'main', checked: undefined, icon: Codicon.gitBranch.id, accessibleChecked: undefined },
+			],
+			focusedBranch: 'origin/feature',
+			configUpdates: [{ sessionId: SESSION_ID, property: SessionConfigKey.Branch, value: 'origin/feature' }],
+			checkoutInvocations: [],
+		});
+	});
+
+	test('groups the current branch and its upstream when either is selected in worktree mode', async () => {
+		const cases = [
+			{ isolation: 'folder', selected: 'feature', upstream: 'origin/feature', branches: ['dev', 'feature'], expected: ['feature', '|', 'dev'] },
+			{ isolation: 'worktree', selected: 'feature', upstream: undefined, branches: ['dev', 'feature'], expected: ['feature', '|', 'dev'] },
+			{ isolation: 'worktree', selected: 'main', upstream: 'origin/feature', branches: ['dev', 'feature', 'main'], expected: ['main', '|', 'dev', 'feature'] },
+			{ isolation: 'worktree', selected: 'feature', upstream: 'origin/feature', branches: ['dev', 'origin/feature', 'feature'], expected: ['origin/feature', 'feature', '|', 'dev'] },
+			{ isolation: 'worktree', selected: 'origin/feature', upstream: 'origin/feature', branches: ['dev', 'feature'], expected: ['origin/feature', 'feature', '|', 'dev'] },
+			{ isolation: 'worktree', selected: 'origin/feature', upstream: 'origin/feature', branches: ['dev', 'origin/feature', 'feature'], expected: ['origin/feature', 'feature', '|', 'dev'] },
+			{ isolation: 'worktree', selected: 'feature', upstream: 'upstream/feature', branches: ['dev', 'feature'], expected: ['upstream/feature', 'feature', '|', 'dev'] },
+		] as const;
+		const results: string[][] = [];
+		for (const scenario of cases) {
+			const services = setupServices(store);
+			services.provider.config = makeDynamicBranchConfig(scenario.selected, scenario.isolation);
+			services.provider.completions = scenario.branches.map(value => ({ value, label: value }));
+			services.workspaceObs.set(makeWorkspace(undefined, 'feature', scenario.upstream), undefined);
+			const { container } = renderPicker(store, services);
+			branchSlot(container)!.querySelector<HTMLElement>('a.action-label')!.click();
+			await new Promise(resolve => setTimeout(resolve));
+			results.push(services.actionWidget.items.map(item => item.kind === ActionListItemKind.Separator ? '|' : item.label ?? ''));
+		}
+
+		assert.deepStrictEqual(results, cases.map(scenario => scenario.expected));
+	});
+
+	test('focuses the upstream without checking it when selected', async () => {
+		const services = setupServices(store);
+		services.provider.config = makeDynamicBranchConfig('origin/main', 'worktree');
+		services.provider.completions = [
+			{ value: 'dev', label: 'dev' },
+			{ value: 'main', label: 'main' },
+		];
+		services.workspaceObs.set(makeWorkspace(undefined, 'main', 'origin/main'), undefined);
+		const { container } = renderPicker(store, services);
+		branchSlot(container)!.querySelector<HTMLElement>('a.action-label')!.click();
+		await new Promise(resolve => setTimeout(resolve));
+
+		assert.deepStrictEqual({
+			label: branchLabel(container),
+			focusedBranch: services.actionWidget.focusedItem?.item?.value,
+			items: services.actionWidget.items.map(item => ({
+				kind: item.kind,
+				value: item.item?.value,
+				checked: item.item?.checked,
+				icon: item.group?.icon?.id,
+				accessibleChecked: services.actionWidget.accessibilityProvider?.isChecked?.(item),
+			})),
+		}, {
+			label: 'origin/main',
+			focusedBranch: 'origin/main',
+			items: [
+				{ kind: ActionListItemKind.Action, value: 'origin/main', checked: undefined, icon: Codicon.gitBranch.id, accessibleChecked: undefined },
+				{ kind: ActionListItemKind.Action, value: 'main', checked: undefined, icon: Codicon.gitBranch.id, accessibleChecked: undefined },
+				{ kind: ActionListItemKind.Separator, value: undefined, checked: undefined, icon: undefined, accessibleChecked: undefined },
+				{ kind: ActionListItemKind.Action, value: 'dev', checked: undefined, icon: Codicon.gitBranch.id, accessibleChecked: undefined },
+			],
+		});
+	});
+
+	test('filters the tracked upstream and stops offering it when New Worktree is unchecked', async () => {
+		const services = setupServices(store);
+		services.provider.config = makeDynamicBranchConfig('feature', 'worktree');
+		services.provider.completions = [
+			{ value: 'feature', label: 'feature' },
+			{ value: 'development', label: 'development' },
+		];
+		services.workspaceObs.set(makeWorkspace(undefined, 'feature', 'origin/feature'), undefined);
+		const { container } = renderPicker(store, services);
+		branchSlot(container)!.querySelector<HTMLElement>('a.action-label')!.click();
+		await new Promise(resolve => setTimeout(resolve));
+		const filter = async (query: string) => (await services.actionWidget.delegate!.onFilter!(query, CancellationToken.None))
+			.map(item => item.kind === ActionListItemKind.Separator ? '|' : item.label);
+
+		const upstream = await filter('origin/feature');
+		const matching = await filter('feature');
+		const other = await filter('develop');
+		services.provider.set(makeDynamicBranchConfig('origin/feature', 'worktree'), false);
+		const selectedUpstream = await filter('origin/feature');
+		const selectedMatching = await filter('feature');
+		services.provider.set(makeDynamicBranchConfig('feature', 'folder'), false);
+		const unchecked = await filter('origin/feature');
+
+		assert.deepStrictEqual({ upstream, matching, other, selectedUpstream, selectedMatching, unchecked }, {
+			upstream: ['origin/feature'],
+			matching: ['origin/feature', 'feature'],
+			other: ['development'],
+			selectedUpstream: ['origin/feature'],
+			selectedMatching: ['origin/feature', 'feature'],
+			unchecked: [],
 		});
 	});
 

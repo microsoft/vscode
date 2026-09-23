@@ -100,6 +100,7 @@ function showActiveSessionModePicker(accessor: ServicesAccessor): void {
 }
 
 export interface IConfigPickerItem {
+	readonly id?: string;
 	readonly value: string;
 	readonly label: string;
 	readonly description?: string;
@@ -147,12 +148,21 @@ function getBranchUncommittedChanges(branchName: string, repositoryBranchName: s
 		: undefined;
 }
 
-function toActionItems(property: string, items: readonly IConfigPickerItem[], currentValue: unknown | undefined, policyRestricted?: boolean, repositoryBranchName?: string, repositoryUncommittedChanges?: number, onShowChanges?: () => Promise<void>): IActionListItem<IConfigPickerItem>[] {
+interface IBranchPickerContext {
+	readonly branchName?: string;
+	readonly upstreamBranchName?: string;
+	readonly uncommittedChanges?: number;
+	readonly isWorktree: boolean;
+	readonly query?: string;
+	readonly onShowChanges?: () => Promise<void>;
+}
+
+function toActionItems(property: string, items: readonly IConfigPickerItem[], currentValue: unknown | undefined, policyRestricted?: boolean, branchContext?: IBranchPickerContext): IActionListItem<IConfigPickerItem>[] {
 	const actionItems: IActionListItem<IConfigPickerItem>[] = items.map(item => {
 		const disabled = property === SessionConfigKey.AutoApprove && isAutoApproveValuePolicyRestricted(item.value, policyRestricted === true);
 		const checked = isSelectedValue(currentValue, item.value);
 		const uncommittedChanges = property === SessionConfigKey.Branch
-			? getBranchUncommittedChanges(item.value, repositoryBranchName, repositoryUncommittedChanges)
+			? getBranchUncommittedChanges(item.value, branchContext?.branchName, branchContext?.uncommittedChanges)
 			: undefined;
 		const uncommittedChangesDescription = uncommittedChanges !== undefined
 			? formatUncommittedChanges(uncommittedChanges)
@@ -168,26 +178,59 @@ function toActionItems(property: string, items: readonly IConfigPickerItem[], cu
 			group: { title: '', icon: getConfigIcon(property, item.value, uncommittedChanges !== undefined) },
 			ariaDescription: uncommittedChangesDescription,
 			disabled,
-			item: { ...item, checked },
-			toolbarActions: property === SessionConfigKey.Branch && item.value === repositoryBranchName && onShowChanges
+			item: { ...item, checked: property === SessionConfigKey.Branch ? undefined : checked, ...(property === SessionConfigKey.Branch ? { id: item.value } : {}) },
+			toolbarActions: property === SessionConfigKey.Branch && item.value === branchContext?.branchName && branchContext.onShowChanges
 				? [toAction({
 					id: 'sessions.agentHost.showBranchChanges',
 					label: localize('agentHostSessionConfig.branchItemShowChanges', "Show Changes"),
 					class: ThemeIcon.asClassName(Codicon.diffMultiple),
-					run: onShowChanges,
+					run: branchContext.onShowChanges,
 				})]
 				: undefined,
 		};
 	});
 
 	if (property === SessionConfigKey.Branch) {
-		const currentIndex = actionItems.findIndex(item => item.item?.checked);
+		const query = branchContext?.query?.toLowerCase();
+		const upstreamBranchName = branchContext?.isWorktree
+			&& (currentValue === branchContext.branchName || currentValue === branchContext.upstreamBranchName)
+			? branchContext.upstreamBranchName
+			: undefined;
+		let priorityCount = 0;
+		const currentIndex = actionItems.findIndex(item => item.item?.value === currentValue);
 		if (currentIndex >= 0) {
 			const [current] = actionItems.splice(currentIndex, 1);
 			actionItems.unshift(current);
-			if (actionItems.length > 1) {
-				actionItems.splice(1, 0, { kind: ActionListItemKind.Separator, label: '' });
+			priorityCount++;
+		}
+
+		if (upstreamBranchName && currentValue === upstreamBranchName && (!query || branchContext?.branchName?.toLowerCase().includes(query))) {
+			const localIndex = actionItems.findIndex(item => item.item?.value === branchContext?.branchName);
+			if (localIndex >= 0) {
+				const [local] = actionItems.splice(localIndex, 1);
+				actionItems.unshift(local);
+				priorityCount++;
 			}
+		}
+
+		if (upstreamBranchName && (!query || upstreamBranchName.toLowerCase().includes(query))) {
+			const upstreamIndex = actionItems.findIndex(item => item.item?.value === upstreamBranchName);
+			const upstream = upstreamIndex >= 0
+				? actionItems.splice(upstreamIndex, 1)[0]
+				: {
+					kind: ActionListItemKind.Action,
+					label: upstreamBranchName,
+					group: { title: '', icon: Codicon.gitBranch },
+					item: { id: upstreamBranchName, value: upstreamBranchName, label: upstreamBranchName },
+				};
+			if (upstreamIndex >= 0 && upstreamIndex < priorityCount) {
+				priorityCount--;
+			}
+			actionItems.unshift(upstream);
+			priorityCount++;
+		}
+		if (priorityCount > 0 && actionItems.length > priorityCount) {
+			actionItems.splice(priorityCount, 0, { kind: ActionListItemKind.Separator, label: '' });
 		}
 	}
 
@@ -902,12 +945,9 @@ export class AgentHostSessionConfigPicker extends Disposable {
 
 		const rawItems = await this._getItems(provider, sessionId, property, schema);
 		const { items, policyRestricted } = applyAutoApproveFiltering(rawItems, property, this._configurationService);
-		if (items.length === 0) {
-			return;
-		}
-
 		const isAutoApproveProperty = property === SessionConfigKey.AutoApprove;
-		const currentValue = provider.getSessionConfig(sessionId)?.values[property] ?? schema.default;
+		const config = provider.getSessionConfig(sessionId);
+		const currentValue = config?.values[property] ?? schema.default;
 		const currentItem = items.find(i => isSelectedValue(currentValue, i.value));
 		const isBranchPicker = property === SessionConfigKey.Branch;
 		const repositoryConfigContainer = isBranchPicker
@@ -919,7 +959,14 @@ export class AgentHostSessionConfigPicker extends Disposable {
 		const onShowChanges = isBranchPicker
 			? () => this._showChanges()
 			: undefined;
-		const actionItems = toActionItems(property, items, currentValue, policyRestricted, repositoryState?.branchName, repositoryState?.uncommittedChanges, onShowChanges);
+		const actionItems = toActionItems(property, items, currentValue, policyRestricted, {
+			...repositoryState,
+			isWorktree: config?.values[SessionConfigKey.Isolation] === 'worktree',
+			onShowChanges,
+		});
+		if (actionItems.length === 0) {
+			return;
+		}
 
 		const delegate: IActionListDelegate<IConfigPickerItem> = {
 			onSelect: async item => {
@@ -950,7 +997,13 @@ export class AgentHostSessionConfigPicker extends Disposable {
 					const filteredRawItems = await this._getItems(provider, sessionId, property, schema, query);
 					const { items: filteredItems, policyRestricted: filteredPolicyRestricted } = applyAutoApproveFiltering(filteredRawItems, property, this._configurationService);
 					const filteredRepositoryState = this._getRepositoryBranchState(sessionId);
-					return toActionItems(property, filteredItems, provider.getSessionConfig(sessionId)?.values[property] ?? schema.default, filteredPolicyRestricted, filteredRepositoryState.branchName, filteredRepositoryState.uncommittedChanges, onShowChanges);
+					const filteredConfig = provider.getSessionConfig(sessionId);
+					return toActionItems(property, filteredItems, filteredConfig?.values[property] ?? schema.default, filteredPolicyRestricted, {
+						...filteredRepositoryState,
+						isWorktree: filteredConfig?.values[SessionConfigKey.Isolation] === 'worktree',
+						query,
+						onShowChanges,
+					});
 				})
 				: undefined,
 			onHide: () => {
@@ -985,6 +1038,10 @@ export class AgentHostSessionConfigPicker extends Disposable {
 				? { showFilter: true, filterPlaceholder: localize('agentHostSessionConfig.filter', "Filter options..."), minWidth: 255 }
 				: { minWidth: 255 },
 		);
+		const upstreamBranchName = repositoryState?.upstreamBranchName;
+		if (isBranchPicker && config?.values[SessionConfigKey.Isolation] === 'worktree' && upstreamBranchName && actionItems[0]?.item?.value === upstreamBranchName) {
+			this._actionWidgetService.focusItemById(upstreamBranchName);
+		}
 	}
 
 	private async _showChanges(): Promise<void> {
@@ -1004,13 +1061,15 @@ export class AgentHostSessionConfigPicker extends Disposable {
 		await this._viewsService.openView(CHANGES_VIEW_ID, true);
 	}
 
-	protected _getRepositoryBranchState(sessionId: string): { branchName: string | undefined; uncommittedChanges: number | undefined } {
+	protected _getRepositoryBranchState(sessionId: string): { branchName: string | undefined; upstreamBranchName: string | undefined; uncommittedChanges: number | undefined } {
 		const session = this._session.get();
 		const repository = session?.sessionId === sessionId
 			? session.workspace.get()?.folders[0]?.gitRepository
 			: undefined;
+
 		return {
 			branchName: repository?.branchName,
+			upstreamBranchName: repository?.upstreamBranchName,
 			uncommittedChanges: repository?.uncommittedChanges,
 		};
 	}

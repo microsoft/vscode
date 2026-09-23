@@ -37,6 +37,7 @@ import { INotebookService } from '../../../notebook/common/notebookService.js';
 import { ICodeMapperCodeBlock, ICodeMapperRequest, ICodeMapperResponse, ICodeMapperService } from '../../common/editing/chatCodeMapperService.js';
 import { ChatUserAction, IChatService } from '../../common/chatService/chatService.js';
 import { isAgentHostSessionResource } from '../../common/chatSessionsService.js';
+import { chatSessionResourceToId } from '../../common/model/chatUri.js';
 import { IChatRequestViewModel, isRequestVM, isResponseVM } from '../../common/model/chatViewModel.js';
 import { ICodeBlockActionContext } from '../widget/chatContentParts/codeBlockPart.js';
 
@@ -54,19 +55,20 @@ export class InsertCodeBlockOperation {
 	}
 
 	public async run(context: ICodeBlockActionContext) {
+		let inserted = false;
 		const activeEditorControl = getEditableActiveCodeEditor(this.editorService);
 		if (activeEditorControl) {
-			await this.handleTextEditor(activeEditorControl, context);
+			inserted = await this.handleTextEditor(activeEditorControl, context);
 		} else {
 			const activeNotebookEditor = getActiveNotebookEditor(this.editorService);
 			if (activeNotebookEditor) {
-				await this.handleNotebookEditor(activeNotebookEditor, context);
+				inserted = await this.handleNotebookEditor(activeNotebookEditor, context);
 			} else {
 				this.notify(localize('insertCodeBlock.noActiveEditor', "To insert the code block, open a code editor or notebook editor and set the cursor at the location where to insert the code block."));
 			}
 		}
 
-		if (isResponseVM(context.element)) {
+		if (inserted && isResponseVM(context.element)) {
 			const requestId = context.element.requestId;
 			const request = context.element.session.getItems().find(item => item.id === requestId && isRequestVM(item)) as IChatRequestViewModel | undefined;
 			notifyUserAction(this.chatService, context, {
@@ -91,7 +93,8 @@ export class InsertCodeBlockOperation {
 				presentation: 'codeBlock',
 				applyCodeBlockSuggestionId: undefined,
 				source: undefined,
-				sourceRequestId: undefined,
+				sourceRequestId: requestId,
+				chatSessionId: chatSessionResourceToId(context.element.sessionResource),
 				isAgentHostSession: isAgentHostSessionResource(context.element.sessionResource),
 			});
 		}
@@ -104,8 +107,7 @@ export class InsertCodeBlockOperation {
 		}
 		const focusRange = notebookEditor.getFocus();
 		const next = Math.max(focusRange.end - 1, 0);
-		insertCell(this.languageService, notebookEditor, next, CellKind.Code, 'below', codeBlockContext.code, true);
-		return true;
+		return insertCell(this.languageService, notebookEditor, next, CellKind.Code, 'below', codeBlockContext.code, true) !== null;
 	}
 
 	private async handleTextEditor(codeEditor: IActiveCodeEditor, codeBlockContext: ICodeBlockActionContext): Promise<boolean> {
@@ -119,9 +121,9 @@ export class InsertCodeBlockOperation {
 		const text = reindent(codeBlockContext.code, activeModel, range.startLineNumber);
 
 		const edits = [new ResourceTextEdit(activeModel.uri, { range, text })];
-		await this.bulkEditService.apply(edits);
+		const result = await this.bulkEditService.apply(edits);
 		this.codeEditorService.listCodeEditors().find(editor => isEqual(editor.getModel()?.uri, activeModel.uri))?.focus();
-		return true;
+		return result.isApplied;
 	}
 
 	private notify(message: string) {

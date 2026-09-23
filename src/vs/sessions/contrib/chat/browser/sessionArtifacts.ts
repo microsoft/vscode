@@ -18,7 +18,6 @@ import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
 import { toAction } from '../../../../base/common/actions.js';
 import { AGENT_HOST_SCHEME } from '../../../../platform/agentHost/common/agentHostUri.js';
-import { parseGitHubIssueUrl } from '../../../../platform/agentHost/common/githubIssueReferences.js';
 import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -35,10 +34,9 @@ import { ChatConfiguration } from '../../../../workbench/contrib/chat/common/con
 import type { IImageCarouselCollection } from '../../../../workbench/contrib/imageCarousel/browser/imageCarouselTypes.js';
 import { parseGitHubCommitTarget, type IGitHubCommitTarget } from '../../../../workbench/contrib/github/browser/githubCommitResolver.js';
 import { createCommitResourceHover } from '../../../../workbench/contrib/github/browser/githubResourceHover.js';
-import { linkKey } from '../../../common/sessionLinks.js';
-import { getGitHubPullRequestRefs, SessionArtifactKind, type ISessionArtifact } from '../../../services/sessions/common/session.js';
+import { SessionArtifactKind, type ISessionArtifact } from '../../../services/sessions/common/session.js';
 import { ISessionsManagementService, type IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
-import { parseGitHubPullRequestUrl } from '../../github/common/utils.js';
+import { ISessionGitHubReferences } from '../../github/common/sessionGitHubReferences.js';
 import { toErrorMessage } from '../../../../base/common/errorMessage.js';
 import { status } from '../../../../base/browser/ui/aria/aria.js';
 import { IGitHubService as ISessionsGitHubService } from '../../github/browser/githubService.js';
@@ -153,18 +151,6 @@ function isShownInBrowser(link: URI | undefined, browserKeys: ReadonlySet<string
 	}
 	const key = websiteKey(link.toString());
 	return !!key && browserKeys.has(key);
-}
-
-function isShownInGitHub(artifact: ISessionArtifact, surfacedLinks: ReadonlySet<string>): boolean {
-	if (artifact.isGitHub !== true || !artifact.link || surfacedLinks.size === 0) {
-		return false;
-	}
-	const link = artifact.link.toString(true);
-	// URI serialization lowercases hosts, but PR promotion only accepts the canonical host spelling.
-	const isGitHubLink = artifact.kind === SessionArtifactKind.PullRequest
-		? artifact.link.authority === 'github.com' && !!parseGitHubPullRequestUrl(link)
-		: artifact.kind === SessionArtifactKind.Issue && !!parseGitHubIssueUrl(link);
-	return isGitHubLink && surfacedLinks.has(linkKey(link));
 }
 
 /**
@@ -475,6 +461,7 @@ export class SessionArtifacts extends Disposable {
 		session: IObservable<IActiveSession | undefined>,
 		/** The URLs the browsers pill lists; website entries for them are left out. */
 		private readonly _browserUrls: IObservable<ReadonlySet<string>>,
+		private readonly _gitHubReferences: IObservable<ISessionGitHubReferences>,
 		@IClipboardService private readonly _clipboardService: IClipboardService,
 		@ICommandService private readonly _commandService: ICommandService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
@@ -510,12 +497,12 @@ export class SessionArtifacts extends Disposable {
 				return [];
 			}
 			locationFormatting.read(reader);
-			const gitHubInfo = current.workspace.read(reader)?.folders[0]?.gitRepository?.gitHubInfo.read(reader);
-			const surfacedLinks = new Set([
-				...getGitHubPullRequestRefs(gitHubInfo),
-				...(gitHubInfo?.issues ?? []),
-			].map(ref => linkKey(ref.uri.toString())));
-			const artifacts = (current.artifacts?.read(reader) ?? []).filter(artifact => artifact.isArtifact === isArtifact && !isShownInGitHub(artifact, surfacedLinks));
+			const gitHubReferences = this._gitHubReferences.read(reader);
+			const surfacedIds = new Set([
+				...gitHubReferences.pullRequests,
+				...gitHubReferences.issues,
+			].map(ref => ref.recordedReferenceId));
+			const artifacts = (current.artifacts?.read(reader) ?? []).filter(artifact => artifact.isArtifact === isArtifact && !surfacedIds.has(artifact.id));
 			const commits = new Map(artifacts.flatMap(artifact => {
 				const target = artifact.kind === SessionArtifactKind.Commit && artifact.link ? parseGitHubCommitTarget(artifact.link) : undefined;
 				const commit = target ? commitResolver.get(target).read(reader) : undefined;
