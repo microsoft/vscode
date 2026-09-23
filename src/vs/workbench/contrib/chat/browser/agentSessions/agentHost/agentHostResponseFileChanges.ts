@@ -11,7 +11,7 @@ import { getComparisonKey, isEqual, isEqualOrParent } from '../../../../../../ba
 import { isDefined } from '../../../../../../base/common/types.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
-import { buildBranchChangesetUri, buildTurnChangesetUri, ChangesetKind } from '../../../../../../platform/agentHost/common/changesetUri.js';
+import { buildBranchChangesetUri, buildTurnChangesetUri, ChangesetKind, resolveChatChangesetCatalogue } from '../../../../../../platform/agentHost/common/changesetUri.js';
 import { normalizeFileEdit } from '../../../../../../platform/agentHost/common/fileEditDiff.js';
 import { toAgentHostContentUri, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
@@ -26,6 +26,7 @@ import {
 	ToolCallStatus,
 	ToolResultContentType,
 	type ActiveTurn,
+	type Changeset,
 	type ChangesetFile,
 	type ChangesetState,
 	type ComponentToState,
@@ -56,6 +57,13 @@ interface IChatTurnSource {
 	readonly turnsById: IObservable<ReadonlyMap<string, Turn>>;
 	readonly activeTurnId: IObservable<string | undefined>;
 	readonly activeTurn: IObservable<ActiveTurn | undefined>;
+	readonly changesets: IObservable<readonly Changeset[] | undefined>;
+}
+
+interface IResolvedTurnSource {
+	readonly turn: Turn | ActiveTurn | undefined;
+	readonly chatUri: URI | undefined;
+	readonly changesets: readonly Changeset[] | undefined;
 }
 
 interface ISessionFileChangesSource {
@@ -169,7 +177,7 @@ export class AgentHostResponseFileChangesProvider extends Disposable implements 
 		let obs = this._perRequestFileEdits.get(key);
 		if (!obs) {
 			const source = this._getSessionSource(backendSession);
-			const turn = this._createTurnObservable(source, backendChat, requestId);
+			const turn = this._createTurnSourceObservable(source, backendChat, requestId).map(source => source.turn);
 			const fileEdits = this._createFileEditDiffsObservable(source, turn);
 			obs = derived(reader => fileEdits.read(reader).diffs);
 			this._perRequestFileEdits.set(key, obs);
@@ -179,7 +187,8 @@ export class AgentHostResponseFileChangesProvider extends Disposable implements 
 
 	private _createDiffsObservable(backendSession: URI, backendChat: URI | undefined, requestId: string): IObservable<readonly IEditSessionEntryDiff[]> {
 		const source = this._getSessionSource(backendSession);
-		const turn = this._createTurnObservable(source, backendChat, requestId);
+		const turnSource = this._createTurnSourceObservable(source, backendChat, requestId);
+		const turn = turnSource.map(source => source.turn);
 		const isHostNoticeObs = turn.map(isHostNotice);
 
 		const turnChangesetUriObs = derivedOpts<URI | undefined>({ equalsFn: isEqual }, reader => {
@@ -187,11 +196,18 @@ export class AgentHostResponseFileChangesProvider extends Disposable implements 
 			if (!sessionState || sessionState instanceof Error) {
 				return undefined;
 			}
-			const supportsTurnChangeset = sessionState.changesets?.some(c => c.changeKind === ChangesetKind.Turn);
-			if (!supportsTurnChangeset) {
+			const resolvedTurnSource = turnSource.read(reader);
+			const resolvedCatalogue = resolveChatChangesetCatalogue(
+				resolvedTurnSource.chatUri?.toString() ?? buildDefaultChatUri(backendSession.toString()),
+				resolvedTurnSource.changesets,
+				sessionState.changesets,
+			);
+			const turnEntry = resolvedCatalogue?.find(({ changeset }) => changeset.changeKind === ChangesetKind.Turn);
+			if (!turnEntry) {
 				return undefined;
 			}
-			return URI.parse(buildTurnChangesetUri(backendSession.toString(), requestId));
+			const owner = turnEntry.owner === 'session' || !resolvedTurnSource.chatUri ? backendSession : resolvedTurnSource.chatUri;
+			return URI.parse(buildTurnChangesetUri(owner.toString(), requestId));
 		});
 
 		const changesetStateObs = this._subscribeChangeset(turnChangesetUriObs);
@@ -301,6 +317,7 @@ export class AgentHostResponseFileChangesProvider extends Disposable implements 
 				const turns = observableValue<readonly Turn[] | undefined>(this, undefined);
 				const activeTurn = observableValue<ActiveTurn | undefined>(this, undefined);
 				const activeTurnId = observableValue<string | undefined>(this, undefined);
+				const changesets = observableValue<readonly Changeset[] | undefined>(this, undefined);
 				const update = () => {
 					const value = subscription.value;
 					const chat = value instanceof Error ? undefined : value;
@@ -308,6 +325,7 @@ export class AgentHostResponseFileChangesProvider extends Disposable implements 
 						turns.set(chat?.turns, tx);
 						activeTurnId.set(chat?.activeTurn?.id, tx);
 						activeTurn.set(chat?.activeTurn, tx);
+						changesets.set(chat?.changesets, tx);
 					});
 				};
 				// Filter at the event boundary so streamed tokens cannot invalidate historical observers.
@@ -317,6 +335,7 @@ export class AgentHostResponseFileChangesProvider extends Disposable implements 
 					turnsById: turns.map(turns => new Map(turns?.map(turn => [turn.id, turn]))),
 					activeTurn,
 					activeTurnId,
+					changesets,
 				};
 			});
 			this._chatSources.set(key, source);
@@ -353,22 +372,30 @@ export class AgentHostResponseFileChangesProvider extends Disposable implements 
 		};
 	}
 
-	private _createTurnObservable(source: IObservable<ISessionFileChangesSource>, backendChat: URI | undefined, requestId: string): IObservable<Turn | ActiveTurn | undefined> {
+	private _createTurnSourceObservable(source: IObservable<ISessionFileChangesSource>, backendChat: URI | undefined, requestId: string): IObservable<IResolvedTurnSource> {
 		const chats = backendChat
-			? constObservable([this._getChatSource(backendChat)])
-			: mapObservableArrayCached(this, derived(reader => source.read(reader).chatUris.read(reader)), uri => this._getChatSource(URI.parse(uri)));
+			? constObservable([{ uri: backendChat, source: this._getChatSource(backendChat) }])
+			: mapObservableArrayCached(this, derived(reader => source.read(reader).chatUris.read(reader)), uri => {
+				const chatUri = URI.parse(uri);
+				return { uri: chatUri, source: this._getChatSource(chatUri) };
+			});
 		return derived(reader => {
-			for (const chatSource of chats.read(reader)) {
-				const chat = chatSource.read(reader);
+			let fallback: IResolvedTurnSource | undefined;
+			for (const { uri, source } of chats.read(reader)) {
+				const chat = source.read(reader);
+				fallback ??= { turn: undefined, chatUri: uri, changesets: chat.changesets.read(reader) };
 				if (chat.activeTurnId.read(reader) === requestId) {
-					return chat.activeTurn.read(reader);
+					return { turn: chat.activeTurn.read(reader), chatUri: uri, changesets: chat.changesets.read(reader) };
 				}
 				const turn = chat.turnsById.read(reader).get(requestId);
 				if (turn) {
-					return turn;
+					return { turn, chatUri: uri, changesets: chat.changesets.read(reader) };
+				}
+				if (backendChat) {
+					return fallback;
 				}
 			}
-			return undefined;
+			return fallback ?? { turn: undefined, chatUri: undefined, changesets: undefined };
 		});
 	}
 

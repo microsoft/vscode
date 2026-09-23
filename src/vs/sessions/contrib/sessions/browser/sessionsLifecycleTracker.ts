@@ -602,7 +602,7 @@ export class SessionsLifecycleTracker extends Disposable {
 		let files = 0;
 		let additions = 0;
 		let deletions = 0;
-		for (const change of session.changes.get()) {
+		for (const change of session.mainChat.get().changes.get()) {
 			files++;
 			additions += change.insertions;
 			deletions += change.deletions;

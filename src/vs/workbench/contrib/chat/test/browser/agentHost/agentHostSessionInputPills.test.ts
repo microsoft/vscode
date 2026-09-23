@@ -16,7 +16,7 @@ import { IActionWidgetService } from '../../../../../../platform/actionWidget/br
 import { ChangesetKind } from '../../../../../../platform/agentHost/common/changesetUri.js';
 import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ISessionArtifact, SessionArtifactType, withSessionArtifacts } from '../../../../../../platform/agentHost/common/sessionArtifacts.js';
-import { buildDefaultChatUri, buildSubagentChatUri, Changeset, ChangesetState, ChangesetStatus, ChatOriginKind, ComponentToState, SessionState, StateComponents, withSessionGitHubState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { buildDefaultChatUri, buildSubagentChatUri, Changeset, ChangesetState, ChangesetStatus, ChatOriginKind, ChatState, ComponentToState, SessionState, StateComponents, withSessionGitHubState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IClipboardService } from '../../../../../../platform/clipboard/common/clipboardService.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
@@ -26,7 +26,7 @@ import { IBrowserViewModel, IBrowserViewWorkbenchService } from '../../../../bro
 import { IEditorService } from '../../../../../services/editor/common/editorService.js';
 import { CHAT_SUBAGENT_RESOURCE_QUERY_PARAM } from '../../../common/constants.js';
 import { type IChatWidgetViewModelChangeEvent } from '../../../browser/chat.js';
-import { AgentHostSessionInputPills, getAgentHostSessionBrowserOwnerIds, getAgentHostSessionPillMetadata, resolveAgentHostSessionChangeset } from '../../../browser/agentSessions/agentHost/agentHostSessionInputPills.js';
+import { AgentHostSessionInputPills, getAgentHostSessionBrowserOwnerIds, getAgentHostSessionPillMetadata, resolveAgentHostChangeset } from '../../../browser/agentSessions/agentHost/agentHostSessionInputPills.js';
 import { IAgentHostUntitledProvisionalSessionService } from '../../../browser/agentSessions/agentHost/agentHostUntitledProvisionalSessionService.js';
 import { ISessionChatPillVisibilityService, SessionChatPillKind, SessionChatPillVisibility } from '../../../common/sessionChatPills.js';
 import { createSessionPullRequestPillData } from '../../../browser/sessionPullRequestPill.js';
@@ -39,7 +39,7 @@ class StaticAgentConnection extends mock<IAgentConnection>() {
 	readonly released: URI[] = [];
 	private readonly emitters = new Map<StateComponents, Emitter<unknown>>();
 
-	constructor(private readonly values: ReadonlyMap<StateComponents, SessionState | ChangesetState>) {
+	constructor(private readonly values: ReadonlyMap<StateComponents, SessionState | ChatState | ChangesetState>) {
 		super();
 	}
 
@@ -63,8 +63,8 @@ class StaticAgentConnection extends mock<IAgentConnection>() {
 		};
 	}
 
-	setState(kind: StateComponents, value: SessionState | ChangesetState): void {
-		(this.values as Map<StateComponents, SessionState | ChangesetState>).set(kind, value);
+	setState(kind: StateComponents, value: SessionState | ChatState | ChangesetState): void {
+		(this.values as Map<StateComponents, SessionState | ChatState | ChangesetState>).set(kind, value);
 		this.emitters.get(kind)?.fire(value);
 	}
 }
@@ -400,9 +400,9 @@ suite('AgentHostSessionInputPills', () => {
 		];
 
 		assert.deepStrictEqual({
-			preferred: resolveAgentHostSessionChangeset(backendSession, changesets, ChangesetKind.Session),
-			fallback: resolveAgentHostSessionChangeset(backendSession, changesets.slice(0, 2), ChangesetKind.Branch),
-			turnOnly: resolveAgentHostSessionChangeset(backendSession, changesets.slice(0, 1), ChangesetKind.Session),
+			preferred: resolveAgentHostChangeset(backendSession, changesets, ChangesetKind.Session),
+			fallback: resolveAgentHostChangeset(backendSession, changesets.slice(0, 2), ChangesetKind.Branch),
+			turnOnly: resolveAgentHostChangeset(backendSession, changesets.slice(0, 1), ChangesetKind.Session),
 		}, {
 			preferred: {
 				changeset: changesets[1],
@@ -527,16 +527,18 @@ suite('AgentHostSessionInputPills', () => {
 		});
 	});
 
-	test('marks floating persistent content visible when Agent Host pills have data', () => {
+	test('marks floating persistent content visible from a legacy session catalogue', () => {
 		const instantiationService = workbenchInstantiationService(undefined, store);
 		const sessionResource = URI.parse('agent-host-copilot:/session');
 		const backendSession = URI.parse('copilot:/session');
-		const connection = new StaticAgentConnection(new Map<StateComponents, SessionState | ChangesetState>([
+		const backendChat = URI.parse(buildDefaultChatUri(backendSession));
+		const connection = new StaticAgentConnection(new Map<StateComponents, SessionState | ChatState | ChangesetState>([
 			[StateComponents.Session, {
-				defaultChat: buildDefaultChatUri(backendSession),
+				defaultChat: backendChat.toString(),
 				chats: [],
 				changesets: [{ label: 'Branch Changes', uriTemplate: 'changeset/branch', changeKind: ChangesetKind.Branch }],
 			} as unknown as SessionState],
+			[StateComponents.Chat, {} as ChatState],
 			[StateComponents.Changeset, {
 				status: ChangesetStatus.Ready,
 				files: [{
@@ -548,12 +550,13 @@ suite('AgentHostSessionInputPills', () => {
 				}],
 			} as unknown as ChangesetState],
 		]));
-		const otherConnection = new StaticAgentConnection(new Map<StateComponents, SessionState | ChangesetState>([
+		const otherConnection = new StaticAgentConnection(new Map<StateComponents, SessionState | ChatState | ChangesetState>([
 			[StateComponents.Session, {
-				defaultChat: buildDefaultChatUri(backendSession),
+				defaultChat: backendChat.toString(),
 				chats: [],
 				changesets: [{ label: 'Branch Changes', uriTemplate: 'changeset/branch', changeKind: ChangesetKind.Branch }],
 			} as unknown as SessionState],
+			[StateComponents.Chat, {} as ChatState],
 			[StateComponents.Changeset, {
 				status: ChangesetStatus.Computing,
 				files: [],
@@ -684,8 +687,11 @@ suite('AgentHostSessionInputPills', () => {
 				kind: StateComponents.Session,
 				resource: 'copilot:/session',
 			}, {
+				kind: StateComponents.Chat,
+				resource: backendChat.toString(),
+			}, {
 				kind: StateComponents.Changeset,
-				resource: 'copilot:/session/changeset/branch',
+				resource: `${backendSession.toString()}/changeset/branch`,
 			}],
 		});
 	});
