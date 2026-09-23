@@ -166,7 +166,6 @@ export class AgentHostChangesetCoordinator extends Disposable {
 		this._changesetOperationService.updateOperations(sessionStr);
 		for (const chat of this._stateManager.getSessionState(sessionStr)?.chats ?? []) {
 			this._changesetFileMonitor.onSessionTurnActiveChanged(chat.resource, active);
-			this._changesetOperationService.updateOperations(chat.resource);
 		}
 	}
 
@@ -597,7 +596,6 @@ export class AgentHostChangesetCoordinator extends Disposable {
 			this._changesets.recomputeSubscribedChangesets(sessionStr);
 		}
 		for (const chat of this._stateManager.getSessionState(sessionStr)?.chats ?? []) {
-			this._changesetOperationService.updateOperations(chat.resource);
 			this._changesetFileMonitor.onSessionWorkingDirectoriesChanged(chat.resource);
 			this._changesets.recomputeSubscribedChangesets(chat.resource);
 			void this._gitStateService.refreshSessionGitState(chat.resource);

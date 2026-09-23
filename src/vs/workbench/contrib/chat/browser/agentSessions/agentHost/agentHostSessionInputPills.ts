@@ -15,7 +15,7 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { localize } from '../../../../../../nls.js';
 import { IAgentHostConnectionsService, IAgentHostSessionResolution } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
-import { resolveChangesetUriTemplate, selectDefaultChangeset, type DefaultChangesetKind } from '../../../../../../platform/agentHost/common/changesetUri.js';
+import { resolveChangesetUriTemplate, resolveChatChangesetCatalogue, selectDefaultChangeset, type DefaultChangesetKind } from '../../../../../../platform/agentHost/common/changesetUri.js';
 import { ISessionArtifact, isGitHubArtifactLink, readSessionArtifactsNewestFirst, SessionArtifactType } from '../../../../../../platform/agentHost/common/sessionArtifacts.js';
 import { observableFromSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { Changeset, ChangesetState, ChangesetStatus, ChatOriginKind, ChatState, DEFAULT_CHAT_ID, getSessionChatResource, getSessionRelatedPullRequestUrls, isSubagentChatUri, parseChatUri, readSessionGitHubState, SessionState, SessionSummaryMeta, StateComponents } from '../../../../../../platform/agentHost/common/state/sessionState.js';
@@ -322,7 +322,12 @@ export class AgentHostSessionInputPills extends Disposable {
 			if (!currentResolution || !chat) {
 				return undefined;
 			}
-			return resolveAgentHostChangeset(chat, chatState.read(reader)?.changesets, currentResolution.defaultChangesetKind);
+			const resolvedCatalogue = resolveChatChangesetCatalogue(chat.toString(), chatState.read(reader)?.changesets, sessionState.read(reader)?.changesets);
+			return resolveAgentHostChangeset(
+				resolvedCatalogue?.owner === 'session' ? currentResolution.backendSession : chat,
+				resolvedCatalogue?.changesets,
+				currentResolution.defaultChangesetKind,
+			);
 		});
 		const changesetStateSource = derived(this, reader => {
 			const currentResolution = resolution.read(reader);

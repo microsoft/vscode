@@ -165,6 +165,33 @@ suite('AgentHostResponseFileChangesProvider', () => {
 		]);
 	});
 
+	test('uses the session-owned turn changeset advertised by a legacy host', () => {
+		const ds = store.add(new DisposableStore());
+		const conn = new FakeAgentConnection();
+		const provider = ds.add(createProvider(conn));
+		conn.setState(backendSession.toString(), {
+			changesets: turnChangesetCatalog(backendSession),
+		} as unknown as SessionState);
+		conn.setState(defaultChatUri.toString(), { turns: [] } as unknown as ChatState);
+		conn.setState(turnChangesetUri('t1', backendSession), {
+			status: ChangesetStatus.Ready,
+			files: [{
+				id: 'legacy',
+				edit: {
+					after: { uri: URI.file('/repo/legacy.ts').toString(), content: { uri: 'git-blob://legacy-after' } },
+					diff: { added: 2, removed: 0 },
+				},
+			}],
+		} satisfies ChangesetState);
+
+		const { latest } = observe(provider, ds);
+
+		assert.deepStrictEqual(latest().map(diff => ({
+			path: fromAgentHostUri(diff.modifiedURI).path,
+			added: diff.added,
+		})), [{ path: '/repo/legacy.ts', added: 2 }]);
+	});
+
 	test('treats host notices as authoritatively empty without suppressing visible Agent Merge turns', () => {
 		const ds = store.add(new DisposableStore());
 		const conn = new FakeAgentConnection();

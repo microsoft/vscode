@@ -28,7 +28,7 @@ import { createPullRequestDetailsResult, createPullRequestOperationMeta, IPullRe
 import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../../../../../../platform/agentHost/common/state/protocol/channels-changeset/commands.js';
 import { ChangesetOperationScope, ChangesetOperationStatus } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
-import { buildDefaultChatUri, createChatState, ChangesetStatus, MessageKind, SessionLifecycle, SessionStatus, StateComponents, TurnState, type Changeset, type ChangesetState, type ChatState, type ChatSummary, type ComponentToState, type SessionState, type Turn } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { buildChatUri, buildDefaultChatUri, createChatState, ChangesetStatus, MessageKind, parseRequiredSessionUriFromChatUri, SessionLifecycle, SessionStatus, StateComponents, TurnState, type Changeset, type ChangesetState, type ChatState, type ChatSummary, type ComponentToState, type SessionState, type Turn } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
 import { CommandsRegistry, ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -332,10 +332,11 @@ suite('AgentHostSessionChangesets', () => {
 		}];
 		const initialState: ChatState = createChatState(chatSummary);
 		const chatSubscription = createMutableSubscription(initialState);
+		const sessionSubscription = createMutableSubscription({ changesets: sessionCatalogue } as SessionState);
 		const connection = new class extends mock<IAgentConnection>() {
 			override getSubscription<T extends StateComponents>(component: T): IReference<IAgentSubscription<ComponentToState[T]>> {
-				assert.strictEqual(component, StateComponents.Chat);
-				return { object: chatSubscription.object as IAgentSubscription<ComponentToState[T]>, dispose: () => { } };
+				const subscription = component === StateComponents.Chat ? chatSubscription : sessionSubscription;
+				return { object: subscription.object as IAgentSubscription<ComponentToState[T]>, dispose: () => { } };
 			}
 		}();
 		const instantiationService = disposables.add(new TestInstantiationService());
@@ -389,6 +390,71 @@ suite('AgentHostSessionChangesets', () => {
 		});
 	});
 
+	test('falls back to the legacy session catalogue only for the default chat', () => {
+		const sessionUri = URI.parse('ahp-session:/session');
+		const defaultChatUri = URI.parse(buildDefaultChatUri(sessionUri.toString()));
+		const peerChatUri = URI.parse(buildChatUri(sessionUri.toString(), 'peer'));
+		const legacyCatalogue: readonly Changeset[] = [
+			{ label: 'Branch Changes', changeKind: ChangesetKind.Branch, uriTemplate: 'changeset/branch' },
+			{ label: 'Last Turn Changes', changeKind: ChangesetKind.Turn, uriTemplate: 'changeset/turn/{turnId}' },
+		];
+		const sessionSubscription = createMutableSubscription({
+			defaultChat: defaultChatUri.toString(),
+			chats: [],
+			changesets: legacyCatalogue,
+		} as unknown as SessionState);
+		const chatSubscriptions = new Map([
+			[defaultChatUri.toString(), createMutableSubscription(createChatState({
+				resource: defaultChatUri.toString(),
+				title: 'Default',
+				status: SessionStatus.Idle,
+				modifiedAt: new Date(0).toISOString(),
+			}))],
+			[peerChatUri.toString(), createMutableSubscription(createChatState({
+				resource: peerChatUri.toString(),
+				title: 'Peer',
+				status: SessionStatus.Idle,
+				modifiedAt: new Date(0).toISOString(),
+			}))],
+		]);
+		const connection = new class extends mock<IAgentConnection>() {
+			override getSubscription<T extends StateComponents>(component: T, resource: URI): IReference<IAgentSubscription<ComponentToState[T]>> {
+				const subscription = component === StateComponents.Session
+					? sessionSubscription
+					: chatSubscriptions.get(resource.toString());
+				assert.ok(subscription);
+				return { object: subscription.object as IAgentSubscription<ComponentToState[T]>, dispose: () => { } };
+			}
+		}();
+		const instantiationService = disposables.add(new TestInstantiationService());
+		instantiationService.stub(IDialogService, { confirm: async () => ({ confirmed: true }) });
+		const options: IAgentHostAdapterOptions = {
+			icon: Codicon.copilot,
+			loading: constObservable(false),
+			buildWorkspace: () => undefined,
+			instantiationService,
+			getConnection: () => connection,
+			agentCapabilities: constObservable(undefined),
+			mapBackendSessionResource: resource => resource,
+		};
+		const defaultProjected = createChatChangesets(defaultChatUri, options, constObservable(true));
+		const peerProjected = createChatChangesets(peerChatUri, options, constObservable(true));
+		let defaultChangesets: readonly ISessionChangeset[] | undefined;
+		let peerChangesets: readonly ISessionChangeset[] | undefined;
+		disposables.add(autorun(reader => defaultChangesets = defaultProjected.read(reader)));
+		disposables.add(autorun(reader => peerChangesets = peerProjected.read(reader)));
+
+		assert.deepStrictEqual({
+			defaultIds: defaultChangesets?.map(changeset => changeset.id),
+			defaultBranchResource: defaultChangesets?.[0].resource?.toString(),
+			peerChangesets,
+		}, {
+			defaultIds: ['branch', 'turn'],
+			defaultBranchResource: `${sessionUri.toString()}/changeset/branch`,
+			peerChangesets: [],
+		});
+	});
+
 	test('subscribes Last Turn Changes directly to the owning chat while live edits are provided', () => {
 		const chatUri = URI.parse('ahp-chat://peer/c2Vzc2lvbg');
 		const chatSummary: ChatSummary = {
@@ -415,6 +481,7 @@ suite('AgentHostSessionChangesets', () => {
 			}],
 		};
 		const chatSubscription = createMutableSubscription(chatState);
+		const sessionSubscription = createMutableSubscription({} as SessionState);
 		const changesetSubscription = createMutableSubscription<ChangesetState>({
 			status: ChangesetStatus.Ready,
 			files: [],
@@ -424,6 +491,8 @@ suite('AgentHostSessionChangesets', () => {
 			override getSubscription<T extends StateComponents>(component: T, resource: URI): IReference<IAgentSubscription<ComponentToState[T]>> {
 				subscriptions.push({ component, resource: resource.toString() });
 				switch (component) {
+					case StateComponents.Session:
+						return { object: sessionSubscription.object as IAgentSubscription<ComponentToState[T]>, dispose: () => { } };
 					case StateComponents.Chat:
 						return { object: chatSubscription.object as IAgentSubscription<ComponentToState[T]>, dispose: () => { } };
 					case StateComponents.Changeset:
@@ -459,7 +528,10 @@ suite('AgentHostSessionChangesets', () => {
 			changesetSubscriptions: subscriptions.filter(subscription => subscription.component === StateComponents.Changeset),
 		}, {
 			enabled: true,
-			sessionSubscriptions: [],
+			sessionSubscriptions: [{
+				component: StateComponents.Session,
+				resource: URI.parse(parseRequiredSessionUriFromChatUri(chatUri)).toString(),
+			}],
 			chatSubscriptions: [
 				{ component: StateComponents.Chat, resource: chatUri.toString() },
 				{ component: StateComponents.Chat, resource: chatUri.toString() },

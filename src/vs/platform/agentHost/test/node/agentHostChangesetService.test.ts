@@ -18,7 +18,7 @@ import { buildBranchChangesetUri, buildDefaultChangesetCatalog, buildSessionChan
 import { getWorkingDirectoryScopeId } from '../../common/agentHostWorkingDirectories.js';
 import { toAgentWorkspaceContinuationMessageMeta } from '../../common/meta/agentWorkspaceContinuationMeta.js';
 import { ActionEnvelope, ActionType } from '../../common/state/sessionActions.js';
-import { ChangesetStatus, FileEditKind, MessageKind, SessionStatus, buildChatUri, buildDefaultChatUri, withMessageRequestHiddenFromTranscript, withSessionGitState, type Changeset, type ISessionFileDiff, type ISessionGitState } from '../../common/state/sessionState.js';
+import { ChangesetStatus, FileEditKind, MessageKind, SessionStatus, TurnState, buildChatUri, buildDefaultChatUri, withMessageRequestHiddenFromTranscript, withSessionGitState, type Changeset, type ISessionFileDiff, type ISessionGitState } from '../../common/state/sessionState.js';
 import { AgentHostChangesetService } from '../../node/agentHostChangesetService.js';
 import { NullAgentHostWorktreeIsolation } from '../../node/shared/worktreeIsolation.js';
 import { CHANGES_SUMMARY_METADATA_KEYS, META_CHANGES_SUMMARY, META_CHANGESET_BRANCH, META_CHANGESET_SESSION, META_LEGACY_DIFFS } from '../../common/agentHostChangesetService.js';
@@ -1740,6 +1740,56 @@ suite('AgentHostChangesetService - multi-root turn changeset', () => {
 			],
 			gitDiffCalls: [{ workingDirectory: 'file:///repo', fromRef: 'baseline', toRef: 'peer-current' }],
 			editReads: [0, 0],
+		});
+	});
+
+	test('Chat Changes resolves a restored peer before selecting its latest checkpoint', async () => {
+		const peer = buildChatUri(sessionStr, 'restored-peer');
+		const peerDb = new TestSessionDatabase();
+		const git = createNoopGitService();
+		git.getRepositoryRoot = async workingDirectory => workingDirectory;
+		git.computeFileDiffsBetweenRefs = async () => [gitDiff('/repo/restored.ts', 2, 1)];
+		const checkpoint: IAgentHostCheckpointService = {
+			...NULL_CHECKPOINT_SERVICE,
+			getBaselineCheckpoint: async () => 'baseline',
+			getTurnCheckpointPair: async (_session, turnId) => turnId === 'restored-turn'
+				? { parent: 'restored-parent', current: 'restored-current' }
+				: undefined,
+		};
+		const { svc, stateManager } = build({
+			workingDirectories: ['file:///repo'],
+			git,
+			checkpoint,
+			peer: { resource: peer, db: peerDb, turnId: 'placeholder-turn' },
+		});
+		stateManager.removeChat(sessionStr, peer);
+		let resolverCalls = 0;
+		stateManager.registerRestoredChatSummary(sessionStr, peer, {
+			workingDirectories: ['file:///repo'],
+			resolver: async () => {
+				resolverCalls++;
+				return {
+					turns: [{
+						id: 'restored-turn',
+						message: { text: 'restored', origin: { kind: MessageKind.User } },
+						responseParts: [],
+						usage: undefined,
+						state: TurnState.Complete,
+					}],
+				};
+			},
+		});
+
+		svc.refreshSessionChangeset(peer);
+		const changesetUri = buildSessionChangesetUri(peer);
+		await waitForChangesetReady(stateManager, changesetUri);
+
+		assert.deepStrictEqual({
+			resolverCalls,
+			files: stateManager.getChangesetState(changesetUri)?.files.map(file => file.id),
+		}, {
+			resolverCalls: 1,
+			files: [URI.file('/repo/restored.ts').toString()],
 		});
 	});
 

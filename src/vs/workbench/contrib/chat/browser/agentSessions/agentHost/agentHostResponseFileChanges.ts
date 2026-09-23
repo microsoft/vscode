@@ -10,7 +10,7 @@ import { getComparisonKey, isEqual, isEqualOrParent } from '../../../../../../ba
 import { isDefined } from '../../../../../../base/common/types.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
-import { buildBranchChangesetUri, buildTurnChangesetUri, ChangesetKind } from '../../../../../../platform/agentHost/common/changesetUri.js';
+import { buildBranchChangesetUri, buildTurnChangesetUri, ChangesetKind, resolveChatChangesetCatalogue } from '../../../../../../platform/agentHost/common/changesetUri.js';
 import { normalizeFileEdit } from '../../../../../../platform/agentHost/common/fileEditDiff.js';
 import { toAgentHostContentUri, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import {
@@ -178,17 +178,27 @@ export class AgentHostResponseFileChangesProvider extends Disposable implements 
 			StateComponents.Chat,
 			constObservable(backendChat),
 		);
+		const sessionChangesetsObs = this._subscribe<Pick<SessionState, 'changesets'>>(
+			StateComponents.Session,
+			constObservable(backendSession),
+		);
 
 		const turnChangesetUriObs = derivedOpts<URI | undefined>({ equalsFn: isEqual }, reader => {
 			const changesetOwnerState = changesetOwnerStateObs.read(reader).read(reader);
-			if (!changesetOwnerState || changesetOwnerState instanceof Error) {
+			const sessionState = sessionChangesetsObs.read(reader).read(reader);
+			if (!changesetOwnerState || changesetOwnerState instanceof Error || sessionState instanceof Error) {
 				return undefined;
 			}
-			const supportsTurnChangeset = changesetOwnerState.changesets?.some(c => c.changeKind === ChangesetKind.Turn);
-			if (!supportsTurnChangeset) {
+			const resolvedCatalogue = resolveChatChangesetCatalogue(
+				backendChat.toString(),
+				changesetOwnerState.changesets,
+				sessionState?.changesets,
+			);
+			if (!resolvedCatalogue?.changesets.some(c => c.changeKind === ChangesetKind.Turn)) {
 				return undefined;
 			}
-			return URI.parse(buildTurnChangesetUri(backendChat.toString(), requestId));
+			const owner = resolvedCatalogue.owner === 'session' ? backendSession : backendChat;
+			return URI.parse(buildTurnChangesetUri(owner.toString(), requestId));
 		});
 
 		const changesetStateObs = this._subscribe<ChangesetState>(StateComponents.Changeset, turnChangesetUriObs);

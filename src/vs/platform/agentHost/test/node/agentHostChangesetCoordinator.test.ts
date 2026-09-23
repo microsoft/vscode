@@ -383,7 +383,7 @@ suite('ChangesetSessionCoordinator', () => {
 
 		// Editor Window adds a second root -> multi-root: operations must refresh.
 		environment.stateManager.dispatchServerAction(session, { type: ActionType.SessionWorkingDirectorySet, directory: 'file:///repoB' });
-		assert.deepStrictEqual(environment.updateOperationsCalls.slice(baseline), [session, buildDefaultChatUri(session)], 'adding a root refreshes the session and inheriting chat operations');
+		assert.deepStrictEqual(environment.updateOperationsCalls.slice(baseline), [session], 'adding a root refreshes every session operation owner once');
 
 		// A no-op working-directory action (same root) must not refresh again.
 		const afterAdd = environment.updateOperationsCalls.length;
@@ -392,7 +392,7 @@ suite('ChangesetSessionCoordinator', () => {
 
 		// Removing the second root -> back to single-root: operations refresh again (restore).
 		environment.stateManager.dispatchServerAction(session, { type: ActionType.SessionWorkingDirectoryRemoved, directory: 'file:///repoB' });
-		assert.deepStrictEqual(environment.updateOperationsCalls.slice(afterAdd), [session, buildDefaultChatUri(session)], 'removing a root refreshes the session and inheriting chat operations');
+		assert.deepStrictEqual(environment.updateOperationsCalls.slice(afterAdd), [session], 'removing a root refreshes every session operation owner once');
 	});
 
 	test('refreshes chat-owned changesets and Git state when a chat changes working directories', () => {
@@ -475,8 +475,8 @@ suite('ChangesetSessionCoordinator', () => {
 
 		assert.deepStrictEqual(
 			[...environment.updateOperationsCalls.slice(baseline)].sort(),
-			[parentSession, buildDefaultChatUri(parentSession), subagentSession].sort(),
-			'a parent root change refreshes the parent, its inheriting chat, and its inheriting subagent',
+			[parentSession, subagentSession].sort(),
+			'a parent root change refreshes every parent operation owner once and its inheriting subagent',
 		);
 	});
 
@@ -621,6 +621,7 @@ suite('ChangesetSessionCoordinator', () => {
 
 		environment.coordinator.onFirstSubscriber(URI.parse(session));
 		await environment.monitor.waitForAcquisitions(1);
+		const operationBaseline = environment.updateOperationsCalls.length;
 		environment.coordinator.onSessionTurnActiveChanged(session, true);
 		await environment.gitService.waitForRootLookups(2);
 		await tick();
@@ -633,10 +634,11 @@ suite('ChangesetSessionCoordinator', () => {
 		environment.monitor.fire(root);
 		await tick();
 
-		assert.deepStrictEqual({ acquisitions: environment.monitor.acquisitions, disposals: environment.monitor.disposals, refreshes: environment.changesets.uncommittedRefreshes }, {
+		assert.deepStrictEqual({ acquisitions: environment.monitor.acquisitions, disposals: environment.monitor.disposals, refreshes: environment.changesets.uncommittedRefreshes, operationRefreshes: environment.updateOperationsCalls.slice(operationBaseline) }, {
 			acquisitions: ['file:///repo', 'file:///repo'],
 			disposals: ['file:///repo'],
 			refreshes: [],
+			operationRefreshes: [session, session],
 		});
 	});
 

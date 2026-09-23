@@ -9,7 +9,7 @@ import { URI as ResourceURI } from '../../../base/common/uri.js';
 import { readAgentMergeSessionState } from './agentMerge.js';
 import { isAgentMergeMessage } from './meta/agentMergeMessageMeta.js';
 import { AgentSystemNotificationKind, readAgentSystemNotificationMeta } from './meta/agentSystemNotificationMeta.js';
-import { buildDefaultChatUri, MessageKind, parseChatUri, readSessionGitState, readSessionWorkspaceless, ResponsePartKind, SessionLifecycle, type Changeset, type ISessionGitState, type ISessionWithDefaultChat, type URI } from './state/sessionState.js';
+import { buildDefaultChatUri, isDefaultChatUri, MessageKind, parseChatUri, readSessionGitState, readSessionWorkspaceless, ResponsePartKind, SessionLifecycle, type Changeset, type ISessionGitState, type ISessionWithDefaultChat, type URI } from './state/sessionState.js';
 
 /**
  * Helpers for building / parsing the URI clients subscribe to in order to
@@ -135,6 +135,21 @@ export const enum ChangesetKind {
 	Compare = 'compare-turns',
 	/** Producer-defined id we don't recognise (single-segment only). */
 	Unknown = 'unknown',
+}
+
+const EMPTY_CHANGESET_CATALOGUE: readonly Changeset[] = [];
+
+/** Resolves a chat catalogue, falling back to the legacy session-wide catalogue shape. */
+export function resolveChatChangesetCatalogue(chatUri: URI, chatChangesets: readonly Changeset[] | undefined, sessionChangesets: readonly Changeset[] | undefined): { readonly changesets: readonly Changeset[]; readonly owner: 'chat' | 'session' } | undefined {
+	if (chatChangesets !== undefined) {
+		return { changesets: chatChangesets, owner: 'chat' };
+	}
+	if (!sessionChangesets?.some(changeset => changeset.changeKind !== ChangesetKind.Session)) {
+		return undefined;
+	}
+	return isDefaultChatUri(chatUri)
+		? { changesets: sessionChangesets, owner: 'session' }
+		: { changesets: EMPTY_CHANGESET_CATALOGUE, owner: 'chat' };
 }
 
 /** Changeset kinds that can represent a session's default changes view. */

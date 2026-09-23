@@ -13,7 +13,7 @@ import { isDefined } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { isMultiRootSession } from '../../../../../platform/agentHost/common/agentHostWorkingDirectories.js';
-import { AGENT_MERGE_CHANGESET_ID, ChangesetKind, resolveChangesetUriTemplate, selectDefaultChangeset } from '../../../../../platform/agentHost/common/changesetUri.js';
+import { AGENT_MERGE_CHANGESET_ID, ChangesetKind, resolveChangesetUriTemplate, resolveChatChangesetCatalogue, selectDefaultChangeset } from '../../../../../platform/agentHost/common/changesetUri.js';
 import { isAgentMergeMessage } from '../../../../../platform/agentHost/common/meta/agentMergeMessageMeta.js';
 import { ChangesetOperationTargetKind, InvokeChangesetOperationResult } from '../../../../../platform/agentHost/common/state/protocol/channels-changeset/commands.js';
 import { ChangesetOperation, ChangesetOperationScope, type ChangesetFile, ChangesetOperationStatus } from '../../../../../platform/agentHost/common/state/protocol/state.js';
@@ -130,32 +130,45 @@ export function createChatChangesets(
 	isActiveSessionObs: IObservable<boolean>,
 	currentTurnChanges?: IObservable<readonly ISessionFileChange[] | undefined>,
 ): IObservable<readonly ISessionChangeset[] | undefined> {
+	const sessionUri = URI.parse(parseRequiredSessionUriFromChatUri(chatUri));
 	const chatStateObs = createActiveSessionSubscriptionObs<ChatState>(
 		options,
 		isActiveSessionObs,
 		StateComponents.Chat,
 		constObservable(chatUri),
 	);
+	const sessionStateObs = createActiveSessionSubscriptionObs<SessionState>(
+		options,
+		isActiveSessionObs,
+		StateComponents.Session,
+		constObservable(sessionUri),
+	);
 	let lastCatalogue: readonly Changeset[] | undefined;
+	let lastCatalogueOwner: URI | undefined;
 	let lastChangesets: readonly ISessionChangeset[] | undefined;
 	return derived(reader => {
-		const state = chatStateObs.read(reader).read(reader);
-		if (!state || state instanceof Error) {
+		const chatState = chatStateObs.read(reader).read(reader);
+		const sessionState = sessionStateObs.read(reader).read(reader);
+		if (!chatState || chatState instanceof Error || sessionState instanceof Error) {
 			return undefined;
 		}
-		if (state.changesets === undefined) {
+		const resolvedCatalogue = resolveChatChangesetCatalogue(chatUri.toString(), chatState.changesets, sessionState?.changesets);
+		if (resolvedCatalogue === undefined) {
 			lastCatalogue = undefined;
+			lastCatalogueOwner = undefined;
 			lastChangesets = undefined;
 			return undefined;
 		}
-		if (state.changesets === lastCatalogue && lastChangesets !== undefined) {
+		const catalogueOwner = resolvedCatalogue.owner === 'session' ? sessionUri : chatUri;
+		if (resolvedCatalogue.changesets === lastCatalogue && isEqual(catalogueOwner, lastCatalogueOwner) && lastChangesets !== undefined) {
 			return lastChangesets;
 		}
-		lastCatalogue = state.changesets;
-		lastChangesets = createChangesets(chatUri, options, isActiveSessionObs, state.changesets.map(changeset => ({
+		lastCatalogue = resolvedCatalogue.changesets;
+		lastCatalogueOwner = catalogueOwner;
+		lastChangesets = createChangesets(catalogueOwner, options, isActiveSessionObs, resolvedCatalogue.changesets.map(changeset => ({
 			...changeset,
 			changes: changeset.changeKind === ChangesetKind.Turn ? currentTurnChanges : undefined,
-		})), chatUri);
+		})), resolvedCatalogue.owner === 'chat' ? chatUri : undefined);
 		return lastChangesets;
 	});
 }

@@ -1072,6 +1072,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	}
 
 	private async _computeChatChangesDiffs(session: ProtocolURI, db: ISessionDatabase, workingDirectories: readonly string[] | undefined): Promise<{ readonly diffs: readonly ISessionFileDiff[] | undefined; readonly usedFallback: boolean }> {
+		await this._stateManager.resolveChatState(session);
 		const latestTurnId = this._latestTurnIdAcrossChats(session);
 		if (!latestTurnId) {
 			return { diffs: [], usedFallback: false };
@@ -1516,7 +1517,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 				branchResult = await this._computeBranchDiffs(session, ref.object, workingDirectories?.[0]);
 				diffs = branchResult.kind === 'ready' ? branchResult.diffs : undefined;
 			} else {
-				diffs = await this._tryComputeGitDiffs(session, ref.object, kind);
+				diffs = await this._tryComputeSessionGitDiffs(session);
 			}
 			if (!diffs) {
 				if (kind === 'session' && isAhpChatChannel(session)) {
@@ -1799,23 +1800,9 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		return bestTurnId;
 	}
 
-	/**
-	 * Computes diffs for a static changeset by shelling out to git.
-	 * Returns the diff list when the session has a working directory and
-	 * that directory is a git work tree; returns `undefined` otherwise so
-	 * the caller can fall back to the edit-tracker aggregator (for
-	 * `kind: 'session'`) or preserve cached state (for `kind: 'branch'`).
-	 *
-	 * For `kind: 'session'` the diff is computed between the baseline
-	 * checkpoint ref and the latest turn checkpoint ref.
-	 * For `kind: 'branch'` the diff is computed against the merge-base
-	 * with {@link META_DIFF_BASE_BRANCH} when one is set; without a base
-	 * branch git falls back to `HEAD`.
-	 */
-	private async _tryComputeGitDiffs(session: ProtocolURI, db: ISessionDatabase, kind: StaticChangesetKind): Promise<readonly ISessionFileDiff[] | undefined> {
-		const workingDirectory = kind === ChangesetKind.Branch
-			? this._getEffectiveWorkingDirectories(session)?.[0]
-			: this._stateManager.getSessionState(session)?.workingDirectories?.[0];
+	/** Computes Session Changes between the baseline and latest turn checkpoints. */
+	private async _tryComputeSessionGitDiffs(session: ProtocolURI): Promise<readonly ISessionFileDiff[] | undefined> {
+		const workingDirectory = this._stateManager.getSessionState(session)?.workingDirectories?.[0];
 		if (!workingDirectory) {
 			return undefined;
 		}
@@ -1827,45 +1814,28 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 			return undefined;
 		}
 
-		// Session
-		if (kind === 'session') {
-			// The latest completed attributable turn captures the shared working-tree delta across chats.
-			const latestTurnId = this._latestTurnIdAcrossChats(session);
-			if (!latestTurnId) {
-				return undefined;
-			}
-
-			const sessionUri = URI.parse(containingSessionUri(session));
-			const [baseline, pair] = await Promise.all([
-				this._checkpointService.getBaselineCheckpoint(sessionUri),
-				this._checkpointService.getTurnCheckpointPair(sessionUri, latestTurnId),
-			]);
-			if (!baseline || !pair) {
-				return undefined;
-			}
-
-			try {
-				return await this._gitService.computeFileDiffsBetweenRefs(workingDirectoryUri, {
-					sessionUri: session,
-					fromRef: baseline,
-					toRef: pair.current
-				});
-			} catch (err) {
-				this._logService.warn(`[AgentHostChangesetService] git-driven ${kind} diff computation failed; falling back to edit-tracker`, err);
-				return undefined;
-			}
+		const latestTurnId = this._latestTurnIdAcrossChats(session);
+		if (!latestTurnId) {
+			return undefined;
 		}
 
-		// Branch
-		const baseBranch = await this._resolveBranchBaseBranch(session, db);
+		const sessionUri = URI.parse(containingSessionUri(session));
+		const [baseline, pair] = await Promise.all([
+			this._checkpointService.getBaselineCheckpoint(sessionUri),
+			this._checkpointService.getTurnCheckpointPair(sessionUri, latestTurnId),
+		]);
+		if (!baseline || !pair) {
+			return undefined;
+		}
 
 		try {
-			return await this._gitService.computeSessionFileDiffs(workingDirectoryUri, {
+			return await this._gitService.computeFileDiffsBetweenRefs(workingDirectoryUri, {
 				sessionUri: session,
-				baseBranch
+				fromRef: baseline,
+				toRef: pair.current
 			});
 		} catch (err) {
-			this._logService.warn(`[AgentHostChangesetService] git-driven ${kind} diff computation failed; falling back to edit-tracker`, err);
+			this._logService.warn('[AgentHostChangesetService] git-driven session diff computation failed; falling back to edit-tracker', err);
 			return undefined;
 		}
 	}
