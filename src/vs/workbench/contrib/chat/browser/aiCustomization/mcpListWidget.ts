@@ -785,6 +785,18 @@ function resolveMcpEntry(entry: IMcpInstalledEntry, customizations: IAgentHostCu
 	return server ? entry.type === 'session-server-item' ? { ...entry, server } : { ...entry, activeSessionServer: server } : undefined;
 }
 
+const MCP_ROW_ACTION_SELECTOR = '.plugin-list-item-action button, .plugin-list-item-action a[href]';
+
+/** Index of the focused enablement toggle or other row action, so a reorder can put focus back on it. */
+export function getMcpRowActionFocusIndex(row: HTMLElement, active: Element): number | undefined {
+	const focused = active.closest('button, a');
+	if (!focused || !row.contains(focused)) {
+		return undefined;
+	}
+	const index = [...row.querySelectorAll<HTMLElement>(MCP_ROW_ACTION_SELECTOR)].indexOf(focused as HTMLElement);
+	return index >= 0 ? index : undefined;
+}
+
 /**
  * Which row a template is currently showing. List entries are recreated on every refresh, so
  * object identity says nothing about whether this is still the same server in the same place.
@@ -1416,6 +1428,7 @@ export class McpListWidget extends Disposable {
 	private readonly pendingSectionLayout = this._register(new MutableDisposable());
 	private readonly cardListControllers = new WeakMap<HTMLElement, CustomizationCardListController>();
 	private sectionLists: IMcpSectionList[] = [];
+	private pendingMcpListFocus: { readonly rowKey: string; readonly actionIndex?: number; attempts: number } | undefined;
 	private collapsedSections: Set<string> | undefined = new Set<string>();
 	private readonly delayedFilter = new Delayer<void>(200);
 	private readonly delayedGallerySearch = new Delayer<void>(400);
@@ -1621,8 +1634,10 @@ export class McpListWidget extends Disposable {
 		}));
 		this._register(this.agentHostCustomizationService.onDidChangeCustomizations(() => {
 			const previousMembership = this.getInstalledEntryMembershipSignature();
+			const previousOrder = this.getInstalledEntryOrderSignature();
 			this.filterServers(false);
-			if (!hasSameMcpMembership(previousMembership, this.getInstalledEntryMembershipSignature())) {
+			if (!hasSameMcpMembership(previousMembership, this.getInstalledEntryMembershipSignature())
+				|| previousOrder !== this.getInstalledEntryOrderSignature()) {
 				this.renderFilteredServers();
 			}
 		}));
@@ -2098,6 +2113,7 @@ export class McpListWidget extends Disposable {
 		this.pendingSectionLayout.value = DOM.scheduleAtNextAnimationFrame(DOM.getWindow(this.element), () => {
 			this.layoutMcpSectionLists();
 			this.cardScrollable.scanDomNode();
+			this.applyPendingMcpListFocus();
 		});
 	}
 
@@ -2106,6 +2122,7 @@ export class McpListWidget extends Disposable {
 			return;
 		}
 
+		this.captureMcpListFocus();
 		this.captureSectionScrollPositions();
 		this.cardDisposables.clear();
 		this.sectionLists = [];
@@ -2418,8 +2435,10 @@ export class McpListWidget extends Disposable {
 	}
 
 	private updateSearchResults(): void {
+		this.captureMcpListFocus();
 		const available = this.getAvailableGalleryServers();
 		if (this.installedEntries.length === 0 && available.length === 0) {
+			this.pendingMcpListFocus = undefined;
 			this.showEmptySurface(
 				this.gallerySearchLoading
 					? localize('searchingMcpMarketplace', "Searching the MCP marketplace...")
@@ -2520,7 +2539,7 @@ export class McpListWidget extends Disposable {
 			...otherBuiltinServers.map(({ server, activeSessionServer }) => ({ entry: createBuiltinEntry(server, activeSessionServer) })),
 			...activeSessionBuiltinEntries.map(entry => ({ entry })),
 		];
-		this.installedEntries.sort((a, b) => Number(getActiveSessionServer(b.entry)?.enabled ?? this.isInstalledEntryEnabled(b.entry)) - Number(getActiveSessionServer(a.entry)?.enabled ?? this.isInstalledEntryEnabled(a.entry)));
+		this.installedEntries.sort((a, b) => Number(this.isInstalledEntryInUse(b.entry)) - Number(this.isInstalledEntryInUse(a.entry)));
 
 		this._onDidChangeItemCount.fire(this.itemCount);
 		if (render) {
@@ -2534,6 +2553,68 @@ export class McpListWidget extends Disposable {
 		} else {
 			this.renderMcpHome();
 		}
+	}
+
+	private captureMcpListFocus(): void {
+		const active = DOM.getActiveElement();
+		this.pendingMcpListFocus = undefined;
+		if (!active) {
+			return;
+		}
+		for (const section of this.sectionLists) {
+			const listElement = section.list.getHTMLElement();
+			if (active !== listElement && !listElement.contains(active)) {
+				continue;
+			}
+			const row = active.closest('.monaco-list-row');
+			const domIndex = row instanceof HTMLElement && row.dataset.index !== undefined ? Number(row.dataset.index) : undefined;
+			const index = domIndex ?? section.list.getFocus()[0];
+			const entry = index === undefined || Number.isNaN(index) ? undefined : section.entries[index];
+			if (!entry || entry.type === 'marketplace-item') {
+				return;
+			}
+			this.pendingMcpListFocus = {
+				rowKey: getMcpRowKey(entry),
+				actionIndex: row instanceof HTMLElement ? getMcpRowActionFocusIndex(row, active) : undefined,
+				attempts: 0,
+			};
+			return;
+		}
+	}
+
+	private applyPendingMcpListFocus(): void {
+		const pending = this.pendingMcpListFocus;
+		if (!pending) {
+			return;
+		}
+		pending.attempts++;
+		for (const section of this.sectionLists) {
+			const index = section.entries.findIndex(entry => entry.type !== 'marketplace-item' && getMcpRowKey(entry) === pending.rowKey);
+			if (index < 0) {
+				continue;
+			}
+			if (section.container.clientHeight === 0 && pending.attempts < 5) {
+				return;
+			}
+			section.list.setFocus([index]);
+			section.list.reveal(index);
+			const row = section.list.getHTMLElement().querySelector(`.monaco-list-row[data-index="${index}"]`);
+			const action = pending.actionIndex === undefined || !(row instanceof HTMLElement)
+				? undefined
+				: row.querySelectorAll<HTMLElement>(MCP_ROW_ACTION_SELECTOR)[pending.actionIndex];
+			if (action) {
+				action.focus();
+			} else {
+				section.list.domFocus();
+			}
+			this.pendingMcpListFocus = undefined;
+			return;
+		}
+		this.pendingMcpListFocus = undefined;
+	}
+
+	private getInstalledEntryOrderSignature(): string {
+		return this.installedEntries.map(({ entry }) => getMcpRowKey(entry)).join('|');
 	}
 
 	private getInstalledEntryMembershipSignature(): string {
