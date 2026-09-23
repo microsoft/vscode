@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { isHTMLElement } from '../../../base/browser/dom.js';
-import { isManagedHoverTooltipMarkdownString, type IHoverWidget, type IManagedHoverContent, type IManagedHoverOptions } from '../../../base/browser/ui/hover/hover.js';
+import { isManagedHoverTooltipHTMLElement, isManagedHoverTooltipMarkdownString, type IHoverWidget, type IManagedHoverContent, type IManagedHoverOptions } from '../../../base/browser/ui/hover/hover.js';
 import type { IHoverDelegate, IHoverDelegateOptions, IHoverDelegateTarget } from '../../../base/browser/ui/hover/hoverDelegate.js';
 import { HoverPosition } from '../../../base/browser/ui/hover/hoverWidget.js';
 import { CancellationTokenSource } from '../../../base/common/cancellation.js';
@@ -40,6 +40,7 @@ export class ManagedHoverWidget implements IDisposable {
 			return;
 		}
 
+		const contentOwnsPadding = isManagedHoverTooltipHTMLElement(content) && content.contentOwnsPadding === true;
 		let resolvedContent: string | HTMLElement | IMarkdownString | undefined;
 		if (isString(content) || isHTMLElement(content) || content === undefined) {
 			resolvedContent = content;
@@ -65,7 +66,7 @@ export class ManagedHoverWidget implements IDisposable {
 
 				// show 'Loading' if no hover is up yet
 				if (!this._hoverWidget) {
-					this.show(localize('iconLabel.loading', "Loading..."), focus, options);
+					this.show(localize('iconLabel.loading', "Loading..."), focus, options, false);
 				}
 
 				resolvedContent = await managedContent;
@@ -80,10 +81,10 @@ export class ManagedHoverWidget implements IDisposable {
 			}
 		}
 
-		this.show(resolvedContent, focus, options);
+		this.show(resolvedContent, focus, options, contentOwnsPadding);
 	}
 
-	private show(content: IManagedHoverResolvedContent, focus?: boolean, options?: IManagedHoverOptions): void {
+	private show(content: IManagedHoverResolvedContent, focus: boolean | undefined, options: IManagedHoverOptions | undefined, contentOwnsPadding: boolean): void {
 		const oldHoverWidget = this._hoverWidget;
 
 		if (this.hasContent(content)) {
@@ -93,6 +94,10 @@ export class ManagedHoverWidget implements IDisposable {
 				actions: options?.actions,
 				linkHandler: options?.linkHandler,
 				trapFocus: options?.trapFocus,
+				additionalClasses: [
+					...(options?.additionalClasses ?? []),
+					...(contentOwnsPadding ? ['managed-hover-content-owns-padding'] : []),
+				],
 				appearance: {
 					showPointer: this.hoverDelegate.placement === 'element',
 					skipFadeInAnimation: !this.fadeInAnimation || !!oldHoverWidget, // do not fade in if the hover is already showing
@@ -100,6 +105,7 @@ export class ManagedHoverWidget implements IDisposable {
 				},
 				position: {
 					hoverPosition: HoverPosition.BELOW,
+					anchorAlignment: options?.position?.anchorAlignment,
 				},
 			};
 

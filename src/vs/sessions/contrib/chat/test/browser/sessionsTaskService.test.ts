@@ -16,7 +16,7 @@ import { IPreferencesService } from '../../../../../workbench/services/preferenc
 import { INonSessionTaskEntry, ISessionsTasksService, SessionsTasksService, ITaskEntry } from '../../browser/sessionsTasksService.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { constObservable, observableValue } from '../../../../../base/common/observable.js';
-import { IChat, ISession, ISessionFolder, ISessionWorkspace, SessionStatus } from '../../../../services/sessions/common/session.js';
+import { ChatInteractivity, IChat, ISession, ISessionFolder, ISessionWorkspace, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { ISessionTaskRunner, ISessionTaskRunnerRegistry, SessionTaskRunnerRegistry } from '../../browser/sessionTaskRunner.js';
 
@@ -33,18 +33,22 @@ function makeSession(opts: { repository?: URI; worktree?: URI } = {}): ISession 
 			gitRepository: { uri: opts.repository, workTreeUri: opts.worktree, baseBranchName: undefined, gitHubInfo: constObservable(undefined) },
 		} satisfies ISessionFolder],
 		requiresWorkspaceTrust: false,
+		isVirtualWorkspace: false,
 	} : undefined;
 	const chat: IChat = {
 		resource: URI.parse('file:///session'),
 		createdAt: new Date(),
+		workspace: constObservable(workspace),
 		title: observableValue('title', 'session'),
 		updatedAt: observableValue('updatedAt', new Date()),
 		status: observableValue('status', SessionStatus.Untitled),
 		changes: observableValue('changes', []),
 		modelId: observableValue('modelId', undefined),
+		modelSource: observableValue('modelSource', undefined),
 		mode: observableValue('mode', undefined),
 		isArchived: observableValue('isArchived', false),
 		isRead: observableValue('isRead', true),
+		interactivity: observableValue('interactivity', ChatInteractivity.Full),
 		checkpoints: observableValue('checkpoints', undefined),
 		lastTurnEnd: observableValue('lastTurnEnd', undefined),
 		description: observableValue('description', undefined),
@@ -71,7 +75,7 @@ function makeSession(opts: { repository?: URI; worktree?: URI } = {}): ISession 
 		description: chat.description,
 		chats: observableValue('chats', [chat]),
 		mainChat: constObservable(chat),
-		capabilities: { supportsMultipleChats: false },
+		capabilities: constObservable({ supportsMultipleChats: false }),
 	} satisfies ISession;
 	return session;
 }
@@ -189,6 +193,28 @@ suite('SessionsTasksService', () => {
 		const tasks = obs.get();
 
 		assert.deepStrictEqual(tasks.map(t => t.task.label), ['build', 'test', 'watch', 'gulp-task']);
+	});
+
+	test('getSessionTasks reads from a chat workspace', async () => {
+		const chatWorktree = URI.parse('file:///chat-worktree');
+		const chatTasksUri = URI.parse('file:///chat-worktree/.vscode/tasks.json');
+		fileContents.set(chatTasksUri.toString(), tasksJsonContent([
+			makeTask('chat-build', 'npm run build', true),
+		]));
+		const userTasksUri = URI.from({ scheme: userSettingsUri.scheme, path: '/user/tasks.json' });
+		fileContents.set(userTasksUri.toString(), tasksJsonContent([]));
+		const chat = makeSession({ worktree: chatWorktree, repository: URI.parse('file:///chat-repo') }).mainChat.get();
+
+		const tasks = service.getSessionTasks(chat);
+		await new Promise(r => setTimeout(r, 10));
+
+		assert.deepStrictEqual({
+			labels: tasks.get().map(task => task.task.label),
+			workspaceRead: readFileCalls.some(resource => resource.toString() === chatTasksUri.toString()),
+		}, {
+			labels: ['chat-build'],
+			workspaceRead: true,
+		});
 	});
 
 	test('getSessionTasks returns empty array when no worktree', async () => {

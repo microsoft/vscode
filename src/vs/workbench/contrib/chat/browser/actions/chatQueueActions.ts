@@ -11,11 +11,15 @@ import { localize, localize2 } from '../../../../../nls.js';
 import { Action2, MenuId, MenuRegistry, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { ILogService } from '../../../../../platform/log/common/log.js';
+import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { ChatRequestQueueKind, IChatService } from '../../common/chatService/chatService.js';
+import { IChatSideChatService } from '../../common/chatSideChatService.js';
 import { ChatConfiguration } from '../../common/constants.js';
 import { isRequestVM } from '../../common/model/chatViewModel.js';
-import { IChatWidgetService } from '../chat.js';
+import { IChatWidgetService, unwrapChatContextMenuActionContext } from '../chat.js';
+import { captureSideChatSelection } from '../chatSideChat.js';
 import { CHAT_CATEGORY } from './chatActions.js';
 
 const editingQueue = ChatContextKeys.editingRequestType.isEqualTo(ChatContextKeys.EditingRequestType.Queue);
@@ -23,6 +27,7 @@ const editingSteer = ChatContextKeys.editingRequestType.isEqualTo(ChatContextKey
 const editingQueueOrSteer = ContextKeyExpr.or(editingQueue, editingSteer)!;
 
 const queuingActionsPresent = ContextKeyExpr.and(
+	ChatContextKeys.transcriptProgressActive.negate(),
 	ContextKeyExpr.or(ChatContextKeys.requestInProgress, editingQueueOrSteer),
 	ChatContextKeys.editingRequestType.notEqualsTo(ChatContextKeys.EditingRequestType.Sent),
 );
@@ -67,7 +72,7 @@ export class ChatQueueMessageAction extends Action2 {
 			f1: false,
 			category: CHAT_CATEGORY,
 
-			precondition: ChatContextKeys.inputHasText,
+			precondition: ContextKeyExpr.and(ChatContextKeys.inputHasText, ChatContextKeys.transcriptProgressActive.negate()),
 			keybinding: [{
 				when: ContextKeyExpr.and(
 					ChatContextKeys.inChatInput,
@@ -90,7 +95,7 @@ export class ChatQueueMessageAction extends Action2 {
 	override run(accessor: ServicesAccessor, ...args: unknown[]): void {
 		const widgetService = accessor.get(IChatWidgetService);
 		const widget = widgetService.lastFocusedWidget;
-		if (!widget?.viewModel) {
+		if (!widget?.viewModel || widget.isTranscriptProgressActive) {
 			return;
 		}
 
@@ -120,7 +125,7 @@ export class ChatSteerWithMessageAction extends Action2 {
 			icon: Codicon.newLine,
 			f1: false,
 			category: CHAT_CATEGORY,
-			precondition: ChatContextKeys.inputHasText,
+			precondition: ContextKeyExpr.and(ChatContextKeys.inputHasText, ChatContextKeys.transcriptProgressActive.negate()),
 			keybinding: [{
 				when: ContextKeyExpr.and(
 					ChatContextKeys.inChatInput,
@@ -143,7 +148,7 @@ export class ChatSteerWithMessageAction extends Action2 {
 	override run(accessor: ServicesAccessor, ...args: unknown[]): void {
 		const widgetService = accessor.get(IChatWidgetService);
 		const widget = widgetService.lastFocusedWidget;
-		if (!widget?.viewModel) {
+		if (!widget?.viewModel || widget.isTranscriptProgressActive) {
 			return;
 		}
 
@@ -158,7 +163,65 @@ export class ChatSteerWithMessageAction extends Action2 {
 			return;
 		}
 
-		widget.acceptInput(undefined, { queue: ChatRequestQueueKind.Steering });
+		widget.acceptInput(undefined, {
+			queue: widget.viewModel.model.lastRequest?.isHiddenFromTranscript
+				? ChatRequestQueueKind.Queued
+				: ChatRequestQueueKind.Steering
+		});
+	}
+}
+
+export class ChatAskInSideChatAction extends Action2 {
+	static readonly ID = 'workbench.action.chat.askInSideChat';
+
+	constructor() {
+		super({
+			id: ChatAskInSideChatAction.ID,
+			title: localize2('chat.askInSideChat', "Ask in Side Chat"),
+			tooltip: localize('chat.askInSideChat.tooltip', "Ask this question in a side chat without adding it to this conversation"),
+			icon: Codicon.commentDiscussion,
+			f1: false,
+			category: CHAT_CATEGORY,
+			precondition: ContextKeyExpr.and(ChatContextKeys.inputHasText, ChatContextKeys.transcriptProgressActive.negate()),
+		});
+	}
+
+	override async run(accessor: ServicesAccessor, ...args: unknown[]): Promise<void> {
+		const widgetService = accessor.get(IChatWidgetService);
+		const sideChatService = accessor.get(IChatSideChatService);
+		const notificationService = accessor.get(INotificationService);
+		const logService = accessor.get(ILogService);
+
+		const widget = widgetService.lastFocusedWidget;
+		const sessionResource = widget?.viewModel?.model.sessionResource;
+		if (!widget || !sessionResource || widget.isTranscriptProgressActive) {
+			return;
+		}
+
+		const query = widget.getInput().trim();
+		if (!query) {
+			return;
+		}
+
+		if (!sideChatService.canAskInSideChat(sessionResource)) {
+			notificationService.warn(localize('chat.askInSideChat.unsupported', "This conversation does not support side chats."));
+			return;
+		}
+
+		const selection = captureSideChatSelection(widget);
+
+		// Clear optimistically so the composer behaves like the queue/steer
+		// actions; the text is restored below if the side chat cannot be created.
+		widget.setInput('');
+		try {
+			await sideChatService.askInSideChat(sessionResource, query, selection);
+		} catch (err) {
+			logService.error('[askInSideChat] Failed to create side chat', err);
+			notificationService.error(localize('chat.askInSideChat.createFailed', "The side chat could not be created."));
+			if (!widget.getInput()) {
+				widget.setInput(query);
+			}
+		}
 	}
 }
 
@@ -169,7 +232,7 @@ export class ChatRemovePendingRequestAction extends Action2 {
 		super({
 			id: ChatRemovePendingRequestAction.ID,
 			title: localize2('chat.removePendingRequest', "Remove from Queue"),
-			icon: Codicon.close,
+			icon: Codicon.closeSmall,
 			f1: false,
 			category: CHAT_CATEGORY,
 			menu: [{
@@ -294,7 +357,7 @@ export class ChatRemoveAllPendingRequestsAction extends Action2 {
 	override run(accessor: ServicesAccessor, ...args: unknown[]): void {
 		const chatService = accessor.get(IChatService);
 		const widgetService = accessor.get(IChatWidgetService);
-		const [context] = args;
+		const context = unwrapChatContextMenuActionContext(args[0]);
 
 		const widget = (isRequestVM(context) && widgetService.getWidgetBySessionResource(context.sessionResource)) || widgetService.lastFocusedWidget;
 		const model = widget?.viewModel?.model;
@@ -311,6 +374,7 @@ export class ChatRemoveAllPendingRequestsAction extends Action2 {
 export function registerChatQueueActions(): void {
 	registerAction2(ChatQueueMessageAction);
 	registerAction2(ChatSteerWithMessageAction);
+	registerAction2(ChatAskInSideChatAction);
 	registerAction2(ChatRemovePendingRequestAction);
 	registerAction2(ChatEditPendingRequestAction);
 	registerAction2(ChatSendPendingImmediatelyAction);

@@ -6,6 +6,7 @@
 import './textAreaEditContext.css';
 import * as nls from '../../../../../nls.js';
 import * as browser from '../../../../../base/browser/browser.js';
+import { $ } from '../../../../../base/browser/dom.js';
 import { FastDomNode, createFastDomNode } from '../../../../../base/browser/fastDomNode.js';
 import { IKeyboardEvent } from '../../../../../base/browser/keyboardEvent.js';
 import * as platform from '../../../../../base/common/platform.js';
@@ -470,6 +471,9 @@ export class TextAreaEditContext extends AbstractEditContext {
 	}
 
 	private _getAndroidWordAtPosition(position: Position): [string, number] {
+		if (position.lineNumber > this._context.viewModel.getLineCount()) {
+			return ['', 0];
+		}
 		const ANDROID_WORD_SEPARATORS = '`~!@#$%^&*()-=+[{]}\\|;:",.<>/?';
 		const lineContent = this._context.viewModel.getLineContent(position.lineNumber);
 		const wordSeparators = getMapForWordSeparators(ANDROID_WORD_SEPARATORS, []);
@@ -511,6 +515,9 @@ export class TextAreaEditContext extends AbstractEditContext {
 	}
 
 	private _getWordBeforePosition(position: Position): string {
+		if (position.lineNumber > this._context.viewModel.getLineCount()) {
+			return '';
+		}
 		const lineContent = this._context.viewModel.getLineContent(position.lineNumber);
 		const wordSeparators = getMapForWordSeparators(this._context.configuration.options.get(EditorOption.wordSeparators), []);
 
@@ -530,6 +537,9 @@ export class TextAreaEditContext extends AbstractEditContext {
 
 	private _getCharacterBeforePosition(position: Position): string {
 		if (position.column > 1) {
+			if (position.lineNumber > this._context.viewModel.getLineCount()) {
+				return '';
+			}
 			const lineContent = this._context.viewModel.getLineContent(position.lineNumber);
 			const charBefore = lineContent.charAt(position.column - 2);
 			if (!strings.isHighSurrogate(charBefore.charCodeAt(0))) {
@@ -887,12 +897,12 @@ function measureText(targetDocument: Document, text: string, fontInfo: FontInfo,
 		return 0;
 	}
 
-	const container = targetDocument.createElement('div');
+	const container = $<HTMLDivElement>('div');
 	container.style.position = 'absolute';
 	container.style.top = '-50000px';
 	container.style.width = '50000px';
 
-	const regularDomNode = targetDocument.createElement('span');
+	const regularDomNode = $<HTMLSpanElement>('span');
 	applyFontInfo(regularDomNode, fontInfo);
 	regularDomNode.style.whiteSpace = 'pre'; // just like the textarea
 	regularDomNode.style.tabSize = `${tabSize * fontInfo.spaceWidth}px`; // just like the textarea

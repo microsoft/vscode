@@ -107,6 +107,7 @@ class CopilotCLIResponseStreamRouter {
 		push: (part: vscode.ExtendedChatResponsePart): void => { this._call('push', [part]); },
 		thinkingProgress: (thinkingDelta: vscode.ThinkingDelta): void => { this._call('thinkingProgress', [thinkingDelta]); },
 		hookProgress: (hookType: vscode.ChatHookType, stopReason?: string, systemMessage?: string): void => { this._call('hookProgress', [hookType, stopReason, systemMessage]); },
+		voiceProgress: (id: string, value: string): void => { this._call('voiceProgress', [id, value]); },
 		textEdit: (target: vscode.Uri, editsOrDone: vscode.TextEdit | vscode.TextEdit[] | true): void => { this._call('textEdit', [target, editsOrDone]); },
 		notebookEdit: (target: vscode.Uri, editsOrDone: vscode.NotebookEdit | vscode.NotebookEdit[] | true): void => { this._call('notebookEdit', [target, editsOrDone]); },
 		workspaceEdit: (edits: vscode.ChatWorkspaceFileEdit[]): void => { this._call('workspaceEdit', [edits]); },
@@ -943,26 +944,20 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 		this._permissionLevel = level;
 	}
 
-	/**
-	 * Whether the session was configured with the sandbox enabled. The sandbox
-	 * only actually applies to requests that run with default approvals — see
-	 * {@link _applyEffectiveSandboxConfig}.
-	 */
+	/** Whether the session was configured with the sandbox enabled. */
 	private get _sandboxEnabled(): boolean {
 		return !!this._sandboxConfig?.enabled;
 	}
 
 	/**
 	 * Apply the sandbox policy for the request that is about to be sent. The
-	 * sandbox enable setting only applies under default approvals; the sandbox
-	 * is explicitly disabled when the request runs with bypass approvals
-	 * (autopilot / autoApprove) or when no sandbox is configured for the
-	 * session. Pushing `{ enabled: false }` (rather than skipping the update)
-	 * ensures the SDK never retains a stale or auto-discovered sandbox.
+	 * configured sandbox is independent of the permission level. Pushing
+	 * `{ enabled: false }` when no sandbox is configured ensures the SDK never
+	 * retains a stale or auto-discovered sandbox.
 	 */
-	private _applyEffectiveSandboxConfig(bypassApprovals: boolean): void {
+	private _applyEffectiveSandboxConfig(): void {
 		const base = this._sandboxConfig;
-		const sandboxConfig = (base?.enabled && !bypassApprovals) ? base : { enabled: false };
+		const sandboxConfig = base?.enabled ? base : { enabled: false };
 		try {
 			this._sdkSession.updateOptions({ sandboxConfig });
 		} catch (error) {
@@ -1888,12 +1883,7 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 			} else {
 				this._sdkSession.currentMode = 'interactive';
 			}
-			// The sandbox only applies under default approvals — disable it for
-			// this request when running in a bypass-approvals mode.
-			const bypassApprovals = remoteMode
-				? remoteMode === 'autopilot'
-				: this._permissionLevel === 'autopilot' || this._permissionLevel === 'autoApprove';
-			this._applyEffectiveSandboxConfig(bypassApprovals);
+			this._applyEffectiveSandboxConfig();
 			const sendOptions: SendOptions = { prompt: input.prompt ?? '', attachments, agentMode: this._sdkSession.currentMode };
 			if (steering) {
 				sendOptions.mode = 'immediate';
@@ -1931,9 +1921,7 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 			} else {
 				this._sdkSession.currentMode = 'interactive';
 			}
-			// The sandbox only applies under default approvals — disable it when
-			// fleet runs in autopilot (a bypass-approvals mode).
-			this._applyEffectiveSandboxConfig(this._permissionLevel === 'autopilot');
+			this._applyEffectiveSandboxConfig();
 			const result = await this._sdkSession.fleet.start({ prompt });
 			if (!result.started) {
 				this.logService.info('[CopilotCLISession] Fleet mode not started');
@@ -2779,14 +2767,58 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 	private _renderAttachments(attachments: Attachment[]): string[] {
 		const lines: string[] = [];
 		for (const attachment of attachments) {
-			if (attachment.type === 'github_reference') {
-				lines.push(`- ${attachment.title}: (${attachment.number}, ${attachment.type}, ${attachment.referenceType})`);
-			} else if (attachment.type === 'blob') {
-				lines.push(`- ${attachment.displayName ?? 'blob'} (${attachment.type}, ${attachment.mimeType})`);
-			} else if (attachment.type === 'extension_context') {
-				lines.push(`- ${attachment.title ?? 'extension_context'} (${attachment.type}, ${attachment.extensionId})`);
-			} else {
-				lines.push(`- ${attachment.displayName} (${attachment.type}, ${attachment.type === 'selection' ? attachment.filePath : attachment.path})`);
+			switch (attachment.type) {
+				case 'github_reference': {
+					lines.push(`- ${attachment.title}: (${attachment.number}, ${attachment.type}, ${attachment.referenceType})`);
+					break;
+				}
+				case 'github_actions_job': {
+					lines.push(`- ${attachment.jobName}: (${attachment.jobId}, ${attachment.type})`);
+					break;
+				}
+				case 'github_commit': {
+					lines.push(`- ${attachment.message}: (${attachment.oid}, ${attachment.type})`);
+					break;
+				}
+				case 'github_file': {
+					lines.push(`- ${attachment.path}: (${attachment.ref}, ${attachment.type})`);
+					break;
+				}
+				case 'github_file_diff': {
+					lines.push(`- ${attachment.url}: (${attachment.type})`);
+					break;
+				}
+				case 'github_release': {
+					lines.push(`- ${attachment.name}: (${attachment.tagName}, ${attachment.type})`);
+					break;
+				}
+				case 'github_repository': {
+					lines.push(`- ${attachment.repo.name}: (${attachment.url}, ${attachment.type})`);
+					break;
+				}
+				case 'github_tree_comparison': {
+					lines.push(`- ${attachment.head}: (${attachment.base}, ${attachment.type})`);
+					break;
+				}
+				case 'github_url': {
+					lines.push(`- ${attachment.url}: (${attachment.type})`);
+					break;
+				}
+				case 'github_snippet': {
+					lines.push(`- ${attachment.path}: (${attachment.type})`);
+					break;
+				}
+				case 'blob': {
+					lines.push(`- ${attachment.displayName ?? 'blob'} (${attachment.type}, ${attachment.mimeType})`);
+					break;
+				}
+				case 'extension_context': {
+					lines.push(`- ${attachment.title ?? 'extension_context'} (${attachment.type}, ${attachment.extensionId})`);
+					break;
+				}
+				default: {
+					lines.push(`- ${attachment.displayName} (${attachment.type}, ${attachment.type === 'selection' ? attachment.filePath : attachment.path})`);
+				}
 			}
 		}
 		return lines;
@@ -2939,8 +2971,10 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 			kind: SpanKind.INTERNAL,
 			attributes: {
 				[GenAiAttr.OPERATION_NAME]: GenAiOperationName.EXECUTE_TOOL,
+				[GenAiAttr.CONVERSATION_ID]: this.sessionId,
 				[GenAiAttr.TOOL_NAME]: toolCall.toolName,
 				[GenAiAttr.TOOL_CALL_ID]: toolCall.toolCallId,
+				[CopilotChatAttr.SESSION_ID]: this.sessionId,
 				[CopilotChatAttr.CHAT_SESSION_ID]: this.sessionId,
 			},
 			parentTraceContext: parentContext,
@@ -3035,6 +3069,8 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 			attributes: {
 				[GenAiAttr.OPERATION_NAME]: GenAiOperationName.CHAT,
 				[GenAiAttr.PROVIDER_NAME]: GenAiProviderName.GITHUB,
+				[GenAiAttr.CONVERSATION_ID]: this.sessionId,
+				[CopilotChatAttr.SESSION_ID]: this.sessionId,
 				[CopilotChatAttr.CHAT_SESSION_ID]: this.sessionId,
 				...(model ? { [GenAiAttr.REQUEST_MODEL]: model } : {}),
 				...(typeof turn.inputTokens === 'number' ? { [GenAiAttr.USAGE_INPUT_TOKENS]: turn.inputTokens } : {}),
@@ -3113,13 +3149,13 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 		/* __GDPR__
 			"languageModelToolInvoked" : {
 				"owner": "roblourens",
-				"comment": "Provides insight into the usage of language model tools (Copilot CLI agent).",
+				"comment": "Provides insight into the usage of language model tools invoked by agent SDKs.",
 				"result": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "success | error | userCancelled" },
 				"chatSessionId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The chat session resource id." },
-				"toolId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The CLI/SDK tool name (e.g. bash, str_replace_editor, apply_patch)." },
-				"toolExtensionId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Always undefined for CLI." },
-				"toolSourceKind": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "copilotCli | mcp" },
-				"invocationTimeMs": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true, "comment": "Time between tool.execution_start and tool.execution_complete (includes any permission wait)." }
+				"toolId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The tool name reported by the agent SDK." },
+				"toolExtensionId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Always undefined for agent SDK tools." },
+				"toolSourceKind": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The source of the tool invocation." },
+				"invocationTimeMs": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true, "comment": "The duration of the tool invocation in milliseconds." }
 			}
 		*/
 		this._telemetryService.sendMSFTTelemetryEvent('languageModelToolInvoked', {

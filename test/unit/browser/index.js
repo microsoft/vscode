@@ -91,7 +91,7 @@ const withReporter = (function () {
 		{
 			const testResultsRoot = process.env.BUILD_ARTIFACTSTAGINGDIRECTORY || process.env.GITHUB_WORKSPACE;
 			return (browserType, runner) => {
-				new mocha.reporters.Spec(runner);
+				new mocha.reporters.Dot(runner);
 				new MochaJUnitReporter(runner, {
 					reporterOptions: {
 						testsuitesTitle: `${args.tfs} ${process.platform}`,

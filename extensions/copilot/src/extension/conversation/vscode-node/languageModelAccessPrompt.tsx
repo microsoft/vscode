@@ -10,6 +10,7 @@ import { LanguageModelTextPart } from 'vscode';
 import { CustomDataPartMimeTypes } from '../../../platform/endpoint/common/endpointTypes';
 import { decodeStatefulMarker, StatefulMarkerContainer } from '../../../platform/endpoint/common/statefulMarkerContainer';
 import { ThinkingDataContainer } from '../../../platform/endpoint/common/thinkingDataContainer';
+import { thinkingOriginFromMetadata } from '../../../platform/thinking/common/thinking';
 import { SafetyRules } from '../../prompts/node/base/safetyRules';
 import { EditorIntegrationRules } from '../../prompts/node/panel/editorIntegrationRules';
 import { imageDataPartToTSX, ToolResult } from '../../prompts/node/panel/toolCalling';
@@ -19,6 +20,29 @@ export type Props = PromptElementProps<{
 	noSafety: boolean;
 	messages: Array<vscode.LanguageModelChatMessage | vscode.LanguageModelChatMessage2>;
 }>;
+
+interface IThinkingGroup {
+	readonly id: string;
+	readonly text: string[];
+	readonly metadata: Record<string, unknown>;
+}
+
+function groupThinkingParts(parts: readonly vscode.LanguageModelThinkingPart[]): IThinkingGroup[] {
+	const groups = new Map<string, IThinkingGroup>();
+	for (const part of parts) {
+		if (!part.id) {
+			continue;
+		}
+		const previous = groups.get(part.id);
+		const text = Array.isArray(part.value) ? part.value : [part.value];
+		groups.set(part.id, {
+			id: part.id,
+			text: [...previous?.text ?? [], ...text],
+			metadata: { ...previous?.metadata, ...part.metadata },
+		});
+	}
+	return [...groups.values()];
+}
 
 export class LanguageModelAccessPrompt extends PromptElement<Props> {
 	async render() {
@@ -38,14 +62,18 @@ export class LanguageModelAccessPrompt extends PromptElement<Props> {
 				const statefulMarkerPart = message.content.find(part => part instanceof vscode.LanguageModelDataPart && part.mimeType === CustomDataPartMimeTypes.StatefulMarker) as vscode.LanguageModelDataPart | undefined;
 				const statefulMarker = statefulMarkerPart && decodeStatefulMarker(statefulMarkerPart.data);
 				const filteredContent = message.content.filter(part => !(part instanceof vscode.LanguageModelDataPart));
-				// There should only be one string part per message
-				const content = filteredContent.find(part => part instanceof LanguageModelTextPart);
+				const content = filteredContent.filter(part => part instanceof LanguageModelTextPart).map(part => part.value).join('');
 				const toolCalls = filteredContent.filter(part => part instanceof vscode.LanguageModelToolCallPart);
-				const thinking = filteredContent.find(part => part instanceof vscode.LanguageModelThinkingPart);
+				const thinkingParts = filteredContent.filter(part => part instanceof vscode.LanguageModelThinkingPart);
+				const thinkingGroups = groupThinkingParts(thinkingParts);
 
 				const statefulMarkerElement = statefulMarker && <StatefulMarkerContainer statefulMarker={statefulMarker} />;
-				const thinkingElement = thinking && thinking.id && <ThinkingDataContainer thinking={{ id: thinking.id, text: thinking.value, metadata: thinking.metadata }} />;
-				chatMessages.push(<AssistantMessage name={message.name} toolCalls={toolCalls.map(tc => ({ id: tc.callId, type: 'function', function: { name: tc.name, arguments: JSON.stringify(tc.input) } }))}>{statefulMarkerElement}{content?.value}{thinkingElement}</AssistantMessage>);
+				const thinkingElements = thinkingGroups.map(group => {
+					const encrypted = typeof group.metadata.encrypted_content === 'string' ? group.metadata.encrypted_content : undefined;
+					// Read the per-part provenance metadata back onto the envelope.
+					return <ThinkingDataContainer thinking={{ id: group.id, text: group.text, metadata: group.metadata, encrypted }} originApi={thinkingOriginFromMetadata(group.metadata)} />;
+				});
+				chatMessages.push(<AssistantMessage name={message.name} toolCalls={toolCalls.map(tc => ({ id: tc.callId, type: 'function', function: { name: tc.name, arguments: JSON.stringify(tc.input) } }))}>{statefulMarkerElement}{content}{thinkingElements}</AssistantMessage>);
 			} else if (message.role === vscode.LanguageModelChatMessageRole.User) {
 				for (const part of message.content) {
 					if (part instanceof vscode.LanguageModelToolResultPart2 || part instanceof vscode.LanguageModelToolResultPart) {

@@ -12,6 +12,15 @@ export const SPOTLIGHT_PRESENTATION_KIND = 'spotlight';
 /** Preferred placement of the callout relative to the spotlighted target. */
 export type SpotlightPlacement = 'above' | 'below' | 'left' | 'right' | 'auto';
 
+/** `advanceOnly` consumes target activation instead of running the target's action. */
+export type SpotlightTargetClickBehavior = boolean | 'advanceOnly';
+
+/** Behavior when a spotlight target is not rendered when its step is reached. Waiting skips the step on timeout unless `onTimeout` is `abort`. */
+export type SpotlightMissingTargetBehavior =
+	| { readonly kind: 'skip' }
+	| { readonly kind: 'abort' }
+	| { readonly kind: 'wait'; readonly timeoutMs: number; readonly onTimeout?: 'skip' | 'abort' };
+
 /**
  * A single step in a spotlight tour. Steps are pure data; the spotlight
  * presentation turns them into the dim overlay, the cut-out highlight and the
@@ -34,20 +43,35 @@ export interface ISpotlightStep {
 	/** Callout body (localized string or markdown). */
 	readonly description: string | IMarkdownString;
 
+	/** Localized primary button label, replacing the default Next or Done. */
+	readonly nextButtonLabel?: string;
+
 	/** Preferred placement of the callout. Defaults to `'auto'`. */
 	readonly placement?: SpotlightPlacement;
 
 	/** When present and unsatisfied, the step is skipped. */
 	readonly when?: ContextKeyExpression;
 
+	/** Defaults to waiting two seconds before skipping; `abort` ends the run immediately if the target is missing. */
+	readonly missingTarget?: SpotlightMissingTargetBehavior;
+
+	/** Opens the target through its owner; `ifUnselected` only opens controls without a selected value. */
+	readonly openTarget?: boolean | 'ifUnselected';
+
 	/** Allow the spotlighted element to remain interactive. Defaults to `false`. */
 	readonly allowTargetInteraction?: boolean;
 
-	/**
-	 * When set, the step advances when the user clicks the spotlighted target
-	 * itself (rather than a "Next" button). The target is kept interactive.
-	 */
-	readonly advanceOnTargetClick?: boolean;
+	/** Advances on target activation; `advanceOnly` consumes the activation without running its action. */
+	readonly advanceOnTargetClick?: SpotlightTargetClickBehavior;
+
+	/** Advances when the target reports a selection, without hiding Next. */
+	readonly advanceOnTargetSelection?: boolean;
+
+	/** Overrides hiding Next when advancing on target clicks. `advanceWhen` always hides Next. */
+	readonly hideNext?: boolean;
+
+	/** Hides Next and advances once this context expression becomes satisfied. */
+	readonly advanceWhen?: ContextKeyExpression;
 
 	/** Extra padding (px) around the target when cutting the highlight hole. */
 	readonly padding?: number;
@@ -64,4 +88,7 @@ export interface ISpotlightStep {
  */
 export interface ISpotlightPayload {
 	readonly steps: readonly ISpotlightStep[];
+
+	/** Resolves experiment-selected steps when the tour runs, replacing the default steps. */
+	readonly resolveSteps?: () => Promise<readonly ISpotlightStep[]>;
 }

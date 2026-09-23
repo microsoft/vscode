@@ -6,7 +6,7 @@
 import { IObservable } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
-import { ISessionChangeset, ISessionChangesetOperation, ISessionFileChange } from '../../../services/sessions/common/session.js';
+import { ISessionChangeset, ISessionChangesetOperation, ISessionChangesSummary, ISessionFileChange } from '../../../services/sessions/common/session.js';
 import { ChangesViewMode, IsolationMode } from './changes.js';
 
 export interface ActiveSessionState {
@@ -28,6 +28,24 @@ export interface ActiveSessionState {
 
 export const IChangesViewService = createDecorator<IChangesViewService>('changesViewService');
 
+export interface IChangesViewSectionCollapseState {
+	readonly checks: boolean;
+}
+
+export type ChangesViewSection = keyof IChangesViewSectionCollapseState;
+
+export interface IChangesDetailsViewState {
+	readonly focus: readonly string[];
+	readonly selection: readonly string[];
+	readonly expanded: Readonly<Record<string, 0 | 1>>;
+	readonly scrollTop: number;
+}
+
+export interface IChangesDetailsViewStateTransfer {
+	readonly from: URI;
+	readonly to: URI;
+}
+
 export interface IChangesViewService {
 	readonly _serviceBrand: undefined;
 
@@ -35,17 +53,28 @@ export interface IChangesViewService {
 	readonly activeSessionTypeObs: IObservable<string | undefined>;
 	readonly activeSessionIsVirtualWorkspaceObs: IObservable<boolean>;
 	readonly activeSessionChangesObs: IObservable<readonly ISessionFileChange[]>;
+	readonly activeSessionChangesSummaryObs: IObservable<ISessionChangesSummary | undefined>;
 	readonly activeSessionChangesetsObs: IObservable<readonly ISessionChangeset[] | undefined>;
+	readonly activeSessionChangesetsLoadingObs: IObservable<boolean>;
 	readonly activeSessionChangesetObs: IObservable<ISessionChangeset | undefined>;
+	readonly activeSessionChangesetLoadingObs: IObservable<boolean>;
 	readonly activeSessionChangesetOperationsObs: IObservable<readonly ISessionChangesetOperation[]>;
 	readonly activeSessionHasGitRepositoryObs: IObservable<boolean>;
 	readonly activeSessionReviewCommentCountByFileObs: IObservable<Map<string, number>>;
 	readonly activeSessionAgentFeedbackCountByFileObs: IObservable<Map<string, number>>;
 	readonly activeSessionStateObs: IObservable<ActiveSessionState | undefined>;
-	readonly activeSessionIsLoadingObs: IObservable<boolean>;
+	readonly activeSessionLoadingObs: IObservable<boolean>;
+	readonly activeSessionSectionCollapseStateObs: IObservable<IChangesViewSectionCollapseState>;
 
 	setChangesetId(changesetId: string | undefined): void;
+	showChangeset(changeset: ISessionChangeset): void;
 
 	readonly viewModeObs: IObservable<ChangesViewMode>;
 	setViewMode(mode: ChangesViewMode): void;
+	setSectionCollapsed(sessionResource: URI, section: ChangesViewSection, collapsed: boolean): void;
+	readonly detailsViewStateTransferObs: IObservable<IChangesDetailsViewStateTransfer | undefined>;
+	getDetailsViewState(sessionResource: URI, viewMode: ChangesViewMode): IChangesDetailsViewState | undefined;
+	setDetailsViewState(sessionResource: URI, viewMode: ChangesViewMode, state: IChangesDetailsViewState): void;
+
+	setChangesetFilesReviewState(resources: readonly URI[], reviewed: boolean): void;
 }

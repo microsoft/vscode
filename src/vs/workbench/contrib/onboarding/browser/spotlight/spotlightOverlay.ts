@@ -14,7 +14,7 @@ import { AnchorAlignment, AnchorAxisAlignment, AnchorPosition, IRect, layout2d }
 import { renderMarkdown } from '../../../../../base/browser/markdownRenderer.js';
 import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { localize } from '../../../../../nls.js';
-import { SpotlightPlacement } from './spotlightTypes.js';
+import { SpotlightPlacement, SpotlightTargetClickBehavior } from './spotlightTypes.js';
 import { OnboardingDismissReason } from '../../common/onboardingScenario.js';
 import '../media/spotlight.css';
 
@@ -35,9 +35,11 @@ type PointerSide = 'top' | 'right' | 'bottom' | 'left';
 export interface ISpotlightContent {
 	readonly title: string;
 	readonly description: string | IMarkdownString;
+	/** Localized primary button label, replacing the default Next or Done. */
+	readonly nextButtonLabel?: string;
 	/** Zero-based index of the current step. */
 	readonly stepIndex: number;
-	/** Total number of steps in the tour. */
+	/** Total number of steps in the tour. Progress is displayed only for multi-step tours. */
 	readonly stepCount: number;
 	/** Whether a "Back" action should be offered. */
 	readonly canGoBack: boolean;
@@ -50,12 +52,10 @@ export interface ISpotlightShowOptions {
 	readonly placement?: SpotlightPlacement;
 	readonly allowTargetInteraction?: boolean;
 	readonly padding?: number;
-	/**
-	 * When set, the step advances (fires `onDidClickNext`) when the user clicks
-	 * the spotlighted target itself. The "Next" button is hidden and the target
-	 * is kept interactive so the user can press it to continue.
-	 */
-	readonly advanceOnTargetClick?: boolean;
+	readonly hideNext?: boolean;
+	readonly targetOverlayVisible?: boolean;
+	/** Advances on target activation; `advanceOnly` consumes the activation without running its action. */
+	readonly advanceOnTargetClick?: SpotlightTargetClickBehavior;
 }
 
 /**
@@ -95,6 +95,7 @@ export class SpotlightOverlay extends Disposable {
 
 	private _target: HTMLElement | undefined;
 	private _options: ISpotlightShowOptions = {};
+	private _hasShown = false;
 	private _previousFocus: HTMLElement | undefined;
 	private _scheduledLayout: IDisposable | undefined;
 
@@ -162,14 +163,17 @@ export class SpotlightOverlay extends Disposable {
 
 	/** Show `content` spotlighting `target`. */
 	show(target: HTMLElement, content: ISpotlightContent, options: ISpotlightShowOptions = {}): void {
-		const isFirstShow = this._root.style.display === 'none';
-		if (isFirstShow) {
+		if (!this._hasShown) {
+			this._hasShown = true;
 			this._previousFocus = isHTMLElement(getActiveElement()) ? getActiveElement() as HTMLElement : undefined;
 		}
 
 		this._target = target;
 		this._options = options;
 		this._renderContent(content);
+		const externalUiParticipates = !!options.targetOverlayVisible || !!options.allowTargetInteraction || !!options.advanceOnTargetClick || !!options.hideNext;
+		this._root.classList.toggle('target-overlay-visible', externalUiParticipates);
+		this._callout.setAttribute('aria-modal', externalUiParticipates ? 'false' : 'true');
 
 		this._root.style.display = '';
 
@@ -193,15 +197,35 @@ export class SpotlightOverlay extends Disposable {
 			this._scheduledLayout = undefined;
 		}));
 
-		// When the step advances by pressing the target, hide the Next button and
-		// advance on a click of the (interactive) target instead. The target is
-		// kept keyboard-reachable: it joins the focus trap (see `_collectFocusable`)
-		// and we route Tab/Esc from it through the same handler, so keyboard-only
-		// users can focus the spotlighted control and activate it to advance.
 		const advanceOnTargetClick = !!options.advanceOnTargetClick;
-		this._nextButton.element.style.display = advanceOnTargetClick ? 'none' : '';
+		const advanceOnly = options.advanceOnTargetClick === 'advanceOnly';
+		const hideNext = options.hideNext ?? advanceOnTargetClick;
+		this._nextButton.element.style.display = hideNext ? 'none' : '';
 		if (advanceOnTargetClick) {
-			this._stepListeners.add(addDisposableListener(target, EventType.CLICK, () => this._onDidClickNext.fire('target')));
+			this._stepListeners.add(addDisposableListener(target, EventType.CLICK, event => {
+				if (advanceOnly) {
+					event.preventDefault();
+					event.stopImmediatePropagation();
+				}
+				this._onDidClickNext.fire('target');
+			}, advanceOnly));
+		}
+		if (advanceOnly) {
+			const onTargetKey = (event: KeyboardEvent) => {
+				const key = new StandardKeyboardEvent(event);
+				if (key.equals(KeyCode.Enter) || key.equals(KeyCode.Space)) {
+					event.preventDefault();
+					event.stopImmediatePropagation();
+					if (event.type === EventType.KEY_UP) {
+						this._onDidClickNext.fire('target');
+					}
+				} else if (event.type === EventType.KEY_DOWN) {
+					this._onKeyDown(event);
+				}
+			};
+			this._stepListeners.add(addDisposableListener(target, EventType.KEY_DOWN, onTargetKey, true));
+			this._stepListeners.add(addDisposableListener(target, EventType.KEY_UP, onTargetKey, true));
+		} else if (options.allowTargetInteraction || advanceOnTargetClick || options.hideNext) {
 			this._stepListeners.add(addDisposableListener(target, EventType.KEY_DOWN, e => this._onKeyDown(e)));
 		}
 
@@ -209,7 +233,16 @@ export class SpotlightOverlay extends Disposable {
 
 		// Move focus to the spotlighted control (so keyboard users can activate it
 		// to advance) or, otherwise, into the callout's primary action.
-		(advanceOnTargetClick ? target : this._nextButton.element).focus();
+		(hideNext ? target : this._nextButton.element).focus();
+	}
+
+	/** Hide the current step while another target is being resolved. */
+	hide(): void {
+		this._stepListeners.clear();
+		this._root.style.display = 'none';
+		this._root.classList.remove('target-overlay-visible');
+		this._target = undefined;
+		this._options = {};
 	}
 
 	/** Recompute the hole and callout positions for the current target. */
@@ -361,12 +394,15 @@ export class SpotlightOverlay extends Disposable {
 			this._description.textContent = content.description;
 		}
 
-		this._counter.textContent = localize('spotlight.counter', "{0} of {1}", content.stepIndex + 1, content.stepCount);
+		this._counter.textContent = content.stepCount > 1
+			? localize('spotlight.counter', "{0} of {1}", content.stepIndex + 1, content.stepCount)
+			: '';
 
+		this._skipButton.element.style.display = content.isLastStep ? 'none' : '';
 		this._backButton.element.style.display = content.canGoBack ? '' : 'none';
-		this._nextButton.label = content.isLastStep
+		this._nextButton.label = content.nextButtonLabel ?? (content.isLastStep
 			? localize('spotlight.done', "Done")
-			: localize('spotlight.next', "Next");
+			: localize('spotlight.next', "Next"));
 	}
 
 	private _onKeyDown(e: KeyboardEvent): void {
@@ -410,14 +446,17 @@ export class SpotlightOverlay extends Disposable {
 
 	/**
 	 * The focusable elements participating in the focus trap, in DOM order: the
-	 * spotlighted target (when the step advances by pressing it), then any
+	 * spotlighted target (when it is interactive or the Next button is hidden), then any
 	 * interactive content in the (possibly markdown) description, then the visible
 	 * action buttons. Including the target keeps the spotlighted control
 	 * keyboard-reachable, and querying the description keeps markdown links
 	 * reachable despite `aria-modal`.
 	 */
 	private _collectFocusable(): HTMLElement[] {
-		const target = (this._options.advanceOnTargetClick && this._target) ? [this._target] : [];
+		const targetFocusables = (this._options.allowTargetInteraction || this._options.advanceOnTargetClick || this._options.hideNext) && this._target
+			// eslint-disable-next-line no-restricted-syntax -- querying the spotlight target subtree for focusable controls
+			? [this._target, ...this._target.querySelectorAll<HTMLElement>('a[href], button, input, select, textarea, [tabindex]:not([tabindex="-1"])')]
+			: [];
 		const descriptionFocusables = Array.from(
 			// eslint-disable-next-line no-restricted-syntax -- querying our own callout description subtree for focusable markdown content (e.g. links)
 			this._description.querySelectorAll<HTMLElement>('a[href], button, input, select, textarea, [tabindex]:not([tabindex="-1"])')
@@ -425,7 +464,15 @@ export class SpotlightOverlay extends Disposable {
 		const buttons = [this._skipButton, this._backButton, this._nextButton]
 			.filter(button => button.element.style.display !== 'none')
 			.map(button => button.element);
-		return [...target, ...descriptionFocusables, ...buttons];
+		return [...targetFocusables, ...descriptionFocusables, ...buttons].filter(element => this._isTabbable(element));
+	}
+
+	private _isTabbable(element: HTMLElement): boolean {
+		if (!element.isConnected || element.getAttribute('aria-hidden') === 'true' || element.tabIndex === -1 || element.hasAttribute('disabled')) {
+			return false;
+		}
+		const style = getWindow(this._container).getComputedStyle(element);
+		return style.display !== 'none' && style.visibility !== 'hidden';
 	}
 
 	scheduleLayout(): void {

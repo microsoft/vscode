@@ -12,7 +12,7 @@ import { Emitter, Event } from '../../../../common/event.js';
 import { DisposableStore } from '../../../../common/lifecycle.js';
 import { isEqual } from '../../../../common/resources.js';
 import { URI } from '../../../../common/uri.js';
-import { BufferReader, BufferWriter, ChannelClient, ChannelServer, ClientConnectionEvent, deserialize, IChannel, IMessagePassingProtocol, IPCClient, IPCServer, IServerChannel, ProxyChannel, serialize } from '../../common/ipc.js';
+import { BufferReader, BufferWriter, ChannelClient, ChannelServer, ClientConnectionEvent, deserialize, getDelayedChannel, IChannel, IMessagePassingProtocol, IPCClient, IPCServer, IServerChannel, ProxyChannel, serialize } from '../../common/ipc.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../test/common/utils.js';
 
 class QueueProtocol implements IMessagePassingProtocol {
@@ -117,6 +117,7 @@ class TestService implements ITestService {
 
 	private readonly _onPong = new Emitter<string>();
 	readonly onPong = this._onPong.event;
+	get hasPongListeners(): boolean { return this._onPong.hasListeners(); }
 
 	marco(): Promise<string> {
 		return Promise.resolve('polo');
@@ -223,6 +224,15 @@ suite('Base IPC', function () {
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('delayed channel handles rejected listeners', async () => {
+		const error = new Error('Channel unavailable');
+		const channel = getDelayedChannel<IChannel>(Promise.reject(error));
+		store.add(channel.listen('event')(() => { }));
+
+		await assert.rejects(channel.call('command'), error);
+		await timeout(0);
+	});
+
 	test('createProtocolPair', async function () {
 		const [clientProtocol, serverProtocol] = createProtocolPair();
 
@@ -318,6 +328,48 @@ suite('Base IPC', function () {
 			await timeout(0);
 
 			assert.deepStrictEqual(messages, ['hello', 'world']);
+		});
+
+		test('unbuffered events subscribe lazily', function () {
+			const service = store.add(new TestService());
+			const channelDisposables = store.add(new DisposableStore());
+			const channel = ProxyChannel.fromService(service, channelDisposables, { unbufferedEvents: ['onPong'] });
+			const onPong = channel.listen<string>('context', 'onPong');
+			const messages: string[] = [];
+
+			service.ping('before');
+			assert.strictEqual(service.hasPongListeners, false);
+
+			const listener = channelDisposables.add(onPong(message => messages.push(message)));
+			assert.strictEqual(service.hasPongListeners, true);
+			service.ping('after');
+			channelDisposables.delete(listener);
+
+			assert.deepStrictEqual({ messages, hasPongListeners: service.hasPongListeners }, {
+				messages: ['after'],
+				hasPongListeners: false
+			});
+		});
+
+		test('listen to events (resubscribe)', async function () {
+			const onPong = ipcService.onPong;
+			const messages: string[] = [];
+
+			const disposable1 = onPong(msg => messages.push(msg));
+			await timeout(0);
+			assert.deepStrictEqual(messages, []);
+			service.ping('hello');
+			await timeout(0);
+			assert.deepStrictEqual(messages, ['hello']);
+			disposable1.dispose();
+
+			const disposable2 = onPong(msg => (messages as string[]).push(msg));
+			await timeout(0);
+			assert.deepStrictEqual(messages, ['hello']);
+			service.ping('world');
+			await timeout(0);
+			assert.deepStrictEqual(messages, ['hello', 'world']);
+			disposable2.dispose();
 		});
 
 		test('buffers in arrays', async function () {
@@ -443,6 +495,27 @@ suite('Base IPC', function () {
 			assert.deepStrictEqual(messages, ['hello', 'world']);
 		});
 
+		test('listen to events (resubscribe)', async function () {
+			const onPong = ipcService.onPong;
+			const messages: string[] = [];
+
+			const disposable1 = onPong(msg => messages.push(msg));
+			await timeout(0);
+			assert.deepStrictEqual(messages, []);
+			service.ping('hello');
+			await timeout(0);
+			assert.deepStrictEqual(messages, ['hello']);
+			disposable1.dispose();
+
+			const disposable2 = onPong(msg => (messages as string[]).push(msg));
+			await timeout(0);
+			assert.deepStrictEqual(messages, ['hello']);
+			service.ping('world');
+			await timeout(0);
+			assert.deepStrictEqual(messages, ['hello', 'world']);
+			disposable2.dispose();
+		});
+
 		test('marshalling uri', async function () {
 			const uri = URI.file('foobar');
 			const r = await ipcService.marshall(uri);
@@ -453,6 +526,14 @@ suite('Base IPC', function () {
 		test('buffers in arrays', async function () {
 			const r = await ipcService.buffersLength([VSBuffer.alloc(2), VSBuffer.alloc(3)]);
 			return assert.strictEqual(r, 5);
+		});
+
+		test('proxy is not a thenable', async function () {
+			// A thenable proxy would forward `then` over the channel and never settle.
+			assert.strictEqual((ipcService as unknown as { then?: unknown }).then, undefined);
+
+			const awaited = await (async () => ipcService)();
+			assert.strictEqual(await awaited.marco(), 'polo');
 		});
 	});
 
@@ -482,6 +563,59 @@ suite('Base IPC', function () {
 		test('call extra context', async function () {
 			const r = await ipcService.context();
 			return assert.strictEqual(r, 'Super Context');
+		});
+	});
+
+	suite('one to one (proxy, event buffering)', function () {
+
+		test('service events are eagerly subscribed to and buffered by default', async function () {
+			const disposables = store.add(new DisposableStore());
+			const emitter = disposables.add(new Emitter<string>());
+			const service = { onDidChange: emitter.event };
+
+			const channel = ProxyChannel.fromService(service, disposables);
+			assert.strictEqual(emitter.hasListeners(), true);
+
+			emitter.fire('early');
+			const received: string[] = [];
+			disposables.add(channel.listen<string>(undefined, 'onDidChange')(msg => received.push(msg)));
+			await timeout(0);
+			assert.deepStrictEqual(received, ['early']);
+
+			emitter.fire('late');
+			assert.deepStrictEqual(received, ['early', 'late']);
+		});
+
+		test('unbuffered events do not change buffering for other service events', async function () {
+			const disposables = store.add(new DisposableStore());
+			const buffered = disposables.add(new Emitter<string>());
+			const unbuffered = disposables.add(new Emitter<string>());
+			const service = { onDidChange: buffered.event, onDidOutput: unbuffered.event };
+			const channel = ProxyChannel.fromService(service, disposables, { unbufferedEvents: ['onDidOutput'] });
+			const eagerSubscriptions = { buffered: buffered.hasListeners(), unbuffered: unbuffered.hasListeners() };
+
+			buffered.fire('early');
+			unbuffered.fire('early');
+			const receivedBuffered: string[] = [];
+			const receivedUnbuffered: string[] = [];
+			disposables.add(channel.listen<string>(undefined, 'onDidChange')(msg => receivedBuffered.push(msg)));
+			disposables.add(channel.listen<string>(undefined, 'onDidOutput')(msg => receivedUnbuffered.push(msg)));
+			await timeout(0);
+			buffered.fire('late');
+			unbuffered.fire('late');
+			disposables.dispose();
+
+			assert.deepStrictEqual({
+				eagerSubscriptions,
+				receivedBuffered,
+				receivedUnbuffered,
+				remainingSubscriptions: { buffered: buffered.hasListeners(), unbuffered: unbuffered.hasListeners() }
+			}, {
+				eagerSubscriptions: { buffered: true, unbuffered: false },
+				receivedBuffered: ['early', 'late'],
+				receivedUnbuffered: ['late'],
+				remainingSubscriptions: { buffered: false, unbuffered: false }
+			});
 		});
 	});
 

@@ -5,6 +5,9 @@ parameters:
     type: boolean
   - name: VSCODE_QUALITY
     type: string
+  - name: VSCODE_SKIP_FOUNDRY_LOCAL_INSTALL
+    type: boolean
+    default: false
   - name: VSCODE_RUN_ELECTRON_TESTS
     type: boolean
     default: false
@@ -18,10 +21,20 @@ parameters:
 steps:
   - template: ../../common/checkout.yml@self
 
+  - ${{ if eq(parameters.VSCODE_RUN_ELECTRON_TESTS, true) }}:
+    - template: ../../copilot/pull-test-cache.yml@self
+
+  - ${{ if or(eq(parameters.VSCODE_RUN_ELECTRON_TESTS, true), eq(parameters.VSCODE_RUN_BROWSER_TESTS, true), eq(parameters.VSCODE_RUN_REMOTE_TESTS, true)) }}:
+    - template: ../../common/ensure-test-artifact-directories.yml@self
+
   - task: NodeTool@0
     inputs:
       versionSource: fromFile
       versionFilePath: .nvmrc
+
+  - ${{ if or(eq(parameters.VSCODE_CIBUILD, true), eq(parameters.VSCODE_SKIP_FOUNDRY_LOCAL_INSTALL, true)) }}:
+    - script: node build/azure-pipelines/common/disableFoundryLocalInstall.ts
+      displayName: Disable Foundry Local Native Install
 
   - task: UsePythonVersion@0
     inputs:
@@ -40,6 +53,10 @@ steps:
   - powershell: node build/setup-npm-registry.ts $env:NPM_REGISTRY
     condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
     displayName: Setup NPM Registry
+
+  - template: ../../common/apply-sdk-canary.yml@self
+    parameters:
+      windows: true
 
   - pwsh: |
       mkdir .build -ea 0
@@ -66,14 +83,19 @@ steps:
       exec { npm config set registry "$env:NPM_REGISTRY" }
       $NpmrcPath = (npm config get userconfig)
       echo "##vso[task.setvariable variable=NPMRC_PATH]$NpmrcPath"
-    condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'), ne(variables['NPM_REGISTRY'], 'none'))
+    condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
     displayName: Setup NPM
 
   - task: npmAuthenticate@0
     inputs:
       workingFile: $(NPMRC_PATH)
-    condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'), ne(variables['NPM_REGISTRY'], 'none'))
+    condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
     displayName: Setup NPM Authentication
+
+  - ${{ if and(eq(parameters.VSCODE_CIBUILD, false), eq(parameters.VSCODE_SKIP_FOUNDRY_LOCAL_INSTALL, false)) }}:
+    - template: ../../common/foundry-local.yml@self
+      parameters:
+        phase: prepare
 
   - powershell: |
       . build/azure-pipelines/win32/exec.ps1
@@ -82,12 +104,24 @@ steps:
     env:
       npm_config_arch: $(VSCODE_ARCH)
       npm_config_foreground_scripts: "true"
+      ${{ if and(eq(parameters.VSCODE_CIBUILD, true), or(eq(parameters.VSCODE_RUN_ELECTRON_TESTS, true), eq(parameters.VSCODE_RUN_BROWSER_TESTS, true), eq(parameters.VSCODE_RUN_REMOTE_TESTS, true))) }}:
+        # Use an absolute path so nested installs share the existing CI logs artifact.
+        npm_config_timing: "true"
+        npm_config_logs_dir: $(Build.SourcesDirectory)/.build/logs/npm
       ELECTRON_SKIP_BINARY_DOWNLOAD: 1
       PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
       GITHUB_TOKEN: "$(github-token-code-oss)"
     retryCountOnTaskFailure: 5
     displayName: Install dependencies
     condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
+
+  - ${{ if and(eq(parameters.VSCODE_CIBUILD, false), eq(parameters.VSCODE_SKIP_FOUNDRY_LOCAL_INSTALL, false)) }}:
+    - template: ../../common/foundry-local.yml@self
+      parameters:
+        phase: install
+
+  - powershell: node build/azure-pipelines/common/checkNativeOptionalDeps.ts
+    displayName: Verify native optional dependency binaries
 
   - powershell: node build/azure-pipelines/distro/mixin-npm.ts
     condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
@@ -103,7 +137,7 @@ steps:
     displayName: Create node_modules archive
 
   - ${{ if ne(parameters.VSCODE_CIBUILD, true) }}:
-    - pwsh: npx deemon --detach --wait -- node build/azure-pipelines/common/waitForArtifacts.ts unsigned_vscode_cli_win32_$(VSCODE_ARCH)_cli
+    - pwsh: npx deemon --detach --wait -- node build/azure-pipelines/common/waitForArtifacts.ts "--producer=unsigned_vscode_cli_win32_$(VSCODE_ARCH)_cli=WindowsCLI_${{ upper(parameters.VSCODE_ARCH) }}" unsigned_vscode_cli_win32_$(VSCODE_ARCH)_cli
       env:
         SYSTEM_ACCESSTOKEN: $(System.AccessToken)
       displayName: Wait for CLI artifact (background)
@@ -123,7 +157,14 @@ steps:
 
   - template: ../../common/install-builtin-extensions.yml@self
 
+  - powershell: node build/npm/electronTypes.ts
+    displayName: Prepare Electron types
+
   - template: ../../common/agent-sdk-produce.yml@self
+    parameters:
+      vscodePlatform: win32
+
+  - template: ../../common/dictation-runtime-produce.yml@self
     parameters:
       vscodePlatform: win32
 
@@ -225,6 +266,10 @@ steps:
       AZURE_DEVOPS_EXT_PAT: $(System.AccessToken)
     displayName: Build server
 
+  - ${{ if eq(parameters.VSCODE_ARCH, 'x64') }}:
+    - powershell: node build/azure-pipelines/common/smokeTestAgentHost.ts "$(Agent.BuildDirectory)\vscode-server-win32-$(VSCODE_ARCH)"
+      displayName: 🧪 Smoke test packaged Agent Host
+
   - powershell: |
       . build/azure-pipelines/win32/exec.ps1
       $ErrorActionPreference = "Stop"
@@ -241,7 +286,7 @@ steps:
     displayName: Build server (web)
 
   - ${{ if ne(parameters.VSCODE_CIBUILD, true) }}:
-    - pwsh: npx deemon --attach -- node build/azure-pipelines/common/waitForArtifacts.ts unsigned_vscode_cli_win32_$(VSCODE_ARCH)_cli
+    - pwsh: npx deemon --attach -- node build/azure-pipelines/common/waitForArtifacts.ts "--producer=unsigned_vscode_cli_win32_$(VSCODE_ARCH)_cli=WindowsCLI_${{ upper(parameters.VSCODE_ARCH) }}" unsigned_vscode_cli_win32_$(VSCODE_ARCH)_cli
       env:
         SYSTEM_ACCESSTOKEN: $(System.AccessToken)
       displayName: Wait for CLI artifact

@@ -54,6 +54,8 @@ jobs:
         condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
         displayName: Setup NPM Registry
 
+      - template: ../common/apply-sdk-canary.yml@self
+
       - script: mkdir -p .build && node build/azure-pipelines/common/computeNodeModulesCacheKey.ts linux $VSCODE_ARCH $(node -p process.arch) > .build/packagelockhash
         displayName: Prepare node_modules cache key
 
@@ -79,6 +81,11 @@ jobs:
           workingFile: $(NPMRC_PATH)
         condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'), ne(variables['NPM_REGISTRY'], 'none'))
         displayName: Setup NPM Authentication
+
+      - template: ../common/foundry-local.yml@self
+        parameters:
+          phase: prepare
+          onlyOnNodeModulesCacheMiss: true
 
       - script: |
           set -e
@@ -135,9 +142,19 @@ jobs:
           VSCODE_ARCH: $(VSCODE_ARCH)
           ELECTRON_SKIP_BINARY_DOWNLOAD: 1
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
+          ONNXRUNTIME_NODE_INSTALL: skip
           GITHUB_TOKEN: "$(github-token-code-oss)"
         displayName: Install dependencies
         condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
+
+      - template: ../common/foundry-local.yml@self
+        parameters:
+          phase: install
+          onlyOnNodeModulesCacheMiss: true
+
+      - script: node build/azure-pipelines/common/checkNativeOptionalDeps.ts
+        condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
+        displayName: Verify native optional dependency binaries
 
       - script: node build/azure-pipelines/distro/mixin-npm.ts
         condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))

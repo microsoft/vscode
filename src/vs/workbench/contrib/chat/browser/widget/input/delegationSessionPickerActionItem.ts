@@ -16,12 +16,15 @@ import { IConfigurationService } from '../../../../../../platform/configuration/
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IKeybindingService } from '../../../../../../platform/keybinding/common/keybinding.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
+import { IStorageService } from '../../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
-import { IsSessionsWindowContext } from '../../../../../common/contextkeys.js';
+import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
+import { IAgentHostEnablementService } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
+import { IAgentSdkSetupService } from '../../../../../services/agentHost/browser/agentSdkSetupService.js';
+import { ICodexAccountService } from '../../../../../services/agentHost/browser/codexAccountService.js';
 import { IChatSessionsService } from '../../../common/chatSessionsService.js';
 import { ILanguageModelsService } from '../../../common/languageModels.js';
-import { isVisibleEditorChatSessionType } from '../../../common/constants.js';
 import { ACTION_ID_NEW_CHAT } from '../../actions/chatActions.js';
 import { AgentSessionProviders, AgentSessionTarget, getAgentCanContinueIn, getAgentSessionProvider, isAgentHostTarget, isFirstPartyAgentSessionProvider } from '../../agentSessions/agentSessions.js';
 import { ISessionTypePickerDelegate } from '../../chat.js';
@@ -34,8 +37,6 @@ import { IGitService } from '../../../../git/common/gitService.js';
  * This picker allows switching to remote execution providers when the session is not empty.
  */
 export class DelegationSessionPickerActionItem extends SessionTypePickerActionItem {
-
-	private readonly _isSessionsWindow: boolean;
 
 	constructor(
 		action: MenuItemAction,
@@ -52,10 +53,14 @@ export class DelegationSessionPickerActionItem extends SessionTypePickerActionIt
 		@IChatEntitlementService chatEntitlementService: IChatEntitlementService,
 		@ILanguageModelsService languageModelsService: ILanguageModelsService,
 		@IConfigurationService configurationService: IConfigurationService,
+		@IStorageService storageService: IStorageService,
+		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService,
+		@IAgentHostEnablementService agentHostEnablementService: IAgentHostEnablementService,
+		@IAgentSdkSetupService agentSdkSetupService: IAgentSdkSetupService,
+		@ICodexAccountService codexAccountService: ICodexAccountService,
 		@IGitService private readonly gitService: IGitService,
 	) {
-		super(action, chatSessionPosition, delegate, pickerOptions, actionWidgetService, keybindingService, contextKeyService, chatSessionsService, commandService, openerService, telemetryService, chatEntitlementService, languageModelsService, configurationService);
-		this._isSessionsWindow = IsSessionsWindowContext.getValue(contextKeyService) === true;
+		super(action, chatSessionPosition, delegate, pickerOptions, actionWidgetService, keybindingService, contextKeyService, chatSessionsService, commandService, openerService, telemetryService, chatEntitlementService, languageModelsService, configurationService, storageService, workspaceContextService, agentHostEnablementService, agentSdkSetupService, codexAccountService);
 	}
 
 	protected override _run(sessionTypeItem: ISessionTypeItem): void {
@@ -75,20 +80,23 @@ export class DelegationSessionPickerActionItem extends SessionTypePickerActionIt
 		return this.delegate.getActiveSessionProvider();
 	}
 
+	protected override getTooltip(): string {
+		const activeProvider = this.delegate.getActiveSessionProvider();
+		if (activeProvider !== undefined && isAgentHostTarget(activeProvider)) {
+			return '';
+		}
+		return super.getTooltip();
+	}
+
 	protected override _isSessionTypeEnabled(type: AgentSessionTarget): boolean {
 		const allContributions = this.chatSessionsService.getAllChatSessionContributions();
 		const contribution = allContributions.find(contribution => getAgentSessionProvider(contribution.type) === type || contribution.type === type);
 
-		// Delegation is allowed:
-		// - in core VS Code: from local sessions, plus from any agent host session;
-		// - in the sessions window: from background sessions, plus from any agent
-		//   host session (local `agent-host-*` or remote `remote-*`).
 		const activeProvider = this.delegate.getActiveSessionProvider();
-		const isAgentHostSource = activeProvider !== undefined && isAgentHostTarget(activeProvider);
-		if (!this._isSessionsWindow && activeProvider !== AgentSessionProviders.Local && !isAgentHostSource) {
+		if (!this._isSessionsWindow && activeProvider !== AgentSessionProviders.Local) {
 			return false;
 		}
-		if (this._isSessionsWindow && activeProvider !== AgentSessionProviders.Background && !isAgentHostSource) {
+		if (this._isSessionsWindow && activeProvider !== AgentSessionProviders.Background) {
 			return false;
 		}
 
@@ -125,8 +133,8 @@ export class DelegationSessionPickerActionItem extends SessionTypePickerActionIt
 			return false;
 		}
 
-		// Apply the same visibility guards as the new-session picker (e.g. Local hidden when chat.editor.localAgent.enabled is false).
-		if (!isVisibleEditorChatSessionType(type, this.configurationService, this.chatSessionsService)) {
+		// Apply the same visibility guards as the new-session picker.
+		if (!super._isVisible(type)) {
 			return false;
 		}
 
@@ -145,7 +153,7 @@ export class DelegationSessionPickerActionItem extends SessionTypePickerActionIt
 	}
 
 	protected override _getLearnMore(): IAction {
-		const learnMoreUrl = 'https://aka.ms/vscode-continue-chat-in';
+		const learnMoreUrl = 'https://aka.ms/vscode-agent-handoff';
 		return {
 			id: 'workbench.action.chat.agentOverview.learnMoreHandOff',
 			label: localize('chat.learnMoreAgentHandOff', "Learn about agent handoff..."),

@@ -11,6 +11,7 @@ let _isWindows = false;
 let _isMacintosh = false;
 let _isLinux = false;
 let _isLinuxSnap = false;
+let _isChromeOS = false;
 let _isNative = false;
 let _isWeb = false;
 let _isElectron = false;
@@ -101,6 +102,7 @@ else if (typeof navigator === 'object' && !isElectronRenderer) {
 	_isMacintosh = _userAgent.indexOf('Macintosh') >= 0;
 	_isIOS = (_userAgent.indexOf('Macintosh') >= 0 || _userAgent.indexOf('iPad') >= 0 || _userAgent.indexOf('iPhone') >= 0) && !!navigator.maxTouchPoints && navigator.maxTouchPoints > 0;
 	_isLinux = _userAgent.indexOf('Linux') >= 0;
+	_isChromeOS = _userAgent.indexOf('CrOS') >= 0;
 	_isMobile = _userAgent?.indexOf('Mobi') >= 0;
 	_isWeb = true;
 	_language = nls.getNLSLanguage() || LANGUAGE_DEFAULT;
@@ -143,6 +145,7 @@ export const isWindows = _isWindows;
 export const isMacintosh = _isMacintosh;
 export const isLinux = _isLinux;
 export const isLinuxSnap = _isLinuxSnap;
+export const isChromeOS = _isChromeOS;
 export const isNative = _isNative;
 export const isElectron = _isElectron;
 export const isWeb = _isWeb;
@@ -274,6 +277,7 @@ export const isFirefox = !!(userAgent && userAgent.indexOf('Firefox') >= 0);
 export const isSafari = !!(!isChrome && (userAgent && userAgent.indexOf('Safari') >= 0));
 export const isEdge = !!(userAgent && userAgent.indexOf('Edg/') >= 0);
 export const isAndroid = !!(userAgent && userAgent.indexOf('Android') >= 0);
+export const hasElectronUserAgent = !!(userAgent && userAgent.indexOf('Electron') >= 0);
 
 export function isTahoeOrNewer(osVersion: string): boolean {
 	return parseFloat(osVersion) >= 25;

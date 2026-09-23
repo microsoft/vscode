@@ -3,19 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as l10n from '@vscode/l10n';
 import * as vscode from 'vscode';
 import { IVSCodeExtensionContext } from '../../../platform/extContext/common/extensionContext';
 import { IFileSystemService } from '../../../platform/filesystem/common/fileSystemService';
 import { IGitExtensionService } from '../../../platform/git/common/gitExtensionService';
-import { getGithubRepoIdFromFetchUrl, IGitService } from '../../../platform/git/common/gitService';
 import { API, Repository } from '../../../platform/git/vscode/git';
-import { IOctoKitService } from '../../../platform/github/common/githubService';
 import { ILogService } from '../../../platform/log/common/logService';
 import { ITelemetryService } from '../../../platform/telemetry/common/telemetry';
 import { Disposable } from '../../../util/vs/base/common/lifecycle';
 import { EXTENSION_ID } from '../../common/constants';
-import { getRepoId } from './copilotCodingAgentUtils';
+import { SessionIdForTask } from './copilotCodingAgentUtils';
 
 export const GHPR_EXTENSION_ID = 'GitHub.vscode-pull-request-github';
 const PENDING_CHAT_SESSION_STORAGE_KEY = 'github.copilot.pendingChatSession';
@@ -42,8 +39,6 @@ export type CustomUriHandler = vscode.UriHandler & { canHandleUri(uri: vscode.Ur
 
 export class ChatSessionsUriHandler extends Disposable implements CustomUriHandler {
 	constructor(
-		@IOctoKitService private readonly _octoKitService: IOctoKitService,
-		@IGitService private readonly _gitService: IGitService,
 		@IGitExtensionService private readonly _gitExtensionService: IGitExtensionService,
 		@IVSCodeExtensionContext private readonly _extensionContext: IVSCodeExtensionContext,
 		@ILogService private readonly _logService: ILogService,
@@ -59,7 +54,7 @@ export class ChatSessionsUriHandler extends Disposable implements CustomUriHandl
 				{
 					const params = new URLSearchParams(uri.query);
 					const type = params.get('type');
-					const prId = params.get('id');
+					const taskId = params.get('id');
 					const url = decodeURIComponent(params.get('url') || '');
 					const branch = decodeURIComponent(params.get('branch') || '');
 					/* __GDPR__
@@ -72,11 +67,11 @@ export class ChatSessionsUriHandler extends Disposable implements CustomUriHandl
 					*/
 					this._telemetryService.sendTelemetryEvent('copilot.codingAgent.deeplink', { microsoft: true, github: false }, {
 						sessionType: type || 'unknown',
-						hasId: prId ? 'true' : 'false',
+						hasId: taskId ? 'true' : 'false',
 					});
-					if (type?.startsWith('copilot') && prId) {
+					if (type?.startsWith('copilot') && taskId) {
 						// For now we hardcode it to this type, eventually the full type should come in the URI
-						return this._openGitHubSession('copilot-cloud-agent', prId, url, branch);
+						return this._openGitHubSession('copilot-cloud-agent', taskId, url, branch);
 					}
 				}
 		}
@@ -100,7 +95,7 @@ export class ChatSessionsUriHandler extends Disposable implements CustomUriHandl
 			const existingRepo = this._getAlreadyOpenWorkspace(gitAPI, url);
 			if (existingRepo) {
 				// Repo is already open, no need to clone
-				await this.openPendingSession({ repo: existingRepo, branch, id, type });
+				await this.openPendingSession({ id, type });
 				return;
 			}
 
@@ -190,14 +185,10 @@ export class ChatSessionsUriHandler extends Disposable implements CustomUriHandl
 	 * This should be called when the extension activates in a new workspace.
 	 */
 	public async openPendingSession(details?: {
-		repo: Repository;
-		branch: string;
 		id: string;
 		type: string;
 	}): Promise<void> {
-		let repository: Repository | undefined;
-		let branchName: string = '';
-		let prId: string = '';
+		let taskId: string = '';
 		let type: string = '';
 		if (!details) {
 			const pendingSession = await this.waitAndGetGlobalState();
@@ -207,48 +198,34 @@ export class ChatSessionsUriHandler extends Disposable implements CustomUriHandl
 			// Check if the pending session is recent (within 10 minutes)
 			const tenMinutesAgo = Date.now() - (10 * 60 * 1000);
 			if (pendingSession.timestamp > tenMinutesAgo) {
-				// Clear expired pending session
 				const gitAPI = await this.waitForGitExtensionAPI(this._gitExtensionService);
-				if (!gitAPI) {
+				if (!gitAPI || !this._getAlreadyOpenWorkspace(gitAPI, pendingSession.url)) {
 					return;
 				}
-				repository = this._getAlreadyOpenWorkspace(gitAPI, pendingSession.url);
-				branchName = pendingSession.branch;
-				prId = pendingSession.id;
+				taskId = pendingSession.id;
 				type = pendingSession.type;
 			} else {
 				this._logService.warn('Found pending sessions but they have expired at ' + new Date(pendingSession.timestamp).toISOString());
 			}
 		} else {
-			repository = details.repo;
-			branchName = details.branch;
-			prId = details.id;
+			taskId = details.id;
 			type = details.type;
 		}
 		// Return if we still don't have the details.
-		if (!repository || !branchName || !prId || !type) {
+		if (!taskId || !type) {
 			return;
 		}
 
-		await repository.fetch({ ref: branchName });
-		const repoNwo = getGithubRepoIdFromFetchUrl(repository.rootUri.toString());
-		const repoIds = await getRepoId(this._gitService);
-		const repoId = repoIds?.filter(r => r.org === repoNwo?.org && r.repo === repoNwo?.repo);
-		if (!repoId || repoId.length === 0) {
-			return;
-		}
-		const pullRequests = await this._octoKitService.getOpenPullRequestsForUser(repoId[0].org, repoId[0].repo, { createIfNone: { detail: l10n.t('Sign in to GitHub to access Copilot cloud sessions.') } });
-		const pullRequest = pullRequests.find(pr => pr.id === prId);
-		if (!pullRequest) {
-			return;
-		}
-		const uri = vscode.Uri.from({ scheme: 'copilot-cloud-agent', path: '/' + pullRequest.number.toString() });
+		const uri = vscode.Uri.from({ scheme: 'copilot-cloud-agent', path: '/' + SessionIdForTask.getId(taskId) });
 		await this._extensionContext.globalState.update(PENDING_CHAT_SESSION_STORAGE_KEY, undefined);
 		await vscode.commands.executeCommand('vscode.open', uri);
 
 	}
 
 	private async waitForGitExtensionAPI(gitExtensionService: IGitExtensionService): Promise<API | undefined> {
+		if (!gitExtensionService.extensionAvailable) {
+			return undefined;
+		}
 		let timeout = 5000;
 		let api = gitExtensionService.getExtensionApi();
 		while (!api || api.state === 'uninitialized') {
@@ -259,7 +236,7 @@ export class ChatSessionsUriHandler extends Disposable implements CustomUriHandl
 				break;
 			}
 		}
-		return api;
+		return api?.state === 'initialized' ? api : undefined;
 	}
 
 	private _getAlreadyOpenWorkspace(gitApi: API, cloneUri: string): Repository | undefined {

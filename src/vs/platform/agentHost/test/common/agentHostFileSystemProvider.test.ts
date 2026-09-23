@@ -4,15 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { timeout } from '../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../base/common/async.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { FileChangeType, FileSystemProviderErrorCode, FileType, IFileChange, toFileSystemProviderErrorCode } from '../../../files/common/files.js';
+import { FileChangeType, FilePermission, FileSystemProviderErrorCode, FileType, IFileChange, toFileSystemProviderErrorCode } from '../../../files/common/files.js';
 import { AgentHostFileSystemProvider, agentHostRemotePath, agentHostUri, type IRemoteFilesystemConnection } from '../../common/agentHostFileSystemProvider.js';
 import { remoteAgentHostSessionTypeId } from '../../common/agentHostSessionType.js';
-import { AGENT_HOST_LABEL_FORMATTER, AGENT_HOST_SCHEME, agentHostAuthority, fromAgentHostUri, toAgentHostUri } from '../../common/agentHostUri.js';
+import { AGENT_HOST_LABEL_FORMATTER, AGENT_HOST_SCHEME, agentHostAuthority, createAgentHostResourceUriMapper, fromAgentHostUri, identityAgentHostResourceUriMapper, isAgentHostContentRefUri, toAgentHostContentUri, toAgentHostUri } from '../../common/agentHostUri.js';
 import { ContentEncoding, ResourceType, type CreateResourceWatchParams, type ResourceCopyParams, type ResourceListResult, type ResourceMkdirParams, type ResourceReadResult, type ResourceRequestParams, type ResourceRequestResult, type ResourceResolveParams, type ResourceResolveResult } from '../../common/state/protocol/commands.js';
 import { AhpErrorCodes } from '../../common/state/protocol/errors.js';
 import { ProtocolError } from '../../common/state/sessionProtocol.js';
@@ -46,7 +46,7 @@ suite('AgentHostAuthority - encoding', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('purely alphanumeric address is returned as-is', () => {
+	test('lowercase alphanumeric address is returned as-is', () => {
 		assert.strictEqual(agentHostAuthority('localhost'), 'localhost');
 	});
 
@@ -57,15 +57,16 @@ suite('AgentHostAuthority - encoding', () => {
 		assert.strictEqual(agentHostAuthority('host.name:80'), 'host.name__80');
 	});
 
-	test('address with underscore falls through to base64', () => {
+	test('address with uppercase or underscore falls through to hex', () => {
+		assert.strictEqual(agentHostAuthority('LOCALHOST'), 'hex-4c4f43414c484f5354');
 		const authority = agentHostAuthority('host_name:8080');
-		assert.ok(authority.startsWith('b64-'), `expected base64 for underscore address, got: ${authority}`);
+		assert.ok(authority.startsWith('hex-'), `expected hex for underscore address, got: ${authority}`);
 	});
 
-	test('address with exotic characters is base64-encoded', () => {
-		assert.ok(agentHostAuthority('user@host:8080').startsWith('b64-'));
-		assert.ok(agentHostAuthority('host with spaces').startsWith('b64-'));
-		assert.ok(agentHostAuthority('http://myhost:3000').startsWith('b64-'));
+	test('address with exotic characters is hex-encoded', () => {
+		assert.ok(agentHostAuthority('user@host:8080').startsWith('hex-'));
+		assert.ok(agentHostAuthority('host with spaces').startsWith('hex-'));
+		assert.ok(agentHostAuthority('http://myhost:3000').startsWith('hex-'));
 	});
 
 	test('ws:// prefix is normalized so authority matches bare address', () => {
@@ -73,29 +74,48 @@ suite('AgentHostAuthority - encoding', () => {
 		assert.strictEqual(agentHostAuthority('ws://localhost:9090'), agentHostAuthority('localhost:9090'));
 	});
 
+	test('remote local address does not collide with the ambient authority', () => {
+		const authority = agentHostAuthority('local');
+		const wrapped = toAgentHostUri(URI.file('/remote/file.txt'), authority);
+
+		assert.deepStrictEqual({
+			authority,
+			normalizedAuthority: agentHostAuthority('ws://local'),
+			similarAddressAuthority: agentHostAuthority('remote_local'),
+			wrappedScheme: wrapped.scheme,
+			wrappedAuthority: wrapped.authority,
+		}, {
+			authority: 'remote_local',
+			normalizedAuthority: 'remote_local',
+			similarAddressAuthority: 'hex-72656d6f74655f6c6f63616c',
+			wrappedScheme: AGENT_HOST_SCHEME,
+			wrappedAuthority: 'remote_local',
+		});
+	});
+
 	test('different addresses produce different authorities', () => {
-		const cases = ['localhost:8080', 'localhost:8081', '192.168.1.1:8080', 'host-name:80', 'host.name:80', 'host_name:80', 'user@host:8080'];
+		const cases = ['localhost:8080', 'localhost:8081', '192.168.1.1:8080', 'host-name:80', 'host.name:80', 'host_name:80', 'user@host:8080', '_', 'hex-5f', 'HEX-5f'];
 		const results = cases.map(agentHostAuthority);
 		const unique = new Set(results);
 		assert.strictEqual(unique.size, cases.length, 'all authorities must be unique');
 	});
 
 	test('authority is valid in a URI authority position', () => {
-		const addresses = ['localhost', 'localhost:8081', 'user@host:8080', 'host with spaces', '192.168.1.1:9090'];
+		const addresses = ['localhost', 'LOCALHOST', 'localhost:8081', 'user@host:8080', 'host with spaces', 'wss://example.com/Path', '192.168.1.1:9090'];
 		for (const address of addresses) {
 			const authority = agentHostAuthority(address);
 			const uri = URI.from({ scheme: AGENT_HOST_SCHEME, authority, path: '/test' });
-			assert.strictEqual(uri.authority, authority, `authority for '${address}' must round-trip through URI`);
+			assert.strictEqual(URI.parse(uri.toString()).authority, authority, `authority for '${address}' must round-trip through URI serialization`);
 		}
 	});
 
 	test('authority is valid in a URI scheme position', () => {
-		const addresses = ['localhost', 'localhost:8081', 'user@host:8080', 'host with spaces'];
+		const addresses = ['localhost', 'LOCALHOST', 'localhost:8081', 'user@host:8080', 'host with spaces', 'wss://example.com/Path'];
 		for (const address of addresses) {
 			const authority = agentHostAuthority(address);
 			const scheme = remoteAgentHostSessionTypeId(authority, 'copilot');
 			const uri = URI.from({ scheme, path: '/test' });
-			assert.strictEqual(uri.scheme, scheme, `scheme for '${address}' must round-trip through URI`);
+			assert.strictEqual(URI.parse(uri.toString()).scheme, scheme, `scheme for '${address}' must round-trip through URI serialization`);
 		}
 	});
 });
@@ -146,10 +166,69 @@ suite('toAgentHostUri / fromAgentHostUri', () => {
 		});
 	});
 
-	test('local authority returns original URI unchanged', () => {
-		const original = URI.file('/workspace/test.ts');
-		const result = toAgentHostUri(original, 'local');
-		assert.strictEqual(result.toString(), original.toString());
+	test('local authority preserves directly resolvable filesystem URIs', () => {
+		const file = URI.file('/workspace/test.ts');
+		const remote = URI.from({ scheme: 'vscode-remote', authority: 'wsl+ubuntu', path: '/workspace/test.ts' });
+
+		assert.deepStrictEqual({
+			localFile: toAgentHostUri(file, 'local').toString(),
+			localRemote: toAgentHostUri(remote, 'local').toString(),
+			remoteRemote: toAgentHostUri(remote, 'remote-host').scheme,
+		}, {
+			localFile: file.toString(),
+			localRemote: remote.toString(),
+			remoteRemote: AGENT_HOST_SCHEME,
+		});
+	});
+
+	test('a content ref is marked as one and still round-trips', () => {
+		const original = URI.parse('ahp-session:/ab456a26/changeset/turncontent/2011679d');
+
+		const asContent = toAgentHostContentUri(original, 'remote-host');
+		const asFile = toAgentHostUri(original, 'remote-host');
+
+		assert.deepStrictEqual({
+			contentMarked: isAgentHostContentRefUri(asContent),
+			fileMarked: isAgentHostContentRefUri(asFile),
+			plainUriMarked: isAgentHostContentRefUri(original),
+			roundTripped: fromAgentHostUri(asContent).toString(),
+		}, {
+			contentMarked: true,
+			fileMarked: false,
+			plainUriMarked: false,
+			roundTripped: original.toString(),
+		});
+	});
+
+	test('a content ref that is directly resolvable on the local connection stays unwrapped', () => {
+		const file = URI.file('/workspace/test.ts');
+		const remote = URI.from({ scheme: 'vscode-remote', authority: 'wsl+ubuntu', path: '/workspace/test.ts' });
+
+		assert.deepStrictEqual({
+			file: toAgentHostContentUri(file, 'local').toString(),
+			remote: toAgentHostContentUri(remote, 'local').toString(),
+		}, {
+			file: file.toString(),
+			remote: remote.toString(),
+		});
+	});
+
+	test('resource URI mappers translate remote resources and preserve local resources', () => {
+		const original = URI.file('/remote/file.txt');
+		const remote = createAgentHostResourceUriMapper('remote-host');
+		const mapped = remote.fromAgentHost(original);
+
+		assert.deepStrictEqual({
+			mapped: mapped.toString(),
+			unmapped: remote.toAgentHost(mapped).toString(),
+			localFrom: identityAgentHostResourceUriMapper.fromAgentHost(original).toString(),
+			localTo: identityAgentHostResourceUriMapper.toAgentHost(original).toString(),
+		}, {
+			mapped: toAgentHostUri(original, 'remote-host').toString(),
+			unmapped: original.toString(),
+			localFrom: original.toString(),
+			localTo: original.toString(),
+		});
 	});
 
 	test('agentHostUri for root path produces valid encoded URI', () => {
@@ -208,6 +287,7 @@ suite('AgentHostFileSystemProvider - authority registrations', () => {
 
 	class NamedConnection implements IRemoteFilesystemConnection {
 		readonly listCalls: URI[] = [];
+		readonly readCalls: URI[] = [];
 
 		constructor(private readonly name: string) { }
 
@@ -216,7 +296,10 @@ suite('AgentHostFileSystemProvider - authority registrations', () => {
 			return { entries: [{ name: `${this.name}.txt`, type: 'file' }] };
 		}
 
-		async resourceRead(): Promise<ResourceReadResult> { return { data: '', encoding: ContentEncoding.Utf8 }; }
+		async resourceRead(uri: URI): Promise<ResourceReadResult> {
+			this.readCalls.push(uri);
+			return { data: this.name, encoding: ContentEncoding.Utf8 };
+		}
 		async resourceWrite(): Promise<{}> { return {}; }
 		async resourceCopy(): Promise<{}> { return {}; }
 		async resourceDelete(): Promise<{}> { return {}; }
@@ -286,6 +369,58 @@ suite('AgentHostFileSystemProvider - authority registrations', () => {
 		});
 	});
 
+	test('in-flight resource read retries through a replacement connection', async () => {
+		const provider = disposables.add(new AgentHostFileSystemProvider());
+		const first = new NamedConnection('first');
+		const second = new NamedConnection('second');
+		const firstRead = new DeferredPromise<ResourceReadResult>();
+		const firstReadStarted = new DeferredPromise<void>();
+		first.resourceRead = uri => {
+			first.readCalls.push(uri);
+			firstReadStarted.complete();
+			return firstRead.p;
+		};
+		disposables.add(provider.registerAuthority('client', first));
+
+		const pending = provider.readFile(agentHostUri('client', '/workspace/file.txt'));
+		await firstReadStarted.p;
+		disposables.add(provider.registerAuthority('client', second));
+
+		const content = await pending;
+		assert.deepStrictEqual({ content: VSBuffer.wrap(content).toString(), firstCalls: first.readCalls.map(uri => uri.toString()), secondCalls: second.readCalls.map(uri => uri.toString()) }, {
+			content: 'second',
+			firstCalls: [URI.file('/workspace/file.txt').toString()],
+			secondCalls: [URI.file('/workspace/file.txt').toString()],
+		});
+	});
+
+	test('in-flight read rejection retries after its connection is replaced', async () => {
+		const provider = disposables.add(new AgentHostFileSystemProvider());
+		const first = new NamedConnection('first');
+		const second = new NamedConnection('second');
+		const firstList = new DeferredPromise<ResourceListResult>();
+		const firstListStarted = new DeferredPromise<void>();
+		first.resourceList = uri => {
+			first.listCalls.push(uri);
+			firstListStarted.complete();
+			return firstList.p;
+		};
+		const firstRegistration = provider.registerAuthority('client', first);
+
+		const pending = provider.readdir(agentHostUri('client', '/workspace'));
+		await firstListStarted.p;
+		firstList.error(new Error('Client disconnected'));
+		firstRegistration.dispose();
+		disposables.add(provider.registerAuthority('client', second));
+
+		const entries = await pending;
+		assert.deepStrictEqual({ entries, firstCalls: first.listCalls.map(uri => uri.toString()), secondCalls: second.listCalls.map(uri => uri.toString()) }, {
+			entries: [['second.txt', FileType.File]],
+			firstCalls: [URI.file('/workspace').toString()],
+			secondCalls: [URI.file('/workspace').toString()],
+		});
+	});
+
 	test('operation issued in the grace window rejects with Unavailable when no reconnect arrives', async () => {
 		const provider = disposables.add(new AgentHostFileSystemProvider(20));
 		const first = new NamedConnection('first');
@@ -317,6 +452,41 @@ suite('AgentHostFileSystemProvider - authority registrations', () => {
 		assert.ok(caught instanceof Error, 'expected an error');
 		assert.strictEqual(toFileSystemProviderErrorCode(caught as Error), FileSystemProviderErrorCode.Unavailable);
 	});
+
+	test('read operations preserve Unavailable when no authority is registered', async () => {
+		const provider = disposables.add(new AgentHostFileSystemProvider());
+		const resource = agentHostUri('client', '/workspace/file.txt');
+		const results = await Promise.allSettled([
+			provider.stat(resource),
+			provider.realpath(resource),
+			provider.readFile(resource),
+		]);
+
+		assert.deepStrictEqual(results.map(result => result.status === 'rejected' ? toFileSystemProviderErrorCode(result.reason) : undefined), [
+			FileSystemProviderErrorCode.Unavailable,
+			FileSystemProviderErrorCode.Unavailable,
+			FileSystemProviderErrorCode.Unavailable,
+		]);
+	});
+
+	test('disposing the provider rejects an in-flight resource read', async () => {
+		const provider = new AgentHostFileSystemProvider();
+		const connection = new NamedConnection('connection');
+		const readStarted = new DeferredPromise<void>();
+		connection.resourceRead = uri => {
+			connection.readCalls.push(uri);
+			readStarted.complete();
+			return new DeferredPromise<ResourceReadResult>().p;
+		};
+		const registration = provider.registerAuthority('client', connection);
+
+		const pending = provider.readFile(agentHostUri('client', '/workspace/file.txt'));
+		await readStarted.p;
+		provider.dispose();
+		registration.dispose();
+
+		await assert.rejects(pending, error => error instanceof Error && toFileSystemProviderErrorCode(error) === FileSystemProviderErrorCode.Unavailable);
+	});
 });
 
 suite('AgentHostFileSystemProvider - synthetic content schemes', () => {
@@ -329,12 +499,14 @@ suite('AgentHostFileSystemProvider - synthetic content schemes', () => {
 	 */
 	class StubConnection implements IRemoteFilesystemConnection {
 		readonly readCalls: URI[] = [];
+		readonly readEncodings: (ContentEncoding | undefined)[] = [];
 		readonly listCalls: URI[] = [];
 		readonly resolveCalls: ResourceResolveParams[] = [];
 		readResult: ResourceReadResult = { data: 'stub-content', encoding: ContentEncoding.Utf8, contentType: 'text/plain' };
 
-		async resourceRead(uri: URI): Promise<ResourceReadResult> {
+		async resourceRead(uri: URI, encoding?: ContentEncoding): Promise<ResourceReadResult> {
 			this.readCalls.push(uri);
+			this.readEncodings.push(encoding);
 			return this.readResult;
 		}
 		async resourceList(uri: URI): Promise<ResourceListResult> {
@@ -403,6 +575,78 @@ suite('AgentHostFileSystemProvider - synthetic content schemes', () => {
 		assert.strictEqual(connection.listCalls.length, 0);
 	});
 
+	// Regression: the diff editor stats before reading, and a content ref is not
+	// a filesystem entry, so the stat failed and the read never ran.
+	test('stat treats a marked content ref as a read-only file whatever its scheme', async () => {
+		const provider = disposables.add(new AgentHostFileSystemProvider());
+		const connection = new StubConnection();
+		disposables.add(provider.registerAuthority('remote', connection));
+		const inner = URI.parse('ahp-session:/ab456a26/changeset/turncontent/2011679d');
+		const wrapped = toAgentHostContentUri(inner, 'remote');
+
+		const stat = await provider.stat(wrapped);
+
+		assert.deepStrictEqual({
+			type: stat.type,
+			readonly: stat.permissions === FilePermission.Readonly,
+			resolved: connection.resolveCalls.length,
+			listed: connection.listCalls.length,
+		}, {
+			type: FileType.File,
+			readonly: true,
+			resolved: 0,
+			listed: 0,
+		});
+	});
+
+	test('realpath returns a marked content ref unchanged without resolving it', async () => {
+		const provider = disposables.add(new AgentHostFileSystemProvider());
+		const connection = new StubConnection();
+		disposables.add(provider.registerAuthority('remote', connection));
+		const inner = URI.parse('ahp-session:/ab456a26/changeset/turncontent/2011679d');
+		const wrapped = toAgentHostContentUri(inner, 'remote');
+
+		const path = await provider.realpath(wrapped);
+
+		assert.deepStrictEqual({ path, resolved: connection.resolveCalls.length }, {
+			path: wrapped.path,
+			resolved: 0,
+		});
+	});
+
+	// A content ref whose original URI carries no path wraps to `/`, which is
+	// also how the provider addresses its own synthetic root.
+	test('stat reports a pathless content ref as a file, not the provider root', async () => {
+		const provider = disposables.add(new AgentHostFileSystemProvider());
+		const connection = new StubConnection();
+		disposables.add(provider.registerAuthority('remote', connection));
+		const wrapped = toAgentHostContentUri(URI.parse('agenthost-content://session'), 'remote');
+
+		const stat = await provider.stat(wrapped);
+
+		assert.deepStrictEqual({ wrappedPath: wrapped.path, type: stat.type }, {
+			wrappedPath: '/',
+			type: FileType.File,
+		});
+	});
+
+	test('readFile still asks the host for the content ref it declined to stat', async () => {
+		const provider = disposables.add(new AgentHostFileSystemProvider());
+		const connection = new StubConnection();
+		disposables.add(provider.registerAuthority('remote', connection));
+		const inner = URI.parse('ahp-session:/ab456a26/changeset/turncontent/2011679d');
+
+		const bytes = await provider.readFile(toAgentHostContentUri(inner, 'remote'));
+
+		assert.deepStrictEqual({
+			content: VSBuffer.wrap(bytes).toString(),
+			resources: connection.readCalls.map(u => u.toString()),
+		}, {
+			content: 'stub-content',
+			resources: [inner.toString()],
+		});
+	});
+
 	test('readFile passes the decoded synthetic URI through to the connection', async () => {
 		const { provider, connection } = setup();
 		const inner = URI.from({ scheme: 'git-blob', authority: 'sess1', path: '/sha/encoded/file.ts' });
@@ -411,7 +655,23 @@ suite('AgentHostFileSystemProvider - synthetic content schemes', () => {
 		const bytes = await provider.readFile(wrapped);
 
 		assert.strictEqual(VSBuffer.wrap(bytes).toString(), 'stub-content');
-		assert.deepStrictEqual(connection.readCalls.map(u => u.toString()), [inner.toString()]);
+		assert.deepStrictEqual({
+			resources: connection.readCalls.map(u => u.toString()),
+			encodings: connection.readEncodings,
+		}, {
+			resources: [inner.toString()],
+			encodings: [ContentEncoding.Base64],
+		});
+	});
+
+	test('readFile decodes binary Base64 content', async () => {
+		const { provider, connection } = setup();
+		disposables.add(provider.registerAuthority('remote', connection));
+		connection.readResult = { data: 'UEsAAf8=', encoding: ContentEncoding.Base64, contentType: 'application/zip' };
+
+		const bytes = await provider.readFile(agentHostUri('remote', '/tmp/logs.zip'));
+
+		assert.deepStrictEqual([...bytes], [80, 75, 0, 1, 255]);
 	});
 
 	test('full stat-then-read round-trip mirrors the diff editor flow', async () => {

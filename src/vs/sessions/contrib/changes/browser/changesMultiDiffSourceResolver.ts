@@ -14,11 +14,32 @@ import { IMultiDiffSourceResolver, IMultiDiffSourceResolverService, IResolvedMul
 import { ISessionFileChange } from '../../../services/sessions/common/session.js';
 import { IChangesViewService } from '../common/changesViewService.js';
 import { ISessionChangesService } from './sessionChangesService.js';
+import { RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+
+/**
+ * Global context key holding the URIs (as strings) of every file the user has
+ * marked as reviewed in the active session. Combined with
+ * {@link SessionChangesFileResourceContext} via the `in` / `not in` operators,
+ * file toolbar menu items can toggle between "Mark as Reviewed" and
+ * "Unmark as Reviewed".
+ */
+export const SessionChangesReviewedFilesContext = new RawContextKey<string[]>('sessions.changesReviewedFiles', []);
+
+/**
+ * Per-file context key set on each entry in the changes multi-diff editor.
+ * Holds the URI (as a string) of the file shown in that diff row, so it can be
+ * tested for membership in {@link SessionChangesReviewedFilesContext}.
+ */
+export const SessionChangesFileResourceContext = new RawContextKey<string>('sessions.changesFileResource', undefined);
 
 function compareChanges(a: ISessionFileChange, b: ISessionFileChange): number {
 	const aPath = isIChatSessionFileChange2(a) ? a.uri.fsPath : a.modifiedUri.fsPath;
 	const bPath = isIChatSessionFileChange2(b) ? b.uri.fsPath : b.modifiedUri.fsPath;
 	return comparePaths(aPath, bPath);
+}
+
+function getChangeResource(change: ISessionFileChange): URI {
+	return isIChatSessionFileChange2(change) ? change.uri : change.modifiedUri;
 }
 
 export class ChangesMultiDiffSourceResolver extends Disposable implements IMultiDiffSourceResolver {
@@ -42,7 +63,7 @@ export class ChangesMultiDiffSourceResolver extends Disposable implements IMulti
 		const changesObs = derivedObservableWithCache<readonly ISessionFileChange[]>({
 			owner: this,
 		}, (reader, lastValue) => {
-			if (this.changesViewService.activeSessionIsLoadingObs.read(reader)) {
+			if (this.changesViewService.activeSessionLoadingObs.read(reader)) {
 				return lastValue ?? [];
 			}
 
@@ -61,8 +82,12 @@ export class ChangesMultiDiffSourceResolver extends Disposable implements IMulti
 				isEqual(x.modifiedUri, y.modifiedUri)),
 		}, reader => {
 			const changes = changesObs.read(reader);
-			return [...changes].sort(compareChanges).map(change =>
-				new MultiDiffEditorItem(change.originalUri, change.modifiedUri, change.modifiedUri));
+			return [...changes].sort(compareChanges).map(change => {
+				const resource = getChangeResource(change);
+				return new MultiDiffEditorItem(change.originalUri, change.modifiedUri, resource, undefined, {
+					[SessionChangesFileResourceContext.key]: resource.toString(),
+				});
+			});
 		});
 
 		return { resources: new ValueWithChangeEventFromObservable(resourcesObs) };

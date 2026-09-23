@@ -8,7 +8,7 @@
 
 import { ActionType } from '../common/actions.js';
 import type { URI, TextRange } from '../common/state.js';
-import type { AnnotationEntry, Annotation } from './state.js';
+import type { AnnotationEntry, Annotation, AnnotationOrigin } from './state.js';
 
 // ─── Annotations Actions ─────────────────────────────────────────────────────
 
@@ -62,12 +62,8 @@ export interface AnnotationsUpdatedAction {
 	type: ActionType.AnnotationsUpdated;
 	/** The {@link Annotation.id} of the annotation to update. */
 	annotationId: string;
-	/**
-	 * Re-anchors the annotation to the file versions this turn produced.
-	 * Matches a {@link Turn.id} on the owning session. Omit to leave the
-	 * current {@link Annotation.turnId} unchanged.
-	 */
-	turnId?: string;
+	/** Replaces the annotation's provenance. Omit to leave it unchanged. */
+	origin?: AnnotationOrigin;
 	/**
 	 * Re-anchors the annotation to this file. Omit to leave the current
 	 * {@link Annotation.resource} unchanged.

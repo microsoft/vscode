@@ -19,11 +19,12 @@ dependencies = [
 
 [[package]]
 name = "ahp"
-version = "0.4.0"
+version = "0.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8fa7af01c6ff90f8b54fa169a71de21cc26e5a98621249ad882a5b2e137f57c0"
+checksum = "e78bcc1da853fe667b53c71c29d81917081511bf2a4bf299a0020fbacc971b98"
 dependencies = [
  "ahp-types",
+ "jiff",
  "serde",
  "serde_json",
  "thiserror 2.0.18",
@@ -33,9 +34,9 @@ dependencies = [
 
 [[package]]
 name = "ahp-types"
-version = "0.4.0"
+version = "0.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1632209b0398b17c4a9928d71eaad0ced329d3617ffcbe32be789f59b1d65c70"
+checksum = "cc0674a9fabc13c97d309f1df5041a1e0811fc244200846f61b154660d3209da"
 dependencies = [
  "serde",
  "serde_json",

@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Event } from '../../../../../base/common/event.js';
 import { IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import '../media/onboardingTarget.css';
 
@@ -17,18 +18,54 @@ export const ONBOARDING_TARGET_ATTR = 'data-onboarding-id';
 
 export const ONBOARDING_TARGET_PULSE_CLASS = 'onboarding-target-pulse';
 
+export interface IOnboardingTargetOptions {
+	/** Opens or expands the target before its spotlight step is shown. */
+	readonly open?: () => Promise<void> | void;
+
+	/** Whether this control already has a selected value, independent of asynchronous acceptance. */
+	readonly hasSelection?: () => boolean;
+
+	/** Reports a user selection and resolves once it is accepted or rejected. */
+	readonly onDidSelect?: Event<Promise<boolean>>;
+}
+
+interface IOnboardingTargetRegistration {
+	readonly id: string;
+	readonly options: IOnboardingTargetOptions;
+}
+
+const onboardingTargetRegistrations = new WeakMap<HTMLElement, IOnboardingTargetRegistration>();
+
 /**
  * Marks `element` as the onboarding target identified by `id`.
  *
  * @returns A disposable that removes the attribute again.
  */
-export function markOnboardingTarget(element: HTMLElement, id: string): IDisposable {
+export function markOnboardingTarget(element: HTMLElement, id: string, options: IOnboardingTargetOptions = {}): IDisposable {
+	const registration = { id, options };
 	element.setAttribute(ONBOARDING_TARGET_ATTR, id);
+	onboardingTargetRegistrations.set(element, registration);
 	return toDisposable(() => {
-		if (element.getAttribute(ONBOARDING_TARGET_ATTR) === id) {
+		if (onboardingTargetRegistrations.get(element) === registration) {
+			onboardingTargetRegistrations.delete(element);
 			element.removeAttribute(ONBOARDING_TARGET_ATTR);
 		}
 	});
+}
+
+/** Opens or expands a target through the behavior registered by its owner. */
+export function openOnboardingTarget(element: HTMLElement): Promise<void> | void {
+	return onboardingTargetRegistrations.get(element)?.options.open?.();
+}
+
+/** Observes selections reported by the target's owner. */
+export function onDidSelectOnboardingTarget(element: HTMLElement): Event<Promise<boolean>> {
+	return onboardingTargetRegistrations.get(element)?.options.onDidSelect ?? Event.None;
+}
+
+/** Reads selection state from the target's owner, without depending on downstream session state. */
+export function hasOnboardingTargetSelection(element: HTMLElement): boolean {
+	return onboardingTargetRegistrations.get(element)?.options.hasSelection?.() ?? false;
 }
 
 /**

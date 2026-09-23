@@ -7,17 +7,33 @@ import assert from 'assert';
 import { Color } from '../../../../base/common/color.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { LanguageId, MetadataConsts } from '../../../common/encodedTokenAttributes.js';
 import { IState, Token } from '../../../common/languages.js';
 import { TokenTheme } from '../../../common/languages/supports/tokenization.js';
 import { LanguageService } from '../../../common/services/languageService.js';
-import { ILineTokens, IToken, TokenizationSupportAdapter, TokensProvider } from '../../browser/standaloneLanguages.js';
+import { ILineTokens, IToken, score, TokenizationSupportAdapter, TokensProvider } from '../../browser/standaloneLanguages.js';
 import { IStandaloneTheme, IStandaloneThemeData, IStandaloneThemeService } from '../../common/standaloneTheme.js';
 import { UnthemedProductIconTheme } from '../../../../platform/theme/browser/iconsStyleSheet.js';
 import { ColorIdentifier } from '../../../../platform/theme/common/colorRegistry.js';
 import { ColorScheme } from '../../../../platform/theme/common/theme.js';
 import { IColorTheme, IFileIconTheme, IProductIconTheme, ITokenStyle } from '../../../../platform/theme/common/themeService.js';
+
+suite('LanguageSelector', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('score', () => {
+		const uri = URI.parse('file:///test/file.ts');
+
+		assert.deepStrictEqual([
+			score('typescript', uri, 'typescript'),
+			score({ language: 'typescript', scheme: 'file', pattern: '**/*.ts' }, uri, 'typescript'),
+			score('javascript', uri, 'typescript')
+		], [10, 10, 0]);
+	});
+});
 
 suite('TokenizationSupport2Adapter', () => {
 

@@ -35,7 +35,7 @@ use crate::tunnels::shutdown_signal::ShutdownRequest;
 use crate::update_service::{
 	unzip_downloaded_release, Platform, Release, TargetKind, UpdateService,
 };
-use crate::util::command::new_script_command;
+use crate::util::command::{kill_tree, new_script_command};
 use crate::util::errors::AnyError;
 use crate::util::http::{self, ReqwestSimpleHttp};
 use crate::util::io::SilentCopyProgress;
@@ -208,6 +208,7 @@ async fn handle(
 	};
 
 	append_secret_headers(&ctx.cm.base_path, &mut res, &client_key_half);
+	append_frame_ancestors(&mut res);
 
 	Ok(res)
 }
@@ -273,6 +274,20 @@ fn append_secret_headers(
 		)
 		.parse()
 		.unwrap(),
+	);
+}
+
+/// Prevents other origins from embedding serve-web pages. Same-origin iframes
+/// used by the workbench itself are still allowed.
+fn append_frame_ancestors(res: &mut Response<HyperBody>) {
+	let headers = res.headers_mut();
+	headers.append(
+		::http::header::CONTENT_SECURITY_POLICY,
+		"frame-ancestors 'self'".parse().unwrap(),
+	);
+	headers.insert(
+		::http::header::HeaderName::from_static("x-frame-options"),
+		"SAMEORIGIN".parse().unwrap(),
 	);
 }
 
@@ -558,6 +573,9 @@ struct ConnectionManager {
 	pub platform: Platform,
 	pub log: log::Logger,
 	args: ServeWebArgs,
+	/// Extension IDs for which to enable proposed API, forwarded from the
+	/// global `--enable-proposed-api` flag to the server subprocess.
+	enable_proposed_api: Vec<String>,
 	/// Server base path, ending in `/`
 	base_path: String,
 	/// Cache where servers are stored
@@ -614,6 +632,7 @@ impl ConnectionManager {
 		Arc::new(Self {
 			platform,
 			args,
+			enable_proposed_api: ctx.args.editor_options.enable_proposed_api.clone(),
 			base_path,
 			log: ctx.log.clone(),
 			cache,
@@ -746,6 +765,7 @@ impl ConnectionManager {
 		let state_map_dup = self.state.clone();
 		let args = StartArgs {
 			args: self.args.clone(),
+			enable_proposed_api: self.enable_proposed_api.clone(),
 			log: self.log.clone(),
 			opener,
 			release,
@@ -862,6 +882,9 @@ impl ConnectionManager {
 		if args.args.disable_telemetry {
 			cmd.arg("--disable-telemetry");
 		}
+		for ext_id in &args.enable_proposed_api {
+			cmd.arg(format!("--enable-proposed-api={ext_id}"));
+		}
 
 		// removed, otherwise the workbench will not be usable when running the CLI from sources.
 		cmd.env_remove("VSCODE_DEV");
@@ -915,7 +938,22 @@ impl ConnectionManager {
 				}
 				_ = &mut kill_timer => {
 					info!(args.log, "[{} process]: idle timeout reached, ending", commit_prefix);
-					let _ = child.kill().await;
+					// The entrypoint is a shell/cmd shim, so kill the full tree
+					// to avoid orphaning the Node server it launches.
+					if let Some(pid) = child.id() {
+						let _ = kill_tree(pid).await;
+					}
+					const REAP_TIMEOUT: Duration = Duration::from_secs(5);
+					if tokio::time::timeout(REAP_TIMEOUT, child.wait()).await.is_err() {
+						warning!(
+							args.log,
+							"[{} process]: server did not exit within {}s after kill_tree; escalating to force kill",
+							commit_prefix,
+							REAP_TIMEOUT.as_secs()
+						);
+						let _ = child.kill().await;
+						let _ = child.wait().await;
+					}
 					break;
 				}
 				e = child.wait() => {
@@ -930,6 +968,7 @@ impl ConnectionManager {
 struct StartArgs {
 	log: log::Logger,
 	args: ServeWebArgs,
+	enable_proposed_api: Vec<String>,
 	release: Release,
 	opener: BarrierOpener<Result<StartData, String>>,
 }

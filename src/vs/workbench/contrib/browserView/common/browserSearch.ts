@@ -253,7 +253,11 @@ function hasKnownTld(host: string): boolean {
  * - Unknown scheme that looks like `user:password@host…` → `url`. Other
  *   unknown schemes (e.g. `site:foo`) → `unknown`.
  * - http(s) or scheme-less input is then parsed into authority + path:
- *   - Whitespace inside the input → `query`.
+ *   - Whitespace in the host → `query`; whitespace in the userinfo → `unknown`
+ *     (unless an explicit http(s) scheme is present). Whitespace in the
+ *     path/query/fragment is allowed — it is percent-encoded at navigation
+ *     time, matching Chromium (which only rejects whitespace inside the
+ *     host/username, not the rest of the URL).
  *   - Invalid host characters → `query`.
  *   - Bracketed IPv6 literal → `url`.
  *   - Dotted-quad IPv4 with first octet != 0 (or exactly `0.0.0.0`) → `url`;
@@ -332,11 +336,6 @@ export function resolveAddressBarInputType(rawInput: string): AddressBarInputKin
 		}
 	}
 
-	// Whitespace inside the input is a strong query signal.
-	if (/\s/.test(rest)) {
-		return 'query';
-	}
-
 	const { userinfo, host: rawHost, port, pathAndRest } = parseHostAndPath(rest);
 
 	// Host-less input that starts with `/` is treated as an absolute path URL
@@ -375,6 +374,16 @@ export function resolveAddressBarInputType(rawInput: string): AddressBarInputKin
 			// First octet is zero and not 0.0.0.0 — "source IP", not navigable.
 			return 'query';
 		}
+	}
+
+	// A space in the userinfo (e.g. "dep missing: @test/") isn't real credentials,
+	// so treat it as not-a-URL — unless an explicit http(s) scheme is present,
+	// which wins. Deliberately placed *after* the IPv4/IPv6 returns above:
+	// Chromium's `AutocompleteInput::Parse` classifies IP-literal hosts as URL
+	// before this username-space heuristic, so `user name@127.0.0.1` and
+	// `user name@[::1]` stay URLs.
+	if (userinfo !== undefined && /\s/.test(userinfo) && !isHttpScheme) {
+		return 'unknown';
 	}
 
 	if (host.toLowerCase() === 'localhost') {

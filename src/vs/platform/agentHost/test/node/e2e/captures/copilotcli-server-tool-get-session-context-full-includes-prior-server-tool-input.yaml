@@ -1,0 +1,99 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Call list_sessions exactly once with no filters, then reply exactly "SEEDED".
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_0
+          name: list_sessions
+          input: {}
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Call list_sessions exactly once with no filters, then reply exactly "SEEDED".
+        - role: assistant
+          content:
+            - type: tool_use
+              name: list_sessions
+              input: {}
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: '{"sessions":[{"session":"copilotcli:/e2e-server-tools-context-full","title":"Call list_sessions exactly once with no filters, then reply exactly \"SEEDED\".","status":"inProgress","workingDirectory":"file://${workdir}","unread":true,"createdAt":"2026-08-02T01:05:20.785Z","modifiedAt":"2026-08-02T01:05:19.621Z","changesets":[{"label":"All Changes","changeKind":"session","uriTemplate":"copilotcli:/e2e-server-tools-context-full/changeset/session","description":"Show all changes made in this session"},{"label":"This Turn","changeKind":"turn","uriTemplate":"copilotcli:/e2e-server-tools-context-full/changeset/turn/{turnId}","description":"Show changes made in this turn"}]}]}'
+    response:
+      content: SEEDED
+      stopReason: end_turn
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Call list_sessions exactly once with no filters, then reply exactly "SEEDED".
+        - role: assistant
+          content:
+            - type: tool_use
+              name: list_sessions
+              input: {}
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: '{"sessions":[{"session":"copilotcli:/e2e-server-tools-context-full","title":"Call list_sessions exactly once with no filters, then reply exactly \"SEEDED\".","status":"inProgress","workingDirectory":"file://${workdir}","unread":true,"createdAt":"2026-08-02T01:05:20.785Z","modifiedAt":"2026-08-02T01:05:19.621Z","changesets":[{"label":"All Changes","changeKind":"session","uriTemplate":"copilotcli:/e2e-server-tools-context-full/changeset/session","description":"Show all changes made in this session"},{"label":"This Turn","changeKind":"turn","uriTemplate":"copilotcli:/e2e-server-tools-context-full/changeset/turn/{turnId}","description":"Show changes made in this turn"}]}]}'
+        - role: assistant
+          content: SEEDED
+        - role: user
+          content: Call get_session_context exactly once with session "copilotcli:/e2e-server-tools-context-full" and detail "full", then reply exactly "read".
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_1
+          name: get_session_context
+          input:
+            session: copilotcli:/e2e-server-tools-context-full
+            detail: full
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Call list_sessions exactly once with no filters, then reply exactly "SEEDED".
+        - role: assistant
+          content:
+            - type: tool_use
+              name: list_sessions
+              input: {}
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: '{"sessions":[{"session":"copilotcli:/e2e-server-tools-context-full","title":"Call list_sessions exactly once with no filters, then reply exactly \"SEEDED\".","status":"inProgress","workingDirectory":"file://${workdir}","unread":true,"createdAt":"2026-08-02T01:05:20.785Z","modifiedAt":"2026-08-02T01:05:19.621Z","changesets":[{"label":"All Changes","changeKind":"session","uriTemplate":"copilotcli:/e2e-server-tools-context-full/changeset/session","description":"Show all changes made in this session"},{"label":"This Turn","changeKind":"turn","uriTemplate":"copilotcli:/e2e-server-tools-context-full/changeset/turn/{turnId}","description":"Show changes made in this turn"}]}]}'
+        - role: assistant
+          content: SEEDED
+        - role: user
+          content: Call get_session_context exactly once with session "copilotcli:/e2e-server-tools-context-full" and detail "full", then reply exactly "read".
+        - role: assistant
+          content:
+            - type: tool_use
+              name: get_session_context
+              input:
+                session: copilotcli:/e2e-server-tools-context-full
+                detail: full
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_1
+              content: '{"session":"copilotcli:/e2e-server-tools-context-full","openLink":"agent-host-session://copilotcli/e2e-server-tools-context-full","detail":"full","transcript":[{"turn":1,"state":"complete","user":"Call list_sessions exactly once with no filters, then reply exactly \"SEEDED\".","assistant":"SEEDED","toolCalls":[{"name":"list_sessions","input":"{}"}]},{"turn":2,"state":"inProgress","user":"Call get_session_context exactly once with session \"copilotcli:/e2e-server-tools-context-full\" and detail \"full\", then reply exactly \"read\".","toolCalls":[{"name":"get_session_context","input":"{\n  \"session\": \"copilotcli:/e2e-server-tools-context-full\",\n  \"detail\": \"full\"\n}"}]}],"hasMoreHistory":false,"truncated":false}'
+    response:
+      content: read
+      stopReason: end_turn

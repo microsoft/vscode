@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { toErrorMessage } from '../../common/errorMessage.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from './utils.js';
-import { transformErrorForSerialization, transformErrorFromSerialization } from '../../common/errors.js';
+import { getErrorCode, transformErrorForSerialization, transformErrorFromSerialization } from '../../common/errors.js';
 import { assertType } from '../../common/types.js';
 
 suite('Errors', () => {
@@ -34,6 +34,17 @@ suite('Errors', () => {
 			assert.strictEqual(toErrorMessage(error), 'An unknown error occurred. Please consult the log for more details.');
 			assert.ok(toErrorMessage(error, true).length > 'An unknown error occurred. Please consult the log for more details.'.length);
 		}
+	});
+
+	test('Get Error Code', () => {
+		const inherited = Object.create({ code: 'inherited' });
+		assert.deepStrictEqual([
+			getErrorCode({ code: 'ENOENT' }),
+			getErrorCode({ code: -32603 }),
+			getErrorCode({ code: true }),
+			getErrorCode(inherited),
+			getErrorCode(undefined),
+		], ['ENOENT', '-32603', undefined, undefined, undefined]);
 	});
 
 	test('Transform Error for Serialization', function () {

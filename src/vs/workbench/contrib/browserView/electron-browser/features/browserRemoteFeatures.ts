@@ -15,6 +15,7 @@ import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from '../../../../../platform/configuration/common/configurationRegistry.js';
 import { workbenchConfigurationNodeBase } from '../../../../common/configuration.js';
 import { BrowserRemoteProxyEnabledSettingId } from '../browserViewWorkbenchService.js';
+import product from '../../../../../platform/product/common/product.js';
 
 class BrowserRemoteIndicatorContribution extends BrowserEditorContribution {
 	private readonly _container: HTMLElement;
@@ -91,7 +92,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 	properties: {
 		[BrowserRemoteProxyEnabledSettingId]: {
 			type: 'boolean',
-			default: false,
+			default: product.quality !== 'stable',
 			tags: ['experimental'],
 			scope: ConfigurationScope.WINDOW,
 			experiment: { mode: 'startup' },

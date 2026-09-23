@@ -3,26 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from '../../../../../base/browser/dom.js';
 import { renderAsPlaintext } from '../../../../../base/browser/markdownRenderer.js';
 import { alert, status } from '../../../../../base/browser/ui/aria/aria.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
-import { Disposable, DisposableMap, DisposableSet, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { localize } from '../../../../../nls.js';
 import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 import { AccessibilityProgressSignalScheduler } from '../../../../../platform/accessibilitySignal/browser/progressAccessibilitySignalScheduler.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
-import { FocusMode } from '../../../../../platform/native/common/native.js';
-import { IHostService } from '../../../../services/host/browser/host.js';
 import { AccessibilityVoiceSettingId } from '../../../accessibility/browser/accessibilityConfiguration.js';
 import { ElicitationState, IChatElicitationRequest, IChatService } from '../../common/chatService/chatService.js';
 import { IChatResponseViewModel } from '../../common/model/chatViewModel.js';
-import { ChatConfiguration, ChatNotificationMode } from '../../common/constants.js';
 import { IChatAccessibilityService, IChatWidgetService } from '../chat.js';
-import { ChatWidget } from '../widget/chatWidget.js';
-import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 
 const CHAT_RESPONSE_PENDING_ALLOWANCE_MS = 4000;
 export class ChatAccessibilityService extends Disposable implements IChatAccessibilityService {
@@ -30,13 +23,10 @@ export class ChatAccessibilityService extends Disposable implements IChatAccessi
 
 	private _pendingSignalMap: DisposableMap<URI, AccessibilityProgressSignalScheduler> = this._register(new DisposableMap());
 
-	private readonly toasts = this._register(new DisposableSet());
-
 	constructor(
 		@IAccessibilitySignalService private readonly _accessibilitySignalService: IAccessibilitySignalService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@IHostService private readonly _hostService: IHostService,
 		@IChatWidgetService private readonly _widgetService: IChatWidgetService,
 		@IChatService private readonly _chatService: IChatService,
 	) {
@@ -65,7 +55,7 @@ export class ChatAccessibilityService extends Disposable implements IChatAccessi
 		this._pendingSignalMap.deleteAndDispose(requestId);
 	}
 
-	acceptResponse(widget: ChatWidget, container: HTMLElement, response: IChatResponseViewModel | string | undefined, requestId: URI, isVoiceInput?: boolean): void {
+	acceptResponse(response: IChatResponseViewModel | string | undefined, requestId: URI, isVoiceInput?: boolean): void {
 		this._pendingSignalMap.deleteAndDispose(requestId);
 		const isPanelChat = typeof response !== 'string';
 		const responseContent = typeof response === 'string' ? response : response?.response.toString();
@@ -75,7 +65,6 @@ export class ChatAccessibilityService extends Disposable implements IChatAccessi
 		}
 		const plainTextResponse = renderAsPlaintext(new MarkdownString(responseContent));
 		const errorDetails = isPanelChat && response.errorDetails ? ` ${response.errorDetails.message}` : '';
-		this._showOSNotification(widget, container, plainTextResponse + errorDetails);
 		if (!isVoiceInput || this._configurationService.getValue(AccessibilityVoiceSettingId.AutoSynthesize) !== 'on') {
 			status(plainTextResponse + errorDetails);
 		}
@@ -88,50 +77,6 @@ export class ChatAccessibilityService extends Disposable implements IChatAccessi
 		const message = typeof elicitation.message === 'string' ? elicitation.message : elicitation.message.value;
 		alert(title + ' ' + message);
 		this._accessibilitySignalService.playSignal(AccessibilitySignal.chatUserActionRequired, { allowManyInParallel: true });
-	}
-
-	private async _showOSNotification(widget: ChatWidget, container: HTMLElement, responseContent: string): Promise<void> {
-		const mode = this._configurationService.getValue<ChatNotificationMode>(ChatConfiguration.NotifyWindowOnResponseReceived);
-		if (mode === ChatNotificationMode.Off) {
-			return;
-		}
-
-		const targetWindow = dom.getWindow(container);
-		if (!targetWindow) {
-			return;
-		}
-
-		const isFocused = targetWindow.document.hasFocus();
-		if (mode !== ChatNotificationMode.Always && isFocused) {
-			return;
-		}
-
-		// Don't show notification if there's no meaningful content
-		if (!responseContent || !responseContent.trim()) {
-			return;
-		}
-
-		// Focus window in notify mode (flash taskbar/dock) if not already focused
-		if (!isFocused) {
-			await this._hostService.focus(targetWindow, { mode: FocusMode.Notify });
-		}
-
-		// Dispose any previous unhandled notifications to avoid replacement/coalescing.
-		this.toasts.clearAndDisposeAll();
-
-		const title = widget?.viewModel?.model.title ? localize('chatTitle', "Chat: {0}", widget.viewModel.model.title) : localize('chat.untitledChat', "Untitled Chat");
-
-		const cts = new CancellationTokenSource();
-		const disposable = toDisposable(() => cts.dispose(true));
-		this.toasts.add(disposable);
-
-		const { clicked } = await this._hostService.showToast({ title, body: localize('notificationDetail', "New chat response.") }, cts.token);
-		this.toasts.deleteAndDispose(disposable);
-		if (clicked) {
-			await this._hostService.focus(targetWindow, { mode: FocusMode.Force });
-			await this._widgetService.reveal(widget);
-			widget.focusInput();
-		}
 	}
 
 }

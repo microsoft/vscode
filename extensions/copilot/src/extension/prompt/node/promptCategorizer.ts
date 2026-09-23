@@ -22,6 +22,7 @@ import { renderPromptElement } from '../../prompts/node/base/promptRenderer';
 import { PromptCategorizationPrompt } from '../../prompts/node/panel/promptCategorization';
 import { CATEGORIZE_PROMPT_TOOL_NAME, CATEGORIZE_PROMPT_TOOL_SCHEMA, isValidDomain, isValidIntent, isValidScope, PromptClassification } from '../common/promptCategorizationTaxonomy';
 import { getModeNameForTelemetry } from './telemetry';
+import { isCAPIEndpoint } from '../../../platform/networking/common/networking';
 
 /** Experiment flag to enable prompt categorization */
 const EXP_FLAG_PROMPT_CATEGORIZATION = 'copilotchat.promptCategorization';
@@ -179,6 +180,14 @@ export class PromptCategorizerService implements IPromptCategorizerService {
 		const timeoutHandle = setTimeout(() => cts.cancel(), CATEGORIZATION_TIMEOUT_MS);
 
 		try {
+			const mainModelEndpoint = await this.endpointProvider.getChatEndpoint(request);
+
+			if (!isCAPIEndpoint(mainModelEndpoint)) {
+				// The main model is a BYOK model and prompt categorization should not be run.
+				this.logService.debug('[PromptCategorizer] Skipping categorization because main model is BYOK');
+				return;
+			}
+
 			const endpoint = await this.endpointProvider.getChatEndpoint('copilot-utility-small');
 
 			const { messages } = await renderPromptElement(

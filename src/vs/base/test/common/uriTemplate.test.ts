@@ -103,6 +103,14 @@ suite('UriTemplate', () => {
 		testResolution('{hello}', variables, 'Hello%20World%21');
 	});
 
+	test('control characters are percent-encoded with two hex digits', () => {
+		// Code points below 0x10 must be zero-padded (e.g. %09, not %9) so the
+		// output is a valid percent-encoding that decodeURIComponent accepts.
+		testResolution('{x}', { x: 'a\tb' }, 'a%09b');
+		testResolution('{x}', { x: '\n' }, '%0A');
+		testResolution('{x}', { x: '\r' }, '%0D');
+	});
+
 	test('Level 2 - Reserved expansion', () => {
 		// Test cases from RFC 6570 Section 1.2
 		const variables = {

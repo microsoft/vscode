@@ -3,13 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import electron, { BrowserWindowConstructorOptions, Display, screen } from 'electron';
+import electron, { BrowserWindowConstructorOptions, Display } from 'electron';
 import { DeferredPromise, RunOnceScheduler, timeout, Delayer } from '../../../base/common/async.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { toErrorMessage } from '../../../base/common/errorMessage.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { FileAccess, Schemas } from '../../../base/common/network.js';
+import { join } from '../../../base/common/path.js';
 import { getMarks, mark } from '../../../base/common/performance.js';
 import { isTahoeOrNewer, isLinux, isMacintosh, isWindows } from '../../../base/common/platform.js';
 import { URI } from '../../../base/common/uri.js';
@@ -32,7 +33,7 @@ import { IApplicationStorageMainService, IStorageMainService } from '../../stora
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { ThemeIcon } from '../../../base/common/themables.js';
 import { IThemeMainService } from '../../theme/electron-main/themeMainService.js';
-import { getMenuBarVisibility, IFolderToOpen, INativeWindowConfiguration, IWindowSettings, IWorkspaceToOpen, MenuBarVisibility, hasNativeTitlebar, useNativeFullScreen, useWindowControlsOverlay, DEFAULT_CUSTOM_TITLEBAR_HEIGHT, TitlebarStyle, MenuSettings } from '../../window/common/window.js';
+import { getMenuBarVisibility, IFolderToOpen, INativeWindowConfiguration, IWindowSettings, IWorkspaceToOpen, MenuBarVisibility, hasNativeTitlebar, useNativeFullScreen, DEFAULT_CUSTOM_TITLEBAR_HEIGHT, TitlebarStyle, MenuSettings } from '../../window/common/window.js';
 import { defaultBrowserWindowOptions, getAllWindowsExcludingOffscreen, IWindowsMainService, OpenContext, WindowStateValidator } from './windows.js';
 import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, toWorkspaceIdentifier } from '../../workspace/common/workspace.js';
 import { IWorkspacesManagementMainService } from '../../workspaces/electron-main/workspacesManagementMainService.js';
@@ -45,7 +46,7 @@ import { ILoggerMainService } from '../../log/electron-main/loggerService.js';
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
 import { errorHandler } from '../../../base/common/errors.js';
-import { FocusMode } from '../../native/common/native.js';
+import { FocusMode, IApplicationBadge } from '../../native/common/native.js';
 import { Color } from '../../../base/common/color.js';
 
 export interface IWindowCreationOptions {
@@ -86,30 +87,64 @@ const enum ReadyState {
 	READY
 }
 
+/**
+ * Owns the single, application-wide badge (`app.setBadgeCount`) so that the
+ * transient attention dot from {@link FocusMode.Notify} and the counts pushed
+ * by individual windows via {@link IBaseWindow.setApplicationBadge} cannot
+ * overwrite each other. A count always wins over the dot because it carries
+ * more information, and counts from multiple windows add up.
+ */
 class DockBadgeManager {
 
 	static readonly INSTANCE = new DockBadgeManager();
 
-	private readonly windows = new Set<number>();
+	private readonly attention = new Set<number>();
+	private readonly counts = new Map<number, number>();
 
 	acquireBadge(window: IBaseWindow): IDisposable {
-		this.windows.add(window.id);
+		const windowId = window.id;
+		this.attention.add(windowId);
 
-		electron.app.setBadgeCount(isLinux ? 1 /* only numbers supported */ : undefined /* generic dot */);
+		this.update();
 
 		return {
 			dispose: () => {
-				this.windows.delete(window.id);
+				this.attention.delete(windowId);
 
-				if (this.windows.size === 0) {
-					electron.app.setBadgeCount(0);
-				}
+				this.update();
 			}
 		};
+	}
+
+	setCount(windowId: number, count: number): void {
+		if (count > 0) {
+			this.counts.set(windowId, count);
+		} else if (!this.counts.delete(windowId)) {
+			return; // window had no count to begin with
+		}
+
+		this.update();
+	}
+
+	private update(): void {
+		let total = 0;
+		for (const count of this.counts.values()) {
+			total += count;
+		}
+
+		if (total > 0) {
+			electron.app.setBadgeCount(total);
+		} else if (this.attention.size > 0) {
+			electron.app.setBadgeCount(isLinux ? 1 /* only numbers supported */ : undefined /* generic dot */);
+		} else {
+			electron.app.setBadgeCount(0);
+		}
 	}
 }
 
 export abstract class BaseWindow extends Disposable implements IBaseWindow {
+
+	private applicationBadgeWindowId: number | undefined;
 
 	//#region Events
 
@@ -143,10 +178,14 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 
 	private maximizedWindowState: IWindowState | undefined;
 
+	private hasWindowControlOverlay = false;
+
 	protected _win: electron.BrowserWindow | null = null;
 	get win() { return this._win; }
 	protected setWin(win: electron.BrowserWindow, options?: BrowserWindowConstructorOptions): void {
 		this._win = win;
+		// Electron requires the overlay to have been enabled when the window was created.
+		this.hasWindowControlOverlay = !!options?.titleBarOverlay;
 
 		// Window Events
 		this._register(Event.fromNodeEventEmitter(win, 'maximize')(() => {
@@ -190,7 +229,7 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 		}
 
 		// Update the window controls immediately based on cached or default values
-		if (useCustomTitleStyle && useWindowControlsOverlay(this.configurationService)) {
+		if (this.hasWindowControlOverlay) {
 			const cachedWindowControlHeight = this.stateService.getItem<number>((BaseWindow.windowControlHeightStateStorageKey));
 			if (cachedWindowControlHeight) {
 				this.updateWindowControls({ height: cachedWindowControlHeight });
@@ -207,7 +246,7 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 				const cx = Math.floor(cursorPos.x) - x;
 				const cy = Math.floor(cursorPos.y) - y;
 
-				// TODO@deepak1556 workaround for https://github.com/microsoft/vscode/issues/250626
+				// TODO@deepak1556 workaround for https://github.com/microsoft/vscode/issues/250632
 				// where showing the custom menu seems broken on Windows
 				if (isLinux) {
 					if (cx > 35 /* Cursor is beyond app icon in title bar */) {
@@ -239,7 +278,7 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 			// Handles the display-added event on Windows RDP multi-monitor scenarios.
 			// This helps restore maximized windows to their correct monitor after RDP reconnection.
 			// Refs https://github.com/electron/electron/issues/47016
-			this._register(Event.fromNodeEventEmitter(screen, 'display-added', (event: Electron.Event, display: Display) => ({ event, display }))((e) => {
+			this._register(Event.fromNodeEventEmitter(electron.screen, 'display-added', (event: Electron.Event, display: Display) => ({ event, display }))((e) => {
 				this.onDisplayAdded(e.display);
 			}));
 		}
@@ -261,6 +300,14 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 		protected readonly logService: ILogService
 	) {
 		super();
+
+		// Release this window's share of the application wide badge, so that a
+		// closed or crashed window cannot leave a phantom count behind.
+		this._register(toDisposable(() => {
+			if (this.applicationBadgeWindowId !== undefined) {
+				DockBadgeManager.INSTANCE.setCount(this.applicationBadgeWindowId, 0);
+			}
+		}));
 	}
 
 	protected applyState(state: IWindowState, hasMultipleDisplays = electron.screen.getAllDisplays().length > 0): void {
@@ -342,6 +389,28 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 		return !!this.documentEdited;
 	}
 
+	setApplicationBadge(badge: IApplicationBadge | undefined): void {
+		const count = badge && badge.count > 0 ? badge.count : 0;
+
+		// Windows has no application wide badge, instead an overlay is
+		// rendered over the taskbar icon of this window. The image is drawn
+		// by the renderer because the main process cannot draw.
+		if (isWindows) {
+			if (count === 0 || !badge?.iconDataURL) {
+				this.win?.setOverlayIcon(null, '');
+			} else {
+				this.win?.setOverlayIcon(electron.nativeImage.createFromDataURL(badge.iconDataURL), badge.description);
+			}
+		}
+
+		// macOS (dock) and Linux (Unity launcher) render the count themselves,
+		// on a badge shared by the whole application.
+		else {
+			this.applicationBadgeWindowId ??= this.id;
+			DockBadgeManager.INSTANCE.setCount(this.applicationBadgeWindowId, count);
+		}
+	}
+
 	focus(options?: { mode: FocusMode }): void {
 		switch (options?.mode ?? FocusMode.Transfer) {
 			case FocusMode.Transfer:
@@ -373,7 +442,12 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 		// Flash/Bounce
 		if (isWindows || isLinux) {
 			this.win?.flashFrame(true);
-			disposables.add(toDisposable(() => this.win?.flashFrame(false)));
+			disposables.add(toDisposable(() => {
+				const win = this.win;
+				if (win && !win.isDestroyed()) {
+					win.flashFrame(false);
+				}
+			}));
 		} else if (isMacintosh) {
 			electron.app.dock?.bounce('informational');
 		}
@@ -421,7 +495,7 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 		}
 
 		// Windows/Linux: update window controls via setTitleBarOverlay()
-		if (!isMacintosh && useWindowControlsOverlay(this.configurationService)) {
+		if (!isMacintosh && this.hasWindowControlOverlay) {
 
 			// Update dimmed state if explicitly provided
 			if (options.dimmed !== undefined) {
@@ -637,6 +711,9 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 
 	get remoteAuthority(): string | undefined { return this._config?.remoteAuthority; }
 
+	private readonly _iconPath: URI | undefined;
+	get iconPath(): URI | undefined { return this._iconPath; }
+
 	private _config: INativeWindowConfiguration | undefined;
 	get config(): INativeWindowConfiguration | undefined { return this._config; }
 
@@ -713,6 +790,11 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 			}
 
 			const options = instantiationService.invokeFunction(defaultBrowserWindowOptions, this.windowState, undefined, webPreferences);
+			const iconPath = config.isSessionsWindow && isWindows ? join(this.environmentMainService.appRoot, 'resources/win32/sessions.ico') : undefined;
+			if (iconPath) {
+				options.icon = iconPath;
+			}
+			this._iconPath = iconPath ? URI.file(iconPath) : undefined;
 
 			// Create the browser window
 			mark('code/willCreateCodeBrowserWindow');

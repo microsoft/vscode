@@ -15,14 +15,18 @@ import { ThemeIcon } from '../../../../base/common/themables.js';
 import { localize } from '../../../../nls.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { DomScrollableElement } from '../../../../base/browser/ui/scrollbar/scrollableElement.js';
-import { IMcpService } from '../../../../workbench/contrib/mcp/common/mcpTypes.js';
 import { IAICustomizationItemsModel } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationItemsModel.js';
 import { ICustomizationHarnessService } from '../../../../workbench/contrib/chat/common/customizationHarnessService.js';
-import { CUSTOMIZATION_ITEMS } from './customizationsToolbar.contribution.js';
+import { CUSTOMIZATION_ITEMS, readCustomizationCount } from './customizationsToolbar.contribution.js';
 import { Menus } from '../../../browser/menus.js';
+import { IAICustomizationMcpServerCountService } from './customizationMcpServerCount.js';
+import { ILanguageModelToolsService } from '../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
+import { IAgentHostToolSetEnablementService } from '../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostToolSetEnablementService.js';
 const $ = DOM.$;
 const CUSTOMIZATIONS_VERTICAL_PADDING = 6;
+const CUSTOMIZATIONS_COLLAPSED_STORAGE_KEY = 'agentSessions.customizationsShortcuts.collapsed';
 
 export interface IAICustomizationShortcutsWidgetOptions {
 	readonly onDidChangeLayout?: () => void;
@@ -63,11 +67,16 @@ export class AICustomizationShortcutsWidget extends Disposable {
 		container: HTMLElement,
 		options: IAICustomizationShortcutsWidgetOptions | undefined,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IMcpService private readonly mcpService: IMcpService,
+		@IAICustomizationMcpServerCountService private readonly mcpServerCountService: IAICustomizationMcpServerCountService,
 		@IAICustomizationItemsModel private readonly itemsModel: IAICustomizationItemsModel,
 		@ICustomizationHarnessService private readonly harnessService: ICustomizationHarnessService,
+		@IStorageService private readonly storageService: IStorageService,
+		@ILanguageModelToolsService private readonly toolsService: ILanguageModelToolsService,
+		@IAgentHostToolSetEnablementService private readonly toolEnablementService: IAgentHostToolSetEnablementService,
 	) {
 		super();
+
+		this._collapsed = this.storageService.getBoolean(CUSTOMIZATIONS_COLLAPSED_STORAGE_KEY, StorageScope.PROFILE, false);
 
 		// Stable wrapper appended once to the parent. Re-renders replace the
 		// wrapper's children only, so the widget keeps its position relative
@@ -93,9 +102,9 @@ export class AICustomizationShortcutsWidget extends Disposable {
 		this._scrollableDomNode = undefined;
 		this._rootVerticalPadding = 0;
 		this._headerTotalCount = 0;
-		this._collapsed = false;
 		DOM.clearNode(this._wrapper);
 		this._render(this._wrapper, this._options);
+		this._setCollapsed(this._collapsed);
 	}
 
 	private _totalCount() {
@@ -108,13 +117,7 @@ export class AICustomizationShortcutsWidget extends Disposable {
 				if (config.section && hidden.has(config.section)) {
 					continue;
 				}
-				if (config.modelSection) {
-					total += this.itemsModel.getCount(config.modelSection).read(reader);
-				} else if (config.isMcp) {
-					total += this.mcpService.servers.read(reader).length;
-				} else if (config.isPlugins) {
-					total += this.itemsModel.getPluginCount().read(reader);
-				}
+				total += readCustomizationCount(config, reader, this.itemsModel, this.mcpServerCountService, this.toolsService, this.toolEnablementService);
 			}
 			return total;
 		});
@@ -201,6 +204,7 @@ export class AICustomizationShortcutsWidget extends Disposable {
 
 	private _toggleCollapsed(): void {
 		this._setCollapsed(!this._collapsed);
+		this.storageService.store(CUSTOMIZATIONS_COLLAPSED_STORAGE_KEY, this._collapsed, StorageScope.PROFILE, StorageTarget.USER);
 		this._onDidToggleCollapsed.fire(this._collapsed);
 		this._onDidChangeHeight.fire();
 	}
@@ -248,5 +252,9 @@ export class AICustomizationShortcutsWidget extends Disposable {
 			return;
 		}
 		this._toolbar?.focus();
+	}
+
+	hasFocus(): boolean {
+		return !!this._wrapper && DOM.isAncestorOfActiveElement(this._wrapper);
 	}
 }

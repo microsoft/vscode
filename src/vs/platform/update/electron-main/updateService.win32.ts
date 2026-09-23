@@ -5,13 +5,14 @@
 
 import { ChildProcess, spawn } from 'child_process';
 import { app } from 'electron';
-import { existsSync, unlinkSync } from 'fs';
+import { unlinkSync, writeFileSync } from 'fs';
 import { mkdir, readFile, unlink } from 'fs/promises';
 import { release, tmpdir } from 'os';
 import { Delayer, ProcessTimeRunOnceScheduler, timeout } from '../../../base/common/async.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
-import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
+import { CancellationTokenSource } from '../../../base/common/cancellation.js';
 import { memoize } from '../../../base/common/decorators.js';
+import { isCancellationError } from '../../../base/common/errors.js';
 import { hash } from '../../../base/common/hash.js';
 import * as path from '../../../base/common/path.js';
 import { basename } from '../../../base/common/path.js';
@@ -34,6 +35,8 @@ import { IApplicationStorageMainService } from '../../storage/electron-main/stor
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { AvailableForDownload, DisablementReason, IUpdate, State, StateType, UpdateType } from '../common/update.js';
 import { AbstractUpdateService, createUpdateURL, getUpdateRequestHeaders, IUpdateURLOptions, UpdateErrorClassification } from './abstractUpdateService.js';
+import { getRelaunchArguments } from './updateRelaunchArguments.js';
+import { getWin32UpdateType } from './win32UpdateType.js';
 
 interface IAvailableUpdate {
 	packagePath: string;
@@ -44,29 +47,28 @@ interface IAvailableUpdate {
 	updateProcess?: ChildProcess;
 }
 
-let _updateType: UpdateType | undefined = undefined;
-function getUpdateType(): UpdateType {
-	if (typeof _updateType === 'undefined') {
-		_updateType = existsSync(path.join(path.dirname(process.execPath), 'unins000.exe'))
-			? UpdateType.Setup
-			: UpdateType.Archive;
-	}
-
-	return _updateType;
-}
+const RELAUNCH_ARGUMENTS_FILE_PREFIX = 'relaunch-args-';
 
 export class Win32UpdateService extends AbstractUpdateService implements IRelaunchHandler {
 
 	private availableUpdate: IAvailableUpdate | undefined;
 	private updateCancellationTokenSource: CancellationTokenSource | undefined;
+	/** Cancels an in-flight check/download chain (e.g. when updates are disabled at runtime). */
+	private checkCancellationTokenSource: CancellationTokenSource | undefined;
+	/** Settles when the in-flight check/download chain has fully unwound; used by the cancel path. */
+	private checkPromise: Promise<unknown> | undefined;
 
 	private readonly readyMutexName: string;
 	private readonly updatingMutexName: string;
 	private readonly setupMutexName: string;
 
+	private get cachePathSync(): string {
+		return path.join(tmpdir(), `vscode-${this.productService.quality}-${this.productService.target}-${process.arch}`);
+	}
+
 	@memoize
 	get cachePath(): Promise<string> {
-		const result = path.join(tmpdir(), `vscode-${this.productService.quality}-${this.productService.target}-${process.arch}`);
+		const result = this.cachePathSync;
 		return mkdir(result, { recursive: true }).then(() => result);
 	}
 
@@ -168,29 +170,45 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 				// updatingVersionPath will be deleted by inno setup.
 			}
 		} else {
-			const fastUpdatesEnabled = this.configurationService.getValue('update.enableWindowsBackgroundUpdates');
-			// GC for background updates in system setup happens via inno_setup since it requires
-			// elevated permissions.
-			if (fastUpdatesEnabled && this.productService.target === 'user' && this.productService.commit) {
-				const versionedResourcesFolder = this.productService.commit.substring(0, 10);
-				const innoUpdater = path.join(exeDir, versionedResourcesFolder, 'tools', 'inno_updater.exe');
-				const exeName = basename(exePath);
-				await new Promise<void>(resolve => {
-					const child = spawn(innoUpdater, ['--gc', exePath, versionedResourcesFolder, exeName], {
-						stdio: ['ignore', 'ignore', 'ignore'],
-						windowsHide: true,
-						timeout: 2 * 60 * 1000
-					});
-					child.once('exit', () => resolve());
-				});
-			}
+			await this.collectGarbage();
 		}
+	}
+
+	private async collectGarbage(): Promise<void> {
+		if (!this.productService.win32VersionedUpdate) {
+			return;
+		}
+
+		const fastUpdatesEnabled = this.configurationService.getValue('update.enableWindowsBackgroundUpdates');
+		// GC for background updates in system setup happens via inno_setup since it requires elevated permissions.
+		if (!fastUpdatesEnabled || this.productService.target !== 'user' || !this.productService.commit) {
+			return;
+		}
+
+		const exePath = app.getPath('exe');
+		const exeDir = path.dirname(exePath);
+		const versionedResourcesFolder = this.productService.commit.substring(0, 10);
+		const innoUpdater = path.join(exeDir, versionedResourcesFolder, 'tools', 'inno_updater.exe');
+		const exeName = basename(exePath);
+		await new Promise<void>(resolve => {
+			const child = spawn(innoUpdater, ['--gc', exePath, versionedResourcesFolder, exeName], {
+				stdio: ['ignore', 'ignore', 'ignore'],
+				windowsHide: true,
+				timeout: 2 * 60 * 1000
+			});
+			// Resolve on 'error' too (missing inno_updater / permission denied) so the awaited promise always settles.
+			child.once('error', err => {
+				this.logService.error('update#collectGarbage - failed to spawn inno_updater', err);
+				resolve();
+			});
+			child.once('exit', () => resolve());
+		});
 	}
 
 	protected buildUpdateFeedUrl(quality: string, commit: string, options?: IUpdateURLOptions): string | undefined {
 		let platform = `win32-${process.arch}`;
 
-		if (getUpdateType() === UpdateType.Archive) {
+		if (this.getUpdateType() === UpdateType.Archive) {
 			platform += '-archive';
 		} else if (this.productService.target === 'user') {
 			platform += '-user';
@@ -213,11 +231,20 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 			this.setState(State.CheckingForUpdates(explicit));
 		}
 
+		// Track this check/download chain so it can be cancelled if updates are disabled at runtime.
+		this.checkCancellationTokenSource?.dispose(true);
+		const cts = this.checkCancellationTokenSource = new CancellationTokenSource();
+		const token = cts.token;
+
 		const headers = getUpdateRequestHeaders(this.productService.version);
-		this.requestService.request({ url, headers, callSite: 'updateService.win32.checkForUpdates' }, CancellationToken.None)
+		const promise = this.requestService.request({ url, headers, callSite: 'updateService.win32.checkForUpdates' }, token)
 			.then<IUpdate | null>(asJson)
 			.then(update => {
-				const updateType = getUpdateType();
+				const updateType = this.getUpdateType();
+
+				if (token.isCancellationRequested) {
+					return Promise.resolve(null);
+				}
 
 				if (!update || !update.url || !update.version || !update.productVersion) {
 					// If we were checking for an overwrite update and found nothing newer,
@@ -236,11 +263,7 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 					return Promise.resolve(null);
 				}
 
-				// When connection is metered and this is not an explicit check,
-				// show update is available but don't start downloading
-				if (!explicit && this.meteredConnectionService.isConnectionMetered) {
-					this.logService.info('update#doCheckForUpdates - update available but skipping download because connection is metered');
-					this.setState(State.AvailableForDownload(update));
+				if (this.deferAutomaticDownload(update, explicit)) {
 					return Promise.resolve(null);
 				}
 
@@ -254,9 +277,13 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 								return Promise.resolve(updatePackagePath);
 							}
 
+							if (this.deferAutomaticDownload(update, explicit)) {
+								return undefined;
+							}
+
 							const downloadPath = `${updatePackagePath}.tmp`;
 
-							return this.requestService.request({ url: update.url, callSite: 'updateService.win32.downloadUpdate' }, CancellationToken.None)
+							return this.requestService.request({ url: update.url, callSite: 'updateService.win32.downloadUpdate' }, token)
 								.then(context => {
 									// Get total size from Content-Length header
 									const contentLengthHeader = context.res.headers['content-length'];
@@ -288,6 +315,10 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 								.then(() => updatePackagePath);
 						});
 					}).then(packagePath => {
+						if (!packagePath || token.isCancellationRequested) {
+							return;
+						}
+
 						this.availableUpdate = { packagePath };
 						this.saveUpdateMetadata(update);
 						this.setState(State.Downloaded(update, explicit, this._overwrite));
@@ -302,6 +333,11 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 				});
 			})
 			.then(undefined, err => {
+				// The chain was cancelled because updates are being disabled; leave state to the disable flow.
+				if (token.isCancellationRequested || isCancellationError(err)) {
+					return;
+				}
+
 				this.telemetryService.publicLog2<{ messageHash: string }, UpdateErrorClassification>('update:error', { messageHash: String(hash(String(err))) });
 				this.logService.error(err);
 
@@ -314,16 +350,33 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 					this._overwrite = false;
 					this.setState(State.Ready(this.state.update, this.state.explicit, false));
 				} else {
-					this.setState(State.Idle(getUpdateType(), message));
+					this.setState(State.Idle(this.getUpdateType(), message));
 				}
 			});
+
+		this.checkPromise = promise;
+
+		promise.finally(() => {
+			if (this.checkCancellationTokenSource === cts) {
+				this.checkCancellationTokenSource = undefined;
+			}
+			if (this.checkPromise === promise) {
+				this.checkPromise = undefined;
+			}
+			cts.dispose();
+		});
 	}
 
 	protected override async doDownloadUpdate(state: AvailableForDownload): Promise<void> {
 		if (state.update.url) {
 			this.nativeHostMainService.openExternal(undefined, state.update.url);
 		}
-		this.setState(State.Idle(getUpdateType()));
+		this.setState(State.Idle(this.getUpdateType()));
+	}
+
+	protected override resumeDeferredDownload(): void {
+		this.setState(State.Idle(this.getUpdateType()));
+		void this.checkForUpdates(false);
 	}
 
 	private async getUpdatePackagePath(version: string): Promise<string> {
@@ -332,7 +385,10 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 	}
 
 	private async cleanup(exceptVersion: string | null = null): Promise<void> {
-		const filter = exceptVersion ? (one: string) => !(new RegExp(`${this.productService.quality}-${exceptVersion}\\.exe$`).test(one)) : () => true;
+		const relaunchArgumentsFileName = exceptVersion ? `${RELAUNCH_ARGUMENTS_FILE_PREFIX}${exceptVersion}` : undefined;
+		const filter = exceptVersion
+			? (one: string) => one !== relaunchArgumentsFileName && !(new RegExp(`${this.productService.quality}-${exceptVersion}\\.exe$`).test(one))
+			: () => true;
 
 		const cachePath = await this.cachePath;
 		const versions = await pfs.Promises.readdir(cachePath);
@@ -373,17 +429,23 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 			await this.unlink(progressFilePath);
 			await pfs.Promises.writeFile(this.availableUpdate.updateFilePath, 'flag');
 
+			const installerArgs = [
+				'/verysilent',
+				'/log',
+				`/update="${this.availableUpdate.updateFilePath}"`,
+				`/progress="${progressFilePath}"`,
+				`/sessionend="${sessionEndFlagPath}"`,
+				`/cancel="${cancelFilePath}"`,
+				'/nocloseapplications',
+				'/mergetasks=runcode,!desktopicon,!quicklaunchicon'
+			];
+
+			// The restarting instance populates this file immediately before releasing the installer.
+			const relaunchArgsFilePath = this.getRelaunchArgumentsFilePath(cachePath, update.version);
+			installerArgs.push(`/relaunchargs="${relaunchArgsFilePath}"`);
+
 			const child = spawn(this.availableUpdate.packagePath,
-				[
-					'/verysilent',
-					'/log',
-					`/update="${this.availableUpdate.updateFilePath}"`,
-					`/progress="${progressFilePath}"`,
-					`/sessionend="${sessionEndFlagPath}"`,
-					`/cancel="${cancelFilePath}"`,
-					'/nocloseapplications',
-					'/mergetasks=runcode,!desktopicon,!quicklaunchicon'
-				],
+				installerArgs,
 				{
 					detached: true,
 					stdio: ['ignore', 'ignore', 'ignore'],
@@ -397,7 +459,7 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 
 			child.once('exit', () => {
 				this.availableUpdate = undefined;
-				this.setState(State.Idle(getUpdateType()));
+				this.setState(State.Idle(this.getUpdateType()));
 			});
 		}
 
@@ -421,7 +483,7 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 				} else if (seenRunning) {
 					if (!this.availableUpdate?.updateProcess) {
 						this.availableUpdate = undefined;
-						this.setState(State.Idle(getUpdateType()));
+						this.setState(State.Idle(this.getUpdateType()));
 					}
 					return;
 				}
@@ -448,7 +510,7 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 
 		const cancelTimeout = new ProcessTimeRunOnceScheduler(() => {
 			this.logService.warn('update#doApplyUpdate: polling timed out waiting for update to be ready');
-			this.setState(State.Idle(getUpdateType(), 'Update did not complete within expected time'));
+			this.setState(State.Idle(this.getUpdateType(), 'Update did not complete within expected time'));
 		}, 60 * 60 * 1000);
 
 		// Poll for progress and ready mutex for 1 hour.
@@ -460,6 +522,42 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 			}
 			cts.dispose();
 		});
+	}
+
+	protected override async cancelUpdate(): Promise<void> {
+		// Abort an in-flight check/download so it never reaches the background installer.
+		const hadInFlightCheck = !!this.checkCancellationTokenSource;
+		const hadPendingUpdate = !!this.availableUpdate;
+		this.checkCancellationTokenSource?.dispose(true);
+		this.checkCancellationTokenSource = undefined;
+
+		// Only clean up if a check/download was in flight; avoids creating the cache dir when just disabled.
+		if (hadInFlightCheck) {
+			try {
+				await this.checkPromise;
+			} catch {
+				// the chain swallows its own errors; ignore
+			}
+			await this.cleanupTempFiles();
+		}
+
+		// Tear down any pending (downloaded/applying) update.
+		await this.cancelPendingUpdate();
+
+		// Reclaim a partial versioned-resource folder a cancelled update may leave; only after real teardown.
+		if (hadInFlightCheck || hadPendingUpdate) {
+			this.collectGarbage().catch(err => this.logService.error('update#collectGarbage - failed to collect garbage', err));
+		}
+	}
+
+	private async cleanupTempFiles(): Promise<void> {
+		try {
+			const cachePath = await this.cachePath;
+			const files = await pfs.Promises.readdir(cachePath);
+			await Promise.all(files.filter(file => file.endsWith('.tmp')).map(file => this.unlink(path.join(cachePath, file))));
+		} catch (err) {
+			this.logService.warn('update#cleanupTempFiles: failed to remove temporary download files', err);
+		}
 	}
 
 	protected override async cancelPendingUpdate(): Promise<void> {
@@ -521,17 +619,57 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 		this.logService.trace('update#quitAndInstall(): running raw#quitAndInstall()');
 
 		if (this.availableUpdate.updateFilePath) {
+			this.writeRelaunchArgumentsFile(this.cachePathSync, this.state.update.version);
 			try {
 				unlinkSync(this.availableUpdate.updateFilePath);
 			} catch {
 				// ignore
 			}
 		} else {
-			spawn(this.availableUpdate.packagePath, ['/silent', '/log', '/mergetasks=runcode,!desktopicon,!quicklaunchicon'], {
+			const installerArgs = ['/silent', '/log', '/mergetasks=runcode,!desktopicon,!quicklaunchicon'];
+
+			// Preserve session defining arguments (e.g. --extensions-dir) across the installer relaunch (see #322663).
+			const relaunchArgsFilePath = this.writeRelaunchArgumentsFile(this.cachePathSync, this.state.update.version);
+			if (relaunchArgsFilePath) {
+				installerArgs.push(`/relaunchargs="${relaunchArgsFilePath}"`);
+			}
+
+			spawn(this.availableUpdate.packagePath, installerArgs, {
 				detached: true,
 				stdio: ['ignore', 'ignore', 'ignore'],
+				windowsVerbatimArguments: true,
 				env: { ...process.env, __COMPAT_LAYER: 'RunAsInvoker' }
 			});
+		}
+	}
+
+	private getRelaunchArgumentsFilePath(cachePath: string, version: string): string {
+		return path.join(cachePath, `${RELAUNCH_ARGUMENTS_FILE_PREFIX}${version}`);
+	}
+
+	/**
+	 * Writes the arguments from {@link getRelaunchArguments} to a file in the update cache and returns its path (or
+	 * `undefined` when there is nothing to carry forward). The installer reads it and passes the arguments to `Code.exe`.
+	 */
+	private writeRelaunchArgumentsFile(cachePath: string, version: string): string | undefined {
+		const relaunchArguments = getRelaunchArguments(this.environmentMainService.args, process.argv);
+		const relaunchArgsFilePath = this.getRelaunchArgumentsFilePath(cachePath, version);
+
+		if (!relaunchArguments) {
+			try {
+				unlinkSync(relaunchArgsFilePath); // remove any stale file from a previous relaunch
+			} catch {
+				// ignore
+			}
+			return undefined;
+		}
+
+		try {
+			writeFileSync(relaunchArgsFilePath, relaunchArguments);
+			return relaunchArgsFilePath;
+		} catch (err) {
+			this.logService.error('update#writeRelaunchArgumentsFile: failed to write relaunch arguments', err);
+			return undefined;
 		}
 	}
 
@@ -560,7 +698,7 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 	}
 
 	protected override getUpdateType(): UpdateType {
-		return getUpdateType();
+		return getWin32UpdateType(this.productService.target);
 	}
 
 	override async _applySpecificUpdate(packagePath: string, commit?: string): Promise<void> {

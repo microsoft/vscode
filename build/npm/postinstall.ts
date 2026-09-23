@@ -9,6 +9,7 @@ import * as os from 'os';
 import * as child_process from 'child_process';
 import { dirs } from './dirs.ts';
 import { root, stateFile, stateContentsFile, computeState, computeContents, isUpToDate } from './installStateHash.ts';
+import { ensureElectronTypes } from './electronTypes.ts';
 
 const npm = process.platform === 'win32' ? 'npm.cmd' : 'npm';
 const rootNpmrcConfigKeys = getNpmrcConfigKeys(path.join(root, '.npmrc'));
@@ -238,6 +239,8 @@ async function runWithConcurrency(tasks: (() => Promise<void>)[], concurrency: n
 }
 
 async function main() {
+	await ensureElectronTypes();
+
 	if (!process.env['VSCODE_FORCE_INSTALL'] && isUpToDate()) {
 		log('.', 'All dependencies up to date, skipping postinstall.');
 		child_process.execSync('git config pull.rebase merges');
@@ -335,18 +338,50 @@ async function main() {
 		log('.', `Created ${claudeSkillsLinkType} .claude/skills -> .agents/skills`);
 	}
 
-	// Temporary: patch @github/copilot-sdk session.js to fix ESM import
-	// (missing .js extension on vscode-jsonrpc/node). Fixed upstream in v0.1.32.
-	// TODO: Remove once @github/copilot-sdk is updated to >=0.1.32
+	// foundry-local-sdk (on-device chat dictation) resolves its prebuilt N-API
+	// addon and native core libraries from fixed, package-relative paths. We do
+	// not ship that native payload (its addon requires a newer glibc than our
+	// minimum supported Linux distros); it is downloaded on demand at runtime
+	// into a per-user cache. Patch the SDK loader so it honors the
+	// `VSCODE_FOUNDRY_LOCAL_NATIVE_DIR` env var (pointing at that cache) for both
+	// the addon and the core libraries, falling back to the original
+	// package-relative logic so dev-from-source still works. Idempotent.
 	for (const dir of ['', 'remote']) {
-		const sessionFile = path.join(root, dir, 'node_modules', '@github', 'copilot-sdk', 'dist', 'session.js');
-		if (fs.existsSync(sessionFile)) {
-			const content = fs.readFileSync(sessionFile, 'utf8');
-			const patched = content.replace(/from "vscode-jsonrpc\/node"/g, 'from "vscode-jsonrpc/node.js"');
-			if (content !== patched) {
-				fs.writeFileSync(sessionFile, patched);
-				log(dir || '.', 'Patched @github/copilot-sdk session.js (vscode-jsonrpc ESM import fix)');
+		const coreInteropFile = path.join(root, dir, 'node_modules', 'foundry-local-sdk', 'dist', 'detail', 'coreInterop.js');
+		if (!fs.existsSync(coreInteropFile)) {
+			continue;
+		}
+		const content = fs.readFileSync(coreInteropFile, 'utf8');
+		// Apply the addon and core patches independently. They previously shared
+		// a single `VSCODE_FOUNDRY_LOCAL_NATIVE_DIR` presence check, so if only
+		// one SDK needle changed the file was left half-patched and every later
+		// run skipped it entirely — and since packaging removes both native
+		// fallbacks, a missing half makes shipped dictation unusable. Use a
+		// distinct marker per half and apply whichever is absent.
+		const addonMarker = '// VSCODE_PATCH:foundry-addon-native-dir';
+		const coreMarker = '// VSCODE_PATCH:foundry-core-native-dir';
+		const addonNeedle = `    const platformKey = \`\${platform}-\${arch}\`;\n    // The prebuilt addon ships inside the SDK package under prebuilds/<platform>/\n    const sdkRoot = path.resolve(__dirname, '..', '..');`;
+		const addonReplacement = `    const platformKey = \`\${platform}-\${arch}\`;\n    ${addonMarker}: prefer the on-demand native runtime cache when present.\n    const overrideDir = process.env.VSCODE_FOUNDRY_LOCAL_NATIVE_DIR;\n    if (overrideDir) {\n        const overridePath = path.join(overrideDir, 'prebuilds', platformKey, 'foundry_local_napi.node');\n        if (fs.existsSync(overridePath)) {\n            return require(overridePath);\n        }\n    }\n    // The prebuilt addon ships inside the SDK package under prebuilds/<platform>/\n    const sdkRoot = path.resolve(__dirname, '..', '..');`;
+		const coreNeedle = `        const platformKey = \`\${platform}-\${arch}\`;\n        // Resolve the native binary directory at foundry-local-core/<platform>,`;
+		const coreReplacement = `        const platformKey = \`\${platform}-\${arch}\`;\n        ${coreMarker}: prefer the on-demand native runtime cache when present.\n        const overrideDir = process.env.VSCODE_FOUNDRY_LOCAL_NATIVE_DIR;\n        if (overrideDir) {\n            const overrideExt = CoreInterop._getLibraryExtension();\n            const overrideCorePath = path.join(overrideDir, 'foundry-local-core', platformKey, \`Microsoft.AI.Foundry.Local.Core\${overrideExt}\`);\n            if (fs.existsSync(overrideCorePath)) {\n                config.params['FoundryLocalCorePath'] = overrideCorePath;\n                return overrideCorePath;\n            }\n        }\n        // Resolve the native binary directory at foundry-local-core/<platform>,`;
+		let patched = content;
+		if (!patched.includes(addonMarker)) {
+			if (patched.includes(addonNeedle)) {
+				patched = patched.replace(addonNeedle, addonReplacement);
+			} else {
+				log(dir || '.', 'WARNING: foundry-local-sdk coreInterop.js loadAddon shape changed; skipped addon override patch');
 			}
+		}
+		if (!patched.includes(coreMarker)) {
+			if (patched.includes(coreNeedle)) {
+				patched = patched.replace(coreNeedle, coreReplacement);
+			} else {
+				log(dir || '.', 'WARNING: foundry-local-sdk coreInterop.js _resolveDefaultCorePath shape changed; skipped core override patch');
+			}
+		}
+		if (content !== patched) {
+			fs.writeFileSync(coreInteropFile, patched);
+			log(dir || '.', 'Patched foundry-local-sdk coreInterop.js (on-demand native runtime override)');
 		}
 	}
 }

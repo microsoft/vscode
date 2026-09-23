@@ -151,6 +151,13 @@ export class ChatSelectedTools extends Disposable {
 			}
 		}
 		for (const toolSet of this._toolsService.getToolSetsForModel(lm, r)) {
+			// Hidden tool sets (e.g. the built-in client tool sets that only exist to group tools
+			// in the Chat Customizations UI) can't be toggled here and are ignored by the picker.
+			// Their member tools are already resolved by the loop above, so skip them entirely -
+			// otherwise they'd override individual tool state and re-enable disabled tools.
+			if (toolSet.hiddenInToolsPicker) {
+				continue;
+			}
 			const toolSetEnabled = currentMap.toolSets.get(toolSet.id) !== false; // if unknown, it's enabled
 			map.set(toolSet, toolSetEnabled);
 			for (const tool of toolSet.getTools(r)) {

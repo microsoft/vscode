@@ -8,7 +8,6 @@ import { CancellationToken } from '../../../base/common/cancellation.js';
 import { memoize } from '../../../base/common/decorators.js';
 import { Event } from '../../../base/common/event.js';
 import { hash } from '../../../base/common/hash.js';
-import { DisposableStore } from '../../../base/common/lifecycle.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { IEnvironmentMainService } from '../../environment/electron-main/environmentMainService.js';
 import { ILifecycleMainService, IRelaunchHandler, IRelaunchOptions } from '../../lifecycle/electron-main/lifecycleMainService.js';
@@ -22,8 +21,6 @@ import { IMeteredConnectionService } from '../../meteredConnection/common/metere
 import { AbstractUpdateService, createUpdateURL, getUpdateRequestHeaders, IUpdateURLOptions, UpdateErrorClassification } from './abstractUpdateService.js';
 
 export class DarwinUpdateService extends AbstractUpdateService implements IRelaunchHandler {
-
-	private readonly disposables = new DisposableStore();
 
 	@memoize private get onRawError(): Event<string> { return Event.fromNodeEventEmitter(electron.autoUpdater, 'error', (_, message) => message); }
 	@memoize private get onRawCheckingForUpdate(): Event<void> { return Event.fromNodeEventEmitter<void>(electron.autoUpdater, 'checking-for-update'); }
@@ -71,11 +68,11 @@ export class DarwinUpdateService extends AbstractUpdateService implements IRelau
 	protected override async initialize(): Promise<void> {
 		await super.initialize();
 
-		this.onRawError(this.onError, this, this.disposables);
-		this.onRawCheckingForUpdate(this.onCheckingForUpdate, this, this.disposables);
-		this.onRawUpdateAvailable(this.onUpdateAvailable, this, this.disposables);
-		this.onRawUpdateDownloaded(this.onUpdateDownloaded, this, this.disposables);
-		this.onRawUpdateNotAvailable(this.onUpdateNotAvailable, this, this.disposables);
+		this.onRawError(this.onError, this, this._store);
+		this.onRawCheckingForUpdate(this.onCheckingForUpdate, this, this._store);
+		this.onRawUpdateAvailable(this.onUpdateAvailable, this, this._store);
+		this.onRawUpdateDownloaded(this.onUpdateDownloaded, this, this._store);
+		this.onRawUpdateNotAvailable(this.onUpdateNotAvailable, this, this._store);
 	}
 
 	private onCheckingForUpdate(): void {
@@ -85,6 +82,11 @@ export class DarwinUpdateService extends AbstractUpdateService implements IRelau
 	private onError(err: string): void {
 		this.telemetryService.publicLog2<{ messageHash: string }, UpdateErrorClassification>('update:error', { messageHash: String(hash(String(err))) });
 		this.logService.error('UpdateService error:', err);
+
+		// Only react while actively checking/downloading; a late error must not clobber Disabled or Ready.
+		if (this.state.type !== StateType.CheckingForUpdates && this.state.type !== StateType.Downloading && this.state.type !== StateType.Overwriting) {
+			return;
+		}
 
 		// only show message when explicitly checking for updates
 		const message = (this.state.type === StateType.CheckingForUpdates && this.state.explicit) ? err : undefined;
@@ -204,9 +206,5 @@ export class DarwinUpdateService extends AbstractUpdateService implements IRelau
 	protected override doQuitAndInstall(): void {
 		this.logService.trace('update#quitAndInstall(): running raw#quitAndInstall()');
 		electron.autoUpdater.quitAndInstall();
-	}
-
-	dispose(): void {
-		this.disposables.dispose();
 	}
 }

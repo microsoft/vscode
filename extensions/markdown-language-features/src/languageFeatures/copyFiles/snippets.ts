@@ -8,7 +8,7 @@
  */
 export function resolveSnippet(snippetString: string, vars: ReadonlyMap<string, string>): string {
 	return snippetString.replaceAll(/(?<escape>\\\$)|(?<!\\)\$\{(?<name>\w+)(?:\/(?<pattern>(?:\\\/|[^\}])+?)\/(?<replacement>(?:\\\/|[^\}])+?)\/)?\}/g, (match, _escape, name, pattern, replacement, _offset, _str, groups) => {
-		if (groups?.['escape']) {
+		if (groups?.escape) {
 			return '$';
 		}
 

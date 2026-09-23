@@ -86,30 +86,76 @@ export class PromptCodeActionProvider implements CodeActionProvider {
 
 	private getEnableMcpServerCodeActions(model: ITextModel, range: Range, result: CodeAction[]): void {
 		const markersInRange = this.getMarkersInRange(model, range);
-		if (markersInRange.some(marker => this.getMarkerCode(marker) === PromptValidatorMarkerCode.MissingGithubMcpServer)) {
-			result.push(this.createCodeAction(
-				model,
-				range,
-				localize('enableGithubMcpServerSetting', "Enable Built-in GitHub MCP Server"),
-				undefined,
-				{ id: 'workbench.action.openSettings', title: '', arguments: ['@id:github.copilot.chat.githubMcpServer.enabled'] }
-			));
-			result.push(this.createCodeAction(
-				model,
-				range,
-				localize('installGithubMcpServer', "Install GitHub MCP Server from Marketplace"),
-				undefined,
-				{ id: 'workbench.extensions.search', title: '', arguments: ['@mcp github'] }
-			));
-		}
-		if (markersInRange.some(marker => this.getMarkerCode(marker) === PromptValidatorMarkerCode.MissingPlaywrightMcpServer)) {
-			result.push(this.createCodeAction(
-				model,
-				range,
-				localize('installPlaywrightMcpServer', "Install Playwright MCP Server from Marketplace"),
-				undefined,
-				{ id: 'workbench.extensions.search', title: '', arguments: ['@mcp playwright'] }
-			));
+		for (const marker of markersInRange) {
+			const markerCode = this.getMarkerCode(marker);
+			if (markerCode === PromptValidatorMarkerCode.MissingGithubMcpServer) {
+				result.push(this.createCodeAction(
+					model,
+					range,
+					localize('enableGithubMcpServerSetting', "Enable Built-in GitHub MCP Server"),
+					undefined,
+					{ id: 'workbench.action.openSettings', title: '', arguments: ['@id:github.copilot.chat.githubMcpServer.enabled'] }
+				));
+				result.push(this.createCodeAction(
+					model,
+					range,
+					localize('installGithubMcpServer', "Install GitHub MCP Server from Marketplace"),
+					undefined,
+					{ id: 'workbench.extensions.search', title: '', arguments: ['@mcp github'] }
+				));
+			} else if (markerCode === PromptValidatorMarkerCode.MissingPlaywrightMcpServer) {
+				result.push(this.createCodeAction(
+					model,
+					range,
+					localize('installPlaywrightMcpServer', "Install Playwright MCP Server from Marketplace"),
+					undefined,
+					{ id: 'workbench.extensions.search', title: '', arguments: ['@mcp playwright'] }
+				));
+			} else if (markerCode === PromptValidatorMarkerCode.UnknownExtensionReference) {
+				const reference = model.getValueInRange(new Range(marker.startLineNumber, marker.startColumn, marker.endLineNumber, marker.endColumn)).trim();
+				const extensionId = reference.split('/')[0].replace(/^['"]|['"]$/g, '');
+				if (extensionId) {
+					result.push(this.createCodeAction(
+						model,
+						range,
+						localize('searchExtensionMarketplace', "Search Marketplace for Extension '{0}'", extensionId),
+						undefined,
+						{ id: 'workbench.extensions.search', title: '', arguments: [`@id:${extensionId}`] }
+					));
+				}
+			} else if (markerCode === PromptValidatorMarkerCode.UnknownMcpServerReference) {
+				const reference = model.getValueInRange(new Range(marker.startLineNumber, marker.startColumn, marker.endLineNumber, marker.endColumn)).trim();
+				const serverId = reference.replace(/^['"]|['"]$/g, '');
+				if (serverId) {
+					result.push(this.createCodeAction(
+						model,
+						range,
+						localize('searchMcpServerMarketplace', "Search Marketplace for MCP Server '{0}'", serverId),
+						undefined,
+						{ id: 'workbench.extensions.search', title: '', arguments: [`@mcp ${serverId}`] }
+					));
+				}
+			} else {
+				const reference = model.getValueInRange(new Range(marker.startLineNumber, marker.startColumn, marker.endLineNumber, marker.endColumn)).trim();
+				if (reference) {
+					const extensionId = reference.split('/')[0].replace(/^['"]|['"]$/g, '');
+					result.push(this.createCodeAction(
+						model,
+						range,
+						localize('searchExtensionMarketplaceGeneric', "Search Marketplace for Extension '{0}'", extensionId),
+						undefined,
+						{ id: 'workbench.extensions.search', title: '', arguments: [`@id:${extensionId}`] }
+					));
+					const serverId = reference.replace(/^['"]|['"]$/g, '');
+					result.push(this.createCodeAction(
+						model,
+						range,
+						localize('searchMcpServerMarketplaceGeneric', "Search Marketplace for MCP Server '{0}'", serverId),
+						undefined,
+						{ id: 'workbench.extensions.search', title: '', arguments: [`@mcp ${serverId}`] }
+					));
+				}
+			}
 		}
 	}
 

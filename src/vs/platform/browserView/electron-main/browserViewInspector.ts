@@ -5,16 +5,32 @@
 
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable, IDisposable, MutableDisposable } from '../../../base/common/lifecycle.js';
-import { IElementData, IBrowserViewTheme, IBrowserViewRect } from '../common/browserView.js';
+import { BrowserElementSelectionMode, IBrowserElementCommentsUpdate, IBrowserElementSelectionOptions, IBrowserElementSelectionState, IElementData, IBrowserViewTheme, IBrowserViewRect, IBrowserViewPreloadLocalizedStrings } from '../common/browserView.js';
 import { ICDPConnection } from '../common/cdp/types.js';
 import type { BrowserView } from './browserView.js';
 import { BrowserViewFrameInspector } from './browserViewFrameInspector.js';
+import { localize } from '../../../nls.js';
+
+const localizedStrings: IBrowserViewPreloadLocalizedStrings = {
+	addComment: localize('browserView.addComment', "Add Comment"),
+	addCommentPlaceholder: localize('browserView.addCommentPlaceholder', "Add a comment"),
+	commentOnSelectedElement: localize('browserView.commentOnSelectedElement', "Comment on selected element"),
+	elementComment: localize('browserView.elementComment', "Element comment {0}"),
+	elementCommentWithBody: localize('browserView.elementCommentWithBody', "Element comment {0}: {1}"),
+	emptyElementComment: localize('browserView.emptyElementComment', "Empty element comment {0}"),
+	removeComment: localize('browserView.removeComment', "Remove Comment"),
+	removeElementComment: localize('browserView.removeElementComment', "Remove element comment"),
+};
 
 interface IActiveSelection extends IDisposable {
+	options: IBrowserElementSelectionOptions;
 }
+
+interface IActiveAreaSelection extends IDisposable { }
 
 export interface IElementHandle extends IDisposable {
 	addToChat(): Promise<void>;
+	addComment(): void;
 	highlight(): Promise<void>;
 	hideHighlight(): Promise<void>;
 }
@@ -47,14 +63,23 @@ export class BrowserViewInspector extends Disposable {
 
 	private readonly _onDidSelectElement = this._register(new Emitter<IElementData>());
 	readonly onDidSelectElement: Event<IElementData> = this._onDidSelectElement.event;
+	private readonly _onDidRemoveElementComment = this._register(new Emitter<string>());
+	readonly onDidRemoveElementComment = this._onDidRemoveElementComment.event;
 
-	private readonly _onDidChangeElementSelectionActive = this._register(new Emitter<boolean>());
-	readonly onDidChangeElementSelectionActive: Event<boolean> = this._onDidChangeElementSelectionActive.event;
+	private readonly _onDidChangeElementSelectionState = this._register(new Emitter<IBrowserElementSelectionState>());
+	readonly onDidChangeElementSelectionState: Event<IBrowserElementSelectionState> = this._onDidChangeElementSelectionState.event;
 
 	private _elementSelectionActive = false;
 	get isElementSelectionActive(): boolean { return this._elementSelectionActive; }
+	get elementSelectionState(): IBrowserElementSelectionState {
+		return {
+			active: this._elementSelectionActive,
+			options: this._activeSelection.value?.options ?? {}
+		};
+	}
 
 	private readonly _activeSelection = this._register(new MutableDisposable<IActiveSelection>());
+	private _inspectionOperation: Promise<void> = Promise.resolve();
 	private _theme: IBrowserViewTheme = {};
 
 	// Area selection — drag-to-select a rectangle on the top frame.
@@ -73,7 +98,7 @@ export class BrowserViewInspector extends Disposable {
 	private _areaSelectionActive = false;
 	get isAreaSelectionActive(): boolean { return this._areaSelectionActive; }
 
-	private readonly _activeAreaSelection = this._register(new MutableDisposable<IActiveSelection>());
+	private readonly _activeAreaSelection = this._register(new MutableDisposable<IActiveAreaSelection>());
 
 	private readonly _registry = this._register(new FrameInspectorRegistry());
 
@@ -107,6 +132,7 @@ export class BrowserViewInspector extends Disposable {
 
 				// Apply theme immediately regardless of inspector state
 				senderFrame.postMessage('vscode:browserView:setTheme', this._theme);
+				senderFrame.postMessage('vscode:browserView:setLocalizedStrings', localizedStrings);
 
 				this._registry.notifyFrameReady(senderFrame, frameToken);
 
@@ -224,7 +250,9 @@ export class BrowserViewInspector extends Disposable {
 	 */
 	private _onInspectorAdopted(inspector: BrowserViewFrameInspector): void {
 		inspector.onDidInspectElement(async nodeData => {
-			this._activeSelection.clear();
+			if (!this._activeSelection.value?.options?.continuous) {
+				this._activeSelection.clear();
+			}
 			try {
 				const offset = await this._getFrameOffsetInPage(inspector.frame);
 				nodeData = this._offsetElementData(nodeData, offset);
@@ -233,6 +261,7 @@ export class BrowserViewInspector extends Disposable {
 			}
 			this._onDidSelectElement.fire(nodeData);
 		});
+		inspector.onDidRemoveElementComment(elementId => this._onDidRemoveElementComment.fire(elementId));
 
 		// When a frame's preload stops picking, stop all other frames too
 		inspector.onDidStopPicking(() => {
@@ -241,7 +270,12 @@ export class BrowserViewInspector extends Disposable {
 
 		// If element selection is currently active, start it on the new frame
 		if (this._activeSelection.value) {
-			inspector.startInspection().catch(() => { });
+			void this._queueInspectionOperation(async () => {
+				const activeSelection = this._activeSelection.value;
+				if (activeSelection) {
+					await inspector.startInspection(activeSelection.options);
+				}
+			}).catch(() => { });
 		}
 
 		inspector.setTheme(this._theme);
@@ -258,44 +292,79 @@ export class BrowserViewInspector extends Disposable {
 	/**
 	 * Toggle element selection mode across all frames.
 	 */
-	async toggleElementSelection(enabled?: boolean): Promise<void> {
+	async toggleElementSelection(enabled?: boolean, options: IBrowserElementSelectionOptions = {}): Promise<void> {
 		const newEnabled = enabled ?? !this._elementSelectionActive;
-		if (newEnabled === this._elementSelectionActive) {
-			return;
-		}
-
 		if (!newEnabled) {
 			this._activeSelection.clear();
 			return;
 		}
-
 		// Element and area selection are mutually exclusive — enabling one
 		// cancels the other so both pickers never overlay the page at once.
 		this._activeAreaSelection.clear();
 
-		const start = () => Promise.all([...this._registry.inspectors].map(i => i.startInspection()));
-		const stop = () => Promise.all([...this._registry.inspectors].map(i => i.stopInspection()));
+		const activeSelection = this._activeSelection.value;
+		const updatedOptions = activeSelection ? { ...activeSelection.options, ...options } : { mode: BrowserElementSelectionMode.Select, ...options };
+
+		if (activeSelection) {
+			activeSelection.options = updatedOptions;
+			try {
+				if (await this._startInspection(activeSelection, updatedOptions)) {
+					this._elementSelectionActive = true;
+					this._onDidChangeElementSelectionState.fire({ active: true, options: updatedOptions });
+				}
+			} catch {
+				if (this._activeSelection.value === activeSelection && activeSelection.options === updatedOptions) {
+					this._activeSelection.clear();
+				}
+			}
+			return;
+		}
 
 		const selection: IActiveSelection = {
+			options: updatedOptions,
 			dispose: () => {
 				if (this._activeSelection.value === selection) {
 					this._elementSelectionActive = false;
-					this._onDidChangeElementSelectionActive.fire(false);
+					this._onDidChangeElementSelectionState.fire({ active: false, options: selection.options });
 					this._activeSelection.clearAndLeak();
-					void stop().catch(() => { });
+					void this._queueInspectionOperation(async () => {
+						await Promise.all([...this._registry.inspectors].map(i => i.stopInspection()));
+					}).catch(() => { });
 				}
 			}
 		};
 		this._activeSelection.value = selection;
-
 		try {
-			await start();
-			if (this._activeSelection.value === selection) {
+			if (await this._startInspection(selection, updatedOptions)) {
 				this._elementSelectionActive = true;
-				this._onDidChangeElementSelectionActive.fire(true);
+				this._onDidChangeElementSelectionState.fire({ active: true, options: updatedOptions });
 			}
 		} catch {
-			this._activeSelection.clear();
+			if (this._activeSelection.value === selection && selection.options === updatedOptions) {
+				this._activeSelection.clear();
+			}
+		}
+	}
+
+	private async _startInspection(selection: IActiveSelection, options: IBrowserElementSelectionOptions): Promise<boolean> {
+		await this._queueInspectionOperation(async () => {
+			if (this._activeSelection.value !== selection || selection.options !== options) {
+				return;
+			}
+			await Promise.all([...this._registry.inspectors].map(i => i.startInspection(options)));
+		});
+		return this._activeSelection.value === selection && selection.options === options;
+	}
+
+	private _queueInspectionOperation(operation: () => Promise<void>): Promise<void> {
+		const result = this._inspectionOperation.then(operation);
+		this._inspectionOperation = result.catch(() => { });
+		return result;
+	}
+
+	setElementComments(update: IBrowserElementCommentsUpdate): void {
+		for (const inspector of this._registry.inspectors) {
+			inspector.setElementComments(update);
 		}
 	}
 
@@ -323,7 +392,7 @@ export class BrowserViewInspector extends Disposable {
 		const start = () => { mainFrame.postMessage('vscode:browserView:startAreaPicker', undefined); };
 		const stop = () => { try { mainFrame.postMessage('vscode:browserView:stopAreaPicker', undefined); } catch { /* frame may be gone */ } };
 
-		const selection: IActiveSelection = {
+		const selection: IActiveAreaSelection = {
 			dispose: () => {
 				// External cancellation (toggleAreaSelection(false), navigation, element
 				// selection takeover). The IPC-driven termination paths use clearAndLeak
@@ -368,7 +437,37 @@ export class BrowserViewInspector extends Disposable {
 	 * Resolve a handle to an element. Routes to the correct frame inspector.
 	 */
 	getElementHandle(id: string, frame: Electron.WebFrameMain): IElementHandle | undefined {
-		return this._registry.getByFrame(frame)?.getElementHandle(id);
+		const handle = this._registry.getByFrame(frame)?.getElementHandle(id);
+		if (!handle) {
+			return undefined;
+		}
+		let commentRequested = false;
+		return {
+			addToChat: () => handle.addToChat(),
+			addComment: () => {
+				if (commentRequested) {
+					return;
+				}
+				commentRequested = true;
+				setTimeout(() => {
+					this._activeAreaSelection.clear();
+					this._activeSelection.clear();
+					void this._queueInspectionOperation(async () => {
+						if (!this.browser.webContents.isDestroyed()) {
+							this.browser.webContents.focus();
+							handle.addComment();
+						}
+					});
+				}, 0);
+			},
+			highlight: () => handle.highlight(),
+			hideHighlight: () => handle.hideHighlight(),
+			dispose: () => {
+				if (!commentRequested) {
+					handle.dispose();
+				}
+			}
+		};
 	}
 
 	async getVisualViewportScale(frame: Electron.WebFrameMain = this.browser.webContents.mainFrame): Promise<number> {

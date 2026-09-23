@@ -16,6 +16,11 @@ export interface IOnboardingRunContext {
 	readonly targetWindow: Window;
 
 	/**
+	 * Reports that the presentation rendered its first visible element. Called at most once per run.
+	 */
+	readonly onDidShow?: () => void;
+
+	/**
 	 * Fires when the engine wants the presentation to abort the current run
 	 * (e.g. the application is shutting down). The presentation should resolve
 	 * its `run` promise with an aborted result.

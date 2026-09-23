@@ -8,24 +8,36 @@ import { isEqual } from '../../../../base/common/resources.js';
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import {
 	SessionHasChangesContext,
+	SessionHasCachedChangesContext,
 	SessionHasPullRequestContext,
+	SessionHasIssuesContext,
 	SessionHasWorkspaceContext,
+	IsQuickChatSessionContext,
 	SessionIsArchivedContext,
+	SessionIsActiveContext,
 	SessionIsCreatedContext,
 	SessionIsReadContext,
 	SessionIsStickyContext,
 	SessionProviderIdContext,
 	SessionSupportsDeleteContext,
 	SessionSupportsMultipleChatsContext,
+	SessionSupportsForkContext,
+	SessionSupportsSideChatContext,
 	SessionSupportsRenameContext,
 	SessionTypeContext,
 	SessionWorkspaceIsVirtualContext,
 	SessionIdContext,
 	SessionHasMultipleCommittedChatsContext,
+	SessionShouldShowChatTabsContext,
 	SessionHasMultipleOpenChatsContext,
 	SessionActiveChatIsClosableContext,
+	SessionActiveChatIsDeletableContext,
+	SessionActiveChatHasSideChatsContext,
+	SessionActiveChatResourceContext,
+	SessionHasGitRepositoryContext,
 } from '../../../common/contextkeys.js';
-import { ChatOriginKind, ISession, SessionStatus } from './session.js';
+import { ChatOriginKind, getChatCapabilities, isActiveSessionStatus, isSideChatOf, ISession, SessionStatus } from './session.js';
+import { ISessionChangesStatsCache, readSessionChangesStats } from './sessionChangesStatsCache.js';
 import { IActiveSession } from './sessionsManagement.js';
 
 /**
@@ -36,19 +48,30 @@ interface ISessionContextKeys {
 	readonly providerId: IContextKey<string>;
 	readonly type: IContextKey<string>;
 	readonly isArchived: IContextKey<boolean>;
+	readonly isActive: IContextKey<boolean>;
 	readonly isRead: IContextKey<boolean>;
 	readonly supportsMultipleChats: IContextKey<boolean>;
+	readonly supportsFork: IContextKey<boolean>;
+	readonly supportsSideChat: IContextKey<boolean>;
 	readonly supportsRename: IContextKey<boolean>;
 	readonly supportsDelete: IContextKey<boolean>;
 	readonly workspaceIsVirtual: IContextKey<boolean>;
+	readonly hasGitRepository: IContextKey<boolean>;
 	readonly hasChanges: IContextKey<boolean>;
+	readonly hasCachedChanges: IContextKey<boolean>;
 	readonly hasPullRequest: IContextKey<boolean>;
+	readonly hasIssues: IContextKey<boolean>;
 	readonly hasWorkspace: IContextKey<boolean>;
+	readonly isQuickChat: IContextKey<boolean>;
 	readonly isCreated: IContextKey<boolean>;
 	readonly sticky: IContextKey<boolean>;
 	readonly hasMultipleCommittedChats: IContextKey<boolean>;
+	readonly shouldShowChatTabs: IContextKey<boolean>;
 	readonly hasMultipleOpenChats: IContextKey<boolean>;
 	readonly activeChatIsClosable: IContextKey<boolean>;
+	readonly activeChatIsDeletable: IContextKey<boolean>;
+	readonly activeChatResource: IContextKey<string>;
+	readonly activeChatHasSideChats: IContextKey<boolean>;
 }
 
 /**
@@ -69,19 +92,30 @@ function getBoundKeys(contextKeyService: IContextKeyService): ISessionContextKey
 			providerId: SessionProviderIdContext.bindTo(contextKeyService),
 			type: SessionTypeContext.bindTo(contextKeyService),
 			isArchived: SessionIsArchivedContext.bindTo(contextKeyService),
+			isActive: SessionIsActiveContext.bindTo(contextKeyService),
 			isRead: SessionIsReadContext.bindTo(contextKeyService),
 			supportsMultipleChats: SessionSupportsMultipleChatsContext.bindTo(contextKeyService),
+			supportsFork: SessionSupportsForkContext.bindTo(contextKeyService),
+			supportsSideChat: SessionSupportsSideChatContext.bindTo(contextKeyService),
 			supportsRename: SessionSupportsRenameContext.bindTo(contextKeyService),
 			supportsDelete: SessionSupportsDeleteContext.bindTo(contextKeyService),
 			workspaceIsVirtual: SessionWorkspaceIsVirtualContext.bindTo(contextKeyService),
+			hasGitRepository: SessionHasGitRepositoryContext.bindTo(contextKeyService),
 			hasChanges: SessionHasChangesContext.bindTo(contextKeyService),
+			hasCachedChanges: SessionHasCachedChangesContext.bindTo(contextKeyService),
 			hasPullRequest: SessionHasPullRequestContext.bindTo(contextKeyService),
+			hasIssues: SessionHasIssuesContext.bindTo(contextKeyService),
 			hasWorkspace: SessionHasWorkspaceContext.bindTo(contextKeyService),
+			isQuickChat: IsQuickChatSessionContext.bindTo(contextKeyService),
 			isCreated: SessionIsCreatedContext.bindTo(contextKeyService),
 			sticky: SessionIsStickyContext.bindTo(contextKeyService),
 			hasMultipleCommittedChats: SessionHasMultipleCommittedChatsContext.bindTo(contextKeyService),
+			shouldShowChatTabs: SessionShouldShowChatTabsContext.bindTo(contextKeyService),
 			hasMultipleOpenChats: SessionHasMultipleOpenChatsContext.bindTo(contextKeyService),
 			activeChatIsClosable: SessionActiveChatIsClosableContext.bindTo(contextKeyService),
+			activeChatIsDeletable: SessionActiveChatIsDeletableContext.bindTo(contextKeyService),
+			activeChatResource: SessionActiveChatResourceContext.bindTo(contextKeyService),
+			activeChatHasSideChats: SessionActiveChatHasSideChatsContext.bindTo(contextKeyService),
 		};
 		boundKeysByService.set(contextKeyService, keys);
 	}
@@ -101,20 +135,30 @@ function getBoundKeys(contextKeyService: IContextKeyService): ISessionContextKey
  *
  * Passing `undefined` for `session` resets the keys to their defaults (e.g. for
  * the empty new-session slot).
+ *
+ * Pass the `changesStatsCache` on surfaces that render the changes pill so it can
+ * be shown optimistically while the session's own changes are still loading.
  */
-export function setSessionContextKeys(session: ISession | undefined, contextKeyService: IContextKeyService, reader: IReader | undefined): void {
+export function setSessionContextKeys(session: ISession | undefined, contextKeyService: IContextKeyService, reader: IReader | undefined, changesStatsCache?: ISessionChangesStatsCache): void {
 	const keys = getBoundKeys(contextKeyService);
 	keys.sessionId.set(session?.sessionId ?? '');
 	keys.providerId.set(session?.providerId ?? '');
 	keys.type.set(session?.sessionType ?? '');
 	keys.isArchived.set(session?.isArchived.read(reader) ?? false);
+	keys.isActive.set(session ? isActiveSessionStatus(session.status.read(reader)) : false);
 	keys.isRead.set(session?.isRead.read(reader) ?? true);
-	keys.supportsMultipleChats.set(session?.capabilities.supportsMultipleChats ?? false);
-	keys.supportsRename.set(session?.capabilities.supportsRename ?? false);
-	keys.supportsDelete.set(session?.capabilities.supportsDelete ?? false);
-	keys.workspaceIsVirtual.set(session?.workspace.read(reader)?.isVirtualWorkspace ?? true);
+	const capabilities = session?.capabilities.read(reader);
+	keys.supportsMultipleChats.set(capabilities?.supportsMultipleChats ?? false);
+	keys.supportsFork.set(capabilities?.supportsFork ?? false);
+	keys.supportsSideChat.set(capabilities?.supportsSideChat ?? false);
+	keys.supportsRename.set(capabilities?.supportsRename ?? false);
+	keys.supportsDelete.set(capabilities?.supportsDelete ?? false);
+	const workspace = session?.workspace.read(reader);
+	keys.workspaceIsVirtual.set(workspace?.isVirtualWorkspace ?? true);
+	keys.hasGitRepository.set(session?.hasGitRepository?.read(reader) ?? workspace?.folders.some(folder => folder.gitRepository !== undefined) ?? false);
 
-	// Mirror the changes pill: the default changeset, falling back to the session's changes.
+	// Mirror the changes pill: the default changeset, falling back to the session's changes — but while the worktree is pending those changes belong to the checkout, not the session.
+	const worktreePending = session?.worktreePending?.read(reader) ?? false;
 	const defaultChangeset = session?.changesets.read(reader)?.find(c => c.isDefault.read(reader));
 	let insertions = 0;
 	let deletions = 0;
@@ -122,12 +166,28 @@ export function setSessionContextKeys(session: ISession | undefined, contextKeyS
 		insertions += change.insertions;
 		deletions += change.deletions;
 	}
-	keys.hasChanges.set(insertions > 0 || deletions > 0);
+	keys.hasChanges.set(!worktreePending && (insertions > 0 || deletions > 0));
+
+	// A session reports its changes late, so until it does the pill it last showed
+	// is rendered from the cache. The remembered pill is dropped as soon as the
+	// session reports its own changes, even when it reports none.
+	const changesReported = session ? readSessionChangesStats(session, reader) !== undefined : true;
+	const cachedFiles = !changesReported && session ? changesStatsCache?.get(session.sessionId, reader)?.files ?? 0 : 0;
+	keys.hasCachedChanges.set(!worktreePending && cachedFiles > 0);
 
 	const pullRequest = session?.workspace.read(reader)?.folders[0]?.gitRepository?.gitHubInfo.read(reader)?.pullRequest;
 	keys.hasPullRequest.set(!!pullRequest);
 
+	const issues = session?.workspace.read(reader)?.folders[0]?.gitRepository?.gitHubInfo.read(reader)?.issues;
+	keys.hasIssues.set(!!issues?.length);
+
 	keys.hasWorkspace.set(!!session?.workspace.read(reader)?.label);
+
+	// Sourced from the session's `isQuickChat` tag — never inferred from
+	// `workspace === undefined` (which is also transiently true for a
+	// still-resolving workspace session).
+	keys.isQuickChat.set(!!session && (session.isQuickChat?.read(reader) ?? false));
+
 }
 
 /**
@@ -138,31 +198,45 @@ export function setSessionContextKeys(session: ISession | undefined, contextKeyS
  *
  * See {@link setSessionContextKeys} for the `reader` and `undefined` semantics.
  */
-export function setActiveSessionContextKeys(session: IActiveSession | undefined, contextKeyService: IContextKeyService, reader: IReader | undefined): void {
-	setSessionContextKeys(session, contextKeyService, reader);
+export function setActiveSessionContextKeys(session: IActiveSession | undefined, contextKeyService: IContextKeyService, reader: IReader | undefined, changesStatsCache?: ISessionChangesStatsCache): void {
+	setSessionContextKeys(session, contextKeyService, reader, changesStatsCache);
 	const keys = getBoundKeys(contextKeyService);
 	keys.isCreated.set(session?.isCreated.read(reader) ?? false);
 	keys.sticky.set(session?.sticky.read(reader) ?? false);
 
 	// Count committed (non-draft) chats: untitled in-composer drafts are excluded
-	// so the Conversations menu only surfaces once a session has more than one
+	// so the Chats dropdown only surfaces once a session has more than one
 	// real chat. Counts the whole chat list (open or closed) so a committed chat
 	// that was closed still keeps the menu available to reopen it.
 	const committedChatCount = session?.chats.read(reader)
 		.reduce((count, chat) => chat.status.read(reader) === SessionStatus.Untitled || chat.origin?.kind === ChatOriginKind.Tool ? count : count + 1, 0) ?? 0;
 	keys.hasMultipleCommittedChats.set(committedChatCount > 1);
 
-	// More than one open chat (incl. drafts) means the tab strip is shown; the
-	// header then hides its own New Chat button.
-	keys.hasMultipleOpenChats.set((session?.openChats.read(reader).filter(chat => chat.origin?.kind !== ChatOriginKind.Tool).length ?? 0) > 1);
+	// The tab strip is shown when the session has more than one chat (counting
+	// closed chats) or its single remaining chat's title diverged from the session title.
+	keys.shouldShowChatTabs.set(session?.shouldShowChatTabs.read(reader) ?? false);
 
-	// The active chat can be closed/deleted from the tab strip only when it is a
-	// real, non-main chat (the main chat lives and dies with its session).
+	// More than one open chat tab (incl. drafts): scopes chat-to-chat navigation
+	// so it stays a no-op when only a single open chat remains (e.g. a single
+	// chat with a diverged title, or one open + one closed chat).
+	keys.hasMultipleOpenChats.set((session?.visibleChatTabs.read(reader).length ?? 0) > 1);
+
+	// The active chat can be closed (hidden) from the tab strip when it is a
+	// non-main chat — including read-only subagent chats, which surface as
+	// closeable tabs. The main chat lives and dies with its session.
 	const activeChat = session?.activeChat.read(reader);
 	const mainResource = session?.mainChat.read(reader).resource;
-	keys.activeChatIsClosable.set(
-		!!activeChat && !!mainResource
-		&& !isEqual(activeChat.resource, mainResource)
-		&& activeChat.origin?.kind !== ChatOriginKind.Tool
-	);
+	keys.activeChatResource.set(activeChat?.resource.toString() ?? '');
+	const isNonMainChat = !!activeChat && !!mainResource && !isEqual(activeChat.resource, mainResource);
+	keys.activeChatIsClosable.set(isNonMainChat);
+	// It can be permanently deleted only when its effective capabilities allow
+	// it: the main chat and worker (subagent) chats report `canDelete: false`,
+	// so they are closeable but not deletable.
+	keys.activeChatIsDeletable.set(!!activeChat && getChatCapabilities(activeChat, session, reader).canDelete);
+	const workspace = activeChat?.workspace.read(reader);
+	keys.workspaceIsVirtual.set(workspace?.isVirtualWorkspace ?? true);
+	keys.hasWorkspace.set(!!workspace?.label);
+
+	const allChats = session?.chats.read(reader) ?? [];
+	keys.activeChatHasSideChats.set(!!activeChat && allChats.some(chat => isSideChatOf(chat, activeChat.resource)));
 }

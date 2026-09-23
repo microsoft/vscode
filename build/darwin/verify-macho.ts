@@ -31,6 +31,10 @@ const FILES_TO_SKIP = [
 	'**/node_modules/@github/copilot-darwin-arm64/**',
 	'**/node_modules.asar.unpacked/@github/copilot-darwin-x64/**',
 	'**/node_modules.asar.unpacked/@github/copilot-darwin-arm64/**',
+	'**/node_modules/@github/copilot-sdk-darwin-x64/**',
+	'**/node_modules/@github/copilot-sdk-darwin-arm64/**',
+	'**/node_modules.asar.unpacked/@github/copilot-sdk-darwin-x64/**',
+	'**/node_modules.asar.unpacked/@github/copilot-sdk-darwin-arm64/**',
 	// Copilot prebuilds: single-arch binaries in per-platform directories
 	'**/node_modules/@github/copilot/prebuilds/darwin-*/**',
 	'**/node_modules.asar.unpacked/@github/copilot/prebuilds/darwin-*/**',
@@ -40,6 +44,9 @@ const FILES_TO_SKIP = [
 	// ripgrep-universal: single-arch binaries in per-platform directories
 	'**/node_modules/@vscode/ripgrep-universal/bin/darwin-*/**',
 	'**/node_modules.asar.unpacked/@vscode/ripgrep-universal/bin/darwin-*/**',
+	// OS proxy resolver: universal app has separate x64 and arm64 packages
+	'**/node_modules/@vscode/os-proxy-resolver-darwin-*/**',
+	'**/node_modules.asar.unpacked/@vscode/os-proxy-resolver-darwin-*/**',
 	// MXC SDK ships per-arch native binaries under bin/<arch>; the package
 	// includes both arm64 and x64 trees regardless of host arch.
 	'**/node_modules/@microsoft/mxc-sdk/bin/**',
