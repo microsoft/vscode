@@ -5,7 +5,7 @@
 
 import { createDecorator } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
-import { CustomizationMigrationHintTarget, CustomizationMigrationType, ICustomizationMigrationCount } from './customizationMigrationService.js';
+import { CustomizationMigrationFailureReason, CustomizationMigrationHintTarget, CustomizationMigrationType, ICustomizationMigrationCount } from './customizationMigrationService.js';
 
 export const ICustomizationMigrationTelemetryService = createDecorator<ICustomizationMigrationTelemetryService>('customizationMigrationTelemetryService');
 
@@ -35,6 +35,7 @@ type CustomizationMigrationEvent = {
 	requestedCount?: number;
 	migratedCount?: number;
 	failedCount?: number;
+	migrationFailedReasons?: string;
 };
 
 type CustomizationMigrationClassification = {
@@ -44,6 +45,7 @@ type CustomizationMigrationClassification = {
 	requestedCount?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of customizations selected for migration.' };
 	migratedCount?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of customizations successfully migrated.' };
 	failedCount?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of customizations that failed to migrate.' };
+	migrationFailedReasons?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'A semicolon-separated list of bounded failure reason identifiers. Does not contain customization names, paths, content, or error messages.' };
 	owner: 'digitarald';
 	comment: 'Tracks aggregate customization migration impressions, actions, and outcomes without collecting customization names, paths, or content.';
 };
@@ -69,7 +71,7 @@ export interface ICustomizationMigrationTelemetryService {
 	pageShown(category?: CustomizationMigrationType): void;
 	actionClicked(action: 'migrationOverviewClicked' | 'migrationCategoryClicked' | 'backClicked' | 'destinationsClicked' | 'workspaceSkipped' | 'workspaceIncluded' | 'retryClicked' | 'viewChangesClicked' | 'resultDismissed' | 'activityDismissed', category?: CustomizationMigrationType): void;
 	migrationClicked(category: CustomizationMigrationType, requestedCount: number): void;
-	migrationCompleted(category: CustomizationMigrationType, requestedCount: number, migratedCount: number, failedCount: number): void;
+	migrationCompleted(category: CustomizationMigrationType, requestedCount: number, migratedCount: number, failedCount: number, failureReasons: readonly CustomizationMigrationFailureReason[]): void;
 }
 
 export class CustomizationMigrationTelemetryService implements ICustomizationMigrationTelemetryService {
@@ -105,8 +107,16 @@ export class CustomizationMigrationTelemetryService implements ICustomizationMig
 		this.send({ action: 'migrationClicked', category, requestedCount });
 	}
 
-	migrationCompleted(category: CustomizationMigrationType, requestedCount: number, migratedCount: number, failedCount: number): void {
-		this.send({ action: 'migrationCompleted', category, requestedCount, migratedCount, failedCount });
+	migrationCompleted(category: CustomizationMigrationType, requestedCount: number, migratedCount: number, failedCount: number, failureReasons: readonly CustomizationMigrationFailureReason[]): void {
+		const migrationFailedReasons = Array.from(new Set(failureReasons)).sort().join(';');
+		this.send({
+			action: 'migrationCompleted',
+			category,
+			requestedCount,
+			migratedCount,
+			failedCount,
+			...(migrationFailedReasons ? { migrationFailedReasons } : {}),
+		});
 	}
 
 	private send(event: CustomizationMigrationEvent): void {

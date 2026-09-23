@@ -33,7 +33,7 @@ import { PromptFileSource, PromptsType, Target } from '../../../common/promptSyn
 import { AICustomizationManagementSection, AICustomizationSources } from '../../../common/aiCustomizationWorkspaceService.js';
 import { CustomizationMigrationCategoryId, getCustomizationMigrationCategory, ICustomizationMigrationCategory } from '../../../browser/aiCustomization/customizationMigrationCategories.js';
 import type { ICustomizationHarnessService, ICustomizationSourceFolder } from '../../../common/customizationHarnessService.js';
-import type { IMigratedCustomizationsResult } from '../../../browser/aiCustomization/customizationMigration.js';
+import type { IMigratedCustomizationsWithFailureReasonsResult } from '../../../browser/aiCustomization/customizationMigration.js';
 import type { ICustomizationMigrationCategorySummary } from '../../../browser/aiCustomization/aiCustomizationWelcomePage.js';
 import { AICustomizationManagementEditorInput } from '../../../browser/aiCustomization/aiCustomizationManagementEditorInput.js';
 import { IMcpServerDetailInput } from '../../../browser/aiCustomization/embeddedMcpServerDetail.js';
@@ -203,7 +203,7 @@ suite('aiCustomizationManagementEditor', () => {
 		getConfiguredLocationSettingsToClear(category: ICustomizationMigrationCategory, customizations: readonly MigratableConfiguration[]): readonly string[];
 		clearConfiguredLocationSettings(settingIds: readonly string[]): Promise<void>;
 		migrateSelectedCustomizations(category: ICustomizationMigrationCategory, customizations: readonly CustomizationMigrationCandidate[]): Promise<void>;
-		runCustomizationMigration(customizations: readonly MigratableConfiguration[]): Promise<IMigratedCustomizationsResult>;
+		runCustomizationMigration(customizations: readonly MigratableConfiguration[]): Promise<IMigratedCustomizationsWithFailureReasonsResult>;
 		setCustomizationsToMigrate(candidates: Map<CustomizationMigrationCategoryId, readonly CustomizationMigrationCandidate[]>, targetFoldersByType: Map<PromptsType, readonly ICustomizationSourceFolder[]>, mcpServerMigrationExclusions?: readonly IMcpServerCustomizationMigrationExclusion[]): void;
 		isCustomizationSelectedForMigration(customization: CustomizationMigrationCandidate): boolean;
 		setCustomizationSelectedForMigration(customization: CustomizationMigrationCandidate, selected: boolean): void;
@@ -1795,6 +1795,7 @@ suite('aiCustomizationManagementEditor', () => {
 		editor.runCustomizationMigration = async () => ({
 			migratedCount: 1,
 			failedCustomizationFileNames: [],
+			failureReasons: [],
 			unsupportedHeaderKeys: [],
 			migratedCustomizations: [{ uri: URI.file('/workspace/.github/skills/review/SKILL.md'), type: PromptsType.skill }],
 			migratedSources: [{ uri: prompt.uri, storage: prompt.storage }],
@@ -1802,10 +1803,18 @@ suite('aiCustomizationManagementEditor', () => {
 		editor.refreshCustomizationMigrationInfo = async () => { };
 		let dashboardShown = 0;
 		editor.showCustomizationMigrationDashboard = () => dashboardShown++;
+		const migrationCompleted: unknown[][] = [];
+		editor.customizationMigrationTelemetryService.migrationCompleted = (...args) => migrationCompleted.push(args);
 
 		await editor.migrateSelectedCustomizations(getCustomizationMigrationCategory(CustomizationMigrationCategoryId.PromptFiles), [prompt]);
 
-		assert.strictEqual(dashboardShown, 1);
+		assert.deepStrictEqual({
+			dashboardShown,
+			migrationCompleted,
+		}, {
+			dashboardShown: 1,
+			migrationCompleted: [[CustomizationMigrationType.PromptFiles, 1, 1, 0, []]],
+		});
 		editor.editorPreviewDisposables.dispose();
 	});
 
@@ -1901,6 +1910,8 @@ suite('aiCustomizationManagementEditor', () => {
 				};
 			},
 		};
+		const migrationCompleted: unknown[][] = [];
+		editor.customizationMigrationTelemetryService.migrationCompleted = (...args) => migrationCompleted.push(args);
 		await editor.migrateSelectedCustomizations(getCustomizationMigrationCategory(CustomizationMigrationCategoryId.McpServers), [server, failed]);
 		const reopened = createTestEditor(undefined, configuration);
 		reopened.storageService = editor.storageService;
@@ -1908,8 +1919,12 @@ suite('aiCustomizationManagementEditor', () => {
 			currentWorkspace: editor.getMigrationActivityState(PromptsStorage.local).activity,
 			profile: reopened.getMigrationActivityState(PromptsStorage.user).activity,
 			reopenedWorkspace: reopened.getMigrationActivityState(PromptsStorage.local).activity.map(entry => entry.items.map(item => item.label)),
+			migrationCompleted,
 		}, {
-			currentWorkspace: [], profile: [], reopenedWorkspace: [['server']],
+			currentWorkspace: [],
+			profile: [],
+			reopenedWorkspace: [['server']],
+			migrationCompleted: [[CustomizationMigrationType.McpServers, 2, 1, 1, [McpServerCustomizationMigrationFailureReason.TargetConflict]]],
 		});
 		reopened.editorPreviewDisposables.dispose();
 		editor.editorPreviewDisposables.dispose();

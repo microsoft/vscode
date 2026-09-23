@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { NullTelemetryServiceShape } from '../../../../../../../platform/telemetry/common/telemetryUtils.js';
-import { CustomizationMigrationHintTarget, CustomizationMigrationType } from '../../../../common/promptSyntax/service/customizationMigrationService.js';
+import { CustomizationMigrationHintTarget, CustomizationMigrationType, FileCustomizationMigrationFailureReason } from '../../../../common/promptSyntax/service/customizationMigrationService.js';
 import { CustomizationMigrationTelemetryService } from '../../../../common/promptSyntax/service/customizationMigrationTelemetryService.js';
 
 class TestTelemetryService extends NullTelemetryServiceShape {
@@ -34,7 +34,11 @@ suite('CustomizationMigrationTelemetryService', () => {
 		service.pageShown(CustomizationMigrationType.PromptFiles);
 		service.actionClicked('migrationCategoryClicked', CustomizationMigrationType.PromptFiles);
 		service.migrationClicked(CustomizationMigrationType.PromptFiles, 3);
-		service.migrationCompleted(CustomizationMigrationType.PromptFiles, 3, 2, 1);
+		service.migrationCompleted(CustomizationMigrationType.PromptFiles, 3, 2, 1, [
+			FileCustomizationMigrationFailureReason.TargetWriteFailed,
+			FileCustomizationMigrationFailureReason.TargetWriteFailed,
+			FileCustomizationMigrationFailureReason.RollbackFailed,
+		]);
 
 		assert.deepStrictEqual(telemetryService.events, [
 			{ name: 'chat.customizationMigrationAssessment', data: { category: 'promptFiles', count: 3 } },
@@ -45,7 +49,7 @@ suite('CustomizationMigrationTelemetryService', () => {
 			{ name: 'chat.customizationMigration', data: { action: 'migrationCategoryShown', category: 'promptFiles' } },
 			{ name: 'chat.customizationMigration', data: { action: 'migrationCategoryClicked', category: 'promptFiles' } },
 			{ name: 'chat.customizationMigration', data: { action: 'migrationClicked', category: 'promptFiles', requestedCount: 3 } },
-			{ name: 'chat.customizationMigration', data: { action: 'migrationCompleted', category: 'promptFiles', requestedCount: 3, migratedCount: 2, failedCount: 1 } },
+			{ name: 'chat.customizationMigration', data: { action: 'migrationCompleted', category: 'promptFiles', requestedCount: 3, migratedCount: 2, failedCount: 1, migrationFailedReasons: 'rollbackFailed;targetWriteFailed' } },
 		]);
 	});
 });
