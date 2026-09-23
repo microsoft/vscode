@@ -10,7 +10,7 @@ import type { SchemaValues } from '../../common/agentHostSchema.js';
 import type { ModelSelection } from '../../common/state/protocol/state.js';
 import { AgentHostPromptRegistry, agentHostPromptRegistry, type IAgentHostPromptContext } from '../../node/copilot/prompts/promptRegistry.js';
 import { COPILOT_AGENT_HOST_SYSTEM_MESSAGE } from '../../node/copilot/prompts/systemMessage.js';
-import { CLAUDE_CHAT_PARITY_IMPLEMENTATION_DISCIPLINE, CLAUDE_CHAT_PARITY_TOOL_INSTRUCTIONS, dropFoundationBullets, mergeSectionOverrides, trimFoundationLastInstructions, trimFoundationToolInstructions } from '../../node/copilot/prompts/anthropicPrompt.js';
+import { CLAUDE_ALT_PROMPT_IMPLEMENTATION_DISCIPLINE, CLAUDE_ALT_PROMPT_TOOL_INSTRUCTIONS, dropFoundationBullets, mergeSectionOverrides, trimFoundationLastInstructions, trimFoundationToolInstructions } from '../../node/copilot/prompts/anthropicPrompt.js';
 import { AGENT_HOST_FILE_LINK_INSTRUCTIONS } from '../../node/shared/fileLinkInstructions.js';
 import { AGENT_HOST_WORKSPACELESS_INSTRUCTIONS } from '../../node/shared/workspacelessInstructions.js';
 import { COPILOT_AGENT_HOST_LARGE_OUTPUT_TOOL_INSTRUCTION, COPILOT_AGENT_HOST_SUBAGENT_TOOL_INSTRUCTIONS } from '../../node/copilot/prompts/toolInstructions.js';
@@ -201,8 +201,8 @@ suite('AgentHostPromptRegistry', () => {
 		});
 	});
 
-	suite('Claude Chat-parity contributor (registered via allPrompts)', () => {
-		const parityOn = { [CopilotCliConfigKey.ClaudeChatParityPrompt]: true };
+	suite('Claude alternate-prompt contributor (registered via allPrompts)', () => {
+		const altOn = { [CopilotCliConfigKey.ClaudeAltPrompt]: true };
 
 		// Representative slices of the SDK foundation sections the transforms run over
 		// (captured from a real agent-host session; wording owned by the CLI/SDK).
@@ -228,12 +228,12 @@ suite('AgentHostPromptRegistry', () => {
 			'</tips_and_tricks>',
 		].join('\n');
 
-		function resolve(id: string, settings: SchemaValues<typeof copilotCliConfigSchema.definition> = parityOn) {
+		function resolve(id: string, settings: SchemaValues<typeof copilotCliConfigSchema.definition> = altOn) {
 			return agentHostPromptRegistry.resolveSystemMessageConfig({ id }, context(settings));
 		}
 
 		/** The `customize` sections of a resolved config, asserting the mode. */
-		function sectionsOf(id: string, settings: SchemaValues<typeof copilotCliConfigSchema.definition> = parityOn): Partial<Record<SystemMessageSection, SectionOverride>> {
+		function sectionsOf(id: string, settings: SchemaValues<typeof copilotCliConfigSchema.definition> = altOn): Partial<Record<SystemMessageSection, SectionOverride>> {
 			const config = resolve(id, settings);
 			assert.strictEqual(config.mode, 'customize', id);
 			return config.mode === 'customize' ? config.sections ?? {} : {};
@@ -247,7 +247,7 @@ suite('AgentHostPromptRegistry', () => {
 		test('is off by default and gated on its setting', () => {
 			for (const id of ['claude-opus-5', 'claude-sonnet-4.6', 'claude-haiku-4.5']) {
 				assert.deepStrictEqual(resolve(id, {}), withUniversalAgentHostInstructions(COPILOT_AGENT_HOST_SYSTEM_MESSAGE), id);
-				assert.deepStrictEqual(resolve(id, { [CopilotCliConfigKey.ClaudeChatParityPrompt]: false }), withUniversalAgentHostInstructions(COPILOT_AGENT_HOST_SYSTEM_MESSAGE), id);
+				assert.deepStrictEqual(resolve(id, { [CopilotCliConfigKey.ClaudeAltPrompt]: false }), withUniversalAgentHostInstructions(COPILOT_AGENT_HOST_SYSTEM_MESSAGE), id);
 			}
 		});
 
@@ -323,7 +323,7 @@ suite('AgentHostPromptRegistry', () => {
 			'</tools>',
 		].join('\n');
 
-		test('tool_instructions trims foundation examples and ask_user, keeps runtime guidance, then adds parity rules and the universal lines', async () => {
+		test('tool_instructions trims foundation examples and ask_user, keeps runtime guidance, then adds the alternate-prompt rules and the universal lines', async () => {
 			const result = await runTransform(sectionsOf('claude-opus-5').tool_instructions, FOUNDATION_TOOL_INSTRUCTIONS);
 			assert.doesNotMatch(result, /<example>|<\/example>|npm run build|first edit/);
 			assert.doesNotMatch(result, /<ask_user>|clarifying questions|multiple choice/);
@@ -331,7 +331,7 @@ suite('AgentHostPromptRegistry', () => {
 			assert.match(result, /batch edits to the same file/);
 			assert.match(result, /<sql>[\s\S]*todo_deps[\s\S]*<\/sql>/);
 			assert.match(result, /<task>[\s\S]*Delegate only[\s\S]*<\/task>/);
-			assert.ok(result.endsWith(`</tools>\n${CLAUDE_CHAT_PARITY_TOOL_INSTRUCTIONS}\n${UNCONDITIONAL_TOOL_INSTRUCTIONS}`), 'parity rules then universal lines must follow the trimmed foundation');
+			assert.ok(result.endsWith(`</tools>\n${CLAUDE_ALT_PROMPT_TOOL_INSTRUCTIONS}\n${UNCONDITIONAL_TOOL_INSTRUCTIONS}`), 'alternate-prompt rules then universal lines must follow the trimmed foundation');
 		});
 
 		test('trimFoundationToolInstructions is a no-op on text without the targeted blocks', () => {
@@ -343,7 +343,7 @@ suite('AgentHostPromptRegistry', () => {
 			assert.doesNotMatch(result, /Validate that your changes preserve existing behavior/);
 			assert.match(result, /Update directly related documentation\.\n<\/rules_for_code_changes>/);
 			assert.match(result, /Use existing linters, builds, and tests/);
-			assert.ok(result.endsWith(`\n${CLAUDE_CHAT_PARITY_IMPLEMENTATION_DISCIPLINE}`));
+			assert.ok(result.endsWith(`\n${CLAUDE_ALT_PROMPT_IMPLEMENTATION_DISCIPLINE}`));
 		});
 
 		test('guidelines drops the verification tips, keeps the rest and appends the Copilot Chat guidance', async () => {
@@ -375,16 +375,16 @@ suite('AgentHostPromptRegistry', () => {
 		});
 
 		test('composes with the Opus 4.8 tuning when both settings are on', async () => {
-			const both = { ...parityOn, [CopilotCliConfigKey.Opus48Prompt]: true };
+			const both = { ...altOn, [CopilotCliConfigKey.Opus48Prompt]: true };
 			const sections = sectionsOf('claude-opus-4-8', both);
-			// Opus 4.8 tone tweak survives alongside the parity sections.
+			// Opus 4.8 tone tweak survives alongside the alternate-prompt sections.
 			assert.strictEqual(sections.tone?.action, 'append');
-			// Opus 4.8 guidelines append is folded after the parity transform.
+			// Opus 4.8 guidelines append is folded after the alternate-prompt transform.
 			const guidelines = await runTransform(sections.guidelines, FOUNDATION_GUIDELINES);
 			assert.match(guidelines, /<communication_style>[\s\S]*Do not spawn a subagent for work you can complete directly/);
 			// The 4.8 tuning alone is unaffected by the new setting being off.
 			assert.deepStrictEqual(Object.keys(sectionsOf('claude-opus-4-8', { [CopilotCliConfigKey.Opus48Prompt]: true })).sort(), ['guidelines', 'identity', 'tone', 'tool_instructions']);
-			// And parity alone on Opus 4.8 does not pull in the 4.8 tuning.
+			// And the alternate prompt alone on Opus 4.8 does not pull in the 4.8 tuning.
 			assert.strictEqual(sectionsOf('claude-opus-4-8').tone, undefined);
 		});
 	});

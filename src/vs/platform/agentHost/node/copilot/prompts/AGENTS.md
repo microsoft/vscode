@@ -7,7 +7,7 @@ This directory customizes the system prompt for Copilot CLI **agent host** (ahp+
 - `promptRegistry.ts` — `AgentHostPromptRegistry`: resolves the final `SystemMessageConfig` for a session's model. Defines the `IAgentHostPrompt` contributor interface and the `IAgentHostPromptContext` read-time context.
 - `systemMessage.ts` — the default message (`COPILOT_AGENT_HOST_SYSTEM_MESSAGE`), shared identity text, the `fullSystemPrompt` / `sectionOverrides` builders, and `describeSystemMessageConfig` (the one-line log summary).
 - `toolInstructions.ts` — the model-agnostic `tool_instructions` layer: gated or unconditional nudges (`TOOL_INSTRUCTION_LINES`) composed into the SDK's `tool_instructions` section, including the default-model guidance for subagents.
-- `anthropicPrompt.ts` — the Claude-family contributor. Layers two independently gated overrides: the **Copilot Chat parity port** (`chat.agentHost.claudeChatParityPrompt.enabled`, every Claude model) and the **Opus 4.8 tuning** (`chat.agentHost.opus48Prompt.enabled`, Opus 4.8 only). One contributor because the registry resolves exactly one per model and does not fall through when a contributor opts out.
+- `anthropicPrompt.ts` — the Claude-family contributor. Layers two independently gated overrides: the **Copilot Chat prompt port** (`chat.claudeAltPrompt.enabled`, every Claude model) and the **Opus 4.8 tuning** (`chat.agentHost.opus48Prompt.enabled`, Opus 4.8 only). One contributor because the registry resolves exactly one per model and does not fall through when a contributor opts out.
 - `allPrompts.ts` — side-effect import hub; importing it registers every contributor into the shared `agentHostPromptRegistry`.
 
 ## How the system message is built
@@ -79,9 +79,9 @@ agentHostPromptRegistry.registerPrompt(MyModelPrompt);   // then add `import './
 
 Matching: a contributor matches a model by `static matchesModel(model)` (takes precedence) or by `familyPrefixes` (model-id `startsWith`). The registry resolves **exactly one** contributor per model (first match wins) — base + version layering is a known follow-up.
 
-## Claude Chat-parity port (`anthropicPrompt.ts`)
+## Claude alternate prompt (Copilot Chat port) (`anthropicPrompt.ts`)
 
-`claudeChatParitySectionOverrides` ports the Copilot Chat Claude agent prompt (`extensions/copilot/src/extension/prompts/node/agent/anthropicPrompts.tsx`, `Claude46OpusPrompt` / `Claude46SonnetPrompt`) onto the SDK foundation in `customize` mode. Motivation: on matched clippy-bench tasks Claude under the SDK prompt spent ~2.5x the verification turns and ~2.3x the output tokens of the same model under Copilot Chat, at equal resolution — the SDK prompt mandates "verify before done" in six places with no restraint guidance; Copilot Chat's has no verification mandate and five restraint instructions.
+`claudeAltPromptSectionOverrides` ports the Copilot Chat Claude agent prompt (`extensions/copilot/src/extension/prompts/node/agent/anthropicPrompts.tsx`, `Claude46OpusPrompt` / `Claude46SonnetPrompt`) onto the SDK foundation in `customize` mode. Motivation: on matched clippy-bench tasks Claude under the SDK prompt spent ~2.5x the verification turns and ~2.3x the output tokens of the same model under Copilot Chat, at equal resolution — the SDK prompt mandates "verify before done" in six places with no restraint guidance; Copilot Chat's has no verification mandate and five restraint instructions.
 
 | Section | Action | What changes |
 |---|---|---|

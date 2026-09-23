@@ -10,13 +10,13 @@ import { agentHostPromptRegistry, type IAgentHostPrompt, type IAgentHostPromptCo
 
 type SectionOverrides = Partial<Record<SystemMessageSection, SectionOverride>>;
 
-// #region Copilot Chat parity prompt
+// #region Copilot Chat alternate prompt
 
 /**
  * Bullets the SDK foundation prompt contributes that the Copilot Chat Claude
  * prompt deliberately does not: verification and thoroughness mandates that
  * measurably drive extra verification turns on Claude (see the
- * `chat.agentHost.claudeChatParityPrompt.enabled` setting description). Each
+ * `chat.claudeAltPrompt.enabled` setting description). Each
  * is a regex source matched as a whole bullet, so a foundation rewording simply
  * leaves the line in place rather than mangling its neighbours.
  */
@@ -46,7 +46,7 @@ export function dropFoundationBullets(content: string, bullets: readonly string[
 }
 
 /** Copilot Chat `implementationDiscipline` (Claude46OpusPrompt), verbatim. */
-export const CLAUDE_CHAT_PARITY_IMPLEMENTATION_DISCIPLINE = [
+export const CLAUDE_ALT_PROMPT_IMPLEMENTATION_DISCIPLINE = [
 	'<implementation_discipline>',
 	'Avoid over-engineering. Only make changes that are directly requested or clearly necessary.',
 	'- Don\'t add features, refactor code, or make "improvements" beyond what was asked',
@@ -87,7 +87,7 @@ function parallelizationStrategy(model: ModelSelection): string {
  * `securityRequirements` are omitted: the host already replaces identity, and
  * the SDK `safety` section covers the same ground.
  */
-export function claudeChatParityGuidelines(model: ModelSelection): string {
+export function claudeAltPromptGuidelines(model: ModelSelection): string {
 	return [
 		'<instructions>',
 		'By default, implement changes rather than only suggesting them. If the user\'s intent is unclear, infer the most useful likely action and proceed with using tools to discover missing details instead of guessing.',
@@ -128,7 +128,7 @@ export function claudeChatParityGuidelines(model: ModelSelection): string {
  * (`semantic_search`, the explore/execution subagents, `manage_todo_list`) are
  * left out rather than pointed at tools the SDK session does not have.
  */
-export const CLAUDE_CHAT_PARITY_TOOL_INSTRUCTIONS = [
+export const CLAUDE_ALT_PROMPT_TOOL_INSTRUCTIONS = [
 	'Read files before modifying them. Understand existing code before suggesting changes.',
 	'Do not create files unless absolutely necessary. Prefer editing existing files.',
 	'NEVER say the name of a tool to a user. Say "I\'ll run the command in a terminal" instead of "I\'ll use bash".',
@@ -218,18 +218,18 @@ export function trimFoundationLastInstructions(content: string): string {
  * already removes the foundation tone sub-section, so the communication style
  * lives in `guidelines` instead.
  */
-export function claudeChatParitySectionOverrides(model: ModelSelection): SectionOverrides {
+export function claudeAltPromptSectionOverrides(model: ModelSelection): SectionOverrides {
 	return {
 		code_change_rules: {
-			action: content => `${dropFoundationBullets(content, CODE_CHANGE_RULE_BULLETS_TO_DROP)}\n${CLAUDE_CHAT_PARITY_IMPLEMENTATION_DISCIPLINE}`,
+			action: content => `${dropFoundationBullets(content, CODE_CHANGE_RULE_BULLETS_TO_DROP)}\n${CLAUDE_ALT_PROMPT_IMPLEMENTATION_DISCIPLINE}`,
 		},
 		guidelines: {
-			action: content => `${dropFoundationBullets(content, GUIDELINE_BULLETS_TO_DROP)}\n${claudeChatParityGuidelines(model)}`,
+			action: content => `${dropFoundationBullets(content, GUIDELINE_BULLETS_TO_DROP)}\n${claudeAltPromptGuidelines(model)}`,
 		},
 		tool_instructions: {
 			// Trim the foundation prose, then add Copilot Chat's tool-use rules. The
 			// registry appends the host's universal lines after this transform.
-			action: content => `${trimFoundationToolInstructions(content)}\n${CLAUDE_CHAT_PARITY_TOOL_INSTRUCTIONS}`,
+			action: content => `${trimFoundationToolInstructions(content)}\n${CLAUDE_ALT_PROMPT_TOOL_INSTRUCTIONS}`,
 		},
 		last_instructions: {
 			action: trimFoundationLastInstructions,
@@ -321,8 +321,8 @@ export function mergeSectionOverrides(first: SectionOverrides, second: SectionOv
 
 /**
  * Claude-family agent prompt. Layers, each behind its own opt-in setting:
- *  1. the Copilot Chat parity port ({@link claudeChatParitySectionOverrides}),
- *     for every Claude model, via {@link CopilotCliConfigKey.ClaudeChatParityPrompt};
+ *  1. the Copilot Chat prompt port ({@link claudeAltPromptSectionOverrides}),
+ *     for every Claude model, via {@link CopilotCliConfigKey.ClaudeAltPrompt};
  *  2. the Opus 4.8 tuning ({@link opus48SectionOverrides}), for Opus 4.8 only,
  *     via {@link CopilotCliConfigKey.Opus48Prompt}.
  * Both off → falls back to the default system message. A single contributor
@@ -338,8 +338,8 @@ class ClaudePromptResolver implements IAgentHostPrompt {
 
 	resolveSectionOverrides(model: ModelSelection, context: IAgentHostPromptContext): SectionOverrides | undefined {
 		let overrides: SectionOverrides = {};
-		if (context.getSetting(CopilotCliConfigKey.ClaudeChatParityPrompt) === true) {
-			overrides = claudeChatParitySectionOverrides(model);
+		if (context.getSetting(CopilotCliConfigKey.ClaudeAltPrompt) === true) {
+			overrides = claudeAltPromptSectionOverrides(model);
 		}
 		if (isOpus48(model) && context.getSetting(CopilotCliConfigKey.Opus48Prompt) === true) {
 			overrides = mergeSectionOverrides(overrides, opus48SectionOverrides());
