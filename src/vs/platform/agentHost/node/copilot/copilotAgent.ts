@@ -4641,6 +4641,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			let sdkSessionId: string;
 			let inheritedTurnId: string | undefined;
 			let sourceEntry: CopilotAgentSession | undefined;
+			let inheritedWorkingDirectories: readonly URI[] | undefined;
 			if (fork) {
 				sourceEntry = await this._ensureResolvedChatSession(this._resolveChatContext(fork.source, { configurationResource: forkSourceScope!, resource: this._resolveChatStorageScope(fork.source) }));
 				if (!sourceEntry) {
@@ -4687,7 +4688,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			let project: IAgentSessionProjectInfo | undefined;
 			if (inheritsFromOtherSession) {
 				project = await projectFromCopilotContext({ cwd: workingDirectory.fsPath }, this._gitService);
-				const inheritedWorkingDirectories = sourceMetadata?.workingDirectories
+				inheritedWorkingDirectories = sourceMetadata?.workingDirectories
 					?? (sourceEntry?.workingDirectory ? [sourceEntry.workingDirectory] : [workingDirectory]);
 				await this._storeSessionMetadata(session, model, workingDirectory, inheritedWorkingDirectories, workingDirectory, project);
 				if (agent !== undefined) {
@@ -4729,7 +4730,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 				// the parent's review progress (best-effort; a failure just means
 				// the fork starts unreviewed).
 				try {
-					await this._reviewService.copyReviewedRef(forkSourceScope!.toString(), session.toString(), workingDirectory);
+					const sourceWorkingDirectories = inheritedWorkingDirectories ?? [workingDirectory];
+					await this._reviewService.copyReviewedRef(forkSourceScope!.toString(), session.toString(), sourceWorkingDirectories, sourceWorkingDirectories);
 				} catch (err) {
 					this._logService.warn(`[Copilot] Failed to copy reviewed ref for fork: ${err instanceof Error ? err.message : String(err)}`);
 				}
@@ -6571,13 +6573,22 @@ class SessionPluginController extends Disposable {
 	}
 
 	private _resolveCustomizationEnablement() {
+		const hostCustomizations = this._parent.hostCustomizations();
+		const clientCustomizations = this._flattenClientCustomizations();
+		const explicitPluginIds = new Set([
+			...hostCustomizations,
+			...clientCustomizations,
+		].map(item => item.customization.id));
 		const result: Customization[] = [
-			...this._parent.hostCustomizations().map(item => this._projectForPublish(item.customization)),
-			...this._flattenClientCustomizations().map(item => this._projectForPublish(item.customization)),
+			...hostCustomizations.map(item => this._projectForPublish(item.customization)),
+			...clientCustomizations.map(item => this._projectForPublish(item.customization)),
 		];
 		const entry = this._discoveredEntry();
 		const discovered = entry?.currentCustomizations() ?? [];
 		for (const customization of discovered) {
+			if (customization.type === CustomizationType.Plugin && explicitPluginIds.has(customization.id)) {
+				continue;
+			}
 			result.push(this._projectForPublish(customization));
 		}
 		for (const definition of this._mcpDiscoveryEntry()?.definitions ?? []) {

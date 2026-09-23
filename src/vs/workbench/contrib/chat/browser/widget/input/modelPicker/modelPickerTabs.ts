@@ -107,18 +107,19 @@ export function getModelProviderLabel(
 
 /**
  * Splits models into one destination per provider: the built-in one first, then each
- * provider the user added, by name. Auto is left out because it has its own row, and
- * empty providers are dropped so the common case yields no tab bar.
+ * provider the user added, by name. Models with their own row, Auto by default, are left
+ * out, and empty providers are dropped so the common case yields no tab bar.
  */
 export function buildModelPickerDestinations(
 	models: readonly ILanguageModelChatMetadataAndIdentifier[],
 	languageModelsService: ILanguageModelsService,
 	placeholders: readonly IModelPickerProviderPlaceholder[] = [],
+	hasOwnRow: (model: ILanguageModelChatMetadataAndIdentifier) => boolean = isAutoModel,
 ): IModelPickerDestination[] {
 	const builtInModels: ILanguageModelChatMetadataAndIdentifier[] = [];
 	const userModels: ILanguageModelChatMetadataAndIdentifier[] = [];
 	for (const model of models) {
-		if (isAutoModel(model)) {
+		if (hasOwnRow(model)) {
 			continue;
 		}
 		(isUserProvidedModel(model, languageModelsService) ? userModels : builtInModels).push(model);
@@ -133,9 +134,9 @@ export function buildModelPickerDestinations(
 	// The built-in destination stands even with nothing to list: a plan that only grants
 	// Auto still needs somewhere to show it, and its curated models still need to name
 	// the upgrade that would unlock them.
-	const hasAutoModel = models.some(isAutoModel);
+	const hasOwnRowModel = models.some(hasOwnRow);
 	const destinations: IModelPickerDestination[] = [];
-	if (builtInModels.length || builtInPlaceholders.length || hasAutoModel) {
+	if (builtInModels.length || builtInPlaceholders.length || hasOwnRowModel) {
 		destinations.push({
 			id: MODEL_PICKER_BUILT_IN_DESTINATION,
 			label: builtInLabel,

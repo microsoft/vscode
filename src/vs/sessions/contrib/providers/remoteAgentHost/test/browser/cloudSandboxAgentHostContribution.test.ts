@@ -9,6 +9,7 @@ import { CancellationToken } from '../../../../../../base/common/cancellation.js
 import { CancellationError } from '../../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { isWeb } from '../../../../../../base/common/platform.js';
 import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/virtualScheduling/index.js';
@@ -36,20 +37,22 @@ import {
 import { IRemoteAgentHostService, RemoteAgentHostConnectionStatus, RemoteAgentHostsEnabledSettingId } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { constObservable, IObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { ChatAIDisabledSettingId } from '../../../../../../platform/chat/common/chatSettings.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
 import { InMemoryStorageService, IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 import { IHostService } from '../../../../../../workbench/services/host/browser/host.js';
+import { IChatEntitlementService, IChatSentiment } from '../../../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { IChatSessionsService } from '../../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { IAgentHostGroup } from '../../../../../common/agentHostSessionsProvider.js';
 import { IAgentHostFilterService } from '../../../../../services/agentHostFilter/common/agentHostFilter.js';
 import { ISession } from '../../../../../services/sessions/common/session.js';
 import { ISessionsProvider } from '../../../../../services/sessions/common/sessionsProvider.js';
 import { ISessionsProvidersService } from '../../../../../services/sessions/browser/sessionsProvidersService.js';
-import { CloudSandboxAgentHostContribution } from '../../browser/cloudSandboxAgentHostContribution.js';
-import { IRemoteAgentHostConnectionCustomizationService } from '../../browser/remoteAgentHostConnectionCustomization.js';
+import { CLOUD_SANDBOX_CREATION_PROVIDER_ID, CloudSandboxAgentHostContribution } from '../../browser/cloudSandboxAgentHostContribution.js';
+import { IRemoteAgentHostConnectionCustomizationService } from '../../../../../../workbench/contrib/chat/browser/remoteAgentHost/remoteAgentHostConnectionCustomization.js';
 import { IRemoteAgentHostSessionsProviderConfig } from '../../browser/remoteAgentHostSessionsProvider.js';
 import { CloudSandboxSessionsProvider } from '../../browser/cloudSandboxSessionsProvider.js';
 
@@ -108,6 +111,10 @@ class StubProvider extends mock<CloudSandboxSessionsProvider>() {
 	override getCachedSession(rawId: string): ISession | undefined {
 		const meta = this.seeded.find(seen => AgentSession.id(seen.session) === rawId);
 		return meta ? this._toSession(meta) : undefined;
+	}
+
+	override getSessionModifiedTime(rawId: string): number | undefined {
+		return this.getCachedSession(rawId)?.updatedAt.get().getTime();
 	}
 
 	override publishWithheldSession(rawId: string): void {
@@ -175,12 +182,14 @@ const GITHUB_SANDBOX_GROUP: IAgentHostGroup = {
 	label: 'GitHub Sandboxes',
 	order: 1,
 	connectable: false,
+	sessionCreationProviderId: isWeb ? CLOUD_SANDBOX_CREATION_PROVIDER_ID : undefined,
 };
 
 interface ITestHarness {
 	readonly contribution: TestCloudSandboxContribution;
 	readonly configurationService: TestConfigurationService;
 	setEnabled(enabled: boolean): Promise<void>;
+	setChatHidden(hidden: boolean): void;
 	/** Discovery's answer, mutable so a test can change what a later pass reports. */
 	discovered: readonly ICloudSandboxDiscoveredSession[];
 	/** Runs a discovery pass and waits for it to reconcile. */
@@ -216,6 +225,8 @@ async function createContribution(store: Pick<DisposableStore, 'add'>, sessions:
 	readonly getEnvironment?: (id: string, token: CancellationToken) => Promise<ICloudSandboxEnvironmentRecord>;
 	/** Whether the sandbox feature settings start on. Defaults to `true`. */
 	readonly enabled?: boolean;
+	readonly aiDisabled?: boolean;
+	readonly chatHidden?: boolean;
 	readonly logService?: ILogService;
 	readonly storageService?: IStorageService;
 	readonly accountKey?: string | null;
@@ -228,6 +239,8 @@ async function createContribution(store: Pick<DisposableStore, 'add'>, sessions:
 	const created: ICloudSandboxCreateSessionRequest[] = [];
 	const connectedTo: string[] = [];
 	const historyRequests: string[] = [];
+	const onDidChangeSentiment = store.add(new Emitter<void>());
+	let chatHidden = options?.chatHidden ?? false;
 	const discoveryModes: boolean[] = [];
 	const focusChanges = store.add(new Emitter<boolean>());
 	const hostSelectionChanges = store.add(new Emitter<void>());
@@ -264,6 +277,10 @@ async function createContribution(store: Pick<DisposableStore, 'add'>, sessions:
 				change: { keys: [CloudSandboxEnabledSettingId], overrides: [] },
 				source: ConfigurationTarget.USER,
 			});
+		},
+		setChatHidden: hidden => {
+			chatHidden = hidden;
+			onDidChangeSentiment.fire();
 		},
 		runDiscovery: async () => { await Promise.all(discoveryHandlers.map(handler => handler())); },
 		activate: async (environmentId: string) => {
@@ -338,12 +355,22 @@ async function createContribution(store: Pick<DisposableStore, 'add'>, sessions:
 	const configurationService = new TestConfigurationService({
 		[CloudSandboxEnabledSettingId]: options?.enabled ?? true,
 		[RemoteAgentHostsEnabledSettingId]: options?.enabled ?? true,
+		[ChatAIDisabledSettingId]: options?.aiDisabled ?? false,
 	});
 	instantiationService.stub(IConfigurationService, configurationService);
 	instantiationService.stub(IStorageService, options?.storageService ?? store.add(new InMemoryStorageService()));
 	instantiationService.stub(IHostService, new class extends mock<IHostService>() {
 		override readonly onDidChangeFocus = focusChanges.event;
 		override get hasFocus() { return focused; }
+	}());
+	instantiationService.stub(IChatEntitlementService, new class extends mock<IChatEntitlementService>() {
+		override readonly onDidChangeSentiment = Event.any(
+			onDidChangeSentiment.event,
+			Event.map(Event.filter(configurationService.onDidChangeConfiguration, e => e.affectsConfiguration(ChatAIDisabledSettingId)), () => undefined),
+		);
+		override get sentiment(): IChatSentiment {
+			return { hidden: chatHidden || configurationService.getValue<boolean>(ChatAIDisabledSettingId) };
+		}
 	}());
 	instantiationService.stub(INotificationService, new class extends mock<INotificationService>() { }());
 	instantiationService.stub(IChatSessionsService, new class extends mock<IChatSessionsService>() {
@@ -465,6 +492,71 @@ suite('CloudSandboxAgentHostContribution', () => {
 		const { hostGroups } = await createContribution(store, [discoveredSession()], { enabled: false });
 
 		assert.deepStrictEqual([...hostGroups], []);
+	});
+
+	test('does not advertise or discover sandboxes when AI features are disabled', async () => {
+		let discoveries = 0;
+		const { contribution, hostGroups } = await createContribution(store, [], {
+			aiDisabled: true,
+			listSessions: async () => {
+				discoveries++;
+				return { kind: 'complete', sessions: [discoveredSession()] };
+			},
+		});
+
+		assert.deepStrictEqual({ discoveries, groups: [...hostGroups], providers: [...contribution.stubProviders.keys()] }, { discoveries: 0, groups: [], providers: [] });
+	});
+
+	test('removes sandbox hosts and disposes their providers when AI features are disabled', async () => {
+		const { contribution, configurationService, hostGroups } = await createContribution(store, [discoveredSession()]);
+		const providers = [...contribution.stubProviders.values()];
+		await configurationService.setUserConfiguration(ChatAIDisabledSettingId, true);
+		configurationService.onDidChangeConfigurationEmitter.fire({
+			affectsConfiguration: key => key === ChatAIDisabledSettingId,
+			affectedKeys: new Set([ChatAIDisabledSettingId]),
+			change: { keys: [ChatAIDisabledSettingId], overrides: [] },
+			source: ConfigurationTarget.USER,
+		});
+
+		assert.deepStrictEqual({ disposed: providers.map(provider => provider.disposed), groups: [...hostGroups] }, { disposed: [true], groups: [] });
+	});
+
+	test('does not advertise or discover sandboxes when hidden by entitlement policy', async () => {
+		let discoveries = 0;
+		const { contribution, hostGroups } = await createContribution(store, [], {
+			chatHidden: true,
+			listSessions: async () => {
+				discoveries++;
+				return { kind: 'complete', sessions: [discoveredSession()] };
+			},
+		});
+
+		assert.deepStrictEqual({ discoveries, groups: [...hostGroups], providers: [...contribution.stubProviders.keys()] }, { discoveries: 0, groups: [], providers: [] });
+	});
+
+	test('tears down sandbox hosts when entitlement policy hides chat and rediscovers when restored', async () => {
+		const harness = await createContribution(store, [discoveredSession()]);
+		const originalProvider = harness.contribution.stubProviders.get(cloudSandboxAddress('env-1'))!;
+
+		harness.setChatHidden(true);
+		await harness.runDiscovery();
+		const hidden = { groups: [...harness.hostGroups], disposed: originalProvider.disposed };
+
+		harness.setChatHidden(false);
+		await harness.runDiscovery();
+		const restoredProvider = harness.contribution.stubProviders.get(cloudSandboxAddress('env-1'));
+
+		assert.deepStrictEqual({
+			hidden,
+			restored: {
+				groups: [...harness.hostGroups],
+				replaced: restoredProvider !== originalProvider,
+				disposed: restoredProvider?.disposed,
+			},
+		}, {
+			hidden: { groups: [], disposed: true },
+			restored: { groups: [GITHUB_SANDBOX_GROUP], replaced: true, disposed: false },
+		});
 	});
 
 	test('does not warn when discovery is cancelled', async () => {

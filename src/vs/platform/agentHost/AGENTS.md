@@ -219,6 +219,8 @@ Migration returns known native entries as plain metadata. Discovery classifies u
 
 `chat.agentHost.experimental.deferredTitleGeneration` (host root key `deferredTitleGeneration`) is an opt-in, default-off host scheduling experiment. It takes precedence over `chat.agentHost.experimental.activeAgentTitleGeneration`. With deferred naming off, the active-agent setting keeps the legacy choice between foreground `rename_chat` naming and immediate utility-model naming; its workbench default is enabled outside Stable, while the standalone root schema defaults to disabled.
 
+The workbench setting opts into automatic experiment overrides via `experiment: { mode: 'auto' }`, using treatment name `config.chat.agentHost.experimental.deferredTitleGeneration`. The effective setting is synced to the host root key; the `experimental` tag alone does not enable experiment overrides.
+
 The title controller snapshots `titleGenerationStrategy` on the first session-scoped lookup, including provider creation before state registration, and persists it once session state exists. Failed creation clears the snapshot. All its chats, including peers added later, share that strategy; root changes affect new sessions only. Restore hydrates the strategy before the provider materializes its tool inventory. Older sessions without this metadata retain the legacy active-agent/utility choice, never implicitly opting into deferred naming. Existing materialized legacy sessions use their advertised rename-tool membership as a compatibility fallback only.
 
 Deferred mode synchronously publishes and starts persisting an automatic fallback title, without a utility request, GitHub enrichment, foreground rename reminder, or automatic-naming tool guidance. The existing `SessionTitleContribution` starts at most one non-awaited utility refinement after the first new successful response with nonempty markdown. Forks wait for their first new response rather than titling the inherited history during creation; locally handled commands do not consume this opportunity. A separate `deferredTitleSeed` record preserves the seed and first-response index across restart. Hydration restores eligibility only when that record still matches the persisted title and automatic provenance; it never generates a title itself. Terminal outcomes consume eligibility before any utility call, so completed, failed, cancelled, or empty first turns are not retried after restart. Cancellation, errors, empty responses, unavailable utility credentials, and disposal retain the fallback.
@@ -440,6 +442,8 @@ Copilot also has no AH-session container:
 - The backing records preserve the existing `providerData` codec and one-time `copilot.chats` migration.
 
 No `CopilotSessionEntry`, `AgentSessionEntry`, default-chat URI helper, or sibling cascade remains. Send/history/model/agent/abort/tool/config/dispose/release operations resolve one leaf. Active-client state remains keyed by the owning SDK session where it is genuinely shared, while each live leaf owns its own SDK and MCP lifecycle. Capabilities remain `multipleChats: { fork: true }`.
+
+`CopilotSessionLauncher` sets `mcpOAuthTokenStorage: 'in-memory'` for created, resumed, and ephemeral SDK sessions. VS Code owns durable MCP credentials through `onMcpAuthRequest`; the runtime must not consult its persistent MCP OAuth keychain store.
 
 ### Codex (`node/codex/codexAgent.ts`)
 

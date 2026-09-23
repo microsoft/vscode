@@ -66,6 +66,8 @@ export interface IChatPendingRequest {
  * Excludes observables and non-serializable fields.
  */
 export interface ISerializableSendOptions {
+	agentHostMessageOrigin?: IChatSendRequestOptions['agentHostMessageOrigin'];
+	metadata?: IChatSendRequestOptions['metadata'];
 	modeInfo?: IChatRequestModeInfo;
 	userSelectedModelId?: string;
 	userSelectedModelConfiguration?: IStringDictionary<unknown>;
@@ -2418,12 +2420,33 @@ export function isExportableSessionData(obj: unknown): obj is IExportableChatDat
 		typeof (obj as IExportableChatData).responderUsername === 'string';
 }
 
-export function extractExportableSessionData(data: IExportableChatData): IExportableChatData {
+export function parseChatImport(content: string): IExportableChatData {
+	const data: unknown = revive(JSON.parse(content));
+	if (!isExportableSessionData(data)) {
+		throw new Error('Invalid chat session data');
+	}
+
+	removeImportedMarkdownTrust(data.requests);
 	return {
 		initialLocation: data.initialLocation,
 		requests: data.requests,
 		responderUsername: data.responderUsername,
 	};
+}
+
+function removeImportedMarkdownTrust(value: unknown): void {
+	if (!value || typeof value !== 'object') {
+		return;
+	}
+
+	// Unlike isMarkdownString, this must also match markdown with malformed optional flags.
+	if ('value' in value && typeof value.value === 'string' && 'isTrusted' in value) {
+		value.isTrusted = false;
+	}
+
+	for (const child of Object.values(value)) {
+		removeImportedMarkdownTrust(child);
+	}
 }
 
 export function isSerializableSessionData(obj: unknown): obj is ISerializableChatData {
@@ -3604,6 +3627,8 @@ export function getCodeCitationsMessage(citations: ReadonlyArray<IChatCodeCitati
  */
 export function serializeSendOptions(options: IChatSendRequestOptions): ISerializableSendOptions {
 	return {
+		agentHostMessageOrigin: options.agentHostMessageOrigin,
+		metadata: options.metadata,
 		modeInfo: options.modeInfo,
 		userSelectedModelId: options.userSelectedModelId,
 		userSelectedModelConfiguration: options.userSelectedModelConfiguration,

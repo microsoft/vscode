@@ -4,16 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { Action } from '../../../../../base/common/actions.js';
 import { DeferredPromise } from '../../../../../base/common/async.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { autorun, constObservable, ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { mock } from '../../../../../base/test/common/mock.js';
+import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IActionWidgetService } from '../../../../../platform/actionWidget/browser/actionWidget.js';
-import { IActionListDelegate, IActionListItem } from '../../../../../platform/actionWidget/browser/actionList.js';
+import { IActionListDelegate, IActionListItem, ActionListItemKind } from '../../../../../platform/actionWidget/browser/actionList.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -135,6 +136,7 @@ class TestSessionTypePicker extends SessionTypePicker {
 interface ITestPickerServices {
 	readonly chatSessionsService?: IChatSessionsService;
 	readonly chatEntitlementService?: IChatEntitlementService;
+	readonly providers?: readonly ISessionsProvider[];
 }
 
 function createPicker(
@@ -152,9 +154,9 @@ function createPicker(
 	instantiationService.stub(ISessionsManagementService, managementService);
 	instantiationService.stub(ISessionsProvidersService, new class extends mock<ISessionsProvidersService>() {
 		override getProvider<T extends ISessionsProvider>(providerId: string): T | undefined {
-			return (localProviderIds.includes(providerId)
+			return (services.providers?.find(provider => provider.id === providerId) ?? (localProviderIds.includes(providerId)
 				? { id: providerId, label: providerId, supportsLocalWorkspaces: true }
-				: undefined) as T | undefined;
+				: undefined)) as T | undefined;
 		}
 	}());
 	instantiationService.stub(IStorageService, storage);
@@ -338,6 +340,77 @@ suite('SessionTypePicker', () => {
 		visibility.push(picker.isVisible.get());
 
 		assert.deepStrictEqual(visibility, [false, true, false, true, false]);
+	});
+
+	test('a creation destination keeps Copilot fixed without overwriting a saved Cloud preference', () => {
+		const cloud = sessionType('cloud', 'cloud-agent', 'Cloud');
+		const sandbox = sessionType('creation', 'sandbox-agent', 'Copilot');
+		management.setSessionTypes([sandbox, cloud]);
+		session.set(createFakeSession('cloud', cloud.sessionType.id, folder), undefined);
+		const providerId = observableValue<string | undefined>('creationProvider', undefined);
+		const picker = createPicker(disposables, session, management, storage, { providerId }, undefined, [], {
+			providers: [upcastPartial<ISessionsProvider>({
+				id: 'creation',
+				sessionTypes: [sandbox.sessionType],
+				getSessionTypes: () => [sandbox.sessionType],
+			})],
+		});
+		picker.pick({ providerId: 'cloud', sessionTypeId: cloud.sessionType.id });
+		session.set(undefined, undefined);
+		providerId.set('creation', undefined);
+		const container = document.createElement('div');
+		picker.render(container);
+		const trigger = container.querySelector<HTMLElement>('.action-label');
+		const scoped = {
+			offered: picker.offeredSessionTypeIds,
+			selected: picker.selectedPick,
+			preferred: picker.getPreferredSessionType(folder),
+			storedForCreation: picker.getUserPickedSessionType(),
+			label: trigger?.getAttribute('aria-label'),
+			disabled: trigger?.getAttribute('aria-disabled'),
+			tabIndex: trigger?.tabIndex,
+		};
+		providerId.set(undefined, undefined);
+
+		assert.deepStrictEqual({
+			scoped,
+			storedAfterLeaving: picker.getUserPickedSessionType(),
+		}, {
+			scoped: {
+				offered: [sandbox.sessionType.id],
+				selected: { providerId: 'creation', sessionTypeId: sandbox.sessionType.id },
+				preferred: { providerId: 'creation', sessionTypeId: sandbox.sessionType.id },
+				storedForCreation: undefined,
+				label: 'Session Type, Copilot',
+				disabled: 'true',
+				tabIndex: -1,
+			},
+			storedAfterLeaving: { providerId: 'cloud', sessionTypeId: cloud.sessionType.id },
+		});
+	});
+
+	test('a creation destination respects changes to the allowed providers', () => {
+		const sandbox = sessionType('creation', 'sandbox-agent', 'Copilot');
+		management.setSessionTypes([sandbox]);
+		const allowedProviders = observableValue<readonly string[]>('allowedProviders', ['creation']);
+		const picker = createPicker(disposables, session, management, storage, {
+			providerId: constObservable('creation'),
+			allowedProviders,
+		}, undefined, [], {
+			providers: [upcastPartial<ISessionsProvider>({
+				id: 'creation',
+				sessionTypes: [sandbox.sessionType],
+				getSessionTypes: () => [sandbox.sessionType],
+			})],
+		});
+		const offered = [picker.offeredSessionTypeIds];
+
+		allowedProviders.set([], undefined);
+		offered.push(picker.offeredSessionTypeIds);
+		allowedProviders.set(['creation'], undefined);
+		offered.push(picker.offeredSessionTypeIds);
+
+		assert.deepStrictEqual(offered, [[sandbox.sessionType.id], [], [sandbox.sessionType.id]]);
 	});
 
 	test('uses provider initialization metadata before models are discovered', () => {
@@ -537,6 +610,64 @@ suite('SessionTypePicker', () => {
 				tabIndex: 0,
 				label: 'Pick Session Type, Cloud',
 			},
+		});
+	});
+
+	test('shows an additional workflow action without changing the selected session type', () => {
+		management.setSessionTypes([sessionType('copilot', 'cloud', 'Copilot')]);
+		let shownItems: readonly IActionListItem<unknown>[] = [];
+		let selectAdditionalAction: (() => void) | undefined;
+		const actionWidgetService = new class extends mock<IActionWidgetService>() {
+			override isVisible = false;
+			override hide(): void { }
+			override show<T>(_user: string, _supportsPreview: boolean, items: readonly IActionListItem<T>[], delegate: IActionListDelegate<T>): void {
+				shownItems = items;
+				const actionItem = items.find(item => item.item && (item.item as { kind?: string }).kind === 'additionalAction');
+				selectAdditionalAction = actionItem?.item ? () => void delegate.onSelect(actionItem.item!) : undefined;
+			}
+		};
+		let runCount = 0;
+		const infoAction = disposables.add(new Action('test.info', 'Info'));
+		const picker = createPicker(disposables, session, management, storage, {
+			additionalAction: {
+				id: 'test.runMultiple',
+				label: 'Run and Compare Agents...',
+				description: 'Run isolated attempts, then compare them.',
+				icon: Codicon.diffMultiple,
+				infoAction,
+				isVisible: () => true,
+				run: () => runCount++,
+			},
+		}, actionWidgetService);
+		session.set(createFakeSession('copilot', 'cloud', folder), undefined);
+		const container = document.createElement('div');
+		picker.render(container);
+		const trigger = container.querySelector<HTMLElement>('.action-label');
+
+		picker.showPicker();
+		selectAdditionalAction?.();
+
+		assert.deepStrictEqual({
+			triggerDisabled: trigger?.getAttribute('aria-disabled'),
+			items: shownItems.map(item => ({
+				kind: item.kind,
+				label: item.label,
+				icon: item.group?.icon?.id,
+				toolbarActions: item.toolbarActions?.map(action => action.id),
+			})),
+			runCount,
+			selected: picker.selectedPick,
+			stored: picker.getUserPickedSessionType(),
+		}, {
+			triggerDisabled: 'false',
+			items: [
+				{ kind: ActionListItemKind.Action, label: 'Copilot', icon: 'terminal', toolbarActions: undefined },
+				{ kind: ActionListItemKind.Separator, label: '', icon: undefined, toolbarActions: undefined },
+				{ kind: ActionListItemKind.Action, label: 'Run and Compare Agents...', icon: 'diff-multiple', toolbarActions: ['test.info'] },
+			],
+			runCount: 1,
+			selected: { providerId: 'copilot', sessionTypeId: 'cloud' },
+			stored: undefined,
 		});
 	});
 

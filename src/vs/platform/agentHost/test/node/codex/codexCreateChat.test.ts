@@ -3252,7 +3252,6 @@ suite('CodexAgent exact chat routing', () => {
 		let enabled = true;
 		agent.setServerToolHost(new AgentServerToolHost(stateManager, [createArtifactServerToolGroup({
 			isEnabled: () => enabled,
-			useCompactPrompts: () => false,
 			persist: () => { },
 		})]));
 		const peer = disposables.add(createTestPeer());

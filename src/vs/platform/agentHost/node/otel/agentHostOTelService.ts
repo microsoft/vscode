@@ -24,7 +24,9 @@ import { GenAiAttr } from '../../../otel/common/genAiAttributes.js';
 import { ICompletedSpanData, SpanStatusCode } from '../../../otel/common/spanData.js';
 import { OTelSqliteStore } from '../../../otel/node/sqlite/otelSqliteStore.js';
 import { AgentHostOTelSpansDbSubPath } from '../../common/agentService.js';
-import { AgentHostOTelServiceName, AgentHostOTelServiceNamespace, AgentHostSessionSpanName, AgentHostSessionTitleAttribute, AgentHostSessionTitleSpanName, AgentHostSessionUriAttribute, IAgentHostNativeOTelConfig, IAgentHostOTelService, IAgentHostTraceContext } from '../../common/otel/agentHostOTelService.js';
+import { AgentHostComparisonAttemptCountAttribute, AgentHostComparisonAttemptIndexAttribute, AgentHostComparisonIdAttribute, AgentHostComparisonRoleAttribute, AgentHostOTelServiceName, AgentHostOTelServiceNamespace, AgentHostSessionSpanName, AgentHostSessionTitleAttribute, AgentHostSessionTitleSpanName, AgentHostSessionUriAttribute, IAgentHostNativeOTelConfig, IAgentHostOTelService, IAgentHostTraceContext } from '../../common/otel/agentHostOTelService.js';
+import { IAgentSessionComparisonMetadata } from '../../common/state/sessionState.js';
+import { AgentHostFirstResponseSpanName, AgentHostTurnTimingSpanName, agentHostTimingAttributes, type IAgentHostFirstResponseDiagnostic, type IAgentHostTurnTimingDiagnostic } from '../../common/otel/agentHostTiming.js';
 
 /** Sub-path under the user data directory where the span DB lives. */
 const SPANS_DB_SUBPATH = AgentHostOTelSpansDbSubPath;
@@ -229,6 +231,7 @@ export class AgentHostOTelService extends Disposable implements IAgentHostOTelSe
 	private _startPromise: Promise<void> | undefined;
 	private _metadataExportQueue = Promise.resolve();
 	private readonly _sessionContexts = new Map<string, IAgentHostTraceContext>();
+	private readonly _sessionComparisons = new Map<string, IAgentSessionComparisonMetadata>();
 	private _currentTraceContext: IAgentHostTraceContext | undefined;
 	private _pendingFilteredCodexAuthSpans = 0;
 	private _totalFilteredCodexAuthSpans = 0;
@@ -243,6 +246,43 @@ export class AgentHostOTelService extends Disposable implements IAgentHostOTelSe
 		this._filteredSpanLogScheduler = this._register(new RunOnceScheduler(() => this._logFilteredCodexAuthSpans(), 60_000));
 		this._config = readAgentHostOTelEnv(process.env);
 		this._spansDbPath = join(environmentService.userDataPath, SPANS_DB_SUBPATH);
+	}
+
+	get diagnosticsEnabled(): boolean {
+		const hasDestination = this._config.exporterType === 'console'
+			|| (this._config.exporterType === 'file' && !!this._config.filePath)
+			|| (this._config.exporterType === 'otlp-http' && !!this._config.otlpEndpoint);
+		return this._config.enabled && (this._config.dbSpanExporter || (hasDestination && this._canForwardSyntheticSpan()));
+	}
+
+	emitTurnTiming(diagnostic: IAgentHostTurnTimingDiagnostic): void {
+		this._emitTimingDiagnostic(AgentHostTurnTimingSpanName, diagnostic, 'host');
+	}
+
+	emitFirstResponse(diagnostic: IAgentHostFirstResponseDiagnostic): void {
+		this._emitTimingDiagnostic(AgentHostFirstResponseSpanName, diagnostic, 'renderer');
+	}
+
+	private _emitTimingDiagnostic(name: string, diagnostic: IAgentHostTurnTimingDiagnostic | IAgentHostFirstResponseDiagnostic, source: 'host' | 'renderer'): void {
+		if (!this.diagnosticsEnabled || this._store.isDisposed) {
+			return;
+		}
+		const attributes = agentHostTimingAttributes(diagnostic, source);
+		if (!attributes) {
+			this._logService.warn('[agentHost.otel] skipped timing diagnostic with invalid join identifiers');
+			return;
+		}
+		const now = Date.now();
+		this._queueSyntheticSpan({
+			name,
+			traceId: generateUuid().replaceAll('-', ''),
+			spanId: generateUuid().replaceAll('-', '').slice(0, 16),
+			startTime: now,
+			endTime: now,
+			status: { code: SpanStatusCode.OK },
+			attributes: { ...this._config.resourceAttributes, ...attributes },
+			events: [],
+		});
 	}
 
 	async getSdkTelemetryConfig(): Promise<TelemetryConfig | undefined> {
@@ -306,6 +346,7 @@ export class AgentHostOTelService extends Disposable implements IAgentHostOTelSe
 		const context: IAgentHostTraceContext = { traceId, spanId, traceparent: `00-${traceId}-${spanId}-01` };
 		this._sessionContexts.set(sessionUri, context);
 		const now = Date.now();
+		const comparison = this._sessionComparisons.get(sessionUri);
 		this._queueSyntheticSpan({
 			name: AgentHostSessionSpanName,
 			traceId,
@@ -317,14 +358,30 @@ export class AgentHostOTelService extends Disposable implements IAgentHostOTelSe
 				...this._config.resourceAttributes,
 				[GenAiAttr.CONVERSATION_ID]: conversationId,
 				[AgentHostSessionUriAttribute]: sessionUri,
+				...(comparison ? {
+					[AgentHostComparisonIdAttribute]: comparison.id,
+					[AgentHostComparisonRoleAttribute]: comparison.role,
+					[AgentHostComparisonAttemptCountAttribute]: comparison.attemptCount,
+					...(comparison.attemptIndex !== undefined ? { [AgentHostComparisonAttemptIndexAttribute]: comparison.attemptIndex } : {}),
+				} : {}),
+				'vscode.agent_host.timingSchemaVersion': 1,
 			},
 			events: [],
 		});
 		return context;
 	}
 
+	setSessionComparisonMetadata(sessionUri: string, comparison: IAgentSessionComparisonMetadata | undefined): void {
+		if (comparison) {
+			this._sessionComparisons.set(sessionUri, comparison);
+		} else {
+			this._sessionComparisons.delete(sessionUri);
+		}
+	}
+
 	releaseSessionTraceContext(sessionUri: string): void {
 		this._sessionContexts.delete(sessionUri);
+		this._sessionComparisons.delete(sessionUri);
 	}
 
 	withTraceContext<T>(context: IAgentHostTraceContext | undefined, fn: () => T): T {
@@ -478,6 +535,9 @@ export class AgentHostOTelService extends Disposable implements IAgentHostOTelSe
 	}
 
 	private async _emitSyntheticSpan(span: ICompletedSpanData): Promise<void> {
+		if (this._store.isDisposed) {
+			return;
+		}
 		if (this._config.dbSpanExporter) {
 			await this._ensureStarted();
 		} else if (!this._forwarder) {
@@ -490,7 +550,7 @@ export class AgentHostOTelService extends Disposable implements IAgentHostOTelSe
 		try {
 			this._spanStore?.insertSpan(span);
 		} catch (err) {
-			this._logService.warn('[agentHost.otel] failed to persist session title span', err);
+			this._logService.warn('[agentHost.otel] failed to persist metadata span', err);
 		}
 		const result = { spans: [span], rejected: 0, errors: [] };
 		this._forwarder?.forwardSpans?.(result);

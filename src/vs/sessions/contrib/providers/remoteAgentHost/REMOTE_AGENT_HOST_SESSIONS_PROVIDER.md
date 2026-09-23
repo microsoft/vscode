@@ -10,9 +10,11 @@ Shared Agent Host adaptation is specified in [AGENT_HOST_SESSIONS_PROVIDER.md](.
 
 ## Registration
 
-Kind-specific contributions create and register one provider for each remote host they own, disposing it when that host is removed. `RemoteAgentHostContribution` observes connections for shared filesystem, agent-discovery, model, terminal, and authentication wiring.
+Kind-specific contributions create and register one provider for each remote host they own, disposing it when that host is removed. The workbench-owned [RemoteAgentHostContribution](../../../../workbench/contrib/chat/browser/remoteAgentHost/remoteAgentHostChatContribution.ts) observes connections for shared filesystem, agent-discovery, model, terminal, and authentication wiring. The Agents Window owns host management and its native provider adapters; the Editor Window uses this shared integration for cloud sandboxes.
 
 Agent discovery is dynamic. Changes to a host's advertised agents update the provider's session types without recreating the provider.
+
+Both windows use [CloudSandboxSessionContribution](../../../../workbench/contrib/chat/browser/remoteAgentHost/cloudSandboxSessionContribution.ts) for sandbox discovery, connection-on-open, and offline history. Each supplies its own session-list adapter. Discovery remains account-wide; the Editor adapter scopes its list to the workspace's GitHub repositories, or all projects in an empty window, and groups its filters under Cloud. Repository scope applies to cached and connected sessions without changing their routing; opening one preserves its host and session identity and does not provision a replacement. Sandbox creation remains an Agents Window operation.
 
 Sandbox session discovery is window-owned and does not establish host connections. A full refresh reconciles absent disconnected environments; incremental refreshes retain absent entries and reconcile only explicitly removed or replaced tasks. Both preserve connected and provisioning environments. Failed or cancelled scans must not advance incremental discovery progress.
 
@@ -33,13 +35,19 @@ Copilot agents may share a logical session type with local and cloud Copilot pro
 
 Never use the logical session type where host-specific routing is required. Resource schemes and provider IDs are created through the shared Agent Host identifier helpers rather than hand-built strings.
 
+In the Editor Window, a chat session contribution's `sessionListGroup` selects its provider filter without changing its controller, resource scheme, or content-provider routing. Disconnected discovery supplies activity, not authoritative read/archive flags or proof that the host is available.
+
+Both sandbox adapters let fresh discovery update disk-cached activity while preserving host-owned workspace information and user flags. Host-reported activity takes precedence over discovery for the rest of that adapter's lifetime, including after disconnection; older discovery responses cannot replace a newer discovery result. The Agents Window's persisted discovery baselines let title, timestamp, and project fields continue to refresh until the host changes them. Missing activity does not clear a previously reported status. Sandbox connection availability and read-only interactivity remain separate from conversation activity, so disconnection does not turn a reported input request into a conversation error.
+
 ## Host groups
 
 By default one provider is one entry in the host filter. A provider whose config carries `hostGroup` (`IAgentHostGroup`) instead declares itself a member of a larger user-facing host: every provider sharing a `hostGroup.id` folds into one `IAgentHostFilterEntry` whose `providerIds` covers all of them, and whose `status` is the most alive status among its members. Members keep their own connection, address and session-type authority.
 
 Cloud sandboxes are the only group today. `CloudSandboxAgentHostContribution` registers one provider per sandbox environment and gives each the `githubsandbox` group (`order: 1`, `connectable: false`), so a user with many Mission Control tasks sees a single "GitHub Sandboxes" entry rather than one entry per task.
 
-A group can also be **declared** independently of its members via `IAgentHostFilterService.registerHostGroup`. A declared group always has an entry — with an empty `providerIds` until members register — so the place stays visible and selectable before the user has anything in it. The sandbox contribution declares its group for as long as both `CloudSandboxEnabledSettingId` and `RemoteAgentHostsEnabledSettingId` are on, so enabling the feature surfaces "GitHub Sandboxes" immediately rather than only once discovery finds an environment. Selecting an entry whose `providerIds` is empty scopes the sessions list to nothing.
+A group can also be **declared** independently of its members via `IAgentHostFilterService.registerHostGroup`. A declared group always has an entry, so the place stays visible and selectable before the user has anything in it. The sandbox contribution declares its group while both `CloudSandboxEnabledSettingId` and `RemoteAgentHostsEnabledSettingId` are on and AI features are not disabled, so enabling the feature surfaces "GitHub Sandboxes" immediately rather than only once discovery finds an environment. Selecting an entry whose `providerIds` is empty scopes the sessions list to nothing.
+
+A group can name a `sessionCreationProviderId` to create environments before any connection-backed member exists. While registered, that provider is included in the group's session-list scope so optimistic drafts remain visible, but it contributes neither a connection status nor an address. The web composer scopes workspace and harness selection to this creation provider rather than browsing folders in existing environments. GitHub Sandboxes uses the sandbox-only Copilot provider for this role; allocation and connection ownership remain with `CloudSandboxAgentHostContribution`.
 
 Grouping changes these behaviors:
 
@@ -52,7 +60,7 @@ Grouping changes these behaviors:
 
 The remote Agent Host service owns protocol connection construction, handshake classification, status, retry, and disposal.
 
-`RemoteAgentHostContribution` owns the workbench integration for a live connection: remote filesystem browsing, agent and model discovery, terminals, authentication, and connection-scoped listener disposal.
+`RemoteAgentHostContribution` owns the workbench integration for a live connection: remote filesystem browsing, agent and model discovery, terminals, authentication, and connection-scoped listener disposal. Authentication readiness is shared by address independently of either window's provider objects; session-list adapters observe it before loading host data.
 
 Transport-specific callers own discovery, on-demand staging, credentials, and connection leases. They stage
 their context by address, request an explicit reconnect, and wait for the service to report the connection.

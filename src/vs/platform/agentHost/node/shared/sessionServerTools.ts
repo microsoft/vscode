@@ -13,7 +13,7 @@ import { AgentSession, type AgentProvider, type IAgentCreateSessionConfig, type 
 import { SessionStatus } from '../../common/state/protocol/channels-session/state.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import type { IAgentServerToolDefinition } from '../../common/agentServerTools.js';
-import { buildChatUri, buildDefaultChatUri, getInlineToolInput, getSessionRelatedPullRequestUrls, isDefaultChatUri, isSessionStatusArchived, isSessionStatusRead, MessageKind, parseChatUri, PendingMessageKind, readSessionGitState, readSessionGitHubState, ResponsePartKind, ToolCallStatus, TurnState, withSessionCreationReference, type Message, type ModelSelection, type ResponsePart, type ToolCallState, type ToolDefinition, type Turn, type URI as ProtocolURI } from '../../common/state/sessionState.js';
+import { buildChatUri, buildDefaultChatUri, getInlineToolInput, getSessionRelatedPullRequestUrls, isDefaultChatUri, isSessionStatusArchived, isSessionStatusRead, MessageKind, parseChatUri, PendingMessageKind, readSessionGitState, readSessionGitHubState, getAllSessionRelatedPullRequestUrls, ResponsePartKind, ToolCallStatus, TurnState, withSessionCreationReference, type Message, type ModelSelection, type ResponsePart, type ToolCallState, type ToolDefinition, type Turn, type URI as ProtocolURI } from '../../common/state/sessionState.js';
 import { buildOpenSessionLinkUri, parseOpenSessionLinkChatId, parseOpenSessionLinkUri } from '../../common/openSessionLink.js';
 import { SessionServerToolName } from '../../common/serverToolNames.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
@@ -337,12 +337,6 @@ interface ISerializedSession {
 	/** ISO-8601 timestamp of the session's last activity. */
 	readonly modifiedAt?: string;
 	readonly changes?: IAgentSessionMetadata['changes'];
-	readonly changesets?: readonly {
-		readonly label: string;
-		readonly changeKind: string;
-		readonly uriTemplate: string;
-		readonly description?: string;
-	}[];
 	readonly git?: ISerializedGitState;
 	readonly github?: ISerializedGitHubState;
 }
@@ -729,7 +723,7 @@ export function filterSessions(sessions: readonly IAgentSessionMetadata[], args:
 		if (args.unread && !sessionIsUnread(session)) {
 			return false;
 		}
-		if (args.withPullRequest && getSessionRelatedPullRequestUrls(readSessionGitHubState(session._meta)).length === 0) {
+		if (args.withPullRequest && getAllSessionRelatedPullRequestUrls(session._meta).length === 0) {
 			return false;
 		}
 		// Archived sessions are hidden unless explicitly requested, either via
@@ -763,7 +757,7 @@ function serializeGitState(session: IAgentSessionMetadata): ISerializedGitState 
 }
 
 function serializeGitHubState(session: IAgentSessionMetadata): ISerializedGitHubState | undefined {
-	const github = readSessionGitHubState(session._meta);
+	const github = readSessionGitHubState(session._meta, session.workingDirectories?.[0]?.toString());
 	if (!github) {
 		return undefined;
 	}
@@ -795,14 +789,6 @@ function serializeSession(session: IAgentSessionMetadata): ISerializedSession {
 		...(session.startTime > 0 ? { createdAt: new Date(session.startTime).toISOString() } : {}),
 		...(session.modifiedTime > 0 ? { modifiedAt: new Date(session.modifiedTime).toISOString() } : {}),
 		...(session.changes !== undefined ? { changes: session.changes } : {}),
-		...(session.changesets !== undefined ? {
-			changesets: session.changesets.map(changeset => ({
-				label: changeset.label,
-				changeKind: changeset.changeKind,
-				uriTemplate: changeset.uriTemplate,
-				...(changeset.description !== undefined ? { description: changeset.description } : {}),
-			})),
-		} : {}),
 		...(git !== undefined ? { git } : {}),
 		...(github !== undefined ? { github } : {}),
 	};

@@ -6,8 +6,8 @@
 import { URI } from '../../../base/common/uri.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { parseAnnotationsUri } from './annotationsUri.js';
-import { parseChangesetUri } from './changesetUri.js';
-import { parseDefaultChatUri, parseSubagentSessionUri } from './state/sessionState.js';
+import { parseChangesetUri, parseFolderChangesetOwnerUri } from './changesetUri.js';
+import { parseChatUri, parseSubagentSessionUri } from './state/sessionState.js';
 
 export const IAgentHostSubscriptionService = createDecorator<IAgentHostSubscriptionService>('agentHostSubscriptionService');
 
@@ -29,8 +29,9 @@ export function resolveAgentHostSession(resource: URI): URI {
 	const resourceString = resource.toString();
 	const changesetSession = parseChangesetUri(resourceString)?.sessionUri;
 	const annotationsSession = parseAnnotationsUri(resourceString)?.sessionUri;
-	const chatSession = parseDefaultChatUri(resourceString);
-	let session = URI.parse(changesetSession ?? annotationsSession ?? chatSession ?? resourceString);
+	const folderSession = parseFolderChangesetOwnerUri(resourceString)?.sessionUri;
+	const chatSession = parseChatUri(resourceString)?.session;
+	let session = URI.parse(changesetSession ?? annotationsSession ?? folderSession ?? chatSession ?? resourceString);
 	let subagent;
 	while ((subagent = parseSubagentSessionUri(session))) {
 		session = subagent.parentSession;
