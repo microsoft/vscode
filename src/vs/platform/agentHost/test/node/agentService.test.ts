@@ -15183,7 +15183,7 @@ suite('AgentService (node dispatcher)', () => {
 			}, () => true);
 			await validationStarted.p;
 
-			const rejected = Event.toPromise(Event.filter(stateManager.onDidEmitEnvelope, envelope =>
+			const rejected = Event.toPromise(Event.filter(stateManager.onDidRejectClientAction, envelope =>
 				envelope.action.type === ActionType.SessionIsArchivedChanged && envelope.rejectionReason !== undefined));
 			localService.dispatchAction(sessionStr, { type: ActionType.SessionIsArchivedChanged, isArchived: false }, 'test-client', 1, AgentHostClientType.EditorWindow);
 			finishValidation.complete();
