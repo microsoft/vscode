@@ -1474,7 +1474,6 @@ export class NewChatWidget extends Disposable {
 				return false;
 			}
 			try {
-				this.sessionsService.unsetNewSession();
 				const comparison = await this.sessionComparisonService.startComparison({
 					workspace,
 					prompt: request,
@@ -1484,6 +1483,7 @@ export class NewChatWidget extends Disposable {
 					synthesisHarness,
 					branch,
 				});
+				this.sessionsService.unsetNewSession();
 				await this.commandService.executeCommand(OPEN_SESSION_COMPARISON_COMMAND_ID, comparison.id);
 				return true;
 			} catch (error) {

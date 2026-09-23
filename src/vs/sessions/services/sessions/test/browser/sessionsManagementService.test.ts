@@ -1905,7 +1905,16 @@ suite('SessionsManagementService', () => {
 		await fixture.view.openSession(sessions[4].resource);
 		fixture.partService.updates.length = 0;
 		prepared.length = 0;
+		const states: { layout: string; sessions: (string | null)[] }[] = [];
+		disposables.add(autorun(reader => {
+			states.push({
+				layout: fixture.view.sessionGridLayout.read(reader),
+				sessions: fixture.view.visibleSessions.read(reader).map(session => session?.sessionId ?? null),
+			});
+		}));
 		const outcome = await fixture.view.openSessionsInGrid([...sessions.slice(0, 4), sessions[0]]);
+		const showedGridSessionsInColumns = states.some(state =>
+			state.layout === 'columns' && state.sessions.join(',') === 'a,b,c,d');
 		const initialUpdates = [...fixture.partService.updates];
 		await fixture.storage.flush();
 		fixture.view.dispose();
@@ -1917,12 +1926,14 @@ suite('SessionsManagementService', () => {
 		assert.deepStrictEqual({
 			initialUpdates,
 			outcome,
+			showedGridSessionsInColumns,
 			prepared: prepared.slice(0, 4),
 			restoredLayout,
 			ordinaryLayout: restoredParts.updates.at(-1)?.layout,
 		}, {
 			initialUpdates: [{ ids: ['a', 'b', 'c', 'd'], layout: 'grid' }],
 			outcome: OpenSessionsInGridOutcome.Committed,
+			showedGridSessionsInColumns: false,
 			prepared: ['a', 'b', 'c', 'd'],
 			restoredLayout: { ids: ['a', 'b', 'c', 'd'], layout: 'grid' },
 			ordinaryLayout: 'columns',
@@ -2098,8 +2109,8 @@ suite('SessionsManagementService', () => {
 		storage.store(
 			'agentSessions.activeSessionStates',
 			JSON.stringify([
-				{ sessionResource: sessionA.resource.toString(), visibleOrder: 0, isSticky: false, isActive: false },
-				{ sessionResource: sessionB.resource.toString(), visibleOrder: 1, isSticky: false, isActive: true },
+				{ sessionResource: sessionA.resource.toString(), visibleOrder: 0, isSticky: false, isActive: false, gridLayout: 'grid' },
+				{ sessionResource: sessionB.resource.toString(), visibleOrder: 1, isSticky: false, isActive: true, gridLayout: 'grid' },
 			]),
 			1 /* StorageScope.WORKSPACE */,
 			1 /* StorageTarget.MACHINE */,
@@ -2120,25 +2131,33 @@ suite('SessionsManagementService', () => {
 		const view = createView(instantiationService, service, disposables);
 
 		// Record every grid state published while restoring.
-		const states: (string | null)[][] = [];
+		const states: { layout: string; sessions: (string | null)[] }[] = [];
 		disposables.add(autorun(reader => {
-			states.push(view.visibleSessions.read(reader).map(s => s?.sessionId ?? null));
+			states.push({
+				layout: view.sessionGridLayout.read(reader),
+				sessions: view.visibleSessions.read(reader).map(s => s?.sessionId ?? null),
+			});
 		}));
 
 		await view.restoreVisibleSessions();
 
 		// The grid must never go through a state showing only the active
 		// session 'b' on its own — that intermediate layout is the flicker.
-		const showedActiveAlone = states.some(s => s.length === 1 && s[0] === 'b');
+		const showedActiveAlone = states.some(state => state.sessions.length === 1 && state.sessions[0] === 'b');
+		const showedGridSessionsInColumns = states.some(state => state.layout === 'columns' && state.sessions.join(',') === 'a,b');
 
 		assert.deepStrictEqual({
 			showedActiveAlone,
+			showedGridSessionsInColumns,
 			final: view.visibleSessions.get().map(s => s?.sessionId ?? null),
 			active: view.activeSession.get()?.sessionId,
+			layout: view.sessionGridLayout.get(),
 		}, {
 			showedActiveAlone: false,
+			showedGridSessionsInColumns: false,
 			final: ['a', 'b'],
 			active: 'b',
+			layout: 'grid',
 		});
 	});
 

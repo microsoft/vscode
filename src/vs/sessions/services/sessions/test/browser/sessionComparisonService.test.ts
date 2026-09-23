@@ -610,7 +610,7 @@ suite('SessionComparisonService', () => {
 		const completionEvents = telemetryService.events.filter(event => event.name === 'agents/sessionComparisonAttemptCompleted');
 		const outcomeEvents = telemetryService.events.filter(event => event.name === 'agents/sessionComparisonModelOutcome');
 		const storedComparisons = JSON.parse(storageService.get('sessions.comparisons', StorageScope.PROFILE) ?? '[]') as Array<{
-			participants: Array<{ role: SessionComparisonParticipantRole; completion?: { elapsedMs?: number; tokenCount?: number } }>;
+			participants: Array<{ role: SessionComparisonParticipantRole; completion?: { elapsedMs?: number; tokenCount?: number; tokenCountIsComplete?: boolean } }>;
 		}>;
 		assert.deepStrictEqual({
 			completions: completionEvents.map(event => ({
@@ -650,12 +650,12 @@ suite('SessionComparisonService', () => {
 			],
 			joinKeysMatch: true,
 			completionMetrics: [
-				{ elapsedMs: 95_000, tokenCount: 38 },
-				{ elapsedMs: 120_000, tokenCount: 25 },
+				{ elapsedMs: 95_000, tokenCount: 38, tokenCountIsComplete: true },
+				{ elapsedMs: 120_000, tokenCount: 25, tokenCountIsComplete: false },
 			],
 			storedCompletionMetrics: [
-				{ elapsedMs: 95_000, tokenCount: 38 },
-				{ elapsedMs: 120_000, tokenCount: 25 },
+				{ elapsedMs: 95_000, tokenCount: 38, tokenCountIsComplete: true },
+				{ elapsedMs: 120_000, tokenCount: 25, tokenCountIsComplete: false },
 			],
 			eventCount: 4,
 			persistedCompletionCount: 2,

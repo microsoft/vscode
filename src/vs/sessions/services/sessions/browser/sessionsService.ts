@@ -965,7 +965,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 		const activeIndex = slots.findIndex(slot => slot.session.sessionId === this.activeSession.get()?.sessionId);
 		transaction(tx => {
 			this._gridLayout.set('grid', tx);
-			this._visibility.restoreGrid(slots, Math.max(0, activeIndex));
+			this._visibility.restoreGrid(slots, Math.max(0, activeIndex), tx);
 		});
 		return OpenSessionsInGridOutcome.Committed;
 	}
@@ -1747,7 +1747,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 		}
 		transaction(tx => {
 			this._gridLayout.set(persisted.some(state => state.gridLayout === 'grid') ? 'grid' : 'columns', tx);
-			this._visibility.restoreGrid(slots, activeSlotIndex);
+			this._visibility.restoreGrid(slots, activeSlotIndex, tx);
 		});
 
 		if (token.isCancellationRequested) {

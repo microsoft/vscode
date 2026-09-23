@@ -75,6 +75,8 @@ export interface ISessionComparisonParticipant {
 	readonly completion?: {
 		readonly elapsedMs?: number;
 		readonly tokenCount?: number;
+		/** Whether the token count includes every model call; false means it is a lower bound. */
+		readonly tokenCountIsComplete?: boolean;
 	};
 }
 

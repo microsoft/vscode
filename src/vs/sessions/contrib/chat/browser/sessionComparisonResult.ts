@@ -276,7 +276,7 @@ export class SessionComparisonResult extends Disposable {
 
 	private renderAttemptMetrics(attempts: readonly ISessionComparisonParticipant[]): void {
 		const timeWinners = getMetricWinnerIds(attempts, attempt => attempt.completion?.elapsedMs);
-		const tokenWinners = getMetricWinnerIds(attempts, attempt => attempt.completion?.tokenCount);
+		const tokenWinners = getMetricWinnerIds(attempts, attempt => attempt.completion?.tokenCountIsComplete === false ? undefined : attempt.completion?.tokenCount);
 		const details = dom.append(this.domNode, dom.$('details.session-comparison-result-metrics'));
 		const summary = dom.append(details, dom.$('summary.session-comparison-result-metrics-summary'));
 		summary.id = `session-comparison-metrics-${generateUuid()}`;
@@ -284,7 +284,7 @@ export class SessionComparisonResult extends Disposable {
 		this.renderStore.add(dom.addDisposableListener(details, 'toggle', () => this.onDidChangeLayout()));
 
 		const description = dom.append(details, dom.$('p.session-comparison-result-metrics-description'));
-		description.textContent = localize('sessionComparisonResult.attemptMetricsDescription', "Time is the provider-reported duration of the terminal first turn. Total tokens are provider-reported input plus output tokens.");
+		description.textContent = localize('sessionComparisonResult.attemptMetricsDescription', "Time is the provider-reported duration of the terminal first turn. Token counts marked 'at least' are partial and are not considered for the token usage winner.");
 
 		const scrollContainer = dom.append(details, dom.$('.session-comparison-result-metrics-scroll'));
 		const table = dom.append(scrollContainer, dom.$('table.session-comparison-result-metrics-table'));
@@ -294,7 +294,7 @@ export class SessionComparisonResult extends Disposable {
 		for (const label of [
 			localize('sessionComparisonResult.attempt', "Attempt"),
 			localize('sessionComparisonResult.totalTime', "Total time"),
-			localize('sessionComparisonResult.totalTokens', "Total tokens"),
+			localize('sessionComparisonResult.tokensUsed', "Tokens used"),
 		]) {
 			const header = dom.append(headerRow, dom.$('th'));
 			header.setAttribute('scope', 'col');
@@ -317,7 +317,7 @@ export class SessionComparisonResult extends Disposable {
 			const tokenCell = dom.append(row, dom.$('td'));
 			tokenCell.append(attempt.completion?.tokenCount === undefined
 				? localize('sessionComparisonResult.unavailable', "Unavailable")
-				: attempt.completion.tokenCount.toLocaleString());
+				: formatTokenCount(attempt.completion.tokenCount, attempt.completion.tokenCountIsComplete));
 			if (tokenWinners.has(attempt.id)) {
 				this.renderMetricWinnerBadge(tokenCell, localize('sessionComparisonResult.tokenWinner', "Token usage winner"));
 			}
@@ -718,17 +718,17 @@ export function buildSessionComparisonAccessibleContent(comparison: ISessionComp
 
 	lines.push('', localize('sessionComparisonResult.attemptMetrics', "Attempt time and token usage"));
 	const timeWinners = getMetricWinnerIds(attempts, attempt => attempt.completion?.elapsedMs);
-	const tokenWinners = getMetricWinnerIds(attempts, attempt => attempt.completion?.tokenCount);
+	const tokenWinners = getMetricWinnerIds(attempts, attempt => attempt.completion?.tokenCountIsComplete === false ? undefined : attempt.completion?.tokenCount);
 	for (const attempt of attempts) {
 		const elapsed = attempt.completion?.elapsedMs === undefined
 			? localize('sessionComparisonResult.unavailable', "Unavailable")
 			: formatElapsedTime(attempt.completion.elapsedMs);
 		const tokens = attempt.completion?.tokenCount === undefined
 			? localize('sessionComparisonResult.unavailable', "Unavailable")
-			: attempt.completion.tokenCount.toLocaleString();
+			: formatTokenCount(attempt.completion.tokenCount, attempt.completion.tokenCountIsComplete);
 		lines.push(localize(
 			'sessionComparisonAccessibleView.attemptMetrics',
-			"{0}: Total time {1}{2}; Total tokens {3}{4}",
+			"{0}: Total time {1}{2}; Tokens used {3}{4}",
 			attemptLabels.get(attempt.id) ?? attempt.id,
 			elapsed,
 			timeWinners.has(attempt.id) ? localize('sessionComparisonAccessibleView.winner', " (winner)") : '',
@@ -803,6 +803,13 @@ function getMetricWinnerIds(
 	}
 	const winningValue = Math.min(...available.map(entry => entry.value));
 	return new Set(available.filter(entry => entry.value === winningValue).map(entry => entry.id));
+}
+
+function formatTokenCount(tokenCount: number, isComplete: boolean | undefined): string {
+	const formatted = tokenCount.toLocaleString();
+	return isComplete === false
+		? localize('sessionComparisonResult.partialTokenCount', "At least {0}", formatted)
+		: formatted;
 }
 
 function getAssessmentLabel(assessment: SessionComparisonDecisionAssessment): string {

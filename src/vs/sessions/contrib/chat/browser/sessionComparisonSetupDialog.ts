@@ -1154,9 +1154,12 @@ export class SessionComparisonSetupDialog extends Disposable {
 						contentScrollable.getDomNode().classList.add('session-comparison-setup-content-scroll');
 						dom.append(container, contentScrollable.getDomNode());
 						navigationContainer = dom.append(container, dom.$('.session-comparison-setup-navigation'));
-						const resizeObserver = new (dom.getWindow(container).ResizeObserver)(() => contentScrollable?.scanDomNode());
-						disposables.add({ dispose: () => resizeObserver.disconnect() });
-						resizeObserver.observe(container);
+						const resizeObserver = disposables.add(new dom.DisposableResizeObserver(
+							'SessionComparisonSetupDialog.contentScrollable',
+							() => contentScrollable?.scanDomNode(),
+							dom.getWindow(container),
+						));
+						disposables.add(resizeObserver.observe(container));
 						const dialogElement = container.closest<HTMLElement>('.session-comparison-setup-dialog');
 						if (!dialogElement) {
 							throw new Error('Session comparison setup dialog element not found.');

@@ -561,13 +561,16 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 			const elapsedMs = typeof firstTurnElapsedMs === 'number' && Number.isFinite(firstTurnElapsedMs) && firstTurnElapsedMs >= 0
 				? firstTurnElapsedMs
 				: typeof storedElapsedMs === 'number' && storedElapsedMs > 0 ? storedElapsedMs : undefined;
-			const usage = participant.completion?.tokenCount === undefined ? aggregateChatUsage(requests.map(request => request.response?.usage)) : undefined;
+			const usage = aggregateChatUsage(requests.map(request => request.response?.usage));
 			const completion = {
 				elapsedMs,
-				tokenCount: participant.completion?.tokenCount ?? (usage ? usage.inputTokens + usage.outputTokens : undefined),
+				tokenCount: usage ? usage.inputTokens + usage.outputTokens : participant.completion?.tokenCount,
+				tokenCountIsComplete: usage?.isComplete ?? participant.completion?.tokenCountIsComplete,
 			};
 			completions.set(participant.id, completion);
-			if (participant.completion?.elapsedMs !== completion.elapsedMs || participant.completion?.tokenCount !== completion.tokenCount) {
+			if (participant.completion?.elapsedMs !== completion.elapsedMs
+				|| participant.completion?.tokenCount !== completion.tokenCount
+				|| participant.completion?.tokenCountIsComplete !== completion.tokenCountIsComplete) {
 				comparisonChanged = true;
 			}
 			const key = `${comparison.id}/${participant.id}`;
@@ -592,7 +595,9 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 			...comparison,
 			participants: comparison.participants.map(participant => {
 				const completion = completions.get(participant.id);
-				return completion && (participant.completion?.elapsedMs !== completion.elapsedMs || participant.completion?.tokenCount !== completion.tokenCount)
+				return completion && (participant.completion?.elapsedMs !== completion.elapsedMs
+					|| participant.completion?.tokenCount !== completion.tokenCount
+					|| participant.completion?.tokenCountIsComplete !== completion.tokenCountIsComplete)
 					? { ...participant, completion }
 					: participant;
 			}),

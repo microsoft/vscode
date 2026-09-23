@@ -1530,7 +1530,7 @@ suite('NewChatWidget', () => {
 		});
 	});
 
-	test('starts comparisons with uniquely identified repeated harness and model attempts', async () => {
+	test('preserves the comparison draft after startup failure and clears it after a successful retry', async () => {
 		const workspace = URI.file('/workspace');
 		const session = upcastPartial<ISession>({
 			workspace: constObservable({
@@ -1563,8 +1563,10 @@ suite('NewChatWidget', () => {
 			},
 		];
 		let comparisonOptions: IStartSessionComparisonOptions | undefined;
+		let failComparisonStart = true;
+		let unsetNewSessionCalls = 0;
 
-		const result = await send.call({
+		const harness: ISendHarness = {
 			newSessionComposerService: { notifyWillSendRequest: () => { } },
 			_pendingBackgroundSends: { deleteAndDispose: () => { } },
 			_session: constObservable(session),
@@ -1612,6 +1614,9 @@ suite('NewChatWidget', () => {
 			sessionComparisonService: {
 				startComparison: async options => {
 					comparisonOptions = options;
+					if (failComparisonStart) {
+						throw new Error('Unable to launch enough attempts');
+					}
 					return {
 						id: 'comparison',
 						participants: [],
@@ -1619,7 +1624,7 @@ suite('NewChatWidget', () => {
 				},
 			},
 			sessionsService: {
-				unsetNewSession: () => { },
+				unsetNewSession: () => { unsetNewSessionCalls++; },
 				openSession: async () => { },
 			},
 			commandService: { executeCommand: async () => undefined },
@@ -1627,16 +1632,27 @@ suite('NewChatWidget', () => {
 			logService: { error: () => { } },
 			_getComparisonBranch: () => 'main',
 			_getWorkspaceRoots: () => [workspace],
-		}, 'compare implementations');
+		};
+
+		const failedResult = await send.call(harness, 'compare implementations');
+		const unsetNewSessionCallsAfterFailure = unsetNewSessionCalls;
+		failComparisonStart = false;
+		const result = await send.call(harness, 'compare implementations');
 
 		assert.deepStrictEqual({
+			failedResult,
 			result,
+			unsetNewSessionCallsAfterFailure,
+			unsetNewSessionCalls,
 			attempts: comparisonOptions?.attempts,
 			judgeHarness: comparisonOptions?.judgeHarness,
 			synthesisHarness: comparisonOptions?.synthesisHarness,
 			branch: comparisonOptions?.branch,
 		}, {
+			failedResult: false,
 			result: true,
+			unsetNewSessionCallsAfterFailure: 0,
+			unsetNewSessionCalls: 1,
 			attempts: [
 				configuredAttempts[0],
 				configuredAttempts[1],
