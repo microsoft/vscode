@@ -1008,6 +1008,14 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 				new NullLogService(),
 				configurationService,
 				new FixtureConfigurationResolverService(),
+				new class extends mock<IMcpService>() {
+					override readonly enablementModel = {
+						readEnabled: () => ContributionEnablementState.EnabledProfile,
+						readProfileEnabled: () => true,
+						setEnabled: () => { },
+						remove: () => { },
+					};
+				}(),
 			));
 			const activeDescriptor = harnessService.findHarnessById(getChatSessionType(options.sessionResource));
 			if (activeDescriptor) {
@@ -2190,7 +2198,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 
 	McpServersTree: defineComponentFixture({
 		labels: { kind: 'screenshot' },
-		expectedVisualDescriptions: ['The MCP Servers page uses a classic tree with collapsible User, Workspace, Plugins, Extensions, Built-In, and Available groups where applicable.'],
+		expectedVisualDescriptions: ['The MCP Servers page uses a classic tree with collapsible Installed and Available groups.'],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
 			selectedSection: AICustomizationManagementSection.McpServers,
@@ -2549,7 +2557,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 
 	PluginsTree: defineComponentFixture({
 		labels: { kind: 'screenshot' },
-		expectedVisualDescriptions: ['The Plugins page uses a classic tree with collapsible User, Workspace, Remote Session, and Available groups where applicable.'],
+		expectedVisualDescriptions: ['The Plugins page uses a classic tree with collapsible Installed and Available groups.'],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
 			selectedSection: AICustomizationManagementSection.Plugins,

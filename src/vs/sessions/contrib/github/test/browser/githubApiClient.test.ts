@@ -4,8 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { DeferredPromise } from '../../../../../base/common/async.js';
 import { bufferToStream, VSBuffer } from '../../../../../base/common/buffer.js';
-import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
+import { isCancellationError } from '../../../../../base/common/errors.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { IRequestContext, IRequestOptions } from '../../../../../base/parts/request/common/request.js';
@@ -30,13 +32,15 @@ class FakeRequestService extends Disposable implements Partial<IRequestService> 
 	readonly onDidCompleteRequest = this._onDidCompleteRequest.event;
 
 	lastOptions: IRequestOptions | undefined;
+	lastToken: CancellationToken | undefined;
 	nextResponse: IRequestContext = {
 		res: { statusCode: 304, headers: { etag: '"etag-2"' } },
 		stream: bufferToStream(VSBuffer.wrap(new Uint8Array(0))),
 	};
 
-	async request(options: IRequestOptions, _token: CancellationToken): Promise<IRequestContext> {
+	async request(options: IRequestOptions, token: CancellationToken): Promise<IRequestContext> {
 		this.lastOptions = options;
+		this.lastToken = token;
 		return this.nextResponse;
 	}
 }
@@ -45,6 +49,15 @@ class FakeAuthenticationService implements Partial<IAuthenticationService> {
 	readonly _serviceBrand: undefined;
 	readonly providerIds: string[] = [];
 	readonly getSessionsOptions: (IAuthenticationGetSessionsOptions | undefined)[] = [];
+	readonly createSessionCalls: Parameters<IAuthenticationService['createSession']>[] = [];
+	getSessionsResult: Promise<readonly AuthenticationSession[]> | undefined;
+	createSessionError: Error | string | undefined;
+	createdSession: AuthenticationSession = {
+		id: 'session-2',
+		accessToken: 'token-created',
+		account: { id: 'account-1', label: 'octocat' },
+		scopes: ['repo'],
+	};
 	sessions: readonly AuthenticationSession[] = [{
 		id: 'session-1',
 		accessToken: 'token-123',
@@ -55,7 +68,16 @@ class FakeAuthenticationService implements Partial<IAuthenticationService> {
 	async getSessions(...args: Parameters<IAuthenticationService['getSessions']>): Promise<readonly AuthenticationSession[]> {
 		this.providerIds.push(args[0]);
 		this.getSessionsOptions.push(args[2]);
-		return this.sessions;
+		return this.getSessionsResult ?? this.sessions;
+	}
+
+	async createSession(...args: Parameters<IAuthenticationService['createSession']>): Promise<AuthenticationSession> {
+		this.createSessionCalls.push(args);
+		if (this.createSessionError) {
+			throw this.createSessionError;
+		}
+		this.sessions = [...this.sessions, this.createdSession];
+		return this.createdSession;
 	}
 }
 
@@ -129,6 +151,126 @@ suite('GitHubApiClient', () => {
 
 		assert.deepStrictEqual(authenticationService.getSessionsOptions, [{ silent: true }]);
 	});
+
+	test('repository requests do not silently fall back to insufficient scopes', async () => {
+		authenticationService.sessions = [{ ...authenticationService.sessions[0], scopes: ['read:user'] }];
+
+		await assert.rejects(
+			client.request('GET', '/user/repos', 'test', { createAuthenticationSession: false, authenticationScopes: ['repo'] }),
+			GitHubAuthenticationError,
+		);
+
+		assert.deepStrictEqual({
+			created: authenticationService.createSessionCalls,
+			request: requestService.lastOptions,
+		}, { created: [], request: undefined });
+	});
+
+	for (const signedIn of [false, true]) {
+		test(`interactively obtains repository access when ${signedIn ? 'existing scopes are insufficient' : 'signed out'}`, async () => {
+			authenticationService.sessions = signedIn ? [{ ...authenticationService.sessions[0], scopes: ['read:user'] }] : [];
+			const token = store.add(new CancellationTokenSource()).token;
+
+			await client.authenticate(['repo'], token);
+			await client.request('GET', '/user/repos', 'test', { token, createAuthenticationSession: false, authenticationScopes: ['repo'] });
+
+			assert.deepStrictEqual({
+				created: authenticationService.createSessionCalls,
+				authorization: requestService.lastOptions?.headers?.Authorization,
+				token: requestService.lastToken,
+			}, {
+				created: [['github', ['repo'], { activateImmediate: true }]],
+				authorization: 'token token-created',
+				token,
+			});
+		});
+	}
+
+	test('reuses a session whose scopes include repository access', async () => {
+		authenticationService.sessions = [{ ...authenticationService.sessions[0], scopes: ['repo', 'read:user'] }];
+
+		await client.authenticate(['repo'], CancellationToken.None);
+		await client.request('GET', '/user/repos', 'test', { createAuthenticationSession: false, authenticationScopes: ['repo'] });
+
+		assert.deepStrictEqual({
+			created: authenticationService.createSessionCalls,
+			authorization: requestService.lastOptions?.headers?.Authorization,
+		}, { created: [], authorization: 'token token-123' });
+	});
+
+	test('rejects an interactive session that still lacks the required scopes', async () => {
+		authenticationService.sessions = [];
+		authenticationService.createdSession = { ...authenticationService.createdSession, scopes: ['read:user'] };
+
+		await assert.rejects(client.authenticate(['repo'], CancellationToken.None), GitHubAuthenticationError);
+	});
+
+	for (const error of ['Cancelled', new Error('Cancelled')]) {
+		test(`normalizes provider sign-in cancellation (${typeof error})`, async () => {
+			authenticationService.sessions = [];
+			authenticationService.createSessionError = error;
+
+			await assert.rejects(client.authenticate(['repo'], CancellationToken.None), isCancellationError);
+		});
+	}
+
+	test('cancellation while looking up sessions prevents sign-in and HTTP requests', async () => {
+		const sessions = new DeferredPromise<readonly AuthenticationSession[]>();
+		authenticationService.getSessionsResult = sessions.p;
+		const source = store.add(new CancellationTokenSource());
+		const request = client.request('GET', '/user/repos', 'test', { token: source.token, authenticationScopes: ['repo'] });
+
+		source.cancel();
+		await assert.rejects(request, isCancellationError);
+		await sessions.complete([]);
+
+		assert.deepStrictEqual({
+			created: authenticationService.createSessionCalls,
+			request: requestService.lastOptions,
+		}, { created: [], request: undefined });
+	});
+
+	test('does not look up sessions for an already cancelled request', async () => {
+		await assert.rejects(
+			client.request('GET', '/user/repos', 'test', { token: CancellationToken.Cancelled, authenticationScopes: ['repo'] }),
+			isCancellationError,
+		);
+		assert.deepStrictEqual(authenticationService.providerIds, []);
+	});
+
+	test('preserves the unscoped fallback for existing callers', async () => {
+		authenticationService.sessions = [{ ...authenticationService.sessions[0], scopes: ['read:user'] }];
+
+		await client.request('GET', '/repos/o/r', 'test');
+
+		assert.deepStrictEqual({
+			created: authenticationService.createSessionCalls,
+			authorization: requestService.lastOptions?.headers?.Authorization,
+		}, { created: [], authorization: 'token token-123' });
+	});
+
+	for (const kind of ['REST', 'GraphQL']) {
+		test(`does not request repository consent for a signed-out unscoped ${kind} caller`, async () => {
+			authenticationService.sessions = [];
+
+			await assert.rejects(
+				kind === 'REST'
+					? client.request('GET', '/repos/o/r/issues', 'test')
+					: client.graphql('query Test { viewer { login } }', 'test'),
+				GitHubAuthenticationError,
+			);
+
+			assert.deepStrictEqual({
+				lookups: authenticationService.getSessionsOptions,
+				created: authenticationService.createSessionCalls,
+				request: requestService.lastOptions,
+			}, {
+				lookups: [{ silent: true }, { createIfNone: true }],
+				created: [],
+				request: undefined,
+			});
+		});
+	}
 
 	test('routes REST requests through GitHub Enterprise Server authentication and endpoints', async () => {
 		defaultAccountService.authenticationProvider = {

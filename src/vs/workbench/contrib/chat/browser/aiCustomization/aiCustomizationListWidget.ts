@@ -140,8 +140,7 @@ interface IAICustomizationItemTemplateData {
 	readonly description: HighlightedLabel;
 	readonly disposables: DisposableStore;
 	readonly elementDisposables: DisposableStore;
-	/** Index of the row currently rendered into this template, or -1 when unbound. */
-	currentIndex: number;
+	currentItemId: string | undefined;
 }
 
 interface IGroupHeaderTemplateData {
@@ -258,7 +257,7 @@ class AICustomizationItemRenderer implements IListRenderer<IFileItemEntry, IAICu
 	 * every row's actions.
 	 */
 	private readonly templates = new Set<IAICustomizationItemTemplateData>();
-	private focusedIndex = -1;
+	private focusedItemId: string | undefined;
 
 	constructor(
 		private readonly showItemActions: (item: IAICustomizationListItem, anchor: HTMLElement) => void,
@@ -275,13 +274,10 @@ class AICustomizationItemRenderer implements IListRenderer<IFileItemEntry, IAICu
 	 * The action bar of that row (and only that row) is made tab-focusable.
 	 * Pass -1 to clear focus; in that case all action bars are made non-focusable.
 	 */
-	setFocusedIndex(index: number): void {
-		this.focusedIndex = index;
+	setFocusedItemId(itemId: string | undefined): void {
+		this.focusedItemId = itemId;
 		for (const template of this.templates) {
-			// Guard against the -1 === -1 case where unbound/recycled templates
-			// (whose currentIndex was reset by disposeElement) would otherwise be
-			// made tab-focusable when no row has focus.
-			template.actionBar.setFocusable(index !== -1 && template.currentIndex === index);
+			template.actionBar.setFocusable(itemId !== undefined && template.currentItemId === itemId);
 		}
 	}
 
@@ -307,7 +303,7 @@ class AICustomizationItemRenderer implements IListRenderer<IFileItemEntry, IAICu
 			actionViewItemProvider: createActionViewItem.bind(undefined, this.instantiationService),
 		}));
 		// Keep the inline actions out of the document tab order by default. Only the
-		// focused row's action bar is made tab-focusable (see `setFocusedIndex`),
+		// focused row's action bar is made tab-focusable (see `setFocusedItemId`),
 		// so Tab from a focused row enters that row's actions exactly once instead
 		// of cycling through every row's actions.
 		actionBar.setFocusable(false);
@@ -324,7 +320,7 @@ class AICustomizationItemRenderer implements IListRenderer<IFileItemEntry, IAICu
 			description,
 			disposables,
 			elementDisposables,
-			currentIndex: -1,
+			currentItemId: undefined,
 		};
 		this.templates.add(template);
 		return template;
@@ -332,8 +328,8 @@ class AICustomizationItemRenderer implements IListRenderer<IFileItemEntry, IAICu
 
 	renderElement(entry: IFileItemEntry, index: number, templateData: IAICustomizationItemTemplateData): void {
 		templateData.elementDisposables.clear();
-		templateData.currentIndex = index;
-		templateData.actionBar.setFocusable(this.focusedIndex !== -1 && index === this.focusedIndex);
+		templateData.currentItemId = entry.item.id;
+		templateData.actionBar.setFocusable(this.focusedItemId !== undefined && entry.item.id === this.focusedItemId);
 		const element = entry.item;
 
 		// Type icon: use per-item override or fall back to prompt type
@@ -507,7 +503,7 @@ class AICustomizationItemRenderer implements IListRenderer<IFileItemEntry, IAICu
 	}
 
 	disposeElement(_entry: IFileItemEntry, _index: number, templateData: IAICustomizationItemTemplateData): void {
-		templateData.currentIndex = -1;
+		templateData.currentItemId = undefined;
 	}
 
 	disposeTemplate(templateData: IAICustomizationItemTemplateData): void {
@@ -953,7 +949,7 @@ export class AICustomizationListWidget extends Disposable {
 		// of cycling through the action bar of every rendered row.
 		this._register(this.list.onDidChangeFocus(e => {
 			const entry = e.elements[0];
-			itemRenderer.setFocusedIndex(entry ? this.displayEntries.indexOf(entry) : -1);
+			itemRenderer.setFocusedItemId(entry?.type === 'file-item' ? entry.item.id : undefined);
 		}));
 
 		// When the list itself receives DOM focus (e.g. via Tab) and no row is
@@ -1920,7 +1916,7 @@ export class AICustomizationListWidget extends Disposable {
 			}
 		}));
 		this.cardDisposables.add(list.onDidChangeFocus(event => {
-			itemRenderer.setFocusedIndex(event.indexes.length ? event.indexes[0] : -1);
+			itemRenderer.setFocusedItemId(event.elements[0]?.item.id);
 			if (event.elements.length > 0) {
 				this.lastCardFocusItemId = event.elements[0].item.id;
 			}

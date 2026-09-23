@@ -18,8 +18,8 @@ import { AgentSession } from '../../../../../platform/agentHost/common/agent.js'
 import { ICloudSandboxApiService } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { IReplayedTaskHistory } from '../../../../../platform/agentHost/common/taskEventReplay.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
-import { activeTurnToProgress, messageToRequestOrigin, messageToVariableData, turnsToHistory } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/stateToProgressAdapter.js';
-import { IChatSession, IChatSessionContentProvider, IChatSessionHistoryItem } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
+import { activeTurnToProgress, messageToRequestOrigin, messageToVariableData, turnsToHistory } from '../agentSessions/agentHost/stateToProgressAdapter.js';
+import { IChatSession, IChatSessionContentProvider, IChatSessionHistoryItem } from '../../common/chatSessionsService.js';
 
 const LOG_PREFIX = '[CloudSandboxReadOnly]';
 
@@ -37,8 +37,8 @@ export interface ICloudSandboxReadOnlyConfig {
 	readonly prefetchedHistory?: Promise<IReplayedTaskHistory | undefined>;
 }
 
-/** A resolved chat session backed entirely by replayed history. */
-class ReadOnlyChatSession extends Disposable implements IChatSession {
+/** A resolved chat session backed entirely by read-only history. */
+export class ReadOnlyChatSession extends Disposable implements IChatSession {
 	private readonly _onWillDispose = this._register(new Emitter<void>());
 	readonly onWillDispose: Event<void> = this._onWillDispose.event;
 

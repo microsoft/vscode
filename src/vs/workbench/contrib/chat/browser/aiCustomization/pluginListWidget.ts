@@ -153,6 +153,14 @@ interface IPluginSearchHeaderEntry {
 
 type IPluginListEntry = IPluginGroupHeaderEntry | IPluginSearchHeaderEntry | IPluginInstalledItemEntry | IPluginMarketplaceItemEntry | IPluginRemoteItemEntry;
 
+function getRemotePluginEntryId(entry: IPluginRemoteItemEntry): string {
+	return entry.item.itemKey ?? `remote-${entry.item.groupKey ?? 'default'}-${entry.item.uri.toString()}`;
+}
+
+function getMarketplacePluginEntryId(entry: IPluginMarketplaceItemEntry): string {
+	return `marketplace-${entry.item.marketplaceReference.canonicalId}/${entry.item.source}`;
+}
+
 interface IPluginSectionList {
 	readonly list: WorkbenchList<IPluginListEntry>;
 	readonly entries: readonly IPluginListEntry[];
@@ -236,13 +244,13 @@ interface IPluginInstalledItemTemplateData {
 	readonly metadata: HTMLElement;
 	readonly actions: HTMLElement;
 	readonly disposables: DisposableStore;
-	currentIndex: number;
+	currentItemId: string | undefined;
 }
 
 class PluginInstalledItemRenderer implements IListRenderer<IPluginInstalledItemEntry, IPluginInstalledItemTemplateData> {
 	readonly templateId = 'pluginInstalledItem';
 	private readonly _templates = new Set<IPluginInstalledItemTemplateData>();
-	private _focusedIndex = -1;
+	private _focusedItemId: string | undefined;
 
 	constructor(
 		private readonly _harnessService: ICustomizationHarnessService,
@@ -262,14 +270,14 @@ class PluginInstalledItemRenderer implements IListRenderer<IPluginInstalledItemE
 		const metadata = DOM.append(details, $('.plugin-list-item-metadata'));
 		const actions = DOM.append(container, $('.plugin-list-item-action'));
 
-		const template = { container, syncCheckboxContainer, name, source, description, metadata, actions, disposables: new DisposableStore(), currentIndex: -1 };
+		const template = { container, syncCheckboxContainer, name, source, description, metadata, actions, disposables: new DisposableStore(), currentItemId: undefined };
 		this._templates.add(template);
 		return template;
 	}
 
-	renderElement(element: IPluginInstalledItemEntry, index: number, templateData: IPluginInstalledItemTemplateData): void {
+	renderElement(element: IPluginInstalledItemEntry, _index: number, templateData: IPluginInstalledItemTemplateData): void {
 		templateData.disposables.clear();
-		templateData.currentIndex = index;
+		templateData.currentItemId = element.item.plugin.uri.toString();
 
 		templateData.name.textContent = formatDisplayName(element.item.name);
 		templateData.source.textContent = element.item.marketplace ? '' : localize('pluginLocalSourceBadge', "Local");
@@ -313,13 +321,13 @@ class PluginInstalledItemRenderer implements IListRenderer<IPluginInstalledItemE
 		}
 		DOM.clearNode(templateData.actions);
 		this._renderActions(element.item, templateData.container, templateData.actions, templateData.disposables);
-		setVirtualizedRowActionsTabbable(templateData.actions, index === this._focusedIndex);
+		setVirtualizedRowActionsTabbable(templateData.actions, templateData.currentItemId === this._focusedItemId);
 	}
 
-	setFocusedIndex(index: number): void {
-		this._focusedIndex = index;
+	setFocusedItemId(itemId: string | undefined): void {
+		this._focusedItemId = itemId;
 		for (const template of this._templates) {
-			setVirtualizedRowActionsTabbable(template.actions, template.currentIndex === index);
+			setVirtualizedRowActionsTabbable(template.actions, template.currentItemId === itemId);
 		}
 	}
 
@@ -342,13 +350,13 @@ interface IPluginRemoteItemTemplateData {
 	readonly status: HTMLElement;
 	readonly actions: HTMLElement;
 	readonly disposables: DisposableStore;
-	currentIndex: number;
+	currentItemId: string | undefined;
 }
 
 class PluginRemoteItemRenderer implements IListRenderer<IPluginRemoteItemEntry, IPluginRemoteItemTemplateData> {
 	readonly templateId = 'pluginRemoteItem';
 	private readonly _templates = new Set<IPluginRemoteItemTemplateData>();
-	private _focusedIndex = -1;
+	private _focusedItemId: string | undefined;
 
 	constructor(
 		private readonly _renderActions: (item: ICustomizationItem, actions: HTMLElement, disposables: DisposableStore) => void,
@@ -366,14 +374,14 @@ class PluginRemoteItemRenderer implements IListRenderer<IPluginRemoteItemEntry, 
 		const status = DOM.append(container, $('.plugin-list-item-status'));
 		const actions = DOM.append(container, $('.plugin-list-item-action'));
 
-		const template = { container, name, badge, description, metadata, status, actions, disposables: new DisposableStore(), currentIndex: -1 };
+		const template = { container, name, badge, description, metadata, status, actions, disposables: new DisposableStore(), currentItemId: undefined };
 		this._templates.add(template);
 		return template;
 	}
 
-	renderElement(element: IPluginRemoteItemEntry, index: number, templateData: IPluginRemoteItemTemplateData): void {
+	renderElement(element: IPluginRemoteItemEntry, _index: number, templateData: IPluginRemoteItemTemplateData): void {
 		templateData.disposables.clear();
-		templateData.currentIndex = index;
+		templateData.currentItemId = getRemotePluginEntryId(element);
 		templateData.name.textContent = formatDisplayName(element.item.name);
 
 		if (element.item.badge) {
@@ -425,13 +433,13 @@ class PluginRemoteItemRenderer implements IListRenderer<IPluginRemoteItemEntry, 
 		}
 		DOM.clearNode(templateData.actions);
 		this._renderActions(element.item, templateData.actions, templateData.disposables);
-		setVirtualizedRowActionsTabbable(templateData.actions, index === this._focusedIndex);
+		setVirtualizedRowActionsTabbable(templateData.actions, templateData.currentItemId === this._focusedItemId);
 	}
 
-	setFocusedIndex(index: number): void {
-		this._focusedIndex = index;
+	setFocusedItemId(itemId: string | undefined): void {
+		this._focusedItemId = itemId;
 		for (const template of this._templates) {
-			setVirtualizedRowActionsTabbable(template.actions, template.currentIndex === index);
+			setVirtualizedRowActionsTabbable(template.actions, template.currentItemId === itemId);
 		}
 	}
 
@@ -459,7 +467,7 @@ interface IPluginMarketplaceItemTemplateData {
 	readonly installButton: Button;
 	readonly elementDisposables: DisposableStore;
 	readonly templateDisposables: DisposableStore;
-	currentIndex: number;
+	currentItemId: string | undefined;
 }
 
 const PLUGIN_MARKETPLACE_ITEM_TEMPLATE_ID = 'pluginMarketplaceItem';
@@ -467,7 +475,7 @@ const PLUGIN_MARKETPLACE_ITEM_TEMPLATE_ID = 'pluginMarketplaceItem';
 class PluginMarketplaceItemRenderer implements IListRenderer<IPluginMarketplaceItemEntry, IPluginMarketplaceItemTemplateData> {
 	readonly templateId = PLUGIN_MARKETPLACE_ITEM_TEMPLATE_ID;
 	private readonly _templates = new Set<IPluginMarketplaceItemTemplateData>();
-	private _focusedIndex = -1;
+	private _focusedItemId: string | undefined;
 
 	constructor(
 		private readonly pluginInstallService: IPluginInstallService,
@@ -495,14 +503,14 @@ class PluginMarketplaceItemRenderer implements IListRenderer<IPluginMarketplaceI
 		templateDisposables.add(installButton);
 		templateDisposables.add(DOM.addDisposableGenericMouseDownListener(installButton.element, event => DOM.EventHelper.stop(event, true)));
 
-		const template = { container, name, recommendedBadge, publisher, description, metadata, installButton, elementDisposables: new DisposableStore(), templateDisposables, currentIndex: -1 };
+		const template = { container, name, recommendedBadge, publisher, description, metadata, installButton, elementDisposables: new DisposableStore(), templateDisposables, currentItemId: undefined };
 		this._templates.add(template);
 		return template;
 	}
 
-	renderElement(element: IPluginMarketplaceItemEntry, index: number, templateData: IPluginMarketplaceItemTemplateData): void {
+	renderElement(element: IPluginMarketplaceItemEntry, _index: number, templateData: IPluginMarketplaceItemTemplateData): void {
 		templateData.elementDisposables.clear();
-		templateData.currentIndex = index;
+		templateData.currentItemId = getMarketplacePluginEntryId(element);
 
 		templateData.name.textContent = element.item.name;
 		templateData.recommendedBadge.style.display = this.showRecommendedBadge && this.isRecommended(element.item) ? '' : 'none';
@@ -562,15 +570,15 @@ class PluginMarketplaceItemRenderer implements IListRenderer<IPluginMarketplaceI
 		}));
 	}
 
-	setFocusedIndex(index: number): void {
-		this._focusedIndex = index;
+	setFocusedItemId(itemId: string | undefined): void {
+		this._focusedItemId = itemId;
 		for (const template of this._templates) {
 			this.updateInstallButtonTabbability(template);
 		}
 	}
 
 	private updateInstallButtonTabbability(templateData: IPluginMarketplaceItemTemplateData): void {
-		templateData.installButton.element.tabIndex = templateData.installButton.enabled && templateData.currentIndex === this._focusedIndex ? 0 : -1;
+		templateData.installButton.element.tabIndex = templateData.installButton.enabled && templateData.currentItemId === this._focusedItemId ? 0 : -1;
 	}
 
 	private isRecommended(item: IMarketplacePluginItem): boolean {
@@ -619,6 +627,17 @@ function getMarketplaceRecommendationKey(plugin: Pick<IMarketplacePluginItem, 'n
 
 function compareInstalledPluginItems(a: IInstalledPluginItem, b: IInstalledPluginItem): number {
 	return formatDisplayName(a.name).localeCompare(formatDisplayName(b.name));
+}
+
+export function partitionInstalledPluginItemsByScope(items: readonly IInstalledPluginItem[]): { readonly user: IInstalledPluginItem[]; readonly workspace: IInstalledPluginItem[] } {
+	const workspace = items.filter(item => {
+		const state = item.plugin.enablement.get();
+		return state === ContributionEnablementState.EnabledWorkspace || state === ContributionEnablementState.DisabledWorkspace;
+	});
+	return {
+		user: items.filter(item => !workspace.includes(item)),
+		workspace,
+	};
 }
 
 export function getInstalledPluginMetadata(item: IInstalledPluginItem): string {
@@ -1047,10 +1066,10 @@ export class PluginListWidget extends Disposable {
 			}
 		}));
 		this._register(this.list.onDidChangeFocus(event => {
-			const index = event.elements[0] ? this.getVisiblePluginEntries().indexOf(event.elements[0]) : -1;
-			installedRenderer.setFocusedIndex(index);
-			remoteRenderer.setFocusedIndex(index);
-			marketplaceRenderer.setFocusedIndex(index);
+			const entry = event.elements[0];
+			installedRenderer.setFocusedItemId(entry?.type === 'plugin-item' ? entry.item.plugin.uri.toString() : undefined);
+			remoteRenderer.setFocusedItemId(entry?.type === 'remote-item' ? getRemotePluginEntryId(entry) : undefined);
+			marketplaceRenderer.setFocusedItemId(entry?.type === 'marketplace-item' ? getMarketplacePluginEntryId(entry) : undefined);
 		}));
 
 		// Handle context menu
@@ -1416,16 +1435,10 @@ export class PluginListWidget extends Disposable {
 		const layout = getCustomizationListLayout(this.configurationService);
 		this.element.classList.toggle('tabs-layout', layout === CustomizationListLayout.Tabs);
 		this.element.classList.toggle('tree-layout', layout === CustomizationListLayout.Tree);
+		const partitionedInstalledItems = partitionInstalledPluginItemsByScope(this.installedItems);
 		const installedEntries = this.installedItems.map(item => ({ type: 'plugin-item' as const, item }));
-		const workspaceEntries = layout === CustomizationListLayout.Tabs
-			? installedEntries
-			: installedEntries.filter(entry => {
-				const state = entry.item.plugin.enablement.get();
-				return state === ContributionEnablementState.EnabledWorkspace || state === ContributionEnablementState.DisabledWorkspace;
-			});
-		const userEntries = layout === CustomizationListLayout.Tabs
-			? installedEntries
-			: installedEntries.filter(entry => !workspaceEntries.includes(entry));
+		const workspaceEntries = partitionedInstalledItems.workspace.map(item => ({ type: 'plugin-item' as const, item }));
+		const userEntries = partitionedInstalledItems.user.map(item => ({ type: 'plugin-item' as const, item }));
 		const installedNames = new Set(this.installedItems.map(item => item.name.toLowerCase()));
 		const remoteEntries = this.remoteItems
 			.filter(item => item.groupKey !== 'remote-client' && (!item.name || !installedNames.has(item.name.toLowerCase())))
@@ -1533,25 +1546,114 @@ export class PluginListWidget extends Disposable {
 		const available = groupId === 'available';
 		const remote = groupId === 'remote';
 		this.browseButton.element.parentElement!.style.display = available && this.isBrowseMarketplaceAvailable() ? '' : 'none';
-		this.addButtonContainer.style.display = remote ? 'none' : '';
-		this.updatePluginsButton.element.style.display = available || remote ? 'none' : '';
+		this.updatePluginAddButtons(!remote);
+		this.updatePluginsButton.element.style.display = !available && !remote && this.pluginMarketplaceService.installedPlugins.get().length > 0 ? '' : 'none';
 	}
 
 	private renderPluginTreeGroupActions(entry: IPluginGroupHeaderEntry, container: HTMLElement, disposables: DisposableStore): void {
-		if (getCustomizationListLayout(this.configurationService) !== CustomizationListLayout.Tree
-			|| entry.group !== 'installed') {
+		if (getCustomizationListLayout(this.configurationService) !== CustomizationListLayout.Tree) {
 			return;
 		}
-		const label = localize('addPlugin', "Add Plugin");
+		if (entry.group === 'installed') {
+			this.renderPluginAddAction(container, disposables);
+			if (this.pluginMarketplaceService.installedPlugins.get().length > 0) {
+				this.renderPluginUpdateAction(container, disposables);
+			}
+		} else if (entry.group === 'available') {
+			this.renderPluginAddAction(container, disposables);
+			if (this.isBrowseMarketplaceAvailable()) {
+				this.renderBrowseMarketplaceAction(container, disposables);
+			}
+		}
+	}
+
+	private updatePluginAddButtons(visible: boolean): void {
+		const actions = this.buildAddActions();
+		const [primary, ...dropdown] = actions;
+		this.addButtonContainer.style.display = visible && primary ? '' : 'none';
+		this.addButton.element.style.display = visible && primary && dropdown.length > 0 ? '' : 'none';
+		this.addButtonSimple.element.style.display = visible && primary && dropdown.length === 0 ? '' : 'none';
+		if (!primary) {
+			return;
+		}
+		const label = this.formatActionLabel(primary);
+		if (dropdown.length > 0) {
+			this.addButton.label = label;
+			this.addButton.enabled = primary.enabled !== false;
+		} else {
+			this.addButtonSimple.label = label;
+			this.addButtonSimple.enabled = primary.enabled !== false;
+		}
+	}
+
+	private renderPluginAddAction(container: HTMLElement, disposables: DisposableStore): void {
+		const actions = this.buildAddActions();
+		const [primary, ...secondary] = actions;
+		if (!primary) {
+			return;
+		}
+		const label = this.formatActionLabel(primary);
+		if (secondary.length > 0) {
+			const secondaryActions = secondary.map((action, index) => disposables.add(new Action(
+				`plugin_tree_add_${index}`,
+				this.formatActionLabel(action),
+				undefined,
+				action.enabled !== false,
+				() => this.runPluginAction(action),
+			)));
+			const button = disposables.add(new ButtonWithDropdown(container, {
+				...defaultButtonStyles,
+				secondary: true,
+				contextMenuProvider: this.contextMenuService,
+				addPrimaryActionToDropdown: false,
+				actions: { getActions: () => secondaryActions },
+				title: primary.tooltip ?? label,
+				ariaLabel: primary.tooltip ?? label,
+			}));
+			button.element.classList.add('plugin-installed-action');
+			button.label = label;
+			button.enabled = primary.enabled !== false;
+			disposables.add(button.onDidClick(() => this.runPluginAction(primary)));
+			return;
+		}
 		const button = disposables.add(new Button(container, {
 			...defaultButtonStyles,
 			secondary: true,
+			title: primary.tooltip ?? label,
+			ariaLabel: primary.tooltip ?? label,
+		}));
+		button.element.classList.add('plugin-installed-action');
+		button.label = label;
+		button.enabled = primary.enabled !== false;
+		disposables.add(button.onDidClick(() => this.runPluginAction(primary)));
+	}
+
+	private renderPluginUpdateAction(container: HTMLElement, disposables: DisposableStore): void {
+		const label = localize('checkForAndApplyPluginUpdates', "Check for and Apply Updates");
+		const button = disposables.add(new Button(container, {
+			...defaultButtonStyles,
+			secondary: true,
+			supportIcons: true,
+			title: label,
+			ariaLabel: label,
+		}));
+		button.element.classList.add('plugin-card-icon-button', 'plugin-update-button');
+		button.label = `$(${Codicon.refresh.id})`;
+		disposables.add(button.onDidClick(() => this.runUpdatePluginsAction(button)));
+	}
+
+	private renderBrowseMarketplaceAction(container: HTMLElement, disposables: DisposableStore): void {
+		const label = localize('browseMarketplace', "Browse Marketplace");
+		const button = disposables.add(new Button(container, {
+			...defaultButtonStyles,
+			secondary: true,
+			supportIcons: true,
 			title: label,
 			ariaLabel: label,
 		}));
 		button.element.classList.add('plugin-installed-action');
-		button.label = label;
-		disposables.add(button.onDidClick(() => this.runPrimaryAddAction()));
+		button.label = `$(${Codicon.library.id}) ${label}`;
+		disposables.add(button.onDidClick(() => this.toggleBrowseMode(true)));
 	}
 
 	private updatePluginTreeEmptyState(itemCount: number): void {

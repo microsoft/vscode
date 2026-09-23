@@ -102,6 +102,8 @@ export interface ISessionTypePickerOptions {
 	 * `false` cancels the selection without changing the current type.
 	 */
 	readonly prepareSessionTypeSelection?: (pick: IPickedSessionType) => Promise<boolean>;
+	/** Restricts new-session choices to the provider selected by the creation destination. */
+	readonly providerId?: IObservable<string | undefined>;
 }
 
 /**
@@ -194,6 +196,7 @@ export class SessionTypePicker extends Disposable {
 
 		this._register(autorun(reader => {
 			this._session.read(reader);
+			this._options?.providerId?.read(reader);
 			this._options?.allowedProviders?.read(reader);
 			this._recompute();
 		}));
@@ -242,6 +245,13 @@ export class SessionTypePicker extends Disposable {
 	}
 
 	private _resolveUnfilteredSessionTypes(): IProviderSessionType[] {
+		const providerId = this._options?.providerId?.get();
+		if (providerId) {
+			const provider = this.sessionsProvidersService.getProvider(providerId);
+			const folderUri = this._folderSource?.get() ?? this._sessionWorkspaceFolderSource?.get() ?? this._session.get()?.workspace.get()?.folders[0]?.root;
+			const types = provider ? (folderUri ? provider.getSessionTypes(folderUri) : provider.sessionTypes) : [];
+			return types.map(sessionType => ({ providerId, sessionType }));
+		}
 		if (this._folderSource) {
 			if (this._quickChatSource?.get()) {
 				return this.sessionsManagementService.getQuickChatSessionTypes();
@@ -406,7 +416,9 @@ export class SessionTypePicker extends Disposable {
 	 * consumers should fall back to {@link getPreferredSessionType}.
 	 */
 	getUserPickedSessionType(): IPreferredSessionType | undefined {
-		return this._readStoredPick();
+		const pick = this._readStoredPick();
+		const providerId = this._options?.providerId?.get();
+		return providerId && pick?.providerId !== providerId ? undefined : pick;
 	}
 
 	/**
@@ -417,7 +429,8 @@ export class SessionTypePicker extends Disposable {
 	 * explicit pick.
 	 */
 	getPreferredSessionType(folderUri: URI): IPreferredSessionType | undefined {
-		const first = this.sessionsManagementService.getSessionTypesForFolder(folderUri)[0];
+		const providerId = this._options?.providerId?.get();
+		const first = this.sessionsManagementService.getSessionTypesForFolder(folderUri).find(type => !providerId || type.providerId === providerId);
 		return first ? { providerId: first.providerId, sessionTypeId: first.sessionType.id } : undefined;
 	}
 

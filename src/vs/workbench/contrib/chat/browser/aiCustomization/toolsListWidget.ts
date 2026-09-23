@@ -157,14 +157,14 @@ interface IToolsSetRowTemplateData {
 	readonly chevron: HTMLElement;
 	readonly templateDisposables: DisposableStore;
 	readonly elementDisposables: DisposableStore;
-	currentIndex: number;
+	currentSetId: string | undefined;
 }
 
 /** Renders a tool-set header row: checkbox/tri-state, name + detail, enabled count, more actions, chevron. */
 class ToolsSetRowRenderer implements IListRenderer<IToolsSetRowEntry, IToolsSetRowTemplateData> {
 	readonly templateId = TOOLS_SET_ROW_TEMPLATE_ID;
 	private readonly _templates = new Set<IToolsSetRowTemplateData>();
-	private _focusedIndex = -1;
+	private _focusedSetId: string | undefined;
 
 	constructor(
 		private readonly _instantiationService: IInstantiationService,
@@ -204,14 +204,14 @@ class ToolsSetRowRenderer implements IListRenderer<IToolsSetRowEntry, IToolsSetR
 		const chevron = DOM.append(container, $('a.tools-list-chevron.codicon')) as HTMLAnchorElement;
 		chevron.setAttribute('aria-hidden', 'true');
 
-		const template = { container, checkbox, label, subtext, count, alwaysAvailable, moreButton, chevron, templateDisposables, elementDisposables: templateDisposables.add(new DisposableStore()), currentIndex: -1 };
+		const template = { container, checkbox, label, subtext, count, alwaysAvailable, moreButton, chevron, templateDisposables, elementDisposables: templateDisposables.add(new DisposableStore()), currentSetId: undefined };
 		this._templates.add(template);
 		return template;
 	}
 
-	renderElement(entry: IToolsSetRowEntry, index: number, data: IToolsSetRowTemplateData): void {
+	renderElement(entry: IToolsSetRowEntry, _index: number, data: IToolsSetRowTemplateData): void {
 		data.elementDisposables.clear();
-		data.currentIndex = index;
+		data.currentSetId = entry.vm.toolSet.id;
 		data.container.removeAttribute('aria-selected');
 		const vm = entry.vm;
 		const ts = vm.toolSet;
@@ -255,7 +255,7 @@ class ToolsSetRowRenderer implements IListRenderer<IToolsSetRowEntry, IToolsSetR
 
 		const extension = this._resolveExtension(ts);
 		data.moreButton.style.display = extension ? '' : 'none';
-		data.moreButton.tabIndex = extension && index === this._focusedIndex ? 0 : -1;
+		data.moreButton.tabIndex = extension && entry.vm.toolSet.id === this._focusedSetId ? 0 : -1;
 		if (extension) {
 			const moreLabel = localize('toolsSetMoreActions', "More actions for {0}", setName);
 			data.moreButton.setAttribute('aria-label', moreLabel);
@@ -275,10 +275,10 @@ class ToolsSetRowRenderer implements IListRenderer<IToolsSetRowEntry, IToolsSetR
 		}));
 	}
 
-	setFocusedIndex(index: number): void {
-		this._focusedIndex = index;
+	setFocusedSetId(setId: string | undefined): void {
+		this._focusedSetId = setId;
 		for (const template of this._templates) {
-			template.moreButton.tabIndex = template.moreButton.style.display !== 'none' && template.currentIndex === index ? 0 : -1;
+			template.moreButton.tabIndex = template.moreButton.style.display !== 'none' && template.currentSetId === setId ? 0 : -1;
 		}
 	}
 
@@ -465,7 +465,6 @@ export class ToolsListWidget extends Disposable {
 
 	private readonly _collapsedGroups = new Set<string>();
 	private _selectedGroupKey: string | undefined;
-	private _currentGroups: readonly ICustomizationTreeGroup<IToolsTreeEntry>[] = [];
 	private _currentModel: readonly IToolSetViewModel[] = [];
 	private _setRenderer!: ToolsSetRowRenderer;
 
@@ -626,7 +625,7 @@ export class ToolsListWidget extends Disposable {
 		this._register(this._tree.onDidChangeSelection(() => this._tree.setSelection([])));
 		this._register(this._tree.onDidChangeFocus(event => {
 			const entry = event.elements[0];
-			this._setRenderer.setFocusedIndex(entry ? this._getVisibleTreeEntries().indexOf(entry) : -1);
+			this._setRenderer.setFocusedSetId(entry?.type === 'set' ? entry.vm.toolSet.id : undefined);
 		}));
 		this._register(this._tree.onDidChangeCollapseState(event => {
 			const entry = event.node.element;
@@ -969,7 +968,6 @@ export class ToolsListWidget extends Disposable {
 			),
 		].filter(group => !query || group.count > 0);
 
-		this._currentGroups = groups;
 		this._emptyState.style.display = 'none';
 		this._treeContainer.style.display = '';
 		this._treeTabs.clearActions();
@@ -1076,13 +1074,6 @@ export class ToolsListWidget extends Disposable {
 		return entry.type === 'set'
 			? entry.vm.toolSet.description ?? entry.vm.toolSet.referenceName
 			: entry.toolVm.tool.displayName ?? entry.toolVm.tool.id;
-	}
-
-	private _getVisibleTreeEntries(): readonly IToolsTreeEntry[] {
-		if (getCustomizationListLayout(this._configurationService) === CustomizationListLayout.Tabs) {
-			return getSelectedCustomizationGroup(this._currentGroups, this._selectedGroupKey)?.children ?? [];
-		}
-		return this._currentGroups.flatMap(group => [group.element, ...group.children]);
 	}
 
 	/** Flattens a section's tool sets into rows, expanding each set's tools when the set is expanded. */
