@@ -84,13 +84,13 @@ suite('Agent Host session canvas projection', () => {
 	const chat = URI.parse('ahp-session:/one/chat/default');
 	const declaration: CanvasTypeDeclaration = { source: { kind: CanvasSourceKind.Extension, extensionId: 'fixture.counter' }, canvasType: 'counter', title: 'Counter' };
 
-	function fixture(waitForSession?: () => Promise<void>) {
+	function fixture(waitForSession?: () => Promise<void>, canExecute: () => Promise<boolean> = async () => true) {
 		const connection = store.add(new TestCanvasConnection());
 		const binding = observableValue<IAgentHostCanvasBinding | undefined>('connection', { connection });
 		const enabled = observableValue('enabled', true);
 		const entries = observableValue<readonly CanvasEntry[] | undefined>('entries', [canvasEntry(connection.state)]);
 		let keepAlive = 0;
-		const canvases = store.add(new AgentHostSessionCanvases(session, chat, binding, enabled, entries, () => { keepAlive++; }, waitForSession));
+		const canvases = store.add(new AgentHostSessionCanvases(session, chat, binding, enabled, entries, canExecute, () => { keepAlive++; }, waitForSession));
 		return { connection, binding, enabled, entries, canvases, keepAlive: () => keepAlive };
 	}
 
@@ -166,10 +166,16 @@ suite('Agent Host session canvas projection', () => {
 
 	test('in-flight connection loss is an uncertain outcome, never an automatic initialization replay', async () => {
 		const f = fixture();
+		const started = new DeferredPromise<void>();
 		const pending = new DeferredPromise<void>();
 		let requestToken = CancellationToken.None;
-		f.connection.onInitialize = async (_params, token) => { requestToken = token; await pending.p; };
+		f.connection.onInitialize = async (_params, token) => {
+			requestToken = token;
+			started.complete();
+			await pending.p;
+		};
 		const rejected = assert.rejects(f.canvases.initialize(CancellationToken.None), /outcome may be uncertain/);
+		await started.p;
 		f.binding.set(undefined, undefined);
 		await rejected;
 		f.binding.set({ connection: f.connection }, undefined);
@@ -182,10 +188,16 @@ suite('Agent Host session canvas projection', () => {
 
 	test('disposing the owner cancels outstanding initialization without accepting a late catalog', async () => {
 		const f = fixture();
+		const started = new DeferredPromise<void>();
 		const pending = new DeferredPromise<void>();
 		let requestToken = CancellationToken.None;
-		f.connection.onInitialize = async (_params, token) => { requestToken = token; await pending.p; };
+		f.connection.onInitialize = async (_params, token) => {
+			requestToken = token;
+			started.complete();
+			await pending.p;
+		};
 		const rejected = assert.rejects(f.canvases.initialize(CancellationToken.None), /outcome may be uncertain/);
+		await started.p;
 		f.canvases.dispose();
 		await rejected;
 		await pending.complete();
@@ -214,6 +226,37 @@ suite('Agent Host session canvas projection', () => {
 		assert.deepStrictEqual({
 			before, channels: f.connection.effects.map(effect => effect.channel), keepAlive: f.keepAlive(), owner: entry.identity.chat,
 		}, { before: { effects: 0, keepAlive: 0 }, channels: [session.toString()], keepAlive: 1, owner: chat.toString() });
+	});
+
+	test('executable effects require session admission while reads and close remain available', async () => {
+		let admissions = 0;
+		const f = fixture(undefined, async () => {
+			admissions++;
+			return false;
+		});
+		const entry = canvasEntry(f.connection.state);
+		await f.canvases.refresh();
+		await f.canvases.resolveSource(entry);
+		await assert.rejects(f.canvases.initialize(CancellationToken.None), isCancellationError);
+		await assert.rejects(f.canvases.open({ ...declaration, instanceId: 'blocked' }), isCancellationError);
+		await assert.rejects(f.canvases.invokeAction(f.connection.state, 'increment'), isCancellationError);
+		await assert.rejects(f.canvases.restart(entry), isCancellationError);
+		await f.canvases.close(entry);
+		assert.deepStrictEqual({
+			admissions,
+			listings: f.connection.listings.length,
+			resolutions: f.connection.resolutions.length,
+			initializations: f.connection.initializations.length,
+			effects: f.connection.effects.map(effect => effect.channel),
+			keepAlive: f.keepAlive(),
+		}, {
+			admissions: 4,
+			listings: 1,
+			resolutions: 1,
+			initializations: 0,
+			effects: [entry.resource],
+			keepAlive: 0,
+		});
 	});
 
 	test('a connection change while awaiting a canvas owner prevents the open effect', async () => {
@@ -312,10 +355,15 @@ suite('Agent Host session canvas projection', () => {
 
 	test('reconnect while opening reports an uncertain outcome without replay', async () => {
 		const { canvases, connection, binding } = fixture();
+		const started = new DeferredPromise<void>();
 		const pending = new DeferredPromise<OpenCanvasResult>();
-		connection.onOpen = () => pending.p;
+		connection.onOpen = () => {
+			started.complete();
+			return pending.p;
+		};
 		const opened = canvases.open({ ...declaration, instanceId: 'new' });
 		const rejected = assert.rejects(opened, /uncertain/);
+		await started.p;
 		binding.set(undefined, undefined);
 		await pending.complete({ canvas: canvasEntry(connection.state) });
 		await rejected;
@@ -328,9 +376,9 @@ suite('Agent Host session canvas projection', () => {
 		await assert.rejects(canvases.open({ ...declaration, instanceId: 'counter' }), /match/);
 	});
 
-	test('untrusted actions are not sent', () => {
+	test('untrusted actions are not sent', async () => {
 		const { canvases, connection } = fixture();
-		assert.throws(() => canvases.invokeAction({ ...connection.state, trust: { status: CanvasTrustStatus.Pending } }, 'increment'), /approved/);
+		await assert.rejects(canvases.invokeAction({ ...connection.state, trust: { status: CanvasTrustStatus.Pending } }, 'increment'), /approved/);
 		assert.deepStrictEqual(connection.effects, []);
 	});
 });

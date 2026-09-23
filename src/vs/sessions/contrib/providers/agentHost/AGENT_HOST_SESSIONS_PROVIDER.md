@@ -62,6 +62,8 @@ Collections follow session/chat membership and connection generations, including
 
 Explicit open and provider initialization wait for the owning draft's configuration and eager AHP session creation. The provider promotes a canvas-first draft only when authoritative ready session state contains membership for a known chat or host-retained execution intent, and the host has published its actual session summary. Retained intent preserves an initialized owner even if no canvas was opened and the picker is subsequently dismissed. Promotion preserves the logical owner, selection, configuration, and canvas collection and acquires the running state lease before releasing the draft lease. It uses the normal replacement lifecycle without a model request; outstanding first-request preparation settles before that promotion.
 
+Initialize, open, action, and provider restart reuse the Sessions execution-admission gate before provider materialization or dispatch, including for an already-active session after trust revocation. Catalog/source reads do not enter execution, and logical close remains available for cleanup.
+
 ## Identity
 
 The local provider uses:

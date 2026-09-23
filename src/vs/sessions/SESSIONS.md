@@ -61,6 +61,7 @@ The view service:
 
 - owns the active session and visible-session arrangement;
 - opens sessions and chats;
+- owns reusable session execution admission, including Workspace Trust checks that still apply to executable effects on an already-active session;
 - presents new-session and peer-chat composers;
 - owns session navigation, focus, and visible-session restoration.
 
@@ -127,7 +128,7 @@ Providers may advertise `supportsRemoveArtifacts` and implement `removeSessionAr
 
 Provider-owned application instances are exposed separately from artifacts through the optional `ISessionsProvider.getSessionCanvases(sessionId, chat)` facet. Management verifies the exact session/chat pair before routing it, without a main-chat fallback. The observable facade separates live declarations, logical membership, and full instance state; provider-specific resource translation and execution remain in the provider.
 
-Canvas editors persist only provider/session/chat/member references. Presentation leases follow the represented owner and visibility; disposing an editor or restoring a working set does not logically close a canvas or execute its provider. The owning [canvas contribution](contrib/canvases/README.md) specifies explicit close/recovery, source resolution, and native isolation.
+Executable canvas effects reuse `ISessionsService` session execution admission before provider materialization or dispatch, including after Workspace Trust is revoked from an active session. Catalog/source reads remain non-starting, and logical close remains available for cleanup. Canvas editors persist only provider/session/chat/member references. Presentation leases follow the represented owner and visibility; disposing an editor or restoring a working set does not logically close a canvas or execute its provider. The owning [canvas contribution](contrib/canvases/README.md) specifies explicit close/recovery, source resolution, and native isolation.
 
 ## Provider contract
 

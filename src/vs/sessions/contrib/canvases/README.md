@@ -18,6 +18,8 @@ Backend resource translation stays in the provider. Mutable catalog and full-sta
 
 Copilot project extensions require the host's synchronized Workspace Trust to cover the actual session working directory, the discovered entrypoint and its resolved filesystem path before startup. Covered project sources do not show an additional source-confirmation dialog. Missing or insufficient trust information or an untrusted source location blocks the project launch; a canvas-specific approval cannot substitute for Workspace Trust. This uses the existing trust state, including its disabled setting, rather than the focused window or a model-supplied grant. User/plugin/session extensions retain explicit source approval. Runtime enablement and policy remain authoritative; credential and recovery approvals are independent.
 
+Canvas initialize, open, action, and provider restart re-enter the owning session's normal execution admission before any provider materialization or effect dispatch. This check applies even when the session is already active, so later Workspace Trust revocation cannot be bypassed through a no-turn canvas path. Catalog/source reads remain non-starting, and logical close remains available for cleanup. Workspaceless sessions and workspaces that do not require trust preserve their existing exemptions.
+
 Automatically authorized launches recheck trust and the entrypoint after session retention and before returning the launch recipe. Revocation during that wait prevents the launch. This does not terminate already-running extension programs or replace their ordinary lifetime and cleanup.
 
 ## Logical editors and native leases

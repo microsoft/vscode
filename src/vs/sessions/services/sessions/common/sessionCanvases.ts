@@ -34,7 +34,11 @@ export interface ISessionCanvasState {
 	readonly error: IObservable<Error | undefined>;
 }
 
-/** One exact chat's live type catalog and logical membership, independent of editor visibility. */
+/**
+ * One exact chat's live type catalog and logical membership, independent of
+ * editor visibility. Executable effects re-enter the owning session's execution
+ * admission; catalog/source reads and logical close do not start a provider.
+ */
 export interface ISessionCanvases {
 	readonly availability: IObservable<'available' | 'unsupported' | 'disconnected'>;
 	readonly generation: IObservable<number>;

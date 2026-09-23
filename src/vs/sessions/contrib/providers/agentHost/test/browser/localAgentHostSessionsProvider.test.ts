@@ -9,6 +9,7 @@ import { renderAsPlaintext } from '../../../../../../base/browser/markdownRender
 import { DeferredPromise, raceTimeout, timeout } from '../../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
+import { isCancellationError } from '../../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { DisposableMap, DisposableStore, ImmortalReference, toDisposable, type IReference } from '../../../../../../base/common/lifecycle.js';
 import { autorun, constObservable, derived, ISettableObservable, observableFromEvent, observableValue, type IObservable } from '../../../../../../base/common/observable.js';
@@ -21,7 +22,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { AgentSession, type IAgentCreateChatRequestOptions, type IAgentCreateSessionConfig, type IAgentSessionMetadata } from '../../../../../../platform/agentHost/common/agent.js';
 import { AgentHostCodexAgentEnabledSettingId, IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
 import { withCanvasSessionRetained } from '../../../../../../platform/agentHost/common/meta/agentCanvasSessionMeta.js';
-import { getAgentHostExtensionInitializeResultMeta } from '../../../../../../platform/agentHost/common/agentHostExtensionProtocol.js';
+import { getAgentHostExtensionInitializeResultMeta, type InitializeCanvasChatParams } from '../../../../../../platform/agentHost/common/agentHostExtensionProtocol.js';
 import { AGENT_HOST_AUTOMATION_CATALOG_MIGRATED_META_KEY } from '../../../../../../platform/agentHost/common/automationMigration.js';
 import type { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import type { InitializeResult } from '../../../../../../platform/agentHost/common/state/protocol/common/commands.js';
@@ -109,6 +110,10 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 	});
 
 	override readonly clientId = 'test-local-client';
+	readonly canvasInitializations: InitializeCanvasChatParams[] = [];
+	override async initializeCanvasChat(params: InitializeCanvasChatParams): Promise<void> {
+		this.canvasInitializations.push(params);
+	}
 	readonly canvasListings: ListCanvasTypesParams[] = [];
 	override async listCanvasTypes(params: ListCanvasTypesParams) {
 		this.canvasListings.push(params);
@@ -504,7 +509,7 @@ class BackendSchemeTestProvider extends LocalAgentHostSessionsProvider {
 
 function createProvider(disposables: DisposableStore, agentHostService: MockAgentHostService, contributions = [
 	{ type: 'agent-host-copilotcli', name: 'copilot', displayName: 'Copilot', description: 'test', icon: undefined },
-], options?: { sendRequest?: (resource: URI, message: string, options?: IChatSendRequestOptions) => Promise<ChatSendResult>; acquireOrLoadSession?: (resource: URI) => Promise<IChatModelReference | undefined>; languageModelsService?: Partial<ILanguageModelsService>; languageModelIds?: string[]; lookupLanguageModel?: (modelId: string) => ILanguageModelChatMetadata | undefined; languageModelChanges?: Event<string>; hiddenLanguageModelIds?: ReadonlySet<string>; languageModelVisibilityChanges?: Event<void>; openSession?: boolean; configurationService?: IConfigurationService; activeSession?: IObservable<IActiveSession | undefined>; visibleSessions?: IObservable<readonly (IActiveSession | undefined)[]>; activeClient?: Omit<SessionActiveClient, 'clientId'>; activeClientAgents?: IObservable<readonly AgentCustomization[]>; activeClientScope?: (sessionType: string, roots: readonly URI[]) => IAgentCustomizationScope; storageService?: IStorageService; isSessionsWindow?: boolean; confirmDelete?: boolean; workspaceTrusted?: boolean; requestWorkspaceTrust?: (uri: URI) => Promise<boolean>; workspaceTrustBarrier?: DeferredPromise<void>; workspaceTrustError?: Error; setUrisTrust?: (uris: URI[], trusted: boolean) => Promise<void>; gitHubService?: IGitHubService; devContainerAgentHostService?: IDevContainerAgentHostService; sessionsProvidersService?: ISessionsProvidersService; pathService?: IPathService; labelService?: ILabelService; providerCtor?: typeof LocalAgentHostSessionsProvider }): LocalAgentHostSessionsProvider {
+], options?: { sendRequest?: (resource: URI, message: string, options?: IChatSendRequestOptions) => Promise<ChatSendResult>; acquireOrLoadSession?: (resource: URI) => Promise<IChatModelReference | undefined>; languageModelsService?: Partial<ILanguageModelsService>; languageModelIds?: string[]; lookupLanguageModel?: (modelId: string) => ILanguageModelChatMetadata | undefined; languageModelChanges?: Event<string>; hiddenLanguageModelIds?: ReadonlySet<string>; languageModelVisibilityChanges?: Event<void>; openSession?: boolean; configurationService?: IConfigurationService; activeSession?: IObservable<IActiveSession | undefined>; visibleSessions?: IObservable<readonly (IActiveSession | undefined)[]>; canExecuteSession?: (session: ISession) => Promise<boolean>; activeClient?: Omit<SessionActiveClient, 'clientId'>; activeClientAgents?: IObservable<readonly AgentCustomization[]>; activeClientScope?: (sessionType: string, roots: readonly URI[]) => IAgentCustomizationScope; storageService?: IStorageService; isSessionsWindow?: boolean; confirmDelete?: boolean; workspaceTrusted?: boolean; requestWorkspaceTrust?: (uri: URI) => Promise<boolean>; workspaceTrustBarrier?: DeferredPromise<void>; workspaceTrustError?: Error; setUrisTrust?: (uris: URI[], trusted: boolean) => Promise<void>; gitHubService?: IGitHubService; devContainerAgentHostService?: IDevContainerAgentHostService; sessionsProvidersService?: ISessionsProvidersService; pathService?: IPathService; labelService?: ILabelService; providerCtor?: typeof LocalAgentHostSessionsProvider }): LocalAgentHostSessionsProvider {
 	const instantiationService = disposables.add(new TestInstantiationService());
 
 	instantiationService.stub(IAgentHostService, agentHostService);
@@ -571,6 +576,9 @@ function createProvider(disposables: DisposableStore, agentHostService: MockAgen
 	instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
 		override readonly activeSession: IObservable<IActiveSession | undefined> = activeSessionObs;
 		override readonly visibleSessions: IObservable<readonly (IActiveSession | undefined)[]> = visibleSessionsObs;
+		override canExecuteSession(session: ISession): Promise<boolean> {
+			return options?.canExecuteSession?.(session) ?? Promise.resolve(true);
+		}
 	}());
 	instantiationService.stub(IAgentHostActiveClientService, new class extends mock<IAgentHostActiveClientService>() {
 		override acquireScope = (sessionType: string, roots: readonly URI[]) => options?.activeClientScope?.(sessionType, roots) ?? ({
@@ -749,6 +757,75 @@ suite('LocalAgentHostSessionsProvider', () => {
 			states, disconnected, changedGeneration: canvases.generation.get() > firstGeneration,
 			disabledFacet: provider.getSessionCanvases(session.sessionId, session.mainChat.get().resource),
 		}, { states: [false, false, true, false, true, false], disconnected: 'disconnected', changedGeneration: true, disabledFacet: undefined });
+	});
+
+	nativeCanvasTest('canvas initialization rechecks session execution admission after trust revocation', async () => {
+		const workspace = URI.file('/home/user/project');
+		agentHost.addSession(createSession('canvas-trust', {
+			project: { uri: workspace, displayName: 'project' },
+			workingDirectory: workspace,
+		}));
+		agentHost.initializeResult.set({ ...agentHost.initializeResult.get(), canvases: {}, _meta: getAgentHostExtensionInitializeResultMeta(true) }, undefined);
+		let allowed = true;
+		const checked: string[] = [];
+		const provider = createProvider(disposables, agentHost, undefined, {
+			configurationService: new TestConfigurationService({ [SessionCanvasesEnabledSettingId]: true }),
+			canExecuteSession: async session => {
+				checked.push(session.sessionId);
+				return allowed;
+			},
+		});
+		await timeout(0);
+		const session = provider.getSessions()[0];
+		const canvases = provider.getSessionCanvases(session.sessionId, session.mainChat.get().resource)!;
+
+		allowed = false;
+		await assert.rejects(canvases.initialize(CancellationToken.None), isCancellationError);
+		const denied = agentHost.canvasInitializations.length;
+
+		allowed = true;
+		await canvases.initialize(CancellationToken.None);
+		assert.deepStrictEqual({
+			denied,
+			initializations: agentHost.canvasInitializations.map(request => request.channel),
+			checked,
+		}, {
+			denied: 0,
+			initializations: [buildDefaultChatUri(AgentSession.uri('copilotcli', 'canvas-trust').toString())],
+			checked: [session.sessionId, session.sessionId, session.sessionId],
+		});
+	});
+
+	nativeCanvasTest('canvas initialization waits for workspace metadata unless the session is workspaceless', async () => {
+		agentHost.addSession(createSession('canvas-workspace-pending'));
+		agentHost.initializeResult.set({ ...agentHost.initializeResult.get(), canvases: {}, _meta: getAgentHostExtensionInitializeResultMeta(true) }, undefined);
+		let checks = 0;
+		const provider = createProvider(disposables, agentHost, undefined, {
+			configurationService: new TestConfigurationService({ [SessionCanvasesEnabledSettingId]: true }),
+			canExecuteSession: async () => {
+				checks++;
+				return true;
+			},
+		});
+		await timeout(0);
+		const session = provider.getSessions()[0];
+		const canvases = provider.getSessionCanvases(session.sessionId, session.mainChat.get().resource)!;
+
+		await assert.rejects(canvases.initialize(CancellationToken.None), isCancellationError);
+		fireSessionSummaryChanged(agentHost, 'canvas-workspace-pending', {
+			workingDirectories: [URI.file('/home/user/project').toString()],
+		});
+		await canvases.initialize(CancellationToken.None);
+
+		assert.deepStrictEqual({
+			checks,
+			initializations: agentHost.canvasInitializations.length,
+			workspace: session.workspace.get()?.uri.toString(),
+		}, {
+			checks: 2,
+			initializations: 1,
+			workspace: URI.file('/home/user/project').toString(),
+		});
 	});
 
 	test('canvas presentation remains unsupported outside Agents and for other local agent types', async () => {

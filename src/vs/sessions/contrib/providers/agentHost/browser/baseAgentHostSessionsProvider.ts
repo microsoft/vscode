@@ -2922,6 +2922,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			}
 			const enabled = derived(this, reader => this._canvasEnabled.read(reader) && this._isCanvasExecutionSupported(sessionId, reader));
 			collection = new AgentHostSessionCanvases(backendSession, backendChat, this._canvasBinding, enabled, entries,
+				() => this._canExecuteCanvasSession(sessionId),
 				() => this._keepSessionStateAlive(sessionId), () => this._waitForCanvasSession(sessionId));
 			collections.set(key, collection);
 		}
@@ -2930,6 +2931,17 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 
 	protected _isCanvasExecutionSupported(_sessionId: string, _reader?: IReader): boolean {
 		return true;
+	}
+
+	private async _canExecuteCanvasSession(sessionId: string): Promise<boolean> {
+		const session = this.getKnownSessions().find(session => session.sessionId === sessionId);
+		if (!session) {
+			return false;
+		}
+		if (session.workspace.get() === undefined && session.isQuickChat?.get() !== true) {
+			return false;
+		}
+		return this._sessionsService.canExecuteSession(session);
 	}
 
 	private async _waitForCanvasSession(sessionId: string): Promise<void> {

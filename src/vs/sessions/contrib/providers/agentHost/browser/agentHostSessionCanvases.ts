@@ -47,6 +47,7 @@ export class AgentHostSessionCanvases extends Disposable implements ISessionCanv
 		private readonly binding: IObservable<IAgentHostCanvasBinding | undefined>,
 		enabled: IObservable<boolean>,
 		entries: IObservable<readonly CanvasEntry[] | undefined>,
+		private readonly canExecute: () => Promise<boolean>,
 		private readonly keepAlive: () => void,
 		private readonly waitForSession?: () => Promise<void>,
 	) {
@@ -97,12 +98,7 @@ export class AgentHostSessionCanvases extends Disposable implements ISessionCanv
 		this.initializing.set(true, undefined);
 		let dispatched = false;
 		try {
-			if (this.waitForSession) {
-				await raceCancellationError(this.waitForSession(), operation.token);
-			}
-			if (operation.token.isCancellationRequested) {
-				throw new CancellationError();
-			}
+			await this.prepareExecutableSession(operation.token);
 			this.keepAlive();
 			dispatched = true;
 			await raceCancellationError(connection.initializeCanvasChat({
@@ -123,6 +119,21 @@ export class AgentHostSessionCanvases extends Disposable implements ISessionCanv
 			this.initialization.clear();
 			this.initializing.set(false, undefined);
 		}
+	}
+
+	private async ensureExecutionAllowed(token: CancellationToken = CancellationToken.None): Promise<void> {
+		if (!await raceCancellationError(this.canExecute(), token)) {
+			throw new CancellationError();
+		}
+	}
+
+	private async prepareExecutableSession(token: CancellationToken = CancellationToken.None): Promise<void> {
+		await this.ensureExecutionAllowed(token);
+		if (!this.waitForSession) {
+			return;
+		}
+		await raceCancellationError(this.waitForSession(), token);
+		await this.ensureExecutionAllowed(token);
 	}
 
 	private currentConnection(): IAgentHostCanvasBinding['connection'] {
@@ -221,9 +232,7 @@ export class AgentHostSessionCanvases extends Disposable implements ISessionCanv
 	async open(options: SessionCanvasOpenOptions): Promise<CanvasEntry> {
 		const connection = this.currentConnection();
 		const generation = this.generation.get();
-		if (this.waitForSession) {
-			await this.waitForSession();
-		}
+		await this.prepareExecutableSession();
 		if (generation !== this.generation.get()) {
 			throw new Error(localize('canvas.openOwnerChanged', "The canvas owner or connection changed before opening the canvas."));
 		}
@@ -250,11 +259,17 @@ export class AgentHostSessionCanvases extends Disposable implements ISessionCanv
 		return this.currentConnection().resolveCanvasSource({ channel: canvas.resource });
 	}
 
-	invokeAction(canvas: CanvasState, actionId: string, input?: unknown) {
+	async invokeAction(canvas: CanvasState, actionId: string, input?: unknown) {
 		this.assertMember(canvas);
 		if (canvas.trust.status !== CanvasTrustStatus.Trusted) {
 			throw new Error(localize('canvas.actionUntrusted', "The canvas provider has not been approved to execute actions."));
 		}
+		const generation = this.generation.get();
+		await this.ensureExecutionAllowed();
+		if (generation !== this.generation.get()) {
+			throw new Error(localize('canvas.actionOwnerChanged', "The canvas owner or connection changed before invoking the action."));
+		}
+		this.assertMember(canvas);
 		const connection = this.currentConnection();
 		this.keepAlive();
 		return connection.invokeCanvasAction({
@@ -268,11 +283,17 @@ export class AgentHostSessionCanvases extends Disposable implements ISessionCanv
 		return connection.closeCanvas({ channel: canvas.resource, revision: canvas.revision, requestId: generateUuid() });
 	}
 
-	restart(canvas: CanvasEntry): Promise<void> {
+	async restart(canvas: CanvasEntry): Promise<void> {
+		this.assertMember(canvas);
+		const generation = this.generation.get();
+		await this.ensureExecutionAllowed();
+		if (generation !== this.generation.get()) {
+			throw new Error(localize('canvas.restartOwnerChanged', "The canvas owner or connection changed before restarting the provider."));
+		}
 		this.assertMember(canvas);
 		const connection = this.currentConnection();
 		this.keepAlive();
-		return connection.restartCanvasProvider({ channel: canvas.resource, incarnation: canvas.identity.incarnation, requestId: generateUuid() });
+		await connection.restartCanvasProvider({ channel: canvas.resource, incarnation: canvas.identity.incarnation, requestId: generateUuid() });
 	}
 
 	override dispose(): void {

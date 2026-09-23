@@ -1318,6 +1318,47 @@ suite('SessionsManagementService', () => {
 		});
 	});
 
+	test('canExecuteSession rechecks an active session and permits retry after trust is granted', async () => {
+		const folder = URI.file('/revoked');
+		const session = stubSession({
+			sessionId: 'active-revoked',
+			providerId: 'test',
+			workspace: constObservable({
+				uri: folder,
+				label: 'revoked',
+				icon: Codicon.folder,
+				folders: [{ root: folder, workingDirectory: folder, name: 'revoked', description: undefined }],
+				requiresWorkspaceTrust: true,
+				isVirtualWorkspace: false,
+			}),
+		});
+		const trustManagement = new class extends TestWorkspaceTrustManagementService {
+			override async getUriTrustInfo(uri: URI) { return { uri, trusted: false }; }
+		};
+		let grantTrust = false;
+		const prompts: string[] = [];
+		const trustRequest = new class extends mock<IWorkspaceTrustRequestService>() {
+			override async requestResourcesTrust(options: ResourceTrustRequestOptions) {
+				prompts.push(options.uri.toString());
+				return grantTrust;
+			}
+		};
+		const { view } = createSessionsManagementService(session, disposables, new TestSessionsProvider(session), trustManagement, trustRequest);
+		view.showSession(session.resource);
+
+		const open = await view.canOpenSession(session);
+		const denied = await view.canExecuteSession(session);
+		grantTrust = true;
+		const retried = await view.canExecuteSession(session);
+
+		assert.deepStrictEqual({ open, denied, retried, prompts }, {
+			open: true,
+			denied: false,
+			retried: true,
+			prompts: [folder.toString(), folder.toString()],
+		});
+	});
+
 	test('canOpenSession grants a worktree trust from a trusted base repo before prompting', async () => {
 		const repoRoot = URI.file('/repo');
 		const worktree = URI.file('/repo.worktrees/feature');
