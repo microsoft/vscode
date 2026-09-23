@@ -392,7 +392,8 @@ export function buildDefaultChangesetCatalog(sessionUri: URI, state?: ISessionWi
 			label: uncommittedChangesetLabel(),
 			description: uncommittedChangesetDescription(),
 			uriTemplate: buildUncommittedChangesetUri(sessionUri),
-			changeKind: ChangesetKind.Uncommitted
+			changeKind: ChangesetKind.Uncommitted,
+			capabilities: { review: {} }
 		},
 		{
 			label: sessionChangesetLabel(),
