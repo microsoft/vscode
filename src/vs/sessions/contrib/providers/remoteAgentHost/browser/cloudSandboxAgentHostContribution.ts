@@ -7,6 +7,7 @@ import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { CancellationError } from '../../../../../base/common/errors.js';
 import { DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
+import { isWeb } from '../../../../../base/common/platform.js';
 import { localize } from '../../../../../nls.js';
 import { AgentSession } from '../../../../../platform/agentHost/common/agent.js';
 import { ChangesetKind } from '../../../../../platform/agentHost/common/changesetUri.js';
@@ -30,11 +31,14 @@ import { CloudSandboxSessionsProvider } from './cloudSandboxSessionsProvider.js'
 import { IRemoteAgentHostSessionsProviderConfig } from './remoteAgentHostSessionsProvider.js';
 import { watchForIncompatibleNotifications } from './remoteHostOptions.js';
 
+export const CLOUD_SANDBOX_CREATION_PROVIDER_ID = 'cloud-sandbox-creation';
+
 const CLOUD_SANDBOX_HOST_GROUP: IAgentHostGroup = {
 	id: 'githubsandbox',
 	label: localize('githubSandbox.hostGroup', "GitHub Sandboxes"),
 	order: 1,
 	connectable: false,
+	sessionCreationProviderId: isWeb ? CLOUD_SANDBOX_CREATION_PROVIDER_ID : undefined,
 };
 
 const CLOUD_SANDBOX_CONNECTION_LABELS: IAgentHostConnectionLabels = {
