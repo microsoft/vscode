@@ -4183,7 +4183,9 @@ export class CopilotAgentSession extends Disposable {
 					displayName: getToolDisplayName(toolName, request.kind === 'mcp' ? request : undefined),
 					contributor: trackedToolCall?.contributor ?? this._getToolCallContributor(toolName, undefined),
 					intention: trackedToolCall?.intention,
-					_meta: !trackedToolCall && isShellRequest ? toToolCallMeta({ toolKind: 'terminal', language: shellLanguage }) : undefined,
+					_meta: trackedToolCall?.meta
+						? toToolCallMeta(trackedToolCall.meta)
+						: isShellRequest ? toToolCallMeta({ toolKind: 'terminal', language: shellLanguage }) : undefined,
 					invocationMessage,
 					toolInput,
 					confirmationTitle,
@@ -4665,7 +4667,8 @@ export class CopilotAgentSession extends Disposable {
 				? localize('agentHost.unsandboxedCommandConfirmation.blockedDomains', "This command needs to access blocked network domain(s): {0}.", blockedDomains)
 				: localize('agentHost.unsandboxedCommandConfirmation.generic', "This command needs to run outside the sandbox.");
 
-		const parentToolCallId = this._activeToolCalls.get(request.toolCallId)?.parentToolCallId;
+		const trackedToolCall = this._activeToolCalls.get(request.toolCallId);
+		const parentToolCallId = trackedToolCall?.parentToolCallId;
 		this._onDidSessionProgress.fire({
 			kind: 'pending_confirmation',
 			chat: this._chatChannelUri,
@@ -4677,6 +4680,7 @@ export class CopilotAgentSession extends Disposable {
 				invocationMessage,
 				toolInput: request.command,
 				confirmationTitle,
+				_meta: toToolCallMeta(trackedToolCall?.meta ?? this._createToolCallMeta(request.toolName, undefined)),
 			},
 			// Intentionally omit `permissionKind: 'shell'`: that would route this
 			// through the shell rule-based auto-approver and silently approve
