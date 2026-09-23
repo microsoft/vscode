@@ -370,10 +370,13 @@ export class CustomizationMarketplaceWidget extends Disposable {
 	}
 
 	private getResultsLabel(): string {
-		if (this.sourceWarnings.hasErrors) {
+		if (this.sourceWarnings.hasWarnings) {
 			return this.items.length
 				? localize('customizationMarketplace.partialResults', "{0} resources loaded. Some sources are unavailable.", this.items.length.toLocaleString())
 				: localize('customizationMarketplace.sourcesUnavailable', "Resources could not be loaded. Some sources are unavailable.");
+		}
+		if (!this.items.length && this.sourceWarnings.hasErrors) {
+			return '';
 		}
 		return this.total !== undefined
 			? localize('customizationMarketplace.resultCount', "Showing {0} of {1} resources", this.items.length.toLocaleString(), this.total.toLocaleString())

@@ -1575,6 +1575,41 @@ suite('CustomizationMarketplaceWidget', () => {
 		});
 	});
 
+	for (const withResults of [false, true]) {
+		test(`source sign-in is a neutral call to action ${withResults ? 'with healthy results' : 'without an empty-results error'}`, async () => {
+			const { container, widget, service } = createWidget(false, document.body, CustomizationMarketplaceWidget, {
+				sourceEnabled: true,
+				additionalSources: [{ id: 'private', displayName: 'Private Feed', enablementSetting: ChatConfiguration.AgentFinderPublicFeedEnabled }],
+			});
+			service.recoveryActions.set('private', { label: 'Sign In', kind: 'signIn', run: async () => { } });
+			widget.setVisible(true);
+			await service.requests[0].result.complete({
+				items: withResults ? [createResource('Healthy')] : [],
+				sourceErrors: [{ sourceId: 'private', message: 'Sign in to view this source.' }],
+			});
+			const action = getElement(container, '.customization-marketplace-source-signin .monaco-button');
+			assert.deepStrictEqual({
+				names: getCardNames(container),
+				status: getElement(container, '.customization-marketplace-status').textContent,
+				emptyHidden: getElement(container, '.customization-marketplace-empty').style.display,
+				primary: !action.classList.contains('secondary'),
+				label: action.getAttribute('aria-label'),
+				warnings: container.querySelectorAll('.customization-marketplace-source-warning, .customization-marketplace-source-warning-help, .customization-marketplace-source-warnings .codicon-warning').length,
+				accessibleAction: widget.getAccessibilityContent().includes('Choose Sign In'),
+				accessibleFailure: /unavailable|incomplete|No resources found/.test(widget.getAccessibilityContent()),
+			}, {
+				names: withResults ? ['Healthy'] : [],
+				status: withResults ? '1 resources loaded' : '',
+				emptyHidden: 'none',
+				primary: true,
+				label: 'Sign In to view Private Feed.',
+				warnings: 0,
+				accessibleAction: true,
+				accessibleFailure: false,
+			});
+		});
+	}
+
 	for (const query of ['', 'mail']) {
 		test(`source warnings retain healthy ${query ? 'search' : 'browse'} results and retry from the first page`, async () => {
 			const failedSource = CustomizationMarketplaceSources.AgentFinderPublicFeed;
