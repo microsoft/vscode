@@ -95,6 +95,8 @@ Agents do **not** maintain the chat catalog, persist membership, know whether a 
 
 ### Orchestrator layer
 
+Copilot chats receive a bounded initial workspace-file snapshot through `WorkspaceContextContribution`. It uses the chat's effective working directories and the existing ignore-aware `AgentHostWorkspaceFiles` enumerator, excludes hidden and dependency paths, and never reads file contents. The snapshot is first-turn-only (also on restore), and discovery failures use the contribution dispatcher's logging without blocking the user's message.
+
 Artifact removal uses the VS Code-only `vscode/removeSessionArtifact` extension RPC with `{ session: string, artifactId: string }` and a void result. Clients gate the optional `removeSessionArtifact(URI, string)` connection method with `supportsAgentHostArtifactRemoval(initializeResult)` (`_meta['vscode.removeSessionArtifact'] === true`). This does not extend the generated AHP protocol.
 
 The shared `node/shared/sessionArtifacts.ts` path serializes artifact mutations per session across tools and direct user requests. Each mutation reads the latest collection, awaits ordered catalog synchronization (including the legacy-first `sessionArtifacts` metadata write), then publishes `SessionMetaChanged` merged with the latest independent metadata. Failed local persistence leaves the artifact visible and retryable; failures are logged and propagated without blocking queued additions. Central synchronization uses the usual pending receipts for repair. Independent GitHub associations and unrelated artifacts/references are preserved. No model turn or tool invocation is involved in direct user removal.
