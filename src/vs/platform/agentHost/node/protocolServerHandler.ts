@@ -425,6 +425,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 				this._checkOrphanedClientToolCalls(parseRequiredSessionUriFromChatUri(envelope.channel), envelope.channel);
 			}
 		}));
+		this._register(this._stateManager.onDidRejectClientAction(envelope => this._recordAndBroadcastAction(envelope)));
 
 		this._register(this._stateManager.onDidEmitNotification(notification => {
 			this._broadcastNotification(notification);
@@ -535,22 +536,20 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 							// Rejected actions are echoed so optimistic clients roll back.
 							if (IS_CLIENT_DISPATCHABLE[action.type] !== true) {
 								this._logService.warn(`[ProtocolServer] rejecting server-only client action: ${action.type}`);
-								const envelope = this._stateManager.rejectClientAction(
+								this._stateManager.rejectClientAction(
 									channel,
 									action,
 									{ clientId: client.clientId, clientSeq: msg.params.clientSeq },
 									`Server-only action: ${action.type}`,
 								);
-								this._recordAndBroadcastAction(envelope);
 							} else if (UNSUPPORTED_CLIENT_ACTION_TYPES.has(action.type)) {
 								this._logService.warn(`[ProtocolServer] rejecting unsupported client action: ${action.type}`);
-								const envelope = this._stateManager.rejectClientAction(
+								this._stateManager.rejectClientAction(
 									channel,
 									action,
 									{ clientId: client.clientId, clientSeq: msg.params.clientSeq },
 									`Unsupported action: ${action.type}`,
 								);
-								this._recordAndBroadcastAction(envelope);
 							} else if (isSessionAction(action) || isChatAction(action) || isTerminalAction(action) || isChangesetAction(action) || isAnnotationsAction(action) || isAutomationAction(action) || isAutomationRunAction(action) || action.type === ActionType.RootConfigChanged) {
 								this._agentService.dispatchAction(channel, action, client.clientId, msg.params.clientSeq, client.telemetryContext);
 							}

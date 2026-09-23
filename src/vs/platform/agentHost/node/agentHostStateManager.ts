@@ -299,6 +299,9 @@ export class AgentHostStateManager extends Disposable {
 	private readonly _onDidEmitEnvelope = this._register(new Emitter<ActionEnvelope>());
 	readonly onDidEmitEnvelope: Event<ActionEnvelope> = this._onDidEmitEnvelope.event;
 
+	private readonly _onDidRejectClientAction = this._register(new Emitter<ActionEnvelope>());
+	readonly onDidRejectClientAction: Event<ActionEnvelope> = this._onDidRejectClientAction.event;
+
 	private readonly _onDidEmitNotification = this._register(new Emitter<INotification>());
 	readonly onDidEmitNotification: Event<INotification> = this._onDidEmitNotification.event;
 	private readonly _onDidChangeSessionActiveTurn = this._register(new Emitter<{ session: string; active: boolean }>());
@@ -1767,7 +1770,7 @@ export class AgentHostStateManager extends Disposable {
 	}
 
 	/**
-	 * Reject a client-originated action without applying it to state. Returns an
+	 * Reject a client-originated action without applying it to state. Emits a
 	 * {@link ActionEnvelope} that carries the original {@link ActionOrigin} and a
 	 * {@link ActionEnvelope.rejectionReason | rejectionReason} so the originating
 	 * client can reconcile (roll back) its optimistic write-ahead action through
@@ -1775,7 +1778,7 @@ export class AgentHostStateManager extends Disposable {
 	 * is deliberately NOT run and the envelope is not emitted to host-side action
 	 * consumers.
 	 */
-	rejectClientAction(channel: URI, action: StateAction, origin: ActionOrigin, reason: string): ActionEnvelope {
+	rejectClientAction(channel: URI, action: StateAction, origin: ActionOrigin, reason: string): void {
 		const envelope: ActionEnvelope = {
 			channel,
 			action,
@@ -1784,7 +1787,7 @@ export class AgentHostStateManager extends Disposable {
 			rejectionReason: reason,
 		};
 		this._logService.trace(`[AgentHostStateManager] Created rejection envelope: seq=${envelope.serverSeq}, channel=${envelope.channel}, type=${action.type}, origin=${origin.clientId}:${origin.clientSeq}, reason=${reason}`);
-		return envelope;
+		this._onDidRejectClientAction.fire(envelope);
 	}
 
 	// ---- Internal -----------------------------------------------------------
