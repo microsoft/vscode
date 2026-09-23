@@ -8,6 +8,7 @@ import { IContextMenuDelegate } from '../../../../../base/browser/contextmenu.js
 import { DataTransfers } from '../../../../../base/browser/dnd.js';
 import { EventType, ModifierKeyEmitter } from '../../../../../base/browser/dom.js';
 import { GestureEvent, EventType as TouchEventType } from '../../../../../base/browser/touch.js';
+import { setARIAContainer } from '../../../../../base/browser/ui/aria/aria.js';
 import type { IDelayedHoverOptions } from '../../../../../base/browser/ui/hover/hover.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
@@ -344,11 +345,12 @@ class TestKeybindingService extends MockKeybindingService {
 
 class FakeRunner extends mock<IAutomationRunner>() {
 	whenDispatched: Promise<IAutomationRunDispatch> = Promise.resolve({ kind: 'notStarted', reason: 'targetUnavailable' });
+	whenCompleted: Promise<void> = Promise.resolve();
 	runCalls = 0;
 
 	override runOnce(_automation: IAutomationDescriptor, _token?: CancellationToken): IAutomationRunOperation {
 		this.runCalls++;
-		return { whenDispatched: this.whenDispatched, whenCompleted: Promise.resolve() };
+		return { whenDispatched: this.whenDispatched, whenCompleted: this.whenCompleted };
 	}
 }
 
@@ -578,6 +580,13 @@ suite('AutomationsCardsWidget', () => {
 	function isMarkAllReadVisible(widget: AutomationsCardsWidget): boolean {
 		const button = widget.element.querySelector<HTMLElement>('.automations-mark-all-read');
 		return !!button && button.style.display !== 'none';
+	}
+
+	function createAriaHost(): HTMLElement {
+		const host = document.body.appendChild(document.createElement('div'));
+		setARIAContainer(host);
+		disposables.add(toDisposable(() => host.remove()));
+		return host;
 	}
 
 	function setup(archiveWording: 'archive' | 'done' = 'archive', hoverService: IHoverService = NullHoverService, fileService?: IFileService, storageService?: IStorageService) {
@@ -855,6 +864,84 @@ suite('AutomationsCardsWidget', () => {
 				},
 			});
 		});
+	});
+
+	test('announces a session once after an accepted run reaches the catalogue', async () => {
+		const { automationService, runner, widget } = setup();
+		const ariaHost = createAriaHost();
+		const completion = new DeferredPromise<void>();
+		runner.whenDispatched = Promise.resolve({ kind: 'accepted', runId: RUN_ID });
+		runner.whenCompleted = completion.p;
+		automationService.setAutomations([automation()]);
+		const runButton = widget.element.querySelector<HTMLElement>('.automations-card-run-button');
+		assert.ok(runButton);
+		runButton.click();
+		await timeout(0);
+
+		const acceptedMessage = ariaHost.textContent;
+		automationService.setRuns([run({ id: 'another-run' }), run({ status: 'pending', sessionResource: undefined })]);
+		const pendingMessage = ariaHost.textContent;
+		automationService.setRuns([run({ status: 'running' })]);
+		const startedMessages = Array.from(ariaHost.querySelectorAll('.monaco-status'), element => element.textContent);
+		automationService.setRuns([run({ status: 'completed' })]);
+		const repeatedMessages = Array.from(ariaHost.querySelectorAll('.monaco-status'), element => element.textContent);
+		await completion.complete();
+		await timeout(0);
+
+		assert.deepStrictEqual({ acceptedMessage, pendingMessage, startedMessages, repeatedMessages }, {
+			acceptedMessage: 'Automation Daily review accepted; waiting for a session',
+			pendingMessage: 'Automation Daily review accepted; waiting for a session',
+			startedMessages: ['Started automation Daily review', ''],
+			repeatedMessages: ['Started automation Daily review', ''],
+		});
+	});
+
+	for (const observationEnd of ['completion', 'card removal', 'widget disposal'] as const) {
+		test(`stops waiting for a session announcement on ${observationEnd}`, async () => {
+			const { automationService, runner, widget } = setup();
+			const ariaHost = createAriaHost();
+			const completion = new DeferredPromise<void>();
+			runner.whenDispatched = Promise.resolve({ kind: 'accepted', runId: RUN_ID });
+			runner.whenCompleted = completion.p;
+			automationService.setAutomations([automation()]);
+			const runButton = widget.element.querySelector<HTMLElement>('.automations-card-run-button');
+			assert.ok(runButton);
+			runButton.click();
+			await timeout(0);
+
+			if (observationEnd === 'completion') {
+				await completion.complete();
+				await timeout(0);
+			} else if (observationEnd === 'card removal') {
+				automationService.setAutomations([]);
+			} else {
+				widget.dispose();
+			}
+			automationService.setRuns([run({ status: 'running' })]);
+			await completion.complete();
+			await timeout(0);
+
+			assert.strictEqual(ariaHost.textContent, 'Automation Daily review accepted; waiting for a session');
+		});
+	}
+
+	test('announces an already-linked accepted run once without waiting for another update', async () => {
+		const { automationService, runner, widget } = setup();
+		const ariaHost = createAriaHost();
+		const completion = new DeferredPromise<void>();
+		runner.whenDispatched = Promise.resolve({ kind: 'accepted', runId: RUN_ID });
+		runner.whenCompleted = completion.p;
+		automationService.setAutomations([automation()]);
+		automationService.setRuns([run({ status: 'running' })]);
+		const runButton = widget.element.querySelector<HTMLElement>('.automations-card-run-button');
+		assert.ok(runButton);
+		runButton.click();
+		await timeout(0);
+		automationService.setRuns([run({ status: 'completed' })]);
+		await completion.complete();
+		await timeout(0);
+
+		assert.deepStrictEqual(Array.from(ariaHost.querySelectorAll('.monaco-status'), element => element.textContent), ['Started automation Daily review', '']);
 	});
 
 	test('focus targets the view without selecting an automation card', () => {

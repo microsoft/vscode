@@ -56,6 +56,7 @@ class TestAutomationConnection {
 	runPrimarySession: string | undefined = 'mock:/session';
 	readonly runRequested = new DeferredPromise<void>();
 	runAdmissionBarrier: Promise<void> | undefined;
+	suppressRunPublication = false;
 	suppressCreatePublication = false;
 	updateError: Error | undefined;
 	readonly createRequested = new DeferredPromise<void>();
@@ -211,12 +212,14 @@ class TestAutomationConnection {
 			primarySession: this.runPrimarySession,
 			sessionCount: this.runPrimarySession === undefined ? 0 : 1,
 		};
-		const updated = { ...automation, runs: [run, ...automation.runs] };
-		this._catalog = {
-			...this._catalog,
-			entries: this._catalog.entries.map(candidate => candidate.resource === updated.resource ? updated : candidate),
-		};
-		this._onDidCatalogChange.fire(this._catalog);
+		if (!this.suppressRunPublication) {
+			const updated = { ...automation, runs: [run, ...automation.runs] };
+			this._catalog = {
+				...this._catalog,
+				entries: this._catalog.entries.map(candidate => candidate.resource === updated.resource ? updated : candidate),
+			};
+			this._onDidCatalogChange.fire(this._catalog);
+		}
 		await this.runRequested.complete();
 		await this.runAdmissionBarrier;
 		return { resource };
@@ -1012,7 +1015,9 @@ suite('AgentHostAutomationStore', () => {
 		const create = connection.dispatched[0].action;
 		const claim = await store.runAutomation(automation.id);
 		assert.strictEqual(claim.kind, 'dispatched');
-		void claim.whenCompleted.catch(() => { });
+		assert.ok(claim.run);
+		connection.completeRun(connection.lastRunResource);
+		await claim.whenCompleted;
 
 		assert.deepStrictEqual({
 			hostDirectory: create.type === ActionType.AutomationCreateRequested ? create.definition.session.workingDirectories : undefined,
@@ -1281,7 +1286,7 @@ suite('AgentHostAutomationStore', () => {
 		const claim = await store.runAutomation(automation.id);
 		assert.strictEqual(claim.kind, 'dispatched');
 		claim.cancel?.();
-		void claim.whenCompleted.catch(() => { });
+		await claim.whenCompleted;
 
 		const cancellation = connection.dispatched.at(-1);
 		assert.deepStrictEqual(cancellation, {
@@ -1314,7 +1319,11 @@ suite('AgentHostAutomationStore', () => {
 			const operation = runner.runOnce(automation, cancellation.token);
 			await connection.runRequested.p;
 			if (!pauseAdmission) {
+				const dispatch = await operation.whenDispatched;
 				await timeout(31_000);
+				assert.deepStrictEqual({ dispatch, errors }, {
+					dispatch: { kind: 'accepted', runId: `host:${connection.lastRunResource}` }, errors: [],
+				});
 			}
 			cancellation.cancel();
 			await barrier.complete();
@@ -1325,9 +1334,85 @@ suite('AgentHostAutomationStore', () => {
 				reason: dispatch.kind === 'notStarted' ? dispatch.reason : undefined,
 				cancellations: connection.dispatched.filter(({ action }) => action.type === ActionType.AutomationRunCancelRequested).length,
 				activeRun: store.getActiveRunFor(automation.id),
+				terminalStatus: store.runs.get()[0]?.status,
 				errors,
-			}, { kind: 'notStarted', reason: 'cancelled', cancellations: 1, activeRun: undefined, errors: [] });
+			}, {
+				kind: pauseAdmission ? 'notStarted' : 'accepted',
+				reason: pauseAdmission ? 'cancelled' : undefined,
+				cancellations: 1, activeRun: undefined, terminalStatus: 'failed', errors: [],
+			});
 		}));
+	}
+
+	test('returns admission before catalogue publication and resolves to the terminal snapshot', async () => {
+		const { store } = reconnectable();
+		const connection = disposables.add(new TestAutomationConnection());
+		connection.suppressRunPublication = true;
+		store.setConnection(connection);
+		const automation = await store.createAutomation(createOptions());
+		const create = connection.dispatched[0].action;
+		assert.strictEqual(create.type, ActionType.AutomationCreateRequested);
+
+		const result = await store.runAutomation(automation.id);
+		assert.strictEqual(result.kind, 'dispatched');
+		let completed = false;
+		void result.whenCompleted.then(() => completed = true);
+		assert.deepStrictEqual({ runId: result.runId, run: result.run, completed }, {
+			runId: `host:${connection.lastRunResource}`, run: undefined, completed: false,
+		});
+
+		connection.setAutomation({
+			resource: create.resource,
+			definition: create.definition,
+			createdAt: automation.createdAt,
+			modifiedAt: automation.updatedAt,
+			operations: [AutomationOperation.Update, AutomationOperation.Remove, AutomationOperation.Run],
+			runs: [{
+				resource: connection.lastRunResource,
+				automation: create.resource,
+				origin: { kind: AutomationRunOriginKind.Manual },
+				lifecycle: { status: AutomationRunStatus.Completed, createdAt: automation.createdAt, startedAt: automation.createdAt, completedAt: automation.updatedAt },
+				primarySession: 'mock:/session',
+				sessionCount: 1,
+			}],
+		});
+		const terminal = await result.whenCompleted;
+		assert.deepStrictEqual(terminal, {
+			id: result.runId,
+			automationId: automation.id,
+			status: 'completed',
+			trigger: 'manual',
+			sessionResource: URI.parse('mock:/session'),
+			startedAt: automation.createdAt,
+			completedAt: automation.updatedAt,
+			errorMessage: undefined,
+		});
+	});
+
+	for (const observationLoss of ['catalogue error', 'disconnect'] as const) {
+		test(`rejects terminal observation after admission on ${observationLoss}`, async () => {
+			const { store } = reconnectable();
+			const connection = disposables.add(new TestAutomationConnection());
+			connection.runPrimarySession = undefined;
+			store.setConnection(connection);
+			const automation = await store.createAutomation(createOptions());
+			const result = await store.runAutomation(automation.id);
+			assert.strictEqual(result.kind, 'dispatched');
+			const rejected = assert.rejects(result.whenCompleted, observationLoss === 'catalogue error' ? /Subscription failed/ : /Canceled/);
+
+			if (observationLoss === 'catalogue error') {
+				connection.setCatalogError(new Error('Subscription failed'));
+			} else {
+				store.clearConnection();
+			}
+			await rejected;
+
+			assert.deepStrictEqual({
+				admittedRunId: result.runId,
+				initialStatus: result.run?.status,
+				cancellations: connection.dispatched.filter(({ action }) => action.type === ActionType.AutomationRunCancelRequested),
+			}, { admittedRunId: `host:${connection.lastRunResource}`, initialStatus: 'pending', cancellations: [] });
+		});
 	}
 
 	test('does not time out an authority-dispatched run after 30 seconds', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
@@ -1423,7 +1508,7 @@ suite('AgentHostAutomationStore', () => {
 		}, {
 			catalogueIds: ['local:ahp-automation:/review', 'local:ahp-automation:/nested/review', 'remote:ahp-automation:/review'],
 			localHistory: ['local:ahp-automation-run:/shared-run'],
-			remoteHistory: [dispatched.run.id, 'remote:ahp-automation-run:/shared-run'],
+			remoteHistory: [dispatched.runId, 'remote:ahp-automation-run:/shared-run'],
 			activeAutomation: remoteAutomation.id,
 			localRequests: [],
 			remoteRequests: [resource],

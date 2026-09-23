@@ -105,7 +105,7 @@ export class ListAutomationsTool implements IToolImpl {
 			icon: Codicon.calendar,
 			displayName: localize('automation.tool.list.displayName', "List Automations"),
 			userDescription: localize('automation.tool.list.userDescription', "List scheduled agent automations"),
-			modelDescription: 'List all currently available scheduled automations and their stable IDs, editable fields, targets, and timing metadata. The result includes catalogueState; only "ready" means the list is complete, so never interpret an empty non-ready result as no configured automations. Use this before configureAutomation, runAutomation, or deleteAutomation when acting on an existing automation. This tool never changes automation state.',
+			modelDescription: 'List all currently available scheduled automations and their stable IDs, editable fields, targets, timing metadata, and available run summaries. Each automation includes runs with IDs, status, session resources, and errors. The result includes catalogueState; only "ready" means the list is complete, so never interpret an empty non-ready result as no configured automations. Run summaries are not complete history; absence of an accepted run does not mean it failed. Use this before configureAutomation, runAutomation, or deleteAutomation when acting on an existing automation, or match a runAutomation result against runs[].id to check its status. This tool never changes automation state.',
 			source: ToolDataSource.Internal,
 			when: automationToolWhen,
 			runsInWorkspace: false,
@@ -130,7 +130,13 @@ export class ListAutomationsTool implements IToolImpl {
 		}
 
 		const catalogueState = this.automationService.catalogueState.get();
-		const automations = this.automationService.automations.get().map(toAutomationToolOutput);
+		const automations = this.automationService.automations.get().map(automation => ({
+			...toAutomationToolOutput(automation),
+			runs: this.automationService.runsFor(automation.id).get().map(run => ({
+				...run,
+				sessionResource: run.sessionResource?.toString() ?? null,
+			})),
+		}));
 		const result = automationToolResult(JSON.stringify({ catalogueState, automations }, undefined, 2));
 		result.toolResultMessage = catalogueState !== 'ready'
 			? localize('automation.tool.list.result.incomplete', "Listed {0} available automations; catalogue is incomplete", automations.length)
@@ -157,7 +163,7 @@ export class RunAutomationTool implements IToolImpl {
 			icon: Codicon.play,
 			displayName: localize('automation.tool.run.displayName', "Run Automation"),
 			userDescription: localize('automation.tool.run.userDescription', "Run a configured agent automation now"),
-			modelDescription: 'Request a manual run of a configured automation by stable ID. Call listAutomations first to obtain the current ID. The Agent Host creates a fresh session using the saved prompt, target, and provider session configuration, even when scheduled runs are disabled. The tool returns when the host accepts the request; an accepted run may wait for credentials before a session exists. Use listAutomations to check status; do not run it again unless the user asks.',
+			modelDescription: 'Request a manual run of a configured automation by stable ID. Call listAutomations first to obtain the current ID. The Agent Host creates a fresh session using the saved prompt, target, and provider session configuration, even when scheduled runs are disabled. The tool returns when the host accepts the request; an accepted run may wait for credentials before a session exists. Match the returned run ID against listAutomations runs[].id to check status; do not run it again unless the user asks.',
 			source: ToolDataSource.Internal,
 			when: automationToolWhen,
 			runsInWorkspace: false,
