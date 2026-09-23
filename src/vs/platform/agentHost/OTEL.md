@@ -38,9 +38,11 @@ measurement attributes instead. No cross-process durations are reconstructed
 from wall clocks.
 
 Every attribute below has the prefix **`vscode.agent_host.`**. Timing numbers
-are **milliseconds**; counts and ordinals are unitless. Booleans remain
-booleans, and absent measurements are omitted, never converted to `0` or
-stringified. A real observed `0` is retained.
+are **milliseconds**; counts and ordinals are unitless. JSONL and OTLP JSON
+exports preserve numeric and boolean types. SQLite stores generic attributes
+as text, so consumers must parse these values according to the schema below.
+Absent measurements are omitted in every route, never converted to `0`.
+A real observed `0` is retained (as `'0'` in SQLite).
 
 Session anchor spans advertise `vscode.agent_host.timingSchemaVersion=1`.
 Eval consumers can use this to wait for terminal diagnostics after native

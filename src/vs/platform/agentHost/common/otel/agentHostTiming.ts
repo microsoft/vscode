@@ -90,7 +90,12 @@ export function agentHostTimingAttributes(diagnostic: IAgentHostTurnTimingDiagno
 		put('invocationKind', diagnostic.invocationKind);
 		put('trustInteractionRequired', diagnostic.trustInteractionRequired);
 		put('hasResponseText', diagnostic.hasResponseText);
-		for (const key of ['firstResponseTextMs', 'rootToolCallsBeforeFirstText', 'rendererRootInvocationOrdinal', 'totalElapsedMs'] as const) {
+		if (diagnostic.hasResponseText) {
+			for (const key of ['firstResponseTextMs', 'rootToolCallsBeforeFirstText'] as const) {
+				measurement(key, diagnostic[key]);
+			}
+		}
+		for (const key of ['rendererRootInvocationOrdinal', 'totalElapsedMs'] as const) {
 			measurement(key, diagnostic[key]);
 		}
 	}

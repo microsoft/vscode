@@ -105,6 +105,24 @@ suite('Agent Host timing OTel', () => {
 		await assert.rejects(readFile(outfile), { code: 'ENOENT' });
 	});
 
+	test('exports text measurements only when response text was observed', async () => {
+		const service = createService({ COPILOT_OTEL_FILE_EXPORTER_PATH: outfile });
+		for (const hasResponseText of [false, true]) {
+			service.emitFirstResponse({ ...renderer, hasResponseText, firstResponseTextMs: 0 });
+		}
+		await service.flush();
+		assert.deepStrictEqual((await readSpans()).map(span => ({
+			hasResponseText: span.attributes[`${prefix}hasResponseText`],
+			firstResponseTextMs: span.attributes[`${prefix}firstResponseTextMs`],
+			rootToolCallsBeforeFirstText: span.attributes[`${prefix}rootToolCallsBeforeFirstText`],
+			rendererRootInvocationOrdinal: span.attributes[`${prefix}rendererRootInvocationOrdinal`],
+			totalElapsedMs: span.attributes[`${prefix}totalElapsedMs`],
+		})), [
+			{ hasResponseText: false, firstResponseTextMs: undefined, rootToolCallsBeforeFirstText: undefined, rendererRootInvocationOrdinal: 1, totalElapsedMs: 70 },
+			{ hasResponseText: true, firstResponseTextMs: 0, rootToolCallsBeforeFirstText: 0, rendererRootInvocationOrdinal: 1, totalElapsedMs: 70 },
+		]);
+	});
+
 	test('exports numeric file metadata with content capture off and without model accounting', async () => {
 		const service = createService({ COPILOT_OTEL_FILE_EXPORTER_PATH: outfile, OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT: 'false' });
 		service.emitTurnTiming(host);
@@ -209,7 +227,10 @@ suite('Agent Host timing OTel', () => {
 		const reader = new OTelSqliteStore(service.getSpansDbPath()!.fsPath);
 		try {
 			assert.deepStrictEqual(spans.map(span => reader.getSpansByTraceId(span.traceId).length), [1, 1]);
-			assert.strictEqual(reader.getSpanAttribute(spans[0].spanId, `${prefix}sendStageWorkingDirectoryMs`), '0');
+			assert.deepStrictEqual({
+				zero: reader.getSpanAttribute(spans[0].spanId, `${prefix}sendStageWorkingDirectoryMs`),
+				boolean: reader.getSpanAttribute(spans[1].spanId, `${prefix}hasResponseText`),
+			}, { zero: '0', boolean: 'true' });
 		} finally {
 			reader.close();
 		}
