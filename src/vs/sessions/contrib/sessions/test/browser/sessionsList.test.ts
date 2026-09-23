@@ -603,6 +603,12 @@ suite('Sessions - SessionsList', () => {
 				? mainWindow.getComputedStyle(stickyHeaderRow).getPropertyValue('--vscode-list-hoverBackground').trim()
 				: undefined;
 			const navigationVisibleAfterScroll = container.querySelector('.monaco-list-rows .session-section-shortcut') !== null;
+			list.layout(0, 400);
+			await timeout(0);
+			const headerRestoredWhileHidden = sessionsHeader.parentElement === sessionsHeaderContainer;
+			list.layout(120, 400);
+			await timeout(0);
+			const headerVisibleAfterRelayout = sessionsHeader.closest('.monaco-tree-sticky-container') !== null;
 			list.openFind();
 			const findInput = findWidgetContainer.querySelector<HTMLInputElement>('input');
 			const findFocusedAfterStickyScroll = mainWindow.document.activeElement === findInput;
@@ -613,6 +619,7 @@ suite('Sessions - SessionsList', () => {
 			await timeout(30);
 			const findFocusedAfterFiltering = mainWindow.document.activeElement === findInput;
 			const headerStickyAfterFiltering = sessionsHeader.closest('.monaco-tree-sticky-container') !== null;
+			const headerAttachedAfterFiltering = sessionsHeader.parentElement !== null;
 			list.closeFind();
 			await timeout(350);
 			tree.scrollTop = 0;
@@ -623,10 +630,13 @@ suite('Sessions - SessionsList', () => {
 				headerInStickyContainer,
 				stickyHeaderHoverBackground,
 				navigationVisibleAfterScroll,
+				headerRestoredWhileHidden,
+				headerVisibleAfterRelayout,
 				findFocusedAfterStickyScroll,
 				headerStickyAfterOpeningFind,
 				findFocusedAfterFiltering,
 				headerStickyAfterFiltering,
+				headerAttachedAfterFiltering,
 				navigationRestoredAfterScroll: container.querySelector('.monaco-list-rows .session-section-shortcut') !== null,
 				headerRestoredAfterScroll: sessionsHeader.closest('.monaco-list-rows') !== null,
 				headerRowHeight: sessionsHeader.closest<HTMLElement>('.monaco-list-row')?.style.height,
@@ -635,10 +645,13 @@ suite('Sessions - SessionsList', () => {
 				headerInStickyContainer: true,
 				stickyHeaderHoverBackground: 'transparent',
 				navigationVisibleAfterScroll: false,
+				headerRestoredWhileHidden: true,
+				headerVisibleAfterRelayout: true,
 				findFocusedAfterStickyScroll: true,
 				headerStickyAfterOpeningFind: true,
 				findFocusedAfterFiltering: true,
 				headerStickyAfterFiltering: false,
+				headerAttachedAfterFiltering: true,
 				navigationRestoredAfterScroll: true,
 				headerRestoredAfterScroll: true,
 				headerRowHeight: '42px',
