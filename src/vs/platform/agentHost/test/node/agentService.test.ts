@@ -13315,6 +13315,141 @@ suite('AgentService (node dispatcher)', () => {
 			);
 		});
 
+		for (const cached of [undefined, [], ['file:///wd/cached.ts']]) {
+			test(`subscribe to an uncommitted changeset returns ${cached ? 'cached' : 'uncached'} ${cached?.length ? 'files' : 'empty files'} before its refresh finishes`, async () => {
+				const workingDirectory = URI.from({ scheme: Schemas.inMemory, path: '/wd' });
+				copilotAgent.resolvedWorkingDirectory = workingDirectory;
+				copilotAgent.sessionMetadataOverrides = { workingDirectories: [workingDirectory] };
+				const computeGate = new DeferredPromise<void>();
+				const git = createNoopGitService();
+				git.computeSessionFileDiffs = async () => {
+					await computeGate.p;
+					return [];
+				};
+				const localService = disposables.add(createTestAgentService(
+					new NullLogService(), fileService, createSessionDataService(new TestSessionDatabase()),
+					{ _serviceBrand: undefined } as IProductService, git,
+				));
+				registerTestAgentProvider(localService, copilotAgent);
+				const session = await localService.createSession({ provider: 'copilot' });
+				const changesetUri = buildUncommittedChangesetUri(buildDefaultChatUri(session));
+				const stateManager = getStateManager(localService);
+				if (cached) {
+					stateManager.dispatchServerAction(changesetUri, {
+						type: ActionType.ChangesetContentChanged,
+						files: cached.map(uri => ({
+							id: uri,
+							edit: { after: { uri, content: { uri } }, diff: { added: 1, removed: 0 } },
+						})),
+					});
+					stateManager.dispatchServerAction(changesetUri, { type: ActionType.ChangesetStatusChanged, status: ChangesetStatus.Ready });
+				}
+
+				const snapshot = await localService.subscribe(URI.parse(changesetUri), 'client-changeset');
+				const state = snapshot.state as ChangesetState;
+				computeGate.complete();
+				for (let i = 0; i < 100 && stateManager.getChangesetState(changesetUri)?.status !== ChangesetStatus.Ready; i++) {
+					await timeout(5);
+				}
+
+				assert.deepStrictEqual({
+					snapshot: { status: state.status, files: state.files.map(file => file.id) },
+					after: stateManager.getChangesetState(changesetUri)?.status,
+				}, {
+					snapshot: { status: cached ? ChangesetStatus.Recomputing : ChangesetStatus.Computing, files: cached ?? [] },
+					after: ChangesetStatus.Ready,
+				});
+			});
+		}
+
+		test('cold uncommitted subscription returns cached files as recomputing after session restore', async () => {
+			const workingDirectory = URI.from({ scheme: Schemas.inMemory, path: '/wd' });
+			copilotAgent.resolvedWorkingDirectory = workingDirectory;
+			copilotAgent.sessionMetadataOverrides = { workingDirectories: [workingDirectory] };
+			const computeGate = new DeferredPromise<void>();
+			const git = createNoopGitService();
+			git.computeSessionFileDiffs = async () => {
+				await computeGate.p;
+				return [];
+			};
+			const localService = disposables.add(createTestAgentService(
+				new NullLogService(), fileService, createSessionDataService(new TestSessionDatabase()),
+				{ _serviceBrand: undefined } as IProductService, git,
+			));
+			registerTestAgentProvider(localService, copilotAgent);
+			const session = await localService.createSession({ provider: 'copilot' });
+			const changesetUri = buildUncommittedChangesetUri(buildDefaultChatUri(session));
+			const stateManager = getStateManager(localService);
+			stateManager.dispatchServerAction(changesetUri, {
+				type: ActionType.ChangesetContentChanged,
+				files: [{
+					id: 'file:///wd/cached.ts',
+					edit: { after: { uri: 'file:///wd/cached.ts', content: { uri: 'file:///wd/cached.ts' } }, diff: { added: 1, removed: 0 } },
+				}],
+			});
+			stateManager.dispatchServerAction(changesetUri, { type: ActionType.ChangesetStatusChanged, status: ChangesetStatus.Ready });
+			stateManager.removeSession(session.toString());
+			copilotAgent.sessionMessages = [
+				{ type: 'message', session, role: 'user', messageId: 'msg-1', content: 'Hello', toolRequests: [] },
+			];
+
+			const snapshot = await localService.subscribe(URI.parse(changesetUri), 'client-cold-changeset');
+			const state = snapshot.state as ChangesetState;
+			computeGate.complete();
+
+			assert.deepStrictEqual({
+				status: state.status,
+				files: state.files.map(file => file.id),
+			}, {
+				status: ChangesetStatus.Recomputing,
+				files: ['file:///wd/cached.ts'],
+			});
+		});
+
+		for (const cached of [undefined, [], ['file:///wd/cached.ts']]) {
+			test(`subscribe to a turn changeset returns ${cached ? 'cached' : 'uncached'} ${cached?.length ? 'files' : 'empty files'} before computing its diff`, async () => {
+				const localService = disposables.add(createTestAgentService(
+					new NullLogService(), fileService, createSessionDataService(new TestSessionDatabase()),
+					{ _serviceBrand: undefined } as IProductService, createNoopGitService(),
+				));
+				registerTestAgentProvider(localService, copilotAgent);
+				const session = await localService.createSession({ provider: 'copilot' });
+				const changesetUri = buildTurnChangesetUri(buildDefaultChatUri(session), 'turn-1');
+				const stateManager = getStateManager(localService);
+				const computeGate = new DeferredPromise<void>();
+				getTestAgentServiceComposition(localService).checkpointService.getTurnCheckpointPair = async () => {
+					await computeGate.p;
+					return undefined;
+				};
+				if (cached) {
+					stateManager.registerChangeset(changesetUri);
+					stateManager.dispatchServerAction(changesetUri, {
+						type: ActionType.ChangesetContentChanged,
+						files: cached.map(uri => ({
+							id: uri,
+							edit: { after: { uri, content: { uri } }, diff: { added: 1, removed: 0 } },
+						})),
+					});
+					stateManager.dispatchServerAction(changesetUri, { type: ActionType.ChangesetStatusChanged, status: ChangesetStatus.Ready });
+				}
+
+				const snapshot = await localService.subscribe(URI.parse(changesetUri), 'client-turn');
+				const state = snapshot.state as ChangesetState;
+				computeGate.complete();
+				for (let i = 0; i < 100 && stateManager.getChangesetState(changesetUri)?.status !== ChangesetStatus.Ready; i++) {
+					await timeout(5);
+				}
+
+				assert.deepStrictEqual({
+					snapshot: { status: state.status, files: state.files.map(file => file.id) },
+					after: stateManager.getChangesetState(changesetUri)?.status,
+				}, {
+					snapshot: { status: cached ? ChangesetStatus.Recomputing : ChangesetStatus.Computing, files: cached ?? [] },
+					after: ChangesetStatus.Ready,
+				});
+			});
+		}
+
 		for (const deleted of [false, true]) {
 			for (const subagent of [false, true]) {
 				test(`annotations reject a ${deleted ? 'deleted' : 'missing'} ${subagent ? 'subagent parent' : 'session'} without creating persisted data`, async () => {
