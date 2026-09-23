@@ -1822,6 +1822,7 @@ export class ChatService extends Disposable implements IChatService {
 							acceptedConfirmationData: options?.acceptedConfirmationData,
 							rejectedConfirmationData: options?.rejectedConfirmationData,
 							agentHostSessionConfig: options?.agentHostSessionConfig,
+							agentHostMessageOrigin: options?.agentHostMessageOrigin,
 							metadata: options?.metadata,
 							userSelectedModelId: options?.userSelectedModelId,
 							modelConfiguration,
@@ -2463,8 +2464,14 @@ export class ChatService extends Disposable implements IChatService {
 			const local = existingById.get(remote.id);
 			const modelId = remote.modelId ?? local?.request.modelId;
 			const modelConfiguration = remote.modelId !== undefined ? remote.modelConfiguration : local?.request.modelConfiguration;
+			const agentHostMessageOrigin = remote.agentHostMessageOrigin ?? local?.sendOptions.agentHostMessageOrigin;
+			const metadata = remote.agentHostMessageOrigin !== undefined ? remote.metadata : remote.metadata ?? local?.sendOptions.metadata;
+			const isSystemInitiated = remote.isSystemInitiated ?? local?.request.isSystemInitiated;
+			const systemInitiatedLabel = remote.agentHostMessageOrigin !== undefined ? remote.systemInitiatedLabel : remote.systemInitiatedLabel ?? local?.request.systemInitiatedLabel;
 			if (local && local.request.message.text === remote.message && equals(local.request.variableData, variableData)
-				&& local.request.modelId === modelId && equals(local.request.modelConfiguration, modelConfiguration)) {
+				&& local.request.modelId === modelId && equals(local.request.modelConfiguration, modelConfiguration)
+				&& local.request.isSystemInitiated === isSystemInitiated && local.request.systemInitiatedLabel === systemInitiatedLabel
+				&& equals(local.sendOptions.agentHostMessageOrigin, agentHostMessageOrigin) && equals(local.sendOptions.metadata, metadata)) {
 				return local.kind === remote.kind ? local : { ...local, kind: remote.kind };
 			}
 			const parsedRequest = this.parseChatRequest(sessionResource, remote.message, model.initialLocation, undefined);
@@ -2477,12 +2484,18 @@ export class ChatService extends Disposable implements IChatService {
 				restoredId: remote.id,
 				modelId,
 				modelConfiguration,
+				isSystemInitiated,
+				systemInitiatedLabel,
 			});
 			return {
 				request: requestModel,
 				kind: remote.kind,
 				sendOptions: {
 					...local?.sendOptions,
+					agentHostMessageOrigin,
+					metadata,
+					isSystemInitiated,
+					systemInitiatedLabel,
 					...(modelId !== undefined ? { userSelectedModelId: modelId, userSelectedModelConfiguration: modelConfiguration } : {}),
 				},
 			};
@@ -2534,6 +2547,7 @@ export class ChatService extends Disposable implements IChatService {
 			const attachedContext = target.request.variableData.variables.slice();
 			const sendOptions: IChatSendRequestOptions = {
 				...target.sendOptions,
+				agentIdSilent: target.sendOptions.agentIdSilent ?? target.sendOptions.agentId ?? getChatSessionType(sessionResource),
 				queue: undefined,
 				attachedContext,
 			};

@@ -15,7 +15,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { InstantiationService } from '../../../instantiation/common/instantiationService.js';
 import { ServiceCollection } from '../../../instantiation/common/serviceCollection.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
-import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
+import { ITelemetryData, ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
 import { TelemetryTrustedValue } from '../../../telemetry/common/telemetryUtils.js';
 import { createAgentModelByokMeta } from '../../common/agentModelByokMeta.js';
 import { getTelemetryChatSessionId } from '../../common/agentTelemetryCorrelation.js';
@@ -95,14 +95,14 @@ class CapturingTelemetryService implements ITelemetryService {
 	readonly devDeviceId = 'test-dev-device';
 	readonly firstSessionDate = 'test-first-session-date';
 	readonly sendErrorTelemetry = false;
-	readonly events: { eventName: string; data: unknown }[] = [];
+	readonly events: { eventName: string; data: ITelemetryData | undefined }[] = [];
 
 	publicLog(): void { }
-	publicLog2(eventName: string, data?: unknown): void {
+	publicLog2(eventName: string, data?: ITelemetryData): void {
 		this.events.push({ eventName, data });
 	}
 	publicLogError(): void { }
-	publicLogError2(eventName: string, data?: unknown): void {
+	publicLogError2(eventName: string, data?: ITelemetryData): void {
 		this.events.push({ eventName, data });
 	}
 	setExperimentProperty(): void { }
@@ -222,6 +222,10 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 
 	function completedEvents(): { eventName: string; data: unknown }[] {
 		return telemetry.events.filter(e => e.eventName === 'agentHost.turnCompleted');
+	}
+
+	function sentEvents() {
+		return telemetry.events.filter(event => event.eventName === 'agentHost.userMessageSent');
 	}
 
 	function capturedModel(data: Record<string, unknown>): { trusted: boolean; value: unknown } {
@@ -411,6 +415,116 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 			}, { captureCalls: 0, fields: [] });
 		});
 	}
+
+	test('records an admitted send before its outcome and does not recount terminal actions', () => {
+		setupSession();
+		startTurn('turn-1');
+		const beforeCompletion = {
+			sends: sentEvents().map(event => ({
+				turnId: event.data?.turnId,
+				chatSessionId: event.data?.chatSessionId,
+				messageActorKind: event.data?.messageActorKind,
+			})),
+			completions: completedEvents().length,
+		};
+
+		fire({ type: ActionType.ChatTurnComplete, turnId: 'turn-1', duration: 1000 });
+		fire({ type: ActionType.ChatTurnComplete, turnId: 'turn-1', duration: 1000 });
+
+		assert.deepStrictEqual({ beforeCompletion, sendsAfterCompletion: sentEvents().length }, {
+			beforeCompletion: {
+				sends: [{ turnId: 'turn-1', chatSessionId: getTelemetryChatSessionId(defaultChatUri), messageActorKind: 'user' }],
+				completions: 0,
+			},
+			sendsAfterCompletion: 1,
+		});
+	});
+
+	test('does not record rejected or locally handled requests as admitted sends', () => {
+		setupSession();
+		startTurn('local-command', '/rename Renamed');
+		stateManager.dispatchServerAction(sessionKey, { type: ActionType.SessionIsArchivedChanged, isArchived: true });
+		startTurn('rejected');
+
+		assert.deepStrictEqual({
+			sends: sentEvents(),
+			completions: completedEvents(),
+			providerSends: agent.sendMessageCalls,
+		}, { sends: [], completions: [], providerSends: [] });
+	});
+
+	test('records queued messages only on drain and excludes removed messages and steering', () => {
+		setupSession();
+		startTurn('active');
+		for (const id of ['removed', 'drained']) {
+			const action: ChatAction = {
+				type: ActionType.ChatPendingMessageSet, kind: PendingMessageKind.Queued, id,
+				message: { text: id, origin: { kind: MessageKind.User } },
+			};
+			stateManager.dispatchClientAction(defaultChatUri, action, { clientId: 'test', clientSeq: 2 });
+			sideEffects.handleAction(defaultChatUri, action);
+		}
+		const remove: ChatAction = { type: ActionType.ChatPendingMessageRemoved, kind: PendingMessageKind.Queued, id: 'removed' };
+		stateManager.dispatchClientAction(defaultChatUri, remove, { clientId: 'test', clientSeq: 3 });
+		sideEffects.handleAction(defaultChatUri, remove);
+		const steering: ChatAction = {
+			type: ActionType.ChatPendingMessageSet, kind: PendingMessageKind.Steering, id: 'steering',
+			message: { text: 'steer', origin: { kind: MessageKind.User } },
+		};
+		stateManager.dispatchClientAction(defaultChatUri, steering, { clientId: 'test', clientSeq: 4 });
+		sideEffects.handleAction(defaultChatUri, steering);
+		const sendsBeforeDrain = sentEvents().map(event => event.data?.turnId);
+		const removeSteering: ChatAction = { type: ActionType.ChatPendingMessageRemoved, kind: PendingMessageKind.Steering, id: 'steering' };
+		stateManager.dispatchClientAction(defaultChatUri, removeSteering, { clientId: 'test', clientSeq: 5 });
+		sideEffects.handleAction(defaultChatUri, removeSteering);
+		fire({ type: ActionType.ChatTurnComplete, turnId: 'active', duration: 1000 });
+		const drainedTurnId = stateManager.getActiveTurnId(defaultChatUri);
+		assert.ok(drainedTurnId);
+
+		assert.deepStrictEqual({
+			sendsBeforeDrain,
+			sendsAfterDrain: sentEvents().map(event => ({
+				turnId: event.data?.turnId,
+				source: event.data?.source,
+				messageActorKind: event.data?.messageActorKind,
+			})),
+		}, {
+			sendsBeforeDrain: ['active'],
+			sendsAfterDrain: [
+				{ turnId: 'active', source: 'direct', messageActorKind: 'user' },
+				{ turnId: drainedTurnId, source: 'queued', messageActorKind: 'user' },
+			],
+		});
+	});
+
+	test('does not record resuming the same failed turn as a new send', () => {
+		setupSession();
+		startTurn('resumed');
+		fire({ type: ActionType.ChatError, turnId: 'resumed', duration: 100, part: createErrorResponsePart({ errorType: 'requestFailed', message: 'failed' }, true) });
+		const turn = stateManager.getChatState(defaultChatUri)?.turns.at(-1);
+		assert.ok(turn);
+		const action: ChatAction = { type: ActionType.ChatTurnResume, turnId: turn.id };
+		stateManager.dispatchServerAction(defaultChatUri, action);
+		agent.chats.resumeTurn = async () => { };
+		sideEffects.handleAction(defaultChatUri, action, 'test', AgentHostClientType.EditorWindow, turn);
+		fire({ type: ActionType.ChatTurnComplete, turnId: turn.id, duration: 1000 });
+
+		assert.deepStrictEqual({
+			sends: sentEvents().map(event => event.data?.turnId),
+			completions: completedEvents().length,
+		}, { sends: ['resumed'], completions: 2 });
+	});
+
+	test('does not record provider-promoted turns as admitted sends', () => {
+		setupSession();
+		fire({
+			type: ActionType.ChatTurnStarted, turnId: 'provider-turn', startedAt: '2025-01-01T00:00:00.000Z',
+			message: { text: 'provider continuation', origin: { kind: MessageKind.SystemNotification } },
+		});
+		fire({ type: ActionType.ChatTurnComplete, turnId: 'provider-turn', duration: 1000 });
+
+		assert.deepStrictEqual({ sends: sentEvents(), completions: completedEvents().length }, { sends: [], completions: 1 });
+	});
 
 	test('emits turnCompleted with timing and turn-start context on success', () => {
 		setupSession(true, undefined, true);
@@ -1961,6 +2075,7 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 			msg: 'Error: boom',
 			hasStack: true,
 		}]);
+		assert.deepStrictEqual(sentEvents().map(event => event.data?.turnId), ['turn-1']);
 	});
 
 	test('fails the turn when model selection rejects instead of sending with a stale model', async () => {
@@ -2005,6 +2120,15 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 		assert.strictEqual((events[0].data as Record<string, unknown>).result, 'error');
 		assert.strictEqual((events[0].data as Record<string, unknown>).messageOriginKind, 'inline');
 		assert.strictEqual((telemetry.events.find(event => event.eventName === 'agentHost.userMessageSent')?.data as Record<string, unknown>).messageOriginKind, 'inline');
+		assert.deepStrictEqual(sentEvents().map(event => ({
+			turnId: event.data?.turnId,
+			messageActorKind: event.data?.messageActorKind,
+			source: event.data?.source,
+		})), [{
+			turnId: (events[0].data as Record<string, unknown>).turnId,
+			messageActorKind: 'user',
+			source: 'queued',
+		}]);
 	});
 
 	test('captures interactionMode for queued turns', () => {

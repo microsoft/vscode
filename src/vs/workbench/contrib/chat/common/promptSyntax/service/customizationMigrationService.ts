@@ -155,6 +155,23 @@ export interface IMcpServerCustomizationMigrationResult {
 	readonly failures: readonly IMcpServerCustomizationMigrationFailure[];
 }
 
+export const enum FileCustomizationMigrationFailureReason {
+	/** The source customization file could not be read. */
+	SourceReadFailed = 'sourceReadFailed',
+	/** A destination folder or available destination name could not be resolved. */
+	TargetResolutionFailed = 'targetResolutionFailed',
+	/** A prompt file could not be converted to a skill. */
+	ConversionFailed = 'conversionFailed',
+	/** The migrated customization could not be written to its destination. */
+	TargetWriteFailed = 'targetWriteFailed',
+	/** The original customization could not be deleted after writing its replacement. */
+	SourceDeleteFailed = 'sourceDeleteFailed',
+	/** One or more partially written migration targets could not be removed. */
+	RollbackFailed = 'rollbackFailed',
+}
+
+export type CustomizationMigrationFailureReason = FileCustomizationMigrationFailureReason | McpServerCustomizationMigrationFailureReason;
+
 export type CustomizationMigrationCandidate = MigratableConfiguration | IMcpServerCustomizationMigrationCandidate;
 
 export function isMcpServerCustomizationMigrationCandidate(candidate: CustomizationMigrationCandidate): candidate is IMcpServerCustomizationMigrationCandidate {
@@ -164,7 +181,7 @@ export function isMcpServerCustomizationMigrationCandidate(candidate: Customizat
 export type CustomizationMigration = FileCustomizationMigration | McpServerCustomizationMigration;
 
 export interface ICustomizationMigrationHint {
-	readonly hintId: string;
+	readonly migrationFlowId: string;
 	readonly message: string;
 	readonly counts: readonly ICustomizationMigrationCount[];
 }
