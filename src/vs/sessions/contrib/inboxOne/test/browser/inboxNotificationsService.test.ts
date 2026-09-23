@@ -20,12 +20,13 @@ import { ISessionsProvidersChangeEvent, ISessionsProvidersService } from '../../
 import { ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
 import { IChat, SessionStatus, type IGitHubInfo, type ISession, type ISessionWorkspace } from '../../../../services/sessions/common/session.js';
 import { ISessionsChangeEvent, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
-import { InboxNotificationsService } from '../../browser/inboxNotificationsService.js';
+import { cleanPreviewText, InboxNotificationsService } from '../../browser/inboxNotificationsService.js';
 import { InboxNotificationActionKind, InboxNotificationKind, InboxNotificationPriority, InboxNotificationsSortMode } from '../../common/inboxNotificationsService.js';
 import { GitHubPullRequestModel } from '../../../github/browser/models/githubPullRequestModel.js';
 import { GitHubPullRequestCIModel } from '../../../github/browser/models/githubPullRequestCIModel.js';
 import { GitHubPullRequestReviewThreadsModel } from '../../../github/browser/models/githubPullRequestReviewThreadsModel.js';
 import { IChatQuestionCarousel, IChatService, IChatToolInvocation } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
+import { ILanguageModelsService } from '../../../../../workbench/contrib/chat/common/languageModels.js';
 import { IChatModel, IChatRequestModel, IChatResponseModel } from '../../../../../workbench/contrib/chat/common/model/chatModel.js';
 
 suite('InboxNotificationsService', () => {
@@ -161,6 +162,9 @@ suite('InboxNotificationsService', () => {
 			upcastPartial<IChatService>(effectiveChatService),
 			upcastPartial<IGitHubService>(effectiveGitHubService),
 			effectiveStorageService,
+			upcastPartial<ILanguageModelsService>({
+				selectLanguageModels: async () => [],
+			}),
 		));
 		return {
 			service,
@@ -745,6 +749,30 @@ suite('InboxNotificationsService', () => {
 		storageService.remove(dismissedStorageKey, StorageScope.APPLICATION);
 		storageService.emitExternalApplicationChange(dismissedStorageKey);
 		assert.deepStrictEqual(fixture.service.notifications.get().map(item => item.kind), [InboxNotificationKind.Completed]);
+	});
+
+	suite('cleanPreviewText', () => {
+		test('strips quotes, labels and a trailing period', () => {
+			assert.strictEqual(cleanPreviewText('"Approve running npm test."'), 'Approve running npm test');
+			assert.strictEqual(cleanPreviewText('Preview: Pick auth provider'), 'Pick auth provider');
+		});
+
+		test('keeps only the first line and collapses whitespace', () => {
+			assert.strictEqual(cleanPreviewText('Added users API pagination\nextra commentary'), 'Added users API pagination');
+			assert.strictEqual(cleanPreviewText('  Fix   the login   bug  '), 'Fix the login bug');
+		});
+
+		test('suppresses refusals and empty output', () => {
+			assert.strictEqual(cleanPreviewText('Sorry, I can\'t help with that.'), undefined);
+			assert.strictEqual(cleanPreviewText('   '), undefined);
+		});
+
+		test('caps overly long output with an ellipsis', () => {
+			const result = cleanPreviewText('a'.repeat(200));
+			assert.ok(result);
+			assert.ok(result!.length <= 60);
+			assert.ok(result!.endsWith('…'));
+		});
 	});
 });
 

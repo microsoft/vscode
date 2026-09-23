@@ -6,9 +6,12 @@
 import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, derived, IObservable, IReader, IReaderWithStore, ISettableObservable, observableSignalFromEvent, observableValue } from '../../../../base/common/observable.js';
 import { onUnexpectedError } from '../../../../base/common/errors.js';
-import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
+import { hash } from '../../../../base/common/hash.js';
+import { LRUCache } from '../../../../base/common/map.js';
 import { renderAsPlaintext } from '../../../../base/browser/markdownRenderer.js';
+import { IMarkdownString } from '../../../../base/common/htmlContent.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
@@ -16,6 +19,7 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../platfo
 import { ChatAgentLocation } from '../../../../workbench/contrib/chat/common/constants.js';
 import { IChatModelReference, IChatService, IChatToolInvocation } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatResponseModel } from '../../../../workbench/contrib/chat/common/model/chatModel.js';
+import { ChatMessageRole, ILanguageModelsService } from '../../../../workbench/contrib/chat/common/languageModels.js';
 import { ConfirmationOptionKind } from '../../../../platform/agentHost/common/state/protocol/state.js';
 import { IGitHubService } from '../../github/browser/githubService.js';
 import { computePullRequestIcon, GitHubCIOverallStatus, GitHubPullRequestState, IGitHubPRComment, IGitHubPullRequestReviewThread } from '../../github/common/types.js';
@@ -43,6 +47,85 @@ import {
 } from '../common/inboxNotificationsService.js';
 
 const DISMISSED_NOTIFICATION_IDS_STORAGE_KEY = 'sessions.inboxNotifications.dismissedIds';
+
+/** The small, non-user-selectable utility model used for lightweight generation (same class used for chat title/goal summaries). */
+const PREVIEW_MODEL_SELECTOR = { vendor: 'copilot', id: 'copilot-utility-small' } as const;
+
+/** Bump when the prompt changes so cached previews regenerate under a new signature. */
+const PREVIEW_PROMPT_VERSION = 'v1';
+
+const PREVIEW_MAX_INPUT_CHARS = 2000;
+const PREVIEW_MAX_OUTPUT_CHARS = 60;
+const PREVIEW_CACHE_SIZE = 200;
+
+/**
+ * System prompt for the inbox card preview. The preview is the single line the user
+ * scans on each card to decide, at a glance, what an item needs from them. It targets
+ * ~50 characters, leads with the action/decision the agent is asking for, and otherwise
+ * states the latest concrete status/result. Few-shot examples steer the model toward
+ * concrete, specific wording instead of generic boilerplate.
+ */
+const PREVIEW_SYSTEM_PROMPT = [
+	'You write the one-line preview shown on an inbox card for a background coding-agent session.',
+	'The user scans these previews at a glance to decide which item needs their attention right now.',
+	'',
+	'Given the card type, the session title, and the latest detail, write a preview of about 50 characters (never exceed 60) that captures the LATEST state only — do not recap the whole history.',
+	'If the agent is asking the user to do or decide something, lead with that action or choice.',
+	'If nothing is being asked, state the latest concrete status or result.',
+	'',
+	'Rules:',
+	'- Output only the preview text: no quotes, no trailing period, no "Status:"/"Session:" prefix.',
+	'- Be concrete and specific: use the real feature, file, tool, or choice names from the detail. Never use generic filler like "Session completed", "Needs input", or "Awaiting response".',
+	'- Prefer the agent\'s and user\'s own nouns and verbs.',
+	'- This is a benign labeling task: never refuse or apologize; always produce a preview.',
+	'',
+	'Examples (card type | latest detail -> preview):',
+	'- question waiting | "Which auth provider should I use?" options Google, GitHub -> Pick auth provider: Google or GitHub',
+	'- tool approval | run `npm test` -> Approve running npm test',
+	'- confirm action | delete 3 stale config files -> Confirm deleting 3 stale config files',
+	'- session finished | Added cursor pagination to the users API plus tests -> Added users API pagination + tests',
+	'- pull request checks failing | ESLint failed on 2 files -> PR failing: ESLint errors on 2 files',
+	'- unresolved review comments | 2 unresolved threads about error handling -> 2 review threads on error handling',
+].join('\n');
+
+/** Matches leading model refusals so we suppress the preview rather than surfacing an apology. */
+const PREVIEW_REFUSAL_PREFIX_RE = /^(?:sorry\b|unfortunately\b|my apologies\b|as an ai\b|i\s+apologi[sz]e\b|i\s*['\u2019]?m\s+sorry\b|i\s+am\s+sorry\b|i\s*['\u2019]?m\s+unable\b|i\s+am\s+unable\b|i\s+am\s+not\s+able\b|i\s*(?:can['\u2019]?t|cannot|can\s?not|won['\u2019]?t)\b)/i;
+
+function toPreviewPlainText(value: string | IMarkdownString): string {
+	const text = typeof value === 'string' ? value : renderAsPlaintext(value);
+	return text.replace(/\s+/g, ' ').trim();
+}
+
+/**
+ * Normalizes a raw preview-model response into a single glanceable line, or `undefined`
+ * when nothing usable remains. Keeps the first line, strips quotes/labels and a trailing
+ * period, suppresses refusals, and caps the length.
+ *
+ * Exported for unit testing.
+ */
+export function cleanPreviewText(raw: string): string | undefined {
+	let s = raw.trim();
+	if (!s) {
+		return undefined;
+	}
+	const newlineIndex = s.search(/[\r\n]/);
+	if (newlineIndex !== -1) {
+		s = s.slice(0, newlineIndex);
+	}
+	s = s.replace(/^["'`]+|["'`]+$/g, '');
+	// Keep regex literals ASCII to avoid widening the emitted bundle.
+	s = s.replace(/^\s*(?:preview|status|summary)\s*[:\-\u2013\u2014]\s*/i, '');
+	s = s.replace(/\s+/g, ' ').trim();
+	s = s.replace(/\.$/, '');
+	if (!s || PREVIEW_REFUSAL_PREFIX_RE.test(s)) {
+		return undefined;
+	}
+	if (s.length > PREVIEW_MAX_OUTPUT_CHARS) {
+		s = s.slice(0, PREVIEW_MAX_OUTPUT_CHARS - 1).replace(/\s+\S*$/, '') + '…';
+	}
+	return s || undefined;
+}
+
 
 interface IPullRequestNotificationCandidate {
 	readonly ref: IGitHubPullRequestRef;
@@ -75,6 +158,12 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 	private readonly _loadingNeedsInputChatModels = new Set<string>();
 	private readonly _loadingCompletedPreviewChatModels = new Set<string>();
 
+	private readonly _previews: ISettableObservable<ReadonlyMap<string, string>>;
+	readonly previews: IObservable<ReadonlyMap<string, string>>;
+	private readonly _previewCache = new LRUCache<string, string>(PREVIEW_CACHE_SIZE);
+	private readonly _previewInFlight = new Set<string>();
+	private readonly _previewCancellationSources = new Set<CancellationTokenSource>();
+
 	readonly notifications: IObservable<readonly IInboxNotificationItem[]>;
 	readonly dismissedNotifications: IObservable<readonly IInboxNotificationItem[]>;
 
@@ -84,8 +173,12 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 		@IChatService private readonly chatService: IChatService,
 		@IGitHubService private readonly gitHubService: IGitHubService,
 		@IStorageService private readonly storageService: IStorageService,
+		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService,
 	) {
 		super();
+
+		this._previews = observableValue('sessionsInboxNotificationsPreviews', new Map<string, string>());
+		this.previews = this._previews;
 
 		this._dismissedIds = observableValue('sessionsInboxNotificationsDismissed', this.loadDismissedIds());
 		this._externalItems = observableValue('sessionsInboxNotificationsExternal', []);
@@ -119,6 +212,12 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 			this._completedPreviewChatModelRefs.clear();
 			this._loadingNeedsInputChatModels.clear();
 			this._loadingCompletedPreviewChatModels.clear();
+			for (const cts of this._previewCancellationSources) {
+				cts.cancel();
+				cts.dispose();
+			}
+			this._previewCancellationSources.clear();
+			this._previewInFlight.clear();
 		}));
 		this._register(autorun(reader => {
 			sessionsChanged.read(reader);
@@ -160,7 +259,7 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 				itemsById.set(item.id, item);
 			}
 
-			return [...itemsById.values()];
+			return [...itemsById.values()].map(item => this.attachPreviewInput(item));
 		});
 
 		this.notifications = derived(this, reader => {
@@ -178,6 +277,172 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 				.filter(item => dismissed.has(item.id))
 				.sort(sortMode === InboxNotificationsSortMode.Priority ? compareInboxNotifications : compareInboxNotificationsByRecency);
 		});
+
+		// Generate a preview for every item as soon as it lands, without waiting for the
+		// user to focus the Inbox. Fires for active and completed/dismissed items alike.
+		this._register(autorun(reader => {
+			for (const item of allItems.read(reader)) {
+				this.ensurePreview(item);
+			}
+		}));
+	}
+
+	private ensurePreview(item: IInboxNotificationItem): void {
+		const signature = item.previewSignature;
+		const inputText = item.previewInputText;
+		if (!signature || !inputText) {
+			return;
+		}
+		if (this._previews.get().has(signature) || this._previewInFlight.has(signature)) {
+			return;
+		}
+		const cached = this._previewCache.get(signature);
+		if (cached) {
+			this.publishPreview(signature, cached);
+			return;
+		}
+		void this.generatePreview(signature, inputText);
+	}
+
+	private publishPreview(signature: string, preview: string): void {
+		const current = this._previews.get();
+		if (current.get(signature) === preview) {
+			return;
+		}
+		const next = new Map(current);
+		next.set(signature, preview);
+		this._previews.set(next, undefined);
+	}
+
+	private async generatePreview(signature: string, inputText: string): Promise<void> {
+		this._previewInFlight.add(signature);
+		const cts = new CancellationTokenSource();
+		this._previewCancellationSources.add(cts);
+		try {
+			const preview = await this.invokePreviewModel(inputText, cts.token);
+			if (preview && !cts.token.isCancellationRequested) {
+				this._previewCache.set(signature, preview);
+				this.publishPreview(signature, preview);
+			}
+		} catch (error) {
+			onUnexpectedError(error);
+		} finally {
+			this._previewCancellationSources.delete(cts);
+			cts.dispose();
+			this._previewInFlight.delete(signature);
+		}
+	}
+
+	private async invokePreviewModel(inputText: string, token: CancellationToken): Promise<string | undefined> {
+		const models = await this.languageModelsService.selectLanguageModels(PREVIEW_MODEL_SELECTOR);
+		if (!models.length || token.isCancellationRequested) {
+			return undefined;
+		}
+
+		const response = await this.languageModelsService.sendChatRequest(
+			models[0],
+			undefined,
+			[
+				{ role: ChatMessageRole.System, content: [{ type: 'text', value: PREVIEW_SYSTEM_PROMPT }] },
+				{ role: ChatMessageRole.User, content: [{ type: 'text', value: inputText }] },
+			],
+			{},
+			token,
+		);
+
+		let text = '';
+		for await (const part of response.stream) {
+			if (token.isCancellationRequested) {
+				return undefined;
+			}
+			const parts = Array.isArray(part) ? part : [part];
+			for (const p of parts) {
+				if (p.type === 'text') {
+					text += p.value;
+				}
+			}
+		}
+		await response.result;
+		if (token.isCancellationRequested) {
+			return undefined;
+		}
+
+		return cleanPreviewText(text);
+	}
+
+	/**
+	 * Attaches the preview input text and its signature to an item. The input gives the
+	 * utility model the card's type (what the user is looking at), the session title, and
+	 * the latest concrete detail so it can produce a specific, glanceable preview.
+	 */
+	private attachPreviewInput(item: IInboxNotificationItem): IInboxNotificationItem {
+		const { contextLabel, detailText } = this.describeItemForPreview(item);
+		const trimmedDetail = detailText.replace(/\s+/g, ' ').trim();
+		const inputLines = [
+			`Card type: ${contextLabel}`,
+			`Session title: ${item.title}`,
+		];
+		if (trimmedDetail) {
+			inputLines.push(`Latest detail: ${trimmedDetail}`);
+		}
+		let inputText = inputLines.join('\n');
+		if (inputText.length > PREVIEW_MAX_INPUT_CHARS) {
+			inputText = `${inputText.slice(0, PREVIEW_MAX_INPUT_CHARS)}…`;
+		}
+		const previewSignature = `${PREVIEW_PROMPT_VERSION}:${hash(inputText)}`;
+		return { ...item, previewSignature, previewInputText: inputText };
+	}
+
+	private describeItemForPreview(item: IInboxNotificationItem): { contextLabel: string; detailText: string } {
+		const part = item.needsInputPart;
+		if (part) {
+			switch (part.kind) {
+				case 'questionCarousel': {
+					const questionText = part.questions.map(question => {
+						const options = question.options?.length
+							? ` options: ${question.options.map(option => option.label).join(', ')}`
+							: '';
+						return `${question.title}${options}`;
+					}).join(' | ');
+					const messageText = part.message ? toPreviewPlainText(part.message) : '';
+					return {
+						contextLabel: 'question waiting for the user to answer',
+						detailText: [messageText, questionText].filter(Boolean).join(' — '),
+					};
+				}
+				case 'toolConfirmation':
+					return {
+						contextLabel: 'tool run waiting for the user to approve',
+						detailText: [toPreviewPlainText(part.title), toPreviewPlainText(part.message)].filter(Boolean).join(' — '),
+					};
+				case 'confirmation':
+					return {
+						contextLabel: 'action waiting for the user to confirm',
+						detailText: [toPreviewPlainText(part.title), toPreviewPlainText(part.message)].filter(Boolean).join(' — '),
+					};
+			}
+		}
+
+		switch (item.kind) {
+			case InboxNotificationKind.Completed:
+				return { contextLabel: 'session finished its work', detailText: item.description };
+			case InboxNotificationKind.FailingCI:
+				return { contextLabel: 'pull request with failing checks', detailText: this.pullRequestDetail(item) };
+			case InboxNotificationKind.PassingCI:
+				return { contextLabel: 'pull request with passing checks', detailText: this.pullRequestDetail(item) };
+			case InboxNotificationKind.ReviewComments:
+				return { contextLabel: 'pull request with unresolved review comments', detailText: this.pullRequestDetail(item) };
+			case InboxNotificationKind.NeedsInput:
+			case InboxNotificationKind.ConfirmationRequested:
+				return { contextLabel: 'session waiting for the user to respond', detailText: item.description };
+			default:
+				return { contextLabel: 'session update', detailText: item.description };
+		}
+	}
+
+	private pullRequestDetail(item: IInboxNotificationItem): string {
+		const states = item.pullRequestStates?.map(state => state.statusLabel).filter(Boolean).join('; ');
+		return states || item.description;
 	}
 
 	setSortMode(sortMode: InboxNotificationsSortMode): void {

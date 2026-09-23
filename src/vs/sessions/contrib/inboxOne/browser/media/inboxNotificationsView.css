@@ -272,6 +272,10 @@
 	white-space: pre-wrap;
 }
 
+.inbox-notifications-item-description.inbox-notifications-item-description-pending {
+	opacity: 0.7;
+}
+
 .inbox-notifications-item-pr-states {
 	display: flex;
 	flex-wrap: wrap;

@@ -112,6 +112,14 @@ export interface IInboxNotificationItem {
 	readonly timestamp: number;
 	readonly sessionResource?: URI;
 	readonly actions: readonly IInboxNotificationAction[];
+	/**
+	 * Signature under which a model-generated preview for this item is cached and
+	 * looked up in {@link IInboxNotificationsService.previews}. Changes whenever the
+	 * underlying content (and therefore the desired preview) changes.
+	 */
+	readonly previewSignature?: string;
+	/** The text fed to the utility model to generate this item's preview. */
+	readonly previewInputText?: string;
 }
 
 export interface IExternalInboxNotification {
@@ -132,6 +140,13 @@ export interface IInboxNotificationsService {
 	readonly notifications: IObservable<readonly IInboxNotificationItem[]>;
 	readonly dismissedNotifications: IObservable<readonly IInboxNotificationItem[]>;
 	readonly sortMode: IObservable<InboxNotificationsSortMode>;
+
+	/**
+	 * Map from {@link IInboxNotificationItem.previewSignature} to a short, model-generated
+	 * one-line preview describing the item's latest state. Populated asynchronously as
+	 * items land; an entry is absent until its preview has been generated.
+	 */
+	readonly previews: IObservable<ReadonlyMap<string, string>>;
 
 	/** A request to reveal and focus a notification card in the view, or `undefined`. */
 	readonly revealRequest: IObservable<IInboxNotificationRevealRequest | undefined>;

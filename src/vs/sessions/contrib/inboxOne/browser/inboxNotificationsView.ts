@@ -582,7 +582,15 @@ export class InboxNotificationsView extends AbstractCustomView {
 			}
 		}
 
-		card.appendChild($('.inbox-notifications-item-description', undefined, item.description));
+		const descriptionEl = card.appendChild($('.inbox-notifications-item-description', undefined, item.description));
+		if (item.previewSignature) {
+			const signature = item.previewSignature;
+			this.renderedListDisposables.add(autorun(reader => {
+				const preview = this.inboxNotificationsService.previews.read(reader).get(signature);
+				descriptionEl.textContent = preview ?? item.description;
+				descriptionEl.classList.toggle('inbox-notifications-item-description-pending', !preview);
+			}));
+		}
 		this.renderNeedsInputPart(card, item);
 		card.appendChild($('.inbox-notifications-item-time', undefined, fromNowByDay(item.timestamp, true, true)));
 
