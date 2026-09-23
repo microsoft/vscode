@@ -10,14 +10,14 @@ import { ISessionGitHubState, ISessionGitState, SessionSummaryMeta } from './sta
 
 export const META_GIT_STATE = 'agentHost.git';
 export const META_GITHUB_STATE = 'agentHost.github';
-/** GitHub state of every non-default chat folder scope, keyed by folder-scope id. */
-export const META_GITHUB_SCOPES_STATE = 'agentHost.githubScopes';
+/** GitHub state of every session folder other than the first, keyed by working-directory key. */
+export const META_FOLDER_GITHUB_STATE = 'agentHost.folderGitHub';
 export const META_SOURCE_CONTROL_STATE = 'agentHost.sourceControl';
 
 export const GIT_DB_METADATA_KEYS: Record<string, true> = {
 	[META_GIT_STATE]: true,
 	[META_GITHUB_STATE]: true,
-	[META_GITHUB_SCOPES_STATE]: true,
+	[META_FOLDER_GITHUB_STATE]: true,
 	[META_SOURCE_CONTROL_STATE]: true,
 };
 
@@ -51,16 +51,16 @@ export interface IAgentHostGitStateService {
 	resolveSessionBaseBranchName(sessionKey: string): Promise<string | undefined>;
 
 	/**
-	 * Returns the GitHub state of the folder scope a session, chat channel or
-	 * folder owner URI resolves to. Chats whose effective folders match the
-	 * default chat's share the session-level state.
+	 * Returns the GitHub state of the folder a session, chat channel or folder
+	 * changeset owner URI resolves to: a chat's first folder, or the session's
+	 * first folder, which uses the session-level state.
 	 */
 	readonly getGitHubState?: (key: string) => ISessionGitHubState | undefined;
 
 	/**
-	 * Merges into the GitHub state of the folder scope a session, chat channel
-	 * or folder owner URI resolves to.
-	 * @param sessionKey The session, chat channel or folder owner URI whose scope's GitHub state to set.
+	 * Merges into the GitHub state of the folder a session, chat channel or
+	 * folder changeset owner URI resolves to.
+	 * @param sessionKey The session, chat channel or folder changeset owner URI whose folder's GitHub state to set.
 	 * @param state The GitHub state to set.
 	 */
 	setSessionGitHubState(sessionKey: string, state: ISessionGitHubState): Promise<void>;

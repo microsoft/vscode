@@ -11,7 +11,7 @@ import { IAgentHostAuthenticationService } from './agentHostAuthenticationServic
 import { IAgentHostGitHubEndpointService } from './agentHostGitHubEndpointService.js';
 import { parseChangesetUri, parseFolderChangesetOwnerUri } from '../common/changesetUri.js';
 import { AHP_AUTH_REQUIRED, AHP_SESSION_NOT_FOUND, JsonRpcErrorCodes, ProtocolError } from '../common/state/sessionProtocol.js';
-import { readScopeGitHubState, readSessionGitState, type ChangesetOperationFollowUp, type ISessionFileDiff, type ISessionWithDefaultChat } from '../common/state/sessionState.js';
+import { readFolderGitHubState, readSessionGitState, type ChangesetOperationFollowUp, type ISessionFileDiff, type ISessionWithDefaultChat } from '../common/state/sessionState.js';
 import { ILogService } from '../../log/common/log.js';
 import { IAgentHostGitService, parseUpstreamBranchName } from '../common/agentHostGitService.js';
 import { type IChangesetOperationHandler } from '../common/agentHostChangesetOperationService.js';
@@ -25,7 +25,7 @@ import { AgentMergeConfigKey, agentMergeRootConfigSchema, readAgentMergeSessionS
 import { IAgentConfigurationService } from './agentConfigurationService.js';
 import { createPullRequestDetailsResult, readPullRequestOperationMeta, readPullRequestValidationMeta, type IPullRequestContext, type IPullRequestCreateOptions } from '../common/meta/agentPullRequestOperationMeta.js';
 import { getAgentMergeConfiguration } from './agentMergeConfiguration.js';
-import { resolveChangesetOwnerScope, resolveGitHubStateScope } from './agentHostBranchChangesetScope.js';
+import { resolveChangesetOwnerScope, resolveGitHubStateFolder } from './agentHostBranchChangesetScope.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
 
 /**
@@ -46,7 +46,7 @@ type PullRequestCreationConfiguration = Pick<IPullRequestCreateOptions, 'draft' 
 
 export interface PullRequestCreatedEvent {
 	readonly sessionKey: string;
-	/** The changeset owner the pull request was created from; resolves the folder scope that owns it. */
+	/** The changeset owner the pull request was created from; resolves the folder that owns it. */
 	readonly ownerUri: string;
 	readonly pullRequestUrl: string;
 	readonly pullRequestNumber: number;
@@ -111,7 +111,7 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 	async prepare(params: InvokeChangesetOperationParams, token: CancellationToken): Promise<InvokeChangesetOperationResult> {
 		return this._withAbortSignal(token, async signal => {
 			const expectedContext = readPullRequestValidationMeta(params);
-			const { sessionUri, sourceUri, isDefaultGitHubScope, sessionState, workingDirectory, gitHubState, branchName, baseBranchName, authToken, preparationContext } = await this._resolveContext(params, token, expectedContext);
+			const { sessionUri, sourceUri, isSessionGitHubFolder, sessionState, workingDirectory, gitHubState, branchName, baseBranchName, authToken, preparationContext } = await this._resolveContext(params, token, expectedContext);
 			if (expectedContext) {
 				return {};
 			}
@@ -136,7 +136,7 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 			}
 			this._throwIfCancelled(token);
 			// Agent Merge follows the session's pull request until it is scoped to folders.
-			const agentMergeAvailable = this._isAgentMergeEnabled() && isDefaultGitHubScope;
+			const agentMergeAvailable = this._isAgentMergeEnabled() && isSessionGitHubFolder;
 			const configuration = agentMergeAvailable
 				? getAgentMergeConfiguration(this._configurationService, readAgentMergeSessionState(this._configurationService.getSessionConfigValues(sessionUri))?.overrides)
 				: undefined;
@@ -196,8 +196,8 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 			throw new ProtocolError(JsonRpcErrorCodes.InternalError, `Changeset owner has no working directory: ${parsed.ownerUri}`);
 		}
 
-		const gitHubScope = resolveGitHubStateScope(this._stateManager, parsed.ownerUri);
-		const gitHubState = readScopeGitHubState(this._stateManager.getSessionState(sessionUri)?._meta ?? sessionState._meta, gitHubScope.scopeId);
+		const gitHubFolder = resolveGitHubStateFolder(this._stateManager, parsed.ownerUri);
+		const gitHubState = readFolderGitHubState(this._stateManager.getSessionState(sessionUri)?._meta ?? sessionState._meta, gitHubFolder.folderKey);
 
 		const workingDirectory = URI.parse(workingDirectoryStr);
 		const storedGitState = readSessionGitState(sessionState._meta);
@@ -255,7 +255,7 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 		this._throwIfCancelled(token);
 
 		return {
-			sessionUri, sourceUri: scope.sourceUri, ownerUri: parsed.ownerUri, isDefaultGitHubScope: gitHubScope.scopeId === undefined,
+			sessionUri, sourceUri: scope.sourceUri, ownerUri: parsed.ownerUri, isSessionGitHubFolder: gitHubFolder.folderKey === undefined,
 			sessionState, workingDirectory, effectiveBaseBranch, gitState, branchName, baseBranchName, authToken,
 			gitHubState: repository, preparationContext,
 		};
@@ -275,9 +275,9 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 		};
 		this._validateAgentMergeAvailable(options);
 		const context = await this._resolveContext(params, token, submitted?.expectedContext);
-		const { sessionUri, sourceUri, ownerUri, isDefaultGitHubScope, sessionState, workingDirectory, gitHubState, effectiveBaseBranch, baseBranchName, authToken } = context;
+		const { sessionUri, sourceUri, ownerUri, isSessionGitHubFolder, sessionState, workingDirectory, gitHubState, effectiveBaseBranch, baseBranchName, authToken } = context;
 		let { gitState, branchName } = context;
-		if (options.agentMerge && !isDefaultGitHubScope) {
+		if (options.agentMerge && !isSessionGitHubFolder) {
 			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, localize('agentHost.changeset.pr.agentMergeScope', "Agent Merge is not available for chats working in other folders yet."));
 		}
 
@@ -289,7 +289,7 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 		}
 		this._throwIfCancelled(token);
 		this._validateAgentMergeAvailable(options);
-		if (submitted && !submitted.agentMerge && isDefaultGitHubScope) {
+		if (submitted && !submitted.agentMerge && isSessionGitHubFolder) {
 			this._disableAgentMerge(sessionUri);
 		}
 

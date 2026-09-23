@@ -222,7 +222,7 @@ suite('AgentHostPullRequestOperationContribution', () => {
 		});
 	});
 
-	test('records a pull request created from another folder scope in that scope and withholds lifecycle operations there', async () => {
+	test('records a pull request created from another folder in that folder and withholds lifecycle operations there', async () => {
 		const sessionKey = 'agent:/session';
 		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
 		stateManager.restoreSession({

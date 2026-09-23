@@ -8,7 +8,7 @@ import { Codicon } from '../../../base/common/codicons.js';
 import { constObservable, observableValue } from '../../../base/common/observable.js';
 import { URI } from '../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
-import { buildAgentHostChatWorkspace } from '../../common/agentHostSessionWorkspace.js';
+import { buildAgentHostChatWorkspace, type IFolderGitHubInfoResolver } from '../../common/agentHostSessionWorkspace.js';
 import { IGitHubInfo, ISessionWorkspace } from '../../services/sessions/common/session.js';
 
 suite('Agent Host Session Workspace', () => {
@@ -29,32 +29,38 @@ suite('Agent Host Session Workspace', () => {
 		],
 	};
 
-	test('reports a folder scope\'s own GitHub info on the chat\'s primary folder', () => {
-		const scopeGitHubInfo = observableValue<IGitHubInfo | undefined>('scopeGitHubInfo', undefined);
-		const otherChat = buildAgentHostChatWorkspace(sessionWorkspace, [other], scopeGitHubInfo);
-		const primaryChat = buildAgentHostChatWorkspace(sessionWorkspace, [primary, other], scopeGitHubInfo);
-		const summarize = (workspace: ISessionWorkspace | undefined) => ({
-			label: workspace?.label,
-			isRepository: workspace?.folders[0].gitRepository?.isRepository?.get(),
-			branchName: workspace?.folders[0].gitRepository?.branchName,
-			gitHubInfo: workspace?.folders[0].gitRepository?.gitHubInfo.get(),
-		});
+	test('reports each folder\'s own GitHub info while keeping the session folder\'s', () => {
+		const otherGitHubInfo = observableValue<IGitHubInfo | undefined>('otherGitHubInfo', undefined);
+		const resolver: IFolderGitHubInfoResolver = workingDirectory => workingDirectory.toString() === other.toString() ? otherGitHubInfo : sessionGitHubInfo;
+		const otherChat = buildAgentHostChatWorkspace(sessionWorkspace, [other], resolver);
+		const bothFoldersChat = buildAgentHostChatWorkspace(sessionWorkspace, [primary, other], resolver);
+		const summarize = (workspace: ISessionWorkspace | undefined) => workspace?.folders.map(folder => ({
+			name: folder.name,
+			isRepository: folder.gitRepository?.isRepository?.get(),
+			branchName: folder.gitRepository?.branchName,
+			gitHubInfo: folder.gitRepository?.gitHubInfo.get(),
+		}));
 
 		const beforeResolved = summarize(otherChat);
-		scopeGitHubInfo.set({ owner: 'contoso', repo: 'tools' }, undefined);
+		otherGitHubInfo.set({ owner: 'contoso', repo: 'tools' }, undefined);
 
 		assert.deepStrictEqual({
 			beforeResolved,
 			otherChat: summarize(otherChat),
-			primaryChat: summarize(primaryChat),
-			defaultScopeChat: buildAgentHostChatWorkspace(sessionWorkspace, undefined) === sessionWorkspace,
-			sessionUnchanged: sessionWorkspace.folders[0].gitRepository?.gitHubInfo.get(),
+			otherChatLabel: otherChat?.label,
+			bothFoldersChat: summarize(bothFoldersChat),
+			inheritingChatWithoutResolver: buildAgentHostChatWorkspace(sessionWorkspace, undefined) === sessionWorkspace,
+			sessionFolderUnchanged: bothFoldersChat?.folders[0] === sessionWorkspace.folders[0],
 		}, {
-			beforeResolved: { label: 'other', isRepository: false, branchName: undefined, gitHubInfo: undefined },
-			otherChat: { label: 'other', isRepository: true, branchName: undefined, gitHubInfo: { owner: 'contoso', repo: 'tools' } },
-			primaryChat: { label: 'repo', isRepository: undefined, branchName: 'feature', gitHubInfo: { owner: 'contoso', repo: 'tools' } },
-			defaultScopeChat: true,
-			sessionUnchanged: { owner: 'microsoft', repo: 'vscode' },
+			beforeResolved: [{ name: 'other', isRepository: false, branchName: undefined, gitHubInfo: undefined }],
+			otherChat: [{ name: 'other', isRepository: true, branchName: undefined, gitHubInfo: { owner: 'contoso', repo: 'tools' } }],
+			otherChatLabel: 'other',
+			bothFoldersChat: [
+				{ name: 'repo', isRepository: undefined, branchName: 'feature', gitHubInfo: { owner: 'microsoft', repo: 'vscode' } },
+				{ name: 'other', isRepository: true, branchName: undefined, gitHubInfo: { owner: 'contoso', repo: 'tools' } },
+			],
+			inheritingChatWithoutResolver: true,
+			sessionFolderUnchanged: true,
 		});
 	});
 });

@@ -12,12 +12,12 @@ import { runWithFakedTimers } from '../../../../base/test/common/timeTravelSched
 import { NullLogService } from '../../../log/common/log.js';
 import { IAgentHostGitService, META_DIFF_BASE_BRANCH } from '../../common/agentHostGitService.js';
 import { AgentHostAutoAttachPullRequestsConfigKey } from '../../common/agentHostSchema.js';
-import { META_GIT_STATE, META_GITHUB_SCOPES_STATE, META_GITHUB_STATE, META_SOURCE_CONTROL_STATE } from '../../common/agentHostGitStateService.js';
-import { getWorkingDirectoryScopeId } from '../../common/agentHostWorkingDirectories.js';
+import { META_FOLDER_GITHUB_STATE, META_GIT_STATE, META_GITHUB_STATE, META_SOURCE_CONTROL_STATE } from '../../common/agentHostGitStateService.js';
+import { getWorkingDirectoryKey } from '../../common/agentHostWorkingDirectories.js';
 import { SessionArtifactType, withSessionArtifacts, type ISessionArtifact } from '../../common/sessionArtifacts.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { ActionType } from '../../common/state/sessionActions.js';
-import { buildChatUri, getAllSessionRelatedPullRequestUrls, getSessionRelatedPullRequestUrls, readSessionGitHubState, readSessionGitState, readSessionScopedGitHubStates, readSessionSourceControlState, SESSION_META_GITHUB_KEY, SessionSourceControlOutcome, withInitialSessionPullRequest, withMostRecentRelatedSessionPullRequest, withMostRecentSessionPullRequest, withSessionGitHubState, withSessionGitState, SessionStatus, type ISessionGitHubState, type ISessionGitState, type SessionSummary } from '../../common/state/sessionState.js';
+import { buildChatUri, getAllSessionRelatedPullRequestUrls, getSessionRelatedPullRequestUrls, readSessionGitHubState, readSessionFolderGitHubStates, readSessionGitState, readSessionSourceControlState, SESSION_META_GITHUB_KEY, SessionSourceControlOutcome, withInitialSessionPullRequest, withMostRecentRelatedSessionPullRequest, withMostRecentSessionPullRequest, withSessionGitHubState, withSessionGitState, SessionStatus, type ISessionGitHubState, type ISessionGitState, type SessionSummary } from '../../common/state/sessionState.js';
 import { AgentConfigurationService } from '../../node/agentConfigurationService.js';
 import type { IAgentHostAuthenticationService } from '../../node/agentHostAuthenticationService.js';
 import { AgentHostGitStateService } from '../../node/agentHostGitStateService.js';
@@ -460,7 +460,7 @@ suite('AgentHostGitStateService', () => {
 		});
 	}));
 
-	test('keeps a separate folder scope GitHub state and pull request for a chat in another folder', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+	test('keeps separate GitHub state and pull requests for a chat in another folder', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const h = createHarness();
 		const chat = buildChatUri(SESSION, 'peer');
 		const sameScopeChat = buildChatUri(SESSION, 'same-scope');
@@ -477,22 +477,22 @@ suite('AgentHostGitStateService', () => {
 
 		await h.service.refreshSessionGitState(chat, undefined);
 
-		const scopeId = getWorkingDirectoryScopeId(['file:///other']);
+		const folderKey = getWorkingDirectoryKey('file:///other');
 		const meta = h.stateManager.getSessionState(SESSION)?._meta;
 		assert.deepStrictEqual({
 			chat: h.service.getGitHubState(chat),
 			sameScopeChat: h.service.getGitHubState(sameScopeChat),
 			session: readSessionGitHubState(meta),
-			scoped: Object.fromEntries(readSessionScopedGitHubStates(meta)),
-			persisted: JSON.parse(await h.db.getMetadata(META_GITHUB_SCOPES_STATE) ?? 'null'),
+			folders: Object.fromEntries(readSessionFolderGitHubStates(meta)),
+			persisted: JSON.parse(await h.db.getMetadata(META_FOLDER_GITHUB_STATE) ?? 'null'),
 			allPullRequests: getAllSessionRelatedPullRequestUrls(meta),
 			pullRequestCalls: h.pullRequestCalls,
 		}, {
 			chat: { owner: 'contoso', repo: 'tools', pullRequestUrls: ['https://github.com/contoso/tools/pull/7'], pullRequestBranchName: 'chat-feature' },
 			sameScopeChat: sessionGitHubState,
 			session: sessionGitHubState,
-			scoped: { [scopeId]: { owner: 'contoso', repo: 'tools', pullRequestUrls: ['https://github.com/contoso/tools/pull/7'], pullRequestBranchName: 'chat-feature' } },
-			persisted: { [scopeId]: { owner: 'contoso', repo: 'tools', pullRequestUrls: ['https://github.com/contoso/tools/pull/7'], pullRequestBranchName: 'chat-feature' } },
+			folders: { [folderKey]: { owner: 'contoso', repo: 'tools', pullRequestUrls: ['https://github.com/contoso/tools/pull/7'], pullRequestBranchName: 'chat-feature' } },
+			persisted: { [folderKey]: { owner: 'contoso', repo: 'tools', pullRequestUrls: ['https://github.com/contoso/tools/pull/7'], pullRequestBranchName: 'chat-feature' } },
 			allPullRequests: ['https://github.com/microsoft/vscode/pull/1', 'https://github.com/contoso/tools/pull/7'],
 			pullRequestCalls: ['chat-feature'],
 		});

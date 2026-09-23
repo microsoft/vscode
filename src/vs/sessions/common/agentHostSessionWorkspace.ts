@@ -97,15 +97,18 @@ export function agentHostSessionWorkspaceKey(workspace: ISessionWorkspace | unde
 	return [workspace.label, ...folderKeys].join('\n');
 }
 
+/** Resolves the GitHub info a session folder reports, by working directory. */
+export type IFolderGitHubInfoResolver = (workingDirectory: URI) => IObservable<IGitHubInfo | undefined> | undefined;
+
 /**
  * Projects a chat's working-directory scope onto its owning session workspace.
  * Returns no workspace rather than exposing a partial scope when a required folder is unavailable.
  *
- * Pass `scopeGitHubInfo` when the chat's folder scope has its own GitHub state;
- * the chat's primary folder then reports it instead of the session's.
+ * Pass `getFolderGitHubInfo` to have each folder report its own repository and
+ * pull request information instead of what the session workspace carries.
  */
-export function buildAgentHostChatWorkspace(sessionWorkspace: ISessionWorkspace | undefined, workingDirectories: readonly URI[] | undefined, scopeGitHubInfo?: IObservable<IGitHubInfo | undefined>): ISessionWorkspace | undefined {
-	if (!sessionWorkspace || (workingDirectories === undefined && !scopeGitHubInfo)) {
+export function buildAgentHostChatWorkspace(sessionWorkspace: ISessionWorkspace | undefined, workingDirectories: readonly URI[] | undefined, getFolderGitHubInfo?: IFolderGitHubInfoResolver): ISessionWorkspace | undefined {
+	if (!sessionWorkspace || (workingDirectories === undefined && !getFolderGitHubInfo)) {
 		return sessionWorkspace;
 	}
 
@@ -115,15 +118,14 @@ export function buildAgentHostChatWorkspace(sessionWorkspace: ISessionWorkspace 
 		if (!folder) {
 			return undefined;
 		}
-		folders.push(folder);
+		const gitHubInfo = getFolderGitHubInfo?.(folder.workingDirectory);
+		folders.push(gitHubInfo && folder.gitRepository?.gitHubInfo !== gitHubInfo ? withFolderGitHubInfo(folder, gitHubInfo) : folder);
 	}
 
 	if (folders.length === 0) {
 		return undefined;
 	}
-	if (scopeGitHubInfo) {
-		folders[0] = withFolderGitHubInfo(folders[0], scopeGitHubInfo);
-	} else if (folders.length === sessionWorkspace.folders.length && folders.every((folder, index) => folder === sessionWorkspace.folders[index])) {
+	if (folders.length === sessionWorkspace.folders.length && folders.every((folder, index) => folder === sessionWorkspace.folders[index])) {
 		return sessionWorkspace;
 	}
 

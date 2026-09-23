@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { getWorkingDirectoryScopeId } from '../common/agentHostWorkingDirectories.js';
+import { getWorkingDirectoryKey, getWorkingDirectoryScopeId } from '../common/agentHostWorkingDirectories.js';
 import { buildFolderChangesetOwnerUri, parseFolderChangesetOwnerUri } from '../common/changesetUri.js';
 import { buildDefaultChatUri, isAhpChatChannel, parseChatUri, type URI as ProtocolURI } from '../common/state/sessionState.js';
 import { AgentHostStateManager } from './agentHostStateManager.js';
@@ -87,29 +87,32 @@ export function resolveBranchChangesetScopeForOwner(stateManager: AgentHostState
 	return undefined;
 }
 
-/** The folder scope whose GitHub and pull request state a session, chat or folder owner uses. */
-export interface IGitHubStateScope {
+/** The folder whose GitHub and pull request state a session, chat or folder changeset owner uses. */
+export interface IGitHubStateFolder {
 	readonly sessionUri: ProtocolURI;
-	/** The chat that represents the scope. */
+	/** The chat whose Git state describes the folder. */
 	readonly sourceUri: ProtocolURI;
-	/** Folder-scope id, or `undefined` for the default chat's scope, which uses the session-level GitHub state. */
-	readonly scopeId: string | undefined;
-	readonly workingDirectories: readonly ProtocolURI[];
+	/** Working-directory key of the folder, or `undefined` for the session's first folder, which uses the session-level state. */
+	readonly folderKey: string | undefined;
+	/** The folder's working directory, when known. */
+	readonly workingDirectory: ProtocolURI | undefined;
 }
 
 /**
- * Resolves the GitHub state scope for a session, chat channel or folder owner
- * URI. Chats whose effective folders match the default chat's share its
- * session-level state; every other folder scope has its own.
+ * Resolves the folder whose GitHub state a session, chat channel or folder
+ * changeset owner URI uses: the first folder of the chat (or of the folder
+ * scope). The session's first folder uses the session-level state; every
+ * other folder has its own.
  */
-export function resolveGitHubStateScope(stateManager: AgentHostStateManager, uri: ProtocolURI): IGitHubStateScope {
+export function resolveGitHubStateFolder(stateManager: AgentHostStateManager, uri: ProtocolURI): IGitHubStateFolder {
 	const scope = parseFolderChangesetOwnerUri(uri) ? resolveChangesetOwnerScope(stateManager, uri) : resolveBranchChangesetScopeForSource(stateManager, uri);
-	const scopeId = getWorkingDirectoryScopeId(scope.workingDirectories);
-	const defaultScopeId = getWorkingDirectoryScopeId(getEffectiveWorkingDirectories(stateManager, buildDefaultChatUri(scope.sessionUri)) ?? []);
+	const workingDirectory = scope.workingDirectories[0];
+	const sessionWorkingDirectory = stateManager.getSessionState(scope.sessionUri)?.workingDirectories?.[0];
+	const folderKey = workingDirectory === undefined ? undefined : getWorkingDirectoryKey(workingDirectory);
 	return {
 		sessionUri: scope.sessionUri,
 		sourceUri: scope.sourceUri,
-		scopeId: scope.workingDirectories.length === 0 || scopeId === defaultScopeId ? undefined : scopeId,
-		workingDirectories: scope.workingDirectories,
+		folderKey: folderKey === undefined || (sessionWorkingDirectory !== undefined && folderKey === getWorkingDirectoryKey(sessionWorkingDirectory)) ? undefined : folderKey,
+		workingDirectory,
 	};
 }

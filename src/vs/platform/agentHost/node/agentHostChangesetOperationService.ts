@@ -9,11 +9,11 @@ import { Disposable, DisposableMap, DisposableStore, toDisposable, type IDisposa
 import { stableStringify } from '../../../base/common/objects.js';
 import { buildBranchChangesetUri, ChangesetKind, parseChangesetUri, parseFolderChangesetOwnerUri } from '../common/changesetUri.js';
 import { isMultiRootSession } from '../common/agentHostWorkingDirectories.js';
-import { resolveBranchChangesetScopeForOwner, resolveBranchChangesetScopeForSource, resolveChangesetOwnerScope, resolveGitHubStateScope } from './agentHostBranchChangesetScope.js';
+import { resolveBranchChangesetScopeForOwner, resolveBranchChangesetScopeForSource, resolveChangesetOwnerScope, resolveGitHubStateFolder } from './agentHostBranchChangesetScope.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../common/state/protocol/channels-changeset/commands.js';
 import { AHP_SESSION_NOT_FOUND, JsonRpcErrorCodes, ProtocolError } from '../common/state/sessionProtocol.js';
 import { ActionType } from '../common/state/sessionActions.js';
-import { ChangesetOperationScope, ChangesetOperationStatus, ChangesetOperationTargetKind, isAhpChatChannel, isDefaultChatUri, ISessionGitHubState, parseChatUri, readScopeGitHubState, readSessionGitHubState, readSessionGitState, type ChangesetOperation, type ErrorInfo, type ISessionGitState } from '../common/state/sessionState.js';
+import { ChangesetOperationScope, ChangesetOperationStatus, ChangesetOperationTargetKind, isAhpChatChannel, isDefaultChatUri, ISessionGitHubState, parseChatUri, readFolderGitHubState, readSessionGitHubState, readSessionGitState, type ChangesetOperation, type ErrorInfo, type ISessionGitState } from '../common/state/sessionState.js';
 import { AGENT_HOST_MERGE_CHANGESET_OPERATION_ID, AGENT_HOST_PULL_REQUEST_OPERATION_IDS, type IChangesetOperationContribution, type IAgentHostChangesetOperationService, type IChangesetOperationContext, type IChangesetOperationHandler, type IChangesetOperationRegistry } from '../common/agentHostChangesetOperationService.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
 import { IAgentHostChangesetSubscriptionService } from '../common/agentHostChangesetSubscriptionService.js';
@@ -104,10 +104,10 @@ export class AgentHostChangesetOperationService extends Disposable implements IA
 			}
 		}
 
-		// Folder scopes other than the default chat's have their own GitHub state.
-		const gitHubScope = resolveGitHubStateScope(this._stateManager, ownerKey);
-		if (gitHubScope.scopeId !== undefined) {
-			gitHubState = readScopeGitHubState(this._stateManager.getSessionState(sessionKey)?._meta, gitHubScope.scopeId);
+		// Folders other than the session's first have their own GitHub state.
+		const gitHubFolder = resolveGitHubStateFolder(this._stateManager, ownerKey);
+		if (gitHubFolder.folderKey !== undefined) {
+			gitHubState = readFolderGitHubState(this._stateManager.getSessionState(sessionKey)?._meta, gitHubFolder.folderKey);
 		} else if (!gitHubState) {
 			gitHubState = readSessionGitHubState(this._stateManager.getSessionState(sessionKey)?._meta);
 		}

@@ -424,7 +424,7 @@ suite('AgentHostPullRequestOperationHandler', () => {
 		assert.deepStrictEqual(gitService.workingDirectories, [workingDirectory]);
 	});
 
-	test('prepares and creates a pull request from another folder scope without touching session Agent Merge', async () => {
+	test('prepares and creates a pull request from another folder without touching session Agent Merge', async () => {
 		const gitService = new TestGitService();
 		gitService.gitState = { branchName: 'feature/tools', githubOwner: 'contoso', githubRepo: 'tools' };
 		const octoKitService = new TestOctoKitService();

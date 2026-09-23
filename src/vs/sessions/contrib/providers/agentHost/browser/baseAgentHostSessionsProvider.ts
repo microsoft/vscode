@@ -40,8 +40,8 @@ import type { IAgentSubscription } from '../../../../../platform/agentHost/commo
 import { ResolveSessionConfigResult, type SessionConfigPropertySchema } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { AgentCustomization, ChangesSummary, ChatInteractivity as ProtocolChatInteractivity, ChatOriginKind as ProtocolChatOriginKind, type ChatOrigin, type ClientPluginCustomization, Customization, CustomizationEnablementKind, CustomizationType, type CustomizationEnablement, ModelSelection, SessionStatus as ProtocolSessionStatus, RootConfigState, RootState, type SessionActiveClient, SessionState, SessionSummary, type Changeset } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ActionType, isChatAction, isSessionAction, NotificationType, type SessionSummaryChanges } from '../../../../../platform/agentHost/common/state/sessionActions.js';
-import { AgentCapabilities, AgentInfo, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, DEFAULT_CHAT_ID, getSessionChatResource, getSessionRelatedPullRequestUrls, isDefaultChatUri, isSessionStatusArchived, isSessionStatusRead, parseChatUri, readSessionCreationReference, readSessionEhcliAdoptable, readScopeGitHubState, readSessionExternal, readSessionGitHubState, readSessionGitState, readSessionMultiRootMetadata, readSessionSourceControlState, readSessionWorkspaceless, ROOT_STATE_URI, SESSION_META_MULTI_ROOT_KEY, SessionMeta, SessionSourceControlOutcome, StateComponents, withSessionCreationReference, withSessionExternal, withSessionGitHubState, withSessionMultiRootMetadata, withSessionStatusFlag, withSessionWorkspaceless, type ChatState, type ChatSummary, type ISessionCreationReference as IProtocolSessionCreationReference, type ISessionGitHubState, type ISessionGitState, type ISessionMultiRootMetadata } from '../../../../../platform/agentHost/common/state/sessionState.js';
-import { getWorkingDirectoryScopeId } from '../../../../../platform/agentHost/common/agentHostWorkingDirectories.js';
+import { AgentCapabilities, AgentInfo, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, DEFAULT_CHAT_ID, getSessionChatResource, getSessionRelatedPullRequestUrls, isDefaultChatUri, isSessionStatusArchived, isSessionStatusRead, parseChatUri, readSessionCreationReference, readSessionEhcliAdoptable, readFolderGitHubState, readSessionExternal, readSessionGitHubState, readSessionGitState, readSessionMultiRootMetadata, readSessionSourceControlState, readSessionWorkspaceless, ROOT_STATE_URI, SESSION_META_MULTI_ROOT_KEY, SessionMeta, SessionSourceControlOutcome, StateComponents, withSessionCreationReference, withSessionExternal, withSessionGitHubState, withSessionMultiRootMetadata, withSessionStatusFlag, withSessionWorkspaceless, type ChatState, type ChatSummary, type ISessionCreationReference as IProtocolSessionCreationReference, type ISessionGitHubState, type ISessionGitState, type ISessionMultiRootMetadata } from '../../../../../platform/agentHost/common/state/sessionState.js';
+import { getWorkingDirectoryKey } from '../../../../../platform/agentHost/common/agentHostWorkingDirectories.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
@@ -63,7 +63,7 @@ import { isAutoApprovePolicyRestricted, normalizeSessionConfigValue } from '../.
 import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../../../../workbench/contrib/chat/common/languageModels.js';
 import { getRegisteredLanguageModels, resolveConfiguredModel, resolveModelIdentifier, resolveModelIdentifierFromLanguageModels } from '../../../../../workbench/contrib/chat/common/modelSelection.js';
 import { buildMutableConfigSchema, IAgentHostMcpServer, IAgentHostSessionsProvider, IAgentMergeClientState, resolvedConfigsEqual } from '../../../../common/agentHostSessionsProvider.js';
-import { agentHostSessionWorkspaceKey, buildAgentHostChatWorkspace } from '../../../../common/agentHostSessionWorkspace.js';
+import { agentHostSessionWorkspaceKey, buildAgentHostChatWorkspace, type IFolderGitHubInfoResolver } from '../../../../common/agentHostSessionWorkspace.js';
 import { USE_WORKTREE_SETTING, isSessionConfigComplete } from '../../../../common/sessionConfig.js';
 import { linkKey } from '../../../../common/sessionLinks.js';
 import { ChatInteractivity, ChatModelSource, ChatOriginKind, DEFAULT_CHAT_CAPABILITIES, effectiveChatInteractivity, getGitHubPullRequestRefs, getHighestPriorityPullRequestIcon, getSessionOwnedGitHubPullRequestRefs, IChat, IChatCapabilities, IGitHubInfo, IGitHubIssueRef, IGitHubPullRequestRef, isActiveSessionStatus, ISession, ISessionAgentRef, ISessionArtifact, ISessionCapabilities, ISessionChangesSummary, ISessionChatCustomization, ISessionChangeset, ISessionCreationReference, ISessionFileChange, ISessionPreparationProgress, ISessionTurnFileChange, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction, ISideChatSelection, sessionFileChangesEqual, sessionWorkspaceEqual, SessionRemoteConnectionFailureReason, SessionRemoteConnectionStatus, SessionStatus, SessionTypeAuthRequirement, toSessionId } from '../../../../services/sessions/common/session.js';
@@ -485,12 +485,12 @@ function toGitHubPullRequestRefs(state: ISessionGitHubState | undefined, pullReq
 }
 
 /**
- * Maps session metadata to GitHub info. Pass `scopeId` for a chat folder scope
- * other than the default chat's to use its own GitHub state instead of the session's.
+ * Maps session metadata to GitHub info. Pass `folderKey` for a folder other
+ * than the session's first to use its own GitHub state instead of the session's.
  */
-function toGitHubInfo(meta: SessionMeta | undefined, scopeId?: string): IGitHubInfo | undefined {
-	const state = readScopeGitHubState(meta, scopeId);
-	const gitState = scopeId ? undefined : readSessionGitState(meta);
+function toGitHubInfo(meta: SessionMeta | undefined, folderKey?: string): IGitHubInfo | undefined {
+	const state = readFolderGitHubState(meta, folderKey);
+	const gitState = folderKey ? undefined : readSessionGitState(meta);
 	const { pullRequests: recordedPullRequests, issues: recordedIssues } = partitionSessionArtifacts(meta);
 	const discoveredPullRequests = dedupeLinks(getSessionRelatedPullRequestUrls(state))
 		.map(url => ({ url }));
@@ -758,8 +758,8 @@ function toChatInteractivity(interactivity: ProtocolChatInteractivity | undefine
 interface IChatOutputObs {
 	readonly lastTurnChanges: IObservable<readonly ISessionTurnFileChange[]>;
 	readonly customizations: IObservable<readonly ISessionChatCustomization[]>;
-	/** GitHub info of the chat's folder scope when it differs from the default chat's. */
-	readonly getScopeGitHubInfo: (reader: IReader, workingDirectories: readonly string[] | undefined) => IObservable<IGitHubInfo | undefined> | undefined;
+	/** Resolves the GitHub info each folder of the chat's workspace reports. */
+	readonly getFolderGitHubInfo: (reader: IReader) => IFolderGitHubInfoResolver;
 }
 
 /** Shares one retained session-state subscription across all observed peer-chat details. */
@@ -843,7 +843,7 @@ class AdditionalChat extends Disposable {
 		const workspace = derived(this, reader => buildAgentHostChatWorkspace(
 			sessionWorkspace.read(reader),
 			this._workingDirectories.read(reader)?.map(directory => mapWorkingDirectoryUri(URI.parse(directory))),
-			output?.getScopeGitHubInfo(reader, this._workingDirectories.read(reader)),
+			output?.getFolderGitHubInfo(reader),
 		));
 		const interactivity = derived(reader => effectiveChatInteractivity(
 			sessionIsArchived.read(reader) || sessionIsReadOnly.read(reader),
@@ -1044,8 +1044,8 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 	 */
 	private readonly _defaultChatStatusOverride = observableValue<SessionStatus | undefined>('defaultChatStatusOverride', undefined);
 	private readonly _defaultChatWorkingDirectories = observableValueOpts<readonly string[] | undefined>({ owner: this, debugName: 'defaultChatWorkingDirectories', equalsFn: structuralEquals }, undefined);
-	/** GitHub info per non-default folder scope, created on demand. */
-	private readonly _scopeGitHubInfos = new Map<string, IObservable<IGitHubInfo | undefined>>();
+	/** GitHub info per folder other than the session's first, keyed by working-directory key and created on demand. */
+	private readonly _folderGitHubInfos = new Map<string, IObservable<IGitHubInfo | undefined>>();
 	/** Whether this session was created with worktree isolation. */
 	private readonly _worktreeIsolation = observableValue<boolean>('worktreeIsolation', false);
 	/** Interactivity of the default chat. Driven from the default chat's protocol summary. */
@@ -1289,7 +1289,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 		const defaultChatWorkspace = derived(this, reader => buildAgentHostChatWorkspace(
 			this.workspace.read(reader),
 			this._defaultChatWorkingDirectories.read(reader)?.map(directory => this._options.mapWorkingDirectoryUri?.(URI.parse(directory)) ?? URI.parse(directory)),
-			this._getChatScopeGitHubInfo(reader, this._defaultChatWorkingDirectories.read(reader)),
+			this._getFolderGitHubInfoResolver(reader),
 		));
 		const defaultChatUri = URI.parse(buildDefaultChatUri(this.backendUri));
 		const defaultChatChangesets = createChatChangesets(
@@ -1551,7 +1551,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 		const output: IChatOutputObs = {
 			lastTurnChanges: this._sessionOutput.getLastTurnChanges(backendUri),
 			customizations: this._sessionOutput.getChatCustomizations(backendUri),
-			getScopeGitHubInfo: (reader, workingDirectories) => this._getChatScopeGitHubInfo(reader, workingDirectories),
+			getFolderGitHubInfo: reader => this._getFolderGitHubInfoResolver(reader),
 		};
 		const chat = new AdditionalChat(
 			resource,
@@ -2131,25 +2131,33 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 	}
 
 	/**
-	 * GitHub info of a chat's folder scope when it differs from the default
-	 * chat's, or `undefined` when the chat uses the session's GitHub state.
+	 * Resolves the GitHub info a session folder reports: the session-level
+	 * GitHub info for the folder it describes, and each other folder's own.
 	 */
-	private _getChatScopeGitHubInfo(reader: IReader, chatWorkingDirectories: readonly string[] | undefined): IObservable<IGitHubInfo | undefined> | undefined {
+	private _getFolderGitHubInfoResolver(reader: IReader): IFolderGitHubInfoResolver {
 		// The session workspace changes whenever its working directories do.
 		this.workspace.read(reader);
 		const sessionWorkingDirectories = this._workingDirectories?.map(directory => directory.toString()) ?? [];
-		const effectiveWorkingDirectories = chatWorkingDirectories ?? sessionWorkingDirectories;
-		const scopeId = getWorkingDirectoryScopeId(effectiveWorkingDirectories);
-		const defaultScopeId = getWorkingDirectoryScopeId(this._defaultChatWorkingDirectories.read(reader) ?? sessionWorkingDirectories);
-		if (effectiveWorkingDirectories.length === 0 || scopeId === defaultScopeId) {
-			return undefined;
-		}
-		let gitHubInfo = this._scopeGitHubInfos.get(scopeId);
-		if (!gitHubInfo) {
-			gitHubInfo = this._presentGitHubInfo(derivedOpts<IGitHubInfo | undefined>({ equalsFn: isGitHubInfoEqual }, reader => toGitHubInfo(this._metaObs.read(reader), scopeId)));
-			this._scopeGitHubInfos.set(scopeId, gitHubInfo);
-		}
-		return gitHubInfo;
+		// The session-level GitHub state describes the main chat's first folder.
+		const sessionFolder = (this._defaultChatWorkingDirectories.read(reader) ?? sessionWorkingDirectories)[0];
+		const sessionFolderKey = sessionFolder !== undefined ? getWorkingDirectoryKey(sessionFolder) : undefined;
+		const mapWorkingDirectoryUri = this._options.mapWorkingDirectoryUri ?? (uri => uri);
+		return workingDirectory => {
+			const backendWorkingDirectory = sessionWorkingDirectories.find(directory => isEqual(mapWorkingDirectoryUri(URI.parse(directory)), workingDirectory));
+			if (backendWorkingDirectory === undefined) {
+				return undefined;
+			}
+			const folderKey = getWorkingDirectoryKey(backendWorkingDirectory);
+			if (folderKey === sessionFolderKey) {
+				return this.gitHubInfo;
+			}
+			let gitHubInfo = this._folderGitHubInfos.get(folderKey);
+			if (!gitHubInfo) {
+				gitHubInfo = this._presentGitHubInfo(derivedOpts<IGitHubInfo | undefined>({ equalsFn: isGitHubInfoEqual }, reader => toGitHubInfo(this._metaObs.read(reader), folderKey)));
+				this._folderGitHubInfos.set(folderKey, gitHubInfo);
+			}
+			return gitHubInfo;
+		};
 	}
 
 	private _createChatCurrentTurnChangesObservable(chatUri: URI): IObservable<readonly ISessionFileChange[] | undefined> {

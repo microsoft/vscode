@@ -13,8 +13,8 @@ import { IAgentHostGitStateService } from '../common/agentHostGitStateService.js
 import { SessionArtifactType, stringifySessionArtifacts } from '../common/sessionArtifacts.js';
 import { ISessionDataService } from '../common/sessionDataService.js';
 import { SessionConfigKey } from '../common/sessionConfigKeys.js';
-import { ChangesetOperationScope, ChangesetOperationStatus, hasSessionPullRequestForBranch, readScopeGitHubState, SessionLifecycle, withMostRecentRelatedSessionPullRequest, type ChangesetOperation } from '../common/state/sessionState.js';
-import { resolveGitHubStateScope } from './agentHostBranchChangesetScope.js';
+import { ChangesetOperationScope, ChangesetOperationStatus, hasSessionPullRequestForBranch, readFolderGitHubState, SessionLifecycle, withMostRecentRelatedSessionPullRequest, type ChangesetOperation } from '../common/state/sessionState.js';
+import { resolveGitHubStateFolder } from './agentHostBranchChangesetScope.js';
 import { AgentHostPullRequestOperationHandler, type PullRequestCreatedEvent } from './agentHostPullRequestOperationHandler.js';
 import { AgentHostPullRequestLifecycleOperationHandler } from './agentHostPullRequestLifecycleOperationHandler.js';
 import { IAgentHostPullRequestStatusService } from './agentHostPullRequestStatusService.js';
@@ -120,9 +120,9 @@ export class AgentHostPullRequestOperationContribution extends Disposable implem
 
 		// Pull request already exists for the currently checked out branch.
 		// Lifecycle status is tracked for the session's pull request only, so
-		// other folder scopes offer no lifecycle operations yet.
+		// other folders offer no lifecycle operations yet.
 		if (hasSessionPullRequestForBranch(gitHubState, gitState?.branchName)) {
-			return ownerKey === undefined || resolveGitHubStateScope(this._stateManager, ownerKey).scopeId === undefined
+			return ownerKey === undefined || resolveGitHubStateFolder(this._stateManager, ownerKey).folderKey === undefined
 				? this._getPullRequestLifecycleOperations(sessionKey)
 				: undefined;
 		}
@@ -270,8 +270,8 @@ export class AgentHostPullRequestOperationContribution extends Disposable implem
 				[SESSION_ARTIFACTS_KEY]: stringifySessionArtifacts(entries),
 			});
 		});
-		// The pull request belongs to the folder scope it was created from.
-		const scope = resolveGitHubStateScope(this._stateManager, event.ownerUri);
+		// The pull request belongs to the folder it was created from.
+		const folder = resolveGitHubStateFolder(this._stateManager, event.ownerUri);
 		await artifacts.mutate(collection => collection.addOrPromoteArtifact({
 			type: SessionArtifactType.PullRequest,
 			label: event.pullRequestTitle ?? '',
@@ -279,7 +279,7 @@ export class AgentHostPullRequestOperationContribution extends Disposable implem
 			link: event.pullRequestUrl,
 		}, generateUuid));
 
-		const gitHubState = readScopeGitHubState(this._stateManager.getSessionState(sessionKey)?._meta, scope.scopeId);
+		const gitHubState = readFolderGitHubState(this._stateManager.getSessionState(sessionKey)?._meta, folder.folderKey);
 		await this._gitStateService.setSessionGitHubState(event.ownerUri, withMostRecentRelatedSessionPullRequest(gitHubState, event.pullRequestUrl, event.branchName));
 
 		this._registry?.onDidChangeOperations(sessionKey);

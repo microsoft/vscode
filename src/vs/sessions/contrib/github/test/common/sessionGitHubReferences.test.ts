@@ -123,4 +123,27 @@ suite('Session GitHub References', () => {
 			chat: ['https://github.com/Contoso/Tools/pull/8', 'https://github.com/contoso/tools/pull/7'],
 		});
 	});
+
+	test('resolves pull requests from every folder of a chat', () => {
+		const folder = (path: string, gitHubInfo: IGitHubInfo) => {
+			const root = URI.file(path);
+			return { root, workingDirectory: root, name: path, description: undefined, gitRepository: { uri: root, workTreeUri: undefined, baseBranchName: undefined, gitHubInfo: constObservable<IGitHubInfo | undefined>(gitHubInfo) } };
+		};
+		const session = createSession([
+			{ id: 'foreign', kind: SessionArtifactKind.PullRequest, label: 'Foreign', isArtifact: true, isGitHub: true, link: URI.parse('https://github.com/other/project/pull/3') },
+		]);
+		const chat = upcastPartial<IChat>({
+			workspace: constObservable(upcastPartial<ISessionWorkspace>({
+				folders: [
+					folder('/repo', { owner: 'microsoft', repo: 'vscode', pullRequests: [{ owner: 'microsoft', repo: 'vscode', number: 1, uri: URI.parse('https://github.com/microsoft/vscode/pull/1') }] }),
+					folder('/tools', { owner: 'contoso', repo: 'tools', pullRequests: [{ owner: 'contoso', repo: 'tools', number: 7, uri: URI.parse('https://github.com/contoso/tools/pull/7') }] }),
+				],
+			})),
+		});
+
+		assert.deepStrictEqual(getSessionGitHubReferences(session, undefined, chat).pullRequests.map(ref => ref.uri.toString()), [
+			'https://github.com/microsoft/vscode/pull/1',
+			'https://github.com/contoso/tools/pull/7',
+		]);
+	});
 });

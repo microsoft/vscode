@@ -103,7 +103,7 @@ Chat origin and interactivity describe whether a chat is user-created, tool-crea
 
 ### Workspaces and quick chats
 
-`ISession.workspace` describes the complete workspace in which a session operates. `IChat.workspace` describes the effective workspace available to that chat and may be a subset of the session workspace. When a chat's folders differ from the main chat's, its primary folder reports that folder scope's own repository and pull request information; chats with equivalent folders share it. Filesystem-facing UI and actions for the focused conversation use `IActiveSession.activeChat.workspace`; session lifecycle, creation, and list presentation continue to use the aggregate session workspace. A quick chat is workspace-less by product intent and is identified through `ISession.isQuickChat`. An absent workspace alone does not prove that a session is a quick chat because workspace state may still be hydrating.
+`ISession.workspace` describes the complete workspace in which a session operates. `IChat.workspace` describes the effective workspace available to that chat and may be a subset of the session workspace. Each folder of a chat's workspace reports that folder's own repository and pull request information, so chats sharing a folder share its pull requests. Filesystem-facing UI and actions for the focused conversation use `IActiveSession.activeChat.workspace`; session lifecycle, creation, and list presentation continue to use the aggregate session workspace. A quick chat is workspace-less by product intent and is identified through `ISession.isQuickChat`. An absent workspace alone does not prove that a session is a quick chat because workspace state may still be hydrating.
 
 ### Capabilities
 
@@ -125,7 +125,7 @@ Sessions may expose the artifacts and references recorded by the agent. Both sha
 
 Providers may advertise `supportsRemoveArtifacts` and implement `removeSessionArtifact`. User-initiated removal routes through `ISessionsManagementService` to the owning provider, which persists and publishes the updated artifact list. Removing a record does not remove independent session associations or alter the linked resource.
 
-Recorded GitHub issues and pull requests are resolved from `ISession.artifacts` independently of workspace or repository availability, alongside the repository-discovered associations of the focused chat's workspace (or the session workspace for session-wide consumers). A chat's pull request pill shows only pull requests from the chat's repository; recorded pull requests from other repositories remain in the artifacts list. The dedicated pills, artifact de-duplication, and pull-request polling share this resolution. References retain their optional recorded-reference ID; presentation uses that ID for per-item removal and never infers record identity from a title or URL.
+Recorded GitHub issues and pull requests are resolved from `ISession.artifacts` independently of workspace or repository availability, alongside the repository-discovered associations of the focused chat's workspace (or the session workspace for session-wide consumers). A chat's pull request pill shows the pull requests of its folders' repositories; recorded pull requests from other repositories remain in the artifacts list. The dedicated pills, artifact de-duplication, and pull-request polling share this resolution. References retain their optional recorded-reference ID; presentation uses that ID for per-item removal and never infers record identity from a title or URL.
 
 ## Provider contract
 
