@@ -114,29 +114,39 @@ export class AgentHostReviewService extends Disposable implements IAgentHostRevi
 		return this._sequencer.queue(session, () => this._getReviewedPaths(session, workingDirectory, baseBranch));
 	}
 
-	copyReviewedRef(sourceSession: ProtocolURI, targetSession: ProtocolURI, workingDirectory: URI): Promise<void> {
-		return this._sequencer.queue(targetSession, () => this._copyReviewedRef(sourceSession, targetSession, workingDirectory));
+	copyReviewedRef(sourceSession: ProtocolURI, targetSession: ProtocolURI, sourceWorkingDirectories: readonly URI[], targetWorkingDirectories: readonly URI[]): Promise<void> {
+		return this._sequencer.queue(targetSession, () => this._copyReviewedRef(sourceSession, targetSession, sourceWorkingDirectories, targetWorkingDirectories));
 	}
 
-	private async _copyReviewedRef(sourceSession: ProtocolURI, targetSession: ProtocolURI, workingDirectory: URI): Promise<void> {
-		const repoRoot = await this._gitService.getRepositoryRoot(workingDirectory);
-		if (!repoRoot) {
+	private async _copyReviewedRef(sourceSession: ProtocolURI, targetSession: ProtocolURI, sourceWorkingDirectories: readonly URI[], targetWorkingDirectories: readonly URI[]): Promise<void> {
+		if (sourceWorkingDirectories.length === 0 || targetWorkingDirectories.length === 0) {
 			return;
 		}
-
-		const sourceOwner = resolveBranchChangesetScopeForSource(this._stateManager, sourceSession).ownerUri;
-		const targetOwner = resolveBranchChangesetScopeForSource(this._stateManager, targetSession).ownerUri;
+		const sourceOwner = buildFolderChangesetOwnerUri(
+			parseChatUri(sourceSession)?.session ?? sourceSession,
+			getWorkingDirectoryScopeId(sourceWorkingDirectories.map(uri => uri.toString())),
+		);
+		const targetOwner = buildFolderChangesetOwnerUri(
+			parseChatUri(targetSession)?.session ?? targetSession,
+			getWorkingDirectoryScopeId(targetWorkingDirectories.map(uri => uri.toString())),
+		);
 		const sourceRef = buildReviewedRefName(this._sanitizedOwnerId(sourceOwner));
-		const legacySourceRef = buildReviewedRefName(this._sanitizedOwnerId(sourceSession));
-		const sourceCommit = await this._gitService.revParse(repoRoot, sourceRef)
-			?? await this._gitService.revParse(repoRoot, legacySourceRef);
-		if (!sourceCommit) {
-			return;
-		}
-
+		const legacySourceRef = buildReviewedRefName(this._sanitizedOwnerId(parseChatUri(sourceSession)?.session ?? sourceSession));
 		const targetRef = buildReviewedRefName(this._sanitizedOwnerId(targetOwner));
-		await this._gitService.updateRef(repoRoot, targetRef, sourceCommit);
-		this._logService.trace(`[AgentHostReview][_copyReviewedRef] Copied reviewed ref ${sourceRef} -> ${targetRef} for fork`);
+		const seenRepositories = new Set<string>();
+		for (const workingDirectory of targetWorkingDirectories) {
+			const repoRoot = await this._gitService.getRepositoryRoot(workingDirectory);
+			if (!repoRoot || seenRepositories.has(repoRoot.toString())) {
+				continue;
+			}
+			seenRepositories.add(repoRoot.toString());
+			const sourceCommit = await this._gitService.revParse(repoRoot, sourceRef)
+				?? await this._gitService.revParse(repoRoot, legacySourceRef);
+			if (sourceCommit) {
+				await this._gitService.updateRef(repoRoot, targetRef, sourceCommit);
+				this._logService.trace(`[AgentHostReview][_copyReviewedRef] Copied reviewed ref ${sourceRef} -> ${targetRef} for fork`);
+			}
+		}
 	}
 
 	private async _setReviewed(session: ProtocolURI, workingDirectory: URI, baseBranch: string | undefined, resource: URI, reviewed: boolean): Promise<void> {

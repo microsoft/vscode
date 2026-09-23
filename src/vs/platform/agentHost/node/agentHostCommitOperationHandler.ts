@@ -70,10 +70,11 @@ export class AgentHostCommitOperationHandler implements IChangesetOperationHandl
 		}
 		const workingDirectory = URI.parse(workingDirectoryStr);
 
-		const branchName = await (this._gitService.getCurrentBranchName?.(workingDirectory) ?? this._gitService.getCurrentBranch(workingDirectory));
-		if (!branchName) {
-			throw new ProtocolError(JsonRpcErrorCodes.InternalError, `Changeset owner's working directory is not a git repo: ${sessionUri}`);
+		if (!await this._gitService.getRepositoryRoot(workingDirectory)) {
+			throw new ProtocolError(JsonRpcErrorCodes.InternalError, localize('agentHost.changeset.commit.notGitRepository', "Changeset owner's working directory is not a Git repository: {0}", sessionUri));
 		}
+		const branchName = (await this._gitService.getCurrentBranchName?.(workingDirectory))
+			?? await this._gitService.getCurrentBranch(workingDirectory);
 
 		const hasUncommitted = await this._gitService.hasUncommittedChanges(workingDirectory);
 		if (!hasUncommitted) {

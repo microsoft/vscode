@@ -13,7 +13,7 @@ import { resolveBranchChangesetScopeForOwner, resolveBranchChangesetScopeForSour
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../common/state/protocol/channels-changeset/commands.js';
 import { AHP_SESSION_NOT_FOUND, JsonRpcErrorCodes, ProtocolError } from '../common/state/sessionProtocol.js';
 import { ActionType } from '../common/state/sessionActions.js';
-import { ChangesetOperationScope, ChangesetOperationStatus, ChangesetOperationTargetKind, isAhpChatChannel, isDefaultChatUri, ISessionGitHubState, parseChatUri, readSessionGitHubState, readSessionGitState, type ChangesetOperation, type ErrorInfo, type ISessionGitState } from '../common/state/sessionState.js';
+import { buildDefaultChatUri, ChangesetOperationScope, ChangesetOperationStatus, ChangesetOperationTargetKind, isAhpChatChannel, isDefaultChatUri, ISessionGitHubState, parseChatUri, readSessionGitHubState, readSessionGitState, type ChangesetOperation, type ErrorInfo, type ISessionGitState } from '../common/state/sessionState.js';
 import { AGENT_HOST_MERGE_CHANGESET_OPERATION_ID, AGENT_HOST_PULL_REQUEST_OPERATION_IDS, type IChangesetOperationContribution, type IAgentHostChangesetOperationService, type IChangesetOperationContext, type IChangesetOperationHandler, type IChangesetOperationRegistry } from '../common/agentHostChangesetOperationService.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
 import { IAgentHostChangesetSubscriptionService } from '../common/agentHostChangesetSubscriptionService.js';
@@ -154,7 +154,11 @@ export class AgentHostChangesetOperationService extends Disposable implements IA
 		const ownerKey = context.ownerKey ?? parsed?.ownerUri ?? context.sessionKey;
 		const sourceKey = context.sourceKey ?? resolveChangesetOwnerScope(this._stateManager, ownerKey).sourceUri;
 		const scopedOwner = isAhpChatChannel(ownerKey) || !!parseFolderChangesetOwnerUri(ownerKey);
-		const allowsSessionWorkflowOperations = context.changesetKind === ChangesetKind.Branch && isDefaultChatUri(sourceKey);
+		const isSameScopeChatChanges = context.changesetKind === ChangesetKind.Session
+			&& isAhpChatChannel(ownerKey)
+			&& resolveBranchChangesetScopeForSource(this._stateManager, ownerKey).ownerUri === resolveBranchChangesetScopeForSource(this._stateManager, buildDefaultChatUri(context.sessionKey)).ownerUri;
+		const allowsSessionWorkflowOperations = context.changesetKind === ChangesetKind.Branch && isDefaultChatUri(sourceKey)
+			|| isSameScopeChatChanges;
 		const scopedOperations = scopedOwner && !allowsSessionWorkflowOperations
 			? operations.filter(operation => operation.id !== AGENT_HOST_MERGE_CHANGESET_OPERATION_ID && operation.group !== 'pull-request' && !AGENT_HOST_PULL_REQUEST_OPERATION_IDS.has(operation.id))
 			: operations;
@@ -173,12 +177,41 @@ export class AgentHostChangesetOperationService extends Disposable implements IA
 	}
 
 	updateOperations(sessionKey: string, changeset?: string, gitState?: ISessionGitState, gitHubState?: ISessionGitHubState): void {
+		if (!changeset) {
+			for (const owner of this._getOperationOwners(sessionKey)) {
+				this._updateOwnerOperations(owner, gitState, gitHubState);
+			}
+			return;
+		}
+		this._updateOwnerOperations(sessionKey, gitState, gitHubState, changeset);
+	}
+
+	private _getOperationOwners(sessionKey: string): readonly string[] {
+		if (parseFolderChangesetOwnerUri(sessionKey)) {
+			return [sessionKey];
+		}
+
+		const chat = parseChatUri(sessionKey);
+		if (chat) {
+			return [sessionKey, resolveBranchChangesetScopeForSource(this._stateManager, sessionKey).ownerUri];
+		}
+
+		const owners = new Set<string>([sessionKey]);
+		const session = this._stateManager.getSessionState(sessionKey);
+		for (const chatState of session?.chats ?? []) {
+			owners.add(chatState.resource);
+			owners.add(resolveBranchChangesetScopeForSource(this._stateManager, chatState.resource).ownerUri);
+		}
+		return [...owners];
+	}
+
+	private _updateOwnerOperations(sessionKey: string, gitState?: ISessionGitState, gitHubState?: ISessionGitHubState, changeset?: string): void {
 		const ownerKey = changeset
 			? parseChangesetUri(changeset)?.ownerUri ?? sessionKey
 			: sessionKey;
 		const containingSessionKey = changeset
 			? parseChangesetUri(changeset)?.sessionUri ?? sessionKey
-			: parseChatUri(sessionKey)?.session ?? sessionKey;
+			: resolveChangesetOwnerScope(this._stateManager, sessionKey).sessionUri;
 		const changesets = changeset
 			? [changeset]
 			: resolveChangesetSubscriptions(

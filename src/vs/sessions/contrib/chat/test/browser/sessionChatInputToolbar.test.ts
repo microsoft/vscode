@@ -29,7 +29,7 @@ import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { ISessionChangesStatsCache } from '../../../../services/sessions/common/sessionChangesStatsCache.js';
-import { BRANCH_CHANGES_CHANGESET_ID, ChatOriginKind, SESSION_CHANGES_CHANGESET_ID, SessionArtifactKind, SessionStatus, type IChat, type IGitHubIssueRef, type IGitHubPullRequestRef, type ISessionArtifact, type ISessionWorkspace } from '../../../../services/sessions/common/session.js';
+import { BRANCH_CHANGES_CHANGESET_ID, CHAT_CHANGES_CHANGESET_ID, ChatOriginKind, SessionArtifactKind, SessionStatus, type IChat, type IGitHubIssueRef, type IGitHubPullRequestRef, type ISessionArtifact, type ISessionChangeset, type ISessionFolder, type ISessionGitRepository, type ISessionWorkspace } from '../../../../services/sessions/common/session.js';
 import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionChangesEditorOptions, ISessionChangesService } from '../../../changes/common/sessionChangesService.js';
 import { getGitHubHoverDate, getGitHubHoverDescription, getGitHubHoverTitle, getGitHubHoverTitleParts } from '../../../github/browser/githubHover.js';
@@ -100,6 +100,53 @@ suite('SessionChatInputToolbar', () => {
 		});
 	});
 
+	test('uses Chat Changes for folders and Branch Changes for worktrees', () => {
+		const createWorkspace = (worktree: boolean) => upcastPartial<ISessionWorkspace>({
+			folders: [upcastPartial<ISessionFolder>({
+				gitRepository: upcastPartial<ISessionGitRepository>({
+					workTreeUri: worktree ? URI.file('/worktree') : undefined,
+				}),
+			})],
+		});
+		const workspace = observableValue('workspace', createWorkspace(false));
+		const chat = upcastPartial<IChat>({
+			workspace,
+			changesets: constObservable([
+				upcastPartial<ISessionChangeset>({
+					id: BRANCH_CHANGES_CHANGESET_ID,
+					isDefault: constObservable(true),
+					changes: constObservable([]),
+				}),
+				upcastPartial<ISessionChangeset>({
+					id: CHAT_CHANGES_CHANGESET_ID,
+					isDefault: constObservable(false),
+					changes: constObservable([{
+						modifiedUri: URI.file('/chat-change.ts'),
+						insertions: 10,
+						deletions: 4,
+					}]),
+				}),
+			]),
+			changes: constObservable([]),
+		});
+		const session = upcastPartial<IActiveSession>({
+			sessionId: 'provider:session',
+			workspace,
+			activeChat: constObservable(chat),
+		});
+		const stats = derived(reader => computeSessionInputPillStats(session, chat, reader));
+		const folderStats = stats.get();
+		workspace.set(createWorkspace(true), undefined);
+
+		assert.deepStrictEqual({
+			folder: folderStats,
+			worktree: stats.get(),
+		}, {
+			folder: { files: 1, insertions: 10, deletions: 4 },
+			worktree: { files: 0, insertions: 0, deletions: 0 },
+		});
+	});
+
 	test('uses cached session stats while chat changes are unresolved', () => {
 		const chat = upcastPartial<IChat>({
 			workspace: constObservable(upcastPartial<ISessionWorkspace>({ folders: [] })),
@@ -123,7 +170,7 @@ suite('SessionChatInputToolbar', () => {
 
 	for (const worktree of [false, true]) {
 		for (const activation of ['click', 'Enter', 'Space'] as const) {
-			test(`opens ${worktree ? 'Branch' : 'Session'} Changes from the pill with ${activation} and follows workspace updates`, () => {
+			test(`opens ${worktree ? 'Branch' : 'Chat'} Changes from the pill with ${activation} and follows workspace updates`, () => {
 				const { instantiationService } = createServices();
 				const root = URI.file('/repo');
 				const createWorkspace = (worktree: boolean) => upcastPartial<ISessionWorkspace>({
@@ -192,7 +239,7 @@ suite('SessionChatInputToolbar', () => {
 				assert.deepStrictEqual(calls, [worktree, !worktree].flatMap(currentWorktree => [
 					{ action: 'activate', resource: session.resource },
 					{ action: 'reveal' },
-					{ action: 'open', resource: session.resource, options: { changesetSelection: { kind: 'id', id: currentWorktree ? BRANCH_CHANGES_CHANGESET_ID : SESSION_CHANGES_CHANGESET_ID } } },
+					{ action: 'open', resource: session.resource, options: { changesetSelection: { kind: 'id', id: currentWorktree ? BRANCH_CHANGES_CHANGESET_ID : CHAT_CHANGES_CHANGESET_ID } } },
 				]));
 			});
 		}

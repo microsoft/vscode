@@ -191,7 +191,7 @@ suite.skip('AgentHostReviewService (real git)', () => {
 		await svc!.markFileReviewed(sessionUri.toString(), wd(), undefined, URI.file(join(tmpRoot!, 'a.txt')));
 
 		const forkUri = URI.parse('copilot:/forked-session');
-		await svc!.copyReviewedRef(sessionUri.toString(), forkUri.toString(), wd());
+		await svc!.copyReviewedRef(sessionUri.toString(), forkUri.toString(), [wd()], [wd()]);
 
 		const forkReviewed = [...await svc!.getReviewedPaths(forkUri.toString(), wd(), undefined)].sort();
 		const sourceReviewed = await reviewedPaths();

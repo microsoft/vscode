@@ -171,30 +171,19 @@ suite('AgentHostReviewService', () => {
 		}]);
 	});
 
-	test('copies a folder-scoped review ref when forking', async () => {
+	test('copies multi-root folder-scoped review refs without loaded source state', async () => {
 		const sourceSession = 'mock:/source';
 		const targetSession = 'mock:/target';
-		const workingDirectory = URI.file('/workspace');
-		const updates: Array<{ ref: string; commit: string }> = [];
+		const workingDirectories = [URI.file('/workspace-a'), URI.file('/workspace-b')];
+		const updates: Array<{ root: string; ref: string; commit: string }> = [];
 		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
-		for (const resource of [sourceSession, targetSession]) {
-			stateManager.createSession({
-				resource,
-				provider: 'mock',
-				title: 'Session',
-				status: SessionStatus.Idle,
-				createdAt: new Date(0).toISOString(),
-				modifiedAt: new Date(0).toISOString(),
-				workingDirectories: [workingDirectory.toString()],
-			});
-		}
-		const scopeId = getWorkingDirectoryScopeId([workingDirectory.toString()]);
+		const scopeId = getWorkingDirectoryScopeId(workingDirectories.map(directory => directory.toString()));
 		const sourceRef = buildReviewedRefName(`${AgentSession.id(sourceSession)}-workspace-${scopeId}`);
 		const targetRef = buildReviewedRefName(`${AgentSession.id(targetSession)}-workspace-${scopeId}`);
 		const gitService = createNoopGitService();
 		gitService.getRepositoryRoot = async resource => resource;
 		gitService.revParse = async (_root, expression) => expression === sourceRef ? 'source-commit' : undefined;
-		gitService.updateRef = async (_root, ref, commit) => { updates.push({ ref, commit }); };
+		gitService.updateRef = async (root, ref, commit) => { updates.push({ root: root.toString(), ref, commit }); };
 		const service = disposables.add(new AgentHostReviewService(
 			stateManager,
 			gitService,
@@ -203,9 +192,12 @@ suite('AgentHostReviewService', () => {
 			new NullLogService(),
 		));
 
-		await service.copyReviewedRef(sourceSession, targetSession, workingDirectory);
+		await service.copyReviewedRef(sourceSession, targetSession, workingDirectories, workingDirectories);
 
-		assert.deepStrictEqual(updates, [{ ref: targetRef, commit: 'source-commit' }]);
+		assert.deepStrictEqual(updates, [
+			{ root: 'file:///workspace-a', ref: targetRef, commit: 'source-commit' },
+			{ root: 'file:///workspace-b', ref: targetRef, commit: 'source-commit' },
+		]);
 	});
 
 	test('deletes stale folder and chat review refs during session cleanup', async () => {

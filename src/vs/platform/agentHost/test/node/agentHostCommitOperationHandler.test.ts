@@ -31,12 +31,15 @@ class TestGitService implements IAgentHostGitService {
 	readonly calls: string[] = [];
 	readonly workingDirectories: string[] = [];
 	uncommitted = true;
+	currentBranchName: string | undefined = 'feature/test';
+	currentBranch: string | undefined = 'feature/test';
 	diffs: readonly ISessionFileDiff[] | undefined = [{
 		after: { uri: 'file:///repo/file.ts', content: { uri: 'file:///repo/file.ts' } },
 		diff: { added: 1, removed: 0 },
 	}];
 
-	async getCurrentBranch(): Promise<string | undefined> { return 'feature/test'; }
+	async getCurrentBranch(): Promise<string | undefined> { return this.currentBranch; }
+	async getCurrentBranchName(): Promise<string | undefined> { return this.currentBranchName; }
 	async getDefaultBranch(): Promise<IDefaultBranch | undefined> { return { name: 'main', startPoint: 'main' }; }
 	async getBranch(): Promise<IBranch | undefined> { return undefined; }
 	async getRefs(): Promise<IBranch[]> { return []; }
@@ -226,6 +229,27 @@ suite('AgentHostCommitOperationHandler', () => {
 		}, {
 			workingDirectories: ['file:///peer-repo', 'file:///peer-repo', 'file:///peer-repo'],
 			committedSessions: [peer],
+		});
+	});
+
+	test('commits changes from a detached HEAD', async () => {
+		const gitService = new TestGitService();
+		gitService.currentBranchName = undefined;
+		gitService.currentBranch = 'abc1234';
+		const copilotApiService = new TestCopilotApiService();
+		const changesets = new TestChangesetService();
+		const { handler, session } = setup(disposables, gitService, copilotApiService, changesets);
+
+		const result = await handler.invoke({ channel: buildUncommittedChangesetUri(session.toString()), operationId: AgentHostCommitOperationHandler.OPERATION_COMMIT }, CancellationToken.None);
+
+		assert.deepStrictEqual({
+			message: result.message,
+			prompt: copilotApiService.calls[0]?.request.messages[1]?.content,
+			gitCalls: gitService.calls,
+		}, {
+			message: { markdown: 'Committed changes with message: `Update session changes`' },
+			prompt: 'Repository: repo\nBranch: abc1234\nChanged files:\n- Create: /repo/file.ts (+1 -0)',
+			gitCalls: ['hasUncommittedChanges', 'computeSessionFileDiffs', 'commitAll:Update session changes'],
 		});
 	});
 

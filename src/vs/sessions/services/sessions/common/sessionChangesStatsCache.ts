@@ -40,13 +40,14 @@ export function readSessionChangesStats(session: ISession, reader: IReader | und
 	return readFileChangesStats(changes);
 }
 
-/** The active chat's changes as represented by its default changeset. */
-export function readChatChangesStats(chat: IChat, reader: IReader | undefined): ISessionChangesStats | undefined {
-	return readChangesStats(chat.changesets.read(reader), chat.changes.read(reader), reader);
+/** The active chat's changes as represented by the preferred or default changeset. */
+export function readChatChangesStats(chat: IChat, reader: IReader | undefined, preferredChangesetId?: string): ISessionChangesStats | undefined {
+	return readChangesStats(chat.changesets.read(reader), chat.changes.read(reader), reader, preferredChangesetId);
 }
 
-function readChangesStats(changesets: readonly ISessionChangeset[] | undefined, fallbackChanges: readonly ISessionFileChange[], reader: IReader | undefined): ISessionChangesStats | undefined {
-	const defaultChangeset = changesets?.find(changeset => changeset.isDefault.read(reader));
+function readChangesStats(changesets: readonly ISessionChangeset[] | undefined, fallbackChanges: readonly ISessionFileChange[], reader: IReader | undefined, preferredChangesetId?: string): ISessionChangesStats | undefined {
+	const preferredChangeset = preferredChangesetId ? changesets?.find(changeset => changeset.id === preferredChangesetId) : undefined;
+	const defaultChangeset = preferredChangeset ?? changesets?.find(changeset => changeset.isDefault.read(reader));
 	const changes = defaultChangeset?.changes.read(reader) ?? fallbackChanges;
 	if (changesets === undefined && fallbackChanges.length === 0) {
 		return undefined;

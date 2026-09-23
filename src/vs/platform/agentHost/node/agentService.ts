@@ -5520,14 +5520,31 @@ export class AgentService extends Disposable implements IAgentService {
 			// repositories holding this session's refs, and reading them from
 			// session state would silently break the moment `deleteSession` below
 			// is reordered ahead of the data deletion.
-			const workingDirectories = this._configurationService.getEffectiveWorkingDirectories(session.toString());
 			const sessionId = AgentSession.id(session);
-			const persistedPeerChats = sessionChats.length === 0 ? await this._peerChatStore.tryRead(session) : undefined;
+			const persistedPeerChats = await this._peerChatStore.tryRead(session);
+			const configuredWorkingDirectories = [
+				...(this._configurationService.getEffectiveWorkingDirectories(session.toString()) ?? []),
+				...sessionChats.flatMap(chat => this._configurationService.getEffectiveWorkingDirectories(chat.resource) ?? []),
+				...(persistedPeerChats?.flatMap(chat => chat.workingDirectories ?? []) ?? []),
+			];
+			const workingDirectories: string[] = [];
+			for (const directory of configuredWorkingDirectories) {
+				const uri = URI.parse(directory, true);
+				if (!workingDirectories.some(existing => extUriBiasedIgnorePathCase.isEqual(URI.parse(existing, true), uri))) {
+					workingDirectories.push(directory);
+				}
+			}
 			const worktree = await this._worktree.prepareSessionDeletion(session, sessionId);
 			const additionalWorktrees = await readSessionAdditionalWorktrees(this._sessionDataService, session);
-			const cleanupWorkingDirectoryUris = (worktree?.repositoryRoot
+			const candidateCleanupWorkingDirectoryUris = (worktree?.repositoryRoot
 				? [worktree.repositoryRoot.toString(), ...(workingDirectories?.slice(1) ?? [])]
 				: workingDirectories ?? []).map(directory => URI.parse(directory, true));
+			const cleanupWorkingDirectoryUris: URI[] = [];
+			for (const directory of candidateCleanupWorkingDirectoryUris) {
+				if (!cleanupWorkingDirectoryUris.some(existing => extUriBiasedIgnorePathCase.isEqual(existing, directory))) {
+					cleanupWorkingDirectoryUris.push(directory);
+				}
+			}
 			for (const additionalWorktree of additionalWorktrees) {
 				const workingDirectory = URI.parse(additionalWorktree.workingDirectory, true);
 				const repositoryRoot = URI.parse(additionalWorktree.repositoryRoot, true);

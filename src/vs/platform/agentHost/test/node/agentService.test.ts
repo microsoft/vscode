@@ -5243,6 +5243,51 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
+		test('deletes refs from peer-only working directories', async () => {
+			class MultiWorkspaceChatAgent extends MockAgent {
+				override getDescriptor(): IAgentDescriptor {
+					return {
+						provider: this.id,
+						displayName: this.id,
+						description: this.id,
+						capabilities: {
+							multipleChats: { fork: true, sideChat: true },
+							multipleWorkingDirectories: {},
+						},
+					};
+				}
+
+				override async createChat(): Promise<void> { }
+			}
+			let cleanupWorkingDirectories: readonly string[] | undefined;
+			const database = new TestSessionDatabase();
+			const sessionDataService: ISessionDataService = {
+				...createSessionDataService(database),
+				deleteSessionData: async (_resource, workingDirectories) => {
+					if (workingDirectories) {
+						cleanupWorkingDirectories = workingDirectories;
+					}
+				},
+			};
+			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = disposables.add(new MultiWorkspaceChatAgent('copilot'));
+			registerTestAgentProvider(svc, agent);
+			const primary = URI.file('/repo-a');
+			const peerOnly = URI.file('/repo-b');
+			const session = await svc.createSession({
+				provider: 'copilot',
+				workingDirectories: [primary, peerOnly],
+			});
+			const defaultChat = URI.parse(buildDefaultChatUri(session));
+			getStateManager(svc).dispatchServerAction(defaultChat.toString(), { type: ActionType.ChatWorkingDirectorySet, directory: primary.toString() });
+			const peer = URI.parse(buildChatUri(session, 'peer'));
+			await svc.createChat(session, peer, { workingDirectories: [peerOnly] });
+
+			await svc.disposeSession(session);
+
+			assert.deepStrictEqual(cleanupWorkingDirectories, ['file:///repo-a', 'file:///repo-b']);
+		});
+
 		test('uses persisted repository roots when additional checkouts are missing from live state', async () => {
 			let cleanupWorkingDirectories: readonly string[] | undefined;
 			const database = new TestSessionDatabase();

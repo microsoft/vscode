@@ -457,6 +457,85 @@ suite('AgentHostChangesetOperationService', () => {
 		});
 	}
 
+	test('a session refresh updates operations for a subscribed folder owner', () => {
+		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
+		const sessionKey = 'agent:/session';
+		const defaultChat = buildDefaultChatUri(sessionKey);
+		const workingDirectories = ['file:///workspace'];
+		stateManager.createSession({
+			resource: sessionKey, provider: 'agent', title: 'Test', status: SessionStatus.Idle,
+			createdAt: new Date(0).toISOString(), modifiedAt: new Date(0).toISOString(),
+			workingDirectories,
+		});
+		stateManager.addChat(sessionKey, defaultChat);
+		const folderOwner = buildFolderChangesetOwnerUri(sessionKey, getWorkingDirectoryScopeId(workingDirectories));
+		const changesetUri = buildBranchChangesetUri(folderOwner);
+		stateManager.registerChangeset(changesetUri);
+		const subscriptions = disposables.add(new AgentHostChangesetSubscriptionService());
+		subscriptions.addSubscription(folderOwner, changesetUri);
+		const service = disposables.add(new AgentHostChangesetOperationService(stateManager, new TestGitStateService(), subscriptions, new TestConfigurationService(workingDirectories)));
+		disposables.add(service.registerContribution(new OperationsContribution(sampleOperations)));
+
+		service.updateOperations(sessionKey, undefined, sampleGitState);
+
+		assert.deepStrictEqual(stateManager.getChangesetState(changesetUri)?.operations, sampleOperations);
+	});
+
+	test('a contribution refresh for a session updates subscribed folder-owner operations', () => {
+		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
+		const sessionKey = 'agent:/session';
+		const defaultChat = buildDefaultChatUri(sessionKey);
+		const workingDirectories = ['file:///workspace'];
+		stateManager.createSession({
+			resource: sessionKey, provider: 'agent', title: 'Test', status: SessionStatus.Idle,
+			createdAt: new Date(0).toISOString(), modifiedAt: new Date(0).toISOString(),
+			workingDirectories,
+		});
+		stateManager.addChat(sessionKey, defaultChat);
+		const folderOwner = buildFolderChangesetOwnerUri(sessionKey, getWorkingDirectoryScopeId(workingDirectories));
+		const changesetUri = buildBranchChangesetUri(folderOwner);
+		stateManager.registerChangeset(changesetUri);
+		const subscriptions = disposables.add(new AgentHostChangesetSubscriptionService());
+		subscriptions.addSubscription(folderOwner, changesetUri);
+		const gitStateService = new TestGitStateService(new Map([[defaultChat, sampleGitState]]));
+		const service = disposables.add(new AgentHostChangesetOperationService(stateManager, gitStateService, subscriptions, new TestConfigurationService(workingDirectories)));
+		disposables.add(service.registerContribution(new OperationsContribution(sampleOperations)));
+		const registryCapture = new RegistryCaptureContribution();
+		disposables.add(service.registerContribution(registryCapture));
+
+		registryCapture.registry!.onDidChangeOperations(sessionKey);
+
+		assert.deepStrictEqual(stateManager.getChangesetState(changesetUri)?.operations, sampleOperations);
+	});
+
+	test('a contribution refresh for a session republishes default Chat Changes workflow operations', () => {
+		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
+		const sessionKey = 'agent:/session';
+		const defaultChat = buildDefaultChatUri(sessionKey);
+		stateManager.createSession({
+			resource: sessionKey, provider: 'agent', title: 'Test', status: SessionStatus.Idle,
+			createdAt: new Date(0).toISOString(), modifiedAt: new Date(0).toISOString(),
+			workingDirectories: ['file:///workspace'],
+		});
+		const changesetUri = buildSessionChangesetUri(defaultChat);
+		stateManager.registerChangeset(changesetUri);
+		const subscriptions = disposables.add(new AgentHostChangesetSubscriptionService());
+		subscriptions.addSubscription(defaultChat, changesetUri);
+		const gitStateService = new TestGitStateService(new Map([[defaultChat, sampleGitState]]));
+		const service = disposables.add(new AgentHostChangesetOperationService(stateManager, gitStateService, subscriptions, new TestConfigurationService(['file:///workspace'])));
+		const operations: readonly ChangesetOperation[] = [
+			{ id: PREPARE_PULL_REQUEST_OPERATION_ID, label: 'Create Pull Request', group: 'pull-request', scopes: [ChangesetOperationScope.Changeset], status: ChangesetOperationStatus.Idle },
+			{ id: AGENT_HOST_MERGE_CHANGESET_OPERATION_ID, label: 'Merge Changes', scopes: [ChangesetOperationScope.Changeset], status: ChangesetOperationStatus.Idle },
+		];
+		disposables.add(service.registerContribution(new OperationsContribution(operations)));
+		const registryCapture = new RegistryCaptureContribution();
+		disposables.add(service.registerContribution(registryCapture));
+
+		registryCapture.registry!.onDidChangeOperations(sessionKey);
+
+		assert.deepStrictEqual(stateManager.getChangesetState(changesetUri)?.operations, operations);
+	});
+
 	test('multi-folder session clears turn operations even when git state is absent', () => {
 		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
 		const sessionKey = 'agent:/session';
@@ -576,7 +655,7 @@ suite('AgentHostChangesetOperationService', () => {
 		assert.deepStrictEqual(uncommittedOperations, sampleOperations);
 	});
 
-	test('keeps session workflow operations only on the default-chat folder branch', () => {
+	test('keeps session workflow operations on Branch and same-scope Chat Changes only', () => {
 		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
 		const sessionKey = 'agent:/session';
 		const defaultFolder = 'file:///default';
@@ -590,8 +669,10 @@ suite('AgentHostChangesetOperationService', () => {
 			modifiedAt: new Date(0).toISOString(),
 			workingDirectories: [defaultFolder],
 		});
-		const peer = buildChatUri(sessionKey, 'peer');
-		stateManager.addChat(sessionKey, peer, { workingDirectories: [peerFolder] });
+		const sameScopePeer = buildChatUri(sessionKey, 'same-scope-peer');
+		const otherScopePeer = buildChatUri(sessionKey, 'other-scope-peer');
+		stateManager.addChat(sessionKey, sameScopePeer, { workingDirectories: [defaultFolder] });
+		stateManager.addChat(sessionKey, otherScopePeer, { workingDirectories: [peerFolder] });
 		const operations: readonly ChangesetOperation[] = [
 			{ id: testOperationId, label: 'Commit', scopes: [ChangesetOperationScope.Changeset], status: ChangesetOperationStatus.Idle },
 			{ id: PREPARE_PULL_REQUEST_OPERATION_ID, label: 'Create Pull Request', group: 'pull-request', scopes: [ChangesetOperationScope.Changeset], status: ChangesetOperationStatus.Idle },
@@ -600,14 +681,32 @@ suite('AgentHostChangesetOperationService', () => {
 		const service = createService(stateManager);
 		disposables.add(service.registerContribution(new OperationsContribution(operations)));
 		const defaultBranch = buildBranchChangesetUri(buildFolderChangesetOwnerUri(sessionKey, getWorkingDirectoryScopeId([defaultFolder])));
-		const peerBranch = buildBranchChangesetUri(buildFolderChangesetOwnerUri(sessionKey, getWorkingDirectoryScopeId([peerFolder])));
+		const defaultUncommitted = buildUncommittedChangesetUri(buildFolderChangesetOwnerUri(sessionKey, getWorkingDirectoryScopeId([defaultFolder])));
+		const defaultChatChanges = buildSessionChangesetUri(buildDefaultChatUri(sessionKey));
+		const defaultTurn = buildTurnChangesetUri(buildDefaultChatUri(sessionKey), 'turn-1');
+		const defaultCompare = buildCompareTurnsChangesetUri(buildDefaultChatUri(sessionKey), 'turn-1', 'turn-2');
+		const otherScopeBranch = buildBranchChangesetUri(buildFolderChangesetOwnerUri(sessionKey, getWorkingDirectoryScopeId([peerFolder])));
+		const sameScopePeerChatChanges = buildSessionChangesetUri(sameScopePeer);
+		const otherScopePeerChatChanges = buildSessionChangesetUri(otherScopePeer);
 
 		assert.deepStrictEqual({
-			defaultChat: service.getOperations(sessionKey, defaultBranch, sampleGitState).map(operation => operation.id),
-			peerChat: service.getOperations(sessionKey, peerBranch, sampleGitState).map(operation => operation.id),
+			defaultBranch: service.getOperations(sessionKey, defaultBranch, sampleGitState).map(operation => operation.id),
+			defaultUncommitted: service.getOperations(sessionKey, defaultUncommitted, sampleGitState).map(operation => operation.id),
+			defaultChatChanges: service.getOperations(sessionKey, defaultChatChanges, sampleGitState).map(operation => operation.id),
+			defaultTurn: service.getOperations(sessionKey, defaultTurn, sampleGitState).map(operation => operation.id),
+			defaultCompare: service.getOperations(sessionKey, defaultCompare, sampleGitState).map(operation => operation.id),
+			sameScopePeerChatChanges: service.getOperations(sessionKey, sameScopePeerChatChanges, sampleGitState).map(operation => operation.id),
+			otherScopeBranch: service.getOperations(sessionKey, otherScopeBranch, sampleGitState).map(operation => operation.id),
+			otherScopePeerChatChanges: service.getOperations(sessionKey, otherScopePeerChatChanges, sampleGitState).map(operation => operation.id),
 		}, {
-			defaultChat: [testOperationId, PREPARE_PULL_REQUEST_OPERATION_ID, AGENT_HOST_MERGE_CHANGESET_OPERATION_ID],
-			peerChat: [testOperationId],
+			defaultBranch: [testOperationId, PREPARE_PULL_REQUEST_OPERATION_ID, AGENT_HOST_MERGE_CHANGESET_OPERATION_ID],
+			defaultUncommitted: [testOperationId],
+			defaultChatChanges: [testOperationId, PREPARE_PULL_REQUEST_OPERATION_ID, AGENT_HOST_MERGE_CHANGESET_OPERATION_ID],
+			defaultTurn: [testOperationId],
+			defaultCompare: [testOperationId],
+			sameScopePeerChatChanges: [testOperationId, PREPARE_PULL_REQUEST_OPERATION_ID, AGENT_HOST_MERGE_CHANGESET_OPERATION_ID],
+			otherScopeBranch: [testOperationId],
+			otherScopePeerChatChanges: [testOperationId],
 		});
 	});
 
