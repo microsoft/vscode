@@ -5,11 +5,11 @@
 
 import { coalesce } from '../../../../../base/common/arrays.js';
 import { Throttler } from '../../../../../base/common/async.js';
-import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { CancellationToken, CancellationTokenPool } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { onUnexpectedError } from '../../../../../base/common/errors.js';
 import { Emitter } from '../../../../../base/common/event.js';
-import { Disposable, DisposableResourceMap, DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableResourceMap, DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { ResourceMap, ResourceSet } from '../../../../../base/common/map.js';
 import { equals } from '../../../../../base/common/objects.js';
 import { autorun, observableSignalFromEvent } from '../../../../../base/common/observable.js';
@@ -36,6 +36,8 @@ export class LocalAgentsSessionsController extends Disposable implements IChatSe
 
 	private readonly _modelListeners = this._register(new DisposableResourceMap<DisposableStore>());
 	private readonly _refreshThrottler = this._register(new Throttler());
+	private readonly _refreshTokenPool = this._register(new MutableDisposable<CancellationTokenPool>());
+	private _pendingRefreshTokens: CancellationToken[] = [];
 	private _refreshVersion = 0;
 
 	private _isDisposed = false;
@@ -53,6 +55,7 @@ export class LocalAgentsSessionsController extends Disposable implements IChatSe
 
 	override dispose(): void {
 		this._isDisposed = true;
+		this._pendingRefreshTokens = [];
 		super.dispose();
 	}
 
@@ -62,7 +65,25 @@ export class LocalAgentsSessionsController extends Disposable implements IChatSe
 	}
 
 	refresh(token: CancellationToken): Promise<void> {
-		return this._refreshThrottler.queue(() => this.doRefresh(token));
+		this._pendingRefreshTokens.push(token);
+		return this._refreshThrottler.queue(async () => {
+			const tokens = this._pendingRefreshTokens.filter(token => !token.isCancellationRequested);
+			this._pendingRefreshTokens = [];
+			if (tokens.length === 0) {
+				return;
+			}
+
+			// Coalesced work is cancelled only when every interested caller cancels.
+			const tokenPool = this._refreshTokenPool.value = new CancellationTokenPool();
+			try {
+				for (const token of tokens) {
+					tokenPool.add(token);
+				}
+				await this.doRefresh(tokenPool.token);
+			} finally {
+				this._refreshTokenPool.clear();
+			}
+		});
 	}
 
 	private async doRefresh(token: CancellationToken): Promise<void> {
