@@ -227,6 +227,7 @@ suite('CustomizationMarketplaceWorkbenchService', () => {
 			const pages: ICustomizationMarketplacePage[] = [];
 			const publicResults = fixture.publicEntries.map(item => ['agentFinder', item.identifier, item.score]);
 			const connectorResults = fixture.connectors.map(item => ['copilotConnectors', item.name, query ? 90 : undefined]);
+			const browseResults = publicResults.flatMap((item, index) => index < connectorResults.length ? [item, connectorResults[index]] : [item]);
 			let cursor: ICustomizationMarketplaceCursor | undefined;
 			do {
 				const page = await fixture.service.query({ query, pageSize: 24, cursor }, CancellationToken.None);
@@ -249,7 +250,7 @@ suite('CustomizationMarketplaceWorkbenchService', () => {
 			}, {
 				lengths: [24, 24, 24, 3],
 				totals: [75, 75, 75, 75],
-				results: query ? [...publicResults.slice(0, 11), ...connectorResults, ...publicResults.slice(11)] : [...publicResults, ...connectorResults],
+				results: query ? [...publicResults.slice(0, 11), ...connectorResults, ...publicResults.slice(11)] : browseResults,
 				cursorKeys: [['token'], ['token'], ['token']],
 				nativePageSizes: [24],
 				nativeCalls: 9,
@@ -259,28 +260,65 @@ suite('CustomizationMarketplaceWorkbenchService', () => {
 		});
 	}
 
-	test('account invalidation refuses buffered connectors before any IPC or catalog reads', async () => {
-		const fixture = createMixedFixture(['agentFinder', 'copilotConnectors']);
-		const context = store.add(new CancellationTokenSource());
-		fixture.connectorsService.cacheToken = context.token;
-		const options = { query: 'mail', pageSize: 2 };
-		const first = await fixture.service.query(options, CancellationToken.None);
-		context.cancel();
-		fixture.connectorsService.cacheToken = CancellationToken.None;
-		fixture.connectors.splice(0, fixture.connectors.length, createConnector('new-account', 'Mail'));
-		await assert.rejects(fixture.service.query({ ...options, cursor: first.nextCursor }, CancellationToken.None), /Start a new search/);
-		const readsBeforeNewSearch = [fixture.ipcRequests.length, fixture.connectorCalls.length];
-		const fresh = await fixture.service.query(options, CancellationToken.None);
-		assert.deepStrictEqual({
-			oldIds: first.items.map(item => item.identifier),
-			readsBeforeNewSearch,
-			fresh: fresh.items.map(item => [item.sourceId, item.identifier, item.score]),
-		}, {
-			oldIds: ['public-0', 'public-1'],
-			readsBeforeNewSearch: [1, 1],
-			fresh: [['agentFinder', 'public-0', 100], ['copilotConnectors', 'new-account', 100]],
+	for (const pageSize of [1, 3]) {
+		test(`queryless browsing preserves rotation and snapshots across ${pageSize}-entry pages and source exhaustion`, async () => {
+			const fixture = createMixedFixture(['agentFinder', 'copilotConnectors']);
+			fixture.publicEntries.splice(7);
+			fixture.connectors.splice(4);
+			const expected = [
+				'public-0', 'connector-0', 'public-1', 'connector-1', 'public-2', 'connector-2',
+				'public-3', 'connector-3', 'public-4', 'public-5', 'public-6',
+			];
+			const pages: ICustomizationMarketplacePage[] = [];
+			let cursor: ICustomizationMarketplaceCursor | undefined;
+			do {
+				const page = await fixture.service.query({ pageSize, cursor }, CancellationToken.None);
+				pages.push(page);
+				cursor = page.nextCursor;
+				if (pages.length === 1) {
+					fixture.connectors.reverse();
+					fixture.connectors.push(createConnector('new'));
+				}
+				assert.ok(pages.length <= expected.length);
+			} while (cursor);
+			assert.deepStrictEqual({
+				pages: pages.map(page => page.items.map(item => item.identifier)),
+				totals: [...new Set(pages.map(page => page.total))],
+				publicCursorKeys: pages.slice(0, -1).map(page => Object.keys(page.nextCursor!)),
+				connectorReads: fixture.connectorCalls.length,
+			}, {
+				pages: Array.from({ length: Math.ceil(expected.length / pageSize) }, (_, index) => expected.slice(index * pageSize, (index + 1) * pageSize)),
+				totals: [11],
+				publicCursorKeys: pages.slice(0, -1).map(() => ['token']),
+				connectorReads: 1,
+			});
 		});
-	});
+	}
+
+	for (const query of [undefined, 'mail']) {
+		test(`account invalidation refuses buffered ${query ? 'search' : 'browse'} connectors before any IPC or catalog reads`, async () => {
+			const fixture = createMixedFixture(['agentFinder', 'copilotConnectors']);
+			const context = store.add(new CancellationTokenSource());
+			fixture.connectorsService.cacheToken = context.token;
+			const options = { query, pageSize: 2 };
+			const first = await fixture.service.query(options, CancellationToken.None);
+			context.cancel();
+			fixture.connectorsService.cacheToken = CancellationToken.None;
+			fixture.connectors.splice(0, fixture.connectors.length, createConnector('new-account', 'Mail'));
+			await assert.rejects(fixture.service.query({ ...options, cursor: first.nextCursor }, CancellationToken.None), /Start a new search/);
+			const readsBeforeNewSearch = [fixture.ipcRequests.length, fixture.connectorCalls.length];
+			const fresh = await fixture.service.query(options, CancellationToken.None);
+			assert.deepStrictEqual({
+				oldIds: first.items.map(item => item.identifier),
+				readsBeforeNewSearch,
+				fresh: fresh.items.map(item => [item.sourceId, item.identifier, item.score]),
+			}, {
+				oldIds: ['public-0', query ? 'public-1' : 'connector-0'],
+				readsBeforeNewSearch: [1, 1],
+				fresh: [['agentFinder', 'public-0', 100], ['copilotConnectors', 'new-account', query ? 100 : undefined]],
+			});
+		});
+	}
 
 	test('forwards an opaque backend cursor without decoding it or exposing it in the combined cursor', async () => {
 		const opaque = 'opaque+/=&{"installation":"not-provenance"}';

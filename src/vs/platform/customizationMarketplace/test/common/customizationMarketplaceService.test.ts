@@ -72,8 +72,8 @@ suite('CustomizationMarketplaceService', () => {
 			],
 			pages: [
 				{ items: ['first'], total: 3, hasMore: true },
-				{ items: ['first'], total: 3, hasMore: true },
-				{ items: ['second'], total: 3, hasMore: false },
+				{ items: ['second'], total: 3, hasMore: true },
+				{ items: ['first'], total: 3, hasMore: false },
 			],
 		});
 	});
@@ -247,9 +247,88 @@ suite('CustomizationMarketplaceService', () => {
 		const browse = await service.query(options, CancellationToken.None);
 		assert.deepStrictEqual([search, browse].map(page => page.items.map(item => [item.sourceId, item.score])), [
 			[['first', 90], ['second', 90], ['first', undefined], ['second', 0]],
-			[['first', 90], ['first', undefined], ['second', 90], ['second', 0]],
+			[['first', 90], ['second', 90], ['first', undefined], ['second', 0]],
 		]);
 	});
+
+	test('browsing interleaves feeds across page boundaries and backfills after one exhausts', async () => {
+		const sources = ['first', 'second'].map((id, index): ICustomizationMarketplaceSource => ({
+			id, query: async options => {
+				const total = index ? 3 : 5;
+				const offset = Number(options.cursor ?? 0);
+				const items = Array.from({ length: Math.min(options.pageSize!, total - offset) }, (_, itemIndex) => ({
+					...entry, identifier: `${id}-${offset + itemIndex}`, score: offset + itemIndex,
+				}));
+				return { items, total, nextCursor: offset + items.length < total ? String(offset + items.length) : undefined };
+			},
+		}));
+		const service = new CustomizationMarketplaceService(sources);
+		const options = { sourceIds: sources.map(source => source.id), pageSize: 3 };
+		const first = await service.query(options, CancellationToken.None);
+		const second = await service.query({ ...options, cursor: first.nextCursor }, CancellationToken.None);
+		const third = await service.query({ ...options, cursor: second.nextCursor }, CancellationToken.None);
+		assert.deepStrictEqual({ ids: [first, second, third].map(page => page.items.map(item => item.identifier)), hasMore: !!third.nextCursor }, {
+			ids: [
+				['first-0', 'second-0', 'first-1'],
+				['second-1', 'first-2', 'second-2'],
+				['first-3', 'first-4'],
+			],
+			hasMore: false,
+		});
+	});
+
+	for (const outcome of ['failure', 'cancellation']) {
+		test(`browsing restores buffered entries and rotation after continuation ${outcome}`, async () => {
+			const cancellation = store.add(new CancellationTokenSource());
+			const waiting = new DeferredPromise<void>();
+			const delayed = new DeferredPromise<ICustomizationMarketplaceSourcePage>();
+			const firstTail = { items: [3, 4].map(index => ({ ...entry, identifier: `first-${index}` })), total: 5 };
+			const secondTail = { items: [2, 3].map(index => ({ ...entry, identifier: `second-${index}` })), total: 4 };
+			let continuationReads = 0;
+			const service = new CustomizationMarketplaceService([
+				{ id: 'first', query: async options => options.cursor ? firstTail : {
+					items: [0, 1, 2].map(index => ({ ...entry, identifier: `first-${index}` })), total: 5, nextCursor: 'next',
+				} },
+				{ id: 'second', query: async options => {
+					if (!options.cursor) {
+						return { items: [0, 1].map(index => ({ ...entry, identifier: `second-${index}` })), total: 4, nextCursor: 'next' };
+					}
+					if (++continuationReads === 1) {
+						await waiting.complete();
+						return delayed.p;
+					}
+					return secondTail;
+				} },
+			]);
+			const options = { sourceIds: ['first', 'second'], pageSize: 3 };
+			const first = await service.query(options, CancellationToken.None);
+			const next = service.query({ ...options, cursor: first.nextCursor }, cancellation.token);
+			const rejected = assert.rejects(next, outcome === 'failure' ? /temporary/ : isCancellationError);
+			await waiting.p;
+			if (outcome === 'failure') {
+				await delayed.error(new Error('temporary'));
+			} else {
+				cancellation.cancel();
+				await delayed.complete(secondTail);
+			}
+			await rejected;
+			const retry = await service.query({ ...options, cursor: first.nextCursor }, CancellationToken.None);
+			const last = await service.query({ ...options, cursor: retry.nextCursor }, CancellationToken.None);
+			assert.deepStrictEqual({
+				pages: [first, retry, last].map(page => page.items.map(item => item.identifier)),
+				continuationReads,
+				hasMore: !!last.nextCursor,
+			}, {
+				pages: [
+					['first-0', 'second-0', 'first-1'],
+					['second-1', 'first-2', 'second-2'],
+					['first-3', 'second-3', 'first-4'],
+				],
+				continuationReads: 2,
+				hasMore: false,
+			});
+		});
+	}
 
 	test('rejects invalid scores, out-of-order pages, and non-progressing continuations', async () => {
 		for (const items of [[-1], [101], [NaN], [Infinity], [80, 90]]) {

@@ -157,6 +157,7 @@ interface IMarketplaceContinuation {
 	readonly pageSize: number;
 	readonly sourceIds: readonly string[];
 	readonly states: readonly IMarketplaceSourceState[];
+	readonly nextSourceIndex: number;
 	readonly expiresAt: number;
 }
 
@@ -196,6 +197,7 @@ export class CustomizationMarketplaceService implements ICustomizationMarketplac
 		const states: IMarketplaceSourceState[] = continuation
 			? continuation.states.map(state => ({ ...state, items: [...state.items] }))
 			: sources.map(() => ({ items: [], exhausted: false, lastScore: 100 }));
+		let nextSourceIndex = continuation?.nextSourceIndex ?? 0;
 		const store = new DisposableStore();
 		const cancellation = store.add(new CancellationTokenSource(token));
 		try {
@@ -235,7 +237,8 @@ export class CustomizationMarketplaceService implements ICustomizationMarketplac
 					throw new Error(localize('customizationMarketplace.invalidCursor', "The marketplace page is invalid. Start a new search."));
 				}
 				let selected = -1;
-				for (let index = 0; index < states.length; index++) {
+				for (let offset = 0; offset < states.length; offset++) {
+					const index = ((query ? 0 : nextSourceIndex) + offset) % states.length;
 					if (states[index].items.length && (selected < 0 ||
 						(query && (states[index].items[0].score ?? 0) > (states[selected].items[0].score ?? 0)))) {
 						selected = index;
@@ -245,13 +248,14 @@ export class CustomizationMarketplaceService implements ICustomizationMarketplac
 					break;
 				}
 				items.push({ ...states[selected].items.shift()!, sourceId: sources[selected].id });
+				nextSourceIndex = (selected + 1) % states.length;
 			}
 			let nextCursor: ICustomizationMarketplaceCursor | undefined;
 			if (states.some(state => state.items.length || !state.exhausted)) {
 				nextCursor = { token: generateUuid() };
 				this.continuations.set(nextCursor.token, {
 					query, mediaType: options.mediaType, pageSize, sourceIds: sources.map(source => source.id),
-					states, expiresAt: Date.now() + 30 * 60_000,
+					states, nextSourceIndex, expiresAt: Date.now() + 30 * 60_000,
 				});
 			}
 			return {
