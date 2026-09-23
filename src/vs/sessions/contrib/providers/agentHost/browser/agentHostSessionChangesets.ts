@@ -20,7 +20,7 @@ import { ChangesetOperation, ChangesetOperationScope, type ChangesetFile, Change
 import { ActionType } from '../../../../../platform/agentHost/common/state/sessionActions.js';
 import { buildDefaultChatUri, ChangesetStatus, Changeset, isHostNoticeTurn, lastAttributableTurnId, MessageKind, parseRequiredSessionUriFromChatUri, StateComponents, TurnState, type ChangesetState, type ChatState, type ChatSummary, type SessionState } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
-import { CHAT_CHANGES_CHANGESET_ID, ISessionChangeset, ISessionChangesetCapabilities, ISessionChangesetOperation, ISessionChangesetOperationTarget, ISessionFileChange, SessionChangesetOperationScope, SessionChangesetOperationStatus, sessionFileChangesEqual } from '../../../../services/sessions/common/session.js';
+import { ISessionChangeset, ISessionChangesetCapabilities, ISessionChangesetOperation, ISessionChangesetOperationTarget, ISessionFileChange, SessionChangesetOperationScope, SessionChangesetOperationStatus, sessionFileChangesEqual } from '../../../../services/sessions/common/session.js';
 import { isIChatSessionFileChange2 } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { changesetFileToChange } from './agentHostDiffs.js';
 import { AgentHostPullRequestCreation } from './agentHostPullRequestCreation.js';
@@ -95,7 +95,6 @@ export function createChangesets(
 		// A relative template parses to a local filesystem path, so resolve before use.
 		const changeset = {
 			...catalogueEntry,
-			id: chatUri && catalogueEntry.changeKind === ChangesetKind.Session ? CHAT_CHANGES_CHANGESET_ID : catalogueEntry.id,
 			uriTemplate: resolveChangesetUriTemplate(sessionUri.toString(), catalogueEntry.uriTemplate),
 		};
 
@@ -143,8 +142,8 @@ export function createChatChangesets(
 		StateComponents.Session,
 		constObservable(sessionUri),
 	);
-	let lastCatalogue: readonly Changeset[] | undefined;
-	let lastCatalogueOwner: URI | undefined;
+	let lastChatCatalogue: readonly Changeset[] | undefined;
+	let lastSessionCatalogue: readonly Changeset[] | undefined;
 	let lastChangesets: readonly ISessionChangeset[] | undefined;
 	return derived(reader => {
 		const chatState = chatStateObs.read(reader).read(reader);
@@ -152,23 +151,23 @@ export function createChatChangesets(
 		if (!chatState || chatState instanceof Error || sessionState instanceof Error) {
 			return undefined;
 		}
+		if (chatState.changesets === lastChatCatalogue && sessionState?.changesets === lastSessionCatalogue && lastChangesets !== undefined) {
+			return lastChangesets;
+		}
 		const resolvedCatalogue = resolveChatChangesetCatalogue(chatUri.toString(), chatState.changesets, sessionState?.changesets);
 		if (resolvedCatalogue === undefined) {
-			lastCatalogue = undefined;
-			lastCatalogueOwner = undefined;
+			lastChatCatalogue = undefined;
+			lastSessionCatalogue = undefined;
 			lastChangesets = undefined;
 			return undefined;
 		}
-		const catalogueOwner = resolvedCatalogue.owner === 'session' ? sessionUri : chatUri;
-		if (resolvedCatalogue.changesets === lastCatalogue && isEqual(catalogueOwner, lastCatalogueOwner) && lastChangesets !== undefined) {
-			return lastChangesets;
-		}
-		lastCatalogue = resolvedCatalogue.changesets;
-		lastCatalogueOwner = catalogueOwner;
-		lastChangesets = createChangesets(catalogueOwner, options, isActiveSessionObs, resolvedCatalogue.changesets.map(changeset => ({
+		lastChatCatalogue = chatState.changesets;
+		lastSessionCatalogue = sessionState?.changesets;
+		lastChangesets = createChangesets(chatUri, options, isActiveSessionObs, resolvedCatalogue.map(({ changeset, owner }) => ({
 			...changeset,
+			uriTemplate: resolveChangesetUriTemplate((owner === 'session' ? sessionUri : chatUri).toString(), changeset.uriTemplate),
 			changes: changeset.changeKind === ChangesetKind.Turn ? currentTurnChanges : undefined,
-		})), resolvedCatalogue.owner === 'chat' ? chatUri : undefined);
+		})), chatUri);
 		return lastChangesets;
 	});
 }

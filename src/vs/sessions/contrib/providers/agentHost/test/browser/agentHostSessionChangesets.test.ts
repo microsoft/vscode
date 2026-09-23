@@ -38,7 +38,7 @@ import { ChatContextKeys } from '../../../../../../workbench/contrib/chat/common
 import { TestStorageService } from '../../../../../../workbench/test/common/workbenchTestServices.js';
 import { Menus } from '../../../../../browser/menus.js';
 import { SessionIdContext } from '../../../../../common/contextkeys.js';
-import { CHAT_CHANGES_CHANGESET_ID, IChat, ISessionChangeset, ISessionFileChange, ISessionFolder, ISessionGitRepository, ISessionWorkspace, SESSION_CHANGES_CHANGESET_ID, SessionChangesetOperationStatus } from '../../../../../services/sessions/common/session.js';
+import { IChat, ISessionChangeset, ISessionFileChange, ISessionFolder, ISessionGitRepository, ISessionWorkspace, SESSION_CHANGES_CHANGESET_ID, SessionChangesetOperationStatus } from '../../../../../services/sessions/common/session.js';
 import { SessionContext } from '../../../../../services/sessions/browser/sessionContext.js';
 import { ISessionsPartService } from '../../../../../services/sessions/browser/sessionsPartService.js';
 import { ISessionsService } from '../../../../../services/sessions/browser/sessionsService.js';
@@ -229,7 +229,7 @@ suite('AgentHostSessionChangesets', () => {
 			};
 
 			return createChangesets(sessionUri, options, constObservable(false), changeKinds.map(entry), URI.parse(buildDefaultChatUri(sessionUri.toString())))
-				.map(changeset => `${changeset.id === CHAT_CHANGES_CHANGESET_ID ? ChangesetKind.Session : changeset.id}${changeset.isDefault.get() ? '*' : ''}`);
+				.map(changeset => `${changeset.id}${changeset.isDefault.get() ? '*' : ''}`);
 		}
 
 		/** The catalogue a Copilot host advertises for a git-backed session. */
@@ -271,7 +271,7 @@ suite('AgentHostSessionChangesets', () => {
 				['uncommitted*']);
 		});
 
-		test('projects distinct session and chat changeset identities', () => {
+		test('projects Session Changes with the same identity in every chat', () => {
 			const instantiationService = disposables.add(new TestInstantiationService());
 			instantiationService.stub(IDialogService, { confirm: async () => ({ confirmed: true }) });
 			const options: IAgentHostAdapterOptions = {
@@ -292,7 +292,7 @@ suite('AgentHostSessionChangesets', () => {
 				chat: { id: chatChangeset.id, isDefault: chatChangeset.isDefault.get() },
 			}, {
 				session: { id: SESSION_CHANGES_CHANGESET_ID, isDefault: false },
-				chat: { id: CHAT_CHANGES_CHANGESET_ID, isDefault: true },
+				chat: { id: SESSION_CHANGES_CHANGESET_ID, isDefault: true },
 			});
 		});
 
@@ -317,7 +317,7 @@ suite('AgentHostSessionChangesets', () => {
 		});
 	});
 
-	test('projects the chat changeset catalogue and preserves changeset identity for unrelated updates', () => {
+	test('projects chat-owned changesets with session-owned Session Changes', () => {
 		const chatUri = URI.parse('ahp-chat://default/c2Vzc2lvbg');
 		const chatSummary: ChatSummary = {
 			resource: chatUri.toString(),
@@ -378,24 +378,27 @@ suite('AgentHostSessionChangesets', () => {
 			preservedIdentity: initial === afterUnrelatedUpdate,
 			updated: updated?.map(changeset => changeset.id),
 			updatedResource: updated?.map(changeset => changeset.resource?.toString()),
-			emptyCatalogue: current,
+			emptyCatalogue: current?.map(changeset => changeset.id),
+			emptyCatalogueResource: current?.map(changeset => changeset.resource?.toString()),
 		}, {
 			absentCatalogue: undefined,
-			initial: ['chat'],
-			initialResource: [`${chatUri}/changeset/session`],
+			initial: ['session'],
+			initialResource: ['file:///session/changeset/session'],
 			preservedIdentity: true,
-			updated: ['branch'],
-			updatedResource: [`${chatUri}/changeset/branch`],
-			emptyCatalogue: [],
+			updated: ['branch', 'session'],
+			updatedResource: [`${chatUri}/changeset/branch`, 'file:///session/changeset/session'],
+			emptyCatalogue: ['session'],
+			emptyCatalogueResource: ['file:///session/changeset/session'],
 		});
 	});
 
-	test('falls back to the legacy session catalogue only for the default chat', () => {
+	test('projects legacy Session Changes into every chat', () => {
 		const sessionUri = URI.parse('ahp-session:/session');
 		const defaultChatUri = URI.parse(buildDefaultChatUri(sessionUri.toString()));
 		const peerChatUri = URI.parse(buildChatUri(sessionUri.toString(), 'peer'));
 		const legacyCatalogue: readonly Changeset[] = [
 			{ label: 'Branch Changes', changeKind: ChangesetKind.Branch, uriTemplate: 'changeset/branch' },
+			{ label: 'Session Changes', changeKind: ChangesetKind.Session, uriTemplate: 'changeset/session' },
 			{ label: 'Last Turn Changes', changeKind: ChangesetKind.Turn, uriTemplate: 'changeset/turn/{turnId}' },
 		];
 		const sessionSubscription = createMutableSubscription({
@@ -447,11 +450,13 @@ suite('AgentHostSessionChangesets', () => {
 		assert.deepStrictEqual({
 			defaultIds: defaultChangesets?.map(changeset => changeset.id),
 			defaultBranchResource: defaultChangesets?.[0].resource?.toString(),
-			peerChangesets,
+			peerIds: peerChangesets?.map(changeset => changeset.id),
+			peerResource: peerChangesets?.[0].resource?.toString(),
 		}, {
-			defaultIds: ['branch', 'turn'],
+			defaultIds: ['branch', 'session', 'turn'],
 			defaultBranchResource: `${sessionUri.toString()}/changeset/branch`,
-			peerChangesets: [],
+			peerIds: ['session'],
+			peerResource: `${sessionUri.toString()}/changeset/session`,
 		});
 	});
 

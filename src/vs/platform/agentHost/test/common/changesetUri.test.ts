@@ -30,6 +30,7 @@ import {
 	parseTurnChangesetUri,
 	parseFolderChangesetOwnerUri,
 	resolveChangesetUriTemplate,
+	resolveChatChangesetCatalogue,
 	selectDefaultChangeset,
 } from '../../common/changesetUri.js';
 
@@ -208,7 +209,7 @@ suite('changesetUri', () => {
 		assert.strictEqual(isUncommittedChangesetUri(buildSessionChangesetUri(sessionUri)), false);
 	});
 
-	test('advertises cumulative session changes alongside chat-owned changesets', () => {
+	test('advertises cumulative session changes only on the session catalogue', () => {
 		const creatingState = { ...state(), lifecycle: SessionLifecycle.Creating };
 		const readyState = state();
 		const defaultChatUri = buildDefaultChatUri(sessionUri);
@@ -233,17 +234,39 @@ suite('changesetUri', () => {
 				changeKind: ChangesetKind.Session,
 			}],
 			readyChat: [{
-				label: 'Chat Changes',
-				description: 'Show all changes made in this chat',
-				uriTemplate: buildSessionChangesetUri(defaultChatUri),
-				changeKind: ChangesetKind.Session,
-			}, {
 				label: 'This Turn',
 				description: 'Show changes made in this turn',
 				uriTemplate: buildTurnChangesetUriTemplate(defaultChatUri),
 				changeKind: ChangesetKind.Turn,
 			}],
 		});
+	});
+
+	test('projects the session-owned Session Changes entry into every chat catalogue', () => {
+		const peerChatUri = buildChatUri(sessionUri, 'peer');
+		const sessionChangeset = {
+			label: 'Session Changes',
+			uriTemplate: buildSessionChangesetUri(sessionUri),
+			changeKind: ChangesetKind.Session,
+		};
+		const resolved = resolveChatChangesetCatalogue(peerChatUri, [{
+			label: 'Branch Changes',
+			uriTemplate: buildBranchChangesetUri(peerChatUri),
+			changeKind: ChangesetKind.Branch,
+		}, {
+			label: 'This Turn',
+			uriTemplate: buildTurnChangesetUriTemplate(peerChatUri),
+			changeKind: ChangesetKind.Turn,
+		}], [sessionChangeset]);
+
+		assert.deepStrictEqual(resolved?.map(({ changeset, owner }) => ({
+			kind: changeset.changeKind,
+			owner,
+		})), [
+			{ kind: ChangesetKind.Branch, owner: 'chat' },
+			{ kind: ChangesetKind.Session, owner: 'session' },
+			{ kind: ChangesetKind.Turn, owner: 'chat' },
+		]);
 	});
 
 	test('allows chat catalogues to share the session branch changeset without sharing chat-scoped changesets', () => {
@@ -262,7 +285,6 @@ suite('changesetUri', () => {
 			[
 				{ kind: ChangesetKind.Branch, uri: buildBranchChangesetUri(sessionUri) },
 				{ kind: ChangesetKind.Uncommitted, uri: buildUncommittedChangesetUri(peerChatUri) },
-				{ kind: ChangesetKind.Session, uri: buildSessionChangesetUri(peerChatUri) },
 				{ kind: ChangesetKind.Turn, uri: buildTurnChangesetUriTemplate(peerChatUri) },
 				{ kind: ChangesetKind.Compare, uri: buildCompareTurnsChangesetUriTemplate(peerChatUri) },
 			],

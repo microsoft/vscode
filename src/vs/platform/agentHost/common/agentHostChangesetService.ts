@@ -93,23 +93,20 @@ export interface IAgentHostChangesetService {
 	readonly _serviceBrand: undefined;
 
 	/**
-	 * Registers the two static changeset URIs (`uncommitted`, `session`)
-	 * on the state manager so client subscriptions resolve to a
-	 * `status: computing` snapshot before the first compute pass
-	 * completes. The owner catalogue is published separately by
-	 * {@link refreshChangesetCatalog}; this only deals with the
-	 * state-manager-side per-changeset entries.
+	 * Registers static repository changesets for any owner and the cumulative
+	 * Session Changes resource for session owners.
 	 *
 	 * Idempotent; safe to call on every create and restore path.
 	 */
 	registerStaticChangesets(session: ProtocolURI): void;
 
 	/**
-	 * Re-seed a static changeset (`uncommitted` or `session`) from a
+	 * Re-seed a static changeset from a
 	 * previously persisted file list (e.g. read out of the session DB on
 	 * restore / listSessions). Idempotently registers the changeset URI
 	 * on the state manager, fans the persisted files out as
 	 * `changeset/fileSet` actions, and transitions the status to `Ready`.
+	 * Session Changes are restored only for session owners.
 	 */
 	restoreStaticChangeset(session: ProtocolURI, kind: StaticChangesetKind, diffs: readonly ISessionFileDiff[]): void;
 

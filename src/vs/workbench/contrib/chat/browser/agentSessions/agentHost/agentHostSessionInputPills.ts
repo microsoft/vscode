@@ -323,9 +323,12 @@ export class AgentHostSessionInputPills extends Disposable {
 				return undefined;
 			}
 			const resolvedCatalogue = resolveChatChangesetCatalogue(chat.toString(), chatState.read(reader)?.changesets, sessionState.read(reader)?.changesets);
+			const selectableEntries = resolvedCatalogue?.filter(({ changeset }) => !changeset.uriTemplate.includes('{'));
+			const selectedChangeset = selectDefaultChangeset(selectableEntries?.map(({ changeset }) => changeset), currentResolution.defaultChangesetKind);
+			const selectedEntry = selectableEntries?.find(({ changeset }) => changeset === selectedChangeset);
 			return resolveAgentHostChangeset(
-				resolvedCatalogue?.owner === 'session' ? currentResolution.backendSession : chat,
-				resolvedCatalogue?.changesets,
+				selectedEntry?.owner === 'session' ? currentResolution.backendSession : chat,
+				selectedChangeset ? [selectedChangeset] : undefined,
 				currentResolution.defaultChangesetKind,
 			);
 		});

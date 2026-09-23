@@ -82,7 +82,7 @@ export class AgentHostChangesetCoordinator extends Disposable {
 		this.onChatAvailable(buildDefaultChatUri(sessionStr));
 	}
 
-	/** Seeds the catalogue and static changesets for an available chat state. */
+	/** Seeds the catalogue and static repository changesets for an available chat state. */
 	onChatAvailable(chat: string): void {
 		if (!this._stateManager.getChatState(chat)) {
 			return;
@@ -246,6 +246,9 @@ export class AgentHostChangesetCoordinator extends Disposable {
 		}
 
 		if (parsed?.kind === ChangesetKind.Session) {
+			if (isAhpChatChannel(parsed.ownerUri)) {
+				return;
+			}
 			this._addSubscription(parsed.ownerUri, resourceStr);
 			this._changesets.refreshSessionChangeset(parsed.ownerUri);
 			this._changesetFileMonitor.trackSessionChanges(resourceStr, parsed.ownerUri);

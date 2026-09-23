@@ -85,7 +85,7 @@ const hasGit = (() => {
 		}
 	});
 
-	test('terminal-driven file edit (no ToolResultFileEditContent) lands in Branch and Chat Changes', async function () {
+	test('terminal-driven file edit lands in Branch and Session Changes', async function () {
 		this.timeout(getAgentHostE2ETestTimeout(15_000, 90_000));
 
 		// Create a session whose working directory is the tmp git repo.
@@ -100,13 +100,13 @@ const hasGit = (() => {
 		const sessionUri = (addedNotif.params as SessionAddedParams).summary.resource;
 
 		await client.call<SubscribeResult>('subscribe', { channel: sessionUri });
-		// Changeset envelopes are scoped to their own channels, so session-only
-		// subscriptions do not receive Branch or Chat Changes updates.
+		// Changeset envelopes are scoped to their own channels, so the session
+		// subscription does not receive Branch or Session Changes updates.
 		const branchChangesetUri = buildBranchChangesetUri(buildFolderChangesetOwnerUri(sessionUri, getWorkingDirectoryScopeId([workingDirectory])));
-		const chatChangesetUri = buildSessionChangesetUri(buildDefaultChatUri(sessionUri));
+		const sessionChangesetUri = buildSessionChangesetUri(sessionUri);
 		await client.call<SubscribeResult>('subscribe', { channel: buildDefaultChatUri(sessionUri) });
 		await client.call<SubscribeResult>('subscribe', { channel: branchChangesetUri });
-		await client.call<SubscribeResult>('subscribe', { channel: chatChangesetUri });
+		await client.call<SubscribeResult>('subscribe', { channel: sessionChangesetUri });
 		client.clearReceived();
 
 		// Fire a turn that runs the `terminal-edit:<path>` mock prompt. The mock
@@ -139,16 +139,16 @@ const hasGit = (() => {
 				return typeof u === 'string' && u.endsWith('/from-terminal.txt');
 			});
 		};
-		const [branchFile, chatFile] = await Promise.all([
+		const [branchFile, sessionFile] = await Promise.all([
 			waitForEditedFile(branchChangesetUri),
-			waitForEditedFile(chatChangesetUri),
+			waitForEditedFile(sessionChangesetUri),
 		]);
 		assert.deepStrictEqual({
 			branch: { before: branchFile?.edit.before, hasAfter: !!branchFile?.edit.after },
-			chat: { before: chatFile?.edit.before, hasAfter: !!chatFile?.edit.after },
+			session: { before: sessionFile?.edit.before, hasAfter: !!sessionFile?.edit.after },
 		}, {
 			branch: { before: undefined, hasAfter: true },
-			chat: { before: undefined, hasAfter: true },
+			session: { before: undefined, hasAfter: true },
 		});
 	});
 

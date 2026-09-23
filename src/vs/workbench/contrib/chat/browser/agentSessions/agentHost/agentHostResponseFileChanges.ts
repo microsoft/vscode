@@ -194,10 +194,11 @@ export class AgentHostResponseFileChangesProvider extends Disposable implements 
 				changesetOwnerState.changesets,
 				sessionState?.changesets,
 			);
-			if (!resolvedCatalogue?.changesets.some(c => c.changeKind === ChangesetKind.Turn)) {
+			const turnEntry = resolvedCatalogue?.find(({ changeset }) => changeset.changeKind === ChangesetKind.Turn);
+			if (!turnEntry) {
 				return undefined;
 			}
-			const owner = resolvedCatalogue.owner === 'session' ? backendSession : backendChat;
+			const owner = turnEntry.owner === 'session' ? backendSession : backendChat;
 			return URI.parse(buildTurnChangesetUri(owner.toString(), requestId));
 		});
 

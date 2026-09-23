@@ -233,10 +233,15 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	registerStaticChangesets(session: ProtocolURI): void {
 		this._stateManager.registerChangeset(buildBranchChangesetUri(this._getBranchChangesetOwner(session)));
 		this._stateManager.registerChangeset(buildUncommittedChangesetUri(session));
-		this._stateManager.registerChangeset(buildSessionChangesetUri(session));
+		if (!isAhpChatChannel(session)) {
+			this._stateManager.registerChangeset(buildSessionChangesetUri(session));
+		}
 	}
 
 	restoreStaticChangeset(session: ProtocolURI, kind: StaticChangesetKind, diffs: readonly ISessionFileDiff[]): void {
+		if (kind === 'session' && isAhpChatChannel(session)) {
+			return;
+		}
 		const owner = kind === 'branch' ? this._getBranchChangesetOwner(session) : session;
 		const changesetUri = this._stateManager.registerChangeset(staticChangesetUri(owner, kind));
 		this._publishChangesetDiffs(owner, changesetUri, diffs);
@@ -510,7 +515,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	}
 
 	refreshSessionChangeset(session: ProtocolURI): void {
-		if (!this._hasWorkingDirectory(session)) {
+		if (isAhpChatChannel(session) || !this._hasWorkingDirectory(session)) {
 			return;
 		}
 		this._scheduleStaticRecompute(session, 'session', undefined, this._markStaticChangesetComputing(session, 'session'));
@@ -1071,60 +1076,6 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		return { diffs: dedupeSessionFileDiffs([...gitDiffs, trackedDiffs]), usedFallback: trackedRoots.length > 0 };
 	}
 
-	private async _computeChatChangesDiffs(session: ProtocolURI, db: ISessionDatabase, workingDirectories: readonly string[] | undefined): Promise<{ readonly diffs: readonly ISessionFileDiff[] | undefined; readonly usedFallback: boolean }> {
-		await this._stateManager.resolveChatState(session);
-		const latestTurnId = this._latestTurnIdAcrossChats(session);
-		if (!latestTurnId) {
-			return { diffs: [], usedFallback: false };
-		}
-		if (!workingDirectories?.length) {
-			return { diffs: undefined, usedFallback: false };
-		}
-
-		const workingDirectoryUris = this._parseWorkingDirectoryUris(session, workingDirectories);
-		if (workingDirectoryUris.length !== workingDirectories.length) {
-			return { diffs: undefined, usedFallback: false };
-		}
-
-		const { gitRepositories, nonGitDirectories } = await resolveSessionRepositories(workingDirectoryUris, this._gitService);
-		const perRepoDiffs = [...await this._computeRepositoryCheckpointDiffs(session, gitRepositories, latestTurnId)];
-		if (perRepoDiffs.some(diffs => diffs === undefined)) {
-			return { diffs: undefined, usedFallback: false };
-		}
-
-		const checkpointBackedNonGitRoots = new Set<string>();
-		for (const workingDirectory of nonGitDirectories) {
-			const diffs = await this._computeSessionCheckpointDiffs(session, workingDirectory, latestTurnId);
-			if (diffs !== undefined) {
-				perRepoDiffs.push(diffs);
-				checkpointBackedNonGitRoots.add(extUriBiasedIgnorePathCase.getComparisonKey(workingDirectory));
-			}
-		}
-		const trackedRoots = nonGitDirectories.filter(directory => !checkpointBackedNonGitRoots.has(extUriBiasedIgnorePathCase.getComparisonKey(directory)));
-		let trackedDiffs: readonly ISessionFileDiff[] = [];
-		if (trackedRoots.length > 0) {
-			trackedDiffs = await computeSessionDiffs(
-				this._getTrackedDatabaseUri(session),
-				db,
-				this._diffComputeService,
-				undefined,
-				trackedRoots,
-			);
-			trackedDiffs = trackedDiffs.filter(diff => {
-				const resource = diff.after?.uri ?? diff.before?.uri;
-				return resource !== undefined && !gitRepositories.some(root => extUriBiasedIgnorePathCase.isEqualOrParent(URI.parse(resource), root));
-			});
-		}
-
-		return {
-			diffs: dedupeSessionFileDiffs([
-				...perRepoDiffs.filter((diffs): diffs is readonly ISessionFileDiff[] => diffs !== undefined),
-				trackedDiffs,
-			]),
-			usedFallback: trackedRoots.length > 0,
-		};
-	}
-
 	private async _computeRepositoryCheckpointDiffs(session: ProtocolURI, gitRepositories: readonly URI[], latestTurnId: string | undefined): Promise<readonly (readonly ISessionFileDiff[] | undefined)[]> {
 		const limiter = new Limiter<readonly ISessionFileDiff[] | undefined>(MAX_DIFF_REPOSITORY_CONCURRENCY);
 		return Promises.settled(gitRepositories.map(repoRoot =>
@@ -1502,11 +1453,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		try {
 			let branchResult: BranchDiffResult | undefined;
 			let diffs: readonly ISessionFileDiff[] | undefined;
-			if (kind === 'session' && isAhpChatChannel(session)) {
-				const result = await this._computeChatChangesDiffs(session, ref.object, workingDirectories);
-				diffs = result.diffs;
-				usedEditTrackerFallback = result.usedFallback;
-			} else if (kind === 'session' && isMultiRootSession(workingDirectories)) {
+			if (kind === 'session' && isMultiRootSession(workingDirectories)) {
 				const result = await this._computeMultiFolderSessionDiffs(session, ref.object, workingDirectories!);
 				diffs = result.diffs;
 				usedEditTrackerFallback = result.usedFallback;
@@ -1520,20 +1467,6 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 				diffs = await this._tryComputeSessionGitDiffs(session);
 			}
 			if (!diffs) {
-				if (kind === 'session' && isAhpChatChannel(session)) {
-					if (statusBeforeCompute === ChangesetStatus.Ready) {
-						this._restoreStaticChangesetStatus(changesetUri, statusBeforeCompute);
-						outcome = 'preserved';
-						return;
-					}
-					this._stateManager.dispatchServerAction(changesetUri, {
-						type: ActionType.ChangesetStatusChanged,
-						status: ChangesetStatus.Error,
-						error: { errorType: 'computeFailed', message: 'Chat Changes requires an available Git checkpoint.' },
-					});
-					outcome = 'gitUnavailable';
-					return;
-				}
 				if (kind === 'branch') {
 					// Tracked edits cannot substitute for a branch diff; preserve the cached changeset.
 					this._logService.debug(`[AgentHostChangesetService] Branch git diff unavailable for ${session}; preserving cached changeset. previousStatus=${statusBeforeCompute ?? 'unknown'} cachedFiles=${this._stateManager.getChangesetState(changesetUri)?.files.length ?? 0}`);

@@ -62,12 +62,6 @@ const COMPARE_MODIFIED_TEMPLATE_VARIABLE = '{modifiedTurnId}';
 /** Localized human-readable label for the branch changeset entry. */
 export const branchChangesetLabel = (): string => localize('branchChangeset.label', "Branch Changes");
 
-/** Localized human-readable label for the chat-wide changeset entry. */
-export const chatChangesetLabel = (): string => localize('chatChangeset.label', "Chat Changes");
-
-/** Localized human-readable description for the chat-wide changeset entry. */
-export const chatChangesetDescription = (): string => localize('chatChangeset.description', "Show all changes made in this chat");
-
 /** Localized human-readable label for the session-wide changeset entry. */
 export const sessionChangesetLabel = (): string => localize('sessionChangeset.label', "Session Changes");
 
@@ -137,19 +131,34 @@ export const enum ChangesetKind {
 	Unknown = 'unknown',
 }
 
-const EMPTY_CHANGESET_CATALOGUE: readonly Changeset[] = [];
+/** Resolves the selectable catalogue for a chat and the owner of each entry. */
+export function resolveChatChangesetCatalogue(chatUri: URI, chatChangesets: readonly Changeset[] | undefined, sessionChangesets: readonly Changeset[] | undefined): readonly { readonly changeset: Changeset; readonly owner: 'chat' | 'session' }[] | undefined {
+	if (sessionChangesets === undefined) {
+		return chatChangesets
+			?.filter(changeset => changeset.changeKind !== ChangesetKind.Session)
+			.map(changeset => ({ changeset, owner: 'chat' as const }));
+	}
 
-/** Resolves a chat catalogue, falling back to the legacy session-wide catalogue shape. */
-export function resolveChatChangesetCatalogue(chatUri: URI, chatChangesets: readonly Changeset[] | undefined, sessionChangesets: readonly Changeset[] | undefined): { readonly changesets: readonly Changeset[]; readonly owner: 'chat' | 'session' } | undefined {
-	if (chatChangesets !== undefined) {
-		return { changesets: chatChangesets, owner: 'chat' };
+	const sessionChangeset = sessionChangesets.find(changeset => changeset.changeKind === ChangesetKind.Session);
+	if (chatChangesets === undefined) {
+		const legacyChangesets = sessionChangesets.filter(changeset => changeset.changeKind !== ChangesetKind.Session);
+		if (legacyChangesets.length === 0) {
+			return undefined;
+		}
+		const changesets = isDefaultChatUri(chatUri)
+			? sessionChangesets
+			: sessionChangeset ? [sessionChangeset] : [];
+		return changesets.map(changeset => ({ changeset, owner: 'session' as const }));
 	}
-	if (!sessionChangesets?.some(changeset => changeset.changeKind !== ChangesetKind.Session)) {
-		return undefined;
+
+	const resolved: { changeset: Changeset; owner: 'chat' | 'session' }[] = chatChangesets
+		.filter(changeset => changeset.changeKind !== ChangesetKind.Session)
+		.map(changeset => ({ changeset, owner: 'chat' as const }));
+	if (sessionChangeset) {
+		const turnIndex = resolved.findIndex(({ changeset }) => changeset.changeKind === ChangesetKind.Turn);
+		resolved.splice(turnIndex < 0 ? resolved.length : turnIndex, 0, { changeset: sessionChangeset, owner: 'session' });
 	}
-	return isDefaultChatUri(chatUri)
-		? { changesets: sessionChangesets, owner: 'session' }
-		: { changesets: EMPTY_CHANGESET_CATALOGUE, owner: 'chat' };
+	return resolved;
 }
 
 /** Changeset kinds that can represent a session's default changes view. */
@@ -381,7 +390,7 @@ export function parseCompareTurnsChangesetUri(uri: URI): { sessionUri: URI; orig
  * Ready session channels advertise the cumulative Session Changes entry. The
  * default chat is created together with the session and owns the temporary
  * uncommitted entry while the session is being created, as well as its
- * chat-specific catalogue after materialization.
+ * repository and turn catalogue after materialization.
  *
  * The first two chat entries (`Branch Changes`, `Uncommitted Changes`) are
  * included only when Git state is available. The backing per-changeset states
@@ -443,12 +452,6 @@ export function buildDefaultChangesetCatalog(ownerUri: URI, state?: ISessionWith
 	if (!gitState) {
 		// No git repository
 		return [{
-			label: chatChangesetLabel(),
-			description: chatChangesetDescription(),
-			uriTemplate: buildSessionChangesetUri(ownerUri),
-			changeKind: ChangesetKind.Session
-		},
-		{
 			label: thisTurnChangesetLabel(),
 			description: thisTurnChangesetDescription(),
 			uriTemplate: buildTurnChangesetUriTemplate(ownerUri),
@@ -472,12 +475,6 @@ export function buildDefaultChangesetCatalog(ownerUri: URI, state?: ISessionWith
 			description: uncommittedChangesetDescription(),
 			uriTemplate: buildUncommittedChangesetUri(ownerUri),
 			changeKind: ChangesetKind.Uncommitted
-		},
-		{
-			label: chatChangesetLabel(),
-			description: chatChangesetDescription(),
-			uriTemplate: buildSessionChangesetUri(ownerUri),
-			changeKind: ChangesetKind.Session
 		},
 		{
 			label: thisTurnChangesetLabel(),
