@@ -149,6 +149,12 @@ export const enum PluginFormat {
 	AgentPlugin,
 }
 
+/** A plugin-root token and its matching subprocess environment variable. */
+export interface IPluginRootInterpolation {
+	readonly token: string;
+	readonly envVar: string;
+}
+
 export interface IPluginFormatConfig {
 	readonly format: PluginFormat;
 	readonly manifestPath: string;
@@ -158,18 +164,26 @@ export interface IPluginFormatConfig {
 	readonly requiresManifest?: boolean;
 	readonly pluginRootTokens: readonly string[];
 	readonly pluginRootEnvVars: readonly string[];
+	/** The canonical plugin-root variable exposed to hook commands. */
+	readonly hookPluginRoot?: IPluginRootInterpolation;
 	/** Parses hooks from a JSON object using the format's conventions. */
 	parseHooks(hookUri: URI, json: unknown, pluginUri: URI, workspaceRoot: URI | undefined, userHome: URI): IParsedHookGroup[];
 }
 
 export type PluginComponent = 'commands' | 'skills' | 'agents' | 'rules' | 'hooks' | 'mcpServers' | 'automations';
 
+const PLUGIN_ROOT: IPluginRootInterpolation = { token: '${PLUGIN_ROOT}', envVar: 'PLUGIN_ROOT' };
+const CLAUDE_PLUGIN_ROOT: IPluginRootInterpolation = { token: '${CLAUDE_PLUGIN_ROOT}', envVar: 'CLAUDE_PLUGIN_ROOT' };
+const LEGACY_PLUGIN_ROOTS = [PLUGIN_ROOT, CLAUDE_PLUGIN_ROOT];
+const LEGACY_PLUGIN_ROOT_TOKENS = LEGACY_PLUGIN_ROOTS.map(root => root.token);
+const LEGACY_PLUGIN_ROOT_ENV_VARS = LEGACY_PLUGIN_ROOTS.map(root => root.envVar);
+
 const COPILOT_FORMAT: IPluginFormatConfig = {
 	format: PluginFormat.Copilot,
 	manifestPath: 'plugin.json',
 	hookConfigPath: 'hooks.json',
-	pluginRootTokens: ['${PLUGIN_ROOT}', '${CLAUDE_PLUGIN_ROOT}'],
-	pluginRootEnvVars: ['PLUGIN_ROOT', 'CLAUDE_PLUGIN_ROOT'],
+	pluginRootTokens: LEGACY_PLUGIN_ROOT_TOKENS,
+	pluginRootEnvVars: LEGACY_PLUGIN_ROOT_ENV_VARS,
 	parseHooks(hookUri, json, _pluginUri, workspaceRoot, userHome) {
 		return parseHooksJson(hookUri, json, workspaceRoot, userHome);
 	},
@@ -179,10 +193,11 @@ const CLAUDE_FORMAT: IPluginFormatConfig = {
 	format: PluginFormat.Claude,
 	manifestPath: '.claude-plugin/plugin.json',
 	hookConfigPath: 'hooks/hooks.json',
-	pluginRootTokens: ['${PLUGIN_ROOT}', '${CLAUDE_PLUGIN_ROOT}'],
-	pluginRootEnvVars: ['PLUGIN_ROOT', 'CLAUDE_PLUGIN_ROOT'],
+	pluginRootTokens: LEGACY_PLUGIN_ROOT_TOKENS,
+	pluginRootEnvVars: LEGACY_PLUGIN_ROOT_ENV_VARS,
+	hookPluginRoot: CLAUDE_PLUGIN_ROOT,
 	parseHooks(hookUri, json, pluginUri, workspaceRoot, userHome) {
-		return interpolateHookPluginRoot(hookUri, json, pluginUri, workspaceRoot, userHome, '${CLAUDE_PLUGIN_ROOT}', 'CLAUDE_PLUGIN_ROOT');
+		return interpolateHookPluginRoot(hookUri, json, pluginUri, workspaceRoot, userHome, CLAUDE_PLUGIN_ROOT);
 	},
 };
 
@@ -190,10 +205,11 @@ const OPEN_PLUGIN_FORMAT: IPluginFormatConfig = {
 	format: PluginFormat.OpenPlugin,
 	manifestPath: '.plugin/plugin.json',
 	hookConfigPath: 'hooks/hooks.json',
-	pluginRootTokens: ['${PLUGIN_ROOT}', '${CLAUDE_PLUGIN_ROOT}'],
-	pluginRootEnvVars: ['PLUGIN_ROOT', 'CLAUDE_PLUGIN_ROOT'],
+	pluginRootTokens: LEGACY_PLUGIN_ROOT_TOKENS,
+	pluginRootEnvVars: LEGACY_PLUGIN_ROOT_ENV_VARS,
+	hookPluginRoot: PLUGIN_ROOT,
 	parseHooks(hookUri, json, pluginUri, workspaceRoot, userHome) {
-		return interpolateHookPluginRoot(hookUri, json, pluginUri, workspaceRoot, userHome, '${PLUGIN_ROOT}', 'PLUGIN_ROOT');
+		return interpolateHookPluginRoot(hookUri, json, pluginUri, workspaceRoot, userHome, PLUGIN_ROOT);
 	},
 };
 
@@ -219,6 +235,13 @@ const AGENT_PLUGIN_FORMAT: IPluginFormatConfig = {
 	parseHooks(hookUri, json, _pluginUri, workspaceRoot, userHome) {
 		return parseHooksJson(hookUri, json, workspaceRoot, userHome);
 	},
+};
+
+const PLUGIN_FORMAT_CONFIGS: Readonly<Record<PluginFormat, IPluginFormatConfig>> = {
+	[PluginFormat.Copilot]: COPILOT_FORMAT,
+	[PluginFormat.Claude]: CLAUDE_FORMAT,
+	[PluginFormat.OpenPlugin]: OPEN_PLUGIN_FORMAT,
+	[PluginFormat.AgentPlugin]: AGENT_PLUGIN_FORMAT,
 };
 
 export async function detectPluginFormat(pluginUri: URI, fileService: IFileService): Promise<IPluginFormatConfig> {
@@ -566,27 +589,21 @@ export function shellQuotePluginRootInCommand(command: string, fsPath: string, t
  * Applies the plugin-root convention for a Claude or Open Plugin hook command.
  */
 export function interpolateHookCommandPluginRoot(hook: Record<string, unknown>, pluginUri: URI, format: PluginFormat): Record<string, unknown> {
-	switch (format) {
-		case PluginFormat.Claude:
-			return interpolateHookCommandRoot(hook, pluginUri, '${CLAUDE_PLUGIN_ROOT}', 'CLAUDE_PLUGIN_ROOT');
-		case PluginFormat.OpenPlugin:
-			return interpolateHookCommandRoot(hook, pluginUri, '${PLUGIN_ROOT}', 'PLUGIN_ROOT');
-		default:
-			return hook;
-	}
+	const root = PLUGIN_FORMAT_CONFIGS[format].hookPluginRoot;
+	return root ? interpolateHookCommandRoot(hook, pluginUri, root) : hook;
 }
 
-function interpolateHookCommandRoot(hook: Record<string, unknown>, pluginUri: URI, token: string, envVar: string): Record<string, unknown> {
+function interpolateHookCommandRoot(hook: Record<string, unknown>, pluginUri: URI, root: IPluginRootInterpolation): Record<string, unknown> {
 	const fsPath = pluginUri.fsPath;
-	const result = cloneAndChange(hook, value => typeof value === 'string' ? value.replaceAll(token, fsPath) : undefined) as Record<string, unknown>;
+	const result = cloneAndChange(hook, value => typeof value === 'string' ? value.replaceAll(root.token, fsPath) : undefined) as Record<string, unknown>;
 	for (const field of ['command', 'windows', 'linux', 'osx'] as const) {
 		if (typeof hook[field] === 'string') {
-			result[field] = shellQuotePluginRootInCommand(hook[field], fsPath, token);
+			result[field] = shellQuotePluginRootInCommand(hook[field], fsPath, root.token);
 		}
 	}
 	result.env = {
 		...(result.env && typeof result.env === 'object' && !Array.isArray(result.env) ? result.env : {}),
-		[envVar]: fsPath,
+		[root.envVar]: fsPath,
 	};
 	return result;
 }
@@ -865,13 +882,12 @@ export function interpolateHookPluginRoot(
 	pluginUri: URI,
 	workspaceRoot: URI | undefined,
 	userHome: URI,
-	token: string,
-	envVar: string,
+	root: IPluginRootInterpolation,
 ): IParsedHookGroup[] {
 	const typedJson = json as { hooks?: Record<string, unknown[]> };
 
 	const mutateHookCommand = (hook: Record<string, unknown>): void => {
-		Object.assign(hook, interpolateHookCommandRoot(hook, pluginUri, token, envVar));
+		Object.assign(hook, interpolateHookCommandRoot(hook, pluginUri, root));
 	};
 
 	for (const lifecycle of Object.values(typedJson.hooks ?? {})) {
@@ -895,7 +911,7 @@ export function interpolateHookPluginRoot(
 
 	const replacer = (v: unknown): unknown => {
 		return typeof v === 'string'
-			? v.replaceAll(token, pluginUri.fsPath)
+			? v.replaceAll(root.token, pluginUri.fsPath)
 			: undefined;
 	};
 
