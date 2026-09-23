@@ -110,6 +110,51 @@
 	color: var(--vscode-descriptionForeground);
 }
 
+.project-board-selection-tools {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: var(--vscode-spacing-size80);
+	margin-bottom: var(--vscode-spacing-size160);
+}
+
+.project-board-selection-tools > .monaco-button {
+	width: auto;
+}
+
+.project-board-selection-description {
+	flex-basis: 100%;
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-label1);
+}
+
+.project-board-card-heading {
+	display: flex;
+	align-items: flex-start;
+	gap: var(--vscode-spacing-size80);
+}
+
+.project-board-card-heading > h4 {
+	min-width: 0;
+	flex: 1;
+}
+
+.project-board-card-heading > .project-board-card-select {
+	flex-shrink: 0;
+	margin: 0;
+}
+
+.project-board-card.project-board-card-selected {
+	background: var(--vscode-list-inactiveSelectionBackground);
+	color: var(--vscode-list-inactiveSelectionForeground);
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
+.project-board-card.project-board-card-selected:focus-visible {
+	outline-offset: 1px;
+}
+
 .project-board-unassigned {
 	margin-bottom: 18px;
 }
@@ -531,4 +576,113 @@
 .project-board-row-heading .monaco-button {
 	overflow-wrap: anywhere;
 	white-space: normal;
+}
+
+.monaco-dialog-box.project-board-new-session-dialog {
+	width: 760px;
+	min-width: 0;
+	max-width: min(90vw, 840px);
+	max-height: 90vh;
+}
+
+.project-board-new-session-dialog .dialog-message-container {
+	min-width: 0;
+	flex: 1;
+}
+
+.monaco-dialog-box.project-board-new-session-dialog > .dialog-buttons-row {
+	display: none;
+}
+
+.project-board-new-session-body {
+	display: flex;
+	flex-direction: column;
+	min-width: 0;
+	gap: var(--vscode-spacing-size120);
+	padding-top: var(--vscode-spacing-size80);
+}
+
+.project-board-new-session-destination {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size80);
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-label1);
+}
+
+.project-board-new-session-destination .monaco-select-box {
+	flex: 1;
+	min-width: 0;
+}
+
+.project-board-new-session-composer {
+	min-width: 0;
+	min-height: 220px;
+}
+
+.project-board-new-session-composer .new-chat-widget-container {
+	padding: var(--vscode-spacing-size40) 0;
+	justify-content: flex-start;
+	overflow: visible;
+}
+
+.project-board-new-session-composer .new-chat-widget-content {
+	max-width: none;
+}
+
+.project-board-new-session-composer .new-chat-widget-container.revealed .new-chat-input-container,
+.project-board-new-session-composer .new-chat-widget-container.revealed .new-session-workspace-picker-container {
+	animation: none;
+}
+
+.project-board-new-session-composer .sessions-chat-dropdown-label {
+	overflow: hidden;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+}
+
+/* Dialog applies inline link styles to anchors, including the composer's toolbar buttons. */
+.project-board-new-session-composer a.action-label[role="button"],
+.project-board-new-session-composer .sessions-chat-picker-slot a.action-label {
+	color: var(--vscode-icon-foreground) !important;
+	text-decoration: none !important;
+}
+
+.project-board-new-session-composer .sessions-workspace-category-picker-slot a.action-label {
+	color: var(--vscode-descriptionForeground) !important;
+}
+
+.project-board-new-session-composer a.action-label.warning[role="button"],
+.project-board-new-session-composer .sessions-chat-picker-slot a.action-label.warning {
+	color: var(--vscode-problemsWarningIcon-foreground) !important;
+}
+
+.project-board-new-session-composer a.action-label.info[role="button"],
+.project-board-new-session-composer .sessions-chat-picker-slot a.action-label.info {
+	color: var(--vscode-problemsInfoIcon-foreground) !important;
+}
+
+.project-board-new-session-composer a.action-label[role="button"]:where(:not(.disabled, .agent-host-mode-permissions-trigger)):hover,
+.project-board-new-session-composer .sessions-chat-picker-slot a.action-label:where(:not(.disabled, .agent-host-mode-permissions-trigger)):hover,
+.project-board-new-session-composer .sessions-workspace-category-picker-slot a.action-label[aria-expanded="true"] {
+	color: var(--vscode-foreground) !important;
+}
+
+.project-board-new-session-error {
+	color: var(--vscode-errorForeground);
+	overflow-wrap: anywhere;
+}
+
+.project-board-new-session-status {
+	color: var(--vscode-descriptionForeground);
+}
+
+/* Override popup inline stacking so the modal does not intercept picker clicks. */
+.project-board-new-session-open .context-view.monaco-component,
+.project-board-new-session-open .quick-input-widget,
+.project-board-new-session-open .monaco-menu-container,
+.project-board-new-session-open .monaco-hover,
+.project-board-new-session-open .sessions-chat-editor-overflow,
+.project-board-new-session-open .suggest-widget {
+	z-index: 2600 !important;
 }

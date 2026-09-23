@@ -15,7 +15,7 @@ import { MockContextKeyService } from '../../../../../platform/keybinding/test/c
 import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
 import { AbstractCustomView } from '../../../customView/browser/customView.js';
 import { CustomViewService, ICustomViewService } from '../../../customView/browser/customViewService.js';
-import { IActiveSession, ICreateNewSessionOptions, IProviderSessionType, IRecentlyOpenedSessions, ISessionsManagementService } from '../../common/sessionsManagement.js';
+import { IActiveSession, ICreateNewSessionOptions, IProviderSessionType, IRecentlyOpenedSessions, ISessionDraft, ISessionsManagementService } from '../../common/sessionsManagement.js';
 import { ChatInteractivity, IChat, ISession, ISessionCanvasDefinition, ISessionType, ISessionWorkspace, ISideChatSelection, SessionStatus } from '../../common/session.js';
 import { SessionsNavigation } from '../../browser/sessionNavigation.js';
 import { getRecencyEntryKey, SessionsRecencyHistory } from '../../browser/sessionsRecencyHistory.js';
@@ -237,6 +237,7 @@ class MockSessionStore implements ISessionsManagementService {
 	}
 	restoreVisibleSessions(): Promise<void> { throw new Error('not implemented'); }
 	createNewSession(_folderUri: URI, _options?: ICreateNewSessionOptions): ISession { throw new Error('not implemented'); }
+	createSessionDraft(_folderUri: URI | undefined, _options?: ICreateNewSessionOptions): Promise<ISessionDraft> { throw new Error('not implemented'); }
 	createAutomationSession(_folderUri: URI, _options?: ICreateNewSessionOptions): ISession { throw new Error('not implemented'); }
 	createAutomationQuickChat(_options?: ICreateNewSessionOptions): ISession { throw new Error('not implemented'); }
 	getAutomationSessionConfiguration(): Promise<undefined> { return Promise.resolve(undefined); }
