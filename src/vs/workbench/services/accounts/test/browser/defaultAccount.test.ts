@@ -1121,13 +1121,14 @@ suite('DefaultAccountProvider', () => {
 		});
 	});
 
-	test('repeated no-response fetches let cached managed settings age out instead of renewing them', async () => {
+	test('failed fetches retain the last successful managed settings for a bounded time without renewing them', async () => {
 		const requestService = new TestRequestService(async () => {
 			throw new Error('managed settings unavailable');
 		});
 		const provider = await createProvider(requestService);
 		const freshlyCached = createCachedPolicy(false);
 		const staleFetchedAt = Date.now() - 2 * 60 * 60 * 1000; // twice the one-hour poll interval
+		const expiredFetchedAt = Date.now() - 25 * 60 * 60 * 1000; // beyond the one-day retention
 
 		const whileFresh = await provider['getManagedSettings'](sessions, freshlyCached, { forceRefresh: true });
 		const onceStale = await provider['getManagedSettings'](
@@ -1135,17 +1136,46 @@ suite('DefaultAccountProvider', () => {
 			{ ...freshlyCached, managedSettingsFetchedAt: staleFetchedAt },
 			{ forceRefresh: true }
 		);
+		const onceExpired = await provider['getManagedSettings'](
+			sessions,
+			{ ...freshlyCached, managedSettingsFetchedAt: expiredFetchedAt },
+			{ forceRefresh: true }
+		);
 
 		assert.deepStrictEqual({
 			status: provider.managedSettingsFetchStatus,
 			whileFresh: { data: whileFresh.data, fetchedAt: whileFresh.fetchedAt },
 			onceStale: { data: onceStale.data, fetchedAt: onceStale.fetchedAt },
+			onceExpired: { data: onceExpired.data, fetchedAt: onceExpired.fetchedAt },
 		}, {
 			status: 'no-response',
-			// A fresh cache still applies, but keeps its original timestamp so it can expire.
+			// A transient outage does not withdraw policy, and the original timestamp is never renewed.
 			whileFresh: { data: freshlyCached.policyData, fetchedAt: freshlyCached.managedSettingsFetchedAt },
-			// Once expired it is dropped rather than replayed with a renewed timestamp.
-			onceStale: { data: { managedSettings: undefined }, fetchedAt: undefined },
+			onceStale: { data: freshlyCached.policyData, fetchedAt: staleFetchedAt },
+			// Once retention ends it is dropped rather than replayed.
+			onceExpired: { data: { managedSettings: undefined }, fetchedAt: undefined },
+		});
+	});
+
+	test('an entitlements outage keeps the managed settings timestamp so later failures can retain them', async () => {
+		const requestService = new TestRequestService(async () => {
+			throw new Error('network unavailable');
+		});
+		const provider = await createProvider(requestService);
+		const cachedPolicy = { ...createCachedPolicy(false), managedSettingsFetchedAt: Date.now() - 2 * 60 * 60 * 1000 };
+		provider['_policyData'] = cachedPolicy;
+
+		const account = await provider['getDefaultAccountFromAuthenticatedSessions'](
+			{ id: 'github', name: 'GitHub', enterprise: false },
+			sessions,
+		);
+
+		assert.deepStrictEqual({
+			managedSettings: account?.policyData?.policyData.managedSettings,
+			managedSettingsFetchedAt: account?.policyData?.managedSettingsFetchedAt,
+		}, {
+			managedSettings: cachedPolicy.policyData.managedSettings,
+			managedSettingsFetchedAt: cachedPolicy.managedSettingsFetchedAt,
 		});
 	});
 

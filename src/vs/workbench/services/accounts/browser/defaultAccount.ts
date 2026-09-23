@@ -69,6 +69,8 @@ export const CONTEXT_DEFAULT_ACCOUNT_STATE = new RawContextKey<string>('defaultA
 const CACHED_POLICY_DATA_KEY = 'defaultAccount.cachedPolicyData';
 const ACCOUNT_DATA_POLL_INTERVAL_MS = 60 * 60 * 1000; // 1 hour
 const MANAGED_SETTINGS_REQUEST_TIMEOUT_MS = 5000;
+/** How long the last successful managed settings response survives failed refreshes. */
+const MANAGED_SETTINGS_FAILURE_RETENTION_MS = 24 * 60 * 60 * 1000;
 
 interface ITokenEntitlementsResponse {
 	token: string;
@@ -853,7 +855,7 @@ export class DefaultAccountProvider extends Disposable implements IDefaultAccoun
 			]);
 
 			const tokenEntitlementsFetchedAt: number | undefined = tokenEntitlementsResult?.fetchedAt;
-			const managedSettingsFetchedAt: number | undefined = managedSettingsResult?.fetchedAt;
+			const managedSettingsFetchedAt: number | undefined = managedSettingsResult ? managedSettingsResult.fetchedAt : accountPolicyData?.managedSettingsFetchedAt;
 			const managedSettingsScope = managedSettingsResult?.scope ?? accountPolicyData?.managedSettingsScope;
 			const managedSettingsCompatibilityError = managedSettingsResult
 				? managedSettingsResult.compatibilityError
@@ -1228,11 +1230,14 @@ export class DefaultAccountProvider extends Disposable implements IDefaultAccoun
 						compatibilityError: this._managedSettingsCompatibilityError,
 					};
 				}
-				// A failed fetch must not extend the life of the cached response: carry the cache's timestamp for expiry
-				const retained = this._managedSettingsCompatibilityError ? undefined : scopedCachedManagedSettings;
+				// A failed fetch is not evidence that policy was withdrawn, so ride out outages with the
+				// last successful response. Keep its timestamp so it is still refetched and eventually expires.
+				const retain = !this._managedSettingsCompatibilityError
+					&& scopedManagedSettingsFetchedAt !== undefined
+					&& Date.now() - scopedManagedSettingsFetchedAt < MANAGED_SETTINGS_FAILURE_RETENTION_MS;
 				return {
-					data: { managedSettings: retained?.data.managedSettings },
-					fetchedAt: retained?.fetchedAt,
+					data: { managedSettings: retain ? scopedManagedSettings : undefined },
+					fetchedAt: retain ? scopedManagedSettingsFetchedAt : undefined,
 					scope,
 					compatibilityError: this._managedSettingsCompatibilityError,
 				};
