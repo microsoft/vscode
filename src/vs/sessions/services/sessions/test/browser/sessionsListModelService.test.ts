@@ -29,8 +29,6 @@ function createSession(id: string, status: SessionStatus = SessionStatus.Complet
 		title: observableValue(`title-${id}`, id),
 		updatedAt: observableValue(`updatedAt-${id}`, opts?.updatedAt ?? new Date()),
 		status: observableValue(`status-${id}`, status),
-		changesets: observableValue(`changesets-${id}`, []),
-		changes: observableValue(`changes-${id}`, []),
 		modelId: observableValue(`modelId-${id}`, undefined),
 		mode: observableValue(`mode-${id}`, undefined),
 		loading: observableValue(`loading-${id}`, false),

@@ -11,9 +11,10 @@ import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
 import { GITHUB_COPILOT_PROTECTED_RESOURCE, GITHUB_REPO_PROTECTED_RESOURCE } from '../../common/agent.js';
-import { buildSessionChangesetUri } from '../../common/changesetUri.js';
+import { getWorkingDirectoryScopeId } from '../../common/agentHostWorkingDirectories.js';
+import { buildBranchChangesetUri, buildFolderChangesetOwnerUri, buildSessionChangesetUri } from '../../common/changesetUri.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
-import { withSessionGitHubState, withSessionGitState, type ISessionFileDiff, type ISessionGitState, MessageKind, ResponsePartKind, SessionStatus, TurnState, type Turn } from '../../common/state/sessionState.js';
+import { buildChatUri, withSessionGitHubState, withSessionGitState, type ISessionFileDiff, type ISessionGitState, MessageKind, ResponsePartKind, SessionStatus, TurnState, type Turn } from '../../common/state/sessionState.js';
 import type { IAgentHostGitService, IBranch, IDefaultBranch, IPushOptions } from '../../common/agentHostGitService.js';
 import { AgentHostPullRequestOperationHandler } from '../../node/agentHostPullRequestOperationHandler.js';
 import { createTestGitHubEndpointService } from './testGitHubEndpointService.js';
@@ -75,6 +76,7 @@ class TestGitService implements IAgentHostGitService {
 
 	readonly calls: string[] = [];
 	readonly requestedBaseBranches: Array<string | undefined> = [];
+	readonly workingDirectories: string[] = [];
 	readonly pushOptions: IPushOptions[] = [];
 	uncommitted = false;
 	upstream = false;
@@ -127,7 +129,8 @@ class TestGitService implements IAgentHostGitService {
 		this.calls.push(`push:${options.ref}:${options.setUpstream}`);
 		this.pushOptions.push(options);
 	}
-	async getSessionGitState(_workingDirectory: URI, baseBranchName?: string): Promise<ISessionGitState | undefined> {
+	async getSessionGitState(workingDirectory: URI, baseBranchName?: string): Promise<ISessionGitState | undefined> {
+		this.workingDirectories.push(workingDirectory.toString());
 		this.requestedBaseBranches.push(baseBranchName);
 		return this.createdBranch ? this.gitStateAfterBranchCreation : this.gitState;
 	}
@@ -231,10 +234,11 @@ function createAuthenticationService(withCopilotToken = false): IAgentHostAuthen
 	};
 }
 
-function setup(disposables: Pick<DisposableStore, 'add'>, gitService: TestGitService, octoKitService: IAgentHostOctoKitService, options?: { copilotApiService?: TestCopilotApiService; withCopilotToken?: boolean; turns?: Turn[]; draft?: boolean; autoMergeMethod?: AutoMergeMethod; enableAgentMerge?: boolean; agentMergeAvailable?: boolean; sessionAgentMergeEnabled?: boolean; agentMergeDefaults?: Partial<AgentMergeConfiguration>; agentMergeOverrides?: AgentMergeSessionOverrides; agentMergeControllerState?: AgentMergeControllerState; baseBranch?: string; branchPrefix?: string; workingDirectory?: string; logService?: ILogService }): { handler: AgentHostPullRequestOperationHandler; session: URI; createdEvents: string[]; createdBranches: string[]; sessionConfigUpdates: Record<string, unknown>[]; sessionConfigValues: Record<string, unknown>; copilotApiService: TestCopilotApiService; branchNameGenerator: TestBranchNameGenerator } {
+function setup(disposables: Pick<DisposableStore, 'add'>, gitService: TestGitService, octoKitService: IAgentHostOctoKitService, options?: { copilotApiService?: TestCopilotApiService; withCopilotToken?: boolean; turns?: Turn[]; draft?: boolean; autoMergeMethod?: AutoMergeMethod; enableAgentMerge?: boolean; agentMergeAvailable?: boolean; sessionAgentMergeEnabled?: boolean; agentMergeDefaults?: Partial<AgentMergeConfiguration>; agentMergeOverrides?: AgentMergeSessionOverrides; agentMergeControllerState?: AgentMergeControllerState; baseBranch?: string; branchPrefix?: string; workingDirectory?: string; logService?: ILogService }): { handler: AgentHostPullRequestOperationHandler; session: URI; stateManager: AgentHostStateManager; createdEvents: string[]; createdOwners: string[]; createdBranches: string[]; sessionConfigUpdates: Record<string, unknown>[]; sessionConfigValues: Record<string, unknown>; copilotApiService: TestCopilotApiService; branchNameGenerator: TestBranchNameGenerator } {
 	const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
 	const session = URI.parse('agent:/session');
 	const createdEvents: string[] = [];
+	const createdOwners: string[] = [];
 	const createdBranches: string[] = [];
 	const sessionConfigUpdates: Record<string, unknown>[] = [];
 	stateManager.createSession({
@@ -263,7 +267,7 @@ function setup(disposables: Pick<DisposableStore, 'add'>, gitService: TestGitSer
 		githubRepo: 'vscode',
 		branchName: 'feature/test',
 		baseBranchName: options?.baseBranch ?? 'main',
-	}), {
+	}), URI.file('/repo').toString(), {
 		owner: 'microsoft',
 		repo: 'vscode',
 	});
@@ -315,11 +319,14 @@ function setup(disposables: Pick<DisposableStore, 'add'>, gitService: TestGitSer
 			async () => options?.baseBranch ?? 'main',
 			async event => {
 				createdEvents.push(`${event.sessionKey}:${event.pullRequestUrl}`);
+				createdOwners.push(event.ownerUri);
 				createdBranches.push(event.branchName);
 			},
-			createAuthenticationService(options?.withCopilotToken), gitService, octoKitService, createTestGitHubEndpointService(), copilotApiService, branchNameGenerator, configurationService, options?.logService ?? new NullLogService()),
+			createAuthenticationService(options?.withCopilotToken), gitService, octoKitService, createTestGitHubEndpointService(), copilotApiService, branchNameGenerator, configurationService, options?.logService ?? new NullLogService(), stateManager),
 		session,
+		stateManager,
 		createdEvents,
+		createdOwners,
 		createdBranches,
 		sessionConfigUpdates,
 		sessionConfigValues,
@@ -400,6 +407,50 @@ suite('AgentHostPullRequestOperationHandler', () => {
 		await handler.invoke({ channel, operationId: 'create-pr', _meta: createPullRequestOperationMeta({ ...submittedOptions, expectedContext: prepared.context }) }, CancellationToken.None);
 		assert.deepStrictEqual({ branch: gitService.createdBranch, generatedBranches: branchNameGenerator.requests.length, created: createdEvents.length },
 			{ branch: 'agents/add-retry-logic', generatedBranches: 1, created: 1 });
+	});
+
+	test('prepares a pull request from the default-chat folder branch', async () => {
+		const gitService = new TestGitService();
+		gitService.gitState = { branchName: 'feature/test', githubOwner: 'microsoft', githubRepo: 'vscode' };
+		const { handler, session } = setup(disposables, gitService, new TestOctoKitService(), { withCopilotToken: true });
+		const workingDirectory = URI.file('/repo').toString();
+		const owner = buildFolderChangesetOwnerUri(session.toString(), getWorkingDirectoryScopeId([workingDirectory]));
+
+		await handler.prepare({
+			channel: buildBranchChangesetUri(owner),
+			operationId: PREPARE_PULL_REQUEST_OPERATION_ID,
+		}, CancellationToken.None);
+
+		assert.deepStrictEqual(gitService.workingDirectories, [workingDirectory]);
+	});
+
+	test('prepares and creates a pull request from another folder without touching session Agent Merge', async () => {
+		const gitService = new TestGitService();
+		gitService.gitState = { branchName: 'feature/tools', githubOwner: 'contoso', githubRepo: 'tools' };
+		const octoKitService = new TestOctoKitService();
+		const { handler, session, stateManager, createdOwners, sessionConfigUpdates } = setup(disposables, gitService, octoKitService, { withCopilotToken: true, agentMergeAvailable: true, sessionAgentMergeEnabled: true });
+		const otherFolder = URI.file('/other').toString();
+		stateManager.addChat(session.toString(), buildChatUri(session.toString(), 'peer'), { workingDirectories: [otherFolder] });
+		const owner = buildFolderChangesetOwnerUri(session.toString(), getWorkingDirectoryScopeId([otherFolder]));
+		const channel = buildBranchChangesetUri(owner);
+
+		const prepared = readPullRequestDetailsResult(await handler.prepare({ channel, operationId: PREPARE_PULL_REQUEST_OPERATION_ID }, CancellationToken.None));
+		await assert.rejects(() => handler.invoke({ channel, operationId: 'create-pr', _meta: createPullRequestOperationMeta({ ...submittedOptions, agentMerge: true }) }, CancellationToken.None), /Agent Merge is not available for chats working in other folders/);
+		await handler.invoke({ channel, operationId: 'create-pr', _meta: createPullRequestOperationMeta(submittedOptions) }, CancellationToken.None);
+
+		assert.deepStrictEqual({
+			repository: prepared.repository,
+			workingDirectory: prepared.context?.workingDirectory,
+			agentMergeAvailable: prepared.agentMergeAvailable,
+			createdOwners,
+			sessionConfigUpdates,
+		}, {
+			repository: 'contoso/tools',
+			workingDirectory: otherFolder,
+			agentMergeAvailable: false,
+			createdOwners: [owner],
+			sessionConfigUpdates: [],
+		});
 	});
 
 	for (const agentMergeAvailable of [false, true]) {

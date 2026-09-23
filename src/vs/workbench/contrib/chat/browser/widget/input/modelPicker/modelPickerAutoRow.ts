@@ -16,7 +16,14 @@ import { getModelConfigProperty, getModelConfigValueLabel, IModelConfigPropertyS
 export interface IAutoRowOptions {
 	readonly autoModel: ILanguageModelChatMetadataAndIdentifier;
 	readonly configurationAccess: IModelConfigurationAccess;
+	/** Accessible name of the switch. Defaults to describing Auto. */
+	readonly toggleAriaLabel?: string;
 	readonly isEnabled: () => boolean;
+	/**
+	 * Advances whenever the owner selects a model by any means. A tier activation that
+	 * would enable the row is dropped if another selection landed while it was saving.
+	 */
+	readonly selectionVersion?: () => number;
 	readonly onToggle: (enabled: boolean) => void;
 	/** Reports a successfully saved tier change, excluding activation of the current value. */
 	readonly onDidChangeConfiguration?: (group: string, key: string, fromValue: unknown, toValue: unknown) => void;
@@ -43,7 +50,7 @@ export class ModelPickerAutoRow extends DisposableStore {
 		dom.append(main, dom.$('.chat-model-picker-auto-label', undefined, _options.autoModel.metadata.name));
 
 		this._toggle = this.add(new Switch({
-			ariaLabel: localize('chat.modelPicker.autoToggle', "Choose a model automatically"),
+			ariaLabel: _options.toggleAriaLabel ?? localize('chat.modelPicker.autoToggle', "Choose a model automatically"),
 			checked: _options.isEnabled(),
 		}));
 		main.appendChild(this._toggle.domNode);
@@ -68,6 +75,10 @@ export class ModelPickerAutoRow extends DisposableStore {
 		// The tiers are left alone: their buttons take focus of their own accord.
 		this.add(dom.addDisposableGenericMouseDownListener(this._description, e => e.preventDefault()));
 		this.render();
+	}
+
+	focus(): void {
+		this._toggle.domNode.focus();
 	}
 
 	/** Re-reads the selection and tier so the row matches the current state. */
@@ -107,7 +118,8 @@ export class ModelPickerAutoRow extends DisposableStore {
 			}));
 			this._renderDisposables.add(control.onDidActivate(index => {
 				const toggleVersion = this._toggleVersion;
-				this._tierChanges.queue(() => this._activateTier(tier.key, values[index], toggleVersion)).catch(onUnexpectedError);
+				const selectionVersion = this._options.selectionVersion?.();
+				this._tierChanges.queue(() => this._activateTier(tier.key, values[index], toggleVersion, selectionVersion)).catch(onUnexpectedError);
 			}));
 			this._tierContainer.appendChild(control.domNode);
 			this._tierControl = control;
@@ -136,7 +148,7 @@ export class ModelPickerAutoRow extends DisposableStore {
 		this._options.onToggle(enabled);
 	}
 
-	private async _activateTier(key: string, value: unknown, toggleVersion: number): Promise<void> {
+	private async _activateTier(key: string, value: unknown, toggleVersion: number, selectionVersion: number | undefined): Promise<void> {
 		if (this.isDisposed) {
 			return;
 		}
@@ -151,7 +163,7 @@ export class ModelPickerAutoRow extends DisposableStore {
 				return;
 			}
 			focusedTier = this._getFocusedTier();
-			if (toggleVersion === this._toggleVersion && !this._options.isEnabled()) {
+			if (toggleVersion === this._toggleVersion && selectionVersion === this._options.selectionVersion?.() && !this._options.isEnabled()) {
 				this._toggleAuto(true);
 			}
 		} finally {

@@ -83,6 +83,8 @@ export interface IAgentHostGroup {
 	 * `false` for groups whose members connect implicitly. Defaults to `true`.
 	 */
 	readonly connectable?: boolean;
+	/** Provider that creates new environments for this group, without requiring an existing connection. */
+	readonly sessionCreationProviderId?: string;
 }
 
 /**

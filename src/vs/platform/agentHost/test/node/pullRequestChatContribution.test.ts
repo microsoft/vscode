@@ -16,7 +16,7 @@ import { createUnknownAgentHostClientTelemetryContext } from '../../common/agent
 import { createPullRequestChatMeta, IPullRequestChatOptions } from '../../common/meta/agentPullRequestOperationMeta.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { ActionType } from '../../common/state/sessionActions.js';
-import { buildDefaultChatUri, MessageKind, SessionStatus } from '../../common/state/sessionState.js';
+import { buildChatUri, buildDefaultChatUri, MessageKind, SessionStatus } from '../../common/state/sessionState.js';
 import { AgentConfigurationService, IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostChatContributions } from '../../node/agentHostChatContributionsService.js';
 import { AgentHostStateManager, IAgentHostStateManager } from '../../node/agentHostStateManager.js';
@@ -30,17 +30,21 @@ suite('PullRequestChatContribution', () => {
 		agentMergeOptions: { addressReviews: true, fixCI: true, resolveConflicts: false, mergePullRequest: 'never' },
 	};
 
-	function setup(selected: IPullRequestChatOptions = options, archived = false) {
+	function setup(selected: IPullRequestChatOptions = options, archived = false, otherFolder?: string) {
 		const log = new NullLogService();
 		const state = store.add(new AgentHostStateManager(log));
 		const config = store.add(new AgentConfigurationService(state, log));
 		const session = 'copilot:/pull-request-chat';
-		const chat = buildDefaultChatUri(session);
+		const chat = otherFolder ? buildChatUri(session, 'other-folder') : buildDefaultChatUri(session);
 		state.createSession({
 			resource: session, provider: 'test', title: 'Test',
 			status: archived ? SessionStatus.IsArchived : SessionStatus.IsRead,
 			createdAt: '2026-09-10T00:00:00.000Z', modifiedAt: '2026-09-10T00:00:00.000Z',
+			...(otherFolder ? { workingDirectories: ['file:///repo'] } : {}),
 		});
+		if (otherFolder) {
+			state.addChat(session, chat, { workingDirectories: [otherFolder] });
+		}
 		state.setSessionConfig(session, { schema: platformSessionSchema.toProtocol(), values: {} });
 		config.updateRootConfig({ [AgentMergeConfigKey.Enabled]: true });
 		const instantiation = store.add(new InstantiationService(new ServiceCollection(
@@ -112,6 +116,21 @@ suite('PullRequestChatContribution', () => {
 		start();
 		await contributions.outgoingTurn(turn);
 		assert.deepStrictEqual(config.getSessionConfigValues(turn.session)?.[SessionConfigKey.AgentMerge], { enabled: false, overrides: options.agentMergeOptions });
+	});
+
+	test('a chat in another folder cannot change the session folder\'s Agent Merge', async () => {
+		const enabling = setup(options, false, 'file:///other');
+		const manual = setup({ ...options, agentMerge: false, agentMergeOptions: undefined }, false, 'file:///other');
+		manual.config.updateSessionConfig(manual.turn.session, { [SessionConfigKey.AgentMerge]: { enabled: true, overrides: options.agentMergeOptions } });
+		manual.start();
+		await manual.contributions.outgoingTurn(manual.turn);
+		assert.deepStrictEqual({
+			enabling: enabling.contributions.incomingRequest(enabling.incoming).kind,
+			manual: manual.config.getSessionConfigValues(manual.turn.session)?.[SessionConfigKey.AgentMerge],
+		}, {
+			enabling: 'reject',
+			manual: { enabled: true, overrides: options.agentMergeOptions },
+		});
 	});
 
 	test('enabling without form overrides preserves existing session options', async () => {

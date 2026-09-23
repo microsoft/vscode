@@ -7,6 +7,7 @@ import assert from 'assert';
 import * as sinon from 'sinon';
 import * as dom from '../../../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../../../base/browser/window.js';
+import { IAction, Separator } from '../../../../../../base/common/actions.js';
 import { DeferredPromise, retry, timeout } from '../../../../../../base/common/async.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
@@ -18,10 +19,11 @@ import { Range } from '../../../../../../editor/common/core/range.js';
 import { ICodeEditorService } from '../../../../../../editor/browser/services/codeEditorService.js';
 import { IActionViewItemFactory, IActionViewItemService, NullActionViewItemService } from '../../../../../../platform/actions/browser/actionViewItemService.js';
 import { IMenuService, MenuId, MenuItemAction } from '../../../../../../platform/actions/common/actions.js';
-import { ConfirmationOptionKind, McpServerStatus } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { ConfirmationOptionKind, McpServerStatus, ToolCallStatus } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { CommandsRegistry } from '../../../../../../platform/commands/common/commands.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { IContextMenuService } from '../../../../../../platform/contextview/browser/contextView.js';
 import { IProductService } from '../../../../../../platform/product/common/productService.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
 import { NullHoverService } from '../../../../../../platform/hover/test/browser/nullHoverService.js';
@@ -34,6 +36,7 @@ import { IViewDescriptorService } from '../../../../../common/views.js';
 import { IChatOutputRendererService, RenderedOutputPart } from '../../../browser/chatOutputItemRenderer.js';
 import { ChatTreeItem, IChatAccessibilityService, IChatListItemRendererOptions, IChatWidget, IChatWidgetService } from '../../../browser/chat.js';
 import { IChatToolRiskAssessmentService } from '../../../browser/tools/chatToolRiskAssessmentService.js';
+import { toolCallStateToInvocation } from '../../../browser/agentSessions/agentHost/stateToProgressAdapter.js';
 import { AcceptToolConfirmationActionId, registerChatToolActions, SkipToolConfirmationActionId } from '../../../browser/actions/chatToolActions.js';
 import { buildPlanReviewProgressContent, ChatListItemRenderer, endsWithActiveSubagentContent, endsWithCompletedQuestionInteraction, formatCompletedResponseDisclosureLabel, formatResponseTokenStats, getCompletedResponseCollapseEndIndex, getFinalResponseStartIndex, getFinalResponseStartIndexAfterMovingResponseOutcomeTools, getPersistentProgressState, getPersistentWaitingLabel, getTrailingProgressLabel, getVisibleCompletedResponseItemCount, getWorkingProgressRelevantParts, IChatListItemTemplate, isAnchorTarget, isBlockingToolState, isFinalResponseRendered, isWaitingForMcpServers, moveResponseOutcomeToolsAfterFinalResponse, reconcileChatItemHeight, renderChatRequestTimestamp, renderChatResponseDetails, shouldCollapseCompletedResponsePart, shouldCreateGroupedThinkingPart, shouldHideChatUserIdentity, shouldPinToolInvocationToThinking, shouldRenderInitialProgressiveContentImmediately, shouldScheduleInitialHeightChange, shouldShowFileChangesSummaryForSettings, shouldShowTurnPillsSummary, shouldStartNewCollapsedThinkingGroup } from '../../../browser/widget/chatListRenderer.js';
 import { ChatWidget } from '../../../browser/widget/chatWidget.js';
@@ -1570,7 +1573,7 @@ suite('ChatListRenderer', () => {
 		return { disposables, instantiationService, configurationService, model, viewModel, request, response, container, renderer, template, node };
 	}
 
-	function configureTerminalProgressRenderer({ instantiationService, configurationService }: ReturnType<typeof createPersistentProgressRenderer>): void {
+	function configureTerminalProgressRenderer({ instantiationService, configurationService }: Pick<ReturnType<typeof createPersistentProgressRenderer>, 'instantiationService' | 'configurationService'>): void {
 		configurationService.setUserConfiguration('editor', { fontFamily: 'monospace' });
 		instantiationService.stub(IAccessibleViewService, new class extends mock<IAccessibleViewService>() {
 			override getOpenAriaHint() { return null; }
@@ -6606,6 +6609,82 @@ suite('ChatListRenderer', () => {
 				firstState: IChatToolInvocation.StateKind.Executing, secondState: IChatToolInvocation.StateKind.WaitingForConfirmation,
 			});
 		});
+
+		for (const carousel of [true, false]) {
+			for (const selectedOption of ['allow-session', 'allow-once', 'skip']) {
+				test(`renders sandbox bypass as a terminal confirmation and returns ${selectedOption} ${carousel ? 'in the carousel' : 'inline'}`, async () => {
+					const context = createConfirmationRenderer();
+					configureTerminalProgressRenderer(context);
+					context.configurationService.setUserConfiguration(ChatConfiguration.ToolConfirmationCarousel, carousel);
+					context.configurationService.setUserConfiguration('chat.tools.terminal.enableAutoApprove', true);
+					let menuActions: readonly IAction[] = [];
+					context.instantiationService.stub(IContextMenuService, new class extends mock<IContextMenuService>() {
+						override showContextMenu(delegate: Parameters<IContextMenuService['showContextMenu']>[0]): void {
+							assert.ok(delegate.getActions);
+							menuActions = delegate.getActions();
+						}
+					}());
+					const command = 'git switch -c DileepY/sandbox_sessionPicker; if ($LASTEXITCODE -eq 0) { git --no-pager status --short --branch }';
+					const title = 'Run in terminal outside the sandbox?';
+					const tool = toolCallStateToInvocation({
+						status: ToolCallStatus.PendingConfirmation,
+						toolCallId: 'sandbox-terminal',
+						toolName: 'powershell',
+						displayName: 'PowerShell',
+						invocationMessage: 'Create branch and verify working tree status',
+						toolInput: command,
+						confirmationTitle: title,
+						_meta: { toolKind: 'terminal', language: 'powershell', 'agentHost.sandboxBypass': true },
+						options: [
+							{ id: 'allow-session', label: 'Allow in this Session', kind: ConfirmationOptionKind.Approve, group: 1 },
+							{ id: 'allow-once', label: 'Allow Once', kind: ConfirmationOptionKind.Approve },
+							{ id: 'skip', label: 'Skip', kind: ConfirmationOptionKind.Deny, group: 2 },
+						],
+					}, undefined, context.model.sessionResource, 'local');
+					context.model.acceptResponseProgress(context.request, tool);
+					context.render();
+
+					const container = carousel ? context.confirmationContainer : context.template.value;
+					const editor = context.instantiationService.get(ICodeEditorService).listCodeEditors()
+						.find(editor => container.contains(editor.getDomNode()));
+					assert.ok(editor);
+					const displayed = {
+						terminal: !!container.querySelector('.chat-confirmation-message-terminal'),
+						command: editor.getValue(),
+						readOnly: editor.getRawOptions().readOnly,
+						ariaLabel: editor.getRawOptions().ariaLabel,
+					};
+					const primary = container.querySelector<HTMLElement>('.chat-confirmation-widget-buttons .monaco-button');
+					const dropdown = container.querySelector<HTMLElement>('.monaco-dropdown-button');
+					const skip = container.querySelector<HTMLElement>('.chat-confirmation-widget-buttons .monaco-button.secondary');
+					assert.ok(primary && dropdown && skip);
+					const labels = [primary, skip].map(button => button.textContent?.replaceAll('\u00a0', ' '));
+					dropdown.click();
+					const moreActions = menuActions.filter(action => !(action instanceof Separator));
+					const moreLabels = moreActions.map(action => action.label);
+					if (selectedOption === 'allow-once') {
+						assert.strictEqual(moreActions.length, 1);
+						await moreActions[0].run();
+					} else {
+						(selectedOption === 'skip' ? skip : primary).click();
+					}
+
+					assert.deepStrictEqual({
+						...displayed, labels, moreLabels,
+						confirmed: IChatToolInvocation.executionConfirmedOrDenied(tool),
+					}, {
+						terminal: true, command, readOnly: true, ariaLabel: title,
+						labels: ['Allow in this Session', 'Skip'],
+						moreLabels: ['Allow Once'],
+						confirmed: {
+							type: ToolConfirmKind.UserAction,
+							selectedButton: selectedOption,
+							selectedButtonKind: selectedOption === 'skip' ? ConfirmationOptionKind.Deny : ConfirmationOptionKind.Approve,
+						},
+					});
+				});
+			}
+		}
 
 		for (const cdPrefix of ['', 'cd /workspace && ']) {
 			test(`restores edited shell approvals after switching sessions (${cdPrefix ? 'directory prefix' : 'no prefix'})`, async () => {

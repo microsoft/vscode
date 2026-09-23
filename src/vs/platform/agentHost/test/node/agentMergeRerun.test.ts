@@ -383,6 +383,7 @@ class RerunTestHarness extends Disposable {
 			status: SessionStatus.Idle,
 			createdAt: new Date(0).toISOString(),
 			modifiedAt: new Date(0).toISOString(),
+			workingDirectories: ['file:///repo'],
 		});
 		this.stateManager.setSessionConfig(this.session, {
 			schema: platformSessionSchema.toProtocol(),
@@ -395,6 +396,7 @@ class RerunTestHarness extends Disposable {
 		});
 		this.stateManager.setSessionMeta(this.session, withSessionGitHubState(
 			withSessionGitState(undefined, { branchName: 'feature', baseBranchName: 'main' }),
+			'file:///repo',
 			{ pullRequestUrls: [pullRequestUrl], pullRequestBranchName: 'feature' },
 		));
 		const snapshot = this.snapshot;

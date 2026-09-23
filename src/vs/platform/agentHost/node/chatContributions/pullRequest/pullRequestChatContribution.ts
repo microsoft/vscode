@@ -11,6 +11,7 @@ import { readPullRequestChatMeta } from '../../../common/meta/agentPullRequestOp
 import { SessionConfigKey } from '../../../common/sessionConfigKeys.js';
 import { IAgentConfigurationService } from '../../agentConfigurationService.js';
 import { AgentHostStateManager, IAgentHostStateManager } from '../../agentHostStateManager.js';
+import { resolveGitHubStateFolder } from '../../agentHostBranchChangesetScope.js';
 
 /** Applies PR form automation choices only once its creation turn is admitted. */
 export class PullRequestChatContribution extends Disposable implements IAgentHostChatContribution {
@@ -34,13 +35,22 @@ export class PullRequestChatContribution extends Disposable implements IAgentHos
 				stage: 'validation',
 			};
 		}
+		if (options?.agentMerge && !this._followsSessionPullRequest(request.chat)) {
+			return {
+				kind: 'reject',
+				error: { errorType: 'invalidParams', message: localize('agentHost.pullRequestChat.agentMergeFolder', "Agent Merge is not available for chats working in other folders yet.") },
+				stage: 'validation',
+			};
+		}
 		return undefined;
 	}
 
 	onOutgoingTurn(turn: IOutgoingTurn): ISendContribution | undefined {
 		const options = readPullRequestChatMeta(turn.message);
 		// Preparation can be cancelled before this hook runs; never configure an idle session.
-		if (!options || this._stateManager.getChatState(turn.chat)?.activeTurn?.id !== turn.turnId) {
+		// Session Agent Merge follows the session folder's pull request, so a chat
+		// working in another folder leaves it unchanged.
+		if (!options || this._stateManager.getChatState(turn.chat)?.activeTurn?.id !== turn.turnId || !this._followsSessionPullRequest(turn.chat)) {
 			return undefined;
 		}
 		const current = readAgentMergeSessionState(this._configurationService.getSessionConfigValues(turn.session));
@@ -56,5 +66,10 @@ export class PullRequestChatContribution extends Disposable implements IAgentHos
 			});
 		}
 		return undefined;
+	}
+
+	/** Whether the chat works in the session folder, whose pull request session Agent Merge follows. */
+	private _followsSessionPullRequest(chat: string): boolean {
+		return resolveGitHubStateFolder(this._stateManager, chat).isSessionFolder;
 	}
 }

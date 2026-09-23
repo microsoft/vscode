@@ -790,6 +790,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		return this._currentLanguageModel;
 	}
 
+	get onDidChangeUserSelectedModel() {
+		return this._modelSelectionController.onDidChangeUserSelectedModel;
+	}
+
 	/** Models the current input can select. */
 	get availableLanguageModels(): readonly ILanguageModelChatMetadataAndIdentifier[] {
 		return this.getModels();

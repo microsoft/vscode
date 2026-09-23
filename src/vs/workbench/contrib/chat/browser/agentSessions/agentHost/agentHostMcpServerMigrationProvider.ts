@@ -10,18 +10,21 @@ import { autorun } from '../../../../../../base/common/observable.js';
 import { equals } from '../../../../../../base/common/objects.js';
 import { getComparisonKey, isEqual } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
+import { localize } from '../../../../../../nls.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { IConfigurationResolverService } from '../../../../../services/configurationResolver/common/configurationResolver.js';
 import { ICustomizationHarnessService, ICustomizationMcpServerMigrationProvider } from '../../../common/customizationHarnessService.js';
+import { ContributionEnablementState } from '../../../common/enablement.js';
 import { getChatSessionType } from '../../../common/model/chatUri.js';
 import { CustomizationMigrationType, getCustomizationMigrationEnablementSetting, getMcpServerCustomizationMigrationCandidateKey, IMcpServerCustomizationMigrationCandidate, IMcpServerCustomizationMigrationFailure, IMcpServerCustomizationMigrationResult, McpServerCustomizationMigration, McpServerCustomizationMigrationFailureReason } from '../../../common/promptSyntax/service/customizationMigrationService.js';
 import { isMcpServerMigrationDeliverable, McpServerCustomizationMigrator } from '../../aiCustomization/mcpServerCustomizationMigration.js';
+import { IMcpService, WORKSPACE_DOT_MCP_COLLECTION_ID_PREFIX } from '../../../../mcp/common/mcpTypes.js';
 import { IAgentHostActiveClientService } from './agentHostActiveClientService.js';
 import { IAgentHostCustomizationService } from './agentHostCustomizationService.js';
-import { AgentHostMcpServerApplicability, IAgentHostMcpServerSupportSnapshot } from './agentHostMcpServerSupport.js';
-import { IAgentHostMcpServerSupportScope } from './agentHostMcpServerSupportScope.js';
+import { AgentHostMcpServerApplicability, AgentHostMcpServerDelivery, AgentHostMcpServerEnablementState, IAgentHostMcpServerSupport, IAgentHostMcpServerSupportSnapshot } from './agentHostMcpServerSupport.js';
+import { getMcpCompatibilityDetail, IAgentHostMcpServerSupportScope } from './agentHostMcpServerSupportScope.js';
 
 export class AgentHostMcpServerMigrationProvider extends Disposable implements ICustomizationMcpServerMigrationProvider {
 	private readonly mcpServerMigration: McpServerCustomizationMigrator;
@@ -36,6 +39,7 @@ export class AgentHostMcpServerMigrationProvider extends Disposable implements I
 		@ILogService private readonly logService: ILogService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IConfigurationResolverService configurationResolverService: IConfigurationResolverService,
+		@IMcpService private readonly mcpService: IMcpService,
 	) {
 		super();
 		this.mcpServerMigration = new McpServerCustomizationMigrator(fileService, logService, configurationResolverService);
@@ -49,6 +53,9 @@ export class AgentHostMcpServerMigrationProvider extends Disposable implements I
 	}
 
 	async computeMigration(sessionResource: URI, token = CancellationToken.None): Promise<McpServerCustomizationMigration> {
+		if (!this.isMigrationEnabled()) {
+			return this.emptyMigration();
+		}
 		const roots = this.agentHostCustomizationService.getClientWorkingDirectoryUris(sessionResource);
 		const scope = this.activeClientService.acquireMcpServerSupportScope(getChatSessionType(sessionResource), roots);
 		if (!scope) {
@@ -60,11 +67,11 @@ export class AgentHostMcpServerMigrationProvider extends Disposable implements I
 				return this.emptyMigration();
 			}
 			const snapshot = scope.support.get();
-			const candidates = this.isMigrationEnabled()
-				? (await this.mcpServerMigration.createPlan(snapshot, roots, token)).candidates
-				: [];
+			const plan = await this.mcpServerMigration.createPlan(snapshot, roots, token);
+			const candidates = plan.candidates;
 			if (!await this.waitForMcpServerSupport(scope, token)
 				|| !this.areRootsEqual(roots, this.agentHostCustomizationService.getClientWorkingDirectoryUris(sessionResource))
+				|| !equals(scope.support.get().servers, snapshot.servers)
 				|| !this.isMcpSupportContextCurrent(scope.support.get(), snapshot, candidates)) {
 				return this.emptyMigration();
 			}
@@ -78,7 +85,14 @@ export class AgentHostMcpServerMigrationProvider extends Disposable implements I
 						name: server.name,
 						supported: server.compatibility.kind === 'supported',
 					})),
-				candidates: this.isMigrationEnabled() ? candidates : [],
+				candidates,
+				exclusions: plan.exclusions.map(exclusion => ({
+					...exclusion,
+					details: this.getExclusionDetails(
+						settledSnapshot.servers.find(server => server.id === exclusion.id),
+						exclusion.reason,
+					),
+				})),
 				discoveryComplete: settledSnapshot.discoveryComplete,
 				coverage: settledSnapshot.coverage,
 			};
@@ -143,6 +157,7 @@ export class AgentHostMcpServerMigrationProvider extends Disposable implements I
 				roots,
 			});
 			const combined = { migratedCount: result.migratedCount, failures: [...failures, ...result.failures] };
+			this.preserveMigratedEnablement(supportSnapshot, roots, eligibleCandidates, combined.failures);
 			for (const failure of combined.failures) {
 				if (failure.error) {
 					this.logService.error(`[MCP Customization Migration] Failed: reason=${failure.reason}, server=${failure.name}`, failure.error);
@@ -162,12 +177,65 @@ export class AgentHostMcpServerMigrationProvider extends Disposable implements I
 			type: CustomizationMigrationType.McpServers,
 			servers: [],
 			candidates: [],
+			exclusions: [],
 			discoveryComplete: true,
 			coverage: {
 				restrictedByMcpAccess: false,
 				restrictedByCustomizationPolicy: false,
 			},
 		};
+	}
+
+	private getExclusionDetails(server: IAgentHostMcpServerSupport | undefined, reason: McpServerCustomizationMigrationFailureReason): readonly string[] {
+		if (server && server.applicability !== AgentHostMcpServerApplicability.Applicable) {
+			return [localize('mcpMigrationServerNotApplicable', "This server is not associated with the current workspace.")];
+		}
+		if (server && server.compatibility.kind !== 'supported') {
+			return server.compatibility.reasons.map(getMcpCompatibilityDetail);
+		}
+		if (server && server.delivery !== AgentHostMcpServerDelivery.ClientForwarded) {
+			return [localize('mcpMigrationServerNotForwarded', "This server is not forwarded from its current configuration to the active agent.")];
+		}
+		switch (reason) {
+			case McpServerCustomizationMigrationFailureReason.SourceUnavailable:
+				return [localize('mcpMigrationServerSourceUnavailable', "The source MCP configuration could not be read.")];
+			case McpServerCustomizationMigrationFailureReason.InvalidSource:
+				return [localize('mcpMigrationServerInvalidSource', "The source MCP configuration or server definition is invalid.")];
+			case McpServerCustomizationMigrationFailureReason.UnrepresentableConfiguration:
+				return [localize('mcpMigrationServerUnrepresentable', "The server configuration cannot be moved without changing its behavior.")];
+			default:
+				return [localize('mcpMigrationServerIneligible', "This server no longer meets the migration requirements.")];
+		}
+	}
+
+	private preserveMigratedEnablement(
+		snapshot: IAgentHostMcpServerSupportSnapshot,
+		roots: readonly URI[],
+		candidates: readonly IMcpServerCustomizationMigrationCandidate[],
+		failures: readonly IMcpServerCustomizationMigrationFailure[],
+	): void {
+		const failedIds = new Set(failures.map(failure => failure.id));
+		const servers = new Map(snapshot.servers.map(server => [server.id, server]));
+		for (const candidate of candidates) {
+			if (failedIds.has(candidate.id)) {
+				continue;
+			}
+			const state = servers.get(candidate.id)?.enablement.state;
+			const targetState = state === AgentHostMcpServerEnablementState.DisabledProfile
+				? ContributionEnablementState.DisabledProfile
+				: state === AgentHostMcpServerEnablementState.DisabledWorkspace
+					? ContributionEnablementState.DisabledWorkspace
+					: undefined;
+			if (targetState === undefined) {
+				continue;
+			}
+			const rootIndex = roots.findIndex(root => isEqual(candidate.targetUri, URI.joinPath(root, '.mcp.json')));
+			if (rootIndex < 0) {
+				continue;
+			}
+			this.mcpService.enablementModel.setEnabled(`${WORKSPACE_DOT_MCP_COLLECTION_ID_PREFIX}${rootIndex}.${candidate.name}`, targetState);
+			this.mcpService.enablementModel.remove(candidate.id);
+		}
 	}
 
 	private isExecutionContextCurrent(sessionResource: URI, roots: readonly URI[], generation: number): boolean {
